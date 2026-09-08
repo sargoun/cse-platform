@@ -551,6 +551,101 @@ Eine absichtlich offene Route steht mit `recht: null` **und einer Begründung**
 im Manifest. Sie fehlt dann nicht — sie ist eine Entscheidung, die jemand
 getroffen hat.
 
+### D-36 · Der Rechtekatalog wird aus dem Dokument ERZEUGT, nicht abgetippt
+
+Der Katalog gehört `03-AUTH-BERECHTIGUNGEN.md` §12 und nur ihm (K-19).
+`scripts/katalog/extrahiere.ts` liest die Matrix — dieselben Glyphen, die ein
+Mensch dort liest — und schreibt daraus die TypeScript-Fassung und den
+Seed-Block von `0008`. Eine abgetippte zweite Fassung gewinnt beim ersten
+Widerspruch mit dem Dokument, ohne dass jemand den Widerspruch sieht, und ein
+falscher Schlüssel ist unter K-19 kein Fehler, sondern ein dauerhaft leerer
+Bildschirm.
+
+**`gruppe.*.lesen` ist eine Sammelzeile und wird entfaltet.** §12.1 sagt
+wörtlich "mechanisch eine Zeile je Modul aus §7.4". Der erste Lauf des
+Extraktors übersprang sie stillschweigend, weil sein Muster `[a-z_]` verlangte
+und die Zeile ein `*` trägt — und damit fehlte **jeder** Gruppenlese-Schlüssel:
+genau der K-19-Ausfall, den derselbe Abschnitt beschreibt. 159 Matrixzeilen
+werden so zu **207** Katalogschlüsseln (46 Module plus die zwei mit Objektsilbe,
+`gruppe.system.audit_lesen` und `gruppe.dienstplan.arbzg_lesen`; `gruppe`
+selbst wird nicht entfaltet, `gruppe.gruppe.lesen` benennt nichts).
+
+### D-37 · Die K-19-Prüfung braucht zwei Detektoren, nicht einen
+
+Die naheliegende Prüfung sucht Schlüssel an ihrem **Modul**. Sie ist blind für
+genau den Fall, den die Vorgabe als Fixture nennt: `rechnung.lesen`. Das Modul
+`rechnung` gibt es nicht (der Schlüssel heisst `finanzen.lesen`), der
+Modulfilter greift nicht, und ein erfundener Schlüssel käme durch. Der zweite
+Detektor sucht deshalb die **Stelle**: was in `hat_recht(…)` steht oder unter
+`recht:` im Routenmanifest, ist ein Rechteschlüssel, egal wie sein erstes
+Segment heisst. Ein Fixture mit `rechnung.lesen` bricht den Build, verifiziert.
+
+Zwei falsch-positive Quellen mussten weg, und beide hatten die Prüfung
+zunächst wertlos gemacht:
+
+- Der erzeugte Seed-Block enthält naturgemäss jeden Schlüssel. Mitgezählt war
+  jeder Schlüssel immer "benutzt" — die Prüfung eine Tautologie, im ersten Lauf
+  mit dem Ergebnis "0 unbenutzt von 207".
+- Kommentare. Zwei Erwähnungen in Prosa (`` `nummernkreis.letzter_hash` ``,
+  `` `system.rechte_verwalten` ``) zählten als Benutzung. Ein Schlüssel, der
+  erwähnt wird, wird nicht geprüft.
+
+Die Gegenrichtung — "keine Katalogzeile ohne Zweck" — läuft gegen eine
+**eingefrorene** Warteliste (202 von 207). Die Zusage ist Teilmengenschaft: die
+Menge der unbenutzten Schlüssel darf nur schrumpfen. Ein neu erfundener
+Schlüssel, den niemand prüft, steht nicht darauf und bricht den Build; ein
+Modul, das landet, streicht seine Zeilen. Die Prüfung abzuschalten, weil die
+Plattform erst zu 7 % gebaut ist, hätte sie für den Rest des Projekts
+abgeschaltet.
+
+### D-38 · `system.rechte_verwalten` gibt es nicht — der Schlüssel heisst `system.rolle_verwalten`
+
+Beim Schreiben des Editor-Triggers habe ich `system.rechte_verwalten`
+verwendet. Der Katalog kennt ihn nicht. Unter K-19 wäre das kein Fehler
+gewesen, sondern ein Rechte-Editor, der für **jeden** Benutzer dauerhaft
+"fehlende Berechtigung" meldet — die Sorte Defekt, die man in der Produktion
+sucht und nicht findet. Genau dafür ist die Prüfung aus D-37 da; sie hat ihn
+gefunden.
+
+`system.rolle_verwalten` ist für `admin` ausserdem nur **bindbar** (`○`), nicht
+gebunden (`✔`): den Rechte-Editor bekommt ein Bereichsadmin, wenn jemand ihn
+ihm gibt. Ein Test, der stillschweigend annahm, ein `admin` habe ihn, war
+falsch — nicht die Matrix.
+
+### D-39 · Dreiwertige Logik im Aussperrschutz, und die Reihenfolge der Prüfungen
+
+Der Trigger, der den letzten `super_admin` schützt, begann mit
+`if not (old.globale_rolle_id = v_sa and …)`. Ist die Spalte NULL, ist der
+Vergleich NULL, `not NULL` ist NULL, das `if` greift nicht — und der Schutz
+schlug bei einem Konto zu, das mit Super-Admin nie etwas zu tun hatte. Gefunden
+hat es die Sperrprüfung aus PR 6, die ein gewöhnliches Konto sperrte und daran
+scheiterte. `is distinct from` kennt kein NULL; der Vergleich steht jetzt so da.
+
+Im Editor-Trigger kommt der Aussperrschutz **vor** der Rechteprüfung und gilt
+auf jedem Weg, auch dem einer Migration: `super_admin` ist die Rolle, über die
+Rechte überhaupt vergeben werden, und ihr eines zu entziehen ist dieselbe
+Aussperrung wie das Konto zu deaktivieren, nur durch die andere Tür. Die
+Rechteprüfung dagegen gilt nur für Handelnde — ohne angemeldeten Benutzer läuft
+kein Editor, sondern ein Seed, der keine Rolle hat, deren Rechte man prüfen
+könnte.
+
+### D-40 · Bekannte Lücke: 24 Module ohne `<modul>.schreiben` im Katalog
+
+K-03 fixiert die Standardpolicy jeder Mandantentabelle mit
+`app.hat_recht('<modul>.schreiben', mandant_id)` in der `WITH CHECK`. Die
+Matrix in §12 führt für **24** der 47 Module keine `.schreiben`-Zeile (und für
+15 keine `.lesen`-Zeile). Wo diese Module Tabellen bekommen, würde die Policy
+einen Schlüssel nennen, den der Katalog nicht hat — und unter K-19 hiesse das:
+die Tabelle liest und schreibt nichts, dauerhaft, ohne Fehlermeldung.
+
+Hier wird **nichts erfunden**: die betroffenen Module haben heute keine
+Tabellen (sie landen in Phase 4 bis 9), und ein Schlüssel, den niemand
+entschieden hat, gehört nicht in den Katalog. Stattdessen greift der Mechanismus
+aus D-37 zum richtigen Zeitpunkt: sobald eine Policy `crm.schreiben` nennt,
+bricht die K-19-Prüfung den Build, und jemand fügt die Katalogzeile bewusst
+hinzu — oder stellt fest, dass der Schlüssel anders heisst. Die Lücke ist damit
+nicht geschlossen, aber sie kann nicht mehr stillschweigend passiert werden.
+
 ---
 
 ## Carried over from the Phase 0 review — not client questions

@@ -20,6 +20,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/server/db/migrate.ts",
     "db:triggers": "tsx scripts/generate-triggers.ts",
+    "katalog": "tsx scripts/katalog/extrahiere.ts && tsx scripts/katalog/seed-sql.ts",
     "db:seed": "tsx src/server/db/seed/index.ts",
     "test:isolation": "vitest run --config vitest.isolation.config.ts",
     "db:test:up": "bash scripts/test-db.sh up",

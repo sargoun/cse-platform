@@ -5,6 +5,7 @@
  * would pass for the wrong reason.
  */
 import postgres from 'postgres';
+import { KATALOG } from '../../src/server/auth/katalog.generiert.js';
 
 export const DB_URL =
   process.env['TEST_DATABASE_URL'] ?? 'postgres://postgres@localhost:55432/cse_test';
@@ -144,6 +145,26 @@ export async function seed(): Promise<Fixtur> {
         `insert into rolle (schluessel, bezeichnung, geltungsbereich, portal, erfordert_2fa, ist_system)
          values ($1,$2,$3::rolle_geltungsbereich,$4,$5,true)`,
         [schluessel, bezeichnung, bereich, portal, zweiFaktor] as never[],
+      );
+    }
+
+    /**
+     * Und die Plattform-Vorgaben (`mandant_id IS NULL`) aus §12.
+     *
+     * `rolle_berechtigung` hängt über `mandant_id` an `mandant` und wird vom
+     * `cascade` oben mitgeleert; die Rollen bekommen ausserdem neue ids. Ohne
+     * diese Schleife hält nach dem ersten `seed()` niemand mehr irgendein
+     * Recht, und jeder Test danach prüft eine Plattform, in der nichts geht.
+     */
+    const paare = KATALOG.flatMap((e) => e.gebunden.map((r) => [r, e.schluessel]));
+    if (paare.length > 0) {
+      await tx.unsafe(
+        `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+         select r.id, b.id, null, true
+           from unnest($1::text[], $2::text[]) as v(rolle, schluessel)
+           join rolle r on r.schluessel = v.rolle and r.mandant_id is null
+           join berechtigung b on b.schluessel = v.schluessel`,
+        [paare.map((x) => x[0]), paare.map((x) => x[1])] as never[],
       );
     }
 
