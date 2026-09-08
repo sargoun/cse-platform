@@ -1,0 +1,2130 @@
+# Datenmodell — CRM & Operations (Kunden, Objekte, Raumbuch, Kataloge, Leads, Angebote, Kalkulation, Aufträge, Vertragsabrechnung, Dokumente)
+
+This document is the normative contract that the Phase 4 migration PRs are built against: every table, column, index, RLS policy, constraint, trigger, view and service interface below is binding, and an implementation that deviates is wrong until this document is amended first. It sits under `docs/architecture/00-KONVENTIONEN.md` — where this document and a convention disagree, **the convention wins and this document is defective** — and every resolution below cites the `K-id` it applies. Where the SPEC is genuinely open, the column exists, carries a visibly labelled placeholder, and emits `// TODO(client)` at its point of use (K-17); a concrete legal, financial or tariff value that the SPEC does not state and that is not marked is a defect, not a detail.
+
+---
+
+## 0. Scope, files and standing
+
+**Domain:** the commercial spine of the platform — who the customer is (`firma`, `kunde`, `ansprechpartner`), where work happens (`objekt`, `raum`, `belagsart`, `reinigungsklasse`), what may be sold (`leistungskatalog`), how work arrives (`formular_definition`, `formular_eingang`, `lead`), what is offered and at what cost (`angebot`, `kalkulation`), what is owed (`auftrag`, `auftrag_leistung`, `vertrag_abrechnung`) and what is filed (`dokument`).
+
+**Phase:** 0 (design only). **Implements in:** ROADMAP Phase 4, except `formular_definition` / `formular_zustaendigkeit` / `formular_eingang` / `lead`, whose first migration ships with the public website in Phase 2 because REQ-01…REQ-07 are Phase 2 acceptance criteria.
+
+### 0.1 Schema files
+
+| File | Tables |
+|---|---|
+| `src/server/db/schema/crm.ts` | `firma`, `kunde`, `kunde_zugang`, `kunde_bauleistender_status`, `freistellungsbescheinigung`, `ansprechpartner`, `formular_definition`, `formular_zustaendigkeit`, `formular_eingang`, `lead`, `lead_aktivitaet` |
+| `src/server/db/schema/operations.ts` | `objekt`, `raum`, `belagsart`, `reinigungsklasse`, `raumbuch_import`, `raumbuch_import_zeile`, `raum_import_historie`, `leistungskatalog`, `leistungskatalog_position`, `angebot`, `angebotsposition`, `angebot_steuer`, `kalkulation`, `kalkulation_position`, `auftrag`, `auftrag_leistung`, `vertrag_abrechnung`, `auftrag_dokument` |
+| `src/server/db/schema/dokumente.ts` | `dokument`, `dokument_version`, `dokument_aufbewahrung` |
+| `src/server/db/rls.ts` | this domain's entries in the enumerated policy / ceiling / grant registry the build checks (K-04, K-05) |
+
+### 0.2 What this document does not decide
+
+`rechnung`, `rechnungsposition`, `nummernkreis`, `konto_mapping`, `lieferant` and the §14 UStG pre-flight belong to the finance document; `einsatz`, `zeiteintrag`, `turnus`, `revier` to the Dienstplan/Zeit document; `lv_position`, `aufmass`, `nachtrag`, `projekt` to the Bau document; `freigabe`, `freigabe_snapshot` to the approval document (K-13); `aufgabe`, `kalender_eintrag`, `benachrichtigung` to the calendar document; `referenz`, `seite`, `social_post` to the website document. §3.2 lists every boundary reference and the column shape this domain requires of it — those shapes are **binding on the sibling document**.
+
+### 0.3 Identifier language
+
+CLAUDE.md puts domain identifiers in German and infrastructure identifiers in English. Inside the database the two are not separable: a trigger function that enforces `rechtsgrundlage` *is* the domain rule, and `01-KERN.md` has already established the platform's SQL naming (`app.hat_recht`, `app.sichtbare_mandanten`, `kern.setze_geaendert_am`, `audit_log_unveraenderlich`). This document follows that precedent and states it once, resolving the review's inconsistency finding:
+
+| Layer | Language | Examples |
+|---|---|---|
+| Tables, columns, enums, constraints, indexes, policies | German | `vertrag_abrechnung`, `rechtsgrundlage`, `angebot_nummer_an_versand_ck` |
+| SQL functions in `app.` and `kern.` (helpers, triggers) | German | `app.darf_kontaktiert_werden`, `kern.erzwinge_serverzeit` |
+| Postgres roles | English, per K-01 | `cse_app`, `cse_job`, `cse_definer` |
+| TypeScript infrastructure | English | `withTenant`, `AbrechnungsStrategie` (a domain type keeps its German head noun), `hashChain` |
+
+### 0.4 Common columns, keys and deletion (K-16, invariant 8)
+
+Every table: `id uuid primary key default gen_random_uuid()`, `erstellt_am timestamptz not null default now()`; mutable tables add `geaendert_am timestamptz` maintained by `kern.setze_geaendert_am()`. Accountability adds `erstellt_von` / `geaendert_von` referencing `benutzer(id)`, filled by trigger from `app.aktueller_benutzer()` and never by the application (SEC-A9). Tables an agent may author rows in additionally carry `akteur_art akteur_art not null default 'mensch'` and `agent_aufgabe_id uuid` (the enum is `01-KERN.md` §4's `akteur_art`; the FK lands in Phase 8, AGT-04).
+
+Tenant tables carry `mandant_id uuid not null references mandant(id)` and declare **`UNIQUE (mandant_id, id)`**, because children are pinned to their parent's tenant with a composite FK (§0.8).
+
+**Deletion — three layers, stated per table, never assumed globally:**
+
+1. no `DELETE` policy for `cse_app` on any table in this domain;
+2. `REVOKE DELETE, TRUNCATE ON <t> FROM PUBLIC, cse_app, cse_anon, cse_checkin` and, except for the two purge tables of §1.8, `FROM cse_job` as well;
+3. a `BEFORE DELETE` trigger `kern.verhindere_loeschung()` that raises unconditionally, on **every** table in this domain except `raumbuch_import_zeile` and `formular_eingang`, whose purge paths are specified in §1.8.
+
+Layer 3 answers the review's B7. The review's premise — that Supabase's `service_role` carries `BYPASSRLS` and defeats `FORCE ROW LEVEL SECURITY` — is not true of this platform: per **K-01** the application never connects as `postgres`, **no application role holds `BYPASSRLS`**, and `service_role` does not exist here. The fix is nevertheless correct for a different reason, which K-16 already states: deletion protection must be a property of the table, not of the current grant set, so that a future migration, an Edge Function running as `cse_job`, or an `ON DELETE CASCADE` added upstream cannot remove a row that GoBD (LEG-01, ACC-06) requires to exist. Removal is expressed as `archiviert_am` (master data), `entzogen_am` (grants), `widerrufen_am` (releases and certificates), `geloescht_am` (documents, soft only), `anonymisiert_am` (Art. 17 DSGVO erasure of a natural person whose commercial records must survive, §5.6).
+
+**Referential actions are explicit** (review: MISSING). Every FK in this document is declared `ON DELETE NO ACTION ON UPDATE NO ACTION`. `CASCADE` appears nowhere in this domain: a cascade is a hard delete wearing a parent's name, and it would silently defeat all three layers above. A schema test greps the emitted DDL and fails on any `ON DELETE CASCADE` or `SET NULL` in these three schema files.
+
+### 0.5 Exactly one liveness column per row
+
+Two sources of truth for "is this row live" is a silent failure the day someone uses the one the query does not read (`01-KERN.md` §1.7). The draft carried `aktiv` **and** `archiviert_am` on `objekt`, `raum`, `ansprechpartner` and the catalogue tables. Resolved:
+
+| Table | Liveness column | `aktiv` |
+|---|---|---|
+| `kunde`, `objekt`, `raum`, `ansprechpartner`, `reinigungsklasse`, `lead`, `angebot`, `auftrag` | `archiviert_am` | removed |
+| `belagsart`, `leistungskatalog_position`, `auftrag_leistung` | `gueltig_bis` (a date range, §0.7) | removed |
+| `leistungskatalog` | `status katalog_status` | removed |
+| `formular_definition` | `zurueckgezogen_am` (with `veroeffentlicht_am` as the publication event) | removed |
+| `dokument` | `geloescht_am` | n/a |
+| `kunde_zugang` | `entzogen_am` | n/a |
+
+Every index, policy and view predicate below reads the single column. Uniqueness is partial wherever deletion is soft (`01-KERN.md` §1.8): an unconditional unique index plus a soft-delete column makes ordinary lifecycle events — a customer archived and re-onboarded, an object number reused after a building is sold — permanently impossible, surfacing as an opaque `duplicate key value` at the worst moment.
+
+### 0.6 Money, quantities, percentages (invariant 1, K-16)
+
+| Kind | Type | Rule |
+|---|---|---|
+| Money | `bigint`, suffix `_cent` | net unless the name says `brutto`. No `numeric`, `real` or `double precision` money column exists in this domain. |
+| Percentage | `integer`, suffix `_bp` | basis points, `1900` = 19,00 %. Never a float, never a `numeric` fraction. |
+| Quantity, area | `numeric(12,3)` | quantities are not money and must not be cents (K-16). |
+| Performance value | `numeric(10,3)` | m²/h, minutes per unit. |
+| Duration | `integer`, named with its unit | `sla_stunden`, `zeitwert_minuten`. |
+
+VAT is computed **per tax-rate group** and never from a gross total. A draft offer's groups come from the view `angebot_steuersumme` (§6); a sent offer's groups are frozen into `angebot_steuer` (§4.5), which is the only thing the PDF renders — the same discipline K-12 requires of an invoice, one level earlier and without claiming the invoice's legal weight.
+
+### 0.7 Time, calendar boundaries and validity ranges (invariant 2, K-11)
+
+Every instant is `timestamptz`, stored UTC, rendered `Europe/Berlin`. Genuine calendar facts — `start_datum`, `laufzeit_bis`, `gueltig_ab`, `gueltig_bis`, `aufbewahrung_bis`, `abnahme_am` — are `date`, because a contract term is not an instant. A day, a month and a **billing period** are Berlin wall-clock boundaries converted to instants, never UTC midnight (K-11); every helper and job in this domain uses `app.berlin_heute()` and `splitteNachMonat` from `src/server/services/zeit/`, and every reference test carries a CET case and a CEST case so a UTC implementation cannot pass by accident.
+
+**`gueltig_bis` is inclusive, everywhere in this domain** (review B18). The draft mixed `CHECK (gueltig_bis > gueltig_ab)` with `daterange(gueltig_ab, gueltig_bis)` — whose upper bound is exclusive — on `belagsart` and `leistungskatalog`, and inclusive `>=` semantics on `auftrag_leistung`. The natural service query is `gueltig_ab <= :stichtag AND (gueltig_bis IS NULL OR gueltig_bis >= :stichtag)`; run against a half-open table it returns the superseded Leistungswert on the changeover day *as well as* the new one, so "the Leistungswert on 1 April" has two answers on exactly the day it matters, and because `belagsart` feeds `Σ m² ÷ Leistungswert`, that is a wrong price and not a wrong label. Therefore, uniformly:
+
+```sql
+CHECK (gueltig_bis IS NULL OR gueltig_bis >= gueltig_ab)          -- inclusive last day
+EXCLUDE USING gist (… WITH =,
+  daterange(gueltig_ab, coalesce(gueltig_bis + 1, 'infinity'::date), '[)') WITH &&)
+```
+
+Reference test: a Belagsart superseded on 2026-04-01 returns exactly one row for 2026-03-31 and exactly one for 2026-04-01, and the two rows are different.
+
+### 0.8 Tenant consistency is a composite foreign key, not a trigger (K-16)
+
+The draft enforced "a child cannot be reparented across a tenant boundary" with a trigger `erzwinge_mandant_konsistenz()` described as a pattern and attached to nine of seventeen candidate tables — the review's B10 correctly found `angebot`, `auftrag`, `objekt`, `lead`, `lead_aktivitaet`, `kalkulation`, `kalkulation_position` and `dokument` unguarded. The fix is not more triggers. **K-16 makes it a declarative composite foreign key**, checked by the planner on every write, immune to `session_replication_role`, and impossible to forget silently:
+
+```sql
+-- parent, on every tenant table in this domain:
+UNIQUE (mandant_id, id)
+
+-- child:
+FOREIGN KEY (mandant_id, kunde_id) REFERENCES kunde (mandant_id, id)
+  ON DELETE NO ACTION ON UPDATE NO ACTION
+```
+
+Every mandant-bearing FK in this domain is composite. §11 enumerates all of them together with the parent unique each one needs. **A single-column FK into a table that carries `mandant_id` is a review failure** (`01-KERN.md` §1.6); a schema test walks `information_schema` and fails on one. The three deliberate single-column FKs are `kunde.firma_id` (the parent carries no `mandant_id` by design, §4.1), `*.dokument_id` where the document is pinned by its own composite pair instead, and `*_benutzer_id` / `erstellt_von` (identity is platform-wide).
+
+`kern.erzwinge_mandant_konsistenz()` is **deleted from this domain**. Nothing it did survives except as a composite key.
+
+### 0.9 The server clock is the source of truth (invariant 5)
+
+`DEFAULT now()` applies only when the column is omitted, so any INSERT that supplies a value writes an arbitrary timestamp — and the immutability triggers below then make the fabricated instant permanent (review B19). For `formular_eingang.eingegangen_am` this is the Art. 7(1) DSGVO evidence timestamp, for `lead_aktivitaet.geschehen_am` the §7 UWG evidence record, for `dokument_version.hochgeladen_am` the GoBD upload time. All three, plus `angebot.versendet_am`, `auftrag.freigabe_am` and every `*_am` column that records an action rather than a plan, are enforced:
+
+```sql
+create function kern.erzwinge_serverzeit() returns trigger
+language plpgsql as $$
+begin
+  new.<spalte> := now();      -- unconditionally, on INSERT
+  return new;
+end $$;
+```
+
+with a `BEFORE UPDATE` companion that raises on any change. A genuinely client-claimed time is never stored in these columns: it goes into a separate `*_geraet_zeit` column with a deviation field, exactly as invariant 5 prescribes for `zeiteintrag` and TIM-09 for offline capture.
+
+### 0.10 No volatile or stable function in a `CHECK` constraint
+
+`current_date`, `now()` and `current_timestamp` are `STABLE`, not `IMMUTABLE`; a `CHECK` containing one changes its truth value under a row that never changes, which makes every later `UPDATE` to that row fail and makes a `pg_dump`/restore abort (`01-KERN.md` §1.9, SEC-A10). No `CHECK` in this document contains one. Time-dependent rules — an offer's expiry, a Freistellungsbescheinigung's validity, a retention date reached — are expressed as (a) a `BEFORE INSERT OR UPDATE` trigger that raises only on an illegal *transition*, (b) a scheduled job, and (c) a monitoring query.
+
+### 0.11 Units and currency
+
+`einheit text NOT NULL`, validated in Zod against the shared constant `EINHEITEN` (`stk · h · m · m2 · m3 · lfm · kg · t · psch · monat · tag · woche · einsatz`). Deliberately not an enum: a VOB Leistungsverzeichnis import (BAU-01) legitimately brings units this list does not contain, and an import must not fail on a unit string. `waehrung text NOT NULL DEFAULT 'EUR' CHECK (waehrung = 'EUR')` on `angebot` and `auftrag`; the `CHECK` documents the assumption and makes a future multi-currency requirement a visible migration rather than a silent rounding bug.
+
+### 0.12 Extensions
+
+`pgcrypto` (`gen_random_uuid`), `btree_gist` (temporal `EXCLUDE`), `pg_trgm` (name search). PostGIS is optional and nothing depends on it — see `objekt`.
+
+### 0.13 Placeholder marking (K-17)
+
+Any row carrying a value the client has not confirmed sets `ist_platzhalter boolean NOT NULL DEFAULT true`. Tables carrying it: `belagsart`, `reinigungsklasse`, `leistungskatalog_position`, `kalkulation`, `dokument_aufbewahrung`. Every screen that consumes such a row renders the DESIGN §5 `warning` pill "Unbestätigter Wert". A `kalkulation` may not be `festgeschrieben` while it or anything it derives from is still a placeholder — enforced by a `CHECK` on `kalkulation` for its own three values (§4.5) and by `src/server/services/kalkulation.ts` for the cross-table part, because that check spans three tables and `CHECK` may not contain a subquery. `pnpm lint:todo` fails when a `// TODO(client)` in this domain has no matching row in `DECISIONS.md` § Open (`01-ORDNERSTRUKTUR.md` L6).
+
+---
+
+## 1. Tenancy, RLS, rights and the read paths
+
+### 1.1 Roles (K-01)
+
+This domain introduces **no new Postgres role**. The draft's `webseite` and `db_wartung` roles are deleted; K-01 fixes the set at six and adding a seventh moves the platform's grant surface out of one reviewed place.
+
+| Role | Use in this domain |
+|---|---|
+| `cse_migrator` | DDL only, CI only, never at runtime |
+| `cse_definer` | owns the five `SECURITY DEFINER` helpers of §1.7; the only role exempt from `FORCE RLS`, and only on the tables named in the read registry |
+| `cse_app` | every authenticated request, including the public-website renderer (§1.6) and the customer portal |
+| `cse_anon` | `EXECUTE` on the three K-08 functions and nothing else — **no table in this domain is readable by `cse_anon`** |
+| `cse_checkin` | not used here |
+| `cse_job` | watchdogs, the billing run, the retention job, and the two purge paths of §1.8, each with an enumerated per-job grant |
+
+Every table: `ALTER TABLE <t> ENABLE ROW LEVEL SECURITY; ALTER TABLE <t> FORCE ROW LEVEL SECURITY;` (K-01 — without `FORCE`, RLS does not bind the owner and a migration-owned connection silently sees everything).
+
+### 1.2 The standard policy set (K-03)
+
+Applied verbatim to every tenant table in this domain and referred to below as *standard*. The review's B1 — that the draft's unconditional `USING (mandant_id = ANY (app.sichtbare_mandanten()))` lets a `leitung` with memberships in reinigung and security read security prices while working in reinigung — is real, and **K-03 has already resolved it**; the reviewer's `CASE` construction is superseded by the convention's two-policy shape, which is what this document adopts:
+
+```sql
+create policy t_mandant on <tabelle>
+  for all to cse_app
+  using      (mandant_id = app.aktiver_mandant()
+              and (select app.hat_recht('<modul>.lesen', app.aktiver_mandant())))
+  with check (mandant_id = app.aktiver_mandant()
+              and not app.ist_readonly()
+              and (select app.hat_recht('<modul>.schreiben', app.aktiver_mandant()))
+              and exists (select 1 from mandant m
+                           where m.id = mandant_id and m.archiviert_am is null));
+
+create policy t_gruppe on <tabelle>
+  for select to cse_app
+  using (app.ist_gruppenansicht()
+         and mandant_id = any (select app.rechte_mandanten('gruppe.<modul>.lesen')));
+```
+
+Three consequences, each of which the draft got wrong:
+
+- **The active mandant narrows reads.** `sichtbare_mandanten()` is reachable only through `t_gruppe`, i.e. only in the read-only group view. D-09 §6 ("a cleaning manager must not see security wage rates") and its commercial twin ("…nor security prices") hold at the RLS layer, not only in the service layer.
+- **Membership alone grants nothing.** The `hat_recht` conjunct is mandatory; a policy that omits it is a defect (K-03). Without it a `kunde` login reads the staff directory and a `mitarbeiter` reads every contract's economics — the review's B16, resolved by the convention rather than by a new predicate.
+- **Invariant 10 is enforced by Postgres.** No `INSERT`/`UPDATE`/`DELETE` policy in this domain references group scope, so a write under group scope matches no policy and the database refuses it. The service guard is the first line; this is the second.
+
+The hoisted `(select app.hat_recht(...))` form is semantically identical to K-03's and is what `src/server/db/rls.ts` emits: `hat_recht` is `SECURITY DEFINER`, so the planner cannot inline it and would otherwise evaluate it once per candidate row — thousands of calls on a Raumbuch with 4 000 rooms or a customer typeahead (`01-KERN.md` §1.3).
+
+### 1.3 Right keys per table
+
+Every policy in §4 names its module. `<modul>.schreiben` is K-03's write key; the `berechtigung_aktion` vocabulary in `01-KERN.md` §4 must carry `schreiben` for these keys to resolve (cross-document note, §13).
+
+| Module | Tables | Read right | Write right | Group read right |
+|---|---|---|---|---|
+| `crm` | `firma`, `kunde`, `ansprechpartner`, `lead`, `lead_aktivitaet`, `kunde_zugang` | `crm.lesen` | `crm.schreiben` | `gruppe.crm.lesen` |
+| `crm_entgelt` | column-level: `kunde.zahlungsziel_tage`, `kunde.debitorennummer` | `crm_entgelt.lesen` | — | — |
+| `objekt` | `objekt`, `raum`, `belagsart`, `reinigungsklasse`, `raum_import_historie` | `objekt.lesen` | `objekt.schreiben` | `gruppe.objekt.lesen` |
+| `objekt_import` | `raumbuch_import`, `raumbuch_import_zeile` | `objekt_import.lesen` | `objekt_import.schreiben` | — (no group read: staging data) |
+| `katalog` | `leistungskatalog`, `leistungskatalog_position` | `katalog.lesen` | `katalog.schreiben` | `gruppe.katalog.lesen` |
+| `formular` | `formular_definition`, `formular_zustaendigkeit`, `formular_eingang` | `formular.lesen` | `formular.schreiben` | — |
+| `angebot` | `angebot`, `angebotsposition`, `angebot_steuer` | `angebot.lesen` | `angebot.schreiben` | `gruppe.angebot.lesen` |
+| `kalkulation` | `kalkulation`, `kalkulation_position` | `kalkulation.lesen` | `kalkulation.schreiben` | `gruppe.kalkulation.lesen` |
+| `auftrag` | `auftrag`, `auftrag_leistung`, `auftrag_dokument` | `auftrag.lesen` | `auftrag.schreiben` | `gruppe.auftrag.lesen` |
+| `abrechnung` | `vertrag_abrechnung`, `kunde_bauleistender_status`, `freistellungsbescheinigung` | `abrechnung.lesen` | `abrechnung.schreiben` | `gruppe.abrechnung.lesen` |
+| `dokument` | `dokument`, `dokument_version`, `dokument_aufbewahrung` | `dokument.lesen` | `dokument.schreiben` | `gruppe.dokument.lesen` |
+| `oeffentlich` | the public read path of §1.6 | `oeffentlich.lesen` | — | `gruppe.oeffentlich.lesen` |
+
+The seeded role matrix that decides which role holds which key is owned by `04-BERECHTIGUNGSMODELL.md`. Two allocations are load-bearing here and are stated as requirements on that document: the `mitarbeiter` role holds **none** of `angebot`, `kalkulation`, `auftrag`, `abrechnung`, `crm` (EMP-13), and the `kunde` role holds only `angebot.lesen`, `auftrag.lesen`, `objekt.lesen` and `dokument.lesen`, each further narrowed by §1.4.
+
+### 1.4 Portal ceilings (K-04)
+
+Rights decide *which module*; the ceiling decides *whose rows*. Both are needed: a right is granted per role and a role is shared by many people, so the customer portal's "own records only" and the employee portal's EMP-13 boundary are **restrictive** policies, evaluated in addition to K-03 and unable to widen anything.
+
+```sql
+-- customer ceiling — the K-04 shape, keyed on the customer's own kunde_id
+create policy p_kunde_ceiling on <tabelle> as restrictive for all to cse_app
+  using (app.portal() <> 'kunde'
+         or (<pfad zu kunde_id> = app.aktueller_kunde() and <sichtbarkeitsklausel>));
+
+-- internal-only ceiling — commercial internals are invisible to both non-internal portals
+create policy p_intern_ceiling on <tabelle> as restrictive for all to cse_app
+  using (app.portal() = 'intern');
+```
+
+Enumerated, not exemplified. `src/server/db/rls.ts` holds both lists and **the build fails when a table in this domain carries neither a customer ceiling nor an internal-only ceiling**:
+
+| Ceiling | Tables | Visibility clause |
+|---|---|---|
+| `p_kunde_ceiling` | `kunde` | `id = app.aktueller_kunde()` |
+| | `objekt`, `auftrag`, `angebot` | `kunde_id = app.aktueller_kunde()`; `angebot` additionally `versendet_am is not null` — a customer never sees a draft |
+| | `raum` | parent `objekt` |
+| | `angebotsposition`, `angebot_steuer` | parent `angebot` |
+| | `auftrag_leistung`, `auftrag_dokument` | parent `auftrag` |
+| | `dokument` | `sichtbar_fuer_kunde and geloescht_am is null` and reachable from the customer's own `kunde_id` or one of their `auftrag` rows |
+| | `dokument_version` | parent `dokument` and `ist_aktuell` |
+| | `ansprechpartner` | `kunde_id = app.aktueller_kunde()` — a customer sees their own contacts, never the `rechtsgrundlage` columns (§1.5) |
+| `p_intern_ceiling` | `firma`, `kalkulation`, `kalkulation_position`, `vertrag_abrechnung`, `leistungskatalog`, `leistungskatalog_position`, `belagsart`, `reinigungsklasse`, `lead`, `lead_aktivitaet`, `formular_zustaendigkeit`, `formular_eingang`, `raumbuch_import`, `raumbuch_import_zeile`, `raum_import_historie`, `kunde_bauleistender_status`, `freistellungsbescheinigung`, `kunde_zugang`, `dokument_aufbewahrung` | — |
+| *no ceiling* | `formular_definition` — the single registered exemption, listed literally in `src/server/db/rls.ts`, because the public renderer of §1.6 does not run at `portal = 'intern'` and an internal-only ceiling would blank the public offer-request forms. It is bounded instead by the `oeffentlich.lesen` right and by carrying no internal column at all | — |
+
+`app.portal()` is derived from **the role of the active membership**, not from the existence of a membership (K-04), and its accessor defaults to `mitarbeiter` when the GUC is unset (`01-KERN.md` §3.1) — so an unset session narrows every ceiling instead of lifting it.
+
+**`app.aktueller_kunde()` and `kunde_zugang`.** K-02 fixes the GUC list and it contains no customer id, so the customer identity is *resolved*, exactly as `app.aktuelle_person()` resolves the staff identity, and the resolution table is `kunde_zugang` (§4.1) — the customer-side analogue of `mitarbeiter_zugang`:
+
+```sql
+create function app.aktueller_kunde() returns uuid
+language sql stable security definer set search_path = pg_catalog, public as $$
+  select kz.kunde_id
+    from public.kunde_zugang kz
+   where kz.benutzer_id = app.aktueller_benutzer()
+     and kz.mandant_id  = app.aktiver_mandant()
+     and kz.entzogen_am is null;
+$$;
+```
+
+Fail-closed by construction (K-02): with no row it returns NULL, `kunde_id = NULL` is NULL, the restrictive policy is not satisfied, and the session reads zero rows. In group scope `app.aktiver_mandant()` is NULL, so a customer login reads nothing there either — which is correct, because the group view exists for the group, not for its customers.
+
+### 1.5 Column privileges where a row is shared but a column is not (K-05)
+
+Two places in this domain hand a readable row to a principal who must not read every column of it. K-05 forbids masking views for this purpose and prescribes column-level `GRANT`, which composes correctly with RLS:
+
+```sql
+revoke select on kunde from cse_app;
+grant  select (id, mandant_id, firma_id, kundennummer, typ, name, rechtsform, ust_id,
+               steuernummer, ist_oeffentlicher_auftraggeber, xrechnung_pflicht, leitweg_id,
+               kaeufer_referenz, uebertragungsweg, rechnungsformat, strasse, hausnummer, plz, ort, land,
+               rechnungsadresse_abweichend, rechnung_name, rechnung_strasse, rechnung_hausnummer,
+               rechnung_plz, rechnung_ort, rechnung_land, rechnung_email, email_zentral,
+               telefon_zentral, webseite, rechtsgrundlage, rechtsgrundlage_quelle,
+               rechtsgrundlage_erfasst_am, rechtsgrundlage_beleg_dokument_id, werbewiderspruch_am,
+               widerspruch_am, status, notiz, archiviert_am, erstellt_am, erstellt_von,
+               geaendert_am, geaendert_von)
+       on kunde to cse_app;    -- zahlungsziel_tage, debitorennummer, mahnsperre_* omitted
+
+revoke select on ansprechpartner from cse_app;
+grant  select (id, mandant_id, kunde_id, anrede, titel, vorname, nachname, position, abteilung,
+               email, telefon, mobil, sprache, ist_hauptkontakt, ausgeschieden_am,
+               archiviert_am, anonymisiert_am, erstellt_am, erstellt_von, geaendert_am, geaendert_von)
+       on ansprechpartner to cse_app;   -- the rechtsgrundlage block is omitted
+```
+
+The withheld columns are reachable only through narrow `SECURITY DEFINER` readers that re-check the right **and** `mandant_id = app.aktiver_mandant()` and write `audit_log`: `app.zahlungskondition_lesen(p_kunde uuid)` (right `crm_entgelt.lesen`) and `app.rechtsgrundlage_lesen(p_ansprechpartner uuid)` (right `crm.lesen`, and never granted to the `kunde` role). The gate predicate of §5 does not need the reader — it is itself `SECURITY DEFINER` and answers a boolean.
+
+### 1.6 The public website read path (K-07, K-08, K-01)
+
+The public site is server-rendered and must read `formular_definition` (REQ-01) and published content (PUB-07). The draft solved this with a `webseite` Postgres role holding `SELECT` on one table. That is wrong twice: K-01 fixes the role set at six, and K-08's route-manifest test asserts that **no code path reaches the database outside `withTenant` / `withGroupScope`** except its three named functions — a seventh role reading a table directly is exactly what that test exists to catch.
+
+The resolution keeps every convention intact and adds nothing:
+
+- the public renderer opens an ordinary session as `cse_app` through `withTenant(mandant)` for an area page (`/unternehmen/[bereich]`) and `withGroupScope()` for the group pages, always with `app.readonly = 'on'`;
+- the principal is a **service `benutzer`** (`kunde_zugang`-less, `person_id` NULL) whose memberships grant exactly one right, `oeffentlich.lesen`, in the four mandanten, plus `gruppe.oeffentlich.lesen`;
+- consequently the public site can read only rows whose policy names the `oeffentlich` module. In this domain that is `formular_definition` and nothing else.
+
+```sql
+create policy t_oeffentlich on formular_definition
+  for select to cse_app
+  using (veroeffentlicht_am is not null
+         and zurueckgezogen_am is null
+         and (select app.hat_recht('oeffentlich.lesen', mandant_id)));
+```
+
+**No internal column is exposed, because no internal column is on the table.** The review's MINOR finding — that the draft's public policy handed out `standard_besitzer_benutzer_id`, `eskalation_benutzer_id` and `sla_stunden` to anonymous traffic — is fixed structurally rather than with a column grant: the routing and SLA fields move to `formular_zustaendigkeit` (§4.4), which carries no `oeffentlich` policy at all. A column grant would have worked, but a table an anonymous reader may read should not contain a secret in the first place.
+
+**No anonymous `INSERT` exists anywhere in this domain.** The public form posts to a server route that validates with Zod (SEC-A4), rate-limits on `ip_hash`, and inserts under the same tenant context (§4.4).
+
+**PRO-05's public path** is `referenz` in the website domain, never this domain's tables. `referenzfaehiger_auftrag` (§6) is the *internal* worklist from which a human creates a `referenz` row; the copy is an explicit human action (invariant 7) and the copied fields are enumerated in §3.2. No public page reads `auftrag`, so `auftragswert_netto_cent`, `kunde_id` and the site address cannot leak through a view grant — the failure the review's MISSING item describes.
+
+### 1.7 `SECURITY DEFINER` helpers owned by this domain
+
+All five are owned by `cse_definer`, carry `SET search_path = pg_catalog, public` (K-01), and each is listed with the tables it needs a narrow `for select to cse_definer using (true)` policy on — the definer-read registry of `01-KERN.md` §3.5, which this domain extends by exactly three tables.
+
+| Function | Purpose | Definer-read registry addition | SPEC |
+|---|---|---|---|
+| `app.aktueller_kunde()` | resolve the customer behind a portal login (§1.4) | `kunde_zugang` | AUT-01, DOC-04 |
+| `app.firma_aufloesen(p_ust_id text, p_name text, p_land char(2))` → `uuid` | CRM-06 identity resolution without exposing another entity's customer list (§4.1) | `firma` | CRM-01, CRM-06, AUT-06 |
+| `app.firma_kandidaten(p_name text, p_land char(2))` → `table(firma_id uuid, aehnlichkeit real)` | duplicate detection returning a score and an id, never a row | `firma` | CRM-06 |
+| `app.darf_kontaktiert_werden(p_ansprechpartner uuid, p_kanal text, p_zweck text)` → `boolean` | the single §7 UWG predicate (§5) | `ansprechpartner`, `kunde` | CRM-08, LEG-08 |
+| `app.rechtsgrundlage_lesen(p_ansprechpartner uuid)` / `app.zahlungskondition_lesen(p_kunde uuid)` | the K-05 readers of §1.5 | `ansprechpartner`, `kunde` | CRM-08, ACC-01 |
+
+A test enumerates `pg_policies` and fails on a `cse_definer` policy on any table in this domain outside `{firma, kunde, ansprechpartner, kunde_zugang}`, and a second asserts `cse_definer` holds no `INSERT`/`UPDATE`/`DELETE` policy on any of them except the single `INSERT` on `firma` that `app.firma_aufloesen` needs.
+
+### 1.8 The only two deletion paths, and their grants
+
+`raumbuch_import_zeile` and `formular_eingang` hold staging and inbound data that a retention concept requires to disappear. The draft asserted a purge without a policy or a grant, so it was documented and non-functional (review: MISSING), and it told two contradictory stories in two places. One story, stated once:
+
+```sql
+create policy d_wartung on raumbuch_import_zeile
+  for delete to cse_job
+  using (exists (select 1 from raumbuch_import i
+                  where i.id = raumbuch_import_zeile.import_id
+                    and i.status in ('verworfen','fehler')
+                    and i.erstellt_am < now() - app.aufbewahrung_intervall('raumbuch_staging')));
+grant delete on raumbuch_import_zeile to cse_job;
+
+create policy d_wartung on formular_eingang
+  for delete to cse_job
+  using (status = 'spam' and lead_id is null
+         and eingegangen_am < now() - app.aufbewahrung_intervall('formular_spam'));
+grant delete on formular_eingang to cse_job;
+```
+
+Both tables therefore carry **no** `kern.verhindere_loeschung()` trigger (§0.4 layer 3); every other table in the domain does. `app.aufbewahrung_intervall(p_schluessel text)` reads `dokument_aufbewahrung` (§4.7) — the periods are **not** literals in a policy. The draft's hard-coded "90 days" is a retention rule and therefore a client decision (K-17):
+
+`// TODO(client): Aufbewahrungsfrist für verworfene und fehlerhafte Raumbuch-Importzeilen sowie für als Spam markierte Formulareingänge — DSGVO-Löschkonzept (LEG-09); GoBD-Relevanz, weil die Importzeilen belegen, wie das Raumbuch entstanden ist.`
+
+### 1.9 Views are `security_invoker` (review B2)
+
+A view executes with the privileges and RLS exemption of its owner. Every view in §6 is created `WITH (security_invoker = true)`, carries `mandant_id` in its output so callers can filter, and is covered by its own SEC-A3 case — per view, not only per table. `security_invoker` is safe here precisely because K-05's column grants are the *only* revoked privileges and no view in §6 selects a revoked column.
+
+### 1.10 Audit (SEC-A9, LEG-01)
+
+`app.protokolliere(...)` is attached as an `AFTER INSERT OR UPDATE` trigger on every table in this domain whose rows are invoice-relevant, legally relevant or commercially sensitive: `kunde`, `ansprechpartner`, `kunde_bauleistender_status`, `freistellungsbescheinigung`, `objekt`, `raum`, `belagsart`, `leistungskatalog_position`, `angebot`, `angebotsposition`, `kalkulation`, `auftrag`, `auftrag_leistung`, `vertrag_abrechnung`, `dokument`, `dokument_version`, `kunde_zugang`, `formular_definition`. `raum` is logged at import granularity (`raumbuch_import`) rather than per row, because a 4 000-row import would otherwise write 4 000 chained audit rows through a single serialised chain head.
+
+The review's GoBD-Stammdatenhistorie finding is answered in two parts. The *audit* obligation is the trigger list above. The *reconstruction* obligation — "what did this customer's address and USt-IdNr. say on the invoice date" — is **not** solved by master-data history and must not be: per **K-12** the invoice's canonical payload snapshots `leistender` and `empfaenger` identity rather than referencing it, so the invoice, the XRechnung and the PDF say what they said, and the hash chain protects it. A master-data history that the invoice does not reference would be a second, unhashed answer to a question K-12 already answers.
+
+`audit_feld_klassifikation` entries this domain requires: `kunde.zahlungsziel_tage`, `kunde.debitorennummer`, `ansprechpartner.rechtsgrundlage*`, `kalkulation.stundenverrechnungssatz_cent`, `kalkulation_position.stundensatz_cent`, `vertrag_abrechnung.stundensatz_cent`, `vertrag_abrechnung.pauschale_netto_cent` — each with the right that `app.audit_feld_lesen()` demands and the `grundlage` string (`D-09 §6`, `K-05`, `§7 UWG`).
+
+---
+
+## 2. Enum types and vocabularies
+
+Vocabularies marked **STATED** come verbatim from the SPEC. Vocabularies marked **PLACEHOLDER** are not stated anywhere: they are implemented so the system runs, labelled here, carry a `// TODO(client)`, and changing one is a reviewed `ALTER TYPE` migration rather than an invisible data edit. That visibility is the reason these are Postgres enums and not free text (K-17). Where a vocabulary carries legal weight *and* the client is likely to want to change it in the UI, it is a **catalogue table** instead — `reinigungsklasse`, `dokument_aufbewahrung`, `einheit`.
+
+```sql
+-- STATED — SPEC CRM-08, verbatim
+create type rechtsgrundlage as enum ('einwilligung','bestandskunde','anfrage','keine');
+
+-- STATED — SPEC CRM-07 ("website forms · tender radar · manual entry · referral")
+create type lead_quelle as enum ('webformular','vergabe_radar','manuell','empfehlung');
+
+-- STATED — SPEC DOC-01, the nine categories verbatim
+create type dokument_kategorie as enum
+  ('kunde','vertrag','angebot','rechnung','beleg','mitarbeiter','projekt','buchhaltung','unternehmen');
+
+-- STATED — SPEC OPS-07 ("labour + material + equipment + overhead + risk/profit")
+create type kostenart as enum ('lohn','material','geraet','gemeinkosten','wagnis_gewinn');
+
+-- PLACEHOLDER — derived from SPEC FIN-01 wording; DECISIONS O-04 is OPEN.
+-- // TODO(client): Bestätigen Sie die exakten fünf Abrechnungsarten und ihre deutschen Namen (O-04).
+create type abrechnungsart as enum
+  ('stundenbasiert','monatspauschale','festpreis_los','einheitspreis_aufmass','einzelabruf');
+
+-- PLACEHOLDER  // TODO(client): Welche Stufen hat die Vertriebs-Pipeline tatsächlich?
+create type lead_status as enum
+  ('neu','in_bearbeitung','qualifiziert','angebot','gewonnen','verloren','kein_bedarf');
+
+-- PLACEHOLDER  // TODO(client): Prioritätsleiter und was sie steuert (nur Sortierung oder auch Eskalation)?
+create type lead_prioritaet as enum ('niedrig','normal','hoch','dringend');
+
+-- PLACEHOLDER  // TODO(client): Angebots-Lebenszyklus — ist "in_pruefung" der interne
+-- Vier-Augen-Schritt oder die Prüfung beim Kunden?
+create type angebot_status as enum
+  ('entwurf','in_pruefung','versendet','angenommen','abgelehnt','zurueckgezogen','abgelaufen');
+
+-- PLACEHOLDER — VOB-Positionsarten.
+-- // TODO(client): Werden Bedarfs-/Eventual- und Alternativpositionen im LV verwendet?
+create type angebotsposition_typ as enum
+  ('leistung','alternativ','eventual','text','zwischensumme');
+
+-- PLACEHOLDER  // TODO(client): Auftragsarten (SPEC OPS-05 "type") bestätigen.
+create type auftrag_art as enum ('einzelauftrag','rahmenvertrag','dauerauftrag','projekt');
+
+-- PLACEHOLDER  // TODO(client): Auftrags-Lebenszyklus bestätigen.
+create type auftrag_status as enum ('angelegt','aktiv','pausiert','abgeschlossen','storniert');
+
+-- PLACEHOLDER  // TODO(client): Abrechnungsrhythmen je Abrechnungsart bestätigen.
+create type abrechnungsintervall as enum
+  ('einmalig','monatlich','quartalsweise','halbjaehrlich','jaehrlich','nach_leistung');
+
+-- Derived from SPEC FIN-05 (Leistungszeitraum is mandatory; this says how it is derived).
+-- No DEFAULT anywhere — see §4.6.
+create type leistungszeitraum_modus as enum ('kalendermonat','nach_leistungsnachweis','manuell');
+
+-- PROVISIONAL — owned canonically by the finance document (FIN-09); repeated here because
+-- angebotsposition / auftrag_leistung must carry it from the first migration.
+-- // TODO(client): Kommen innergemeinschaftliche Lieferungen oder eine Kleinunternehmer-
+-- regelung (§19 UStG) in einer der drei Gesellschaften vor? Falls ja, fehlen hier Werte.
+create type steuer_kennzeichen as enum
+  ('regelsatz','ermaessigt','steuerfrei','reverse_charge_13b');
+
+-- PLACEHOLDER  // TODO(client): Kundenkategorien bestätigen; behoerde steuert die
+-- XRechnungs-Pflicht (FIN-11) und muss stimmen.
+create type kunde_typ as enum ('firma','behoerde','privat');
+
+-- PLACEHOLDER
+create type kunde_status as enum ('aktiv','inaktiv','gesperrt');
+
+-- PLACEHOLDER  // TODO(client): Welche Aktivitätsarten braucht der Vertrieb?
+create type aktivitaet_typ as enum
+  ('notiz','anruf','email','termin','besichtigung','angebot_versendet',
+   'wiedervorlage','statuswechsel','system');
+create type aktivitaet_richtung as enum ('eingehend','ausgehend','intern');
+
+-- PLACEHOLDER — the §7 UWG / Art. 21 DSGVO split of §5. This is a legal classification.
+-- // TODO(client): Welche Kommunikation gilt als vertraglich notwendig (Rechnung,
+-- Leistungsnachweis, Terminbestätigung, Mahnung) und ist damit vom Werbewiderspruch
+-- ausgenommen, und welche gilt als Werbung?
+create type kommunikationszweck as enum ('vertraglich','werbung','intern');
+
+-- PLACEHOLDER — the base a Gemeinkostenzuschlag is calculated on. OPS-07 names the five
+-- cost blocks but not the reference value.
+-- // TODO(client): Auf welche Bezugsgröße wird der Gemeinkostenzuschlag gerechnet —
+-- Lohnkosten, Selbstkosten, oder je Kostenart getrennt? (In der Gebäudereinigung häufig
+-- Lohn, im Bau häufig getrennt — beides ist verbreitet, deshalb wird hier nicht gewählt.)
+create type gemeinkosten_basis as enum ('lohn','selbstkosten','je_kostenart');
+
+-- PLACEHOLDER — FIN-11/FIN-12 delivery. // TODO(client): Welches Rechnungsformat und
+-- welcher Übertragungsweg ist je öffentlichem Auftraggeber vereinbart?
+create type rechnungsformat   as enum ('xrechnung_ubl','zugferd','pdf');
+create type uebertragungsweg  as enum ('peppol','zre','ozg_re','email','kundenportal','post');
+
+create type kalkulation_status as enum ('entwurf','festgeschrieben');
+create type katalog_status     as enum ('entwurf','aktiv','archiviert');
+create type formular_eingang_status as enum ('neu','verarbeitet','spam','abgelehnt');
+
+create type raumbuch_import_status as enum
+  ('hochgeladen','geprueft','uebernommen','verworfen','fehler');
+create type raumbuch_zeile_aktion as enum
+  ('anlegen','aktualisieren','unveraendert','ignorieren');
+
+-- PLACEHOLDER  // TODO(client): Welche Dokumentrollen führt ein Auftrag?
+create type dokument_rolle as enum
+  ('vertrag','auftragsbestaetigung','leistungsverzeichnis','freigabe_referenz',
+   'foto','schriftverkehr','sonstiges');
+```
+
+`akteur_art` (`mensch` · `agent` · `system`) is **not** redeclared here: it is owned by `01-KERN.md` §4 and imported. The draft's `akteur_typ` was a second name for the same enum and is deleted (cross-document note, §13).
+
+**Two vocabularies deliberately are not enums.** `formular_definition.felder[].typ` lives in `jsonb` and is validated by the Zod discriminated union of §4.4 — a new form field type must not require a database migration, or REQ-01 ("the fields needed to actually quote") becomes an engineering ticket every time sales learns something. `einheit` is free text validated in Zod (§0.11).
+
+### 2.1 DESIGN §5 status-pill mapping
+
+The draft claimed `lead_status` was "aligned to the DESIGN §5 status-pill vocabulary". It is not: DESIGN §5 fixes five pill classes and the German labels that belong to each, and most values below have no label in that list. CLAUDE.md's rule is that the missing values are **added to DESIGN.md first and then used**, never that a page invents a pill. This table is therefore both the mapping and the change request on DESIGN.md (§13):
+
+| Enum value | Pill class | Label | In DESIGN §5 today |
+|---|---|---|---|
+| `lead_status.neu` | info | Neu | **no — add** |
+| `lead_status.in_bearbeitung` | success | In Arbeit | yes |
+| `lead_status.qualifiziert` | success | Qualifiziert | **no — add** |
+| `lead_status.angebot` | warning | Angebot | yes |
+| `lead_status.gewonnen` | success | Gewonnen | **no — add** |
+| `lead_status.verloren` | danger | Verloren | **no — add** |
+| `lead_status.kein_bedarf` | muted | Kein Bedarf | **no — add** |
+| `angebot_status.entwurf` | info | Entwurf | yes |
+| `angebot_status.in_pruefung` | info | In Prüfung | yes |
+| `angebot_status.versendet` | warning | Wartet | yes (label reused) |
+| `angebot_status.angenommen` | success | Angenommen | **no — add** |
+| `angebot_status.abgelehnt` | danger | Abgelehnt | yes |
+| `angebot_status.zurueckgezogen` | muted | Zurückgezogen | **no — add** |
+| `angebot_status.abgelaufen` | danger | Überfällig | yes (label reused) |
+| `auftrag_status.angelegt` | info | Geplant | yes (label reused) |
+| `auftrag_status.aktiv` | success | Aktiv | yes |
+| `auftrag_status.pausiert` | warning | Pausiert | **no — add** |
+| `auftrag_status.abgeschlossen` | muted | Abgeschlossen | yes |
+| `auftrag_status.storniert` | danger | Storniert | **no — add** |
+| `kalkulation_status.entwurf` / `festgeschrieben` | info / muted | Entwurf / Festgeschrieben | Entwurf yes; Festgeschrieben **add** |
+| `raumbuch_import_status.*` | info · info · muted · muted · danger | Hochgeladen · Geprüft · Übernommen · Verworfen · Fehler | Fehler yes; rest **add** |
+| `ist_platzhalter = true` (any row) | warning | Unbestätigter Wert | **no — add** |
+
+---
+
+## 3. Entity–relationship and boundary references
+
+### 3.1 Inside this domain
+
+```mermaid
+erDiagram
+  mandant   ||--o{ kunde : mandant_id
+  firma     ||--o{ kunde : "firma_id (CRM-06 Identität, nicht mandantengebunden)"
+  kunde     ||--o{ ansprechpartner : ""
+  kunde     ||--o{ kunde_zugang : "Kundenportal-Login (AUT-01)"
+  kunde     ||--o{ kunde_bauleistender_status : "§13b UStG, zeitlich gültig"
+  kunde     ||--o{ freistellungsbescheinigung : "§48b EStG"
+  kunde     ||--o{ objekt : ""
+  objekt    ||--o{ raum : "Raumbuch"
+  belagsart        ||--o{ raum : "leistungswert_qm_pro_stunde"
+  reinigungsklasse ||--o{ raum : ""
+  raumbuch_import       ||--o{ raumbuch_import_zeile : "Vorschau vor Commit"
+  raumbuch_import_zeile ||--o| raum : "erzeugt beim Commit"
+  raum                  ||--o{ raum_import_historie : "OPS-04 Provenienz, mehrfach"
+  leistungskatalog          ||--o{ leistungskatalog_position : ""
+  leistungskatalog_position ||--o{ leistungskatalog_position : "parent_id (OZ-Hierarchie)"
+  formular_definition ||--o| formular_zustaendigkeit : "SLA + Besitzer, intern"
+  formular_definition ||--o{ formular_eingang : ""
+  formular_eingang    ||--o| lead : "REQ-05"
+  ansprechpartner     ||--o{ lead : "rechtsgrundlage ab Sekunde 1"
+  lead      ||--o{ lead_aktivitaet : "CRM-03/04"
+  kunde     ||--o{ lead_aktivitaet : "nach Konvertierung"
+  lead      ||--o{ angebot : "CRM-05"
+  kunde     ||--o{ angebot : ""
+  angebot   ||--o{ angebotsposition : ""
+  angebot   ||--o{ angebot_steuer : "Steuerzeilen-Schnappschuss beim Versand"
+  angebot   ||--o{ kalkulation : "versioniert, OPS-07"
+  auftrag   ||--o{ kalkulation : "Nachkalkulation"
+  kalkulation      ||--o{ kalkulation_position : ""
+  angebotsposition ||--o{ kalkulation_position : "Kostenbasis der Preiszeile"
+  raum             ||--o{ kalkulation_position : "Mengenbasis"
+  angebot   ||--o| auftrag : "OPS-09 Konvertierung"
+  objekt    ||--o{ auftrag : ""
+  auftrag   ||--o{ auftrag_leistung : ""
+  auftrag   ||--o{ vertrag_abrechnung : "zeitlich versioniert, FIN-01"
+  auftrag_leistung ||--o{ vertrag_abrechnung : "optional je Position"
+  auftrag   ||--o{ auftrag_dokument : ""
+  dokument  ||--o{ auftrag_dokument : ""
+  dokument  ||--o{ dokument_version : "DOC-05"
+  dokument_aufbewahrung ||--o{ dokument : "Kategorie -> Frist und Löschsperre"
+```
+
+### 3.2 Boundary references leaving this domain
+
+Declared here, built in the phase named. **The column shape is binding on the sibling document** — where the draft left a boundary vague, the review found a fork in the FIN-07 traceability path, so each row below states the exact key.
+
+| Foreign table | Key into this domain | Owner document / phase | SPEC | Note |
+|---|---|---|---|---|
+| `turnus` | `auftrag_leistung_id` | Dienstplan / Phase 5 | CLN-02 | the machine-readable schedule behind `auftrag_leistung.leistungsfrequenz_text` |
+| `revier` · `revier_raum` | `objekt_id` · `raum_id` | Dienstplan / Phase 5 | CLN-01 | composite `(mandant_id, objekt_id)` |
+| `posten` · `dienstanweisung` | `objekt_id` | Security / Phase 5 | SEC-01, SEC-06 | |
+| `einsatz` | `auftrag_id` | Dienstplan / Phase 5 | TIM-01 | |
+| `zeiteintrag` | `auftrag_leistung_id` | Zeit / Phase 5 | TIM-12, FIN-07 | time attaches to the order line, never to the order |
+| `lv_position` | **`auftrag_leistung_id` (not `auftrag_id`)** | Bau / Phase 5 | BAU-01, BAU-05 | **normative**: the draft's `lv_position.auftrag_id` forked FIN-07 — an Aufmaß hung off `auftrag_leistung` while the LV position it measures hung off `auftrag`, and BAU-05 ("work outside the LV without a Nachtrag") had no join to evaluate. One path: `lv_position` is the bau specialisation of an `auftrag_leistung` row and carries its id |
+| `aufmass` | `auftrag_leistung_id` | Bau / Phase 5 | BAU-02, FIN-07 | |
+| `nachtrag` | `auftrag_id`, `auftrag_leistung_id` (nullable) | Bau / Phase 6 | BAU-04 | |
+| `projekt` | `auftrag_id NOT NULL UNIQUE` | Bau / Phase 5 | OPS-05, DSH-01, REP-05 | **stated decision**, not a silent fold: a project is an `auftrag` with a bau extension row, so OPS-09's one-action conversion, FIN-07 traceability and the number circle work unchanged. DSH-01's two counters are "`auftrag` without a `projekt` row" and "`auftrag` with one". `// TODO(client): Gibt es Projekte ohne Auftrag (interne Vorhaben, Akquiseprojekte)? Falls ja, braucht projekt einen eigenen Kopf.` |
+| `aufgabe` | `auftrag_id`, `objekt_id`, `lead_id` (all nullable), `faellig_am timestamptz`, `zustaendig_benutzer_id`, `status` | Kalender / Phase 5 | **OPS-11**, DSH-01, CAL-01, NOT-01 | OPS-11's "tasks, deadlines, status … on every order and project" has no table in this domain and must not get a second one. `lead_aktivitaet.faellig_am` covers CRM-04 follow-ups only; everything else is `aufgabe` |
+| `kalender_eintrag` | `auftrag_id`, `objekt_id`, `lead_id` | Kalender / Phase 5 | CAL-01, CAL-02 | |
+| `rechnung` | `auftrag_id`, plus the K-12 identity snapshot of `kunde`/`mandant` | Finanzen / Phase 6 | FIN-07 | the snapshot is a copy, never a reference (K-12) |
+| `rechnungsposition` | `auftrag_leistung_id` | Finanzen / Phase 6 | FIN-07 | |
+| `abschlagsplan` | `vertrag_abrechnung_id` | Finanzen / Phase 6 | FIN-08 | |
+| `konto_mapping` | `erloeskonto_schluessel` on `leistungskatalog_position` and `auftrag_leistung` | Buchhaltung / Phase 7 | ACC-01, ACC-02 | ACC-01's "automatic booking records from invoices" needs a service→revenue-account path; this domain provides the carrier column only. `// TODO(client): SKR03 oder SKR04, Sachkontenlänge, Steuerschlüsseltabelle, Erlöskonto je Leistungsart (O-05) — plus ein echter EXTF-Beispielexport.` |
+| `lieferant` (Kreditor) | none into this domain | Finanzen / Phase 6 | ACC-05, ACC-07, FIN-14 | declared so the gap is visible: `kunde.debitorennummer` covers the debtor side only; there is no creditor master here and none is implied |
+| `referenz` | `auftrag_id`, plus copied fields | Website / Phase 9 | PRO-05, SOC-04 | copied at creation by a human: `titel`, `bereich`, `ort` (city only, never the street), `leistungsbeschreibung`, `freigabe_text`, released photo `dokument_id`s. Never `auftragswert_netto_cent`, never `kunde_id`, never the address |
+| `ausschreibung` | `lead.ausschreibung_id` | Radar / Phase 8 | RAD-07 | |
+| `freigabe` · `freigabe_snapshot` | `angebot.freigabe_id`, `auftrag.freigabe_id` | Freigaben / Phase 8 | APR-07, APR-08, K-13 | the approval chain, its `kette_nr` under `SELECT … FOR UPDATE`, and the **server-measured** `pruefdauer_sek` all live there (K-13). This domain stores only the denormalised `freigegeben_am` / `freigegeben_von` snapshot and the FK |
+| `agent_aufgabe` | `agent_aufgabe_id` on agent-writable tables | Agenten / Phase 8 | AGT-04, SEC-A9 | |
+
+---
+
+## 4. Tables
+
+Every table below carries the common columns of §0.4, `ENABLE`/`FORCE ROW LEVEL SECURITY` (K-01), the `kern.verhindere_loeschung()` `BEFORE DELETE` trigger unless §1.8 names it as a purge table, `UNIQUE (mandant_id, id)` if it is tenant-scoped, and the *standard* policy set of §1.2 with the module named in §1.3 unless its RLS note says otherwise. Only deviations are restated per table.
+
+### 4.1 Kunden und Kontakte
+
+#### firma
+
+The legal company as it exists in the outside world — the shared identity behind the same company being served by two or three of the group's entities. It is what makes CRM-06 ("Kundenhistorie über alle vier Bereiche") possible without any entity seeing another entity's commercial terms, and it is the customer-side mirror of D-09's `person` / `anstellung` split.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK |
+| name | text | no | — | Firmenname as registered |
+| rechtsform | text | yes | — | GmbH, AG, KöR, e. K., … |
+| ust_id | text | yes | — | USt-IdNr., normalised uppercase without spaces |
+| steuernummer | text | yes | — | national tax number |
+| handelsregister_gericht | text | yes | — | Registergericht |
+| handelsregister_nummer | text | yes | — | HRB/HRA |
+| land | char(2) | no | `'DE'` | ISO 3166-1 alpha-2 |
+| zusammengefuehrt_in_firma_id | uuid | yes | — | FK → `firma.id`; set when two identity rows are merged. The losing row stays for referential history |
+| erstellt_am · geaendert_am · erstellt_von | | | | as §0.4 |
+
+- **Indexes:** `UNIQUE (ust_id) WHERE ust_id IS NOT NULL` · `GIN (name gin_trgm_ops)` · `btree (zusammengefuehrt_in_firma_id) WHERE zusammengefuehrt_in_firma_id IS NOT NULL`.
+- **RLS — not tenant-scoped, and not directly writable** (review B15). The draft's shape had two defects. Reading required an existing `kunde` row in the reading mandant, so attaching a *new* reinigung customer to an existing `firma` was impossible — the service could not see the row it had to reference — and the global `UNIQUE (ust_id)` turned the resulting insert into an oracle: a `23505` told a reinigung user that SSE Security already serves that company, which is the "403 confirms existence" failure AUT-06 exists to prevent, reproduced as a constraint error.
+
+  ```sql
+  create policy f_lesen on firma for select to cse_app
+    using (exists (select 1 from kunde k
+                    where k.firma_id = firma.id
+                      and (k.mandant_id = app.aktiver_mandant()
+                           or (app.ist_gruppenansicht()
+                               and k.mandant_id = any (select app.rechte_mandanten('gruppe.crm.lesen'))))
+                      and (select app.hat_recht('crm.lesen', k.mandant_id))));
+
+  create policy f_aendern on firma for update to cse_app
+    using (exists (select 1 from kunde k
+                    where k.firma_id = firma.id and k.mandant_id = app.aktiver_mandant()
+                      and (select app.hat_recht('crm.schreiben', app.aktiver_mandant()))))
+    with check (not app.ist_readonly());
+
+  create policy f_intern on firma as restrictive for all to cse_app
+    using (app.portal() = 'intern');
+  -- no INSERT policy for cse_app: revoke insert on firma from cse_app;
+  ```
+
+  Identity resolution runs entirely inside `app.firma_aufloesen(p_ust_id, p_name, p_land)` — `SECURITY DEFINER`, owner `cse_definer`, `SET search_path = pg_catalog, public` — which matches on normalised `ust_id`, else creates, and **returns only the id**. `app.firma_kandidaten(p_name, p_land)` runs the `pg_trgm` duplicate search inside the same boundary and returns `(firma_id, aehnlichkeit)` and nothing else. Neither function ever returns another mandant's attributes, and both write `audit_log` (`firma.aufgeloest`). A residual signal remains and is stated rather than hidden: a caller who supplies a USt-IdNr. and receives an id that already existed learns that *someone* in the group knows that company — but not which entity, since the entity is precisely what `firma` does not carry. Recorded in `DECISIONS.md`.
+- **Constraints/triggers:** `CHECK (zusammengefuehrt_in_firma_id IS NULL OR zusammengefuehrt_in_firma_id <> id)`; a `BEFORE UPDATE` trigger rejects a merge cycle. `kern.setze_geaendert_am()`. `kern.verhindere_loeschung()`.
+- **SPEC:** CRM-01, CRM-06, TEN-05, AUT-06.
+
+#### kunde
+
+The customer relationship of **one** entity with one company — Kundennummer, Debitorennummer, payment terms, invoicing route, legal basis for contact. A company served by cleaning and by security is two `kunde` rows pointing at one `firma`.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK; `UNIQUE (mandant_id, id)` |
+| mandant_id | uuid | no | — | FK → `mandant.id` |
+| firma_id | uuid | yes | — | FK → `firma.id` (single-column by design, §0.8); NULL for Privatkunden and until identity is resolved |
+| kundennummer | text | no | — | |
+| typ | kunde_typ | no | `'firma'` | PLACEHOLDER vocabulary; `behoerde` drives FIN-11 |
+| name | text | no | — | display name; for `typ='privat'` the person's name |
+| rechtsform | text | yes | — | denormalised from `firma` at creation, editable per entity |
+| ust_id | text | yes | — | §14 UStG field on outgoing invoices |
+| steuernummer | text | yes | — | |
+| ist_oeffentlicher_auftraggeber | boolean | no | `false` | FIN-11 |
+| xrechnung_pflicht | boolean | no | `false` | separate flag: private buyers may also demand it |
+| leitweg_id | text | yes | — | FIN-11; `CHECK (leitweg_id ~ '^[0-9A-Za-z][0-9A-Za-z:.\-]{2,45}$')` — deliberately loose; the strict Leitweg check runs in the XRechnung validator against KoSIT |
+| elektronische_adresse | text | yes | — | **EN 16931 BT-49** buyer electronic address — mandatory in a compliant XRechnung and absent from the draft |
+| elektronische_adresse_schema | text | yes | — | **BT-49-1** scheme identifier from the EAS code list (e.g. `0204` for Leitweg-ID). `// TODO(client): Welche elektronische Adresse und welches EAS-Schema hat jeder öffentliche Auftraggeber?` |
+| uebertragungsweg | uebertragungsweg | yes | — | PLACEHOLDER — Peppol / ZRE / OZG-RE / E-Mail. `// TODO(client): Über welchen Weg wird je Auftraggeber zugestellt?` |
+| rechnungsformat | rechnungsformat | yes | — | PLACEHOLDER — FIN-11 vs FIN-12 vs plain PDF |
+| kaeufer_referenz | text | yes | — | XRechnung BT-10 Käuferreferenz where it is not the Leitweg-ID |
+| debitorennummer | text | yes | — | ACC-01/ACC-07; **column-restricted** (K-05, §1.5) |
+| zahlungsziel_tage | smallint | yes | — | no default: the group's standard term is not stated. `CHECK (zahlungsziel_tage BETWEEN 0 AND 180)`. **column-restricted**. `// TODO(client): Standard-Zahlungsziel je Gesellschaft?` |
+| mahnsperre_bis | date | yes | — | FIN-15 dunning block. **column-restricted** |
+| mahnsperre_grund | text | yes | — | `CHECK ((mahnsperre_bis IS NULL) = (mahnsperre_grund IS NULL))` |
+| strasse · hausnummer · plz · ort · land | text/char(2) | yes/no | `land='DE'` | `CHECK (plz ~ '^[0-9A-Za-z \-]{3,10}$')` |
+| rechnungsadresse_abweichend | boolean | no | `false` | |
+| rechnung_name · rechnung_strasse · rechnung_hausnummer · rechnung_plz · rechnung_ort · rechnung_land | text/char(2) | yes | — | used only when `rechnungsadresse_abweichend` |
+| rechnung_email | text | yes | — | invoice dispatch address |
+| email_zentral · telefon_zentral · webseite | text | yes | — | |
+| rechtsgrundlage | rechtsgrundlage | no | `'keine'` | CRM-08. The default is the blocking value by design |
+| rechtsgrundlage_quelle | text | yes | — | evidence: contract number, submission id, call note |
+| rechtsgrundlage_erfasst_am | timestamptz | yes | — | |
+| rechtsgrundlage_beleg_dokument_id | uuid | yes | — | FK → `dokument` (composite with `mandant_id`) |
+| werbewiderspruch_am | timestamptz | yes | — | **Art. 21 DSGVO / §7 UWG objection to advertising** (§5) |
+| widerspruch_am | timestamptz | yes | — | objection to processing altogether; a stronger, rarer case |
+| status | kunde_status | no | `'aktiv'` | |
+| notiz | text | yes | — | CRM-03 free note; the timeline is `lead_aktivitaet` |
+| anonymisiert_am | timestamptz | yes | — | Art. 17 erasure, only meaningful for `typ='privat'` (§5.6) |
+| archiviert_am | timestamptz | yes | — | soft delete (invariant 8) |
+| erstellt_am · erstellt_von · geaendert_am · geaendert_von | | | | as §0.4 |
+
+- **Indexes:**
+  - `UNIQUE (mandant_id, kundennummer) WHERE archiviert_am IS NULL` — number lookup and import idempotency; partial because §0.5 makes deletion soft.
+  - `UNIQUE (mandant_id, debitorennummer) WHERE debitorennummer IS NOT NULL AND archiviert_am IS NULL` — DATEV debtor uniqueness (ACC-01).
+  - `btree (mandant_id, status, name)` — the customer list, default sort · `GIN (name gin_trgm_ops)` — CRM search.
+  - `btree (firma_id) WHERE firma_id IS NOT NULL` — CRM-06 group join.
+  - `btree (mandant_id, rechtsgrundlage) WHERE archiviert_am IS NULL` — "who may we approach" and the LEG-08 audit report.
+  - `btree (mandant_id) WHERE archiviert_am IS NULL` — TEN-10 switcher counters.
+  - `btree (mandant_id) WHERE typ = 'behoerde' AND (leitweg_id IS NULL OR elektronische_adresse IS NULL)` — the FIN-11 data-quality worklist: without a Leitweg-ID the group cannot invoice this buyer at all.
+- **RLS:** standard, module `crm`; customer ceiling `id = app.aktueller_kunde()`; K-05 column grants (§1.5).
+- **Constraints/triggers:**
+  - `CHECK (rechtsgrundlage = 'keine' OR (rechtsgrundlage_quelle IS NOT NULL AND rechtsgrundlage_erfasst_am IS NOT NULL))` — a legal basis without recorded evidence is not a legal basis.
+  - `CHECK (widerspruch_am IS NULL OR rechtsgrundlage = 'keine')` plus the trigger `kern.erzwinge_widerspruch()`, which forces `rechtsgrundlage := 'keine'` the moment `widerspruch_am` is set and rejects any later attempt to raise it. **`werbewiderspruch_am` does not touch `rechtsgrundlage`** — see §5, where the draft's conflation of the two is corrected.
+  - `CHECK (rechnungsadresse_abweichend = false OR (rechnung_strasse IS NOT NULL AND rechnung_plz IS NOT NULL AND rechnung_ort IS NOT NULL))`.
+  - `CHECK (typ <> 'behoerde' OR ist_oeffentlicher_auftraggeber)` — a definitional consistency, not a legal rule. The *Leitweg-ID must exist* rule is **not** a `CHECK`: a public buyer is legitimately created before their Leitweg-ID is known, and a `CHECK` would block data entry rather than the invoice. It is enforced where FIN-04 says it belongs — in the §14 UStG / EN 16931 pre-flight that blocks finalisation — and surfaced early by the worklist index above. §4.8 states the contract.
+  - `CHECK (mahnsperre_bis IS NULL OR mahnsperre_grund IS NOT NULL)`.
+  - `kern.setze_geaendert_am()`, `app.protokolliere()`, `kern.verhindere_loeschung()`.
+- **SPEC:** CRM-01, CRM-05, CRM-06, CRM-08, OPS-01, FIN-09, FIN-10, FIN-11, FIN-12, FIN-15, ACC-01, ACC-07, LEG-05, LEG-08, LEG-09, TEN-03.
+
+#### kunde_bauleistender_status
+
+Whether this customer is itself a Bauleistender under §13b(2) Nr. 4 UStG — **as at a service date**, not as at today.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK |
+| mandant_id | uuid | no | — | FK → `mandant.id` |
+| kunde_id | uuid | no | — | composite FK `(mandant_id, kunde_id)` |
+| ist_bauleistender | boolean | no | — | the determination |
+| gilt_ab | date | no | — | |
+| gilt_bis | date | yes | — | inclusive (§0.7) |
+| grundlage | text | no | — | how it was determined: "USt 1 TG vorgelegt", "Eigenerklärung", "Finanzamtsauskunft" |
+| beleg_dokument_id | uuid | yes | — | composite FK into `dokument` |
+| erfasst_von | uuid | no | — | FK → `benutzer.id` |
+| erstellt_am · geaendert_am | | | | as §0.4 |
+
+- **Indexes:** `btree (mandant_id, kunde_id, gilt_ab DESC)`; `EXCLUDE USING gist (kunde_id WITH =, daterange(gilt_ab, coalesce(gilt_bis + 1, 'infinity'::date), '[)') WITH &&)`.
+- **RLS:** standard, module `abrechnung`; internal-only ceiling.
+- **Why a table and not the draft's boolean** (review B20): §13b turns on the recipient's status **at the time of the supply**, and a finalised invoice is immutable and hash-chained (invariant 4, K-12), so a wrong determination can never be corrected in place — only reversed by Storno. A bare `kunde.ist_bauleistender` cannot answer "was this customer a Bauleistender on 12 March 2025", which is precisely the question an audit asks. The draft's boolean is deleted.
+- **SPEC:** FIN-09, LEG-06.
+
+#### freistellungsbescheinigung
+
+The §48b EStG certificate that lifts the 15 % Bauabzugsteuer — with its number, issuing Finanzamt, validity range and scan. FIN-10 tells the finance service to check a certificate "valid at the service date"; the draft gave that service nothing to check, so the rule could not execute.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK |
+| mandant_id | uuid | no | — | FK → `mandant.id` |
+| kunde_id | uuid | yes | — | composite FK; the certificate *our customer* holds when we are the recipient of their construction service |
+| lieferant_id | uuid | yes | — | boundary reference (§3.2); the certificate a subcontractor gives us |
+| bescheinigung_nummer | text | no | — | |
+| finanzamt | text | no | — | issuing authority |
+| steuernummer | text | yes | — | as printed on the certificate |
+| gueltig_von | date | no | — | |
+| gueltig_bis | date | no | — | inclusive; §48b certificates are always time-limited |
+| dokument_id | uuid | no | — | composite FK into `dokument` — the scan; a certificate nobody can produce is not a certificate |
+| widerrufen_am | timestamptz | yes | — | revocation by the Finanzamt |
+| erstellt_am · erstellt_von · geaendert_am | | | | as §0.4 |
+
+- **Indexes:** `UNIQUE (mandant_id, bescheinigung_nummer)`; `btree (mandant_id, kunde_id, gueltig_bis) WHERE widerrufen_am IS NULL`; `btree (mandant_id, gueltig_bis) WHERE widerrufen_am IS NULL` — the "expiring certificate" watchdog (NOT-01).
+- **RLS:** standard, module `abrechnung`; internal-only ceiling.
+- **Constraints/triggers:** `CHECK (num_nonnulls(kunde_id, lieferant_id) = 1)`; `CHECK (gueltig_bis >= gueltig_von)`. No `CHECK` involving `current_date` (§0.10) — validity at a service date is evaluated by `src/server/services/finanzen/bauabzug.ts`.
+- `// TODO(client): Wird die Freistellungsbescheinigung je Kunde, je Auftrag oder je Nachunternehmer geführt, und wer erfasst sie? Wer prüft die Gültigkeit vor dem Zahlungslauf?`
+- **SPEC:** FIN-10, LEG-06, DOC-01.
+
+#### ansprechpartner
+
+The named human at the customer — Einkauf, Objektleitung, Hausmeister, the person who signs the Leistungsnachweis — and the row on which the §7 UWG gate actually sits.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK; `UNIQUE (mandant_id, id)` and `UNIQUE (mandant_id, kunde_id, id)` (the second so `objekt` can pin a contact to its own customer) |
+| mandant_id | uuid | no | — | FK → `mandant.id` |
+| kunde_id | uuid | yes | — | composite FK; NULL while the contact belongs to a lead that has not converted |
+| anrede · titel · vorname | text | yes | — | |
+| nachname | text | no | — | |
+| position · abteilung | text | yes | — | Funktion beim Kunden |
+| email | text | yes | — | `CHECK (email IS NULL OR email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$')` |
+| telefon · mobil | text | yes | — | |
+| sprache | sprache | no | `'de'` | the `sprache` enum of `01-KERN.md`, not a bare `char(2)` |
+| ist_hauptkontakt | boolean | no | `false` | one per kunde |
+| rechtsgrundlage | rechtsgrundlage | no | `'keine'` | CRM-08 — the gate. **column-restricted** (§1.5) |
+| rechtsgrundlage_quelle · rechtsgrundlage_erfasst_am · rechtsgrundlage_beleg_dokument_id | | yes | — | **column-restricted** |
+| einwilligung_kanaele | text[] | yes | — | `CHECK (einwilligung_kanaele <@ ARRAY['email','telefon','sms','post','whatsapp'])` — consent under §7 UWG is channel-specific. **column-restricted** |
+| werbewiderspruch_am | timestamptz | yes | — | objection to advertising (§5) |
+| widerspruch_am | timestamptz | yes | — | objection to processing |
+| ausgeschieden_am | date | yes | — | the person left the customer |
+| anonymisiert_am | timestamptz | yes | — | Art. 17 erasure (§5.6) |
+| archiviert_am | timestamptz | yes | — | |
+| erstellt_am · erstellt_von · geaendert_am · geaendert_von | | | | as §0.4 |
+
+- **Indexes:**
+  - `btree (mandant_id, kunde_id) WHERE archiviert_am IS NULL` — the contact list.
+  - `CREATE UNIQUE INDEX ansprechpartner_email_uk ON ansprechpartner (mandant_id, kunde_id, lower(email)) NULLS NOT DISTINCT WHERE archiviert_am IS NULL AND email IS NOT NULL` — **`NULLS NOT DISTINCT`** (PG 15+) is the whole point (review B13): with the default distinct-NULL semantics every pre-conversion contact has `kunde_id IS NULL` and the index constrains nothing for exactly the population it exists for. Ten submissions from `einkauf@example.de` would create ten rows, each with its own `rechtsgrundlage` and `werbewiderspruch_am`, so an objection recorded on one leaves nine contactable clones and the §7 UWG evidence trail splits across ten ids.
+  - `btree (mandant_id, lower(email))` — the outbound gate looks a recipient up by address before sending.
+  - `UNIQUE (mandant_id, kunde_id) WHERE ist_hauptkontakt AND archiviert_am IS NULL` — exactly one main contact; **partial on `archiviert_am`**, or an archived former Hauptkontakt permanently blocks naming a new one.
+  - `btree (mandant_id, rechtsgrundlage) WHERE archiviert_am IS NULL` — LEG-08 reporting.
+  - `btree (mandant_id, lower(nachname), lower(vorname))` — the LEG-09 data-subject lookup (Art. 15/20) needs a supported path across `ansprechpartner`, `formular_eingang` and `lead_aktivitaet`; §5.6 names all three.
+- **RLS:** standard, module `crm`; K-05 column grants; the customer ceiling exposes only the non-restricted columns of their own contacts.
+- **Constraints/triggers:** the two `rechtsgrundlage` constraints of `kunde` and `kern.erzwinge_widerspruch()`; additionally `CHECK (rechtsgrundlage = 'einwilligung' OR einwilligung_kanaele IS NULL)` — channel consent is only meaningful under consent. `kern.setze_geaendert_am()`, `app.protokolliere()`, `kern.verhindere_loeschung()`.
+- **SPEC:** CRM-01, CRM-03, CRM-08, OPS-01, LEG-08, LEG-09.
+
+#### kunde_zugang
+
+The customer-portal login: which `benutzer` acts for which `kunde` in which mandant. The customer-side analogue of `mitarbeiter_zugang`, and the table `app.aktueller_kunde()` resolves against (§1.4). Without it the K-04 customer ceiling has nothing to key on and the draft's `app.kunde_id()` GUC would have to be invented — which K-02 forbids, since its GUC list is closed.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK |
+| mandant_id | uuid | no | — | FK → `mandant.id` |
+| kunde_id | uuid | no | — | composite FK `(mandant_id, kunde_id)` |
+| benutzer_id | uuid | no | — | FK → `benutzer.id` |
+| ansprechpartner_id | uuid | yes | — | composite FK `(mandant_id, kunde_id, ansprechpartner_id)` — which human at the customer this login belongs to |
+| eingeladen_am | timestamptz | yes | — | |
+| aktiviert_am | timestamptz | yes | — | server clock (§0.9) |
+| entzogen_am | timestamptz | yes | — | the single liveness column (§0.5) |
+| erstellt_am · erstellt_von | | | | as §0.4 |
+
+- **Indexes:** `UNIQUE (benutzer_id, mandant_id) WHERE entzogen_am IS NULL` — one customer identity per login per entity, re-grantable after revocation (§0.5); `btree (mandant_id, kunde_id) WHERE entzogen_am IS NULL`.
+- **RLS:** standard, module `crm`; internal-only ceiling — **a customer cannot read the table that decides who they are.** `cse_definer` holds the narrow select policy of §1.7.
+- **Constraints/triggers:** `kern.verhindere_loeschung()`; `app.protokolliere()` (granting and revoking portal access is an AUT-08 event).
+- **SPEC:** AUT-01, AUT-03, DOC-04, DSH-03.
+
+---
+
+### 4.2 Objekte und Raumbuch
+
+#### objekt
+
+A building or site the group works at — address, coordinates, access notes, and the parent of the Raumbuch.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK; `UNIQUE (mandant_id, id)` |
+| mandant_id | uuid | no | — | FK → `mandant.id` |
+| kunde_id | uuid | yes | — | composite FK `(mandant_id, kunde_id)`. **Nullable** (review, MINOR): the same building is legitimately contracted by two customers inside one entity (owner and tenant), and a security `veranstaltungsort` (REQ-03) exists before any customer master record does. An Objekt is a place; the commercial relationship lives on `auftrag` / `auftrag_leistung`. `// TODO(client): Wird ein Gebäude, das für zwei Kunden derselben Gesellschaft betreut wird, als ein Objekt oder als zwei geführt?` |
+| objektnummer | text | no | — | |
+| bezeichnung | text | no | — | "Bürohaus Kurfürstendamm 21" |
+| gebaeudetyp | text | yes | — | REQ-02. Free text until answered, so no wrong list is baked in. `// TODO(client): Kontrolliertes Vokabular für Gebäudetyp?` |
+| strasse | text | no | — | |
+| hausnummer · adresszusatz | text | yes | — | Haus B, 3. OG |
+| plz · ort | text | no | — | |
+| land | char(2) | no | `'DE'` | |
+| geo_lat | numeric(9,6) | yes | — | `CHECK (geo_lat BETWEEN -90 AND 90)` — OPS-01 |
+| geo_lon | numeric(9,6) | yes | — | `CHECK (geo_lon BETWEEN -180 AND 180)` |
+| ansprechpartner_id | uuid | yes | — | on-site contact; composite FK `(mandant_id, kunde_id, ansprechpartner_id)` → `ansprechpartner (mandant_id, kunde_id, id)`, which is what stops an on-site contact from a *different* customer being insertable (review, MINOR) |
+| etagen_anzahl | smallint | yes | — | |
+| zutritt_hinweis | text | yes | — | access instructions for the crew |
+| bemerkung | text | yes | — | |
+| archiviert_am | timestamptz | yes | — | the single liveness column (§0.5) |
+| erstellt_am · erstellt_von · geaendert_am · geaendert_von | | | | as §0.4 |
+
+- **Indexes:** `UNIQUE (mandant_id, objektnummer) WHERE archiviert_am IS NULL` · `btree (mandant_id, kunde_id) WHERE archiviert_am IS NULL` · `GIN (bezeichnung gin_trgm_ops)` — object search from the Dienstplan and the check-in screen · `btree (mandant_id, plz, ort)` — Berlin district grouping and route planning · `btree (mandant_id) WHERE geo_lat IS NULL AND archiviert_am IS NULL` — the geocoding data-quality worklist. Optional if PostGIS is enabled: `geog geography(Point,4326) GENERATED ALWAYS AS (ST_SetSRID(ST_MakePoint(geo_lon, geo_lat),4326)::geography) STORED` plus `GIST (geog)`; not required for Phase 4 and the numeric columns stay authoritative, so the schema works without the extension.
+- **RLS:** standard, module `objekt`; customer ceiling `kunde_id = app.aktueller_kunde()`.
+- **Constraints/triggers:** `CHECK ((geo_lat IS NULL) = (geo_lon IS NULL))` — half a coordinate is worse than none. Total area is deliberately not stored; see the view `objekt_flaeche` (§6). `kern.setze_geaendert_am()`, `app.protokolliere()`, `kern.verhindere_loeschung()`.
+- **SPEC:** OPS-01, OPS-02, OPS-05, REQ-02, REQ-03, PRO-05, TEN-03.
+
+#### raum
+
+One row of the Raumbuch — a room with its area in m², its Belagsart and its Reinigungsklasse. This table plus `belagsart` is the entire basis of cleaning pricing (OPS-02/03): `Σ (m² ÷ Leistungswert) × Frequenzfaktor`.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK; `UNIQUE (mandant_id, id)` |
+| mandant_id | uuid | no | — | FK → `mandant.id` |
+| objekt_id | uuid | no | — | composite FK `(mandant_id, objekt_id)` |
+| raumnummer | text | yes | — | **nullable** (review B14): real Raumbücher contain Flur, Treppenhaus, Aufzugsvorraum and WC-Vorraum rows with no door number, and `NOT NULL` forces the OPS-04 importer to fabricate one |
+| bezeichnung | text | yes | — | "Besprechung Nord" |
+| etage | text | yes | — | text, not integer: "UG", "EG", "1", "ZG" |
+| nutzungsart | text | yes | — | Büro, Sanitär, Flur, Treppenhaus |
+| flaeche_qm | numeric(12,3) | no | — | OPS-02; `CHECK (flaeche_qm > 0)` |
+| belagsart_id | uuid | yes | — | composite FK `(mandant_id, belagsart_id)` (OPS-02/03) |
+| reinigungsklasse_id | uuid | yes | — | composite FK |
+| fenster_flaeche_qm | numeric(12,3) | yes | — | CLN-05: glass cleaning is priced on glass area, not floor area; `CHECK (fenster_flaeche_qm IS NULL OR fenster_flaeche_qm >= 0)` |
+| quell_schluessel | text | yes | — | the importer's stable key for this row (§4.2 `raumbuch_import_zeile`), so idempotency does not overload the door number |
+| bemerkung | text | yes | — | |
+| sortierung | integer | no | `0` | printing order of the Raumbuch |
+| archiviert_am | timestamptz | yes | — | |
+| erstellt_am · erstellt_von · geaendert_am · geaendert_von | | | | as §0.4 |
+
+- **Indexes:**
+  - `UNIQUE (objekt_id, etage, raumnummer) WHERE archiviert_am IS NULL AND raumnummer IS NOT NULL` — the corrected natural key (review B14). The draft's `UNIQUE (objekt_id, raumnummer)` collapses "101" in the UG with "101" in the 1. OG into one row, and every merged room drops its m² out of `Σ m² ÷ Leistungswert`, which is a systematically **under-priced** cleaning offer that no test would notice.
+  - `UNIQUE (objekt_id, quell_schluessel) WHERE quell_schluessel IS NOT NULL AND archiviert_am IS NULL` — import idempotency, on the importer's key rather than on the door number.
+  - `btree (mandant_id, objekt_id, sortierung)` — Raumbuch listing and PDF export.
+  - `btree (objekt_id, belagsart_id) INCLUDE (flaeche_qm, fenster_flaeche_qm) WHERE archiviert_am IS NULL` — **the OPS-02/03 costing query**: sum area per Belagsart for one Objekt. The draft had no index that served it.
+  - `btree (belagsart_id)` — impact analysis before changing a Leistungswert ("which rooms would this re-price") · `btree (mandant_id, reinigungsklasse_id)`.
+- **RLS:** standard, module `objekt`; customer ceiling via the parent `objekt`.
+- **Constraints/triggers:** tenant consistency is the composite FK (§0.8), not a trigger. `kern.setze_geaendert_am()`, `kern.verhindere_loeschung()` — archived rooms remain, because a `kalkulation_position` may reference them and a signed offer must stay reproducible.
+- **SPEC:** OPS-02, OPS-03, OPS-04, OPS-07, CLN-01, CLN-05.
+
+#### belagsart
+
+The floor-covering catalogue with its Leistungswert in m² per hour — the number that turns a Raumbuch into a price (OPS-03), versioned in time because a Leistungswert that changes must never re-price a signed offer.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK; `UNIQUE (mandant_id, id)` |
+| mandant_id | uuid | no | — | each entity keeps its own values |
+| code | text | no | — | "PVC", "TEPPICH", "FLIESE", "PARKETT" |
+| bezeichnung · beschreibung | text | no/yes | — | |
+| leistungswert_qm_pro_stunde | numeric(10,3) | no | — | OPS-03; `CHECK (leistungswert_qm_pro_stunde > 0)` |
+| quelle | text | no | — | where the value comes from: "Kunde", "DIN 77400", "eigene Messung". A performance value with no stated source cannot be defended in a price dispute |
+| ist_platzhalter | boolean | no | `true` | `// TODO(client): Leistungswerte (m²/h) je Belagsart — aus welcher Quelle stammen sie, und gelten sie je Gesellschaft unterschiedlich?` |
+| gueltig_ab | date | no | — | |
+| gueltig_bis | date | yes | — | **inclusive** (§0.7); NULL = current |
+| erstellt_am · erstellt_von · geaendert_am · geaendert_von | | | | as §0.4 |
+
+- **Indexes:** `UNIQUE (mandant_id, code) WHERE gueltig_bis IS NULL` — exactly one current version per code · `btree (mandant_id, code, gueltig_ab DESC)` — historical lookup when reproducing an old calculation · `btree (mandant_id) WHERE ist_platzhalter` — the unconfirmed-values banner.
+- **RLS:** standard, module `objekt`; internal-only ceiling.
+- **Constraints/triggers:** `CHECK (gueltig_bis IS NULL OR gueltig_bis >= gueltig_ab)` and `EXCLUDE USING gist (mandant_id WITH =, code WITH =, daterange(gueltig_ab, coalesce(gueltig_bis + 1, 'infinity'::date), '[)') WITH &&)` — the §0.7 form, so "the Leistungswert on date X" has exactly one answer on the changeover day too. Superseding a value means closing `gueltig_bis` and inserting a new row; `kern.verhindere_loeschung()`.
+- **SPEC:** OPS-02, OPS-03, OPS-07.
+
+#### reinigungsklasse
+
+The cleaning-class catalogue referenced by the Raumbuch (OPS-02) — a lookup table rather than an enum, because the vocabulary is customer- or standard-specific and the SPEC states none.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK; `UNIQUE (mandant_id, id)` |
+| mandant_id | uuid | no | — | |
+| code · bezeichnung | text | no | — | |
+| beschreibung | text | yes | — | what the class actually requires |
+| sortierung | integer | no | `0` | |
+| ist_platzhalter | boolean | no | `true` | `// TODO(client): Welche Reinigungsklassen werden verwendet (DIN 77400, eigenes Schema, kundenspezifisch)? Steuern sie Frequenz, Preis, beides oder nichts?` |
+| archiviert_am | timestamptz | yes | — | |
+| erstellt_am · erstellt_von · geaendert_am · geaendert_von | | | | as §0.4 |
+
+- **Indexes:** `UNIQUE (mandant_id, code) WHERE archiviert_am IS NULL`; `btree (mandant_id, sortierung) WHERE archiviert_am IS NULL`.
+- **RLS:** standard, module `objekt`; internal-only ceiling.
+- **Constraints/triggers:** deliberately carries **no** frequency factor and **no** price effect. Attaching either would be inventing a pricing rule (K-17); when the client answers, the factor arrives here as `frequenz_faktor numeric(10,4)` with its own `gueltig_ab`/`gueltig_bis` range and is consumed by the costing service. `kern.verhindere_loeschung()`.
+- **SPEC:** OPS-02.
+
+#### raumbuch_import
+
+One Excel/CSV upload of a Raumbuch, held in a reviewable state so a human sees the preview before anything touches the live Raumbuch (OPS-04).
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK; `UNIQUE (mandant_id, id)` |
+| mandant_id | uuid | no | — | |
+| objekt_id | uuid | no | — | composite FK |
+| dokument_id | uuid | no | — | composite FK — the uploaded file itself, in a private bucket |
+| dateiname | text | no | — | as uploaded |
+| status | raumbuch_import_status | no | `'hochgeladen'` | |
+| spalten_zuordnung | jsonb | no | `'{}'` | mapping of sheet columns to target fields, chosen in the preview UI |
+| schluessel_spalte | text | yes | — | which source column supplies `raum.quell_schluessel`; NULL means "(Etage, Raumnummer)" |
+| zeilen_gesamt · zeilen_gueltig · zeilen_fehler | integer | no | `0` | |
+| fehler_bericht | jsonb | yes | — | aggregated validation problems |
+| geprueft_am · geprueft_von | timestamptz/uuid | yes | — | |
+| uebernommen_am · uebernommen_von | timestamptz/uuid | yes | — | the commit |
+| verworfen_am | timestamptz | yes | — | |
+| erstellt_am · erstellt_von · geaendert_am | | | | as §0.4 |
+
+- **Indexes:** `btree (mandant_id, objekt_id, erstellt_am DESC)` — import history per object; `btree (mandant_id, status) WHERE status IN ('hochgeladen','geprueft')` — the "waiting for review" worklist.
+- **RLS:** standard, module `objekt_import`; internal-only ceiling.
+- **Constraints/triggers:** `CHECK (status <> 'uebernommen' OR (uebernommen_am IS NOT NULL AND uebernommen_von IS NOT NULL))` — a commit always has a named human. A trigger blocks any change to `spalten_zuordnung`, `schluessel_spalte` or `dokument_id` once `status = 'uebernommen'`. `kern.erzwinge_serverzeit()` on `uebernommen_am`, `geprueft_am`, `verworfen_am`. `kern.verhindere_loeschung()` — the import header documents how the live Raumbuch arose and is kept even when its staging rows are purged (§1.8).
+- **SPEC:** OPS-04, DOC-03, DOC-06, LEG-01.
+
+#### raumbuch_import_zeile
+
+One staged row of an import — the raw sheet row, its normalised interpretation and the action the commit would take. This is what the preview screen renders, and it is one of the two purge tables of §1.8.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK |
+| mandant_id | uuid | no | — | |
+| import_id | uuid | no | — | composite FK `(mandant_id, import_id)` |
+| zeilennummer | integer | no | — | |
+| rohdaten | jsonb | no | — | the untouched source row — the audit trail of what was uploaded |
+| quell_schluessel | text | yes | — | the importer's stable key, copied to `raum.quell_schluessel` at commit |
+| raumnummer · bezeichnung · etage · nutzungsart | text | yes | — | normalised |
+| flaeche_qm | numeric(12,3) | yes | — | parsed with the German decimal comma |
+| belagsart_code · reinigungsklasse_code | text | yes | — | as written in the sheet |
+| belagsart_id · reinigungsklasse_id | uuid | yes | — | resolved, NULL if unknown; composite FKs |
+| ist_gueltig | boolean | no | `false` | |
+| fehler | text[] | no | `'{}'` | per-row validation messages shown in the preview |
+| aktion | raumbuch_zeile_aktion | no | `'anlegen'` | what the commit will do |
+| raum_id | uuid | yes | — | composite FK; set at commit, and the match target for `aktualisieren` |
+| erstellt_am | timestamptz | no | `now()` | |
+
+- **Indexes:** `UNIQUE (import_id, zeilennummer)`; `btree (import_id, ist_gueltig, zeilennummer)` — paged preview split into valid and invalid; `btree (raum_id) WHERE raum_id IS NOT NULL`.
+- **RLS:** standard, module `objekt_import`; internal-only ceiling; **plus** the `cse_job` DELETE policy of §1.8 — the only tables in this domain with one. No `kern.verhindere_loeschung()` trigger here, or the policy could not fire.
+- **Constraints/triggers:** `CHECK (aktion <> 'aktualisieren' OR raum_id IS NOT NULL)`.
+- **SPEC:** OPS-04, LEG-09.
+
+#### raum_import_historie
+
+Which imports touched this room, in order. The draft's single `raum.import_id`, documented as "created **or last touched**", loses the provenance of every earlier import the moment a second one runs — and OPS-04 under GoBD is precisely a question about how the current Raumbuch arose.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK |
+| mandant_id | uuid | no | — | |
+| raum_id | uuid | no | — | composite FK |
+| import_id | uuid | no | — | composite FK |
+| import_zeile_id | uuid | yes | — | the staged row this change came from |
+| aktion | raumbuch_zeile_aktion | no | — | what this import did to this room |
+| vorher | jsonb | yes | — | the changed fields before |
+| nachher | jsonb | yes | — | and after |
+| erstellt_am | timestamptz | no | `now()` | |
+
+- **Indexes:** `btree (raum_id, erstellt_am DESC)`; `btree (import_id)`; `UNIQUE (import_id, raum_id)`.
+- **RLS:** standard, module `objekt`; internal-only ceiling. Append-only: no `UPDATE` policy, `kern.verhindere_loeschung()`. Rows survive the §1.8 purge of `raumbuch_import_zeile`, which is why `vorher`/`nachher` are copied here rather than joined.
+- **SPEC:** OPS-04, LEG-01, SEC-A9.
+
+---
+
+### 4.3 Leistungskatalog
+
+#### leistungskatalog
+
+A trade's service catalogue as a versioned, publishable whole — cleaning, security and construction each maintain their own, with time values per position (OPS-06).
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK; `UNIQUE (mandant_id, id)` |
+| mandant_id | uuid | no | — | "per trade" is per mandant (TEN-01) |
+| schluessel | text | no | — | stable key, e.g. `unterhaltsreinigung` |
+| bezeichnung · beschreibung | text | no/yes | — | |
+| version | integer | no | `1` | |
+| status | katalog_status | no | `'entwurf'` | the single liveness column (§0.5) |
+| gueltig_ab | date | no | — | |
+| gueltig_bis | date | yes | — | inclusive (§0.7) |
+| erstellt_am · erstellt_von · geaendert_am · geaendert_von | | | | as §0.4 |
+
+- **Indexes:** `UNIQUE (mandant_id, schluessel, version)`; `UNIQUE (mandant_id, schluessel) WHERE status = 'aktiv'` — only one active version at a time; `btree (mandant_id, status)`.
+- **RLS:** standard, module `katalog`; internal-only ceiling.
+- **Constraints/triggers:** `CHECK (gueltig_bis IS NULL OR gueltig_bis >= gueltig_ab)`. A trigger blocks any insert or update of positions belonging to a catalogue whose `status = 'archiviert'`. `kern.verhindere_loeschung()`.
+- **SPEC:** OPS-06, CLN-05, BAU-01 (the OZ hierarchy is shared with the Leistungsverzeichnis).
+
+#### leistungskatalog_position
+
+One catalogue service — Glasreinigung, Sonderreinigung, Warenräumung, Objektschutz je Stunde, Rückbau je m³ — with its Ordnungszahl, unit, time value and list price.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK; `UNIQUE (mandant_id, id)` |
+| mandant_id | uuid | no | — | |
+| katalog_id | uuid | no | — | composite FK |
+| parent_id | uuid | yes | — | composite FK to itself — hierarchy (Titel / Los / Position) |
+| oz | text | no | — | Ordnungszahl, e.g. `01.02.030` |
+| kurztext | text | no | — | |
+| langtext | text | yes | — | the description printed in the offer |
+| einheit | text | no | — | §0.11 |
+| zeitwert_minuten | numeric(10,3) | yes | — | OPS-06 "time values" — minutes per unit; `CHECK (zeitwert_minuten IS NULL OR zeitwert_minuten > 0)` |
+| leistungswert_qm_pro_stunde | numeric(10,3) | yes | — | alternative basis for area-priced services; `CHECK (… > 0)` |
+| standard_einzelpreis_cent | bigint | yes | — | list price, integer cents (invariant 1) |
+| kostenart | kostenart | yes | — | default cost type when pulled into a `kalkulation` |
+| steuer_kennzeichen | steuer_kennzeichen | no | `'regelsatz'` | |
+| steuerbefreiung_grund | text | yes | — | §14 Abs. 4 Nr. 8 UStG: a tax-exempt line must print its statutory ground |
+| erloeskonto_schluessel | text | yes | — | ACC-01 carrier into `konto_mapping` (§3.2). `// TODO(client): Erlöskonto je Leistungsart (SKR03/SKR04) — O-05` |
+| ist_platzhalter | boolean | no | `true` | `// TODO(client): Zeitwerte und Listenpreise je Leistung — bestätigen oder liefern.` |
+| gueltig_ab | date | no | — | |
+| gueltig_bis | date | yes | — | inclusive; the single liveness column (§0.5) |
+| sortierung | integer | no | `0` | |
+| erstellt_am · erstellt_von · geaendert_am · geaendert_von | | | | as §0.4 |
+
+- **Indexes:** `UNIQUE (katalog_id, oz) WHERE gueltig_bis IS NULL` · `btree (mandant_id, katalog_id, sortierung)` · `btree (parent_id)` · `GIN (kurztext gin_trgm_ops)` — the position search in the offer editor · `btree (mandant_id) WHERE ist_platzhalter`.
+- **RLS:** standard, module `katalog`; internal-only ceiling.
+- **Constraints/triggers:**
+  - `CHECK (zeitwert_minuten IS NOT NULL OR leistungswert_qm_pro_stunde IS NOT NULL OR standard_einzelpreis_cent IS NOT NULL)` — a position that carries neither a time value nor a price cannot be costed.
+  - `CHECK (steuer_kennzeichen <> 'steuerfrei' OR steuerbefreiung_grund IS NOT NULL)`.
+  - Trigger `kern.pruefe_katalog_hierarchie()` rejects a `parent_id` cycle and a parent in a different `katalog_id`.
+  - `kern.verhindere_loeschung()` — close `gueltig_bis` instead, because `kalkulation_position` and `angebotsposition` reference these rows.
+- **SPEC:** OPS-06, OPS-07, CLN-05, BAU-01, ACC-01, FIN-09.
+
+---
+
+### 4.4 Formulare und Leads
+
+#### formular_definition
+
+One offer-request form per business area, versioned — the field set that actually lets the area quote (REQ-01 … REQ-04). **Public-readable, and therefore free of internal data**: the SLA, the owner and the escalation target live in `formular_zustaendigkeit` (§1.6).
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK; `UNIQUE (mandant_id, id)` |
+| mandant_id | uuid | no | — | "one per business area" (REQ-01) |
+| schluessel | text | no | — | `angebot_reinigung`, `angebot_security`, `angebot_bau`, `angebot_operations` |
+| version | integer | no | `1` | |
+| titel · beschreibung | text | no/yes | — | |
+| felder | jsonb | no | — | ordered array of field definitions, Zod-validated (below) |
+| datenschutz_hinweis_version | text | no | — | which privacy text this form shows; copied onto every submission as evidence |
+| veroeffentlicht_am | timestamptz | yes | — | the public policy of §1.6 keys on this |
+| zurueckgezogen_am | timestamptz | yes | — | withdrawal without deletion (§0.5) |
+| erstellt_am · erstellt_von · geaendert_am · geaendert_von | | | | as §0.4 |
+
+**The `felder` contract (BFSG / WCAG 2.1 AA — PUB-09, LEG-07).** The draft specified only the `typ` discriminant, and its own field table showed a "Pflicht" column with no home in the declared shape. An accessible public form needs more than a type, so the union is stated in full and `src/lib/formular/schema.ts` is its single source:
+
+```ts
+const FeldBasis = z.object({
+  schluessel:  z.string().regex(/^[a-z][a-z0-9_]{1,40}$/),
+  label:       z.string().min(1),          // programmatic label — required, WCAG 3.3.2
+  hilfetext:   z.string().optional(),      // aria-describedby
+  fehlermeldung: z.string().min(1),        // WCAG 3.3.1/3.3.3: a specific message, not "ungültig"
+  pflicht:     z.boolean(),
+  autocomplete: z.string().optional(),     // WCAG 1.3.5 (name, email, tel, street-address, …)
+  sortierung:  z.number().int(),
+});
+const Option = z.object({ wert: z.string(), label: z.string().min(1) });
+
+export const FormularFeld = z.discriminatedUnion('typ', [
+  FeldBasis.extend({ typ: z.literal('text'),      maxLaenge: z.number().int().optional() }),
+  FeldBasis.extend({ typ: z.literal('textarea'),  maxLaenge: z.number().int().optional() }),
+  FeldBasis.extend({ typ: z.literal('zahl'),      min: z.number().optional(), max: z.number().optional() }),
+  FeldBasis.extend({ typ: z.literal('dezimal'),   min: z.number().optional(), max: z.number().optional(),
+                                                  nachkommastellen: z.number().int().max(3) }),
+  FeldBasis.extend({ typ: z.literal('datum') }),
+  FeldBasis.extend({ typ: z.literal('datum_zeit') }),
+  FeldBasis.extend({ typ: z.literal('auswahl'),        optionen: z.array(Option).min(1) }),
+  FeldBasis.extend({ typ: z.literal('mehrfachauswahl'), optionen: z.array(Option).min(1) }),
+  FeldBasis.extend({ typ: z.literal('checkbox') }),
+  FeldBasis.extend({ typ: z.literal('email') }),
+  FeldBasis.extend({ typ: z.literal('telefon') }),
+  FeldBasis.extend({ typ: z.literal('datei'),     mime: z.array(z.string()).min(1),
+                                                  maxBytes: z.number().int() }),
+]);
+```
+
+The concrete field sets, which are the substance of REQ-02/03/04:
+
+| Bereich | Feld (`schluessel`) | Typ | Pflicht | SPEC |
+|---|---|---|---|---|
+| reinigung | `gebaeudetyp` | auswahl | ja | REQ-02 |
+| reinigung | `flaeche_qm` | dezimal | ja | REQ-02 |
+| reinigung | `anzahl_objekte` | zahl | ja | REQ-02 |
+| reinigung | `frequenz` | auswahl | ja | REQ-02 |
+| reinigung | `wunsch_start` | datum | ja | REQ-02 |
+| security | `anlass` | text | ja | REQ-03 |
+| security | `einsatz_von` / `einsatz_bis` | datum_zeit | ja | REQ-03 |
+| security | `erwartete_besucher` | zahl | ja | REQ-03 |
+| security | `anzahl_kraefte` | zahl | ja | REQ-03 |
+| security | `veranstaltungsort` | text | ja | REQ-03 |
+| bau | `gewerk` | auswahl | ja | REQ-04 |
+| bau | `volumen` | text | ja | REQ-04 |
+| bau | `fertigstellung_bis` | datum | ja | REQ-04 |
+| bau | `lv_datei` | datei | nein | REQ-04 (LV upload) |
+| alle | `firma`, `name`, `email`, `telefon`, `nachricht` | text/email/telefon/textarea | ja außer `nachricht` | REQ-01 |
+| alle | `datenschutz_hinweis` | checkbox | ja | LEG-09 — an **acknowledgement**, not a consent (below) |
+| alle | `einwilligung_werbung` | checkbox | **nein** | CRM-08 / LEG-08 |
+
+`// TODO(client): Welche Felder braucht das Formular für CSE Operations, um überhaupt anbieten zu können? REQ-01 verlangt ein Formular je Bereich, REQ-02/03/04 definieren nur drei.`
+`// TODO(client): Auswahllisten für gebaeudetyp, frequenz und gewerk — bitte die tatsächlich verwendeten Werte liefern.`
+
+- **Indexes:** `UNIQUE (mandant_id, schluessel, version)`; `UNIQUE (mandant_id, schluessel) WHERE veroeffentlicht_am IS NOT NULL AND zurueckgezogen_am IS NULL` — one live version per form; `btree (mandant_id) WHERE veroeffentlicht_am IS NOT NULL AND zurueckgezogen_am IS NULL` — the public site's lookup.
+- **RLS:** standard, module `formular`, **plus** the `t_oeffentlich` policy of §1.6. It is the one table in this domain with **no** portal ceiling (§1.4) — the public renderer does not run at `portal = 'intern'`, so a ceiling would blank every public offer-request form. The exemption is registered literally in `src/server/db/rls.ts`, and it is safe only because the table carries no internal column: SLA, owner and escalation target live in `formular_zustaendigkeit`.
+- **Constraints/triggers:** `formular_definition_unveraenderlich()` — once `veroeffentlicht_am IS NOT NULL`, `felder` and `datenschutz_hinweis_version` are immutable; only `zurueckgezogen_am` may change. A change to the field set creates `version + 1`. Without this, a submission stored six months ago becomes uninterpretable and the privacy evidence stops matching the text that was shown. `kern.erzwinge_serverzeit()` on `veroeffentlicht_am`. `kern.verhindere_loeschung()`.
+- **SPEC:** REQ-01, REQ-02, REQ-03, REQ-04, PUB-07, PUB-09, LEG-07, LEG-09.
+
+#### formular_zustaendigkeit
+
+The internal half of a form — SLA, named owner, escalation target. Separated so the table the public renderer may read contains nothing the public may not (§1.6).
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK |
+| mandant_id | uuid | no | — | |
+| formular_definition_id | uuid | no | — | composite FK; `UNIQUE (formular_definition_id)` |
+| sla_stunden | integer | yes | — | REQ-05. No default, and **nullable** — see `lead.sla_frist_am`. `CHECK (sla_stunden IS NULL OR sla_stunden > 0)`. `// TODO(client): Reaktionszeit je Bereich in Stunden — Kalenderstunden oder Werktagsstunden, und ab wann läuft sie an einem Freitagabend?` |
+| standard_besitzer_benutzer_id | uuid | no | — | FK → `benutzer.id` — REQ-05 named owner |
+| eskalation_benutzer_id | uuid | yes | — | FK → `benutzer.id` — REQ-06 target |
+| erstellt_am · erstellt_von · geaendert_am · geaendert_von | | | | as §0.4 |
+
+- **RLS:** standard, module `formular`; internal-only ceiling; **no `oeffentlich` policy**.
+- **SPEC:** REQ-05, REQ-06.
+
+#### formular_eingang
+
+The raw, validated submission exactly as it arrived — attribution, privacy evidence and payload — kept separate from the `lead` so that what a visitor actually sent is never edited by a salesperson.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK; `UNIQUE (mandant_id, id)` |
+| mandant_id | uuid | no | — | |
+| formular_definition_id | uuid | no | — | composite FK — the exact **version** rendered |
+| daten | jsonb | no | — | payload validated against `felder`; never trusted raw (SEC-A4) |
+| utm_quelle · utm_medium · utm_kampagne · utm_begriff · utm_inhalt | text | yes | — | REQ-07 |
+| referrer · landing_page | text | yes | — | REQ-07 |
+| ip_hash | text | yes | — | SHA-256 of IP + server-side pepper. The raw IP is never stored: it is personal data and abuse defence only needs equality (LEG-09) |
+| user_agent | text | yes | — | |
+| spam_punkte | smallint | no | `0` | `CHECK (spam_punkte BETWEEN 0 AND 100)` |
+| datenschutz_hinweis_bestaetigt | boolean | no | — | **no `DEFAULT`** (review, MINOR: the draft paired `DEFAULT false` with `CHECK (spalte)`, so an INSERT omitting it failed with a constraint error instead of defaulting). `CHECK (datenschutz_hinweis_bestaetigt)` |
+| datenschutz_hinweis_version | text | no | — | copied from the form version |
+| einwilligung_werbung | boolean | no | `false` | optional; drives `rechtsgrundlage = 'einwilligung'` rather than `'anfrage'` |
+| eingegangen_am | timestamptz | no | `now()` | **and** `kern.erzwinge_serverzeit()` (§0.9) |
+| status | formular_eingang_status | no | `'neu'` | |
+| lead_id | uuid | yes | — | composite FK; set when the lead is created |
+| verarbeitet_am · verarbeitet_von | timestamptz/uuid | yes | — | |
+| erstellt_am | timestamptz | no | `now()` | |
+
+**Why the consent checkbox became an acknowledgement** (review, INVENTED RULES). The draft's `einwilligung_datenschutz boolean NOT NULL CHECK (…)` made a privacy *consent* structurally mandatory for every enquiry. Processing an enquiry in order to quote rests on Art. 6(1)(b)/(f) DSGVO, not on consent; demanding consent for processing that is already necessary is the documented Kopplungs-/Freiwilligkeit problem, and a consent that cannot be refused is not valid consent. LEG-09 names a processing register, DPAs, a deletion concept and a data-subject process — no consent checkbox. So the mandatory field records that the privacy notice **was shown and acknowledged**, versioned, and the only genuine consent is the optional advertising one.
+`// TODO(client): Wird die Datenschutzerklärung als Hinweis bestätigt (Art. 6(1)(b)/(f)) oder als Einwilligung erhoben? Der Unterschied entscheidet, ob eine Anfrage ohne Häkchen bearbeitet werden darf.`
+
+- **Indexes:** `btree (mandant_id, status, eingegangen_am DESC)` — intake worklist · `btree (formular_definition_id)` · `btree (lead_id) WHERE lead_id IS NOT NULL` · `btree (mandant_id, utm_quelle, utm_kampagne, eingegangen_am)` — REP-03 · `btree (ip_hash, eingegangen_am) WHERE ip_hash IS NOT NULL` — rate limiting and abuse detection · `GIN (daten jsonb_path_ops)` — the LEG-09 data-subject search across submissions (Art. 15/20).
+- **RLS:** standard, module `formular`; internal-only ceiling. **No anonymous INSERT policy**: the public form posts to a server route that validates with Zod and inserts under the tenant context (§1.6). Plus the `cse_job` DELETE policy of §1.8 for spam, and therefore no `kern.verhindere_loeschung()` trigger.
+- **Constraints/triggers:** immutability trigger — `daten`, every `utm_*`, `referrer`, `landing_page`, `ip_hash`, `datenschutz_hinweis_*`, `einwilligung_werbung` and `eingegangen_am` are write-once; only `status`, `lead_id` and `verarbeitet_*` may change.
+  `// TODO(client): Aufbewahrungsfrist für nicht verwertete Formulareingänge (DSGVO-Löschkonzept, LEG-09)?`
+- **SPEC:** REQ-01, REQ-05, REQ-07, CRM-07, LEG-09, REP-03, SEC-A4.
+
+#### lead
+
+A qualified enquiry in the pipeline — source, owner, SLA deadline, score, status, next action — and the head of the chain Lead → Angebot → Auftrag → Rechnung (CRM-05).
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK; `UNIQUE (mandant_id, id)` |
+| mandant_id | uuid | no | — | |
+| leadnummer | text | no | — | |
+| quelle | lead_quelle | no | — | CRM-07, STATED vocabulary |
+| formular_eingang_id | uuid | yes | — | composite FK (`quelle='webformular'`) |
+| ausschreibung_id | uuid | yes | — | composite FK, radar domain (`quelle='vergabe_radar'`) |
+| empfehlung_von_kunde_id | uuid | yes | — | composite FK (`quelle='empfehlung'`) |
+| kunde_id | uuid | yes | — | composite FK; set when the prospect is or becomes a customer |
+| firma_name | text | yes | — | prospect company name before a `kunde` row exists |
+| ansprechpartner_id | uuid | yes | — | composite FK. **Nullable** (review, MINOR): a `vergabe_radar` notice usually names a Vergabestelle and no natural person, and `NOT NULL` here plus `ansprechpartner.nachname NOT NULL` would force the intake service to fabricate a named human — creating personal data with `rechtsgrundlage='keine'` for every notice ingested. The CRM-08 requirement moves to the outbound gate, where it belongs: §5 refuses any outgoing electronic contact without a contact row |
+| betreff | text | no | — | |
+| bedarf_zusammenfassung | text | yes | — | what they want, in one paragraph |
+| status | lead_status | no | `'neu'` | PLACEHOLDER vocabulary |
+| prioritaet | lead_prioritaet | no | `'normal'` | PLACEHOLDER vocabulary |
+| punktzahl | smallint | yes | — | CRM-02; `CHECK (punktzahl BETWEEN 0 AND 100)`. The 0–100 scale is a **stated modelling assumption**, not a client rule (recorded in `DECISIONS.md`); the criteria and weights are open. Computed by a deterministic function in `server/services/lead-scoring.ts`, never by a model (invariant 6, RAD-05's discipline) |
+| punktzahl_begruendung | text | yes | — | human-readable reason, mandatory whenever `punktzahl` is set |
+| punktzahl_berechnet_am | timestamptz | yes | — | |
+| besitzer_benutzer_id | uuid | no | — | FK → `benutzer.id` — REQ-05 named owner |
+| sla_frist_am | timestamptz | yes | — | REQ-05. **Nullable** (review, INVENTED RULES): `sla_stunden` exists only on a form, so a manual, referral or radar lead has no SLA to inherit and `NOT NULL` would make the intake service invent one — a business rule chosen by a constraint. Where a form exists it is `eingegangen_am + sla_stunden`, computed server-side. `// TODO(client): Gilt die Reaktionszeit auch für manuell erfasste Leads, Empfehlungen und Radar-Treffer? Falls ja, mit welcher Frist?` |
+| erste_reaktion_am | timestamptz | yes | — | REQ-06 — the SLA stop clock |
+| eskalationsstufe | smallint | no | `0` | REQ-06 |
+| zuletzt_eskaliert_am | timestamptz | yes | — | |
+| naechste_aktion_am · naechste_aktion_text | timestamptz/text | yes | — | CRM-02 next action |
+| geschaetzter_wert_cent | bigint | yes | — | integer cents; an estimate, never used in a document |
+| utm_quelle · utm_medium · utm_kampagne · utm_begriff · utm_inhalt · referrer | text | yes | — | REQ-07 snapshot, so radar and manual leads can also carry attribution |
+| verloren_grund | text | yes | — | REP-02 conversion analysis |
+| konvertiert_am | timestamptz | yes | — | |
+| akteur_art · agent_aufgabe_id | | | `'mensch'` | §0.4 — a radar lead is created by an agent (AGT-04) |
+| archiviert_am | timestamptz | yes | — | soft delete; REP-03 depends on leads never disappearing |
+| erstellt_am · erstellt_von · geaendert_am · geaendert_von | | | | as §0.4 |
+
+- **Indexes:**
+  - `UNIQUE (mandant_id, leadnummer)`.
+  - `btree (mandant_id, status, prioritaet, sla_frist_am)` — the pipeline board, default sort.
+  - `btree (sla_frist_am) WHERE sla_frist_am IS NOT NULL AND erste_reaktion_am IS NULL AND archiviert_am IS NULL` — the hourly REQ-06 escalation watchdog; partial, so the job scans only open leads with a deadline.
+  - `btree (mandant_id, besitzer_benutzer_id, status)` — "my leads" (DSH-03).
+  - `btree (mandant_id, quelle, erstellt_am)` and `btree (mandant_id, utm_quelle, utm_kampagne)` — REP-03.
+  - `btree (mandant_id, naechste_aktion_am) WHERE archiviert_am IS NULL` — the CRM-04 reminder list.
+  - `btree (ansprechpartner_id)`, `btree (kunde_id)`, `btree (ausschreibung_id)`.
+- **RLS:** standard, module `crm`; internal-only ceiling. Narrowing `leitung` and `mitarbeiter` to *their own* leads is a right-level question owned by `04-BERECHTIGUNGSMODELL.md`; no second policy shape is invented here (K-03 allows exactly two).
+- **Constraints/triggers:**
+  - `CHECK (num_nonnulls(formular_eingang_id, ausschreibung_id, empfehlung_von_kunde_id) <= 1)` plus source consistency: `quelle='webformular' → formular_eingang_id IS NOT NULL`, `'vergabe_radar' → ausschreibung_id IS NOT NULL`, `'empfehlung' → empfehlung_von_kunde_id IS NOT NULL`.
+  - `CHECK (kunde_id IS NOT NULL OR firma_name IS NOT NULL)`.
+  - `CHECK (status NOT IN ('verloren','kein_bedarf') OR verloren_grund IS NOT NULL)` — **both** loss states carry a reason; the draft asked only for `verloren`, and `kein_bedarf` is equally a loss for REP-02.
+  - `CHECK (punktzahl IS NULL OR punktzahl_begruendung IS NOT NULL)`.
+  - Trigger `kern.setze_erste_reaktion()` stamps `erste_reaktion_am` the first time an outgoing `lead_aktivitaet` is written, so the SLA cannot be closed by editing a field.
+  - `kern.verhindere_loeschung()`.
+- **DSGVO Art. 22 / LEG-12.** The score is deterministic and carries its reason, but nothing in the schema records whether a *decision* follows from it, and a `kunde_typ='privat'` lead is a natural person. Until answered, no automated action may be wired to `punktzahl` in any job or agent policy, and a CI check asserts that `lead.punktzahl` is read by no code path that writes a status or sends a message.
+  `// TODO(client): Löst der Lead-Score irgendeine automatische Entscheidung aus (z. B. automatische Absage oder Nicht-Bearbeitung)? Falls ja, greift Art. 22 DSGVO und es braucht eine menschliche Entscheidung im Ablauf.`
+  `// TODO(client): Nach welchen Kriterien und Gewichten soll ein Lead bewertet werden (CRM-02)?`
+- **SPEC:** CRM-01, CRM-02, CRM-05, CRM-07, REQ-05, REQ-06, REQ-07, REP-02, REP-03, REP-06, DSH-01, LEG-12.
+
+#### lead_aktivitaet
+
+The CRM timeline — every note, call, email, meeting and follow-up on a lead and, after conversion, on the customer. It is also the evidence record for §7 UWG, because each outgoing entry stores the purpose and the legal basis it was sent under.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK |
+| mandant_id | uuid | no | — | |
+| lead_id | uuid | yes | — | composite FK |
+| kunde_id | uuid | yes | — | composite FK — carries the timeline past conversion (CRM-03/06) |
+| ansprechpartner_id | uuid | yes | — | composite FK — who was contacted |
+| typ | aktivitaet_typ | no | — | |
+| richtung | aktivitaet_richtung | no | `'intern'` | |
+| zweck | kommunikationszweck | no | `'intern'` | **the §5 split**: `vertraglich` communication is never gated, `werbung` always is |
+| kanal | text | yes | — | `CHECK (kanal IS NULL OR kanal IN ('email','telefon','sms','post','whatsapp','vor_ort','portal'))` |
+| betreff | text | no | — | |
+| inhalt | text | yes | — | |
+| geschehen_am | timestamptz | no | `now()` | **and** `kern.erzwinge_serverzeit()` (§0.9) |
+| akteur_art | akteur_art | no | `'mensch'` | SEC-A9 — human, agent or job |
+| benutzer_id | uuid | yes | — | FK → `benutzer.id` |
+| agent_aufgabe_id | uuid | yes | — | AGT-04 |
+| rechtsgrundlage_snapshot | rechtsgrundlage | yes | — | the legal basis at the moment of sending — evidence, not a live join |
+| faellig_am · erinnerung_am | timestamptz | yes | — | CRM-04 follow-up and reminder |
+| zustaendig_benutzer_id | uuid | yes | — | FK → `benutzer.id` |
+| erledigt_am | timestamptz | yes | — | |
+| dokument_id | uuid | yes | — | composite FK — attachment or the sent PDF |
+| erstellt_am | timestamptz | no | `now()` | |
+
+- **Indexes:**
+  - `btree (mandant_id, lead_id, geschehen_am DESC) WHERE lead_id IS NOT NULL` — lead timeline.
+  - `btree (mandant_id, kunde_id, geschehen_am DESC) WHERE kunde_id IS NOT NULL` — customer history (CRM-03/06).
+  - `btree (zustaendig_benutzer_id, faellig_am) WHERE erledigt_am IS NULL` — the reminder job and the "my follow-ups" widget (CRM-04).
+  - `btree (ansprechpartner_id, geschehen_am DESC) WHERE richtung = 'ausgehend'` — the §7 UWG evidence trail for one contact, and the LEG-09 data-subject path.
+- **RLS:** standard, module `crm`; internal-only ceiling.
+- **Constraints/triggers:**
+  - `CHECK (num_nonnulls(lead_id, kunde_id) >= 1)` — an activity always hangs on something.
+  - `CHECK (akteur_art <> 'mensch' OR benutzer_id IS NOT NULL)` and `CHECK (akteur_art <> 'agent' OR agent_aufgabe_id IS NOT NULL)`.
+  - **The outbound triple** (review B4), all three needed because any one alone is bypassable by leaving a nullable column empty:
+    ```sql
+    CHECK (richtung <> 'ausgehend' OR kanal IS NULL
+           OR kanal NOT IN ('email','telefon','sms','post','whatsapp')
+           OR ansprechpartner_id IS NOT NULL)
+    CHECK (richtung <> 'ausgehend' OR zweck <> 'werbung'
+           OR (rechtsgrundlage_snapshot IS NOT NULL AND rechtsgrundlage_snapshot <> 'keine'))
+    ```
+    plus the `BEFORE INSERT` trigger of §5, which raises when an outgoing electronic row has no `ansprechpartner_id` and re-evaluates `app.darf_kontaktiert_werden(ansprechpartner_id, kanal, zweck)` against the live contact, rejecting a stale snapshot.
+  - Immutability trigger: `typ`, `richtung`, `zweck`, `kanal`, `inhalt`, `geschehen_am`, `akteur_art` and `rechtsgrundlage_snapshot` are write-once; only the follow-up fields (`faellig_am`, `erinnerung_am`, `zustaendig_benutzer_id`, `erledigt_am`) may change. A communication history that can be rewritten is worthless in a dispute.
+  - `kern.verhindere_loeschung()`.
+- **SPEC:** CRM-03, CRM-04, CRM-06, CRM-08, LEG-08, LEG-09, SEC-A9, NOT-01, AGT-04.
+
+---
+
+### 4.5 Angebote und Kalkulation
+
+#### angebot
+
+The offer as the customer sees it — one entity's identity, one Kunde, positions and a validity date. Drafts carry no number; the number is assigned when the offer leaves the house.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK; `UNIQUE (mandant_id, id)` |
+| mandant_id | uuid | no | — | determines the identity on the PDF (OPS-08, TEN-07) |
+| angebotsnummer | text | yes | — | NULL until sent; drawn from `nummernkreis` (finance domain) at the send |
+| kunde_id | uuid | no | — | composite FK |
+| ansprechpartner_id | uuid | yes | — | composite FK `(mandant_id, kunde_id, ansprechpartner_id)` |
+| objekt_id | uuid | yes | — | composite FK |
+| lead_id | uuid | yes | — | composite FK — CRM-05 chain, REP-03 attribution |
+| titel | text | no | — | |
+| einleitungstext · schlusstext | text | yes | — | |
+| status | angebot_status | no | `'entwurf'` | |
+| version | integer | no | `1` | |
+| ersetzt_angebot_id | uuid | yes | — | composite FK — the superseded offer |
+| gueltig_bis | date | yes | — | Bindefrist |
+| waehrung | text | no | `'EUR'` | `CHECK (waehrung = 'EUR')` |
+| netto_cent | bigint | no | `0` | trigger-maintained sum of `typ='leistung'` positions |
+| leistungszeitraum_von · leistungszeitraum_bis | date | yes | — | pre-populates FIN-05 on the resulting invoice |
+| freigabe_id | uuid | yes | — | composite FK `(mandant_id, freigabe_id)` → `freigabe` (approval domain, K-13) — the immutable APR-07 snapshot and the server-measured APR-08 review duration live there, never here |
+| freigegeben_am · freigegeben_von | timestamptz/uuid | yes | — | denormalised snapshot of that approval; a human, always |
+| versendet_am | timestamptz | yes | — | `kern.erzwinge_serverzeit()` |
+| versendet_von | uuid | yes | — | FK → `benutzer.id` |
+| entschieden_am · entscheidung_notiz | timestamptz/text | yes | — | accepted or rejected |
+| pdf_dokument_id | uuid | yes | — | composite FK — OPS-08 |
+| akteur_art · agent_aufgabe_id | | | `'mensch'` | AGT-04; the autonomy matrix says any offer at any value is a proposal, never automatic |
+| archiviert_am | timestamptz | yes | — | |
+| erstellt_am · erstellt_von · geaendert_am · geaendert_von | | | | as §0.4 |
+
+**`brutto_cent` is deleted** (review B17). §0.6 forbids deriving VAT from a gross total, and the draft carried a trigger-maintained gross beside a view that computed the same figure per tax-rate group — two sources of truth for one number, with a `CHECK (brutto_cent >= netto_cent)` that holds for any wrong value. After the send the drifted number would have been frozen, and it is what the OPS-08 PDF and the FIN-07 conversion read. A draft offer's totals now come from `angebot_steuersumme` (§6); a sent offer's come from `angebot_steuer`.
+
+- **Indexes:**
+  - `UNIQUE (mandant_id, angebotsnummer) WHERE angebotsnummer IS NOT NULL`.
+  - `UNIQUE (ersetzt_angebot_id) WHERE ersetzt_angebot_id IS NOT NULL` — one successor per predecessor; the draft allowed two v2 offers to supersede the same v1.
+  - `btree (mandant_id, status, gueltig_bis)` — the "open offers" KPI (DSH-01) and the follow-up list.
+  - `btree (mandant_id, kunde_id, erstellt_am DESC)` — offers on the customer page and in the customer portal.
+  - `btree (lead_id) WHERE lead_id IS NOT NULL` — REP-03 · `btree (mandant_id, gueltig_bis) WHERE status = 'versendet'` — the expiry watchdog.
+- **RLS:** standard, module `angebot`; customer ceiling `kunde_id = app.aktueller_kunde() AND versendet_am IS NOT NULL` — a customer never sees a draft.
+- **Constraints/triggers:**
+  - `CHECK ((angebotsnummer IS NULL) = (versendet_am IS NULL))` — **keyed on the send event, not on the status** (review B6). The draft's `CHECK ((status='entwurf') = (angebotsnummer IS NULL))` made `in_pruefung` unreachable: an offer in internal four-eyes review has not been sent, so it has no number, so the constraint rejected the very state invariant 7 depends on. The same applied to withdrawing a draft.
+  - `CHECK (status IN ('entwurf','in_pruefung','zurueckgezogen') OR (freigegeben_von IS NOT NULL AND versendet_am IS NOT NULL))` — invariant 7 in the database: nothing leaves without a named human approval. The draft listed only `('versendet','angenommen','abgelehnt')`, leaving `abgelaufen` reachable with no approval at all. An agent can reach `in_pruefung` and no further, at any value (autonomy matrix, AGT/APR).
+  - `CHECK (status <> 'zurueckgezogen' OR versendet_am IS NULL OR freigegeben_von IS NOT NULL)` — a sent offer can be withdrawn, a draft can be discarded, and neither path fabricates an approval.
+  - `CHECK (version >= 1)`; `CHECK (ersetzt_angebot_id IS NULL OR ersetzt_angebot_id <> id)`.
+  - No `CHECK` compares `gueltig_bis` with a clock (§0.10); expiry is a status transition driven by the watchdog, and re-sending an expired offer is a real business case.
+  - Trigger `angebot_nach_versand_unveraenderlich()`: once `versendet_am IS NOT NULL`, `netto_cent`, `leistungszeitraum_*`, `gueltig_bis`, `waehrung`, every `angebotsposition` and every `angebot_steuer` row are frozen. A changed offer is a new `version` pointing back through `ersetzt_angebot_id`. This is deliberately the same discipline as FIN-02 without claiming the invoice's legal weight.
+  - Trigger `angebot_versand_festschreiben()` (review B12) fires in the same statement, and does three things: it draws the number, it writes the `angebot_steuer` snapshot from the positions, and it sets **every `kalkulation` with this `angebot_id` to `festgeschrieben`**, stamping `festgeschrieben_am = now()` and `festgeschrieben_von = versendet_von`. Without it an offer could be approved, numbered, rendered and sent while its costing stayed `entwurf` and fully editable — including `stundenverrechnungssatz_cent` and every snapshot in `kalkulation_position` — which defeats OPS-07's "versioned" costing and the whole §9.2 argument.
+    The review additionally wanted the send **blocked** when no `kalkulation` exists. That is a process rule the SPEC does not state, so per K-17 it is a warning in `src/server/services/angebot.ts` and a question, not a constraint: `// TODO(client): Muss vor jedem Angebotsversand eine Kalkulation vorliegen, oder gibt es Angebote (Kleinaufträge, Pauschalen aus dem Katalog), die ohne Kalkulation herausgehen dürfen?`
+  - Trigger `aktualisiere_angebot_summen()` on `angebotsposition` recomputes `netto_cent`.
+  - `kern.verhindere_loeschung()`, `app.protokolliere()`.
+- **SPEC:** CRM-05, OPS-07, OPS-08, OPS-09, FIN-05, FIN-07, APR-07, APR-08, PRO-05, DSH-01, REP-02, REP-03.
+
+#### angebotsposition
+
+One priced line of the offer — the text the customer reads, the quantity, the unit price in cents and the tax-rate group.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK; `UNIQUE (mandant_id, id)` |
+| mandant_id | uuid | no | — | |
+| angebot_id | uuid | no | — | composite FK |
+| position_nr | integer | no | — | |
+| oz | text | yes | — | Ordnungszahl for LV-shaped offers (BAU-01) |
+| typ | angebotsposition_typ | no | `'leistung'` | only `leistung` counts into the total |
+| leistungskatalog_position_id | uuid | yes | — | composite FK — FIN-07 traceability |
+| objekt_id · raum_id | uuid | yes | — | composite FKs — room-level pricing |
+| kurztext | text | no | — | |
+| langtext | text | yes | — | |
+| menge | numeric(12,3) | yes | — | `CHECK (typ <> 'leistung' OR menge <> 0)` — a zero-quantity **Bedarfs-/Eventualposition** is legitimate in a VOB LV and the draft's blanket `menge <> 0` forbade it |
+| einheit | text | yes | — | |
+| einzelpreis_cent | bigint | yes | — | integer cents; may be negative for a Nachlass line |
+| gesamtpreis_cent | bigint | yes | — | `GENERATED ALWAYS AS (round(menge * einzelpreis_cent)::bigint) STORED` — kaufmännische Rundung in exact numeric arithmetic, never in JavaScript |
+| steuersatz_bp | integer | no | — | basis points, 1900 = 19,00 %; `CHECK (steuersatz_bp BETWEEN 0 AND 10000)` |
+| steuer_kennzeichen | steuer_kennzeichen | no | `'regelsatz'` | FIN-09 |
+| steuerbefreiung_grund | text | yes | — | §14 Abs. 4 Nr. 8 UStG — the statutory ground printed on the document |
+| erloeskonto_schluessel | text | yes | — | ACC-01 carrier, defaulted from the catalogue position |
+| akteur_art · agent_aufgabe_id | | | `'mensch'` | the autonomy matrix forbids an automatic discount; a negative `einzelpreis_cent` written with `akteur_art='agent'` is refused by the policy gate and is a reportable anomaly |
+| sortierung | integer | no | `0` | |
+| erstellt_am · erstellt_von · geaendert_am | | | | as §0.4 |
+
+- **Indexes:** `UNIQUE (angebot_id, position_nr)` · `btree (mandant_id, angebot_id, sortierung)` · `btree (leistungskatalog_position_id) WHERE leistungskatalog_position_id IS NOT NULL` — "which offers used this catalogue position" · `btree (raum_id) WHERE raum_id IS NOT NULL`.
+- **RLS:** standard, module `angebot`; customer ceiling via the parent `angebot`.
+- **Constraints/triggers:**
+  - `CHECK (typ <> 'leistung' OR (menge IS NOT NULL AND einheit IS NOT NULL AND einzelpreis_cent IS NOT NULL))`.
+  - `CHECK (typ NOT IN ('text','zwischensumme') OR (menge IS NULL AND einzelpreis_cent IS NULL))`.
+  - `CHECK (steuer_kennzeichen <> 'reverse_charge_13b' OR steuersatz_bp = 0)` — §13b means no VAT is shown; a reverse-charge line at 19 % is a defect, not an edge case.
+  - `CHECK (steuer_kennzeichen <> 'steuerfrei' OR (steuersatz_bp = 0 AND steuerbefreiung_grund IS NOT NULL))` — the draft constrained only `reverse_charge_13b`, so a `steuerfrei` line could carry 19 % and no ground.
+  - Frozen with the parent; `kern.verhindere_loeschung()`.
+- **SPEC:** OPS-08, FIN-07, FIN-09, BAU-01, ACC-01.
+
+#### angebot_steuer
+
+The tax lines of a **sent** offer, written once by `angebot_versand_festschreiben()` and never recomputed — the same construction K-12 requires of an invoice's canonical payload, one step earlier. It is what the PDF renders and what OPS-09 hands to the order.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK |
+| mandant_id | uuid | no | — | |
+| angebot_id | uuid | no | — | composite FK |
+| steuersatz_bp | integer | no | — | |
+| steuer_kennzeichen | steuer_kennzeichen | no | — | |
+| netto_cent | bigint | no | — | sum of the group's `typ='leistung'` lines |
+| steuer_cent | bigint | no | — | `round(netto_cent * steuersatz_bp / 10000.0)`, computed once, in the database |
+| hinweistext | text | yes | — | the §13b or §4 UStG sentence printed under the total |
+| erstellt_am | timestamptz | no | `now()` | |
+
+- **Indexes:** `UNIQUE (angebot_id, steuersatz_bp, steuer_kennzeichen)`.
+- **RLS:** standard, module `angebot`; customer ceiling via the parent. Append-only: no `UPDATE` policy, `kern.verhindere_loeschung()`.
+- **SPEC:** OPS-08, FIN-05, FIN-09, invariant 1.
+
+#### kalkulation
+
+One version of the costing behind an offer or an order — labour, material, equipment, overhead and risk/profit — frozen when the offer goes out, so a price can still be explained two years later (OPS-07).
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK; `UNIQUE (mandant_id, id)` |
+| mandant_id | uuid | no | — | |
+| angebot_id | uuid | yes | — | composite FK |
+| auftrag_id | uuid | yes | — | composite FK — Nachkalkulation on a running order |
+| version | integer | no | `1` | |
+| status | kalkulation_status | no | `'entwurf'` | |
+| basis_objekt_id | uuid | yes | — | composite FK — the Raumbuch this was derived from |
+| basis_stand_am | timestamptz | yes | — | when that Raumbuch state was read |
+| stundenverrechnungssatz_cent | bigint | **yes** | — | integer cents per hour. **Nullable** (review B11): `NOT NULL` with no default forces the service to supply a number on every draft — that is, to invent a Stundenverrechnungssatz, which is exactly what CLAUDE.md forbids. `// TODO(client): Kalkulatorischer Stundenverrechnungssatz je Bereich und Lohngruppe — bitte die Tarifgrundlage (Gebäudereinigung / Sicherheit / Bau) liefern.` |
+| gemeinkosten_basis | gemeinkosten_basis | yes | — | PLACEHOLDER — the reference value the surcharge is applied to (§2). The draft hard-coded it as "on Selbstkosten" in a derived `NOT NULL` column while marking only the percentage as open |
+| gemeinkosten_bp | integer | yes | — | `CHECK (gemeinkosten_bp IS NULL OR gemeinkosten_bp BETWEEN 0 AND 100000)`. `// TODO(client): Gemeinkostenzuschlag in %?` |
+| wagnis_gewinn_bp | integer | yes | — | `CHECK (… BETWEEN 0 AND 100000)`. `// TODO(client): Wagnis- und Gewinnzuschlag in %?` |
+| ist_platzhalter | boolean | no | `true` | so the row is visible to `kalkulation_platzhalter` (§6) and to the warning banner — the three values the draft itself marked open were the only ones its placeholder machinery could not see |
+| summe_lohn_cent · summe_material_cent · summe_geraet_cent · summe_gemeinkosten_cent · summe_wagnis_gewinn_cent | bigint | no | `0` | trigger-maintained |
+| selbstkosten_cent | bigint | no | `0` | trigger-maintained; **which blocks it sums depends on `gemeinkosten_basis`** and is computed by the service, not by a fixed formula in the schema |
+| angebotssumme_netto_cent | bigint | no | `0` | trigger-maintained |
+| bemerkung | text | yes | — | |
+| festgeschrieben_am · festgeschrieben_von | timestamptz/uuid | yes | — | |
+| erstellt_am · erstellt_von · geaendert_am · geaendert_von | | | | as §0.4 |
+
+- **Indexes:** `UNIQUE (angebot_id, version) WHERE angebot_id IS NOT NULL`; `UNIQUE (auftrag_id, version) WHERE auftrag_id IS NOT NULL`; `btree (mandant_id, status)`; `btree (basis_objekt_id) WHERE basis_objekt_id IS NOT NULL` — "which calculations rest on this Raumbuch"; `btree (mandant_id) WHERE ist_platzhalter AND status = 'entwurf'`.
+- **RLS:** standard, module `kalkulation`; **internal-only ceiling** — the internal cost structure never reaches a customer session and never reaches a `mitarbeiter` session (EMP-13), the same rule that keeps wage rates inside one entity (D-09 §6, K-05).
+- **Constraints/triggers:**
+  - `CHECK (num_nonnulls(angebot_id, auftrag_id) = 1)` — exactly one owner.
+  - `CHECK (status <> 'festgeschrieben' OR (festgeschrieben_am IS NOT NULL AND festgeschrieben_von IS NOT NULL AND ist_platzhalter = false AND stundenverrechnungssatz_cent IS NOT NULL AND gemeinkosten_basis IS NOT NULL AND gemeinkosten_bp IS NOT NULL AND wagnis_gewinn_bp IS NOT NULL))` — a frozen, auditable costing cannot rest on three unanswered questions.
+  - Trigger `kalkulation_festgeschrieben_unveraenderlich()` on `kalkulation` and `kalkulation_position`: once `status='festgeschrieben'`, every column except `bemerkung` is frozen and no position may be inserted, updated or deleted. A new costing is `version + 1`.
+  - Trigger `aktualisiere_kalkulation_summen()` `AFTER INSERT OR UPDATE OR DELETE` on `kalkulation_position` recomputes the sum columns in one statement. Sums are materialised rather than viewed because the offer editor reads them on every keystroke, and the freeze makes drift impossible after the only moment it would matter.
+  - `kern.verhindere_loeschung()`.
+- **SPEC:** OPS-07, OPS-08, FIN-07, REP-05, EMP-13.
+
+#### kalkulation_position
+
+One cost element — a labour block derived from the Raumbuch, a material item, a machine, or the overhead and profit surcharge — with every input snapshotted and the derivation recorded both as text and as operands.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK |
+| mandant_id | uuid | no | — | |
+| kalkulation_id | uuid | no | — | composite FK |
+| position_nr | integer | no | — | |
+| kostenart | kostenart | no | — | STATED five-way split (OPS-07) |
+| bezeichnung | text | no | — | |
+| angebotsposition_id | uuid | yes | — | composite FK — which sales line this cost supports |
+| leistungskatalog_position_id · raum_id · belagsart_id | uuid | yes | — | composite FKs |
+| menge | numeric(12,3) | yes | — | m², hours, pieces |
+| einheit | text | yes | — | |
+| einzelbetrag_cent | bigint | yes | — | cost per unit, integer cents |
+| satz_bp | integer | yes | — | for `gemeinkosten` / `wagnis_gewinn` rows: the percentage applied |
+| basis_bezugsbetrag_cent | bigint | yes | — | the base the percentage was applied to |
+| betrag_cent | bigint | no | — | the result, written by the service |
+| leistungswert_qm_pro_stunde · frequenz_faktor · stundensatz_cent · zeitwert_minuten | numeric/bigint | yes | — | **snapshots** of every input used, as values and not as joins |
+| rechenansatz | text | no | — | the formula as written, BAU-02 style: `"1.240,000 ÷ 85,000 × 2,2000 × 2.850"` |
+| operanden | jsonb | no | `'{}'` | the same derivation in machine-checkable form: `{"flaeche_qm":1240,"leistungswert":85,"frequenz":2.2,"stundensatz_cent":2850,"stunden":32.094}` |
+| berechnungsweg | text | no | — | the human-readable rendering: `"1.240,000 m² ÷ 85,000 m²/h × 2,2000 = 32,094 h × 28,50 €/h = 914,68 €"` |
+| sortierung | integer | no | `0` | |
+| erstellt_am · erstellt_von | | | | as §0.4 |
+
+**Why both a string and operands** (review, MINOR): BAU-02 requires the Rechenansatz *and* the computed result to be visible **and** verifiable — an auditor must see how the number arose, and a free string cannot be re-verified. `operanden` lets `pnpm test` re-derive `betrag_cent` from the stored inputs for every position in the seed data, which is the test that makes the snapshot discipline real rather than decorative.
+
+- **Indexes:** `UNIQUE (kalkulation_id, position_nr)`; `btree (mandant_id, kalkulation_id, kostenart, sortierung)` — the cost-block view; `btree (angebotsposition_id) WHERE angebotsposition_id IS NOT NULL` — price-to-cost drill-down (DSH-04, FIN-07); `btree (raum_id) WHERE raum_id IS NOT NULL`.
+- **RLS:** standard, module `kalkulation`; internal-only ceiling.
+- **Constraints/triggers:**
+  - `CHECK (kostenart NOT IN ('gemeinkosten','wagnis_gewinn') OR (satz_bp IS NOT NULL AND basis_bezugsbetrag_cent IS NOT NULL))`.
+  - `CHECK (kostenart IN ('gemeinkosten','wagnis_gewinn') OR (menge IS NOT NULL AND einzelbetrag_cent IS NOT NULL))`.
+  - `CHECK (kostenart <> 'lohn' OR stundensatz_cent IS NOT NULL)` — a labour cost with no recorded rate cannot be reproduced.
+  - `CHECK (length(rechenansatz) > 0 AND length(berechnungsweg) > 0 AND jsonb_typeof(operanden) = 'object')`.
+  - Frozen with the parent; `kern.verhindere_loeschung()`.
+- **SPEC:** OPS-02, OPS-03, OPS-07, BAU-02, FIN-07, AGT-02 (`berechne_preis` writes these rows; the model never does), invariant 6, K-10.
+
+---
+
+### 4.6 Aufträge und Abrechnung
+
+#### auftrag
+
+The order or contract an entity is actually performing — type, term, value, responsible manager — and the record PRO-05 turns into a public reference once the customer has released it in writing. A **project** is an `auftrag` carrying a `projekt` extension row in the bau domain (§3.2), not a second head table.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK; `UNIQUE (mandant_id, id)` |
+| mandant_id | uuid | no | — | |
+| auftragsnummer | text | no | — | assigned at creation from `nummernkreis`; **not** gapless — FIN-03's `SELECT … FOR UPDATE` gaplessness is a legal requirement for `rechnung` only, and claiming it here would be an unenforceable promise |
+| kunde_id | uuid | no | — | composite FK |
+| objekt_id | uuid | yes | — | composite FK; NULL for multi-site frame contracts, whose sites hang off `auftrag_leistung` |
+| angebot_id | uuid | yes | — | composite FK — OPS-09 conversion source |
+| lead_id | uuid | yes | — | composite FK — REQ-07 attribution carried through, REP-03 |
+| art | auftrag_art | no | — | PLACEHOLDER vocabulary (OPS-05 "type") |
+| status | auftrag_status | no | `'angelegt'` | PLACEHOLDER vocabulary |
+| bezeichnung · beschreibung | text | no/yes | — | |
+| verantwortlich_benutzer_id | uuid | no | — | FK → `benutzer.id` — OPS-05/OPS-10 responsible manager |
+| start_datum | date | no | — | OPS-10 |
+| laufzeit_bis | date | yes | — | OPS-05 term; NULL = unbefristet |
+| kuendigungsfrist_tage | smallint | yes | — | |
+| verlaengerung_automatisch | boolean | no | `false` | |
+| auftragswert_netto_cent | bigint | yes | — | OPS-05 value; NULL for open call-off contracts where no value is agreed up front |
+| personalbedarf_anzahl | smallint | yes | — | OPS-10 |
+| wochenstunden_soll | numeric(12,3) | yes | — | OPS-10; a quantity, therefore `numeric(12,3)` (K-16) |
+| ausstattung_hinweis | text | yes | — | OPS-10 equipment |
+| abnahme_am | date | yes | — | VOB acceptance date (bau) |
+| gewaehrleistung_bis | date | yes | — | the Abnahme starts the Gewährleistungsfrist, which drives FIN-18 and REP-05. The **period** is a contractual/legal value and is never derived here: the service offers no default and the field is filled from the contract. `// TODO(client): Welche Gewährleistungsfrist wird vertraglich vereinbart — VOB/B §13 (in der Regel 4 Jahre) oder BGB (5 Jahre)? Wird sie je Auftrag abweichend verhandelt?` |
+| sicherheitseinbehalt_bp | integer | yes | — | VOB/B §17 retention, basis points of the Schlussrechnung |
+| sicherheitseinbehalt_cent | bigint | yes | — | or an absolute amount, where that is what was agreed |
+| buergschaft_dokument_id | uuid | yes | — | composite FK — the Bürgschaft replacing the retention, if any. `// TODO(client): Wird ein Sicherheitseinbehalt geführt, und wird er durch Bürgschaft abgelöst?` |
+| freigabe_id | uuid | yes | — | composite FK `(mandant_id, freigabe_id)` → `freigabe` (K-13), where OPS-09 conversion approval is recorded |
+| abgeschlossen_am | timestamptz | yes | — | |
+| freigegeben_vom_kunden | boolean | no | `false` | **PRO-05** — the only gate to public reference use |
+| freigabe_am | timestamptz | yes | — | `kern.erzwinge_serverzeit()` |
+| freigabe_durch_ansprechpartner_id | uuid | yes | — | composite FK `(mandant_id, kunde_id, …)` — who released it |
+| freigabe_dokument_id | uuid | yes | — | composite FK — the signed release on file |
+| freigabe_text | text | yes | — | the quotable sentence, if given |
+| freigabe_widerrufen_am | timestamptz | yes | — | a release can be withdrawn |
+| archiviert_am | timestamptz | yes | — | |
+| erstellt_am · erstellt_von · geaendert_am · geaendert_von | | | | as §0.4 |
+
+- **Indexes:**
+  - `UNIQUE (mandant_id, auftragsnummer)`.
+  - `btree (mandant_id, status, start_datum DESC)` — the order list and the "active orders" KPI (DSH-01, TEN-10).
+  - `btree (mandant_id, kunde_id, start_datum DESC)` — customer page and customer portal.
+  - `btree (mandant_id, objekt_id) WHERE objekt_id IS NOT NULL` · `btree (mandant_id, verantwortlich_benutzer_id, status)` — Leitung dashboard (DSH-03).
+  - `btree (mandant_id, status, laufzeit_bis) WHERE laufzeit_bis IS NOT NULL` — expiring-contracts watchdog · `btree (mandant_id, gewaehrleistung_bis) WHERE gewaehrleistung_bis IS NOT NULL` — warranty watchdog.
+  - `btree (mandant_id) WHERE freigegeben_vom_kunden AND freigabe_widerrufen_am IS NULL AND archiviert_am IS NULL` — **the PRO-05 reference feed**. The draft additionally required `status = 'abgeschlossen'`, which PRO-05 does not: it says references come from real jobs *where the customer has released them*. A three-year running Rahmenvertrag is the most valuable reference a cleaning company has, and the draft silently excluded it (review, INVENTED RULES).
+  - `btree (lead_id) WHERE lead_id IS NOT NULL` · `btree (angebot_id) WHERE angebot_id IS NOT NULL`.
+- **RLS:** standard, module `auftrag`; customer ceiling `kunde_id = app.aktueller_kunde()`.
+- **Constraints/triggers:**
+  - `CHECK (freigegeben_vom_kunden = false OR (freigabe_am IS NOT NULL AND freigabe_durch_ansprechpartner_id IS NOT NULL AND freigabe_dokument_id IS NOT NULL))` — PRO-05 hardened: a reference without a release document on file cannot exist as data, so it cannot be published by mistake.
+  - `CHECK (laufzeit_bis IS NULL OR laufzeit_bis >= start_datum)`; `CHECK (gewaehrleistung_bis IS NULL OR abnahme_am IS NOT NULL)`.
+  - `CHECK (status <> 'abgeschlossen' OR abgeschlossen_am IS NOT NULL)`.
+  - `CHECK (num_nonnulls(sicherheitseinbehalt_bp, sicherheitseinbehalt_cent) <= 1)`; `CHECK (sicherheitseinbehalt_bp IS NULL OR sicherheitseinbehalt_bp BETWEEN 0 AND 10000)`.
+  - `kern.verhindere_loeschung()` — orders feed invoices (invariant 8); `app.protokolliere()`.
+- **SPEC:** OPS-05, OPS-09, OPS-10, OPS-11, PRO-05, CRM-05, REQ-07, FIN-07, FIN-08, FIN-18, REP-03, REP-05, DSH-01.
+
+#### auftrag_leistung
+
+One agreed service line of the order — what is delivered, where, at what price — and the anchor the Turnus, the Einsätze, the Zeiteinträge, the Aufmaße, the LV positions and the invoice lines all point back to.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK; `UNIQUE (mandant_id, id)` |
+| mandant_id | uuid | no | — | |
+| auftrag_id | uuid | no | — | composite FK |
+| position_nr | integer | no | — | |
+| angebotsposition_id | uuid | yes | — | composite FK — OPS-09 conversion provenance |
+| leistungskatalog_position_id | uuid | yes | — | composite FK |
+| objekt_id | uuid | yes | — | composite FK — the site for this line in a multi-site contract |
+| bezeichnung · beschreibung | text | no/yes | — | |
+| menge | numeric(12,3) | yes | — | |
+| einheit | text | yes | — | |
+| einzelpreis_cent | bigint | yes | — | integer cents |
+| gesamtpreis_cent | bigint | yes | — | `GENERATED ALWAYS AS (round(menge * einzelpreis_cent)::bigint) STORED` |
+| steuersatz_bp | integer | no | — | `CHECK (steuersatz_bp BETWEEN 0 AND 10000)` |
+| steuer_kennzeichen | steuer_kennzeichen | no | `'regelsatz'` | |
+| steuerbefreiung_grund | text | yes | — | as on `angebotsposition` |
+| erloeskonto_schluessel | text | yes | — | ACC-01 carrier |
+| leistungsfrequenz_text | text | yes | — | human description ("2× wöchentlich"); the machine-readable schedule is `turnus` (CLN-02), which references this row |
+| gueltig_ab | date | no | — | |
+| gueltig_bis | date | yes | — | inclusive; the single liveness column (§0.5) |
+| erstellt_am · erstellt_von · geaendert_am · geaendert_von | | | | as §0.4 |
+
+- **Indexes:** `UNIQUE (auftrag_id, position_nr)` · `btree (mandant_id, auftrag_id, position_nr)` · `btree (mandant_id, objekt_id) WHERE objekt_id IS NOT NULL` — "what is owed at this site" · `btree (angebotsposition_id) WHERE angebotsposition_id IS NOT NULL` — FIN-07 traceability.
+- **RLS:** standard, module `auftrag`; customer ceiling via the parent `auftrag`.
+- **Constraints/triggers:** `CHECK (gueltig_bis IS NULL OR gueltig_bis >= gueltig_ab)`; the two `steuer_kennzeichen` checks of `angebotsposition`. `kern.verhindere_loeschung()` — a `zeiteintrag`, an `aufmass` or an `lv_position` may already point here (TIM-12, BAU-01/02); close `gueltig_bis` instead.
+- **SPEC:** OPS-05, OPS-09, OPS-11, FIN-01, FIN-07, FIN-09, TIM-12, CLN-02, BAU-01, BAU-02, ACC-01.
+
+#### vertrag_abrechnung
+
+How this order is billed — one of the five billing types with its parameters, valid for a period — so that a contract switching from hourly to a monthly flat on 1 January produces two rows and not a rewritten history (FIN-01).
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK; `UNIQUE (mandant_id, id)` |
+| mandant_id | uuid | no | — | |
+| auftrag_id | uuid | no | — | composite FK |
+| auftrag_leistung_id | uuid | yes | — | composite FK. **NULL means "the whole order"** — see the exclusion constraint |
+| abrechnungsart | abrechnungsart | no | — | PLACEHOLDER — `// TODO(client): Bestätigen Sie die exakten fünf Abrechnungsarten (O-04).` |
+| parameter | jsonb | no | `'{}'` | strategy-specific parameters, Zod-validated per `abrechnungsart`. **Contains no monetary value** — money lives in the typed cent columns |
+| pauschale_netto_cent | bigint | yes | — | `monatspauschale` |
+| stundensatz_cent | bigint | yes | — | `stundenbasiert` |
+| festpreis_netto_cent | bigint | yes | — | `festpreis_los` |
+| mindestabnahme_stunden | numeric(12,3) | yes | — | |
+| abrechnungsintervall | abrechnungsintervall | no | — | PLACEHOLDER |
+| leistungszeitraum_modus | leistungszeitraum_modus | no | — | **no default** (review, INVENTED RULES). FIN-05 calls the Leistungszeitraum the most-omitted field and says its absence voids the customer's input-tax deduction; defaulting every contract to calendar-month derivation chooses a billing rule silently. It is chosen consciously, exactly as `sla_stunden` and `zahlungsziel_tage` are |
+| zahlungsziel_tage | smallint | yes | — | overrides `kunde.zahlungsziel_tage` |
+| skonto_prozent_bp | integer | yes | — | basis points |
+| skonto_tage | smallint | yes | — | |
+| reverse_charge_13b | boolean | no | `false` | FIN-09 — the contractually agreed position. The determination itself reads `kunde_bauleistender_status` at the service date, in the finance service |
+| unterliegt_bauabzugsteuer | boolean | no | `false` | FIN-10 — this order is a Bauleistung under §48 EStG. Whether 15 % is actually withheld depends on a `freistellungsbescheinigung` valid **at the service date**, evaluated in finance |
+| leitweg_id | text | yes | — | FIN-11 per-contract override |
+| bestellnummer | text | yes | — | customer PO (XRechnung BT-13) |
+| kostenstelle | text | yes | — | customer cost centre |
+| gueltig_ab | date | no | — | |
+| gueltig_bis | date | yes | — | inclusive (§0.7) |
+| erstellt_am · erstellt_von · geaendert_am · geaendert_von | | | | as §0.4 |
+
+- **Indexes:**
+  - `btree (mandant_id, auftrag_id, gueltig_ab DESC)` — the current billing configuration of an order.
+  - `btree (mandant_id, abrechnungsart, abrechnungsintervall, gueltig_ab, gueltig_bis)` — **not partial** (review B9). The draft's `WHERE gueltig_bis IS NULL` excluded every configuration that ended mid-period, so a contract terminated on 15 March was invisible to the March billing run and the 1–15 March service was never invoiced: silent lost revenue, discovered at year-end. The billing run's predicate is a **range overlap**, and the period boundaries are Berlin wall-clock converted to instants (K-11):
+    ```sql
+    where gueltig_ab <= :periode_ende
+      and (gueltig_bis is null or gueltig_bis >= :periode_start)
+    ```
+  - `btree (auftrag_id) WHERE unterliegt_bauabzugsteuer` — §48 EStG worklist.
+- **RLS:** standard, module `abrechnung`; internal-only ceiling — billing configuration is not customer-facing.
+- **Constraints/triggers:**
+  - ```sql
+    EXCLUDE USING gist (
+      auftrag_id WITH =,
+      coalesce(auftrag_leistung_id, '00000000-0000-0000-0000-000000000000'::uuid) WITH =,
+      daterange(gueltig_ab, coalesce(gueltig_bis + 1, 'infinity'::date), '[)') WITH &&)
+    ```
+    **`abrechnungsart` is not in the key** (review B8). With it, `stundenbasiert` and `monatspauschale` could both be valid on the same order on 15 March — the exact opposite of the stated purpose — and the billing run would emit two proposals for one period, a double-billing bug that reaches a finalised, hash-chained, immutable invoice before anyone notices. Keying on `(auftrag, auftrag_leistung, period)` instead means: one order-wide configuration per period, or one configuration per order line per period, never both for the same scope.
+    `// TODO(client): Kann ein Auftrag gleichzeitig unterschiedlich abgerechnete Positionen enthalten — z. B. Unterhaltsreinigung als Monatspauschale und Sonderreinigung nach Stunden im selben Vertrag? Davon hängt ab, ob die Konfiguration je Auftrag oder je Position geführt wird.`
+  - `CHECK (gueltig_bis IS NULL OR gueltig_bis >= gueltig_ab)`.
+  - Per-type completeness: `CHECK (abrechnungsart <> 'monatspauschale' OR pauschale_netto_cent IS NOT NULL)`, `CHECK (abrechnungsart <> 'stundenbasiert' OR stundensatz_cent IS NOT NULL)`, `CHECK (abrechnungsart <> 'festpreis_los' OR festpreis_netto_cent IS NOT NULL)`. `einheitspreis_aufmass` requires priced `auftrag_leistung` rows and `einzelabruf` requires nothing; both are checked in `src/server/services/abrechnung/` because they span tables.
+  - `CHECK ((skonto_prozent_bp IS NULL) = (skonto_tage IS NULL))` — the draft's parentheses closed before the comparison, so the expression was malformed.
+  - `kern.verhindere_loeschung()`, `app.protokolliere()`.
+- **Service interface:** `AbrechnungsStrategie` in `src/server/services/abrechnung/` — one implementation per enum value, registered in a map keyed by `abrechnungsart`, each exposing `validiereParameter(p): ZodSchema`, `ermittleLeistungszeitraum(v, periode)` and `erzeugeRechnungspositionen(v, periode): RechnungspositionEntwurf[]`. Adding or replacing a billing type is one enum value, one class and one registry line, with no change in the invoice engine — which is what makes O-04 answerable later without a rewrite. Every returned amount is integer cents from a tested pure function (invariant 6), and no argument to any of them originates in a model (K-10).
+- **SPEC:** FIN-01, FIN-05, FIN-07, FIN-08, FIN-09, FIN-10, FIN-11, OPS-05, OPS-10, ACC-01.
+
+#### auftrag_dokument
+
+The link between an order and a document, with the role the document plays.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK |
+| mandant_id | uuid | no | — | |
+| auftrag_id | uuid | no | — | composite FK |
+| dokument_id | uuid | no | — | composite FK |
+| rolle | dokument_rolle | no | `'sonstiges'` | |
+| bemerkung | text | yes | — | |
+| sortierung | integer | no | `0` | |
+| erstellt_am · erstellt_von | | | | as §0.4 |
+
+- **Indexes:** `UNIQUE (auftrag_id, dokument_id, rolle)` — the same file may be both the contract and the LV, but not twice in one role; `btree (mandant_id, auftrag_id, rolle, sortierung)` — the documents tab (OPS-11); `btree (dokument_id)` — the reverse lookup "where is this file used", required before any retention action.
+- **RLS:** standard, module `auftrag`; customer ceiling via both parents (`auftrag.kunde_id` and `dokument.sichtbar_fuer_kunde`).
+- **Constraints/triggers:** both composite FKs carry `mandant_id`, so a document of one entity can never be linked to another entity's order (§0.8). `kern.verhindere_loeschung()` — unlinking would erase the evidence that the document once applied.
+- **SPEC:** OPS-11, DOC-01, DOC-04, PRO-05 (`rolle='freigabe_referenz'`), ACC-03.
+
+---
+
+### 4.7 Dokumente
+
+#### dokument_aufbewahrung
+
+Retention and deletion-lock **as configuration, not as a hard-coded category list**. The draft's trigger set `loeschsperre := true` for `kategorie IN ('rechnung','beleg','buchhaltung')` and left contracts and offers freely soft-deletable, while presenting the result as "DOC-07 and ACC-06 true by construction". Which categories carry a statutory retention duty is itself a legal determination — §257 HGB and §147 AO cover Handelsbriefe, which includes `vertrag` and `angebot`; §17 MiLoG covers time records with a different period; personnel and applicant files have their own regime (LEG-11, REC-07). Selecting three categories is an invented compliance boundary (review, INVENTED RULES), so the selection becomes data the client confirms.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK |
+| mandant_id | uuid | yes | — | NULL = platform default; a row with a `mandant_id` overrides it for that entity |
+| schluessel | text | no | — | a `dokument_kategorie` value, or a technical key: `raumbuch_staging`, `formular_spam`, `bewerbung` |
+| aufbewahrung_monate | integer | yes | — | NULL = no automatic retention date |
+| loeschsperre | boolean | no | `false` | whether documents in this class may never be soft-deleted |
+| rechtsgrundlage_text | text | yes | — | "§147 AO", "§257 HGB", "§17 MiLoG", "Art. 17 DSGVO — kein Aufbewahrungsgrund" |
+| ist_platzhalter | boolean | no | `true` | every seeded row starts as a placeholder |
+| erstellt_am · erstellt_von · geaendert_am · geaendert_von | | | | as §0.4 |
+
+- **Indexes:** `UNIQUE (coalesce(mandant_id,'00000000-0000-0000-0000-000000000000'::uuid), schluessel)`.
+- **RLS:** standard, module `dokument`; internal-only ceiling. Read by `app.aufbewahrung_intervall(p_schluessel text) returns interval` (§1.8), which is `STABLE SECURITY DEFINER`.
+- `// TODO(client): Welche Dokumentkategorien unterliegen einer gesetzlichen Aufbewahrungspflicht, über welchen Zeitraum, und welche dürfen bzw. müssen nach Fristablauf gelöscht werden (GoBD, §147 AO, §257 HGB, §17 MiLoG, DSGVO-Löschkonzept)?`
+- **SPEC:** DOC-07, ACC-06, LEG-01, LEG-09, LEG-11.
+
+#### dokument
+
+A stored file with its category, retention rule and access scope — always in a private bucket, always reached through a short-lived signed URL, never through a public path.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK; `UNIQUE (mandant_id, id)` |
+| mandant_id | uuid | no | — | |
+| kategorie | dokument_kategorie | no | — | DOC-01, STATED vocabulary |
+| titel · beschreibung | text | no/yes | — | |
+| kunde_id · objekt_id | uuid | yes | — | composite FKs |
+| formular_eingang_id | uuid | yes | — | composite FK — the REQ-04 LV upload |
+| sichtbar_fuer_kunde | boolean | no | `false` | DOC-04; the default is invisible |
+| bucket | text | no | `'dokumente'` | `CHECK (bucket IN ('dokumente','archiv'))` — both private. **No public bucket exists in the project** (DOC-03) |
+| mime_typ | text | no | — | the **verified** type from magic-byte sniffing, never the browser's claim |
+| mime_verifiziert | boolean | no | — | `CHECK (mime_verifiziert)`, **no `DEFAULT`** — a default that the `CHECK` rejects turns an omitted column into a constraint error instead of a default (review, MINOR) |
+| groesse_bytes | bigint | no | — | `CHECK (groesse_bytes > 0 AND groesse_bytes <= 268435456)` — a 256 MB technical cap, configurable per deployment |
+| exif_entfernt | boolean | no | `false` | `CHECK (exif_entfernt OR (mime_typ NOT LIKE 'image/%' AND mime_typ NOT LIKE 'video/%' AND mime_typ <> 'application/pdf'))` — TIM-10 requires photo **and video**, and PDFs carry device and location metadata too |
+| tags | text[] | no | `'{}'` | DOC-02 |
+| aufbewahrung_bis | date | yes | — | DOC-07; computed at insert from `dokument_aufbewahrung`, never typed by hand |
+| loeschsperre | boolean | no | `false` | DOC-07 / ACC-06 / LEG-01; set from `dokument_aufbewahrung`, never by the caller |
+| geloescht_am · geloescht_von · loeschgrund | | yes | — | soft delete only |
+| erstellt_am · erstellt_von · geaendert_am · geaendert_von | | | | as §0.4 |
+
+**`sha256` is not on this table** (review, MINOR). The draft carried it here *and* on `dokument_version` with nothing keeping the two equal — a drift risk in exactly the field GoBD integrity rests on. The hash of the current bytes lives on the version row; duplicate detection joins through `dokument_version.sha256`.
+
+- **Indexes:**
+  - `btree (mandant_id, kategorie, erstellt_am DESC) WHERE geloescht_am IS NULL` — the document list (DOC-02).
+  - `btree (mandant_id, kunde_id) WHERE kunde_id IS NOT NULL AND geloescht_am IS NULL` · `btree (mandant_id, objekt_id) WHERE objekt_id IS NOT NULL AND geloescht_am IS NULL`.
+  - `GIN (tags)` — tag filter · `GIN (titel gin_trgm_ops)` — document search.
+  - `btree (mandant_id, aufbewahrung_bis) WHERE geloescht_am IS NULL AND aufbewahrung_bis IS NOT NULL` — the retention job.
+  - `btree (formular_eingang_id) WHERE formular_eingang_id IS NOT NULL`.
+- **RLS:** standard, module `dokument`; customer ceiling:
+  ```sql
+  create policy p_kunde_ceiling on dokument as restrictive for all to cse_app
+    using (app.portal() <> 'kunde'
+           or (sichtbar_fuer_kunde and geloescht_am is null
+               and (kunde_id = app.aktueller_kunde()
+                 or exists (select 1 from auftrag_dokument ad
+                              join auftrag a on a.mandant_id = ad.mandant_id and a.id = ad.auftrag_id
+                             where ad.dokument_id = dokument.id
+                               and a.kunde_id = app.aktueller_kunde()))));
+  ```
+- **Constraints/triggers:**
+  - `kern.setze_aufbewahrung()` `BEFORE INSERT`: resolves `aufbewahrung_bis` and `loeschsperre` from `dokument_aufbewahrung` for this `kategorie` and mandant, and rejects any attempt to clear `loeschsperre` on `UPDATE`.
+  - `kern.verhindere_loeschung()` `BEFORE DELETE`: always raises — with the absent DELETE policy and the revoked privilege, three independent layers (§0.4).
+  - Soft-delete trigger: setting `geloescht_am` raises when `loeschsperre` is true or `aufbewahrung_bis >= app.berlin_heute()`, and requires `loeschgrund IS NOT NULL`.
+  - **Storage contract (DOC-03, SEC-A6):** path `mandant/<mandant_id>/<dokument_id>/<version_nr>/<dateiname>`. `kategorie` is **not** in the path (review, MINOR): it is mutable, so recategorising a document would make the stored object key diverge from the documented formula, and `dokument_id` already scopes it. Access is only through a signed URL with a 15-minute expiry, minted by a server route that has already passed the RLS read; the bucket policy denies anonymous access outright, so a leaked path is useless.
+- **SPEC:** DOC-01, DOC-02, DOC-03, DOC-04, DOC-06, DOC-07, DOC-08, ACC-03, ACC-06, LEG-01, SEC-A6, TIM-10.
+
+#### dokument_version
+
+One immutable revision — where the bytes live, their hash, who uploaded them and when (DOC-05).
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK |
+| mandant_id | uuid | no | — | |
+| dokument_id | uuid | no | — | composite FK |
+| version_nr | integer | no | — | starts at 1 |
+| speicher_pfad | text | no | — | the object key inside the private bucket |
+| mime_typ | text | no | — | verified per version |
+| groesse_bytes | bigint | no | — | `CHECK (groesse_bytes > 0)` |
+| sha256 | text | no | — | `CHECK (sha256 ~ '^[0-9a-f]{64}$')` |
+| ist_aktuell | boolean | no | `true` | |
+| kommentar | text | yes | — | what changed |
+| hochgeladen_am | timestamptz | no | `now()` | **and** `kern.erzwinge_serverzeit()` (§0.9) |
+| hochgeladen_von | uuid | no | — | FK → `benutzer.id` |
+
+- **Indexes:** `UNIQUE (dokument_id, version_nr)`; `UNIQUE (dokument_id) WHERE ist_aktuell` — exactly one current version, enforced rather than assumed; `UNIQUE (speicher_pfad)`; `btree (mandant_id, sha256)` — duplicate detection on upload; `btree (mandant_id, hochgeladen_am DESC)` — recent-activity feed (DSH-01).
+- **RLS:** standard, module `dokument`; customer ceiling via the parent `dokument` **and** `ist_aktuell` — a customer sees the current version, never the history.
+- **Constraints/triggers:** immutability trigger — `speicher_pfad`, `sha256`, `groesse_bytes`, `mime_typ`, `hochgeladen_*` are write-once; only `ist_aktuell` and `kommentar` may change. `kern.verhindere_loeschung()`. A superseded version is never deleted — that is what makes DOC-05 versioning and the DOC-08 audit bundle worth anything.
+- **SPEC:** DOC-03, DOC-05, DOC-06, DOC-08, ACC-06, LEG-01.
+
+---
+
+### 4.8 The §14 UStG / EN 16931 field contract (FIN-04)
+
+FIN-04 blocks finalisation on any missing §14 UStG field, and the draft said "FIN-04 handles it" without naming a column, leaving the finance phase nothing to implement against. The pre-flight validator reads exactly these, resolving each through the invoice's **snapshot** (K-12) and falling back to the master row only while the invoice is still a draft:
+
+| §14 UStG / EN 16931 requirement | Source column in this domain |
+|---|---|
+| Full name and address of the supplier | `mandant_identitaet` (Kern domain) |
+| Full name and address of the recipient | `kunde.name`, `kunde.strasse`, `kunde.hausnummer`, `kunde.plz`, `kunde.ort`, `kunde.land`, or the `rechnung_*` block when `rechnungsadresse_abweichend` |
+| Supplier's Steuernummer or USt-IdNr. | `mandant_identitaet` |
+| Recipient's USt-IdNr. (§13b, intra-community) | `kunde.ust_id` |
+| Quantity and description of the supply | `auftrag_leistung.menge`, `.einheit`, `.bezeichnung` / `rechnungsposition` |
+| **Leistungszeitraum** | `vertrag_abrechnung.leistungszeitraum_modus` → derived per period (FIN-05) |
+| Net amount per tax rate, tax rate, tax amount | per group, never from a gross (`angebot_steuer` / `rechnung_steuer`) |
+| Reason for a tax exemption | `angebotsposition.steuerbefreiung_grund` / `auftrag_leistung.steuerbefreiung_grund` |
+| §13b note ("Steuerschuldnerschaft des Leistungsempfängers") | `steuer_kennzeichen = 'reverse_charge_13b'` → fixed text from the finance domain |
+| Leitweg-ID / buyer reference (EN 16931 BT-10) | `vertrag_abrechnung.leitweg_id`, else `kunde.leitweg_id`, else `kunde.kaeufer_referenz` |
+| Buyer electronic address and scheme (BT-49/49-1) | `kunde.elektronische_adresse`, `kunde.elektronische_adresse_schema` |
+| Buyer PO reference (BT-13) | `vertrag_abrechnung.bestellnummer` |
+
+A public buyer (`kunde.typ='behoerde'`) with no `leitweg_id` and no `elektronische_adresse` fails the pre-flight and cannot be invoiced — which is the SPEC's own statement that without XRechnung the group cannot invoice these buyers at all. The worklist index on `kunde` (§4.1) exists so that this is discovered at customer creation and not on the day the invoice is due.
+
+---
+
+## 5. CRM-08 — how the `rechtsgrundlage` gate is actually enforced
+
+CRM-08 is the one field in this domain whose failure costs money directly (Abmahnung under §7 UWG — LEG-08, D-01). It is enforced at five layers; each one alone is insufficient.
+
+### 5.1 The advertising objection is not a communication ban
+
+The draft made `widerspruch_am` force `rechtsgrundlage := 'keine'`, and `lead_aktivitaet`'s CHECK then refused to record **any** outgoing email to that contact. §7 UWG and Art. 21 DSGVO objections are objections to *advertising*; communication needed to perform the contract rests on Art. 6(1)(b) and cannot be objected away. Under the draft's shape an existing customer who unsubscribes from marketing could no longer be sent an invoice (FIN-11), a Leistungsnachweis (CLN-04), a Terminbestätigung or a Mahnung (FIN-15) — the send path would refuse, because the activity row it must write in the same transaction was rejected by the database. Invoice dispatch and dunning would break for exactly the customers most likely to object, and the equivalence "advertising objection = no legal basis for any contact" is a legal rule the SPEC never states (review B5).
+
+Resolved with three pieces, all already in §2 and §4:
+
+| Concept | Column / value | Effect |
+|---|---|---|
+| Relationship basis | `rechtsgrundlage` on `kunde` and `ansprechpartner` | CRM-08's four values, default `keine` |
+| Objection to **advertising** | `werbewiderspruch_am` | blocks `zweck = 'werbung'` only |
+| Objection to **processing** | `widerspruch_am` | forces `rechtsgrundlage = 'keine'`; the rare, stronger case |
+| Purpose of a message | `lead_aktivitaet.zweck` (`vertraglich` · `werbung` · `intern`) | decides whether the gate applies at all |
+
+`// TODO(client): Welche Kommunikation gilt als vertraglich notwendig und ist damit vom Werbewiderspruch ausgenommen — Rechnung, Leistungsnachweis, Terminbestätigung, Mahnung, Störungsmeldung? Und welche gilt als Werbung, auch wenn sie an Bestandskunden geht (Zusatzleistungen, Newsletter, Jahresgruß)?`
+
+Until that is answered, `src/server/services/kommunikation.ts` refuses to send anything it cannot classify: an unclassified message defaults to `zweck = 'werbung'`, which is the restrictive branch.
+
+### 5.2 Data shape
+
+`rechtsgrundlage` is a `NOT NULL` enum with `DEFAULT 'keine'`. **The default is the blocking value**, so a contact created by an import, a form, an agent or a forgotten migration is un-contactable until a human records a basis. A row cannot claim a basis without evidence:
+
+```sql
+CHECK (rechtsgrundlage = 'keine'
+       OR (rechtsgrundlage_quelle IS NOT NULL AND rechtsgrundlage_erfasst_am IS NOT NULL))
+```
+
+`kern.erzwinge_widerspruch()` forces `rechtsgrundlage := 'keine'` when `widerspruch_am` is set and rejects any later attempt to raise it; `CHECK (widerspruch_am IS NULL OR rechtsgrundlage = 'keine')` keeps it there. `werbewiderspruch_am` is likewise write-once-and-not-clearable.
+
+### 5.3 One database predicate, fail-closed
+
+Every layer asks the same question through one function, so there is no second opinion. The draft's version returned NULL when no row matched — and `IF NOT f(...) THEN RAISE` does not fire on NULL, while a `CHECK` evaluating to NULL passes — and it ran as `SECURITY INVOKER`, so the same call from a job, an agent session or a session with a different active mandant saw zero rows and again returned NULL. The one field whose failure costs money was enforced by a predicate that **failed open** (review B3):
+
+```sql
+create function app.darf_kontaktiert_werden(p_ansprechpartner uuid,
+                                            p_kanal text,
+                                            p_zweck text default 'werbung')
+returns boolean
+language sql stable security definer set search_path = pg_catalog, public as $$
+  select coalesce((
+    select case
+      when p_zweck = 'intern' then true
+      -- contractual communication is never gated on the advertising rules (§5.1)
+      when p_zweck = 'vertraglich' then
+           ap.widerspruch_am is null and ap.archiviert_am is null and ap.anonymisiert_am is null
+      else
+           ap.rechtsgrundlage <> 'keine'
+       and ap.widerspruch_am is null
+       and ap.werbewiderspruch_am is null
+       and ap.archiviert_am is null
+       and ap.anonymisiert_am is null
+       -- channel consent is only meaningful for the electronic channels §7 UWG names
+       and (ap.rechtsgrundlage <> 'einwilligung'
+            or p_kanal not in ('email','telefon','sms','post','whatsapp')
+            or p_kanal = any (coalesce(ap.einwilligung_kanaele, array[]::text[])))
+       and (ap.kunde_id is null
+            or exists (select 1 from public.kunde k
+                        where k.mandant_id = ap.mandant_id and k.id = ap.kunde_id
+                          and k.rechtsgrundlage <> 'keine'
+                          and k.widerspruch_am is null
+                          and k.werbewiderspruch_am is null
+                          and k.status <> 'gesperrt'
+                          and k.archiviert_am is null))
+    end
+      from public.ansprechpartner ap
+     where ap.id = p_ansprechpartner
+       and ap.mandant_id = app.aktiver_mandant()   -- definer, so the tenant check is explicit
+  ), false);                              -- unknown contact, foreign tenant, race, bad id -> FALSE
+$$;
+```
+
+Three further corrections are visible in the body. Because the function is `SECURITY DEFINER` it does not inherit the caller's RLS, so the tenant predicate is written out explicitly — otherwise a caller in `reinigung` could probe a `security` contact id and learn from the answer that it exists and is contactable, the AUT-06 failure in a new place. `vor_ort` and `portal` are not electronic advertising under §7 UWG, and the draft's blanket channel test blocked a site visit to a consented customer (review, MINOR); the channel list is now aligned with the `CHECK` on `lead_aktivitaet.kanal` and with `einwilligung_kanaele`. And the `kunde` lookup is keyed on `(mandant_id, id)`, matching the composite key of §0.8.
+
+Unit test: `app.darf_kontaktiert_werden(gen_random_uuid(), 'email', 'werbung') = false`.
+
+### 5.4 Database-level enforcement on the send path
+
+Sending is recorded, and the record itself is constrained, so an unrecordable send is an unsendable send. Every outgoing electronic contact writes a `lead_aktivitaet` row **in the same transaction** as the send, carrying `zweck` and `rechtsgrundlage_snapshot`. That row cannot exist without a contact id and, for `zweck='werbung'`, without a basis (the two `CHECK`s of §4.4), and a `BEFORE INSERT` trigger re-evaluates `app.darf_kontaktiert_werden(ansprechpartner_id, kanal, zweck)` against the **live** contact, rejecting a snapshot that no longer matches — so a value an agent read minutes earlier cannot be used. The trigger is written once in `src/server/db/policies/uwg.sql` and attached per table; it also guards `nachricht` (Phase 9) and any future outbound queue.
+
+### 5.5 Service and agent gate
+
+`src/server/agent/policy.ts` refuses `sende_email` and every other outbound tool when the predicate is false, before the model's output is even rendered (invariant 7, AGT-02, SOC-08). `src/server/services/kommunikation.ts` is the only module permitted to write an outgoing activity and it calls the same SQL function rather than reimplementing the rule in TypeScript. The UI greys the "E-Mail senden" action and shows the reason — the UI is the last layer and never the enforcing one (AUT-04, SEC-A1).
+
+### 5.6 Art. 17 DSGVO erasure, and where it collides with invariant 8
+
+`ansprechpartner`, `formular_eingang` and `lead_aktivitaet` hold personal data of natural persons, this domain grants no `DELETE`, and the draft TODO'd only the retention *period* — so the erasure path did not exist at all (review, MISSING). The mechanism, stated:
+
+| Table | Anonymised (overwritten) | Retained shell | Why |
+|---|---|---|---|
+| `ansprechpartner` | `anrede`, `titel`, `vorname`, `nachname` → `'anonymisiert'`, `email`, `telefon`, `mobil`, `position`, `abteilung` → NULL | `id`, `mandant_id`, `kunde_id`, `rechtsgrundlage`, `werbewiderspruch_am`, `widerspruch_am`, `anonymisiert_am` | the §7 UWG record must still prove that this contact must not be contacted; erasing it would re-enable contact |
+| `formular_eingang` | personal keys inside `daten` (name, email, telephone, free text) → `'anonymisiert'`, `ip_hash`, `user_agent` → NULL | `id`, `mandant_id`, `formular_definition_id`, `utm_*`, `eingegangen_am`, `status`, `datenschutz_hinweis_version` | REP-03 channel attribution and the LEG-09 evidence that a notice was shown |
+| `lead_aktivitaet` | `inhalt`, `betreff` where they contain personal data | the row itself, `geschehen_am`, `zweck`, `rechtsgrundlage_snapshot` | the §7 UWG evidence trail and SEC-A9 |
+| `kunde` (`typ='privat'` only) | `name`, address, `email_zentral`, `telefon_zentral` | `id`, `kundennummer`, `debitorennummer`, everything an invoice references | §147 AO retention beats Art. 17 for booked transactions; the invoice's own K-12 snapshot is untouched either way |
+
+A single `SECURITY DEFINER` procedure `app.person_anonymisieren(...)` performs all of it in one transaction, stamps `anonymisiert_am`, and writes `audit_log` with `aktion='dsgvo.anonymisiert'`. The data-subject lookup (Art. 15/20) runs over three indexes named in §4: `ansprechpartner (mandant_id, lower(nachname), lower(vorname))`, `ansprechpartner (mandant_id, lower(email))` and `formular_eingang GIN (daten jsonb_path_ops)`.
+
+`// TODO(client): Löschkonzept — welche Personendaten werden bei einem Art.-17-Antrag anonymisiert, welcher Beleg-Rumpf bleibt aus GoBD-/§7-UWG-Gründen bestehen, und wer entscheidet über den Konflikt zwischen Löschanspruch und Aufbewahrungspflicht?`
+
+### 5.7 Tests that must exist before the CRM UI ships
+
+Mirroring CLAUDE.md's "test before UI for money and time":
+
+1. a contact with `rechtsgrundlage='keine'` → the service refuses **and** the activity insert is rejected by the database;
+2. `einwilligung` with `einwilligung_kanaele = {post}` → email refused, letter allowed, site visit allowed;
+3. setting `werbewiderspruch_am` on a `bestandskunde` → advertising refused **and an invoice email still sends** (§5.1);
+4. setting `widerspruch_am` → everything refused;
+5. a `kunde` set to `gesperrt` blocks all of its contacts;
+6. an agent-initiated send with a stale snapshot is rejected by the trigger;
+7. `app.darf_kontaktiert_werden` on a non-existent id returns `false`, not NULL;
+8. an outgoing `kanal='email'` row with `ansprechpartner_id IS NULL` is rejected.
+
+---
+
+## 6. Views
+
+All seven are `CREATE VIEW … WITH (security_invoker = true)` (§1.9) and all carry `mandant_id`, so the caller's own policies apply and the caller can filter. Each has its own SEC-A3 case.
+
+| View | Definition sketch | Serves |
+|---|---|---|
+| `objekt_flaeche` | `select mandant_id, objekt_id, sum(flaeche_qm) as flaeche_gesamt_qm, sum(fenster_flaeche_qm) as fenster_flaeche_qm, count(*) as raeume from raum where archiviert_am is null group by 1,2` | OPS-02; avoids a denormalised total that drifts after every Raumbuch import |
+| `objekt_belagsart_flaeche` | `select mandant_id, objekt_id, belagsart_id, sum(flaeche_qm) from raum where archiviert_am is null group by 1,2,3` | OPS-03 costing input, served by the `INCLUDE` index of §4.2 |
+| `angebot_steuersumme` | `select mandant_id, angebot_id, steuersatz_bp, steuer_kennzeichen, sum(gesamtpreis_cent) as netto_cent, round(sum(gesamtpreis_cent) * steuersatz_bp / 10000.0)::bigint as steuer_cent from angebotsposition where typ='leistung' group by 1,2,3,4` | invariant 1 — VAT per tax-rate group, for **drafts only**; a sent offer reads `angebot_steuer` |
+| `referenzfaehiger_auftrag` | `auftrag` where `freigegeben_vom_kunden and freigabe_widerrufen_am is null and archiviert_am is null`, joined to `objekt` and the release document. **No completion filter** (§4.6) | PRO-05, SOC-04 — the internal worklist from which a human creates a `referenz`; never read by a public page (§1.6) |
+| `lead_sla_offen` | `lead` where `sla_frist_am is not null and erste_reaktion_am is null and archiviert_am is null and sla_frist_am < now()`, with `besitzer_benutzer_id` and the form's `eskalation_benutzer_id` | REQ-06 hourly escalation watchdog |
+| `kunde_gruppenhistorie` | `firma` joined to the visible `kunde` rows and their `auftrag` counts and values per mandant | CRM-06, TEN-05 — meaningful only in group scope, where `t_gruppe` and the `gruppe.*` rights decide what the caller sees |
+| `auftrag_ohne_zeiterfassung` | completed `auftrag` with no `zeiteintrag` on any of its `auftrag_leistung` rows (the join lands in Phase 5) | FIN-18 pre-invoice warning |
+| `kalkulation_platzhalter` | `kalkulation k` where `k.ist_platzhalter or k.stundenverrechnungssatz_cent is null or k.gemeinkosten_basis is null or k.gemeinkosten_bp is null or k.wagnis_gewinn_bp is null` **or** it joins a `belagsart` / `leistungskatalog_position` with `ist_platzhalter` | the "unconfirmed values" banner; blocks `festgeschrieben` (§4.5, review B11) |
+
+---
+
+## 7. Service contracts and the agent tool surface
+
+### 7.1 Services that own the arithmetic
+
+Route handlers stay thin: authorize → validate → call one service → return (`01-ORDNERSTRUKTUR.md` L1). No component computes anything (L2). The services this domain owns:
+
+```ts
+// src/server/services/kalkulation/standardzeit.ts
+export function standardzeitMinuten(input: {
+  raeume: ReadonlyArray<{ flaecheQm: Decimal; leistungswertQmProStunde: Decimal }>;
+  frequenzFaktor: Decimal;                       // from turnus/reinigungsklasse — never from a model
+}): { minuten: number; ansatz: string; operanden: Record<string, number> };
+// OPS-02/03: Σ (m² ÷ Leistungswert) × Frequenzfaktor, in exact decimal arithmetic
+
+// src/server/services/kalkulation/preis.ts
+export function berechnePreis(handles: {
+  angebotId: AngebotHandle;                      // K-10: handles, never numbers
+  kalkulationId: KalkulationHandle;
+}): Promise<KalkulationErgebnis>;                // writes kalkulation_position rows, cents only
+
+// src/server/services/abrechnung/index.ts
+export interface AbrechnungsStrategie {
+  readonly art: Abrechnungsart;
+  validiereParameter(p: unknown): ZodSchema;
+  ermittleLeistungszeitraum(v: VertragAbrechnung, periode: Periode): Leistungszeitraum;
+  erzeugeRechnungspositionen(v: VertragAbrechnung, periode: Periode): RechnungspositionEntwurf[];
+}
+
+// src/server/services/lead-scoring.ts
+export function bewerteLead(l: LeadSnapshot): { punktzahl: number; begruendung: string };
+// deterministic, no model call, CRM-02 + RAD-05 discipline
+```
+
+`Periode` is always constructed from Berlin wall-clock boundaries (K-11) — `periodeAusMonat(2026, 3)` returns the instants `2026-02-28T23:00Z` … `2026-03-31T22:00Z`, and the billing-run test carries a CET month and a CEST month.
+
+### 7.2 What an agent may pass (K-10)
+
+Invariant 6 and AGT-07 are defeated at the entry point if a tool accepts model-authored figures: a model that writes `netto_cent: 250000` gets an invented amount back stamped "computed by a tested service", with a green confidence chip in the approval UI. So every money, quantity or formula argument crossing into this domain is **a handle or a token**, never a literal and never an expression string:
+
+| Tool | Accepts | Never accepts |
+|---|---|---|
+| `berechne_preis` | `AngebotHandle`, `KalkulationHandle` — the service derives `leistung_ids`, quantities and the surcharge profile from the contract and the catalogue | any `_cent`, any `menge`, any `_bp`, any formula text |
+| `extrahiere_lv` | `DokumentHandle` → writes staged rows a human confirms | a price for a position |
+| `lies_dokument`, `suche_bestand` | handles and search strings | — |
+| `erstelle_vorgang` | `LeadHandle`, `KundeHandle` | a `geschaetzter_wert_cent` |
+| `entwirf_text` | handles; output lands in `angebot.einleitungstext` / `schlusstext` only | any position, any amount |
+| `sende_email` | `AnsprechpartnerHandle`, `zweck` | — gated by §5 and by an approval (invariant 7) |
+
+**Choosing the surcharge profile is choosing the margin, which is setting a price** (K-10), and SPEC §17 says the Back-office agent never sets prices — so `gemeinkosten_bp`, `wagnis_gewinn_bp` and `gemeinkosten_basis` are never model arguments, and a negative `einzelpreis_cent` (a Nachlass) written under `akteur_art='agent'` is refused by the policy gate, because the autonomy matrix lists "Discount or concession — never".
+
+Test: no branch of `berechnePreis` or `standardzeitMinuten` accepts a numeric literal or an expression string originating in a tool argument.
+
+---
+
+## 8. Jobs and watchdogs owned by this domain
+
+Plain scheduled jobs, no LLM (SPEC §14). Each runs as `cse_job` with the enumerated grants of §1.1, and each writes `audit_log` under `akteur_art='system'`.
+
+| Job | Schedule | Reads | Does | SPEC |
+|---|---|---|---|---|
+| `job:lead_sla_eskalation` | hourly | `lead_sla_offen` | raises `eskalationsstufe`, notifies `eskalation_benutzer_id` | REQ-06, NOT-01 |
+| `job:angebot_ablauf` | daily | `angebot` `status='versendet'`, `gueltig_bis < app.berlin_heute()` | sets `status='abgelaufen'`, notifies the owner | DSH-01 |
+| `job:vertrag_ablauf` | daily | `auftrag.laufzeit_bis` | notifies the responsible manager before the notice period | OPS-05, NOT-01 |
+| `job:gewaehrleistung_ablauf` | daily | `auftrag.gewaehrleistung_bis` | notifies before expiry (retention release, final acceptance) | REP-05 |
+| `job:freistellung_ablauf` | daily | `freistellungsbescheinigung.gueltig_bis` | warns 60/30/7 days before, because expiry means 15 % withholding | FIN-10 |
+| `job:abrechnungslauf_vorschlag` | monthly | `vertrag_abrechnung` by range overlap (§4.6) | proposes invoices for human approval — never issues one | FIN-01, AGT autonomy matrix |
+| `job:dokument_aufbewahrung` | daily | `dokument.aufbewahrung_bis` | flags due documents; deletes nothing (`loeschsperre`, §4.7) | DOC-07 |
+| `job:staging_purge` | weekly | `raumbuch_import_zeile`, `formular_eingang` | the only two deletions in the domain (§1.8) | LEG-09 |
+| `job:platzhalter_bericht` | weekly | `ist_platzhalter` rows across five tables | one report of every unconfirmed value, into the approval inbox | K-17 |
+
+---
+
+## 9. Why it is shaped this way
+
+**1 · `firma` sits above the tenant-scoped `kunde` — the customer-side mirror of D-09.**
+CRM-06 wants one customer's history across all four areas; invariant 3 and D-09 §6 want commercial data locked inside one entity. Both hold once identity is split from relationship exactly as `person` is split from `anstellung`: `firma` is the company in the world, `kunde` is one entity's relationship with it, and `firma` is reachable only through `app.firma_aufloesen` (§4.1).
+*Naive alternative:* one tenant-scoped `kunde` table plus a group view that joins on company name or USt-IdNr. at query time. That is a fuzzy join over free text in the one place where a wrong join silently merges two customers' revenue figures, and it gives the CEO Assistant no stable key for "what do we do for this customer group" (AGT-07). The other naive alternative — making `kunde` itself group-wide — leaks the security customer list, the payment terms and the legal basis to every area. The split is the only shape in which neither failure is possible.
+
+**2 · `kalkulation_position` stores a snapshot of every input, plus the derivation as text and as operands.**
+Each row carries `leistungswert_qm_pro_stunde`, `frequenz_faktor`, `stundensatz_cent` and `zeitwert_minuten` as values rather than joins, `rechenansatz` as the formula and `operanden` as the machine-checkable form.
+*Naive alternative:* keep only the foreign keys and recompute the price when the offer is displayed. The first time someone corrects a Leistungswert from 85 to 90 m²/h, every historic offer silently re-prices, the PDF in the customer's inbox stops matching the record, and OPS-07's "versioned" costing means nothing. The same reasoning makes `belagsart` time-ranged with an `EXCLUDE` constraint instead of edited in place, freezes a `festgeschrieben` calculation by trigger, and — the correction the review forced — freezes the calculation **at the moment the offer is sent** rather than whenever someone remembers (§4.5). It is BAU-02's rule, that an auditor must see how the number arose, applied to pricing instead of measurement.
+
+**3 · `vertrag_abrechnung` is a time-ranged row with a typed strategy, not columns on `auftrag`.**
+The exact five billing types are open (O-04) and a contract genuinely changes billing model mid-term. So billing configuration is its own table — one row per (scope, period), an `EXCLUDE` constraint forbidding overlap **for the same scope**, typed cent columns for money, `jsonb` only for non-monetary parameters, behind `AbrechnungsStrategie`.
+*Naive alternative:* `abrechnungsart` plus five nullable amount columns on `auftrag`. When the client answers O-04 with a sixth type or a different split, the invoice engine branches on columns in several places; and when a contract switches from hourly to a monthly flat on 1 January, the row is overwritten and no invoice issued before that date can be explained from the data that produced it. Since invoices are immutable and hash-chained (FIN-06, K-12), a billing configuration that cannot be reconstructed for a past period is a permanent gap in the audit trail.
+
+**4 · Deletion is impossible in three independent ways, and possible in exactly two documented places.**
+Invariant 8 names finance, time tracking and audit; this domain is upstream of all three — an `auftrag` feeds invoices, a `raum` feeds the `kalkulation_position` that justifies a price, a `lead` carries the attribution REP-03 rests on. So no `DELETE` policy, no `DELETE` privilege, and a `BEFORE DELETE` trigger, plus `ON DELETE NO ACTION` on every FK so a parent cannot take a child with it. The two exceptions — purging discarded import staging rows and spam submissions — are named in §1.8 with their policy, their grant and their retention source, so the GoBD and SEC-A3 reviews find them without reading migrations.
+
+**5 · The customer portal is a restrictive ceiling, not an extra policy.**
+The draft added a permissive `sel_kundenportal` policy per table, which *widens* access by construction: a permissive policy is OR-ed with the others, so a bug in its predicate opens rows rather than closing them, and K-03 allows exactly two permissive policies anyway. K-04's restrictive shape can only ever narrow, it fails closed when `app.aktueller_kunde()` is NULL, and the same mechanism already carries EMP-13 for the employee portal. One mechanism, two audiences, one place to test.
+
+---
+
+## 10. Test obligations
+
+These are acceptance criteria for the Phase 4 PRs, not suggestions. SEC-A3 is the highest-priority suite in the codebase.
+
+**Tenant isolation (SEC-A3, invariant 3, D-09 §6)**
+1. For every table in §4: a user of mandant A receives zero rows for every row of mandant B, on direct query, API route and deep link, and the route returns **404, not 403** (AUT-06, K-02).
+2. **The two-mandant case:** a `leitung` with live memberships in `reinigung` and `security`, with `reinigung` active, reads zero `security` rows from `kunde`, `angebot`, `angebotsposition`, `auftrag_leistung`, `vertrag_abrechnung`, `kalkulation` and `kalkulation_position` — the case the draft's policy shape failed and single-mandant tests could not detect.
+3. Per view in §6, the same two cases — a view leak is not covered by a table test.
+4. A session with no GUCs set reads zero rows everywhere (K-02 fail-closed).
+5. A write attempted in group scope is refused by the database, not only by the service (invariant 10, K-03).
+
+**Portals**
+6. A `mitarbeiter` session reads zero rows from `kunde`, `angebot*`, `kalkulation*`, `vertrag_abrechnung`, `auftrag*` (EMP-13).
+7. A `kunde` session reads only its own `kunde`, `objekt`, `raum`, sent `angebot`, `auftrag`, `auftrag_leistung` and `sichtbar_fuer_kunde` documents — and zero `kalkulation`, zero `ansprechpartner.rechtsgrundlage`, zero `vertrag_abrechnung`, zero draft offers.
+8. `app.aktueller_kunde()` returns NULL after `entzogen_am` is set, and the portal then reads nothing.
+
+**Money and VAT (invariant 1)**
+9. `gesamtpreis_cent` is exact for `menge = 0.001` and for `menge = 999999.999`; no float appears in any plan.
+10. `angebot_steuersumme` and `angebot_steuer` agree for a draft that is then sent, across three tax-rate groups including one `reverse_charge_13b` line at 0 %.
+11. A `steuerfrei` line without `steuerbefreiung_grund` is rejected.
+
+**Time and periods (invariant 2, K-11)**
+12. `belagsart` superseded on 2026-04-01 returns exactly one row for 2026-03-31 and one for 2026-04-01 (§0.7).
+13. The billing run for March finds a `vertrag_abrechnung` that ended on 15 March (review B9), in a CET month and in a CEST month.
+14. `Periode` boundaries are Berlin wall-clock: the March period starts at `2026-02-28T23:00Z`.
+
+**Immutability and deletion**
+15. `UPDATE angebot SET netto_cent = … WHERE versendet_am IS NOT NULL` raises.
+16. Sending an offer sets every attached `kalkulation` to `festgeschrieben` in the same transaction (review B12).
+17. `DELETE FROM auftrag` raises for `cse_app`, for `cse_job`, and for `cse_migrator`.
+18. `DELETE FROM raumbuch_import_zeile` succeeds for `cse_job` only, only for `verworfen`/`fehler` imports, and only past the configured retention.
+
+**CRM-08** — the eight cases of §5.7.
+
+**Raumbuch and pricing**
+19. An import of a real-shaped sheet with two rooms numbered "101" on different floors and eleven unnumbered corridors creates thirteen rooms, and re-running the same import creates none (review B14).
+20. The Phase 4 acceptance criterion: a cleaning offer prices from the Raumbuch by `Σ m² ÷ Leistungswert × Frequenzfaktor` with no manual arithmetic, and every `kalkulation_position.operanden` re-derives its own `betrag_cent`.
+
+**Placeholders (K-17)**
+21. `pnpm lint:todo` fails when any `// TODO(client)` in this domain has no `DECISIONS.md` § Open entry.
+22. A `kalkulation` cannot reach `festgeschrieben` while `ist_platzhalter`, or while any of the three open values is NULL, or while it derives from a placeholder `belagsart` or catalogue position.
+
+---
+
+## 11. Composite foreign key register (K-16)
+
+Parent uniques required: `UNIQUE (mandant_id, id)` on `kunde`, `ansprechpartner`, `objekt`, `raum`, `belagsart`, `reinigungsklasse`, `leistungskatalog`, `leistungskatalog_position`, `raumbuch_import`, `formular_definition`, `formular_eingang`, `lead`, `angebot`, `angebotsposition`, `kalkulation`, `auftrag`, `auftrag_leistung`, `vertrag_abrechnung`, `dokument`; plus `UNIQUE (mandant_id, kunde_id, id)` on `ansprechpartner`.
+
+| Child | Columns | Parent |
+|---|---|---|
+| `kunde_zugang` | `(mandant_id, kunde_id)` · `(mandant_id, kunde_id, ansprechpartner_id)` | `kunde` · `ansprechpartner` |
+| `kunde_bauleistender_status` | `(mandant_id, kunde_id)` · `(mandant_id, beleg_dokument_id)` | `kunde` · `dokument` |
+| `freistellungsbescheinigung` | `(mandant_id, kunde_id)` · `(mandant_id, dokument_id)` | `kunde` · `dokument` |
+| `ansprechpartner` | `(mandant_id, kunde_id)` · `(mandant_id, rechtsgrundlage_beleg_dokument_id)` | `kunde` · `dokument` |
+| `objekt` | `(mandant_id, kunde_id)` · `(mandant_id, kunde_id, ansprechpartner_id)` | `kunde` · `ansprechpartner` |
+| `raum` | `(mandant_id, objekt_id)` · `(mandant_id, belagsart_id)` · `(mandant_id, reinigungsklasse_id)` | `objekt` · `belagsart` · `reinigungsklasse` |
+| `raumbuch_import` | `(mandant_id, objekt_id)` · `(mandant_id, dokument_id)` | `objekt` · `dokument` |
+| `raumbuch_import_zeile` | `(mandant_id, import_id)` · `(mandant_id, raum_id)` · `(mandant_id, belagsart_id)` · `(mandant_id, reinigungsklasse_id)` | `raumbuch_import` · `raum` · `belagsart` · `reinigungsklasse` |
+| `raum_import_historie` | `(mandant_id, raum_id)` · `(mandant_id, import_id)` | `raum` · `raumbuch_import` |
+| `leistungskatalog_position` | `(mandant_id, katalog_id)` · `(mandant_id, parent_id)` | `leistungskatalog` · itself |
+| `formular_zustaendigkeit` | `(mandant_id, formular_definition_id)` | `formular_definition` |
+| `formular_eingang` | `(mandant_id, formular_definition_id)` · `(mandant_id, lead_id)` | `formular_definition` · `lead` |
+| `lead` | `(mandant_id, formular_eingang_id)` · `(mandant_id, kunde_id)` · `(mandant_id, ansprechpartner_id)` · `(mandant_id, empfehlung_von_kunde_id)` · `(mandant_id, ausschreibung_id)` | `formular_eingang` · `kunde` · `ansprechpartner` · `kunde` · `ausschreibung` |
+| `lead_aktivitaet` | `(mandant_id, lead_id)` · `(mandant_id, kunde_id)` · `(mandant_id, ansprechpartner_id)` · `(mandant_id, dokument_id)` | `lead` · `kunde` · `ansprechpartner` · `dokument` |
+| `angebot` | `(mandant_id, kunde_id)` · `(mandant_id, kunde_id, ansprechpartner_id)` · `(mandant_id, objekt_id)` · `(mandant_id, lead_id)` · `(mandant_id, ersetzt_angebot_id)` · `(mandant_id, pdf_dokument_id)` · `(mandant_id, freigabe_id)` | `kunde` · `ansprechpartner` · `objekt` · `lead` · `angebot` · `dokument` · `freigabe` |
+| `angebotsposition` | `(mandant_id, angebot_id)` · `(mandant_id, leistungskatalog_position_id)` · `(mandant_id, objekt_id)` · `(mandant_id, raum_id)` | `angebot` · `leistungskatalog_position` · `objekt` · `raum` |
+| `angebot_steuer` | `(mandant_id, angebot_id)` | `angebot` |
+| `kalkulation` | `(mandant_id, angebot_id)` · `(mandant_id, auftrag_id)` · `(mandant_id, basis_objekt_id)` | `angebot` · `auftrag` · `objekt` |
+| `kalkulation_position` | `(mandant_id, kalkulation_id)` · `(mandant_id, angebotsposition_id)` · `(mandant_id, leistungskatalog_position_id)` · `(mandant_id, raum_id)` · `(mandant_id, belagsart_id)` | `kalkulation` · `angebotsposition` · `leistungskatalog_position` · `raum` · `belagsart` |
+| `auftrag` | `(mandant_id, kunde_id)` · `(mandant_id, objekt_id)` · `(mandant_id, angebot_id)` · `(mandant_id, lead_id)` · `(mandant_id, kunde_id, freigabe_durch_ansprechpartner_id)` · `(mandant_id, freigabe_dokument_id)` · `(mandant_id, buergschaft_dokument_id)` · `(mandant_id, freigabe_id)` | `kunde` · `objekt` · `angebot` · `lead` · `ansprechpartner` · `dokument` · `dokument` · `freigabe` |
+| `auftrag_leistung` | `(mandant_id, auftrag_id)` · `(mandant_id, angebotsposition_id)` · `(mandant_id, leistungskatalog_position_id)` · `(mandant_id, objekt_id)` | `auftrag` · `angebotsposition` · `leistungskatalog_position` · `objekt` |
+| `vertrag_abrechnung` | `(mandant_id, auftrag_id)` · `(mandant_id, auftrag_leistung_id)` | `auftrag` · `auftrag_leistung` |
+| `auftrag_dokument` | `(mandant_id, auftrag_id)` · `(mandant_id, dokument_id)` | `auftrag` · `dokument` |
+| `dokument` | `(mandant_id, kunde_id)` · `(mandant_id, objekt_id)` · `(mandant_id, formular_eingang_id)` | `kunde` · `objekt` · `formular_eingang` |
+| `dokument_version` | `(mandant_id, dokument_id)` | `dokument` |
+
+---
+
+## 12. TODO(client) index for this domain
+
+Every row is emitted as a `// TODO(client)` at its point of use and belongs under **Open** in `docs/DECISIONS.md`; `pnpm lint:todo` fails when one is missing there (K-17, L6). None of them has been guessed, and each has a placeholder that is visibly marked in the UI.
+
+| # | Where | Question (as it should appear in DECISIONS.md) |
+|---|---|---|
+| 1 | `vertrag_abrechnung.abrechnungsart` | Bestätigen Sie die exakten fünf Abrechnungsarten und ihre deutschen Namen (O-04). |
+| 2 | `vertrag_abrechnung` (Geltungsbereich) | Kann ein Auftrag gleichzeitig unterschiedlich abgerechnete Positionen enthalten (z. B. Unterhaltsreinigung als Monatspauschale, Sonderreinigung nach Stunden im selben Vertrag)? |
+| 3 | `vertrag_abrechnung.leistungszeitraum_modus` | Wie wird der Leistungszeitraum je Abrechnungsart ermittelt — Kalendermonat, nach Leistungsnachweis oder manuell? (FIN-05: sein Fehlen kostet dem Kunden den Vorsteuerabzug.) |
+| 4 | `belagsart.leistungswert_qm_pro_stunde` | Leistungswerte in m²/h je Belagsart und ihre Quelle — je Gesellschaft unterschiedlich? |
+| 5 | `reinigungsklasse` | Welche Reinigungsklassen werden verwendet (DIN 77400, eigenes Schema, kundenspezifisch), und steuern sie Frequenz, Preis, beides oder nichts? |
+| 6 | `kalkulation.stundenverrechnungssatz_cent` | Kalkulatorischer Stundenverrechnungssatz je Bereich und Lohngruppe, mit Tarifgrundlage. |
+| 7 | `kalkulation.gemeinkosten_basis` | Auf welche Bezugsgröße wird der Gemeinkostenzuschlag gerechnet — Lohnkosten, Selbstkosten oder je Kostenart getrennt? |
+| 8 | `kalkulation.gemeinkosten_bp` / `wagnis_gewinn_bp` | Gemeinkostenzuschlag und Wagnis-/Gewinnzuschlag in Prozent. |
+| 9 | `kalkulation_position.frequenz_faktor` | Wie wird ein Turnus (z. B. 2× wöchentlich) in einen Frequenzfaktor umgerechnet? |
+| 10 | `kostenart` | Ist Fremdleistung / Nachunternehmerleistung eine eigene Kostenart neben den fünf aus OPS-07? |
+| 11 | `angebot` (Versand) | Muss vor jedem Angebotsversand eine Kalkulation vorliegen, oder dürfen Katalog-/Kleinaufträge ohne Kalkulation herausgehen? |
+| 12 | `leistungskatalog_position` | Zeitwerte und Listenpreise je Leistung — bestätigen oder liefern. |
+| 13 | `leistungskatalog_position.erloeskonto_schluessel` | SKR03 oder SKR04, Sachkontenlänge, Steuerschlüsseltabelle, Erlöskonto je Leistungsart (O-05) — plus ein echter EXTF-Beispielexport. |
+| 14 | `steuer_kennzeichen` | Kommen innergemeinschaftliche Lieferungen oder eine Kleinunternehmerregelung (§19 UStG) in einer der Gesellschaften vor? |
+| 15 | `formular_zustaendigkeit.sla_stunden` | Reaktionszeit je Bereich in Stunden — Kalenderstunden oder Werktagsstunden, und wann läuft sie an einem Freitagabend an? |
+| 16 | `formular_definition` (operations) | Welche Felder braucht das Formular für CSE Operations, um überhaupt anbieten zu können? |
+| 17 | `formular_definition.felder` | Wertelisten für `gebaeudetyp`, `frequenz` und `gewerk`. |
+| 18 | `formular_eingang.datenschutz_hinweis_bestaetigt` | Wird die Datenschutzerklärung als Hinweis bestätigt (Art. 6(1)(b)/(f)) oder als Einwilligung erhoben? |
+| 19 | `formular_eingang` (Aufbewahrung) | Aufbewahrungsfrist für nicht verwertete Formulareingänge und für als Spam markierte Eingänge. |
+| 20 | `raumbuch_import_zeile` (Aufbewahrung) | Aufbewahrungsfrist für verworfene und fehlerhafte Importzeilen (DSGVO-Löschkonzept; GoBD-Relevanz der Import-Provenienz). |
+| 21 | `lead.sla_frist_am` | Gilt die Reaktionszeit auch für manuell erfasste Leads, Empfehlungen und Radar-Treffer? Mit welcher Frist? |
+| 22 | `lead.punktzahl` | Nach welchen Kriterien und Gewichten soll ein Lead bewertet werden (CRM-02)? |
+| 23 | `lead.punktzahl` (Art. 22) | Löst der Lead-Score irgendeine automatische Entscheidung aus? Falls ja, greift Art. 22 DSGVO (LEG-12). |
+| 24 | `lead_aktivitaet.zweck` | Welche Kommunikation gilt als vertraglich notwendig (Rechnung, Leistungsnachweis, Terminbestätigung, Mahnung) und ist vom Werbewiderspruch ausgenommen — und welche gilt als Werbung? |
+| 25 | `kunde.zahlungsziel_tage` | Standard-Zahlungsziel je Gesellschaft. |
+| 26 | `kunde.mahnsperre_*` | Mahnstufen, Mahngebühren und Verzugszinsen (FIN-15) — Beträge und Fristen. |
+| 27 | `kunde.elektronische_adresse*` | Welche elektronische Adresse und welches EAS-Schema hat jeder öffentliche Auftraggeber (EN 16931 BT-49/49-1)? |
+| 28 | `kunde.uebertragungsweg` / `rechnungsformat` | Über welchen Weg (Peppol, ZRE, OZG-RE, E-Mail) und in welchem Format (XRechnung, ZUGFeRD, PDF) wird je Auftraggeber zugestellt? |
+| 29 | `freistellungsbescheinigung` | Wird die §48b-Bescheinigung je Kunde, je Auftrag oder je Nachunternehmer geführt, wer erfasst sie und wer prüft sie vor dem Zahlungslauf? |
+| 30 | `auftrag.gewaehrleistung_bis` | Welche Gewährleistungsfrist wird vertraglich vereinbart — VOB/B §13 oder BGB? Je Auftrag abweichend? |
+| 31 | `auftrag.sicherheitseinbehalt_*` | Wird ein Sicherheitseinbehalt geführt (VOB/B §17), in welcher Höhe, und wird er durch Bürgschaft abgelöst? |
+| 32 | `objekt.gebaeudetyp` | Kontrolliertes Vokabular für Gebäudetyp, oder bleibt es Freitext? |
+| 33 | `objekt.kunde_id` | Wird ein Gebäude, das für zwei Kunden derselben Gesellschaft betreut wird, als ein Objekt oder als zwei geführt? |
+| 34 | `dokument_aufbewahrung` | Welche Dokumentkategorien unterliegen einer gesetzlichen Aufbewahrungspflicht, über welchen Zeitraum, und welche müssen nach Fristablauf gelöscht werden? |
+| 35 | `ansprechpartner` / `formular_eingang` / `lead_aktivitaet` | Löschkonzept Art. 17 DSGVO: welche Personendaten werden anonymisiert, welcher Beleg-Rumpf bleibt aus GoBD-/§7-UWG-Gründen bestehen, wer entscheidet den Konflikt? |
+| 36 | `projekt` (Grenzverweis) | Gibt es Projekte ohne Auftrag (interne Vorhaben, Akquiseprojekte)? |
+| 37 | Vokabulare | Bestätigung der Arbeitsvokabulare: `lead_status`, `lead_prioritaet`, `angebot_status`, `angebotsposition_typ`, `auftrag_art`, `auftrag_status`, `abrechnungsintervall`, `kunde_typ`, `aktivitaet_typ`, `dokument_rolle`. |
+
+**Assumptions recorded in `DECISIONS.md` § Decided, not as open questions** (they are modelling conventions, not legal or financial values): the 0–100 lead-score scale; `projekt` modelled as an `auftrag` extension; the `EINHEITEN` starting list; the residual "does anyone in the group know this company" signal of `app.firma_aufloesen` (§4.1); PRO-05 references not requiring `status='abgeschlossen'`.
+
+---
+
+## 13. Cross-document notes
+
+Each of these is a requirement this document places on a sibling document. Where the sibling is already written, the note is a correction to be applied there.
+
+1. **`01-KERN.md` — `berechtigung_aktion` must include `schreiben`.** K-03 fixes the write conjunct as `app.hat_recht('<modul>.schreiben', mandant_id)`; the Kern document's action vocabulary lists `erstellen`/`aendern`/`loeschen` and no `schreiben`, so every `WITH CHECK` in this domain would resolve an unknown key — and `hat_recht` returns **false** for an unknown key, which would make the whole domain read-only. Either add `schreiben` to the enum, or state in Kern that `<modul>.schreiben` is seeded as an alias covering the three write actions.
+2. **`01-KERN.md` — `akteur_art` is the single actor enum.** The draft of this document declared `akteur_typ` with the same values; it is deleted here and this domain imports Kern's. Likewise `sprache` (used by `ansprechpartner.sprache`).
+3. **`01-KERN.md` §3.5 — definer-read registry.** Add `firma`, `kunde`, `ansprechpartner`, `kunde_zugang`, with the five helpers of §1.7 named as the only readers.
+4. **`04-BERECHTIGUNGSMODELL.md` — role matrix.** The `mitarbeiter` role holds none of `crm`, `angebot`, `kalkulation`, `auftrag`, `abrechnung` (EMP-13). The `kunde` role holds only `angebot.lesen`, `auftrag.lesen`, `objekt.lesen`, `dokument.lesen`. A dedicated service principal holds `oeffentlich.lesen` in all four mandanten and nothing else (§1.6). The right keys of §1.3 are the seed.
+5. **`03-AUTH-MODELL.md` — `kunde_zugang` is the customer-side login table** and `app.aktueller_kunde()` is its resolver (§1.4). The customer portal session sets `app.portal = 'kunde'` from the role of the active membership (K-04); there is no customer-id GUC, because K-02's list is closed.
+6. **`docs/DESIGN.md` §5 — status pills.** Fourteen labels used by this domain have no entry in the fixed vocabulary (§2.1). Per CLAUDE.md they must be added to DESIGN.md **before** the Phase 4 UI uses them, together with the `warning` pill "Unbestätigter Wert" that every `ist_platzhalter` row shows.
+7. **Bau document — `lv_position.auftrag_leistung_id`, not `auftrag_id`** (§3.2), and `projekt.auftrag_id NOT NULL UNIQUE`. Without the first, FIN-07 traceability forks and BAU-05 has no join.
+8. **Kalender document — `aufgabe`** must carry `auftrag_id`, `objekt_id`, `lead_id`, `faellig_am timestamptz`, `zustaendig_benutzer_id` and a status, because OPS-11, DSH-01 and CAL-01 have no other source and this domain deliberately does not model a second task table.
+9. **Finance document —** `nummernkreis` serves `angebotsnummer` (drawn at send) and `auftragsnummer` (drawn at creation), neither gapless; `rechnung` snapshots customer and entity identity per **K-12** rather than referencing `kunde`; `steuer_kennzeichen` is owned there and mirrored here; `konto_mapping`, `lieferant`, `abschlagsplan` and the FIN-04 pre-flight consume the columns named in §4.8.
+10. **Website document — `referenz`** is the only public-facing carrier of PRO-05 content, populated by a human from `referenzfaehiger_auftrag` with the enumerated fields of §3.2; no public page reads any table in this domain except `formular_definition` through the `oeffentlich.lesen` right.
+11. **`docs/ROADMAP.md` —** `formular_definition`, `formular_zustaendigkeit`, `formular_eingang` and `lead` must exist in **Phase 2**, because REQ-01…REQ-07 are Phase 2 acceptance criteria while the rest of this domain is Phase 4.
+12. **`src/server/db/rls.ts` —** this domain's registry entries: the two K-03 policies per table, the customer and internal-only ceilings of §1.4, the column grants of §1.5, the two `cse_job` DELETE policies of §1.8, and the definer-read list of §1.7. The build fails on a table in these three schema files that is missing any of them.
