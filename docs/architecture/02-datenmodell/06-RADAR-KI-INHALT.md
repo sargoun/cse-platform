@@ -1069,7 +1069,7 @@ One public notice — the normalised, queryable core of a procurement procedure 
 | `beschreibung` | text | yes | — | |
 | `sprache` | char(2) | no | `'de'` | the notice language as the source declares it (RAD-02 delivers non-German notices) |
 | `ts_konfiguration` | regconfig | no | `'german'` | derived from `sprache` by trigger; `regconfig`, not `text`, so the generated column below stays immutable |
-| `such_text` | tsvector | no | GENERATED | `GENERATED ALWAYS AS (to_tsvector(ts_konfiguration, coalesce(titel,'') || ' ' || coalesce(beschreibung,''))) STORED` — keyword scoring runs in the database, in the notice's own language (review, MINOR) |
+| `such_text` | tsvector | no | GENERATED | `GENERATED ALWAYS AS (to_tsvector(ts_konfiguration, coalesce(titel,'') \|\| ' ' \|\| coalesce(beschreibung,''))) STORED` — keyword scoring runs in the database, in the notice's own language (review, MINOR) |
 | `vergabestelle_name` · `vergabestelle_ort` · `vergabestelle_plz` | text | yes | — | |
 | `cpv_haupt` | text | yes | — | `CHECK (cpv_haupt ~ '^[0-9]{8}(-[0-9])?$')` |
 | `cpv_weitere` | text[] | no | `'{}'` | |

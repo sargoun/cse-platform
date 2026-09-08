@@ -262,15 +262,27 @@ tests of the first code PR, before any table and any UI.
 Three items the review surfaced that are ours to do, recorded here so they are not
 lost between phases:
 
-1. **`docs/DESIGN.md` needs an absence colour palette** before the Dienstplan renders
-   anything beyond the semantic tokens. It currently carries a `TODO(design)`, and
-   CLAUDE.md forbids inventing a colour in a page file.
-2. **`02-CRM-OPERATIONS.md` must add
-   `dokument.sichtbar_fuer_mitarbeiter boolean not null default false`** — worker
-   document visibility has nothing to key on today.
-3. **`app.mandant_kennzahlen()`** is defined in `01-KERN.md` §6.3 as counts-only over
-   `app.switcher_mandanten()` and is silent on whether the counts respect the caller's
-   per-module rights. Settle it before the switcher ships (TEN-10).
+1. **`docs/DESIGN.md` needs two additions before any Dienstplan screen renders.**
+   Both are ours, not the client's, and CLAUDE.md's order is DESIGN.md first, then use:
+   - an **absence colour palette**. `01-KERN.md` §6.22 `CHECK`s
+     `abwesenheitsart.farbe_token` to the five semantic tokens of DESIGN §1
+     (`success · warning · danger · info · neutral`), which cannot distinguish leave from
+     sickness from training; the `// TODO(design)` marker sits at `01-KERN.md` §6.22, not
+     in DESIGN.md itself.
+   - the **status-pill labels** of `04-PLANUNG-ZEIT.md` §3.6. DESIGN §5 fixes five pill
+     classes and their German labels; most of the Dienstplan's values have no label there,
+     and that section is both the mapping and the change request.
+2. **`app.mandant_kennzahlen()`** is defined in `01-KERN.md` §6.3 as counts-only over
+   `app.switcher_mandanten()`, and is silent on whether the counts respect the caller's
+   per-module rights — a `leitung` with no `finanzen` module would still see a finance
+   counter in the switcher. Settle it before the switcher ships (TEN-10).
+
+The third item recorded here in an earlier pass — that `02-CRM-OPERATIONS.md` must add
+`dokument.sichtbar_fuer_mitarbeiter` — was **wrong and is withdrawn**. The column is
+declared at `02-CRM-OPERATIONS.md` §4.7 (`boolean not null default false`) and is already
+the subject predicate of that document's `t_person` policy and of the form-C worker
+ceiling of `03-AUTH-BERECHTIGUNGEN.md` §8.5. It was carried forward from the review notes
+without being checked against the file.
 
 ---
 

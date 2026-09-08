@@ -35,8 +35,11 @@ twice before it did:**
 - **`steuersatz_gruppe`** (§3.2) is the platform's **only** VAT catalogue. There is **no `steuersatz`
   table**, no `steuersatz_id` column, no `prozent_bp` and no `hinweistext`; every foreign key in the
   platform is `*.steuersatz_gruppe_id`, and the rate is `satz_bp` with the exemption text in
-  `befreiungsgrund_code` / `befreiungsgrund_text`. `05-API-KARTE.md` §D.2/§H and `08-PR-PLAN.md` PR 1
-  still name the phantom table; §2.3 records the correction.
+  `befreiungsgrund_code` / `befreiungsgrund_text`. **Met platform-wide:** `05-API-KARTE.md` §D.2/§H
+  and `08-PR-PLAN.md` PR 1 now state the same in their own words — every occurrence of the name in
+  either document is a denial of it, not a use — and §2.3 records the correction. The §15 schema
+  test greps the identifiers `steuersatz_id`, `prozent_bp` and `hinweistext`, not only the table
+  name, because the phantom survived one pass as a column after the table had gone.
 - **`rechnung_beziehung`** (§4.8) is the Storno back-reference K-12 names. The draft called it
   `storno_verweis`; that name is deleted from this document, including
   `op_ausgleich.rechnung_beziehung_id` (§7.4), the ERD and the composite-FK register of §13.

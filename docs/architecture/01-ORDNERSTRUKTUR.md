@@ -3075,8 +3075,8 @@ pass before any file appears under `src/app/portal/[mandant]/dienstplan/`:
 
 | Path | Contents | Pins |
 |---|---|---|
-| `supabase/config.toml` | **Local development only**: ports, auth settings (MFA enabled), buckets declared **private**, `db.major_version`. It mirrors the Frankfurt project's settings; the region itself is set in the project/IaC and recorded in DECISIONS (D-04, O-11) |
-| `supabase/functions/cron-dispatch` | The only Edge Function: invoked by `pg_cron`, calls `api/cron/[job]` with the shared secret. It contains no business logic and stamps no time — schedules stay in the database where they are auditable |
+| `supabase/config.toml` | **Local development only**: ports, auth settings (MFA enabled), buckets declared **private**, `db.major_version`. It mirrors the Frankfurt project's settings; the region itself is set in the project/IaC and recorded in DECISIONS (D-04, O-11) | D-04 (EU region), SEC-A6 (private buckets), AUT-02 (MFA) |
+| `supabase/functions/cron-dispatch` | The only Edge Function: invoked by `pg_cron`, calls `api/cron/[job]` with the shared secret. It contains no business logic and stamps no time — schedules stay in the database where they are auditable | invariant 5 (server clock), `07-INTEGRATIONEN.md` §22, `05-API-KARTE.md` §C.4 |
 
 **There is no `supabase/migrations` symlink.** Two runners over one directory is a corruption
 waiting to happen: drizzle-kit tracks state in `meta/_journal.json` and `__drizzle_migrations`,

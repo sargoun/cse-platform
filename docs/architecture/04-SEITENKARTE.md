@@ -413,7 +413,8 @@ Notes.
   `/unternehmen/[bereich]`. The avatars navigate — they do not switch a session.
 - `/projekte` lists **only `referenz` rows**, which a human creates from a completed
   `auftrag` after the customer's release is on file (PRO-05,
-  `02-datenmodell/03-GEWERKE.md` §369). A `referenz` carries title, area, city, description
+  `02-datenmodell/06-RADAR-KI-INHALT.md` §5.5, which owns `referenz` and
+  `referenz_kundenfreigabe`). A `referenz` carries title, area, city, description
   and released photos — never the order value, never `kunde_id`, never the address. There is
   no hand-typed reference table and no path from an unreleased job to a public page.
 - **The application form is a child of the job**, `/karriere/[stelle]/bewerbung`, not a
@@ -456,7 +457,8 @@ with the current area ringed in its identity hue (DESIGN §6), and it navigates.
 
 `unternehmensdaten` prints the entity's legal identity — register court, HRB number,
 Geschäftsführer, tax number — from the **same `mandant` columns the invoice footer uses**
-(DESIGN §11, `02-datenmodell/05-FINANZEN.md` §461), so the website and an invoice can never
+(DESIGN §11, `02-datenmodell/05-FINANZEN.md` §5.3, whose `leistender` block snapshots
+exactly those columns), so the website and an invoice can never
 disagree. SSE Security renders its own logo and identity, not a CSE sub-brand (D-11).
 
 **Canonical URLs for news and posts.** A `security` news item is one row and must have one
@@ -1041,7 +1043,7 @@ which is a processor handling customer addresses.
 ### 5.6 Aufträge (OPS-05, OPS-10, OPS-11)
 
 A **project is an `auftrag` carrying a `projekt` extension row** in the Bau domain
-(`02-datenmodell/02-CRM-OPERATIONS.md` §563) — a stated decision, not a silent fold, so that
+(`02-datenmodell/02-CRM-OPERATIONS.md` §3.2) — a stated decision, not a silent fold, so that
 OPS-09's one-action conversion, FIN-07 traceability and the number circle work unchanged.
 DSH-01's two counters are "`auftrag` without a `projekt` row" and "`auftrag` with one".
 
@@ -2804,7 +2806,7 @@ imposes when it reconciles all Phase 0 documents at once:
 | O-50 | Does a collective agreement impose break or rest rules stricter than the ArbZG for any trade, and from when? | `M/einstellungen/arbeitszeit` |
 | O-51 | Must the EMP-06 monthly statement be issued in the employee's language, or is German the required form for a §17 MiLoG record? | `P/mein/monatsnachweis` |
 | O-52 | Does a company buying from two entities get one login with an entity filter, or one login per entity? | `P/kunde/**` — one login with a filter is assumed; `app.aktuelle_kunden()` returns an array either way (§8) |
-| O-93 | `zeit-checkin-kanal` — how does the check-in link reach the worker: SMS, e-mail, a QR code posted at the object, or a portal link, and who carries the SMS cost? | `/check-in/[token]` delivery, `M/zeiten/checkin-links`, `checkin_token.ausgabe_kanal`. Answered together with O-82, which names the provider; **one number, not two** (§17). `02-datenmodell/04-PLANUNG-ZEIT.md` §1980 and `07-INTEGRATIONEN.md` §32 raise the same question locally and must adopt this number |
+| O-93 | `zeit-checkin-kanal` — how does the check-in link reach the worker: SMS, e-mail, a QR code posted at the object, or a portal link, and who carries the SMS cost? | `/check-in/[token]` delivery, `M/zeiten/checkin-links`, `checkin_token.ausgabe_kanal`. Answered together with O-82, which names the provider; **one number, not two** (§17). `02-datenmodell/04-PLANUNG-ZEIT.md` §17.1 and `07-INTEGRATIONEN.md` §32 raise the same question locally and now carry this number |
 
 ### 16.2 Existing questions this map is blocked on
 

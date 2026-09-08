@@ -188,7 +188,7 @@ representation. Admin-only surfaces resolve the same key against the German cata
 
 **Registry.** `getIntegration(id)` resolves once per runtime from env parsed by a Zod schema per
 integration; the chosen adapter is written to the boot log and exposed by
-`GET /api/verwaltung/integrationen` (`05-API-KARTE.md` §486) — **not** by the unauthenticated
+`GET /api/verwaltung/integrationen` (`05-API-KARTE.md` §C.5) — **not** by the unauthenticated
 liveness endpoint, which enumerates no providers (§23.1). Only the `platform/` substrate is
 required to boot; every integration degrades to `nicht_verbunden` and the rest of the platform keeps
 working. `INTEGRATION_FORCE_NOT_CONNECTED` forces adapters off in staging and e2e, so the
@@ -309,7 +309,7 @@ row carry it verbatim.
 ### 3.3 `integration_konfiguration` — tenant
 
 Per-mandant connection state and non-secret configuration. This is what makes TEN-08 true and what
-the settings screen `/portal/[mandant]/einstellungen/integrationen` (`04-SEITENKARTE.md` §1681)
+the settings screen `/portal/[mandant]/einstellungen/integrationen` (`04-SEITENKARTE.md` §5.24)
 renders.
 
 | Column | Type | Null | Notes |
@@ -471,7 +471,7 @@ is a DSGVO deletion duty (REC-07, LEG-11).
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | uuid | no | PK, `default gen_random_uuid()` — K-16 |
-| `job` | text | no | `UNIQUE`; matches the `/api/cron/[job]` segment (`05-API-KARTE.md` §435) and joins `job_lauf.job` |
+| `job` | text | no | `UNIQUE`; matches the `/api/cron/[job]` segment (`05-API-KARTE.md` §C.4) and joins `job_lauf.job` |
 | `cron` | text | no | the schedule as registered in `pg_cron`, UTC |
 | `erwartet_alle_min` | integer | no | the heartbeat window — a duration with its unit in the name (K-16) |
 | `kritisch` | boolean | no | a missed run pages immediately rather than raising a task |
@@ -490,7 +490,7 @@ is a DSGVO deletion duty (REC-07, LEG-11).
   caller a table read (K-01, K-08). Until an uptime service is chosen (O-118) the ping target is
   `nicht verbunden` and the monitor is absent; nothing simulates it.
 - **Auth:** every `/api/cron/*` request is authenticated with the **per-job** bearer
-  `CRON_SECRET_<job>` compared in constant time (`05-API-KARTE.md` §156); a rejected call is recorded
+  `CRON_SECRET_<job>` compared in constant time (`05-API-KARTE.md` §B.5); a rejected call is recorded
   as a `job_lauf` row with `ergebnis = 'abgelehnt'` so a rotation mistake is visible instead of silent.
 - **SPEC:** SPEC §14, SPEC §21, FIN-06, REC-07.
 
@@ -599,7 +599,7 @@ K-16(d) reserves to `audit_log` alone — the nullable-tenant grep of §30 match
 | `job_lauf_mandant` | `02-datenmodell/01-KERN.md` (**K-21**) | the per-tenant outcome of one run — `job_lauf_id`, `mandant_id`, `ergebnis`, `kennzahlen`. It exists so `job_lauf` needs no nullable tenant key, which K-16(d) reserves to `audit_log` alone (§3.7) |
 | `mandant_einstellung` | `02-datenmodell/01-KERN.md` (**K-21**) | `id, mandant_id, schluessel, wert jsonb`, `UNIQUE (mandant_id, schluessel)`. It carries the O-06 monitoring switches, which are **settings keys and not `mandant` columns** (§26) |
 | `nachweis_art`, `sicherheitsvorfall` | `02-datenmodell/01-KERN.md` (**K-21**) | referenced only: `nachweis_art` is the certificate-type catalogue behind DOC/SEC surfaces, `sicherheitsvorfall` records the SEC-A9 events an adapter or the agent kernel may raise. This layer declares neither |
-| `loeschprotokoll` | `02-datenmodell/01-KERN.md` (**K-21**) | referenced by §19.2 and by `05-API-KARTE.md` §579, declared nowhere today — 01-KERN declares it: one append-only row per deleted subject and category, `mandant_id NOT NULL` where the subject had a tenant, no hard delete (invariant 8). A deletion with no tenant to record goes to `audit_log` at `ebene = 'plattform'` instead (K-16(d)) |
+| `loeschprotokoll` | `02-datenmodell/01-KERN.md` (**K-21**) | referenced by §19.2 and by `05-API-KARTE.md` §C.5, declared nowhere today — 01-KERN declares it: one append-only row per deleted subject and category, `mandant_id NOT NULL` where the subject had a tenant, no hard delete (invariant 8). A deletion with no tenant to record goes to `audit_log` at `ebene = 'plattform'` instead (K-16(d)) |
 | `steuersatz_gruppe` | `02-datenmodell/05-FINANZEN.md` (**K-21**) | **there is no `steuersatz` table**; every reference is `*.steuersatz_gruppe_id`. The tax lines of the K-12 invoice payload this layer serialises to XRechnung and ZUGFeRD (§10, §11) come from it |
 | `rechnung_beziehung` | `02-datenmodell/05-FINANZEN.md` (**K-21**) | K-12's name and columns win over `storno_verweis`; a Storno correcting a delivered e-invoice is a new invoice plus a `rechnung_beziehung` row, never an edit (§12.1) |
 | `audit_log` | `02-datenmodell/01-KERN.md` | every gate decision, every mandant switch, every `entgelt_lesen`, every ArbZG aggregate read, and every call on the definer register of §6.2. The platform-level ones — an `integration_status_global` read, a `bewerbung_eingang` listing — are written with `ebene = 'plattform'` and `mandant_id NULL` under **K-16(d)**, which is the one nullable tenant key in the platform and needs the `CHECK ((ebene = 'mandant') = (mandant_id IS NOT NULL))` to stay a stated fact rather than a missing value |
@@ -1047,7 +1047,7 @@ and there is no swept scratch bucket at all.
 ### 6.5 Cron topology — SPEC §14, §21
 
 `pg_cron` → `pg_net` POST → `/api/cron/<job>` on Vercel with `Authorization: Bearer CRON_SECRET_<job>`,
-compared in constant time (`05-API-KARTE.md` §156, §435). **Edge Functions contain no business
+compared in constant time (`05-API-KARTE.md` §B.5, §C.4). **Edge Functions contain no business
 logic** — a Deno duplicate of a money or time rule is exactly the silent failure the invariants exist
 to prevent; they are schedulers and byte-movers only. Every run writes one `job_lauf` row — the
 platform-level record with no `mandant_id` (K-21) — and a job that iterates tenants writes one
@@ -1334,7 +1334,7 @@ The determination therefore reads `kunde_bauleistender_status` — `ist_bauleist
 `gilt_bis`, `grundlage`, `leistungsart`, `beleg_dokument_id`, with an `EXCLUDE` constraint on
 `(kunde_id, daterange)` — **at the service date**, in the tested function
 `services/finanzen/steuer/reverse-charge.ts`, exactly as `02-datenmodell/05-FINANZEN.md` §2.3 and
-`05-API-KARTE.md` §1408 already fix it. This is structurally identical to the §48b handling of §12.3
+`05-API-KARTE.md` §D.6 already fix it. This is structurally identical to the §48b handling of §12.3
 and correctly separate from it.
 
 `// TODO(client, O-104): Setzt eine §13b-Rechnung eine zum Leistungsdatum gültige Freistellungsbescheinigung USt 1 TG des Kunden voraus, und wie wird verfahren, wenn sie mitten in einem laufenden Vertrag ausläuft? (FIN-09, LEG-06)`
@@ -1657,7 +1657,7 @@ message in the mailbox** (which requires delete permission on that mailbox), **t
 application** (AGT-06 indexes correspondence), and **the `agent_schritt` records of the CV parsing**,
 which contain the CV text. Each deletion is recorded in `loeschprotokoll`.
 
-**`loeschprotokoll` needs an owner.** It is referenced here and by `05-API-KARTE.md` §579 and is
+**`loeschprotokoll` needs an owner.** It is referenced here and by `05-API-KARTE.md` §C.5 and is
 declared by no data-model document, so §31 places that obligation on `02-datenmodell/01-KERN.md`,
 beside `audit_log` and `job_lauf`: one append-only row per deleted subject and category, with
 `mandant_id NOT NULL` where the subject had a tenant. A staging row that was never assigned to a
@@ -1788,7 +1788,7 @@ free reconnaissance for an attacker. Two surfaces:
 | Endpoint | Auth | Returns |
 |---|---|---|
 | `GET /api/health` | none | `{ status, build_id, region, db_erreichbar }`. This is what an external uptime probe checks, alongside the public homepage |
-| `GET /api/verwaltung/integrationen` | session, `system.einstellung_lesen` | per-integration status, `blockiert_durch`, last success, last error code, clock drift versus Postgres, `migration_ok`, overdue jobs as a count **and** by name (`05-API-KARTE.md` §486) |
+| `GET /api/verwaltung/integrationen` | session, `system.einstellung_lesen` | per-integration status, `blockiert_durch`, last success, last error code, clock drift versus Postgres, `migration_ok`, overdue jobs as a count **and** by name (`05-API-KARTE.md` §C.1, `GET /api/health`) |
 
 Neither returns business data counts, and neither returns a secret.
 
@@ -1948,7 +1948,7 @@ Naming these prevents someone building a fake version later.
 
 „Not connected" must appear **where the action lives**, not only on an admin page: the publish
 button, the DATEV screen, the worker login screen, the recruiting inbox, the invoice delivery panel.
-The settings overview `/portal/[mandant]/einstellungen/integrationen` (`04-SEITENKARTE.md` §1681)
+The settings overview `/portal/[mandant]/einstellungen/integrationen` (`04-SEITENKARTE.md` §5.24)
 lists all of them with the blocking question id beside each.
 
 Five status words are rendered, and **none of them exists in the DESIGN §5 status-pill vocabulary
@@ -2140,7 +2140,7 @@ named here only so that it is not lost in the gap between two sections.
 | `01-ORDNERSTRUKTUR.md` §7 (schema files) | the nine tables of §3 — `integration_katalog`, `integration_konfiguration`, `integration_status_global`, `integration_aufruf`, `integration_aufruf_system`, `modell_register`, `job_plan`, `restore_protokoll`, `mandant_mail_absender` — plus `bewerbung_intern.bewerbung_eingang` (§3.10) have no home in that document's eight-file Drizzle schema list. Add `src/server/db/schema/integration.ts` (and the `bewerbung-intern.ts` companion for the staging schema), or the tables are declared here and generated nowhere. §16's `src/server/db/rls.ts` also needs a **`job` bucket**: three tables of §3 are written by a `cse_job` run and therefore carry a `t_job` policy, and "K-03 permits no `cse_job` policy" must be withdrawn — under FORCE RLS a table `GRANT` is not a policy |
 | `01-ORDNERSTRUKTUR.md` §11.2 (KoSIT) | reconcile the two renderings of one component: the **CI** validator stays a test-only concern in `tests/compliance/` with no adapter and no `nicht-verbunden` state, exactly as that document says; the **optional runtime sidecar** is an integration with a not-connected state, used only for the asynchronous post-finalisation report of §10 step 3. Both statements are true of different things, and the register row of §5 now says which (§5, §10) |
 | `00-KONVENTIONEN.md` K-08 | **Met.** The register row for `app.checkin_verbrauchen` carries the owner's **five-argument** signature `(p_token_hash text, p_geraete_zeit timestamptz, p_ip inet, p_user_agent text, p_geo jsonb default null)`, as do `02-datenmodell/04-PLANUNG-ZEIT.md` §9 and the three other documents that quote it. Postgres overloads on the argument list and a `GRANT EXECUTE` is per exact signature, so a grant written against the three-argument row reaches no function and the check-in endpoint fails closed (§6.2). The register stays five functions long; only this row's arity changes |
-| `02-datenmodell/01-KERN.md` | **declare `job_lauf` once, per K-21**: `id · job text · gestartet_am · beendet_am · ergebnis enum (including `abgelehnt`) · kennzahlen jsonb · fehlertext`, index `(job, gestartet_am DESC)` for the §3.7 heartbeat query, and **no `mandant_id`** — per-tenant results go to **`job_lauf_mandant`** (`job_lauf_id`, `mandant_id`, `ergebnis`, `kennzahlen`), which this layer's cron topology writes (§6.5). K-16(d) keeps `audit_log` as the platform's only tenant-adjacent table with a nullable tenant key. Also declare `mandant_einstellung` (`UNIQUE (mandant_id, schluessel)`) — it carries the O-06 monitoring switches (§26) — and **`loeschprotokoll`**, which §19.2 and `05-API-KARTE.md` §579 both use and no data-model document defines. Add schema `bewerbung_intern` to the list of schemas the first migration creates (§3.10, §6.6) |
+| `02-datenmodell/01-KERN.md` | **declare `job_lauf` once, per K-21**: `id · job text · gestartet_am · beendet_am · ergebnis enum (including `abgelehnt`) · kennzahlen jsonb · fehlertext`, index `(job, gestartet_am DESC)` for the §3.7 heartbeat query, and **no `mandant_id`** — per-tenant results go to **`job_lauf_mandant`** (`job_lauf_id`, `mandant_id`, `ergebnis`, `kennzahlen`), which this layer's cron topology writes (§6.5). K-16(d) keeps `audit_log` as the platform's only tenant-adjacent table with a nullable tenant key. Also declare `mandant_einstellung` (`UNIQUE (mandant_id, schluessel)`) — it carries the O-06 monitoring switches (§26) — and **`loeschprotokoll`**, which §19.2 and `05-API-KARTE.md` §C.5 both use and no data-model document defines. Add schema `bewerbung_intern` to the list of schemas the first migration creates (§3.10, §6.6) |
 | `02-datenmodell/02-CRM-OPERATIONS.md` §2 | the e-invoice delivery route stays the **existing** `kunde.uebertragungsweg` enum; this layer mints no `erechnung_route` (§12.1). Two additions are required of that document: a buyer with `xrechnung_pflicht` and no `uebertragungsweg` **blocks** FIN-11 dispatch and raises a task rather than defaulting to a channel, and a Landesportal — if O-22 shows any buyer needs one — becomes a value of `uebertragungsweg` there rather than a second enum here |
 | `02-datenmodell/05-FINANZEN.md` | `datev_export` keyed `UNIQUE (mandant_id, von, bis, lauf_nr)` plus a partial unique on the authoritative run; `bankbuchung` keyed `UNIQUE (kontoauszug_id, lfd_nr)` with a content hash, never on `entry_ref`; `rechnung_versand` carries the delivery route as the CRM-declared `uebertragungsweg`, plus the vorgang id and the rejection text |
 | `02-datenmodell/06-RADAR-KI-INHALT.md` | `social_channel` keeps `token_gueltig_bis` and gains the expiry watchdog of §20; `postfach_kanal` gains `zweck = 'kunde'`; the `bewerber-purge` job covers `bewerbung_eingang`, `wissens_chunk` and `agent_schritt` (§19.2); `freigabe`, `agent_schritt` and `agent_aufgabe` declare `UNIQUE (mandant_id, id)` so the composite FKs of §3.5 can point at them (K-16); the single-use consumption of §4 uses `status` + `ausfuehrung_status` + `frist` — **no `verbraucht_am`, `verbraucht_durch` or `gueltig_bis` column is to be introduced**, because they would duplicate a state machine §4.2 already has |
