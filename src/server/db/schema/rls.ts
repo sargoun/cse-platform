@@ -145,6 +145,15 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'Beweis, dass die uebrigen unveraendert sind.',
   },
   {
+    tabelle: 'freigabe_snapshot',
+    art: 'append',
+    migration: '0012',
+    grund:
+      'Invariante 7, APR-07, K-13. Der Schnappschuss bezeugt, WAS zum Zeitpunkt der '
+      + 'Entscheidung vorlag, und traegt das einzige verkettete Glied. Ihn zu loeschen '
+      + 'entfernt den Beweis, dass die uebrigen Entscheidungen unveraendert sind.',
+  },
+  {
     tabelle: 'person',
     art: 'soft',
     migration: '0005',
@@ -205,3 +214,35 @@ export const MIGRATIONEN: readonly string[] = [
     ...GEAENDERT_AM.map((g) => g.migration),
   ]),
 ].sort();
+
+/**
+ * Tabellen mit `mandant_id`, die BEWUSST keine `cse_app`-Policy tragen.
+ *
+ * Der uebliche Fall ist: `mandant_id` heisst Policy. Diese hier sind die
+ * Ausnahme, und sie ist streng — kein Grant, keine Policy, erreichbar
+ * ausschliesslich durch eine `SECURITY DEFINER`-Funktion, die ihre eigene
+ * Pruefung mitbringt. Ohne Policy trifft ein direkter Zugriff null Zeilen;
+ * ohne Grant kommt er gar nicht erst so weit.
+ *
+ * Der Eintrag steht hier, damit die Ausnahme REVIEWBAR ist. Eine Tabelle, die
+ * einfach keine Policy hat, sieht genauso aus wie eine, bei der jemand sie
+ * vergessen hat — und der Unterschied ist der ganze Punkt.
+ */
+export interface DefinerTabelle {
+  readonly tabelle: string;
+  /** Die einzige Funktion, die sie beruehrt. */
+  readonly zugang: string;
+  readonly grund: string;
+}
+
+export const NUR_UEBER_DEFINER: readonly DefinerTabelle[] = [
+  {
+    tabelle: 'freigabe_kette',
+    zugang: 'app.freigabe_kette_ziehen',
+    grund:
+      'K-13. Der Kettenkopf wird unter `SELECT … FOR UPDATE` gezogen, damit zwei '
+      + 'gleichzeitige Freigebende die Kette nicht gabeln. Eine Policy, die `cse_app` '
+      + 'an die Zeile liesse, machte den Zaehler von aussen bewegbar — und eine Kette, '
+      + 'deren Kopf jemand verstellen kann, bezeugt nichts.',
+  },
+];

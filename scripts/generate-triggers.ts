@@ -29,6 +29,7 @@ export const MIGRATIONS_DATEIEN: Readonly<Record<string, string>> = {
   '0006': join(WURZEL, 'drizzle/0006_nummernkreis.sql'),
   '0007': join(WURZEL, 'drizzle/0007_benutzer_auth.sql'),
   '0009': join(WURZEL, 'drizzle/0009_dokument.sql'),
+  '0012': join(WURZEL, 'drizzle/0012_freigabe.sql'),
 };
 export const BEGINN = '-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern';
 export const ENDE = '-- >>> Ende des generierten Blocks';

@@ -8,6 +8,15 @@
  */
 import { afterAll, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql } from './harness.js';
+import { NUR_UEBER_DEFINER } from '../../src/server/db/schema/rls.js';
+
+/**
+ * Tabellen, die BEWUSST keine Policy tragen (siehe `schema/rls.ts`). Der
+ * Eintrag dort ist die Begruendung; hier steht nur, dass die Ausnahme
+ * registriert sein muss — eine Tabelle ohne Policy und ohne Eintrag ist eine,
+ * bei der jemand sie vergessen hat.
+ */
+const DEFINER_ONLY = new Set(NUR_UEBER_DEFINER.map((d) => d.tabelle));
 
 afterAll(async () => {
   await schliessen();
@@ -36,6 +45,13 @@ describe('(5) every mandant_id table carries RLS, FORCE and a policy', () => {
       // Without FORCE the OWNER bypasses its own policies, so every test that
       // runs as the owner passes and production learns otherwise first.
       expect(t.force, `${t.relname}: FORCE fehlt`).toBe(true);
+      if (DEFINER_ONLY.has(t.relname)) {
+        // Bewusst ohne Policy — und dann auch ohne Grant, sonst waere die
+        // Ausnahme ein Loch statt einer Verengung.
+        expect(Number(t.policies), `${t.relname}: als definer-only registriert, hat aber eine Policy`)
+          .toBe(0);
+        continue;
+      }
       expect(Number(t.policies), `${t.relname}: keine Policy`).toBeGreaterThan(0);
     }
   });

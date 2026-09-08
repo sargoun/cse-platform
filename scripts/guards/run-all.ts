@@ -136,6 +136,39 @@ function wacheTodoClient(): void {
   }
 }
 
+/**
+ * Guard 6 — Invariante 7: es gibt genau EINEN Ausgang.
+ *
+ * Ein Mailtransport oder ein HTTP-Sender ausserhalb von `server/versand`
+ * bricht den Build. Das ist der Unterschied zwischen "wir schicken alles ueber
+ * das Gate" als Vorsatz und als Eigenschaft: der Vorsatz haelt, bis jemand
+ * unter Zeitdruck ein `nodemailer` importiert, und danach faellt es niemandem
+ * mehr auf.
+ */
+const TRANSPORTE = [
+  'nodemailer', 'resend', '@sendgrid', 'postmark', 'mailgun', 'aws-sdk/client-ses',
+  '@aws-sdk/client-ses', 'twilio', 'node-fetch', 'axios', 'got', 'undici',
+];
+
+function wacheEinAusgang(): void {
+  const erlaubt = [join('server', 'versand'), join('server', 'agent', 'policy')];
+  const zuPruefen = dateien('src', ['.ts', '.tsx']).filter(
+    (d) => !erlaubt.some((e) => d.includes(e)),
+  );
+
+  for (const datei of zuPruefen) {
+    readFileSync(datei, 'utf8').split('\n').forEach((zeile, i) => {
+      const treffer = /(?:from|require\()\s*['"]([^'"]+)['"]/u.exec(zeile);
+      if (treffer === null) return;
+      const modul = treffer[1] ?? '';
+      if (TRANSPORTE.some((t) => modul === t || modul.startsWith(`${t}/`))) {
+        melde('ein-ausgang', datei, i + 1,
+          `\`${modul}\` ausserhalb von server/versand — Invariante 7 kennt genau einen Ausgang.`);
+      }
+    });
+  }
+}
+
 /** Guard 5 — the database region is pinned, and a test can read it (D-04). */
 function wacheEuRegion(): void {
   const pfad = join(WURZEL, 'supabase/config.toml');
@@ -150,6 +183,7 @@ wacheZeitstempel();
 wacheRouteOhneDb();
 wacheTodoClient();
 wacheEuRegion();
+wacheEinAusgang();
 
 if (befunde.length > 0) {
   console.error(`\n${befunde.length} Verstoß/Verstöße gegen die Merge-Wachen:\n`);

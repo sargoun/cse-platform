@@ -874,6 +874,86 @@ Durchsetzung sitzt an der Sitzungsgrenze, nicht in jeder einzelnen Policy —
 sonst muesste jede Tabelle der Plattform dieselbe Pruefung wiederholen. Ein
 Test, der das an der falschen Stelle suchte, hat mich genau darauf gestossen.
 
+### D-55 · Ein Angebot geht nie automatisch raus — im Code UND in der Datenbank
+
+Ein Angebot ist ein bindendes Vertragsangebot (§ 145 BGB). Der Betrag ist
+dabei **nicht** das Kriterium: eine Schwelle laedt dazu ein, sie zu erhoehen,
+bis sie nichts mehr bedeutet. Die Sperre steht deshalb im Gate als Code und
+zusaetzlich als `CHECK` auf `agent_richtlinie` — ein Skript, das die Zeile
+direkt setzt, kommt auch nicht durch.
+
+Der Aufzaehlungstest laeuft ueber den **ganzen** Konfigurationsraum: sechs
+Aktionen × vier Rechtsgrundlagen × auto an/aus × sechs Limits × sechs Betraege
+× aktiv/inaktiv = 2.304 Kombinationen, und `angebot_senden` ist in keiner
+davon automatisch erlaubt. Ein Beispieltest haette gezeigt, dass die eine
+Konfiguration, an die jemand gedacht hat, es nicht tut.
+
+Mit menschlicher Freigabe geht das Angebot sehr wohl raus — die Sperre trifft
+die Automatik, nicht die Sache. Auch das ist geprueft, sonst hiesse die Zusage
+nur "Angebote gehen nie raus".
+
+### D-56 · Drei Tore, in dieser Reihenfolge
+
+**LEG-08 zuerst**, weil es durch nichts aufgehoben wird: ein Kontakt ohne
+aufgezeichnete Rechtsgrundlage wird abgewiesen, ungeachtet jeder Freigabe.
+§ 7 UWG ist nicht etwas, das ein Mensch per Klick ausser Kraft setzt.
+
+**Dann die Freigabe.** Sie muss genehmigt sein, einen benannten Menschen
+tragen (`CHECK` auf der Tabelle: Invariante 7 verlangt einen Menschen, nicht
+einen Zustand) und per Hash zu **dieser** Nutzlast gehoeren. Wer nach der
+Freigabe den Text aendert, hat keine Freigabe mehr fuer das, was er sendet.
+Der Hash sortiert die Schluessel, sonst waere jede Freigabe zufaellig
+ungueltig, je nachdem in welcher Reihenfolge jemand die Felder gesetzt hat.
+
+**Zuletzt die Richtlinie**, und ohne sie: nein. Eine fehlende Regel ist keine
+Erlaubnis — sonst waere der Tag, an dem jemand die Konfiguration loescht, der
+Tag mit den meisten automatischen Mails. `auto_erlaubt` hat kein `DEFAULT
+true`: eine Zeile, die versehentlich angelegt wird, erlaubt nichts.
+
+Die Freigabekette zieht ihre Nummer unter `SELECT … FOR UPDATE` auf einem
+Kopf je Mandant — dieselbe Mechanik wie `nummernkreis` und aus demselben
+Grund: ohne serialisierte Gesamtordnung gabeln zwei gleichzeitige Freigebende
+die Kette, und die naechtliche Verifikation meldet an jedem geschaeftigen Tag
+einen Bruch. Verkettet wird nur der **Snapshot** (K-13): die `freigabe` aendert
+ihren Status, und eine Kette ueber eine veraenderliche Zeile bewiese nichts.
+
+### D-57 · Der eine Ausgang ist ein Waechter, nicht ein Vorsatz
+
+Ein Mailtransport oder HTTP-Sender ausserhalb von `server/versand` bricht den
+Build. Der Unterschied ist der zwischen "wir schicken alles ueber das Gate" als
+Vorsatz und als Eigenschaft: der Vorsatz haelt, bis jemand unter Zeitdruck ein
+`nodemailer` importiert, und danach faellt es niemandem mehr auf. Der Waechter
+ist gegen ein Fixture verifiziert, das genau das tut.
+
+### D-58 · Rechteschluessel werden nicht erfunden — auch nicht fuer eigene Tabellen
+
+Fuer die Policies auf `freigabe` griff ich zu `freigabe.lesen`,
+`freigabe.entscheiden` und `freigabe.richtlinie_verwalten`. Das Modul
+`freigabe` steht in §7.4, aber die Matrix in §12 fuehrt fuer es **keine
+Zeile**: die Schluessel des Posteingangs kommen mit PR 62, der ihn baut. Unter
+K-19 waeren die drei dauerhaft `false` gewesen — der Freigabe-Posteingang
+haette fuer immer null Zeilen gelesen, still. Die K-19-Pruefung aus D-37 hat
+sie gefunden.
+
+Die Policies stehen jetzt auf `versand.lesen` und `versand.freigeben`, die es
+gibt und die genau das benennen, worum es geht: den Ausgang und seine
+Freigabe. Wenn PR 62 die `freigabe.*`-Zeilen in den Katalog bringt, wandern sie
+darauf.
+
+### D-59 · Eine Tabelle ohne Policy muss eine REGISTRIERTE Ausnahme sein
+
+`freigabe_kette` traegt `mandant_id` und bewusst keine `cse_app`-Policy: der
+Kettenkopf wird ausschliesslich durch `app.freigabe_kette_ziehen` bewegt, und
+eine Policy, die `cse_app` an die Zeile liesse, machte den Zaehler von aussen
+verstellbar — eine Kette, deren Kopf jemand verstellen kann, bezeugt nichts.
+
+Der Meta-Test aus PR 3 hat das zu Recht als Luecke gemeldet. Statt die Prüfung
+aufzuweichen steht die Ausnahme jetzt in `NUR_UEBER_DEFINER`, mit Zugangsweg
+und Begruendung, und der Test verlangt fuer registrierte Tabellen **genau
+null** Policies. Eine Tabelle, die einfach keine hat, sieht sonst genauso aus
+wie eine, bei der jemand sie vergessen hat — und der Unterschied ist der ganze
+Punkt.
+
 ---
 
 ## Carried over from the Phase 0 review — not client questions

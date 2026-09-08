@@ -157,3 +157,19 @@ revoke delete, truncate on dokument_version from cse_app, cse_anon, cse_checkin,
 
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0012)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- freigabe_snapshot (append): Invariante 7, APR-07, K-13. Der Schnappschuss bezeugt, WAS zum Zeitpunkt der Entscheidung vorlag, und traegt das einzige verkettete Glied. Ihn zu loeschen entfernt den Beweis, dass die uebrigen Entscheidungen unveraendert sind.
+create trigger trg_freigabe_snapshot_kein_hard_delete
+  before delete on freigabe_snapshot
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_freigabe_snapshot_kein_truncate
+  before truncate on freigabe_snapshot
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on freigabe_snapshot from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks

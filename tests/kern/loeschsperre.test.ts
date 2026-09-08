@@ -52,7 +52,10 @@ describe('the delete-lock registry is the single source (01-ORDNERSTRUKTUR §6.2
     for (const l of KEIN_HARD_DELETE) {
       expect(['soft', 'archiv', 'append'], l.tabelle).toContain(l.art);
       // "for safety" is not a reason. A legal or domain citation is.
-      expect(l.grund, l.tabelle).toMatch(/LEG-\d\d|SEC-A9|DSGVO|MiLoG|D-09/u);
+      // Eine Rechtsgrundlage ODER eine SPEC-Anforderung — beide sind pruefbar,
+      // "aus Sicherheitsgruenden" ist es nicht.
+      expect(l.grund, l.tabelle)
+        .toMatch(/LEG-\d\d|SEC-A9|DSGVO|MiLoG|D-09|APR-\d\d|DOC-\d\d|FIN-\d\d|AUT-\d\d|§/u);
       expect(l.grund.length, l.tabelle).toBeGreaterThan(60);
     }
   });
