@@ -257,6 +257,58 @@ tests of the first code PR, before any table and any UI.
 
 ---
 
+## Decided in Phase 1 (implementation)
+
+### D-19 · A solid danger surface uses `--danger-strong`, and every text token passes AA
+
+The axe run over the whole design system found two failures, and both lived in
+`docs/DESIGN.md` rather than in the code implementing it:
+
+| Pair | Was | Required |
+|---|---|---|
+| White on `--danger` `#EF4444` (danger button) | 3.76:1 | 4.5:1 |
+| `--text-subtle` `#71717A` on `--surface` | 3.93:1 | 4.5:1 |
+
+Both were corrected in DESIGN.md **first**, then mirrored into the code, because
+CLAUDE.md makes DESIGN.md the source and not the record of what was built.
+
+1. **`--danger-strong: #DC2626` is a new token, not a replacement.** `--danger`
+   must stay light: it is read *as text* on `--danger-soft` and on the dark
+   surfaces. The danger *button* is the inverse case — white on a solid fill.
+   One token cannot satisfy both, so a solid danger surface takes
+   `--danger-strong` (4.83:1 under white) and everything else keeps `--danger`.
+
+2. **`--text-subtle` moved `#71717A` → `#8B8B95`** (5.63:1 on `--surface`,
+   5.93 on `--ink`, 4.86 on `--surface-3`). The old value carried the reasoning
+   that it is "for `xs` meta only". That does not survive WCAG: 11px and 13px
+   meta is still text, and AA grants no small-text exemption — only a *large*-text
+   one at 18.66px bold or 24px. The three-level hierarchy survives the change;
+   `--text-subtle` is now confined to meta, timestamps and placeholders by
+   **role**, not by being hard to read.
+
+BFSG applies to this platform, so a token that cannot meet AA is a defect and
+not a deliberate step. `tests/design/tokens.test.ts` now asserts all three text
+tokens pass on all three surfaces, and asserts the hierarchy still descends.
+
+### D-20 · `/dev/**` is a 404 in production, not merely a `robots.txt` line
+
+`/dev/kitchensink` renders every component, token and placeholder the platform is
+built from. `robots.txt` asks crawlers not to index it; it does not stop anyone
+typing the URL, and the page is unauthenticated by design so it can be
+axe-tested. The gate is therefore in the page: `src/lib/dev-flaechen.ts` decides
+at build time, and the route calls `notFound()` when the answer is no.
+
+- `pnpm dev` → on, so the design system stays reviewable while working
+- a production build → **off**, unless `CSE_DEV_FLAECHEN=1` is set deliberately
+- the Playwright suite sets that flag, because it must test the real production
+  build rather than a development render with its overlays
+
+Verified against a production build with no flag: `/dev/kitchensink` answers 404
+while `/healthz` answers 200. Both the flag logic and the `robots.txt` rule are
+tested — the two are belt and braces, not alternatives.
+
+---
+
 ## Carried over from the Phase 0 review — not client questions
 
 Three items the review surfaced that are ours to do, recorded here so they are not

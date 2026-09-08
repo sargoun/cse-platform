@@ -26,7 +26,7 @@ out of scope for now.
 
 --text:           #FAFAFA;   /* primary */
 --text-muted:     #A1A1AA;   /* secondary, labels */
---text-subtle:    #71717A;   /* meta, timestamps, placeholders */
+--text-subtle:    #8B8B95;   /* meta, timestamps, placeholders */
 
 --white:          #FFFFFF;
 ```
@@ -72,9 +72,19 @@ that puts an invoice in the wrong GmbH.
 --warning: #F59E0B;   --warning-soft: rgba(245,158,11,0.12);
 --danger:  #EF4444;   --danger-soft:  rgba(239,68,68,0.12);
 --info:    #3B82F6;   --info-soft:    rgba(59,130,246,0.12);
+
+--danger-strong: #DC2626;   /* solid danger SURFACE, white text on it */
 ```
 
 Status pills use `-soft` background + solid text. Never solid fills.
+
+**Why `--danger` has a second, darker value.** `--danger` is tuned to be read
+*as text* on `--danger-soft` and on the dark surfaces — it has to be light. The
+danger *button* is the opposite case: white text on a solid fill. White on
+`#EF4444` is **3.76:1** and fails AA for body-sized text, so a solid danger
+surface uses `--danger-strong` (**4.83:1**). One token cannot do both jobs, and
+the button is the one where the failure is a legal problem rather than a
+cosmetic one (§9, BFSG).
 
 ---
 
@@ -173,7 +183,7 @@ the image, image filling the card, gradient bottom, title + one-line claim,
 | `primary` | `--red` bg, white text, `--r-md`, `12px 20px`, 600 |
 | `secondary` | transparent, `1px solid --border-strong`, `--text` |
 | `ghost` | transparent, `--text-muted`, hover `--surface-2` |
-| `danger` | `--danger` bg, white text |
+| `danger` | `--danger-strong` bg, white text — **not `--danger`**, which fails AA under white (§1) |
 
 Hover 150ms. Focus: `0 0 0 3px var(--red-ring)` — **never remove focus rings**.
 Disabled: 40% opacity, `cursor: not-allowed`.
@@ -334,8 +344,17 @@ Mobile-first. Rules that are not negotiable:
 ## 9. Accessibility — BFSG applies
 
 - WCAG 2.1 AA. Body text contrast ≥ 4.5:1, large text ≥ 3:1
-- `--text-muted` on `--surface` passes; `--text-subtle` is for `xs` meta only —
-  never body copy
+- **All three text tokens pass AA on every surface**, and that is deliberate:
+  `--text` 18.2:1, `--text-muted` 7.4:1, `--text-subtle` 5.6:1 on `--surface`,
+  and the worst surface (`--surface-3`) still gives `--text-subtle` 4.86:1.
+  `--text-subtle` was `#71717A` (3.93:1) on the reasoning that it is "for `xs`
+  meta only". That reasoning does not hold under WCAG: 11px and 13px meta is
+  still text, and AA has no small-text exemption — only a *large*-text one at
+  18.66px bold or 24px. A token that cannot meet AA on a platform where BFSG
+  applies is a defect, not a deliberate step. The three-level hierarchy
+  survives; all three levels are now legible
+- `--text-subtle` stays confined to meta, timestamps and placeholders by
+  **role**, not by contrast
 - **Colour is never the only signal.** Status pills carry text; area identity
   carries a name, not only a hue
 - Full keyboard operation; visible focus everywhere

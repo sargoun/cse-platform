@@ -1,8 +1,15 @@
 import tseslint from 'typescript-eslint';
 import noFloatMoney from './eslint-rules/no-float-money.js';
 import noClientClock from './eslint-rules/no-client-clock.js';
+import noRawColor from './eslint-rules/no-raw-color.js';
 
-const cse = { rules: { 'no-float-money': noFloatMoney, 'no-client-clock': noClientClock } };
+const cse = {
+  rules: {
+    'no-float-money': noFloatMoney,
+    'no-client-clock': noClientClock,
+    'no-raw-color': noRawColor,
+  },
+};
 
 export default tseslint.config(
   {
@@ -35,7 +42,17 @@ export default tseslint.config(
     rules: { 'cse/no-client-clock': 'error' },
   },
   {
+    // DESIGN.md is authoritative wherever a colour could be written down.
+    files: ['src/components/**/*.tsx', 'src/app/**/*.tsx', 'src/app/**/*.ts'],
+    rules: { 'cse/no-raw-color': 'error' },
+  },
+  {
+    // The two files that ARE the mirror of DESIGN.md hold the literals.
+    files: ['src/lib/design/theme.ts', 'tailwind.config.ts'],
+    rules: { 'cse/no-raw-color': 'off' },
+  },
+  {
     files: ['tests/**/*.ts'],
-    rules: { 'cse/no-client-clock': 'off' },
+    rules: { 'cse/no-client-clock': 'off', 'cse/no-raw-color': 'off' },
   },
 );

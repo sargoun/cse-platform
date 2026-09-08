@@ -34,12 +34,17 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.50.0",
     "@types/node": "^22.10.7",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",
+    "autoprefixer": "^10.5.5",
+    "axe-core": "^4.13.0",
     "drizzle-kit": "^0.30.2",
     "eslint": "^9.18.0",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^3.4.19",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.21.0",
