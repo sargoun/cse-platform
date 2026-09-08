@@ -1002,6 +1002,51 @@ ein erfundener Eintrag saehe entschieden aus — und bis zur Antwort gilt der
 Pfad. Er funktioniert ohne DNS-Arbeit und laesst sich spaeter auf Domains
 umlegen; umgekehrt gilt das nicht.
 
+### D-65 · Der Import vergleicht VOR dem Schreiben
+
+Ein `update` mit identischen Werten stempelt `geaendert_am`, schreibt eine
+Audit-Zeile und behauptet damit eine Aenderung, die nicht stattgefunden hat.
+Der Import liest deshalb erst und schreibt nur bei echter Abweichung — und der
+Test prueft nicht nur "null angelegt", sondern dass **kein** `geaendert_am`
+gesetzt wurde.
+
+Die Zusage dahinter ist groesser als sie klingt: ein Import, der beim zweiten
+Lauf Duplikate erzeugt, wird genau einmal ausgefuehrt und danach nie wieder
+angefasst — und dann veraltet der Inhalt, weil niemand sich traut.
+
+### D-66 · Der NAP-Block wird an EINER Stelle formatiert
+
+Fuer lokale Suche zaehlt, dass Name, Anschrift und Telefonnummer ueberall
+**zeichengleich** stehen. Zwei Schreibweisen derselben Adresse — einmal "Str.",
+einmal "Straße" — sind fuer eine Suchmaschine zwei Unternehmen, und die
+Autoritaet verteilt sich auf beide. `napAus()` formatiert, die Seiten setzen
+nichts selbst zusammen, und eine halbe Adresse ist ein **Fehler**, keine halbe
+Ausgabe: sie erzeugt sonst einen zweiten, schwaecheren Eintrag.
+
+Jede Gesellschaft bekommt ihr eigenes `LocalBusiness`-JSON-LD mit ihrer NAP und
+ihrer URL. Vier eigene Eintraege — sonst konkurrieren die Gesellschaften in der
+lokalen Suche miteinander.
+
+Alt-URLs gehen per **301**, nicht 302: bei einem 302 behaelt die Suchmaschine
+den alten Eintrag, und die Autoritaet der alten Adresse geht nicht ueber. Ein
+Test prueft, dass jedes Ziel eine bekannte Route ist — eine Weiterleitung ins
+Leere kostet genau die Autoritaet, die sie retten sollte.
+
+### D-67 · Eine Referenz ohne Kundenfreigabe ist an ZWEI Stellen abwesend
+
+`freigegeben_vom_kunden` hat kein `DEFAULT true`, die Policy traegt die
+Bedingung selbst, und der Dienst filtert noch einmal. Das ist keine Doppelung
+aus Unsicherheit: ein Kundenname auf einer Website ohne dessen Zustimmung ist
+ein Problem, das man nicht durch Loeschen ungeschehen macht, und eine
+vergessene `where`-Bedingung im Code ist der wahrscheinlichste Weg dorthin.
+
+Eine Freigabe ohne Datum ist nicht speicherbar. Wer sie erteilt hat und wann,
+ist bei einem Kundennamen auf einer Website keine Nebensache.
+
+`ReferenzQuelle` ist eine Schnittstelle: die echte, `auftrag`-gestuetzte
+Implementierung kommt mit PR 27, und beide geben ausschliesslich freigegebene
+Eintraege zurueck.
+
 ---
 
 ## Carried over from the Phase 0 review — not client questions

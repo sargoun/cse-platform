@@ -38,6 +38,13 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'dokument.schreiben',
   },
   { modul: 'referenz', pfad: 'inhalt/seite', schreibend: false },
+  { modul: 'referenz', pfad: 'inhalt/nap', schreibend: false },
+  { modul: 'referenz', pfad: 'inhalt/routen', schreibend: false },
+  { modul: 'referenz', pfad: 'inhalt/referenz', schreibend: false },
+  {
+    modul: 'referenz', pfad: 'inhalt/import',
+    schreibend: true, schreibRecht: 'referenz.schreiben',
+  },
 ] as const;
 
 /**

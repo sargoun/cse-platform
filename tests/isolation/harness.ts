@@ -200,10 +200,18 @@ export async function seed(): Promise<Fixtur> {
     const eins = async (anweisung: string, werte: readonly unknown[]): Promise<string> =>
       (await tx.unsafe<{ id: string }[]>(anweisung, werte as never[]))[0]!.id;
 
+    /**
+     * Mit Anschrift und Telefon: der NAP-Block (PUB-08) kommt aus diesen
+     * Spalten, und eine Fixtur ohne sie prueft eine Seite, die es so nicht
+     * gibt.
+     */
     const mandant = async (slug: string, name: string, firma: string): Promise<string> =>
-      eins(`insert into mandant (slug, name, firma) values ($1,$2,$3) returning id`, [
-        slug, name, firma,
-      ]);
+      eins(
+        `insert into mandant (slug, name, firma, strasse, plz, ort, land, telefon, email)
+         values ($1,$2,$3,'Kurfürstendamm 21','10719','Berlin','DE','+49 30 555 0100',$4)
+         returning id`,
+        [slug, name, firma, `kontakt@${slug}.cse-gruppe.de`],
+      );
 
     const person = async (v: string, n: string): Promise<string> =>
       eins(`insert into person (vorname, nachname) values ($1,$2) returning id`, [v, n]);
