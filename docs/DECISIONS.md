@@ -838,6 +838,42 @@ eines Feldes.
 laufen als `cse_job`, ausserhalb jeder Benutzersitzung, und die Frage "ist
 dieser Dienst in der Gruppenansicht erreichbar" hat fuer sie keine Bedeutung.
 
+### D-53 · Eine Benachrichtigung ohne Ziel entsteht gar nicht
+
+NOT-03 sagt, jede Benachrichtigung fuehrt irgendwohin. Durchgesetzt wird das
+bei der **Erzeugung**, nicht beim Klick: eine Mitteilung ueber ein Problem, das
+man nicht ansehen kann, ist schlimmer als keine. Die Registrierung einer Art
+verlangt deshalb Titel, Text und einen Zielaufloeser — und die Spalte `ziel`
+ist `NOT NULL` mit `length > 1`, damit auch ein Weg an der Anwendung vorbei
+nichts Leeres hinterlaesst.
+
+**Der In-App-Posteingang laesst sich nicht abschalten.** Er ist das Protokoll
+dessen, was jemandem mitgeteilt wurde; abgeschaltet wird der Push nach draussen.
+Ein `CHECK` haelt `'app'` in jeder Praeferenzzeile.
+
+**Eine Freigabeanfrage geht nie in eine Zusammenfassung.** Sammelbarkeit ist
+eine Eigenschaft der ART und beim Erzeugen nicht uebersteuerbar — es gibt keinen
+Weg, eine Freigabe doch noch in die Tagessammlung zu schieben. Invariante 7
+haengt daran, dass jemand sie sieht, solange sie noch etwas aendert; Warten
+haette dort dieselbe Wirkung wie Nichtstun.
+
+### D-54 · Der Posteingang folgt dem Arbeitskontext
+
+`app.sichtbare_mandanten()` liefert in `mandant`-Scope genau den aktiven
+Bereich (K-18/K-20). Eine Benachrichtigung aus `bau` ist damit sichtbar,
+waehrend man in `bau` arbeitet, und nicht, waehrend man in `reinigung`
+arbeitet. Das ist die ENGE Auslegung und bewusst dieselbe wie bei jeder anderen
+Tabelle. Ein bereichsuebergreifender Posteingang waere eine Erweiterung, die
+jemand entscheidet — nicht eine, die aus einer Policy herausfaellt.
+
+Was die Zeilenpolicy **nicht** prueft: ob die Mitgliedschaft noch besteht. Sie
+liest `app.aktiver_mandant()` aus der Sitzung und vertraut ihm — zu Recht, denn
+K-02 setzt den Wert serverseitig und `sitzung_mandant_pruefen` weist beim Setzen
+jeden Bereich ab, zu dem keine lebende Mitgliedschaft besteht (PR 6). Die
+Durchsetzung sitzt an der Sitzungsgrenze, nicht in jeder einzelnen Policy —
+sonst muesste jede Tabelle der Plattform dieselbe Pruefung wiederholen. Ein
+Test, der das an der falschen Stelle suchte, hat mich genau darauf gestossen.
+
 ---
 
 ## Carried over from the Phase 0 review — not client questions
