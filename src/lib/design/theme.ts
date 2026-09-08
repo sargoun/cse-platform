@@ -116,6 +116,21 @@ export const RADIUS = {
  * §3 Elevation. On dark, depth comes from borders and surface steps — shadow
  * only on genuinely floating layers.
  */
+/**
+ * Der Pflicht-Overlay aus DESIGN §4.4 — auf jedem Bild, das Text trägt.
+ *
+ * Als Token und nicht als Wert an der Aufrufstelle: ausgeschrieben driftet er,
+ * eine Karte bei 0.55, die nächste bei 0.5, und die Lesbarkeit der Überschrift
+ * hängt dann davon ab, welche Komponente jemand kopiert hat.
+ */
+export const BILD: Readonly<Record<string, string>> = {
+  'bild-overlay':
+    'linear-gradient(180deg, rgba(8,8,10,0.15) 0%, rgba(8,8,10,0.55) 55%, rgba(8,8,10,0.92) 100%)',
+};
+
+/** Kurzform für den Aufruf im Code. */
+export const BILD_OVERLAY = BILD['bild-overlay']!;
+
 export const SCHATTEN = {
   'shadow-pop': '0 12px 32px rgba(0,0,0,0.55)',
 } as const;
@@ -151,6 +166,7 @@ export const ALLE_TOKENS: Readonly<Record<string, string>> = {
   ...ABSTAND,
   ...RADIUS,
   ...SCHATTEN,
+  ...BILD,
   ...BEWEGUNG,
   ...SCHRIFT,
 };

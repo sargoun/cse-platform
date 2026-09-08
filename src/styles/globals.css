@@ -73,6 +73,7 @@
   --r-full: 9999px;
 
   /* §3 Elevation — shadow only on genuinely floating layers */
+  --bild-overlay: linear-gradient(180deg, rgba(8,8,10,0.15) 0%, rgba(8,8,10,0.55) 55%, rgba(8,8,10,0.92) 100%);
   --shadow-pop: 0 12px 32px rgba(0,0,0,0.55);
 
   /* §7 Motion */

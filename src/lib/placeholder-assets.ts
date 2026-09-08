@@ -35,6 +35,15 @@ export const PLATZHALTER: readonly Platzhalter[] = [
     frage: 'O-12',
   },
   {
+    pfad: 'public/platzhalter/bild.svg',
+    grund:
+      'Alle Website-Bilder. DESIGN §4.1 verlangt echte Aufnahmen der eigenen Crews und '
+      + 'Objekte; §4.2 verbietet KI-erzeugte Menschen als Belegschaft. Bis der Mandant '
+      + 'sein Material liefert, steht hier ein sichtbar leeres Bild — kein Stockfoto, '
+      + 'das nach Belegschaft aussieht.',
+    frage: 'O-13',
+  },
+  {
     pfad: 'public/fonts/',
     grund: 'Inter und Caveat sind noch nicht selbst gehostet; bis dahin greift der System-Stack',
     frage: null,
@@ -56,3 +65,16 @@ export function assertKeinePlatzhalter(umgebung: string): void {
     );
   }
 }
+
+/**
+ * Das eine Platzhalterbild, das jede oeffentliche Seite verwendet.
+ *
+ * Es traegt seinen Zustand SICHTBAR — die Seite zeigt daneben eine Marke, statt
+ * ihn zu verschweigen. Ein unauffaelliger Platzhalter ist einer, der in
+ * Produktion landet.
+ */
+export const PLATZHALTER_BILD = {
+  pfad: '/platzhalter/bild.svg',
+  alt: 'Platzhalterbild — hier stehen später eigene Aufnahmen der Gruppe.',
+  platzhalter: true,
+} as const;

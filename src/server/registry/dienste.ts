@@ -37,6 +37,7 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'dokument', pfad: 'dokument/upload',
     schreibend: true, schreibRecht: 'dokument.schreiben',
   },
+  { modul: 'referenz', pfad: 'inhalt/seite', schreibend: false },
 ] as const;
 
 /**

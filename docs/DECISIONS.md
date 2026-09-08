@@ -954,6 +954,54 @@ null** Policies. Eine Tabelle, die einfach keine hat, sieht sonst genauso aus
 wie eine, bei der jemand sie vergessen hat — und der Unterschied ist der ganze
 Punkt.
 
+### D-60 · Der Bild-Overlay ist ein TOKEN, nicht ein Wert je Komponente
+
+DESIGN §4.4 nennt den Pflicht-Gradient auf jedem Bild, das Text traegt. Ich
+hatte ihn als Literal in die Markenkarte geschrieben — und die
+`no-raw-color`-Regel hat es abgefangen, zu Recht: ausgeschrieben driftet er.
+Eine Karte bei `0.55`, die naechste bei `0.5`, und die Lesbarkeit der
+Ueberschrift haengt davon ab, welche Komponente jemand kopiert hat. DESIGN.md
+fuehrt ihn jetzt als `--bild-overlay`, `theme.ts` und `globals.css` tragen ihn
+unter demselben Namen, und der Drift-Test prueft beide Richtungen.
+
+### D-61 · Kein Drittanbieter heisst: kein Cookie-Banner
+
+PUB-13 verbietet Tracker. Daraus folgt, dass es nichts zu erlauben gibt — kein
+Banner, keine Einwilligungsverwaltung, keine zweite Rechtsgrundlage. Der
+Playwright-Test faengt **jede** Anfrage ab und zaehlt, was nicht auf den
+eigenen Host geht: Schriften, Analytik, Karten. Null. Eine Zusage, die nur im
+Kopf steht, haelt bis zum ersten `<script src="https://…">`.
+
+### D-62 · Platzhalterbilder tragen ihren Zustand SICHTBAR
+
+DESIGN §4.1 verlangt echte Aufnahmen und §4.2 verbietet KI-erzeugte Menschen
+als Belegschaft — fuer ein Unternehmen, das Vertrauen und physische Praesenz
+verkauft, faellt das in dem Moment auf die Fuesse, in dem es jemand bemerkt.
+Bis der Mandant sein Material liefert (O-13), steht ein sichtbar leeres Bild
+mit einer Marke daneben. Kein Stockfoto, das nach Belegschaft aussieht: ein
+unauffaelliger Platzhalter ist einer, der in Produktion landet.
+
+### D-63 · DESIGN §2 wird beim Rendern durchgesetzt, nicht gehofft
+
+Die Schreibschrift und das rote Akzentwort erscheinen **einmal je Seite**.
+Zweimal ist kein Akzent mehr, sondern ein Stil — und das faellt niemandem auf,
+der die Seite baut, sondern erst dem, der sie sieht. `pruefeSeite()` wirft bei
+zwei Hero-Abschnitten und bei zwei Akzentwoertern, und der Browser-Test zaehlt
+die Knoten.
+
+Das Akzentwort ist ein eigenes Feld in `abschnitt` und kein Markup im
+Fliesstext: als `<span>` im Text landet es beim naechsten Copy-Paste zweimal
+in derselben Seite, und niemand sieht warum.
+
+### D-64 · O-08 bleibt offen, und der Pfadmodus ist die umkehrbare Wahl
+
+Ob jeder Bereich eine eigene Domain bekommt oder alle als Pfad unter einer
+Gruppendomain liegen, ist nicht kosmetisch: eigene Domains bedeuten eigene
+SEO-Autoritaet und eigene Zertifikate. `lib/domains.ts` ist deshalb **leer** —
+ein erfundener Eintrag saehe entschieden aus — und bis zur Antwort gilt der
+Pfad. Er funktioniert ohne DNS-Arbeit und laesst sich spaeter auf Domains
+umlegen; umgekehrt gilt das nicht.
+
 ---
 
 ## Carried over from the Phase 0 review — not client questions

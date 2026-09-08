@@ -10,7 +10,7 @@
  * Beim Landen eines Moduls werden seine Zeilen hier gestrichen. Ergänzt wird
  * nur mit einer Begründung im Pull Request.
  *
- * 182 von 207 Schlüsseln.
+ * 180 von 207 Schlüsseln.
  */
 export const NOCH_UNBENUTZT: readonly string[] = [
   "abrechnung.freistellung_pflegen",
@@ -148,8 +148,6 @@ export const NOCH_UNBENUTZT: readonly string[] = [
   "recruiting.stelle_schreiben",
   "recruiting.stelle_veroeffentlichen",
   "referenz.kundenfreigabe_erfassen",
-  "referenz.lesen",
-  "referenz.schreiben",
   "referenz.veroeffentlichen",
   "schluessel.lesen",
   "schluessel.schreiben",

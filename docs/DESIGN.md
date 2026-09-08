@@ -158,11 +158,16 @@ the images right and the design carries itself.
    selling trust and physical presence, that backfires the moment anyone
    notices.
 3. Documentary tone: real work, real light, no posed studio smiles.
-4. **Overlay is mandatory** on any image carrying text:
+4. **Overlay is mandatory** on any image carrying text, and it is a **token**,
+   not a value typed at each call site:
    ```css
-   background: linear-gradient(180deg,
+   --bild-overlay: linear-gradient(180deg,
      rgba(8,8,10,0.15) 0%, rgba(8,8,10,0.55) 55%, rgba(8,8,10,0.92) 100%);
    ```
+   Written out per component it drifts — one card at 0.55, the next at 0.5 —
+   and the heading's legibility then depends on which component someone
+   copied. One token, used everywhere, is the only way "mandatory" survives
+   contact with a second developer.
 5. Aspect ratios: hero `21:9` desktop / `4:5` mobile · brand card `4:3` ·
    project card `3:2` · profile cover `3:1` · avatar `1:1`.
 6. Always `next/image`, always `alt`, `priority` on the hero only.
