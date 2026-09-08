@@ -50,6 +50,15 @@ Set with `set_config(..., true)` — transaction-local — inside `withTenant` /
 | `app.portal` | `intern` \| `mitarbeiter` \| `kunde` |
 | `app.readonly` | `on` \| `off` — **defaults to `on`** |
 | `app.aal` | `aal1` \| `aal2` — assurance level of the session |
+| `app.akteur_typ` | `mensch` \| `agent` \| `system` — for SEC-A9 |
+| `app.akteur_id` | the agent run or job run behind a non-human write |
+| `app.ip` | request IP, for `audit_log` |
+
+The last three are **audit-only**: they exist so `audit_log` can record who acted
+(SEC-A9 requires actor kind, and a typed actor with no identity is not an audit
+trail). **No RLS policy may reference them** — a policy keyed on a
+self-declared actor type would let the caller widen its own access by asserting
+one. CI asserts no policy names them.
 
 **Fail-closed.** Every accessor coalesces a missing GUC to the most restrictive
 value: no mandant, no rights, read-only. An unset session must produce zero rows,
@@ -114,6 +123,12 @@ staff directory and every colleague's MiLoG hour records.
 existence of a membership. A `mitarbeiter` membership resolves to
 `portal = 'mitarbeiter'` however many other memberships exist; `intern` requires
 the active membership's role ∈ {`super_admin`, `admin`, `leitung`}.
+
+That derivation applies in `mandant` scope, where there is an active membership.
+In the three multi-tenant scopes of K-18 there is none, so `app.portal` is **bound
+when the scope is entered** and never recomputed from `aktiver_mandant` — see
+K-20, which exists because recomputing it there falls through to the fail-closed
+`mitarbeiter` and fires every ceiling below inside the group view.
 
 EMP-13 is structural. Every table hanging off `anstellung_id` or `person_id`
 carries a **restrictive** ceiling in addition to K-03:
@@ -288,11 +303,15 @@ not an edge case, and a duplicated `zeiteintrag` is duplicated billable time
 
 ```sql
 update checkin_token
-   set verwendet_am = now(), verwendet_ip = $ip
- where id = $id and verwendet_am is null
+   set eingeloest_am = now(), ip_adresse = $ip, user_agent = $ua
+ where token_hash = $hash and eingeloest_am is null
    and now() between gueltig_ab and gueltig_bis
 returning einsatz_id, mandant_id;
 ```
+
+The match is on `token_hash`, not on `id`: the worker's link carries the token,
+and looking the row up by id first would reintroduce the read-then-write this
+convention exists to remove.
 
 Zero rows returned **is** the 409. The `zeiteintrag` is inserted in the same
 transaction, only if a row came back. Pre-checks may exist to produce a friendlier
@@ -496,6 +515,13 @@ is evidence. A *computed target* — `revier.sollzeit_minuten` derived from
 minute accumulates a visible error across a Revier of eighty rooms. The
 distinction is target vs. actual, and each column states which it is.
 
+**Catalogues are never nullable-tenant.** A shared catalogue (`qualifikation`,
+`belagsart`, `nachweis_art`) is either group-wide — **no `mandant_id` column at
+all**, classified `global` — or per-tenant with `mandant_id NOT NULL`. A nullable
+tenant column on a catalogue means "sometimes shared, sometimes not", which no RLS
+predicate can express without a branch that leaks the shared rows into every
+tenant's writes. Choose one per catalogue and say which.
+
 **(d) `audit_log.mandant_id` is nullable.** A failed login, a lockout and the
 *source* side of a mandant switch all precede or transcend tenancy; forcing a
 tenant onto them would mean inventing one. `audit_log` therefore carries
@@ -568,3 +594,105 @@ The write columns above are narrow by design: EMP-07 is explicit that an employe
 raises a `zeit_einwand` and **never** edits a `zeiteintrag`. Every other write in
 both portals goes through a service that re-enters `mandant` scope with a
 resolved single tenant.
+
+---
+
+## K-19 · One permission catalogue, and CI proves it
+
+`app.hat_recht()` returns **false** for a key it does not know. That is the right
+fail-closed default, and it makes every misspelled or unregistered right key a
+**silent, permanent zero-row failure** rather than an error — no exception, no log
+line, just a screen that is always empty. Twelve documents writing right keys
+independently produced roughly forty such keys.
+
+**`03-AUTH-BERECHTIGUNGEN.md` owns the catalogue.** Its module vocabulary and its
+action vocabulary are the only ones. A right key used in an RLS policy, a route
+gate, a service check or a seed, anywhere in the platform, must have a row there.
+
+`berechtigung_aktion` must contain at least these, because the conventions
+themselves name them:
+
+| Action | Required by |
+|---|---|
+| `lesen` | K-03 policy 1, K-18 |
+| `schreiben` | **K-03's `WITH CHECK` on every tenant table** |
+| `loeschen` | K-16 archival paths |
+| `pruefen` | **K-06 `dienstplan.arbzg_pruefen`** |
+| `freigeben` | invariant 7, APR-01…08 |
+| `exportieren` | K-03 group scope, REP-07, ACC-09 |
+| `verwalten` | AUT-03 permission administration |
+
+An action vocabulary omitting `schreiben` means **no write path in the platform
+can be authorised at all** — every `WITH CHECK` names `<modul>.schreiben`.
+
+**The enforcement is a test, not vigilance.** CI extracts every right-key literal
+from policies, route manifests and services, and fails on any key absent from the
+catalogue — and on any catalogue key no code uses, so the catalogue cannot rot
+into a wish list.
+
+---
+
+## K-20 · Every scope accessor must resolve in every scope
+
+An accessor that reads `app.aktiver_mandant()` returns NULL in the three
+multi-tenant scopes of K-18, because `app.mandant_id` is NULL there by
+construction. Any predicate built on it is then false, and the page reads zero
+rows — the same silent failure K-18 was written to remove, reappearing one layer
+down.
+
+Two accessors were found with exactly this defect and are fixed here:
+
+- **`app.aktueller_kunde()` / `app.aktuelle_kunden()`** resolve from the session's
+  `kunde_zugang` binding, **never** through `aktiver_mandant()`. In `kunde` scope
+  that binding is the whole subject of the request.
+- **`app.portal()`** is bound when the scope is entered and is defined in all four
+  scopes. It is **not** recomputed from `aktiver_mandant`: doing so makes it fall
+  through to the fail-closed `mitarbeiter` in group, person and kunde scope, which
+  fires every K-04 employee ceiling inside the group view and ceilings every
+  customer as though they were staff.
+
+**Rule:** every `app.*` accessor states its value in all four scopes. One that is
+undefined in a scope must say so and must not be referenced by a policy reachable
+from it. A CI test enumerates the accessors and asserts each returns a defined
+value, or a documented NULL, under all four.
+
+---
+
+## K-21 · Table ownership and canonical names
+
+Each table is **declared exactly once**, in the document that owns its domain.
+Other documents reference it and never redeclare it. Eight tables were referenced
+by up to six documents and declared by none — `job_lauf` was written with four
+different column sets — so ownership is recorded here.
+
+| Table | Owner | Canonical form |
+|---|---|---|
+| `job_lauf` | `02-datenmodell/01-KERN.md` | `id, job text, gestartet_am, beendet_am, ergebnis enum, kennzahlen jsonb, fehlertext` — **platform-level, no `mandant_id`** |
+| `job_lauf_mandant` | `02-datenmodell/01-KERN.md` | per-tenant outcome of one run: `job_lauf_id, mandant_id, ergebnis, kennzahlen` |
+| `mandant_einstellung` | `02-datenmodell/01-KERN.md` | `id, mandant_id, schluessel, wert jsonb`, `UNIQUE (mandant_id, schluessel)` |
+| `nachweis_art` | `02-datenmodell/01-KERN.md` | certificate-type catalogue |
+| `sicherheitsvorfall` | `02-datenmodell/01-KERN.md` | SEC-A9 security events |
+| `loeschprotokoll` | `02-datenmodell/01-KERN.md` | DSGVO deletion record (LEG-09, REC-07) |
+| `steuersatz_gruppe` | `02-datenmodell/05-FINANZEN.md` | **there is no `steuersatz` table**; every FK is `*.steuersatz_gruppe_id` |
+| `rechnung_beziehung` | `02-datenmodell/05-FINANZEN.md` | K-12's name and columns win over `storno_verweis` |
+| `agent_artefakt` | `02-datenmodell/06-RADAR-KI-INHALT.md` | agent run output |
+
+`job_lauf` carries **no** `mandant_id`: it is a platform operations log, not tenant
+data, so K-16(d) keeps `audit_log` as the only tenant-adjacent table with a
+nullable one. Per-tenant results of a run live in `job_lauf_mandant`.
+
+### Canonical spellings
+
+Where two documents named one thing two ways, the owner wins:
+
+| Use | Not |
+|---|---|
+| `mandant.slug` (K-07) | `mandant.schluessel` |
+| `mandant.ist_rechtseinheit` | `ist_rechtstraeger` |
+| `agent_budget.budget_cent` (the cap) | `monatslimit_cent` |
+| `agent_budget.verbrauch_mikrocent` (K-16 b) | a stored `verbrauch_cent` — the cents figure is **computed** at the boundary |
+| `mandant_einstellung` keys for the O-06 monitoring switches | `mandant.geo_erfassung_aktiv`, `mandant.ueberwachung_aktiv` |
+| the nine AGT-02 tool names in `06-AGENTEN-FREIGABEN.md` | any tenth tool invented by a domain document |
+
+Reserved `mandant.slug` values, one list: `gruppe`, `mein`, `kunde`, `konto`,
+`api` — the portal statics of K-07, plus `api`.

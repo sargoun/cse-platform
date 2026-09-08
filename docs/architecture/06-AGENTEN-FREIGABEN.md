@@ -9,11 +9,12 @@ approval inbox touches. It implements D-03 (eight agents collapsed to four), D-0
 DPAs), D-07 (procurement submission stays manual) and D-09 (a person is not an employment). It is
 subordinate to `docs/architecture/00-KONVENTIONEN.md`: every rule below that touches roles, session
 state, RLS, portals, handles, approvals, calendar boundaries or invented values is an application of
-a numbered convention (K-01 … K-17) and cites it inline. **Where this document and a convention
+a numbered convention (K-01 … K-18) and cites it inline. **Where this document and a convention
 appear to disagree, the convention wins and this document is defective.** Where SPEC and DECISIONS
 leave a legal, financial or tariff value open, it appears here as a labelled placeholder behind a
-swappable interface with `// TODO(client): <the exact question>` and in §18 — never as a quietly
-chosen number (K-17).
+swappable interface with `// TODO(client, O-nn): <the exact question>` — carrying the number of the
+`docs/DECISIONS.md` row it belongs to, never a numbering of this document's own — and in §18, never
+as a quietly chosen number (K-17).
 
 ---
 
@@ -183,7 +184,9 @@ Two of those rules are only expressible if the module tree makes them expressibl
 An agent run is a **service `benutzer`** with its own `benutzer_mandant` rows and its own right
 bindings, so an agent's reach is edited in the same UI, in the same matrix, as a human's
 (`03-AUTH-BERECHTIGUNGEN.md` §14.1). It executes through `withSystemTenant(mandantId, grund, fn)` on
-the `cse_job` role with `app.akteur_typ = 'agent'` and the run id carried for audit correlation.
+the `cse_job` role with `app.akteur_typ = 'agent'` and the run id carried for audit correlation — or,
+for a read-only group-scope run, through `withGroupScope(ctx, fn)` on the same role (§2.2, §6.2);
+there is no third entry point.
 There is no back door, no `service_role` shortcut and no second rule engine. Per **K-01** no
 application role holds `BYPASSRLS`, and every tenant table carries `FORCE ROW LEVEL SECURITY`.
 
@@ -212,20 +215,34 @@ cannot widen what the agent principal was granted.
 
 ### 2.2 Session state (K-02)
 
-`withSystemTenant` sets the GUCs of K-02 through the same path as a human session, with
-`set_config(..., true)` — transaction-local:
+The two agent entry points set the GUCs of K-02 through the same path as a human session, with
+`set_config(..., true)` — transaction-local. They differ in exactly the way K-02 requires them to:
 
-| GUC | Value in an agent run |
-|---|---|
-| `app.benutzer_id` | the agent service principal |
-| `app.person_id` | NULL — an agent is not a person |
-| `app.mandant_id` | exactly one mandant, from the trigger (§6.1 step 2) |
-| `app.mandant_ids` | unset — an agent run is never in group scope with write intent |
-| `app.scope` | `mandant`, or `gruppe` for a read-only CEO Assistant run |
-| `app.portal` | `intern` |
-| `app.readonly` | `off` in mandant scope; `on` in group scope, plus `set transaction read only` |
-| `app.aal` | `aal1` — an agent never satisfies a 2FA gate; see K-15 and §7.2 D7 |
-| `app.akteur_typ` | `agent` — **audit only**; no policy may reference it |
+| GUC | `scope = 'mandant'` — `withSystemTenant` | `scope = 'gruppe'` — `withGroupScope` |
+|---|---|---|
+| `app.benutzer_id` | the agent service principal | the agent service principal |
+| `app.person_id` | NULL — an agent is not a person | NULL |
+| `app.mandant_id` | exactly one mandant, from the trigger (§6.1 step 2) | **NULL** — K-02 asserts `CHECK ((scope = 'mandant') = (mandant_id IS NOT NULL))` |
+| `app.mandant_ids` | NULL | the readable set, **derived server-side** by `app.sichtbare_mandanten()` from the agent principal's `benutzer_mandant` rows — never from the request or the queue row (K-02, K-18). The initiator's rights are intersected on top, in the service layer, before any catalogue query executes (§2.1) |
+| `app.scope` | `mandant` | `gruppe` |
+| `app.portal` | `intern` | `intern` |
+| `app.readonly` | `off` | **`on`**, plus `set transaction read only` |
+| `app.aal` | `aal1` — an agent never satisfies a 2FA gate; see K-15 and §7.2 D7 | `aal1` |
+| `app.akteur_typ` | `agent` — **audit only**; no policy may reference it | `agent` |
+
+**Two columns, because one column was a contradiction.** An earlier draft gave `app.mandant_id` as
+"exactly one mandant" and `app.mandant_ids` as "unset" while allowing `app.scope = 'gruppe'` in the
+same row. That state cannot exist: K-02 requires `app.mandant_id` to be NULL in every multi-tenant
+scope, and with `app.mandant_ids` unset `app.sichtbare_mandanten()` is empty, so every K-03 group
+policy (`mandant_id = any (app.sichtbare_mandanten())`) is false and the group-scope CEO Assistant
+run of §2.4 and §3.1 reads **zero rows** — with no error, just an assistant that answers "keine
+Daten" to every group question.
+
+**`app.scope` has four values, not two** (**K-18**): `mandant`, `gruppe`, `person`, `kunde`. An agent
+run only ever takes the first two. `person` and `kunde` are *subject* scopes — the employee portal
+and the customer portal, keyed on `app.aktuelle_person()` and on the customer's own records — and an
+agent run is neither subject; `withPersonScope` and `withKundeScope` are not reachable from
+`src/server/agent/**` and the import boundary of §1.2 keeps it that way.
 
 Every accessor coalesces a missing GUC to the most restrictive value (K-02, fail-closed). Policies
 and queries therefore read `app.aktiver_mandant()`, `app.aktueller_benutzer()`,
@@ -262,19 +279,49 @@ Three classes, enumerated, with one lint that fails on an unclassified table:
 | Class | Predicate | Assertion on every returned row | Examples |
 |---|---|---|---|
 | **Tenant** | K-03 two-policy shape: `mandant_id = app.aktiver_mandant() and app.hat_recht('<modul>.<aktion>', mandant_id)` | `assertGleicherMandant(row.mandant_id, ctx.mandant_id)` | `kunde`, `auftrag`, `rechnung`, `einsatz`, `anstellung`, `wissens_chunk`, `freigabe`, `agent_*` |
-| **Person-scoped** | `exists (select 1 from anstellung a where a.person_id = t.person_id and a.mandant_id = app.aktiver_mandant() and a.austritt is null or …)` plus `app.hat_recht('personal.<aktion>', app.aktiver_mandant())` | `assertPersonImMandant(row.person_id, ctx)` — backed by `app.person_sichtbar(p_person)` (K-06) | `person`, `nachweis`, `bewacher_eintrag`, `qualifikation`, `mitarbeiter_zugang` |
+| **Person-scoped** | `app.person_sichtbar(t.person_id) and app.hat_recht('personal.<aktion>', app.aktiver_mandant())` — the disjunction lives **inside** the function, written out once (`02-datenmodell/01-KERN.md` §3.2) | `assertPersonImMandant(row.person_id, ctx)` — backed by the same `app.person_sichtbar(p_person)` (K-06) | `person`, `nachweis`, `bewacher_eintrag`, `qualifikation`, `mitarbeiter_zugang` |
 | **Reference** | shared, read-only, no tenant column; writes require `app.ist_super_admin()` | none — the row is group-wide by definition | `agent`, `agent_preisliste`, `belagsart`, `feiertag`, `vergabeplattform`, `nachweis_art` |
+
+**The person-scoped predicate is one call, not an inline `exists`, and that is a correction.** An
+earlier draft of this table spelled the employment test out inline as
+`exists (… a.mandant_id = app.aktiver_mandant() and a.austritt is null or …)`. SQL binds `and`
+tighter than `or`, so that predicate parses as `(person_id = … and mandant_id = … and austritt is
+null) or (…)` and the second branch is evaluated **without** the tenant conjunct — the leak this
+whole section exists to prevent, in the one predicate guarding `person`, `nachweis`,
+`bewacher_eintrag`, `qualifikation` and `mitarbeiter_zugang`. Restating a function's body in a second
+place is what made the bug possible, so the restatement is gone: the body is
+`app.person_sichtbar(p_person)`, `SECURITY INVOKER` by design, owned and written out in exactly one
+place (`02-datenmodell/01-KERN.md` §3.2, `03-AUTH-BERECHTIGUNGEN.md` §7.5 Class P), where its
+disjuncts — the person themselves, `ist_super_admin`, an `anstellung` filtered by `anstellung`'s own
+policy, the supervisor branch, the bootstrap anchor — are parenthesised once and tested once.
+
+**In `person` scope (K-18) the same tables carry the subject policy instead.** `/portal/mein/**` runs
+under `withPersonScope`, **not** `withGroupScope` — an employee holds no `gruppe.<modul>.lesen` and
+would read zero rows through the group policy. Four of these five tables carry no `mandant_id` at
+all, so the tenant conjunct is simply absent and `id = app.aktuelle_person()` / `person_id =
+app.aktuelle_person()` is the whole predicate — stricter than the mandant-scope shape, not looser.
+(`qualifikation` is the exception: `03-AUTH-BERECHTIGUNGEN.md` §7.5 declares it a two-level catalogue
+with a **nullable** `mandant_id`, read as `mandant_id is null or mandant_id = any
+(app.sichtbare_mandanten())`. K-16(d) allows exactly one nullable tenant column, on `audit_log`, so
+that shape is a question for the owning document; nothing in this document depends on it.) No agent
+run ever executes in a subject scope (§2.2), so this appears here only so the two readings of the
+same table cannot drift apart.
 
 `src/server/db/tabellen-klassen.ts` holds the classification. **The build fails when a table in
 `db/schema/**` is absent from it**, and the tenant-isolation suite (SEC-A3) derives its cases from
 the same list, so a new table is covered on the day it appears. Reference tables are an *explicit,
 listed* exception to invariant 3, not an omission — which is the difference between a documented
-decision and a hole.
+decision and a hole. A reference table carries **no** `mandant_id` column; that is a different thing
+from K-16(d)'s single nullable case, which `audit_log` alone is allowed and which no table in this
+document takes.
 
 ### 2.4 Group scope (TEN-05, invariant 10)
 
-`scope = 'gruppe'` runs through `withGroupScope(ctx, fn)`: `app.mandant_id` is **NULL** — never a
-previous tenant's value left behind — `app.mandant_ids` holds the readable set, `app.readonly = on`,
+`scope = 'gruppe'` runs through `withGroupScope(ctx, fn)` — **never `withSystemTenant`**, which fixes
+a single mandant and `scope = 'mandant'` by construction (§6.2). `app.mandant_id` is **NULL** — never
+a previous tenant's value left behind — `app.mandant_ids` holds the readable set, **derived
+server-side and never taken from the trigger payload or the queue row** (K-02, K-18),
+`app.readonly = on`,
 and the transaction is `set transaction read only`. Reads resolve through the K-03 group policy
 (`app.ist_gruppenansicht() and mandant_id = any (app.sichtbare_mandanten()) and
 app.hat_recht('gruppe.<modul>.lesen', mandant_id)`), which exists for `SELECT` only and has no write
@@ -305,7 +352,7 @@ them out of the agent layer is what keeps the agent layer auditable.
 | **Trigger** | Human chat in the portal only (`/portal/[mandant]/agenten/assistent`). Never scheduled, never triggered by a document, an e-mail or a webhook. |
 | **Tools** | `suche_bestand` (both modes), `lies_dokument`, `berechne_preis`, `pruefe_nachweise`, `entwirf_text` (`vorlage = 'interne_notiz'` only) |
 | **May read** | The **intersection** of the agent principal's rights and the initiating user's rights in the active mandant (§2.1). RLS and the permission layer (AUT-03, AUT-04, K-03) apply unchanged. In group scope: only catalogue queries flagged `gruppe_erlaubt`, most of them counts (TEN-05). |
-| **Never does** | Writes anything. Creates a Vorgang, a task or a notification. Sends anything. Invents a figure (AGT-07): every number and every date in an answer carries a register token traced to a catalogue query, a `berechne_preis` result or a `berechne_frist` result; an answer with an unbound numeral is rejected before the user sees it (§5.5). When no catalogue query fits, it says so verbatim — *"Das kann ich aus dem Datenbestand nicht beantworten: es gibt keine Abfrage für X."* — and offers the nearest available query rather than estimating (ROADMAP Phase 8 acceptance). |
+| **Never does** | Writes anything. Creates a Vorgang, a task or a notification. Sends anything. Invents a figure (AGT-07): every number and every date in an answer carries a register token traced to a catalogue query, a `berechne_preis` result (money, quantity **or** date — there is no separate date tool, §5.6); an answer with an unbound numeral is rejected before the user sees it (§5.5). When no catalogue query fits, it says so verbatim — *"Das kann ich aus dem Datenbestand nicht beantworten: es gibt keine Abfrage für X."* — and offers the nearest available query rather than estimating (ROADMAP Phase 8 acceptance). |
 | **Autonomy** | `automatisch` for read and answer. There is no write path, so no policy escalation exists for it. |
 | **Group scope** | Read-only by construction: the registry hands it a schema in which no draft, write or send tool exists (invariant 10). RAG is disabled in group scope (§10.6). |
 
@@ -341,7 +388,7 @@ transition to `geprueft` is a side effect of the service, not a model-chosen fie
 | **Tools** | `lies_dokument`, `suche_bestand`, `berechne_preis`, `pruefe_nachweise`, `pruefe_bilder`, `entwirf_text`, `erstelle_vorgang`, `sende_email` (gated — enqueues, never sends) |
 | **May read** | `lead`, `kunde`, `ansprechpartner` (incl. `rechtsgrundlage`), `auftrag`, `auftrag_leistung`, `objekt`, `revier`, `turnus`, `leistungsnachweis`, `zeiteintrag` **aggregates only** through `services/zeit/lesen/` (never a raw movement pattern beyond what an invoice line needs, FIN-07, LEG-02), `rechnung`/`rechnungsposition`, `mahnung`, `stelle`, `social_post`. It reads `abwesenheit` **status only** — never a reason; health-adjacent fields are hard-blocked in `redaktion.ts` (§11.3). |
 | **Never does** | Sends externally without approval (invariant 7). **Sets or changes a price** (SPEC §17) — it may assemble an invoice from contracted rates through `berechne_preis`, never invent one, and `zuschlag_profil_id` is never a model argument (**K-10**). Grants a discount or concession (policy `deny`; no configuration re-enables it). Finalises an invoice (no tool exists; `entwurf → festgeschrieben` is a human act through `finalizeInvoice`, invariant 4, K-12). Creates or edits a `zeiteintrag` (invariant 5). Assigns a person to a shift — it *proposes*; the SEC-04 and ArbZG hard blocks stay in `services/dienstplan/` (§13). |
-| **Autonomy** | Draft reply to an enquiry: `vorschlag`. Replacement proposal for an absence: `vorschlag`, never batched (§13). Monthly invoice from contract: `vorschlag` producing a `rechnung` in `entwurf` with **no number** (invariant 4), and the *finalisation* is `freigabe_erforderlich`. Dunning: `vorschlag`. Job ad: `vorschlag`. Confirm an appointment: `automatisch_mit_hinweis` **when the entry is internal only**; the moment it would mail a customer it is an external send and `freigabe_erforderlich` wins (§4.3, and O-A1 answered structurally in §14.11). Any external send: `freigabe_erforderlich`. Publishing a post: `freigabe_erforderlich` (SOC-08). |
+| **Autonomy** | Draft reply to an enquiry: `vorschlag`. Replacement proposal for an absence: `vorschlag`, never batched (§13). Monthly invoice from contract: `vorschlag` producing a `rechnung` in `entwurf` with **no number** (invariant 4), and the *finalisation* is `freigabe_erforderlich`. Dunning: `vorschlag`. Job ad: `vorschlag`. Confirm an appointment: `automatisch_mit_hinweis` **when the entry is internal only**; the moment it would mail a customer it is an external send and `freigabe_erforderlich` wins (§4.3, and O-105 answered structurally in §14.11). Any external send: `freigabe_erforderlich`. Publishing a post: `freigabe_erforderlich` (SOC-08). |
 
 ### 3.4 Finance Agent — `agents/finance.ts`, `agent.kennung = 'finanzen'`
 
@@ -408,7 +455,7 @@ where §14.8's database constraint permits it.
 
 `vorgang_typ` is `agent_vorgang_typ`, the fifteen values seeded from SPEC §17.
 
-| SPEC matrix row | `vorgang_typ` | Agent | Tools involved | Code floor (§7.3) | Seeded `agent_richtlinie` | Notes |
+| SPEC §17 matrix row · *(derived)* = not a row of that matrix | `vorgang_typ` | Agent | Tools involved | Code floor (§7.3) | Seeded `agent_richtlinie` | Notes |
 |---|---|---|---|---|---|---|
 | Screen and rank tenders | `ausschreibung_bewerten` | *(none — deterministic service)* | — | `allow` for the enrichment only | `automatisch` | RAD-05: no LLM in ranking; `bewertung.verfahren = 'deterministisch'` is a `CHECK`. The agent enriches an already-scored notice. |
 | Fetch documents, create a Vorgang | `dokument_abrufen` | Acquisition | `lies_dokument`, `erstelle_vorgang` | `allow` | `automatisch` | Arts `ausschreibung_vorgang`, `vergabemappe` |
@@ -419,13 +466,13 @@ where §14.8's database constraint permits it.
 | Propose a replacement for an absence | `ersatz_vorschlagen` | Back-office | `pruefe_nachweise`, `entwirf_text`, `erstelle_vorgang` (`einsatz_vorschlag`) | `freigabe_erforderlich`, `stufe = einzeln`, `batch_verboten` | `vorschlag` → the resulting assignment is `freigabe_erforderlich` | Touches a decision about an identified person (LEG-12) **and** carries a mandatory ArbZG pre-flight (§13) |
 | Monthly invoice from contract | `monatsrechnung_entwurf` | Back-office | `berechne_preis` (`auftragsabrechnung`), `erstelle_vorgang` (`rechnung_entwurf`) | `freigabe_erforderlich` | `vorschlag` (draft) + `freigabe_erforderlich` (finalisation) | The draft has no number (invariant 4). Batch only when diff-eligible (§14.7) |
 | **Any offer, at any value** | `angebot_erstellen` | Acquisition / Back-office | `berechne_preis`, `entwirf_text`, `erstelle_vorgang` (`angebot_entwurf`) | `freigabe_erforderlich` — **`allow` and `automatisch_mit_hinweis` are unreachable** | `freigabe_erforderlich` | Never automatic at any value, under any configuration (ROADMAP Phase 8) |
-| Offer > 20.000,00 € | `angebot_erstellen` | Acquisition / Back-office | as above | `freigabe_erforderlich`, `stufe = einzeln`, `batch_verboten`, `verzoegerung_verboten` | `freigabe_erforderlich`, approver right per O-A2 | `wirksame_grenze_cent = min(richtlinie, 2_000_000)` — §4.5 |
+| Offer > 20.000,00 € | `angebot_erstellen` | Acquisition / Back-office | as above | `freigabe_erforderlich`, `stufe = einzeln`, `batch_verboten`, `verzoegerung_verboten` | `freigabe_erforderlich`, approver right per O-106 | `wirksame_grenze_cent = min(richtlinie, 2_000_000)` — §4.5 |
 | Discount or concession | `nachlass_gewaehren` | *(none)* | — | `deny` | `nie` (row read-only in the UI, `ist_systemregel`) | No tool, no policy path, no override |
 | Any external send | `externer_versand` | Back-office | `sende_email`, social publish | `freigabe_erforderlich`, `verzoegerung_verboten` | `freigabe_erforderlich`, `stufe = einzeln` | Recipient basis per §5.4 tool 8 and §7.2 D2 |
 | Booking to accounting | `buchung_uebernehmen` | Finance | `erstelle_vorgang` (`buchungsvorschlag`) → executor | `freigabe_erforderlich` | `freigabe_erforderlich`, `stapel_faehig` | Batch only for a known supplier, a mapped category and a passed arithmetic cross-check (§14.7) |
 | Publishing a post | `beitrag_veroeffentlichen` | Back-office | `erstelle_vorgang` (`social_post_entwurf`) → executor | `freigabe_erforderlich`, `verzoegerung_verboten` | `freigabe_erforderlich`, `stufe = einzeln` | SOC-08; unconnected channels show "nicht verbunden" and cannot be selected (SOC-06/07) |
-| Dunning proposal | `mahnung_vorschlagen` | Back-office | `berechne_preis` (`mahn_betrag`), `berechne_frist` (`zahlungsziel`), `entwirf_text` | `freigabe_erforderlich` | `vorschlag` | FIN-15; fee and interest are placeholders (§18 O-A13) |
-| Job advertisement | `stellenanzeige_entwurf` | Back-office | `entwirf_text` | `allow` for the draft; publication is `freigabe_erforderlich` | `vorschlag` | REC-02, REC-09 |
+| *(derived)* Dunning proposal | `mahnung_vorschlagen` | Back-office | `berechne_preis` (`mahn_betrag`, `frist_zahlungsziel`), `entwirf_text` | `freigabe_erforderlich` | `vorschlag` | FIN-15; fee and interest are placeholders (§18 O-19) |
+| *(derived)* Job advertisement | `stellenanzeige_entwurf` | Back-office | `entwirf_text` | `allow` for the draft; publication is `freigabe_erforderlich` | `vorschlag` | REC-02, REC-09 |
 | *(derived)* Answer a question from live data | — (no `vorgang_typ`; a read run) | CEO Assistant | `suche_bestand`, `berechne_preis` | `allow` | `automatisch` | AGT-07, DSH-01 … DSH-05 |
 | *(derived)* Extract a receipt / incoming invoice | `buchung_uebernehmen` (extraction step) | Finance | `lies_dokument` | `allow` | `automatisch` | Draft artefact; the *booking* is the approved act (ACC-05) |
 | *(derived)* Evaluate an application / rank candidates | **requires a new enum value** — §19 | Back-office | `lies_dokument`, `entwirf_text` | `freigabe_erforderlich`, `stufe = einzeln`, `batch_verboten`, `verzoegerung_verboten` | `vorschlag` | REC-04, REC-05, REC-08, LEG-12, DSGVO Art. 22 (§14.12) |
@@ -460,10 +507,19 @@ where SPEC §17 puts it: *"Draft reply to an enquiry — proposal"* and *"Any ex
 required"* are two rows because they are two acts. SPEC's *proposal* is `autonomie = 'vorschlag'`:
 the draft is created and offered, an inbox item appears, and a human turns it into an act.
 
-`codeFloor(aktion, vorgang_typ)` is therefore a **total function with a single source table**
-(§7.3), and `tests/agent/policy-floor.test.ts` asserts totality over the cross product of the four
-`Aktionsklasse` values and every `agent_vorgang_typ` value — a new enum value without a floor fails
-the build.
+`codeFloor(aktion, vorgang_typ, art)` is therefore a **total function with a single source table**
+(§7.3). The third argument is not decoration: the floor table's rows are keyed on two different
+domains — `interner_hinweis` and `buchung_uebernehmen` are `vorgang_typ` values, while
+`benachrichtigung_intern`, `aufgabe`, `lead_notiz` and `buchungsvorschlag` are `erstelle_vorgang`
+**arts**, and `aufgabe` and `lead_notiz` correspond to no `agent_vorgang_typ` at all. Keyed on
+`vorgang_typ` alone, the gate on those arts is undefined, and an `aufgabe` written inside an
+`ersatz_vorschlagen` run would inherit that run's `freigabe_erforderlich, einzeln, batch_verboten`
+while the art table says `allow` — two answers, no rule for choosing. So both discriminators are in
+the key, `art` is `—` where the row does not depend on one, **and where a `vorgang_typ` row and an
+`art` row both match, the stricter wins** (§4.3, the same total order and the same arithmetic).
+`tests/agent/policy-floor.test.ts` asserts totality over
+`Aktionsklasse × agent_vorgang_typ × (art ∪ {null})` — a new enum value in **either** enum without a
+floor fails the build, which the old cross product could not detect because it never varied `art`.
 
 ### 4.5 The 20.000,00 € threshold, precisely (B13)
 
@@ -539,6 +595,22 @@ export type LieferantHandle     = `lieferant_${number}`;
 export type BezugHandle         = `bezug_${number}`;      // replaces { tabelle, id } — §6.4
 export type EmpfaengerHandle    =                          // §5.4 tool 8, B12
   | `kontakt_${number}` | `kandidat_${number}` | `lieferant_${number}` | `benutzer_${number}`;
+
+/** A register token, NOT a handle: the id of a GebundenerWert produced earlier in this run by a
+ *  tested service (§5.5). `DatumToken` is one whose `art` is 'datum' (§5.6) — the only form in
+ *  which a date may enter a tool argument (K-10). Declared here rather than described in prose,
+ *  because the Zod boundary of §5.5 checks arguments against declared types. */
+export type WertToken  = `z${number}`;
+export type DatumToken = WertToken;                        // GebundenerWert.art === 'datum'
+
+/** A `suche_bestand` catalogue parameter (§5.7). Never a free value: per `abfrage_id` the catalogue
+ *  registry declares each parameter as exactly one of these three, and the Zod schema the model
+ *  sees is built from that declaration — never `z.number()`, never an unconstrained `z.string()`. */
+export type AbfrageParameterWert =
+  | BezugHandle                       // a row the run already legitimately read
+  | DatumToken                        // a bound date, incl. the month a Berlin-boundary date names
+  | AbfrageAuswahl;                   // a member of the closed literal set the catalogue declares
+export type AbfrageAuswahl = string;  // erased at runtime; the enforced form is z.union([z.literal…])
 
 export type Vertrauen = 'trusted' | 'untrusted';
 
@@ -679,7 +751,7 @@ export function suche_bestand(input:
   | { modus: 'semantisch'; frage: string; quellen?: WissensQuelleTyp[];
       k?: 1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20 }        // AGT-06 RAG, k is bounded
   | { modus: 'bestand'; abfrage_id: AbfrageId;
-      parameter: Record<string, string | number | BezugHandle> }
+      parameter: Record<string, AbfrageParameterWert> }   // never a raw number, date or row id
 ): Promise<ToolResult<
   | { modus: 'semantisch'; treffer: { chunk_id: string; quelle: Quelle; text: string;
         distanz: number; vertrauen: 'untrusted' }[] }
@@ -691,6 +763,12 @@ export function suche_bestand(input:
 // There is no free SQL anywhere in the agent layer. An unmatched question returns
 // { code: 'kein_ergebnis' } and the agent must say so (AGT-07). `k` is capped at 20 — for cost
 // (AGT-05) and to bound how much untrusted content can enter one prompt (§12).
+// The parameter record was `Record<string, string | number | BezugHandle>` and that was a hole in
+// exactly the defence §5.5 and §12 are built to hold: `stichtag`, `von`, `bis`, `monat` are dates,
+// `tage`, `tage_ueberfaellig` are quantities that decide which rows come back, and `projekt_ref`,
+// `anstellung_ref`, `objekt` are row ids — as typed, the model could write all three as free values
+// (K-10, §12 mechanism 3). It is now AbfrageParameterWert: a handle, a DatumToken, or a member of
+// the closed literal set the catalogue declares for that parameter (§5.7).
 
 // 4 · berechne_preis — read · PURE CODE. The model never produces and never supplies a number.
 //     The name is AGT-02's. The tool is the platform's single bound-value façade: it computes
@@ -708,11 +786,16 @@ export function berechne_preis(input:
                                                                       // the STORED rechenansatz
   | { art: 'auftragsabrechnung'; auftrag: AuftragHandle;
       periode: { von: DatumToken; bis: DatumToken } }                 // FIN-01, FIN-07 — §5.6
+      // The billing type comes from the Auftrag, never from an argument, and the five types are
+      // NOT known: calculateAbrechnung dispatches to one AbrechnungsStrategie per type behind an
+      // interface, seeded with placeholder strategies carrying ist_platzhalter = true (§5.5 r1).
+      // TODO(client, O-04): Welche fünf Abrechnungsarten gelten genau (FIN-01), und wie rechnet
+      // jede von ihnen eine Periode ab?
   | { art: 'ust_split'; positionen: { betrag_token: string; steuersatz_id: BezugHandle }[] }
       // per tax-rate group, never from a gross total (invariant 1); the net amounts are TOKENS
   | { art: 'abschlag_saldo'; auftrag: AuftragHandle }                  // FIN-08
   | { art: 'stunden_summe'; einsatz: EinsatzHandle }                   // duration of UTC instants
-  | { art: 'mahn_betrag'; rechnung: RechnungHandle; stufe_id: BezugHandle }   // FIN-15 — §18 O-A13
+  | { art: 'mahn_betrag'; rechnung: RechnungHandle; stufe_id: BezugHandle }   // FIN-15 — §18 O-19
   | { art: 'reverse_charge_pruefung'; auftrag: AuftragHandle }         // FIN-09 §13b UStG
   | { art: 'bauabzugsteuer'; eingangsrechnung: EingangsrechnungHandle } // FIN-10 §48 EStG
   // — dates and deadlines (invariant 6 covers deadlines; §5.6) —
@@ -734,7 +817,7 @@ export function berechne_preis(input:
 // 5 · pruefe_nachweise — read
 export function pruefe_nachweise(input:
   | { modus: 'person'; personen: PersonHandle[]; stichtag: DatumToken;
-      erforderlich: NachweisArtSchluessel[] }        // from the nachweis_art catalogue — §18 O-A3
+      erforderlich: NachweisArtSchluessel[] }        // from the nachweis_art catalogue — §18 O-107
   | { modus: 'unternehmen'; partei: 'eigen' | 'lieferant' | 'kunde';
       partei_ref?: LieferantHandle | BezugHandle; stichtag: DatumToken;
       erforderlich: NachweisArtSchluessel[] }
@@ -771,7 +854,7 @@ export function pruefe_bilder(input: {
 // Deterministic checks — presence, real MIME verification, resolution, blur score, perceptual-hash
 // duplicates, the EXIF-stripped assertion (TIM-10, DOC-06) — run locally and are authoritative.
 // `motiv_plausibel` is the only model judgement, is advisory, and requires sending a downscaled,
-// face-blurred rendition to the EU vision endpoint (§11.3, open question O-A7). It is never a legal
+// face-blurred rendition to the EU vision endpoint (§11.3, open question O-110). It is never a legal
 // or quality verdict: a Leistungsnachweis is accepted by a customer, not by a model (CLN-04).
 
 // 7 · entwirf_text — draft
@@ -843,9 +926,9 @@ advertising**, and blocking them because a CRM field was never filled in is the 
 applied to the wrong act. A recipient with **no resolvable stored relationship of any kind** is
 denied under a separate code, D2a `empfaenger_ohne_beziehung`, for every category. The boundary
 between the two is a legal question and is recorded, not guessed:
-`// TODO(client): Für welche ausgehenden Nachrichtenarten gilt die §7-UWG-Einwilligungsschranke
+`// TODO(client, O-65): Für welche ausgehenden Nachrichtenarten gilt die §7-UWG-Einwilligungsschranke
 (CRM-08) und für welche gilt sie nicht — Mahnung, Behinderungsanzeige, Bewerberantwort,
-Lieferantenrückfrage?` (§18, O-A9).
+Lieferantenrückfrage?` (§18, O-65).
 
 ### 5.5 The binding rule for every number and every date (invariant 6, AGT-07, K-10)
 
@@ -858,6 +941,14 @@ draft lost it at the entry point rather than in the arithmetic.
    `sumZeitraum`, `calculateMahnbetrag`, `checkReverseCharge`, `checkBauabzugsteuer`, and the four
    `services/frist/` functions of §5.6. Each is unit-tested and versioned, and the version is written
    into every step log so a past run's arithmetic is reproducible after the service changes.
+   **`calculateAbrechnung(auftrag, periode)` is the one of those eleven whose rule is not known.**
+   FIN-01 names five billing types and SPEC states none of them, so it dispatches to one
+   `AbrechnungsStrategie` per type behind an interface — the swappable-unknown shape K-17 requires —
+   seeded with placeholder strategies carrying `ist_platzhalter = true`, exactly as
+   `MahnstufenRegelwerk` is handled in §5.6, and the marker sits at the art's own site in §5.4 so an
+   implementer meets it where the work is: `// TODO(client, O-04): Welche fünf Abrechnungsarten
+   gelten genau (FIN-01)?` A run whose Auftrag resolves to a placeholder strategy produces a draft
+   the approval screen marks *"Unbestätigter Wert"*; it never produces a quietly plausible total.
 2. **No argument may carry a figure.** Every money, quantity, rate, formula or date argument is
    either a **handle** the service dereferences to stored rows, or a **token** from an earlier result
    in the same run's register (**K-10**). Never a numeric literal, never an expression string, never
@@ -901,7 +992,11 @@ draft lost it at the entry point rather than in the arithmetic.
 literal, a date string or an expression string originating in a tool argument**, by walking the Zod
 schemas the registry exposes and failing on any `z.number()`, any unconstrained `z.string()` in a
 money, quantity or date position, and any field name matching `/(_cent|menge|satz|preis|betrag|
-datum|frist|stichtag)$/` whose type is not a handle or a token.
+datum|frist|stichtag|tage|monat|_ref)$/` whose type is not a handle, a token or a closed literal
+union. **The walk descends into the `suche_bestand` catalogue's per-`abfrage_id` parameter
+declarations** (§5.7), which is where the schema this test is written against actually lives — a
+`Record<string, …>` on the tool signature is one node, and stopping there is how the parameter record
+passed this very test while accepting free values.
 
 ### 5.6 Dates and deadlines are bound values too (B15)
 
@@ -928,7 +1023,7 @@ pass by accident. A `DatumToken` is a register token of `art: 'datum'`; tools th
 ```ts
 // src/server/services/frist/zahlungsziel.platzhalter.ts
 // PLACEHOLDER — FIN-15 says "Dunning with escalation levels, fees, interest" and nothing more.
-// TODO(client): Wie viele Mahnstufen gibt es, welche Mahngebühr gilt je Stufe, auf welcher
+// TODO(client, O-19): Wie viele Mahnstufen gibt es, welche Mahngebühr gilt je Stufe, auf welcher
 // Grundlage werden Verzugszinsen berechnet (§288 BGB Basiszinssatz + Prozentpunkte, B2B-Satz?),
 // und wie lang ist das Zahlungsziel je Stufe?
 export interface MahnstufenRegelwerk { /* swappable; seeded rows carry ist_platzhalter = true */ }
@@ -942,6 +1037,16 @@ so the ladder is data with a placeholder flag rather than a number compiled into
 Named read queries, each a tested function, each tenant-scoped through the session helper, each
 returning a `stand` instant and **record references so every figure drills through** (DSH-04). Free
 SQL does not exist in the agent layer.
+
+**Every parameter in the table below is one of three declared kinds** (K-10, §5.1
+`AbfrageParameterWert`), and the catalogue registry — not the tool — declares which:
+
+| Parameter | Kind |
+|---|---|
+| `stichtag`, `von`, `bis` | `DatumToken` — a bound date from `berechne_preis` (§5.6), never a string |
+| `monat` | `DatumToken`; the Berlin calendar month is derived from it server-side (K-11) |
+| `projekt_ref`, `anstellung_ref`, `objekt` | `BezugHandle` minted earlier in the run (§6.4) |
+| `tage`, `tage_ueberfaellig` | a member of the **closed literal set** the catalogue declares per query — a `z.union` of literals, never `z.number()` |
 
 | `abfrage_id` | Parameters | Answers | Group-readable | Untrusted columns (§5.8) |
 |---|---|---|---|---|
@@ -1015,12 +1120,12 @@ So `vertrauen` sits on the **field**, not on the result:
 | # | Step | Detail |
 |---|---|---|
 | 1 | **Trigger** | One of: portal chat (human), cron/watchdog, inbound e-mail webhook, radar ingestion, approval resume. Every trigger carries a `plan_schablone` (§6.5) that fixes what this run may attempt. |
-| 2 | **Principal and tenant** | `AgentContext = { agent_kennung, mandant_id, scope, initiator: { typ: 'mensch' \| 'zeitplan' \| 'ereignis' \| 'agent', benutzer_id? }, plan_schablone, aufgabe_id, jetzt }`. `mandant_id` comes from the server session (TEN-04, K-02) or, for a scheduled run, from the queue row — **never from the model, never from a URL segment, never from document content**. |
-| 3 | **Budget precheck** | `budget.pruefen(schaetzung)` (§8). A `gestoppt` verdict means the run never starts: `agent_aufgabe` is recorded with status `gestoppt_budget` and the notification is written in a committed transaction. |
+| 2 | **Principal and tenant** | `AgentContext = { agent_kennung, scope: 'mandant' \| 'gruppe', mandant_id: string \| null, mandant_ids: string[] \| null, initiator: { typ: 'mensch' \| 'zeitplan' \| 'ereignis' \| 'agent', benutzer_id? }, plan_schablone, aufgabe_id, jetzt }` — exactly one of `mandant_id` and `mandant_ids` is set, matching the scope (§2.2, K-02). `mandant_id` comes from the server session (TEN-04, K-02) or, for a scheduled run, from the queue row — **never from the model, never from a URL segment, never from document content**. |
+| 3 | **Budget precheck** | `budget.pruefen(schaetzung_mikrocent)` (§8). A `gestoppt` verdict means the run never starts: `agent_aufgabe` is recorded with status `gestoppt_budget` and the notification is written in a committed transaction. |
 | 4 | **`agent_aufgabe` created** | Status `laufend`, with `vorgang_typ`, `ausgeloest_durch`, `angefordert_von`, `korrelation_id`, `idempotenz_schluessel`, prompt version, policy version and git SHA. |
 | 5 | **Tool schema frozen** | `registry.fuer(agent_kennung, scope, plan_schablone)` returns the JSON schema of the exposed tools, intersected with the mandant's `agent_werkzeug` rows. This happens **before any untrusted content is read** and is immutable for the run (§12 mechanism 2). |
 | 6 | **Step loop** | model call → tool call → `decide()` → execute / raise a `freigabe` / deny → log → repeat. Every iteration re-checks budget, step count, wall clock and deadline. |
-| 7 | **Tool execution** | Arguments validated by Zod (SEC-A4); handles resolved against the run's registry (§6.4); database access exclusively through `withSystemTenant(ctx.mandant_id, grund, fn)`. |
+| 7 | **Tool execution** | Arguments validated by Zod (SEC-A4); handles resolved against the run's registry (§6.4); database access exclusively through `withSystemTenant(ctx.mandant_id, grund, fn)` — or `withGroupScope(ctx, fn)` in group scope, and nothing else (§6.2, K-08). |
 | 8 | **Termination** | `abgeschlossen` · `wartet_auf_freigabe` · `gestoppt_budget` · `abgebrochen` (steps/tokens/time/policy) · `fehlgeschlagen` · `abgebrochen_sicherheit` (tenant boundary or injection abort). |
 | 9 | **Completion** | Artefacts persisted, `freigabe` rows created, notifications sent (NOT-01, NOT-03), `agent_aufgabe` closed with totals (tokens, cost in cents, duration), `audit_log` written with `akteur_art = 'agent'` and the run's `korrelation_id` (SEC-A9). |
 | 10 | **Replay bundle** | Assembled on demand from the logged steps (§9.3). |
@@ -1054,6 +1159,18 @@ export async function withSystemTenant<T>(
 //   select set_config('app.aal',         'aal1',          true);
 //   select set_config('app.akteur_typ',  'agent',         true);   -- audit only (SEC-A9)
 // No BYPASSRLS anywhere (K-01); every tenant table carries FORCE ROW LEVEL SECURITY.
+
+// A group-scope run does NOT go through withSystemTenant — it cannot: the helper above hard-codes
+// scope 'mandant' and a single mandant, and K-02 forbids that combination in a multi-tenant scope.
+export async function withGroupScope<T>(
+  ctx: AgentContext, fn: (db: TenantDb) => Promise<T>,
+): Promise<T>;
+// The shared helper of 03-AUTH-BERECHTIGUNGEN.md §6.3, called with the agent principal:
+//   app.mandant_id  = NULL
+//   app.mandant_ids = app.sichtbare_mandanten() for this principal, derived server-side (K-18)
+//   app.scope       = 'gruppe'      app.readonly = 'on'      set transaction read only
+// Reads resolve through the K-03 group policy, which exists for SELECT only, so invariant 10 is
+// enforced by Postgres and not by the caller (§2.4).
 ```
 
 The agent uses **the same connection discipline as a user request**. There is no `service_role` key
@@ -1064,7 +1181,10 @@ the person-scoped predicate of §2.3 for a person-scoped one.
 
 `tests/invariants/route-manifest.test.ts` (K-08) already asserts that no code path reaches the
 database outside a session helper; this document extends it to the agent runtime and the queue
-worker.
+worker. **The agent layer adds nothing to K-08's closed register of five pre-session functions.**
+Every agent database access is inside `withSystemTenant` or `withGroupScope`; there is no agent
+equivalent of `app.checkin_verbrauchen`, and a new definer function reachable from `agent/**` would
+have to be added to that register in the same PR or the build fails.
 
 ### 6.3 How a cross-tenant call fails
 
@@ -1082,7 +1202,9 @@ worker.
    assertion must never fire; it exists as a canary for a policy regression. It is covered by the
    SEC-A3 isolation suite, extended with agent-run cases and the RAG canaries of §10.6.
 
-`sicherheitsvorfall` is a table this document requires and does not own: `id · mandant_id (RLS,
+`sicherheitsvorfall` is a table this document requires and does not own — `mandant_id` is **NOT
+NULL** (a run always has exactly one tenant; K-16(d) makes `audit_log` the only tenant-adjacent table
+allowed a nullable one): `id · mandant_id (RLS,
 FORCE) · art ('mandant_grenze' | 'injektion' | 'kanarienvogel' | 'handle_unbekannt') · quelle
 ('agent' | 'rag' | 'werkzeug') · agent_aufgabe_id · agent_schritt_id · kennung_hash · details jsonb
 (redacted) · erkannt_am · gemeldet_am · bearbeitet_von · bearbeitet_am`, append-only, no `DELETE`
@@ -1117,8 +1239,10 @@ model would choose its own gate — the one thing §3.5 says is a code-level fac
 - **The orchestrator derives `vorgang_typ` and `personenbezogene_entscheidung`** from
   `(plan_schablone, werkzeug, art, target table)` before `decide()` is called. They are never read
   from a tool argument.
-- The model-supplied `art` is validated to be a member of the set the plan template permits. A
-  mismatch is **`abgebrochen_sicherheit`**, not a re-classification — a document that instructs
+- The model-supplied `art` is validated to be a member of the set the plan template permits, and the
+  **validated** value is what reaches `decide()` as `PolicyInput.art` — the second half of the floor
+  key (§7.3), so an art with a stricter floor than its run's `vorgang_typ` cannot be gated by the
+  looser of the two. A mismatch is **`abgebrochen_sicherheit`**, not a re-classification — a document that instructs
   `art: 'aufgabe'` while carrying an offer payload must fail Zod and abort, and that case is in the
   red-team corpus (§17).
 - `plan.ts` is the same file the registry reads at step 5, so "which tools exist" and "which gate
@@ -1141,9 +1265,14 @@ export interface PolicyInput {
   werkzeug: WerkzeugName;                // one of the nine
   aktion: Aktionsklasse;
   vorgang_typ: AgentVorgangTyp | null;   // DERIVED by the orchestrator (§6.5), never a tool arg
+  art: VorgangArt | EntwurfVorlage | null;  // the erstelle_vorgang / entwirf_text art, VALIDATED
+                                         // against the plan template (§6.5); the second half of the
+                                         // codeFloor key (§7.3), null for read tools
   plan_schablone: PlanSchabloneId;       // which template this run is executing
   mandant_id: string;
-  scope: 'mandant' | 'gruppe';
+  scope: 'mandant' | 'gruppe';           // K-18 has four; `person` and `kunde` are SUBJECT scopes
+                                         // (employee and customer portals) and no agent run enters
+                                         // them (§2.2), so the gate never sees them
   rolle: RolleKennung;                   // the acting principal's role, for approver resolution
   nutzlast: unknown;                     // already Zod-validated tool payload
   geldwert_cent: bigint | null;          // ONLY from a berechne_preis result — never model text
@@ -1159,7 +1288,11 @@ export interface PolicyInput {
                                                      // caller like `richtlinien`, so decide() stays pure
   personenbezogene_entscheidung: boolean;  // a DECISION about an identified person (Art. 22) — §7.2
   personenbezogene_daten: boolean;         // drives redaction and logging, NOT the gate
-  arbzg_befund: 'keine' | 'ueber_8h' | 'ueber_10h' | 'ruhezeit_unter_11h' | 'unbekannt' | null;
+  arbzg_befund: 'keine' | 'ueber_8h' | 'ueber_10h' | 'ruhezeit_unter_11h' | 'pause_fehlt'
+              | 'unbekannt' | null;      // EXACTLY the return union of pruefeArbzgFuerVorschlag
+                                         // (§13.1) plus 'unbekannt' | null — a verdict the service
+                                         // can return and the gate cannot represent is a verdict
+                                         // that is silently dropped or silently mistranslated
   initiator: { typ: 'mensch' | 'zeitplan' | 'ereignis' | 'agent'; benutzer_id?: string };
   richtlinien: AgentRichtlinie[];        // agent_richtlinie rows for this mandant, already loaded
   budget: { verdikt: 'ok' | 'warnung' | 'gestoppt' | 'budget_fehlt' };
@@ -1228,25 +1361,52 @@ personal data. So `personenbezogene_entscheidung` is set by the orchestrator onl
 `zeit_einwand` — and never for `read` or `draft`. The separate `personenbezogene_daten` flag drives
 redaction (§11.3) and log retention (§9.2) and has no effect on the gate.
 
-### 7.3 Code floors — one table, a total function
+### 7.3 Code floors — one table, one key, a total function
 
-`codeFloor(aktion, vorgang_typ)` is a single lookup with no second source (§4.4):
+```ts
+export function codeFloor(
+  aktion: Aktionsklasse,
+  vorgang_typ: AgentVorgangTyp | null,
+  art: VorgangArt | EntwurfVorlage | null,     // the erstelle_vorgang / entwirf_text art, or null
+): Floor;
+```
 
-| Condition | Floor |
+Every row carries **both** discriminators; `—` means the row does not depend on that one. Where more
+than one row matches, the **strictest** wins over the total order of §4.1 — the same arithmetic as
+§4.3, never a precedence table of its own:
+
+| `aktion` | `vorgang_typ` | `art` | Floor |
+|---|---|---|---|
+| `read` | — | — | `allow` |
+| `draft` | — | — (any art, incl. `lv_entwurf`, `text_entwurf`, `shortlist`) | `allow` (§4.4) |
+| `gated_write` | — | `benachrichtigung_intern`, `aufgabe`, `kalender_eintrag` (internal only), `ausschreibung_vorgang`, `vergabemappe`, `lead_notiz` | `allow` |
+| `gated_write` | — | `buchungsvorschlag`, `zahlungszuordnung_vorschlag`, `rechnung_entwurf`, `eingangsrechnung_entwurf`, `stelle_entwurf`, `social_post_entwurf` | `freigabe_erforderlich` |
+| `gated_write` | — | `angebot_entwurf` | `freigabe_erforderlich`, `verzoegerung_verboten` — an offer is never automatic at any value (§4.2) |
+| `gated_write` | — | `einsatz_vorschlag` | `freigabe_erforderlich`, `stufe = 'einzeln'`, `batch_verboten`, `verzoegerung_verboten` (§13) |
+| — | `angebot_erstellen` | — | `freigabe_erforderlich`, `verzoegerung_verboten` |
+| — | `angebot_erstellen` **and** `geldwert_cent > wirksame_grenze_cent` | — | `freigabe_erforderlich`, `stufe = 'einzeln'`, `batch_verboten`, approver rights per richtlinie |
+| `external_send` | — | — | `freigabe_erforderlich`, `stufe = 'einzeln'`, `verzoegerung_verboten` |
+
+**Two modifiers apply on top of the looked-up floor**, whatever it is, and they only ever tighten it:
+
+| Condition on `PolicyInput` | Effect on the resolved floor |
 |---|---|
-| `aktion = 'read'` | `allow` |
-| `aktion = 'draft'` (any art, any `vorgang_typ`) | `allow` |
-| `aktion = 'gated_write'`, art ∈ {`benachrichtigung_intern`, `aufgabe`, `kalender_eintrag` (internal only), `ausschreibung_vorgang`, `vergabemappe`, `lead_notiz`} | `allow` |
-| `aktion = 'gated_write'`, art ∈ {`buchungsvorschlag`, `zahlungszuordnung_vorschlag`, `rechnung_entwurf`, `eingangsrechnung_entwurf`, `stelle_entwurf`, `social_post_entwurf`} | `freigabe_erforderlich` |
-| `aktion = 'gated_write'`, art = `einsatz_vorschlag` | `freigabe_erforderlich`, `stufe = 'einzeln'`, `batch_verboten`, `verzoegerung_verboten` (§13) |
-| `vorgang_typ = 'angebot_erstellen'` (any value) | `freigabe_erforderlich`, `verzoegerung_verboten` |
-| `vorgang_typ = 'angebot_erstellen'` and `geldwert_cent > wirksame_grenze_cent` | `freigabe_erforderlich`, `stufe = 'einzeln'`, `batch_verboten`, approver rights per richtlinie |
-| `aktion = 'external_send'` | `freigabe_erforderlich`, `stufe = 'einzeln'`, `verzoegerung_verboten` |
-| `personenbezogene_entscheidung = true` | `freigabe_erforderlich`, `stufe = 'einzeln'`, `batch_verboten`, `verzoegerung_verboten` |
+| `personenbezogene_entscheidung = true` | at least `freigabe_erforderlich`, `stufe = 'einzeln'`, `batch_verboten`, `verzoegerung_verboten` (Art. 22, §7.2 D5) |
 | `wert_unsicher = true` | raises `risiko` to `hoch` and sets `batch_verboten` (§5.5 rule 7) |
 
-`tests/agent/policy-floor.test.ts` asserts totality over `Aktionsklasse × agent_vorgang_typ`; a new
-enum value with no floor fails the build.
+They are modifiers rather than rows because they are not part of the key: a lookup keyed on
+`(aktion, vorgang_typ, art)` must stay a lookup, or "total function with a single source table" stops
+being checkable.
+
+Two consequences worth stating, because both were wrong when the key was `(aktion, vorgang_typ)`:
+`aufgabe` and `lead_notiz` now have a floor even though no `agent_vorgang_typ` names them, and
+`angebot_entwurf` — which appears in the `erstelle_vorgang` art enum but appeared in no floor row —
+is gated by its art as well as by its `vorgang_typ`, so an offer draft cannot slip through under a
+plan template that derived some other `vorgang_typ` for it.
+
+`tests/agent/policy-floor.test.ts` asserts totality over
+`Aktionsklasse × agent_vorgang_typ × (art ∪ {null})`; a new value in either enum with no floor fails
+the build.
 
 ### 7.4 How `agent_richtlinie` composes — strictness is monotone
 
@@ -1255,7 +1415,8 @@ nie  >  freigabe_erforderlich  >  vorschlag  >  automatisch_mit_hinweis  >  auto
 ```
 
 ```ts
-const ergebnis = strengste(codeFloor(input), richtlinienErgebnis(input));
+const ergebnis = strengste(codeFloor(input.aktion, input.vorgang_typ, input.art),
+                           richtlinienErgebnis(input));
 ```
 
 A policy row can only make things **stricter**. It can turn `automatisch` into
@@ -1279,7 +1440,7 @@ soft deletion (invariant 8), plus two columns this document adds for §14.7:
 
 | Column | Type | Note |
 |---|---|---|
-| `stapel_toleranz_cent` | bigint | batch eligibility (§14.7). **PLACEHOLDER** — `// TODO(client): Bis zu welcher absoluten Abweichung gegenüber dem Vergleichsbeleg gilt eine Position als Routine und darf im Stapel freigegeben werden?` (O-A6) |
+| `stapel_toleranz_cent` | bigint | batch eligibility (§14.7). **PLACEHOLDER** — `// TODO(client, O-109): Bis zu welcher absoluten Abweichung gegenüber dem Vergleichsbeleg gilt eine Position als Routine und darf im Stapel freigegeben werden?` (O-109) |
 | `stapel_toleranz_promille` | integer | the relative half of the same question; both must hold |
 
 Every change to a richtlinie writes `audit_log` (SEC-A9), creates a new version, requires
@@ -1318,12 +1479,22 @@ on:
   serialises callers only if they lock the **same** row (B4).
 - `jahr` / `monat` are a **Berlin** calendar month (**K-11**), converted to UTC instants at the
   window boundaries.
-- Money is `bigint` cents with a `*_rest` carry in millionths, because one model call can cost less
-  than a cent and truncating each one to zero makes the cap unreachable (K-16, and
-  `02-datenmodell/06-RADAR-KI-INHALT.md` §1.12).
+- **Cost and budget accounting counts in `*_mikrocent bigint`** — 10⁻⁶ €, so **one cent is 10 000
+  mikrocent** — which is **K-16(b)**, the one place the convention permits sub-cent columns: one
+  model call can cost less than a cent, and rounding each call to a cent makes the monthly cap either
+  unreachable or wrong. `agent_budget.verbrauch_mikrocent` and `reserviert_mikrocent`,
+  `agent_reservierung.betrag_mikrocent`, `agent_kosten.kosten_mikrocent` and
+  `agent_schritt.kosten_mikrocent` are the **only** such columns in this domain
+  (`02-datenmodell/06-RADAR-KI-INHALT.md` §1.12). `agent_budget.budget_cent` stays `bigint` **cents**
+  — a human enters it in euros — and the comparison **widens the cap** rather than narrowing the
+  spend, because a widening cannot round: `verbrauch_mikrocent + reserviert_mikrocent +
+  neu_mikrocent > budget_cent * 10000`.
+- **Nothing invoiced, booked or exported is micro-cents** (K-16(b)). Every figure that leaves this
+  domain — the run total, the Agent Center, the REP-01 expense line, any export — is `bigint` cents,
+  converted **once**, half-up, at the boundary named in §8.2.
 
 **A run must satisfy every matching budget row.** `app.agent_budget_pruefen(p_mandant, p_agent,
-p_betrag_mikro)` locks the mandant-wide row **and** the per-agent row in a fixed order — mandant
+p_betrag_mikrocent)` locks the mandant-wide row **and** the per-agent row in a fixed order — mandant
 first, then agent — evaluates both, and refuses if either would be exceeded. The fixed order is what
 prevents deadlocks between concurrent agents in one tenant. It **returns a verdict and never
 raises**: `RAISE EXCEPTION` would abort the transaction and roll back the very `status = 'gestoppt'`
@@ -1333,24 +1504,36 @@ an identical failure on every subsequent call.
 `budget.ts` writes `status`, `gestoppt_am` and the `benachrichtigung` in a committed transaction and
 only then refuses the run.
 
-### 8.2 Cost in integer cents (invariant 1)
+### 8.2 Cost in integer micro-cents, converted to cents exactly once (K-16(b), invariant 1)
 
-`agent_preisliste(modell, gueltig_ab, gueltig_bis, preis_eingabe_je_mio_token_cent bigint,
-preis_ausgabe_je_mio_token_cent bigint, preis_gedanken_je_mio_token_cent bigint, waehrung_original,
-version)` with `UNIQUE (modell, gueltig_ab)` and a `daterange` exclusion constraint, is a
-**reference table**: group-wide, no `mandant_id`, an explicit listed exception to invariant 3 (§2.3),
-writes restricted to `app.ist_super_admin()`.
+`agent_preisliste(modell, gueltig_ab, gueltig_bis, preis_eingabe_je_mio_token_mikrocent bigint,
+preis_ausgabe_je_mio_token_mikrocent bigint, preis_gedanken_je_mio_token_mikrocent bigint,
+waehrung_original, version)` with `UNIQUE (modell, gueltig_ab)` and a `daterange` exclusion
+constraint, is a **reference table**: group-wide, no `mandant_id`, an explicit listed exception to
+invariant 3 (§2.3), writes restricted to `app.ist_super_admin()`.
 
-Per call, all `bigint`, rounded up, no float anywhere:
+Per call, all `bigint`, no float anywhere, quantised **half-up to whole micro-cents at the booking
+site** with the rule written beside the expression:
 
 ```
-kosten_mikro = ceilDiv(token_ein  * preis_eingabe_je_mio_token_cent  * 1_000_000, 1_000_000)
-             + ceilDiv(token_aus  * preis_ausgabe_je_mio_token_cent  * 1_000_000, 1_000_000)
-             + ceilDiv(token_gedanken * preis_gedanken_je_mio_token_cent * 1_000_000, 1_000_000)
+kosten_mikrocent = div(token_ein      * preis_eingabe_je_mio_token_mikrocent   + 500_000, 1_000_000)
+                 + div(token_aus      * preis_ausgabe_je_mio_token_mikrocent   + 500_000, 1_000_000)
+                 + div(token_gedanken * preis_gedanken_je_mio_token_mikrocent  + 500_000, 1_000_000)
 ```
 
-The exact `(cent, rest)` pair is summed and rounded **once** at the presentation boundary — never per
-row — so the AGT-05 budget view and the REP-01 expense figure cannot disagree.
+**Where the provider bills in another currency**, `agent_kosten` stores the provider's original
+amount and currency alongside the euro micro-cents, and the exchange rule is **not decided here**:
+which FX source and which date convert a USD model bill into the EUR budget of AGT-05 is an open
+question the budget screen and the price list own (**O-48** in `04-SEITENKARTE.md`, the currency half
+of **O-36** in `02-datenmodell/06-RADAR-KI-INHALT.md`). Until it is answered, `agent_preisliste`
+carries euro prices entered by a human with `ist_platzhalter = true`; no rate is inferred, and no
+figure is converted by a rule this document invented.
+
+**The single conversion to cents** is `kosten_cent = div(Σ kosten_mikrocent + 5000, 10000)`,
+half-up, and it happens at exactly two sites, each stating the rule beside it: `agent_aufgabe`'s run
+total (§9.1) and the reporting boundary that feeds the AGT-05 budget view and the REP-01 expense
+figure. One rule, one rounding, one place — so the two figures cannot disagree, and no rounded value
+is ever fed back into the accounting.
 
 ### 8.3 The reservation protocol — three transactions, not one lock across a network call
 
@@ -1361,9 +1544,9 @@ in-transaction connection during a provider stall is how a connection pool is ex
 
 | # | Transaction | Effect |
 |---|---|---|
-| 1 | **Reserve and commit** | `app.agent_budget_pruefen` locks both rows in the fixed order, evaluates `verbrauch + reserviert + schaetzung > budget`, and on `ok` inserts an `agent_reservierung` row with `verfaellt_am`. `trg_reservierung_zaehler` maintains `agent_budget.reserviert_*`. Commit — the lock is released before the model is called. |
-| 2 | *(no transaction)* | The model call runs. `schaetzung_cent` is the **worst case** at `max_tokens`, never an average, so an overrun cannot exceed the reservation. |
-| 3 | **Book and release** | An `agent_kosten` row records the actual `(cent, rest)` pair, the `agent_preisliste_id`, the tokens and the provider's original amount and currency; `trg_budget_fortschreiben` adds the exact pair to `verbrauch_*` and releases the reservation, in one transaction. |
+| 1 | **Reserve and commit** | `app.agent_budget_pruefen` locks both rows in the fixed order, evaluates `verbrauch_mikrocent + reserviert_mikrocent + schaetzung_mikrocent > budget_cent * 10000` (§8.1), and on `ok` inserts an `agent_reservierung` row with `betrag_mikrocent` and `verfaellt_am`. `trg_reservierung_zaehler` maintains `agent_budget.reserviert_mikrocent`. Commit — the lock is released before the model is called. |
+| 2 | *(no transaction)* | The model call runs. `schaetzung_mikrocent` is the **worst case** at `max_tokens`, never an average, so an overrun cannot exceed the reservation. |
+| 3 | **Book and release** | An `agent_kosten` row records the actual `kosten_mikrocent`, the `agent_preisliste_id`, the tokens and the provider's original amount and currency; `trg_budget_fortschreiben` adds that exact integer to `agent_budget.verbrauch_mikrocent` and releases the reservation, in one transaction. No cent conversion happens here — the accounting stays in micro-cents until §8.2's single boundary. |
 
 A named reservation row, rather than a bare counter, is what makes a crashed or refused run
 recoverable: `jobs/watchdogs/agent-reservierung-verfall.ts` releases rows past `verfaellt_am` with
@@ -1373,10 +1556,10 @@ reservation permanently, and within weeks the hard stop fires on phantom spend t
 disprove.
 
 **Per-run caps** stop runaway loops long before the monthly cap: `max_schritte`, `max_token_gesamt`,
-`max_laufzeit_sek`, `max_kosten_cent`. `agent.max_schritte` is a **PLACEHOLDER** — a silent cap is
+`max_laufzeit_sek`, `max_kosten_mikrocent`. `agent.max_schritte` is a **PLACEHOLDER** — a silent cap is
 what gets blamed for a mysteriously truncated result:
-`// TODO(client): Wie viele Werkzeugschritte darf ein Agent je Aufgabe ausführen, bevor er abbricht
-und den Vorgang einem Menschen vorlegt?` (O-A11). Exceeding any cap terminates the run as
+`// TODO(client, O-37): Wie viele Werkzeugschritte darf ein Agent je Aufgabe ausführen, bevor er abbricht
+und den Vorgang einem Menschen vorlegt?` (O-37). Exceeding any cap terminates the run as
 `abgebrochen` with the limit named, and notifies the same way.
 
 ### 8.4 What the user sees — an explicit stop, never a degraded answer
@@ -1389,10 +1572,10 @@ und den Vorgang einem Menschen vorlegt?` (O-A11). Exceeding any cap terminates t
   seit {Uhrzeit} Uhr."* The figures are **rendered from the row**; no example amount appears in this
   document or in seed data, because a plausible number in a contract document becomes the default by
   copy-paste. `agent_budget.budget_cent` is a PLACEHOLDER with `ist_platzhalter = true` until the
-  client answers: `// TODO(client): Monatsbudget je Gesellschaft und je Agent?` (O-A5). The warning
+  client answers: `// TODO(client, O-26): Monatsbudget je Gesellschaft und je Agent?`. The warning
   threshold is likewise not invented — AGT-05 specifies a cap and a hard stop and says nothing about
-  a warning level: `// TODO(client): Ab welchem Anteil des Monatsbudgets soll gewarnt werden?`
-  (O-A5b).
+  a warning level: `// TODO(client, O-36): Ab welchem Anteil des Monatsbudgets soll gewarnt werden?`
+  (O-36).
 - Every agent entry point — the chat box, *Entwurf erzeugen*, *Beleg auswerten* — renders disabled
   with the same reason. No silent queueing.
 - **The approval inbox is unaffected.** Items already awaiting a human remain fully actionable, and
@@ -1417,10 +1600,13 @@ Both are owned by `02-datenmodell/06-RADAR-KI-INHALT.md` §3.9. What this docume
 never figures — K-10) · ergebnis · bezug_typ/bezug_id · idempotenz_schluessel · korrelation_id ·
 angefordert_von · ausgeloest_durch · gestartet_am · beendet_am · dauer_ms · schritte_anzahl ·
 kosten_cent · budget_stopp · fehler_text`, plus the prompt, policy and code versions this document
-requires for replay (§19).
+requires for replay (§19). `kosten_cent` is `bigint` **cents** and is one of the two K-16(b)
+conversion sites: `div(Σ agent_kosten.kosten_mikrocent + 5000, 10000)`, half-up, with the rounding
+rule stated beside the expression (§8.2).
 
 `agent_schritt`, append-only, one row per model or tool call: `agent_aufgabe_id · schritt_nr ·
-werkzeug · modell · eingabe/ausgabe jsonb · eingabe_hash/ausgabe_hash · tokens · kosten ·
+werkzeug · modell · eingabe/ausgabe jsonb · eingabe_hash/ausgabe_hash · tokens ·
+kosten_mikrocent (10⁻⁶ €, K-16(b) — never converted per row, §8.2) ·
 dauer_ms · status · richtlinie_id · freigabe_id · begonnen_am/beendet_am · nutzlast_loeschfrist_am ·
 nutzlast_geloescht_am`, with `UNIQUE (agent_aufgabe_id, schritt_nr)`. This document additionally
 requires:
@@ -1431,9 +1617,9 @@ requires:
 | `quellen` | the `Quelle[]` used | APR-03 evidence |
 | `vertrauen_zusammenfassung` | how many fields entered the prompt as `untrusted` | §12 monitoring |
 | `injektionsverdacht` | boolean plus the matched pattern | §12 mechanism 8 |
-| `dauer_ms` | difference of two **server** instants | invariant 5 |
+| `dauer_ms` | difference of two **server** instants, integer milliseconds — a measured duration (K-16(c)) | invariant 5 |
 
-`eingabe`/`ausgabe` are column-granted away from `cse_app` (**K-05**) and reachable only through
+`eingabe`/`ausgabe` are **revoked** from `cse_app` (**K-05**) and reachable only through
 `app.agent_nutzlast_lesen`, which re-checks `agent.protokoll_lesen` in the active mandant and writes
 `audit_log`. Column privileges, not a masking view: a view hands out the raw column beside the
 masked copy, and the two ways to make one work are both wrong (K-05).
@@ -1469,9 +1655,9 @@ The **row** is never deleted in either case (invariant 8; agent logs are an audi
 blobs — full document text, images, full prompts — live in a private bucket referenced by hash and
 are fetched only through signed URLs with a 15-minute expiry, never a public path (DOC-03, SEC-A6).
 
-`// TODO(client): Wie lange dürfen Modell-Ein- und -Ausgaben eines Agentenlaufs außerhalb des
+`// TODO(client, O-39): Wie lange dürfen Modell-Ein- und -Ausgaben eines Agentenlaufs außerhalb des
 GoBD-pflichtigen Finanzbereichs gespeichert bleiben, bevor sie geschwärzt werden (LEG-09,
-DSGVO-Löschkonzept)?` (O-A10a).
+DSGVO-Löschkonzept)?` (O-39).
 
 **The GoBD/Art. 17 tension is named, not resolved by silence.** `agent_schritt`, `agent_artefakt`,
 `wissens_chunk` and `freigabe_snapshot` all hold personal data and are all declared never-deletable.
@@ -1480,9 +1666,9 @@ pseudonymisation in place**: the person's identifiers are replaced by the run's 
 `eingabe`/`ausgabe`, the chunk is deactivated (`ist_aktiv = false`) and excluded from retrieval, the
 snapshot is untouched because Art. 17(3)(b) exempts processing required by a legal obligation, and
 the request itself is recorded. Whether that satisfies the client's Löschkonzept is a question for
-their DPO, not for this document: `// TODO(client): Wie wird ein Auskunfts- und Löschbegehren nach
+their DPO, not for this document: `// TODO(client, O-113): Wie wird ein Auskunfts- und Löschbegehren nach
 Art. 15/17 DSGVO auf Agentenprotokolle, Wissens-Chunks und Freigabe-Snapshots angewendet, wenn
-GoBD/§147 AO eine Aufbewahrung verlangt?` (O-A14).
+GoBD/§147 AO eine Aufbewahrung verlangt?` (O-113).
 
 **LEG-11 / REC-07** interact with the same rule: a parsed CV in an agent step survives the applicant
 purge as a hash plus a redacted summary. Applicant-related steps therefore use the `bewerbung`
@@ -1535,7 +1721,7 @@ so it is a tenant table and it needs a tenant column. This document requires it 
 | Column | Type | Note |
 |---|---|---|
 | `id`, `mandant_id`, `erstellt_am`, `erstellt_von`, `geaendert_am` | K-16 common columns | `mandant_id NOT NULL`, RLS + FORCE (K-01, K-03) |
-| `agent_aufgabe_id`, `agent_schritt_id` | uuid | composite FK `(mandant_id, …)`; the run that produced it |
+| `agent_aufgabe_id`, `agent_schritt_id` | uuid | composite FK `(mandant_id, …)`; the run that produced it. Each parent — `agent_aufgabe`, `agent_schritt` — must declare the matching `UNIQUE (mandant_id, id)`, and `agent_artefakt` declares its own, because `freigabe.artefakt_id` and `ersetzt_artefakt_id` point at it (K-16) |
 | `art` | enum | `lv_entwurf · text_entwurf · vergabemappe_pruefliste · buchungsvorschlag_entwurf · abrechnungsentwurf · shortlist` |
 | `vorlage` | text | for `text_entwurf`: the `entwirf_text` template used |
 | `status` | enum | `entwurf · freigegeben · verworfen · ersetzt` |
@@ -1559,8 +1745,10 @@ row.
 ### 10.1 `wissens_chunk`
 
 Owned by `02-datenmodell/06-RADAR-KI-INHALT.md` §3.11. What this document depends on: `PRIMARY KEY
-(mandant_id, id)` — a stated exception to K-16's single-column primary key, because the table is
-`PARTITION BY LIST (mandant_id)` and Postgres requires the partition key in the key; `quelle_typ`,
+(mandant_id, id)` — **K-16(a)**, the permitted composite-key deviation, and `wissens_chunk` is the
+case the convention names: the table is `PARTITION BY LIST (mandant_id)` and Postgres requires the
+partition key in the primary key. Every FK pointing at it is composite and this table is itself the
+`UNIQUE (mandant_id, id)` parent those FKs need (K-16); `quelle_typ`,
 `quelle_id`, `quelle_tabelle`, `chunk_index`, `text`, `seite`, `embedding`, `embedding_modell`,
 `embedding_dim`, `vertraulichkeit`, `ist_aktiv`, `inhalt_hash`, `quelle_geaendert_am`.
 
@@ -1728,7 +1916,7 @@ diff is reviewable.
 | Check-in geo-coordinates | Never transmitted (LEG-10, and O-06 on the Betriebsrat) |
 | Signature images (CLN-04, SEC-07) | Never transmitted |
 | Customer bank details, login data, tokens, signed URLs | Never transmitted |
-| Faces in photos (`pruefe_bilder`) | Blurred locally, downscaled rendition only (O-A7) |
+| Faces in photos (`pruefe_bilder`) | Blurred locally, downscaled rendition only (O-110) |
 
 The pseudonym map lives server-side for the life of the run — encrypted, tied to the run, purged with
 the payload blobs — so drafts read naturally to the approver while the model never held the real
@@ -1793,8 +1981,11 @@ export async function pruefeArbzgFuerVorschlag(
   db: TenantDb, person_id: string, fenster: { beginn_utc: string; ende_utc: string },
 ): Promise<{
   verstoss: 'keine' | 'ueber_8h' | 'ueber_10h' | 'ruhezeit_unter_11h' | 'pause_fehlt';
-  tagesarbeitszeit_minuten: number;      // aggregated per PERSON across entities (D-09 c.1)
-  ruhezeit_minuten: number | null;       // spans entities (D-09 c.2)
+                                         // the same five values PolicyInput.arbzg_befund carries
+  tagesarbeitszeit_minuten: number;      // INTEGER minutes — a MEASURED duration, and evidence,
+                                         // so never fractional (K-16(c)); per PERSON across
+                                         // entities (D-09 c.1)
+  ruhezeit_minuten: number | null;       // integer minutes, measured; spans entities (D-09 c.2)
   quelle: 'arbzg_belastung';
 }>;
 ```
@@ -1814,14 +2005,27 @@ is part of the Back-office agent's binding and appears in the same permission ma
 
 ### 13.2 What the verdict does
 
-| Verdict | Effect on the proposal |
-|---|---|
-| `keine` | The proposal proceeds under the floor of §7.3 (`freigabe_erforderlich`, `stufe = einzeln`). |
-| any other value | `risiko = 'hoch'`, `batch_verboten = true`, `verzoegerung_verboten = true`, and the approval screen carries a **breach banner naming the rule and the number** — *"§3 ArbZG: 11 h 00 min Tagesarbeitszeit über alle Beschäftigungsverhältnisse"* — not merely a name and a shift. |
-| `unbekannt` / not run | `decide()` returns `deny` with `arbzg_verstoss_ungeprueft` (§7.2 D12). A proposal that could not be checked is not a proposal. |
+| Verdict | Rule it represents | Effect on the proposal |
+|---|---|---|
+| `keine` | — | The proposal proceeds under the floor of §7.3 (`freigabe_erforderlich`, `stufe = einzeln`). |
+| `ueber_8h` | §3 ArbZG working time beyond the regular daily limit | `risiko = 'hoch'`, `batch_verboten = true`, `verzoegerung_verboten = true`, and a **breach banner naming the rule and the number** — *"§3 ArbZG: {minuten} Tagesarbeitszeit über alle Beschäftigungsverhältnisse"* — not merely a name and a shift. |
+| `ueber_10h` | §3 ArbZG working time beyond the extended daily limit | as above |
+| `ruhezeit_unter_11h` | §5 ArbZG rest period between two shifts | as above |
+| `pause_fehlt` | §4 ArbZG rest **break** within the shift | as above |
+| `unbekannt` / not run | — | `decide()` returns `deny` with `arbzg_verstoss_ungeprueft` (§7.2 D12). A proposal that could not be checked is not a proposal. |
 
-The banner's minutes are a `GebundenerWert` from the service, so the number in front of the approver
-is the service's number (§5.5).
+**The five verdict values are one vocabulary, declared once**: the return union of
+`pruefeArbzgFuerVorschlag` (§13.1) and `PolicyInput.arbzg_befund` (§7.1) are the same set, and a test
+asserts it. A verdict the service can produce and the gate cannot represent is either dropped — the
+"any other value" escalation never fires and an unlawful proposal is treated as clean — or coerced to
+`unbekannt` and denied under D12 with a code that names the wrong problem.
+
+**The minute thresholds are not stated here and are not this document's to state.** How many minutes
+each rule allows, whether the §3 Abs. 1 Satz 2 ten-hour extension is in use and over which
+compensation window, and what break lengths apply, are **O-18**; the evaluation lives in
+`services/zeit/lesen/` and `02-datenmodell/04-PLANUNG-ZEIT.md` owns it. This document consumes the
+verdict and never recomputes it — the banner's minutes are the service's `GebundenerWert`, so the
+number in front of the approver is the service's number and not a model's paraphrase of it (§5.5).
 
 ### 13.3 The hard block is not here
 
@@ -1850,39 +2054,61 @@ it. The inbox is therefore engineered against a load target, not only against a 
 
 | Goal | Mechanism |
 |---|---|
-| ≤ 10 items per person per day | Bundling, batch eligibility, autonomy proposals (§14.14) |
+| A per-person daily item count low enough to be read — the **illustrative design target is ten**, and it is a design target, not a configured rule | Bundling, batch eligibility, autonomy proposals (§14.14) |
 | Every item decidable in one screen | Diff first, source panel beside it, no navigation required to decide |
 | Every item decidable in ≤ 60 seconds | Structured headline sentence plus changed rows only |
 | Zero no-op items | An item whose only content is "nothing changed" is never created as a *notification*; it may still exist as an approval where the artefact itself is the deliverable, and it is then the strongest batch candidate |
 | Attention spent where risk is | Uncertain fields, new counterparties, ArbZG findings and values over the threshold force individual review |
 | Rubber-stamping visible | Server-measured review duration, APR-08 (§14.14) |
-| Queue overload visible | Alert when a role's open queue exceeds 15 items or the daily creation rate exceeds the target |
+| Queue overload visible | Alert when a role's open queue or the daily creation rate exceeds its configured threshold (§14.14; the thresholds are placeholders under O-111, seeded to err toward fewer alerts) |
 
 ### 14.2 Data model
 
 Owned by `02-datenmodell/06-RADAR-KI-INHALT.md` §4, in the shape **K-13** fixes. The five tables are
-`freigabe_kette`, `freigabe`, `freigabe_feld`, `freigabe_ansicht`, `freigabe_snapshot`. This document
-depends on:
+`freigabe_kette`, `freigabe`, `freigabe_feld`, `freigabe_ansicht`, `freigabe_snapshot`. All five are
+tenant tables: `mandant_id uuid not null`, RLS with `FORCE` (K-01, K-03, invariant 3), no hard delete
+(invariant 8), K-16 common columns, and **every instant column `timestamptz` stored UTC and displayed
+`Europe/Berlin`** (invariant 2) — `frist`, `verzoegerte_freigabe_bis`, `undo_bis`, `ausgefuehrt_am`,
+`geoeffnet_am_server`, `entschieden_am`, `erstellt_am`. This document depends on:
 
 - **`freigabe`** — `mandant_id (RLS, FORCE) · vorgang_typ · titel · zusammenfassung · risiko ·
   risiko_punkte · frist · diff jsonb · vorschau_payload jsonb · payload_hash · betrag_cent bigint ·
-  agent_aufgabe_id · agent_id · richtlinie_id · bezug_typ/bezug_id · status · stapel_faehig ·
-  stapel_sperre_grund · min_konfidenz · unsichere_felder_anzahl · verzoegerte_freigabe_bis ·
-  undo_bis · zugewiesen_an · ausfuehrung_status · ausgefuehrt_am · ausfuehrung_fehler ·
-  ersetzt_durch_freigabe_id`. **It carries no `hash` and no `vorheriger_hash`** (K-13): it is a row
-  whose status changes, and hashing it would mean covering columns that change or silently covering
-  an undeclared subset.
-- **`freigabe_feld`** — one row per extracted field with `feld_pfad`, `konfidenz`, `unsicher`, and a
-  `CHECK` that every field can name **some** source (APR-03).
+  agent_aufgabe_id · agent_id · richtlinie_id · **artefakt_id** · **vergleichsartefakt_id** ·
+  bezug_typ/bezug_id · status · stapel_faehig · stapel_sperre_grund · min_konfidenz ·
+  unsichere_felder_anzahl · verzoegerte_freigabe_bis · undo_bis · zugewiesen_an ·
+  ausfuehrung_status · ausgefuehrt_am · ausfuehrung_fehler · ersetzt_durch_freigabe_id`.
+  `artefakt_id` and `vergleichsartefakt_id` are composite FKs `(mandant_id, …) REFERENCES
+  agent_artefakt (mandant_id, id)` — the drafted artefact the review screen renders (§9.4:
+  `sende_email.koerper` **is** an `ArtefaktHandle`, so without this column the approved body has no
+  stored identity) and the deterministic comparable of §14.5. **It carries no `hash` and no
+  `vorheriger_hash`** (K-13): it is a row whose status changes, and hashing it would mean covering
+  columns that change or silently covering an undeclared subset.
+- **`freigabe_feld`** — one row per extracted field with `feld_pfad`, `konfidenz numeric(4,3)` (a
+  probability, not money and not a duration), `unsicher`, and a `CHECK` that every field can name
+  **some** source (APR-03).
 - **`freigabe_ansicht`** — `geoeffnet_am_server` written only by `now()`, never from a request body.
 - **`freigabe_snapshot`** — `id · mandant_id · freigabe_id · erstellt_am · kette_nr · art ·
-  entschieden_von · entschieden_am · nutzlast · nutzlast_hash · vorher_hash · hash · pruefdauer_sek ·
-  stapel_id · begruendung · widerruft_snapshot_id · ip_adresse · user_agent`, append-only, with
-  `UNIQUE (mandant_id, kette_nr)`.
+  entschieden_von · rolle · entschieden_am · nutzlast · nutzlast_hash · **artefakt_hash** · **diff ·
+  diff_hash** · **felder · felder_hash** · **ansicht_modell · ansicht_modell_hash** ·
+  **policy_ergebnis · policy_ergebnis_hash** · **richtlinien_version · code_version · modell ·
+  prompt_version** · vorher_hash · hash · pruefdauer_sek · ist_stapel · stapel_id · stapel_groesse ·
+  begruendung · widerruft_snapshot_id · ip_adresse · user_agent`, append-only, with
+  `UNIQUE (mandant_id, kette_nr)`. Every instant is `timestamptz` stored UTC (invariant 2, K-16);
+  `pruefdauer_sek` is an integer count of seconds between two server instants — a measured duration,
+  never fractional (K-16(c)).
 
-Two additions this document requires (§19): `vergleichsartefakt_id` on `freigabe` (the deterministic
-comparable of §14.5, so an audit can see *what it was compared against*), and `ausfuehrung_versuch
-integer not null default 0` plus `externe_ref text` for the execution protocol of §14.10.
+The bolded columns are the presentation, and they are in the row **and** in the hash because §14.10's
+sentence — *approved on the basis of this presentation* — is otherwise unbacked: with only
+`nutzlast_hash` in the formula, the diff, the field evidence and the policy trace sit outside the
+tamper-evident chain, which is precisely the "silently covering an undeclared subset" failure K-13
+names, one level down.
+
+Three additions this document requires of `02-datenmodell/06-RADAR-KI-INHALT.md` (§19): the columns
+above on `freigabe_snapshot` **together with the extended hash formula below**, `artefakt_id` and
+`vergleichsartefakt_id` on `freigabe` (the rendered artefact and the deterministic comparable of
+§14.5, so an audit can see what was approved and what it was compared against), and
+`ausfuehrung_versuch integer not null default 0` plus `externe_ref text` for the execution protocol
+of §14.10.
 
 **The chain covers the snapshot, not the mutable row, and it is serialised** (K-13, B3).
 `freigabe_snapshot.kette_nr bigint` comes from `app.freigabe_kette_naechste(mandant_id)`, which
@@ -1892,8 +2118,18 @@ mandant read the same `vorher_hash` and fork the chain, and the nightly verifica
 a break on every busy day, or is written to tolerate forks and verifies nothing.
 
 ```
-hash = SHA256( nutzlast_hash ‖ art ‖ entschieden_von ‖ entschieden_am ‖ kette_nr ‖ vorher_hash )
+hash = SHA256( nutzlast_hash ‖ artefakt_hash ‖ diff_hash ‖ felder_hash ‖ ansicht_modell_hash
+             ‖ policy_ergebnis_hash ‖ art ‖ entschieden_von ‖ entschieden_am ‖ kette_nr
+             ‖ vorher_hash )
 ```
+
+Each component enters as its lower-case hex digest or, where the snapshot genuinely has none — an
+approval with no comparable and therefore no diff, a rejection with no rendered artefact — as the
+**empty string**, and the components are joined by a single `0x1F` separator. Stated because a chain
+whose canonicalisation is implicit is a chain two implementations verify differently, and both
+`freigabe:verify` (§9.3) and the nightly walker have to agree byte for byte.
+`02-datenmodell/06-RADAR-KI-INHALT.md` §4.7 currently states the short formula; both documents must
+carry this one, or the offline verifier and the database disagree about what "intakt" means (§19).
 
 `jobs/watchdogs/freigabe-kette-verify.ts` walks the chain nightly and pages on a break (SPEC §14's
 "Invoice hash chain broken" watchdog, applied to the approval chain).
@@ -1950,8 +2186,20 @@ create policy p_intern_ceiling on freigabe as restrictive for all to cse_app
 ```
 
 `freigabe_feld`, `freigabe_ansicht` and `freigabe_snapshot` carry the same shape plus
-`p_gruppe_kein_personenbezug`, and `freigabe_snapshot.pruefdauer_sek` is additionally column-granted
-behind `freigabe.pruefdauer_lesen` (K-05) — see §14.14.
+`p_gruppe_kein_personenbezug`. `freigabe_snapshot.pruefdauer_sek` takes the **K-05 shape, not a
+conditional grant**: `revoke select (pruefdauer_sek) on freigabe_snapshot from cse_app`, and the
+column is read only through `app.freigabe_pruefdauer_lesen(p_snapshot)`, `SECURITY DEFINER`, which
+re-checks `freigabe.pruefdauer_lesen` **and** `mandant_id = app.aktiver_mandant()` and writes
+`audit_log`. "Column-granted behind a right" is not a thing Postgres can do — a `GRANT` is to a role,
+and every session here is `cse_app`, so the grant would hand the column to everyone (§14.14, O-06,
+`02-datenmodell/06-RADAR-KI-INHALT.md` §4.7).
+
+**Neither portal of K-18 reads approvals at all, and that is by construction.** `freigabe` and its
+four sibling tables declare **no `person` and no `kunde` policy**, so an employee session
+(`withPersonScope`) and a customer session (`withKundeScope`) match no `SELECT` policy and read zero
+rows; `p_intern_ceiling` is the restrictive second line. This is the correct outcome of K-18, not a
+gap: an approval names customers, prices and margins (EMP-13), and it is decided by internal staff in
+one tenant.
 
 **The combined multi-mandant list shows counts only.** A cross-mandant detail list cannot be produced
 under a single `app.mandant_id` and, if produced, would show a cleaning Leitung the offer values of
@@ -2084,7 +2332,7 @@ at all. The key is instead `${objekt_id}|${leistungskatalog_id}|${einheit}` plus
 
 ```ts
 // src/server/services/freigabe/vergleich-schluessel.platzhalter.ts
-// TODO(client, O-A15): Welche Merkmale unterscheiden zwei Rechnungspositionen fachlich voneinander —
+// TODO(client, O-114): Welche Merkmale unterscheiden zwei Rechnungspositionen fachlich voneinander —
 // gehört die Tarif- bzw. Zuschlagsgruppe zur Identität einer Position oder ist sie ein Attribut,
 // dessen Änderung als Änderung derselben Position angezeigt werden soll?
 export const ZUSAETZLICHE_SCHLUESSEL_MERKMALE: readonly string[] = [];
@@ -2150,8 +2398,8 @@ signal:
 | Addressee match | which of the three entities is the recipient; ambiguous → `unsicher` |
 | Propagation | any bound value with `unsicher = true` (§5.5 rule 7) marks the fields derived from it |
 
-The threshold itself is not invented: `// TODO(client): Ab welcher Konfidenz gilt ein extrahiertes
-Feld als unsicher und erzwingt Einzelprüfung (APR-03, APR-04)?` (O-A4). Until answered,
+The threshold itself is not invented: `// TODO(client, O-38): Ab welcher Konfidenz gilt ein extrahiertes
+Feld als unsicher und erzwingt Einzelprüfung (APR-03, APR-04)?` (O-38). Until answered,
 `KONFIDENZ_SCHWELLE` is a placeholder constant with `ist_platzhalter` semantics, and the seeded value
 errs strict.
 
@@ -2177,7 +2425,7 @@ separate `korrektur` table that would duplicate them.
    `CHECK (unsichere_felder_anzahl = 0 OR NOT stapel_faehig)`;
 5. no new counterparty, no new object, no new bank account, no new tax treatment;
 6. `|delta_netto_cent| ≤ stapel_toleranz_cent` **and** `≤ stapel_toleranz_promille` of the comparable
-   (§7.4, O-A6);
+   (§7.4, O-109);
 7. `injektionsverdacht = false`;
 8. `personenbezogene_entscheidung = false` (Art. 22 items are never batched);
 9. `betrag_cent ≤ wirksame_grenze_cent`;
@@ -2222,8 +2470,8 @@ or a contact deleted must all still block. The resulting snapshot carries `art =
 'automatisch_nach_frist'` and is the only `art` for which `entschieden_von` may be NULL.
 
 Window durations are configurable per `vorgang_typ` (`verzoegerung_sek`) and are a **placeholder**:
-`// TODO(client): Wie lang sollen Einspruchsfenster (APR-05) und Undo-Fenster (APR-06) je
-Vorgangstyp sein?` (O-A4b).
+`// TODO(client, O-108): Wie lang sollen Einspruchsfenster (APR-05) und Undo-Fenster (APR-06) je
+Vorgangstyp sein?` (O-108).
 
 ### 14.9 Undo (APR-06)
 
@@ -2256,11 +2504,13 @@ the database level:
 | `entschieden_von`, `rolle`, `entschieden_am` (server clock), `ip_adresse`, `user_agent` | who, when, from where (SEC-A9) |
 | `stapel_id`, `stapel_groesse` | when approved in a batch |
 | `pruefdauer_sek` | APR-08, computed server-side (§14.14) |
-| `kette_nr`, `vorher_hash`, `hash` | the K-13 chain |
+| `kette_nr`, `vorher_hash`, `hash` | the K-13 chain — `hash` covers the payload **and** the five presentation hashes (§14.2) |
 
 *"Approved"* means **approved on the basis of this presentation** — which is why the diff, the
-sources and the view model are part of the snapshot, not only the payload. A correction after the
-fact never mutates a snapshot: it is a new `freigabe` (§14.7), and where the artefact has already
+sources and the view model are part of the snapshot, not only the payload, and why each of them
+contributes a hash to the chain link (§14.2). Every field in the table above is a **column** of
+`freigabe_snapshot`; none of them is a claim about a blob stored somewhere else. A correction after
+the fact never mutates a snapshot: it is a new `freigabe` (§14.7), and where the artefact has already
 reached the finance domain the correction is a Storno (invariant 4, K-12).
 
 **The snapshot is the identity record, too** (K-12). For a `rechnung_entwurf`, the approved payload
@@ -2303,19 +2553,22 @@ returning id, ausfuehrung_versuch;
 Concurrency test: N simultaneous executors against one approved `freigabe` produce exactly one
 external effect.
 
-### 14.11 Appointments and the calendar (CAL-01, and O-A1 answered structurally)
+### 14.11 Appointments and the calendar (CAL-01, and O-105 answered structurally)
 
 `erstelle_vorgang(art: 'kalender_eintrag')` writes a `kalender_eintrag` of type `kundentermin`,
 `besprechung`, `frist` or `wiedervorlage` into the **central calendar** (CAL-01), owned by the
 calendar document. It is visible per CAL-02's filters and flows into the per-user read-only iCal feed
-(CAL-03) through the existing feed token — the agent creates no feed and no subscription.
+(CAL-03) through the existing feed token — the agent creates no feed and no subscription. That feed
+is read by `app.ical_feed_lesen(feed_token_hash)` as `cse_anon`, the fifth and last entry of K-08's
+closed register; it is a sanctioned session-less read path of the calendar document's, not one this
+document adds.
 
 The structural answer to *"is confirming an appointment an external send?"*: **the calendar entry and
 the customer notification are two acts.** Writing the entry is `gated_write` at floor `allow`, so it
 runs as `automatisch_mit_hinweis` with an undo window. Telling the customer is a `sende_email` call,
 which is `external_send` and therefore `freigabe_erforderlich` — the stricter row wins (§4.3), and no
 configuration merges them, because they are different tool calls with different floors. What remains
-genuinely open is a business preference, not a rule to invent: `// TODO(client, O-A1): Soll eine
+genuinely open is a business preference, not a rule to invent: `// TODO(client, O-105): Soll eine
 Terminbestätigung an Kundinnen und Kunden automatisch als Entwurf zur Freigabe erzeugt werden, oder
 nur der interne Kalendereintrag ohne jede Nachricht?`
 
@@ -2362,13 +2615,18 @@ rows; secondary signals (fields opened, source panel opened, unchanged block exp
 but never substitute for the two instants.
 
 **Flagging.** `jobs/watchdogs/freigabe-rubberstamp.ts` evaluates, per `(entschieden_von,
-vorgang_typ)` over a rolling window of 20 decisions: a **median** `pruefdauer_sek` below the
-threshold together with an approval rate above the threshold and zero corrections raises a
+vorgang_typ)` over a rolling window of the last *n* decisions: a **median** `pruefdauer_sek` below
+the threshold together with an approval rate above the threshold and zero corrections raises a
 notification of type `freigabe_rubberstamp` to leadership. It writes nothing into
-`freigabe_snapshot`. The two numeric thresholds are **placeholders** — SPEC §17 names "consistent
-sub-three-second approvals" as the phenomenon, not as a configured rule:
-`// TODO(client, O-A8b): Ab welcher Median-Prüfdauer und ab welcher Genehmigungsquote gilt ein
-Muster als Durchwinken, und wer wird informiert?` The seeded values err toward fewer flags.
+`freigabe_snapshot`. **All three parameters are placeholders** — the median threshold, the approval
+rate and the window size *n* — because SPEC §17 names "consistent sub-three-second approvals" as the
+phenomenon, not as a configured rule, and a number written into a design document becomes the
+production default by copy-paste:
+`// TODO(client, O-111): Ab welcher Median-Prüfdauer, ab welcher Genehmigungsquote und über wie viele
+Entscheidungen hinweg gilt ein Muster als Durchwinken; ab welcher offenen Warteschlange je Rolle und
+ab welcher Tagesmenge neuer Freigaben soll gewarnt werden; und wer wird jeweils informiert?` They
+live as config rows with `ist_platzhalter = true`, render with the `warning` pill *"Unbestätigter
+Wert"* (§15), and the seeded values err toward fewer flags.
 
 The flag offers the two readings SPEC §17 states, and no third:
 
@@ -2384,9 +2642,10 @@ The flag offers the two readings SPEC §17 states, and no third:
   approval is *physically impossible* on exactly the items where it would matter.
 - Items of the same `vorgang_typ` and counterparty within a window are bundled into a single request
   with n sub-items rather than n requests.
-- Queue-load alerting: a role's open queue above 15 items, or a daily creation rate above the target,
-  notifies leadership with the breakdown by `vorgang_typ`. The fix is autonomy tuning or fewer,
-  better-bundled items — never a bigger inbox.
+- Queue-load alerting: a role's open queue above its configured threshold, or a daily creation rate
+  above its own, notifies leadership with the breakdown by `vorgang_typ`. Both thresholds are
+  placeholder config values under **O-111**, not constants in this document. The fix is autonomy
+  tuning or fewer, better-bundled items — never a bigger inbox.
 - Empty-diff notification-style items are never created.
 - Approval capacity is a reviewable metric in the Agent Center: items per day, median review time,
   correction rate and rejection rate per art. A high correction rate means the extraction is weak; a
@@ -2401,10 +2660,12 @@ under **O-06**, the same open question that blocks LEG-10.
 
 Until it is answered: `pruefdauer_sek` is collected but evaluated only in **aggregated,
 pseudonymised** form; person-level evaluation sits behind a feature flag that is **off by default**
-and whose state change is written to `audit_log`; `freigabe.pruefdauer_lesen` is column-granted (K-05)
-and `SA ✔ / AD ○ / LT ○`; and per-person agent-usage statistics are not built at all — the Agent
+and whose state change is written to `audit_log`; `pruefdauer_sek` is revoked from `cse_app` and
+reachable only through `app.freigabe_pruefdauer_lesen`, which re-checks `freigabe.pruefdauer_lesen`
+and the active mandant and audits the read (K-05, §14.3) — `SA ✔ / AD ○ / LT ○`; and per-person
+agent-usage statistics are not built at all — the Agent
 Center shows runs per agent and per `vorgang_typ`, never a leaderboard per employee. `// TODO(client,
-O-A8): Gibt es einen Betriebsrat, und welche personenbezogenen Auswertungen von Freigabe-Prüfdauern
+O-06): Gibt es einen Betriebsrat, und welche personenbezogenen Auswertungen von Freigabe-Prüfdauern
 und Agentennutzung sind mitbestimmungsrechtlich zulässig (§87 Abs. 1 Nr. 6 BetrVG)?`
 
 ### 14.15 Accessibility of the review screen (LEG-07, BFSG, DESIGN §9)
@@ -2504,14 +2765,15 @@ Beyond the ROADMAP Phase 8 acceptance criteria. Every row is a test that fails t
 | Policy | Discount → `deny` under every configuration |
 | Policy | A send in `kategorie ∈ {antwort_auf_anfrage, kunde_information}` to `rechtsgrundlage` `keine` / `null` / missing → `deny` with `uwg_keine_rechtsgrundlage`; a Mahnung to a customer with a linked invoice → **not** denied on that ground; any recipient with no stored relationship → `deny` with `empfaenger_ohne_beziehung` |
 | Policy | D5 fires on a staffing proposal and a candidate ranking; D5 does **not** fire on `pruefe_nachweise` mode `person` or on a DSH-05 read about a named employee |
-| Policy | `codeFloor` is total over `Aktionsklasse × agent_vorgang_typ`; a new enum value without a floor fails the build |
+| Policy | `codeFloor` is total over `Aktionsklasse × agent_vorgang_typ × (art ∪ {null})`; a new value in either enum without a floor fails the build; where an `art` row and a `vorgang_typ` row both match, the resolved floor is the stricter of the two (§7.3) |
 | Policy | Group scope: every non-read action → `deny`; `registry.fuer()` exposes no write tool (TEN-05) |
+| Policy | A group-scope agent run opened through `withGroupScope` reads rows; the same run opened through `withSystemTenant` is impossible to construct — the helper sets `scope = 'mandant'` and one mandant, and the session helper's `CHECK ((scope = 'mandant') = (mandant_id IS NOT NULL))` refuses anything else (§2.2, K-02) |
 | Policy | `decide()` is pure — same input, byte-identical canonical JSON output; no clock read, no database access (import lint plus a runtime spy) |
 | Policy | `decide()` is re-run at the end of a delayed-release window, before execution and at a scheduled publish time, and a withdrawn `rechtsgrundlage` or a disconnected channel aborts each one |
 | Tenancy | An agent run as mandant A cannot read any entity of B: catalogue query, RAG, handle resolution, document read — all `nicht_gefunden` (SEC-A3) |
 | Tenancy | `pruefe_nachweise` mode `person` returns a person employed in the active mandant **without** raising `MandantVerletzung`, and returns `nicht_gefunden` for a person with no employment there (§2.3) |
 | Tenancy | Every table in `db/schema/**` is classified tenant / person-scoped / reference; an unclassified table fails the build |
-| Tenancy | A `mitarbeiter` and a `kunde` login read **zero** `freigabe` rows in their own mandant (§14.3, EMP-13) |
+| Tenancy | A `mitarbeiter` login (`withPersonScope`) and a `kunde` login (`withKundeScope`) read **zero** `freigabe`, `freigabe_feld`, `freigabe_ansicht` and `freigabe_snapshot` rows — no `person` or `kunde` policy exists on any of them, and `p_intern_ceiling` refuses independently (§14.3, K-18, EMP-13) |
 | RAG | Canary probe A (lexical): tenant A never retrieves tenant B's nonce |
 | RAG | Canary probe B (ANN): a search as tenant A using tenant B's own chunk embedding as the query vector returns zero rows |
 | RAG | Every partition of every partitioned table has `relforcerowsecurity` and at least one policy; `cse_app` cannot address a partition directly |
@@ -2524,6 +2786,8 @@ Beyond the ROADMAP Phase 8 acceptance criteria. Every row is a test that fails t
 | Dates | `frist_*` arts return Berlin-boundary dates; every reference case has a CET and a CEST variant (K-11) |
 | ArbZG | A replacement proposal for a person with 6 h in another entity that day yields `ueber_10h`/`ueber_8h`, `risiko = 'hoch'`, `batch_verboten`; the approver sees the rule and the minute total and **zero fields identifying the other entity's shift** (K-06) |
 | ArbZG | `erstelle_vorgang(art: 'einsatz_vorschlag')` without a completed pre-flight → `deny` with `arbzg_verstoss_ungeprueft` |
+| ArbZG | The verdict vocabulary is one set: the return union of `pruefeArbzgFuerVorschlag` equals `PolicyInput.arbzg_befund` minus `unbekannt`/`null`; a `pause_fehlt` verdict reaches `decide()` unchanged and escalates like every other non-`keine` value (§13.2) |
+| Budget | The only `*_mikrocent` columns anywhere are `agent_budget.verbrauch_mikrocent`/`reserviert_mikrocent`, `agent_reservierung.betrag_mikrocent`, `agent_kosten.kosten_mikrocent` and `agent_schritt.kosten_mikrocent` (K-16(b)); every figure leaving the agent domain — `agent_aufgabe.kosten_cent`, the Agent Center, REP-01 — is `bigint` cents converted once, half-up |
 | Budget | Concurrent runs cannot exceed `budget_cent`; both the mandant-wide and the per-agent row are locked, in the fixed order, and either one refusing refuses the run |
 | Budget | Exhaustion leaves `status = 'gestoppt'`, `gestoppt_am` and a `benachrichtigung` **committed** — the verdict function never raises |
 | Budget | A crashed run's reservation is released by the sweeper and the released count is reported |
@@ -2532,6 +2796,7 @@ Beyond the ROADMAP Phase 8 acceptance criteria. Every row is a test that fails t
 | Injection | `erstelle_vorgang.bezug` rejects anything that is not a minted handle |
 | Approvals | `freigabe_snapshot` rejects `UPDATE`, `DELETE` and `TRUNCATE` at the database layer, including as the table owner (APR-07) |
 | Approvals | The chain verifies after 100 concurrent approvals in one mandant (`kette_nr` serialised, K-13) |
+| Approvals | The chain covers the presentation: altering a stored `diff`, `felder`, `ansicht_modell`, `policy_ergebnis` or `artefakt_hash` makes `freigabe:verify` report a break, and the formula plus its canonicalisation is byte-identical in this document and in `02-datenmodell/06-RADAR-KI-INHALT.md` §4.7 (§14.2) |
 | Approvals | Diff correctness on the Kurfürstendamm case: `+12 Nachtstunden → +456,00 €`, with per-tax-group VAT deltas |
 | Approvals | A changed surcharge group renders as a **changed** position, not as one removed plus one added (§14.5) |
 | Approvals | An item with an `unsicher` field cannot be approved until every such field is confirmed; a `rechnung_entwurf` missing the Leistungszeitraum has that field as `unsicher` (FIN-05) |
@@ -2556,40 +2821,58 @@ Beyond the ROADMAP Phase 8 acceptance criteria. Every row is a test that fails t
 ## 18. Placeholders and open questions (K-17)
 
 Every value below is a **labelled placeholder** behind a swappable interface, carries a
-`// TODO(client)` at its site in code, and is recorded in `docs/DECISIONS.md` under **Open**.
+`// TODO(client, O-nn)` at its site in code, and is recorded in `docs/DECISIONS.md` under **Open**.
 `pnpm lint:todo` fails when a `TODO(client)` in this domain has no matching row there. A concrete
 legal or financial value that SPEC does not state and that is not marked is a **defect, not a
 detail**.
 
+**The numbering is `docs/DECISIONS.md`'s, not a scheme of this document's own.** An earlier draft
+numbered these questions `O-A1 … O-A16`, which is a second register: `pnpm lint:todo` matches a
+`TODO(client)` against a row in `DECISIONS.md`, and a locally invented identifier matches nothing, so
+the very check that is supposed to prove no value was guessed would pass on an empty set. Where a
+sibling document or the PR plan already carries the same question, this document uses **that** number
+rather than minting a second one — **O-06** (Betriebsrat), **O-19** (Mahnstufen), **O-25**
+(Bewerberdaten), **O-26** (Monatsbudget), **O-36** (Warnschwelle), **O-37** (max. Werkzeugschritte),
+**O-38** (Konfidenzschwelle), **O-39** (Aufbewahrung von Modell-Ein-/Ausgaben) and **O-65**
+(vertraglich notwendige Kommunikation vs. Werbung). The eleven questions this document raises that no
+other document asks are new and take the next free numbers, **O-105 … O-115**.
+
 | # | Question (as it goes into DECISIONS.md) | Placeholder site | Blocks |
 |---|---|---|---|
-| O-A1 | Soll eine Terminbestätigung an Kundinnen und Kunden automatisch als Entwurf zur Freigabe erzeugt werden, oder nur der interne Kalendereintrag ohne jede Nachricht? | `plan.ts` template `termin_bestaetigen` | §14.11, CAL-01 |
-| O-A2 | Welche Rolle bzw. welches Recht muss ein Angebot über 20.000,00 € freigeben — Geschäftsführung, Bereichsleitung oder beide im Vier-Augen-Prinzip? | `agent_richtlinie.freigabe_rolle`, seeded `ist_platzhalter` | §4.5 |
-| O-A3 | Welche Eignungs- und Personennachweise verlangen die Vergabestellen, auf denen die Gruppe registriert ist, und welche Nachweisarten führt die Gruppe intern? | `nachweis_art` catalogue table | §5.4 tool 5, RAD-09, O-07 |
-| O-A4 | Ab welcher Konfidenz gilt ein extrahiertes Feld als unsicher und erzwingt Einzelprüfung? | `KONFIDENZ_SCHWELLE` | APR-03, APR-04 |
-| O-A4b | Wie lang sollen Einspruchsfenster (APR-05) und Undo-Fenster (APR-06) je Vorgangstyp sein? | `agent_richtlinie.verzoegerung_sek` / `undo_sek` | §14.8, §14.9 |
-| O-A5 | Monatsbudget je Gesellschaft und je Agent? | `agent_budget.budget_cent`, `ist_platzhalter` | AGT-05 |
-| O-A5b | Ab welchem Anteil des Monatsbudgets soll gewarnt werden? | `agent_budget.warnschwelle_prozent` | AGT-05 |
-| O-A6 | Bis zu welcher absoluten und relativen Abweichung gegenüber dem Vergleichsbeleg gilt eine Position als Routine und darf im Stapel freigegeben werden? | `stapel_toleranz_cent` / `stapel_toleranz_promille` | APR-04 |
-| O-A7 | Dürfen Fotos von Einsatzorten — verkleinert und mit unkenntlich gemachten Gesichtern — an einen EU-Bildendpunkt übertragen werden, oder bleibt `motiv_plausibel` dauerhaft aus? | `pruefe_bilder` vision path | §11.1, LEG-09 |
-| O-A8 | Gibt es einen Betriebsrat, und welche personenbezogenen Auswertungen von Freigabe-Prüfdauern **und Agentennutzung** sind nach §87 Abs. 1 Nr. 6 BetrVG zulässig? | `LEG10_GEO_CAPTURE`-style feature flag, off by default | APR-08, §14.14, **O-06** |
-| O-A8b | Ab welcher Median-Prüfdauer und welcher Genehmigungsquote gilt ein Muster als Durchwinken, und wer wird informiert? | `freigabe-rubberstamp.ts` thresholds | APR-08 |
-| O-A9 | Für welche ausgehenden Nachrichtenarten gilt die §7-UWG-Einwilligungsschranke (CRM-08) und für welche nicht — Mahnung, Behinderungsanzeige, Bewerberantwort, Lieferantenrückfrage? | `sende_email.kategorie` → D2 scope | §5.4 tool 8, LEG-08 |
-| O-A10 | Wie lange werden Bewerberdaten aufbewahrt, bevor sie automatisch gelöscht werden? | `app.aufbewahrung_intervall('bewerbung')` | REC-07, LEG-11 |
-| O-A10a | Wie lange dürfen Modell-Ein- und -Ausgaben eines Agentenlaufs außerhalb des GoBD-pflichtigen Finanzbereichs gespeichert bleiben, bevor sie geschwärzt werden? | `app.aufbewahrung_intervall('agent_nutzlast')` | §9.2, LEG-09 |
-| O-A11 | Wie viele Werkzeugschritte darf ein Agent je Aufgabe ausführen, bevor er abbricht und den Vorgang einem Menschen vorlegt? | `agent.max_schritte` | §8.3 |
-| O-A12 | Wie viele Werktage Vorlauf braucht eine Vergabemappe intern vor der amtlichen Frist? | `services/frist/einreichung.ts` | RAD-06, §5.6 |
-| O-A13 | Wie viele Mahnstufen gibt es, welche Mahngebühr gilt je Stufe, auf welcher Grundlage werden Verzugszinsen berechnet (§288 BGB Basiszinssatz + Prozentpunkte, B2B-Satz?), und wie lang ist das Zahlungsziel je Stufe? | `MahnstufenRegelwerk`, `calculateMahnbetrag` | FIN-15, §5.6 |
-| O-A14 | Wie wird ein Auskunfts- und Löschbegehren nach Art. 15/17 DSGVO auf Agentenprotokolle, Wissens-Chunks und Freigabe-Snapshots angewendet, wenn GoBD/§147 AO eine Aufbewahrung verlangt? | the restriction-of-processing path of §9.2 | LEG-09, LEG-01 |
-| O-A15 | Gehört die Tarif- bzw. Zuschlagsgruppe zur Identität einer Rechnungsposition oder ist sie ein Attribut derselben Position? | `ZUSAETZLICHE_SCHLUESSEL_MERKMALE` | §14.5, APR-02 |
-| O-A16 | Welche Absender-Postfächer und welche Signatur gelten je Gesellschaft für ausgehende Agenten-Entwürfe? | mail transport configuration | §5.4 tool 8, D-11 |
+| O-105 *(new)* | Soll eine Terminbestätigung an Kundinnen und Kunden automatisch als Entwurf zur Freigabe erzeugt werden, oder nur der interne Kalendereintrag ohne jede Nachricht? | `plan.ts` template `termin_bestaetigen` | §14.11, CAL-01 |
+| O-106 *(new)* | Welche Rolle bzw. welches Recht muss ein Angebot über 20.000,00 € freigeben — Geschäftsführung, Bereichsleitung oder beide im Vier-Augen-Prinzip? | `agent_richtlinie.freigabe_rolle`, seeded `ist_platzhalter` | §4.5 |
+| O-107 *(new)* | Welche Eignungs- und Personennachweise verlangen die Vergabestellen, auf denen die Gruppe registriert ist, und welche Nachweisarten führt die Gruppe intern? | `nachweis_art` catalogue table | §5.4 tool 5, RAD-09, O-07 |
+| O-38 *(06-RADAR)* | Ab welcher Konfidenz gilt ein extrahiertes Feld als unsicher und erzwingt Einzelprüfung? | `KONFIDENZ_SCHWELLE` | APR-03, APR-04 |
+| O-108 *(new)* | Wie lang sollen Einspruchsfenster (APR-05) und Undo-Fenster (APR-06) je Vorgangstyp sein? | `agent_richtlinie.verzoegerung_sek` / `undo_sek` | §14.8, §14.9 |
+| O-26 *(PR-Plan)* | Monatsbudget je Gesellschaft und je Agent? | `agent_budget.budget_cent`, `ist_platzhalter` | AGT-05 |
+| O-36 *(06-RADAR)* | Ab welchem Anteil des Monatsbudgets soll gewarnt werden? | `agent_budget.warnschwelle_prozent` | AGT-05 |
+| O-109 *(new)* | Bis zu welcher absoluten und relativen Abweichung gegenüber dem Vergleichsbeleg gilt eine Position als Routine und darf im Stapel freigegeben werden? | `stapel_toleranz_cent` / `stapel_toleranz_promille` | APR-04 |
+| O-110 *(new)* | Dürfen Fotos von Einsatzorten — verkleinert und mit unkenntlich gemachten Gesichtern — an einen EU-Bildendpunkt übertragen werden, oder bleibt `motiv_plausibel` dauerhaft aus? | `pruefe_bilder` vision path | §11.1, LEG-09 |
+| O-06 *(DECISIONS)* | Gibt es einen Betriebsrat, und welche personenbezogenen Auswertungen von Freigabe-Prüfdauern **und Agentennutzung** sind nach §87 Abs. 1 Nr. 6 BetrVG zulässig? | `LEG10_GEO_CAPTURE`-style feature flag, off by default | APR-08, §14.14, LEG-10 |
+| O-111 *(new)* | Ab welcher Median-Prüfdauer, ab welcher Genehmigungsquote und über wie viele Entscheidungen hinweg gilt ein Muster als Durchwinken; ab welcher offenen Warteschlange je Rolle und ab welcher Tagesmenge neuer Freigaben soll gewarnt werden; und wer wird jeweils informiert? | `freigabe-rubberstamp.ts` thresholds and the queue-load config rows, all `ist_platzhalter` | APR-08, §14.1, §14.14 |
+| O-65 *(02-CRM)* | Für welche ausgehenden Nachrichtenarten gilt die §7-UWG-Einwilligungsschranke (CRM-08) und für welche nicht — Mahnung, Behinderungsanzeige, Bewerberantwort, Lieferantenrückfrage? | `sende_email.kategorie` → D2 scope | §5.4 tool 8, LEG-08 |
+| O-25 *(PR-Plan)* | Wie lange werden Bewerberdaten aufbewahrt, bevor sie automatisch gelöscht werden? | `app.aufbewahrung_intervall('bewerbung')` | REC-07, LEG-11 |
+| O-39 *(06-RADAR)* | Wie lange dürfen Modell-Ein- und -Ausgaben eines Agentenlaufs außerhalb des GoBD-pflichtigen Finanzbereichs gespeichert bleiben, bevor sie geschwärzt werden? | `app.aufbewahrung_intervall('agent_nutzlast')` | §9.2, LEG-09 |
+| O-37 *(06-RADAR)* | Wie viele Werkzeugschritte darf ein Agent je Aufgabe ausführen, bevor er abbricht und den Vorgang einem Menschen vorlegt? | `agent.max_schritte` | §8.3 |
+| O-112 *(new)* | Wie viele Werktage Vorlauf braucht eine Vergabemappe intern vor der amtlichen Frist? | `services/frist/einreichung.ts` | RAD-06, §5.6 |
+| O-19 *(PR-Plan)* | Wie viele Mahnstufen gibt es, welche Mahngebühr gilt je Stufe, auf welcher Grundlage werden Verzugszinsen berechnet (§288 BGB Basiszinssatz + Prozentpunkte, B2B-Satz?), und wie lang ist das Zahlungsziel je Stufe? | `MahnstufenRegelwerk`, `calculateMahnbetrag` | FIN-15, §5.6 |
+| O-113 *(new)* | Wie wird ein Auskunfts- und Löschbegehren nach Art. 15/17 DSGVO auf Agentenprotokolle, Wissens-Chunks und Freigabe-Snapshots angewendet, wenn GoBD/§147 AO eine Aufbewahrung verlangt? | the restriction-of-processing path of §9.2 | LEG-09, LEG-01 |
+| O-114 *(new)* | Gehört die Tarif- bzw. Zuschlagsgruppe zur Identität einer Rechnungsposition oder ist sie ein Attribut derselben Position? | `ZUSAETZLICHE_SCHLUESSEL_MERKMALE` | §14.5, APR-02 |
+| O-115 *(new)* | Welche Absender-Postfächer und welche Signatur gelten je Gesellschaft für ausgehende Agenten-Entwürfe? | mail transport configuration | §5.4 tool 8, D-11 |
 
-**Inherited from `DECISIONS.md`, unchanged and load-bearing here:** **O-04** (the exact five billing
-types — §14.5, `auftragsabrechnung`), **O-05** (SKR03/SKR04, Sachkontenlänge, Steuerschlüssel and a
-real sample EXTF export — the booking comparable and the category resolution of §14.7), **O-06** (the
-Betriebsrat — §14.14), **O-07** (which procurement platforms — RAD-09 and O-A3), **O-10** (which
-social and job-board accounts exist and who owns them — SOC-06/07, REC-09, D10), **O-11** (managed EU
-cloud or self-hosted German server — §11.1).
+**Inherited from `DECISIONS.md`, unchanged and load-bearing here, without a row of their own:**
+**O-04** (the exact five billing types — §14.5, §5.4 art `auftragsabrechnung` and the
+`AbrechnungsStrategie` interface of §5.5), **O-05** (SKR03/SKR04, Sachkontenlänge, Steuerschlüssel
+and a real sample EXTF export — the booking comparable and the category resolution of §14.7),
+**O-07** (which procurement platforms — RAD-09 and O-107), **O-10** (which social and job-board
+accounts exist and who owns them — SOC-06/07, REC-09, D10), **O-11** (managed EU cloud or self-hosted
+German server — §11.1), **O-18** (the ArbZG 10-hour exception and its compensation window — the
+verdict vocabulary of §13, whose minute thresholds this document does not state).
+
+**One number to reconcile when these rows land in `DECISIONS.md`:**
+`02-datenmodell/06-RADAR-KI-INHALT.md` uses **O-38** twice — for the confidence threshold (its §4.4,
+the question in the row above) and for the risk-level thresholds (its §7). One of the two needs a
+fresh number; this document uses O-38 in the §4.4 sense only.
 
 **Nothing legal or financial in this document has been guessed.** Where a value was needed to make a
 sentence readable, the sentence renders the value from the row instead.
@@ -2602,16 +2885,17 @@ Collected so none of them is discovered late. Each is a shape another document o
 
 | # | Requirement | Owner |
 |---|---|---|
-| R-01 | `agent_artefakt` as specified in §9.4 — a tenant table with `mandant_id`, RLS, FORCE, K-04 ceiling, and no hard delete | `02-datenmodell/06-RADAR-KI-INHALT.md` |
+| R-01 | `agent_artefakt` as specified in §9.4 — a tenant table with `mandant_id`, RLS, FORCE, K-04 ceiling, no hard delete, and `UNIQUE (mandant_id, id)` so the composite FKs from `freigabe.artefakt_id`, `freigabe.vergleichsartefakt_id` and `agent_artefakt.ersetzt_artefakt_id` resolve (K-16). The table is referenced on nearly every page of this document and exists in no sibling today | `02-datenmodell/06-RADAR-KI-INHALT.md` |
 | R-02 | `sicherheitsvorfall` as specified in §6.3, plus its entry in SPEC §22's entity list | `02-datenmodell/01-KERN.md`, `docs/SPEC.md` |
 | R-03 | The agent run queue as a **tenant row** with `mandant_id`, RLS and a written-by rule; no path may enqueue a run for a mandant the enqueuing principal cannot write to | `01-ORDNERSTRUKTUR.md` §10 |
-| R-04 | `freigabe.vergleichsartefakt_id`, `freigabe.ausfuehrung_versuch integer not null default 0`, `freigabe.externe_ref text`, `freigabe.erforderliches_recht text` | `02-datenmodell/06-RADAR-KI-INHALT.md` §4.2 |
+| R-04 | `freigabe.artefakt_id` and `freigabe.vergleichsartefakt_id`, both composite FKs `(mandant_id, …) → agent_artefakt (mandant_id, id)`; `freigabe.ausfuehrung_versuch integer not null default 0`; `freigabe.externe_ref text`; `freigabe.erforderliches_recht text` | `02-datenmodell/06-RADAR-KI-INHALT.md` §4.2 |
+| R-04a | `freigabe_snapshot` carries the presentation columns and the extended hash of §14.2 — `artefakt_hash`, `diff`, `diff_hash`, `felder`, `felder_hash`, `ansicht_modell`, `ansicht_modell_hash`, `policy_ergebnis`, `policy_ergebnis_hash`, `richtlinien_version`, `code_version`, `modell`, `prompt_version`, `rolle` — and **the same formula, with the same canonicalisation, is stated in both documents**; a chain whose two statements differ is a chain that verifies differently offline than in the database | `02-datenmodell/06-RADAR-KI-INHALT.md` §4.7 |
 | R-05 | `agent_richtlinie.stapel_toleranz_cent bigint` and `stapel_toleranz_promille integer`, both `ist_platzhalter` | `02-datenmodell/06-RADAR-KI-INHALT.md` §3.3 |
 | R-06 | `agent_aufgabe.prompt_version`, `richtlinien_version`, `code_version` (git SHA) — replay depends on them | `02-datenmodell/06-RADAR-KI-INHALT.md` §3.9 |
 | R-07 | `agent_schritt.policy_ergebnis`, `policy_spur`, `quellen`, `vertrauen_zusammenfassung`, `injektionsverdacht` | `02-datenmodell/06-RADAR-KI-INHALT.md` §3.9 |
 | R-08 | A second retention key `agent_nutzlast_finanz` in the retention catalogue (§9.2) | `02-CRM-OPERATIONS.md` §4.7 |
 | R-09 | Two `agent_vorgang_typ` values for recruiting: `bewerbung_auswerten`, `kandidat_ranking` (§14.12) | `02-datenmodell/06-RADAR-KI-INHALT.md` §7 enums |
-| R-10 | A `nachweis_art` catalogue table (reference class) replacing the closed TypeScript enum in `pruefe_nachweise` (§5.4 tool 5, O-A3) | `02-datenmodell/01-KERN.md` |
+| R-10 | A `nachweis_art` catalogue table (reference class) replacing the closed TypeScript enum in `pruefe_nachweise` (§5.4 tool 5, O-107) | `02-datenmodell/01-KERN.md` |
 | R-11 | `services/zeit/` split into `lesen/` and `schreiben/` so the import boundary of §1.2 is expressible | `01-ORDNERSTRUKTUR.md` §8 |
 | R-12 | The agent folder additions of §1.1: `handles.ts`, `umschlag.ts`, `redaktion.ts`, `plan.ts`, `wiedergabe.ts`, `modell/client.ts`, `rag/ausschluss.ts`, `rag/kanarienvogel.ts`, and `services/frist/` | `01-ORDNERSTRUKTUR.md` §9 |
 | R-13 | Two status-pill labels added to the fixed vocabulary before any screen uses them: **Widerrufen** (muted) and **Ausführung offen** (warning) (§14.4) | `docs/DESIGN.md` §5 |
@@ -2622,6 +2906,8 @@ Collected so none of them is discovered late. Each is a shape another document o
 | R-18 | `freigabe_snapshot` owned by a role distinct from `cse_app`, with a `BEFORE TRUNCATE` trigger; the same for the FIN-06 chain (§14.2) | `02-datenmodell/06-RADAR-KI-INHALT.md` §4.7, `05-FINANZEN.md` |
 | R-19 | Indexes the query paths of this document require, beyond those already declared: `freigabe (mandant_id, frist NULLS LAST, risiko DESC) WHERE status = 'offen'` (present), a GIN or equivalent on the assignment predicate of §14.3, `freigabe_snapshot (mandant_id, entschieden_von, vorgang_typ, entschieden_am DESC)` for the rolling-20 median, `agent_aufgabe (mandant_id, agent_id, gestartet_am DESC)` for "last 50 runs", `wissens_chunk (mandant_id, quelle_typ, quelle_id, embedding_modell)` for re-embedding invalidation, `rechnung (mandant_id, kunde_id, auftrag_id, status, leistungszeitraum_bis DESC)` for the monthly comparable, `mahnung (rechnung_id, stufe DESC)`, `eingangsrechnung (mandant_id, lieferant_id, rechnungsnummer)` for the duplicate check | the owning datenmodell documents |
 | R-20 | The document number: four sibling documents refer to the agent architecture as `07-AGENTEN-ARCHITEKTUR.md`. This file is `06-AGENTEN-FREIGABEN.md`; either those references are updated or the file is renamed — one of the two, not neither | `01-ORDNERSTRUKTUR.md`, `03-AUTH-BERECHTIGUNGEN.md`, `05-API-KARTE.md` |
+| R-21 | **No `person` and no `kunde` policy** on `freigabe`, `freigabe_feld`, `freigabe_ansicht`, `freigabe_snapshot`, `agent_artefakt` or any `agent_*` table (K-18) — the employee and customer portals read zero rows there, and that is the decision, not an omission to be repaired later by adding a policy | `02-datenmodell/06-RADAR-KI-INHALT.md` §4, `03-AUTH-BERECHTIGUNGEN.md` |
+| R-22 | The eleven new open questions of §18 — **O-105 … O-115** — as rows under **Open**, plus the reconciliation of the duplicated **O-38** in `02-datenmodell/06-RADAR-KI-INHALT.md` | `docs/DECISIONS.md` |
 
 ---
 

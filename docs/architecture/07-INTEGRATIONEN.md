@@ -39,11 +39,12 @@ Call path, without exception:
 
 ```
 Route handler / Server Action / Cron route
-   │ authorize: withTenant | withGroupScope | withAnstellung | withSystemTenant   ← invariant 3, K-02, AUT-04
+   │ authorize — write contexts (app.scope = 'mandant'): withTenant | withAnstellung | withSystemTenant
+   │             read-only scopes: withGroupScope | withPersonScope | withKundeScope   ← invariant 3, K-02, K-18, AUT-04
    ▼ src/server/services/<domain>       — all arithmetic, all business rules       ← invariant 6
    │ (outbound content only) policy.ts  → Freigabe                                 ← invariant 7, §4
    ▼ src/server/integrations/<system>   — LiveAdapter | NotConnectedAdapter
-   ▼ integration_aufruf (actor, duration, result, cost)                            ← SEC-A9, AGT-04
+   ▼ integration_aufruf (actor, duration, result, agent step)                      ← SEC-A9, AGT-04
 ```
 
 **The `mandantId` argument of every port method has one legal provenance.** It is read from the
@@ -52,21 +53,31 @@ request body, a query string or a path segment (invariant 3, K-02, TEN-04). The 
 this: `MandantId` is a branded string minted only by the session resolver, so a value taken from a
 request body does not type-check as one.
 
+**A port call therefore runs only in `mandant` scope.** K-18 gives `app.scope` four values, and
+K-02 makes `app.mandant_id` NULL in all three multi-tenant scopes — `gruppe`, `person` and `kunde`.
+There is consequently no `MandantId` to hand a port in any of them, and that is the correct
+behaviour rather than a gap: `/portal/gruppe` is read-only by invariant 10, and `/portal/mein` and
+`/portal/kunde` read **as a subject**, never as a manager. The employee portal's own writes
+(EMP-07, EMP-10) re-enter `mandant` scope through `withAnstellung` with a single resolved tenant
+before any port is reachable (K-18, `03-AUTH-BERECHTIGUNGEN.md` §7).
+
 ```ts
 declare const mandantMarke: unique symbol;
 export type MandantId = string & { readonly [mandantMarke]: 'MandantId' };
 // minted only in src/server/auth/session.ts — never parsed from a request
 ```
 
-**No write-side port call executes in group scope.** Invariant 10 and TEN-05 make `/portal/gruppe`
-read-only, and K-03 enforces it in Postgres because no `INSERT`/`UPDATE`/`DELETE` policy anywhere
-references group scope. The integration layer adds the matching first line: every method that sends,
-publishes, exports or imports asserts `app.scope = 'mandant'` and `app.readonly = 'off'` through
-`assertSchreibkontext()` before it does anything, and the assertion is a required argument of the
-kernel's `ausfuehren()` wrapper rather than a convention each adapter remembers. `MailerPort.sende`,
-`AccountingExportPort.erzeugeBuchungsstapel`, `SocialChannelPort.veroeffentliche`,
-`JobBoardPort.veroeffentliche`, `BankStatementPort.importiere` and `EInvoiceDeliveryPort.sende` are
-each covered by a test that calls them under `withGroupScope` and expects a refusal.
+**No write-side port call executes outside `mandant` scope.** Invariant 10 and TEN-05 make
+`/portal/gruppe` read-only, and K-03 enforces it in Postgres because no `INSERT`/`UPDATE`/`DELETE`
+policy anywhere references group scope; K-18 adds `person` and `kunde` scope, whose policies are
+`for select` only for the same reason. The integration layer adds the matching first line: every
+method that sends, publishes, exports or imports asserts `app.scope = 'mandant'` and
+`app.readonly = 'off'` through `assertSchreibkontext()` before it does anything, and the assertion
+is a required argument of the kernel's `ausfuehren()` wrapper rather than a convention each adapter
+remembers. `MailerPort.sende`, `AccountingExportPort.erzeugeBuchungsstapel`,
+`SocialChannelPort.veroeffentliche`, `JobBoardPort.veroeffentliche`, `BankStatementPort.importiere`
+and `EInvoiceDeliveryPort.sende` are each covered by a test that calls them under `withGroupScope`,
+`withPersonScope` and `withKundeScope` and expects a refusal in all three.
 
 ```
 src/server/platform/
@@ -127,7 +138,7 @@ export type IntegrationErrorCode =
   | 'INVALID_RESPONSE' | 'SCHEMA_UNSUPPORTED'
   | 'ENCODING_UNMAPPABLE'   // DATEV Windows-1252 cannot represent a character
   | 'POLICY_BLOCKED'        // policy.ts refused — invariant 7, CRM-08 / LEG-08
-  | 'READONLY_SCOPE'        // called in group scope or a read-only session — invariant 10, K-02
+  | 'READONLY_SCOPE'        // called in gruppe/person/kunde scope or a read-only session — invariant 10, K-02, K-18
   | 'MANDANT_MISMATCH'      // the Freigabe belongs to another mandant — invariant 3
   | 'BUDGET_EXCEEDED'       // AGT-05 hard stop
   | 'RESIDENCY_BLOCKED'     // no EU-approved model for this capability — D-04
@@ -176,8 +187,9 @@ representation. Admin-only surfaces resolve the same key against the German cata
 | It is never used to fake success in tests | Contract tests assert `ok === false` **and** that no row changed |
 
 **Registry.** `getIntegration(id)` resolves once per runtime from env parsed by a Zod schema per
-integration; the chosen adapter is written to the boot log, exposed by `GET /api/verwaltung/integrationen`
-(`05-API-KARTE.md` §486) and summarised on `/api/health` (§23). Only the `platform/` substrate is
+integration; the chosen adapter is written to the boot log and exposed by
+`GET /api/verwaltung/integrationen` (`05-API-KARTE.md` §486) — **not** by the unauthenticated
+liveness endpoint, which enumerates no providers (§23.1). Only the `platform/` substrate is
 required to boot; every integration degrades to `nicht_verbunden` and the rest of the platform keeps
 working. `INTEGRATION_FORCE_NOT_CONNECTED` forces adapters off in staging and e2e, so the
 "not connected" path is exercised rather than assumed. **Per-mandant configuration lives in DB rows
@@ -185,15 +197,23 @@ keyed by `mandant_id`** (§3), never in env — that is what makes TEN-08 hold: 
 a row, not a deployment.
 
 **Audit.** Every call writes `integration_aufruf` (tenant) or `integration_aufruf_system`
-(group-level), §3.5. **Cost follows K-16 and `02-datenmodell/06-RADAR-KI-INHALT.md` §1.12: money is
-`bigint` cents**, and the sub-cent remainder of a model call is carried as `kosten_rest` in
-millionths of a cent (`CHECK (kosten_rest BETWEEN 0 AND 999999)`), which is a carry and not money —
-never displayed, never summed into a report, never exported. Prices come from `agent_preisliste`
-(`preis_je_mio_token_cent bigint`), and the AGT-05 comparison is
-`verbrauch + reserviert + neu > budget_cent * 1000000` in integers. There is **no** micro-EUR money
-column and **no** `AI_BUDGET_MIKRO_EUR_MONAT` environment variable; the cap is
-`agent_budget.budget_cent` per mandant and per agent, taken under `SELECT … FOR UPDATE` by
-`app.agent_budget_pruefen`.
+(group-level), §3.5. **The cost of a model call is not stored here.** It lives once, in the agent
+ledger of `02-datenmodell/06-RADAR-KI-INHALT.md` §1.12, in the **K-16(b)** unit: `*_mikrocent
+bigint` (10⁻⁶ €) on `agent_schritt`, `agent_kosten`, `agent_reservierung` and `agent_budget`, which
+is the one deviation K-16 permits and it is permitted **only** for agent cost and budget accounting.
+`integration_aufruf` therefore carries no money column at all — it carries `agent_schritt_id`
+(§3.5), so the operational log joins to the cost instead of restating it in a second unit. An
+earlier draft's `kosten_cent` + `kosten_rest` pair is withdrawn for exactly the reason K-16(b)
+names: rounding each step to a cent destroys the AGT-05 arithmetic, and a private second carry unit
+is a deviation the convention does not list. Prices come from `agent_preisliste`
+(`preis_*_je_mio_token_mikrocent bigint`), and the AGT-05 comparison is
+`verbrauch_mikrocent + reserviert_mikrocent + neu_mikrocent > budget_cent * 10000` in exact
+integers. **The single conversion to cents is half-up at the budget boundary, with the rounding rule
+written beside the expression** (`agent_aufgabe.kosten_cent = div(Σ kosten_mikrocent + 5000, 10000)`);
+nothing invoiced, booked or exported is micro-cents, so no `*_mikrocent` value ever reaches
+`rechnung`, `buchungssatz` or a DATEV export. There is **no** `AI_BUDGET_MIKRO_EUR_MONAT`
+environment variable; the cap is `agent_budget.budget_cent` per mandant and per agent, taken under
+`SELECT … FOR UPDATE` by `app.agent_budget_pruefen`.
 
 External logs get ids and codes only — no bodies, headers, tokens, addresses, phone numbers or
 document contents (`kernel/redact.ts`). Full prompt and response text stays in `agent_schritt` inside
@@ -239,28 +259,50 @@ cross-entity leak SEC-A3 calls the highest-priority test in the codebase.
 | **System** | global, no `mandant_id`, readable only through a `SECURITY DEFINER` function that checks an internal right; never granted to `cse_app` directly |
 
 **A nullable `mandant_id` is forbidden here, and the reason is mechanical.** In Postgres `NULL` is
-distinct from `NULL`, so `UNIQUE (mandant_id, integration_id)` would permit unlimited duplicate
+distinct from `NULL`, so `UNIQUE (mandant_id, integration_schluessel)` would permit unlimited duplicate
 "global" rows, and no RLS predicate of the form `mandant_id = app.aktiver_mandant()` can ever match
 a `NULL` — the global row becomes simultaneously duplicable and invisible. Global integration state
 therefore lives in its own table (§3.4), not in a nullable column.
+
+**Which of K-16's four permitted deviations this layer takes: none of its own.** (a) LIST
+partitioning does not arise here — no table in §3 is partitioned. (b) sub-cent accounting arises
+only **by reference**: the `*_mikrocent` columns live in the agent ledger of
+`02-datenmodell/06-RADAR-KI-INHALT.md` §1.12, and `integration_aufruf` joins to them rather than
+holding a money column of its own (§3.5). (c) every duration in §3 is measured or configured, never
+a computed target, so all of them are `integer` with the unit in the name. (d) applies to
+`audit_log`, which this layer writes but does not own (§3.11): it earns its nullable tenant by
+declaring `ebene enum('plattform','mandant')` with
+`CHECK ((ebene = 'mandant') = (mandant_id IS NOT NULL))`, so a NULL there is a stated
+platform-level fact and not a missing value — and it is the **only** table in the platform shaped
+that way. No table in §3 takes it. Everything else here is plain K-16.
 
 ### 3.2 `integration_katalog` — reference
 
 The catalogue of every integration the platform knows about. One row per `IntegrationId`; the code
 constant and the row are kept in step by a CI test.
 
+**The key is `schluessel`, and `id` is a uuid, because K-16 admits no fourth key shape.** K-16's
+common-column rule — `id uuid primary key default gen_random_uuid()` plus
+`erstellt_am timestamptz not null default now()` on **every** table — has exactly four permitted
+deviations (K-16 a–d) and "a readable text primary key on a reference table" is not one of them. The
+readable value keeps its meaning as a `UNIQUE` business key instead, which is also what lets a child
+row carry it verbatim.
+
 | Column | Type | Null | Notes |
 |---|---|---|---|
-| `id` | text | no | PK, e.g. `datev.export`, `mail.versand`, `vergabe.ted` |
+| `id` | uuid | no | PK, `default gen_random_uuid()` — K-16 |
+| `schluessel` | text | no | `UNIQUE`; the `IntegrationId` code constant, e.g. `datev.export`, `mail.versand`, `vergabe.ted` |
 | `bezeichnung` | text | no | German label for the UI |
 | `art` | integration_art | no | `tenant` \| `global` — which of §3.3 / §3.4 carries its state |
 | `port` | text | no | the TypeScript port name, e.g. `AccountingExportPort` |
 | `personenbezug` | boolean | no | receives personal data → §28 register row and a DPA required before the live adapter merges (`01-ORDNERSTRUKTUR.md` §11.4) |
 | `erfordert_freigabe` | boolean | no | outbound; every method needs a `Freigabe` (§4) |
 | `spec_ids` | text[] | no | the feature IDs it serves |
-| `erstellt_am` | timestamptz | no | K-16 |
+| `erstellt_am` · `geaendert_am` | timestamptz | no / yes | K-16 |
 
-- **Indexes:** PK on `id`.
+- **Indexes:** PK on `id`; `katalog_schluessel_uk UNIQUE (schluessel)`;
+  **`katalog_art_uk UNIQUE (schluessel, art)`** — the target of the composite FK §3.3 uses, so the
+  denormalised `art` there cannot drift from this row.
 - **RLS:** reference bucket. `SELECT` to `cse_app`; DDL and rows by `cse_migrator`.
 - **SPEC:** SOC-07, ACC-02, LEG-09.
 
@@ -274,7 +316,8 @@ renders.
 |---|---|---|---|
 | `id` | uuid | no | K-16 |
 | `mandant_id` | uuid | **no** | K-16, invariant 3 |
-| `integration_id` | text | no | FK → `integration_katalog(id)` |
+| `integration_schluessel` | text | no | FK → `integration_katalog(schluessel)` |
+| `art` | integration_art | no | denormalised from the catalogue and held there by the composite FK below — it exists so the constraint underneath needs no subquery |
 | `aktiv` | boolean | no | default `false` |
 | `verbindungs_status` | verbindungs_status | no | default `'nicht_verbunden'` — the enum already declared in `02-datenmodell/06-RADAR-KI-INHALT.md` §13 |
 | `grund_schluessel` | text | yes | i18n key rendered while not connected |
@@ -286,13 +329,26 @@ renders.
 | `zuletzt_geprueft_am` | timestamptz | yes | written by `integration-healthcheck` |
 | `erstellt_am` · `geaendert_am` · `erstellt_von` · `geaendert_von` | — | | K-16 |
 
-- **Indexes:** `ik_uk UNIQUE (mandant_id, integration_id)`; `ik_status_idx (mandant_id, verbindungs_status)`.
+- **Indexes:** `ik_uk UNIQUE (mandant_id, integration_schluessel)`;
+  `ik_status_idx (mandant_id, verbindungs_status)`; `UNIQUE (mandant_id, id)` (K-16, so a child may
+  point a composite FK at this row).
 - **RLS:** K-03 two-policy shape, module `system`, rights `system.einstellung_lesen` /
   `system.einstellung_verwalten`; K-04 `p_intern_ceiling` (a `mitarbeiter` or `kunde` login never
   reads it).
-- **Constraints:** `CHECK (verbindungs_status <> 'verbunden' OR credential_ref IS NOT NULL OR
-  integration_id IN (SELECT id FROM integration_katalog WHERE art = 'global'))` — an external channel
-  cannot reach "connected" without stored credentials, the same constraint `social_channel` carries.
+- **Constraints:** `FOREIGN KEY (integration_schluessel, art) REFERENCES integration_katalog
+  (schluessel, art)`, then
+  `CHECK (verbindungs_status <> 'verbunden' OR credential_ref IS NOT NULL OR art = 'global')` — an
+  external channel cannot reach "connected" without stored credentials, the same constraint
+  `social_channel` carries.
+- **Why the constraint reads a column and not a table.** The earlier draft wrote the same rule as
+  `... OR integration_id IN (SELECT id FROM integration_katalog WHERE art = 'global')`. PostgreSQL
+  rejects that outright — *"cannot use subquery in check constraint"* — so the very first migration
+  would have failed to apply. A `CHECK` may only see its own row, which leaves two lawful shapes: a
+  denormalised column held true by a constraint, or a trigger. The composite FK above is the
+  declarative one and needs no trigger: `art` cannot hold a value the catalogue does not agree with,
+  and a catalogue row that changed `art` would have to be updated in both places or the FK refuses.
+  The `jobboard_kanal` `CHECK` quoted in §21 needs none of this because it references only columns of
+  its own row.
 - **SPEC:** TEN-08, SOC-07, ACC-02, SEC-A5.
 
 ### 3.4 `integration_status_global` — system
@@ -302,10 +358,14 @@ State for integrations that are not tenant-scoped: `openai`, `dwd`, `vergabe.oev
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
-| `integration_id` | text | no | PK, FK → `integration_katalog(id)` |
+| `id` | uuid | no | PK, `default gen_random_uuid()` — K-16 |
+| `integration_schluessel` | text | no | `UNIQUE`, FK → `integration_katalog(schluessel)` — one row per global integration |
 | `verbindungs_status` · `grund_schluessel` · `blockiert_durch` | — | | as §3.3 |
 | `letzter_erfolg_am` · `letzter_fehler_am` · `letzter_fehler_code` · `zuletzt_geprueft_am` | — | | as §3.3 |
+| `erstellt_am` · `geaendert_am` | timestamptz | no / yes | K-16 |
 
+- **Indexes:** PK on `id`; `isg_uk UNIQUE (integration_schluessel)` — the row is one per
+  integration, expressed as a `UNIQUE` rather than as a text primary key (K-16, §3.2).
 - **RLS:** system bucket. Written by `cse_job`; read through `app.integration_status_global()`,
   `SECURITY DEFINER` owned by `cse_definer` with `SET search_path = pg_catalog, public` (K-01),
   which requires `app.portal() = 'intern'` and `system.einstellung_lesen` in **any** mandant of the
@@ -322,7 +382,7 @@ records that a call happened and how it ended; the business change it caused is 
 |---|---|---|---|
 | `id` | uuid | no | K-16 |
 | `mandant_id` | uuid | **no** (tenant table only) | invariant 3 |
-| `integration_id` | text | no | FK → `integration_katalog(id)` |
+| `integration_schluessel` | text | no | FK → `integration_katalog(schluessel)` |
 | `methode` | text | no | the port method, e.g. `veroeffentliche` |
 | `akteur_art` | akteur_art | no | `mensch` \| `agent` \| `system` (SEC-A9, the enum owned by `02-datenmodell/01-KERN.md` §4) |
 | `akteur_id` | uuid | yes | `benutzer.id`, or the agent id |
@@ -332,28 +392,37 @@ records that a call happened and how it ended; the business change it caused is 
 | `dauer_ms` | integer | no | K-16: a duration is an integer with its unit in the name |
 | `ergebnis` | aufruf_ergebnis | no | `erfolg` \| `fehler` \| `nicht_verbunden` \| `blockiert` |
 | `fehler_code` | text | yes | an `IntegrationErrorCode` |
-| `kosten_cent` | bigint | no | default `0` — money is integer cents (K-16) |
-| `kosten_rest` | bigint | no | default `0`, `CHECK (BETWEEN 0 AND 999999)` — sub-cent carry, not money |
-| `token_ein` · `token_aus` | integer | yes | model calls only |
-| `angelegt_am` | timestamptz | no | default `now()` |
+| `agent_schritt_id` | uuid | yes | model calls only; composite FK `(mandant_id, agent_schritt_id)` → `agent_schritt` — **the cost of the call lives there, in `*_mikrocent` (K-16(b)), and is never restated here** |
+| `token_ein` · `token_aus` | integer | yes | model calls only — token counts are quantities, not money |
+| `erstellt_am` | timestamptz | no | default `now()` — K-16 names this column, and this table does not rename it |
 
-- **Indexes:** `ia_verlauf_idx (mandant_id, angelegt_am DESC)` for the Agent Center activity list
+- **Indexes:** `ia_verlauf_idx (mandant_id, erstellt_am DESC)` for the Agent Center activity list
   (AGT-01, AGT-04); `ia_korrelation_idx (korrelation_id)` to trace one Vorgang; `ia_integration_idx
-  (integration_id, angelegt_am DESC)` for the status screen; `ia_fehler_idx (mandant_id, angelegt_am
-  DESC) WHERE ergebnis = 'fehler'` for the health rollup.
+  (integration_schluessel, erstellt_am DESC)` for the status screen; `ia_fehler_idx (mandant_id,
+  erstellt_am DESC) WHERE ergebnis = 'fehler'` for the health rollup.
+- **No money column, by K-16(b).** An earlier draft carried `kosten_cent` plus a `kosten_rest`
+  remainder in millionths of a cent. K-16(b) permits sub-cent accounting **only** in
+  `agent_schritt`, `agent_budget` and their carry columns, in the named unit `*_mikrocent` (10⁻⁶ €);
+  a second carry unit on an operational log is a deviation the convention does not list, and
+  rounding each model call to a whole cent here would report `0,00 €` for almost every one of them.
+  The join through `agent_schritt_id` gives the status screen the same figure without a second
+  source of truth (`02-datenmodell/06-RADAR-KI-INHALT.md` §1.12).
 - **RLS:** K-03, module `system`, read right `system.protokoll_lesen`; `INSERT` by `cse_app` and
   `cse_job`; **no `UPDATE` policy, no `DELETE` policy**, plus the `BEFORE UPDATE OR DELETE` trigger of
   K-16 (invariant 8). K-04 `p_intern_ceiling`.
 - **Retention:** rows carry `korrelation_id` into personal-data Vorgänge, so they are not kept
   forever. The window is resolved through `app.aufbewahrung_intervall('integration_aufruf')` — the
   same catalogue `dokument_aufbewahrung` uses — and is a **placeholder** until the deletion concept
-  is signed off. `// TODO(client): Wie lange dürfen Aufrufprotokolle der Integrationen und die
-  Prompt-/Antwortsätze der KI-Schritte (agent_schritt) aufbewahrt werden, bevor sie automatisch
-  gelöscht werden? (LEG-09, Frage 15)`
-- **`integration_aufruf_system`** is the same shape without `mandant_id`, `freigabe_id` and
-  `p_intern_ceiling`, for calls made outside any tenant: the radar ingests, the holiday sync, the
-  DWD station index, VIES, the healthchecks. It is written by `cse_job` and read through
-  `app.integration_aufruf_system_lesen(...)`.
+  is signed off. `// TODO(client, O-126): Wie lange dürfen die Aufrufprotokolle der Integrationen
+  (integration_aufruf) aufbewahrt werden, bevor sie automatisch gelöscht werden? (LEG-09; die
+  Aufbewahrung der KI-Prompt-/Antwortsätze ist die Schwesterfrage in
+  02-datenmodell/06-RADAR-KI-INHALT.md, die Dokumentkategorien sind O-25)`
+- **`integration_aufruf_system`** is the same shape without `mandant_id`, `freigabe_id`,
+  `agent_schritt_id` and `p_intern_ceiling`, for calls made outside any tenant: the radar ingests,
+  the holiday sync, the DWD station index, VIES, the healthchecks. **No model call is recorded
+  here** — a model call belongs to an `agent_aufgabe`, which is a tenant row, so a cost has a tenant
+  by construction. It is written by `cse_job` and read through
+  `app.integration_aufruf_system_lesen(...)` (§6.2).
 - **SPEC:** SEC-A9, AGT-04, LEG-09.
 
 ### 3.6 `modell_register` — reference
@@ -392,16 +461,25 @@ is a DSGVO deletion duty (REC-07, LEG-11).
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
-| `job` | text | no | PK, matches the `/api/cron/[job]` segment (`05-API-KARTE.md` §435) |
+| `id` | uuid | no | PK, `default gen_random_uuid()` — K-16 |
+| `job` | text | no | `UNIQUE`; matches the `/api/cron/[job]` segment (`05-API-KARTE.md` §435) and joins `job_lauf.job` |
 | `cron` | text | no | the schedule as registered in `pg_cron`, UTC |
-| `erwartet_alle_min` | integer | no | the heartbeat window |
+| `erwartet_alle_min` | integer | no | the heartbeat window — a duration with its unit in the name (K-16) |
 | `kritisch` | boolean | no | a missed run pages immediately rather than raising a task |
 | `aktiv` | boolean | no | default `true` |
+| `erstellt_am` · `geaendert_am` | timestamptz | no / yes | K-16 |
 
+- **Indexes:** PK on `id`; `jp_job_uk UNIQUE (job)` — the readable key is a `UNIQUE` business key,
+  not the primary key (K-16, §3.2).
 - **Watchdog:** `/api/cron/job-heartbeat` compares `now()` against
   `max(job_lauf.beendet_am) WHERE ergebnis = 'erfolg'` per active job and raises an alert per overdue
-  entry. `/api/health` publishes `jobs_ueberfaellig` as a **count** (§23), so an external uptime probe
-  catches the case where the platform's own alerting is the thing that broke.
+  entry. The count is published on the **authenticated** `/api/verwaltung/integrationen`, not on the
+  unauthenticated liveness endpoint (§23.1), and the heartbeat's own liveness is proven by a
+  dead-man's switch: each successful run pings the external uptime monitor, and the monitor alerts
+  when the ping stops. That is a push, so it survives the case an unauthenticated pull was meant to
+  cover — the platform's own alerting being the thing that broke — without granting a session-less
+  caller a table read (K-01, K-08). Until an uptime service is chosen (O-118) the ping target is
+  `nicht verbunden` and the monitor is absent; nothing simulates it.
 - **Auth:** every `/api/cron/*` request is authenticated with the **per-job** bearer
   `CRON_SECRET_<job>` compared in constant time (`05-API-KARTE.md` §156); a rejected call is recorded
   as a `job_lauf` row with `ergebnis = 'abgelehnt'` so a rotation mistake is visible instead of silent.
@@ -412,6 +490,7 @@ is a DSGVO deletion duty (REC-07, LEG-11).
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | uuid | no | K-16 |
+| `erstellt_am` | timestamptz | no | default `now()` — K-16; the row is created when the drill is opened |
 | `gestartet_am` · `beendet_am` | timestamptz | no / yes | duration is the difference of two UTC instants (invariant 2) — no stored `dauer_min` |
 | `stand_der_sicherung` | timestamptz | no | which backup was restored |
 | `sicherung_sha256` | text | no | verified on restore |
@@ -420,33 +499,76 @@ is a DSGVO deletion duty (REC-07, LEG-11).
 | `schluessel_verwendet_von` | uuid | no | FK → `benutzer(id)` — the key custodian who supplied the private half (§24) |
 | `bestaetigt_am` · `bestaetigt_von` | timestamptz · uuid | yes | the sign-off |
 
-- **RLS:** system bucket; read through a definer function requiring `system.betrieb_lesen`.
-  Append-only; `BEFORE UPDATE OR DELETE` raises except for the sign-off columns.
+- **RLS:** system bucket; read through `app.restore_protokoll_lesen(...)`, which requires
+  `system.betrieb_lesen` and is on the register of §6.2. Append-only; `BEFORE UPDATE OR DELETE`
+  raises except for the sign-off columns.
 - **SPEC:** SEC-A10, LEG-01.
 
-### 3.9 `bewerbung_eingang` — the staging table an inbound application needs before it has a tenant
+### 3.9 `mandant_mail_absender` — tenant
+
+The sender identity §19.1 requires: each GmbH sends from its own verified domain, with its own DKIM,
+SPF and DMARC, and a message for mandant X can never go out under mandant Y's sender. That is a
+tenant fact, so it is a tenant table with the full K-03/K-04 treatment rather than a sentence in
+prose or an environment variable — env cannot differ per mandant, and TEN-08 requires a fifth
+business area to be a database row (§29).
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | uuid | no | K-16 |
+| `mandant_id` | uuid | **no** | K-16, invariant 3 |
+| `absender_domain` | text | no | the verified domain, e.g. `cse-dienstleistungen.de` |
+| `absender_adresse` | text | no | the envelope and header From, `CHECK` that it ends in `@` ‖ `absender_domain` |
+| `anzeigename` | text | no | what a recipient sees |
+| `antwort_an` | text | yes | Reply-To when it differs |
+| `zweck` | mail_absender_zweck | no | `standard` \| `rechnung` \| `bewerbung` \| `mahnung` — one identity may serve several purposes; exactly one row per (mandant, purpose) |
+| `verifiziert_am` | timestamptz | yes | when the provider confirmed domain ownership; `NULL` = unverified and unusable |
+| `dkim_status` · `spf_status` · `dmarc_status` | dns_status | no | default `'unbekannt'`; written by the provider healthcheck, never by hand |
+| `credential_ref` | text | yes | Supabase Vault key name of the provider's per-domain credential (SEC-A5) — **never the secret itself** |
+| `erstellt_am` · `geaendert_am` · `erstellt_von` · `geaendert_von` | — | | K-16 |
+
+- **Indexes:** `mma_zweck_uk UNIQUE (mandant_id, zweck)`; `mma_domain_uk UNIQUE (mandant_id,
+  absender_domain)`; `UNIQUE (mandant_id, id)` (K-16).
+- **RLS:** `ENABLE` **and** `FORCE ROW LEVEL SECURITY`; the two K-03 policies, module `system`,
+  rights `system.einstellung_lesen` / `system.einstellung_verwalten`; K-04 `p_intern_ceiling`.
+- **Constraints:** `CHECK (verifiziert_am IS NOT NULL OR credential_ref IS NULL)` — an unverified
+  domain holds no credential; `MailerPort.sende` refuses a mandant whose row is absent or
+  unverified with `NOT_CONFIGURED`, and **never falls back to another mandant's sender**.
+- **Deletion:** not a finance, time-tracking or audit table, so a row may be removed — but only when
+  no `rechnung_versand` references it; the sender identity of a dispatched invoice is part of what
+  the K-12 snapshot preserves, and the versand row keeps its own copy of the address.
+- **SPEC:** NOT-01, NOT-02, FIN-15, TEN-08, SEC-A5, DESIGN §11.
+
+### 3.10 `bewerbung_eingang` — the staging table an inbound application needs before it has a tenant
 
 See §19.2. It lives in schema `bewerbung_intern`, **not exposed by PostgREST**, the same containment
 K-06 uses for `zeit_intern.arbeitszeit_fenster`, because a pre-tenant row cannot be protected by a
 K-03 policy.
 
-### 3.10 Tables owned by siblings, and what this section requires of them
+**It is not a tenant table and has no tenant key.** `zugeordnet_mandant_id` records the outcome of a
+human assignment (§19.2) and is never an RLS predicate, so it is not the nullable `mandant_id` that
+K-16(d) reserves to `audit_log` alone — the nullable-tenant grep of §30 matches the column name
+`mandant_id` exactly and therefore neither fires here nor is weakened to let it pass.
+
+### 3.11 Tables owned by siblings, and what this section requires of them
 
 | Table | Owner | Requirement from this section |
 |---|---|---|
-| `freigabe`, `freigabe_snapshot`, `freigabe_kette`, `freigabe_ansicht` | `02-datenmodell/06-RADAR-KI-INHALT.md` §4 | `mandant_id NOT NULL`, RLS, immutable `vorschau_payload` + `payload_hash`, single-use consumption (§4) |
-| `agent_budget`, `agent_reservierung`, `agent_kosten`, `agent_preisliste` | same, §3.5–3.7 | the AGT-05 cap is DB state, never an env var; `kosten_cent` + `kosten_rest` |
+| `freigabe`, `freigabe_snapshot`, `freigabe_kette`, `freigabe_ansicht` | `02-datenmodell/06-RADAR-KI-INHALT.md` §4 | `mandant_id NOT NULL`, **`UNIQUE (mandant_id, id)`** (K-16 — `integration_aufruf.freigabe_id` is a composite FK and Postgres refuses one whose parent lacks the matching unique), RLS, immutable `vorschau_payload` + `payload_hash`, single-use consumption on the columns that exist (§4) |
+| `agent_schritt`, `agent_aufgabe` | same, §3.9 | **`UNIQUE (mandant_id, id)`** for the composite FK from `integration_aufruf.agent_schritt_id`; the call cost stays in `*_mikrocent` there (K-16(b)) and is not copied into this layer |
+| `agent_budget`, `agent_reservierung`, `agent_kosten`, `agent_preisliste` | same, §3.5–3.7 | the AGT-05 cap is DB state, never an env var; amounts in `*_mikrocent` (K-16(b)), converted to cents once, half-up, at the budget boundary |
 | `social_channel`, `jobboard_kanal`, `postfach_kanal`, `stelle_veroeffentlichung`, `kanal_statistik` | same, §5.6 / §6.5 | `verbindungs_status` defaults to `nicht_verbunden`; `credential_ref` is a Vault key name; add `token_gueltig_bis` monitoring (§20) |
 | `ausschreibung`, `ausschreibung_rohdaten`, `radar_ingest_lauf`, `vergabeplattform`, `mandant_plattform_registrierung` | same, §2 | head row + verbatim raw rows (§15); platform **registrations are per legal entity** and tenant-scoped |
-| `rechnung`, `rechnung_versand`, `rechnung_xml`, `nummernkreis` | `02-datenmodell/05-FINANZEN.md` | delivery attempts are child rows (K-12); the validator result is reported, never claimed (§10) |
+| `rechnung`, `rechnung_dokument`, `rechnung_versand`, `nummernkreis` | `02-datenmodell/05-FINANZEN.md` §9.5–9.6 | delivery attempts are child rows (K-12); the validator result is **reported** on `rechnung_dokument.validierung_status` / `validierung_bericht` / `validierung_am`, never claimed (§10). The rendered artefact table is `rechnung_dokument` — this document previously called it `rechnung_xml`, a table no document declares. `rechnung_versand` already carries what §12.1 needs: `kanal` (the CRM `uebertragungsweg` enum, not a second vocabulary), `externe_id` for the portal's Vorgang id, and `fehlertext` for a rejection |
 | `datev_export`, `konto_mapping`, `datev_profil` | `02-datenmodell/05-FINANZEN.md` | `UNIQUE (mandant_id, von, bis, lauf_nr)` plus a partial unique on the authoritative run, so a legitimate re-export is possible (§9) |
 | `kontoauszug`, `bankbuchung`, `zahlungsvorschlag` | `02-datenmodell/05-FINANZEN.md` | the entry key of §13 — `UNIQUE (kontoauszug_id, lfd_nr)`, never `Ntry/NtryRef` |
 | `kunde_bauleistender_status`, `freistellungsbescheinigung` | `02-datenmodell/02-CRM-OPERATIONS.md` §4.1 | §13b and §48 EStG are decided from **dated evidence at the service date**, never from a VIES lookup (§12.4) |
+| `kunde` | `02-datenmodell/02-CRM-OPERATIONS.md` §2 | the delivery route is the **existing** `kunde.uebertragungsweg` (`peppol · zre · ozg_re · email · kundenportal · post`) together with `leitweg_id`, `kaeufer_referenz`, `elektronische_adresse`, `rechnungsformat`, `ist_oeffentlicher_auftraggeber` and `xrechnung_pflicht` — this layer mints **no** parallel route enum (§12.1). Required of that document: a buyer with `xrechnung_pflicht` and no `uebertragungsweg` **blocks** FIN-11 dispatch instead of defaulting; and if any buyer turns out to need a Landesportal, the value is added to `uebertragungsweg` there (O-22), never to a second enum here |
 | `dokument`, `dokument_version`, `dokument_aufbewahrung` | `02-datenmodell/02-CRM-OPERATIONS.md` §4.7 | one private-bucket contract, one retention catalogue; DOC-05 versions are `dokument_version` rows with their own object key (§6) |
 | `wetter_station`, `wetter_beobachtung`, `bautagebuch.wetter_snapshot` | `02-datenmodell/03-GEWERKE.md` §7.16–7.17 | the DWD port writes observations; the diary keeps the snapshot (§16) |
 | `feiertag` | `02-datenmodell/03-GEWERKE.md` §7 (global reference) | needs the proposal states of §17 |
 | `job_lauf` | `02-datenmodell/01-KERN.md` | `ergebnis` must include `abgelehnt`; `job_plan` joins on `job` |
-| `audit_log` | `02-datenmodell/01-KERN.md` | every gate decision, every mandant switch, every `entgelt_lesen`, every ArbZG aggregate read |
+| `loeschprotokoll` | `02-datenmodell/01-KERN.md` | referenced by §19.2 and by `05-API-KARTE.md` §579, declared nowhere — 01-KERN declares it: one append-only row per deleted subject and category, `mandant_id NOT NULL` where the subject had a tenant, no hard delete (invariant 8). A deletion with no tenant to record goes to `audit_log` at `ebene = 'plattform'` instead (K-16(d)) |
+| `audit_log` | `02-datenmodell/01-KERN.md` | every gate decision, every mandant switch, every `entgelt_lesen`, every ArbZG aggregate read, and every call on the definer register of §6.2. The platform-level ones — an `integration_status_global` read, a `bewerbung_eingang` listing — are written with `ebene = 'plattform'` and `mandant_id NULL` under **K-16(d)**, which is the one nullable tenant key in the platform and needs the `CHECK ((ebene = 'mandant') = (mandant_id IS NOT NULL))` to stay a stated fact rather than a missing value |
 
 ---
 
@@ -458,16 +580,18 @@ is a **type**, not a convention.
 ```ts
 declare const marke: unique symbol;
 
-/** Constructed only by src/server/agent/policy.ts. */
+/** Constructed only by src/server/agent/policy.ts.
+ *  Every field is a column of `freigabe` / `freigabe_snapshot` as
+ *  02-datenmodell/06-RADAR-KI-INHALT.md §4.2 and §4.7 define them — this type invents none. */
 export interface Freigabe {
   readonly [marke]: 'Freigabe';
-  id: string;
+  id: string;                 // freigabe.id
   mandant_id: MandantId;      // the entity the approval was given in — invariant 3
-  vorgang_typ: string;
-  snapshot_hash: string;      // sha256 of exactly what was approved — APR-07
-  erteilt_von: string;        // benutzer_id, or 'richtlinie:<id>' for a system message
-  erteilt_am: string;
-  gueltig_bis: string;
+  vorgang_typ: string;        // freigabe.vorgang_typ
+  payload_hash: string;       // freigabe.payload_hash — sha256 of exactly what was approved (APR-07)
+  erteilt_von: string;        // freigabe_snapshot.entschieden_von, or 'richtlinie:<id>' for a system message
+  erteilt_am: string;         // freigabe_snapshot.entschieden_am
+  frist: string | null;       // freigabe.frist — the deadline, and NULL when there is none
 }
 
 export type Entscheidung =
@@ -496,12 +620,23 @@ merely hashed), `payload_hash`, `richtlinie_id`, the execution columns and the c
 This document therefore does **not** define a second approval table; it states what the integration
 layer requires of that one.
 
+**And it consumes the columns that table has, not columns it wishes it had.** An earlier draft wrote
+the single-use update against `verbraucht_am`, `verbraucht_durch` and `gueltig_bis`; none of the
+three exists in §4.2, so the statement would have failed at migration time — or, worse, invited
+someone to add three columns that duplicate `ausfuehrung_status`, `ausgefuehrt_am` and `frist` and
+then disagree with them. The execution state machine is already there and already immutable in the
+directions that matter: `ausfuehrung_status ∈ (offen, laeuft, ausgefuehrt, fehlgeschlagen,
+zurueckgenommen)`, and `offen → laeuft` under a conditional `UPDATE` **is** the K-09 single-use
+claim. The APR-05 delayed release arrives as `status = 'automatisch_freigegeben'`, which is why the
+predicate accepts it beside `'genehmigt'` — dropping it would silently discard every approval that
+elapsed rather than being clicked.
+
 | Rule | Enforcement |
 |---|---|
 | Branded token | a send adapter that does not receive a `Freigabe` **does not compile** — and no send method may declare it optional (see below) |
 | Tenant binding | `freigabe.mandant_id = app.aktiver_mandant()`, checked in TypeScript and again in SQL |
-| Runtime re-check | the row exists, is unconsumed, is unexpired, and its `payload_hash` matches the payload about to be sent — otherwise `POLICY_BLOCKED` |
-| **Single use is a conditional write** (K-09) | `update freigabe set verbraucht_am = now(), verbraucht_durch = $benutzer where id = $id and mandant_id = app.aktiver_mandant() and verbraucht_am is null and now() <= gueltig_bis returning vorgang_typ, payload_hash;` — **zero rows returned is the refusal**. The send and the `integration_aufruf` row are written in the same transaction, only if a row came back. A pre-check may produce a friendlier message; it never decides |
+| Runtime re-check | the row exists, is approved, is not yet executed, is within its deadline, and its `payload_hash` matches the payload about to be sent — otherwise `POLICY_BLOCKED` |
+| **Single use is a conditional write** (K-09) | `update freigabe set ausfuehrung_status = 'laeuft', ausgefuehrt_am = now() where id = $id and mandant_id = app.aktiver_mandant() and status in ('genehmigt','automatisch_freigegeben') and ausfuehrung_status = 'offen' and (frist is null or now() <= frist) returning vorgang_typ, payload_hash;` — **zero rows returned is the refusal**. The send and the `integration_aufruf` row are written in the same transaction, only if a row came back, and the same transaction closes the row with `ausfuehrung_status = 'ausgefuehrt'` or `'fehlgeschlagen'` |
 | Retry | reuses the transport `Idempotency-Key`, never a second approval |
 | Rules are data | `agent_richtlinie`, editable in the UI without code (AGT-03) |
 | Legal basis | outbound to a contact whose `rechtsgrundlage` is `keine` is **blocked with no UI override** (CRM-08, LEG-08, D-01) |
@@ -513,7 +648,7 @@ layer requires of that one.
 
 An approval binds a payload. If it binds too little, the approved thing and the sent thing differ.
 
-| Channel | `snapshot_hash` covers |
+| Channel | `payload_hash` covers |
 |---|---|
 | `MailerPort.sende` | mandant, **every recipient address** (to/cc/bcc), sender identity, subject, body, and the **sha256 of every attachment** — an approval that does not bind the recipients permits an approved invoice PDF to be released to a different address |
 | `SmsPort.sende` | recipient number, purpose, rendered template id and parameters |
@@ -561,7 +696,7 @@ This is an interpretation of invariant 7, not something the SPEC states, so it s
 **until the question below is answered, the pre-approval rule ships disabled and every category
 requires an approval.** An unanswered question must not ship as a live exception to an invariant.
 
-`// TODO(client): Dürfen Systemnachrichten (Anmelde-Code, Check-in-Link, Passwort-Wiederherstellung, Eingangsbestätigung einer Bewerbung) über eine sichtbare, versionierte Richtlinie vorab freigegeben werden, oder soll jede ausgehende Nachricht einzeln freigegeben werden? (invariant 7, AGT-03, Frage 14)`
+`// TODO(client, O-125): Dürfen Systemnachrichten (Anmelde-Code, Check-in-Link, Passwort-Wiederherstellung, Eingangsbestätigung einer Bewerbung) über eine sichtbare, versionierte Richtlinie vorab freigegeben werden, oder soll jede ausgehende Nachricht einzeln freigegeben werden? (invariant 7, AGT-03)`
 
 ---
 
@@ -580,33 +715,33 @@ not a sixth `IntegrationStatus.kind`, so the TypeScript union and the UI vocabul
 | Supabase Postgres / Auth / Storage | `platform/` — no port, no not-connected state | **not yet provisioned; the application does not boot without it** | O-11 | TEN-03, AUT-*, DOC-03 |
 | Supabase cron (`pg_cron` + `pg_net`) | `SchedulerPort` | Nicht verbunden (no project) | O-11 | SPEC §14, §21 |
 | Vercel | hosting — no port | not yet provisioned | O-11 | PUB-10, D-04 |
-| OpenAI | `LlmPort` `EmbeddingPort` `VisionPort` | Nicht verbunden | Frage 9 (EU per model) | AGT-*, ACC-05 |
+| OpenAI | `LlmPort` `EmbeddingPort` `VisionPort` | Nicht verbunden | O-121 (EU per model) | AGT-*, ACC-05 |
 | DATEV EXTF file export | `AccountingExportPort` | **Blockiert** | **O-05** | ACC-02, ACC-03 |
 | DATEV online transfer | `AccountingTransferPort` | Nicht verbunden — never simulated | O-05 + credentials | ACC-02 |
 | XRechnung field validator (our code) | — | Verbindbar (pure code) | — | FIN-04, FIN-05, FIN-11 |
-| KoSIT validator | `EInvoiceValidatorPort` | Verbindbar in **CI**; runtime sidecar Nicht verbunden | — | FIN-11 |
+| KoSIT validator (optional runtime sidecar) | `EInvoiceValidatorPort` | Verbindbar in **CI**; runtime sidecar Nicht verbunden — it serves only the asynchronous post-finalisation report of §10 step 3, and no production path depends on it (§31) | — | FIN-11 |
 | ZUGFeRD / PDF/A-3 composer | `ZugferdComposerPort` | Verbindbar (local) | — | FIN-12 |
-| XRechnung delivery (OZG-RE / ZRE / Peppol) | `EInvoiceDeliveryPort` | **Nicht verbunden** | **Frage 17** | FIN-11 |
-| Banking CAMT.053 | `BankStatementPort` | Verbindbar (file import) | Frage 7 (delivery route) | ACC-04 |
-| LV / GAEB import | `LvImportPort` | Nicht verbunden | **Frage 18** | REQ-04, BAU-01, AGT-02 |
+| XRechnung delivery (OZG-RE / ZRE / Peppol) | `EInvoiceDeliveryPort` | **Nicht verbunden** | **O-22** | FIN-11 |
+| Banking CAMT.053 | `BankStatementPort` | Verbindbar (file import) | O-120 (delivery route) | ACC-04 |
+| LV / GAEB import | `LvImportPort` | Nicht verbunden | **O-97** | REQ-04, BAU-01, AGT-02 |
 | oeffentlichevergabe.de OCDS | `TenderSourcePort` | Verbindbar (public) | — | RAD-01, RAD-03 |
 | TED Search API v3 | `TenderSourcePort` | Verbindbar (public) | — | RAD-02, RAD-03 |
 | DWD Open Data | `WeatherPort` | Verbindbar (public) | — | BAU-08 |
 | Berlin public holidays | `HolidayPort` | Verbindbar (offline computation + cross-check) | — | CLN-02, CLN-03 |
-| SMS | `SmsPort` | Nicht verbunden | **Frage 1** | EMP-01, TIM-07, AUT-07 |
-| Transactional mail | `MailerPort` | Nicht verbunden | **Frage 2** | NOT-01, NOT-02, FIN-15 |
-| Application mailbox | `MailboxPort` | Nicht verbunden | **Frage 3** | REC-03, REC-07 |
-| Customer inbound mail | `MailboxPort` (`zweck = 'kunde'`) | Nicht verbunden | **Frage 22** | CRM-03, NOT-01 |
+| SMS | `SmsPort` | Nicht verbunden | **O-82** | EMP-01, TIM-07, AUT-07 |
+| Transactional mail | `MailerPort` | Nicht verbunden | **O-116** | NOT-01, NOT-02, FIN-15 |
+| Application mailbox | `MailboxPort` | Nicht verbunden | **O-28** | REC-03, REC-07 |
+| Customer inbound mail | `MailboxPort` (`zweck = 'kunde'`) | Nicht verbunden | **O-131** | CRM-03, NOT-01 |
 | CSE profile channel (own website) | `SocialChannelPort` | **Verbindbar (internal)** | — | SOC-05, PRO-04 |
 | Instagram · Facebook · LinkedIn · TikTok · YouTube | `SocialChannelPort` | Nicht verbunden (all five) | **O-10** + legal review | SOC-06, SOC-07 |
 | Job boards | `JobBoardPort` | Nicht verbunden | **O-10** | REC-09, D-02 |
-| n8n | inbound webhook + service token | Nicht verbunden | **Frage 11** | SPEC §21 |
-| Error tracking | `ErrorReporterPort` | Verbindbar — the stdout adapter is real | Frage 4 (external) | SPEC §21 |
-| Uptime probe of `/api/health` | external | Nicht verbunden | Frage 4 | SPEC §21 |
-| Backups + restore drill | `BackupPort` | Nicht verbunden | **Frage 5** | SEC-A10, LEG-01 |
-| Geocoding | `GeocodingPort` | Nicht verbunden | **Frage 10** | OPS-01, BAU-08 |
+| n8n | inbound webhook + service token | Nicht verbunden | **O-123** | SPEC §21 |
+| Error tracking | `ErrorReporterPort` | Verbindbar — the stdout adapter is real | O-118 (external) | SPEC §21 |
+| Uptime probe of `/api/health` | external | Nicht verbunden | O-118 | SPEC §21 |
+| Backups + restore drill | `BackupPort` | Nicht verbunden | **O-119** | SEC-A10, LEG-01 |
+| Geocoding | `GeocodingPort` | Nicht verbunden | **O-122** | OPS-01, BAU-08 |
 | VIES USt-IdNr. check | `VatIdPort` | Verbindbar (public, EU) | — | §14 UStG plausibility, intra-Community only |
-| Payroll handover | `PayrollExportPort` | Nicht verbunden | **Frage 6** | ACC-12 |
+| Payroll handover | `PayrollExportPort` | Nicht verbunden | **O-27** | ACC-12 |
 | Bewacherregister | none — manual by design | not an integration | — | SEC-03, SEC-04 |
 
 ---
@@ -638,7 +773,9 @@ corrected rule:
 
 - All table access — requests **and** cron jobs — goes through the six named roles of K-01.
   `cse_app` for requests, `cse_job` for scheduled work with per-job grants enumerated in the job
-  definition, `cse_anon` and `cse_checkin` for the three pre-session functions of K-08.
+  definition, `cse_anon` and `cse_checkin` for the **five** functions on K-08's closed register
+  (`sitzung_aufloesen`, `versuch_protokollieren`, `checkin_verbrauchen`, `offline_ereignis_annehmen`,
+  `ical_feed_lesen`) and for nothing else.
 - `SUPABASE_SERVICE_ROLE_KEY` is used **only** by `src/server/platform/` for Storage
   administration and the Auth admin API, and never for SQL against a tenant table.
 - **CI gate:** a grep fails the build when `SUPABASE_SERVICE_ROLE_KEY` is referenced outside
@@ -647,17 +784,52 @@ corrected rule:
 - `ALTER TABLE … FORCE ROW LEVEL SECURITY` on every tenant table (K-01), so a migration-owned
   connection does not silently see everything.
 
-### 6.2 Tenancy, and the two sanctioned crossings
+### 6.2 Tenancy, the four scopes, and the closed register of sanctioned crossings
 
 `withTenant(mandantId, fn)` sets the transaction-local GUCs of K-02 (`set_config(..., true)`) and runs
-as `cse_app`, so every K-03 policy applies. `withGroupScope` sets `app.scope = 'gruppe'`,
-`app.mandant_ids` and `app.readonly = 'on'`; `withAnstellung` is the write context of the worker
-portal; `withSystemTenant(mandantId, 'job:<name>')` is the job context. Fail-closed: an unset GUC
-coalesces to no mandant, no rights, read-only (K-02). Cross-tenant reads return **404, not 403**
-(AUT-06, K-02). Every mandant switch is audited (TEN-09).
+as `cse_app`, so every K-03 policy applies. **K-18 gives `app.scope` four values**, and this layer
+uses all four:
 
-There are exactly two places where a read legitimately leaves the active tenant, and neither is a
-service-role connection:
+| Helper | `app.scope` | `app.mandant_id` | Row visibility | Writes |
+|---|---|---|---|---|
+| `withTenant(mandantId, fn)` | `mandant` | the one mandant | K-03 `t_mandant` + `hat_recht` | yes |
+| `withAnstellung(anstellungId, fn)` | `mandant` | resolved **from the employment** | as above, under the K-04 `mitarbeiter` ceiling | the worker's own on-site acts (EMP-07, EMP-10) |
+| `withSystemTenant(mandantId, 'job:<name>')` | `mandant` | the one mandant | as above, as `cse_job` | per-job grants only |
+| `withGroupScope()` | `gruppe` | **NULL** | `= any(sichtbare_mandanten())` + `gruppe.<modul>.lesen` | **never** (invariant 10) |
+| `withPersonScope(ctx, fn)` | `person` | **NULL** | `= any(sichtbare_mandanten())` + the row belongs to `app.aktuelle_person()` | **never** in this scope — EMP-07 and EMP-10 writes re-enter `mandant` scope through `withAnstellung` |
+| `withKundeScope(ctx, fn)` | `kunde` | **NULL** | `= any(sichtbare_mandanten())` + the row belongs to the caller's `kunde` | **never** in this scope — any write O-74 authorises re-enters `mandant` scope (`withKundenVorgang`) |
+
+`app.mandant_ids` is derived server-side in every multi-tenant scope — from `benutzer_mandant`, from
+`anstellung`, or from the customer's own `auftrag` / `angebot` / `rechnung` rows — and never from the
+request (K-02, K-18). Fail-closed: an unset GUC coalesces to no mandant, no rights, read-only (K-02).
+Cross-tenant reads return **404, not 403** (AUT-06, K-02). Every mandant switch is audited (TEN-09).
+
+**Every read that leaves the active tenant is on the register below, and nothing else is.** An
+earlier draft said "there are exactly two places", which its own definer functions had already
+outgrown — a count is not a control. The register is closed: a `SECURITY DEFINER` function in this
+layer that is not listed here is a defect, every entry is owned by `cse_definer`, carries
+`SET search_path = pg_catalog, public` (K-01), checks its precondition **inside** the function
+rather than trusting the caller, and writes `audit_log`. It does not touch K-08, which governs the
+**pre-session** path and stays exactly five functions long.
+
+| Function | Runs as | Caller | Precondition, checked inside | `audit_log` action |
+|---|---|---|---|---|
+| `app.arbzg_belastung(p_person, p_von, p_bis)` | `cse_definer` | `services/arbzg/` only | `app.person_sichtbar(p_person)` **and** `dienstplan.arbzg_pruefen` in the active mandant | `arbzg.aggregat_gelesen` |
+| `app.arbzg_befund_schreiben(...)` | `cse_definer` | `services/arbzg/` only | the caller was entitled to the person in the active mandant | `arbzg.befund_geschrieben` |
+| `app.integration_status_global()` | `cse_definer` | `services/integrationen/` | `app.portal() = 'intern'` **and** `system.einstellung_lesen` in any mandant of the caller | `integration.status_global_gelesen` |
+| `app.integration_aufruf_system_lesen(...)` | `cse_definer` | `services/integrationen/` | as above, plus `system.protokoll_lesen` | `integration.systemprotokoll_gelesen` |
+| `app.restore_protokoll_lesen(...)` | `cse_definer` | `services/betrieb/` | `system.betrieb_lesen` in any mandant of the caller | `betrieb.restore_protokoll_gelesen` |
+| `app.bewerbung_eingang_liste()` | `cse_definer` | `services/recruiting/` | `recruiting.schreiben` in at least one mandant | `recruiting.eingang_gelesen` |
+| `app.bewerbung_zuordnen(eingang_id, mandant_id)` | `cse_definer` | `services/recruiting/` | `recruiting.schreiben` **in that mandant** | `recruiting.eingang_zugeordnet` |
+
+The first two are K-06 verbatim and are the only ones that cross **tenant** data; the next three read
+platform-level operational state that has no tenant to belong to; the last two touch
+`bewerbung_intern.bewerbung_eingang`, which holds applicant personal data **before** any tenant owns
+it (§19.2) — the crossing there is from "no tenant" into one, performed by a named human, never
+automatically. Each is exercised by an isolation test in the shape K-06 fixes: the caller gets the
+answer and gets no field identifying anything they were not already entitled to.
+
+The two that carry the most weight, restated because they carry the reasons:
 
 1. **The ArbZG cross-entity window — K-06.** TIM-14, LEG-03 and D-09 consequences 1 and 2 require
    summing one person's hours across entities, which K-03 otherwise makes impossible; left
@@ -671,20 +843,30 @@ service-role connection:
    `aktion = 'arbzg.aggregat_gelesen'`. Findings are written only by `app.arbzg_befund_schreiben(...)`,
    because a breach spanning two entities must be recorded in both and a request scoped to mandant A
    cannot write a row in mandant B. Only caller: `src/server/services/arbzg/`.
-2. **The three pre-session functions — K-08.** `app.sitzung_aufloesen(token_hash)` (`cse_anon`),
-   `app.versuch_protokollieren(...)` (`cse_anon`, AUT-07), `app.checkin_verbrauchen(token_hash,
-   geraet_zeit, ip)` (`cse_checkin`, TIM-07/TIM-08). A **route-manifest test asserts that no other
-   code path reaches the database outside `withTenant` / `withGroupScope` / `withAnstellung` /
-   `withSystemTenant`.**
+2. **The five pre-session functions — K-08, a closed register.** `app.sitzung_aufloesen(token_hash)`
+   (`cse_anon`), `app.versuch_protokollieren(...)` (`cse_anon`, AUT-07),
+   `app.checkin_verbrauchen(token_hash, geraet_zeit, ip)` (`cse_checkin`, TIM-07/TIM-08),
+   `app.offline_ereignis_annehmen(token_hash, ereignisse, ip)` (`cse_checkin`, TIM-09 — check-in data
+   arriving late over the same token, so the same trust boundary and the same K-09 conditional write)
+   and `app.ical_feed_lesen(feed_token_hash)` (`cse_anon`, CAL-03 — read-only, one user's own
+   entries, no write path). A **route-manifest test asserts that no other code path reaches the
+   database outside `withTenant` / `withGroupScope` / `withPersonScope` / `withKundeScope` /
+   `withAnstellung` / `withSystemTenant`**, and it fails the build on a sixth pre-session function
+   that is not added to K-08 in the same PR.
 
-**EMP-01 needs no fourth crossing.** The phone-number credential lives in Supabase Auth, not in an
+**EMP-01 needs no crossing of its own.** The phone-number credential lives in Supabase Auth, not in an
 application table read before a session exists: the worker requests an OTP, our own middleware
 applies the AUT-07 rate limit and lockout through `app.versuch_protokollieren`, Auth delivers the
 code through the SMS hook (§18), and only after the exchange does `app.sitzung_aufloesen` resolve
 `benutzer_id`, `person_id` and memberships. The combined cross-employment view of EMP-14 / EMP-15 is
-likewise not a new path: `/portal/mein/**` **reads** run in `withGroupScope` and every **write** runs
-in `withAnstellung`, as fixed in `03-AUTH-BERECHTIGUNGEN.md` §7, under the K-04 `mitarbeiter` ceiling
+likewise not a new path — but it is **not group scope either**, and an earlier draft had it wrong.
+`/portal/mein/**` **reads** run in `withPersonScope` and `/portal/kunde/**` reads in
+`withKundeScope`; every **write** re-enters `mandant` scope through `withAnstellung` with the single
+resolved tenant, as fixed in `03-AUTH-BERECHTIGUNGEN.md` §7, under the K-04 `mitarbeiter` ceiling
 that restricts every anstellung-hung and person-hung table to the caller's own rows (EMP-13).
+**Routing either portal through `withGroupScope` reads zero rows**, silently: K-03's group policy
+requires `gruppe.<modul>.lesen`, which no cleaner and no customer will ever hold, and widening that
+right to repair the symptom would hand every worker a group-level read of all four entities (K-18).
 
 ### 6.3 Time, auth, realtime
 
@@ -725,7 +907,7 @@ and there is no swept scratch bucket at all.
   bytes** (never the header), enforces the size limit and strips EXIF **before** the object is
   confirmed (DOC-06, TIM-10). Unconfirmed objects are swept after 24 h. Inbound attachments from the
   mailbox path are quarantined until verification succeeds.
-  `// TODO(client): Sollen eingehende Anhänge (Bewerbungen, Eingangsrechnungen, Kundenmails) zusätzlich auf Schadsoftware geprüft werden, und mit welchem EU-gehosteten Dienst? (DOC-06, Frage 16)`
+  `// TODO(client, O-127): Sollen eingehende Anhänge (Bewerbungen, Eingangsrechnungen, Kundenmails) zusätzlich auf Schadsoftware geprüft werden, und mit welchem EU-gehosteten Dienst? (DOC-06)`
 - **Retention is a catalogue, not a literal.** Every deletion or archiving decision resolves through
   `app.aufbewahrung_intervall(<kategorie>)` / `dokument_aufbewahrung`. Finance, time-tracking and
   audit documents are **reported, never deleted** (invariant 8, ACC-06, LEG-01); `StoragePort.loesche`
@@ -783,7 +965,7 @@ DST cannot shift them (invariant 2, K-11).
 
 | | |
 |---|---|
-| **Methods** | `LlmPort.complete({ faehigkeit, system, nachrichten, werkzeuge?, max_tokens, aufgabe_id })` · `EmbeddingPort.embed({ texte })` · `VisionPort.extrahiere({ bild, schema })` — each returning `{ modell, token_ein, token_aus, kosten_cent, kosten_rest }` |
+| **Methods** | `LlmPort.complete({ faehigkeit, system, nachrichten, werkzeuge?, max_tokens, aufgabe_id })` · `EmbeddingPort.embed({ texte })` · `VisionPort.extrahiere({ bild, schema })` — each returning `{ modell, token_ein, token_aus, kosten_mikrocent }` — 10⁻⁶ € per K-16(b), booked to `agent_kosten` and never converted per call |
 | **Credentials** | `OPENAI_API_KEY` · `OPENAI_BASE_URL` (EU endpoint) · `OPENAI_PROJECT_ID` · `OPENAI_ORG_ID` · `OPENAI_DATA_RESIDENCY=eu` — server-side only (SEC-A5) |
 | **EU / DPA** | EU processing **and** zero retention, evidenced **per model** in `modell_register`. DPA offered; **status: pending**. The adapter refuses to go live unless `OPENAI_DATA_RESIDENCY=eu` |
 | **Failure** | 429 → one backoff retry then `RATE_LIMITED`, the task stays `wartet`; timeout 60 s → step failed, visible in the Agent Center; schema mismatch → `INVALID_RESPONSE`, nothing written; cap reached → `BUDGET_EXCEEDED` + notification; key revoked → `AUTH_FAILED`, status `gestoert` |
@@ -801,12 +983,15 @@ DST cannot shift them (invariant 2, K-11).
   answer (AGT-06, AGT-07); no `vision` → ACC-05 OCR proposals unavailable and incoming invoices are
   captured manually; no `entwurf_text` → REC-02 and reply drafting unavailable.
 - **Budget.** `agent_budget` per mandant **and** per agent per Berlin calendar month, evaluated by
-  `app.agent_budget_pruefen(p_mandant, p_agent, p_betrag_mikro)` which locks the mandant row then the
+  `app.agent_budget_pruefen(p_mandant, p_agent, p_betrag_mikrocent)` which locks the mandant row then the
   agent row and returns a verdict rather than raising
   (`02-datenmodell/06-RADAR-KI-INHALT.md` §3.6). A pre-flight estimate is reserved
   (`agent_reservierung`) before the call and settled after it. At the cap the adapter refuses with a
   notification — **never a silent downgrade to a cheaper model** (AGT-05). The cap is a DB row, not an
   environment variable, so a fifth business area gets a budget without a deployment (TEN-08).
+  The comparison is exact integer arithmetic in the K-16(b) unit —
+  `verbrauch_mikrocent + reserviert_mikrocent + neu_mikrocent > budget_cent * 10000` — with the cap
+  widened rather than the spend narrowed, because a widening cannot round a spender under the limit.
 - **No arithmetic, and no model-authored input to arithmetic** (invariant 6, K-10). Every money,
   quantity or formula argument of an agent tool is either a **handle** — an entity id the service
   dereferences to stored rows — or a **token** from a prior result in the same run's number register;
@@ -820,7 +1005,7 @@ DST cannot shift them (invariant 2, K-11).
   signed URL**, so nothing outside the platform can fetch them later. Nothing sends: the model may
   propose an email; only the gate plus a human releases it (AGT-02 `sende_email`, invariant 7).
 
-`// TODO(client): Wenn für eine benötigte KI-Fähigkeit kein Modell mit EU-Verarbeitung und Zero-Retention angeboten wird — soll die Fähigkeit abgeschaltet bleiben, oder darf ein alternativer EU-gehosteter Modellanbieter in den festgelegten Stack aufgenommen werden? (D-04, Frage 9)`
+`// TODO(client, O-121): Wenn für eine benötigte KI-Fähigkeit kein Modell mit EU-Verarbeitung und Zero-Retention angeboten wird — soll die Fähigkeit abgeschaltet bleiben, oder darf ein alternativer EU-gehosteter Modellanbieter in den festgelegten Stack aufgenommen werden? (D-04)`
 
 ---
 
@@ -866,10 +1051,10 @@ per-mandant setting with **no default chosen**, sitting beside the fiscal-year s
 `datev_profil`, and the export list shows which runs are authoritative
 (`UNIQUE (mandant_id, von, bis, lauf_nr)` plus a partial unique on the authoritative run per period).
 
-`// TODO(client): DATEV-Stammdaten je Gesellschaft — Beraternummer, Mandantennummer, SKR03 oder SKR04, Sachkontenlänge, Steuerschlüssel-Tabelle, Beginn des Wirtschaftsjahres. (O-05)`
-`// TODO(client): Bitte eine echte Beispiel-EXTF-Datei des Steuerberaters bereitstellen, gegen die der Writer als Golden File getestet wird. (O-05)`
-`// TODO(client): Soll ein abgeschlossener DATEV-Export die Periode gegen neue Buchungen sperren, oder gehen Nachbuchungen in die nächste offene Periode? (ACC-02, Frage 20)`
-`// TODO(client): Wie sollen Belege beim Steuerberater ankommen — über DATEV Unternehmen online / Belegtransfer, oder als ZIP-Paket neben der EXTF-Datei? (ACC-03, Frage 13)`
+`// TODO(client, O-05): DATEV-Stammdaten je Gesellschaft — Beraternummer, Mandantennummer, SKR03 oder SKR04, Sachkontenlänge, Steuerschlüssel-Tabelle, Beginn des Wirtschaftsjahres.`
+`// TODO(client, O-05): Bitte eine echte Beispiel-EXTF-Datei des Steuerberaters bereitstellen, gegen die der Writer als Golden File getestet wird.`
+`// TODO(client, O-129): Soll ein abgeschlossener DATEV-Export die Periode gegen neue Buchungen sperren, oder gehen Nachbuchungen in die nächste offene Periode? (ACC-02)`
+`// TODO(client, O-124): Wie sollen Belege beim Steuerberater ankommen — über DATEV Unternehmen online / Belegtransfer, oder als ZIP-Paket neben der EXTF-Datei? (ACC-03)`
 
 ---
 
@@ -901,7 +1086,7 @@ document is legal.
 
 1. **Pre-flight, before finalisation — our own deterministic code, and it does gate.** The §14 UStG
    field validator (FIN-04), `Leistungszeitraum` (FIN-05), the Leitweg-ID for a customer flagged
-   `oeffentlicher_auftraggeber`, the EN 16931 business rules the serializer implements, and
+   `ist_oeffentlicher_auftraggeber`, the EN 16931 business rules the serializer implements, and
    **XSD plus Schematron validation of the provisional XML in Node**. Any failure blocks
    finalisation. This path has no external dependency and cannot be unavailable.
 2. **Finalisation** — number from `SELECT … FOR UPDATE` on the counter row, `hash = SHA256(payload +
@@ -911,7 +1096,8 @@ document is legal.
    snapshot**, never from live master data.
 3. **Post-finalisation — KoSIT, asynchronously.** The real XML is validated when a validator is
    available (always in CI, optionally by a runtime sidecar) and the report is stored on
-   `rechnung_xml` with `validierung_status ∈ {nicht_geprueft, gueltig, ungueltig}`. A failure is an
+   `rechnung_dokument` with `validierung_status ∈ {nicht_geprueft, gueltig, ungueltig}` plus
+   `validierung_bericht` and `validierung_am` (`02-datenmodell/05-FINANZEN.md` §9.5). A failure is an
    incident, alerts immediately, and is corrected by **Storno**, never by editing.
 
 The Leitweg-ID travels in the buyer-reference field; the pre-flight blocks finalisation when the
@@ -938,7 +1124,7 @@ and KoSIT for the embedded XML** — a ZUGFeRD file that is not PDF/A-3 is not Z
 **The worker substrate, named.** The locked stack is Supabase cron plus Vercel functions; there is no
 container job runner in it, and Edge Functions are barred from business logic. Composition therefore
 runs in a **Node pipeline inside `/api/cron/e-rechnung-komposition`** (embedded fonts, ICC profile,
-XMP), queued off `rechnung_xml`, never inline in a request, so a function time limit cannot be hit
+XMP), queued off `rechnung_dokument`, never inline in a request, so a function time limit cannot be hit
 mid-finalisation. If a Node-only pipeline cannot reach PDF/A-3 conformance under the veraPDF gate,
 the fallback is an EU-hosted container runner — which is a **hosting** decision and belongs to O-11,
 not a new invented component. veraPDF and KoSIT themselves run only in CI (§30).
@@ -960,7 +1146,7 @@ to address it there.
 | | |
 |---|---|
 | **Methods** | `sende({ mandantId, rechnungId, leitweg_id, xml, route, freigabe })` → `{ vorgang_id, angenommen_am }` · `status({ mandantId, vorgangId })` |
-| **Routes** | `ozg_re` · `zre` · `land_portal` · `peppol` · `email_erechnung` — the route is a property of the **customer** (`kunde.erechnung_route`), because the buyer decides it |
+| **Routes** | `kunde.uebertragungsweg` — `peppol` · `zre` · `ozg_re` · `email` (`kundenportal` and `post` are not e-invoice delivery and never reach this port). The route is a property of the **customer**, because the buyer decides it |
 | **Credentials** | per route, once accounts exist — **none today** |
 | **EU / DPA** | German public infrastructure or an EU Peppol access point; an access-point operator is a processor and needs a DPA |
 | **Failure** | not connected → the XML is produced, stored and downloadable, `rechnung_versand` records `nicht_verbunden`, and the invoice is **never** marked as sent; rejected by the portal → the rejection text is stored on `rechnung_versand` and a task is raised; **no auto-retry** |
@@ -969,7 +1155,19 @@ to address it there.
 Delivery attempts are **child rows** (`rechnung_versand`), never columns on the invoice, because a
 finalised invoice is immutable (K-12).
 
-`// TODO(client): Über welchen Kanal empfängt jeder öffentliche Auftraggeber seine XRechnung — ZRE, OZG-RE, ein Landesportal, ein Peppol-Zugangspunkt oder ein E-Rechnungs-Postfach — und wer hält die jeweiligen Zugänge? (FIN-11, Frage 17)`
+**The route column has an owner, and it is not this document.** An earlier draft introduced
+`kunde.erechnung_route` in prose, with an enum no document declared — a column belonging to nobody.
+It is unnecessary: `02-datenmodell/02-CRM-OPERATIONS.md` §2 already declares
+`create type uebertragungsweg as enum ('peppol','zre','ozg_re','email','kundenportal','post')` and
+hangs it on `kunde` beside `leitweg_id`, `kaeufer_referenz`, `elektronische_adresse`,
+`rechnungsformat` and `xrechnung_pflicht`, and its open question is already **O-22**. This layer
+therefore reads that column and mints nothing. It is nullable, and a buyer with `xrechnung_pflicht`
+and no route **blocks the FIN-11 dispatch** and raises a task, rather than defaulting to a channel
+that would silently deliver the invoice nowhere. A Landesportal, if any buyer requires one, is a new
+value **there** (O-22) — a parallel enum here would let the two vocabularies drift and would make
+`rechnung_versand.kanal` ambiguous.
+
+`// TODO(client, O-22): Über welchen Kanal empfängt jeder öffentliche Auftraggeber seine XRechnung — ZRE, OZG-RE, ein Landesportal, ein Peppol-Zugangspunkt oder ein E-Rechnungs-Postfach — und wer hält die jeweiligen Zugänge? (FIN-11)`
 
 ### 12.2 §13b UStG is decided from dated evidence, not from a VIES lookup — FIN-09, LEG-06
 
@@ -989,7 +1187,7 @@ The determination therefore reads `kunde_bauleistender_status` — `ist_bauleist
 `05-API-KARTE.md` §1408 already fix it. This is structurally identical to the §48b handling of §12.3
 and correctly separate from it.
 
-`// TODO(client): Setzt eine §13b-Rechnung eine zum Leistungsdatum gültige Freistellungsbescheinigung USt 1 TG des Kunden voraus, und wie wird verfahren, wenn sie mitten in einem laufenden Vertrag ausläuft? (FIN-09, LEG-06, Frage 12)`
+`// TODO(client, O-104): Setzt eine §13b-Rechnung eine zum Leistungsdatum gültige Freistellungsbescheinigung USt 1 TG des Kunden voraus, und wie wird verfahren, wenn sie mitten in einem laufenden Vertrag ausläuft? (FIN-09, LEG-06)`
 
 ### 12.3 §48b EStG Freistellungsbescheinigung — FIN-10
 
@@ -998,7 +1196,7 @@ evaluates validity **at the service date** in a tested function, and verificatio
 recorded manual step with `geprueft_am` / `geprueft_von`. Absent a valid certificate, 15 % is withheld —
 computed in cents by a service, never by a model (invariant 6).
 
-`// TODO(client): Liegt für jede Gesellschaft eine gültige Freistellungsbescheinigung nach §48b EStG vor, mit welcher Laufzeit, und wer erneuert sie? (FIN-10, Frage 21)`
+`// TODO(client, O-130): Liegt für jede Gesellschaft eine gültige Freistellungsbescheinigung nach §48b EStG vor, mit welcher Laufzeit, und wer erneuert sie? (FIN-10)`
 
 ### 12.4 `VatIdPort` — VIES, correctly scoped
 
@@ -1026,7 +1224,7 @@ online-banking session.
 | **Credentials** | none for upload; an optional SFTP retrieval is configuration of the same port, not a new one |
 | **EU / DPA** | parsing is local. The bank is an independent controller; **no DPA applies** |
 | **Failure** | unsupported `camt.053` namespace version → `SCHEMA_UNSUPPORTED` naming it, never parsed "best effort"; malformed XML → rejected with the parse position; the same file again → `DUPLICATE` with the original import id; unknown IBAN → imported but unassigned and flagged; two invoices with the same amount → **no proposal is auto-selected**, both are shown |
-| **Status today** | Verbindbar (import); delivery route open (Frage 7) |
+| **Status today** | Verbindbar (import); delivery route open (O-120) |
 
 One file is one transaction: a statement imports completely or not at all. The original XML is stored
 in the `archiv` bucket **before** parsing (ACC-06).
@@ -1057,7 +1255,7 @@ overpayments are never auto-split.
 `parseDecimalToCents` for money, `numeric(12,3)` for areas (K-16 — quantities are not cents), a
 preview before commit, and an import that is one transaction with a stored original file.
 
-`// TODO(client): Wie gelangen CAMT.053-Dateien in die Plattform — manueller Upload durch die Buchhaltung oder ein SFTP-Abruf der Bank? Welche Banken und welche IBAN je Gesellschaft? (ACC-04, Frage 7)`
+`// TODO(client, O-120): Wie gelangen CAMT.053-Dateien in die Plattform — manueller Upload durch die Buchhaltung oder ein SFTP-Abruf der Bank? Welche Banken und welche IBAN je Gesellschaft? (ACC-04)`
 
 ---
 
@@ -1078,7 +1276,7 @@ invent positions, which invariant 6 forbids.
 | **Failure** | unknown GAEB exchange phase or edition → `SCHEMA_UNSUPPORTED` naming what was found, never a partial parse; PDF → **not parsed**: the file is stored and a human enters or confirms the positions, because a PDF LV has no reliable structure and a wrong Menge is a wrong bid |
 | **Status today** | **Nicht verbunden** — no format confirmed |
 
-`// TODO(client): In welchem Format erhalten Sie Leistungsverzeichnisse — GAEB (welche Ausgabe: 90, 2000, DA XML 3.x; welche Austauschphase: 81, 83, 84), Excel oder PDF? Bitte je eine echte Beispieldatei. (REQ-04, BAU-01, Frage 18)`
+`// TODO(client, O-97): In welchem Format erhalten Sie Leistungsverzeichnisse — GAEB (welche Ausgabe: 90, 2000, DA XML 3.x; welche Austauschphase: 81, 83, 84), Excel oder PDF? Bitte je eine echte Beispieldatei. (REQ-04, BAU-01)`
 
 ---
 
@@ -1134,7 +1332,7 @@ Further rules:
   tenant-scoped with RLS while the platform catalogue `vergabeplattform` is reference data; a notice
   requiring an unregistered platform is flagged.
 
-`// TODO(client): Auf welchen Vergabeplattformen ist welche Gesellschaft registriert, mit welchem Konto und welcher Ansprechperson? (RAD-09, O-07)`
+`// TODO(client, O-07): Auf welchen Vergabeplattformen ist welche Gesellschaft registriert, mit welchem Konto und welcher Ansprechperson? (RAD-09)`
 
 ---
 
@@ -1202,7 +1400,7 @@ the codebase would silently schedule crews on a public holiday and produce wrong
 | **Credentials** | `SMS_PROVIDER` · `SMS_API_KEY` · `SMS_SENDER_ID` — **none configured; no provider selected** |
 | **EU / DPA** | EU processing and a signed Art. 28 DPA are **mandatory before selection**: a mobile number plus a shift context is personal data about an employee. **Status: no provider, therefore no DPA** |
 | **Failure** | not connected → EMP-01 login unavailable, and the login screen says so **before** asking for a phone number; provider error → the code is invalidated and the user may request a new one; delivery unknown → treated as undelivered |
-| **Status today** | Nicht verbunden — `nichtVerbunden('sms', 'integration.sms.nicht_verbunden', 'Frage 1')` |
+| **Status today** | Nicht verbunden — `nichtVerbunden('sms', 'integration.sms.nicht_verbunden', 'O-82')` |
 
 The provider must offer: EU processing · Art. 28 DPA · no retention of message content beyond
 delivery (the message carries a credential) · delivery receipts, so a failed login can be told apart
@@ -1225,7 +1423,7 @@ works without any login by design, so time recording never depends on an SMS pro
 *delivery by SMS* is blocked, and handing out the link or a QR code at the object is unaffected; and
 the check-in write itself is the conditional single-use update of K-09, independent of any provider.
 
-`// TODO(client): Welcher SMS-Anbieter versendet die Anmelde-Codes für das Mitarbeiterportal (EMP-01) und die Check-in-Links (TIM-07)? Erforderlich: EU-Verarbeitung, AV-Vertrag nach Art. 28 DSGVO, Absenderkennung, Zustellnachweise. Wer ist Vertragspartner und Kostenträger, und welches monatliche Kostenlimit gilt? (Frage 1)`
+`// TODO(client, O-82): Welcher SMS-Anbieter versendet die Anmelde-Codes für das Mitarbeiterportal (EMP-01) und die Check-in-Links (TIM-07)? Erforderlich: EU-Verarbeitung, AV-Vertrag nach Art. 28 DSGVO, Absenderkennung, Zustellnachweise. Wer ist Vertragspartner und Kostenträger, und welches monatliche Kostenlimit gilt?`
 
 ---
 
@@ -1239,17 +1437,19 @@ the check-in write itself is the conditional single-use update of K-09, independ
 | **Credentials** | `MAIL_PROVIDER` · `MAIL_API_KEY` · `MAIL_WEBHOOK_SECRET` · a verified sender domain **per entity** — none configured |
 | **EU / DPA** | EU processing and an Art. 28 DPA required; **no provider chosen, therefore no DPA** |
 | **Failure** | not connected → in-app notifications keep working and nothing is marked „versendet"; provider 5xx → 2 retries under the same idempotency key, then the notification stays queued and visible; hard bounce → the contact is marked undeliverable and further sending stops |
-| **Status today** | Nicht verbunden (Frage 2) |
+| **Status today** | Nicht verbunden (O-116) |
 
-Sender identity is **per mandant** (`mandant_mail_absender`, tenant table with RLS): each GmbH sends
-from its own verified domain with its own DKIM/SPF/DMARC, and a test asserts that a message for
-mandant X cannot go out with mandant Y's sender — the envelope and the PDF identity (DESIGN §11,
+Sender identity is **per mandant** — the tenant table `mandant_mail_absender` of **§3.9**, with
+`mandant_id NOT NULL`, `FORCE ROW LEVEL SECURITY`, the two K-03 policies and the K-04 ceiling: each
+GmbH sends from its own verified domain with its own DKIM/SPF/DMARC, an unverified domain holds no
+credential and cannot send at all, and a test asserts that a message for mandant X cannot go out
+with mandant Y's sender — the envelope and the PDF identity (DESIGN §11,
 K-12 identity snapshot) must agree. Attachments are fetched server-side from private buckets and
 attached; **never a link, never a signed URL pasted into an email** (DOC-03). Traffic: notifications
 (NOT-01, NOT-02), lead SLA escalation (REQ-05, REQ-06), offer and invoice dispatch, dunning (FIN-15),
 monthly hour statements (EMP-06), application acknowledgements (REC-03), approval requests.
 
-`// TODO(client): Welcher E-Mail-Dienst versendet transaktionale Nachrichten, und welche Absenderadresse und Domain gelten je Gesellschaft (CSE Dienstleistungen, SSE Security, REALTIME Service, CSE Operations)? EU-Verarbeitung und AV-Vertrag erforderlich. (Frage 2)`
+`// TODO(client, O-116): Welcher E-Mail-Dienst versendet transaktionale Nachrichten, und welche Absenderadresse und Domain gelten je Gesellschaft (CSE Dienstleistungen, SSE Security, REALTIME Service, CSE Operations)? EU-Verarbeitung und AV-Vertrag erforderlich.`
 
 ### 19.2 `MailboxPort` — the monitored application mailbox — REC-03, REC-07
 
@@ -1257,9 +1457,9 @@ monthly hour statements (EMP-06), application acknowledgements (REC-03), approva
 |---|---|
 | **Methods** | `holeNeue({ postfachKanalId, seit, max })` · `markiereVerarbeitet({ postfachKanalId, nachrichtId })` · `loesche({ postfachKanalId, nachrichtId, grund })` |
 | **Credentials** | `MAILBOX_*` (IMAP over TLS) **or** `MAILBOX_WEBHOOK_SECRET` (provider inbound parse) — none configured; the secret itself lives in the Vault and the table holds only `postfach_kanal.credential_ref` |
-| **EU / DPA** | EU-hosted mailbox and a DPA required; **status: open (Frage 3)** |
+| **EU / DPA** | EU-hosted mailbox and a DPA required; **status: open (O-28)** |
 | **Failure** | unreachable → `gestoert`, and the recruiting screen shows „Postfach nicht erreichbar — letzter Abruf <Zeitpunkt>", **never an empty inbox implying no applications** (the `postfach_stumm` watchdog raises when `letzter_abruf_am` ages out); duplicate `message_id` → skipped; attachment failing MIME verification → the application is created, the attachment quarantined and flagged |
-| **Status today** | Nicht verbunden (Frage 3); the career-form path (REC-03) is independent and keeps working |
+| **Status today** | Nicht verbunden (O-28); the career-form path (REC-03) is independent and keeps working |
 
 **An inbound application has no tenant until someone gives it one.** `bewerbung` is a tenant table,
 and invariant 10 forbids inserting one without exactly one active mandant — but a speculative
@@ -1302,7 +1502,15 @@ message in the mailbox** (which requires delete permission on that mailbox), **t
 application** (AGT-06 indexes correspondence), and **the `agent_schritt` records of the CV parsing**,
 which contain the CV text. Each deletion is recorded in `loeschprotokoll`.
 
-`// TODO(client): Welche E-Mail-Adresse ist das überwachte Bewerbungspostfach je Gesellschaft, wer administriert es, wer triagiert eine Bewerbung, die an keine der vier Adressen gerichtet ist, und darf die Plattform Nachrichten nach der Übernahme daraus löschen? Ohne Löschrecht ist die DSGVO-Löschung nach REC-07 unvollständig. (Frage 3)`
+**`loeschprotokoll` needs an owner.** It is referenced here and by `05-API-KARTE.md` §579 and is
+declared by no data-model document, so §31 places that obligation on `02-datenmodell/01-KERN.md`,
+beside `audit_log` and `job_lauf`: one append-only row per deleted subject and category, with
+`mandant_id NOT NULL` where the subject had a tenant. A staging row that was never assigned to a
+mandant has no tenant to record, so **its** deletion is written to `audit_log` at
+`ebene = 'plattform'` (K-16(d)) rather than forcing a tenant onto the row or making a second
+`mandant_id` nullable.
+
+`// TODO(client, O-28, O-117): Welche E-Mail-Adresse ist das überwachte Bewerbungspostfach je Gesellschaft, wer administriert es, wer triagiert eine Bewerbung, die an keine der vier Adressen gerichtet ist, und darf die Plattform Nachrichten nach der Übernahme daraus löschen? Ohne Löschrecht ist die DSGVO-Löschung nach REC-07 unvollständig.`
 
 ### 19.3 Inbound customer mail — CRM-03, NOT-01
 
@@ -1314,7 +1522,7 @@ matches no `kunde`, `lead` or `auftrag` reference is staged for a human, never a
 mailbox is configured, **customer replies are recorded manually** in `lead_aktivitaet` /
 `nachricht` — which is stated here so that it is a decision and not an omission.
 
-`// TODO(client): Soll eingehende Kundenkommunikation automatisch in die Historie übernommen werden (eigenes Postfach je Gesellschaft), oder werden Antworten weiterhin manuell erfasst? (CRM-03, NOT-01, Frage 22)`
+`// TODO(client, O-131): Soll eingehende Kundenkommunikation automatisch in die Historie übernommen werden (eigenes Postfach je Gesellschaft), oder werden Antworten weiterhin manuell erfasst? (CRM-03, NOT-01)`
 
 ---
 
@@ -1345,7 +1553,7 @@ One interface, six adapters, one of which is ours.
   60 days. A daily job compares `token_gueltig_bis` against `now()` and raises an escalating notice at
   14 / 7 / 1 days, plus an alert in the §23 list; an expired token sets `verbindungs_status =
   'gestoert'` with the reason. A token that cannot be refreshed is a human task, never a silent stop.
-- `veroeffentliche` requires a `Freigabe` whose `snapshot_hash` covers text, hashtags, media ids and
+- `veroeffentliche` requires a `Freigabe` whose `payload_hash` covers text, hashtags, media ids and
   the **target channel list** — editing after approval invalidates it (SOC-08, APR-07, §4.1).
 - `pruefe()` validates caption length, media aspect, video length and hashtag count **before** a human
   approves, so an approval is not wasted on a post the channel will reject.
@@ -1359,8 +1567,8 @@ One interface, six adapters, one of which is ours.
   `kanal_statistik` distinguishes `NULL` ("not retrievable") from `0` ("zero") rather than filling
   gaps.
 
-`// TODO(client): Welche Social-Media-Konten existieren (Instagram, Facebook, LinkedIn, TikTok, YouTube), je Marke oder je Gruppe, wer ist Inhaber und Administrator, und wer erteilt den API-Zugriff? (SOC-06, O-10)`
-`// TODO(client): Liegen schriftliche Einwilligungen der abgebildeten Beschäftigten für die Veröffentlichung von Fotos vor, und wer verwahrt sie? (SOC-04, PRO-05, Frage 8)`
+`// TODO(client, O-10): Welche Social-Media-Konten existieren (Instagram, Facebook, LinkedIn, TikTok, YouTube), je Marke oder je Gruppe, wer ist Inhaber und Administrator, und wer erteilt den API-Zugriff? (SOC-06)`
+`// TODO(client, O-13): Liegen schriftliche Einwilligungen der abgebildeten Beschäftigten für die Veröffentlichung von Fotos vor, und wer verwahrt sie? (SOC-04, PRO-05)`
 
 ---
 
@@ -1382,7 +1590,7 @@ no reading of Indeed/StepStone listings, no automated candidate extraction — r
 of `stelle` rows at a stable URL that any board which *pulls* adverts can subscribe to. It genuinely
 exists; it is not a simulation. Applications always return through REC-03.
 
-`// TODO(client): Bei welchen Stellenbörsen bestehen Arbeitgeberkonten, und bietet eine davon eine offizielle API oder einen Feed-Import an? Ohne echte Zugangsdaten bleibt die Schnittstelle „nicht verbunden". (REC-09, O-10)`
+`// TODO(client, O-10): Bei welchen Stellenbörsen bestehen Arbeitgeberkonten, und bietet eine davon eine offizielle API oder einen Feed-Import an? Ohne echte Zugangsdaten bleibt die Schnittstelle „nicht verbunden". (REC-09)`
 
 ---
 
@@ -1398,9 +1606,9 @@ exists; it is not a simulation. Applications always return through REC-03.
 | Outbound content | still passes our policy gate first — n8n cannot route around invariant 7 |
 | Hosting | self-hosted in the EU or an EU-region cloud instance, with a DPA if third-party hosted |
 | **Failure isolation proven in CI** | the full e2e suite runs with n8n disabled and must stay green; if a test fails without n8n, business logic has leaked into a workflow |
-| Status today | Nicht verbunden — no instance, no secret (Frage 11) |
+| Status today | Nicht verbunden — no instance, no secret (O-123) |
 
-`// TODO(client): Wird n8n selbst gehostet (wo, durch wen) oder als EU-Cloud-Instanz betrieben, liegt ein AV-Vertrag vor, und welche externen Werkzeuge sollen überhaupt angebunden werden? (Frage 11)`
+`// TODO(client, O-123): Wird n8n selbst gehostet (wo, durch wen) oder als EU-Cloud-Instanz betrieben, liegt ein AV-Vertrag vor, und welche externen Werkzeuge sollen überhaupt angebunden werden?`
 
 ---
 
@@ -1413,9 +1621,9 @@ Vercel and Supabase, so "not connected" here loses detail, never truth.
 |---|---|
 | **Methods** | `ErrorReporterPort.erfasseFehler({ fehler, kontext })` · `erfasseMeldung({ text_schluessel, stufe, kontext })` · `MetricsPort.zaehle` / `messe` · `AlertPort.alarmiereIntern` / `alarmiereExtern` (§4.2) |
 | **Credentials** | `ERROR_REPORTER_DSN` / `ERROR_REPORTER_ENV` — none configured; the stdout adapter is active |
-| **EU / DPA** | an external reporter must offer an EU region and a DPA; **none chosen (Frage 4)**. PII scrubbing is mandatory either way: ids and codes only |
+| **EU / DPA** | an external reporter must offer an EU region and a DPA; **none chosen (O-118)**. PII scrubbing is mandatory either way: ids and codes only |
 | **Failure** | reporter unreachable → the error is still logged locally; fire-and-forget never blocks a request; a failing external monitor must not be able to hide a failing job, which is why failed-job alerting derives from **our own** `job_lauf` and `job_plan` tables (§3.7) |
-| **Status today** | Verbindbar (stdout); external provider Nicht verbunden (Frage 4) |
+| **Status today** | Verbindbar (stdout); external provider Nicht verbunden (O-118) |
 
 ### 23.1 `/api/health` is split, because one endpoint cannot be both public and detailed
 
@@ -1424,10 +1632,28 @@ free reconnaissance for an attacker. Two surfaces:
 
 | Endpoint | Auth | Returns |
 |---|---|---|
-| `GET /api/health` | none | `{ status, build_id, region, db_erreichbar, migration_ok, jobs_ueberfaellig }` — a count, never a list. This is what an external uptime probe checks, alongside the public homepage |
-| `GET /api/verwaltung/integrationen` | session, `system.einstellung_lesen` | per-integration status, `blockiert_durch`, last success, last error code, clock drift versus Postgres, overdue jobs by name (`05-API-KARTE.md` §486) |
+| `GET /api/health` | none | `{ status, build_id, region, db_erreichbar }`. This is what an external uptime probe checks, alongside the public homepage |
+| `GET /api/verwaltung/integrationen` | session, `system.einstellung_lesen` | per-integration status, `blockiert_durch`, last success, last error code, clock drift versus Postgres, `migration_ok`, overdue jobs as a count **and** by name (`05-API-KARTE.md` §486) |
 
 Neither returns business data counts, and neither returns a secret.
+
+**Why liveness no longer publishes `migration_ok` and `jobs_ueberfaellig`.** Both are table reads —
+the migration table, and `job_plan ⋈ job_lauf` — and an unauthenticated request has no session, so it
+would need a database path outside `withTenant` / `withGroupScope`. K-08's register is closed at five
+functions and K-01 gives `cse_anon` **no table grants at all**; adding a sixth function here would
+have to amend a binding convention from a domain document, which is exactly backwards. So the two
+counts move to the authenticated surface, where they were always more useful (overdue jobs are
+actionable only by name), and the liveness endpoint keeps what it can prove without reading anything:
+`db_erreichbar` is a `SELECT 1` on the `cse_anon` pool, which touches no table, needs no grant and is
+therefore not a data path in K-08's sense.
+
+**The case the public counts were meant to cover is covered by a push, not a pull.** "The platform's
+own alerting is the thing that broke" is answered by the dead-man's switch of §3.7: the
+`job-heartbeat` run pings the external uptime monitor on success, and the monitor alerts when the
+ping stops. A pull would have required handing a session-less caller a table read; a push requires
+nothing of the database at all. Until an uptime service exists (O-118) the switch has no receiver,
+`/api/verwaltung/integrationen` shows the overdue jobs, and **nothing pretends the watchdog is
+armed.**
 
 ### 23.2 Alerts that must exist
 
@@ -1438,7 +1664,7 @@ mailbox silent (§19.2) · AI budget cap reached (AGT-05) · clock drift above �
 restore drill overdue. Alerts appear **in-app always**; email only through the gate; an alert is never
 the only record of the fact it reports.
 
-`// TODO(client): Welche Dienste für Fehler-Tracking, Uptime-Überwachung und Log-Weiterleitung sind freigegeben (EU-Region und AV-Vertrag), oder sollen selbst gehostete Alternativen betrieben werden? (Frage 4)`
+`// TODO(client, O-118): Welche Dienste für Fehler-Tracking, Uptime-Überwachung und Log-Weiterleitung sind freigegeben (EU-Region und AV-Vertrag), oder sollen selbst gehostete Alternativen betrieben werden?`
 
 ---
 
@@ -1451,15 +1677,15 @@ account.
 |---|---|---|---|---|
 | 1 | Point-in-time recovery | inside the Supabase project, EU | continuous | per plan |
 | 2 | Daily snapshot | inside the project, EU | daily | per plan |
-| 3 | **Independent encrypted dump** (database **and** storage objects) | a separate EU object store, different account | daily | **PLACEHOLDER — not chosen (Frage 5)** |
+| 3 | **Independent encrypted dump** (database **and** storage objects) | a separate EU object store, different account | daily | **PLACEHOLDER — not chosen (O-119)** |
 
 | | |
 |---|---|
 | **`BackupPort`** | `sichereDatenbank({ stand })` · `sichereSpeicher({ buckets, stand })` · `listeSicherungen()` · `pruefeWiederherstellung({ sicherung, ziel: 'scratch' })` |
 | **Credentials** | `BACKUP_TARGET_URL` · `BACKUP_ACCESS_KEY` · `BACKUP_SECRET_KEY` · `BACKUP_RECIPIENT_PUBLIC_KEY` — none configured |
-| **EU / DPA** | EU object storage with a DPA required; **none chosen (Frage 5)** |
+| **EU / DPA** | EU object storage with a DPA required; **none chosen (O-119)** |
 | **Failure** | backup job fails → alert the same day; missing monthly restore entry → alert, because an untested backup is not a backup; the job **refuses to write plaintext** if no recipient public key is configured |
-| **Status today** | Nicht verbunden (Frage 5); layers 1–2 exist as soon as the Supabase project does |
+| **Status today** | Nicht verbunden (O-119); layers 1–2 exist as soon as the Supabase project does |
 
 - **Storage objects are backed up too.** A database dump does not contain the files in Supabase
   Storage; invoice PDFs, signed Leistungsnachweise, Aufmaß and Wachbuch photos are **evidence**, and
@@ -1487,7 +1713,7 @@ account.
   years for hour records, DSGVO minimisation for applicant data), and it is decided together with the
   LEG-09 deletion concept.
 
-`// TODO(client): Wo liegen die unabhängigen verschlüsselten Sicherungen von Datenbank und Dateispeicher (EU-Anbieter, Konto, Region), welche Aufbewahrung gilt (täglich/monatlich/jährlich), wer verwahrt den privaten Schlüssel, wer stellt ihn für den monatlichen Wiederherstellungstest bereit, und wer bestätigt das Ergebnis? (SEC-A10, LEG-09, Frage 5)`
+`// TODO(client, O-119): Wo liegen die unabhängigen verschlüsselten Sicherungen von Datenbank und Dateispeicher (EU-Anbieter, Konto, Region), welche Aufbewahrung gilt (täglich/monatlich/jährlich), wer verwahrt den privaten Schlüssel, wer stellt ihn für den monatlichen Wiederherstellungstest bereit, und wer bestätigt das Ergebnis? (SEC-A10, LEG-09)`
 
 ---
 
@@ -1509,7 +1735,7 @@ needs a producer, a bucket and a retention rule rather than an ad-hoc download.
 None of these lands in a swept scratch bucket; there is no such bucket (§6.4). Their retention is the
 `dokument_aufbewahrung` catalogue, not a nightly cron.
 
-`// TODO(client): Welches Lohnsystem empfängt den Zeitdatenexport nach ACC-12, in welchem Format, und je Gesellschaft getrennt? (Frage 6)`
+`// TODO(client, O-27): Welches Lohnsystem empfängt den Zeitdatenexport nach ACC-12, in welchem Format, und je Gesellschaft getrennt?`
 
 ### 25.2 The two ports that exist so that a *non*-integration is visible in code
 
@@ -1522,7 +1748,7 @@ than „DWD hatte keine Daten" (§16).
 
 **`VatIdPort`** — §12.4.
 
-`// TODO(client): Soll die Adresse eines Objekts automatisch in Koordinaten aufgelöst werden, und mit welchem EU-gehosteten oder selbst betriebenen Dienst (Kundenadressen sind personenbezogene Daten)? (OPS-01, BAU-08, Frage 10)`
+`// TODO(client, O-122): Soll die Adresse eines Objekts automatisch in Koordinaten aufgelöst werden, und mit welchem EU-gehosteten oder selbst betriebenen Dienst (Kundenadressen sind personenbezogene Daten)? (OPS-01, BAU-08)`
 
 ### 25.3 Migration from the existing tools — ROADMAP Phase 10
 
@@ -1538,7 +1764,7 @@ compliance question, not a convenience.
 | Lexware | same port | finalised invoices import as **evidence**, not as new invoices: they never enter a `nummernkreis`, never join the hash chain, and are marked `extern_abgeschlossen` so FIN-16 shows the break in provenance honestly |
 | Excel | same port | preview before commit, the OPS-04 discipline (§13) |
 
-`// TODO(client): In welchem Format lassen sich Aplano, Lexware und die bestehenden Excel-Dateien exportieren, welcher Zeitraum soll übernommen werden, und müssen die historischen Daten revisionssicher im GoBD-Archiv landen oder genügt die Aufbewahrung im Altsystem? (ROADMAP Phase 10, LEG-01, LEG-02, Frage 19)`
+`// TODO(client, O-128): In welchem Format lassen sich Aplano, Lexware und die bestehenden Excel-Dateien exportieren, welcher Zeitraum soll übernommen werden, und müssen die historischen Daten revisionssicher im GoBD-Archiv landen oder genügt die Aufbewahrung im Altsystem? (ROADMAP Phase 10, LEG-01, LEG-02)`
 
 ---
 
@@ -1558,7 +1784,7 @@ Naming these prevents someone building a fake version later.
 | Web-font CDN | transmits visitor IPs to a third country | Inter and Caveat self-hosted via `next/font`, `font-src 'self'` | PUB-13, SEC-A7 |
 | Machine translation for EMP-12 | a mistranslated Dienstanweisung is a liability | de/en/ar/tr catalogues in the repo; AI may draft, a human approves before it ships | EMP-12 |
 | Client-side analytics | PUB-13 — no third-party trackers, hence no cookie banner | server-side counting of our own events (`kanal_statistik`, REP-03) | PUB-13, REP-03 |
-| iCal (CAL-03) | not an integration — we serve it | read-only feed per user at an unguessable, revocable, rate-limited token URL, no write path | CAL-03 |
+| iCal (CAL-03) | not an integration — we serve it | read-only feed per user at an unguessable, revocable, rate-limited token URL, no write path; the read is `app.ical_feed_lesen(feed_token_hash)` as `cse_anon`, the fifth and last entry on K-08's closed register, and it opens no session helper | CAL-03 |
 | Geolocation at check-in | a browser API, not a service | one point at start and end, never continuous; ships only once O-06 (Betriebsrat) is answered; configurable off per mandant until then | LEG-10, O-06 |
 
 ---
@@ -1601,16 +1827,16 @@ from (§25.1), and it is also the Art. 30 processing register LEG-09 requires.
 | 1 | Supabase | Datenhaltung, Anmeldung, Dateien, Cron | AV | EU Frankfurt (**muss** so angelegt werden) | **offen** | Beschäftigtenstammdaten, Zeiterfassung, Abwesenheiten (gesundheitsnah), Bewerberdaten, Kundenkontakte, Finanzdaten, Fotos, IP | D-04 |
 | 2 | Vercel | Hosting, Serverfunktionen, Bildoptimierung | AV | Funktionen `fra1`; Edge-Netz global — Logs prüfen | **offen** | IP, Session, alle im Request verarbeiteten Daten | D-04 |
 | 3 | OpenAI | Entwürfe, Klassifikation, Belegextraktion, Embeddings | AV | EU-Verarbeitung + Zero-Retention **je Modell nachzuweisen** | **offen** | Inhalte übergebener Dokumente und Texte (nach Redaktion) | AGT-* |
-| 4 | SMS-Anbieter | Anmelde-Codes, Check-in-Links | AV | EU erforderlich | **offen — kein Anbieter (Frage 1)** | Mobilfunknummer, Anmeldezeitpunkt | EMP-01 |
-| 5 | E-Mail-Versand | Benachrichtigungen, Angebote, Rechnungen, Mahnungen | AV | EU erforderlich | **offen — kein Anbieter (Frage 2)** | Name, E-Mail, Inhalte inkl. Rechnungsanhängen | NOT-01 |
-| 6 | Bewerbungspostfach | Eingang Bewerbungen | AV | EU erforderlich | **offen (Frage 3)** | Bewerberdaten: Name, Kontakt, Lebenslauf, Zeugnisse, Foto | REC-03 |
-| 7 | Kundenpostfach (falls angebunden) | Eingang Kundenkommunikation | AV | EU erforderlich | **offen (Frage 22)** | Kundenkontaktdaten, Nachrichteninhalte | CRM-03 |
-| 8 | E-Rechnungs-Zustellung (Peppol-Zugangspunkt) | Übermittlung XRechnung | AV (Zugangspunkt) / eigenv. (öffentlicher Auftraggeber) | EU erforderlich | **offen (Frage 17)** | Rechnungsdaten, Ansprechpartner | FIN-11 |
-| 9 | Fehler-Tracking / Log-Weiterleitung | Betriebsüberwachung | AV | EU erforderlich | **offen (Frage 4)** | technische Kennungen; PII durch Scrubbing ausgeschlossen | §21 |
-| 10 | Uptime-Überwachung | Erreichbarkeit | AV | EU bevorzugt | **offen (Frage 4)** | keine (nur `/api/health`) | §21 |
-| 11 | Backup-Objektspeicher | verschlüsselte Sicherungen | AV | EU erforderlich | **offen (Frage 5)** | vollständiger Datenbestand, verschlüsselt | SEC-A10 |
-| 12 | n8n-Hosting | externe Verknüpfungen | AV | EU (self-hosted oder EU-Cloud) | **offen (Frage 11)** | je Workflow, minimiert | §21 |
-| 13 | Geocoding-Dienst | Adresse → Koordinaten | AV | EU erforderlich | **offen (Frage 10)** | Kundenadressen | OPS-01 |
+| 4 | SMS-Anbieter | Anmelde-Codes, Check-in-Links | AV | EU erforderlich | **offen — kein Anbieter (O-82)** | Mobilfunknummer, Anmeldezeitpunkt | EMP-01 |
+| 5 | E-Mail-Versand | Benachrichtigungen, Angebote, Rechnungen, Mahnungen | AV | EU erforderlich | **offen — kein Anbieter (O-116)** | Name, E-Mail, Inhalte inkl. Rechnungsanhängen | NOT-01 |
+| 6 | Bewerbungspostfach | Eingang Bewerbungen | AV | EU erforderlich | **offen (O-28)** | Bewerberdaten: Name, Kontakt, Lebenslauf, Zeugnisse, Foto | REC-03 |
+| 7 | Kundenpostfach (falls angebunden) | Eingang Kundenkommunikation | AV | EU erforderlich | **offen (O-131)** | Kundenkontaktdaten, Nachrichteninhalte | CRM-03 |
+| 8 | E-Rechnungs-Zustellung (Peppol-Zugangspunkt) | Übermittlung XRechnung | AV (Zugangspunkt) / eigenv. (öffentlicher Auftraggeber) | EU erforderlich | **offen (O-22)** | Rechnungsdaten, Ansprechpartner | FIN-11 |
+| 9 | Fehler-Tracking / Log-Weiterleitung | Betriebsüberwachung | AV | EU erforderlich | **offen (O-118)** | technische Kennungen; PII durch Scrubbing ausgeschlossen | §21 |
+| 10 | Uptime-Überwachung | Erreichbarkeit | AV | EU bevorzugt | **offen (O-118)** | keine (nur `/api/health`) | §21 |
+| 11 | Backup-Objektspeicher | verschlüsselte Sicherungen | AV | EU erforderlich | **offen (O-119)** | vollständiger Datenbestand, verschlüsselt | SEC-A10 |
+| 12 | n8n-Hosting | externe Verknüpfungen | AV | EU (self-hosted oder EU-Cloud) | **offen (O-123)** | je Workflow, minimiert | §21 |
+| 13 | Geocoding-Dienst | Adresse → Koordinaten | AV | EU erforderlich | **offen (O-122)** | Kundenadressen | OPS-01 |
 | 14 | GitHub (Repo, Actions) | Quellcode, CI | AV | Region prüfen; **keine Produktionsdaten in CI** | **unbekannt** | keine (Fixtures sind synthetisch) | SEC-A8 |
 | 15 | Meta (Instagram, Facebook) | Veröffentlichung | eigenv. / bei Seiten-Insights **gemeinsam** | Drittland | **entfällt — AV ist das falsche Instrument; Joint-Controller-Vereinbarung + Rechtsprüfung** | veröffentlichte Inhalte, ggf. abgebildete Beschäftigte | SOC-06 |
 | 16 | LinkedIn | Veröffentlichung | eigenv. / ggf. gemeinsam | Drittland | **entfällt — wie 15** | wie 15 | SOC-06 |
@@ -1624,7 +1850,7 @@ from (§25.1), and it is also the Art. 30 processing register LEG-09 requires.
 | 24 | Feiertags-Datenquelle (Gegenprüfung) | gesetzliche Feiertage Berlin | — | EU/lokal | **entfällt** | keine | CLN-03 |
 | 25 | KoSIT-Validator, veraPDF, EXTF-Writer, CAMT-Parser, GAEB-Parser | Prüfung und Erzeugung von Dateien | **lokal — kein Empfänger** | im eigenen System | **entfällt** | Daten verlassen das System nicht | FIN-11, FIN-12 |
 | 26 | Steuerberater (DATEV-Übergabe) | Buchführung | eigenv. (Berufsträger) | DE | **unbekannt — vertragliche Grundlage beim Mandanten** | Buchungs- und Belegdaten | ACC-02 |
-| 27 | Lohnbüro / Lohnsystem | Zeitdaten je Anstellung | eigenv. oder AV, je nach Konstellation | DE | **unbekannt (Frage 6)** | Beschäftigtendaten, Stunden je Anstellung | ACC-12 |
+| 27 | Lohnbüro / Lohnsystem | Zeitdaten je Anstellung | eigenv. oder AV, je nach Konstellation | DE | **unbekannt (O-27)** | Beschäftigtendaten, Stunden je Anstellung | ACC-12 |
 | 28 | Bank (CAMT.053) | Kontoumsätze | eigenv. | DE/EU | **entfällt** | Zahlungsdaten, IBAN, Verwendungszweck | ACC-04 |
 
 **Two points to put in front of the client with this table.**
@@ -1677,18 +1903,19 @@ identifiers and platform secrets.
 | `INTEGRATION_FORCE_NOT_CONNECTED` | registry override (staging, e2e) | no | no | empty | Entwicklung | — |
 | `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_PROJECT_ID`, `OPENAI_ORG_ID` | AI ports | **key: yes** | no | AI `nicht verbunden` | Geschäftsführung / IT | 180 days |
 | `OPENAI_DATA_RESIDENCY` | must equal `eu` | no | no | **adapter refuses to go live** | Geschäftsführung | — |
-| `SMS_PROVIDER`, `SMS_API_KEY`, `SMS_SENDER_ID` | `SmsPort` | **yes** | no | EMP-01 login unavailable (Frage 1) | offen | 180 days |
-| `MAIL_PROVIDER`, `MAIL_API_KEY`, `MAIL_WEBHOOK_SECRET` | `MailerPort` | **yes** | no | in-app notifications only (Frage 2) | offen | 180 days |
-| `MAILBOX_HOST/_PORT/_USER/_PASSWORD` or `MAILBOX_WEBHOOK_SECRET` | `MailboxPort` | **yes** | no | mailbox intake off (Frage 3) | offen | 180 days |
+| `SMS_PROVIDER`, `SMS_API_KEY`, `SMS_SENDER_ID` | `SmsPort` | **yes** | no | EMP-01 login unavailable (O-82) | offen | 180 days |
+| `MAIL_PROVIDER`, `MAIL_API_KEY`, `MAIL_WEBHOOK_SECRET` | `MailerPort` | **yes** | no | in-app notifications only (O-116) | offen | 180 days |
+| `MAILBOX_HOST/_PORT/_USER/_PASSWORD` or `MAILBOX_WEBHOOK_SECRET` | `MailboxPort` | **yes** | no | mailbox intake off (O-28) | offen | 180 days |
 | `OEV_API_BASE`, `TED_API_BASE`, `TED_API_KEY` | tender ingest | key: **yes** | no | that source's ingest off | Plattformbetrieb | — |
 | `DWD_OPENDATA_BASE` | `WeatherPort` | no | no | BAU-08 weather off | Plattformbetrieb | — |
 | `FEIERTAGE_QUELLE` | holiday cross-check adapter | no | no | cross-check off; the computed table stays authoritative | Plattformbetrieb | — |
 | `META_APP_ID/_SECRET`, `LINKEDIN_CLIENT_ID/_SECRET`, `TIKTOK_CLIENT_KEY/_SECRET`, `GOOGLE_OAUTH_CLIENT_ID/_SECRET` | social channels (app level only; tokens in the Vault) | **yes** | no | channels `nicht verbunden` (O-10) | Marketing / IT | per platform policy |
 | `N8N_BASE_URL`, `N8N_WEBHOOK_SECRET`, `N8N_SERVICE_TOKEN` | n8n glue | **yes** | no | glue off, core unaffected | offen | 90 days |
 | `ERROR_REPORTER_DSN`, `ERROR_REPORTER_ENV` | `ErrorReporterPort` | **yes** | no | stdout adapter (real) | offen | 180 days |
+| `UPTIME_PING_URL` | the `job-heartbeat` dead-man's switch (§3.7, §23.1) | no | no | no ping is sent and the UI says the watchdog is **not connected** — never a silent no-op | offen (O-118) | on provider change |
 | `BACKUP_TARGET_URL`, `BACKUP_ACCESS_KEY`, `BACKUP_SECRET_KEY` | `BackupPort` | **yes** | no | independent backups off — alert | offen | 90 days |
-| `BACKUP_RECIPIENT_PUBLIC_KEY` | encryption recipient (public key only) | no | no | job refuses to write plaintext | Schlüsselverwahrer (Frage 5) | on key rotation |
-| `GEOCODING_PROVIDER`, `GEOCODING_API_KEY` | `GeocodingPort` | **yes** | no | manual coordinates (Frage 10) | offen | 180 days |
+| `BACKUP_RECIPIENT_PUBLIC_KEY` | encryption recipient (public key only) | no | no | job refuses to write plaintext | Schlüsselverwahrer (O-119) | on key rotation |
+| `GEOCODING_PROVIDER`, `GEOCODING_API_KEY` | `GeocodingPort` | **yes** | no | manual coordinates (O-122) | offen | 180 days |
 | `VIES_BASE_URL` | `VatIdPort` | no | no | verification unavailable, never blocking | Plattformbetrieb | — |
 | `KOSIT_VALIDATOR_VERSION`, `KOSIT_CONFIG_VERSION`, `VERAPDF_VERSION` | CI only | no | CI: yes | CI fails | Entwicklung | on ruleset update |
 | `VERCEL_REGION`, `VERCEL_ENV` | platform-provided, asserted `fra1` in prod | no | — | deploy assertion fails | Plattformbetrieb | — |
@@ -1714,12 +1941,16 @@ business area to be a database row, not a deployment change.
 | Service-role grep | `SUPABASE_SERVICE_ROLE_KEY` is referenced outside `src/server/platform/**` |
 | `BYPASSRLS` assertion | any role the application connects as has `rolbypassrls`, or a tenant table lacks `FORCE ROW LEVEL SECURITY` (K-01) |
 | RLS coverage | a table added by this layer has `mandant_id` and no K-03 policy pair, or hangs off `anstellung_id`/`person_id` and has no K-04 ceiling (`src/server/db/rls.ts`) |
-| Nullable-tenant grep | a table in this layer declares `mandant_id` as nullable |
+| Nullable-tenant grep | a table in this layer declares `mandant_id` as nullable. The grep matches the column name exactly, so `bewerbung_eingang.zugeordnet_mandant_id` (§3.10, an assignment record, never an RLS predicate) is untouched, and `audit_log` — K-16(d)'s single exemption — is not this layer's table |
 | Public-key grep | a `NEXT_PUBLIC_*` matches `KEY\|SECRET\|TOKEN\|PASSWORD\|DSN` outside the two-entry allowlist |
 | Edge-runtime grep | `runtime = 'edge'` on a route touching personal data |
 | Browser-client grep | a client component calls `from('<table>')` on a Supabase client |
 | **Gate-completeness test** | an exported adapter method in the send set declares `freigabe` as optional or omits it (§4.2) |
-| **Group-scope write test** | a send/publish/export/import port method succeeds under `withGroupScope` (invariant 10) |
+| **Read-scope write test** | a send/publish/export/import port method succeeds under `withGroupScope`, `withPersonScope` or `withKundeScope` (invariant 10, K-18) |
+| **K-16 common columns** | a table declared in §3 lacks `id uuid primary key default gen_random_uuid()` or `erstellt_am timestamptz not null default now()`, or renames either (§3.2, §3.4, §3.5, §3.7) |
+| **Micro-cent containment (K-16(b))** | a `*_mikrocent` column exists outside `agent_schritt`, `agent_kosten`, `agent_reservierung`, `agent_budget` and `agent_preisliste`, or any table of this layer declares a sub-cent money column of its own (§2, §3.5) |
+| **Definer register** | a `SECURITY DEFINER` function reachable from this layer is not on the register of §6.2, or lacks `SET search_path = pg_catalog, public`, or does not write `audit_log` (K-01, K-06) |
+| **Check-constraint sanity** | a migration in this layer declares a `CHECK` containing a subquery — Postgres refuses it, and the failure otherwise surfaces only on first apply (§3.3) |
 | **Mandant-binding test** | a `Freigabe` from mandant A is accepted by an adapter running in mandant B |
 | **Single-use test** | N concurrent consumptions of one `freigabe` produce exactly one send (K-09) |
 | Secret scanning · dependency audit · OWASP ZAP baseline | a credential is committed · a known vulnerability at moderate or above · a new medium+ ZAP finding (SEC-A8) |
@@ -1731,7 +1962,8 @@ business area to be a database row, not a deployment change.
 | n8n-disabled e2e | any business flow fails without n8n |
 | Tenant isolation (SEC-A3) | a user of area A receives anything but 404 for an entity of area B, including integration-fed rows and `integration_aufruf` |
 | ArbZG isolation (K-06) | `app.arbzg_belastung` returns any field identifying a foreign mandant, object, customer or rate |
-| `pnpm lint:todo` | a `TODO(client)` or a `*.platzhalter.ts` has no matching entry in `DECISIONS.md` § Open, or an integration folder with a real `<vendor>.ts` has no sub-processor entry (`01-ORDNERSTRUKTUR.md` §11.4) |
+| Pre-session register (K-08) | a route reaches the database outside `withTenant` / `withGroupScope` / `withPersonScope` / `withKundeScope` / `withAnstellung` / `withSystemTenant`, or calls a session-less function that is not one of K-08's five |
+| `pnpm lint:todo` | a `TODO(client, O-nn)` or a `*.platzhalter.ts` carries no `O-nn`, or carries one with no matching entry in `DECISIONS.md` § Open, or an integration folder with a real `<vendor>.ts` has no sub-processor entry (`01-ORDNERSTRUKTUR.md` §11.4). Every `TODO(client)` in this document names its number (§32), so the gate is enabled the day §32 is merged into DECISIONS.md, not blocked on it |
 | i18n key coverage | an `IntegrationError.meldung_schluessel` used by a worker-facing surface has no `de/en/ar/tr` entry (EMP-12) |
 
 **Accessibility (PUB-09, LEG-07, BFSG) is not gated here.** WCAG 2.1 AA is a legal requirement and a
@@ -1746,56 +1978,75 @@ named here only so that it is not lost in the gap between two sections.
 |---|---|
 | `01-ORDNERSTRUKTUR.md` §11.2 | `nicht-verbunden.ts` **returns** a typed `NOT_CONNECTED` result; `NotConnectedError` is thrown only by `index.ts` when a live adapter's config fails to parse (§1.1) |
 | `01-ORDNERSTRUKTUR.md` §11 | add `e-rechnung/` (validator, composer, delivery), `lv/`, `feiertage/`, `geo/`, `steuer/`, `backup/` to the integration tree |
-| `02-datenmodell/01-KERN.md` | `job_lauf.ergebnis` includes `abgelehnt`; `job_lauf` carries `(job, gestartet_am DESC)` for the heartbeat query; `job_plan` (§3.7) joins on `job` |
-| `02-datenmodell/05-FINANZEN.md` | `datev_export` keyed `UNIQUE (mandant_id, von, bis, lauf_nr)` plus a partial unique on the authoritative run; `bankbuchung` keyed `UNIQUE (kontoauszug_id, lfd_nr)` with a content hash, never on `entry_ref`; `rechnung_versand` carries the `EInvoiceDeliveryPort` route, vorgang id and rejection text |
-| `02-datenmodell/06-RADAR-KI-INHALT.md` | `social_channel` keeps `token_gueltig_bis` and gains the expiry watchdog of §20; `postfach_kanal` gains `zweck = 'kunde'`; the `bewerber-purge` job covers `bewerbung_eingang`, `wissens_chunk` and `agent_schritt` (§19.2) |
+| `01-ORDNERSTRUKTUR.md` §11.2 (KoSIT) | reconcile the two renderings of one component: the **CI** validator stays a test-only concern in `tests/compliance/` with no adapter and no `nicht-verbunden` state, exactly as that document says; the **optional runtime sidecar** is an integration with a not-connected state, used only for the asynchronous post-finalisation report of §10 step 3. Both statements are true of different things, and the register row of §5 now says which (§5, §10) |
+| `02-datenmodell/01-KERN.md` | `job_lauf.ergebnis` includes `abgelehnt`; `job_lauf` carries `(job, gestartet_am DESC)` for the heartbeat query; `job_plan` (§3.7) joins on `job`; **declare `loeschprotokoll`**, which §19.2 and `05-API-KARTE.md` §579 both use and no data-model document defines |
+| `02-datenmodell/02-CRM-OPERATIONS.md` §2 | the e-invoice delivery route stays the **existing** `kunde.uebertragungsweg` enum; this layer mints no `erechnung_route` (§12.1). Two additions are required of that document: a buyer with `xrechnung_pflicht` and no `uebertragungsweg` **blocks** FIN-11 dispatch and raises a task rather than defaulting to a channel, and a Landesportal — if O-22 shows any buyer needs one — becomes a value of `uebertragungsweg` there rather than a second enum here |
+| `02-datenmodell/05-FINANZEN.md` | `datev_export` keyed `UNIQUE (mandant_id, von, bis, lauf_nr)` plus a partial unique on the authoritative run; `bankbuchung` keyed `UNIQUE (kontoauszug_id, lfd_nr)` with a content hash, never on `entry_ref`; `rechnung_versand` carries the delivery route as the CRM-declared `uebertragungsweg`, plus the vorgang id and the rejection text |
+| `02-datenmodell/06-RADAR-KI-INHALT.md` | `social_channel` keeps `token_gueltig_bis` and gains the expiry watchdog of §20; `postfach_kanal` gains `zweck = 'kunde'`; the `bewerber-purge` job covers `bewerbung_eingang`, `wissens_chunk` and `agent_schritt` (§19.2); `freigabe`, `agent_schritt` and `agent_aufgabe` declare `UNIQUE (mandant_id, id)` so the composite FKs of §3.5 can point at them (K-16); the single-use consumption of §4 uses `status` + `ausfuehrung_status` + `frist` — **no `verbraucht_am`, `verbraucht_durch` or `gueltig_bis` column is to be introduced**, because they would duplicate a state machine §4.2 already has |
 | `02-datenmodell/03-GEWERKE.md` | `feiertag` gains `status ∈ (vorschlag, bestaetigt, verworfen)` in its key (§17) |
-| `03-AUTH-BERECHTIGUNGEN.md` | rights `system.einstellung_lesen` / `system.einstellung_verwalten` / `system.protokoll_lesen` / `system.betrieb_lesen` cover the tables of §3 |
+| `03-AUTH-BERECHTIGUNGEN.md` | rights `system.einstellung_lesen` / `system.einstellung_verwalten` / `system.protokoll_lesen` / `system.betrieb_lesen` cover the tables of §3, including `mandant_mail_absender` (§3.9); `withPersonScope` / `withKundeScope` are the read contexts of `/portal/mein/**` and `/portal/kunde/**` and `withGroupScope` is **not** (K-18, §6.2), while every portal write re-enters `mandant` scope through `withAnstellung` |
 | `04-SEITENKARTE.md` | the five status words of §27 are added to `docs/DESIGN.md` §5 before they are rendered (D-10) |
-| `05-API-KARTE.md` | add `GET /api/health` (unauthenticated liveness, §23.1) and `POST /api/cron/job-heartbeat`; rename `src/server/integrationen/` to `src/server/integrations/` — infrastructure identifiers stay English (CLAUDE.md) |
+| `05-API-KARTE.md` | add `GET /api/health` returning `{ status, build_id, region, db_erreichbar }` only — no `migration_ok`, no `jobs_ueberfaellig`, since an unauthenticated caller may read no table (K-01, K-08, §23.1) — and `POST /api/cron/job-heartbeat`, whose success pings the external uptime monitor as a dead-man's switch; `GET /api/verwaltung/integrationen` gains `migration_ok` and the overdue jobs; rename `src/server/integrationen/` to `src/server/integrations/` — infrastructure identifiers stay English (CLAUDE.md) |
 | `docs/DESIGN.md` | §5 status-pill vocabulary extended by the five words of §27 |
-| `docs/DECISIONS.md` | the questions of §32, and a note under **D-08** that the AI cost meter is `kosten_cent` + a sub-cent carry `kosten_rest`, which is not a second money unit (K-16) |
+| `docs/DECISIONS.md` | the questions of §32, and a note under **D-08** that agent cost and budget accounting is `*_mikrocent bigint` (10⁻⁶ €) under **K-16(b)**, converted to cents once, half-up, at the budget boundary — the earlier `kosten_cent` + `kosten_rest` carry pair is withdrawn, and no operational table outside `agent_schritt` / `agent_budget` and their carry columns holds a sub-cent figure (§2, §3.5) |
 
 ---
 
 ## 32. Open questions this document raises — for `DECISIONS.md` § Open
 
-`DECISIONS.md` currently lists O-01 … O-13. Sibling Phase 0 documents have each proposed further
-numbered questions and their ranges already overlap (03 proposes O-14 … O-32, 04 proposes up to
-O-52, `02-datenmodell/04-PLANUNG-ZEIT.md` proposes O-30 … O-42). This document therefore **does not
-claim global numbers**: the questions below are numbered locally and are given their final `O-nn`
-when they are merged into `DECISIONS.md`. Every `// TODO(client)` in the text above cites its local
-number.
+**The numbering is resolved here, not deferred to a merge.** `docs/DECISIONS.md` holds O-01 and
+O-04 … O-13; `08-PR-PLAN.md` claims O-14 … O-29; sibling Phase 0 documents have claimed up to O-115
+(`03-AUTH-BERECHTIGUNGEN.md` O-74 … O-92, `05-API-KARTE.md` O-94 … O-104,
+`06-AGENTEN-FREIGABEN.md` O-105 … O-115), with O-30 … O-73 still contested between the earlier
+documents and therefore unsafe to cite. Every question this document raises accordingly either
+**cites the number that already asks it** or takes the next free block, **O-116 … O-131**, each with
+a stable slug so the question survives whatever renumbering `DECISIONS.md` imposes when it
+reconciles all Phase 0 documents at once.
 
-| # | Frage | Blockiert |
+An earlier draft numbered these locally („Frage 14") and left the mapping to that merge. That is
+what made the `pnpm lint:todo` gate of §30 unshippable: it fails when a `TODO(client)` has no
+matching `DECISIONS.md` entry, and a local number never matches one — so the gate could only ever
+have run disabled, which is the same as not having it. **Every `// TODO(client, O-nn)` in the text
+above now names a number in one of the two tables below.**
+
+### 32.1 Already asked elsewhere — cited, never minted a second time
+
+| Nummer | Frage | Wo sie in diesem Dokument trägt |
 |---|---|---|
-| 1 | Welcher SMS-Anbieter versendet Anmelde-Codes (EMP-01) und Check-in-Links (TIM-07)? EU-Verarbeitung, AV-Vertrag, Absenderkennung, Zustellnachweise, Vertragspartner, Kostenlimit | `SmsPort`, EMP-01, Phase 3/5 |
-| 2 | Welcher E-Mail-Dienst versendet transaktionale Nachrichten, mit welcher Absenderdomain je Gesellschaft? | `MailerPort`, NOT-01, FIN-15 |
-| 3 | Welche Adresse ist das Bewerbungspostfach je Gesellschaft, wer triagiert eine Bewerbung ohne Zuordnung, und darf die Plattform Nachrichten daraus löschen? | `MailboxPort`, REC-03, REC-07 |
-| 4 | Welche Dienste für Fehler-Tracking, Uptime und Log-Weiterleitung (EU-Region, AV-Vertrag) — oder selbst gehostet? | SPEC §21, Phase 10 |
-| 5 | Backup-Ziel (EU-Anbieter, Konto, Region), **Aufbewahrungsfristen**, Verwahrung des privaten Schlüssels, Bereitstellung für den monatlichen Test, Bestätigung des Ergebnisses | `BackupPort`, SEC-A10, LEG-09 |
-| 6 | Welches Lohnsystem empfängt den Zeitdatenexport (ACC-12), in welchem Format, je Gesellschaft getrennt? | ACC-12 |
-| 7 | Wie gelangen CAMT.053-Dateien in die Plattform (Upload oder SFTP), welche Banken, welche IBAN je Gesellschaft? | ACC-04 |
-| 8 | Liegen schriftliche Einwilligungen der abgebildeten Beschäftigten für veröffentlichte Fotos vor, und wer verwahrt sie? | SOC-04, PRO-05 |
-| 9 | Wenn für eine KI-Fähigkeit kein Modell mit EU-Verarbeitung und Zero-Retention angeboten wird: Fähigkeit abschalten oder alternativen EU-Anbieter aufnehmen? | AGT-*, D-04 |
-| 10 | Automatische Geokodierung von Objektadressen — mit welchem EU-gehosteten oder selbst betriebenen Dienst? | OPS-01, BAU-08 |
-| 11 | n8n: Selbst gehostet (wo, durch wen) oder EU-Cloud, AV-Vertrag, und welche externen Werkzeuge? | SPEC §21 |
-| 12 | Setzt eine §13b-Rechnung eine zum Leistungsdatum gültige Freistellungsbescheinigung USt 1 TG voraus, und was gilt beim Ablauf mitten im Vertrag? | FIN-09, LEG-06 |
-| 13 | Wie sollen Belege beim Steuerberater ankommen — DATEV Unternehmen online / Belegtransfer oder ZIP-Paket? | ACC-03 |
-| 14 | Dürfen Systemnachrichten über eine versionierte Richtlinie vorab freigegeben werden, oder ist jede ausgehende Nachricht einzeln freizugeben? | invariant 7, AGT-03 |
-| 15 | Aufbewahrungsdauer für `integration_aufruf` und `agent_schritt` (Prompt/Antwort mit Personenbezug) | LEG-09 |
-| 16 | Sollen eingehende Anhänge auf Schadsoftware geprüft werden, mit welchem EU-gehosteten Dienst? | DOC-06, REC-03, ACC-05 |
-| 17 | Über welchen Kanal empfängt jeder öffentliche Auftraggeber seine XRechnung (ZRE, OZG-RE, Landesportal, Peppol, E-Rechnungs-Postfach), und wer hält die Zugänge? | FIN-11 |
-| 18 | In welchem Format kommen Leistungsverzeichnisse (GAEB — Ausgabe und Austauschphase — Excel oder PDF)? Bitte je eine echte Beispieldatei | REQ-04, BAU-01, AGT-02 |
-| 19 | Export- und Übernahmeweg aus Aplano, Lexware und Excel; welcher Zeitraum; müssen historische Daten ins GoBD-Archiv? | ROADMAP Phase 10, LEG-01, LEG-02 |
-| 20 | Sperrt ein abgeschlossener DATEV-Export die Periode, oder gehen Nachbuchungen in die nächste offene Periode? | ACC-02 |
-| 21 | Liegt je Gesellschaft eine gültige Freistellungsbescheinigung nach §48b EStG vor, mit welcher Laufzeit, und wer erneuert sie? | FIN-10, LEG-06 |
-| 22 | Soll eingehende Kundenkommunikation automatisch in die Historie übernommen werden (eigenes Postfach je Gesellschaft), oder bleibt sie manuell? | CRM-03, NOT-01 |
-| O-05 (bestehend) | DATEV-Stammdaten je Gesellschaft **plus eine echte Beispiel-EXTF-Datei** | ACC-02, ACC-03 |
-| O-06 (bestehend) | Betriebsrat — §87 BetrVG regelt Geolokalisierung beim Check-in und die APR-08-Messung | LEG-10 |
-| O-07 (bestehend) | Auf welchen Vergabeplattformen ist welche Gesellschaft registriert? | RAD-09 |
-| O-10 (bestehend) | Welche Social- und Stellenbörsen-Konten existieren, wer ist Inhaber, wer erteilt API-Zugriff? | SOC-06, REC-09 |
-| O-11 (bestehend) | Managed EU-Cloud oder selbst gehosteter deutscher Server — **vor** Anlage des Supabase-Projekts zu beantworten | D-04, §6, §11 |
+| O-05 | DATEV-Stammdaten je Gesellschaft **plus eine echte Beispiel-EXTF-Datei** | §9 — `AccountingExportPort` bleibt blockiert |
+| O-06 | Betriebsrat — §87 BetrVG für Geolokalisierung beim Check-in und die APR-08-Messung | §26 |
+| O-07 | Auf welchen Vergabeplattformen ist welche Gesellschaft registriert? | §15, `mandant_plattform_registrierung` |
+| O-10 | Welche Social- und Stellenbörsen-Konten existieren, wer ist Inhaber, wer erteilt API-Zugriff? | §20, §21 — alle Kanäle `Nicht verbunden` |
+| O-11 | Managed EU-Cloud oder selbst gehosteter deutscher Server — **vor** Anlage des Supabase-Projekts | §5, §6, §11 |
+| O-13 | Echte Fotografie **mit Freigaben** — hier: schriftliche Einwilligungen der abgebildeten Beschäftigten und wer sie verwahrt | §20 (SOC-04, PRO-05) |
+| O-22 | Leitweg-IDs je öffentlichem Auftraggeber und der verlangte Übertragungsweg (OZG-RE / ZRE / Landesportal / Peppol / E-Mail) | §12.1, `kunde.uebertragungsweg` |
+| O-25 | Aufbewahrungsfristen je Dokumentkategorie | §6.4, `dokument_aufbewahrung` |
+| O-27 | Lohnexport-Zielsystem und Format, je Gesellschaft getrennt | §25.1, `PayrollExportPort` |
+| O-28 | Welches Bewerbungspostfach wird überwacht, und wem gehört es? | §19.2, `MailboxPort` |
+| O-82 | Welcher EU-gehostete SMS-Anbieter versendet OTP und Check-in-Link (AV-Vertrag), und welches monatliche Kostenlimit gilt? | §18 — EMP-01 bleibt blockiert |
+| O-97 | In welchem Austauschformat kommen Leistungsverzeichnisse (GAEB-Ausgabe und Austauschphase, Excel, PDF)? | §14, `LvImportPort` |
+| O-104 | §13b Abs. 2: Kategorien und die USt-1-TG-Bescheinigungen im Bestand | §12.2 — hier zusätzlich: gilt sie zum Leistungsdatum, und was gilt beim Ablauf mitten im Vertrag? |
+
+### 32.2 New — allocated **O-116 … O-131**, with slugs
+
+| Nummer | Slug | Frage | Blockiert |
+|---|---|---|---|
+| O-116 | `int-mail-versanddienst` | Welcher EU-gehostete E-Mail-Dienst versendet transaktionale Nachrichten, und welche verifizierte Absenderdomain und -adresse gelten je Gesellschaft (CSE Dienstleistungen, SSE Security, REALTIME Service, CSE Operations)? AV-Vertrag erforderlich | `MailerPort`, `mandant_mail_absender` (§3.9), NOT-01, NOT-02, FIN-15 |
+| O-117 | `int-postfach-loeschrecht` | Wer triagiert eine Bewerbung, die an keine der vier Adressen gerichtet ist, und darf die Plattform Nachrichten nach der Übernahme aus dem Postfach löschen? Ohne Löschrecht ist die Löschung nach REC-07 unvollständig | §19.2, `bewerbung_eingang`, `bewerber-purge`; erweitert O-28 |
+| O-118 | `int-betriebsueberwachung` | Welche Dienste für Fehler-Tracking, Uptime-Überwachung und Log-Weiterleitung sind freigegeben (EU-Region, AV-Vertrag), oder sollen selbst gehostete Alternativen betrieben werden? | §23, `ErrorReporterPort`, der Totmannschalter des `job-heartbeat` (§3.7) |
+| O-119 | `int-sicherungsziel` | Wo liegen die unabhängigen verschlüsselten Sicherungen (EU-Anbieter, Konto, Region), welche Aufbewahrung gilt, wer verwahrt den privaten Schlüssel, wer stellt ihn für den monatlichen Test bereit, und wer bestätigt das Ergebnis? | §24, `BackupPort`, SEC-A10, LEG-01 |
+| O-120 | `int-camt-bezugsweg` | Wie gelangen CAMT.053-Dateien in die Plattform — Upload durch die Buchhaltung oder SFTP-Abruf —, welche Banken und welche IBAN je Gesellschaft? | §13, `BankStatementPort`, ACC-04 |
+| O-121 | `int-ki-eu-ersatz` | Wenn für eine benötigte KI-Fähigkeit kein Modell mit EU-Verarbeitung und Zero-Retention angeboten wird: Fähigkeit abgeschaltet lassen oder einen alternativen EU-gehosteten Anbieter in den Stack aufnehmen? | §8, `modell_register`, D-04, AGT-* |
+| O-122 | `int-geokodierung` | Soll die Adresse eines Objekts automatisch in Koordinaten aufgelöst werden, und mit welchem EU-gehosteten oder selbst betriebenen Dienst? | §25.2, `GeocodingPort`, OPS-01, BAU-08 |
+| O-123 | `int-n8n-betrieb` | Wird n8n selbst gehostet (wo, durch wen) oder als EU-Cloud-Instanz betrieben, liegt ein AV-Vertrag vor, und welche externen Werkzeuge sollen angebunden werden? | §22, SPEC §21 |
+| O-124 | `int-belegtransfer` | Wie sollen Belege beim Steuerberater ankommen — über DATEV Unternehmen online / Belegtransfer oder als ZIP-Paket neben der EXTF-Datei? | §9, ACC-03 |
+| O-125 | `int-systemnachricht-vorabfreigabe` | Dürfen Systemnachrichten (Anmelde-Code, Check-in-Link, Passwort-Wiederherstellung, Eingangsbestätigung) über eine sichtbare, versionierte Richtlinie vorab freigegeben werden, oder ist jede ausgehende Nachricht einzeln freizugeben? | §4.3 — bis zur Antwort **abgeschaltet**, invariant 7, AGT-03 |
+| O-126 | `int-aufrufprotokoll-aufbewahrung` | Wie lange dürfen die Aufrufprotokolle der Integrationen (`integration_aufruf`) aufbewahrt werden, bevor sie automatisch gelöscht werden? | §3.5, LEG-09; Schwesterfrage zur KI-Nutzlast in `02-datenmodell/06-RADAR-KI-INHALT.md`, Dokumentkategorien in O-25 |
+| O-127 | `int-anhang-schadsoftware` | Sollen eingehende Anhänge (Bewerbungen, Eingangsrechnungen, Kundenmails) auf Schadsoftware geprüft werden, und mit welchem EU-gehosteten Dienst? | §6.4, DOC-06, REC-03, ACC-05 |
+| O-128 | `int-altsystem-export` | In welchem Format lassen sich Aplano, Lexware und die bestehenden Excel-Dateien exportieren, welcher Zeitraum wird übernommen, und müssen die historischen Daten revisionssicher im GoBD-Archiv landen? | §25.3, ROADMAP Phase 10, LEG-01, LEG-02 |
+| O-129 | `int-datev-periodensperre` | Sperrt ein abgeschlossener DATEV-Export die Periode gegen neue Buchungen, oder gehen Nachbuchungen in die nächste offene Periode? | §9, `datev_profil`, ACC-02 |
+| O-130 | `int-48b-bescheinigung` | Liegt für jede Gesellschaft eine gültige Freistellungsbescheinigung nach §48b EStG vor, mit welcher Laufzeit, und wer erneuert sie? | §12.3, FIN-10, LEG-06 |
+| O-131 | `int-kundenpostfach` | Soll eingehende Kundenkommunikation automatisch in die Historie übernommen werden (eigenes Postfach je Gesellschaft), oder bleibt die Erfassung manuell? | §19.3, CRM-03, NOT-01 |
 
 Until each is answered the affected integration stays behind its port with a NotConnectedAdapter, the
 UI shows `Nicht verbunden` with the blocking question beside it, and **no plausible value is chosen on

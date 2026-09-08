@@ -6,8 +6,14 @@ those rules a machine checks. It is exhaustive by intent — an implementation P
 file somewhere not described here is wrong, and the fix is to amend this document first. It
 is subordinate to `docs/architecture/00-KONVENTIONEN.md`: every rule below that touches
 tenancy, session state, RLS, money, time, approvals or invented values is an application of a
-numbered convention (`K-01` … `K-17`) and cites it inline. Where this document and a
+numbered convention (`K-01` … `K-18`) and cites it inline. Where this document and a
 convention appear to disagree, the convention wins and this document is defective.
+
+**One place where this document knowingly exceeds a convention**, and it is fenced rather
+than silent: §4.2 transports three audit-only GUCs that K-02's table does not yet list. They
+carry no authorisation weight, no policy may reference them, a test asserts that, and §26
+carries the K-02 amendment as a cross-document obligation on `00-KONVENTIONEN.md`. Until that
+amendment lands, this is a divergence with a name and an owner, not a discovered one.
 
 ---
 
@@ -24,13 +30,20 @@ question physically sits.
 
 | Question | Owner |
 |---|---|
-| Column definitions, types, constraints, indexes as DDL | `02-DATENMODELL.md` |
-| Session lifecycle, 2FA enrolment, lockout, token formats | `03-AUTH-MODELL.md` |
-| The role × modul × mandant permission matrix and its seed | `04-BERECHTIGUNGSMODELL.md` |
-| Per-page content, states, empty states, copy | `05-SEITENKARTE.md` |
-| Request/response shapes and status codes per endpoint | `06-API-KARTE.md` |
-| Agent prompts, tool schemas, orchestration loop | `07-AGENTEN-ARCHITEKTUR.md` |
-| Per-integration contracts and failure semantics | `08-INTEGRATIONS-ARCHITEKTUR.md` |
+| Column definitions, types, constraints, indexes as DDL | `02-datenmodell/01-KERN.md` … `06-RADAR-KI-INHALT.md` |
+| Session lifecycle, 2FA enrolment, lockout thresholds, token formats | `03-AUTH-BERECHTIGUNGEN.md` |
+| The role × modul × mandant permission matrix and its seed | `03-AUTH-BERECHTIGUNGEN.md` |
+| Per-page content, states, empty states, copy | `04-SEITENKARTE.md` |
+| Request/response shapes and status codes per endpoint | `05-API-KARTE.md` |
+| Agent prompts, tool schemas, orchestration loop, approval flows | `06-AGENTEN-FREIGABEN.md` |
+| Per-integration contracts and failure semantics | `07-INTEGRATIONEN.md` |
+| PR sequence and the open questions it surfaces (O-14 … O-29) | `08-PR-PLAN.md` |
+
+The sibling filenames above are the ones that exist on disk. Earlier drafts of this document
+cited `02-DATENMODELL.md`, `03-AUTH-MODELL.md`, `04-BERECHTIGUNGSMODELL.md`,
+`05-SEITENKARTE.md`, `06-API-KARTE.md`, `07-AGENTEN-ARCHITEKTUR.md` and
+`08-INTEGRATIONS-ARCHITEKTUR.md` — none of which is a real path. A cross-document obligation
+pointing at a file nobody can open is not an obligation, so §26 uses these names too.
 
 Where this document names a table, a function signature or a policy, it does so to fix its
 **location and its contract boundary**. The sibling document owns the detail. Names used here
@@ -47,10 +60,10 @@ a preference, and preferences do not survive a deadline.
 |---|---|---|
 | L1 | **Route handlers and Server Actions stay thin.** authorize → validate (Zod, SEC-A4) → call one service or one query → return. No branching on business state, no arithmetic, no SQL. | ESLint import zones (§23); `src/server/http/{handler,action}.ts` wrappers |
 | L2 | **No calculation in a component, ever.** Components receive finished values. A component may format; it may never compute. | ESLint: `src/components/**` and `src/lib/format/**` cannot import `@/server/**` |
-| L3 | **Every database access goes through exactly one of the five session helpers** (§4.3) or one of the three pre-session functions of **K-08**. The raw Drizzle handle is importable by four modules; services accept a branded handle, never `db`. | Branded TypeScript types + ESLint `no-restricted-imports` + the K-08 route-manifest test |
+| L3 | **Every database access goes through exactly one of the seven session helpers** (§4.3) or one of the **five** functions of the **K-08** closed register. The raw Drizzle handle is importable by four modules; services accept a branded handle, never `db`. | Branded TypeScript types + ESLint `no-restricted-imports` + the K-08 route-manifest test |
 | L4 | **Design values come only from `docs/DESIGN.md`**, via `src/styles/globals.css` and `tailwind.config.ts`. No hex literal, no `px`, no radius, no duration anywhere else. | `pnpm lint:design` token scan in CI |
 | L5 | **Services are pure and testable.** No `next/*`, no `react`, no `fetch` against our own API, no `new Date()`, no `process.env`. Time, randomness and ports are injected. | ESLint `no-restricted-imports` / `no-restricted-syntax`; `vitest.setup.ts` fails a service that calls `new Date()` |
-| L6 | **Nothing legal, financial or tariff-bound is invented** (**K-17**). An unstated value is a labelled placeholder behind an interface, plus `// TODO(client): <exact question>`, plus a row in `DECISIONS.md` § Open. | `pnpm lint:todo` inventories every `TODO(client)` and every `*.platzhalter.ts` and fails when one exists without a `DECISIONS.md` entry |
+| L6 | **Nothing legal, financial or tariff-bound is invented** (**K-17**). An unstated value is a labelled placeholder behind an interface, plus `// TODO(client) O-nn: <exact question>` — **the O-number is part of the marker** — plus the matching row in `DECISIONS.md` § Open. | `pnpm lint:todo` inventories every `TODO(client)` and every `*.platzhalter.ts` and fails when one exists without a `DECISIONS.md` entry |
 
 ---
 
@@ -97,15 +110,16 @@ cse-platform/
 │  ├─ SPEC.md · DESIGN.md · ROADMAP.md · DECISIONS.md
 │  ├─ ARCHITECTURE.md              # index of the Phase 0 deliverables
 │  ├─ architecture/
-│  │  ├─ 00-KONVENTIONEN.md        # BINDING — K-01..K-17
+│  │  ├─ 00-KONVENTIONEN.md        # BINDING — K-01..K-18
 │  │  ├─ 01-ORDNERSTRUKTUR.md      # ← this document
-│  │  ├─ 02-DATENMODELL.md
-│  │  ├─ 03-AUTH-MODELL.md
-│  │  ├─ 04-BERECHTIGUNGSMODELL.md
-│  │  ├─ 05-SEITENKARTE.md
-│  │  ├─ 06-API-KARTE.md
-│  │  ├─ 07-AGENTEN-ARCHITEKTUR.md
-│  │  └─ 08-INTEGRATIONS-ARCHITEKTUR.md
+│  │  ├─ 02-datenmodell/           # 01-KERN · 02-CRM-OPERATIONS · 03-GEWERKE ·
+│  │  │                            #   04-PLANUNG-ZEIT · 05-FINANZEN · 06-RADAR-KI-INHALT
+│  │  ├─ 03-AUTH-BERECHTIGUNGEN.md
+│  │  ├─ 04-SEITENKARTE.md
+│  │  ├─ 05-API-KARTE.md
+│  │  ├─ 06-AGENTEN-FREIGABEN.md
+│  │  ├─ 07-INTEGRATIONEN.md
+│  │  └─ 08-PR-PLAN.md
 │  └─ runbooks/
 │     ├─ restore-test.md           # SEC-A10 monthly tested restore
 │     ├─ incident.md
@@ -155,8 +169,12 @@ middleware at `src/middleware.ts` only. A root-level file compiles, lints, type-
 does nothing — which would silently disable the CSP and HSTS headers (SEC-A7), the rate limit
 and lockout hook on `(auth)` and `api/formular` (AUT-07), the Supabase session refresh, and
 locale negotiation for worker routes (EMP-12). `tests/e2e/security/headers.spec.ts` asserts
-that a response to `/login` carries CSP and HSTS and that the eleventh login attempt in a
-minute is rejected, so the file cannot quietly stop being loaded.
+that a response to `/login` carries CSP and HSTS and that an attempt **one past the configured
+AUT-07 threshold** is rejected, so the file cannot quietly stop being loaded. The threshold
+itself is not stated here and not invented here: SPEC AUT-07 says only "rate limiting and
+lockout on auth endpoints", the attempts-per-identifier, attempts-per-IP, window and lockout
+duration are `03-AUTH-BERECHTIGUNGEN.md` §10's `// TODO(client)` (**O-39**), and the test reads the
+configured value rather than hard-coding a number this document has no source for.
 
 **`scripts/` exists and is outside the app.** PUB-08 (migrate content from
 cse-dienstleistungen.de) and ROADMAP Phase 10 (Aplano, Lexware, Excel) both require import
@@ -211,9 +229,9 @@ change — which TEN-08 forbids.
 | `(public)/` | none | none | — | Website, profiles, offer requests, career (PUB-*, PRO-*, REQ-*) |
 | `(auth)/` | none | none | — | Login, 2FA, reset, worker phone login (AUT-02, AUT-07, EMP-01) |
 | `portal/[mandant]/` | yes | `withTenant` | `intern` | Staff application — every create/update path lives here (TEN-04, invariant 10) |
-| `portal/gruppe/` | yes | `withGroupScope` | `intern` | Group aggregation, **read-only** (TEN-05, TEN-10) |
-| `portal/mein/` | yes (person) | `withGroupScope` read · `withAnstellung` write | `mitarbeiter` | Worker portal across all of one person's employments (EMP-14, EMP-15) |
-| `portal/kunde/` | yes (customer) | `withGroupScope` read · `withKundenVorgang` write | `kunde` | Customer portal across the customer's orders in all entities (CRM-06, DSH-03) |
+| `portal/gruppe/` | yes | `withGroupScope` (`scope = gruppe`) | `intern` | Group aggregation, **read-only** (TEN-05, TEN-10) |
+| `portal/mein/` | yes (person) | `withPersonScope` read (`scope = person`) · `withAnstellung` write | `mitarbeiter` | Worker portal across all of one person's employments (EMP-14, EMP-15) |
+| `portal/kunde/` | yes (customer) | `withKundeScope` read (`scope = kunde`) · `withKundenVorgang` write | `kunde` | Customer portal across the customer's orders in all entities (CRM-06, DSH-03) |
 | `check-in/[token]/` | **none** — token only | none; K-08 / K-09 functions | — | Tokenised shift check-in, no app, no login (TIM-07) |
 | `api/` | varies | varies | varies | Non-UI callers only: webhooks, cron, downloads, token endpoints, feeds |
 
@@ -514,12 +532,15 @@ permission-administration action files call it and that no SELECT policy in
 
 **Invariant 10 is enforced four times, in decreasing trust:**
 
-1. **Postgres.** Per **K-03**, the group policy is `for select` only and has no write
-   counterpart anywhere. A write under `app.scope = 'gruppe'` matches no policy and is
-   refused by the database.
+1. **Postgres.** Per **K-03** and **K-18**, the group, person and kunde policies are
+   `for select` only and none has a write counterpart anywhere. A write under
+   `app.scope = 'gruppe'` — or `'person'`, or `'kunde'` — matches no policy at all and is
+   refused by the database. `tests/invariants/policy-anzahl.test.ts` (§15) asserts the absence
+   rather than trusting it.
 2. **The transaction.** `withGroupScope` opens `set transaction read only` and sets
-   `app.readonly = 'on'`, which the K-03 `with check` clause also tests.
-3. **The type.** `withGroupScope` yields `ScopedReadDb`, whose type does not expose `insert`,
+   `app.readonly = 'on'`, which the K-03 `with check` clause also tests. `withPersonScope` and
+   `withKundeScope` do the same.
+3. **The type.** All three yield `ScopedReadDb`, whose type does not expose `insert`,
    `update` or `delete`.
 4. **The file tree.** `tests/invariants/gruppe-ohne-actions.test.ts` asserts that the glob
    `src/app/portal/gruppe/**/_actions.ts` matches nothing.
@@ -574,20 +595,40 @@ employments; CRM-06 requires a customer history across all four areas. Neither r
 "one mandant", so forcing them under `[mandant]` would either lie about the scope or require a
 mandant switch to see one's own Tuesday shift.
 
-Reads therefore run under `withGroupScope` — the same K-03 select-only path as the group view,
-with `app.portal` set to `mitarbeiter` or `kunde` and `app.sichtbare_mandanten()` derived
-server-side from `anstellung` (person) or from the customer's `auftrag`/`angebot`/`rechnung`
-rows. On top of the K-03 pair, **K-04's restrictive ceiling** limits every anstellung-hung or
-person-hung table to the caller's own rows (EMP-13), and the same shape keyed on `kunde_id`
-does the customer half.
+**Neither runs under group scope, and that is K-18.** An earlier draft routed both through
+`withGroupScope` because there were only two scopes to choose from. That is a category error
+with a concrete consequence: K-03's group policy requires `gruppe.<modul>.lesen`, a management
+right an employee or a customer will never hold, so **both portals would read exactly zero
+rows** — and the cheapest way to make that green is to grant `gruppe.zeit.lesen` to
+`mitarbeiter`, which hands every cleaner a group-level read across three GmbHs. The two
+portals do span tenants, but they span them **as a subject, not as a manager**.
+
+So reads run under `withPersonScope` (`app.scope = 'person'`) and `withKundeScope`
+(`app.scope = 'kunde'`), each with its own SELECT-only policy keyed on the subject (§4.5,
+K-18):
+
+```sql
+using (app.scope() = 'person'
+       and mandant_id = any (app.sichtbare_mandanten())
+       and <the row belongs to app.aktuelle_person()>)
+```
+
+`app.sichtbare_mandanten()` is derived server-side in both — from the person's `anstellung`
+rows, or from the customer's own `auftrag` / `angebot` / `rechnung` rows via `kunde_zugang` —
+never from the request (K-02). On top of that policy, **K-04's restrictive ceiling** still
+applies: the ceiling says *at most your own rows*, the K-18 policy says *these rows, in these
+tenants*, and both must pass. The customer half is keyed on `app.aktuelle_kunden()` (§4.4).
 
 Writes never run in that scope. Every write in these two subtrees **resolves exactly one
 mandant from the record being written, server-side**: a `zeit_einwand` is raised against a
 `zeiteintrag`, which hangs off an `anstellung_id`, which belongs to exactly one mandant (D-09
-consequence 5). The helpers are `withAnstellung(anstellungId, fn)` and
-`withKundenVorgang(vorgangId, fn)` (§4.3); both resolve the mandant, open a normal single-
+consequence 5). The helpers are `withAnstellung(ctx, anstellungId, fn)` and
+`withKundenVorgang(ctx, vorgangId, fn)` (§4.3); both resolve the mandant, open a normal single-
 mandant transaction, and write `audit_log` with the resolution path. A write with an ambiguous
-or absent mandant throws before it reaches SQL.
+or absent mandant throws before it reaches SQL. K-18 says the same thing from the other side:
+the write columns in both portals are narrow by design — EMP-07 is explicit that an employee
+raises a `zeit_einwand` and **never** edits a `zeiteintrag`, and a customer writes only its own
+messages, uploads and an OPS-09 acceptance.
 
 ### 3.12 `check-in/[token]` — session-less (TIM-07, TIM-08, TIM-09, K-08, K-09)
 
@@ -612,8 +653,13 @@ derived `zeitabweichung_sek` separately (invariant 5, TIM-08), and inserts the `
 itself. Per **K-09** the token is consumed by a conditional update, and zero rows returned
 *is* the 409.
 
-Both entry points — the page action above and `api/check-in/[token]/route.ts` for the offline
-queue (TIM-09) — call that one function. **There is no `supabase/functions/checkin-punch`.** A
+The offline queue (TIM-09) is the **same trust boundary arriving late**, and K-08's register
+now says so: `api/check-in/[token]/route.ts` calls
+`app.offline_ereignis_annehmen(token_hash, ereignisse, ip)` as `cse_checkin` — same token,
+same subject, same conditional-write discipline (K-09), each replayed event flagged late with
+its claimed instant kept beside the server instant. Splitting the replay onto a different
+mechanism would mean two trust boundaries for one fact. **There is no
+`supabase/functions/checkin-punch`.** A
 Deno Edge Function cannot import `src/server/services`, so "same service call, no duplicated
 logic" is unachievable; worse, it is a second machine with a second clock, which makes
 `zeitabweichung_sek` depend on which endpoint the phone happened to reach. One writer, one
@@ -632,14 +678,15 @@ device, a file download, a calendar client, an external system.
    ├─ webhooks/
    │  ├─ supabase-auth/route.ts     # AUT-08
    │  └─ n8n/route.ts               # external glue inbound only — never business logic
-   ├─ check-in/[token]/route.ts     # TIM-07 single-use (K-09); TIM-09 offline queue submission
+   ├─ check-in/[token]/route.ts     # TIM-07 single-use (K-09); TIM-09 offline replay via
+   │                                #   app.offline_ereignis_annehmen as cse_checkin (K-08)
    ├─ formular/[bereich]/route.ts   # REQ-01 public form POST, rate-limited (AUT-07)
    ├─ bewerbung/route.ts            # REC-03 web intake POST, rate-limited, DOC-06 upload rules
    ├─ upload/route.ts               # DOC-06 real MIME sniff, size limit, EXIF strip (TIM-10)
    ├─ dokument/
    │  ├─ [id]/signed-url/route.ts   # DOC-03, SEC-A6 — 15-minute expiry, never a public path
    │  └─ buendel/[id]/route.ts      # DOC-08 one-click bundle stream (ZIP), audit-logged
-   ├─ ical/[token]/route.ts         # CAL-03 read-only feed — per user, revocable, own entries only
+   ├─ ical/[token]/route.ts         # CAL-03 read-only feed via app.ical_feed_lesen as cse_anon (K-08)
    ├─ freigaben/[id]/route.ts       # K-13 — the GET that writes freigabe_ansicht (APR-08)
    ├─ rechnung/[id]/
    │  ├─ pdf/route.ts               # FIN-12 ZUGFeRD 2.x PDF/A-3, rendered from the K-12 snapshot
@@ -678,9 +725,14 @@ never appears in a request body — a rubber-stamping detector that trusts a cli
 defeated by the exact actor it targets. The approval page and this route call the same
 function, `queries/freigabe.freigabeOeffnen` (§7).
 
-`api/ical/[token]` is a bearer-token feed of one person's whereabouts. The token is per user,
-rotatable and revocable from `einstellungen/benachrichtigungen`, scoped to that user's own
-entries, and its issuance and rotation are written to `audit_log` (CAL-03, SEC-A9).
+`api/ical/[token]` is a bearer-token feed of one person's whereabouts, and it has **no
+session** — a calendar client sends a URL and nothing else. It is therefore on the K-08
+register: `app.ical_feed_lesen(feed_token_hash)`, `SECURITY DEFINER`, executable by `cse_anon`,
+read-only by construction, returning one user's own `kalender_eintrag` rows and nothing else.
+The token is per user, rotatable and revocable from `einstellungen/benachrichtigungen`, and its
+issuance and rotation are written to `audit_log` (CAL-03, SEC-A9). Without the register entry
+this route would either need a session it cannot have or a table grant to `cse_anon`, which
+K-01 forbids outright.
 
 ---
 
@@ -689,14 +741,16 @@ entries, and its issuance and rotation are written to `audit_log` (CAL-03, SEC-A
 ```
 src/server/db/
 ├─ client.ts                     # the raw Drizzle handle — import-restricted to four modules
-├─ tenant.ts                     # withTenant · withGroupScope · withAnstellung ·
-│                                #   withKundenVorgang · withSystemTenant
+├─ tenant.ts                     # withTenant · withGroupScope · withPersonScope ·
+│                                #   withKundeScope · withAnstellung · withKundenVorgang ·
+│                                #   withSystemTenant                              K-18
 ├─ types.ts                      # TenantDb · ScopedReadDb — branded handle types
 ├─ rls.ts                        # THE table classification (§5) — read by the build and the tests
 ├─ schema/
 │  ├─ _shared.ts                 # column helpers: mandantId(), gemeinsam(), geldCent(), zeitpunkt(), menge()
 │  ├─ enums.ts                   # every pgEnum, one place
-│  ├─ kern.ts · crm-ops.ts · gewerke.ts · zeit.ts · finanz.ts · radar-ki-inhalt.ts
+│  ├─ kern.ts · personal.ts · crm-ops.ts · gewerke.ts · zeit.ts · finanz.ts ·
+│  │                             #   radar-ki-inhalt.ts
 │  ├─ zeit-intern.ts             # pgSchema('zeit_intern') — K-06, NOT exposed by PostgREST
 │  ├─ relations.ts               # cross-file Drizzle relations only
 │  └─ index.ts                   # ALLOWED BARREL #1 — Drizzle needs one schema object
@@ -705,14 +759,21 @@ src/server/db/
 ├─ rls/                          # authored by hand, folded into migrations by `pnpm db:rls`
 │  ├─ _helpers.sql               # the K-02/K-03 accessors — fail-closed, see §4.4
 │  ├─ _rollen.sql                # the six roles of K-01, their grants, FORCE RLS assertions
-│  ├─ kern.sql · crm-ops.sql · gewerke.sql · zeit.sql · finanz.sql · radar-ki-inhalt.sql
-│  ├─ person-scope.sql           # the person-scoped bucket (§5.2)
+│  ├─ kern.sql · personal.sql · crm-ops.sql · gewerke.sql · zeit.sql · finanz.sql ·
+│  │                             #   radar-ki-inhalt.sql
+│  ├─ person-scope.sql           # the person-scoped bucket (§5.2) + the K-18 person policy
+│  ├─ kunde-scope.sql            # the K-18 kunde policy, keyed on app.aktuelle_kunden()
+│  ├─ arbzg-verstoss.sql         # the K-06 select-only variant on arbeitszeit_verstoss (§5.1)
 │  └─ portal-ceiling.sql         # the K-04 restrictive ceilings, generated from rls.ts
 ├─ funktionen/                   # SECURITY DEFINER functions, owned by cse_definer (K-01)
-│  ├─ sitzung.sql                # app.sitzung_aufloesen, app.versuch_protokollieren   K-08
-│  ├─ checkin.sql                # app.checkin_verbrauchen                              K-08, K-09
+│  ├─ sitzung.sql                # app.sitzung_aufloesen (returns the membership set, §12.1),
+│  │                             #   app.versuch_protokollieren                        K-08
+│  ├─ checkin.sql                # app.checkin_verbrauchen, app.offline_ereignis_annehmen
+│  │                             #                                                     K-08, K-09
+│  ├─ ical.sql                   # app.ical_feed_lesen                                 K-08, CAL-03
 │  ├─ arbzg.sql                  # app.arbzg_belastung, app.arbzg_befund_schreiben      K-06
 │  ├─ entgelt.sql                # app.entgelt_lesen                                    K-05
+│  ├─ kunde.sql                  # app.aktueller_kunde, app.aktuelle_kunden             K-04, K-18
 │  └─ audit.sql                  # app.audit_schreiben (mirror rows, e.g. TEN-09)
 ├─ triggers/                     # DB-level enforcement of the invariants
 │  ├─ immutable-rechnung.sql     # FIN-02, K-12 — unconditional; no column allowlist
@@ -754,9 +815,9 @@ and granted.
 | `cse_migrator` | migrations in CI | DDL. Never used at runtime. |
 | `cse_definer` | owner of every `SECURITY DEFINER` helper in `db/funktionen/` | The only role exempt from FORCE RLS, and only on the tables named in K-06 and K-08. Cannot log in. |
 | `cse_app` | every authenticated request | DML through RLS. No table grants beyond the column grants of K-05. |
-| `cse_anon` | pre-session requests | `EXECUTE` on exactly the three functions of K-08. No table grants at all. |
-| `cse_checkin` | `/check-in/[token]` and `api/check-in/[token]` | `EXECUTE` on `app.checkin_verbrauchen` only. |
-| `cse_job` | cron, Edge dispatch, `scripts/` | Per-job grants, enumerated in the `JobDefinition` (§10). |
+| `cse_anon` | pre-session requests | `EXECUTE` on exactly its three rows of the K-08 register — `app.sitzung_aufloesen`, `app.versuch_protokollieren`, `app.ical_feed_lesen`. No table grants at all. |
+| `cse_checkin` | `/check-in/[token]`, `api/check-in/[token]` and its offline replay | `EXECUTE` on `app.checkin_verbrauchen` and `app.offline_ereignis_annehmen` only (K-08). |
+| `cse_job` | the connection role for cron, Edge dispatch and `scripts/` | `NOINHERIT`, plus `GRANT cse_app TO cse_job`. It holds no tenant-table grants of its own; `withSystemTenant` issues `SET LOCAL ROLE cse_app` before it sets a single GUC (§4.3). Its own enumerated grants (`JobDefinition.grants`, §10) cover only what runs outside a tenant transaction. |
 
 **`ALTER TABLE … FORCE ROW LEVEL SECURITY` on every tenant table.** Without `FORCE`, RLS does
 not apply to the table owner, and a migration-owned connection silently sees everything — every
@@ -765,9 +826,30 @@ against the owner role still passed. Every `SECURITY DEFINER` function is owned 
 `cse_definer` and carries `SET search_path = pg_catalog, public`; an unqualified `search_path`
 on a definer function is a privilege-escalation vector.
 
+**`cse_job` connects; `cse_app` executes.** This is the one role rule that an earlier draft got
+backwards, and the failure mode is the one this whole section exists to prevent. K-03 gives a
+tenant table **exactly two policies, both `to cse_app`**, and every tenant table carries
+`ENABLE` **and** `FORCE` RLS. A role that appears in no policy therefore matches no policy, and
+under RLS that is not an error — it is zero rows on every `SELECT` and a silent refusal on every
+`INSERT`. Had `withSystemTenant` run *as* `cse_job`, every job in §10, every importer in
+`scripts/`, the REQ-01 lead POST and the REC-03 application POST would have been refused by a
+database whose SQL reads perfectly. Table `GRANT`s do not substitute for a policy.
+
+So `cse_job` is `NOINHERIT` and a member of `cse_app`, and `withSystemTenant` begins its
+transaction with `set local role cse_app`. Every K-03 policy then applies to a job exactly as it
+applies to a request; there is no third policy, no `BYPASSRLS`, and nothing to amend in K-01 or
+K-03. **Containment comes from the system principal's own rights**, not from the connection: the
+system principal is a service `benutzer` row with real `benutzer_mandant` memberships and a role
+whose `hat_recht` grants are seeded in `db/seed/02-rollen-benutzer.ts` and reviewed like any
+other role. A job that has no right to write `rechnung` cannot write one.
+
 `.env.example` therefore carries **two** connection strings and no others: `DATABASE_URL_APP`
-(role `cse_app`) and `DATABASE_URL_JOB` (role `cse_job`). The migration URL exists only in CI.
-`src/server/config/env.ts` rejects a `DATABASE_URL_APP` whose user is `postgres` at boot.
+(role `cse_app`) and `DATABASE_URL_JOB` (role `cse_job`, which becomes `cse_app` inside every
+tenant transaction). The migration URL exists only in CI. `src/server/config/env.ts` rejects a
+`DATABASE_URL_APP` whose user is `postgres` at boot, and
+`tests/isolation/db/job-rolle.test.ts` asserts that a `cse_job` connection **without** the
+`SET LOCAL ROLE` reads zero rows from a tenant table — so the mechanism cannot quietly stop
+being applied.
 
 ### 4.2 Session state (K-02)
 
@@ -779,43 +861,64 @@ parameter (invariant 3, TEN-04, AUT-04).
 |---|---|
 | `app.benutzer_id` | the authenticated `benutzer` |
 | `app.person_id` | the `person` behind that login, or NULL |
-| `app.mandant_id` | **exactly one** mandant, or NULL in group scope |
-| `app.mandant_ids` | group scope only: the mandanten the user may read |
-| `app.scope` | `mandant` \| `gruppe` |
+| `app.mandant_id` | **exactly one** mandant, or NULL in **every** multi-tenant scope (K-02, K-18) |
+| `app.mandant_ids` | the mandanten the user may read — `gruppe`, `person` **and** `kunde` scope; always derived server-side |
+| `app.scope` | `mandant` \| `gruppe` \| `person` \| `kunde` — the four of **K-18** |
 | `app.portal` | `intern` \| `mitarbeiter` \| `kunde` |
 | `app.readonly` | `on` \| `off` — **defaults to `on`** |
 | `app.aal` | `aal1` \| `aal2` — assurance level of the session |
 | `app.akteur_typ` | `mensch` \| `agent` \| `system` — **audit only** (SEC-A9) |
+| `app.akteur_id` | the acting principal when it is not a `benutzer`: the agent run id, the job run id — **audit only** (SEC-A9) |
 | `app.ip` | request IP — **audit only** (SEC-A9) |
 
-The last two extend K-02's eight for one reason: SEC-A9 requires the audit log to record actor
-*type* and IP, `db/triggers/audit-log.sql` writes the audit row inside the database, and a
-value that is never transported into the session cannot be recorded there. Agent- and
-job-initiated writes have no `benutzer` row at all, so without `akteur_typ` a null
-`erstellt_von` is indistinguishable between "system job" and "unknown" — and `audit_log` is a
-no-hard-delete domain (invariant 8), so it is not repairable retroactively. **Neither GUC
-carries authorisation weight: no policy in `db/rls/*.sql` may reference them.**
-`tests/invariants/rls-guc-nutzung.test.ts` asserts that.
+The last three extend K-02's eight for one reason: SEC-A9 requires the audit log to record who
+acted, of what kind, and from where; `db/triggers/audit-log.sql` writes the audit row **inside
+the database**, and a value that is never transported into the session cannot be recorded there.
+Agent- and job-initiated writes have no `benutzer` row of their own, which is the exact case
+`akteur_typ` exists to disambiguate — and without `akteur_id` beside it the actor's identity is
+merely *typed*, not *named*: "an agent did this" with no way back to which run. `audit_log` is a
+no-hard-delete domain (invariant 8), so none of it is repairable retroactively.
+`agent/orchestrator.ts` constructs its `SessionContext` with `akteurTyp = 'agent'` and the agent
+run id as `akteurId`; `jobs/_runner.ts` uses `'system'` and the `job_lauf` id.
+
+**None of the three carries authorisation weight: no policy in `db/rls/*.sql` may reference
+them.** `tests/invariants/rls-guc-nutzung.test.ts` asserts that, which is what keeps a
+transported, unverified value out of an access decision.
+
+**This is a stated divergence from K-02, not a discovered one.** K-02 publishes eight GUCs;
+this table publishes eleven, and §26 binds `00-KONVENTIONEN.md` to carry the three audit-only
+rows with the no-policy-may-reference-them rule. Until that amendment lands, the convention wins
+on every row it does list and this document is the defective one on the three it does not — §0
+says so, and saying it here as well is cheaper than a reader discovering it.
 
 **Fail-closed.** Every accessor in `_helpers.sql` coalesces a missing GUC to the most
 restrictive value: no mandant, no rights, read-only. An unset session produces zero rows, never
 all rows. The helper asserts `CHECK ((scope = 'mandant') = (mandant_id IS NOT NULL))` rather
-than assuming it.
+than assuming it — in the three multi-tenant scopes `app.mandant_id` is NULL and
+`app.mandant_ids` carries the set.
 
-### 4.3 `db/tenant.ts` — five helpers, and no sixth
+### 4.3 `db/tenant.ts` — seven helpers, and no eighth
 
-Every database access in the application runs inside exactly one of these (L3). The three
-pre-session functions of K-08 are the only code that reaches Postgres outside them, and
+Every database access in the application runs inside exactly one of these (L3). The **five**
+functions of the K-08 closed register are the only code that reaches Postgres outside them, and
 `tests/invariants/route-manifest.test.ts` asserts it — the test walks every route, action, job
-and script and fails on a database call that is not inside a helper.
+and script and fails on a database call that is neither inside a helper nor one of the five
+registered functions. A sixth register entry fails the build in the PR that introduces it,
+which is what makes "closed register" mean something.
+
+The count moved from five to seven because **K-18** split the two read scopes into four. It is
+not a proliferation: `withPersonScope` and `withKundeScope` are the two scopes that were
+previously — and wrongly — borrowing `withGroupScope`'s policy (§3.11).
 
 | Helper | `app.scope` | `app.mandant_id` | `app.mandant_ids` | `app.readonly` | Role | Handle | Used by |
 |---|---|---|---|---|---|---|---|
 | `withTenant(ctx, fn)` | `mandant` | exactly one | — | `off` | `cse_app` | `TenantDb` | `portal/[mandant]/**`, its actions, most of `api/` |
-| `withGroupScope(ctx, fn)` | `gruppe` | NULL | the readable set | `on` | `cse_app` | `ScopedReadDb` | `portal/gruppe/**`, `portal/mein/**` reads, `portal/kunde/**` reads |
-| `withAnstellung(anstellungId, fn)` | `mandant` | resolved from `anstellung` | — | `off` | `cse_app` | `TenantDb` | every write in `portal/mein/**` |
-| `withKundenVorgang(vorgangId, fn)` | `mandant` | resolved from the record | — | `off` | `cse_app` | `TenantDb` | every write in `portal/kunde/**` |
-| `withSystemTenant(mandantId, grund, fn)` | `mandant` | explicit | — | `off` | `cse_job` | `TenantDb` | jobs, `scripts/`, `api/formular`, `api/bewerbung` |
+| `withGroupScope(ctx, fn)` | `gruppe` | NULL | the readable set | `on` | `cse_app` | `ScopedReadDb` | `portal/gruppe/**` only |
+| `withPersonScope(ctx, fn)` | `person` | NULL | derived from the person's `anstellung` rows | `on` | `cse_app` | `ScopedReadDb` | every read in `portal/mein/**` |
+| `withKundeScope(ctx, fn)` | `kunde` | NULL | derived from `kunde_zugang` and the customer's own `auftrag`/`angebot`/`rechnung` rows | `on` | `cse_app` | `ScopedReadDb` | every read in `portal/kunde/**` |
+| `withAnstellung(ctx, anstellungId, fn)` | `mandant` | resolved from `anstellung` | — | `off` | `cse_app` | `TenantDb` | every write in `portal/mein/**` |
+| `withKundenVorgang(ctx, vorgangId, fn)` | `mandant` | resolved from the record | — | `off` | `cse_app` | `TenantDb` | every write in `portal/kunde/**` |
+| `withSystemTenant(mandantId, grund, fn)` | `mandant` | explicit | — | `off` | `cse_job` → `SET LOCAL ROLE cse_app` | `TenantDb` | jobs, `scripts/`, `api/formular`, `api/bewerbung` |
 
 ```ts
 // src/server/db/tenant.ts
@@ -862,6 +965,16 @@ export async function withGroupScope<T>(
   });
 }
 
+/** K-18. Read-only, spans the person's employments, subject = app.aktuelle_person(). */
+export async function withPersonScope<T>(
+  ctx: SessionContext, fn: (tx: ScopedReadDb) => Promise<T>,
+): Promise<T>;   // scope: 'person', mandantId: null, mandantIds: ctx.sichtbareMandanten
+
+/** K-18. Read-only, spans the customer's Vorgänge, subject = app.aktuelle_kunden(). */
+export async function withKundeScope<T>(
+  ctx: SessionContext, fn: (tx: ScopedReadDb) => Promise<T>,
+): Promise<T>;   // scope: 'kunde',  mandantId: null, mandantIds: ctx.sichtbareMandanten
+
 /** Resolves the mandant from the record, never from the caller. EMP-07, EMP-09, EMP-10. */
 export async function withAnstellung<T>(
   ctx: SessionContext, anstellungId: string, fn: (tx: TenantDb) => Promise<T>,
@@ -873,23 +986,34 @@ export async function withKundenVorgang<T>(
 ): Promise<T>;
 
 /** Sessionless writes. `grund` is mandatory, is written to audit_log, and is a literal —
- *  never a value derived from a request body. Runs as cse_job. */
+ *  never a value derived from a request body. Connects as cse_job and immediately
+ *  `SET LOCAL ROLE cse_app`, so the K-03 policies apply (§4.1). */
 export async function withSystemTenant<T>(
   mandantId: string, grund: SystemGrund, fn: (tx: TenantDb) => Promise<T>,
 ): Promise<T>;
 ```
 
-Three consequences worth stating outright:
+Four consequences worth stating outright:
 
 - **An empty readable set throws before the transaction opens.**
   `set_config('app.mandant_ids', '', true)` yields an empty array and a policy that matches
   nothing with no distinguishable message; `KeineSichtbarenMandantenError` renders as a
-  German empty state instead of an unexplained blank page.
+  German empty state instead of an unexplained blank page. `withPersonScope` and
+  `withKundeScope` throw the same error for the same reason — an employee between employments
+  and a customer with no live order are both real states, and both must read as an empty state
+  rather than as a broken page.
 - **`withSystemTenant` is a constructor, not a bypass.** It builds a synthetic system
-  `SessionContext` (`akteur_typ = 'system'`, `benutzer_id` = the system principal) and goes
-  through the same `setzeSitzung`. It satisfies K-08's manifest test because it *is* the
-  tenant path; containment comes from `cse_job`'s enumerated grants, not from the portal GUC.
-  `jobs/_runner.ts` therefore no longer imports `db/client.ts`.
+  `SessionContext` (`akteur_typ = 'system'`, `benutzer_id` = the system principal,
+  `akteur_id` = the `job_lauf` id) and goes through the same `setzeSitzung` after
+  `set local role cse_app`. It satisfies K-08's manifest test because it *is* the tenant path;
+  containment comes from the **system principal's `hat_recht` grants** evaluated by the same
+  K-03 policies as any request (§4.1) — not from the connection role, and not from the portal
+  GUC. `jobs/_runner.ts` therefore no longer imports `db/client.ts`.
+- **The system principal's memberships are the job's mandant list.** `_runner.ts` iterates
+  `systemCtx.sichtbareMandanten` — the service `benutzer`'s own `benutzer_mandant` rows,
+  resolved once by `auth/session.ts` — and opens one `withSystemTenant` per entity. No job
+  needs a read *before* it has a scope, so no eighth helper and no register entry appear to
+  serve one.
 - **`db/client.ts` is importable by exactly four modules:** `db/tenant.ts`,
   `db/seed/index.ts`, the migration runner, and `tests/helpers/db.ts`. Enforced by ESLint
   (§23).
@@ -900,19 +1024,48 @@ Three consequences worth stating outright:
 -- all STABLE, all fail-closed, all owned by cse_definer (K-01, K-02)
 app.aktueller_benutzer()   returns uuid     -- NULL when unset
 app.aktuelle_person()      returns uuid     -- NULL when unset
+app.scope()                returns text     -- 'mandant' | 'gruppe' | 'person' | 'kunde'   K-18
+                                            --   NULL when unset — every scope test is then false
 app.aktiver_mandant()      returns uuid     -- NULL unless scope = 'mandant'
-app.sichtbare_mandanten()  returns uuid[]   -- '{}' unless scope = 'gruppe'
-app.ist_gruppenansicht()   returns boolean  -- false when unset
+app.sichtbare_mandanten()  returns uuid[]   -- '{}' unless scope ∈ {gruppe, person, kunde}
+app.ist_gruppenansicht()   returns boolean  -- scope = 'gruppe' only; false when unset
 app.ist_readonly()         returns boolean  -- TRUE when unset  ← the default that matters
-app.portal()               returns text     -- 'kunde' when unset — the narrowest ceiling
+app.portal()               returns text     -- 'mitarbeiter' when unset — see below
 app.aal()                  returns text     -- 'aal1' when unset
 app.hat_recht(p_recht text, p_mandant uuid) returns boolean   -- false when unset
 app.person_sichtbar(p_person uuid) returns boolean            -- false when unset
+app.aktueller_kunde()      returns uuid     -- SECURITY DEFINER; the caller's kunde row in the
+                                            --   ACTIVE mandant, from kunde_zugang. NULL in every
+                                            --   multi-tenant scope, and NULL without a session
+app.aktuelle_kunden()      returns uuid[]   -- SECURITY DEFINER; the caller's kunde rows across
+                                            --   app.sichtbare_mandanten(). '{}' when unset  K-18
 ```
 
 `app.hat_recht()` **takes a mandant argument** (K-03). A global permission predicate carries a
 right granted in one entity into every other entity the user can reach — precisely the leak RLS
 exists to stop.
+
+**The customer's identity is resolved, never transported.** There is no `app.kunde_id` GUC:
+`app.aktueller_kunde()` and `app.aktuelle_kunden()` are `SECURITY DEFINER` functions that read
+`kunde_zugang` for `app.aktueller_benutzer()`. That matters because K-04's customer ceiling is
+keyed on this subject, and a ceiling whose subject arrives in a `set_config` call is a ceiling a
+compromised request can move. A customer buying from `reinigung` and from `bau` has two `kunde`
+rows in two mandanten, which is why the plural form exists: the singular is for `mandant` scope,
+the plural for the K-18 `kunde` scope that spans them. With no `kunde_zugang` row both return
+nothing, `kunde_id = NULL` is NULL, the restrictive ceiling is unsatisfied and the session reads
+zero rows.
+
+**`app.portal()` defaults to `mitarbeiter`, not `kunde`.** An earlier draft called `'kunde'`
+"the narrowest ceiling", which is not what the two ceilings do. K-04 writes both as
+`app.portal() <> '<portal>' or <subject predicate>`, so an unset GUC set to `'kunde'` satisfies
+the *worker* ceiling's first disjunct and switches fifteen tables' worth of enforcement off.
+`'mitarbeiter'` is the genuinely narrower default: it fails the worker ceiling's first disjunct,
+and the second disjunct is false because `app.aktuelle_person()` is NULL, so the ceiling denies.
+Two things must be said plainly alongside it. The ceilings are **restrictive** policies — they
+subtract, they never grant — so they are not what makes an unset session safe; **K-03 is**, and
+an unset session has no mandant, no `mandant_ids` and no rights, so every permissive policy is
+already false. And the customer ceiling's own subject is NULL without a session, so it denies
+too. This default hardens a second line; it is not the first one.
 
 ### 4.5 The standard policy shape (K-03)
 
@@ -948,6 +1101,39 @@ A policy that omits the `hat_recht` conjunct is a defect. Tenant membership alon
 grant read access to a module — otherwise a `kunde` login reads the staff directory and every
 colleague's MiLoG hour records.
 
+**The two subject-scoped policies of K-18.** A tenant table that the employee portal or the
+customer portal reads carries, in addition, a SELECT-only policy keyed on **the subject** — not
+on a group right, which is the whole point of K-18 (§3.11):
+
+```sql
+-- 3. person scope: SELECT ONLY, and only the caller's own rows
+create policy t_person on <tabelle>
+  for select to cse_app
+  using (app.scope() = 'person'
+         and mandant_id = any (app.sichtbare_mandanten())
+         and <the row belongs to app.aktuelle_person()>);
+
+-- 4. kunde scope: SELECT ONLY, and only the caller's own customer rows
+create policy t_kunde on <tabelle>
+  for select to cse_app
+  using (app.scope() = 'kunde'
+         and mandant_id = any (app.sichtbare_mandanten())
+         and kunde_id = any (app.aktuelle_kunden()));
+```
+
+`src/server/db/rls.ts` records which tables carry which of the two, because most do not carry
+either: `rechnung` is read by both portals, `nummernkreis` by neither.
+
+**"Exactly two policies" counts permissive policies.** K-03's rule and K-04's ceilings are not
+in conflict and never were: a `restrictive` policy in Postgres is `AND`-ed onto the permissive
+set and can only ever subtract rows, which is why K-04 and K-15 both add one without amending
+K-03. So the invariant this document generates and tests is precise: **at most four permissive
+policies per tenant table** — `t_mandant`, `t_gruppe`, and where `rls.ts` declares them
+`t_person` and `t_kunde` — **plus whatever restrictive ceilings `rls.ts` declares**, and no
+permissive policy anywhere for `INSERT`, `UPDATE` or `DELETE` outside `t_mandant`. That last
+clause is what makes invariant 10 a database guarantee: a write under group, person or kunde
+scope matches no policy at all.
+
 ### 4.6 Portal ceilings (K-04)
 
 `app.portal()` derives from **the role of the active membership**, not from the existence of a
@@ -966,8 +1152,21 @@ The ceiling list is **enumerated in `src/server/db/rls.ts`, not exemplified** �
 `person`, `stundenkonto`, `urlaubskonto`, `abwesenheit`, `zeit_einwand`, `antrag`, `einsatz`,
 `einsatz_zuordnung`, `zeiteintrag`, `zeiteintrag_korrektur`, `medien`, `da_kenntnisnahme`,
 `nachweis`, `bewacher_eintrag` — and the build fails when an anstellung-hung or person-hung
-table has no ceiling. The same shape keyed on `kunde_id` covers `portal() = 'kunde'`.
-`db/rls/portal-ceiling.sql` is generated from `rls.ts`, so the list has exactly one source.
+table has no ceiling. `db/rls/portal-ceiling.sql` is generated from `rls.ts`, so the list has
+exactly one source.
+
+The customer half has the same shape and, crucially, **a subject that exists**:
+
+```sql
+create policy p_kunde_ceiling on <tabelle> as restrictive for all to cse_app
+  using (app.portal() <> 'kunde'
+         or kunde_id = any (app.aktuelle_kunden()));
+```
+
+`app.aktuelle_kunden()` is defined in §4.4 and resolved inside the database from `kunde_zugang`
+(§4.9, `kern.ts`). Writing the ceiling against a GUC that no helper sets — which an earlier
+draft did, by naming `kunde_id` and defining nothing — produces a policy that cannot be authored
+at all, and the shortest path from there is to drop the ceiling and rely on the page.
 
 ### 4.7 Wage confidentiality (K-05) — column privileges, not masking views
 
@@ -1022,10 +1221,11 @@ the two documents without translation.
 
 | File | Tables | Primary SPEC IDs |
 |---|---|---|
-| `kern.ts` | `mandant`, `mandant_modul`, `benutzer`, `rolle`, `berechtigung`, `rolle_berechtigung`, `benutzer_mandant` (incl. `aus_anstellung`, K-14), `audit_log`, `person`, `anstellung`, `nachweis`, `qualifikation`, `bewacher_eintrag`, `mitarbeiter_zugang`, `dokument`, `dokument_version`, `dokument_buendel`, `kalender_eintrag`, `ical_token`, `aufgabe`, `benachrichtigung`, `benachrichtigung_praeferenz`, `nachricht`, `job_lauf` | TEN-01..TEN-10, AUT-01..AUT-08, DOC-01..DOC-08, CAL-01..CAL-03, NOT-01..NOT-03, SEC-02, SEC-03, SEC-A9, LEG-09, D-09 |
+| `kern.ts` | `mandant`, `mandant_modul`, `benutzer`, `benutzer_sitzung`, `kunde_zugang`, `rolle`, `berechtigung`, `rolle_berechtigung`, `benutzer_mandant` (incl. `aus_anstellung`, K-14), `audit_log`, `dokument`, `dokument_version`, `dokument_buendel`, `kalender_eintrag`, `ical_token`, `aufgabe`, `benachrichtigung`, `benachrichtigung_praeferenz`, `nachricht`, `job_lauf` | TEN-01..TEN-10, AUT-01..AUT-08, DOC-01..DOC-08, CAL-01..CAL-03, NOT-01..NOT-03, SEC-A9, LEG-09 |
+| `personal.ts` | `person`, `anstellung`, `qualifikation`, `nachweis`, `bewacher_eintrag`, `mitarbeiter_zugang`, `abwesenheit`, `stundenkonto`, `urlaubskonto`, `zeit_einwand`, `antrag` | D-09, EMP-03..EMP-05, EMP-07, EMP-08, EMP-10, EMP-13, EMP-15, SEC-02, SEC-03 |
 | `crm-ops.ts` | `kunde`, `ansprechpartner`, `lead`, `lead_quelle`, `formular_eingang`, `angebot`, `angebotsposition`, `kalkulation`, `leistungskatalog`, `auftrag`, `auftrag_leistung`, `objekt`, `raum`, `belagsart` | CRM-01..CRM-08, OPS-01..OPS-11, REQ-01..REQ-07, REP-03 |
-| `gewerke.ts` | `revier`, `revier_raum`, `turnus`, `sonderleistung`, `leistungsnachweis`, `posten`, `veranstaltung`, `dienstanweisung`, `da_kenntnisnahme`, `wachbuch_eintrag`, `schluessel`, `schluessel_quittung`, `projekt`, `lv_position`, `aufmass`, `nachtrag`, `behinderung`, `bautagebuch` | CLN-01..CLN-05, SEC-01, SEC-05..SEC-08, BAU-01..BAU-08 |
-| `zeit.ts` | `planungsserie`, `einsatz`, `einsatz_zuordnung`, `zeiteintrag`, `zeiteintrag_korrektur`, `checkin_token`, `medien`, `reklamation`, `qualitaetspruefung`, `abwesenheit`, `stundenkonto`, `urlaubskonto`, `zeit_einwand`, `antrag`, `arbeitszeit_verstoss` | TIM-01..TIM-14, EMP-03..EMP-05, EMP-07, EMP-10, EMP-15, LEG-02, LEG-03 |
+| `gewerke.ts` | `revier`, `revier_raum`, `turnus`, `sonderleistung`, `leistungsnachweis`, `reklamation`, `qualitaetspruefung`, `posten`, `veranstaltung`, `dienstanweisung`, `da_kenntnisnahme`, `wachbuch_eintrag`, `schluessel`, `schluessel_quittung`, `projekt`, `lv_position`, `aufmass`, `nachtrag`, `behinderung`, `bautagebuch` | CLN-01..CLN-05, SEC-01, SEC-05..SEC-08, BAU-01..BAU-08 |
+| `zeit.ts` | `planungsserie`, `einsatz`, `einsatz_zuordnung`, `planungs_konflikt`, `zeiteintrag`, `zeiteintrag_korrektur`, `checkin_token`, `offline_ereignis`, `medien`, `arbeitszeit_verstoss`, `feiertag` (global, tenant-free) | TIM-01..TIM-14, CLN-03, LEG-02, LEG-03 |
 | `zeit-intern.ts` | `zeit_intern.arbeitszeit_fenster` — **K-06 only** | TIM-14, LEG-03, D-09 |
 | `finanz.ts` | `rechnung`, `rechnungsposition`, `rechnung_versand`, `rechnung_beziehung`, `nummernkreis`, `zahlung`, `mahnung`, `eingangsrechnung`, `beleg`, `ausgabe`, `buchungssatz`, `konto_mapping`, `datev_export` | FIN-01..FIN-18, ACC-01..ACC-12, TEN-02, LEG-01, LEG-05, LEG-06 |
 | `radar-ki-inhalt.ts` | `ausschreibung`, `radar_profil`, `bewertung`, `vergabemappe`, `vergabeplattform`, `agent_aufgabe`, `agent_schritt`, `agent_richtlinie`, `agent_budget`, `wissens_chunk`, `freigabe`, `freigabe_kette`, `freigabe_snapshot`, `freigabe_ansicht`, `seite`, `referenz`, `social_post`, `social_channel`, `kanal_statistik`, `formular_definition`, `stelle`, `bewerbung`, `kandidat`, `gespraech` | RAD-01..RAD-09, AGT-01..AGT-07, APR-01..APR-08, SOC-01..SOC-08, REC-01..REC-09, PRO-01..PRO-05, PUB-07 |
@@ -1036,14 +1236,44 @@ back-reference move to child tables so the immutability trigger can stay uncondi
 column allowlist in that trigger would leave invariant 4 with no database-level guarantee at
 all.
 
+**`personal.ts` is a seventh schema file, not a sixth.** An earlier version of this table put
+`person`, `anstellung`, `nachweis`, `qualifikation`, `bewacher_eintrag` and
+`mitarbeiter_zugang` in `kern.ts` and the five personnel-account tables (`abwesenheit`,
+`stundenkonto`, `urlaubskonto`, `zeit_einwand`, `antrag`) in `zeit.ts`, and
+`02-datenmodell/01-KERN.md` §0 and `04-PLANUNG-ZEIT.md` §0 both departed from it deliberately
+and said so. They are right and this document was wrong: those eleven tables are exactly the
+ones that hang off `anstellung_id` or `person_id` and therefore exactly the ones K-04's ceiling
+registry enumerates (§4.6). Splitting them across `kern.ts` and `zeit.ts` means the
+`portal-ceiling.test.ts` list and the schema files it is generated from have no common shape,
+and the D-09 person/anstellung boundary — the one this platform is most likely to get wrong —
+is spread over three files instead of one. `reklamation` and `qualitaetspruefung` move to
+`gewerke.ts` for the same reason: their subject is trade quality, not scheduling.
+
 Tables not named in SPEC §22 but required by a numbered feature — `rolle_berechtigung`,
-`mandant_modul` (TEN-08), `dokument_version` (DOC-05), `dokument_buendel` (DOC-08),
-`benachrichtigung_praeferenz` (NOT-02), `buchungssatz` (ACC-01), `einsatz_zuordnung` (TIM-04),
-`zeiteintrag_korrektur` (TIM-11), `arbeitszeit_verstoss` (TIM-14), `freigabe*` (APR-01..APR-08,
-K-13), `ical_token` (CAL-03), `lead_quelle` / `formular_eingang` (REQ-07, REP-03), `job_lauf`
-(SPEC §21), `sonderleistung` (CLN-05), `veranstaltung` (SEC-08), `gespraech` (REC-06) — carry a
-comment in their file naming the feature ID that forced them, and are listed in `DECISIONS.md`
-when the schema PR lands.
+`mandant_modul` (TEN-08), `benutzer_sitzung` (AUT-08, SEC-A9), `kunde_zugang` (AUT-01 `kunde`,
+DSH-03, and the subject of K-04's customer ceiling), `dokument_version` (DOC-05),
+`dokument_buendel` (DOC-08), `benachrichtigung_praeferenz` (NOT-02), `buchungssatz` (ACC-01),
+`einsatz_zuordnung` (TIM-04), `planungs_konflikt` (TIM-05), `offline_ereignis` (TIM-09),
+`zeiteintrag_korrektur` (TIM-11), `arbeitszeit_verstoss` (TIM-14), `feiertag` (CLN-03),
+`freigabe*` (APR-01..APR-08, K-13), `ical_token` (CAL-03), `lead_quelle` / `formular_eingang`
+(REQ-07, REP-03), `job_lauf` (SPEC §21), `sonderleistung` (CLN-05), `veranstaltung` (SEC-08),
+`gespraech` (REC-06) — carry a comment in their file naming the feature ID that forced them, and
+are listed in `DECISIONS.md` when the schema PR lands.
+
+**`audit_log` is the one tenant-adjacent table with a nullable `mandant_id`, per K-16(d).** A
+failed login, a lockout and the *source* side of a mandant switch all precede or transcend
+tenancy, and forcing a tenant onto them would mean inventing one. It therefore carries
+`ebene enum('plattform','mandant')` with
+`CHECK ((ebene = 'mandant') = (mandant_id IS NOT NULL))`, so a NULL is a stated platform-level
+fact and not a missing value, and its RLS reads platform rows only for `super_admin`. It is
+classified in `rls.ts` under its own bucket for exactly that reason (§5.1) — the generic
+bucket-1 assertion "`mandant_id` is `not null`" would fail on it, and the cheapest way to make
+that green is to backfill a tenant onto a failed login.
+
+**`wissens_chunk` is the one table with a composite primary key, per K-16(a).** It is
+`PARTITION BY LIST (mandant_id)`, Postgres requires the partition key in the primary key, so its
+PK is `(mandant_id, id)` and every FK pointing at it is composite (§9.3, §6.1). No other table
+in this document deviates from `id uuid primary key`.
 
 `kanal_statistik` is in SPEC §22 with no feature of its own. It stays, with a single sanctioned
 consumer: per-channel publication outcomes for SOC-05/SOC-07 and channel attribution in REP-03.
@@ -1055,9 +1285,9 @@ One place, so a new table gets them for free and a table that skips them is visi
 
 ```ts
 // src/server/db/schema/_shared.ts
-import { bigint, date, numeric, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { bigint, date, integer, numeric, timestamp, uuid } from 'drizzle-orm/pg-core';
 
-/** Invariant 3 / K-16. Tenant tables only — see §5 for the three buckets. */
+/** Invariant 3 / K-16. Tenant tables only — see §5 for the buckets. */
 export const mandantId = () =>
   uuid('mandant_id').notNull().references(() => mandant.id);
 
@@ -1065,8 +1295,21 @@ export const mandantId = () =>
 export const geldCent        = (name: `${string}_cent`) => bigint(name, { mode: 'bigint' });
 export const geldCentNotNull = (name: `${string}_cent`) => geldCent(name).notNull();
 
+/** K-16(b): sub-cent AI cost accounting ONLY. Permitted on agent_schritt, agent_budget and
+ *  their carry columns — nowhere else. Converted to cents once, at the budget boundary. */
+export const mikrocent = (name: `${string}_mikrocent`) => bigint(name, { mode: 'bigint' });
+
 /** K-16: quantities are NOT money and must not be cents. m², m²/h, LV-Mengen, Aufmaß results. */
 export const menge = (name: string) => numeric(name, { precision: 12, scale: 3 });
+
+/** K-16(c): a COMPUTED TARGET duration may be fractional — revier.sollzeit_minuten from
+ *  Σ m² ÷ Leistungswert. A MEASURED duration never is; it is evidence. See below. */
+export const zielminuten = (name: `soll${string}_minuten` | `${string}_sollminuten`) =>
+  numeric(name, { precision: 8, scale: 2 });
+
+/** K-16: a MEASURED duration — worked time, a MiLoG record, a rest period, a device offset. */
+export const istminuten  = (name: `${string}_minuten`) => integer(name);
+export const istsekunden = (name: `${string}_sek`)     => integer(name);
 
 /** Invariant 2: instants are TIMESTAMPTZ, stored UTC, rendered Europe/Berlin. */
 export const zeitpunkt        = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
@@ -1087,7 +1330,7 @@ export const gemeinsamMutabel = () => ({
 });
 ```
 
-Four things this shape settles, each of which was wrong in an earlier draft:
+Six things this shape settles, each of which was wrong in an earlier draft:
 
 **Money may be nullable; the helper must allow it.** `ausschreibung.geschaetzter_wert_cent`
 (OCDS frequently omits it, RAD-01), `radar_profil` value bounds (RAD-04), an unknown
@@ -1114,22 +1357,49 @@ prevent, surfacing two years later in a tax audit.
 **`zeitpunktNotNull` exists because the columns that matter most are the ones that must not be
 null:** `einsatz.beginn_zeitpunkt` / `ende_zeitpunkt` (TIM-01), `zeiteintrag.beginn_zeitpunkt`
 (TIM-08), `rechnung.festgeschrieben_am` at finalisation (FIN-02). Nullability is stated per
-column in `02-DATENMODELL.md`; the helper makes the choice explicit rather than accidental.
+column in `02-datenmodell/**`; the helper makes the choice explicit rather than accidental.
+
+**Sub-cent money exists in exactly one place, and it never leaves it (K-16(b)).** Model token
+pricing is genuinely sub-cent, and rounding every step to a cent destroys the budget arithmetic
+AGT-05 depends on — a thousand steps at 0,4 cent each round to zero and the cap never fires. So
+`*_mikrocent bigint` (10⁻⁶ €) is permitted on `agent_schritt`, `agent_budget` and their carry
+columns **and nowhere else**. Conversion to cents happens **once**, at the budget boundary, and
+`services/…/budget.ts` states the rounding rule (**half-up**) at the conversion site rather than
+in a commit message. Nothing invoiced, booked or exported is ever micro-cents: a figure that
+reaches `rechnung`, `buchungssatz` or a DATEV export is `bigint` cents, full stop.
+`tests/invariants/money-is-bigint.test.ts` asserts the fence in both directions — every
+`_mikrocent` column is `bigint` **and** belongs to one of the two agent tables, and no
+`_mikrocent` column exists in `finanz.ts`.
+
+**Target durations may be fractional; measured durations may not (K-16(c)).** The distinction is
+target vs. actual and each column states which it is. `revier.sollzeit_minuten` is
+`numeric(8,2)`, computed as `Σ m² ÷ Leistungswert`, because rounding each room to a whole minute
+accumulates a visible error across a Revier of eighty rooms and the number is a plan, not a
+record. `zeiteintrag` durations, the §17 MiLoG record (TIM-13), rest periods (LEG-03) and
+`zeitabweichung_sek` (TIM-08) are `integer` and never fractional, because they are **evidence**:
+a fractional minute in a MiLoG record is a number nobody measured. `istminuten()` and
+`zielminuten()` exist so the choice is made at the column and visible in review.
 
 **Composite tenant FKs (K-16).** Where a child is kept inside its parent's tenant with a
 composite foreign key `(mandant_id, parent_id) → parent(mandant_id, id)`, the parent **must**
 declare the matching `UNIQUE (mandant_id, id)`. `tests/invariants/komposit-fk.test.ts` walks
-every composite FK and fails when the referenced unique index is absent.
+every composite FK and fails when the referenced unique index is absent. `wissens_chunk` is the
+one table whose primary key is itself composite (K-16(a), §4.9): it is
+`PARTITION BY LIST (mandant_id)`, Postgres requires the partition key in the primary key, and
+the test treats `PRIMARY KEY (mandant_id, id)` as satisfying the parent obligation.
 
 ---
 
 ## 5. Table classification — the list the tests read
 
-`tests/invariants/mandant-id-and-rls.test.ts` asserts that every tenant table carries
-`mandant_id`, `ENABLE` **and** `FORCE ROW LEVEL SECURITY` and both K-03 policies;
-`tests/isolation/matrix.ts` generates its cases from the schema barrel. Neither can work
-without knowing which bucket a table is in — and the cheapest way to turn a red required check
-green is to add `mandant_id` to `nachweis`, which produces exactly the failure D-09 spells out:
+`tests/invariants/mandant-id-and-rls.test.ts` asserts, **per bucket**, that a table carries the
+`mandant_id` nullability, the `ENABLE` **and** `FORCE ROW LEVEL SECURITY` and the exact policy
+set its bucket requires; `tests/isolation/matrix.ts` generates its cases from the schema barrel.
+Neither can work without knowing which bucket a table is in — and a blanket assertion is not a
+safe default here: applied to `arbeitszeit_verstoss` it asserts the opposite of K-06, and
+applied to `audit_log` it asserts the opposite of K-16(d). The cheapest way to turn a red
+required check green is to add `mandant_id` to `nachweis`, which produces exactly the failure
+D-09 spells out:
 one valid and one expired copy of the same §34a certificate, and a scheduler that passes its
 own check while assigning an unqualified guard (SEC-04, LEG-04).
 
@@ -1141,21 +1411,62 @@ no-hard-delete trigger list (K-16). A new table that is in no bucket fails the b
 // src/server/db/rls.ts
 export const tabellen = {
   mandant_scoped: [ /* … */ ] as const,   // mandant_id + FORCE RLS + both K-03 policies
+  mandant_scoped_lesend: [ /* … */ ] as const,  // K-06: mandant_id + FORCE RLS, but the tenant
+                                                //   policy is `for select`. NO cse_app write
+                                                //   path exists. Currently: arbeitszeit_verstoss
+  plattform_scoped: [ /* … */ ] as const, // K-16(d): nullable mandant_id + `ebene`. Only audit_log
   person_scoped:  [ /* … */ ] as const,   // NO mandant_id — visibility via anstellung
   global:         [ /* … */ ] as const,   // no tenant dimension at all
+  scope_person:   [ /* … */ ] as const,   // K-18 t_person policy — the employee portal reads it
+  scope_kunde:    [ /* … */ ] as const,   // K-18 t_kunde policy — the customer portal reads it
   ceiling_anstellung: [ /* … */ ] as const,  // K-04 restrictive ceiling, anstellung_id
   ceiling_person:     [ /* … */ ] as const,  // K-04 restrictive ceiling, person_id
-  ceiling_kunde:      [ /* … */ ] as const,  // K-04 restrictive ceiling, kunde_id
+  ceiling_kunde:      [ /* … */ ] as const,  // K-04 restrictive ceiling, app.aktuelle_kunden()
   kein_hard_delete:   [ /* … */ ] as const,  // invariant 8 — BEFORE DELETE trigger raises
 } as const;
 ```
 
+A table sits in exactly one of the first five buckets and in any number of the last six, and
+`rls.ts` is where that is checked: the build fails a table in **no** primary bucket, a table in
+**two**, and a table in a ceiling list whose primary bucket has no such column. The two-bucket
+check is not hypothetical — an earlier draft listed `benutzer_mandant` in bucket 1 and described
+its write rules again under bucket 3, and a build check that only catches "no bucket" would have
+let both stand.
+
 ### 5.1 Bucket 1 — tenant-scoped
 
-Everything in `crm-ops.ts`, `gewerke.ts`, `zeit.ts`, `finanz.ts` and the tenant part of
-`radar-ki-inhalt.ts`, plus `anstellung`, `mandant_modul`, `benutzer_mandant`, `audit_log`,
-`dokument`, `aufgabe`, `nachricht`, `kalender_eintrag`, `benachrichtigung`, `job_lauf`. Carries
-`mandant_id`, FORCE RLS and the two K-03 policies. (TEN-03, AUT-05, SEC-A2)
+Everything in `crm-ops.ts`, `gewerke.ts`, `finanz.ts`, the tenant part of `personal.ts`
+(`anstellung`, `abwesenheit`, `stundenkonto`, `urlaubskonto`, `zeit_einwand`, `antrag`), the
+tenant part of `zeit.ts` and the tenant part of `radar-ki-inhalt.ts`, plus `mandant_modul`,
+`benutzer_mandant`, `kunde_zugang`, `benutzer_sitzung`, `dokument`, `aufgabe`, `nachricht`,
+`kalender_eintrag`, `benachrichtigung`, `job_lauf`. Carries `mandant_id not null`, FORCE RLS and
+the two K-03 policies, plus whatever K-18 and K-04 policies `rls.ts` declares for it. (TEN-03,
+AUT-05, SEC-A2)
+
+**Three carve-outs, each in its own bucket, because a blanket assertion would be false.**
+
+**`arbeitszeit_verstoss` → `mandant_scoped_lesend`.** K-06 requires it to have **no INSERT policy
+for `cse_app`**: a breach spanning two entities must be recorded in both, and a request scoped to
+mandant A cannot write a row in mandant B. A K-03 `for all to cse_app` policy grants INSERT, so
+sweeping this table into bucket 1 makes `mandant-id-and-rls.test.ts` assert the exact opposite of
+the convention — and the cheapest way to turn that red check green is to add the INSERT path K-06
+forbids. Its tenant policy is `for select` only, its group policy is the ordinary K-03 one, and
+every write goes through `app.arbzg_befund_schreiben` (§4.8). `db/rls/arbzg-verstoss.sql` holds
+it, and the invariant test asserts the **absence** of an INSERT, UPDATE or DELETE policy for
+`cse_app` on every table in this bucket.
+
+**`audit_log` → `plattform_scoped`.** Per K-16(d) its `mandant_id` is nullable, with
+`ebene enum('plattform','mandant')` and
+`CHECK ((ebene = 'mandant') = (mandant_id IS NOT NULL))`. It is the only tenant-adjacent table
+in the platform with a nullable `mandant_id`, and it is nullable because a failed login and the
+source side of a mandant switch have no tenant to record. Its policies are the K-03 pair on
+`ebene = 'mandant'` rows plus a `super_admin`-only read of `ebene = 'plattform'`. FORCE RLS and
+`kein_hard_delete` apply unchanged.
+
+**`benutzer_mandant` is in bucket 1 and only bucket 1.** Its `aal2` write gate (K-15) is a
+**restrictive** policy on INSERT/UPDATE/DELETE, which is additive to K-03's two and is declared
+in `rls.ts` beside the ceilings (§4.5) — it does not make the table a second, global thing, and
+§5.3 no longer lists it.
 
 ### 5.2 Bucket 2 — person-scoped (D-09, invariant 9)
 
@@ -1164,33 +1475,99 @@ Everything in `crm-ops.ts`, `gewerke.ts`, `zeit.ts`, `finanz.ts` and the tenant 
 membership-derived, and it lives in `db/rls/person-scope.sql`:
 
 ```sql
-create policy p_person_sichtbar on nachweis
+-- 1. tenant scope: the entity that employs the person may read her certificates
+create policy p_person_mandant on nachweis
   for select to cse_app
   using (exists (select 1 from anstellung a
                   where a.person_id = nachweis.person_id
-                    and (a.mandant_id = app.aktiver_mandant()
-                         or (app.ist_gruppenansicht()
-                             and a.mandant_id = any (app.sichtbare_mandanten()))))
-         and app.hat_recht('personal.lesen', (select a2.mandant_id from anstellung a2
-                                               where a2.person_id = nachweis.person_id
-                                                 and a2.mandant_id = app.aktiver_mandant())));
+                    and a.mandant_id = app.aktiver_mandant()
+                    and app.hat_recht('personal.lesen', a.mandant_id)));
+
+-- 2. group scope (K-03): management, across the readable set
+create policy p_person_gruppe on nachweis
+  for select to cse_app
+  using (app.ist_gruppenansicht()
+         and exists (select 1 from anstellung a
+                      where a.person_id = nachweis.person_id
+                        and a.mandant_id = any (app.sichtbare_mandanten())
+                        and app.hat_recht('gruppe.personal.lesen', a.mandant_id)));
+
+-- 3. person scope (K-18): the employee's own certificates, EMP-08
+create policy p_person_selbst on nachweis
+  for select to cse_app
+  using (app.scope() = 'person'
+         and nachweis.person_id = app.aktuelle_person()
+         and exists (select 1 from anstellung a
+                      where a.person_id = nachweis.person_id
+                        and a.mandant_id = any (app.sichtbare_mandanten())));
+
+-- 4. writes: only the mandant that recorded the row
+create policy p_person_schreiben on nachweis
+  for all to cse_app
+  using      (erfasst_mandant_id = app.aktiver_mandant()
+              and app.hat_recht('personal.schreiben', erfasst_mandant_id))
+  with check (erfasst_mandant_id = app.aktiver_mandant()
+              and not app.ist_readonly()
+              and app.hat_recht('personal.schreiben', erfasst_mandant_id));
 ```
 
-Writes are additionally restricted to the mandant that recorded the row (`erfasst_mandant_id`,
-a reference column, not a tenancy column), so a second entity can read a certificate it depends
-on without being able to edit it. `personal/nachweise/page.tsx` sits under `[mandant]` and
-reads this bucket — that is correct and is why the bucket needs a stated policy rather than
-silence.
+**Three things this shape fixes, and one it inherits.** The `hat_recht` argument is now written
+**per branch** — `app.aktiver_mandant()` in tenant scope, the matched membership row's
+`a.mandant_id` in group scope. An earlier draft folded all branches into one policy and then
+passed `hat_recht` a scalar subquery keyed on `a2.mandant_id = app.aktiver_mandant()`; in group
+scope `aktiver_mandant()` is NULL (§4.4), the subquery yields NULL, the whole predicate is
+false, and **no certificate would have been readable from `portal/gruppe`, `portal/mein` or
+`portal/kunde` at all** — an RLS bug that reads as an empty list, which is exactly what an empty
+list is supposed to look like. Second, the membership lookup is `EXISTS`, not a scalar subquery:
+a person re-employed after `austritt` has two `anstellung` rows in the same mandant, and a
+scalar subquery raises *more than one row returned by a subquery* at read time. Third, K-18's
+`mandant_id = any (app.sichtbare_mandanten())` conjunct is satisfied here **through
+`anstellung`**, because bucket 2 has no `mandant_id` column of its own — that is the whole point
+of the bucket (invariant 9: a §34a certificate belongs to the human, not to a job).
+
+What it inherits is K-04's `ceiling_person` restrictive policy, which applies on top of all four
+and limits a `mitarbeiter` session to `person_id = app.aktuelle_person()` regardless. The
+ceiling says *at most your own rows*; policy 3 says *these rows, in these tenants*; both must
+pass (K-18).
+
+Writes are restricted to the mandant that recorded the row (`erfasst_mandant_id`, a reference
+column, not a tenancy column), so a second entity can read a certificate it depends on without
+being able to edit it. `personal/nachweise/page.tsx` sits under `[mandant]` and reads this
+bucket — that is correct, and is why the bucket needs a stated policy rather than silence.
 
 ### 5.3 Bucket 3 — global
 
-`mandant`, `rolle`, `berechtigung`, `rolle_berechtigung`, `belagsart` where it is a shared
-catalogue, `feiertag`. No tenant dimension; `SELECT` granted to `cse_app`, writes restricted to
-`super_admin` and, for `rolle_berechtigung` / `benutzer_mandant`, gated on `aal2` (K-15).
+`mandant`, `rolle`, `berechtigung`, `rolle_berechtigung`, `feiertag`. No tenant dimension;
+`SELECT` granted to `cse_app`, writes restricted to `super_admin` and, for
+`rolle_berechtigung`, gated on `aal2` by a restrictive write policy (K-15).
 
-### 5.4 Bucket 4 — the K-06 internal schema
+Two entries an earlier draft got wrong. **`benutzer_mandant` is not here** — it carries
+`mandant_id` and lives in bucket 1 (§5.1); its `aal2` write gate is a restrictive policy, not a
+change of bucket. And **`belagsart` is not here either**: it was listed as global "where it is a
+shared catalogue", and a hedge is precisely what the `rls.ts` build check cannot resolve — a
+table is in one bucket or the build fails. It is **tenant-scoped** (bucket 1, in `crm-ops.ts`),
+because OPS-03 Leistungswerte are commercial parameters that feed OPS-07 pricing and three
+separate GmbHs must be able to hold different ones. The seed writes the same starting set into
+each mandant; the values themselves are not ours to choose (**O-17**, `// TODO(client)` in
+`db/seed/05-kataloge.ts`), and the catalogue ships empty rather than defaulted.
 
-`zeit_intern.arbeitszeit_fenster`. No `cse_app` grant of any kind; reachable only through
+**`feiertag` is real and it stays.** It is a global, tenant-free reference table —
+`unique (bundesland, datum)`, `datum date`, `bundesland char(2)`, `bezeichnung`,
+`gesetzlich boolean` — specified in `02-datenmodell/04-PLANUNG-ZEIT.md` §5.1 and consumed by
+CLN-03. It is not in tension with §8.5's "holidays are computed, not remembered": the rows are
+**generated** by `services/gewerke/reinigung/feiertage.ts` (Gauss/Butcher plus the Berlin fixed
+list) and seeded through `db/seed/fixtures/feiertage-berlin.ts`, never typed from memory. The
+table exists so `turnus-generator.ts` can join it in SQL instead of re-deriving Easter inside a
+nightly job, and so a public holiday that was skipped is auditable years later.
+
+### 5.4 Outside every bucket — the K-06 internal schema
+
+`zeit_intern.arbeitszeit_fenster` is in **no** `rls.ts` bucket, and that is the classification:
+`rls.ts` enumerates what `cse_app` can reach, and this table is exactly the thing `cse_app`
+cannot reach. The build check that fails a table in no bucket carries this one name as its
+single exclusion, stated in `rls.ts` beside it rather than as a silent gap.
+
+No `cse_app` grant of any kind; reachable only through
 `app.arbzg_belastung`. It is excluded from the isolation matrix by name and covered instead by
 `tests/isolation/db/arbzg.test.ts`, which asserts both halves: the breach is detected, and zero
 fields identifying the other entity's shift come back.
@@ -1203,13 +1580,13 @@ fields identifying the other entity's shift come back.
 
 Every RLS predicate silently prepends `mandant_id = …` to every query, which makes `mandant_id`
 the mandatory leading column of almost every index. The minimum set is stated here because each
-one exists for a named feature; `02-DATENMODELL.md` owns the rest.
+one exists for a named feature; `02-datenmodell/**` owns the rest.
 
 | Index | Serves |
 |---|---|
 | `einsatz (mandant_id, beginn_zeitpunkt)` | TIM-01, TIM-04 week and month view |
-| `einsatz_zuordnung (anstellung_id, beginn_zeitpunkt)` | TIM-05 overlap detection |
-| `zeit_intern.arbeitszeit_fenster (person_id, beginn_utc)` | TIM-14, K-06 cross-entity aggregation |
+| `einsatz_zuordnung (anstellung_id, einsatz_id)` | TIM-05 overlap detection — the shift's instants live on `einsatz`, so the detector joins and this index carries the join |
+| `zeit_intern.arbeitszeit_fenster (zuordnung_quelle_id)` and `(beginn_utc, ende_utc)` | TIM-14, K-06 cross-entity aggregation |
 | `zeiteintrag (anstellung_id, beginn_zeitpunkt)` | EMP-03, TIM-13, LEG-02 |
 | `zeiteintrag (mandant_id) WHERE ende_zeitpunkt IS NULL` — partial | DSH-05 „arbeitet gerade", live |
 | `nachweis (person_id, gueltig_bis)` | SEC-02, SEC-04 expiry checks and the 60/30/7 watchdog |
@@ -1219,6 +1596,25 @@ one exists for a named feature; `02-DATENMODELL.md` owns the rest.
 | `wissens_chunk (mandant_id, embedding)` — ANN index with the tenant column leading | AGT-06, so the tenant filter is not applied after the top-k cut (§9.3) |
 | `lead (mandant_id, sla_faellig_am) WHERE erste_antwort_am IS NULL` — partial | REQ-06 hourly SLA watchdog |
 | UNIQUE `benutzer_mandant (benutzer_id, mandant_id)` | K-14, TEN-06 |
+
+**Two of these rows are narrower than they look, and both were wrong before.**
+`einsatz_zuordnung` carries no `beginn_zeitpunkt`: an assignment links an `anstellung` to an
+`einsatz`, and the shift's instants belong to the `einsatz` (§4.9). An index over a column the
+owning document does not declare is a migration that fails on the day the schema PR lands, which
+is the good case; the bad case is that someone adds the column to make the index compile and the
+platform then has two places a shift can start.
+
+`zeit_intern.arbeitszeit_fenster` carries **no `person_id`**. K-06 fixes its shape —
+`zuordnung_quelle_id`, `quelle`, `aktiv`, `beginn_utc`, `ende_utc` — and this document may not
+widen it. `app.arbzg_belastung(p_person, …)` therefore resolves person → `anstellung` →
+`einsatz_zuordnung` → window inside the definer function, and the two indexes above carry that
+path. Denormalising `person_id` onto the window would be the faster shape and may well be the
+right one; it requires **amending K-06 first**, in its own PR, because the column would then be
+the one the aggregation filters on and the convention is what fixes that table's contract (§26).
+
+`wissens_chunk` is `PARTITION BY LIST (mandant_id)` with `PRIMARY KEY (mandant_id, id)`
+(K-16(a)), so its ANN index is created per partition; the tenant column leads by construction
+rather than by convention (§9.3).
 
 ### 6.2 No hard deletes (invariant 8, K-16)
 
@@ -1286,10 +1682,11 @@ a lint rule — which is how `withTenant` stops being the only door.
 src/server/queries/
 ├─ types.ts                    # DTO conventions: finished values, cents as string, no Date objects
 ├─ dashboard.ts                # DSH-01..DSH-05 — every KPI returns { wert, label, ziel: Route }
+├─ mandant.ts                  # TEN-06, TEN-10 — switcherZaehler, see below
 ├─ crm.ts · ops.ts · dienstplan.ts · zeit.ts · finanzen.ts · buchhaltung.ts
 ├─ radar.ts · freigabe.ts · dokumente.ts · social.ts · recruiting.ts · berichte.ts
-├─ mein.ts                     # EMP-02..EMP-11, EMP-14, EMP-15 — withGroupScope, portal=mitarbeiter
-├─ kunde.ts                    # CRM-06, DSH-03 — withGroupScope, portal=kunde
+├─ mein.ts                     # EMP-02..EMP-11, EMP-14, EMP-15 — withPersonScope, portal=mitarbeiter
+├─ kunde.ts                    # CRM-06, DSH-03 — withKundeScope, portal=kunde
 └─ gruppe.ts                   # TEN-05, FIN-17, REP-01..REP-06 — withGroupScope, portal=intern
 ```
 
@@ -1319,6 +1716,19 @@ withdrawn: a feature component calls a query, or receives props.
 records behind the figure — so "no dead numbers" is enforced by `typedRoutes` at compile time
 rather than by review. **DSH-05** is `queries/dashboard.arbeitetGerade`, backed by the partial
 index in §6.1.
+
+**TEN-10's switcher counters are a query with a scope and a right, not a component detail.**
+"Switcher dropdown with live counters per area" is a **cross-mandant read** — four numbers from
+four entities in one dropdown — and a cross-mandant read that nobody names is a cross-mandant
+read somebody implements by looping `withTenant` and switching the session, or by widening a
+policy. So it is named: `queries/mandant.switcherZaehler(ctx)` runs under `withGroupScope` over
+`ctx.sichtbareMandanten`, returns one row per mandant with the counts the dropdown shows, and
+requires `gruppe.dashboard.lesen` in each mandant it reports (K-03) — a user who holds it in two
+of four areas sees counters for two and the plain names of the other two, rather than a zero
+that reads as "nothing to do". `mandant-switcher.tsx` (§13) renders the DTO and computes
+nothing. `tests/isolation/db/switcher-zaehler.test.ts` asserts that a user with membership in A
+only never receives a count for B, and `e2e/portal/switcher.spec.ts` covers the partial-rights
+case.
 
 `queries/freigabe.freigabeOeffnen(ctx, id)` is the single exception to "a read does not write":
 per **K-13** it writes the `freigabe_ansicht` row that APR-08 measures against. Both
@@ -1361,10 +1771,10 @@ src/server/services/
 │  ├─ lead.ts                 createLead · assignOwner · advanceStatus                  CRM-02, CRM-05, CRM-07, REQ-05
 │  ├─ lead-score/
 │  │  ├─ types.ts             interface LeadScoreModell                                 CRM-02
-│  │  └─ gewichte.platzhalter.ts   — TODO(client): scoring weights                      CRM-02
+│  │  └─ gewichte.platzhalter.ts   — TODO(client) O-15: scoring weights                 CRM-02
 │  ├─ lead-sla/
 │  │  ├─ types.ts             interface SlaTabelle · deadlineFor · isOverdue · escalate REQ-06
-│  │  └─ fristen.platzhalter.ts    — TODO(client): SLA duration per area and channel    REQ-05, REQ-06
+│  │  └─ fristen.platzhalter.ts    — TODO(client) O-14: SLA duration per area/channel   REQ-05, REQ-06
 │  └─ kommunikation.ts        appendNote · appendHistory                                CRM-03, CRM-04
 │
 ├─ ops/
@@ -1376,14 +1786,15 @@ src/server/services/
 │  ├─ kalkulation/
 │  │  ├─ standardzeit.ts      calculateStandardzeit — Σ m² ÷ Leistungswert × Faktor     OPS-02, OPS-03, OPS-07
 │  │  ├─ types.ts             interface Zuschlagsprofil { gemeinkosten, risiko, gewinn } OPS-07
-│  │  ├─ zuschlaege.platzhalter.ts  — TODO(client): overhead, risk, profit              OPS-07
+│  │  ├─ zuschlaege.platzhalter.ts  — TODO(client) O-16: overhead, risk, profit         OPS-07
 │  │  └─ kosten.ts            calculateKosten(profil, …) — takes the profile, never picks it
 │  ├─ angebot.ts              createAngebot · priceAngebot · acceptAngebot              OPS-08, OPS-09
 │  └─ auftrag.ts              createAuftrag · fromAngebot · createFromWizard            OPS-05, OPS-09, OPS-10
 │
 ├─ gewerke/
 │  ├─ reinigung/
-│  │  ├─ revier.ts            createRevier · assignRaeume · sollMinuten                 CLN-01
+│  │  ├─ revier.ts            createRevier · assignRaeume · sollMinuten — the computed
+│  │  │                       target `revier.sollzeit_minuten` is numeric(8,2), K-16(c) CLN-01
 │  │  ├─ turnus.ts            expandRRule · nextOccurrences                             CLN-02
 │  │  ├─ feiertage.ts         berlinHolidays · isHoliday — computed, see §8.5           CLN-03
 │  │  ├─ sonderleistung.ts    Glas · Sonder · Warenräumung as distinct services         CLN-05
@@ -1418,22 +1829,24 @@ src/server/services/
 │  ├─ milog/
 │  │  ├─ nachweis.ts          buildRecord · retentionUntil                              TIM-13, LEG-02
 │  │  ├─ types.ts             interface MindestlohnTabelle                              LEG-02
-│  │  └─ saetze.platzhalter.ts   — TODO(client): sector minimum wage per area and date
+│  │  └─ saetze.platzhalter.ts   — TODO(client) O-32: sector minimum wage per area and date
 │  ├─ stundenkonto/
 │  │  ├─ konto.ts             accrue · lockMonth · carryForward                         EMP-04, EMP-15
 │  │  ├─ types.ts             interface ArbeitszeitkontoRegeln                          EMP-04
-│  │  └─ regeln.platzhalter.ts   — TODO(client): target basis, cap, negative balance, expiry
+│  │  └─ regeln.platzhalter.ts   — TODO(client) O-18: target basis, cap, negative balance, expiry
 │  ├─ urlaub/
 │  │  ├─ konto.ts             balanceFor · usedDays                                     EMP-05
 │  │  ├─ types.ts             interface UrlaubsanspruchRegeln                            EMP-05
-│  │  └─ anspruch.platzhalter.ts — TODO(client): entitlement, pro-rata, carry-over expiry
+│  │  └─ anspruch.platzhalter.ts — TODO(client) O-18: entitlement, pro-rata, carry-over expiry
 │  ├─ abwesenheit.ts          report · approve                                           EMP-10
 │  ├─ zeit-einwand.ts         raiseEinwand · resolveEinwand — never an edit              EMP-07
 │  └─ antrag.ts               requestLeave · requestSwap                                 EMP-10
 │
 ├─ arbzg/                     ← K-06: the ONLY caller of app.arbzg_belastung
 │  ├─ belastung.ts            ladeBelastung(person, von, bis) → durations only          TIM-14, LEG-03, D-09
-│  ├─ regeln.ts               >8h (10h exception) · <11h rest · break rules              TIM-06, LEG-03
+│  ├─ regeln.ts               >8h (§3 ArbZG 10h exception) · <11h rest · break rules     TIM-06, LEG-03
+│  │                          — the statutory limits are code; the AUSGLEICHSZEITRAUM the
+│  │                            10h exception depends on is not stated: TODO(client) O-18
 │  ├─ befund.ts               schreibeBefund → app.arbzg_befund_schreiben               TIM-14
 │  └─ pruefung.ts             pruefeZuordnung — called before every assignment           TIM-05, TIM-14
 │
@@ -1443,7 +1856,7 @@ src/server/services/
 │  │  ├─ satz.ts              vatByTaxGroup — per tax-rate group, never from a gross     FIN-09, LEG-06
 │  │  ├─ rundung.ts           rounding mode as an injected named parameter               FIN-09
 │  │  ├─ reverse-charge.ts    reverseChargeApplies(kunde, leistung, nachweis)            FIN-09, LEG-06
-│  │  └─ nachweis.platzhalter.ts — TODO(client): §13b evidence (USt-1-TG) and its store
+│  │  └─ nachweis.platzhalter.ts — TODO(client) O-33: §13b evidence (USt-1-TG) and its store
 │  ├─ nummernkreis.ts         assignNumberAndChainHead — SELECT … FOR UPDATE            FIN-03, TEN-02, FIN-06
 │  ├─ hash-chain.ts           hashChain · verifyChain                                    FIN-06, LEG-01
 │  ├─ ustg14.ts               validateForFinalization                                    FIN-04, FIN-05, LEG-05
@@ -1458,19 +1871,21 @@ src/server/services/
 │  ├─ abschlag/
 │  │  ├─ deduktion.ts         deductPriorAbschlaege · blockIfUnreconciled                FIN-08
 │  │  ├─ types.ts             interface AbschlagsBedingungen (per project)               FIN-08
-│  │  └─ bedingungen.platzhalter.ts — TODO(client): VOB/B §16 terms, Sicherheitseinbehalt
+│  │  └─ bedingungen.platzhalter.ts — TODO(client) O-20: VOB/B §16 terms, Sicherheitseinbehalt
 │  ├─ estg48/
 │  │  ├─ abzug.ts             withholdingFor · certificateValidAtServiceDate             FIN-10, LEG-06
-│  │  └─ grenzen.platzhalter.ts — TODO(client): Bagatellgrenzen, Leistungsempfänger scope
+│  │  └─ grenzen.platzhalter.ts — TODO(client) O-21: Bagatellgrenzen, Leistungsempfänger scope
 │  ├─ kleinbetrag.ts          appliesToRechnung(betragCent, gueltigAb) — dated parameter FIN-13
 │  ├─ xrechnung.ts            buildUbl · leitwegId — from the snapshot                   FIN-11
 │  ├─ zugferd.ts              embedInPdfA3 — from the snapshot                           FIN-12
 │  ├─ ausgangsbuch.ts         listByNummernkreis                                         FIN-16
 │  ├─ zahlung.ts              recordZahlung · matchToRechnung                            FIN-14, ACC-04
 │  ├─ mahnung/
-│  │  ├─ lauf.ts              nextStufe · buildMahnung                                   FIN-15
-│  │  ├─ types.ts             interface MahnStufen { stufen, gebuehrCent, zinsBasis }    FIN-15
-│  │  └─ stufen.platzhalter.ts — TODO(client): levels, fees, §288 BGB interest basis
+│  │  ├─ lauf.ts              nextStufe · buildMahnung · istFaellig(clock, rechnung)     FIN-15
+│  │  ├─ types.ts             interface MahnStufen { verzugstageBisStufe1, stufen,
+│  │  │                                              gebuehrCent, zinsBasis }            FIN-15
+│  │  └─ stufen.platzhalter.ts — TODO(client) O-19: levels, intervals, the delay before
+│  │                            level 1, fees, §288 BGB interest basis
 │  ├─ eingangsrechnung.ts     createFromProposal — approval required                     FIN-14, ACC-05
 │  ├─ ausgabe.ts              recordAusgabe                                              FIN-14
 │  └─ pruefung.ts             warnAuftragOhneZeiten                                      FIN-18
@@ -1497,8 +1912,8 @@ src/server/services/
 │  ├─ bewertung/
 │  │  ├─ score.ts             scoreDeterministic · reasonText — no LLM                   RAD-05
 │  │  ├─ types.ts             interface BewertungsModell { gewichte, schwelle }          RAD-05, RAD-08
-│  │  ├─ gewichte.platzhalter.ts — TODO(client): weights and the RAD-08 threshold
-│  │  └─ cpv.platzhalter.ts      — TODO(client): CPV codes verified against the official list
+│  │  ├─ gewichte.platzhalter.ts — TODO(client) O-15: weights and the RAD-08 threshold
+│  │  └─ cpv.platzhalter.ts      — TODO(client) O-34: CPV codes verified against the official list
 │  ├─ frist.ts                daysRemaining · isCritical                                 RAD-06
 │  ├─ vergabeplattform.ts     registrationStatusFor · flagUnregistered                   RAD-09, O-07
 │  └─ vergabemappe.ts         assembleFolder · listGaps                                  D-07
@@ -1513,12 +1928,12 @@ src/server/services/
 │  ├─ gespraech.ts            questionPrep · scheduleViaKalender                         REC-06, CAL-01
 │  └─ purge/
 │     ├─ purge.ts             purgeExpiredApplications                                   REC-07, LEG-11
-│     └─ fristen.platzhalter.ts — TODO(client): applicant retention period (AGG §15(4))
+│     └─ fristen.platzhalter.ts — TODO(client) O-25: applicant retention period (AGG §15(4))
 │
 ├─ storage/
 │  └─ retention/
 │     ├─ regeln.ts            retentionFor(kategorie, datum)                             DOC-07, ACC-06, LEG-01
-│     └─ fristen.platzhalter.ts — TODO(client): retention per document category
+│     └─ fristen.platzhalter.ts — TODO(client) O-25: retention per document category
 │
 ├─ berichte/
 │  ├─ umsatz.ts · auftraege.ts · attribution.ts · mitarbeiter.ts
@@ -1612,6 +2027,15 @@ Fronleichnam and Reformationstag — a hand-typed list gets exactly this wrong, 
 holiday silently schedules a cleaning round that must not happen or drops one that must.
 `feiertage.test.ts` asserts three known years against the published Berlin calendar.
 
+**Computed, then stored.** The derived days are written into the global, tenant-free `feiertag`
+table (`unique (bundesland, datum)`, §5.3) through `db/seed/fixtures/feiertage-berlin.ts`, so
+`turnus-generator.ts` can join them in SQL instead of re-deriving Easter inside a nightly job,
+and so a round that was skipped in 2027 is still explainable in 2033. "Computed, not remembered"
+governs where the values come from, not whether they are persisted — a hand-typed table is the
+failure; a generated one is a cache with a test behind it. The Bundesland is a parameter
+defaulting to `'BE'`: CLN-03 says Berlin, and `02-datenmodell/04-PLANUNG-ZEIT.md` anticipates
+Brandenburg work by putting `bundesland` on `objekt`.
+
 ### 8.6 Placeholders are the deliverable where the rule is not ours to write (L6, K-17)
 
 Nine of the modules above are split into `types.ts` + `*.platzhalter.ts` for one reason: the
@@ -1621,7 +2045,7 @@ wage dispute. The interface is the deliverable; the placeholder file is a labell
 
 | Placeholder | What is not ours to choose | Surfaces in |
 |---|---|---|
-| `finanz/mahnung/stufen.platzhalter.ts` | number of dunning levels, Mahngebühr per level, §288 BGB interest basis and the €40 Verzugspauschale | a letter that goes to a customer (FIN-15) |
+| `finanz/mahnung/stufen.platzhalter.ts` | **how many days overdue starts a dunning run**, number of levels and the interval between them, Mahngebühr per level, §288 BGB interest basis and the €40 Verzugspauschale | a letter that goes to a customer (FIN-15) |
 | `crm/lead-sla/fristen.platzhalter.ts` | the SLA duration per area and channel | an hourly escalation watchdog (REQ-05, REQ-06) |
 | `zeit/urlaub/anspruch.platzhalter.ts` | BUrlG minimum vs contract vs sector agreement, pro-rata, carry-over expiry | the employee's leave balance (EMP-05) |
 | `zeit/stundenkonto/regeln.platzhalter.ts` | target-hours basis, overtime cap, negative balance, expiry | a locked month (EMP-04, EMP-15) |
@@ -1647,15 +2071,19 @@ takes the rounding mode as a named injected parameter rather than a hard-coded `
 
 ```
 src/server/agent/
-├─ orchestrator.ts            plan → tool loop → result; enforces budget + policy at every step
+├─ orchestrator.ts            plan → tool loop → result; enforces budget + policy at every step.
+│                             Constructs the run's SessionContext with akteurTyp = 'agent' and
+│                             akteurId = the agent_aufgabe run id (§4.2, SEC-A9)
 ├─ policy.ts                  the gate: agent_richtlinie, evaluated AFTER policy-invariants  AGT-03
 ├─ policy-invariants.ts       the non-overridable rules, as code — see §9.2      invariant 7, SPEC §17
 ├─ budget.ts                  monthly cap → hard stop with notification, never degradation   AGT-05
+│                             the ONE micro-cent → cent conversion, half-up, K-16(b) — see §9.4
 ├─ approval.ts                createApprovalRequest · snapshot · batch · delayedRelease ·
 │                             undo · pruefdauer (server-side, K-13)              APR-01..APR-08
 ├─ autonomy.ts                the SPEC §17 autonomy matrix as data — floor set by policy-invariants
 ├─ register.ts                the run's number register — see §9.1               K-10
-├─ logging.ts                 per step: tool, input, output, model, tokens, cost, duration    AGT-04
+├─ logging.ts                 per step: tool, input, output, model, tokens,
+│                             `kosten_mikrocent` (K-16(b)), duration                          AGT-04
 ├─ types.ts
 ├─ agents/
 │  ├─ ceo-assistant.ts        queries the live DB; says so when the schema cannot answer      AGT-07
@@ -1735,10 +2163,15 @@ predicate unless one is written, and the isolation matrix derives its cases from
 not from embeddings, so nothing would notice.
 
 - `wissens_chunk` is a tenant table: `mandant_id`, FORCE RLS, both K-03 policies, listed in
-  `db/rls/radar-ki-inhalt.sql`.
-- `retrieve.ts` takes a `TenantDb`; it has no other way to reach the database.
-- The ANN index leads with the tenant column — `wissens_chunk (mandant_id, embedding)` — so
-  the filter is applied *before* the top-k cut, not after it.
+  `db/rls/radar-ki-inhalt.sql`. It is **`PARTITION BY LIST (mandant_id)` with
+  `PRIMARY KEY (mandant_id, id)`** — the one composite primary key in the platform, and it is
+  K-16(a)'s named case: Postgres requires the partition key in the primary key, so this is
+  forced rather than chosen. Every FK pointing at it is composite and the parent declares the
+  matching `UNIQUE` (§4.10).
+- `retrieve.ts` takes a `TenantDb`; it has no other way to reach the database. It may
+  **type**-import that handle from `@/server/db/types.ts` — see the zone note below.
+- The ANN index leads with the tenant column — `wissens_chunk (mandant_id, embedding)`, one
+  index per partition — so the filter is applied *before* the top-k cut, not after it.
 - `jobs/index/wissensindex.ts` reindexes **per mandant**, one `withSystemTenant` transaction
   per entity.
 - `tests/isolation/db/rag.test.ts` asserts that a retrieval as a user of A returns no chunk
@@ -1748,29 +2181,59 @@ The ESLint zone therefore covers `src/server/agent/{tools,rag}/**`, not only `to
 or a retriever that needs data calls a service or receives a handle. If a reviewer sees a number
 being produced inside `agent/`, that is the defect, regardless of how correct the number looks.
 
+**That zone is value-imports only** (`allowTypeImports: true`, §23). `TenantDb` and
+`ScopedReadDb` are exported from `@/server/db/types.ts`, so a file forbidden from importing
+`@/server/db/**` at all could not name the type of its own parameter — the rule would forbid
+exactly the shape it exists to require, and the first retriever would be written by widening the
+zone. A `import type { TenantDb } from '@/server/db/types'` erases at compile time and reaches
+no runtime value; `import { db }` from the same tree still fails.
+
+### 9.4 Agent cost is the one place sub-cent money is allowed (K-16(b), AGT-05)
+
+Model token pricing is genuinely sub-cent. Rounding each step to a cent destroys the arithmetic
+the monthly cap depends on: a thousand steps at 0,4 cent each round to zero, the counter never
+moves, and the hard stop AGT-05 promises never fires. So `agent_schritt.kosten_mikrocent` and
+`agent_budget.verbraucht_mikrocent` / `.uebertrag_mikrocent` are `bigint` micro-cents (10⁻⁶ €),
+declared through `_shared.mikrocent()` (§4.10) and **permitted nowhere else in the schema**.
+
+`budget.ts` performs the conversion to cents **once**, at the budget boundary, **half-up**, and
+the rounding rule is stated at the conversion site in the code — not inferred from a helper
+name. Everything downstream of that boundary — the figure the Agent Center shows, anything that
+could ever reach `rechnung`, `buchungssatz` or a DATEV export — is `bigint` cents.
+`tests/invariants/money-is-bigint.test.ts` fails on a `_mikrocent` column outside those two
+tables, and `agent/budget.test.ts` asserts that a thousand 0,4-cent steps trip a €0,01-granular
+cap at the right step rather than never.
+
 ---
 
 ## 10. `src/server/jobs` — watchdogs, generators, ingest
 
 Plain scheduled jobs. **No LLM in any watchdog** (SPEC §14). Each exports a `JobDefinition`
-with a name, a schedule, a mandant scope, the **grants its `cse_job` role needs** (K-01), and a
-handler taking an injected `Clock` — so every job is unit-testable without waiting for a
-Tuesday.
+with a name, a schedule, a mandant scope, the **rights its system principal needs** — permission
+strings in `<modul>.<aktion>` form, checked by the same `hat_recht` conjunct as any request
+(K-03) — plus the narrow `cse_job` grants for the parts that run outside a tenant transaction
+(K-01, §4.1), and a handler taking an injected `Clock`, so every job is unit-testable without
+waiting for a Tuesday. Stating rights rather than table grants is what makes the job's blast
+radius reviewable: `grants: ['GRANT INSERT ON rechnung']` says nothing about *which* rechnung.
 
 ```
 src/server/jobs/
 ├─ _registry.ts               ALLOWED BARREL #3 — name → definition; api/cron/[job] dispatches here
-├─ _runner.ts                 per-mandant withSystemTenant, failure isolation, writes job_lauf
-├─ types.ts                   JobDefinition { name, schedule, scope, grants, handler }
+├─ _runner.ts                 iterates systemCtx.sichtbareMandanten (§4.3), one withSystemTenant
+│                             per mandant, failure isolation, writes job_lauf with akteurTyp='system'
+├─ types.ts                   JobDefinition { name, schedule, scope, rechte, grants, handler }
 ├─ watchdogs/
 │  ├─ ausschreibung-frist.ts          daily      deadline < 5 days, untouched → notify owner   RAD-06
 │  ├─ ausschreibung-score.ts          on ingest  score ≥ threshold → notify (threshold: O-open) RAD-08
 │  ├─ lead-sla.ts                     hourly     lead past SLA, no reply → escalate            REQ-06
 │  ├─ einsatz-ohne-zeiteintrag.ts     hourly     shift ended, no zeiteintrag → notify planner  TIM-12
 │  ├─ morgen-unbesetzt.ts             daily 18:00  tomorrow's shift unstaffed → urgent alert
-│  ├─ nachweis-ablauf.ts              daily      certificate expiring 60/30/7 days → escalating SEC-02
-│  ├─ rechnung-ueberfaellig.ts        daily      overdue > 14 days → propose dunning           FIN-15
-│  ├─ nachtrag-nicht-eingereicht.ts   daily      announced, not submitted after 14 days        BAU-04
+│  ├─ nachweis-ablauf.ts              daily      certificate expiring → escalating notice
+│  │                                             cadence from einstellung, TODO(client) O-31   SEC-02
+│  ├─ rechnung-ueberfaellig.ts        daily      overdue by mahnung/stufen.platzhalter's
+│  │                                             verzugstageBisStufe1 → propose dunning (O-19) FIN-15
+│  ├─ nachtrag-nicht-eingereicht.ts   daily      announced, not submitted after the configured
+│  │                                             window, TODO(client) O-30                     BAU-04
 │  ├─ hash-chain-verify.ts            nightly    chain broken → page immediately               FIN-06, LEG-01
 │  ├─ freigabe-kette-verify.ts        nightly    approval chain broken → page immediately      K-13
 │  └─ job-ausfall.ts                  hourly     a job that did not run or failed → page       SPEC §21
@@ -1789,6 +2252,23 @@ src/server/jobs/
 └─ index/
    └─ wissensindex.ts                 nightly    pgvector reindex, per mandant                 AGT-06
 ```
+
+**A watchdog threshold is a business rule wearing a cron schedule (L6, K-17).** Three of the
+rows above once carried a number this document had no source for, and each of the three decides
+when something leaves the building or when somebody is told they are about to be unqualified:
+
+| Threshold | What SPEC actually says | Where it now lives |
+|---|---|---|
+| when an overdue invoice starts a dunning run | FIN-15 says only "Dunning with escalation levels, fees, interest" | `services/finanz/mahnung/stufen.platzhalter.ts` as `verzugstageBisStufe1` — the same contractual question as the levels and the fees (**O-19**, §25.3) |
+| how long an announced Nachtrag may sit unsubmitted | BAU-04 says only that `angemeldet_am` is separate from `eingereicht_am` | a per-mandant `einstellung` with a labelled default and `// TODO(client)` (**O-30**) |
+| the certificate-expiry warning cadence | SEC-02 says only "tracked per person with expiry" | a per-mandant `einstellung` with a labelled default and `// TODO(client)` (**O-31**) |
+
+The distinction being drawn is not "legal versus not". It is that a job which composes a letter
+to a customer, or which decides that a §34a warning is early enough to act on, is exercising the
+client's commercial and operational judgement, and a number invented here is that judgement made
+silently. The two `einstellung`-backed windows are explicitly **operational defaults the client
+owns** rather than legal values — they ship configurable, visible in `einstellungen/mandant`,
+and `lint:todo` keeps their questions alive until answered.
 
 **Monitoring has a home (SPEC §21).** `_runner.ts` writes a `job_lauf` row per run — job,
 mandant, start, end, outcome, error — which `einstellungen/protokoll` renders and
@@ -1894,14 +2374,16 @@ is merged. `nicht-verbunden.ts` needs no entry; `<vendor>.ts` does.
 src/server/
 ├─ auth/
 │  ├─ session.ts              Supabase session → SessionContext { benutzerId, personId,
-│  │                          mandantId, sichtbareMandanten, rolle, portal, aal, akteurTyp, ip }
+│  │                          mandantId, sichtbareMandanten, rolle, portal, aal, akteurTyp,
+│  │                          akteurId, ip } — built from app.sitzung_aufloesen (§12.1)
 │  ├─ authorize.ts            AUT-04, SEC-A1 — every route and action calls this
 │  ├─ permissions.ts          AUT-03 role × mandant × modul, from `berechtigung`
 │  ├─ guards.ts               requireMandant · requireRolle · requireGruppeLesend · requireAal2 (K-15)
 │  ├─ switch-mandant.ts       TEN-06, TEN-09 — the ONLY writer of the active mandant, see §12.2
 │  ├─ two-factor.ts           AUT-02, K-15
-│  ├─ worker-session.ts       EMP-01 phone + SMS code, person-scoped, portal='mitarbeiter'
-│  └─ customer-session.ts     AUT-01 `kunde`, portal='kunde', scope derived from own Vorgänge
+│  ├─ worker-session.ts       EMP-01 phone + SMS code, portal='mitarbeiter', scope='person' (K-18)
+│  └─ customer-session.ts     AUT-01 `kunde`, portal='kunde', scope='kunde' (K-18); the subject
+│                             is resolved by app.aktuelle_kunden() from kunde_zugang, never a GUC
 ├─ http/
 │  ├─ handler.ts              the L1 wrapper for api/ routes
 │  ├─ action.ts               the L1 wrapper for Server Actions
@@ -1936,9 +2418,34 @@ configuration reaches a service as an injected argument.
 
 `auth/session.ts` is the only producer. It resolves the authenticated `benutzer`, the `person`
 behind the login, the active membership (K-14: additive, `aus_anstellung` distinguishes derived
-from granted), the derived `portal` per K-04, the assurance level, the actor type and the IP.
-`sichtbareMandanten` is derived from `benutzer_mandant`, never from the request. Nothing else
-constructs one; `tests/invariants/session-context.test.ts` asserts a single construction site.
+from granted), the derived `portal` per K-04, the assurance level, the actor type, the actor id
+and the IP. `sichtbareMandanten` is derived from `benutzer_mandant`, never from the request.
+Nothing else constructs one; `tests/invariants/session-context.test.ts` asserts a single
+construction site.
+
+**How it reads `benutzer_mandant` before a scope exists — the chicken-and-egg, resolved.**
+`benutzer_mandant` is a bucket-1 tenant table (§5.1): its tenant policy needs
+`app.aktiver_mandant()` and its group policy needs `app.ist_gruppenansicht()`. At the moment
+`session.ts` runs, neither is set — there is no active mandant *because* the memberships have
+not been read yet. A plain `SELECT` there returns zero rows, `withGroupScope` then throws
+`KeineSichtbarenMandantenError` for **every** user, and the platform is blank for everyone. This
+is not a hypothetical: it is what the first draft of this section specified.
+
+The resolution is the K-08 register entry that already exists for exactly this moment.
+**`app.sitzung_aufloesen(token_hash)` returns the whole session identity in one call** — the
+`benutzer`, the `person` behind the login, the active membership with its role, and the readable
+mandant set with the derived `portal` — as `SECURITY DEFINER` owned by `cse_definer`, which is
+why K-01 exempts that role from FORCE RLS on the tables K-08's functions touch. No new register
+entry is created (the register is closed, K-08); no self-scoped policy is bolted onto
+`benutzer_mandant`, which would have meant amending K-03's two-policy rule for one table. The
+function is the pre-session data path, and membership resolution is the definitive pre-session
+read.
+
+Two consequences. `session.ts` issues **no bare `SELECT` against `benutzer_mandant`** — the
+route-manifest test (§15) treats one as a failure. And `SessionContext.sichtbareMandanten` is
+populated in *every* scope including `mandant`, because it is application state used for routing
+and switching; the **GUC** `app.mandant_ids` is set only in the three multi-tenant scopes (§4.2),
+which is what keeps the tenant policy honest.
 
 ### 12.2 `switchMandant` — the one function that sets the tenant (TEN-06, TEN-09)
 
@@ -1949,7 +2456,9 @@ one door. A Server Action is a public HTTP endpoint, so the order is fixed and t
 // src/server/auth/switch-mandant.ts
 export async function switchMandant(zielSlug: string): Promise<never> {
   // 1. resolve slug → mandant (404 if unknown — never 403, AUT-06)
-  // 2. assert a benutzer_mandant row exists for (benutzerId, ziel.id)  ← the authorization
+  // 2. assert ziel.id ∈ ctx.sichtbareMandanten                        ← the authorization
+  //    that set was resolved by app.sitzung_aufloesen (§12.1) and is re-derived, never
+  //    read back through a policy keyed on the mandant we are leaving;
   //    absent → notFound(); a non-member must not learn the entity exists
   // 3. derive portal from the TARGET membership's role (K-04)
   // 4. write the session (server-side store only)
@@ -1958,6 +2467,13 @@ export async function switchMandant(zielSlug: string): Promise<never> {
   // 6. redirect('/portal/<slug>')
 }
 ```
+
+Step 2 reads the *session's* membership set rather than the database's, and that is deliberate.
+At the moment of a switch the session is scoped to the mandant being left, so a `SELECT` on
+`benutzer_mandant` under the K-03 tenant policy can only ever see rows for that mandant — the
+target row is invisible by construction, and the assertion would fail for every legitimate
+switch. The set was resolved once, server-side, by `app.sitzung_aufloesen` (§12.1); step 2 tests
+against it and step 4 re-resolves it for the new session.
 
 Step 5 exists because a switch by definition spans two entities: a single row keyed on one
 `mandant_id` is invisible to the other entity's audit view, and TEN-09 promises *every* switch
@@ -2121,12 +2637,21 @@ tests/
 │  ├─ timestamps-are-tz.test.ts      # every instant column is timestamptz         invariant 2
 │  ├─ mandant-id-and-rls.test.ts     # bucket 1: mandant_id, ENABLE **and FORCE**,
 │  │                                 #   both K-03 policies — run as cse_app       invariant 3, SEC-A2
+│  │                                 #   bucket mandant_scoped_lesend: asserts the ABSENCE of an
+│  │                                 #   INSERT/UPDATE/DELETE policy for cse_app    K-06, §5.1
+│  │                                 #   bucket plattform_scoped: nullable mandant_id + the
+│  │                                 #   ebene CHECK                                K-16(d)
+│  ├─ policy-anzahl.test.ts          # ≤ 4 permissive policies per tenant table, and no permissive
+│  │                                 #   write policy outside t_mandant             K-03, K-18, §4.5
 │  ├─ views-security-invoker.test.ts # every view is security_invoker; no matview on tenant data
-│  ├─ komposit-fk.test.ts            # K-16 composite FK ⇒ parent UNIQUE (mandant_id, id)
-│  ├─ portal-ceiling.test.ts         # K-04 — every anstellung/person-hung table has its ceiling
-│  ├─ rls-guc-nutzung.test.ts        # no policy references app.akteur_typ or app.ip
+│  ├─ komposit-fk.test.ts            # K-16 composite FK ⇒ parent UNIQUE (mandant_id, id);
+│  │                                 #   wissens_chunk's PK (mandant_id, id) satisfies it  K-16(a)
+│  ├─ portal-ceiling.test.ts         # K-04 — every anstellung/person-hung table has its ceiling,
+│  │                                 #   and every ceiling_kunde table resolves a subject
+│  ├─ rls-guc-nutzung.test.ts        # no policy references app.akteur_typ, app.akteur_id or app.ip
 │  ├─ aal2-gate.test.ts              # K-15 — the gate is on the admin write path, not on SELECT
-│  ├─ route-manifest.test.ts         # K-08 — no DB access outside the five helpers
+│  ├─ route-manifest.test.ts         # K-08 — no DB access outside the seven helpers, and no
+│  │                                 #   sixth entry in the K-08 register
 │  ├─ reservierte-slugs.test.ts      # K-07 — static /portal segments ⊆ the slug CHECK
 │  ├─ gruppe-ohne-actions.test.ts    # invariant 10 — no _actions.ts under portal/gruppe
 │  ├─ rechnung-immutability.test.ts  # K-12 — UPDATE on festgeschrieben raises, no allowlist
@@ -2142,6 +2667,13 @@ tests/
 │  ├─ db/entgelt.test.ts       # K-05 — reinigung Leitung cannot reach a security wage by any route
 │  ├─ db/arbzg.test.ts         # K-06 — breach detected, zero identifying fields returned
 │  ├─ db/rag.test.ts           # AGT-06 — retrieval as A returns no chunk of B
+│  ├─ db/job-rolle.test.ts     # K-01 — a cse_job connection without SET LOCAL ROLE reads zero rows
+│  ├─ db/person-scope.test.ts  # K-18 — a mitarbeiter session reads its own rows in its own
+│  │                           #   employments and nothing else; and reads NON-zero rows, which
+│  │                           #   is what the group-scope routing silently got wrong
+│  ├─ db/kunde-scope.test.ts   # K-18 — a customer of A in reinigung reads its bau orders too,
+│  │                           #   and no row of any other customer
+│  ├─ db/switcher-zaehler.test.ts  # TEN-10 — no counter for a mandant the user is not in
 │  ├─ http/routes.spec.ts      # every portal route of B → 404 for a user of A
 │  ├─ http/api.spec.ts         # every api/ endpoint of B → 404
 │  ├─ http/deep-link.spec.ts   # pasted [mandant] slug of B → 404; member → switch interstitial
@@ -2243,8 +2775,8 @@ day one rather than "once samples exist".
 
 `pnpm lint:design` is the L4 token scan: it fails on any hex colour, `px` value, `rgba(`,
 `cubic-bezier(` or font stack found outside `src/styles/globals.css`, `tailwind.config.ts` and
-`src/server/pdf/theme.ts`. `pnpm lint:todo` is the L6 scan: every `TODO(client)` and every
-`*.platzhalter.ts` must have a matching entry in `DECISIONS.md` § Open, and every
+`src/server/pdf/theme.ts`. `pnpm lint:todo` is the L6 scan: every `TODO(client)` carries an O-number, and every O-number and
+every `*.platzhalter.ts` must have a matching entry in `DECISIONS.md` § Open, and every
 `integrations/*/` with a real adapter must have a sub-processor entry (§11.4).
 
 ---
@@ -2314,7 +2846,7 @@ of how convenient it is.
   components/features/ ┴──▶  server/queries/**  ──▶  server/services/**  ──▶  server/db/schema
                                     │                      │                        ▲
                                     ├──▶ server/db/tenant.ts ──────────────────────┘
-                                    │        (the five helpers — the only door)
+                                    │        (the seven helpers — the only door)
   components/ui/  ──▶ lib/format/   │
                                     ├──▶ server/agent/**   ──▶ server/services/**
                                     ├──▶ server/jobs/**    ──▶ server/services/**
@@ -2327,7 +2859,11 @@ of how convenient it is.
 
 Three arrows that do **not** exist, and each is a lint rule: `components/** → server/**`,
 `services/** → integrations/**` (except through an injected port), and
-`agent/{tools,rag}/** → db/**`.
+`agent/{tools,rag}/** → db/**` as a value import. One arrow that **does** exist and is easy to
+miss: `src/app/**/_actions.ts → server/services/**`. It is the only path from the route tree to
+a service, it is scoped by filename rather than by folder, and without it stated the zone above
+would forbid the very import the write path requires — which is how a lint rule gets widened by
+the first person who needs it (§23).
 
 ---
 
@@ -2345,6 +2881,9 @@ English operation on a German legal object.
 | Tenancy / linking columns | German snake_case | `mandant_id`, `person_id`, `anstellung_id`, `objekt_id` |
 | Money columns | German noun + `_cent` | `netto_cent`, `steuer_cent`, `brutto_cent`, `stundensatz_intern_cent` |
 | Quantity columns | German noun + unit | `flaeche_qm`, `leistungswert_qm_h`, `menge` |
+| Sub-cent AI cost (K-16(b), agent tables only) | German noun + `_mikrocent`, `bigint` | `kosten_mikrocent`, `verbraucht_mikrocent` |
+| Measured durations (K-16(c)) | German noun + unit, `integer` | `dauer_minuten`, `zeitabweichung_sek`, `ruhezeit_minuten` |
+| Computed target durations (K-16(c)) | German noun beginning `soll`, `numeric(8,2)` | `sollzeit_minuten` |
 | Instant columns | German, `_am` or `_zeitpunkt`, `timestamptz` | `festgeschrieben_am`, `eingereicht_am`, `beginn_zeitpunkt` |
 | Calendar-date columns | German, `date` type | `geburtsdatum`, `eintritt`, `austritt`, `leistungsdatum` |
 | Drizzle table constants | German camelCase matching the table | `export const zeiteintrag = pgTable('zeiteintrag', …)` |
@@ -2360,8 +2899,12 @@ English operation on a German legal object.
 | Test descriptions | German scenario, English harness | `it('Schicht 22:00–06:00 ergibt 8 Stunden', …)` |
 
 Two exceptions, both narrow. **Where 00-KONVENTIONEN names an identifier verbatim, that
-spelling wins** — `splitteNachMonat` (K-11), `app.arbzg_belastung` (K-06),
-`app.checkin_verbrauchen` (K-08), `app.entgelt_lesen` (K-05). And the common columns are
+spelling wins** — `splitteNachMonat` (K-11), `app.arbzg_belastung` (K-06), all five register
+functions of K-08 (`app.sitzung_aufloesen`, `app.versuch_protokollieren`,
+`app.checkin_verbrauchen`, `app.offline_ereignis_annehmen`, `app.ical_feed_lesen`),
+`app.entgelt_lesen` (K-05), `app.sichtbare_mandanten` and the four `app.scope` values of K-18
+(`mandant` · `gruppe` · `person` · `kunde`), and the column names K-16 fixes
+(`revier.sollzeit_minuten`, `*_mikrocent`, `audit_log.ebene`). And the common columns are
 **German**, not `created_at` / `updated_at`: K-16 fixes them, they appear in every GoBD export
 and every audit view a German auditor reads, and a repository that mixes both spellings for the
 same concept will end up with both in the schema.
@@ -2403,13 +2946,14 @@ The laws of §1 are ESLint zones, not aspirations. `eslint.config.mjs` carries:
 |---|---|---|
 | `src/components/**` | `@/server/**` **except** `@/server/queries/**` in `components/features/**` | L2 — no server logic, no DB, no calculation in the view |
 | `src/lib/**` | `@/server/**` | Formatting never computes |
-| `src/app/**` | `@/server/db/**`, `@/server/services/**` — reads go through `@/server/queries/**`, writes through `_actions.ts` → services | L1 |
+| `src/app/**` | `@/server/db/**` everywhere; `@/server/services/**` everywhere **except** files matching `src/app/**/_actions.ts` | L1 — reads go through `@/server/queries/**`; the write path needs one legal door and this is it |
+| `src/app/**/_actions.ts` | `@/server/db/**` (still), and `@/server/services/**` from any other file under `src/app/**` | L1 — the carve-out is by filename pattern, so a `page.tsx` cannot reach a service and an action cannot reach the database |
 | `src/server/queries/**` | `next/*`, `react` | It is a data boundary, not a UI layer |
 | `src/server/services/**` | `next/*`, `react`, `@/server/http/**`, `@/server/integrations/**`, `@/server/config/**`, `@/server/queries/**` | L5 — services stay pure, testable and unaware of transport |
 | `src/server/services/**`, `src/server/jobs/**`, `src/server/agent/**` | `new Date()`, `Date.now()`, `Math.random()` (`no-restricted-syntax`) | Invariant 5 — the clock is injected so tests control it |
-| `src/server/agent/{tools,rag}/**` | `@/server/db/**` | Invariant 6, AGT-06 — a tool calls a service; a retriever receives a `TenantDb` |
-| `src/server/db/client.ts` | importable only by `db/tenant.ts`, `db/seed/index.ts`, the migration runner, `tests/helpers/db.ts` | Invariant 3, L3 — the five helpers are the only door |
-| `src/server/db/schema/**` | `real`, `doublePrecision`, `float` anywhere; `numeric` on any `*_cent` column; raw `bigint()` outside `_shared.ts` | Invariant 1, K-16 |
+| `src/server/agent/{tools,rag}/**` | `@/server/db/**` as a **value** import (`allowTypeImports: true`) | Invariant 6, AGT-06 — a tool calls a service; a retriever receives a `TenantDb` and must be able to name that type (§9.3) |
+| `src/server/db/client.ts` | importable only by `db/tenant.ts`, `db/seed/index.ts`, the migration runner, `tests/helpers/db.ts` | Invariant 3, L3 — the seven helpers are the only door |
+| `src/server/db/schema/**` | `real`, `doublePrecision`, `float` anywhere; `numeric` on any `*_cent` or `*_mikrocent` column; raw `bigint()` / `integer()` / `numeric()` outside `_shared.ts`; `mikrocent()` outside `radar-ki-inhalt.ts`; `zielminuten()` on a column that is not a computed target | Invariant 1, K-16 incl. (b) and (c) |
 | `src/app/portal/gruppe/**` | any `_actions.ts` file existing at all | Invariant 10, K-03 |
 | `src/components/ui/**` | `script-accent`, `@/server/**` | DESIGN §2 — the script face never appears in the portal |
 | everything except `globals.css`, `tailwind.config.ts`, `pdf/theme.ts` | hex colours, `rgba(`, raw `px`, font stacks, `cubic-bezier(` | L4 — DESIGN.md is the only source of design values |
@@ -2481,31 +3025,45 @@ None of them blocks the surrounding feature.
 | `script-accent.tsx` is in `components/public/` | DESIGN §2 says never in the portal; a comment in the directory the portal imports from is not a mechanism |
 | KoSIT validation lives in `tests/compliance/` | It is a CI concern; no production path depends on a validator being reachable, so it has no `nicht-verbunden` state |
 | A switch interstitial for members, a bare 404 for everyone else | AUT-06 and K-02 protect against *non-members* learning an entity exists; a member already knows. Without it, a multi-entity Leitung's own bookmark is a dead end |
+| `withSystemTenant` connects as `cse_job` and immediately `SET LOCAL ROLE cse_app` | K-03 gives a tenant table two policies, both `to cse_app`, and FORCE RLS is on. A job running *as* `cse_job` matches no policy and is refused — silently, by a database whose SQL looks correct. Containment moves to the system principal's `hat_recht` grants, which is where it belongs (§4.1) |
+| `app.sitzung_aufloesen` returns the membership set, not just the session | Membership resolution is the definitive pre-session read: `benutzer_mandant` is a tenant table and there is no scope yet. The alternative — a self-scoped policy on `benutzer_mandant` — would mean amending K-03's two-policy rule for one table (§12.1) |
+| `app.portal()` defaults to `mitarbeiter`, not `kunde` | K-04 writes ceilings as `portal() <> '<portal>' or …`, so a `'kunde'` default *satisfies* the worker ceiling and switches fifteen tables' enforcement off. And the ceilings are restrictive: they are the second line, never the fail-closed one (§4.4) |
+| There is no `app.kunde_id` GUC | The customer subject is resolved inside the database from `kunde_zugang`. A ceiling whose subject arrives in a `set_config` call is a ceiling a compromised request can move (§4.4) |
+| `personal.ts` is a seventh schema file | The eleven tables hanging off `anstellung_id` / `person_id` are exactly K-04's ceiling registry; splitting them across `kern.ts` and `zeit.ts` puts the D-09 boundary in three files (§4.9) |
+| `arbeitszeit_verstoss` gets its own bucket rather than a bucket-1 exception comment | K-06 forbids an INSERT policy for `cse_app`; a blanket bucket-1 assertion tests the opposite of the convention, and the cheapest way to green it is to add the forbidden path (§5.1) |
 
 ### 25.3 New questions this document raises — to be added to `DECISIONS.md` § Open
 
-Numbers are assigned when these land in `DECISIONS.md`; the wording below is the wording to use.
+The wording below is the wording to use, and **every row carries an O-number** — an unnumbered
+question is one `lint:todo` cannot match to a `DECISIONS.md` row, which is the whole mechanism
+of L6. O-01 and O-04 … O-13 are in `DECISIONS.md`; O-14 … O-29 were assigned by `08-PR-PLAN.md`.
+**O-30 … O-39 are proposed by this document and need adding**, and each says below why no
+existing number covers it.
 
 | Question | Blocks | File carrying the `TODO(client)` |
 |---|---|---|
-| Dunning: how many Mahnstufen, what Mahngebühr per level, and which interest basis (§288 BGB: 9 points over Basiszinssatz for B2B, plus the €40 Verzugspauschale)? | FIN-15, Phase 6 | `services/finanz/mahnung/stufen.platzhalter.ts` |
-| Lead SLA: what response deadline per business area and per channel, and who is the escalation target when it passes? | REQ-05, REQ-06, Phase 2 | `services/crm/lead-sla/fristen.platzhalter.ts` |
-| Leave entitlement: BUrlG minimum, contractual or sector agreement — and the pro-rata rule for part-year employment and the carry-over expiry date? | EMP-05, Phase 5 | `services/zeit/urlaub/anspruch.platzhalter.ts` |
-| Arbeitszeitkonto: which target-hours basis, what overtime cap, may a negative balance be carried, and when does a balance expire? | EMP-04, EMP-15, Phase 5 | `services/zeit/stundenkonto/regeln.platzhalter.ts` |
-| Costing: what Gemeinkostenzuschlag, risk margin and profit markup per business area? | OPS-07, AGT-02, Phase 4 | `services/ops/kalkulation/zuschlaege.platzhalter.ts` |
-| Tender scoring: which weights, and at what score does RAD-08 notify? | RAD-05, RAD-08, Phase 8 | `services/radar/bewertung/gewichte.platzhalter.ts` |
-| CPV codes: please confirm the cleaning, security and construction code lists against the official CPV list before the radar goes live. | RAD-04, Phase 8 | `services/radar/bewertung/cpv.platzhalter.ts` |
-| Lead scoring: which criteria and weights produce the lead score? | CRM-02, Phase 4 | `services/crm/lead-score/gewichte.platzhalter.ts` |
-| Retention: what retention period per document category (personnel file, application documents, Wachbuch entries, Dienstanweisung acknowledgements, key receipts) beyond the GoBD ten years and the MiLoG two? | DOC-07, LEG-01, Phase 7 | `services/storage/retention/fristen.platzhalter.ts` |
-| Applicant data: how long are application documents kept after a rejection (the AGG §15(4) two-month claim window is the usual anchor)? | REC-07, LEG-11, Phase 9 | `services/recruiting/purge/fristen.platzhalter.ts` |
-| §48 EStG: which Bagatellgrenzen apply, and which of the group's customers count as Leistungsempfänger obliged to withhold? | FIN-10, LEG-06, Phase 6 | `services/finanz/estg48/grenzen.platzhalter.ts` |
-| §13b UStG: how is a customer's status as nachhaltig bauleistungserbringender Unternehmer evidenced (USt-1-TG certificate?), where is that evidence recorded, and does its absence block finalisation? | FIN-09, LEG-06, Phase 6 | `services/finanz/steuer/nachweis.platzhalter.ts` |
-| Abschlagszahlungen: which VOB/B §16 terms apply, and what Sicherheits-/Gewährleistungseinbehalt percentage and release date per project? | FIN-08, Phase 6 | `services/finanz/abschlag/bedingungen.platzhalter.ts` |
-| Number circles: one per legal entity, or one per entity **and** document type (Rechnung, Gutschrift, Storno)? **No invoice may be finalised in any environment until this is answered** — the structure cannot be changed after the first finalised invoice. | FIN-03, TEN-02, LEG-01, Phase 6 | `services/finanz/nummernkreis.ts` |
-| Sector minimum wage: which MiLoG/sector rates apply per business area, and from which date? | LEG-02, TIM-13, Phase 5 | `services/zeit/milog/saetze.platzhalter.ts` |
-| SMS: which provider sends worker login codes (EMP-01), in which region, under which DPA? Until answered, worker login is „nicht verbunden" in production and the check-in link is the only worker path. | EMP-01, LEG-09, Phase 5 | `integrations/sms/nicht-verbunden.ts` |
-| OCR: which processor extracts data from incoming invoices (ACC-05), in which region, under which DPA? | ACC-05, LEG-09, Phase 7 | `integrations/openai/` or its replacement, plus a `DECISIONS.md` sub-processor entry |
-| Monitoring: which uptime and error-tracking service, in which region, under which DPA? | SPEC §21, LEG-09, Phase 10 | `integrations/monitoring/nicht-verbunden.ts` |
+| **O-30** — Nachträge: how many days may an announced Nachtrag (`angemeldet_am`) remain unsubmitted (`eingereicht_am`) before the watchdog escalates, and to whom? BAU-04 separates the two dates but names no window; the default ships configurable per mandant and is an operational setting the client owns, not a VOB deadline. | BAU-04, Phase 6 | `jobs/watchdogs/nachtrag-nicht-eingereicht.ts` + `einstellungen/mandant` |
+| **O-31** — Certificates: at what intervals before expiry should a §34a / Sachkunde warning escalate, and to whom at each step? SEC-02 requires tracking with expiry and SEC-04 hard-blocks at the shift date; the *warning cadence* before that block is operational and unstated. | SEC-02, SEC-04, Phase 5 | `jobs/watchdogs/nachweis-ablauf.ts` + `einstellungen/mandant` |
+| **O-17** — Belagsarten: which Leistungswerte, from which source, approved by whom? The catalogue ships **empty** per mandant; costing blocks rather than defaults. | OPS-03, OPS-07, Phase 4 | `db/seed/05-kataloge.ts`, `services/ops/belagsart.ts` |
+| **O-39** — AUT-07: how many attempts per identifier and per IP, over what window, and how long is the lockout? SPEC states only "rate limiting and lockout"; the number is owned by `03-AUTH-BERECHTIGUNGEN.md` §10 and referenced here because `headers.spec.ts` asserts against it (§2). | AUT-07, Phase 1 | `03-AUTH-BERECHTIGUNGEN.md` §10, `src/server/config/env.ts` |
+| **O-19** — Dunning: **how many days overdue starts a run**, how many Mahnstufen at what interval, what Mahngebühr per level, and which interest basis (§288 BGB: 9 points over Basiszinssatz for B2B, plus the €40 Verzugspauschale)? The trigger delay belongs here because it is the parameter that decides when a letter leaves the building. | FIN-15, Phase 6 | `services/finanz/mahnung/stufen.platzhalter.ts` |
+| **O-14** — Lead SLA: what response deadline per business area and per channel, and who is the escalation target when it passes? | REQ-05, REQ-06, Phase 2 | `services/crm/lead-sla/fristen.platzhalter.ts` |
+| **O-18** — Leave entitlement: BUrlG minimum, contractual or sector agreement — and the pro-rata rule for part-year employment and the carry-over expiry date? | EMP-05, Phase 5 | `services/zeit/urlaub/anspruch.platzhalter.ts` |
+| **O-18** — Arbeitszeitkonto: which target-hours basis, what overtime cap, may a negative balance be carried, when does a balance expire — and which **ArbZG Ausgleichszeitraum** applies to the §3 ten-hour exception? The 8h limit, the 10h ceiling and the 11h rest are statute and are code; the compensation window is an employer choice the detector needs before it can clear a 10h day. | EMP-04, EMP-15, Phase 5 | `services/zeit/stundenkonto/regeln.platzhalter.ts` |
+| **O-16** — Costing: what Gemeinkostenzuschlag, risk margin and profit markup per business area? | OPS-07, AGT-02, Phase 4 | `services/ops/kalkulation/zuschlaege.platzhalter.ts` |
+| **O-15** — Tender scoring: which weights, and at what score does RAD-08 notify? | RAD-05, RAD-08, Phase 8 | `services/radar/bewertung/gewichte.platzhalter.ts` |
+| **O-34** — CPV codes: please confirm the cleaning, security and construction code lists against the official CPV list before the radar goes live. | RAD-04, Phase 8 | `services/radar/bewertung/cpv.platzhalter.ts` |
+| **O-15** — Lead scoring: which criteria and weights produce the lead score? | CRM-02, Phase 4 | `services/crm/lead-score/gewichte.platzhalter.ts` |
+| **O-25** — Retention: what retention period per document category (personnel file, application documents, Wachbuch entries, Dienstanweisung acknowledgements, key receipts) beyond the GoBD ten years and the MiLoG two? | DOC-07, LEG-01, Phase 7 | `services/storage/retention/fristen.platzhalter.ts` |
+| **O-25** — Applicant data: how long are application documents kept after a rejection (the AGG §15(4) two-month claim window is the usual anchor)? | REC-07, LEG-11, Phase 9 | `services/recruiting/purge/fristen.platzhalter.ts` |
+| **O-21** — §48 EStG: which Bagatellgrenzen apply, at which date (Leistungsdatum per FIN-10 or Zahlungszeitpunkt per the statute), and which of the group's customers count as Leistungsempfänger obliged to withhold? | FIN-10, LEG-06, Phase 6 | `services/finanz/estg48/grenzen.platzhalter.ts` |
+| **O-33** — §13b UStG: how is a customer's status as nachhaltig bauleistungserbringender Unternehmer evidenced (USt-1-TG certificate?), where is that evidence recorded, and does its absence block finalisation? | FIN-09, LEG-06, Phase 6 | `services/finanz/steuer/nachweis.platzhalter.ts` |
+| **O-20** — Abschlagszahlungen: which VOB/B §16 terms apply, and what Sicherheits-/Gewährleistungseinbehalt percentage and release date per project? | FIN-08, Phase 6 | `services/finanz/abschlag/bedingungen.platzhalter.ts` |
+| **O-35** — Number circles: one per legal entity, or one per entity **and** document type (Rechnung, Gutschrift, Storno)? **No invoice may be finalised in any environment until this is answered** — the structure cannot be changed after the first finalised invoice. | FIN-03, TEN-02, LEG-01, Phase 6 | `services/finanz/nummernkreis.ts` |
+| **O-32** — Sector minimum wage: which MiLoG/sector rates apply per business area, and from which date? | LEG-02, TIM-13, Phase 5 | `services/zeit/milog/saetze.platzhalter.ts` |
+| **O-36** — SMS: which provider sends worker login codes (EMP-01), in which region, under which DPA? Until answered, worker login is „nicht verbunden" in production and the check-in link is the only worker path. | EMP-01, LEG-09, Phase 5 | `integrations/sms/nicht-verbunden.ts` |
+| **O-37** — OCR: which processor extracts data from incoming invoices (ACC-05), in which region, under which DPA? | ACC-05, LEG-09, Phase 7 | `integrations/openai/` or its replacement, plus a `DECISIONS.md` sub-processor entry |
+| **O-38** — Monitoring: which uptime and error-tracking service, in which region, under which DPA? | SPEC §21, LEG-09, Phase 10 | `integrations/monitoring/nicht-verbunden.ts` |
 
 The **nummernkreis** row carries an operational guard as well as a question:
 `finalize` refuses to run unless a `nummernkreis` row exists for the document type being
@@ -2520,23 +3078,35 @@ different name or shape, this document is amended first.
 
 | Obligation | Owner document |
 |---|---|
-| The three-bucket table classification (§5) and its file `src/server/db/rls.ts` | `02-DATENMODELL.md` must classify every table it defines |
-| `nummernkreis` carries `letzter_wert` **and** `letzter_hash` (§8.2) | `02-DATENMODELL.md` |
-| `rechnung_versand`, `rechnung_beziehung` exist and `rechnung` carries no `versendet_am` (K-12) | `02-DATENMODELL.md` |
-| `freigabe`, `freigabe_kette`, `freigabe_snapshot`, `freigabe_ansicht` (K-13) and `pruefdauer_sek` derived server-side | `02-DATENMODELL.md`, `06-API-KARTE.md`, `07-AGENTEN-ARCHITEKTUR.md` |
-| `zeit_intern.arbeitszeit_fenster` in a schema not exposed by PostgREST (K-06) | `02-DATENMODELL.md` |
-| `benutzer_mandant.aus_anstellung` (K-14); `mandant_modul` (TEN-08); `mandant.identitaets_hue` and `mandant.logo_pfad` (§24) | `02-DATENMODELL.md` |
-| Common columns are `erstellt_am` / `erstellt_von` / `geaendert_am` / `geaendert_von` (K-16, §21) — not `created_at` | `02-DATENMODELL.md` |
-| `audit_log` carries `akteur_typ` (`mensch` \| `agent` \| `system`), `akteur_id`, `ip`, `mandant_id_alt`, `mandant_id_neu` (SEC-A9, TEN-09); `app.akteur_typ` and `app.ip` are session GUCs for the audit trigger only, referenced by no policy (§4.2) | `02-DATENMODELL.md`, `03-AUTH-MODELL.md`, `04-BERECHTIGUNGSMODELL.md` |
-| The five session helpers and their GUC matrix (§4.3); `withSystemTenant` requires a reason | `03-AUTH-MODELL.md` |
-| `switchMandant` order of operations and the two mirror audit rows (§12.2) | `03-AUTH-MODELL.md` |
-| Permission strings follow `<modul>.<aktion>` and `gruppe.<modul>.lesen` (K-03) | `04-BERECHTIGUNGSMODELL.md` |
-| `/portal` URL namespace, the four reserved slugs, module gating by `mandant_modul` (§3.1) | `05-SEITENKARTE.md` |
-| `GET /api/freigaben/[id]` writes the view row (K-13); the download routes of §3.13 exist | `06-API-KARTE.md` |
-| Tools take handles or register tokens, never numbers (K-10); `policy-invariants.ts` outranks `agent_richtlinie` (§9.2) | `07-AGENTEN-ARCHITEKTUR.md` |
-| The four-file integration shape, `platform/` vs `integrations/`, and the sub-processor rule (§11) | `08-INTEGRATIONS-ARCHITEKTUR.md` |
+| **K-02's GUC table gains `app.akteur_typ`, `app.akteur_id` and `app.ip` as audit-only rows**, with the rule that no policy may reference them (§4.2). Until it does, this document and the binding convention publish different versions of the same table, and by §0 this document is the defective one | `00-KONVENTIONEN.md` |
+| **K-06's `zeit_intern.arbeitszeit_fenster` shape is normative and carries no `person_id`** (§6.1). If profiling shows the person → `anstellung` → `einsatz_zuordnung` join is the bottleneck, the denormalised column is added to K-06 **first**, in its own PR — it would be the column the aggregation filters on | `00-KONVENTIONEN.md` |
+| The five-bucket table classification (§5) and its file `src/server/db/rls.ts` | `02-datenmodell/**` must classify every table it defines, including which K-18 policy and which K-04 ceiling it carries |
+| `nummernkreis` carries `letzter_wert` **and** `letzter_hash` (§8.2) | `02-datenmodell/05-FINANZEN.md` |
+| `rechnung_versand`, `rechnung_beziehung` exist and `rechnung` carries no `versendet_am` (K-12) | `02-datenmodell/05-FINANZEN.md` |
+| `freigabe`, `freigabe_kette`, `freigabe_snapshot`, `freigabe_ansicht` (K-13) and `pruefdauer_sek` derived server-side | `02-datenmodell/06-RADAR-KI-INHALT.md`, `05-API-KARTE.md`, `06-AGENTEN-FREIGABEN.md` |
+| `zeit_intern.arbeitszeit_fenster` in a schema not exposed by PostgREST (K-06) | `02-datenmodell/04-PLANUNG-ZEIT.md` |
+| `benutzer_mandant.aus_anstellung` (K-14); `mandant_modul` (TEN-08); `mandant.identitaets_hue` and `mandant.logo_pfad` (§24) | `02-datenmodell/01-KERN.md` |
+| `kunde_zugang` exists, is tenant-scoped, and is the sole source of `app.aktueller_kunde()` / `app.aktuelle_kunden()` (§4.4, §4.6) | `02-datenmodell/01-KERN.md`, `03-AUTH-BERECHTIGUNGEN.md` |
+| `audit_log.mandant_id` is **nullable** with `ebene enum('plattform','mandant')` and `CHECK ((ebene = 'mandant') = (mandant_id IS NOT NULL))` — K-16(d), the only such table (§4.9, §5.1) | `02-datenmodell/01-KERN.md` |
+| `wissens_chunk` is `PARTITION BY LIST (mandant_id)` with `PRIMARY KEY (mandant_id, id)` — K-16(a), the only composite PK (§4.9, §9.3) | `02-datenmodell/06-RADAR-KI-INHALT.md` |
+| `agent_schritt.kosten_mikrocent` and `agent_budget.*_mikrocent` are `bigint` micro-cents and exist nowhere else — K-16(b), converted once, half-up, at the budget boundary (§9.4) | `02-datenmodell/06-RADAR-KI-INHALT.md`, `06-AGENTEN-FREIGABEN.md` |
+| `revier.sollzeit_minuten` is `numeric(8,2)` as a **computed target**; every measured duration is `integer` — K-16(c) (§4.10) | `02-datenmodell/03-GEWERKE.md`, `02-datenmodell/04-PLANUNG-ZEIT.md` |
+| `einsatz` carries `beginn_zeitpunkt` / `ende_zeitpunkt`; `einsatz_zuordnung` carries **neither** (§6.1) | `02-datenmodell/04-PLANUNG-ZEIT.md` |
+| `feiertag` is a global, tenant-free reference table, generated by `services/gewerke/reinigung/feiertage.ts` and seeded through `db/seed/fixtures/feiertage-berlin.ts` — this document owns the placement of both (§5.3, §8.5) | `02-datenmodell/04-PLANUNG-ZEIT.md` |
+| The schema file map of §4.9, including `personal.ts` and the `reklamation` / `qualitaetspruefung` placement | `02-datenmodell/**` |
+| Common columns are `erstellt_am` / `erstellt_von` / `geaendert_am` / `geaendert_von` (K-16, §21) — not `created_at` | `02-datenmodell/**` |
+| `audit_log` carries `akteur_typ` (`mensch` \| `agent` \| `system`), `akteur_id`, `ip`, `mandant_id_alt`, `mandant_id_neu` (SEC-A9, TEN-09); the three matching session GUCs are for the audit trigger only and are referenced by no policy (§4.2) | `02-datenmodell/01-KERN.md`, `03-AUTH-BERECHTIGUNGEN.md` |
+| The **seven** session helpers and their GUC matrix (§4.3); `app.scope` has the four K-18 values; `withSystemTenant` requires a reason and runs `SET LOCAL ROLE cse_app` | `03-AUTH-BERECHTIGUNGEN.md` |
+| The **five**-entry K-08 register — `app.sitzung_aufloesen`, `app.versuch_protokollieren`, `app.checkin_verbrauchen`, `app.offline_ereignis_annehmen`, `app.ical_feed_lesen` — and `app.sitzung_aufloesen` returning the membership set (§12.1) | `03-AUTH-BERECHTIGUNGEN.md`, `05-API-KARTE.md` |
+| `switchMandant` order of operations, the membership assertion against `ctx.sichtbareMandanten`, and the two mirror audit rows (§12.2) | `03-AUTH-BERECHTIGUNGEN.md` |
+| Permission strings follow `<modul>.<aktion>` and `gruppe.<modul>.lesen` (K-03); the employee and customer portals hold **no** `gruppe.*` right (K-18, §3.11) | `03-AUTH-BERECHTIGUNGEN.md` |
+| `queries/mandant.switcherZaehler(ctx)` runs under `withGroupScope` and requires `gruppe.dashboard.lesen` per mandant (TEN-10, §7) | `03-AUTH-BERECHTIGUNGEN.md`, `04-SEITENKARTE.md` |
+| `/portal` URL namespace, the four reserved slugs, module gating by `mandant_modul` (§3.1) | `04-SEITENKARTE.md` |
+| `GET /api/freigaben/[id]` writes the view row (K-13); the download routes of §3.13 exist; `api/ical/[token]` and the TIM-09 replay run on K-08 register functions | `05-API-KARTE.md` |
+| Tools take handles or register tokens, never numbers (K-10); `policy-invariants.ts` outranks `agent_richtlinie` (§9.2); the orchestrator sets `akteurTyp = 'agent'` and `akteurId` = the run id (§9) | `06-AGENTEN-FREIGABEN.md` |
+| The four-file integration shape, `platform/` vs `integrations/`, and the sub-processor rule (§11) | `07-INTEGRATIONEN.md` |
 | The DESIGN.md token amendments of §24 land before the first component PR (D-10) | `docs/DESIGN.md` |
-| The new open questions of §25.3 are added under § Open with assigned numbers | `docs/DECISIONS.md` |
+| The open questions of §25.3 are added under § Open. **O-30 … O-39 are new and need numbers assigned**; O-14 … O-29 come from `08-PR-PLAN.md` and O-01 / O-04 … O-13 already exist. Every `TODO(client)` in the tree carries its number inline, and `lint:todo` fails on one that does not | `docs/DECISIONS.md` |
 
 ---
 
@@ -2547,10 +3117,10 @@ that claims to implement a feature.
 
 | SPEC group | Route | Service / query | Schema | Test |
 |---|---|---|---|---|
-| TEN-01..TEN-10 | `portal/**`, `einstellungen/mandant` | `kern/mandant.ts`, `auth/switch-mandant.ts` | `kern.ts` | `isolation/**`, `reservierte-slugs`, `switch.spec` |
+| TEN-01..TEN-10 | `portal/**`, `einstellungen/mandant` | `kern/mandant.ts`, `auth/switch-mandant.ts`, `queries/mandant.switcherZaehler` (TEN-10) | `kern.ts` | `isolation/**`, `reservierte-slugs`, `switch.spec`, `switcher-zaehler`, `e2e/portal/switcher` |
 | AUT-01..AUT-08, SEC-A1, SEC-A5 | `(auth)/**`, `einstellungen/{benutzer,rollen,berechtigungen}` | `auth/**` | `kern.ts` | `aal2-gate`, `lockout.spec`, `headers.spec` |
 | PUB-01..PUB-14, PRO-01..PRO-05, REQ-01..REQ-07 | `(public)/**`, `api/formular` | `inhalt/**`, `crm/lead*` | `crm-ops.ts`, `radar-ki-inhalt.ts` | `e2e/public/**`, `a11y/public` |
-| DSH-01..DSH-05 | `portal/[mandant]/page.tsx`, `portal/gruppe`, `portal/kunde` | `queries/dashboard.ts` | — | `e2e/portal/dashboard` |
+| DSH-01..DSH-05 | `portal/[mandant]/page.tsx`, `portal/gruppe`, `portal/kunde` (K-18 `kunde` scope) | `queries/dashboard.ts`, `queries/kunde.ts` | — | `e2e/portal/dashboard`, `isolation/db/kunde-scope` |
 | CRM-01..CRM-08 | `crm/**` | `crm/**` | `crm-ops.ts` | beside each service |
 | RAD-01..RAD-09 | `radar/**` | `radar/**`, `jobs/ingest/**` | `radar-ki-inhalt.ts` | beside each service |
 | OPS-01..OPS-11 | `objekte/**`, `angebote/**`, `auftraege/**` | `ops/**` | `crm-ops.ts` | `e2e/portal/raumbuch-import`, `angebot` |
@@ -2558,7 +3128,7 @@ that claims to implement a feature.
 | SEC-01..SEC-08 | `security/**` | `gewerke/security/**` | `gewerke.ts` | `sachkunde.test` (hard block) |
 | BAU-01..BAU-08 | `bau/**` | `gewerke/bau/**` | `gewerke.ts` | `rechenansatz.test` |
 | TIM-01..TIM-14 | `dienstplan/**`, `zeiten/**`, `check-in/**` | `zeit/**`, `arbzg/**` | `zeit.ts`, `zeit-intern.ts` | `dauer.test` (five cases), `arbzg`, `checkin` |
-| EMP-01..EMP-15 | `portal/mein/**`, `(auth)/mitarbeiter` | `zeit/**`, `kern/anstellung.ts`, `queries/mein.ts` | `zeit.ts`, `kern.ts` | `isolation` portal ceiling, `e2e/mitarbeiter/**` |
+| EMP-01..EMP-15 | `portal/mein/**` (K-18 `person` scope), `(auth)/mitarbeiter` | `zeit/**`, `kern/anstellung.ts`, `queries/mein.ts` | `personal.ts`, `zeit.ts`, `kern.ts` | `isolation/db/person-scope`, `portal-ceiling`, `e2e/mitarbeiter/**` |
 | FIN-01..FIN-18 | `finanzen/**`, `api/rechnung/**` | `finanz/**` | `finanz.ts` | `rechnung.concurrency`, `nummernkreis`, `immutability` |
 | ACC-01..ACC-12 | `buchhaltung/**`, `api/export/**` | `buchhaltung/**` | `finanz.ts` | `compliance/datev` |
 | DOC-01..DOC-08 | `dokumente/**`, `api/dokument/**` | `kern/dokument.ts`, `platform/storage/**` | `kern.ts` | `no-hard-delete`, upload MIME tests |

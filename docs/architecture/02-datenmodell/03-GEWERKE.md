@@ -35,11 +35,12 @@ Domain identifiers are German because they carry legal meaning under VOB/B, GoBD
 |---|---|---|
 | Money | `bigint`, column suffix `_cent` | Invariant 1. Never `numeric`, never `float`. **No product of two stored columns is ever stored** — §10.3 |
 | Quantities (m², m, Stk, t, m³) | `numeric(12,3)` | K-16: a quantity is not money. The scale is unit-dependent and VOB/ATV rounding is per Leistungsposition. BAU-02's worked example lands on `30.870` |
-| Hours, Mannstunden, Sollzeiten | `numeric(8,2)` | 2 decimals = 36 s granularity. **One type for the concept everywhere**, so the OPS-07 costing engine never rounds twice between two carriers of the same number |
+| **Computed target** durations — `revier.sollzeit_minuten`, `revier_raum.sollzeit_minuten` | `numeric(8,2)` | **K-16(c) permitted deviation**, which names `revier.sollzeit_minuten` as the case: a target derived from `Σ m² ÷ Leistungswert` stays fractional, because rounding every room to a whole minute accumulates a visible error across a Revier of eighty rooms. Both carriers of the same target use the same type, so the OPS-07 engine never rounds twice between them |
+| **Measured** durations — worked time, MiLoG records, rest periods, diary hours | `integer` with the unit in the name — `dauer_minuten`, `zeitabweichung_sek` | **K-16(c)**: a measured duration is evidence and is never fractional. **Every duration column in this document states which of the two it is**, and there is no third kind |
+| Person-hours (Mannstunden), inspection points | `numeric(8,2)` / `numeric(10,2)` | Not durations and not money: `bautagebuch_mannstunden.mannstunden` is a person-hour **quantity** (`Personen × Minuten ÷ 60`) and `qualitaetspruefung.punkte` is a score. Both are summed like quantities (§7.13, §8.3) |
 | Percentages | `numeric(5,2)` | 0.00–100.00 |
 | Coordinates | `numeric(9,6)` | ~11 cm; never `float`. Matches `objekt.geo_lat` / `geo_lon` (`02-CRM-OPERATIONS.md` §4.2) |
 | Instants | `timestamptz`, stored UTC, displayed `Europe/Berlin` | Invariant 2 |
-| Durations | `integer` with the unit in the name — `dauer_minuten`, `zeitabweichung_sek` | K-16 |
 | Calendar dates (Messdatum, Bautagebuchtag, Gültigkeit) | `date` | They are Berlin calendar dates, not instants (K-11) |
 | Wall-clock recurrence anchors | `timestamp` (naive) + `zeitzone text` | Documented exception, §10.1 |
 | Free text | `text`, never `varchar(n)` | — |
@@ -47,6 +48,8 @@ Domain identifiers are German because they carry legal meaning under VOB/B, GoBD
 | PK | `uuid primary key default gen_random_uuid()` | K-16. One exception: `wetter_station.id text` (§7.16) |
 
 `einheit text not null`, validated in Zod against the shared `EINHEITEN` constant (`02-CRM-OPERATIONS.md` §0.11) — deliberately not an enum, because a GAEB import legitimately brings units the list does not contain and an import must not fail on a unit string.
+
+**Which K-16 deviations this domain takes, and only these.** K-16 names four permitted deviations and calls anything else a defect. This domain takes exactly **one**: **K-16(c)**, the computed-target duration, on `revier.sollzeit_minuten` and `revier_raum.sollzeit_minuten` — the case K-16(c) names by name. It takes **none** of the others: no table here is `PARTITION BY LIST`, so no composite primary key (K-16(a)); **no `*_mikrocent` column exists anywhere in this domain** — every figure that reaches `rechnung`, `buchungssatz` or DATEV is `bigint` cents, and AI cost accounting lives in the agent domain (K-16(b)); and every tenant table here has `mandant_id uuid not null`, because `audit_log` is the only tenant-adjacent table on the platform allowed a nullable one (K-16(d)). `wetter_station` and `wetter_beobachtung` carry no `mandant_id` at all — they are global reference data, not tenant tables with a nullable column (§7.16).
 
 ### 1.2 Common columns, the actor, and deletion (K-16, SEC-A9)
 
@@ -109,7 +112,9 @@ Unit agreement is not expressible as a foreign key, so `aufmass_zeile` carries a
 
 ### 1.5 Database roles and FORCE RLS (K-01)
 
-Six named roles, **none with `BYPASSRLS`**, and the application never connects as `postgres`: `cse_migrator` (DDL, CI only), `cse_definer` (owns every `SECURITY DEFINER` helper, cannot log in), `cse_app` (every authenticated request), `cse_anon` (the three K-08 pre-session functions only), `cse_checkin` (`app.checkin_verbrauchen` only), `cse_job` (cron and Edge Functions, per-job grants). Supabase's `service_role` is **forbidden at runtime** and appears in no connection string outside migrations.
+Six named roles, **none with `BYPASSRLS`**, and the application never connects as `postgres`: `cse_migrator` (DDL, CI only), `cse_definer` (owns every `SECURITY DEFINER` helper, cannot log in), `cse_app` (every authenticated request), `cse_anon` (`app.sitzung_aufloesen`, `app.versuch_protokollieren` and `app.ical_feed_lesen` — its three rows of the **five-entry closed register** of K-08), `cse_checkin` (`app.checkin_verbrauchen` **and** `app.offline_ereignis_annehmen`, the offline replay of TIM-09 arriving over the same token and the same trust boundary), `cse_job` (cron and Edge Functions, per-job grants). Supabase's `service_role` is **forbidden at runtime** and appears in no connection string outside migrations.
+
+**This domain adds no function to the K-08 register.** The register is closed and exhaustive; every path into a table of this domain runs inside `withTenant`, `withGroupScope`, `withPersonScope` or `withKundeScope` (K-18), and the route-manifest test fails the build on any new pre-session function that is not added to K-08 in the same PR. The one place a table here is written without a session is `app.checkin_verbrauchen`, which derives `mandant_id` and `anstellung_id` from the `einsatz` itself and touches no table of this domain at all.
 
 ```sql
 alter table <t> enable row level security;
@@ -141,13 +146,50 @@ create policy t_gruppe on <tabelle>
          and mandant_id = any (select app.rechte_mandanten('gruppe.<modul>.lesen')));
 ```
 
+**The `mandant.archiviert_am` conjunct in `WITH CHECK` is the KERN template, not a local addition.** `01-KERN.md` §3.2 deliberately keeps archived mandanten inside `app.sichtbare_mandanten()` — LEG-01/ACC-06 require ten-year retention *and availability* — so the write block has to be stated somewhere, and `01-KERN.md` §1.3 states it in the normative `WITH CHECK` exactly as written above. It is also not the kind of subquery §1.8 forbids: §1.8's rule is about a ceiling keyed on a relationship **the caller may not read**, whereas `mandant`'s own policy is `id in (select app.sichtbare_mandanten())`, which the active mandant always satisfies by construction. The conjunct therefore always resolves, and the policy count stays at K-03's two for a tenant-only table.
+
 **This replaces the draft's `USING (mandant_id = aktiver_mandant() OR (ist_gruppenansicht() AND hat_mandant_zugriff(mandant_id)))`, which was a defect (review B1), and K-03 had already resolved it.** The old predicate granted `SELECT` on all of this domain's tables to *every* principal whose session had that mandant active. A `kunde` login read every other customer's `leistungsnachweis`, every `projekt` value and every `lv_position.einheitspreis_cent`; a `mitarbeiter` read every colleague's Wachbuch entry and every customer's commercials — breaking EMP-13, AUT-01, AUT-05 and D-09 §6. The four hand-written role branches beneath it were pure no-ops: they only widened a grant that was already total, which is the proof the widening went unnoticed. Three consequences now hold:
 
 - **Membership alone grants nothing.** The `hat_recht` conjunct is mandatory; a policy that omits it is a defect (K-03).
 - **The active mandant narrows reads.** `app.sichtbare_mandanten()` is reachable only through `t_gruppe`, i.e. only in the read-only group view.
 - **Invariant 10 is enforced by Postgres.** No `INSERT`/`UPDATE`/`DELETE` policy anywhere in this domain references group scope, so a write under group scope matches no policy and the database refuses it. `withTenant` is the first line; this is the second.
 
-Where a table needs a *narrower or wider* audience than its module right, that is expressed as a **restrictive ceiling** (§1.8), never as a third permissive policy and never as an `OR` bolted onto `t_mandant`.
+Where a table needs a *narrower* audience than its module right, that is expressed as a **restrictive ceiling** (§1.8), never as an `OR` bolted onto `t_mandant`. Where it needs a **different scope** — the employee portal or the customer portal, both of which genuinely span tenants as a *subject* — that is the K-18 pair below, and nothing else.
+
+### 1.6a The two subject scopes (K-18) — why `t_mandant` and `t_gruppe` are not enough
+
+`app.scope` takes **four** values: `mandant` · `gruppe` · `person` · `kunde` (K-18, K-02). In the three multi-tenant scopes `app.mandant_id` is NULL and `app.mandant_ids` carries the set, always derived server-side.
+
+The first draft of this document routed `/portal/mein` and `/portal/kunde` through the group view. That is a category error with a silent consequence: `t_gruppe` requires `gruppe.<modul>.lesen`, a management right no cleaner and no customer will ever hold, so **both portals read zero rows** — a guard's own Wachbuch page and a customer's own signed Leistungsnachweis both come back empty, with no error. Widening the group right to repair it would hand every cleaner a group-level read of all four entities. Both portals therefore get their own **`SELECT`-only permissive policy keyed on the subject**:
+
+```sql
+-- the employee portal, /portal/mein, withPersonScope
+create policy t_person on <tabelle>
+  for select to cse_app
+  using (app.scope() = 'person'
+         and mandant_id = any (app.sichtbare_mandanten())
+         and anstellung_id in (select id from anstellung
+                                where person_id = app.aktuelle_person()));
+
+-- the customer portal, /portal/kunde, withKundeScope
+create policy t_kunde on <tabelle>
+  for select to cse_app
+  using (app.scope() = 'kunde'
+         and mandant_id = any (app.sichtbare_mandanten())
+         and kunde_id = app.aktueller_kunde()
+         and <sichtbarkeitsklausel>);
+```
+
+Three properties make this safe rather than a second door:
+
+- **The K-04 ceiling still applies on top and is not duplicated by it.** The ceiling is `restrictive` and says *at most your own rows*; `t_person` / `t_kunde` are permissive and say *these rows, in these tenants*. Both must pass (K-18, K-04).
+- **`app.sichtbare_mandanten()` is derived server-side in every scope** — from `anstellung` in person scope, from the customer's own `auftrag` / `angebot` / `rechnung` rows in kunde scope (`01-KERN.md` §3.2) — never from the request (K-02). This document places that customer branch as a requirement on the CRM/Finanzen documents (§2.3).
+- **Neither policy has a write counterpart, ever.** `app.aktiver_mandant()` is NULL in both scopes, so every `t_mandant` `WITH CHECK` is false and Postgres refuses the write — the same construction that enforces invariant 10 for group scope. The one write an employee performs against this domain is a `zeit_einwand` (EMP-07), which is not a table of this domain; the service re-enters `withTenant` with the single resolved mandant.
+
+`app.portal()` and `app.scope()` are different things and both are needed: `portal` is *who you are* (the role of the active membership, K-04) and drives the ceilings; `scope` is *how many tenants you are reading across* (K-18) and drives the permissive policies. A customer-portal session is `portal = 'kunde'` in **both** `kunde` scope (their cross-entity history, CRM-06) and `mandant` scope (one entity's file), and the ceiling holds in both.
+
+§1.8 enumerates which tables of this domain carry `t_person` and which carry `t_kunde`.
+
 
 ### 1.7 Right keys per table
 
@@ -164,7 +206,15 @@ Where a table needs a *narrower or wider* audience than its module right, that i
 
 `wetter_station` and `wetter_beobachtung` carry no module: they are global reference data (`01-ORDNERSTRUKTUR.md` §5.3, bucket 3).
 
-Three allocations are load-bearing and are stated as requirements on `04-BERECHTIGUNGSMODELL.md`: the `mitarbeiter` role holds **none** of `bau`, `qualitaet`, `reinigung` write rights and none of the pricing columns of §1.9 (EMP-13); the `kunde` role holds only `nachweis.lesen`, `bau.lesen` and `qualitaet.lesen`, each further narrowed by §1.8; and `wachbuch.lesen` is **not** in the default `mitarbeiter` grant — a guard reaches their own entries through the ceiling, not through the module right.
+**A ceiling can only narrow; it can never grant.** Under K-03 the permissive `t_mandant` policy already requires `app.hat_recht('<modul>.lesen', …)`, so a role that does not hold the module right reads **zero** rows — including rows it wrote itself — and no restrictive ceiling repairs that. The draft got this backwards for the Wachbuch: it withheld `wachbuch.lesen` from `mitarbeiter` and expected the ceiling to hand a guard their own entries, which would have made SEC-05, the §6.12 handover and test 3 all fail on an empty result rather than an error. The two non-internal roles therefore hold **explicit module rights**, narrowed afterwards by the ceilings of §1.8 and by K-18's subject policies. The matrix is stated here and is binding on `03-AUTH-BERECHTIGUNGEN.md`:
+
+| Role | Module rights in this domain | Never |
+|---|---|---|
+| `mitarbeiter` | `wachbuch.lesen` · `wachbuch.schreiben` (SEC-05: the guard writes the book) · `dienstanweisung.lesen` (EMP-09) · `schluessel.lesen` (own receipts, SEC-07) · `security.lesen` (their post, its type, its checkpoints) | every `*.schreiben` except `wachbuch.schreiben`; `bau.*`, `qualitaet.*`, `reinigung.*`, `nachweis.*` in **any** form; every price column of §1.9 (EMP-13, D-09 §6) |
+| `kunde` | `nachweis.lesen` · `bau.lesen` · `qualitaet.lesen` | every write right; `security.*`, `wachbuch.*`, `schluessel.*`, `dienstanweisung.*`, `reinigung.*` |
+| `leitung`, `admin`, `super_admin` | per `03-AUTH-BERECHTIGUNGEN.md`; this document constrains only the two above | — |
+
+Each of those reads is then narrowed twice: by the restrictive ceiling (§1.8 — *at most your own rows*) and, in the two subject scopes, by `t_person` / `t_kunde` (§1.6a — *these rows, in these tenants*). `bau.lesen` in the `mitarbeiter` column is deliberately **absent**: with it, a field employee holding it would read every Aufmaß sheet and every LV of the mandant — the quantities and the customers, even though §1.9 withholds the prices.
 
 ### 1.8 Portal ceilings (K-04)
 
@@ -185,23 +235,50 @@ create policy p_kunde_ceiling on <tabelle> as restrictive for all to cse_app
 -- internal-only ceiling: commercial internals are invisible to both non-internal portals
 create policy p_intern_ceiling on <tabelle> as restrictive for all to cse_app
   using (app.portal() = 'intern');
+
+-- fourth variant: internal, plus the employee actually deployed on that object (EMP-09, SEC-05)
+create policy p_intern_einsatz_ceiling on <tabelle> as restrictive for all to cse_app
+  using (app.portal() = 'intern'
+         or (app.portal() = 'mitarbeiter' and app.ist_eingesetzt_auf_objekt(objekt_id)));
+
+-- fifth variant: readable by staff, closed to the customer portal — for worker-facing catalogues
+create policy p_nicht_kunde_ceiling on <tabelle> as restrictive for all to cse_app
+  using (app.portal() <> 'kunde');
 ```
 
-Enumerated, not exemplified. `src/server/db/rls.ts` holds the lists and **the build fails when a table in this domain carries none of the three**:
+**This table is the single source of truth for the ceilings, and the per-table sections below never contradict it** — where a §5–§8 section once described a ceiling differently, the row here is what `src/server/db/rls.ts` emits and what the build test reads. `src/server/db/rls.ts` holds the lists, and the build fails on two conditions, not one: **(1)** a table in this domain carries none of the five ceilings, and **(2)** — the K-04 condition, which the first formulation did not test — a table hanging off `anstellung_id` or `person_id` carries anything other than `p_ma_ceiling`. Checking for *any* ceiling let `aufmass` pass with only a customer ceiling while carrying `aufgenommen_von_anstellung_id`.
 
 | Ceiling | Tables | Clause |
 |---|---|---|
-| `p_ma_ceiling` | `da_kenntnisnahme`, `da_pflicht`, `wachbuch_eintrag`, `schluessel_quittung`, `leistungsnachweis_signatur` (when `rolle = 'auftragnehmer'`), `aufmass_signatur` (same), `qualitaetspruefung` (`pruefer_anstellung_id`) | own `anstellung_id`, widened only by `app.uebergabe_sichtbar()` for `wachbuch_eintrag` (§6.11) |
+| `p_ma_ceiling` | `da_kenntnisnahme`, `da_pflicht`, `wachbuch_eintrag`, `schluessel_quittung`, `qualitaetspruefung` (`pruefer_anstellung_id`), **`aufmass`** (`aufgenommen_von_anstellung_id` — K-04, added here), `leistungsnachweis_signatur` and `aufmass_signatur` (`anstellung_id`, set only when `rolle = 'auftragnehmer'`) | own `anstellung_id`, widened only by `app.uebergabe_sichtbar()` for `wachbuch_eintrag` (§6.12) |
+| | `aufmass_zeile`, `aufmass_foto` | via the head: `app.portal() <> 'mitarbeiter' or kopf_aufgenommen_von_anstellung_id in (select id from anstellung where person_id = app.aktuelle_person())`, on the trigger-maintained head copy (§7.7, §7.8) |
 | `p_kunde_ceiling` | `leistungsnachweis` | `kunde_id = app.aktueller_kunde() and status in ('vorgelegt','signiert') and storniert_am is null` — a customer never sees a draft |
-| | `leistungsnachweis_position`, `leistungsnachweis_signatur` | parent `leistungsnachweis` via the denormalised `kunde_id` |
+| | `leistungsnachweis_position`, `leistungsnachweis_signatur` | own `kunde_id` **and** the trigger-maintained `kopf_status in ('vorgelegt','signiert') and kopf_storniert_am is null` — the head clause applied to the child through a copied column, never through a subquery (§5.7, §5.8) |
 | | `projekt`, `abnahme`, `abnahme_mangel` | `kunde_id = app.aktueller_kunde()` |
 | | `reklamation`, `qualitaetspruefung`, `qualitaetspruefung_position` | `kunde_id = app.aktueller_kunde()`; `qualitaetspruefung` additionally `mit_kunde` |
-| | `aufmass`, `aufmass_zeile`, `aufmass_foto`, `aufmass_signatur` | denormalised `kunde_id`, and `status <> 'entwurf'` |
-| | `dienstanweisung`, `dienstanweisung_version` | never — an internal instruction is not customer-visible |
-| `p_intern_ceiling` | `revier`, `revier_raum`, `turnus`, `turnus_ausnahme`, `sonderleistung`, `postenart`, `posten`, `posten_ausnahme`, `einsatzanforderung`, `veranstaltung`, `kontrollpunkt`, `schluesselart`, `schluessel`, `leistungsverzeichnis`, `lv_position`, `nachtrag`, `behinderung`, `bautagebuch`, `bautagebuch_mannstunden`, `bautagebuch_position`, `gewerk` | — |
-| both `p_ma_ceiling` and a widened read | `dienstanweisung`, `dienstanweisung_version` | `app.portal() <> 'mitarbeiter' or app.ist_eingesetzt_auf_objekt(objekt_id)` — EMP-09 |
+| | `aufmass` | `kunde_id = app.aktueller_kunde() and status <> 'entwurf'` |
+| | `aufmass_zeile`, `aufmass_foto`, `aufmass_signatur` | own `kunde_id` (added in §7.7/§7.8 — the draft's policy named a column that did not exist) **and** `kopf_status <> 'entwurf'`, both trigger-maintained from the head |
+| | `dienstanweisung`, `dienstanweisung_version` | never — an internal instruction is not customer-visible; they carry `p_intern_einsatz_ceiling` instead |
+| `p_intern_ceiling` | `revier`, `revier_raum`, `turnus`, `turnus_ausnahme`, `sonderleistung`, `posten`, `posten_ausnahme`, `einsatzanforderung`, `veranstaltung`, `schluesselart`, `schluessel`, `leistungsverzeichnis`, `lv_position`, `nachtrag`, `behinderung`, `bautagebuch`, `bautagebuch_mannstunden`, `bautagebuch_position`, `gewerk`, **`pruefverfahren`** (added here — §8.1 assigned it and the enumeration omitted it) | — |
+| `p_intern_einsatz_ceiling` | `kontrollpunkt` (§6.11 — a guard must see the checkpoints of the object they patrol), `dienstanweisung`, `dienstanweisung_version` (EMP-09, additionally `status = 'veroeffentlicht'` for the employee branch, §6.7) | keyed on the row's own `objekt_id`, trigger-maintained on `dienstanweisung_version` so the policy needs no join |
+| `p_nicht_kunde_ceiling` | `postenart` (a guard sees their own post's type; a customer has no business with the post catalogue) | — |
+
+**Which tables carry the K-18 subject policies (§1.6a) — enumerated, not exemplified**, and held in `src/server/db/rls.ts` beside the ceiling lists:
+
+| Scope | Tables | Subject predicate |
+|---|---|---|
+| `t_person` (`/portal/mein`, EMP-09, EMP-14) | `da_pflicht`, `da_kenntnisnahme`, `wachbuch_eintrag`, `schluessel_quittung`, `leistungsnachweis_signatur`, `aufmass_signatur`, `qualitaetspruefung` | `anstellung_id in (select id from anstellung where person_id = app.aktuelle_person())` — `qualitaetspruefung` on `pruefer_anstellung_id` |
+| | `dienstanweisung`, `dienstanweisung_version`, `kontrollpunkt`, `posten` | not `anstellung_id` — these rows belong to no one — but `app.ist_eingesetzt_auf_objekt(objekt_id)` on the row's own (trigger-maintained, on `dienstanweisung_version`) `objekt_id`, resolved through the definer helper of §1.10 and never through a base-table subquery (§1.8, review B16) |
+| | `postenart` | none — it is a catalogue row about no one, and like the KERN catalogues (`01-KERN.md` §1.12) it is readable in person scope through `mandant_id = any (app.sichtbare_mandanten())` alone. Its `p_nicht_kunde_ceiling` still applies |
+| `t_kunde` (`/portal/kunde`, CRM-06) | `leistungsnachweis`, `leistungsnachweis_position`, `leistungsnachweis_signatur`, `projekt`, `abnahme`, `abnahme_mangel`, `aufmass`, `aufmass_zeile`, `aufmass_foto`, `aufmass_signatur`, `reklamation`, `qualitaetspruefung`, `qualitaetspruefung_position` | `kunde_id = app.aktueller_kunde()` plus the same visibility clause the customer ceiling carries — a draft stays invisible in every scope |
+
+No table of this domain carries `t_person` **and** a write path in person scope: every one of them is `SELECT`-only there, and the two employee writes SPEC allows (EMP-07, EMP-10) target tables the Zeit domain owns.
+
+**Two tables are exempt from the ceiling requirement, by name and not by omission:** `wetter_station` and `wetter_beobachtung` carry no `mandant_id`, no personal data and no commercial content — public DWD master data (§7.16) — so they have a `select … using (true)` policy for `cse_app` and a `cse_job` write path, and the build check skips exactly these two. Every other table in this domain carries one of the five ceilings; 41 tenant tables plus these 2 is the 43 of §0.1.
 
 **Ceilings key on a column of the row, never on a subquery over a base table (review B16).** A subquery inside a policy is itself subject to the referenced table's RLS: the draft's `EXISTS (SELECT 1 FROM objekt o WHERE o.id = objekt_id AND o.kunde_id = aktueller_kunde())` returns no rows the moment `objekt` is correctly closed to role `kunde`, and `EXISTS (SELECT 1 FROM einsatz e WHERE …)` does the same for a `mitarbeiter` session. Both were masked by the over-broad tenant branch of the draft; the moment §1.6 fixed that, EMP-09 and the customer's view of a joint Begehung would have stopped working, and the failure would have looked like an empty list rather than an error. Hence: `qualitaetspruefung`, `reklamation`, `aufmass*` and `leistungsnachweis*` each carry their own denormalised `kunde_id` (composite FK, maintained by trigger from the parent), and the two genuinely relational predicates go through `SECURITY DEFINER` helpers (§1.10).
+
+**The one subquery that stays is K-04's own.** `anstellung_id in (select id from anstellung where person_id = app.aktuelle_person())` appears verbatim in K-04 and in K-18, and it is not the failure mode above: `anstellung` carries a self-visible policy in every scope (`01-KERN.md` §1.12, §6.14), so the subquery resolves for exactly the caller it is written for, and its result is the caller's own employments rather than a foreign relationship they may not read. The rule this paragraph states is therefore precise — *no subquery over a table the caller may be closed out of* — and `objekt`, `einsatz` and `kunde` are all such tables while `anstellung` is not.
 
 `app.portal()` is derived from **the role of the active membership**, not from the existence of one (K-04), and defaults to `mitarbeiter` when the GUC is unset (`01-KERN.md` §3.1) — so an unset session narrows every ceiling instead of lifting it (K-02, fail-closed).
 
@@ -211,21 +288,28 @@ Two places in this domain hand a readable row to a principal who must not read e
 
 ```sql
 revoke select on lv_position from cse_app;
-grant  select (id, mandant_id, leistungsverzeichnis_id, projekt_id, eltern_id, oz, pfad,
-               sortier_pfad, ebene, art, positionsart, kurztext, langtext, einheit,
-               menge_vertrag, quelle_seite, quelle_bereich, konfidenz, gaeb_dp,
-               archiviert_am, erstellt_am, geaendert_am)
-       on lv_position to cse_app;          -- einheitspreis_cent, steuer_kennzeichen omitted
+grant  select (id, mandant_id, leistungsverzeichnis_id, projekt_id, auftrag_leistung_id, eltern_id,
+               oz, pfad, sortier_pfad, ebene, art, positionsart, kurztext, langtext, einheit,
+               menge_vertrag, quelle_seite, quelle_bereich, konfidenz,
+               geprueft_von, geprueft_am,                      -- APR-03 review queue and pill
+               gaeb_dp, archiviert_am,
+               erstellt_am, erstellt_von_art, erstellt_von, erstellt_von_person_id,
+               erstellt_von_agent_id, geaendert_am, geaendert_von_art, geaendert_von)
+       on lv_position to cse_app;          -- OMITTED: einheitspreis_cent, steuer_kennzeichen
 
 revoke select on leistungsnachweis_position from cse_app;
-grant  select (id, mandant_id, leistungsnachweis_id, kunde_id, reihenfolge, bezeichnung,
-               menge, einheit, quelle, zeiteintrag_id, aufmass_zeile_id,
-               leistungskatalog_position_id, materialverbrauch_id, leistung_von, leistung_bis,
-               bemerkung, erstellt_am, geaendert_am)
-       on leistungsnachweis_position to cse_app;   -- einzelpreis_cent omitted
+grant  select (id, mandant_id, leistungsnachweis_id, kunde_id, kopf_status, kopf_storniert_am,
+               reihenfolge, bezeichnung, menge, einheit, quelle, zeiteintrag_id, aufmass_zeile_id,
+               auftrag_leistung_id, leistungskatalog_position_id, materialverbrauch_id,
+               leistung_von, leistung_bis, bemerkung,
+               erstellt_am, erstellt_von_art, erstellt_von, erstellt_von_person_id,
+               erstellt_von_agent_id, geaendert_am, geaendert_von_art, geaendert_von)
+       on leistungsnachweis_position to cse_app;   -- OMITTED: einzelpreis_cent
 ```
 
-The price is reachable only through `app.lv_preis_lesen(p_lv_position uuid)` and `app.nachweis_preis_lesen(p_position uuid)` — `SECURITY DEFINER`, each re-checking `bau.preis_lesen` / `nachweis.preis_lesen` **and** `mandant_id = app.aktiver_mandant()`, each writing `audit_log`. The customer's own copy of a price is not read through these: it is the frozen `leistungsnachweis_signatur.snapshot` (§5.8), which is what the customer actually signed.
+**A column grant is exhaustive by construction: what is not granted is unreadable**, so an omission is indistinguishable from a decision unless it is written down. The draft's two lists silently dropped the APR-03 review columns (`geprueft_von`, `geprueft_am` — the columns the §7.5 review queue, the `lv_position_pruefung_idx` predicate and the DESIGN §5 warning pill all read) and the whole §1.2 Auditblock, which made "which extraction run wrote this line" unanswerable for `cse_app` — on exactly the table an AI agent writes into. Both are restored above. A schema test asserts, for **every** column-restricted table in this domain, that each column is either granted to `cse_app` or named after `-- OMITTED:` in the accompanying comment; a new column that is neither fails the build.
+
+The price is reachable only through `app.lv_preis_lesen(p_lv_position uuid)` and `app.nachweis_preis_lesen(p_position uuid)` — `SECURITY DEFINER`, each re-checking `bau.preis_lesen` / `nachweis.preis_lesen` **and** `mandant_id = app.aktiver_mandant()`, each writing `audit_log` (§2.1). The customer's own copy of a price is not read through these: it is the frozen `leistungsnachweis_signatur.snapshot` (§5.8), which is what the customer actually signed — which is also why the two readers stay unreachable in `person` and `kunde` scope, where `app.aktiver_mandant()` is NULL and the mandant conjunct is false.
 
 ### 1.10 `SECURITY DEFINER` helpers owned by this domain
 
@@ -236,14 +320,25 @@ All live in schema `app`, are owned by `cse_definer`, carry `SET search_path = p
 | `app.eigene_einsatz_objekte()` | `uuid[]` | the objects the caller's own `anstellung` rows are assigned to, in the active mandant, within the SEC-06 lookahead window | EMP-09, SEC-06 |
 | `app.ist_eingesetzt_auf_objekt(p_objekt uuid)` | `boolean` | `p_objekt = any (app.eigene_einsatz_objekte())` | EMP-09 |
 | `app.uebergabe_sichtbar(p_objekt uuid, p_erfasst_am timestamptz)` | `boolean` | `app.ist_eingesetzt_auf_objekt(p_objekt)` **and** `p_erfasst_am > now() - app.uebergabe_fenster()` | SEC-05, EMP-13 |
-| `app.uebergabe_fenster()` | `interval` | reads `mandant_einstellung('wachbuch.uebergabe_fenster')`, **default `interval '0'`** — no handover window until the client sets one (§1.16) | SEC-05, LEG-10 |
-| `app.planungsbedarf(p_von date, p_bis date)` | `setof planungsbedarf_zeile` | the generator's single read across both demand carriers — one row per `turnus` and per `posten` occurrence due in the window, with its exceptions already applied (§2.3, §10.7) | TIM-02, TIM-03, CLN-02, SEC-01 |
+| `app.einstellung(p_schluessel text)` | `jsonb` | reads `mandant_einstellung(mandant_id, schluessel)` for `app.aktiver_mandant()`; returns `NULL` when the key is unset or the session has no mandant, so **every caller must state its own default** and an unset session configures nothing (K-02 fail-closed). Requires `mandant_einstellung` in the `01-KERN.md` §3.5 definer read registry (§2.3) | §1.16, §16 |
+| `app.uebergabe_fenster()` | `interval` | `coalesce((app.einstellung('wachbuch.uebergabe_fenster')->>'interval')::interval, interval '0')` — **default `interval '0'`**, no handover window until the client sets one (§1.16) | SEC-05, LEG-10 |
+| `app.planungsbedarf(p_von date, p_bis date)` | `returns table (quelle text, quelle_id uuid, mandant_id uuid, objekt_id uuid, beginn_zeitpunkt timestamptz, ende_zeitpunkt timestamptz, soll_besetzung smallint, auftrag_leistung_id uuid, ausnahme_art turnus_ausnahme_art)` | the generator's single read across both demand carriers — one row per `turnus` and per `posten` occurrence due in the window, with its exceptions already applied (§2.3, §10.7). **`returns table`, not a named composite type**: the draft returned `setof planungsbedarf_zeile`, a type no document defines or owns, so nothing could compile against it. `quelle` is `'turnus'` or `'posten'`; `ausnahme_art` is NULL where no exception applied | TIM-02, TIM-03, CLN-02, SEC-01 |
 | `app.qualifikationsanforderung(p_einsatz uuid)` | `setof einsatzanforderung` | resolves the requirement set for one shift: Posten → Veranstaltung → Objekt → mandant baseline (§9.2) | SEC-01, SEC-04, SEC-08 |
 | `app.einsatz_qualifikation_erfuellt(p_anstellung uuid, p_einsatz uuid)` | `jsonb` | the SEC-04 gate; reads `nachweis` and `bewacher_eintrag` at the person head (§9) | SEC-02, SEC-03, SEC-04, LEG-04 |
 | `app.lv_preis_lesen(p_lv_position uuid)` | `bigint` | `bau.preis_lesen` + active mandant; writes `audit_log` | K-05, EMP-13 |
 | `app.nachweis_preis_lesen(p_position uuid)` | `bigint` | `nachweis.preis_lesen` + active mandant; writes `audit_log` | K-05, EMP-13 |
 
-`app.einsatz_qualifikation_erfuellt` and `app.qualifikationsanforderung` require `cse_definer` to read `nachweis`, `bewacher_eintrag`, `anstellung` and `einsatz`. `01-KERN.md` §3.5 already lists `anstellung`; **this document requires `nachweis`, `bewacher_eintrag`, `einsatz` and `einsatz_zuordnung` to be added to that registry** (cross-document note, §17).
+**A definer function must be able to read every table it touches, and FORCE RLS removes the owner's exemption.** `cse_definer` matches no `to cse_app` policy, and §1.5 puts `FORCE ROW LEVEL SECURITY` on every table here — so a definer function reading a table with no `cse_definer` policy gets **zero rows and no error**. That is worse than a failure: `app.qualifikationsanforderung` would return an empty requirement set, `v_fehlend` would stay empty, and the SEC-04 gate would answer `'erfuellt': true` for every assignment. It fails **open**, and no test whose caller can also read the tables would catch it. The reads are therefore enumerated and each one has a policy:
+
+| Table read by a definer helper here | Owner | Where the `cse_definer` read policy lives |
+|---|---|---|
+| `einsatzanforderung` | **this document** | declared here, §9.2: `create policy ea_definer on einsatzanforderung for select to cse_definer using (true);` — the only `cse_definer` policy this domain creates, and the enumeration test of `01-KERN.md` §3.5 is extended to allow exactly it |
+| `nachweis`, `bewacher_eintrag`, `anstellung` | KERN | `01-KERN.md` §3.5 — `anstellung` is already listed; `nachweis` and `bewacher_eintrag` are required additions (§2.3, §17) |
+| `mandant_einstellung` | KERN | required addition (§2.3) — without it `app.einstellung()` and therefore `app.uebergabe_fenster()` silently return NULL and the handover window can never be configured on |
+| `einsatz`, `einsatz_zuordnung` | Zeit | required additions to the same registry (§2.3, §17) |
+| `qualifikation` | KERN | **no longer read.** §9.3 keyed the Bewacherregister branch on a join to `qualifikation`; it now keys on `einsatzanforderung.bewacherregister_pflicht` (§6.6), which removes both the cross-domain read and the free-text match |
+
+A test proves the point rather than assuming it: a session holding **no** `security.lesen` at all assigns a person with a missing certificate, and the insert must still be **refused** (§14, test 11a).
 
 **Inside a definer function, every precondition is an explicit predicate against the caller's session GUCs, never a call to an invoker helper** (`01-KERN.md` §3.2): a `SECURITY INVOKER` helper called from a definer function evaluates as the definer, which would silently void the precondition it was meant to enforce. §9 writes those predicates literally.
 
@@ -254,7 +349,9 @@ All live in schema `app`, are owned by `cse_definer`, carry `SET search_path = p
 ```sql
 -- (a) server-only: for tables with no device columns
 create function kern.erzwinge_serverzeit() returns trigger …   -- 02-CRM-OPERATIONS.md §0.9
-  -- BEFORE INSERT: new.<spalte> := now();  BEFORE UPDATE: raises on any change
+  -- BEFORE INSERT:                        new.<spalte> := now(), any supplied value discarded
+  -- BEFORE UPDATE, old.<spalte> IS NULL:  new.<spalte> := now() when the row sets it, else stays NULL
+  -- BEFORE UPDATE, old.<spalte> NOT NULL: raises on any change; NULLing it also raises
 
 -- (b) field capture: for tables that additionally carry geraete_zeit / zeitabweichung_sek
 create function gewerke.stempel_feldzeit() returns trigger language plpgsql as $$
@@ -272,7 +369,9 @@ The draft applied one unconditional body — referencing `NEW.geraete_zeit` — 
 | Trigger | Tables and columns |
 |---|---|
 | `gewerke.stempel_feldzeit()` | `leistungsnachweis_signatur.unterzeichnet_am` · `wachbuch_eintrag.erfasst_am` · `schluessel_quittung.quittiert_am` · `da_kenntnisnahme.bestaetigt_am` · `aufmass_foto.empfangen_am` · `aufmass_signatur.unterzeichnet_am` · `qualitaetspruefung.geprueft_am` |
-| `kern.erzwinge_serverzeit()` | `reklamation.eingang_am` · `leistungsnachweis.vorgelegt_am` · `leistungsnachweis.gesperrt_am` · `aufmass.gesperrt_am` · `bautagebuch.abgeschlossen_am` · `bautagebuch.gegengezeichnet_am` · `abnahme.protokolliert_am` · `dienstanweisung_version.veroeffentlicht_am` · every `storniert_am` and `archiviert_am` |
+| `kern.erzwinge_serverzeit()` | `reklamation.eingang_am` · `leistungsnachweis.vorgelegt_am` · `leistungsnachweis.gesperrt_am` · `aufmass.gesperrt_am` · `bautagebuch.abgeschlossen_am` · `bautagebuch.gegengezeichnet_am` · `abnahme.protokolliert_am` · `dienstanweisung_version.veroeffentlicht_am` · `da_pflicht.zugewiesen_am` · every `storniert_am` and `archiviert_am` |
+
+**"Raises on any change" would forbid the status transitions it exists to protect (review, and `02-CRM-OPERATIONS.md` §0.9 says the same).** Read literally, a trigger that raises on every `UPDATE` of the column makes `leistungsnachweis.vorgelegt_am` unsettable at `entwurf → vorgelegt`, `gesperrt_am` unsettable on signature, `bautagebuch.abgeschlossen_am` unsettable at day close and `dienstanweisung_version.veroeffentlicht_am` unsettable at publication — every one of those is a NULL→value transition performed by an `UPDATE`, so no Leistungsnachweis could be submitted or signed and no Bautagebuch could be closed. The precise semantics are the three lines in the body above: **the trigger owns the value in every case.** On INSERT it stamps `now()`. On the NULL→value transition it stamps `now()` itself and discards whatever the statement supplied — so a client instant can never become the legal timestamp of a submission, a signature or a day close. Once the column is non-null it is frozen, and both changing it and setting it back to NULL raise. Six regression tests, one per column, assert all three branches (§14, test 26a).
 
 Every table under (b) carries `geraete_zeit timestamptz null`, `zeitabweichung_sek integer null` **and** `nachgetragen boolean not null default false` (TIM-09, review MISSING). `zeitabweichung_sek` measures clock drift; `nachgetragen` records that the row sat in an offline queue. Conflating the two makes a signature collected at 14:00 and uploaded at 22:00 indistinguishable from one collected at 22:00, which is exactly what TIM-09 exists to prevent.
 
@@ -293,7 +392,7 @@ aufbewahrung_bis  date    null,                    -- computed by job:aufbewahru
 loeschsperre      boolean not null default true    -- fail-closed: nothing is deletable by default
 ```
 
-The class itself is **not** a column on 43 tables: it is a row in the shared `dokument_aufbewahrung` catalogue (`02-CRM-OPERATIONS.md` §4.6), extended with non-document record classes, and §11 maps every table in this domain to its class. `aufbewahrung_bis` is written by a nightly job, never by a `CHECK` (§1.13), and reaching it deletes nothing on its own — it makes a row *eligible*, and the actual erasure path is the DSGVO inventory of `01-KERN.md` §15. Two periods are stated by the SPEC and are therefore not placeholders: GoBD ten years (LEG-01) and §17 MiLoG two years (LEG-02). Everything else is `unbefristet` behind a `// TODO(client)`.
+The class itself is **not** a column on 43 tables: it is a row in the shared `dokument_aufbewahrung` catalogue (`02-CRM-OPERATIONS.md` **§4.7 Dokumente** — §4.6 is *Aufträge und Abrechnung* and the draft cited it by mistake), extended with non-document record classes, and §11 maps every table in this domain to its class. `aufbewahrung_bis` is written by a nightly job, never by a `CHECK` (§1.13), and reaching it deletes nothing on its own — it makes a row *eligible*, and the actual erasure path is the DSGVO inventory of `01-KERN.md` §15. Two periods are stated by the SPEC and are therefore not placeholders: GoBD ten years (LEG-01) and §17 MiLoG two years (LEG-02). Everything else is `unbefristet` behind `// TODO(client): O-25 — bestätigte Aufbewahrungsfrist und Rechtsgrundlage je Datenklasse dieser Domäne (§11).`
 
 ### 1.15 A signature is a snapshot, and an evidentiary book is a chain
 
@@ -305,7 +404,7 @@ Three patterns recur and are defined once:
 
 ### 1.16 Placeholder marking (K-17)
 
-Any row carrying a value the client has not confirmed sets `ist_platzhalter boolean not null default true`, and every screen consuming such a row renders the DESIGN §5 `warning` pill "Unbestätigter Wert". Tables carrying it: `postenart`, `schluesselart`, `gewerk`, `einsatzanforderung`, `qualitaetspruefung`. A placeholder enum value is marked **PLACEHOLDER** in §3 and carries a `// TODO(client)`; `pnpm lint:todo` fails when a `// TODO(client)` in this domain has no matching row in `DECISIONS.md` § Open. Values the client is likely to edit are **catalogue tables**, not enums, so changing one needs no migration — which is why `postenart` and `schluesselart` are tables in this final version and single-value placeholder enums in the draft (review, MINOR: the draft argued exactly this for `gewerk` and then chose the opposite for the other two).
+Any row carrying a value the client has not confirmed sets `ist_platzhalter boolean not null default true`, and every screen consuming such a row renders the DESIGN §5 `warning` pill "Unbestätigter Wert". Tables carrying it: `postenart`, `schluesselart`, `gewerk`, `einsatzanforderung`, `qualitaetspruefung`. A placeholder enum value is marked **PLACEHOLDER** in §3 and carries a `// TODO(client)`. **Every `// TODO(client)` in this document opens with its O-number** (`// TODO(client): O-nn — <question>`), because `pnpm lint:todo` matches the marker against a row in `DECISIONS.md` § Open and an unnumbered question can never be matched — it would pass the lint by being invisible to it. §16 carries the full mapping, including the numbers proposed by this document. Values the client is likely to edit are **catalogue tables**, not enums, so changing one needs no migration — which is why `postenart` and `schluesselart` are tables in this final version and single-value placeholder enums in the draft (review, MINOR: the draft argued exactly this for `gewerk` and then chose the opposite for the other two).
 
 Configurable operational values that are neither legal facts nor tariff values live in `mandant_einstellung(schluessel, wert jsonb)`, read through `app.einstellung(schluessel)`; §16 lists each with its default. The handover window of §1.10 is the first of them, and its default is zero.
 
@@ -346,7 +445,9 @@ Every row is a requirement on the owning document. **`unique (mandant_id, id)` i
 | `ausschreibung` | Radar | `unique (mandant_id, id)` | `id` — `leistungsverzeichnis.ausschreibung_id` | RAD-01, RAD-02 |
 | `referenz` | Website | — | `auftrag_id` plus copied fields; **owns PRO-05 entirely** (§2.2) | PRO-05, SOC-04 |
 | `feiertag` | Referenz (global) | `unique (bundesland, datum)` | `datum date`, `bundesland char(2)`, `bezeichnung`, `gesetzlich boolean` | **CLN-03** |
-| `mandant_einstellung` | KERN | `unique (mandant_id, schluessel)` | `wert jsonb` | §1.16 |
+| `mandant_einstellung` | KERN | `unique (mandant_id, schluessel)`, **`cse_definer` read policy (§3.5)** | `wert jsonb` | §1.16 |
+| `audit_log` | KERN | `ebene audit_ebene not null`, `check ((ebene = 'mandant') = (mandant_id IS NOT NULL))` — **K-16(d), the one tenant-adjacent table with a nullable `mandant_id`**; `cse_definer` read policy (§3.5) | `mandant_id`, `ebene`, `aktion`, `benutzer_id`, `tabelle`, `datensatz_id`, `geschehen_am` | SEC-A9, K-05, K-16(d) |
+| `job_lauf` | KERN | **no `mandant_id` at all** — a platform operations record, not a tenant table, so K-16(d) is not touched: a job that acts per mandant names the mandant inside `befund`. `INSERT`/`UPDATE` for `cse_job` only, `SELECT` for `super_admin` (K-01) | `id`, `job_schluessel`, `begonnen_am`, `beendet_am`, `status`, `befund jsonb` | §13.2, SPEC §14 |
 
 Three of these rows deserve their reason stated, because getting them wrong is silent:
 
@@ -372,8 +473,10 @@ Three of these rows deserve their reason stated, because getting them wrong is s
 
 ### 2.3 Requirements this document places on sibling documents
 
-1. `01-KERN.md` §3.5 — the `cse_definer` read registry gains `nachweis`, `bewacher_eintrag`, `einsatz` and `einsatz_zuordnung` (§1.10, §9).
-2. `01-KERN.md` §4 — no new enum; `akteur_art`, `nachweis_status`, `bewacher_status` are imported unchanged.
+1. `01-KERN.md` §3.5 — the `cse_definer` read registry gains **`nachweis`, `bewacher_eintrag`, `mandant_einstellung`, `einsatz` and `einsatz_zuordnung`** (§1.10, §9). `mandant_einstellung` is not optional: without it `app.einstellung()` returns NULL under FORCE RLS and the SEC-05 handover window, the LEG-10 geolocation switch and every §16 setting are silently unconfigurable. The same §3.5 enumeration test must additionally admit the one `cse_definer` policy this document creates, `ea_definer` on `einsatzanforderung` (§9.2) — the table is owned here, so the policy is declared here.
+2. `01-KERN.md` §4 — no new enum; `akteur_art`, `nachweis_status`, `bewacher_status`, `sprache`, `audit_ebene` are imported unchanged.
+2a. `01-KERN.md` §3.2 / `02-CRM-OPERATIONS.md` — **`app.sichtbare_mandanten()` must gain its `kunde` branch** before the customer portal reads anything of this domain. KERN's branch is `false` today and says so explicitly, deferring the set to the document that owns `auftrag`, `angebot` and `rechnung`. Every `t_kunde` policy in §1.8 is keyed on that array, so until the branch exists a customer in `kunde` scope reads zero rows — which is the correct fail-closed state, and which is why it is named here rather than assumed.
+2b. `03-AUTH-BERECHTIGUNGEN.md` must carry the role/right matrix of §1.7 verbatim — in particular that `mitarbeiter` **holds** `wachbuch.lesen` and `wachbuch.schreiben` and **does not hold** `bau.lesen`. A ceiling cannot grant what the module right withholds (K-03), so this allocation is load-bearing, not a preference.
 3. The Dienstplan/Zeit document owns `planungsserie` and must state that it carries `turnus_id`, `posten_id` and `veranstaltung_id` (all nullable, exactly one non-null). **SPEC §22 names one recurrence entity; this domain deliberately keeps two demand carriers and no third.** `turnus` (CLN-02) and `posten` (SEC-01) are *what is contractually owed* — a cleaning frequency and a post to be manned — and they differ in every column that matters: a Turnus has a Leistung and a duration per pass, a Posten has a minimum and a target staffing level and a Dienstanweisung. `planungsserie` is the generator's *execution* record: which series, expanded how far, last run when. One shared generator reads both carriers through `app.planungsbedarf(von, bis)` and writes one `planungsserie` row per source. Collapsing the two into one table would put four always-null columns on every row and make TIM-03's eight-week bookkeeping ambiguous; duplicating the generator per trade would give the DST expansion two implementations, which is the bug K-11 exists to prevent.
 4. The finance document must key `nummernkreis` on `(mandant_id, kreis_typ, kontext_id, jahr)`. This domain needs two differently-scoped counters — one per `(mandant_id)` for `leistungsnachweis.nummer` and one per `(mandant_id, objekt_id, jahr)` for `wachbuch_eintrag.laufnummer` — so a counter table designed for a handful of invoice circles will otherwise not hold them (review, MISSING).
 5. `docs/DESIGN.md` must gain the status-pill labels listed in §3.4 before any trade screen renders them (CLAUDE.md: add to DESIGN.md first, then use).
@@ -390,7 +493,7 @@ Vocabularies marked **STATED** come verbatim from the SPEC. **PLACEHOLDER** voca
 
 ```sql
 -- PLACEHOLDER — CLN-03 says holidays are excluded; it does not say what happens to the round.
--- // TODO(client): Werden an Feiertagen ausgefallene Turnusse vorgezogen oder nachgeholt, oder
+-- // TODO(client): O-30 — Werden an Feiertagen ausgefallene Turnusse vorgezogen oder nachgeholt, oder
 --                  entfallen sie ersatzlos? Falls vorgezogen/nachgeholt, kommen die Werte
 --                  'vorziehen'/'nachholen' per Migration hinzu (CLN-03).
 create type turnus_feiertagsregel as enum ('ausfall','unveraendert');
@@ -428,7 +531,7 @@ create type schluessel_status        as enum ('im_depot','ausgegeben','verloren'
 create type schluessel_empfaenger_art as enum ('mitarbeiter','kunde','fremdfirma');
 
 -- PLACEHOLDER — LEG-10 permits a single point at check-in start and end, nothing continuous.
--- // TODO(client): Fordert ein Auftraggebervertrag einen Präsenznachweis je Rundgang, und in
+-- // TODO(client): O-37 — Fordert ein Auftraggebervertrag einen Präsenznachweis je Rundgang, und in
 --                  welcher Form (NFC-Tag, QR, Barcode)? Ohne Antwort bleibt der Katalog leer.
 create type kontrollpunkt_nachweisart as enum ('nfc','qr','barcode','manuell','unbestimmt');
 ```
@@ -454,7 +557,7 @@ create type leistungsverzeichnis_art as enum ('hauptauftrag','nachtrag','ausschr
 create type lv_art as enum ('los','titel','untertitel','position','hinweistext');
 
 -- Values from GAEB DA XML. PLACEHOLDER as to their commercial effect.
--- // TODO(client): Welche dieser Positionsarten kommen vor, und wie geht jede in die Angebots-
+-- // TODO(client): O-41 — Welche dieser Positionsarten kommen vor, und wie geht jede in die Angebots-
 --                  bzw. Auftragssumme ein? Bedarfs- und Alternativpositionen zählen üblicherweise
 --                  NICHT — bis zur Antwort rechnet keine Summenfunktion sie ein und die UI zeigt
 --                  sie mit der Pille „Unbestätigter Wert".
@@ -502,14 +605,14 @@ create type reklamation_quelle     as enum ('kunde','eigenkontrolle','qualitaets
 create type reklamation_status     as enum ('offen','in_arbeit','behoben','abgelehnt','geschlossen');
 
 -- PLACEHOLDER — the ladder exists so the UI can sort; it steers nothing until the SLA is known.
--- // TODO(client): Welche Reaktions- und Behebungsfrist gilt je Priorität (Vertrags-SLA je
+-- // TODO(client): O-14 — Welche Reaktions- und Behebungsfrist gilt je Priorität (Vertrags-SLA je
 --                  Auftrag oder je Gesellschaft)? Bis zur Antwort setzt kein Job faellig_am.
 create type reklamation_prioritaet as enum ('niedrig','mittel','hoch');
 
 create type pruefergebnis as enum ('io','nio','nicht_pruefbar');
 ```
 
-`qualitaetspruefung.verfahren` is a **catalogue table** (`pruefverfahren`), not the draft's single-value placeholder enum, for the same reason as `postenart`. `// TODO(client): Welches Prüfverfahren wird verwendet — DIN 13549 Annahmestichprobe, eigene Checkliste oder Kundenprotokoll —, und welcher Erfüllungsgrad gilt als bestanden?` Until the answer arrives the catalogue ships with one row `unbestimmt` marked `ist_platzhalter = true`, `bestanden` stays NULL, and no screen renders a pass/fail badge.
+`qualitaetspruefung.verfahren` is a **catalogue table** (`pruefverfahren`), not the draft's single-value placeholder enum, for the same reason as `postenart`. `// TODO(client): O-29 — Welches Prüfverfahren wird verwendet — DIN 13549 Annahmestichprobe, eigene Checkliste oder Kundenprotokoll —, und welcher Erfüllungsgrad gilt als bestanden?` Until the answer arrives the catalogue ships with one row `unbestimmt` marked `ist_platzhalter = true`, `bestanden` stays NULL, and no screen renders a pass/fail badge.
 
 ### 3.5 DESIGN §5 status-pill mapping
 
@@ -630,7 +733,7 @@ A Revier is a work zone inside an object — the area one cleaner works through 
 | bezeichnung | text | no | — | `check (btrim(bezeichnung) <> '')` |
 | kurzzeichen | text | yes | — | Revierkürzel on plans |
 | beschreibung | text | yes | — | |
-| sollzeit_minuten | numeric(8,2) | no | — | CLN-01 target minutes per pass; `check (sollzeit_minuten > 0)`. **`numeric(8,2)`, not `integer`** (review, MINOR): `revier_raum.sollzeit_minuten` is the same concept and the OPS-07 engine must not round twice between the two carriers |
+| sollzeit_minuten | numeric(8,2) | no | — | CLN-01 target minutes per pass; `check (sollzeit_minuten > 0)`. A **computed target** duration, never a measured one — the permitted deviation **K-16(c)** names this column by name: it is `Σ m² ÷ Leistungswert` over the Revier's rooms, and rounding each room to a whole minute accumulates a visible error across eighty of them. `revier_raum.sollzeit_minuten` is the same target on the same scale, so the OPS-07 engine never rounds twice between the two carriers |
 | verantwortlich_anstellung_id | uuid | yes | — | Objektleiter; composite FK `(mandant_id, verantwortlich_anstellung_id)` |
 | auftrag_leistung_id | uuid | yes | — | composite FK; billing anchor (FIN-07) |
 | aktiv_ab | date | no | — | contractual start of the zone |
@@ -656,7 +759,7 @@ The assignment of a Raumbuch room to a Revier, with the target time derived from
 | objekt_id | uuid | no | — | denormalised, so the room FK can be object-scoped |
 | raum_id | uuid | no | — | composite FK `(mandant_id, objekt_id, raum_id)` → `raum (mandant_id, objekt_id, id)` (§1.4) |
 | reihenfolge | smallint | no | `0` | walking order |
-| sollzeit_minuten | numeric(8,2) | yes | — | written by the costing service (OPS-07), never computed by the database |
+| sollzeit_minuten | numeric(8,2) | yes | — | **computed target**, K-16(c) as in §5.1 — never a measured duration; written by the costing service (OPS-07), never computed by the database |
 | leistungswert_qm_pro_stunde | numeric(10,3) | yes | — | **snapshot** of the Belagsart value at costing time (OPS-03) |
 | flaeche_qm | numeric(12,3) | yes | — | snapshot of the room area at costing time |
 | fenster_flaeche_qm | numeric(12,3) | yes | — | snapshot; CLN-05 prices glass on glass area |
@@ -710,7 +813,7 @@ The documented deviation from a cycle on one concrete day — cancellation, extr
 | ersatz_beginn_lokal | timestamp | yes | — | only for `verschiebung`; `check (art <> 'verschiebung' or ersatz_beginn_lokal is not null)` |
 | dauer_minuten | integer | yes | — | only for `zusatz`/`verschiebung`; otherwise the occurrence inherits the cycle duration |
 | grund | text | no | — | `check (btrim(grund) <> '')` — an EXDATE without a reason is worthless |
-| abrechnungsrelevant | boolean | yes | — | `// TODO(client): Wird ein ausgefallener Turnus bei Monatspauschale gutgeschrieben, und mit welchem Betrag?` (FIN-01) — NULL until answered; no job derives a credit from it |
+| abrechnungsrelevant | boolean | yes | — | `// TODO(client): O-31 — Wird ein ausgefallener Turnus bei Monatspauschale gutgeschrieben, und mit welchem Betrag?` (FIN-01) — NULL until answered; no job derives a credit from it |
 | *Auditblock* | | | | §1.2 |
 
 - **Indexes:** `turnus_ausnahme_uk unique (turnus_id, datum) where art in ('ausfall','verschiebung')` — **narrowed** (review, MINOR): the draft's `unique (turnus_id, datum, art)` still allowed only one `zusatz` per day, and two extra cleanings on one day (morning and evening special) are ordinary in Unterhaltsreinigung. A day can be cancelled once and moved once; extras are unbounded. `turnus_ausnahme_datum_idx on (mandant_id, datum)` — the generator reads all exceptions of the window in one pass.
@@ -755,7 +858,7 @@ The proof of service the customer signs on site — monthly per object in cleani
 |---|---|---|---|---|
 | id | uuid | no | `gen_random_uuid()` | PK; `unique (mandant_id, id)` |
 | mandant_id | uuid | no | — | |
-| nummer | text | yes | — | assigned from `nummernkreis` at the `entwurf → vorgelegt` transition (§2.1). **PLACEHOLDER moment.** `// TODO(client): Sollen Leistungsnachweise fortlaufend und lückenlos nummeriert sein, und ab welchem Schritt — Vorlage oder Unterschrift? Ein abgelehnter und neu erstellter Nachweis verbraucht sonst eine Nummer, und der Kunde sieht nach Nr. 39 die Nr. 41.` **Gaplessness is not claimed** — FIN-03 requires it for invoices only |
+| nummer | text | yes | — | assigned from `nummernkreis` at the `entwurf → vorgelegt` transition (§2.1). **PLACEHOLDER moment.** `// TODO(client): O-32 — Sollen Leistungsnachweise fortlaufend und lückenlos nummeriert sein, und ab welchem Schritt — Vorlage oder Unterschrift? Ein abgelehnter und neu erstellter Nachweis verbraucht sonst eine Nummer, und der Kunde sieht nach Nr. 39 die Nr. 41.` **Gaplessness is not claimed** — FIN-03 requires it for invoices only |
 | objekt_id | uuid | yes | — | composite FK |
 | projekt_id | uuid | yes | — | composite FK |
 | revier_id | uuid | yes | — | composite FK |
@@ -779,7 +882,7 @@ The proof of service the customer signs on site — monthly per object in cleani
   `ln_offen_idx on (mandant_id, vorgelegt_am) where status = 'vorgelegt'` — the watchdog "submitted, unsigned for X days".
   **`ln_kunde_idx on (mandant_id, kunde_id, leistungszeitraum_bis desc) where status in ('vorgelegt','signiert') and storniert_am is null`** — the customer-portal list its own ceiling defines; the draft had no index serving it (review, MISSING).
   `ln_nummer_uk unique (mandant_id, nummer) where nummer is not null`.
-- **RLS:** standard, module `nachweis`; `p_kunde_ceiling` with `kunde_id = app.aktueller_kunde() and status in ('vorgelegt','signiert') and storniert_am is null` — a customer sees their own, never a draft (AUT-01).
+- **RLS:** standard, module `nachweis`; `p_kunde_ceiling` with `kunde_id = app.aktueller_kunde() and status in ('vorgelegt','signiert') and storniert_am is null` — a customer sees their own, never a draft (AUT-01) — **plus `t_kunde`** (§1.6a) with the same predicate, which is what makes the CRM-06 cross-entity customer history read anything at all: in `kunde` scope `app.aktiver_mandant()` is NULL, so `t_mandant` is false and the ceiling alone would return nothing.
 - **Constraints/triggers:** `check (objekt_id is not null or projekt_id is not null)`; `check (status <> 'signiert' or gesperrt_am is not null)`. `freeze_after_signature()` (BEFORE UPDATE): once `gesperrt_am` is set only `storniert_*`, `ersetzt_durch_id`, `aufbewahrung_bis` and `loeschsperre` are writable and any other change raises. `enforce_ln_status_transition()` allows only `entwurf → vorgelegt → signiert | abgelehnt` and `* → storniert`. `kern.verhindere_loeschung()`.
 - **SPEC:** CLN-04, SEC-05, BAU-02, FIN-05, FIN-07, FIN-18, LEG-01, AUT-01.
 
@@ -793,6 +896,7 @@ One line of the proof: service, quantity, unit — each with a back-reference to
 | mandant_id | uuid | no | — | |
 | leistungsnachweis_id | uuid | no | — | composite FK |
 | kunde_id | uuid | no | — | denormalised from the head by trigger; carries the customer ceiling (§1.8) |
+| kopf_status · kopf_storniert_am | leistungsnachweis_status / timestamptz | no / yes | — | **the head's state, copied down.** The customer ceiling and `t_kunde` both require `status in ('vorgelegt','signiert') and storniert_am is null`, and §1.8 forbids reading that from the parent through a subquery in a policy. Maintained by `denormalisiere_kopfstatus()` — `BEFORE INSERT/UPDATE` on this table and `AFTER UPDATE` on `leistungsnachweis`, which propagates a head status change to its children in the same transaction. Without these columns the customer either sees draft positions or, if the clause is simply dropped, sees them for a sheet that was never submitted |
 | auftrag_leistung_id | uuid | yes | — | composite FK; also the middle key of the Zeiteintrag FK below |
 | reihenfolge | smallint | no | — | `unique (leistungsnachweis_id, reihenfolge) deferrable initially immediate` — **deferrable** so reordering lines in the UI is one statement rather than a temporary-value dance (review, MINOR) |
 | bezeichnung | text | no | — | the text as printed on the document |
@@ -809,8 +913,8 @@ One line of the proof: service, quantity, unit — each with a back-reference to
 | *Auditblock* | | | | §1.2 |
 
 - **Indexes:** `lnp_ln_idx on (leistungsnachweis_id, reihenfolge)` · `lnp_zeiteintrag_idx on (mandant_id, zeiteintrag_id) where zeiteintrag_id is not null` — "is this time entry already proven and billed" (FIN-07, FIN-18) · `lnp_aufmass_idx on (mandant_id, aufmass_zeile_id) where aufmass_zeile_id is not null`.
-- **RLS:** standard, module `nachweis`; `p_kunde_ceiling` on the row's own `kunde_id`, with the same `status`/`storniert_am` clause applied through a trigger-maintained copy of the head status.
-- **Constraints/triggers:** `check (num_nonnulls(zeiteintrag_id, aufmass_zeile_id, leistungskatalog_position_id, materialverbrauch_id) <= 1)` and one `check` per source of the shape `check ((quelle = 'zeiteintrag') = (zeiteintrag_id is not null))` (analogously for the other three, with `manuell` = all four NULL) — the source declaration cannot lie. `freeze_after_signature()` evaluated against the head's `gesperrt_am`; `kern.verhindere_loeschung()`.
+- **RLS:** standard, module `nachweis`; `p_kunde_ceiling` on the row's own `kunde_id` **and** `kopf_status in ('vorgelegt','signiert') and kopf_storniert_am is null` — the head clause read from this row's own copied columns, never from a subquery over `leistungsnachweis` (§1.8); `t_kunde` (§1.6a) with the identical predicate.
+- **Constraints/triggers:** `check (num_nonnulls(zeiteintrag_id, aufmass_zeile_id, leistungskatalog_position_id, materialverbrauch_id) <= 1)` and one `check` per source of the shape `check ((quelle = 'zeiteintrag') = (zeiteintrag_id is not null))` (analogously for the other three, with `manuell` = all four NULL) — the source declaration cannot lie. `freeze_after_signature()` evaluated against the head's `gesperrt_am`; `denormalisiere_kunde()` and `denormalisiere_kopfstatus()` (§13.1); `kern.verhindere_loeschung()`.
 - **SPEC:** CLN-04, FIN-01, FIN-07, TIM-12, BAU-02.
 
 ### 5.8 leistungsnachweis_signatur
@@ -823,6 +927,7 @@ The signature on the proof: who signed, **when by server time**, where, and an i
 | mandant_id | uuid | no | — | |
 | leistungsnachweis_id | uuid | no | — | composite FK |
 | kunde_id | uuid | no | — | denormalised; customer ceiling |
+| kopf_status · kopf_storniert_am | leistungsnachweis_status / timestamptz | no / yes | — | the head state, copied down by `denormalisiere_kopfstatus()` as in §5.7 — the customer ceiling and `t_kunde` key on it |
 | rolle | unterschrift_rolle | no | — | `unique (leistungsnachweis_id, rolle)` |
 | anstellung_id | uuid | yes | — | composite FK — set only when `rolle = 'auftragnehmer'`; carries the employee ceiling (§1.8) |
 | unterzeichner_name | text | no | — | `check (btrim(unterzeichner_name) <> '')` — CLN-04 |
@@ -839,9 +944,9 @@ The signature on the proof: who signed, **when by server time**, where, and an i
 | erstellt_am · erstellt_von_art · erstellt_von · erstellt_von_person_id | | | | append-only: **no** `geaendert_*` |
 
 - **Indexes:** `ln_signatur_uk unique (leistungsnachweis_id, rolle)` · `ln_signatur_zeit_idx on (mandant_id, unterzeichnet_am desc)` — "recently signed proofs" on the dashboard (DSH-04).
-- **RLS:** standard, module `nachweis`; **`INSERT`/`SELECT` only** — no `UPDATE` policy, no `DELETE` policy, and a `BEFORE UPDATE` trigger that raises unconditionally. `p_kunde_ceiling` via `kunde_id`; `p_ma_ceiling` via `anstellung_id` for the contractor role.
-- **Constraints/triggers:** `gewerke.stempel_feldzeit()`; `enforce_ln_signierbar()` — an INSERT is allowed only while the head is `status = 'vorgelegt'`, and the same trigger then sets `status = 'signiert'`, `gesperrt_am = now()`. `check (rolle <> 'auftragnehmer' or anstellung_id is not null)`. `kern.verhindere_loeschung()`.
-- **Geolocation, precisely scoped (LEG-10, O-06).** The coordinate columns are populated **only** when `app.einstellung('geo.erfassung_erlaubt')` is true, and the distinction is legal, not technical: a **customer** representative signing on site is not a Beschäftigtendatum, while the contractor's own countersignature is. `// TODO(client): Gibt es einen Betriebsrat? Ein Standortdatum an einer Mitarbeiterunterschrift ist mitbestimmungspflichtig nach §87 Abs. 1 Nr. 6 BetrVG (O-06, LEG-10).` Until answered the setting is false and both columns stay NULL.
+- **RLS:** standard, module `nachweis`; **`INSERT`/`SELECT` only** — no `UPDATE` policy, no `DELETE` policy, and a `BEFORE UPDATE` trigger that raises unconditionally. `p_kunde_ceiling` via `kunde_id` + `kopf_status`; `p_ma_ceiling` via `anstellung_id` for the contractor role; `t_person` and `t_kunde` per §1.8.
+- **Constraints/triggers:** `gewerke.stempel_feldzeit()`; `denormalisiere_kunde()` and `denormalisiere_kopfstatus()`; `enforce_ln_signierbar()` — an INSERT is allowed only while the head is `status = 'vorgelegt'`, and the same trigger then sets `status = 'signiert'`, `gesperrt_am = now()` (a NULL→value transition, which is exactly why `kern.erzwinge_serverzeit()` must permit it, §1.11). `check (rolle <> 'auftragnehmer' or anstellung_id is not null)`. `kern.verhindere_loeschung()`.
+- **Geolocation, precisely scoped (LEG-10, O-06).** The coordinate columns are populated **only** when `app.einstellung('geo.erfassung_erlaubt')` is true, and the distinction is legal, not technical: a **customer** representative signing on site is not a Beschäftigtendatum, while the contractor's own countersignature is. `// TODO(client): O-06 — Gibt es einen Betriebsrat? Ein Standortdatum an einer Mitarbeiterunterschrift ist mitbestimmungspflichtig nach §87 Abs. 1 Nr. 6 BetrVG (O-06, LEG-10).` Until answered the setting is false and both columns stay NULL.
 - **SPEC:** CLN-04, TIM-08, TIM-09, TIM-10, LEG-10, APR-07, DOC-03, SEC-A9.
 
 ---
@@ -866,8 +971,8 @@ Two catalogues replacing the draft's single-value placeholder enums (§3.2). Ide
 | *Auditblock* | | | | §1.2 |
 
 - **Indexes:** `unique (mandant_id, schluessel) where archiviert_am is null` · `(mandant_id, sortierung) where archiviert_am is null`.
-- **RLS:** standard, modules `security` and `schluessel`; `p_intern_ceiling` on `schluesselart`, none on `postenart` (a guard sees their post's type).
-- **Placeholders.** `// TODO(client): Welche Postenarten werden geführt (Objektschutz, Empfang, Streife, Revierdienst, Veranstaltungsdienst, …)? (SEC-01)` and `// TODO(client): Welche Schlüsselarten werden geführt (mechanisch, Transponder, Chipkarte, Zylindercode), und hängt an der Art eine unterschiedliche Sorgfaltspflicht? (SEC-07)`. Until answered both ship empty and the UI shows „keine Arten hinterlegt" rather than a guessed list.
+- **RLS:** standard, modules `security` and `schluessel`; `p_intern_ceiling` on `schluesselart`, **`p_nicht_kunde_ceiling` on `postenart`** — a guard holding `security.lesen` sees their own post's type, a customer never sees the post catalogue. §1.8's table is the authority here: "no ceiling at all" would fail its own build check, which requires one of the five on every table in this domain.
+- **Placeholders.** `// TODO(client): O-33 — Welche Postenarten werden geführt (Objektschutz, Empfang, Streife, Revierdienst, Veranstaltungsdienst, …)? (SEC-01)` and `// TODO(client): O-33 — Welche Schlüsselarten werden geführt (mechanisch, Transponder, Chipkarte, Zylindercode), und hängt an der Art eine unterschiedliche Sorgfaltspflicht? (SEC-07)`. Until answered both ship empty and the UI shows „keine Arten hinterlegt" rather than a guessed list.
 - **SPEC:** SEC-01, SEC-07, EMP-12, TEN-08.
 
 ### 6.3 posten
@@ -950,7 +1055,8 @@ Which qualification an assignment requires, and whether every deployed person or
 | geltung | qualifikation_geltung | no | `'jeder'` | |
 | mindestanzahl | smallint | no | `1` | relevant only for `mindestens_einer`; `check (mindestanzahl >= 1)` |
 | gueltig_ab | date | yes | — | the requirement takes effect from this date (contract change) |
-| rechtsgrundlage | text | yes | — | in plain words, e.g. „§34a Abs. 1a GewO" |
+| **bewacherregister_pflicht** | boolean | no | `false` | **the machine-readable half of §34a.** `true` = holding the certificate is not enough; the person must additionally carry a live `bewacher_eintrag` at the shift date (SEC-03). §9.3 keys the register branch of the gate on **this column and nothing else** |
+| rechtsgrundlage | text | yes | — | in plain words, e.g. „§34a Abs. 1a GewO" — **display only, never matched on.** The draft's gate resolved the register obligation with `rechtsgrundlage ilike '%34a%'` over free text: a requirement typed „§ 34 a GewO", „Sachkundeprüfung" or in any other spelling silently switched the Bewacherregister check **off**, on the one control §34a exists for. Free text is documentation; `bewacherregister_pflicht` is the rule |
 | ist_platzhalter | boolean | no | `true` | §1.16 |
 | archiviert_am · archiviert_von | timestamptz / uuid | yes | — | §1.3 |
 | *Auditblock* | | | | §1.2 |
@@ -959,13 +1065,18 @@ Which qualification an assignment requires, and whether every deployed person or
   `ea_scope_uk unique (coalesce(posten_id, veranstaltung_id, objekt_id, mandant_id), qualifikation_id) where archiviert_am is null` — one requirement per scope object and qualification.
   `ea_gate_posten_idx on (posten_id) where zwingend and archiviert_am is null` · `ea_gate_veranstaltung_idx on (veranstaltung_id) where zwingend and archiviert_am is null` · `ea_gate_objekt_idx on (objekt_id) where zwingend and archiviert_am is null` · `ea_gate_mandant_idx on (mandant_id) where geltungsbereich = 'mandant' and zwingend and archiviert_am is null` — the four hot paths of §9.2.
   `ea_rueckwaerts_idx on (mandant_id, qualifikation_id)` — "which assignments can I no longer staff when this certificate expires" (the 60/30/7 watchdog).
-- **RLS:** standard, module `security`; `p_intern_ceiling`.
+  `ea_register_idx on (mandant_id) where bewacherregister_pflicht and zwingend and archiviert_am is null` — the SEC-03 branch of the gate.
+- **RLS:** standard, module `security`; `p_intern_ceiling`. **Plus exactly one `cse_definer` read policy**, because `app.qualifikationsanforderung` (§9.2) is `SECURITY DEFINER` and this table carries `FORCE ROW LEVEL SECURITY`, so without it the resolver reads zero requirements and the SEC-04 gate answers "erfüllt" for everyone — a control that fails **open** and that no test with a normally-privileged caller would notice:
+  ```sql
+  create policy ea_definer on einsatzanforderung for select to cse_definer using (true);
+  ```
+  It is the only `cse_definer` policy this document creates, it is `SELECT`-only, and `01-KERN.md` §3.5's enumeration test must be extended to admit it by name (§2.3 item 1).
 - **Constraints/triggers:**
   `check ((geltungsbereich = 'posten')        = (posten_id is not null))` and the analogous three, with `mandant` requiring all three scope FKs NULL — exactly one scope, always.
   `check (not zwingend or geltung = 'jeder')` — **interim**, and it is removed the moment the deferred check of §9.4 ships. Without it a hard §34a requirement entered with `geltung = 'mindestens_einer'` would be enforced nowhere at write time, and SEC-04's hard block would silently not apply (review, MINOR).
   `pruefe_qualifikation_mandant()` (BEFORE INSERT OR UPDATE): `qualifikation.mandant_id is null or qualifikation.mandant_id = new.mandant_id`.
   `kern.setze_geaendert_am()`, `kern.verhindere_loeschung()`.
-- **The `mandant` scope carries the open question.** SEC-08 staffing without a post still needs a requirement set, and §34a Abs. 1a GewO attaches to the deployment of a person in a Bewachungstätigkeit, not to the existence of a planning artefact. `// TODO(client): Welche Qualifikationsanforderung gilt für Bewachungseinsätze ohne festen Posten — Veranstaltungsdienst, Springer, kurzfristige Objektbetreuung (SEC-08)? Bis zur Antwort ist die mandantenweite Grundanforderung leer, und §9.2 meldet jeden solchen Einsatz als ungeprüft statt ihn stillschweigend durchzulassen.`
+- **The `mandant` scope carries the open question.** SEC-08 staffing without a post still needs a requirement set, and §34a Abs. 1a GewO attaches to the deployment of a person in a Bewachungstätigkeit, not to the existence of a planning artefact. `// TODO(client): O-34 — Welche Qualifikationsanforderung gilt für Bewachungseinsätze ohne festen Posten — Veranstaltungsdienst, Springer, kurzfristige Objektbetreuung (SEC-08)? Bis zur Antwort ist die mandantenweite Grundanforderung leer.` **Because it ships empty, "empty" is the system's default state, and the report that catches it is a real artefact, not a promise** — §9.5: the gate records `anforderungen_gefunden` in `qualifikation_snapshot` and `job:einsatz_ungeprueft` lists every assignment where that count is zero in a mandant with the `security` module active.
 - **SPEC:** SEC-01, SEC-02, SEC-04, SEC-08, LEG-04, TIM-05.
 
 ### 6.7 dienstanweisung
@@ -982,18 +1093,20 @@ The standing instruction for an object or a post — the rulebook the guard serv
 | status | dienstanweisung_status | no | `'entwurf'` | |
 | aktive_version_id | uuid | yes | — | FK → `dienstanweisung_version.id`, `deferrable initially deferred` (chicken-and-egg on creation) |
 | kenntnisnahme_pflicht | boolean | no | `true` | SEC-06 |
-| neue_version_oeffnet_pflicht | boolean | no | `true` | **PLACEHOLDER.** `// TODO(client): Muss eine neue Fassung von allen erneut bestätigt werden, oder nur bei wesentlicher Änderung — und wer entscheidet das?` (SEC-06) |
+| neue_version_oeffnet_pflicht | boolean | no | `true` | **PLACEHOLDER.** `// TODO(client): O-38 — Muss eine neue Fassung von allen erneut bestätigt werden, oder nur bei wesentlicher Änderung — und wer entscheidet das?` (SEC-06) |
 | archiviert_am · archiviert_von | timestamptz / uuid | yes | — | §1.3 |
 | *Auditblock* | | | | §1.2 |
 
 - **Indexes:** `da_objekt_idx on (mandant_id, objekt_id) where archiviert_am is null` · `da_posten_idx on (mandant_id, posten_id) where posten_id is not null`.
-- **RLS:** standard, module `dienstanweisung`; **plus** the employee ceiling in its widened form, expressed against a `SECURITY DEFINER` helper and never against a base table (§1.8, review B16):
+- **RLS:** standard, module `dienstanweisung`; `p_intern_einsatz_ceiling` in its published-only form, expressed against a `SECURITY DEFINER` helper and never against a base table (§1.8, review B16):
   ```sql
-  create policy p_ma_ceiling on dienstanweisung as restrictive for all to cse_app
-    using (app.portal() <> 'mitarbeiter'
-           or (status = 'veroeffentlicht' and app.ist_eingesetzt_auf_objekt(objekt_id)));
+  create policy p_intern_einsatz_ceiling on dienstanweisung as restrictive for all to cse_app
+    using (app.portal() = 'intern'
+           or (app.portal() = 'mitarbeiter'
+               and status = 'veroeffentlicht'
+               and app.ist_eingesetzt_auf_objekt(objekt_id)));
   ```
-  EMP-09: the employee sees exactly the instructions for the objects they are deployed on, and only published ones.
+  EMP-09: the employee sees exactly the instructions for the objects they are deployed on, and only published ones; a customer sees none. Plus `t_person` (§1.8) with the same `ist_eingesetzt_auf_objekt` predicate, which is what makes the instruction readable in the employee portal at all — there `app.aktiver_mandant()` is NULL and `t_mandant` is false.
 - **Constraints/triggers:** `check (status <> 'veroeffentlicht' or aktive_version_id is not null)`; `kern.setze_geaendert_am()`, `kern.verhindere_loeschung()`.
 - **SPEC:** SEC-06, EMP-09, DOC-05.
 
@@ -1019,7 +1132,7 @@ A published version — content-immutable from publication, so an acknowledgemen
 | erstellt_am · erstellt_von_art · erstellt_von | | | | append-only after publication |
 
 - **Indexes:** `da_version_uk unique (dienstanweisung_id, version)` · `da_version_aktuell_idx on (dienstanweisung_id, version desc) where veroeffentlicht_am is not null`.
-- **RLS:** standard, module `dienstanweisung`; the same employee ceiling as the head, keyed on a trigger-maintained copy of `objekt_id` so the policy needs no join.
+- **RLS:** standard, module `dienstanweisung`; `p_intern_einsatz_ceiling` and `t_person` exactly as on the head (§1.8), keyed on a trigger-maintained copy of `objekt_id` so neither policy needs a join.
 - **Constraints/triggers:** `check (inhalt is not null or dokument_id is not null)`; `freeze_after_publish()` — once `veroeffentlicht_am` is set, `inhalt`, `inhalt_i18n`, `dokument_id`, `inhalt_hash` and `version` are read-only; `assign_da_version()` assigns `version = max + 1` per head under `select … for update` on the head row; `kern.verhindere_loeschung()`.
 - **SPEC:** SEC-06, DOC-05, APR-02, EMP-12.
 
@@ -1091,8 +1204,8 @@ A registered patrol checkpoint — an NFC tag, a QR code or a numbered station. 
 | archiviert_am · archiviert_von | timestamptz / uuid | yes | — | §1.3 |
 | *Auditblock* | | | | §1.2 |
 
-- **RLS:** standard, module `security`; `p_intern_ceiling` lifted for `mitarbeiter` via `app.ist_eingesetzt_auf_objekt(objekt_id)` — a guard must see the checkpoints of the object they patrol.
-- **Placeholder.** The catalogue ships empty. `// TODO(client): Fordert ein Auftraggebervertrag einen Präsenznachweis je Rundgang, in welcher Form, und ist der Betriebsrat beteiligt (SEC-05, LEG-10, O-06)?`
+- **RLS:** standard, module `security`; **`p_intern_einsatz_ceiling`** (§1.8's fourth variant, named there so the enumerated list and the prose cannot drift apart) — a guard must see the checkpoints of the object they patrol, and nobody else's; plus `t_person` on the same `ist_eingesetzt_auf_objekt(objekt_id)` predicate for the employee portal.
+- **Placeholder.** The catalogue ships empty. `// TODO(client): O-37 — Fordert ein Auftraggebervertrag einen Präsenznachweis je Rundgang, in welcher Form (NFC-Tag, QR, Barcode), und ist der Betriebsrat beteiligt (SEC-05, LEG-10; Betriebsrat selbst ist O-06)?`
 - **SPEC:** SEC-05, LEG-10.
 
 ### 6.12 wachbuch_eintrag
@@ -1135,11 +1248,11 @@ The Wachbuch: every patrol, incident, handover, key movement and alarm with serv
 2. **The canonical payload is enumerated**, because a hash over an unspecified payload cannot be verified by anyone, including the nightly job. In this order, JCS-canonical JSON, UTF-8:
    `objekt_id · anstellung_id · person_id · art · erfasst_am (RFC 3339, UTC, ms) · jahr · laufnummer · betreff · eintragstext · kontrollpunkt_id · praesenz_bestaetigt · schluessel_id · einsatz_id · posten_id · veranstaltung_id · polizei_informiert · geraete_zeit · nachgetragen`.
    **The storno columns are excluded by construction** — they are written after hashing, and including them would make every Storno break the chain.
-3. **`wachbuch_kette_uk unique (mandant_id, objekt_id, vorheriger_hash)`.** Without it two rows can claim the same predecessor and fork the chain, which is precisely how an inserted page hides.
+3. **`wachbuch_kette_uk unique nulls not distinct (mandant_id, objekt_id, vorheriger_hash)`.** Without the constraint two rows can claim the same predecessor and fork the chain, which is precisely how an inserted page hides. **`NULLS NOT DISTINCT` (PG 15+) is the load-bearing half**, and the draft omitted it: in a default unique index NULLs are distinct, and `vorheriger_hash` is NULL for the first entry of an object's chain — so two rows could both claim to be the anchor of the same `(mandant_id, objekt_id)` chain, forking it at the one point that has no predecessor hash to contradict either branch. The equivalent formulation, where `NULLS NOT DISTINCT` is unavailable, is the base constraint plus `create unique index wachbuch_anker_uk on wachbuch_eintrag (mandant_id, objekt_id) where vorheriger_hash is null`. Test 25 covers both cases: two concurrent inserts against an existing head, **and** two concurrent *first* entries for one object.
 
 **Trigger firing order is pinned.** Postgres fires `BEFORE` triggers in alphabetical order, so the draft's `assign_wachbuch_laufnummer` ran before `stamp_server_time` and derived `jahr` from an unstamped `erfasst_am`. There is therefore **one** `BEFORE INSERT` trigger, `a_wachbuch_eintrag_vorbereiten()`, which stamps the server time, derives `jahr` in `Europe/Berlin`, takes the `nummernkreis` lock, assigns `laufnummer`, reads the chain head and computes `hash` — all in one function and one transaction.
 
-- **Indexes:** `wachbuch_lfd_uk unique (mandant_id, objekt_id, jahr, laufnummer)` · `wachbuch_kette_uk unique (mandant_id, objekt_id, vorheriger_hash)` · `wachbuch_objekt_zeit_idx on (mandant_id, objekt_id, erfasst_am desc)` — the book view and the handover · `wachbuch_art_idx on (mandant_id, art, erfasst_am desc) where art in ('vorkommnis','alarm')` — the incident report · **`wachbuch_anstellung_idx on (mandant_id, anstellung_id, erfasst_am desc)`** — the employee ceiling filters on `anstellung_id` on the largest table in the domain, and without this index the portal's own-entries view is a sequential scan under a per-row policy (review, MISSING) · `wachbuch_kettenpruef_idx on (mandant_id, objekt_id, laufnummer desc)` — the verification job.
+- **Indexes:** `wachbuch_lfd_uk unique (mandant_id, objekt_id, jahr, laufnummer)` · `wachbuch_kette_uk unique nulls not distinct (mandant_id, objekt_id, vorheriger_hash)` · `wachbuch_objekt_zeit_idx on (mandant_id, objekt_id, erfasst_am desc)` — the book view and the handover · `wachbuch_art_idx on (mandant_id, art, erfasst_am desc) where art in ('vorkommnis','alarm')` — the incident report · **`wachbuch_anstellung_idx on (mandant_id, anstellung_id, erfasst_am desc)`** — the employee ceiling filters on `anstellung_id` on the largest table in the domain, and without this index the portal's own-entries view is a sequential scan under a per-row policy (review, MISSING) · `wachbuch_kettenpruef_idx on (mandant_id, objekt_id, laufnummer desc)` — the verification job.
 - **RLS:** standard, module `wachbuch`; **plus** the employee ceiling in its widened form:
   ```sql
   create policy p_ma_ceiling on wachbuch_eintrag as restrictive for all to cse_app
@@ -1147,8 +1260,9 @@ The Wachbuch: every patrol, incident, handover, key movement and alarm with serv
            or anstellung_id in (select id from anstellung where person_id = app.aktuelle_person())
            or app.uebergabe_sichtbar(objekt_id, erfasst_am));
   ```
+  Plus `t_person` (§1.8): in the employee portal the guard reads their own entries across all their employments. **`wachbuch.lesen` and `wachbuch.schreiben` are in the `mitarbeiter` grant** (§1.7) — the ceiling narrows *which* entries, the module right decides whether any are readable at all, and withholding the right would have left a guard unable to read the page they had just written (K-03).
   No `UPDATE` policy except for the storno columns, no `DELETE` policy.
-  **The handover window is configuration, not a literal (review, INVENTED RULE).** The draft hard-coded `interval '24 hours'` inside an RLS policy — an access rule with data-protection consequences (a guard reads a named colleague's incident reports) that no SPEC line states. `app.uebergabe_fenster()` reads `mandant_einstellung('wachbuch.uebergabe_fenster')` and **defaults to zero**, so until the client answers, the handover branch grants nothing. `// TODO(client): Welche Wachbuch-Einträge darf die Folgeschicht zur Übergabe sehen, für welchen Zeitraum, und ist der Betriebsrat beteiligt (SEC-05, EMP-13, O-06)?`
+  **The handover window is configuration, not a literal (review, INVENTED RULE).** The draft hard-coded `interval '24 hours'` inside an RLS policy — an access rule with data-protection consequences (a guard reads a named colleague's incident reports) that no SPEC line states. `app.uebergabe_fenster()` reads `mandant_einstellung('wachbuch.uebergabe_fenster')` and **defaults to zero**, so until the client answers, the handover branch grants nothing. `// TODO(client): O-36 — Welche Wachbuch-Einträge darf die Folgeschicht zur Übergabe sehen, für welchen Zeitraum, und ist der Betriebsrat beteiligt (SEC-05, EMP-13; Betriebsrat selbst ist O-06)?`
 - **Constraints/triggers:** `a_wachbuch_eintrag_vorbereiten()` (above); a `BEFORE UPDATE` trigger permitting only the storno columns; `kern.verhindere_loeschung()`; the nightly `job:wachbuch_kette` verifying every object's chain, the FIN-06 construction and the same alert path.
 - **SPEC:** SEC-05, SEC-07, TIM-08, TIM-09, TIM-10, LEG-01, LEG-10, EMP-13, SEC-A9.
 
@@ -1173,7 +1287,22 @@ One key, transponder or cylinder code of an object — physically unique, so "wh
 | archiviert_am · archiviert_von | timestamptz / uuid | yes | — | §1.3 |
 | *Auditblock* | | | | §1.2 |
 
-**The ledger is the only source of truth for every state (review B12).** The draft declared `status` derived from a two-value `richtung` (`ausgabe` / `ruecknahme`), which made `verloren`, `gesperrt` and `vernichtet` unreachable through the derivation — and any manual `UPDATE` setting one of them was overwritten by the next handover's AFTER trigger. `CHECK (status <> 'verloren' OR verlust_gemeldet_am IS NOT NULL)` guarded a state the design could not enter, and SEC-07 key management is precisely about knowing that a key is lost, because that is the event that triggers a Schließanlagen-Austausch and a liability claim. `schluessel_ereignis_art` (§3.2) therefore covers every lifecycle event as an append-only, signed ledger row, and `refresh_schluessel_status()` derives `status`, `aktueller_besitzer_text` and `letzte_quittung_id` from the **last ledger row of any kind**. The three columns are a cache over the ledger, never an independent truth.
+**The ledger is the only source of truth for every state (review B12).** The draft declared `status` derived from a two-value `richtung` (`ausgabe` / `ruecknahme`), which made `verloren`, `gesperrt` and `vernichtet` unreachable through the derivation — and any manual `UPDATE` setting one of them was overwritten by the next handover's AFTER trigger. `CHECK (status <> 'verloren' OR verlust_gemeldet_am IS NOT NULL)` guarded a state the design could not enter, and SEC-07 key management is precisely about knowing that a key is lost, because that is the event that triggers a Schließanlagen-Austausch and a liability claim. `schluessel_ereignis_art` (§3.2) therefore covers every lifecycle event as an append-only, signed ledger row, and `refresh_schluessel_status()` derives `status`, `aktueller_besitzer_text` and `letzte_quittung_id` from the ledger. The three columns are a cache over the ledger, never an independent truth.
+
+**The mapping from the eight events to the five states is stated, not left to the reader.** "Derived from the last row" is not a rule while three of the eight events have no target state: after an `inventur` the derivation would have no defined answer, and after a `wiedergefunden` it is the difference between an open and a closed liability case. The table below **is** the body of `refresh_schluessel_status()`:
+
+| Ledger event | Resulting `schluessel_status` |
+|---|---|
+| `ausgabe` | `ausgegeben` — `aktueller_besitzer_text` from the receipt |
+| `ruecknahme` | `im_depot`, besitzer cleared |
+| `verlustmeldung` | `verloren`; `verlust_gemeldet_am` stamped in the same statement |
+| `wiedergefunden` | `im_depot` — the key is physically back. Issuing it again is a **new `ausgabe` row**, never an implicit side effect of finding it |
+| `sperrung` | `gesperrt` |
+| `entsperrung` | the state carried by the last **status-bearing** row *before* the `sperrung` this row lifts, named by `aufhebt_quittung_id` (§6.14) — unblocking a key that was out returns it to `ausgegeben`, not to the depot it never reached |
+| `vernichtung` | `vernichtet`, **terminal**: a trigger refuses any later ledger row for that key except `inventur` |
+| `inventur` | **status-neutral.** An inventory count is evidence that the key was seen, not a state change; the last status-bearing row keeps the status, and `letzte_quittung_id` still advances so the audit trail is complete |
+
+`// TODO(client): O-47 — Schließt ein Wiederauffinden den Haftungsfall automatisch, wenn der Schließanlagenaustausch nach der Verlustmeldung bereits beauftragt wurde, oder bleibt der Vorgang bis zur kaufmännischen Klärung offen (SEC-07)?` The *status* derivation above is deterministic either way; only the commercial consequence is open, and no job derives one until it is answered.
 
 - **Indexes:** `schluessel_objekt_idx on (mandant_id, objekt_id, status) where archiviert_am is null` · `schluessel_ausgegeben_idx on (mandant_id, status) where status = 'ausgegeben'` — "which keys are out".
 - **RLS:** standard, module `schluessel`; `p_intern_ceiling`.
@@ -1191,6 +1320,7 @@ The key ledger: who received, returned, lost, blocked or destroyed which key, wi
 | schluessel_id | uuid | no | — | composite FK |
 | objekt_id | uuid | no | — | denormalised, so the Wachbuch FK can be object-scoped |
 | art | schluessel_ereignis_art | no | — | §3.2 — every lifecycle event, not just two directions |
+| aufhebt_quittung_id | uuid | yes | — | self FK, composite `(mandant_id, aufhebt_quittung_id)`; **only for `entsperrung`**, naming the `sperrung` row it lifts, so §6.13's derivation can restore the state that preceded the block instead of guessing. `check ((art = 'entsperrung') = (aufhebt_quittung_id is not null))` |
 | empfaenger_art | schluessel_empfaenger_art | yes | — | only for `ausgabe`/`ruecknahme` |
 | anstellung_id | uuid | yes | — | composite FK |
 | person_id | uuid | yes | — | `foreign key (anstellung_id, person_id) references anstellung (id, person_id)` |
@@ -1211,8 +1341,8 @@ The key ledger: who received, returned, lost, blocked or destroyed which key, wi
 | erstellt_am · erstellt_von_art · erstellt_von · erstellt_von_person_id | | | | append-only |
 
 - **Indexes:** `quittung_schluessel_idx on (schluessel_id, quittiert_am desc)` — history and status derivation · `quittung_person_idx on (mandant_id, person_id) where person_id is not null` — "which keys does this employee hold" (the exit checklist) · `quittung_ueberfaellig_idx on (mandant_id, geplante_rueckgabe) where art = 'ausgabe' and geplante_rueckgabe is not null`.
-- **RLS:** standard, module `schluessel`; `p_ma_ceiling` on `anstellung_id` (own receipts in the portal). No `UPDATE` policy, no `DELETE` policy.
-- **Constraints/triggers:** `check ((empfaenger_art = 'mitarbeiter') = (anstellung_id is not null))`, and the analogous two for `kunde` and `fremdfirma`; `check (art in ('ausgabe','ruecknahme') = (empfaenger_art is not null))`; `gewerke.stempel_feldzeit()`; `kern.verhindere_loeschung()`; `BEFORE UPDATE` raises — a wrong entry is corrected by a counter-entry, never by overwriting.
+- **RLS:** standard, module `schluessel`; `p_ma_ceiling` on `anstellung_id` (own receipts in the portal) and `t_person` on the same predicate, which is what makes those receipts readable in `person` scope at all. No `UPDATE` policy, no `DELETE` policy.
+- **Constraints/triggers:** `check ((empfaenger_art = 'mitarbeiter') = (anstellung_id is not null))`, and the analogous two for `kunde` and `fremdfirma`; `check (art in ('ausgabe','ruecknahme') = (empfaenger_art is not null))`; the `aufhebt_quittung_id` check above, plus `pruefe_schluessel_terminal()` (BEFORE INSERT) refusing any row other than `inventur` for a key whose derived status is already `vernichtet`; `gewerke.stempel_feldzeit()`; `kern.verhindere_loeschung()`; `BEFORE UPDATE` raises — a wrong entry is corrected by a counter-entry, never by overwriting.
 - **SPEC:** SEC-05, SEC-07, TIM-08, TIM-09, LEG-01.
 
 ---
@@ -1239,13 +1369,13 @@ A construction project of REALTIME Service GmbH — Hochbau, Ausbau or Rückbau 
 | soll_beginn · soll_ende | date | yes | — | `check (soll_ende is null or soll_beginn is null or soll_ende >= soll_beginn)` |
 | ist_beginn · ist_ende | date | yes | — | |
 | auftragssumme_netto_cent | bigint | yes | — | integer cents; column-restricted with `lv_position.einheitspreis_cent` (§1.9) |
-| sicherheitseinbehalt_prozent | numeric(5,2) | yes | — | **no default.** `// TODO(client): Welcher Sicherheitseinbehalt ist üblich vereinbart, und wird er durch Bürgschaft abgelöst?` |
-| gewaehrleistung_bis | date | yes | — | **stored, never computed.** `// TODO(client): Gewährleistungsfrist je Vertragsart — VOB/B §13 Abs. 4 (4 Jahre) vs. BGB §634a (5 Jahre) —, und ab welchem Ereignis läuft sie?` |
+| sicherheitseinbehalt_prozent | numeric(5,2) | yes | — | **no default.** `// TODO(client): O-20 — Welcher Sicherheitseinbehalt ist üblich vereinbart, und wird er durch Bürgschaft abgelöst?` |
+| gewaehrleistung_bis | date | yes | — | **stored, never computed.** `// TODO(client): O-40 — Gewährleistungsfrist je Vertragsart — VOB/B §13 Abs. 4 (4 Jahre) vs. BGB §634a (5 Jahre) —, und ab welchem Ereignis läuft sie?` |
 | wetter_station_id | text | yes | — | FK → `wetter_station.id`; the DWD station resolved once, so BAU-08 stays reproducible |
 | archiviert_am · archiviert_von | timestamptz / uuid | yes | — | §1.3 |
 | *Auditblock* | | | | §1.2 |
 
-**`vertragsgrundlage` is `NOT NULL` with no default (review, INVENTED RULE).** The draft defaulted every project to `'vob_b'` while its own open question asked whether BGB construction contracts occur at all. VOB/B and BGB differ on Nachtragsanspruch (§2 VOB/B vs §650b/c BGB), Behinderung (§6 VOB/B), Abnahme (§12) and warranty period (4 vs 5 years) — the four things this schema models. Defaulting the legal regime while the question is open is exactly the "silently pick a plausible value for a legal rule" failure CLAUDE.md forbids. The choice is forced at project creation, and the column carries `// TODO(client): Kommen BGB-Bauverträge vor, oder ausschließlich VOB/B? Falls beides: woran erkennt die Bauleitung, welches Regime gilt?`
+**`vertragsgrundlage` is `NOT NULL` with no default (review, INVENTED RULE).** The draft defaulted every project to `'vob_b'` while its own open question asked whether BGB construction contracts occur at all. VOB/B and BGB differ on Nachtragsanspruch (§2 VOB/B vs §650b/c BGB), Behinderung (§6 VOB/B), Abnahme (§12) and warranty period (4 vs 5 years) — the four things this schema models. Defaulting the legal regime while the question is open is exactly the "silently pick a plausible value for a legal rule" failure CLAUDE.md forbids. The choice is forced at project creation, and the column carries `// TODO(client): O-39 — Kommen BGB-Bauverträge vor, oder ausschließlich VOB/B? Falls beides: woran erkennt die Bauleitung, welches Regime gilt?`
 
 **`freigegeben_vom_kunden` and `freigabe_dokument_id` are removed** — PRO-05 belongs to `referenz` (§2.2).
 
@@ -1384,6 +1514,12 @@ One line of the bill of quantities — Los, Titel, Untertitel, Position or Hinwe
 
 **APR-03 provenance is schema, not UI (review, MISSING).** APR-03 requires every extracted value to carry its source — page, table — and a confidence flag, with uncertain fields highlighted. `extrahiere_lv` (AGT-02) writes into this table, and without these five columns the approval screen cannot highlight anything, so the reviewer is approving unmarked machine output — which is what APR-08's rubber-stamping detector exists to catch. A row with `konfidenz` below the threshold and `geprueft_am is null` renders the DESIGN §5 `warning` pill and is excluded from batch approval (APR-04).
 
+**An unconfirmed machine-extracted price may not reach a billable document, and that is a constraint, not a UI convention (invariant 6, K-10).** `extrahiere_lv` writes `menge_vertrag` and `einheitspreis_cent`; FIN-08 multiplies them through `aufmass_zeile` into an invoice. A warning pill does not stop that path, so the rule is stated where it binds:
+
+> A `lv_position` that is **machine-extracted** (`konfidenz is not null`) and **unreviewed** (`geprueft_am is null`) may not be referenced by an `aufmass_zeile` on a sheet that leaves `entwurf`.
+
+Enforced by `pruefe_lv_geprueft()`, a `BEFORE UPDATE` trigger on `aufmass` that fires on the transition out of `entwurf` and raises, naming every offending OZ, and re-asserted by the pricing service before it dereferences a position. Manually entered positions carry `konfidenz is null` and are untouched by the rule — a human typing a price *is* the review. The gap is therefore structural rather than advisory: a machine-authored number cannot become an invoiced number without a named human having confirmed it (§14, test 13a).
+
 - **Indexes:** `lv_position_oz_uk unique (leistungsverzeichnis_id, oz)` · `lv_position_reihenfolge_idx on (leistungsverzeichnis_id, sortier_pfad)` — render the LV in order · `lv_position_teilbaum_idx on (leistungsverzeichnis_id, pfad text_pattern_ops)` — subtree by `pfad like '01.02.%'` (title sums, expand) · `lv_position_eltern_idx on (eltern_id)` · `lv_position_pruefung_idx on (mandant_id, leistungsverzeichnis_id) where geprueft_am is null` — the APR-03 review queue.
 - **RLS:** standard, module `bau`; `p_intern_ceiling`; column privileges of §1.9.
 - **Constraints/triggers:** `maintain_lv_pfad()` (BEFORE INSERT/UPDATE) derives `pfad`, `sortier_pfad`, `ebene` and `projekt_id` from `eltern_id`/`oz`/the head, rewrites the subtree on reparenting, and rejects a cycle (`eltern_id` may not lie inside the row's own `pfad`); `check (art = 'position' or einheitspreis_cent is null)` — only positions carry prices; `kern.verhindere_loeschung()`.
@@ -1414,11 +1550,11 @@ An Aufmaß sheet under §14 VOB/B — the jointly or unilaterally established qu
 | storniert_am · storniert_von · storno_grund · ersetzt_durch_id | | yes | — | §1.3 |
 | *Auditblock* | | | | §1.2 |
 
-**A one-sided Aufmaß is not "countersigned" (review B10).** The draft's trigger promoted the sheet to `gegengezeichnet` when the *contractor* signed and `erhebungsart = 'einseitig'`. The record then asserted that the Auftraggeber took part in the measurement when he did not, and `aufmass_abrechenbar_idx` fed those sheets straight into invoicing. BAU-03 requires countersignature; §14 Abs. 2 VOB/B permits a one-sided Aufmaß only under its own notice conditions, and it carries different evidentiary weight in a Werklohnprozess. Falsifying that distinction inside a frozen, hash-snapshotted record is worse than not recording it. `einseitig_festgestellt` is therefore a distinct terminal state, `gegengezeichnet` means the Auftraggeber signed, and the billing index covers both so invoicing still works while the service decides which is invoiceable. `// TODO(client): Unter welchen Voraussetzungen wird ein einseitiges Aufmaß abgerechnet — Ankündigungsfrist, Teilnahmeaufforderung, Widerspruchsfrist (§14 Abs. 2 VOB/B)? Bis zur Antwort stellt der Rechnungsservice einseitig festgestellte Blätter zur Einzelprüfung zurück statt sie automatisch einzubeziehen.`
+**A one-sided Aufmaß is not "countersigned" (review B10).** The draft's trigger promoted the sheet to `gegengezeichnet` when the *contractor* signed and `erhebungsart = 'einseitig'`. The record then asserted that the Auftraggeber took part in the measurement when he did not, and `aufmass_abrechenbar_idx` fed those sheets straight into invoicing. BAU-03 requires countersignature; §14 Abs. 2 VOB/B permits a one-sided Aufmaß only under its own notice conditions, and it carries different evidentiary weight in a Werklohnprozess. Falsifying that distinction inside a frozen, hash-snapshotted record is worse than not recording it. `einseitig_festgestellt` is therefore a distinct terminal state, `gegengezeichnet` means the Auftraggeber signed, and the billing index covers both so invoicing still works while the service decides which is invoiceable. `// TODO(client): O-42 — Unter welchen Voraussetzungen wird ein einseitiges Aufmaß abgerechnet — Ankündigungsfrist, Teilnahmeaufforderung, Widerspruchsfrist (§14 Abs. 2 VOB/B)? Bis zur Antwort stellt der Rechnungsservice einseitig festgestellte Blätter zur Einzelprüfung zurück statt sie automatisch einzubeziehen.`
 
 - **Indexes:** `aufmass_projekt_idx on (mandant_id, projekt_id, messdatum desc)` · `aufmass_abrechenbar_idx on (mandant_id, projekt_id, status) where status in ('gegengezeichnet','einseitig_festgestellt') and storniert_am is null` — invoice preparation (FIN-01 "unit price by Aufmaß", FIN-08) · `aufmass_offen_idx on (mandant_id, status) where status = 'vorgelegt'` — the "submitted, not countersigned" watchdog.
-- **RLS:** standard, module `bau`; `p_kunde_ceiling` with `kunde_id = app.aktueller_kunde() and status <> 'entwurf'`.
-- **Constraints/triggers:** `check (status not in ('gegengezeichnet','einseitig_festgestellt') or gesperrt_am is not null)`; `freeze_after_signature()`; `enforce_aufmass_fotopflicht()` refuses the transition to `vorgelegt` while no `aufmass_foto` with `zweck = 'nachweis'` exists (BAU-03); `kern.verhindere_loeschung()`.
+- **RLS:** standard, module `bau`; `p_kunde_ceiling` with `kunde_id = app.aktueller_kunde() and status <> 'entwurf'`, plus `t_kunde` on the same predicate. **Plus `p_ma_ceiling` on `aufgenommen_von_anstellung_id` (K-04).** The column makes this an anstellung-hung table, and K-04 admits no exception: with only the customer ceiling, any principal holding `bau.lesen` read every Aufmaß sheet of the mandant — quantities and customers, since §1.9 restricts only the prices. §1.7 additionally keeps `bau.lesen` out of the `mitarbeiter` grant, so the two defences are independent, and §1.8's build check now tests for `p_ma_ceiling` specifically rather than for *any* ceiling, which is how this table passed before.
+- **Constraints/triggers:** `check (status not in ('gegengezeichnet','einseitig_festgestellt') or gesperrt_am is not null)`; `freeze_after_signature()`; `enforce_aufmass_fotopflicht()` refuses the transition to `vorgelegt` while no `aufmass_foto` with `zweck = 'nachweis'` exists (BAU-03); `pruefe_lv_geprueft()` refuses the transition out of `entwurf` while any line references an unreviewed machine-extracted `lv_position` (§7.5); `denormalisiere_kopfstatus()` (AFTER UPDATE) propagates `status`, `storniert_am` and `aufgenommen_von_anstellung_id` to the three child tables; `kern.verhindere_loeschung()`.
 - **SPEC:** BAU-02, BAU-03, FIN-01, FIN-07, FIN-08, LEG-01.
 
 ### 7.7 aufmass_zeile
@@ -1431,6 +1567,9 @@ One measurement line: the **Rechenansatz as text**, exactly as the Polier wrote 
 | mandant_id | uuid | no | — | |
 | aufmass_id | uuid | no | — | composite FK |
 | projekt_id | uuid | no | — | denormalised from the head; the grandparent key |
+| **kunde_id** | uuid | no | — | composite FK, **trigger-maintained from the head** by `denormalisiere_kunde()` (§13.1). The draft's customer ceiling on this table was written against `kunde_id` while the column list did not contain it — the policy referenced a column that does not exist, so the migration itself would fail |
+| **kopf_status · kopf_gesperrt_am · kopf_storniert_am** | aufmass_status / timestamptz / timestamptz | no / yes / yes | — | the head's state, copied down by `denormalisiere_kopfstatus()`; the customer ceiling and `t_kunde` require `kopf_status <> 'entwurf'` and §1.8 forbids reading that through a subquery over the parent |
+| **kopf_aufgenommen_von_anstellung_id** | uuid | yes | — | copied from the head by the same trigger, so `p_ma_ceiling` can key on it without a join (§1.8) |
 | lv_position_id | uuid | yes | — | FK `(mandant_id, projekt_id, lv_position_id)` → `lv_position (mandant_id, projekt_id, id)` (§1.4) |
 | nachtrag_id | uuid | yes | — | composite FK |
 | ausserhalb_lv | boolean | no | `false` | BAU-05 |
@@ -1441,13 +1580,13 @@ One measurement line: the **Rechenansatz as text**, exactly as the Polier wrote 
 | parser_version | text | yes | — | which parser build produced the result |
 | menge | numeric(12,3) | no | — | result (`30.870`); a quantity, not money |
 | einheit | text | no | — | `check (btrim(einheit) <> '')`; equality with `lv_position.einheit` enforced by trigger (§1.4) |
-| uebermessung_hinweis | text | yes | — | `// TODO(client): Welche Übermessungsregeln (ATV je Gewerk, DIN 18299 ff.) sind vereinbart, und werden Öffnungen unter einer Grenzfläche übermessen?` |
+| uebermessung_hinweis | text | yes | — | `// TODO(client): O-23 — Welche Übermessungsregeln (ATV je Gewerk, DIN 18299 ff.) sind vereinbart, und werden Öffnungen unter einer Grenzfläche übermessen?` |
 | bemerkung | text | yes | — | |
 | *Auditblock* | | | | §1.2 |
 
 - **Indexes:** `aufmass_zeile_blatt_idx on (aufmass_id, reihenfolge)` · `aufmass_zeile_lv_idx on (mandant_id, lv_position_id) where lv_position_id is not null` — accumulated quantity per LV position (Mengenmehrung §2 Abs. 3, FIN-08) · `aufmass_zeile_bau05_idx on (mandant_id, aufmass_id) where ausserhalb_lv and nachtrag_id is null` — **the BAU-05 warning**: work outside the LV with no Nachtrag.
-- **RLS:** standard, module `bau`; `p_kunde_ceiling` via a denormalised `kunde_id`, `status <> 'entwurf'`.
-- **Constraints/triggers:** `check (lv_position_id is not null or ausserhalb_lv)` — a line hangs off an LV position or is explicitly marked as outside it. **No sign check on `menge`**: Rückbau and reduction lines are negative. `pruefe_einheit_gegen_lv()` (§1.4). `freeze_after_signature()` via the head; `kern.verhindere_loeschung()`.
+- **RLS:** standard, module `bau`; `p_kunde_ceiling` on the row's own `kunde_id` and `kopf_status <> 'entwurf'`; `p_ma_ceiling` via `kopf_aufgenommen_von_anstellung_id` (K-04, through the head); `t_kunde` with the customer predicate (§1.8).
+- **Constraints/triggers:** `check (lv_position_id is not null or ausserhalb_lv)` — a line hangs off an LV position or is explicitly marked as outside it. **No sign check on `menge`**: Rückbau and reduction lines are negative. `pruefe_einheit_gegen_lv()` (§1.4); `denormalisiere_kunde()` and `denormalisiere_kopfstatus()` (§13.1). `freeze_after_signature()` via the head; `kern.verhindere_loeschung()`.
 - **`menge = eval(rechenansatz)` is deliberately not a database constraint.** The parser lives in TypeScript, is enforced in the service, and is re-checked by a nightly job on the FIN-06 pattern. Divergences are **reported**, never silently corrected — a parser bugfix must not retroactively change quantities that have already been invoiced.
 - **SPEC:** BAU-02, BAU-05, FIN-07, FIN-08, LEG-01.
 
@@ -1461,6 +1600,8 @@ A measurement photograph: the visual backing of a measurement, mandatory for eve
 | mandant_id | uuid | no | — | |
 | aufmass_id | uuid | no | — | composite FK |
 | aufmass_zeile_id | uuid | yes | — | FK `(mandant_id, aufmass_id, aufmass_zeile_id)` (§1.4) |
+| **kunde_id** | uuid | no | — | composite FK, trigger-maintained from the head (`denormalisiere_kunde()`) — the same omission as §7.7: the customer ceiling named a column the table did not have |
+| **kopf_status · kopf_gesperrt_am · kopf_storniert_am · kopf_aufgenommen_von_anstellung_id** | | no / yes / yes / yes | — | the head state and author, copied down by `denormalisiere_kopfstatus()`; carry `p_kunde_ceiling` (`<> 'entwurf'`), `t_kunde` and `p_ma_ceiling` without a join (§1.8) |
 | medien_id | uuid | no | — | composite FK → `medien`; `unique (aufmass_id, medien_id)` |
 | zweck | aufmass_foto_zweck | no | `'nachweis'` | |
 | reihenfolge | smallint | no | `0` | |
@@ -1472,8 +1613,8 @@ A measurement photograph: the visual backing of a measurement, mandatory for eve
 | erstellt_am · erstellt_von_art · erstellt_von · erstellt_von_person_id | | | | append-only |
 
 - **Indexes:** `aufmass_foto_blatt_idx on (aufmass_id, reihenfolge)` · `aufmass_foto_zeile_idx on (aufmass_zeile_id) where aufmass_zeile_id is not null`.
-- **RLS:** standard, module `bau`; `p_kunde_ceiling` via the denormalised `kunde_id`.
-- **Constraints/triggers:** `gewerke.stempel_feldzeit()`; `kern.verhindere_loeschung()`; the photo obligation itself is enforced on `aufmass` by `enforce_aufmass_fotopflicht()`.
+- **RLS:** standard, module `bau`; `p_kunde_ceiling` on the row's own `kunde_id` and `kopf_status <> 'entwurf'`; `p_ma_ceiling` via `kopf_aufgenommen_von_anstellung_id`; `t_kunde` (§1.8).
+- **Constraints/triggers:** `gewerke.stempel_feldzeit()`; `denormalisiere_kunde()` and `denormalisiere_kopfstatus()`; `kern.verhindere_loeschung()`; the photo obligation itself is enforced on `aufmass` by `enforce_aufmass_fotopflicht()`.
 - **SPEC:** BAU-02, BAU-03, TIM-08, TIM-09, TIM-10, DOC-03, DOC-06, AGT-02.
 
 ### 7.9 aufmass_signatur
@@ -1486,6 +1627,7 @@ The signature on the Aufmaß sheet — with server time and an immutable copy of
 | mandant_id | uuid | no | — | |
 | aufmass_id | uuid | no | — | composite FK |
 | kunde_id | uuid | no | — | denormalised; customer ceiling |
+| kopf_status · kopf_storniert_am | aufmass_status / timestamptz | no / yes | — | the head state, copied down by `denormalisiere_kopfstatus()` — `p_kunde_ceiling` and `t_kunde` key on `kopf_status <> 'entwurf'` |
 | rolle | unterschrift_rolle | no | — | `unique (aufmass_id, rolle)` |
 | anstellung_id | uuid | yes | — | composite FK; set only for `auftragnehmer` (employee ceiling) |
 | unterzeichner_name | text | no | — | |
@@ -1500,8 +1642,8 @@ The signature on the Aufmaß sheet — with server time and an immutable copy of
 | erstellt_am · erstellt_von_art · erstellt_von · erstellt_von_person_id | | | | append-only |
 
 - **Indexes:** `aufmass_signatur_uk unique (aufmass_id, rolle)` · `aufmass_signatur_zeit_idx on (mandant_id, unterzeichnet_am desc)`.
-- **RLS:** standard, module `bau`; `INSERT`/`SELECT` only; `p_kunde_ceiling`, `p_ma_ceiling` for the contractor role.
-- **Constraints/triggers:** `gewerke.stempel_feldzeit()`. `setze_aufmass_status()` sets the head to **`gegengezeichnet` only when `rolle = 'auftraggeber'` is present**; a contractor-only signature on an `erhebungsart = 'einseitig'` sheet sets `einseitig_festgestellt`, and only when `ankuendigung_am` is set. `kern.verhindere_loeschung()`; `BEFORE UPDATE` raises.
+- **RLS:** standard, module `bau`; `INSERT`/`SELECT` only; `p_kunde_ceiling` (`kunde_id` + `kopf_status <> 'entwurf'`), `p_ma_ceiling` on `anstellung_id` for the contractor role, `t_person` and `t_kunde` per §1.8.
+- **Constraints/triggers:** `gewerke.stempel_feldzeit()`; `denormalisiere_kunde()` and `denormalisiere_kopfstatus()`. `setze_aufmass_status()` sets the head to **`gegengezeichnet` only when `rolle = 'auftraggeber'` is present**; a contractor-only signature on an `erhebungsart = 'einseitig'` sheet sets `einseitig_festgestellt`, and only when `ankuendigung_am` is set. `kern.verhindere_loeschung()`; `BEFORE UPDATE` raises.
 - **SPEC:** BAU-02, BAU-03, TIM-08, APR-07.
 
 ### 7.10 nachtrag
@@ -1516,7 +1658,7 @@ A Nachtrag under §2 VOB/B: changed or additional work — with the announcement
 | auftrag_id · auftrag_leistung_id | uuid | no / yes | — | composite FKs — `02-CRM-OPERATIONS.md` §3.2 |
 | nummer | text | no | — | `unique (projekt_id, nummer)` |
 | titel | text | no | — | |
-| grundlage | nachtrag_grundlage | no | — | the statute's own structure (§3.3). `// TODO(client): Kommen BGB-Bauverträge vor? Falls nein, entfällt `bgb_650b` per Migration` |
+| grundlage | nachtrag_grundlage | no | — | the statute's own structure (§3.3). `// TODO(client): O-39 — Kommen BGB-Bauverträge vor? Falls nein, entfällt `bgb_650b` per Migration` |
 | begruendung | text | no | — | `check (btrim(begruendung) <> '')` |
 | status | nachtrag_status | no | `'angemeldet'` | |
 | **angemeldet_am** | date | yes | — | announcement before execution begins (§2 Abs. 6 Nr. 1) — BAU-04 |
@@ -1586,7 +1728,7 @@ The site diary: one entry per site and calendar day with weather, Mannstunden, e
 | id | uuid | no | `gen_random_uuid()` | PK; `unique (mandant_id, id)` |
 | mandant_id | uuid | no | — | |
 | projekt_id | uuid | no | — | composite FK |
-| datum | date | no | — | Berlin calendar day (K-11); `unique (projekt_id, datum)`. `// TODO(client): Wird ein Bautagebuch je Baustelle oder je Bauabschnitt geführt? Bei Bauabschnitten braucht der Schlüssel eine dritte Spalte` |
+| datum | date | no | — | Berlin calendar day (K-11); `unique (projekt_id, datum)`. `// TODO(client): O-43 — Wird ein Bautagebuch je Baustelle oder je Bauabschnitt geführt? Bei Bauabschnitten braucht der Schlüssel eine dritte Spalte` |
 | arbeitsbeginn · arbeitsende | timestamptz | yes | — | UTC instants, displayed Berlin (invariant 2); `check (arbeitsende is null or arbeitsbeginn is null or arbeitsende > arbeitsbeginn)` |
 | status | bautagebuch_status | no | `'entwurf'` | |
 | wetter_quelle | bautagebuch_wetter_quelle | no | `'keine'` | BAU-08 |
@@ -1595,7 +1737,7 @@ The site diary: one entry per site and calendar day with weather, Mannstunden, e
 | temperatur_min_c · temperatur_max_c | numeric(4,1) | yes | — | |
 | niederschlag_mm | numeric(6,2) | yes | — | |
 | wetter_notiz | text | yes | — | manual observation |
-| arbeitsbehindernde_witterung | boolean | yes | — | `// TODO(client): Ab welchem Schwellenwert gilt Witterung als arbeitsbehindernd — Temperatur, Niederschlag, Windstärke, je Gewerk? Bis zur Antwort setzt kein Job dieses Feld; es ist ausschließlich manuell` |
+| arbeitsbehindernde_witterung | boolean | yes | — | `// TODO(client): O-44 — Ab welchem Schwellenwert gilt Witterung als arbeitsbehindernd — Temperatur, Niederschlag, Windstärke, je Gewerk? Bis zur Antwort setzt kein Job dieses Feld; es ist ausschließlich manuell` |
 | behinderung_id | uuid | yes | — | FK `(mandant_id, projekt_id, behinderung_id)` (§1.4) |
 | besondere_vorkommnisse · bemerkungen | text | yes | — | |
 | gegengezeichnet_von_name | text | yes | — | Bauleiter AG |
@@ -1624,8 +1766,8 @@ The day's man-hours, broken down by trade and by own crew or subcontractor — t
 | nachunternehmer_firma_id | uuid | yes | — | FK → `firma.id` (CRM domain, not tenant-bound) |
 | nachunternehmer_name | text | yes | — | name snapshot |
 | anzahl_personen | smallint | no | — | `check (anzahl_personen > 0)` |
-| stunden | numeric(8,2) | no | — | `check (stunden >= 0 and stunden <= 24)` — **a data-entry plausibility bound (a calendar day has 24 hours), explicitly not an ArbZG rule** (review, INVENTED RULE). ArbZG limits are 8h/10h, apply **per person aggregated across entities**, and are checked by `app.arbzg_belastung` under K-06 — never by a column check on a crew total that may legitimately count ten people |
-| mannstunden | numeric(10,2) | no | GENERATED | `generated always as (anzahl_personen * stunden) stored` — cannot diverge from its inputs |
+| dauer_minuten | integer | no | — | **a measured duration, therefore `integer` minutes with the unit in the name (K-16, K-16(c))** — the diary records hours that were actually worked on site, which is evidence, and K-16(c)'s fractional carve-out covers *computed targets* only. Renamed from the draft's `stunden numeric(8,2)`, which was neither integer nor unit-named. `check (dauer_minuten >= 0 and dauer_minuten <= 1440)` — **a data-entry plausibility bound (a calendar day has 1440 minutes), explicitly not an ArbZG rule** (review, INVENTED RULE). ArbZG limits are 8h/10h, apply **per person aggregated across entities**, and are checked by `app.arbzg_belastung` under K-06 — never by a column check on a crew figure that may legitimately count ten people |
+| mannstunden | numeric(10,2) | no | GENERATED | `generated always as (anzahl_personen * dauer_minuten / 60.0) stored` — a person-hour **quantity**, not a duration and not money (§1.1); it cannot diverge from its inputs, and the division is exact enough at scale 2 for the REP-05 roll-up |
 | taetigkeit · bereich | text | yes | — | |
 | *Auditblock* | | | | §1.2 |
 
@@ -1678,7 +1820,7 @@ The mandant's trade catalogue — Rohbau, Trockenbau, Elektro — as the referen
 
 - **Indexes:** the unique above · `gewerk_liste_idx on (mandant_id, sortierung) where archiviert_am is null`.
 - **RLS:** standard, module `bau`; `p_intern_ceiling`.
-- **Constraints/triggers:** `kern.setze_geaendert_am()`, `kern.verhindere_loeschung()`. Deliberately **not** an enum: the trade list changes with the project portfolio and must not require a migration — the same argument now applied consistently to `postenart`, `schluesselart` and `pruefverfahren` (§3.2, §3.4). `// TODO(client): Welche Gewerke werden im Bautagebuch geführt, und richtet sich die Liste nach STLB-Bau-Leistungsbereichen?` Until answered the catalogue ships empty and the UI shows „keine Gewerke hinterlegt".
+- **Constraints/triggers:** `kern.setze_geaendert_am()`, `kern.verhindere_loeschung()`. Deliberately **not** an enum: the trade list changes with the project portfolio and must not require a migration — the same argument now applied consistently to `postenart`, `schluesselart` and `pruefverfahren` (§3.2, §3.4). `// TODO(client): O-45 — Welche Gewerke werden im Bautagebuch geführt, und richtet sich die Liste nach STLB-Bau-Leistungsbereichen?` Until answered the catalogue ships empty and the UI shows „keine Gewerke hinterlegt".
 - **SPEC:** BAU-07, OPS-06, EMP-12.
 
 ### 7.16 wetter_station
@@ -1743,13 +1885,13 @@ The inspection-method catalogue, replacing the draft's single-value placeholder 
 | bezeichnung_i18n | jsonb | no | `'{}'` | EMP-12 |
 | beschreibung | text | yes | — | what the method actually requires |
 | max_punkte | numeric(8,2) | yes | — | the scale of the checklist; **no threshold column** |
-| bestehensschwelle_prozent | numeric(5,2) | yes | — | `// TODO(client): Welcher Erfüllungsgrad gilt als bestanden, und ist er vertraglich je Kunde vereinbart?` — NULL until answered, and `qualitaetspruefung.bestanden` stays NULL while it is |
+| bestehensschwelle_prozent | numeric(5,2) | yes | — | `// TODO(client): O-29 — Welcher Erfüllungsgrad gilt als bestanden, und ist er vertraglich je Kunde vereinbart?` — NULL until answered, and `qualitaetspruefung.bestanden` stays NULL while it is |
 | ist_platzhalter | boolean | no | `true` | §1.16 |
 | archiviert_am · archiviert_von | timestamptz / uuid | yes | — | §1.3 |
 | *Auditblock* | | | | §1.2 |
 
 - **RLS:** standard, module `qualitaet`; `p_intern_ceiling`.
-- **Placeholder.** `// TODO(client): Welches Prüfverfahren wird verwendet — DIN 13549 Annahmestichprobe, eigene Checkliste oder Kundenprotokoll?` The catalogue ships with one row `unbestimmt`, `ist_platzhalter = true`.
+- **Placeholder.** `// TODO(client): O-29 — Welches Prüfverfahren wird verwendet — DIN 13549 Annahmestichprobe, eigene Checkliste oder Kundenprotokoll?` The catalogue ships with one row `unbestimmt`, `ist_platzhalter = true`.
 - **SPEC:** OPS-11, CLN-01.
 
 ### 8.2 reklamation
@@ -1863,7 +2005,7 @@ The draft attached the trigger to `einsatz` and guarded it with `IF NEW.posten_i
 
 `einsatz` is the shift; `einsatz_zuordnung` is the assignment of one `anstellung` to it (§2.1, K-04). The gate belongs on the assignment: an unstaffed shift simply has no assignment rows, and `anstellung_id` is `NOT NULL` there, so the NULL path does not exist. `coalesce(ende_zeitpunkt, beginn_zeitpunkt)` handles an open-ended shift explicitly rather than letting NULL decide.
 
-**The gate is keyed on the work, not on a planning artefact (review B5).** §34a Abs. 1a GewO attaches to the deployment of a person in a Bewachungstätigkeit, not to the existence of a `posten` row in this database. SEC-08 event security is short-notice staffing where no permanent post is created; under the draft, a planner booking guards against an object or a bare shift bypassed the §34a check and the Bewacherregister check completely — an unlawful assignment the platform would not stop. §9.2 resolves the requirement set from four scopes in order, and a Bewachungseinsatz with no resolvable requirement set is **reported as ungeprüft**, never silently passed.
+**The gate is keyed on the work, not on a planning artefact (review B5).** §34a Abs. 1a GewO attaches to the deployment of a person in a Bewachungstätigkeit, not to the existence of a `posten` row in this database. SEC-08 event security is short-notice staffing where no permanent post is created; under the draft, a planner booking guards against an object or a bare shift bypassed the §34a check and the Bewacherregister check completely — an unlawful assignment the platform would not stop. §9.2 resolves the requirement set from four scopes in order, and a Bewachungseinsatz with no resolvable requirement set is **reported as ungeprüft**, never silently passed — as a stamped `anforderungen_gefunden = 0` in the proof column and a daily job that lists them, both specified in §9.5.
 
 ### 9.2 Layer 1 — the resolver and the service (authoritative, tested, good error messages)
 
@@ -1885,7 +2027,16 @@ $$;
 
 The four scopes are **additive, not a fallback chain**: a post requirement does not cancel the mandant-wide §34a baseline, because a baseline that could be switched off by creating a post would be no baseline at all.
 
-`src/server/services/dienstplan/assertQualifikation.ts` calls the gate before every write to `einsatz_zuordnung`, produces the human-readable error, and writes the result into `einsatz_zuordnung.qualifikation_geprueft_am` and `qualifikation_snapshot` — the list of requirements checked, the certificates found with their `gueltig_bis`, the Bewacherregister status, and the check instant.
+**The resolver needs its own read policy, or it fails open.** `einsatzanforderung` carries `ENABLE`/`FORCE ROW LEVEL SECURITY` and policies `to cse_app` only (§5 preamble, §6.6). `cse_definer` matches none of them, and `FORCE` removes the owner exemption — so without the policy below the function returns **zero rows**, `v_fehlend` in §9.3 stays empty, and the gate answers `'erfuellt': true` for every assignment ever made. That is the opposite failure mode from B3's: it is silent, it is permissive, and SEC-04/LEG-04 are simply not enforced.
+
+```sql
+create policy ea_definer on public.einsatzanforderung
+  for select to cse_definer using (true);
+```
+
+Declared here because this document owns the table; `01-KERN.md` §3.5's "no `cse_definer` policy outside this registry" test is extended to admit exactly this one (§2.3). The resolver reads **no other table of another domain**: it joins `einsatz` (registry addition, §2.3) and nothing else. In particular it no longer touches `qualifikation` — see §9.3.
+
+`src/server/services/dienstplan/assertQualifikation.ts` calls the gate before every write to `einsatz_zuordnung`, produces the human-readable error, and writes the result into `einsatz_zuordnung.qualifikation_geprueft_am` and `qualifikation_snapshot` — the list of requirements checked, **how many were found** (`anforderungen_gefunden`, §9.5), the certificates found with their `gueltig_bis`, the Bewacherregister status, and the check instant.
 
 ### 9.3 Layer 2 — database function plus constraint trigger (defence in depth)
 
@@ -1898,10 +2049,14 @@ declare
   v_stichtag date;
   v_fehlend  jsonb := '[]'::jsonb;
   v_bewachung boolean;
+  v_gefunden integer;
 begin
   select a.person_id into v_person from public.anstellung a where a.id = p_anstellung;
   select (e.beginn_zeitpunkt at time zone 'Europe/Berlin')::date      -- K-11, and 01-KERN §6.17
     into v_stichtag from public.einsatz e where e.id = p_einsatz;
+
+  -- 0. how many requirements resolved at all — 0 is a reportable state, not a pass (§9.5)
+  select count(*) into v_gefunden from app.qualifikationsanforderung(p_einsatz);
 
   -- 1. every mandatory requirement with geltung = 'jeder' must be covered at the shift date
   select coalesce(jsonb_agg(jsonb_build_object('qualifikation_id', a.qualifikation_id)), '[]'::jsonb)
@@ -1918,10 +2073,10 @@ begin
           and n.gueltig_ab <= v_stichtag
           and (n.gueltig_bis is null or n.gueltig_bis >= v_stichtag));
 
-  -- 2. SEC-03: a valid certificate is not enough if the register entry is gone
+  -- 2. SEC-03: a valid certificate is not enough if the register entry is gone.
+  --    Keyed on the BOOLEAN COLUMN, never on free text, and reading no second table (§6.6, §1.10).
   select exists (select 1 from app.qualifikationsanforderung(p_einsatz) a
-                   join public.qualifikation q on q.id = a.qualifikation_id
-                  where a.zwingend and q.rechtsgrundlage ilike '%34a%')
+                  where a.zwingend and a.bewacherregister_pflicht)
     into v_bewachung;
 
   if v_bewachung and not exists (
@@ -1936,36 +2091,53 @@ begin
 
   return jsonb_build_object('erfuellt', jsonb_array_length(v_fehlend) = 0,
                             'fehlend',  v_fehlend,
+                            'anforderungen_gefunden', v_gefunden,   -- §9.5
                             'stichtag', v_stichtag,
                             'geprueft_am', now());
 end $$;
 
-create function gewerke.erzwinge_einsatz_qualifikation() returns trigger
+-- (a) BEFORE: stamps the proof. A row trigger may only assign to NEW here.
+create function gewerke.stempel_einsatz_qualifikation() returns trigger
 language plpgsql as $$
-declare v_ergebnis jsonb;
 begin
   if new.abgesagt_am is not null then return new; end if;
-  v_ergebnis := app.einsatz_qualifikation_erfuellt(new.anstellung_id, new.einsatz_id);
-  if not (v_ergebnis->>'erfuellt')::boolean then
-    raise exception 'Zuweisung verletzt SEC-04/LEG-04: %', v_ergebnis->'fehlend'
-      using errcode = 'P0002';
-  end if;
-  new.qualifikation_geprueft_am := now();
-  new.qualifikation_snapshot    := v_ergebnis;
+  new.qualifikation_snapshot    := app.einsatz_qualifikation_erfuellt(new.anstellung_id,
+                                                                     new.einsatz_id);
+  new.qualifikation_geprueft_am := now();      -- server clock, invariant 5
   return new;
 end $$;
 
+create trigger a_einsatz_zuordnung_qualifikation_stempeln
+  before insert or update of anstellung_id, einsatz_id, abgesagt_am on einsatz_zuordnung
+  for each row execute function gewerke.stempel_einsatz_qualifikation();
+
+-- (b) AFTER, constraint: re-reads the stamped proof and refuses. Assigns nothing.
+create function gewerke.erzwinge_einsatz_qualifikation() returns trigger
+language plpgsql as $$
+begin
+  if new.abgesagt_am is not null then return null; end if;
+  if not (new.qualifikation_snapshot->>'erfuellt')::boolean then
+    raise exception 'Zuweisung verletzt SEC-04/LEG-04: %', new.qualifikation_snapshot->'fehlend'
+      using errcode = 'P0002';
+  end if;
+  return null;
+end $$;
+
 create constraint trigger einsatz_zuordnung_qualifikation
-  after insert or update of anstellung_id, einsatz_id on einsatz_zuordnung
+  after insert or update of anstellung_id, einsatz_id, abgesagt_am on einsatz_zuordnung
   deferrable initially immediate
   for each row execute function gewerke.erzwinge_einsatz_qualifikation();
 ```
 
-**Both functions are `SECURITY DEFINER` (review B3).** A trigger function runs as the invoker and is subject to RLS, aggravated by this domain's own `FORCE ROW LEVEL SECURITY`. The reviewer's stated failure — that a planner in `security` cannot see a certificate filed by `reinigung` — is not quite the failure that would occur: `01-KERN.md` §6.17 makes `nachweis` visible wherever `app.person_sichtbar(person_id)` holds and `erfasst_von_mandant_id` explicitly does **not** control visibility, so a cross-entity certificate is readable by design. The real failure is narrower and just as bad: a caller who does not hold `personal.nachweis_lesen` in the active mandant — a planner without the personnel module, a `cse_job` backfill, a console session — reads zero `nachweis` rows, the `NOT EXISTS` matches, and **every** assignment is refused. It fails closed, which is safe, and it blocks lawful assignments across the board, which is not acceptable. Running as `cse_definer` decouples the compliance check from the caller's read rights entirely; `EXECUTE` is granted to `cse_app` and `cse_job` and to nothing else, and §2.3 requires `nachweis`, `bewacher_eintrag`, `einsatz` and `einsatz_zuordnung` in the `01-KERN.md` §3.5 definer read registry.
+**Two triggers, because one cannot do both jobs (review).** A *constraint* trigger is always `AFTER`, and an `AFTER` row trigger's assignments to `NEW` are discarded — the row is already written. The draft's single constraint trigger therefore stamped `qualifikation_geprueft_am` and `qualifikation_snapshot` into a record that Postgres throws away, so both columns stayed NULL, and §9.4's `CHECK` then rejected **exactly the paths this section exists to cover**: a backfill, a migration script or a console `INSERT`. The service path appeared to work only because §9.2's TypeScript writes the two columns itself — so the database-level proof the section advertised did not exist, and its absence was invisible from the application. Split as above, the `BEFORE` trigger owns the stamp (and overwrites whatever the statement supplied, invariant 5) and the deferrable constraint trigger only reads it back and raises. Test: an `einsatz_zuordnung` inserted by raw SQL with no service involvement comes out with both proof columns populated (§14, test 15a).
+
+**Both functions are `SECURITY DEFINER` (review B3).** A trigger function runs as the invoker and is subject to RLS, aggravated by this domain's own `FORCE ROW LEVEL SECURITY`. The reviewer's stated failure — that a planner in `security` cannot see a certificate filed by `reinigung` — is not quite the failure that would occur: `01-KERN.md` §6.17 makes `nachweis` visible wherever `app.person_sichtbar(person_id)` holds and `erfasst_von_mandant_id` explicitly does **not** control visibility, so a cross-entity certificate is readable by design. The real failure is narrower and just as bad: a caller who does not hold `personal.nachweis_lesen` in the active mandant — a planner without the personnel module, a `cse_job` backfill, a console session — reads zero `nachweis` rows, the `NOT EXISTS` matches, and **every** assignment is refused. It fails closed, which is safe, and it blocks lawful assignments across the board, which is not acceptable. Running as `cse_definer` decouples the compliance check from the caller's read rights entirely; `EXECUTE` is granted to `cse_app` and `cse_job` and to nothing else. **But `SECURITY DEFINER` alone reads nothing under FORCE RLS:** the definer must additionally hold a read policy on every table involved, or the check silently returns "no requirement, no problem". §2.3 therefore requires `nachweis`, `bewacher_eintrag`, `mandant_einstellung`, `einsatz` and `einsatz_zuordnung` in the `01-KERN.md` §3.5 registry, and §9.2 declares `ea_definer` on this domain's own `einsatzanforderung`. The two failure directions are worth naming together: without the definer, the gate refuses lawful assignments (fails closed, loudly); without the definer's read policies, it permits unlawful ones (fails open, silently). Both are covered by tests 11 and 11a.
 
 **SEC-03 is part of the gate, and the draft omitted it entirely (review, MISSING).** §34a GewO requires the guard to be entered in the Bewacherregister and the employer to verify it. A person can hold a valid Sachkunde certificate and still be barred — a negative Zuverlässigkeitsüberprüfung, a withdrawn registration. Checking `nachweis` alone would have scheduled a guard whose registration was revoked.
 
-**The validity window against the shift date.** The predicate is `n.gueltig_bis >= v_stichtag` where `v_stichtag` is the **Berlin calendar date of the shift start** — the rule `01-KERN.md` §6.17 already states, adopted verbatim rather than reinvented. The draft required validity through the shift *end*, which is stricter than SEC-04's wording and refuses a lawful assignment when a certificate expires at midnight of a night shift. `// TODO(client): Ein §34a-Nachweis, der um Mitternacht während einer Nachtschicht abläuft — darf die begonnene Schicht zu Ende geführt werden, oder ist die Zuweisung ab Ablauf unzulässig (SEC-04, LEG-04)?` Until answered the shift-start rule applies and the shift-end case is reported as a warning in the Dienstplan rather than blocked.
+**And the obligation is a column, not a string match.** The draft resolved it with `qualifikation.rechtsgrundlage ilike '%34a%'` — free text typed by whoever entered the requirement. „§ 34 a GewO", „Sachkundeprüfung nach GewO" or a trailing space each switch the register check off silently, on the one control that exists to catch a barred guard; and the read of `qualifikation` was itself a cross-domain definer read with no policy behind it (§1.10). (For the record: `qualifikation.rechtsgrundlage text` *does* exist — `01-KERN.md` §6.16 declares it, and §2.1's contract row simply never asked for it. The defect was never a missing column; it was resolving a statutory obligation by pattern-matching a free-text field, and doing so across a domain boundary the definer had no read policy for.) `einsatzanforderung.bewacherregister_pflicht boolean` (§6.6) replaces both: the rule is machine-readable, the free-text `rechtsgrundlage` stays for display, and the gate reads one table fewer. Test 12a asserts that a §34a requirement entered with a differently spelled `rechtsgrundlage` still triggers the register check.
+
+**The validity window against the shift date.** The predicate is `n.gueltig_bis >= v_stichtag` where `v_stichtag` is the **Berlin calendar date of the shift start** — the rule `01-KERN.md` §6.17 already states, adopted verbatim rather than reinvented. The draft required validity through the shift *end*, which is stricter than SEC-04's wording and refuses a lawful assignment when a certificate expires at midnight of a night shift. `// TODO(client): O-35 — Ein §34a-Nachweis, der um Mitternacht während einer Nachtschicht abläuft — darf die begonnene Schicht zu Ende geführt werden, oder ist die Zuweisung ab Ablauf unzulässig (SEC-04, LEG-04)?` Until answered the shift-start rule applies and the shift-end case is reported as a warning in the Dienstplan rather than blocked.
 
 A `CHECK` cannot do any of this: `CHECK` must be immutable and may not read other tables, so the expression is necessarily a trigger. The trigger also fires on backfills, scripts and console access that bypass the service.
 
@@ -1991,6 +2163,15 @@ create constraint trigger einsatz_mindestbesetzung_qualifikation
 
 At transaction end it counts, per shift, the assignments holding each `mindestens_einer` requirement and raises when the count is below `mindestanzahl`. Until it ships, `einsatzanforderung` carries the interim `check (not zwingend or geltung = 'jeder')` of §6.6, so a hard §34a requirement can never be entered in a form the row trigger does not enforce (review, MINOR). The Dienstplan renders the same evaluation as a TIM-05 conflict.
 
+### 9.5 "Ungeprüft" is a recorded state, not a sentence in a document
+
+§9.1 promises that a Bewachungseinsatz with no resolvable requirement set is **reported as ungeprüft, never silently passed**, and §6.6 repeats it in German. A promise with no carrier is worse than no promise, because it reads as a control in a review — and here it would have covered **the default state of the system**: §16 row e ships the mandant-wide baseline deliberately **empty** until the client answers, so today *every* SEC-08 event assignment resolves zero requirements and the gate returns `'erfuellt': true`. The promise is therefore given two artefacts:
+
+1. **A field in the proof.** `app.einsatz_qualifikation_erfuellt` returns `anforderungen_gefunden` (step 0 in §9.3), which is stamped into `einsatz_zuordnung.qualifikation_snapshot` by the `BEFORE` trigger. `anforderungen_gefunden = 0` is therefore a permanent, per-assignment record that the check ran and found nothing to check — distinguishable in every later audit from "checked and passed".
+2. **A job that reads it.** `job:einsatz_ungeprueft` (daily, §13.2) lists every future `einsatz_zuordnung` with `abgesagt_am is null` and `(qualifikation_snapshot->>'anforderungen_gefunden')::int = 0` in a mandant whose `mandant.module` contains `security`, and raises it on the SPEC §14 watchdog surface with the DESIGN §5 `warning` pill "Einsatz ungeprüft". It **reports and never blocks** — blocking would make the empty baseline unstaffable and would itself be an invented rule.
+
+The gate answers `erfuellt` only about the requirements that exist; the report answers whether any existed. Test: an assignment against an object with no requirement row is insertable **and** appears in the report (§14, test 14a).
+
 ---
 
 ## 10. Why the structure looks like this
@@ -2007,7 +2188,7 @@ At transaction end it counts, per shift, the assignments holding each `mindesten
 
 `aufmass_zeile` holds `rechenansatz` (text), `rechenansatz_ast` (parsed) and `menge` (result). Storing only the result takes the auditor's ability to follow it — BAU-02 explicitly demands both. Storing only the formula moves evaluation into every read, so a parser bugfix retroactively changes historical, already-invoiced quantities. Hence both, plus `parser_version`, plus a nightly recomputation job that **reports** divergences rather than correcting them.
 
-Quantities are `numeric(12,3)`, not an integer-cents analogue: the scale depends on the unit and quantities are not added the way money is. Money is `bigint` cents without exception — and **products of quantity × unit price are stored nowhere**. The rounding rule is a commercial decision and belongs in a tested function in `server/services/`, not in a generated column that nobody recognises as a rounding rule three years later (invariants 1 and 6). The one generated column in this domain, `bautagebuch_mannstunden.mannstunden`, is not money and not a price: it is `anzahl_personen × stunden`, a definition rather than a decision.
+Quantities are `numeric(12,3)`, not an integer-cents analogue: the scale depends on the unit and quantities are not added the way money is. Money is `bigint` cents without exception — and **products of quantity × unit price are stored nowhere**. The rounding rule is a commercial decision and belongs in a tested function in `server/services/`, not in a generated column that nobody recognises as a rounding rule three years later (invariants 1 and 6). The one generated column in this domain, `bautagebuch_mannstunden.mannstunden`, is not money and not a price: it is `anzahl_personen × dauer_minuten ÷ 60`, a definition rather than a decision — and the duration it multiplies is `integer` minutes, because a diary hour is a *measured* duration and K-16(c)'s fractional carve-out covers computed targets only (§1.1, §7.13).
 
 ### 10.4 A signature means a snapshot, not a join
 
@@ -2063,6 +2244,7 @@ The complete inventory. A schema test walks `information_schema` and fails on a 
 | `leistungsnachweis_position (mandant_id, leistungsnachweis_id)` | `leistungsnachweis` | `unique (mandant_id, id)` |
 | `leistungsnachweis_position (mandant_id, auftrag_leistung_id, zeiteintrag_id)` | `zeiteintrag` | **`unique (mandant_id, auftrag_leistung_id, id)`** |
 | `leistungsnachweis_position (mandant_id, aufmass_zeile_id)` | `aufmass_zeile` | `unique (mandant_id, id)` |
+| `leistungsnachweis_position (mandant_id, kunde_id)` · `leistungsnachweis_signatur (mandant_id, kunde_id)` | `kunde` | `unique (mandant_id, id)` |
 | `leistungsnachweis_signatur (mandant_id, leistungsnachweis_id)` | `leistungsnachweis` | `unique (mandant_id, id)` |
 | `posten (mandant_id, objekt_id \| auftrag_leistung_id \| postenart_id \| dienstanweisung_id)` | each | `unique (mandant_id, id)` |
 | `posten_ausnahme (mandant_id, posten_id)` | `posten` | `unique (mandant_id, id)` |
@@ -2081,6 +2263,7 @@ The complete inventory. A schema test walks `information_schema` and fails on a 
 | `wachbuch_eintrag (anstellung_id, person_id)` | `anstellung` | **`unique (id, person_id)`** |
 | `schluessel (mandant_id, objekt_id \| schluesselart_id \| letzte_quittung_id)` | each | `unique (mandant_id, id)` |
 | `schluessel_quittung (mandant_id, schluessel_id \| anstellung_id \| kunde_id \| signatur_medien_id)` | each | `unique (mandant_id, id)` |
+| `schluessel_quittung (mandant_id, aufhebt_quittung_id)` | `schluessel_quittung` (self, `entsperrung` → the `sperrung` it lifts, §6.14) | `unique (mandant_id, id)` |
 | `schluessel_quittung (mandant_id, objekt_id, wachbuch_eintrag_id)` | `wachbuch_eintrag` | **`unique (mandant_id, objekt_id, id)`** |
 | `schluessel_quittung (anstellung_id, person_id)` | `anstellung` | **`unique (id, person_id)`** |
 | `projekt (mandant_id, auftrag_id \| kunde_id \| objekt_id)` | each | `unique (mandant_id, id)` |
@@ -2090,9 +2273,9 @@ The complete inventory. A schema test walks `information_schema` and fails on a 
 | `leistungsverzeichnis (mandant_id, projekt_id \| nachtrag_id \| ausschreibung_id \| quelle_dokument_id)` | each | `unique (mandant_id, id)` |
 | `lv_position (mandant_id, leistungsverzeichnis_id \| auftrag_leistung_id \| eltern_id)` | each | `unique (mandant_id, id)` |
 | `aufmass (mandant_id, projekt_id \| kunde_id \| auftrag_leistung_id \| leistungsverzeichnis_id \| aufgenommen_von_anstellung_id)` | each | `unique (mandant_id, id)` |
-| `aufmass_zeile (mandant_id, aufmass_id \| nachtrag_id)` | each | `unique (mandant_id, id)` |
+| `aufmass_zeile (mandant_id, aufmass_id \| nachtrag_id \| kunde_id)` | each | `unique (mandant_id, id)` |
 | `aufmass_zeile (mandant_id, projekt_id, lv_position_id)` | `lv_position` | **`unique (mandant_id, projekt_id, id)`** |
-| `aufmass_foto (mandant_id, aufmass_id \| medien_id)` | each | `unique (mandant_id, id)` |
+| `aufmass_foto (mandant_id, aufmass_id \| medien_id \| kunde_id)` | each | `unique (mandant_id, id)` |
 | `aufmass_foto (mandant_id, aufmass_id, aufmass_zeile_id)` | `aufmass_zeile` | **`unique (mandant_id, aufmass_id, id)`** |
 | `aufmass_signatur (mandant_id, aufmass_id \| kunde_id \| anstellung_id \| signatur_medien_id)` | each | `unique (mandant_id, id)` |
 | `nachtrag (mandant_id, projekt_id \| auftrag_id \| auftrag_leistung_id \| freigabe_id)` | each | `unique (mandant_id, id)` |
@@ -2109,6 +2292,8 @@ The complete inventory. A schema test walks `information_schema` and fails on a 
 
 Deliberate single-column FKs, and why: `*.firma_id` (the parent carries no `mandant_id` by design, `02-CRM-OPERATIONS.md` §4.1), `einsatzanforderung.qualifikation_id` (platform-wide catalogue, §2.1), `*_benutzer_id` / `erstellt_von` / `geaendert_von` (identity is platform-wide), `wetter_beobachtung.station_id` and `projekt.wetter_station_id` (global reference data, §7.16).
 
+**The `kopf_*` columns carry no foreign key at all, and that is deliberate.** `kopf_status`, `kopf_gesperrt_am`, `kopf_storniert_am` and `kopf_aufgenommen_von_anstellung_id` (§5.7, §5.8, §7.7, §7.8, §7.9) are trigger-maintained *copies of a value*, not references: the row's identity link to its head is already the composite FK on `leistungsnachweis_id` / `aufmass_id`, and a second FK on the copied author would let the copy and the head disagree while both remained valid. Their integrity is asserted differently — by `denormalisiere_kopfstatus()` on both sides of the relationship, and by a nightly schema test that finds any child whose copy differs from its head. The schema test of §12's opening paragraph is taught to skip `kopf_*` so a denormalised copy is not reported as a missing composite FK.
+
 ---
 
 ## 13. Triggers, functions and jobs
@@ -2122,8 +2307,10 @@ Deliberate single-column FKs, and why: `*.firma_id` (the parent carries no `mand
 | `kern.erzwinge_serverzeit()` | BEFORE INSERT / UPDATE | the columns listed in §1.11 | invariant 5 |
 | `gewerke.stempel_feldzeit()` | BEFORE INSERT | the seven field-capture tables of §1.11 | invariant 5, TIM-08, TIM-09 |
 | `a_wachbuch_eintrag_vorbereiten()` | BEFORE INSERT | `wachbuch_eintrag` | one function: server time → `jahr` → `nummernkreis` lock → `laufnummer` → chain head → `hash`. Named with a leading `a_` and it is the **only** BEFORE INSERT trigger on the table, so alphabetical firing order cannot reorder its steps (review B9) |
-| `refresh_schluessel_status()` | AFTER INSERT | `schluessel_quittung` | derives `schluessel.status` from the last ledger row of any kind (review B12) |
-| `gewerke.erzwinge_einsatz_qualifikation()` | AFTER INSERT/UPDATE, constraint, immediate | `einsatz_zuordnung` | §9.3 |
+| `refresh_schluessel_status()` | AFTER INSERT | `schluessel_quittung` | derives `schluessel.status` from the ledger, per the event→status table of §6.13; `inventur` is status-neutral, `vernichtung` terminal (review B12) |
+| `pruefe_schluessel_terminal()` | BEFORE INSERT | `schluessel_quittung` | refuses any event but `inventur` after `vernichtung` (§6.14) |
+| `gewerke.stempel_einsatz_qualifikation()` | **BEFORE** INSERT/UPDATE | `einsatz_zuordnung` | §9.3 — stamps `qualifikation_geprueft_am` / `qualifikation_snapshot`. It must be BEFORE: an AFTER trigger's assignment to `NEW` is discarded |
+| `gewerke.erzwinge_einsatz_qualifikation()` | AFTER INSERT/UPDATE, constraint, immediate | `einsatz_zuordnung` | §9.3 — re-reads the stamped proof and raises; assigns nothing |
 | `gewerke.pruefe_schicht_qualifikation()` | AFTER, constraint, **deferred** | `einsatz_zuordnung` | §9.4, `geltung = 'mindestens_einer'` |
 | `pflege_da_pflicht()` | AFTER INSERT/UPDATE | `einsatz_zuordnung`, `posten` | maintains `da_pflicht` rows it owns (K-14 pattern) |
 | `oeffne_kenntnisnahme_pflicht()` | AFTER UPDATE | `dienstanweisung_version` | re-opens obligations on publication when configured (§6.7) |
@@ -2138,7 +2325,9 @@ Deliberate single-column FKs, and why: `*.firma_id` (the parent carries no `mand
 | `pruefe_einheit_gegen_lv()` | BEFORE INSERT/UPDATE | `aufmass_zeile` | §1.4 |
 | `pruefe_qualifikation_mandant()` | BEFORE INSERT/UPDATE | `einsatzanforderung` | §2.1 |
 | `maintain_lv_pfad()` | BEFORE INSERT/UPDATE | `lv_position` | path, sort path, depth, `projekt_id`, cycle guard |
-| `denormalisiere_kunde()` | BEFORE INSERT/UPDATE | `leistungsnachweis_position`, `leistungsnachweis_signatur`, `aufmass_zeile`, `aufmass_foto`, `aufmass_signatur`, `abnahme_mangel`, `qualitaetspruefung_position` | copies `kunde_id` from the head so the customer ceiling needs no subquery (§1.8) |
+| `pruefe_lv_geprueft()` | BEFORE UPDATE | `aufmass` | refuses the transition out of `entwurf` while a line references a machine-extracted, unreviewed `lv_position` (§7.5, invariant 6, K-10) |
+| `denormalisiere_kunde()` | BEFORE INSERT/UPDATE | `leistungsnachweis_position`, `leistungsnachweis_signatur`, `aufmass_zeile`, `aufmass_foto`, `aufmass_signatur`, `abnahme_mangel`, `qualitaetspruefung_position` | copies `kunde_id` from the head so the customer ceiling needs no subquery (§1.8). **Every table it names now actually carries the column** — `aufmass_zeile` and `aufmass_foto` did not, so the policy that keyed on it could not be created (§7.7, §7.8) |
+| `denormalisiere_kopfstatus()` | BEFORE INSERT/UPDATE on the child, **AFTER UPDATE on the head** | children: `leistungsnachweis_position`, `leistungsnachweis_signatur`, `aufmass_zeile`, `aufmass_foto`, `aufmass_signatur` · heads: `leistungsnachweis`, `aufmass` | copies `kopf_status`, `kopf_gesperrt_am`, `kopf_storniert_am` and (for the Aufmaß children) `kopf_aufgenommen_von_anstellung_id` down, and re-propagates them when the head changes. Without it the customer ceilings' `status`/`storniert_am` clause has nothing on the child to key on, and a customer either sees draft positions or nothing at all (§1.8) |
 | `app.protokolliere()` | AFTER INSERT/UPDATE | `leistungsnachweis`, `aufmass`, `nachtrag`, `behinderung`, `abnahme`, `einsatzanforderung`, `dienstanweisung_version`, `schluessel_quittung`, `wachbuch_eintrag`, `projekt`, `lv_position` | SEC-A9, LEG-01. `bautagebuch_position` and `revier_raum` are logged at head granularity, so a 400-row import does not write 400 chained audit rows |
 
 ### 13.2 Scheduled jobs
@@ -2156,6 +2345,7 @@ Deliberate single-column FKs, and why: `*.firma_id` (the parent carries no `mand
 | `job:ln_unsigniert` | daily | Leistungsnachweis submitted and unsigned | CLN-04, FIN-18 |
 | `job:schluessel_ueberfaellig` | daily | keys past `geplante_rueckgabe` | SEC-07 |
 | `job:kontrollpunkt_luecke` | daily | patrol entries with no checkpoint match, on objects where checkpoints are enabled; reports, never blocks (§6.11, §6.12) | SEC-05 |
+| `job:einsatz_ungeprueft` | daily | future assignments whose `qualifikation_snapshot` carries `anforderungen_gefunden = 0` in a mandant with the `security` module — the SEC-08 "ungeprüft" report of §9.5; reports, never blocks | SEC-04, SEC-08, LEG-04, SPEC §14 |
 | `job:aufbewahrung` | weekly | computes `aufbewahrung_bis` from the class; deletes nothing | §1.14, LEG-09 |
 
 All jobs run as `cse_job` with per-job grants (K-01) and record a `job_lauf` row.
@@ -2169,10 +2359,12 @@ Nothing here is optional; each line names the failure it prevents.
 **Tenancy and authorization (SEC-A3, highest priority)**
 1. For each of the 43 tables: a user of mandant A gets **404, not 403** on every entity of mandant B (AUT-06, K-02).
 2. A `kunde` session reads its own `leistungsnachweis` rows and **zero** rows of `projekt`, `lv_position`, `wachbuch_eintrag`, `nachtrag`, `bautagebuch` belonging to another customer — the regression test for review B1.
-3. A `mitarbeiter` session reads its own `da_kenntnisnahme` and `wachbuch_eintrag` rows and **zero** `einheitspreis_cent`, `auftragssumme_netto_cent` or colleague rows (EMP-13, §1.9).
+3. A `mitarbeiter` session reads its own `da_kenntnisnahme` and `wachbuch_eintrag` rows — **which requires `wachbuch.lesen` in the `mitarbeiter` grant** (§1.7), and the test fails if the right is withheld, because a ceiling cannot grant — and **zero** `einheitspreis_cent`, `auftragssumme_netto_cent`, `aufmass` or colleague rows (EMP-13, §1.9).
+3a. **K-18 both portals, the test the two-scope draft could not have passed.** `/portal/mein` under `withPersonScope` returns the guard's own `wachbuch_eintrag`, `da_kenntnisnahme` and `schluessel_quittung` rows **across both of their employments** with `app.mandant_id` NULL; `/portal/kunde` under `withKundeScope` returns the customer's `leistungsnachweis` and `projekt` rows across all four areas. Both are then re-run with `app.scope = 'gruppe'` and must return **zero** rows, since neither principal holds `gruppe.*.lesen` — which is exactly what routing these portals through group scope would have produced silently.
+3b. A `kunde` session reads **no** `leistungsnachweis_position`, `aufmass_zeile` or `aufmass_foto` of a head still in `entwurf`, in `mandant` **and** in `kunde` scope — the regression test for the missing `kunde_id` and `kopf_status` columns (§7.7, §7.8).
 4. With `app.uebergabe_fenster()` at its default of zero, a guard reads **no** colleague Wachbuch entry; with a configured window, exactly the entries inside it.
 5. An unset session (no GUCs) reads zero rows from every table, never all rows (K-02 fail-closed).
-6. A write attempted under `app.scope = 'gruppe'` is refused by the database on every table (invariant 10, K-03).
+6. A write attempted under `app.scope = 'gruppe'`, `'person'` or `'kunde'` is refused by the database on every table — `app.aktiver_mandant()` is NULL in all three, so every `WITH CHECK` is false and no policy matches (invariant 10, K-03, K-18).
 7. `EMP-09`: an employee assigned to object X reads the published Dienstanweisung of X and not that of object Y — and the test runs with `objekt` closed to the `mitarbeiter` role, which is what makes it a regression test for review B16.
 8. A `DELETE` against every table in the domain raises `P0001`, executed as `cse_app` **and** as the table owner (review B2, K-01 `FORCE`).
 
@@ -2180,10 +2372,15 @@ Nothing here is optional; each line names the failure it prevents.
 9. An expired §34a certificate at the shift's Berlin start date → the `einsatz_zuordnung` INSERT fails.
 10. A guard employed in both `reinigung` and `security`, certificate filed by `reinigung`, planner session in `security` → the check **sees** it and the assignment succeeds (D-09, §9.3).
 11. The same case with a caller who does **not** hold `personal.nachweis_lesen` → still succeeds, because the gate runs as `cse_definer` (review B3).
+11a. **The fail-open direction.** A caller holding **no** `security.lesen` at all assigns a person with a missing certificate → the insert is still **refused**. Without `ea_definer` on `einsatzanforderung` (§9.2) the resolver returns zero rows under FORCE RLS, the gate answers `erfuellt`, and this test is the only thing that notices.
 12. A valid certificate plus a `bewacher_eintrag` with `status <> 'registriert'` → the assignment fails (SEC-03).
+12a. The same §34a requirement entered with `rechtsgrundlage` spelled „§ 34 a GewO" (or left NULL) but `bewacherregister_pflicht = true` → the register check still fires; and with `bewacherregister_pflicht = false` it does not, whatever the free text says (§6.6, §9.3).
 13. **An unstaffed generated post shift is insertable** and appears in the "tomorrow unstaffed" watchdog (review B4, TIM-03, SEC-08).
+13a. An `aufmass` referencing an `lv_position` with `konfidenz IS NOT NULL AND geprueft_am IS NULL` cannot leave `entwurf`; the same sheet succeeds once the line is confirmed, and a hand-entered position (`konfidenz IS NULL`) is never blocked (§7.5, invariant 6, K-10).
 14. An `einsatz` with `posten_id IS NULL` against an object carrying a mandant-wide §34a requirement → the gate fires (review B5, SEC-08).
+14a. An assignment against an object with **no** requirement row is insertable, its `qualifikation_snapshot` carries `anforderungen_gefunden = 0`, and it appears in `job:einsatz_ungeprueft` — the §9.5 report, on the system's shipped default state.
 15. An `einsatz_zuordnung` cannot exist with `qualifikation_geprueft_am IS NULL` unless `abgesagt_am` is set (§9.4).
+15a. **The proof columns are written by the database, not by the service.** An `einsatz_zuordnung` inserted by raw SQL — no service, no application code — comes out with `qualifikation_geprueft_am` and `qualifikation_snapshot` populated, and a client-supplied `qualifikation_geprueft_am` is discarded. This fails against the draft's single AFTER constraint trigger, whose assignment to `NEW` was thrown away (§9.3).
 
 **Money and time (CLAUDE.md: before any scheduling UI)**
 16. 22:00–06:00 → 480 minutes.
@@ -2197,18 +2394,23 @@ Nothing here is optional; each line names the failure it prevents.
 **Evidence integrity**
 23. Aufmaß parser: `"3 × (4,20 × 2,75) − 2 × (0,90 × 2,10)"` → `30.870`, with the formula text preserved byte-for-byte and `parser_version` recorded.
 24. Wachbuch chain: N entries across a **year boundary** verify as one unbroken chain; the first entry of the new year references the last of the old (review B9).
-25. Two concurrent inserts for the same `(mandant, objekt)` cannot produce two rows with the same `vorheriger_hash` (`wachbuch_kette_uk`).
+25. Two concurrent inserts for the same `(mandant, objekt)` cannot produce two rows with the same `vorheriger_hash` (`wachbuch_kette_uk`) — **and two concurrent *first* entries for one object cannot both anchor the chain with `vorheriger_hash IS NULL`**, which the default distinct-NULL unique would have allowed (§6.12).
 26. `UPDATE leistungsnachweis SET leistungszeitraum_bis = … WHERE gesperrt_am IS NOT NULL` raises; `UPDATE wachbuch_eintrag SET eintragstext = …` raises.
+26a. **`kern.erzwinge_serverzeit()`, three branches, six columns.** For each of `leistungsnachweis.vorgelegt_am`, `leistungsnachweis.gesperrt_am`, `aufmass.gesperrt_am`, `bautagebuch.abgeschlossen_am`, `bautagebuch.gegengezeichnet_am` and `dienstanweisung_version.veroeffentlicht_am`: the NULL→value transition **succeeds** and carries the server instant; a client-supplied instant on that transition is **discarded**; a second change to the now non-null value **raises**, as does setting it back to NULL. Without the first branch, no Leistungsnachweis can be submitted and no Bautagebuch closed (§1.11).
+26b. A key ledger walked through `ausgabe → sperrung → entsperrung` ends at `ausgegeben`, not `im_depot`; an `inventur` row after an `ausgabe` leaves the status `ausgegeben` and still advances `letzte_quittung_id`; a `wiedergefunden` after a `verlustmeldung` yields `im_depot`; and any row but `inventur` after `vernichtung` raises (§6.13, §6.14).
 27. A contractor-only signature on an `erhebungsart = 'einseitig'` sheet yields `einseitig_festgestellt`, **never** `gegengezeichnet`, and only when `ankuendigung_am` is set (review B10).
 28. A second Fassung of a Nachtrags-LV is insertable and the first survives unchanged (review B11).
-29. A `verlustmeldung` ledger row sets `schluessel.status = 'verloren'`, and a subsequent `ausgabe` for a different key does not reset it (review B12).
+29. A `verlustmeldung` ledger row sets `schluessel.status = 'verloren'`, and a subsequent `ausgabe` for a different key does not reset it (review B12). The full event→status mapping of §6.13 is covered by test 26b.
 30. `behinderung` cannot reach `status = 'angezeigt'` without `freigabe_id` and `freigegeben_am` (review B13, invariant 7).
 31. `aufmass_zeile` cannot reference an `lv_position` of another project, and its `einheit` must match the position's (review B14).
 32. `INSERT INTO reklamation` succeeds — the regression test for the trigger that referenced a non-existent `geraete_zeit` column (review B15).
 
 **Migration and schema**
 33. Every migration applies to an empty database and to the seeded one; `turnus_generator_idx` in particular creates without error (review B7).
-34. A schema test fails on any single-column FK into a table carrying `mandant_id` (§12), and on any table in this domain without a K-04 ceiling (§1.8).
+34. A schema test fails on any single-column FK into a table carrying `mandant_id` (§12, `kopf_*` copies excepted by name), on any table in this domain carrying none of the five ceilings, and — separately — on any **anstellung- or person-hung** table carrying anything other than `p_ma_ceiling` (§1.8, K-04). The second assertion is what `aufmass` failed.
+34a. A schema test asserts that every column of a column-restricted table (`lv_position`, `leistungsnachweis_position`) is either granted to `cse_app` or named after `-- OMITTED:` in the grant comment, so a new column can never become silently unreadable (§1.9, K-05).
+34b. A schema test asserts `pg_policies` contains no `cse_definer` policy in this domain other than `ea_definer` on `einsatzanforderung`, and that every table read by a `SECURITY DEFINER` helper of §1.10 is covered either by that policy or by the `01-KERN.md` §3.5 registry.
+34c. A schema test asserts **no column in this domain matches `%mikrocent%`** and every `%_cent` column is `bigint` — K-16(b) permits micro-cents only in agent cost accounting, which is not this domain.
 35. A schema test fails on any `CHECK` or index predicate containing `now()`, `current_date` or `current_timestamp` (§1.13).
 36. No `wachbuch_eintrag` or `da_kenntnisnahme` column matches `%breitengrad%` or `%laengengrad%` (review B8, LEG-10) — the test exists so the columns cannot quietly return.
 
@@ -2222,11 +2424,12 @@ Realistic Berlin data, per mandant, exercising every path above:
 - Two Turnusse — Unterhaltsreinigung `FREQ=WEEKLY;BYDAY=MO,WE,FR`, Glasreinigung `FREQ=MONTHLY;INTERVAL=3` — plus one `turnus_ausnahme` of each kind, including **two `zusatz` rows on the same day** (the §5.4 regression).
 - One `sonderleistung` (Warenräumung) from call-off to signed Leistungsnachweis.
 - A 24/7 `posten` with two `einsatzanforderung` rows (§34a Sachkunde, Ersthelfer), one `posten_ausnahme`, and **one generated shift with no assignment at all** — the unstaffed case of test 13.
-- One `veranstaltung` with a mandant-wide §34a requirement and no post — the SEC-08 case of test 14.
+- One `veranstaltung` with a mandant-wide §34a requirement (`bewacherregister_pflicht = true`, `rechtsgrundlage` deliberately spelled „§ 34 a GewO" so test 12a proves the check no longer depends on the text) and no post — the SEC-08 case of test 14 — **plus a second event with no requirement row at all**, whose assignment carries `anforderungen_gefunden = 0` and appears in `job:einsatz_ungeprueft` (test 14a, §9.5).
 - **A person employed in both `reinigung` and `security`**, whose §34a certificate is filed by `reinigung` and must be visible to the security planner's session (test 10), with a valid `bewacher_eintrag`.
 - A published `dienstanweisung` with two versions, `da_pflicht` rows for four employments, and Kenntnisnahmen for three of them, so "who is still missing" returns exactly one.
 - Ten `wachbuch_eintrag` rows with an intact hash chain **spanning 31 December → 1 January** (test 24), including one `rundgang` with a `kontrollpunkt` match and one `schluessel` entry paired with a `schluessel_quittung`.
-- A key set with a full ledger: issue, return, loss report, blocking.
+- A key set with a full ledger exercising the §6.13 mapping end to end: `ausgabe → ruecknahme → ausgabe → sperrung → entsperrung` (which must land back on `ausgegeben`, not `im_depot`), one `inventur` row that changes no status, and a second key `verlustmeldung → wiedergefunden`.
+- **One customer with rows in two mandanten** — a signed `leistungsnachweis` in `reinigung` and a `projekt` in `bau` — so the CRM-06 customer portal under `withKundeScope` has something to span, and one `aufmass` left in `entwurf` whose lines must stay invisible to them (test 3b).
 - A construction project with a three-level LV (Los → Titel → Position) including an OZ with a letter suffix, `konfidenz` values on the extracted lines and one unreviewed line.
 - Two Aufmaß sheets — one `gegengezeichnet`, one `einseitig_festgestellt` with `ankuendigung_am` — with photos and the BAU-02 worked example as a line.
 - One announced and one submitted Nachtrag with two LV Fassungen; one approved and dispatched Behinderungsanzeige with its `freigabe`.
@@ -2240,43 +2443,48 @@ Migration order: enums and catalogue tables → `feiertag`, `wetter_station` →
 
 ## 16. Open questions this document raises
 
-Every one is a `// TODO(client)` in the text above and belongs in `DECISIONS.md` under **Open** (K-17). None is answered here.
+Every one is a `// TODO(client)` in the text above and belongs in `DECISIONS.md` under **Open** (K-17). None is answered here. **Every row carries an O-number**, because `pnpm lint:todo` matches a `// TODO(client)` against a `DECISIONS.md` row and an unnumbered question can never be matched. Rows marked *(new)* are proposed here and must be added to `DECISIONS.md`; the others already exist and are referenced, not re-raised.
 
-| # | Question | Blocks |
+| O | Question | Blocks |
 |---|---|---|
-| a | Werden an Feiertagen ausgefallene Turnusse vorgezogen oder nachgeholt, oder entfallen sie ersatzlos? | `turnus_feiertagsregel`, CLN-03 |
-| b | Wird ein ausgefallener Turnus bei Monatspauschale gutgeschrieben, und mit welchem Betrag? | `turnus_ausnahme.abrechnungsrelevant`, FIN-01 |
-| c | Sollen Leistungsnachweise fortlaufend und lückenlos nummeriert sein, und ab welchem Schritt wird die Nummer vergeben? | `leistungsnachweis.nummer`, `nummernkreis` |
-| d | Welche Postenarten und welche Schlüsselarten werden geführt? | `postenart`, `schluesselart`, SEC-01, SEC-07 |
-| e | Welche Qualifikationsanforderung gilt für Bewachungseinsätze ohne festen Posten (Veranstaltung, Springer)? | `einsatzanforderung` scope `mandant`, SEC-08 |
-| f | Darf eine begonnene Nachtschicht zu Ende geführt werden, wenn der §34a-Nachweis um Mitternacht abläuft? | §9.3, SEC-04 |
-| g | Welche Wachbuch-Einträge darf die Folgeschicht zur Übergabe sehen, und für welchen Zeitraum? | `app.uebergabe_fenster()`, SEC-05, EMP-13 |
-| h | Fordert ein Auftraggebervertrag einen Präsenznachweis je Rundgang, und in welcher Form? | `kontrollpunkt`, SEC-05, LEG-10 |
-| i | Muss eine neue Fassung einer Dienstanweisung von allen erneut bestätigt werden, oder nur bei wesentlicher Änderung? | `dienstanweisung.neue_version_oeffnet_pflicht`, SEC-06 |
-| j | Kommen BGB-Bauverträge vor, oder ausschließlich VOB/B — und woran erkennt die Bauleitung, welches Regime gilt? | `projekt.vertragsgrundlage`, `nachtrag_grundlage` |
-| k | Gewährleistungsfrist je Vertragsart und ab welchem Ereignis sie läuft; üblicher Sicherheitseinbehalt und Ablösung durch Bürgschaft | `projekt.gewaehrleistung_bis`, `sicherheitseinbehalt_prozent` |
-| l | Welche LV-Positionsarten kommen vor, und wie geht jede in die Auftragssumme ein? | `lv_positionsart`, FIN-01 |
-| m | Unter welchen Voraussetzungen wird ein einseitiges Aufmaß abgerechnet (§14 Abs. 2 VOB/B)? | `aufmass_status.einseitig_festgestellt`, FIN-08 |
-| n | Welche Übermessungsregeln (ATV je Gewerk) sind vereinbart? | `aufmass_zeile.uebermessung_hinweis`, BAU-02 |
-| o | Wird ein Bautagebuch je Baustelle oder je Bauabschnitt geführt? | `bautagebuch` unique key, BAU-07 |
-| p | Ab welchem Schwellenwert gilt Witterung als arbeitsbehindernd, je Gewerk? | `bautagebuch.arbeitsbehindernde_witterung`, BAU-06 |
-| q | Welche Gewerke werden im Bautagebuch geführt (STLB-Bau-Leistungsbereiche)? | `gewerk`, BAU-07 |
-| r | Welches Prüfverfahren wird verwendet, und welcher Erfüllungsgrad gilt als bestanden? | `pruefverfahren`, OPS-11 |
-| s | Welche Reaktions- und Behebungsfrist gilt je Reklamationspriorität (Vertrags-SLA)? | `reklamation.faellig_am`, NOT-01 |
-| t | Welche Tabelle führt Materialverbrauch, damit FIN-07 seine vierte Quelle bekommt? | `leistungsnachweis_position.materialverbrauch_id`, FIN-07 |
-| u | Bestätigte Aufbewahrungsfrist und Rechtsgrundlage je Datenklasse dieser Domäne | §11, LEG-09, DOC-07 |
+| **O-30** *(new)* | Werden an Feiertagen ausgefallene Turnusse vorgezogen oder nachgeholt, oder entfallen sie ersatzlos? | `turnus_feiertagsregel`, CLN-03 |
+| **O-31** *(new)* | Wird ein ausgefallener Turnus bei Monatspauschale gutgeschrieben, und mit welchem Betrag? | `turnus_ausnahme.abrechnungsrelevant`, FIN-01 |
+| **O-32** *(new)* | Sollen Leistungsnachweise fortlaufend und lückenlos nummeriert sein, und ab welchem Schritt wird die Nummer vergeben? | `leistungsnachweis.nummer`, `nummernkreis` |
+| **O-33** *(new)* | Welche Postenarten und welche Schlüsselarten werden geführt? | `postenart`, `schluesselart`, SEC-01, SEC-07 |
+| **O-34** *(new)* | Welche Qualifikationsanforderung gilt für Bewachungseinsätze ohne festen Posten (Veranstaltung, Springer)? | `einsatzanforderung` scope `mandant`, SEC-08 — until answered, §9.5 reports every such assignment as ungeprüft |
+| **O-35** *(new)* | Darf eine begonnene Nachtschicht zu Ende geführt werden, wenn der §34a-Nachweis um Mitternacht abläuft? | §9.3, SEC-04 |
+| **O-36** *(new)* | Welche Wachbuch-Einträge darf die Folgeschicht zur Übergabe sehen, und für welchen Zeitraum? | `app.uebergabe_fenster()`, SEC-05, EMP-13 (Betriebsrat selbst: O-06) |
+| **O-37** *(new)* | Fordert ein Auftraggebervertrag einen Präsenznachweis je Rundgang, und in welcher Form (NFC, QR, Barcode)? | `kontrollpunkt`, SEC-05, LEG-10 (Betriebsrat selbst: O-06) |
+| **O-38** *(new)* | Muss eine neue Fassung einer Dienstanweisung von allen erneut bestätigt werden, oder nur bei wesentlicher Änderung — und wer entscheidet das? | `dienstanweisung.neue_version_oeffnet_pflicht`, SEC-06 |
+| **O-39** *(new)* | Kommen BGB-Bauverträge vor, oder ausschließlich VOB/B — und woran erkennt die Bauleitung, welches Regime gilt? | `projekt.vertragsgrundlage`, `nachtrag_grundlage` |
+| **O-40** *(new)* | Gewährleistungsfrist je Vertragsart (VOB/B §13 Abs. 4 vs. BGB §634a) und ab welchem Ereignis sie läuft | `projekt.gewaehrleistung_bis`, §7.2 |
+| O-20 | Sicherheitseinbehalt und Ablösung durch Bürgschaft — already tracked | `projekt.sicherheitseinbehalt_prozent` |
+| **O-41** *(new)* | Welche LV-Positionsarten kommen vor, und wie geht jede in die Auftragssumme ein? | `lv_positionsart`, FIN-01 |
+| **O-42** *(new)* | Unter welchen Voraussetzungen wird ein einseitiges Aufmaß abgerechnet (§14 Abs. 2 VOB/B)? | `aufmass_status.einseitig_festgestellt`, FIN-08 |
+| O-23 | Übermessungs- und VOB/C-Abzugsregeln (ATV je Gewerk) — already tracked | `aufmass_zeile.uebermessung_hinweis`, BAU-02 |
+| **O-43** *(new)* | Wird ein Bautagebuch je Baustelle oder je Bauabschnitt geführt? | `bautagebuch` unique key, BAU-07 |
+| **O-44** *(new)* | Ab welchem Schwellenwert gilt Witterung als arbeitsbehindernd, je Gewerk? | `bautagebuch.arbeitsbehindernde_witterung`, BAU-06 |
+| **O-45** *(new)* | Welche Gewerke werden im Bautagebuch geführt (STLB-Bau-Leistungsbereiche)? | `gewerk`, BAU-07 |
+| O-29 | Prüfverfahren, Skala und Bestehensschwelle — already tracked | `pruefverfahren`, `qualitaetspruefung.bestanden`, OPS-11 |
+| O-14 | Reaktions- und Behebungsfrist je Priorität (Vertrags-SLA) — already tracked | `reklamation.faellig_am`, NOT-01 |
+| **O-46** *(new)* | Welche Tabelle führt Materialverbrauch, damit FIN-07 seine vierte Quelle bekommt? | `leistungsnachweis_position.materialverbrauch_id`, FIN-07 |
+| **O-47** *(new)* | Schließt ein Wiederauffinden den Haftungsfall, wenn der Schließanlagenaustausch bereits beauftragt ist? | `schluessel_ereignis_art.wiedergefunden`, §6.13, SEC-07 |
+| O-25 | Bestätigte Aufbewahrungsfristen je Datenklasse — already tracked | §11, LEG-09, DOC-07 |
 
-Already tracked elsewhere and referenced here rather than re-raised: **O-06** (Betriebsrat → LEG-10 → the geolocation setting of §5.8, §6.11, §6.12, §7.8), **O-04** (the five billing types → `sonderleistung`, `abrechnungsart`), **O-05** (DATEV → `erloeskonto_schluessel` on the consumed `auftrag_leistung`).
+Further questions tracked elsewhere and referenced rather than re-raised: **O-06** (Betriebsrat → LEG-10 → the geolocation setting of §5.8, §6.11, §6.12, §7.8), **O-04** (the five billing types → `sonderleistung`, `abrechnungsart`), **O-05** (DATEV → `erloeskonto_schluessel` on the consumed `auftrag_leistung`), **O-17** (Leistungswerte je Belagsart → `revier_raum.leistungswert_qm_pro_stunde`).
 
 ---
 
 ## 17. Cross-document notes
 
-1. **`01-KERN.md` §3.5** must add `nachweis`, `bewacher_eintrag`, `einsatz` and `einsatz_zuordnung` to the `cse_definer` read registry, for §9.3.
-2. **`01-KERN.md` §4** — no new enum required; `akteur_art`, `nachweis_status`, `bewacher_status`, `sprache` are imported unchanged. The §34a gate depends on `nachweis_status` containing the literal `'gueltig'`.
+1. **`01-KERN.md` §3.5** must add `nachweis`, `bewacher_eintrag`, **`mandant_einstellung`**, `einsatz` and `einsatz_zuordnung` to the `cse_definer` read registry, for §9.3 and §1.10 — and its enumeration test ("no `cse_definer` policy outside this registry") must additionally admit **`ea_definer` on `einsatzanforderung`**, which this document declares in §9.2 because it owns the table. Both halves matter: the registry entries without the policy, or the policy without the registry test change, and the SEC-04 gate either reads nothing or fails the schema test.
+2. **`01-KERN.md` §4** — no new enum required; `akteur_art`, `nachweis_status`, `bewacher_status`, `sprache`, `audit_ebene` are imported unchanged. The §34a gate depends on `nachweis_status` containing the literal `'gueltig'`.
+2a. **`01-KERN.md` §3.2 and the CRM/Finanzen documents** must supply the `kunde` branch of `app.sichtbare_mandanten()` (today `false` by design). Every `t_kunde` policy of §1.8 keys on that array; until it exists the customer portal reads zero rows of this domain, which is the correct fail-closed state and is stated here so it is not mistaken for a bug in these tables (§2.3).
+2b. **`03-AUTH-BERECHTIGUNGEN.md`** must carry the §1.7 role/right matrix — `mitarbeiter` **holds** `wachbuch.lesen`/`wachbuch.schreiben`, `dienstanweisung.lesen`, `schluessel.lesen`, `security.lesen` and **does not hold** `bau.lesen`. Under K-03 a ceiling narrows and never grants, so this allocation decides whether a guard can read the book they wrote.
 3. **`02-CRM-OPERATIONS.md`** must declare `unique (mandant_id, objekt_id, id)` on `raum` and `unique (mandant_id, auftrag_id, id)` on `auftrag_leistung`, for the grandparent keys of §1.4. `objekt` and `auftrag_leistung` otherwise already declare what §2.1 requires.
 4. **The Dienstplan/Zeit document** owns `einsatz`, `einsatz_zuordnung`, `zeiteintrag`, `planungsserie` and `medien` and must declare the columns and uniques of §2.1 — in particular `einsatz_zuordnung.qualifikation_geprueft_am` / `qualifikation_snapshot`, `unique (mandant_id, objekt_id, id)` on `einsatz`, and `unique (mandant_id, auftrag_leistung_id, id)` on `zeiteintrag`.
 5. **The finance document** must key `nummernkreis` on `(mandant_id, kreis_typ, kontext_id, jahr)` (§2.3).
 6. **`01-ORDNERSTRUKTUR.md` §4.9** places `reklamation` and `qualitaetspruefung` in `zeit.ts`; this document specifies them because they are cross-trade quality records rather than scheduling records, and they are listed here as an intentional divergence to be resolved in one direction before the Phase 5 migration — the file placement, not the schema, is what differs.
 7. **`docs/DESIGN.md`** must gain the status-pill labels of §3.5 before any trade screen renders them.
-8. **`DECISIONS.md` § Open** must gain the twenty-one questions of §16; `pnpm lint:todo` fails until it does.
+8. **`DECISIONS.md` § Open** must gain the eighteen newly proposed questions of §16 — **O-30 … O-47** — with the numbers exactly as §16 assigns them; the remaining six rows there (O-14, O-20, O-23, O-25, O-29 and O-06) already exist and are referenced, not re-raised. `pnpm lint:todo` fails until the new rows are present, because every `// TODO(client)` in this document now names its O-number.
+9. **The Dienstplan/Zeit document** must additionally state that `einsatz_zuordnung.qualifikation_snapshot` carries `anforderungen_gefunden integer` inside its JSON (§9.5) and that the two proof columns are written by the **BEFORE** trigger of §9.3, not by the application — a document that specifies them as service-written columns would re-open the hole §9.4's `CHECK` exists to close.
