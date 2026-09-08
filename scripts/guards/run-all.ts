@@ -108,7 +108,14 @@ function wacheTodoClient(): void {
   const bekannt = new Set(
     [...register.matchAll(/^\|\s*(O-\d{1,3})\s*\|/gmu)].map((m) => m[1] ?? ''),
   );
-  const zuPruefen = [...dateien('src', ['.ts', '.tsx']), ...dateien('scripts', ['.ts'])].filter(
+  const zuPruefen = [
+    ...dateien('src', ['.ts', '.tsx']),
+    ...dateien('scripts', ['.ts']),
+    // Migrations too. `0001` and `0002` each raise a real client question in a
+    // SQL comment, and a question the guard cannot see is a question that can
+    // fall out of the register without anything noticing.
+    ...dateien('drizzle', ['.sql']),
+  ].filter(
     // The scanner is not scanned: this file names the marker in order to look
     // for it, and a guard that trips over its own documentation is a guard
     // people disable.

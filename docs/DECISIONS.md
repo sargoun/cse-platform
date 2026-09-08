@@ -307,6 +307,64 @@ Verified against a production build with no flag: `/dev/kitchensink` answers 404
 while `/healthz` answers 200. Both the flag logic and the `robots.txt` rule are
 tested — the two are belt and braces, not alternatives.
 
+### D-21 · Invariant 8 covers `TRUNCATE`, not only `DELETE`
+
+The `BEFORE DELETE` trigger of K-16 is a **row** trigger. `TRUNCATE` empties a
+table without producing rows, fires no row trigger, and is therefore a hard
+delete of everything that walks straight past the protection written to stop
+one. Every delete-locked table carries a second, statement-level
+`BEFORE TRUNCATE` trigger on the same function.
+
+Two consequences worth stating rather than discovering:
+
+- A `BEFORE DELETE` trigger has nothing to fire on in an **empty** table, so
+  `DELETE FROM audit_log` there succeeds having deleted nothing. That is not a
+  hole, but it does mean the acceptance test has to write a row first — a test
+  against an empty table would have passed with no trigger at all.
+- The test harness can no longer reset by emptying tables. It uses
+  `session_replication_role = replica`, which is superuser-only (no application
+  role can reach it) and explicit. It must be set with `SET LOCAL` inside one
+  transaction: on a pooled connection a plain `SET` and its `RESET` can land on
+  two different connections and leave one in replica mode for the rest of the
+  run, at which point triggers silently stop firing on whichever queries happen
+  to pick it. That is how this was found — as a missing audit row and a
+  `geaendert_am` the caller was allowed to keep.
+
+### D-22 · The audit payload is restricted by column grant, exactly as the wage rate is
+
+`0004` granted `SELECT` on `audit_log` table-wide. Until PR 4 that leaked
+nothing, because no trigger wrote a payload. From PR 4 on, `vorher`/`nachher`
+carry the changed values themselves — including `stundensatz_intern`, the one
+column K-05 spends an explicit column-list grant on `anstellung` to withhold.
+A table-wide grant on `audit_log` hands the same number back one statement
+later, and every K-05 test still passes while it does.
+
+`05-API-KARTE.md` §B settles the direction: **sensitive values are restricted,
+not omitted** — omitting them makes a wage-rate change unreconstructable, which
+is the opposite of what SEC-A9 and a wage dispute need. So the values are
+written and the *read* is gated:
+
+- `cse_app` holds an explicit column-list `SELECT` on `audit_log` that omits
+  `vorher` and `nachher`. `geaendert_felder` stays granted: *that* a rate
+  changed is not the secret.
+- `app.audit_nutzlast_lesen(bigint)` returns the payload behind
+  `system.audit_sensitiv_lesen`, re-checking the tenant because a definer is
+  not subject to the policy.
+- The same Postgres fact as K-05 applies and is why this is a grant and not a
+  revoke: a table-wide `GRANT SELECT` followed by `REVOKE SELECT (spalte)`
+  changes nothing at all.
+
+### D-23 · `app.hat_recht` exists now and answers `false` to everything
+
+The rights catalogue lands with PR 6, but two accessors need the gate before
+then. `app.hat_recht(text)` is created in `0005` returning `false` for every
+key. That is not a stub standing in for the real answer — it **is** the answer
+D-17 requires: an unregistered right key is permanent, silent denial. A version
+returning `true` while the catalogue is missing would leave every accessor
+behind it open, and the day the catalogue arrived would be the day the platform
+quietly narrowed. Failing closed makes the missing catalogue visible as an
+empty screen instead.
+
 ---
 
 ## Carried over from the Phase 0 review — not client questions

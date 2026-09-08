@@ -60,6 +60,24 @@ export async function alsApp<T>(
   }) as Promise<T>;
 }
 
+/**
+ * Run a callback as an arbitrary role, with no session GUCs bound.
+ *
+ * PR 4's first acceptance is about roles rather than tenants — `DELETE` has to
+ * fail for `cse_app`, for `cse_job` and for the owner, and the three fail for
+ * three different reasons. A helper that only ever produced `cse_app` would
+ * make the other two untestable.
+ */
+export async function alsRolle<T>(
+  rolle: string,
+  fn: (tx: postgres.TransactionSql) => Promise<T>,
+): Promise<T> {
+  return sql.begin(async (tx) => {
+    if (rolle !== '') await tx.unsafe(`set local role ${rolle}`);
+    return fn(tx);
+  }) as Promise<T>;
+}
+
 export interface Fixtur {
   readonly reinigung: string;
   readonly security: string;
@@ -74,62 +92,72 @@ export interface Fixtur {
   readonly jonasReinigung: string;
 }
 
-/** Seeds the four areas and the D-09 case, as the owner (migrations do this). */
+/**
+ * Seeds the four areas and the D-09 case, as the owner (migrations do this).
+ *
+ * PR 4 locks the registered tables against `DELETE` **and** `TRUNCATE`, so the
+ * harness can no longer reset by emptying them — which is the point of
+ * invariant 8 and not a problem to route around. `session_replication_role =
+ * replica` is the one escape, and it is the right one: superuser-only, so no
+ * application role can reach it, and explicit, so a reader sees exactly where
+ * the protection was stood down and for how long.
+ *
+ * It runs in ONE transaction with `SET LOCAL`, and that is load-bearing. The
+ * pool holds four connections; a plain `SET` followed by a `RESET` can land on
+ * two different ones, leaving a connection in replica mode for the rest of the
+ * run. Every trigger then silently stops firing on whichever queries happen to
+ * pick it — which is how this was found, as an audit row that was not written
+ * and a `geaendert_am` the caller was allowed to keep.
+ *
+ * Seeding inside it also leaves `audit_log` empty at the start of every test.
+ * Setup that audits itself makes "exactly one audit row" unassertable.
+ */
 export async function seed(): Promise<Fixtur> {
-  await sql.unsafe(`truncate audit_log, anstellung, person, mandant restart identity cascade`);
+  return sql.begin(async (tx) => {
+    await tx.unsafe(`set local session_replication_role = replica`);
+    await tx.unsafe(`truncate audit_log, anstellung, person, mandant restart identity cascade`);
 
-  const [r, s, b, o] = await Promise.all(
-    [
-      ['reinigung', 'CSE Dienstleistung', 'CSE Dienstleistungen GmbH'],
-      ['security', 'SSE Security', 'Select-Security Event GmbH'],
-      ['bau', 'REALTIME Service', 'REALTIME Service GmbH'],
-      ['operations', 'CSE Operations', 'CSE Operations'],
-    ].map(async ([slug, name, firma]) => {
-      const rows = await sql.unsafe<{ id: string }[]>(
-        `insert into mandant (slug, name, firma) values ($1,$2,$3) returning id`,
-        [slug!, name!, firma!],
-      );
-      return rows[0]!.id;
-    }),
-  );
+    const eins = async (anweisung: string, werte: readonly unknown[]): Promise<string> =>
+      (await tx.unsafe<{ id: string }[]>(anweisung, werte as never[]))[0]!.id;
 
-  const person = async (v: string, n: string): Promise<string> =>
-    (
-      await sql.unsafe<{ id: string }[]>(
-        `insert into person (vorname, nachname) values ($1,$2) returning id`,
-        [v, n],
-      )
-    )[0]!.id;
+    const mandant = async (slug: string, name: string, firma: string): Promise<string> =>
+      eins(`insert into mandant (slug, name, firma) values ($1,$2,$3) returning id`, [
+        slug, name, firma,
+      ]);
 
-  const anstellung = async (
-    mandant: string,
-    pers: string,
-    nr: string,
-    satz: number,
-  ): Promise<string> =>
-    (
-      await sql.unsafe<{ id: string }[]>(
+    const person = async (v: string, n: string): Promise<string> =>
+      eins(`insert into person (vorname, nachname) values ($1,$2) returning id`, [v, n]);
+
+    const anstellung = async (m: string, p: string, nr: string, satz: number): Promise<string> =>
+      eins(
         `insert into anstellung (mandant_id, person_id, personalnummer, eintritt, stundensatz_intern)
          values ($1,$2,$3,'2024-01-01',$4) returning id`,
-        [mandant, pers, nr, satz],
-      )
-    )[0]!.id;
+        [m, p, nr, satz],
+      );
 
-  const fatima = await person('Fatima', 'Yildiz');
-  const jonas = await person('Jonas', 'Berger');
+    // Sequential, not Promise.all: one transaction is one connection, and
+    // concurrent statements on it interleave into a single pipeline anyway.
+    const r = await mandant('reinigung', 'CSE Dienstleistung', 'CSE Dienstleistungen GmbH');
+    const s = await mandant('security', 'SSE Security', 'Select-Security Event GmbH');
+    const b = await mandant('bau', 'REALTIME Service', 'REALTIME Service GmbH');
+    const o = await mandant('operations', 'CSE Operations', 'CSE Operations');
 
-  return {
-    reinigung: r!,
-    security: s!,
-    bau: b!,
-    operations: o!,
-    fatima,
-    // The same human, two employments, two entities, two rates (D-09).
-    fatimaReinigung: await anstellung(r!, fatima, 'R-1001', 1450),
-    fatimaSecurity: await anstellung(s!, fatima, 'S-2001', 1780),
-    jonas,
-    jonasReinigung: await anstellung(r!, jonas, 'R-1002', 1400),
-  };
+    const fatima = await person('Fatima', 'Yildiz');
+    const jonas = await person('Jonas', 'Berger');
+
+    return {
+      reinigung: r,
+      security: s,
+      bau: b,
+      operations: o,
+      fatima,
+      // The same human, two employments, two entities, two rates (D-09).
+      fatimaReinigung: await anstellung(r, fatima, 'R-1001', 1450),
+      fatimaSecurity: await anstellung(s, fatima, 'S-2001', 1780),
+      jonas,
+      jonasReinigung: await anstellung(r, jonas, 'R-1002', 1400),
+    };
+  }) as Promise<Fixtur>;
 }
 
 export async function schliessen(): Promise<void> {

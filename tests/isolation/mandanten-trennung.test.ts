@@ -117,7 +117,8 @@ describe('(3) a write without exactly one active mandant is refused', () => {
          values (${f.reinigung}, ${f.jonas}, 'R-9999', '2025-01-01') returning id`,
     );
     expect(zeilen).toHaveLength(1);
-    await sql.unsafe(`delete from anstellung where personalnummer = 'R-9999'`);
+    // No cleanup: `anstellung` is delete-locked from PR 4 on, and `seed()`
+    // resets the fixture before the next test anyway.
   });
 });
 
