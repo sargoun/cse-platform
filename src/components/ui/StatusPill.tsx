@@ -10,6 +10,9 @@ export type PillZustand =
   | 'In Arbeit' | 'Aktiv' | 'Bereit'
   | 'Geplant' | 'In Prüfung' | 'Entwurf'
   | 'Angebot' | 'Offen' | 'Wartet'
+  // Ein MODUS, kein Datensatzzustand — der einzige, und deshalb allein
+  // stehend (DESIGN §5, verlangt von §6).
+  | 'Nur Lesen'
   | 'Überfällig' | 'Abgelehnt' | 'Fehler'
   | 'Abgeschlossen' | 'Archiviert';
 
@@ -17,6 +20,7 @@ const TON: Record<PillZustand, string> = {
   'In Arbeit': 'success', Aktiv: 'success', Bereit: 'success',
   Geplant: 'info', 'In Prüfung': 'info', Entwurf: 'info',
   Angebot: 'warning', Offen: 'warning', Wartet: 'warning',
+  'Nur Lesen': 'warning',
   'Überfällig': 'danger', Abgelehnt: 'danger', Fehler: 'danger',
   Abgeschlossen: 'muted', Archiviert: 'muted',
 };

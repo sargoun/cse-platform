@@ -37,6 +37,37 @@ export function AreaBadge({
   );
 }
 
+/**
+ * Der runde Markenavatar aus §6: `32px`, `2px` Ring im Identitäts-Hue.
+ *
+ * Ohne Bild — O-12 ist offen, und ein erfundenes Logo sähe fertig aus. Bis
+ * dahin trägt der Avatar die Initiale und den Ring, und der NAME steht daneben
+ * (§9: die Farbe identifiziert, der Name trägt die Bedeutung).
+ */
+export function BereichsAvatar({
+  bereich,
+  aktiv = false,
+}: {
+  readonly bereich: BereichSchluessel;
+  readonly aktiv?: boolean;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      data-bereich={bereich}
+      data-cse="bereichs-avatar"
+      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full
+                 bg-surface-3 text-xs font-semibold text-text"
+      style={{
+        boxShadow: `0 0 0 2px var(--area-${bereich})`,
+        ...(aktiv ? { outline: '2px solid var(--red)', outlineOffset: '2px' } : {}),
+      }}
+    >
+      {NAME[bereich].slice(0, 1)}
+    </span>
+  );
+}
+
 /** The tenant strip of §6 — the hue as a full-width rule under the header. */
 export function HueBar({ bereich }: { readonly bereich: BereichSchluessel }) {
   return (

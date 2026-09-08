@@ -10,12 +10,11 @@
  * Beim Landen eines Moduls werden seine Zeilen hier gestrichen. Ergänzt wird
  * nur mit einer Begründung im Pull Request.
  *
- * 202 von 207 Schlüsseln.
+ * 191 von 207 Schlüsseln.
  */
 export const NOCH_UNBENUTZT: readonly string[] = [
   "abrechnung.freistellung_pflegen",
   "angebot.annahme_erfassen",
-  "angebot.lesen",
   "angebot.preis_freigeben",
   "angebot.schreiben",
   "angebot.versenden",
@@ -23,7 +22,6 @@ export const NOCH_UNBENUTZT: readonly string[] = [
   "aufgabe.schreiben",
   "aufgabe.zuweisen",
   "auftrag.abschliessen",
-  "auftrag.lesen",
   "auftrag.schreiben",
   "bau.aufmass_erfassen",
   "bau.aufmass_freigeben",
@@ -33,7 +31,6 @@ export const NOCH_UNBENUTZT: readonly string[] = [
   "bau.nachtrag_einreichen",
   "bau.preis_lesen",
   "bau.schreiben",
-  "bericht.dashboard_lesen",
   "bericht.exportieren",
   "bericht.lesen",
   "buchhaltung_konfiguration.lesen",
@@ -56,14 +53,12 @@ export const NOCH_UNBENUTZT: readonly string[] = [
   "dienstplan.arbzg_pruefen",
   "dienstplan.arbzg_uebersteuern",
   "dienstplan.konflikt_quittieren",
-  "dienstplan.lesen",
   "dienstplan.schreiben",
   "dienstplan.veroeffentlichen",
   "dokument.archivieren",
   "dokument.aufbewahrung_verwalten",
   "dokument.buendel_exportieren",
   "dokument.kunde_freigeben",
-  "dokument.lesen",
   "dokument.schreiben",
   "eingang.freigeben",
   "eingang.lesen",
@@ -71,7 +66,6 @@ export const NOCH_UNBENUTZT: readonly string[] = [
   "finanzen.entwurf_verwerfen",
   "finanzen.festschreiben",
   "finanzen.herunterladen",
-  "finanzen.lesen",
   "finanzen.schreiben",
   "finanzen.steuerfall_uebersteuern",
   "finanzen.stornieren",
@@ -136,8 +130,6 @@ export const NOCH_UNBENUTZT: readonly string[] = [
   "nachweis.preis_lesen",
   "nachweis.schreiben",
   "nummernkreis.lesen",
-  "nummernkreis.ziehen",
-  "objekt.lesen",
   "objekt.schreiben",
   "oeffentlich.lesen",
   "personal.anstellung_beenden",
@@ -145,7 +137,6 @@ export const NOCH_UNBENUTZT: readonly string[] = [
   "personal.entgelt_lesen",
   "personal.entgelt_schreiben",
   "personal.erstattung_lesen",
-  "personal.lesen",
   "personal.stammdaten_lesen",
   "personal.zugang_verwalten",
   "personal.zusammenfuehren",
@@ -179,7 +170,6 @@ export const NOCH_UNBENUTZT: readonly string[] = [
   "system.audit_exportieren",
   "system.audit_lesen",
   "system.betrieb_lesen",
-  "system.einstellung_lesen",
   "system.einstellung_verwalten",
   "system.feed_token_widerrufen",
   "system.identitaet_verwalten",
@@ -212,7 +202,6 @@ export const NOCH_UNBENUTZT: readonly string[] = [
   "zeit.konto_korrigieren",
   "zeit.konto_lesen",
   "zeit.korrigieren",
-  "zeit.lesen",
   "zeit.nacherfassung_pruefen",
   "zeit.schreiben",
 ];

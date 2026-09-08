@@ -646,6 +646,74 @@ bricht die K-19-Prüfung den Build, und jemand fügt die Katalogzeile bewusst
 hinzu — oder stellt fest, dass der Schlüssel anders heisst. Die Lücke ist damit
 nicht geschlossen, aber sie kann nicht mehr stillschweigend passiert werden.
 
+### D-41 · Die Gruppenansicht hat keine Schreibmethode — als TYP, nicht als Prüfung
+
+`withGroupScope` gibt `LeseKontext` zurück, `withTenant` gibt `SchreibKontext`
+zurück, und `schreibe` steht nur auf dem zweiten. Ein Schreibversuch in der
+Gruppenansicht ist damit ein **Compilerfehler**, nicht eine Laufzeitentscheidung
+— Invariante 10 wird von niemandem vergessen, weil sie sich nicht formulieren
+lässt. Ein Test führt `tsc` gegen ein Fixture, das es trotzdem versucht.
+
+Die zweite Linie steht daneben und ist die, auf die es ankommt, wenn jemand am
+Code vorbei arbeitet: kein `INSERT`/`UPDATE`-Policy irgendwo nennt den
+Gruppen-Scope, also trifft ein direkter Schreibversuch keine Policy. Die
+Datenbank weist ihn **benannt** ab (`KeinAktiverMandant` aus
+`app.assert_genau_ein_mandant`) statt lautlos null Zeilen zu treffen — beides
+wäre sicher, nur eines sagt warum.
+
+Das Dienstregister (`server/registry/dienste.ts`) wird vom Gruppentest
+**iteriert**, und ein Gegentest verlangt, dass jeder Dienst unter `services/`
+darin steht. Ein Modul, das in Phase 5 landet, ist damit automatisch
+mitgeprüft — statt in einer Liste zu fehlen, die jemand hätte pflegen müssen.
+
+### D-42 · `Nur Lesen` fehlte in DESIGN §5, obwohl §6 es verlangt
+
+§6 lässt die `Gruppenübersicht`-Zeile und den Header eine `NUR LESEN`-Pille
+tragen. Die feste Pillen-Liste in §5 kannte sie nicht — "fest" also nur, bis
+jemand §6 liest. Eine Pille, die der Umschalter zeigen muss und das Typsystem
+nicht ausdrücken kann, wird entweder am Aufrufort erfunden oder der Screen
+fehlt; beides ist schlechter als eine Zeile mehr in der Tabelle. Sie steht
+jetzt dort, als `warning`, mit dem Vermerk, dass sie ein **Modus** ist und kein
+Datensatzzustand — der einzige, und deshalb allein stehend.
+
+Der runde Markenavatar (32px, 2px Ring im Identitäts-Hue) stand dagegen bereits
+in §6 und musste nur gebaut werden. Ohne Bild: O-12 ist offen, und ein
+erfundenes Logo sähe fertig aus.
+
+### D-43 · Bei einem Bereich wird der Umschalter NICHT gerendert
+
+DESIGN §6 Regel 1 sagt "ein Bereich = ein statisches Logo, kein Chevron, kein
+Dropdown". Umgesetzt als früher `return`, nicht als `hidden` oder
+`display:none`: ein Auslöser, den man nicht sieht, aber im Quelltext findet,
+ist eine Einladung an jeden, der die Seite liest. Ein Test prüft, dass im frühen
+Zweig weder `chevron` noch `umschalter-menue` vorkommt.
+
+Der 3px-Identitätsstreifen ist das **erste** Element im Dokument und trägt in
+der Gruppenansicht `--border-strong` statt eines Bereichs-Hues: dort ist kein
+Bereich aktiv, und einen zu zeigen wäre eine Aussage über den Arbeitskontext,
+die nicht stimmt. Der e2e-Test vergleicht die **berechnete** Farbe vor und nach
+einem Wechsel — ein Token, das nicht auflöst, sähe im Markup richtig aus und
+auf dem Schirm grau.
+
+### D-44 · Gruppenrechte werden mit dem Mandanten der ZEILE geprüft
+
+K-03s Gruppenpolicy lautet
+`app.hat_recht('gruppe.<modul>.lesen', mandant_id)` — der Mandant der **Zeile**,
+nicht der aktive, denn in dieser Ansicht gibt es keinen. `app.hat_recht` gibt
+für `p_mandant IS NULL` folgerichtig `false` zurück; ein Test, der in der
+Gruppenansicht `null` übergab, prüfte deshalb etwas anderes als er behauptete.
+
+Zweitens: §12.1 bindet `gruppe.*.lesen` per Vorgabe nur an `super_admin`; für
+`admin` und `leitung` ist es `○` — bindbar. Die Gruppenansicht ist eine
+Funktion, die jemand vergibt, nicht eine, die jeder Bereichsleiter mitbringt.
+Der Test prüft jetzt beide Zustände statt den zweiten anzunehmen.
+
+Und `app.portal()` ist in dieser Ansicht die Konstante `intern`, beim Betreten
+gebunden (K-20) — aus `aktiver_mandant` neu berechnet ergäbe es das
+fail-closed `mitarbeiter`, was jede K-04-Mitarbeiterdecke **innerhalb** der
+Gruppenansicht auslöst und sie für genau das Management leert, für das TEN-05
+sie gebaut hat.
+
 ---
 
 ## Carried over from the Phase 0 review — not client questions

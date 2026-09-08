@@ -211,8 +211,17 @@ Fixed vocabulary:
 | In Arbeit · Aktiv · Bereit | success |
 | Geplant · In Prüfung · Entwurf | info |
 | Angebot · Offen · Wartet | warning |
+| Nur Lesen | warning |
 | Überfällig · Abgelehnt · Fehler | danger |
 | Abgeschlossen · Archiviert | muted on `--surface-3` |
+
+**`Nur Lesen` is here because §6 already requires it** — the `Gruppenübersicht`
+row and the header both carry it as a warning pill. It was used there and
+absent from this table, which makes the vocabulary "fixed" only until someone
+reads §6. A pill the switcher must show and the type system cannot express is
+either an invented label at the call site or a missing screen; both are worse
+than one more row here. It is a *mode*, not a record state — the only one — and
+that is why it stands alone.
 
 ### Filter pills
 
