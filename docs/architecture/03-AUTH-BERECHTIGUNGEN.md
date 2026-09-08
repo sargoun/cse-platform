@@ -9,7 +9,7 @@ capabilities (TIM-07, TIM-08, TIM-09, CAL-03, DOC-03), customer access (DOC-04, 
 agent principal (AGT-01, AGT-03, APR-07). Everything named here — table, column, function, GUC,
 right key, error class, audit event — is the name the implementation must use. It is subordinate to
 `docs/architecture/00-KONVENTIONEN.md`: every rule below that touches roles, session state, RLS,
-portals, approvals or invented values is an application of a numbered convention (K-01 … K-18) and
+portals, approvals or invented values is an application of a numbered convention (K-01 … K-21) and
 cites it inline. Where this document and a convention appear to disagree, **the convention wins and
 this document is defective**. Where SPEC and DECISIONS leave a legal, financial or operational value
 open, it appears as a labelled placeholder plus `// TODO(client)` and in §20, never as a quietly
@@ -24,7 +24,8 @@ chosen number (K-17).
 
 **This document owns:** the principal taxonomy, the session lifecycle, 2FA enrolment and the
 assurance level, lockout and rate limiting, every bearer-token format, the authorization pipeline and
-its TypeScript contract, the right-key catalogue, the seeded role × module × mandant matrix, the
+its TypeScript contract, **the one right-key catalogue of K-19 — its module vocabulary and its action
+vocabulary are the only ones in the platform** — the seeded role × module × mandant matrix, the
 error taxonomy behind AUT-06, the auth and tenancy audit-event catalogue, and the tenant-isolation
 suite that proves all of it.
 
@@ -124,21 +125,36 @@ account (§1.4, K-04).
 
 ### 1.4 Portals (K-04)
 
-Every authenticated request runs in exactly one **portal context**. It is derived server-side from
-the role of the active membership and written into the `app.portal` GUC; a client value is never
-read.
+Every authenticated request runs in exactly one **portal context**. It is derived server-side and
+written into the `app.portal` GUC; a client value is never read.
+
+**`app.portal` is bound when the scope is entered, and is defined in all four scopes (K-20).** It is
+**never** recomputed from `app.aktiver_mandant()`, which is NULL in the three multi-tenant scopes of
+K-18 by construction: a resolver keyed on it falls through to the fail-closed `mitarbeiter` and then
+fires every K-04 employee ceiling **inside the group view** — a `leitung` reads nothing — while
+ceilinging every customer as though they were staff. The four branches, which
+`02-datenmodell/01-KERN.md` §3.2 / §3.3 and `05-API-KARTE.md` must state identically:
+
+| `app.scope()` | `app.portal` | Derived from |
+|---|---|---|
+| `mandant` | the **active membership's** `rolle.portal` (global role first, else `mitarbeiter`) | `app.portal_fuer(benutzer, aktiver_mandant)` — the only branch that has a mandant to pass |
+| `gruppe` | the **most restrictive** `rolle.portal` across the memberships in `app.mandant_ids` — in practice `intern`, because group entry requires a membership whose role has `portal = 'intern'` (§4.5, DESIGN §6 rule 1) | `benutzer_mandant` ⨯ `rolle` over the derived set, never one mandant |
+| `person` | `mitarbeiter`, by construction — `/portal/mein` is the subject's own portal | the scope itself |
+| `kunde` | `kunde`, by construction | the scope itself |
 
 ```sql
 -- 02-datenmodell/01-KERN.md §3.2, quoted because this document's ceilings depend on it verbatim
 app.portal_fuer(p_benutzer uuid, p_mandant uuid) returns text
 -- global role's portal, else the active membership's rolle.portal, else 'mitarbeiter'
+-- CALLED ONLY IN mandant SCOPE. In gruppe / person / kunde scope the value comes from the
+-- table above and is set by withGroupScope / withPersonScope / withKundeScope (K-20).
 ```
 
 | Portal | URL space (K-07) | Reached when | Data reachable |
 |---|---|---|---|
-| `intern` | `/portal/[mandant]`, `/portal/gruppe` | the active membership's role has `rolle.portal = 'intern'` — seeded for `super_admin`, `admin`, `leitung` | everything the permission set allows, tenant-scoped |
-| `mitarbeiter` | `/portal/mein` | the active membership's role has `rolle.portal = 'mitarbeiter'` | own `person`, own `anstellung`-hung rows only (EMP-13) |
-| `kunde` | `/portal/kunde` | the active membership's role has `rolle.portal = 'kunde'` | own `kunde` rows, across every mandant in which that login holds a live `kunde_zugang` (CRM-06, K-18) |
+| `intern` | `/portal/[mandant]`, `/portal/gruppe` | in `mandant` scope: the active membership's role has `rolle.portal = 'intern'` — seeded for `super_admin`, `admin`, `leitung`. In `gruppe` scope: bound at entry, per the four-branch rule above | everything the permission set allows, tenant-scoped |
+| `mitarbeiter` | `/portal/mein` | in `mandant` scope: the active membership's role has `rolle.portal = 'mitarbeiter'`. In `person` scope: bound at entry, by construction | own `person`, own `anstellung`-hung rows only (EMP-13) |
+| `kunde` | `/portal/kunde` | in `mandant` scope: the active membership's role has `rolle.portal = 'kunde'`. In `kunde` scope: bound at entry, by construction | own `kunde` rows, across every mandant in which that login holds a live `kunde_zugang` (CRM-06, K-18) |
 
 **Portal is not scope.** `app.portal` is the *ceiling* — at most whose rows (K-04). `app.scope` is
 the *reach* — which tenants, and by which permissive policy (K-18, §8.3). They are set from
@@ -157,7 +173,11 @@ from the **role of the active membership** closes that: a `mitarbeiter` membersh
 resolve to `intern`.
 
 `app.portal()` **defaults to `mitarbeiter` when the GUC is unset**, not to `intern` — an unset
-session must narrow the ceiling, never lift it (K-02, `02-datenmodell/01-KERN.md` §3.1). A person
+session must narrow the ceiling, never lift it (K-02, `02-datenmodell/01-KERN.md` §3.1). That
+default is the *unset* case only. It must never be reached by a session that **has** a scope: an
+accessor that computes the portal from `aktiver_mandant()` inside `gruppe`, `person` or `kunde`
+scope hits this default on every request, and the failure looks like an empty group dashboard rather
+than an error (K-20). A person
 who is both a Leitung and an employee holds two memberships and reaches both portals from the same
 login, in two different portal contexts, with the management rights inert in the employee one.
 
@@ -174,10 +194,9 @@ means (review MISSING).
 | Column | Type | Contract |
 |---|---|---|
 | `id` | `uuid` PK | |
-| `schluessel` | text UNIQUE | `reinigung` \| `security` \| `bau` \| `operations`; a fifth area adds a value as data, not as code (TEN-08) |
-| `slug` | text UNIQUE | the `[mandant]` URL segment (§4.5). `CHECK` excludes `gruppe`, `mein`, `kunde`, `api` (K-07) |
+| `slug` | text UNIQUE | **the one stable key of an area, and the one spelling** (K-21: `slug`, never `schluessel`): `reinigung` \| `security` \| `bau` \| `operations`, and simultaneously the `[mandant]` URL segment (§4.5). A fifth area adds a value as data, not as code (TEN-08). `CHECK` excludes the five reserved portal statics `gruppe`, `mein`, `kunde`, `konto`, `api` (K-07, K-21). The draft carried a second `schluessel UNIQUE` column beside it holding the same four values — one fact in two columns, which is how a seed writes them differently and a switcher resolves an area the router cannot |
 | `firma`, `rechtsform` | text | the legal name that appears on an invoice snapshot (K-12) |
-| `ist_rechtstraeger` | boolean | whether the area is a legal entity, and therefore whether it gets its own number circle (TEN-02). **Its value for `operations` is unknown — O-01** |
+| `ist_rechtseinheit` | boolean | whether the area is a legal entity, and therefore whether it gets its own number circle (TEN-02). **Its value for `operations` is unknown — O-01** |
 | `module` | `text[]` | enabled modules; `'{}'` means all (TEN-08, §7.3 stage 4) |
 | `identitaets_hue`, `logo_pfad` | text | the identity hue of DESIGN §5 and the app-shell logo (TEN-07); never a button colour (D-10) |
 | `archiviert_am` | `timestamptz` | archived areas stay **readable** (LEG-01, ACC-06) but leave `app.switcher_mandanten()` |
@@ -351,8 +370,12 @@ action files call `requireAal2()`, and **no SELECT policy anywhere in `src/serve
 mentions `app.aal()`**.
 
 `nummernkreis` carries **no** `aal2` policy (review B11). It is an ordinary tenant table with rights
-`nummernkreis.lesen` / `nummernkreis.verwalten` (`02-datenmodell/05-FINANZEN.md` §1.3) plus the
-`portal() = 'intern'` ceiling. Under an `aal2`-only policy an `aal1` Leitung holding
+`nummernkreis.lesen`, `nummernkreis.ziehen` and `nummernkreis.verwalten`
+(`02-datenmodell/05-FINANZEN.md` §1.3) plus the internal-only ceiling — the registered
+`p_intern_ceiling` shorthand of §8.5, which emits the degenerate `p_ma_ceiling` /
+`p_kunde_ceiling` pair. `nummernkreis.ziehen` carries **no** `erfordert_2fa`: it is drawn inside
+finalisation, and a step-up at that point would fail the transaction rather than prompt.
+Under an `aal2`-only policy an `aal1` Leitung holding
 `finanzen.festschreiben` reads zero rows from the counter table, so the `SELECT … FOR UPDATE` of
 FIN-03 either fails opaquely or — worse, if "no row" is read as "first invoice" — restarts the
 sequence and produces duplicate numbers inside a GoBD-relevant circle (LEG-01). Where a step-up is
@@ -530,7 +553,9 @@ POST /api/sitzung/mandant      body: { mandantSlug: string } | { gruppe: true }
   4. derive the portal from the TARGET membership's role                (K-04)
   5. update benutzer_sitzung: aktiver_mandant_id, ansicht, mandant_gewechselt_am
   6. audit: TWO mirror rows via app.protokolliere — one keyed to the old mandant_id, one to the
-     new, each carrying mandant_id_alt and mandant_id_neu                (TEN-09)
+     new, aktion = 'sitzung.mandant_gewechselt'. The old and the new mandant travel INSIDE
+     vorher / nachher (jsonb): audit_log carries no mandant_id_alt / mandant_id_neu column and
+     01-KERN §6.11 is not asked to add one                              (TEN-09, K-21)
   7. redirect('/portal/<slug>')                                          (DESIGN §6 rule 6)
 ```
 
@@ -559,7 +584,7 @@ page, handler and action beneath it:
 | slug is a mandant the user **is** a member of, but not the active one | the same interstitial for that area. **A GET never switches the tenant.** Audited as `sitzung.wechsel_angeboten` | 200 |
 | slug is a mandant the user is **not** a member of | `notFound()` | **404** |
 | slug does not exist in `mandant` | `notFound()` | **404** |
-| slug is a reserved segment (`mein`, `kunde`, `gruppe`, `api`) | handled by its own route; never resolved as a mandant | — |
+| slug is a reserved segment (`gruppe`, `mein`, `kunde`, `konto`, `api`) | handled by its own route; never resolved as a mandant | — |
 | no session | redirect to `/auth/login?weiter=<path>` | 302 |
 
 The interstitial rather than an automatic redirect is the whole point: if a GET could change the
@@ -567,8 +592,8 @@ active tenant, the URL *would be* tenant state, and a mis-pasted link would sile
 into another GmbH — which is the mistake D-10 and DESIGN §6 exist to prevent. **404, not 403** on a
 foreign slug (AUT-06): a 403 confirms the entity exists and that the user is not in it.
 
-Reserved-slug protection is K-07's: `mandant.slug` carries a `CHECK` excluding `gruppe`, `mein`,
-`kunde` and `api`, and a CI test walks the App Router tree and fails when a new static segment is
+Reserved-slug protection is K-07's, with K-21's one list: `mandant.slug` carries a `CHECK` excluding
+`gruppe`, `mein`, `kunde`, `konto` and `api`, and a CI test walks the App Router tree and fails when a new static segment is
 added under `/portal` without being added to the constraint. TEN-08 promises a fifth area needs a DB
 row and no code change; a hand-maintained list with no test does not deliver that.
 
@@ -633,8 +658,13 @@ returning z.person_id;
 **Zero rows returned is the 409** (K-09). Pre-checks may exist to produce a friendlier message, never
 to decide. Concurrency test: N simultaneous redemptions of one invitation activate exactly one
 access. Staff and customer invitations use the same shape — a `benutzer` row at
-`status = 'eingeladen'` plus Supabase's own invite link, and `kunde_zugang.status = 'eingeladen'`
-respectively — so no separate `einladung` table exists (review MISSING).
+`status = 'eingeladen'` plus Supabase's own invite link, and a `kunde_zugang` row with
+`eingeladen_am` set and `aktiviert_am IS NULL` respectively — so no separate `einladung` table
+exists (review MISSING). Note the asymmetry, which is the owners' and not this document's:
+`mitarbeiter_zugang` carries a `status` enum (`02-datenmodell/01-KERN.md`), `kunde_zugang` carries
+**no `status` column at all** and expresses the same lifecycle as three timestamps
+(`02-datenmodell/02-CRM-OPERATIONS.md` §4.1, the owner) — the draft of this document read and wrote
+a `kunde_zugang.status` that does not exist (K-21).
 
 **When one human is both a worker and a manager.** They hold one `benutzer` with `person_id` set and
 both a `mitarbeiter` (derived) and a `leitung`/`admin` (manual) membership. Because the strongest
@@ -1087,27 +1117,90 @@ historic audit entries stay resolvable (invariant 8).
 ```
 schluessel := <modul> '.' [<objekt> '_'] <aktion>          -- the objekt segment is elided when
                                                            -- objekt = modul
-gruppe.<modul>.<aktion>                                    -- the group-scope read keys (K-03)
+gruppe '.' <modul> '.' [<objekt> '_'] <aktion>             -- the group-scope read keys (K-03)
 
   crm.lesen                       modul=crm        objekt=crm        aktion=lesen
   system.benutzer_lesen           modul=system     objekt=benutzer   aktion=lesen
   personal.entgelt_lesen          modul=personal   objekt=entgelt    aktion=lesen     (K-05)
   dienstplan.arbzg_pruefen        modul=dienstplan objekt=arbzg      aktion=pruefen   (K-06)
+  nummernkreis.ziehen             modul=nummernkreis objekt=nummernkreis aktion=ziehen (FIN-03)
   gruppe.finanzen.lesen           modul=gruppe     objekt=finanzen   aktion=lesen
 ```
 
-`CHECK (schluessel ~ '^[a-z_]+(\.[a-z_]+){1,2}$')` and `UNIQUE (modul, objekt, aktion)`. German
-verbs throughout; the scope never appears in the key.
+**The group grammar takes an `objekt` segment too, and this is a correction.** The draft wrote
+`gruppe.<modul>.<aktion>` with a bare enum `aktion`, which cannot express
+`gruppe.dienstplan.arbzg_lesen` (`02-datenmodell/04-PLANUNG-ZEIT.md` §1.3) or
+`gruppe.system.audit_lesen` (`02-datenmodell/01-KERN.md` §6.11): parsed the only way the
+three-segment `CHECK` allows, the last segment would have to be an `aktion` value, and neither
+`arbzg_lesen` nor `audit_lesen` is one — so the row cannot be inserted, `app.hat_recht()` returns
+false for a key that has no catalogue row, and both group reads are permanently empty (K-19). The
+grammar is therefore
 
-Shared `aktion` vocabulary — the `berechtigung_aktion` enum:
+```
+gruppe.<modul>.[<objekt> '_'] <aktion>
+  gruppe.dienstplan.arbzg_lesen   modul=gruppe objekt=dienstplan_arbzg aktion=lesen
+  gruppe.system.audit_lesen       modul=gruppe objekt=system_audit     aktion=lesen
+  gruppe.finanzen.lesen           modul=gruppe objekt=finanzen         aktion=lesen
+```
+
+which keeps the three-segment `CHECK` of `02-datenmodell/01-KERN.md` §6.6 intact — the `objekt`
+column carries the compound, the last underscore-delimited token is the `aktion`, and both remain
+enum-valid. `01-KERN`'s `split_part(schluessel,'.',1) = modul` test is unaffected.
+
+`CHECK (schluessel ~ '^[a-z_]+(\.[a-z_]+){1,2}$')` and `UNIQUE (modul, objekt, aktion)`. German
+verbs throughout; the scope never appears in the key, and `gruppe` is a module, not a scope marker.
+
+Shared `aktion` vocabulary — the `berechtigung_aktion` enum, **27 values**:
 
 `lesen · erstellen · aendern · schreiben · loeschen · exportieren · importieren · zuweisen ·
 freigeben · genehmigen · entscheiden · verwalten · pruefen · melden · planen · veroeffentlichen ·
 versenden · festschreiben · stornieren · korrigieren · quittieren · uebersteuern · verbinden ·
-einreichen · anmelden · widerrufen`
+einreichen · anmelden · widerrufen · ziehen`
 
-`schreiben` exists because K-03's `WITH CHECK` clause names `<modul>.schreiben` verbatim; every
-module that has any write path must carry it.
+`ziehen` is new and is not optional: `02-datenmodell/05-FINANZEN.md` §1.3 requires
+`nummernkreis.ziehen` on **every** counter draw, and `02-datenmodell/03-GEWERKE.md` §2.3 requires it
+for the Leistungsnachweis and Wachbuch circles. Without the action value the key has no catalogue
+row, `hat_recht` is false, and no invoice, no Leistungsnachweis and no Wachbuch entry can ever be
+numbered.
+
+**K-19 fixes seven of these as mandatory, because the conventions themselves name them.** An
+`aktion` vocabulary missing any one of them silently closes a whole class of paths — most sharply
+`schreiben`, whose absence means no write anywhere in the platform can be authorised at all:
+
+| Action | Required by | What its absence closes |
+|---|---|---|
+| `lesen` | K-03 policy 1, K-18 | every read |
+| `schreiben` | **K-03's `WITH CHECK` on every tenant table** | **every write, platform-wide** |
+| `loeschen` | K-16 archival paths | archival and retention execution |
+| `pruefen` | **K-06 `dienstplan.arbzg_pruefen`** | the ArbZG cross-entity check (TIM-14, LEG-03) |
+| `freigeben` | invariant 7, APR-01 … APR-08 | every approval, so every external send |
+| `exportieren` | K-03 group scope, REP-07, ACC-09 | reporting and DATEV export |
+| `verwalten` | AUT-03 permission administration | the permission UI itself |
+
+All seven are present above. `schreiben` in particular exists because K-03's `WITH CHECK` clause
+names `<modul>.schreiben` verbatim; every module that has any write path must carry it.
+
+### 7.2a One catalogue, and CI proves it (K-19)
+
+`app.hat_recht()` returns **false** for a key it does not know (§7.3). That is the right fail-closed
+default and it is also the reason this section is a closed catalogue rather than a convention: a
+misspelled or unregistered key produces **no exception and no log line**, only a screen that is
+permanently empty. Twelve documents writing right keys independently produced roughly forty such
+keys, and none of them would have failed a test.
+
+**This document owns the catalogue.** Its module vocabulary (§7.4) and its action vocabulary (above)
+are the only ones. A right key used in an RLS policy, a route gate, a service check or a seed —
+anywhere in the platform — must have a row in §12 or §14.2.
+
+`tests/invariants/rechte-katalog.test.ts` extracts every right-key literal from
+`src/server/db/rls/*.sql`, the route manifest, `src/server/services/**` and the seed, and fails on
+
+1. any key that is **not** in the catalogue — the silent zero-row failure; and
+2. any catalogue key that **no code uses** — so the catalogue cannot rot into a wish list of rights
+   nobody enforces.
+
+Assertion 2 is why a key blocked on an open question is marked *not seeded* rather than seeded with
+no binding: a row nobody reads is indistinguishable from a row somebody forgot to wire up.
 
 ### 7.3 Effective right resolution
 
@@ -1152,7 +1245,7 @@ create a `nummernkreis` row automatically:
 ```
 // TODO(client, O-01): is CSE Operations a legal entity or an internal department? A number
 // circle belongs to a Rechtsträger (TEN-02); creating one for every mandant row would answer
-// O-01 in the affirmative for every future area. `mandant.ist_rechtstraeger` is the flag, and
+// O-01 in the affirmative for every future area. `mandant.ist_rechtseinheit` is the flag, and
 // its value for `operations` is unknown.
 ```
 
@@ -1201,7 +1294,8 @@ define; this document owns the complete list.
 | `dokument` | `dokument`, `dokument_version`, retention, bundles | DOC-01 … DOC-08 |
 | `radar` | `ausschreibung`, `radar_profil`, `bewertung`, `vergabeplattform` | RAD-01 … RAD-09 |
 | `vergabe` | `vergabemappe` | RAD-07, D-07 |
-| `agent` | `agent_aufgabe`, `agent_schritt`, `agent_richtlinie`, `agent_budget` | AGT-01 … AGT-07 |
+| `agent` | `agent_aufgabe`, `agent_schritt`, `agent_schritt_beleg`, `agent_richtlinie`, `agent_budget`, `agent_werkzeug`, `agent_artefakt` — **including the run configuration**; there is no separate `agent_konfiguration` module | AGT-01 … AGT-07 |
+| `wissen` | `wissens_chunk` and the RAG corpus — the **47th module**, added because `02-datenmodell/06-RADAR-KI-INHALT.md` §3.11's confidentiality gate and `06-AGENTEN-FREIGABEN.md` §11 key policies on `wissen.lesen` / `wissen.vertraulich_lesen`, and an unregistered module makes both unreachable by everyone (K-19) | AGT-06, LEG-09 |
 | `freigabe` | the approval inbox and its snapshots | APR-01 … APR-08, K-13 |
 | `referenz` | `seite`, `referenz` — published website content | PUB-07, PRO-05 |
 | `social` | `social_post`, `social_channel`, `kanal_statistik` | SOC-01 … SOC-08 |
@@ -1211,8 +1305,26 @@ define; this document owns the complete list.
 | `nachricht` | `nachricht`, `benachrichtigung`, `benachrichtigung_praeferenz` | NOT-01 … NOT-03 |
 | `bericht` | reporting surfaces | REP-01 … REP-07 |
 
-**46 modules.** Adding one is a migration that inserts `berechtigung` rows plus platform-default
-bindings; it is never a schema change to the permission tables.
+**47 modules, and this is the closed list (K-19, K-21).** Adding one is a migration that inserts
+`berechtigung` rows plus platform-default bindings; it is never a schema change to the permission
+tables. `berechtigung.modul` is validated against exactly these names, `benutzer_mandant.module` is
+validated against `SELECT DISTINCT modul FROM berechtigung` (§7.1), and a module a sibling document
+invents is a key `app.hat_recht()` resolves **false** for — silently, permanently.
+
+**Eight module names appear in sibling documents and are not in this list.** They are not additions;
+each is an existing module under another name, and §21 places the rename on the document that wrote
+it. Recorded here so the mapping has one home:
+
+| Written as | Belongs to module | Where |
+|---|---|---|
+| `einsatz` | **`dienstplan`** — `dienstplan.arbzg_pruefen` is module `dienstplan`, and K-06 fixes the key string, not the module column | `02-datenmodell/01-KERN.md` §6.6, §14.2 |
+| `agent_konfiguration` | **`agent`** — `agent_richtlinie` is an `agent` table; the acts are `agent.richtlinie_verwalten` and `agent.autonomie_setzen` | `02-datenmodell/06-RADAR-KI-INHALT.md` §1.3 |
+| `inhalt` | **`referenz`** — published website content | idem |
+| `benachrichtigung` | **`nachricht`** | idem |
+| `recruiting_bewerber` | **`recruiting`** — `recruiting.bewerbung_lesen` / `.bewerbung_bewerten` / `.entscheiden` | idem |
+| `sicherheit` | **`system`** — `audit_log` is a `system` table, so the sensitive-audit key is `system.audit_sensitiv_lesen` (§12.1) | `05-API-KARTE.md` §B.11 |
+| `dashboard` | **`bericht`** — the switcher counters read `gruppe.bericht.lesen`, not `gruppe.dashboard.lesen` | `01-ORDNERSTRUKTUR.md` §7, §16 |
+| `referenz` used for *Referenzdaten* | **`system`** — the global finance reference tables (`steuersatz_gruppe`, `masseinheit`, `kleinbetrag_grenze`, `bauabzugsteuer_freigrenze`, `basiszinssatz`) are administered under `system.referenzdaten_verwalten` (§12.1). Module `referenz` in this catalogue means *published website content* and nothing else; two meanings for one module name is a collision, not a synonym | `02-datenmodell/05-FINANZEN.md` §3.2 |
 
 ### 7.5 Self-access is a policy branch, not a right
 
@@ -1377,12 +1489,43 @@ app.ist_super_admin()     returns boolean  -- false at aal1, false without a liv
 app.hat_recht(p_recht text, p_mandant uuid) returns boolean   -- false when unset
 app.rechte_mandanten(p_recht text)          returns setof uuid
 app.person_sichtbar(p_person uuid)          returns boolean   -- SECURITY INVOKER, deliberately
-app.aktuelle_kunden()                       returns uuid[]    -- resolved, never a GUC (K-02)
+app.aktuelle_kunden()                       returns uuid[]    -- resolved from kunde_zugang, never
+                                                              -- through aktiver_mandant()  (K-20)
 app.aktueller_kunde()                       returns uuid      -- the single element in mandant scope
 app.hat_zweiten_faktor(p_benutzer uuid)     returns boolean
 ```
 
-Three properties worth stating outright:
+**Every accessor resolves in every scope, and states its value there (K-20).** An accessor keyed on
+`app.aktiver_mandant()` returns NULL in `gruppe`, `person` and `kunde` scope, because `app.mandant_id`
+is NULL there by construction (K-02); every predicate built on it is then false and the page reads
+zero rows — the same silent failure K-18 removes, one layer down. The table is the contract, and
+`tests/invariants/accessor-scopes.test.ts` enumerates the accessors and asserts each returns a
+defined value, or the NULL documented here, under all four scopes:
+
+| Accessor | `mandant` | `gruppe` | `person` | `kunde` |
+|---|---|---|---|---|
+| `app.aktueller_benutzer()` | the login | the login | the login | the login |
+| `app.aktuelle_person()` | the person, or NULL for a customer / service login | as `mandant` | **the subject** — never NULL | NULL |
+| `app.aktiver_mandant()` | the one active mandant | **NULL, documented** | **NULL, documented** | **NULL, documented** |
+| `app.scope()` | `mandant` | `gruppe` | `person` | `kunde` |
+| `app.sichtbare_mandanten()` | `benutzer_mandant` + global role | `benutzer_mandant` + global role | the person's live `anstellung` rows | the login's live `kunde_zugang` rows |
+| `app.switcher_mandanten()` | the activatable subset | the activatable subset | `{}` | `{}` |
+| `app.ist_gruppenansicht()` | false | true | false | false |
+| `app.ist_readonly()` | `off` for a write path, else `on` | **`on`** | **`on`** | **`on`** |
+| `app.portal()` | the active membership's `rolle.portal` | bound at entry — `intern` (§1.4) | bound at entry — `mitarbeiter` | bound at entry — `kunde` |
+| `app.aal()` | the session's level | the session's level | `aal1` | `aal1` |
+| `app.ist_super_admin()` | global role at `aal2` | global role at `aal2` | false | false |
+| `app.hat_recht(r, m)` | resolved for `m` | resolved for `m`; write actions false (§7.3) | as `gruppe` | as `gruppe` |
+| `app.rechte_mandanten(r)` | the active mandant, if held | every mandant in which the key is held | idem | idem |
+| `app.person_sichtbar(p)` | via `anstellung` in the active mandant | via `anstellung` in the readable set | `p = app.aktuelle_person()` only | false |
+| `app.aktuelle_kunden()` | the login's binding in the active mandant | `{}` | `{}` | **the whole binding set** (§13.1) |
+| `app.aktueller_kunde()` | that one element | NULL | NULL | **NULL by design — never referenced by a policy reachable here** |
+
+`app.aktueller_kunde()` is the one accessor that is deliberately undefined in a scope that reaches
+it, so K-20's second clause applies: it is documented NULL and **no policy reachable from `kunde`
+scope may name it**. The class-map test asserts that too.
+
+Three further properties worth stating outright:
 
 - **An unset GUC yields NULL, the predicate is NULL, and no rows are returned.** Forgetting to set
   the context denies access; it never opens it.
@@ -1411,8 +1554,9 @@ definer evaluates as the definer and silently returns true for everything.
 ### 8.5 Policy classes
 
 **Class T — tenant tables** (`mandant_id not null`). K-03's two permissive policies, plus — on the
-tables a subject portal must reach — K-18's two. Four is the ceiling, not the default: a table that
-no worker and no customer reaches carries exactly K-03's two and nothing else.
+tables a subject portal must reach — K-18's two, plus — on the tables a job reads or writes —
+`t_job`. **Five registered permissive forms, and no others**; five is the ceiling, not the default:
+a table that no worker, no customer and no job reaches carries exactly K-03's two and nothing else.
 
 ```sql
 -- 1. tenant scope: read and write                                   (K-03)
@@ -1439,13 +1583,32 @@ create policy t_person on <tabelle>
          and mandant_id = any (app.sichtbare_mandanten())
          and <the row belongs to app.aktuelle_person()>);
 
--- 4. kunde scope: SELECT ONLY, keyed on THE SUBJECT                 (K-18)
+-- 4. kunde scope: SELECT ONLY, keyed on THE SUBJECT                 (K-18, K-20)
 create policy t_kunde on <tabelle>
   for select to cse_app
   using (app.scope() = 'kunde'
          and mandant_id = any (app.sichtbare_mandanten())
-         and <the row belongs to app.aktuelle_kunden()>);
+         and kunde_id = any (app.aktuelle_kunden()));   -- the ARRAY form, never the scalar
+
+-- 5. the job runner: to cse_job, never to cse_app                   (K-01)
+create policy t_job on <tabelle>
+  for <select | insert | update, per the job definition> to cse_job
+  using (mandant_id = app.aktiver_mandant())
+  with check (mandant_id = app.aktiver_mandant());
 ```
+
+**Policy 5 is new here, and the draft's omission of it was a defect.** `withSystemTenant` runs on
+`cse_job` (K-01, §14.3), and under `FORCE ROW LEVEL SECURITY` **a table `GRANT` is not a policy**: a
+job with `SELECT` on `zeiteintrag` and no policy for its role reads zero rows and writes nothing,
+with no error — the nightly Stundenkonto roll-up, the ArbZG detector and the invoice-chain
+verification all report "nothing to do" forever. `t_job` is therefore a registered class rather than
+an exception: it is written `to cse_job` only, never `to cse_app`, so it widens nothing for a human
+session; it names no right, because a job holds no membership; and it is enumerated per table in the
+job definition and mirrored in the `job` bucket of `src/server/db/rls.ts`. The name is **`t_job`**,
+one name platform-wide — `02-datenmodell/02-CRM-OPERATIONS.md` §1.2 already uses it and
+`02-datenmodell/06-RADAR-KI-INHALT.md` §1.3's `j_job` is the same policy under a second name (§21).
+It has **no group, person or kunde counterpart**: a job runs with exactly one resolved mandant, so
+invariant 10 is untouched.
 
 Policy 2 is written above in the index-friendly form. It is semantically identical to K-03's literal
 `app.ist_gruppenansicht() and mandant_id = any (app.sichtbare_mandanten()) and
@@ -1542,14 +1705,30 @@ The gate is on the write path only (§3.2).
 would mean inventing one.
 
 ```sql
+-- tenant scope: the tenant right, in the one active tenant
 create policy a_mandant on audit_log for select to cse_app
   using (ebene = 'mandant'
-         and mandant_id = any (app.sichtbare_mandanten())
-         and (select app.hat_recht('system.audit_lesen', mandant_id)));
+         and mandant_id = app.aktiver_mandant()
+         and (select app.hat_recht('system.audit_lesen', app.aktiver_mandant())));
+
+-- group scope: the GROUP key, per mandant — K-03, not a tenant right read across tenants
+create policy a_gruppe on audit_log for select to cse_app
+  using (ebene = 'mandant'
+         and app.ist_gruppenansicht()
+         and mandant_id = any (select app.rechte_mandanten('gruppe.system.audit_lesen')));
 
 create policy a_plattform on audit_log for select to cse_app
   using (ebene = 'plattform' and app.ist_super_admin());     -- K-16(d), verbatim
 ```
+
+**The split into `a_mandant` and `a_gruppe` is a correction, and the reason is K-03's rule that a
+group read names `gruppe.<modul>.lesen`.** The draft wrote one policy that carried the *tenant* key
+`system.audit_lesen` over `app.sichtbare_mandanten()` — a tenant right reading across tenants, which
+is precisely the leak the `hat_recht(…, mandant_id)` argument exists to stop: an audit right granted
+in `reinigung` would have exposed `security`'s audit trail to the same login. `02-datenmodell/01-KERN.md`
+§6.11 already writes `app.rechte_mandanten('gruppe.system.audit_lesen')` for the cross-entity
+protocol view; that key is in the catalogue (§12.1) and `04-SEITENKARTE.md`'s
+`/portal/gruppe/protokoll` is gated on it, not on `gruppe.system.lesen` (§21).
 
 Platform rows are readable **only** by `super_admin` (K-16(d)); the draft let any principal read
 platform rows naming them as actor, which would have exposed one user's login and lockout history to
@@ -1607,10 +1786,31 @@ the personnel domain's customer ceiling. **The default in `rls.ts` is `false`, s
 with no entry is internal-only**: a forgotten opt-in is a missing feature, a forgotten opt-out would
 have been a leak. What the blanket policy bought is bought here without the ANDing.
 
-`app.portal() = 'intern'` appears in no policy anywhere, and
+**`p_intern_ceiling` is a registered shorthand for the degenerate pair, not a third policy.** Four
+data-model documents — `02-datenmodell/03-GEWERKE.md` §1.8, `02-CRM-OPERATIONS.md` §1.4,
+`05-FINANZEN.md` §1.4 and `06-RADAR-KI-INHALT.md` §1.4 — enumerate `p_intern_ceiling … using
+(app.portal() = 'intern')` on well over a hundred tables, and on substance they are right: with the
+three-value `app.portal` vocabulary of §8.3, `portal() = 'intern'` **is** `portal() <> 'mitarbeiter'
+AND portal() <> 'kunde'`, and those documents state it as an *alternative* to the keyed ceilings,
+never layered on top of them. The defect the draft warned about is layering, not spelling. So:
+
+- a table whose entry in `rls.ts` is `intern` emits the **two** degenerate policies
+  `p_ma_ceiling … using (app.portal() <> 'mitarbeiter')` and
+  `p_kunde_ceiling … using (app.portal() <> 'kunde')`, and `p_intern_ceiling` is the name that
+  entry goes by in prose and in the domain documents;
+- what stays forbidden is the layering: `p_intern_ceiling` **beside** a keyed `p_ma_ceiling` or
+  `p_kunde_ceiling` on the same table, which ANDs `false` into every worker and customer session and
+  blanks both portals — the original defect, unchanged;
+- `p_intern_einsatz_ceiling` (`02-datenmodell/03-GEWERKE.md`) and `p_nicht_kunde_ceiling` are the
+  same shorthand with a disjunct: they emit `p_ma_ceiling` with the form-C disjunct and the
+  degenerate `p_kunde_ceiling`.
+
 `tests/invariants/rls-ceilings.test.ts` asserts four things against `pg_policies`:
 
-1. no restrictive policy is written as `app.portal() = 'intern'`;
+1. no table carries a restrictive policy naming `app.portal() = 'intern'` **together with** a keyed
+   ceiling for `mitarbeiter` or `kunde` — the layering defect. The degenerate-pair emission above
+   means the generated SQL contains no `portal() = 'intern'` at all, so on the emitted schema this
+   assertion is trivially true; it exists to catch a hand-written policy;
 2. no table carries **two** restrictive policies for the same portal — the ANDing defect;
 3. every table carries **at most one** restrictive policy per non-internal portal, and every table in
    the class map declares which form it takes;
@@ -1630,7 +1830,7 @@ session too:
 |---|---|---|
 | **A · anstellung-hung** | `anstellung_id in (select id from anstellung where person_id = app.aktuelle_person())` | `anstellung_kondition`, `stundenkonto`, `stundenkonto_bewegung`, `urlaubskonto`, `abwesenheit`, `zeit_einwand`, `antrag`, `einsatz_zuordnung`, `zeiteintrag`, `zeiteintrag_korrektur`, `medien` |
 | **B · person-hung** | `person_id = app.aktuelle_person()` — and `id = app.aktuelle_person()` on `person` itself | `person` (`id`), `anstellung` (`person_id`), `nachweis`, `bewacher_eintrag`, `bewacher_meldung`, `mitarbeiter_zugang`, `da_kenntnisnahme`, `schluessel_quittung`, `kalender_eintrag`, `nachricht_empfaenger` |
-| **C · assignment-derived** | `id`/`<fk>` `in (select … from einsatz e join einsatz_zuordnung ez on ez.einsatz_id = e.id join anstellung a on a.id = ez.anstellung_id where a.person_id = app.aktuelle_person())` — this is what `zugewiesen` means in the database (review B19) | `objekt` (`id` ← `e.objekt_id`), `einsatz` (`id` ← `ez.einsatz_id`), `auftrag`, `dienstanweisung`, `wachbuch_eintrag`, `schluessel`, `lv_position`, `aufmass`, `bautagebuch`, `leistungsnachweis`, `dokument` |
+| **C · assignment-derived** | `id`/`<fk>` `in (select … from einsatz e join einsatz_zuordnung ez on ez.einsatz_id = e.id join anstellung a on a.id = ez.anstellung_id where a.person_id = app.aktuelle_person())` — this is what `zugewiesen` means in the database (review B19) | `objekt` (`id` ← `e.objekt_id`), `einsatz` (`id` ← `ez.einsatz_id`), `auftrag`, `dienstanweisung`, `wachbuch_eintrag`, `schluessel`, `lv_position`, `aufmass`, `bautagebuch`, `bautagebuch_mannstunden`, `bautagebuch_position`, `leistungsnachweis`, `dokument`, `posten`, `kontrollpunkt` — the two `bautagebuch` children take the parent's disjunct through `bautagebuch_id`, because BAU-07 has the worker record the entry and its man-hours in one act; `posten` and `kontrollpunkt` are reached through the assignment's `posten_id` / `objekt_id`, which is what makes `security.lesen` MA `S` rather than `—` (§12.3) |
 | **D · own-row, named by the owning domain** | not a portal ceiling at all — a disjunction true for the principals it does not narrow | `aufgabe` (`p_zustaendig`, keyed on `zugewiesen_an` / `zugewiesen_team_id` / `erstellt_von`), `kalender_eintrag` (`p_sichtbarkeit`), `nachricht`, `nachricht_anhang`, `nachricht_empfaenger` (`p_beteiligt`), `benachrichtigung`, `benachrichtigung_praeferenz` (`p_eigene`) — all five owned and enumerated by `02-datenmodell/06-RADAR-KI-INHALT.md` §1.4, which this document does not duplicate. They bind an `intern` session too: nobody reads another user's notifications, private calendar entries or message read-status, whatever portal they are in |
 
 `anstellung` takes form B rather than form A: it *is* the employment row, so keying it on
@@ -1661,9 +1861,11 @@ predicate is the same form-C subquery the ceiling uses, stated per table so it c
 | `einsatz`, `einsatz_zuordnung` | the assignment itself | TIM-04, EMP-14 |
 | `auftrag` | `id in (select e.auftrag_id from einsatz e join …)` | `auftrag.lesen` |
 | `dienstanweisung` | `objekt_id in (…)` or `posten_id in (…)` | SEC-06, EMP-09 |
+| `posten`, `kontrollpunkt` | `id`/`posten_id in (select ez.posten_id from einsatz_zuordnung ez …)`, else `objekt_id in (…)` | SEC-01, SEC-08 — the guard's own post and its checkpoints |
 | `wachbuch_eintrag` | `objekt_id in (…)` | SEC-05 |
 | `schluessel` | `objekt_id in (…)`; `schluessel_quittung` by `person_id` | SEC-07 |
 | `lv_position`, `aufmass`, `bautagebuch` | `projekt_id`/`objekt_id in (…)` | BAU-01, BAU-02, BAU-07 |
+| `bautagebuch_mannstunden`, `bautagebuch_position` | `bautagebuch_id in (select id from bautagebuch where …)` — the parent's predicate | BAU-07 |
 | `leistungsnachweis` | `einsatz_id in (…)` | CLN-04 |
 | `dokument` | `objekt_id in (…)` **and** `sichtbar_fuer_mitarbeiter = true` — deny by default, the exact mirror of the `sichtbar_fuer_kunde` column `02-datenmodell/02-CRM-OPERATIONS.md` §`dokument` already declares. A document is **not** worker-visible merely because it hangs off an object they cleaned; §21 places the column on that document rather than inventing a rule here | DOC-01, DOC-04 |
 | `kalender_eintrag` | `benutzer_id = app.aktueller_benutzer()`, narrowed further by that table's own `p_sichtbarkeit` (form D) | CAL-01, CAL-03 |
@@ -1833,7 +2035,7 @@ the service must translate "zero rows affected" into `NotFoundError` and never i
 | `NoActiveMandantError` | 409 | `KEIN_BEREICH_AKTIV` | a write attempted with no single active mandant (invariant 10) |
 | `RateLimitError` | 429 | `ZU_VIELE_VERSUCHE` | AUT-07 |
 | `ValidationError` | 422 | `UNGUELTIGE_EINGABE` | Zod (SEC-A4) |
-| `NotConnectedError` | 503 | `NICHT_VERBUNDEN` | an external system with no credentials — never simulated |
+| `NotConnectedError` | **409** | `kanal_nicht_verbunden` | an external system with no credentials configured — never simulated |
 | anything else | 500 | `SERVERFEHLER` + `vorfall_id` | never a message, never a stack |
 
 `NotFoundError` and `TenantMismatchError` produce **byte-identical** responses: same status, same
@@ -1841,6 +2043,18 @@ body, same headers, same cache directives, same timing budget. The distinction i
 internally, in `audit_log` with `ergebnis = 'fehler'` and the true reason. For RSC pages the wrapper
 calls `notFound()`, so a deep link to another entity's record renders the standard 404 page with no
 flash of a layout that would confirm the record's area.
+
+**`NotConnectedError` is 409 `kanal_nicht_verbunden`, and the draft's 503 `NICHT_VERBUNDEN` is
+withdrawn.** This table owns the error surface, so exactly one status/code pair may exist: a client
+written from this document and a client written from `05-API-KARTE.md` R-17 were seeing different
+statuses and different codes for the same fact. 409 is the correct one on both grounds — an
+unconfigured channel is a *state of the resource*, not a transient server failure, so it must not be
+retried the way a 503 invites; and `05-API-KARTE.md`'s test T-30 already asserts the 409 form on
+three routes. The code is lower-case to match that document's channel codes rather than this table's
+upper-case auth codes, because it is the integration surface's vocabulary. The **mechanism** behind
+it stays `07-INTEGRATIONEN.md` §1.1's: a port method **returns** a typed `IntegrationResult` and does
+not throw across the port boundary; `NotConnectedError` is raised only where a live adapter's config
+fails to parse, and the mapper turns it into this row.
 
 **The one deliberate asymmetry.** Inside the active mandant, a *visible* record the user may not act
 on returns **403**, not 404 — the record is on their screen, and a 404 there would make the UI
@@ -2020,6 +2234,22 @@ Legend: `SA` super_admin · `AD` admin · `LT` leitung · `MA` mitarbeiter · `K
 — but the `S` cells are not rights at all, so no role, including `super_admin`, can acknowledge an
 instruction or raise an objection on another person's behalf (§7.5).
 
+**The eleven `kunde` cells are `✔`, and the draft's `○` was a defect.** §12.7 lists the rights the
+`kunde` role holds; the matrix marked every one of them "bindable, not bound". A customer portal
+whose rights are all unbound **ships dead**: `04-SEITENKARTE.md` uses exactly these keys as the
+service-layer gate on every `/portal/kunde/**` route, so the first request is a 403 and nothing in
+the portal ever renders. The eleven are `objekt.lesen`, `angebot.lesen`, `auftrag.lesen`,
+`dokument.lesen`, `nachweis.lesen`, `bau.lesen`, `qualitaet.lesen`, `nachricht.lesen`,
+`finanzen.lesen`, `zahlung.lesen`, `mahnung.lesen` — twelve with `finanzen.herunterladen`, thirteen
+with `bericht.dashboard_lesen` — and each is narrowed by the `t_kunde` subject predicate and the
+customer ceiling, so granting the right widens nothing beyond that customer's own rows.
+
+The `kunde` cells in the domain documents are not in conflict with this list, only phrased as if
+they were: `02-datenmodell/02-CRM-OPERATIONS.md` §1.3 ("only `angebot.lesen`, `auftrag.lesen`,
+`objekt.lesen`, `dokument.lesen`"), `05-FINANZEN.md` §2.3 ("`finanzen.lesen` only") and
+`03-GEWERKE.md` §1.7 ("only `nachweis.lesen`, `bau.lesen`, `qualitaet.lesen`") each enumerate **their
+own modules' share** of the same set. §21 asks each to qualify its "only" accordingly.
+
 ### 12.1 System, group and data protection
 
 | Right | SA | AD | LT | MA | KD | Note |
@@ -2036,16 +2266,20 @@ instruction or raise an objection on another person's behalf (§7.5).
 | `system.sitzung_lesen` | ✔ | ✔ | ○ | — | — | other users' active sessions |
 | `system.sitzung_widerrufen` | ✔ | ✔ | ○ | — | — | device loss, offboarding |
 | `system.feed_token_widerrufen` | ✔ | ✔ | ○ | — | — | CAL-03 |
-| `system.audit_lesen` | ✔ | ○ | ○ | — | — | scoped to the active mandant |
+| `system.audit_lesen` | ✔ | ○ | ○ | — | — | scoped to the active mandant (§8.5 Class A, `a_mandant`) |
+| `system.audit_sensitiv_lesen` | ✔ | ○ | — | — | — | `erfordert_2fa`. The `vorher`/`nachher` payload of an audit row, which carries the changed values themselves (LEG-09). `05-API-KARTE.md` §B.11 calls this `sicherheit.audit_sensitiv_lesen`; module `sicherheit` does not exist and `audit_log` is a `system` table (§7.4, §21) |
 | `system.audit_exportieren` | ✔ | ○ | — | — | — | DOC-08 evidence bundle |
+| `system.protokoll_lesen` | ✔ | ✔ | ○ | — | — | the technical run log of the integration adapters and jobs — `job_lauf` / `job_lauf_mandant`, `02-datenmodell/01-KERN.md` (K-21). Required by `07-INTEGRATIONEN.md` §3 and §6.2 |
+| `system.betrieb_lesen` | ✔ | ✔ | ○ | — | — | the operations surfaces: queue depths, retry state, `app.offline_unzugeordnet_lesen()` (`02-datenmodell/04-PLANUNG-ZEIT.md` §5.13), `07-INTEGRATIONEN.md` §6.2 |
 | `system.einstellung_lesen` | ✔ | ○ | ○ | — | — | integrations, DPA register (LEG-09) |
-| `system.einstellung_verwalten` | ✔ | ○ | — | — | — | includes the AUT-07 thresholds; pending O-76 |
-| `gruppe.*.lesen` | ✔ | ○ | ○ | — | — | TEN-05 read-only aggregation, one key per module |
+| `system.einstellung_verwalten` | ✔ | ○ | — | — | — | includes the AUT-07 thresholds and the O-06 monitoring switches, which are `mandant_einstellung` keys and **not** `mandant` columns (K-21); pending O-76 |
+| `system.referenzdaten_verwalten` | ✔ | ○ | — | — | — | `erfordert_2fa`. The **global** finance reference tables — `steuersatz_gruppe`, `masseinheit`, `kleinbetrag_grenze`, `bauabzugsteuer_freigrenze`, `basiszinssatz` (`02-datenmodell/05-FINANZEN.md` §3.2, which calls it `referenz.verwalten`; module `referenz` in this catalogue is *published website content*, §7.4) |
+| `gruppe.*.lesen` | ✔ | ○ | ○ | — | — | TEN-05 read-only aggregation, **one key per module** — mechanically one row per module of §7.4, so `gruppe.finanzen.lesen`, `gruppe.dienstplan.lesen`, `gruppe.freigabe.lesen`, `gruppe.bericht.lesen`, `gruppe.referenz.lesen`, `gruppe.aufgabe.lesen`, `gruppe.social.lesen`, `gruppe.recruiting.lesen`, `gruppe.agent.lesen`, `gruppe.wissen.lesen` all exist by construction and none is a new key. Two carry an `objekt` segment under the widened grammar of §7.2: `gruppe.system.audit_lesen` (§8.5 Class A) and `gruppe.dienstplan.arbzg_lesen` (`02-datenmodell/04-PLANUNG-ZEIT.md` §1.3) |
 | `datenschutz.auskunft_erstellen` | ✔ | ○ | — | — | — | DSGVO Art. 15 (LEG-09) |
 | `datenschutz.berichtigung_bearbeiten` | ✔ | ○ | — | — | — | Art. 16 |
 | `datenschutz.loeschung_pruefen` | ✔ | ○ | — | — | — | Art. 17 **against** the retention holds — see §12.8 |
-| `oeffentlich.lesen` | ✔ | — | — | — | — | bindable to no mandant role; held in practice only by the public-renderer service principal (§14.3). `SA` holds it through the global role, where it grants nothing beyond published content |
-| `bericht.dashboard_lesen` | ✔ | ✔ | ✔ | S | S | DSH-01, DSH-03; the figures a role sees are its own rights, so one key serves all five dashboards |
+| `oeffentlich.lesen` | ✔ | ○ | ○ | — | — | **not `nur_global`, and not bound by default to `admin`, `leitung`, `mitarbeiter` or `kunde`** (`SA` reaches it through the global role, where it grants nothing beyond published content) — held in practice by the two service principals of §14.3 as ordinary per-mandant `benutzer_mandant` bindings in the four areas. This is a correction: with `nur_global = true`, `02-datenmodell/01-KERN.md` §6.7's `rb_nur_global_pruefen` trigger refuses to bind the right to a mandant-scoped role at all, and §7.3's `nur_global` gate then makes every `t_oeffentlich` policy false — the public website would read nothing (`02-datenmodell/02-CRM-OPERATIONS.md` §1.6/§1.6.1, `06-RADAR-KI-INHALT.md` §1.6). `04-SEITENKARTE.md` §1.4 must drop it from its `nur_global` list (§21) |
+| `bericht.dashboard_lesen` | ✔ | ✔ | ✔ | S | ✔ | DSH-01, DSH-03; the figures a role sees are its own rights, so one key serves all five dashboards. **`KD` is a granted right, not `S`**: `04-SEITENKARTE.md` uses it as the service-layer gate on `/portal/kunde`, and a gate on a key the role does not hold is a portal that is dead at the door. `MA` stays `S` — `/portal/mein` gates on no right at all (§12.7) |
 
 ### 12.2 Acquisition and content
 
@@ -2068,6 +2302,7 @@ instruction or raise an objection on another person's behalf (§7.5).
 | `referenz.schreiben` | ✔ | ✔ | ○ | — | — | |
 | `referenz.veroeffentlichen` | ✔ | ○ | ○ | — | — | |
 | `referenz.kundenfreigabe_erfassen` | ✔ | ✔ | ✔ | — | — | PRO-05 needs `freigegeben_vom_kunden` on file |
+| `social.lesen` | ✔ | ✔ | ✔ | — | — | SOC-01, SOC-05 — the read twin `radar.lesen` and `referenz.lesen` already have. Its absence was a gap: `02-datenmodell/06-RADAR-KI-INHALT.md` §1.3 keys the `social_post` / `social_kanal` / `kanal_statistik` `t_mandant` policies on it, and a `USING` clause naming a key with no catalogue row reads zero rows (K-19) |
 | `social.schreiben` | ✔ | ✔ | ✔ | — | — | SOC-03 draft |
 | `social.freigeben` | ✔ | ✔ | ○ | — | — | SOC-08, `requireMensch` |
 | `social.planen` | ✔ | ✔ | ○ | — | — | |
@@ -2083,43 +2318,48 @@ instruction or raise an objection on another person's behalf (§7.5).
 
 | Right | SA | AD | LT | MA | KD | Note |
 |---|---|---|---|---|---|---|
-| `objekt.lesen` | ✔ | ✔ | ✔ | S | ○ | MA: objects of own assignments, through the `t_person` predicate of §8.5, narrowed by the form-C ceiling |
+| `objekt.lesen` | ✔ | ✔ | ✔ | S | ✔ | MA: objects of own assignments, through the `t_person` predicate of §8.5, narrowed by the form-C ceiling. KD: **granted**, narrowed by `t_kunde` to their own objects (§12.7) |
 | `objekt.schreiben` | ✔ | ✔ | ✔ | — | — | includes the Raumbuch (OPS-02) |
 | `objekt_import.lesen` / `.schreiben` | ✔ | ✔ | ✔ | — | — | OPS-04, preview before commit |
 | `katalog.lesen` | ✔ | ✔ | ✔ | — | — | OPS-06 |
 | `katalog.schreiben` | ✔ | ✔ | ○ | — | — | includes time values (OPS-03) |
-| `angebot.lesen` | ✔ | ✔ | ✔ | — | ○ | KD: released offers only |
+| `angebot.lesen` | ✔ | ✔ | ✔ | — | ✔ | KD: **granted**; `t_kunde` additionally requires `versendet_am is not null` — a customer never sees a draft |
 | `angebot.schreiben` | ✔ | ✔ | ✔ | — | — | |
 | `angebot.preis_freigeben` | ✔ | ○ | ✔ | — | — | |
 | `angebot.versenden` | ✔ | ✔ | ✔ | — | — | passes `agent/policy.ts` (invariant 7) |
 | `angebot.annahme_erfassen` | ✔ | ✔ | ✔ | — | — | KD write is blocked on O-74 |
 | `kalkulation.lesen` / `.schreiben` | ✔ | ✔ | ✔ | — | — | **the margin** — internal-only ceiling; OPS-07 computed in services (invariant 6) |
-| `auftrag.lesen` | ✔ | ✔ | ✔ | S | ○ | |
+| `auftrag.lesen` | ✔ | ✔ | ✔ | S | ✔ | KD: **granted** (CRM-06) |
 | `auftrag.schreiben` | ✔ | ✔ | ✔ | — | — | OPS-05, OPS-10 |
 | `auftrag.abschliessen` | ✔ | ✔ | ✔ | — | — | FIN-18 warning applies |
 | `abrechnung.lesen` / `.schreiben` | ✔ | ✔ | ○ | — | — | billing type per contract (FIN-01, O-04) |
 | `abrechnung.freistellung_pflegen` | ✔ | ✔ | ○ | — | — | §48 EStG Freistellungsbescheinigung, validity at the **service date** (FIN-10, LEG-06) |
 | `reinigung.lesen` / `.schreiben` | ✔ | ✔ | ✔ | — | — | CLN-01, CLN-02, CLN-05 |
-| `nachweis.lesen` | ✔ | ✔ | ✔ | S | ○ | CLN-04 Leistungsnachweis |
+| `nachweis.lesen` | ✔ | ✔ | ✔ | S | ✔ | CLN-04 Leistungsnachweis; KD **granted** |
+| `nachweis.preis_lesen` | ✔ | ✔ | ○ | — | — | **K-05 column gate.** The priced lines of a Leistungsnachweis, reachable only through `app.nachweis_preis_lesen()` (`02-datenmodell/03-GEWERKE.md` §1.10), which re-checks this key and the active mandant and writes `audit_log` |
 | `nachweis.schreiben` | ✔ | ✔ | ✔ | **✔** | — | CLN-04, signed on site. A **granted** right, not `S`: the write runs under `withAnstellung` in `mandant` scope on the `t_mandant` path, and the form-C ceiling narrows it to the worker's own assignments |
-| `security.lesen` / `.schreiben` | ✔ | ✔ | ✔ | — | — | SEC-01, SEC-08 |
+| `security.lesen` | ✔ | ✔ | ✔ | **S** | — | SEC-01, SEC-08. **`S`, not `—`**: a guard on duty must read their own `posten` and `kontrollpunkt` rows, and a `—` cell makes that read unexpressible — the `t_person` form-C predicate of §8.5 is the path, so no right is granted and none is needed |
+| `security.schreiben` | ✔ | ✔ | ✔ | — | — | SEC-01, SEC-08 |
 | `dienstanweisung.lesen` | ✔ | ✔ | ✔ | S | — | SEC-06; MA sees the instruction for their own posts |
 | `dienstanweisung.schreiben` | ✔ | ✔ | ✔ | — | — | versioned |
 | `wachbuch.lesen` | ✔ | ✔ | ✔ | S | — | SEC-05; **not** in the default `mitarbeiter` grant — a guard reaches their own entries through the ceiling |
 | `wachbuch.schreiben` | ✔ | ○ | ✔ | **✔** | — | SEC-05, server time only. Granted, not `S` — same construction as `nachweis.schreiben`; a guard with no write right would have written nothing at all |
 | `schluessel.lesen` | ✔ | ✔ | ✔ | S | — | SEC-07; keys of own objects |
 | `schluessel.schreiben` | ✔ | ✔ | ✔ | **✔** | — | SEC-07 handover receipt, countersigned on site; ceiling-narrowed |
-| `bau.lesen` | ✔ | ✔ | ✔ | S | ○ | BAU-01 |
+| `bau.lesen` | ✔ | ✔ | ✔ | S | ✔ | BAU-01; KD **granted** |
+| `bau.preis_lesen` | ✔ | ✔ | ○ | — | — | **K-05 column gate.** LV unit prices, reachable only through `app.lv_preis_lesen()` (`02-datenmodell/03-GEWERKE.md` §1.9), which re-checks this key and the active mandant and writes `audit_log` |
 | `bau.schreiben` | ✔ | ✔ | ✔ | — | — | LV, Bautagebuch (BAU-07) |
 | `bau.aufmass_erfassen` | ✔ | ✔ | ✔ | **✔** | — | BAU-02, Rechenansatz preserved; granted, ceiling-narrowed to own assignments |
 | `bau.aufmass_freigeben` | ✔ | ✔ | ✔ | — | — | BAU-03 countersignature |
 | `bau.nachtrag_anmelden` | ✔ | ✔ | ✔ | — | — | BAU-04 `angemeldet_am` |
 | `bau.nachtrag_einreichen` | ✔ | ✔ | ✔ | — | — | BAU-04 `eingereicht_am` |
 | `bau.behinderung_erstellen` | ✔ | ✔ | ✔ | — | — | BAU-06, §6 VOB/B |
-| `qualitaet.lesen` / `.schreiben` | ✔ | ✔ | ✔ | — | ○ | Reklamation intake; KD write blocked on O-74 |
-| `dokument.lesen` | ✔ | ✔ | ✔ | S | ○ | DOC-04; KD additionally needs `sichtbar_fuer_kunde = true` |
+| `qualitaet.lesen` | ✔ | ✔ | ✔ | — | ✔ | KD **granted** — their own Reklamationen |
+| `qualitaet.schreiben` | ✔ | ✔ | ✔ | — | ○ | Reklamation intake; KD write blocked on O-74 |
+| `dokument.lesen` | ✔ | ✔ | ✔ | S | ✔ | DOC-04; KD **granted**, and `t_kunde` additionally requires `sichtbar_fuer_kunde = true` |
 | `dokument.schreiben` | ✔ | ✔ | ✔ | **✔** | — | DOC-06 upload from site; granted, ceiling-narrowed. MA read is `S` and additionally requires `sichtbar_fuer_mitarbeiter = true` (§21) |
 | `dokument.kunde_freigeben` | ✔ | ✔ | ✔ | — | — | flips `sichtbar_fuer_kunde` |
+| `dokument.archivieren` | ✔ | ✔ | ✔ | — | — | the soft, audited removal of a wrongly filed document — **the replacement for the `dokument.loeschen` key that deliberately does not exist** (below). The finance categories are excluded by the service (DOC-07, LEG-01). It had no row in the draft's matrix, so the key the prose named resolved false for everyone (K-19) |
 | `dokument.aufbewahrung_verwalten` | ✔ | ○ | — | — | — | DOC-07 retention rules |
 | `dokument.buendel_export` | ✔ | ✔ | ○ | — | — | DOC-08 |
 | `kalender.lesen` | ✔ | ✔ | ✔ | S | ○ | CAL-01 |
@@ -2127,13 +2367,15 @@ instruction or raise an objection on another person's behalf (§7.5).
 | `aufgabe.lesen` | ✔ | ✔ | ✔ | S | — | own assigned tasks — `zugewiesen_an`, or the team branch of `p_zustaendig` |
 | `aufgabe.schreiben` | ✔ | ✔ | ✔ | **✔** | — | completing an assigned task; granted, ceiling-narrowed |
 | `aufgabe.zuweisen` | ✔ | ✔ | ✔ | — | — | |
-| `nachricht.lesen` | ✔ | ✔ | ✔ | S | ○ | own threads, via `nachricht_empfaenger.person_id` |
+| `nachricht.lesen` | ✔ | ✔ | ✔ | S | ✔ | KD **granted**. Own threads are reached without a right, through that domain's `p_beteiligt` policy: `nachricht_empfaenger.empfaenger_typ = 'person' and empfaenger_id = app.aktuelle_person()` — the table is polymorphic and carries **no `person_id` column** (`02-datenmodell/06-RADAR-KI-INHALT.md` §7.9, K-21) |
 | `nachricht.senden` | ✔ | ✔ | ✔ | **✔** | ○ | MA replies in own threads under `withAnstellung`; KD send blocked on O-74 |
 
 **`dokument.loeschen` does not exist as a key.** DOC-07 and LEG-01 make financial documents
 undeletable, and a key that must never resolve true for the categories that matter is a key waiting
 to be bound. Removal of a wrongly filed document is `dokument.archivieren` (soft, audited), and the
-finance categories are excluded from it by the service.
+finance categories are excluded from it by the service. That key now has a **row** in the matrix
+above: naming a replacement key only in prose left it out of the catalogue, and an unregistered key
+is false for everyone (K-19).
 
 ### 12.4 People and time
 
@@ -2143,7 +2385,8 @@ finance categories are excluded from it by the service.
 | `personal.erstellen` / `.aendern` / `.schreiben` | ✔ | ✔ | ✔ | — | — | own `person` data is `S`, §7.5 |
 | `personal.stammdaten_lesen` | ✔ | ✔ | ○ | — | — | birth date, birthplace, nationality — column-protected (SEC-03, LEG-09) |
 | `personal.entgelt_lesen` | ✔ | ○ | ○ | — | — | **K-05.** Default is not-granted for `leitung` and `admin` pending O-75 |
-| `personal.entgelt_schreiben` | ✔ | ○ | — | — | — | |
+| `personal.entgelt_schreiben` | ✔ | ○ | — | — | — | the write twin of `personal.entgelt_lesen`. `05-API-KARTE.md` line 638 gates `POST /api/personal/anstellungen/[id]/konditionen` on a `personal.entgelt_verwalten` that is not in this catalogue; the key is `personal.entgelt_schreiben` (§21) |
+| `personal.erstattung_lesen` | ✔ | ✔ | ○ | — | — | **K-05 column gate** on `ausgabe.anstellung_id` — an employee expense reimbursement is wage-adjacent data (`02-datenmodell/05-FINANZEN.md` §1.5, §7). Without a catalogue row the `ausgabe` reader is closed to everyone |
 | `personal.nachweis_lesen` / `.nachweis_verwalten` | ✔ | ✔ | ✔ | S | — | SEC-02, EMP-08 — hangs off `person_id` |
 | `personal.bewacher_verwalten` | ✔ | ✔ | ✔ | — | — | SEC-03 Bewacherregister |
 | `personal.zugang_verwalten` | ✔ | ✔ | ○ | — | — | `mitarbeiter_zugang`; **see §12.6** |
@@ -2171,8 +2414,26 @@ finance categories are excluded from it by the service.
 | `zeit.konto_lesen` | ✔ | ✔ | ✔ | S | — | EMP-04, per employment (EMP-15) |
 | `zeit.konto_abschliessen` | ✔ | ✔ | ✔ | — | — | monthly lock, one-way like an invoice |
 | `zeit.konto_korrigieren` | ✔ | ○ | ○ | — | — | flows into the next month, never backwards |
-| `zeit.freigeben_zur_abrechnung` | ✔ | ✔ | ✔ | — | — | TIM-12 |
+| `zeit.freigeben_zur_abrechnung` | — | — | — | — | — | **Not seeded, no default binding — blocked on O-39** (`zeit-freigabeschritt`, `02-datenmodell/04-PLANUNG-ZEIT.md` §1.3). TIM-12 names the outcome, not the step: whether a separate release-to-billing act exists at all is a client decision, and seeding a right for a workflow step nobody has confirmed would make the placeholder load-bearing (K-17). `04-SEITENKARTE.md`'s `/portal/[mandant]/zeiten/freigabe` carries the same marker. On a yes, the key joins `04-PLANUNG-ZEIT` §1.3's enumerated list in the same PR |
 | `zeit.exportieren` | ✔ | ✔ | ○ | — | — | ACC-12 payroll export |
+
+**Three `dienstplan` keys sit on tables this document does not own**, and the reconciliation runs the
+other way: `dienstplan.veroeffentlichen`, `dienstplan.arbzg_uebersteuern` and
+`dienstplan.arbzg_lesen` are used by this matrix and by `04-SEITENKARTE.md` on
+`02-datenmodell/04-PLANUNG-ZEIT.md`'s `planungsserie`, `einsatz` and `arbeitszeit_verstoss`, and that
+document's "enumerated, not exemplified" key table omits them. They are catalogue rows here, so they
+resolve; §21 asks 04-PLANUNG-ZEIT to add them to its enumeration so its own count is honest. This is
+the opposite case to `zeit.freigeben_zur_abrechnung` above: those three gate acts the SPEC states
+(TIM-02, TIM-06, TIM-14), while the release-to-billing step is an open question.
+
+**`abwesenheit` is a `zeit` table, so the Art. 9 key is `zeit.abwesenheit_grund_lesen`** — not
+`personal.abwesenheit_grund_lesen`, which `02-datenmodell/01-KERN.md` §3.4/§11/§14.3/§15 and
+`04-SEITENKARTE.md` still write. §7.4 puts `abwesenheit` in module `zeit`, and 01-KERN's own §6.6
+test asserts `split_part(schluessel,'.',1) = modul`, which the `personal.` spelling fails unless
+`abwesenheit` moves module — and it cannot, because `zeit.abwesenheit_lesen` and
+`zeit.abwesenheit_melden` sit on the same table. The `leitung` default stays `○`: the reason for an
+absence is Art. 9 data, and a default grant to every area lead is not a decision this document may
+make for the client (K-17, §12.8).
 
 ### 12.5 Finance
 
@@ -2181,20 +2442,21 @@ unreachable for `mitarbeiter` — the internal-only ceiling, not a binding.
 
 | Right | SA | AD | LT | MA | KD | Note |
 |---|---|---|---|---|---|---|
-| `finanzen.lesen` | ✔ | ✔ | ✔ | — | ○ | KD sees `festgeschrieben` invoices only, never drafts |
+| `finanzen.lesen` | ✔ | ✔ | ✔ | — | ✔ | KD **granted**; `t_kunde` additionally requires `status = 'festgeschrieben'` — a customer never sees a draft (§13.2, O-91) |
 | `finanzen.schreiben` | ✔ | ✔ | ○ | — | — | drafts only; a finalised invoice is immutable (K-12) |
 | `finanzen.entwurf_verwerfen` | ✔ | ✔ | ○ | — | — | **status transition `entwurf → verworfen`**, never a DELETE — see below |
 | `finanzen.festschreiben` | ✔ | ✔ | ○ | — | — | one-way; §14 UStG pre-flight (FIN-04, LEG-05) |
 | `finanzen.stornieren` | ✔ | ○ | ○ | — | — | reversing entry only (invariant 4); default pending O-77 |
 | `finanzen.steuerfall_uebersteuern` | ✔ | ○ | ○ | — | — | §13b UStG / §48 EStG determination override, always audited (FIN-09, FIN-10, LEG-06) |
-| `finanzen.herunterladen` | ✔ | ✔ | ✔ | — | ○ | signed URL, 15 min (DOC-03) |
+| `finanzen.herunterladen` | ✔ | ✔ | ✔ | — | ✔ | signed URL, 15 min (DOC-03); KD **granted** — the PDF and XRechnung of their own finalised invoices |
 | `versand.lesen` | ✔ | ✔ | ✔ | — | — | FIN-11, FIN-12 |
 | `versand.freigeben` | ✔ | ✔ | ○ | — | — | passes `agent/policy.ts`; `requireMensch` |
 | `nummernkreis.lesen` | ✔ | ✔ | ✔ | — | — | FIN-16 Rechnungsausgangsbuch |
+| `nummernkreis.ziehen` | ✔ | ✔ | ✔ | — | — | **every counter draw** — the invoice circle at finalisation (FIN-03), and `02-datenmodell/03-GEWERKE.md` §2.3's `(mandant_id,'wachbuch',objekt_id,jahr)` and `(mandant_id,'leistungsnachweis',null,jahr)` circles. Held by every role that may finalise or that may sign a Leistungsnachweis or a Wachbuch entry, which is why `leitung` is `✔` while `nummernkreis.verwalten` is `—`. Carries **no** `erfordert_2fa` (§3.2, review B11) |
 | `nummernkreis.verwalten` | ✔ | ○ | — | — | — | TEN-02, FIN-03 |
-| `zahlung.lesen` | ✔ | ✔ | ✔ | — | ○ | KD sees the payment status of their own invoices |
+| `zahlung.lesen` | ✔ | ✔ | ✔ | — | ✔ | KD **granted** — the payment status of their own invoices |
 | `zahlung.schreiben` | ✔ | ✔ | ○ | — | — | ACC-04 CAMT.053 matching |
-| `mahnung.lesen` | ✔ | ✔ | ✔ | — | ○ | |
+| `mahnung.lesen` | ✔ | ✔ | ✔ | — | ✔ | KD **granted** — their own dunning level |
 | `mahnung.schreiben` | ✔ | ✔ | ○ | — | — | FIN-15 |
 | `mahnung.freigeben` | ✔ | ✔ | ○ | — | — | approval required; `requireMensch` |
 | `eingang.lesen` | ✔ | ✔ | ○ | — | — | FIN-14 |
@@ -2216,6 +2478,17 @@ have breached invariant 8 and LEG-01. The act is a status transition to `verworf
 `verworfen_am`, `verworfen_von` and `verworfen_grund`, executed through the `UPDATE` policy. **No row
 is ever removed from `rechnung`**, and a discarded draft still has no number, which is why ROADMAP
 Phase 6's "deleting 1000 drafts leaves zero gaps" holds by construction (FIN-03, invariant 4).
+
+**No finance right in this table carries `erfordert_2fa` yet, and that is deliberate.**
+`02-datenmodell/05-FINANZEN.md` §2.3 item 7 fixes `erfordert_2fa = true` on
+`finanzen.festschreiben`, `buchhaltung.festschreiben`, `buchhaltung.exportieren` and
+`nummernkreis.verwalten`. Whether a Leitung with no standing AUT-02 obligation must step up at the
+moment of a finance act is a client decision, not a platform default (K-17), and it is **O-90**
+(§3.2, §20). What is structural and does hold regardless of the answer: `nummernkreis.ziehen` carries
+no second factor, because it is drawn inside the finalisation transaction; and every role holding
+`finanzen.festschreiben` also holds `buchhaltung.schreiben` and `zahlung.schreiben`, so a step-up
+that fires on one of the four fires on the act as a whole. §21 asks 05-FINANZEN to state the four
+flags as blocked on O-90 rather than as a requirement on the permission model.
 
 ### 12.6 Rights that take over an authentication factor
 
@@ -2239,12 +2512,23 @@ destroying exactly the evidentiary value EMP-07 exists to create. The controls, 
 | Portal | Scope | Rights held | Rows reached |
 |---|---|---|---|
 | `mitarbeiter` | `person` (reads), `mandant` (the writes) | **reads:** none. **writes:** `zeit.abwesenheit_melden`, plus the four on-site acts — `wachbuch.schreiben`, `nachweis.schreiben`, `bau.aufmass_erfassen`, `dokument.schreiben` — and `schluessel.schreiben`, `aufgabe.schreiben`, `nachricht.senden` | reads through the `t_person` policies of §8.5 keyed on the subject; writes through `t_mandant` under `withAnstellung`. Both bounded by the K-04 form-A/B/C ceiling |
-| `kunde` | `kunde` (reads), `mandant` (any write O-74 authorises) | `angebot.lesen`, `auftrag.lesen`, `objekt.lesen`, `dokument.lesen`, `finanzen.lesen`, `zahlung.lesen`, `nachweis.lesen`, `bau.lesen`, `qualitaet.lesen`, `nachricht.lesen` | reads through the `t_kunde` policies, each narrowed by `kunde_id = any (app.aktuelle_kunden())` and, for documents, by `sichtbar_fuer_kunde`; the K-04 customer ceiling on top |
+| `kunde` | `kunde` (reads), `mandant` (any write O-74 authorises) | `angebot.lesen`, `auftrag.lesen`, `objekt.lesen`, `dokument.lesen`, `finanzen.lesen`, `zahlung.lesen`, `mahnung.lesen`, `nachweis.lesen`, `bau.lesen`, `qualitaet.lesen`, `nachricht.lesen`, plus `finanzen.herunterladen` and `bericht.dashboard_lesen` — **thirteen, all `✔` in §12.1/§12.3/§12.5** | reads through the `t_kunde` policies, each narrowed by `kunde_id = any (app.aktuelle_kunden())` — the **array** form, because `app.aktueller_kunde()` is NULL in `kunde` scope (K-20, §8.4) — and, for documents, by `sichtbar_fuer_kunde`; the K-04 customer ceiling on top |
 
 This is the honest statement of EMP-13: a worker holds **no read right at all**, and the portal works
 because the subject policy is structural. It is also why the two portals cannot run under group
 scope — the row that would make them work there is a group right, and a group right is a management
 right (K-18, §6.3).
+
+`02-datenmodell/03-GEWERKE.md` §1.7 states a competing `mitarbeiter` read matrix — `wachbuch.lesen`,
+`dienstanweisung.lesen`, `schluessel.lesen`, `security.lesen` granted as rights — and declares itself
+binding on this document. It is not, and the mechanism it argues cannot work is the one K-18 fixes:
+`t_person` is keyed on the **subject** and carries no `hat_recht` conjunct, so a worker read needs no
+module right and granting one would widen the worker's reach from *their own assignments* to *the
+tenant*. GEWERKE is right about exactly one thing, and this document already says it: a worker
+**write** runs on the `t_mandant` path and therefore does need a granted right, which is why the
+seven write keys above are `✔` and not `S`. §21 records the correction. The one cell this document
+changed in response is `security.lesen` MA, from `—` to `S` (§12.3): a guard must be able to read
+their own post and checkpoint rows, and `—` made that unexpressible.
 
 **The seven worker write rights are granted, not `S`.** A restrictive ceiling narrows and never
 grants, so a write with no right on the `t_mandant` path affects zero rows and reports success — the
@@ -2269,9 +2553,23 @@ by `02-datenmodell/01-KERN.md` §15; this document owns the right and the audit 
 
 ### 13.1 Binding a customer login to a `kunde` row
 
-`kunde_zugang (id, mandant_id, kunde_id, benutzer_id, ansprechpartner_id, status, eingeladen_von,
-eingeladen_am, aktiviert_am, entzogen_am, entzogen_von)` — every timestamp `timestamptz` (invariant
-2), `status ∈ {eingeladen, aktiv, entzogen}`, no hard delete.
+`kunde_zugang (id, mandant_id, kunde_id, benutzer_id, ansprechpartner_id, eingeladen_von,
+eingeladen_am, aktiviert_am, entzogen_am, entzogen_von)` — owned and declared by
+`02-datenmodell/02-CRM-OPERATIONS.md` §4.1 (K-21); restated here only for the contract this document
+depends on. Every timestamp is `timestamptz` (invariant 2) and there is no hard delete.
+
+**There is no `status` column on `kunde_zugang`**, and this document previously read and wrote one.
+The lifecycle is the three timestamps, which is stricter because each state carries its own instant
+for the audit trail rather than a value that can be set back:
+
+| State | Predicate |
+|---|---|
+| invited, not yet redeemed | `aktiviert_am is null and entzogen_am is null` |
+| live | `aktiviert_am is not null and entzogen_am is null` — **the predicate every resolver uses** |
+| revoked | `entzogen_am is not null` |
+
+`app.aktuelle_kunden()`, the `kunde` branch of `app.sichtbare_mandanten()` and the unique key below
+all key on `entzogen_am is null`; the invitation flow of §13.1 sets `aktiviert_am`.
 
 **The review's B14 is correct.** The unique key is `(benutzer_id, mandant_id) WHERE entzogen_am IS
 NULL`, **not** `benutzer_id` alone, and there is **no `benutzer.kunde_id` scalar**. A customer buying
@@ -2282,21 +2580,39 @@ customer identity is *resolved*, exactly as the staff identity is:
 
 ```sql
 -- K-18: the customer portal is its own scope, so the resolver returns a SET, not a scalar.
+-- K-20: the SOURCE is the session's kunde_zugang binding. app.aktiver_mandant() appears only as
+-- a NARROWING inside mandant scope and is never the path by which a kunde row is found — in the
+-- three multi-tenant scopes it is NULL, and a resolver keyed on it returns '{}' for every customer.
 create function app.aktuelle_kunden() returns uuid[]
 language sql stable security definer set search_path = pg_catalog, public as $$
   select coalesce(array_agg(kz.kunde_id), '{}')
     from public.kunde_zugang kz
    where kz.benutzer_id = app.aktueller_benutzer()
-     and kz.entzogen_am is null
-     and (kz.mandant_id = app.aktiver_mandant()                      -- mandant scope
-          or (app.scope() = 'kunde'
-              and kz.mandant_id = any (app.sichtbare_mandanten())));  -- kunde scope
+     and kz.aktiviert_am is not null                                 -- live binding, not invited
+     and kz.entzogen_am  is null
+     and kz.mandant_id = any (app.sichtbare_mandanten())             -- every scope: the binding
+     and (app.scope() <> 'mandant'                                   -- narrowing, mandant scope only
+          or kz.mandant_id = app.aktiver_mandant());
 $$;
 
--- retained for mandant scope, where exactly one element can match
+-- retained as the mandant-scope convenience, where exactly one element can match
 create function app.aktueller_kunde() returns uuid
 language sql stable as $$ select (app.aktuelle_kunden())[1] $$;
 ```
+
+**Its value in all four scopes (K-20):**
+
+| `app.scope()` | `app.aktuelle_kunden()` | `app.aktueller_kunde()` |
+|---|---|---|
+| `mandant` | the login's live `kunde_zugang` rows in the active mandant — at most one | that one element; **the only scope in which the scalar is usable** |
+| `gruppe` | `{}` — a customer never enters group scope, and a staff session holds no `kunde_zugang` | NULL |
+| `kunde` | **the whole subject of the request**: every live binding, across every entity (CRM-06) | the first element, arbitrary — **never write a policy against it here** |
+| `person` | `{}` | NULL |
+
+Every `t_kunde` policy and every `p_kunde_ceiling` in the platform therefore writes
+`kunde_id = any (app.aktuelle_kunden())`. The scalar in a customer-scope policy is the silent
+zero-row failure K-20 exists to remove, and §21 places that correction on the four documents that
+still write it.
 
 **A scalar resolver was the wrong shape, and CRM-06 is why.** One company served by `reinigung` and
 by `security` is two `kunde` rows in two mandanten (that is what the unique key above says), so a
@@ -2319,7 +2635,7 @@ Fail-closed by construction: with no row the array is empty, `= any('{}')` is fa
 group, not for its customers.
 
 Invitation: a holder of `system.benutzer_verwalten` issues an invitation with role `kunde` → Supabase
-invite link → the customer sets a password → `kunde_zugang.status = 'aktiv'`. Whether one login may
+invite link → the customer sets a password → `kunde_zugang.aktiviert_am = now()`. Whether one login may
 carry two `kunde_zugang` rows with a customer-side area switcher, or whether each entity issues its
 own login, stays open — `02-datenmodell/02-CRM-OPERATIONS.md` §4.1 and
 `04-SEITENKARTE.md` both number that question **O-52**, and this document adopts that number
@@ -2385,7 +2701,7 @@ Four limits hold independently of any binding:
 |---|---|---|
 | An agent never approves | `requireMensch(ctx)` on every `*.freigeben`, `*.entscheiden` and every external send | invariant 7, APR-07, SOC-08 |
 | An agent supplies no number and no input that determines one | every money, quantity or formula argument is a **handle** or a token from the run's number register — never a numeric literal or an expression string. `zuschlag_profil_id` is never a model argument, because choosing the surcharge profile is setting a price | invariant 6, **K-10**, AGT-02 |
-| An agent cannot exceed its budget | `agent_budget.monatslimit_cent bigint` — integer cents (invariant 1, K-16); the SPEC §17 threshold of €20,000 is stored as `2000000`, never as a decimal. **The budget boundary is cents**; K-16(b) permits `*_mikrocent bigint` carry columns *inside* `agent_schritt` / `agent_budget` because model token pricing is genuinely sub-cent, converted to cents **once**, half-up, at this boundary — nothing invoiced, booked or exported is ever micro-cents. Exhaustion is a hard stop with notification, never silent degradation | AGT-05 |
+| An agent cannot exceed its budget | The cap is **`agent_budget.budget_cent bigint`** — integer cents (invariant 1, K-16, K-21; the draft called it `monatslimit_cent`, which is not the column `02-datenmodell/06-RADAR-KI-INHALT.md` §3.6 declares). The SPEC §17 threshold of €20,000 is stored as `2000000`, never as a decimal. Consumption is **`verbrauch_mikrocent`** plus `reserviert_mikrocent`; **there is no stored `verbrauch_cent`** — the cents figure a screen or an API shows is *computed* at the boundary, `div(verbrauch_mikrocent + 5000, 10000)`, half-up, with the rounding rule stated at the conversion site. The AGT-05 comparison is therefore `verbrauch_mikrocent + reserviert_mikrocent + neu_mikrocent > budget_cent * 10000`. K-16(b) permits `*_mikrocent bigint` on the five agent-ledger tables that document declares, because model token pricing is genuinely sub-cent — nothing invoiced, booked or exported is ever micro-cents. Exhaustion is a hard stop with notification, never silent degradation | AGT-05 |
 | An agent's output leaves the system only through an approval | `server/agent/policy.ts` runs **after** authorization, reading `agent_richtlinie` (AGT-03), and the approval itself is chained per K-13 | invariant 7 |
 
 ### 14.2 The approval chain (K-13)
@@ -2406,19 +2722,45 @@ immutable and ordered:
   by exactly the actor it targets, and then reports a fabricated distribution under a signed audit
   trail.
 
-Rights: `freigabe.lesen` (APR-01), `freigabe.entscheiden` (APR-02, APR-03),
+Rights: `freigabe.lesen` (APR-01), `freigabe.alle_lesen`, `freigabe.entscheiden` (APR-02, APR-03),
 `freigabe.stapel_entscheiden` (APR-04 — never for items flagged for individual review),
 `freigabe.einspruch_erheben` (APR-05 objection window), `freigabe.rueckgaengig` (APR-06 undo window),
-`freigabe.pruefdauer_lesen` (APR-08), `agent.lesen`, `agent.aufgabe_starten`,
-`agent.richtlinie_verwalten` (AGT-03), `agent.budget_verwalten` (AGT-05),
-`agent.werkzeug_verbinden`, `agent.autonomie_setzen` — the last bounded by the SPEC §17 autonomy
-matrix, in which "send an offer automatically" is not a configurable value at any price.
+`freigabe.pruefdauer_lesen` (APR-08), `gruppe.freigabe.lesen`, `agent.lesen`,
+`agent.protokoll_lesen`, `agent.aufgabe_starten`, `agent.richtlinie_verwalten` (AGT-03),
+`agent.budget_verwalten` (AGT-05), `agent.werkzeug_verbinden`, `agent.autonomie_setzen` — the last
+bounded by the SPEC §17 autonomy matrix, in which "send an offer automatically" is not a configurable
+value at any price — plus `wissen.lesen` and `wissen.vertraulich_lesen` in the module §7.4 adds for
+them.
+
+Five of those are new here, and each closes a policy that names a key the catalogue did not have —
+which `app.hat_recht()` answers **false**, permanently and silently (K-19):
+
+| Key | Why it must exist | Named by |
+|---|---|---|
+| `freigabe.alle_lesen` | the inbox of *every* pending approval in the mandant, as opposed to `freigabe.lesen`'s own queue | `06-AGENTEN-FREIGABEN.md` §12 policy |
+| `gruppe.freigabe.lesen` | APR-01 plus invariant 10 require a **cross-entity** pending list that deep-links into the owning mandant, and under K-03 the only policy that can serve it is `t_gruppe`, which must name a `gruppe.<modul>.lesen` key. It is one of the mechanical per-module group keys of §12.1 | `06-AGENTEN-FREIGABEN.md` §12, `04-SEITENKARTE.md` `/portal/gruppe/freigaben` |
+| `agent.protokoll_lesen` | the **per-step** protocol — tool, input, output, model, tokens, cost — is not the run header. `app.agent_nutzlast_lesen` re-checks this key as its K-05-style gate, because step payloads carry customer and employee document text (LEG-09). `agent.lesen` stays the page-level right for the run header | `02-datenmodell/06-RADAR-KI-INHALT.md` §1.3/§3.9, `06-AGENTEN-FREIGABEN.md` §12 |
+| `wissen.lesen` | the RAG corpus read behind `wissens_chunk` | `02-datenmodell/06-RADAR-KI-INHALT.md` §3.11 |
+| `wissen.vertraulich_lesen` | without it §3.11's confidentiality gate is satisfiable **by nobody** — the gate is unconditionally closed | `06-AGENTEN-FREIGABEN.md` §11, `06-RADAR-KI-INHALT.md` §3.11 |
+
+`06-RADAR-KI-INHALT.md` §1.3 writes a further set of keys under module names §7.4 does not carry;
+they are the same acts under this catalogue's spelling and §21 records the mapping —
+`agent.ausfuehren` → `agent.aufgabe_starten`, `agent_konfiguration.*` → `agent.richtlinie_verwalten`,
+`freigabe.widerrufen` → `freigabe.rueckgaengig`, `radar.schreiben` → `radar.profil_schreiben`,
+`inhalt.*` → `referenz.*`, `benachrichtigung.*` → `nachricht.*`,
+`recruiting_bewerber.*` → `recruiting.bewerbung_lesen` / `.bewerbung_bewerten` / `.entscheiden`,
+`recruiting.schreiben` / `.veroeffentlichen` → `recruiting.stelle_schreiben` /
+`.stelle_veroeffentlichen`, and the `vergabemappe` row to module `vergabe`.
 
 Defaults: `SA ✔` throughout; `AD ✔` for `agent.lesen`, `agent.aufgabe_starten`, `freigabe.lesen`,
 `freigabe.entscheiden`; `LT ✔` for the same four; `agent.richtlinie_verwalten`,
-`agent.budget_verwalten`, `agent.autonomie_setzen` and `agent.werkzeug_verbinden` are `SA ✔ / AD ○ /
-LT —`; `freigabe.pruefdauer_lesen` is `SA ✔ / AD ○ / LT ○` and blocked on the §87 BetrVG question of
-§11.2. `MA` and `KD` are `—` for the whole of `agent` and `freigabe`.
+`agent.budget_verwalten`, `agent.autonomie_setzen`, `agent.werkzeug_verbinden` and
+`freigabe.alle_lesen` are `SA ✔ / AD ○ / LT —`; `agent.protokoll_lesen` is `SA ✔ / AD ○ / LT ○` —
+leitung and upwards, never below, because the payloads are personal data (LEG-09);
+`wissen.lesen` is `SA ✔ / AD ✔ / LT ✔` and `wissen.vertraulich_lesen` is `SA ✔ / AD ○ / LT ○`;
+`gruppe.freigabe.lesen` follows the `gruppe.*.lesen` line of §12.1 (`SA ✔ / AD ○ / LT ○`);
+`freigabe.pruefdauer_lesen` is `SA ✔ / AD ○ / LT ○` and blocked on the §87 BetrVG question of
+§11.2. `MA` and `KD` are `—` for the whole of `agent`, `wissen` and `freigabe`.
 
 ### 14.3 Jobs, n8n and the public form intake
 
@@ -2427,7 +2769,18 @@ LT —`; `freigabe.pruefdauer_lesen` is `SA ✔ / AD ○ / LT ○` and blocked o
 | Supabase cron / Edge Functions | `withSystemTenant(mandantId, grund, fn)` on `cse_job`; jobs iterate mandanten and never bypass RLS | per-job grants and policies enumerated in the job definition (K-01) |
 | Vercel cron routes | `src/server/http/cron-auth.ts` verifies a rotating shared secret before the handler runs; the request is rate-limited and audited (`akteur_art = 'system'`, `akteur_dienst = 'job:<name>'`) | the same per-job grants |
 | n8n (external glue only) | calls **only** named webhook endpoints that create a queued item for human review. It holds no session, no `benutzer`, and no right that writes a business record directly | the queue plus §7 approval |
-| Public website form intake (REQ-01) | the public-renderer service principal holding exactly `oeffentlich.lesen`, plus a rate-limited intake endpoint that writes `formular_eingang` | `oeffentlich.lesen` and nothing else |
+| Public website **rendering** (PUB-07, PRO-01 … PRO-05) | the *Website-Renderer* service principal, `benutzer_mandant` rows in the four areas, running with `app.readonly = 'on'` | `oeffentlich.lesen` + `gruppe.oeffentlich.lesen`, and **no write right at all** |
+| Public website **form intake** (REQ-01) | the *Formular-Eingang* service principal behind a rate-limited intake endpoint that writes `formular_eingang` | `oeffentlich.lesen` + `formular.schreiben` + `dokument.schreiben` — and deliberately **not** `formular.lesen`: the intake writes submissions and must never be able to read them back |
+
+**Two principals, not one, and the draft's single row could not work.** It gave the renderer
+`oeffentlich.lesen` "and nothing else" and had that same principal write `formular_eingang`. K-03's
+`WITH CHECK` demands `not app.ist_readonly()` **and** `<modul>.schreiben` in the active mandant, so
+that insert fails three ways at once — read-only context, no `formular.schreiben`, no
+`dokument.schreiben` for the attachment — and REQ-01 … REQ-07 have no functioning write path.
+Splitting them also means a compromise of the public renderer, which is the internet-facing half,
+yields no write capability at all. The right sets are `02-datenmodell/02-CRM-OPERATIONS.md`
+§1.3/§1.6.1's, which this document adopts verbatim; both hold `oeffentlich.lesen` as ordinary
+per-mandant bindings, which is why that key is **not** `nur_global` (§12.1).
 
 The draft asserted that n8n "authenticates as a `system` principal against a named, permissioned
 endpoint" without defining a credential, which is the kind of sentence that becomes a shared secret
@@ -2561,7 +2914,9 @@ Plus:
   is what would have caught the `anstellung_id` predicate on `person`;
 - **every table carries exactly one restrictive policy per non-internal portal, and none carries two**
   — the regression guard on the ANDed-ceiling defect;
-- **no restrictive policy anywhere is written as `app.portal() = 'intern'`**;
+- **no table carries an `app.portal() = 'intern'` policy alongside a keyed `mitarbeiter` or `kunde`
+  ceiling** — the layering defect. `p_intern_ceiling` itself is a registered shorthand for the
+  degenerate pair (§8.5) and emits no such policy, so the assertion targets hand-written SQL;
 - every table reachable in `person` or `kunde` scope has a permissive `t_person` / `t_kunde` policy,
   and no table has a ceiling for a portal it has no permissive path for (a ceiling with no policy
   behind it is a right the matrix promises and the database cannot serve);
@@ -2570,6 +2925,15 @@ Plus:
 - **exactly the five functions of K-08's closed register are `EXECUTE`-granted to `cse_anon` or
   `cse_checkin`, and no others**;
 - no SELECT policy mentions `app.aal()`; no policy mentions `app.akteur_typ` or `app.ip`;
+- **every right-key literal anywhere in the source resolves to a catalogue row, and every catalogue
+  row is used by at least one policy, route gate, service check or seed** —
+  `tests/invariants/rechte-katalog.test.ts` (§7.2a, K-19). This is the only mechanical defence
+  against a misspelled key, because `app.hat_recht()` answers an unknown key `false` rather than
+  raising;
+- **every `app.*` accessor returns a defined value, or the NULL documented in §8.4's table, under all
+  four scopes** — `tests/invariants/accessor-scopes.test.ts` (K-20). The fixture enters each scope
+  and calls each accessor; an accessor that is NULL in a scope where §8.4 does not document it fails
+  the build, and no policy reachable from a scope may name an accessor documented NULL there;
 - and with `app.mandant_id` = A, `select count(*)` on every table returns zero B rows.
 
 The suite runs on every pull request and is not skippable; a failure blocks merge. SEC-A3 is Phase 1
@@ -2651,8 +3015,9 @@ DECISIONS.md imposes when it reconciles all Phase 0 documents at once.
 | O-90 | `auth-zweitfaktor-festschreibung` | Should finalisation, Storno or DATEV export require a second factor at the moment of the act, even for a role with no standing 2FA obligation? | §3.2 |
 | O-91 | `auth-entwurf-kundensicht` | Do customers see finalised invoices only, or may a draft ever be visible to them? | §13.2 |
 | O-92 | `auth-aufbewahrung-telemetrie` | Retention for auth events and the DSGVO deletion concept for `audit_log` — confirm 30 days for `anmeldeversuch` and the GoBD period for permission changes | §10, §11.2 |
-| O-06 (existing) | `betriebsrat` | Is there a Betriebsrat? §87 BetrVG governs login metadata, check-in audit trails, geolocation (LEG-10) and the APR-08 review-duration measurement | §11.2, §14.2 |
-| O-01 (existing) | `operations-rechtstraeger` | Is CSE Operations a legal entity or a department? `mandant.ist_rechtstraeger` decides whether a fifth area gets a number circle | §7.3 |
+| O-06 (existing) | `betriebsrat` | Is there a Betriebsrat? §87 BetrVG governs login metadata, check-in audit trails, geolocation (LEG-10) and the APR-08 review-duration measurement. The switches that gate the four monitoring features are **`mandant_einstellung` keys**, never `mandant` columns (K-21, §5.3, §12.1) | §5.3, §11.2, §14.2 |
+| O-01 (existing) | `operations-rechtstraeger` | Is CSE Operations a legal entity or a department? `mandant.ist_rechtseinheit` decides whether a fifth area gets a number circle | §7.3 |
+| O-39 (`02-datenmodell/04-PLANUNG-ZEIT.md`) | `zeit-freigabeschritt` | Does a separate "release worked time to billing" step exist at all, or does finalisation consume time entries directly? Referenced, not owned, here: until it is answered `zeit.freigeben_zur_abrechnung` is **not seeded** and has no default binding, because seeding a right for a step nobody has confirmed would make the placeholder load-bearing (K-17) | §12.4 |
 
 ---
 
@@ -2660,14 +3025,16 @@ DECISIONS.md imposes when it reconciles all Phase 0 documents at once.
 
 | Document | Obligation |
 |---|---|
-| `02-datenmodell/01-KERN.md` | `sitzung_ansicht` carries exactly the four K-18 scopes — `mandant · gruppe · person · kunde` — and **no `keine` value**: a fifth `ansicht` would be a fifth `app.scope`, which K-18 forbids, and the context-less enrolment session now creates no session row at all (§3.3 — a correction to what this document previously asked for). Add `benutzer.ist_dienstkonto boolean not null default false` so a service principal can never be issued an interactive session (§1.1). `kern.anmeldeversuch`, `kern.audit_kette` and `kern.audit_feld_klassifikation` keep the `kern.` prefix in every reference, and the class-map scan of §17.3 covers `public`, `kern` and `zeit_intern`. `audit_log` carries `ebene enum('plattform','mandant')` with `CHECK ((ebene = 'mandant') = (mandant_id IS NOT NULL))`, platform rows readable only by `super_admin` (K-16(d), §8.5 Class A). The wage column is **`stundensatz_intern`** — no `_cent` suffix (K-05, §6.14). `benutzer`, `benutzer_mandant`, `rolle_berechtigung`, `mandant_kennzahl`, `kern.audit_kette` and `kern.audit_feld_klassifikation` each carry an explicit permissive policy or an explicit "no policy for `cse_app`" statement (§8.5 Class G / Class S). Seed the right keys of §12 and reconcile the `berechtigung.modul` vocabulary with §7.4 — in particular `dienstplan` is the module of `dienstplan.arbzg_pruefen` (K-06), not `einsatz` |
-| `02-datenmodell/02-CRM-OPERATIONS.md` | `dokument` needs `sichtbar_fuer_mitarbeiter boolean not null default false` — the exact mirror of the `sichtbar_fuer_kunde` column it already declares, and for the same reason: DOC-04 makes customer visibility an explicit release rather than a consequence of the document's parent, and worker visibility is the same question with a different audience. Without it the worker `t_person` predicate on `dokument` has nothing to key on and either shows a worker every document hanging off an object they cleaned, or nothing at all. The visibility column is `sichtbar_fuer_kunde` throughout this document too — the draft called it `freigabe_kunde`, which is not the column. `kunde_zugang` unique key is `(benutzer_id, mandant_id) WHERE entzogen_am IS NULL`, never `benutzer_id` alone (§13.1); `app.aktuelle_kunden()` returns `uuid[]` and is the sole resolver behind both the `t_kunde` policies and the customer ceiling; the `kunde` branch of `app.sichtbare_mandanten()` is the mandanten of the login's live `kunde_zugang` rows (K-18, §13.1) |
-| `02-datenmodell/04-PLANUNG-ZEIT.md` | `zeit.nacherfassung_pruefen` and `zeit.checkin_verwalten` appear in the seeded matrix of §12.4; the sessionless upload rules of §5.5 are enforced in the check-in service; `app.checkin_verbrauchen` and `app.offline_ereignis_annehmen` are the two `cse_checkin` rows of K-08's closed register and no third function is granted to that role |
-| `02-datenmodell/05-FINANZEN.md` | `finanzen.entwurf_verwerfen` is a status transition, not a delete (§12.5); `nummernkreis` carries no `aal2` policy (§3.2); the customer's `rechnung` visibility clause is `status = 'festgeschrieben'` on top of `kunde_id = any (app.aktuelle_kunden())` (§8.5, §13.2) |
-| `02-datenmodell/06-RADAR-KI-INHALT.md` | the agent budget boundary is `bigint` cents (`agent_budget.monatslimit_cent`); `*_mikrocent` carry columns are permitted **only** inside `agent_schritt` / `agent_budget` and are converted to cents once, half-up, at that boundary, with the rounding rule stated at the conversion site (K-16(b), §14.1) |
-| `04-SEITENKARTE.md` · `05-API-KARTE.md` | `/portal/mein/**` reads run under `withPersonScope` and `/portal/kunde/**` reads under `withKundeScope`, **never** `withGroupScope` (K-18, §6.3); `GET /api/kalender/feed/[token]` executes `app.ical_feed_lesen` as `cse_anon` and opens no session helper (§5.6); the wage column is `stundensatz_intern` |
-| `01-ORDNERSTRUKTUR.md` | the file it calls `03-AUTH-MODELL.md` and `04-BERECHTIGUNGSMODELL.md` is this single document, `03-AUTH-BERECHTIGUNGEN.md`; `requireKunde` yields a read-only context and customer writes go through `withKundenVorgang` with a closed action union (§6.2); the helper set is the **seven** of §6.3, and `withSystemTenant` needs `to cse_job` policies of its own — a table GRANT is not a policy under FORCE RLS |
-| `docs/DECISIONS.md` | record as numbered entries: (a) in-tenant 403 versus cross-tenant 404 (§9.2); (b) RLS mirrors the tenant/portal/module decision but not input validation or the approval chain, a deliberate reading of AUT-05 (§8.10); (c) `/portal/mein` and `/portal/kunde` sit outside `[mandant]` because EMP-14 and CRM-06 require a cross-employment and cross-entity portal, a deviation from CLAUDE.md's structure block justified by K-07; (d) the nineteen new open questions **O-74 … O-92** of §20, together with the note that O-14 … O-29 belong to `08-PR-PLAN.md` and O-30 … O-73 to sibling Phase 0 documents, so this block was allocated above them rather than colliding |
+| `02-datenmodell/01-KERN.md` | `sitzung_ansicht` carries exactly the four K-18 scopes — `mandant · gruppe · person · kunde` — and **no `keine` value**: a fifth `ansicht` would be a fifth `app.scope`, which K-18 forbids, and the context-less enrolment session now creates no session row at all (§3.3 — a correction to what this document previously asked for). Add `benutzer.ist_dienstkonto boolean not null default false` so a service principal can never be issued an interactive session (§1.1). `kern.anmeldeversuch`, `kern.audit_kette` and `kern.audit_feld_klassifikation` keep the `kern.` prefix in every reference, and the class-map scan of §17.3 covers `public`, `kern` and `zeit_intern`. `audit_log` carries `ebene enum('plattform','mandant')` with `CHECK ((ebene = 'mandant') = (mandant_id IS NOT NULL))`, platform rows readable only by `super_admin` (K-16(d), §8.5 Class A). The wage column is **`stundensatz_intern`** — no `_cent` suffix (K-05, §6.14). `benutzer`, `benutzer_mandant`, `rolle_berechtigung`, `mandant_kennzahl`, `kern.audit_kette` and `kern.audit_feld_klassifikation` each carry an explicit permissive policy or an explicit "no policy for `cse_app`" statement (§8.5 Class G / Class S). Seed the right keys of §12 and §14.2 and reconcile the `berechtigung.modul` vocabulary with §7.4 (K-19, K-21): drop the sentence "Es gibt kein Modul `dienstplan`", replace the eleven-name `modul` list with §7.4's **47**, and set `modul = 'dienstplan'` for `dienstplan.arbzg_pruefen` — K-06 fixes the key string, not the module column, so §14.2's Phase-1 seed inserts a `dienstplan` module row and §6.6's "first segment = modul" test becomes unconditional. Replace the eight-value `berechtigung_aktion` enum with §7.2's **27**, which must contain `schreiben` (K-03's `WITH CHECK` names `<modul>.schreiben` on every tenant table, so without it no write in the platform can be authorised), `pruefen` (01-KERN's own §14.2 seed uses it) and `ziehen`. Rename `personal.abwesenheit_grund_lesen` → **`zeit.abwesenheit_grund_lesen`** in §3.4, §11, §14.3 and §15. Give `app.portal_fuer` the four-branch, scope-aware derivation of §1.4 — or a second resolver — so `app.portal` has a defined value in `gruppe`, `person` and `kunde` scope instead of falling through to `'mitarbeiter'` (K-20), and call it that way from §3.3's `app.sitzung_aufloesen`. `mandant.slug`, not `schluessel`, with the five reserved values `gruppe · mein · kunde · konto · api`, and `mandant.ist_rechtseinheit` (K-21). Declare the six tables K-21 assigns it — `job_lauf` (**no `mandant_id`**; per-tenant results live in `job_lauf_mandant`), `job_lauf_mandant`, `mandant_einstellung` `(id, mandant_id, schluessel, wert jsonb)` with `UNIQUE (mandant_id, schluessel)`, `nachweis_art`, `sicherheitsvorfall`, `loeschprotokoll` — since §5.3, §12.1 and `app.einstellung()` read them here. `audit_log` carries **no** `mandant_id_alt` / `mandant_id_neu`: the switch pair travels in `vorher`/`nachher` (§4.4) |
+| `02-datenmodell/02-CRM-OPERATIONS.md` | `dokument` needs `sichtbar_fuer_mitarbeiter boolean not null default false` — the exact mirror of the `sichtbar_fuer_kunde` column it already declares, and for the same reason: DOC-04 makes customer visibility an explicit release rather than a consequence of the document's parent, and worker visibility is the same question with a different audience. Without it the worker `t_person` predicate on `dokument` has nothing to key on and either shows a worker every document hanging off an object they cleaned, or nothing at all. The visibility column is `sichtbar_fuer_kunde` throughout this document too — the draft called it `freigabe_kunde`, which is not the column. `kunde_zugang` unique key is `(benutzer_id, mandant_id) WHERE entzogen_am IS NULL`, never `benutzer_id` alone (§13.1); `app.aktuelle_kunden()` returns `uuid[]` and is the sole resolver behind both the `t_kunde` policies and the customer ceiling; the `kunde` branch of `app.sichtbare_mandanten()` is the mandanten of the login's live `kunde_zugang` rows (K-18, §13.1). `kunde_zugang` has **no `status` column** and this document now writes the lifecycle as `aktiviert_am` / `entzogen_am` (§13.1) — keep it that way, or add the column and say so once. Its "the `kunde` role holds only `angebot.lesen`, `auftrag.lesen`, `objekt.lesen`, `dokument.lesen`" (§1.3) must read "of this document's modules, only …": the full seeded set is the thirteen of §12.7. §1.6.1's two service principals — Website-Renderer and Formular-Eingang — are adopted verbatim in §14.3, and `oeffentlich.lesen` is therefore **not** `nur_global` |
+| `02-datenmodell/04-PLANUNG-ZEIT.md` | `zeit.nacherfassung_pruefen` and `zeit.checkin_verwalten` appear in the seeded matrix of §12.4; the sessionless upload rules of §5.5 are enforced in the check-in service; `app.checkin_verbrauchen` and `app.offline_ereignis_annehmen` are the two `cse_checkin` rows of K-08's closed register and no third function is granted to that role — and the signature this document quotes in §5.3 is the owner's five-argument form, `(p_token_hash, p_geraete_zeit, p_ip, p_user_agent, p_geo)`, so the K-08 register and the `GRANT EXECUTE` must be written against **that** arity (Postgres overloads on the argument list; a grant on a three-argument signature does not reach the five-argument function and the check-in endpoint fails closed). Add `dienstplan.veroeffentlichen`, `dienstplan.arbzg_uebersteuern` and `dienstplan.arbzg_lesen` to §1.3's enumerated key list — this matrix and `04-SEITENKARTE.md` use all three on its tables. `gruppe.dienstplan.arbzg_lesen` is expressible under §7.2's widened group grammar (`objekt = dienstplan_arbzg`, `aktion = lesen`) and may stay. Keep `zeit.freigeben_zur_abrechnung` **out** of that list until O-39 is answered; it is unseeded here for the same reason. Every `t_kunde` policy and `p_kunde_ceiling` in §1.3 writes `= any (app.aktuelle_kunden())`, never the scalar `app.aktueller_kunde()`, which is NULL in `kunde` scope (K-20, §8.4). The O-06 monitoring switches stay `mandant_einstellung` keys (K-21) |
+| `02-datenmodell/05-FINANZEN.md` | `finanzen.entwurf_verwerfen` is a status transition, not a delete (§12.5); `nummernkreis` carries no `aal2` policy (§3.2); the customer's `rechnung` visibility clause is `status = 'festgeschrieben'` on top of `kunde_id = any (app.aktuelle_kunden())` (§8.5, §13.2). `nummernkreis.ziehen` is now a catalogue key with the new `ziehen` action (§7.2, §12.5) and carries no `erfordert_2fa`; the four `erfordert_2fa = true` flags of §2.3 item 7 must be stated as **blocked on O-90**, not as a requirement on the permission model (K-17). The reference-data right is **`system.referenzdaten_verwalten`**, not `referenz.verwalten` — module `referenz` in §7.4 is published website content (§7.4, §12.1). `personal.erstattung_lesen` is now in §12.4 as the K-05 gate on `ausgabe.anstellung_id`. Its "`kunde` holds `finanzen.lesen` only" must read "of this document's modules, only …" (§12.7). Drop the `unique (benutzer_id, kunde_id)` on `kunde_zugang`: the key is `(benutzer_id, mandant_id) WHERE entzogen_am IS NULL` (§13.1, §18). The Storno back-reference is `rechnung_beziehung` and the tax catalogue is `steuersatz_gruppe` — there is no `steuersatz` table (K-21) |
+| `02-datenmodell/06-RADAR-KI-INHALT.md` | the agent budget cap is `agent_budget.budget_cent bigint` and consumption is `verbrauch_mikrocent` + `reserviert_mikrocent`, with **no stored `verbrauch_cent`** — the cents figure is computed half-up at the boundary (K-16(b), K-21, §14.1); this document's `monatslimit_cent` / `verbrauch_cent` are withdrawn. Remap §1.3's right keys onto §7.4's closed module list, because `app.hat_recht()` is false for an unknown key (K-19): `agent.ausfuehren` → `agent.aufgabe_starten`; `agent_konfiguration.*` → `agent.richtlinie_verwalten`; `inhalt.*` → `referenz.*`; `benachrichtigung.*` → `nachricht.*`; `recruiting_bewerber.*` → `recruiting.bewerbung_lesen` / `.bewerbung_bewerten` / `.entscheiden`; `recruiting.schreiben` / `.veroeffentlichen` → `recruiting.stelle_schreiben` / `.stelle_veroeffentlichen`; `radar.schreiben` → `radar.profil_schreiben`; `freigabe.widerrufen` → `freigabe.rueckgaengig`; the `vergabemappe` row to module `vergabe` with `vergabe.lesen` / `.schreiben` / `.einreichung_erfassen`. In exchange this document has added the four keys 06-RADAR was right about — module `wissen` with `wissen.lesen` and `wissen.vertraulich_lesen`, `agent.protokoll_lesen`, `social.lesen` (§7.4, §12.2, §14.2). The `freigabe` row's group column changes from `—` to **`gruppe.freigabe.lesen`**, which now exists (§14.2). Rename `j_job` → **`t_job`**, the fifth registered permissive class of §8.5, and write every `t_kunde` / `p_kunde_ceiling` with `= any (app.aktuelle_kunden())` (K-20). `agent_artefakt` is this document's to declare (K-21) |
+| `04-SEITENKARTE.md` | `/portal/mein/**` reads run under `withPersonScope` and `/portal/kunde/**` reads under `withKundeScope`, **never** `withGroupScope` (K-18, §6.3); the wage column is `stundensatz_intern`. Drop `oeffentlich.lesen` from §1.4's `nur_global` list — with the flag set, the trigger refuses to bind it to the two service principals and the public website reads nothing (§12.1). `/portal/gruppe/protokoll` is gated on **`gruppe.system.audit_lesen`**, not `gruppe.system.lesen` (§8.5 Class A). The `/protokoll` page and the step chain of `/agenten/…/aufgaben/[id]` require **`agent.protokoll_lesen`**; page-level `agent.lesen` may stay for the run header (§14.2). `/portal/[mandant]/zeiten/freigabe` carries the O-39 marker, since `zeit.freigeben_zur_abrechnung` is not seeded (§12.4). `bericht.dashboard_lesen` is a granted `kunde` right, so gating `/portal/kunde` on it is correct (§12.1). The document-visibility column is `sichtbar_fuer_kunde`, and the reserved-slug CI test asserts the five values `gruppe · mein · kunde · konto · api` against `mandant.slug` (K-21, §4.5) |
+| `05-API-KARTE.md` | `/portal/kunde/**` reads under `withKundeScope`; `GET /api/kalender/feed/[token]` executes `app.ical_feed_lesen` as `cse_anon` and opens no session helper (§5.6); the wage **column** is `stundensatz_intern` and `stundensatz_intern_cent` is the wire field only. `NotConnectedError` is **409 `kanal_nicht_verbunden`** in both documents (§9.2) — the 503 `NICHT_VERBUNDEN` of the draft is withdrawn here, so R-17 and T-30 stand. The sensitive-audit key is **`system.audit_sensitiv_lesen`**: module `sicherheit` does not exist (§7.4, §12.1). The entgelt write key is `personal.entgelt_schreiben`, not `personal.entgelt_verwalten` (§12.4). `GET/PATCH /api/agenten/budget` reads `agent_budget.budget_cent` and presents consumption as a **computed** cents figure over `verbrauch_mikrocent`, never a stored `verbrauch_cent` (§14.1, K-21). Every `t_kunde` predicate in §C.12 uses `= any (app.aktuelle_kunden())` (K-20). `app.checkin_verbrauchen` has the owner's five arguments (§5.3). `app.portal` is derived by §1.4's four-branch rule, which this document and 05-API-KARTE now state identically |
+| `01-ORDNERSTRUKTUR.md` | the file it calls `03-AUTH-MODELL.md` and `04-BERECHTIGUNGSMODELL.md` is this single document, `03-AUTH-BERECHTIGUNGEN.md`; `requireKunde` yields a read-only context and customer writes go through `withKundenVorgang` with a closed action union (§6.2); the helper set is the **seven** of §6.3, and `withSystemTenant` needs `to cse_job` policies of its own — a table GRANT is not a policy under FORCE RLS. That policy is now registered: it is **`t_job`**, the fifth permissive form of §8.5, so §16 must add a `job` bucket to `src/server/db/rls.ts` and withdraw "K-03 permits no `cse_job` policy". The switcher counter query `queries/mandant.switcherZaehler` requires **`gruppe.bericht.lesen`**, not `gruppe.dashboard.lesen` — there is no module `dashboard` (§7.4, §12.1). Micro-cent columns follow `02-datenmodell/06-RADAR-KI-INHALT.md`'s five-table inventory, and the money column is `stundensatz_intern` without the `_cent` suffix (K-05) |
+| `06-AGENTEN-FREIGABEN.md` | `freigabe.alle_lesen`, `gruppe.freigabe.lesen`, `agent.protokoll_lesen` and `wissen.vertraulich_lesen` — the four keys its §11 and §12 policies name — are now catalogue rows (§14.2), so those policies resolve; keep those exact spellings and use `freigabe.rueckgaengig` for the APR-06 undo. The nine AGT-02 tool names it fixes are the only tools in the platform (K-21); no domain document mints a tenth |
+| `docs/DECISIONS.md` | record as numbered entries: (a) in-tenant 403 versus cross-tenant 404 (§9.2); (b) RLS mirrors the tenant/portal/module decision but not input validation or the approval chain, a deliberate reading of AUT-05 (§8.10); (c) `/portal/mein` and `/portal/kunde` sit outside `[mandant]` because EMP-14 and CRM-06 require a cross-employment and cross-entity portal, a deviation from CLAUDE.md's structure block justified by K-07; (d) the nineteen new open questions **O-74 … O-92** of §20, together with the note that O-14 … O-29 belong to `08-PR-PLAN.md` and O-30 … O-73 to sibling Phase 0 documents, so this block was allocated above them rather than colliding; (e) `p_intern_ceiling` is a **registered shorthand** for the degenerate `p_ma_ceiling` / `p_kunde_ceiling` pair rather than a third ANDed policy, which is what the four data-model documents describe and what `rls-ceilings.test.ts` now asserts (§8.5, §17.3); (f) the `cse_job` policy on a tenant table is named **`t_job`**, one name platform-wide, and is the fifth registered permissive class (§8.5); (g) `NotConnectedError` is **409 `kanal_nicht_verbunden`**, one status and one code, with `07-INTEGRATIONEN.md`'s return-don't-throw port mechanism behind it (§9.2); (h) `03-AUTH-BERECHTIGUNGEN.md` is the single owner of the right catalogue under K-19 — the files cited elsewhere as `04-BERECHTIGUNGSMODELL.md` and `03-AUTH-MODELL.md` do not exist and are this document |
 
 ---
 

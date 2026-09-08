@@ -254,7 +254,7 @@ cross-entity leak SEC-A3 calls the highest-priority test in the codebase.
 
 | Bucket | Rule |
 |---|---|
-| **Tenant** | `mandant_id uuid not null references mandant(id)` (K-16), `ENABLE` **and** `FORCE ROW LEVEL SECURITY` (K-01), exactly the two policies of K-03 and the `p_intern_ceiling` restrictive policy of K-04 |
+| **Tenant** | `mandant_id uuid not null references mandant(id)` (K-16), `ENABLE` **and** `FORCE ROW LEVEL SECURITY` (K-01), exactly the two policies of K-03 and the `p_intern_ceiling` restrictive policy of K-04 — the **registered shorthand** for the degenerate `p_ma_ceiling` / `p_kunde_ceiling` pair (`03-AUTH-BERECHTIGUNGEN.md` §8.5), never layered beside a keyed ceiling |
 | **Reference** | global, no `mandant_id`, `SELECT` granted to `cse_app`, written by `cse_migrator` or `cse_job` only — the shape `02-datenmodell/06-RADAR-KI-INHALT.md` §1.5 already uses for `ausschreibung_rohdaten` and `agent_preisliste` |
 | **System** | global, no `mandant_id`, readable only through a `SECURITY DEFINER` function that checks an internal right; never granted to `cse_app` directly |
 
@@ -334,7 +334,9 @@ renders.
   point a composite FK at this row).
 - **RLS:** K-03 two-policy shape, module `system`, rights `system.einstellung_lesen` /
   `system.einstellung_verwalten`; K-04 `p_intern_ceiling` (a `mitarbeiter` or `kunde` login never
-  reads it).
+  reads it). The `integration-healthcheck` job writes `zuletzt_geprueft_am`, `letzter_erfolg_am`,
+  `letzter_fehler_am` and `letzter_fehler_code` under a **`t_job`** policy (`to cse_job`,
+  `03-AUTH-BERECHTIGUNGEN.md` §8.5) — a `GRANT` alone reaches no rows under FORCE RLS.
 - **Constraints:** `FOREIGN KEY (integration_schluessel, art) REFERENCES integration_katalog
   (schluessel, art)`, then
   `CHECK (verbindungs_status <> 'verbunden' OR credential_ref IS NOT NULL OR art = 'global')` — an
@@ -407,13 +409,20 @@ records that a call happened and how it ended; the business change it caused is 
   rounding each model call to a whole cent here would report `0,00 €` for almost every one of them.
   The join through `agent_schritt_id` gives the status screen the same figure without a second
   source of truth (`02-datenmodell/06-RADAR-KI-INHALT.md` §1.12).
-- **RLS:** K-03, module `system`, read right `system.protokoll_lesen`; `INSERT` by `cse_app` and
-  `cse_job`; **no `UPDATE` policy, no `DELETE` policy**, plus the `BEFORE UPDATE OR DELETE` trigger of
-  K-16 (invariant 8). K-04 `p_intern_ceiling`.
+- **RLS:** K-03, module `system`, read right `system.protokoll_lesen`; `INSERT` by `cse_app` through
+  `t_mandant` and by `cse_job` through **`t_job`** — under FORCE RLS a table `GRANT` is not a policy,
+  so a job that writes a tenant table needs one of its own, and `t_job` is the fifth registered
+  permissive class of `03-AUTH-BERECHTIGUNGEN.md` §8.5 (`to cse_job`, scoped to the mandant the job
+  entered through `withSystemTenant`). **No `UPDATE` policy, no `DELETE` policy** for either role,
+  plus the `BEFORE UPDATE OR DELETE` trigger of K-16 (invariant 8). K-04 `p_intern_ceiling`.
 - **Retention:** rows carry `korrelation_id` into personal-data Vorgänge, so they are not kept
-  forever. The window is resolved through `app.aufbewahrung_intervall('integration_aufruf')` — the
-  same catalogue `dokument_aufbewahrung` uses — and is a **placeholder** until the deletion concept
-  is signed off. `// TODO(client, O-126): Wie lange dürfen die Aufrufprotokolle der Integrationen
+  forever. The window is resolved through
+  `app.aufbewahrung_intervall(mandant_id, 'integration_aufruf')` — the same catalogue
+  `dokument_aufbewahrung` uses — and is a **placeholder** until the deletion concept is signed off.
+  **The mandant is an argument, not an ambient value** (`02-datenmodell/02-CRM-OPERATIONS.md` §4.7,
+  which owns the function): the purge runs as `cse_job` in policies and `BEFORE INSERT` triggers
+  where `app.aktiver_mandant()` is NULL, and the one-argument form would silently return NULL in
+  exactly those contexts and retain forever. An earlier draft here wrote the one-argument form. `// TODO(client, O-126): Wie lange dürfen die Aufrufprotokolle der Integrationen
   (integration_aufruf) aufbewahrt werden, bevor sie automatisch gelöscht werden? (LEG-09; die
   Aufbewahrung der KI-Prompt-/Antwortsätze ist die Schwesterfrage in
   02-datenmodell/06-RADAR-KI-INHALT.md, die Dokumentkategorien sind O-25)`
@@ -485,6 +494,23 @@ is a DSGVO deletion duty (REC-07, LEG-11).
   as a `job_lauf` row with `ergebnis = 'abgelehnt'` so a rotation mistake is visible instead of silent.
 - **SPEC:** SPEC §14, SPEC §21, FIN-06, REC-07.
 
+**`job_lauf` is not this document's table, and its shape is fixed by K-21.** It is declared **once**,
+by `02-datenmodell/01-KERN.md`, as `id · job text · gestartet_am · beendet_am · ergebnis enum ·
+kennzahlen jsonb · fehlertext`, with the index `(job, gestartet_am DESC)` the watchdog query above
+needs. Four documents wrote it four different ways — `job_schluessel` / `job`, `begonnen_am` /
+`gestartet_am`, `befund` / `kennzahlen`, `status` / `ergebnis` — and this section uses the canonical
+spelling: `job`, `gestartet_am`, `beendet_am`, `ergebnis`.
+
+**It carries no `mandant_id` at all** (K-21). It is a platform operations log, not tenant data, so
+K-16(d) keeps `audit_log` as the only tenant-adjacent table in the platform with a nullable tenant
+key — a nullable one here would create a second, and `mandant_id = app.aktiver_mandant()` can never
+match a NULL, so the row would be simultaneously duplicable and invisible (§3.1). **The per-tenant
+outcome of one run lives in `job_lauf_mandant`** (`job_lauf_id`, `mandant_id`, `ergebnis`,
+`kennzahlen`), also declared by `02-datenmodell/01-KERN.md`. `job_plan` joins `job_lauf` on `job` and
+never on a tenant; a per-tenant job — the `postfach` sweep, `bewerber-purge`, the monthly
+`stundenkonto` close — writes one `job_lauf` row for the run and one `job_lauf_mandant` row per
+mandant it touched.
+
 ### 3.8 `restore_protokoll` — system
 
 | Column | Type | Null | Notes |
@@ -529,7 +555,10 @@ business area to be a database row (§29).
 - **Indexes:** `mma_zweck_uk UNIQUE (mandant_id, zweck)`; `mma_domain_uk UNIQUE (mandant_id,
   absender_domain)`; `UNIQUE (mandant_id, id)` (K-16).
 - **RLS:** `ENABLE` **and** `FORCE ROW LEVEL SECURITY`; the two K-03 policies, module `system`,
-  rights `system.einstellung_lesen` / `system.einstellung_verwalten`; K-04 `p_intern_ceiling`.
+  rights `system.einstellung_lesen` / `system.einstellung_verwalten`; K-04 `p_intern_ceiling`; and a
+  **`t_job`** policy for the provider healthcheck that maintains `dkim_status` / `spf_status` /
+  `dmarc_status` (`03-AUTH-BERECHTIGUNGEN.md` §8.5) — those three columns are never written by hand,
+  and under FORCE RLS a job with a `GRANT` and no policy writes nothing.
 - **Constraints:** `CHECK (verifiziert_am IS NOT NULL OR credential_ref IS NULL)` — an unverified
   domain holds no credential; `MailerPort.sende` refuses a mandant whose row is absent or
   unverified with `NOT_CONFIGURED`, and **never falls back to another mandant's sender**.
@@ -566,8 +595,13 @@ K-16(d) reserves to `audit_log` alone — the nullable-tenant grep of §30 match
 | `dokument`, `dokument_version`, `dokument_aufbewahrung` | `02-datenmodell/02-CRM-OPERATIONS.md` §4.7 | one private-bucket contract, one retention catalogue; DOC-05 versions are `dokument_version` rows with their own object key (§6) |
 | `wetter_station`, `wetter_beobachtung`, `bautagebuch.wetter_snapshot` | `02-datenmodell/03-GEWERKE.md` §7.16–7.17 | the DWD port writes observations; the diary keeps the snapshot (§16) |
 | `feiertag` | `02-datenmodell/03-GEWERKE.md` §7 (global reference) | needs the proposal states of §17 |
-| `job_lauf` | `02-datenmodell/01-KERN.md` | `ergebnis` must include `abgelehnt`; `job_plan` joins on `job` |
-| `loeschprotokoll` | `02-datenmodell/01-KERN.md` | referenced by §19.2 and by `05-API-KARTE.md` §579, declared nowhere — 01-KERN declares it: one append-only row per deleted subject and category, `mandant_id NOT NULL` where the subject had a tenant, no hard delete (invariant 8). A deletion with no tenant to record goes to `audit_log` at `ebene = 'plattform'` instead (K-16(d)) |
+| `job_lauf` | `02-datenmodell/01-KERN.md` (**K-21**) | declared **once**, there: `id · job text · gestartet_am · beendet_am · ergebnis enum · kennzahlen jsonb · fehlertext`, index `(job, gestartet_am DESC)`, **no `mandant_id`**. `ergebnis` must include `abgelehnt` (§3.7 auth); `job_plan` joins on `job`. This document redeclares nothing and uses those spellings verbatim |
+| `job_lauf_mandant` | `02-datenmodell/01-KERN.md` (**K-21**) | the per-tenant outcome of one run — `job_lauf_id`, `mandant_id`, `ergebnis`, `kennzahlen`. It exists so `job_lauf` needs no nullable tenant key, which K-16(d) reserves to `audit_log` alone (§3.7) |
+| `mandant_einstellung` | `02-datenmodell/01-KERN.md` (**K-21**) | `id, mandant_id, schluessel, wert jsonb`, `UNIQUE (mandant_id, schluessel)`. It carries the O-06 monitoring switches, which are **settings keys and not `mandant` columns** (§26) |
+| `nachweis_art`, `sicherheitsvorfall` | `02-datenmodell/01-KERN.md` (**K-21**) | referenced only: `nachweis_art` is the certificate-type catalogue behind DOC/SEC surfaces, `sicherheitsvorfall` records the SEC-A9 events an adapter or the agent kernel may raise. This layer declares neither |
+| `loeschprotokoll` | `02-datenmodell/01-KERN.md` (**K-21**) | referenced by §19.2 and by `05-API-KARTE.md` §579, declared nowhere today — 01-KERN declares it: one append-only row per deleted subject and category, `mandant_id NOT NULL` where the subject had a tenant, no hard delete (invariant 8). A deletion with no tenant to record goes to `audit_log` at `ebene = 'plattform'` instead (K-16(d)) |
+| `steuersatz_gruppe` | `02-datenmodell/05-FINANZEN.md` (**K-21**) | **there is no `steuersatz` table**; every reference is `*.steuersatz_gruppe_id`. The tax lines of the K-12 invoice payload this layer serialises to XRechnung and ZUGFeRD (§10, §11) come from it |
+| `rechnung_beziehung` | `02-datenmodell/05-FINANZEN.md` (**K-21**) | K-12's name and columns win over `storno_verweis`; a Storno correcting a delivered e-invoice is a new invoice plus a `rechnung_beziehung` row, never an edit (§12.1) |
 | `audit_log` | `02-datenmodell/01-KERN.md` | every gate decision, every mandant switch, every `entgelt_lesen`, every ArbZG aggregate read, and every call on the definer register of §6.2. The platform-level ones — an `integration_status_global` read, a `bewerbung_eingang` listing — are written with `ebene = 'plattform'` and `mandant_id NULL` under **K-16(d)**, which is the one nullable tenant key in the platform and needs the `CHECK ((ebene = 'mandant') = (mandant_id IS NOT NULL))` to stay a stated fact rather than a missing value |
 
 ---
@@ -683,20 +717,54 @@ export interface JobBoardPort extends IntegrationPort {
 method whose name is in the send set (`sende`, `veroeffentliche`, `aktualisiere`, `zurueckziehen`,
 `uebertrage`, `alarmiereExtern`) declares `freigabe` as optional or omits it.
 
-### 4.3 System messages, and the fail-closed default
+### 4.3 System messages — pre-approved by a seeded rule, never ungated
 
-A login code cannot wait for a human. The gate distinguishes a `systemnachricht` — deterministic
-template, no free text, no AI-generated content, triggered by the recipient's own action (login code,
-check-in link, password recovery, acknowledgement of an application) — which an `agent_richtlinie`
-may mark pre-approved: the human approval happened when a human configured a visible, versioned,
-audited rule, and the gate is still traversed and still logged for every message. **Everything
-AI-drafted and everything externally visible stays `freigabe_erforderlich`.**
+A login code cannot wait for a human, and a gate that requires one for it is not a safeguard but an
+outage: no worker can log in at all (EMP-01, AUT-07). The gate therefore distinguishes a
+`systemnachricht` — **deterministic template, no free text, no AI-generated content, addressed to a
+principal already in the system, triggered by that principal's own action or by a system event the
+platform itself detected** — from everything else.
 
-This is an interpretation of invariant 7, not something the SPEC states, so it ships fail-closed:
-**until the question below is answered, the pre-approval rule ships disabled and every category
-requires an approval.** An unanswered question must not ship as a live exception to an invariant.
+**A `systemnachricht` is pre-approved, not ungated, and the distinction is the whole mechanism.**
+`freigabe` stays a required, non-optional argument of every send method (§4.2, and the CI gate that
+enforces it does not change); what changes is who mints it. `src/server/agent/policy.ts` mints the
+`Freigabe` from a **seeded, visible, versioned, audited `agent_richtlinie`** and stamps
+`erteilt_von = 'richtlinie:<id>'` — the field the branded type already carries (§4) precisely so a
+rule-granted approval is distinguishable from a human-clicked one in `audit_log` and in the approval
+history. The human approval happened when a human configured the rule. The gate is still traversed,
+the payload hash is still bound (§4.1), the single-use conditional write of K-09 still applies, and
+`integration_aufruf` is still written. Nothing is exempt from the gate; one category simply does not
+wait at it.
 
-`// TODO(client, O-125): Dürfen Systemnachrichten (Anmelde-Code, Check-in-Link, Passwort-Wiederherstellung, Eingangsbestätigung einer Bewerbung) über eine sichtbare, versionierte Richtlinie vorab freigegeben werden, oder soll jede ausgehende Nachricht einzeln freigegeben werden? (invariant 7, AGT-03)`
+**The pre-approved set is closed, and it is the same list `05-API-KARTE.md` R-09 already names**, so
+that an implementer following either document ships the same platform:
+
+| Pre-approved (`systemnachricht`) | Why it cannot wait |
+|---|---|
+| EMP-01 login code (SMS) · TIM-07 check-in link | the recipient asked for it seconds ago; a queued approval is a failed login (AUT-07) |
+| password recovery | same, and AUT-07's lockout counters assume the code arrives |
+| notification digests NOT-01 / NOT-02 | scheduled, per-recipient, contains only what that recipient may already read |
+| lead-owner alert (REQ-05, REQ-06) | an SLA escalation whose whole value is latency |
+| watchdog and operations alerts (§23.2) | an alert that needs a human to release it cannot report that the humans' own tooling is down |
+| acknowledgement of an application (REC-03) | a fixed template with no assessment in it, sent to the applicant who just wrote |
+
+**Everything else stays `freigabe_erforderlich`, and the boundary is stated so it cannot drift:**
+anything AI-drafted, anything externally visible under a company brand (social, job boards), anything
+to a customer or a public buyer (offer, invoice, dunning, e-invoice delivery), and anything whose
+recipient did not initiate it. Outbound to a contact whose `rechtsgrundlage` is `keine` remains
+blocked outright with no override (CRM-08, LEG-08, D-01) — a `systemnachricht` category never
+launders that rule, because every one of the six rows above is addressed to a principal with a
+recorded relationship.
+
+An earlier draft shipped this carve-out **disabled** pending the question below, reasoning that an
+unanswered question must not ship as a live exception to an invariant. That was the wrong direction
+of fail-closed and it is corrected here: disabling it does not make the platform safer, it makes
+EMP-01, the check-in link, password recovery and the NOT-01 digest unsendable, so the login screen
+asks for a phone number and nothing ever arrives — a silent, total failure of the worker portal
+discovered in Phase 5. The safe default is the **narrow, enumerated, audited** set above; O-125 asks
+whether the client wants any row **removed** from it, not whether it may exist.
+
+`// TODO(client, O-125): Systemnachrichten (Anmelde-Code, Check-in-Link, Passwort-Wiederherstellung, Benachrichtigungs-Digest, Lead-Eskalation, Betriebsalarm, Eingangsbestätigung einer Bewerbung) werden über eine sichtbare, versionierte Richtlinie vorab freigegeben — jede einzelne bleibt protokolliert. Soll eine dieser Kategorien stattdessen einzeln freigegeben werden? (invariant 7, AGT-03, AUT-07)`
 
 ---
 
@@ -797,12 +865,38 @@ uses all four:
 | `withSystemTenant(mandantId, 'job:<name>')` | `mandant` | the one mandant | as above, as `cse_job` | per-job grants only |
 | `withGroupScope()` | `gruppe` | **NULL** | `= any(sichtbare_mandanten())` + `gruppe.<modul>.lesen` | **never** (invariant 10) |
 | `withPersonScope(ctx, fn)` | `person` | **NULL** | `= any(sichtbare_mandanten())` + the row belongs to `app.aktuelle_person()` | **never** in this scope — EMP-07 and EMP-10 writes re-enter `mandant` scope through `withAnstellung` |
-| `withKundeScope(ctx, fn)` | `kunde` | **NULL** | `= any(sichtbare_mandanten())` + the row belongs to the caller's `kunde` | **never** in this scope — any write O-74 authorises re-enters `mandant` scope (`withKundenVorgang`) |
+| `withKundeScope(ctx, fn)` | `kunde` | **NULL** | `= any(sichtbare_mandanten())` + `kunde_id = any (app.aktuelle_kunden())` | **never** in this scope — any write O-74 authorises re-enters `mandant` scope (`withKundenVorgang`) |
 
 `app.mandant_ids` is derived server-side in every multi-tenant scope — from `benutzer_mandant`, from
 `anstellung`, or from the customer's own `auftrag` / `angebot` / `rechnung` rows — and never from the
 request (K-02, K-18). Fail-closed: an unset GUC coalesces to no mandant, no rights, read-only (K-02).
 Cross-tenant reads return **404, not 403** (AUT-06, K-02). Every mandant switch is audited (TEN-09).
+
+**The two accessors this layer depends on resolve in all four scopes — K-20.** An accessor that
+reads `app.aktiver_mandant()` is NULL in the three multi-tenant scopes by construction, so any
+predicate on it is false and the surface reads zero rows: the K-18 failure, one layer down and
+without an error to notice. `03-AUTH-BERECHTIGUNGEN.md` §8.4 holds the full accessor table and
+`tests/invariants/accessor-scopes.test.ts` enumerates it; the two values this document's own
+functions and policies are written against are:
+
+| Accessor | `mandant` | `gruppe` | `person` | `kunde` |
+|---|---|---|---|---|
+| `app.portal()` | the active membership's `rolle.portal` | **bound at entry — `intern`** | **bound at entry — `mitarbeiter`** | **bound at entry — `kunde`** |
+| `app.aktuelle_kunden()` | the login's binding in the active mandant | `{}` | `{}` | **the whole `kunde_zugang` binding set** |
+
+`app.portal()` is **bound when the scope is entered and never recomputed from `aktiver_mandant`**
+(K-04, K-20). Recomputing it there falls through to the fail-closed `'mitarbeiter'`, which fires
+every K-04 employee ceiling inside the group view — a `leitung` reads nothing in `/portal/gruppe` —
+and ceilings every customer as though they were staff. It matters here concretely:
+`app.integration_status_global()` and `app.integration_aufruf_system_lesen(...)` below both require
+`app.portal() = 'intern'`, and the group-scope operations overview would otherwise be blank for the
+management it exists for.
+
+`app.aktuelle_kunden()` resolves from the session's `kunde_zugang` binding, **never through
+`app.aktiver_mandant()`**, and it is an **array**: one company served by `reinigung` and by
+`security` is two `kunde` rows (CRM-06). Every customer-facing predicate this layer references
+therefore reads `kunde_id = any (app.aktuelle_kunden())`; the scalar `app.aktueller_kunde()` is
+documented NULL in `kunde` scope and no policy reachable from there may name it (K-20).
 
 **Every read that leaves the active tenant is on the register below, and nothing else is.** An
 earlier draft said "there are exactly two places", which its own definer functions had already
@@ -819,8 +913,23 @@ rather than trusting the caller, and writes `audit_log`. It does not touch K-08,
 | `app.integration_status_global()` | `cse_definer` | `services/integrationen/` | `app.portal() = 'intern'` **and** `system.einstellung_lesen` in any mandant of the caller | `integration.status_global_gelesen` |
 | `app.integration_aufruf_system_lesen(...)` | `cse_definer` | `services/integrationen/` | as above, plus `system.protokoll_lesen` | `integration.systemprotokoll_gelesen` |
 | `app.restore_protokoll_lesen(...)` | `cse_definer` | `services/betrieb/` | `system.betrieb_lesen` in any mandant of the caller | `betrieb.restore_protokoll_gelesen` |
-| `app.bewerbung_eingang_liste()` | `cse_definer` | `services/recruiting/` | `recruiting.schreiben` in at least one mandant | `recruiting.eingang_gelesen` |
-| `app.bewerbung_zuordnen(eingang_id, mandant_id)` | `cse_definer` | `services/recruiting/` | `recruiting.schreiben` **in that mandant** | `recruiting.eingang_zugeordnet` |
+| `app.bewerbung_eingang_liste()` | `cse_definer` | `services/recruiting/` | `recruiting.bewerbung_lesen` in at least one mandant | `recruiting.eingang_gelesen` |
+| `app.bewerbung_zuordnen(eingang_id, mandant_id)` | `cse_definer` | `services/recruiting/` | `recruiting.bewerbung_bewerten` **in that mandant** | `recruiting.eingang_zugeordnet` |
+
+**Every right key in this table, and everywhere else in this document, is a row of the one catalogue
+`03-AUTH-BERECHTIGUNGEN.md` owns (K-19).** An earlier draft wrote `recruiting.schreiben` for the two
+staging functions; that key has no catalogue row — the catalogue's recruiting keys are
+`recruiting.stelle_schreiben`, `recruiting.stelle_veroeffentlichen`, `recruiting.bewerbung_lesen`,
+`recruiting.bewerbung_bewerten`, `recruiting.entscheiden` and `recruiting.daten_loeschen` — and
+`app.hat_recht()` returns **false** for a key it does not know. The listing would therefore have
+returned zero rows for everyone, permanently and without an error, and the assignment would have been
+refused for everyone: an inbound application would arrive, be staged, and never be reachable again.
+The same rule binds the four `system.*` keys of §3 — `system.einstellung_lesen`,
+`system.einstellung_verwalten`, `system.protokoll_lesen`, `system.betrieb_lesen` — and
+`dienstplan.arbzg_pruefen`, whose module is **`dienstplan`** and whose action is `pruefen`, both of
+which K-19 requires the catalogue to carry. All seven keys this document uses are catalogue rows in
+`03-AUTH-BERECHTIGUNGEN.md` §12; CI extracts every right-key literal in the repository and fails on
+one that is not, and on a catalogue key no code uses (§30).
 
 The first two are K-06 verbatim and are the only ones that cross **tenant** data; the next three read
 platform-level operational state that has no tenant to belong to; the last two touch
@@ -845,7 +954,8 @@ The two that carry the most weight, restated because they carry the reasons:
    cannot write a row in mandant B. Only caller: `src/server/services/arbzg/`.
 2. **The five pre-session functions — K-08, a closed register.** `app.sitzung_aufloesen(token_hash)`
    (`cse_anon`), `app.versuch_protokollieren(...)` (`cse_anon`, AUT-07),
-   `app.checkin_verbrauchen(token_hash, geraet_zeit, ip)` (`cse_checkin`, TIM-07/TIM-08),
+   `app.checkin_verbrauchen(p_token_hash text, p_geraete_zeit timestamptz, p_ip inet,
+   p_user_agent text, p_geo jsonb default null)` (`cse_checkin`, TIM-07/TIM-08),
    `app.offline_ereignis_annehmen(token_hash, ereignisse, ip)` (`cse_checkin`, TIM-09 — check-in data
    arriving late over the same token, so the same trust boundary and the same K-09 conditional write)
    and `app.ical_feed_lesen(feed_token_hash)` (`cse_anon`, CAL-03 — read-only, one user's own
@@ -853,6 +963,18 @@ The two that carry the most weight, restated because they carry the reasons:
    database outside `withTenant` / `withGroupScope` / `withPersonScope` / `withKundeScope` /
    `withAnstellung` / `withSystemTenant`**, and it fails the build on a sixth pre-session function
    that is not added to K-08 in the same PR.
+
+   **The check-in signature is the owner's five-argument form, and the register row must say so.**
+   K-08's table still writes `app.checkin_verbrauchen(token_hash, geraet_zeit, ip)`, and four
+   documents including an earlier version of this one copied it; but
+   `02-datenmodell/04-PLANUNG-ZEIT.md` §9 owns the body and needs `p_user_agent` and `p_geo` — the
+   `checkin_token.ip_adresse` / `user_agent` columns of K-09 and the LEG-10 geolocation capture have
+   nowhere else to come from. **PostgreSQL overloads on the argument list and a `GRANT EXECUTE` is
+   per exact signature**, so `grant execute on function app.checkin_verbrauchen(text, timestamptz,
+   inet) to cse_checkin` would grant a function that does not exist: the check-in endpoint fails
+   closed, every worker's shift start silently records nothing, and the §17 MiLoG record is missing
+   rather than wrong. K-08's register row and every document that quotes it move to the
+   five-argument form with the owner's `p_geraete_zeit` spelling, in one PR (§31).
 
 **EMP-01 needs no crossing of its own.** The phone-number credential lives in Supabase Auth, not in an
 application table read before a session exists: the worker requests an OTP, our own middleware
@@ -909,7 +1031,9 @@ and there is no swept scratch bucket at all.
   mailbox path are quarantined until verification succeeds.
   `// TODO(client, O-127): Sollen eingehende Anhänge (Bewerbungen, Eingangsrechnungen, Kundenmails) zusätzlich auf Schadsoftware geprüft werden, und mit welchem EU-gehosteten Dienst? (DOC-06)`
 - **Retention is a catalogue, not a literal.** Every deletion or archiving decision resolves through
-  `app.aufbewahrung_intervall(<kategorie>)` / `dokument_aufbewahrung`. Finance, time-tracking and
+  `app.aufbewahrung_intervall(mandant_id, <kategorie>)` / `dokument_aufbewahrung` — two arguments,
+  because the resolver runs in tenantless job contexts (`02-datenmodell/02-CRM-OPERATIONS.md` §4.7).
+  Finance, time-tracking and
   audit documents are **reported, never deleted** (invariant 8, ACC-06, LEG-01); `StoragePort.loesche`
   returns `POLICY_BLOCKED` for an object referenced by a finalised invoice, a booking line or an
   audit artifact.
@@ -925,13 +1049,39 @@ and there is no swept scratch bucket at all.
 `pg_cron` → `pg_net` POST → `/api/cron/<job>` on Vercel with `Authorization: Bearer CRON_SECRET_<job>`,
 compared in constant time (`05-API-KARTE.md` §156, §435). **Edge Functions contain no business
 logic** — a Deno duplicate of a money or time rule is exactly the silent failure the invariants exist
-to prevent; they are schedulers and byte-movers only. Every run writes `job_lauf`; overlap is
+to prevent; they are schedulers and byte-movers only. Every run writes one `job_lauf` row — the
+platform-level record with no `mandant_id` (K-21) — and a job that iterates tenants writes one
+`job_lauf_mandant` row per mandant it touched, so a partial failure names the entity it failed in
+instead of collapsing four outcomes into one status. Overlap is
 prevented by `pg_advisory_xact_lock`; every job is safe to run twice; a missing `pg_net` extension is
 asserted by a migration, and a missing **run** is caught by the `job_plan` heartbeat of §3.7.
 
 Cron is UTC. Jobs with a Berlin wall-clock meaning — the 18:00 unstaffed alert, the 06:30 weather
 attachment, the monthly `stundenkonto` close — run hourly and compute their local trigger inside, so
 DST cannot shift them (invariant 2, K-11).
+
+### 6.6 The PostgREST exposed-schema list — stated here, because this layer owns the config
+
+Two sections above rely on a schema being **unreachable over the REST API** — `zeit_intern` for the
+K-06 ArbZG window and `bewerbung_intern` for the pre-tenant application staging table (§3.10) — and
+`02-datenmodell/04-PLANUNG-ZEIT.md` §0 asserts the property while naming this document as the owner
+of the setting. An assertion nobody states is not a control, so the list is here:
+
+| Setting | Value | Why |
+|---|---|---|
+| PostgREST `db-schemas` | **`public, app`** — and nothing else | `public` carries the tenant tables, every one of them under FORCE RLS and the K-03 policy pair; `app` carries the accessors and the K-08 register, each `SECURITY DEFINER` with its own precondition |
+| Never exposed | `kern`, `zeit_intern`, `bewerbung_intern` | `zeit_intern.arbeitszeit_fenster` is readable **only** through `app.arbzg_belastung`, which strips every identifying field (K-06); `bewerbung_intern.bewerbung_eingang` holds applicant data that has no tenant yet and therefore no K-03 policy that could protect it (§3.10) |
+
+Exposing either containment schema would hand any authenticated caller the raw rows the two definer
+functions exist to filter — the ArbZG window would leak the foreign mandant, the object and the
+customer that K-06 removes, and the staging table would be world-readable to every logged-in user of
+every entity. **CI asserts the exact list** (§30), because the setting is a dashboard value that a
+later project restore can silently widen.
+
+`bewerbung_intern` is created by **this layer's first migration**, alongside the nine tables of §3.
+`02-datenmodell/01-KERN.md` names the schemas the first migration creates and
+`03-AUTH-BERECHTIGUNGEN.md` §17.3 scans a single constant `ANWENDUNGSSCHEMATA`; both must list it, or
+the schema is created by no migration and classified by no test (§31).
 
 ---
 
@@ -1413,8 +1563,11 @@ with a server key), never in plaintext and never in a log · single use · short
 comparison · no user enumeration · codes invalidated on success · **no development backdoor in any
 deployed environment** (a fixed code exists only behind `NODE_ENV !== 'production'`, with a test
 asserting the production build cannot reach that branch, and `config/env.ts` refusing to enable it).
-The send is a `systemnachricht` triggered by the recipient's own login attempt and still traverses the
-gate (§4.3).
+The send is a `systemnachricht` triggered by the recipient's own login attempt: it **still traverses
+the gate and is still logged**, with the `Freigabe` minted by `policy.ts` from the seeded
+`agent_richtlinie` (`erteilt_von = 'richtlinie:<id>'`, §4.3). It is pre-approved, never ungated —
+and it is not queued for a human, because a login code that waits for an approver is a failed login
+(AUT-07).
 
 **Blocking consequence, stated so it is not discovered in Phase 5: until an SMS provider exists,
 EMP-01 cannot ship.** Three things are *not* blocked, and saying so prevents a false alarm:
@@ -1484,10 +1637,12 @@ bewerbung_eingang
 ```
 
    It is read through `app.bewerbung_eingang_liste()` (`SECURITY DEFINER`, owned by `cse_definer`,
-   `SET search_path = pg_catalog, public`, requires `recruiting.schreiben` in at least one mandant and
-   writes `audit_log`), and a human assigns it with `app.bewerbung_zuordnen(eingang_id, mandant_id)`,
-   which asserts the caller holds `recruiting.schreiben` **in that mandant** before the tenant
-   `bewerbung` row is created. No automated assignment exists.
+   `SET search_path = pg_catalog, public`, requires `recruiting.bewerbung_lesen` in at least one
+   mandant and writes `audit_log`), and a human assigns it with
+   `app.bewerbung_zuordnen(eingang_id, mandant_id)`, which asserts the caller holds
+   `recruiting.bewerbung_bewerten` **in that mandant** — the write right on `bewerbung` in the one
+   catalogue (`03-AUTH-BERECHTIGUNGEN.md` §12.2, K-19) — before the tenant `bewerbung` row is
+   created. No automated assignment exists.
 
 One message → one `bewerbung`; attachments become `dokument` rows in the private bucket with real MIME
 verification, size limits and EXIF stripping (DOC-06). CV parsing (REC-04) is a separate step
@@ -1785,7 +1940,7 @@ Naming these prevents someone building a fake version later.
 | Machine translation for EMP-12 | a mistranslated Dienstanweisung is a liability | de/en/ar/tr catalogues in the repo; AI may draft, a human approves before it ships | EMP-12 |
 | Client-side analytics | PUB-13 — no third-party trackers, hence no cookie banner | server-side counting of our own events (`kanal_statistik`, REP-03) | PUB-13, REP-03 |
 | iCal (CAL-03) | not an integration — we serve it | read-only feed per user at an unguessable, revocable, rate-limited token URL, no write path; the read is `app.ical_feed_lesen(feed_token_hash)` as `cse_anon`, the fifth and last entry on K-08's closed register, and it opens no session helper | CAL-03 |
-| Geolocation at check-in | a browser API, not a service | one point at start and end, never continuous; ships only once O-06 (Betriebsrat) is answered; configurable off per mandant until then | LEG-10, O-06 |
+| Geolocation at check-in | a browser API, not a service | one point at start and end, never continuous; ships only once O-06 (Betriebsrat) is answered. The switch is a **`mandant_einstellung` key** — `zeit.geolokalisierung` and its siblings, read through `app.einstellung(...)` and gated by the `z_geo_gate` trigger of `02-datenmodell/04-PLANUNG-ZEIT.md` §1.15 — **not** a `mandant.geo_erfassung_aktiv` / `mandant.ueberwachung_aktiv` column (K-21) | LEG-10, O-06 |
 
 ---
 
@@ -1950,6 +2105,10 @@ business area to be a database row, not a deployment change.
 | **K-16 common columns** | a table declared in §3 lacks `id uuid primary key default gen_random_uuid()` or `erstellt_am timestamptz not null default now()`, or renames either (§3.2, §3.4, §3.5, §3.7) |
 | **Micro-cent containment (K-16(b))** | a `*_mikrocent` column exists outside `agent_schritt`, `agent_kosten`, `agent_reservierung`, `agent_budget` and `agent_preisliste`, or any table of this layer declares a sub-cent money column of its own (§2, §3.5) |
 | **Definer register** | a `SECURITY DEFINER` function reachable from this layer is not on the register of §6.2, or lacks `SET search_path = pg_catalog, public`, or does not write `audit_log` (K-01, K-06) |
+| **Right-key catalogue (K-19)** | a right-key literal in this layer — a policy, a definer precondition, a route gate, a service check — has no row in the catalogue `03-AUTH-BERECHTIGUNGEN.md` owns. `app.hat_recht()` is false for an unknown key, so an unregistered key is a permanent zero-row surface with no error; the same run fails on a catalogue key no code uses |
+| **Accessor scopes (K-20)** | an `app.*` accessor this layer calls has no defined value, or no documented NULL, in one of the four scopes; or a policy reachable from `kunde` scope names the scalar `app.aktueller_kunde()` instead of `= any (app.aktuelle_kunden())`; or `app.portal()` is recomputed from `aktiver_mandant` rather than bound at scope entry (§6.2) |
+| **Table ownership (K-21)** | this layer declares a table K-21 assigns to another document (`job_lauf`, `job_lauf_mandant`, `mandant_einstellung`, `nachweis_art`, `sicherheitsvorfall`, `loeschprotokoll`, `steuersatz_gruppe`, `rechnung_beziehung`, `agent_artefakt`), or references one with a column name the owner does not declare (§3.11) |
+| **PostgREST exposure (§6.6)** | the exposed-schema setting is anything but `public, app`, or `kern` / `zeit_intern` / `bewerbung_intern` appears in it |
 | **Check-constraint sanity** | a migration in this layer declares a `CHECK` containing a subquery — Postgres refuses it, and the failure otherwise surfaces only on first apply (§3.3) |
 | **Mandant-binding test** | a `Freigabe` from mandant A is accepted by an adapter running in mandant B |
 | **Single-use test** | N concurrent consumptions of one `freigabe` produce exactly one send (K-09) |
@@ -1977,16 +2136,18 @@ named here only so that it is not lost in the gap between two sections.
 | Document | Obligation |
 |---|---|
 | `01-ORDNERSTRUKTUR.md` §11.2 | `nicht-verbunden.ts` **returns** a typed `NOT_CONNECTED` result; `NotConnectedError` is thrown only by `index.ts` when a live adapter's config fails to parse (§1.1) |
-| `01-ORDNERSTRUKTUR.md` §11 | add `e-rechnung/` (validator, composer, delivery), `lv/`, `feiertage/`, `geo/`, `steuer/`, `backup/` to the integration tree |
+| `01-ORDNERSTRUKTUR.md` §11 | add `kernel/`, `e-rechnung/` (validator, composer, delivery), `lv/`, `feiertage/`, `geo/`, `steuer/`, `backup/` and `n8n/` to the integration tree, and rename `email/` → `mail/` with the `versand/` and `postfach/` sub-adapters (§1). Every port in the §5 register has a declared not-connected state, so each needs the four-file folder §11.2 mandates |
+| `01-ORDNERSTRUKTUR.md` §7 (schema files) | the nine tables of §3 — `integration_katalog`, `integration_konfiguration`, `integration_status_global`, `integration_aufruf`, `integration_aufruf_system`, `modell_register`, `job_plan`, `restore_protokoll`, `mandant_mail_absender` — plus `bewerbung_intern.bewerbung_eingang` (§3.10) have no home in that document's eight-file Drizzle schema list. Add `src/server/db/schema/integration.ts` (and the `bewerbung-intern.ts` companion for the staging schema), or the tables are declared here and generated nowhere |
 | `01-ORDNERSTRUKTUR.md` §11.2 (KoSIT) | reconcile the two renderings of one component: the **CI** validator stays a test-only concern in `tests/compliance/` with no adapter and no `nicht-verbunden` state, exactly as that document says; the **optional runtime sidecar** is an integration with a not-connected state, used only for the asynchronous post-finalisation report of §10 step 3. Both statements are true of different things, and the register row of §5 now says which (§5, §10) |
-| `02-datenmodell/01-KERN.md` | `job_lauf.ergebnis` includes `abgelehnt`; `job_lauf` carries `(job, gestartet_am DESC)` for the heartbeat query; `job_plan` (§3.7) joins on `job`; **declare `loeschprotokoll`**, which §19.2 and `05-API-KARTE.md` §579 both use and no data-model document defines |
+| `00-KONVENTIONEN.md` K-08 | the register row for `app.checkin_verbrauchen` moves to the owner's **five-argument** signature `(p_token_hash text, p_geraete_zeit timestamptz, p_ip inet, p_user_agent text, p_geo jsonb default null)`, in the same PR as `02-datenmodell/04-PLANUNG-ZEIT.md` §9 and the three other documents that quote it. Postgres overloads on the argument list and a `GRANT EXECUTE` is per exact signature, so a grant written against the three-argument row reaches no function and the check-in endpoint fails closed (§6.2). The register stays five functions long; only this row's arity changes |
+| `02-datenmodell/01-KERN.md` | **declare `job_lauf` once, per K-21**: `id · job text · gestartet_am · beendet_am · ergebnis enum (including `abgelehnt`) · kennzahlen jsonb · fehlertext`, index `(job, gestartet_am DESC)` for the §3.7 heartbeat query, and **no `mandant_id`** — per-tenant results go to **`job_lauf_mandant`** (`job_lauf_id`, `mandant_id`, `ergebnis`, `kennzahlen`), which this layer's cron topology writes (§6.5). K-16(d) keeps `audit_log` as the platform's only tenant-adjacent table with a nullable tenant key. Also declare `mandant_einstellung` (`UNIQUE (mandant_id, schluessel)`) — it carries the O-06 monitoring switches (§26) — and **`loeschprotokoll`**, which §19.2 and `05-API-KARTE.md` §579 both use and no data-model document defines. Add schema `bewerbung_intern` to the list of schemas the first migration creates (§3.10, §6.6) |
 | `02-datenmodell/02-CRM-OPERATIONS.md` §2 | the e-invoice delivery route stays the **existing** `kunde.uebertragungsweg` enum; this layer mints no `erechnung_route` (§12.1). Two additions are required of that document: a buyer with `xrechnung_pflicht` and no `uebertragungsweg` **blocks** FIN-11 dispatch and raises a task rather than defaulting to a channel, and a Landesportal — if O-22 shows any buyer needs one — becomes a value of `uebertragungsweg` there rather than a second enum here |
 | `02-datenmodell/05-FINANZEN.md` | `datev_export` keyed `UNIQUE (mandant_id, von, bis, lauf_nr)` plus a partial unique on the authoritative run; `bankbuchung` keyed `UNIQUE (kontoauszug_id, lfd_nr)` with a content hash, never on `entry_ref`; `rechnung_versand` carries the delivery route as the CRM-declared `uebertragungsweg`, plus the vorgang id and the rejection text |
 | `02-datenmodell/06-RADAR-KI-INHALT.md` | `social_channel` keeps `token_gueltig_bis` and gains the expiry watchdog of §20; `postfach_kanal` gains `zweck = 'kunde'`; the `bewerber-purge` job covers `bewerbung_eingang`, `wissens_chunk` and `agent_schritt` (§19.2); `freigabe`, `agent_schritt` and `agent_aufgabe` declare `UNIQUE (mandant_id, id)` so the composite FKs of §3.5 can point at them (K-16); the single-use consumption of §4 uses `status` + `ausfuehrung_status` + `frist` — **no `verbraucht_am`, `verbraucht_durch` or `gueltig_bis` column is to be introduced**, because they would duplicate a state machine §4.2 already has |
 | `02-datenmodell/03-GEWERKE.md` | `feiertag` gains `status ∈ (vorschlag, bestaetigt, verworfen)` in its key (§17) |
-| `03-AUTH-BERECHTIGUNGEN.md` | rights `system.einstellung_lesen` / `system.einstellung_verwalten` / `system.protokoll_lesen` / `system.betrieb_lesen` cover the tables of §3, including `mandant_mail_absender` (§3.9); `withPersonScope` / `withKundeScope` are the read contexts of `/portal/mein/**` and `/portal/kunde/**` and `withGroupScope` is **not** (K-18, §6.2), while every portal write re-enters `mandant` scope through `withAnstellung` |
+| `03-AUTH-BERECHTIGUNGEN.md` | as the owner of the one catalogue (**K-19**), it carries the rows this layer's keys resolve against: `system.einstellung_lesen` / `system.einstellung_verwalten` / `system.protokoll_lesen` / `system.betrieb_lesen` cover the tables of §3, including `mandant_mail_absender` (§3.9), and the two staging functions of §19.2 use `recruiting.bewerbung_lesen` and `recruiting.bewerbung_bewerten` — this document mints no key of its own and has withdrawn `recruiting.schreiben`. `withPersonScope` / `withKundeScope` are the read contexts of `/portal/mein/**` and `/portal/kunde/**` and `withGroupScope` is **not** (K-18, §6.2), while every portal write re-enters `mandant` scope through `withAnstellung`. It also owns the HTTP **error-code table**: one status/code pair for a not-connected adapter must survive — either `409 kanal_nicht_verbunden` (which `05-API-KARTE.md` T-30 asserts) or `503 NICHT_VERBUNDEN`, not both, because today a client sees a different status depending on which document the handler was written from. The port-level mechanism is unaffected: adapters **return** `IntegrationResult`, they do not throw (§1.1, §2) |
 | `04-SEITENKARTE.md` | the five status words of §27 are added to `docs/DESIGN.md` §5 before they are rendered (D-10) |
-| `05-API-KARTE.md` | add `GET /api/health` returning `{ status, build_id, region, db_erreichbar }` only — no `migration_ok`, no `jobs_ueberfaellig`, since an unauthenticated caller may read no table (K-01, K-08, §23.1) — and `POST /api/cron/job-heartbeat`, whose success pings the external uptime monitor as a dead-man's switch; `GET /api/verwaltung/integrationen` gains `migration_ok` and the overdue jobs; rename `src/server/integrationen/` to `src/server/integrations/` — infrastructure identifiers stay English (CLAUDE.md) |
+| `05-API-KARTE.md` | add `GET /api/health` returning `{ status, build_id, region, db_erreichbar }` only — no `migration_ok`, no `jobs_ueberfaellig`, since an unauthenticated caller may read no table (K-01, K-08, §23.1) — and `POST /api/cron/job-heartbeat`, whose success pings the external uptime monitor as a dead-man's switch; `GET /api/verwaltung/integrationen` gains `migration_ok`, `blockiert_durch` per integration and the overdue jobs by name; add the cron route `/api/cron/e-rechnung-komposition` (§11) to the route map and the cron table; rename `src/server/integrationen/` to `src/server/integrations/` and `integrationen/ki/` to `integrations/openai/` — infrastructure identifiers stay English (CLAUDE.md), and the ESLint `no-restricted-imports` zone of `01-ORDNERSTRUKTUR.md` §16 is written against the English path and would silently not match the German one. R-09's "automatic" system messages are the **pre-approved `systemnachricht` categories** of §4.3, minted by `policy.ts` from a seeded `agent_richtlinie` with `erteilt_von = 'richtlinie:<id>'` — never an ungated send path, and `freigabe` stays a required argument. Its `rechnung_versand` tuple takes the owner's column names from `02-datenmodell/05-FINANZEN.md` §9.6 (`empfaenger_text`, `gesendet_am`, `fehlertext`, `externe_id`), which this document already uses (§3.11) |
 | `docs/DESIGN.md` | §5 status-pill vocabulary extended by the five words of §27 |
 | `docs/DECISIONS.md` | the questions of §32, and a note under **D-08** that agent cost and budget accounting is `*_mikrocent bigint` (10⁻⁶ €) under **K-16(b)**, converted to cents once, half-up, at the budget boundary — the earlier `kosten_cent` + `kosten_rest` carry pair is withdrawn, and no operational table outside `agent_schritt` / `agent_budget` and their carry columns holds a sub-cent figure (§2, §3.5) |
 
@@ -2040,7 +2201,7 @@ above now names a number in one of the two tables below.**
 | O-122 | `int-geokodierung` | Soll die Adresse eines Objekts automatisch in Koordinaten aufgelöst werden, und mit welchem EU-gehosteten oder selbst betriebenen Dienst? | §25.2, `GeocodingPort`, OPS-01, BAU-08 |
 | O-123 | `int-n8n-betrieb` | Wird n8n selbst gehostet (wo, durch wen) oder als EU-Cloud-Instanz betrieben, liegt ein AV-Vertrag vor, und welche externen Werkzeuge sollen angebunden werden? | §22, SPEC §21 |
 | O-124 | `int-belegtransfer` | Wie sollen Belege beim Steuerberater ankommen — über DATEV Unternehmen online / Belegtransfer oder als ZIP-Paket neben der EXTF-Datei? | §9, ACC-03 |
-| O-125 | `int-systemnachricht-vorabfreigabe` | Dürfen Systemnachrichten (Anmelde-Code, Check-in-Link, Passwort-Wiederherstellung, Eingangsbestätigung) über eine sichtbare, versionierte Richtlinie vorab freigegeben werden, oder ist jede ausgehende Nachricht einzeln freizugeben? | §4.3 — bis zur Antwort **abgeschaltet**, invariant 7, AGT-03 |
+| O-125 | `int-systemnachricht-vorabfreigabe` | Systemnachrichten (Anmelde-Code, Check-in-Link, Passwort-Wiederherstellung, Benachrichtigungs-Digest, Lead-Eskalation, Betriebsalarm, Eingangsbestätigung) werden über eine sichtbare, versionierte Richtlinie vorab freigegeben und einzeln protokolliert. Soll eine dieser Kategorien stattdessen einzeln freigegeben werden? | §4.3 — die enumerierte Liste ist **aktiv**, weil EMP-01, TIM-07 und AUT-07 sonst nicht funktionieren; die Frage betrifft das **Entfernen** einzelner Kategorien, invariant 7, AGT-03, AUT-07 |
 | O-126 | `int-aufrufprotokoll-aufbewahrung` | Wie lange dürfen die Aufrufprotokolle der Integrationen (`integration_aufruf`) aufbewahrt werden, bevor sie automatisch gelöscht werden? | §3.5, LEG-09; Schwesterfrage zur KI-Nutzlast in `02-datenmodell/06-RADAR-KI-INHALT.md`, Dokumentkategorien in O-25 |
 | O-127 | `int-anhang-schadsoftware` | Sollen eingehende Anhänge (Bewerbungen, Eingangsrechnungen, Kundenmails) auf Schadsoftware geprüft werden, und mit welchem EU-gehosteten Dienst? | §6.4, DOC-06, REC-03, ACC-05 |
 | O-128 | `int-altsystem-export` | In welchem Format lassen sich Aplano, Lexware und die bestehenden Excel-Dateien exportieren, welcher Zeitraum wird übernommen, und müssen die historischen Daten revisionssicher im GoBD-Archiv landen? | §25.3, ROADMAP Phase 10, LEG-01, LEG-02 |

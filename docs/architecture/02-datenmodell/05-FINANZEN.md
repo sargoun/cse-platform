@@ -29,6 +29,23 @@ Services: `src/server/services/finanz/**` and `src/server/services/buchhaltung/*
 as in `01-ORDNERSTRUKTUR.md` §7. Jobs: `src/server/jobs/**`. Seed: `seed/08-finanzen.ts` — "drafts
 without numbers plus a finalised hash chain".
 
+**Two of these are ownership assignments K-21 makes explicitly, and both were declared nowhere or
+twice before it did:**
+
+- **`steuersatz_gruppe`** (§3.2) is the platform's **only** VAT catalogue. There is **no `steuersatz`
+  table**, no `steuersatz_id` column, no `prozent_bp` and no `hinweistext`; every foreign key in the
+  platform is `*.steuersatz_gruppe_id`, and the rate is `satz_bp` with the exemption text in
+  `befreiungsgrund_code` / `befreiungsgrund_text`. `05-API-KARTE.md` §D.2/§H and `08-PR-PLAN.md` PR 1
+  still name the phantom table; §2.3 records the correction.
+- **`rechnung_beziehung`** (§4.8) is the Storno back-reference K-12 names. The draft called it
+  `storno_verweis`; that name is deleted from this document, including
+  `op_ausgleich.rechnung_beziehung_id` (§7.4), the ERD and the composite-FK register of §13.
+
+Every other table this document references but does not own is listed in §2.1 with its owner, and is
+spelled the way that owner spells it — `job_lauf` and `job_lauf_mandant`, `mandant_einstellung`,
+`nachweis_art`, `sicherheitsvorfall` and `loeschprotokoll` all belong to `01-KERN.md`,
+`agent_artefakt` to `06-RADAR-KI-INHALT.md` (K-21).
+
 ### 0.2 What this document does **not** own
 
 Four tables the finance phase leans on hard belong to sibling documents, and duplicating them here
@@ -288,6 +305,16 @@ create policy p_ma_ceiling on ausgabe as restrictive for all to cse_app
          or anstellung_id in (select id from anstellung
                               where person_id = app.aktuelle_person()));
 ```
+
+**All three read `app.portal()`, and all three depend on K-20 to mean anything.** The accessor is
+bound when the scope is entered and is defined in all four scopes (§1.2), so in `gruppe` scope it is
+`'intern'` and in `kunde` scope it is `'kunde'`. Recomputing it from the active membership outside
+`mandant` scope — where `aktiver_mandant()` is NULL by construction — falls through to the
+fail-closed `'mitarbeiter'`, and the consequence is not a small one: `p_ma_ceiling` would then fire
+on `ausgabe` for a `leitung` reading the group view, `p_intern_ceiling` would be false on **every
+other table in this domain**, and the whole group finance view of TEN-05 would render empty with no
+error anywhere. The K-20 CI test that enumerates the accessors under all four scopes is what keeps
+that from being discovered in Phase 7.
 
 Enumerated, not exemplified. `src/server/db/rls.ts` holds the lists and **the build fails when a
 table in this domain carries neither a customer ceiling nor an internal-only ceiling, hangs off
@@ -790,10 +817,12 @@ every composite FK in §4–§9 fails at migration time.
    `Gebucht`, `Überfällig`, `Teilweise bezahlt`, `Ausgeglichen`, `Nicht verbunden`,
    `Unbestätigter Wert`. Six of them have no entry in the fixed vocabulary; per CLAUDE.md they are
    added to DESIGN.md first and used afterwards.
-9. **`docs/DECISIONS.md`** — the thirty questions of §17 belong under **Open**. Ten of them map to
-   numbers that already exist (O-05, O-19, O-20, O-21, O-25) and are recorded as refinements rather
-   than as new rows; the remaining twenty-one need new numbers, proposed as **O-30 … O-50** and
-   carried at their point of use in the `// TODO(client)` itself, so `pnpm lint:todo` can match them.
+9. **`docs/DECISIONS.md`** — the thirty-one questions of §17 belong under **Open**. Eleven of them
+   map to numbers that already exist (O-05, O-19, O-20, O-21, O-25 and O-90, the last owned by
+   `03-AUTH-BERECHTIGUNGEN.md` §3.2) and are recorded as refinements or references rather than as new
+   rows; the remaining twenty-one need new numbers, proposed as **O-30 … O-50** and carried at their
+   point of use in the `// TODO(client)` itself, so `pnpm lint:todo` can match them. No question in
+   this domain mints a number another document already holds.
 10. **`02-CRM-OPERATIONS.md` §1.4 — `kunde_zugang`** must expose
     `app.aktuelle_kunden() returns uuid[]`: the `kunde` rows one login is linked to, at most one per
     mandant, derived server-side and never from the request. K-18 makes the singular
@@ -924,6 +953,13 @@ customer cannot be shown the tax line on their own invoice.
 
 The tax-rate group an invoice line belongs to — the unit in which VAT is computed and shown
 (§14 Abs. 4 Nr. 8 UStG) and the carrier of the EN 16931 category and exemption reason.
+
+**This document owns it and it is declared exactly once, here (K-21). There is no `steuersatz`
+table.** Every VAT foreign key in the platform is `*.steuersatz_gruppe_id` — on `rechnungsposition`
+(§4.3), `rechnung_steuer` (§4.5), `abschlagsrechnung_bezug` (§4.7), `eingangsrechnung_steuer` and
+`ausgabe_steuer` (§8.3) and `konto_mapping` (§9.3) — and it is one of the four sanctioned
+single-column FKs of §13, because this table is global and carries no `mandant_id` to pair with.
+RLS is the shared five-table policy set above; there is no per-table variant.
 
 | Column | Type | Null | Default | Notes |
 |---|---|---|---|---|
@@ -3452,6 +3488,44 @@ Roadmap Phase 6 acceptance criteria.
     `masseinheit_id`, `netto_cent` and `einzelpreis_cent` all NULL, and is excluded from every sum of
     §4.9 (review R9).
 
+**Names, keys and accessors (K-19, K-20, K-21)**
+
+54. **Every right-key literal in this domain has a row in `03-AUTH-BERECHTIGUNGEN.md`'s catalogue**,
+    and the module of each is one of §7.4's — the CI extractor of K-19 runs over the policies of
+    §1.3, §3.2 and §14, over the route gates and over the seed. It fails on `referenz.verwalten`
+    (module collision — §3.2 uses `system.einstellung_verwalten`), on a `nummernkreis.ziehen` with no
+    catalogue row, and symmetrically on any catalogue key this domain claims and no code uses.
+    `hat_recht` returning **false** for an unknown key is why this is a test and not a review habit:
+    the failure it catches is a permanently empty screen, not an exception.
+55. **Every `app.*` accessor of §1.2 returns a defined value, or a documented NULL, in all four
+    scopes** (K-20). Three assertions carry the weight: `app.portal()` is `'intern'` in `gruppe`
+    scope and `'kunde'` in `kunde` scope — never the fail-closed `'mitarbeiter'`, which would fire
+    every `p_ma_ceiling` of §1.4 inside the group view and ceiling a customer as staff;
+    `app.aktuelle_kunden()` returns the customer's rows in `kunde` scope while `aktiver_mandant()`
+    is NULL there, so a `t_kunde` policy written against a scalar keyed on the active mandant reads
+    zero rows and is rejected by the test; and `app.einstellung` is named by no RLS predicate in this
+    domain, which is the condition on which K-20 permits it to be `mandant`-scope only.
+56. **`rechnung_beziehung` is declared once, here** (K-21): the schema test finds exactly one
+    declaration platform-wide, finds no table named `storno_verweis`, and finds no `steuersatz` table
+    beside `steuersatz_gruppe` — every VAT foreign key in the platform is `*.steuersatz_gruppe_id`.
+    The same test asserts this domain writes `job_lauf` without a `mandant_id` and records per-tenant
+    outcomes in `job_lauf_mandant`, and that every column this document names on a sibling's table —
+    `zeiteintrag.dauer_netto_minuten`, `mandant.slug`, `mandant.ist_rechtseinheit`,
+    `kunde_zugang`'s `(benutzer_id, mandant_id)` unique — resolves against that sibling's declaration.
+57. **A Storno records one row, not two.** Reversing invoice B against A writes exactly one
+    `rechnung_beziehung` row (`von = B`, `zu = A`, `art = 'storno'`); "what reversed A" is a query on
+    `zu_rechnung_id`, and inserting the mirror row is refused by `UNIQUE (von_rechnung_id, art)` the
+    moment B is also stornoed. A second `vollstorno` of A raises on the partial unique index.
+58. **The nine tools are the only tools.** Every tool name in §12.2 is a member of
+    `agent_werkzeug_name`, and every handle type it passes is a member of the closed set in
+    `06-AGENTEN-FREIGABEN.md` §5.1 — the test fails on `PeriodeHandle`, `BelegHandle`,
+    `OffenerPostenHandle` and `KalkulationHandle`, none of which the handle registry can mint or
+    resolve.
+59. **`eingangsrechnung_extraktion.kosten_cent` converts once.** Feeding a run of 100 steps of
+    1 499 micro-cents each yields `div(149900 + 5000, 10000) = 15` cents — the sum rounded once —
+    and not 100 × `round_half_up(0.1499)` = 0. The test exists because rounding per step is the
+    natural way to write it and it destroys the figure the budget reconciles against (K-16 b).
+
 ---
 
 ## 16. DSGVO: retention against erasure (LEG-09)
@@ -3505,9 +3579,13 @@ domains.)
 
 Every row is emitted as a `// TODO(client)` at its point of use, **carries its `O-nn` in the comment
 itself** so `pnpm lint:todo` can match it, and belongs under **Open** in `docs/DECISIONS.md`. None has
-been guessed; each has a placeholder that is visibly marked in the UI (K-17). Ten rows refine numbers
-that already exist (O-05, O-19, O-20, O-21, O-25); the other twenty-one are new and are proposed here
-as **O-30 … O-50** for `DECISIONS.md` to adopt.
+been guessed; each has a placeholder that is visibly marked in the UI (K-17). Eleven rows refine
+numbers that already exist elsewhere (O-05, O-19, O-20, O-21, O-25 and — new in this pass — **O-90**,
+which `03-AUTH-BERECHTIGUNGEN.md` §3.2 already carries); the other twenty-one are new and are
+proposed here as **O-30 … O-50** for `DECISIONS.md` to adopt. No number is minted here that another
+document already holds: the second-factor question below is O-90's, referenced rather than
+duplicated, because two numbers for one question is how a decision gets answered once and stays open
+in the other index.
 
 | # | O-Nr. | Where | Question, as it should appear in DECISIONS.md |
 |---|---|---|---|
@@ -3541,6 +3619,7 @@ as **O-30 … O-50** for `DECISIONS.md` to adopt.
 | 28 | **O-48** | `verfahrensdokumentation` | Wer zeichnet die Verfahrensdokumentation je Gesellschaft, und in welchem Rhythmus wird sie überprüft? |
 | 29 | **O-49** | §1.7 Währung | Wird eine der drei Gesellschaften jemals in einer anderen Währung als EUR fakturieren oder Eingangsrechnungen in Fremdwährung erhalten? |
 | 30 | **O-50** | `quelle_typ = 'leistungsnachweis'` | Soll der kundenunterschriebene Leistungsnachweis (CLN-04) als Nachweis hinter einer Reinigungs-Rechnungsposition geführt werden, zusätzlich zu den Zeiteinträgen? |
+| 31 | **O-90** | §2.3 item 7 — `berechtigung.erfordert_2fa` on `finanzen.festschreiben`, `buchhaltung.festschreiben`, `buchhaltung.exportieren`, `nummernkreis.verwalten` | Müssen Rechnungsfestschreibung, Storno und DATEV-Export im Moment der Handlung einen zweiten Faktor verlangen — auch für eine Leitung ohne stehende 2FA-Pflicht nach AUT-02? (Frage und Nummer gehören `03-AUTH-BERECHTIGUNGEN.md` §3.2; hier nur referenziert. Bis zur Antwort sind die vier Schlüssel mit `erfordert_2fa = false` geseedet, `nummernkreis.ziehen` in keinem Fall mit 2FA.) |
 
 **Recorded in `DECISIONS.md` § Decided, not as open questions** — they are modelling conventions, not
 legal or financial values: the chain crossing circles rather than restarting per year (§5.4); the

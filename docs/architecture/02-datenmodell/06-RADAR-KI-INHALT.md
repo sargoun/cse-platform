@@ -23,7 +23,7 @@ simulates an external system that is not connected.
 | Schema file | Tables | Phase |
 |---|---|---|
 | `src/server/db/schema/radar-ki-inhalt.ts` — radar | `vergabeplattform`, `mandant_plattform_registrierung`, `radar_profil`, `radar_profil_cpv`, `radar_profil_empfaenger`, `radar_ingest_lauf`, `ausschreibung`, `ausschreibung_nuts`, `ausschreibung_rohdaten`, `ausschreibung_dokument`, `ausschreibung_dokument_abruf`, `bewertung`, `ausschreibung_vorgang`, `vergabemappe`, `vergabemappe_position` | 8 |
-| … agents | `agent`, `agent_werkzeug`, `agent_richtlinie`, `agent_preisliste`, `agent_budget`, `agent_reservierung`, `agent_kosten`, `agent_aufgabe`, `agent_schritt`, `agent_schritt_beleg`, `wissens_chunk` | 8 |
+| … agents | `agent`, `agent_werkzeug`, `agent_richtlinie`, `agent_preisliste`, `agent_budget`, `agent_reservierung`, `agent_kosten`, `agent_aufgabe`, `agent_schritt`, `agent_schritt_beleg`, `agent_artefakt`, `wissens_chunk` | 8 |
 | … approvals (**K-13**) | `freigabe_kette`, `freigabe`, `freigabe_feld`, `freigabe_ansicht`, `freigabe_snapshot` | 8 |
 | … content | `webauftritt`, `seite`, `seite_block`, `seite_redirect`, `referenz`, `referenz_kundenfreigabe`, `social_channel`, `social_post`, `social_post_medium`, `social_post_ziel`, `kanal_statistik` | 2 (`webauftritt`, `seite`, `seite_block`, `seite_redirect`, `referenz*`) / 9 (social) |
 | … recruiting | `stelle`, `stelle_intern`, `stelle_anforderung`, `jobboard_kanal`, `postfach_kanal`, `stelle_veroeffentlichung`, `kandidat`, `bewerbung`, `kandidat_bewertung`, `gespraech`, `gespraech_frage`, `gespraech_bewertung` | 9 |
@@ -41,8 +41,13 @@ Policies: `src/server/db/rls/radar-ki-inhalt.sql`. Services: `src/server/service
 `03-GEWERKE.md` §2.1 and `04-PLANUNG-ZEIT.md` §2 all defer them to "the calendar document" — which is
 this one. This document therefore **specifies** them and leaves them in the file
 `01-ORDNERSTRUKTUR.md` names, so neither sibling has to move. `job_lauf` is the one exception: it is
-written by `jobs/_runner.ts` for every job in the platform, so it stays owned by the Kern document
-and this domain only states the shape it requires of it (§8.2).
+written by `jobs/_runner.ts` for every job in the platform, so **K-21 assigns it to `01-KERN.md`**
+together with `job_lauf_mandant`, and this domain only states the shape it requires of them (§8.2).
+
+**K-21 also assigns `agent_artefakt` to this document**, and §3.12 declares it — columns, indexes,
+RLS and SPEC IDs. It was referenced by `06-AGENTEN-FREIGABEN.md` §9.4 and by this document's own
+`freigabe` and `freigabe_snapshot` tables while being declared nowhere, which is the failure mode
+K-21 exists to end: a table every draft-class tool writes, and no migration that creates it.
 
 ### 0.2 What this document does **not** own
 
@@ -54,7 +59,10 @@ and this domain only states the shape it requires of it (§8.2).
 | `auftrag`, `auftrag_leistung`, `objekt`, `kunde`, `ansprechpartner` | `02-CRM-OPERATIONS.md` | `referenz` copies the enumerated fields of that document's §3.2 and never references `kunde_id` or the order value |
 | `einsatz`, `einsatz_zuordnung`, `zeiteintrag`, `planungsserie` | `04-PLANUNG-ZEIT.md` | REC-01 reads unstaffed shifts through a service, and the calendar **projects** `einsatz`; recurrence expansion reuses that document's implementation (§7.3) |
 | `rechnung`, `eingangsrechnung`, `buchungssatz` | `05-FINANZEN.md` | the Finance agent proposes; finalisation, the number circle and the hash chain live there |
-| `job_lauf` | Kern (see §0.1) | one run log for every scheduled job in the platform |
+| `job_lauf`, `job_lauf_mandant` | `01-KERN.md` (**K-21**) | one platform-level run log for every scheduled job, plus the per-tenant outcome of one run. `job_lauf` carries **no** `mandant_id` (§8.2) |
+| `mandant_einstellung` | `01-KERN.md` (**K-21**) | one settings table for the platform; §4.9's O-06 switch is a key in it, not a column on `mandant` |
+| `sicherheitsvorfall`, `nachweis_art`, `loeschprotokoll` | `01-KERN.md` (**K-21**) | SEC-A9 incidents (written when §3.9's `injektionsverdacht` fires), the certificate-type catalogue `pruefe_nachweise` reads, and the DSGVO deletion record §6.10's purge writes |
+| `steuersatz_gruppe`, `rechnung_beziehung` | `05-FINANZEN.md` (**K-21**) | there is no `steuersatz` table; the Storno back-reference is `rechnung_beziehung`. Neither is referenced by this domain, and neither is redeclared here |
 
 ### 0.3 Identifier language
 
@@ -81,13 +89,20 @@ renames it forced are listed once here so no sibling document has to guess.
 | `ausschreibung_dokument` (mixed) | **`ausschreibung_dokument`** (shared facts) + **`ausschreibung_dokument_abruf`** (tenant) | one tenant's fetched file, agent run and extraction must not be visible to its three sister companies (review B18) |
 | `agent_schritt.kosten_mikrocent` | **kept as `kosten_mikrocent bigint`** | K-16 was amended: **K-16(b)** sanctions `*_mikrocent bigint` (10⁻⁶ €) in agent cost and budget accounting only, converted to cents **once** at the budget boundary. The interim `kosten_cent` + `kosten_rest` carry pair this document proposed is withdrawn in favour of the convention's spelling (§1.12) |
 | `anon` role, `P-OEFFENTLICH` | the `oeffentlich.lesen` read path of `02-CRM-OPERATIONS.md` §1.6 | K-01 fixes the role set at six and `cse_anon` holds no table grants at all (review B13) |
+| `j_job` | **`t_job`** | one name for one policy class, platform-wide; `02-CRM-OPERATIONS.md` §1.2 registered it first under that name (§1.1) |
+| `app.aktueller_kunde()` (11 uses) | **`= any (app.aktuelle_kunden())`** | **K-20**: the scalar resolves through `app.aktiver_mandant()`, which is NULL in `kunde` scope, so every `t_kunde` policy and `p_kunde_ceiling` written against it returned zero rows (§1.2) |
+| the five modules `agent_konfiguration`, `wissen`, `inhalt`, `recruiting_bewerber`, `benachrichtigung` and nine keys of the §1.3 matrix | **the catalogue spellings of `03-AUTH-BERECHTIGUNGEN.md`** | **K-19**: `app.hat_recht()` returns false for a key it does not know, so an unregistered key is a permanent zero-row failure and not an error (§1.3) |
+| `freigabe_snapshot.hash` over six components | **the eleven-component formula of `06-AGENTEN-FREIGABEN.md` §14.2**, 0x1F-separated, RFC 8785 canonical | two formulas mean two chains and a nightly verification break on every link; and a six-component chain covers nothing the approver actually saw (§4.7) |
+| `agent_artefakt` — referenced, declared nowhere | **declared here (§3.12)** | **K-21** assigns it to this document; `freigabe.artefakt_id` and `freigabe_snapshot.artefakt_hash` had no target |
+| `job_lauf` with a nullable `mandant_id` | **`job_lauf` with none, plus `job_lauf_mandant`** (Kern) | **K-21** and K-16(d): `audit_log` is the only tenant-adjacent table permitted a nullable tenant key (§8.2) |
 | `app.hat_mandant(m)`, `app.gruppenansicht()` | the accessors of `01-KERN.md` §3.1 | K-02/K-03; this also removes the `''::boolean` crash the review found (B20) and the unpinned `search_path` (B21) |
 
 New tables the review or a SPEC ID forced: `radar_profil_empfaenger`, `ausschreibung_nuts`,
 `ausschreibung_dokument_abruf`, `agent_preisliste`, `agent_reservierung`, `agent_schritt_beleg`,
 `freigabe_kette`, `freigabe_ansicht`, `webauftritt`, `seite_redirect`, `referenz_kundenfreigabe`,
 `social_post_medium`, `stelle_intern`, `stelle_anforderung`, `postfach_kanal`, `gespraech`,
-`gespraech_frage`, `gespraech_bewertung`, `team`, `team_mitglied`, `nachricht_anhang`.
+`gespraech_frage`, `gespraech_bewertung`, `team`, `team_mitglied`, `nachricht_anhang`, and — added by
+the K-21 ownership pass — **`agent_artefakt`** (§3.12).
 
 ---
 
@@ -128,6 +143,15 @@ create policy t_job on bewertung for all to cse_job
   using      (mandant_id = app.aktiver_mandant())
   with check (mandant_id = app.aktiver_mandant());
 ```
+
+**The policy class is named `t_job`, not `j_job`.** `02-CRM-OPERATIONS.md` §1.2 registered the same
+class first and under that name on sixteen tables; two names for one class means
+`src/server/db/rls.ts` needs two buckets and the enumeration test can pass while half the platform's
+job policies are missing from the other list. The name is `t_job` here and everywhere, it is the
+fifth registered permissive class beside `t_mandant`, `t_gruppe`, `t_person` and `t_kunde`, and
+`03-AUTH-BERECHTIGUNGEN.md` §8.5 must carry it as such — under `FORCE` RLS a table `GRANT` is not a
+policy, so "K-03 permits no `cse_job` policy" would mean every scheduled job in this domain writes
+zero rows, silently.
 
 The scope of `t_job` is narrowed by the per-job `GRANT`, not by the policy: a job that holds no
 `INSERT` grant on `kandidat` cannot insert into it however permissive `t_job` is. A test walks
@@ -334,7 +358,7 @@ Enumerated, not exemplified — every tenant table of this domain appears exactl
 | `p_ma_ceiling` (`anstellung_id`) | `team_mitglied` |
 | **own-rows / participant ceilings — one restrictive policy per table, named per table** | `p_eigene` on `benachrichtigung` and `benachrichtigung_praeferenz` (§7.8, keyed on `empfaenger_benutzer_id` / `benutzer_id` = `app.aktueller_benutzer()`); `p_zustaendig` on `aufgabe` (§7.7, assignee, team member or creator); `p_sichtbarkeit` on `kalender_eintrag` (**§7.3**, private entries to their owner) and `p_teilnahme` on `kalender_teilnehmer` (§7.4); `p_beteiligt` on `nachricht`, `nachricht_anhang` and `nachricht_empfaenger` (§7.9, resolved per `empfaenger_typ`). **None of these is written `app.portal() = 'intern'`** — each is a disjunction that is true for the principals it does not narrow, which is why they compose with one another and with `p_ma_ceiling`. Three of them (`p_eigene`, `p_sichtbarkeit`, `p_beteiligt`) deliberately bind an `intern` session too: nobody reads another user's notifications, private calendar entries or message read-status, whatever portal they are in (review B10) |
 | **no portal ceiling** | `team` — a team name is neither personal data nor a costed fact, both portals must resolve `kalender_eintrag.team_id` and `aufgabe.zugewiesen_team_id` to a label, and `kunde` holds no `kalender.lesen` in any case. Also the nine **registered public tables** of §1.6 (`webauftritt`, `seite`, `seite_block`, `seite_redirect`, `referenz`, `social_post`, `social_post_medium`, `social_post_ziel`, `stelle`): the public principal of §1.6 is a service `benutzer` whose `app.portal()` is not `intern`, so a `p_intern_ceiling` on any of them would blank the public website — the failure the exclusivity rule above exists to catch |
-| `p_intern_ceiling` — the literal list, 37 tables | `mandant_plattform_registrierung`, `radar_profil`, `radar_profil_cpv`, `radar_profil_empfaenger`, `ausschreibung_dokument_abruf`, `bewertung`, `ausschreibung_vorgang`, `vergabemappe`, `vergabemappe_position`, `agent_werkzeug`, `agent_richtlinie`, `agent_budget`, `agent_reservierung`, `agent_kosten`, `agent_aufgabe`, `agent_schritt`, `agent_schritt_beleg`, `wissens_chunk`, `freigabe_kette`, `freigabe`, `freigabe_feld`, `freigabe_ansicht`, `freigabe_snapshot`, `referenz_kundenfreigabe`, `social_channel`, `kanal_statistik`, `stelle_intern`, `stelle_anforderung`, `jobboard_kanal`, `postfach_kanal`, `stelle_veroeffentlichung`, `kandidat`, `bewerbung`, `kandidat_bewertung`, `gespraech`, `gespraech_frage`, `gespraech_bewertung` |
+| `p_intern_ceiling` — the literal list, 38 tables | `mandant_plattform_registrierung`, `radar_profil`, `radar_profil_cpv`, `radar_profil_empfaenger`, `ausschreibung_dokument_abruf`, `bewertung`, `ausschreibung_vorgang`, `vergabemappe`, `vergabemappe_position`, `agent_werkzeug`, `agent_richtlinie`, `agent_budget`, `agent_reservierung`, `agent_kosten`, `agent_aufgabe`, `agent_schritt`, `agent_schritt_beleg`, `agent_artefakt`, `wissens_chunk`, `freigabe_kette`, `freigabe`, `freigabe_feld`, `freigabe_ansicht`, `freigabe_snapshot`, `referenz_kundenfreigabe`, `social_channel`, `kanal_statistik`, `stelle_intern`, `stelle_anforderung`, `jobboard_kanal`, `postfach_kanal`, `stelle_veroeffentlichung`, `kandidat`, `bewerbung`, `kandidat_bewertung`, `gespraech`, `gespraech_frage`, `gespraech_bewertung` |
 
 The eight **non-tenant** reference tables (§1.5) carry no portal ceiling either: they have no
 `mandant_id` to key one on, and the `hat_recht` conjunct of their read policy does the work.
@@ -357,7 +381,7 @@ create policy p_gruppe_kein_personenbezug on <tabelle> as restrictive for all to
 ```
 
 on `kandidat`, `bewerbung`, `kandidat_bewertung`, `gespraech`, `gespraech_frage`,
-`gespraech_bewertung`, `wissens_chunk`, `agent_schritt`, `agent_schritt_beleg`, `nachricht`,
+`gespraech_bewertung`, `wissens_chunk`, `agent_schritt`, `agent_schritt_beleg`, `agent_artefakt`, `nachricht`,
 `nachricht_anhang`, `nachricht_empfaenger` and `freigabe_feld`. TEN-05 grants the group view
 aggregated figures, not another GmbH's contract text, applicant names or model payloads.
 
@@ -373,8 +397,11 @@ difference is stated because it is the difference between ingested facts and a c
   §1.1, and **no write policy for `cse_app` at all**;
 - **the three curated catalogues** — `vergabeplattform`, `agent`, `agent_preisliste` — get the same
   read policy plus one named write policy for `cse_app`, gated on the right stated per table
-  (`agent.richtlinie_verwalten` for `vergabeplattform`, `app.ist_super_admin()` for `agent` and
-  `agent_preisliste`). They are configuration, not ingested evidence.
+  (`app.ist_super_admin()` for all three). They are configuration, not ingested evidence, and none of
+  the three carries a `mandant_id` — so there is no per-mandant right for `hat_recht` to take, and a
+  module key that reads as tenant-scoped would be the wrong shape as well as the wrong name (K-03,
+  K-19). An earlier pass gated `vergabeplattform` writes on the agent-configuration right, which is a
+  different module about a different thing.
 
 The read policy, in both cases:
 
@@ -424,6 +451,25 @@ create policy t_oeffentlich on seite
 Registered public tables, and nothing else: `webauftritt`, `seite`, `seite_block`, `seite_redirect`,
 `referenz`, `social_post`, `social_post_medium`, `social_post_ziel` (published targets only),
 `stelle`. A test enumerates `pg_policies` and fails on a `t_oeffentlich` policy anywhere else.
+
+**Every public route needs a URL key, and this document owns all four of them.** `04-SEITENKARTE.md`
+§2.3 routes `/karriere/[stelle]`, `/projekte/[slug]`, `/news/[slug]` and `/leistungen/[slug]`, and an
+earlier pass of this document gave three of the four tables no URL column at all — so those routes
+could be written but not resolved, and `tests/invariants/reservierte-slugs.test.ts` could not be
+written at all. The four keys, stated once:
+
+| Route | Column | Shape |
+|---|---|---|
+| `/karriere/[stelle]` | `stelle.slug` (§6.3) | `^[a-z0-9]+(-[a-z0-9]+)*$`, excluding `initiativbewerbung` and `danke` |
+| `/projekte/[slug]` | `referenz.slug` (§5.5) | `^[a-z0-9]+(-[a-z0-9]+)*$` |
+| `/news/[slug]` | `social_post.slug` (§5.7) | `^[a-z0-9]+(-[a-z0-9]+)*$` |
+| `/leistungen/[slug]` | **`seite.pfad`** (§5.2) | `^/[a-z0-9/-]*$` — a page already has a path, and a second URL column on the same row would be two names for one fact |
+
+`seite` therefore carries **no** `slug`: the router resolves a page by `pfad`, which is the column
+`seite_public_uk` is keyed on. Each of the three new keys is unique **per mandant** and not globally,
+because the four areas run four Webauftritte and two of them may legitimately publish
+`/projekte/buerohaus-mitte`. The reserved-value list of K-21 (`gruppe`, `mein`, `kunde`, `konto`,
+`api`) applies to `mandant.slug`, not to these — a content slug never appears as a `/portal` segment.
 
 **Because a column grant cannot distinguish the public principal from an internal one — both are
 `cse_app` — the columns move instead of the privilege.** Every internal field the review named lives
@@ -484,12 +530,13 @@ to show which function consumes it).
 | `app.agent_budget_pruefen(p_mandant uuid, p_agent uuid, p_betrag_mikrocent bigint)` → `table(verdikt agent_budget_verdikt, budget_id uuid)` | locks and evaluates the mandant cap **and** the agent cap in a fixed order; returns a verdict, never raises (§3.6) | `agent_budget`, `agent_reservierung` | AGT-05 |
 | `app.autonomie_aufloesen(p_mandant uuid, p_agent uuid, p_typ agent_vorgang_typ, p_betrag_cent bigint)` → `table(autonomie autonomie_stufe, grenze_cent bigint, richtlinie_id uuid)` | "strictest wins" resolution over every matching `agent_richtlinie` row; the single implementation used by the policy gate **and** the AGT-03 preview (§3.4) | `agent_richtlinie` | AGT-03, invariant 7 |
 | `app.agent_nutzlast_lesen(p_schritt uuid)` → `record` | the K-05 reader for `agent_schritt.eingabe`/`ausgabe`; re-checks `agent.protokoll_lesen` **and** `mandant_id = app.aktiver_mandant()`; writes `audit_log` | `agent_schritt` | AGT-04, LEG-09 |
+| `app.agent_artefakt_lesen(p_artefakt uuid)` → `jsonb` | the K-05 reader for `agent_artefakt.inhalt` (§3.12); re-checks `agent.protokoll_lesen` **and** `mandant_id = app.aktiver_mandant()`; writes `audit_log`; returns `NULL` when the right is absent, never raises | `agent_artefakt` | AGT-02, AGT-04, APR-02, LEG-09 |
 | `app.mandant_domaene_einrichten(p_mandant uuid)` | the single `AFTER INSERT ON mandant` hook this domain owns: creates the `wissens_chunk` partition and its two ANN indexes (§3.11) **and** inserts the `freigabe_kette` head row with `letzte_kette_nr = 0` (§4.1). One function, because TEN-08 promises a fifth area needs a DB row and no code change, and two half-hooks would deliver that for the RAG index and break it for approvals | `freigabe_kette` (insert; DDL otherwise) | AGT-06, APR-07, TEN-08 |
 | `app.freigabe_kette_naechste(p_mandant uuid)` → `bigint` | assigns `freigabe_snapshot.kette_nr` under `SELECT … FOR UPDATE` on the per-mandant head row (K-13) | `freigabe_kette` | APR-07 |
 | `app.freigabe_pruefdauer_lesen(p_snapshot uuid)` → `integer` | the K-05 reader for `freigabe_snapshot.pruefdauer_sek`; re-checks `freigabe.pruefdauer_lesen` **and** `mandant_id = app.aktiver_mandant()`; writes `audit_log` (§4.7) | `freigabe_snapshot` | APR-08, LEG-10 |
 | `app.ical_feed_lesen(p_token_hash text)` → `table(uid text, titel text, beginn timestamptz, ende timestamptz, ganztaegig boolean, datum_von date, datum_bis date, ort text)` | **row 5 of the K-08 closed register.** Resolves a live CAL-03 feed token, stamps `letzte_nutzung_am`, derives the owner's visible mandanten server-side, and returns that one user's own calendar projection — nothing else. `GRANT EXECUTE` to **`cse_anon`**, per K-08 and K-01 (§7.6) | `benutzer_feed_token` (Kern), `kalender_eintrag`, `kalender_teilnehmer` | CAL-03, SEC-A6, K-08 |
 
-`REVOKE EXECUTE … FROM public` on all seven; `GRANT EXECUTE` only to the role named. A test
+`REVOKE EXECUTE … FROM public` on all eight; `GRANT EXECUTE` only to the role named. A test
 enumerates `pg_proc` and fails on any `SECURITY DEFINER` function in this schema outside this table.
 A second test asserts that `app.ical_feed_lesen` is the **only** function of this domain executable
 outside `withTenant` / `withGroupScope` / `withPersonScope` / `withKundeScope`, and that it appears
@@ -815,7 +862,7 @@ on which tender documents are published and through which bids are submitted.
 
 - **Indexes:** `vergabeplattform_slug_key UNIQUE (slug)`; `GIN (host_muster)` — URL → platform at ingest.
 - **RLS:** reference table, §1.5 read policy on `radar.lesen`; writes `cse_job` and
-  `agent.richtlinie_verwalten`.
+  `app.ist_super_admin()` — a group-wide catalogue, not a tenant's record (§1.5).
 - **Constraints/triggers:** `kern.verhindere_loeschung()`.
 - **SPEC:** RAD-09, O-07.
 
@@ -1430,7 +1477,7 @@ is never allowed (AGT-03).
 |---|---|---|---|---|
 | *S1, S2, S3, S4, S5* | | | | |
 | `agent_id` | uuid | yes | — | `NULL` = applies to every agent |
-| `vorgang_typ` | agent_vorgang_typ | no | — | the fifteen rows of the matrix |
+| `vorgang_typ` | agent_vorgang_typ | no | — | the fifteen rows of the SPEC §17 matrix plus the two recruiting values of §9 |
 | `autonomie` | autonomie_stufe | no | — | `automatisch / automatisch_mit_hinweis / vorschlag / freigabe_erforderlich / nie` |
 | `betrag_grenze_cent` | bigint | yes | — | integer cents; `2000000` = €20,000 (SPEC §17) |
 | `oberhalb_grenze_autonomie` | autonomie_stufe | yes | — | e.g. `nie` above €20,000 |
@@ -1885,6 +1932,60 @@ partitioning exists to prevent — and a test asserts that inserting a fifth `ma
 document and searching it works with no migration, and that a reinigung search whose global nearest
 neighbours are all `security` contracts returns none of them (SEC-A3, TEN-08).
 
+### 3.12 agent_artefakt
+
+**This table is declared here and nowhere else (K-21).** It is the output of every `draft`-class tool
+— `extrahiere_lv` and `entwirf_text` return an `ArtefaktHandle`, not text — and it is what
+`freigabe.artefakt_id` and `freigabe.vergleichsartefakt_id` point at (§4.2) and what
+`freigabe_snapshot.artefakt_hash` covers (§4.7). It was referenced by `06-AGENTEN-FREIGABEN.md` §9.4
+and by this document's own approval tables while being declared by neither, which made both the
+approval chain and the handle registry unbuildable: `handles.ts` resolves an `ArtefaktHandle` by
+checking the expected table, and there was no table to check.
+
+**Why the artefact is a row and not a jsonb blob on `freigabe`.** A draft is produced by a tool step,
+may be revised by a later step, is compared against its predecessor to make APR-02's diff, and is
+redacted on the same LEG-09 schedule as the model payload that produced it. A column on `freigabe`
+can carry none of those four facts: there would be no way to diff two drafts, no way to say which
+step produced one, and no way to redact a draft without mutating an approval row that
+`trg_freigabe_eingefroren` refuses to let change.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| *S1, S2, S3, S5* | | | | |
+| `agent_aufgabe_id` | uuid | no | — | composite FK `(mandant_id, agent_aufgabe_id)` — the run that produced it |
+| `agent_schritt_id` | uuid | yes | — | composite FK — the step that produced it, where one step is responsible |
+| `art` | artefakt_art | no | — | `lv_extrakt / textentwurf / email_entwurf / angebot_entwurf / vergabemappe_entwurf / zusammenfassung` (§9) |
+| `format` | artefakt_format | no | `'json'` | `json / markdown / text / html` — how `inhalt` is to be read, never guessed from its content |
+| `inhalt` | jsonb | no | — | the draft itself. **Column-granted away from `cse_app` and read through `app.agent_artefakt_lesen`** (§1.7) for the same reason as `agent_schritt.eingabe`/`ausgabe`: a draft reproduces customer and employee document text verbatim (K-05, LEG-09) |
+| `inhalt_hash` | text | no | — | SHA-256 over the RFC 8785 canonical form of `inhalt`; survives redaction, and is the `artefakt_hash` the §4.7 chain covers |
+| `bytes` | integer | no | `0` | `CHECK (>= 0)` — a size, not money |
+| `version` | integer | no | `1` | `CHECK (> 0)` |
+| `ersetzt_artefakt_id` | uuid | yes | — | composite FK (self) — the predecessor this revision replaces; the diff of §4.2 is taken between the two |
+| `bezug_typ` · `bezug_id` | bezug_typ · uuid | yes | — | polymorphic, no FK (§7.2) — what the draft is *about* |
+| `loeschfrist_am` | date | no | — | resolved at insert from `app.aufbewahrung_intervall(mandant_id, 'agent_nutzlast')` — the same catalogue row and the same job as `agent_schritt` (§3.9), because a draft is a model output |
+| `geloescht_am` | timestamptz | yes | — | redaction performed; `inhalt_hash`, `art`, `version` and the chain link remain |
+
+- **Indexes:** `aart_aufgabe_idx (mandant_id, agent_aufgabe_id, version DESC)`;
+  `aart_bezug_idx (bezug_typ, bezug_id)`;
+  `aart_purge_idx (loeschfrist_am) WHERE geloescht_am IS NULL`;
+  `aart_ersetzt_idx (ersetzt_artefakt_id) WHERE ersetzt_artefakt_id IS NOT NULL`.
+- **RLS:** S5, module `agent` for the row, **`agent.protokoll_lesen`** for `inhalt` through the
+  reader; `p_intern_ceiling`; `p_gruppe_kein_personenbezug`.
+- **Constraints/triggers:** append-only apart from the single redaction `UPDATE` that sets
+  `geloescht_am` and nulls `inhalt`, whitelisted by name in the trigger — exactly the exception
+  `agent_schritt` carries (§3.9); `kern.verhindere_loeschung()`; `CHECK (version = 1 OR
+  ersetzt_artefakt_id IS NOT NULL)`.
+- **SPEC:** AGT-02, AGT-04, APR-02, APR-03, APR-07, LEG-09, K-10, K-21.
+
+**No number in an artefact is ever an input to anything (K-10).** `inhalt` is a rendering: the amounts
+it displays were computed by `src/server/services/**` and are re-derived from the stored rows at
+execution, never parsed back out of the draft. `freigabe.betrag_cent` is written by the service, not
+copied from here, and `tests/invariants/agent-keine-zahlen.test.ts` covers the artefact path as it
+covers the tool arguments.
+
+`generator:agent_nutzlast_redaktion` (§8.1) redacts this table on the same pass as `agent_schritt`,
+so one deadline governs a run's payloads and its drafts and the two cannot fall out of step.
+
 ---
 
 ## 4. Freigaben (APR-01 … APR-08) — the shape K-13 fixes
@@ -2219,6 +2320,13 @@ depends on **O-06** — the same open question that blocks LEG-10. Until it is a
 person-level evaluation sits behind a feature flag that is off by default, and the flag's state is
 recorded in `audit_log` when it changes.
 
+**The flag is a `mandant_einstellung` key, not a column on `mandant` (K-21).** It is
+`freigabe.pruefdauer_personenbezogen`, read through `app.einstellung(...)` and defaulting to `false`
+when no row exists, exactly like the O-06 monitoring switches of `04-PLANUNG-ZEIT.md` §1.15 —
+`mandant.ueberwachung_aktiv` and its siblings are not columns of `mandant` in this platform, and a
+document that invents one describes a schema that cannot be migrated. `mandant_einstellung` is
+declared by `01-KERN.md` (K-21); this domain reads it and declares nothing.
+
 ---
 
 ## 5. Inhalte: Website, Referenzen, Social (PUB-*, PRO-*, SOC-*)
@@ -2364,6 +2472,7 @@ so the public half carries nothing the public may not have (§1.6).
 | *S1, S2, S3, S4, S5* | | | | |
 | `kundenfreigabe_id` | uuid | yes | — | composite FK → `referenz_kundenfreigabe` |
 | `titel` | text | no | — | copied at creation by a human |
+| `slug` | text | no | — | the URL key of `/projekte/[slug]`. `CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$')` |
 | `leistungsbeschreibung` | text | yes | — | |
 | `leistungen` | text[] | no | `'{}'` | |
 | `ort` | text | yes | — | **city only, never the street** (CRM §3.2) |
@@ -2376,7 +2485,8 @@ so the public half carries nothing the public may not have (§1.6).
 | `veroeffentlicht_am` | timestamptz | yes | — | |
 
 - **Indexes:** `referenz_liste_idx (mandant_id, status, jahr DESC)`;
-  `referenz_public_idx (mandant_id) WHERE status = 'veroeffentlicht' AND geloescht_am IS NULL`.
+  `referenz_public_idx (mandant_id) WHERE status = 'veroeffentlicht' AND geloescht_am IS NULL`;
+  `referenz_slug_uk UNIQUE (mandant_id, slug) WHERE geloescht_am IS NULL`.
 - **RLS:** S5, module `referenz`; registered `t_oeffentlich`.
 - **Constraints/triggers:** `CHECK (kundenname_anzeige IS NULL OR NOT kunde_anonymisiert)`;
   **`trg_referenz_freigabe`** refuses `status = 'veroeffentlicht'` unless `kundenfreigabe_id` resolves
@@ -2436,6 +2546,7 @@ One publishing channel of one area, with its **actual** connection state (SOC-06
 |---|---|---|---|---|
 | *S1, S2, S3, S4, S5* | | | | |
 | `titel` | text | yes | — | |
+| `slug` | text | no | — | the URL key of `/news/[slug]`. `CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$')` |
 | `text` | text | no | — | |
 | `sprache` | char(2) | no | `'de'` | |
 | `hashtags` | text[] | no | `'{}'` | |
@@ -2446,7 +2557,8 @@ One publishing channel of one area, with its **actual** connection state (SOC-06
 | `freigegeben_von` | uuid | yes | — | FK → `benutzer.id` |
 | `freigegeben_am` | timestamptz | yes | — | |
 
-- **Indexes:** `sp_plan_idx (mandant_id, status, geplant_fuer)` — the editorial plan;
+- **Indexes:** `sp_slug_uk UNIQUE (mandant_id, slug) WHERE geloescht_am IS NULL`;
+  `sp_plan_idx (mandant_id, status, geplant_fuer)` — the editorial plan;
   `sp_job_idx (geplant_fuer) WHERE status = 'geplant'` — the publishing job;
   `sp_referenz_idx (referenz_id)`.
 - **RLS:** S5, module `social`; published posts additionally registered `t_oeffentlich` for the
@@ -2553,6 +2665,7 @@ REP-02's applicant counts read the aggregate views, which carry `mandant_id` and
 |---|---|---|---|---|
 | *S1, S2, S3, S4, S5* | | | | |
 | `titel` | text | no | — | |
+| `slug` | text | no | — | the URL key of `/karriere/[stelle]`. `CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND slug NOT IN ('initiativbewerbung','danke'))` — the two reserved segments of that route, excluded in the database rather than in a hand-maintained list, because `04-SEITENKARTE.md`'s `tests/invariants/reservierte-slugs.test.ts` has nothing to assert against otherwise |
 | `beschaeftigungsart` | beschaeftigungsart | no | — | **PLACEHOLDER vocabulary**, §9 |
 | `beschreibung` · `aufgaben` · `profil` | text | yes | — | the advertisement text — prose for humans |
 | `standort` | text | yes | — | the advertised location, not an `objekt` reference |
@@ -2563,7 +2676,8 @@ REP-02's applicant counts read the aggregate views, which carry `mandant_id` and
 | `auf_karriereseite` | boolean | no | `false` | |
 
 - **Indexes:** `stelle_status_idx (mandant_id, status)`;
-  `stelle_public_idx (mandant_id) WHERE status = 'veroeffentlicht' AND geloescht_am IS NULL`.
+  `stelle_public_idx (mandant_id) WHERE status = 'veroeffentlicht' AND geloescht_am IS NULL`;
+  `stelle_slug_uk UNIQUE (mandant_id, slug) WHERE geloescht_am IS NULL`.
 - **RLS:** S5, module `recruiting`; registered `t_oeffentlich` (§1.6).
 - **Constraints/triggers:** `CHECK (status <> 'veroeffentlicht' OR veroeffentlicht_am IS NOT NULL)`.
 - **SPEC:** REC-01, REC-02, PUB-01 (Karriere).
@@ -3280,7 +3394,7 @@ watchdog** (SPEC §14).
 | `watchdog:radar_plattform_ablauf` | daily | `mandant_plattform_registrierung` | `benachrichtigung` | RAD-09 |
 | `watchdog:agent_budget` | hourly | `agent_budget` | `benachrichtigung` at the warning threshold | AGT-05 |
 | `watchdog:agent_reservierung_verfall` | hourly | `agent_reservierung` | releases expired reservations | AGT-05, §3.7 |
-| `generator:agent_nutzlast_redaktion` | daily | `agent_schritt` | redacts payloads past their deadline | LEG-09, §3.9 |
+| `generator:agent_nutzlast_redaktion` | daily | `agent_schritt`, `agent_artefakt` | redacts payloads and drafts past their deadline | LEG-09, §3.9, §3.12 |
 | `index:wissensindex` | nightly, per mandant | sources per AGT-06 | `wissens_chunk` | AGT-06 |
 | `watchdog:freigabe_frist` | every 15 min | `freigabe` | executes APR-05 releases **within the §4.4 restriction** | APR-05 |
 | `watchdog:freigabe_kette_verify` | nightly | `freigabe_snapshot` | pages on a break | APR-07, K-13 |
@@ -3352,8 +3466,17 @@ create type agent_vorgang_typ    as enum ('ausschreibung_bewerten','dokument_abr
                                           'ersatz_vorschlagen','monatsrechnung_entwurf','angebot_erstellen',
                                           'nachlass_gewaehren','externer_versand','buchung_uebernehmen',
                                           'beitrag_veroeffentlichen','mahnung_vorschlagen',
-                                          'stellenanzeige_entwurf');                          -- SPEC §17 matrix
+                                          'stellenanzeige_entwurf',
+                                          'bewerbung_auswerten','kandidat_ranking');          -- SPEC §17 matrix,
+                                          -- plus the two REC-04/REC-05 rows: `06-AGENTEN-FREIGABEN.md` §4.2
+                                          -- derives the gate key from (aktion, vorgang_typ, art), so a CV
+                                          -- parse or a ranking run with no value here has no gate key at all
+                                          -- and codeFloor() cannot be total over the recruiting path
 create type wissens_quelle_typ   as enum ('vertrag','objekt','angebot','korrespondenz');      -- AGT-06, exactly four
+create type artefakt_art         as enum ('lv_extrakt','textentwurf','email_entwurf','angebot_entwurf',
+                                          'vergabemappe_entwurf','zusammenfassung');          -- §3.12, one per
+                                          -- draft-class tool output of AGT-02's nine
+create type artefakt_format      as enum ('json','markdown','text','html');                   -- §3.12
 create type social_kanal         as enum ('cse_profil','instagram','facebook','linkedin','tiktok','youtube');
 create type kalender_eintrag_typ as enum ('projekt','einsatz','besprechung','kundentermin','frist',
                                           'wiedervorlage','interview');                       -- CAL-01
@@ -3594,8 +3717,9 @@ domain does not apply otherwise.
 | `agent_reservierung` | `agent_budget_id`, `agent_aufgabe_id` | `agent_budget`, `agent_aufgabe` |
 | `agent_kosten` | `agent_aufgabe_id`, `agent_budget_id`, `agent_reservierung_id` | `agent_aufgabe`, `agent_budget`, `agent_reservierung` |
 | `agent_schritt` | `agent_aufgabe_id`, `richtlinie_id`, `freigabe_id` | `agent_aufgabe`, `agent_richtlinie`, `freigabe` |
+| `agent_artefakt` | `agent_aufgabe_id`, `agent_schritt_id`, `ersetzt_artefakt_id` | `agent_aufgabe`, `agent_schritt`, `agent_artefakt` |
 | `agent_schritt_beleg` | `agent_schritt_id`, `wissens_chunk_id` | `agent_schritt`, **`wissens_chunk (mandant_id, id)`** — the composite PK of K-16(a), §3.11 |
-| `freigabe` | `agent_aufgabe_id`, `richtlinie_id`, `ersetzt_durch_freigabe_id` | `agent_aufgabe`, `agent_richtlinie`, `freigabe` |
+| `freigabe` | `agent_aufgabe_id`, `richtlinie_id`, `ersetzt_durch_freigabe_id`, `artefakt_id`, `vergleichsartefakt_id` | `agent_aufgabe`, `agent_richtlinie`, `freigabe`, `agent_artefakt` |
 | `freigabe_feld` | `freigabe_id`, `quelle_dokument_id`, `wissens_chunk_id` | `freigabe`, `dokument`, `wissens_chunk` |
 | `freigabe_ansicht`, `freigabe_snapshot` | `freigabe_id` | `freigabe` |
 | `freigabe_snapshot` | `widerruft_snapshot_id` | `freigabe_snapshot` |
@@ -3687,10 +3811,15 @@ Every one of them corresponds to a defect the review found or to an invariant th
 | 34 | **Ceilings compose:** no table carries `p_intern_ceiling` together with another portal ceiling, every tenant table of this domain appears in exactly one group of §1.4, and a `mitarbeiter` session reads its own `benachrichtigung`, `nachricht` and `kalender_eintrag` rows — non-zero, which is the half a restrictive-only design gets wrong | K-04, §1.4 |
 | 35 | **Subject scopes:** a `withPersonScope` session reads its own `nachricht` and `kalender_eintrag` rows **across two employments in two mandanten** and zero rows of any other person; a `withKundeScope` session reads only its own `ansprechpartner`'s messages; both are refused every `INSERT` and `UPDATE` by the database, not by a service check | K-18, §1.15, EMP-11, EMP-14, CRM-06 |
 | 36 | **Jobs write something:** every table named in a §8.1 job's *Reads*/*Writes* column carries a `t_job` policy, and the ingest, scoring and purge jobs each affect a non-zero number of rows against a seeded database — the assertion that `FORCE` RLS has not silently disabled the scheduler | K-01, §1.1, §8.1 |
-| 37 | **Micro-cents stay in the agent ledger:** the only `*_mikrocent` columns in the database are the six of §1.12; `agent_aufgabe.kosten_cent` equals the half-up conversion of the summed `agent_kosten.kosten_mikrocent`; and a hundred bookings of 1 mikrocent each sum to 1 cent in the report rather than to zero | K-16(b), §1.12, AGT-05, REP-01 |
+| 37 | **Micro-cents stay in the agent ledger:** the only `*_mikrocent` columns in the database are the eight of §1.12; `agent_aufgabe.kosten_cent` equals the half-up conversion of the summed `agent_kosten.kosten_mikrocent`; and a hundred bookings of 1 mikrocent each sum to 1 cent in the report rather than to zero | K-16(b), §1.12, AGT-05, REP-01 |
 | 38 | **`pruefdauer_sek` is unreachable without the right:** a `leitung` without `freigabe.pruefdauer_lesen` selecting `freigabe_snapshot.*` is refused the column by Postgres, `app.freigabe_pruefdauer_lesen` returns `NULL` for them and writes an `audit_log` row for the holder who reads it | APR-08, K-05, §4.7, O-06 |
 | 39 | A bulk edit of eighty `radar_profil_cpv` rows in one statement advances `radar_profil.version` by exactly one and does not re-enter the parent trigger | §2.4 |
 | 40 | The public principal cannot read `erstellt_durch_agent_id` on any registered public table, while the `erstellt_durch_agent_id IS NULL OR … freigabe_id IS NOT NULL` constraints of §5.2, §5.7 and §6.3 still reject an unapproved agent draft | §1.6, invariant 7 |
+| 41 | **Every right-key literal in `rls/radar-ki-inhalt.sql` and in this domain's route gates has a `berechtigung` row**, and every module named is in the catalogue's list. The negative half matters more than the positive one: a session holding *every* key in the catalogue reads a non-zero number of rows from each table of §1.3 — a misspelled key is not an error, it is a permanently empty screen | K-19, §1.3 |
+| 42 | **Both subject accessors resolve outside `mandant` scope:** `app.aktuelle_kunden()` returns the caller's customers in `kunde` scope (non-empty for a customer with an `auftrag`) and `app.portal()` returns `intern` / `mitarbeiter` / `kunde` in the three multi-tenant scopes — asserted per scope, because a NULL here silently empties the customer portal and fires every `p_ma_ceiling` inside the group view | K-20, §1.2, §1.4 |
+| 43 | **The approval chain verifies against the eleven-component formula:** a snapshot written by the service and re-hashed offline by `freigabe-kette-verify` agree byte for byte, including an absent `artefakt_hash` rendered as the empty string and the 0x1F separator; changing `ansicht_modell` after the fact breaks the link | APR-07, K-13, §4.7 |
+| 44 | **`agent_artefakt` is reachable only through its reader:** a `leitung` without `agent.protokoll_lesen` is refused `inhalt` by Postgres, `app.agent_artefakt_lesen` returns `NULL` for them, and the redaction job nulls `inhalt` while `inhalt_hash` and the `freigabe_snapshot.artefakt_hash` that covers it survive | §3.12, K-05, LEG-09 |
+| 45 | **Public URL keys resolve:** `/karriere/[stelle]`, `/projekte/[slug]` and `/news/[slug]` each resolve a seeded published row; the reserved values `initiativbewerbung` and `danke` are refused by the `stelle.slug` CHECK; and two mandanten may hold the same slug | §1.6, §5.5, §5.7, §6.3, PUB-01 |
 
 ---
 
@@ -3832,7 +3961,9 @@ in the same way `02-CRM-OPERATIONS.md` §3.2 is binding on this one.
 | `02-CRM-OPERATIONS.md` | `formular_definition` keeps `UNIQUE (mandant_id, id)` so `seite_block.formular_definition_id` can be a composite FK | REQ-01, PUB-07 |
 | `02-CRM-OPERATIONS.md` | `auftrag` and `objekt` keep `UNIQUE (mandant_id, id)`; `lead.ausschreibung_id` references `ausschreibung` as a reference table (no `mandant_id` on it) | REP-03, CRM-07, §2.1 |
 | `04-PLANUNG-ZEIT.md` | the RRULE expansion implementation is exported and reused with an explicit zone argument; REC-01's staffing gap is a service, not a view this domain queries directly | CAL-01, TIM-02, REC-01 |
-| `05-FINANZEN.md` | the Finance agent's proposals arrive as `freigabe` rows of `vorgang_typ = 'buchung_uebernehmen'`; no second approval model | ACC-05, APR-07, K-13 |
+| `05-FINANZEN.md` | the Finance agent's proposals arrive as `freigabe` rows of `vorgang_typ = 'buchung_uebernehmen'`; no second approval model. Its §12.2 tool table must be rewritten against the **nine** AGT-02 tools of `06-AGENTEN-FREIGABEN.md` §5: `agent_werkzeug_name` (§9) is an enum and `agent_werkzeug` enables tools per mandant, so a tenth tool cannot be logged in `agent_schritt.werkzeug` at all | ACC-05, APR-07, K-13, K-21, AGT-02 |
+| `06-AGENTEN-FREIGABEN.md` | it owns the AGT-02 tool set and the chain formula, and this document now carries both verbatim (§9, §4.7). Three things must move the other way: §10.6 calls `app.mandant_domaene_einrichten(p_mandant)` — the old `app.wissen_partition_anlegen` name exists in no document (§1.7, §3.11); `PolicyInput.budget.verdikt` drops `'warnung'`, which `agent_budget_verdikt` cannot produce (§3.6); and `app.aufbewahrung_intervall` takes the mandant as its first argument (§3.9, §3.12, `02-CRM-OPERATIONS.md` §4.7) | AGT-02, AGT-05, APR-07, TEN-08 |
+| `04-SEITENKARTE.md` | `/portal/[mandant]/agenten/[agent]/protokoll` and the `agent_schritt` chain of `/…/aufgaben/[id]` are gated on **`agent.protokoll_lesen`**, not on `agent.lesen`: step payloads carry customer and employee document text (LEG-09), which is why §1.3 puts them in their own row. Page-level `agent.lesen` for the run header is right. Its `/karriere/[stelle]`, `/projekte/[slug]` and `/news/[slug]` routes now have the columns they resolve against (§1.6), and `/leistungen/[slug]` resolves `seite.pfad` | LEG-09, AGT-04, PUB-01 |
 | `01-KERN.md` | `app.scope()` returns four values and `withPersonScope` / `withKundeScope` exist as wrappers; the `t_person` / `t_kunde` shape of K-18 is the one §1.15 instantiates here, and `app.sichtbare_mandanten()` in `kunde` scope must be non-empty for a customer with an `auftrag`, or §1.15's `t_kunde` rows are unreachable | K-18, EMP-11, EMP-14, CRM-06 |
 | `01-KERN.md` | the `AFTER INSERT ON mandant` trigger chain calls `app.mandant_domaene_einrichten` (§1.7) — this domain owns the function, Kern owns the table the trigger sits on | TEN-08, AGT-06, APR-07 |
 | `02-CRM-OPERATIONS.md` | `ansprechpartner` keeps `UNIQUE (mandant_id, id)` and exposes `kunde_id`, which §7.9's `p_beteiligt` and §1.15's `t_kunde` both resolve against `app.aktuelle_kunden()` | CRM-06, EMP-11 |

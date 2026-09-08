@@ -61,6 +61,19 @@ following the chosen host, and no route change (O-08).
 | `check-in/[token]` | `src/app/check-in/[token]/` | one screen, one primary button, no scrolling (DESIGN §8) | **none — token only** | — |
 | `(dev)` | `src/app/(dev)/` | styleguide only, never deployed to production | yes, global role | `intern` |
 
+**The `app.portal` column is a bound value, not a derived one (K-20).** In `/portal/[mandant]`
+there is an active membership and K-04's derivation from that membership's role applies. In
+the three multi-tenant scopes there is none — `app.mandant_id` is NULL there by construction
+(K-02) — so `app.portal` is **bound when the scope is entered** and is never recomputed from
+`app.aktiver_mandant()`. Recomputing it there falls through to the fail-closed `mitarbeiter`
+and produces exactly the two silent failures this map cannot afford: every K-04 worker
+ceiling fires **inside the group view**, so a `leitung` reads nothing on `/portal/gruppe/**`
+and sees an empty page rather than a denial; and every customer is ceilinged as staff on
+`/portal/kunde/**`. The four bound values are the column above: `intern` in `mandant` scope
+when the active membership's role is `super_admin`/`admin`/`leitung`, `intern` in `gruppe`
+scope, `mitarbeiter` in `person` scope, `kunde` in `kunde` scope. `/portal/konto` inherits
+whichever of the four the session already holds and asserts none of its own (§9).
+
 `portal` is a **literal** segment, not a route group, because K-07 requires it in the URL.
 `(public)` and `(dev)` stay route groups: they share a layout and contribute no path
 segment. `auth` is a literal segment so that the login screens live in one namespace and
@@ -102,7 +115,7 @@ scopes and `app.mandant_ids` carries the set, always derived server-side (K-02, 
 | `GRP` | `withGroupScope(ctx, fn)` | `gruppe` / `on` | read-only aggregation over `app.sichtbare_mandanten()` gated on `gruppe.<modul>.lesen` per mandant; **no write policy exists anywhere for this scope** (K-03), so a write is refused by Postgres, not only by a service check |
 | `PER` | `withPersonScope(ctx, fn)` | `person` / `on` | read across every `anstellung` of the signed-in `person` (EMP-14, EMP-15) through the **`t_person`** policy of K-18 — `app.scope() = 'person'` and `mandant_id = any (app.sichtbare_mandanten())` and the row belongs to `app.aktuelle_person()` — with the restrictive K-04 worker ceiling applying on top. `sichtbare_mandanten()` is derived server-side from the person's live `anstellung` rows |
 | `PER→M1` | `withAnstellung(ctx, anstellungId, fn)` | `mandant` / `off` | a worker write: the mandant is resolved **from the record**, never from the caller (§1.3.1) |
-| `KDN` | `withKundeScope(ctx, fn)` | `kunde` / `on` | read across the mandanten in which the login holds a live `kunde_zugang`, through the **`t_kunde`** policy of K-18 — `app.scope() = 'kunde'` and `mandant_id = any (app.sichtbare_mandanten())` and `kunde_id = any (app.aktuelle_kunden())` — with the restrictive K-04 customer ceiling on top. `sichtbare_mandanten()` is derived server-side from those `kunde_zugang` rows |
+| `KDN` | `withKundeScope(ctx, fn)` | `kunde` / `on` | read across the mandanten in which the login holds a live `kunde_zugang`, through the **`t_kunde`** policy of K-18 — `app.scope() = 'kunde'` and `mandant_id = any (app.sichtbare_mandanten())` and `kunde_id = any (app.aktuelle_kunden())` — with the restrictive K-04 customer ceiling on top. `sichtbare_mandanten()` **and** `app.aktuelle_kunden()` are derived server-side from those `kunde_zugang` rows and **never** through `app.aktiver_mandant()`, which is NULL in this scope (K-20) |
 | `KDN→M1` | `withKundenVorgang(ctx, aktion, vorgangId, fn)` | `mandant` / `off` | a customer write. The action union is **`never` until O-74 is answered**; today no such route exists and none is listed |
 | `USR` | **not a helper — a table class**, read in whichever scope the session already holds | inherited | `benutzer`, `benutzer_sitzung`, `benutzer_feed_token`, `benutzer_mandant` (read), and the caller's own `person` row through the self-access branch of `03-AUTH-BERECHTIGUNGEN.md` §7.5. Their Class S / Class G policies are keyed on `benutzer_id = app.aktueller_benutzer()`, never on `app.aktiver_mandant()`, so they resolve identically in `mandant`, `gruppe`, `person` and `kunde` scope — which is what lets `/portal/konto` render inside any portal shell (§1.2, §9) without a tenant of its own. It is **not** "no `mandant_id` table is touched": `benutzer_mandant` carries one, and the row says so |
 | `FEED` | none — the K-08 register function `app.ical_feed_lesen(feed_token_hash)` as `cse_anon` | — | the iCal feed (CAL-03). It opens **no session helper at all**: the function resolves `benutzer_feed_token` to one `benutzer_id` and returns that user's own entries through the allowlist of §9.1 |
@@ -137,8 +150,14 @@ shape and vocabulary are owned by `03-AUTH-BERECHTIGUNGEN.md` §7.2 and §7.4:
 
 ```
 schluessel := <modul> '.' [<objekt> '_'] <aktion>
-gruppe.<modul>.<aktion>            -- the group-scope read keys (K-03)
+gruppe.<modul>.[<objekt> '_'] <aktion>    -- the group-scope read keys (K-03)
 ```
+
+The optional `<objekt>` segment is part of the **group** form too — `gruppe.system.audit_lesen`
+is `modul = system`, `objekt = audit`, `aktion = lesen`, three dot-separated segments and
+therefore inside `01-KERN.md` §6.6's `CHECK (schluessel ~ '^[a-z_]+(\.[a-z_]+){1,2}$')`. Without
+that segment the cross-entity audit log has no expressible key at all: `aktion` is an enum, so
+a fourth segment cannot be added and `audit` cannot become an action.
 
 `app.hat_recht(p_recht text, p_mandant uuid)` **takes a mandant argument** (K-03): a global
 permission predicate would carry a right granted in one entity into every other entity the
@@ -149,7 +168,7 @@ user can reach, which is precisely the leak RLS exists to stop. Four notations a
 |---|---|
 | `modul.aktion` | the key `app.hat_recht` is asked for, in the active mandant |
 | `a + b` | both keys are required |
-| `S` | **no right at all** — the row is reached through the self-access policy branch keyed on the server-set `app.person_id` GUC (`03-AUTH-BERECHTIGUNGEN.md` §7.5). Acknowledging an instruction, raising an objection and reporting an absence are acts of the subject, not rights a role can hold, so no role — `super_admin` included — can perform them on someone else's behalf |
+| `S` | **no right at all** — the row is reached through the self-access policy branch keyed on the server-set `app.person_id` GUC (`03-AUTH-BERECHTIGUNGEN.md` §7.5). Acknowledging an instruction, raising an objection and reporting an absence are acts of the subject, not rights a role can hold, so no role — `super_admin` included — can perform them on someone else's behalf. The notation follows the catalogue: where §12 marks a role's cell `S` this map writes `S`, and where it marks it `✔` this map writes the key. The customer portal is the second case — its rows are narrowed by the `t_kunde` subject predicate, but the routes are still gated on granted module keys (§8) |
 | `Sitzung` | authenticated only; the route reads the principal's own account rows (`USR`) |
 
 Two rules hold for **every** row in every table below and are therefore not repeated:
@@ -162,9 +181,17 @@ Two rules hold for **every** row in every table below and are therefore not repe
   403** — deep links, direct fetches, server actions and API routes alike.
 
 The permission editor renders keys carrying `berechtigung.nur_global` as permanently
-disabled with the reason shown (`system.mandant_verwalten`, `system.zwei_faktor_zuruecksetzen`,
-`oeffentlich.lesen`); every other key is grantable per mandant, which is why this document
-never writes that a role "may never" hold one. The defaults, including the ones still open
+disabled with the reason shown (`system.mandant_verwalten`,
+`system.zwei_faktor_zuruecksetzen`); every other key is grantable per mandant, which is why
+this document never writes that a role "may never" hold one. **`oeffentlich.lesen` is not
+one of them** — an earlier draft of this section listed it, and that was wrong in a way that
+switches the public website off: `01-KERN.md` §6.7's `rb_nur_global_pruefen` trigger refuses
+to bind a `nur_global` right to a mandant-scoped role at all, and the `t_oeffentlich`
+policies of `02-datenmodell/02-CRM-OPERATIONS.md` §1.6 and
+`02-datenmodell/06-RADAR-KI-INHALT.md` §1.6 call `app.hat_recht('oeffentlich.lesen',
+mandant_id)` **per row**, so the key must be an ordinary per-mandant binding held by the two
+service principals of §2.7. It is granted to none of the five seeded roles; that is a
+default, not a constraint. The defaults, including the ones still open
 (O-75 … O-77 — `auth-entgelt-leitung`, `auth-leitung-freigaben`, `auth-storno-berechtigung`),
 live in `03-AUTH-BERECHTIGUNGEN.md` §12 and are not restated here.
 
@@ -232,7 +259,18 @@ because the App Router matches static before dynamic and does not backtrack:
 | `/unternehmen/[bereich]` | `mandant.slug` | none | the CI test asserts the level stays empty |
 | `/angebot/[bereich]` | `mandant.slug` | none — see §2.3 | the CI test asserts the level stays empty |
 | `/karriere/[stelle]` | `stelle.slug` | `initiativbewerbung`, **`danke`** | `CHECK` on `stelle.slug` + the same CI test |
-| `/leistungen/[slug]`, `/news/[slug]`, `/projekte/[slug]` | `seite.slug`, `social_post.slug`, `referenz.slug` | none | the CI test asserts each level stays empty |
+| `/leistungen/[slug]`, `/news/[slug]`, `/projekte/[slug]` | `seite.pfad` (last segment), `social_post.slug`, `referenz.slug` | none | the CI test asserts each level stays empty |
+
+**`seite` is addressed by `pfad`, not by a `slug` column.**
+`02-datenmodell/06-RADAR-KI-INHALT.md` owns the table and declares
+`seite.pfad` with `CHECK (pfad ~ '^/[a-z0-9/-]*$')` — a whole path, not a single segment — so
+`/leistungen/[slug]` resolves the row whose `pfad` is the requested path and the reservation
+column above is empty because that level has no static sibling to shadow. `stelle`,
+`referenz` and `social_post` genuinely need a URL key and today have none; adding
+`stelle.slug` (with the `CHECK` excluding `initiativbewerbung` and `danke`), `referenz.slug`
+and `social_post.slug` is an obligation this map places on that document (§17), and until it
+is met `tests/invariants/reservierte-slugs.test.ts` cannot be written for the
+`/karriere/` level at all.
 
 `danke` is the second static sibling of `[stelle]` (§2.1) and was missing from an earlier
 draft's reservation column. Without it a `stelle` with slug `danke` is unreachable — the
@@ -298,7 +336,7 @@ over — it needs external customers (O-33) *and* an entity that issues its own 
 
 ```ts
 // TODO(client): O-01 — is CSE Operations a GmbH or an internal department? A legal entity
-// gets `mandant.ist_rechtstraeger = true`, its own number circle (TEN-02) and the
+// gets `mandant.ist_rechtseinheit = true`, its own number circle (TEN-02) and the
 // finanzen/buchhaltung modules; a department gets none of them and bills through one of
 // the other three. No `nummernkreis` row is created for any mandant automatically.
 // TODO(client): O-33 — does CSE Operations sell to external customers? The answer decides
@@ -460,7 +498,9 @@ not later.
 entry · referral. An earlier draft introduced `quelle = website_kontakt` for `/kontakt`;
 that is a fifth source the SPEC does not define, and REP-03's channel attribution would then
 report two channels where the SPEC defines one. The distinguishing detail is
-`formular_eingang.formular_id`, which names *which* form was used, inside the one source.
+`formular_eingang.formular_definition_id` (the owner's spelling —
+`02-datenmodell/02-CRM-OPERATIONS.md` §4.4), which names *which* form was used, inside the
+one source.
 
 **An enquiry is not consent to advertise.** `rechtsgrundlage = anfrage` supports a
 *transactional reply to that enquiry*. It is not one of the four cumulative conditions of
@@ -584,15 +624,26 @@ per-request CSP nonce (SEC-A7), never by a third-party script (PUB-13):
 
 ### 2.7 The public read path
 
-Public pages have no session, so they read through the **public renderer service principal**
-holding exactly `oeffentlich.lesen` in the four mandanten
-(`03-AUTH-BERECHTIGUNGEN.md` §14.3), inside `withSystemTenant`. Consequences that belong in
-a page map:
+Public pages have no session, so they read through the **website-renderer service principal**
+holding `oeffentlich.lesen` (plus `gruppe.oeffentlich.lesen` for the group-level pages) in
+the four mandanten as ordinary per-mandant bindings, at `readonly = on`, inside
+`withSystemTenant` (`02-datenmodell/02-CRM-OPERATIONS.md` §1.6.1,
+`03-AUTH-BERECHTIGUNGEN.md` §14.3).
+
+**Reading and intake are two principals, not one.** The renderer cannot write, and the form
+intake of §2.3 must: K-03's `WITH CHECK` demands `not app.ist_readonly()` **and**
+`formular.schreiben` on `formular_eingang`, so a renderer principal holding "exactly
+`oeffentlich.lesen`" at `readonly = on` fails three ways at once and REQ-01…REQ-07 would have
+no functioning write path — the form would accept a submission and store nothing. The
+**form-intake principal** therefore holds `oeffentlich.lesen` + `formular.schreiben` +
+`dokument.schreiben` at `readonly = off`, and deliberately **not** `formular.lesen`: it
+writes submissions it cannot read back. Neither key is `nur_global` (§1.4). Consequences that
+belong in a page map:
 
 - `cse_anon` holds **no table grants at all** (K-01). An anonymous request never selects from
   `mandant`; `/unternehmen/[bereich]/unternehmensdaten` reads the published projection the
   `oeffentlich.*` policies expose, which contains the legal-identity block and excludes
-  `iban`, `bic`, `module`, `ist_rechtstraeger` and every operational column.
+  `iban`, `bic`, `module`, `ist_rechtseinheit` and every operational column.
 - Only rows carrying a published state are reachable. A `referenz` without a recorded
   customer release, a `seite` in draft, a `stelle` that is closed and a `social_post` not yet
   published are invisible to this principal — not filtered by a page, unreachable by policy.
@@ -930,8 +981,14 @@ does not match it.
 | `/portal/[mandant]/leistungskatalog` , `/[id]` | `katalog.lesen` / `katalog.schreiben` | `M1` | OPS-06, CLN-05 | 4 |
 
 Every number on the Kalkulation comes from a tested function in `src/server/services/`:
-cleaning standard time is `Σ (raum.flaeche_qm ÷ belagsart.leistungswert) × turnus_faktor`
-(OPS-02, OPS-03). The Acquisition agent may *fill* a price sheet; it may never *compute* a
+cleaning standard time is
+`Σ (raum.flaeche_qm ÷ belagsart.leistungswert_qm_pro_stunde) × turnus_faktor`
+(OPS-02, OPS-03) — the owner's column name is
+`belagsart.leistungswert_qm_pro_stunde` (`02-datenmodell/02-CRM-OPERATIONS.md` §4.2), with
+the room-level override `revier_raum.leistungswert_qm_pro_stunde`; neither is spelled
+`leistungswert` or `leistungswert_qm_h`. The result is `revier.sollzeit_minuten
+numeric(8,2)` — a *computed target*, fractional by K-16(c), never an `integer` measured
+duration. The Acquisition agent may *fill* a price sheet; it may never *compute* a
 price, and it never supplies an input that determines one — every money, quantity or formula
 argument is a handle or a token from the run's number register, never a numeric literal or
 an expression string, and `zuschlag_profil_id` is never a model argument because choosing
@@ -974,7 +1031,8 @@ The map on `/objekte` and on `/portal/gruppe/objekte` needs a tile and geocoding
 which is a processor handling customer addresses.
 
 ```ts
-// TODO(client): O-39 — which EU-hosted map tile and geocoding provider is used for OPS-01
+// TODO(client): O-132 `seiten-geo-anbieter` — which EU-hosted map tile and geocoding
+// provider is used for OPS-01
 // coordinates, under which DPA (D-04)? Until one is configured the list renders without a
 // map and coordinates are entered manually; no third-party tile is fetched from a public
 // page (PUB-13) and no address is sent to an unconfigured service.
@@ -1230,8 +1288,28 @@ mandant B; `arbeitszeit_verstoss` has no INSERT policy for `cse_app` at all.
 | `/portal/[mandant]/zeiten/einwaende` , `/[id]` — objection inbox; the employee raises, the planner decides | `zeit.einwand_entscheiden` | `M1` | EMP-07, TIM-11 | 5 |
 | `/portal/[mandant]/zeiten/nacherfassung` — offline claims awaiting a human decision | `zeit.nacherfassung_pruefen` | `M1` | TIM-09, TIM-11 | 5 |
 | `/portal/[mandant]/zeiten/checkin-links` — issue, re-issue, revoke; who has a link, who used it | `zeit.checkin_verwalten` | `M1` | TIM-07 | 5 |
-| `/portal/[mandant]/zeiten/freigabe` — release worked time for billing | `zeit.freigeben_zur_abrechnung` | `M1` | TIM-12, FIN-07, FIN-18 | 6 |
+| `/portal/[mandant]/zeiten/freigabe` — release worked time for billing — **blocked on O-39** | `zeit.freigeben_zur_abrechnung` (blocked on O-39) | `M1` | TIM-12, FIN-07, FIN-18 | 6 |
 | `/portal/[mandant]/zeiten/milog` — §17 MiLoG record; start, end, duration; two-year retention view; export | `zeit.exportieren` | `M1` | TIM-13, LEG-02, ACC-12 | 5 |
+
+**`/zeiten/freigabe` and its right are blocked on O-39, and the row says so rather than
+shipping.** `02-datenmodell/04-PLANUNG-ZEIT.md` §1.3 owns `zeiteintrag` and records O-39
+(`zeit-freigabeschritt`) as open: whether a release step between recorded time and billing
+exists at all is a client decision, and K-17 forbids seeding a right for a workflow step
+nobody has confirmed. Until O-39 is answered, `zeit.freigeben_zur_abrechnung` is **not
+seeded and has no default binding** in `03-AUTH-BERECHTIGUNGEN.md` §12.4, this route does not
+ship, and FIN-07 sources invoice lines from `zeiteintrag` rows attached to the `auftrag`
+directly (§5.14). The two adjacent Dienstplan keys this map uses on the same document's
+tables — `dienstplan.veroeffentlichen` and `dienstplan.arbzg_uebersteuern`, both in §5.10 —
+are **not** in that position: they are seeded in §12.4 and are load-bearing for TIM-04 and
+for the K-06 override trail, so `02-datenmodell/04-PLANUNG-ZEIT.md` §1.3 must carry them in
+its key table rather than this map dropping them (§17).
+
+```ts
+// TODO(client): O-39 `zeit-freigabeschritt` — is there a release step between recorded time
+// and billing (a planner "releases" a week of `zeiteintrag` rows before they may be
+// invoiced), or does a finalised invoice claim the rows directly? The route above and the
+// right `zeit.freigeben_zur_abrechnung` exist only if the answer is yes.
+```
 
 **The MiLoG record is enabled for all four mandanten**, not only cleaning and construction.
 LEG-02 names those two, but §2a SchwarzArbG's sector list also covers the Wach- und
@@ -1496,14 +1574,14 @@ ships Z3 only, and no read-only auditor role exists.
 | `/portal/[mandant]/dokumente` — categories, search, filter, tags | `dokument.lesen` | `M1` | DOC-01, DOC-02, DOC-04 | 4 |
 | `/portal/[mandant]/dokumente/upload` — MIME sniffed from the bytes, size limits, EXIF stripped | `dokument.schreiben` | `M1` | DOC-06, TIM-10 | 4 |
 | `/portal/[mandant]/dokumente/[id]` — metadata, versions, access log | `dokument.lesen` | `M1` | DOC-05, DOC-07, SEC-A9 | 4 |
-| `/portal/[mandant]/dokumente/[id]/kundenfreigabe` — flip `freigabe_kunde` | `dokument.kunde_freigeben` | `M1` | DOC-04 | 4 |
+| `/portal/[mandant]/dokumente/[id]/kundenfreigabe` — flip `sichtbar_fuer_kunde` | `dokument.kunde_freigeben` | `M1` | DOC-04 | 4 |
 | `/portal/[mandant]/dokumente/buendel` — one-click bundle for an audit or inspection | `dokument.buendel_export` | `M1` | DOC-08, ACC-09, LEG-01 | 7 |
 | `/portal/[mandant]/dokumente/aufbewahrung` — retention rules per category | `dokument.aufbewahrung_verwalten` | `M1` | DOC-07, LEG-01 | 7 |
 
 Categories are fixed by DOC-01: `kunde · vertrag · angebot · rechnung · beleg · mitarbeiter ·
 projekt · buchhaltung · unternehmen`. **No file is served from a public path**: every
 download goes through a handler that mints a 15-minute signed URL *after* the authorization
-decision, the row has been read through RLS, and — for a customer — `freigabe_kunde = true`
+decision, the row has been read through RLS, and — for a customer — `sichtbar_fuer_kunde = true`
 and a matching `kunde_id` (DOC-03, DOC-04, SEC-A6). List endpoints never return URLs for
 rows the caller cannot read, and never return the storage path.
 
@@ -1608,13 +1686,24 @@ editor (K-17).
 |---|---|---|---|---|
 | `/portal/[mandant]/agenten` — the four agents with status | `agent.lesen` | `M1` | AGT-01, D-03 | 8 |
 | `/portal/[mandant]/agenten/[agent]` — description, tasks, activity, connected tools, approval requirements | `agent.lesen` | `M1` | AGT-01, AGT-02, AGT-03 | 8 |
-| `/portal/[mandant]/agenten/[agent]/aufgaben` , `/[id]` — `agent_aufgabe` with its `agent_schritt` chain | `agent.lesen` | `M1` | AGT-01, AGT-04 | 8 |
-| `/portal/[mandant]/agenten/[agent]/protokoll` — per step: tool, input, output, model, tokens, cost, duration | `agent.lesen` | `M1` | AGT-04, SEC-A9 | 8 |
+| `/portal/[mandant]/agenten/[agent]/aufgaben` , `/[id]` — the run header; the `agent_schritt` chain on the detail page additionally requires `agent.protokoll_lesen` | `agent.lesen` (+ `agent.protokoll_lesen` for the step chain) | `M1` | AGT-01, AGT-04 | 8 |
+| `/portal/[mandant]/agenten/[agent]/protokoll` — per step: tool, input, output, model, tokens, cost, duration | `agent.protokoll_lesen` | `M1` | AGT-04, SEC-A9 | 8 |
 | `/portal/[mandant]/agenten/[agent]/start` — start a run | `agent.aufgabe_starten` | `M1` | AGT-01 | 8 |
 | `/portal/[mandant]/agenten/richtlinien` , `/[id]` — the policy gate, editable without code | `agent.richtlinie_verwalten` | `M1` | AGT-03, APR-01 | 8 |
 | `/portal/[mandant]/agenten/budget` — monthly cap, consumption, reservation state, hard stop | `agent.budget_verwalten` | `M1` | AGT-05 | 8 |
 | `/portal/[mandant]/agenten/wissen` — `pgvector` index sources and freshness | `agent.werkzeug_verbinden` | `M1` | AGT-06 | 8 |
 | `/portal/[mandant]/agenten/assistent` — the CEO Assistant, over this entity's live data | `agent.lesen` + `agent.aufgabe_starten` | `M1` | AGT-07, DSH-01 | 8 |
+
+**A step payload is not the run header, and the two carry different rights.** `agent.lesen`
+opens the Agent Center and shows *that* a run happened, with its status, duration and cost;
+reading a step's tool input and output requires **`agent.protokoll_lesen`**, because those
+payloads carry verbatim customer and employee document text pulled in by `lies_dokument` and
+the RAG retrieval (LEG-09, K-05 in spirit). It is the same right
+`app.agent_nutzlast_lesen` re-checks server-side
+(`02-datenmodell/06-RADAR-KI-INHALT.md` §1.3, §3.9; `06-AGENTEN-FREIGABEN.md` §12), so
+gating the screen on `agent.lesen` alone would have rendered a page the payload reader then
+refuses row by row — a blank protocol with no explanation. An earlier draft of this map did
+exactly that on both routes.
 
 `[agent]` resolves to exactly four slugs: `ceo-assistent`, `akquise`, `backoffice`,
 `finanzen` (D-03). The budget page shows a **hard stop**, never degraded service (AGT-05).
@@ -1646,7 +1735,11 @@ convention's own spelling wins, so the pair is withdrawn here exactly as
 
 **The boundary is cents, and it is the only place a figure leaves this domain.**
 `agent_budget.budget_cent` is `bigint` cents — the cap a human enters in euros — and the
-AGT-05 comparison is exact integer arithmetic against `budget_cent × 10 000`. SPEC §17's
+AGT-05 comparison is exact integer arithmetic against `budget_cent × 10 000`. **The cap
+column is `budget_cent`, not `monatslimit_cent`, and there is no stored `verbrauch_cent`**
+(K-21): the consumption figure this screen renders is **computed** at the conversion site
+from `verbrauch_mikrocent`, half-up, and a wire field named otherwise must state the
+column/field pair the way `stundensatz_intern` / `stundensatz_intern_cent` does. SPEC §17's
 €20,000 autonomy threshold is stored as `2000000` cents, never as a decimal and never as
 micro-cents. **Nothing invoiced, booked or exported is ever micro-cents**: no figure reaching
 `rechnung`, `buchungssatz` or a DATEV export passes through these columns, and the budget
@@ -1885,6 +1978,16 @@ answer to "who can ever grant `gruppe.lesen`". The first `super_admin` is seeded
 Phase 1 migration and carries the **global role** (`benutzer.globale_rolle_id`), so it needs
 no membership rows and reaches a fifth area the day the row is inserted (TEN-08).
 
+**`app.portal` is `intern` here, bound when the scope is entered (K-20).** It is not derived
+from the active membership, because in group scope there is none: `app.mandant_id` is NULL,
+and an accessor that recomputed the portal from it would fall through to the fail-closed
+`mitarbeiter` and fire **every** K-04 employee ceiling on this page family — a `leitung`
+would open `/portal/gruppe/personen` and see only her own employment rows, and
+`/portal/gruppe/finanzen` would come back empty, both without an error and both looking like
+"the group has no data". The same binding makes the customer ceiling inapplicable here, and
+the `NUR LESEN` guarantee comes from the absence of a write policy (1 above), never from the
+portal value.
+
 The chrome states the scope rather than relying on the user remembering it: the `NUR LESEN`
 pill in the header and on the switcher's group entry (TEN-10, DESIGN §6 rule 3), a **neutral**
 `--border-strong` top bar because no area is active, and **no primary buttons, no forms, no
@@ -1917,7 +2020,17 @@ user the action exists here, and it does not.
 | `/portal/gruppe/berichte/mitarbeiter` | `gruppe.bericht.lesen` + `gruppe.zeit.lesen` | `GRP` | REP-04 | 9 |
 | `/portal/gruppe/berichte/projekte` | `gruppe.bericht.lesen` | `GRP` | REP-05 | 9 |
 | `/portal/gruppe/berichte/pipeline` | `gruppe.bericht.lesen` + `gruppe.radar.lesen` | `GRP` | REP-06 | 9 |
-| `/portal/gruppe/protokoll` — the audit log across entities | `gruppe.system.lesen` | `GRP` | SEC-A9, AUT-08, TEN-09 | 1 |
+| `/portal/gruppe/protokoll` — the audit log across entities | `gruppe.system.audit_lesen` | `GRP` | SEC-A9, AUT-08, TEN-09 | 1 |
+
+**The cross-entity audit log is gated on `gruppe.system.audit_lesen`, not on
+`gruppe.system.lesen`.** An earlier draft of this map wrote the latter, and it is a key that
+exists nowhere: `02-datenmodell/01-KERN.md` §6.11 resolves the visible entities for this page
+with `app.rechte_mandanten('gruppe.system.audit_lesen')`, and reading one entity's audit rows
+from inside another entity is precisely what K-03 forbids a plain tenant right
+(`system.audit_lesen`) from doing. Since `app.hat_recht()` returns **false** for an
+unregistered key (K-19), the wrong spelling would not have raised — it would have rendered a
+permanently empty audit log to a `super_admin`, which is the one screen whose emptiness is
+indistinguishable from "nothing happened".
 
 **Wage data is unreachable from here, and not because a page declines to render it.** D-09 §6
 — a cleaning manager must not see security wage rates — is enforced with **column-level
@@ -2045,7 +2158,7 @@ bottom tab "Profil" points there.
 Reads are `KDN`: **`withKundeScope`**, `app.scope = 'kunde'`, over the mandanten in which the
 login holds a live `kunde_zugang`, with the restrictive `portal() = 'kunde'` ceiling
 narrowing every row to that customer's own `kunde_id` and, for documents, to
-`freigabe_kunde = true`. A customer buying from two entities sees both, each row labelled
+`sichtbar_fuer_kunde = true`. A customer buying from two entities sees both, each row labelled
 with the supplying entity — which is what CRM-06 asks for — and **never a mandant switcher**:
 switching tenancy is a staff act, and a switcher row would carry the live counters of DESIGN
 §6 rule 2, which are the supplier's totals across *all* its customers. A customer learning
@@ -2087,9 +2200,22 @@ is derived server-side from the login's live `kunde_zugang` rows — revoking ac
 request (K-02). And the **Right** column below keeps its ordinary tenant module keys, which
 the `kunde` role genuinely holds in the seeded matrix (`angebot.lesen`, `auftrag.lesen`,
 `objekt.lesen`, `dokument.lesen`, `finanzen.lesen`, `zahlung.lesen`, `nachweis.lesen`,
-`bau.lesen`, `qualitaet.lesen`, `nachricht.lesen`): they are the **service-layer** gate that
-decides whether a route renders at all, while row visibility comes from `t_kunde` plus the
-ceiling. Both must pass, and neither is a `gruppe.*` key.
+`bau.lesen`, `qualitaet.lesen`, `nachricht.lesen`, `mahnung.lesen`, plus
+`finanzen.herunterladen` for the downloads and `bericht.dashboard_lesen` for the overview):
+they are the **service-layer** gate that decides whether a route renders at all, while row
+visibility comes from `t_kunde` plus the ceiling. Both must pass, and neither is a `gruppe.*`
+key. All thirteen are `✔` for `kunde` in the seeded matrix of
+`03-AUTH-BERECHTIGUNGEN.md` §12.3/§12.5, not `○` — a customer portal whose every right is
+bindable-but-unbound ships dead, because this map uses them as that gate on every
+`/portal/kunde/**` route.
+
+**The overview gate is `bericht.dashboard_lesen`, and for `kunde` it is a granted right, not
+an `S` cell.** `03-AUTH-BERECHTIGUNGEN.md` §12.1 settles it that way for the reason this map
+depends on: the key is the service-layer gate on `/portal/kunde`, and a gate on a key the
+role does not hold is a portal that is dead at the door — a 403 on the first request rather
+than a visible refusal. Granting it widens nothing, because the rows behind it are already
+narrowed by the `t_kunde` subject predicate and the customer ceiling. `MA` keeps `S` on the
+same key: `/portal/mein` gates on no right at all (§7).
 
 The desktop chrome is its own: a top bar with the entity name and an entity filter, and a
 compact left nav of exactly the eleven customer destinations listed below — **not** the 248px staff
@@ -2111,7 +2237,7 @@ shipped, and adding one is a deliberate, reviewable act rather than a type widen
 | `/portal/kunde/zahlungen` — payment status of their own invoices | `zahlung.lesen` | `KDN` | ACC-04, FIN-15 | 6 |
 | `/portal/kunde/nachweise` — their signed Leistungsnachweise and countersigned Aufmaße | `nachweis.lesen` + `bau.lesen` | `KDN` | CLN-04, BAU-02, BAU-03 | 5 |
 | `/portal/kunde/objekte` , `/[id]` — their objects, Raumbuch read-only | `objekt.lesen` | `KDN` | OPS-01, OPS-02 | 4 |
-| `/portal/kunde/dokumente` , `/[id]` — only where `freigabe_kunde = true` | `dokument.lesen` | `KDN` | DOC-01, DOC-03, DOC-04 | 4 |
+| `/portal/kunde/dokumente` , `/[id]` — only where `sichtbar_fuer_kunde = true` | `dokument.lesen` | `KDN` | DOC-01, DOC-03, DOC-04 | 4 |
 | `/portal/kunde/nachrichten` , `/[id]` — read; **sending blocked on O-74** | `nachricht.lesen` | `KDN` | NOT-03, SPEC §22 `nachricht` | 3 |
 | `/portal/kunde/reklamationen` , `/[id]` — read; **reporting blocked on O-74** | `qualitaet.lesen` | `KDN` | OPS-11, SPEC §22 `reklamation` | 5 |
 
@@ -2626,8 +2752,11 @@ this map.
 Leistungswerte, working-time models, dunning levels, Leitweg-IDs, retention periods, the AI
 budget, the payroll target system. Sibling Phase 0 documents claim **O-30 … O-73**, and
 `03-AUTH-BERECHTIGUNGEN.md` §20 has renumbered its nineteen into **O-74 … O-92** for exactly
-this reason. This map's own twenty questions are **O-33 … O-52** (§16.1) and one new one,
-**O-93**, added by this correction pass.
+this reason. This map's own questions are **O-33 … O-52 minus O-39** (§16.1) plus two added by
+correction passes, **O-93** and **O-132**. O-39 is *not* this map's: it belongs to
+`02-datenmodell/04-PLANUNG-ZEIT.md` as `zeit-freigabeschritt`, three documents already cite
+it that way, and the geocoding question this map used to file under it has moved to O-132
+(§16.1). O-132 is the next free number platform-wide — O-01 … O-131 are all claimed.
 
 An earlier draft of this map cited six auth questions by their pre-renumbering numbers —
 O-14, O-18, O-20, O-22, O-26, O-27, O-28, O-29, O-31, O-32 — every one of which is a
@@ -2661,7 +2790,7 @@ imposes when it reconciles all Phase 0 documents at once:
 | O-36 | Which EU-hosted transactional e-mail sender delivers invitations, resets, offers, dunning and NOT-02 mail, under which DPA? | `/auth/**` delivery, `M/angebote/[id]/versand`, `M/finanzen/mahnungen`, `P/konto/benachrichtigungen` |
 | O-37 | Which wage basis applies per area and per activity (Gebäudereiniger tariff groups, Bau-Mindestlohn, security agreement), and from which dates? | `M/angebote/[id]/kalkulation`; a placeholder rate blocks `angebot.preis_freigeben` |
 | O-38 | One group career page with an area filter, or one per area? | `/karriere/**` — one group page is assumed |
-| O-39 | Which EU-hosted map tile and geocoding provider, under which DPA? | the map on `M/objekte` and `P/gruppe/objekte`; no address is sent to an unconfigured service |
+| O-132 | `seiten-geo-anbieter` — which EU-hosted map tile and geocoding provider, under which DPA? | the map on `M/objekte` and `P/gruppe/objekte`; no address is sent to an unconfigured service. **Renumbered from O-39 by this correction pass**: `02-datenmodell/04-PLANUNG-ZEIT.md` §1.3 and `03-AUTH-BERECHTIGUNGEN.md` §12.4 both use O-39 for `zeit-freigabeschritt`, and two questions under one number is worse than a gap — the client answers the number and the answer lands on the wrong feature |
 | O-40 | The exact Bewacher-ID format and the fields the Bewacherregister requires | `M/security/bewacherregister` validation |
 | O-41 | In which format do LVs arrive — GAEB DA XML (X83/X84), GAEB D8x, Excel, PDF? | `M/bau/projekte/[id]/lv/import` |
 | O-42 | May an ArbZG conflict card name the other entity, given §87 BetrVG and data minimisation? | `M/dienstplan/konflikte` — ships at the K-06 minimum until answered |
@@ -2699,6 +2828,7 @@ imposes when it reconciles all Phase 0 documents at once:
 | O-89 | `auth-nachweis-gegenzeichnung` — does the customer portal need a counter-signature flow for CLN-04? | `P/kunde/nachweise` |
 | O-91 | `auth-entwurf-kundensicht` — finalised invoices only, or may a draft ever be customer-visible? | `P/kunde/rechnungen` — this map answers it conservatively (no draft of anything, ever) and records the answer rather than assuming it (§8) |
 | O-92 | `auth-aufbewahrung-telemetrie` — retention for auth events and the `audit_log` deletion concept | `M/einstellungen/protokoll` and its export (§5.24) |
+| O-39 | `zeit-freigabeschritt` — is there a release step between recorded time and billing at all? Owned by `02-datenmodell/04-PLANUNG-ZEIT.md` §1.3, which owns `zeiteintrag` | `M/zeiten/freigabe` and the right `zeit.freigeben_zur_abrechnung`, neither of which ships until answered (§5.11). This map's own geocoding question has moved off this number to **O-132** |
 
 ---
 
@@ -2708,14 +2838,14 @@ imposes when it reconciles all Phase 0 documents at once:
 |---|---|
 | `docs/DESIGN.md` | **§6 rule 4 needs a documented neutral state.** The bar runs "at all times", and there are now **five** contexts with no active mandant — group scope, `person` scope (the worker portal), `kunde` scope (the customer portal), the `auth` screens and a context-less enrolment session, `app.mandant_id` being NULL in all three multi-tenant scopes (K-02, K-18). All five render `--border-strong`. Two sibling documents already assert this; DESIGN must state it so the value stops being chosen in a page (D-10, CLAUDE.md). §6 rule 2 additionally needs the sentence that the switcher's live counters are **counts only** — the `app.mandant_kennzahlen()` return type carries no money column — and that the switcher is not rendered in the `mitarbeiter` or `kunde` portal |
 | `01-ORDNERSTRUKTUR.md` | (a) the auth screens live under the literal segment `auth/`, not in a `(auth)` route group, so that `/auth/login`, `/auth/bereich` and `/auth/zwei-faktor/**` resolve as `03-AUTH-BERECHTIGUNGEN.md` §4.4/§4.5 requires; (b) `portal/konto/` is the **fourth** static portal segment and must be added to the reserved-slug `CHECK` and to `tests/invariants/reservierte-slugs.test.ts`; (c) `reklamationen` moves out of `portal/[mandant]/reinigung/` into `portal/[mandant]/qualitaet/`, because the module is `qualitaet` and is enabled for three areas; (d) `belagsarten` and the other catalogues move under `portal/[mandant]/stammdaten/`, matching the `stammdaten` module; (e) per-user notification preferences and the iCal token rotation move from `einstellungen/benachrichtigungen` to `portal/konto/**`, because NOT-02 and CAL-03 are per-user facts, and `einstellungen/benachrichtigungen` keeps only the mandant's own notification defaults; (f) there is no `portal/[mandant]/wechseln` route — the interstitial is rendered by the `[mandant]` layout |
-| `03-AUTH-BERECHTIGUNGEN.md` | (a) **settled** — §1.2's "redeemable twice at most (checkin then checkout)" now reads as one live token per assignment and purpose, matching the data model's `token_zweck` row per leg and keeping TIM-07's single use literally true (§4.2); (b) **settled** — the set-valued customer accessor exists as `app.aktuelle_kunden() returns uuid[]` and is the sole resolver behind both the `t_kunde` policy and the K-04 customer ceiling; this map is written against that name, not the `app.eigene_kunden()` it previously proposed (§8); (c) **settled** — the customer-login question is **O-52** in both documents; (d) `mandant.slug`'s `CHECK` gains `konto`; (e) the absence-reason right is `zeit.abwesenheit_grund_lesen` in §12.4 and `personal.abwesenheit_grund_lesen` in `02-datenmodell/01-KERN.md` — one of the two must move; (f) `agent_budget`'s cap column is `monatslimit_cent` in §12 and in `05-API-KARTE.md`, and `budget_cent` in `02-datenmodell/06-RADAR-KI-INHALT.md` §3.6, which owns the table — one name must win, and this map follows the data model (§5.19) |
+| `03-AUTH-BERECHTIGUNGEN.md` | (a) **settled** — §1.2's "redeemable twice at most (checkin then checkout)" now reads as one live token per assignment and purpose, matching the data model's `token_zweck` row per leg and keeping TIM-07's single use literally true (§4.2); (b) **settled** — the set-valued customer accessor exists as `app.aktuelle_kunden() returns uuid[]` and is the sole resolver behind both the `t_kunde` policy and the K-04 customer ceiling; this map is written against that name, not the `app.eigene_kunden()` it previously proposed (§8); (c) **settled** — the customer-login question is **O-52** in both documents; (d) `mandant.slug`'s `CHECK` gains `konto`, and the reserved list is exactly `gruppe`, `mein`, `kunde`, `konto`, `api` (K-21); (e) **settled** — the absence-reason right is **`zeit.abwesenheit_grund_lesen`** (§12.4 is right; `abwesenheit` sits in the `zeit` module, so `personal.abwesenheit_grund_lesen` fails `01-KERN.md` §6.6's `split_part(schluessel,'.',1) = modul` test), and `02-datenmodell/01-KERN.md` §3.4/§11/§14.3/§15 renames it; the `leitung` default is still open between `—` and `○` and belongs in §12.4, not here; (f) **settled by K-21** — `agent_budget`'s cap column is **`budget_cent`** and there is **no stored `verbrauch_cent`**, so §12, §14.1 and `05-API-KARTE.md` §C.21 rename `monatslimit_cent` and present the cents figure as computed from `verbrauch_mikrocent` at the conversion site (§5.19); (g) **open** — the catalogue must carry a row for every key this map gates a route on (K-19: `app.hat_recht()` returns **false** for an unregistered key, so a missing row is a permanently empty screen, not an error). One is still missing: **`agent.protokoll_lesen`**, which §14.2's rights list omits and which this map now requires on `M/agenten/[agent]/protokoll` and on the step chain of `/aufgaben/[id]` (§5.19), and which `app.agent_nutzlast_lesen` re-checks; (h) **settled** — the group-key grammar admits the optional `<objekt>` segment (`gruppe.<modul>.[<objekt>_]<aktion>`, §7.2), which is what makes `gruppe.system.audit_lesen` insertable and this map's §1.4 grammar block matches it; (i) **settled** — the `kunde` cells of §12.7 are `✔` in the §12.3/§12.5 matrix, not `○`, and `bericht.dashboard_lesen` is a *granted* right for `kunde` (`S` only for `mitarbeiter`), because this map uses all thirteen as the service-layer gate on `/portal/kunde/**` (§8); (j) **settled** — `zeit.freigeben_zur_abrechnung` is not seeded and carries no default binding until O-39 is answered, and this map's `/portal/[mandant]/zeiten/freigabe` carries the same marker (§5.11); (k) **half settled** — `oeffentlich.lesen` carries **no** `berechtigung.nur_global` (§12.1 now says so, and §1.4 of this map has dropped it); what remains is §14.3's last row, which still binds the form intake to "`oeffentlich.lesen` and nothing else". REQ-01 needs a **second** principal holding `oeffentlich.lesen` + `formular.schreiben` + `dokument.schreiben` at `readonly = off`, because K-03's `WITH CHECK` demands `not app.ist_readonly()` and `formular.schreiben` on `formular_eingang` (§2.7, `02-datenmodell/02-CRM-OPERATIONS.md` §1.6.1) |
 | `02-datenmodell/01-KERN.md` | (a) a `betroffenenanfrage` table is required by `/datenschutz/anfrage` and `M/datenschutz/**`: subject match, request type (Art. 15/16/17/21), received instant, the Art. 12(3) deadline, the decision record and its author. LEG-09 promises the process; without the table the public form creates a statutory obligation with no internal recipient; (b) §6.3 must state whether `app.mandant_kennzahlen()` filters its counts by the viewer's per-module read rights or only by `app.switcher_mandanten()`. This map renders the dropdown from that function on every page and argues its safety from three stated properties — the mandant restriction, the count-only return type, and the switcher's absence in the `mitarbeiter` and `kunde` portals — but a count of records the viewer could not open is still a leak, and the answer belongs in the definition rather than in a page map (§11.3); (c) the wage column is **`stundensatz_intern`**, no `_cent` suffix (K-05, §6.14) — this map is corrected to that spelling in §6 and §8 |
 | `02-datenmodell/02-CRM-OPERATIONS.md` | `/werbewiderspruch/[token]` needs a hashed, revocable objection token per outbound message and a `werbewiderspruch` log row (contact, channel, instant, source message). The objection sets **`ansprechpartner.werbewiderspruch_am`** — and `kunde.werbewiderspruch_am` at company level — and **does not touch `rechtsgrundlage`**: that column is forced to `'keine'` only by `kern.erzwinge_widerspruch()` from `widerspruch_am`, the separate Art. 21 objection to processing. An earlier draft of this map asked for the opposite and would have stopped that customer's invoices, Leistungsnachweise and Mahnungen; §5 of that document corrects it and this map now follows it (§2.4) |
 | `02-datenmodell/04-PLANUNG-ZEIT.md` | (a) `M/zeiten/checkin-links` reads `checkin_token` per assignment and purpose; the planner list needs `ausgabe_kanal`, `gueltig_ab`/`gueltig_bis`, `eingeloest_am`, `widerrufen_am` and the token prefix, and never `token_hash`; (b) its delivery-channel question is numbered **O-32** there, a number five sibling documents use for five different questions and which `03-AUTH-BERECHTIGUNGEN.md` has vacated by renumbering its own to O-92. It is **O-93 `zeit-checkin-kanal`** in this map; adopt that number, and merge `07-INTEGRATIONEN.md` §32's local `SmsPort` item into it rather than answering the same question twice |
 | `02-datenmodell/05-FINANZEN.md` | `M/einstellungen/mahnwesen` renders `mahnstufe` rows including `ist_platzhalter`; the dunning run must refuse to send while any applicable row is a placeholder (O-44) |
-| `02-datenmodell/06-RADAR-KI-INHALT.md` | `M/agenten/budget` renders the **`*_mikrocent`** ledger of K-16(b) — `agent_schritt.kosten_mikrocent`, `agent_kosten.kosten_mikrocent`, `agent_reservierung.betrag_mikrocent`, `agent_budget.verbrauch_mikrocent`/`.reserviert_mikrocent` — converted **once**, half-up, at the `agent_budget.budget_cent` boundary, with the rounding rule stated at the conversion site and shown on the screen. The `kosten_cent` + `kosten_rest` carry pair both documents previously proposed is withdrawn in favour of the convention's spelling. `betrag_original`/`waehrung_original` render beside the converted figure with the conversion marked `ist_platzhalter` until O-48 |
+| `02-datenmodell/06-RADAR-KI-INHALT.md` | `M/agenten/budget` renders the **`*_mikrocent`** ledger of K-16(b) — `agent_schritt.kosten_mikrocent`, `agent_kosten.kosten_mikrocent`, `agent_reservierung.betrag_mikrocent`, `agent_budget.verbrauch_mikrocent`/`.reserviert_mikrocent` — converted **once**, half-up, at the `agent_budget.budget_cent` boundary, with the rounding rule stated at the conversion site and shown on the screen. The `kosten_cent` + `kosten_rest` carry pair both documents previously proposed is withdrawn in favour of the convention's spelling. `betrag_original`/`waehrung_original` render beside the converted figure with the conversion marked `ist_platzhalter` until O-48. Three further items: (a) the public routes need a URL key that does not exist yet — `stelle.slug` (with the `CHECK` excluding `initiativbewerbung` and `danke`), `referenz.slug` and `social_post.slug`; `seite` keeps `pfad` and this map is written against it (§1.6); (b) `agent_schritt` / `agent_schritt_beleg` and the payload reader are gated on `agent.protokoll_lesen`, which this map now uses on `M/agenten/[agent]/protokoll` and on the step chain of `/aufgaben/[id]` (§5.19); (c) module `freigabe` needs the group read key `gruppe.freigabe.lesen` for the cross-entity approval inbox of §6 — under K-03 a `t_gruppe` policy can name nothing else |
 | the API map | owns the nine endpoints of §10; `POST /api/sitzung/mandant` is the only writer of the active mandant, and `/api/webhook/[integration]` may only enqueue. Two further alignments: `GET /api/kalender/feed/[token].ics` executes `app.ical_feed_lesen` as `cse_anon` and opens **no session helper** (K-08, §9.1), and `POST /api/check-in/[token]` executes `app.offline_ereignis_annehmen` as `cse_checkin` — both are register entries now, not deviations (§4.3) |
-| `docs/DECISIONS.md` | record **O-33 … O-52 and O-93** under **Open**, together with the note that O-14 … O-29 belong to `08-PR-PLAN.md`, O-30 … O-73 to sibling Phase 0 documents and O-74 … O-92 to `03-AUTH-BERECHTIGUNGEN.md` §20, so this map's references to the auth block are by that document's numbers and slugs (§16). Record as decided: the four short public entity URLs are deleted in favour of `/unternehmen/[bereich]`; `/portal/konto` is a fourth static portal segment; the worker portal reads in `person` scope and the customer portal in `kunde` scope, never in group scope (K-18); the customer portal has no write path until O-74; no draft of anything is ever customer-visible (O-91, answered conservatively); the CEO assistant runs in exactly one mandant and `/portal/gruppe/assistent` does not exist |
+| `docs/DECISIONS.md` | record **O-33 … O-52 (minus O-39), O-93 and O-132** under **Open**, together with the note that O-14 … O-29 belong to `08-PR-PLAN.md`, O-30 … O-73 to sibling Phase 0 documents and O-74 … O-92 to `03-AUTH-BERECHTIGUNGEN.md` §20, so this map's references to the auth block are by that document's numbers and slugs (§16). Record as decided: the four short public entity URLs are deleted in favour of `/unternehmen/[bereich]`; `/portal/konto` is a fourth static portal segment; the worker portal reads in `person` scope and the customer portal in `kunde` scope, never in group scope (K-18); the customer portal has no write path until O-74; no draft of anything is ever customer-visible (O-91, answered conservatively); the CEO assistant runs in exactly one mandant and `/portal/gruppe/assistent` does not exist |
 
 ---
 
