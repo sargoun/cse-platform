@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { alsApp, DB_URL, schliessen, sql } from './harness.js';
-import { NummernkreisFehler, vergebeNummer } from '../../src/server/services/finanz/nummernkreis.js';
+import { vergebeNummer, type NummernkreisFehler } from '../../src/server/services/finanz/nummernkreis.js';
 
 const WURZEL = resolve(import.meta.dirname, '../..');
 

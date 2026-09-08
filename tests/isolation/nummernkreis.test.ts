@@ -268,31 +268,54 @@ describe('der Trigger schützt den Zähler selbst (§3.3, review B19)', () => {
     ).rejects.toThrow(/unveränderlich/u);
   });
 
-  it('vor der ersten Vergabe scheitert eine Maskenänderung am RECHT, nicht an LEG-01', async () => {
-    // Review B19: der Entwurf verbot JEDES Update und blockierte damit die
-    // Festschreibung dauerhaft. Die beiden Prüfungen sind hier getrennt, und
-    // die Fehlermeldung sagt welche zuschlug — vor der ersten Vergabe ist es
-    // die Rechteprüfung, danach die Unveränderlichkeit.
+  it('einem HANDELNDEN ohne nummernkreis.verwalten ist nur der Zähler erlaubt', async () => {
+    /**
+     * Die Rechteprüfung gilt für Handelnde, nicht für Migration und Seed
+     * (0013): ohne angemeldeten Benutzer läuft kein Editor, sondern ein Seed,
+     * der keine Rolle hat, deren Rechte man prüfen könnte. Geprüft wird sie
+     * deshalb dort, wo sie greift — in einer echten Sitzung.
+     */
+    const [u] = await sql.unsafe<{ id: string }[]>(
+      `insert into auth.users (email) values ('nk@cse.test') returning id`,
+    );
+    await sql.unsafe(
+      `insert into benutzer (id, email, name, status) values ($1,'nk@cse.test','NK','aktiv')`,
+      [u!.id],
+    );
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id)
+       values ($1,$2,(select id from rolle where schluessel='leitung' and mandant_id is null))`,
+      [u!.id, f.reinigung],
+    );
     const id = await kreis(f.reinigung, { platzhalter: true, zuruecksetzung: null, maske: 'LN-{nr:5}' });
+
     await expect(
-      sql.unsafe(`update nummernkreis set format_maske = 'X-{nr:5}' where id = $1`, [id]),
-    ).rejects.toThrow(/nur der Zähler bewegt werden/u);
+      alsApp(
+        { scope: 'mandant', mandantId: f.reinigung, benutzerId: u!.id, portal: 'intern', readonly: false },
+        (tx) => tx.unsafe(
+          `update nummernkreis set format_maske = 'X-{nr:5}' where id = $1`, [id],
+        ),
+      ),
+    // Drei Schichten, und die ERSTE greift: `cse_app` hält auf
+    // `nummernkreis` nur einen Spaltengrant für Zähler und Kettenkopf
+    // (K-05-Muster), also scheitert der Versuch schon am Privileg — vor RLS
+    // und vor dem Trigger. Genau so soll es sein.
+    ).rejects.toThrow(/permission denied|nur der Zähler bewegt werden|row-level security/iu);
   });
 
-  it('einen Kreis zu BESTÄTIGEN braucht nummernkreis.verwalten — das kommt mit PR 6', async () => {
-    // app.hat_recht antwortet bis PR 6 auf jeden Schlüssel `false` (D-23,
-    // fail closed). Solange kann niemand einen Platzhalter bestätigen, und
-    // damit wird bis PR 6 keine Rechnung festgeschrieben. Das ist gewollt und
-    // steht hier, weil es sonst später als Fehler gesucht würde.
+  it('ein Seed dagegen darf bestätigen — sonst wäre nie eine Rechnung möglich', async () => {
+    // Genau der Ausfall, den 0013 behebt: ohne diesen Weg liesse sich ein
+    // Platzhalterkreis nie bestätigen, und damit nie eine Rechnung
+    // festschreiben.
     const id = await kreis(f.reinigung, { platzhalter: true, zuruecksetzung: null });
-    await expect(
-      sql.unsafe(`update nummernkreis set ist_platzhalter = false where id = $1`, [id]),
-    ).rejects.toThrow(/nur der Zähler bewegt werden/u);
-
-    const [z] = await sql.unsafe<{ hat: boolean }[]>(
-      `select app.hat_recht('nummernkreis.verwalten', $1::uuid) hat`, [f.reinigung],
+    await sql.unsafe(
+      `update nummernkreis set ist_platzhalter = false, zuruecksetzung = 'nie' where id = $1`,
+      [id],
     );
-    expect(z!.hat).toBe(false);
+    const [z] = await sql.unsafe<{ ist_platzhalter: boolean }[]>(
+      `select ist_platzhalter from nummernkreis where id = $1`, [id],
+    );
+    expect(z!.ist_platzhalter).toBe(false);
   });
 
   it('ein geschlossener Kreis vergibt auch per direktem UPDATE nichts', async () => {
