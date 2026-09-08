@@ -221,7 +221,7 @@ Keeping the collapsed spelling would not have been neutral. An ArbZG finding is 
 
 `dienstplan.lesen` · `dienstplan.schreiben` · `dienstplan.veroeffentlichen` · `dienstplan.konflikt_quittieren` · `dienstplan.arbzg_lesen` · `dienstplan.arbzg_pruefen` · `dienstplan.arbzg_uebersteuern` · `zeit.lesen` · `zeit.schreiben` · `zeit.korrigieren` · `zeit.checkin_verwalten` · `zeit.nacherfassung_pruefen` · `system.betrieb_lesen` · `gruppe.dienstplan.lesen` · `gruppe.dienstplan.arbzg_lesen` · `gruppe.zeit.lesen`
 
-Three of the fifteen were used in this domain without being enumerated, which under K-19 is the same defect as inventing one. `dienstplan.arbzg_uebersteuern` gates saving an assignment against a **non-blocking** ArbZG finding (§6.5, §10.3); a finding with `blockiert = true` is not overridable by any right, and which findings block is O-35. `dienstplan.veroeffentlichen` gates the *act* of releasing a generated plan to the workers it staffs (§8, `04-SEITENKARTE.md`'s Dienstplan screen) — it is a route and service gate, **not** a column here: `einsatz_status` has no `veroeffentlicht` value (§3.1) and this document does not model a publication state, because inventing one would be inventing a workflow SPEC does not state (K-17). Both keys are written against this document's tables by `03-AUTH-BERECHTIGUNGEN.md` §12.4 and `04-SEITENKARTE.md`, so omitting them from the list left two live keys with no owner — and under K-19 a key nobody enumerates is a key CI cannot prove exists. `system.betrieb_lesen` is the right `app.offline_unzugeordnet_lesen()` re-checks before showing the tenantless landing queue (§5.13); its module is `system`, owned by the catalogue, and this document requires the row rather than declaring it.
+Three of the fifteen were used in this domain without being enumerated, which under K-19 is the same defect as inventing one. `dienstplan.arbzg_uebersteuern` gates saving an assignment against a **non-blocking** ArbZG finding (§6.5, §10.3); a finding with `blockiert = true` is not overridable by any right, and which findings block is O-166. `dienstplan.veroeffentlichen` gates the *act* of releasing a generated plan to the workers it staffs (§8, `04-SEITENKARTE.md`'s Dienstplan screen) — it is a route and service gate, **not** a column here: `einsatz_status` has no `veroeffentlicht` value (§3.1) and this document does not model a publication state, because inventing one would be inventing a workflow SPEC does not state (K-17). Both keys are written against this document's tables by `03-AUTH-BERECHTIGUNGEN.md` §12.4 and `04-SEITENKARTE.md`, so omitting them from the list left two live keys with no owner — and under K-19 a key nobody enumerates is a key CI cannot prove exists. `system.betrieb_lesen` is the right `app.offline_unzugeordnet_lesen()` re-checks before showing the tenantless landing queue (§5.13); its module is `system`, owned by the catalogue, and this document requires the row rather than declaring it.
 
 (§2.3 item 5 repeats the same list verbatim, and a seed test compares the two.) `zeit.abrechnung_freigeben` is deliberately **not** on it: whether a release step between worked time and billing exists at all is **O-39**, and seeding a right for a step the client may not want would make the placeholder load-bearing (§3.3, K-17). `03-AUTH-BERECHTIGUNGEN.md` §12.4 and `04-SEITENKARTE.md`'s `/portal/[mandant]/zeiten/freigabe` currently seed and ship that key; until O-39 is answered it must carry the same O-39 marker there — not seeded, no default binding — because a right that gates a workflow step nobody has confirmed exists is exactly the invented business rule K-17 forbids.
 
@@ -388,11 +388,11 @@ export interface Aufbewahrungsregel {
 }
 ```
 
-with the GoBD implementation `jahresende(belegdatum) + 10 Jahre` and a test for a December and a January Belegdatum, and the MiLoG implementation behind the open question: `// TODO(client): O-30 — Ab wann läuft die zweijährige Aufbewahrung nach §17 Abs. 1 MiLoG: ab dem Tag der Arbeitsleistung, ab Erstellung der Aufzeichnung oder ab Monats- bzw. Jahresende?` Until it is answered `frist('zeiterfassung', …)` returns `null`, the job writes no `aufbewahrung_bis` for that class, and the purge path therefore selects nothing — the fail-closed direction, and the reason the default of `loeschsperre` is not where fail-closed has to live. No purge job may act on a row whose `aufbewahrung_bis` is NULL.
+with the GoBD implementation `jahresende(belegdatum) + 10 Jahre` and a test for a December and a January Belegdatum, and the MiLoG implementation behind the open question: `// TODO(client): O-162 — Ab wann läuft die zweijährige Aufbewahrung nach §17 Abs. 1 MiLoG: ab dem Tag der Arbeitsleistung, ab Erstellung der Aufzeichnung oder ab Monats- bzw. Jahresende?` Until it is answered `frist('zeiterfassung', …)` returns `null`, the job writes no `aufbewahrung_bis` for that class, and the purge path therefore selects nothing — the fail-closed direction, and the reason the default of `loeschsperre` is not where fail-closed has to live. No purge job may act on a row whose `aufbewahrung_bis` is NULL.
 
 ### 1.14 Placeholder marking and configurable operational values (K-17)
 
-Placeholders carry a bold marker (**PLACEHOLDER** / **PROVISIONAL**), a swappable interface and a `// TODO(client): O-nn — <exact question>`; **every marker in this document names its `O-nn`**, and §17.1 additionally gives each question a stable slug, because the `O-30+` range is claimed by several Phase 0 documents at once and the final numbers are allocated when they are merged into `DECISIONS.md` (§17.1). `pnpm lint:todo` fails when a `// TODO(client)` in this domain carries no number, or a number and slug with no matching row under **Open**. Operational values that are neither legal facts nor tariff values live in `mandant_einstellung(schluessel, wert jsonb)` read through `app.einstellung(schluessel)` (the mechanism `03-GEWERKE.md` §1.16 requires of `01-KERN.md`), each with its default stated in §17.2.
+Placeholders carry a bold marker (**PLACEHOLDER** / **PROVISIONAL**), a swappable interface and a `// TODO(client): O-nn — <exact question>`; **every marker in this document names its `O-nn`**, and §17.1 additionally gives each question a stable slug, because the `O-162+` range is claimed by several Phase 0 documents at once and the final numbers are allocated when they are merged into `DECISIONS.md` (§17.1). `pnpm lint:todo` fails when a `// TODO(client)` in this domain carries no number, or a number and slug with no matching row under **Open**. Operational values that are neither legal facts nor tariff values live in `mandant_einstellung(schluessel, wert jsonb)` read through `app.einstellung(schluessel)` (the mechanism `03-GEWERKE.md` §1.16 requires of `01-KERN.md`), each with its default stated in §17.2.
 
 ### 1.15 Behavioural monitoring is gated per feature, not once for geolocation (O-06, §87 Abs. 1 Nr. 6 BetrVG)
 
@@ -408,7 +408,7 @@ The draft treated the Betriebsrat question as gating geolocation alone. The revi
 | `zeit.korrekturstatistik` | `false` | the `(durchgefuehrt_von, durchgefuehrt_am)` index exists for audit lookup; no per-user ranking screen is rendered |
 | `zeit.nichterschienen_auswertung` | `false` | the value is recorded on the assignment; no aggregate per person is rendered |
 
-Storing a fact and evaluating it as a performance measure are different acts, and only the second is gated — which is why invariant 5's `zeitabweichung_sek` survives an unanswered O-06 while the ranking screen does not. `// TODO(client): O-42 (erweitert O-06) — Betrifft die Mitbestimmung nach §87 Abs. 1 Nr. 6 BetrVG neben der Geolokalisierung auch Geräteabweichung, Gerätekennung, Nicht-erschienen-Auswertung und Korrekturstatistiken?`
+Storing a fact and evaluating it as a performance measure are different acts, and only the second is gated — which is why invariant 5's `zeitabweichung_sek` survives an unanswered O-06 while the ranking screen does not. `// TODO(client): O-172 (erweitert O-06) — Betrifft die Mitbestimmung nach §87 Abs. 1 Nr. 6 BetrVG neben der Geolokalisierung auch Geräteabweichung, Gerätekennung, Nicht-erschienen-Auswertung und Korrekturstatistiken?`
 
 ### 1.16 No `aal2` gate belongs on any table in this domain (K-15)
 
@@ -560,7 +560,7 @@ create type ablehnung_grund as enum ('token_ungueltig','ausserhalb_fenster','ber
 ```sql
 -- PROVISIONAL. SPEC names no assignment vocabulary; these five are what the Dienstplan needs to
 -- render and what EMP-10's swap flow produces.
--- TODO(client): O-40 — Welche Zustände braucht eine Einsatzzuordnung zwischen Planung und Ausführung
+-- TODO(client): O-170 — Welche Zustände braucht eine Einsatzzuordnung zwischen Planung und Ausführung
 --               (zugesagt, abgesagt, getauscht, nicht erschienen) und wer darf sie setzen?
 create type zuordnung_status as enum ('geplant','zugesagt','abgesagt','ersetzt','nicht_erschienen');
 
@@ -571,7 +571,7 @@ create type zuordnung_status as enum ('geplant','zugesagt','abgesagt','ersetzt',
 create type zeiteintrag_status as enum ('laufend','abgeschlossen','offen_nacherfassung','storniert');
 
 -- PROVISIONAL. The reason vocabulary drives TIM-11 reporting and the rubber-stamp analysis.
--- TODO(client): O-43 — Welche Korrekturgründe soll die Auswertung unterscheiden (TIM-11)?
+-- TODO(client): O-173 — Welche Korrekturgründe soll die Auswertung unterscheiden (TIM-11)?
 create type korrektur_grund as enum ('vergessen_auszustempeln','geraet_defekt','falsches_objekt',
                                      'einwand_mitarbeiter','nachtrag_offline','sonstiges');
 ```
@@ -579,7 +579,7 @@ create type korrektur_grund as enum ('vergessen_auszustempeln','geraet_defekt','
 Three vocabularies the draft invented are **deleted** rather than marked:
 
 - `ausnahme_typ` / `ausnahme_grund` — overrides live on `turnus_ausnahme` / `posten_ausnahme` (§0.1), whose vocabulary `03-GEWERKE.md` §3 owns.
-- `token_kanal` (`sms`/`email`/`qr_vor_ort`/`portal_link`) — the delivery channel is not a schema fact and no SMS provider is chosen (K-17, "no provider is chosen"). The dispatch adapter records what it used in `checkin_token.ausgabe_kanal text` validated against the adapters actually registered, and an unregistered adapter renders "nicht verbunden" in the UI and sends nothing (CLAUDE.md: no fake integrations). `// TODO(client): O-32 — Wie erreicht der Check-in-Link den Mitarbeitenden — SMS, E-Mail, aushängender QR-Code am Objekt oder Portal-Link — wer ist der SMS-Anbieter (EU-Verarbeitung, AVV), und wer trägt die Kosten?` (the same question `07-INTEGRATIONEN.md` §32 raises as its local item 1 for `SmsPort`; it must be merged into **one** `O-nn` when the numbers are allocated, not answered twice.)
+- `token_kanal` (`sms`/`email`/`qr_vor_ort`/`portal_link`) — the delivery channel is not a schema fact and no SMS provider is chosen (K-17, "no provider is chosen"). The dispatch adapter records what it used in `checkin_token.ausgabe_kanal text` validated against the adapters actually registered, and an unregistered adapter renders "nicht verbunden" in the UI and sends nothing (CLAUDE.md: no fake integrations). `// TODO(client): O-93 — Wie erreicht der Check-in-Link den Mitarbeitenden — SMS, E-Mail, aushängender QR-Code am Objekt oder Portal-Link — wer ist der SMS-Anbieter (EU-Verarbeitung, AVV), und wer trägt die Kosten?` (the same question `07-INTEGRATIONEN.md` §32 raises as its local item 1 for `SmsPort`; it must be merged into **one** `O-nn` when the numbers are allocated, not answered twice.)
 - `erkennung_quelle = 'planung_live'` is kept because §6.5 makes the live path real; the draft's `zeitquelle = 'plan_uebernahme'` is deleted, because copying a planned instant into a worked-time record is precisely what invariant 5 forbids.
 
 ### 3.3 The billing gate is a column, not an enum value (review, INVENTED RULES)
@@ -607,7 +607,7 @@ The billing index reads `where freigegeben_am is not null and abgerechnet_am is 
 
 ### 3.4 Break capture (TIM-06, ArbZG §4)
 
-`pause_minuten` is a total per entry, and pause **events** are not modelled. The draft carried `pause_start`/`pause_ende` in the offline vocabulary while the schema had nowhere to put them, which would have produced submissions the processor could only reject. `offline_ereignis_art` therefore has one `pause` value carrying a minute total in the payload. `// TODO(client): O-37 — Werden Pausen gestempelt (Start/Ende) oder als Minutensumme je Schicht erfasst? Gestempelte Pausen brauchen eine eigene Tabelle und ändern die ArbZG-Auswertung.` Until answered, the ArbZG detector reads the recorded total and reports a missing break as a finding; it never invents one.
+`pause_minuten` is a total per entry, and pause **events** are not modelled. The draft carried `pause_start`/`pause_ende` in the offline vocabulary while the schema had nowhere to put them, which would have produced submissions the processor could only reject. `offline_ereignis_art` therefore has one `pause` value carrying a minute total in the payload. `// TODO(client): O-168 — Werden Pausen gestempelt (Start/Ende) oder als Minutensumme je Schicht erfasst? Gestempelte Pausen brauchen eine eigene Tabelle und ändern die ArbZG-Auswertung.` Until answered, the ArbZG detector reads the recorded total and reports a missing break as a finding; it never invents one.
 
 ### 3.5 What this domain must never invent (K-17)
 
@@ -822,7 +822,7 @@ The assignment of one employment to one shift — *who* is planned on it, per D-
 | `person_id` | uuid | no | — | FK `(anstellung_id, person_id) → anstellung (id, person_id)` — denormalised on purpose (§15.3): the EMP-14 self-read and the K-06 projection must reach the human without joining a tenant-scoped table, and the composite FK makes drift structurally impossible |
 | `beginn_zeitpunkt` | timestamptz | no | — | the assignment's own window; defaults from the shift by trigger. A guard may cover 22:00–02:00 of a 22:00–06:00 post (`03-GEWERKE.md` §2.1) |
 | `ende_zeitpunkt` | timestamptz | no | — | `check (ende_zeitpunkt > beginn_zeitpunkt)`; trigger asserts it lies within the shift window |
-| `funktion` | text | yes | — | role on the shift; deliberately **not** an enum. `// TODO(client): O-40 — Welche Funktionen gibt es auf einer Schicht (Objektleiter, Vorarbeiter, Springer, Sicherheitsmitarbeiter)?` |
+| `funktion` | text | yes | — | role on the shift; deliberately **not** an enum. `// TODO(client): O-170 — Welche Funktionen gibt es auf einer Schicht (Objektleiter, Vorarbeiter, Springer, Sicherheitsmitarbeiter)?` |
 | `status` | zuordnung_status | no | `'geplant'` | PROVISIONAL vocabulary (§3.2) |
 | `qualifikation_geprueft_am` | timestamptz | yes | — | when the SEC-04 gate last ran (`03-GEWERKE.md` §2.1) |
 | `qualifikation_snapshot` | jsonb | no | `'{}'::jsonb` | what `app.einsatz_qualifikation_erfuellt` returned: requirement ids, the `nachweis` ids relied on with their `gueltig_bis`, the `bewacher_eintrag` status, the checker version and the shift date checked against — the evidence that the hard block executed (§11) |
@@ -950,7 +950,7 @@ The actual worked-time record: the §17 MiLoG evidence, the source of "currently
   - `z_geo_gate` (`BEFORE INSERT OR UPDATE`): when `app.einstellung('zeit.geolokalisierung')` is false, all six coordinate columns must be NULL and both status columns `'deaktiviert'`; otherwise it raises. LEG-10 is gated on O-06, so the setting ships false and the schema refuses to accumulate location data until the question is answered (§1.15).
   - `z_fenster_projizieren` (`AFTER INSERT OR UPDATE`, `SECURITY DEFINER`): maintains the `ist` window and deactivates the matching `plan` window in the same statement (§6.2).
   - `app.protokolliere()`, `kern.verhindere_loeschung()`.
-  - **The draft's `check (einsatz_id is not null or auftrag_id is not null or not abrechenbar_flag)` is deleted.** The column `abrechenbar_flag` never existed on this table, so the migration would not have applied (review B16); and the fallback the draft proposed forecloses internal work, training and Bereitschaft by constraint. Billability is decided in `src/server/services/rechnung/positionen.ts`, where an unbillable internal entry is a legitimate row, and FIN-18's warning is a query, not an invariant. `// TODO(client): O-38 — Gibt es Zeiten ohne Auftragsbezug — interne Arbeit, Schulung, Bereitschaft, Fahrzeit — und wie werden sie kostenmäßig behandelt?`
+  - **The draft's `check (einsatz_id is not null or auftrag_id is not null or not abrechenbar_flag)` is deleted.** The column `abrechenbar_flag` never existed on this table, so the migration would not have applied (review B16); and the fallback the draft proposed forecloses internal work, training and Bereitschaft by constraint. Billability is decided in `src/server/services/rechnung/positionen.ts`, where an unbillable internal entry is a legitimate row, and FIN-18's warning is a query, not an invariant. `// TODO(client): O-169 — Gibt es Zeiten ohne Auftragsbezug — interne Arbeit, Schulung, Bereitschaft, Fahrzeit — und wie werden sie kostenmäßig behandelt?`
 - **SPEC:** TIM-08, TIM-09, TIM-10, TIM-11, TIM-12, TIM-13, DSH-01, DSH-05, EMP-03, EMP-04, EMP-07, EMP-13, EMP-14, EMP-15, FIN-07, FIN-18, ACC-12, REP-04, LEG-01, LEG-02, LEG-10, SEC-A9.
 
 ### 5.7 zeiteintrag_korrektur
@@ -1092,7 +1092,7 @@ TIM-05 names three conflict classes — overlap, missing qualification, ArbZG br
 | `arbeitszeit_verstoss_id` | uuid | yes | — | composite FK, for `art = 'arbzg'`: the badge on the shift points at the finding rather than duplicating it |
 | `zeitraum_beginn` · `zeitraum_ende` | timestamptz | no | — | the window the conflict concerns; `check (zeitraum_ende > zeitraum_beginn)` |
 | `schwere` | verstoss_schwere | no | — | |
-| `blockiert` | boolean | no | `false` | whether this finding blocked the planning action. **PLACEHOLDER** — SPEC TIM-06 says "warnings", not "blocks", and SEC-04 says "hard block" for certificates only. Fed from `app.einstellung('zeit.konflikt_blockiert')` per `art`; ships `false` except `qualifikation_entfallen`, where SEC-04 makes it `true`. `// TODO(client): O-35 — Welche Konflikte sollen das Speichern verhindern und welche nur warnen?` |
+| `blockiert` | boolean | no | `false` | whether this finding blocked the planning action. **PLACEHOLDER** — SPEC TIM-06 says "warnings", not "blocks", and SEC-04 says "hard block" for certificates only. Fed from `app.einstellung('zeit.konflikt_blockiert')` per `art`; ships `false` except `qualifikation_entfallen`, where SEC-04 makes it `true`. `// TODO(client): O-166 — Welche Konflikte sollen das Speichern verhindern und welche nur warnen?` |
 | `details` | jsonb | no | `'{}'::jsonb` | the contributing intervals, reduced to durations and boundaries for a foreign entity |
 | `fingerprint` | text | no | — | **granularity depends on the `art`, and the two cases are different questions.** For `arbzg` and `aufzeichnungsfrist` it is `sha256(mandant_id ‖ person_id ‖ art ‖ berlin_tag)` — a person breaches a daily limit once per day however many shifts contributed, which is §6.7's argument. For `ueberschneidung` and `qualifikation_entfallen` the anchoring row is part of it: `sha256(mandant_id ‖ person_id ‖ art ‖ berlin_tag ‖ coalesce(einsatz_zuordnung_id, einsatz_id))`. Carrying the day-granularity form over to those two collapses **two different shifts on one day that each lost a qualification** into one row with one `einsatz_id` — the planner sees one badge, fixes one shift, and the other stays unstaffed or unlawfully staffed with nothing on screen to say so. The `art` decides which expression is hashed, and the choice is stated here rather than inferred from the index |
 | `status` | konflikt_status | no | `'offen'` | |
@@ -1370,7 +1370,7 @@ await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${'arbzg:' + personId
 
 Advisory locks are database-global, which is precisely what is needed here: the lock is taken on the **person**, so it serialises two planners in two different tenants who have no other point of contact. It is transaction-scoped, so it is released on commit or rollback with no cleanup path. Test: two parallel transactions in two mandanten for one person produce exactly one detected breach, never zero.
 
-When the live path reports a finding the planner wants to save anyway, the service requires **`dienstplan.arbzg_uebersteuern`** in the active mandant (§1.3) and records the override in `audit_log` beside the finding. The right can only widen what a *non-blocking* finding permits: a finding whose `planungs_konflikt.blockiert` is true is refused for every caller regardless of rights, and which findings block is **O-35** — the platform does not decide it here.
+When the live path reports a finding the planner wants to save anyway, the service requires **`dienstplan.arbzg_uebersteuern`** in the active mandant (§1.3) and records the override in `audit_log` beside the finding. The right can only widen what a *non-blocking* finding permits: a finding whose `planungs_konflikt.blockiert` is true is refused for every caller regardless of rights, and which findings block is **O-166** — the platform does not decide it here.
 
 ### 6.6 Writing findings — `app.arbzg_befund_schreiben` (review B2, K-06)
 
@@ -1456,7 +1456,7 @@ end $$;
 
 **Fingerprinting on the Berlin day, not on the instants.** The draft hashed `zeitraum_beginn/ende`, so moving a shift by one minute minted a new finding while the old one stayed `offen` for ever (review, MINOR). The fingerprint is `(mandant_id, person_id, regel, berlin_tag)`, the writer upserts against it, and the same service marks findings `hinfaellig` when a re-run over that person and day produces no breach — so a resolved conflict disappears from the planner's list by being superseded, never by being deleted (invariant 8).
 
-**§9 ArbZG Sonn- und Feiertagsruhe is not detected**, and the draft's claim that `feiertag` feeds such a check is removed. SPEC TIM-06 lists exactly three rule families, and cleaning and security both operate under §10 exceptions whose scope is a legal determination this schema must not make. `// TODO(client): O-41 — Soll die Plattform Sonn- und Feiertagsarbeit nach §§9–13 ArbZG nachweisen (Ausnahmetatbestand je Bereich, Ersatzruhetag), oder bleibt das außerhalb des Systems?`
+**§9 ArbZG Sonn- und Feiertagsruhe is not detected**, and the draft's claim that `feiertag` feeds such a check is removed. SPEC TIM-06 lists exactly three rule families, and cleaning and security both operate under §10 exceptions whose scope is a legal determination this schema must not make. `// TODO(client): O-171 — Soll die Plattform Sonn- und Feiertagsarbeit nach §§9–13 ArbZG nachweisen (Ausnahmetatbestand je Bereich, Ersatzruhetag), oder bleibt das außerhalb des Systems?`
 
 ### 6.8 The isolation tests this section is judged by
 
@@ -1493,7 +1493,7 @@ export interface DstStrategie {
   /** Which instant a doubly-mapped local time resolves to. */
   beiUeberlappung(kandidaten: [Date, Date]): Date;   // PLACEHOLDER: kandidaten[0] (früher/CEST)
 }
-// TODO(client): O-31 — Wie werden die beiden Nächte der Zeitumstellung bezahlt — zählt die
+// TODO(client): O-163 — Wie werden die beiden Nächte der Zeitumstellung bezahlt — zählt die
 // geleistete Zeit (7 h bzw. 9 h), oder gilt die geplante Schichtlänge? Bei doppelt vorhandener
 // Ortszeit in der Rückstellungsnacht: früherer oder späterer Zeitpunkt?
 ```
@@ -1625,9 +1625,9 @@ CLN-03 says *Berlin* public holidays, and the group works in Berlin — but `obj
 
 `objekt.bundesland` → `app.einstellung('zeit.feiertag_bundesland')` → `'BE'` (the SPEC-stated default).
 
-`// TODO(client): O-36 — Arbeitet die Gruppe an Objekten außerhalb Berlins, und in welchen Bundesländern? Davon hängen Feiertagsausfall und Zuschläge ab.`
+`// TODO(client): O-167 — Arbeitet die Gruppe an Objekten außerhalb Berlins, und in welchen Bundesländern? Davon hängen Feiertagsausfall und Zuschläge ab.`
 
-`planungsserie.feiertage_ueberspringen` is `NOT NULL` **with no default**. The draft defaulted it to `true` for every trade, which is a cleaning rule (CLN-03) applied to a 24/7 security post — where skipping the holiday silently unstaffs Christmas night (review, INVENTED RULES). `turnus` supplies it from `feiertagsregel`; for `posten` and `veranstaltung` the creating service reads `app.einstellung('zeit.feiertage_ueberspringen_posten')`, which ships **`false`**, because the fail-safe direction is "never silently remove a planned shift". `// TODO(client): O-36 — Werden Schichtposten und Veranstaltungsdienste an gesetzlichen Feiertagen regulär besetzt?`
+`planungsserie.feiertage_ueberspringen` is `NOT NULL` **with no default**. The draft defaulted it to `true` for every trade, which is a cleaning rule (CLN-03) applied to a 24/7 security post — where skipping the holiday silently unstaffs Christmas night (review, INVENTED RULES). `turnus` supplies it from `feiertagsregel`; for `posten` and `veranstaltung` the creating service reads `app.einstellung('zeit.feiertage_ueberspringen_posten')`, which ships **`false`**, because the fail-safe direction is "never silently remove a planned shift". `// TODO(client): O-167 — Werden Schichtposten und Veranstaltungsdienste an gesetzlichen Feiertagen regulär besetzt?`
 
 ---
 
@@ -1719,7 +1719,7 @@ The draft said every failure "increments `versuche`" — impossible when no toke
 `gueltig_ab := beginn_zeitpunkt - toleranz` and `gueltig_bis := ende_zeitpunkt + toleranz_ende`, derived by trigger from the **assignment's** window (§5.4), never from a client input.
 
 - The check-in tolerance is **±1 h**, which TIM-07 states verbatim.
-- The check-out tail is **not** stated by TIM-07. Applying ±1 h verbatim to the check-out token invents the operational rule that a worker who stays 90 minutes past the planned end cannot close their own record (review, INVENTED RULES). It reads `app.einstellung('zeit.checkout_toleranz_minuten')`, ships at 60 minutes to match the check-in side, and the documented fallback when it is exceeded is a planner correction with `quelle_ende = 'planer_entscheidung'` and a `zeiteintrag_korrektur` row. `// TODO(client): O-33 — Wie lange nach Schichtende soll der Check-out-Link gültig bleiben — und was passiert, wenn jemand deutlich länger arbeitet als geplant?`
+- The check-out tail is **not** stated by TIM-07. Applying ±1 h verbatim to the check-out token invents the operational rule that a worker who stays 90 minutes past the planned end cannot close their own record (review, INVENTED RULES). It reads `app.einstellung('zeit.checkout_toleranz_minuten')`, ships at 60 minutes to match the check-in side, and the documented fallback when it is exceeded is a planner correction with `quelle_ende = 'planer_entscheidung'` and a `zeiteintrag_korrektur` row. `// TODO(client): O-164 — Wie lange nach Schichtende soll der Check-out-Link gültig bleiben — und was passiert, wenn jemand deutlich länger arbeitet als geplant?`
 
 `ct_fenster_ableiten` runs `BEFORE INSERT` only, so moving a shift after a link went out would leave the outstanding token carrying yesterday's window: the worker cannot stamp in at the real time (no §17 record is created and the "shift ended, no `zeiteintrag`" watchdog fires for a shift that was worked), or a token is accepted in a window in which no shift exists. `einsatz_token_nachfuehren` therefore fires `AFTER UPDATE OF beginn_zeitpunkt, ende_zeitpunkt ON einsatz` (and on the assignment window) and **revokes** every live token of that shift with `widerruf_grund = 'einsatz_verschoben'`, enqueueing a re-issue through `app.checkin_ausgeben`. Revocation rather than mutation, because the old link is a bearer secret that has already left the building. Tests: move the shift, present the old link → rejected; present the re-issued link at the new time → accepted.
 
@@ -1773,7 +1773,7 @@ export interface AufzeichnungsfristRegel {
 }
 // PLACEHOLDER: frist = Berlin end of the 7th calendar day after leistungstag (§17 Abs. 1 MiLoG);
 // warnschwelle = 7, i.e. the ceiling itself, so nothing is invented below it.
-// TODO(client): O-34 — Welche interne Frist gilt für die Nacherfassung — die gesetzlichen sieben
+// TODO(client): O-165 — Welche interne Frist gilt für die Nacherfassung — die gesetzlichen sieben
 // Kalendertage oder eine kürzere betriebliche Frist, und wer wird beim Überschreiten informiert?
 ```
 
@@ -2033,24 +2033,24 @@ Writing the assignment is a human action through the ordinary service, which re-
 
 ### 17.1 New — for `DECISIONS.md` under **Open**
 
-**These numbers are proposals, and every one of them carries a stable slug.** `DECISIONS.md` today lists `O-01`, `O-04 … O-13`; `08-PR-PLAN.md` adds `O-14 … O-29`. Beyond that, several Phase 0 documents have each minted their own `O-30+` block, so `O-30`, `O-38` and `O-42` currently mean different things in `01-KERN.md`, `03-AUTH-BERECHTIGUNGEN.md` and `04-SEITENKARTE.md` than they do here (`07-INTEGRATIONEN.md` §32 notes the same overlap and declines to claim global numbers at all). Renumbering is therefore expected: whoever merges these into `DECISIONS.md` allocates the final `O-nn`, and the **slug** in the last column is what each `// TODO(client)` is keyed to, so a renumber cannot orphan a marker. `pnpm lint:todo` matches slug first and number second, and fails when either is missing from `DECISIONS.md`.
+**These numbers are proposals, and every one of them carries a stable slug.** `DECISIONS.md` today lists `O-01`, `O-04 … O-13`; `08-PR-PLAN.md` adds `O-14 … O-29`. Beyond that, several Phase 0 documents have each minted their own `O-162+` block, so `O-162`, `O-169` and `O-172` currently mean different things in `01-KERN.md`, `03-AUTH-BERECHTIGUNGEN.md` and `04-SEITENKARTE.md` than they do here (`07-INTEGRATIONEN.md` §32 notes the same overlap and declines to claim global numbers at all). Renumbering is therefore expected: whoever merges these into `DECISIONS.md` allocates the final `O-nn`, and the **slug** in the last column is what each `// TODO(client)` is keyed to, so a renumber cannot orphan a marker. `pnpm lint:todo` matches slug first and number second, and fails when either is missing from `DECISIONS.md`.
 
 | # | Slug | Question | Blocks |
 |---|---|---|---|
-| O-30 | `zeit-milog-aufbewahrungsbeginn` | Ab wann läuft die zweijährige Aufbewahrung nach §17 Abs. 1 MiLoG — ab dem Tag der Arbeitsleistung, ab Erstellung der Aufzeichnung oder ab Monats- bzw. Jahresende? Und gilt für einen bereits abgerechneten Zeiteintrag zusätzlich die zehnjährige GoBD-Frist ab Ende des Kalenderjahres (§147 Abs. 3 AO)? | `aufbewahrung_bis`, `job:aufbewahrung`, LEG-01, LEG-02 |
-| O-31 | `zeit-dst-verguetung` | Wie werden die beiden Nächte der Zeitumstellung bezahlt — nach tatsächlich geleisteter Zeit (7 h bzw. 9 h) oder nach geplanter Schichtlänge? Bei doppelt vorhandener Ortszeit in der Rückstellungsnacht: früherer oder späterer Zeitpunkt? | `DstStrategie`, TIM-06, EMP-04 |
-| O-32 | `zeit-checkin-kanal` | Wie erreicht der Check-in-Link den Mitarbeitenden — SMS, E-Mail, aushängender QR-Code am Objekt oder Portal-Link — wer ist der SMS-Anbieter (EU-Verarbeitung, AVV), und wer trägt die Kosten? | `checkin_token.ausgabe_kanal`, TIM-07, EMP-01 |
-| O-33 | `zeit-checkout-toleranz` | Wie lange nach Schichtende bleibt der Check-out-Link gültig, und was geschieht, wenn deutlich länger gearbeitet wird als geplant? | `zeit.checkout_toleranz_minuten`, TIM-07 |
-| O-34 | `zeit-nacherfassungsfrist` | Welche interne Frist gilt für die Nacherfassung, unterhalb der gesetzlichen Höchstfrist von sieben Kalendertagen (§17 Abs. 1 MiLoG), und wer wird beim Überschreiten informiert? | `AufzeichnungsfristRegel`, TIM-09, TIM-13 |
-| O-35 | `zeit-konflikt-blockiert` | Welche Konflikte sollen das Speichern verhindern und welche nur warnen (Überschneidung, ArbZG, Qualifikation)? SPEC nennt „Warnungen" für ArbZG und einen „harten Block" nur für Qualifikationen. | `planungs_konflikt.blockiert`, TIM-05, TIM-06 |
-| O-36 | `zeit-feiertage-bundesland` | Werden Schichtposten und Veranstaltungsdienste an gesetzlichen Feiertagen regulär besetzt, und arbeitet die Gruppe an Objekten außerhalb Berlins (welche Bundesländer)? | `feiertage_ueberspringen`, `feiertag_bundesland`, CLN-03 |
-| O-37 | `zeit-pausenerfassung` | Werden Pausen gestempelt (Start/Ende) oder als Minutensumme je Schicht erfasst? | `pause_minuten`, §3.4, TIM-06 |
-| O-38 | `zeit-ohne-auftragsbezug` | Gibt es Zeiten ohne Auftragsbezug — interne Arbeit, Schulung, Bereitschaft, Fahrzeit — und wie werden sie kostenmäßig behandelt? | `zeiteintrag.auftrag_leistung_id`, FIN-18 |
+| O-162 | `zeit-milog-aufbewahrungsbeginn` | Ab wann läuft die zweijährige Aufbewahrung nach §17 Abs. 1 MiLoG — ab dem Tag der Arbeitsleistung, ab Erstellung der Aufzeichnung oder ab Monats- bzw. Jahresende? Und gilt für einen bereits abgerechneten Zeiteintrag zusätzlich die zehnjährige GoBD-Frist ab Ende des Kalenderjahres (§147 Abs. 3 AO)? | `aufbewahrung_bis`, `job:aufbewahrung`, LEG-01, LEG-02 |
+| O-163 | `zeit-dst-verguetung` | Wie werden die beiden Nächte der Zeitumstellung bezahlt — nach tatsächlich geleisteter Zeit (7 h bzw. 9 h) oder nach geplanter Schichtlänge? Bei doppelt vorhandener Ortszeit in der Rückstellungsnacht: früherer oder späterer Zeitpunkt? | `DstStrategie`, TIM-06, EMP-04 |
+| O-93 | `zeit-checkin-kanal` | Wie erreicht der Check-in-Link den Mitarbeitenden — SMS, E-Mail, aushängender QR-Code am Objekt oder Portal-Link — wer ist der SMS-Anbieter (EU-Verarbeitung, AVV), und wer trägt die Kosten? | `checkin_token.ausgabe_kanal`, TIM-07, EMP-01 |
+| O-164 | `zeit-checkout-toleranz` | Wie lange nach Schichtende bleibt der Check-out-Link gültig, und was geschieht, wenn deutlich länger gearbeitet wird als geplant? | `zeit.checkout_toleranz_minuten`, TIM-07 |
+| O-165 | `zeit-nacherfassungsfrist` | Welche interne Frist gilt für die Nacherfassung, unterhalb der gesetzlichen Höchstfrist von sieben Kalendertagen (§17 Abs. 1 MiLoG), und wer wird beim Überschreiten informiert? | `AufzeichnungsfristRegel`, TIM-09, TIM-13 |
+| O-166 | `zeit-konflikt-blockiert` | Welche Konflikte sollen das Speichern verhindern und welche nur warnen (Überschneidung, ArbZG, Qualifikation)? SPEC nennt „Warnungen" für ArbZG und einen „harten Block" nur für Qualifikationen. | `planungs_konflikt.blockiert`, TIM-05, TIM-06 |
+| O-167 | `zeit-feiertage-bundesland` | Werden Schichtposten und Veranstaltungsdienste an gesetzlichen Feiertagen regulär besetzt, und arbeitet die Gruppe an Objekten außerhalb Berlins (welche Bundesländer)? | `feiertage_ueberspringen`, `feiertag_bundesland`, CLN-03 |
+| O-168 | `zeit-pausenerfassung` | Werden Pausen gestempelt (Start/Ende) oder als Minutensumme je Schicht erfasst? | `pause_minuten`, §3.4, TIM-06 |
+| O-169 | `zeit-ohne-auftragsbezug` | Gibt es Zeiten ohne Auftragsbezug — interne Arbeit, Schulung, Bereitschaft, Fahrzeit — und wie werden sie kostenmäßig behandelt? | `zeiteintrag.auftrag_leistung_id`, FIN-18 |
 | O-39 | `zeit-freigabeschritt` | Gibt es vor Stundenkonto und Abrechnung eine fachliche Freigabe der Zeiten, und wer erteilt sie? | `ZeitFreigabe`, EMP-04, FIN-07 |
-| O-40 | `zeit-schichtfunktionen` | Welche Funktionen gibt es auf einer Schicht (Objektleiter, Vorarbeiter, Springer), und welche Zustände braucht eine Einsatzzuordnung? | `funktion`, `zuordnung_status`, TIM-04 |
-| O-41 | `zeit-sonntagsarbeit` | Soll die Plattform Sonn- und Feiertagsarbeit nach §§9–13 ArbZG nachweisen (Ausnahmetatbestand je Bereich, Ersatzruhetag)? | §6.7, LEG-03 |
-| O-42 | `zeit-betriebsrat-erweiterung` | **O-06 erweitern:** Betrifft die Mitbestimmung nach §87 Abs. 1 Nr. 6 BetrVG neben der Geolokalisierung auch Geräteabweichung, Gerätekennung, Nicht-erschienen-Auswertung und Korrekturstatistiken? Alle sind Einrichtungen zur Verhaltens- und Leistungskontrolle. | §1.15, LEG-10, LEG-09 |
-| O-43 | `zeit-korrekturgruende` | Welche Korrekturgründe soll die Auswertung unterscheiden — die fünf vorläufigen Werte (`vergessen_auszustempeln`, `geraet_defekt`, `falsches_objekt`, `einwand_mitarbeiter`, `nachtrag_offline`) oder eine andere Systematik? Die Auswertung nach TIM-11 und die Rubber-Stamp-Analyse hängen daran. | `korrektur_grund` (§3.2), TIM-11 |
+| O-170 | `zeit-schichtfunktionen` | Welche Funktionen gibt es auf einer Schicht (Objektleiter, Vorarbeiter, Springer), und welche Zustände braucht eine Einsatzzuordnung? | `funktion`, `zuordnung_status`, TIM-04 |
+| O-171 | `zeit-sonntagsarbeit` | Soll die Plattform Sonn- und Feiertagsarbeit nach §§9–13 ArbZG nachweisen (Ausnahmetatbestand je Bereich, Ersatzruhetag)? | §6.7, LEG-03 |
+| O-172 | `zeit-betriebsrat-erweiterung` | **O-06 erweitern:** Betrifft die Mitbestimmung nach §87 Abs. 1 Nr. 6 BetrVG neben der Geolokalisierung auch Geräteabweichung, Gerätekennung, Nicht-erschienen-Auswertung und Korrekturstatistiken? Alle sind Einrichtungen zur Verhaltens- und Leistungskontrolle. | §1.15, LEG-10, LEG-09 |
+| O-173 | `zeit-korrekturgruende` | Welche Korrekturgründe soll die Auswertung unterscheiden — die fünf vorläufigen Werte (`vergessen_auszustempeln`, `geraet_defekt`, `falsches_objekt`, `einwand_mitarbeiter`, `nachtrag_offline`) oder eine andere Systematik? Die Auswertung nach TIM-11 und die Rubber-Stamp-Analyse hängen daran. | `korrektur_grund` (§3.2), TIM-11 |
 
 ### 17.2 Settings this domain reads, with their shipped defaults
 
@@ -2067,7 +2067,7 @@ Writing the assignment is a human action through the ordinary service, which re-
 
 ### 17.3 Already tracked elsewhere — referenced, not re-raised
 
-Two of these are already in `docs/DECISIONS.md` under **Open**: **O-06** (Betriebsrat → LEG-10, widened by O-42) and **O-09** (data volumes → the index decision of §7.4). Three are in `08-PR-PLAN.md`'s "New — surfaced by this plan" block (`O-14 … O-29`), which is the allocated range and not a per-document mint: **O-18** (Arbeitszeitmodelle incl. the ArbZG 10 h exception and its compensation window → §6.7), **O-25** (Aufbewahrungsfristen je Dokumentkategorie → §13) and **O-27** (Lohnexport-Zielsystem und Format → the ACC-12 consumer of §7.3). This document references all five by those numbers and does **not** re-raise them under new ones. Plus `01-KERN.md` §16 items (i) Bewacherregister status vocabulary → §11.1, (k) AUT-07 thresholds → §9.2, (h) audit retention → §13.
+Two of these are already in `docs/DECISIONS.md` under **Open**: **O-06** (Betriebsrat → LEG-10, widened by O-172) and **O-09** (data volumes → the index decision of §7.4). Three are in `08-PR-PLAN.md`'s "New — surfaced by this plan" block (`O-14 … O-29`), which is the allocated range and not a per-document mint: **O-18** (Arbeitszeitmodelle incl. the ArbZG 10 h exception and its compensation window → §6.7), **O-25** (Aufbewahrungsfristen je Dokumentkategorie → §13) and **O-27** (Lohnexport-Zielsystem und Format → the ACC-12 consumer of §7.3). This document references all five by those numbers and does **not** re-raise them under new ones. Plus `01-KERN.md` §16 items (i) Bewacherregister status vocabulary → §11.1, (k) AUT-07 thresholds → §9.2, (h) audit retention → §13.
 
 ---
 

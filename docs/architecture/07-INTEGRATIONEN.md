@@ -2158,11 +2158,12 @@ named here only so that it is not lost in the gap between two sections.
 **The numbering is resolved here, not deferred to a merge.** `docs/DECISIONS.md` holds O-01 and
 O-04 … O-13; `08-PR-PLAN.md` claims O-14 … O-29; sibling Phase 0 documents have claimed up to O-115
 (`03-AUTH-BERECHTIGUNGEN.md` O-74 … O-92, `05-API-KARTE.md` O-94 … O-104,
-`06-AGENTEN-FREIGABEN.md` O-105 … O-115), with O-30 … O-73 still contested between the earlier
-documents and therefore unsafe to cite. Every question this document raises accordingly either
-**cites the number that already asks it** or takes the next free block, **O-116 … O-131**, each with
-a stable slug so the question survives whatever renumbering `DECISIONS.md` imposes when it
-reconciles all Phase 0 documents at once.
+`06-AGENTEN-FREIGABEN.md` O-105 … O-115). The contest over O-30 … O-73 between the six domain
+documents is **settled**: `docs/DECISIONS.md` now carries one register, built by resolving every
+occurrence to the question it names, and it is the only place a number is assigned. Every question
+this document raises accordingly either **cites the number that already asks it** or sits in this
+document's block, **O-116 … O-131**, each with a stable slug so the question survives any later
+renumbering.
 
 An earlier draft numbered these locally („Frage 14") and left the mapping to that merge. That is
 what made the `pnpm lint:todo` gate of §30 unshippable: it fails when a `TODO(client)` has no

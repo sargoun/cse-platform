@@ -529,7 +529,7 @@ forbids deleting it), `storniert_am` plus a reversing row (finalised documents, 
 | Duration | `integer` with the unit in the name | `verzugstage`, `zahlungsziel_tage`, `dauer_ms` |
 | Hash | `text` with `CHECK (x ~ '^[0-9a-f]{64}$')` | not `char(64)`: `char(n)` pads on comparison, and a padded hash compares equal to a shorter one under `bpchar` semantics |
 | Free text | `text`, never `varchar(n)` | field-length limits of an export format are `CHECK`s (§9.3), not column types |
-| Currency | `waehrung text not null default 'EUR' check (waehrung = 'EUR')` | documents the assumption and makes multi-currency a visible migration rather than a silent rounding bug. `// TODO(client): Wird eine der drei Gesellschaften jemals in einer anderen Währung als EUR fakturieren oder Eingangsrechnungen in Fremdwährung erhalten? (O-49)` |
+| Currency | `waehrung text not null default 'EUR' check (waehrung = 'EUR')` | documents the assumption and makes multi-currency a visible migration rather than a silent rounding bug. `// TODO(client): Wird eine der drei Gesellschaften jemals in einer anderen Währung als EUR fakturieren oder Eingangsrechnungen in Fremdwährung erhalten? (O-189)` |
 
 **The K-16 deviations this domain takes: none of the four.** K-16's list of permitted deviations is
 closed, so it is worth stating which of them apply here — no partitioned table exists in this
@@ -822,7 +822,7 @@ every composite FK in §4–§9 fails at migration time.
 9. **`docs/DECISIONS.md`** — the thirty-one questions of §17 belong under **Open**. Eleven of them
    map to numbers that already exist (O-05, O-19, O-20, O-21, O-25 and O-90, the last owned by
    `03-AUTH-BERECHTIGUNGEN.md` §3.2) and are recorded as refinements or references rather than as new
-   rows; the remaining twenty-one need new numbers, proposed as **O-30 … O-50** and carried at their
+   rows; the remaining twenty-one need new numbers, proposed as **O-134 … O-190** and carried at their
    point of use in the `// TODO(client)` itself, so `pnpm lint:todo` can match them. No question in
    this domain mints a number another document already holds.
 10. **`02-CRM-OPERATIONS.md` §1.4 — `kunde_zugang`** must expose
@@ -865,16 +865,16 @@ than an invisible data edit (K-17).
 | `rechnung_status` | `entwurf` · `festgeschrieben` · `verworfen` | STATED — FIN-02, invariant 4. Exactly two transitions exist: `entwurf→festgeschrieben` and `entwurf→verworfen`. `verworfen` exists because invariant 8 forbids deleting the row |
 | `rechnungsart` | `standard` · `abschlag` · `anzahlung` · `schluss` · `storno` | STATED — FIN-08 (Abschlag/Schluss), invariant 4 (Storno); `anzahlung` is required by §14 Abs. 4 Nr. 6 UStG's *Vereinnahmung* alternative (review B10). Deliberately **no** `gutschrift`: under §14 Abs. 2 UStG "Gutschrift" means self-billing, which is an *incoming* document numbered by us and is modelled on `eingangsrechnung` (§8.2); a credit note is a `storno` |
 | `rechnungsart_code` | not an enum — `text` carrying UNTDID 1001 (`380` standard, `386` Abschlag/Vorauszahlung, `384` korrigiert, `381` Gutschrift) | STATED — EN 16931 BT-3. Mapped from `rechnungsart` by a table in `services/finanz/xrechnung.ts` and **frozen in the snapshot** |
-| `steuer_kennzeichen` | `regelsatz` · `ermaessigt` · `steuerfrei` · `reverse_charge_13b` | **Owned here**, mirrored in `02-CRM-OPERATIONS.md` §2. `// TODO(client): Kommen innergemeinschaftliche Lieferungen (§4 Nr. 1b UStG) oder die Kleinunternehmerregelung (§19 UStG) in einer der drei Gesellschaften vor? Falls ja, fehlen hier Werte und in steuersatz_gruppe Zeilen. (O-47)` |
+| `steuer_kennzeichen` | `regelsatz` · `ermaessigt` · `steuerfrei` · `reverse_charge_13b` | **Owned here**, mirrored in `02-CRM-OPERATIONS.md` §2. `// TODO(client): Kommen innergemeinschaftliche Lieferungen (§4 Nr. 1b UStG) oder die Kleinunternehmerregelung (§19 UStG) in einer der drei Gesellschaften vor? Falls ja, fehlen hier Werte und in steuersatz_gruppe Zeilen. (O-60)` |
 | `en16931_steuerkategorie` | `S` · `AE` · `Z` · `E` · `K` · `G` · `O` | STATED — UNTDID 5305 subset of EN 16931 (FIN-11). `AE` reverse charge (§13b), `E` exempt §4 UStG, `K` intra-community, `G` export, `O` out of scope. A normative code list, not an invention |
 | `bauleistungsart` | `bau` · `gebaeudereinigung` | STATED — §13b Abs. 2 Nr. 4 and Nr. 8 UStG. Mirrored onto `kunde_bauleistender_status` and `lieferant` (§2.3 item 4) |
 | `freistellung_umfang` | `unbeschraenkt` · `auftragsbezogen` | STATED — §48b EStG issues both forms. Mirrored onto `freistellungsbescheinigung` (§2.3 item 3) |
 | `nummernkreis_typ` | `ausgangsrechnung` · `gutschrift` · `eingangsrechnung_beleg` · `mahnung` · `angebot` · `auftrag` · `leistungsnachweis` · `wachbuch` · `kassenbuch` | derived: three from FIN-03/FIN-16/ACC-06, two demanded by `02-CRM-OPERATIONS.md` §13 item 9, two by `03-GEWERKE.md` §2.3 item 4, one by §7.8 |
-| `nummernkreis_zuruecksetzung` | `nie` · `jaehrlich` | PLACEHOLDER, **no default** (review, INVENTED RULE). `// TODO(client): Läuft die Rechnungsnummer je Gesellschaft fortlaufend weiter oder beginnt sie am 1. Januar neu, und wie lautet die exakte Maske (z. B. RE-2026-00042)? (O-30)` |
+| `nummernkreis_zuruecksetzung` | `nie` · `jaehrlich` | PLACEHOLDER, **no default** (review, INVENTED RULE). `// TODO(client): Läuft die Rechnungsnummer je Gesellschaft fortlaufend weiter oder beginnt sie am 1. Januar neu, und wie lautet die exakte Maske (z. B. RE-2026-00042)? (O-134)` |
 | `positionsart` | `leistung` · `textzeile` · `zwischensumme` | derived — a text line carries no amounts (§14 free text, VOB references); a Zwischensumme is display-only and is excluded from every sum |
 | `zuschlag_art` | `nachlass` · `zuschlag` | STATED — EN 16931 BG-20 (Allowance) / BG-21 (Charge) |
 | `quelle_typ` | `zeiteintrag` · `aufmass` · `vertrag` · `material` · `leistungsnachweis` · `nachtrag` · `manuell` | FIN-07 names the first four verbatim; `leistungsnachweis` and `nachtrag` are required by `03-GEWERKE.md` §2.2, which declares `rechnungsposition` referencing both. `manuell` exists so a hand-typed line is *explicitly* sourceless with a mandatory reason rather than silently unsourced |
-| `storno_art` | `vollstorno` · `teilstorno` | PLACEHOLDER. `// TODO(client): Ist eine Teilstornierung zulässig, oder ist jede Korrektur ein Vollstorno mit Neuausstellung? Bitte mit dem Steuerberater klären. (O-36)` Until answered the service emits only `vollstorno`; the value exists so answering it is data, not a migration |
+| `storno_art` | `vollstorno` · `teilstorno` | PLACEHOLDER. `// TODO(client): Ist eine Teilstornierung zulässig, oder ist jede Korrektur ein Vollstorno mit Neuausstellung? Bitte mit dem Steuerberater klären. (O-178)` Until answered the service emits only `vollstorno`; the value exists so answering it is data, not a migration |
 | `rechnung_beziehung_art` | `storno` · `ersetzt` | STATED — the two directed invoice-to-invoice relations of `rechnung_beziehung` (§4.8), the table **K-12 names and K-21 assigns to this document**. The inverse readings (`storniert_durch`, `schluss_zu`) are deliberately **not** values: an inverse row is a second copy of one fact. The Abschlag → Schlussrechnung relation is not here either — it carries per-tax-group amounts and stays in `abschlagsrechnung_bezug` (§4.7) |
 | `zahlung_richtung` | `eingang` · `ausgang` | structural |
 | `zahlungsmittel` | `ueberweisung` · `lastschrift` · `bar` · `karte` · `verrechnung` | working vocabulary; carries no legal rule |
@@ -885,7 +885,7 @@ than an invisible data edit (K-17).
 | `mahn_zinsberechnung` | `keine` · `gesetzlich_b2b` · `gesetzlich_b2c` · `vertraglich` | PLACEHOLDER — §288 BGB distinguishes B2B (base rate + 9 pp) from B2C (+ 5 pp). `// TODO(client): Welche Basis je Gesellschaft, und wird überhaupt eine Mahngebühr erhoben — in welcher Höhe? (O-19)` |
 | `zins_methode` | `act_365` · `act_360` · `act_act` | PLACEHOLDER, no default (review, INVENTED RULE). The day-count convention changes the amount claimed. `// TODO(client): Welche Zinsmethode und welche Tageszählung nach §187/§188 BGB wird für Verzugszinsen angewandt? (O-19)` The applied value is **stored on every `mahnung_position`**, so a claim stays reproducible even after the setting changes |
 | `verzugsbeginn_regel` | `mit_faelligkeit` · `nach_mahnung` · `dreissig_tage_nach_zugang` | PLACEHOLDER (review, INVENTED RULE). §286 BGB requires a Mahnung, or §286 Abs. 3 (30 days after Fälligkeit **and** receipt of the invoice, and against a consumer only where they were warned of that consequence). `// TODO(client): Ab wann läuft der Verzug — mit Fälligkeit, erst nach der ersten Mahnung, oder 30 Tage nach Rechnungszugang? Und wird gegenüber Verbrauchern auf die Folge hingewiesen? (O-19)` |
-| `mahn_folgeaktion` | `keine` · `lieferstopp` · `inkasso` · `mahnbescheid` | PLACEHOLDER. `// TODO(client): Welche Eskalation nutzt die Gruppe nach der letzten Stufe? (O-40)` Each one is separately approved (§7.7) |
+| `mahn_folgeaktion` | `keine` · `lieferstopp` · `inkasso` · `mahnbescheid` | PLACEHOLDER. `// TODO(client): Welche Eskalation nutzt die Gruppe nach der letzten Stufe? (O-181)` Each one is separately approved (§7.7) |
 | `eingangsrechnung_status` | `eingegangen` · `in_pruefung` · `freigegeben` · `gebucht` · `abgelehnt` | FIN-14, ACC-05. No `bezahlt`: payment state is derived from `offener_posten` and never stored twice |
 | `extraktion_status` | `vorschlag` · `akzeptiert` · `korrigiert` · `verworfen` | ACC-05, APR-02, APR-03 |
 | `beleg_typ` | `ausgangsrechnung` · `eingangsrechnung` · `gutschrift` · `kassenbeleg` · `bankbeleg` · `vertrag` · `sonstiges` | the accounting-relevant subset of DOC-01 |
@@ -1035,7 +1035,7 @@ exists to prevent.
 `// TODO(client): Bestätigen Sie die Zuordnung Ihrer Mengeneinheiten zu den UN/ECE-Rec-20-Codes —
 insbesondere „Stk" (H87 oder C62), „pauschal" (LS) und „Einsatz". Öffentliche Auftraggeber prüfen
 BT-130 gegen die Codeliste. Und: welche Einheiten bringt ein VOB-Leistungsverzeichnis mit, die hier
-noch fehlen? (O-31)`
+noch fehlen? (O-174)`
 
 - **Indexes:** `UNIQUE (schluessel)`; `btree (unece_code)`.
 - **SPEC:** FIN-11, FIN-12.
@@ -1061,7 +1061,7 @@ re-evaluated against the new one. `services/finanz/kleinbetrag.ts` takes the ser
 parameter and reads this table.
 
 `// TODO(client): Sollen Kleinbetragsrechnungen überhaupt ausgestellt werden? Viele gewerbliche
-Kunden weisen sie zurück, weil ihnen die Empfängerangaben fehlen. (O-32)`
+Kunden weisen sie zurück, weil ihnen die Empfängerangaben fehlen. (O-175)`
 
 - **SPEC:** FIN-13, LEG-05.
 
@@ -1092,7 +1092,7 @@ the class of legal rule CLAUDE.md forbids picking. Until a row is confirmed, the
 
 `// TODO(client): §48 Abs. 2 EStG — welche Bagatellgrenze gilt je Gesellschaft (Regelfall bzw. nur
 steuerfreie Vermietungsumsätze), wie wird die Jahressumme je Leistendem prognostiziert, und wer gibt
-den Einbehalt frei? (O-33)`
+den Einbehalt frei? (O-176)`
 
 - **SPEC:** FIN-10, LEG-06.
 
@@ -1278,7 +1278,7 @@ no running balance to check against.
 
 - **Indexes:** `UNIQUE (kasse_id, laufnummer)`; `btree (mandant_id, kasse_id, bewegungsdatum, laufnummer)` — the Kassenbuch print and the daily balance.
 - **Constraints/triggers:** `fin.kassenbestand_fortschreiben()` `BEFORE INSERT` recomputes `bestand_danach_cent` from the previous row under `SELECT … FOR UPDATE` on the `nummernkreis` row, so two concurrent cash entries cannot both claim the same balance. Append-only: no `UPDATE` policy except the three `storno_*` columns.
-- `// TODO(client): Wird eine elektronische Registrierkasse mit TSE nach §146a AO eingesetzt, oder ausschließlich eine offene Ladenkasse mit Kassenbuch? Eine TSE-Kasse hat eigene Sicherungs- und Belegausgabepflichten, die dieses Modell bewusst nicht behauptet. (O-45)`
+- `// TODO(client): Wird eine elektronische Registrierkasse mit TSE nach §146a AO eingesetzt, oder ausschließlich eine offene Ladenkasse mit Kassenbuch? Eine TSE-Kasse hat eigene Sicherungs- und Belegausgabepflichten, die dieses Modell bewusst nicht behauptet. (O-186)`
 - **SPEC:** FIN-14, ACC-01, ACC-06, LEG-01.
 
 #### ausgabe_kategorie
@@ -1498,7 +1498,7 @@ If all three are NULL the pre-flight raises a `fehler` and finalisation is refus
 payment term, and the message names the three places the term can be entered.
 
 `// TODO(client): Standard-Zahlungsziel je Gesellschaft, und gilt es auch für öffentliche
-Auftraggeber (dort häufig 30 Tage)? (O-34)` — the same question `02-CRM-OPERATIONS.md` §12 row 25 records
+Auftraggeber (dort häufig 30 Tage)? (O-66)` — the same question `02-CRM-OPERATIONS.md` §12 row 25 records
 for `kunde.zahlungsziel_tage`; one question, two places of use.
 
 ### 4.3 rechnungsposition · rechnung_zuschlag
@@ -1617,10 +1617,10 @@ twice.
   `// TODO(client): Soll der kundenunterschriebene Leistungsnachweis (CLN-04) zusätzlich zu den
   Zeiteinträgen als Quelle hinter einer Reinigungs-Rechnungsposition geführt werden, oder ersetzt er
   sie? Beides ist zulässig — nur „beides gleichzeitig, ungeklärt" nicht, weil dieselbe Leistung dann
-  zweimal als Nachweis zählt und die Doppelabrechnungssperre an der falschen Spalte hängt. (O-50)`
+  zweimal als Nachweis zählt und die Doppelabrechnungssperre an der falschen Spalte hängt. (O-190)`
   `// TODO(client): Kann ein einzelner Zeiteintrag auf zwei Rechnungen aufgeteilt werden (z. B.
   Monatsgrenze innerhalb einer Nachtschicht), oder wird die Schicht immer der Periode ihres Beginns
-  zugeordnet? (O-38)` — until answered, `splitteNachMonat` (K-11) assigns the minutes and the entry itself is
+  zugeordnet? (O-179)` — until answered, `splitteNachMonat` (K-11) assigns the minutes and the entry itself is
   billed once.
 - **RLS:** standard, module `finanzen`; **internal-only ceiling** (§1.4).
 - **Constraints/triggers:** `CHECK (num_nonnulls(zeiteintrag_id, aufmass_id, auftrag_leistung_id, ausgabe_id, leistungsnachweis_id, nachtrag_id) = CASE quelle_typ WHEN 'manuell' THEN 0 ELSE 1 END)` plus a per-discriminator `CHECK` that the matching column is the populated one. `wirksam` is the only column the immutability trigger allows to change after finalisation, only from `true` to `false`, and only inside the Storno transaction.
@@ -1630,7 +1630,7 @@ twice.
   "goods bought for this job and rebilled". It does **not** cover stock issued from a warehouse.
   `// TODO(client): Wird Material aus einem Lager entnommen und weiterberechnet, oder ausschließlich
   auftragsbezogen eingekauft? Ersteres braucht eine Materialwirtschaft, die bewusst niemand hier
-  modelliert. (O-39)`
+  modelliert. (O-180)`
 - **SPEC:** FIN-07, FIN-18, TIM-12, BAU-02, BAU-04, CLN-04, ACC-03, DSH-04.
 
 ### 4.5 rechnung_steuer
@@ -1676,7 +1676,7 @@ The agreed schedule of Abschlagsrechnungen for one billing configuration — the
 | Auditblock | | | |
 
 - **Constraints/triggers:** `CHECK (num_nonnulls(betrag_netto_cent, anteil_bp) = 1)`; `UNIQUE (rechnung_id) WHERE rechnung_id IS NOT NULL`. `kern.verhindere_loeschung()`.
-- `// TODO(client): Nach welchen Bedingungen werden Abschläge gestellt — Zahlungsplan nach VOB/B §16 Abs. 1 (nach Wert erbrachter Leistung), fester Zahlungsplan, oder Baufortschritt in Prozent? Und wird ein Sicherheitseinbehalt nach VOB/B §17 vom Abschlag oder erst von der Schlussrechnung einbehalten? (O-37; Sicherheitseinbehalt O-20)`
+- `// TODO(client): Nach welchen Bedingungen werden Abschläge gestellt — Zahlungsplan nach VOB/B §16 Abs. 1 (nach Wert erbrachter Leistung), fester Zahlungsplan, oder Baufortschritt in Prozent? Und wird ein Sicherheitseinbehalt nach VOB/B §17 vom Abschlag oder erst von der Schlussrechnung einbehalten? (O-20; Sicherheitseinbehalt O-20)`
 - **SPEC:** FIN-08, OPS-05.
 
 ### 4.7 abschlagsrechnung_bezug
@@ -1716,7 +1716,7 @@ it comes into existence after finalisation and the immutability trigger is uncon
 | von_rechnung_id | uuid | no | composite FK → `rechnung` — the **later** document: the Storno, or the re-issue |
 | zu_rechnung_id | uuid | no | composite FK → `rechnung` — the document it refers back to |
 | art | rechnung_beziehung_art | no | `storno` \| `ersetzt` (§3.1) |
-| storno_art | storno_art | yes | only when `art = 'storno'`; `'vollstorno'` until O-36 is answered |
+| storno_art | storno_art | yes | only when `art = 'storno'`; `'vollstorno'` until O-178 is answered |
 | grund | text | yes | required for `art = 'storno'` — an auditable reason, not „Fehler" |
 | Auditblock (insert only) | | | |
 
@@ -2016,7 +2016,7 @@ counter `UPDATE` matches no policy, touches zero rows, and no invoice is ever fi
     -- Looking the circle up BY (mandant_id, kreis_typ, kontext_id, jahr(heute)) is the trap: a
     -- 'nie' circle carries jahr = 0, the lookup finds nothing, and finalisation fails for every
     -- invoice of every entity that numbers continuously across years -- which is one of the two
-    -- answers O-30 may well come back with.
+    -- answers O-134 may well come back with.
     -- Opening the successor circle, if the year turned under 'jaehrlich', happens here under the
     -- fixed lock order (predecessor first, by jahr ascending), copying letzter_hash into genesis_hash
  3  SELECT … FROM nummernkreis WHERE id = :kreis FOR UPDATE      -- serialises this circle
@@ -2219,7 +2219,7 @@ arrived.
   `app.einstellung('zahlung.skonto_toleranz_cent')` decides when an underpayment is *offered* as a
   Skonto rather than silently treated as one; its seeded value is `0`, so nothing is assumed.
   `// TODO(client): Werden Skonti gewährt — in welcher Höhe, mit welcher Frist, und ab welcher
-  Differenz gilt eine Unterzahlung als Skontoabzug statt als offener Restbetrag? (O-35)`
+  Differenz gilt eine Unterzahlung als Skontoabzug statt als offener Restbetrag? (O-177)`
 - **Constraints/triggers:** `CHECK (art <> 'skonto' OR (steuersatz_gruppe_id IS NOT NULL AND skonto_netto_cent IS NOT NULL AND skonto_steuer_cent IS NOT NULL))`; `CHECK (art IN ('skonto','bauabzugsteuer_einbehalt') OR zahlung_id IS NOT NULL)`. `fin.op_fortschreiben()` `AFTER INSERT` updates `offener_posten.bezahlt_cent` and stamps `ausgeglichen_am` when `offen_cent = 0`; it **refuses** an allocation that would push `bezahlt_cent` above `betrag_cent` unless `art = 'differenz'`, and routes a genuine overpayment to `art = 'ueberzahlung'`, which opens a `debitor_guthaben` item instead (§7.3). No deletion; a wrong allocation is reversed by a counter-row on a `storniert` payment.
 - **SPEC:** ACC-04, ACC-07, FIN-14, FIN-15.
 
@@ -2300,7 +2300,7 @@ never be driven to `offen_cent = 0` from either end. `CHECK (op_soll_id <> op_ha
 clearing exceeds either item's `offen_cent`, and — for a Storno clearing — that both carry the same
 `kunde_id`.
 `// TODO(client): Darf ein Guthaben eines Kunden gegen eine offene Verbindlichkeit desselben
-Unternehmens als Lieferant aufgerechnet werden (§387 BGB), und wer gibt das frei? (O-41)`
+Unternehmens als Lieferant aufgerechnet werden (§387 BGB), und wer gibt das frei? (O-182)`
 **SPEC:** ACC-07, FIN-15, invariant 4.
 
 ### 7.5 mahnung
@@ -2384,7 +2384,7 @@ DSGVO Art. 22 and LEG-12; approving the *letter* is not approving the handover t
 Each escalation therefore carries its own approval record and its own audit entry, and
 `services/finanz/mahnung/lauf.ts` never executes one automatically.
 `// TODO(client): Wer darf eine Inkasso-Übergabe oder einen Mahnbescheid freigeben, und ab welcher
-Stufe bzw. welchem Betrag? (O-40)` **SPEC:** FIN-15, APR-07, LEG-12, invariant 7.
+Stufe bzw. welchem Betrag? (O-181)` **SPEC:** FIN-15, APR-07, LEG-12, invariant 7.
 
 ### 7.8 camt_import
 
@@ -2568,7 +2568,7 @@ document: `gutschrift_nummer` comes from our own gapless circle, `rechnungsnumme
 the renderer prints the designation, and the duplicate guard below keys on our number instead of
 theirs.
 `// TODO(client): Rechnet die Bau-Gesellschaft Nachunternehmer per Gutschrift (§14 Abs. 2 UStG) ab?
-Falls ja: gilt das generell oder je Vertrag, und wer widerspricht einer Gutschrift? (O-43)`
+Falls ja: gilt das generell oder je Vertrag, und wer widerspricht einer Gutschrift? (O-184)`
 
 - **Indexes:**
   `CREATE UNIQUE INDEX er_dublette_uk ON eingangsrechnung (mandant_id, lieferant_id, rechnungsnummer_lieferant, extract(year from rechnungsdatum)) WHERE lieferant_id IS NOT NULL AND rechnungsnummer_lieferant IS NOT NULL AND status <> 'abgelehnt'` — the **duplicate-payment guard**, with the two corrections the review asks for (MINOR): rejected documents are excluded, so an invoice rejected in error can be re-captured, and the year is part of the key, so a supplier who restarts numbering at `001` each January does not collide with themselves.
@@ -2592,7 +2592,7 @@ Falls ja: gilt das generell oder je Vertrag, und wer widerspricht einer Gutschri
   applied — and where a value is set, the approval route refuses a self-approval above it and says
   so.
   `// TODO(client): Ist eine Vier-Augen-Freigabe für Eingangsrechnungen erforderlich, und ab welchem
-  Betrag? Wer darf im Vertretungsfall freigeben? (O-42)`
+  Betrag? Wer darf im Vertretungsfall freigeben? (O-183)`
   Immutability from `gebucht` onwards (allowlist: `geaendert_*` and `aufbewahrung_bis` only);
   `kern.setze_aufbewahrung()`, `kern.verhindere_loeschung()`, `app.protokolliere()` with `vorher`/`nachher` on every update while `in_pruefung` (SEC-A9).
 - **SPEC:** FIN-09, FIN-10, FIN-14, ACC-03, ACC-05, ACC-06, ACC-07, APR-07, LEG-01, LEG-06.
@@ -2722,7 +2722,7 @@ reimbursement, material bought for a job.
 - **Indexes:** `btree (mandant_id, ausgabedatum DESC)` — the expense list (FIN-17, DSH-01); `btree (mandant_id, projekt_id) WHERE weiterberechenbar AND status = 'freigegeben'` — "what can still be rebilled" (REP-05); `btree (mandant_id, status) WHERE status IN ('erfasst','freigegeben')`; `btree (mandant_id, anstellung_id) WHERE anstellung_id IS NOT NULL` — reimbursements per employment.
 - **RLS:** standard, module `eingang`; **K-04 employee ceiling** on `anstellung_id` (§1.4) — an employee sees their own reimbursements and never the entity's expenses (EMP-13); the **K-18 `t_person` policy** of §1.4, which is what actually grants the employee portal its rows, since `t_mandant` and `t_gruppe` are both false in person scope; the group ceiling of §1.4 hides person-bearing rows in group scope; and the K-05 column grant hides `anstellung_id` from everyone without `personal.erstattung_lesen`.
 - **Constraints/triggers:** `CHECK (status NOT IN ('freigegeben','gebucht') OR beleg_id IS NOT NULL)` — **"keine Buchung ohne Beleg" is enforced, not asserted** (review, INVENTED RULE): the draft required a receipt for `eingangsrechnung` and declined to for expenses and bookings without stating that as a decision. Transitions by trigger; immutable from `gebucht`; `kern.verhindere_loeschung()`.
-- `// TODO(client): Gibt es Ausgaben, für die belegfrei gebucht werden darf (z. B. Eigenbelege für Trinkgelder oder Parkgebühren ohne Quittung), und bis zu welchem Betrag? (O-44)`
+- `// TODO(client): Gibt es Ausgaben, für die belegfrei gebucht werden darf (z. B. Eigenbelege für Trinkgelder oder Parkgebühren ohne Quittung), und bis zu welchem Betrag? (O-185)`
 - **SPEC:** ACC-01, ACC-03, FIN-14, FIN-17, REP-05, D-09, EMP-13.
 
 ### 8.6 The §48 EStG apparatus: `bauleistung_jahressumme` and `bauabzug_anmeldung`
@@ -2776,7 +2776,7 @@ period with `einbehalt_cent > 0` and `angemeldet_am IS NULL`.
 
 `// TODO(client): Wer meldet die Bauabzugsteuer nach §48a EStG an — die Buchhaltung oder der
 Steuerberater — und soll die Plattform die Anmeldung nur vorbereiten oder auch den Fristenkalender
-führen? (O-46)`
+führen? (O-187)`
 **SPEC:** FIN-10, ACC-07, LEG-06, NOT-01.
 
 ---
@@ -3045,7 +3045,7 @@ version's `inhalt` and raises a `warnung` when they diverge, which is the only w
 true between annual reviews.
 
 `// TODO(client): Wer zeichnet die Verfahrensdokumentation je Gesellschaft, und in welchem Rhythmus
-wird sie überprüft? (O-48)`
+wird sie überprüft? (O-188)`
 **SPEC:** ACC-10, ACC-06, LEG-01.
 
 ---
@@ -3613,43 +3613,43 @@ itself** so `pnpm lint:todo` can match it, and belongs under **Open** in `docs/D
 been guessed; each has a placeholder that is visibly marked in the UI (K-17). Eleven rows refine
 numbers that already exist elsewhere (O-05, O-19, O-20, O-21, O-25 and — new in this pass — **O-90**,
 which `03-AUTH-BERECHTIGUNGEN.md` §3.2 already carries); the other twenty-one are new and are
-proposed here as **O-30 … O-50** for `DECISIONS.md` to adopt. No number is minted here that another
+proposed here as **O-134 … O-190** for `DECISIONS.md` to adopt. No number is minted here that another
 document already holds: the second-factor question below is O-90's, referenced rather than
 duplicated, because two numbers for one question is how a decision gets answered once and stays open
 in the other index.
 
 | # | O-Nr. | Where | Question, as it should appear in DECISIONS.md |
 |---|---|---|---|
-| 1 | **O-30** | `nummernkreis.zuruecksetzung`, `.format_maske` | Läuft die Rechnungsnummer je Gesellschaft fortlaufend weiter oder beginnt sie am 1. Januar neu, und wie lautet die exakte Maske (z. B. `RE-2026-00042`)? **Neu** — O-04 betrifft die fünf Abrechnungsarten, nicht die Nummernkreise. |
-| 2 | **O-31** | `masseinheit` | Bestätigen Sie die Zuordnung Ihrer Mengeneinheiten zu den UN/ECE-Rec-20-Codes (BT-130) — insbesondere „Stk" (H87 oder C62), „pauschal" (LS) und „Einsatz". |
-| 3 | **O-32** | `kleinbetrag_grenze` | Sollen Kleinbetragsrechnungen nach §33 UStDV überhaupt ausgestellt werden? Viele gewerbliche Kunden weisen sie zurück. |
-| 4 | **O-33** | `bauabzugsteuer_freigrenze` | §48 Abs. 2 EStG — welche Bagatellgrenze gilt je Gesellschaft, wie wird die Jahressumme je Leistendem prognostiziert, und wer gibt den Einbehalt frei? |
+| 1 | **O-134** | `nummernkreis.zuruecksetzung`, `.format_maske` | Läuft die Rechnungsnummer je Gesellschaft fortlaufend weiter oder beginnt sie am 1. Januar neu, und wie lautet die exakte Maske (z. B. `RE-2026-00042`)? **Neu** — O-04 betrifft die fünf Abrechnungsarten, nicht die Nummernkreise. |
+| 2 | **O-174** | `masseinheit` | Bestätigen Sie die Zuordnung Ihrer Mengeneinheiten zu den UN/ECE-Rec-20-Codes (BT-130) — insbesondere „Stk" (H87 oder C62), „pauschal" (LS) und „Einsatz". |
+| 3 | **O-175** | `kleinbetrag_grenze` | Sollen Kleinbetragsrechnungen nach §33 UStDV überhaupt ausgestellt werden? Viele gewerbliche Kunden weisen sie zurück. |
+| 4 | **O-176** | `bauabzugsteuer_freigrenze` | §48 Abs. 2 EStG — welche Bagatellgrenze gilt je Gesellschaft, wie wird die Jahressumme je Leistendem prognostiziert, und wer gibt den Einbehalt frei? |
 | 5 | **O-21** | `rechnung.leistung_bis` | Welches Datum ist für §48b EStG und §13b UStG maßgeblich, wenn der Leistungszeitraum die Gültigkeit einer Freistellungsbescheinigung überschreitet — Leistungsende, Zahlungszeitpunkt, oder geteilte Abrechnung? |
-| 6 | **O-34** | `rechnung.zahlungsziel_tage` | Standard-Zahlungsziel je Gesellschaft, und gilt es auch für öffentliche Auftraggeber? (dieselbe Frage wie `02-CRM-OPERATIONS.md` §12 Nr. 25) |
-| 7 | **O-35** | `rechnung.skonto_bp` / `zahlung.skonto_toleranz_cent` | Werden Skonti gewährt, in welcher Höhe und mit welcher Frist, und ab welcher Differenz gilt eine Unterzahlung als Skontoabzug? |
-| 8 | **O-36** | `storno_art` | Ist eine Teilstornierung zulässig, oder ist jede Korrektur ein Vollstorno mit Neuausstellung? |
-| 9 | **O-37 / O-20** | `abschlagsplan` | Nach welchen Bedingungen werden Abschläge gestellt (VOB/B §16, fester Zahlungsplan, Baufortschritt), und wird der Sicherheitseinbehalt vom Abschlag oder erst von der Schlussrechnung einbehalten? |
-| 10 | **O-38** | `rechnungsposition_quelle` | Kann ein einzelner Zeiteintrag auf zwei Rechnungen aufgeteilt werden (Monatsgrenze in einer Nachtschicht), oder gilt die Periode des Schichtbeginns? |
-| 11 | **O-39** | `rechnungsposition_quelle` (Material) | Wird Material aus einem Lager entnommen und weiterberechnet, oder ausschließlich auftragsbezogen eingekauft? |
+| 6 | **O-66** | `rechnung.zahlungsziel_tage` | Standard-Zahlungsziel je Gesellschaft, und gilt es auch für öffentliche Auftraggeber? (dieselbe Frage wie `02-CRM-OPERATIONS.md` §12 Nr. 25) |
+| 7 | **O-177** | `rechnung.skonto_bp` / `zahlung.skonto_toleranz_cent` | Werden Skonti gewährt, in welcher Höhe und mit welcher Frist, und ab welcher Differenz gilt eine Unterzahlung als Skontoabzug? |
+| 8 | **O-178** | `storno_art` | Ist eine Teilstornierung zulässig, oder ist jede Korrektur ein Vollstorno mit Neuausstellung? |
+| 9 | **O-20 / O-20** | `abschlagsplan` | Nach welchen Bedingungen werden Abschläge gestellt (VOB/B §16, fester Zahlungsplan, Baufortschritt), und wird der Sicherheitseinbehalt vom Abschlag oder erst von der Schlussrechnung einbehalten? |
+| 10 | **O-179** | `rechnungsposition_quelle` | Kann ein einzelner Zeiteintrag auf zwei Rechnungen aufgeteilt werden (Monatsgrenze in einer Nachtschicht), oder gilt die Periode des Schichtbeginns? |
+| 11 | **O-180** | `rechnungsposition_quelle` (Material) | Wird Material aus einem Lager entnommen und weiterberechnet, oder ausschließlich auftragsbezogen eingekauft? |
 | 12 | **O-19** | `mahnstufe` | Wie viele Mahnstufen, in welchen Abständen, mit welcher Gebühr, und werden Verzugszinsen nach §288 BGB erhoben (B2B +9 pp / B2C +5 pp)? |
 | 13 | **O-19** | `mahnung_position.verzugsbeginn_regel` | Ab wann läuft der Verzug — mit Fälligkeit, nach der ersten Mahnung, oder 30 Tage nach Rechnungszugang (§286 Abs. 3 BGB)? Wird gegenüber Verbrauchern auf die Folge hingewiesen? |
 | 14 | **O-19** | `mahnung_position.zins_methode` | Welche Zinsmethode und welche Tageszählung nach §187/§188 BGB gilt für Verzugszinsen? |
-| 15 | **O-40** | `mahnung_eskalation` | Wer darf eine Inkasso-Übergabe oder einen Mahnbescheid freigeben, und ab welcher Stufe bzw. welchem Betrag? |
-| 16 | **O-41** | `op_ausgleich` | Darf ein Kundenguthaben gegen eine Verbindlichkeit desselben Unternehmens als Lieferant aufgerechnet werden (§387 BGB), und wer gibt das frei? |
-| 17 | **O-42** | `eingangsrechnung` (Vier-Augen) | Ist eine Vier-Augen-Freigabe für Eingangsrechnungen erforderlich, ab welchem Betrag, und wer vertritt? |
-| 18 | **O-43** | `eingangsrechnung.selbst_abgerechnet` | Rechnet die Bau-Gesellschaft Nachunternehmer per Gutschrift (§14 Abs. 2 UStG) ab — generell oder je Vertrag? |
-| 19 | **O-44** | `ausgabe.beleg_id` | Gibt es Ausgaben, für die belegfrei gebucht werden darf (Eigenbeleg für Trinkgeld, Parkgebühr), und bis zu welchem Betrag? |
-| 20 | **O-45** | `kasse` | Wird eine elektronische Registrierkasse mit TSE nach §146a AO eingesetzt, oder ausschließlich eine offene Ladenkasse mit Kassenbuch? |
-| 21 | **O-46** | `bauabzug_anmeldung` | Wer meldet die Bauabzugsteuer nach §48a EStG an — Buchhaltung oder Steuerberater — und soll die Plattform nur vorbereiten oder auch den Fristenkalender führen? |
+| 15 | **O-181** | `mahnung_eskalation` | Wer darf eine Inkasso-Übergabe oder einen Mahnbescheid freigeben, und ab welcher Stufe bzw. welchem Betrag? |
+| 16 | **O-182** | `op_ausgleich` | Darf ein Kundenguthaben gegen eine Verbindlichkeit desselben Unternehmens als Lieferant aufgerechnet werden (§387 BGB), und wer gibt das frei? |
+| 17 | **O-183** | `eingangsrechnung` (Vier-Augen) | Ist eine Vier-Augen-Freigabe für Eingangsrechnungen erforderlich, ab welchem Betrag, und wer vertritt? |
+| 18 | **O-184** | `eingangsrechnung.selbst_abgerechnet` | Rechnet die Bau-Gesellschaft Nachunternehmer per Gutschrift (§14 Abs. 2 UStG) ab — generell oder je Vertrag? |
+| 19 | **O-185** | `ausgabe.beleg_id` | Gibt es Ausgaben, für die belegfrei gebucht werden darf (Eigenbeleg für Trinkgeld, Parkgebühr), und bis zu welchem Betrag? |
+| 20 | **O-186** | `kasse` | Wird eine elektronische Registrierkasse mit TSE nach §146a AO eingesetzt, oder ausschließlich eine offene Ladenkasse mit Kassenbuch? |
+| 21 | **O-187** | `bauabzug_anmeldung` | Wer meldet die Bauabzugsteuer nach §48a EStG an — Buchhaltung oder Steuerberater — und soll die Plattform nur vorbereiten oder auch den Fristenkalender führen? |
 | 22 | **O-05** | `datev_konfiguration` | Beraternummer, Mandantennummer je Gesellschaft, SKR03/04, Sachkontenlänge, Steuerschlüsseltabelle, Wirtschaftsjahresbeginn, **plus ein echter EXTF-Beispielexport** (O-05). |
 | 23 | **O-05** | `datev_konfiguration.versteuerungsart` | Versteuert jede Gesellschaft nach vereinbarten Entgelten (Soll) oder ist eine Ist-Versteuerung nach §20 UStG genehmigt? (verfeinert O-05) |
 | 24 | **O-05** | `konto_mapping` / `ausgabe_kategorie` | Welche Aufwandskategorien erwartet der Steuerberater, und welches Erlöskonto gilt je Leistungsart? (verfeinert O-05) |
-| 25 | **O-47** | `steuer_kennzeichen` | Kommen innergemeinschaftliche Lieferungen (§4 Nr. 1b UStG) oder die Kleinunternehmerregelung (§19 UStG) in einer der Gesellschaften vor? |
+| 25 | **O-60** | `steuer_kennzeichen` | Kommen innergemeinschaftliche Lieferungen (§4 Nr. 1b UStG) oder die Kleinunternehmerregelung (§19 UStG) in einer der Gesellschaften vor? |
 | 26 | **O-25** | §1.10 Aufbewahrung | Aufbewahrungsfrist je Belegklasse — §147 Abs. 3 AO und §14b Abs. 1 UStG wurden zum 01.01.2025 für Buchungsbelege auf acht Jahre verkürzt, während Bücher und Jahresabschlüsse bei zehn bleiben. Welche Klasse fällt wohin? |
 | 27 | **O-25** | §16 DSGVO | Bestätigte Aufbewahrungsfrist und Rechtsgrundlage je Datenklasse dieser Domäne für das Löschkonzept. |
-| 28 | **O-48** | `verfahrensdokumentation` | Wer zeichnet die Verfahrensdokumentation je Gesellschaft, und in welchem Rhythmus wird sie überprüft? |
-| 29 | **O-49** | §1.7 Währung | Wird eine der drei Gesellschaften jemals in einer anderen Währung als EUR fakturieren oder Eingangsrechnungen in Fremdwährung erhalten? |
-| 30 | **O-50** | `quelle_typ = 'leistungsnachweis'` | Soll der kundenunterschriebene Leistungsnachweis (CLN-04) als Nachweis hinter einer Reinigungs-Rechnungsposition geführt werden, zusätzlich zu den Zeiteinträgen? |
+| 28 | **O-188** | `verfahrensdokumentation` | Wer zeichnet die Verfahrensdokumentation je Gesellschaft, und in welchem Rhythmus wird sie überprüft? |
+| 29 | **O-189** | §1.7 Währung | Wird eine der drei Gesellschaften jemals in einer anderen Währung als EUR fakturieren oder Eingangsrechnungen in Fremdwährung erhalten? |
+| 30 | **O-190** | `quelle_typ = 'leistungsnachweis'` | Soll der kundenunterschriebene Leistungsnachweis (CLN-04) als Nachweis hinter einer Reinigungs-Rechnungsposition geführt werden, zusätzlich zu den Zeiteinträgen? |
 | 31 | **O-90** | §2.3 item 7 — `berechtigung.erfordert_2fa` on `finanzen.festschreiben`, `buchhaltung.festschreiben`, `buchhaltung.exportieren`, `nummernkreis.verwalten` | Müssen Rechnungsfestschreibung, Storno und DATEV-Export im Moment der Handlung einen zweiten Faktor verlangen — auch für eine Leitung ohne stehende 2FA-Pflicht nach AUT-02? (Frage und Nummer gehören `03-AUTH-BERECHTIGUNGEN.md` §3.2; hier nur referenziert. Bis zur Antwort sind die vier Schlüssel mit `erfordert_2fa = false` geseedet, `nummernkreis.ziehen` in keinem Fall mit 2FA.) |
 
 **Recorded in `DECISIONS.md` § Decided, not as open questions** — they are modelling conventions, not

@@ -721,7 +721,7 @@ below). Nothing else in this document, in any section, has a `*_mikrocent` colum
 provider bills in USD, and without the original figure the EUR amount cannot be reconciled against
 the provider's invoice or re-derived after a rate correction.
 
-`// TODO(client) [O-36]: In welcher Währung wird das Agentenbudget geführt, und aus welcher Quelle
+`// TODO(client) [O-195]: In welcher Währung wird das Agentenbudget geführt, und aus welcher Quelle
 stammt der Umrechnungskurs, wenn der Anbieter in USD abrechnet (EZB-Referenzkurs des Buchungstages)?`
 
 ### 1.13 The AI supplies no number, and no input that determines one (K-10)
@@ -922,11 +922,11 @@ interesting for this business area.
 | `nuts_praefixe` | text[] | no | `'{}'` | `{DE3}` / `{DE300}` — prefix comparison against `ausschreibung_nuts` (RAD-04) |
 | `positiv_keywords` | text[] | no | `'{}'` | |
 | `negativ_keywords` | text[] | no | `'{}'` | |
-| `negativ_wirkung` | keyword_wirkung | no | `'abzug'` | **PLACEHOLDER.** `abzug` \| `ausschluss`. The draft asserted "hit ⇒ hard exclusion"; RAD-04 says only "positive and negative keywords". A hard exclusion silently discards opportunities no human ever sees, so the safe default is a deduction. `// TODO(client) [O-31]: Soll ein Negativ-Stichwort eine Bekanntmachung ausschließen oder nur Punkte kosten?` |
+| `negativ_wirkung` | keyword_wirkung | no | `'abzug'` | **PLACEHOLDER.** `abzug` \| `ausschluss`. The draft asserted "hit ⇒ hard exclusion"; RAD-04 says only "positive and negative keywords". A hard exclusion silently discards opportunities no human ever sees, so the safe default is a deduction. `// TODO(client) [O-191]: Soll ein Negativ-Stichwort eine Bekanntmachung ausschließen oder nur Punkte kosten?` |
 | `wert_min_cent` | bigint | yes | — | integer cents (invariant 1), `CHECK (>= 0)` |
 | `wert_max_cent` | bigint | yes | — | `CHECK (>= 0)` |
 | `waehrung` | char(3) | no | `'EUR'` | the currency the bounds are expressed in (§2.13) |
-| `frist_min_tage` | integer | yes | — | **PLACEHOLDER.** `// TODO(client) [O-31]: Ab welcher Restfrist gilt eine Bekanntmachung als nicht mehr bearbeitbar, und ist das ein Ausschluss oder ein Hinweis?` |
+| `frist_min_tage` | integer | yes | — | **PLACEHOLDER.** `// TODO(client) [O-191]: Ab welcher Restfrist gilt eine Bekanntmachung als nicht mehr bearbeitbar, und ist das ein Ausschluss oder ein Hinweis?` |
 | `oberhalb_schwellenwert` | boolean | yes | — | `NULL` = both |
 | `regel_version` | text | no | `'v0-platzhalter'` | version of the *code* rule set last used |
 | `skala_max` | integer | no | `100` | **PLACEHOLDER.** the score range is a property of the rule set, not of the column (review, INVENTED RULES). `// TODO(client) [O-15]: Punkteskala und Gewichtung der Kriterien (RAD-05)?` |
@@ -991,7 +991,7 @@ One CPV code or CPV prefix of a profile, with its own weight.
 - **Constraints/triggers:** the composite FK enforces tenant equality; no separate consistency trigger.
 - **SPEC:** RAD-04.
 
-`// TODO(client) [O-30]: Bitte die CPV-Listen für Reinigung, Sicherheit und Bau gegen die amtliche
+`// TODO(client) [O-98]: Bitte die CPV-Listen für Reinigung, Sicherheit und Bau gegen die amtliche
 CPV-Liste bestätigen — die im SPEC genannten Codes sind ausdrücklich als "verify" gekennzeichnet.`
 
 ### 2.6 radar_profil_empfaenger
@@ -1129,7 +1129,7 @@ not help, because they are two different notices as far as the schema is concern
 skip a row whose `ist_duplikat_von` is set, and the UI shows the pair. **The matching rule itself is
 not invented here:**
 
-`// TODO(client) [O-33]: Nach welchen Merkmalen gelten eine nationale und eine TED-Bekanntmachung als
+`// TODO(client) [O-192]: Nach welchen Merkmalen gelten eine nationale und eine TED-Bekanntmachung als
 dieselbe Vergabe (Vergabestelle, CPV, Frist, Titelähnlichkeit), und ab welcher Übereinstimmung darf
 das System sie automatisch zusammenführen statt sie nur vorzuschlagen?`
 
@@ -1259,7 +1259,7 @@ lot, and scoring the whole notice would then be wrong in both directions. Rather
 `ausschreibung.lose_anzahl` and `ausschreibung_rohdaten` preserve the lot data losslessly and the
 question is recorded:
 
-`// TODO(client) [O-34]: Werden Lose einzeln bewertet und einzeln beworben, oder immer die gesamte
+`// TODO(client) [O-193]: Werden Lose einzeln bewertet und einzeln beworben, oder immer die gesamte
 Bekanntmachung? Davon hängt ab, ob Bewertung, Vorgang und Vergabemappe je Los geführt werden.`
 
 ### 2.16 Foreign currency is not converted, and not ignored
@@ -1275,7 +1275,7 @@ profile's as **unscored on the value criterion**: `bewertung.wert_kriterium = 'f
 criterion contributes neither points nor a penalty, and `begruendung` says so in German
 ("Auftragswert in PLN — nicht mit dem EUR-Wertkorridor vergleichbar"). Never zero, never converted.
 
-`// TODO(client) [O-32]: Sollen Fremdwährungsbeträge für den Wertkorridor umgerechnet werden, und mit
+`// TODO(client) [O-47]: Sollen Fremdwährungsbeträge für den Wertkorridor umgerechnet werden, und mit
 welcher Kursquelle (EZB-Referenzkurs des Veröffentlichungstages)?`
 
 ### 2.17 ausschreibung_dokument
@@ -1417,7 +1417,7 @@ One line of the submission checklist — a required certificate, form or price s
 | `vergabemappe_id` | uuid | no | — | composite FK `(mandant_id, vergabemappe_id)` |
 | `position` | integer | no | — | ordering |
 | `bezeichnung` | text | no | — | "Formblatt 124 Eigenerklärung Eignung" |
-| `kategorie` | text | yes | — | **deliberately `text`, not an enum.** `// TODO(client) [O-35]: Katalog der geforderten Unterlagen je Plattform und Verfahrensart` |
+| `kategorie` | text | yes | — | **deliberately `text`, not an enum.** `// TODO(client) [O-194]: Katalog der geforderten Unterlagen je Plattform und Verfahrensart` |
 | `pflicht` | boolean | no | `true` | |
 | `status` | mappe_position_status | no | `'offen'` | `offen / vorhanden / geprueft / nicht_zutreffend` |
 | `dokument_id` | uuid | yes | — | composite FK to `dokument` |
@@ -1453,7 +1453,7 @@ requirements without a code change (AGT-01).
 | `beschreibung` | text | no | — | "what it does" |
 | `verbot_beschreibung` | text | no | — | "what it never does" — SPEC §17 states it per agent and it belongs on the screen |
 | `modell_standard` | text | yes | — | model identifier; `NULL` ⇒ application default |
-| `max_schritte` | integer | yes | — | **PLACEHOLDER.** loop guard per task. Not in the SPEC; a silent cap is what gets blamed for mysteriously truncated results. `NULL` ⇒ the value in `src/server/agent/limits.platzhalter.ts`. `// TODO(client) [O-37]: Wie viele Werkzeugschritte darf ein Agent je Aufgabe ausführen, bevor er abbricht und den Vorgang einem Menschen vorlegt?` |
+| `max_schritte` | integer | yes | — | **PLACEHOLDER.** loop guard per task. Not in the SPEC; a silent cap is what gets blamed for mysteriously truncated results. `NULL` ⇒ the value in `src/server/agent/limits.platzhalter.ts`. `// TODO(client) [O-196]: Wie viele Werkzeugschritte darf ein Agent je Aufgabe ausführen, bevor er abbricht und den Vorgang einem Menschen vorlegt?` |
 | `ist_aktiv` | boolean | no | `false` | **off by default**: an agent runs when somebody switches it on |
 
 - **Indexes:** `agent_kennung_key UNIQUE (kennung)`.
@@ -1600,7 +1600,7 @@ Model prices as exact integers, so a cost can be recomputed years later.
 | `verbrauch_mikrocent` | bigint | no | `0` | 10⁻⁶ €, K-16(b) — `CHECK (>= 0)` |
 | `reserviert_mikrocent` | bigint | no | `0` | 10⁻⁶ €, derived from open `agent_reservierung` rows (§3.7); `CHECK (>= 0)` |
 | `stopp_bei_ueberschreitung` | boolean | no | `true` | AGT-05: hard stop |
-| `warnschwelle_prozent` | integer | yes | — | **PLACEHOLDER** — AGT-05 specifies a cap and a hard stop and says nothing about a warning threshold; 80 % was a plausible-sounding financial rule picked silently (review, INVENTED RULES). `// TODO(client) [O-36]: Ab welchem Anteil des Monatsbudgets soll gewarnt werden?` |
+| `warnschwelle_prozent` | integer | yes | — | **PLACEHOLDER** — AGT-05 specifies a cap and a hard stop and says nothing about a warning threshold; 80 % was a plausible-sounding financial rule picked silently (review, INVENTED RULES). `// TODO(client) [O-195]: Ab welchem Anteil des Monatsbudgets soll gewarnt werden?` |
 | `status` | budget_status | no | `'aktiv'` | `aktiv / gewarnt / gestoppt` |
 | `gewarnt_am` · `gestoppt_am` | timestamptz | yes | — | |
 | `ist_platzhalter` | boolean | no | `true` | until the budget is confirmed |
@@ -1657,7 +1657,7 @@ draft declared both and the function could produce neither: every path returned 
 the remainder, and no path returned `warnung`. A caller written against the declared type would
 branch on values the function cannot emit — harmless today, wrong the first time somebody relies on
 it. The warning is not this function's job: `warnschwelle_prozent` is a **PLACEHOLDER** pending
-O-36, and the threshold is evaluated by `watchdog:agent_budget` (§8.1), which is the only writer of
+O-195, and the threshold is evaluated by `watchdog:agent_budget` (§8.1), which is the only writer of
 `agent_budget.status = 'gewarnt'`. The `budget_status` enum keeps `gewarnt` for exactly that.
 
 **Two defects the review found, both fixed here.**
@@ -1824,7 +1824,7 @@ cost, duration").
 **The redaction now has a date and a job** (review, MISSING): model inputs routinely contain customer
 and employee personal data, so `nutzlast_loeschfrist_am` is resolved from the retention catalogue at
 insert and `jobs/generators/agent-nutzlast-redaktion.ts` performs the redaction daily. The period is
-not invented here — `// TODO(client) [O-39]: Wie lange dürfen Modell-Ein- und -Ausgaben eines Agentenlaufs
+not invented here — `// TODO(client) [O-198]: Wie lange dürfen Modell-Ein- und -Ausgaben eines Agentenlaufs
 gespeichert bleiben, bevor sie geschwärzt werden (LEG-09, DSGVO-Löschkonzept)?`
 
 ### 3.10 agent_schritt_beleg
@@ -2148,7 +2148,7 @@ One extracted field of the request with its source (page, table, cell) and its c
 | `bezeichnung` | text | no | — | |
 | `wert_vorher` · `wert_nachher` | text | yes | — | a rendering, never a computation input |
 | `konfidenz` | numeric(4,3) | yes | — | `CHECK (BETWEEN 0 AND 1)` — a probability, not money |
-| `unsicher` | boolean | no | `false` | set by the service against `KONFIDENZ_SCHWELLE`. **PLACEHOLDER**: `// TODO(client) [O-38]: Ab welcher Konfidenz gilt ein extrahiertes Feld als unsicher und erzwingt Einzelprüfung (APR-03, APR-04)?` |
+| `unsicher` | boolean | no | `false` | set by the service against `KONFIDENZ_SCHWELLE`. **PLACEHOLDER**: `// TODO(client) [O-197]: Ab welcher Konfidenz gilt ein extrahiertes Feld als unsicher und erzwingt Einzelprüfung (APR-03, APR-04)?` |
 | `quelle_dokument_id` | uuid | yes | — | composite FK to `dokument` |
 | `quelle_ausschreibung_dokument_id` | uuid | yes | — | FK → `ausschreibung_dokument.id` (reference table) |
 | `wissens_chunk_id` | uuid | yes | — | **composite FK `(mandant_id, wissens_chunk_id) REFERENCES wissens_chunk(mandant_id, id)`** |
@@ -2753,7 +2753,7 @@ The structured requirements REC-05 matches against — **with their weights, whi
 | `kriterium` | text | no | — | |
 | `qualifikation_id` | uuid | yes | — | **single-column** FK → `qualifikation.id` (Kern §6.16) where the criterion is a certificate. This is one of the two stated exemptions of §1.11 and §11, not an oversight: `qualifikation.mandant_id` is **nullable** (`NULL` = platform-wide catalogue entry, because §34a belongs to the human and must be readable across entities), so `(mandant_id, id)` cannot be unique there and no composite FK is creatable. The tenant equality is enforced by `trg_anforderung_qualifikation_mandant` instead |
 | `pflicht` | boolean | no | `false` | |
-| `gewicht` | integer | no | `1` | **PLACEHOLDER** — `// TODO(client) [O-42]: Wie werden Anforderungen gegeneinander gewichtet, und auf welcher Skala (REC-05)?` |
+| `gewicht` | integer | no | `1` | **PLACEHOLDER** — `// TODO(client) [O-201]: Wie werden Anforderungen gegeneinander gewichtet, und auf welcher Skala (REC-05)?` |
 | `sortierung` | integer | no | `100` | |
 
 - **Indexes:** `sa_uk UNIQUE (stelle_id, kriterium)`.
@@ -2886,7 +2886,7 @@ by a human. Intake never fails closed on a heuristic.
 **The field set is a proposal, not a settled list.** Data minimisation argues for postcode and city
 without the street at the application stage, and that reasoning is sound — but which applicant fields
 the group may collect is the client's decision, and their existing paper process may already collect
-more: `// TODO(client) [O-40]: Welche Bewerberangaben werden erhoben (Anschrift, Geburtsdatum,
+more: `// TODO(client) [O-199]: Welche Bewerberangaben werden erhoben (Anschrift, Geburtsdatum,
 Staatsangehörigkeit, Führerschein), und welche davon sind für die ausgeschriebenen Tätigkeiten
 erforderlich (Datenminimierung, Art. 5 DSGVO)?`
 
@@ -3335,7 +3335,7 @@ collide in a shared one. `p_eigene` keyed on `benutzer_id`, exactly as above (§
 (review, MINOR): the table has **no column** in which "suppress urgent" can be expressed,
 `mindest_prioritaet` is `CHECK`ed to `<> 'dringend'`, and a test asserts that NOT-01's "tomorrow's
 shift unstaffed — urgent alert" is delivered inside a quiet window. The **defaults** are a decision,
-not a schema fact: `// TODO(client) [O-43]: Welche Benachrichtigungen sollen standardmäßig auch per E-Mail
+not a schema fact: `// TODO(client) [O-202]: Welche Benachrichtigungen sollen standardmäßig auch per E-Mail
 gehen? Voreinstellung "alles an alle" ist genau der Ermüdungseffekt, vor dem SPEC §17 warnt.`
 
 ### 7.9 nachricht, nachricht_anhang, nachricht_empfaenger
@@ -3630,19 +3630,19 @@ which are plausible subjects of an `aufgabe`, a `nachricht` or an agent task in 
 **Not settled — `// TODO(client)`, and no placeholder value is presented as correct.**
 
 ```sql
--- TODO(client) [O-41]: Verbindliche Statusstufen des Bewerbungsprozesses. Dieser Satz ist ein ausdrücklich
+-- TODO(client) [O-200]: Verbindliche Statusstufen des Bewerbungsprozesses. Dieser Satz ist ein ausdrücklich
 -- gekennzeichneter Platzhalter und wird vor Phase 9 ersetzt.
 create type bewerbung_status as enum ('eingegangen','in_pruefung','gespraech_geplant','gespraech_gefuehrt',
                                       'angebot','eingestellt','absage','zurueckgezogen');
 
--- TODO(client) [O-41]: Welche Beschäftigungsarten schreiben die drei Gesellschaften aus?
+-- TODO(client) [O-200]: Welche Beschäftigungsarten schreiben die drei Gesellschaften aus?
 create type beschaeftigungsart as enum ('vollzeit','teilzeit','minijob','aushilfe','werkstudent',
                                         'ausbildung','praktikum');
 
--- TODO(client) [O-41]: Statusstufen einer Stellenausschreibung im Betrieb.
+-- TODO(client) [O-200]: Statusstufen einer Stellenausschreibung im Betrieb.
 create type stelle_status as enum ('entwurf','in_pruefung','freigegeben','veroeffentlicht','pausiert','geschlossen');
 
--- TODO(client) [O-38]: Ab welchem Betrag und welcher Wirkung gilt ein Vorgang als 'hoch'? Die drei Stufen
+-- TODO(client) [O-203]: Ab welchem Betrag und welcher Wirkung gilt ein Vorgang als 'hoch'? Die drei Stufen
 -- stehen, ihre Schwellen nicht.
 create type risiko_stufe as enum ('niedrig','mittel','hoch');
 
@@ -3971,24 +3971,25 @@ Every `TODO(client)` in this document carries the O-number of its row here (§1.
 | O | Question | Blocks | Status |
 |---|---|---|---|
 | O-07 | Auf welchen Vergabeplattformen ist welche Gesellschaft registriert und freigeschaltet, und mit welcher Kennung? | RAD-09, `vergabeplattform` seed | exists |
-| **O-30** | Bitte die CPV-Listen für Reinigung, Sicherheit und Bau gegen die amtliche CPV-Liste bestätigen — die im SPEC genannten Codes sind ausdrücklich als "verify" gekennzeichnet. | RAD-04 | **new** |
+| **O-98** | Bitte die CPV-Listen für Reinigung, Sicherheit und Bau gegen die amtliche CPV-Liste bestätigen — die im SPEC genannten Codes sind ausdrücklich als "verify" gekennzeichnet. | RAD-04 | **new** |
 | O-15 | Gewichtung der Bewertungskriterien, Punkteskala und der Score, ab dem benachrichtigt wird? | RAD-05, RAD-08 | exists (`08-PR-PLAN.md`) |
-| **O-31** | Soll ein Negativ-Stichwort bzw. ein Ausschluss-CPV die Bekanntmachung ausschließen oder nur Punkte kosten? Ab welcher Restfrist gilt eine Bekanntmachung als nicht bearbeitbar? | RAD-04, RAD-05 | **new** |
-| **O-32** | Sollen Fremdwährungsbeträge für den Wertkorridor umgerechnet werden, und mit welcher Kursquelle (EZB-Referenzkurs des Veröffentlichungstages)? | RAD-04, RAD-05 | **new** |
-| **O-33** | Nach welchen Merkmalen gelten eine nationale und eine TED-Bekanntmachung als dieselbe Vergabe, und ab welcher Übereinstimmung darf automatisch zusammengeführt werden? | RAD-01/RAD-02 | **new** |
-| **O-34** | Werden Lose einzeln bewertet und beworben, oder immer die gesamte Bekanntmachung? | RAD-05, RAD-07 | **new** |
-| **O-35** | Katalog der geforderten Unterlagen je Plattform und Verfahrensart? | RAD-07, D-07 | **new** |
+| **O-191** | Soll ein Negativ-Stichwort bzw. ein Ausschluss-CPV die Bekanntmachung ausschließen oder nur Punkte kosten? Ab welcher Restfrist gilt eine Bekanntmachung als nicht bearbeitbar? | RAD-04, RAD-05 | **new** |
+| **O-47** | Sollen Fremdwährungsbeträge für den Wertkorridor umgerechnet werden, und mit welcher Kursquelle (EZB-Referenzkurs des Veröffentlichungstages)? | RAD-04, RAD-05 | **new** |
+| **O-192** | Nach welchen Merkmalen gelten eine nationale und eine TED-Bekanntmachung als dieselbe Vergabe, und ab welcher Übereinstimmung darf automatisch zusammengeführt werden? | RAD-01/RAD-02 | **new** |
+| **O-193** | Werden Lose einzeln bewertet und beworben, oder immer die gesamte Bekanntmachung? | RAD-05, RAD-07 | **new** |
+| **O-194** | Katalog der geforderten Unterlagen je Plattform und Verfahrensart? | RAD-07, D-07 | **new** |
 | O-26 | Monatsbudget je Gesellschaft und je Agent? | AGT-05 | exists (`08-PR-PLAN.md`) |
-| **O-36** | Ab welchem Anteil des Monatsbudgets soll gewarnt werden, in welcher Währung wird das Agentenbudget geführt, und aus welcher Quelle stammt der Umrechnungskurs, wenn der Anbieter in USD abrechnet? | AGT-05, §1.12 | **new** |
-| **O-37** | Wie viele Werkzeugschritte darf ein Agent je Aufgabe ausführen, bevor er abbricht und den Vorgang einem Menschen vorlegt? | AGT-01 | **new** |
-| **O-38** | Ab welcher Konfidenz gilt ein extrahiertes Feld als unsicher (erzwingt Einzelprüfung)? Ab welchem Betrag und welcher Wirkung ist ein Vorgang „hoch"? | APR-01, APR-03, APR-04 | **new** |
-| **O-39** | Wie lange dürfen Modell-Ein- und -Ausgaben eines Agentenlaufs gespeichert bleiben, bevor sie geschwärzt werden? | AGT-04, LEG-09 | **new** (verwandt mit O-25, aber Modell-Nutzlasten sind keine Dokumentkategorie) |
+| **O-195** | Ab welchem Anteil des Monatsbudgets soll gewarnt werden, in welcher Währung wird das Agentenbudget geführt, und aus welcher Quelle stammt der Umrechnungskurs, wenn der Anbieter in USD abrechnet? | AGT-05, §1.12 | **new** |
+| **O-196** | Wie viele Werkzeugschritte darf ein Agent je Aufgabe ausführen, bevor er abbricht und den Vorgang einem Menschen vorlegt? | AGT-01 | **new** |
+| **O-197** | Ab welcher Konfidenz gilt ein extrahiertes Feld als unsicher (erzwingt Einzelprüfung)? | APR-03, APR-04, §4.4 | **new** |
+| **O-203** | Ab welchem Betrag und welcher Wirkung gilt ein Vorgang als „hoch"? Die drei Risikostufen von §7 hängen daran. | APR-01, §7 | **new** — abgetrennt von O-197, weil eine Konfidenzschwelle und eine Betragsgrenze zwei Antworten sind und eine Nummer nur eine trägt |
+| **O-198** | Wie lange dürfen Modell-Ein- und -Ausgaben eines Agentenlaufs gespeichert bleiben, bevor sie geschwärzt werden? | AGT-04, LEG-09 | **new** (verwandt mit O-25, aber Modell-Nutzlasten sind keine Dokumentkategorie) |
 | O-08 | Bekommt jeder Bereich eine eigene Domain, oder liegt alles unter einer Gruppendomain? | PUB-01, PUB-11 | exists |
-| **O-40** | Welche Bewerberangaben werden erhoben (Anschrift, Geburtsdatum, Staatsangehörigkeit, Führerschein), und welche sind für die ausgeschriebenen Tätigkeiten erforderlich (Art. 5 DSGVO)? | REC-03, REC-04, LEG-09 | **new** |
-| **O-41** | Verbindliche Statusstufen des Bewerbungsprozesses, Beschäftigungsarten und Statusstufen einer Stellenausschreibung? | REC-02, REC-03 | **new** |
+| **O-199** | Welche Bewerberangaben werden erhoben (Anschrift, Geburtsdatum, Staatsangehörigkeit, Führerschein), und welche sind für die ausgeschriebenen Tätigkeiten erforderlich (Art. 5 DSGVO)? | REC-03, REC-04, LEG-09 | **new** |
+| **O-200** | Verbindliche Statusstufen des Bewerbungsprozesses, Beschäftigungsarten und Statusstufen einer Stellenausschreibung? | REC-02, REC-03 | **new** |
 | O-25 | Aufbewahrungsdauer für Bewerbungsunterlagen nach Verfahrensabschluss (AGG §15 Abs. 4) und Umgang mit Talentpool-Einwilligungen? | REC-07, LEG-11 | exists (`08-PR-PLAN.md`) |
-| **O-42** | Wie werden Stellenanforderungen gegeneinander gewichtet, auf welcher Skala? | REC-05 | **new** |
-| **O-43** | Welche Benachrichtigungen gehen standardmäßig auch per E-Mail? | NOT-02 | **new** |
+| **O-201** | Wie werden Stellenanforderungen gegeneinander gewichtet, auf welcher Skala? | REC-05 | **new** |
+| **O-202** | Welche Benachrichtigungen gehen standardmäßig auch per E-Mail? | NOT-02 | **new** |
 | O-06 | Gibt es einen Betriebsrat? Davon hängt ab, ob die personenbezogene APR-08-Auswertung ausgeliefert werden darf. | APR-08, LEG-10, §4.7, §4.9 | exists |
 | O-10 | Welche Social- und Jobboard-Konten existieren, und wem gehören sie? | SOC-06, REC-09 | exists |
 | O-28 | Welches Bewerbungspostfach wird überwacht, und wem gehört es? | REC-03, §6.5 | exists (`08-PR-PLAN.md`) |

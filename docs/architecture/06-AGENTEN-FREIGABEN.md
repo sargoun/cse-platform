@@ -1673,7 +1673,7 @@ kosten_mikrocent = div(token_ein      * preis_eingabe_je_mio_token_mikrocent   +
 amount and currency alongside the euro micro-cents, and the exchange rule is **not decided here**:
 which FX source and which date convert a USD model bill into the EUR budget of AGT-05 is an open
 question the budget screen and the price list own (**O-48** in `04-SEITENKARTE.md`, the currency half
-of **O-36** in `02-datenmodell/06-RADAR-KI-INHALT.md`). Until it is answered, `agent_preisliste`
+of **O-195** in `02-datenmodell/06-RADAR-KI-INHALT.md`). Until it is answered, `agent_preisliste`
 carries euro prices entered by a human with `ist_platzhalter = true`; no rate is inferred, and no
 figure is converted by a rule this document invented.
 
@@ -1718,8 +1718,8 @@ disprove.
 **Per-run caps** stop runaway loops long before the monthly cap: `max_schritte`, `max_token_gesamt`,
 `max_laufzeit_sek`, `max_kosten_mikrocent`. `agent.max_schritte` is a **PLACEHOLDER** — a silent cap is
 what gets blamed for a mysteriously truncated result:
-`// TODO(client, O-37): Wie viele Werkzeugschritte darf ein Agent je Aufgabe ausführen, bevor er abbricht
-und den Vorgang einem Menschen vorlegt?` (O-37). Exceeding any cap terminates the run as
+`// TODO(client, O-196): Wie viele Werkzeugschritte darf ein Agent je Aufgabe ausführen, bevor er abbricht
+und den Vorgang einem Menschen vorlegt?` (O-196). Exceeding any cap terminates the run as
 `abgebrochen` with the limit named, and notifies the same way.
 
 ### 8.4 What the user sees — an explicit stop, never a degraded answer
@@ -1734,8 +1734,8 @@ und den Vorgang einem Menschen vorlegt?` (O-37). Exceeding any cap terminates th
   copy-paste. `agent_budget.budget_cent` is a PLACEHOLDER with `ist_platzhalter = true` until the
   client answers: `// TODO(client, O-26): Monatsbudget je Gesellschaft und je Agent?`. The warning
   threshold is likewise not invented — AGT-05 specifies a cap and a hard stop and says nothing about
-  a warning level: `// TODO(client, O-36): Ab welchem Anteil des Monatsbudgets soll gewarnt werden?`
-  (O-36).
+  a warning level: `// TODO(client, O-195): Ab welchem Anteil des Monatsbudgets soll gewarnt werden?`
+  (O-195).
 - Every agent entry point — the chat box, *Entwurf erzeugen*, *Beleg auswerten* — renders disabled
   with the same reason. No silent queueing.
 - **The approval inbox is unaffected.** Items already awaiting a human remain fully actionable, and
@@ -1825,9 +1825,9 @@ The **row** is never deleted in either case (invariant 8; agent logs are an audi
 blobs — full document text, images, full prompts — live in a private bucket referenced by hash and
 are fetched only through signed URLs with a 15-minute expiry, never a public path (DOC-03, SEC-A6).
 
-`// TODO(client, O-39): Wie lange dürfen Modell-Ein- und -Ausgaben eines Agentenlaufs außerhalb des
+`// TODO(client, O-198): Wie lange dürfen Modell-Ein- und -Ausgaben eines Agentenlaufs außerhalb des
 GoBD-pflichtigen Finanzbereichs gespeichert bleiben, bevor sie geschwärzt werden (LEG-09,
-DSGVO-Löschkonzept)?` (O-39).
+DSGVO-Löschkonzept)?` (O-198).
 
 **The GoBD/Art. 17 tension is named, not resolved by silence.** `agent_schritt`, `agent_artefakt`,
 `wissens_chunk` and `freigabe_snapshot` all hold personal data and are all declared never-deletable.
@@ -2691,8 +2691,8 @@ signal:
 | Addressee match | which of the three entities is the recipient; ambiguous → `unsicher` |
 | Propagation | any bound value with `unsicher = true` (§5.5 rule 7) marks the fields derived from it |
 
-The threshold itself is not invented: `// TODO(client, O-38): Ab welcher Konfidenz gilt ein extrahiertes
-Feld als unsicher und erzwingt Einzelprüfung (APR-03, APR-04)?` (O-38). Until answered,
+The threshold itself is not invented: `// TODO(client, O-197): Ab welcher Konfidenz gilt ein extrahiertes
+Feld als unsicher und erzwingt Einzelprüfung (APR-03, APR-04)?` (O-197). Until answered,
 `KONFIDENZ_SCHWELLE` is a placeholder constant with `ist_platzhalter` semantics, and the seeded value
 errs strict.
 
@@ -3145,8 +3145,8 @@ numbered these questions `O-A1 … O-A16`, which is a second register: `pnpm lin
 the very check that is supposed to prove no value was guessed would pass on an empty set. Where a
 sibling document or the PR plan already carries the same question, this document uses **that** number
 rather than minting a second one — **O-06** (Betriebsrat), **O-19** (Mahnstufen), **O-25**
-(Bewerberdaten), **O-26** (Monatsbudget), **O-36** (Warnschwelle), **O-37** (max. Werkzeugschritte),
-**O-38** (Konfidenzschwelle), **O-39** (Aufbewahrung von Modell-Ein-/Ausgaben) and **O-65**
+(Bewerberdaten), **O-26** (Monatsbudget), **O-195** (Warnschwelle), **O-196** (max. Werkzeugschritte),
+**O-197** (Konfidenzschwelle), **O-198** (Aufbewahrung von Modell-Ein-/Ausgaben) and **O-65**
 (vertraglich notwendige Kommunikation vs. Werbung). The eleven questions this document raises that no
 other document asks are new and take the next free numbers, **O-105 … O-115**, plus **O-133**, added
 in the K-19/K-20/K-21 harmonisation pass when removing the model-supplied `mindestanzahl` from
@@ -3159,18 +3159,18 @@ elsewhere, so it collides with no sibling document's block.
 | O-105 *(new)* | Soll eine Terminbestätigung an Kundinnen und Kunden automatisch als Entwurf zur Freigabe erzeugt werden, oder nur der interne Kalendereintrag ohne jede Nachricht? | `plan.ts` template `termin_bestaetigen` | §14.11, CAL-01 |
 | O-106 *(new)* | Welche Rolle bzw. welches Recht muss ein Angebot über 20.000,00 € freigeben — Geschäftsführung, Bereichsleitung oder beide im Vier-Augen-Prinzip? | `agent_richtlinie.freigabe_rolle`, seeded `ist_platzhalter` | §4.5 |
 | O-107 *(new)* | Welche Eignungs- und Personennachweise verlangen die Vergabestellen, auf denen die Gruppe registriert ist, und welche Nachweisarten führt die Gruppe intern? | `nachweis_art` catalogue table | §5.4 tool 5, RAD-09, O-07 |
-| O-38 *(06-RADAR)* | Ab welcher Konfidenz gilt ein extrahiertes Feld als unsicher und erzwingt Einzelprüfung? | `KONFIDENZ_SCHWELLE` | APR-03, APR-04 |
+| O-197 *(06-RADAR)* | Ab welcher Konfidenz gilt ein extrahiertes Feld als unsicher und erzwingt Einzelprüfung? | `KONFIDENZ_SCHWELLE` | APR-03, APR-04 |
 | O-108 *(new)* | Wie lang sollen Einspruchsfenster (APR-05) und Undo-Fenster (APR-06) je Vorgangstyp sein? | `agent_richtlinie.verzoegerung_sek` / `undo_sek` | §14.8, §14.9 |
 | O-26 *(PR-Plan)* | Monatsbudget je Gesellschaft und je Agent? | `agent_budget.budget_cent`, `ist_platzhalter` | AGT-05 |
-| O-36 *(06-RADAR)* | Ab welchem Anteil des Monatsbudgets soll gewarnt werden? | `agent_budget.warnschwelle_prozent` | AGT-05 |
+| O-195 *(06-RADAR)* | Ab welchem Anteil des Monatsbudgets soll gewarnt werden? | `agent_budget.warnschwelle_prozent` | AGT-05 |
 | O-109 *(new)* | Bis zu welcher absoluten und relativen Abweichung gegenüber dem Vergleichsbeleg gilt eine Position als Routine und darf im Stapel freigegeben werden? | `stapel_toleranz_cent` / `stapel_toleranz_promille` | APR-04 |
 | O-110 *(new)* | Dürfen Fotos von Einsatzorten — verkleinert und mit unkenntlich gemachten Gesichtern — an einen EU-Bildendpunkt übertragen werden, oder bleibt `motiv_plausibel` dauerhaft aus? | `pruefe_bilder` vision path | §11.1, LEG-09 |
 | O-06 *(DECISIONS)* | Gibt es einen Betriebsrat, und welche personenbezogenen Auswertungen von Freigabe-Prüfdauern **und Agentennutzung** sind nach §87 Abs. 1 Nr. 6 BetrVG zulässig? | `LEG10_GEO_CAPTURE`-style feature flag, off by default | APR-08, §14.14, LEG-10 |
 | O-111 *(new)* | Ab welcher Median-Prüfdauer, ab welcher Genehmigungsquote und über wie viele Entscheidungen hinweg gilt ein Muster als Durchwinken; ab welcher offenen Warteschlange je Rolle und ab welcher Tagesmenge neuer Freigaben soll gewarnt werden; und wer wird jeweils informiert? | `freigabe-rubberstamp.ts` thresholds and the queue-load config rows, all `ist_platzhalter` | APR-08, §14.1, §14.14 |
 | O-65 *(02-CRM)* | Für welche ausgehenden Nachrichtenarten gilt die §7-UWG-Einwilligungsschranke (CRM-08) und für welche nicht — Mahnung, Behinderungsanzeige, Bewerberantwort, Lieferantenrückfrage? | `sende_email.kategorie` → D2 scope | §5.4 tool 8, LEG-08 |
 | O-25 *(PR-Plan)* | Wie lange werden Bewerberdaten aufbewahrt, bevor sie automatisch gelöscht werden? | `app.aufbewahrung_intervall(mandant_id, 'bewerbung')` | REC-07, LEG-11 |
-| O-39 *(06-RADAR)* | Wie lange dürfen Modell-Ein- und -Ausgaben eines Agentenlaufs außerhalb des GoBD-pflichtigen Finanzbereichs gespeichert bleiben, bevor sie geschwärzt werden? | `app.aufbewahrung_intervall(mandant_id, 'agent_nutzlast')` | §9.2, LEG-09 |
-| O-37 *(06-RADAR)* | Wie viele Werkzeugschritte darf ein Agent je Aufgabe ausführen, bevor er abbricht und den Vorgang einem Menschen vorlegt? | `agent.max_schritte` | §8.3 |
+| O-198 *(06-RADAR)* | Wie lange dürfen Modell-Ein- und -Ausgaben eines Agentenlaufs außerhalb des GoBD-pflichtigen Finanzbereichs gespeichert bleiben, bevor sie geschwärzt werden? | `app.aufbewahrung_intervall(mandant_id, 'agent_nutzlast')` | §9.2, LEG-09 |
+| O-196 *(06-RADAR)* | Wie viele Werkzeugschritte darf ein Agent je Aufgabe ausführen, bevor er abbricht und den Vorgang einem Menschen vorlegt? | `agent.max_schritte` | §8.3 |
 | O-112 *(new)* | Wie viele Werktage Vorlauf braucht eine Vergabemappe intern vor der amtlichen Frist? | `services/frist/einreichung.ts` | RAD-06, §5.6 |
 | O-19 *(PR-Plan)* | Wie viele Mahnstufen gibt es, welche Mahngebühr gilt je Stufe, auf welcher Grundlage werden Verzugszinsen berechnet (§288 BGB Basiszinssatz + Prozentpunkte, B2B-Satz?), und wie lang ist das Zahlungsziel je Stufe? | `MahnstufenRegelwerk`, `calculateMahnbetrag` | FIN-15, §5.6 |
 | O-113 *(new)* | Wie wird ein Auskunfts- und Löschbegehren nach Art. 15/17 DSGVO auf Agentenprotokolle, Wissens-Chunks und Freigabe-Snapshots angewendet, wenn GoBD/§147 AO eine Aufbewahrung verlangt? | the restriction-of-processing path of §9.2 | LEG-09, LEG-01 |
@@ -3188,9 +3188,10 @@ German server — §11.1), **O-18** (the ArbZG 10-hour exception and its compens
 verdict vocabulary of §13, whose minute thresholds this document does not state).
 
 **One number to reconcile when these rows land in `DECISIONS.md`:**
-`02-datenmodell/06-RADAR-KI-INHALT.md` uses **O-38** twice — for the confidence threshold (its §4.4,
-the question in the row above) and for the risk-level thresholds (its §7). One of the two needs a
-fresh number; this document uses O-38 in the §4.4 sense only.
+**Settled.** `02-datenmodell/06-RADAR-KI-INHALT.md` used one number twice — for the confidence
+threshold (its §4.4, the question in the row above) and for the risk-level thresholds (its §7). The
+register splits them: **O-197** is the confidence threshold, which is what this document means
+everywhere, and **O-203** is the amount and effect that make a case *hoch*.
 
 **Nothing legal or financial in this document has been guessed.** Where a value was needed to make a
 sentence readable, the sentence renders the value from the row instead.
@@ -3232,7 +3233,7 @@ siblings — it is not a competing DDL, and the migration is written from the ow
 | R-19 | Indexes the query paths of this document require, beyond those already declared: `freigabe (mandant_id, frist NULLS LAST, risiko DESC) WHERE status = 'offen'` (present), a GIN or equivalent on the assignment predicate of §14.3, `freigabe_snapshot (mandant_id, entschieden_von, vorgang_typ, entschieden_am DESC)` for the rolling-20 median, `agent_aufgabe (mandant_id, agent_id, gestartet_am DESC)` for "last 50 runs", `wissens_chunk (mandant_id, quelle_typ, quelle_id, embedding_modell)` for re-embedding invalidation, `rechnung (mandant_id, kunde_id, auftrag_id, status, leistungszeitraum_bis DESC)` for the monthly comparable, `mahnung (rechnung_id, stufe DESC)`, `eingangsrechnung (mandant_id, lieferant_id, rechnungsnummer)` for the duplicate check | the owning datenmodell documents |
 | R-20 | The document number: four sibling documents refer to the agent architecture as `07-AGENTEN-ARCHITEKTUR.md`. This file is `06-AGENTEN-FREIGABEN.md`; either those references are updated or the file is renamed — one of the two, not neither | `01-ORDNERSTRUKTUR.md`, `03-AUTH-BERECHTIGUNGEN.md`, `05-API-KARTE.md` |
 | R-21 | **No `person` and no `kunde` policy** on `freigabe`, `freigabe_feld`, `freigabe_ansicht`, `freigabe_snapshot`, `agent_artefakt` or any `agent_*` table (K-18) — the employee and customer portals read zero rows there, and that is the decision, not an omission to be repaired later by adding a policy | `02-datenmodell/06-RADAR-KI-INHALT.md` §4, `03-AUTH-BERECHTIGUNGEN.md` |
-| R-22 | The twelve new open questions of §18 — **O-105 … O-115** and **O-133** — as rows under **Open**, plus the reconciliation of the duplicated **O-38** in `02-datenmodell/06-RADAR-KI-INHALT.md` | `docs/DECISIONS.md` |
+| R-22 | **Discharged.** The twelve new open questions of §18 — **O-105 … O-115** and **O-133** — are rows under **Open**, and the number `02-datenmodell/06-RADAR-KI-INHALT.md` used twice is split into **O-197** (confidence threshold) and **O-203** (the amount and effect that make a case *hoch*) | `docs/DECISIONS.md` |
 | R-23 | The four keys this document's policies and gates name must exist as catalogue rows, or `app.hat_recht()` is false for them and the approval inbox, the group inbox, the step protocol and the RAG confidentiality gate are permanently empty (**K-19**): `freigabe.alle_lesen`, `gruppe.freigabe.lesen`, `agent.protokoll_lesen`, `wissen.vertraulich_lesen` — plus module `wissen`. §14.3a is the full list this document commits to | `03-AUTH-BERECHTIGUNGEN.md` §7.4, §14.2 |
 | R-24 | `app.darf_kontaktiert_werden(p_ansprechpartner, p_kanal, p_zweck)` stays the **single** implementation of the §7 UWG rule, and the `kategorie → zweck` mapping of §5.4 is the one this document calls it with; the `lead_aktivitaet` `BEFORE INSERT` trigger must accept every send the gate accepted under that mapping | `02-datenmodell/02-CRM-OPERATIONS.md` §5.3/§5.5 |
 | R-25 | `app.aufbewahrung_intervall(p_mandant uuid, p_schluessel text)` — the two-argument form — is what §9.2 calls; a one-argument overload must not exist, because it would return NULL in exactly the tenantless purge and trigger contexts where retention is resolved | `02-CRM-OPERATIONS.md` §4.7 |

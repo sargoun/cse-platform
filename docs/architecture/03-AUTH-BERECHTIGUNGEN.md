@@ -3063,7 +3063,7 @@ Every item below exists in the document as a labelled placeholder behind an inte
 be mirrored in `docs/DECISIONS.md` under **Open**.
 
 **On the numbering.** `docs/DECISIONS.md` holds O-01 and O-04 … O-13; `08-PR-PLAN.md` claims
-O-14 … O-29; sibling Phase 0 documents have already claimed O-30 … O-73. This document's nineteen
+O-14 … O-29; this document owns **O-74 … O-92**, allocated in the one register `docs/DECISIONS.md` now carries. This document's nineteen
 questions were numbered O-14 … O-32 in the draft, which collided with the PR plan on sixteen of them
 and with four sibling documents on the rest — two different questions under one number is worse than
 a gap, because a client answers the number. They are renumbered into the first free block,

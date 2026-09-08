@@ -536,7 +536,7 @@ Vocabularies marked **STATED** come verbatim from the SPEC. **PLACEHOLDER** voca
 
 ```sql
 -- PLACEHOLDER — CLN-03 says holidays are excluded; it does not say what happens to the round.
--- // TODO(client): O-30 — Werden an Feiertagen ausgefallene Turnusse vorgezogen oder nachgeholt, oder
+-- // TODO(client): O-145 — Werden an Feiertagen ausgefallene Turnusse vorgezogen oder nachgeholt, oder
 --                  entfallen sie ersatzlos? Falls vorgezogen/nachgeholt, kommen die Werte
 --                  'vorziehen'/'nachholen' per Migration hinzu (CLN-03).
 create type turnus_feiertagsregel as enum ('ausfall','unveraendert');
@@ -574,7 +574,7 @@ create type schluessel_status        as enum ('im_depot','ausgegeben','verloren'
 create type schluessel_empfaenger_art as enum ('mitarbeiter','kunde','fremdfirma');
 
 -- PLACEHOLDER — LEG-10 permits a single point at check-in start and end, nothing continuous.
--- // TODO(client): O-37 — Fordert ein Auftraggebervertrag einen Präsenznachweis je Rundgang, und in
+-- // TODO(client): O-152 — Fordert ein Auftraggebervertrag einen Präsenznachweis je Rundgang, und in
 --                  welcher Form (NFC-Tag, QR, Barcode)? Ohne Antwort bleibt der Katalog leer.
 create type kontrollpunkt_nachweisart as enum ('nfc','qr','barcode','manuell','unbestimmt');
 ```
@@ -600,7 +600,7 @@ create type leistungsverzeichnis_art as enum ('hauptauftrag','nachtrag','ausschr
 create type lv_art as enum ('los','titel','untertitel','position','hinweistext');
 
 -- Values from GAEB DA XML. PLACEHOLDER as to their commercial effect.
--- // TODO(client): O-41 — Welche dieser Positionsarten kommen vor, und wie geht jede in die Angebots-
+-- // TODO(client): O-155 — Welche dieser Positionsarten kommen vor, und wie geht jede in die Angebots-
 --                  bzw. Auftragssumme ein? Bedarfs- und Alternativpositionen zählen üblicherweise
 --                  NICHT — bis zur Antwort rechnet keine Summenfunktion sie ein und die UI zeigt
 --                  sie mit der Pille „Unbestätigter Wert".
@@ -856,7 +856,7 @@ The documented deviation from a cycle on one concrete day — cancellation, extr
 | ersatz_beginn_lokal | timestamp | yes | — | only for `verschiebung`; `check (art <> 'verschiebung' or ersatz_beginn_lokal is not null)` |
 | dauer_minuten | integer | yes | — | only for `zusatz`/`verschiebung`; otherwise the occurrence inherits the cycle duration |
 | grund | text | no | — | `check (btrim(grund) <> '')` — an EXDATE without a reason is worthless |
-| abrechnungsrelevant | boolean | yes | — | `// TODO(client): O-31 — Wird ein ausgefallener Turnus bei Monatspauschale gutgeschrieben, und mit welchem Betrag?` (FIN-01) — NULL until answered; no job derives a credit from it |
+| abrechnungsrelevant | boolean | yes | — | `// TODO(client): O-146 — Wird ein ausgefallener Turnus bei Monatspauschale gutgeschrieben, und mit welchem Betrag?` (FIN-01) — NULL until answered; no job derives a credit from it |
 | *Auditblock* | | | | §1.2 |
 
 - **Indexes:** `turnus_ausnahme_uk unique (turnus_id, datum) where art in ('ausfall','verschiebung')` — **narrowed** (review, MINOR): the draft's `unique (turnus_id, datum, art)` still allowed only one `zusatz` per day, and two extra cleanings on one day (morning and evening special) are ordinary in Unterhaltsreinigung. A day can be cancelled once and moved once; extras are unbounded. `turnus_ausnahme_datum_idx on (mandant_id, datum)` — the generator reads all exceptions of the window in one pass.
@@ -901,7 +901,7 @@ The proof of service the customer signs on site — monthly per object in cleani
 |---|---|---|---|---|
 | id | uuid | no | `gen_random_uuid()` | PK; `unique (mandant_id, id)` |
 | mandant_id | uuid | no | — | |
-| nummer | text | yes | — | assigned from `nummernkreis` at the `entwurf → vorgelegt` transition (§2.1). **PLACEHOLDER moment.** `// TODO(client): O-32 — Sollen Leistungsnachweise fortlaufend und lückenlos nummeriert sein, und ab welchem Schritt — Vorlage oder Unterschrift? Ein abgelehnter und neu erstellter Nachweis verbraucht sonst eine Nummer, und der Kunde sieht nach Nr. 39 die Nr. 41.` **Gaplessness is not claimed** — FIN-03 requires it for invoices only |
+| nummer | text | yes | — | assigned from `nummernkreis` at the `entwurf → vorgelegt` transition (§2.1). **PLACEHOLDER moment.** `// TODO(client): O-147 — Sollen Leistungsnachweise fortlaufend und lückenlos nummeriert sein, und ab welchem Schritt — Vorlage oder Unterschrift? Ein abgelehnter und neu erstellter Nachweis verbraucht sonst eine Nummer, und der Kunde sieht nach Nr. 39 die Nr. 41.` **Gaplessness is not claimed** — FIN-03 requires it for invoices only |
 | objekt_id | uuid | yes | — | composite FK |
 | projekt_id | uuid | yes | — | composite FK |
 | revier_id | uuid | yes | — | composite FK |
@@ -1015,7 +1015,7 @@ Two catalogues replacing the draft's single-value placeholder enums (§3.2). Ide
 
 - **Indexes:** `unique (mandant_id, schluessel) where archiviert_am is null` · `(mandant_id, sortierung) where archiviert_am is null`.
 - **RLS:** standard, modules `security` and `schluessel`; `p_intern_ceiling` on `schluesselart`, **`p_nicht_kunde_ceiling` on `postenart`** — a guard holding `security.lesen` sees their own post's type, a customer never sees the post catalogue. §1.8's table is the authority here: "no ceiling at all" would fail its own build check, which requires one of the five on every table in this domain.
-- **Placeholders.** `// TODO(client): O-33 — Welche Postenarten werden geführt (Objektschutz, Empfang, Streife, Revierdienst, Veranstaltungsdienst, …)? (SEC-01)` and `// TODO(client): O-33 — Welche Schlüsselarten werden geführt (mechanisch, Transponder, Chipkarte, Zylindercode), und hängt an der Art eine unterschiedliche Sorgfaltspflicht? (SEC-07)`. Until answered both ship empty and the UI shows „keine Arten hinterlegt" rather than a guessed list.
+- **Placeholders.** `// TODO(client): O-148 — Welche Postenarten werden geführt (Objektschutz, Empfang, Streife, Revierdienst, Veranstaltungsdienst, …)? (SEC-01)` and `// TODO(client): O-148 — Welche Schlüsselarten werden geführt (mechanisch, Transponder, Chipkarte, Zylindercode), und hängt an der Art eine unterschiedliche Sorgfaltspflicht? (SEC-07)`. Until answered both ship empty and the UI shows „keine Arten hinterlegt" rather than a guessed list.
 - **SPEC:** SEC-01, SEC-07, EMP-12, TEN-08.
 
 ### 6.3 posten
@@ -1119,7 +1119,7 @@ Which qualification an assignment requires, and whether every deployed person or
   `check (not zwingend or geltung = 'jeder')` — **interim**, and it is removed the moment the deferred check of §9.4 ships. Without it a hard §34a requirement entered with `geltung = 'mindestens_einer'` would be enforced nowhere at write time, and SEC-04's hard block would silently not apply (review, MINOR).
   `pruefe_qualifikation_mandant()` (BEFORE INSERT OR UPDATE): `qualifikation.mandant_id is null or qualifikation.mandant_id = new.mandant_id`.
   `kern.setze_geaendert_am()`, `kern.verhindere_loeschung()`.
-- **The `mandant` scope carries the open question.** SEC-08 staffing without a post still needs a requirement set, and §34a Abs. 1a GewO attaches to the deployment of a person in a Bewachungstätigkeit, not to the existence of a planning artefact. `// TODO(client): O-34 — Welche Qualifikationsanforderung gilt für Bewachungseinsätze ohne festen Posten — Veranstaltungsdienst, Springer, kurzfristige Objektbetreuung (SEC-08)? Bis zur Antwort ist die mandantenweite Grundanforderung leer.` **Because it ships empty, "empty" is the system's default state, and the report that catches it is a real artefact, not a promise** — §9.5: the gate records `anforderungen_gefunden` in `qualifikation_snapshot` and `job:einsatz_ungeprueft` lists every assignment where that count is zero in a mandant with the `security` module active.
+- **The `mandant` scope carries the open question.** SEC-08 staffing without a post still needs a requirement set, and §34a Abs. 1a GewO attaches to the deployment of a person in a Bewachungstätigkeit, not to the existence of a planning artefact. `// TODO(client): O-149 — Welche Qualifikationsanforderung gilt für Bewachungseinsätze ohne festen Posten — Veranstaltungsdienst, Springer, kurzfristige Objektbetreuung (SEC-08)? Bis zur Antwort ist die mandantenweite Grundanforderung leer.` **Because it ships empty, "empty" is the system's default state, and the report that catches it is a real artefact, not a promise** — §9.5: the gate records `anforderungen_gefunden` in `qualifikation_snapshot` and `job:einsatz_ungeprueft` lists every assignment where that count is zero in a mandant with the `security` module active.
 - **SPEC:** SEC-01, SEC-02, SEC-04, SEC-08, LEG-04, TIM-05.
 
 ### 6.7 dienstanweisung
@@ -1136,7 +1136,7 @@ The standing instruction for an object or a post — the rulebook the guard serv
 | status | dienstanweisung_status | no | `'entwurf'` | |
 | aktive_version_id | uuid | yes | — | FK → `dienstanweisung_version.id`, `deferrable initially deferred` (chicken-and-egg on creation) |
 | kenntnisnahme_pflicht | boolean | no | `true` | SEC-06 |
-| neue_version_oeffnet_pflicht | boolean | no | `true` | **PLACEHOLDER.** `// TODO(client): O-38 — Muss eine neue Fassung von allen erneut bestätigt werden, oder nur bei wesentlicher Änderung — und wer entscheidet das?` (SEC-06) |
+| neue_version_oeffnet_pflicht | boolean | no | `true` | **PLACEHOLDER.** `// TODO(client): O-153 — Muss eine neue Fassung von allen erneut bestätigt werden, oder nur bei wesentlicher Änderung — und wer entscheidet das?` (SEC-06) |
 | archiviert_am · archiviert_von | timestamptz / uuid | yes | — | §1.3 |
 | *Auditblock* | | | | §1.2 |
 
@@ -1248,7 +1248,7 @@ A registered patrol checkpoint — an NFC tag, a QR code or a numbered station. 
 | *Auditblock* | | | | §1.2 |
 
 - **RLS:** standard, module `security`; **`p_intern_einsatz_ceiling`** (§1.8's fourth variant, named there so the enumerated list and the prose cannot drift apart) — a guard must see the checkpoints of the object they patrol, and nobody else's; plus `t_person` on the same `ist_eingesetzt_auf_objekt(objekt_id)` predicate for the employee portal.
-- **Placeholder.** The catalogue ships empty. `// TODO(client): O-37 — Fordert ein Auftraggebervertrag einen Präsenznachweis je Rundgang, in welcher Form (NFC-Tag, QR, Barcode), und ist der Betriebsrat beteiligt (SEC-05, LEG-10; Betriebsrat selbst ist O-06)?`
+- **Placeholder.** The catalogue ships empty. `// TODO(client): O-152 — Fordert ein Auftraggebervertrag einen Präsenznachweis je Rundgang, in welcher Form (NFC-Tag, QR, Barcode), und ist der Betriebsrat beteiligt (SEC-05, LEG-10; Betriebsrat selbst ist O-06)?`
 - **SPEC:** SEC-05, LEG-10.
 
 ### 6.12 wachbuch_eintrag
@@ -1305,7 +1305,7 @@ The Wachbuch: every patrol, incident, handover, key movement and alarm with serv
   ```
   Plus `t_person` (§1.8): in the employee portal the guard reads their own entries across all their employments, **with no module read right** — `t_person` carries no `hat_recht` conjunct (K-18), which is what makes SEC-05 work without granting `wachbuch.lesen` to every cleaner in the group. The ceiling narrows *which* entries; in `mandant` scope the module right decides whether any are readable at all, which is why the **write** key `wachbuch.schreiben` is genuinely seeded for `mitarbeiter` (`03-AUTH-BERECHTIGUNGEN.md` §12.7): a guard's write re-enters `mandant` scope and does pass `t_mandant`'s `WITH CHECK` (K-03).
   No `UPDATE` policy except for the storno columns, no `DELETE` policy.
-  **The handover window is configuration, not a literal (review, INVENTED RULE).** The draft hard-coded `interval '24 hours'` inside an RLS policy — an access rule with data-protection consequences (a guard reads a named colleague's incident reports) that no SPEC line states. `app.uebergabe_fenster()` reads `mandant_einstellung('wachbuch.uebergabe_fenster')` and **defaults to zero**, so until the client answers, the handover branch grants nothing. `// TODO(client): O-36 — Welche Wachbuch-Einträge darf die Folgeschicht zur Übergabe sehen, für welchen Zeitraum, und ist der Betriebsrat beteiligt (SEC-05, EMP-13; Betriebsrat selbst ist O-06)?`
+  **The handover window is configuration, not a literal (review, INVENTED RULE).** The draft hard-coded `interval '24 hours'` inside an RLS policy — an access rule with data-protection consequences (a guard reads a named colleague's incident reports) that no SPEC line states. `app.uebergabe_fenster()` reads `mandant_einstellung('wachbuch.uebergabe_fenster')` and **defaults to zero**, so until the client answers, the handover branch grants nothing. `// TODO(client): O-151 — Welche Wachbuch-Einträge darf die Folgeschicht zur Übergabe sehen, für welchen Zeitraum, und ist der Betriebsrat beteiligt (SEC-05, EMP-13; Betriebsrat selbst ist O-06)?`
 - **Constraints/triggers:** `a_wachbuch_eintrag_vorbereiten()` (above); a `BEFORE UPDATE` trigger permitting only the storno columns; `kern.verhindere_loeschung()`; the nightly `job:wachbuch_kette` verifying every object's chain, the FIN-06 construction and the same alert path.
 - **SPEC:** SEC-05, SEC-07, TIM-08, TIM-09, TIM-10, LEG-01, LEG-10, EMP-13, SEC-A9.
 
@@ -1345,7 +1345,7 @@ One key, transponder or cylinder code of an object — physically unique, so "wh
 | `vernichtung` | `vernichtet`, **terminal**: a trigger refuses any later ledger row for that key except `inventur` |
 | `inventur` | **status-neutral.** An inventory count is evidence that the key was seen, not a state change; the last status-bearing row keeps the status, and `letzte_quittung_id` still advances so the audit trail is complete |
 
-`// TODO(client): O-47 — Schließt ein Wiederauffinden den Haftungsfall automatisch, wenn der Schließanlagenaustausch nach der Verlustmeldung bereits beauftragt wurde, oder bleibt der Vorgang bis zur kaufmännischen Klärung offen (SEC-07)?` The *status* derivation above is deterministic either way; only the commercial consequence is open, and no job derives one until it is answered.
+`// TODO(client): O-161 — Schließt ein Wiederauffinden den Haftungsfall automatisch, wenn der Schließanlagenaustausch nach der Verlustmeldung bereits beauftragt wurde, oder bleibt der Vorgang bis zur kaufmännischen Klärung offen (SEC-07)?` The *status* derivation above is deterministic either way; only the commercial consequence is open, and no job derives one until it is answered.
 
 - **Indexes:** `schluessel_objekt_idx on (mandant_id, objekt_id, status) where archiviert_am is null` · `schluessel_ausgegeben_idx on (mandant_id, status) where status = 'ausgegeben'` — "which keys are out".
 - **RLS:** standard, module `schluessel`; **`p_intern_einsatz_ceiling`** on the row's own `objekt_id`, plus **`t_person`** on the same predicate (§1.8). SEC-07 has the guard take and return the key on site and see which keys are out at the object they are deployed on; an internal-only ceiling — what the draft carried — closes `/portal/mein` to the whole key ledger while §1.7's draft simultaneously granted `schluessel.lesen` to `mitarbeiter`, so the two halves of the document contradicted each other. `03-AUTH-BERECHTIGUNGEN.md` §8.5 lists `schluessel` under worker-ceiling form C.
@@ -1413,12 +1413,12 @@ A construction project of REALTIME Service GmbH — Hochbau, Ausbau or Rückbau 
 | ist_beginn · ist_ende | date | yes | — | |
 | auftragssumme_netto_cent | bigint | yes | — | integer cents; column-restricted with `lv_position.einheitspreis_cent` (§1.9) |
 | sicherheitseinbehalt_prozent | numeric(5,2) | yes | — | **no default.** `// TODO(client): O-20 — Welcher Sicherheitseinbehalt ist üblich vereinbart, und wird er durch Bürgschaft abgelöst?` |
-| gewaehrleistung_bis | date | yes | — | **stored, never computed.** `// TODO(client): O-40 — Gewährleistungsfrist je Vertragsart — VOB/B §13 Abs. 4 (4 Jahre) vs. BGB §634a (5 Jahre) —, und ab welchem Ereignis läuft sie?` |
+| gewaehrleistung_bis | date | yes | — | **stored, never computed.** `// TODO(client): O-68 — Gewährleistungsfrist je Vertragsart — VOB/B §13 Abs. 4 (4 Jahre) vs. BGB §634a (5 Jahre) —, und ab welchem Ereignis läuft sie?` |
 | wetter_station_id | text | yes | — | FK → `wetter_station.id`; the DWD station resolved once, so BAU-08 stays reproducible |
 | archiviert_am · archiviert_von | timestamptz / uuid | yes | — | §1.3 |
 | *Auditblock* | | | | §1.2 |
 
-**`vertragsgrundlage` is `NOT NULL` with no default (review, INVENTED RULE).** The draft defaulted every project to `'vob_b'` while its own open question asked whether BGB construction contracts occur at all. VOB/B and BGB differ on Nachtragsanspruch (§2 VOB/B vs §650b/c BGB), Behinderung (§6 VOB/B), Abnahme (§12) and warranty period (4 vs 5 years) — the four things this schema models. Defaulting the legal regime while the question is open is exactly the "silently pick a plausible value for a legal rule" failure CLAUDE.md forbids. The choice is forced at project creation, and the column carries `// TODO(client): O-39 — Kommen BGB-Bauverträge vor, oder ausschließlich VOB/B? Falls beides: woran erkennt die Bauleitung, welches Regime gilt?`
+**`vertragsgrundlage` is `NOT NULL` with no default (review, INVENTED RULE).** The draft defaulted every project to `'vob_b'` while its own open question asked whether BGB construction contracts occur at all. VOB/B and BGB differ on Nachtragsanspruch (§2 VOB/B vs §650b/c BGB), Behinderung (§6 VOB/B), Abnahme (§12) and warranty period (4 vs 5 years) — the four things this schema models. Defaulting the legal regime while the question is open is exactly the "silently pick a plausible value for a legal rule" failure CLAUDE.md forbids. The choice is forced at project creation, and the column carries `// TODO(client): O-154 — Kommen BGB-Bauverträge vor, oder ausschließlich VOB/B? Falls beides: woran erkennt die Bauleitung, welches Regime gilt?`
 
 **`freigegeben_vom_kunden` and `freigabe_dokument_id` are removed** — PRO-05 belongs to `referenz` (§2.2).
 
@@ -1593,7 +1593,7 @@ An Aufmaß sheet under §14 VOB/B — the jointly or unilaterally established qu
 | storniert_am · storniert_von · storno_grund · ersetzt_durch_id | | yes | — | §1.3 |
 | *Auditblock* | | | | §1.2 |
 
-**A one-sided Aufmaß is not "countersigned" (review B10).** The draft's trigger promoted the sheet to `gegengezeichnet` when the *contractor* signed and `erhebungsart = 'einseitig'`. The record then asserted that the Auftraggeber took part in the measurement when he did not, and `aufmass_abrechenbar_idx` fed those sheets straight into invoicing. BAU-03 requires countersignature; §14 Abs. 2 VOB/B permits a one-sided Aufmaß only under its own notice conditions, and it carries different evidentiary weight in a Werklohnprozess. Falsifying that distinction inside a frozen, hash-snapshotted record is worse than not recording it. `einseitig_festgestellt` is therefore a distinct terminal state, `gegengezeichnet` means the Auftraggeber signed, and the billing index covers both so invoicing still works while the service decides which is invoiceable. `// TODO(client): O-42 — Unter welchen Voraussetzungen wird ein einseitiges Aufmaß abgerechnet — Ankündigungsfrist, Teilnahmeaufforderung, Widerspruchsfrist (§14 Abs. 2 VOB/B)? Bis zur Antwort stellt der Rechnungsservice einseitig festgestellte Blätter zur Einzelprüfung zurück statt sie automatisch einzubeziehen.`
+**A one-sided Aufmaß is not "countersigned" (review B10).** The draft's trigger promoted the sheet to `gegengezeichnet` when the *contractor* signed and `erhebungsart = 'einseitig'`. The record then asserted that the Auftraggeber took part in the measurement when he did not, and `aufmass_abrechenbar_idx` fed those sheets straight into invoicing. BAU-03 requires countersignature; §14 Abs. 2 VOB/B permits a one-sided Aufmaß only under its own notice conditions, and it carries different evidentiary weight in a Werklohnprozess. Falsifying that distinction inside a frozen, hash-snapshotted record is worse than not recording it. `einseitig_festgestellt` is therefore a distinct terminal state, `gegengezeichnet` means the Auftraggeber signed, and the billing index covers both so invoicing still works while the service decides which is invoiceable. `// TODO(client): O-156 — Unter welchen Voraussetzungen wird ein einseitiges Aufmaß abgerechnet — Ankündigungsfrist, Teilnahmeaufforderung, Widerspruchsfrist (§14 Abs. 2 VOB/B)? Bis zur Antwort stellt der Rechnungsservice einseitig festgestellte Blätter zur Einzelprüfung zurück statt sie automatisch einzubeziehen.`
 
 - **Indexes:** `aufmass_projekt_idx on (mandant_id, projekt_id, messdatum desc)` · `aufmass_abrechenbar_idx on (mandant_id, projekt_id, status) where status in ('gegengezeichnet','einseitig_festgestellt') and storniert_am is null` — invoice preparation (FIN-01 "unit price by Aufmaß", FIN-08) · `aufmass_offen_idx on (mandant_id, status) where status = 'vorgelegt'` — the "submitted, not countersigned" watchdog.
 - **RLS:** standard, module `bau`; `p_kunde_ceiling` with `kunde_id = any (app.aktuelle_kunden()) and status <> 'entwurf'`, plus `t_kunde` on the same predicate. **Plus the worker ceiling in its form A ∪ form C union (K-04, §1.8):** `aufgenommen_von_anstellung_id in (select id from anstellung where person_id = app.aktuelle_person()) or app.ist_eingesetzt_auf_projekt(projekt_id)`, with a **`t_person`** policy on the same predicate. The author column makes this an anstellung-hung table and K-04 admits no exception — with only the customer ceiling, any principal holding `bau.lesen` read every Aufmaß sheet of the mandant, quantities and customers, since §1.9 restricts only the prices. The form-C half is what BAU-02 needs: the worker records the sheet from `/portal/mein` under `bau.aufmass_erfassen`, and a two-person measuring team must see the whole sheet rather than half of it. §1.8's build check tests for a worker ceiling specifically rather than for *any* ceiling, which is how this table passed before.
@@ -1701,7 +1701,7 @@ A Nachtrag under §2 VOB/B: changed or additional work — with the announcement
 | auftrag_id · auftrag_leistung_id | uuid | no / yes | — | composite FKs — `02-CRM-OPERATIONS.md` §3.2 |
 | nummer | text | no | — | `unique (projekt_id, nummer)` |
 | titel | text | no | — | |
-| grundlage | nachtrag_grundlage | no | — | the statute's own structure (§3.3). `// TODO(client): O-39 — Kommen BGB-Bauverträge vor? Falls nein, entfällt `bgb_650b` per Migration` |
+| grundlage | nachtrag_grundlage | no | — | the statute's own structure (§3.3). `// TODO(client): O-154 — Kommen BGB-Bauverträge vor? Falls nein, entfällt `bgb_650b` per Migration` |
 | begruendung | text | no | — | `check (btrim(begruendung) <> '')` |
 | status | nachtrag_status | no | `'angemeldet'` | |
 | **angemeldet_am** | date | yes | — | announcement before execution begins (§2 Abs. 6 Nr. 1) — BAU-04 |
@@ -1771,7 +1771,7 @@ The site diary: one entry per site and calendar day with weather, Mannstunden, e
 | id | uuid | no | `gen_random_uuid()` | PK; `unique (mandant_id, id)` |
 | mandant_id | uuid | no | — | |
 | projekt_id | uuid | no | — | composite FK |
-| datum | date | no | — | Berlin calendar day (K-11); `unique (projekt_id, datum)`. `// TODO(client): O-43 — Wird ein Bautagebuch je Baustelle oder je Bauabschnitt geführt? Bei Bauabschnitten braucht der Schlüssel eine dritte Spalte` |
+| datum | date | no | — | Berlin calendar day (K-11); `unique (projekt_id, datum)`. `// TODO(client): O-157 — Wird ein Bautagebuch je Baustelle oder je Bauabschnitt geführt? Bei Bauabschnitten braucht der Schlüssel eine dritte Spalte` |
 | arbeitsbeginn · arbeitsende | timestamptz | yes | — | UTC instants, displayed Berlin (invariant 2); `check (arbeitsende is null or arbeitsbeginn is null or arbeitsende > arbeitsbeginn)` |
 | status | bautagebuch_status | no | `'entwurf'` | |
 | wetter_quelle | bautagebuch_wetter_quelle | no | `'keine'` | BAU-08 |
@@ -1780,7 +1780,7 @@ The site diary: one entry per site and calendar day with weather, Mannstunden, e
 | temperatur_min_c · temperatur_max_c | numeric(4,1) | yes | — | |
 | niederschlag_mm | numeric(6,2) | yes | — | |
 | wetter_notiz | text | yes | — | manual observation |
-| arbeitsbehindernde_witterung | boolean | yes | — | `// TODO(client): O-44 — Ab welchem Schwellenwert gilt Witterung als arbeitsbehindernd — Temperatur, Niederschlag, Windstärke, je Gewerk? Bis zur Antwort setzt kein Job dieses Feld; es ist ausschließlich manuell` |
+| arbeitsbehindernde_witterung | boolean | yes | — | `// TODO(client): O-158 — Ab welchem Schwellenwert gilt Witterung als arbeitsbehindernd — Temperatur, Niederschlag, Windstärke, je Gewerk? Bis zur Antwort setzt kein Job dieses Feld; es ist ausschließlich manuell` |
 | behinderung_id | uuid | yes | — | FK `(mandant_id, projekt_id, behinderung_id)` (§1.4) |
 | besondere_vorkommnisse · bemerkungen | text | yes | — | |
 | gegengezeichnet_von_name | text | yes | — | Bauleiter AG |
@@ -1865,7 +1865,7 @@ The mandant's trade catalogue — Rohbau, Trockenbau, Elektro — as the referen
 
 - **Indexes:** the unique above · `gewerk_liste_idx on (mandant_id, sortierung) where archiviert_am is null`.
 - **RLS:** standard, module `bau`; `p_intern_ceiling`.
-- **Constraints/triggers:** `kern.setze_geaendert_am()`, `kern.verhindere_loeschung()`. Deliberately **not** an enum: the trade list changes with the project portfolio and must not require a migration — the same argument now applied consistently to `postenart`, `schluesselart` and `pruefverfahren` (§3.2, §3.4). `// TODO(client): O-45 — Welche Gewerke werden im Bautagebuch geführt, und richtet sich die Liste nach STLB-Bau-Leistungsbereichen?` Until answered the catalogue ships empty and the UI shows „keine Gewerke hinterlegt".
+- **Constraints/triggers:** `kern.setze_geaendert_am()`, `kern.verhindere_loeschung()`. Deliberately **not** an enum: the trade list changes with the project portfolio and must not require a migration — the same argument now applied consistently to `postenart`, `schluesselart` and `pruefverfahren` (§3.2, §3.4). `// TODO(client): O-159 — Welche Gewerke werden im Bautagebuch geführt, und richtet sich die Liste nach STLB-Bau-Leistungsbereichen?` Until answered the catalogue ships empty and the UI shows „keine Gewerke hinterlegt".
 - **SPEC:** BAU-07, OPS-06, EMP-12.
 
 ### 7.16 wetter_station
@@ -2182,7 +2182,7 @@ create constraint trigger einsatz_zuordnung_qualifikation
 
 **And the obligation is a column, not a string match.** The draft resolved it with `qualifikation.rechtsgrundlage ilike '%34a%'` — free text typed by whoever entered the requirement. „§ 34 a GewO", „Sachkundeprüfung nach GewO" or a trailing space each switch the register check off silently, on the one control that exists to catch a barred guard; and the read of `qualifikation` was itself a cross-domain definer read with no policy behind it (§1.10). (For the record: `qualifikation.rechtsgrundlage text` *does* exist — `01-KERN.md` §6.16 declares it, and §2.1's contract row simply never asked for it. The defect was never a missing column; it was resolving a statutory obligation by pattern-matching a free-text field, and doing so across a domain boundary the definer had no read policy for.) `einsatzanforderung.bewacherregister_pflicht boolean` (§6.6) replaces both: the rule is machine-readable, the free-text `rechtsgrundlage` stays for display, and the gate reads one table fewer. Test 12a asserts that a §34a requirement entered with a differently spelled `rechtsgrundlage` still triggers the register check.
 
-**The validity window against the shift date.** The predicate is `n.gueltig_bis >= v_stichtag` where `v_stichtag` is the **Berlin calendar date of the shift start** — the rule `01-KERN.md` §6.17 already states, adopted verbatim rather than reinvented. The draft required validity through the shift *end*, which is stricter than SEC-04's wording and refuses a lawful assignment when a certificate expires at midnight of a night shift. `// TODO(client): O-35 — Ein §34a-Nachweis, der um Mitternacht während einer Nachtschicht abläuft — darf die begonnene Schicht zu Ende geführt werden, oder ist die Zuweisung ab Ablauf unzulässig (SEC-04, LEG-04)?` Until answered the shift-start rule applies and the shift-end case is reported as a warning in the Dienstplan rather than blocked.
+**The validity window against the shift date.** The predicate is `n.gueltig_bis >= v_stichtag` where `v_stichtag` is the **Berlin calendar date of the shift start** — the rule `01-KERN.md` §6.17 already states, adopted verbatim rather than reinvented. The draft required validity through the shift *end*, which is stricter than SEC-04's wording and refuses a lawful assignment when a certificate expires at midnight of a night shift. `// TODO(client): O-150 — Ein §34a-Nachweis, der um Mitternacht während einer Nachtschicht abläuft — darf die begonnene Schicht zu Ende geführt werden, oder ist die Zuweisung ab Ablauf unzulässig (SEC-04, LEG-04)?` Until answered the shift-start rule applies and the shift-end case is reported as a warning in the Dienstplan rather than blocked.
 
 A `CHECK` cannot do any of this: `CHECK` must be immutable and may not read other tables, so the expression is necessarily a trigger. The trigger also fires on backfills, scripts and console access that bypass the service.
 
@@ -2502,28 +2502,28 @@ Every one is a `// TODO(client)` in the text above and belongs in `DECISIONS.md`
 
 | O | Question | Blocks |
 |---|---|---|
-| **O-30** *(new)* | Werden an Feiertagen ausgefallene Turnusse vorgezogen oder nachgeholt, oder entfallen sie ersatzlos? | `turnus_feiertagsregel`, CLN-03 |
-| **O-31** *(new)* | Wird ein ausgefallener Turnus bei Monatspauschale gutgeschrieben, und mit welchem Betrag? | `turnus_ausnahme.abrechnungsrelevant`, FIN-01 |
-| **O-32** *(new)* | Sollen Leistungsnachweise fortlaufend und lückenlos nummeriert sein, und ab welchem Schritt wird die Nummer vergeben? | `leistungsnachweis.nummer`, `nummernkreis` |
-| **O-33** *(new)* | Welche Postenarten und welche Schlüsselarten werden geführt? | `postenart`, `schluesselart`, SEC-01, SEC-07 |
-| **O-34** *(new)* | Welche Qualifikationsanforderung gilt für Bewachungseinsätze ohne festen Posten (Veranstaltung, Springer)? | `einsatzanforderung` scope `mandant`, SEC-08 — until answered, §9.5 reports every such assignment as ungeprüft |
-| **O-35** *(new)* | Darf eine begonnene Nachtschicht zu Ende geführt werden, wenn der §34a-Nachweis um Mitternacht abläuft? | §9.3, SEC-04 |
-| **O-36** *(new)* | Welche Wachbuch-Einträge darf die Folgeschicht zur Übergabe sehen, und für welchen Zeitraum? | `app.uebergabe_fenster()`, SEC-05, EMP-13 (Betriebsrat selbst: O-06) |
-| **O-37** *(new)* | Fordert ein Auftraggebervertrag einen Präsenznachweis je Rundgang, und in welcher Form (NFC, QR, Barcode)? | `kontrollpunkt`, SEC-05, LEG-10 (Betriebsrat selbst: O-06) |
-| **O-38** *(new)* | Muss eine neue Fassung einer Dienstanweisung von allen erneut bestätigt werden, oder nur bei wesentlicher Änderung — und wer entscheidet das? | `dienstanweisung.neue_version_oeffnet_pflicht`, SEC-06 |
-| **O-39** *(new)* | Kommen BGB-Bauverträge vor, oder ausschließlich VOB/B — und woran erkennt die Bauleitung, welches Regime gilt? | `projekt.vertragsgrundlage`, `nachtrag_grundlage` |
-| **O-40** *(new)* | Gewährleistungsfrist je Vertragsart (VOB/B §13 Abs. 4 vs. BGB §634a) und ab welchem Ereignis sie läuft | `projekt.gewaehrleistung_bis`, §7.2 |
+| **O-145** *(new)* | Werden an Feiertagen ausgefallene Turnusse vorgezogen oder nachgeholt, oder entfallen sie ersatzlos? | `turnus_feiertagsregel`, CLN-03 |
+| **O-146** *(new)* | Wird ein ausgefallener Turnus bei Monatspauschale gutgeschrieben, und mit welchem Betrag? | `turnus_ausnahme.abrechnungsrelevant`, FIN-01 |
+| **O-147** *(new)* | Sollen Leistungsnachweise fortlaufend und lückenlos nummeriert sein, und ab welchem Schritt wird die Nummer vergeben? | `leistungsnachweis.nummer`, `nummernkreis` |
+| **O-148** *(new)* | Welche Postenarten und welche Schlüsselarten werden geführt? | `postenart`, `schluesselart`, SEC-01, SEC-07 |
+| **O-149** *(new)* | Welche Qualifikationsanforderung gilt für Bewachungseinsätze ohne festen Posten (Veranstaltung, Springer)? | `einsatzanforderung` scope `mandant`, SEC-08 — until answered, §9.5 reports every such assignment as ungeprüft |
+| **O-150** *(new)* | Darf eine begonnene Nachtschicht zu Ende geführt werden, wenn der §34a-Nachweis um Mitternacht abläuft? | §9.3, SEC-04 |
+| **O-151** *(new)* | Welche Wachbuch-Einträge darf die Folgeschicht zur Übergabe sehen, und für welchen Zeitraum? | `app.uebergabe_fenster()`, SEC-05, EMP-13 (Betriebsrat selbst: O-06) |
+| **O-152** *(new)* | Fordert ein Auftraggebervertrag einen Präsenznachweis je Rundgang, und in welcher Form (NFC, QR, Barcode)? | `kontrollpunkt`, SEC-05, LEG-10 (Betriebsrat selbst: O-06) |
+| **O-153** *(new)* | Muss eine neue Fassung einer Dienstanweisung von allen erneut bestätigt werden, oder nur bei wesentlicher Änderung — und wer entscheidet das? | `dienstanweisung.neue_version_oeffnet_pflicht`, SEC-06 |
+| **O-154** *(new)* | Kommen BGB-Bauverträge vor, oder ausschließlich VOB/B — und woran erkennt die Bauleitung, welches Regime gilt? | `projekt.vertragsgrundlage`, `nachtrag_grundlage` |
+| **O-68** *(new)* | Gewährleistungsfrist je Vertragsart (VOB/B §13 Abs. 4 vs. BGB §634a) und ab welchem Ereignis sie läuft | `projekt.gewaehrleistung_bis`, §7.2 |
 | O-20 | Sicherheitseinbehalt und Ablösung durch Bürgschaft — already tracked | `projekt.sicherheitseinbehalt_prozent` |
-| **O-41** *(new)* | Welche LV-Positionsarten kommen vor, und wie geht jede in die Auftragssumme ein? | `lv_positionsart`, FIN-01 |
-| **O-42** *(new)* | Unter welchen Voraussetzungen wird ein einseitiges Aufmaß abgerechnet (§14 Abs. 2 VOB/B)? | `aufmass_status.einseitig_festgestellt`, FIN-08 |
+| **O-155** *(new)* | Welche LV-Positionsarten kommen vor, und wie geht jede in die Auftragssumme ein? | `lv_positionsart`, FIN-01 |
+| **O-156** *(new)* | Unter welchen Voraussetzungen wird ein einseitiges Aufmaß abgerechnet (§14 Abs. 2 VOB/B)? | `aufmass_status.einseitig_festgestellt`, FIN-08 |
 | O-23 | Übermessungs- und VOB/C-Abzugsregeln (ATV je Gewerk) — already tracked | `aufmass_zeile.uebermessung_hinweis`, BAU-02 |
-| **O-43** *(new)* | Wird ein Bautagebuch je Baustelle oder je Bauabschnitt geführt? | `bautagebuch` unique key, BAU-07 |
-| **O-44** *(new)* | Ab welchem Schwellenwert gilt Witterung als arbeitsbehindernd, je Gewerk? | `bautagebuch.arbeitsbehindernde_witterung`, BAU-06 |
-| **O-45** *(new)* | Welche Gewerke werden im Bautagebuch geführt (STLB-Bau-Leistungsbereiche)? | `gewerk`, BAU-07 |
+| **O-157** *(new)* | Wird ein Bautagebuch je Baustelle oder je Bauabschnitt geführt? | `bautagebuch` unique key, BAU-07 |
+| **O-158** *(new)* | Ab welchem Schwellenwert gilt Witterung als arbeitsbehindernd, je Gewerk? | `bautagebuch.arbeitsbehindernde_witterung`, BAU-06 |
+| **O-159** *(new)* | Welche Gewerke werden im Bautagebuch geführt (STLB-Bau-Leistungsbereiche)? | `gewerk`, BAU-07 |
 | O-29 | Prüfverfahren, Skala und Bestehensschwelle — already tracked | `pruefverfahren`, `qualitaetspruefung.bestanden`, OPS-11 |
 | O-14 | Reaktions- und Behebungsfrist je Priorität (Vertrags-SLA) — already tracked | `reklamation.faellig_am`, NOT-01 |
-| **O-46** *(new)* | Welche Tabelle führt Materialverbrauch, damit FIN-07 seine vierte Quelle bekommt? | `leistungsnachweis_position.materialverbrauch_id`, FIN-07 |
-| **O-47** *(new)* | Schließt ein Wiederauffinden den Haftungsfall, wenn der Schließanlagenaustausch bereits beauftragt ist? | `schluessel_ereignis_art.wiedergefunden`, §6.13, SEC-07 |
+| **O-160** *(new)* | Welche Tabelle führt Materialverbrauch, damit FIN-07 seine vierte Quelle bekommt? | `leistungsnachweis_position.materialverbrauch_id`, FIN-07 |
+| **O-161** *(new)* | Schließt ein Wiederauffinden den Haftungsfall, wenn der Schließanlagenaustausch bereits beauftragt ist? | `schluessel_ereignis_art.wiedergefunden`, §6.13, SEC-07 |
 | O-25 | Bestätigte Aufbewahrungsfristen je Datenklasse — already tracked | §11, LEG-09, DOC-07 |
 
 Further questions tracked elsewhere and referenced rather than re-raised: **O-06** (Betriebsrat → LEG-10 → the geolocation setting of §5.8, §6.11, §6.12, §7.8), **O-04** (the five billing types → `sonderleistung`, `abrechnungsart`), **O-05** (DATEV → `erloeskonto_schluessel` on the consumed `auftrag_leistung`), **O-17** (Leistungswerte je Belagsart → `revier_raum.leistungswert_qm_pro_stunde`).
@@ -2547,5 +2547,5 @@ Further questions tracked elsewhere and referenced rather than re-raised: **O-06
 5b. **`04-PLANUNG-ZEIT.md`** must call the field-time trigger `kern.stempel_feldzeit()` (§1.11). One function, one body, one declaration — here. Neither `gewerke.` nor `zeit.` is a schema the first migration creates, so both spellings fail at migration time and `03-AUTH-BERECHTIGUNGEN.md` §17.3's `ANWENDUNGSSCHEMATA` constant would classify neither.
 6. **`01-ORDNERSTRUKTUR.md` §4.9** places `reklamation` and `qualitaetspruefung` in `zeit.ts`; this document specifies them because they are cross-trade quality records rather than scheduling records, and they are listed here as an intentional divergence to be resolved in one direction before the Phase 5 migration — the file placement, not the schema, is what differs.
 7. **`docs/DESIGN.md`** must gain the status-pill labels of §3.5 before any trade screen renders them.
-8. **`DECISIONS.md` § Open** must gain the eighteen newly proposed questions of §16 — **O-30 … O-47** — with the numbers exactly as §16 assigns them; the remaining six rows there (O-14, O-20, O-23, O-25, O-29 and O-06) already exist and are referenced, not re-raised. `pnpm lint:todo` fails until the new rows are present, because every `// TODO(client)` in this document now names its O-number.
+8. **`DECISIONS.md` § Open** must gain the eighteen newly proposed questions of §16 — **O-145 … O-161** — with the numbers exactly as §16 assigns them; the remaining six rows there (O-14, O-20, O-23, O-25, O-29 and O-06) already exist and are referenced, not re-raised. `pnpm lint:todo` fails until the new rows are present, because every `// TODO(client)` in this document now names its O-number.
 9. **The Dienstplan/Zeit document** must additionally state that `einsatz_zuordnung.qualifikation_snapshot` carries `anforderungen_gefunden integer` inside its JSON (§9.5) and that the two proof columns are written by the **BEFORE** trigger of §9.3, not by the application — a document that specifies them as service-written columns would re-open the hole §9.4's `CHECK` exists to close.

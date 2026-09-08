@@ -183,7 +183,7 @@ that a response to `/login` carries CSP and HSTS and that an attempt **one past 
 AUT-07 threshold** is rejected, so the file cannot quietly stop being loaded. The threshold
 itself is not stated here and not invented here: SPEC AUT-07 says only "rate limiting and
 lockout on auth endpoints", the attempts-per-identifier, attempts-per-IP, window and lockout
-duration are `03-AUTH-BERECHTIGUNGEN.md` §10's `// TODO(client)` (**O-40**), and the test reads the
+duration are `03-AUTH-BERECHTIGUNGEN.md` §10's `// TODO(client)` (**O-80**), and the test reads the
 configured value rather than hard-coding a number this document has no source for.
 
 **`scripts/` exists and is outside the app.** PUB-08 (migrate content from
@@ -2081,7 +2081,7 @@ src/server/services/
 │  │  ├─ satz.ts              vatByTaxGroup — per tax-rate group, never from a gross     FIN-09, LEG-06
 │  │  ├─ rundung.ts           rounding mode as an injected named parameter               FIN-09
 │  │  ├─ reverse-charge.ts    reverseChargeApplies(kunde, leistung, nachweis)            FIN-09, LEG-06
-│  │  └─ nachweis.platzhalter.ts — TODO(client) O-33: §13b evidence (USt-1-TG) and its store
+│  │  └─ nachweis.platzhalter.ts — TODO(client) O-104: §13b evidence (USt-1-TG) and its store
 │  ├─ nummernkreis.ts         assignNumberAndChainHead — SELECT … FOR UPDATE            FIN-03, TEN-02, FIN-06
 │  ├─ hash-chain.ts           hashChain · verifyChain                                    FIN-06, LEG-01
 │  ├─ ustg14.ts               validateForFinalization                                    FIN-04, FIN-05, LEG-05
@@ -2138,7 +2138,7 @@ src/server/services/
 │  │  ├─ score.ts             scoreDeterministic · reasonText — no LLM                   RAD-05
 │  │  ├─ types.ts             interface BewertungsModell { gewichte, schwelle }          RAD-05, RAD-08
 │  │  ├─ gewichte.platzhalter.ts — TODO(client) O-15: weights and the RAD-08 threshold
-│  │  └─ cpv.platzhalter.ts      — TODO(client) O-34: CPV codes verified against the official list
+│  │  └─ cpv.platzhalter.ts      — TODO(client) O-98: CPV codes verified against the official list
 │  ├─ frist.ts                daysRemaining · isCritical                                 RAD-06
 │  ├─ vergabeplattform.ts     registrationStatusFor · flagUnregistered                   RAD-09, O-07
 │  └─ vergabemappe.ts         assembleFolder · listGaps                                  D-07
@@ -3388,38 +3388,41 @@ None of them blocks the surrounding feature.
 The wording below is the wording to use, and **every row carries an O-number** — an unnumbered
 question is one `lint:todo` cannot match to a `DECISIONS.md` row, which is the whole mechanism
 of L6. O-01 and O-04 … O-13 are in `DECISIONS.md`; O-14 … O-29 were assigned by `08-PR-PLAN.md`.
-**O-30 … O-38 and O-40 are proposed by this document and need adding**, and each says below why
-no existing number covers it. **O-39 is not this document's**: an earlier draft used it for the
-AUT-07 rate-limit threshold, but `02-datenmodell/04-PLANUNG-ZEIT.md` §1.3 already holds O-39 for
-`zeit-freigabeschritt` — whether a release step exists between worked time and billing at all.
+This document owns **O-30, O-31, O-32, O-134 and O-135**; its five other questions turned out to be
+questions a sibling already asks, and each now **cites that number instead of minting a second one**
+— O-104 (§13b evidence), O-98 (CPV lists), O-82 (`auth-sms-anbieter`), O-118
+(`int-betriebsueberwachung`) and O-80 (`auth-sperrschwellen`). **O-39 is not this document's**: an
+earlier draft used it for the AUT-07 rate-limit threshold, but `02-datenmodell/04-PLANUNG-ZEIT.md`
+§1.3 holds O-39 for `zeit-freigabeschritt` — whether a release step exists between worked time and
+billing at all.
 Two questions under one number is precisely the state `lint:todo` cannot resolve, since it
 matches a `TODO(client) O-nn` marker to exactly one `DECISIONS.md` row, so the AUT-07 question
-moves to **O-40** and O-39 stays with the document that raised it first.
+moves to **O-80** and O-39 stays with the document that raised it first.
 
 | Question | Blocks | File carrying the `TODO(client)` |
 |---|---|---|
 | **O-30** — Nachträge: how many days may an announced Nachtrag (`angemeldet_am`) remain unsubmitted (`eingereicht_am`) before the watchdog escalates, and to whom? BAU-04 separates the two dates but names no window; the default ships configurable per mandant and is an operational setting the client owns, not a VOB deadline. | BAU-04, Phase 6 | `jobs/watchdogs/nachtrag-nicht-eingereicht.ts` + `einstellungen/mandant` |
 | **O-31** — Certificates: at what intervals before expiry should a §34a / Sachkunde warning escalate, and to whom at each step? SEC-02 requires tracking with expiry and SEC-04 hard-blocks at the shift date; the *warning cadence* before that block is operational and unstated. | SEC-02, SEC-04, Phase 5 | `jobs/watchdogs/nachweis-ablauf.ts` + `einstellungen/mandant` |
 | **O-17** — Belagsarten: which Leistungswerte, from which source, approved by whom? The catalogue ships **empty** per mandant; costing blocks rather than defaults. | OPS-03, OPS-07, Phase 4 | `db/seed/05-kataloge.ts`, `services/ops/belagsart.ts` |
-| **O-40** — AUT-07: how many attempts per identifier and per IP, over what window, and how long is the lockout? SPEC states only "rate limiting and lockout"; the question is owned by `03-AUTH-BERECHTIGUNGEN.md` §10 and referenced here because `headers.spec.ts` asserts against it (§2). Renumbered from O-39, which `04-PLANUNG-ZEIT.md` holds for `zeit-freigabeschritt`. | AUT-07, Phase 1 | `03-AUTH-BERECHTIGUNGEN.md` §10, `src/server/config/env.ts` |
+| **O-80** — AUT-07: how many attempts per identifier and per IP, over what window, and how long is the lockout? SPEC states only "rate limiting and lockout"; the question is owned by `03-AUTH-BERECHTIGUNGEN.md` §10 and referenced here because `headers.spec.ts` asserts against it (§2). Renumbered from O-39, which `04-PLANUNG-ZEIT.md` holds for `zeit-freigabeschritt`. | AUT-07, Phase 1 | `03-AUTH-BERECHTIGUNGEN.md` §10, `src/server/config/env.ts` |
 | **O-19** — Dunning: **how many days overdue starts a run**, how many Mahnstufen at what interval, what Mahngebühr per level, and which interest basis (§288 BGB: 9 points over Basiszinssatz for B2B, plus the €40 Verzugspauschale)? The trigger delay belongs here because it is the parameter that decides when a letter leaves the building. | FIN-15, Phase 6 | `services/finanz/mahnung/stufen.platzhalter.ts` |
 | **O-14** — Lead SLA: what response deadline per business area and per channel, and who is the escalation target when it passes? | REQ-05, REQ-06, Phase 2 | `services/crm/lead-sla/fristen.platzhalter.ts` |
 | **O-18** — Leave entitlement: BUrlG minimum, contractual or sector agreement — and the pro-rata rule for part-year employment and the carry-over expiry date? | EMP-05, Phase 5 | `services/zeit/urlaub/anspruch.platzhalter.ts` |
 | **O-18** — Arbeitszeitkonto: which target-hours basis, what overtime cap, may a negative balance be carried, when does a balance expire — and which **ArbZG Ausgleichszeitraum** applies to the §3 ten-hour exception? The 8h limit, the 10h ceiling and the 11h rest are statute and are code; the compensation window is an employer choice the detector needs before it can clear a 10h day. | EMP-04, EMP-15, Phase 5 | `services/zeit/stundenkonto/regeln.platzhalter.ts` |
 | **O-16** — Costing: what Gemeinkostenzuschlag, risk margin and profit markup per business area? | OPS-07, AGT-02, Phase 4 | `services/ops/kalkulation/zuschlaege.platzhalter.ts` |
 | **O-15** — Tender scoring: which weights, and at what score does RAD-08 notify? | RAD-05, RAD-08, Phase 8 | `services/radar/bewertung/gewichte.platzhalter.ts` |
-| **O-34** — CPV codes: please confirm the cleaning, security and construction code lists against the official CPV list before the radar goes live. | RAD-04, Phase 8 | `services/radar/bewertung/cpv.platzhalter.ts` |
+| **O-98** — CPV codes: please confirm the cleaning, security and construction code lists against the official CPV list before the radar goes live. | RAD-04, Phase 8 | `services/radar/bewertung/cpv.platzhalter.ts` |
 | **O-15** — Lead scoring: which criteria and weights produce the lead score? | CRM-02, Phase 4 | `services/crm/lead-score/gewichte.platzhalter.ts` |
 | **O-25** — Retention: what retention period per document category (personnel file, application documents, Wachbuch entries, Dienstanweisung acknowledgements, key receipts) beyond the GoBD ten years and the MiLoG two? | DOC-07, LEG-01, Phase 7 | `services/storage/retention/fristen.platzhalter.ts` |
 | **O-25** — Applicant data: how long are application documents kept after a rejection (the AGG §15(4) two-month claim window is the usual anchor)? | REC-07, LEG-11, Phase 9 | `services/recruiting/purge/fristen.platzhalter.ts` |
 | **O-21** — §48 EStG: which Bagatellgrenzen apply, at which date (Leistungsdatum per FIN-10 or Zahlungszeitpunkt per the statute), and which of the group's customers count as Leistungsempfänger obliged to withhold? | FIN-10, LEG-06, Phase 6 | `services/finanz/estg48/grenzen.platzhalter.ts` |
-| **O-33** — §13b UStG: how is a customer's status as nachhaltig bauleistungserbringender Unternehmer evidenced (USt-1-TG certificate?), where is that evidence recorded, and does its absence block finalisation? | FIN-09, LEG-06, Phase 6 | `services/finanz/steuer/nachweis.platzhalter.ts` |
+| **O-104** — §13b UStG: how is a customer's status as nachhaltig bauleistungserbringender Unternehmer evidenced (USt-1-TG certificate?), where is that evidence recorded, and does its absence block finalisation? | FIN-09, LEG-06, Phase 6 | `services/finanz/steuer/nachweis.platzhalter.ts` |
 | **O-20** — Abschlagszahlungen: which VOB/B §16 terms apply, and what Sicherheits-/Gewährleistungseinbehalt percentage and release date per project? | FIN-08, Phase 6 | `services/finanz/abschlag/bedingungen.platzhalter.ts` |
-| **O-35** — Number circles: one per legal entity, or one per entity **and** document type (Rechnung, Gutschrift, Storno)? **No invoice may be finalised in any environment until this is answered** — the structure cannot be changed after the first finalised invoice. | FIN-03, TEN-02, LEG-01, Phase 6 | `services/finanz/nummernkreis.ts` |
+| **O-134** — Number circles: one per legal entity, or one per entity **and** document type (Rechnung, Gutschrift, Storno)? **No invoice may be finalised in any environment until this is answered** — the structure cannot be changed after the first finalised invoice. | FIN-03, TEN-02, LEG-01, Phase 6 | `services/finanz/nummernkreis.ts` |
 | **O-32** — Sector minimum wage: which MiLoG/sector rates apply per business area, and from which date? | LEG-02, TIM-13, Phase 5 | `services/zeit/milog/saetze.platzhalter.ts` |
-| **O-36** — SMS: which provider sends worker login codes (EMP-01), in which region, under which DPA? Until answered, worker login is „nicht verbunden" in production and the check-in link is the only worker path. | EMP-01, LEG-09, Phase 5 | `integrations/sms/nicht-verbunden.ts` |
-| **O-37** — OCR: which processor extracts data from incoming invoices (ACC-05), in which region, under which DPA? | ACC-05, LEG-09, Phase 7 | `integrations/openai/` or its replacement, plus a `DECISIONS.md` sub-processor entry |
-| **O-38** — Monitoring: which uptime and error-tracking service, in which region, under which DPA? | SPEC §21, LEG-09, Phase 10 | `integrations/monitoring/nicht-verbunden.ts` |
+| **O-82** — SMS: which provider sends worker login codes (EMP-01), in which region, under which DPA? Until answered, worker login is „nicht verbunden" in production and the check-in link is the only worker path. | EMP-01, LEG-09, Phase 5 | `integrations/sms/nicht-verbunden.ts` |
+| **O-135** — OCR: which processor extracts data from incoming invoices (ACC-05), in which region, under which DPA? | ACC-05, LEG-09, Phase 7 | `integrations/openai/` or its replacement, plus a `DECISIONS.md` sub-processor entry |
+| **O-118** — Monitoring: which uptime and error-tracking service, in which region, under which DPA? | SPEC §21, LEG-09, Phase 10 | `integrations/monitoring/nicht-verbunden.ts` |
 
 The **nummernkreis** row carries an operational guard as well as a question:
 `finalize` refuses to run unless a `nummernkreis` row exists for the document type being
@@ -3469,7 +3472,7 @@ different name or shape, this document is amended first.
 | `integration.ts` is the ninth Drizzle schema file and holds the nine tables `07-INTEGRATIONEN.md` owns (§4.9) | `07-INTEGRATIONEN.md` |
 | `src/server/agent/` contains `handles.ts`, `plan.ts`, `umschlag.ts`, `redaktion.ts`, `wiedergabe.ts`, `logging.ts` (**not** `protokoll.ts`), `modell/client.ts` and `rag/` **as a directory** with `chunk.ts · embed.ts · retrieve.ts · ausschluss.ts · kanarienvogel.ts`; `src/server/db/tabellen-klassen.ts` holds the R-17 table classes; `services/zeit/` is split into `lesen/` and `schreiben/`; `services/frist/` exists (§8, §9, §19) | `06-AGENTEN-FREIGABEN.md`, `05-API-KARTE.md` |
 | The DESIGN.md token amendments of §24 land before the first component PR (D-10) | `docs/DESIGN.md` |
-| The open questions of §25.3 are added under § Open. **O-30 … O-38 and O-40 are new and need numbers assigned**; O-14 … O-29 come from `08-PR-PLAN.md`, O-39 belongs to `02-datenmodell/04-PLANUNG-ZEIT.md`, and O-01 / O-04 … O-13 already exist. Every `TODO(client)` in the tree carries its number inline, and `lint:todo` fails on one that does not | `docs/DECISIONS.md` |
+| **Met** — the open questions of §25.3 are rows of the one register under § Open. This document owns O-30, O-31, O-32, O-134 and O-135; O-14 … O-29 come from `08-PR-PLAN.md`, O-39 belongs to `02-datenmodell/04-PLANUNG-ZEIT.md`, O-01 / O-04 … O-13 are the client's, and the register names the owner of every other number. Every `TODO(client)` in the tree carries its number inline, and `lint:todo` fails on one that does not | `docs/DECISIONS.md` |
 
 ---
 

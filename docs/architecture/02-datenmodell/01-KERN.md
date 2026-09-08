@@ -349,7 +349,7 @@ a `BEFORE DELETE` trigger that raises. Deletion protection is stated per table, 
 `sicherheitsvorfall` by `job:sicherheitsvorfall_purge` (§6.34), each under a single enumerated
 `cse_job` grant — neither is finance, time or audit data, keeping failed-login records or a redacted
 incident payload indefinitely is the DSGVO risk rather than the protection, and both retention
-periods are **PLACEHOLDERS** pending O-35, so until it is answered the two jobs delete nothing
+periods are **PLACEHOLDERS** pending O-92, so until it is answered the two jobs delete nothing
 (§3.3, §12.3, §15). Removal is expressed as `archiviert_am` (master data), `deaktiviert_am` (accounts),
 `entzogen_am` (grants), `widerrufen_am` (certificates), `erloschen_am` (register entries),
 `storniert_am` / a reversing row (time and account movements), `anonymisiert_am` (DSGVO erasure of a
@@ -859,7 +859,7 @@ language sql stable as $$                      -- SECURITY INVOKER, deliberately
       or exists (select 1 from public.anstellung a where a.person_id = p_person)
       or app.ist_vorgesetzter_von(p_person)
       -- Bootstrap anchor: the entity that recorded the human sees them until the first employment
-      -- exists, and not one day longer (§6.13, O-40).
+      -- exists, and not one day longer (§6.13, O-141).
       or (exists (select 1 from public.person p
                    where p.id = p_person
                      and p.erfasst_von_mandant_id = app.aktiver_mandant())
@@ -1162,10 +1162,10 @@ NULL-mandant in three of its four values, so calling the resolver with only
 and kunde session — the value then written into the `app.portal` GUC and read by every K-04 ceiling
 for the rest of the request.
 
-`// TODO(client): O-38 — idle timeout and absolute session lifetime for each role — 30 min / 8 h is
+`// TODO(client): O-79 — idle timeout and absolute session lifetime for each role — 30 min / 8 h is
 a **PLACEHOLDER**, not a policy. Admin sessions in a finance context are often shorter.` Both values
 live in one named constant set (`sitzung.idle_minuten`, `sitzung.lebensdauer_stunden`) that this
-function and `job:sitzung_aufraeumen` read, so answering O-38 is a one-line change and not a hunt
+function and `job:sitzung_aufraeumen` read, so answering O-79 is a one-line change and not a hunt
 through three sections.
 
 The stamping of `letzte_aktivitaet_am` happens **in the same statement** that validates the session,
@@ -1203,11 +1203,11 @@ be a labelled placeholder. So: retention **PLACEHOLDER 30 Tage**, held in the si
 `retention.anmeldeversuch_tage` that §12.3's job and §15's inventory both read, and marked
 everywhere it appears.
 
-`// TODO(client): O-35 — wie lange dürfen fehlgeschlagene Anmeldeversuche (kennung_hash, IP)
+`// TODO(client): O-92 — wie lange dürfen fehlgeschlagene Anmeldeversuche (kennung_hash, IP)
 aufbewahrt werden? Vorschlag 30 Tage; die Verhältnismäßigkeitsabwägung nach DSGVO gehört dem
 Verantwortlichen, nicht diesem Dokument.`
 
-`// TODO(client): O-38 — AUT-07 thresholds: attempts per identifier and per IP, the window, the
+`// TODO(client): O-79 — AUT-07 thresholds: attempts per identifier and per IP, the window, the
 lockout duration, and whether a locked account notifies the user by email.`
 
 ### 3.4 Narrow readers and writers
@@ -1301,18 +1301,18 @@ SPEC. Where a vocabulary carries legal or payroll weight and the SPEC does not s
 | `person_anrede` | `frau` · `herr` · `divers` · `keine_angabe` | correspondence salutation, UI copy only |
 | `anstellung_status` | `geplant` · `aktiv` · `ruhend` · `beendet` | D-09 (`eintritt` / `austritt`) |
 | `arbeitszeitmodell` | **PLACEHOLDER** `vollzeit` · `teilzeit` · `geringfuegig` · `kurzfristig` · `azubi` · `werkstudent` · `unbekannt` | D-09 names the column, no vocabulary anywhere. `// TODO(client): O-18 — which employment/SV categories does the group actually use for `arbeitszeitmodell`, and must they match the payroll system's codes (ACC-12)?` Seed default `unbekannt` |
-| `qualifikation_kategorie` | **PROVISIONAL** `gesetzlich` · `fachlich` · `fuehrerschein` · `gesundheit` · `intern` | SEC-02 names §34a Sachkunde/Unterrichtung only. `// TODO(client): O-43 — confirm the categories used for certificate reporting` |
+| `qualifikation_kategorie` | **PROVISIONAL** `gesetzlich` · `fachlich` · `fuehrerschein` · `gesundheit` · `intern` | SEC-02 names §34a Sachkunde/Unterrichtung only. `// TODO(client): O-144 — confirm the categories used for certificate reporting` |
 | `nachweis_status` | `beantragt` · `gueltig` · `abgelaufen` · `widerrufen` · `abgelehnt` | SEC-02, SPEC §14 expiry watchdog |
-| `bewacher_status` | **PLACEHOLDER** `beantragt` · `registriert` · `abgelehnt` · `erloschen` · `gesperrt` · `unbekannt` | SEC-03 says "registration status" without a vocabulary. `// TODO(client): O-36 — the exact status vocabulary of the Bewacherregister as it appears in the register export` |
+| `bewacher_status` | **PLACEHOLDER** `beantragt` · `registriert` · `abgelehnt` · `erloschen` · `gesperrt` · `unbekannt` | SEC-03 says "registration status" without a vocabulary. `// TODO(client): O-40 — the exact status vocabulary of the Bewacherregister as it appears in the register export` |
 | `zugang_status` | `eingeladen` · `aktiv` · `gesperrt` · `deaktiviert` | EMP-01, AUT-07 |
 | `abwesenheit_status` | `beantragt` · `genehmigt` · `abgelehnt` · `storniert` · `erfasst` | EMP-10 |
 | `antrag_status` | `eingereicht` · `in_pruefung` · `genehmigt` · `abgelehnt` · `zurueckgezogen` · `storniert` | EMP-10 |
-| `stundenkonto_status` | **PLACEHOLDER** `offen` · `vorlaeufig` · `gesperrt` | EMP-04 says only "locks monthly". `vorlaeufig` is not in the SPEC. `// TODO(client): O-42 — is there a provisional state between open and locked — e.g. "figures released to payroll, still correctable" — or does the month go straight from open to locked?` |
-| `bewegung_art` | `arbeitszeit` · `abwesenheit` · `feiertag` · `korrektur` · `uebertrag` · `auszahlung` · `freizeitausgleich` | EMP-04. `// TODO(client): O-34 — mapping of these movement kinds to payroll wage types (Lohnarten) for ACC-12` |
+| `stundenkonto_status` | **PLACEHOLDER** `offen` · `vorlaeufig` · `gesperrt` | EMP-04 says only "locks monthly". `vorlaeufig` is not in the SPEC. `// TODO(client): O-143 — is there a provisional state between open and locked — e.g. "figures released to payroll, still correctable" — or does the month go straight from open to locked?` |
+| `bewegung_art` | `arbeitszeit` · `abwesenheit` · `feiertag` · `korrektur` · `uebertrag` · `auszahlung` · `freizeitausgleich` | EMP-04. `// TODO(client): O-139 — mapping of these movement kinds to payroll wage types (Lohnarten) for ACC-12` |
 | `bewegung_quelle` | `zeiteintrag` · `abwesenheit` · `manuell` · `import` · `system` | FIN-07 / TIM-12 traceability |
 | `einwand_art` | `eintrag_fehlt` · `zeit_falsch` · `pause_falsch` · `zuordnung_falsch` · `sonstiges` | EMP-07 |
-| `einwand_status` | **PLACEHOLDER** `offen` · `in_pruefung` · `anerkannt` · `teilweise_anerkannt` · `abgelehnt` · `zurueckgezogen` | EMP-07 defines no decision vocabulary. `// TODO(client): O-42 — may an objection be partially upheld, and does a partial decision need its own state?` |
-| `bewacher_meldung_art` | **PLACEHOLDER** `anmeldung` · `abmeldung` · `aenderung` · `wiedervorlage` | SEC-03 names no notification vocabulary. `// TODO(client): O-36 — which notification events does the Bewacherregister distinguish?` |
+| `einwand_status` | **PLACEHOLDER** `offen` · `in_pruefung` · `anerkannt` · `teilweise_anerkannt` · `abgelehnt` · `zurueckgezogen` | EMP-07 defines no decision vocabulary. `// TODO(client): O-143 — may an objection be partially upheld, and does a partial decision need its own state?` |
+| `bewacher_meldung_art` | **PLACEHOLDER** `anmeldung` · `abmeldung` · `aenderung` · `wiedervorlage` | SEC-03 names no notification vocabulary. `// TODO(client): O-40 — which notification events does the Bewacherregister distinguish?` |
 
 **Why `berechtigung_aktion` is not this document's vocabulary to choose (K-19).** The draft carried
 eight values and omitted **`schreiben`** and **`pruefen`**. Both omissions are fatal and neither
@@ -1741,7 +1741,7 @@ Zuschnitte, die in der Oberfläche angelegt werden.
   ausgeliefert, und die Delegationsregel liegt hinter der Schnittstelle
   `src/server/services/berechtigung.ts → darfRolleVergeben(vergeber, ziel, mandant)`, die bis zur
   Klärung nur `system.rolle_verwalten` prüft.
-  `// TODO(client): O-31 — darf ein Admin einen weiteren Admin ernennen, und darf eine Leitung eine
+  `// TODO(client): O-85 — darf ein Admin einen weiteren Admin ernennen, und darf eine Leitung eine
   Vertretung innerhalb ihres eigenen Bereichs berechtigen?`
 - **Indexes:**
   `rolle_schluessel_key UNIQUE NULLS NOT DISTINCT (mandant_id, schluessel)` — ein Schlüssel je
@@ -2116,7 +2116,7 @@ Feldwerte durch `"***"` ersetzt werden (§9.2, B13).
 | erstellt_am | timestamptz | NOT NULL DEFAULT `now()` — K-16 gilt auch für Registrytabellen (MINOR: fehlte) |
 
 **`kern.anmeldeversuch`** — die Rate-Limiting-Tabelle aus §3.3. Append-only, Aufbewahrung
-**PLACEHOLDER 30 Tage** (`retention.anmeldeversuch_tage`, O-35 — die SPEC nennt keine Frist, K-17),
+**PLACEHOLDER 30 Tage** (`retention.anmeldeversuch_tage`, O-92 — die SPEC nennt keine Frist, K-17),
 kein `mandant_id` (der Versuch findet vor jeder Mandantenauflösung statt), keine `cse_app`-Policy;
 gelesen und geschrieben ausschließlich von `app.versuch_protokollieren` (K-08), gelöscht
 ausschließlich von `job:anmeldeversuch_purge` (§1.6, §12.3).
@@ -2176,7 +2176,7 @@ arbeitet (D-09).
   für niemanden sichtbar, bis seine erste `anstellung` existiert. Eine Definition, an einer Stelle;
   hier steht die Regel, dort der Code.
 
-  `// TODO(client): O-40 — darf der erfassende Bereich einen Menschen weiter sehen, nachdem dieser
+  `// TODO(client): O-141 — darf der erfassende Bereich einen Menschen weiter sehen, nachdem dieser
   ausschließlich für eine andere Entität arbeitet — oder erlischt der Zugriff mit der ersten
   Anstellung?` Die Annahme („erlischt") wird in `DECISIONS.md` als DSGVO-relevante Zugriffsregel
   festgehalten.
@@ -2284,7 +2284,7 @@ die *aktuell gültigen* Konditionen; alles Kostenrelevante hängt hier und nicht
 | stundensatz_intern | bigint | NULL | — | **Abgeleiteter Spiegel; Integer Cents** (invariant 1). Spaltenentzug nach K-05 |
 | tarifgruppe | text | NULL | — | **Abgeleiteter Spiegel.** Spaltenentzug nach K-05 |
 | kostenstelle | text | NULL | — | **Abgeleiteter Spiegel.** Für ACC-01/ACC-12 |
-| tarifvertrag | text | NULL | — | `// TODO(client): O-30 — welcher Branchentarif gilt je Entität (Gebäudereinigung RTV, Sicherheitsgewerbe Berlin, Bau) und wird er in der Plattform überhaupt geführt?` Die Plattform rechnet keine Löhne (D-06) |
+| tarifvertrag | text | NULL | — | `// TODO(client): O-136 — welcher Branchentarif gilt je Entität (Gebäudereinigung RTV, Sicherheitsgewerbe Berlin, Bau) und wird er in der Plattform überhaupt geführt?` Die Plattform rechnet keine Löhne (D-06) |
 | vorgesetzter_anstellung_id | uuid | NULL | — | FK **zusammengesetzt** `(mandant_id, vorgesetzter_anstellung_id) → anstellung (mandant_id, id)` — eine Führungskraft aus einem anderen Mandanten ist strukturell ausgeschlossen |
 | austritt_grund | text | NULL | — | |
 | archiviert_am | timestamptz | NULL | — | Kein Hard Delete — Zeit- und Rechnungsdaten hängen daran (invariant 8) |
@@ -2311,7 +2311,7 @@ die *aktuell gültigen* Konditionen; alles Kostenrelevante hängt hier und nicht
   statt zu warnen. Bis zur Klärung liegt die Regel in `src/server/services/anstellung.ts` als
   Warnung mit Bestätigungspflicht — genau so, wie der Entwurf es beim Personendubletten-Fall bereits
   richtig macht.
-  `// TODO(client): O-32 — kann ein Mensch bei derselben Entität gleichzeitig zwei laufende
+  `// TODO(client): O-137 — kann ein Mensch bei derselben Entität gleichzeitig zwei laufende
   Beschäftigungsverhältnisse haben (z. B. Hauptvertrag plus geringfügige Zusatzbeschäftigung)?`
 - **Indexes:**
   `anstellung_personalnummer_key UNIQUE (mandant_id, personalnummer)`.
@@ -2388,7 +2388,7 @@ Arbeitszeitmodell, Kostenstelle und Tarifgruppe, jeweils mit Gültigkeitszeitrau
 | wochenstunden | numeric(12,3) | NULL | — | Grundlage der Sollstunden (EMP-04) |
 | arbeitstage_woche | numeric(12,3) | NULL | — | Grundlage der Urlaubstagsberechnung (EMP-05) |
 | stundensatz_intern | bigint | NULL | — | **Integer Cents** (invariant 1). Spaltenentzug nach K-05 |
-| tarifgruppe | text | NULL | — | Spaltenentzug nach K-05. `// TODO(client): O-30 — siehe `anstellung.tarifvertrag`` |
+| tarifgruppe | text | NULL | — | Spaltenentzug nach K-05. `// TODO(client): O-136 — siehe `anstellung.tarifvertrag`` |
 | kostenstelle | text | NULL | — | ACC-01, ACC-12 |
 | grund | text | NULL | — | `Tariferhöhung`, `Vertragsänderung`, `Korrektur` — erscheint im Audit |
 | erstellt_am · erstellt_von | | | | append-only bis auf `gueltig_bis` |
@@ -2506,7 +2506,7 @@ niemand im Bewachungsgewerbe eingesetzt werden darf.
 |---|---|---|---|---|
 | id | uuid | NOT NULL | `gen_random_uuid()` | PK |
 | person_id | uuid | NOT NULL | — | **FK → `person.id`** (D-09: die Bewacher-ID folgt dem Menschen, nicht dem Job) |
-| bewacher_id | text | NOT NULL | — | UNIQUE **unbedingt** (§1.8). `CHECK (length(btrim(bewacher_id)) BETWEEN 1 AND 32)`. `// TODO(client): O-36 — exaktes Format/Prüfziffer der Bewacher-ID aus dem Registerauszug; bis dahin keine Formatprüfung erfinden` |
+| bewacher_id | text | NOT NULL | — | UNIQUE **unbedingt** (§1.8). `CHECK (length(btrim(bewacher_id)) BETWEEN 1 AND 32)`. `// TODO(client): O-40 — exaktes Format/Prüfziffer der Bewacher-ID aus dem Registerauszug; bis dahin keine Formatprüfung erfinden` |
 | status | bewacher_status | NOT NULL | `'unbekannt'` | PLACEHOLDER-Vokabular (§4, SEC-03) |
 | registriert_seit · gueltig_bis | date | NULL | — | |
 | letzte_pruefung_am | date | NULL | — | Zuverlässigkeitsüberprüfung |
@@ -2580,13 +2580,13 @@ bereits richtig wählt.
 | schluessel | text | UNIQUE |
 | bezeichnung | text | Deutsches Label |
 | bezeichnung_i18n | jsonb | de/en/ar/tr (EMP-12) |
-| nachweisart | text | **PLACEHOLDER** `sachkunde` \| `unterrichtung` \| `unbekannt`, Default `unbekannt` (O-36) |
+| nachweisart | text | **PLACEHOLDER** `sachkunde` \| `unterrichtung` \| `unbekannt`, Default `unbekannt` (O-40) |
 | archiviert_am | timestamptz | Einzige Liveness-Spalte (§1.7) |
 | erstellt_am | timestamptz | NOT NULL DEFAULT `now()` — K-16 gilt ausnahmslos (MINOR: fehlte) |
 | geaendert_am | timestamptz | |
 | erstellt_von · geaendert_von | uuid | FK → `benutzer.id`. Aus demselben Grund wie bei `abwesenheitsart` (§6.22): `nachweisart` steuert, welcher Nachweis für eine gemeldete Tätigkeit verlangt wird — eine aufsichtsrelevante Einstellung braucht einen Urheber |
 
-`// TODO(client): O-36 — verbindliche Liste der Tätigkeitsarten nach §34a GewO und ihre jeweilige
+`// TODO(client): O-40 — verbindliche Liste der Tätigkeitsarten nach §34a GewO und ihre jeweilige
 Nachweisanforderung (Sachkunde vs. Unterrichtung) — aus dem Registerauszug, nicht aus dem Gesetzestext
 abgeleitet.` Bis dahin wird der Katalog leer ausgeliefert und `bewacher_meldung.taetigkeiten` bleibt
 `'{}'`; SEC-04 prüft ausschließlich `nachweis` und `bewacher_eintrag.status`.
@@ -2656,12 +2656,12 @@ nirgends festlegt: ein Postgres-Enum wäre eine erfundene Geschäftsregel und f�
 | schluessel | text | NOT NULL | — | `UNIQUE NULLS NOT DISTINCT (mandant_id, schluessel)`. Seed-Platzhalter: `urlaub`, `krankheit`, `kind_krank`, `unbezahlt`, `fortbildung`, `freizeitausgleich`, `sonstige` |
 | bezeichnung | text | NOT NULL | — | Deutsches Label |
 | bezeichnung_i18n | jsonb | NOT NULL | `'{}'` | de/en/ar/tr — der Antragsdialog ist worker-facing (EMP-10, EMP-12) |
-| bezahlt | boolean | **NULL** | **kein Default** | **INVENTED RULE korrigiert.** Der Entwurf trug `NOT NULL DEFAULT true` mit einem TODO daneben — der Default liefert damit trotzdem eine Antwort, und jede vor der Rückmeldung angelegte Art gilt still als „bezahlt", woraufhin `erzeugt_stundenkonto_bewegung` Sollzeit gutschreibt. NULL = ungeklärt; `services/abwesenheit.ts` **verweigert** die Verwendung einer Art mit `bezahlt IS NULL` mit einer klaren Meldung. `// TODO(client): O-34 — bezahlt/unbezahlt je Abwesenheitsart` |
+| bezahlt | boolean | **NULL** | **kein Default** | **INVENTED RULE korrigiert.** Der Entwurf trug `NOT NULL DEFAULT true` mit einem TODO daneben — der Default liefert damit trotzdem eine Antwort, und jede vor der Rückmeldung angelegte Art gilt still als „bezahlt", woraufhin `erzeugt_stundenkonto_bewegung` Sollzeit gutschreibt. NULL = ungeklärt; `services/abwesenheit.ts` **verweigert** die Verwendung einer Art mit `bezahlt IS NULL` mit einer klaren Meldung. `// TODO(client): O-139 — bezahlt/unbezahlt je Abwesenheitsart` |
 | zaehlt_auf_urlaubskonto | boolean | NOT NULL | `false` | `true` nur für Urlaubsarten (EMP-05) |
 | erzeugt_stundenkonto_bewegung | boolean | NOT NULL | `false` | Ob die Abwesenheit als Sollzeitgutschrift ins Stundenkonto läuft (EMP-04) |
 | ist_gesundheitsbezogen | boolean | NOT NULL | `false` | Steuert die Redaktion in `audit_log` (§9.2) und die Spaltensperre von §11 (Art. 9 DSGVO) |
-| nachweis_pflicht_ab_tagen | integer | NULL | — | z. B. AU ab Tag 3 — `// TODO(client): O-34 — betriebliche Regelung je Abwesenheitsart` |
-| lohnart_schluessel | text | NULL | — | Exportcode für ACC-12. `// TODO(client): O-34 — Lohnartenschlüssel des Lohnsystems je Abwesenheitsart; das Zielformat selbst ist O-27` |
+| nachweis_pflicht_ab_tagen | integer | NULL | — | z. B. AU ab Tag 3 — `// TODO(client): O-139 — betriebliche Regelung je Abwesenheitsart` |
+| lohnart_schluessel | text | NULL | — | Exportcode für ACC-12. `// TODO(client): O-139 — Lohnartenschlüssel des Lohnsystems je Abwesenheitsart; das Zielformat selbst ist O-27` |
 | farbe_token | text | NULL | — | **Token, kein Hex.** `CHECK (farbe_token IS NULL OR farbe_token IN ('success','warning','danger','info','neutral'))` — die semantischen Tokens aus DESIGN §1 |
 | archiviert_am | timestamptz | NULL | — | Einzige Liveness-Spalte (§1.7) |
 | erstellt_am · geaendert_am · erstellt_von · geaendert_von | | | | MINOR: `erstellt_von`/`geaendert_von` fehlten im Entwurf, obwohl `lohnart_schluessel`, `bezahlt` und `zaehlt_auf_urlaubskonto` lohnrelevante Einstellungen sind (ACC-12) |
@@ -2727,7 +2727,7 @@ Zeitraum, Status und angerechneten Tagen.
   Nur die echte Dublette — dieselbe Art, ganze Tage — ist strukturell verboten. Krankheit während
   Urlaub behandelt `services/abwesenheit.ts` explizit: es schreibt die überlappenden Tage
   `urlaubskonto.genommen_tage` gut und dokumentiert die Gutschrift als Korrektur-`abwesenheit`.
-  `// TODO(client): O-33 — schreibt die Gruppe Krankheitstage während genehmigten Urlaubs automatisch
+  `// TODO(client): O-138 — schreibt die Gruppe Krankheitstage während genehmigten Urlaubs automatisch
   dem Urlaubskonto gut (§9 BUrlG) oder erst bei Vorlage der AU-Bescheinigung?`
 - **`CHECK (status <> 'genehmigt' OR tage_angerechnet IS NOT NULL)` (review: MISSING)** — sonst
   bucht die Genehmigung NULL auf `urlaubskonto.genommen_tage` und `rest_tage` (eine GENERATED-Spalte)
@@ -2967,7 +2967,7 @@ gemacht: beide sind Tabellen, und das Verhalten, das der Trigger braucht, sind S
 
 Seed: `urlaub` (Zeitraum + Abwesenheitsart + erzeugt Abwesenheit), `krankmeldung` (dito),
 `schichttausch` (Einsatz + Tauschpartner) — die drei, die EMP-10 nennt. Alles Weitere legt der Kunde
-in der Oberfläche an. `// TODO(client): O-41 — welche weiteren Antragsarten führt die Gruppe
+in der Oberfläche an. `// TODO(client): O-142 — welche weiteren Antragsarten führt die Gruppe
 (unbezahlte Freistellung, Freizeitausgleich, Schichtabgabe, Stammdatenänderung)?`
 
 - **RLS:** wie `abwesenheitsart`.
@@ -3147,7 +3147,7 @@ es mit vier verschiedenen Spaltensätzen (`job_schluessel`/`job`, `begonnen_am`/
   Domänendokument prägt ihn selbst** (K-19).
   `INSERT`/`UPDATE` ausschließlich `to cse_job` über `t_job` (§1.1): der Job schreibt seine eigene
   Zeile, niemand sonst schreibt sie. Kein `DELETE` für irgendeine Rolle; die Aufbewahrung ist die
-  Klasse `betrieb` aus §9.3 und damit **PLACEHOLDER** (`// TODO(client): O-35`).
+  Klasse `betrieb` aus §9.3 und damit **PLACEHOLDER** (`// TODO(client): O-92`).
   **Wert in den vier Scopes, weil `app.aktiver_mandant()` in dreien NULL ist (K-20):** in
   `mandant`-Scope liest, wer `system.einstellung_lesen` hält; in `gruppe`-, `person`- und
   `kunde`-Scope liest **ausschließlich** `super_admin`, und zwar ausgesagt, nicht versehentlich —
@@ -3279,7 +3279,7 @@ Handlung im `audit_log`, der Vorfall hier.
   `app.aufbewahrung_intervall(mandant_id, 'sicherheitsvorfall')` abgelaufen ist — **mit**
   Mandantenargument, weil die einargumentige Form in genau den mandantenlosen Purge-Kontexten NULL
   liefert (`02-CRM-OPERATIONS.md` §4.7) und eine NULL-Frist entweder alles oder nichts löscht.
-  Solange O-35 offen ist, liefert die Frist **keinen** Wert und der Job löscht nichts — dieselbe
+  Solange O-92 offen ist, liefert die Frist **keinen** Wert und der Job löscht nichts — dieselbe
   Konstruktion und dieselbe benannte Ausnahme wie bei `kern.anmeldeversuch` (§1.6, §12.3).
 - **SPEC:** AGT-03, SEC-A9, LEG-09, SPEC §14, K-21.
 
@@ -3600,7 +3600,7 @@ LEG-01/ACC-06 require ten years for **accounting-relevant** records; §17 MiLoG 
 years for hour records; nothing in the SPEC says a decade of employees' IP addresses is proportionate
 under DSGVO. `aufbewahrung_klasse` therefore carries the class, and §15 carries the table.
 
-`// TODO(client): O-35 — retention period per audit class: how long are security events (logins,
+`// TODO(client): O-92 — retention period per audit class: how long are security events (logins,
 permission changes, session switches) and operational events kept, given that only
 accounting-relevant records carry the ten-year GoBD obligation and MiLoG hour records carry two
 years? The same question covers `kern.anmeldeversuch` (§3.3) and the Bewacherregister rows below.`
@@ -3799,9 +3799,9 @@ section — the trigger elevates the mechanism, never the authorisation.
 | `job:audit_partition_anlegen` | monthly | creates next month's partition and chain head | LEG-01 |
 | `job:kennzahlen_aktualisieren` | every 15 min | refreshes `mandant_kennzahl` | TEN-10 |
 | `job:sitzung_aufraeumen` | hourly | ends expired sessions with `ende_grund = 'ablauf'` | AUT-08 |
-| `job:anmeldeversuch_purge` | daily | deletes `kern.anmeldeversuch` rows older than `retention.anmeldeversuch_tage` (**PLACEHOLDER 30 Tage**, O-35) — one of the **two** hard deletes in this domain (§1.6), and it is not finance, time or audit data (invariant 8) | AUT-07, LEG-09 |
+| `job:anmeldeversuch_purge` | daily | deletes `kern.anmeldeversuch` rows older than `retention.anmeldeversuch_tage` (**PLACEHOLDER 30 Tage**, O-92) — one of the **two** hard deletes in this domain (§1.6), and it is not finance, time or audit data (invariant 8) | AUT-07, LEG-09 |
 | `job:zugang_nummer_abgleich` | daily | reports divergence between `person.mobil_e164` and `auth.users.phone`, compared through `app.telefon_normalisiert()` on **both** sides (§2) — a raw `=` would report 100 % divergence | EMP-01 |
-| `job:sicherheitsvorfall_purge` | daily | deletes `sicherheitsvorfall` rows whose `app.aufbewahrung_intervall(mandant_id, 'sicherheitsvorfall')` has lapsed — **the interval ships unset (O-35), so the job deletes nothing** and says so in its `kennzahlen` | AGT-03, LEG-09 |
+| `job:sicherheitsvorfall_purge` | daily | deletes `sicherheitsvorfall` rows whose `app.aufbewahrung_intervall(mandant_id, 'sicherheitsvorfall')` has lapsed — **the interval ships unset (O-92), so the job deletes nothing** and says so in its `kennzahlen` | AGT-03, LEG-09 |
 
 **Every job in this table, and every job in every other domain, writes `job_lauf` (§6.31).** One row
 per run: `gestartet_am` when the endpoint accepts the trigger, `ergebnis = 'laeuft'` until it
@@ -3952,7 +3952,7 @@ release's database; both must succeed.
 - **`qualifikation`** — `34a_sachkunde` and `34a_unterrichtung`, each pointing at the `nachweis_art`
   row of the same key, with `blockiert_einsatz = true`,
   `laeuft_ab = true`, `rechtsgrundlage = '§34a GewO'` (SEC-02, SEC-04) and **no**
-  `standard_gueltigkeit_monate`. `// TODO(client): O-37 — behandelt die Gruppe die §34a-Unterrichtung
+  `standard_gueltigkeit_monate`. `// TODO(client): O-140 — behandelt die Gruppe die §34a-Unterrichtung
   bzw. -Sachkunde als unbefristet, und was löst eine Wiedervorlage aus — allein das Intervall der
   Zuverlässigkeitsüberprüfung?` (MINOR: without an answer the 60/30/7 watchdog has nothing to warn
   about until someone types a `gueltig_bis` by hand.)
@@ -3999,7 +3999,7 @@ or `kunde`**, so no customer login and no worker login reads the staff directory
 to their own record runs through the self-access disjunct plus the K-04 ceiling, never through a
 right.
 
-`// TODO(client): O-39 — should a Leitung be able to see the internal hourly cost rates of their own
+`// TODO(client): O-75 — should a Leitung be able to see the internal hourly cost rates of their own
 area (they are the ones costing the jobs), or is that reserved to Geschäftsführung and Buchhaltung?`
 Until answered the restrictive value ships.
 
@@ -4027,13 +4027,13 @@ retaining it, and the retention period** — and to reconcile that with an appen
 | `benutzer` | `id` | **retained** | `audit_log` actor references |
 | `mitarbeiter_zugang` | `einladung_token_hash` | NULL | — |
 | `nachweis` | `nummer` | NULL | the *fact* of the qualification stays; the certificate number is not needed after the employment |
-| `bewacher_eintrag` | `bewacher_id` | **retained until `erloschen_am` + retention** | §34a GewO / LEG-04 supervisory obligation — `// TODO(client): O-35 — how long must Bewacherregister records be retained after deregistration?` |
+| `bewacher_eintrag` | `bewacher_id` | **retained until `erloschen_am` + retention** | §34a GewO / LEG-04 supervisory obligation — `// TODO(client): O-92 — how long must Bewacherregister records be retained after deregistration?` |
 | `anstellung`, `anstellung_kondition`, `stundenkonto`, `stundenkonto_bewegung`, `abwesenheit`, `urlaubskonto`, `zeit_einwand`, `antrag` | all | **retained unchanged** | §17 MiLoG 2 years (LEG-02); GoBD 10 years where the record feeds an invoice (LEG-01, ACC-06) |
-| `audit_log` | `akteur_bezeichnung`, `ip`, `user_agent`, redacted payloads | **retained, immutable** | LEG-01 / ACC-06 for the accounting class; `// TODO(client): O-35` for the `sicherheit` and `betrieb` classes (§9.3) |
-| `kern.anmeldeversuch` | `kennung_hash`, `ip` | deleted by `job:anmeldeversuch_purge` after `retention.anmeldeversuch_tage` — **PLACEHOLDER 30 Tage**, `// TODO(client): O-35` | AUT-07; the SPEC names no period, so the proportionality assessment is the controller's (K-17) |
+| `audit_log` | `akteur_bezeichnung`, `ip`, `user_agent`, redacted payloads | **retained, immutable** | LEG-01 / ACC-06 for the accounting class; `// TODO(client): O-92` for the `sicherheit` and `betrieb` classes (§9.3) |
+| `kern.anmeldeversuch` | `kennung_hash`, `ip` | deleted by `job:anmeldeversuch_purge` after `retention.anmeldeversuch_tage` — **PLACEHOLDER 30 Tage**, `// TODO(client): O-92` | AUT-07; the SPEC names no period, so the proportionality assessment is the controller's (K-17) |
 | `loeschprotokoll` | `subjekt_id`, `subjekt_kennung_hash`, `kategorie`, `grundlage` | **retained, immutable** — it is the *evidence of* the erasure and holds no erased content (§6.35) | LEG-09, REC-07 |
-| `sicherheitsvorfall` | `kennung_hash`, `details` (redacted) | **retained** until `app.aufbewahrung_intervall(mandant_id, 'sicherheitsvorfall')` lapses | AGT-03, SEC-A9; the period is `// TODO(client): O-35` |
-| `job_lauf`, `job_lauf_mandant` | `kennzahlen` — counts only, never a subject | **retained**, retention class `betrieb` | SPEC §14; the period is `// TODO(client): O-35` |
+| `sicherheitsvorfall` | `kennung_hash`, `details` (redacted) | **retained** until `app.aufbewahrung_intervall(mandant_id, 'sicherheitsvorfall')` lapses | AGT-03, SEC-A9; the period is `// TODO(client): O-92` |
+| `job_lauf`, `job_lauf_mandant` | `kennzahlen` — counts only, never a subject | **retained**, retention class `betrieb` | SPEC §14; the period is `// TODO(client): O-92` |
 
 `person.loeschsperre_bis` carries the latest applicable retention date and
 `person_anonymisierung_sperre` refuses anonymisation before it, or while any `anstellung` is not
@@ -4048,7 +4048,7 @@ data-subject request is answered with the `audit_log` rows the person is the act
 already read those, §6.11) plus an export of the tables above; erasure is answered with the table
 above and the stated legal bases.
 
-`// TODO(client): O-35 — der DSGVO-Löschkonzept-Anhang braucht je Datenklasse eine bestätigte
+`// TODO(client): O-92 — der DSGVO-Löschkonzept-Anhang braucht je Datenklasse eine bestätigte
 Aufbewahrungsfrist und die benannte Rechtsgrundlage — die Tabelle oben ist der Entwurf, nicht die
 Freigabe.`
 
@@ -4059,25 +4059,25 @@ Freigabe.`
 Every one is a `// TODO(client)` in the text above, **each carrying its `O-` number**, and belongs in
 `docs/DECISIONS.md` under **Open** (K-17). None is answered here. Where an existing number already
 covers the question it is reused rather than duplicated; the rest are proposed new and start at
-**O-30**.
+**O-136**.
 
 | O- | Question | Where it appears | Blocks |
 |---|---|---|---|
 | **O-18** *(exists)* | Which employment / social-insurance categories does the group use for `arbeitszeitmodell`, and must they match the payroll system's codes (ACC-12)? Leave entitlement rule per entity and employment type (statutory 24 Werktage under BUrlG vs. collective vs. contractual) and the expiry date of carried-over days | §4 `arbeitszeitmodell`, §6.26 | `anstellung_kondition`, `urlaubskonto`, ACC-12 |
-| **O-30** *(new)* | Which sector wage agreement applies per entity (Gebäudereinigung RTV, Sicherheitsgewerbe Berlin, Bau), and is it tracked in the platform at all? | §6.14 `tarifvertrag`, §6.15 `tarifgruppe` | `anstellung`, `anstellung_kondition` |
-| **O-31** *(new)* | May an Admin appoint another Admin, and may a Leitung authorise a deputy within their own area? | §6.5 | `rolle.rang`, `bm_rang_pruefen` — both withheld until answered |
-| **O-32** *(new)* | May one person hold two concurrent employments with the **same** entity (main contract plus a marginal one)? | §6.14 | `anstellung` uniqueness; the rule ships as a service warning, not a constraint |
-| **O-33** *(new)* | Does the group credit sick days during approved leave back to the Urlaubskonto automatically (§9 BUrlG), or only on presentation of the AU certificate? | §6.23 | `abwesenheit`, `urlaubskonto` |
-| **O-34** *(new)* | Paid/unpaid status per absence type, the proof-required-from-day-N rule, and the payroll wage-type (Lohnart) mapping for every `abwesenheitsart` and every `bewegung_art` | §4 `bewegung_art`, §6.22 | ACC-12; the export **format** is O-27 |
-| **O-35** *(new)* | Retention period **and legal basis per data class**: the `sicherheit` and `betrieb` audit classes, `kern.anmeldeversuch` (proposal 30 days), `sicherheitsvorfall`, the `job_lauf` operations log, Bewacherregister rows after deregistration, and the confirmed DSGVO deletion-concept annex | §3.3, §6.31, §6.34, §9.3, §12.3, §15 | `audit_log`, `kern.anmeldeversuch`, `sicherheitsvorfall`, `job_lauf`, LEG-09 |
-| **O-36** *(new)* | Bewacherregister: exact format and check digit of the Bewacher-ID, the register's status vocabulary, its notification events, and the binding list of §34a activity types with their proof requirement | §4, §6.18, §6.20 | `bewacher_eintrag`, `bewacher_meldung`, `bewachertaetigkeit` |
-| **O-37** *(new)* | Is the §34a Unterrichtung/Sachkunde treated as unbefristet, and what triggers a re-check — only the reliability-check interval? | §14.2 | SEC-02 watchdog has nothing to warn on until answered |
-| **O-38** *(new)* | Idle timeout and absolute session lifetime per role; AUT-07 thresholds (attempts per identifier and per IP, window, lockout duration, whether the user is notified) | §3.3 | `benutzer_sitzung`, `kern.anmeldeversuch` |
-| **O-39** *(new)* | Should a Leitung see the internal hourly cost rates of their own area, or is that reserved to Geschäftsführung and Buchhaltung? | §14.3 | seed permission matrix; the restrictive value ships |
-| **O-40** *(new)* | Does the entity that first recorded a person keep read access after the person works exclusively for another entity, or does the anchor lapse with the first employment? | §3.2, §6.13 | `app.person_sichtbar` — a DSGVO-relevant access rule |
-| **O-41** *(new)* | Which further request types does the group run (unpaid leave, time off in lieu, shift handover, master-data change)? | §6.28 | `antragsart` |
-| **O-42** *(new)* | Is there a provisional state between open and locked on the Stundenkonto, and may a Zeit-Einwand be partially upheld? Both placeholder enum values (`vorlaeufig`, `teilweise_anerkannt`) stand or fall with the answer | §4 | `stundenkonto_status`, `einwand_status` |
-| **O-43** *(new)* | Confirm the categories used for certificate reporting (`qualifikation_kategorie`) | §4 | `qualifikation` |
+| **O-136** *(new)* | Which sector wage agreement applies per entity (Gebäudereinigung RTV, Sicherheitsgewerbe Berlin, Bau), and is it tracked in the platform at all? | §6.14 `tarifvertrag`, §6.15 `tarifgruppe` | `anstellung`, `anstellung_kondition` |
+| **O-85** *(new)* | May an Admin appoint another Admin, and may a Leitung authorise a deputy within their own area? | §6.5 | `rolle.rang`, `bm_rang_pruefen` — both withheld until answered |
+| **O-137** *(new)* | May one person hold two concurrent employments with the **same** entity (main contract plus a marginal one)? | §6.14 | `anstellung` uniqueness; the rule ships as a service warning, not a constraint |
+| **O-138** *(new)* | Does the group credit sick days during approved leave back to the Urlaubskonto automatically (§9 BUrlG), or only on presentation of the AU certificate? | §6.23 | `abwesenheit`, `urlaubskonto` |
+| **O-139** *(new)* | Paid/unpaid status per absence type, the proof-required-from-day-N rule, and the payroll wage-type (Lohnart) mapping for every `abwesenheitsart` and every `bewegung_art` | §4 `bewegung_art`, §6.22 | ACC-12; the export **format** is O-27 |
+| **O-92** *(new)* | Retention period **and legal basis per data class**: the `sicherheit` and `betrieb` audit classes, `kern.anmeldeversuch` (proposal 30 days), `sicherheitsvorfall`, the `job_lauf` operations log, Bewacherregister rows after deregistration, and the confirmed DSGVO deletion-concept annex | §3.3, §6.31, §6.34, §9.3, §12.3, §15 | `audit_log`, `kern.anmeldeversuch`, `sicherheitsvorfall`, `job_lauf`, LEG-09 |
+| **O-40** *(new)* | Bewacherregister: exact format and check digit of the Bewacher-ID, the register's status vocabulary, its notification events, and the binding list of §34a activity types with their proof requirement | §4, §6.18, §6.20 | `bewacher_eintrag`, `bewacher_meldung`, `bewachertaetigkeit` |
+| **O-140** *(new)* | Is the §34a Unterrichtung/Sachkunde treated as unbefristet, and what triggers a re-check — only the reliability-check interval? | §14.2 | SEC-02 watchdog has nothing to warn on until answered |
+| **O-79** *(new)* | Idle timeout and absolute session lifetime per role; AUT-07 thresholds (attempts per identifier and per IP, window, lockout duration, whether the user is notified) | §3.3 | `benutzer_sitzung`, `kern.anmeldeversuch` |
+| **O-75** *(new)* | Should a Leitung see the internal hourly cost rates of their own area, or is that reserved to Geschäftsführung and Buchhaltung? | §14.3 | seed permission matrix; the restrictive value ships |
+| **O-141** *(new)* | Does the entity that first recorded a person keep read access after the person works exclusively for another entity, or does the anchor lapse with the first employment? | §3.2, §6.13 | `app.person_sichtbar` — a DSGVO-relevant access rule |
+| **O-142** *(new)* | Which further request types does the group run (unpaid leave, time off in lieu, shift handover, master-data change)? | §6.28 | `antragsart` |
+| **O-143** *(new)* | Is there a provisional state between open and locked on the Stundenkonto, and may a Zeit-Einwand be partially upheld? Both placeholder enum values (`vorlaeufig`, `teilweise_anerkannt`) stand or fall with the answer | §4 | `stundenkonto_status`, `einwand_status` |
+| **O-144** *(new)* | Confirm the categories used for certificate reporting (`qualifikation_kategorie`) | §4 | `qualifikation` |
 | **O-107** *(exists — raised by `06-AGENTEN-FREIGABEN.md` §18, reused here rather than duplicated)* | Welche Eignungs- und Personennachweise verlangen die Vergabestellen, auf denen die Gruppe registriert ist, und welche Nachweisarten führt die Gruppe intern? | §6.33 | `nachweis_art`; until answered the catalogue holds only the two §34a rows and `pruefe_nachweise` answers `fehlt` for every unknown art |
 
 **Not a client question:** an absence colour palette must be added to `docs/DESIGN.md` before the
@@ -4091,7 +4091,7 @@ K-21), **O-06** (Betriebsrat → LEG-10 → `mitarbeiter_zugang.geolokalisierung
 four `mandant_einstellung` switches of §6.30**, which ship `false` until it is answered), **O-08**
 (domains →
 `mandant_identitaet.domain`), **O-12 / O-13** (logos and photography → `platzhalter_medien`),
-**O-27** (payroll export target system and format → the export side of O-34).
+**O-27** (payroll export target system and format → the export side of O-139).
 
 ---
 
@@ -4140,7 +4140,7 @@ Nothing in this section is optional; each line names the failure it prevents.
    which is what the draft's inline `exists` did silently.
 9b. **The bootstrap anchor lives in one place (R5).** A newly recorded `person` with no `anstellung`
    is visible to their `erfasst_von_mandant_id` and to nobody else; the moment an `anstellung` in
-   another mandant exists, the anchor lapses and the recording entity loses the row (O-40).
+   another mandant exists, the anchor lapses and the recording entity loses the row (O-141).
 9c. **Column privileges compose with the policies (R2, R3).** `insert into person (…)` succeeds for
    a holder of `personal.erstellen` including `geburtsdatum`, and `select geburtsdatum from person`
    raises `permission denied` for the same caller; `insert into anstellung_kondition` succeeds and
