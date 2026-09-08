@@ -15,12 +15,12 @@ been written — that was deliberate and still waits on the client's review.
 |---|---|---|
 | 1 · Folder structure | `01-ORDNERSTRUKTUR.md` | done, harmonised |
 | 2 · Full DB schema | `02-datenmodell/01…06` | done, harmonised |
-| 3 · Auth + permission model | `03-AUTH-BERECHTIGUNGEN.md` | done, **harmonisation not applied** |
-| 4 · Page map | `04-SEITENKARTE.md` | done, **harmonisation not applied** |
-| 4 · API map | `05-API-KARTE.md` | done, **harmonisation not applied** |
-| 5 · Agents + approval gate | `06-AGENTEN-FREIGABEN.md` | done, **harmonisation not applied** |
-| 6 · PR plan (96 PRs) | `08-PR-PLAN.md` | done, **harmonisation not applied** |
-| — · Integrations (ROADMAP asks for it) | `07-INTEGRATIONEN.md` | done, **harmonisation not applied** |
+| 3 · Auth + permission model | `03-AUTH-BERECHTIGUNGEN.md` | done, harmonised |
+| 4 · Page map | `04-SEITENKARTE.md` | done, harmonised |
+| 4 · API map | `05-API-KARTE.md` | done, harmonised |
+| 5 · Agents + approval gate | `06-AGENTEN-FREIGABEN.md` | done, harmonised |
+| 6 · PR plan (96 PRs) | `08-PR-PLAN.md` | done, harmonised |
+| — · Integrations (ROADMAP asks for it) | `07-INTEGRATIONEN.md` | done, harmonised |
 | — · Binding conventions K-01…K-21 | `00-KONVENTIONEN.md` | done |
 
 `_review/` holds the raw review artefacts: the twelve adversarial critiques
@@ -51,27 +51,22 @@ check → harmonisation. Roughly 80 agent passes.
 
 ## Resume here
 
-### 1. Finish the harmonisation pass — the only real gap
+### 1. ~~Finish the harmonisation pass~~ — DONE (commit `aac8758`)
 
-Six documents still need the cross-document fixes applied:
-`03-AUTH-BERECHTIGUNGEN.md`, `04-SEITENKARTE.md`, `05-API-KARTE.md`,
-`06-AGENTEN-FREIGABEN.md`, `07-INTEGRATIONEN.md`, `08-PR-PLAN.md`.
+All thirteen documents now carry the cross-document fixes. `03-AUTH` owns a
+complete permission catalogue with all seven K-19 actions; invented right keys
+were remapped onto the closed module list rather than added to it; `t_kunde`
+predicates use `app.aktuelle_kunden()` per K-20; and the K-21 names are
+canonical, with superseded spellings kept only as explicit withdrawal notes so
+they cannot drift back.
 
-Their to-do list is `_review/cross.md`, which names, for every contradiction,
-the documents involved, **which one is right**, and the fix. Apply only the
-items where the document in hand is the one that must change. The binding
-answers are already in `00-KONVENTIONEN.md` as K-19 (one permission catalogue),
-K-20 (accessors resolve in every scope) and K-21 (table ownership and canonical
-names).
-
-The largest single job is **03-AUTH-BERECHTIGUNGEN.md**: under K-19 it owns the
-permission catalogue, so every right key any other document uses must have a row
-there, and its `berechtigung_aktion` vocabulary must contain all seven actions
-K-19 lists — `lesen, schreiben, loeschen, pruefen, freigeben, exportieren,
-verwalten`.
-
-Then re-run the three consistency checks (permission keys and scopes; table and
-column names; money, time and agent contracts).
+**What was not re-run:** the three consistency checks (permission keys and
+scopes; table and column names; money, time and agent contracts) that would
+confirm the harmonisation actually converged. Spot checks pass — the seven
+actions are present, and no live use of `storno_verweis`, `monatslimit_cent`,
+`ist_rechtstraeger` or a `steuersatz` table survives — but a full re-check has
+not run. Do that first on resume; `_review/cross.md` holds the original findings
+to check against.
 
 ### 2. Rebuild the O-number register — do this by hand, do not trust the claims
 
