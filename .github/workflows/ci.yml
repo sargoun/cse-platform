@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push: { branches: [main] }
+  pull_request:
+
+jobs:
+  pruefung:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+
+      - run: pnpm install --frozen-lockfile
+
+      # Order matters: the guards are cheap and catch the class of change that
+      # is expensive to discover later, so they run before the slow steps.
+      - name: Merge-Wachen (Invarianten 1, 2, 5, K-17, D-04)
+        run: pnpm guards
+
+      - name: Lint
+        run: pnpm exec eslint .
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      # SEC-A8: a known-vulnerable dependency fails the branch.
+      - name: Audit
+        run: pnpm audit --audit-level=high
