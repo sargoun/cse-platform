@@ -281,7 +281,8 @@ finalisation, and `03-GEWERKE.md` §2.3 draws the Leistungsnachweis and Wachbuch
 way), its action value `ziehen`, and `personal.erstattung_lesen` (the K-05 column gate on
 `ausgabe.anstellung_id`, §1.5). The module for the **global reference tables** is likewise not
 invented: `referenz` in the catalogue means published website content (PUB-07, PRO-05), so §3.2 uses
-`system.einstellung_verwalten` and not a second meaning for one module name.
+the catalogue's dedicated **`system.referenzdaten_verwalten`** — not a second meaning for one module
+name, and not the per-tenant `system.einstellung_verwalten` either (§3.2).
 
 ### 1.4 Portal ceilings (K-04) — and the answer to the group-scope objection (review B2)
 
@@ -537,8 +538,9 @@ accounting is permitted **only** in agent cost and budget accounting (`agent_sch
 `agent_budget` and their carry columns, whose cap is `budget_cent` and whose consumption is
 `verbrauch_mikrocent` — K-21) and `eingangsrechnung_extraktion.kosten_cent` (§8.4) sits *at* that
 boundary — it holds the figure converted once, half-up
-(`cent = div(mikrocent + 5000, 10000)`). **This column is a third conversion site**, beside the two
-`06-AGENTEN-FREIGABEN.md` §8.2 enumerates (a run's total and the reporting boundary), and K-16 (b)
+(`cent = div(mikrocent + 5000, 10000)`). **This column is the third conversion site**, beside the two
+`06-AGENTEN-FREIGABEN.md` §8.2 and `06-RADAR-KI-INHALT.md` §1.12 name (a run's total and the REP-01
+reporting boundary) — both of which now count three and name this one, and K-16 (b)
 requires the rounding rule to be stated where the conversion happens — so it is stated at the column
 itself in §8.4 and again in §12.2, not delegated to the agent runtime. Nothing invoiced, booked or
 exported is ever micro-cents (K-16 b); every
@@ -921,11 +923,11 @@ alter table <t> force  row level security;
 create policy r_lesen  on <t> for select to cse_app using (true);
 create policy r_pflege on <t> for insert to cse_app
   with check (app.ist_super_admin() and not app.ist_readonly()
-              and (select app.hat_recht('system.einstellung_verwalten', app.aktiver_mandant())));
+              and (select app.hat_recht('system.referenzdaten_verwalten', app.aktiver_mandant())));
 create policy r_pflege_u on <t> for update to cse_app
   using (app.ist_super_admin())
   with check (not app.ist_readonly()
-              and (select app.hat_recht('system.einstellung_verwalten', app.aktiver_mandant())));
+              and (select app.hat_recht('system.referenzdaten_verwalten', app.aktiver_mandant())));
 -- no delete policy; kern.verhindere_loeschung() and fin.verhindere_truncate() as everywhere else
 ```
 
@@ -933,14 +935,27 @@ create policy r_pflege_u on <t> for update to cse_app
 migrations/seed" and "are entered by an admin" while granting no write policy at all, which means the
 Bundesbank base rate for the next half-year can never be entered and §288 BGB interest goes stale by
 design. Rows are entered either by a migration (`cse_migrator`) or by a super-admin holding
-`system.einstellung_verwalten` at `aal2`, and every write goes to `audit_log`.
+`system.referenzdaten_verwalten` at `aal2`, and every write goes to `audit_log`.
 
-**The key is `system.einstellung_verwalten`, not `referenz.verwalten` (K-19).** The draft used the
-latter, and it collides: in `03-AUTH-BERECHTIGUNGEN.md` §7.4 the module `referenz` is *published
-website content* (`seite`, `referenz` — PUB-07, PRO-05), so one module name would have carried two
-unrelated meanings and a web editor's grant would have opened §12 UStG. These five tables are
-platform-level configuration a super-admin maintains, which is what module `system` covers; the key
-exists in the catalogue already, so nothing is minted here.
+**The key is `system.referenzdaten_verwalten` — not `referenz.verwalten`, and not
+`system.einstellung_verwalten` (K-19).** Two spellings were tried here and both are wrong.
+
+`referenz.verwalten` **collides**: in `03-AUTH-BERECHTIGUNGEN.md` §7.4 the module `referenz` is
+*published website content* (`seite`, `referenz` — PUB-07, PRO-05), so one module name would carry
+two unrelated meanings and a web editor's grant would open §12 UStG.
+
+`system.einstellung_verwalten` is the right module and **still the wrong key**: it is the per-tenant
+`mandant_einstellung` right (`01-KERN.md` §6.30), bindable to an administrator *per mandant* and
+carrying no `erfordert_2fa`. These five tables are **not tenant data** — a VAT rate and the §288 BGB
+base rate are the same fact in all four entities — so reusing the tenant settings key reintroduces
+exactly the one-key-two-meanings collision the paragraph above rejects, one level down: an admin
+granted the right to edit their own entity's monitoring switches would also be able to edit the
+platform's tax table.
+
+`system.referenzdaten_verwalten` is the catalogue's own key for this (`03-AUTH-BERECHTIGUNGEN.md`
+§12.1): module `system`, `erfordert_2fa`, `SA ✔ / AD ○ / LT —`, not bindable per mandant. It exists
+in the catalogue already, so nothing is minted here — and under K-19's CI assertion 2 it stops being
+a catalogue row no code uses, which it was while this document named something else.
 
 Both write policies read `app.aktiver_mandant()`, and under K-20 that is stated rather than assumed:
 a write to a global reference table happens only in `mandant` scope, because invariant 10 gives the
@@ -1009,7 +1024,7 @@ a unit string. That decision stands — the import keeps succeeding — but it c
 implementer to find on the first LV: the invoice **draft** service resolves `einheit →
 masseinheit.schluessel` and, on a miss, raises the named error `UnbekannteMengeneinheit(einheit)`
 pointing at the Mengeneinheiten screen. It never invents a code, never falls back to `C62`, and never
-silently drops BT-130. Adding the row is a super-admin act under `system.einstellung_verwalten` (the `r_pflege`
+silently drops BT-130. Adding the row is a super-admin act under `system.referenzdaten_verwalten` (the `r_pflege`
 policy above), and the row may be added with the German label alone and `unece_code` NULL while
 `ist_platzhalter = true` — so the invoice can be drafted and printed at once, and pre-flight rule 14
 blocks only the XRechnung-bound finalisation until the code is confirmed. Auto-creating the row from
@@ -3152,7 +3167,7 @@ handle set; every type below is one of those.
 | Propose an account assignment (ACC-01) | `erstelle_vorgang` art `buchungsvorschlag` | `bezug: BezugHandle` — the `eingangsrechnung` row the run already read | a `konto` literal. It may only name an existing `konto_mapping` row, and an unmapped case is reported as unmapped rather than guessed (O-05) |
 | Propose a dunning letter (FIN-15) | `berechne_preis` arts `mahn_betrag` and `frist_zahlungsziel`, then `entwirf_text` vorlage `mahnung` | `rechnung: RechnungHandle`, `stufe_id: BezugHandle` — the open item and the `mahnstufe` are dereferenced, and the fee, the interest basis and the day count come from the stored `mahn_zinsberechnung`, `zins_methode` and `verzugsbeginn_regel` | `gebuehr_cent`, `zins_bp`, `zins_cent`, or a `mahnstufe` it invented. While `mahnstufe.ist_platzhalter` is true the run is refused outright (§1.11) |
 | §13b / §48 determination (FIN-09, FIN-10) | `berechne_preis` arts `reverse_charge_pruefung` and `bauabzugsteuer` | `auftrag: AuftragHandle`, `eingangsrechnung: EingangsrechnungHandle` | the outcome. The three-way §48 result comes from `withholdingFor` in §12.1, reading the certificate at the service date |
-| VAT split on a draft (invariant 1) | `berechne_preis` art `ust_split` | `positionen: { betrag_token, steuersatz_id: BezugHandle }[]` — the net amounts are **tokens from the same run's register** | a gross total to work back from, and any per-line rounding: VAT is computed once per rate group (§12.1) |
+| VAT split on a draft (invariant 1) | `berechne_preis` art `ust_split` | `positionen: { betrag_token: string; steuersatz_gruppe_id: BezugHandle }[]` — verbatim from the signature owner, `06-AGENTEN-FREIGABEN.md` §5.4 tool 4. The net amounts are **tokens from the same run's register**, and the rate reference is `steuersatz_gruppe_id` because **there is no `steuersatz` table and no `steuersatz_id` column** (§0.1, K-21) | a gross total to work back from, and any per-line rounding: VAT is computed once per rate group (§12.1) |
 
 Two vocabulary corrections follow from that mapping and are stated so no reader reaches for the old
 names: there is **no `PeriodeHandle`, no `BelegHandle`, no `OffenerPostenHandle` and no
@@ -3182,18 +3197,26 @@ for manual capture, which is a slower day rather than a wrong booking.
 That column is a **micro-cent → cent conversion site**, and K-16(b) requires the rounding rule to be
 stated where the conversion happens, so it is stated here rather than left to the agent document.
 Model token pricing is genuinely sub-cent, so the agent ledger accounts in `*_mikrocent` (10⁻⁶ €) —
-`agent_schritt.kosten_mikrocent` and the `agent_budget` columns, whose cap is **`budget_cent`** and
+`agent_kosten.kosten_mikrocent`, `agent_schritt.kosten_mikrocent` and the `agent_budget` columns, whose cap is **`budget_cent`** and
 whose consumption is **`verbrauch_mikrocent`**; there is no stored `verbrauch_cent` and no
 `monatslimit_cent` (K-21). This column is where a figure leaves that ledger and enters the finance
 domain, and it converts **once, half-up**:
 
 ```
-kosten_cent = div(Σ agent_schritt.kosten_mikrocent + 5000, 10000)
+kosten_cent = div(Σ agent_kosten.kosten_mikrocent + 5000, 10000)
 ```
 
+**The summed table is `agent_kosten`, not `agent_schritt`** — the same one
+`02-datenmodell/06-RADAR-KI-INHALT.md` §3.9 sums for `agent_aufgabe.kosten_cent`, and the two
+formulas must name the same table or a run's total and an extraction's cost reconcile against
+different ledgers. `agent_kosten` is the charge ledger; `agent_schritt.kosten_mikrocent` is the
+per-step figure the run writes as it goes, and a charge without a step behind it (a retry, a
+provider-side correction) exists in the first and not the second.
+
 `+ 5000` before integer division by `10000` is half-up on a non-negative value, and the sum is taken
-over the run's steps **before** rounding — rounding each step first and adding the results is what
-makes a hundred-step extraction land cents away from the ledger it is supposed to reconcile with.
+over the run's ledger rows **before** rounding — rounding each row first and adding the results is
+what makes a hundred-step extraction land cents away from the ledger it is supposed to reconcile
+with.
 Nothing invoiced, booked or exported ever carries micro-cents: everything that reaches `rechnung`,
 `buchungssatz` or a DATEV file is `bigint` cents, full stop.
 
@@ -3493,7 +3516,10 @@ Roadmap Phase 6 acceptance criteria.
 54. **Every right-key literal in this domain has a row in `03-AUTH-BERECHTIGUNGEN.md`'s catalogue**,
     and the module of each is one of §7.4's — the CI extractor of K-19 runs over the policies of
     §1.3, §3.2 and §14, over the route gates and over the seed. It fails on `referenz.verwalten`
-    (module collision — §3.2 uses `system.einstellung_verwalten`), on a `nummernkreis.ziehen` with no
+    (module collision — §3.2 uses `system.referenzdaten_verwalten`, the catalogue's dedicated
+    `erfordert_2fa` key for platform-global reference data, and **not**
+    `system.einstellung_verwalten`, which is the per-tenant `mandant_einstellung` right), on a
+    `nummernkreis.ziehen` with no
     catalogue row, and symmetrically on any catalogue key this domain claims and no code uses.
     `hat_recht` returning **false** for an unknown key is why this is a test and not a review habit:
     the failure it catches is a permanently empty screen, not an exception.
@@ -3508,6 +3534,11 @@ Roadmap Phase 6 acceptance criteria.
 56. **`rechnung_beziehung` is declared once, here** (K-21): the schema test finds exactly one
     declaration platform-wide, finds no table named `storno_verweis`, and finds no `steuersatz` table
     beside `steuersatz_gruppe` — every VAT foreign key in the platform is `*.steuersatz_gruppe_id`.
+    **The same test greps the identifiers, not only the table name**: `steuersatz_id`, `prozent_bp`
+    and `hinweistext` must not occur anywhere in `src/**`, `docs/architecture/**` or a migration,
+    because the abolished catalogue survived one pass as a *column* name in this document's own §12.2
+    tool mapping after the *table* had gone, and a test that looks only for a table would not have
+    seen it.
     The same test asserts this domain writes `job_lauf` without a `mandant_id` and records per-tenant
     outcomes in `job_lauf_mandant`, and that every column this document names on a sibling's table —
     `zeiteintrag.dauer_netto_minuten`, `mandant.slug`, `mandant.ist_rechtseinheit`,

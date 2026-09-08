@@ -378,7 +378,7 @@ $$;
 
 A documented `{}` is a defined value, not an undefined one: it is fail-closed, and every policy keyed on it is false rather than NULL. Fail-closed by construction (K-02): with no row it returns the empty array, `x = any ('{}')` is false, the restrictive ceiling is not satisfied, and the session reads zero rows.
 
-**The scalar `app.aktueller_kunde()` is a `mandant`-scope convenience only** — `(app.aktuelle_kunden())[1]`, owned by `03-AUTH-BERECHTIGUNGEN.md` — and **may not appear in a `t_kunde` policy or a `p_kunde_ceiling` anywhere on the platform**. In `kunde` scope it either resolves through `aktiver_mandant()` (NULL, so the policy is false and the portal is dead) or silently returns one of two `kunde` rows, which is CRM-06 failing with no error. Every customer disjunct in this document is written `= any (app.aktuelle_kunden())`, and a CI grep asserts no `= app.aktueller_kunde()` occurs in any policy in any schema file.
+**The scalar `app.aktueller_kunde()` is a `mandant`-scope convenience only** — `(app.aktuelle_kunden())[1]`, owned by `03-AUTH-BERECHTIGUNGEN.md` — and **may not appear in a `t_kunde` policy or a `p_kunde_ceiling` anywhere on the platform**. In `kunde` scope it returns `(app.aktuelle_kunden())[1]` — **one of the customer's several bindings, arbitrarily chosen** — so a policy written against it is not false and the portal is not dead: it serves one `kunde` row and silently omits the others, which is CRM-06 failing with no error. (The draft's `aktiver_mandant()`-derived reading returned NULL and emptied the portal instead; the settled definition fails in the harder-to-see direction, which is why the grep targets the identifier.) Every customer disjunct in this document is written `= any (app.aktuelle_kunden())`, and a CI grep asserts no `= app.aktueller_kunde()` occurs in any policy in any schema file.
 
 **The `kunde` branch of `app.sichtbare_mandanten()` (K-18, `01-KERN.md` §3.2).** The Kern document's resolver returns `false` for `kunde` scope and names this domain as the one that must extend it. The extension is the grant table, not the document trail:
 
@@ -2207,7 +2207,7 @@ Invariant 6 and AGT-07 are defeated at the entry point if a tool accepts model-a
 
 | Tool | Accepts | Never accepts |
 |---|---|---|
-| `berechne_preis` | `AngebotHandle`, plus the Kalkulation as a `BezugHandle` — the service derives `leistung_ids`, quantities and the surcharge profile from the contract and the catalogue | any `_cent`, any `menge`, any `_bp`, any formula text |
+| `berechne_preis` | art `kalkulation`, whose whole argument is `bezug: AuftragHandle \| AngebotHandle` — **there is no second Kalkulation argument** (`06-AGENTEN-FREIGABEN.md` §5.4 tool 4 owns the signature); the service derives `leistung_ids`, quantities and the surcharge profile from the contract and the catalogue | any `_cent`, any `menge`, any `_bp`, any formula text, and `zuschlag_profil_id` — choosing the profile is setting a price (K-10) |
 | `extrahiere_lv` | `DokumentHandle` → writes staged rows a human confirms | a price for a position |
 | `lies_dokument`, `suche_bestand` | handles and search strings | — |
 | `erstelle_vorgang` | the Lead or the Kunde as a `BezugHandle`, with the `art` naming the Vorgang | a `geschaetzter_wert_cent` |

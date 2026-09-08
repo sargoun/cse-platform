@@ -165,7 +165,7 @@ Set with `set_config(..., true)` — transaction-local — inside a session help
 | `app.aktueller_kunde()` | `(app.aktuelle_kunden())[1]`, a `mandant`-scope convenience only | — | — | — · **may appear in no `t_kunde` policy and no `p_kunde_ceiling`** |
 | `app.ist_readonly()` | `off` | `on` | `on` | `on` |
 
-The scalar `app.aktueller_kunde()` is kept only because a `mandant`-scope staff screen occasionally needs "the one customer of this session"; every policy and every ceiling uses the **array** form. Writing the scalar into a `t_kunde` policy returns NULL in the only scope that policy runs in, and the customer portal reads zero rows.
+The scalar `app.aktueller_kunde()` is kept only because a `mandant`-scope staff screen occasionally needs "the one customer of this session"; every policy and every ceiling uses the **array** form. In `kunde` scope the scalar is defined — `(app.aktuelle_kunden())[1]` — and that is worse than NULL, not better: a `t_kunde` policy written against it silently serves **one** of the customer's bindings and hides the others (CRM-06), which a single-entity fixture cannot detect.
 
 **How `app.portal` resolves in each scope** (review R8). K-04 derives the portal from *the role of the active membership*, which exists only in `mandant` scope — yet K-04's restrictive ceiling (`app.portal() <> 'mitarbeiter' or anstellung_id in …`) is precisely the control that must hold in the employee portal, where there is no active membership. The helper therefore **binds** `app.portal` when the scope is entered, and never recomputes it from `aktiver_mandant` — which K-20 makes mandatory, because recomputing it from a NULL mandant falls through to the fail-closed `mitarbeiter`, fires every K-04 employee ceiling *inside the group view* and ceilings every customer as staff. The rule is stated once here so the documents cannot drift; `03-AUTH-BERECHTIGUNGEN.md` §1.4 and `02-datenmodell/03-GEWERKE.md` §1.6a now state the same four branches, and `02-datenmodell/01-KERN.md` §3.2's `app.portal_fuer` carries the scope-aware branch that makes them reachable:
 
@@ -174,7 +174,7 @@ The scalar `app.aktueller_kunde()` is kept only because a `mandant`-scope staff 
 | `mandant` | the role of the **active membership** (K-04): `intern` for `super_admin`/`admin`/`leitung`, otherwise `mitarbeiter` or `kunde` |
 | `person` | **`mitarbeiter`**, by construction of `withPersonScope` — the subject is a person acting as an employee, whatever roles they hold elsewhere |
 | `kunde` | **`kunde`**, by construction of `withKundeScope` |
-| `gruppe` | **`intern`**, bound by `withGroupScope` at entry. Entry itself is the gate: a principal whose memberships would resolve to `mitarbeiter` or `kunde` is **refused at the helper**, because group scope requires `gruppe.<modul>.lesen` (K-03) and neither role holds it. Binding `intern` here is what keeps the K-04 ceilings out of the group view; deriving it from `app.mandant_id` — NULL in this scope — would yield `mitarbeiter` and blank the four-entity roll-up for a `leitung` |
+| `gruppe` | **`intern`**, unconditionally, returned by `app.portal_fuer(benutzer, null, 'gruppe')`. Entry itself is the gate: `withGroupScope` admits only a principal holding **at least one membership whose `rolle.portal = 'intern'`** and at least one `gruppe.<modul>.lesen` right, and **refuses** every other session before the transaction opens (`03-AUTH-BERECHTIGUNGEN.md` §4.5). Binding `intern` here is what keeps the K-04 ceilings out of the group view; deriving it from `app.mandant_id` — NULL in this scope — would yield `mitarbeiter` and blank the four-entity roll-up for a `leitung`, and so would folding the memberships to the most restrictive one, which returns `mitarbeiter` for the D-09 human who leads one entity and is employed by another |
 
 A `leitung` who is also employed keeps `intern` in `mandant` scope and gets `mitarbeiter` in `person` scope — the same human, two subjects, and the ceiling binds in the second. Test: that user reads a colleague's shift in `mandant` scope and **only their own** in `person` scope.
 
@@ -519,7 +519,7 @@ returning einsatz_zuordnung_id, einsatz_id, mandant_id, zweck;
 
 The `zeiteintrag` is inserted in the same transaction, only if a row came back. Pre-checks may exist to produce a friendlier message, never to decide. `app.checkin_verbrauchen(p_token_hash text, p_geraete_zeit timestamptz, p_ip inet, p_user_agent text, p_geo jsonb default null)` is `SECURITY DEFINER` owned by `cse_definer` and derives `mandant_id` and `anstellung_id` from the assignment itself, because the check-in path has no session, therefore no GUCs, therefore every K-03 policy is false for it (K-08). Zero rows → 404, indistinguishable from a wrong token. Concurrency test: N simultaneous requests against one token yield exactly one `zeiteintrag`.
 
-**The signature is the owner's five arguments, not K-08's three** (`02-datenmodell/04-PLANUNG-ZEIT.md` §9.1, which declares the body). `p_user_agent` and `p_geo` are not decoration: `checkin_token.user_agent` (§5.5 there) and the LEG-10 geo capture have no other writer, and dropping them would leave two declared columns with none. **Postgres overloads on the argument list**, so a `GRANT EXECUTE … TO cse_checkin` written against the three-argument form succeeds against nothing and the endpoint fails closed at runtime with a "function does not exist" that no schema test catches. `00-KONVENTIONEN.md` K-08's register row and `02-datenmodell/01-KERN.md` §3.5 carry the three-argument spelling and the `p_geraet_zeit` parameter name; one signature must survive in all six documents, and it is the owner's — recorded in §I.11.
+**The signature is the owner's five arguments, not K-08's three** (`02-datenmodell/04-PLANUNG-ZEIT.md` §9.1, which declares the body). `p_user_agent` and `p_geo` are not decoration: `checkin_token.user_agent` (§5.5 there) and the LEG-10 geo capture have no other writer, and dropping them would leave two declared columns with none. **Postgres overloads on the argument list**, so a `GRANT EXECUTE … TO cse_checkin` written against the three-argument form succeeds against nothing and the endpoint fails closed at runtime with a "function does not exist" that no schema test catches. **Met:** `00-KONVENTIONEN.md` K-08's register row and `02-datenmodell/01-KERN.md` §3.5 now carry the same five-argument signature with the owner's `p_geraete_zeit` spelling, so one signature stands in all six documents.
 
 **Re-issue and revocation** (review MISSING). `ct_live_uk unique (einsatz_zuordnung_id, zweck) where eingeloest_am is null and widerrufen_am is null`. `POST /api/einsaetze/[id]/checkin-token` is therefore repeatable: issuing a new link sets `widerrufen_am` and `widerruf_grund` on its predecessor in the same transaction and audits both, so a lost or mis-sent link can be replaced. Moving or cancelling a shift revokes every live token of that shift by trigger.
 
@@ -794,7 +794,7 @@ app.arbzg_belastung(p_person uuid, p_von timestamptz, p_bis timestamptz)
 
 Findings are written only by `app.arbzg_befund_schreiben(...)`, also `SECURITY DEFINER`, because a breach spanning two entities must be recorded in both and a request scoped to mandant A cannot write a row in mandant B. `arbeitszeit_verstoss` has no `INSERT` policy for `cse_app` at all. Only `src/server/services/arbzg/` calls either function. Isolation test: a `reinigung` planner gets the breach and gets zero fields identifying the `security` shift.
 
-**Storage** is `zeit_intern.arbeitszeit_fenster`, in a schema not exposed by PostgREST, one row per assignment, carrying `zuordnung_quelle_id`, `quelle enum (plan|ist)` and `aktiv` — because without the supersede rule the detector sums the planned shift and the worked shift and reports 12 h for a 6 h day, and a foreign plan/actual pair is indistinguishable from two genuine back-to-back shifts (K-06). The owner (`02-datenmodell/04-PLANUNG-ZEIT.md` §5.12) additionally carries **`person_id`** as *the* query key, with `fenster_person_idx on (person_id, beginn_utc) where aktiv`, and the §6.3 body filters on it — which is why §G lists that index and not an `anstellung → einsatz_zuordnung` join path: an `ist` window projected from a `zeiteintrag` has no `einsatz_zuordnung` at all, so a join through the assignment silently under-counts actual worked time, the exact K-06 failure mode.
+**Storage** is `zeit_intern.arbeitszeit_fenster`, in a schema not exposed by PostgREST, one row per assignment, carrying **`person_id`** (the query key), `zuordnung_quelle_id`, `quelle enum (plan|ist)`, `aktiv`, `beginn_utc` and `ende_utc`, plus `mandant_id` and `anstellung_id` which are stored and never returned — the supersede rule matters because without the supersede rule the detector sums the planned shift and the worked shift and reports 12 h for a 6 h day, and a foreign plan/actual pair is indistinguishable from two genuine back-to-back shifts (K-06). The owner (`02-datenmodell/04-PLANUNG-ZEIT.md` §5.12) additionally carries **`person_id`** as *the* query key, with `fenster_person_idx on (person_id, beginn_utc) where aktiv`, and the §6.3 body filters on it — which is why §G lists that index and not an `anstellung → einsatz_zuordnung` join path: an `ist` window projected from a `zeiteintrag` has no `einsatz_zuordnung` at all, so a join through the assignment silently under-counts actual worked time, the exact K-06 failure mode.
 
 **The query window must be padded, or the rest-period check silently passes** (review B7). The 11-hour rest rule is a relation between a shift *outside* the requested window and one inside it: staffing a Tuesday 05:00 shift needs the Monday shift that ended at 22:00. The loader therefore fetches
 
@@ -986,20 +986,40 @@ schema · leistender { id, name, rechtsform, anschrift, steuernummer, ustid, ger
          empfaenger { id, name, anschrift, ustid, leitweg_id, kaeufer_referenz,
                       bestellnummer, eadresse, eadresse_schema }
 nummernkreis_id · nummer · kette_position · rechnungsart · rechnungsart_code
-rechnungsdatum · leistung_von · leistung_bis · objekt · sprache · waehrung
+rechnungsdatum · leistung_von · leistung_bis · vereinnahmung_geplant_am
+objekt · sprache · waehrung
 kopftext · fusstext · steuerhinweis · hinweise[]
-je Position { nr, art, bezeichnung, menge, einheit, einheit_code, einzelpreis_cent,
-              rabatt_bp, netto_cent, steuersatz_gruppe, satz_bp, kategorie,
+je Position { nr, art, bezeichnung, beschreibung, menge, einheit, einheit_code,
+              preis_basismenge, einzelpreis_cent, rabatt_bp, netto_cent,
+              steuersatz_gruppe, satz_bp, kategorie,
               abrechnungsart, leistung_von, leistung_bis, quellen[] }
+je Zuschlag { art, bezeichnung, grund_code, basis_cent, satz_bp, betrag_cent,
+              steuersatz_gruppe, kategorie }
 je Steuerzeile { steuersatz_gruppe, kategorie, satz_bp, netto_cent, steuer_cent,
                  befreiungsgrund_code, befreiungsgrund_text }
+je Abzug { abschlag_nummer, steuersatz_gruppe, abzug_netto_cent, abzug_steuer_cent }
 netto_gesamt_cent · steuer_gesamt_cent · brutto_cent · abzug_brutto_cent · zahlbetrag_cent
-bauabzugsteuer { pflichtig, satz_bp, grundlage_cent, einbehalt_cent, freistellungsbescheinigung }
-zahlung { bankkonto, zahlungsmittel_code, zahlungsbedingung_text, … }
-ist_kleinbetrag · kleinbetrag_grenze_cent · reverse_charge · festgeschrieben_am/_von
+bauabzugsteuer { pflichtig, satz_bp, grundlage_cent, einbehalt_cent,
+                 freistellungsbescheinigung { nummer, finanzamt,
+                                              gueltig_von, gueltig_bis, umfang } }
+ueberweisungsbetrag_cent
+zahlung { bankkonto { iban, bic, kontoinhaber }, zahlungsmittel_code,
+          zahlungsbedingung_text, zahlungsziel_tage, faellig_am, skonto_bp, skonto_tage }
+ist_kleinbetrag · kleinbetrag_grenze_cent
+reverse_charge · reverse_charge_grundlage · festgeschrieben_am/_von
 ```
 
-**Amounts are JSON integers of cents**, decimals are strings with exactly three decimals, dates are `YYYY-MM-DD`, instants are RFC 3339 UTC, nulls are written explicitly, and arrays are ordered deterministically — RFC 8785 (JCS), NFC-normalised. The wire rule R-12 (money as a decimal **string** in HTTP bodies) applies to the API surface only; it does **not** apply inside the canonical payload, where a string-typed amount would produce a different digest from the owner's.
+**This sketch is complete against `02-datenmodell/05-FINANZEN.md` §5.3, and that is asserted rather
+than asserted-and-hoped.** An abbreviated version of it — no `zuschlaege`, no `abzuege`, no
+`vereinnahmung_geplant_am`, no `ueberweisungsbetrag_cent`, no `reverse_charge_grundlage`, and
+`zahlung {…}` trailed off with an ellipsis — read as if the missing parts were detail. They are not:
+§5.3 writes nulls explicitly and never omits a field, so a shorter list is shorter *bytes* and
+therefore a different SHA-256, and the invoice would fail its own chain verification. The `zahlung`
+object in particular is why §5.3 argues the case at length: changing the entity's bank account in
+2028 would otherwise make every re-render of a 2026 invoice show a different IBAN while the hash
+still verified, and BT-34 / BT-49 are mandatory in XRechnung.
+
+**Amounts are JSON integers of cents**, decimals are strings with exactly three decimals, dates are `YYYY-MM-DD`, instants are RFC 3339 UTC, nulls are written explicitly, and arrays are ordered deterministically — RFC 8785 (JCS), NFC-normalised. R-12 puts money on the wire as an **integer number of cents** (§B.9, `z.number().int()` plus `assertSafeCents`), so the API surface and the canonical payload agree on the representation and differ only in scope: the payload additionally fixes field order, explicit nulls and NFC normalisation, because it is the hash input. Money is never a formatted or decimal string anywhere in this platform — that form is reserved for **quantities** (R-15, `zMenge`), which reject a JSON number for the opposite reason.
 
 **The rate is a tax-rate *group*, not a bare percentage and not a `steuersatz` row** (review R9, corrected). A finalised invoice's rate must be the one in force at the **service date**, and a constant cannot express that (§D.2) — but the platform has exactly **one** VAT catalogue and it is `steuersatz_gruppe(id, schluessel, bezeichnung, satz_bp, kategorie, steuer_kennzeichen, befreiungsgrund_code, befreiungsgrund_text, gueltig_von, gueltig_bis)` (`02-datenmodell/05-FINANZEN.md` §3.2). **There is no `steuersatz` table, no `steuersatz_id` column, no `prozent_bp` and no `hinweistext`**; every FK in the platform is `*.steuersatz_gruppe_id`, and `02-datenmodell/03-GEWERKE.md` §0 states the same. The earlier draft of this section invented all four names. The snapshot therefore carries `steuersatz_gruppe`, `satz_bp` and `kategorie` on both `positionen[]` and `steuerzeilen[]`, plus `befreiungsgrund_code` / `befreiungsgrund_text` (BT-120/121) on the tax lines — so the *rate-resolution decision* is inside the hash and not merely its result, and editing the catalogue afterwards cannot change what "19 %" meant while `verifyChain` still reports `intakt: true`. The PDF, the XRechnung and the ZUGFeRD file are produced **from the snapshot**, never from live master data. Test T-18b.
 
@@ -1102,7 +1122,7 @@ RAD-05: scoring is a pure function of profile and notice; no model participates 
 | `GET /api/agenten/aufgaben/[id]/schritte` | Per-step log: tool, input, output, model, tokens, cost, duration | sitzung | mandant | `?cursor` | AGT-04, SEC-A9 |
 | `POST /api/agenten/aufgaben/[id]/abbrechen` | Stop a running task | sitzung | mandant | → `AgentAufgabe` | AGT-01 |
 | `GET/PUT /api/agenten/richtlinien` | The policy gate as data: tool, autonomy, value limit, approval — editable in the UI without a deploy | sitzung+2fa right | mandant | `{ regeln }` | AGT-03 |
-| `GET/PATCH /api/agenten/budget` | Monthly cap and consumption. **Column ↔ wire pair, stated the way R-12 states `stundensatz_intern`:** the column is `agent_budget.budget_cent`; the wire field is `budget_cent` as a decimal string. Consumption is **computed**, never stored | sitzung+2fa right | mandant | `{ budget_cent }` → `{ budget_cent, verbrauch_cent, reserviert_cent, verdikt }` | AGT-05 |
+| `GET/PATCH /api/agenten/budget` | Monthly cap and consumption. **Column ↔ wire pair, stated the way R-12 states `stundensatz_intern`:** the column is `agent_budget.budget_cent` (`bigint` cents) and the wire field is `budget_cent` as an **integer number of cents**, projected through `assertSafeCents` (R-12, §B.9). Consumption is **computed**, never stored | sitzung+2fa right | mandant | `{ budget_cent }` → `{ budget_cent, verbrauch_cent, reserviert_cent, verdikt }` | AGT-05 |
 | `POST /api/agenten/ceo/frage` | CEO Assistant; streams the answer **and the queries it ran**, and says plainly when the schema cannot answer | sitzung | mandant **only** | `{ frage }` → SSE | AGT-06, AGT-07 |
 | `POST /api/agenten/wissen/reindex` | Rebuild the `pgvector` corpus over contracts, objects, offers, correspondence | sitzung+2fa right | mandant | `{ umfang }` → `{ job_id }` | AGT-06 |
 
@@ -1579,10 +1599,20 @@ export type NummerZiehenErgebnis = { nummer: string; nummer_laufend: bigint;
 
 // finanz/hash-chain.ts — the canonical payload SNAPSHOTS IDENTITY (K-12)
 /**
- * `cse.rechnung.v1`, declared by 02-datenmodell/05-FINANZEN.md §5.3 and reproduced there in full.
- * This is its TypeScript face, field-for-field — the payload is the hash input, so a second
- * spelling of it is a second chain. Amounts are JSON INTEGERS OF CENTS (bigint here), not the
- * decimal strings R-12 puts on the wire; decimals are strings with exactly three places.
+ * `cse.rechnung.v1`, declared by 02-datenmodell/05-FINANZEN.md §5.3, which is the ONE declaration.
+ * This is its TypeScript face, and "field-for-field" is an assertion a test makes, not a claim this
+ * comment makes: `tests/finanz/payload-form.test.ts` walks §5.3's field list and this type and fails
+ * on any field present in one and not the other. It exists because an earlier pass of this type
+ * omitted eight field groups — the whole `zahlung {}` object, `zuschlaege[]`, `abzuege[]`,
+ * `vereinnahmung_geplant_am`, `ueberweisungsbetrag_cent`, `positionen[].beschreibung`,
+ * `positionen[].preis_basismenge`, and four of the five `freistellungsbescheinigung` fields — while
+ * saying it was complete. §5.3 rules that nulls are written explicitly and never omitted, so a
+ * missing field is not a null: it is a shorter canonical form, different bytes, and a different
+ * hash from the one the database wrote. The payload is the hash input, so a second spelling of it
+ * is a second chain. Amounts are JSON integers of cents, exactly as R-12 puts them
+ * on the wire; the TypeScript face types them `Cent` (branded bigint, §D.2) and the JSON projection
+ * goes through `assertSafeCents` at serialisation. Decimals — quantities only — are strings with
+ * exactly three places (R-15).
  */
 export type KanonischeRechnung = {
   readonly schema: 'cse.rechnung.v1';
@@ -1599,37 +1629,59 @@ export type KanonischeRechnung = {
   readonly rechnungsart: string; readonly rechnungsart_code: string;      // UNTDID 1001 — BT-3
   readonly rechnungsdatum: Kalenderdatum;
   readonly leistung_von: Kalenderdatum; readonly leistung_bis: Kalenderdatum;
+  readonly vereinnahmung_geplant_am: Kalenderdatum | null;                // §13b Ist-Versteuerung
   readonly objekt: null | { id: string; bezeichnung: string; anschrift: string };
   readonly sprache: string; readonly waehrung: 'EUR';
   readonly kopftext: string | null; readonly fusstext: string | null;
   readonly steuerhinweis: string | null; readonly hinweise: readonly string[];
   /** The rate is the tax-rate GROUP, dated and identified (§3.2). There is no `steuersatz` row. */
   readonly positionen: readonly { nr: number; art: string; bezeichnung: string;
+                                  beschreibung: string | null;
                                   menge: string; einheit: string; einheit_code: string;
-                                  einzelpreis_cent: number; rabatt_bp: number; netto_cent: number;
+                                  preis_basismenge: string;               // BT-149/150
+                                  einzelpreis_cent: Cent; rabatt_bp: number; netto_cent: Cent;
                                   steuersatz_gruppe: string; satz_bp: number; kategorie: string;
                                   abrechnungsart: AbrechnungsartSchluessel;
                                   leistung_von: Kalenderdatum; leistung_bis: Kalenderdatum;
                                   quellen: readonly { typ: string; id: string;
                                                       menge_anteil: string }[] }[];
+  readonly zuschlaege: readonly { art: string; bezeichnung: string; grund_code: string | null;
+                                  basis_cent: Cent; satz_bp: number; betrag_cent: Cent;
+                                  steuersatz_gruppe: string; kategorie: string }[];
   readonly steuerzeilen: readonly { steuersatz_gruppe: string; kategorie: string; satz_bp: number;
-                                    netto_cent: number; steuer_cent: number;
+                                    netto_cent: Cent; steuer_cent: Cent;
                                     befreiungsgrund_code: string | null;      // BT-121
                                     befreiungsgrund_text: string | null }[];  // BT-120
-  readonly netto_gesamt_cent: number; readonly steuer_gesamt_cent: number;
-  readonly brutto_cent: number; readonly abzug_brutto_cent: number;
-  readonly zahlbetrag_cent: number;                                           // BT-115
-  readonly bauabzugsteuer: { pflichtig: boolean; satz_bp: number; grundlage_cent: number;
-                             einbehalt_cent: number;
-                             freistellungsbescheinigung: null | { nummer: string } };  // FIN-10
-  readonly ist_kleinbetrag: boolean; readonly kleinbetrag_grenze_cent: number;   // FIN-13
+  readonly abzuege: readonly { abschlag_nummer: string; steuersatz_gruppe: string;
+                               abzug_netto_cent: Cent; abzug_steuer_cent: Cent }[];
+  readonly netto_gesamt_cent: Cent; readonly steuer_gesamt_cent: Cent;
+  readonly brutto_cent: Cent; readonly abzug_brutto_cent: Cent;
+  readonly zahlbetrag_cent: Cent;                                             // BT-115
+  readonly bauabzugsteuer: { pflichtig: boolean; satz_bp: number; grundlage_cent: Cent;
+                             einbehalt_cent: Cent;
+                             freistellungsbescheinigung: null | {
+                               nummer: string; finanzamt: string;
+                               gueltig_von: Kalenderdatum; gueltig_bis: Kalenderdatum;
+                               umfang: string } };                            // FIN-10
+  readonly ueberweisungsbetrag_cent: Cent;
+  readonly zahlung: { bankkonto: { iban: string; bic: string | null;
+                                   kontoinhaber: string };      // BG-16 / BT-84 / BT-85
+                      zahlungsmittel_code: string;              // BT-81
+                      zahlungsbedingung_text: string | null;    // BT-20
+                      zahlungsziel_tage: number; faellig_am: Kalenderdatum;
+                      skonto_bp: number | null; skonto_tage: number | null };
+  readonly ist_kleinbetrag: boolean; readonly kleinbetrag_grenze_cent: Cent;   // FIN-13
   readonly reverse_charge: boolean; readonly reverse_charge_grundlage: string | null;
   readonly festgeschrieben_am: string; readonly festgeschrieben_von: string;   // RFC 3339 Z
 };
 
 /** RFC 8785 (JCS): keys sorted by UTF-16 code unit, no insignificant whitespace, UTF-8, NFC.
- *  THE platform's only canonicaliser — a plpgsql twin would be a second one (§C.17). */
-export function buildKanonischePayload(r: KanonischeRechnung): Buffer;
+ *  THE platform's only canonicaliser — a plpgsql twin would be a second one (§C.17).
+ *  TWO arguments, matching the call in 02-datenmodell/05-FINANZEN.md §5.6's finalisation
+ *  transaction: the fully loaded invoice, and the `kopf` the same transaction has just assigned
+ *  (`nummer`, `kette_position`, `festgeschrieben_am`, `festgeschrieben_von`) — those four are not
+ *  on the row before finalisation, so a one-argument builder could not see them. */
+export function buildKanonischePayload(r: RechnungVollstaendig, kopf: KettenKopf): Buffer;
 
 /** Verification only. The WRITING hash is computed by fin.rechnung_kette_schreiben with pgcrypto:
  *      nutzlast_sha256 = SHA256(canonical_bytes)
@@ -1885,9 +1937,9 @@ Written first in Phase 5 and Phase 6, against the pure functions above — no da
 | T-07 | **Month split, Berlin boundary — CET** | `splitteNachMonat('2026-01-31T21:00Z','2026-02-01T05:00Z')` | `[{2026,1,120},{2026,2,360}]` — **not** the UTC-midnight split | TIM-13, FIN-07, K-11 |
 | T-07b | **Month split, Berlin boundary — CEST** | `splitteNachMonat('2026-06-30T22:00Z','2026-07-01T04:00Z')` | `[{2026,7,360}]` — the whole shift is July in Berlin; a UTC implementation returns a June part | TIM-13, K-11 |
 | T-07c | Month split, second K-11 reference | `splitteNachMonat` for Berlin `2026-01-31 20:00` → `2026-02-01 04:00` | `[{2026,1,240},{2026,2,240}]` | K-11 |
-| T-08 | **One person, two entities, one day**: 6 h cleaning + 5 h security | `pruefeArbzg([…])` | one `tageshoechstarbeitszeit` breach at 660 min; `beteiligte` contains one `EigenesFenster` and one `FremdesFenster` carrying **no ids and no mandant** | TIM-14, LEG-03, D-09, K-06 |
-| T-08b | **The two readings of "werktäglich" disagree** — `2026-03-27 09:00–12:00` (3 h) plus `2026-03-27 22:00 → 2026-03-28 06:00` (8 h), Berlin wall-clock | `pruefeArbzg` with `tageszuordnung: 'beide_lesarten'` | a `tageshoechstarbeitszeit` breach **present** under `schichtbeginn` — both shifts attributed to 27 March, 180 + 480 = **660 min > 480** — and **absent** under `kalendertag_berlin`, where 27 March holds 180 + 120 = 300 and 28 March holds 360. It is emitted once, with `schwere: 'warnung'`, `lesart: 'schichtbeginn'` and the reading named in `begruendung`; a **blocking** breach is produced only where both readings agree. Without this case nothing stops an implementation collapsing `'beide_lesarten'` back to one reading — T-08 breaches under both and passes either way | LEG-03, TIM-14, K-17 |
-| T-09 | Rest period spanning entities | security ends 22:00, cleaning starts 05:00 | `ruhezeit` breach, `ruhe_minuten = 420`, `ueber_mandanten: true` | TIM-14, D-09 |
+| T-08 | **One person, two entities, one day**: 6 h cleaning + 5 h security | `pruefeArbzg([…])` | **two** findings, both at `minuten = 660`: `tagesarbeitszeit_ueber_8h` and `tagesarbeitszeit_ueber_10h`. The count is asserted, not just the values — collapsing the two §3 limits into one makes the 10 h finding unpersistable, which is the defect §D.4 removed, and a test expecting exactly one finding would lock it back in (`08-PR-PLAN.md` PR 1(5), `02-datenmodell/04-PLANUNG-ZEIT.md` §18). `beteiligte` contains one `EigenesFenster` and one `FremdesFenster` carrying **no ids and no mandant** | TIM-14, LEG-03, D-09, K-06 |
+| T-08b | **The two readings of "werktäglich" disagree** — `2026-03-27 09:00–12:00` (3 h) plus `2026-03-27 22:00 → 2026-03-28 06:00` (8 h), Berlin wall-clock | `pruefeArbzg` with `tageszuordnung: 'beide_lesarten'` | the **same two** findings as T-08 — `tagesarbeitszeit_ueber_8h` and `tagesarbeitszeit_ueber_10h`, both at `minuten = 660` — **present** under `schichtbeginn`, where both shifts are attributed to 27 March and 180 + 480 = **660**, over the 480 and the 600 threshold alike, and **absent** under `kalendertag_berlin`, where 27 March holds 180 + 120 = 300 and 28 March holds 360. Each is emitted **once**, not once per reading, with `schwere: 'warnung'`, `lesart: 'schichtbeginn'` and the reading named in `begruendung`; a **blocking** breach is produced only where both readings agree. Without this case nothing stops an implementation collapsing `'beide_lesarten'` back to one reading — T-08 breaches under both and passes either way | LEG-03, TIM-14, K-17 |
+| T-09 | Rest period spanning entities | security ends 22:00, cleaning starts 05:00 | a `ruhezeit_unter_11h` finding, `ruhe_minuten = 420`, `ueber_mandanten: true` | TIM-14, D-09 |
 | T-10 | Break deduction | `gesetzlichePausenMinuten(400 \| 560 \| 360)` | `30 \| 45 \| 0` (§4 ArbZG) | LEG-03 |
 | T-11 | Expired §34a at the shift date | `pruefeNachweise({ gueltig_bis:'2026-05-31', stichtag:'2026-06-01' })` | `zulaessig:false`; `besetzen` 422 even though it is valid today | SEC-04, LEG-04 |
 | T-11b | Unknown Bewacherregister status | `pruefeNachweise({ bewacher_status:'unbekannt', bewacherregister_erforderlich:true })` | blocking finding | SEC-03, LEG-04 |
@@ -2031,7 +2083,7 @@ Recorded here because another Phase 0 document must match for this one to be tru
 1. **`rechnung_beziehung` — settled, and owned elsewhere.** K-12 names the Storno back-reference table `rechnung_beziehung` and **K-21 assigns it to `02-datenmodell/05-FINANZEN.md` §4.8**, which now declares it under that name and deletes its draft `storno_verweis`. This document references it and declares neither it nor `rechnung_versand`: the column lists in §C.17 are the owner's. Two corrections landed with the rename — `art` carries exactly `storno` and `ersetzt` (the `storniert_durch` / `schluss_zu` inverses are queries, not rows), and the Abschlag → Schlussrechnung relation stays in `abschlagsrechnung_bezug` because it carries per-tax-group deduction amounts a pure link cannot hold.
 2. **Context type names.** This document adopts `MandantKontext` / `MehrmandantKontext` / `requireMandant` / `handler()` verbatim from `03-AUTH-BERECHTIGUNGEN.md` §6.2 rather than introducing a second vocabulary. CLAUDE.md reserves German for domain identifiers and English for infrastructure, so `Kontext` is strictly the wrong half of that rule; two Phase 0 documents naming the same exported symbol differently is the worse defect. Recommendation: rename to `MandantContext` / `MehrmandantContext` in both documents in one pass, or record the exception in DECISIONS.md.
 3. **Where route handlers live.** `03-AUTH-BERECHTIGUNGEN.md` §6.2 shows a handler at `src/app/portal/[mandant]/rechnungen/[id]/festschreiben/route.ts`. R-03 and §B.13 place API route handlers under `src/app/api/**` with no `[mandant]` segment; server actions colocate with the portal pages. That example should move to `src/app/api/finanzen/rechnungen/[id]/festschreiben/route.ts`.
-4. **Reserved `mandant.slug` values are one list of five.** K-21 fixes it: `gruppe`, `mein`, `kunde`, `konto`, `api` — K-07's three portal statics, plus `kunde` (the customer portal of §C.12) and `konto` (which `04-SEITENKARTE.md` carries as a static segment under `/portal`). `02-datenmodell/01-KERN.md` §6.1 declares the `CHECK` against **`mandant.slug`** — the canonical column name, not `schluessel` — and K-07's CI test walks the App Router tree and fails on any new static segment that is not in the constraint.
+4. **Reserved `mandant.slug` values are one list of five.** K-21 fixes it: `gruppe`, `mein`, `kunde`, `konto`, `api` — the group view, the employee portal, the customer portal of §C.12, the account pages `04-SEITENKARTE.md` carries as a static segment under `/portal`, and the reserved fetch path. K-07 points at that list and states no second one. `02-datenmodell/01-KERN.md` §6.1 declares the `CHECK` against **`mandant.slug`** — the canonical column name, not `schluessel` — and K-07's CI test walks the App Router tree and fails on any new static segment that is not in the constraint.
 5. **Endpoint paths for the session.** This document uses `POST /api/sitzung/mandant` and `GET /api/kalender/feed/[token]`, matching `03-AUTH-BERECHTIGUNGEN.md`; the earlier draft's `/api/auth/mandant` and `/api/kalender/ical/[token]` are withdrawn.
 6. **Quantities.** K-16 fixes quantities at `numeric(12,3)`. Every `…_milli` quantity field in earlier drafts of this and sibling documents (`menge_milli`, `flaeche_m2_milli`, `ergebnis_milli`, `m2_pro_stunde_milli`, `frequenzfaktor_milli`) is renamed to the bare field with a decimal-string wire form. Money stays `bigint` cents.
 7. **Agent step cost — resolved by K-16(b), no longer an open reading.** The earlier note asked for a convention change; K-16 now names four permitted deviations and this is (b): `*_mikrocent bigint` is allowed **only** in agent cost and budget accounting (`agent_schritt`, `agent_budget` and their carry columns), converted to cents **once**, at the budget boundary, half-up, with the rounding rule stated at the conversion site — §C.21 states it, and §D.2 exports the single conversion function `mikrocentAlsCent`. Nothing invoiced, booked or exported may be micro-cents. This document no longer asserts the deviation on the strength of its own argument; it cites the convention. The cap column is `agent_budget.budget_cent` and the consumption figure is **computed** from `verbrauch_mikrocent` at the boundary (K-21); the draft's `monatslimit_cent` / stored `verbrauch_cent` are withdrawn here, in §C.21 and in the route table, and `02-datenmodell/06-RADAR-KI-INHALT.md` §3.6 remains the owner of the table.
@@ -2058,7 +2110,7 @@ Recorded here because another Phase 0 document must match for this one to be tru
 
 13. **K-18 alignment, and what it moved.** `/portal/mein/**` reads run under `withPersonScope` and `/portal/kunde/**` reads under `withKundeScope`, never `withGroupScope`; `app.scope` has four values and there is no platform scope; the helper set is **seven** (§B.6), matching `03-AUTH-BERECHTIGUNGEN.md` §6.3 exactly. `04-SEITENKARTE.md` must show the same two helpers on the same two portal trees, and `02-datenmodell/01-KERN.md`'s `sitzung_ansicht` must carry exactly `mandant · gruppe · person · kunde`.
 
-15. **`app.checkin_verbrauchen` — one signature, and it is the owner's.** `02-datenmodell/04-PLANUNG-ZEIT.md` §9.1 declares the body as `(p_token_hash text, p_geraete_zeit timestamptz, p_ip inet, p_user_agent text, p_geo jsonb default null)`. `00-KONVENTIONEN.md` K-08's register row, `02-datenmodell/01-KERN.md` §3.5, `03-AUTH-BERECHTIGUNGEN.md` and `07-INTEGRATIONEN.md` §6.2 write the three-argument `(token_hash, geraet_zeit, ip)`, and 01-KERN additionally spells the second parameter `p_geraet_zeit`. **Postgres overloads on the argument list**, so a `GRANT EXECUTE … TO cse_checkin` written against the three-argument form grants nothing and the check-in endpoint fails closed at runtime. The two extra parameters are load-bearing: `checkin_token.user_agent` and the LEG-10 geo capture have no other writer. §C.3 of this document now states the five-argument form; K-08's register row and the other three documents must be corrected in the same PR, since a register entry is what a grant is written against.
+15. **`app.checkin_verbrauchen` — one signature, and it is the owner's.** `02-datenmodell/04-PLANUNG-ZEIT.md` §9.1 declares the body as `(p_token_hash text, p_geraete_zeit timestamptz, p_ip inet, p_user_agent text, p_geo jsonb default null)`. An earlier pass left `00-KONVENTIONEN.md` K-08's register row, `02-datenmodell/01-KERN.md` §3.5, `03-AUTH-BERECHTIGUNGEN.md` and `07-INTEGRATIONEN.md` §6.2 writing the three-argument `(token_hash, geraet_zeit, ip)`; **all four now carry the owner's five-argument form** and the arity is asserted rather than described (`01-KERN.md` §14 test 54, `04-PLANUNG-ZEIT.md` §18 test 38: exactly one `checkin_verbrauchen` in `pg_proc`). **Postgres overloads on the argument list**, so a `GRANT EXECUTE … TO cse_checkin` written against the three-argument form grants nothing and the check-in endpoint fails closed at runtime. The two extra parameters are load-bearing: `checkin_token.user_agent` and the LEG-10 geo capture have no other writer. §C.3 of this document now states the five-argument form; K-08's register row and the other three documents must be corrected in the same PR, since a register entry is what a grant is written against.
 
 16. **Not connected: one mechanism, one status pair.** `07-INTEGRATIONEN.md` §1.1/§2 owns the mechanism — a port **returns** a typed `IntegrationResult` and never throws across its boundary; `NotConnectedError` is thrown only by `index.ts` on an unparseable *live* config. R-17 and §C.28 are corrected to that wording. The HTTP surface is **409 `kanal_nicht_verbunden`** in both this document and `03-AUTH-BERECHTIGUNGEN.md` §9.2's error table, which owns the code list and has withdrawn its draft 503 `NICHT_VERBUNDEN`; T-30 asserts the 409 form. `01-ORDNERSTRUKTUR.md` §11.2's "`nicht-verbunden.ts` throws" is the remaining half to correct.
 
@@ -2068,4 +2120,4 @@ Recorded here because another Phase 0 document must match for this one to be tru
 
 19. **The agent document is `06-AGENTEN-FREIGABEN.md`.** Its own R-20 records that four siblings cite it as `07-AGENTEN-ARCHITEKTUR.md`. This document cites the real filename throughout, and the nine AGT-02 tool names it lists are that document's — no tenth tool is introduced here, because `agent_werkzeug_name` is an enum and a tenth could not be logged in `agent_schritt.werkzeug` at all (K-21).
 
-20. **On the numbering.** `docs/DECISIONS.md` holds O-01 and O-04 … O-13; `08-PR-PLAN.md` claims O-14 … O-29; sibling Phase 0 documents have claimed O-30 … O-93. The eleven questions this document raises that are on none of those lists are therefore allocated in the first free block, **O-94 … O-104**, each with a stable slug so the question survives whatever renumbering DECISIONS.md imposes when it reconciles all Phase 0 documents at once: `api-newsletter-doi` (O-94), `api-uwg-aehnliche-leistung` (O-95), `api-kunde-schreibaktion` (O-96), `api-lv-austauschformat` (O-97), `api-cpv-katalog` (O-98), `api-einheitspreis-praezision` (O-99), `api-nachtfenster-zuschlag` (O-100), `api-arbzg-tageszuordnung` (O-101), `api-arbzg-ruhezeit-verkuerzung` (O-102), `api-arbzg-nacht-sonn-feiertag` (O-103), `api-13b-kategorien` (O-104). Where a question this document asks is already asked elsewhere, it cites **that** number rather than minting a second one: O-82 (`SmsGateway` — the SMS provider and the check-in delivery channel), O-36 (the Berlin holiday source and other Bundesländer), O-37 (whether pauses are stamped), O-28 (the monitored mailbox), O-06 (the Betriebsrat question, now attached to the five `mandant_einstellung` monitoring keys rather than to two invented `mandant` columns), O-39 (whether a release step between recorded time and billing exists at all — this document mints no `zeit.freigeben_zur_abrechnung` right and specifies no release route, because seeding a right for a step nobody has confirmed would make the placeholder load-bearing, K-17), and O-90 (whether finalisation, period lock, DATEV export and number-circle administration additionally require a second factor — this document sets no `erfordert_2fa` value of its own on those four).
+20. **On the numbering.** `docs/DECISIONS.md` holds O-01 and O-04 … O-13; `08-PR-PLAN.md` claims O-14 … O-29; sibling Phase 0 documents have claimed O-30 … O-93. The eleven questions this document raises that are on none of those lists are therefore allocated in the first free block, **O-94 … O-104**, each with a stable slug so the question survives whatever renumbering DECISIONS.md imposes when it reconciles all Phase 0 documents at once: `api-newsletter-doi` (O-94), `api-uwg-aehnliche-leistung` (O-95), `api-kunde-schreibaktion` (O-96), `api-lv-austauschformat` (O-97), `api-cpv-katalog` (O-98), `api-einheitspreis-praezision` (O-99), `api-nachtfenster-zuschlag` (O-100), `api-arbzg-tageszuordnung` (O-101), `api-arbzg-ruhezeit-verkuerzung` (O-102), `api-arbzg-nacht-sonn-feiertag` (O-103), `api-13b-kategorien` (O-104). Where a question this document asks is already asked elsewhere, it cites **that** number rather than minting a second one: O-82 (`SmsGateway` — the SMS provider and the check-in delivery channel), O-36 (the Berlin holiday source and other Bundesländer), O-37 (whether pauses are stamped), O-28 (the monitored mailbox), O-06 (the Betriebsrat question, now attached to the five `mandant_einstellung` monitoring keys rather than to two invented `mandant` columns), O-39 (whether a release step between recorded time and billing exists at all — this document mints no `zeit.abrechnung_freigeben` right and specifies no release route, because seeding a right for a step nobody has confirmed would make the placeholder load-bearing, K-17), and O-90 (whether finalisation, period lock, DATEV export and number-circle administration additionally require a second factor — this document sets no `erfordert_2fa` value of its own on those four).

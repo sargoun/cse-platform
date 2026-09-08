@@ -991,24 +991,12 @@ language sql stable security definer set search_path = pg_catalog, public as $$
     -- kunde scope: the subject is a customer, bound through kunde_zugang (02-CRM-OPERATIONS).
     when 'kunde'  then 'kunde'
 
-    -- gruppe scope: the MOST RESTRICTIVE portal across the memberships in sichtbare_mandanten().
-    -- A group session that resolves to 'mitarbeiter' or 'kunde' is refused by the wrapper before
-    -- the transaction opens: group scope requires gruppe.<modul>.lesen (K-03), which neither role
-    -- holds, so such a session could only ever render an empty page.
-    when 'gruppe' then coalesce(
-      (select case when bool_or(r.portal <> 'intern') then 'mitarbeiter' else 'intern' end
-         from public.benutzer_mandant bm
-         join public.rolle r on r.id = bm.rolle_id
-        where bm.benutzer_id = p_benutzer
-          and bm.mandant_id in (select app.sichtbare_mandanten())
-          and bm.entzogen_am is null
-          and bm.gueltig_ab <= app.berlin_heute()
-          and (bm.gueltig_bis is null or bm.gueltig_bis >= app.berlin_heute())),
-      case when exists (select 1 from public.benutzer b
-                         join public.rolle r on r.id = b.globale_rolle_id
-                                            and r.geltungsbereich = 'global'
-                        where b.id = p_benutzer)
-           then 'intern' else 'mitarbeiter' end)      -- a super-admin holds no membership row
+    -- gruppe scope: 'intern', unconditionally. The gate is ENTRY, not the ceiling — withGroupScope
+    -- admits a principal only if they hold at least one membership whose rolle.portal = 'intern'
+    -- AND at least one gruppe.<modul>.lesen right (03-AUTH §4.5), and refuses every other session
+    -- before the transaction opens. Group scope is read-only (K-03, K-18), so an 'intern' ceiling
+    -- inside it grants no write and widens nothing.
+    when 'gruppe' then 'intern'
 
     -- mandant scope: the ROLE of the active membership, never the existence of one (K-04)
     else coalesce(
@@ -1036,9 +1024,28 @@ resolver the draft carried therefore fell through to `'mitarbeiter'` for every n
 outside `mandant` scope: a `leitung` in the group view fired every `p_ma_ceiling` of §1.4 and read
 nothing, and a customer in `kunde` scope was ceilinged as an employee. The scope argument is what
 removes that, and there is no second resolver — `app.portal()` (§3.1) only reads the GUC this
-function wrote. Test: for one human holding `leitung` in A **and** an `anstellung` in A,
+function wrote.
+
+**Why the `gruppe` branch is a constant and not a most-restrictive fold.** An earlier draft resolved
+it as `bool_or(r.portal <> 'intern') → 'mitarbeiter' else 'intern'` over every live membership. That
+reading breaks on the case D-09 and EMP-15 make routine and TEN-05 depends on: one human who is
+`leitung` of CSE Dienstleistungen **and** employed by SSE Security holds an `intern` membership in
+the first and a `mitarbeiter` membership in the second, so `bool_or` is true, the fold returns
+`'mitarbeiter'`, every `p_ma_ceiling` of §1.4 fires *inside the group view*, and the four-entity
+roll-up reads nothing — silently, which is the K-20 failure the scope argument was added to remove,
+reappearing one branch further in. The rule that keeps TEN-05 working is to gate **entry** instead:
+`withGroupScope` admits a principal only with at least one `rolle.portal = 'intern'` membership and
+at least one `gruppe.<modul>.lesen` right (`03-AUTH-BERECHTIGUNGEN.md` §4.5), refuses everyone else
+before the transaction opens, and then binds `'intern'`. Nothing is widened by that: group scope has
+no `INSERT`, `UPDATE` or `DELETE` policy anywhere in the platform (K-03, invariant 10), so an
+`intern` ceiling there is a read ceiling over rows the `gruppe.*` rights already select.
+
+Tests: for one human holding `leitung` in A **and** an `anstellung` in A,
 `app.portal_fuer(u, A, 'mandant') = 'intern'`, `app.portal_fuer(u, null, 'gruppe') = 'intern'` and
-`app.portal_fuer(u, null, 'person') = 'mitarbeiter'`.
+`app.portal_fuer(u, null, 'person') = 'mitarbeiter'`. And the mixed case, which is the one that
+regressed: for a human holding `leitung` in A and a `mitarbeiter` membership in B,
+`app.portal_fuer(u, null, 'gruppe') = 'intern'` and the group roll-up returns rows from **both** A
+and B.
 
 ```sql
 -- Per-mandant operational settings (§6.30). The one-argument form is the ONLY form other documents
@@ -1278,7 +1285,7 @@ SPEC. Where a vocabulary carries legal or payroll weight and the SPEC does not s
 | Enum | Values | Source |
 |---|---|---|
 | `rolle_geltungsbereich` | `global` · `mandant` | AUT-01 role scope |
-| `berechtigung_aktion` | `lesen` · `erstellen` · `aendern` · `schreiben` · `loeschen` · `exportieren` · `importieren` · `zuweisen` · `freigeben` · `genehmigen` · `entscheiden` · `verwalten` · `pruefen` · `melden` · `planen` · `veroeffentlichen` · `versenden` · `festschreiben` · `stornieren` · `korrigieren` · `quittieren` · `uebersteuern` · `verbinden` · `einreichen` · `anmelden` · `widerrufen` · `ziehen` | **`03-AUTH-BERECHTIGUNGEN.md` §7.2 owns this vocabulary (K-19).** The enum here mirrors it exactly, plus `ziehen` (`nummernkreis.ziehen`, `05-FINANZEN.md` §1.3) |
+| `berechtigung_aktion` | `lesen` · `erstellen` · `aendern` · `schreiben` · `loeschen` · `exportieren` · `importieren` · `zuweisen` · `freigeben` · `genehmigen` · `entscheiden` · `verwalten` · `pruefen` · `melden` · `planen` · `veroeffentlichen` · `versenden` · `festschreiben` · `stornieren` · `korrigieren` · `quittieren` · `uebersteuern` · `verbinden` · `einreichen` · `anmelden` · `widerrufen` · `ziehen` · `abschliessen` · `archivieren` · `bearbeiten` · `beenden` · `bewerten` · `erfassen` · `erheben` · `herunterladen` · `pflegen` · `rueckgaengig` · `setzen` · `starten` · `verwerfen` · `zuruecksetzen` · `zusammenfuehren` | **`03-AUTH-BERECHTIGUNGEN.md` §7.2 owns this vocabulary (K-19).** The enum here mirrors it **exactly** — all 42 values, in that order, and a schema test compares the two lists rather than their lengths. The last fifteen were added there when the catalogue of §12/§14.2 turned out to use actions the 27-value enum could not hold |
 | `berechtigung_risiko` | `niedrig` · `mittel` · `hoch` | UI grouping for AUT-03 |
 | `benutzer_status` | `eingeladen` · `aktiv` · `gesperrt` · `deaktiviert` | AUT-07 |
 | `sitzung_ansicht` | `mandant` · `gruppe` · `person` · `kunde` | TEN-04, TEN-05, EMP-14, CRM-06 — **the four scopes of K-18**; the source of the `app.scope` GUC |
@@ -3061,10 +3068,29 @@ sie liefert jeder dieser Aufrufe NULL, jeder Aufrufer fällt auf seinen eigenen 
   liest. **Bewusst keine `t_gruppe`-Policy** (K-20): eine Einstellung ist eine Eigenschaft genau
   einer Entität, in der Gruppenansicht gibt es keine, und die einargumentige `app.einstellung()`
   liefert dort per Konstruktion NULL — das ist der dokumentierte Wert, kein leerer Bildschirm.
-- **Die O-06-Schalter leben hier und nirgendwo sonst (K-21).** `zeit.geolokalisierung`,
-  `zeit.geraetekennung`, `geo.erfassung_erlaubt` und `wachbuch.uebergabe_fenster` sind Zeilen dieser
-  Tabelle. `mandant.geo_erfassung_aktiv` und `mandant.ueberwachung_aktiv` existieren nicht (§6.1).
-  Alle vier werden mit dem restriktiven Wert ausgeliefert — `false` bzw.
+- **Die O-06-Schalter leben hier und nirgendwo sonst (K-21).** Es sind **sieben** Schlüssel, und die
+  folgende Aufzählung ist vollständig:
+
+  | Schlüssel | Auslieferungswert | Eigentümer der Wirkung |
+  |---|---|---|
+  | `zeit.geolokalisierung` | `false` | `04-PLANUNG-ZEIT.md` §1.15 |
+  | `zeit.geraetekennung` | `false` | `04-PLANUNG-ZEIT.md` §1.15 |
+  | `zeit.abweichungsauswertung` | `false` | `04-PLANUNG-ZEIT.md` §1.15 |
+  | `zeit.korrekturstatistik` | `false` | `04-PLANUNG-ZEIT.md` §1.15 |
+  | `zeit.nichterschienen_auswertung` | `false` | `04-PLANUNG-ZEIT.md` §1.15 |
+  | `geo.erfassung_erlaubt` | `false` | `03-GEWERKE.md` §1.16 |
+  | `wachbuch.uebergabe_fenster` | `{"interval": "PT0S"}` | `03-GEWERKE.md` §1.16 |
+
+  **`geo.erfassung_erlaubt` ist nicht `zeit.geolokalisierung`** — die beiden lesen sich wie Dubletten
+  und sind keine: `geo.erfassung_erlaubt` schaltet die Koordinate an einer Unterschrift und an einem
+  Nachweisfoto (`03-GEWERKE.md` §1.16), `zeit.geolokalisierung` die Koordinate an einem
+  Zeitstempel (`04-PLANUNG-ZEIT.md` §5.6, `z_geo_gate`). Zwei Einrichtungen, zwei Zustimmungen.
+
+  Diese Tabelle besitzt die Schlüssel; **was ein ausgeschalteter Schlüssel bewirkt, steht bei
+  `04-PLANUNG-ZEIT.md` §1.15 bzw. `03-GEWERKE.md` §1.16** — eine Liste, an einer Stelle je Frage.
+  `mandant.geo_erfassung_aktiv` und `mandant.ueberwachung_aktiv` existieren nicht (§6.1); ein
+  Boolean auf `mandant` könnte die Granularität, die §87 Abs. 1 Nr. 6 BetrVG verlangt, gar nicht
+  ausdrücken. Alle sieben werden mit dem restriktiven Wert ausgeliefert — `false` bzw.
   `{"interval": "PT0S"}`, die Form, die `03-GEWERKE.md` §1.16 mit
   `(app.einstellung('wachbuch.uebergabe_fenster')->>'interval')::interval` liest —, bis O-06
   beantwortet ist — `// TODO(client): O-06 — Gibt es einen Betriebsrat? Ein Standortdatum an einer
@@ -3914,11 +3940,15 @@ release's database; both must succeed.
   its own feature migration.
 - **`nachweis_art`** — the two §34a rows SEC-02 names (`34a_sachkunde`, `34a_unterrichtung`,
   `subjekt = 'person'`) and nothing else; the rest of the vocabulary is O-107 (§6.33).
-- **`mandant_einstellung`** — the O-06 switches at their restrictive values for all four mandanten:
-  `zeit.geolokalisierung = false`, `zeit.geraetekennung = false`, `geo.erfassung_erlaubt = false`,
-  `wachbuch.uebergabe_fenster = {"interval": "PT0S"}` (§6.30, LEG-10). No other key is seeded: an unset key is
+- **`mandant_einstellung`** — all seven O-06 switches of §6.30 at their restrictive values for all
+  four mandanten: `zeit.geolokalisierung = false`, `zeit.geraetekennung = false`,
+  `zeit.abweichungsauswertung = false`, `zeit.korrekturstatistik = false`,
+  `zeit.nichterschienen_auswertung = false`, `geo.erfassung_erlaubt = false`,
+  `wachbuch.uebergabe_fenster = {"interval": "PT0S"}` (§6.30, LEG-10). No other key is seeded, and a
+  seed test asserts the seven against §6.30's table so the two cannot drift apart. An unset key is
   read as NULL and every caller states its own default, which is the fail-closed behaviour
-  `03-GEWERKE.md` §1.16 relies on.
+  `03-GEWERKE.md` §1.16 relies on — the three `zeit.*` evaluation switches gate reports and rankings
+  (`05-API-KARTE.md` §C/§D, `08-PR-PLAN.md` PR 4), never the storage of the underlying fact.
 - **`qualifikation`** — `34a_sachkunde` and `34a_unterrichtung`, each pointing at the `nachweis_art`
   row of the same key, with `blockiert_einsatz = true`,
   `laeuft_ab = true`, `rechtsgrundlage = '§34a GewO'` (SEC-02, SEC-04) and **no**
@@ -4234,10 +4264,13 @@ Nothing in this section is optional; each line names the failure it prevents.
     of 46. `einsatz` appears as a `modul` **nowhere**; `dienstplan.arbzg_pruefen` carries
     `modul = 'dienstplan'`.
 45. `berechtigung_aktion` contains at least `lesen`, `schreiben`, `loeschen`, `pruefen`, `freigeben`,
-    `exportieren` and `verwalten`, and matches 03-AUTH §7.2 value for value. Removing `schreiben`
+    `exportieren` and `verwalten`, and matches 03-AUTH §7.2 **value for value, as a list** — 42
+    values, compared elementwise and not by length. Removing `schreiben`
     makes the K-03 `WITH CHECK` unsatisfiable, and the test asserts that consequence directly: with
     `<modul>.schreiben` absent from the catalogue, an authorised `INSERT` into `anstellung` is
-    refused.
+    refused. The same test parses every seeded `berechtigung.schluessel` under §7.2's grammar and
+    fails when its last underscore-delimited token is not a value of this enum — 03-AUTH §7.2a
+    assertion 3, mirrored here because the seed lives in this document.
 46. `split_part(schluessel,'.',1) = modul` for **every** catalogue row, with `modul = 'gruppe'` for
     every `gruppe.*` key — unconditional, with no exception row.
 

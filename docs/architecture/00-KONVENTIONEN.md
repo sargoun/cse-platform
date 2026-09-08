@@ -191,11 +191,25 @@ So there is exactly one sanctioned crossing, and it is narrow, audited and teste
 PostgREST**, one row per assignment:
 
 ```
+person_id           uuid   THE QUERY KEY — FK to person, not to anstellung
 zuordnung_quelle_id uuid   the einsatz_zuordnung this window derives from
 quelle              enum   plan | ist
 aktiv               bool   the ist row supersedes its plan row in the same statement
 beginn_utc, ende_utc timestamptz
 ```
+
+`mandant_id` and `anstellung_id` are stored too, for provenance and for the
+retention job — and are **never returned**, which is what keeps the crossing
+narrow.
+
+**`person_id` is not an optimisation.** ArbZG aggregates per *human*, across
+entities (D-09), and the alternative — resolving person → `anstellung` →
+`einsatz_zuordnung` inside the definer function — cannot reach an `ist` window
+projected from a `zeiteintrag` that has no assignment behind it, so it silently
+under-counts actual worked time. That is the K-06 failure mode itself: the check
+returns "no conflict" and an unlawful day is scheduled. The index is
+`fenster_person_idx on (person_id, beginn_utc) where aktiv`, and §6.3's function
+body filters `where f.person_id = p_person`.
 
 One window per assignment. Without `zuordnung_quelle_id` and the supersede rule,
 the detector sums the planned shift and the worked shift and reports 12h for a 6h
@@ -252,11 +266,15 @@ silently wins: either every mandant switch lands a manager on a marketing page, 
 the four short marketing URLs 404. There is no configuration in which both work.
 
 The prefix also shrinks the reserved-slug problem from ~25 public and auth
-segments to the portal's own three. `mandant.slug` carries a `CHECK` excluding
-`gruppe`, `mein`, `api`, and **a CI test walks the App Router tree and fails when
-a new static segment under `/portal` is added without being added to the
-constraint** — TEN-08 promises a fifth area needs a DB row and no code change, and
-a hand-maintained list with no test does not deliver that.
+segments to the portal's own statics. `mandant.slug` carries a `CHECK` excluding
+**the reserved list of K-21** — `gruppe`, `mein`, `kunde`, `konto`, `api`, stated
+once there and nowhere else, this sentence included — and **a CI test walks the
+App Router tree and fails when a new static segment under `/portal` is added
+without being added to the constraint** — TEN-08 promises a fifth area needs a DB
+row and no code change, and a hand-maintained list with no test does not deliver
+that. An abbreviated second copy of the list is how `kunde` and `konto` become
+admissible tenant slugs that then collide with `/portal/kunde` and
+`/portal/konto`, so there is no second copy.
 
 ---
 
@@ -275,7 +293,7 @@ that is not added here in the same PR.**
 |---|---|---|
 | `app.sitzung_aufloesen(token_hash)` | `cse_anon` | resolve a session before any principal is known |
 | `app.versuch_protokollieren(...)` | `cse_anon` | rate limiting and lockout (AUT-07) |
-| `app.checkin_verbrauchen(token_hash, geraet_zeit, ip)` | `cse_checkin` | TIM-07 / TIM-08 |
+| `app.checkin_verbrauchen(p_token_hash text, p_geraete_zeit timestamptz, p_ip inet, p_user_agent text, p_geo jsonb default null)` | `cse_checkin` | TIM-07 / TIM-08. **Five arguments, and the arity is part of the register entry.** Postgres resolves grants per exact signature, so `GRANT EXECUTE` written against a three-argument form succeeds against nothing and the check-in endpoint fails closed at runtime with a "function does not exist" that no schema test catches. `p_user_agent` writes `checkin_token.user_agent` and `p_geo` the LEG-10 capture; neither has another source. Owner: `02-datenmodell/04-PLANUNG-ZEIT.md` §9.1 |
 | `app.offline_ereignis_annehmen(token_hash, ereignisse, ip)` | `cse_checkin` | TIM-09 — late arrival of the same trust boundary as check-in |
 | `app.ical_feed_lesen(feed_token_hash)` | `cse_anon` | CAL-03 — read-only, single user, no write path |
 
@@ -401,9 +419,27 @@ guarantee at all.
 ```
 leistender { name, anschrift, steuernummer | ustid, hrb, gericht }
 empfaenger { name, anschrift, ustid, leitweg_id }
-je Steuerzeile { satz, netto_cent, steuer_cent, hinweistext }
-abrechnungsart · bauabzugsteuer_cent · kleinbetrag · leistungszeitraum
+je Steuerzeile { steuersatz_gruppe, kategorie, satz_bp, netto_cent, steuer_cent,
+                 befreiungsgrund_code, befreiungsgrund_text }
+bauabzugsteuer { … } · ist_kleinbetrag · leistung_von / leistung_bis
+abrechnungsart, per position
 ```
+
+**This is a sketch of the shape, not the declaration.** The full payload
+`cse.rechnung.v1` — every field, its order, and the rule that nulls are written
+explicitly and never omitted — is declared once, by
+`02-datenmodell/05-FINANZEN.md` §5.3. Where this sketch and that declaration
+differ, **the declaration wins**, which is the one place §0's precedence is
+inverted deliberately: the payload is the hash input, so a second statement of it
+is a second hash.
+
+Four names this sketch previously carried are **withdrawn** and must not come
+back: `hinweistext`, `bauabzugsteuer_cent`, `kleinbetrag` and `leistungszeitraum`.
+The first belongs to the abolished `steuersatz` catalogue — there is no
+`steuersatz` table, no `steuersatz_id`, no `prozent_bp` and no `hinweistext`
+anywhere in the platform (K-21) — and the other three are the wrong shape:
+`bauabzugsteuer` is an object, `ist_kleinbetrag` a boolean, and the service period
+a pair of dates.
 
 With only `kunde_id` and `mandant_id` as references, editing the customer master
 record or the entity's tax number later changes what the invoice, the XRechnung
@@ -625,10 +661,15 @@ themselves name them:
 An action vocabulary omitting `schreiben` means **no write path in the platform
 can be authorised at all** — every `WITH CHECK` names `<modul>.schreiben`.
 
-**The enforcement is a test, not vigilance.** CI extracts every right-key literal
-from policies, route manifests and services, and fails on any key absent from the
-catalogue — and on any catalogue key no code uses, so the catalogue cannot rot
-into a wish list.
+**The enforcement is a test, not vigilance, and it looks in three directions.**
+CI extracts every right-key literal from policies, route manifests and services,
+and fails on (1) any key absent from the catalogue, (2) any catalogue key no code
+uses, so the catalogue cannot rot into a wish list, and (3) **any catalogue key
+that cannot be written down** — its module must be one of the closed 47 and the
+last underscore-delimited token of its last segment must be a `berechtigung_aktion`
+value. The third is not redundant: (1) and (2) compare code against the catalogue
+and back, so a key that is wrong in both places passes both, and 25 such keys
+survived one full review pass that way.
 
 ---
 
@@ -644,7 +685,11 @@ Two accessors were found with exactly this defect and are fixed here:
 
 - **`app.aktueller_kunde()` / `app.aktuelle_kunden()`** resolve from the session's
   `kunde_zugang` binding, **never** through `aktiver_mandant()`. In `kunde` scope
-  that binding is the whole subject of the request.
+  that binding is the whole subject of the request. The **scalar** is a
+  `mandant`-scope convenience, `(app.aktuelle_kunden())[1]`, and no policy or
+  ceiling reachable from `kunde` scope may name it — there it is defined and
+  returns one binding of several, arbitrarily, so it does not fail closed: it
+  serves one entity's rows and hides the rest (CRM-06).
 - **`app.portal()`** is bound when the scope is entered and is defined in all four
   scopes. It is **not** recomputed from `aktiver_mandant`: doing so makes it fall
   through to the fail-closed `mitarbeiter` in group, person and kunde scope, which
@@ -653,8 +698,13 @@ Two accessors were found with exactly this defect and are fixed here:
 
 **Rule:** every `app.*` accessor states its value in all four scopes. One that is
 undefined in a scope must say so and must not be referenced by a policy reachable
-from it. A CI test enumerates the accessors and asserts each returns a defined
-value, or a documented NULL, under all four.
+from it — and so must one that is *defined but not usable* there, which is the
+harder case: a documented NULL fails closed and shows up as an empty screen, while
+an arbitrary value returns plausible rows and shows up as nothing at all. A CI test
+enumerates the accessors and asserts each returns a defined value, or a documented
+NULL, under all four; for the not-usable case it asserts the **absence of the
+identifier** from every policy and ceiling, because there is no return value to
+assert against.
 
 ---
 

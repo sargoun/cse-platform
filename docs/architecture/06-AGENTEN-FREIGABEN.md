@@ -51,7 +51,7 @@ test set that proves all of it.
 | DDL for `zeit_intern.arbeitszeit_fenster`, `arbeitszeit_verstoss`, `einsatz`, `zeiteintrag` | `02-datenmodell/04-PLANUNG-ZEIT.md` |
 | DDL and the §14 UStG pre-flight for `rechnung`, `eingangsrechnung`, `konto_mapping`; the `steuersatz_gruppe` catalogue — **there is no `steuersatz` table** (K-21) | `02-datenmodell/05-FINANZEN.md` |
 | The **one** permission catalogue: module vocabulary, action vocabulary, every right key (**K-19**) — plus the principal taxonomy, session helpers and isolation suite | `03-AUTH-BERECHTIGUNGEN.md` |
-| DDL for `agent_artefakt` (§9.4) — **K-21** names it here, not in this document | `02-datenmodell/06-RADAR-KI-INHALT.md` §4 |
+| DDL **and the whole column set** for `agent_artefakt` (§9.4 is a back-reference) — **K-21** names it there, not in this document | `02-datenmodell/06-RADAR-KI-INHALT.md` §3.12 |
 | DDL for `sicherheitsvorfall` (§6.3), `nachweis_art` (§5.4 tool 5), `job_lauf`, `job_lauf_mandant`, `mandant_einstellung`, `loeschprotokoll` — **K-21** ownership | `02-datenmodell/01-KERN.md` |
 | The `arbzg_regel` and `verstoss_schwere` vocabularies §13 consumes | `02-datenmodell/04-PLANUNG-ZEIT.md` §3 |
 | `app.darf_kontaktiert_werden(...)` — the single implementation of the §7 UWG rule (§5.4, §7.2 D2) — and `app.aufbewahrung_intervall(p_mandant, p_schluessel)` | `02-datenmodell/02-CRM-OPERATIONS.md` §4.7, §5.5 |
@@ -801,7 +801,7 @@ export function extrahiere_lv(input: {
   seiten?: { von: number; bis: number };
   norm: 'gaeb' | 'frei';               // GAEB where the file is GAEB; free-form otherwise
 }): Promise<ToolResult<{
-  artefakt: ArtefaktHandle;            // agent_artefakt, art 'lv_entwurf'
+  artefakt: ArtefaktHandle;            // agent_artefakt, art 'lv_extrakt' (§9.4)
   positionen: {
     oz: Feld<string>;                  // hierarchical OZ (BAU-01)
     kurztext: Feld<string>;
@@ -880,7 +880,8 @@ export function berechne_preis(input:
   service: string; service_version: string; eingaben_hash: string;
 }>>;
 // Every branch delegates to ONE tested function in src/server/services/. Money is bigint cents,
-// serialised as a decimal string across the JSON boundary and never touched by JSON number parsing.
+// serialised as a JSON INTEGER via assertSafeCents (05-API-KARTE.md R-12, §B.9) — never a float,
+// never a formatted string. The decimal-string form is for QUANTITIES only (R-15).
 // Durations are differences of UTC instants (invariant 2); month, day and period boundaries are
 // Berlin wall-clock converted to instants (K-11). The model receives {ergebnis, herleitung} as
 // opaque tokens and may reference them; it may not restate, round, sum, convert or "correct" them.
@@ -1525,7 +1526,7 @@ than one row matches, the **strictest** wins over the total order of §4.1 — t
 | `aktion` | `vorgang_typ` | `art` | Floor |
 |---|---|---|---|
 | `read` | — | — | `allow` |
-| `draft` | — | — (any art, incl. `lv_entwurf`, `text_entwurf`, `shortlist`) | `allow` (§4.4) |
+| `draft` | — | — (any art, incl. `lv_extrakt`, `textentwurf`, `shortlist`) | `allow` (§4.4) |
 | `gated_write` | — | `benachrichtigung_intern`, `aufgabe`, `kalender_eintrag` (internal only), `ausschreibung_vorgang`, `vergabemappe`, `lead_notiz` | `allow` |
 | `gated_write` | — | `buchungsvorschlag`, `zahlungszuordnung_vorschlag`, `rechnung_entwurf`, `eingangsrechnung_entwurf`, `stelle_entwurf`, `social_post_entwurf` | `freigabe_erforderlich` |
 | `gated_write` | — | `angebot_entwurf` | `freigabe_erforderlich`, `verzoegerung_verboten` — an offer is never automatic at any value (§4.2) |
@@ -1759,9 +1760,12 @@ Both are owned by `02-datenmodell/06-RADAR-KI-INHALT.md` §3.9. What this docume
 never figures — K-10) · ergebnis · bezug_typ/bezug_id · idempotenz_schluessel · korrelation_id ·
 angefordert_von · ausgeloest_durch · gestartet_am · beendet_am · dauer_ms · schritte_anzahl ·
 kosten_cent · budget_stopp · fehler_text`, plus the prompt, policy and code versions this document
-requires for replay (§19). `kosten_cent` is `bigint` **cents** and is one of the two K-16(b)
+requires for replay (§19). `kosten_cent` is `bigint` **cents** and is one of the **three** K-16(b)
 conversion sites: `div(Σ agent_kosten.kosten_mikrocent + 5000, 10000)`, half-up, with the rounding
-rule stated beside the expression (§8.2).
+rule stated beside the expression (§8.2). The other two are the REP-01 expense figure and
+`eingangsrechnung_extraktion.kosten_cent` (`02-datenmodell/05-FINANZEN.md` §8.4/§12.1), which is
+where an agent-ledger figure crosses into the finance domain; all three sum
+**`agent_kosten.kosten_mikrocent`**, the charge ledger, and none sums `agent_schritt`.
 
 `agent_schritt`, append-only, one row per model or tool call: `agent_aufgabe_id · schritt_nr ·
 werkzeug · modell · eingabe/ausgabe jsonb · eingabe_hash/ausgabe_hash · tokens ·
@@ -1885,30 +1889,31 @@ date and the superseded fingerprint, so a bundle signed under an old key stays v
 `ArtefaktHandle` appears on nearly every page of this document: `entwirf_text` writes one,
 `extrahiere_lv` writes one, `freigabe.artefakt_id` and `vergleichsartefakt_id` point at them,
 `sende_email.koerper` is one. It holds drafted customer-facing text and extracted document content,
-so it is a tenant table and it needs a tenant column. **`agent_artefakt` is owned by
-`02-datenmodell/06-RADAR-KI-INHALT.md` under K-21** — each table is declared exactly once, by its
-owner. What follows is therefore a **requirement on that document** (§19, R-01), not a declaration
-here, and the columns below are the shape this document's tools, handles and approval chain need:
+so it is a tenant table and it needs a tenant column.
 
-| Column | Type | Note |
-|---|---|---|
-| `id`, `mandant_id`, `erstellt_am`, `erstellt_von`, `geaendert_am` | K-16 common columns | `mandant_id NOT NULL`, RLS + FORCE (K-01, K-03) |
-| `agent_aufgabe_id`, `agent_schritt_id` | uuid | composite FK `(mandant_id, …)`; the run that produced it. Each parent — `agent_aufgabe`, `agent_schritt` — must declare the matching `UNIQUE (mandant_id, id)`, and `agent_artefakt` declares its own, because `freigabe.artefakt_id` and `ersetzt_artefakt_id` point at it (K-16) |
-| `art` | enum | `lv_entwurf · text_entwurf · vergabemappe_pruefliste · buchungsvorschlag_entwurf · abrechnungsentwurf · shortlist` |
-| `vorlage` | text | for `text_entwurf`: the `entwirf_text` template used |
-| `status` | enum | `entwurf · freigegeben · verworfen · ersetzt` |
-| `sprache` | text | `de/en/ar/tr` (EMP-12) |
-| `inhalt_ref` | text | private bucket object key; signed URLs only, 15-minute expiry (DOC-03, SEC-A6) |
-| `inhalt_hash` | text | SHA-256 over the canonical content |
-| `verwendete_werte` | jsonb | the register tokens the text references (§5.5) |
-| `quellen` | jsonb | `Quelle[]` — APR-03 |
-| `konfidenz_min`, `unsicher` | numeric(4,3), boolean | propagated per §5.5 rule 7 |
-| `ersetzt_artefakt_id` | uuid | composite FK (self); a revision is a new row |
+**`agent_artefakt` is declared once, by `02-datenmodell/06-RADAR-KI-INHALT.md` §3.12 (K-21), and
+this section states no column of its own.** An earlier pass of this document carried a second column
+table here, labelled a requirement on the owner; ownership was settled but the two column sets were
+not reconciled, so one table name carried two shapes — a different `art` vocabulary, `inhalt_ref`
+against `inhalt jsonb`, and neither list a superset of the other. The owner's §3.12 now carries the
+merged set, including the six columns this document depends on (`status`, `vorlage`, `sprache`,
+`verwendete_werte`, `quellen`, `konfidenz_min`/`unsicher`), and records the four rulings that
+produced it. R-01 in §19 is discharged and reduced to a pointer.
 
-RLS: the K-03 pair, module `agent`, right `agent.lesen`, plus the K-04 `intern` ceiling. No hard
-delete; `verworfen` is a status. **`vorschlag` is not a second table** — the draft named one in
-passing and it would overlap this one entirely; the proposal is the artefact plus its `freigabe`
-row.
+What this document uses, all of it read from §3.12:
+
+| What this document needs | Where §3.12 provides it |
+|---|---|
+| A tenant row: `mandant_id NOT NULL`, RLS + FORCE, the K-04 `intern` ceiling, `UNIQUE (mandant_id, id)` so the composite FKs from `freigabe.artefakt_id`, `freigabe.vergleichsartefakt_id` and `ersetzt_artefakt_id` resolve (K-16) | bundle S5, `p_intern_ceiling`, `p_gruppe_kein_personenbezug` |
+| The seven `art` values | `art artefakt_art` — `lv_extrakt · textentwurf · email_entwurf · angebot_entwurf · vergabemappe_entwurf · zusammenfassung · shortlist`. **This document previously wrote `lv_entwurf` and `text_entwurf`; those are the same two acts under withdrawn names**, and `vergabemappe_pruefliste`, `buchungsvorschlag_entwurf` and `abrechnungsentwurf` are `erstelle_vorgang` arts (§7.3), not artefact arts |
+| The status §4.4 keys the floor on | `status artefakt_status` — `entwurf · freigegeben · verworfen · ersetzt`, forward-only, default `entwurf`. No hard delete; `verworfen` is a status (K-15) |
+| The `entwirf_text` template and language | `vorlage text`, `sprache text` (`de/en/ar/tr`, EMP-12) |
+| The draft itself, redactable on the LEG-09 schedule | `inhalt jsonb` + `format artefakt_format`, column-granted away from `cse_app` and read through `app.agent_artefakt_lesen`; `inhalt_hash` survives redaction and is the `artefakt_hash` the §14.2 chain covers. **`inhalt_ref` — a bucket object key — was the other candidate and is withdrawn**: redaction has to null the content while the hash still verifies, which an object key cannot do |
+| The §5.5 propagation | `verwendete_werte jsonb`, `quellen jsonb` (`Quelle[]`, APR-03), `konfidenz_min numeric(4,3)`, `unsicher boolean` — `unsicher` is what feeds `PolicyInput.wert_unsicher` (§7.3) |
+| A revision as a new row | `ersetzt_artefakt_id` composite FK (self), plus `version` |
+
+**`vorschlag` is not a second table** — the draft named one in passing and it would overlap this one
+entirely; the proposal is the artefact plus its `freigabe` row.
 
 ---
 
@@ -2483,11 +2488,18 @@ catalogue key no code uses** — so this list is a closed set in both directions
 | `wissen.vertraulich_lesen` | the §10.3 confidentiality gate on `vertraulichkeit = 'vertraulich'` | §14.2 |
 | `dienstplan.arbzg_pruefen` | the K-06 precondition inside `app.arbzg_belastung` (§13.1) — module `dienstplan`, **not** `einsatz` | §14.2, K-19 |
 
-The action segment of every key above is a member of the seven K-19 requires — `lesen`, `schreiben`,
-`loeschen`, `pruefen`, `freigeben`, `exportieren`, `verwalten` — or of the wider `berechtigung_aktion`
-vocabulary 03-AUTH §7.2 declares around them. In particular `<modul>.schreiben` is what every K-03
-`WITH CHECK` on every tenant table names, `agent_artefakt` and `freigabe` included; an action
-vocabulary without it authorises no write path anywhere in the platform.
+The action segment of every key above is a member of the 42-value `berechtigung_aktion` vocabulary
+03-AUTH §7.2 declares — which is a statement about that document's current list, not a property this
+one can assert on its own. **Four keys in this table failed it until §7.2 was widened**:
+`agent.aufgabe_starten`, `agent.autonomie_setzen`, `freigabe.einspruch_erheben` and
+`freigabe.rueckgaengig` use `starten`, `setzen`, `erheben` and `rueckgaengig`, none of which the
+earlier 27-value enum held, so none of the four rows could be inserted and `app.hat_recht()` would
+have answered false for each of them permanently and silently — no run started from the portal, no
+APR-05 objection, no APR-06 undo. §7.2 now carries all four verbs and §7.2a's assertion 3 parses
+every catalogue key against the enum, which is the check that would have caught them. Separately,
+`<modul>.schreiben` is what every K-03 `WITH CHECK` on every tenant table names, `agent_artefakt`
+and `freigabe` included; an action vocabulary without it authorises no write path anywhere in the
+platform.
 
 ### 14.4 One inbox, sorted by deadline and risk (APR-01)
 
@@ -2782,7 +2794,7 @@ the database level:
 
 | Field | Content |
 |---|---|
-| `nutzlast` | the exact payload approved, canonical JSON, `bigint` cents as decimal strings |
+| `nutzlast` | the exact payload approved, canonical JSON, `bigint` cents as **JSON integers** (R-12); quantities as canonical decimal strings (R-15) |
 | `nutzlast_hash` | SHA-256 of `nutzlast`; verified against `freigabe.payload_hash` **before** execution |
 | `artefakt_hash` | SHA-256 of the rendered artefact (PDF/HTML) exactly as displayed |
 | `diff`, `felder` | the diff that was shown, and every field with its `quelle`, `konfidenz`, `unsicher` and the corrections made during review |
@@ -3198,7 +3210,7 @@ siblings — it is not a competing DDL, and the migration is written from the ow
 
 | # | Requirement | Owner (K-21) |
 |---|---|---|
-| R-01 | `agent_artefakt` as specified in §9.4 — a tenant table with `mandant_id`, RLS, FORCE, K-04 ceiling, no hard delete, and `UNIQUE (mandant_id, id)` so the composite FKs from `freigabe.artefakt_id`, `freigabe.vergleichsartefakt_id` and `agent_artefakt.ersetzt_artefakt_id` resolve (K-16). The table is referenced on nearly every page of this document; **K-21 fixes its owner**, so it is declared there once and here never | `02-datenmodell/06-RADAR-KI-INHALT.md` §4 |
+| R-01 | **Discharged.** `agent_artefakt` is declared once, by `02-datenmodell/06-RADAR-KI-INHALT.md` §3.12, and that declaration now carries the merged column set — the seven-value `art` enum including `shortlist`, `status artefakt_status`, `vorlage`, `sprache`, `verwendete_werte`, `quellen`, `konfidenz_min`, `unsicher`, `inhalt jsonb` + `format`, and `UNIQUE (mandant_id, id)` for the composite FKs from `freigabe.artefakt_id`, `freigabe.vergleichsartefakt_id` and `ersetzt_artefakt_id` (K-16). §9.4 of this document is a back-reference and states no column of its own. Nothing outstanding | `02-datenmodell/06-RADAR-KI-INHALT.md` §3.12 |
 | R-02 | `sicherheitsvorfall` as specified in §6.3, plus its entry in SPEC §22's entity list. **K-21 fixes the owner as 01-KERN**, alongside `job_lauf`, `job_lauf_mandant`, `mandant_einstellung`, `nachweis_art` and `loeschprotokoll` | `02-datenmodell/01-KERN.md`, `docs/SPEC.md` |
 | R-03 | The agent run queue as a **tenant row** with `mandant_id`, RLS and a written-by rule; no path may enqueue a run for a mandant the enqueuing principal cannot write to | `01-ORDNERSTRUKTUR.md` §10 |
 | R-04 | `freigabe.artefakt_id` and `freigabe.vergleichsartefakt_id`, both composite FKs `(mandant_id, …) → agent_artefakt (mandant_id, id)`; `freigabe.ausfuehrung_versuch integer not null default 0`; `freigabe.externe_ref text`; `freigabe.erforderliches_recht text` | `02-datenmodell/06-RADAR-KI-INHALT.md` §4.2 |

@@ -219,11 +219,12 @@ the four short marketing URLs 404. There is no configuration in which both work.
 ```
 
 **Reserved portal segments.** The column is **`mandant.slug`** (K-21 — not `schluessel`), and it
-carries a `CHECK` excluding **one list**: `gruppe`, `mein`, `kunde`, `konto`, `api`. K-07 names
-`gruppe`, `mein` and `api`; `kunde` is the customer portal, the fourth static segment under
-`/portal`; `konto` is the fifth, the signed-in user's own account pages (`04-SEITENKARTE.md`); and `api` is reserved
-because `/portal/api` would shadow a fetch path. K-21 publishes exactly this list, so the
-constraint, the test below and every sibling document read from one place. K-07 already mandates
+carries a `CHECK` excluding **one list**: `gruppe`, `mein`, `kunde`, `konto`, `api`. `gruppe` and
+`mein` are the group view and the employee portal; `kunde` is the customer portal, the fourth static
+segment under `/portal`; `konto` is the fifth, the signed-in user's own account pages
+(`04-SEITENKARTE.md`); and `api` is reserved because `/portal/api` would shadow a fetch path. K-21
+publishes exactly this list and K-07 points at it rather than repeating it, so the constraint, the
+test below and every sibling document read from one place. K-07 already mandates
 the mechanism that keeps it honest:
 `tests/invariants/reservierte-slugs.test.ts` walks the App Router tree, collects every static
 first segment under `src/app/portal/`, and fails when one is missing from the constraint. That
@@ -1314,7 +1315,7 @@ audited and tested. This document fixes only its **placement**:
 
 | Artefact | Location |
 |---|---|
-| `zeit_intern.arbeitszeit_fenster` (one row per assignment, `zuordnung_quelle_id`, `quelle`, `aktiv`, `beginn_utc`, `ende_utc`) | `src/server/db/schema/zeit-intern.ts` — a `pgSchema`, **not exposed by PostgREST** |
+| `zeit_intern.arbeitszeit_fenster` (one row per assignment, **`person_id`** — the query key — `zuordnung_quelle_id`, `quelle`, `aktiv`, `beginn_utc`, `ende_utc`, plus `mandant_id` and `anstellung_id`, stored and never returned) | `src/server/db/schema/zeit-intern.ts` — a `pgSchema`, **not exposed by PostgREST** |
 | The trigger that maintains it, including the plan/ist supersede rule | `src/server/db/triggers/arbeitszeit-fenster.sql` |
 | `app.arbzg_belastung(p_person, p_von, p_bis)` → `(fenster_gruppe text, beginn_utc, ende_utc, minuten integer, fremd boolean)` | `src/server/db/funktionen/arbzg.sql` |
 | `app.arbzg_befund_schreiben(...)` — the only writer of `arbeitszeit_verstoss`, which has **no INSERT policy for `cse_app`** | same file |
@@ -1806,9 +1807,11 @@ actual worked time — the exact K-06 failure mode, a check that returns "no con
 that has one. `02-datenmodell/04-PLANUNG-ZEIT.md` §5.12 therefore declares `person_id` (FK to
 `person.id`, "the query key") alongside `mandant_id`, `anstellung_id`, `quelle_id` and
 `pause_minuten`, and its §6.3 body filters `where f.person_id = p_person`. **K-06's column sketch
-is amended to name `person_id`** — §26 carries that as an obligation on `00-KONVENTIONEN.md`, and
-until it lands the convention's sketch and the owner's DDL disagree in the owner's favour, which
-is the one direction §0 does not normally permit and is stated here rather than discovered.
+now names `person_id`** — the convention was amended, so the convention, the owner's DDL and this
+section state one column set, and the temporary disagreement in the owner's favour (the one
+direction §0 does not normally permit) is closed. K-06 also records what the other two columns are
+for: `mandant_id` and `anstellung_id` are stored for provenance and retention and are **never**
+returned by the function.
 Nothing else about K-06 moves: the window is still one row per assignment with the supersede
 rule, still in a schema PostgREST does not expose, still reachable only through
 `app.arbzg_belastung`, which still returns durations and boundaries and nothing else.
@@ -3372,7 +3375,7 @@ None of them blocks the surrounding feature.
 | `app.sitzung_aufloesen` returns the membership set, not just the session | Membership resolution is the definitive pre-session read: `benutzer_mandant` is a tenant table and there is no scope yet. The alternative — a self-scoped policy on `benutzer_mandant` — would mean amending K-03's two-policy rule for one table (§12.1) |
 | `app.portal()` defaults to `mitarbeiter`, not `kunde` — for an **unset** session only | K-04 writes ceilings as `portal() <> '<portal>' or …`, so a `'kunde'` default *satisfies* the worker ceiling and switches fifteen tables' enforcement off. And the ceilings are restrictive: they are the second line, never the fail-closed one (§4.4) |
 | `app.portal` is **bound at scope entry** in the three multi-tenant scopes, never recomputed | K-20. Recomputing it from `aktiver_mandant` — NULL there — falls through to the fail-closed `mitarbeiter`, which fires every K-04 employee ceiling inside `portal/gruppe` and ceilings every customer as staff. A blank group view with no error is indistinguishable from a permission problem (§4.4, §4.6) |
-| Policies key on `app.aktuelle_kunden()` (array), never on the scalar `app.aktueller_kunde()` | K-20. The scalar resolves within the active mandant, which is NULL in `kunde` scope, so every `t_kunde` policy written against it returns zero rows and the customer portal ships dead (§4.4, §4.5) |
+| Policies key on `app.aktuelle_kunden()` (array), never on the scalar `app.aktueller_kunde()` | K-20. The scalar is `(app.aktuelle_kunden())[1]` (§4.4), so in `kunde` scope it returns **one of the customer's several bindings, arbitrarily** — a `t_kunde` policy written against it does not fail closed, it silently serves one entity's rows and hides the others (CRM-06). The failure is invisible in a one-entity fixture and appears only for a customer served by two areas (§4.4, §4.5) |
 | There is no `app.kunde_id` GUC | The customer subject is resolved inside the database from `kunde_zugang`. A ceiling whose subject arrives in a `set_config` call is a ceiling a compromised request can move (§4.4) |
 | `rls.ts` has a `job` bucket and `t_job` is a registered fifth permissive class | Under FORCE RLS a table `GRANT` is not a policy. Inside `withSystemTenant` the point is moot — the helper becomes `cse_app` — but the run log and the integration bookkeeping a job writes around its tenant transactions have no scope, and without a policy they are zero rows with no error (§4.5, §5) |
 | The holiday algorithm lives in `src/lib/datum/`, not under `services/gewerke/reinigung/` | Three sibling documents already named that path, and `src/lib/**` is the only zone a service, a job and the seed may all import. Two Easter algorithms is one too many (§8.5) |
@@ -3432,7 +3435,6 @@ different name or shape, this document is amended first.
 | Obligation | Owner document |
 |---|---|
 | **K-02's GUC table gains `app.akteur_typ`, `app.akteur_id` and `app.ip` as audit-only rows**, with the rule that no policy may reference them (§4.2). Until it does, this document and the binding convention publish different versions of the same table, and by §0 this document is the defective one | `00-KONVENTIONEN.md` |
-| **K-06's `zeit_intern.arbeitszeit_fenster` sketch gains `person_id`** (§6.1). The owner (`04-PLANUNG-ZEIT.md` §5.12) declares it as the query key, with `fenster_person_idx on (person_id, beginn_utc) where aktiv`, and §6.3's body filters on it. The alternative — resolving person → `anstellung` → `einsatz_zuordnung` inside the definer function — cannot reach an `ist` window projected from a `zeiteintrag`, so it silently under-counts worked time. K-06's five-column sketch is the one thing in that convention this document does not reproduce | `00-KONVENTIONEN.md` |
 | The five-bucket table classification (§5) and its file `src/server/db/rls.ts` | `02-datenmodell/**` must classify every table it defines, including which K-18 policy and which K-04 ceiling it carries |
 | `nummernkreis` carries `letzter_wert` **and** `letzter_hash` (§8.2) | `02-datenmodell/05-FINANZEN.md` |
 | `rechnung_versand`, `rechnung_beziehung` exist and `rechnung` carries no `versendet_am` (K-12) | `02-datenmodell/05-FINANZEN.md` |
