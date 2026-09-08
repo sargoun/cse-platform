@@ -12,19 +12,40 @@ import {
   AUDITIERT,
   GEAENDERT_AM,
   KEIN_HARD_DELETE,
+  MIGRATIONEN,
   SOFT_DELETE,
 } from '../../src/server/db/schema/rls.js';
-import { blockAusMigration, erzeuge, MIGRATION, ZIEL } from '../../scripts/generate-triggers.js';
+import {
+  blockAusMigration,
+  erzeuge,
+  MIGRATIONS_DATEIEN,
+  ZIEL,
+} from '../../scripts/generate-triggers.js';
 
 describe('the delete-lock registry is the single source (01-ORDNERSTRUKTUR §6.2)', () => {
   it('src/server/db/triggers/no-hard-delete.sql matches the registry', () => {
     expect(readFileSync(ZIEL, 'utf8')).toBe(erzeuge());
   });
 
-  it('and the block embedded in the migration matches it too', () => {
+  it('and each migration carries exactly its own block', () => {
     // The migration runner applies `drizzle/*.sql` and nothing else, so a
-    // trigger file nobody applies protects nothing.
-    expect(blockAusMigration(readFileSync(MIGRATION, 'utf8'))).toBe(erzeuge());
+    // trigger file nobody applies protects nothing. One block per migration,
+    // because a trigger cannot be created before its table exists — a single
+    // block would put `nummernkreis` into 0005, one migration too early.
+    for (const m of MIGRATIONEN) {
+      expect(blockAusMigration(readFileSync(MIGRATIONS_DATEIEN[m]!, 'utf8')), m).toBe(erzeuge(m));
+    }
+  });
+
+  it('every table gets its locks in the migration that creates it', () => {
+    for (const l of KEIN_HARD_DELETE) {
+      expect(erzeuge(l.migration), l.tabelle).toContain(`before delete on ${l.tabelle}`);
+      for (const andere of MIGRATIONEN.filter((m) => m !== l.migration)) {
+        expect(erzeuge(andere), `${l.tabelle} @ ${andere}`).not.toContain(
+          `before delete on ${l.tabelle}`,
+        );
+      }
+    }
   });
 
   it('every entry states an art and a reason a reviewer can check', () => {
@@ -39,8 +60,10 @@ describe('the delete-lock registry is the single source (01-ORDNERSTRUKTUR §6.2
   it('names no table twice, in any of the three lists', () => {
     const tabellen = KEIN_HARD_DELETE.map((l) => l.tabelle);
     expect(new Set(tabellen).size).toBe(tabellen.length);
-    expect(new Set(AUDITIERT).size).toBe(AUDITIERT.length);
-    expect(new Set(GEAENDERT_AM).size).toBe(GEAENDERT_AM.length);
+    const a = AUDITIERT.map((x) => x.tabelle);
+    const g = GEAENDERT_AM.map((x) => x.tabelle);
+    expect(new Set(a).size).toBe(a.length);
+    expect(new Set(g).size).toBe(g.length);
   });
 
   it('SOFT_DELETE is derived, never maintained beside the registry', () => {
@@ -50,13 +73,17 @@ describe('the delete-lock registry is the single source (01-ORDNERSTRUKTUR §6.2
   });
 
   it('an audited table is delete-locked — an audit trail of rows that can vanish is half a trail', () => {
-    for (const t of AUDITIERT) {
-      expect(KEIN_HARD_DELETE.map((l) => l.tabelle), t).toContain(t);
+    for (const { tabelle, migration } of AUDITIERT) {
+      const eintrag = KEIN_HARD_DELETE.find((l) => l.tabelle === tabelle);
+      expect(eintrag, tabelle).toBeDefined();
+      // And in the SAME migration: locks and audit arrive with the table.
+      expect(eintrag!.migration, tabelle).toBe(migration);
     }
   });
 
   it('the generator emits a TRUNCATE lock for every DELETE lock', () => {
     const sql = erzeuge();
+
     for (const { tabelle } of KEIN_HARD_DELETE) {
       expect(sql).toContain(`before delete on ${tabelle}`);
       // TRUNCATE fires no row trigger, so a DELETE lock alone leaves the door

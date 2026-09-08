@@ -24,16 +24,30 @@ export type Loeschart =
   /** S4: `geloescht_am` / `geloescht_von`. The row is gone from the domain but
    *  kept for reconstruction. Finders exclude it by default. */
   | 'soft'
-  /** The row stays and its *state* changes — `archiviert_am`, `storniert_am`.
-   *  Nothing is "deleted", so no `geloescht_am` column exists to invite it. */
+  /** The row stays and its *state* changes — `archiviert_am`, `storniert_am`,
+   *  `geschlossen_am`. Nothing is "deleted", so no `geloescht_am` column
+   *  exists to invite it. */
   | 'archiv'
   /** Append-only. Nothing ever ends a row here; there is no liveness column
    *  at all and no path that writes one. */
   | 'append';
 
+export interface TabelleJeMigration {
+  readonly tabelle: string;
+  readonly migration: string;
+}
+
 export interface Loeschsperre {
   readonly tabelle: string;
   readonly art: Loeschart;
+  /**
+   * The migration that creates the table, and therefore the one that must
+   * carry its locks. A trigger cannot be created before its table exists, so
+   * the generator emits one block per migration rather than one block for
+   * everything — which is what a single block would silently get wrong the
+   * first time a table arrived later than `0005`.
+   */
+  readonly migration: string;
   /** Why this table may never be hard-deleted. A legal or domain reason, not
    *  "for safety" — the reason is what a reviewer checks. */
   readonly grund: string;
@@ -53,6 +67,7 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
   {
     tabelle: 'audit_log',
     art: 'append',
+    migration: '0005',
     grund:
       'SEC-A9. An audit trail with a delete path is not an audit trail. No liveness '
       + 'column either: a redacted or archived audit row is still a row somebody chose '
@@ -61,14 +76,26 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
   {
     tabelle: 'mandant',
     art: 'archiv',
+    migration: '0005',
     grund:
       'LEG-01. A mandant owns financial records under a ten-year retention, and its id '
       + 'is the tenant key every one of those records carries. `archiviert_am` ends its '
       + 'operational life; the row stays for as long as its data does.',
   },
   {
+    tabelle: 'nummernkreis',
+    art: 'archiv',
+    migration: '0006',
+    grund:
+      'FIN-03, LEG-01. Die Zählerzeile IST der Beweis der Lückenlosigkeit: sie zu '
+      + 'löschen und neu anzulegen setzt den Zähler zurück und erzeugt zweimal '
+      + 'dieselbe Rechnungsnummer. `geschlossen_am` beendet die Vergabe; die Zeile '
+      + 'bleibt, solange die Nummern gelten, die sie ausgegeben hat.',
+  },
+  {
     tabelle: 'person',
     art: 'soft',
+    migration: '0005',
     grund:
       'LEG-02, D-09. The human behind every time record. Art. 17 DSGVO erasure '
       + 'anonymises this row where a statutory retention duty stands against removal '
@@ -77,6 +104,7 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
   {
     tabelle: 'anstellung',
     art: 'soft',
+    migration: '0005',
     grund:
       'LEG-01, LEG-02. Everything costed hangs off `anstellung_id` (D-09). Deleting an '
       + 'employment orphans the wage evidence a MiLoG or ArbZG dispute is settled with.',
@@ -90,7 +118,12 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
  * `audit_log` is deliberately absent: a table that audits itself recurses, and
  * there is no write path to it other than `app.protokolliere` anyway.
  */
-export const AUDITIERT: readonly string[] = ['mandant', 'person', 'anstellung'] as const;
+export const AUDITIERT: readonly TabelleJeMigration[] = [
+  { tabelle: 'mandant', migration: '0005' },
+  { tabelle: 'person', migration: '0005' },
+  { tabelle: 'anstellung', migration: '0005' },
+  { tabelle: 'nummernkreis', migration: '0006' },
+] as const;
 
 /** Tables carrying S4 (`geloescht_am` / `geloescht_von`) — the finders' domain. */
 export const SOFT_DELETE: readonly string[] = KEIN_HARD_DELETE.filter(
@@ -98,4 +131,20 @@ export const SOFT_DELETE: readonly string[] = KEIN_HARD_DELETE.filter(
 ).map((l) => l.tabelle);
 
 /** Tables carrying S2 (`geaendert_am`, maintained by `kern.setze_geaendert_am()`). */
-export const GEAENDERT_AM: readonly string[] = ['mandant', 'person', 'anstellung'] as const;
+export const GEAENDERT_AM: readonly TabelleJeMigration[] = [
+  { tabelle: 'mandant', migration: '0005' },
+  { tabelle: 'person', migration: '0005' },
+  { tabelle: 'anstellung', migration: '0005' },
+  // `nummernkreis` trägt zusätzlich fin.nummernkreis_pruefen() (0006), das
+  // entscheidet, WAS sich ändern darf; dieser hier setzt nur, WANN.
+  { tabelle: 'nummernkreis', migration: '0006' },
+] as const;
+
+/** Every migration that carries a generated block, in order. */
+export const MIGRATIONEN: readonly string[] = [
+  ...new Set([
+    ...KEIN_HARD_DELETE.map((l) => l.migration),
+    ...AUDITIERT.map((a) => a.migration),
+    ...GEAENDERT_AM.map((g) => g.migration),
+  ]),
+].sort();

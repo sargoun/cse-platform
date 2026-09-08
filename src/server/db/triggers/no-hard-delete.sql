@@ -1,4 +1,4 @@
--- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0005)
 -- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
 
 -- audit_log (append): SEC-A9. An audit trail with a delete path is not an audit trail. No liveness column either: a redacted or archived audit row is still a row somebody chose to stop showing.
@@ -55,6 +55,28 @@ create trigger trg_person_audit
   for each row execute function kern.protokolliere_aenderung();
 create trigger trg_anstellung_audit
   after insert or update or delete on anstellung
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0006)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- nummernkreis (archiv): FIN-03, LEG-01. Die Zählerzeile IST der Beweis der Lückenlosigkeit: sie zu löschen und neu anzulegen setzt den Zähler zurück und erzeugt zweimal dieselbe Rechnungsnummer. `geschlossen_am` beendet die Vergabe; die Zeile bleibt, solange die Nummern gelten, die sie ausgegeben hat.
+create trigger trg_nummernkreis_kein_hard_delete
+  before delete on nummernkreis
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_nummernkreis_kein_truncate
+  before truncate on nummernkreis
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on nummernkreis from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_nummernkreis_geaendert_am
+  before update on nummernkreis
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_nummernkreis_audit
+  after insert or update or delete on nummernkreis
   for each row execute function kern.protokolliere_aenderung();
 
 -- >>> Ende des generierten Blocks

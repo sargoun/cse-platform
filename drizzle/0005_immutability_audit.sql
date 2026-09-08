@@ -187,7 +187,7 @@ grant execute on function app.audit_nutzlast_lesen(bigint) to cse_app;
 -- registry, the generated file and this block disagree.
 -- ---------------------------------------------------------------------------
 
--- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0005)
 -- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
 
 -- audit_log (append): SEC-A9. An audit trail with a delete path is not an audit trail. No liveness column either: a redacted or archived audit row is still a row somebody chose to stop showing.

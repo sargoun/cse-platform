@@ -249,9 +249,11 @@ describe('(4) the registry and the database agree — in both directions', () =>
         where not t.tgisinternal and n.nspname = 'public'
           and t.tgfoid = 'kern.protokolliere_aenderung'::regproc`,
     );
-    expect(auditiert.map((a) => a.tabelle).sort()).toEqual([...AUDITIERT].sort());
+    expect(auditiert.map((a) => a.tabelle).sort()).toEqual(
+      AUDITIERT.map((a) => a.tabelle).sort(),
+    );
     // A table that audits itself recurses; audit_log has one writer anyway.
-    expect(AUDITIERT).not.toContain('audit_log');
+    expect(AUDITIERT.map((a) => a.tabelle)).not.toContain('audit_log');
   });
 
   it('geaendert_am is set by the database, never by the caller (S2)', async () => {

@@ -365,6 +365,107 @@ behind it open, and the day the catalogue arrived would be the day the platform
 quietly narrowed. Failing closed makes the missing catalogue visible as an
 empty screen instead.
 
+### D-24 · `app.hat_recht` braucht die Mandanten-Signatur, und der Trigger beweist es
+
+`05-FINANZEN.md` §3.3 ruft im `nummernkreis`-Trigger
+`app.hat_recht('nummernkreis.verwalten', new.mandant_id)` auf — mit **zwei**
+Argumenten. PR 4 legte nur die einstellige Form an; ohne die zweite liess sich
+`0006` nicht einmal anwenden. Das zweite Argument ist keine Kosmetik: ein Recht
+gilt je Gesellschaft, ein `leitung` in der Reinigung hält
+`nummernkreis.verwalten` dort und nirgends sonst, und die einstellige Form kann
+diese Frage gar nicht stellen. Beide antworten bis PR 6 `false` (D-23).
+
+**Folge, die hier festgehalten wird, damit sie später nicht als Fehler gesucht
+wird:** solange `hat_recht` fail-closed antwortet, kann niemand einen
+Nummernkreis **bestätigen** (`ist_platzhalter` auf false setzen), und damit wird
+bis PR 6 keine Rechnung festgeschrieben. Ein Test hält genau das fest.
+
+### D-25 · Die TEN-02-Bedingung gilt für die abrechnenden Kreistypen
+
+§3.3 verlangt einen Trigger, der `mandant.eigener_nummernkreis = true` fordert,
+und begründet ihn wörtlich damit, dass sonst **nichts eine Abteilung davon
+abhält, Rechnungen auszustellen**. Wörtlich auf alle neun Kreistypen angewandt
+wäre die Bedingung falsch: `wachbuch` und `leistungsnachweis` sind keine
+Rechnungen, und eine Gesellschaft ohne eigenen Rechnungskreis könnte dann kein
+Wachbuch führen — was Phase 5 bricht. Die Bedingung gilt deshalb für
+`ausgangsrechnung` und `gutschrift`, also für genau die Population, über die die
+Begründung spricht. Die Liste steht als Konstante im Trigger, damit ein
+zehnter Typ eine Entscheidung erfordert statt stillschweigend durchzurutschen.
+
+### D-26 · Die Anwendung hält auf den Rechnungskreisen keine UPDATE-Policy
+
+§1.1 beschreibt `d_kreis_ziehen` als den Weg, den fünf der neun Kreistypen
+nehmen; die abrechnenden gehen durch `fin.rechnung_nummer_ziehen`
+(SECURITY DEFINER, PR 46), der die Kette **in derselben Transaktion**
+mitschreibt. Eine Policy ohne diese Einschränkung war weiter als die Vorgabe:
+`cse_app` konnte den Rechnungszähler bewegen, **ohne** den Kettensatz zu
+schreiben — eine vergebene Nummer ohne Kettenglied, die erst dem nächtlichen
+Prüflauf auffiele. `kreis_typ NOT IN ('ausgangsrechnung','gutschrift')` steht
+jetzt in `USING` und in `WITH CHECK`, und `vergebeNummer` verweigert dieselben
+Typen mit benanntem Grund, statt geräuschlos null Zeilen zu treffen.
+
+### D-27 · Diagnose vor Sperre — warum `d_kreis_lesen` unbeschränkt ist
+
+Ein `SELECT … FOR UPDATE` unter der Zugriffs-Policy findet einen Platzhalter
+oder einen geschlossenen Kreis gar nicht, und der Aufrufer bekommt "kein Kreis"
+statt "dieser Kreis ist noch nicht bestätigt". Das ist der Grund, aus dem §1.1
+`_lesen` innerhalb des Mandanten ausdrücklich **unbeschränkt** lässt.
+`vergebeNummer` liest deshalb zuerst zur Diagnose und sperrt erst danach, und
+liest den Zustand nach der Sperre erneut — zwischen beiden Schritten kann eine
+andere Transaktion den Zähler bewegt haben, und die gesperrte Zeile ist die
+massgebliche. Aus der Reinigung heraus bleibt der Kreis der Security dabei
+`kein_kreis` und nie `geschlossen`: die Fehlermeldung darf seine Existenz nicht
+verraten (Invariante 3).
+
+Ein Datum in einer solchen Meldung kommt als `to_char(…, 'YYYY-MM-DD')` aus SQL
+und nicht als JS-`Date`, dessen Textform von der Zeitzone der Maschine abhängt.
+
+### D-28 · Der Zähler ist eine Zeile, keine Sequenz — und das ist prüfbar
+
+`nextval` rollt nicht zurück: wer eine Nummer zieht und die Transaktion
+abbricht, hinterlässt eine Lücke, und §14 UStG duldet keine. Der Zähler ist
+deshalb eine Spalte unter `SELECT … FOR UPDATE`. Der Preis ist Serialisierung,
+und der Preis ist der Zweck. Zwei Tests trennen "Lücken sind unwahrscheinlich"
+von "Lücken sind unmöglich": 200 gleichzeitige Transaktionen ergeben 200
+Nummern mit `max − min + 1 === count`, und eine abgebrochene Transaktion lässt
+den Zähler stehen, so dass die nächste erfolgreiche Vergabe **dieselbe** Nummer
+bekommt.
+
+Die Suche läuft auf dem **offenen** Schlüssel
+`(mandant_id, kreis_typ, kontext_id) WHERE geschlossen_am IS NULL`, nie über
+das heutige Jahr. Ein Kreis mit `zuruecksetzung = 'nie'` trägt `jahr = 0`; eine
+Suche nach dem laufenden Jahr findet ihn nicht, und die Festschreibung scheitert
+dann dauerhaft für genau die Gesellschaften, die über Jahre durchnummerieren.
+Ein Test führt beide Suchen nebeneinander aus und zeigt, dass die zweite null
+Zeilen liefert.
+
+### D-29 · Trenner und Genesis sind Teil des Digests, nicht Konvention
+
+`hash = SHA256(canonical_bytes ‖ 0x1E ‖ vorheriger_bytes)`, wobei
+`vorheriger_bytes` die **32 rohen Bytes** des Vorgängers sind und der Genesis
+32 Nullbytes. Beide Entscheidungen sind unsichtbar, solange nur eine
+Implementierung existiert — und die zweite läuft in SQL
+(`fin.rechnung_kette_schreiben`), absichtlich getrennt, damit der nächtliche
+Lauf eine unabhängige Neuberechnung ist statt einer Tautologie. Ein
+Golden-Vector-Test schreibt den Digest des ersten Satzes aus und zeigt, dass
+ohne Trenner, gegen einen leeren Vorgänger oder gegen den Hex-**Text** statt der
+rohen Bytes jeweils ein **anderer** Digest entsteht.
+
+Die Kette ist über die Jahresgrenze hinweg **eine Linie**: ein Folgekreis setzt
+mit `genesis_hash` fort. Der Entwurf begann jedes Jahr neu bei 32 Nullbytes,
+womit ein ganzes Geschäftsjahr unverkettet danebengelegen hätte. Der Prüfer
+meldet das **erste** kaputte Glied und repariert nie — ein Prüfer, der
+repariert, kann nicht mehr bezeugen, dass nichts geändert wurde.
+
+### D-30 · Jede Tabelle bekommt ihre Sperren in der Migration, die sie anlegt
+
+Der Generator aus PR 4 schrieb einen einzigen Block nach `0005`. Beim ersten
+Tisch, der später kommt, ist das falsch: `nummernkreis` entsteht in `0006`, und
+ein Trigger lässt sich nicht vor seiner Tabelle anlegen. Jeder Registry-Eintrag
+trägt jetzt seine Migration, der Generator schreibt einen Block je Migration,
+und ein Test prüft für jede Tabelle, dass ihre Sperren in **ihrer** Migration
+stehen und in keiner anderen.
+
 ---
 
 ## Carried over from the Phase 0 review — not client questions

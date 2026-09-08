@@ -13,22 +13,43 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { AUDITIERT, GEAENDERT_AM, KEIN_HARD_DELETE } from '../src/server/db/schema/rls.js';
+import {
+  AUDITIERT,
+  GEAENDERT_AM,
+  KEIN_HARD_DELETE,
+  MIGRATIONEN,
+} from '../src/server/db/schema/rls.js';
 
 const WURZEL = resolve(import.meta.dirname, '..');
 export const ZIEL = join(WURZEL, 'src/server/db/triggers/no-hard-delete.sql');
-export const MIGRATION = join(WURZEL, 'drizzle/0005_immutability_audit.sql');
+
+/** Which migration file carries which generated block. */
+export const MIGRATIONS_DATEIEN: Readonly<Record<string, string>> = {
+  '0005': join(WURZEL, 'drizzle/0005_immutability_audit.sql'),
+  '0006': join(WURZEL, 'drizzle/0006_nummernkreis.sql'),
+};
 export const BEGINN = '-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern';
 export const ENDE = '-- >>> Ende des generierten Blocks';
 
-export function erzeuge(): string {
+/**
+ * The block for one migration, or — with no argument — every block in order,
+ * which is what the one reviewable file holds.
+ */
+export function erzeuge(migration?: string): string {
+  const gewaehlt = <T extends { readonly migration: string }>(xs: readonly T[]): readonly T[] =>
+    migration === undefined ? xs : xs.filter((x) => x.migration === migration);
+
+  if (migration === undefined) {
+    return MIGRATIONEN.map((m) => erzeuge(m)).join('\n');
+  }
+
   const zeilen: string[] = [
-    BEGINN,
+    `${BEGINN} (${migration})`,
     '-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.',
     '',
   ];
 
-  for (const { tabelle, art, grund } of KEIN_HARD_DELETE) {
+  for (const { tabelle, art, grund } of gewaehlt(KEIN_HARD_DELETE)) {
     zeilen.push(
       `-- ${tabelle} (${art}): ${grund.replace(/\s+/gu, ' ')}`,
       `create trigger trg_${tabelle}_kein_hard_delete`,
@@ -45,7 +66,7 @@ export function erzeuge(): string {
     );
   }
 
-  for (const tabelle of GEAENDERT_AM) {
+  for (const { tabelle } of gewaehlt(GEAENDERT_AM)) {
     zeilen.push(
       `create trigger trg_${tabelle}_geaendert_am`,
       `  before update on ${tabelle}`,
@@ -54,7 +75,7 @@ export function erzeuge(): string {
   }
   zeilen.push('');
 
-  for (const tabelle of AUDITIERT) {
+  for (const { tabelle } of gewaehlt(AUDITIERT)) {
     zeilen.push(
       `create trigger trg_${tabelle}_audit`,
       `  after insert or update or delete on ${tabelle}`,
@@ -66,12 +87,19 @@ export function erzeuge(): string {
   return zeilen.join('\n');
 }
 
-/** The generated block as it currently sits inside the migration. */
+/** The generated block as it currently sits inside a migration file. */
 export function blockAusMigration(inhalt: string): string | null {
   const von = inhalt.indexOf(BEGINN);
   const bis = inhalt.indexOf(ENDE);
   if (von < 0 || bis < 0) return null;
   return inhalt.slice(von, bis + ENDE.length + 1);
+}
+
+/** Replaces (or appends) the generated block in one migration's text. */
+export function blockEinsetzen(inhalt: string, block: string): string {
+  const vorhanden = blockAusMigration(inhalt);
+  if (vorhanden !== null) return inhalt.replace(vorhanden, block);
+  return `${inhalt.replace(/\s*$/u, '')}\n\n${block}`;
 }
 
 const direktAufgerufen =
@@ -81,18 +109,26 @@ if (direktAufgerufen) {
   const erwartet = erzeuge();
   const pruefen = process.argv.includes('--check');
 
+  const veraltet = (): boolean => {
+    if (readFileSync(ZIEL, 'utf8') !== erwartet) return true;
+    return MIGRATIONEN.some(
+      (m) => blockAusMigration(readFileSync(MIGRATIONS_DATEIEN[m]!, 'utf8')) !== erzeuge(m),
+    );
+  };
+
   if (pruefen) {
-    const datei = readFileSync(ZIEL, 'utf8');
-    const inMigration = blockAusMigration(readFileSync(MIGRATION, 'utf8'));
-    if (datei !== erwartet || inMigration !== erwartet) {
-      process.stderr.write(
-        'Trigger-Datei ist veraltet. `pnpm db:triggers` ausführen und die Migration angleichen.\n',
-      );
+    if (veraltet()) {
+      process.stderr.write('Trigger sind veraltet. `pnpm db:triggers` ausführen.\n');
       process.exit(1);
     }
-    process.stdout.write('Trigger-Datei ist aktuell.\n');
+    process.stdout.write('Trigger sind aktuell.\n');
   } else {
     writeFileSync(ZIEL, erwartet);
+    for (const m of MIGRATIONEN) {
+      const pfad = MIGRATIONS_DATEIEN[m]!;
+      writeFileSync(pfad, blockEinsetzen(readFileSync(pfad, 'utf8'), erzeuge(m)));
+      process.stdout.write(`  → ${pfad}\n`);
+    }
     process.stdout.write(`geschrieben: ${ZIEL}\n`);
   }
 }
