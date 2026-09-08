@@ -507,10 +507,14 @@ forbids deleting it), `storniert_am` plus a reversing row (finalised documents, 
 closed, so it is worth stating which of them apply here — no partitioned table exists in this
 domain, so no composite primary key (K-16 a); no `*_mikrocent` column exists, because sub-cent
 accounting is permitted **only** in agent cost and budget accounting (`agent_schritt`,
-`agent_budget` and their carry columns) and `eingangsrechnung_extraktion.kosten_cent` (§8.4) sits
-*after* that boundary — it holds the figure already converted once, half-up
-(`cent = round_half_up(mikrocent / 10 000)`), with the rounding rule stated at the conversion site
-in the agent runtime, and nothing invoiced, booked or exported is ever micro-cents (K-16 b); every
+`agent_budget` and their carry columns, whose cap is `budget_cent` and whose consumption is
+`verbrauch_mikrocent` — K-21) and `eingangsrechnung_extraktion.kosten_cent` (§8.4) sits *at* that
+boundary — it holds the figure converted once, half-up
+(`cent = div(mikrocent + 5000, 10000)`). **This column is a third conversion site**, beside the two
+`06-AGENTEN-FREIGABEN.md` §8.2 enumerates (a run's total and the reporting boundary), and K-16 (b)
+requires the rounding rule to be stated where the conversion happens — so it is stated at the column
+itself in §8.4 and again in §12.2, not delegated to the agent runtime. Nothing invoiced, booked or
+exported is ever micro-cents (K-16 b); every
 duration here is a **measured** one — `verzugstage` counted from a stored date, `dauer_ms` elapsed —
 so all of them are `integer` and none is `numeric(8,2)` (K-16 c); and no table here carries a
 nullable `mandant_id`, `audit_log` being the only tenant-adjacent table permitted one and belonging
@@ -2587,7 +2591,7 @@ source location, never a booking.
 | freigabe_id | uuid | yes | composite FK → `freigabe` (K-13) — **the APR-07 record** |
 | geprueft_von · geprueft_am | | yes | denormalised from the K-13 decision |
 | dauer_ms · tokens_ein · tokens_aus | integer | yes | AGT-04 |
-| kosten_cent | bigint | yes | AGT-04, AGT-05 — money, therefore `bigint` cents (K-16). This column **is** the budget boundary of K-16 (b): the agent runtime's `*_mikrocent` step costs, which are permitted only in `agent_schritt` / `agent_budget`, are converted here exactly once, half-up, `cent = round_half_up(mikrocent / 10 000)`; nothing downstream of this column is ever micro-cents |
+| kosten_cent | bigint | yes | AGT-04, AGT-05 — money, therefore `bigint` cents (K-16). This column **is** the budget boundary of K-16 (b): the agent runtime's `*_mikrocent` step costs, which are permitted only in `agent_schritt` / `agent_budget` (cap `budget_cent`, consumption `verbrauch_mikrocent` — K-21), are converted here exactly once, half-up, `cent = div(Σ kosten_mikrocent + 5000, 10000)` — summed **before** rounding, so a hundred-step extraction cannot drift cents away from the ledger; nothing downstream of this column is ever micro-cents |
 | verarbeitung_eingeschraenkt | boolean | no | `false` — the Art. 18 DSGVO restriction of §16. `felder` and `korrekturen` reproduce a scanned invoice, so this is the row a restriction request lands on most often |
 | anonymisiert_am | timestamptz | yes | stamped when `felder` and `korrekturen` are overwritten after the `extraktion_protokoll` period (§16) |
 | aufbewahrung_klasse · aufbewahrung_bis · loeschsperre | | | `'extraktion_protokoll'` (§1.10) — all three, because §16 anonymises this row after its period and needs both a date and an unlocked flag to act on |
@@ -3094,19 +3098,38 @@ The Back-office Agent prepares monthly invoices from contracts and proposes dunn
 Agent extracts data from receipts and proposes bookings and categories. Neither ever supplies a
 number, **nor an input that determines one**:
 
-| Tool | Accepts | Never accepts |
-|---|---|---|
-| `erstelle_rechnungsentwurf` | `AuftragHandle`, `PeriodeHandle` — the service derives the lines from `vertrag_abrechnung`, `auftrag_leistung`, `zeiteintrag` and `aufmass` | any `_cent`, any `menge`, any `_bp`, any `steuersatz_gruppe_id`, any formula string |
-| `berechne_preis` | `AngebotHandle`, `KalkulationHandle` (`02-CRM-OPERATIONS.md` §7.2) | the surcharge profile — **choosing the margin is setting a price**, and SPEC §17 says the Back-office agent never sets prices |
-| `lies_beleg` | `BelegHandle` | — returns a proposal into `eingangsrechnung_extraktion`, never a typed column |
-| `schlage_kontierung_vor` | `EingangsrechnungHandle` | a `konto` literal — it may only propose an existing `konto_mapping` row id, and an unmapped case is reported as unmapped |
-| `schlage_mahnung_vor` | `OffenerPostenHandle` | `gebuehr_cent`, `zins_bp`, `zins_cent`, or a `mahnstufe` it invented |
-| `erstelle_vorgang` | handles only | — |
+**There are nine tools and this domain adds none.** AGT-02 fixes the set, `agent_werkzeug_name` in
+`02-datenmodell/06-RADAR-KI-INHALT.md` §7 is an **enum** over exactly those nine, and
+`agent_werkzeug` enables them per mandant — so a tenth tool could not be logged in
+`agent_schritt.werkzeug` at all and would be invisible to AGT-06's protocol. The draft of this
+section tabulated four tools of its own — `erstelle_rechnungsentwurf`, `lies_beleg`,
+`schlage_kontierung_vor`, `schlage_mahnung_vor` — and four handle types no registry declares.
+Both are deleted; the finance acts map onto the nine without loss, because the nine were designed as
+verbs, not as screens. `06-AGENTEN-FREIGABEN.md` §5 owns the signatures and §5.1/§6.4 the closed
+handle set; every type below is one of those.
+
+| Finance act | Tool (of the nine) | Accepts | Never accepts |
+|---|---|---|---|
+| Monthly invoice from a contract (FIN-01, FIN-07) | `berechne_preis` art `auftragsabrechnung`, then `erstelle_vorgang` art `rechnung_entwurf` | `auftrag: AuftragHandle` and `periode: { von: DatumToken; bis: DatumToken }` — the billing type comes from the Auftrag, and the service derives the lines from `vertrag_abrechnung`, `auftrag_leistung`, `zeiteintrag` and `aufmass` | any `_cent`, any `menge`, any `_bp`, any `steuersatz_gruppe_id`, any formula string. The **period is a pair of `DatumToken`s**, never a free date string — a Berlin month boundary is computed by `splitteNachMonat`, not typed by a model (K-11) |
+| Offer pricing (OPS-07) | `berechne_preis` art `kalkulation` | `bezug: AuftragHandle \| AngebotHandle` | `zuschlag_profil_id` — **choosing the surcharge profile is choosing the margin, which is setting a price**, and SPEC §17 says the Back-office agent never sets prices (K-10) |
+| Read a receipt or an incoming invoice (ACC-05) | `lies_dokument` with `zweck: 'beleg' \| 'eingangsrechnung'` | `dokument: DokumentHandle` — a Beleg is reached through the `dokument` row it references (§8.5), which is why there is no `BelegHandle` | returns blocks and tables marked `vertrauen: 'untrusted'` into `eingangsrechnung_extraktion` (§8.4), never a typed column on `eingangsrechnung` |
+| Propose an account assignment (ACC-01) | `erstelle_vorgang` art `buchungsvorschlag` | `bezug: BezugHandle` — the `eingangsrechnung` row the run already read | a `konto` literal. It may only name an existing `konto_mapping` row, and an unmapped case is reported as unmapped rather than guessed (O-05) |
+| Propose a dunning letter (FIN-15) | `berechne_preis` arts `mahn_betrag` and `frist_zahlungsziel`, then `entwirf_text` vorlage `mahnung` | `rechnung: RechnungHandle`, `stufe_id: BezugHandle` — the open item and the `mahnstufe` are dereferenced, and the fee, the interest basis and the day count come from the stored `mahn_zinsberechnung`, `zins_methode` and `verzugsbeginn_regel` | `gebuehr_cent`, `zins_bp`, `zins_cent`, or a `mahnstufe` it invented. While `mahnstufe.ist_platzhalter` is true the run is refused outright (§1.11) |
+| §13b / §48 determination (FIN-09, FIN-10) | `berechne_preis` arts `reverse_charge_pruefung` and `bauabzugsteuer` | `auftrag: AuftragHandle`, `eingangsrechnung: EingangsrechnungHandle` | the outcome. The three-way §48 result comes from `withholdingFor` in §12.1, reading the certificate at the service date |
+| VAT split on a draft (invariant 1) | `berechne_preis` art `ust_split` | `positionen: { betrag_token, steuersatz_id: BezugHandle }[]` — the net amounts are **tokens from the same run's register** | a gross total to work back from, and any per-line rounding: VAT is computed once per rate group (§12.1) |
+
+Two vocabulary corrections follow from that mapping and are stated so no reader reaches for the old
+names: there is **no `PeriodeHandle`, no `BelegHandle`, no `OffenerPostenHandle` and no
+`KalkulationHandle`** — the handle registry checks the expected table per handle type, so a type
+absent from `types.ts` can neither be minted nor resolved. A period is an `AuftragHandle` plus a
+`DatumToken` pair, a Beleg is a `DokumentHandle`, and a Kalkulation or an open item is a
+`BezugHandle`: a row the run already legitimately read.
 
 A **number register** carries values between steps of one agent run: a tool result is referenced by
 token, never re-typed by the model. Test: no branch of `berechnePosition`, `berechneSteuer`,
 `withholdingFor` or `zinsFuerPosition` accepts a numeric literal or an expression string originating
-in a tool argument.
+in a tool argument. A second test asserts that every tool name this document names is a member of
+`agent_werkzeug_name`.
 
 **Nothing this domain produces leaves the system without a human** (invariant 7): `rechnung_versand`,
 `mahnung`, `mahnung_eskalation` and `datev_export` each carry a mandatory human approver, and
@@ -3115,10 +3138,28 @@ accounting — approval required" is `eingangsrechnung.status = 'gebucht'` requi
 "Monthly invoice from contract — proposal" is `rechnung.status = 'entwurf'`, which by construction has
 no number and cannot be sent.
 
-**AGT-05 budget.** `eingangsrechnung_extraktion.kosten_cent` is `bigint` cents like every other money
-column (K-16), and the monthly cap is a hard stop in the agent runtime, not a degradation: when the
-cap is reached, extraction stops and the invoices queue for manual capture, which is a slower day
-rather than a wrong booking.
+**AGT-05 budget, and the conversion site.** `eingangsrechnung_extraktion.kosten_cent` is `bigint`
+cents like every other money column in this domain (K-16), and the monthly cap is a hard stop in the
+agent runtime, not a degradation: when the cap is reached, extraction stops and the invoices queue
+for manual capture, which is a slower day rather than a wrong booking.
+
+That column is a **micro-cent → cent conversion site**, and K-16(b) requires the rounding rule to be
+stated where the conversion happens, so it is stated here rather than left to the agent document.
+Model token pricing is genuinely sub-cent, so the agent ledger accounts in `*_mikrocent` (10⁻⁶ €) —
+`agent_schritt.kosten_mikrocent` and the `agent_budget` columns, whose cap is **`budget_cent`** and
+whose consumption is **`verbrauch_mikrocent`**; there is no stored `verbrauch_cent` and no
+`monatslimit_cent` (K-21). This column is where a figure leaves that ledger and enters the finance
+domain, and it converts **once, half-up**:
+
+```
+kosten_cent = div(Σ agent_schritt.kosten_mikrocent + 5000, 10000)
+```
+
+`+ 5000` before integer division by `10000` is half-up on a non-negative value, and the sum is taken
+over the run's steps **before** rounding — rounding each step first and adding the results is what
+makes a hundred-step extraction land cents away from the ledger it is supposed to reconcile with.
+Nothing invoiced, booked or exported ever carries micro-cents: everything that reaches `rechnung`,
+`buchungssatz` or a DATEV file is `bigint` cents, full stop.
 
 ---
 

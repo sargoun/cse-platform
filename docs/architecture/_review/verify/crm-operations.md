@@ -1,0 +1,101 @@
+# Verification findings — crm-operations
+
+These were found by an independent verifier reading the WRITTEN file.
+All original BLOCKING items were confirmed fixed; what follows is new.
+
+## REMAINING DEFECTS (14)
+
+### R1. No table in the domain grants `cse_job` a SELECT policy, yet §8 schedules nine jobs that read tables under FORCE ROW LEVEL SECURITY. §1.1 says cse_job gets 'per-job grants, enumerated in the job definition' — but a GRANT is not a policy, and §1.8 declares only two DELETE policies for cse_job. Under FORCE RLS a role with no permissive policy reads zero rows, so job:abrechnungslauf_vorschlag, job:lead_sla_eskalation, job:angebot_ablauf, job:vertrag_ablauf, job:gewaehrleistung_ablauf, job:freistellung_ablauf and job:dokument_aufbewahrung all silently do nothing. This is the same class of silent failure the document catches elsewhere: the billing run finds no contracts and no invoice proposal is ever raised.
+
+**Where:** §1.1 (cse_job row), §1.8, §8 (all nine jobs), §6 lead_sla_offen
+
+**Fix:** Add a third, explicitly enumerated policy class to §1.2/§1.3: `create policy t_job on <tabelle> for select to cse_job using (true)` on exactly the tables §8 names, listed literally in src/server/db/rls.ts alongside the definer-read registry, with a test asserting no table outside that list carries a cse_job policy. State it as a registered exception to 01-KERN.md §1.1's 'exactly two permissive policies', which is scoped `to cse_app`.
+
+### R2. The public offer-request form cannot persist a submission. §1.6 says the public renderer runs as cse_app through withTenant 'always with app.readonly = \'on\'' and that its service benutzer holds 'exactly one right, oeffentlich.lesen'; then the same section says 'The public form posts to a server route that validates with Zod (SEC-A4), rate-limits on ip_hash, and inserts under the same tenant context'. That INSERT fails three ways: K-03's WITH CHECK requires `not app.ist_readonly()`, it requires `hat_recht('formular.schreiben')`, and §1.4 puts the restrictive `p_intern_ceiling using (app.portal() = 'intern')` on formular_eingang — a restrictive policy with no WITH CHECK clause uses its USING expression for INSERT too. REQ-01…REQ-07 are Phase 2 acceptance criteria and have no working write path.
+
+**Where:** §1.6 ('No anonymous INSERT exists anywhere in this domain'), §1.4 ceiling table (formular_eingang under p_intern_ceiling), §4.4 formular_eingang RLS note
+
+**Fix:** Name a second, write-scoped public principal explicitly: a service benutzer holding `formular.schreiben` in the four mandanten, opened with `app.readonly = 'off'` and `app.portal` resolving outside the intern ceiling, and register formular_eingang beside formular_definition as ceiling-exempt for INSERT — or state that the submission route runs withTenant as a named intake principal. Either way the principal, its right and its readonly flag must be written down, since §1.6's current text says the opposite.
+
+### R3. kern.erzwinge_serverzeit() is over-applied and contradicts §4.5. §0.9 sets the column '`new.<spalte> := now();      -- unconditionally, on INSERT`' and then extends the list to 'angebot.versendet_am, auftrag.freigabe_am and every *_am column that records an action rather than a plan'. angebot.versendet_am is NULL on every draft; stamping it at INSERT makes `CHECK ((angebotsnummer IS NULL) = (versendet_am IS NULL))` fail on every draft offer insert — the B6 fix and the B19 fix cancel each other. auftrag.freigabe_am and raumbuch_import.geprueft_am/uebernommen_am/verworfen_am fail the same way, silently rather than loudly (an order is created already flagged customer-released; an import is created already committed).
+
+**Where:** §0.9, §4.5 angebot (versendet_am row and the angebotsnummer CHECK), §4.6 auftrag (freigabe_am), §4.2 raumbuch_import
+
+**Fix:** Split the two cases. For an always-present arrival instant (formular_eingang.eingegangen_am, lead_aktivitaet.geschehen_am, dokument_version.hochgeladen_am) keep the unconditional INSERT stamp. For an event column that is NULL until the event happens (versendet_am, freigabe_am, geprueft_am, uebernommen_am, verworfen_am, aktiviert_am, veroeffentlicht_am), the rule is 'on the transition NULL → NOT NULL the trigger overwrites the supplied value with now(); once set it may never change' — write that as a second function, e.g. kern.erzwinge_serverzeit_bei_ereignis(), and say which columns take which.
+
+### R4. The offer-send freeze and the placeholder CHECK collide, re-imposing by constraint error exactly the send-block the author deliberately declined to encode. angebot_versand_festschreiben() 'sets every kalkulation with this angebot_id to festgeschrieben' in the same statement as the send, while kalkulation carries `CHECK (status <> 'festgeschrieben' OR (… ist_platzhalter = false AND stundenverrechnungssatz_cent IS NOT NULL AND gemeinkosten_basis IS NOT NULL AND gemeinkosten_bp IS NOT NULL AND wagnis_gewinn_bp IS NOT NULL))`. Since ist_platzhalter defaults to true and all four of those values are open TODO(client)s (#6, #7, #8), every offer that has any kalkulation attached will fail to send with an opaque constraint violation until the client answers — and an offer with no kalkulation sends fine, which is the inverse of the intended behaviour.
+
+**Where:** §4.5 angebot (angebot_versand_festschreiben) vs §4.5 kalkulation (the festgeschrieben CHECK), §0.13
+
+**Fix:** State the interaction and pick a resolution in the document: either the send raises a named, human-readable error ('Kalkulation enthält unbestätigte Werte — Versand nicht möglich'), raised by the trigger before the CHECK fires so the message is actionable, or a placeholder kalkulation is frozen with `ist_platzhalter = true` retained and a `festgeschrieben_mit_platzhalter` marker that the §8 job:platzhalter_bericht reports. Do not leave it as an unexplained 23514.
+
+### R5. Trigger-ordering contradiction on angebot_steuer. angebot_nach_versand_unveraenderlich() freezes 'every angebot_steuer row' once versendet_am IS NOT NULL, while angebot_versand_festschreiben() 'writes the angebot_steuer snapshot from the positions' in the same statement that sets versendet_am; angebot_steuer is separately declared 'Append-only: no UPDATE policy'. As written the freeze can reject the very INSERT that creates the snapshot, and nothing in the document fixes the firing order of the two triggers on angebot.
+
+**Where:** §4.5 angebot (both trigger bullets), §4.5 angebot_steuer RLS note
+
+**Fix:** Say that angebot_versand_festschreiben() is the BEFORE UPDATE trigger that stamps versendet_am, and that the snapshot and the kalkulation freeze happen in an AFTER UPDATE trigger whose writes are exempted from the freeze by a transaction-local guard (e.g. a set_config flag the freeze trigger checks), or name the two triggers so alphabetical firing order gives the required sequence and state that the freeze trigger on angebot_steuer only guards UPDATE and DELETE, never INSERT.
+
+### R6. raum_import_historie.import_zeile_id breaks the §1.8 purge it was designed to survive. §4.2 says of raum_import_historie 'Rows survive the §1.8 purge of raumbuch_import_zeile, which is why vorher/nachher are copied here rather than joined' — but the column 'import_zeile_id uuid | yes | the staged row this change came from' is a reference into raumbuch_import_zeile, and §0.4 declares every FK in the document `ON DELETE NO ACTION`. The purge therefore raises a foreign-key violation for every staged row that actually produced or updated a room, i.e. for every successful import. Separately, this is a single-column reference into a mandant-bearing table, which §0.8's own schema test is specified to fail on, and raumbuch_import_zeile declares no `UNIQUE (mandant_id, id)` for a composite version to reference.
+
+**Where:** §4.2 raum_import_historie (import_zeile_id row and RLS note), §0.4, §0.8, §1.8, §11
+
+**Fix:** Either drop the FK and keep import_zeile_id as an unconstrained provenance value (say so explicitly, since §0.8's test would otherwise flag it), or add `UNIQUE (mandant_id, id)` to raumbuch_import_zeile, make the FK composite, list it in §11, and change the §1.8 purge predicate to exclude staged rows referenced by raum_import_historie.
+
+### R7. The §11 composite-FK register is incomplete, which is the specific deliverable B10's fix rests on ('all of them enumerated in §11'). There is no `kunde` row at all, so kunde.rechtsgrundlage_beleg_dokument_id — declared in §4.1 as 'FK → dokument (composite with mandant_id)' — is unenumerated. freistellungsbescheinigung.lieferant_id and raum_import_historie.import_zeile_id are likewise absent, as is angebot.freigabe_id's / auftrag.freigabe_id's requirement that the approval domain declare UNIQUE (mandant_id, id) on freigabe, and lead.ausschreibung_id's on ausschreibung.
+
+**Where:** §11 (child table and parent-unique list), §0.8, §13 note 9
+
+**Fix:** Add the missing `kunde` row (`(mandant_id, rechtsgrundlage_beleg_dokument_id)` → dokument), the two missing child columns, and extend §13's cross-document notes to require `UNIQUE (mandant_id, id)` on freigabe (approval domain) and ausschreibung (radar domain), the way note 7 already does for lv_position and projekt.
+
+### R8. §3.2 and §4.1 contradict each other about lieferant. The boundary table says of lieferant: 'Key into this domain: **none**' and 'declared so the gap is visible: kunde.debitorennummer covers the debtor side only; there is no creditor master here and none is implied'. But §4.1's freistellungsbescheinigung declares `lieferant_id uuid | yes | boundary reference (§3.2); the certificate a subcontractor gives us`, and its `CHECK (num_nonnulls(kunde_id, lieferant_id) = 1)` makes that column load-bearing — half the table's rows depend on a parent the boundary list says does not exist.
+
+**Where:** §3.2 (lieferant row), §4.1 freistellungsbescheinigung
+
+**Fix:** Change the §3.2 lieferant row to state the actual key (`freistellungsbescheinigung.lieferant_id`, nullable, composite `(mandant_id, lieferant_id)` requiring `UNIQUE (mandant_id, id)` on lieferant in the finance document) and drop the 'none is implied' sentence, or move the subcontractor half of the certificate to the finance domain and delete the column.
+
+### R9. formular_definition carries three permissive policies `to cse_app` — t_mandant, t_gruppe (both 'standard, module formular') and t_oeffentlich (§1.6) — on a tenant table. K-03 says 'Every tenant table gets exactly two policies, and no others', and 01-KERN.md §1.1 reads it as 'exactly two permissive policies to cse_app on every tenant table — no more, no fewer'. The document registers formular_definition as the ceiling exemption but never acknowledges that it is also a third-policy exception, and a third permissive policy is OR-ed in, i.e. it widens.
+
+**Where:** §1.6 (`create policy t_oeffentlich on formular_definition for select to cse_app`), §1.2, §4.4 formular_definition RLS note
+
+**Fix:** State it as a registered, literal exception in the same place as the ceiling exemption and in src/server/db/rls.ts, with the reason (the public read path has no third role, per K-01) and a test asserting formular_definition is the only table in the domain with three cse_app policies — or fold the public predicate into t_mandant's USING as an OR branch so the count stays at two.
+
+### R10. dokument_aufbewahrung declares `mandant_id | uuid | yes | NULL = platform default` and then 'RLS: standard, module dokument'. K-16 requires tenant tables to carry `mandant_id uuid not null`, and the standard §1.2 predicate is `mandant_id = app.aktiver_mandant()` — which is NULL-false for every platform-default row, so no default retention rule is readable by cse_app at all. kern.setze_aufbewahrung() (the BEFORE INSERT trigger on dokument that 'resolves aufbewahrung_bis and loeschsperre from dokument_aufbewahrung') is not declared SECURITY DEFINER, so it runs under caller RLS and resolves nothing for any category that only has a platform default — DOC-07 and ACC-06 silently produce NULL retention and loeschsperre = false.
+
+**Where:** §4.7 dokument_aufbewahrung (mandant_id row, RLS note), §4.7 dokument (kern.setze_aufbewahrung), §1.8 (app.aufbewahrung_intervall)
+
+**Fix:** Give dokument_aufbewahrung a stated non-standard policy — `using (mandant_id is null or mandant_id = app.aktiver_mandant())` — exactly as 01-KERN.md states policies per table for its non-tenant tables, note the deliberate K-16 departure, and declare kern.setze_aufbewahrung() and app.aufbewahrung_intervall() as SECURITY DEFINER owned by cse_definer with `SET search_path = pg_catalog, public`, adding dokument_aufbewahrung to the §1.7 definer-read registry.
+
+### R11. The §1.7 SECURITY DEFINER inventory is wrong in three ways, and one of them makes the Art. 17 erasure path unbuildable. It says 'All five are owned by cse_definer' while the table lists six functions (the last row holds both rechtsgrundlage_lesen and zahlungskondition_lesen); app.aufbewahrung_intervall (§1.8/§4.7) and app.person_anonymisieren (§5.6) are SECURITY DEFINER but appear in neither the inventory nor the definer-read registry, and aufbewahrung_intervall is never given the K-01-mandatory `SET search_path`. Worse, §1.7's test 'fails on a cse_definer policy on any table in this domain outside {firma, kunde, ansprechpartner, kunde_zugang}', but app.person_anonymisieren must overwrite columns in formular_eingang and lead_aktivitaet — so the specified test forbids the function §5.6 requires. §1.7 also says the registry is extended 'by exactly three tables' while naming four.
+
+**Where:** §1.7 (intro sentence, table, both tests), §1.8, §5.6, §4.7
+
+**Fix:** Rewrite §1.7 as a complete enumeration: name all eight functions, give each its `SET search_path = pg_catalog, public`, correct 'five'/'three' to the real counts, and extend the definer registry (and the test's allowlist) to formular_eingang and lead_aktivitaet with the note that app.person_anonymisieren is their only definer writer — the test should assert the writer, not merely the absence of a policy.
+
+### R12. firma still exposes an existence oracle on the UPDATE path. The INSERT oracle is closed (insert revoked, resolution behind app.firma_aufloesen), but `f_aendern` lets any user with crm.schreiben and a kunde pointing at a firma UPDATE that row, and the global `UNIQUE (ust_id) WHERE ust_id IS NOT NULL` survives. A reinigung user correcting their firma's USt-IdNr. to a value already held by a firma that only SSE Security serves gets a 23505 — the same AUT-06 'constraint error confirms existence' failure the section says it fixed, one statement over.
+
+**Where:** §4.1 firma (f_aendern policy, indexes, and the residual-signal paragraph)
+
+**Fix:** Revoke UPDATE of ust_id from cse_app the way INSERT was revoked and route identity-field edits through app.firma_aufloesen / a companion definer function, or add ust_id to the residual-signal paragraph explicitly so the accepted risk is recorded in DECISIONS.md rather than silently reintroduced.
+
+### R13. The formular_eingang spam purge can be blocked by an attachment. §1.8's DELETE policy guards `status = 'spam' and lead_id is null and eingegangen_am < …`, but §4.7's dokument carries `formular_eingang_id uuid | composite FK — the REQ-04 LV upload` with ON DELETE NO ACTION (§0.4). A spam submission that carried a file cannot be purged and the weekly job:staging_purge fails on it.
+
+**Where:** §1.8 (formular_eingang d_wartung policy), §4.7 dokument (formular_eingang_id), §8 job:staging_purge
+
+**Fix:** Add `and not exists (select 1 from dokument d where d.formular_eingang_id = formular_eingang.id)` to the purge predicate and say what happens to the orphaned upload — most likely that it follows dokument's own retention rule and the submission is purged only once the file is gone.
+
+### R14. Two smaller internal inconsistencies that a Phase 4 implementer would have to guess at. (1) §0.8 lists among 'the three deliberate single-column FKs' the entry '`*.dokument_id` where the document is pinned by its own composite pair instead', while §11 declares every single reference to dokument composite — `(mandant_id, dokument_id)`, `(mandant_id, beleg_dokument_id)`, `(mandant_id, pdf_dokument_id)`, `(mandant_id, freigabe_dokument_id)`, `(mandant_id, buergschaft_dokument_id)`. (2) §6 opens 'All seven are CREATE VIEW … WITH (security_invoker = true)' and then lists eight views. (3) §0.4 states as a blanket rule that tenant tables 'declare UNIQUE (mandant_id, id)' while §11's parent list is deliberately narrower (nineteen of thirty-two tables).
+
+**Where:** §0.8, §6 (header vs table), §0.4 vs §11
+
+**Fix:** Delete the `*.dokument_id` clause from §0.8 so only kunde.firma_id and the benutzer references remain as single-column exemptions; change 'All seven' to 'All eight'; and reword §0.4 to 'tenant tables that are the parent of a composite FK declare UNIQUE (mandant_id, id) — §11 is the list'.
+
+## CONVENTION VIOLATIONS (0)
+
+NOTE: 00-KONVENTIONEN.md has since been AMENDED. Re-read it before acting on these —
+several are now permitted deviations (K-16 a-d), the K-08 register now has five entries,
+and K-18 introduces person/kunde scope. Where the amended convention now allows what the
+document does, no change is needed: say so.
+
+## VERIFIER VERDICT
+
+All twenty BLOCKING items genuinely landed in the file — this is not a document that claims fixes it did not make. I checked each one against the written text rather than the changelog, and in every case the mechanism is present, named, and wired through the sections that have to agree with it (the enum block, the right-key table, the ceiling table, the composite-FK register, the test list and the TODO index), which is the part authors usually drop. Three of the fixes are better than what the review asked for: B1/B16 are resolved by adopting K-03 verbatim rather than by the reviewer's ad-hoc CASE and a new predicate; B10 replaces a trigger with the declarative composite FKs K-16 actually prescribes; B6 widens the approval CHECK further than requested and closes the withdrawal path the reviewer missed. All three rejections are sound — the service_role/BYPASSRLS premise really is false under K-01, the trigger mechanism really is the wrong tool under K-16, and refusing to encode 'no offer ships without a costing' really is the correct reading of K-17 and CLAUDE.md, with the question filed as TODO(client) #11. Money is bigint cents throughout, instants are timestamptz and calendar facts are date, every tenant table has mandant_id plus the two K-03 policies and a portal ceiling, no CHECK contains a volatile function, D-09 is respected (this domain touches neither person nor anstellung, and the firma/kunde split is a defensible mirror of it), no external call is simulated, and I found no unmarked legal, financial or tariff value — every one of the thirty-seven open questions is a real placeholder behind an interface. What it is not yet is implementable end-to-end. Four defects are load-bearing and would surface as silent failures of exactly the kind this platform's conventions exist to prevent: no cse_job SELECT policy exists anywhere, so all nine scheduled jobs including the monthly billing run read zero rows under FORCE RLS; the public form has no principal that can actually INSERT, so REQ-01…REQ-07 have no write path; kern.erzwinge_serverzeit() applied 'unconditionally on INSERT' to angebot.versendet_am makes every draft offer insert fail against the very CHECK the B6 fix added; and the new send-time kalkulation freeze collides with the new placeholder CHECK so that, in the default state the placeholders are designed for, sending a costed offer raises a constraint error while sending an uncosted one succeeds. Those four plus the raum_import_historie FK that blocks its own purge should be resolved before the Phase 4 PRs are cut; the rest — the §11 register gaps, the lieferant contradiction, the third policy on formular_definition, dokument_aufbewahrung's nullable mandant_id, and the §1.7 miscount that forbids the erasure function it requires — are correctable in place without redesign. Fit to be implemented against after one more focused pass on those items; not fit to be implemented against as it stands.

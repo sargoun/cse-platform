@@ -1956,6 +1956,11 @@ One action put forward for approval, with its diff, its risk, its deadline and i
 | `ausgefuehrt_am` | timestamptz | yes | — | |
 | `ausfuehrung_fehler` | text | yes | — | |
 | `ersetzt_durch_freigabe_id` | uuid | yes | — | composite FK (self) — the correction path (§4.5) |
+| `artefakt_id` | uuid | yes | — | composite FK → `agent_artefakt` (§3.12) — **the draft this request is about**: the `extrahiere_lv` / `entwirf_text` output the approver reads, rather than a copy of it inside `vorschau_payload` |
+| `vergleichsartefakt_id` | uuid | yes | — | composite FK → `agent_artefakt` — the artefact `diff` was taken against, so APR-02's "what changed" is reproducible after the fact |
+| `ausfuehrung_versuch` | integer | no | `0` | `CHECK (>= 0)` — how often execution has been attempted; a retry must not silently look like a first run (§4.8) |
+| `externe_ref` | text | yes | — | the external system's id for the executed action (message id, platform receipt) — the only link from an approval to the thing that left the building |
+| `erforderliches_recht` | text | yes | — | the right key a decider must hold for *this* request, copied from `agent_richtlinie.freigabe_rolle` at creation. A **K-19 catalogue key**, validated against `berechtigung.schluessel` by `trg_freigabe_recht_gueltig`, because an unknown key makes `hat_recht` false forever and the item undecidable rather than refused |
 
 - **Indexes:** `freigabe_posteingang_idx (mandant_id, frist NULLS LAST, risiko DESC) WHERE status = 'offen' AND geloescht_am IS NULL`
   — `status` is dropped from the key because the predicate already fixes it (review, MINOR);
@@ -1963,15 +1968,20 @@ One action put forward for approval, with its diff, its risk, its deadline and i
   `freigabe_verzoegert_idx (verzoegerte_freigabe_bis) WHERE status = 'offen' AND verzoegerte_freigabe_bis IS NOT NULL`;
   `freigabe_undo_idx (undo_bis) WHERE undo_bis IS NOT NULL`;
   `freigabe_ausfuehrung_idx (mandant_id, ausfuehrung_status) WHERE ausfuehrung_status IN ('offen','laeuft','fehlgeschlagen')`;
-  `freigabe_bezug_idx (bezug_typ, bezug_id)`.
+  `freigabe_bezug_idx (bezug_typ, bezug_id)`;
+  `freigabe_artefakt_idx (mandant_id, artefakt_id) WHERE artefakt_id IS NOT NULL`.
 - **RLS:** S5, module `freigabe`, `p_intern_ceiling`.
 - **Constraints/triggers:**
   - `CHECK (NOT stapel_faehig OR stapel_sperre_grund IS NULL)`;
   - **`CHECK (unsichere_felder_anzahl = 0 OR NOT stapel_faehig)`** — APR-04 in the database: one
     uncertain field and the item leaves the batch;
   - **the APR-05 restriction of §4.4**;
-  - `trg_freigabe_eingefroren` refuses any `UPDATE` of `diff`, `vorschau_payload` or `payload_hash`
-    once a `freigabe_ansicht` row exists — what a human has seen may not change under them.
+  - `trg_freigabe_eingefroren` refuses any `UPDATE` of `diff`, `vorschau_payload`, `payload_hash`,
+    `artefakt_id` or `vergleichsartefakt_id` once a `freigabe_ansicht` row exists — what a human has
+    seen may not change under them;
+  - `trg_freigabe_recht_gueltig` refuses an `erforderliches_recht` that is not a `berechtigung`
+    row (K-19): a misspelled key would not refuse the decision, it would make the request
+    permanently undecidable by everyone, with no error.
 - **SPEC:** APR-01 … APR-06, APR-08, AGT-03, invariant 7.
 
 ### 4.3 freigabe_feld
@@ -2080,7 +2090,21 @@ under a signed audit trail (K-13).
 | `nutzlast` | jsonb | no | — | **exactly what was approved** (APR-07) — a copy, never a reference |
 | `nutzlast_hash` | text | no | — | SHA-256 of `nutzlast`; verified against `freigabe.payload_hash` before execution |
 | `vorher_hash` | text | yes | — | the previous link's `hash`; `NULL` only for `kette_nr = 1` |
-| `hash` | text | no | — | `SHA256(nutzlast_hash ‖ art ‖ entschieden_von ‖ entschieden_am ‖ kette_nr ‖ vorher_hash)` |
+| `artefakt_hash` | text | yes | — | SHA-256 of the `agent_artefakt` (§3.12) the decision was about |
+| `diff` | jsonb | no | `'[]'` | **a copy** of `freigabe.diff` as it stood at the decision — deliberately named the same as the parent column and deliberately duplicated: the parent may be superseded by a correction (§4.5), the snapshot may not |
+| `diff_hash` | text | no | — | SHA-256 of the canonical form of `diff` |
+| `felder` | jsonb | no | `'[]'` | the `freigabe_feld` rows as rendered, with their confidences |
+| `felder_hash` | text | no | — | SHA-256 of the canonical form of `felder` |
+| `ansicht_modell` | jsonb | no | — | **exactly what APR-02/APR-03 put on screen** — the view model, not the payload |
+| `ansicht_modell_hash` | text | no | — | SHA-256 of the canonical form of `ansicht_modell` |
+| `policy_ergebnis` | jsonb | no | — | the `decide()` result that admitted the action (`06-AGENTEN-FREIGABEN.md` §7) |
+| `policy_ergebnis_hash` | text | no | — | SHA-256 of the canonical form of `policy_ergebnis` |
+| `richtlinien_version` | text | yes | — | the `agent_richtlinie` rule set version in force |
+| `code_version` | text | yes | — | the deployed commit — replay needs to know which code decided |
+| `modell` | text | yes | — | the model that produced the draft |
+| `prompt_version` | text | yes | — | the prompt revision that produced it |
+| `rolle` | text | yes | — | the role the decider held at the moment of the decision, copied, not resolved later |
+| `hash` | text | no | — | the eleven-component chain link — see below |
 | `pruefdauer_sek` | integer | yes | — | `entschieden_am − freigabe_ansicht.geoeffnet_am_server`, computed server-side (APR-08) |
 | `ist_stapel` | boolean | no | `false` | |
 | `stapel_id` | uuid | yes | — | groups a batch approval |
@@ -2129,6 +2153,37 @@ create function app.freigabe_pruefdauer_lesen(p_snapshot uuid) returns integer �
 `fs_rubberstamp_idx` is unaffected — an index is built by the system and does not consult column
 privileges — so the APR-08 query still runs; it runs inside the watchdog, under `cse_job`, and emits
 only the aggregated figure §4.9 permits.
+
+**The chain hash covers what the approver saw, and it is the eleven-component formula of
+`06-AGENTEN-FREIGABEN.md` §14.2 — verbatim, because two formulas mean two chains.** An earlier pass
+of this table hashed six components (`nutzlast_hash`, `art`, `entschieden_von`, `entschieden_am`,
+`kette_nr`, `vorher_hash`) and named no canonicalisation rule at all. That is not a smaller version
+of the same chain: `jobs/watchdogs/freigabe-kette-verify.ts` recomputes offline against whichever
+formula the code implements, so a chain written under one and verified under the other reports a
+break on every link, every night — and a six-component chain proves nothing about the artefact, the
+diff, the field set, the view model or the policy result, which is to say nothing about **what was on
+screen when the human clicked approve**. APR-02 and APR-03 are about exactly that. The owner of the
+formula is the agent document; this table carries the columns it hashes and adopts its rule:
+
+```
+hash = SHA256( nutzlast_hash ⟨0x1F⟩ artefakt_hash ⟨0x1F⟩ diff_hash ⟨0x1F⟩ felder_hash ⟨0x1F⟩
+               ansicht_modell_hash ⟨0x1F⟩ policy_ergebnis_hash ⟨0x1F⟩ art ⟨0x1F⟩
+               entschieden_von ⟨0x1F⟩ entschieden_am ⟨0x1F⟩ kette_nr ⟨0x1F⟩ vorher_hash )
+```
+
+Eleven components, joined by a **single 0x1F byte**, each one either a lower-case hex digest or the
+**empty string** — never the literal `null`, never a missing separator. `entschieden_am` is the
+RFC 3339 UTC rendering of the stored instant, `kette_nr` its decimal digits. The jsonb components are
+hashed over their **RFC 8785 (JCS)** canonical form, the same canonicaliser `05-FINANZEN.md` §5.4
+names for the invoice chain, so `algorithmus = 'sha256-jcs-v1'` describes both chains and one
+implementation serves them.
+
+- **Constraints/triggers (chain):** `CHECK (diff_hash = encode(digest(jcs(diff),'sha256'),'hex'))`
+  and the same for `felder_hash`, `ansicht_modell_hash` and `policy_ergebnis_hash` are **not**
+  written as `CHECK`s — they call a function over a jsonb value and belong in
+  `trg_freigabe_snapshot_hashes`, a `BEFORE INSERT` trigger that computes all five component digests
+  and `hash` itself. The application supplies the payload, never the digest; §1.9's rule about
+  volatile expressions is untouched because the trigger is not an index predicate.
 
 `jobs/watchdogs/freigabe-kette-verify.ts` walks the chain nightly and pages on a break; the
 rubber-stamping evaluation runs as `jobs/watchdogs/freigabe-rubberstamp.ts` and emits a
@@ -3756,7 +3811,8 @@ in the same way `02-CRM-OPERATIONS.md` §3.2 is binding on this one.
 
 | Sibling | Requirement | Why |
 |---|---|---|
-| `01-KERN.md` / the permission model | the rights of §1.3 exist as `berechtigung` rows — **including `wissen.vertraulich_lesen`**, without which §3.11's confidentiality gate can never be satisfied by anyone and the `vertraulich` half of the RAG index is unreachable; **no** `gruppe.*` key is minted for `recruiting_bewerber`, `nachricht` or `wissen`; `recruiting.bewerbung_*` is never granted to `kunde` or `mitarbeiter`; `agent.protokoll_lesen`, `freigabe.pruefdauer_lesen` and `wissen.vertraulich_lesen` are `leitung` and upwards and never held by `kunde` or `mitarbeiter` | AUT-01, AUT-05, EMP-13, LEG-09 |
+| `03-AUTH-BERECHTIGUNGEN.md` (**the K-19 catalogue owner**) | every right key of §1.3 has a catalogue row, spelled as §1.3 spells it. Four are genuine additions the catalogue must make, not renames: module **`wissen`** (the 47th) with `wissen.lesen` and **`wissen.vertraulich_lesen`** — without the latter §3.11's confidentiality gate can never be satisfied by anyone and the `vertraulich` half of the RAG index is unreachable; **`agent.protokoll_lesen`**, which the K-05 payload reader `app.agent_nutzlast_lesen` (§1.7) re-checks; **`social.lesen`** as the read twin of `social.schreiben`; and **`gruppe.freigabe.lesen`** for the cross-entity approval inbox (APR-01, `06-AGENTEN-FREIGABEN.md` §12, `04-SEITENKARTE.md` `/portal/gruppe/freigaben`). `berechtigung_aktion` must contain all seven actions K-19 names, `schreiben` included — every `WITH CHECK` in §1.3 names `<modul>.schreiben` | K-19, AUT-01, AUT-05, APR-01, LEG-09 |
+| `03-AUTH-BERECHTIGUNGEN.md` | the seeded role→right matrix: `recruiting.bewerbung_*` is never granted to `kunde` or `mitarbeiter`; `agent.protokoll_lesen`, `freigabe.pruefdauer_lesen` and `wissen.vertraulich_lesen` are `leitung` and upwards and never held by `kunde` or `mitarbeiter`; no `gruppe.*` key is minted for `nachricht` or `wissen`. The applicant tables need no such guarantee on the group key, because they carry no `t_gruppe` policy at all (§6.2) | AUT-01, AUT-05, EMP-13, LEG-09 |
 | `01-KERN.md` | `benutzer_feed_token` gains `verfaellt_am` and a failed-resolution counter, and carries the `cse_definer` read policy `app.ical_feed_lesen` needs (Kern §3.5 already lists it). `EXECUTE` on `app.ical_feed_lesen` is granted to **`cse_anon`** and to no one else, per K-08 row 5 and K-01 | CAL-03, AUT-07, K-08, §7.6 |
 | `01-KERN.md` | **K-21 names it the owner of `job_lauf` and `job_lauf_mandant`, and both must be declared there** — six documents reference `job_lauf` and none declares it. This domain requires the canonical shape: `job_lauf (id, job text, gestartet_am, beendet_am, ergebnis, kennzahlen jsonb, fehlertext)` with **no `mandant_id`**, `ergebnis` defaulting to `laeuft`, index `(job, gestartet_am DESC)`; and `job_lauf_mandant (job_lauf_id, mandant_id, ergebnis, kennzahlen)` for the per-tenant outcome of a group-wide run. This document's earlier requirement of a *nullable* `mandant_id` on `job_lauf` is withdrawn — it collided with K-16(d) | §8.2, K-21, K-16(d) |
 | `01-KERN.md` | `mandant_einstellung (id, mandant_id, schluessel, wert jsonb)` with `UNIQUE (mandant_id, schluessel)` is declared there (K-21). §4.9's O-06 monitoring switch is one of its keys, **not** a column on `mandant` | K-21, APR-08, LEG-10, O-06 |
