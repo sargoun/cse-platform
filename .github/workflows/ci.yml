@@ -30,6 +30,13 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
+      # The isolation suite proves RLS at the database level, as cse_app and
+      # never as the owner. It needs a real Postgres — a mock proves nothing.
+      - name: Isolation suite (RLS, FORCE, K-04, K-05, K-18, K-20)
+        run: |
+          pnpm db:test:up
+          pnpm test:isolation
+
       - name: Build
         run: pnpm build
 

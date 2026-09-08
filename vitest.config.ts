@@ -3,7 +3,9 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts'],
-    exclude: ['tests/e2e/**', 'tests/fixtures/**', 'node_modules/**'],
+    // The isolation suite needs a live Postgres and its own sequential
+    // runner — `pnpm test:isolation`, vitest.isolation.config.ts.
+    exclude: ['tests/e2e/**', 'tests/fixtures/**', 'tests/isolation/**', 'node_modules/**'],
     environment: 'node',
     // The reference cases are Berlin wall-clock. Pinning the runner's zone to
     // UTC is deliberate: a test that only passes because the CI box happens to
