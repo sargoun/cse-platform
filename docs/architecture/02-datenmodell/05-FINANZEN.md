@@ -19,7 +19,7 @@ cites the `K-id` it applies, every open legal or financial value is a labelled p
 
 | Schema file | Tables | Phase |
 |---|---|---|
-| `src/server/db/schema/finanzen.ts` | `nummernkreis`, `rechnung`, `rechnungsposition`, `rechnung_zuschlag`, `rechnungsposition_quelle`, `rechnung_steuer`, `abschlagsplan`, `abschlagsrechnung_bezug`, `storno_verweis`, `rechnung_snapshot`, `rechnung_hash`, `rechnung_dokument`, `rechnung_versand` | 6 |
+| `src/server/db/schema/finanzen.ts` | `nummernkreis`, `rechnung`, `rechnungsposition`, `rechnung_zuschlag`, `rechnungsposition_quelle`, `rechnung_steuer`, `abschlagsplan`, `abschlagsrechnung_bezug`, `rechnung_beziehung`, `rechnung_snapshot`, `rechnung_hash`, `rechnung_dokument`, `rechnung_versand` | 6 |
 | `src/server/db/schema/zahlung.ts` | `bankkonto`, `kasse`, `kassenbewegung`, `zahlung`, `zahlung_zuordnung`, `offener_posten`, `op_ausgleich`, `camt_import`, `camt_umsatz`, `mahnstufe`, `mahnung`, `mahnung_position`, `mahnung_eskalation` | 6 |
 | `src/server/db/schema/eingang.ts` | `lieferant`, `eingangsrechnung`, `eingangsrechnung_steuer`, `eingangsrechnung_extraktion`, `beleg`, `ausgabe_kategorie`, `ausgabe`, `ausgabe_steuer`, `bauleistung_jahressumme`, `bauabzug_anmeldung` | 6 / 7 |
 | `src/server/db/schema/buchhaltung.ts` | `datev_konfiguration`, `konto_mapping`, `periode`, `buchungssatz`, `datev_export`, `datev_buchungsstapel_zeile`, `export_zeile`, `verfahrensdokumentation` | 7 |
@@ -131,8 +131,55 @@ entities' books. The employee portal therefore runs `withPersonScope` and the cu
 tenants — one person's reimbursements across employments, one customer's invoices across all four
 areas (CRM-06) — but **as a subject, not as a manager**.
 
-Every accessor is fail-closed: no mandant, no rights, read-only, `aal1`, `portal = 'mitarbeiter'`.
-An unset session produces zero invoice rows, never all of them.
+Every accessor is fail-closed: no mandant, no rights, read-only, `aal1`. An unset session produces
+zero invoice rows, never all of them.
+
+**But fail-closed is not the same as undefined, and K-20 draws the line.** An accessor that resolves
+through `app.aktiver_mandant()` returns NULL in the three multi-tenant scopes, so every predicate
+built on it is false and the page reads nothing — the same silent zero-row failure K-18 exists to
+remove, one layer down. Two accessors this domain leans on are affected by name, and K-20 fixes
+both: `app.aktuelle_kunden()` resolves from the session's `kunde_zugang` binding and **never**
+through `aktiver_mandant()`, and `app.portal()` is **bound when the scope is entered** and defined in
+all four scopes — it is never recomputed from the active membership outside `mandant` scope, because
+falling through to the fail-closed `'mitarbeiter'` there would fire every `p_ma_ceiling` of §1.4
+inside the group view and ceiling every customer as though they were staff.
+
+Every `app.*` accessor this domain calls therefore states its value in all four scopes (K-20):
+
+| Accessor | `mandant` | `gruppe` | `person` | `kunde` |
+|---|---|---|---|---|
+| `app.scope()` | `'mandant'` | `'gruppe'` | `'person'` | `'kunde'` |
+| `app.aktiver_mandant()` | the one active mandant | **NULL** | **NULL** | **NULL** |
+| `app.sichtbare_mandanten()` | `{aktiver_mandant}` | from `benutzer_mandant` | from the person's `anstellung` rows | from the customer's own `auftrag`/`angebot`/`rechnung` rows |
+| `app.portal()` | the **active membership's** role → `intern` \| `mitarbeiter` \| `kunde` (K-04) | `intern`, bound on entering the scope | `mitarbeiter`, by construction | `kunde`, by construction |
+| `app.aktuelle_kunden()` | at most one element — the `kunde` this login is linked to in the active mandant | `{}` | `{}` | one `kunde` per visible entity, from `kunde_zugang` |
+| `app.aktuelle_person()` | the session's `person`, or NULL | the session's `person`, or NULL | the subject | NULL |
+| `app.hat_recht(recht, mandant)` | evaluated for the active mandant | evaluated per row's `mandant_id` for `gruppe.*` keys | not referenced by any policy of this domain reachable from `person` scope | not referenced by any policy of this domain reachable from `kunde` scope |
+| `app.ist_gruppenansicht()` | false | true | false | false |
+| `app.ist_readonly()` | `off` when a write route entered the scope, else `on` | **`on`, always** (invariant 10) | `on` for this domain — it has no K-18 write path | `on` for this domain |
+| `app.ist_super_admin()` | from the global role — defined and identical in all four scopes | idem | idem | idem |
+| `app.einstellung(p_schluessel)` | the active mandant's row | **undefined — NULL** | **undefined — NULL** | **undefined — NULL** |
+| `app.aufbewahrung_intervall(p_mandant, p_schluessel)` | the mandant passed in | the mandant passed in | the mandant passed in | the mandant passed in |
+
+Two consequences follow, and both are stated rather than assumed.
+
+`app.einstellung` (owned by `03-GEWERKE.md` §1.16) resolves through the active mandant and is
+therefore **defined in `mandant` scope only**. K-20 permits that on the condition it is declared and
+that no policy reachable from another scope names it: the four settings this domain reads (§1.11) are
+read by *services* on a write path, which by invariant 10 exists only in `mandant` scope, and by no
+RLS predicate anywhere. The §14 policy test asserts it.
+
+`app.aufbewahrung_intervall` takes the mandant as an **argument** rather than reading
+`aktiver_mandant()`, and that is not a stylistic choice: it is called from `cse_job` policies and
+from `BEFORE INSERT` triggers (§1.10, §11) where there is no active mandant at all, so a
+one-argument form would return NULL and resolve retention to "no period" — a fail-*open* on the one
+mechanism that guards invariant 8. The owner is `02-CRM-OPERATIONS.md` §4.7 and the signature is
+`app.aufbewahrung_intervall(p_mandant uuid, p_schluessel text) returns interval`; every call site in
+this document passes the row's own `mandant_id`.
+
+`app.hat_recht()` is never called from a policy reachable in `person` or `kunde` scope in this
+domain, because K-18's subject policies carry no right conjunct — which is exactly why the
+customer portal works without granting a customer a management key.
 
 The `[mandant]` segment lives under `/portal` (K-07), is routing only, is validated against the
 session, and a mismatch returns **404, not 403** (AUT-06) — including on write routes: a POST to
@@ -186,7 +233,7 @@ guess whether they replace or add):
 
 | Module | Tables | Read | Write | Group read |
 |---|---|---|---|---|
-| `finanzen` | `rechnung`, `rechnungsposition`, `rechnung_zuschlag`, `rechnungsposition_quelle`, `rechnung_steuer`, `abschlagsplan`, `abschlagsrechnung_bezug`, `storno_verweis`, `rechnung_snapshot`, `rechnung_hash`, `rechnung_dokument` | `finanzen.lesen` | `finanzen.schreiben` | `gruppe.finanzen.lesen` |
+| `finanzen` | `rechnung`, `rechnungsposition`, `rechnung_zuschlag`, `rechnungsposition_quelle`, `rechnung_steuer`, `abschlagsplan`, `abschlagsrechnung_bezug`, `rechnung_beziehung`, `rechnung_snapshot`, `rechnung_hash`, `rechnung_dokument` | `finanzen.lesen` | `finanzen.schreiben` | `gruppe.finanzen.lesen` |
 | `finanzen` (+ action) | finalisation | — | `finanzen.festschreiben` | — |
 | `versand` | `rechnung_versand` | `versand.lesen` | `versand.freigeben` | — |
 | `nummernkreis` | `nummernkreis` | `nummernkreis.lesen` | `nummernkreis.ziehen` (counter draw), `nummernkreis.verwalten` (mask, scope, closing — 2FA) | `gruppe.nummernkreis.lesen` |
@@ -199,8 +246,25 @@ guess whether they replace or add):
 
 The five global reference tables (§3.2) are **not** tenant-scoped and carry the read policy of §3.2
 instead. The seeded role matrix that decides which role holds which key is owned by
-`04-BERECHTIGUNGSMODELL.md`; three allocations are load-bearing here and are stated as requirements
-on that document in §2.3.
+`03-AUTH-BERECHTIGUNGEN.md` §12.5 — there is no `04-BERECHTIGUNGSMODELL.md`, and the two references
+the draft carried to that filename are corrected here and in §2.3; three allocations are load-bearing
+here and are stated as requirements on that document in §2.3.
+
+**Every key above is spelled as the catalogue spells it (K-19).** `03-AUTH-BERECHTIGUNGEN.md` §7.4
+owns the module vocabulary and §7.2 the action vocabulary, and they are the only ones:
+`app.hat_recht()` returns **false** for a key it does not know, so a misspelled or unregistered key
+is not an error but a screen that is permanently empty. Every module named above — `finanzen`,
+`versand`, `nummernkreis`, `zahlung`, `mahnung`, `eingang`, `buchhaltung`,
+`buchhaltung_konfiguration` — is one of the catalogue's 46, and CI extracts every right-key literal
+and fails on any key absent from it.
+
+Three keys this domain uses need a catalogue row that §12.5 does not yet carry, and they are stated
+as requirements in §2.3 rather than minted here: `nummernkreis.ziehen` (§5.6 draws a counter on every
+finalisation, and `03-GEWERKE.md` §2.3 draws the Leistungsnachweis and Wachbuch circles the same
+way), its action value `ziehen`, and `personal.erstattung_lesen` (the K-05 column gate on
+`ausgabe.anstellung_id`, §1.5). The module for the **global reference tables** is likewise not
+invented: `referenz` in the catalogue means published website content (PUB-07, PRO-05), so §3.2 uses
+`system.einstellung_verwalten` and not a second meaning for one module name.
 
 ### 1.4 Portal ceilings (K-04) — and the answer to the group-scope objection (review B2)
 
@@ -234,7 +298,7 @@ portal that renders an empty list and looks like a customer with no invoices.
 | Ceiling | Tables | Visibility clause |
 |---|---|---|
 | `p_kunde_ceiling` | `rechnung` | `kunde_id = any (app.aktuelle_kunden()) and status = 'festgeschrieben'` — a customer never sees a draft |
-| | `rechnungsposition`, `rechnung_zuschlag`, `rechnung_steuer`, `rechnung_dokument`, `abschlagsrechnung_bezug`, `storno_verweis` | through the parent `rechnung`, same clause **(review B18)** |
+| | `rechnungsposition`, `rechnung_zuschlag`, `rechnung_steuer`, `rechnung_dokument`, `abschlagsrechnung_bezug`, `rechnung_beziehung` | through the parent `rechnung`, same clause **(review B18)** |
 | | `offener_posten` | `art = 'debitor' and kunde_id = any (app.aktuelle_kunden())` |
 | `p_ma_ceiling` + `p_kunde_ceiling` (degenerate) | `ausgabe`, `ausgabe_steuer` | own reimbursements only; `app.portal() <> 'kunde'` |
 | `p_intern_ceiling` | every other table in this domain, including `rechnungsposition_quelle`, `rechnung_snapshot`, `rechnung_hash`, `nummernkreis`, `mahnung*`, `zahlung*`, `camt_*`, `lieferant`, `eingangsrechnung*`, `beleg`, `buchungssatz`, `periode`, `datev_*`, `konto_mapping`, `verfahrensdokumentation`, `bauleistung_jahressumme`, `bauabzug_anmeldung` | — |
@@ -266,7 +330,7 @@ create policy t_person on ausgabe
 | Policy | Tables | Subject predicate |
 |---|---|---|
 | `t_kunde` | `rechnung` | `kunde_id = any (app.aktuelle_kunden())` **and** `status = 'festgeschrieben'` |
-| | `rechnungsposition`, `rechnung_zuschlag`, `rechnung_steuer`, `rechnung_dokument`, `abschlagsrechnung_bezug`, `storno_verweis` | through the parent `rechnung`, same predicate |
+| | `rechnungsposition`, `rechnung_zuschlag`, `rechnung_steuer`, `rechnung_dokument`, `abschlagsrechnung_bezug`, `rechnung_beziehung` | through the parent `rechnung`, same predicate |
 | | `offener_posten` | `art = 'debitor' and kunde_id = any (app.aktuelle_kunden())` |
 | `t_person` | `ausgabe`, `ausgabe_steuer` | the row's `anstellung_id` belongs to `app.aktuelle_person()` — through the parent for `ausgabe_steuer` |
 
@@ -593,15 +657,16 @@ every composite FK in §4–§9 fails at migration time.
 | `benutzer` | KERN | — | `id` | SEC-A9 |
 | `person`, `anstellung` | KERN | `unique (mandant_id, id)` on `anstellung` | `anstellung.id`, `person_id`, `mandant_id` — reimbursements only | D-09, FIN-14 |
 | `audit_log` | KERN | — | written through `app.protokolliere(...)` only | SEC-A9, AUT-08 |
-| `job_lauf` | KERN | — | written by every job of §11 with its `akteur_dienst` | ACC-04, LEG-01 |
-| `mandant_einstellung` | KERN | `unique (mandant_id, schluessel)` | `wert jsonb` | §1.11 |
+| `job_lauf` | KERN (K-21) | — | `id`, `job`, `gestartet_am`, `beendet_am`, `ergebnis`, `kennzahlen jsonb`, `fehlertext` — **platform-level, no `mandant_id`**; written by every job of §11 | ACC-04, LEG-01 |
+| `job_lauf_mandant` | KERN (K-21) | `unique (job_lauf_id, mandant_id)` | `job_lauf_id`, `mandant_id`, `ergebnis`, `kennzahlen` — the per-tenant outcome of one run | ACC-04, ACC-07 |
+| `mandant_einstellung` | KERN (K-21) | `unique (mandant_id, schluessel)` | `schluessel`, `wert jsonb` | §1.11 |
 | `freigabe`, `freigabe_snapshot`, `freigabe_ansicht` | Freigaben (K-13) | `unique (mandant_id, id)`; `freigabe_snapshot.kette_nr` under `SELECT … FOR UPDATE` | `id`, `status`, `freigegeben_am`, `freigegeben_von`, `pruefdauer_sek` | APR-07, APR-08 |
 | `kunde` | CRM-OPS | `unique (mandant_id, id)` | `name`, `typ`, `ust_id`, `steuernummer`, `strasse`, `hausnummer`, `plz`, `ort`, `land`, `rechnungsadresse_abweichend` + the `rechnung_*` block, `rechnung_email`, `leitweg_id`, `kaeufer_referenz`, `elektronische_adresse`, `elektronische_adresse_schema`, `uebertragungsweg`, `rechnungsformat`, `ist_oeffentlicher_auftraggeber`, `xrechnung_pflicht`, `mahnsperre_bis`, `firma_id` | FIN-04, FIN-11, FIN-15, LEG-05 |
 | `kunde` (column-restricted) | CRM-OPS | K-05 grants | `zahlungsziel_tage`, `debitorennummer` — **only** through `app.zahlungskondition_lesen()` | ACC-01, ACC-07 |
 | `kunde_bauleistender_status` | CRM-OPS | `EXCLUDE` on `(kunde_id, daterange)` | `ist_bauleistender`, `gilt_ab`, `gilt_bis`, `grundlage`, **`leistungsart`** (§2.3) | FIN-09, LEG-06 |
 | `freistellungsbescheinigung` | CRM-OPS | `unique (mandant_id, id)`, `unique (mandant_id, bescheinigung_nummer)` | `kunde_id`, `lieferant_id`, `bescheinigung_nummer`, `finanzamt`, `gueltig_von`, `gueltig_bis`, `widerrufen_am`, `dokument_id`, **`umfang`**, **`auftrag_id`** (§2.3) | FIN-10, LEG-06 |
 | `firma` | CRM-OPS | `unique (id)`; **no `mandant_id` by design** | `id` — the cross-entity identity behind `lieferant.firma_id`, resolved through `app.firma_aufloesen()` | ACC-05, TEN-05 |
-| `kunde_zugang` | CRM-OPS | `unique (benutzer_id, kunde_id)` | read only through `app.aktuelle_kunden()` (§2.3 item 10) | CRM-06, K-18 |
+| `kunde_zugang` | CRM-OPS | `UNIQUE (benutzer_id, mandant_id) WHERE entzogen_am IS NULL` — the owner's constraint (`02-CRM-OPERATIONS.md` §4.1); the draft's `unique (benutzer_id, kunde_id)` is deleted, one login may be linked to one customer per **mandant** | read only through `app.aktuelle_kunden()` (§2.3 item 10); lifecycle is `eingeladen_am` / `aktiviert_am` / `entzogen_am`, there is no `status` column | CRM-06, K-18 |
 | `ansprechpartner` | CRM-OPS | `unique (mandant_id, kunde_id, id)` | `id`, `email` — the dispatch recipient (§9.6) | FIN-11, CRM-08 |
 | `auftrag` | CRM-OPS | `unique (mandant_id, id)` | `id`, `kunde_id`, `objekt_id`, `status`, `sicherheitseinbehalt_bp`, `sicherheitseinbehalt_cent`, `abgeschlossen_am` | FIN-08, FIN-18, CRM-05 |
 | `auftrag_leistung` | CRM-OPS | `unique (mandant_id, id)`, `unique (mandant_id, auftrag_id, id)` | `id`, `auftrag_id`, `objekt_id`, `bezeichnung`, `menge`, `einheit`, `einzelpreis_cent`, `steuersatz_bp`, `steuer_kennzeichen`, `steuerbefreiung_grund`, `erloeskonto_schluessel`, `leistungskatalog_position_id`, `gueltig_ab`, `gueltig_bis` | FIN-01, FIN-07, ACC-01 |
@@ -609,8 +674,8 @@ every composite FK in §4–§9 fails at migration time.
 | `objekt` | CRM-OPS | `unique (mandant_id, id)` | `id`, `kunde_id`, address — the Leistungsort on the document | OPS-01, REP-05 |
 | `leistungskatalog_position` | CRM-OPS | `unique (mandant_id, id)` | `id`, `erloeskonto_schluessel` | ACC-01 |
 | `dokument`, `dokument_version` | CRM-OPS | `unique (mandant_id, id)`; `dokument_version.sha256` | `id`, `kategorie`, `sichtbar_fuer_kunde`, `geloescht_am`, `sha256`, `speicher_pfad` | DOC-03, ACC-03, ACC-06 |
-| `dokument_aufbewahrung` | CRM-OPS | `unique nulls not distinct (mandant_id, schluessel)` | read through `app.aufbewahrung_intervall(schluessel)` | DOC-07, LEG-01 |
-| `zeiteintrag` | Zeit | `unique (mandant_id, id)`, `unique (mandant_id, auftrag_leistung_id, id)` | `id`, `anstellung_id`, `auftrag_leistung_id`, `beginn_zeitpunkt`, `ende_zeitpunkt`, `dauer_minuten`, `freigegeben_am`, `abgerechnet_am`, `loeschsperre` | FIN-07, FIN-18, TIM-12 |
+| `dokument_aufbewahrung` | CRM-OPS | `unique nulls not distinct (mandant_id, schluessel)` | read through `app.aufbewahrung_intervall(mandant_id, schluessel)` — **two arguments**, the owner's signature (§1.2) | DOC-07, LEG-01 |
+| `zeiteintrag` | Zeit | `unique (mandant_id, id)`, `unique (mandant_id, auftrag_leistung_id, id)` | `id`, `anstellung_id`, `auftrag_leistung_id`, `beginn_zeitpunkt`, `ende_zeitpunkt`, `dauer_netto_minuten`, `freigegeben_am`, `abgerechnet_am`, `loeschsperre` | FIN-07, FIN-18, TIM-12 |
 | `einsatz` | Zeit | `unique (mandant_id, id)` | `id`, `auftrag_leistung_id`, `ende_zeitpunkt` — the FIN-18 warning | FIN-18 |
 | `leistungsnachweis`, `leistungsnachweis_position` | GEWERKE | `unique (mandant_id, id)` | `id`, `auftrag_leistung_id`, `zeiteintrag_id`, signature snapshot | CLN-04, FIN-07 |
 | `aufmass`, `aufmass_position` | GEWERKE | `unique (mandant_id, id)` | `id`, `auftrag_leistung_id`, `menge`, `rechenansatz`, `storniert_am` | BAU-02, FIN-07 |
@@ -647,10 +712,19 @@ every composite FK in §4–§9 fails at migration time.
    `UPDATE` policies the counter draw matches no policy, affects zero rows, and **no invoice can be
    finalised at all** — while the fix an implementer reaches for first, making `cse_definer` the
    table owner or granting it `BYPASSRLS`, breaches K-01 silently.
-2. **`01-KERN.md` §4 — `berechtigung_aktion`** must carry `schreiben`, `freigeben`, `festschreiben`
-   and `exportieren`. The first is the `02-CRM-OPERATIONS.md` §13 item 1 note; the last three are
-   this domain's, and `app.hat_recht()` returns **false** for an unknown key, so a missing action
-   value makes finalisation and export permanently impossible rather than noisily broken.
+2. **`03-AUTH-BERECHTIGUNGEN.md` §7.2 — the action vocabulary, and §12.5 — three missing rows.**
+   Under **K-19** the catalogue lives in one document and its action vocabulary is the only one, so
+   this requirement is addressed to the catalogue owner and `01-KERN.md` §4's enum follows it rather
+   than competing with it. The vocabulary must carry the seven K-19 names — `lesen`, `schreiben`,
+   `loeschen`, `pruefen`, `freigeben`, `exportieren`, `verwalten` — plus `festschreiben` and
+   **`ziehen`**, which are this domain's. `schreiben` is not optional in any of them: K-03's
+   `WITH CHECK` names `<modul>.schreiben` verbatim on every tenant table in every domain, so an
+   action vocabulary without it authorises no write anywhere in the platform. And because
+   `app.hat_recht()` returns **false** for a key it does not know, each absence is a permanently
+   empty screen rather than a noisy failure. The three catalogue rows §12.5 still owes this domain:
+   `nummernkreis.ziehen` (drawn on every finalisation, §5.6, and by `03-GEWERKE.md` §2.3 for the
+   Leistungsnachweis and Wachbuch circles), `personal.erstattung_lesen` (the K-05 column gate of
+   §1.5) and — if it is to stay bindable — `finanzen.herunterladen` for the `kunde` role (item 7).
 3. **`02-CRM-OPERATIONS.md` §4.1 — `freistellungsbescheinigung`** gains two columns:
    `umfang freistellung_umfang not null` (the enum is declared in §3.1 here and mirrored there, as
    `steuer_kennzeichen` is mirrored the other way) and `auftrag_id uuid null` with
@@ -671,19 +745,42 @@ every composite FK in §4–§9 fails at migration time.
    writable by the finance migration's narrow `UPDATE` path, and keep
    `unique (mandant_id, auftrag_leistung_id, id)` so `rechnungsposition_quelle` can pin an entry to
    the order line it bills.
-7. **`04-BERECHTIGUNGSMODELL.md` — role matrix.** `mitarbeiter` holds **none** of the modules in
-   §1.3 (EMP-13). `kunde` holds `finanzen.lesen` only, and never `versand.*`, `mahnung.*`,
-   `eingang.*` or `buchhaltung.*`. `finanzen.festschreiben`, `buchhaltung.festschreiben`,
-   `buchhaltung.exportieren` and `nummernkreis.verwalten` carry `erfordert_2fa = true`, which under
-   `01-KERN.md` §3.2 makes `hat_recht` false at `aal1` — the K-15-compatible place for a second
-   factor, on a write path rather than on a membership `SELECT`. Three further allocations are
-   load-bearing, because getting them wrong fails **after** the number has been drawn: every role
-   holding `finanzen.festschreiben` must also hold `buchhaltung.schreiben` and `zahlung.schreiben`,
-   since step 4 of §5.6 writes `offener_posten` and `buchungssatz` as `cse_app` in the same
-   transaction; every role that finalises an invoice, releases a Mahnung, books an incoming invoice
-   or writes a `kassenbewegung` holds `nummernkreis.ziehen`, which does **not** carry
-   `erfordert_2fa` while `nummernkreis.verwalten` does; and `kunde` holds no `nummernkreis.*` key at
-   all.
+7. **`03-AUTH-BERECHTIGUNGEN.md` §12.5 — the seeded role matrix.** (The draft addressed this to
+   `04-BERECHTIGUNGSMODELL.md`, a file that does not exist; `03-AUTH-BERECHTIGUNGEN.md` is the owner
+   of the catalogue and of the matrix, per K-19 and its own §21.) `mitarbeiter` holds **none** of the
+   modules in §1.3 (EMP-13). **Of this document's modules**, `kunde` holds `finanzen.lesen`,
+   `finanzen.herunterladen`, `zahlung.lesen` and `mahnung.lesen` — the "only" is scoped to the
+   finance modules and says nothing about `objekt.lesen`, `angebot.lesen`, `auftrag.lesen`,
+   `dokument.lesen`, `nachweis.lesen`, `bau.lesen`, `qualitaet.lesen` or `nachricht.lesen`, which
+   §12.7 of that document grants and `04-SEITENKARTE.md` gates `/portal/kunde/**` on. `kunde` holds
+   no `versand.*`, no `eingang.*`, no `buchhaltung*` and no `nummernkreis.*` key at all, and never
+   sees a draft (§1.4). Three allocations are load-bearing, because getting them wrong fails
+   **after** the number has been drawn: every role holding `finanzen.festschreiben` must also hold
+   `buchhaltung.schreiben` and `zahlung.schreiben`, since step 4 of §5.6 writes `offener_posten` and
+   `buchungssatz` as `cse_app` in the same transaction; every role that finalises an invoice,
+   releases a Mahnung, books an incoming invoice or writes a `kassenbewegung` holds
+   `nummernkreis.ziehen`; and `nummernkreis.ziehen` carries **no** second-factor requirement, because
+   a step-up on the counter draw would fire in the middle of the finalisation transaction, after the
+   §14 UStG pre-flight has passed.
+
+   **Whether the four finance acts additionally require a second factor is a client decision, not a
+   requirement of this document (K-17).** The draft fixed
+   `erfordert_2fa = true` on `finanzen.festschreiben`, `buchhaltung.festschreiben`,
+   `buchhaltung.exportieren` and `nummernkreis.verwalten`; that is a legal-process value nobody has
+   confirmed, and AUT-02 obliges a standing second factor only for `super_admin` and `admin`. The
+   flag is therefore **data, blocked on O-90**, and until it is answered the four keys are seeded
+   with `erfordert_2fa = false` and the mechanism is left intact:
+
+   ```
+   // TODO(client, O-90): Should invoice finalisation (finanzen.festschreiben), Storno and DATEV
+   // export additionally require a second factor at the moment of the act, even for a Leitung who
+   // has no standing 2FA obligation under AUT-02?
+   ```
+
+   The mechanism is unchanged either way and is the K-15-compatible one: `berechtigung.erfordert_2fa`
+   makes `hat_recht` false at `aal1` on a **write path**, never on a membership `SELECT` — a
+   restrictive `aal2` policy on `benutzer_mandant` would return zero rows for every non-admin and
+   blank the whole platform.
 8. **`docs/DESIGN.md` §5** must gain the status-pill labels this domain renders before Phase 6 builds
    a screen with them: `Entwurf`, `Festgeschrieben`, `Storniert`, `Verworfen`, `Freigegeben`,
    `Gebucht`, `Überfällig`, `Teilweise bezahlt`, `Ausgeglichen`, `Nicht verbunden`,
@@ -701,10 +798,21 @@ every composite FK in §4–§9 fails at migration time.
     invoices. The same function is the source of `app.sichtbare_mandanten()` in kunde scope.
 11. **`04-SEITENKARTE.md` and K-07** — the customer portal needs a route that is **not** under
     `/portal/[mandant]`, because `kunde` scope carries no single active mandant (K-02, K-18) and
-    CRM-06 is explicitly cross-entity. `/portal/kunde/…` is the natural fourth reserved segment
-    beside `gruppe`, `mein` and `api`; `mandant.slug`'s `CHECK` must exclude it in the same PR that
-    adds it, or K-07's route-manifest test fails the build — which is the intended behaviour, not an
-    obstacle.
+    CRM-06 is explicitly cross-entity. `/portal/kunde/…` is that route, and K-21 has since settled
+    the reserved list: `mandant.slug`'s `CHECK` excludes **`gruppe`, `mein`, `kunde`, `konto` and
+    `api`** — one list, in that document, and K-07's route-manifest test fails the build when a new
+    static segment under `/portal` is added without being added to the constraint. That is the
+    intended behaviour, not an obstacle. The column is `mandant.slug` (K-21), never
+    `mandant.schluessel`, and the legal-entity flag this domain reads in §2.1 is
+    `mandant.ist_rechtseinheit`, never `ist_rechtstraeger`.
+12. **`05-API-KARTE.md` §C.14 and `01-ORDNERSTRUKTUR.md` §4.9 — `rechnung_beziehung`.** K-21 assigns
+    the table to this document and §4.8 declares it once, with `von_rechnung_id`, `zu_rechnung_id`,
+    `art rechnung_beziehung_art`, `storno_art` and `grund`. Two corrections follow for both
+    documents: the `art` enum carries **`storno` and `ersetzt` only** — the inverse readings
+    `storniert_durch` and `schluss_zu` are not stored, because an inverse row is a second copy of one
+    fact — and `abschlag_zu` is not one of its values either, because the Abschlag → Schlussrechnung
+    relation carries per-tax-group amounts and stays in `abschlagsrechnung_bezug` (§4.7). The
+    `finanz.ts` schema list keeps both tables.
 
 ---
 
@@ -732,6 +840,7 @@ than an invisible data edit (K-17).
 | `zuschlag_art` | `nachlass` · `zuschlag` | STATED — EN 16931 BG-20 (Allowance) / BG-21 (Charge) |
 | `quelle_typ` | `zeiteintrag` · `aufmass` · `vertrag` · `material` · `leistungsnachweis` · `nachtrag` · `manuell` | FIN-07 names the first four verbatim; `leistungsnachweis` and `nachtrag` are required by `03-GEWERKE.md` §2.2, which declares `rechnungsposition` referencing both. `manuell` exists so a hand-typed line is *explicitly* sourceless with a mandatory reason rather than silently unsourced |
 | `storno_art` | `vollstorno` · `teilstorno` | PLACEHOLDER. `// TODO(client): Ist eine Teilstornierung zulässig, oder ist jede Korrektur ein Vollstorno mit Neuausstellung? Bitte mit dem Steuerberater klären. (O-36)` Until answered the service emits only `vollstorno`; the value exists so answering it is data, not a migration |
+| `rechnung_beziehung_art` | `storno` · `ersetzt` | STATED — the two directed invoice-to-invoice relations of `rechnung_beziehung` (§4.8), the table **K-12 names and K-21 assigns to this document**. The inverse readings (`storniert_durch`, `schluss_zu`) are deliberately **not** values: an inverse row is a second copy of one fact. The Abschlag → Schlussrechnung relation is not here either — it carries per-tax-group amounts and stays in `abschlagsrechnung_bezug` (§4.7) |
 | `zahlung_richtung` | `eingang` · `ausgang` | structural |
 | `zahlungsmittel` | `ueberweisung` · `lastschrift` · `bar` · `karte` · `verrechnung` | working vocabulary; carries no legal rule |
 | `zahlungsmittel_code` | not an enum — `text` carrying UNTDID 4461 (`58` SEPA credit transfer, `59` SEPA direct debit, `10` cash, `48` card, `97` clearing) | STATED — EN 16931 BT-81. Required for a valid XRechnung |
@@ -779,11 +888,11 @@ alter table <t> force  row level security;
 create policy r_lesen  on <t> for select to cse_app using (true);
 create policy r_pflege on <t> for insert to cse_app
   with check (app.ist_super_admin() and not app.ist_readonly()
-              and (select app.hat_recht('referenz.verwalten', app.aktiver_mandant())));
+              and (select app.hat_recht('system.einstellung_verwalten', app.aktiver_mandant())));
 create policy r_pflege_u on <t> for update to cse_app
   using (app.ist_super_admin())
   with check (not app.ist_readonly()
-              and (select app.hat_recht('referenz.verwalten', app.aktiver_mandant())));
+              and (select app.hat_recht('system.einstellung_verwalten', app.aktiver_mandant())));
 -- no delete policy; kern.verhindere_loeschung() and fin.verhindere_truncate() as everywhere else
 ```
 
@@ -791,7 +900,21 @@ create policy r_pflege_u on <t> for update to cse_app
 migrations/seed" and "are entered by an admin" while granting no write policy at all, which means the
 Bundesbank base rate for the next half-year can never be entered and §288 BGB interest goes stale by
 design. Rows are entered either by a migration (`cse_migrator`) or by a super-admin holding
-`referenz.verwalten` at `aal2`, and every write goes to `audit_log`.
+`system.einstellung_verwalten` at `aal2`, and every write goes to `audit_log`.
+
+**The key is `system.einstellung_verwalten`, not `referenz.verwalten` (K-19).** The draft used the
+latter, and it collides: in `03-AUTH-BERECHTIGUNGEN.md` §7.4 the module `referenz` is *published
+website content* (`seite`, `referenz` — PUB-07, PRO-05), so one module name would have carried two
+unrelated meanings and a web editor's grant would have opened §12 UStG. These five tables are
+platform-level configuration a super-admin maintains, which is what module `system` covers; the key
+exists in the catalogue already, so nothing is minted here.
+
+Both write policies read `app.aktiver_mandant()`, and under K-20 that is stated rather than assumed:
+a write to a global reference table happens only in `mandant` scope, because invariant 10 gives the
+other three scopes no write path at all. In those scopes the predicate is NULL-false and the policy
+correctly refuses — a fail-*closed* NULL, not a silent zero-row read. The `r_lesen` policy is
+deliberately `using (true)` and unaffected: every scope must be able to read a VAT rate, or a
+customer cannot be shown the tax line on their own invoice.
 
 #### steuersatz_gruppe
 
@@ -846,7 +969,7 @@ a unit string. That decision stands — the import keeps succeeding — but it c
 implementer to find on the first LV: the invoice **draft** service resolves `einheit →
 masseinheit.schluessel` and, on a miss, raises the named error `UnbekannteMengeneinheit(einheit)`
 pointing at the Mengeneinheiten screen. It never invents a code, never falls back to `C62`, and never
-silently drops BT-130. Adding the row is a super-admin act under `referenz.verwalten` (the `r_pflege`
+silently drops BT-130. Adding the row is a super-admin act under `system.einstellung_verwalten` (the `r_pflege`
 policy above), and the row may be added with the German label alone and `unece_code` NULL while
 `ist_platzhalter = true` — so the invoice can be drafted and printed at once, and pre-flight rule 14
 blocks only the XRechnung-bound finalisation until the code is confirmed. Auto-creating the row from
@@ -1241,7 +1364,7 @@ moment it is finalised, and never touched again.
 | Auditblock | | | | `versendet_am` and the Storno back-reference are **not** here — see K-12 below |
 
 **K-12 in two places.** Nothing that changes after finalisation lives on this row: `versendet_am`
-moves to `rechnung_versand` (§9.6) and the Storno back-reference to `storno_verweis` (§4.8), so the
+moves to `rechnung_versand` (§9.6) and the Storno back-reference to `rechnung_beziehung` (§4.8), so the
 immutability trigger stays **unconditional** and needs no column allowlist. A column allowlist in that
 trigger would leave invariant 4 with no database-level guarantee at all. The draft carried
 `versendet_am` and `storniert_durch_rechnung_id` on this table and then allowlisted them; both are
@@ -1522,26 +1645,33 @@ Schlussrechnung (FIN-08).
 - **Constraints/triggers:** `CHECK (schluss_rechnung_id <> abschlag_rechnung_id)`; `CHECK (sign(abzug_netto_cent) = sign(abzug_steuer_cent) OR abzug_steuer_cent = 0)`. `fin.abschlag_pruefen()` `BEFORE INSERT`: the referenced Abschlag must be `festgeschrieben`, of `rechnungsart IN ('abschlag','anzahlung')`, the same `mandant_id`, `kunde_id` and `auftrag_id`, and not stornoed. Finalising a `schluss` invoice whose `auftrag_id` still has un-deducted finalised Abschläge is refused by pre-flight rule 12 — FIN-08's "finalization blocked otherwise".
 - **SPEC:** FIN-08, FIN-04, LEG-05.
 
-### 4.8 storno_verweis
+### 4.8 rechnung_beziehung
 
-The link from a reversing invoice to the invoice it reverses — the only lawful way to correct a
-finalised invoice (invariant 4).
+The link from one finalised invoice back to another — the Storno that reverses it and the re-issue
+that replaces it. Correcting a finalised invoice by reversing entry is the only lawful correction
+(invariant 4), and **K-12 names this table**: the back-reference cannot live on `rechnung`, because
+it comes into existence after finalisation and the immutability trigger is unconditional.
+
+**This document owns the table (K-21)** and it is declared exactly once, here. The draft called it
+`storno_verweis`; that name is deleted throughout, together with its two id columns.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | id · mandant_id | uuid | no | |
-| storno_rechnung_id | uuid | no | composite FK; `UNIQUE` |
-| original_rechnung_id | uuid | no | composite FK |
-| art | storno_art | no | `'vollstorno'` until the TODO on the enum is answered |
-| grund | text | no | `CHECK (length(btrim(grund)) >= 10)` — an auditable reason, not „Fehler" |
-| ersatz_rechnung_id | uuid | yes | composite FK — the re-issued invoice, when there is one |
+| von_rechnung_id | uuid | no | composite FK → `rechnung` — the **later** document: the Storno, or the re-issue |
+| zu_rechnung_id | uuid | no | composite FK → `rechnung` — the document it refers back to |
+| art | rechnung_beziehung_art | no | `storno` \| `ersetzt` (§3.1) |
+| storno_art | storno_art | yes | only when `art = 'storno'`; `'vollstorno'` until O-36 is answered |
+| grund | text | yes | required for `art = 'storno'` — an auditable reason, not „Fehler" |
 | Auditblock (insert only) | | | |
 
-- **Indexes:** `UNIQUE (storno_rechnung_id)`; `UNIQUE (original_rechnung_id) WHERE art = 'vollstorno'`; `btree (mandant_id, original_rechnung_id)`.
+- **Indexes:** `UNIQUE (von_rechnung_id, art)` — a Storno reverses exactly one invoice and a re-issue replaces exactly one; `UNIQUE (zu_rechnung_id) WHERE art = 'storno' AND storno_art = 'vollstorno'` — an invoice is fully reversed at most once; `btree (mandant_id, zu_rechnung_id)`.
 - **RLS:** standard, module `finanzen`; **customer ceiling through `rechnung`, and the K-18 `t_kunde` policy of §1.4 through the same parent** (review B18) — a customer whose invoice was cancelled must see that it was.
-- **Constraints/triggers:** `CHECK (storno_rechnung_id <> original_rechnung_id)`. Trigger: both invoices are `festgeschrieben`, same mandant, same `kunde_id`, and for `vollstorno` the Storno's amounts are the exact negation of the original's **per tax group**. A Storno **draws its own number from the same circle** — it is an invoice, and gapless numbering covers it — and it is chained like any other (§5.4).
+- **Constraints/triggers:** `CHECK (von_rechnung_id <> zu_rechnung_id)`; `CHECK ((art = 'storno') = (storno_art IS NOT NULL))`; `CHECK (art <> 'storno' OR length(btrim(grund)) >= 10)`. Trigger: both invoices are `festgeschrieben`, same mandant, same `kunde_id`, and for `vollstorno` the Storno's amounts are the exact negation of the original's **per tax group**. A Storno **draws its own number from the same circle** — it is an invoice, and gapless numbering covers it — and it is chained like any other (§5.4).
 - **The open items net out without a fake payment** (review B20): the Storno transaction writes an `op_ausgleich` row (§7.4) linking the two open items, so neither is dunned and neither waits for money that never moved.
-- **SPEC:** FIN-02, FIN-06, LEG-01, LEG-05, ACC-07.
+- **One row per fact, and the inverse is a query, not a row.** `art` carries exactly the two directed relations above. The `storniert_durch` / `schluss_zu` inverses that `05-API-KARTE.md` §C.14 and `01-ORDNERSTRUKTUR.md` §4.9 list in their enum are **not** stored: an inverse row is a second copy of one fact, and two copies drift. "What reversed me" is `where zu_rechnung_id = $1 and art = 'storno'`, served by the third index.
+- **The Abschlag → Schlussrechnung relation is not here** — it stays in `abschlagsrechnung_bezug` (§4.7), and this is the settlement of the open question the cross-check raised. That relation is not a pure link: it carries `abzug_netto_cent` and `abzug_steuer_cent` **per tax-rate group** plus the `wirksam` flag that §4.9's third sum reconciles against the header. Folding it into an `art = 'abschlag_zu'` row would either drop the amounts or duplicate them, and FIN-08 needs them at exactly the granularity §4.7 stores them.
+- **SPEC:** FIN-02, FIN-06, LEG-01, LEG-05, ACC-07. **K-12, K-21.**
 
 ### 4.9 The deferred totals check
 
@@ -2097,7 +2227,7 @@ Open-item-to-open-item clearing, without inventing a payment.
 | op_haben_id | uuid | no | composite FK → `offener_posten` — the item reducing it |
 | betrag_cent | bigint | no | `CHECK (> 0)` |
 | grund | text | no | `CHECK (length(btrim(grund)) >= 5)` — `storno`, `verrechnung`, `guthaben_verwendung` |
-| storno_verweis_id | uuid | yes | composite FK, set when the clearing is the automatic consequence of a Storno |
+| rechnung_beziehung_id | uuid | yes | composite FK, set when the clearing is the automatic consequence of a Storno |
 | Auditblock (insert only) | | | |
 
 Without this table the normal correction sequence — finalise, customer disputes, Storno, re-issue —
@@ -2899,6 +3029,16 @@ All run as `cse_job` with the per-job grants named here and nothing more; each w
 `audit_log` with `akteur_art = 'system'` and its own `akteur_dienst`. The four SPEC §14 watchdogs
 this domain owns are marked.
 
+**`job_lauf` is `01-KERN.md`'s table and this domain only writes it (K-21).** Its column set is the
+canonical one — `id`, `job text`, `gestartet_am`, `beendet_am`, `ergebnis`, `kennzahlen jsonb`,
+`fehlertext` — and it carries **no `mandant_id`**: it is a platform operations log, not tenant data,
+which is what keeps `audit_log` the only tenant-adjacent table with a nullable one (K-16 d). Every
+job below is per-mandant in its *effect*, so the per-tenant outcome of one run goes to
+**`job_lauf_mandant`** (`job_lauf_id`, `mandant_id`, `ergebnis`, `kennzahlen`) — one row per entity
+touched. That split matters here concretely: `verifiziereHashKette` walks four entities' chains in
+one nightly run, and a single row with one `ergebnis` cannot say that REALTIME's chain verified while
+Reinigung's did not, which is precisely the fact FIN-06 exists to surface.
+
 | Job | Schedule | Grants | Does | SPEC |
 |---|---|---|---|---|
 | `verifiziereHashKette` | nightly | SELECT on the five tables of §5.7; EXECUTE `app.protokolliere` | the five checks of §5.7; alerts immediately on any failure | **SPEC §14 watchdog**, FIN-06 |
@@ -2997,7 +3137,7 @@ erDiagram
   rechnung          ||--|| rechnung_hash           : "chain link"
   rechnung          ||--o{ rechnung_dokument       : "PDF / ZUGFeRD / UBL"
   rechnung_dokument ||--o{ rechnung_versand        : "approved dispatch"
-  rechnung          ||--o| storno_verweis          : "reverses"
+  rechnung          ||--o| rechnung_beziehung          : "reverses"
   rechnung          ||--o{ abschlagsrechnung_bezug : "deducts Abschlag"
   vertrag_abrechnung||--o{ abschlagsplan           : "FIN-08 schedule"
   abschlagsplan     ||--o| rechnung                : "discharged by"
@@ -3053,12 +3193,12 @@ is a review failure; a schema test walks `information_schema` and fails on one. 
 | `rechnung_zuschlag`, `rechnung_steuer`, `rechnung_snapshot`, `rechnung_hash`, `rechnung_dokument` | `(mandant_id, rechnung_id)`; `rechnung_hash` also `(mandant_id, nummernkreis_id)` | on `rechnung`, `nummernkreis` |
 | `rechnungsposition_quelle` | `(mandant_id, rechnungsposition_id)`, `(mandant_id, rechnung_id)`, `(mandant_id, zeiteintrag_id)`, `(mandant_id, aufmass_id)`, `(mandant_id, auftrag_leistung_id)`, `(mandant_id, ausgabe_id)`, `(mandant_id, leistungsnachweis_id)`, `(mandant_id, nachtrag_id)` | on each parent |
 | `abschlagsplan` | `(mandant_id, vertrag_abrechnung_id)`, `(mandant_id, auftrag_id)`, `(mandant_id, rechnung_id)` | on each |
-| `abschlagsrechnung_bezug`, `storno_verweis` | two `(mandant_id, rechnung_id)` each | on `rechnung` |
+| `abschlagsrechnung_bezug`, `rechnung_beziehung` | two `(mandant_id, rechnung_id)` each | on `rechnung` |
 | `rechnung_versand` | `(mandant_id, rechnung_id)`, `(mandant_id, rechnung_dokument_id)`, `(mandant_id, kunde_id)`, `(mandant_id, kunde_id, empfaenger_ansprechpartner_id)`, `(mandant_id, freigabe_id)` | on each; `ansprechpartner` needs `UNIQUE (mandant_id, kunde_id, id)` — which is why the table declares `kunde_id` (§9.6); registering the three-column FK against a table that had no such column made the register itself fail the schema test below |
 | `zahlung` | `(mandant_id, bankkonto_id)`, `(mandant_id, kasse_id)`, `(mandant_id, camt_umsatz_id)` | on each |
 | `zahlung_zuordnung` | `(mandant_id, zahlung_id)`, `(mandant_id, offener_posten_id)` | on each |
 | `offener_posten` | `(mandant_id, rechnung_id)`, `(mandant_id, eingangsrechnung_id)`, `(mandant_id, kunde_id)`, `(mandant_id, lieferant_id)` | on each |
-| `op_ausgleich` | two `(mandant_id, offener_posten_id)`, `(mandant_id, storno_verweis_id)` | on each |
+| `op_ausgleich` | two `(mandant_id, offener_posten_id)`, `(mandant_id, rechnung_beziehung_id)` | on each |
 | `mahnung`, `mahnung_position`, `mahnung_eskalation` | `(mandant_id, kunde_id)`, `(mandant_id, mahnstufe_id)`, `(mandant_id, nummernkreis_id)`, `(mandant_id, mahnung_id)`, `(mandant_id, rechnung_id)`, `(mandant_id, offener_posten_id)`, `(mandant_id, freigabe_id)` | on each |
 | `camt_import`, `camt_umsatz` | `(mandant_id, bankkonto_id)`, `(mandant_id, camt_import_id)`, `(mandant_id, zahlung_id)`, `(mandant_id, dokument_id)` | on each |
 | `kassenbewegung` | `(mandant_id, kasse_id)`, `(mandant_id, beleg_id)`, `(mandant_id, ausgabe_id)`, `(mandant_id, zahlung_id)` | on each |
@@ -3090,7 +3230,7 @@ list, not an example.
 |---|---|
 | two K-03 policies (`t_mandant`, `t_gruppe`) with the module of §1.3 | every tenant table in §3.3 and §4–§9 |
 | the five global reference tables' own policy set (§3.2) | `steuersatz_gruppe`, `masseinheit`, `kleinbetrag_grenze`, `bauabzugsteuer_freigrenze`, `basiszinssatz` |
-| `p_kunde_ceiling` | the **eight** customer-visible tables of §1.4 — `rechnung`, its six customer-visible children (`rechnungsposition`, `rechnung_zuschlag`, `rechnung_steuer`, `rechnung_dokument`, `abschlagsrechnung_bezug`, `storno_verweis`) and `offener_posten` — plus the degenerate `app.portal() <> 'kunde'` form on `ausgabe` and `ausgabe_steuer` |
+| `p_kunde_ceiling` | the **eight** customer-visible tables of §1.4 — `rechnung`, its six customer-visible children (`rechnungsposition`, `rechnung_zuschlag`, `rechnung_steuer`, `rechnung_dokument`, `abschlagsrechnung_bezug`, `rechnung_beziehung`) and `offener_posten` — plus the degenerate `app.portal() <> 'kunde'` form on `ausgabe` and `ausgabe_steuer` |
 | `p_intern_ceiling` | every other tenant table |
 | `p_ma_ceiling` | `ausgabe`, `ausgabe_steuer` |
 | `t_kunde` (K-18, `for select` only) | the same eight customer-visible tables |

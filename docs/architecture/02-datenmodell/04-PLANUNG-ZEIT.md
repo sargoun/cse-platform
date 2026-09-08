@@ -24,11 +24,18 @@ Schema files: `src/server/db/schema/zeit.ts` and `src/server/db/schema/zeit-inte
 
 ### 0.2 What this document does not decide
 
-`mandant`, `benutzer`, `rolle`, `berechtigung`, `audit_log`, `job_lauf`, `person`, `anstellung`, `qualifikation`, `nachweis`, `bewacher_eintrag`, `stundenkonto`, `stundenkonto_bewegung`, `urlaubskonto`, `abwesenheit`, `zeit_einwand`, `antrag`, `benutzer_feed_token` belong to `01-KERN.md`. `kunde`, `objekt`, `raum`, `auftrag`, `auftrag_leistung`, `dokument`, `dokument_aufbewahrung` belong to `02-CRM-OPERATIONS.md`. `revier`, `turnus`, `turnus_ausnahme`, `sonderleistung`, `posten`, `posten_ausnahme`, `veranstaltung`, `einsatzanforderung`, `leistungsnachweis`, `wachbuch_eintrag`, `projekt`, `aufmass`, `bautagebuch`, `reklamation`, `qualitaetspruefung` belong to `03-GEWERKE.md`. `rechnung`, `rechnungsposition`, `nummernkreis` belong to the finance document; `freigabe`, `freigabe_snapshot`, `agent_aufgabe` to the approval and agent documents (K-13); `kalender_eintrag`, `aufgabe`, `benachrichtigung` to the calendar document. §2 states every column and constraint this domain **requires** of them, and §2.3 every requirement this document places on a sibling — those shapes are binding, exactly as `03-GEWERKE.md` §2.1 is binding on this document.
+`mandant`, `benutzer`, `rolle`, `berechtigung`, `audit_log`, `job_lauf`, `job_lauf_mandant`, `mandant_einstellung`, `nachweis_art`, `sicherheitsvorfall`, `loeschprotokoll`, `person`, `anstellung`, `qualifikation`, `nachweis`, `bewacher_eintrag`, `stundenkonto`, `stundenkonto_bewegung`, `urlaubskonto`, `abwesenheit`, `zeit_einwand`, `antrag`, `benutzer_feed_token` belong to `01-KERN.md`. `kunde`, `objekt`, `raum`, `auftrag`, `auftrag_leistung`, `dokument`, `dokument_aufbewahrung` belong to `02-CRM-OPERATIONS.md`. `revier`, `turnus`, `turnus_ausnahme`, `sonderleistung`, `posten`, `posten_ausnahme`, `veranstaltung`, `einsatzanforderung`, `leistungsnachweis`, `wachbuch_eintrag`, `projekt`, `aufmass`, `bautagebuch`, `reklamation`, `qualitaetspruefung` belong to `03-GEWERKE.md`. `rechnung`, `rechnungsposition`, `nummernkreis` belong to the finance document; `freigabe`, `freigabe_snapshot`, `agent_aufgabe` to the approval and agent documents (K-13); `kalender_eintrag`, `aufgabe`, `benachrichtigung` to the calendar document. §2 states every column and constraint this domain **requires** of them, and §2.3 every requirement this document places on a sibling — those shapes are binding, exactly as `03-GEWERKE.md` §2.1 is binding on this document.
 
 ### 0.3 Identifier language
 
-Domain identifiers are German because they carry legal meaning under MiLoG, ArbZG, GewO and GoBD: `planungsserie · einsatz · einsatz_zuordnung · zeiteintrag · zeiteintrag_korrektur · checkin_token · medien · feiertag · arbeitszeit_verstoss`. SQL functions in `app.` and `zeit.` are German, following `01-KERN.md` §3 and `02-CRM-OPERATIONS.md` §0.3. Postgres roles are English per K-01 (`cse_app`, `cse_checkin`, `cse_job`, `cse_definer`). TypeScript infrastructure is English (`withTenant`, `splitteNachMonat`, `ArbzgDetektor`). UI copy is German; every worker-facing label is additionally translatable de/en/ar/tr (EMP-12).
+Domain identifiers are German because they carry legal meaning under MiLoG, ArbZG, GewO and GoBD: `planungsserie · einsatz · einsatz_zuordnung · zeiteintrag · zeiteintrag_korrektur · checkin_token · medien · feiertag · arbeitszeit_verstoss`. SQL functions in `app.`, `kern.` and `zeit_intern.` are German, following `01-KERN.md` §3 and `02-CRM-OPERATIONS.md` §0.3. Postgres roles are English per K-01 (`cse_app`, `cse_checkin`, `cse_job`, `cse_definer`). TypeScript infrastructure is English (`withTenant`, `splitteNachMonat`, `ArbzgDetektor`). UI copy is German; every worker-facing label is additionally translatable de/en/ar/tr (EMP-12).
+
+**There is no schema `zeit`, and an earlier draft of this document invented one.** `01-KERN.md` §0 creates exactly three schemas — `app`, `kern` and `zeit_intern` — and `03-AUTH-BERECHTIGUNGEN.md`'s class-map meta-test scans the constant `ANWENDUNGSSCHEMATA = ['public','kern','zeit_intern']`. A function placed in a fourth schema is not merely mis-filed: the migration fails at `create function`, and any function that did get created would be invisible to the meta-test that is supposed to prove every trigger is classified. The two functions the draft put there move into schemas that exist, and every reference below uses the new names:
+
+| Draft name | Canonical name | Why this schema |
+|---|---|---|
+| `zeit.` `stempel_feldzeit()` | **`kern.stempel_feldzeit()`** | it is the sibling of `kern.erzwinge_serverzeit()` from the same trigger library (`03-GEWERKE.md` §1.11), and `03-GEWERKE.md`'s `gewerke.stempel_feldzeit()` is the *same* function under a third non-existent schema — one function, one owner, one name (§2.3 item 13) |
+| `zeit.` `fenster_setzen(…)` | **`zeit_intern.fenster_setzen(…)`** | it writes `zeit_intern.arbeitszeit_fenster` and nothing else, and `zeit_intern` is the schema K-06's storage already lives in and that PostgREST does not expose (§2.3 item 10) — the same reasoning that already put `zeit_intern.arbzg_belastung_job` there (§6.4) |
 
 ### 0.4 The naming of instant columns, stated once
 
@@ -115,11 +122,26 @@ create policy e_definer on einsatz            for select to cse_definer using (t
 create policy ez_definer on einsatz_zuordnung for select to cse_definer using (true);
 ```
 
-Every `SECURITY DEFINER` function is owned by `cse_definer` and carries `SET search_path = pg_catalog, public` verbatim (K-01), which is why every body below schema-qualifies `app.`, `zeit.` and `public.`. A CI test enumerates `pg_policies` and fails on any `cse_definer` policy outside the list above plus the registry of `01-KERN.md` §3.5; a second test asserts no role in the platform holds `BYPASSRLS`.
+Every `SECURITY DEFINER` function is owned by `cse_definer` and carries `SET search_path = pg_catalog, public` verbatim (K-01), which is why every body below schema-qualifies `app.`, `kern.`, `zeit_intern.` and `public.` (§0.3 — there is no schema `zeit`). A CI test enumerates `pg_policies` and fails on any `cse_definer` policy outside the list above plus the registry of `01-KERN.md` §3.5; a second test asserts no role in the platform holds `BYPASSRLS`.
 
 ### 1.2 Session state (K-02)
 
 All database access runs inside one of the **four** session wrappers — `withTenant`, `withGroupScope`, `withPersonScope`, `withKundeScope` (K-18) — which issue `set_config(..., true)` for the GUCs of K-02: `app.benutzer_id`, `app.person_id`, `app.mandant_id`, `app.mandant_ids`, `app.scope`, `app.portal`, `app.readonly` (**default `on`**), `app.aal`, plus `app.sitzung_id` from `01-KERN.md` §3.1. `app.scope` takes four values — `mandant` · `gruppe` · `person` · `kunde` — and **`app.mandant_id` is NULL in all three multi-tenant scopes**, where `app.mandant_ids` carries the set and is always derived server-side (K-02, K-18). The active mandant is never read from a URL parameter, a header or a request body (TEN-04, AUT-04, invariant 3). Every accessor of `01-KERN.md` §3.1 fails closed: an unset session produces zero rows in this domain, never all rows.
+
+**Every accessor this domain calls resolves in all four scopes (K-20).** An accessor that reads `app.aktiver_mandant()` is NULL in the three multi-tenant scopes by construction, so a policy built on it is false and the page reads zero rows — the K-18 failure reappearing one layer down. The table below is therefore stated per scope rather than "fails closed", and a CI test (K-20) asserts each value:
+
+| Accessor | `mandant` | `gruppe` | `person` | `kunde` |
+|---|---|---|---|---|
+| `app.aktiver_mandant()` | the one active mandant | **NULL** | **NULL** | **NULL** |
+| `app.sichtbare_mandanten()` | `{aktiver_mandant()}` | from `benutzer_mandant` | from the person's `anstellung` rows | from the customer's own `auftrag`/`angebot`/`rechnung` rows (§2.3 item 12) |
+| `app.scope()` | `'mandant'` | `'gruppe'` | `'person'` | `'kunde'` |
+| `app.ist_gruppenansicht()` | false | true | false | false |
+| `app.aktuelle_person()` | the session's `person`, or NULL | same | the subject — never NULL | NULL |
+| `app.aktuelle_kunden()` | the customers this login is bound to, possibly empty | `{}` | `{}` | the subject's `kunde_zugang` binding — **never resolved through `aktiver_mandant()`** |
+| `app.portal()` | derived from the **active membership's role** (K-04) | `'intern'` | `'mitarbeiter'` | `'kunde'` |
+| `app.ist_readonly()` | per session, default `on` | always true | true except the EMP-07/EMP-10 write paths | true except the customer's own messages and uploads |
+
+Two of these rows are corrections, and both were the kind of defect K-20 was written for. **`app.aktuelle_kunden()` resolves from the session's `kunde_zugang` binding** (`02-CRM-OPERATIONS.md` §4.1 owns that table), never through `app.aktiver_mandant()`: in kunde scope that binding *is* the subject of the request, and the scalar `app.aktueller_kunde()` — which does resolve through the active mandant — returns NULL there and would silently empty every customer-facing screen in this domain. This document therefore uses the **array** form in every `t_kunde` policy and every customer ceiling below; the scalar survives only as a mandant-scope convenience, defined as `(app.aktuelle_kunden())[1]`. And **`app.portal()` is bound when the scope is entered** and is never recomputed from `aktiver_mandant` (K-04, K-20): recomputing it would fall through to the fail-closed `'mitarbeiter'` in group, person and kunde scope, which fires every `p_ma_ceiling` of §1.4 inside the group view — a Leitung reading nothing — and ceilings a customer as though they were an employee.
 
 The `[mandant]` segment under `/portal` (K-07) is routing only, validated against the session; on mismatch the route returns **404, not 403** (AUT-06). Two URLs in this domain carry no session at all: `/check-in/[token]` (K-07, K-08), which reaches the database exclusively through `app.checkin_verbrauchen` and, for the late replay, `app.offline_ereignis_annehmen` (§9), and the iCal feed URL of CAL-03, which reaches it exclusively through `app.ical_feed_lesen` (§12.3). All three are rows of the closed K-08 register; this domain adds **no** function to it, and the route-manifest test fails the build on any new pre-session path that is not added to K-08 in the same PR.
 
@@ -161,14 +183,14 @@ create policy t_kunde on <tabelle>
   for select to cse_app
   using (app.scope() = 'kunde'
          and mandant_id = any (app.sichtbare_mandanten())
-         and kunde_id = app.aktueller_kunde());
+         and kunde_id = any (app.aktuelle_kunden()));   -- K-20: the ARRAY form, never the scalar
 ```
 
 | Policy | Tables in this domain | Subject predicate |
 |---|---|---|
 | `t_person` | `einsatz_zuordnung`, `zeiteintrag`, `medien` | `person_id = app.aktuelle_person()`; on `medien` additionally `or erstellt_von_person_id = app.aktuelle_person()` |
 | `t_person` | `einsatz` | `exists (select 1 from einsatz_zuordnung z where z.einsatz_id = einsatz.id and z.person_id = app.aktuelle_person() and z.entfernt_am is null)` — `einsatz` carries no `person_id`, and the subquery resolves through `einsatz_zuordnung`'s own `t_person` policy, so the chain never leaves the subject |
-| `t_kunde` | `einsatz`, `medien` | `kunde_id = app.aktueller_kunde()` on a **denormalised** `kunde_id` (§5.3, §5.8), never a subquery over `objekt`, which a `kunde` session cannot read |
+| `t_kunde` | `einsatz`, `medien` | `kunde_id = any (app.aktuelle_kunden())` on a **denormalised** `kunde_id` (§5.3, §5.8), never a subquery over `objekt`, which a `kunde` session cannot read. The **array** accessor, per K-20 and §1.2: the scalar `app.aktueller_kunde()` resolves through `app.aktiver_mandant()`, which is NULL in kunde scope, so a policy keyed on it reads zero rows |
 | neither | `planungsserie`, `checkin_token`, `zeiteintrag_korrektur`, `offline_ereignis`, `planungs_konflikt`, `arbeitszeit_verstoss`, `feiertag` | a worker sees shifts, not the pattern, the correction trail, the token store or the employer's assessment of them (EMP-13); a customer sees neither |
 
 `app.sichtbare_mandanten()` is derived server-side in every scope — in person scope from the person's own `anstellung` rows, in kunde scope from the customer's own `auftrag`/`angebot`/`rechnung` rows (`01-KERN.md` §3.2) — and never from the request (K-02). Its `kunde` branch is still `false` in `01-KERN.md`, so until the owning document supplies it (§2.3 item 12) a customer in kunde scope reads zero rows here, which is the correct fail-closed state. Neither policy has a write counterpart: `app.aktiver_mandant()` is NULL in both scopes, so every `t_mandant` `WITH CHECK` is false and Postgres refuses the write — the same construction that enforces invariant 10 for group scope. And `app.portal()` (who you are, K-04) and `app.scope()` (across how many tenants you read, K-18) stay different things: the K-04 ceiling of §1.4 is `restrictive` and applies **on top** of `t_person`/`t_kunde`, so both must pass.
@@ -186,14 +208,20 @@ create policy t_kunde on <tabelle>
 | `zeiteintrag_korrektur` | `zeit` | `zeit.lesen` | `zeit.korrigieren` | `gruppe.zeit.lesen` |
 | `medien` | `zeit` | `zeit.lesen` | `zeit.schreiben` | `gruppe.zeit.lesen` |
 | `offline_ereignis` | `zeit` | `zeit.nacherfassung_pruefen` | — (definer only, §9.4) | — |
-| `arbeitszeit_verstoss` | `dienstplan` | `dienstplan.arbzg_lesen` | — (definer only, K-06) | `gruppe.dienstplan.arbzg_lesen` |
+| `arbeitszeit_verstoss` | `dienstplan` | `dienstplan.arbzg_lesen` | — (definer only, K-06) | `gruppe.dienstplan.lesen` |
 | `feiertag` | — | readable by every authenticated session (§5.1) | `cse_job` only | — |
 
-`dienstplan.arbzg_pruefen` is the right K-06 names for the cross-entity reader; it is granted separately from `dienstplan.arbzg_lesen` because reading a finding in one's own plan and querying another entity's load are different acts (§6.3). Seed grants live in the permission matrix of `01-KERN.md` §14.3, and this document requires **exactly these thirteen keys** to exist there — listed, not counted, because a count is what the permission-matrix seed cannot be written against:
+**Module `dienstplan` and module `zeit` are the catalogue's, not this document's** (K-19). `03-AUTH-BERECHTIGUNGEN.md` §7.4 owns the closed module list and §7.2 the closed action vocabulary, and every key below is spelled the way that catalogue spells it. This matters more than it reads: `app.hat_recht()` returns **false** for a key it does not know, so a key this document invents or misspells is not an error anywhere — it is a screen that is permanently empty, with no exception and no log line. CI extracts every right-key literal and fails on a key absent from the catalogue, and on a catalogue key no code uses.
 
-`dienstplan.lesen` · `dienstplan.schreiben` · `dienstplan.konflikt_quittieren` · `dienstplan.arbzg_lesen` · `dienstplan.arbzg_pruefen` · `zeit.lesen` · `zeit.schreiben` · `zeit.korrigieren` · `zeit.checkin_verwalten` · `zeit.nacherfassung_pruefen` · `gruppe.dienstplan.lesen` · `gruppe.zeit.lesen` · `gruppe.dienstplan.arbzg_lesen`
+**The group-read key for ArbZG findings is `gruppe.dienstplan.lesen`, not `gruppe.dienstplan.arbzg_lesen`.** The draft minted the second, and it is not expressible: the group grammar is `gruppe.<modul>.<aktion>` with `aktion` an enum of `berechtigung_aktion`, and `arbzg_lesen` is not one of its values, so the catalogue row cannot be inserted at all — `hat_recht` then returns false for every caller and the group view of `arbeitszeit_verstoss` reads zero rows for ever. There is **one** `gruppe.*.lesen` key per module (`03-AUTH-BERECHTIGUNGEN.md` §12.1), and the tenant-scope distinction this domain genuinely needs — a finding in one's own plan versus an aggregate over another entity — is carried by the two tenant keys `dienstplan.arbzg_lesen` and `dienstplan.arbzg_pruefen`, which have an `objekt` segment slot and are therefore expressible.
 
-(§2.3 item 5 repeats the same list verbatim, and a seed test compares the two.) `zeit.freigeben` is deliberately **not** on it: whether a release step exists at all is O-39, and seeding a right for a step the client may not want would make the placeholder load-bearing (§3.3, K-17).
+`dienstplan.arbzg_pruefen` is the right K-06 names for the cross-entity reader; it is granted separately from `dienstplan.arbzg_lesen` because reading a finding in one's own plan and querying another entity's load are different acts (§6.3). Seed grants live in the permission matrix of `01-KERN.md` §14.3 against the catalogue of `03-AUTH-BERECHTIGUNGEN.md`, and this document requires **exactly these fifteen keys** to exist there — listed, not counted, because a count is what the permission-matrix seed cannot be written against:
+
+`dienstplan.lesen` · `dienstplan.schreiben` · `dienstplan.veroeffentlichen` · `dienstplan.konflikt_quittieren` · `dienstplan.arbzg_lesen` · `dienstplan.arbzg_pruefen` · `dienstplan.arbzg_uebersteuern` · `zeit.lesen` · `zeit.schreiben` · `zeit.korrigieren` · `zeit.checkin_verwalten` · `zeit.nacherfassung_pruefen` · `system.betrieb_lesen` · `gruppe.dienstplan.lesen` · `gruppe.zeit.lesen`
+
+Three of the fifteen were used in this domain without being enumerated, which under K-19 is the same defect as inventing one. `dienstplan.arbzg_uebersteuern` gates saving an assignment against a **non-blocking** ArbZG finding (§6.5, §10.3); a finding with `blockiert = true` is not overridable by any right, and which findings block is O-35. `dienstplan.veroeffentlichen` gates the *act* of releasing a generated plan to the workers it staffs (§8, `04-SEITENKARTE.md`'s Dienstplan screen) — it is a route and service gate, **not** a column here: `einsatz_status` has no `veroeffentlicht` value (§3.1) and this document does not model a publication state, because inventing one would be inventing a workflow SPEC does not state (K-17). Both keys are written against this document's tables by `03-AUTH-BERECHTIGUNGEN.md` §12.4 and `04-SEITENKARTE.md`, so omitting them from the list left two live keys with no owner — and under K-19 a key nobody enumerates is a key CI cannot prove exists. `system.betrieb_lesen` is the right `app.offline_unzugeordnet_lesen()` re-checks before showing the tenantless landing queue (§5.13); its module is `system`, owned by the catalogue, and this document requires the row rather than declaring it.
+
+(§2.3 item 5 repeats the same list verbatim, and a seed test compares the two.) `zeit.freigeben_zur_abrechnung` is deliberately **not** on it: whether a release step between worked time and billing exists at all is **O-39**, and seeding a right for a step the client may not want would make the placeholder load-bearing (§3.3, K-17). `03-AUTH-BERECHTIGUNGEN.md` §12.4 and `04-SEITENKARTE.md`'s `/portal/[mandant]/zeiten/freigabe` currently seed and ship that key; until O-39 is answered it must carry the same O-39 marker there — not seeded, no default binding — because a right that gates a workflow step nobody has confirmed exists is exactly the invented business rule K-17 forbids.
 
 **Invariant 10 is enforced by Postgres.** No `INSERT`/`UPDATE`/`DELETE` policy in this domain references group scope, so a write under `app.scope = 'gruppe'` matches no policy and is refused by the database even with the service guard disabled.
 
@@ -221,7 +249,7 @@ create policy p_ma_ceiling on einsatz as restrictive for all to cse_app
                        and z.entfernt_am is null));
 ```
 
-`planungsserie` carries neither an assignment nor a worker-visible read path at all (§5.2), so its `mitarbeiter` ceiling is the degenerate `app.portal() <> 'mitarbeiter'`. The customer ceiling is the degenerate `app.portal() <> 'kunde'` on every table except `einsatz` and `medien`, where a customer may see the shifts and photos of **their own objects** only, keyed on the row's own denormalised `kunde_id` — never on a subquery over `objekt`, which a `kunde` session cannot read — stated per table.
+`planungsserie` carries neither an assignment nor a worker-visible read path at all (§5.2), so its `mitarbeiter` ceiling is the degenerate `app.portal() <> 'mitarbeiter'`. The customer ceiling is the degenerate `app.portal() <> 'kunde'` on every table except `einsatz` and `medien`, where a customer may see the shifts and photos of **their own objects** only, written `app.portal() <> 'kunde' or kunde_id = any (app.aktuelle_kunden())` — the K-20 array accessor of §1.2, keyed on the row's own denormalised `kunde_id`, never on a subquery over `objekt`, which a `kunde` session cannot read — stated per table.
 
 **How EMP-14/EMP-15 are served without widening anything: the K-18 `t_person` policy, not a disjunct on `t_mandant`.** A worker with employments in two entities has two `benutzer_mandant` rows (K-14 keeps a manual grant and a derived one side by side), and `/portal/mein` runs under `withPersonScope`, where `app.aktiver_mandant()` is NULL and `app.mandant_ids` carries every mandant the person is employed by. The read is therefore the K-18 policy of §1.3 and nothing else:
 
@@ -291,7 +319,7 @@ This replaces the draft's fourth actor value `person_token`, and it answers the 
 
 ### 1.8 The server clock is the source of truth, and what may reach an authoritative column (invariant 5, TIM-08, TIM-09)
 
-`DEFAULT now()` applies only when the column is omitted, so an `INSERT` that supplies a value writes an arbitrary instant and the freeze triggers then make the fabrication permanent. Two triggers, and every table names which applies (`03-GEWERKE.md` §1.11): `kern.erzwinge_serverzeit()` on tables with no device columns, `zeit.stempel_feldzeit()` on the three that carry device columns (`zeiteintrag`, `offline_ereignis`, `zeit_intern.offline_eingang`), which sets the server instant and derives `zeitabweichung_sek` from the device reading.
+`DEFAULT now()` applies only when the column is omitted, so an `INSERT` that supplies a value writes an arbitrary instant and the freeze triggers then make the fabrication permanent. Two triggers, and every table names which applies (`03-GEWERKE.md` §1.11): `kern.erzwinge_serverzeit()` on tables with no device columns, `kern.stempel_feldzeit()` on the three that carry device columns (`zeiteintrag`, `offline_ereignis`, `zeit_intern.offline_eingang`), which sets the server instant and derives `zeitabweichung_sek` from the device reading.
 
 **The rule the review's B10 asks for, stated as a rule rather than as a status value.** The authoritative columns `zeiteintrag.beginn_zeitpunkt` and `zeiteintrag.ende_zeitpunkt` may originate from exactly three sources, and a device is not one of them:
 
@@ -350,7 +378,7 @@ loeschsperre      boolean not null default false  -- an ACTIVE hold, set by the 
 
 **`loeschsperre` defaults to `false`, and fail-closed lives in the purge predicate, not in the default.** Shipping `default true` deadlocked retention against itself, because the draft's §13 and its test 30 forbade `job:aufbewahrung` from writing `aufbewahrung_bis` on a row under Löschsperre: with every row born under one, **no deadline would ever be computed for any row**, LEG-01 and LEG-02 have no data, and §13's own sentence that the finance domain "sets `loeschsperre = true` on billing" describes a transition that could never happen. Nothing is deletable regardless, and by three independent mechanisms: `aufbewahrung_bis` is NULL until the job writes it and the purge path requires `aufbewahrung_bis is not null and aufbewahrung_bis < app.berlin_heute() and not loeschsperre`; no table here has a `DELETE` policy or grant; and `kern.verhindere_loeschung()` raises on every `DELETE` anyway (§1.6). The flag means what its name says — *an active legal hold*, set by the finance domain on billing (FIN-07), by a `medien` parent, or by a documented Betriebsprüfung — and the retention job can therefore do its job.
 
-The class lives in the shared `dokument_aufbewahrung` catalogue (`02-CRM-OPERATIONS.md` §4.6) and is read through `app.aufbewahrung_intervall(p_schluessel)`; §13 maps every table here to its class key. The draft's `DEFAULT ((beginn_utc at time zone 'Europe/Berlin')::date + interval '2 years')` is deleted twice over: a column `DEFAULT` cannot reference another column in Postgres (review, MINOR), and the *clock start* of the MiLoG period is not stated anywhere in the statute text the SPEC cites — see the open question in §17. The draft's "invoice date + 10 years" is deleted for the reason the review gives: §147 Abs. 3 AO runs from the **end of the calendar year** in which the record arose, so an invoice-date anchor under-retains by up to eleven months on every record. The computation lives in `src/server/services/aufbewahrung/` behind
+The class lives in the shared `dokument_aufbewahrung` catalogue (`02-CRM-OPERATIONS.md` §4.6) and is read through **`app.aufbewahrung_intervall(p_mandant uuid, p_schluessel text)`** — the two-argument form its owner declares. The mandant is an argument and not an accessor call: the function runs inside `cse_job` purge policies and `BEFORE INSERT` triggers where `app.aktiver_mandant()` is NULL, so a one-argument form would resolve to NULL and return NULL in exactly the tenantless contexts where retention is decided — a fail-*open* that this document's earlier one-argument call sites would have shipped. This domain's caller passes the row's own `mandant_id`; for `zeit_intern.offline_eingang`, which is tenantless by construction (§5.13), it passes the mandant resolved at promotion or the platform default row. §13 maps every table here to its class key. The draft's `DEFAULT ((beginn_utc at time zone 'Europe/Berlin')::date + interval '2 years')` is deleted twice over: a column `DEFAULT` cannot reference another column in Postgres (review, MINOR), and the *clock start* of the MiLoG period is not stated anywhere in the statute text the SPEC cites — see the open question in §17. The draft's "invoice date + 10 years" is deleted for the reason the review gives: §147 Abs. 3 AO runs from the **end of the calendar year** in which the record arose, so an invoice-date anchor under-retains by up to eleven months on every record. The computation lives in `src/server/services/aufbewahrung/` behind
 
 ```ts
 export interface Aufbewahrungsregel {
@@ -366,9 +394,11 @@ Placeholders carry a bold marker (**PLACEHOLDER** / **PROVISIONAL**), a swappabl
 
 ### 1.15 Behavioural monitoring is gated per feature, not once for geolocation (O-06, §87 Abs. 1 Nr. 6 BetrVG)
 
-The draft treated the Betriebsrat question as gating geolocation alone. The review is right that it does not: `zeitabweichung_sek`, the device fingerprint `geraet_id`, the no-show flag, and the "who corrects a lot of time records" report are *Einrichtungen zur Verhaltens- und Leistungskontrolle* in the same sense a GPS point is, and deciding that only one of them needs the Betriebsrat is itself an unflagged legal ruling. Each is therefore behind its own setting, and the O-06 question is widened in §17:
+The draft treated the Betriebsrat question as gating geolocation alone. The review is right that it does not: `zeitabweichung_sek`, the device fingerprint `geraet_id`, the no-show flag, and the "who corrects a lot of time records" report are *Einrichtungen zur Verhaltens- und Leistungskontrolle* in the same sense a GPS point is, and deciding that only one of them needs the Betriebsrat is itself an unflagged legal ruling. Each is therefore behind its own setting, and the O-06 question is widened in §17.
 
-| Setting | Default | Effect while off |
+**All five are `mandant_einstellung` keys, not columns of `mandant`** (K-21). `05-API-KARTE.md` and `08-PR-PLAN.md` still read `mandant.geo_erfassung_aktiv` and `mandant.ueberwachung_aktiv`; neither column exists, `01-KERN.md` §6.1 declares neither, and a boolean on `mandant` could not express the per-feature granularity §87 Abs. 1 Nr. 6 BetrVG makes necessary — one switch for five distinct *Einrichtungen* is the very collapse this section exists to undo. The keys below are the canonical names, and `z_geo_gate` (§5.6) reads the first of them through `app.einstellung`:
+
+| Setting (`mandant_einstellung.schluessel`) | Default | Effect while off |
 |---|---|---|
 | `zeit.geolokalisierung` | `false` | all coordinate columns must be NULL, status `deaktiviert` (LEG-10) |
 | `zeit.geraetekennung` | `false` | `offline_ereignis.geraet_id` is stored as a per-submission random value, not a stable install id |
@@ -398,14 +428,15 @@ AUT-02 requires 2FA for `super_admin` and `admin` only; every `leitung`, `mitarb
 | `stundenkonto` · `stundenkonto_bewegung` | KERN | `unique (mandant_id, id)` on both | `status`, `gesperrt_am`; the booking path of §12.2 | EMP-04, EMP-15 |
 | `zeit_einwand` | KERN | `unique (mandant_id, id)` | `zeiteintrag_id`, `anstellung_id`, `status`, `korrektur_bewegung_id` | EMP-07 |
 | `benutzer_feed_token` | KERN | `unique (token_hash)` | `benutzer_id`, `zweck`, `widerrufen_am` | CAL-03 |
-| `job_lauf` | KERN | `unique (mandant_id, id)` | `id`, `status`, `kennzahlen jsonb` | TIM-03, SPEC §14 |
+| `job_lauf` | KERN (K-21) | **none — it is a platform log, not a tenant table** | `id`, `job text`, `gestartet_am`, `beendet_am`, `ergebnis`, `kennzahlen jsonb`, `fehlertext` | TIM-03, SPEC §14 |
+| `job_lauf_mandant` | KERN (K-21) | `unique (job_lauf_id, mandant_id)` | `job_lauf_id`, `mandant_id`, `ergebnis`, `kennzahlen jsonb` — the per-tenant outcome of one run | TIM-03, SPEC §14 |
 | `audit_log` | KERN | — | written through `app.protokolliere` | SEC-A9 |
 | `objekt` | CRM-OPS | `unique (mandant_id, id)` | `id`, `kunde_id`, `plz`, `ort`, **`bundesland`** (§2.3) | OPS-01, CLN-03 |
 | `kunde` | CRM-OPS | `unique (mandant_id, id)` | `id` — the denormalised customer key on `einsatz` and `medien` that the K-18 `t_kunde` policies and the customer ceiling are keyed on (§1.3, §5.3, §5.8) | CRM-06, AUT-01 |
 | `auftrag` | CRM-OPS | `unique (mandant_id, id)` | `id`, `status` | OPS-05, TIM-12 |
 | `auftrag_leistung` | CRM-OPS | `unique (mandant_id, id)`, **`unique (mandant_id, auftrag_id, id)` — §2.3 item 9, not yet in `02-CRM-OPERATIONS.md`'s parent-unique register** | `id`, `auftrag_id`, `abrechnungsart`, `gueltig_ab`, `gueltig_bis` | FIN-01, FIN-07 |
-| `dokument_aufbewahrung` | CRM-OPS | `unique (coalesce(mandant_id,…), schluessel)` | via `app.aufbewahrung_intervall` | DOC-07, LEG-01 |
-| `mandant_einstellung` | KERN | `unique (mandant_id, schluessel)` | `wert jsonb` via `app.einstellung` | §1.14, §1.15 |
+| `dokument_aufbewahrung` | CRM-OPS | `unique (coalesce(mandant_id,…), schluessel)` | via `app.aufbewahrung_intervall(p_mandant, p_schluessel)` — **two arguments**, §1.13 | DOC-07, LEG-01 |
+| `mandant_einstellung` | KERN (K-21) | `unique (mandant_id, schluessel)` | `id`, `mandant_id`, `schluessel`, `wert jsonb` — read via `app.einstellung` | §1.14, §1.15 |
 | `revier` · `turnus` · `turnus_ausnahme` | GEWERKE | `unique (mandant_id, id)` | `rrule`, `dtstart_lokal`, `zeitzone`, `dauer_minuten`, `feiertagsregel`, `gueltig_ab/bis`, `letzte_generierung_bis`, `auftrag_leistung_id`, plus `turnus_ausnahme.art/datum/ersatz_beginn_lokal/dauer_minuten` | CLN-01..CLN-03, TIM-02 |
 | `posten` · `posten_ausnahme` | GEWERKE | `unique (mandant_id, id)` | `abdeckung_rrule`, `dtstart_lokal`, `zeitzone`, `dauer_minuten`, `min_besetzung`, `soll_besetzung`, `dienstanweisung_id`, `gueltig_ab/bis`, plus the override columns | SEC-01, TIM-02 |
 | `veranstaltung` | GEWERKE | `unique (mandant_id, id)` | `beginn`, `ende`, `soll_besetzung`, `objekt_id`, `kunde_id` | SEC-08 |
@@ -445,8 +476,8 @@ AUT-02 requires 2FA for `super_admin` and `admin` only; every `leitung`, `mitarb
               and z.anstellung_id = zeit_einwand.anstellung_id)))
    ```
 3. **`02-CRM-OPERATIONS.md` `objekt`** gains `bundesland char(2) null` with `check (bundesland ~ '^[A-Z]{2}$')`. CLN-03 says *Berlin* public holidays; the group's own documentation anticipates work in Brandenburg, and nothing in the schema currently says which Land an object lies in. Until it exists, §8.5 falls back to `app.einstellung('zeit.feiertag_bundesland')` with the SPEC-stated default `'BE'`.
-4. **`01-KERN.md`** must own `mandant_einstellung(mandant_id, schluessel, wert jsonb)` and `app.einstellung(p_schluessel)` — the same requirement `03-GEWERKE.md` §1.16 places. This document reads six settings (§17.2) and defines none of them locally.
-5. **`01-KERN.md` §14.3 — the seeded permission matrix** must contain these thirteen right keys, listed rather than counted so the seed can be written against them: `dienstplan.lesen`, `dienstplan.schreiben`, `dienstplan.konflikt_quittieren`, `dienstplan.arbzg_lesen`, `dienstplan.arbzg_pruefen` (K-06), `zeit.lesen`, `zeit.schreiben`, `zeit.korrigieren`, `zeit.checkin_verwalten`, `zeit.nacherfassung_pruefen`, `gruppe.dienstplan.lesen`, `gruppe.zeit.lesen`, `gruppe.dienstplan.arbzg_lesen`.
+4. **`01-KERN.md`** owns `mandant_einstellung(id, mandant_id, schluessel, wert jsonb)` with `unique (mandant_id, schluessel)` and `app.einstellung(p_schluessel)` — K-21 fixes both the owner and the shape, and `03-GEWERKE.md` §1.16 places the same requirement. This document reads six settings (§17.2) and **declares none of them locally**: in particular the O-06 monitoring switches of §1.15 are `mandant_einstellung` keys and not columns of `mandant` (K-21), so `mandant.geo_erfassung_aktiv` and `mandant.ueberwachung_aktiv` — which `05-API-KARTE.md` and `08-PR-PLAN.md` still write — do not exist and must be replaced by the keys of §1.15/§17.2.
+5. **`03-AUTH-BERECHTIGUNGEN.md` §7.4/§12 — the permission catalogue (K-19)** must carry a row for each of these fifteen right keys, and **`01-KERN.md` §14.3 — the seeded permission matrix** must seed them, listed rather than counted so the seed can be written against them: `dienstplan.lesen`, `dienstplan.schreiben`, `dienstplan.veroeffentlichen`, `dienstplan.konflikt_quittieren`, `dienstplan.arbzg_lesen`, `dienstplan.arbzg_pruefen` (K-06), `dienstplan.arbzg_uebersteuern`, `zeit.lesen`, `zeit.schreiben`, `zeit.korrigieren`, `zeit.checkin_verwalten`, `zeit.nacherfassung_pruefen`, `system.betrieb_lesen` (§5.13), `gruppe.dienstplan.lesen`, `gruppe.zeit.lesen`. Module `dienstplan` must exist in §7.4's closed module list — `01-KERN.md` §6.6's assertion that "there is no module `dienstplan`" and its seeding of `dienstplan.arbzg_pruefen` under a module `einsatz` are both wrong, and K-06 fixes the key *string*, not the module column. `berechtigung_aktion` must contain `schreiben`, `pruefen`, `veroeffentlichen`, `quittieren`, `korrigieren`, `uebersteuern` and `verwalten`, or the keys above cannot be inserted and every policy naming them is permanently false (K-19). `zeit.freigeben_zur_abrechnung` must **not** be seeded until O-39 is answered (§1.3).
 6. **`docs/DESIGN.md`** must gain the status-pill labels of §3.6 before any Dienstplan screen renders them (CLAUDE.md: add to DESIGN.md first, then use).
 7. **`feiertag`** is specified here (§5.1) because no other document owns it, matching the shape `03-GEWERKE.md` §2.1 consumes: `unique (bundesland, datum)`, `datum date`, `bundesland char(2)`, `bezeichnung`, `gesetzlich boolean`, seeded from `src/lib/datum/feiertage-berlin.ts`.
 8. **`01-KERN.md` §6.14 `anstellung`** must declare **`unique (id, person_id)`** beside its existing `unique (mandant_id, id)` and `unique (mandant_id, personalnummer)`. Three composite FKs in this domain — `einsatz_zuordnung`, `zeiteintrag` and `checkin_token`, each `(anstellung_id, person_id) → anstellung (id, person_id)` — are what makes the denormalised `person_id` of §15.3 drift-proof, and Postgres refuses to create any of them until the parent declares the matching unique. It is not a redundant index: it is the only declaration that binds an employment to exactly one human.
@@ -454,6 +485,9 @@ AUT-02 requires 2FA for `super_admin` and `admin` only; every `leitung`, `mitarb
 10. **Deployment — the PostgREST exposed-schema list** must name `public` (and the `app` function schema) only. `zeit_intern` is created by `01-KERN.md` §0 as "NOT exposed by PostgREST"; this document's `zeit_intern.arbeitszeit_fenster` (§5.12), `zeit_intern.offline_eingang` (§5.13) and `zeit_intern.arbzg_belastung_job` (§6.4) rely on that literally, so it is a deployment requirement with a CI assertion (`07-INTEGRATIONEN.md`), not a comment: a configuration change that exposed the schema would turn the one sanctioned crossing into an HTTP endpoint with no code change anywhere.
 11. **`01-KERN.md` §6.24 `stundenkonto`** must expose `(mandant_id, anstellung_id, jahr, monat, status, gesperrt_am)` as readable columns and permit this domain to attach `z_monat_sperren` (`AFTER UPDATE OF status ON stundenkonto`, §14.1) — the single writer of `zeiteintrag.gesperrt_am` (§5.6). Without it the column has no writer, `zk_sperre_ausgleich` never fires, and the ACC-12 payroll predicate selects zero rows.
 12. **`01-KERN.md` §3.2 / `02-CRM-OPERATIONS.md` — `app.sichtbare_mandanten()` must gain its `kunde` branch** before the customer portal reads anything of this domain. KERN's branch is `false` today and says so; every `t_kunde` policy of §1.3 is keyed on that array, so until it exists a customer reads zero rows here — the correct fail-closed state, named rather than assumed.
+13. **`03-GEWERKE.md` §1.11 — the field-time trigger is one function with one name: `kern.stempel_feldzeit()`** (§0.3). GEWERKE calls it `gewerke.stempel_feldzeit()` and an earlier draft of this document called it `zeit.stempel_feldzeit()`; neither schema is created by `01-KERN.md` §0, and two schema-qualified names for one trigger body means either two implementations of invariant 5's server clock or a migration that does not apply. It belongs beside its sibling `kern.erzwinge_serverzeit()`, and `03-AUTH-BERECHTIGUNGEN.md`'s `ANWENDUNGSSCHEMATA` meta-test already scans `kern`.
+14. **`00-KONVENTIONEN.md` K-08, `01-KERN.md` §3.5, `03-AUTH-BERECHTIGUNGEN.md`, `05-API-KARTE.md` §B and `07-INTEGRATIONEN.md` §6.2 — the register row for `app.checkin_verbrauchen` must carry the owner's full signature.** All five write the three-argument `app.checkin_verbrauchen(token_hash, geraet_zeit, ip)`; the body is declared here (§9.1) and takes five: `(p_token_hash text, p_geraete_zeit timestamptz, p_ip inet, p_user_agent text, p_geo jsonb default null)`. The two extra parameters are not optional decoration — `checkin_token.user_agent` (§5.5) and the LEG-10 geo capture (§9.5) have no other source, and dropping them would leave two declared columns with no writer. **Postgres overloads on the argument list**, so `GRANT EXECUTE … TO cse_checkin` written against the three-argument signature does not reach the five-argument function: the grant succeeds against nothing, and the check-in endpoint fails closed at runtime with a "function does not exist" that no schema test catches. One signature, in all six documents.
+15. **`03-AUTH-BERECHTIGUNGEN.md` §7.4/§12.1 must carry the module-`system` key `system.betrieb_lesen`** (the gate `app.offline_unzugeordnet_lesen()` re-checks, §5.13) — it is used here and in `07-INTEGRATIONEN.md` and has no catalogue row today, which under K-19 makes the tenantless offline queue permanently unreadable rather than permission-denied.
 
 ---
 
@@ -660,7 +694,7 @@ Public holidays of a Bundesland — reference data the generator uses to skip oc
 
 - **Indexes:** `feiertag_uk unique (bundesland, datum)` — the generator's per-date probe and the shape `03-GEWERKE.md` §2.1 requires; `feiertag_datum_idx on (datum)` — "all Länder on this date".
 - **RLS:** **not tenant-scoped** — a public holiday is a fact of the Land, identical for all four mandanten. `enable`/`force` with one policy `for select to cse_app using (true)` and **no** `INSERT`/`UPDATE`/`DELETE` policy; rows are written by `job:feiertage_pflegen` running as `cse_job`, seeded from `src/lib/datum/feiertage-berlin.ts` (movable feasts from Easter, Berlin's Internationaler Frauentag included, Fronleichnam and Reformationstag excluded).
-- **Constraints/triggers:** `kern.verhindere_loeschung()`. A year that is already materialised is never re-derived silently: the job reports a diff and `job_lauf` records it.
+- **Constraints/triggers:** `kern.verhindere_loeschung()`. A year that is already materialised is never re-derived silently: the job reports a diff and `job_lauf.kennzahlen` records it (`feiertag` is tenant-free, so this one has no `job_lauf_mandant` half).
 - **SPEC:** CLN-03, TIM-03, LEG-03.
 
 ### 5.2 planungsserie
@@ -755,7 +789,7 @@ One concrete shift at one place in one time window — the row the Dienstplan dr
   create policy t_kunde on einsatz for select to cse_app
     using (app.scope() = 'kunde'
            and mandant_id = any (app.sichtbare_mandanten())
-           and kunde_id = app.aktueller_kunde()
+           and kunde_id = any (app.aktuelle_kunden())     -- K-20: array form, §1.2
            and status <> 'storniert');
   ```
 
@@ -876,7 +910,7 @@ The actual worked-time record: the §17 MiLoG evidence, the source of "currently
 | `erfassungsart_beginn` · `erfassungsart_ende` | erfassungs_art | no · yes | — | may differ (stamped in by token, closed by the planner) |
 | `quelle_beginn` · `quelle_ende` | zeitquelle | no · yes | — | §1.8. `check (quelle_beginn <> 'planer_entscheidung' or nacherfasst)` and the same for `quelle_ende` — the draft had the guard on the start only, so a claimed end could be laundered into an unflagged record (review, MINOR) |
 | `geraete_zeit_beginn` · `geraete_zeit_ende` | timestamptz | yes | — | device clock readings, stored **separately**, never used as the authoritative instant (TIM-08) |
-| `zeitabweichung_beginn_sek` · `zeitabweichung_ende_sek` | integer | yes | — | signed, device minus server, in seconds; derived by `zeit.stempel_feldzeit()`. Invariant 5 names one column `zeitabweichung_sek`; splitting it per event is recorded in DECISIONS.md so a conformance check looking for the literal name finds the reason (review, MINOR) |
+| `zeitabweichung_beginn_sek` · `zeitabweichung_ende_sek` | integer | yes | — | signed, device minus server, in seconds; derived by `kern.stempel_feldzeit()`. Invariant 5 names one column `zeitabweichung_sek`; splitting it per event is recorded in DECISIONS.md so a conformance check looking for the literal name finds the reason (review, MINOR) |
 | `behauptet_beginn` · `behauptet_ende` · `behauptet_pause_minuten` | timestamptz · timestamptz · integer | yes | — | what the worker claims (TIM-09). **Never** copied into an authoritative column without a `zeiteintrag_korrektur` (§1.8) |
 | `nacherfasst` | boolean | no | `false` | TIM-09 "flagged as late". The claim constraint is **per event**: `check (not nacherfasst or behauptet_beginn is not null or behauptet_ende is not null)`. The draft required a `behauptet_beginn` on every late-flagged row, which composes with `check (quelle_ende <> 'planer_entscheidung' or nacherfasst)` into an impossible-to-satisfy-honestly rule for the *commonest* correction of all: a worker stamps in by token and forgets to stamp out, the planner closes the entry, `quelle_ende = 'planer_entscheidung'` forces `nacherfasst`, and `nacherfasst` then demands a start the worker never claimed — so the planner must invent one to record a real correction. The side that *was* decided is evidenced by its own `zeiteintrag_korrektur` row and its Begründung (§5.7), which is where the accountability belongs |
 | `nacherfassung_verzoegerung_sek` | integer | yes | — | server receipt minus claimed start; read by the §17 recording-deadline rule (§10.4) |
@@ -910,7 +944,7 @@ The actual worked-time record: the §17 MiLoG evidence, the source of "currently
   - `z_dauer_berechnen` (`BEFORE INSERT OR UPDATE`): computes `dauer_brutto_minuten` and `dauer_netto_minuten` from `ende_zeitpunkt - beginn_zeitpunkt` and raises when `pause_minuten > dauer_brutto_minuten`. Deliberately a trigger and not a `GENERATED ALWAYS AS … STORED` column: `extract(epoch from …)` is not `IMMUTABLE`, so a generated column is rejected, and hand-rolling the arithmetic in DDL would put the DST-critical calculation where no test can reach it. The trigger calls the same SQL helper the reference tests call.
   - `z_unveraenderlich` (`BEFORE UPDATE`): once `status <> 'laufend'`, the only columns that may change are `ersetzt_am`, `ersetzt_durch_zeiteintrag_id`, `status` (forward only), `freigegeben_*`, `gesperrt_am`, `abgerechnet_am`, `abrechnung_referenz`, `aufbewahrung_bis`, `loeschsperre`, `storniert_*` and `geaendert_*`. Any change to a time, pause, person, object or order value raises. **Corrections are new rows** (TIM-11).
   - `z_erben` (`BEFORE INSERT`): copies `objekt_id`, `auftrag_leistung_id`, `revier_id`, `posten_id`, `projekt_id` from the referenced shift when not supplied (TIM-12 — time attaches to the order with no manual transfer).
-  - `zeit.stempel_feldzeit()` (`BEFORE INSERT OR UPDATE`): sets the server instant on the authoritative column for `quelle = 'server_uhr'`, discards any client value, and derives `zeitabweichung_*_sek` from the device reading.
+  - `kern.stempel_feldzeit()` (`BEFORE INSERT OR UPDATE`): sets the server instant on the authoritative column for `quelle = 'server_uhr'`, discards any client value, and derives `zeitabweichung_*_sek` from the device reading.
   - `z_geo_gate` (`BEFORE INSERT OR UPDATE`): when `app.einstellung('zeit.geolokalisierung')` is false, all six coordinate columns must be NULL and both status columns `'deaktiviert'`; otherwise it raises. LEG-10 is gated on O-06, so the setting ships false and the schema refuses to accumulate location data until the question is answered (§1.15).
   - `z_fenster_projizieren` (`AFTER INSERT OR UPDATE`, `SECURITY DEFINER`): maintains the `ist` window and deactivates the matching `plan` window in the same statement (§6.2).
   - `app.protokolliere()`, `kern.verhindere_loeschung()`.
@@ -1019,7 +1053,7 @@ The tenant-side landing zone for events a phone captured with no network: what w
 | `art` | offline_ereignis_art | no | — | |
 | `behauptete_zeit` | timestamptz | no | — | the claimed event instant (TIM-09) |
 | `geraete_zeit_bei_uebertragung` | timestamptz | no | — | device clock at submission |
-| `empfangen_am` | timestamptz | no | `now()` | server clock — authoritative for lateness (invariant 5), written by `zeit.stempel_feldzeit()` |
+| `empfangen_am` | timestamptz | no | `now()` | server clock — authoritative for lateness (invariant 5), written by `kern.stempel_feldzeit()` |
 | `zeitabweichung_sek` | integer | no | — | `geraete_zeit_bei_uebertragung - empfangen_am`, signed (TIM-08) |
 | `verzoegerung_sek` | integer | no | — | `empfangen_am - behauptete_zeit`. **No `check (>= 0)`**: a device clock running fast produces a negative value, and that fact must be visible rather than rejected |
 | `nutzlast_roh` | text | no | — | the submitted body **byte-faithfully**, plus `nutzlast_sha256 text not null check (~ '^[0-9a-f]{64}$')`. `jsonb` reorders keys, drops duplicates and normalises numbers, so a `jsonb` copy is not evidence (review, MINOR) |
@@ -1035,7 +1069,7 @@ The tenant-side landing zone for events a phone captured with no network: what w
 
 - **Indexes:** `oe_idem_uk unique (geraet_id, client_ereignis_id)` — **not** prefixed with `mandant_id`, so replay of one submission deduplicates across every tenant the device's worker is employed by (review B13); `oe_eingang_uk unique (eingang_id) where eingang_id is not null`; `oe_queue_idx on (mandant_id, status, empfangen_am) where status in ('empfangen','zugeordnet','manuelle_pruefung')` — the processor's and the planner's queues; `oe_person_idx on (person_id, behauptete_zeit) where person_id is not null` — reconstructing what one worker submitted late; `oe_geraet_idx on (geraet_id, empfangen_am)`.
 - **RLS:** standard for read, module `zeit`, right `zeit.nacherfassung_pruefen`, plus the K-04 ceiling. No `t_person` and no `t_kunde`: a claim under review is not a portal row (EMP-13). Ingestion is `app.offline_ereignis_annehmen()` under `cse_checkin` — **row four of the closed K-08 register**, sanctioned there because the replay is check-in data arriving late over the same token, with the same subject, the same authentication and the same conditional-write discipline (K-08, K-09). There is no `INSERT` policy for `cse_app` and none for `cse_anon`; the function writes under the `oe_definer` policy of §1.1. A submission whose token does not resolve is written to `zeit_intern.offline_eingang` instead (§5.13) and is invisible to every `cse_app` session by construction.
-- **Constraints/triggers:** `zeit.stempel_feldzeit()` derives both interval columns from the server clock so the client cannot supply them; `kern.verhindere_loeschung()`; a submission older than `app.einstellung('zeit.nacherfassung_fenster_tage')` becomes `manuelle_pruefung`, never silently dropped.
+- **Constraints/triggers:** `kern.stempel_feldzeit()` derives both interval columns from the server clock so the client cannot supply them; `kern.verhindere_loeschung()`; a submission older than `app.einstellung('zeit.nacherfassung_fenster_tage')` becomes `manuelle_pruefung`, never silently dropped.
 - **SPEC:** TIM-08, TIM-09, TIM-10, TIM-11, EMP-07, LEG-02, SEC-A9.
 
 ### 5.10 planungs_konflikt
@@ -1098,7 +1132,7 @@ A detected ArbZG finding — too long a day, too short a rest, a missing break �
 | *Auditblock* | | | | §1.6 — `'system'` for detector rows |
 
 - **Indexes:** `av_fingerprint_uk unique (mandant_id, fingerprint) where hinfaellig_am is null`; `av_offen_idx on (mandant_id, status, zeitraum_beginn) where status = 'offen'`; `av_person_idx on (mandant_id, person_id, zeitraum_beginn)`; `av_einsatz_idx on (mandant_id, einsatz_id) where einsatz_id is not null`; `av_fremd_idx on (mandant_id, zeitraum_beginn) where betrifft_fremden_mandant` — the cross-entity cases, which are what a Leitung most needs to see.
-- **RLS:** read under the standard policy, module `dienstplan`, right `dienstplan.arbzg_lesen`, plus the K-04 ceiling; group read under `gruppe.dienstplan.arbzg_lesen`. **There is no `INSERT` or `UPDATE` policy for `cse_app` at all** (K-06): a breach spanning two entities must be recorded in both, and a request scoped to mandant A cannot write a row in mandant B. Findings are written only by `app.arbzg_befund_schreiben(...)` (§6.6). The one field a planner changes — the acknowledgement — goes through `app.arbzg_befund_quittieren(p_id, p_begruendung)`, `SECURITY DEFINER`, which re-checks `dienstplan.arbzg_lesen` in the finding's own mandant and writes `audit_log`.
+- **RLS:** read under the standard policy, module `dienstplan`, right `dienstplan.arbzg_lesen`, plus the K-04 ceiling; group read under **`gruppe.dienstplan.lesen`** — the one group key module `dienstplan` has (§1.3; `gruppe.dienstplan.arbzg_lesen` is not expressible under the `gruppe.<modul>.<aktion>` grammar and would be permanently false). **There is no `INSERT` or `UPDATE` policy for `cse_app` at all** (K-06): a breach spanning two entities must be recorded in both, and a request scoped to mandant A cannot write a row in mandant B. Findings are written only by `app.arbzg_befund_schreiben(...)` (§6.6). The one field a planner changes — the acknowledgement — goes through `app.arbzg_befund_quittieren(p_id, p_begruendung)`, `SECURITY DEFINER`, which re-checks `dienstplan.arbzg_lesen` in the finding's own mandant and writes `audit_log`.
 - **Constraints/triggers:** `kern.verhindere_loeschung()` — findings go `hinfaellig`, they do not disappear.
 - **SPEC:** TIM-05, TIM-06, TIM-14, LEG-03, NOT-01, SEC-A9.
 
@@ -1139,7 +1173,7 @@ The pre-resolution landing zone: a submission that arrived over the check-in end
 | Column | Type | Null | Default | Notes |
 |---|---|---|---|---|
 | `id` | uuid | no | `gen_random_uuid()` | PK |
-| `empfangen_am` | timestamptz | no | `now()` | server clock, `zeit.stempel_feldzeit()` — authoritative for lateness (invariant 5) |
+| `empfangen_am` | timestamptz | no | `now()` | server clock, `kern.stempel_feldzeit()` — authoritative for lateness (invariant 5) |
 | `geraet_id` | text | no | — | as `offline_ereignis` (§1.15) |
 | `client_ereignis_id` | uuid | no | — | the id the device minted |
 | `praesentierter_token_hash` | text | no | — | the hash that was presented, `check (~ '^[0-9a-f]{64}$')`. **The hash only** — the raw token is never stored anywhere (§5.5) |
@@ -1157,7 +1191,7 @@ The pre-resolution landing zone: a submission that arrived over the check-in end
 
 - **Indexes:** `eingang_idem_uk unique (geraet_id, client_ereignis_id)` — the same idempotency key as `offline_ereignis`, so a device replaying a rejected submission produces one row and not twenty; `eingang_offen_idx on (empfangen_am) where uebernommen_in_ereignis_id is null and entschieden_am is null` — the operations queue; `eingang_token_idx on (praesentierter_token_hash)` — "was this link ever presented", the question a dispute actually asks.
 - **RLS:** `enable` **and `force`**, **no policy and no grant for `cse_app` or `cse_anon`**, one `eingang_definer` policy (§1.1). It lives in `zeit_intern`, which is not in the PostgREST exposed schema list (§2.3 item 10), so it is unreachable from a browser under any key. Two doors only: `app.offline_ereignis_annehmen` writes it, and `app.offline_unzugeordnet_lesen()` reads it (`SECURITY DEFINER`, requires `system.betrieb_lesen`, writes `audit_log` on every call). Promotion is `app.offline_eingang_zuordnen(p_eingang uuid, p_einsatz_zuordnung uuid, p_begruendung text)`, `SECURITY DEFINER`, which requires `zeit.nacherfassung_pruefen` **in the mandant of the named assignment**, inserts the `offline_ereignis` row with that tenant and `eingang_id` set, and stamps `uebernommen_in_ereignis_id` in the same transaction.
-- **Constraints/triggers:** `zeit.stempel_feldzeit()`; `kern.verhindere_loeschung()`; no `DELETE` path. **It carries no coordinate columns at all** — the LEG-10 gate that governs `zeiteintrag` and `offline_ereignis` cannot be applied to a row with no tenant whose setting could be read, so the answer is not to store any. A coordinate that happens to sit inside `nutzlast_roh` is untouched evidence of what the device sent, is never indexed, queried or aggregated, and is overwritten with a hash-only marker on erasure (§13).
+- **Constraints/triggers:** `kern.stempel_feldzeit()`; `kern.verhindere_loeschung()`; no `DELETE` path. **It carries no coordinate columns at all** — the LEG-10 gate that governs `zeiteintrag` and `offline_ereignis` cannot be applied to a row with no tenant whose setting could be read, so the answer is not to store any. A coordinate that happens to sit inside `nutzlast_roh` is untouched evidence of what the device sent, is never indexed, queried or aggregated, and is overwritten with a hash-only marker on erasure (§13).
 - **Why not a tenant table with a sentinel mandant.** A platform-level "unknown" mandant row would put unattributable submissions inside the tenancy model and inside every group aggregate that counts rows per mandant, and it would invent a legal entity that does not exist (TEN-01). A separate relation says what is true: this submission has no tenant *yet*.
 - **SPEC:** TIM-09, LEG-02, SEC-A3, SEC-A9.
 
@@ -1174,7 +1208,7 @@ TIM-14 and D-09 require: *a person with a 6 h cleaning shift and a 5 h security 
 The draft projected a `plan` row from the assignment and an `ist` row from the time entry and deactivated neither. The detector then summed both for the same worked shift and reported 12 h for a 6 h day — and because the reader strips identifiers, a foreign-tenant plan/actual pair is indistinguishable from two genuine back-to-back shifts, so the error could not be filtered out downstream. The check would have been wrong in both directions: false breaches inside the tenant, unreliable aggregation across it (review B3). K-06 fixes the resolution and this document implements it literally:
 
 ```sql
-create function zeit.fenster_setzen(
+create function zeit_intern.fenster_setzen(
     p_quelle              fenster_quelle,
     p_quelle_id           uuid,
     p_zuordnung_quelle_id uuid,
@@ -1281,6 +1315,24 @@ revoke all on function app.arbzg_belastung(uuid, timestamptz, timestamptz) from 
 grant execute on function app.arbzg_belastung(uuid, timestamptz, timestamptz) to cse_app;
 ```
 
+**`app.fenster_schluessel()` is declared here, because this document is its only caller.** The draft described it in prose and declared it nowhere, which left the one function the K-06 pseudonymisation depends on with no stated owner, no volatility and no grant — a hole in the register `01-KERN.md` §3 and `01-ORDNERSTRUKTUR.md`'s `db/funktionen/` are supposed to enumerate. It is owned by `cse_definer` like every other function of this section:
+
+```sql
+-- The per-installation HMAC key behind fenster_gruppe. It is injected as a database setting at
+-- deploy time (07-INTEGRATIONEN.md owns the deployment) and is NEVER stored in a table, so a
+-- database dump does not let its holder correlate fenster_gruppe values back to assignments.
+create function app.fenster_schluessel() returns bytea
+language sql stable                         -- STABLE, not IMMUTABLE: the setting can be rotated
+security definer set search_path = pg_catalog, public as $$
+  select decode(current_setting('cse.fenster_schluessel'), 'base64');
+$$;
+
+revoke all on function app.fenster_schluessel() from public;
+grant execute on function app.fenster_schluessel() to cse_definer;   -- and to no other role
+```
+
+Three properties are load-bearing and each is a test. It is **`STABLE`, never `IMMUTABLE`** — an immutable function reading `current_setting` may be folded into an index or a cached plan, and the key would then survive a rotation inside a query plan. It is granted to **`cse_definer` only**: `cse_app` never calls it, because a role that can compute the HMAC can build a rainbow table over the assignment ids it already sees and de-anonymise every `fenster_gruppe` the reader hands it. And `current_setting` is called **without** the `missing_ok` second argument, so a deployment that forgot to inject the key raises rather than silently hashing under an empty key — which would make every installation's `fenster_gruppe` values comparable with every other's.
+
 Note what it does **not** return: no `mandant_id`, no entity name, no `anstellung_id`, no source row id, no `objekt`, no `kunde`, no `personalnummer`, no rate. A cleaning planner learns "this person is otherwise committed 22:00–06:00 somewhere in the group" and nothing more — which is exactly what §2 ArbZG obliges an employer to establish, and no more. `digest()` and `hmac()` come from `pgcrypto`, which the first migration enables platform-wide; `app.fenster_schluessel()` reads a per-installation secret injected as a database setting at deploy time and never stored in a table, so a database dump does not let the holder correlate `fenster_gruppe` values back to assignments. `fenster_gruppe` is an HMAC of the assignment id under that key, so the caller can deduplicate a plan/actual pair it is not allowed to identify and cannot reverse the value into an id (K-06's "opaque hash, for deduplication only"). **The draft's `app.arbeitszeit_fenster_lesen` is deleted**: it returned `mandant_id` for mandanten the caller could see, which is a fact about another entity's roster that no requirement asks for, and it was declared `STABLE` while promising an audit write Postgres would have refused to execute (review B6).
 
 ### 6.4 The nightly detector has no session — the job entry point (review B14)
@@ -1315,6 +1367,8 @@ await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${'arbzg:' + personId
 ```
 
 Advisory locks are database-global, which is precisely what is needed here: the lock is taken on the **person**, so it serialises two planners in two different tenants who have no other point of contact. It is transaction-scoped, so it is released on commit or rollback with no cleanup path. Test: two parallel transactions in two mandanten for one person produce exactly one detected breach, never zero.
+
+When the live path reports a finding the planner wants to save anyway, the service requires **`dienstplan.arbzg_uebersteuern`** in the active mandant (§1.3) and records the override in `audit_log` beside the finding. The right can only widen what a *non-blocking* finding permits: a finding whose `planungs_konflikt.blockiert` is true is refused for every caller regardless of rights, and which findings block is **O-35** — the platform does not decide it here.
 
 ### 6.6 Writing findings — `app.arbzg_befund_schreiben` (review B2, K-06)
 
@@ -1516,7 +1570,7 @@ app.planungsbedarf(p_mandant uuid, p_von date, p_bis date)
 1. `select pg_advisory_xact_lock(hashtext('einsatz_generator:' || planungsserie_id))` — two concurrent runs must not both materialise the same night.
 2. Enumerate RRULE occurrences from `greatest(gueltig_ab, app.berlin_heute())` to `app.berlin_heute() + horizont_tage` (TIM-03's eight weeks by default), in `zeitzone`, with the RFC 5545 parser of `src/lib/datum/rrule.ts` — the same parser the service uses to validate a rule on save. The draft's `check (rrule ~ '^FREQ=')` is **deleted**: RFC 5545 does not fix part order, so `INTERVAL=2;FREQ=WEEKLY;BYDAY=MO,WE` is legal and would have been rejected at the constraint (review, MINOR). `03-GEWERKE.md` §5.3 already carries the only constraints the carrier needs (`rrule !~ 'DTSTART'`, `!~ 'TZID'`, `!~ 'RRULE:'`).
 3. Apply the carrier's exceptions from `turnus_ausnahme` / `posten_ausnahme`: `ausfall` removes, `verschiebung` moves, `zusatz` adds, `ersatz_besetzung` overrides the staffing for that night.
-4. Drop occurrences that fall on a `feiertag` for the resolved Bundesland when the carrier's `feiertagsregel` says so (CLN-03), and record the fact: the shift is **not** silently absent, it is either not created with a `job_lauf` entry naming the date and the holiday, or created with `feiertag_id` set when the carrier works through holidays.
+4. Drop occurrences that fall on a `feiertag` for the resolved Bundesland when the carrier's `feiertagsregel` says so (CLN-03), and record the fact: the shift is **not** silently absent, it is either not created with a `job_lauf_mandant` entry naming the date and the holiday, or created with `feiertag_id` set when the carrier works through holidays.
 5. Resolve each occurrence's local anchors to instants per §7.2, setting `zeitanomalie`.
 6. Resolve `anforderung_snapshot` through `app.qualifikationsanforderung(p_einsatz)` (§11) and freeze it on the row.
 7. Upsert:
@@ -1554,7 +1608,7 @@ Three properties this buys: **idempotent** (re-running produces zero new rows); 
 
 ### 8.4 What the run could not apply is reported, not swallowed
 
-The `where` guard in step 7 silently skips occurrences that are in the past or already worked. A series edit that cannot be applied would then leave the plan quietly out of sync with the pattern (review, MINOR). The upsert's `returning` feeds `planungsserie.letzte_meldung` and `job_lauf.kennzahlen`:
+The `where` guard in step 7 silently skips occurrences that are in the past or already worked. A series edit that cannot be applied would then leave the plan quietly out of sync with the pattern (review, MINOR). The upsert's `returning` feeds `planungsserie.letzte_meldung` and `job_lauf_mandant.kennzahlen` (the per-tenant half of the run record, K-21):
 
 ```json
 {"erzeugt": 41, "aktualisiert": 6, "storniert": 2,
@@ -1648,7 +1702,7 @@ Zero rows returned **is** the 409: already used, revoked, or outside the window.
   end if;
 ```
 
-`beginn_zeitpunkt` is `now()` — the **server clock**, never anything the phone sent (invariant 5, TIM-08). The device reading goes into `geraete_zeit_beginn`, and `zeit.stempel_feldzeit()` derives `zeitabweichung_beginn_sek` from it. The actor is `mensch` with the worker's own `benutzer` resolved from `person_id` (§1.6), not an anonymous token identity — and, per the guard above, an unresolvable actor aborts the transaction rather than consuming the link. The check-out branch takes the same shape: it raises when its `UPDATE` matches no open entry, because a check-out token consumed against nothing is the same silent loss. Finally `checkin_token.eingeloest_zeiteintrag_id` is set, and `app.protokolliere` records the redemption with the IP (SEC-A9).
+`beginn_zeitpunkt` is `now()` — the **server clock**, never anything the phone sent (invariant 5, TIM-08). The device reading goes into `geraete_zeit_beginn`, and `kern.stempel_feldzeit()` derives `zeitabweichung_beginn_sek` from it. The actor is `mensch` with the worker's own `benutzer` resolved from `person_id` (§1.6), not an anonymous token identity — and, per the guard above, an unresolvable actor aborts the transaction rather than consuming the link. The check-out branch takes the same shape: it raises when its `UPDATE` matches no open entry, because a check-out token consumed against nothing is the same silent loss. Finally `checkin_token.eingeloest_zeiteintrag_id` is set, and `app.protokolliere` records the redemption with the IP (SEC-A9).
 
 `app.versuch_protokollieren` is called from *inside* this function, so it runs as `cse_definer`, the owner — `cse_checkin` needs no grant on it and K-01 gives it none (K-08).
 
@@ -1759,7 +1813,7 @@ The gate is a `BEFORE INSERT OR UPDATE` trigger on the assignment, and the plan 
 | Objection (EMP-07) | `zeit_einwand` insert in a **re-entered `withTenant`**, mandant resolved server-side (§1.4, K-18) | KERN |
 | Photos I took (TIM-10) | `medien`, `erstellt_von_person_id` branch | `me_person_idx` |
 
-Every shift is labelled with its entity (EMP-14) from `mandant.schluessel`, which the worker's own membership already exposes — it is not a cross-tenant read.
+Every shift is labelled with its entity (EMP-14) from **`mandant.slug`** — the canonical spelling K-07 and K-21 fix, not the `mandant.schluessel` an earlier draft of this document copied from `01-KERN.md`; the reserved values are `gruppe`, `mein`, `kunde`, `konto` and `api` (K-21), and the column is the one the `/portal/[mandant]` segment resolves against. The worker's own membership already exposes it, so this is not a cross-tenant read.
 
 ### 12.2 Corrections after a month locks (EMP-04, review B7)
 
@@ -1795,7 +1849,7 @@ app.kalender_eigene_einsaetze(p_von timestamptz, p_bis timestamptz)
 
 ## 13. Retention, Löschsperre and erasure (LEG-01, LEG-02, LEG-09, DOC-07)
 
-Every table carries `aufbewahrung_bis date` and `loeschsperre boolean not null default false` (§1.13 — an *active* hold, not a birth state), and each is mapped to a class in `dokument_aufbewahrung`:
+Every table carries `aufbewahrung_bis date` and `loeschsperre boolean not null default false` (§1.13 — an *active* hold, not a birth state), and each is mapped to a class in `dokument_aufbewahrung`, resolved through the two-argument `app.aufbewahrung_intervall(mandant_id, klassenschluessel)` of §1.13:
 
 | Table | Class key | Basis | Notes |
 |---|---|---|---|
@@ -1821,7 +1875,7 @@ Rules that hold regardless of the answers: `job:aufbewahrung` writes `aufbewahru
 | `kern.setze_geaendert_am()` | every mutable table, `BEFORE UPDATE` | K-16 | — |
 | `kern.verhindere_loeschung()` | **every** table in this domain, `BEFORE DELETE` | invariant 8 | LEG-01, LEG-02 |
 | `kern.erzwinge_serverzeit()` | `storniert_am`, `entfernt_am`, `widerrufen_am`, `durchgefuehrt_am`, `letzte_generierung_am` | invariant 5 | TIM-08 |
-| `zeit.stempel_feldzeit()` | `zeiteintrag`, `offline_ereignis`, `zeit_intern.offline_eingang`, `BEFORE INSERT OR UPDATE` | server instant + `zeitabweichung_sek` | TIM-08, TIM-09 |
+| `kern.stempel_feldzeit()` | `zeiteintrag`, `offline_ereignis`, `zeit_intern.offline_eingang`, `BEFORE INSERT OR UPDATE` | server instant + `zeitabweichung_sek` | TIM-08, TIM-09 |
 | `ct_fenster_ableiten` | `checkin_token`, `BEFORE INSERT` | validity window is not a client input | TIM-07 |
 | `ct_unveraenderlich` | `checkin_token`, `BEFORE UPDATE` | column allowlist; `eingeloest_am` one-way | TIM-07, K-09 |
 | `ct_widerrufen` | `einsatz`, `einsatz_zuordnung`, `AFTER UPDATE` | revoke on cancel / move / removal | TIM-07, §9.3 |
@@ -1858,7 +1912,7 @@ Each carries `mandant_id` in its output and has its own SEC-A3 case.
 
 | Job | Cadence | Role and grants | Writes | SPEC |
 |---|---|---|---|---|
-| `job:einsaetze_generieren` | nightly + on demand | `cse_job`; `select` on the carriers, `insert/update` on `einsatz`, `update` on `planungsserie` | `einsatz`, `planungsserie.letzte_meldung`, `job_lauf` | TIM-03 |
+| `job:einsaetze_generieren` | nightly + on demand | `cse_job`; `select` on the carriers, `insert/update` on `einsatz`, `update` on `planungsserie` | `einsatz`, `planungsserie.letzte_meldung`, `job_lauf` + `job_lauf_mandant` | TIM-03 |
 | `job:arbzg_detektor` | nightly | `cse_job`; `execute` on `zeit_intern.arbzg_belastung_job`, `app.arbzg_befund_schreiben` (admitted by its `session_user = 'cse_job'` branch, §6.6) | `arbeitszeit_verstoss`, `planungs_konflikt` | TIM-14, LEG-03 |
 | `job:arbzg_fenster_abgleich` | nightly | `cse_job`; `select/update` on `zeit_intern.arbeitszeit_fenster` | reports drift as `kritisch`, **including a window whose `zuordnung_quelle_id` no longer resolves** — the integrity check that stands in for the foreign key that column cannot have (§5.12); never silently repairs | TIM-14 |
 | `job:qualifikation_revalidieren` | nightly | `cse_job`; `execute` on the gate function | `planungs_konflikt`, notifications | SEC-04, LEG-04 |
@@ -1872,7 +1926,7 @@ Each carries `mandant_id` in its output and has its own SEC-A3 case.
 | `job:aufbewahrung` | nightly | `cse_job` | writes `aufbewahrung_bis` | LEG-01, DOC-07 |
 | `job:feiertage_pflegen` | yearly + on demand | `cse_job` | `feiertag` | CLN-03 |
 
-Every job writes a `job_lauf` row with counts and its skipped set; a job that reports nothing at all for a mandant that has active series is itself an alert.
+Every job writes **one** `job_lauf` row per run — the platform-level record K-21 assigns to `01-KERN.md`, carrying `job`, `gestartet_am`, `beendet_am`, `ergebnis`, `kennzahlen jsonb` and `fehlertext` and **no `mandant_id`** — plus one `job_lauf_mandant` row per tenant the run touched, carrying that tenant's counts and skipped set. The split is not cosmetic: a nullable `mandant_id` on `job_lauf` would make it a second tenant-adjacent table with one, which K-16(d) reserves for `audit_log` alone, and a `NOT NULL` one cannot express a run that spans all four entities. A job that reports nothing at all for a mandant that has active series is itself an alert, and that check reads `job_lauf_mandant`.
 
 ### 14.4 Composite foreign keys and the parent uniques they require (K-16)
 
@@ -1885,6 +1939,7 @@ Every job writes a `job_lauf` row with counts and its skipped set; a job that re
 | `einsatz` | `(mandant_id, objekt_id) → objekt (mandant_id, id)` | `02-CRM-OPERATIONS.md` §4.2 |
 | `einsatz` | `(mandant_id, kunde_id) → kunde (mandant_id, id)` | `02-CRM-OPERATIONS.md` — the denormalised customer key of §5.3 |
 | `einsatz` | `(mandant_id, feiertag_id)` — **not composite**: `feiertag` is tenant-free reference data (§5.1), so the FK is the single column `feiertag_id → feiertag (id)`. Listed so the schema test's "single-column reference" rule knows this is the intended exception | §5.1 |
+| `planungsserie` · `einsatz` | `letzter_job_lauf_id → job_lauf (id)` and `generator_lauf_id → job_lauf (id)` — **not composite**, for the same reason: `job_lauf` is a platform operations log and carries **no `mandant_id`** at all (K-21), so there is no `unique (mandant_id, id)` to reference and none may be demanded of `01-KERN.md`. The per-tenant half of a run is `job_lauf_mandant`, which this domain reads and does not point a column at | K-21, §5.2, §5.3 |
 | `einsatz` | `(mandant_id, auftrag_id, auftrag_leistung_id) → auftrag_leistung (mandant_id, auftrag_id, id)` | `02-CRM-OPERATIONS.md` §4 — the grandparent key |
 | `einsatz` | the five trade anchors, each `(mandant_id, x_id)` | the owning table's `unique (mandant_id, id)` |
 | `einsatz_zuordnung` | `(mandant_id, einsatz_id) → einsatz (mandant_id, id)` | §5.3 |
@@ -1964,6 +2019,11 @@ Writing the assignment is a human action through the ordinary service, which re-
 17. Routing `/portal/mein` or `/portal/kunde` through `withGroupScope`, or keying either portal's read on `gruppe.<modul>.lesen` (K-18, §1.3, §12.1) — it reads zero rows, and the "fix" is a group right for every cleaner.
 18. A policy predicate that resolves the subject through a **subquery over another tenant table** (`objekt`, `anstellung`) instead of a column on the row: under RLS that subquery returns nothing the moment the referenced table is correctly closed, and the failure looks like an empty list rather than an error (§5.3, `03-GEWERKE.md` §1.8, review B16).
 19. `CURRENT_USER` used to identify the caller inside a `SECURITY DEFINER` body — it is always `cse_definer` there; the role that connected is `SESSION_USER` (§6.6, K-01).
+20. A right key that is not a row of the `03-AUTH-BERECHTIGUNGEN.md` catalogue, or a group key of any shape but `gruppe.<modul>.<aktion>` (K-19, §1.3). `app.hat_recht()` returns **false** for an unknown key, so this defect never raises, never logs, and never appears in review — it appears as a screen that is empty for ever.
+21. A policy or ceiling keyed on the **scalar** `app.aktueller_kunde()`, or on any accessor that resolves through `app.aktiver_mandant()`, in a scope where `app.mandant_id` is NULL (K-20, §1.2). The array form `app.aktuelle_kunden()` is the only customer key in this domain.
+22. Recomputing `app.portal()` from `app.aktiver_mandant()` rather than reading the value bound when the scope was entered (K-04, K-20, §1.2) — it falls through to `'mitarbeiter'` in the three multi-tenant scopes and fires every ceiling of §1.4 inside the group view.
+23. A function of this domain declared in a schema `01-KERN.md` §0 does not create — in particular a schema `zeit` (§0.3). Only `app`, `kern`, `zeit_intern` and `public` exist.
+24. A second declaration of a table this document does not own — `job_lauf`, `job_lauf_mandant`, `mandant_einstellung`, `nachweis_art`, `loeschprotokoll` are `01-KERN.md`'s (K-21); this document references them by the owner's exact column names and redeclares none of them.
 
 ---
 
@@ -2061,7 +2121,7 @@ Nothing here is optional; each line names the failure it prevents. The five mark
 
 **Planning (TIM-03, TIM-05, SEC-04)**
 
-23. Generator run twice, then a third time after a `verschiebung`: row counts identical, the moved occurrence has one row and not two, and skipped keys appear in `job_lauf`.
+23. Generator run twice, then a third time after a `verschiebung`: row counts identical, the moved occurrence has one row and not two, and skipped keys appear in `job_lauf_mandant.kennzahlen` for the mandant concerned, with exactly one `job_lauf` row per run and no `mandant_id` on it (K-21).
 24. A holiday-skipped date produces no shift **and** an explaining entry; a `feiertagsregel` that works through holidays produces a shift with `feiertag_id` set.
 25. Assigning a guard whose §34a `nachweis` expires before the shift date is denied in the service **and** by the trigger; assigning one whose `bewacher_eintrag` is not `registriert` is denied too (LEG-04).
 26. A certificate expiring between assignment and shift produces a `planungs_konflikt` with `art = 'qualifikation_entfallen'` on the next nightly run (review B8). **Two** shifts on the same Berlin day that each lose a qualification produce **two** rows, one per anchoring assignment — while two ArbZG findings for one person on one day still collapse to one (§5.10's per-`art` fingerprint).
@@ -2073,7 +2133,17 @@ Nothing here is optional; each line names the failure it prevents. The five mark
 28. Coordinates written while `zeit.geolokalisierung` is off raise (LEG-10).
 29. `medien` insert whose parent lives in another tenant raises; the orphan job reports a parent that vanished (§5.8.1).
 30. `job:aufbewahrung` **does** compute and write `aufbewahrung_bis` for a row under `loeschsperre` — computing a deadline is not deleting — while the purge path selects nothing whose `aufbewahrung_bis` is NULL, nothing whose deadline is in the future, and nothing under `loeschsperre`. A companion case asserts that a freshly inserted row has `loeschsperre = false` and receives a deadline on the first nightly run, which the `default true` of the draft made impossible for every row in the domain (§1.13, §13).
-31. A schema test walks `information_schema` and asserts: no column named `mandant_id` in this domain is nullable (§16 item 16); every composite FK of §14.4 exists with the column order `(mandant_id, …)` and a matching parent unique; and no single-column FK points at a `mandant_id`-bearing table except the two §14.4 names (`feiertag_id`, `eingang_id`).
+31. A schema test walks `information_schema` and asserts: no column named `mandant_id` in this domain is nullable (§16 item 16); every composite FK of §14.4 exists with the column order `(mandant_id, …)` and a matching parent unique; and no single-column FK points at a `mandant_id`-bearing table except the §14.4 exceptions (`feiertag_id`, `eingang_id`, `letzter_job_lauf_id`, `generator_lauf_id` — the last two because `job_lauf` carries no `mandant_id` at all, K-21).
+
+**Permission keys, scope accessors and schemas (K-19, K-20, K-21)**
+
+32. A catalogue test extracts every right-key literal from this domain's policies, definer bodies and route gates and asserts each is a row of `03-AUTH-BERECHTIGUNGEN.md`'s catalogue, and that the fifteen keys of §1.3 are exactly the set found — no key used and unlisted, no key listed and unused (K-19). It asserts separately that no key of the shape `gruppe.<modul>.<objekt>_<aktion>` occurs anywhere, which is what caught `gruppe.dienstplan.arbzg_lesen`.
+33. `zeit.freigeben_zur_abrechnung` appears in **no** policy, no seed and no route gate of this domain while O-39 is open (§1.3, K-17).
+34. An accessor test enters each of the four scopes in turn and asserts every accessor of §1.2 returns the value that table states — in particular that `app.aktuelle_kunden()` is non-empty for a bound customer in `kunde` scope (where a scalar keyed on `aktiver_mandant()` returns NULL) and that `app.portal()` is `'intern'` in `gruppe` scope, `'mitarbeiter'` in `person` scope and `'kunde'` in `kunde` scope (K-20). A companion case asserts a `leitung` in group scope reads a `t_gruppe` row rather than being ceilinged to zero by a recomputed `portal()`.
+35. A customer bound to one `kunde` reads their own object's shifts and photos in `kunde` scope, and **zero** rows of `planungsserie`, `checkin_token`, `zeiteintrag_korrektur`, `offline_ereignis`, `planungs_konflikt` and `arbeitszeit_verstoss` — the `t_kunde` and ceiling pair, keyed on the array accessor (§1.3, §1.4).
+36. A catalogue test asserts every function this document declares lives in `app`, `kern`, `zeit_intern` or `public` and that `pg_namespace` contains no schema `zeit` (§0.3, §16 item 23), and that `kern.stempel_feldzeit()` exists exactly once — not also as `gewerke.stempel_feldzeit()` or `zeit.stempel_feldzeit()` (§2.3 item 13).
+37. `app.fenster_schluessel()` is `STABLE`, is granted to `cse_definer` and to no other role, and raises when the deploy-time setting is absent; a case asserts `cse_app` calling it is denied, so a caller of `app.arbzg_belastung` cannot recompute the HMAC and de-anonymise `fenster_gruppe` (§6.3).
+38. `pg_proc` carries exactly one `app.checkin_verbrauchen`, with the five-argument signature of §9.1, and the `cse_checkin` grant resolves to it — the overload trap of §2.3 item 14, which a three-argument grant would pass silently while granting nothing.
 
 ---
 
