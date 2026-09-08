@@ -87,6 +87,8 @@ describe('(3) das Dienstregister deckt künftige Module automatisch ab', () => {
   it('und das Register kennt jeden Dienst, der existiert', () => {
     // Die Gegenrichtung: sonst prüft der Gruppentest eine Teilmenge und
     // meldet dabei Vollständigkeit.
+    // Nur `services/` — `jobs/` laeuft als `cse_job` ausserhalb jeder
+    // Benutzersitzung, und die Gruppenansichtsfrage stellt sich dort nicht.
     const quellen = execFileSync('find',
       [join(WURZEL, 'src/server/services'), '-name', '*.ts'], { encoding: 'utf8' })
       .trim().split('\n').filter((z) => z !== '')

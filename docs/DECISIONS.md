@@ -789,6 +789,55 @@ Findet sich keine Regel, gilt `aufbewahrung_bis = NULL` **und
 verschieden sind und niemand sie entschieden hat (O-25). Eine gesetzte Sperre
 laesst sich nicht wieder loesen.
 
+### D-50 · Die wichtigste Eigenschaft von `job_lauf` ist eine Abwesenheit
+
+`job_lauf` hat **kein** `mandant_id`, und das ist der Entwurf, nicht eine
+Auslassung. K-16(d) laesst genau eine mandantennahe Tabelle mit nullbarem
+`mandant_id` zu — `audit_log` —, und ein naechtlicher Lauf ueber alle vier
+Gesellschaften hat keinen einzelnen zu nennen. Schwerer wiegt: eine Zeile mit
+`mandant_id IS NULL` in einer Tabelle, deren Policy darauf keyt, ist von jedem
+Mandanten aus unsichtbar ODER fuer alle sichtbar, je nach Praedikat — und
+beides ist falsch.
+
+Das Ergebnis je Mandant lebt in `job_lauf_mandant`, dort mit `mandant_id NOT
+NULL`. Ein Schema-Test prueft die Abwesenheit der Spalte, die Anwesenheit der
+anderen, und dass die Entwurfsnamen (`job_schluessel`, `begonnen_am`,
+`befund`, `status`) nirgends auftauchen.
+
+### D-51 · Ein Job scheitert beim REGISTRIEREN, nicht um drei Uhr nachts
+
+`bereich` (`je_mandant` | `uebergreifend` | `plattform`) ist Pflicht, und
+`uebergreifend` muss man hinschreiben: ein Job ohne erklaerten Mandantenbezug
+ist einer, bei dem niemand entschieden hat, ob er Mandantengrenzen
+ueberschreitet. Ebenso abgewiesen werden ein Zeitplan, der kein 5-Feld-Cron
+ist, ein doppelter Schluessel und `versuche > 10` — ein Job, der ewig
+wiederholt, stirbt nicht, er faellt nur nie auf.
+
+Die Idempotenz liegt auf einem **eindeutigen Index**, nicht in einer Variablen
+im Prozess: zwei gleichzeitig ausgeloeste Laeufe treffen denselben Index, einer
+gewinnt, der andere sieht das. Ohne sie erzeugt ein doppelt ausgeloester
+naechtlicher Lauf zwei Mahnungen an denselben Kunden.
+
+Bei `je_mandant` beendet ein scheiternder Mandant den Lauf fuer die anderen
+nicht — er wird als eigenes Ergebnis vermerkt, und der Lauf ist `teilweise`.
+Ein Alarm geht in beiden Faellen raus: ein Job, der scheitert und niemanden
+erreicht, ist ein Job, der nicht laeuft, und das faellt erst auf, wenn jemand
+die Zahlen vermisst.
+
+### D-52 · Ein jsonb-Parameter wird nicht vorserialisiert
+
+`JSON.stringify(kennzahlen)` als Parameter mit `::jsonb` sieht richtig aus und
+schreibt einen jsonb-**String** statt eines Objekts: der Treiber serialisiert
+json-Parameter selbst, und ein bereits serialisierter String wird ein zweites
+Mal codiert. Jeder Lesezugriff auf ein Feld liefert danach `undefined` — die
+Spalte ist nicht leer, sondern falsch geformt, was beim Lesen wie ein
+fehlender Wert aussieht. Der Test vergleicht deshalb das ganze Objekt statt
+eines Feldes.
+
+`src/server/jobs/**` steht bewusst **nicht** im Dienstregister von PR 8: Jobs
+laufen als `cse_job`, ausserhalb jeder Benutzersitzung, und die Frage "ist
+dieser Dienst in der Gruppenansicht erreichbar" hat fuer sie keine Bedeutung.
+
 ---
 
 ## Carried over from the Phase 0 review — not client questions

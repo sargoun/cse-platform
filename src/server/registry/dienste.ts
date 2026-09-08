@@ -39,5 +39,14 @@ export const DIENSTE: readonly DienstEintrag[] = [
   },
 ] as const;
 
+/**
+ * `src/server/jobs/**` steht bewusst NICHT im Dienstregister.
+ *
+ * Jobs laufen als `cse_job`, nicht als `cse_app`, und nie in einer
+ * Benutzersitzung — die Frage "ist dieser Dienst in der Gruppenansicht
+ * erreichbar" hat fuer sie keine Bedeutung. Sie in dieselbe Liste zu legen
+ * hiesse, sie gegen eine Zusage zu pruefen, die ueber sie nichts aussagt.
+ */
+
 export const SCHREIBENDE_DIENSTE: readonly DienstEintrag[] =
   DIENSTE.filter((d) => d.schreibend);
