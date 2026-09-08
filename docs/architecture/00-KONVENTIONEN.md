@@ -21,8 +21,8 @@ Six named Postgres roles. The application never connects as `postgres`, and
 | `cse_migrator` | migrations in CI | DDL. Never used at runtime. |
 | `cse_definer` | owner of every `SECURITY DEFINER` helper | The only role exempt from FORCE RLS, and only on the tables named in K-06 and K-08. Cannot log in. |
 | `cse_app` | every authenticated request | DML through RLS. No table grants beyond the column grants of K-05. |
-| `cse_anon` | pre-session requests | `EXECUTE` on exactly the three functions in K-08. No table grants at all. |
-| `cse_checkin` | the tokenised check-in endpoint | `EXECUTE` on `app.checkin_verbrauchen` only. |
+| `cse_anon` | pre-session requests | `EXECUTE` on exactly its rows of the K-08 register. No table grants at all. |
+| `cse_checkin` | the tokenised check-in endpoint and its offline replay | `EXECUTE` on `app.checkin_verbrauchen` and `app.offline_ereignis_annehmen` only (K-08). |
 | `cse_job` | cron and Edge Functions | Per-job grants, enumerated in the job definition. |
 
 **`ALTER TABLE … FORCE ROW LEVEL SECURITY` on every tenant table.** Without
@@ -44,9 +44,9 @@ Set with `set_config(..., true)` — transaction-local — inside `withTenant` /
 |---|---|
 | `app.benutzer_id` | the authenticated `benutzer` |
 | `app.person_id` | the `person` behind that login, or NULL |
-| `app.mandant_id` | **exactly one** mandant, or NULL in group scope |
-| `app.mandant_ids` | group scope only: the mandanten the user may read |
-| `app.scope` | `mandant` \| `gruppe` |
+| `app.mandant_id` | **exactly one** mandant, or NULL in every multi-tenant scope |
+| `app.mandant_ids` | the mandanten the user may read — group, person and kunde scope; **always derived server-side** (K-18) |
+| `app.scope` | `mandant` \| `gruppe` \| `person` \| `kunde` — see K-18 |
 | `app.portal` | `intern` \| `mitarbeiter` \| `kunde` |
 | `app.readonly` | `on` \| `off` — **defaults to `on`** |
 | `app.aal` | `aal1` \| `aal2` — assurance level of the session |
@@ -56,7 +56,8 @@ value: no mandant, no rights, read-only. An unset session must produce zero rows
 never all rows.
 
 `CHECK ((scope = 'mandant') = (mandant_id IS NOT NULL))` is asserted by the
-session helper, not merely assumed.
+session helper, not merely assumed — in the three multi-tenant scopes
+`app.mandant_id` is NULL and `app.mandant_ids` carries the set.
 
 ### The `[mandant]` path segment is routing only
 
@@ -246,15 +247,29 @@ a hand-maintained list with no test does not deliver that.
 
 ## K-08 · The pre-session data path
 
-Three functions, and only these three, may execute outside `withTenant`:
+Some requests have no session yet, or never will: the login that creates one, the
+tokenised check-in (TIM-07), the offline replay that follows it, and the read-only
+iCal feed (CAL-03). Each needs the database before any principal is known.
+
+These paths are governed by a **closed register**, not by a count. The register
+below is exhaustive; a function not on it may not execute outside `withTenant` or
+`withGroupScope`, and the **route-manifest test fails the build on any new one
+that is not added here in the same PR.**
 
 | Function | Role | Purpose |
 |---|---|---|
 | `app.sitzung_aufloesen(token_hash)` | `cse_anon` | resolve a session before any principal is known |
 | `app.versuch_protokollieren(...)` | `cse_anon` | rate limiting and lockout (AUT-07) |
 | `app.checkin_verbrauchen(token_hash, geraet_zeit, ip)` | `cse_checkin` | TIM-07 / TIM-08 |
+| `app.offline_ereignis_annehmen(token_hash, ereignisse, ip)` | `cse_checkin` | TIM-09 — late arrival of the same trust boundary as check-in |
+| `app.ical_feed_lesen(feed_token_hash)` | `cse_anon` | CAL-03 — read-only, single user, no write path |
 
-All three are `SECURITY DEFINER` owned by `cse_definer`. The check-in path has no
+The offline replay is check-in data arriving late over the same token: same
+subject, same authentication, same conditional-write discipline (K-09). Splitting
+it onto a different mechanism would mean two trust boundaries for one fact. The
+iCal feed is read-only by construction and returns one user's own entries.
+
+All five are `SECURITY DEFINER` owned by `cse_definer`. The check-in path has no
 session, so it has no GUCs, so every K-03 policy evaluates false for it — it
 therefore does no table access of its own at all. The function derives
 `mandant_id` and `anstellung_id` from the `einsatz` and inserts the `zeiteintrag`
@@ -450,9 +465,45 @@ referenced a parent that never declared it.
 carry `archiviert_am` / `storniert_am` and a `BEFORE DELETE` trigger that raises.
 Deletion protection is stated per table, not assumed globally.
 
-Money is `bigint` cents everywhere, including agent cost accounting. Quantities are
-`numeric(12,3)` — they are not money and must not be cents. Durations are
-`integer` minutes or seconds, named with the unit (`minuten`, `zeitabweichung_sek`).
+Money is `bigint` cents. Quantities are `numeric(12,3)` — they are not money and
+must not be cents. Durations are `integer` minutes or seconds, named with the unit
+(`minuten`, `zeitabweichung_sek`).
+
+### Four permitted deviations, and only these
+
+Each was found by review to be forced by Postgres or by the domain. A deviation
+not on this list is a defect.
+
+**(a) Composite primary key where partitioning requires it.** Postgres requires
+the partition key in the primary key, so a `PARTITION BY LIST (mandant_id)` table
+takes `PRIMARY KEY (mandant_id, id)` — `wissens_chunk` is the case. Every FK
+pointing at such a table is composite and its parent declares the matching
+`UNIQUE`.
+
+**(b) Sub-cent accounting for AI cost only.** Model token pricing is genuinely
+sub-cent; rounding each step to a cent destroys the budget arithmetic that AGT-05
+depends on. Columns named `*_mikrocent bigint` (10⁻⁶ €) are permitted **only** in
+agent cost and budget accounting — `agent_schritt`, `agent_budget` and their carry
+columns. Conversion to cents happens **once**, at the budget boundary, half-up,
+and the rounding rule is stated at the conversion site. Nothing invoiced, booked
+or exported may be micro-cents: a figure that reaches `rechnung`, `buchungssatz`
+or DATEV is `bigint` cents, full stop.
+
+**(c) Computed target durations may be fractional.** A *measured* duration —
+worked time, a MiLoG record, a rest period — is `integer` and never fractional; it
+is evidence. A *computed target* — `revier.sollzeit_minuten` derived from
+`Σ m² ÷ Leistungswert` — is `numeric(8,2)`, because rounding each room to a whole
+minute accumulates a visible error across a Revier of eighty rooms. The
+distinction is target vs. actual, and each column states which it is.
+
+**(d) `audit_log.mandant_id` is nullable.** A failed login, a lockout and the
+*source* side of a mandant switch all precede or transcend tenancy; forcing a
+tenant onto them would mean inventing one. `audit_log` therefore carries
+`ebene enum('plattform','mandant')` with
+`CHECK ((ebene = 'mandant') = (mandant_id IS NOT NULL))`, so a NULL is a stated
+platform-level fact rather than a missing value. It is the only tenant-adjacent
+table with a nullable `mandant_id`, and its RLS reads platform rows only for
+`super_admin`.
 
 ---
 
@@ -471,3 +522,49 @@ list.
 
 A concrete legal or financial value that SPEC does not state and that is not
 marked `TODO(client)` is a defect, not a detail.
+
+---
+
+## K-18 · Four read scopes, not two
+
+`app.scope` takes four values, not two. The first drafts had only `mandant` and
+`gruppe`, so the employee and customer portals were routed through **group**
+scope — and that is a category error with a concrete consequence: K-03's group
+policy requires `gruppe.<modul>.lesen`, a management right an employee or a
+customer will never hold. Both portals would read zero rows. Widening the group
+right to make them work would hand every cleaner a group-level read.
+
+The two portals genuinely span tenants — EMP-14 shows one person's shifts across
+all employments, CRM-06 shows a customer's history across all four areas — but
+they span them **as a subject**, not as a manager.
+
+| `app.scope` | Who | Row visibility | Writes |
+|---|---|---|---|
+| `mandant` | staff working in one entity | `mandant_id = app.aktiver_mandant()` + `hat_recht` | yes, per K-03 |
+| `gruppe` | management, TEN-05 | `= any(sichtbare_mandanten())` + `gruppe.<modul>.lesen` | **never** |
+| `person` | the employee portal | `= any(sichtbare_mandanten())`, that array derived server-side from the person's `anstellung` rows | only through the objection and request flows (EMP-07, EMP-10) |
+| `kunde` | the customer portal | `= any(sichtbare_mandanten())`, derived from the customer's own `auftrag` / `angebot` / `rechnung` rows | only their own messages and uploads |
+
+`person` and `kunde` scope each get a SELECT-only policy keyed on **the subject**,
+never on a group right:
+
+```sql
+create policy t_person on <tabelle>
+  for select to cse_app
+  using (app.scope() = 'person'
+         and mandant_id = any (app.sichtbare_mandanten())
+         and <the row belongs to app.aktuelle_person()>);
+```
+
+The subject predicate is not a second implementation of the K-04 ceiling — the
+ceiling is `restrictive` and still applies on top. The ceiling says *at most your
+own rows*; this policy says *these rows, in these tenants*. Both must pass.
+
+`sichtbare_mandanten()` is **derived server-side** in every scope — from
+`benutzer_mandant`, from `anstellung`, or from the customer's own records. It is
+never taken from the request (K-02).
+
+The write columns above are narrow by design: EMP-07 is explicit that an employee
+raises a `zeit_einwand` and **never** edits a `zeiteintrag`. Every other write in
+both portals goes through a service that re-enters `mandant` scope with a
+resolved single tenant.
