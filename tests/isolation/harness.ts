@@ -106,6 +106,19 @@ const STANDARDROLLEN: readonly (readonly [string, string, string, string, boolea
   ['kunde', 'Kundenzugang', 'mandant', 'kunde', false],
 ];
 
+/** Die Plattform-Aufbewahrungsregeln aus `0009` (DOC-07). */
+const AUFBEWAHRUNG_VORGABE: readonly (readonly [string, number | null, boolean, string, boolean])[] = [
+  ['rechnung', 10, true, '§ 147 AO, § 14b UStG — 10 Jahre', false],
+  ['buchhaltung', 10, true, '§ 147 AO, § 257 HGB — 10 Jahre', false],
+  ['beleg', 10, true, '§ 147 AO — Buchungsbelege, 10 Jahre', false],
+  ['vertrag', 10, true, '§ 257 HGB — mit Rechnungsbezug 10 Jahre', false],
+  ['angebot', 6, false, '§ 257 HGB — 6 Jahre', false],
+  ['kunde', 6, false, '§ 257 HGB — 6 Jahre', false],
+  ['mitarbeiter', null, true, 'offen (O-25)', true],
+  ['projekt', null, true, 'offen (O-25)', true],
+  ['unternehmen', null, true, 'offen (O-25)', true],
+];
+
 /**
  * Seeds the four areas and the D-09 case, as the owner (migrations do this).
  *
@@ -140,6 +153,22 @@ export async function seed(): Promise<Fixtur> {
     // nicht, und ohne diese Zeile tragen sich Fehlversuche von Test zu Test
     // weiter, bis eine Sperre in einem Test zuschlägt, der sie nicht auslöst.
     await tx.unsafe(`truncate kern.anmeldeversuch`);
+
+    /**
+     * `dokument_aufbewahrung.mandant_id` zeigt auf `mandant`, also nimmt das
+     * `cascade` oben auch die PLATTFORM-Zeilen mit (`mandant_id IS NULL`).
+     * Ohne sie faende `app.aufbewahrung_regel` nichts, und jedes Dokument
+     * landete mit offener Frist und gesetzter Loeschsperre — sicher, aber
+     * nicht das, was die Tests pruefen wollen.
+     */
+    for (const [kategorie, jahre, sperre, grundlage, platzhalter] of AUFBEWAHRUNG_VORGABE) {
+      await tx.unsafe(
+        `insert into dokument_aufbewahrung (mandant_id, kategorie, jahre, loeschsperre,
+                                            grundlage, ist_platzhalter)
+         values (null, $1, $2, $3, $4, $5)`,
+        [kategorie, jahre, sperre, grundlage, platzhalter] as never[],
+      );
+    }
     for (const [schluessel, bezeichnung, bereich, portal, zweiFaktor] of STANDARDROLLEN) {
       await tx.unsafe(
         `insert into rolle (schluessel, bezeichnung, geltungsbereich, portal, erfordert_2fa, ist_system)

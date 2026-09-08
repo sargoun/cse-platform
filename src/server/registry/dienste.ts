@@ -32,6 +32,11 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'zeit', pfad: 'zeit/dauer', schreibend: false },
   { modul: 'zeit', pfad: 'zeit/spalten', schreibend: false },
   { modul: 'dienstplan', pfad: 'zeit/arbzg', schreibend: false },
+  { modul: 'dokument', pfad: 'dokument/kategorie', schreibend: false },
+  {
+    modul: 'dokument', pfad: 'dokument/upload',
+    schreibend: true, schreibRecht: 'dokument.schreiben',
+  },
 ] as const;
 
 export const SCHREIBENDE_DIENSTE: readonly DienstEintrag[] =

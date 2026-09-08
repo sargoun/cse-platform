@@ -127,6 +127,24 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'und welcher IP wann gearbeitet wurde. `beendet_am` beendet sie.',
   },
   {
+    tabelle: 'dokument',
+    art: 'soft',
+    migration: '0009',
+    grund:
+      'DOC-07, LEG-01, § 147 AO. Rechnungen und Buchungsbelege stehen zehn Jahre unter '
+      + 'Aufbewahrungspflicht; `loeschsperre` verhindert zusaetzlich das Soft-Loeschen, '
+      + 'solange die Frist laeuft oder unbekannt ist.',
+  },
+  {
+    tabelle: 'dokument_version',
+    art: 'append',
+    migration: '0009',
+    grund:
+      'DOC-06, LEG-01. Die Versionskette traegt den SHA-256 der gespeicherten Bytes — '
+      + 'die Grundlage der GoBD-Integritaet. Eine Version zu loeschen entfernt den '
+      + 'Beweis, dass die uebrigen unveraendert sind.',
+  },
+  {
     tabelle: 'person',
     art: 'soft',
     migration: '0005',

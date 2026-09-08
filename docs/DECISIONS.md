@@ -714,6 +714,81 @@ fail-closed `mitarbeiter`, was jede K-04-Mitarbeiterdecke **innerhalb** der
 Gruppenansicht auslöst und sie für genau das Management leert, für das TEN-05
 sie gebaut hat.
 
+### D-45 · Die Reihenfolge im Upload-Pfad IST die Sicherheit
+
+Groesse, dann Typ aus Magic Bytes, dann Metadaten entfernen, dann Aufbewahrung
+aufloesen, dann speichern. Wer die Bereinigung nach dem Speichern macht, hat
+das Foto mit GPS bereits im Bucket; wer die Typpruefung nach dem Speichern
+macht, hat die `.exe` dort. Ein Test prueft deshalb nicht nur, dass ein
+verkleideter Upload abgelehnt wird, sondern dass der Speicher danach **leer**
+ist.
+
+`exif_entfernt` heisst "durch die Bereinigung gegangen", nicht "hatte welches"
+— sonst waere ein JPEG ohne EXIF nicht speicherbar. Der SHA-256 deckt die
+**gespeicherten** Bytes, nicht die eingereichten.
+
+### D-46 · PDF-Metadaten werden ueberschrieben, nicht herausgeschnitten
+
+Ein PDF ist eine Objekttabelle mit Byte-Offsets in der `xref`. Ein Segment
+herauszuschneiden verschiebt jeden Offset dahinter und macht die Datei kaputt —
+beim Rechnungsarchiv der teuerste denkbare Weg, Metadaten loszuwerden. `/Info`
+und der XMP-Block werden deshalb **gleich lang** mit Leerzeichen ueberschrieben:
+alle Offsets bleiben gueltig, das Dokument oeffnet sich unveraendert, Autor,
+Geraet und Zeitstempel sind weg. Ein Test prueft die unveraenderte Bytezahl.
+
+Der erste Entwurf lehnte PDFs schlicht ab, weil es keinen Bereiniger gab — und
+machte damit **Rechnungen unspeicherbar**, den haeufigsten Dokumenttyp der
+Plattform. Verschluesselte PDFs werden weiterhin abgelehnt: ihre Metadaten sind
+auf diesem Weg nicht erreichbar, und ein "scheinbar bereinigt" waere schlimmer
+als ein benannter Fehler beim Upload. Fuer Video gilt dasselbe (O-25).
+
+Bei JPEG wird bewusst **nicht neu codiert**: ein Re-Encode entfernt Metadaten
+zuverlaessig und veraendert die Pixel — womit das Foto als Beweis in einer
+Reklamation an Wert verliert. Die Bilddaten ab `SOS` bleiben Byte fuer Byte.
+
+### D-47 · Die Uhr der signierten URL wird uebergeben, nicht gelesen
+
+Invariante 5 gilt auch hier: ein Ablauf, der von der Uhr des Aufrufers
+abhaengt, laeuft nie ab, wenn der Aufrufer seine Uhr stellt. Und ein Test
+koennte den Minute-16-Fall gar nicht pruefen, ohne 16 Minuten zu warten.
+
+Die Pruefreihenfolge ist Absicht: Signatur, dann **Ablauf**, dann Mandant. Eine
+abgelaufene URL aus einem fremden Bereich meldet "abgelaufen" — die
+Fehlermeldung soll nicht verraten, ob sie zu einem Bereich gehoerte, den es
+gibt. Der Vergleich laeuft in konstanter Zeit; einer, der beim ersten falschen
+Zeichen abbricht, verraet die Signatur zeichenweise.
+
+### D-48 · Eine restriktive Decke gewaehrt nichts — sie braucht ihre Policy daneben
+
+`p_ma_ceiling` auf `dokument` schneidet weg, was das Mitarbeiterportal nicht
+sehen darf. Sie **gewaehrt nichts**: `t_mandant` verlangt `dokument.lesen`, und
+das haelt die Rolle `mitarbeiter` nicht — was richtig ist, denn sie soll nicht
+die Rechnungsablage sehen, sondern ihre Dienstanweisung. Mit nur der Decke las
+das Mitarbeiterportal **null** Dokumente, auch die ausdruecklich freigegebenen.
+
+Die gewaehrende `t_person`-Policy steht jetzt daneben, und ihr Zugang ist kein
+Recht, sondern ein Subjektpraedikat: freigegeben und nicht geloescht. Beide
+muessen passen (K-18). Dieselbe Lektion, die `05-FINANZEN` fuer `t_kunde`
+ausdruecklich aufschreibt — hier fiel sie mir beim Bauen erneut zu.
+
+Nebenbei: ein CHECK bekommt einen NAMEN. Ein anonymer meldet nur, dass
+irgendeiner verletzt wurde; `dokument_exif_entfernt` sagt welcher.
+
+### D-49 · Eine unbekannte Aufbewahrungsfrist ist eine Pflicht, keine Abwesenheit
+
+`app.aufbewahrung_regel` ist ein `SECURITY DEFINER`, und der Grund ist konkret:
+der Trigger laeuft als der Aufrufer, und der darf `dokument.schreiben` halten
+ohne `dokument.lesen` — das Eingangsprinzip fuer Formular-Uploads ist genau
+das. Ein direkter Lesezugriff auf `dokument_aufbewahrung` traefe dann null
+Zeilen, und das Dokument laege ohne Aufbewahrungsdatum und ohne Loeschsperre
+im Bucket. Still.
+
+Findet sich keine Regel, gilt `aufbewahrung_bis = NULL` **und
+`loeschsperre = true`**. Drei Kategorien (`mitarbeiter`, `projekt`,
+`unternehmen`) tragen das dauerhaft, weil ihre Fristen je Unterlage
+verschieden sind und niemand sie entschieden hat (O-25). Eine gesetzte Sperre
+laesst sich nicht wieder loesen.
+
 ---
 
 ## Carried over from the Phase 0 review — not client questions

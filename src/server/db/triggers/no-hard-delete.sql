@@ -132,3 +132,28 @@ create trigger trg_benutzer_mandant_geaendert_am
 
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0009)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- dokument (soft): DOC-07, LEG-01, § 147 AO. Rechnungen und Buchungsbelege stehen zehn Jahre unter Aufbewahrungspflicht; `loeschsperre` verhindert zusaetzlich das Soft-Loeschen, solange die Frist laeuft oder unbekannt ist.
+create trigger trg_dokument_kein_hard_delete
+  before delete on dokument
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_dokument_kein_truncate
+  before truncate on dokument
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on dokument from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- dokument_version (append): DOC-06, LEG-01. Die Versionskette traegt den SHA-256 der gespeicherten Bytes — die Grundlage der GoBD-Integritaet. Eine Version zu loeschen entfernt den Beweis, dass die uebrigen unveraendert sind.
+create trigger trg_dokument_version_kein_hard_delete
+  before delete on dokument_version
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_dokument_version_kein_truncate
+  before truncate on dokument_version
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on dokument_version from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks

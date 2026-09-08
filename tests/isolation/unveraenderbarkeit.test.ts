@@ -125,7 +125,8 @@ describe('(2) a soft-deleted row leaves the finder and stays in the table', () =
     expect(() => loeschPraedikat('audit_log')).toThrow(SoftDeleteFehler);
     expect(() => loeschPraedikat('mandant')).toThrow(/als `archiv` registriert/u);
     expect(() => loeschPraedikat('rechnung')).toThrow(/steht nicht in KEIN_HARD_DELETE/u);
-    expect(SOFT_DELETE).toEqual(['person', 'anstellung']);
+    // `dokument` kam mit PR 9 dazu — die Liste ist abgeleitet, nicht gepflegt.
+    expect(SOFT_DELETE).toEqual(['dokument', 'person', 'anstellung']);
   });
 
   it('an injected alias is refused rather than pasted into SQL', () => {
