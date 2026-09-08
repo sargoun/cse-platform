@@ -466,6 +466,91 @@ trägt jetzt seine Migration, der Generator schreibt einen Block je Migration,
 und ein Test prüft für jede Tabelle, dass ihre Sperren in **ihrer** Migration
 stehen und in keiner anderen.
 
+### D-31 · Es gibt eine plattformweite Einstellungstabelle, weil beide Vorgaben zusammen sie erzwingen
+
+`03-AUTH-BERECHTIGUNGEN.md` §10 legt jede AUT-07-Schwelle in `einstellung` ab.
+Deren Eigentümertabelle `mandant_einstellung` (`01-KERN.md` §6.30) trägt
+`mandant_id NOT NULL` und sagt ausdrücklich: **es gibt keine plattformweite
+Zeile**, damit ein Default nie unbemerkt für alle vier Gesellschaften gilt. Ein
+Anmeldeversuch findet aber statt, bevor irgendein Mandant bekannt ist — es gibt
+in diesem Moment keine Einstellung zu lesen.
+
+`plattform_einstellung` ist das, was übrig bleibt, wenn beide Sätze gelten. Der
+Namensraum ist bewusst getrennt, damit niemand eine Betriebseinstellung dorthin
+legt und sie versehentlich für die ganze Gruppe setzt. Alle Werte tragen
+`ist_vorlaeufig = true` und stehen unter O-80 bzw. O-92 (K-17).
+
+### D-32 · 404 statt 403 hat genau zwei Ausnahmen, und beide sind begründet
+
+AUT-06: ein fremder oder unerlaubter Datensatz antwortet **404**, mit einem
+Körper, der dem eines wirklich fehlenden gleicht — ein 403 sagt "das gibt es,
+du darfst nur nicht", und das ist die Auskunft, die eine Aufzählungsattacke
+braucht. Deshalb gibt es keinen `ForbiddenError` für Ressourcen, und der
+404-Körper ist **eine** eingefrorene Konstante: zwei Stellen, die ihn je selbst
+zusammensetzen, weichen irgendwann in einem Leerzeichen voneinander ab, und ein
+Leerzeichen ist ein Orakel.
+
+403 bleibt den zwei Fällen, in denen die Existenz ohnehin bekannt ist: das
+eigene gesperrte Konto (AUT-07) und die fehlende zweite Stufe (AUT-02) — dort
+hiesse ein 404 "melde dich neu an" statt "zeig den zweiten Faktor".
+
+Ein Test prüft nicht nur, dass beide Fälle 404 sind, sondern dass ihre
+**Meldungen identisch** sind: von aussen unterscheidbar zu sein ist der Defekt,
+nicht der falsche Statuscode.
+
+### D-33 · Der zweite Faktor ist eine Eigenschaft der Anmeldung, nicht des Kontos
+
+`app.hat_zweiten_faktor()` liest `auth.mfa_factors` **live** statt einer
+Spiegelspalte auf `benutzer` (review B18): eine gespiegelte Spalte ohne
+Abgleichspfad ist genau dann falsch, wenn es darauf ankommt — der Faktor wurde
+entfernt, die Spalte sagt weiterhin ja.
+
+Und `app.ist_super_admin()` verlangt zusätzlich `app.aal() = 'aal2'`. Ein Konto,
+das einen Faktor besitzt, ihn in dieser Sitzung aber nicht vorgezeigt hat, ist
+`aal1` und damit kein Super-Admin. Der Datenbank-Trigger `benutzer_2fa_pflicht`
+ist die **zweite** Linie, nicht die einzige: eine Prüfung nur dort hiesse, wer
+den Faktor nach dem Aktivieren entfernt, behält alles.
+
+Auf dem `SELECT` von `benutzer_mandant` liegt bewusst **kein** aal2-Gate
+(K-15): eine restriktive aal2-Policy dort gäbe jedem `leitung`, `mitarbeiter`
+und `kunde` null Zeilen, `sichtbare_mandanten()` wäre leer, jede darauf gebaute
+Policy false — und die Plattform ginge für alle Nicht-Admins schwarz,
+einschliesslich Check-in und Kundenportal. Das Gate sitzt auf dem Schreibpfad.
+
+### D-34 · Die Sitzungstabelle wird nicht allgemein auditiert
+
+`benutzer_sitzung` steht bewusst nicht in `AUDITIERT`.
+`app.sitzung_aufloesen` stempelt bei **jeder Anfrage** `letzte_aktivitaet_am`;
+ein allgemeiner Audit-Trigger schriebe eine `audit_log`-Zeile pro Seitenaufruf
+und ertränke den Trail, den er führen soll — in einer Tabelle, die zudem
+hash-verkettet ist und dann jede Anfrage hinter dem Kettenkopf serialisierte.
+Was zählt, schreibt `kern.sitzung_wechsel_audit` gezielt: jeder Bereichs- und
+Ansichtswechsel, mit dem Paar in `vorher`/`nachher` statt in eigenen Spalten
+(TEN-09, §4.4).
+
+Aus demselben Grund ist `kern.anmeldeversuch` eine eigene Tabelle und nicht
+`audit_log`: die Sperrabfrage lautet "Fehlversuche von dieser IP und für diese
+Kennung im Fenster", ein Zähler je Benutzer kann Versuche gegen **nicht
+existierende** Konten nicht bremsen — und genau das ist der Enumerationsfall,
+für den AUT-07 existiert. Eine zusammenfassende `audit_log`-Zeile je Sperrung
+genügt AUT-08.
+
+### D-35 · Die Routenprüfung scannt `src/app/**`, nicht `src/app/api/**`
+
+Der Plan nennt `app/api/**`. `healthz` liegt aber schon heute als
+`src/app/healthz` daneben: eine Prüfung auf `api/` allein hätte diese Route —
+und jede künftige ausserhalb von `api/` — nicht abgedeckt, **während sie
+meldet, alles sei abgedeckt**. Gescannt wird das Dateisystem, nicht eine
+gepflegte Liste, damit eine neue Route automatisch erfasst ist; das Manifest
+sagt, welches Recht gilt, und ein zweiter Test prüft, dass der Handler
+`authorize()` auch wirklich aufruft. Server Actions (`'use server'`) werden
+mitgeprüft: eine Prüfung, die nur Route Handler kennt, deckt den halben Eingang
+ab.
+
+Eine absichtlich offene Route steht mit `recht: null` **und einer Begründung**
+im Manifest. Sie fehlt dann nicht — sie ist eine Entscheidung, die jemand
+getroffen hat.
+
 ---
 
 ## Carried over from the Phase 0 review — not client questions

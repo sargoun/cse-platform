@@ -93,6 +93,19 @@ export interface Fixtur {
 }
 
 /**
+ * Die fünf Systemrollen aus `0007` (AUT-01) — Schlüssel, Label, Geltungs-
+ * bereich, Portal, 2FA-Pflicht. Sie stehen hier, weil `truncate … cascade`
+ * sie mitnimmt und jeder Test sie wieder braucht.
+ */
+const STANDARDROLLEN: readonly (readonly [string, string, string, string, boolean])[] = [
+  ['super_admin', 'Super-Administration', 'global', 'intern', true],
+  ['admin', 'Administration', 'mandant', 'intern', true],
+  ['leitung', 'Leitung', 'mandant', 'intern', false],
+  ['mitarbeiter', 'Mitarbeitende', 'mandant', 'mitarbeiter', false],
+  ['kunde', 'Kundenzugang', 'mandant', 'kunde', false],
+];
+
+/**
  * Seeds the four areas and the D-09 case, as the owner (migrations do this).
  *
  * PR 4 locks the registered tables against `DELETE` **and** `TRUNCATE`, so the
@@ -115,7 +128,24 @@ export interface Fixtur {
 export async function seed(): Promise<Fixtur> {
   return sql.begin(async (tx) => {
     await tx.unsafe(`set local session_replication_role = replica`);
+    // `cascade` erreicht über die FKs auf `mandant` auch `rolle`, `benutzer`,
+    // `benutzer_mandant`, `benutzer_sitzung` und `nummernkreis` — und damit
+    // die fünf Systemrollen, die die Migration setzt. Sie werden unten wieder
+    // gesetzt: sie sind Stammdaten der Plattform, nicht Fixture-Daten, und
+    // ohne sie hat kein Konto eine Rolle.
     await tx.unsafe(`truncate audit_log, anstellung, person, mandant restart identity cascade`);
+    await tx.unsafe(`truncate auth.users cascade`);
+    // `kern.anmeldeversuch` hängt an keinem Mandanten — `cascade` erreicht es
+    // nicht, und ohne diese Zeile tragen sich Fehlversuche von Test zu Test
+    // weiter, bis eine Sperre in einem Test zuschlägt, der sie nicht auslöst.
+    await tx.unsafe(`truncate kern.anmeldeversuch`);
+    for (const [schluessel, bezeichnung, bereich, portal, zweiFaktor] of STANDARDROLLEN) {
+      await tx.unsafe(
+        `insert into rolle (schluessel, bezeichnung, geltungsbereich, portal, erfordert_2fa, ist_system)
+         values ($1,$2,$3::rolle_geltungsbereich,$4,$5,true)`,
+        [schluessel, bezeichnung, bereich, portal, zweiFaktor] as never[],
+      );
+    }
 
     const eins = async (anweisung: string, werte: readonly unknown[]): Promise<string> =>
       (await tx.unsafe<{ id: string }[]>(anweisung, werte as never[]))[0]!.id;

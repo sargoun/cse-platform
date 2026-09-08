@@ -27,6 +27,7 @@ export const ZIEL = join(WURZEL, 'src/server/db/triggers/no-hard-delete.sql');
 export const MIGRATIONS_DATEIEN: Readonly<Record<string, string>> = {
   '0005': join(WURZEL, 'drizzle/0005_immutability_audit.sql'),
   '0006': join(WURZEL, 'drizzle/0006_nummernkreis.sql'),
+  '0007': join(WURZEL, 'drizzle/0007_benutzer_auth.sql'),
 };
 export const BEGINN = '-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern';
 export const ENDE = '-- >>> Ende des generierten Blocks';

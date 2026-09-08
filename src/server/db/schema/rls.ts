@@ -93,6 +93,40 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'bleibt, solange die Nummern gelten, die sie ausgegeben hat.',
   },
   {
+    tabelle: 'rolle',
+    art: 'archiv',
+    migration: '0007',
+    grund:
+      'AUT-03, SEC-A9. Die Historie in `benutzer_mandant` verweist auf die Rolle, unter '
+      + 'der jemand gehandelt hat. Die Rolle zu löschen macht zehn Jahre Rechtevergabe '
+      + 'unlesbar; `archiviert_am` beendet ihre Verwendung.',
+  },
+  {
+    tabelle: 'benutzer',
+    art: 'archiv',
+    migration: '0007',
+    grund:
+      'SEC-A9, LEG-01. `audit_log` benennt dieses Konto als Akteur — dauerhaft. Ein '
+      + 'gelöschter Benutzer macht jede Zeile, die er geschrieben hat, herrenlos. '
+      + '`deaktiviert_am` beendet den Zugang.',
+  },
+  {
+    tabelle: 'benutzer_mandant',
+    art: 'archiv',
+    migration: '0007',
+    grund:
+      'AUT-08, LEG-01. Wer wann in welchem Bereich welche Rolle hatte, ist die Antwort '
+      + 'auf "wer durfte das". `entzogen_am` beendet den Zugang und behält die Antwort.',
+  },
+  {
+    tabelle: 'benutzer_sitzung',
+    art: 'archiv',
+    migration: '0007',
+    grund:
+      'SEC-A9, AUT-08. Sitzungen sind Teil des Sicherheitsprotokolls: von welchem Gerät '
+      + 'und welcher IP wann gearbeitet wurde. `beendet_am` beendet sie.',
+  },
+  {
     tabelle: 'person',
     art: 'soft',
     migration: '0005',
@@ -138,6 +172,11 @@ export const GEAENDERT_AM: readonly TabelleJeMigration[] = [
   // `nummernkreis` trägt zusätzlich fin.nummernkreis_pruefen() (0006), das
   // entscheidet, WAS sich ändern darf; dieser hier setzt nur, WANN.
   { tabelle: 'nummernkreis', migration: '0006' },
+  { tabelle: 'rolle', migration: '0007' },
+  { tabelle: 'benutzer', migration: '0007' },
+  { tabelle: 'benutzer_mandant', migration: '0007' },
+  // `benutzer_sitzung` führt `letzte_aktivitaet_am` selbst, in derselben
+  // Anweisung, die die Sitzung validiert.
 ] as const;
 
 /** Every migration that carries a generated block, in order. */

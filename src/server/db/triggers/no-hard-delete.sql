@@ -80,3 +80,55 @@ create trigger trg_nummernkreis_audit
   for each row execute function kern.protokolliere_aenderung();
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0007)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- rolle (archiv): AUT-03, SEC-A9. Die Historie in `benutzer_mandant` verweist auf die Rolle, unter der jemand gehandelt hat. Die Rolle zu löschen macht zehn Jahre Rechtevergabe unlesbar; `archiviert_am` beendet ihre Verwendung.
+create trigger trg_rolle_kein_hard_delete
+  before delete on rolle
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_rolle_kein_truncate
+  before truncate on rolle
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on rolle from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- benutzer (archiv): SEC-A9, LEG-01. `audit_log` benennt dieses Konto als Akteur — dauerhaft. Ein gelöschter Benutzer macht jede Zeile, die er geschrieben hat, herrenlos. `deaktiviert_am` beendet den Zugang.
+create trigger trg_benutzer_kein_hard_delete
+  before delete on benutzer
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_benutzer_kein_truncate
+  before truncate on benutzer
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on benutzer from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- benutzer_mandant (archiv): AUT-08, LEG-01. Wer wann in welchem Bereich welche Rolle hatte, ist die Antwort auf "wer durfte das". `entzogen_am` beendet den Zugang und behält die Antwort.
+create trigger trg_benutzer_mandant_kein_hard_delete
+  before delete on benutzer_mandant
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_benutzer_mandant_kein_truncate
+  before truncate on benutzer_mandant
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on benutzer_mandant from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- benutzer_sitzung (archiv): SEC-A9, AUT-08. Sitzungen sind Teil des Sicherheitsprotokolls: von welchem Gerät und welcher IP wann gearbeitet wurde. `beendet_am` beendet sie.
+create trigger trg_benutzer_sitzung_kein_hard_delete
+  before delete on benutzer_sitzung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_benutzer_sitzung_kein_truncate
+  before truncate on benutzer_sitzung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on benutzer_sitzung from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_rolle_geaendert_am
+  before update on rolle
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_benutzer_geaendert_am
+  before update on benutzer
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_benutzer_mandant_geaendert_am
+  before update on benutzer_mandant
+  for each row execute function kern.setze_geaendert_am();
+
+
+-- >>> Ende des generierten Blocks
