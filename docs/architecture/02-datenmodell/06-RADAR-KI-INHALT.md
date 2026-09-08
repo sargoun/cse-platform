@@ -1440,6 +1440,8 @@ is never allowed (AGT-03).
 | `verzoegerung_sek` | integer | yes | — | APR-05 objection window; `NULL` = no delayed release |
 | `undo_sek` | integer | yes | — | APR-06 undo window |
 | `stapel_faehig` | boolean | no | `false` | APR-04 |
+| `stapel_toleranz_cent` | bigint | yes | — | integer cents (K-16). APR-04: the absolute amount by which items in one batch may differ before the batch is refused and each item is reviewed alone. `NULL` = no absolute limit |
+| `stapel_toleranz_promille` | integer | yes | — | the same limit expressed relatively, in **per mille** (`CHECK (BETWEEN 0 AND 1000)`) — integer, because a share of an amount is money arithmetic and must not be a float. Both may be set; the **stricter** one binds, which is §3.4's rule applied to the batch |
 | `ist_systemregel` | boolean | no | `false` | seeded from SPEC §17; not weakenable in the UI |
 | `ist_platzhalter` | boolean | no | `true` | wherever a threshold is not stated in SPEC §17 |
 | `ist_aktiv` | boolean | no | `true` | |
@@ -1707,6 +1709,9 @@ The conversion is `div(Σ kosten_mikrocent + 5000, 10000)`, half-up, stated at t
 | `schritte_anzahl` | integer | no | `0` | |
 | `kosten_cent` | bigint | no | `0` | integer **cents** — the K-16(b) conversion site: `div(Σ agent_kosten.kosten_mikrocent + 5000, 10000)`, half-up, the rule stated beside the expression (§1.12) |
 | `budget_stopp` | boolean | no | `false` | AGT-05 visible on the task, not only in the log |
+| `prompt_version` | text | yes | — | the prompt revision this run used |
+| `richtlinien_version` | text | yes | — | the `agent_richtlinie` rule-set version in force when the run started |
+| `code_version` | text | yes | — | the deployed commit. The three together are what makes a run **replayable**: without them "why did the agent decide that in March?" has no answer, because the prompts, the rules and the code have all moved since |
 | `fehler_text` | text | yes | — | |
 
 - **Indexes:** `aa_idem_uk UNIQUE (mandant_id, idempotenz_schluessel) WHERE idempotenz_schluessel IS NOT NULL`;
@@ -1734,6 +1739,11 @@ cost, duration").
 | `kosten_mikrocent` | bigint | no | `0` | 10⁻⁶ €, K-16(b) — §1.12 |
 | `dauer_ms` | integer | no | — | `CHECK (>= 0)` |
 | `status` | agent_schritt_status | no | `'erfolg'` | `erfolg / fehler / abgelehnt_richtlinie / uebersprungen` |
+| `policy_ergebnis` | jsonb | yes | — | the `decide()` verdict for this step (`06-AGENTEN-FREIGABEN.md` §7.1) — the machine-readable reason the step ran or did not |
+| `policy_spur` | jsonb | yes | — | which rules were evaluated and in what order; `abgelehnt_richtlinie` with no trace is an unexplainable refusal |
+| `quellen` | jsonb | yes | — | the retrieval sources this step relied on, denormalised for display; the row-level evidence stays in `agent_schritt_beleg` (§3.10) |
+| `vertrauen_zusammenfassung` | jsonb | yes | — | per-field confidence summary handed to APR-03 — a rendering, never a computation input (K-10) |
+| `injektionsverdacht` | boolean | no | `false` | the step's input tripped the prompt-injection detector. Set by the runner, never by the model; a `true` here writes a `sicherheitsvorfall` row (Kern, K-21) and aborts the run |
 | `richtlinie_id` | uuid | yes | — | composite FK — which rule allowed or refused the step |
 | `freigabe_id` | uuid | yes | — | composite FK `(mandant_id, freigabe_id)` |
 | `begonnen_am` · `beendet_am` | timestamptz | no | — | server clock; `CHECK (beendet_am >= begonnen_am)` |
@@ -1741,7 +1751,8 @@ cost, duration").
 | `nutzlast_geloescht_am` | timestamptz | yes | — | redaction performed; hashes and metadata remain |
 
 - **Indexes:** `as_uk UNIQUE (agent_aufgabe_id, schritt_nr)`; `BRIN (erstellt_am)` — the fastest-growing
-  table in the domain; `as_abgelehnt_idx (mandant_id, werkzeug) WHERE status = 'abgelehnt_richtlinie'`
+  table in the domain; `as_injektion_idx (mandant_id, begonnen_am DESC) WHERE injektionsverdacht`;
+  `as_abgelehnt_idx (mandant_id, werkzeug) WHERE status = 'abgelehnt_richtlinie'`
   — the evidence that the policy gate bites; **`as_purge_idx (nutzlast_loeschfrist_am) WHERE nutzlast_geloescht_am IS NULL`**.
 - **RLS:** S5, module `agent` for the row, `agent.protokoll_lesen` for the payload reader;
   `p_intern_ceiling`; `p_gruppe_kein_personenbezug`.

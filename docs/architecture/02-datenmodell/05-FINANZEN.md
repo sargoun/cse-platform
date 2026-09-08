@@ -3178,7 +3178,7 @@ erDiagram
   rechnung          ||--|| rechnung_hash           : "chain link"
   rechnung          ||--o{ rechnung_dokument       : "PDF / ZUGFeRD / UBL"
   rechnung_dokument ||--o{ rechnung_versand        : "approved dispatch"
-  rechnung          ||--o| rechnung_beziehung          : "reverses"
+  rechnung          ||--o{ rechnung_beziehung      : "storno / ersetzt — K-12, K-21"
   rechnung          ||--o{ abschlagsrechnung_bezug : "deducts Abschlag"
   vertrag_abrechnung||--o{ abschlagsplan           : "FIN-08 schedule"
   abschlagsplan     ||--o| rechnung                : "discharged by"
@@ -3234,12 +3234,13 @@ is a review failure; a schema test walks `information_schema` and fails on one. 
 | `rechnung_zuschlag`, `rechnung_steuer`, `rechnung_snapshot`, `rechnung_hash`, `rechnung_dokument` | `(mandant_id, rechnung_id)`; `rechnung_hash` also `(mandant_id, nummernkreis_id)` | on `rechnung`, `nummernkreis` |
 | `rechnungsposition_quelle` | `(mandant_id, rechnungsposition_id)`, `(mandant_id, rechnung_id)`, `(mandant_id, zeiteintrag_id)`, `(mandant_id, aufmass_id)`, `(mandant_id, auftrag_leistung_id)`, `(mandant_id, ausgabe_id)`, `(mandant_id, leistungsnachweis_id)`, `(mandant_id, nachtrag_id)` | on each parent |
 | `abschlagsplan` | `(mandant_id, vertrag_abrechnung_id)`, `(mandant_id, auftrag_id)`, `(mandant_id, rechnung_id)` | on each |
-| `abschlagsrechnung_bezug`, `rechnung_beziehung` | two `(mandant_id, rechnung_id)` each | on `rechnung` |
+| `abschlagsrechnung_bezug` | `(mandant_id, schluss_rechnung_id)`, `(mandant_id, abschlag_rechnung_id)` | on `rechnung` |
+| `rechnung_beziehung` | `(mandant_id, von_rechnung_id)`, `(mandant_id, zu_rechnung_id)` | on `rechnung` |
 | `rechnung_versand` | `(mandant_id, rechnung_id)`, `(mandant_id, rechnung_dokument_id)`, `(mandant_id, kunde_id)`, `(mandant_id, kunde_id, empfaenger_ansprechpartner_id)`, `(mandant_id, freigabe_id)` | on each; `ansprechpartner` needs `UNIQUE (mandant_id, kunde_id, id)` — which is why the table declares `kunde_id` (§9.6); registering the three-column FK against a table that had no such column made the register itself fail the schema test below |
 | `zahlung` | `(mandant_id, bankkonto_id)`, `(mandant_id, kasse_id)`, `(mandant_id, camt_umsatz_id)` | on each |
 | `zahlung_zuordnung` | `(mandant_id, zahlung_id)`, `(mandant_id, offener_posten_id)` | on each |
 | `offener_posten` | `(mandant_id, rechnung_id)`, `(mandant_id, eingangsrechnung_id)`, `(mandant_id, kunde_id)`, `(mandant_id, lieferant_id)` | on each |
-| `op_ausgleich` | two `(mandant_id, offener_posten_id)`, `(mandant_id, rechnung_beziehung_id)` | on each |
+| `op_ausgleich` | two `(mandant_id, offener_posten_id)`, `(mandant_id, rechnung_beziehung_id)` | on each — the second into `rechnung_beziehung` (§4.8), the table K-21 assigns to this document |
 | `mahnung`, `mahnung_position`, `mahnung_eskalation` | `(mandant_id, kunde_id)`, `(mandant_id, mahnstufe_id)`, `(mandant_id, nummernkreis_id)`, `(mandant_id, mahnung_id)`, `(mandant_id, rechnung_id)`, `(mandant_id, offener_posten_id)`, `(mandant_id, freigabe_id)` | on each |
 | `camt_import`, `camt_umsatz` | `(mandant_id, bankkonto_id)`, `(mandant_id, camt_import_id)`, `(mandant_id, zahlung_id)`, `(mandant_id, dokument_id)` | on each |
 | `kassenbewegung` | `(mandant_id, kasse_id)`, `(mandant_id, beleg_id)`, `(mandant_id, ausgabe_id)`, `(mandant_id, zahlung_id)` | on each |
