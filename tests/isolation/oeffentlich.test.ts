@@ -22,16 +22,22 @@ const WURZEL = resolve(import.meta.dirname, '../..');
 let rendererId: string;
 
 /**
- * Der Seed laeuft hier selbst, statt sich auf die Reihenfolge der Dateien zu
- * verlassen.
+ * Frisch aufsetzen UND seeden — wie `seed.test.ts`, und aus demselben Grund.
  *
- * Ohne ihn gibt es keinen Renderer, keine Gesellschaften und keine
- * veroeffentlichten Seiten — und dann bestuenden die Schreibpruefungen unten
- * aus dem falschen Grund: ein INSERT, das NULL Zeilen erzeugt, wirft nicht.
- * Der Seed ist idempotent, ein zweiter Lauf kostet nur Zeit.
+ * Der Seed allein genuegt nicht: fruehere Dateien dieser Suite setzen
+ * `mandant.ist_rechtseinheit` auf NULL, um die TEN-02-Sperre zu pruefen, und
+ * der Mandanten-Upsert des Seeds schreibt nur `name` zurueck. Ein zweiter Lauf
+ * auf einer so veraenderten Datenbank scheitert dann an genau der Sperre, die
+ * eine andere Datei absichtlich ausgeloest hat — ein Fehlschlag, der nach
+ * einem Seed-Fehler aussieht und keiner ist.
+ *
+ * Ohne Seed wiederum bestuenden die Schreibpruefungen unten aus dem falschen
+ * Grund: ein INSERT, der NULL Zeilen erzeugt, wirft nicht.
  */
 beforeAll(async () => {
   const umgebung = { ...process.env, DATABASE_URL: DB_URL };
+  execFileSync('bash', [join(WURZEL, 'scripts/test-db.sh'), 'up'],
+    { cwd: WURZEL, encoding: 'utf8' });
   execFileSync(join(WURZEL, 'node_modules/.bin/tsx'),
     [join(WURZEL, 'src/server/db/seed/index.ts')],
     { cwd: WURZEL, encoding: 'utf8', env: umgebung });

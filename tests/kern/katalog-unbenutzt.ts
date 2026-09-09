@@ -10,10 +10,19 @@
  * Beim Landen eines Moduls werden seine Zeilen hier gestrichen. Ergänzt wird
  * nur mit einer Begründung im Pull Request.
  *
- * 179 von 207 Schlüsseln.
+* 194 von 226 Schlüsseln.
+ *
+ * Die Zahl stieg mit PR 17, weil der Extraktor bis dahin jede §12-Zeile
+ * übersprang, die ZWEI Schlüssel nennt (`crm.lesen` / `crm.schreiben`). 19
+ * Schlüssel fehlten dadurch im Katalog — und `app.hat_recht` antwortet auf
+ * einen fehlenden Schlüssel mit `false`. Vier davon benutzt PR 17 sofort
+ * (`crm.*`, `formular.*`); die übrigen 15 gehören zu Modulen späterer Phasen
+ * und stehen deshalb hier.
  */
 export const NOCH_UNBENUTZT: readonly string[] = [
   "abrechnung.freistellung_pflegen",
+  "abrechnung.lesen",
+  "abrechnung.schreiben",
   "angebot.annahme_erfassen",
   "angebot.preis_freigeben",
   "angebot.schreiben",
@@ -33,17 +42,17 @@ export const NOCH_UNBENUTZT: readonly string[] = [
   "bau.schreiben",
   "bericht.exportieren",
   "bericht.lesen",
-  "buchhaltung_konfiguration.lesen",
-  "buchhaltung_konfiguration.verwalten",
   "buchhaltung.exportieren",
   "buchhaltung.festschreiben",
   "buchhaltung.lesen",
   "buchhaltung.schreiben",
-  "crm_entgelt.lesen",
+  "buchhaltung_konfiguration.lesen",
+  "buchhaltung_konfiguration.verwalten",
   "crm.exportieren",
   "crm.kommunikation_versenden",
   "crm.rechtsgrundlage_lesen",
   "crm.rechtsgrundlage_setzen",
+  "crm_entgelt.lesen",
   "datenschutz.auskunft_erstellen",
   "datenschutz.berichtigung_bearbeiten",
   "datenschutz.loeschung_pruefen",
@@ -75,10 +84,10 @@ export const NOCH_UNBENUTZT: readonly string[] = [
   "gruppe.auftrag.lesen",
   "gruppe.bau.lesen",
   "gruppe.bericht.lesen",
-  "gruppe.buchhaltung_konfiguration.lesen",
   "gruppe.buchhaltung.lesen",
-  "gruppe.crm_entgelt.lesen",
+  "gruppe.buchhaltung_konfiguration.lesen",
   "gruppe.crm.lesen",
+  "gruppe.crm_entgelt.lesen",
   "gruppe.datenschutz.lesen",
   "gruppe.dienstanweisung.lesen",
   "gruppe.dienstplan.arbzg_lesen",
@@ -92,8 +101,8 @@ export const NOCH_UNBENUTZT: readonly string[] = [
   "gruppe.mahnung.lesen",
   "gruppe.nachweis.lesen",
   "gruppe.nummernkreis.lesen",
-  "gruppe.objekt_import.lesen",
   "gruppe.objekt.lesen",
+  "gruppe.objekt_import.lesen",
   "gruppe.oeffentlich.lesen",
   "gruppe.personal.lesen",
   "gruppe.qualitaet.lesen",
@@ -115,6 +124,8 @@ export const NOCH_UNBENUTZT: readonly string[] = [
   "gruppe.zeit.lesen",
   "kalender.lesen",
   "kalender.schreiben",
+  "kalkulation.lesen",
+  "kalkulation.schreiben",
   "katalog.lesen",
   "katalog.schreiben",
   "mahnung.freigeben",
@@ -125,12 +136,19 @@ export const NOCH_UNBENUTZT: readonly string[] = [
   "nachweis.schreiben",
   "nummernkreis.lesen",
   "objekt.schreiben",
+  "objekt_import.lesen",
+  "objekt_import.schreiben",
   "oeffentlich.lesen",
+  "personal.aendern",
   "personal.anstellung_beenden",
   "personal.bewacher_verwalten",
   "personal.entgelt_lesen",
   "personal.entgelt_schreiben",
   "personal.erstattung_lesen",
+  "personal.erstellen",
+  "personal.nachweis_lesen",
+  "personal.nachweis_verwalten",
+  "personal.schreiben",
   "personal.stammdaten_lesen",
   "personal.zugang_verwalten",
   "personal.zusammenfuehren",
@@ -148,6 +166,8 @@ export const NOCH_UNBENUTZT: readonly string[] = [
   "recruiting.stelle_schreiben",
   "recruiting.stelle_veroeffentlichen",
   "referenz.veroeffentlichen",
+  "reinigung.lesen",
+  "reinigung.schreiben",
   "schluessel.lesen",
   "schluessel.schreiben",
   "security.lesen",
@@ -173,6 +193,8 @@ export const NOCH_UNBENUTZT: readonly string[] = [
   "system.sitzung_widerrufen",
   "system.zwei_faktor_zuruecksetzen",
   "vergabe.einreichung_erfassen",
+  "vergabe.lesen",
+  "vergabe.schreiben",
   "wachbuch.lesen",
   "wachbuch.schreiben",
   "zahlung.lesen",

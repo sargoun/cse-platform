@@ -20,6 +20,12 @@ case "${1:-up}" in
       als_postgres "pg_ctl -D $PGDATA -o '-p $PORT -c listen_addresses=localhost -c timezone=UTC' -l /tmp/pg.log start"
       sleep 2
     fi
+    # Offene Verbindungen zuerst kappen: `drop database` scheitert an einer
+    # einzigen idle-Sitzung, und die Suite haelt ihren Pool ueber Dateigrenzen
+    # hinweg offen. Ohne diese Zeile haengt der Fehlschlag davon ab, welche
+    # Datei zufaellig zuletzt lief.
+    psql -h localhost -p "$PORT" -U postgres -q -c \
+      "select pg_terminate_backend(pid) from pg_stat_activity where datname = '$DB';" >/dev/null 2>&1 || true
     psql -h localhost -p "$PORT" -U postgres -q -c "drop database if exists $DB;" -c "create database $DB;"
     for f in drizzle/0*.sql; do
       echo "  → $f"

@@ -50,6 +50,22 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'referenz', pfad: 'inhalt/jsonld', schreibend: false },
   { modul: 'referenz', pfad: 'inhalt/sitemap', schreibend: false },
   { modul: 'referenz', pfad: 'inhalt/llms', schreibend: false },
+  // Lead und Formular. Die Annahme SCHREIBT — sie ist der einzige Dienst
+  // dieser Domäne, den ein anonymer Aufrufer auslöst.
+  { modul: 'crm', pfad: 'lead/sla', schreibend: false },
+  {
+    modul: 'formular', pfad: 'lead/annahme',
+    schreibend: true, schreibRecht: 'formular.schreiben',
+  },
+  {
+    modul: 'crm', pfad: 'lead/eskalation',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  {
+    modul: 'versand', pfad: 'lead/bestaetigung',
+    schreibend: true, schreibRecht: 'crm.kommunikation_versenden',
+  },
+  { modul: 'crm', pfad: 'lead/benachrichtigung', schreibend: false },
 ] as const;
 
 /**

@@ -55,7 +55,12 @@ describe('the delete-lock registry is the single source (01-ORDNERSTRUKTUR §6.2
       // Eine Rechtsgrundlage ODER eine SPEC-Anforderung — beide sind pruefbar,
       // "aus Sicherheitsgruenden" ist es nicht.
       expect(l.grund, l.tabelle)
-        .toMatch(/LEG-\d\d|SEC-A9|DSGVO|MiLoG|D-09|APR-\d\d|DOC-\d\d|FIN-\d\d|AUT-\d\d|§/u);
+        // `REQ`, `REP` und `CRM` sind SPEC-Anker derselben Art wie `DOC` und
+        // `FIN`, die schon dastanden — nicht eine Lockerung, sondern die
+        // Fortsetzung derselben Liste in die Phase-2-Domäne.
+        .toMatch(
+          /LEG-\d\d|SEC-A9|DSGVO|MiLoG|D-09|APR-\d\d|DOC-\d\d|FIN-\d\d|AUT-\d\d|REQ-\d\d|REP-\d\d|CRM-\d\d|§/u,
+        );
       expect(l.grund.length, l.tabelle).toBeGreaterThan(60);
     }
   });

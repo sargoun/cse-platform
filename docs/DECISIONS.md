@@ -1121,6 +1121,91 @@ mobil. `best-practices` warnt nur — seine Regeln aendern sich mit jeder
 Lighthouse-Version, und ein rotes CI durch ein Versionsupdate wird abgeschaltet
 statt behoben.
 
+### D-73 · Der Rechtekatalog verlor 19 Schluessel an eine Regex
+
+`03-AUTH-BERECHTIGUNGEN.md` §12 schreibt Zeilen wie `` `crm.lesen` / `crm.schreiben` ``,
+wenn dieselbe Rollenzeile fuer beide gilt. Der Extraktor verlangte GENAU EINEN
+Schluessel je Zeile und uebersprang jede andere stillschweigend — neun Zeilen,
+19 Schluessel, darunter `crm.lesen`, `crm.schreiben`, `formular.lesen` und
+`formular.schreiben`.
+
+`app.hat_recht` antwortet auf einen fehlenden Schluessel mit `false`. Jede
+Policy, die einen davon genannt haette, waere fuer jede Rolle falsch gewesen —
+also genau der K-19-Ausfall, den dieser Extraktor verhindern soll, erzeugt vom
+Extraktor selbst. Sichtbar geworden waere er als dauerhaft leerer Bildschirm im
+CRM, ohne Fehlermeldung.
+
+Der Extraktor liest jetzt alle Schluessel einer Zelle, mit der Kurzform
+`` `personal.erstellen` / `.aendern` `` (der Modulname wird ergaenzt). 207 → 226
+Schluessel; vier benutzt PR 17 sofort, 15 stehen auf der eingefrorenen
+Warteliste.
+
+### D-74 · Zwei Prinzipale fuer die oeffentliche Seite, und der zweite liest nicht
+
+Der Renderer (D-68) laeuft mit `app.readonly = 'on'` und koennte eine
+Einsendung nicht speichern. Die Formularannahme ist deshalb ein ZWEITER
+Prinzipal: `oeffentlich.lesen` + `formular.schreiben` + `dokument.schreiben` +
+`crm.schreiben` + `crm.kommunikation_versenden`, in `mandant`-Scope mit genau
+einem Bereich.
+
+**Er haelt weder `formular.lesen` noch `crm.lesen`.** Das ist keine
+Feinheit — es hat den Code geformt:
+
+- Die Annahme schreibt **ohne `RETURNING`** und erzeugt ihre UUIDs selbst.
+  `INSERT … RETURNING` verlangt, dass die Zeile die SELECT-Policy besteht; ein
+  `RETURNING` haette den Prinzipal gezwungen, Leserechte zu bekommen, und damit
+  waere die Trennung hinfaellig gewesen.
+- Eingang und Lead verweisen aufeinander, also ist die Fremdschluesselbedingung
+  `DEFERRABLE INITIALLY DEFERRED`. Die Alternative — erst einfuegen, dann per
+  UPDATE verknuepfen — braeuchte `formular.lesen` fuer die `USING`-Bedingung.
+- Frist und Besitzer kommen aus `app.formular_zustaendigkeit()`, das Ratenlimit
+  aus `app.formular_eingang_zaehlen()`: zwei `SECURITY DEFINER`-Funktionen, die
+  je zwei Werte beziehungsweise eine Zahl herausgeben und keine Zeile.
+
+Das Ratenlimit zaehlte im ersten Entwurf mit einem gewoehnlichen
+`select count(*)` und ergab deshalb IMMER 0 — eingebaut und wirkungslos, und
+nichts daran war zu sehen. Der Isolationstest hat es gefunden.
+
+### D-75 · Was PR 17 bewusst NICHT entscheidet
+
+- **Die SLA-Frist** ist 24 Stunden, als Zeile in `formular_zustaendigkeit` und
+  nicht als Spalten-DEFAULT — und die Oberflaeche weist sie als *vorlaeufig*
+  aus. Ob in Kalender- oder Werktagsstunden und wann sie an einem Freitagabend
+  anlaeuft, ist O-14. `sla_stunden` ist nullable: ein manueller Lead hat nichts
+  zu erben, und `NOT NULL` haette den Aufnahmedienst gezwungen, eine Frist zu
+  erfinden.
+- **Die Auswahllisten** fuer `gebaeudetyp`, `frequenz` und `gewerk` sind als
+  "(vorläufig)" beschriftete Platzhalter (O-62).
+- **CSE Operations hat kein Formular** (O-61). REQ-01 verlangt eines je Bereich,
+  REQ-02/03/04 definieren drei Feldmengen. `/anfrage/operations` ist 404 und
+  kein leeres Formular — ein Formular ohne Felder saehe aus wie ein Ladefehler
+  und wuerde abgeschickt, ohne dass jemand anbieten koennte.
+- **Die Leadnummer benutzt keinen Nummernkreis.** K-12s lueckenlose Kette
+  gehoert Rechnungen, wo eine Luecke ein GoBD-Befund ist. Den Zaehler von aussen
+  ausloesbar zu machen waere der teuerste Weg zu einer Leadnummer.
+- **Das Datenschutz-Haekchen ist eine BESTAETIGUNG**, keine Einwilligung: eine
+  Anfrage zu bearbeiten stuetzt sich auf Art. 6(1)(b)/(f) DSGVO, und eine
+  Einwilligung, die man nicht verweigern kann, ist keine (O-63). Die einzige
+  echte Einwilligung ist die freiwillige fuer Werbung, und nur sie hebt
+  `rechtsgrundlage` von `anfrage` auf `einwilligung` (CRM-08).
+
+### D-76 · Die Eingangsbestaetigung geht durch dasselbe Tor wie alles andere
+
+Sie fuehlt sich harmlos an — eine Antwort auf eine Anfrage, kein Werbebrief.
+Genau deshalb waere sie die naheliegende Stelle fuer eine Ausnahme, und eine
+Ausnahme im Tor ist kein Tor mehr (Invariante 7). Sie wird als Nutzlast gebaut,
+durch `gate()` geschickt und als `versand` protokolliert — **auch wenn nichts
+hinausgeht**: `gesendet_am` bleibt dann NULL und `ergebnis` sagt warum. Das Tor
+ist fail-closed, ohne `agent_richtlinie`-Zeile fuer `email_senden` bleibt die
+Bestaetigung also liegen. Das ist die richtige Vorgabe: lieber keine
+Bestaetigung als eine automatische Mail, die niemand vorgesehen hat.
+
+0012 gab `versand` nur `cse_job` einen INSERT. Die Bestaetigung entsteht aber
+auf dem Anfragepfad, nicht in einem Job — 0017 ergaenzt deshalb eine
+INSERT-Policy fuer `cse_app` unter `crm.kommunikation_versenden`. Sie ist keine
+Erlaubnis zu senden; `agent/policy.ts` entscheidet weiterhin, und die Zeile
+bezeugt nur, dass entschieden wurde.
+
 ---
 
 ## Carried over from the Phase 0 review — not client questions

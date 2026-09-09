@@ -170,6 +170,43 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       'LEG-01, LEG-02. Everything costed hangs off `anstellung_id` (D-09). Deleting an '
       + 'employment orphans the wage evidence a MiLoG or ArbZG dispute is settled with.',
   },
+  {
+    tabelle: 'formular_definition',
+    art: 'archiv',
+    migration: '0016',
+    grund:
+      'REQ-01. Eine gespeicherte Einsendung verweist auf die Version, gegen die sie '
+      + 'validiert wurde. Wird die Definition gelöscht, ist die Einsendung nicht mehr '
+      + 'lesbar und der LEG-09-Datenschutzbeleg zeigt ins Leere. Zurückziehen heisst '
+      + '`zurueckgezogen_am`, nicht DELETE.',
+  },
+  {
+    tabelle: 'formular_zustaendigkeit',
+    art: 'archiv',
+    migration: '0016',
+    grund:
+      'REQ-05/REQ-06. Sie hält die SLA und den benannten Besitzer eines Formulars; '
+      + 'ohne sie lässt sich im Nachhinein nicht sagen, welche Frist für einen Lead '
+      + 'galt. Sie endet mit ihrer Definition, nicht für sich.',
+  },
+  {
+    tabelle: 'lead',
+    art: 'archiv',
+    migration: '0017',
+    grund:
+      'REP-02/REP-03. Die Auswertung von Gewinn und Verlust hängt daran, dass Leads '
+      + 'nicht verschwinden — ein gelöschter verlorener Lead macht jede Quote besser, '
+      + 'als sie ist. `archiviert_am` beendet ihn.',
+  },
+  {
+    tabelle: 'lead_aktivitaet',
+    art: 'append',
+    migration: '0017',
+    grund:
+      '§ 7 UWG. Jede ausgehende Zeile trägt Zweck und Rechtsgrundlage zum Zeitpunkt '
+      + 'des Sendens — das ist der Beweis, dass gesendet werden durfte. Ein Beweis mit '
+      + 'Löschpfad ist keiner, und eine Zeitachse mit Lücken erst recht nicht.',
+  },
 ] as const;
 
 /**
@@ -184,6 +221,11 @@ export const AUDITIERT: readonly TabelleJeMigration[] = [
   { tabelle: 'person', migration: '0005' },
   { tabelle: 'anstellung', migration: '0005' },
   { tabelle: 'nummernkreis', migration: '0006' },
+  // Wer ein Formular veröffentlicht oder zurückzieht, ändert damit, was die
+  // Website zeigt — und wer die Zuständigkeit ändert, verschiebt eine SLA.
+  { tabelle: 'formular_definition', migration: '0016' },
+  { tabelle: 'formular_zustaendigkeit', migration: '0016' },
+  { tabelle: 'lead', migration: '0017' },
 ] as const;
 
 /** Tables carrying S4 (`geloescht_am` / `geloescht_von`) — the finders' domain. */
@@ -204,6 +246,12 @@ export const GEAENDERT_AM: readonly TabelleJeMigration[] = [
   { tabelle: 'benutzer_mandant', migration: '0007' },
   // `benutzer_sitzung` führt `letzte_aktivitaet_am` selbst, in derselben
   // Anweisung, die die Sitzung validiert.
+  { tabelle: 'formular_definition', migration: '0016' },
+  { tabelle: 'formular_zustaendigkeit', migration: '0016' },
+  { tabelle: 'lead', migration: '0017' },
+  // `formular_eingang` NICHT: er ist write-once. `verarbeitet_am` sagt, wann
+  // jemand ihn angefasst hat, und ein `geaendert_am` daneben behauptete, der
+  // Eingang selbst habe sich geändert — er darf es nicht.
 ] as const;
 
 /** Every migration that carries a generated block, in order. */

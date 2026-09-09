@@ -38,6 +38,16 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + 'ohnehin öffentlich steht — Firma, Anschrift, Telefon aus `mandant` und die '
       + 'veröffentlichten Seiten. Hinter einer Anmeldung wäre die Datei sinnlos.',
   },
+  {
+    pfad: 'api/anfrage',
+    recht: null,
+    grund:
+      'REQ-01 … REQ-07. Der Weg, auf dem jemand OHNE Konto ein Angebot anfragt — hinter '
+      + 'einer Anmeldung gäbe es keine Anfrage. Was sie schützt, sind nicht Rechte des '
+      + 'Aufrufers, sondern Honigtopf, Ratenlimit auf `ip_hash`, Validierung gegen die '
+      + 'Formularversion (SEC-A4) und ein Prinzipal, der `formular.schreiben` hält und '
+      + '`formular.lesen` nicht.',
+  },
 ] as const;
 
 /** Die Routen, die ein Recht verlangen. */

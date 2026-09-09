@@ -173,3 +173,71 @@ revoke delete, truncate on freigabe_snapshot from cse_app, cse_anon, cse_checkin
 
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0016)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- formular_definition (archiv): REQ-01. Eine gespeicherte Einsendung verweist auf die Version, gegen die sie validiert wurde. Wird die Definition gelöscht, ist die Einsendung nicht mehr lesbar und der LEG-09-Datenschutzbeleg zeigt ins Leere. Zurückziehen heisst `zurueckgezogen_am`, nicht DELETE.
+create trigger trg_formular_definition_kein_hard_delete
+  before delete on formular_definition
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_formular_definition_kein_truncate
+  before truncate on formular_definition
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on formular_definition from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- formular_zustaendigkeit (archiv): REQ-05/REQ-06. Sie hält die SLA und den benannten Besitzer eines Formulars; ohne sie lässt sich im Nachhinein nicht sagen, welche Frist für einen Lead galt. Sie endet mit ihrer Definition, nicht für sich.
+create trigger trg_formular_zustaendigkeit_kein_hard_delete
+  before delete on formular_zustaendigkeit
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_formular_zustaendigkeit_kein_truncate
+  before truncate on formular_zustaendigkeit
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on formular_zustaendigkeit from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_formular_definition_geaendert_am
+  before update on formular_definition
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_formular_zustaendigkeit_geaendert_am
+  before update on formular_zustaendigkeit
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_formular_definition_audit
+  after insert or update or delete on formular_definition
+  for each row execute function kern.protokolliere_aenderung();
+create trigger trg_formular_zustaendigkeit_audit
+  after insert or update or delete on formular_zustaendigkeit
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0017)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- lead (archiv): REP-02/REP-03. Die Auswertung von Gewinn und Verlust hängt daran, dass Leads nicht verschwinden — ein gelöschter verlorener Lead macht jede Quote besser, als sie ist. `archiviert_am` beendet ihn.
+create trigger trg_lead_kein_hard_delete
+  before delete on lead
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_lead_kein_truncate
+  before truncate on lead
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on lead from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- lead_aktivitaet (append): § 7 UWG. Jede ausgehende Zeile trägt Zweck und Rechtsgrundlage zum Zeitpunkt des Sendens — das ist der Beweis, dass gesendet werden durfte. Ein Beweis mit Löschpfad ist keiner, und eine Zeitachse mit Lücken erst recht nicht.
+create trigger trg_lead_aktivitaet_kein_hard_delete
+  before delete on lead_aktivitaet
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_lead_aktivitaet_kein_truncate
+  before truncate on lead_aktivitaet
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on lead_aktivitaet from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_lead_geaendert_am
+  before update on lead
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_lead_audit
+  after insert or update or delete on lead
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks

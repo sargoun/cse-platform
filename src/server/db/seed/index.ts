@@ -14,6 +14,7 @@
  * Antwort auf eine offene Frage.
  */
 import postgres from 'postgres';
+import { DATENSCHUTZ_VERSION, FORMULARE } from './formulare.js';
 
 const url = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 if (url === undefined || url === '') {
@@ -226,6 +227,109 @@ async function main(): Promise<void> {
             'Dienstprinzipal der öffentlichen Website (03-AUTH §14.3).', false)
     on conflict (schluessel) do update set wert = excluded.wert`;
   process.stdout.write('  1 Website-Renderer (nur oeffentlich.lesen)\n');
+
+  // -------------------------------------------------- Formular-Eingang
+  /**
+   * Der ZWEITE Dienstprinzipal (03-AUTH §14.3) — er schreibt, und er liest nicht.
+   *
+   * Der Website-Renderer haelt `oeffentlich.lesen` und laeuft mit
+   * `app.readonly = 'on'`; er koennte eine Einsendung nicht speichern. Ein
+   * einziger Prinzipal fuer beides haette bedeutet: wer die zum Internet offene
+   * Leseflaeche uebernimmt, bekommt einen Schreibweg dazu.
+   *
+   * Er haelt `formular.schreiben` und `dokument.schreiben` (fuer das
+   * REQ-04-Leistungsverzeichnis) — aber ausdruecklich **nicht**
+   * `formular.lesen`: er nimmt Einsendungen entgegen und kann keine
+   * zurueckholen. Wer ihn uebernimmt, bekommt kein Archiv fremder Anfragen.
+   */
+  const eingangId = await authBenutzer('formular@cse-gruppe.de');
+
+  const [vorhandeneEingangRolle] = await sql<{ id: string }[]>`
+    select id from rolle where schluessel = 'formular_eingang' and mandant_id is null
+      and archiviert_am is null`;
+  const eingangRolle = vorhandeneEingangRolle?.id ?? (await sql<{ id: string }[]>`
+    insert into rolle (schluessel, bezeichnung, beschreibung, geltungsbereich,
+                       portal, ist_system)
+    values ('formular_eingang', 'Formular-Eingang',
+            'Nimmt öffentliche Angebotsanfragen entgegen. Schreibt formular_eingang '
+            || 'und dokument, liest keines von beiden (03-AUTH §14.3).',
+            'mandant', 'intern', true)
+    returning id`)[0]!.id;
+
+  /**
+   * Fuenf Rechte, und `crm.lesen` ist bewusst NICHT dabei.
+   *
+   * Er muss einen Lead ANLEGEN koennen, nicht Leads lesen. Mit `crm.lesen`
+   * haette der zum Internet offene Prinzipal die gesamte Vertriebspipeline
+   * lesen koennen — deshalb schreibt die Annahme ohne `RETURNING` und erzeugt
+   * ihre Kennungen selbst.
+   */
+  for (const schluessel of ['oeffentlich.lesen', 'formular.schreiben',
+                            'dokument.schreiben', 'crm.schreiben',
+                            'crm.kommunikation_versenden']) {
+    await sql`
+      insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+      select ${eingangRolle}, b.id, null, true
+        from berechtigung b where b.schluessel = ${schluessel}
+      on conflict (rolle_id, berechtigung_id, mandant_id) do nothing`;
+  }
+
+  await sql`
+    insert into benutzer (id, email, name, ist_dienstkonto, status)
+    values (${eingangId}, 'formular@cse-gruppe.de', 'Formular-Eingang', true, 'aktiv')
+    on conflict (id) do update set status = 'aktiv', ist_dienstkonto = true`;
+
+  for (const b of BEREICHE) {
+    await sql`
+      insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id)
+      values (${eingangId}, ${ids.get(b.slug)!}, ${eingangRolle})
+      on conflict do nothing`;
+  }
+
+  await sql`
+    insert into plattform_einstellung (schluessel, wert, beschreibung, ist_vorlaeufig)
+    values ('website.eingang_benutzer', to_jsonb(${eingangId}::text),
+            'Dienstprinzipal der Formularannahme (03-AUTH §14.3).', false)
+    on conflict (schluessel) do update set wert = excluded.wert`;
+  process.stdout.write('  1 Formular-Eingang (schreibt, liest nicht)\n');
+
+  // ------------------------------------------------------------- Formulare
+  /**
+   * Ein Formular je Bereich — mit VORLAEUFIGEM SLA.
+   *
+   * `sla_stunden = 24` ist eine Annahme, keine Mandantenregel: ob die Frist in
+   * Kalender- oder Werktagsstunden laeuft und wann sie an einem Freitagabend
+   * beginnt, ist offen (O-14). Sie steht deshalb in der Zeile und nicht als
+   * Spalten-DEFAULT — eine per Schema gesetzte Frist findet spaeter niemand
+   * als Entscheidung wieder — und die Oberflaeche weist sie als vorlaeufig aus.
+   *
+   * Fuer CSE Operations gibt es keines: welche Felder es braucht, ist O-61.
+   */
+  let formulare = 0;
+  for (const vorlage of FORMULARE) {
+    const mandantId = ids.get(vorlage.slug)!;
+    const [vorhanden] = await sql<{ id: string }[]>`
+      select id from formular_definition
+       where mandant_id = ${mandantId} and schluessel = ${vorlage.schluessel}
+         and version = 1`;
+    const formularId = vorhanden?.id ?? (await sql<{ id: string }[]>`
+      insert into formular_definition
+        (mandant_id, schluessel, version, titel, felder,
+         datenschutz_hinweis_version, veroeffentlicht_am)
+      values (${mandantId}, ${vorlage.schluessel}, 1, ${vorlage.titel},
+              ${sql.json(vorlage.felder as never)}, ${DATENSCHUTZ_VERSION}, now())
+      returning id`)[0]!.id;
+
+    await sql`
+      insert into formular_zustaendigkeit
+        (mandant_id, formular_definition_id, sla_stunden,
+         standard_besitzer_benutzer_id, eskalation_benutzer_id)
+      values (${mandantId}, ${formularId}, 24, ${adminId}, ${adminId})
+      on conflict (formular_definition_id) do nothing`;
+    formulare += 1;
+  }
+  process.stdout.write(
+    `  ${String(formulare)} Formulare (SLA 24 h VORLÄUFIG, O-14; Operations offen, O-61)\n`);
 
   // ------------------------------------------------- Anzeigename der Gruppe
   /**

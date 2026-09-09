@@ -73,8 +73,35 @@ export function zerlege(schluessel: string): { modul: string; objekt: string; ak
 // `[a-z_*]` und nicht `[a-z_]`: die Sammelzeile `gruppe.*.lesen` muss durch
 // diesen Filter kommen, sonst wird sie stillschweigend übersprungen und mit
 // ihr jeder Gruppenlese-Schlüssel — genau der K-19-Ausfall, den §12.1 nennt.
-const ZEILE = /^\|\s*`([a-z_*]+(?:\.[a-z_*]+){1,2})`\s*\|(.*)\|\s*$/u;
+//
+// Die erste Zelle darf MEHRERE Schlüssel nennen — §12 schreibt Zeilen wie
+// `crm.lesen` / `crm.schreiben` und `personal.erstellen` / `.aendern` /
+// `.schreiben`, wenn dieselbe Rollenzeile für alle gilt. Eine frühere Fassung
+// verlangte genau einen Schlüssel und übersprang jede solche Zeile
+// stillschweigend: 20 Schlüssel — darunter `crm.lesen`, `crm.schreiben`,
+// `formular.lesen` und `formular.schreiben` — fehlten im Katalog, und
+// `app.hat_recht` antwortet auf einen fehlenden Schlüssel mit `false`. Also
+// genau der K-19-Ausfall, den dieser Extraktor verhindern soll: ein Recht, das
+// die Prosa nennt und das für jede Rolle falsch ist, sichtbar als dauerhaft
+// leerer Bildschirm.
+const ZELLE = /^\|\s*((?:`[.a-z_*]+`(?:\s*\/\s*)?)+)\s*\|(.*)\|\s*$/u;
+const SCHLUESSEL = /`([.a-z_*]+)`/gu;
 const GLYPHEN = new Set(['✔', '○', '—', 'S', '']);
+
+/**
+ * Die Schlüssel einer Matrixzelle.
+ *
+ * `.aendern` als zweiter Eintrag ist die Kurzform für "derselbe Modulname wie
+ * beim ersten" — so steht es in §12, und wer es als eigenständigen Schlüssel
+ * läse, bekäme einen mit leerem Modul.
+ */
+export function schluesselAus(zelle: string): readonly string[] {
+  const roh = [...zelle.matchAll(SCHLUESSEL)].map((m) => m[1]!);
+  const erster = roh[0];
+  if (erster === undefined) return [];
+  const modul = erster.split('.')[0]!;
+  return roh.map((k) => (k.startsWith('.') ? `${modul}${k}` : k));
+}
 
 export function lies(): readonly KatalogEintrag[] {
   const text = readFileSync(QUELLE, 'utf8').split('\n');
@@ -85,9 +112,10 @@ export function lies(): readonly KatalogEintrag[] {
   const eintraege = new Map<string, KatalogEintrag>();
 
   for (const zeile of text.slice(von, bis)) {
-    const m = ZEILE.exec(zeile.trim());
+    const m = ZELLE.exec(zeile.trim());
     if (m === null) continue;
-    const schluessel = m[1]!;
+    const schluessel = schluesselAus(m[1]!);
+    if (schluessel.length === 0) continue;
     const zellen = m[2]!.split('|').map((c) => c.trim().replace(/[*`]/gu, ''));
     if (zellen.length < 5) continue;
     const glyphen = zellen.slice(0, 5);
@@ -104,15 +132,17 @@ export function lies(): readonly KatalogEintrag[] {
     const nurGlobal = ROLLEN.slice(1).every((r) => !gebunden.includes(r) && !bindbar.includes(r))
       && gebunden.includes('super_admin');
 
-    if (schluessel.includes('*')) {
-      // Sammelzeile: unten entfaltet, nicht als Schlüssel gespeichert.
-      eintraege.set(schluessel, {
-        schluessel, modul: 'gruppe', objekt: '*', aktion: 'lesen',
-        gebunden, bindbar, nurGlobal: false,
-      });
-      continue;
+    for (const k of schluessel) {
+      if (k.includes('*')) {
+        // Sammelzeile: unten entfaltet, nicht als Schlüssel gespeichert.
+        eintraege.set(k, {
+          schluessel: k, modul: 'gruppe', objekt: '*', aktion: 'lesen',
+          gebunden, bindbar, nurGlobal: false,
+        });
+        continue;
+      }
+      eintraege.set(k, { schluessel: k, ...zerlege(k), gebunden, bindbar, nurGlobal });
     }
-    eintraege.set(schluessel, { schluessel, ...zerlege(schluessel), gebunden, bindbar, nurGlobal });
   }
 
   /**

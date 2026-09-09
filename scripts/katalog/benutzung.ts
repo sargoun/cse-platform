@@ -63,6 +63,24 @@ function ohneKommentare(inhalt: string): string {
     .join('\n');
 }
 
+/**
+ * Entfernt `schluessel: '…'`-Eigenschaften.
+ *
+ * In diesem Projekt benennt `schluessel:` die Kennung eines REGISTERS — eine
+ * Benachrichtigungsart (`crm.neuer_lead`), einen Job, ein Formular. Ein
+ * Rechteschlüssel steht nie dort: er steht in `hat_recht('…')`, unter `recht:`
+ * oder unter `schreibRecht:`, und genau die findet `AUFRUF`.
+ *
+ * Ohne diesen Schnitt meldete `MODUL_LITERAL` jede Benachrichtigungsart als
+ * unregistrierten Rechteschlüssel — dieselbe Form (`<modul>.<etwas>`, und die
+ * Datenbank erzwingt sie für Benachrichtigungen sogar per CHECK). Die Prüfung
+ * verlöre damit ihre Aussage: wer sie kennt, benennt seine Arten um, statt den
+ * echten Fund zu suchen.
+ */
+function ohneRegisterKennungen(inhalt: string): string {
+  return inhalt.replace(/\bschluessel:\s*['"`][^'"`]*['"`]/gu, 'schluessel: _');
+}
+
 /** Schneidet den erzeugten Katalogblock heraus — er ist die Liste, nicht ihre Benutzung. */
 function ohneKatalogblock(inhalt: string): string {
   const von = inhalt.indexOf(BEGINN);
@@ -84,7 +102,8 @@ export function funde(): readonly Fund[] {
 
   const alle: Fund[] = [];
   for (const datei of quellen) {
-    const inhalt = ohneKommentare(ohneKatalogblock(readFileSync(datei, 'utf8')));
+    const inhalt = ohneRegisterKennungen(
+      ohneKommentare(ohneKatalogblock(readFileSync(datei, 'utf8'))));
     for (const m of inhalt.matchAll(MODUL_LITERAL)) {
       const schluessel = m[1]!;
       if (ENDUNGEN.has(schluessel.split('.').at(-1)!)) continue;
