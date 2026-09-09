@@ -76,7 +76,11 @@ export default async function MandantDashboard(
 
       const werte = await dashboard(
         kontext,
-        { mandantId: sitzung.aktiverMandantId, mandantIds: kontext.mandantIds },
+        {
+          mandantId: sitzung.aktiverMandantId,
+          mandantSlug: eigen.slug,
+          mandantIds: kontext.mandantIds,
+        },
         (recht) => gehalten.has(recht),
       );
       return { eigen, werte };

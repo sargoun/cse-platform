@@ -50,7 +50,11 @@ export default async function DashboardSeite(
     const werte = await withDevAdmin(tx, gewaehlt, async (kontext) =>
       dashboard(
         kontext,
-        { mandantId: gewaehlt, mandantIds: kontext.mandantIds },
+        {
+          mandantId: gewaehlt,
+          mandantSlug: bereiche.find((b) => b.id === gewaehlt)?.slug ?? null,
+          mandantIds: kontext.mandantIds,
+        },
         // Der Super-Admin sieht alles; die rollenbezogene Filterung kommt mit
         // PR 19, wo es echte Sitzungen gibt.
         () => true,

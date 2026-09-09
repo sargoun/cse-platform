@@ -23,6 +23,16 @@ export type Ton = 'success' | 'warning' | 'danger' | 'info' | 'muted';
 export interface KachelKontext {
   /** Der Mandant, dessen Zahlen gezeigt werden — oder `null` in der Gruppe. */
   readonly mandantId: string | null;
+  /**
+   * Sein Slug — die Adresse haengt daran, die Abfrage nicht.
+   *
+   * Getrennt von `mandantId`, weil beide verschiedene Dinge sind: die ID
+   * bindet die Zeilen (K-02), der Slug baut den Link. Ein Ziel aus der ID zu
+   * bauen ergaebe `/portal/8f3a…` — eine Adresse, die niemand teilt und die
+   * `04-SEITENKARTE.md` nicht kennt. `null` in der Gruppenansicht, in der es
+   * keinen aktiven Bereich gibt.
+   */
+  readonly mandantSlug: string | null;
   /** Die sichtbaren Mandanten. In der Gruppenansicht mehr als einer. */
   readonly mandantIds: readonly string[];
 }
@@ -84,7 +94,7 @@ export function registriereKachel(kachel: Kachel): Kachel {
     );
   }
   // DSH-04. Eine Zahl ohne Weg dahinter ist eine Frage ohne Antwort.
-  const ziel = kachel.ziel({ mandantId: 'pruef', mandantIds: ['pruef'] });
+  const ziel = kachel.ziel({ mandantId: 'pruef', mandantSlug: 'pruef', mandantIds: ['pruef'] });
   if (typeof ziel !== 'string' || !ziel.startsWith('/')) {
     throw new KachelFehler(
       `Kachel ${kachel.schluessel}: \`ziel\` muss einen Pfad liefern (DSH-04). `

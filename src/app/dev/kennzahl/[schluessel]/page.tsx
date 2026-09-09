@@ -65,7 +65,11 @@ export default async function KennzahlSeite(
       : bereiche.find((b) => b.slug === bereich || b.id === bereich)?.id ?? null;
 
     return withDevAdmin(tx, gewaehlt, async (kontext) => {
-      const kontextWerte = { mandantId: gewaehlt, mandantIds: kontext.mandantIds };
+      const kontextWerte = {
+        mandantId: gewaehlt,
+        mandantSlug: bereiche.find((b) => b.id === gewaehlt)?.slug ?? null,
+        mandantIds: kontext.mandantIds,
+      };
       return {
         wert: await kachelWert(kontext, kachel, kontextWerte),
         zeilen: await kachelZeilen(kontext, kachel, kontextWerte),

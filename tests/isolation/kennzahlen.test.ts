@@ -83,7 +83,7 @@ describe('(1) DSH-04: jede Kachel zeigt die Zahl, die hinter ihrem Link steht', 
   it.each([['reinigung'], ['security'], ['bau'], ['operations']])(
     'Bereich %s: Zahl und verlinkte Liste stimmen überein', async (slug) => {
       const mandantId = ids.get(slug!)!;
-      const kontext = { mandantId, mandantIds: [mandantId] };
+      const kontext = { mandantId, mandantSlug: slug!, mandantIds: [mandantId] };
 
       await alsBereich(slug!, async (db) => {
         for (const kachel of alle) {
@@ -100,7 +100,7 @@ describe('(1) DSH-04: jede Kachel zeigt die Zahl, die hinter ihrem Link steht', 
 
   it('die Zahl stimmt mit einer DIREKTEN Zählung überein', async () => {
     const mandantId = ids.get('reinigung')!;
-    const kontext = { mandantId, mandantIds: [mandantId] };
+    const kontext = { mandantId, mandantSlug: 'reinigung', mandantIds: [mandantId] };
     const neue = alle.find((k) => k.schluessel === 'neue_leads')!;
 
     const [direkt] = await sql<{ n: number }[]>`
@@ -117,7 +117,7 @@ describe('(1) DSH-04: jede Kachel zeigt die Zahl, die hinter ihrem Link steht', 
 describe('(3) der Bereichsfilter ändert jede Zahl und leakt nie', () => {
   it('reinigung sieht seine zwei Leads, nicht die von security', async () => {
     const mandantId = ids.get('reinigung')!;
-    const kontext = { mandantId, mandantIds: [mandantId] };
+    const kontext = { mandantId, mandantSlug: 'reinigung', mandantIds: [mandantId] };
     const neue = alle.find((k) => k.schluessel === 'neue_leads')!;
 
     const zeilen = await alsBereich('reinigung',
@@ -136,7 +136,7 @@ describe('(3) der Bereichsfilter ändert jede Zahl und leakt nie', () => {
      * es kommt nichts zurück.
      */
     const fremd = ids.get('security')!;
-    const kontext = { mandantId: fremd, mandantIds: [fremd] };
+    const kontext = { mandantSlug: null, mandantId: fremd, mandantIds: [fremd] };
     const neue = alle.find((k) => k.schluessel === 'neue_leads')!;
 
     const zeilen = await alsBereich('reinigung',
@@ -148,7 +148,7 @@ describe('(3) der Bereichsfilter ändert jede Zahl und leakt nie', () => {
     const ziele = new Set(
       ['reinigung', 'security'].map((slug) => {
         const mandantId = ids.get(slug)!;
-        return alle[0]!.ziel({ mandantId, mandantIds: [mandantId] });
+        return alle[0]!.ziel({ mandantId, mandantSlug: slug, mandantIds: [mandantId] });
       }),
     );
     // Zwei Bereiche, zwei Ziele — sonst führt die Kachel des einen in den
@@ -168,7 +168,7 @@ describe('(3) der Bereichsfilter ändert jede Zahl und leakt nie', () => {
             (await tx.unsafe(s, w as never[])) as readonly R[],
         },
         neue,
-        { mandantId: null, mandantIds: beide },
+        { mandantSlug: null, mandantId: null, mandantIds: beide },
       ),
     );
     // Zwei je Bereich, vier zusammen — die Gruppenansicht addiert, sie
@@ -223,7 +223,9 @@ describe('withDevAdmin — der Kontext der Entwicklungsflaechen', () => {
     const mandantId = ids.get('reinigung')!;
     const werte = await mitSchalter(true, () => sql.begin((tx) =>
       withDevAdmin(tx, mandantId, (kontext) =>
-        dashboard(kontext, { mandantId, mandantIds: kontext.mandantIds }, () => true))));
+        dashboard(kontext,
+          { mandantId, mandantSlug: 'reinigung', mandantIds: kontext.mandantIds },
+          () => true))));
 
     expect(werte.length).toBe(alle.length);
     // Und die Zahlen sind echt: die zwei Leads dieses Bereichs stehen drin.

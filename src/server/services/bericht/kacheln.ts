@@ -15,23 +15,30 @@
  * dieses eine Argument — und weil dieselbe Bedingung in `zaehlung` und
  * `zeilen` steht, koennen Kachel und Liste nicht auseinanderlaufen.
  */
-import { registriereKachel, type Kachel } from '../../registry/kennzahlen.js';
+import { registriereKachel, type Kachel, type KachelKontext }
+  from '../../registry/kennzahlen.js';
 
 /**
  * Wohin eine Kachel fuehrt — an EINER Stelle.
  *
- * Heute auf die generische Kennzahlseite: sie rendert `zeilen` derselben
- * Kachel, also stimmt die Zeilenzahl mit der Kachelzahl per Konstruktion und
- * nicht per Sorgfalt. Modulspezifische Listen (mit Filtern und Sortierung)
- * kommen mit ihren Modulen.
+ * **Sie fuehrte nach `/dev/kennzahl/…`.** Das war richtig, solange es keine
+ * angemeldete Portal-Shell gab, und die Datei sagte das auch: *"Wenn sie da
+ * ist, aendert sich DIESE Funktion — nicht sieben Kacheln, von denen man sechs
+ * findet."* Sie ist da; im angemeldeten Portal war jede Kachel bis hierher ein
+ * toter Link in einen Entwicklungsbaum, den ein Deployment gar nicht ausliefert.
  *
- * Der Praefix ist `/dev`, weil die angemeldete Portal-Shell erst mit PR 19/20
- * existiert. Wenn sie da ist, aendert sich DIESE Funktion — nicht sieben
- * Kacheln, von denen man sechs findet.
+ * Ziel ist jetzt die LISTE des Moduls aus `04-SEITENKARTE.md` — im Bereich
+ * `/portal/<slug>/…`, in der Gruppenansicht `/portal/gruppe/…`. Beide Adressen
+ * stehen im Manifest, tragen dasselbe Recht wie die Kachel und antworten,
+ * solange ihr Modul noch gebaut wird, mit genau dieser Auskunft statt mit 404.
  */
-export function kennzahlPfad(mandantId: string | null, schluessel: string): string {
-  const bereich = mandantId === null ? 'gruppe' : mandantId;
-  return `/dev/kennzahl/${schluessel}?bereich=${bereich}`;
+export function kennzahlPfad(
+  k: KachelKontext, imBereich: string, inDerGruppe: string,
+): string {
+  if (k.mandantSlug !== null) return `/portal/${k.mandantSlug}/${imBereich}`;
+  // Leer heisst: die Gruppenansicht kennt keine eigene Liste dafuer. Dann ist
+  // ihre Uebersicht das ehrliche Ziel — und keine erfundene Adresse.
+  return inDerGruppe === '' ? '/portal/gruppe' : `/portal/gruppe/${inDerGruppe}`;
 }
 
 export function registriereBerichtKacheln(): readonly Kachel[] {
@@ -49,7 +56,7 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
         `select id, leadnummer, betreff, firma_name, sla_frist_am from lead
           where mandant_id = any($1) and status = 'neu' and archiviert_am is null
           order by erstellt_am desc`,
-      ziel: (k) => kennzahlPfad(k.mandantId, 'neue_leads'),
+      ziel: (k) => kennzahlPfad(k, 'crm/leads', 'leads'),
     }),
 
     registriereKachel({
@@ -70,7 +77,7 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
             and erste_reaktion_am is null and archiviert_am is null
             and sla_frist_am < now()
           order by sla_frist_am`,
-      ziel: (k) => kennzahlPfad(k.mandantId, 'leads_ueber_sla'),
+      ziel: (k) => kennzahlPfad(k, 'crm/leads', 'leads'),
     }),
 
     registriereKachel({
@@ -90,7 +97,7 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
           where bm.mandant_id = any($1) and bm.entzogen_am is null
             and b.status = 'aktiv' and b.deaktiviert_am is null
           order by b.name`,
-      ziel: (k) => kennzahlPfad(k.mandantId, 'benutzer_aktiv'),
+      ziel: (k) => kennzahlPfad(k, 'einstellungen/benutzer', ''),
     }),
 
     registriereKachel({
@@ -112,7 +119,7 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
            from anstellung a join person p on p.id = a.person_id
           where a.mandant_id = any($1) and a.geloescht_am is null
           order by p.nachname, p.vorname`,
-      ziel: (k) => kennzahlPfad(k.mandantId, 'personen'),
+      ziel: (k) => kennzahlPfad(k, 'personal/personen', 'personen'),
     }),
 
     registriereKachel({
@@ -131,7 +138,7 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
            from anstellung a
           where a.mandant_id = any($1) and a.geloescht_am is null
           order by a.eintritt desc`,
-      ziel: (k) => kennzahlPfad(k.mandantId, 'anstellungen'),
+      ziel: (k) => kennzahlPfad(k, 'personal/anstellungen', 'personen'),
     }),
 
     registriereKachel({
@@ -147,7 +154,7 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
         `select id, lead_id, typ, richtung, betreff, geschehen_am from lead_aktivitaet
           where mandant_id = any($1) and geschehen_am > now() - interval '7 days'
           order by geschehen_am desc`,
-      ziel: (k) => kennzahlPfad(k.mandantId, 'letzte_aktivitaet'),
+      ziel: (k) => kennzahlPfad(k, 'crm/kunden', 'kunden'),
     }),
 
     registriereKachel({
@@ -164,7 +171,7 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
            from lead_aktivitaet
           where mandant_id = any($1) and faellig_am is not null and erledigt_am is null
           order by faellig_am`,
-      ziel: (k) => kennzahlPfad(k.mandantId, 'offene_wiedervorlagen'),
+      ziel: (k) => kennzahlPfad(k, 'crm/wiedervorlagen', 'leads'),
     }),
   ];
 }
