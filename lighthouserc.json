@@ -3,7 +3,7 @@
     "collect": {
       "url": [
         "http://localhost:3000/",
-        "http://localhost:3000/reinigung"
+        "http://localhost:3000/unternehmen/reinigung"
       ],
       "numberOfRuns": 3,
       "settings": {
