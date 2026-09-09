@@ -50,7 +50,7 @@ export function MarkenKarte({ bereich, titel, anspruch, href, bild }: MarkenKart
       <span className="relative flex flex-col gap-s1 p-s4">
         <span className="text-h3 text-white">{titel}</span>
         <span className="text-sm text-white/80">{anspruch}</span>
-        <span className="mt-s2 text-sm font-semibold text-red">Mehr erfahren →</span>
+        <span className="mt-s2 text-sm font-semibold text-brand">Mehr erfahren →</span>
       </span>
       {bild.platzhalter && (
         <span

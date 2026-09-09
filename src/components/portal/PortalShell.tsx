@@ -42,12 +42,12 @@ export function PortalShell({
         className="h-[3px] w-full shrink-0"
         style={{
           background: gruppenansicht || aktiv === undefined
-            ? 'var(--border-strong)'
+            ? 'var(--border-line-strong)'
             : `var(--area-${aktiv.bereich})`,
         }}
       />
 
-      <header className="flex h-14 shrink-0 items-center gap-s3 border-b border-border bg-surface px-s3">
+      <header className="flex h-14 shrink-0 items-center gap-s3 border-b border-line bg-surface px-s3">
         <BereichsUmschalter
           bereiche={bereiche}
           aktiv={aktiverMandantId}

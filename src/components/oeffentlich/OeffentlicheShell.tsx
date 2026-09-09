@@ -46,7 +46,7 @@ export function OeffentlicheShell(
     <div className="flex min-h-dvh flex-col bg-ink">
       <header
         data-cse="oeffentlicher-kopf"
-        className="sticky top-0 z-40 flex h-[72px] items-center gap-s5 border-b border-border
+        className="sticky top-0 z-40 flex h-[72px] items-center gap-s5 border-b border-line
                    bg-surface/80 px-s5 backdrop-blur"
       >
         <a href="/" className="text-h3 text-text">{gruppeName}</a>
@@ -61,7 +61,7 @@ export function OeffentlicheShell(
       <main className="flex-1">{children}</main>
 
       {/* PUB-14: dieselbe runde Avatarreihe wie im Portal, oeffentliche Absicht. */}
-      <footer className="border-t border-border bg-surface px-s5 py-s6">
+      <footer className="border-t border-line bg-surface px-s5 py-s6">
         <nav aria-label="Unsere Bereiche" className="flex flex-wrap gap-s5">
           {bereiche.map((b) => (
             <a

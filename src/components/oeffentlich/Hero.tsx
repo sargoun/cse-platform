@@ -39,7 +39,7 @@ export function Hero({ ueberschrift, akzentWort, text, bild }: HeroProps) {
           {akzentWort !== null && akzentWort !== undefined && akzentWort !== '' && (
             <>
               {' '}
-              <span data-cse="akzent-wort" className="text-red">{akzentWort}</span>
+              <span data-cse="akzent-wort" className="text-brand">{akzentWort}</span>
             </>
           )}
         </h1>

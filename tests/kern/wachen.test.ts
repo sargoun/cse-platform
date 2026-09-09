@@ -27,6 +27,10 @@ function guardsMit(dateien: Record<string, string>): { code: number; ausgabe: st
   cpSync(join(WURZEL, 'scripts'), join(arbeit, 'scripts'), { recursive: true });
   cpSync(join(WURZEL, 'docs/DECISIONS.md'), join(arbeit, 'docs/DECISIONS.md'));
   cpSync(join(WURZEL, 'supabase/config.toml'), join(arbeit, 'supabase/config.toml'));
+  // Die Tailwind-Wache prüft gegen das ECHTE Thema. Ohne Konfiguration
+  // überspringt sie sich selbst — mit ihr braucht sie auch `src/lib/design`.
+  cpSync(join(WURZEL, 'tailwind.config.ts'), join(arbeit, 'tailwind.config.ts'));
+  cpSync(join(WURZEL, 'src/lib/design'), join(arbeit, 'src/lib/design'), { recursive: true });
   for (const [pfad, inhalt] of Object.entries(dateien)) {
     const ziel = join(arbeit, pfad);
     mkdirSync(join(ziel, '..'), { recursive: true });
@@ -116,5 +120,31 @@ describe('(6) the database region is pinned to the EU (D-04)', () => {
     });
     expect(code).toBe(1);
     expect(ausgabe).toContain('eu-region');
+  });
+
+  /**
+   * (7) Eine Tailwind-Klasse, die es im Thema nicht gibt, bricht CI.
+   *
+   * Der Fall, der diese Wache erzwungen hat: `border-border` und `text-red`
+   * standen in acht Dateien, das Thema kennt aber `line` und `brand`. Tailwind
+   * erzeugt für eine unbekannte Farbe keine Regel und meldet nichts — jede
+   * Rahmenlinie der Anwendung war unsichtbar, und im Markup sah alles richtig
+   * aus.
+   */
+  it('(7) a colour class outside the Tailwind theme fails CI', () => {
+    const { code, ausgabe } = guardsMit({
+      'src/components/Kaputt.tsx':
+        'export const K = () => <div className="border-border text-red" />;\n',
+    });
+    expect(code).not.toBe(0);
+    expect(ausgabe).toContain('tailwind-farbe');
+    expect(ausgabe).toContain('border-border');
+    expect(ausgabe).toContain('text-red');
+  });
+
+  it('(7) and the real tree passes it', () => {
+    // Ohne diese Zusage könnte die Wache kaputt sein und niemand wüsste es.
+    const { code } = guardsMit({});
+    expect(code).toBe(0);
   });
 });

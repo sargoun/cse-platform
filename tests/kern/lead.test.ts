@@ -213,8 +213,12 @@ describe('(3) die Eingangsbestätigung geht durch das Gate — auch sie', () => 
     expect(text.toLowerCase()).not.toContain('unsere weiteren leistungen');
   });
 
-  it('sie nennt die zugesagte Frist, wenn es eine gibt', () => {
-    expect(String((nutzlast.inhalt as Record<string, unknown>)['text'])).toContain('2026-03-03');
+  it('sie nennt die Frist in BERLINER Zeit, nicht in UTC', () => {
+    // Die Frist steht als `2026-03-03T10:00:00Z` in der Datenbank. Der Kunde
+    // liest ein deutsches Datum; `toISOString()` hätte bei einer Frist kurz
+    // nach Mitternacht Berliner Zeit den VORTAG gezeigt (Invariante 2).
+    expect(String((nutzlast.inhalt as Record<string, unknown>)['text']))
+      .toContain('03.03.2026');
     const ohne = bestaetigungNutzlast({
       mandantId: 'm1', empfaenger: 'a@b.test', firma: 'CSE',
       leadnummer: 'L-1', slaFristAm: null,
@@ -222,5 +226,29 @@ describe('(3) die Eingangsbestätigung geht durch das Gate — auch sie', () => 
     // Ohne Frist wird keine behauptet.
     expect(String((ohne.inhalt as Record<string, unknown>)['text']))
       .toContain('so bald wie möglich');
+  });
+});
+
+describe('die Frist im Bestätigungstext kippt nicht am Tageswechsel', () => {
+  /**
+   * Der Fall, den `toISOString().slice(0, 10)` falsch gemacht hätte.
+   *
+   * 22:30 UTC ist in Berlin bereits der Folgetag — im Sommer sogar zwei
+   * Stunden voraus. Eine Bestätigung, die dem Kunden den Vortag zusagt, ist
+   * eine Zusage, die man einen Tag zu früh bricht.
+   */
+  it('eine Frist um 22:30 UTC ist in Berlin der nächste Tag', () => {
+    const winter = bestaetigungNutzlast({
+      mandantId: 'm1', empfaenger: 'a@b.test', firma: 'CSE', leadnummer: 'L-2',
+      slaFristAm: T('2026-01-15T23:30:00Z'),
+    });
+    expect(String((winter.inhalt as Record<string, unknown>)['text'])).toContain('16.01.2026');
+
+    const sommer = bestaetigungNutzlast({
+      mandantId: 'm1', empfaenger: 'a@b.test', firma: 'CSE', leadnummer: 'L-3',
+      slaFristAm: T('2026-07-15T22:30:00Z'),
+    });
+    // Sommerzeit: UTC+2, also ebenfalls schon der 16.
+    expect(String((sommer.inhalt as Record<string, unknown>)['text'])).toContain('16.07.2026');
   });
 });

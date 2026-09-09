@@ -165,14 +165,14 @@ export function BereichsUmschalter({
                 </span>
               </span>
               {b.id === aktiv && !gruppenansicht && (
-                <span aria-hidden className="ml-auto text-red">✓</span>
+                <span aria-hidden className="ml-auto text-brand">✓</span>
               )}
             </button>
           ))}
 
           {gruppeSichtbar && (
             <>
-              <hr className="my-s2 border-0 border-t border-border" />
+              <hr className="my-s2 border-0 border-t border-line" />
               <button
                 type="button"
                 role="menuitem"

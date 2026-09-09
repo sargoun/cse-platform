@@ -5,7 +5,8 @@
  * silently in production. They run in `pnpm lint`, so a branch that breaks one
  * cannot merge.
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { join, relative } from 'node:path';
 
 const WURZEL = process.cwd();
@@ -17,7 +18,30 @@ interface Befund {
   readonly text: string;
 }
 
+/** Blockkommentare und Zeilenkommentare raus — eine Erwähnung ist keine Klasse. */
+function ohneKommentare(inhalt: string): string {
+  return inhalt
+    .replace(/\/\*[\s\S]*?\*\//gu, ' ')
+    .split('\n')
+    .map((z) => z.replace(/(^|\s)\/\/.*$/u, '$1'))
+    .join('\n');
+}
+
 function dateien(verzeichnis: string, endungen: readonly string[]): string[] {
+  /**
+   * Ein fehlendes Verzeichnis ergibt eine LEERE Liste, nicht einen Fehler.
+   *
+   * Das ist Absicht — die Wachen laufen in `tests/kern/wachen.test.ts` gegen
+   * einen Wegwerf-Baum, der nur `scripts/` und zwei Dateien enthält; dort gibt
+   * es kein `src/`, und die geprüfte Wache soll trotzdem anlaufen.
+   *
+   * **Die Kehrseite muss jede Wache selbst tragen:** eine leere Liste sieht
+   * genauso aus wie ein sauberer Baum. Die Tailwind-Wache hat das einmal
+   * teuer bezahlt — ein falsch zusammengesetzter Pfad, `readdirSync` warf,
+   * dieser `catch` schluckte es, und sie meldete "alles sauber", ohne eine
+   * einzige Datei gelesen zu haben. Wer hier scannt und ein Ergebnis erwartet,
+   * prüft das ausdrücklich (siehe `wacheTailwindFarben`).
+   */
   const treffer: string[] = [];
   const gehe = (pfad: string): void => {
     let eintraege: string[];
@@ -178,19 +202,181 @@ function wacheEuRegion(): void {
   }
 }
 
-wacheGeldSpalte();
-wacheZeitstempel();
-wacheRouteOhneDb();
-wacheTodoClient();
-wacheEuRegion();
-wacheEinAusgang();
 
-if (befunde.length > 0) {
-  console.error(`\n${befunde.length} Verstoß/Verstöße gegen die Merge-Wachen:\n`);
-  for (const b of befunde) {
-    console.error(`  [${b.wache}] ${b.datei}:${b.zeile}\n      ${b.text}`);
+/**
+ * Guard 7 — jede Farbklasse muss im Tailwind-Thema existieren.
+ *
+ * **Der Ausfall, der diese Wache erzwungen hat.** `border-border` und
+ * `text-red` standen in acht Dateien. Das Thema kennt aber `line` und `brand`,
+ * nicht `border` und `red` — Tailwind erzeugt für eine unbekannte Farbe KEINE
+ * Regel und meldet auch nichts. Ergebnis: jede Rahmenlinie der Anwendung war
+ * unsichtbar und das eine rote Akzentwort nicht rot. Im Markup sah alles
+ * richtig aus, im Browser fehlte es, und kein Test schlug an — die
+ * Design-Prüfungen messen berechnete Stile an Elementen mit `style`-Attribut,
+ * nicht an Klassen.
+ *
+ * Deshalb wird hier gegen das ECHTE Thema geprüft und nicht gegen eine
+ * gepflegte Liste: eine umbenannte Farbe fällt damit sofort auf, statt still
+ * jede Stelle zu entfärben, die den alten Namen benutzt.
+ */
+function wacheTailwindFarben(): void {
+  /**
+   * Ohne Tailwind-Konfiguration gibt es nichts zu prüfen — das ist der
+   * Wegwerf-Baum der Wachen-Tests, der nur `scripts/` kopiert. Im echten
+   * Projekt ist die Datei immer da; fehlte sie dort, fiele der Build vorher.
+   */
+  if (!existsSync(join(WURZEL, 'tailwind.config.ts'))) return;
+
+  /**
+   * `createRequire` und nicht `await import(…)`.
+   *
+   * Die Wachen laufen auch in einem Baum ohne `package.json` — dort übersetzt
+   * `tsx` nach CJS, und ein dynamisches `import()` einer TypeScript-Datei
+   * scheitert dort still. Ein `require` über `createRequire` funktioniert in
+   * BEIDEN Modi, und die Wache bleibt damit synchron.
+   */
+  const laden = createRequire(import.meta.url);
+  const geladen = laden(join(WURZEL, 'tailwind.config.ts')) as {
+    default?: { theme?: { extend?: Record<string, unknown> } };
+    theme?: { extend?: Record<string, unknown> };
+  };
+  const extend = (geladen.default ?? geladen).theme?.extend ?? {};
+
+  /** `{ brand: { DEFAULT, hover } }` → `brand`, `brand-hover`. */
+  const namen = (wert: unknown, praefix = ''): string[] => {
+    if (typeof wert !== 'object' || wert === null) return praefix === '' ? [] : [praefix];
+    return Object.entries(wert as Record<string, unknown>).flatMap(([k, v]) =>
+      namen(v, k === 'DEFAULT' ? praefix : (praefix === '' ? k : `${praefix}-${k}`)));
+  };
+
+  const farben = new Set([
+    ...namen(extend['colors']),
+    // Tailwind-Vorgaben, die jedes Thema behält.
+    'white', 'black', 'transparent', 'current', 'inherit',
+  ]);
+  const schriftgroessen = new Set(Object.keys(extend['fontSize'] ?? {}));
+  const schatten = new Set(Object.keys(extend['boxShadow'] ?? {}));
+
+  /**
+   * Präfixe, deren Rest eine FARBE sein muss. `text-` und `border-` stehen
+   * nicht dabei: `text-sm` ist eine Schriftgrösse und `border-t` eine Seite,
+   * beide völlig gültig — sie werden unten gesondert behandelt.
+   */
+  const FARBPRAEFIX = ['bg', 'ring', 'divide', 'accent', 'fill', 'stroke'];
+  // Seiten, Breiten und Stile von `border-*`, die keine Farben sind.
+  const BORDER_SONST = new Set([
+    '0', '2', '4', '8', 't', 'r', 'b', 'l', 'x', 'y', 's', 'e',
+    'solid', 'dashed', 'dotted', 'double', 'none', 'hidden', 'collapse', 'separate',
+  ]);
+  const TEXT_SONST = new Set([
+    'left', 'center', 'right', 'justify', 'start', 'end',
+    'wrap', 'nowrap', 'balance', 'pretty', 'ellipsis', 'clip',
+  ]);
+
+  /**
+   * Gelesen wird, was WIRKLICH eine Klassenliste ist.
+   *
+   * `src/lib/design/theme.ts` hält Tokennamen wie `'border-strong'` als
+   * Objektschlüssel — richtig dort, und keine Tailwind-Klasse. Ein Kommentar,
+   * der `placeholder-as-label` erwähnt, ist ebenso wenig eine. Beide meldete
+   * eine erste Fassung, und eine Wache mit falschen Treffern wird abgeschaltet.
+   *
+   * Deshalb: Kommentare weg, und ausserhalb von `.tsx` nur Zeilen, die
+   * überhaupt von Klassen sprechen.
+   */
+  const quellen = dateien('src', ['.ts', '.tsx']);
+  /**
+   * Hier MUSS etwas gefunden werden: die Konfiguration oben gibt es, also ist
+   * das der echte Baum. Null Dateien hiesse, die Wache liest ins Leere und
+   * meldet "sauber" — genau der Ausfall, den sie beim ersten Versuch selbst
+   * hatte.
+   */
+  if (quellen.length === 0) {
+    throw new Error(
+      'Tailwind-Wache: `src/` enthält keine Quelldateien, obwohl eine '
+      + 'tailwind.config.ts existiert. Eine Wache, die nichts liest, meldet '
+      + '"sauber" — das wäre schlimmer als keine.',
+    );
   }
-  console.error('');
-  process.exit(1);
+  for (const datei of quellen) {
+    const tsx = datei.endsWith('.tsx');
+    ohneKommentare(readFileSync(datei, 'utf8')).split('\n').forEach((zeile, i) => {
+      if (!tsx && !/class/iu.test(zeile)) return;
+
+      /**
+       * Nur den MODULPFAD entfernen, nicht die ganze Zeile.
+       *
+       * `@/lib/placeholder-assets` sähe sonst aus wie `placeholder-assets`.
+       * Eine erste Fassung übersprang jede Zeile, die mit `import` oder
+       * `export` beginnt — und übersah damit
+       * `export const K = () => <div className="border-border" />`, also genau
+       * die einzeilige Komponente. Die Wache bestand ihren eigenen
+       * Falsifikationstest nicht.
+       */
+      const geprueft = zeile
+        .replace(/\bfrom\s*['"`][^'"`]*['"`]/gu, ' ')
+        .replace(/\b(?:import|require)\s*\(\s*['"`][^'"`]*['"`]\s*\)/gu, ' ')
+        .replace(/^\s*import\s+['"`][^'"`]*['"`]/u, ' ');
+      for (const m of geprueft.matchAll(/\b([a-z]+)-([a-z][a-z0-9-]*)\b/gu)) {
+        const [, praefix, rest] = m as unknown as [string, string, string];
+
+        if (praefix === 'text') {
+          if (schriftgroessen.has(rest) || TEXT_SONST.has(rest) || farben.has(rest)) continue;
+          melde('tailwind-farbe', datei, i + 1,
+            `\`text-${rest}\` — weder Schriftgrösse noch Farbe im Thema. Tailwind erzeugt dafür nichts.`);
+          continue;
+        }
+        if (praefix === 'border') {
+          if (BORDER_SONST.has(rest) || farben.has(rest)) continue;
+          melde('tailwind-farbe', datei, i + 1,
+            `\`border-${rest}\` — keine Farbe im Thema. Die Linie bleibt unsichtbar.`);
+          continue;
+        }
+        if (praefix === 'shadow') {
+          if (schatten.has(rest) || rest === 'none' || farben.has(rest)) continue;
+          continue;
+        }
+        if (!FARBPRAEFIX.includes(praefix)) continue;
+        if (farben.has(rest)) continue;
+        melde('tailwind-farbe', datei, i + 1,
+          `\`${praefix}-${rest}\` — keine Farbe im Thema.`);
+      }
+    });
+  }
 }
-console.log('Merge-Wachen: alle sauber.');
+
+/**
+ * Alles läuft in `main()`, und `main()` wird ohne Top-Level-`await` gestartet.
+ *
+ * Die Wachen werden in `tests/kern/wachen.test.ts` in einem Wegwerf-Baum
+ * ausgeführt, der keine `package.json` enthält — dort gilt CJS, und ein
+ * `await` auf oberster Ebene ist ein Übersetzungsfehler. Die Folge war, dass
+ * FÜNF Wachenprüfungen scheiterten, ohne dass eine Wache etwas gefunden hätte:
+ * der Prozess starb vorher. Eine Wache, die nicht startet, meldet nichts.
+ */
+async function main(): Promise<void> {
+  wacheGeldSpalte();
+  wacheZeitstempel();
+  wacheRouteOhneDb();
+  wacheTodoClient();
+  wacheEuRegion();
+  wacheEinAusgang();
+  wacheTailwindFarben();
+
+  if (befunde.length > 0) {
+    console.error(`\n${befunde.length} Verstoß/Verstöße gegen die Merge-Wachen:\n`);
+    for (const b of befunde) {
+      console.error(`  [${b.wache}] ${b.datei}:${b.zeile}\n      ${b.text}`);
+    }
+    console.error('');
+    process.exit(1);
+  }
+  console.log('Merge-Wachen: alle sauber.');
+}
+
+main().catch((fehler: unknown) => {
+  // Ein Absturz der Wachen ist ein roter Lauf, kein grüner. Ohne diesen
+  // `catch` würde eine abgelehnte Zusage nur eine Warnung ausgeben.
+  console.error('Merge-Wachen abgebrochen:', fehler);
+  process.exit(1);
+});

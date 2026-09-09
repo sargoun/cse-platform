@@ -29,7 +29,7 @@ export function Sidebar({ punkte, basis, aktiv, eingeklappt = false }: SidebarPr
       <nav
         aria-label="Hauptnavigation"
         data-cse="sidebar"
-        className={`hidden shrink-0 flex-col gap-s1 border-r border-border bg-surface p-s3
+        className={`hidden shrink-0 flex-col gap-s1 border-r border-line bg-surface p-s3
                     md:flex ${breite}`}
       >
         {punkte.map((p) => (
@@ -51,7 +51,7 @@ export function Sidebar({ punkte, basis, aktiv, eingeklappt = false }: SidebarPr
       <nav
         aria-label="Hauptnavigation"
         data-cse="tableiste"
-        className="fixed inset-x-0 bottom-0 z-40 flex justify-around border-t border-border
+        className="fixed inset-x-0 bottom-0 z-40 flex justify-around border-t border-line
                    bg-surface px-s2 py-s1 md:hidden"
       >
         {punkte.slice(0, 5).map((p) => (

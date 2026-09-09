@@ -48,7 +48,7 @@ function Leistungen({ a }: { readonly a: Abschnitt }) {
       {a.ueberschrift !== null && <h2 className="text-h2 text-text">{a.ueberschrift}</h2>}
       <ul className="grid grid-cols-1 gap-s4 sm:grid-cols-2 xl:grid-cols-3">
         {leistungen.map((l) => (
-          <li key={l.name} className="rounded-lg border border-border bg-surface p-s5">
+          <li key={l.name} className="rounded-lg border border-line bg-surface p-s5">
             <h3 className="text-h3 text-text">{l.name}</h3>
             {l.beschreibung !== undefined && (
               <p className="mt-s2 text-sm text-text-muted">{l.beschreibung}</p>

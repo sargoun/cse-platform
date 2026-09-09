@@ -71,7 +71,7 @@ export default async function LeadPosteingang() {
           </thead>
           <tbody>
             {zeilen.map((z) => (
-              <tr key={z.leadnummer} data-cse="lead-zeile" className="border-t border-border">
+              <tr key={z.leadnummer} data-cse="lead-zeile" className="border-t border-line">
                 <td className="p-s3 text-text">{z.leadnummer}</td>
                 <td className="p-s3 text-text-muted">{z.mandant}</td>
                 <td className="p-s3 text-text-muted">{z.firma_name ?? '—'}</td>

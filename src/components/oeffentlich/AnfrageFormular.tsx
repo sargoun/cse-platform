@@ -37,7 +37,7 @@ function Feld({ f, fehler }: { readonly f: FormularFeld; readonly fehler?: strin
     'aria-invalid': fehler === undefined ? undefined : true,
     ...(beschrieben === '' ? {} : { 'aria-describedby': beschrieben }),
     ...(f.autocomplete === undefined ? {} : { autoComplete: f.autocomplete }),
-    className: 'w-full rounded-md border border-border bg-surface-2 p-s3 text-base text-text',
+    className: 'w-full rounded-md border border-line bg-surface-2 p-s3 text-base text-text',
   } as const;
 
   return (

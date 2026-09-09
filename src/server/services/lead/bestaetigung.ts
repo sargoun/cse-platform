@@ -42,6 +42,21 @@ export interface BestaetigungErgebnis {
   readonly grund: string;
 }
 
+/**
+ * Das Datum, wie der Empfänger es liest — in Europe/Berlin.
+ *
+ * `toISOString().slice(0, 10)` hätte den UTC-Tag genommen. Eine Frist, die um
+ * 00:30 Berliner Zeit abläuft, stünde damit als der VORTAG in der Mail: der
+ * Kunde liest eine Zusage, die einen Tag zu früh klingt, und im Sommer geht es
+ * um zwei Stunden Abstand statt einer. Invariante 2: gespeichert UTC,
+ * angezeigt Europe/Berlin.
+ */
+function berlinDatum(zeitpunkt: Date): string {
+  return new Intl.DateTimeFormat('de-DE', {
+    timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric',
+  }).format(zeitpunkt);
+}
+
 /** Die Nutzlast — genau die Felder, die der Hash der Freigabe bindet. */
 export function bestaetigungNutzlast(e: BestaetigungEingabe): Nutzlast {
   return {
@@ -57,7 +72,7 @@ export function bestaetigungNutzlast(e: BestaetigungEingabe): Nutzlast {
       text: `Guten Tag,\n\nwir haben Ihre Anfrage erhalten und melden uns`
         + (e.slaFristAm === null
           ? ' so bald wie möglich bei Ihnen.'
-          : ` bis zum ${e.slaFristAm.toISOString().slice(0, 10)} bei Ihnen.`)
+          : ` bis zum ${berlinDatum(e.slaFristAm)} bei Ihnen.`)
         + `\n\nIhre Vorgangsnummer lautet ${e.leadnummer}.\n\n`
         + `Mit freundlichen Grüßen\n${e.firma}`,
     },
