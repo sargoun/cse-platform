@@ -4,6 +4,7 @@ import { PLATZHALTER_BILD } from '@/lib/placeholder-assets';
 import { faqAus, leistungenAus } from '@/server/services/inhalt/jsonld';
 import type { Abschnitt, Seite } from '@/server/services/inhalt/seite';
 import type { ShellBereich } from './OeffentlicheShell';
+import { mitSprache, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 
 /**
  * Rendert die Abschnitte einer `seite`.
@@ -61,13 +62,23 @@ function Leistungen({ a }: { readonly a: Abschnitt }) {
 }
 
 export interface AbschnitteProps {
+  /**
+   * Die Sprache der Seite — sie entscheidet, wohin die Markenkarten führen.
+   *
+   * Ohne sie zeigte eine Karte auf `/en` nach `/unternehmen/reinigung`, also
+   * aus dem englischen Baum heraus in die deutsche Fassung. Der Besucher
+   * verliert dabei nicht nur die Sprache, sondern auch seinen Platz.
+   */
+  readonly sprache?: Sprache;
   readonly seite: Seite;
   readonly bereiche: readonly ShellBereich[];
   /** Kurztexte je Bereich fuer die Markenkarten der Startseite. */
   readonly ansprueche: Readonly<Record<string, string>>;
 }
 
-export function Abschnitte({ seite, bereiche, ansprueche }: AbschnitteProps) {
+export function Abschnitte(
+  { seite, bereiche, ansprueche, sprache = VORGABE_SPRACHE }: AbschnitteProps,
+) {
   return (
     <>
       {seite.abschnitte.map((a) => {
@@ -94,7 +105,7 @@ export function Abschnitte({ seite, bereiche, ansprueche }: AbschnitteProps) {
                     bereich={b.bereich}
                     titel={b.name}
                     anspruch={ansprueche[b.slug] ?? ''}
-                    href={`/${b.slug}`}
+                    href={mitSprache(`/unternehmen/${b.slug}`, sprache)}
                     bild={PLATZHALTER_BILD}
                   />
                 ))}

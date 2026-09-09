@@ -27,6 +27,7 @@ export async function OeffentlicheSeite(
         seite={daten.seite}
         bereiche={shellBereiche(daten.bereiche)}
         ansprueche={ansprueche(daten.bereiche)}
+        sprache={sprache}
       />
     </>
   );
