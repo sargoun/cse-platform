@@ -127,14 +127,30 @@ begin
   v_nachher := jsonb_build_object('mandant_id', new.aktiver_mandant_id,
                                   'ansicht', new.ansicht);
 
-  -- Die alte Seite. NULL heisst hier: es gab keine, also Plattformebene.
-  perform app.protokolliere(v_aktion, 'benutzer_sitzung', new.id::text,
-                            v_vorher, v_nachher, old.aktiver_mandant_id);
-  -- Die neue Seite — nur, wenn sie eine ANDERE ist. Ein reiner
-  -- Ansichtswechsel innerhalb desselben Bereichs ist ein Ereignis, nicht zwei.
-  if new.aktiver_mandant_id is distinct from old.aktiver_mandant_id then
+  /**
+   * Je Seite eine Zeile — aber nur fuer die Seiten, die es GIBT.
+   *
+   * `app.protokolliere` faellt bei NULL auf `app.aktiver_mandant()` zurueck.
+   * Ein `perform … , null` waere hier deshalb keine Plattformzeile, sondern
+   * eine zweite Zeile auf dem GEBUNDENEN Mandanten: beim Eintritt in die
+   * Gruppenansicht stuenden zwei identische Eintraege in der verlassenen
+   * Gesellschaft und keiner sonst. Es gibt in diesem Fall schlicht keine
+   * zweite Seite — der Wechsel gibt einen Bereich auf, er betritt keinen.
+   */
+  if old.aktiver_mandant_id is not null then
+    perform app.protokolliere(v_aktion, 'benutzer_sitzung', new.id::text,
+                              v_vorher, v_nachher, old.aktiver_mandant_id);
+  end if;
+  if new.aktiver_mandant_id is not null
+     and new.aktiver_mandant_id is distinct from old.aktiver_mandant_id then
     perform app.protokolliere(v_aktion, 'benutzer_sitzung', new.id::text,
                               v_vorher, v_nachher, new.aktiver_mandant_id);
+  end if;
+  -- Ein Wechsel zwischen zwei mandantenlosen Ansichten (gruppe -> person) hat
+  -- keine Seite. Er bleibt trotzdem ein Ereignis: TEN-09 verspricht JEDEN.
+  if old.aktiver_mandant_id is null and new.aktiver_mandant_id is null then
+    perform app.protokolliere(v_aktion, 'benutzer_sitzung', new.id::text,
+                              v_vorher, v_nachher, null);
   end if;
 
   new.mandant_gewechselt_am := now();
