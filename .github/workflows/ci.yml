@@ -47,6 +47,13 @@ jobs:
       - name: Annahmen-Dokument aktuell
         run: pnpm annahmen --check
 
+      # Rechtekatalog und Routen-Manifest werden ebenfalls ERZEUGT, aus den
+      # Architekturdokumenten, denen sie gehören (K-19). Veraltet heisst hier:
+      # die Rollenprobe läuft über eine Routenliste, die es nicht mehr gibt —
+      # sie bestünde, und zwar über nichts.
+      - name: Katalog und Routen-Manifest aktuell
+        run: pnpm katalog --check && pnpm seitenkarte --check
+
       - name: Lint
         run: pnpm exec eslint .
 

@@ -2622,6 +2622,51 @@ by `02-datenmodell/01-KERN.md` §15; this document owns the right and the audit 
 
 ---
 
+### 12.9 Agents, knowledge and the approval chain
+
+§14.2 declares these keys in prose and states their defaults there. They were never written
+as matrix rows, and the catalogue is generated **from the matrix** — so all three modules
+carried **zero** catalogue rows, and `app.hat_recht()` answers a missing key `false`,
+permanently and silently (K-19). The consequence is not a smaller product: `freigabe.*` gates
+the approval inbox, so with no row for it **invariant 7's screen is empty for every role,
+`super_admin` included** — nothing can ever be approved, and therefore nothing can ever be
+sent. `agent.*` closes the Agent Center the same way and `wissen.*` closes §3.11's
+confidentiality gate against everybody.
+
+The gap was found by the route manifest of PR 19, which resolves every **Right** cell of
+`04-SEITENKARTE.md` against this catalogue and named twelve keys that do not exist here. The
+rows below carry §14.2's stated defaults unchanged.
+
+| Right | SA | AD | LT | MA | KD | Note |
+|---|---|---|---|---|---|---|
+| `agent.lesen` | ✔ | ✔ | ✔ | — | — | AGT-01, the run header |
+| `agent.protokoll_lesen` | ✔ | ○ | ○ | — | — | the **per-step** protocol — tool, input, output, model, tokens, cost. Leitung and upwards, never below, because the payloads are personal data (LEG-09). `app.agent_nutzlast_lesen` re-checks it as its K-05-style gate |
+| `agent.aufgabe_starten` | ✔ | ✔ | ✔ | — | — | AGT-02 |
+| `agent.richtlinie_verwalten` | ✔ | ○ | — | — | — | AGT-03 |
+| `agent.budget_verwalten` | ✔ | ○ | — | — | — | AGT-05; the cap is `agent_budget.budget_cent`, consumption micro-cents (K-16(b)) |
+| `agent.werkzeug_verbinden` | ✔ | ○ | — | — | — | an unconnected tool shows "nicht verbunden", never a simulated call |
+| `agent.autonomie_setzen` | ✔ | ○ | — | — | — | bounded by the SPEC §17 autonomy matrix, in which "send an offer automatically" is not a configurable value at any price |
+| `wissen.lesen` | ✔ | ✔ | ✔ | — | — | the RAG corpus read behind `wissens_chunk` |
+| `wissen.vertraulich_lesen` | ✔ | ○ | ○ | — | — | without it `06-RADAR-KI-INHALT.md` §3.11's confidentiality gate is satisfiable by **nobody** — unconditionally closed |
+| `freigabe.lesen` | ✔ | ✔ | ✔ | — | — | APR-01, the holder's own queue |
+| `freigabe.alle_lesen` | ✔ | ○ | — | — | — | every pending approval in the mandant, as opposed to `freigabe.lesen`'s own queue |
+| `freigabe.entscheiden` | ✔ | ✔ | ✔ | — | — | APR-02, APR-03. **Composes, never replaces** (§1.4 of `04-SEITENKARTE.md`): deciding an item additionally requires the right the underlying act would need |
+| `freigabe.stapel_entscheiden` | ✔ | ○ | ○ | — | — | APR-04 — never for items flagged for individual review. §14.2 does not state an AD/LT default for this key, so it is **not granted**: default pending O-76 |
+| `freigabe.einspruch_erheben` | ✔ | ○ | ○ | — | — | APR-05 objection window; default pending O-76 |
+| `freigabe.rueckgaengig` | ✔ | ○ | ○ | — | — | APR-06 undo window; the spelling `06-RADAR-KI-INHALT.md` §1.3's `freigabe.widerrufen` maps onto (§21); default pending O-76 |
+| `freigabe.pruefdauer_lesen` | ✔ | ○ | ○ | — | — | APR-08; blocked on the §87 BetrVG question of §11.2 |
+
+`gruppe.freigabe.lesen`, `gruppe.agent.lesen` and `gruppe.wissen.lesen` need no rows here: they
+are the mechanical per-module expansion of §12.1's `gruppe.*.lesen`, generated from §7.4's
+module list.
+
+**`MA` and `KD` are `—` for the whole of `agent`, `wissen` and `freigabe`**, exactly as §14.2
+states — a cleaner does not approve outbound mail and a customer does not read the group's
+agent protocol.
+
+---
+
+
 ## 13. Customer access (AUT-01, DOC-04, CRM-06)
 
 ### 13.1 Binding a customer login to a `kunde` row
