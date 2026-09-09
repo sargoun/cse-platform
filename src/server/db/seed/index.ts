@@ -303,7 +303,9 @@ async function main(): Promise<void> {
    * Spalten-DEFAULT — eine per Schema gesetzte Frist findet spaeter niemand
    * als Entscheidung wieder — und die Oberflaeche weist sie als vorlaeufig aus.
    *
-   * Fuer CSE Operations gibt es keines: welche Felder es braucht, ist O-61.
+   * Auch das Formular fuer CSE Operations ist vorlaeufig (O-61): welche
+   * Felder der Bereich wirklich braucht, um ein Angebot zu rechnen, weiss der
+   * Mandant.
    */
   let formulare = 0;
   for (const vorlage of FORMULARE) {
@@ -329,7 +331,7 @@ async function main(): Promise<void> {
     formulare += 1;
   }
   process.stdout.write(
-    `  ${String(formulare)} Formulare (SLA 24 h VORLÄUFIG, O-14; Operations offen, O-61)\n`);
+    `  ${String(formulare)} Formulare — alle Werte VORLÄUFIG, siehe docs/ANNAHMEN.md\n`);
 
   // ------------------------------------------------- Anzeigename der Gruppe
   /**

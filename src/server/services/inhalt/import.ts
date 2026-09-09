@@ -26,6 +26,14 @@ export interface ImportSeite {
     readonly ueberschrift: string | null;
     readonly akzentWort: string | null;
     readonly text: string | null;
+    /**
+     * Der `jsonb`-Anteil des Abschnitts — Leistungslisten und FAQ.
+     *
+     * Er wird MITVERGLICHEN. Ohne ihn hielte der Import eine Seite für
+     * unverändert, deren Leistungsliste sich geändert hat, und der zweite
+     * Lauf schriebe die neue Liste nie.
+     */
+    readonly daten?: Record<string, unknown> | undefined;
   }[];
 }
 
@@ -33,6 +41,16 @@ export interface ImportBericht {
   readonly angelegt: number;
   readonly geaendert: number;
   readonly unveraendert: number;
+}
+
+/** Objektschlüssel sortiert — damit der Vergleich den Inhalt meint, nicht die Reihenfolge. */
+function sortiereTief(wert: unknown): unknown {
+  if (Array.isArray(wert)) return wert.map(sortiereTief);
+  if (wert !== null && typeof wert === 'object') {
+    const o = wert as Record<string, unknown>;
+    return Object.fromEntries(Object.keys(o).sort().map((k) => [k, sortiereTief(o[k])]));
+  }
+  return wert;
 }
 
 export async function importiere(
@@ -76,26 +94,35 @@ export async function importiere(
 
     for (const a of s.abschnitte) {
       const alt = (await db.unsafe(
-        `select id, ueberschrift, akzent_wort, text from abschnitt
+        `select id, ueberschrift, akzent_wort, text, daten from abschnitt
           where seite_id = $1 and reihenfolge = $2 and geloescht_am is null`,
         [seiteId, a.reihenfolge],
       )) as { id: string; ueberschrift: string | null; akzent_wort: string | null;
-              text: string | null }[];
+              text: string | null; daten: Record<string, unknown> | null }[];
+
+      const daten = a.daten ?? {};
+      // Schlüsselreihenfolge-unabhängig: `{a,b}` und `{b,a}` sind derselbe
+      // Inhalt, und ein Vergleich, der sie unterscheidet, meldet ewig
+      // Änderungen.
+      const gleich = (x: unknown, y: unknown): boolean =>
+        JSON.stringify(sortiereTief(x)) === JSON.stringify(sortiereTief(y));
 
       if (alt[0] === undefined) {
         await db.unsafe(
-          `insert into abschnitt (seite_id, art, reihenfolge, ueberschrift, akzent_wort, text)
-           values ($1,$2::abschnitt_art,$3,$4,$5,$6)`,
-          [seiteId, a.art, a.reihenfolge, a.ueberschrift, a.akzentWort, a.text],
+          `insert into abschnitt (seite_id, art, reihenfolge, ueberschrift, akzent_wort,
+                                  text, daten)
+           values ($1,$2::abschnitt_art,$3,$4,$5,$6,$7)`,
+          [seiteId, a.art, a.reihenfolge, a.ueberschrift, a.akzentWort, a.text, daten],
         );
         angelegt += 1;
       } else if (alt[0].ueberschrift !== a.ueberschrift
                  || alt[0].akzent_wort !== a.akzentWort
-                 || alt[0].text !== a.text) {
+                 || alt[0].text !== a.text
+                 || !gleich(alt[0].daten ?? {}, daten)) {
         await db.unsafe(
           `update abschnitt set ueberschrift = $2, akzent_wort = $3, text = $4,
-                                geaendert_am = now() where id = $1`,
-          [alt[0].id, a.ueberschrift, a.akzentWort, a.text],
+                                daten = $5, geaendert_am = now() where id = $1`,
+          [alt[0].id, a.ueberschrift, a.akzentWort, a.text, daten],
         );
         geaendert += 1;
       } else {

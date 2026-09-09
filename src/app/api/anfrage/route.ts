@@ -3,6 +3,7 @@ import type postgres from 'postgres';
 import { db } from '@/server/db/pool';
 import { withEingang } from '@/server/kontext/eingang';
 import { withOeffentlich } from '@/server/kontext/oeffentlich';
+import { formularSchluessel } from '@/lib/formular/bereiche';
 import { Felder, FormularFehler } from '@/lib/formular/schema';
 import { ipHash, nimmAn, pruefeRatenlimit, RatenlimitFehler, istBot }
   from '@/server/services/lead/annahme';
@@ -25,11 +26,6 @@ import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter
 export const dynamic = 'force-dynamic';
 
 /** Formularschluessel je Bereich. Der Besucher waehlt den Bereich, nicht die Tabelle. */
-const SCHLUESSEL: Readonly<Record<string, string>> = {
-  reinigung: 'angebot_reinigung',
-  security: 'angebot_security',
-  bau: 'angebot_bau',
-};
 
 interface FormularZeile {
   id: string;
@@ -53,7 +49,7 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
   }
 
   const bereich = String(formData.get('bereich') ?? '');
-  const schluessel = SCHLUESSEL[bereich];
+  const schluessel = formularSchluessel(bereich);
   if (schluessel === undefined) {
     return fehlerAntwort(404, 'Für diesen Bereich gibt es kein Anfrageformular.');
   }

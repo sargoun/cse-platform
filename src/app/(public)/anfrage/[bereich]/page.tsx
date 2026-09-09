@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import type postgres from 'postgres';
 import { AnfrageFormular } from '@/components/oeffentlich/AnfrageFormular';
+import { formularSchluessel } from '@/lib/formular/bereiche';
 import { Felder } from '@/lib/formular/schema';
 import { db } from '@/server/db/pool';
 import { withOeffentlich } from '@/server/kontext/oeffentlich';
@@ -20,16 +21,11 @@ import { basisAusAnfrage } from '@/server/inhalt/seiten-daten';
  */
 export const dynamic = 'force-dynamic';
 
-const SCHLUESSEL: Readonly<Record<string, string>> = {
-  reinigung: 'angebot_reinigung',
-  security: 'angebot_security',
-  bau: 'angebot_bau',
-};
 
 interface Zeile { titel: string; felder: unknown }
 
 async function ladeFormular(bereich: string): Promise<Zeile | null> {
-  const schluessel = SCHLUESSEL[bereich];
+  const schluessel = formularSchluessel(bereich);
   if (schluessel === undefined) return null;
   const zeilen = await (db().begin((tx: postgres.TransactionSql) =>
     withOeffentlich(tx, async (kontext) =>

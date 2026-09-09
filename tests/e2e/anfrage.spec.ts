@@ -124,7 +124,7 @@ test.describe('(4) eine Datei, die kein PDF/XLSX ist, wird abgewiesen', () => {
 });
 
 test.describe('das Formular ist barrierefrei — es ist der Kanal, auf dem Umsatz ankommt', () => {
-  for (const bereich of ['reinigung', 'security', 'bau']) {
+  for (const bereich of ['reinigung', 'security', 'bau', 'operations']) {
     test(`axe: /anfrage/${bereich}`, async ({ page }) => {
       const antwort = await page.goto(`/anfrage/${bereich}`);
       expect(antwort?.status()).toBe(200);
@@ -148,9 +148,11 @@ test.describe('das Formular ist barrierefrei — es ist der Kanal, auf dem Umsat
     expect(ohneLabel).toBe(0);
   });
 
-  test('CSE Operations hat noch kein Formular — 404, kein leeres (O-61)', async ({ request }) => {
+  test('ein Bereich ohne Formular ist 404, kein leeres Formular', async ({ request }) => {
     // Ein Formular ohne Felder sähe aus wie ein Ladefehler und würde
-    // abgeschickt, ohne dass jemand anbieten könnte.
-    expect((await request.get('/anfrage/operations')).status()).toBe(404);
+    // abgeschickt, ohne dass jemand anbieten könnte. Alle vier Bereiche haben
+    // inzwischen eines (O-61 vorläufig beantwortet), also wird ein erfundener
+    // Bereich geprüft.
+    expect((await request.get('/anfrage/gibtesnicht')).status()).toBe(404);
   });
 });

@@ -191,9 +191,9 @@ export const ANNAHMEN: readonly Annahme[] = [
       'Alle Bilder sind sichtbar markierte Platzhalter. Es wurde KEIN Bildmaterial '
       + 'erfunden und keines aus fremden Quellen übernommen.',
     zuKlaeren:
-      'Eigene Aufnahmen von Teams, Objekten und abgeschlossenen Projekten — mit '
-      + 'schriftlicher Einwilligung der abgebildeten Personen. Das ist der einzige '
-      + 'Punkt, den kein Programmierer lösen kann.',
+      'Bitte eigene Aufnahmen von Teams, Objekten und abgeschlossenen Projekten '
+      + 'liefern — mit schriftlicher Einwilligung der abgebildeten Personen. Das '
+      + 'ist der einzige Punkt, den kein Programmierer lösen kann.',
     wirktIn: ['Startseite', 'Unternehmensprofile', 'Referenzen'],
     folge: 'nacharbeit',
   },

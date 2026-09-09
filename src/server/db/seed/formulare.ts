@@ -7,23 +7,35 @@
  *  - Die Auswahllisten fuer `gebaeudetyp`, `frequenz` und `gewerk` sind
  *    PLATZHALTER. Ein erfundener Gebaeudetyp landet in der Auswertung und
  *    spaeter in einem Angebot, und niemand findet ihn wieder. (O-62)
- *  - Fuer CSE Operations gibt es kein Formular. REQ-01 verlangt eines je
- *    Bereich, REQ-02/03/04 definieren aber nur drei Feldmengen — welche Felder
- *    Operations braucht, um ueberhaupt anbieten zu koennen, weiss der Mandant.
- *    Ein Formular mit geratenen Feldern saehe fertig aus. (O-61)
+ *  - Das Formular fuer CSE Operations ist VORLAEUFIG: REQ-02/03/04 definieren
+ *    nur drei Feldmengen, die vierte ist aus dem Auftrag des Bereichs
+ *    abgeleitet (Ablaeufe aufnehmen, digitalisieren, auswertbar machen) und
+ *    steht als Annahme im Register. (O-61)
  *
  * // TODO(client): O-62 — Auswahllisten für gebaeudetyp, frequenz und gewerk:
- * // bitte die tatsächlich verwendeten Werte liefern.
- * // TODO(client): O-61 — Welche Felder braucht das Formular für CSE Operations?
+ * // bitte die tatsächlich verwendeten Werte bestätigen oder ersetzen.
+ * // TODO(client): O-61 — Welche Felder braucht CSE Operations wirklich, um
+ * // ein Angebot rechnen zu können?
  */
 import type { FormularFeld } from '../../../lib/formular/schema.js';
+import { FORMULAR_SCHLUESSEL } from '../../../lib/formular/bereiche.js';
 
 /** Der Datenschutztext, dessen Bestaetigung auf jeder Einsendung gespeichert wird. */
 export const DATENSCHUTZ_VERSION = '2026-09-01';
 
-/** PLATZHALTER (O-62) — sichtbar als solcher, nicht als Auswahl, die jemand entschieden hat. */
-const PLATZHALTER_OPTIONEN = (werte: readonly string[]) =>
-  werte.map((w) => ({ wert: w, label: `${w} (vorläufig)` }));
+/**
+ * Die Auswahllisten — branchenüblich, VORLÄUFIG, und im Register (O-62).
+ *
+ * Sie tragen keinen "(vorläufig)"-Zusatz mehr im Label: der Mandant soll das
+ * Formular sehen, wie ein Kunde es sieht. Dass die Listen noch nicht bestätigt
+ * sind, steht in `docs/ANNAHMEN.md` und in `src/lib/annahmen.ts` — an einer
+ * Stelle, statt in jedem einzelnen Eintrag.
+ *
+ * Was hier NICHT steht, kann ein Kunde nicht anfragen. Das ist der Grund, die
+ * Liste durchzugehen.
+ */
+const optionen = (paare: readonly (readonly [string, string])[]) =>
+  paare.map(([wert, label]) => ({ wert, label }));
 
 function gemeinsam(ab: number): FormularFeld[] {
   return [
@@ -66,11 +78,19 @@ export interface FormularVorlage {
 export const FORMULARE: readonly FormularVorlage[] = [
   {
     slug: 'reinigung',
-    schluessel: 'angebot_reinigung',
+    schluessel: FORMULAR_SCHLUESSEL['reinigung']!,
     titel: 'Angebot für Gebäudereinigung anfragen',
     felder: [
       { typ: 'auswahl', schluessel: 'gebaeudetyp', label: 'Gebäudetyp', pflicht: true,
-        sortierung: 1, optionen: PLATZHALTER_OPTIONEN(['buero', 'wohnanlage', 'gewerbe']),
+        sortierung: 1, optionen: optionen([
+          ['buero', 'Bürogebäude'],
+          ['wohnanlage', 'Wohnanlage'],
+          ['praxis', 'Praxis oder Klinik'],
+          ['einzelhandel', 'Einzelhandel'],
+          ['industrie', 'Industrie oder Lager'],
+          ['bildung', 'Schule oder Kita'],
+          ['hotel', 'Hotel oder Gastronomie'],
+        ]),
         fehlermeldung: 'Bitte wählen Sie den Gebäudetyp.' },
       { typ: 'dezimal', schluessel: 'flaeche_qm', label: 'Fläche in m²', pflicht: true,
         sortierung: 2, min: 1, nachkommastellen: 2,
@@ -79,7 +99,16 @@ export const FORMULARE: readonly FormularVorlage[] = [
         sortierung: 3, min: 1,
         fehlermeldung: 'Bitte geben Sie an, um wie viele Objekte es geht.' },
       { typ: 'auswahl', schluessel: 'frequenz', label: 'Reinigungsfrequenz', pflicht: true,
-        sortierung: 4, optionen: PLATZHALTER_OPTIONEN(['taeglich', 'woechentlich', 'monatlich']),
+        sortierung: 4, optionen: optionen([
+          ['taeglich', 'Täglich'],
+          ['fuenf_woechentlich', 'Fünfmal wöchentlich'],
+          ['drei_woechentlich', 'Dreimal wöchentlich'],
+          ['zwei_woechentlich', 'Zweimal wöchentlich'],
+          ['woechentlich', 'Wöchentlich'],
+          ['vierzehntaegig', 'Alle zwei Wochen'],
+          ['monatlich', 'Monatlich'],
+          ['einmalig', 'Einmalig'],
+        ]),
         fehlermeldung: 'Bitte wählen Sie, wie oft gereinigt werden soll.' },
       { typ: 'datum', schluessel: 'wunsch_start', label: 'Gewünschter Start', pflicht: true,
         sortierung: 5, fehlermeldung: 'Bitte geben Sie ein Startdatum an (JJJJ-MM-TT).' },
@@ -88,7 +117,7 @@ export const FORMULARE: readonly FormularVorlage[] = [
   },
   {
     slug: 'security',
-    schluessel: 'angebot_security',
+    schluessel: FORMULAR_SCHLUESSEL['security']!,
     titel: 'Angebot für Sicherheitsdienste anfragen',
     felder: [
       { typ: 'text', schluessel: 'anlass', label: 'Anlass', pflicht: true, sortierung: 1,
@@ -111,11 +140,18 @@ export const FORMULARE: readonly FormularVorlage[] = [
   },
   {
     slug: 'bau',
-    schluessel: 'angebot_bau',
+    schluessel: FORMULAR_SCHLUESSEL['bau']!,
     titel: 'Angebot für Bauleistungen anfragen',
     felder: [
       { typ: 'auswahl', schluessel: 'gewerk', label: 'Gewerk', pflicht: true, sortierung: 1,
-        optionen: PLATZHALTER_OPTIONEN(['hochbau', 'ausbau', 'rueckbau']),
+        optionen: optionen([
+          ['hochbau', 'Hochbau'],
+          ['ausbau', 'Ausbau und Trockenbau'],
+          ['rueckbau', 'Rückbau und Entkernung'],
+          ['sanierung', 'Sanierung im Bestand'],
+          ['maler', 'Malerarbeiten'],
+          ['boden', 'Bodenbeläge'],
+        ]),
         fehlermeldung: 'Bitte wählen Sie das Gewerk.' },
       { typ: 'text', schluessel: 'volumen', label: 'Volumen', pflicht: true, sortierung: 2,
         hilfetext: 'Grössenordnung, Umfang oder geschätzte Bausumme.',
@@ -132,6 +168,39 @@ export const FORMULARE: readonly FormularVorlage[] = [
         maxBytes: 20 * 1024 * 1024,
         hilfetext: 'PDF oder XLSX, bis 20 MB.',
         fehlermeldung: 'Bitte laden Sie das Leistungsverzeichnis als PDF oder XLSX hoch.' },
+      ...gemeinsam(10),
+    ],
+  },
+  {
+    slug: 'operations',
+    schluessel: FORMULAR_SCHLUESSEL['operations']!,
+    titel: 'Digitale Abläufe anfragen',
+    felder: [
+      { typ: 'auswahl', schluessel: 'anliegen', label: 'Ihr Anliegen', pflicht: true,
+        sortierung: 1, optionen: optionen([
+          ['prozessanalyse', 'Abläufe aufnehmen und analysieren'],
+          ['software', 'Software einführen oder ablösen'],
+          ['automatisierung', 'Wiederkehrende Arbeit automatisieren'],
+          ['migration', 'Daten aus einem Altsystem übernehmen'],
+          ['schulung', 'Schulung für ein bestehendes System'],
+        ]),
+        fehlermeldung: 'Bitte wählen Sie aus, worum es geht.' },
+      { typ: 'zahl', schluessel: 'anzahl_mitarbeitende', label: 'Betroffene Mitarbeitende',
+        pflicht: true, sortierung: 2, min: 1,
+        hilfetext: 'Wie viele Personen arbeiten mit dem Ablauf?',
+        fehlermeldung: 'Bitte geben Sie an, wie viele Personen betroffen sind.' },
+      { typ: 'textarea', schluessel: 'systeme', label: 'Eingesetzte Systeme',
+        pflicht: false, sortierung: 3, maxLaenge: 1000,
+        hilfetext: 'Welche Programme nutzen Sie heute dafür?',
+        fehlermeldung: 'Bitte kürzen Sie diese Angabe.' },
+      { typ: 'auswahl', schluessel: 'zeitrahmen', label: 'Gewünschter Zeitrahmen',
+        pflicht: true, sortierung: 4, optionen: optionen([
+          ['sofort', 'So bald wie möglich'],
+          ['quartal', 'Im laufenden Quartal'],
+          ['halbjahr', 'Im nächsten Halbjahr'],
+          ['offen', 'Noch offen'],
+        ]),
+        fehlermeldung: 'Bitte wählen Sie einen Zeitrahmen.' },
       ...gemeinsam(10),
     ],
   },

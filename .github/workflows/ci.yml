@@ -20,6 +20,11 @@ jobs:
       - name: Merge-Wachen (Invarianten 1, 2, 5, K-17, D-04)
         run: pnpm guards
 
+      # Das Annahmen-Dokument wird ERZEUGT. Veraltet heisst: der Mandant liest
+      # eine Zahl, die im Code nicht mehr gilt — und bestätigt sie.
+      - name: Annahmen-Dokument aktuell
+        run: pnpm annahmen --check
+
       - name: Lint
         run: pnpm exec eslint .
 
