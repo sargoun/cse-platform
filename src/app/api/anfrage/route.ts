@@ -113,7 +113,12 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
   const dateiSchluessel = new Set(felder.filter((f) => f.typ === 'datei').map((f) => f.schluessel));
   const werte: Record<string, unknown> = {};
   for (const [name, wert] of formData.entries()) {
-    if (name === 'bereich' || name === 'website' || name.startsWith('utm_')
+    // `sprache` gehoert wie `bereich` und `website` zur UEBERMITTLUNG, nicht
+    // zum Formular: die Validierung kennt nur Felder der `formular_definition`
+    // und wies die Anfrage sonst als "unbekanntes Feld" ab — das eigene
+    // versteckte Feld haette jede Absendung gebrochen.
+    if (name === 'bereich' || name === 'website' || name === 'sprache'
+        || name.startsWith('utm_')
         || name === 'landing_page' || dateiSchluessel.has(name)) continue;
     if (typeof wert === 'string') werte[name] = wert;
   }

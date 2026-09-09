@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import type postgres from 'postgres';
-import { devFlaechenAn } from '@/lib/dev-flaechen';
+import { devFlaechenAn, devKennzahlPfad } from '@/lib/dev-flaechen';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withDevAdmin } from '@/server/kontext/dev';
 import { registriereBerichtKacheln } from '@/server/services/bericht/kacheln';
@@ -60,10 +60,16 @@ export default async function DashboardSeite(
         () => true,
       ));
 
-    return { bereiche, gewaehlt, werte };
+    return {
+      bereiche, gewaehlt, werte,
+      // Derselbe Wert, den die Adresszeile traegt — damit die Ziele der
+      // Kacheln und der Bereichsfilter nicht auseinanderlaufen.
+      gewaehltSlug: bereiche.find((b) => b.id === gewaehlt)?.slug ?? 'gruppe',
+    };
   }) as Promise<{
     bereiche: Bereich[];
     gewaehlt: string | null;
+    gewaehltSlug: string;
     werte: Awaited<ReturnType<typeof dashboard>>;
   }>);
 
@@ -72,7 +78,7 @@ export default async function DashboardSeite(
     label: w.kachel.label,
     wert: w.wert,
     ton: w.kachel.ton,
-    ziel: w.ziel,
+    ziel: devKennzahlPfad(w.kachel.schluessel, daten.gewaehltSlug),
   }));
 
   return (

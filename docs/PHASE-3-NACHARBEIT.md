@@ -1,11 +1,16 @@
 # Phase-3-Nacharbeit — die verifizierten Befunde der PR-Review
 
-Dieses Dokument haelt fest, **was an Phase 3 nachweislich falsch ist**, wie es
+Dieses Dokument haelt fest, **was an Phase 3 nachweislich falsch war**, wie es
 nachgewiesen wurde und was die Behebung ist. Es ist kein Wunschzettel: jeder
 Punkt wurde gegen den Quelltext der Datenbankfunktion, das Routenmanifest oder
-den App-Router-Baum geprueft, bevor er hier steht. Erledigte Punkte werden
+den App-Router-Baum geprueft, bevor er hier stand. Erledigte Punkte werden
 gestrichen, nicht geloescht — wer die PR spaeter liest, soll sehen, was gefunden
 wurde und nicht nur, was am Ende dastand.
+
+**Stand: alle sieben behoben.** Jeder Abschnitt nennt unten, wodurch. Die
+Entscheidungen, die dabei fielen, stehen als D-86 bis D-90 in
+`docs/DECISIONS.md` — ein Commit-Text ist kein Ort, an dem jemand sie
+wiederfindet.
 
 ---
 
@@ -38,6 +43,8 @@ mindestens einem gilt. Das ist die Formulierung von `04-SEITENKARTE.md` §1.3
 welche ZEILEN erscheinen, entscheidet die Policy je Zeile — die tut das bereits
 (`0009_dokument.sql`: `and app.hat_recht('gruppe.dokument.lesen', mandant_id)`).
 
+**Erledigt.** **Behoben.** `pruefeZugang` fragt im mandantenuebergreifenden Scope ueber `app.sichtbare_mandanten()`; `Rechtepruefer` hat dafuer `hatRechtIrgendwo` und `hatRechte`. Entschieden als **D-86**.
+
 ---
 
 ## B — `aktiveRolle` liest ohne gebundene Sitzung (kritisch)
@@ -65,6 +72,8 @@ Zeiterfassung), findet nie statt.
 Zugangsentscheidung — eine Abfrage weniger und keine zweite Stelle, an der die
 Bindung vergessen werden kann.
 
+**Erledigt.** **Behoben.** `aktiveRolle` ist entfallen; `rolleImMandanten` liest in DERSELBEN gebundenen Transaktion wie das Zugangstor. Eine Bindung, eine Wahrheit.
+
 ---
 
 ## C — `/portal/gruppe` bindet jeden Mandanten und wechselt per GET (kritisch)
@@ -89,6 +98,8 @@ aus der Zielmitgliedschaft ab und schreibt zwei Spiegelzeilen ins `audit_log`
 `/portal/gruppe` folgt der Tabelle in §4.5: bei `ansicht <> 'gruppe'` das
 Zwischenblatt mit POST-Knopf, oder 404, wo die Tabelle 404 sagt.
 
+**Erledigt.** **Behoben.** `withGroupScope` leitet seine Menge selbst ab (`app.switcher_mandanten()`), und `/portal/gruppe` folgt §4.5: Zwischenblatt mit POST-Knopf oder 404. Der Wechsel laeuft ueber `POST /api/sitzung/mandant` (Migration 0018). Entschieden als **D-89**; drei Isolationstests halten die Ableitung fest, vier weitere die Eintrittsbedingungen.
+
 ---
 
 ## D — Tab-Ziele ohne Seite, und keine Rechtefilterung
@@ -112,12 +123,16 @@ verraet die Existenz dessen, was er nicht zeigen darf.
 **Befund 5.** Ueber `md` gibt es ueberhaupt keine Navigation — die Leiste ist
 `md:hidden`, und eine Sidebar existiert nicht.
 
+**Erledigt.** **Behoben.** `Profil` zeigt auf `/portal/konto/profil`, `PORTAL_START.intern` auf `/auth/bereich` (die Bereichswahl, neu). Die Leiste filtert nach `TabZiel.recht` — in EINER Abfrage —, `SeitenNavigation` traegt die Navigation ueber 768 px, und Routen ohne gebautes Modul antworten das ausdruecklich statt mit 404. Entschieden als **D-88**.
+
 ---
 
 ## E — Kennzahlkacheln zeigen in den Dev-Baum
 
 `kennzahlPfad` in `src/server/services/bericht/kacheln.ts` liefert
 `/dev/kennzahl/<schluessel>`. Im angemeldeten Portal ist das eine tote Adresse.
+
+**Erledigt.** **Behoben.** `kennzahlPfad` liefert die Modulliste aus `04-SEITENKARTE.md`; `KachelKontext` traegt dafuer den Slug neben der ID. Die Dev-Uebersicht verlinkt weiter auf ihre eigene Vorschau (`devKennzahlPfad`) — sie laeuft ohne Sitzung.
 
 ---
 
@@ -128,6 +143,8 @@ deutsch, auch auf ein englisches Formular. `Feld` hat *"Bitte wählen"* fest
 verdrahtet. Die Markenkarten unter `/en` und der Bereichswaehler unter
 `/angebot` zeigen die deutsche `unternehmensprofil.kurzbeschreibung`.
 
+**Erledigt.** **Behoben.** Die Sprache reist als verstecktes Feld mit und steht in der Ausnahmeliste der Annahmeroute — ohne sie wies die Validierung das eigene Feld als unbekannt ab und brach JEDE Absendung; der e2e-Lauf hat das gefunden. `unternehmensprofil` traegt seit 0019 eine `sprache`. Entschieden als **D-87**.
+
 ---
 
 ## G — Die abgeloesten oeffentlichen Adressen leiten nicht weiter
@@ -136,3 +153,5 @@ verdrahtet. Die Markenkarten unter `/en` und der Bereichswaehler unter
 `/reinigung`, `/security`, `/bau`, `/operations` noch `/anfrage/[bereich]`.
 Ausserdem ueberleben veroeffentlichte `seite`-Zeilen einen erneuten Import und
 erscheinen weiter in der Sitemap.
+
+**Erledigt.** **Behoben.** `next.config.ts` baut die 301er aus `src/lib/weiterleitungen.ts`, der englische Zweig wird abgeleitet, und der Import zieht abgeloeste Adressen zurueck. Entschieden als **D-90**.

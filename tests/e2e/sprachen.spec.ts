@@ -127,6 +127,43 @@ test.describe('(5) das englische Formular ist englisch — Felder wie Knopf', ()
     await expect(page.locator('label[for="f_gebaeudetyp"]')).toHaveText(/Gebäudetyp/u);
     await expect(page.locator('button[type="submit"]')).toHaveText('Anfrage senden');
   });
+
+  test('und die ANTWORT ist englisch — nicht nur das Formular', async ({ page }) => {
+    /**
+     * Die Sprache reist als verstecktes Feld mit. Ohne sie antwortete
+     * `/api/anfrage` deutsch, und zwar an der Stelle, an der jemand etwas
+     * kaufen wollte.
+     *
+     * Der Test schickt WIRKLICH ab. Ein Test, der nur das versteckte Feld im
+     * Markup sucht, bestuende auch dann, wenn die Route es ignoriert — oder,
+     * wie beim ersten Versuch, wenn sie es als unbekanntes Formularfeld
+     * abweist und die ganze Absendung bricht.
+     */
+    await page.goto('/en/angebot/reinigung');
+    await expect(page.locator('input[name="sprache"]')).toHaveValue('en');
+
+    await page.selectOption('#f_gebaeudetyp', 'buero');
+    await page.fill('#f_flaeche_qm', '250');
+    await page.selectOption('#f_frequenz', 'woechentlich');
+    await page.fill('#f_wunsch_start', '2026-10-01');
+    await page.fill('#f_firma', `EN Test ${String(Date.now())}`);
+    await page.fill('#f_name', 'A. Sample');
+    await page.fill('#f_email', 'a@sample.test');
+    await page.fill('#f_telefon', '+49 30 5550101');
+    await page.check('#f_datenschutz_hinweis');
+
+    const [antwort] = await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().endsWith('/api/anfrage') && r.request().method() === 'POST',
+      ),
+      page.click('button[type="submit"]'),
+    ]);
+    const text = await antwort.text();
+    expect(antwort.status(), text).toBe(200);
+    expect(text).toContain('Thank you for your enquiry.');
+    // Und ausdruecklich NICHT die deutsche Fassung.
+    expect(text).not.toContain('Vielen Dank');
+  });
 });
 
 test.describe('(6) die Maschinenflächen kennen beide Sprachen', () => {

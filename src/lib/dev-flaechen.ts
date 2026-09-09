@@ -22,3 +22,21 @@ export function devFlaechenAn(umgebung: Umgebung = process.env): boolean {
   if (umgebung.CSE_DEV_FLAECHEN === '1') return true;
   return umgebung.NODE_ENV !== 'production';
 }
+
+/**
+ * Das Ziel einer Kachel auf der ENTWICKLUNGSflaeche.
+ *
+ * `Kachel.ziel` liefert die Produktionsadresse — die Modulliste unter
+ * `/portal/<slug>/…`. Die Dev-Uebersicht kann dorthin nicht verlinken: sie
+ * laeuft ohne Sitzung, und das Portal wuerde zur Anmeldung schicken. Sie
+ * verlinkt deshalb auf ihre eigene Vorschau, die dieselben `zeilen` derselben
+ * Kachel rendert.
+ *
+ * Das ist kein zweites Ziel fuer dieselbe Sache, sondern ein Ziel fuer eine
+ * andere: die Vorschau zeigt die ROHZEILEN einer Kennzahl, die Modulliste
+ * zeigt das Modul.
+ */
+export function devKennzahlPfad(schluessel: string, bereich: string): string {
+  return `/dev/kennzahl/${schluessel}?bereich=${bereich}`;
+}
+
