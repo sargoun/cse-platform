@@ -100,6 +100,7 @@ export default async function MandantDashboard(
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
       aktiverTab="dashboard"
+      sichtbareTabs={zugang.sichtbareTabs}
     >
       <h1 className="mb-s5 text-h1 text-text">Übersicht</h1>
       <KachelRaster kacheln={anzeige} />

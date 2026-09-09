@@ -57,7 +57,7 @@ describe('(6) K-20 — app.portal() ist in der Gruppenansicht die Konstante `int
     await mitglied(chef, f.reinigung, 'leitung');
 
     const portal = await sql.begin(async (tx) =>
-      withGroupScope(tx as never, sitzung(chef, null), [f.reinigung, f.security], async (k) => {
+      withGroupScope(tx as never, sitzung(chef, null), async (k) => {
         const [z] = await k.abfrage<{ p: string }>(`select app.portal() p`);
         return z!.p;
       }),
@@ -98,7 +98,7 @@ describe('(3) in der Gruppenansicht führt kein Schreibpfad — auch nicht direk
 
     await expect(
       sql.begin((tx) =>
-        withGroupScope(tx as never, sitzung(chef, null), [f.reinigung], async (k) =>
+        withGroupScope(tx as never, sitzung(chef, null), async (k) =>
           // Die Abfrage ist ein INSERT — der Typ hätte es verhindert, ein
           // Skript nicht. Die WITH-CHECK-Policies tragen `mandant_id =
           // app.aktiver_mandant()`, und der ist hier NULL.
@@ -141,7 +141,7 @@ describe('(3) in der Gruppenansicht führt kein Schreibpfad — auch nicht direk
     await mitglied(chef, f.security, 'leitung');
 
     const anzahl = await sql.begin(async (tx) =>
-      withGroupScope(tx as never, sitzung(chef, null), [f.reinigung, f.security], async (k) => {
+      withGroupScope(tx as never, sitzung(chef, null), async (k) => {
         const zeilen = await k.abfrage<{ n: string }>(`select count(*) n from anstellung`);
         return Number(zeilen[0]!.n);
       }),
@@ -157,7 +157,7 @@ describe('(4) die Zähler kommen aus LIVE-Abfragen', () => {
     await mitglied(chef, f.reinigung, 'leitung');
 
     const zaehle = async (): Promise<number> => sql.begin(async (tx) =>
-      withGroupScope(tx as never, sitzung(chef, null), [f.reinigung], async (k) => {
+      withGroupScope(tx as never, sitzung(chef, null), async (k) => {
         const z = await k.abfrage<{ n: string }>(
           `select count(*) n from anstellung where mandant_id = $1`, [f.reinigung],
         );
@@ -207,5 +207,50 @@ describe('(4) die Zähler kommen aus LIVE-Abfragen', () => {
     // `dashboard` ist kein Modul (§7.4). Der Schlüssel existiert nicht, und
     // unter K-19 heisst das: dauerhaft false, still — kein Fehler.
     expect(await hat('gruppe.dashboard.lesen')).toBe(false);
+  });
+});
+
+describe('die sichtbare Menge wird ABGELEITET, nicht eingereicht', () => {
+  /**
+   * Der Befund, den diese Gruppe festhaelt: die Seite reichte
+   * `select id from mandant` als Menge ein. Im Gruppen-Scope IST
+   * `app.mandant_ids` die sichtbare Menge (`0004_rls_baseline.sql`), und
+   * `t_mandant_lesen` prueft nur die Zugehoerigkeit zu ihr — kein Recht. Eine
+   * `leitung` der Reinigung las damit die Namen aller vier Gesellschaften.
+   */
+  it('eine leitung der Reinigung sieht in der Gruppenansicht nur die Reinigung', async () => {
+    const chef = await konto('nur-eigene@cse.test');
+    await mitglied(chef, f.reinigung, 'leitung');
+
+    const slugs = await sql.begin(async (tx) =>
+      withGroupScope(tx as never, sitzung(chef, null), async (k) =>
+        k.abfrage<{ slug: string }>(`select slug from mandant order by slug`)),
+    ) as readonly { slug: string }[];
+
+    expect(slugs.map((z) => z.slug)).toEqual(['reinigung']);
+  });
+
+  it('zwei Mitgliedschaften ergeben zwei Bereiche — und nicht mehr', async () => {
+    const chef = await konto('zwei-bereiche@cse.test');
+    await mitglied(chef, f.reinigung, 'leitung');
+    await mitglied(chef, f.security, 'leitung');
+
+    const ids = await sql.begin(async (tx) =>
+      withGroupScope(tx as never, sitzung(chef, null), async (k) => k.mandantIds),
+    ) as readonly string[];
+
+    expect([...ids].sort()).toEqual([f.reinigung, f.security].sort());
+  });
+
+  it('ohne jede Mitgliedschaft ist die Menge leer — nicht "alle"', async () => {
+    // Fail closed. Der Unterschied zaehlt: eine leere Menge zeigt nichts, eine
+    // fehlende Einschraenkung zeigt alles.
+    const niemand = await konto('ohne-bereich@cse.test');
+
+    const ids = await sql.begin(async (tx) =>
+      withGroupScope(tx as never, sitzung(niemand, null), async (k) => k.mandantIds),
+    ) as readonly string[];
+
+    expect(ids).toEqual([]);
   });
 });

@@ -1,5 +1,6 @@
 import { StatusPill } from '@/components/ui/StatusPill';
 import { TabLeiste } from './TabLeiste';
+import { SeitenNavigation } from './SeitenNavigation';
 import { tableiste, type LeistenSchluessel } from '@/server/registry/tableiste';
 import type { BereichSchluessel } from '@/lib/design/theme';
 
@@ -22,11 +23,16 @@ export interface PortalRahmenProps {
   readonly leiste: LeistenSchluessel;
   readonly wurzel: string;
   readonly aktiverTab?: string;
+  /**
+   * Je Tab-Schluessel: darf er erscheinen? Kommt aus `portalZugang`, das ihn
+   * in derselben gebundenen Transaktion bewertet wie den Zugang zur Seite.
+   */
+  readonly sichtbareTabs?: Readonly<Record<string, boolean>>;
   readonly children: React.ReactNode;
 }
 
 export function PortalRahmen({
-  titel, bereich, nurLesen, leiste, wurzel, aktiverTab, children,
+  titel, bereich, nurLesen, leiste, wurzel, aktiverTab, sichtbareTabs, children,
 }: PortalRahmenProps) {
   const tabs = tableiste(leiste);
   return (
@@ -50,14 +56,24 @@ export function PortalRahmen({
         )}
       </header>
 
-      {/* `pb-20` unter `md`: die Tab-Leiste liegt fest am unteren Rand und
-          verdeckte sonst die letzte Zeile jeder Liste. */}
-      <main className="flex-1 p-s5 pb-20 md:pb-s5">{children}</main>
+      <div className="flex flex-1">
+        <SeitenNavigation
+          ziele={tabs.ziele}
+          wurzel={wurzel}
+          {...(aktiverTab === undefined ? {} : { aktiv: aktiverTab })}
+          {...(sichtbareTabs === undefined ? {} : { sichtbar: sichtbareTabs })}
+          label={titel}
+        />
+        {/* `pb-20` unter `md`: die Tab-Leiste liegt fest am unteren Rand und
+            verdeckte sonst die letzte Zeile jeder Liste. */}
+        <main className="flex-1 p-s5 pb-20 md:pb-s5">{children}</main>
+      </div>
 
       <TabLeiste
         ziele={tabs.ziele}
         wurzel={wurzel}
         {...(aktiverTab === undefined ? {} : { aktiv: aktiverTab })}
+        {...(sichtbareTabs === undefined ? {} : { sichtbar: sichtbareTabs })}
         label={titel}
       />
     </div>

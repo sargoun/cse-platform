@@ -20,11 +20,16 @@ export interface TabZiel {
    * Der Pfad relativ zur Portalwurzel; leer heisst die Wurzel selbst.
    *
    * Beginnt er mit `/`, ist er ABSOLUT — das braucht genau ein Ziel: `Profil`
-   * fuehrt in jedem Portal auf `/portal/konto` (§9, `USR`). Das Konto liest
-   * die eigenen Zeilen ueber `benutzer_id` und loest sich in jedem Scope
+   * fuehrt in jedem Portal auf `/portal/konto/profil` (§9, `USR`). Das Konto
+   * liest die eigenen Zeilen ueber `benutzer_id` und loest sich in jedem Scope
    * gleich auf; es je Portal zu kopieren hiesse, dieselbe Seite viermal zu
    * haben, oder — schlimmer — einer Arbeiterin ihr eigenes Passwort
    * wegzunehmen.
+   *
+   * **`/portal/konto` ohne Unterseite ist KEINE Route.** Das Manifest kennt
+   * `/portal/konto/profil`, `/sicherheit`, `/benachrichtigungen`,
+   * `/kalender-feed` und `/zugriffe` — die Wurzel steht nicht darin, und
+   * `findeRoute` liefert fuer sie `undefined`. Der Tab zeigte damit auf 404.
    */
   readonly pfad: string;
   /** Der Rechteschluessel, oder `null` fuer `Mehr` und den Selbstzugriff. */
@@ -90,7 +95,7 @@ export const TABLEISTEN: readonly TabLeiste[] = [
       { schluessel: 'schichten', label: 'Schichten', pfad: 'schichten', recht: null, symbol: '▦' },
       { schluessel: 'stunden', label: 'Stunden', pfad: 'stundenkonto', recht: null, symbol: '◷' },
       { schluessel: 'nachrichten', label: 'Nachrichten', pfad: 'nachrichten', recht: null, symbol: '✉' },
-      { schluessel: 'profil', label: 'Profil', pfad: '/portal/konto', recht: null, symbol: '☺' },
+      { schluessel: 'profil', label: 'Profil', pfad: '/portal/konto/profil', recht: null, symbol: '☺' },
     ],
   },
   {

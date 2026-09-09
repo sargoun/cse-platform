@@ -49,6 +49,7 @@ export default async function MeinPortal() {
       leiste={zugang.leiste}
       wurzel="/portal/mein"
       aktiverTab="heute"
+      sichtbareTabs={zugang.sichtbareTabs}
     >
       <h1 className="mb-s5 text-h1 text-text">Heute</h1>
 

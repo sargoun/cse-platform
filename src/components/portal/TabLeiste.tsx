@@ -12,6 +12,15 @@ import { tabZiel, type TabZiel } from '@/server/registry/tableiste';
  */
 export interface TabLeisteProps {
   readonly ziele: readonly TabZiel[];
+  /**
+   * Je Schluessel: darf dieser Tab erscheinen?
+   *
+   * Ein Menuepunkt, der auf 404 fuehrt, ist schlechter als keiner — er
+   * verraet die Existenz dessen, was er nicht zeigen darf (AUT-06). §11.2
+   * beschreibt die Leiste einer Rolle, die ihre fuenf Rechte HAELT; wer eines
+   * nicht haelt, sieht vier.
+   */
+  readonly sichtbar?: Readonly<Record<string, boolean>>;
   /** Der Schlüssel des aktiven Ziels. */
   readonly aktiv?: string;
   /** Die Portalwurzel, z. B. `/portal/reinigung` oder `/portal/mein`. */
@@ -19,14 +28,15 @@ export interface TabLeisteProps {
   readonly label: string;
 }
 
-export function TabLeiste({ ziele, aktiv, wurzel, label }: TabLeisteProps) {
+export function TabLeiste({ ziele, aktiv, wurzel, label, sichtbar }: TabLeisteProps) {
+  const gezeigt = ziele.filter((z) => sichtbar?.[z.schluessel] !== false);
   return (
     <nav
       aria-label={label}
       data-cse="tableiste"
       className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-surface md:hidden"
     >
-      {ziele.map((z) => {
+      {gezeigt.map((z) => {
         const ziel = tabZiel(wurzel, z);
         return (
           <a

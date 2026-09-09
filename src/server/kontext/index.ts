@@ -74,6 +74,68 @@ async function bindeSitzung(
   await setze('app.akteur_typ', 'mensch');
 }
 
+/**
+ * Die Bindung fuer eine reine ANFRAGE-Pruefung — Tor und Rollenabfrage.
+ *
+ * Sie setzt dieselben GUCs wie `bindeSitzung`, ohne einen Kontext
+ * zurueckzugeben: das Tor liest keine Fachzeilen, es fragt `app.hat_recht`.
+ * `app.mandant_ids` bleibt hier leer und wird vom Aufrufer nachgezogen, wo der
+ * Scope es verlangt — im Gruppen-Scope IST diese Menge die sichtbare Menge,
+ * und sie darf nicht aus der Anwendung kommen.
+ */
+export async function bindeAnfrage(tx: Transaktion, sitzung: Sitzung): Promise<void> {
+  await bindeSitzung(tx, sitzung, true, []);
+}
+
+/**
+ * Die Bereiche, die im Gruppen-Scope offenstehen — aus der Datenbank.
+ *
+ * `app.switcher_mandanten()` und NICHT `select id from mandant`: die zweite
+ * Fassung gab jeder Sitzung jeden nicht archivierten Bereich, und weil
+ * `app.sichtbare_mandanten()` im Gruppen-Scope genau `app.mandant_ids()` ist
+ * (`0004_rls_baseline.sql`), waere das die sichtbare Menge geworden.
+ * `t_mandant_lesen` prueft nur die Zugehoerigkeit zu dieser Menge und kein
+ * Recht — eine `leitung` der Reinigung haette die Namen aller vier
+ * Gesellschaften gelesen.
+ *
+ * Der Unterschied zu `sichtbare_mandanten()` ist Absicht (B14): ein
+ * archivierter Bereich bleibt LESBAR — seine Rechnungen stehen zehn Jahre —
+ * wird aber nicht mehr als Arbeitskontext angeboten.
+ */
+export async function gruppenMandanten(tx: Transaktion): Promise<readonly string[]> {
+  const [zeile] = (await tx.unsafe(
+    `select app.switcher_mandanten() as ids`,
+  )) as { ids: readonly string[] | null }[];
+  return zeile?.ids ?? [];
+}
+
+/**
+ * Die Rolle der aktiven Mitgliedschaft — IN der gebundenen Transaktion.
+ *
+ * `t_bm_lesen` verlangt `benutzer_id = app.aktueller_benutzer()`. Ohne
+ * gebundene Sitzung gibt `benutzer_mandant` deshalb null Zeilen zurueck, und
+ * `force row level security` laesst auch dem Eigentuemer keinen Weg daran
+ * vorbei. Diese Funktion setzt voraus, dass `bindeAnfrage` oder
+ * `bindeSitzung` bereits lief — sie bindet nicht selbst, damit es genau eine
+ * Stelle gibt, an der gebunden wird.
+ */
+export async function rolleImMandanten(
+  tx: Transaktion, sitzung: Sitzung,
+): Promise<string | null> {
+  if (sitzung.aktiverMandantId === null) return null;
+  const zeilen = (await tx.unsafe(
+    `select r.schluessel from benutzer_mandant bm
+       join rolle r on r.id = bm.rolle_id
+      where bm.benutzer_id = $1 and bm.mandant_id = $2
+        and bm.entzogen_am is null
+        and bm.gueltig_ab <= current_date
+        and (bm.gueltig_bis is null or bm.gueltig_bis >= current_date)
+      limit 1`,
+    [sitzung.benutzerId, sitzung.aktiverMandantId],
+  )) as { schluessel: string }[];
+  return zeilen[0]?.schluessel ?? null;
+}
+
 function basis(
   tx: Transaktion, sitzung: Sitzung, mandantIds: readonly string[],
 ): LeseKontext {
@@ -124,17 +186,26 @@ export async function withTenant<T>(
  * Es aus `aktiver_mandant` neu zu berechnen ergäbe das fail-closed
  * `mitarbeiter` — was jede K-04-Mitarbeiterdecke INNERHALB der Gruppenansicht
  * auslöst und sie für genau das Publikum leert, für das TEN-05 sie gebaut hat.
+ *
+ * **Die Menge nimmt dieser Kontext nicht entgegen, er leitet sie ab.** Sie
+ * einzureichen hiess, dass der Aufrufer bestimmt, was die Gruppenansicht
+ * umfasst — und der erste Aufrufer reichte `select id from mandant` ein, also
+ * jeden Bereich, unabhängig von jeder Mitgliedschaft.
  */
 export async function withGroupScope<T>(
   tx: Transaktion,
   sitzung: Sitzung,
-  mandantIds: readonly string[],
   fn: (kontext: LeseKontext) => Promise<T>,
 ): Promise<T> {
   const gruppe: Sitzung = {
     ...sitzung, ansicht: 'gruppe', aktiverMandantId: null, portal: 'intern',
   };
-  await bindeSitzung(tx, gruppe, true, mandantIds);
+  // Erst binden, dann ableiten, dann setzen — wie im Personen-Scope. Ohne
+  // gebundenen Benutzer gaebe `switcher_mandanten()` die leere Menge zurueck.
+  await bindeSitzung(tx, gruppe, true, []);
+  const mandantIds = await gruppenMandanten(tx);
+  await tx.unsafe(`select set_config('app.mandant_ids', $1, true)`,
+    [mandantIds.join(',')]);
   return fn(basis(tx, gruppe, mandantIds));
 }
 

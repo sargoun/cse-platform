@@ -48,9 +48,18 @@ const ERLAUBTE_FAMILIEN: Readonly<Record<string, readonly Familie[]>> = {
   kunde: ['kunde', 'konto', 'oeffentlich', 'auth', 'api'],
 };
 
-/** Wohin ein Portal geschickt wird, das die falsche Familie betritt. */
+/**
+ * Wohin ein Portal geschickt wird, das die falsche Familie betritt.
+ *
+ * `intern` landet auf `/auth/bereich` und nicht auf `/portal`: die zweite
+ * Adresse steht in keiner Zeile von `04-SEITENKARTE.md`, `findeRoute` gibt fuer
+ * sie `undefined` zurueck, und das Ziel der Weiterleitung waere selbst ein 404.
+ * `/auth/bereich` ist die Stelle, an der ein internes Konto seinen Bereich
+ * waehlt (§4.4) — es gibt fuer dieses Portal keine feste Wurzel, weil der
+ * Bereich im Pfad steht.
+ */
 export const PORTAL_START: Readonly<Record<string, string>> = {
-  intern: '/portal',
+  intern: '/auth/bereich',
   mitarbeiter: '/portal/mein',
   kunde: '/portal/kunde',
 };
@@ -58,6 +67,24 @@ export const PORTAL_START: Readonly<Record<string, string>> = {
 export interface Rechtepruefer {
   /** `app.hat_recht(schluessel, mandant)` — der Mandant gehoert dazu (K-03). */
   hatRecht(schluessel: string, mandantId: string | null): Promise<boolean>;
+  /**
+   * Haelt der Benutzer den Schluessel in MINDESTENS EINEM sichtbaren Mandanten?
+   *
+   * Die Frage der mandantenuebergreifenden Scopes, und sie ist eine andere als
+   * `hatRecht(k, null)`. `app.hat_recht` beantwortet NULL mit `false`, sobald
+   * die globale Rolle nicht traegt (`0008_berechtigung_matrix.sql`):
+   *
+   * ```sql
+   * if v_recht.nur_global then return false; end if;
+   * if p_mandant is null then return false; end if;
+   * ```
+   *
+   * Alle 47 `gruppe.*`-Schluessel stehen mit `nur_global = false` im Katalog.
+   * Gegen NULL gefragt scheitert damit jede Mitgliedschaftsrolle — die
+   * Gruppenansicht waere fuer genau das Publikum leer, fuer das TEN-05 sie
+   * gebaut hat.
+   */
+  hatRechtIrgendwo(schluessel: string): Promise<boolean>;
 }
 
 /**
@@ -99,19 +126,32 @@ export async function pruefeZugang(
   if (route.bewachung.aal2 && sitzung.aal !== 'aal2') return { art: 'zweiter_faktor' };
 
   /**
-   * Der Mandant, gegen den gefragt wird.
+   * Der Mandant, gegen den gefragt wird — und was gilt, wenn es keinen gibt.
    *
    * `app.hat_recht` NIMMT einen Mandanten (K-03): ein globales Praedikat truege
-   * ein in einer Gesellschaft erteiltes Recht in jede andere, und genau das
-   * ist der Leak, gegen den RLS existiert. In den mandantenuebergreifenden
-   * Ansichten ist er NULL, und die Gruppenschluessel (`gruppe.<modul>.lesen`)
-   * sind global gebunden.
+   * ein in einer Gesellschaft erteiltes Recht in jede andere, und genau das ist
+   * der Leak, gegen den RLS existiert.
+   *
+   * In den mandantenuebergreifenden Scopes gibt es keinen aktiven Mandanten
+   * (K-20), und die Antwort ist NICHT, mit NULL zu fragen: die Funktion gibt
+   * darauf `false` zurueck, sobald die globale Rolle nicht traegt. Gefragt wird
+   * stattdessen ueber die sichtbare Menge — das Recht gilt, wenn es in
+   * mindestens einem dieser Bereiche gilt.
+   *
+   * **Das oeffnet die SEITE, nicht die Zeilen.** Welche Zeilen erscheinen,
+   * entscheidet weiter die Policy je Zeile, und die fragt mit dem `mandant_id`
+   * DER ZEILE (`0009_dokument.sql`:
+   * `and app.hat_recht('gruppe.dokument.lesen', mandant_id)`). Eine `leitung`
+   * der Reinigung sieht die Gruppenseite und darauf die Reinigungszeilen —
+   * genau das meint `04-SEITENKARTE.md` §1.3 mit *"per mandant"*.
    */
+  const mandantId = sitzung.aktiverMandantId;
   const fehlend: string[] = [];
   for (const schluessel of route.bewachung.lesen) {
-    if (!(await pruefer.hatRecht(schluessel, sitzung.aktiverMandantId))) {
-      fehlend.push(schluessel);
-    }
+    const haelt = mandantId === null
+      ? await pruefer.hatRechtIrgendwo(schluessel)
+      : await pruefer.hatRecht(schluessel, mandantId);
+    if (!haelt) fehlend.push(schluessel);
   }
   if (fehlend.length > 0) return { art: 'kein_recht', fehlend };
 
@@ -139,6 +179,21 @@ export function rechtepruefer(
     hatRecht: async (schluessel, mandantId) => {
       const zeilen = await abfrage<{ ok: boolean }>(
         `select app.hat_recht($1, $2::uuid) as ok`, [schluessel, mandantId],
+      );
+      return zeilen[0]?.ok === true;
+    },
+    /**
+     * Die Menge kommt aus `app.sichtbare_mandanten()` und nicht aus der
+     * Anwendung: K-18 leitet sie je Scope IN der Datenbank ab, damit ein
+     * falsch gesetzter Hinweis aus der Anwendung nichts oeffnet.
+     */
+    hatRechtIrgendwo: async (schluessel) => {
+      const zeilen = await abfrage<{ ok: boolean }>(
+        `select exists (
+           select 1 from unnest(app.sichtbare_mandanten()) as m(id)
+            where app.hat_recht($1, m.id)
+         ) as ok`,
+        [schluessel],
       );
       return zeilen[0]?.ok === true;
     },

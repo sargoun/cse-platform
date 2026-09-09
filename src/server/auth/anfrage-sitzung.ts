@@ -24,20 +24,12 @@ export async function aktuelleSitzung(): Promise<Sitzung | null> {
 }
 
 /**
- * Die Rolle der aktiven Mitgliedschaft — fuer die Wahl der Tab-Leiste.
+ * Die Rolle der aktiven Mitgliedschaft steht NICHT hier.
  *
- * Sie kommt aus `benutzer_mandant`, nicht aus dem Cookie: eine Rolle im
- * Cookie waere eine Behauptung des Browsers ueber die eigenen Rechte.
+ * Sie stand hier, in einer eigenen Transaktion, und band darin nichts. Die
+ * Policy `t_bm_lesen` verlangt `benutzer_id = app.aktueller_benutzer()` — die
+ * Antwort war deshalb immer die leere Menge und die Rolle immer `null`.
+ * Gelesen wird sie jetzt von `rolleImMandanten` in der Transaktion, die das
+ * Zugangstor ohnehin oeffnet (`src/server/kontext/index.ts`): eine Bindung,
+ * eine Wahrheit, keine zweite Stelle, an der sie fehlen kann.
  */
-export async function aktiveRolle(sitzung: Sitzung): Promise<string | null> {
-  if (sitzung.aktiverMandantId === null) return null;
-  const zeilen = await (db().begin(async (tx: postgres.TransactionSql) =>
-    tx.unsafe(
-      `select r.schluessel from benutzer_mandant bm
-         join rolle r on r.id = bm.rolle_id
-        where bm.benutzer_id = $1 and bm.mandant_id = $2 and bm.entzogen_am is null
-        limit 1`,
-      [sitzung.benutzerId, sitzung.aktiverMandantId],
-    )) as Promise<{ schluessel: string }[]>);
-  return zeilen[0]?.schluessel ?? null;
-}

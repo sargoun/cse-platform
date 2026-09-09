@@ -41,6 +41,7 @@ export default async function Kundenportal() {
       leiste={zugang.leiste}
       wurzel="/portal/kunde"
       aktiverTab="uebersicht"
+      sichtbareTabs={zugang.sichtbareTabs}
     >
       <h1 className="mb-s5 text-h1 text-text">Übersicht</h1>
       {zugriff ? (
