@@ -151,3 +151,6 @@ test-results/
 .env
 .env.local
 next-env.d.ts
+
+# Lighthouse-CI-Berichte. Sie gehören zu einem Lauf, nicht zum Quellstand.
+.lighthouseci/

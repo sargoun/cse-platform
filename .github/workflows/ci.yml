@@ -40,6 +40,11 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Der Barrierefreiheits- und SEO-Job läuft getrennt (a11y.yml): er
+      # braucht einen Browser und einen laufenden Server und dauert um ein
+      # Vielfaches länger. Getrennt sagt ein rotes CI sofort, WELCHE Art von
+      # Zusage gebrochen ist.
+
       # SEC-A8: a known-vulnerable dependency fails the branch.
       - name: Audit
         run: pnpm audit --audit-level=high

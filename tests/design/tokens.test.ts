@@ -10,7 +10,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import robots from '../../src/app/robots.js';
+import { AUSGESCHLOSSEN } from '../../src/server/services/inhalt/sitemap.js';
 import { devFlaechenAn } from '../../src/lib/dev-flaechen.js';
 import {
   ABSTAND,
@@ -247,9 +247,14 @@ describe('(9) the development surface is a 404 in production, not merely hidden'
     expect(devFlaechenAn({ NODE_ENV: 'production', CSE_DEV_FLAECHEN: '' })).toBe(false);
   });
 
+  /**
+   * Geprüft wird die Liste, aus der `robots.txt` UND die Sitemap entstehen.
+   *
+   * `robots()` selbst liest den Host aus der Anfrage und ist ausserhalb einer
+   * Anfrage nicht aufrufbar; dass die erzeugte Datei die Zeile wirklich trägt,
+   * prüft `tests/e2e/seo.spec.ts` am laufenden Server. Hier steht die Quelle.
+   */
   it('robots.txt disallows /dev/ as well — both, not either', () => {
-    const regeln = robots().rules;
-    const eine = Array.isArray(regeln) ? regeln[0] : regeln;
-    expect(eine?.disallow).toContain('/dev/');
+    expect(AUSGESCHLOSSEN).toContain('/dev');
   });
 });

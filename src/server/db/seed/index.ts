@@ -49,6 +49,28 @@ const BEREICHE: readonly Bereich[] = [
     rechtsform: null, rechtseinheit: null, farbe: 'operations' },
 ];
 
+/**
+ * Holt oder legt eine `auth.users`-Zeile an — LESEN ZUERST.
+ *
+ * `insert … on conflict do nothing` half hier nicht: die Supabase-Attrappe
+ * traegt auf `email` keine Eindeutigkeit, also gab es keinen Konflikt, den
+ * Postgres haette verschlucken koennen. Der zweite Seed-Lauf legte eine ZWEITE
+ * Zeile mit derselben Adresse an, bekam eine neue id und scheiterte erst eine
+ * Anweisung spaeter an `benutzer_email_key` — mit einer Fehlermeldung, die auf
+ * `benutzer` zeigte, waehrend der Fehler in `auth.users` lag.
+ *
+ * Ein Seed, der beim zweiten Lauf bricht, wird genau einmal ausgefuehrt und
+ * danach gemieden.
+ */
+async function authBenutzer(email: string): Promise<string> {
+  const [vorhanden] = await sql<{ id: string }[]>`
+    select id from auth.users where email = ${email} limit 1`;
+  if (vorhanden !== undefined) return vorhanden.id;
+  const [neu] = await sql<{ id: string }[]>`
+    insert into auth.users (email) values (${email}) returning id`;
+  return neu!.id;
+}
+
 async function main(): Promise<void> {
   process.stdout.write('Seed startet…\n');
 
@@ -86,6 +108,34 @@ async function main(): Promise<void> {
   }
   process.stdout.write(`  ${ids.size} Bereiche\n`);
 
+  // ------------------------------------------------------ Unternehmensprofile
+  /**
+   * Ein Profil je Gesellschaft — mit dem GEWERK als Kurzbeschreibung.
+   *
+   * Der Text ist kein Werbetext, sondern der Gewerkename, der ohnehin in
+   * `CLAUDE.md` und in `routen.ts` steht: "Gebäudereinigung",
+   * "Sicherheits- und Objektschutzdienste", "Hochbau, Ausbau, Rückbau". Was
+   * darüber hinausgeht — Alleinstellung, Referenzen, Tonfall — schreibt der
+   * Mandant; erfundene Werbesätze sähen fertig aus und würden nie ersetzt
+   * (PR 14: "NOT: copywriting").
+   *
+   * Ohne diese Zeilen bleiben die vier Markenkarten der Startseite ohne
+   * Anspruchstext, und PUB-03 verlangt sie.
+   */
+  const GEWERK: Readonly<Record<string, string>> = {
+    reinigung: 'Gebäudereinigung',
+    security: 'Sicherheits- und Objektschutzdienste',
+    bau: 'Hochbau, Ausbau, Rückbau',
+    operations: 'Digitale Abläufe, Auswertung und Gruppensteuerung',
+  };
+  for (const b of BEREICHE) {
+    await sql`
+      insert into unternehmensprofil (mandant_id, kurzbeschreibung, status)
+      values (${ids.get(b.slug)!}, ${GEWERK[b.slug]!}, 'veroeffentlicht')
+      on conflict (mandant_id) do nothing`;
+  }
+  process.stdout.write('  4 Unternehmensprofile (Kurztext = Gewerk, Werbetext offen)\n');
+
   // ------------------------------------------------------------ Super-Admin
   /**
    * Ein Konto, das die Plattform aufschliesst. MIT zweitem Faktor, denn
@@ -93,11 +143,7 @@ async function main(): Promise<void> {
    * werden — und `app.ist_super_admin()` verlangt zusaetzlich eine
    * aal2-SITZUNG. Der Faktor gehoert der Anmeldung, nicht dem Konto.
    */
-  const [u] = await sql<{ id: string }[]>`
-    insert into auth.users (email) values ('admin@cse-gruppe.de')
-    on conflict do nothing returning id`;
-  const adminId = u?.id ?? (await sql<{ id: string }[]>`
-    select id from auth.users where email = 'admin@cse-gruppe.de'`)[0]!.id;
+  const adminId = await authBenutzer('admin@cse-gruppe.de');
 
   await sql`insert into auth.mfa_factors (user_id) values (${adminId})
             on conflict do nothing`;
@@ -110,6 +156,99 @@ async function main(): Promise<void> {
     values (${adminId}, 'admin@cse-gruppe.de', 'Gruppen-Administration', ${sa!.id}, 'aktiv')
     on conflict (id) do update set status = 'aktiv'`;
   process.stdout.write('  1 Super-Admin (admin@cse-gruppe.de)\n');
+
+  // --------------------------------------------------- Website-Renderer
+  /**
+   * Der Dienstprinzipal, unter dem die oeffentliche Website liest
+   * (03-AUTH §14.3).
+   *
+   * **Warum ueberhaupt einer.** `mandant` traegt RLS: `t_mandant_lesen` gibt
+   * nur frei, was `app.sichtbare_mandanten()` nennt, und eine Verbindung ohne
+   * Sitzung sieht darum NULL Gesellschaften. Firma, Anschrift und Telefon —
+   * also der ganze NAP-Block, das Impressum und jeder `LocalBusiness`-Eintrag —
+   * blieben leer. Nicht kaputt: leer, und eine leere Adresse faellt beim
+   * Entwickeln niemandem auf.
+   *
+   * **Warum er nichts darf ausser lesen.** Er haelt `oeffentlich.lesen` und
+   * `gruppe.oeffentlich.lesen` und sonst nichts, laeuft mit
+   * `app.readonly = 'on'` und hat keine globale Rolle. Er ist die zum Internet
+   * offene Haelfte des Systems; wer sie uebernimmt, bekommt damit keinen
+   * Schreibpfad. Die Formularannahme (REQ-01) ist ein ZWEITER Prinzipal mit
+   * anderen Rechten — deshalb zwei und nicht einer.
+   */
+  const rendererId = await authBenutzer('renderer@cse-gruppe.de');
+
+  const [vorhandeneRolle] = await sql<{ id: string }[]>`
+    select id from rolle
+     where schluessel = 'website_renderer' and mandant_id is null
+       and archiviert_am is null`;
+  const rendererRolle = vorhandeneRolle?.id ?? (await sql<{ id: string }[]>`
+    insert into rolle (schluessel, bezeichnung, beschreibung, geltungsbereich,
+                       portal, ist_system)
+    values ('website_renderer', 'Website-Renderer',
+            'Liest die veröffentlichten Inhalte für die öffentliche Website. '
+            || 'Kein Schreibrecht, keine globale Rolle (03-AUTH §14.3).',
+            'mandant', 'intern', true)
+    returning id`)[0]!.id;
+
+  for (const schluessel of ['oeffentlich.lesen', 'gruppe.oeffentlich.lesen']) {
+    await sql`
+      insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+      select ${rendererRolle}, b.id, null, true
+        from berechtigung b where b.schluessel = ${schluessel}
+      on conflict (rolle_id, berechtigung_id, mandant_id) do nothing`;
+  }
+
+  await sql`
+    insert into benutzer (id, email, name, ist_dienstkonto, status)
+    values (${rendererId}, 'renderer@cse-gruppe.de', 'Website-Renderer', true, 'aktiv')
+    on conflict (id) do update set status = 'aktiv', ist_dienstkonto = true`;
+
+  for (const b of BEREICHE) {
+    await sql`
+      insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id)
+      values (${rendererId}, ${ids.get(b.slug)!}, ${rendererRolle})
+      on conflict do nothing`;
+  }
+
+  /**
+   * Woher die Anwendung ihn kennt.
+   *
+   * Nicht aus einer Umgebungsvariablen: die haette in jeder Umgebung gesetzt
+   * werden muessen, und eine fehlende haette die Website still leer
+   * ausgeliefert. Die Zeile hier ist Teil desselben Seeds, der den Prinzipal
+   * anlegt — beide sind da oder beide fehlen, und `withOeffentlich` sagt es
+   * laut, wenn sie fehlen.
+   */
+  await sql`
+    insert into plattform_einstellung (schluessel, wert, beschreibung, ist_vorlaeufig)
+    values ('website.renderer_benutzer', to_jsonb(${rendererId}::text),
+            'Dienstprinzipal der öffentlichen Website (03-AUTH §14.3).', false)
+    on conflict (schluessel) do update set wert = excluded.wert`;
+  process.stdout.write('  1 Website-Renderer (nur oeffentlich.lesen)\n');
+
+  // ------------------------------------------------- Anzeigename der Gruppe
+  /**
+   * Der Name, unter dem die Website auftritt — als VORLAEUFIGE Einstellung.
+   *
+   * Er steht in der Datenbank und nicht im Markup, weil er an drei Stellen
+   * erscheint (Kopf, Fussbereich, `WebSite`-JSON-LD) und drei Literale
+   * auseinanderlaufen. `ist_vorlaeufig` bleibt gesetzt: ob "CSE Gruppe" ein
+   * Rechtstraeger ist oder nur eine Klammer ueber vier Gesellschaften, ist
+   * offen (O-206) — und davon haengt ab, ob ein `Organization`-Block ueberhaupt
+   * entstehen darf.
+   *
+   * Der Schluessel liegt unter `website.` und NICHT unter `gruppe.`: `gruppe`
+   * ist der Modulname der Gruppenansicht im Rechtekatalog (K-19), und ein
+   * Einstellungsschluessel, der wie ein Rechteschluessel aussieht, wird von der
+   * K-19-Pruefung als unregistriertes Recht gemeldet — zu Recht, denn genau so
+   * entsteht sonst ein dauerhaft leerer Bildschirm.
+   */
+  await sql`
+    insert into plattform_einstellung (schluessel, wert, beschreibung, ist_vorlaeufig)
+    values ('website.gruppenname', '"CSE Gruppe"'::jsonb,
+            'Auftrittsname der Gruppe auf der Website (VORLÄUFIG, O-206).', true)
+    on conflict (schluessel) do nothing`;
 
   // --------------------------------------------------------------- Menschen
   /** Fatima ist der D-09-Fall: ein Mensch, zwei Gesellschaften, zwei Saetze. */

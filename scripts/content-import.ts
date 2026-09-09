@@ -26,6 +26,18 @@ const seiten: readonly ImportSeite[] = OEFFENTLICHE_ROUTEN.map((r) => ({
       akzentWort: r.pfad === '/' ? 'Gruppe' : null,
       text: null,
     },
+    // PUB-03: die vier Markenkarten gehoeren auf die Startseite. Der Abschnitt
+    // traegt keinen Text — die Karten holen Namen und Anspruch aus `mandant`
+    // und `unternehmensprofil`, damit hier nichts steht, was dort schon steht.
+    ...(r.pfad === '/'
+      ? [{
+          art: 'markenkarten' as const,
+          reihenfolge: 2,
+          ueberschrift: null,
+          akzentWort: null,
+          text: null,
+        }]
+      : []),
   ],
 }));
 

@@ -1,0 +1,62 @@
+name: Barrierefreiheit und SEO
+
+# PUB-09, PUB-10, LEG-07. Ab PR 16 ein PFLICHT-Job: BFSG gilt für das Angebot,
+# und ein Zugänglichkeitsfehler, der nur eine Warnung auslöst, wird nach der
+# dritten Warnung nicht mehr gelesen.
+on:
+  push: { branches: [main] }
+  pull_request:
+
+jobs:
+  barrierefreiheit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+
+      # Die öffentlichen Seiten lesen ihren Inhalt aus `seite`/`abschnitt`
+      # (PUB-07). Ohne Datenbank prüfte dieser Job eine Fehlerseite — und eine
+      # Fehlerseite hat hervorragende Werte.
+      - name: Datenbank, Seed und Inhalt
+        run: |
+          pnpm db:test:up
+          pnpm db:seed
+          pnpm content:import
+        env:
+          DATABASE_URL: postgres://postgres@localhost:55432/cse_test
+
+      # axe auf JEDER öffentlichen Route, plus Tastaturbedienung und die
+      # Maschinenflächen. Playwright baut und startet den Server selbst.
+      - name: axe, Tastatur, sitemap/robots/llms
+        run: pnpm test:e2e
+        env:
+          DATABASE_URL: postgres://postgres@localhost:55432/cse_test
+
+      - name: Server für Lighthouse
+        run: |
+          pnpm build
+          pnpm start &
+          npx --yes wait-on http://localhost:3000/healthz --timeout 120000
+        env:
+          DATABASE_URL: postgres://postgres@localhost:55432/cse_test
+          CSE_KANONISCHE_BASIS: http://localhost:3000
+
+      # Ein BUDGET, keine Momentaufnahme: der Lauf fällt, sobald eine Seite
+      # schlechter wird. Schwellen und Begründung in docs/LIGHTHOUSE.md.
+      - name: Lighthouse-Budget (mobil)
+        run: pnpm lighthouse
+
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: berichte
+          path: |
+            .lighthouseci/
+            playwright-report/
+          retention-days: 7

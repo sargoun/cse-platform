@@ -30,6 +30,14 @@ export const ROUTEN: readonly RouteEintrag[] = [
       'Liveness-Probe für Vercel und die Überwachung. Gibt Build und Region zurück und '
       + 'liest keine Zeile — hinter einer Anmeldung wäre sie als Probe unbrauchbar.',
   },
+  {
+    pfad: 'llms.txt',
+    recht: null,
+    grund:
+      'PUB-12. Beschreibt die Gruppe für Sprachmodelle und enthält ausschliesslich, was '
+      + 'ohnehin öffentlich steht — Firma, Anschrift, Telefon aus `mandant` und die '
+      + 'veröffentlichten Seiten. Hinter einer Anmeldung wäre die Datei sinnlos.',
+  },
 ] as const;
 
 /** Die Routen, die ein Recht verlangen. */

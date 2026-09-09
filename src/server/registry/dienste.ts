@@ -45,6 +45,11 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'referenz', pfad: 'inhalt/import',
     schreibend: true, schreibRecht: 'referenz.schreiben',
   },
+  // SEO-Oberflächen. Sie lesen veröffentlichte Zeilen und sonst nichts —
+  // in der Gruppenansicht ist daran nichts gefährlich.
+  { modul: 'referenz', pfad: 'inhalt/jsonld', schreibend: false },
+  { modul: 'referenz', pfad: 'inhalt/sitemap', schreibend: false },
+  { modul: 'referenz', pfad: 'inhalt/llms', schreibend: false },
 ] as const;
 
 /**

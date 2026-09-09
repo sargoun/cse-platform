@@ -1047,6 +1047,80 @@ ist bei einem Kundennamen auf einer Website keine Nebensache.
 Implementierung kommt mit PR 27, und beide geben ausschliesslich freigegebene
 Eintraege zurueck.
 
+### D-68 · Die oeffentliche Website liest als Dienstprinzipal, nicht als Niemand
+
+`mandant` traegt RLS: `t_mandant_lesen` gibt frei, was `app.sichtbare_mandanten()`
+nennt. Eine Verbindung ohne Sitzung liest `seite` und `abschnitt` anstandslos —
+deren `t_*_oeffentlich`-Policies fragen nur nach `status = 'veroeffentlicht'` —
+und `mandant` **gar nicht**. Der erste Entwurf tat genau das und lieferte eine
+Seite ohne Firma, Anschrift und Telefon aus: nicht kaputt, sondern leer. Leer
+sieht aus wie "noch nicht gepflegt" und faellt beim Entwickeln niemandem auf.
+
+Der Renderer laeuft deshalb als der Dienstprinzipal aus `03-AUTH-BERECHTIGUNGEN.md`
+§14.3 — `benutzer_mandant`-Zeilen in den vier Bereichen, `ist_dienstkonto = true`,
+keine globale Rolle, genau zwei Rechte (`oeffentlich.lesen`,
+`gruppe.oeffentlich.lesen`), `app.readonly = 'on'`, Gruppenansicht ohne aktiven
+Mandanten. Damit gibt es drei unabhaengige Gruende, warum er nicht schreiben
+kann: der Rueckgabetyp hat kein `schreibe`, K-03 verlangt `not app.ist_readonly()`
+in jeder `WITH CHECK`, und er haelt kein Schreibrecht.
+
+Die Formularannahme (REQ-01, PR 17) ist ein **zweiter** Prinzipal mit anderen
+Rechten. Zwei und nicht einer: wer die Website rendert, ist die zum Internet
+offene Haelfte, und eine Uebernahme dieser Haelfte soll keinen Schreibpfad
+ergeben.
+
+### D-69 · Strukturierte Daten entstehen nur aus gepflegten Daten
+
+`Service` und `FAQPage` werden **nicht** ausgegeben, wenn es keine Leistungen
+und keine Fragen gibt. Ein `FAQPage` ohne Fragen ist fuer eine Suchmaschine
+kein Angebot, sondern ein Fehler im Markup; ein `Service` mit ausgedachten
+Namen ist eine Aussage des Unternehmens, die niemand getroffen hat. Beide
+kommen aus `abschnitt.daten` (`leistungen`, `faq`) — vorhandenes `jsonb`, keine
+Migration.
+
+`Organization` entsteht nur, wenn `website.rechtstraeger` gepflegt ist. Ein
+`Organization`-Block traegt eine Anschrift und behauptet damit, an dieser
+Adresse gebe es ein Unternehmen dieses Namens. Ob "CSE Gruppe" ein
+Rechtstraeger ist, ist offen (O-206); den ersten Mandanten dafuer einzusetzen
+hiesse, die Gruppe sei die CSE Dienstleistungen GmbH und deren Tochter zugleich.
+Bis zur Antwort: vier vollstaendige `LocalBusiness`-Eintraege und kein Dach.
+
+`pruefeJsonLd` laeuft beim Rendern und nicht nur im Test. Ein fehlerhafter Block
+wird von der Suchmaschine stillschweigend verworfen — die Seite sieht
+ausgezeichnet aus und ist es nicht. Lieber laut beim Bauen als still in der
+Suche.
+
+### D-70 · Der kanonische Host wird nicht geraten (O-08)
+
+`CSE_KANONISCHE_BASIS` nennt ihn; ohne sie gilt der Host der Anfrage. Eine im
+Code eingetragene Domain waere geraten und wanderte als kanonische URL in jede
+Sitemap und jeden JSON-LD-`@id`; ein spaeterer Wechsel entwertet genau die
+Autoritaet, die diese Angaben aufbauen sollen. Ein falscher kanonischer Host ist
+schlimmer als keiner — er sagt der Suchmaschine, die echte Seite stehe anderswo.
+
+### D-71 · Einstellungsschluessel liegen nicht im Rechte-Namensraum
+
+`gruppe.anzeigename` als `plattform_einstellung`-Schluessel wurde von der
+K-19-Pruefung als unregistriertes Recht gemeldet — zu Recht: `gruppe` ist der
+Modulname der Gruppenansicht im Rechtekatalog, und ein Schluessel, der wie ein
+Rechteschluessel aussieht, ist von der Pruefung nicht davon zu unterscheiden.
+Die Einstellungen heissen deshalb `website.gruppenname` und
+`website.rechtstraeger`, wie `website.renderer_benutzer` daneben.
+
+### D-72 · axe und Lighthouse sind Pflicht-Jobs, kein Bericht
+
+`.github/workflows/a11y.yml` prueft axe auf **jeder** oeffentlichen Route — die
+Liste kommt aus `OEFFENTLICHE_ROUTEN`, eine neue Route ist damit automatisch
+abgedeckt — und faellt bei einem einzigen AA-Verstoss. BFSG gilt fuer das
+Angebot, nicht fuer die Startseite; eine Stichprobe misst, wie sorgfaeltig die
+geprueften Seiten gebaut wurden, und sagt ueber die uebrigen nichts.
+
+Das Lighthouse-Budget (`lighthouserc.json`, begruendet in `docs/LIGHTHOUSE.md`)
+faellt, sobald eine Seite schlechter wird: Barrierefreiheit 1,00, Leistung 0,90
+mobil. `best-practices` warnt nur — seine Regeln aendern sich mit jeder
+Lighthouse-Version, und ein rotes CI durch ein Versionsupdate wird abgeschaltet
+statt behoben.
+
 ---
 
 ## Carried over from the Phase 0 review — not client questions
@@ -1368,6 +1442,13 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-129 | `int-datev-periodensperre` | Does a completed DATEV export lock the period against new bookings, or do late entries go into the next open period? |
 | O-130 | `int-48b-bescheinigung` | Does each entity hold a valid §48b EStG exemption certificate, for what term, and who renews it? |
 | O-131 | `int-kundenpostfach` | Should incoming customer correspondence be taken into the history automatically, from a mailbox per entity, or does capture stay manual? |
+
+### Raised while building · Phase 2
+
+| # | Question | Blocks |
+|---|---|---|
+| O-205 | **Barrierefreiheitserklärung (BFSG):** which conformity status may be declared — fully, partially or not conformant — on the basis of which audit and dated when; which body is named as the enforcement authority; and which mailbox receives accessibility feedback? Until these three are answered the statement at `/barrierefreiheit` carries a visible "not yet issued" block rather than an invented claim. | LEG-07, launch |
+| O-206 | **Is "CSE Gruppe" a legal entity?** Does a group-level Rechtsträger (holding) exist — under which name, address and register entry — or is the group only a brand over four independent companies? A structured-data `Organization` block carries an address and therefore asserts that such a company exists; until this is answered the site emits four complete `LocalBusiness` entries and no umbrella. | PUB-11, `/impressum`, footer |
 
 ---
 
