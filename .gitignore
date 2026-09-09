@@ -141,3 +141,16 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+node_modules/
+.next/
+.turbo/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+.env
+.env.local
+next-env.d.ts
+
+# Lighthouse-CI-Berichte. Sie gehören zu einem Lauf, nicht zum Quellstand.
+.lighthouseci/

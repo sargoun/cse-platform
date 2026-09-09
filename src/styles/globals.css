@@ -1,0 +1,134 @@
+/**
+ * DESIGN.md §1–§3 and §7 as CSS variables.
+ *
+ * These are also declared in `src/lib/design/theme.ts` and mirrored into the
+ * Tailwind theme. A token that exists in one and not the others fails
+ * `tests/design/tokens.test.ts` — DESIGN §10 requires the same values to be
+ * reachable from surfaces Tailwind never touches (the PDF and e-mail
+ * renderers), and the only way that stays true is a test.
+ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* §1 Foundation — dark-first. A light theme is out of scope. */
+  --ink: #08080A;
+  --surface: #101013;
+  --surface-2: #17171B;
+  --surface-3: #1F1F24;
+  --border: #26262C;
+  --border-strong: #34343C;
+  --text: #FAFAFA;
+  --text-muted: #A1A1AA;
+  --text-subtle: #8B8B95;
+  --white: #FFFFFF;
+
+  /* §1 Brand */
+  --red: #E30613;
+  --red-hover: #C10510;
+  --red-press: #A00409;
+  --red-soft: rgba(227, 6, 19, 0.12);
+  --red-ring: rgba(227, 6, 19, 0.40);
+
+  /* §1 Business-area identity — identification only, never buttons */
+  --area-reinigung: #E30613;
+  --area-security: #2F6BFF;
+  --area-bau: #F59E0B;
+  --area-operations: #8B5CF6;
+
+  /* §1 Semantic */
+  --success: #22C55E;
+  --success-soft: rgba(34,197,94,0.12);
+  --warning: #F59E0B;
+  --warning-soft: rgba(245,158,11,0.12);
+  --danger: #EF4444;
+  --danger-soft: rgba(239,68,68,0.12);
+  --info: #3B82F6;
+  --info-soft: rgba(59,130,246,0.12);
+  /* Solid danger surface — white text on it passes AA; --danger does not. */
+  --danger-strong: #DC2626;
+
+  /* §2 Type */
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-script: 'Caveat', cursive;
+
+  /* §3 Spacing, 4px base */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+  --s8: 64px;
+  --s9: 96px;
+  --s10: 128px;
+
+  /* §3 Radius */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+  --r-full: 9999px;
+
+  /* §3 Elevation — shadow only on genuinely floating layers */
+  --bild-overlay: linear-gradient(180deg, rgba(8,8,10,0.15) 0%, rgba(8,8,10,0.55) 55%, rgba(8,8,10,0.92) 100%);
+  --shadow-pop: 0 12px 32px rgba(0,0,0,0.55);
+
+  /* §7 Motion */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --fast: 150ms;
+  --base: 220ms;
+  --slow: 400ms;
+}
+
+html {
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--font-sans);
+  /* §8: body text never below 16px — iOS zooms on focus otherwise. */
+  font-size: 16px;
+}
+
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--text);
+}
+
+/**
+ * §5: "never remove focus rings", and §9 requires visible focus everywhere.
+ *
+ * This is a single global rule rather than a per-component one because the
+ * failure mode is a component that forgets it, and a keyboard user then loses
+ * the ability to see where they are — a BFSG problem, not a styling one.
+ */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px var(--red-ring);
+  border-radius: var(--r-sm);
+}
+
+/**
+ * §7: always honour `prefers-reduced-motion` — disable transforms, keep
+ * opacity. Vestibular disorders are not a preference.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-property: opacity !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transform: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* §5 Tables: numbers right-aligned with tabular figures. */
+.cse-zahl {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}

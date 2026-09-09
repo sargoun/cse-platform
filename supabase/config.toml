@@ -1,0 +1,32 @@
+# Local development only. The hosted project's region is set in the project /
+# IaC and recorded in docs/DECISIONS.md (D-04, O-11); this file mirrors it so a
+# test can assert the intent, and so nobody develops against a US default.
+project_id = "cse-platform"
+
+[db]
+port = 54322
+major_version = 17
+
+[api]
+port = 54321
+schemas = ["public", "app"]
+extra_search_path = ["public"]
+max_rows = 1000
+
+[auth]
+enable_signup = false
+[auth.mfa]
+enabled = true
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[storage]
+# Every bucket is private. Files are served through signed URLs only (SEC-A6).
+enabled = true
+
+[deployment]
+# D-04: the platform holds employee time records, absence data and financial
+# records for three German legal entities. Every service is pinned to an EU
+# region under a DPA — this is not a preference.
+region = "eu-central-1"

@@ -257,6 +257,957 @@ tests of the first code PR, before any table and any UI.
 
 ---
 
+## Decided in Phase 1 (implementation)
+
+### D-19 · A solid danger surface uses `--danger-strong`, and every text token passes AA
+
+The axe run over the whole design system found two failures, and both lived in
+`docs/DESIGN.md` rather than in the code implementing it:
+
+| Pair | Was | Required |
+|---|---|---|
+| White on `--danger` `#EF4444` (danger button) | 3.76:1 | 4.5:1 |
+| `--text-subtle` `#71717A` on `--surface` | 3.93:1 | 4.5:1 |
+
+Both were corrected in DESIGN.md **first**, then mirrored into the code, because
+CLAUDE.md makes DESIGN.md the source and not the record of what was built.
+
+1. **`--danger-strong: #DC2626` is a new token, not a replacement.** `--danger`
+   must stay light: it is read *as text* on `--danger-soft` and on the dark
+   surfaces. The danger *button* is the inverse case — white on a solid fill.
+   One token cannot satisfy both, so a solid danger surface takes
+   `--danger-strong` (4.83:1 under white) and everything else keeps `--danger`.
+
+2. **`--text-subtle` moved `#71717A` → `#8B8B95`** (5.63:1 on `--surface`,
+   5.93 on `--ink`, 4.86 on `--surface-3`). The old value carried the reasoning
+   that it is "for `xs` meta only". That does not survive WCAG: 11px and 13px
+   meta is still text, and AA grants no small-text exemption — only a *large*-text
+   one at 18.66px bold or 24px. The three-level hierarchy survives the change;
+   `--text-subtle` is now confined to meta, timestamps and placeholders by
+   **role**, not by being hard to read.
+
+BFSG applies to this platform, so a token that cannot meet AA is a defect and
+not a deliberate step. `tests/design/tokens.test.ts` now asserts all three text
+tokens pass on all three surfaces, and asserts the hierarchy still descends.
+
+### D-20 · `/dev/**` is a 404 in production, not merely a `robots.txt` line
+
+`/dev/kitchensink` renders every component, token and placeholder the platform is
+built from. `robots.txt` asks crawlers not to index it; it does not stop anyone
+typing the URL, and the page is unauthenticated by design so it can be
+axe-tested. The gate is therefore in the page: `src/lib/dev-flaechen.ts` decides
+at build time, and the route calls `notFound()` when the answer is no.
+
+- `pnpm dev` → on, so the design system stays reviewable while working
+- a production build → **off**, unless `CSE_DEV_FLAECHEN=1` is set deliberately
+- the Playwright suite sets that flag, because it must test the real production
+  build rather than a development render with its overlays
+
+Verified against a production build with no flag: `/dev/kitchensink` answers 404
+while `/healthz` answers 200. Both the flag logic and the `robots.txt` rule are
+tested — the two are belt and braces, not alternatives.
+
+### D-21 · Invariant 8 covers `TRUNCATE`, not only `DELETE`
+
+The `BEFORE DELETE` trigger of K-16 is a **row** trigger. `TRUNCATE` empties a
+table without producing rows, fires no row trigger, and is therefore a hard
+delete of everything that walks straight past the protection written to stop
+one. Every delete-locked table carries a second, statement-level
+`BEFORE TRUNCATE` trigger on the same function.
+
+Two consequences worth stating rather than discovering:
+
+- A `BEFORE DELETE` trigger has nothing to fire on in an **empty** table, so
+  `DELETE FROM audit_log` there succeeds having deleted nothing. That is not a
+  hole, but it does mean the acceptance test has to write a row first — a test
+  against an empty table would have passed with no trigger at all.
+- The test harness can no longer reset by emptying tables. It uses
+  `session_replication_role = replica`, which is superuser-only (no application
+  role can reach it) and explicit. It must be set with `SET LOCAL` inside one
+  transaction: on a pooled connection a plain `SET` and its `RESET` can land on
+  two different connections and leave one in replica mode for the rest of the
+  run, at which point triggers silently stop firing on whichever queries happen
+  to pick it. That is how this was found — as a missing audit row and a
+  `geaendert_am` the caller was allowed to keep.
+
+### D-22 · The audit payload is restricted by column grant, exactly as the wage rate is
+
+`0004` granted `SELECT` on `audit_log` table-wide. Until PR 4 that leaked
+nothing, because no trigger wrote a payload. From PR 4 on, `vorher`/`nachher`
+carry the changed values themselves — including `stundensatz_intern`, the one
+column K-05 spends an explicit column-list grant on `anstellung` to withhold.
+A table-wide grant on `audit_log` hands the same number back one statement
+later, and every K-05 test still passes while it does.
+
+`05-API-KARTE.md` §B settles the direction: **sensitive values are restricted,
+not omitted** — omitting them makes a wage-rate change unreconstructable, which
+is the opposite of what SEC-A9 and a wage dispute need. So the values are
+written and the *read* is gated:
+
+- `cse_app` holds an explicit column-list `SELECT` on `audit_log` that omits
+  `vorher` and `nachher`. `geaendert_felder` stays granted: *that* a rate
+  changed is not the secret.
+- `app.audit_nutzlast_lesen(bigint)` returns the payload behind
+  `system.audit_sensitiv_lesen`, re-checking the tenant because a definer is
+  not subject to the policy.
+- The same Postgres fact as K-05 applies and is why this is a grant and not a
+  revoke: a table-wide `GRANT SELECT` followed by `REVOKE SELECT (spalte)`
+  changes nothing at all.
+
+### D-23 · `app.hat_recht` exists now and answers `false` to everything
+
+The rights catalogue lands with PR 6, but two accessors need the gate before
+then. `app.hat_recht(text)` is created in `0005` returning `false` for every
+key. That is not a stub standing in for the real answer — it **is** the answer
+D-17 requires: an unregistered right key is permanent, silent denial. A version
+returning `true` while the catalogue is missing would leave every accessor
+behind it open, and the day the catalogue arrived would be the day the platform
+quietly narrowed. Failing closed makes the missing catalogue visible as an
+empty screen instead.
+
+### D-24 · `app.hat_recht` braucht die Mandanten-Signatur, und der Trigger beweist es
+
+`05-FINANZEN.md` §3.3 ruft im `nummernkreis`-Trigger
+`app.hat_recht('nummernkreis.verwalten', new.mandant_id)` auf — mit **zwei**
+Argumenten. PR 4 legte nur die einstellige Form an; ohne die zweite liess sich
+`0006` nicht einmal anwenden. Das zweite Argument ist keine Kosmetik: ein Recht
+gilt je Gesellschaft, ein `leitung` in der Reinigung hält
+`nummernkreis.verwalten` dort und nirgends sonst, und die einstellige Form kann
+diese Frage gar nicht stellen. Beide antworten bis PR 6 `false` (D-23).
+
+**Folge, die hier festgehalten wird, damit sie später nicht als Fehler gesucht
+wird:** solange `hat_recht` fail-closed antwortet, kann niemand einen
+Nummernkreis **bestätigen** (`ist_platzhalter` auf false setzen), und damit wird
+bis PR 6 keine Rechnung festgeschrieben. Ein Test hält genau das fest.
+
+### D-25 · Die TEN-02-Bedingung gilt für die abrechnenden Kreistypen
+
+§3.3 verlangt einen Trigger, der `mandant.eigener_nummernkreis = true` fordert,
+und begründet ihn wörtlich damit, dass sonst **nichts eine Abteilung davon
+abhält, Rechnungen auszustellen**. Wörtlich auf alle neun Kreistypen angewandt
+wäre die Bedingung falsch: `wachbuch` und `leistungsnachweis` sind keine
+Rechnungen, und eine Gesellschaft ohne eigenen Rechnungskreis könnte dann kein
+Wachbuch führen — was Phase 5 bricht. Die Bedingung gilt deshalb für
+`ausgangsrechnung` und `gutschrift`, also für genau die Population, über die die
+Begründung spricht. Die Liste steht als Konstante im Trigger, damit ein
+zehnter Typ eine Entscheidung erfordert statt stillschweigend durchzurutschen.
+
+### D-26 · Die Anwendung hält auf den Rechnungskreisen keine UPDATE-Policy
+
+§1.1 beschreibt `d_kreis_ziehen` als den Weg, den fünf der neun Kreistypen
+nehmen; die abrechnenden gehen durch `fin.rechnung_nummer_ziehen`
+(SECURITY DEFINER, PR 46), der die Kette **in derselben Transaktion**
+mitschreibt. Eine Policy ohne diese Einschränkung war weiter als die Vorgabe:
+`cse_app` konnte den Rechnungszähler bewegen, **ohne** den Kettensatz zu
+schreiben — eine vergebene Nummer ohne Kettenglied, die erst dem nächtlichen
+Prüflauf auffiele. `kreis_typ NOT IN ('ausgangsrechnung','gutschrift')` steht
+jetzt in `USING` und in `WITH CHECK`, und `vergebeNummer` verweigert dieselben
+Typen mit benanntem Grund, statt geräuschlos null Zeilen zu treffen.
+
+### D-27 · Diagnose vor Sperre — warum `d_kreis_lesen` unbeschränkt ist
+
+Ein `SELECT … FOR UPDATE` unter der Zugriffs-Policy findet einen Platzhalter
+oder einen geschlossenen Kreis gar nicht, und der Aufrufer bekommt "kein Kreis"
+statt "dieser Kreis ist noch nicht bestätigt". Das ist der Grund, aus dem §1.1
+`_lesen` innerhalb des Mandanten ausdrücklich **unbeschränkt** lässt.
+`vergebeNummer` liest deshalb zuerst zur Diagnose und sperrt erst danach, und
+liest den Zustand nach der Sperre erneut — zwischen beiden Schritten kann eine
+andere Transaktion den Zähler bewegt haben, und die gesperrte Zeile ist die
+massgebliche. Aus der Reinigung heraus bleibt der Kreis der Security dabei
+`kein_kreis` und nie `geschlossen`: die Fehlermeldung darf seine Existenz nicht
+verraten (Invariante 3).
+
+Ein Datum in einer solchen Meldung kommt als `to_char(…, 'YYYY-MM-DD')` aus SQL
+und nicht als JS-`Date`, dessen Textform von der Zeitzone der Maschine abhängt.
+
+### D-28 · Der Zähler ist eine Zeile, keine Sequenz — und das ist prüfbar
+
+`nextval` rollt nicht zurück: wer eine Nummer zieht und die Transaktion
+abbricht, hinterlässt eine Lücke, und §14 UStG duldet keine. Der Zähler ist
+deshalb eine Spalte unter `SELECT … FOR UPDATE`. Der Preis ist Serialisierung,
+und der Preis ist der Zweck. Zwei Tests trennen "Lücken sind unwahrscheinlich"
+von "Lücken sind unmöglich": 200 gleichzeitige Transaktionen ergeben 200
+Nummern mit `max − min + 1 === count`, und eine abgebrochene Transaktion lässt
+den Zähler stehen, so dass die nächste erfolgreiche Vergabe **dieselbe** Nummer
+bekommt.
+
+Die Suche läuft auf dem **offenen** Schlüssel
+`(mandant_id, kreis_typ, kontext_id) WHERE geschlossen_am IS NULL`, nie über
+das heutige Jahr. Ein Kreis mit `zuruecksetzung = 'nie'` trägt `jahr = 0`; eine
+Suche nach dem laufenden Jahr findet ihn nicht, und die Festschreibung scheitert
+dann dauerhaft für genau die Gesellschaften, die über Jahre durchnummerieren.
+Ein Test führt beide Suchen nebeneinander aus und zeigt, dass die zweite null
+Zeilen liefert.
+
+### D-29 · Trenner und Genesis sind Teil des Digests, nicht Konvention
+
+`hash = SHA256(canonical_bytes ‖ 0x1E ‖ vorheriger_bytes)`, wobei
+`vorheriger_bytes` die **32 rohen Bytes** des Vorgängers sind und der Genesis
+32 Nullbytes. Beide Entscheidungen sind unsichtbar, solange nur eine
+Implementierung existiert — und die zweite läuft in SQL
+(`fin.rechnung_kette_schreiben`), absichtlich getrennt, damit der nächtliche
+Lauf eine unabhängige Neuberechnung ist statt einer Tautologie. Ein
+Golden-Vector-Test schreibt den Digest des ersten Satzes aus und zeigt, dass
+ohne Trenner, gegen einen leeren Vorgänger oder gegen den Hex-**Text** statt der
+rohen Bytes jeweils ein **anderer** Digest entsteht.
+
+Die Kette ist über die Jahresgrenze hinweg **eine Linie**: ein Folgekreis setzt
+mit `genesis_hash` fort. Der Entwurf begann jedes Jahr neu bei 32 Nullbytes,
+womit ein ganzes Geschäftsjahr unverkettet danebengelegen hätte. Der Prüfer
+meldet das **erste** kaputte Glied und repariert nie — ein Prüfer, der
+repariert, kann nicht mehr bezeugen, dass nichts geändert wurde.
+
+### D-30 · Jede Tabelle bekommt ihre Sperren in der Migration, die sie anlegt
+
+Der Generator aus PR 4 schrieb einen einzigen Block nach `0005`. Beim ersten
+Tisch, der später kommt, ist das falsch: `nummernkreis` entsteht in `0006`, und
+ein Trigger lässt sich nicht vor seiner Tabelle anlegen. Jeder Registry-Eintrag
+trägt jetzt seine Migration, der Generator schreibt einen Block je Migration,
+und ein Test prüft für jede Tabelle, dass ihre Sperren in **ihrer** Migration
+stehen und in keiner anderen.
+
+### D-31 · Es gibt eine plattformweite Einstellungstabelle, weil beide Vorgaben zusammen sie erzwingen
+
+`03-AUTH-BERECHTIGUNGEN.md` §10 legt jede AUT-07-Schwelle in `einstellung` ab.
+Deren Eigentümertabelle `mandant_einstellung` (`01-KERN.md` §6.30) trägt
+`mandant_id NOT NULL` und sagt ausdrücklich: **es gibt keine plattformweite
+Zeile**, damit ein Default nie unbemerkt für alle vier Gesellschaften gilt. Ein
+Anmeldeversuch findet aber statt, bevor irgendein Mandant bekannt ist — es gibt
+in diesem Moment keine Einstellung zu lesen.
+
+`plattform_einstellung` ist das, was übrig bleibt, wenn beide Sätze gelten. Der
+Namensraum ist bewusst getrennt, damit niemand eine Betriebseinstellung dorthin
+legt und sie versehentlich für die ganze Gruppe setzt. Alle Werte tragen
+`ist_vorlaeufig = true` und stehen unter O-80 bzw. O-92 (K-17).
+
+### D-32 · 404 statt 403 hat genau zwei Ausnahmen, und beide sind begründet
+
+AUT-06: ein fremder oder unerlaubter Datensatz antwortet **404**, mit einem
+Körper, der dem eines wirklich fehlenden gleicht — ein 403 sagt "das gibt es,
+du darfst nur nicht", und das ist die Auskunft, die eine Aufzählungsattacke
+braucht. Deshalb gibt es keinen `ForbiddenError` für Ressourcen, und der
+404-Körper ist **eine** eingefrorene Konstante: zwei Stellen, die ihn je selbst
+zusammensetzen, weichen irgendwann in einem Leerzeichen voneinander ab, und ein
+Leerzeichen ist ein Orakel.
+
+403 bleibt den zwei Fällen, in denen die Existenz ohnehin bekannt ist: das
+eigene gesperrte Konto (AUT-07) und die fehlende zweite Stufe (AUT-02) — dort
+hiesse ein 404 "melde dich neu an" statt "zeig den zweiten Faktor".
+
+Ein Test prüft nicht nur, dass beide Fälle 404 sind, sondern dass ihre
+**Meldungen identisch** sind: von aussen unterscheidbar zu sein ist der Defekt,
+nicht der falsche Statuscode.
+
+### D-33 · Der zweite Faktor ist eine Eigenschaft der Anmeldung, nicht des Kontos
+
+`app.hat_zweiten_faktor()` liest `auth.mfa_factors` **live** statt einer
+Spiegelspalte auf `benutzer` (review B18): eine gespiegelte Spalte ohne
+Abgleichspfad ist genau dann falsch, wenn es darauf ankommt — der Faktor wurde
+entfernt, die Spalte sagt weiterhin ja.
+
+Und `app.ist_super_admin()` verlangt zusätzlich `app.aal() = 'aal2'`. Ein Konto,
+das einen Faktor besitzt, ihn in dieser Sitzung aber nicht vorgezeigt hat, ist
+`aal1` und damit kein Super-Admin. Der Datenbank-Trigger `benutzer_2fa_pflicht`
+ist die **zweite** Linie, nicht die einzige: eine Prüfung nur dort hiesse, wer
+den Faktor nach dem Aktivieren entfernt, behält alles.
+
+Auf dem `SELECT` von `benutzer_mandant` liegt bewusst **kein** aal2-Gate
+(K-15): eine restriktive aal2-Policy dort gäbe jedem `leitung`, `mitarbeiter`
+und `kunde` null Zeilen, `sichtbare_mandanten()` wäre leer, jede darauf gebaute
+Policy false — und die Plattform ginge für alle Nicht-Admins schwarz,
+einschliesslich Check-in und Kundenportal. Das Gate sitzt auf dem Schreibpfad.
+
+### D-34 · Die Sitzungstabelle wird nicht allgemein auditiert
+
+`benutzer_sitzung` steht bewusst nicht in `AUDITIERT`.
+`app.sitzung_aufloesen` stempelt bei **jeder Anfrage** `letzte_aktivitaet_am`;
+ein allgemeiner Audit-Trigger schriebe eine `audit_log`-Zeile pro Seitenaufruf
+und ertränke den Trail, den er führen soll — in einer Tabelle, die zudem
+hash-verkettet ist und dann jede Anfrage hinter dem Kettenkopf serialisierte.
+Was zählt, schreibt `kern.sitzung_wechsel_audit` gezielt: jeder Bereichs- und
+Ansichtswechsel, mit dem Paar in `vorher`/`nachher` statt in eigenen Spalten
+(TEN-09, §4.4).
+
+Aus demselben Grund ist `kern.anmeldeversuch` eine eigene Tabelle und nicht
+`audit_log`: die Sperrabfrage lautet "Fehlversuche von dieser IP und für diese
+Kennung im Fenster", ein Zähler je Benutzer kann Versuche gegen **nicht
+existierende** Konten nicht bremsen — und genau das ist der Enumerationsfall,
+für den AUT-07 existiert. Eine zusammenfassende `audit_log`-Zeile je Sperrung
+genügt AUT-08.
+
+### D-35 · Die Routenprüfung scannt `src/app/**`, nicht `src/app/api/**`
+
+Der Plan nennt `app/api/**`. `healthz` liegt aber schon heute als
+`src/app/healthz` daneben: eine Prüfung auf `api/` allein hätte diese Route —
+und jede künftige ausserhalb von `api/` — nicht abgedeckt, **während sie
+meldet, alles sei abgedeckt**. Gescannt wird das Dateisystem, nicht eine
+gepflegte Liste, damit eine neue Route automatisch erfasst ist; das Manifest
+sagt, welches Recht gilt, und ein zweiter Test prüft, dass der Handler
+`authorize()` auch wirklich aufruft. Server Actions (`'use server'`) werden
+mitgeprüft: eine Prüfung, die nur Route Handler kennt, deckt den halben Eingang
+ab.
+
+Eine absichtlich offene Route steht mit `recht: null` **und einer Begründung**
+im Manifest. Sie fehlt dann nicht — sie ist eine Entscheidung, die jemand
+getroffen hat.
+
+### D-36 · Der Rechtekatalog wird aus dem Dokument ERZEUGT, nicht abgetippt
+
+Der Katalog gehört `03-AUTH-BERECHTIGUNGEN.md` §12 und nur ihm (K-19).
+`scripts/katalog/extrahiere.ts` liest die Matrix — dieselben Glyphen, die ein
+Mensch dort liest — und schreibt daraus die TypeScript-Fassung und den
+Seed-Block von `0008`. Eine abgetippte zweite Fassung gewinnt beim ersten
+Widerspruch mit dem Dokument, ohne dass jemand den Widerspruch sieht, und ein
+falscher Schlüssel ist unter K-19 kein Fehler, sondern ein dauerhaft leerer
+Bildschirm.
+
+**`gruppe.*.lesen` ist eine Sammelzeile und wird entfaltet.** §12.1 sagt
+wörtlich "mechanisch eine Zeile je Modul aus §7.4". Der erste Lauf des
+Extraktors übersprang sie stillschweigend, weil sein Muster `[a-z_]` verlangte
+und die Zeile ein `*` trägt — und damit fehlte **jeder** Gruppenlese-Schlüssel:
+genau der K-19-Ausfall, den derselbe Abschnitt beschreibt. 159 Matrixzeilen
+werden so zu **207** Katalogschlüsseln (46 Module plus die zwei mit Objektsilbe,
+`gruppe.system.audit_lesen` und `gruppe.dienstplan.arbzg_lesen`; `gruppe`
+selbst wird nicht entfaltet, `gruppe.gruppe.lesen` benennt nichts).
+
+### D-37 · Die K-19-Prüfung braucht zwei Detektoren, nicht einen
+
+Die naheliegende Prüfung sucht Schlüssel an ihrem **Modul**. Sie ist blind für
+genau den Fall, den die Vorgabe als Fixture nennt: `rechnung.lesen`. Das Modul
+`rechnung` gibt es nicht (der Schlüssel heisst `finanzen.lesen`), der
+Modulfilter greift nicht, und ein erfundener Schlüssel käme durch. Der zweite
+Detektor sucht deshalb die **Stelle**: was in `hat_recht(…)` steht oder unter
+`recht:` im Routenmanifest, ist ein Rechteschlüssel, egal wie sein erstes
+Segment heisst. Ein Fixture mit `rechnung.lesen` bricht den Build, verifiziert.
+
+Zwei falsch-positive Quellen mussten weg, und beide hatten die Prüfung
+zunächst wertlos gemacht:
+
+- Der erzeugte Seed-Block enthält naturgemäss jeden Schlüssel. Mitgezählt war
+  jeder Schlüssel immer "benutzt" — die Prüfung eine Tautologie, im ersten Lauf
+  mit dem Ergebnis "0 unbenutzt von 207".
+- Kommentare. Zwei Erwähnungen in Prosa (`` `nummernkreis.letzter_hash` ``,
+  `` `system.rechte_verwalten` ``) zählten als Benutzung. Ein Schlüssel, der
+  erwähnt wird, wird nicht geprüft.
+
+Die Gegenrichtung — "keine Katalogzeile ohne Zweck" — läuft gegen eine
+**eingefrorene** Warteliste (202 von 207). Die Zusage ist Teilmengenschaft: die
+Menge der unbenutzten Schlüssel darf nur schrumpfen. Ein neu erfundener
+Schlüssel, den niemand prüft, steht nicht darauf und bricht den Build; ein
+Modul, das landet, streicht seine Zeilen. Die Prüfung abzuschalten, weil die
+Plattform erst zu 7 % gebaut ist, hätte sie für den Rest des Projekts
+abgeschaltet.
+
+### D-38 · `system.rechte_verwalten` gibt es nicht — der Schlüssel heisst `system.rolle_verwalten`
+
+Beim Schreiben des Editor-Triggers habe ich `system.rechte_verwalten`
+verwendet. Der Katalog kennt ihn nicht. Unter K-19 wäre das kein Fehler
+gewesen, sondern ein Rechte-Editor, der für **jeden** Benutzer dauerhaft
+"fehlende Berechtigung" meldet — die Sorte Defekt, die man in der Produktion
+sucht und nicht findet. Genau dafür ist die Prüfung aus D-37 da; sie hat ihn
+gefunden.
+
+`system.rolle_verwalten` ist für `admin` ausserdem nur **bindbar** (`○`), nicht
+gebunden (`✔`): den Rechte-Editor bekommt ein Bereichsadmin, wenn jemand ihn
+ihm gibt. Ein Test, der stillschweigend annahm, ein `admin` habe ihn, war
+falsch — nicht die Matrix.
+
+### D-39 · Dreiwertige Logik im Aussperrschutz, und die Reihenfolge der Prüfungen
+
+Der Trigger, der den letzten `super_admin` schützt, begann mit
+`if not (old.globale_rolle_id = v_sa and …)`. Ist die Spalte NULL, ist der
+Vergleich NULL, `not NULL` ist NULL, das `if` greift nicht — und der Schutz
+schlug bei einem Konto zu, das mit Super-Admin nie etwas zu tun hatte. Gefunden
+hat es die Sperrprüfung aus PR 6, die ein gewöhnliches Konto sperrte und daran
+scheiterte. `is distinct from` kennt kein NULL; der Vergleich steht jetzt so da.
+
+Im Editor-Trigger kommt der Aussperrschutz **vor** der Rechteprüfung und gilt
+auf jedem Weg, auch dem einer Migration: `super_admin` ist die Rolle, über die
+Rechte überhaupt vergeben werden, und ihr eines zu entziehen ist dieselbe
+Aussperrung wie das Konto zu deaktivieren, nur durch die andere Tür. Die
+Rechteprüfung dagegen gilt nur für Handelnde — ohne angemeldeten Benutzer läuft
+kein Editor, sondern ein Seed, der keine Rolle hat, deren Rechte man prüfen
+könnte.
+
+### D-40 · Bekannte Lücke: 24 Module ohne `<modul>.schreiben` im Katalog
+
+K-03 fixiert die Standardpolicy jeder Mandantentabelle mit
+`app.hat_recht('<modul>.schreiben', mandant_id)` in der `WITH CHECK`. Die
+Matrix in §12 führt für **24** der 47 Module keine `.schreiben`-Zeile (und für
+15 keine `.lesen`-Zeile). Wo diese Module Tabellen bekommen, würde die Policy
+einen Schlüssel nennen, den der Katalog nicht hat — und unter K-19 hiesse das:
+die Tabelle liest und schreibt nichts, dauerhaft, ohne Fehlermeldung.
+
+Hier wird **nichts erfunden**: die betroffenen Module haben heute keine
+Tabellen (sie landen in Phase 4 bis 9), und ein Schlüssel, den niemand
+entschieden hat, gehört nicht in den Katalog. Stattdessen greift der Mechanismus
+aus D-37 zum richtigen Zeitpunkt: sobald eine Policy `crm.schreiben` nennt,
+bricht die K-19-Prüfung den Build, und jemand fügt die Katalogzeile bewusst
+hinzu — oder stellt fest, dass der Schlüssel anders heisst. Die Lücke ist damit
+nicht geschlossen, aber sie kann nicht mehr stillschweigend passiert werden.
+
+### D-41 · Die Gruppenansicht hat keine Schreibmethode — als TYP, nicht als Prüfung
+
+`withGroupScope` gibt `LeseKontext` zurück, `withTenant` gibt `SchreibKontext`
+zurück, und `schreibe` steht nur auf dem zweiten. Ein Schreibversuch in der
+Gruppenansicht ist damit ein **Compilerfehler**, nicht eine Laufzeitentscheidung
+— Invariante 10 wird von niemandem vergessen, weil sie sich nicht formulieren
+lässt. Ein Test führt `tsc` gegen ein Fixture, das es trotzdem versucht.
+
+Die zweite Linie steht daneben und ist die, auf die es ankommt, wenn jemand am
+Code vorbei arbeitet: kein `INSERT`/`UPDATE`-Policy irgendwo nennt den
+Gruppen-Scope, also trifft ein direkter Schreibversuch keine Policy. Die
+Datenbank weist ihn **benannt** ab (`KeinAktiverMandant` aus
+`app.assert_genau_ein_mandant`) statt lautlos null Zeilen zu treffen — beides
+wäre sicher, nur eines sagt warum.
+
+Das Dienstregister (`server/registry/dienste.ts`) wird vom Gruppentest
+**iteriert**, und ein Gegentest verlangt, dass jeder Dienst unter `services/`
+darin steht. Ein Modul, das in Phase 5 landet, ist damit automatisch
+mitgeprüft — statt in einer Liste zu fehlen, die jemand hätte pflegen müssen.
+
+### D-42 · `Nur Lesen` fehlte in DESIGN §5, obwohl §6 es verlangt
+
+§6 lässt die `Gruppenübersicht`-Zeile und den Header eine `NUR LESEN`-Pille
+tragen. Die feste Pillen-Liste in §5 kannte sie nicht — "fest" also nur, bis
+jemand §6 liest. Eine Pille, die der Umschalter zeigen muss und das Typsystem
+nicht ausdrücken kann, wird entweder am Aufrufort erfunden oder der Screen
+fehlt; beides ist schlechter als eine Zeile mehr in der Tabelle. Sie steht
+jetzt dort, als `warning`, mit dem Vermerk, dass sie ein **Modus** ist und kein
+Datensatzzustand — der einzige, und deshalb allein stehend.
+
+Der runde Markenavatar (32px, 2px Ring im Identitäts-Hue) stand dagegen bereits
+in §6 und musste nur gebaut werden. Ohne Bild: O-12 ist offen, und ein
+erfundenes Logo sähe fertig aus.
+
+### D-43 · Bei einem Bereich wird der Umschalter NICHT gerendert
+
+DESIGN §6 Regel 1 sagt "ein Bereich = ein statisches Logo, kein Chevron, kein
+Dropdown". Umgesetzt als früher `return`, nicht als `hidden` oder
+`display:none`: ein Auslöser, den man nicht sieht, aber im Quelltext findet,
+ist eine Einladung an jeden, der die Seite liest. Ein Test prüft, dass im frühen
+Zweig weder `chevron` noch `umschalter-menue` vorkommt.
+
+Der 3px-Identitätsstreifen ist das **erste** Element im Dokument und trägt in
+der Gruppenansicht `--border-strong` statt eines Bereichs-Hues: dort ist kein
+Bereich aktiv, und einen zu zeigen wäre eine Aussage über den Arbeitskontext,
+die nicht stimmt. Der e2e-Test vergleicht die **berechnete** Farbe vor und nach
+einem Wechsel — ein Token, das nicht auflöst, sähe im Markup richtig aus und
+auf dem Schirm grau.
+
+### D-44 · Gruppenrechte werden mit dem Mandanten der ZEILE geprüft
+
+K-03s Gruppenpolicy lautet
+`app.hat_recht('gruppe.<modul>.lesen', mandant_id)` — der Mandant der **Zeile**,
+nicht der aktive, denn in dieser Ansicht gibt es keinen. `app.hat_recht` gibt
+für `p_mandant IS NULL` folgerichtig `false` zurück; ein Test, der in der
+Gruppenansicht `null` übergab, prüfte deshalb etwas anderes als er behauptete.
+
+Zweitens: §12.1 bindet `gruppe.*.lesen` per Vorgabe nur an `super_admin`; für
+`admin` und `leitung` ist es `○` — bindbar. Die Gruppenansicht ist eine
+Funktion, die jemand vergibt, nicht eine, die jeder Bereichsleiter mitbringt.
+Der Test prüft jetzt beide Zustände statt den zweiten anzunehmen.
+
+Und `app.portal()` ist in dieser Ansicht die Konstante `intern`, beim Betreten
+gebunden (K-20) — aus `aktiver_mandant` neu berechnet ergäbe es das
+fail-closed `mitarbeiter`, was jede K-04-Mitarbeiterdecke **innerhalb** der
+Gruppenansicht auslöst und sie für genau das Management leert, für das TEN-05
+sie gebaut hat.
+
+### D-45 · Die Reihenfolge im Upload-Pfad IST die Sicherheit
+
+Groesse, dann Typ aus Magic Bytes, dann Metadaten entfernen, dann Aufbewahrung
+aufloesen, dann speichern. Wer die Bereinigung nach dem Speichern macht, hat
+das Foto mit GPS bereits im Bucket; wer die Typpruefung nach dem Speichern
+macht, hat die `.exe` dort. Ein Test prueft deshalb nicht nur, dass ein
+verkleideter Upload abgelehnt wird, sondern dass der Speicher danach **leer**
+ist.
+
+`exif_entfernt` heisst "durch die Bereinigung gegangen", nicht "hatte welches"
+— sonst waere ein JPEG ohne EXIF nicht speicherbar. Der SHA-256 deckt die
+**gespeicherten** Bytes, nicht die eingereichten.
+
+### D-46 · PDF-Metadaten werden ueberschrieben, nicht herausgeschnitten
+
+Ein PDF ist eine Objekttabelle mit Byte-Offsets in der `xref`. Ein Segment
+herauszuschneiden verschiebt jeden Offset dahinter und macht die Datei kaputt —
+beim Rechnungsarchiv der teuerste denkbare Weg, Metadaten loszuwerden. `/Info`
+und der XMP-Block werden deshalb **gleich lang** mit Leerzeichen ueberschrieben:
+alle Offsets bleiben gueltig, das Dokument oeffnet sich unveraendert, Autor,
+Geraet und Zeitstempel sind weg. Ein Test prueft die unveraenderte Bytezahl.
+
+Der erste Entwurf lehnte PDFs schlicht ab, weil es keinen Bereiniger gab — und
+machte damit **Rechnungen unspeicherbar**, den haeufigsten Dokumenttyp der
+Plattform. Verschluesselte PDFs werden weiterhin abgelehnt: ihre Metadaten sind
+auf diesem Weg nicht erreichbar, und ein "scheinbar bereinigt" waere schlimmer
+als ein benannter Fehler beim Upload. Fuer Video gilt dasselbe (O-25).
+
+Bei JPEG wird bewusst **nicht neu codiert**: ein Re-Encode entfernt Metadaten
+zuverlaessig und veraendert die Pixel — womit das Foto als Beweis in einer
+Reklamation an Wert verliert. Die Bilddaten ab `SOS` bleiben Byte fuer Byte.
+
+### D-47 · Die Uhr der signierten URL wird uebergeben, nicht gelesen
+
+Invariante 5 gilt auch hier: ein Ablauf, der von der Uhr des Aufrufers
+abhaengt, laeuft nie ab, wenn der Aufrufer seine Uhr stellt. Und ein Test
+koennte den Minute-16-Fall gar nicht pruefen, ohne 16 Minuten zu warten.
+
+Die Pruefreihenfolge ist Absicht: Signatur, dann **Ablauf**, dann Mandant. Eine
+abgelaufene URL aus einem fremden Bereich meldet "abgelaufen" — die
+Fehlermeldung soll nicht verraten, ob sie zu einem Bereich gehoerte, den es
+gibt. Der Vergleich laeuft in konstanter Zeit; einer, der beim ersten falschen
+Zeichen abbricht, verraet die Signatur zeichenweise.
+
+### D-48 · Eine restriktive Decke gewaehrt nichts — sie braucht ihre Policy daneben
+
+`p_ma_ceiling` auf `dokument` schneidet weg, was das Mitarbeiterportal nicht
+sehen darf. Sie **gewaehrt nichts**: `t_mandant` verlangt `dokument.lesen`, und
+das haelt die Rolle `mitarbeiter` nicht — was richtig ist, denn sie soll nicht
+die Rechnungsablage sehen, sondern ihre Dienstanweisung. Mit nur der Decke las
+das Mitarbeiterportal **null** Dokumente, auch die ausdruecklich freigegebenen.
+
+Die gewaehrende `t_person`-Policy steht jetzt daneben, und ihr Zugang ist kein
+Recht, sondern ein Subjektpraedikat: freigegeben und nicht geloescht. Beide
+muessen passen (K-18). Dieselbe Lektion, die `05-FINANZEN` fuer `t_kunde`
+ausdruecklich aufschreibt — hier fiel sie mir beim Bauen erneut zu.
+
+Nebenbei: ein CHECK bekommt einen NAMEN. Ein anonymer meldet nur, dass
+irgendeiner verletzt wurde; `dokument_exif_entfernt` sagt welcher.
+
+### D-49 · Eine unbekannte Aufbewahrungsfrist ist eine Pflicht, keine Abwesenheit
+
+`app.aufbewahrung_regel` ist ein `SECURITY DEFINER`, und der Grund ist konkret:
+der Trigger laeuft als der Aufrufer, und der darf `dokument.schreiben` halten
+ohne `dokument.lesen` — das Eingangsprinzip fuer Formular-Uploads ist genau
+das. Ein direkter Lesezugriff auf `dokument_aufbewahrung` traefe dann null
+Zeilen, und das Dokument laege ohne Aufbewahrungsdatum und ohne Loeschsperre
+im Bucket. Still.
+
+Findet sich keine Regel, gilt `aufbewahrung_bis = NULL` **und
+`loeschsperre = true`**. Drei Kategorien (`mitarbeiter`, `projekt`,
+`unternehmen`) tragen das dauerhaft, weil ihre Fristen je Unterlage
+verschieden sind und niemand sie entschieden hat (O-25). Eine gesetzte Sperre
+laesst sich nicht wieder loesen.
+
+### D-50 · Die wichtigste Eigenschaft von `job_lauf` ist eine Abwesenheit
+
+`job_lauf` hat **kein** `mandant_id`, und das ist der Entwurf, nicht eine
+Auslassung. K-16(d) laesst genau eine mandantennahe Tabelle mit nullbarem
+`mandant_id` zu — `audit_log` —, und ein naechtlicher Lauf ueber alle vier
+Gesellschaften hat keinen einzelnen zu nennen. Schwerer wiegt: eine Zeile mit
+`mandant_id IS NULL` in einer Tabelle, deren Policy darauf keyt, ist von jedem
+Mandanten aus unsichtbar ODER fuer alle sichtbar, je nach Praedikat — und
+beides ist falsch.
+
+Das Ergebnis je Mandant lebt in `job_lauf_mandant`, dort mit `mandant_id NOT
+NULL`. Ein Schema-Test prueft die Abwesenheit der Spalte, die Anwesenheit der
+anderen, und dass die Entwurfsnamen (`job_schluessel`, `begonnen_am`,
+`befund`, `status`) nirgends auftauchen.
+
+### D-51 · Ein Job scheitert beim REGISTRIEREN, nicht um drei Uhr nachts
+
+`bereich` (`je_mandant` | `uebergreifend` | `plattform`) ist Pflicht, und
+`uebergreifend` muss man hinschreiben: ein Job ohne erklaerten Mandantenbezug
+ist einer, bei dem niemand entschieden hat, ob er Mandantengrenzen
+ueberschreitet. Ebenso abgewiesen werden ein Zeitplan, der kein 5-Feld-Cron
+ist, ein doppelter Schluessel und `versuche > 10` — ein Job, der ewig
+wiederholt, stirbt nicht, er faellt nur nie auf.
+
+Die Idempotenz liegt auf einem **eindeutigen Index**, nicht in einer Variablen
+im Prozess: zwei gleichzeitig ausgeloeste Laeufe treffen denselben Index, einer
+gewinnt, der andere sieht das. Ohne sie erzeugt ein doppelt ausgeloester
+naechtlicher Lauf zwei Mahnungen an denselben Kunden.
+
+Bei `je_mandant` beendet ein scheiternder Mandant den Lauf fuer die anderen
+nicht — er wird als eigenes Ergebnis vermerkt, und der Lauf ist `teilweise`.
+Ein Alarm geht in beiden Faellen raus: ein Job, der scheitert und niemanden
+erreicht, ist ein Job, der nicht laeuft, und das faellt erst auf, wenn jemand
+die Zahlen vermisst.
+
+### D-52 · Ein jsonb-Parameter wird nicht vorserialisiert
+
+`JSON.stringify(kennzahlen)` als Parameter mit `::jsonb` sieht richtig aus und
+schreibt einen jsonb-**String** statt eines Objekts: der Treiber serialisiert
+json-Parameter selbst, und ein bereits serialisierter String wird ein zweites
+Mal codiert. Jeder Lesezugriff auf ein Feld liefert danach `undefined` — die
+Spalte ist nicht leer, sondern falsch geformt, was beim Lesen wie ein
+fehlender Wert aussieht. Der Test vergleicht deshalb das ganze Objekt statt
+eines Feldes.
+
+`src/server/jobs/**` steht bewusst **nicht** im Dienstregister von PR 8: Jobs
+laufen als `cse_job`, ausserhalb jeder Benutzersitzung, und die Frage "ist
+dieser Dienst in der Gruppenansicht erreichbar" hat fuer sie keine Bedeutung.
+
+### D-53 · Eine Benachrichtigung ohne Ziel entsteht gar nicht
+
+NOT-03 sagt, jede Benachrichtigung fuehrt irgendwohin. Durchgesetzt wird das
+bei der **Erzeugung**, nicht beim Klick: eine Mitteilung ueber ein Problem, das
+man nicht ansehen kann, ist schlimmer als keine. Die Registrierung einer Art
+verlangt deshalb Titel, Text und einen Zielaufloeser — und die Spalte `ziel`
+ist `NOT NULL` mit `length > 1`, damit auch ein Weg an der Anwendung vorbei
+nichts Leeres hinterlaesst.
+
+**Der In-App-Posteingang laesst sich nicht abschalten.** Er ist das Protokoll
+dessen, was jemandem mitgeteilt wurde; abgeschaltet wird der Push nach draussen.
+Ein `CHECK` haelt `'app'` in jeder Praeferenzzeile.
+
+**Eine Freigabeanfrage geht nie in eine Zusammenfassung.** Sammelbarkeit ist
+eine Eigenschaft der ART und beim Erzeugen nicht uebersteuerbar — es gibt keinen
+Weg, eine Freigabe doch noch in die Tagessammlung zu schieben. Invariante 7
+haengt daran, dass jemand sie sieht, solange sie noch etwas aendert; Warten
+haette dort dieselbe Wirkung wie Nichtstun.
+
+### D-54 · Der Posteingang folgt dem Arbeitskontext
+
+`app.sichtbare_mandanten()` liefert in `mandant`-Scope genau den aktiven
+Bereich (K-18/K-20). Eine Benachrichtigung aus `bau` ist damit sichtbar,
+waehrend man in `bau` arbeitet, und nicht, waehrend man in `reinigung`
+arbeitet. Das ist die ENGE Auslegung und bewusst dieselbe wie bei jeder anderen
+Tabelle. Ein bereichsuebergreifender Posteingang waere eine Erweiterung, die
+jemand entscheidet — nicht eine, die aus einer Policy herausfaellt.
+
+Was die Zeilenpolicy **nicht** prueft: ob die Mitgliedschaft noch besteht. Sie
+liest `app.aktiver_mandant()` aus der Sitzung und vertraut ihm — zu Recht, denn
+K-02 setzt den Wert serverseitig und `sitzung_mandant_pruefen` weist beim Setzen
+jeden Bereich ab, zu dem keine lebende Mitgliedschaft besteht (PR 6). Die
+Durchsetzung sitzt an der Sitzungsgrenze, nicht in jeder einzelnen Policy —
+sonst muesste jede Tabelle der Plattform dieselbe Pruefung wiederholen. Ein
+Test, der das an der falschen Stelle suchte, hat mich genau darauf gestossen.
+
+### D-55 · Ein Angebot geht nie automatisch raus — im Code UND in der Datenbank
+
+Ein Angebot ist ein bindendes Vertragsangebot (§ 145 BGB). Der Betrag ist
+dabei **nicht** das Kriterium: eine Schwelle laedt dazu ein, sie zu erhoehen,
+bis sie nichts mehr bedeutet. Die Sperre steht deshalb im Gate als Code und
+zusaetzlich als `CHECK` auf `agent_richtlinie` — ein Skript, das die Zeile
+direkt setzt, kommt auch nicht durch.
+
+Der Aufzaehlungstest laeuft ueber den **ganzen** Konfigurationsraum: sechs
+Aktionen × vier Rechtsgrundlagen × auto an/aus × sechs Limits × sechs Betraege
+× aktiv/inaktiv = 2.304 Kombinationen, und `angebot_senden` ist in keiner
+davon automatisch erlaubt. Ein Beispieltest haette gezeigt, dass die eine
+Konfiguration, an die jemand gedacht hat, es nicht tut.
+
+Mit menschlicher Freigabe geht das Angebot sehr wohl raus — die Sperre trifft
+die Automatik, nicht die Sache. Auch das ist geprueft, sonst hiesse die Zusage
+nur "Angebote gehen nie raus".
+
+### D-56 · Drei Tore, in dieser Reihenfolge
+
+**LEG-08 zuerst**, weil es durch nichts aufgehoben wird: ein Kontakt ohne
+aufgezeichnete Rechtsgrundlage wird abgewiesen, ungeachtet jeder Freigabe.
+§ 7 UWG ist nicht etwas, das ein Mensch per Klick ausser Kraft setzt.
+
+**Dann die Freigabe.** Sie muss genehmigt sein, einen benannten Menschen
+tragen (`CHECK` auf der Tabelle: Invariante 7 verlangt einen Menschen, nicht
+einen Zustand) und per Hash zu **dieser** Nutzlast gehoeren. Wer nach der
+Freigabe den Text aendert, hat keine Freigabe mehr fuer das, was er sendet.
+Der Hash sortiert die Schluessel, sonst waere jede Freigabe zufaellig
+ungueltig, je nachdem in welcher Reihenfolge jemand die Felder gesetzt hat.
+
+**Zuletzt die Richtlinie**, und ohne sie: nein. Eine fehlende Regel ist keine
+Erlaubnis — sonst waere der Tag, an dem jemand die Konfiguration loescht, der
+Tag mit den meisten automatischen Mails. `auto_erlaubt` hat kein `DEFAULT
+true`: eine Zeile, die versehentlich angelegt wird, erlaubt nichts.
+
+Die Freigabekette zieht ihre Nummer unter `SELECT … FOR UPDATE` auf einem
+Kopf je Mandant — dieselbe Mechanik wie `nummernkreis` und aus demselben
+Grund: ohne serialisierte Gesamtordnung gabeln zwei gleichzeitige Freigebende
+die Kette, und die naechtliche Verifikation meldet an jedem geschaeftigen Tag
+einen Bruch. Verkettet wird nur der **Snapshot** (K-13): die `freigabe` aendert
+ihren Status, und eine Kette ueber eine veraenderliche Zeile bewiese nichts.
+
+### D-57 · Der eine Ausgang ist ein Waechter, nicht ein Vorsatz
+
+Ein Mailtransport oder HTTP-Sender ausserhalb von `server/versand` bricht den
+Build. Der Unterschied ist der zwischen "wir schicken alles ueber das Gate" als
+Vorsatz und als Eigenschaft: der Vorsatz haelt, bis jemand unter Zeitdruck ein
+`nodemailer` importiert, und danach faellt es niemandem mehr auf. Der Waechter
+ist gegen ein Fixture verifiziert, das genau das tut.
+
+### D-58 · Rechteschluessel werden nicht erfunden — auch nicht fuer eigene Tabellen
+
+Fuer die Policies auf `freigabe` griff ich zu `freigabe.lesen`,
+`freigabe.entscheiden` und `freigabe.richtlinie_verwalten`. Das Modul
+`freigabe` steht in §7.4, aber die Matrix in §12 fuehrt fuer es **keine
+Zeile**: die Schluessel des Posteingangs kommen mit PR 62, der ihn baut. Unter
+K-19 waeren die drei dauerhaft `false` gewesen — der Freigabe-Posteingang
+haette fuer immer null Zeilen gelesen, still. Die K-19-Pruefung aus D-37 hat
+sie gefunden.
+
+Die Policies stehen jetzt auf `versand.lesen` und `versand.freigeben`, die es
+gibt und die genau das benennen, worum es geht: den Ausgang und seine
+Freigabe. Wenn PR 62 die `freigabe.*`-Zeilen in den Katalog bringt, wandern sie
+darauf.
+
+### D-59 · Eine Tabelle ohne Policy muss eine REGISTRIERTE Ausnahme sein
+
+`freigabe_kette` traegt `mandant_id` und bewusst keine `cse_app`-Policy: der
+Kettenkopf wird ausschliesslich durch `app.freigabe_kette_ziehen` bewegt, und
+eine Policy, die `cse_app` an die Zeile liesse, machte den Zaehler von aussen
+verstellbar — eine Kette, deren Kopf jemand verstellen kann, bezeugt nichts.
+
+Der Meta-Test aus PR 3 hat das zu Recht als Luecke gemeldet. Statt die Prüfung
+aufzuweichen steht die Ausnahme jetzt in `NUR_UEBER_DEFINER`, mit Zugangsweg
+und Begruendung, und der Test verlangt fuer registrierte Tabellen **genau
+null** Policies. Eine Tabelle, die einfach keine hat, sieht sonst genauso aus
+wie eine, bei der jemand sie vergessen hat — und der Unterschied ist der ganze
+Punkt.
+
+### D-60 · Der Bild-Overlay ist ein TOKEN, nicht ein Wert je Komponente
+
+DESIGN §4.4 nennt den Pflicht-Gradient auf jedem Bild, das Text traegt. Ich
+hatte ihn als Literal in die Markenkarte geschrieben — und die
+`no-raw-color`-Regel hat es abgefangen, zu Recht: ausgeschrieben driftet er.
+Eine Karte bei `0.55`, die naechste bei `0.5`, und die Lesbarkeit der
+Ueberschrift haengt davon ab, welche Komponente jemand kopiert hat. DESIGN.md
+fuehrt ihn jetzt als `--bild-overlay`, `theme.ts` und `globals.css` tragen ihn
+unter demselben Namen, und der Drift-Test prueft beide Richtungen.
+
+### D-61 · Kein Drittanbieter heisst: kein Cookie-Banner
+
+PUB-13 verbietet Tracker. Daraus folgt, dass es nichts zu erlauben gibt — kein
+Banner, keine Einwilligungsverwaltung, keine zweite Rechtsgrundlage. Der
+Playwright-Test faengt **jede** Anfrage ab und zaehlt, was nicht auf den
+eigenen Host geht: Schriften, Analytik, Karten. Null. Eine Zusage, die nur im
+Kopf steht, haelt bis zum ersten `<script src="https://…">`.
+
+### D-62 · Platzhalterbilder tragen ihren Zustand SICHTBAR
+
+DESIGN §4.1 verlangt echte Aufnahmen und §4.2 verbietet KI-erzeugte Menschen
+als Belegschaft — fuer ein Unternehmen, das Vertrauen und physische Praesenz
+verkauft, faellt das in dem Moment auf die Fuesse, in dem es jemand bemerkt.
+Bis der Mandant sein Material liefert (O-13), steht ein sichtbar leeres Bild
+mit einer Marke daneben. Kein Stockfoto, das nach Belegschaft aussieht: ein
+unauffaelliger Platzhalter ist einer, der in Produktion landet.
+
+### D-63 · DESIGN §2 wird beim Rendern durchgesetzt, nicht gehofft
+
+Die Schreibschrift und das rote Akzentwort erscheinen **einmal je Seite**.
+Zweimal ist kein Akzent mehr, sondern ein Stil — und das faellt niemandem auf,
+der die Seite baut, sondern erst dem, der sie sieht. `pruefeSeite()` wirft bei
+zwei Hero-Abschnitten und bei zwei Akzentwoertern, und der Browser-Test zaehlt
+die Knoten.
+
+Das Akzentwort ist ein eigenes Feld in `abschnitt` und kein Markup im
+Fliesstext: als `<span>` im Text landet es beim naechsten Copy-Paste zweimal
+in derselben Seite, und niemand sieht warum.
+
+### D-64 · O-08 bleibt offen, und der Pfadmodus ist die umkehrbare Wahl
+
+Ob jeder Bereich eine eigene Domain bekommt oder alle als Pfad unter einer
+Gruppendomain liegen, ist nicht kosmetisch: eigene Domains bedeuten eigene
+SEO-Autoritaet und eigene Zertifikate. `lib/domains.ts` ist deshalb **leer** —
+ein erfundener Eintrag saehe entschieden aus — und bis zur Antwort gilt der
+Pfad. Er funktioniert ohne DNS-Arbeit und laesst sich spaeter auf Domains
+umlegen; umgekehrt gilt das nicht.
+
+### D-65 · Der Import vergleicht VOR dem Schreiben
+
+Ein `update` mit identischen Werten stempelt `geaendert_am`, schreibt eine
+Audit-Zeile und behauptet damit eine Aenderung, die nicht stattgefunden hat.
+Der Import liest deshalb erst und schreibt nur bei echter Abweichung — und der
+Test prueft nicht nur "null angelegt", sondern dass **kein** `geaendert_am`
+gesetzt wurde.
+
+Die Zusage dahinter ist groesser als sie klingt: ein Import, der beim zweiten
+Lauf Duplikate erzeugt, wird genau einmal ausgefuehrt und danach nie wieder
+angefasst — und dann veraltet der Inhalt, weil niemand sich traut.
+
+### D-66 · Der NAP-Block wird an EINER Stelle formatiert
+
+Fuer lokale Suche zaehlt, dass Name, Anschrift und Telefonnummer ueberall
+**zeichengleich** stehen. Zwei Schreibweisen derselben Adresse — einmal "Str.",
+einmal "Straße" — sind fuer eine Suchmaschine zwei Unternehmen, und die
+Autoritaet verteilt sich auf beide. `napAus()` formatiert, die Seiten setzen
+nichts selbst zusammen, und eine halbe Adresse ist ein **Fehler**, keine halbe
+Ausgabe: sie erzeugt sonst einen zweiten, schwaecheren Eintrag.
+
+Jede Gesellschaft bekommt ihr eigenes `LocalBusiness`-JSON-LD mit ihrer NAP und
+ihrer URL. Vier eigene Eintraege — sonst konkurrieren die Gesellschaften in der
+lokalen Suche miteinander.
+
+Alt-URLs gehen per **301**, nicht 302: bei einem 302 behaelt die Suchmaschine
+den alten Eintrag, und die Autoritaet der alten Adresse geht nicht ueber. Ein
+Test prueft, dass jedes Ziel eine bekannte Route ist — eine Weiterleitung ins
+Leere kostet genau die Autoritaet, die sie retten sollte.
+
+### D-67 · Eine Referenz ohne Kundenfreigabe ist an ZWEI Stellen abwesend
+
+`freigegeben_vom_kunden` hat kein `DEFAULT true`, die Policy traegt die
+Bedingung selbst, und der Dienst filtert noch einmal. Das ist keine Doppelung
+aus Unsicherheit: ein Kundenname auf einer Website ohne dessen Zustimmung ist
+ein Problem, das man nicht durch Loeschen ungeschehen macht, und eine
+vergessene `where`-Bedingung im Code ist der wahrscheinlichste Weg dorthin.
+
+Eine Freigabe ohne Datum ist nicht speicherbar. Wer sie erteilt hat und wann,
+ist bei einem Kundennamen auf einer Website keine Nebensache.
+
+`ReferenzQuelle` ist eine Schnittstelle: die echte, `auftrag`-gestuetzte
+Implementierung kommt mit PR 27, und beide geben ausschliesslich freigegebene
+Eintraege zurueck.
+
+### D-68 · Die oeffentliche Website liest als Dienstprinzipal, nicht als Niemand
+
+`mandant` traegt RLS: `t_mandant_lesen` gibt frei, was `app.sichtbare_mandanten()`
+nennt. Eine Verbindung ohne Sitzung liest `seite` und `abschnitt` anstandslos —
+deren `t_*_oeffentlich`-Policies fragen nur nach `status = 'veroeffentlicht'` —
+und `mandant` **gar nicht**. Der erste Entwurf tat genau das und lieferte eine
+Seite ohne Firma, Anschrift und Telefon aus: nicht kaputt, sondern leer. Leer
+sieht aus wie "noch nicht gepflegt" und faellt beim Entwickeln niemandem auf.
+
+Der Renderer laeuft deshalb als der Dienstprinzipal aus `03-AUTH-BERECHTIGUNGEN.md`
+§14.3 — `benutzer_mandant`-Zeilen in den vier Bereichen, `ist_dienstkonto = true`,
+keine globale Rolle, genau zwei Rechte (`oeffentlich.lesen`,
+`gruppe.oeffentlich.lesen`), `app.readonly = 'on'`, Gruppenansicht ohne aktiven
+Mandanten. Damit gibt es drei unabhaengige Gruende, warum er nicht schreiben
+kann: der Rueckgabetyp hat kein `schreibe`, K-03 verlangt `not app.ist_readonly()`
+in jeder `WITH CHECK`, und er haelt kein Schreibrecht.
+
+Die Formularannahme (REQ-01, PR 17) ist ein **zweiter** Prinzipal mit anderen
+Rechten. Zwei und nicht einer: wer die Website rendert, ist die zum Internet
+offene Haelfte, und eine Uebernahme dieser Haelfte soll keinen Schreibpfad
+ergeben.
+
+### D-69 · Strukturierte Daten entstehen nur aus gepflegten Daten
+
+`Service` und `FAQPage` werden **nicht** ausgegeben, wenn es keine Leistungen
+und keine Fragen gibt. Ein `FAQPage` ohne Fragen ist fuer eine Suchmaschine
+kein Angebot, sondern ein Fehler im Markup; ein `Service` mit ausgedachten
+Namen ist eine Aussage des Unternehmens, die niemand getroffen hat. Beide
+kommen aus `abschnitt.daten` (`leistungen`, `faq`) — vorhandenes `jsonb`, keine
+Migration.
+
+`Organization` entsteht nur, wenn `website.rechtstraeger` gepflegt ist. Ein
+`Organization`-Block traegt eine Anschrift und behauptet damit, an dieser
+Adresse gebe es ein Unternehmen dieses Namens. Ob "CSE Gruppe" ein
+Rechtstraeger ist, ist offen (O-206); den ersten Mandanten dafuer einzusetzen
+hiesse, die Gruppe sei die CSE Dienstleistungen GmbH und deren Tochter zugleich.
+Bis zur Antwort: vier vollstaendige `LocalBusiness`-Eintraege und kein Dach.
+
+`pruefeJsonLd` laeuft beim Rendern und nicht nur im Test. Ein fehlerhafter Block
+wird von der Suchmaschine stillschweigend verworfen — die Seite sieht
+ausgezeichnet aus und ist es nicht. Lieber laut beim Bauen als still in der
+Suche.
+
+### D-70 · Der kanonische Host wird nicht geraten (O-08)
+
+`CSE_KANONISCHE_BASIS` nennt ihn; ohne sie gilt der Host der Anfrage. Eine im
+Code eingetragene Domain waere geraten und wanderte als kanonische URL in jede
+Sitemap und jeden JSON-LD-`@id`; ein spaeterer Wechsel entwertet genau die
+Autoritaet, die diese Angaben aufbauen sollen. Ein falscher kanonischer Host ist
+schlimmer als keiner — er sagt der Suchmaschine, die echte Seite stehe anderswo.
+
+### D-71 · Einstellungsschluessel liegen nicht im Rechte-Namensraum
+
+`gruppe.anzeigename` als `plattform_einstellung`-Schluessel wurde von der
+K-19-Pruefung als unregistriertes Recht gemeldet — zu Recht: `gruppe` ist der
+Modulname der Gruppenansicht im Rechtekatalog, und ein Schluessel, der wie ein
+Rechteschluessel aussieht, ist von der Pruefung nicht davon zu unterscheiden.
+Die Einstellungen heissen deshalb `website.gruppenname` und
+`website.rechtstraeger`, wie `website.renderer_benutzer` daneben.
+
+### D-72 · axe und Lighthouse sind Pflicht-Jobs, kein Bericht
+
+`.github/workflows/a11y.yml` prueft axe auf **jeder** oeffentlichen Route — die
+Liste kommt aus `OEFFENTLICHE_ROUTEN`, eine neue Route ist damit automatisch
+abgedeckt — und faellt bei einem einzigen AA-Verstoss. BFSG gilt fuer das
+Angebot, nicht fuer die Startseite; eine Stichprobe misst, wie sorgfaeltig die
+geprueften Seiten gebaut wurden, und sagt ueber die uebrigen nichts.
+
+Das Lighthouse-Budget (`lighthouserc.json`, begruendet in `docs/LIGHTHOUSE.md`)
+faellt, sobald eine Seite schlechter wird: Barrierefreiheit 1,00, Leistung 0,90
+mobil. `best-practices` warnt nur — seine Regeln aendern sich mit jeder
+Lighthouse-Version, und ein rotes CI durch ein Versionsupdate wird abgeschaltet
+statt behoben.
+
+### D-73 · Der Rechtekatalog verlor 19 Schluessel an eine Regex
+
+`03-AUTH-BERECHTIGUNGEN.md` §12 schreibt Zeilen wie `` `crm.lesen` / `crm.schreiben` ``,
+wenn dieselbe Rollenzeile fuer beide gilt. Der Extraktor verlangte GENAU EINEN
+Schluessel je Zeile und uebersprang jede andere stillschweigend — neun Zeilen,
+19 Schluessel, darunter `crm.lesen`, `crm.schreiben`, `formular.lesen` und
+`formular.schreiben`.
+
+`app.hat_recht` antwortet auf einen fehlenden Schluessel mit `false`. Jede
+Policy, die einen davon genannt haette, waere fuer jede Rolle falsch gewesen —
+also genau der K-19-Ausfall, den dieser Extraktor verhindern soll, erzeugt vom
+Extraktor selbst. Sichtbar geworden waere er als dauerhaft leerer Bildschirm im
+CRM, ohne Fehlermeldung.
+
+Der Extraktor liest jetzt alle Schluessel einer Zelle, mit der Kurzform
+`` `personal.erstellen` / `.aendern` `` (der Modulname wird ergaenzt). 207 → 226
+Schluessel; vier benutzt PR 17 sofort, 15 stehen auf der eingefrorenen
+Warteliste.
+
+### D-74 · Zwei Prinzipale fuer die oeffentliche Seite, und der zweite liest nicht
+
+Der Renderer (D-68) laeuft mit `app.readonly = 'on'` und koennte eine
+Einsendung nicht speichern. Die Formularannahme ist deshalb ein ZWEITER
+Prinzipal: `oeffentlich.lesen` + `formular.schreiben` + `dokument.schreiben` +
+`crm.schreiben` + `crm.kommunikation_versenden`, in `mandant`-Scope mit genau
+einem Bereich.
+
+**Er haelt weder `formular.lesen` noch `crm.lesen`.** Das ist keine
+Feinheit — es hat den Code geformt:
+
+- Die Annahme schreibt **ohne `RETURNING`** und erzeugt ihre UUIDs selbst.
+  `INSERT … RETURNING` verlangt, dass die Zeile die SELECT-Policy besteht; ein
+  `RETURNING` haette den Prinzipal gezwungen, Leserechte zu bekommen, und damit
+  waere die Trennung hinfaellig gewesen.
+- Eingang und Lead verweisen aufeinander, also ist die Fremdschluesselbedingung
+  `DEFERRABLE INITIALLY DEFERRED`. Die Alternative — erst einfuegen, dann per
+  UPDATE verknuepfen — braeuchte `formular.lesen` fuer die `USING`-Bedingung.
+- Frist und Besitzer kommen aus `app.formular_zustaendigkeit()`, das Ratenlimit
+  aus `app.formular_eingang_zaehlen()`: zwei `SECURITY DEFINER`-Funktionen, die
+  je zwei Werte beziehungsweise eine Zahl herausgeben und keine Zeile.
+
+Das Ratenlimit zaehlte im ersten Entwurf mit einem gewoehnlichen
+`select count(*)` und ergab deshalb IMMER 0 — eingebaut und wirkungslos, und
+nichts daran war zu sehen. Der Isolationstest hat es gefunden.
+
+### D-75 · Was PR 17 bewusst NICHT entscheidet
+
+- **Die SLA-Frist** ist 24 Stunden, als Zeile in `formular_zustaendigkeit` und
+  nicht als Spalten-DEFAULT — und die Oberflaeche weist sie als *vorlaeufig*
+  aus. Ob in Kalender- oder Werktagsstunden und wann sie an einem Freitagabend
+  anlaeuft, ist O-14. `sla_stunden` ist nullable: ein manueller Lead hat nichts
+  zu erben, und `NOT NULL` haette den Aufnahmedienst gezwungen, eine Frist zu
+  erfinden.
+- **Die Auswahllisten** fuer `gebaeudetyp`, `frequenz` und `gewerk` sind als
+  "(vorläufig)" beschriftete Platzhalter (O-62).
+- **CSE Operations hat kein Formular** (O-61). REQ-01 verlangt eines je Bereich,
+  REQ-02/03/04 definieren drei Feldmengen. `/anfrage/operations` ist 404 und
+  kein leeres Formular — ein Formular ohne Felder saehe aus wie ein Ladefehler
+  und wuerde abgeschickt, ohne dass jemand anbieten koennte.
+- **Die Leadnummer benutzt keinen Nummernkreis.** K-12s lueckenlose Kette
+  gehoert Rechnungen, wo eine Luecke ein GoBD-Befund ist. Den Zaehler von aussen
+  ausloesbar zu machen waere der teuerste Weg zu einer Leadnummer.
+- **Das Datenschutz-Haekchen ist eine BESTAETIGUNG**, keine Einwilligung: eine
+  Anfrage zu bearbeiten stuetzt sich auf Art. 6(1)(b)/(f) DSGVO, und eine
+  Einwilligung, die man nicht verweigern kann, ist keine (O-63). Die einzige
+  echte Einwilligung ist die freiwillige fuer Werbung, und nur sie hebt
+  `rechtsgrundlage` von `anfrage` auf `einwilligung` (CRM-08).
+
+### D-76 · Die Eingangsbestaetigung geht durch dasselbe Tor wie alles andere
+
+Sie fuehlt sich harmlos an — eine Antwort auf eine Anfrage, kein Werbebrief.
+Genau deshalb waere sie die naheliegende Stelle fuer eine Ausnahme, und eine
+Ausnahme im Tor ist kein Tor mehr (Invariante 7). Sie wird als Nutzlast gebaut,
+durch `gate()` geschickt und als `versand` protokolliert — **auch wenn nichts
+hinausgeht**: `gesendet_am` bleibt dann NULL und `ergebnis` sagt warum. Das Tor
+ist fail-closed, ohne `agent_richtlinie`-Zeile fuer `email_senden` bleibt die
+Bestaetigung also liegen. Das ist die richtige Vorgabe: lieber keine
+Bestaetigung als eine automatische Mail, die niemand vorgesehen hat.
+
+0012 gab `versand` nur `cse_job` einen INSERT. Die Bestaetigung entsteht aber
+auf dem Anfragepfad, nicht in einem Job — 0017 ergaenzt deshalb eine
+INSERT-Policy fuer `cse_app` unter `crm.kommunikation_versenden`. Sie ist keine
+Erlaubnis zu senden; `agent/policy.ts` entscheidet weiterhin, und die Zeile
+bezeugt nur, dass entschieden wurde.
+
+---
+
 ## Carried over from the Phase 0 review — not client questions
 
 Three items the review surfaced that are ours to do, recorded here so they are not
@@ -576,6 +1527,14 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-129 | `int-datev-periodensperre` | Does a completed DATEV export lock the period against new bookings, or do late entries go into the next open period? |
 | O-130 | `int-48b-bescheinigung` | Does each entity hold a valid §48b EStG exemption certificate, for what term, and who renews it? |
 | O-131 | `int-kundenpostfach` | Should incoming customer correspondence be taken into the history automatically, from a mailbox per entity, or does capture stay manual? |
+
+### Raised while building · Phase 2
+
+| # | Question | Blocks |
+|---|---|---|
+| O-205 | **Barrierefreiheitserklärung (BFSG):** which conformity status may be declared — fully, partially or not conformant — on the basis of which audit and dated when; which body is named as the enforcement authority; and which mailbox receives accessibility feedback? Until these three are answered the statement at `/barrierefreiheit` carries a visible "not yet issued" block rather than an invented claim. | LEG-07, launch |
+| O-207 | **Seitentexte:** every page currently carries scaffold copy — a factual description of what each company does, drawn from the trade names already recorded in `CLAUDE.md`, with no figures, awards, customer names or promises. The client must read and correct it, in particular anything that reads as a commitment to a customer: a marketing sentence nobody checked ends up quoted in an offer. | all 14 public pages, launch |
+| O-206 | **Is "CSE Gruppe" a legal entity?** Does a group-level Rechtsträger (holding) exist — under which name, address and register entry — or is the group only a brand over four independent companies? A structured-data `Organization` block carries an address and therefore asserts that such a company exists; until this is answered the site emits four complete `LocalBusiness` entries and no umbrella. | PUB-11, `/impressum`, footer |
 
 ---
 

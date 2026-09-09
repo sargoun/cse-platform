@@ -1,0 +1,83 @@
+name: Barrierefreiheit und SEO
+
+# PUB-09, PUB-10, LEG-07. Ab PR 16 ein PFLICHT-Job: BFSG gilt für das Angebot,
+# und ein Zugänglichkeitsfehler, der nur eine Warnung auslöst, wird nach der
+# dritten Warnung nicht mehr gelesen.
+on:
+  push: { branches: [main] }
+  pull_request:
+
+jobs:
+  barrierefreiheit:
+    runs-on: ubuntu-latest
+    # Postgres als DIENST-CONTAINER, nicht per `su` gestartet.
+    #
+    # Die Isolationssuite braucht einen echten Server (ein Mock beweist über
+    # RLS nichts). Ihn im Job selbst hochzufahren hiesse, als `postgres` zu
+    # arbeiten — auf einem Runner ist das eine Rechtefrage, die genau einmal
+    # falsch beantwortet wird. Der Dienst hier läuft schon, und
+    # `scripts/test-db.sh` erkennt das und legt nur noch die Datenbank an.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          # Wegwerf-Datenbank in einem Wegwerf-Container, nur über localhost
+          # erreichbar. Ein Passwort hier wäre eines mehr, das in Logs landet.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+
+      # Die öffentlichen Seiten lesen ihren Inhalt aus `seite`/`abschnitt`
+      # (PUB-07). Ohne Datenbank prüfte dieser Job eine Fehlerseite — und eine
+      # Fehlerseite hat hervorragende Werte.
+      - name: Datenbank, Seed und Inhalt
+        run: |
+          pnpm db:test:up
+          pnpm db:seed
+          pnpm content:import
+        env:
+          DATABASE_URL: postgres://postgres@localhost:55432/cse_test
+
+      # axe auf JEDER öffentlichen Route, plus Tastaturbedienung und die
+      # Maschinenflächen. Playwright baut und startet den Server selbst.
+      - name: axe, Tastatur, sitemap/robots/llms
+        run: pnpm test:e2e
+        env:
+          DATABASE_URL: postgres://postgres@localhost:55432/cse_test
+
+      - name: Server für Lighthouse
+        run: |
+          pnpm build
+          pnpm start &
+          npx --yes wait-on http://localhost:3000/healthz --timeout 120000
+        env:
+          DATABASE_URL: postgres://postgres@localhost:55432/cse_test
+          CSE_KANONISCHE_BASIS: http://localhost:3000
+
+      # Ein BUDGET, keine Momentaufnahme: der Lauf fällt, sobald eine Seite
+      # schlechter wird. Schwellen und Begründung in docs/LIGHTHOUSE.md.
+      - name: Lighthouse-Budget (mobil)
+        run: pnpm lighthouse
+
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: berichte
+          path: |
+            .lighthouseci/
+            playwright-report/
+          retention-days: 7

@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push: { branches: [main] }
+  pull_request:
+
+jobs:
+  pruefung:
+    runs-on: ubuntu-latest
+    # Postgres als DIENST-CONTAINER, nicht per `su` gestartet.
+    #
+    # Die Isolationssuite braucht einen echten Server (ein Mock beweist über
+    # RLS nichts). Ihn im Job selbst hochzufahren hiesse, als `postgres` zu
+    # arbeiten — auf einem Runner ist das eine Rechtefrage, die genau einmal
+    # falsch beantwortet wird. Der Dienst hier läuft schon, und
+    # `scripts/test-db.sh` erkennt das und legt nur noch die Datenbank an.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          # Wegwerf-Datenbank in einem Wegwerf-Container, nur über localhost
+          # erreichbar. Ein Passwort hier wäre eines mehr, das in Logs landet.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+
+      - run: pnpm install --frozen-lockfile
+
+      # Order matters: the guards are cheap and catch the class of change that
+      # is expensive to discover later, so they run before the slow steps.
+      - name: Merge-Wachen (Invarianten 1, 2, 5, K-17, D-04)
+        run: pnpm guards
+
+      # Das Annahmen-Dokument wird ERZEUGT. Veraltet heisst: der Mandant liest
+      # eine Zahl, die im Code nicht mehr gilt — und bestätigt sie.
+      - name: Annahmen-Dokument aktuell
+        run: pnpm annahmen --check
+
+      - name: Lint
+        run: pnpm exec eslint .
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      # The isolation suite proves RLS at the database level, as cse_app and
+      # never as the owner. It needs a real Postgres — a mock proves nothing.
+      - name: Isolation suite (RLS, FORCE, K-04, K-05, K-18, K-20)
+        run: |
+          pnpm db:test:up
+          pnpm test:isolation
+
+      - name: Build
+        run: pnpm build
+
+      # Der Barrierefreiheits- und SEO-Job läuft getrennt (a11y.yml): er
+      # braucht einen Browser und einen laufenden Server und dauert um ein
+      # Vielfaches länger. Getrennt sagt ein rotes CI sofort, WELCHE Art von
+      # Zusage gebrochen ist.
+
+      # SEC-A8: a known-vulnerable dependency fails the branch.
+      - name: Audit
+        run: pnpm audit --audit-level=high

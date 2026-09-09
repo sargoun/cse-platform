@@ -1,0 +1,64 @@
+{
+  "name": "cse-platform",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . && pnpm guards",
+    "guards": "tsx scripts/guards/run-all.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:a11y": "playwright test tests/e2e/a11y.spec.ts tests/e2e/seo.spec.ts",
+    "lighthouse": "npx --yes @lhci/cli@0.15.1 autorun",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/server/db/migrate.ts",
+    "db:triggers": "tsx scripts/generate-triggers.ts",
+    "katalog": "tsx scripts/katalog/extrahiere.ts && tsx scripts/katalog/seed-sql.ts",
+    "annahmen": "tsx scripts/annahmen.ts",
+    "db:seed": "tsx src/server/db/seed/index.ts",
+    "content:import": "tsx scripts/content-import.ts",
+    "test:isolation": "vitest run --config vitest.isolation.config.ts",
+    "db:test:up": "bash scripts/test-db.sh up",
+    "db:test:down": "bash scripts/test-db.sh down"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.2",
+    "next": "^15.1.6",
+    "postgres": "^3.4.5",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "server-only": "^0.0.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.50.0",
+    "@types/node": "^22.10.7",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "autoprefixer": "^10.5.5",
+    "axe-core": "^4.13.0",
+    "drizzle-kit": "^0.31.10",
+    "eslint": "^9.18.0",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^3.4.19",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.21.0",
+    "vitest": "^3.0.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss": "^8.5.28"
+    }
+  }
+}
