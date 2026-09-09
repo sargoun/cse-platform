@@ -103,17 +103,18 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
     /**
      * Die Leiste wird IN dieser Transaktion bewertet, nicht danach: die
      * Bindung steht nur hier, und `app.hat_recht` ohne sie antwortet `false`
-     * auf alles. Es sind hoechstens fuenf Fragen — §11.2 kennt keine
-     * sechste.
+     * auf alles. Und in EINER Abfrage: fuenf Rundreisen auf jedem
+     * Seitenaufruf fuer eine Frage, die eine beantwortet, sind fuenfmal zu
+     * viel.
      */
     const ziele = tableiste(leisteFuer(sitzung.portal, sitzung.ansicht, rolle)).ziele;
+    const gefragt = [...new Set(
+      ziele.map((z) => z.recht).filter((r): r is string => r !== null),
+    )];
+    const gehalten = await pruefer.hatRechte(gefragt, sitzung.aktiverMandantId);
     const sichtbareTabs: Record<string, boolean> = {};
     for (const z of ziele) {
-      sichtbareTabs[z.schluessel] = z.recht === null
-        ? true
-        : sitzung.aktiverMandantId === null
-          ? await pruefer.hatRechtIrgendwo(z.recht)
-          : await pruefer.hatRecht(z.recht, sitzung.aktiverMandantId);
+      sichtbareTabs[z.schluessel] = z.recht === null || gehalten.has(z.recht);
     }
     const [m] = sitzung.aktiverMandantId === null ? [] : await abfrage<{ slug: string }>(
       `select slug from mandant where id = $1`, [sitzung.aktiverMandantId],

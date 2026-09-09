@@ -6,7 +6,7 @@ import { findeRoute } from '@/server/registry/routen';
 import { NochNichtGebaut } from '@/components/portal/NochNichtGebaut';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import { AnmeldungNoetig } from './Anmeldung';
-import { portalWurzel, portalZugang } from './zugang';
+import { portalWurzel, portalZugang, type PortalZugang } from './zugang';
 import type { BereichSchluessel } from '@/lib/design/theme';
 
 /**
@@ -54,21 +54,28 @@ export interface UnterseiteProps {
  * 404, nie 403.
  */
 export async function slugTor(
-  sitzung: Parameters<typeof bindeAnfrage>[1], slug: string,
+  zugang: PortalZugang, slug: string,
 ): Promise<{ art: 'ok' } | { art: 'wechsel'; aktuell: string | null; ziel: string }> {
+  /**
+   * Der haeufige Fall kostet KEINE Abfrage.
+   *
+   * `portalZugang` hat den Slug des aktiven Bereichs schon gelesen — in
+   * derselben gebundenen Transaktion, in der es das Recht geprueft hat.
+   * Stimmt er, ist nichts mehr zu fragen; das ist jeder normale Seitenaufruf.
+   * Nur die Abweichung kostet eine zweite Transaktion, und die ist selten.
+   */
+  if (slug === zugang.mandantSlug) return { art: 'ok' };
+
   const befund = await (db().begin(async (tx: postgres.TransactionSql) => {
-    await bindeAnfrage(tx, sitzung);
+    await bindeAnfrage(tx, zugang.sitzung);
     const [z] = (await tx.unsafe(
       `select app.mandant_fuer_wechsel($1) as ziel_id,
               (select m.name from mandant m where m.id = $2) as aktuell`,
-      [slug, sitzung.aktiverMandantId],
+      [slug, zugang.sitzung.aktiverMandantId],
     )) as { ziel_id: string | null; aktuell: string | null }[];
     return { zielId: z?.ziel_id ?? null, aktuell: z?.aktuell ?? null };
   }) as Promise<{ zielId: string | null; aktuell: string | null }>);
 
-  if (befund.zielId !== null && befund.zielId === sitzung.aktiverMandantId) {
-    return { art: 'ok' };
-  }
   // Unbekannter Slug UND fremder Bereich geben hier dieselbe `null` zurueck —
   // die Funktion in der Datenbank unterscheidet sie absichtlich nicht (AUT-06).
   if (befund.zielId === null) notFound();
@@ -103,7 +110,7 @@ export async function MandantUnterseite({ segmente, mandant }: {
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;
 
-  const tor = await slugTor(zugang.sitzung, mandant);
+  const tor = await slugTor(zugang, mandant);
   if (tor.art === 'wechsel') {
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={mandant} zielSlug={tor.ziel} />;
   }

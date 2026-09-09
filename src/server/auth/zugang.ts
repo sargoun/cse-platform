@@ -85,6 +85,17 @@ export interface Rechtepruefer {
    * gebaut hat.
    */
   hatRechtIrgendwo(schluessel: string): Promise<boolean>;
+  /**
+   * Dieselbe Frage fuer mehrere Schluessel — in EINER Abfrage.
+   *
+   * Die Navigation fragt fuenf Rechte auf jeder Seite. Fuenf Rundreisen fuer
+   * eine Frage, die eine beantwortet, sind auf jedem Seitenaufruf fuenf
+   * Rundreisen; das Dashboard holt seine Kachelrechte aus demselben Grund
+   * schon lange gebuendelt.
+   */
+  hatRechte(
+    schluessel: readonly string[], mandantId: string | null,
+  ): Promise<ReadonlySet<string>>;
 }
 
 /**
@@ -196,6 +207,23 @@ export function rechtepruefer(
         [schluessel],
       );
       return zeilen[0]?.ok === true;
+    },
+    hatRechte: async (schluessel, mandantId) => {
+      if (schluessel.length === 0) return new Set<string>();
+      // Zwei Formen derselben Frage: mit aktivem Mandanten gegen diesen, ohne
+      // ihn gegen die sichtbare Menge — dieselbe Unterscheidung wie oben, nur
+      // fuer eine Liste.
+      const zeilen = await abfrage<{ recht: string; ok: boolean }>(
+        mandantId === null
+          ? `select r as recht,
+                    exists (select 1 from unnest(app.sichtbare_mandanten()) as m(id)
+                             where app.hat_recht(r, m.id)) as ok
+               from unnest($1::text[]) as r`
+          : `select r as recht, app.hat_recht(r, $2::uuid) as ok
+               from unnest($1::text[]) as r`,
+        mandantId === null ? [schluessel] : [schluessel, mandantId],
+      );
+      return new Set(zeilen.filter((z) => z.ok).map((z) => z.recht));
     },
   };
 }

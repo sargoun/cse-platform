@@ -9,6 +9,8 @@ import { dashboard } from '@/server/services/bericht/dashboard';
 import { kacheln } from '@/server/registry/kennzahlen';
 import { AnmeldungNoetig } from '../Anmeldung';
 import { portalZugang } from '../zugang';
+import { slugTor } from '../unterseite';
+import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 
 /**
@@ -46,17 +48,28 @@ export default async function MandantDashboard(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /**
+   * Der Pfad muss zum gebundenen Mandanten passen — und wenn nicht, gilt §4.5.
+   *
+   * Hier stand `notFound()` fuer JEDEN abweichenden Slug. Das ist fuer einen
+   * fremden Bereich richtig und fuer den eigenen falsch: wer in zwei
+   * Gesellschaften arbeitet und die Adresse der anderen oeffnet, bekommt das
+   * Zwischenblatt mit POST-Knopf. Ein GET wechselt den Mandanten nie, aber ein
+   * 404 auf den eigenen Bereich sagt "gibt es nicht" ueber etwas, das es gibt.
+   */
+  const tor = await slugTor(zugang, mandant);
+  if (tor.art === 'wechsel') {
+    return <Wechselblatt aktuell={tor.aktuell} zielTitel={mandant} zielSlug={tor.ziel} />;
+  }
+
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
       const bereiche = await kontext.abfrage<Bereich>(
         `select id, slug, name from mandant where id = $1`, [sitzung.aktiverMandantId],
       );
+      // `slugTor` hat die Adresse bereits gegen die Sitzung geprüft; diese
+      // Zeile fängt nur noch den Fall ab, dass die Zeile selbst fehlt.
       const eigen = bereiche[0];
-      /**
-       * Der Pfad muss zum gebundenen Mandanten passen. Tut er das nicht, ist
-       * die Adresse eine Behauptung über einen anderen Mandanten — und die
-       * Antwort darauf ist 404, nicht ein stiller Wechsel.
-       */
       if (eigen === undefined || eigen.slug !== mandant) return null;
 
       /**

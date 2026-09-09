@@ -254,3 +254,81 @@ describe('die sichtbare Menge wird ABGELEITET, nicht eingereicht', () => {
     expect(ids).toEqual([]);
   });
 });
+
+describe('§4.5 — wer die Gruppenansicht BETRETEN darf', () => {
+  /**
+   * Die drei Bedingungen, einzeln falsifiziert.
+   *
+   * Ohne diese Gruppe koennte `app.darf_gruppenansicht()` konstant `false`
+   * liefern und alles bliebe gruen — die Gruppenansicht waere fuer JEDEN 404,
+   * und der Test sagte nichts dazu. Jeder Fall unten fehlt genau eine
+   * Bedingung.
+   */
+  async function darf(benutzerId: string): Promise<boolean> {
+    return alsApp(
+      { scope: 'mandant', benutzerId, portal: 'intern', mandantId: f.reinigung },
+      async (tx) => {
+        const [z] = await tx.unsafe<{ ok: boolean }[]>(
+          `select app.darf_gruppenansicht() as ok`,
+        );
+        return z!.ok;
+      },
+    );
+  }
+
+  /** Bindet `gruppe.bericht.lesen` an die Rolle, in genau diesem Bereich. */
+  async function gruppenrecht(rolle: string, mandantId: string): Promise<void> {
+    await sql.unsafe(
+      `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+       select $1, b.id, $2, true from berechtigung b
+        where b.schluessel = 'gruppe.bericht.lesen'
+       on conflict do nothing`,
+      [await rolleId(rolle), mandantId],
+    );
+  }
+
+  it('zwei interne Mitgliedschaften plus ein Gruppenrecht: ja', async () => {
+    const chef = await konto('darf-gruppe@cse.test');
+    await mitglied(chef, f.reinigung, 'leitung');
+    await mitglied(chef, f.security, 'leitung');
+    await gruppenrecht('leitung', f.reinigung);
+    expect(await darf(chef)).toBe(true);
+  });
+
+  it('nur EIN Bereich: nein — DESIGN §6 Regel 1', async () => {
+    const einer = await konto('ein-bereich@cse.test');
+    await mitglied(einer, f.reinigung, 'leitung');
+    await gruppenrecht('leitung', f.reinigung);
+    expect(await darf(einer)).toBe(false);
+  });
+
+  it('zwei Bereiche, aber keine `intern`-Rolle: nein', async () => {
+    // Eine Arbeiterin, die fuer zwei Gesellschaften faehrt, liest ihre beiden
+    // Beschaeftigungen ueber `/portal/mein` — die Gruppenansicht ist die
+    // LEITENDE Ansicht (K-18).
+    const arbeiter = await konto('zwei-jobs@cse.test');
+    await mitglied(arbeiter, f.reinigung, 'mitarbeiter');
+    await mitglied(arbeiter, f.security, 'mitarbeiter');
+    expect(await darf(arbeiter)).toBe(false);
+  });
+
+  it('zwei interne Mitgliedschaften, aber kein `gruppe.*.lesen`: nein', async () => {
+    // §12.1 bindet die Gruppenrechte per Vorgabe nur an `super_admin`. Die
+    // Gruppenansicht ist eine Funktion, die jemand vergibt — nicht eine, die
+    // jeder Bereichsleiter mitbringt.
+    const ohneRecht = await konto('kein-gruppenrecht@cse.test');
+    const rolle = await sql.unsafe<{ id: string }[]>(
+      `insert into rolle (schluessel, bezeichnung, geltungsbereich, portal)
+       values ('leitung_ohne_gruppe','Leitung ohne Gruppenrecht','mandant','intern')
+       returning id`,
+    );
+    for (const m of [f.reinigung, f.security]) {
+      await sql.unsafe(
+        `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id) values ($1,$2,$3)`,
+        [ohneRecht, m, rolle[0]!.id],
+      );
+    }
+    expect(await darf(ohneRecht)).toBe(false);
+  });
+});
+
