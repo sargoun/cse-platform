@@ -161,6 +161,6 @@ export const WEITERLEITUNGEN: Readonly<Record<string, string>> = {
   '/kontakt.html': '/kontakt',
   '/impressum.html': '/impressum',
   '/datenschutz.html': '/datenschutz',
-  '/gebaeudereinigung': '/reinigung',
-  '/sicherheitsdienst': '/security',
+  '/gebaeudereinigung': '/unternehmen/reinigung',
+  '/sicherheitsdienst': '/unternehmen/security',
 };
