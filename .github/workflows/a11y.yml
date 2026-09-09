@@ -10,6 +10,28 @@ on:
 jobs:
   barrierefreiheit:
     runs-on: ubuntu-latest
+    # Postgres als DIENST-CONTAINER, nicht per `su` gestartet.
+    #
+    # Die Isolationssuite braucht einen echten Server (ein Mock beweist über
+    # RLS nichts). Ihn im Job selbst hochzufahren hiesse, als `postgres` zu
+    # arbeiten — auf einem Runner ist das eine Rechtefrage, die genau einmal
+    # falsch beantwortet wird. Der Dienst hier läuft schon, und
+    # `scripts/test-db.sh` erkennt das und legt nur noch die Datenbank an.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          # Wegwerf-Datenbank in einem Wegwerf-Container, nur über localhost
+          # erreichbar. Ein Passwort hier wäre eines mehr, das in Logs landet.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

@@ -18,7 +18,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:a11y": "playwright test tests/e2e/a11y.spec.ts tests/e2e/seo.spec.ts",
-    "lighthouse": "lhci autorun",
+    "lighthouse": "npx --yes @lhci/cli@0.15.1 autorun",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/server/db/migrate.ts",
     "db:triggers": "tsx scripts/generate-triggers.ts",
@@ -31,7 +31,7 @@
     "db:test:down": "bash scripts/test-db.sh down"
   },
   "dependencies": {
-    "drizzle-orm": "^0.38.4",
+    "drizzle-orm": "^0.45.2",
     "next": "^15.1.6",
     "postgres": "^3.4.5",
     "react": "^19.0.0",
@@ -41,14 +41,13 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
-    "@lhci/cli": "^0.15.1",
     "@playwright/test": "^1.50.0",
     "@types/node": "^22.10.7",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",
     "autoprefixer": "^10.5.5",
     "axe-core": "^4.13.0",
-    "drizzle-kit": "^0.30.2",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^9.18.0",
     "postcss": "^8.5.28",
     "tailwindcss": "^3.4.19",
@@ -56,5 +55,10 @@
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.21.0",
     "vitest": "^3.0.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss": "^8.5.28"
+    }
   }
 }
