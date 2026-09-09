@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { weiterleitungenMitSprachen } from './src/lib/weiterleitungen';
 
 const config: NextConfig = {
   reactStrictMode: true,
@@ -20,6 +21,25 @@ const config: NextConfig = {
    * machen, wer eine Datei zufaellig importiert. Diese eine Zeile ist die
    * kleinere Kopplung.
    */
+  /**
+   * Die 301er aus EINER Tabelle (PUB-08).
+   *
+   * `WEITERLEITUNGEN` stand bisher nur in einer Datei und wurde von einem Test
+   * gelesen — keine Anfrage sah sie je. Eine Liste, die nichts bewirkt, ist
+   * schlechter als keine: sie sieht aus, als waere die Sache erledigt.
+   *
+   * `permanent: true` ist ein 308 und nicht ein 301. Der Unterschied ist die
+   * Methode: ein 301 erlaubt einem Client, ein POST in ein GET zu verwandeln,
+   * ein 308 verbietet es. Fuer Suchmaschinen zaehlen beide gleich — die
+   * Autoritaet geht ueber —, und keine dieser Adressen nimmt je ein POST
+   * entgegen. Die strengere ist damit die richtige.
+   */
+  redirects: () => Promise.resolve(
+    weiterleitungenMitSprachen().map(({ quelle, ziel }) => ({
+      source: quelle, destination: ziel, permanent: true,
+    })),
+  ),
+
   webpack: (konfiguration) => {
     konfiguration.resolve.extensionAlias = {
       '.js': ['.ts', '.tsx', '.js'],

@@ -4,6 +4,8 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { schliessen, seed, sql } from './harness.js';
 import { importiere, WEITERLEITUNGEN } from '../../src/server/services/inhalt/import.js';
+import { weiterleitungenMitSprachen } from '../../src/lib/weiterleitungen.js';
+import { findeRoute } from '../../src/server/registry/routen.js';
 import { OEFFENTLICHE_ROUTEN } from '../../src/server/services/inhalt/routen.js';
 import { ladeSeite } from '../../src/server/services/inhalt/seite.js';
 import { napAus, NapFehler, localBusinessJsonLd } from '../../src/server/services/inhalt/nap.js';
@@ -111,13 +113,45 @@ describe('(3) der NAP-Block ist auf jeder Seite zeichengleich', () => {
 
 describe('(4) jede Alt-URL leitet mit 301 weiter', () => {
   it('die Karte ist vollständig und zeigt auf bekannte Routen', () => {
-    const bekannt = new Set(OEFFENTLICHE_ROUTEN.map((r) => r.pfad));
+    /**
+     * Bekannt heisst: eine INHALTSSEITE oder eine Route der Seitenkarte.
+     *
+     * Beide Universen zaehlen, weil beide Adressen sind, die ausgeliefert
+     * werden. Nur die Inhaltsseiten zu pruefen hiesse, `/angebot` fuer
+     * unbekannt zu halten — die Seite gibt es, sie steht nur in
+     * `04-SEITENKARTE.md` statt in `seite`. Der Test waere dann nicht
+     * strenger, sondern falsch.
+     */
+    const inhalt = new Set(OEFFENTLICHE_ROUTEN.map((r) => r.pfad));
     for (const [alt, neu] of Object.entries(WEITERLEITUNGEN)) {
       expect(alt.startsWith('/'), alt).toBe(true);
       // Ein Ziel, das es nicht gibt, ist eine Weiterleitung ins Leere — und
       // die kostet die Autorität, die sie retten sollte.
-      expect(bekannt, `${alt} → ${neu}`).toContain(neu);
+      const gibtEs = inhalt.has(neu) || findeRoute(neu) !== undefined;
+      expect(gibtEs, `${alt} → ${neu}`).toBe(true);
     }
+  });
+
+  it('und die Quellen zeigen auf NICHTS — sonst waere die Seite noch da', () => {
+    // Die Gegenrichtung: eine Quelle, die es als Seite weiterhin gibt, wuerde
+    // von `zieheAbgeloesteZurueck` bei jedem Import zurueckgezogen.
+    const inhalt = new Set(OEFFENTLICHE_ROUTEN.map((r) => r.pfad));
+    for (const alt of Object.keys(WEITERLEITUNGEN)) {
+      expect(inhalt.has(alt), `${alt} ist Quelle UND Inhaltsseite`).toBe(false);
+    }
+  });
+
+  it('der englische Zweig wird abgeleitet und faellt nie ins Deutsche', () => {
+    const alle = weiterleitungenMitSprachen();
+    const en = alle.filter((w) => w.quelle.startsWith('/en/'));
+    expect(en.length).toBeGreaterThan(0);
+    for (const w of en) {
+      // Sonst haette die Weiterleitung dem Besucher die Sprache genommen — er
+      // hat sie nicht gewechselt.
+      expect(w.ziel.startsWith('/en/'), `${w.quelle} → ${w.ziel}`).toBe(true);
+    }
+    // Die `.html`-Adressen der alten Website bekommen keinen Zwilling.
+    expect(alle.some((w) => w.quelle === '/en/index.html')).toBe(false);
   });
 
   it('keine Weiterleitung zeigt auf sich selbst', () => {
@@ -126,3 +160,62 @@ describe('(4) jede Alt-URL leitet mit 301 weiter', () => {
     }
   });
 });
+
+describe('abgeloeste Adressen ueberleben einen erneuten Import nicht', () => {
+  /**
+   * Der Befund: der Import legt an und aendert, er nimmt nie etwas weg. Eine
+   * Datenbank, in der `/reinigung` einmal veroeffentlicht wurde, behielt die
+   * Zeile auch, nachdem die Adresse `/unternehmen/reinigung` geworden war —
+   * erreichbar, in der Sitemap, und fuer die Suchmaschine zwei Adressen mit
+   * demselben Inhalt.
+   */
+  it('eine veroeffentlichte `/reinigung` wird beim naechsten Lauf zurueckgezogen',
+    async () => {
+      await sql`
+        insert into seite (pfad, sprache, titel, status, veroeffentlicht_am)
+        values ('/reinigung', 'de', 'Alte Adresse', 'veroeffentlicht', now())`;
+
+      const bericht = await importiere(db, SEITEN, 'de');
+      expect(bericht.abgeloest).toBeGreaterThanOrEqual(1);
+
+      const [zeile] = await sql<{ n: number }[]>`
+        select count(*)::int as n from seite
+         where pfad = '/reinigung' and geloescht_am is null`;
+      expect(zeile!.n).toBe(0);
+    });
+
+  it('und keine der GEPFLEGTEN Seiten wird dabei angefasst', async () => {
+    // Die Gegenrichtung. Ohne sie bestuende der Test oben auch dann, wenn der
+    // Import kurzerhand alles zurueckzieht. `beforeEach` leert die Tabellen,
+    // also wird hier neu importiert statt auf den vorigen Test zu bauen.
+    await sql`
+      insert into seite (pfad, sprache, titel, status, veroeffentlicht_am)
+      values ('/reinigung', 'de', 'Alte Adresse', 'veroeffentlicht', now())`;
+    await importiere(db, SEITEN, 'de');
+
+    const [zeile] = await sql<{ n: number }[]>`
+      select count(*)::int as n from seite
+       where sprache = 'de' and geloescht_am is null`;
+    expect(zeile!.n).toBe(SEITEN.length);
+  });
+
+  it('eine Adresse, die Seite UND Weiterleitungsquelle waere, bricht den Import',
+    async () => {
+      /**
+       * Sonst zoege ein spaeter eingetragener Umzug, dessen Quelle noch eine
+       * gepflegte Seite ist, diese Seite bei JEDEM Lauf zurueck — still,
+       * wiederholt, und sichtbar erst beim Aufruf der Website.
+       */
+      // Eine Quelle, die der `seite_pfad_check` auch zulaesst — sonst
+      // scheiterte der Import an der Spalte, bevor die Wache greift, und der
+      // Test bestuende aus dem falschen Grund.
+      const quelle = '/reinigung';
+      expect(Object.keys(WEITERLEITUNGEN)).toContain(quelle);
+      await expect(importiere(
+        db,
+        [{ pfad: quelle, titel: 'Kollision', beschreibung: null, abschnitte: [] }],
+        'de',
+      )).rejects.toThrow(/Weiterleitungs-QUELLE/u);
+    });
+});
+
