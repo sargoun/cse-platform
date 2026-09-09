@@ -44,6 +44,8 @@ export function llmsTxt(
   bereiche: readonly LlmsBereich[],
   seiten: readonly LlmsSeite[],
   basis: string,
+  /** Die Adresse der englischen Fassung, wenn es sie gibt. */
+  englischeBasis: string | null = null,
 ): string {
   const zeilen: string[] = [];
 
@@ -79,6 +81,27 @@ export function llmsTxt(
     zeilen.push('## Seiten');
     zeilen.push('');
     for (const s of seiten) zeilen.push(`- [${s.titel}](${basis}${s.pfad})`);
+    zeilen.push('');
+  }
+
+  /**
+   * Die englische Fassung wird GENANNT, nicht dupliziert.
+   *
+   * Jede Seite ein zweites Mal aufzufuehren machte die Datei doppelt so lang
+   * und sagte nichts Neues: es ist derselbe Inhalt unter einer anderen
+   * Adresse. Ein Sprachmodell, das hier die Regel liest, findet jede
+   * englische Seite selbst — und weiss zugleich, dass es KEIN zweites
+   * Unternehmen ist, was es sonst annehmen koennte.
+   */
+  if (englischeBasis !== null) {
+    zeilen.push('## Sprachen');
+    zeilen.push('');
+    zeilen.push(
+      `Diese Website erscheint auf Deutsch und Englisch. Die deutschen Adressen `
+      + `stehen oben; jede Seite gibt es zusaetzlich unter \`${englischeBasis}\` — `
+      + `\`/kontakt\` entspricht \`${englischeBasis}/kontakt\`. Es ist derselbe `
+      + `Inhalt und dasselbe Unternehmen, nicht ein zweites.`,
+    );
     zeilen.push('');
   }
 

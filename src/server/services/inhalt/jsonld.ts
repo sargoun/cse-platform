@@ -126,14 +126,25 @@ export function faqPage(
 }
 
 /** Die Website selbst. Sie hat einen Namen und braucht keine Rechtsform. */
-export function webSite(name: string, basis: string): Record<string, unknown> {
+export function webSite(
+  name: string, basis: string, sprachen: readonly string[] = ['de-DE'],
+): Record<string, unknown> {
   return {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     '@id': `${basis}#website`,
     url: basis,
     name,
-    inLanguage: 'de-DE',
+    /**
+     * `inLanguage` nennt ALLE Sprachen der Website, nicht die der Seite.
+     *
+     * Der `@id` ist `#website` — ein Objekt fuer den ganzen Auftritt. Stuende
+     * hier je Aufruf eine andere Sprache, gaebe es dieselbe `@id` mit
+     * widersprechenden Angaben, und eine Suchmaschine entschiede selbst,
+     * welche gilt. Welche Sprache eine einzelne SEITE hat, sagt `<html lang>`
+     * und `hreflang`.
+     */
+    inLanguage: sprachen.length === 1 ? sprachen[0] : [...sprachen],
   };
 }
 

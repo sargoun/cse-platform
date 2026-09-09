@@ -69,9 +69,15 @@ describe('der Renderer sieht die vier Gesellschaften — sonst bliebe der NAP le
   });
 
   it('veröffentlichte Seiten sind lesbar, Entwürfe nicht', async () => {
+    /**
+     * Seit D-82 gibt es die Startseite ZWEIMAL — deutsch und englisch, mit
+     * demselben Pfad und verschiedener `sprache`. Die Zusage dieser Prüfung
+     * ist aber nicht "genau eine Zeile", sondern "der Renderer sieht die
+     * veröffentlichten und keine Entwürfe". Also je Sprache eine.
+     */
     const sichtbar = await alsRenderer(async (k) =>
-      k.abfrage<{ pfad: string }>(`select pfad from seite where pfad = '/'`));
-    expect(sichtbar.length).toBe(1);
+      k.abfrage<{ sprache: string }>(`select sprache from seite where pfad = '/'`));
+    expect(sichtbar.map((z) => z.sprache).sort()).toEqual(['de', 'en']);
 
     const entwuerfe = await alsRenderer(async (k) =>
       k.abfrage<{ n: string }>(

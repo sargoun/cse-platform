@@ -34,7 +34,17 @@ test.describe('(4) robots.txt, sitemap.xml und llms.txt liefern aus', () => {
     const xml = await antwort.text();
 
     for (const route of OEFFENTLICHE_ROUTEN) {
-      const url = `http://localhost:3000${route.pfad === '/' ? '' : route.pfad}`;
+      /**
+       * Die Startseite steht als `…:3000/` und nicht als `…:3000`.
+       *
+       * Beides meint dieselbe Adresse — der leere Pfad normalisiert auf `/` —
+       * aber `canonical` schrieb schon immer den Schrägstrich, und die Sitemap
+       * schrieb ihn nicht. Zwei Schreibweisen derselben Startseite in zwei
+       * Signalen an dieselbe Suchmaschine sind kein Fehler mit Folgen, aber
+       * auch kein Zustand, den man absichtlich herstellt. Jetzt stimmen sie
+       * überein, und die nächste Prüfung hält das fest.
+       */
+      const url = `http://localhost:3000${route.pfad}`;
       expect(xml, `${route.pfad} fehlt in der Sitemap`).toContain(`<loc>${url}</loc>`);
     }
     // Die Erklärung ist eine Codeseite und steht in keiner `seite`-Zeile.
@@ -44,6 +54,23 @@ test.describe('(4) robots.txt, sitemap.xml und llms.txt liefern aus', () => {
     // Tatsache. Beides, nicht eines.
     expect(xml).not.toContain('/dev/');
     expect(xml).not.toContain('/portal/');
+  });
+
+  test('Sitemap und canonical schreiben dieselbe Adresse', async ({ page, request }) => {
+    /**
+     * Zwei Signale, eine Adresse. Schrieben sie sie verschieden — einmal mit
+     * und einmal ohne Schrägstrich —, entschiede die Suchmaschine selbst,
+     * welche der beiden sie führt. Das ist die Sorte Abweichung, die niemand
+     * bemerkt und die niemand später zurückverfolgt.
+     */
+    const xml = await (await request.get('/sitemap.xml')).text();
+    for (const pfad of ['/', '/kontakt', '/en/kontakt']) {
+      await page.goto(pfad);
+      const canonical = await page.locator('link[rel="canonical"]').getAttribute('href');
+      expect(canonical, pfad).not.toBeNull();
+      expect(xml, `${pfad}: canonical ${canonical ?? ''} fehlt in der Sitemap`)
+        .toContain(`<loc>${canonical ?? ''}</loc>`);
+    }
   });
 
   test('llms.txt kommt als text/plain und nennt jede Gesellschaft', async ({ request }) => {

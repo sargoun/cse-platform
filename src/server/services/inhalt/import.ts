@@ -53,8 +53,17 @@ function sortiereTief(wert: unknown): unknown {
   return wert;
 }
 
+/**
+ * Importiert die Seiten EINER Sprache.
+ *
+ * Die Sprache ist ein Argument und kein fester Wert, weil `seite` sie in
+ * ihrem eindeutigen Index fuehrt: `(pfad, sprache)`. Stuende hier weiter
+ * `'de'`, legte ein englischer Lauf die deutschen Zeilen um — dieselbe Seite,
+ * derselbe Pfad, neuer Text. Der Fehler waere nicht doppelter Inhalt, sondern
+ * ein deutscher Auftritt, der ueber Nacht englisch wird.
+ */
 export async function importiere(
-  db: Abfrage, seiten: readonly ImportSeite[],
+  db: Abfrage, seiten: readonly ImportSeite[], sprache = 'de',
 ): Promise<ImportBericht> {
   let angelegt = 0;
   let geaendert = 0;
@@ -63,16 +72,16 @@ export async function importiere(
   for (const s of seiten) {
     const vorhanden = (await db.unsafe(
       `select id, titel, beschreibung from seite
-        where pfad = $1 and sprache = 'de' and geloescht_am is null`,
-      [s.pfad],
+        where pfad = $1 and sprache = $2 and geloescht_am is null`,
+      [s.pfad, sprache],
     )) as { id: string; titel: string; beschreibung: string | null }[];
 
     let seiteId: string;
     if (vorhanden[0] === undefined) {
       const neu = (await db.unsafe(
-        `insert into seite (pfad, titel, beschreibung, status, veroeffentlicht_am)
-         values ($1,$2,$3,'veroeffentlicht',now()) returning id`,
-        [s.pfad, s.titel, s.beschreibung],
+        `insert into seite (pfad, sprache, titel, beschreibung, status, veroeffentlicht_am)
+         values ($1,$2,$3,$4,'veroeffentlicht',now()) returning id`,
+        [s.pfad, sprache, s.titel, s.beschreibung],
       )) as { id: string }[];
       seiteId = neu[0]!.id;
       angelegt += 1;

@@ -69,9 +69,26 @@ if (direkt) {
   const block = erzeugeSeed();
   const inhalt = readFileSync(MIGRATION, 'utf8');
   const alt = blockAus(inhalt);
-  writeFileSync(
-    MIGRATION,
-    alt === null ? `${inhalt.replace(/\s*$/u, '')}\n\n${block}` : inhalt.replace(alt, block),
-  );
-  process.stdout.write(`Seed geschrieben: ${KATALOG.length} Rechte\n`);
+
+  /**
+   * `--check` schreibt NICHT.
+   *
+   * Ohne diesen Zweig war der CI-Schritt eine Zeremonie: er rief das Skript
+   * mit `--check` auf, das Skript schrieb die Migration neu, und der Lauf
+   * bestand — auch wenn der eingecheckte Block veraltet war. Eine Prüfung,
+   * die ihren Prüfgegenstand vorher in Ordnung bringt, prüft nichts.
+   */
+  if (process.argv.includes('--check')) {
+    if (alt !== block) {
+      process.stderr.write('Der Seed-Block in 0008 ist veraltet. `pnpm katalog` ausführen.\n');
+      process.exit(1);
+    }
+    process.stdout.write('Seed-Block ist aktuell.\n');
+  } else {
+    writeFileSync(
+      MIGRATION,
+      alt === null ? `${inhalt.replace(/\s*$/u, '')}\n\n${block}` : inhalt.replace(alt, block),
+    );
+    process.stdout.write(`Seed geschrieben: ${KATALOG.length} Rechte\n`);
+  }
 }

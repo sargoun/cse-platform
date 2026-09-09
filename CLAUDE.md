@@ -128,8 +128,16 @@ nachtrag · dienstplan · leistungsnachweis · wachbuch · ausschreibung`
 
 Infrastructure stays **English**: `createInvoice`, `withTenant`, `hashChain`.
 
-UI copy: **German**. Worker-facing screens additionally translatable
-(de / en / ar / tr) — see SPEC §10.
+UI copy: **German** in the staff portal — the terms carry legal meaning there.
+
+**The public website is German AND English** (D-82): German under `/`, English
+under `/en/…`, same paths. `seite` carries `sprache`; an English page is its own
+row. Form fields are overlaid, never duplicated (D-83) — `formular_definition`
+stays the single source for validation. Impressum and Datenschutz are legally
+binding in German, and the English pages say so (D-84).
+
+Worker-facing screens additionally translatable (de / en / ar / tr) — see
+SPEC §10.
 
 ---
 

@@ -1,4 +1,6 @@
 import type { FormularFeld } from '@/lib/formular/schema';
+import { ANFRAGE_TEXTE } from '@/lib/i18n/texte';
+import { VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 
 /**
  * Das Angebotsanfrage-Formular (REQ-01 … REQ-04, PUB-09, LEG-07).
@@ -17,6 +19,8 @@ import type { FormularFeld } from '@/lib/formular/schema';
  * gemacht wird.
  */
 export interface AnfrageFormularProps {
+  /** Die Sprache der Seite. Die Feldbeschriftungen sind bereits übersetzt. */
+  readonly sprache?: Sprache;
   readonly bereich: string;
   readonly titel: string;
   readonly felder: readonly FormularFeld[];
@@ -85,9 +89,10 @@ function Feld({ f, fehler }: { readonly f: FormularFeld; readonly fehler?: strin
 }
 
 export function AnfrageFormular(
-  { bereich, titel, felder, fehler, meldung }: AnfrageFormularProps,
+  { bereich, titel, felder, fehler, meldung, sprache = VORGABE_SPRACHE }: AnfrageFormularProps,
 ) {
   const sortiert = [...felder].sort((a, b) => a.sortierung - b.sortierung);
+  const t = ANFRAGE_TEXTE[sprache];
   return (
     <section className="mx-auto flex max-w-content flex-col gap-s5 px-s5 py-s6">
       {/**
@@ -143,7 +148,7 @@ export function AnfrageFormular(
           className="absolute size-px overflow-hidden border-0 p-0"
           style={{ clipPath: 'inset(50%)', whiteSpace: 'nowrap' }}
         >
-          <label htmlFor="f_website">Website (bitte leer lassen)</label>
+          <label htmlFor="f_website">{t.honigtopf}</label>
           {/* Auch das Feld selbst ist 1 px breit. Ein zugeschnittener Container
               allein genügte nicht: das voreingestellte 200-px-Textfeld
               verbreiterte den scrollbaren Bereich weiterhin, und die Seite lief
@@ -160,7 +165,7 @@ export function AnfrageFormular(
           type="submit"
           className="rounded-md bg-brand px-s5 py-s3 text-base font-medium text-white"
         >
-          Anfrage senden
+          {t.absenden}
         </button>
       </form>
     </section>

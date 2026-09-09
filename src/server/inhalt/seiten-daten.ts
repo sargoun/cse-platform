@@ -7,6 +7,7 @@ import { faqAus, leistungenAus, breadcrumb, faqPage, localBusiness, organisation
 import type { BereichsQuelle } from '@/server/services/inhalt/jsonld';
 import type { NapQuelle } from '@/server/services/inhalt/nap';
 import { bereicheLesen, einstellungLesen, oeffentlichLesen, type BereichZeile } from '@/server/inhalt/lesen';
+import { BCP47, SPRACHEN, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 
 /** Die Basis der Anfrage — bis O-08 entschieden ist, ist sie der Host. */
 export async function basisAusAnfrage(): Promise<string> {
@@ -47,12 +48,14 @@ export interface SeitenDaten {
  * Bloecke entstehen, haengt allein davon ab, was gepflegt ist: kein `Service`
  * ohne Leistungen, keine `FAQPage` ohne Fragen.
  */
-export async function seitenDaten(pfad: string): Promise<SeitenDaten | null> {
+export async function seitenDaten(
+  pfad: string, sprache: Sprache = VORGABE_SPRACHE,
+): Promise<SeitenDaten | null> {
   const basis = await basisAusAnfrage();
 
   const ergebnis = await oeffentlichLesen(async (kontext) => {
     const seite = await ladeSeite(
-      { unsafe: (s, w) => kontext.abfrage(s, w) }, pfad,
+      { unsafe: (s, w) => kontext.abfrage(s, w) }, pfad, sprache,
     );
     if (seite === null) return null;
     const bereiche = await bereicheLesen(kontext);
@@ -75,7 +78,7 @@ export async function seitenDaten(pfad: string): Promise<SeitenDaten | null> {
     // Suchmaschine nichts Neues und verwaessert den einen `@id`.
     if (pfad === '/') {
       if (typeof gruppeName === 'string' && gruppeName !== '') {
-        jsonLd.push(webSite(gruppeName, basis));
+        jsonLd.push(webSite(gruppeName, basis, SPRACHEN.map((s) => BCP47[s])));
       }
       // Ein `Organization`-Block entsteht nur, wenn die Gruppe als
       // Rechtstraeger gepflegt ist (O-206). Vier vollstaendige

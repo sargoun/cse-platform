@@ -1269,6 +1269,83 @@ Der Pfad, auf den eine Kachel zeigt, entsteht an **einer** Stelle
 (`kennzahlPfad()`). Wenn die angemeldete Portal-Shell da ist, aendert sich
 diese Funktion — nicht sieben Kacheln, von denen man sechs findet.
 
+### D-82 · Die oeffentliche Website erscheint deutsch UND englisch
+
+Eine Mandantenentscheidung, keine technische. `CLAUDE.md` schrieb bisher
+"UI-Texte: Deutsch", mit Uebersetzung nur fuer die Arbeiterbildschirme
+(de/en/ar/tr, SPEC §10). Fuer die **oeffentliche** Website gilt ab jetzt:
+Deutsch und Englisch. Das interne Portal bleibt deutsch — die Fachbegriffe
+tragen dort Rechtsbedeutung (VOB, GoBD, UStG, GewO), und sie zu uebersetzen
+verliert Praezision.
+
+**Deutsch behaelt `/`, Englisch bekommt `/en`.** Die deutschen Adressen sind
+im Umlauf und in der Sitemap; ein nachtraegliches `/de` davor waere eine
+Umleitung fuer jede einzelne und eine unnoetige Ansage an die Suchmaschinen,
+die Startseite sei umgezogen.
+
+**Die Datenbank war vorbereitet.** `seite` traegt `sprache` und einen
+eindeutigen Index auf `(pfad, sprache)`; eine englische Seite ist eine eigene
+Zeile mit eigenen `abschnitt`-Zeilen. Keine Migration, keine
+Uebersetzungstabelle daneben. Der Filter `sprache = 'de'` stand an drei
+Stellen im Leseweg und ist dort jetzt ein Argument.
+
+**Der Pfad ist derselbe, nur der Praefix wechselt.** `/en/leistungen`, nicht
+`/en/services`. Ein zweiter Slug waere eine zweite Adresse fuer dieselbe Seite
+— und damit ein zweiter Eintrag in jeder Sitemap, jeder Pruefliste und jedem
+Verweis, der irgendwann auseinanderlaeuft.
+
+### D-83 · Die Formularfelder werden UEBERLAGERT, nicht verdoppelt
+
+`formular_definition` bleibt die eine Quelle: sie bestimmt, welche Felder es
+gibt, welche Pflicht sind, was validiert wird und was in `formular_eingang`
+landet. `src/lib/i18n/formular-en.ts` uebersetzt ausschliesslich, was ein
+Mensch liest.
+
+Zwei Definitionen je Formular waeren zwei Feldlisten, und die zweite liefe der
+ersten hinterher: ein Feld, das jemand deutsch ergaenzt, fehlte englisch — und
+dann validierte die Annahme gegen eine Liste, die der Besucher nie gesehen
+hat. Eine Auflage kann das nicht. `tests/kern/i18n.test.ts` verlangt fuer
+JEDES Feld JEDER Vorlage einen vollstaendigen englischen Eintrag samt jeder
+Auswahloption; ein neues deutsches Feld bricht damit den Build, statt still
+deutsch auszuliefern.
+
+**Die Optionswerte werden nie uebersetzt.** `buero` bleibt `buero`; nur seine
+Bezeichnung wird englisch. Uebersetzte Werte hiessen, dass in
+`formular_eingang` je nach Sprache etwas anderes steht — und keine Auswertung
+mehr ueber beide ginge.
+
+### D-84 · Impressum und Datenschutz gelten auf Deutsch
+
+§5 TMG und DSGVO Art. 13 verlangen die Pflichtangaben eines deutschen
+Anbieters auf Deutsch. Die englische Fassung ist eine Lesehilfe, und sie sagt
+das auch: der Fussbereich der englischen Seiten traegt den Satz, dass die
+deutsche Fassung die rechtsverbindliche ist. Ihn wegzulassen hiesse, die
+Uebersetzung als geltende Fassung auszugeben — bei einer Pflichtangabe kein
+Schoenheitsfehler.
+
+Die Barrierefreiheitserklaerung gibt es aus demselben Grund in beiden
+Sprachen, aus EINER Komponente mit zwei Textsaetzen: zwei Komponenten
+nebeneinander bekaemen den naechsten Absatz nur einmal, und dann sagte die
+englische Erklaerung etwas anderes als die deutsche.
+
+### D-85 · `<html lang>` kommt aus der Middleware
+
+Ein Wurzel-Layout kennt in Next.js den Pfad nicht — es bekommt `children` und
+sonst nichts. Ohne Umweg traegt eine englische Seite `lang="de-DE"`, und ein
+Screenreader liest englischen Text mit deutscher Aussprache vor: WCAG 3.1.1,
+und BFSG gilt fuer dieses Angebot.
+
+`src/middleware.ts` setzt deshalb zwei ANFRAGE-Koepfe — die Sprache und den
+Pfad ohne Praefix. Das Wurzel-Layout liest den ersten fuer `<html lang>`, die
+oeffentliche Huelle den zweiten, damit die Sprachwahl auf DIESELBE Seite
+zeigt und nicht auf die Startseite. Wer beim Sprachwechsel seinen Platz
+verliert, wechselt kein zweites Mal.
+
+Preis: das Wurzel-Layout liest `headers()` und ist damit dynamisch. Die
+oeffentlichen Seiten waren es ohnehin (PUB-07); die zwei statischen
+Dev-Flaechen verlieren ihr Vorrendern. Ein falsches `lang` ist der teurere
+Fehler.
+
 ---
 
 ## Carried over from the Phase 0 review — not client questions
