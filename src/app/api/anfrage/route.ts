@@ -11,6 +11,8 @@ import { bestaetige } from '@/server/services/lead/bestaetigung';
 import { pruefeUpload } from '@/server/storage/mime';
 import { ladeHoch } from '@/server/services/dokument/upload';
 import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter';
+import { API_TEXTE } from '@/lib/i18n/texte';
+import { SPRACHEN, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 
 /**
  * `POST /api/anfrage` — die oeffentliche Angebotsanfrage (REQ-01 … REQ-07).
@@ -40,18 +42,38 @@ function fehlerAntwort(status: number, meldung: string,
   return NextResponse.json({ ok: false, meldung, felder }, { status });
 }
 
+/**
+ * Die Sprache, in der geantwortet wird — aus dem Formular, nicht geraten.
+ *
+ * Sie reist als verstecktes Feld mit, weil eine Antwort in der falschen
+ * Sprache genau dort verloren geht, wo jemand etwas kaufen wollte. `Accept-
+ * Language` waere die falsche Quelle: sie sagt, was der Browser eingestellt
+ * hat, nicht welche Seite der Besucher gerade vor sich hatte — und wer die
+ * englische Fassung bewusst geoeffnet hat, will auch die englische Antwort.
+ *
+ * Ein unbekannter Wert faellt auf Deutsch zurueck und nicht auf einen Fehler:
+ * die Anfrage soll ankommen.
+ */
+function spracheAus(formData: FormData): Sprache {
+  const roh = String(formData.get('sprache') ?? '');
+  return (SPRACHEN as readonly string[]).includes(roh) ? (roh as Sprache) : VORGABE_SPRACHE;
+}
+
 export async function POST(anfrage: Request): Promise<NextResponse> {
   let formData: FormData;
   try {
     formData = await anfrage.formData();
   } catch {
-    return fehlerAntwort(400, 'Die Anfrage konnte nicht gelesen werden.');
+    // Hier ist die Sprache noch unbekannt — der Koerper liess sich ja nicht
+    // lesen. Die Vorgabe ist die einzige ehrliche Wahl.
+    return fehlerAntwort(400, API_TEXTE[VORGABE_SPRACHE].unlesbar);
   }
+  const t = API_TEXTE[spracheAus(formData)];
 
   const bereich = String(formData.get('bereich') ?? '');
   const schluessel = formularSchluessel(bereich);
   if (schluessel === undefined) {
-    return fehlerAntwort(404, 'Für diesen Bereich gibt es kein Anfrageformular.');
+    return fehlerAntwort(404, t.keinFormular);
   }
 
   // 1 — Honigtopf. VOR jeder Datenbankberührung: ein Bot soll nicht einmal
@@ -59,18 +81,18 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
   if (istBot(formData.get('website') as string | null ?? undefined)) {
     // Dieselbe Antwort wie bei Erfolg. Wer erfährt, dass er erkannt wurde,
     // probiert das nächste Feld.
-    return NextResponse.json({ ok: true, meldung: 'Vielen Dank für Ihre Anfrage.' });
+    return NextResponse.json({ ok: true, meldung: t.dank });
   }
 
   const [formular] = await withOeffentlichLesen(schluessel);
   if (formular === undefined) {
-    return fehlerAntwort(404, 'Für diesen Bereich gibt es kein Anfrageformular.');
+    return fehlerAntwort(404, t.keinFormular);
   }
 
   const felderGeprueft = Felder.safeParse(formular.felder);
   if (!felderGeprueft.success) {
     // Eine kaputte Definition ist ein Fehler DES BETREIBERS, kein Eingabefehler.
-    return fehlerAntwort(500, 'Das Formular ist derzeit nicht verfügbar.');
+    return fehlerAntwort(500, t.nichtVerfuegbar);
   }
   const felder = felderGeprueft.data;
 
@@ -103,18 +125,18 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
     const roh = formData.get(f.schluessel);
     if (!(roh instanceof File) || roh.size === 0) continue;
     if (roh.size > f.maxBytes) {
-      return fehlerAntwort(413, 'Die Datei ist zu gross.', { [f.schluessel]: f.fehlermeldung });
+      return fehlerAntwort(413, t.dateiZuGross, { [f.schluessel]: f.fehlermeldung });
     }
     const bytes = new Uint8Array(await roh.arrayBuffer());
     try {
       const { mime } = pruefeUpload(bytes, roh.type);
       if (!f.mime.includes(mime)) {
-        return fehlerAntwort(415, 'Dieser Dateityp ist nicht zugelassen.',
+        return fehlerAntwort(415, t.dateityp,
           { [f.schluessel]: f.fehlermeldung });
       }
       datei = { bytes, name: roh.name, mime };
     } catch {
-      return fehlerAntwort(415, 'Dieser Dateityp ist nicht zugelassen.',
+      return fehlerAntwort(415, t.dateityp,
         { [f.schluessel]: f.fehlermeldung });
     }
   }
@@ -232,7 +254,7 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
 
     return NextResponse.json({
       ok: true,
-      meldung: 'Vielen Dank für Ihre Anfrage.',
+      meldung: t.dank,
       leadnummer: ergebnis.leadnummer,
     });
   } catch (fehler) {
@@ -240,16 +262,12 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
     // Kein simulierter Erfolg: der Speicher ist nicht verbunden, und das steht
     // in der Antwort statt in einem Logfile.
     if (fehler instanceof NichtVerbundenFehler) {
-      return fehlerAntwort(
-        503,
-        'Der Datei-Upload ist derzeit nicht verfügbar. Bitte senden Sie die Anfrage '
-        + 'ohne Leistungsverzeichnis — wir melden uns und holen die Datei nach.',
-      );
+      return fehlerAntwort(503, t.uploadNichtVerbunden);
     }
     if (fehler instanceof FormularFehler) {
       return fehlerAntwort(400, fehler.message, fehler.felder);
     }
-    return fehlerAntwort(500, 'Die Anfrage konnte nicht gespeichert werden.');
+    return fehlerAntwort(500, t.nichtGespeichert);
   }
 }
 

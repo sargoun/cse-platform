@@ -129,13 +129,28 @@ async function main(): Promise<void> {
     bau: 'Hochbau, Ausbau, Rückbau',
     operations: 'Digitale Abläufe, Auswertung und Gruppensteuerung',
   };
+  /**
+   * Dasselbe Gewerk auf Englisch — eine ZEILE je Sprache (D-82, 0019).
+   *
+   * Es ist eine Uebersetzung und keine zweite Aussage: was hier steht und in
+   * `GEWERK` nicht, hat niemand geprueft. `operations` bleibt bewusst so
+   * nuechtern wie deutsch.
+   */
+  const TRADE: Readonly<Record<string, string>> = {
+    reinigung: 'Building cleaning',
+    security: 'Security and premises protection services',
+    bau: 'Structural work, fit-out, demolition',
+    operations: 'Digital operations, analysis and group management',
+  };
   for (const b of BEREICHE) {
-    await sql`
-      insert into unternehmensprofil (mandant_id, kurzbeschreibung, status)
-      values (${ids.get(b.slug)!}, ${GEWERK[b.slug]!}, 'veroeffentlicht')
-      on conflict (mandant_id) do nothing`;
+    for (const [sprache, text] of [['de', GEWERK[b.slug]!], ['en', TRADE[b.slug]!]] as const) {
+      await sql`
+        insert into unternehmensprofil (mandant_id, sprache, kurzbeschreibung, status)
+        values (${ids.get(b.slug)!}, ${sprache}, ${text}, 'veroeffentlicht')
+        on conflict do nothing`;
+    }
   }
-  process.stdout.write('  4 Unternehmensprofile (Kurztext = Gewerk, Werbetext offen)\n');
+  process.stdout.write('  8 Unternehmensprofile (de + en; Kurztext = Gewerk, Werbetext offen)\n');
 
   // ------------------------------------------------------------ Super-Admin
   /**

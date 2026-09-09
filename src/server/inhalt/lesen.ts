@@ -2,6 +2,7 @@ import 'server-only';
 import type postgres from 'postgres';
 import { db } from '@/server/db/pool';
 import { withOeffentlich } from '@/server/kontext/oeffentlich';
+import { VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 import type { LeseKontext } from '@/server/kontext';
 
 /**
@@ -42,17 +43,33 @@ export interface BereichZeile {
  * steht trotzdem hier — eine abgewickelte Gesellschaft gehoert nicht in die
  * Navigation, auch wenn die Policy sie durchliesse.
  */
-export async function bereicheLesen(kontext: LeseKontext): Promise<readonly BereichZeile[]> {
+export async function bereicheLesen(
+  kontext: LeseKontext, sprache: Sprache = VORGABE_SPRACHE,
+): Promise<readonly BereichZeile[]> {
+  /**
+   * Der Kurztext in der Sprache der Seite — mit Rueckfall auf Deutsch.
+   *
+   * **Der Rueckfall ist Absicht und keine Nachlaessigkeit.** Fehlt die
+   * englische Zeile, ist der deutsche Satz die schlechtere von zwei
+   * Auskuenften; eine LEERE Karte waere die schlechteste: sie liest sich wie
+   * "ueber diese Gesellschaft gibt es nichts zu sagen". `unternehmensprofil`
+   * traegt seit 0019 eine `sprache`, genau wie `seite` — eine Zeile je
+   * Sprache, kein Spaltenpaar.
+   */
   return kontext.abfrage<BereichZeile>(
     `select m.id, m.slug, m.name, m.firma, m.strasse, m.plz, m.ort, m.land,
             m.telefon, m.email,
-            p.kurzbeschreibung
+            coalesce(p.kurzbeschreibung, d.kurzbeschreibung) as kurzbeschreibung
        from mandant m
        left join unternehmensprofil p
-              on p.mandant_id = m.id
+              on p.mandant_id = m.id and p.sprache = $1
              and p.status = 'veroeffentlicht' and p.geloescht_am is null
+       left join unternehmensprofil d
+              on d.mandant_id = m.id and d.sprache = 'de'
+             and d.status = 'veroeffentlicht' and d.geloescht_am is null
       where m.archiviert_am is null
       order by m.sortierung, m.slug`,
+    [sprache],
   );
 }
 

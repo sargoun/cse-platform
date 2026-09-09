@@ -17,6 +17,15 @@ export default defineConfig({
   resolve: {
     alias: {
       'server-only': fileURLToPath(new URL('./tests/stubs/server-only.ts', import.meta.url)),
+      /**
+       * Derselbe `@/`-Alias wie in `tsconfig.json`.
+       *
+       * Ohne ihn liess sich jedes Modul, das ihn benutzt, aus einem Test gar
+       * nicht importieren — und die Antwort darauf war bisher, den Test um das
+       * Modul herum zu schreiben. Das prueft dann eine Kopie der Abfrage statt
+       * der Abfrage.
+       */
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
   test: {

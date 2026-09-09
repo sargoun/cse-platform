@@ -176,6 +176,14 @@ export interface AnfrageTexte {
   readonly absenden: string;
   readonly honigtopf: string;
   readonly pflichtHinweis: string;
+  /**
+   * Der leere Eintrag einer Auswahl.
+   *
+   * Er stand fest verdrahtet in `Feld` — deutsch, auch in der englischen
+   * Fassung. Die OPTIONEN bleiben unuebersetzt-wertig (D-83): uebersetzt wird
+   * ihr Label, nie ihr `wert`, denn der reist in die Datenbank.
+   */
+  readonly bitteWaehlen: string;
 }
 
 export const ANFRAGE_TEXTE: Readonly<Record<Sprache, AnfrageTexte>> = {
@@ -183,11 +191,13 @@ export const ANFRAGE_TEXTE: Readonly<Record<Sprache, AnfrageTexte>> = {
     absenden: 'Anfrage senden',
     honigtopf: 'Website (bitte leer lassen)',
     pflichtHinweis: 'Pflichtfeld',
+    bitteWaehlen: 'Bitte wählen',
   },
   en: {
     absenden: 'Send enquiry',
     honigtopf: 'Website (please leave empty)',
     pflichtHinweis: 'Required',
+    bitteWaehlen: 'Please choose',
   },
 };
 
@@ -207,6 +217,8 @@ export interface ApiTexte {
   readonly dateiZuGross: string;
   readonly dateityp: string;
   readonly nichtGespeichert: string;
+  /** Kein simulierter Erfolg: der Speicher ist nicht verbunden, und das steht da. */
+  readonly uploadNichtVerbunden: string;
 }
 
 export const API_TEXTE: Readonly<Record<Sprache, ApiTexte>> = {
@@ -218,6 +230,9 @@ export const API_TEXTE: Readonly<Record<Sprache, ApiTexte>> = {
     dateiZuGross: 'Die Datei ist zu gross.',
     dateityp: 'Dieser Dateityp ist nicht zugelassen.',
     nichtGespeichert: 'Die Anfrage konnte nicht gespeichert werden.',
+    uploadNichtVerbunden:
+      'Der Datei-Upload ist derzeit nicht verfügbar. Bitte senden Sie die Anfrage '
+      + 'ohne Leistungsverzeichnis — wir melden uns und holen die Datei nach.',
   },
   en: {
     unlesbar: 'The request could not be read.',
@@ -227,6 +242,9 @@ export const API_TEXTE: Readonly<Record<Sprache, ApiTexte>> = {
     dateiZuGross: 'The file is too large.',
     dateityp: 'This file type is not permitted.',
     nichtGespeichert: 'The enquiry could not be saved.',
+    uploadNichtVerbunden:
+      'File upload is currently unavailable. Please send the enquiry without the bill '
+      + 'of quantities — we will get in touch and collect the file afterwards.',
   },
 };
 

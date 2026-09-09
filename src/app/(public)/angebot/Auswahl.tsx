@@ -21,7 +21,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 export async function Angebotsauswahl(
   { sprache = VORGABE_SPRACHE }: { readonly sprache?: Sprache } = {},
 ) {
-  const bereiche = await oeffentlichLesen(bereicheLesen);
+  const bereiche = await oeffentlichLesen((k) => bereicheLesen(k, sprache));
   const mitFormular = bereiche.filter(
     (b) => FORMULAR_SCHLUESSEL[b.slug] !== undefined,
   );

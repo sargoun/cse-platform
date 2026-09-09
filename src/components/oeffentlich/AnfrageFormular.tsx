@@ -28,7 +28,11 @@ export interface AnfrageFormularProps {
   readonly meldung?: string | undefined;
 }
 
-function Feld({ f, fehler }: { readonly f: FormularFeld; readonly fehler?: string | undefined }) {
+function Feld({ f, fehler, t }: {
+  readonly f: FormularFeld;
+  readonly fehler?: string | undefined;
+  readonly t: (typeof ANFRAGE_TEXTE)[Sprache];
+}) {
   const id = `f_${f.schluessel}`;
   const hilfeId = f.hilfetext === undefined ? undefined : `${id}_hilfe`;
   const fehlerId = fehler === undefined ? undefined : `${id}_fehler`;
@@ -56,7 +60,9 @@ function Feld({ f, fehler }: { readonly f: FormularFeld; readonly fehler?: strin
       {f.typ === 'textarea' && <textarea {...gemeinsam} rows={5} maxLength={f.maxLaenge} />}
       {f.typ === 'auswahl' && (
         <select {...gemeinsam}>
-          <option value="">Bitte wählen</option>
+          {/* Die AUSWAHL ist uebersetzt, die WERTE sind es nie (D-83): der
+              Wert reist in die Datenbank und ist Teil der Definition. */}
+          <option value="">{t.bitteWaehlen}</option>
           {f.optionen.map((o) => <option key={o.wert} value={o.wert}>{o.label}</option>)}
         </select>
       )}
@@ -124,6 +130,16 @@ export function AnfrageFormular(
         noValidate
       >
         <input type="hidden" name="bereich" value={bereich} />
+        {/**
+          * Die Sprache reist MIT.
+          *
+          * Ohne sie antwortete `/api/anfrage` auf ein englisches Formular
+          * deutsch — an genau der Stelle, an der jemand etwas kaufen wollte.
+          * Nicht aus `Accept-Language`: der Header sagt, was der Browser
+          * eingestellt hat, nicht welche Fassung der Seite der Besucher
+          * bewusst geoeffnet hat.
+          */}
+        <input type="hidden" name="sprache" value={sprache} />
 
         {/**
           * Der Honigtopf.
@@ -159,7 +175,9 @@ export function AnfrageFormular(
           />
         </div>
 
-        {sortiert.map((f) => <Feld key={f.schluessel} f={f} fehler={fehler?.[f.schluessel]} />)}
+        {sortiert.map((f) => (
+          <Feld key={f.schluessel} f={f} fehler={fehler?.[f.schluessel]} t={t} />
+        ))}
 
         <button
           type="submit"

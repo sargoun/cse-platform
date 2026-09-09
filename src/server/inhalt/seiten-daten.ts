@@ -58,7 +58,7 @@ export async function seitenDaten(
       { unsafe: (s, w) => kontext.abfrage(s, w) }, pfad, sprache,
     );
     if (seite === null) return null;
-    const bereiche = await bereicheLesen(kontext);
+    const bereiche = await bereicheLesen(kontext, sprache);
     const gruppeName = await einstellungLesen(kontext, 'website.gruppenname');
     const gruppeNap = await einstellungLesen(kontext, 'website.rechtstraeger');
     return { seite, bereiche, gruppeName, gruppeNap };

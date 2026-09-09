@@ -26,7 +26,7 @@ export default async function OeffentlichesLayout({ children }: { children: Reac
   const pfad = kopf.get(KOPF_PFAD) ?? '/';
 
   const { zeilen, name } = await oeffentlichLesen(async (kontext) => ({
-    zeilen: await bereicheLesen(kontext),
+    zeilen: await bereicheLesen(kontext, sprache),
     name: await einstellungLesen(kontext, 'website.gruppenname'),
   }));
   return (
