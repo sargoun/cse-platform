@@ -245,3 +245,32 @@ export function uebersetzeFelder<T extends {
 export function uebersetzeTitel(formularSchluessel: string, titel: string): string {
   return FORMULAR_EN[formularSchluessel]?.titel ?? titel;
 }
+
+/**
+ * Die Feldmeldungen einer abgewiesenen Anfrage — in der Sprache des Formulars.
+ *
+ * Die Validierung laeuft gegen `formular_definition` (D-83), und die ist
+ * deutsch. Ein englisches Formular bekam deshalb englische Beschriftungen und
+ * daneben deutsche Fehlermeldungen: "Please enter the area in square metres."
+ * beim Ausfuellen, "Bitte geben Sie an, um wie viele Objekte es geht." beim
+ * Absenden. Dieselbe Auflage, die die Beschriftung liefert, liefert hier die
+ * Meldung — es entsteht keine zweite Validierung, nur eine zweite Anzeige
+ * derselben.
+ *
+ * Ein Schluessel ohne Eintrag behaelt die deutsche Meldung. Das ist die
+ * schlechtere von zwei Auskuenften und immer noch besser als keine — und
+ * `tests/kern/i18n.test.ts` laesst ihn ohnehin nicht durch.
+ */
+export function uebersetzeFeldmeldungen(
+  formularSchluessel: string, felder: Readonly<Record<string, string>>,
+): Readonly<Record<string, string>> {
+  const vorlage = FORMULAR_EN[formularSchluessel];
+  if (vorlage === undefined) return felder;
+  return Object.fromEntries(
+    Object.entries(felder).map(
+      ([schluessel, meldung]) =>
+        [schluessel, vorlage.felder[schluessel]?.fehlermeldung ?? meldung],
+    ),
+  );
+}
+

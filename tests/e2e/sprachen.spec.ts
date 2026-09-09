@@ -144,6 +144,7 @@ test.describe('(5) das englische Formular ist englisch — Felder wie Knopf', ()
 
     await page.selectOption('#f_gebaeudetyp', 'buero');
     await page.fill('#f_flaeche_qm', '250');
+    await page.fill('#f_anzahl_objekte', '2');
     await page.selectOption('#f_frequenz', 'woechentlich');
     await page.fill('#f_wunsch_start', '2026-10-01');
     await page.fill('#f_firma', `EN Test ${String(Date.now())}`);
@@ -163,6 +164,37 @@ test.describe('(5) das englische Formular ist englisch — Felder wie Knopf', ()
     expect(text).toContain('Thank you for your enquiry.');
     // Und ausdruecklich NICHT die deutsche Fassung.
     expect(text).not.toContain('Vielen Dank');
+  });
+
+  test('auch eine ABWEISUNG ist englisch — bis in die Feldmeldung', async ({ page }) => {
+    /**
+     * Die Validierung laeuft gegen `formular_definition`, und die ist deutsch
+     * (D-83). Ohne Uebersetzung der ANZEIGE bekam ein englisches Formular
+     * englische Beschriftungen und daneben deutsche Fehler — genau der
+     * Zustand, den der erste Lauf dieses Tests zutage gefoerdert hat.
+     */
+    await page.goto('/en/angebot/reinigung');
+    // Absichtlich unvollstaendig: nur das Pflichtfeld `anzahl_objekte` fehlt.
+    await page.selectOption('#f_gebaeudetyp', 'buero');
+    await page.fill('#f_flaeche_qm', '250');
+    await page.selectOption('#f_frequenz', 'woechentlich');
+    await page.fill('#f_wunsch_start', '2026-10-01');
+    await page.fill('#f_firma', `EN Fehler ${String(Date.now())}`);
+    await page.fill('#f_name', 'A. Sample');
+    await page.fill('#f_email', 'a@sample.test');
+    await page.fill('#f_telefon', '+49 30 5550102');
+    await page.check('#f_datenschutz_hinweis');
+
+    const [antwort] = await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().endsWith('/api/anfrage') && r.request().method() === 'POST',
+      ),
+      page.click('button[type="submit"]'),
+    ]);
+    expect(antwort.status()).toBe(400);
+    const koerper = await antwort.json() as { felder: Record<string, string> };
+    expect(koerper.felder['anzahl_objekte'])
+      .toBe('Please tell us how many properties this concerns.');
   });
 });
 

@@ -12,6 +12,7 @@ import { pruefeUpload } from '@/server/storage/mime';
 import { ladeHoch } from '@/server/services/dokument/upload';
 import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter';
 import { API_TEXTE } from '@/lib/i18n/texte';
+import { uebersetzeFeldmeldungen } from '@/lib/i18n/formular-en';
 import { SPRACHEN, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 
 /**
@@ -68,7 +69,8 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
     // lesen. Die Vorgabe ist die einzige ehrliche Wahl.
     return fehlerAntwort(400, API_TEXTE[VORGABE_SPRACHE].unlesbar);
   }
-  const t = API_TEXTE[spracheAus(formData)];
+  const sprache = spracheAus(formData);
+  const t = API_TEXTE[sprache];
 
   const bereich = String(formData.get('bereich') ?? '');
   const schluessel = formularSchluessel(bereich);
@@ -270,7 +272,18 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
       return fehlerAntwort(503, t.uploadNichtVerbunden);
     }
     if (fehler instanceof FormularFehler) {
-      return fehlerAntwort(400, fehler.message, fehler.felder);
+      /**
+       * Die Feldmeldungen kommen aus `formular_definition` und sind deutsch
+       * (D-83 — die Definition bleibt die eine Quelle der Validierung). Ein
+       * englisches Formular bekam deshalb englische Beschriftungen und
+       * daneben deutsche Fehler. Uebersetzt wird die ANZEIGE, aus derselben
+       * Auflage, die die Beschriftungen liefert — es entsteht keine zweite
+       * Validierung.
+       */
+      const felder = sprache === 'de'
+        ? fehler.felder
+        : uebersetzeFeldmeldungen(schluessel, fehler.felder);
+      return fehlerAntwort(400, fehler.message, felder);
     }
     return fehlerAntwort(500, t.nichtGespeichert);
   }
