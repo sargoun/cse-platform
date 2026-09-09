@@ -1206,6 +1206,69 @@ INSERT-Policy fuer `cse_app` unter `crm.kommunikation_versenden`. Sie ist keine
 Erlaubnis zu senden; `agent/policy.ts` entscheidet weiterhin, und die Zeile
 bezeugt nur, dass entschieden wurde.
 
+### D-77 · Eine Kennzahl entsteht im Register oder gar nicht
+
+`registriereKachel()` nimmt eine Kachel nur an, wenn sie vollstaendig ist:
+Schluessel, Label, Modul, **Recht**, Zaehlabfrage, Zeilenabfrage und ein
+Linkziel, das mit `/` beginnt. Fehlt eines davon, wirft die Registrierung — und
+weil die Kacheln beim Rendern registriert werden, faellt die Seite und nicht
+erst der Leser auf.
+
+Das klingt nach Zeremonie fuer sieben Zahlen. Es ist die Alternative zu einer
+Kachel, die in einer JSX-Datei entsteht: die haette eine Zahl und kein Recht,
+und sie wuerde jedem angezeigt, der die Seite oeffnet.
+
+### D-78 · Eine Kachel ohne Modul ist ABWESEND, nicht null
+
+Es waere leicht, heute schon "Offene Rechnungen" zu registrieren; die Abfrage
+ist zwei Zeilen und die Antwort ist `0`. Aber `0` heisst in einer Uebersicht
+"es gibt keine", nicht "das Modul kommt in Phase 6". Wer die beiden
+verwechselt, plant auf einer Zahl, die es nicht gibt.
+
+Das Register waechst deshalb **mit** den Modulen und nicht vor ihnen. Jeder
+spaetere PR registriert seine eigenen Kacheln.
+
+### D-79 · Zahl und Zeilen stammen aus einem Praedikat und einem Schnappschuss
+
+DSH-04 verlangt, dass eine Kennzahl zu den Zeilen fuehrt, die sie zaehlt. Zwei
+Mechanismen sichern das, und beide sind noetig:
+
+1. **Ein Praedikat.** `zaehlung` und `zeilen` derselben Kachel tragen dieselbe
+   `where`-Bedingung, und die generische Kennzahlseite rendert genau `zeilen`.
+   Zwei getrennt gepflegte Abfragen liefen frueher oder spaeter auseinander —
+   und zwar unbemerkt, weil beide plausibel aussaehen.
+2. **Ein Schnappschuss.** Beide laufen in einer Transaktion mit
+   `isolation level repeatable read` (`SCHNAPPSCHUSS` in `server/db/pool.ts`).
+   Unter dem Vorgabewert `read committed` sieht die zweite Abfrage einen
+   neueren Stand als die erste: eine Anfrage, die zwischen `count` und
+   `select` eintrifft, macht aus 14 und 14 ein 14 und 15. Selten,
+   unreproduzierbar — und genau die Art Abweichung, nach der niemand der Zahl
+   mehr glaubt.
+
+### D-80 · Der Bereichsfilter ist ein Argument und steht in der URL
+
+Jede Kachelabfrage nimmt `$1 = mandant_ids::uuid[]`; der Filter setzt dieses
+eine Argument fuer alle. Waere er je Kachel gebaut, zeigte nach einem Wechsel
+die eine den neuen Bereich und die andere noch den alten — beide plausibel.
+
+Dass er in der URL steht und nicht im Zustand der Seite, macht eine gefilterte
+Uebersicht zitierbar: ein Link in einer Mail zeigt dem Empfaenger dasselbe.
+Der aktive Mandant der **Sitzung** bleibt davon unberuehrt (Invariante 3) — die
+URL waehlt hier nur aus, was die Sitzung ohnehin sehen darf, und die
+Isolationssuite prueft das gegen einen erfundenen Bereichsparameter.
+
+### D-81 · Die Dashboards liegen vorerst unter `/dev`
+
+Es gibt noch keine Anmeldung (PR 20). Ein Dashboard braucht aber einen
+Benutzer, sonst prueft es seine Rechte gegen niemanden. `withDevAdmin()`
+bindet deshalb den Seed-Super-Admin — und wirft, wenn `CSE_DEV_FLAECHEN`
+nicht gesetzt ist, sodass ein Deployment eine 404 ausliefert und keinen
+Zugang.
+
+Der Pfad, auf den eine Kachel zeigt, entsteht an **einer** Stelle
+(`kennzahlPfad()`). Wenn die angemeldete Portal-Shell da ist, aendert sich
+diese Funktion — nicht sieben Kacheln, von denen man sechs findet.
+
 ---
 
 ## Carried over from the Phase 0 review — not client questions
