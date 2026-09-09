@@ -200,18 +200,22 @@ describe('withDevAdmin — der Kontext der Entwicklungsflaechen', () => {
    * Deployment aus", und ein Deployment ist `NODE_ENV=production`.
    */
   async function mitSchalter<T>(an: boolean, fn: () => Promise<T>): Promise<T> {
-    const flagge = process.env['CSE_DEV_FLAECHEN'];
-    const modus = process.env['NODE_ENV'];
-    if (an) process.env['CSE_DEV_FLAECHEN'] = '1';
+    // `process.env.NODE_ENV` ist in den Typen schreibgeschuetzt — zu Recht, im
+    // Anwendungscode. Hier wird die Umgebung fuer die Dauer EINES Tests
+    // gestellt und danach zurueckgesetzt; das ist der Gegenstand der Pruefung.
+    const umgebung = process.env as Record<string, string | undefined>;
+    const flagge = umgebung['CSE_DEV_FLAECHEN'];
+    const modus = umgebung['NODE_ENV'];
+    if (an) umgebung['CSE_DEV_FLAECHEN'] = '1';
     else {
-      delete process.env['CSE_DEV_FLAECHEN'];
-      process.env['NODE_ENV'] = 'production';
+      delete umgebung['CSE_DEV_FLAECHEN'];
+      umgebung['NODE_ENV'] = 'production';
     }
     try { return await fn(); } finally {
-      if (flagge === undefined) delete process.env['CSE_DEV_FLAECHEN'];
-      else process.env['CSE_DEV_FLAECHEN'] = flagge;
-      if (modus === undefined) delete process.env['NODE_ENV'];
-      else process.env['NODE_ENV'] = modus;
+      if (flagge === undefined) delete umgebung['CSE_DEV_FLAECHEN'];
+      else umgebung['CSE_DEV_FLAECHEN'] = flagge;
+      if (modus === undefined) delete umgebung['NODE_ENV'];
+      else umgebung['NODE_ENV'] = modus;
     }
   }
 
