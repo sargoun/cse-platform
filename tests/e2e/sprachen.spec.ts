@@ -22,9 +22,9 @@ test.describe('(1) `<html lang>` folgt der Seite', () => {
   test('auch auf einer Unterseite und im Formular', async ({ page }) => {
     await page.goto('/en/kontakt');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-    await page.goto('/en/anfrage/reinigung');
+    await page.goto('/en/angebot/reinigung');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-    await page.goto('/anfrage/reinigung');
+    await page.goto('/angebot/reinigung');
     await expect(page.locator('html')).toHaveAttribute('lang', 'de-DE');
   });
 });
@@ -107,7 +107,7 @@ test.describe('(4) jede öffentliche Route gibt es auf Englisch', () => {
 
 test.describe('(5) das englische Formular ist englisch — Felder wie Knopf', () => {
   test('Beschriftungen, Auswahlwerte und Absendeknopf', async ({ page }) => {
-    await page.goto('/en/anfrage/reinigung');
+    await page.goto('/en/angebot/reinigung');
     await expect(page.locator('label[for="f_gebaeudetyp"]')).toHaveText(/Type of building/u);
     await expect(page.locator('button[type="submit"]')).toHaveText('Send enquiry');
 
@@ -123,7 +123,7 @@ test.describe('(5) das englische Formular ist englisch — Felder wie Knopf', ()
   });
 
   test('und das deutsche bleibt deutsch', async ({ page }) => {
-    await page.goto('/anfrage/reinigung');
+    await page.goto('/angebot/reinigung');
     await expect(page.locator('label[for="f_gebaeudetyp"]')).toHaveText(/Gebäudetyp/u);
     await expect(page.locator('button[type="submit"]')).toHaveText('Anfrage senden');
   });
@@ -153,7 +153,7 @@ test.describe('(6) die Maschinenflächen kennen beide Sprachen', () => {
 });
 
 test.describe('(7) barrierefrei in beiden Sprachen', () => {
-  for (const pfad of ['/en', '/en/leistungen', '/en/anfrage/reinigung', '/en/barrierefreiheit']) {
+  for (const pfad of ['/en', '/en/leistungen', '/en/angebot/reinigung', '/en/barrierefreiheit']) {
     test(`axe: ${pfad}`, async ({ page }) => {
       const antwort = await page.goto(pfad);
       expect(antwort?.status(), pfad).toBe(200);

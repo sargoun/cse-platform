@@ -9,12 +9,15 @@
  */
 import { describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
+import { readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import {
   ROUTEN, familie, findeRoute, leserechte, routeMitPfad, routenIn, routenMitScope,
 } from '../../src/server/registry/routen.js';
 import { SCOPES, pfadeAus, zerlegeBewachung } from '../../scripts/seitenkarte/extrahiere.js';
 import { KATALOG } from '../../src/server/auth/katalog.generiert.js';
+import { OEFFENTLICHE_ROUTEN } from '../../src/server/services/inhalt/routen.js';
+import { ANGEBOT_PFAD } from '../../src/lib/formular/bereiche.js';
 
 const WURZEL = resolve(import.meta.dirname, '../..');
 
@@ -250,5 +253,147 @@ describe('die erzeugte Datei ist aktuell', () => {
     expect(() => execFileSync(join(WURZEL, 'node_modules/.bin/tsx'),
       [join(WURZEL, 'scripts/seitenkarte/extrahiere.ts'), '--check'],
       { cwd: WURZEL, encoding: 'utf8' })).not.toThrow();
+  });
+});
+
+describe('die gebaute Anwendung und die Karte widersprechen sich nicht', () => {
+  /**
+   * **Die Prüfung, die den Widerspruch gefunden hat.**
+   *
+   * `OEFFENTLICHE_ROUTEN` sagt, welche Adressen die Anwendung WIRKLICH
+   * ausliefert; `routen.generiert.ts` sagt, welche `04-SEITENKARTE.md`
+   * VORSIEHT. Beide sind legitim — die eine ist der Bestand, die andere der
+   * Plan. Nicht legitim ist eine ausgelieferte Adresse, die im Plan anders
+   * heisst: dann zeigt jeder Verweis der Karte ins Leere, und das Routen-Tor,
+   * das gegen den Plan entscheidet, beantwortet die ausgelieferte Adresse mit
+   * `unbekannt` — also 404.
+   *
+   * Genau das war der Fall. PR 16 lieferte die Unternehmensprofile unter
+   * `/reinigung` statt `/unternehmen/[bereich]`, PR 17 das Angebotsformular
+   * unter `/anfrage/[bereich]` statt `/angebot/[bereich]`. Beides fiel
+   * niemandem auf, weil das Tor damals noch nicht existierte und beide
+   * Fassungen für sich funktionierten.
+   */
+
+  /** Die Routenmuster, die der App-Router öffentlich ausliefert. */
+  function geliefertePfade(): readonly string[] {
+    const gefunden: string[] = [];
+    const gehe = (verzeichnis: string, pfad: string): void => {
+      for (const e of readdirSync(verzeichnis, { withFileTypes: true })) {
+        if (!e.isDirectory()) {
+          if (e.name === 'page.tsx') gefunden.push(pfad === '' ? '/' : pfad);
+          continue;
+        }
+        // Routengruppen `(public)` erscheinen nicht in der URL.
+        const naechster = e.name.startsWith('(') && e.name.endsWith(')')
+          ? pfad : `${pfad}/${e.name}`;
+        gehe(join(verzeichnis, e.name), naechster);
+      }
+    };
+    gehe(resolve(WURZEL, 'src/app'), '');
+    return gefunden.filter((p) =>
+      // Entwicklungsflächen (D-81) verschwinden mit PR 20; der englische Zweig
+      // ist dieselbe Route mit Sprachpräfix (D-82).
+      !/^\/dev(\/|$)/u.test(p) && !/^\/en(\/|$)/u.test(p));
+  }
+
+  /** Passt eine Adresse auf ein Muster? `[x]` nimmt genau ein Segment. */
+  function passt(muster: string, adresse: string): boolean {
+    const m = muster.split('/').filter((x) => x !== '');
+    const a = adresse.split('/').filter((x) => x !== '');
+    return m.length === a.length
+      && m.every((seg, i) => /^\[.+\]$/u.test(seg) || seg === a[i]);
+  }
+
+  it('jede ausgelieferte öffentliche Adresse steht so auch in der Karte', () => {
+    expect(OEFFENTLICHE_ROUTEN.length, 'es gibt überhaupt Routen').toBeGreaterThan(10);
+    /**
+     * `findeRoute` und nicht `routeMitPfad`: die Karte führt Muster
+     * (`/unternehmen/[bereich]`), die Anwendung liefert Adressen
+     * (`/unternehmen/reinigung`). Ein Vergleich auf Gleichheit meldete beide
+     * als Widerspruch, obwohl sie dasselbe meinen.
+     */
+    const fehlend = OEFFENTLICHE_ROUTEN
+      .map((r) => r.pfad)
+      .filter((p) => findeRoute(p) === undefined);
+    expect(fehlend).toEqual([]);
+  });
+
+  it('auch das Angebotsformular — es ist der Kanal, auf dem Umsatz ankommt', () => {
+    expect(routeMitPfad(ANGEBOT_PFAD)).toBeDefined();
+    expect(findeRoute('/angebot/reinigung')?.pfad).toBe(ANGEBOT_PFAD);
+  });
+
+  it('und jede Adresse, die die Karte für Phase 2 zusagt, wird ausgeliefert', () => {
+    /**
+     * Die Gegenrichtung. Ohne sie hiesse "kein Widerspruch" auch dann ja, wenn
+     * die Anwendung die halbe Karte nicht ausliefert — und eine Karte, deren
+     * Phase-2-Zeilen 404 geben, ist keine Karte, sondern eine Absicht.
+     */
+    const muster = geliefertePfade();
+    expect(muster.length, 'der Router liefert überhaupt Seiten').toBeGreaterThan(5);
+
+    const versprochen = ROUTEN.filter((r) =>
+      r.phase <= 2 && familie(r.pfad) === 'oeffentlich'
+      && r.bewachung.art !== 'infrastruktur'
+      // Die Maschinenflächen sind `route.ts` und keine Seiten.
+      && !/^\/(robots\.txt|sitemap\.xml|llms\.txt|healthz)$/u.test(r.pfad));
+
+    const offen = versprochen
+      .map((r) => r.pfad)
+      .filter((p) => !muster.some((m) => passt(m, p)))
+      .sort();
+
+    /**
+     * Was hier steht, ist bewusst offen — und steht im Test, nicht in einer
+     * Notiz, die niemand liest. Jede Zeile hängt an einem Modul, das noch
+     * nicht gemergt ist; sie verschwindet, wenn es landet.
+     */
+    /**
+     * **Die Liste ist eingefroren und darf nur SCHRUMPFEN.**
+     *
+     * Sie ist der gemessene Rest von Phase 2 — nicht ein Widerspruch, sondern
+     * Arbeit, die die Karte zusagt und die noch niemand geliefert hat. Sie
+     * steht hier und nicht in einer Notiz, weil eine Notiz nicht fällt, wenn
+     * jemand eine achtzehnte Zeile hinzufügt.
+     */
+    expect(offen).toEqual([
+      // §2.3 — die Danke-Seite. Die Annahme antwortet heute JSON (PR 17);
+      // eine eigene Seite ist der Weg für ein Formular ohne JavaScript.
+      '/angebot/[bereich]/danke',
+
+      /**
+       * §2.4 — die drei öffentlichen PFLICHTWEGE. Sie wiegen schwerer als
+       * alles andere in dieser Liste: Art. 15–21 DSGVO verlangt einen Weg für
+       * Auskunft und Löschung, und BFSG verlangt einen Meldeweg für Barrieren.
+       * Die Barrierefreiheitserklärung nennt heute eine E-Mail-Adresse — das
+       * erfüllt den Meldeweg, das Formular wäre der bessere.
+       */
+      '/barrierefreiheit/feedback',
+      '/datenschutz/anfrage',
+      '/datenschutz/anfrage/danke',
+
+      // Detailseiten, deren Modul noch nicht gemergt ist (Phase 4 bis 9).
+      '/leistungen/[slug]',
+      '/news/[slug]',
+      '/projekte/[slug]',
+
+      /**
+       * §2.2 — die tiefen Profilseiten. PR 16 lieferte je Gesellschaft EINE
+       * Profilseite; die Karte sieht neun vor. Sie hängen an Modulen, die es
+       * noch nicht gibt: Galerie und Beiträge an `medien` und `social_post`,
+       * Projekte an `referenz` mit Kundenfreigabe (PRO-05).
+       */
+      '/unternehmen/[bereich]/beitraege',
+      '/unternehmen/[bereich]/beitraege/[slug]',
+      '/unternehmen/[bereich]/galerie',
+      '/unternehmen/[bereich]/kontakt',
+      '/unternehmen/[bereich]/leistungen',
+      '/unternehmen/[bereich]/news',
+      '/unternehmen/[bereich]/news/[slug]',
+      '/unternehmen/[bereich]/projekte',
+      '/unternehmen/[bereich]/projekte/[slug]',
+      '/unternehmen/[bereich]/unternehmensdaten',
+    ].sort());
   });
 });

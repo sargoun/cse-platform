@@ -71,7 +71,7 @@ export async function seitenDaten(
   const quellen = bereiche.map(alsBereichsQuelle);
   const jsonLd: Record<string, unknown>[] = [];
 
-  const eigener = quellen.find((q) => `/${q.slug}` === pfad);
+  const eigener = quellen.find((q) => `/unternehmen/${q.slug}` === pfad);
   if (eigener === undefined) {
     // Gruppenseite. Auf der Startseite steht die Organisation, sonst nur die
     // Brotkrume — `Organization` auf jeder Unterseite zu wiederholen sagt der

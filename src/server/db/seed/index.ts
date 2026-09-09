@@ -439,6 +439,58 @@ async function main(): Promise<void> {
     }
   }
 
+  // ------------------------------------------------ Ein Konto je Rolle (PR 19)
+  /**
+   * Vier Menschen, vier Rollen — damit die Rollenprobe echte Sitzungen hat.
+   *
+   * **Warum echte Zeilen und keine Testfixtures.** Die Phase-3-Zusage lautet:
+   * "ein Mitarbeiterkonto erreicht nichts ausser seinen eigenen Daten,
+   * bewiesen durch einen Test". Ein Test, der sich seine Rollen selbst baut,
+   * prueft die Rollen, die ER baut. Diese hier sind die Zeilen, die der
+   * geseedete Bestand ausliefert — und `benutzer_mandant.rolle_id` bestimmt,
+   * was `app.hat_recht` beantwortet und in welches Portal `sitzung_aufloesen`
+   * schickt.
+   *
+   * Der `mitarbeiter` haengt an FATIMA, dem D-09-Fall: ein Mensch, zwei
+   * Gesellschaften. Ihr Portal muss beide Beschaeftigungen zeigen und trotzdem
+   * keine fremde Zeile — das ist genau die Aussage, die sonst niemand prueft.
+   */
+  const rollenIds = new Map<string, string>();
+  for (const r of await sql<{ id: string; schluessel: string }[]>`
+    select id, schluessel from rolle where mandant_id is null and archiviert_am is null`) {
+    rollenIds.set(r.schluessel, r.id);
+  }
+
+  const konten: readonly (readonly [string, string, string, string, number | null])[] = [
+    ['admin.reinigung@cse-gruppe.de', 'Administration Reinigung', 'admin', 'reinigung', null],
+    ['leitung.bau@cse-gruppe.de', 'Leitung Bau', 'leitung', 'bau', null],
+    // Fatima: `mitarbeiter` in Reinigung UND Security (D-09).
+    ['fatima.yildiz@cse-gruppe.de', 'Fatima Yildiz', 'mitarbeiter', 'reinigung', 0],
+    ['kunde.demo@example.test', 'Kundenzugang (Demo)', 'kunde', 'reinigung', null],
+  ];
+
+  for (const [email, name, rolle, bereich, personIndex] of konten) {
+    const id = await authBenutzer(email);
+    const personId = personIndex === null ? null : personIds[personIndex] ?? null;
+    await sql`
+      insert into benutzer (id, email, name, person_id, status)
+      values (${id}, ${email}, ${name}, ${personId}, 'aktiv')
+      on conflict (id) do update
+        set status = 'aktiv', person_id = excluded.person_id`;
+    await sql`
+      insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, ist_standard)
+      values (${id}, ${ids.get(bereich)!}, ${rollenIds.get(rolle)!}, true)
+      on conflict do nothing`;
+    // Fatima ist in zwei Gesellschaften beschaeftigt, also auch dort Benutzerin.
+    if (rolle === 'mitarbeiter') {
+      await sql`
+        insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id)
+        values (${id}, ${ids.get('security')!}, ${rollenIds.get('mitarbeiter')!})
+        on conflict do nothing`;
+    }
+  }
+  process.stdout.write(`  ${konten.length} Rollenkonten (admin, leitung, mitarbeiter, kunde)\n`);
+
   process.stdout.write('\nSeed fertig.\n');
   process.stdout.write('OFFEN, bevor eine Rechnung entstehen kann:\n');
   process.stdout.write('  • O-134 — Rechnungsnummern-Maske je Gesellschaft bestätigen\n');

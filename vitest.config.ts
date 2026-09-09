@@ -1,6 +1,18 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  /**
+   * `server-only` wirft beim Import ausserhalb einer Server-Umgebung — das
+   * ist sein Zweck. Vitest ist keine, also bekommt es hier einen leeren
+   * Ersatz; sonst liesse sich kein Modul prüfen, das die Zusicherung trägt,
+   * und die Zusicherung wegzulassen wäre der falsche Weg herum.
+   */
+  resolve: {
+    alias: {
+      'server-only': fileURLToPath(new URL('./tests/stubs/server-only.ts', import.meta.url)),
+    },
+  },
   test: {
     include: ['tests/**/*.test.ts'],
     // The isolation suite needs a live Postgres and its own sequential

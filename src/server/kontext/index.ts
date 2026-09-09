@@ -13,7 +13,8 @@
  * `WITH CHECK`, und ein direkter POST landet auf `KeinAktiverMandantFehler`.
  * Ein Typ schützt den Code, den wir schreiben; die Datenbank schützt den Rest.
  */
-import { KeinAktiverMandantFehler } from './fehler.js';
+import { KeinAktiverMandantFehler, KeinKundenzugangFehler, KeinePersonFehler }
+  from './fehler.js';
 
 export type Scope = 'mandant' | 'gruppe' | 'person' | 'kunde';
 export type Portal = 'intern' | 'mitarbeiter' | 'kunde';
@@ -150,4 +151,74 @@ export function readOnlyGroupContext(kontext: LeseKontext): LeseKontext {
   return kontext;
 }
 
-export { KeinAktiverMandantFehler };
+/**
+ * Der Personen-Scope (PER, K-18) — das Mitarbeiterportal.
+ *
+ * **Er spannt ueber Mandanten, aber als SUBJEKT.** Fatima arbeitet in zwei
+ * Gesellschaften (D-09); ihr Portal zeigt beide Beschaeftigungen. Das ist
+ * NICHT die Gruppenansicht: die verlangt `gruppe.<modul>.lesen`, ein
+ * Leitungsrecht, das kein `mitarbeiter` haelt. Ueber den Gruppen-Scope
+ * gelesen bliebe das Mitarbeiterportal LEER — kein Fehler, keine Meldung,
+ * nur nichts. Genau dieser Fehler steht in `04-SEITENKARTE.md` §1.3 als
+ * Kategorienfehler mit konkreter Folge.
+ *
+ * **Die sichtbaren Mandanten werden SERVERSEITIG abgeleitet** (K-02), und
+ * zwar von der Datenbank: `app.sichtbare_mandanten()` liest im
+ * Personen-Scope die lebenden `anstellung`-Zeilen dieser Person. Deshalb
+ * bindet diese Funktion zuerst Scope und Person, fragt dann die Menge ab und
+ * setzt sie erst danach — sie kann nicht von aussen gesetzt werden.
+ */
+export async function withPersonScope<T>(
+  tx: Transaktion,
+  sitzung: Sitzung,
+  fn: (kontext: LeseKontext) => Promise<T>,
+): Promise<T> {
+  if (sitzung.personId === null || sitzung.personId === '') throw new KeinePersonFehler();
+
+  const person: Sitzung = {
+    ...sitzung, ansicht: 'person', aktiverMandantId: null, portal: 'mitarbeiter',
+  };
+  // Erst binden — ohne `app.scope` und `app.person_id` antwortet
+  // `sichtbare_mandanten()` mit der leeren Menge.
+  await bindeSitzung(tx, person, true, []);
+  const [zeile] = (await tx.unsafe(
+    `select app.sichtbare_mandanten() as ids`,
+  )) as { ids: readonly string[] | null }[];
+  const mandantIds = zeile?.ids ?? [];
+  await tx.unsafe(`select set_config('app.mandant_ids', $1, true)`, [mandantIds.join(',')]);
+
+  return fn(basis(tx, person, mandantIds));
+}
+
+/**
+ * Der Kunden-Scope (KDN, K-18) — das Kundenportal.
+ *
+ * Er liest ueber `kunde_zugang`, und diese Tabelle entsteht mit dem
+ * CRM-Modul in Phase 4. `app.sichtbare_mandanten()` gibt hier heute `'{}'`
+ * zurueck — fail closed und im Funktionsrumpf ausdruecklich so vermerkt.
+ *
+ * **Deshalb wirft dieser Kontext, statt eine leere Menge zu binden.** Ein
+ * Kundenportal ueber einer leeren Menge zeigte lauter leere Listen, und die
+ * lesen sich wie "dieser Kunde hat keine Auftraege" — nicht wie "dieses
+ * Modul gibt es noch nicht". Wer die beiden verwechselt, ruft beim Kunden an.
+ */
+export async function withKundeScope<T>(
+  tx: Transaktion,
+  sitzung: Sitzung,
+  fn: (kontext: LeseKontext) => Promise<T>,
+): Promise<T> {
+  const kunde: Sitzung = {
+    ...sitzung, ansicht: 'kunde', aktiverMandantId: null, portal: 'kunde',
+  };
+  await bindeSitzung(tx, kunde, true, []);
+  const [zeile] = (await tx.unsafe(
+    `select app.sichtbare_mandanten() as ids`,
+  )) as { ids: readonly string[] | null }[];
+  const mandantIds = zeile?.ids ?? [];
+  if (mandantIds.length === 0) throw new KeinKundenzugangFehler();
+
+  await tx.unsafe(`select set_config('app.mandant_ids', $1, true)`, [mandantIds.join(',')]);
+  return fn(basis(tx, kunde, mandantIds));
+}
+
+export { KeinAktiverMandantFehler, KeinKundenzugangFehler, KeinePersonFehler };

@@ -117,15 +117,15 @@ test.describe('(3) die ausgelieferten JSON-LD-Blöcke halten der Form stand', ()
 
   test.describe('je Bereich ein eigener LocalBusiness mit eigener Identität', () => {
     for (const slug of ['reinigung', 'security', 'bau', 'operations']) {
-      test(`/${slug}`, async ({ page }) => {
-        const gefunden = await bloecke(page, `/${slug}`);
+      test(`/unternehmen/${slug}`, async ({ page }) => {
+        const gefunden = await bloecke(page, `/unternehmen/${slug}`);
         for (const b of gefunden) expect(() => pruefeJsonLd(b)).not.toThrow();
 
         const unternehmen = gefunden.find((b) => b['@type'] === 'LocalBusiness');
         expect(unternehmen, `/${slug} ohne LocalBusiness`).toBeDefined();
         // Vier eigenständige Gesellschaften (D-11) — vier eigene `@id`, sonst
         // konkurrieren sie lokal miteinander.
-        expect(unternehmen!['@id']).toBe(`http://localhost:3000/${slug}#unternehmen`);
+        expect(unternehmen!['@id']).toBe(`http://localhost:3000/unternehmen/${slug}#unternehmen`);
       });
     }
   });
@@ -133,7 +133,7 @@ test.describe('(3) die ausgelieferten JSON-LD-Blöcke halten der Form stand', ()
   test('die vier @id sind VERSCHIEDEN', async ({ page }) => {
     const ids: string[] = [];
     for (const slug of ['reinigung', 'security', 'bau', 'operations']) {
-      const gefunden = await bloecke(page, `/${slug}`);
+      const gefunden = await bloecke(page, `/unternehmen/${slug}`);
       ids.push(String(gefunden.find((b) => b['@type'] === 'LocalBusiness')?.['@id']));
     }
     expect(new Set(ids).size).toBe(4);

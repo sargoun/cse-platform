@@ -18,8 +18,8 @@ export const TITEL_EN: Readonly<Record<string, string>> = {
   '/kontakt': 'Contact',
   '/impressum': 'Legal notice',
   '/datenschutz': 'Privacy',
-  '/reinigung': 'CSE Dienstleistung — building cleaning',
-  '/security': 'SSE Security — security services',
-  '/bau': 'REALTIME Service — structural work, fit-out, demolition',
-  '/operations': 'CSE Operations — digital processes',
+  '/unternehmen/reinigung': 'CSE Dienstleistung — building cleaning',
+  '/unternehmen/security': 'SSE Security — security services',
+  '/unternehmen/bau': 'REALTIME Service — structural work, fit-out, demolition',
+  '/unternehmen/operations': 'CSE Operations — digital processes',
 };

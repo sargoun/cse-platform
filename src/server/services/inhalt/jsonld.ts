@@ -26,7 +26,7 @@ import { localBusinessJsonLd, type NapQuelle } from './nap.js';
 
 /** Der `@id`, auf den `Service.provider` zeigt. Ein Bereich, eine Identitaet. */
 export function localBusinessId(basis: string, slug: string): string {
-  return `${basis}/${slug}#unternehmen`;
+  return `${basis}/unternehmen/${slug}#unternehmen`;
 }
 
 export interface LeistungEintrag {
@@ -81,7 +81,7 @@ export interface BereichsQuelle {
 export function localBusiness(
   bereich: BereichsQuelle, basis: string,
 ): Record<string, unknown> {
-  const url = `${basis}/${bereich.slug}`;
+  const url = `${basis}/unternehmen/${bereich.slug}`;
   return {
     ...localBusinessJsonLd(bereich.mandant, url),
     '@id': localBusinessId(basis, bereich.slug),

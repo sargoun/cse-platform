@@ -56,7 +56,7 @@ describe('Pfade und Sprachen', () => {
   });
 
   it('Hin und zurück ergibt denselben Pfad', () => {
-    for (const p of ['/', '/kontakt', '/reinigung', '/anfrage/bau']) {
+    for (const p of ['/', '/kontakt', '/unternehmen/reinigung', '/angebot/bau']) {
       for (const s of SPRACHEN) {
         expect(zerlegePfad(mitSprache(p, s))).toEqual({ sprache: s, pfad: p });
       }

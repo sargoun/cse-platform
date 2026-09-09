@@ -11,7 +11,7 @@ import { uebersetzeFelder, uebersetzeTitel } from '@/lib/i18n/formular-en';
 import { alternativen, mitSprache, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 
 /**
- * `/anfrage/[bereich]` — das Angebotsanfrage-Formular (REQ-01).
+ * `/angebot/[bereich]` — das Angebotsanfrage-Formular (REQ-01).
  *
  * Die Felder kommen aus der VEROEFFENTLICHTEN Formularversion, gelesen als
  * Renderer. Was die Seite zeigt, ist damit dasselbe, wogegen die Annahme
@@ -38,13 +38,13 @@ async function ladeFormular(bereich: string): Promise<Zeile | null> {
   return zeilen[0] ?? null;
 }
 
-export async function anfrageMetadaten(
+export async function angebotMetadaten(
   bereich: string, sprache: Sprache = VORGABE_SPRACHE,
 ): Promise<Metadata> {
   const formular = await ladeFormular(bereich);
   if (formular === null) return { title: sprache === 'en' ? 'Not found' : 'Nicht gefunden' };
   const basis = await basisAusAnfrage();
-  const pfad = `/anfrage/${bereich}`;
+  const pfad = `/angebot/${bereich}`;
   const schluessel = formularSchluessel(bereich) ?? '';
   return {
     title: sprache === 'en' ? uebersetzeTitel(schluessel, formular.titel) : formular.titel,
@@ -64,7 +64,7 @@ export async function anfrageMetadaten(
  * Feldliste, und die englische Seite kann nicht gegen eine andere pruefen als
  * die, die sie gezeigt hat.
  */
-export async function AnfrageSeiteFuer(
+export async function AngebotSeiteFuer(
   bereich: string, sprache: Sprache = VORGABE_SPRACHE,
 ) {
   const formular = await ladeFormular(bereich);

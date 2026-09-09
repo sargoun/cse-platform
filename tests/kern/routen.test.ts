@@ -9,6 +9,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ROUTEN } from '../../src/server/auth/route-manifest.js';
+import { ANDERS_BEWACHT } from './serveraction-ausnahmen.js';
 
 const WURZEL = resolve(import.meta.dirname, '../..');
 
@@ -103,8 +104,27 @@ describe('(5) jede Route ist im Manifest, und jede im Manifest existiert', () =>
     // die, in der ein `'use server'` in einer Komponentendatei landet.
     const aktionen = alleQuellen(join(WURZEL, 'src'))
       .filter((d) => /^\s*['"]use server['"]/mu.test(readFileSync(d, 'utf8')));
+    expect(aktionen.length, 'es gibt überhaupt Server Actions zu prüfen')
+      .toBeGreaterThan(0);
+
+    const ausnahmen = new Map(ANDERS_BEWACHT.map((a) => [a.datei, a]));
     for (const datei of aktionen) {
-      expect(readFileSync(datei, 'utf8'), relative(WURZEL, datei)).toMatch(/\bauthorize\s*\(/u);
+      const rel = relative(WURZEL, datei);
+      const inhalt = readFileSync(datei, 'utf8');
+      const ausnahme = ausnahmen.get(rel);
+      if (ausnahme === undefined) {
+        expect(inhalt, rel).toMatch(/\bauthorize\s*\(/u);
+        continue;
+      }
+      /**
+       * Eine Ausnahme ist keine Abschaltung. Sie muss ihre Wache NENNEN, und
+       * die Wache muss in der Datei wirklich aufgerufen werden — sonst steht
+       * hier eine Begründung für eine Prüfung, die es nicht gibt.
+       */
+      expect(inhalt, `${rel}: Ausnahme ohne die genannte Wache ${ausnahme.wache}`)
+        .toMatch(new RegExp(`\\b${ausnahme.wache}\\s*\\(`, 'u'));
+      expect(ausnahme.grund.length, `${rel}: Ausnahme ohne Begründung`)
+        .toBeGreaterThan(80);
     }
   });
 });

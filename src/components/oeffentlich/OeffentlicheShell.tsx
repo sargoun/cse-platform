@@ -126,7 +126,7 @@ export function OeffentlicheShell(
           {bereiche.map((b) => (
             <a
               key={b.slug}
-              href={mitSprache(`/${b.slug}`, sprache)}
+              href={mitSprache(`/unternehmen/${b.slug}`, sprache)}
               data-cse="marken-avatar"
               aria-current={b.slug === aktiv ? 'page' : undefined}
               className="flex items-center gap-s2 text-sm text-text-muted hover:text-text"

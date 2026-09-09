@@ -228,7 +228,7 @@ export const SEITEN_EN: readonly SeitenInhalt[] = [
     ],
   },
   {
-    pfad: '/reinigung',
+    pfad: '/unternehmen/reinigung',
     beschreibung: `CSE Dienstleistungen GmbH — ${TRADE.reinigung.toLowerCase()} in Berlin.`,
     abschnitte: [
       { art: 'hero', ueberschrift: 'CSE Dienstleistung', text: TRADE.reinigung },
@@ -262,7 +262,7 @@ export const SEITEN_EN: readonly SeitenInhalt[] = [
     ],
   },
   {
-    pfad: '/security',
+    pfad: '/unternehmen/security',
     beschreibung: `SSE Security — ${TRADE.security.toLowerCase()} in Berlin.`,
     abschnitte: [
       { art: 'hero', ueberschrift: 'SSE Security', text: TRADE.security },
@@ -296,7 +296,7 @@ export const SEITEN_EN: readonly SeitenInhalt[] = [
     ],
   },
   {
-    pfad: '/bau',
+    pfad: '/unternehmen/bau',
     beschreibung: `REALTIME Service GmbH — ${TRADE.bau.toLowerCase()} in Berlin.`,
     abschnitte: [
       { art: 'hero', ueberschrift: 'REALTIME Service', text: TRADE.bau },
@@ -332,7 +332,7 @@ export const SEITEN_EN: readonly SeitenInhalt[] = [
     ],
   },
   {
-    pfad: '/operations',
+    pfad: '/unternehmen/operations',
     beschreibung: 'CSE Operations — digital processes, reporting and group management.',
     abschnitte: [
       {

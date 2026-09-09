@@ -71,7 +71,8 @@ export function llmsTxt(
     // Der Name steht ZEICHENGLEICH so, wie er im Impressum und im
     // LocalBusiness-Block steht. Eine zweite Schreibweise wäre ein zweites
     // Unternehmen.
-    zeilen.push(`- [${nap.name}](${basis}/${b.slug}): ${nap.strasse}, ${nap.ort}, `
+    zeilen.push(`- [${nap.name}](${basis}/unternehmen/${b.slug}): `
+      + `${nap.strasse}, ${nap.ort}, `
       + `Telefon ${nap.telefon}`
       + (b.kurzbeschreibung === null ? '' : ` — ${b.kurzbeschreibung}`));
   }

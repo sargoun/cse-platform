@@ -229,3 +229,28 @@ export const API_TEXTE: Readonly<Record<Sprache, ApiTexte>> = {
     nichtGespeichert: 'The enquiry could not be saved.',
   },
 };
+
+/** Die Bereichsauswahl `/angebot` (§2.3, REQ-01). */
+export interface AuswahlTexte {
+  readonly titel: string;
+  readonly einleitung: string;
+}
+
+export const AUSWAHL_TEXTE: Readonly<Record<Sprache, AuswahlTexte>> = {
+  de: {
+    titel: 'Angebot anfragen',
+    einleitung:
+      'Jeder Bereich hat sein eigenes Formular, weil jedes Gewerk anders rechnet — '
+      + 'Reinigung über Fläche und Frequenz, Sicherheit über Zeitraum und Kräfte, '
+      + 'Bau über Gewerk und Leistungsverzeichnis. Wählen Sie den Bereich, um den '
+      + 'es geht; gefragt wird dann genau das, was wir zum Rechnen brauchen.',
+  },
+  en: {
+    titel: 'Request a quote',
+    einleitung:
+      'Each division has its own form, because each trade is costed differently — '
+      + 'cleaning by area and frequency, security by period and staff, construction '
+      + 'by trade and bill of quantities. Choose the division you need; the form '
+      + 'then asks for exactly what we need in order to quote.',
+  },
+};

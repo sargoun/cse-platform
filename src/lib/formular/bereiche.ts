@@ -16,3 +16,18 @@ export const FORMULAR_SCHLUESSEL: Readonly<Record<string, string>> = {
 export function formularSchluessel(bereich: string): string | undefined {
   return FORMULAR_SCHLUESSEL[bereich];
 }
+
+/**
+ * Der Pfad des Angebotsformulars — als Muster, an EINER Stelle.
+ *
+ * Er stand als Zeichenkette in der Route, in der Hülle und im Test. Drei
+ * Kopien einer Adresse sind drei Gelegenheiten, sie an zwei Stellen zu ändern:
+ * `04-SEITENKARTE.md` schrieb `/angebot/[bereich]`, die Anwendung lieferte
+ * `/anfrage/[bereich]`, und niemandem fiel es auf, weil beide für sich
+ * funktionierten.
+ */
+export const ANGEBOT_PFAD = '/angebot/[bereich]';
+
+export function angebotPfad(bereich: string): string {
+  return `/angebot/${bereich}`;
+}
