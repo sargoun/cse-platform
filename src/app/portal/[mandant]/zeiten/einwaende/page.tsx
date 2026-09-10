@@ -1,0 +1,184 @@
+import type postgres from 'postgres';
+import { notFound } from 'next/navigation';
+import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
+import { withTenant } from '@/server/kontext/index';
+import { PortalRahmen } from '@/components/portal/PortalRahmen';
+import { Button } from '@/components/ui/Button';
+import { AnmeldungNoetig } from '../../../Anmeldung';
+import { portalZugang } from '../../../zugang';
+import { slugTor } from '../../../unterseite';
+import { Wechselblatt } from '@/components/portal/Wechselblatt';
+import { listeOffeneEinwaende, type EinwandZeile } from '@/server/services/zeit/einwand';
+import { berlinAnzeige } from '@/server/services/zeit/dauer';
+import type { BereichSchluessel } from '@/lib/design/theme';
+
+/**
+ * `/portal/[mandant]/zeiten/einwaende` — der Eingang der Planung (EMP-07).
+ *
+ * **Diese Seite ist die zweite Haelfte von EMP-07.** Die erste ist, dass ein
+ * Mitarbeitender seinen Zeiteintrag nicht bearbeiten kann; ohne die zweite
+ * waere das keine Verbesserung, sondern eine Verschlechterung: die Person
+ * haette ihre Abweichung gemeldet und nie eine Antwort bekommen, und die
+ * Aufzeichnung bliebe falsch. „Erreicht die Planung" heisst deshalb: es gibt
+ * eine Liste, sie steht in der Tab-Leiste, und die aelteste Meldung steht
+ * oben.
+ *
+ * **Anerkennen aendert hier noch keine Zeit.** Die Entscheidung sagt, DASS
+ * die Meldung zutrifft; die neue Fassung des Zeiteintrags praegt die
+ * Korrektur mit ihrem eigenen Recht und ihrer eigenen Spur (TIM-11). Der
+ * Hinweis darauf steht auf der Karte, weil die haeufigste Verwechslung genau
+ * hier passiert: „ich habe es doch anerkannt".
+ *
+ * Was der Planer NICHT sieht: eine vorbelegte Uebernahme der behaupteten
+ * Zeit. Die Behauptung steht als Text daneben (`behauptet_*`), damit sie
+ * gelesen und nicht durchgeklickt wird — sie ist die Aussage eines Menschen,
+ * keine Messung (Invariante 5).
+ */
+export const dynamic = 'force-dynamic';
+
+const ART_TEXT: Readonly<Record<string, string>> = {
+  eintrag_fehlt: 'Eintrag fehlt',
+  zeit_falsch: 'Zeit falsch',
+  pause_falsch: 'Pause falsch',
+  zuordnung_falsch: 'Zuordnung falsch',
+  sonstiges: 'Sonstiges',
+};
+
+const STATUS_TEXT: Readonly<Record<string, string>> = {
+  offen: 'Offen',
+  in_pruefung: 'In Prüfung',
+};
+
+export default async function Einwandeingang(
+  { params }: { params: Promise<{ mandant: string }> },
+) {
+  const { mandant } = await params;
+  const pfad = `/portal/${mandant}/zeiten/einwaende`;
+  const zugang = await portalZugang(pfad);
+  if (zugang === null) return <AnmeldungNoetig />;
+
+  const tor = await slugTor(zugang, mandant);
+  if (tor.art === 'wechsel') {
+    return <Wechselblatt aktuell={tor.aktuell} zielTitel={mandant} zielSlug={tor.ziel} />;
+  }
+  const { sitzung } = zugang;
+  if (sitzung.aktiverMandantId === null) notFound();
+
+  const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+    withTenant(tx, sitzung, async (kontext) => listeOffeneEinwaende(kontext)),
+  ) as Promise<readonly EinwandZeile[]>);
+
+  return (
+    <PortalRahmen
+      titel="Zeit-Einwände"
+      bereich={mandant as BereichSchluessel}
+      nurLesen={false}
+      leiste={zugang.leiste}
+      wurzel={`/portal/${mandant}`}
+      aktiverTab="zeiten"
+      sichtbareTabs={zugang.sichtbareTabs}
+      navigationsRechte={zugang.navigationsRechte}
+    >
+      <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
+        <h1 className="m-0 text-h1 text-text">Zeit-Einwände</h1>
+        <span className="text-sm text-text-muted">
+          {zeilen.length === 0 ? 'nichts offen' : `${String(zeilen.length)} offen`}
+        </span>
+      </div>
+
+      {zeilen.length === 0 ? (
+        <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
+          Kein offener Einwand. Das heißt: gemeldete Abweichungen sind
+          entschieden — nicht, dass niemand melden könnte.
+        </p>
+      ) : (
+        <ul className="m-0 list-none p-0">
+          {zeilen.map((z) => <Karte key={z.id} zeile={z} mandant={mandant} pfad={pfad} />)}
+        </ul>
+      )}
+    </PortalRahmen>
+  );
+}
+
+function Karte({ zeile, mandant, pfad }: {
+  readonly zeile: EinwandZeile; readonly mandant: string; readonly pfad: string;
+}) {
+  return (
+    <li
+      data-cse="einwand"
+      data-einwand={zeile.id}
+      className="mb-s3 rounded-lg border border-line bg-surface p-s4"
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-s3">
+        <span className="text-base text-text">
+          {/* DESIGN §9: das Wort traegt die Bedeutung, nicht die Farbe. */}
+          <strong>{STATUS_TEXT[zeile.status] ?? zeile.status}</strong>
+          {' · '}
+          {ART_TEXT[zeile.art] ?? zeile.art}
+        </span>
+        <span className="text-sm tabular-nums text-text-muted">{zeile.betrifftDatum}</span>
+      </div>
+
+      <p className="m-0 mt-s2 text-sm text-text-muted">
+        {zeile.personName}
+        {zeile.zeiteintragId === null && ' · zu einem Tag ohne Eintrag'}
+      </p>
+
+      <p className="m-0 mt-s2 max-w-prose text-sm text-text">{zeile.begruendung}</p>
+
+      {(zeile.behauptetBeginn !== null || zeile.behauptetEnde !== null
+        || zeile.behauptetPauseMinuten !== null) && (
+        <p className="m-0 mt-s2 text-sm text-text-muted">
+          Angegeben:
+          {zeile.behauptetBeginn !== null && ` ab ${berlinAnzeige(zeile.behauptetBeginn)}`}
+          {zeile.behauptetEnde !== null && ` bis ${berlinAnzeige(zeile.behauptetEnde)}`}
+          {zeile.behauptetPauseMinuten !== null
+            && ` · Pause ${String(zeile.behauptetPauseMinuten)} min`}
+          {' — Angabe der Person, keine Messung.'}
+        </p>
+      )}
+
+      <form
+        action="/api/zeit/einwand/entscheidung"
+        method="post"
+        className="mt-s4 flex flex-wrap items-end gap-s3"
+      >
+        <input type="hidden" name="einwand" value={zeile.id} />
+        <input type="hidden" name="mandant" value={mandant} />
+        <input type="hidden" name="zurueck" value={pfad} />
+        <label className="flex-1">
+          <span className="mb-s1 block text-micro uppercase tracking-[0.08em] text-text-muted">
+            Begründung (mindestens 10 Zeichen)
+          </span>
+          <input
+            name="begruendung"
+            required
+            minLength={10}
+            className="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text"
+            placeholder="Was wurde geprüft, und was folgt daraus?"
+          />
+        </label>
+        <label>
+          <span className="mb-s1 block text-micro uppercase tracking-[0.08em] text-text-muted">
+            Entscheidung
+          </span>
+          <select
+            name="status"
+            defaultValue="anerkannt"
+            className="min-h-11 rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text"
+          >
+            <option value="anerkannt">Anerkannt</option>
+            <option value="teilweise_anerkannt">Teilweise anerkannt</option>
+            <option value="abgelehnt">Abgelehnt</option>
+          </select>
+        </label>
+        <Button type="submit" variante="secondary">Entscheiden</Button>
+      </form>
+
+      <p className="m-0 mt-s3 text-sm text-text-muted">
+        Anerkennen ändert die Zeit noch nicht — die neue Fassung entsteht mit
+        der Korrektur, und die trägt ihre eigene Spur.
+      </p>
+    </li>
+  );
+}

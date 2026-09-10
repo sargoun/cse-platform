@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
+import { lies, sende, stelleAn } from './warteschlange';
 
 /**
  * Die Stempelflaeche (TIM-07, TIM-08, DESIGN §8).
@@ -40,20 +41,53 @@ type Zustand =
   | { readonly art: 'sendet' }
   | { readonly art: 'bestaetigt'; readonly zeit: string; readonly objekt: string | null;
       readonly ausgestempelt: boolean }
+  /**
+   * Kein Netz: der Vorgang liegt in der Warteschlange und wird nachgereicht.
+   *
+   * Das ist BEWUSST kein Erfolg und bewusst kein Fehler. „Gespeichert" waere
+   * gelogen — es entsteht kein Zeiteintrag, bis ein Mensch entschieden hat
+   * (§9.4) —, „kaputt" waere es auch: die Zeit ist festgehalten. Also die
+   * dritte, ehrliche Auskunft.
+   */
+  | { readonly art: 'gemerkt'; readonly zeit: string; readonly offen: number }
   | { readonly art: 'abgelehnt'; readonly meldung: string };
 
 export function Stempeluhr({ token }: { readonly token: string }) {
   const [zustand, setzeZustand] = useState<Zustand>({ art: 'bereit' });
+  const [offen, setzeOffen] = useState(0);
+
+  /**
+   * Beim Laden und bei jeder wiedergewonnenen Verbindung leeren.
+   *
+   * `online` allein genuegt nicht: der Browser meldet es auch fuer ein WLAN
+   * ohne Weg nach draussen. Deshalb ZUSAETZLICH beim Aufbau der Seite — und
+   * das ist zugleich die Zusage aus dem Abnahmekriterium, dass die Schlange
+   * einen Neustart uebersteht: sie wird beim naechsten Oeffnen der Adresse
+   * gesendet, nicht nur beim naechsten Antippen.
+   */
+  const leere = useCallback(() => {
+    void sende(token)
+      .then((e) => { setzeOffen(e.verblieben); })
+      .catch(() => { setzeOffen(lies().length); });
+  }, [token]);
+
+  useEffect(() => {
+    setzeOffen(lies().length);
+    leere();
+    globalThis.addEventListener('online', leere);
+    return () => { globalThis.removeEventListener('online', leere); };
+  }, [leere]);
 
   const stemple = async (): Promise<void> => {
     setzeZustand({ art: 'sendet' });
+    const getipptAm = new Date();
     try {
       const antwort = await fetch(`/api/check-in/${encodeURIComponent(token)}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         // Die Geraetezeit reist mit, damit die Abweichung festgehalten werden
         // kann (Invariante 5) — sie wird nie zur Stempelzeit.
-        body: JSON.stringify({ geraetezeit: new Date().toISOString() }),
+        body: JSON.stringify({ geraetezeit: getipptAm.toISOString() }),
       });
       const daten = (await antwort.json()) as {
         ergebnis?: string; objekt?: string | null; server_zeit?: string;
@@ -73,13 +107,23 @@ export function Stempeluhr({ token }: { readonly token: string }) {
         ausgestempelt: daten.ergebnis === 'ausgecheckt',
       });
     } catch {
-      // Netz weg. Kein Fehlerbildschirm, der nach „kaputt" aussieht: die
-      // Warteschlange kommt mit PR 35, bis dahin ist die ehrliche Auskunft,
-      // es noch einmal zu versuchen.
+      /**
+       * Netz weg — und genau dafuer ist die Warteschlange da (TIM-09).
+       *
+       * Gemerkt wird der Zeitpunkt des ANTIPPENS, nicht der des spaeteren
+       * Sendens: die Kraft hat um 05:55 getippt, und das ist die Behauptung,
+       * ueber die die Planung entscheidet. Wer stattdessen die Sendezeit
+       * mitschickte, verschoebe jede Nachtschicht auf den Moment, in dem das
+       * Telefon wieder Empfang hatte — und zwar plausibel und unauffaellig.
+       */
+      const eintrag = stelleAn('checkin', getipptAm);
       setzeZustand({
-        art: 'abgelehnt',
-        meldung: 'Keine Verbindung. Bitte noch einmal versuchen.',
+        art: 'gemerkt',
+        zeit: UHR.format(new Date(eintrag.behaupteteZeit)),
+        offen: lies().length,
       });
+      setzeOffen(lies().length);
+      leere();
     }
   };
 
@@ -100,6 +144,30 @@ export function Stempeluhr({ token }: { readonly token: string }) {
     );
   }
 
+  /**
+   * Der ehrliche Zwischenzustand: festgehalten, aber noch nicht erfasst.
+   *
+   * Er sagt ausdruecklich, dass die Zeit erst nach einer Pruefung im Nachweis
+   * steht. Der naheliegende Entwurf zeigte hier „Eingestempelt" mit einem
+   * kleinen Wolkensymbol — und damit glaubte die Kraft, ihre Stunde sei
+   * gezaehlt, waehrend sie in einer Warteschlange auf einen Menschen wartet.
+   */
+  if (zustand.art === 'gemerkt') {
+    return (
+      <div className="flex flex-col items-center gap-s4 text-center" aria-live="polite">
+        <p className="text-2xl font-semibold text-text">Ohne Verbindung gemerkt</p>
+        <p className="text-lg text-text">{zustand.zeit}</p>
+        <p className="text-base text-text-muted">
+          Die Zeit wird nachgereicht, sobald wieder Netz da ist. Sie zählt erst,
+          wenn die Planung sie bestätigt hat.
+        </p>
+        <p className="text-sm text-text-subtle">
+          {zustand.offen === 1 ? '1 Eintrag wartet' : `${String(zustand.offen)} Einträge warten`}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col items-center gap-s5 text-center">
       {/* Ein Hauptknopf, 44 px hoch (DESIGN §5, §8) — hier ueber die volle
@@ -115,6 +183,13 @@ export function Stempeluhr({ token }: { readonly token: string }) {
       <p className="min-h-6 text-base text-danger-strong" aria-live="assertive">
         {zustand.art === 'abgelehnt' ? zustand.meldung : ''}
       </p>
+      {offen > 0 && (
+        <p className="text-sm text-text-subtle" aria-live="polite">
+          {offen === 1
+            ? '1 Eintrag wartet auf die Übertragung.'
+            : `${String(offen)} Einträge warten auf die Übertragung.`}
+        </p>
+      )}
     </div>
   );
 }

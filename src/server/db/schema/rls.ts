@@ -547,6 +547,39 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'Löschpfad ist keiner, und eine Zeitachse mit Lücken erst recht nicht.',
   },
   {
+    tabelle: 'einsatz_medien_bezug',
+    art: 'append',
+    migration: '0041',
+    grund:
+      'TIM-10, DOC-06. Das Register entscheidet, an welche Tabelle ein Medium '
+      + 'haengen darf, und sein Name geht in die dynamische Anweisung von '
+      + '`me_bezug_pruefen`. Eine geloeschte Zeile machte jedes daran haengende '
+      + 'Foto unpruefbar — der Elternteil liesse sich nicht mehr aufloesen —, und '
+      + 'eine loeschbare Referenztabelle waere zugleich eine schreibbare.',
+  },
+  {
+    tabelle: 'einsatz_medien',
+    art: 'archiv',
+    migration: '0041',
+    grund:
+      'TIM-10, DOC-07, LEG-09. Das Foto ist der Zustandsbeweis einer Schicht — '
+      + 'die Zeile, die eine Reklamation entscheidet oder ein Aufmass traegt. '
+      + 'Geloescht bliebe eine Behauptung ohne Beleg; die DSGVO-Loeschung '
+      + 'entfernt die BINAERDATEI (storage_geloescht_am) und laesst die Zeile als '
+      + 'Grabstein stehen, damit das Audit weiterhin zeigt, dass es sie gab.',
+  },
+  {
+    tabelle: 'offline_ereignis',
+    art: 'append',
+    migration: '0042',
+    grund:
+      'TIM-09, LEG-02, § 17 MiLoG. Auf dieser Zeile steht, was eine Kraft '
+      + 'behauptet hat und was ein Mensch darueber entschieden hat — samt Grund '
+      + 'einer Ablehnung. Genau die abgelehnte Behauptung ist im Lohnstreit das '
+      + 'Beweismittel; sie zu loeschen hiesse, die eine Seite des Streits zu '
+      + 'entfernen. Entschieden wird ueber sie, nie an ihr.',
+  },
+  {
     tabelle: 'arbeitszeit_verstoss',
     art: 'archiv',
     migration: '0040',
@@ -565,6 +598,36 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'trotzdem zu planen — samt Begruendung und Urheber. Ihn zu loeschen macht '
       + 'aus einer bewussten Abweichung eine, die nie jemand gesehen hat.',
   },
+  {
+    tabelle: 'auftrag_leistung',
+    art: 'archiv',
+    migration: '0050',
+    grund:
+      'FIN-07, TIM-12. Auf eine Leistungszeile zeigen bereits Zeiteintraege, '
+      + 'Einsaetze, Reviere und Turnusse — spaeter Aufmasse, LV-Positionen und '
+      + 'Rechnungszeilen. Sie zu loeschen risse genau die Kette, auf der die '
+      + 'Rueckverfolgbarkeit jeder stundenbasierten Rechnungszeile beruht. '
+      + 'Beendet wird sie durch `gueltig_bis`, das einschliesslich gilt.',
+  },
+  {
+    tabelle: 'zeitnachweis',
+    art: 'append',
+    migration: '0051',
+    grund:
+      'TIM-13, LEG-02, EMP-04. Das einmal gepraegte Artefakt eines gesperrten '
+      + 'Monats IST der § 17-MiLoG-Nachweis, den die Arbeitnehmerin bekommen '
+      + 'hat. Ein Loeschweg machte aus „byte-gleich wieder ausgegeben" eine '
+      + 'Zusage, die der erste Wartungszugang aufhebt.',
+  },
+  {
+    tabelle: 'zeit_einwand',
+    art: 'archiv',
+    migration: '0052',
+    grund:
+      'EMP-07, LEG-02. Dass jemand eine Abweichung gemeldet — und vielleicht '
+      + 'zurueckgezogen — hat, ist im Lohnstreit eine Tatsache und keine '
+      + 'Datenpflege. Zurueckgenommen wird ueber `status`, nie durch DELETE.',
+  },
 ] as const;
 
 /**
@@ -575,6 +638,20 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
  * there is no write path to it other than `app.protokolliere` anyway.
  */
 export const AUDITIERT: readonly TabelleJeMigration[] = [
+  /**
+   * `medien` ja, `offline_ereignis` nein — eine Entscheidung, keine Auslassung
+   * (04-PLANUNG-ZEIT §14.1).
+   *
+   * Wer ein Beweisfoto archiviert oder seine Binaerdatei entfernt hat, ist die
+   * Zeile, ueber die im Reklamationsfall gestritten wird — mit Vorher und
+   * Nachher. `offline_ereignis` dagegen IST bereits der Nachweis: sie traegt
+   * Entscheider, Zeitpunkt und Ablehnungsgrund in eigenen Spalten, ist
+   * anfuegend und in ihrer Behauptung unveraenderlich, und ihre zwei
+   * Entscheidungen schreiben ohnehin `app.protokolliere` von Hand. Ein
+   * Auditeintrag je Zeile verdoppelte genau das Protokoll, auf das sich eine
+   * Auskunft stuetzt.
+   */
+  { tabelle: 'einsatz_medien', migration: '0041' },
   { tabelle: 'arbeitszeit_verstoss', migration: '0040' },
   { tabelle: 'planungs_konflikt', migration: '0040' },
   { tabelle: 'mandant', migration: '0005' },
@@ -638,6 +715,20 @@ export const AUDITIERT: readonly TabelleJeMigration[] = [
    */
   { tabelle: 'mandant_einstellung', migration: '0033' },
   { tabelle: 'zeiteintrag', migration: '0034' },
+  /**
+   * `auftrag_leistung` und `zeit_einwand` ja, `zeitnachweis` nein — eine
+   * Entscheidung, keine Auslassung (02-CRM §1.6, 01-KERN §6.27).
+   *
+   * Wer einen Preis oder eine Menge einer Leistungszeile bewegt hat, aendert
+   * damit jede kuenftige Rechnung aus diesem Auftrag; und wer einen Einwand
+   * entschieden hat, entscheidet ueber einen Lohn. Beides ist die Zeile, ueber
+   * die im Streit mit Vorher und Nachher gestritten wird. `zeitnachweis`
+   * dagegen IST bereits der Nachweis: anfuegend, mit eigenem Digest und einem
+   * Ausloeser, der jedes UPDATE abweist — ein Auditeintrag daneben
+   * verdoppelte genau das Protokoll, auf das sich eine Auskunft stuetzt.
+   */
+  { tabelle: 'auftrag_leistung', migration: '0050' },
+  { tabelle: 'zeit_einwand', migration: '0052' },
 ] as const;
 
 /** Tables carrying S4 (`geloescht_am` / `geloescht_von`) — the finders' domain. */
@@ -647,6 +738,17 @@ export const SOFT_DELETE: readonly string[] = KEIN_HARD_DELETE.filter(
 
 /** Tables carrying S2 (`geaendert_am`, maintained by `kern.setze_geaendert_am()`). */
 export const GEAENDERT_AM: readonly TabelleJeMigration[] = [
+  /**
+   * `medien` ja, `medien_bezug` und `offline_ereignis` nicht.
+   *
+   * Ein Medium bekommt eine Beschreibung, wird archiviert, verliert seine
+   * Binaerdatei — das sind Aenderungen, und sie sollen einen Zeitpunkt tragen.
+   * Das Register ist Referenzdatenbestand, den nur eine Migration bewegt, und
+   * `offline_ereignis` ist anfuegend: ein `geaendert_am` daneben behauptete,
+   * jemand habe die BEHAUPTUNG bearbeitet — das darf niemand, und
+   * `oe_unveraenderlich` laesst es auch nicht zu.
+   */
+  { tabelle: 'einsatz_medien', migration: '0041' },
   { tabelle: 'arbeitszeit_verstoss', migration: '0040' },
   { tabelle: 'planungs_konflikt', migration: '0040' },
   { tabelle: 'mandant', migration: '0005' },
@@ -688,6 +790,11 @@ export const GEAENDERT_AM: readonly TabelleJeMigration[] = [
   { tabelle: 'einsatzanforderung', migration: '0031' },
   { tabelle: 'mandant_einstellung', migration: '0033' },
   { tabelle: 'zeiteintrag', migration: '0034' },
+  { tabelle: 'auftrag_leistung', migration: '0050' },
+  { tabelle: 'zeit_einwand', migration: '0052' },
+  // `zeitnachweis` NICHT: das Artefakt eines gesperrten Monats wird genau
+  // einmal geschrieben, und `kern.zeitnachweis_write_once()` weist jedes
+  // UPDATE ab. Ein `geaendert_am` daneben behauptete, es liesse sich aendern.
   // `checkin_token` NICHT: sie ist anfuegend (§5.5). Was sich an ihr noch
   // bewegen darf, zaehlt `ct_unveraenderlich` einzeln auf; ein `geaendert_am`
   // daneben behauptete, ein Mensch habe die Marke bearbeitet.

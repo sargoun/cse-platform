@@ -794,3 +794,110 @@ create trigger trg_planungs_konflikt_audit
   for each row execute function kern.protokolliere_aenderung();
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0041)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- einsatz_medien_bezug (append): TIM-10, DOC-06. Das Register entscheidet, an welche Tabelle ein Medium haengen darf, und sein Name geht in die dynamische Anweisung von `me_bezug_pruefen`. Eine geloeschte Zeile machte jedes daran haengende Foto unpruefbar — der Elternteil liesse sich nicht mehr aufloesen —, und eine loeschbare Referenztabelle waere zugleich eine schreibbare.
+create trigger trg_einsatz_medien_bezug_kein_hard_delete
+  before delete on einsatz_medien_bezug
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_einsatz_medien_bezug_kein_truncate
+  before truncate on einsatz_medien_bezug
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on einsatz_medien_bezug from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- einsatz_medien (archiv): TIM-10, DOC-07, LEG-09. Das Foto ist der Zustandsbeweis einer Schicht — die Zeile, die eine Reklamation entscheidet oder ein Aufmass traegt. Geloescht bliebe eine Behauptung ohne Beleg; die DSGVO-Loeschung entfernt die BINAERDATEI (storage_geloescht_am) und laesst die Zeile als Grabstein stehen, damit das Audit weiterhin zeigt, dass es sie gab.
+create trigger trg_einsatz_medien_kein_hard_delete
+  before delete on einsatz_medien
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_einsatz_medien_kein_truncate
+  before truncate on einsatz_medien
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on einsatz_medien from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_einsatz_medien_geaendert_am
+  before update on einsatz_medien
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_einsatz_medien_audit
+  after insert or update or delete on einsatz_medien
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0042)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- offline_ereignis (append): TIM-09, LEG-02, § 17 MiLoG. Auf dieser Zeile steht, was eine Kraft behauptet hat und was ein Mensch darueber entschieden hat — samt Grund einer Ablehnung. Genau die abgelehnte Behauptung ist im Lohnstreit das Beweismittel; sie zu loeschen hiesse, die eine Seite des Streits zu entfernen. Entschieden wird ueber sie, nie an ihr.
+create trigger trg_offline_ereignis_kein_hard_delete
+  before delete on offline_ereignis
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_offline_ereignis_kein_truncate
+  before truncate on offline_ereignis
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on offline_ereignis from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0050)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- auftrag_leistung (archiv): FIN-07, TIM-12. Auf eine Leistungszeile zeigen bereits Zeiteintraege, Einsaetze, Reviere und Turnusse — spaeter Aufmasse, LV-Positionen und Rechnungszeilen. Sie zu loeschen risse genau die Kette, auf der die Rueckverfolgbarkeit jeder stundenbasierten Rechnungszeile beruht. Beendet wird sie durch `gueltig_bis`, das einschliesslich gilt.
+create trigger trg_auftrag_leistung_kein_hard_delete
+  before delete on auftrag_leistung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_auftrag_leistung_kein_truncate
+  before truncate on auftrag_leistung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on auftrag_leistung from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_auftrag_leistung_geaendert_am
+  before update on auftrag_leistung
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_auftrag_leistung_audit
+  after insert or update or delete on auftrag_leistung
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0051)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- zeitnachweis (append): TIM-13, LEG-02, EMP-04. Das einmal gepraegte Artefakt eines gesperrten Monats IST der § 17-MiLoG-Nachweis, den die Arbeitnehmerin bekommen hat. Ein Loeschweg machte aus „byte-gleich wieder ausgegeben" eine Zusage, die der erste Wartungszugang aufhebt.
+create trigger trg_zeitnachweis_kein_hard_delete
+  before delete on zeitnachweis
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_zeitnachweis_kein_truncate
+  before truncate on zeitnachweis
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on zeitnachweis from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0052)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- zeit_einwand (archiv): EMP-07, LEG-02. Dass jemand eine Abweichung gemeldet — und vielleicht zurueckgezogen — hat, ist im Lohnstreit eine Tatsache und keine Datenpflege. Zurueckgenommen wird ueber `status`, nie durch DELETE.
+create trigger trg_zeit_einwand_kein_hard_delete
+  before delete on zeit_einwand
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_zeit_einwand_kein_truncate
+  before truncate on zeit_einwand
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on zeit_einwand from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_zeit_einwand_geaendert_am
+  before update on zeit_einwand
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_zeit_einwand_audit
+  after insert or update or delete on zeit_einwand
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks

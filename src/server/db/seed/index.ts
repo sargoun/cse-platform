@@ -17,6 +17,7 @@ import postgres from 'postgres';
 import { DATENSCHUTZ_VERSION, FORMULARE } from './formulare.js';
 import { seedOperations } from './operations.js';
 import { seedDienstplan } from './dienstplan.js';
+import { seedAuftrag } from './auftrag.js';
 
 const url = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 if (url === undefined || url === '') {
@@ -615,6 +616,19 @@ async function main(): Promise<void> {
   process.stdout.write(
     `  ${String(plan.reviere)} Reviere, ${String(plan.turnusse)} Turnusse, `
     + `${String(plan.einsaetze)} Einsaetze aus dem Generator (acht Wochen)\n`,
+  );
+
+  /**
+   * Der Abrechnungsanker kommt NACH dem Dienstplan: er verankert dessen
+   * Turnusse und die schon materialisierten Schichten nachtraeglich
+   * (TIM-12, FIN-07). Ein Turnus bleibt mit Absicht ohne — er ist der Fall,
+   * den `zeiteintrag_ohne_auftrag` melden muss (FIN-18).
+   */
+  const auftrag = await seedAuftrag(sql, ids);
+  process.stdout.write(
+    `  ${String(auftrag.auftraege)} Auftrag mit ${String(auftrag.leistungen)} `
+    + `Leistungszeilen, ${String(auftrag.verankerteTurnusse)} Turnusse und `
+    + `${String(auftrag.verankerteEinsaetze)} Einsaetze verankert (Preise: Demowerte)\n`,
   );
 
   process.stdout.write('\nSeed fertig.\n');

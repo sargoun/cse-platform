@@ -95,6 +95,62 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * daran nichts gefaehrlich, und schreiben kann es nicht.
    */
   { modul: 'zeit', pfad: 'zeit/live', schreibend: false },
+  /**
+   * Die Offline-Warteschlange (TIM-09). Sie SCHREIBT — die nachgereichte
+   * Behauptung und, wenn ein Mensch entscheidet, den Zeiteintrag samt
+   * Korrekturzeile.
+   *
+   * Das Recht ist `zeit.nacherfassung_pruefen` und nicht `zeit.schreiben`: der
+   * Schreibweg, den dieser Dienst wirklich bewacht, ist die ENTSCHEIDUNG ueber
+   * einen fremden Anspruch. Die Aufnahme selbst laeuft ohne Sitzung ueber
+   * `cse_checkin` (K-08) und hat deshalb gar kein Recht, an dem sie haengen
+   * koennte — genau wie das Einloesen der Check-in-Marke.
+   */
+  {
+    modul: 'zeit', pfad: 'zeit/offline',
+    schreibend: true, schreibRecht: 'zeit.nacherfassung_pruefen',
+  },
+  /**
+   * Die Medienerfassung PRUEFT und LEGT AB — in den Bucket, nicht in die
+   * Datenbank. Die `einsatz_medien`-Zeile schreibt
+   * `app.offline_ereignis_annehmen`, weil dort Mandant, Beschaeftigung und
+   * Mensch aus der Marke aufgeloest werden. Was dieser Dienst tut, ist in der
+   * Gruppenansicht ungefaehrlich: er kann keine Zeile anlegen, und der Lesepfad
+   * gibt nur eine signierte Adresse zurueck, die RLS zuvor freigegeben hat.
+   */
+  { modul: 'zeit', pfad: 'zeit/medien', schreibend: false },
+  /**
+   * Der Monatsanteil RECHNET nur (§7.3): er liest die Sicht und verteilt die
+   * Pause. Geteilt wird nichts — der Zeiteintrag bleibt eine Zeile.
+   */
+  { modul: 'zeit', pfad: 'zeit/monatsanteil', schreibend: false },
+  /**
+   * Zeit → Auftrag ist eine Aufloesung, kein Uebertrag (TIM-12). Sie liest
+   * zwei Sichten und darf deshalb auch in der Gruppenansicht laufen.
+   */
+  { modul: 'zeit', pfad: 'zeit/auftrag', schreibend: false },
+  /**
+   * Die § 17-Aufzeichnung SCHREIBT — aber nur das Artefakt eines gesperrten
+   * Monats, und nur einmal (§7.3). Ihr Recht ist `zeit.exportieren` und nicht
+   * `zeit.schreiben`: gepraegt wird beim Ausgeben, und wer Zeiten erfassen
+   * darf, gibt darum noch keinen Nachweis heraus.
+   */
+  {
+    modul: 'zeit', pfad: 'zeit/milog',
+    schreibend: true, schreibRecht: 'zeit.exportieren',
+  },
+  /**
+   * Der Einwand hat ZWEI Schreibwege mit verschiedenen Wachen: das Einreichen
+   * ist Selbstzugriff (EMP-07 fuehrt es als `S`, es gibt kein Modulrecht
+   * dafuer), das Entscheiden verlangt `zeit.einwand_entscheiden`. Genannt ist
+   * hier das Recht des GEFAEHRLICHEREN Weges — wer ueber den Lohn eines
+   * anderen befindet, braucht ein Recht; wer die eigene Abweichung meldet,
+   * nicht.
+   */
+  {
+    modul: 'zeit', pfad: 'zeit/einwand',
+    schreibend: true, schreibRecht: 'zeit.einwand_entscheiden',
+  },
   { modul: 'dienstplan', pfad: 'zeit/arbzg', schreibend: false },
   /**
    * Die Pruefung ueber Gesellschaftsgrenzen (K-06). Sie SCHREIBT, wenn der

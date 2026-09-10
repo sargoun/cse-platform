@@ -48,6 +48,11 @@ export const MIGRATIONS_DATEIEN: Readonly<Record<string, string>> = {
   '0034': join(WURZEL, 'drizzle/0034_zeiteintrag.sql'),
   '0035': join(WURZEL, 'drizzle/0035_checkin_token.sql'),
   '0036': join(WURZEL, 'drizzle/0036_zeiteintrag_korrektur.sql'),
+  '0041': join(WURZEL, 'drizzle/0041_einsatz_medien.sql'),
+  '0042': join(WURZEL, 'drizzle/0042_offline_warteschlange.sql'),
+  '0050': join(WURZEL, 'drizzle/0050_auftrag_leistung.sql'),
+  '0051': join(WURZEL, 'drizzle/0051_zeiteintrag_auftrag.sql'),
+  '0052': join(WURZEL, 'drizzle/0052_zeit_einwand.sql'),
 };
 export const BEGINN = '-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern';
 export const ENDE = '-- >>> Ende des generierten Blocks';

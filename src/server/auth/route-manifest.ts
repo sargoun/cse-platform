@@ -138,6 +138,84 @@ export const ROUTEN: readonly RouteEintrag[] = [
     pfad: 'api/kalkulation',
     recht: 'kalkulation.schreiben',
   },
+  {
+    pfad: 'api/zeit/einwand',
+    recht: null,
+    grund:
+      'EMP-07. Der eine Schreibweg, den ein Mitarbeitender in der Zeitdomäne besitzt — er '
+      + 'meldet eine Abweichung an seinem eigenen Zeiteintrag. Der Rechtekatalog führt dafür '
+      + 'KEINEN Schlüssel: §12.4 markiert das Einreichen als Selbstzugriff (`S`), und einen '
+      + 'Schlüssel zu erfinden, den man anschliessend jeder Mitarbeiterrolle bindet, prüfte '
+      + 'nichts und behauptete zu prüfen (K-19). Offen ist die Route deshalb nur im Sinne von '
+      + '"kein Modulrecht": sie verlangt eine Sitzung mit Person, löst den Mandanten '
+      + 'serverseitig aus der Anstellung auf (nie aus der Anfrage, K-02) und schreibt gegen '
+      + 'die Policy `t_selbst_einreichen`, die ausschliesslich Zeilen zulässt, deren '
+      + 'Anstellung dem angemeldeten Menschen gehört. Geändert wird dabei nichts: der '
+      + 'Zeiteintrag bleibt, bis die Planung entschieden hat.',
+  },
+  {
+    /**
+     * Die Entscheidung ueber einen fremden Einwand (EMP-07).
+     *
+     * `zeit.einwand_entscheiden` und nicht `zeit.schreiben`: wer Zeiten
+     * erfasst, befindet damit noch nicht ueber die Meldung eines Kollegen —
+     * dieselbe Trennung wie `dienstplan.konflikt_quittieren` gegen
+     * `dienstplan.schreiben`. Die KORREKTUR danach ist ein dritter Vorgang
+     * mit dem dritten Recht (`zeit.korrigieren`, TIM-11).
+     */
+    pfad: 'api/zeit/einwand/entscheidung',
+    recht: 'zeit.einwand_entscheiden',
+  },
+  {
+    pfad: 'api/check-in/[token]/offline',
+    recht: null,
+    grund:
+      'TIM-09, K-08 Registerzeile 4. Die Kraft, deren Telefon im Treppenhaus kein Netz '
+      + 'hatte, hat keine Anmeldung — hinter einer gäbe es diese Nachreichung nicht. Was sie '
+      + 'schützt, ist DIESELBE Marke wie beim Check-in, derselbe Prinzipal `cse_checkin` '
+      + 'ohne ein einziges Tabellenrecht und dieselbe Funktion aus dem geschlossenen '
+      + 'K-08-Register: die Wiedergabe ist Check-in-Material, das spät ankommt, und ein '
+      + 'zweiter, laxerer Weg wäre kein zweiter Weg, sondern ein Umgehungsweg. Sie erzeugt '
+      + 'KEINEN Zeiteintrag (§9.4) und antwortet in jedem Fall 202, damit die Adresse kein '
+      + 'Orakel darüber ist, ob eine Marke auflöst (AUT-06).',
+  },
+  {
+    pfad: 'api/check-in/[token]/medien',
+    recht: null,
+    grund:
+      'TIM-10, DOC-06, K-08 Registerzeile 4. Dieselbe Marke, derselbe Prinzipal und '
+      + 'dieselbe Funktion wie die Nachreichung: die Aufnahme fährt als `art = foto` durch '
+      + 'die Warteschlange, statt eine SECHSTE Zeile im geschlossenen K-08-Register zu '
+      + 'minten (D-135). Was sie schützt, ist die Marke plus die Prüfkette der Route selbst '
+      + '— Grösse, Typ aus Magic Bytes, Metadaten entfernt, privater Bucket. Der Mandant '
+      + 'kommt aus der Marke, nie aus der Anfrage.',
+  },
+  {
+    /**
+     * Die eine Adresse, unter der eine Schichtaufnahme erreichbar ist.
+     *
+     * `zeit.lesen`, weil `einsatz_medien` unter dem Modul `zeit` liegt — die
+     * Aufnahme haengt an einem Zeiteintrag oder an einer Schicht. Die Route
+     * gibt eine SIGNIERTE Adresse zurueck, nie die Datei und nie einen
+     * Bucket-Pfad, und die Zeile wird durch die Sitzung des Aufrufers
+     * gelesen, damit RLS dieselbe Bedingung ein zweites Mal prueft (SEC-A6).
+     */
+    pfad: 'api/medien/[id]',
+    recht: 'zeit.lesen',
+  },
+  {
+    /**
+     * Ueber eine nachgereichte Behauptung entscheiden (TIM-09).
+     *
+     * `zeit.nacherfassung_pruefen` und nicht `zeit.schreiben`: wer Zeiten
+     * erfasst, befindet damit noch nicht ueber die Behauptung eines Menschen,
+     * dass er gearbeitet hat. Uebernehmen und Ablehnen laufen ueber dieselbe
+     * Adresse, weil sie dieselbe Sitzung, denselben Ursprungscheck und
+     * denselben Mandantenkontext brauchen.
+     */
+    pfad: 'api/offline-ereignis/[id]',
+    recht: 'zeit.nacherfassung_pruefen',
+  },
 ] as const;
 
 /** Die Routen, die ein Recht verlangen. */
