@@ -69,17 +69,29 @@ const melde = (wache: string, datei: string, zeile: number, text: string): void 
 /**
  * Guard 1 — money is never `numeric` or a float column (invariant 1, K-16).
  * A `numeric` money column is the schema-level twin of a float cent.
+ *
+ * Two word classes, because not every `…wert` is an amount. A column whose
+ * name says *money* (`betrag`, `preis`, …) can never be exempted. A column
+ * carrying one of the ambiguous words (`wert`, `satz`) may be — but only by
+ * NAMING its unit on the same line, so the exemption is a statement a
+ * reviewer can check rather than a way to silence the guard:
+ *
+ *     leistungswert_qm_pro_stunde numeric(10,3) not null, -- nicht-geld: m²/h
  */
 function wacheGeldSpalte(): void {
-  const GELD = /(betrag|preis|summe|saldo|entgelt|kosten|wert|satz|honorar|einbehalt)/iu;
+  const GELD_STARK = /(betrag|preis|summe|saldo|entgelt|kosten|honorar|einbehalt)/iu;
+  const GELD_MEHRDEUTIG = /(wert|satz)/iu;
+  /** An exemption is only valid if it names a unit. */
+  const NICHT_GELD = /(--|\/\/)\s*nicht-geld:\s*\S+/u;
   for (const datei of [...dateien('src/server/db', ['.ts']), ...dateien('drizzle', ['.sql'])]) {
     readFileSync(datei, 'utf8')
       .split('\n')
       .forEach((zeile, i) => {
-        if (!GELD.test(zeile)) return;
-        if (/\b(numeric|decimal|real|double precision|float)\b/iu.test(zeile)) {
-          melde('geld-nie-numeric', datei, i + 1, zeile);
-        }
+        const stark = GELD_STARK.test(zeile);
+        if (!stark && !GELD_MEHRDEUTIG.test(zeile)) return;
+        if (!/\b(numeric|decimal|real|double precision|float)\b/iu.test(zeile)) return;
+        if (!stark && NICHT_GELD.test(zeile)) return;
+        melde('geld-nie-numeric', datei, i + 1, zeile);
       });
   }
 }

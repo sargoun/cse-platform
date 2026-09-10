@@ -103,6 +103,44 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'gesetzt, nicht entfernt.',
   },
   {
+    tabelle: 'belagsart',
+    art: 'archiv',
+    migration: '0021',
+    grund:
+      'OPS-03. Der Leistungswert ist die Zahl, aus der ein Angebotspreis '
+      + 'entstanden ist. Faellt die Zeile weg, laesst sich ein bereits '
+      + 'abgegebenes Angebot nicht mehr nachrechnen; abgeloest wird sie durch '
+      + 'gueltig_bis, nicht durch DELETE.',
+  },
+  {
+    tabelle: 'reinigungsklasse',
+    art: 'archiv',
+    migration: '0021',
+    grund:
+      'OPS-02. Die Klasse steht im Leistungsverzeichnis eines laufenden '
+      + 'Auftrags. Sie zu loeschen macht die vereinbarte Leistung unlesbar; '
+      + 'das Ende einer Klasse ist archiviert_am.',
+  },
+  {
+    tabelle: 'objekt',
+    art: 'archiv',
+    migration: '0021',
+    grund:
+      'OPS-01. An einem Objekt haengen Auftraege, Einsaetze, Nachweise und '
+      + 'Rechnungen mit zehnjaehriger Aufbewahrung. Ein beendetes Objekt wird '
+      + 'archiviert, nie entfernt.',
+  },
+  {
+    tabelle: 'raum',
+    art: 'archiv',
+    migration: '0021',
+    grund:
+      'OPS-02. Die Quadratmeter dieser Zeile sind die Grundlage einer '
+      + 'Kalkulation, die in ein Angebot und von dort in eine Rechnung '
+      + 'gewandert ist. Ein geloeschter Raum macht die Rechnung unpruefbar — '
+      + 'ein entfallener Raum bekommt archiviert_am.',
+  },
+  {
     tabelle: 'audit_log',
     art: 'append',
     migration: '0005',
@@ -264,6 +302,14 @@ export const AUDITIERT: readonly TabelleJeMigration[] = [
   { tabelle: 'formular_definition', migration: '0016' },
   { tabelle: 'formular_zustaendigkeit', migration: '0016' },
   { tabelle: 'lead', migration: '0017' },
+  // `belagsart` ja, `raum` nein — eine Entscheidung, keine Auslassung. Ein
+  // geaenderter Leistungswert bepreist jedes noch offene Angebot neu und ist
+  // die Zeile, ueber die im Streitfall gestritten wird; er aendert sich
+  // selten. Ein Raumbuch dagegen kommt zu Tausenden aus einem Import, und ein
+  // Audit-Eintrag je Raum ertraenkte genau das Protokoll, auf das sich eine
+  // Auskunft stuetzt — die Historie des Raums steht ohnehin in seiner eigenen
+  // Zeile (`archiviert_am` plus Neuanlage).
+  { tabelle: 'belagsart', migration: '0021' },
 ] as const;
 
 /** Tables carrying S4 (`geloescht_am` / `geloescht_von`) — the finders' domain. */
@@ -287,6 +333,10 @@ export const GEAENDERT_AM: readonly TabelleJeMigration[] = [
   { tabelle: 'formular_definition', migration: '0016' },
   { tabelle: 'formular_zustaendigkeit', migration: '0016' },
   { tabelle: 'lead', migration: '0017' },
+  { tabelle: 'belagsart', migration: '0021' },
+  { tabelle: 'reinigungsklasse', migration: '0021' },
+  { tabelle: 'objekt', migration: '0021' },
+  { tabelle: 'raum', migration: '0021' },
   // `formular_eingang` NICHT: er ist write-once. `verarbeitet_am` sagt, wann
   // jemand ihn angefasst hat, und ein `geaendert_am` daneben behauptete, der
   // Eingang selbst habe sich geändert — er darf es nicht.

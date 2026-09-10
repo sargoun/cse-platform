@@ -284,3 +284,61 @@ revoke delete, truncate on kunde_zugang from cse_app, cse_anon, cse_checkin, cse
 
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0021)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- belagsart (archiv): OPS-03. Der Leistungswert ist die Zahl, aus der ein Angebotspreis entstanden ist. Faellt die Zeile weg, laesst sich ein bereits abgegebenes Angebot nicht mehr nachrechnen; abgeloest wird sie durch gueltig_bis, nicht durch DELETE.
+create trigger trg_belagsart_kein_hard_delete
+  before delete on belagsart
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_belagsart_kein_truncate
+  before truncate on belagsart
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on belagsart from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- reinigungsklasse (archiv): OPS-02. Die Klasse steht im Leistungsverzeichnis eines laufenden Auftrags. Sie zu loeschen macht die vereinbarte Leistung unlesbar; das Ende einer Klasse ist archiviert_am.
+create trigger trg_reinigungsklasse_kein_hard_delete
+  before delete on reinigungsklasse
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_reinigungsklasse_kein_truncate
+  before truncate on reinigungsklasse
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on reinigungsklasse from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- objekt (archiv): OPS-01. An einem Objekt haengen Auftraege, Einsaetze, Nachweise und Rechnungen mit zehnjaehriger Aufbewahrung. Ein beendetes Objekt wird archiviert, nie entfernt.
+create trigger trg_objekt_kein_hard_delete
+  before delete on objekt
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_objekt_kein_truncate
+  before truncate on objekt
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on objekt from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- raum (archiv): OPS-02. Die Quadratmeter dieser Zeile sind die Grundlage einer Kalkulation, die in ein Angebot und von dort in eine Rechnung gewandert ist. Ein geloeschter Raum macht die Rechnung unpruefbar — ein entfallener Raum bekommt archiviert_am.
+create trigger trg_raum_kein_hard_delete
+  before delete on raum
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_raum_kein_truncate
+  before truncate on raum
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on raum from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_belagsart_geaendert_am
+  before update on belagsart
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_reinigungsklasse_geaendert_am
+  before update on reinigungsklasse
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_objekt_geaendert_am
+  before update on objekt
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_raum_geaendert_am
+  before update on raum
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_belagsart_audit
+  after insert or update or delete on belagsart
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks

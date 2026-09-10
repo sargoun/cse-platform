@@ -32,7 +32,10 @@ create table belagsart (
   code          text not null,
   bezeichnung   text not null,
   beschreibung  text,
-  leistungswert_qm_pro_stunde numeric(10,3) not null,
+  -- Kein Geldbetrag, sondern eine Flaechenleistung: wie viele Quadratmeter
+  -- eine Kraft in einer Stunde schafft. Der Preis entsteht erst in
+  -- server/services, aus Stunden mal Stundensatz in ganzen Cent.
+  leistungswert_qm_pro_stunde numeric(10,3) not null, -- nicht-geld: m²/h
   -- Ein Leistungswert ohne genannte Quelle laesst sich im Preisstreit nicht
   -- verteidigen. Deshalb `not null`.
   quelle        text not null,
@@ -228,7 +231,8 @@ create table raum (
  * `Σ m² ÷ Leistungswert`, und heraus kommt ein systematisch zu billiges
  * Angebot — mit korrekter Rechnung, weshalb es niemandem auffaellt.
  */
-create unique index raum_natuerlich_uk on raum (objekt_id, etage, raumnummer)
+create unique index raum_natuerlich_uk
+  on raum (objekt_id, coalesce(etage, ''), raumnummer)
   where archiviert_am is null and raumnummer is not null;
 create unique index raum_quelle_uk on raum (objekt_id, quell_schluessel)
   where quell_schluessel is not null and archiviert_am is null;
@@ -239,3 +243,312 @@ create index raum_kalkulation_idx on raum (objekt_id, belagsart_id)
 -- "Welche Raeume wuerde eine Aenderung dieses Leistungswerts neu bepreisen?"
 create index raum_belagsart_idx on raum (belagsart_id);
 create index raum_reinigungsklasse_idx on raum (mandant_id, reinigungsklasse_id);
+
+-- ===========================================================================
+-- Zeilenschutz (K-03), Spaltenschutz (K-05), Ausloeser.
+-- ===========================================================================
+
+alter table belagsart         enable row level security;
+alter table belagsart         force  row level security;
+alter table reinigungsklasse  enable row level security;
+alter table reinigungsklasse  force  row level security;
+alter table objekt            enable row level security;
+alter table objekt            force  row level security;
+alter table raum              enable row level security;
+alter table raum              force  row level security;
+
+/**
+ * belagsart und reinigungsklasse sind INTERNE Kataloge.
+ *
+ * Gelesen werden sie mit `objekt.lesen` — ohne sie zeigt das Raumbuch
+ * Zahlen ohne Bedeutung. Gepflegt werden sie mit `stammdaten.verwalten`:
+ * wer einen Leistungswert aendert, bepreist jedes kuenftige Angebot neu.
+ *
+ * Die restriktive Decke haelt sie aus dem Kundenportal heraus. Der Katalog
+ * ist die Kalkulationsgrundlage; welcher Belag in welcher Klasse liegt und
+ * mit welchem Wert gerechnet wird, ist Verhandlungsstoff — im Kundenportal
+ * ist er es gegen uns.
+ */
+create policy t_mandant on belagsart for all to cse_app
+  using      (mandant_id = app.aktiver_mandant()
+              and (select app.hat_recht('objekt.lesen', app.aktiver_mandant())))
+  with check (mandant_id = app.aktiver_mandant()
+              and not app.ist_readonly()
+              and (select app.hat_recht('stammdaten.verwalten', app.aktiver_mandant()))
+              and exists (select 1 from mandant m
+                           where m.id = mandant_id and m.archiviert_am is null));
+
+create policy t_gruppe on belagsart for select to cse_app
+  using (app.ist_gruppenansicht()
+         and mandant_id = any (app.rechte_mandanten('gruppe.stammdaten.lesen')));
+
+create policy p_intern_decke on belagsart as restrictive for all to cse_app
+  using (app.portal() = 'intern');
+
+create policy t_mandant on reinigungsklasse for all to cse_app
+  using      (mandant_id = app.aktiver_mandant()
+              and (select app.hat_recht('objekt.lesen', app.aktiver_mandant())))
+  with check (mandant_id = app.aktiver_mandant()
+              and not app.ist_readonly()
+              and (select app.hat_recht('stammdaten.verwalten', app.aktiver_mandant()))
+              and exists (select 1 from mandant m
+                           where m.id = mandant_id and m.archiviert_am is null));
+
+create policy t_gruppe on reinigungsklasse for select to cse_app
+  using (app.ist_gruppenansicht()
+         and mandant_id = any (app.rechte_mandanten('gruppe.stammdaten.lesen')));
+
+create policy p_intern_decke on reinigungsklasse as restrictive for all to cse_app
+  using (app.portal() = 'intern');
+
+-- objekt: der Standardsatz (K-03) plus die Kundensicht (K-18, Scope 4).
+create policy t_mandant on objekt for all to cse_app
+  using      (mandant_id = app.aktiver_mandant()
+              and (select app.hat_recht('objekt.lesen', app.aktiver_mandant())))
+  with check (mandant_id = app.aktiver_mandant()
+              and not app.ist_readonly()
+              and (select app.hat_recht('objekt.schreiben', app.aktiver_mandant()))
+              and exists (select 1 from mandant m
+                           where m.id = mandant_id and m.archiviert_am is null));
+
+create policy t_gruppe on objekt for select to cse_app
+  using (app.ist_gruppenansicht()
+         and mandant_id = any (app.rechte_mandanten('gruppe.objekt.lesen')));
+
+/**
+ * Der Kunde sieht SEINE Objekte — und `kunde_id` ist nullbar, weshalb ein
+ * Objekt ohne Kundenbezug hier durch `= any(...)` von selbst herausfaellt.
+ * Genau so soll es sein: ein Veranstaltungsort ohne Kundenstamm gehoert
+ * niemandem, also sieht ihn im Kundenportal auch niemand.
+ */
+create policy t_kunde on objekt for select to cse_app
+  using (app.scope() = 'kunde'
+         and mandant_id = any (app.sichtbare_mandanten())
+         and kunde_id = any (app.aktuelle_kunden()));
+
+create policy p_kunde_decke on objekt as restrictive for all to cse_app
+  using (app.portal() <> 'kunde' or kunde_id = any (app.aktuelle_kunden()));
+
+/**
+ * Die MITARBEITER-Sicht (Scope PER, 03-AUTH §8.5) fehlt hier mit Absicht:
+ * ihr Praedikat laeuft ueber `einsatz`/`einsatz_zuordnung`, und diese
+ * Tabellen entstehen erst in Phase 5. Bis dahin trifft eine Mitarbeiter-
+ * Sitzung auf `objekt` NULL Zeilen — fehlgeschlossen, nicht offen (K-19).
+ * Die Policy `t_person` kommt mit `einsatz`, in derselben Migration.
+ */
+
+-- raum: haengt am Objekt, und erbt dessen Sichtbarkeit ueber genau dieses
+-- `exists` — nicht ueber eine zweite, spaeter abweichende Bedingung.
+create policy t_mandant on raum for all to cse_app
+  using      (mandant_id = app.aktiver_mandant()
+              and (select app.hat_recht('objekt.lesen', app.aktiver_mandant())))
+  with check (mandant_id = app.aktiver_mandant()
+              and not app.ist_readonly()
+              and (select app.hat_recht('objekt.schreiben', app.aktiver_mandant()))
+              and exists (select 1 from mandant m
+                           where m.id = mandant_id and m.archiviert_am is null));
+
+create policy t_gruppe on raum for select to cse_app
+  using (app.ist_gruppenansicht()
+         and mandant_id = any (app.rechte_mandanten('gruppe.objekt.lesen')));
+
+create policy t_kunde on raum for select to cse_app
+  using (app.scope() = 'kunde'
+         and mandant_id = any (app.sichtbare_mandanten())
+         and exists (select 1 from objekt o
+                      where o.id = raum.objekt_id
+                        and o.kunde_id = any (app.aktuelle_kunden())));
+
+create policy p_kunde_decke on raum as restrictive for all to cse_app
+  using (app.portal() <> 'kunde'
+         or exists (select 1 from objekt o
+                     where o.id = raum.objekt_id
+                       and o.kunde_id = any (app.aktuelle_kunden())));
+
+-- ---------------------------------------------------------------------------
+-- K-05: Spalten, die die Zeile mitbringt, aber nicht jede Sitzung lesen darf.
+-- ---------------------------------------------------------------------------
+
+grant select, insert, update on belagsart, reinigungsklasse, objekt, raum to cse_app;
+
+/**
+ * `leistungswert_qm_pro_stunde` ist die Marge in einer Spalte.
+ *
+ * Aus ihr und der Flaeche entsteht der Preis; wer sie kennt, rechnet jedes
+ * Angebot nach. Das SELECT-Recht wird deshalb entzogen — INSERT und UPDATE
+ * bleiben, denn wer den Katalog pflegen darf, setzt sie, und die Policy
+ * entscheidet, ob er das darf. Ein `WHERE leistungswert > 3` scheitert
+ * ebenfalls: eine Bedingung ueber eine Spalte braucht deren SELECT-Recht.
+ */
+revoke select on belagsart from cse_app;
+grant  select (id, mandant_id, code, bezeichnung, beschreibung, quelle,
+               ist_platzhalter, gueltig_ab, gueltig_bis,
+               erstellt_am, erstellt_von, geaendert_am, geaendert_von)
+       on belagsart to cse_app;
+
+/**
+ * `bemerkung` und `zutritt_hinweis` sind INTERNE Notizen an einem Ort, den
+ * der Kunde selbst im Portal sieht. In der einen steht, wo der Schluessel
+ * liegt, in der anderen, was intern ueber diesen Auftrag gesagt wird.
+ */
+revoke select on objekt from cse_app;
+grant  select (id, mandant_id, kunde_id, objektnummer, bezeichnung, gebaeudetyp,
+               strasse, hausnummer, adresszusatz, plz, ort, land,
+               geo_lat, geo_lon, ansprechpartner_id, etagen_anzahl,
+               archiviert_am, erstellt_am, erstellt_von, geaendert_am, geaendert_von)
+       on objekt to cse_app;
+
+revoke select on raum from cse_app;
+grant  select (id, mandant_id, objekt_id, raumnummer, bezeichnung, etage,
+               nutzungsart, flaeche_qm, belagsart_id, reinigungsklasse_id,
+               fenster_flaeche_qm, quell_schluessel, sortierung,
+               archiviert_am, erstellt_am, erstellt_von, geaendert_am, geaendert_von)
+       on raum to cse_app;
+
+/**
+ * Der K-05-Leser fuer den Leistungswert.
+ *
+ * Er gibt den KATALOG zurueck, nicht eine Zeile: das Raumbuch braucht alle
+ * Werte eines Mandanten auf einmal, und ein Leser je Zeile waere N Aufrufe
+ * fuer dieselbe Antwort. Er prueft Bereich UND Recht ausdruecklich — als
+ * Definer erbt er beides nicht.
+ *
+ * Anders als `app.rechtsgrundlage_lesen` schreibt er NICHT ins Audit: ein
+ * Leistungswert ist ein Geschaeftsgeheimnis, kein personenbezogenes Datum,
+ * und ein Eintrag je Raumbuch-Ansicht ertraenkte genau das Protokoll, auf
+ * das sich eine LEG-08-Auskunft stuetzt.
+ */
+create function app.leistungswerte_lesen(p_stichtag date default current_date)
+returns table (belagsart_id uuid, code text, bezeichnung text,
+               leistungswert_qm_pro_stunde numeric, ist_platzhalter boolean, quelle text) -- nicht-geld: m²/h
+language plpgsql stable security definer set search_path = pg_catalog, public, app as $$
+begin
+  if app.portal() <> 'intern' then
+    raise exception 'Leistungswerte sind ausserhalb des internen Portals nicht lesbar (K-04)'
+      using errcode = 'insufficient_privilege';
+  end if;
+  if not app.hat_recht('objekt.lesen', app.aktiver_mandant()) then
+    raise exception 'objekt.lesen fehlt' using errcode = 'insufficient_privilege';
+  end if;
+
+  return query
+    select b.id, b.code, b.bezeichnung, b.leistungswert_qm_pro_stunde,
+           b.ist_platzhalter, b.quelle
+      from public.belagsart b
+     where b.mandant_id = app.aktiver_mandant()
+       and b.gueltig_ab <= p_stichtag
+       and (b.gueltig_bis is null or b.gueltig_bis >= p_stichtag)
+     order by b.code;
+end $$;
+
+grant execute on function app.leistungswerte_lesen(date) to cse_app;
+
+/** Der K-05-Leser fuer die internen Notizen eines Objekts. */
+create function app.objekt_notiz_lesen(p_objekt uuid)
+returns table (bemerkung text, zutritt_hinweis text)
+language plpgsql stable security definer set search_path = pg_catalog, public, app as $$
+begin
+  if app.portal() <> 'intern' then
+    raise exception 'Interne Objektnotizen sind hier nicht lesbar (K-04)'
+      using errcode = 'insufficient_privilege';
+  end if;
+  if not app.hat_recht('objekt.lesen', app.aktiver_mandant()) then
+    raise exception 'objekt.lesen fehlt' using errcode = 'insufficient_privilege';
+  end if;
+
+  return query
+    select o.bemerkung, o.zutritt_hinweis
+      from public.objekt o
+     where o.id = p_objekt and o.mandant_id = app.aktiver_mandant();
+end $$;
+
+grant execute on function app.objekt_notiz_lesen(uuid) to cse_app;
+
+/** Dieselbe Auskunft fuer das Raumbuch — ein Aufruf je Objekt, nicht je Raum. */
+create function app.raum_notizen_lesen(p_objekt uuid)
+returns table (raum_id uuid, bemerkung text)
+language plpgsql stable security definer set search_path = pg_catalog, public, app as $$
+begin
+  if app.portal() <> 'intern' then
+    raise exception 'Interne Raumnotizen sind hier nicht lesbar (K-04)'
+      using errcode = 'insufficient_privilege';
+  end if;
+  if not app.hat_recht('objekt.lesen', app.aktiver_mandant()) then
+    raise exception 'objekt.lesen fehlt' using errcode = 'insufficient_privilege';
+  end if;
+
+  return query
+    select r.id, r.bemerkung
+      from public.raum r
+     where r.objekt_id = p_objekt
+       and r.mandant_id = app.aktiver_mandant()
+       and r.bemerkung is not null;
+end $$;
+
+grant execute on function app.raum_notizen_lesen(uuid) to cse_app;
+
+-- ---------------------------------------------------------------------------
+-- Ausloeser: `geaendert_am`, Loeschsperren und das Audit auf `belagsart`
+-- stehen im Register (`src/server/db/schema/rls.ts`) und werden von
+-- `pnpm db:triggers` in den Block am Dateiende geschrieben — von Hand
+-- geschrieben hiessen sie anders, und der Test, der Register und Datenbank
+-- in BEIDE Richtungen vergleicht, faende die Abweichung erst spaeter.
+-- ---------------------------------------------------------------------------
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0021)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- belagsart (archiv): OPS-03. Der Leistungswert ist die Zahl, aus der ein Angebotspreis entstanden ist. Faellt die Zeile weg, laesst sich ein bereits abgegebenes Angebot nicht mehr nachrechnen; abgeloest wird sie durch gueltig_bis, nicht durch DELETE.
+create trigger trg_belagsart_kein_hard_delete
+  before delete on belagsart
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_belagsart_kein_truncate
+  before truncate on belagsart
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on belagsart from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- reinigungsklasse (archiv): OPS-02. Die Klasse steht im Leistungsverzeichnis eines laufenden Auftrags. Sie zu loeschen macht die vereinbarte Leistung unlesbar; das Ende einer Klasse ist archiviert_am.
+create trigger trg_reinigungsklasse_kein_hard_delete
+  before delete on reinigungsklasse
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_reinigungsklasse_kein_truncate
+  before truncate on reinigungsklasse
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on reinigungsklasse from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- objekt (archiv): OPS-01. An einem Objekt haengen Auftraege, Einsaetze, Nachweise und Rechnungen mit zehnjaehriger Aufbewahrung. Ein beendetes Objekt wird archiviert, nie entfernt.
+create trigger trg_objekt_kein_hard_delete
+  before delete on objekt
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_objekt_kein_truncate
+  before truncate on objekt
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on objekt from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- raum (archiv): OPS-02. Die Quadratmeter dieser Zeile sind die Grundlage einer Kalkulation, die in ein Angebot und von dort in eine Rechnung gewandert ist. Ein geloeschter Raum macht die Rechnung unpruefbar — ein entfallener Raum bekommt archiviert_am.
+create trigger trg_raum_kein_hard_delete
+  before delete on raum
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_raum_kein_truncate
+  before truncate on raum
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on raum from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_belagsart_geaendert_am
+  before update on belagsart
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_reinigungsklasse_geaendert_am
+  before update on reinigungsklasse
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_objekt_geaendert_am
+  before update on objekt
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_raum_geaendert_am
+  before update on raum
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_belagsart_audit
+  after insert or update or delete on belagsart
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks

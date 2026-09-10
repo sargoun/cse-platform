@@ -57,9 +57,11 @@ describe('the delete-lock registry is the single source (01-ORDNERSTRUKTUR §6.2
       expect(l.grund, l.tabelle)
         // `REQ`, `REP` und `CRM` sind SPEC-Anker derselben Art wie `DOC` und
         // `FIN`, die schon dastanden — nicht eine Lockerung, sondern die
-        // Fortsetzung derselben Liste in die Phase-2-Domäne.
+        // Fortsetzung derselben Liste in die Phase-2-Domäne. `OPS` (SPEC §5,
+        // OPS-01 bis OPS-03: Objekte, Raumbuch, Belagsart-Katalog) setzt sie
+        // in die Phase-4-Domäne fort.
         .toMatch(
-          /LEG-\d\d|SEC-A9|DSGVO|MiLoG|D-09|APR-\d\d|DOC-\d\d|FIN-\d\d|AUT-\d\d|REQ-\d\d|REP-\d\d|CRM-\d\d|§/u,
+          /LEG-\d\d|SEC-A9|DSGVO|MiLoG|D-09|APR-\d\d|DOC-\d\d|FIN-\d\d|AUT-\d\d|REQ-\d\d|REP-\d\d|CRM-\d\d|OPS-\d\d|§/u,
         );
       expect(l.grund.length, l.tabelle).toBeGreaterThan(60);
     }
