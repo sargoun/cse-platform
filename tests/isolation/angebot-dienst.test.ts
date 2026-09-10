@@ -115,7 +115,7 @@ async function bestaetige(angebotId: string): Promise<void> {
     gemeinkostenBasis: 'lohn',
     gemeinkostenProzent: '15',
     wagnisGewinnProzent: '8',
-    leistungswerteBestaetigen: true,
+    frequenzFaktor: '1', leistungswerteBestaetigen: true,
     benutzerId: chef,
   }));
 }
@@ -195,23 +195,36 @@ describe('(1) Vom Raumbuch zum versendeten Angebot', () => {
     expect(ergebnis.versand.angebotsnummer).toMatch(/^AN-2026-00001$/u);
 
     /**
-     * 500 m² ÷ 250 m²/h = 2 h × 29,00 € = 58,00 € LOHN — und darauf die drei
-     * Zuschlaege: 15 % Gemeinkosten (8,70 €), 3 % Wagnis auf die
-     * Zwischensumme (2,00 €), 5 % Gewinn darauf (3,44 €). Netto 72,14 €.
+     * 500 m² ÷ 250 m²/h = 2 h × 29,00 € = 58,00 € LOHN — und darauf die
+     * Zuschlaege: 15 % Gemeinkosten (8,70 €) und 8 % Wagnis und Gewinn auf
+     * die Zwischensumme (5,34 €). Netto 72,04 €.
      *
      * Diese Zusage ist der Kern: der Summentrigger rechnet aus den
      * POSITIONEN, und die Positionen tragen den Nettoanteil. Stuende hier
      * wieder 5800, hiesse das: das Angebot geht zum Selbstkostenpreis hinaus
      * — die Zeilen stimmten, die Summe stimmte zu den Zeilen, und niemand
      * saehe es dem Dokument an.
+     *
+     * Und warum 7204 und nicht die 7214 der ersten Rechnung: der PLATZHALTER
+     * traegt Wagnis (3 %) und Gewinn (5 %) als ZWEI Saetze, die aufeinander
+     * rechnen — 1,03 × 1,05 = 1,0815. Bestaetigt wird EIN Satz von 8 %. Die
+     * zehn Cent Unterschied sind genau der Punkt der Bestaetigung: seit sie
+     * nachrechnet, steht im Angebot der Preis aus den BESTAETIGTEN Zahlen.
+     * Vorher blieben die Cent des Platzhalters stehen, waehrend der Kopf die
+     * bestaetigten Saetze meldete — ein Preis, der geprueft aussah und es
+     * nicht war.
      */
     const [z] = await sql.unsafe<{ netto: string; status: string; nummer: string }[]>(
       `select netto_cent::text as netto, status, angebotsnummer as nummer
          from angebot where id = $1`, [ergebnis.angebotId]);
-    expect(z!.netto).toBe('7214');
-    // Und dieselbe Zahl noch einmal aus der Kalkulation, damit Literal und
-    // Rechenweg nicht auseinanderlaufen koennen.
-    expect(z!.netto).toBe(String(ergebnis.netto));
+    expect(z!.netto).toBe('7204');
+    // Und die Kalkulationssumme traegt DENSELBEN Betrag — Lohnzeilen plus
+    // Zuschlagszeilen. Frueher stand dort der reine Lohn (5800), waehrend das
+    // Angebot 7214 nannte: zwei Summen, beide plausibel, in einem Datensatz.
+    const [ks] = await sql.unsafe<{ summe: string }[]>(
+      `select angebotssumme_netto_cent::text as summe
+         from kalkulation where angebot_id = $1`, [ergebnis.angebotId]);
+    expect(ks!.summe).toBe(z!.netto);
     expect(z!.status).toBe('versendet');
   });
 
@@ -609,7 +622,7 @@ describe('(6) Die Werte bestaetigen — der Weg aus der Sperre (OPS-07)', () => 
     gemeinkostenBasis: 'lohn',
     gemeinkostenProzent: '17',
     wagnisGewinnProzent: '9,5',
-    leistungswerteBestaetigen: true,
+    frequenzFaktor: '1', leistungswerteBestaetigen: true,
   };
 
   it('nach der Bestaetigung geht der Versand — vorher nicht', async () => {
@@ -660,10 +673,81 @@ describe('(6) Die Werte bestaetigen — der Weg aus der Sperre (OPS-07)', () => 
     expect(unberuehrt!.platzhalter).toBe(true);
   });
 
+  /**
+   * Der teuerste Befund der Copilot-Runde, und er ist rueckwirkend.
+   *
+   * Die Bestaetigung schrieb `belagsart.ist_platzhalter = false` — in den
+   * GETEILTEN Katalog. Die Sperre las den Katalog live. Wer also O-17 fuer
+   * EIN Angebot bestaetigte, raeumte im selben Moment jedes ANDERE Angebot
+   * auf derselben Belagsart aus der Sperre: Preise, die auf dem Platzhalter
+   * gerechnet worden waren, durften hinaus, ohne dass jemand sie je angesehen
+   * hatte. Kein Fehler wurde sichtbar; die Sperre hoerte einfach auf, fuer
+   * sie zu gelten.
+   *
+   * Seit 0027 haengt die Sperre am Schnappschuss der Zeile.
+   */
+  it('die Bestaetigung eines Angebots gibt kein ANDERES Angebot frei', async () => {
+    // ZWEI Angebote auf DEMSELBEN Objekt — also auf derselben Belagsart.
+    // Genau darin lag der Fehler: der geteilte Katalog verband sie.
+    const eins = await angebotMitKalkulation();
+    const zwei = await alsChef(async (db) => {
+      const grundlage = await ladeKalkulationsgrundlage(db, eins.objektId, new Date());
+      const frequenz = PLATZHALTER_FREQUENZ.frequenz('1_pro_monat');
+      const tarif = PLATZHALTER_TARIF.tarif(f.reinigung, 'reinigung');
+      const kalk = kalkuliere({ posten: grundlage.posten, frequenz, tarif });
+      const [kd] = await db.abfrage<{ kunde_id: string }>(
+        'select kunde_id from angebot where id = $1', [eins.angebotId]);
+      const id = await legeAngebotAn(db, {
+        kundeId: kd!.kunde_id, titel: 'Zweites Angebot', objektId: eins.objektId,
+      });
+      await uebernimmKalkulation(db, id, kalk,
+        { objektId: eins.objektId, turnusLabel: 'monatlich', tarif, frequenz });
+      return { angebotId: id };
+    });
+
+    await alsChef((db) =>
+      bestaetigeKalkulation(db, eins.angebotId, { ...werte, benutzerId: chef }));
+
+    // Das erste darf hinaus — es wurde bestaetigt.
+    await expect(alsChef((db) => versendeAngebot(db, eins.angebotId, chef)))
+      .resolves.toBeDefined();
+
+    // Das zweite NICHT: niemand hat es angesehen.
+    await expect(alsChef((db) => versendeAngebot(db, zwei.angebotId, chef)))
+      .rejects.toThrow(/unbestaetigte Werte/u);
+  });
+
+  /**
+   * O-56 hat kein Bestaetigungsfeld gehabt, wurde aber mitgeloescht: die
+   * Bestaetigung raeumte `ist_platzhalter` ab, obwohl sie nach dem
+   * Frequenzfaktor nie gefragt hatte. Das Angebot ging dann mit einem
+   * GERATENEN Turnusfaktor hinaus — und die Seite meldete „bestaetigt“.
+   */
+  it('ohne Frequenzfaktor bleibt O-56 offen — und der Versand gesperrt', async () => {
+    const { angebotId } = await angebotMitKalkulation();
+    await alsChef((db) => bestaetigeKalkulation(db, angebotId, {
+      ...werte, frequenzFaktor: null, leistungswerteBestaetigen: true, benutzerId: chef,
+    }));
+    await expect(alsChef((db) => versendeAngebot(db, angebotId, chef)))
+      .rejects.toThrow(/unbestaetigte Werte/u);
+  });
+
+  /**
+   * Ein negativer Stundensatz ergaebe negative Lohnkosten und darauf ein
+   * Angebot, das dem Kunden Geld verspricht. `parseGeld` nimmt negatives Geld
+   * an — richtig fuer eine Gutschrift, falsch fuer einen Satz.
+   */
+  it('ein negativer Stundensatz wird abgewiesen, nicht gerechnet', async () => {
+    const { angebotId } = await angebotMitKalkulation();
+    await expect(alsChef((db) => bestaetigeKalkulation(db, angebotId, {
+      ...werte, stundensatzEuro: '-29,00', benutzerId: chef,
+    }))).rejects.toThrow(/groesser als null/u);
+  });
+
   it('ohne das Haekchen bleibt der Leistungswert offen — und der Versand gesperrt', async () => {
     const { angebotId } = await angebotMitKalkulation();
     await alsChef((db) => bestaetigeKalkulation(db, angebotId, {
-      ...werte, leistungswerteBestaetigen: false, benutzerId: chef,
+      ...werte, frequenzFaktor: '1', leistungswerteBestaetigen: false, benutzerId: chef,
     }));
     await expect(alsChef((db) => versendeAngebot(db, angebotId, chef)))
       .rejects.toThrow(/unbestaetigte Werte/u);

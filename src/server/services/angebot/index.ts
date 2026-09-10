@@ -161,8 +161,8 @@ export async function uebernimmKalkulation(
     `insert into kalkulation
        (mandant_id, angebot_id, basis_objekt_id, basis_stand_am,
         stundenverrechnungssatz_cent, gemeinkosten_basis, gemeinkosten_bp,
-        wagnis_gewinn_bp, ist_platzhalter, bemerkung)
-     values (app.aktiver_mandant(), $1, $2, now(), $3, 'lohn', $4, $5, $6, $7)
+        wagnis_gewinn_bp, ist_platzhalter, frequenz_ist_platzhalter, bemerkung)
+     values (app.aktiver_mandant(), $1, $2, now(), $3, 'lohn', $4, $5, $6, $8, $7)
      returning id`,
     [angebotId, opts.objektId ?? null,
      String(opts.tarif.stundensatz), opts.tarif.gemeinkostenSatz,
@@ -170,7 +170,8 @@ export async function uebernimmKalkulation(
      kalkulation.istPlatzhalter,
      kalkulation.offeneFragen.length === 0
        ? null
-       : `Offene Fragen: ${kalkulation.offeneFragen.join(', ')}`],
+       : `Offene Fragen: ${kalkulation.offeneFragen.join(', ')}`,
+     opts.frequenz.istPlatzhalter],
   );
   if (kopf === undefined) {
     throw new AngebotFehler('Die Kalkulation wurde nicht angelegt', 'nicht_gefunden');
@@ -206,9 +207,10 @@ export async function uebernimmKalkulation(
          (mandant_id, kalkulation_id, position_nr, kostenart, bezeichnung,
           belagsart_id, menge, einheit, einzelbetrag_cent, betrag_cent,
           leistungswert_qm_pro_stunde, frequenz_faktor, stundensatz_cent,
-          rechenansatz, operanden, berechnungsweg, sortierung)
+          rechenansatz, operanden, berechnungsweg, leistungswert_ist_platzhalter,
+          sortierung)
        values (app.aktiver_mandant(), $1, $2, 'lohn', $3, $4, $5::numeric, 'std', $6, $7,
-               $8::numeric, $9::numeric, $10, $11, $12::jsonb, $13, $2)`,
+               $8::numeric, $9::numeric, $10, $11, $12::jsonb, $13, $14, $2)`,
       /**
        * `menge` sind STUNDEN, nicht Quadratmeter: nur so ist
        * `menge × einzelbetrag ≈ betrag` nachvollziehbar, und nur so traegt
@@ -232,7 +234,7 @@ export async function uebernimmKalkulation(
          lohnkosten_cent: String(zeile.lohnkosten),
          nettoanteil_cent: String(preise[i]),
        },
-       langtext],
+       langtext, zeile.leistungswertIstPlatzhalter],
     );
   }
   return nr;

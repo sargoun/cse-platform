@@ -32,6 +32,15 @@ export interface Kalkulationszeile {
   readonly sekundenJeDurchgang: bigint;
   readonly sekundenJePeriode: bigint;
   readonly lohnkosten: Cent;
+  /**
+   * Stand der Leistungswert dieser Zeile auf O-17?
+   *
+   * Je ZEILE, nicht nur als Gesamtraute: `uebernimmKalkulation` schreibt ihn
+   * als Schnappschuss (0027), und daran haengt spaeter die Sperre. Ohne ihn
+   * las die Sicht den Katalog live — und eine Katalogpflege gab ruecklings
+   * Angebote frei, die auf dem Platzhalter gerechnet waren.
+   */
+  readonly leistungswertIstPlatzhalter: boolean;
 }
 
 export interface Kalkulation {
@@ -87,6 +96,7 @@ export function kalkuliere(eingabe: Kalkulationseingabe): Kalkulation {
       sekundenJeDurchgang: jeDurchgang,
       sekundenJePeriode: jePeriode,
       lohnkosten: lohnkostenAusSekunden(jePeriode, tarif.stundensatz),
+      leistungswertIstPlatzhalter: p.leistungswertIstPlatzhalter === true,
     };
   });
 

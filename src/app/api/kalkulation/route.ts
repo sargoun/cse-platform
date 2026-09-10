@@ -70,6 +70,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           gemeinkostenProzent: text('gemeinkosten'),
           wagnisGewinnProzent: text('wagnisGewinn'),
           leistungswerteBestaetigen: text('leistungswerte') === 'ja',
+          frequenzFaktor: text('frequenzFaktor'),
           benutzerId: sitzung.benutzerId,
         });
       })) as Promise<{ readonly bestaetigt: boolean }>);

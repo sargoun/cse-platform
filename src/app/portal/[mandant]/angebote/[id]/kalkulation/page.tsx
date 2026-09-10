@@ -41,6 +41,7 @@ interface Kopf {
   readonly bemerkung: string | null;
   readonly versendet: boolean;
   readonly leistungswert_offen: boolean;
+  readonly frequenz_offen: boolean;
 }
 
 interface Zeile {
@@ -87,9 +88,10 @@ export default async function KalkulationSeite(
                 k.gemeinkosten_bp, k.wagnis_gewinn_bp, k.bemerkung,
                 (a.versendet_am is not null) as versendet,
                 exists (select 1 from kalkulation_position p
-                          join belagsart b on b.id = p.belagsart_id
-                         where p.kalkulation_id = k.id and b.ist_platzhalter)
-                  as leistungswert_offen
+                         where p.kalkulation_id = k.id
+                           and p.leistungswert_ist_platzhalter)
+                  as leistungswert_offen,
+                coalesce(k.frequenz_ist_platzhalter, false) as frequenz_offen
            from angebot a
            join kunde ku on ku.id = a.kunde_id
            left join kalkulation k on k.angebot_id = a.id
@@ -106,7 +108,8 @@ export default async function KalkulationSeite(
 
   if (daten === null) notFound();
   const { kopf, zeilen } = daten;
-  const offen = kopf.ist_platzhalter === true || kopf.leistungswert_offen;
+  const offen = kopf.ist_platzhalter === true || kopf.leistungswert_offen
+    || kopf.frequenz_offen;
   const eingefroren = kopf.kalkulation_status === 'festgeschrieben' || kopf.versendet;
 
   return (
@@ -263,6 +266,23 @@ export default async function KalkulationSeite(
                 />
               </label>
 
+              {kopf.frequenz_offen ? (
+                <label className="mb-s4 block text-sm text-text">
+                  Frequenzfaktor je Abrechnungsperiode (O-56)
+                  <input
+                    name="frequenzFaktor"
+                    data-cse="feld-frequenz"
+                    required
+                    placeholder="z. B. 4,3333 für wöchentlich bei monatlicher Abrechnung"
+                    className="mt-s1 block min-h-11 w-full rounded-md border border-line bg-surface px-s3 text-text"
+                  />
+                  <span className="mt-s1 block text-xs text-text-muted">
+                    Wie oft der Turnus in einer Abrechnungsperiode vorkommt. Bisher
+                    geschätzt — ohne Ihre Zahl bleibt das Angebot gesperrt.
+                  </span>
+                </label>
+              ) : null}
+
               {kopf.leistungswert_offen ? (
                 <label className="mb-s4 flex items-start gap-s3 text-sm text-text">
                   <input
@@ -274,9 +294,10 @@ export default async function KalkulationSeite(
                   />
                   <span>
                     Auch die Reinigungsrichtwerte der hier benutzten Belagsarten
-                    bestätigen (O-17). Das gilt dann für <strong>jedes</strong> künftige
-                    Angebot mit diesen Belagsarten — anders als die Zuschläge darüber,
-                    die nur für dieses hier gelten.
+                    bestätigen (O-17) — <strong>für dieses Angebot</strong>. Der
+                    gemeinsame Katalog bleibt unberührt: andere Kalkulationen auf
+                    denselben Belagsarten bleiben gesperrt, bis sie jemand einzeln
+                    ansieht.
                   </span>
                 </label>
               ) : null}

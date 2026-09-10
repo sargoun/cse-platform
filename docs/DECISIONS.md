@@ -1717,6 +1717,99 @@ Werten dastehen“. Ein Duplikat war nie Teil dieser Freigabe.
 
 ---
 
+### D-104 · Das Ursprungstor vergleicht das Schema mit, und steht nur noch einmal da
+
+`istGleicherUrsprung` verglich `URL.host`. `host` ist Rechnername plus Port und
+traegt das Schema NICHT: `http://cse.example` und `https://cse.example` haben
+denselben `host`. Eine Seite unter `http` auf demselben Namen kam damit durch
+das Tor einer `https`-Anfrage — die CSRF-Schranke war offen fuer genau den
+Angriff, gegen den sie steht. Sie stand ausserdem sechsmal fast gleich in sechs
+Route-Dateien.
+
+**Entschieden:** ein Modul, `server/auth/ursprung.ts`, und verglichen wird der
+ganze Ursprung.
+
+**Nicht gegen `nextUrl.origin`,** und das ist der Teil, den der Befund offen
+liess. Hinter einem TLS-beendenden Proxy sieht die Anwendung `http`, waehrend
+der Browser `https` gesprochen hat; ein strenger Vergleich haette dann jede
+ECHTE Anfrage abgewiesen — das Tor waere zu gewesen, aber fuer die Falschen.
+Das Schema kommt darum aus `x-forwarded-proto`, wenn ein Proxy es setzt, sonst
+aus der Anfrage. `x-forwarded-host` wird bewusst nicht gelesen: er ist vom
+Aufrufer setzbar und liesse den erwarteten Ursprung selbst bestimmen.
+
+### D-105 · Der Platzhalter-Stand gehoert zur Kalkulation, nicht zum Katalog
+
+Die Bestaetigung eines Angebots schrieb `belagsart.ist_platzhalter = false` —
+in den GETEILTEN Katalog — und die Sperre `kalkulation_platzhalter` las den
+Katalog live. Wer O-17 fuer EIN Angebot bestaetigte, raeumte damit im selben
+Moment jedes ANDERE Angebot auf derselben Belagsart aus der Sperre. Preise, die
+auf dem Platzhalterwert gerechnet worden waren, durften anschliessend hinaus,
+ohne dass jemand sie angesehen hatte. Kein Fehler wurde sichtbar: die Sperre
+hoerte einfach auf, fuer sie zu gelten.
+
+Dieselbe Raute trug ausserdem DREI Fragen — Tarif (O-16), Frequenzfaktor
+(O-56) und Leistungswert (O-17) — und die Bestaetigung kannte nur die erste,
+loeschte aber alle drei. O-56 hatte nicht einmal ein Eingabefeld.
+
+**Entschieden (Migration 0027):** drei Fragen, drei Spalten.
+`kalkulation.ist_platzhalter` heisst nur noch „Tarif unbestaetigt“,
+`kalkulation.frequenz_ist_platzhalter` traegt O-56, und
+`kalkulation_position.leistungswert_ist_platzhalter` traegt O-17 je Zeile — als
+SCHNAPPSCHUSS. Die Sicht liest ausschliesslich Schnappschuesse; eine
+Katalogpflege raeumt dort nichts mehr ab, weil sie den laengst gerechneten
+Preis auch nicht aendert. Die Bestaetigung fragt nach dem Frequenzfaktor und
+laesst O-56 offen, wenn er fehlt; der Katalog bleibt unberuehrt.
+
+Die Bestandsdaten wurden nur in die vorsichtige Richtung gesetzt: was offen
+war, bleibt offen, nichts wurde freigegeben. Wer zu wenig freigibt, verlangt
+einen Blick zu viel; wer zu viel freigibt, verschickt einen ungeprueften Preis.
+
+### D-106 · Die Bestaetigung rechnet nach — sonst bestaetigt sie nur sich selbst
+
+Die Bestaetigung schrieb die neuen Tarifzahlen in den Kalkulationskopf und
+raeumte die Sperre ab. Die Betraege in `kalkulation_position` und die Preise in
+`angebotsposition` blieben stehen — gerechnet auf dem PLATZHALTER-Satz. Die
+Seite meldete „bestaetigt“, die Sperre liess das Angebot hinaus, und
+hinausgegangen waeren Cent aus dem geschaetzten Satz. Das ist die
+gefaehrlichste Sorte falscher Zahl: sie sieht geprueft aus.
+
+**Entschieden:** die Bestaetigung ruft `kalkuliere` erneut — dieselbe Funktion
+mit denselben Tests — auf den SCHNAPPSCHUESSEN der Zeilen (Flaeche,
+Leistungswert), nicht auf dem heutigen Raumbuch. Wer einen Stundensatz
+bestaetigt, bestaetigt keinen zwischenzeitlich geaenderten Raumbestand mit.
+Danach werden Kalkulations- und Angebotspositionen aktualisiert.
+
+Dabei faellt der zweite Befund derselben Runde mit weg: Gemeinkosten und
+Wagnis/Gewinn bekommen EIGENE Kalkulationszeilen. Vorher summierte
+`kalkulation.angebotssumme_netto_cent` nur Lohnzeilen, waehrend
+`angebot.netto_cent` den vollen Netto trug — dieselbe Kalkulation nannte zwei
+Betraege, und beide sahen richtig aus.
+
+Ein Nebeneffekt ist gewollt und im Test festgehalten: der Preis aendert sich
+bei der Bestaetigung geringfuegig (im Abnahmefall 72,14 € → 72,04 €). Der
+Platzhalter traegt Wagnis und Gewinn als ZWEI aufeinander rechnende Saetze
+(1,03 × 1,05), bestaetigt wird EIN Satz von 8 %. Die zehn Cent sind genau der
+Punkt: seit die Bestaetigung nachrechnet, steht im Angebot der Preis aus den
+bestaetigten Zahlen.
+
+Geloescht wird dabei nichts: `kalkulation_position` traegt die Loeschsperre
+(Invariante 8), Zuschlagszeilen werden geaendert oder angelegt. Eine
+Kalkulationszeile ist ein Beleg dafuer, wie ein Preis entstand, und ein Beleg
+verschwindet nicht, weil sich der Preis geaendert hat.
+
+### D-107 · Ein Stundensatz ist kein Geldbetrag mit Vorzeichen
+
+`parseGeld` nimmt negative Betraege an, und das ist dort richtig: eine
+Gutschrift und ein Storno sind negatives Geld. `stundensatzInCent` reichte das
+durch, `lohnkostenAusSekunden` multipliziert ohne Vorzeichenpruefung — ein
+negativer Satz haette negative Lohnkosten ergeben und darauf ein Angebot, das
+dem Kunden Geld verspricht.
+
+**Entschieden:** die Schranke steht am Rand, nicht in `parseGeld`. Ein
+Stundenverrechnungssatz muss groesser als null sein; 0,00 € ist keine
+Bestaetigung, sondern eine leere Eingabe mit einem Komma.
+
+
 ## Carried over from the Phase 0 review — not client questions
 
 Three items the review surfaced that are ours to do, recorded here so they are not

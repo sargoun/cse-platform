@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
-  prozentInBasispunkte, stundensatzInCent, KalkulationFehler,
+  frequenzFaktorInMilli, prozentInBasispunkte, stundensatzInCent, KalkulationFehler,
 } from '../../src/server/services/kalkulation/bestaetigung.js';
 
 describe('Prozent in Basispunkte', () => {
@@ -68,5 +68,55 @@ describe('Stundensatz in Cent', () => {
   it('und was kein Betrag ist, wird abgewiesen', () => {
     expect(() => stundensatzInCent('neunundzwanzig')).toThrow(KalkulationFehler);
     expect(() => stundensatzInCent('')).toThrow(KalkulationFehler);
+  });
+});
+
+describe('Stundensatz: die Schranke gegen negative Loehne', () => {
+  /**
+   * `parseGeld` NIMMT negative Betraege — und das ist dort richtig: eine
+   * Gutschrift und ein Storno sind negatives Geld. Ein Stundensatz ist es
+   * nicht. Ohne diese Schranke rechnet `lohnkostenAusSekunden` brav weiter
+   * und liefert negative Lohnkosten; darauf die Zuschlaege, und heraus kaeme
+   * ein Angebot, das dem Kunden Geld verspricht.
+   */
+  it('weist einen negativen Stundensatz ab', () => {
+    expect(() => stundensatzInCent('-29,00')).toThrow(KalkulationFehler);
+    expect(() => stundensatzInCent('-0,01')).toThrow(KalkulationFehler);
+  });
+
+  it('weist null ab — ein Satz von 0,00 € ist keine Bestaetigung', () => {
+    expect(() => stundensatzInCent('0,00')).toThrow(KalkulationFehler);
+    expect(() => stundensatzInCent('0')).toThrow(KalkulationFehler);
+  });
+
+  it('der kleinste erlaubte Satz ist ein Cent', () => {
+    expect(stundensatzInCent('0,01')).toBe(1n);
+  });
+});
+
+describe('Frequenzfaktor in Milli (O-56)', () => {
+  it.each([
+    ['1', 1000n],
+    ['4,3333', 4333n],
+    ['4,33', 4330n],
+    ['0,5', 500n],
+    ['13', 13_000n],
+  ])('%s → %s', (eingabe, erwartet) => {
+    expect(frequenzFaktorInMilli(eingabe)).toBe(erwartet);
+  });
+
+  it('nimmt den englischen Punkt — ein Tausenderpunkt kommt bei einem Faktor nicht vor', () => {
+    expect(frequenzFaktorInMilli('4.3333')).toBe(frequenzFaktorInMilli('4,3333'));
+  });
+
+  it('weist ab, was kein Faktor ist', () => {
+    expect(() => frequenzFaktorInMilli('woechentlich')).toThrow(KalkulationFehler);
+    expect(() => frequenzFaktorInMilli('')).toThrow(KalkulationFehler);
+    expect(() => frequenzFaktorInMilli('4,33333')).toThrow(KalkulationFehler);
+  });
+
+  it('weist null und negativ ab — ein Turnus, der nie vorkommt, ist kein Turnus', () => {
+    expect(() => frequenzFaktorInMilli('0')).toThrow(KalkulationFehler);
+    expect(() => frequenzFaktorInMilli('-4')).toThrow(KalkulationFehler);
   });
 });
