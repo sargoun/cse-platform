@@ -29,6 +29,17 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'nummernkreis', pfad: 'finanz/nummernkreis',
     schreibend: true, schreibRecht: 'nummernkreis.ziehen',
   },
+  { modul: 'finanzen', pfad: 'finanz/menge', schreibend: false },
+  /**
+   * Die Kalkulation LIEST — sie schreibt nichts. Der Preis, den sie
+   * ausrechnet, wird erst vom Angebot gespeichert, und das ist der Dienst,
+   * der dann sein Schreibrecht nennt. Solange die Rechnung selbst nichts
+   * ablegt, gilt sie auch in der Gruppenansicht als unbedenklich.
+   */
+  { modul: 'objekt', pfad: 'kalkulation/richtzeit', schreibend: false },
+  { modul: 'objekt', pfad: 'kalkulation/tarif', schreibend: false },
+  { modul: 'objekt', pfad: 'kalkulation/raumbuch', schreibend: false },
+  { modul: 'objekt', pfad: 'kalkulation/index', schreibend: false },
   { modul: 'zeit', pfad: 'zeit/dauer', schreibend: false },
   { modul: 'zeit', pfad: 'zeit/spalten', schreibend: false },
   { modul: 'dienstplan', pfad: 'zeit/arbzg', schreibend: false },
