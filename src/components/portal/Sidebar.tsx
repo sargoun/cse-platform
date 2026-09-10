@@ -13,6 +13,7 @@
  * führt, verrät die Existenz dessen, was er nicht zeigen darf (AUT-06).
  */
 import type { NaviEintrag } from '@/server/registry/navigation';
+import { Icon } from '@/components/ui/Icon';
 
 export interface SidebarProps {
   readonly punkte: readonly NaviEintrag[];
@@ -40,7 +41,7 @@ export function Sidebar({ punkte, basis, aktiv, eingeklappt = false }: SidebarPr
             className={`flex items-center gap-s3 rounded-md px-s3 py-s2 text-sm
               ${p.schluessel === aktiv ? 'bg-surface-3 text-text' : 'text-text-muted hover:bg-surface-2'}`}
           >
-            <span aria-hidden className="w-4 text-center">{p.symbol}</span>
+            <Icon name={p.icon} groesse="md" className="shrink-0" />
             {/* Eingeklappt bleibt das Label für Screenreader da: 64px sind eine
                 visuelle Entscheidung, keine inhaltliche. */}
             <span className={eingeklappt ? 'sr-only' : ''}>{p.label}</span>
@@ -64,7 +65,7 @@ export function Sidebar({ punkte, basis, aktiv, eingeklappt = false }: SidebarPr
               rounded-md px-s2 text-micro
               ${p.schluessel === aktiv ? 'text-text' : 'text-text-muted'}`}
           >
-            <span aria-hidden>{p.symbol}</span>
+            <Icon name={p.icon} groesse="md" />
             {p.label}
           </a>
         ))}

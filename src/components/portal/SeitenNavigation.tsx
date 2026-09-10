@@ -1,4 +1,5 @@
 import { tabZiel, type TabZiel } from '@/server/registry/tableiste';
+import { Icon } from '@/components/ui/Icon';
 
 /**
  * Die Navigation AB 768 px — das Gegenstueck zur Tab-Leiste.
@@ -46,7 +47,7 @@ export function SeitenNavigation({
                             text-base ${z.schluessel === aktiv
                               ? 'bg-surface-2 text-text' : 'text-text-muted hover:bg-surface-2'}`}
               >
-                <span aria-hidden="true">{z.symbol}</span>
+                <Icon name={z.icon} groesse="md" className="shrink-0" />
                 {z.label}
               </a>
             </li>

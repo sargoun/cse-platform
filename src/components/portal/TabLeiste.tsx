@@ -1,5 +1,6 @@
 import { tabZiel, type TabZiel } from '@/server/registry/tableiste';
 import { GRUPPEN_NAVIGATION, NAVIGATION } from '@/server/registry/navigation';
+import { Icon } from '@/components/ui/Icon';
 
 /**
  * Die Tab-Leiste unter 768 px (DESIGN §5/§8, SEITENKARTE §11.2).
@@ -67,7 +68,7 @@ function MehrZelle({ wurzel, rechte, gruppenansicht }: {
         className="flex min-h-[44px] cursor-pointer list-none flex-col items-center
                    justify-center gap-s1 px-s2 py-s2 text-micro text-text-muted"
       >
-        <span aria-hidden="true" className="text-base">⋯</span>
+        <Icon name="menue" groesse="md" />
         Mehr
       </summary>
       {/*
@@ -95,7 +96,7 @@ function MehrZelle({ wurzel, rechte, gruppenansicht }: {
                 data-ziel={n.schluessel}
                 className="flex min-h-[44px] items-center gap-s3 py-s3 text-sm text-text"
               >
-                <span aria-hidden="true" className="text-base">{n.symbol}</span>
+                <Icon name={n.icon} groesse="md" className="shrink-0" />
                 {n.label}
               </a>
             </li>
@@ -139,7 +140,7 @@ export function TabLeiste({
                         px-s2 py-s2 text-micro ${
                           z.schluessel === aktiv ? 'text-text' : 'text-text-muted'}`}
           >
-            <span aria-hidden="true" className="text-base">{z.symbol}</span>
+            <Icon name={z.icon} groesse="md" />
             {z.label}
           </a>
         );

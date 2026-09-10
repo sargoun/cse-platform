@@ -13,6 +13,7 @@ import {
 } from '../../src/server/registry/tableiste.js';
 import { KATALOG } from '../../src/server/auth/katalog.generiert.js';
 import { familie, findeRoute } from '../../src/server/registry/routen.js';
+import { istIconName } from '@/lib/design/icons';
 
 const WURZEL = resolve(import.meta.dirname, '../..');
 
@@ -38,11 +39,14 @@ describe('§11.2 — genau fünf Ziele je Portal', () => {
     }
   });
 
-  it('jedes Ziel hat eine Beschriftung und ein Symbol', () => {
+  it('jedes Ziel hat eine Beschriftung und ein Icon AUS DEM SATZ', () => {
+    // `istIconName` statt `!== ''`: ein Tippfehler im Namen ist sonst ein
+    // Tab ohne Bild — und zwar still, weil `ICON_PFADE[name]` `undefined`
+    // liefert und `<path d={undefined}>` nichts zeichnet, ohne zu werfen.
     for (const l of TABLEISTEN) {
       for (const z of l.ziele) {
         expect(z.label, `${l.schluessel}.${z.schluessel}`).not.toBe('');
-        expect(z.symbol, `${l.schluessel}.${z.schluessel}`).not.toBe('');
+        expect(istIconName(z.icon), `${l.schluessel}.${z.schluessel}: ${z.icon}`).toBe(true);
       }
     }
   });

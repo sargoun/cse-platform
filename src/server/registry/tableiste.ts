@@ -11,6 +11,7 @@
  * braucht, steht in den fuenf, und ein sechstes Ziel hinter einem Menue ist
  * eines, das sie nicht findet.
  */
+import type { IconName } from '@/lib/design/icons';
 import type { Familie } from './routen.js';
 
 export interface TabZiel {
@@ -34,7 +35,8 @@ export interface TabZiel {
   readonly pfad: string;
   /** Der Rechteschluessel, oder `null` fuer `Mehr` und den Selbstzugriff. */
   readonly recht: string | null;
-  readonly symbol: string;
+  /** Das Icon aus dem geschlossenen Satz (DESIGN §5). */
+  readonly icon: IconName;
 }
 
 /** Fuer welches Publikum eine Leiste gilt. */
@@ -49,7 +51,7 @@ export interface TabLeiste {
 }
 
 const MEHR: TabZiel = {
-  schluessel: 'mehr', label: 'Mehr', pfad: '', recht: null, symbol: '⋯',
+  schluessel: 'mehr', label: 'Mehr', pfad: '', recht: null, icon: 'menue',
 };
 
 export const TABLEISTEN: readonly TabLeiste[] = [
@@ -57,10 +59,10 @@ export const TABLEISTEN: readonly TabLeiste[] = [
     schluessel: 'intern_global',
     familie: 'mandant',
     ziele: [
-      { schluessel: 'dashboard', label: 'Übersicht', pfad: '', recht: 'bericht.dashboard_lesen', symbol: '▤' },
-      { schluessel: 'auftraege', label: 'Aufträge', pfad: 'auftraege', recht: 'auftrag.lesen', symbol: '⛓' },
-      { schluessel: 'dienstplan', label: 'Dienstplan', pfad: 'dienstplan/woche', recht: 'dienstplan.lesen', symbol: '▦' },
-      { schluessel: 'finanzen', label: 'Finanzen', pfad: 'finanzen', recht: 'finanzen.lesen', symbol: '€' },
+      { schluessel: 'dashboard', label: 'Übersicht', pfad: '', recht: 'bericht.dashboard_lesen', icon: 'uebersicht' },
+      { schluessel: 'auftraege', label: 'Aufträge', pfad: 'auftraege', recht: 'auftrag.lesen', icon: 'auftrag' },
+      { schluessel: 'dienstplan', label: 'Dienstplan', pfad: 'dienstplan/woche', recht: 'dienstplan.lesen', icon: 'dienstplan' },
+      { schluessel: 'finanzen', label: 'Finanzen', pfad: 'finanzen', recht: 'finanzen.lesen', icon: 'euro' },
       MEHR,
     ],
   },
@@ -68,10 +70,10 @@ export const TABLEISTEN: readonly TabLeiste[] = [
     schluessel: 'intern_admin',
     familie: 'mandant',
     ziele: [
-      { schluessel: 'dashboard', label: 'Übersicht', pfad: '', recht: 'bericht.dashboard_lesen', symbol: '▤' },
-      { schluessel: 'auftraege', label: 'Aufträge', pfad: 'auftraege', recht: 'auftrag.lesen', symbol: '⛓' },
-      { schluessel: 'dienstplan', label: 'Dienstplan', pfad: 'dienstplan/woche', recht: 'dienstplan.lesen', symbol: '▦' },
-      { schluessel: 'freigaben', label: 'Freigaben', pfad: 'freigaben', recht: 'freigabe.lesen', symbol: '✓' },
+      { schluessel: 'dashboard', label: 'Übersicht', pfad: '', recht: 'bericht.dashboard_lesen', icon: 'uebersicht' },
+      { schluessel: 'auftraege', label: 'Aufträge', pfad: 'auftraege', recht: 'auftrag.lesen', icon: 'auftrag' },
+      { schluessel: 'dienstplan', label: 'Dienstplan', pfad: 'dienstplan/woche', recht: 'dienstplan.lesen', icon: 'dienstplan' },
+      { schluessel: 'freigaben', label: 'Freigaben', pfad: 'freigaben', recht: 'freigabe.lesen', icon: 'freigabe' },
       MEHR,
     ],
   },
@@ -79,10 +81,10 @@ export const TABLEISTEN: readonly TabLeiste[] = [
     schluessel: 'intern_leitung',
     familie: 'mandant',
     ziele: [
-      { schluessel: 'dashboard', label: 'Übersicht', pfad: '', recht: 'bericht.dashboard_lesen', symbol: '▤' },
-      { schluessel: 'dienstplan', label: 'Dienstplan', pfad: 'dienstplan/woche', recht: 'dienstplan.lesen', symbol: '▦' },
-      { schluessel: 'zeiten', label: 'Zeiten', pfad: 'zeiten', recht: 'zeit.lesen', symbol: '◷' },
-      { schluessel: 'auftraege', label: 'Aufträge', pfad: 'auftraege', recht: 'auftrag.lesen', symbol: '⛓' },
+      { schluessel: 'dashboard', label: 'Übersicht', pfad: '', recht: 'bericht.dashboard_lesen', icon: 'uebersicht' },
+      { schluessel: 'dienstplan', label: 'Dienstplan', pfad: 'dienstplan/woche', recht: 'dienstplan.lesen', icon: 'dienstplan' },
+      { schluessel: 'zeiten', label: 'Zeiten', pfad: 'zeiten', recht: 'zeit.lesen', icon: 'zeit' },
+      { schluessel: 'auftraege', label: 'Aufträge', pfad: 'auftraege', recht: 'auftrag.lesen', icon: 'auftrag' },
       MEHR,
     ],
   },
@@ -91,22 +93,22 @@ export const TABLEISTEN: readonly TabLeiste[] = [
     familie: 'mein',
     // Kein `Mehr`: die fuenf sind alles, was ein Einsatz braucht.
     ziele: [
-      { schluessel: 'heute', label: 'Heute', pfad: '', recht: null, symbol: '☀' },
-      { schluessel: 'schichten', label: 'Schichten', pfad: 'schichten', recht: null, symbol: '▦' },
-      { schluessel: 'stunden', label: 'Stunden', pfad: 'stundenkonto', recht: null, symbol: '◷' },
-      { schluessel: 'nachrichten', label: 'Nachrichten', pfad: 'nachrichten', recht: null, symbol: '✉' },
-      { schluessel: 'profil', label: 'Profil', pfad: '/portal/konto/profil', recht: null, symbol: '☺' },
+      { schluessel: 'heute', label: 'Heute', pfad: '', recht: null, icon: 'heute' },
+      { schluessel: 'schichten', label: 'Schichten', pfad: 'schichten', recht: null, icon: 'dienstplan' },
+      { schluessel: 'stunden', label: 'Stunden', pfad: 'stundenkonto', recht: null, icon: 'zeit' },
+      { schluessel: 'nachrichten', label: 'Nachrichten', pfad: 'nachrichten', recht: null, icon: 'mail' },
+      { schluessel: 'profil', label: 'Profil', pfad: '/portal/konto/profil', recht: null, icon: 'person' },
     ],
   },
   {
     schluessel: 'kunde',
     familie: 'kunde',
     ziele: [
-      { schluessel: 'uebersicht', label: 'Übersicht', pfad: '', recht: 'bericht.dashboard_lesen', symbol: '▤' },
-      { schluessel: 'auftraege', label: 'Aufträge', pfad: 'auftraege', recht: 'auftrag.lesen', symbol: '⛓' },
-      { schluessel: 'rechnungen', label: 'Rechnungen', pfad: 'rechnungen', recht: 'finanzen.lesen', symbol: '€' },
-      { schluessel: 'nachweise', label: 'Nachweise', pfad: 'nachweise', recht: 'nachweis.lesen', symbol: '▤' },
-      { schluessel: 'nachrichten', label: 'Nachrichten', pfad: 'nachrichten', recht: 'nachricht.lesen', symbol: '✉' },
+      { schluessel: 'uebersicht', label: 'Übersicht', pfad: '', recht: 'bericht.dashboard_lesen', icon: 'uebersicht' },
+      { schluessel: 'auftraege', label: 'Aufträge', pfad: 'auftraege', recht: 'auftrag.lesen', icon: 'auftrag' },
+      { schluessel: 'rechnungen', label: 'Rechnungen', pfad: 'rechnungen', recht: 'finanzen.lesen', icon: 'rechnung' },
+      { schluessel: 'nachweise', label: 'Nachweise', pfad: 'nachweise', recht: 'nachweis.lesen', icon: 'dokument' },
+      { schluessel: 'nachrichten', label: 'Nachrichten', pfad: 'nachrichten', recht: 'nachricht.lesen', icon: 'mail' },
     ],
   },
   {
@@ -115,11 +117,11 @@ export const TABLEISTEN: readonly TabLeiste[] = [
     // Ebenfalls kein `Mehr`: jede Gruppenseite ist lesend und von den fuenf
     // Knotenpunkten aus erreichbar.
     ziele: [
-      { schluessel: 'uebersicht', label: 'Übersicht', pfad: '', recht: 'gruppe.bericht.lesen', symbol: '▤' },
-      { schluessel: 'finanzen', label: 'Finanzen', pfad: 'finanzen', recht: 'gruppe.finanzen.lesen', symbol: '€' },
-      { schluessel: 'auftraege', label: 'Aufträge', pfad: 'auftraege', recht: 'gruppe.auftrag.lesen', symbol: '⛓' },
-      { schluessel: 'radar', label: 'Radar', pfad: 'radar', recht: 'gruppe.radar.lesen', symbol: '◎' },
-      { schluessel: 'berichte', label: 'Berichte', pfad: 'berichte', recht: 'gruppe.bericht.lesen', symbol: '▥' },
+      { schluessel: 'uebersicht', label: 'Übersicht', pfad: '', recht: 'gruppe.bericht.lesen', icon: 'uebersicht' },
+      { schluessel: 'finanzen', label: 'Finanzen', pfad: 'finanzen', recht: 'gruppe.finanzen.lesen', icon: 'euro' },
+      { schluessel: 'auftraege', label: 'Aufträge', pfad: 'auftraege', recht: 'gruppe.auftrag.lesen', icon: 'auftrag' },
+      { schluessel: 'radar', label: 'Radar', pfad: 'radar', recht: 'gruppe.radar.lesen', icon: 'ausschreibung' },
+      { schluessel: 'berichte', label: 'Berichte', pfad: 'berichte', recht: 'gruppe.bericht.lesen', icon: 'uebersicht' },
     ],
   },
 ] as const;

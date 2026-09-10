@@ -200,6 +200,40 @@ One primary button per view.
 Hover on interactive cards: border → `--border-strong`, `translateY(-2px)`,
 200ms. No shadow.
 
+### Icons
+
+One set, drawn in the repo, no icon dependency. `24×24` viewBox, stroke
+`1.75`, `currentColor`, round caps and joins, **no fill** — an icon takes the
+colour of the text beside it, which is why a nav item, a `-soft` tile and a
+danger pill can all use the same glyph without a second asset.
+
+| Size token | px | Where |
+|---|---|---|
+| `icon-sm` | 16 | inside pills, table cells, buttons at `sm` |
+| `icon-md` | 18 | portal sidebar and tab bar (§5 Navigation) |
+| `icon-lg` | 24 | default, KPI tile, empty states |
+| `icon-xl` | 32 | section headers, `NochNichtGebaut` |
+
+**Always decorative unless it is the only label.** An icon next to text is
+`aria-hidden`; an icon-only control carries an accessible name. Never colour
+alone: §9 forbids it, so an icon that carries state carries a shape too
+(check, cross, clock), not just a hue.
+
+The set is closed and lives in `src/lib/design/icons.ts`. Adding a glyph means
+adding it there and to this table — a one-off `<svg>` in a page file is the
+same failure as a one-off hex code. Emoji and Unicode dingbats (`▤ ⛓ ☺`) are
+**not** icons: they render as the operating system decides, they carry another
+culture's metaphor, and they cannot take `currentColor`.
+
+**Vocabulary** — the name is the domain word, not the drawing:
+
+`uebersicht · crm · objekt · dienstplan · zeit · personal · angebot · auftrag ·
+rechnung · dokument · einstellungen · freigabe · wachbuch · aufmass ·
+ausschreibung · ki · heute · kalender · uhr · standort · telefon · mail ·
+suche · filter · plus · export · import · pfeil-rechts · pfeil-runter ·
+chevron-rechts · menue · schliessen · schloss · auge · stift · papierkorb ·
+warnung · ok · fehler · info · gruppe · person · euro`
+
 ### KPI stat card
 
 Icon tile `40×40` `--r-md` on a `-soft` tint · `micro` uppercase label in
