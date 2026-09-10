@@ -49,6 +49,21 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + '`formular.lesen` nicht.',
   },
   {
+    pfad: 'api/check-in/[token]',
+    recht: null,
+    grund:
+      'TIM-07, TIM-08, K-08 Registerzeile 3. Die Kraft, die um 05:55 im Treppenhaus einen '
+      + 'Link antippt, hat keine Anmeldung — hinter einer gäbe es keinen Check-in, und ein '
+      + 'Recht, gegen das man prüfen könnte, gibt es in diesem Moment nicht. Was sie '
+      + 'schützt, ist die Marke: ein 256-Bit-Geheimnis, gespeichert nur als SHA-256, gültig '
+      + 'genau einmal und nur in seinem abgeleiteten Fenster, eingelöst in EINER bedingten '
+      + 'Anweisung (K-09). Der Prinzipal ist `cse_checkin` und hält kein einziges '
+      + 'Tabellenrecht: er darf genau `app.checkin_verbrauchen` ausführen, und die Funktion '
+      + 'leitet Mandant, Beschäftigung und Mensch aus der Einteilung ab, nie aus der '
+      + 'Anfrage. Jede Ablehnung — unbekannt, abgelaufen, zu früh, widerrufen, benutzt — '
+      + 'ergibt dieselbe Antwort, damit die Adresse kein Orakel ist (AUT-06).',
+  },
+  {
     pfad: 'api/sitzung/mandant',
     recht: null,
     grund:
@@ -97,6 +112,18 @@ export const ROUTEN: readonly RouteEintrag[] = [
     /** Der Auftragsassistent (OPS-10). Legt an, also `auftrag.schreiben`. */
     pfad: 'api/auftrag',
     recht: 'auftrag.schreiben',
+  },
+  {
+    /**
+     * Einen Planungskonflikt quittieren (TIM-05).
+     *
+     * `dienstplan.konflikt_quittieren` und **nicht** `dienstplan.schreiben`:
+     * wer quittiert, aendert den Plan nicht, sondern uebernimmt die
+     * Verantwortung dafuer, ihn so zu lassen. Das sind zwei Entscheidungen,
+     * und wer die eine darf, darf darum nicht automatisch die andere.
+     */
+    pfad: 'api/konflikt',
+    recht: 'dienstplan.konflikt_quittieren',
   },
   {
     /**
