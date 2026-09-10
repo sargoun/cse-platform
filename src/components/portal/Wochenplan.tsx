@@ -68,6 +68,20 @@ export interface WochenplanProps {
 const VON_STUNDE = 0;
 const BIS_STUNDE = 24;
 const PIXEL_PRO_STUNDE = 44;
+/**
+ * Die schmalste Spur, die noch etwas zeigt.
+ *
+ * Ein Block ist `box-sizing: border-box` und kann darum **nie schmaler
+ * werden als sein eigener Innenabstand plus Rahmen**. Bei zehn Spuren in
+ * einer 128px-Spalte waeren 12,8px je Spur vorgesehen, gezeichnet wurden
+ * 18px — die Bloecke ueberlappten einander, und aus zehn sichtbaren Spalten
+ * wurden optisch wieder weniger. Genau der Fall, den TIM-04 verbietet.
+ *
+ * Die Spalte waechst deshalb mit der Zahl ihrer Spuren; das Raster steht
+ * ohnehin in einem waagerecht scrollenden Rahmen.
+ */
+const PIXEL_PRO_SPUR = 38;
+const SPALTE_MINDESTBREITE = 120;
 
 const TON: Record<PlanBefund['art'], string> = {
   sperre: 'bg-danger-soft text-danger',
@@ -143,9 +157,16 @@ function Tagesspalte({
       a.anteil !== null);
   const raster = verspure(anteile.map((a) => a.schicht));
   const spurVon = new Map(raster.map((r) => [r.schicht.id, r]));
+  const meisteSpuren = raster.reduce((m, r) => Math.max(m, r.spuren), 1);
 
   return (
-    <div data-cse="plantag" data-datum={tag.datum} className="min-w-[7.5rem] flex-1">
+    <div
+      data-cse="plantag"
+      data-datum={tag.datum}
+      data-spuren={String(meisteSpuren)}
+      className="flex-1"
+      style={{ minWidth: Math.max(SPALTE_MINDESTBREITE, meisteSpuren * PIXEL_PRO_SPUR) }}
+    >
       {/*
         Datum und Anzahl UNTEREINANDER, nicht nebeneinander.
         Rechtsbuendig in einer breiten Spalte stand die Anzahl direkt neben
@@ -218,7 +239,7 @@ function Schichtblock({
       data-cse="schicht"
       data-schicht={schicht.id}
       data-spur={String(spur)}
-      className={`absolute overflow-hidden rounded-md border px-s2 py-s1 text-micro leading-tight
+      className={`absolute overflow-hidden rounded-md border px-s1 py-s1 text-micro leading-tight
         ${schicht.status === 'storniert'
           ? 'border-line bg-surface-3 text-text-subtle line-through'
           : 'border-line-strong bg-surface text-text hover:border-brand'}`}
