@@ -84,6 +84,15 @@ export const ROUTEN: readonly RouteEintrag[] = [
     pfad: 'api/raumbuch-import',
     recht: 'objekt_import.schreiben',
   },
+  {
+    /**
+     * Eine Notiz festhalten und die naechste Aktion setzen. `crm.schreiben`,
+     * nicht `crm.lesen`: beides aendert den Datenbestand, auch wenn das eine
+     * nur ein Satz ist.
+     */
+    pfad: 'api/lead',
+    recht: 'crm.schreiben',
+  },
 ] as const;
 
 /** Die Routen, die ein Recht verlangen. */

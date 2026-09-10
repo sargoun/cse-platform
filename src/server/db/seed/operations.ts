@@ -307,5 +307,51 @@ export async function seedOperations(
     }
   }
 
+  // --- Zwei Anfragen im Posteingang ---------------------------------------
+  /**
+   * Ohne einen Lead ist der Posteingang eine leere Liste, und eine leere
+   * Liste zeigt nicht, ob sie richtig sortiert. Der eine hat eine
+   * ueberschrittene Frist und KEINEN naechsten Schritt — genau der Fall, den
+   * die Oberflaeche benennen muss, weil er sonst still liegen bleibt.
+   */
+  const [besitzer] = await sql<{ id: string }[]>`
+    select b.id from benutzer b
+      join benutzer_mandant bm on bm.benutzer_id = b.id
+     where bm.mandant_id = ${reinigung} order by b.erstellt_am limit 1`;
+
+  if (besitzer !== undefined) {
+    const leads: readonly (readonly [string, string, string, string, string, number | null])[] = [
+      /**
+       * BEIDE `manuell`, und das ist keine Bequemlichkeit: ein Lead mit
+       * `quelle = 'webformular'` verlangt einen echten `formular_eingang`
+       * (CHECK `lead_herkunft_stimmig`). Einen zu erfinden hiesse, eine
+       * Anfrage zu behaupten, die niemand gestellt hat — die Herkunft eines
+       * Leads ist genau das, was REQ-07 und REP-03 auswerten. Wer einen
+       * Webformular-Lead sehen will, schickt das Angebotsformular ab.
+       */
+      ['L-2026-0001', 'Unterhaltsreinigung Buerohaus, 3 Etagen',
+       'Telefonisch aufgenommen: rund 470 m² Bueroflaeche, 5x woechentlich, '
+       + 'Start zum Quartalsbeginn.', 'manuell', 'neu', 240000],
+      ['L-2026-0002', 'Glasreinigung halbjaehrlich',
+       'Telefonisch: Fensterfront Erdgeschoss, zweimal im Jahr.',
+       'manuell', 'in_bearbeitung', 85000],
+    ];
+    for (const [nummer, betreff, bedarf, quelle, status, wert] of leads) {
+      const [da] = await sql<{ id: string }[]>`
+        select id from lead where mandant_id = ${reinigung} and leadnummer = ${nummer} limit 1`;
+      if (da !== undefined) continue;
+      await sql`
+        insert into lead (mandant_id, leadnummer, quelle, betreff, bedarf_zusammenfassung,
+                          status, prioritaet, besitzer_benutzer_id, firma_name,
+                          geschaetzter_wert_cent, sla_frist_am, punktzahl,
+                          punktzahl_begruendung)
+        values (${reinigung}, ${nummer}, ${quelle}::lead_quelle, ${betreff}, ${bedarf},
+                ${status}::lead_status, 'hoch'::lead_prioritaet, ${besitzer.id},
+                'Berliner Hausverwaltung GmbH', ${wert},
+                now() - interval '2 hours', 72,
+                'Platzhalter: Flaeche und Frequenz bekannt, Budget unbestaetigt (O-73)')`;
+    }
+  }
+
   return { objekte, raeume };
 }

@@ -60,13 +60,45 @@ test.describe('(2) Das UWG-Tor steht als Anzeige auf der Kundenseite', () => {
   });
 });
 
-test.describe('(3) Der Lead-Posteingang', () => {
-  test('er ist erreichbar und sagt, wenn er leer ist', async ({ page }) => {
+test.describe('(3) Der Lead-Posteingang und der Verlauf', () => {
+  test('er führt die offenen Anfragen', async ({ page }) => {
     await anmelden(page, 'admin');
     const antwort = await page.goto('/portal/reinigung/crm/leads');
     expect(antwort?.status()).toBe(200);
     await expect(page.locator('h1')).toHaveText('Leads');
+    await expect(page.getByRole('link', { name: /Unterhaltsreinigung Buerohaus/u }))
+      .toBeVisible();
   });
+
+  test('eine Anfrage ohne nächsten Schritt sagt das — sonst liegt sie still',
+    async ({ page }) => {
+      await anmelden(page, 'admin');
+      await page.goto('/portal/reinigung/crm/leads');
+      await page.getByRole('link', { name: /Unterhaltsreinigung Buerohaus/u }).click();
+      await expect(page.locator('[data-cse="ohne-naechsten-schritt"]')).toBeVisible();
+    });
+
+  test('eine Notiz landet im Verlauf, und der nächste Schritt steht danach fest',
+    async ({ page }) => {
+      await anmelden(page, 'admin');
+      await page.goto('/portal/reinigung/crm/leads');
+      await page.getByRole('link', { name: /Glasreinigung/u }).click();
+      await page.waitForURL(/\/crm\/leads\/[0-9a-f-]{36}$/u);
+      const url = page.url();
+
+      await page.fill('#inhalt', 'Rückruf: Termin am Objekt vereinbart.');
+      await page.fill('#naechsteAktion', 'Angebot rechnen und senden');
+      await page.fill('#naechsteAktionAm', '2026-10-01');
+      await page.locator('[data-cse="lead-notieren"]').click();
+      await page.waitForURL(url);
+
+      await expect(page.locator('[data-cse="naechster-schritt"]'))
+        .toContainText('Angebot rechnen und senden');
+      await expect(page.locator('[data-cse="verlauf"]'))
+        .toContainText('Termin am Objekt vereinbart');
+      // Der Eintrag traegt, WER ihn festgehalten hat und WANN.
+      await expect(page.locator('[data-cse="verlauf"]')).toContainText('Notiz ·');
+    });
 });
 
 test.describe('(4) „Mehr" öffnet den vollständigen Baum (SEITENKARTE §11.2)', () => {

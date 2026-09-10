@@ -123,9 +123,18 @@ describe('(3) der Bereichsfilter ändert jede Zahl und leakt nie', () => {
     const zeilen = await alsBereich('reinigung',
       (db) => kachelZeilen(db, neue, kontext));
     const firmen = zeilen.map((z) => String(z['firma_name']));
-    expect(firmen.length).toBe(2);
+    /**
+     * Gezaehlt werden die EIGENEN Fixture-Zeilen, nicht alle.
+     *
+     * Vorher stand hier `toBe(2)` — eine Zahl, die nur galt, solange der Seed
+     * keinen einzigen Lead mitbrachte. Er bringt jetzt welche mit, und der
+     * Test schlug fehl, ohne dass an der Sache etwas falsch war. Die AUSSAGE
+     * ist: die beiden Zeilen dieses Bereichs sind da, und keine einzige
+     * fremde.
+     */
+    expect(firmen.filter((f) => f.startsWith('Firma reinigung')).length).toBe(2);
     // Keine einzige fremde Zeile — nicht "gefiltert", sondern nicht vorhanden.
-    expect(firmen.every((f) => f.includes('reinigung'))).toBe(true);
+    expect(firmen.some((f) => f.includes('security'))).toBe(false);
   });
 
   it('ein fremder Mandant im Filter bringt trotzdem NICHTS durch (RLS)', async () => {
@@ -160,6 +169,18 @@ describe('(3) der Bereichsfilter ändert jede Zahl und leakt nie', () => {
     const beide = [ids.get('reinigung')!, ids.get('security')!];
     const neue = alle.find((k) => k.schluessel === 'neue_leads')!;
 
+    /**
+     * Verglichen wird mit der SUMME der beiden Einzelwerte, nicht mit einer
+     * festen Zahl. Genau das ist die Aussage — "sie addiert, sie verdoppelt
+     * nicht und sie unterschlaegt nicht" —, und sie bleibt wahr, wenn der
+     * Seed morgen mehr Leads mitbringt.
+     */
+    const einzeln = await Promise.all(['reinigung', 'security'].map(async (slug) => {
+      const mid = ids.get(slug)!;
+      return alsBereich(slug, (db) => kachelWert(db, neue,
+        { mandantId: mid, mandantSlug: slug, mandantIds: [mid] }));
+    }));
+
     const zusammen = await alsApp(
       { scope: 'gruppe', mandantIds: beide, benutzerId: adminId, portal: 'intern' },
       async (tx) => kachelWert(
@@ -171,9 +192,9 @@ describe('(3) der Bereichsfilter ändert jede Zahl und leakt nie', () => {
         { mandantSlug: null, mandantId: null, mandantIds: beide },
       ),
     );
-    // Zwei je Bereich, vier zusammen — die Gruppenansicht addiert, sie
-    // verdoppelt nicht und sie unterschlägt nicht.
-    expect(zusammen).toBe(4);
+    expect(zusammen).toBe(einzeln[0]! + einzeln[1]!);
+    // Und es ist wirklich mehr als ein Bereich allein.
+    expect(zusammen).toBeGreaterThan(einzeln[0]!);
   });
 });
 
@@ -228,9 +249,13 @@ describe('withDevAdmin — der Kontext der Entwicklungsflaechen', () => {
           () => true))));
 
     expect(werte.length).toBe(alle.length);
-    // Und die Zahlen sind echt: die zwei Leads dieses Bereichs stehen drin.
+    /**
+     * Und die Zahlen sind echt. Geprueft wird, dass die zwei Fixture-Leads
+     * ENTHALTEN sind — nicht, dass es genau zwei gibt: der Seed bringt eigene
+     * mit, und eine feste Zahl hier misst den Seed statt den Kontext.
+     */
     const neue = werte.find((w) => w.kachel.schluessel === 'neue_leads');
-    expect(neue?.wert).toBe(2);
+    expect(neue?.wert).toBeGreaterThanOrEqual(2);
   });
 
   it('im Deployment wirft er, statt einen Admin ohne Anmeldung zu binden',

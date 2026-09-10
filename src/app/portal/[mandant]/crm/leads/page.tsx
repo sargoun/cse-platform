@@ -1,4 +1,5 @@
 import type postgres from 'postgres';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -123,7 +124,12 @@ export default async function Leadliste(
               kopf: 'Anfrage',
               zelle: (z) => (
                 <span>
-                  {z.betreff ?? '—'}
+                  <Link
+                    href={`/portal/${mandant}/crm/leads/${z.id}`}
+                    className="text-text underline-offset-2 hover:text-brand hover:underline"
+                  >
+                    {z.betreff ?? 'Anfrage'}
+                  </Link>
                   <span className="block text-xs text-text-muted">
                     {z.firma_name ?? 'ohne Firma'}
                   </span>
