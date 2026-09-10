@@ -361,6 +361,49 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'Schicht so aus, als habe nie eine Anforderung bestanden.',
   },
   {
+    tabelle: 'mandant_einstellung',
+    art: 'append',
+    migration: '0033',
+    grund:
+      'LEG-10, § 87 Abs. 1 Nr. 6 BetrVG. Auf diesen Zeilen steht, ob eine '
+      + 'Ueberwachungseinrichtung eingeschaltet war und auf welcher Grundlage. '
+      + 'Sie zu loeschen loescht den Beleg dafuer, dass die Geolokalisierung im '
+      + 'fraglichen Zeitraum AUS war — die Auskunft, auf die es ankommt. '
+      + '`append`, weil eine Einstellung nie endet: ein zurueckgenommener Wert '
+      + 'wird auf den Vorgabewert gesetzt, und audit_log traegt den Verlauf.',
+  },
+  {
+    tabelle: 'zeiteintrag',
+    art: 'archiv',
+    migration: '0034',
+    grund:
+      'LEG-02, § 17 MiLoG, GoBD. Das ist der Nachweis der geleisteten Zeit — '
+      + 'die Zeile, die im Lohnstreit vorgelegt und aus der die Rechnung '
+      + 'abgeleitet wird. Ein geloeschter Zeiteintrag ist eine Stunde, die '
+      + 'niemand mehr belegen oder widerlegen kann; zurueckgenommen wird er '
+      + 'durch storniert_am mit Grund, korrigiert durch eine neue Fassung.',
+  },
+  {
+    tabelle: 'checkin_token',
+    art: 'append',
+    migration: '0035',
+    grund:
+      'TIM-07, SEC-A9. Die Marke belegt, WER wann von welcher IP eingestempelt '
+      + 'hat — der Herkunftsnachweis des zeiteintrags. Geloescht bliebe ein '
+      + 'Zeitdatensatz ohne nachvollziehbare Herkunft; abgelaufen oder '
+      + 'zurueckgezogen wird sie ueber widerrufen_am.',
+  },
+  {
+    tabelle: 'zeiteintrag_korrektur',
+    art: 'append',
+    migration: '0036',
+    grund:
+      'TIM-11, LEG-01, SEC-A9. Eine Korrekturspur mit Loeschpfad ist keine. '
+      + 'Der ganze Wert dieser Tabelle liegt darin, dass sich eine einmal '
+      + 'aufgeschriebene Korrektur weder aendern noch entfernen laesst — auch '
+      + 'nicht von super_admin.',
+  },
+  {
     tabelle: 'audit_log',
     art: 'append',
     migration: '0005',
@@ -503,6 +546,25 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'des Sendens — das ist der Beweis, dass gesendet werden durfte. Ein Beweis mit '
       + 'Löschpfad ist keiner, und eine Zeitachse mit Lücken erst recht nicht.',
   },
+  {
+    tabelle: 'arbeitszeit_verstoss',
+    art: 'archiv',
+    migration: '0040',
+    grund:
+      'LEG-03, TIM-14, § 16 Abs. 2 ArbZG. Der Befund ist der Nachweis, dass die '
+      + 'Gruppe eine Ueberschreitung BEMERKT hat — bei einer Gewerbeaufsicht die '
+      + 'entscheidende Zeile. Geloescht waere er die Behauptung, es habe ihn nie '
+      + 'gegeben; aufgeloest bekommt er hinfaellig_am, bearbeitet quittiert_am.',
+  },
+  {
+    tabelle: 'planungs_konflikt',
+    art: 'archiv',
+    migration: '0040',
+    grund:
+      'TIM-05, TIM-06. Ein quittierter Konflikt ist die Spur der Entscheidung, '
+      + 'trotzdem zu planen — samt Begruendung und Urheber. Ihn zu loeschen macht '
+      + 'aus einer bewussten Abweichung eine, die nie jemand gesehen hat.',
+  },
 ] as const;
 
 /**
@@ -513,6 +575,8 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
  * there is no write path to it other than `app.protokolliere` anyway.
  */
 export const AUDITIERT: readonly TabelleJeMigration[] = [
+  { tabelle: 'arbeitszeit_verstoss', migration: '0040' },
+  { tabelle: 'planungs_konflikt', migration: '0040' },
   { tabelle: 'mandant', migration: '0005' },
   { tabelle: 'person', migration: '0005' },
   { tabelle: 'anstellung', migration: '0005' },
@@ -559,6 +623,21 @@ export const AUDITIERT: readonly TabelleJeMigration[] = [
    */
   { tabelle: 'nachweis', migration: '0030' },
   { tabelle: 'bewacher_eintrag', migration: '0031' },
+  /**
+   * `mandant_einstellung` und `zeiteintrag` ja, `checkin_token` und
+   * `zeiteintrag_korrektur` nein — eine Entscheidung, keine Auslassung
+   * (04-PLANUNG-ZEIT §14.1).
+   *
+   * Wer einen Ueberwachungsschalter umgelegt hat und wer eine Arbeitszeit
+   * bewegt hat, sind die zwei Zeilen, ueber die im Lohnstreit und vor dem
+   * Betriebsrat gestritten wird — mit Vorher und Nachher. Die Marke und die
+   * Korrekturspur dagegen SIND bereits der Nachweis: sie tragen Akteur,
+   * Zeitpunkt und Begruendung in eigenen Spalten, sind anfuegend und
+   * unveraenderlich. Ein zweiter Auditeintrag je Zeile verdoppelte genau das
+   * Protokoll, auf das sich eine Auskunft stuetzt.
+   */
+  { tabelle: 'mandant_einstellung', migration: '0033' },
+  { tabelle: 'zeiteintrag', migration: '0034' },
 ] as const;
 
 /** Tables carrying S4 (`geloescht_am` / `geloescht_von`) — the finders' domain. */
@@ -568,6 +647,8 @@ export const SOFT_DELETE: readonly string[] = KEIN_HARD_DELETE.filter(
 
 /** Tables carrying S2 (`geaendert_am`, maintained by `kern.setze_geaendert_am()`). */
 export const GEAENDERT_AM: readonly TabelleJeMigration[] = [
+  { tabelle: 'arbeitszeit_verstoss', migration: '0040' },
+  { tabelle: 'planungs_konflikt', migration: '0040' },
   { tabelle: 'mandant', migration: '0005' },
   { tabelle: 'person', migration: '0005' },
   { tabelle: 'anstellung', migration: '0005' },
@@ -605,6 +686,13 @@ export const GEAENDERT_AM: readonly TabelleJeMigration[] = [
   { tabelle: 'nachweis', migration: '0030' },
   { tabelle: 'bewacher_eintrag', migration: '0031' },
   { tabelle: 'einsatzanforderung', migration: '0031' },
+  { tabelle: 'mandant_einstellung', migration: '0033' },
+  { tabelle: 'zeiteintrag', migration: '0034' },
+  // `checkin_token` NICHT: sie ist anfuegend (§5.5). Was sich an ihr noch
+  // bewegen darf, zaehlt `ct_unveraenderlich` einzeln auf; ein `geaendert_am`
+  // daneben behauptete, ein Mensch habe die Marke bearbeitet.
+  // `zeiteintrag_korrektur` NICHT: sie wird genau einmal geschrieben, und ein
+  // `geaendert_am` an einer Korrekturspur ist ein Widerspruch in sich.
   // `nachweis_warnung` NICHT: die Quittung wird einmal geschrieben und nie
   // geaendert. Ein `geaendert_am` daneben behauptete, eine bereits ergangene
   // Meldung habe sich geaendert — sie darf es nicht.
@@ -650,6 +738,19 @@ export interface DefinerTabelle {
 }
 
 export const NUR_UEBER_DEFINER: readonly DefinerTabelle[] = [
+  {
+    tabelle: 'zeit_intern.arbeitszeit_fenster',
+    zugang: 'app.arbzg_belastung / zeit_intern.fenster_setzen',
+    grund:
+      'K-06 — die eine erlaubte Mandantenueberschreitung. Die Tabelle traegt die '
+      + 'Arbeitszeitfenster EINER Person ueber alle Gesellschaften hinweg; jede '
+      + 'Policy fuer `cse_app` waere ein Leseweg quer durch die Mandantengrenze. '
+      + 'Sie hat darum weder Policy noch Grant, liegt in einem Schema, das '
+      + 'PostgREST nicht ausliefert, und enthaelt keine Spalte, die eine Schicht '
+      + 'identifizieren koennte — auch ein Fehler im Leser kann nicht verraten, '
+      + 'was nicht darin steht. Der Eintrag steht hier, weil eine Tabelle ohne '
+      + 'Policy sonst aussieht wie eine vergessene.',
+  },
   {
     tabelle: 'freigabe_kette',
     zugang: 'app.freigabe_kette_ziehen',

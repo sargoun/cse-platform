@@ -68,6 +68,15 @@ case "${1:-up}" in
     psql -h localhost -p "$PORT" -U postgres -q -c \
       "select pg_terminate_backend(pid) from pg_stat_activity where datname = '$DB';" >/dev/null 2>&1 || true
     psql -h localhost -p "$PORT" -U postgres -q -c "drop database if exists $DB;" -c "create database $DB;"
+    # `cse.fenster_schluessel` ist der HMAC-Schluessel hinter `fenster_gruppe`
+    # (K-06). In der Auslieferung wird er als Datenbankeinstellung injiziert
+    # und steht in keiner Tabelle; hier steht ein OFFENSICHTLICHER Testwert
+    # (base64 von "TEST-KEY-NICHT-FUER-PRODUKTION"),
+    # denn ein echter Schluessel im Repository ist keiner. Ohne die Zeile wirft
+    # `app.arbzg_belastung` „unrecognized configuration parameter" — laut, und
+    # das ist die richtige Richtung.
+    psql -h localhost -p "$PORT" -U postgres -q -c \
+      "alter database $DB set cse.fenster_schluessel = 'VEVTVC1LRVktTklDSFQtRlVFUi1QUk9EVUtUSU9O';"
     for f in drizzle/0*.sql; do
       echo "  → $f"
       psql -h localhost -p "$PORT" -U postgres -d "$DB" -v ON_ERROR_STOP=1 -q -f "$f"

@@ -70,12 +70,52 @@ export const DIENSTE: readonly DienstEintrag[] = [
   },
   { modul: 'zeit', pfad: 'zeit/dauer', schreibend: false },
   { modul: 'zeit', pfad: 'zeit/spalten', schreibend: false },
+  /**
+   * Der Check-in SCHREIBT — die Marke und den Zeiteintrag. Sein Recht ist
+   * `zeit.checkin_verwalten`, weil das die AUSGABE der Marke ist, die ein
+   * Mensch mit Rechten ausloest; das Einloesen selbst laeuft ohne Sitzung
+   * ueber `cse_checkin` (K-08) und hat deshalb gar kein Recht, an dem es
+   * haengen koennte.
+   */
+  {
+    modul: 'zeit', pfad: 'zeit/checkin',
+    schreibend: true, schreibRecht: 'zeit.checkin_verwalten',
+  },
+  /**
+   * Die Korrektur praegt eine neue Fassung und ihre Spur (TIM-11). In der
+   * Gruppenansicht laeuft sie nicht: Invariante 10, und ohne genau einen
+   * aktiven Mandanten waere jede `WITH CHECK` ohnehin falsch.
+   */
+  {
+    modul: 'zeit', pfad: 'zeit/korrektur',
+    schreibend: true, schreibRecht: 'zeit.korrigieren',
+  },
+  /**
+   * „Aktuell im Einsatz" ZAEHLT nur (DSH-05) — in der Gruppenansicht ist
+   * daran nichts gefaehrlich, und schreiben kann es nicht.
+   */
+  { modul: 'zeit', pfad: 'zeit/live', schreibend: false },
   { modul: 'dienstplan', pfad: 'zeit/arbzg', schreibend: false },
+  /**
+   * Die Pruefung ueber Gesellschaftsgrenzen (K-06). Sie SCHREIBT, wenn der
+   * Aufrufer es verlangt — aber nie selbst in `arbeitszeit_verstoss`: das tut
+   * ausschliesslich `app.arbzg_befund_schreiben`, weil ein Befund ueber zwei
+   * Gesellschaften in beiden stehen muss.
+   */
+  {
+    modul: 'dienstplan', pfad: 'arbzg/pruefung',
+    schreibend: true, schreibRecht: 'dienstplan.arbzg_pruefen',
+  },
   /**
    * Die Vorkommnisrechnung kennt keine Datenbank — sie sagt nur, WELCHE
    * Schichten eine Serie im Fenster verlangt.
    */
   { modul: 'dienstplan', pfad: 'dienstplan/vorkommnisse', schreibend: false },
+  /**
+   * Die Spurenrechnung des Wochenrasters. Sie rechnet nur, wo ein Block
+   * steht — kein Zugriff, kein Schreiben.
+   */
+  { modul: 'dienstplan', pfad: 'dienstplan/wochenraster', schreibend: false },
   /**
    * Der Materialisierer schreibt: er legt `einsatz`-Zeilen an, aktualisiert
    * sie und storniert verwaiste. In der Gruppenansicht laeuft er darum nicht

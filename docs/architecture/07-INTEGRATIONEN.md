@@ -2039,6 +2039,14 @@ variable, empty values and a one-line German comment; production values exist on
 environment and previews never receive them. **A missing variable yields a NotConnectedAdapter, never
 a partially configured live client.**
 
+`cse.fenster_schluessel` steht bewusst **nicht** in der Umgebung, sondern als
+Datenbankeinstellung (`alter database … set cse.fenster_schluessel = '<base64>'`): er wird
+ausschliesslich innerhalb von `SECURITY DEFINER`-Funktionen gelesen, die der Anwendungsprozess
+nie zu Gesicht bekommt. Ein Wert, den die Anwendung nicht braucht, gehoert ihr auch nicht in die
+Umgebung. In einer Tabelle steht er ebenfalls nicht — ein Datenbankabzug erlaubte sonst, die
+`fenster_gruppe`-Werte auf Zuordnungen zurueckzurechnen. Die Testdatenbank setzt einen
+offensichtlichen Testwert (`scripts/test-db.sh`); ein echter Schluessel im Repository waere keiner.
+
 Per-integration credentials that belong to a **mandant** are not env values at all: they live in the
 Supabase Vault, referenced by `credential_ref` (§3.3, §20). Env carries only application-level
 identifiers and platform secrets.
@@ -2055,6 +2063,7 @@ identifiers and platform secrets.
 | `CRON_SECRET_<job>` | `pg_cron` → `/api/cron/<job>`, one per job | **yes** | yes | that job fails closed and is reported as `abgelehnt` | Plattformbetrieb | 90 days |
 | `CHECKIN_TOKEN_SECRET` | TIM-07 token signing | **yes** | **yes — boot fails** | boot fails (a signing key that is optional makes forged tokens a configuration accident) | Plattformbetrieb | 180 days |
 | `ICAL_FEED_SECRET` | CAL-03 feed tokens | **yes** | no | iCal feed disabled | Plattformbetrieb | 180 days |
+| **Datenbankeinstellung** `cse.fenster_schluessel` (nicht env) | K-06 — der HMAC hinter `fenster_gruppe` in `app.arbzg_belastung` | **yes** | **yes, vor dem ersten ArbZG-Lauf** | `app.arbzg_belastung` wirft „unrecognized configuration parameter" und die Pruefung faellt **laut** aus. Das ist die gewollte Richtung: eine ArbZG-Pruefung, die ohne Schluessel still ein leeres Ergebnis lieferte, bestuende immer | Plattformbetrieb | 180 days |
 | `INTEGRATION_FORCE_NOT_CONNECTED` | registry override (staging, e2e) | no | no | empty | Entwicklung | — |
 | `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_PROJECT_ID`, `OPENAI_ORG_ID` | AI ports | **key: yes** | no | AI `nicht verbunden` | Geschäftsführung / IT | 180 days |
 | `OPENAI_DATA_RESIDENCY` | must equal `eu` | no | no | **adapter refuses to go live** | Geschäftsführung | — |

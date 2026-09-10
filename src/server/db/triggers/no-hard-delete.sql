@@ -681,3 +681,116 @@ create trigger trg_bewacher_eintrag_audit
   for each row execute function kern.protokolliere_aenderung();
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0033)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- mandant_einstellung (append): LEG-10, § 87 Abs. 1 Nr. 6 BetrVG. Auf diesen Zeilen steht, ob eine Ueberwachungseinrichtung eingeschaltet war und auf welcher Grundlage. Sie zu loeschen loescht den Beleg dafuer, dass die Geolokalisierung im fraglichen Zeitraum AUS war — die Auskunft, auf die es ankommt. `append`, weil eine Einstellung nie endet: ein zurueckgenommener Wert wird auf den Vorgabewert gesetzt, und audit_log traegt den Verlauf.
+create trigger trg_mandant_einstellung_kein_hard_delete
+  before delete on mandant_einstellung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_mandant_einstellung_kein_truncate
+  before truncate on mandant_einstellung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on mandant_einstellung from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_mandant_einstellung_geaendert_am
+  before update on mandant_einstellung
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_mandant_einstellung_audit
+  after insert or update or delete on mandant_einstellung
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0034)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- zeiteintrag (archiv): LEG-02, § 17 MiLoG, GoBD. Das ist der Nachweis der geleisteten Zeit — die Zeile, die im Lohnstreit vorgelegt und aus der die Rechnung abgeleitet wird. Ein geloeschter Zeiteintrag ist eine Stunde, die niemand mehr belegen oder widerlegen kann; zurueckgenommen wird er durch storniert_am mit Grund, korrigiert durch eine neue Fassung.
+create trigger trg_zeiteintrag_kein_hard_delete
+  before delete on zeiteintrag
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_zeiteintrag_kein_truncate
+  before truncate on zeiteintrag
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on zeiteintrag from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_zeiteintrag_geaendert_am
+  before update on zeiteintrag
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_zeiteintrag_audit
+  after insert or update or delete on zeiteintrag
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0035)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- checkin_token (append): TIM-07, SEC-A9. Die Marke belegt, WER wann von welcher IP eingestempelt hat — der Herkunftsnachweis des zeiteintrags. Geloescht bliebe ein Zeitdatensatz ohne nachvollziehbare Herkunft; abgelaufen oder zurueckgezogen wird sie ueber widerrufen_am.
+create trigger trg_checkin_token_kein_hard_delete
+  before delete on checkin_token
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_checkin_token_kein_truncate
+  before truncate on checkin_token
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on checkin_token from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0036)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- zeiteintrag_korrektur (append): TIM-11, LEG-01, SEC-A9. Eine Korrekturspur mit Loeschpfad ist keine. Der ganze Wert dieser Tabelle liegt darin, dass sich eine einmal aufgeschriebene Korrektur weder aendern noch entfernen laesst — auch nicht von super_admin.
+create trigger trg_zeiteintrag_korrektur_kein_hard_delete
+  before delete on zeiteintrag_korrektur
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_zeiteintrag_korrektur_kein_truncate
+  before truncate on zeiteintrag_korrektur
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on zeiteintrag_korrektur from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0040)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- arbeitszeit_verstoss (archiv): LEG-03, TIM-14, § 16 Abs. 2 ArbZG. Der Befund ist der Nachweis, dass die Gruppe eine Ueberschreitung BEMERKT hat — bei einer Gewerbeaufsicht die entscheidende Zeile. Geloescht waere er die Behauptung, es habe ihn nie gegeben; aufgeloest bekommt er hinfaellig_am, bearbeitet quittiert_am.
+create trigger trg_arbeitszeit_verstoss_kein_hard_delete
+  before delete on arbeitszeit_verstoss
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_arbeitszeit_verstoss_kein_truncate
+  before truncate on arbeitszeit_verstoss
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on arbeitszeit_verstoss from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- planungs_konflikt (archiv): TIM-05, TIM-06. Ein quittierter Konflikt ist die Spur der Entscheidung, trotzdem zu planen — samt Begruendung und Urheber. Ihn zu loeschen macht aus einer bewussten Abweichung eine, die nie jemand gesehen hat.
+create trigger trg_planungs_konflikt_kein_hard_delete
+  before delete on planungs_konflikt
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_planungs_konflikt_kein_truncate
+  before truncate on planungs_konflikt
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on planungs_konflikt from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_arbeitszeit_verstoss_geaendert_am
+  before update on arbeitszeit_verstoss
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_planungs_konflikt_geaendert_am
+  before update on planungs_konflikt
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_arbeitszeit_verstoss_audit
+  after insert or update or delete on arbeitszeit_verstoss
+  for each row execute function kern.protokolliere_aenderung();
+create trigger trg_planungs_konflikt_audit
+  after insert or update or delete on planungs_konflikt
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
