@@ -230,6 +230,121 @@ describe('(2) Die Uebernahme — und nur sie schreibt', () => {
     })).rejects.toThrow(/bereits uebernommen/u);
   });
 
+  /**
+   * Der bestehende Test darueber prueft ZWEI Uebernahmen NACHEINANDER — und
+   * damit die Statusabfrage, nicht das Rennen. Zwei gleichzeitige Klicks
+   * lesen beide denselben Status und arbeiten beide die Zeilen ab. Fuer
+   * Raeume MIT Nummer faengt der natuerliche Schluessel das ab; fuer einen
+   * Raum ohne Nummer gibt es keinen, und das Raumbuch haette ihn zweimal.
+   */
+  it('zwei GLEICHZEITIGE Uebernahmen legen den Raum nicht zweimal an', async () => {
+    const o = await objektMitKatalog(f.reinigung);
+    // Eine Zeile ohne Raumnummer — der Fall ohne natuerlichen Schluessel.
+    const ohneNummer = 'Etage;Raumnummer;Bezeichnung;Flaeche;Belag;Klasse\n'
+      + 'EG;;Flur Nord;33,5;PVC;RK1\n';
+    const importId = await alsChef(async (db) => {
+      const { importId: id } = await legeImportAn(db, o, 'ohne-nummer.csv', ohneNummer);
+      return id;
+    });
+
+    const ergebnisse = await Promise.allSettled([
+      alsChef((db) => uebernimm(db, importId, chef)),
+      alsChef((db) => uebernimm(db, importId, chef)),
+    ]);
+    expect(ergebnisse.filter((e) => e.status === 'fulfilled')).toHaveLength(1);
+
+    const [z] = await sql.unsafe<{ n: string }[]>(
+      `select count(*)::text as n from raum where objekt_id = $1`, [o]);
+    expect(z!.n).toBe('1');
+  });
+
+  /**
+   * Der `unveraendert`-Vergleich liess drei Felder aus. Die Folge war der
+   * stillste denkbare Fehler: die Vorschau meldet „unveraendert“, die
+   * Uebernahme ueberspringt die Zeile, der Import gilt als erfolgreich — und
+   * die Aenderung aus der Datei kommt nie an.
+   */
+  const KOPF_MIT_SCHLUESSEL =
+    'Schluessel;Etage;Raumnummer;Bezeichnung;Flaeche;Glas;Belag;Klasse';
+
+  it.each([
+    ['Glasflaeche', 'R-1;EG;201;Buero;61,4;;PVC;RK1', 'R-1;EG;201;Buero;61,4;9,5;PVC;RK1'],
+    ['Etage',       'R-1;EG;201;Buero;61,4;;PVC;RK1', 'R-1;1. OG;201;Buero;61,4;;PVC;RK1'],
+    ['Raumnummer',  'R-1;EG;201;Buero;61,4;;PVC;RK1', 'R-1;EG;202;Buero;61,4;;PVC;RK1'],
+    ['Bezeichnung', 'R-1;EG;201;Buero;61,4;;PVC;RK1', 'R-1;EG;201;Chefbuero;61,4;;PVC;RK1'],
+  ])('eine geaenderte %s gilt NICHT als unveraendert', async (_was, vorher, nachher) => {
+    const o = await objektMitKatalog(f.reinigung);
+    await alsChef(async (db) => {
+      const { importId } = await legeImportAn(
+        db, o, 'a.csv', `${KOPF_MIT_SCHLUESSEL}\n${vorher}\n`);
+      return uebernimm(db, importId, chef);
+    });
+    const zweite = await alsChef((db) => pruefe(db, o, `${KOPF_MIT_SCHLUESSEL}\n${nachher}\n`));
+    expect(zweite.zeilen[0]?.aktion).toBe('aktualisieren');
+  });
+
+  /**
+   * Und die Umzugsfelder werden dann auch WIRKLICH geschrieben. Vorher
+   * meldete die Vorschau „aktualisieren“, das UPDATE liess Etage und
+   * Raumnummer aber aus — der Raum blieb an seinem alten Ort, und der Import
+   * meldete Erfolg.
+   */
+  it('ein umgezogener Raum bekommt seine neue Etage und Nummer', async () => {
+    const o = await objektMitKatalog(f.reinigung);
+    await alsChef(async (db) => {
+      const { importId } = await legeImportAn(
+        db, o, 'a.csv', `${KOPF_MIT_SCHLUESSEL}\nR-7;EG;201;Buero;61,4;;PVC;RK1\n`);
+      return uebernimm(db, importId, chef);
+    });
+    await alsChef(async (db) => {
+      const { importId } = await legeImportAn(
+        db, o, 'b.csv', `${KOPF_MIT_SCHLUESSEL}\nR-7;2. OG;915;Buero;61,4;;PVC;RK1\n`);
+      return uebernimm(db, importId, chef);
+    });
+    const raeume = await sql.unsafe<{ etage: string; raumnummer: string }[]>(
+      `select etage, raumnummer from raum where objekt_id = $1`, [o]);
+    expect(raeume).toHaveLength(1);
+    expect(raeume[0]).toMatchObject({ etage: '2. OG', raumnummer: '915' });
+  });
+
+  it('eine wirklich identische Zeile bleibt unveraendert', async () => {
+    const o = await objektMitKatalog(f.reinigung);
+    await alsChef(async (db) => {
+      const { importId } = await legeImportAn(db, o, 'a.csv', DATEI);
+      return uebernimm(db, importId, chef);
+    });
+    const zweite = await alsChef((db) => pruefe(db, o, DATEI));
+    expect(zweite.zeilen.every((z) => z.aktion === 'unveraendert')).toBe(true);
+  });
+
+  it('der Verlauf traegt jedes Feld, das ueberschrieben wurde', async () => {
+    const o = await objektMitKatalog(f.reinigung);
+    await alsChef(async (db) => {
+      const { importId } = await legeImportAn(
+        db, o, 'a.csv',
+        'Etage;Raumnummer;Bezeichnung;Flaeche;Belag;Klasse\nEG;201;Buero;61,4;PVC;RK1\n');
+      return uebernimm(db, importId, chef);
+    });
+    await alsChef(async (db) => {
+      const { importId } = await legeImportAn(
+        db, o, 'b.csv',
+        'Etage;Raumnummer;Bezeichnung;Flaeche;Belag;Klasse\nEG;201;Chefbuero;70,0;PVC;RK1\n');
+      return uebernimm(db, importId, chef);
+    });
+    const [h] = await sql.unsafe<{
+      vorher: Record<string, unknown>; nachher: Record<string, unknown>;
+    }[]>(
+      `select vorher, nachher from raum_import_historie
+        where aktion = 'aktualisieren' order by erstellt_am desc limit 1`);
+    // Vorher UND nachher tragen dieselben Felder — sonst laesst sich der
+    // Verlauf nicht vergleichen, und dafuer gibt es ihn.
+    expect(Object.keys(h!.vorher).sort()).toEqual(Object.keys(h!.nachher).sort());
+    expect(h!.vorher['bezeichnung']).toBe('Buero');
+    expect(h!.nachher['bezeichnung']).toBe('Chefbuero');
+    expect(h!.vorher['etage']).toBe('EG');
+    expect(h!.nachher['flaeche_qm']).toBe('70.000');
+  });
+
   it('und seine Auslegung ist danach unveraenderlich', async () => {
     const o = await objektMitKatalog(f.reinigung);
     const importId = await alsChef(async (db) => {

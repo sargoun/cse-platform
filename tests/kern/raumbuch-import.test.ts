@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
-  alsNumerisch, deutscheZahl, leseCsv, TabellenFehler, trennzeichenAus,
+  alsNumerisch, deutscheZahl, leseZahl, leseCsv, TabellenFehler, trennzeichenAus,
 } from '../../src/server/services/raumbuch/tabelle.js';
 import { schlageZuordnungVor } from '../../src/server/services/raumbuch/import.js';
 
@@ -25,15 +25,70 @@ describe('(1) Deutsche Zahlen', () => {
     expect(deutscheZahl('12.345.678')).toBe(12_345_678_000n);
   });
 
-  it('ein Punkt mit hoechstens zwei Nachkommastellen gilt als Dezimalpunkt', () => {
-    // So schreibt es eine englisch eingestellte Excel — und 12.5 m² sind
-    // 12,5 m², nicht 125.
-    expect(deutscheZahl('12.5')).toBe(12_500n);
-    expect(deutscheZahl('12.50')).toBe(12_500n);
+  /**
+   * 08-PR-PLAN §288 (3): „`12,50` parses correctly; a control row `12.50` is
+   * **flagged, not silently coerced**.“
+   *
+   * Der frühere Test hier hielt das stumme Umdeuten fest — er war gruen und
+   * beschrieb genau das Verhalten, das die Abnahme ausschliesst. Deutsch
+   * gelesen sind `12.50` eintausendzweihundertfuenfzig, englisch zwoelf
+   * Komma fuenfzig: Faktor 100 auf einer Flaeche, aus der ein Preis wird.
+   */
+  it('ein Punkt mit hoechstens zwei Nachkommastellen wird GEMELDET, nicht stumm gedeutet',
+    () => {
+      const b = leseZahl('12.50');
+      expect(b.wert).toBe(12_500n);
+      expect(b.mehrdeutig).toBe(true);
+      expect(b.deutung).toContain('Dezimaltrenner');
+
+      // Und die eindeutige deutsche Schreibweise ist NICHT mehrdeutig.
+      expect(leseZahl('12,50')).toMatchObject({ wert: 12_500n, mehrdeutig: false });
+      expect(leseZahl('12.500')).toMatchObject({ wert: 12_500_000n, mehrdeutig: false });
+      expect(leseZahl('1234')).toMatchObject({ wert: 1_234_000n, mehrdeutig: false });
+    });
+
+  /**
+   * Interpunktion ohne Ziffern und falsch gruppierte Punkte ergaben vorher
+   * ECHTE Zahlen: `.` → 0, `1..2` → 12000, `1.2.3` → 123000. Werte, die
+   * aussehen wie Messwerte und keine sind — und als Flaeche in einen Preis
+   * gehen.
+   */
+  it.each([
+    ['.', 'nur ein Punkt'],
+    [',', 'nur ein Komma'],
+    ['..', 'zwei Punkte'],
+    ['-.', 'Vorzeichen und Punkt'],
+    ['1..2', 'doppelter Punkt'],
+    ['1.2.3', 'falsch gruppiert'],
+    ['1.', 'Punkt am Ende'],
+    ['1.2345', 'vier Stellen nach dem Punkt'],
+    ['12.34.5', 'gemischt'],
+  ])('%s (%s) ist KEINE Zahl', (eingabe) => {
+    expect(deutscheZahl(eingabe)).toBeNull();
+  });
+
+  it('und die gueltige Gruppierung bleibt gueltig', () => {
+    expect(deutscheZahl('1.234')).toBe(1_234_000n);
+    expect(deutscheZahl('12.345.678')).toBe(12_345_678_000n);
+    expect(deutscheZahl('1.234.567,89')).toBe(1_234_567_890n);
   });
 
   it('drei Stellen nach dem Punkt sind dagegen der Tausenderpunkt', () => {
     expect(deutscheZahl('12.500')).toBe(12_500_000n);
+  });
+
+  it('das Trennzeichen wird NUR ausserhalb von Anfuehrungszeichen gezaehlt', () => {
+    /**
+     * Zwei Semikola trennen die Spalten, drei Kommata stehen INNERHALB der
+     * Ueberschriften. Wer alle zaehlt, waehlt das Komma — und danach ist jede
+     * Spalte um eins verrutscht, worauf die Flaeche in der Nutzungsart landet
+     * und die Vorschau ordentlich aussieht, weil sie zeigt, was gelesen wurde.
+     */
+    expect(trennzeichenAus('Etage;"Bezeichnung, lang";"Flaeche, m², netto"')).toBe(';');
+    // Ohne Anfuehrungszeichen gewinnt das Komma zu Recht.
+    expect(trennzeichenAus('Etage,Raum,Flaeche,Belag')).toBe(',');
+    // Ein doppeltes Anfuehrungszeichen im Feld ist ein Zeichen, kein Wechsel.
+    expect(trennzeichenAus('A;"B ""gross"", weit";C')).toBe(';');
   });
 
   it('Leerzeichen und leere Felder', () => {

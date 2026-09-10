@@ -779,3 +779,22 @@ describe('(9) Der Verantwortliche eines Auftrags gehoert zu DIESER Gesellschaft'
     )).rejects.toThrow(/gehoert nicht zu dieser Gesellschaft/u);
   });
 });
+
+describe('(10) Schranken, die das Formular nicht setzen kann', () => {
+  it('ein negativer Personalbedarf und negative Wochenstunden werden abgewiesen', async () => {
+    const k = await kunde(f.reinigung);
+    const anlegen = (feld: string, wert: string) => sql.unsafe(
+      `insert into auftrag (mandant_id, auftragsnummer, kunde_id, art, bezeichnung,
+                            verantwortlich_benutzer_id, start_datum, ${feld})
+       values ($1,$2,$3,'rahmenvertrag','Test',$4,'2026-04-01',${wert})`,
+      [f.reinigung, `AU-2026-${zufall().slice(0, 5)}`, k, chef]);
+
+    // `min="0"` im Formular ist eine Bitte an den Browser, keine Grenze.
+    await expect(anlegen('personalbedarf_anzahl', '-3'))
+      .rejects.toThrow(/auftrag_personalbedarf_bereich/u);
+    await expect(anlegen('wochenstunden_soll', '-40'))
+      .rejects.toThrow(/auftrag_wochenstunden_bereich/u);
+    // Null ist erlaubt — ein Auftrag darf (noch) ohne Personalbedarf stehen.
+    await expect(anlegen('personalbedarf_anzahl', '0')).resolves.toBeDefined();
+  });
+});

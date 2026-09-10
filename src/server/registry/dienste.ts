@@ -41,6 +41,14 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'objekt', pfad: 'kalkulation/raumbuch', schreibend: false },
   { modul: 'objekt', pfad: 'kalkulation/index', schreibend: false },
   /**
+   * Die BESTAETIGUNG schreibt dagegen: sie setzt die Werte, auf denen der
+   * Preis ruht, und hebt `ist_platzhalter`. Deshalb nennt sie ihr Recht.
+   */
+  {
+    modul: 'objekt', pfad: 'kalkulation/bestaetigung',
+    schreibend: true, schreibRecht: 'kalkulation.schreiben',
+  },
+  /**
    * Der Angebotsdienst SCHREIBT — und sein Recht ist `angebot.versenden`,
    * nicht `angebot.schreiben`: der Uebergang, der etwas aus dem Haus laesst,
    * ist der, der ein eigenes Recht braucht (Invariante 7).

@@ -1645,6 +1645,45 @@ dort die Mitgliedschaften seiner Kollegen nicht sieht. Entzogene und
 abgelaufene Mitgliedschaften zaehlen nicht. Gleiches gilt fuer das Umhaengen:
 ein spaeterer Wechsel auf ein fremdes Konto ist derselbe Fehler.
 
+### D-101 · Wer den Versand sperrt, muss einen Weg heraus bauen
+
+Die Sperre aus D-97 machte etwas sichtbar, das vorher niemandem auffiel: es
+gab keinen Weg, die Werte zu bestaetigen. Ein Angebot aus dem Raumbuch stand
+auf O-16 und O-17 und liess sich damit NIE versenden — die Seite
+`/angebote/[id]/kalkulation` stand in der Seitenkarte und war nie gebaut.
+
+**Entschieden:** sie ist jetzt gebaut, und sie ist ausdruecklich kein
+Schalter. Sie zeigt zuerst den Rechenweg — Flaeche, Leistungswert, Stunden,
+Stundensatz, je Zeile — und fragt erst dann nach den Zahlen. Wer bestaetigt,
+ohne den Rechenweg gesehen zu haben, bestaetigt eine Ueberschrift.
+
+Zwei Aussagen bleiben dabei getrennt: die Zuschlaege gelten fuer DIESES
+Angebot; die Reinigungsrichtwerte (O-17) gelten fuer den Katalog und damit
+fuer jedes kuenftige Angebot. Beides in einem Haekchen zusammenzufassen
+hiesse, eine Katalogentscheidung als Angebotsdetail zu tarnen. Und was
+gruppenweit gilt, bleibt offen (O-16) — bis der Mandant es beantwortet,
+statt dass eine Vorgabe im Code es fuer ihn tut.
+
+Beide Eingaben gehen durch geprueft Funktionen: `prozentInBasispunkte`
+rechnet `15,5 %` ohne Gleitkomma auf 1550, `stundensatzInCent` ueber
+`parseGeld`. Was keine Zahl ist, wird abgewiesen statt gerundet.
+
+---
+
+### D-102 · Im App Router setzt `Link` die dynamischen Segmente eines Objektziels NICHT ein
+
+`href={{ pathname: '/portal/[mandant]/…', query: { mandant, id } }}` ist die
+Form, die im Pages Router die Segmente einsetzt. Im App Router bleibt der
+Pfad woertlich stehen: der Klick landet auf einer Adresse mit eckigen
+Klammern, also auf 404. `typedRoutes` merkt es nicht — das Muster IST eine
+gueltige Route.
+
+**Entschieden:** Ziele mit dynamischen Segmenten werden als Zeichenkette
+geschrieben (`` href={`/portal/${mandant}/angebote/${id}`} ``), so wie es das
+uebrige Portal bereits tut. Die Objektform bleibt richtig fuer einen
+FERTIGEN Pfad mit Abfrageparametern — dort setzt sie nichts ein und muss es
+auch nicht.
+
 ---
 
 ## Carried over from the Phase 0 review — not client questions

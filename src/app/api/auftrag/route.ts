@@ -46,11 +46,21 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     const wert = daten.get(name);
     return typeof wert === 'string' && wert.trim() !== '' ? wert.trim() : null;
   };
+  /**
+   * Eine unlesbare Zahl ist ein FEHLER, kein fehlendes Feld.
+   *
+   * Vorher wurde jeder Unsinn zu `null`, und `null` heisst hier „nicht
+   * angegeben“. Wer `abc` in die Wochenstunden tippt, bekam also einen
+   * Auftrag ohne Wochenstunden — angelegt, gemeldet als Erfolg, und der
+   * Fehler faellt erst auf, wenn jemand danach plant.
+   */
+  const ungueltig: string[] = [];
   const zahl = (name: string): number | null => {
     const roh = text(name);
     if (roh === null) return null;
     const n = Number(roh.replace(',', '.'));
-    return Number.isFinite(n) ? n : null;
+    if (!Number.isFinite(n)) { ungueltig.push(name); return null; }
+    return n;
   };
 
   const kundeId = text('kundeId');
@@ -59,9 +69,15 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const startDatum = text('startDatum');
   const verantwortlich = text('verantwortlichBenutzerId') ?? sitzung.benutzerId;
 
+  const stundenVorab = zahl('wochenstundenSoll');
+  const personalVorab = zahl('personalbedarfAnzahl');
+
   if (kundeId === null || bezeichnung === null || art === null || startDatum === null
       || !ARTEN.has(art)) {
     return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
+  }
+  if (ungueltig.length > 0) {
+    return NextResponse.json({ fehler: 'keine_zahl', felder: ungueltig }, { status: 400 });
   }
 
   try {
@@ -87,7 +103,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           { kreisTyp: 'auftrag' },
         );
 
-        const stunden = zahl('wochenstundenSoll');
+        const stunden = stundenVorab;
         const [neu] = await kontext.abfrage<{ id: string }>(
           `insert into auftrag (mandant_id, auftragsnummer, kunde_id, objekt_id, art,
                                 bezeichnung, beschreibung, verantwortlich_benutzer_id,
@@ -98,7 +114,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
            returning id`,
           [nummer.formatiert, kundeId, text('objektId'), art, bezeichnung,
            text('beschreibung'), verantwortlich, startDatum, text('laufzeitBis'),
-           zahl('personalbedarfAnzahl'), stunden === null ? null : stunden.toFixed(3),
+           personalVorab, stunden === null ? null : stunden.toFixed(3),
            text('ausstattungHinweis')],
         );
         if (neu === undefined) return null;

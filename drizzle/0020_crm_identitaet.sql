@@ -784,8 +784,26 @@ end $$;
 grant execute on function app.firma_aufloesen(text, text, char) to cse_app;
 
 /**
- * Die Dublettensuche — innerhalb derselben Grenze, und sie gibt nur id und
- * Aehnlichkeit heraus. Ein Name kaeme einer fremden Gesellschaft zu.
+ * Die Dublettensuche — begrenzt auf das, was der Aufrufer ohnehin lesen darf.
+ *
+ * Sie ist `security definer` und umging damit die Policy `f_lesen`, die
+ * `firma` genau auf die Gesellschaften einschraenkt, in denen sie als Kunde
+ * gefuehrt wird. Ein Name plus zehn Treffer ist eine Aufzaehlung: wer
+ * „Muster“ tippt, erfuhr, welche Muster-Firmen die Security betreut. Der
+ * Kommentar behauptete die Grenze; die Abfrage hatte keine.
+ *
+ * Gesucht wird jetzt in den Gesellschaften, in denen der Aufrufer
+ * `crm.lesen` HAELT — nicht nur in der aktiven, denn wer fuer zwei
+ * Gesellschaften arbeitet, soll die geteilte Identitaet (CRM-06) auch finden.
+ * Dazu Firmen, die noch an KEINER Kundenbeziehung haengen: sie verraten
+ * nichts darueber, wer wen betreut, und ohne sie verloere der zweistufige
+ * Weg „erst `firma`, dann `kunde`“ seine eigene Zeile.
+ *
+ * Was das kostet, ist benannt: eine Firma, die ausschliesslich eine andere
+ * Gesellschaft betreut, findet er nicht — und legt sie unter Umstaenden ein
+ * zweites Mal an. Dafuer gibt es `zusammengefuehrt_in_firma_id`. Eine
+ * Dublette laesst sich verschmelzen; eine ausgelesene Kundenliste nicht
+ * zurueckholen.
  */
 create function app.firma_kandidaten(p_name text, p_land char(2) default 'DE')
 returns table (firma_id uuid, aehnlichkeit real)
@@ -796,6 +814,12 @@ language sql stable security definer set search_path = pg_catalog, public, app a
      and f.land = coalesce(p_land, 'DE')
      and f.zusammengefuehrt_in_firma_id is null
      and similarity(f.name, p_name) > 0.4
+     and (
+       exists (select 1 from public.kunde k
+                where k.firma_id = f.id
+                  and k.mandant_id = any (app.rechte_mandanten('crm.lesen')))
+       or not exists (select 1 from public.kunde k where k.firma_id = f.id)
+     )
    order by similarity(f.name, p_name) desc
    limit 10
 $$;

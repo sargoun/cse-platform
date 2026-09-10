@@ -143,5 +143,24 @@ describe('der Seed laeuft ZWEIMAL — sonst ist er keiner', () => {
          and not exists (select 1 from auth.mfa_factors f where f.user_id = b.id)`;
     expect(ohne.map((o) => o.email)).toEqual([]);
   });
+
+  it('und GENAU EINEN — der Seed ist wiederholbar, der Faktor vermehrt sich nicht', async () => {
+    /**
+     * `auth.mfa_factors` traegt nur einen Primaerschluessel auf der erzeugten
+     * `id`; `on conflict do nothing` griff dort NIE. Jeder Seed-Lauf legte
+     * also einen weiteren Faktor an. Das faellt nicht auf — bis jemand die
+     * Faktoren eines Kontos auflistet und drei findet, von denen keiner
+     * jemals verwendet wurde.
+     *
+     * Diese Suite laeuft nach mindestens zwei Seed-Laeufen; der Fehler waere
+     * hier also sichtbar.
+     */
+    const mehrfach = await sql<{ email: string; n: number }[]>`
+      select b.email, count(*)::int as n
+        from auth.mfa_factors f
+        join benutzer b on b.id = f.user_id
+       group by b.email having count(*) > 1`;
+    expect(mehrfach).toEqual([]);
+  });
 });
 

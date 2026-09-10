@@ -12,7 +12,7 @@
  * Schluessel, den das Raumbuch selbst benutzt (D-91). Damit ist ein zweiter
  * Import derselben Datei "unveraendert" und nicht "tausend neue Raeume".
  */
-import { alsNumerisch, deutscheZahl, leseCsv, TabellenFehler } from './tabelle.js';
+import { alsNumerisch, leseZahl, leseCsv, TabellenFehler } from './tabelle.js';
 
 export interface Abfrage {
   abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
@@ -198,19 +198,41 @@ export async function pruefe(
     const quellSchluessel = wert(satz, 'quell_schluessel');
 
     const flaecheRoh = wert(satz, 'flaeche_qm');
-    const flaecheMilli = flaecheRoh === null ? null : deutscheZahl(flaecheRoh);
+    const flaecheBefund = flaecheRoh === null ? null : leseZahl(flaecheRoh);
+    const flaecheMilli = flaecheBefund?.wert ?? null;
     if (flaecheRoh === null) {
       fehler.push('Keine Flaeche angegeben');
     } else if (flaecheMilli === null) {
       fehler.push(`Flaeche ist keine Zahl: ${flaecheRoh}`);
     } else if (flaecheMilli <= 0n) {
       fehler.push('Die Flaeche muss groesser als 0 sein');
+    } else if (flaecheBefund?.mehrdeutig === true) {
+      /**
+       * 08-PR-PLAN §288 (3): `12.50` wird GEMELDET, nicht stumm umgedeutet.
+       * Deutsch gelesen sind es 1250 m², englisch 12,50 — Faktor 100 auf einer
+       * Flaeche, aus der ein Preis wird. Die Zeile bleibt uebernehmbar; was
+       * sie nicht bleibt, ist unbemerkt.
+       */
+      fehler.push(`Flaeche mehrdeutig geschrieben: ${flaecheRoh} → `
+        + `${flaecheBefund.deutung ?? ''} — bitte bestaetigen`);
     }
 
     const fensterRoh = wert(satz, 'fenster_flaeche_qm');
-    const fensterMilli = fensterRoh === null ? null : deutscheZahl(fensterRoh);
+    const fensterBefund = fensterRoh === null ? null : leseZahl(fensterRoh);
+    const fensterMilli = fensterBefund?.wert ?? null;
     if (fensterRoh !== null && fensterMilli === null) {
       fehler.push(`Glasflaeche ist keine Zahl: ${fensterRoh}`);
+    } else if (fensterMilli !== null && fensterMilli < 0n) {
+      /**
+       * Negative Glasflaeche: sonst faellt sie erst in der Uebernahme auf, an
+       * `raum_fensterflaeche_nicht_negativ` — und reisst dort die ganze
+       * Transaktion mit, statt als EINE gemeldete Zeile stehen zu bleiben
+       * (08-PR-PLAN §288 (4)).
+       */
+      fehler.push(`Glasflaeche ist negativ: ${fensterRoh}`);
+    } else if (fensterBefund?.mehrdeutig === true) {
+      fehler.push(`Glasflaeche mehrdeutig geschrieben: ${fensterRoh} → `
+        + `${fensterBefund.deutung ?? ''} — bitte bestaetigen`);
     }
 
     const belagCode = wert(satz, 'belagsart_code');
@@ -228,6 +250,12 @@ export async function pruefe(
     }
     const klasseCode = wert(satz, 'reinigungsklasse_code');
     const klasseId = klasseCode === null ? null : klasseNach.get(klasseCode.toLowerCase()) ?? null;
+    if (klasseCode !== null && klasseId === null) {
+      // Wie bei der Belagsart ein HINWEIS, kein harter Fehler — aber gesagt:
+      // eine still verworfene Reinigungsklasse aendert spaeter den Turnus,
+      // und niemand weiss dann, dass in der Datei einer stand.
+      fehler.push(`Reinigungsklasse im Katalog unbekannt: ${klasseCode}`);
+    }
 
     const bezeichnung = wert(satz, 'bezeichnung');
     const natur = schluesselAus(etage, raumnummer, bezeichnung);
@@ -259,7 +287,9 @@ export async function pruefe(
      * schluessel kosten Information, nicht die Flaeche; eine fehlende Flaeche
      * kostet den Raum.
      */
-    const HINWEISE = ['Belagsart im Katalog', 'Weder Raumnummer'];
+    const HINWEISE = ['Belagsart im Katalog', 'Weder Raumnummer',
+                     'Reinigungsklasse im Katalog',
+                     'Flaeche mehrdeutig', 'Glasflaeche mehrdeutig'];
     const istGueltig = !fehler.some((f) => !HINWEISE.some((h) => f.startsWith(h)));
     const flaeche = flaecheMilli === null ? null : alsNumerisch(flaecheMilli);
 
@@ -267,8 +297,21 @@ export async function pruefe(
     if (!istGueltig) {
       aktion = 'ignorieren';
     } else if (treffer !== undefined) {
+      /**
+       * Verglichen wird JEDES Feld, das die Uebernahme schreibt.
+       *
+       * Fehlte eines, meldete die Vorschau `unveraendert`, die Uebernahme
+       * uebersprunge die Zeile — und die Aenderung aus der Datei kaeme nie
+       * an. Der Import saehe erfolgreich aus und haette nichts getan. Etage
+       * und Raumnummer gehoeren dazu, weil ein Raum, den der Quellschluessel
+       * wiedererkennt, umgezogen sein kann.
+       */
       const gleich = treffer.flaeche_qm === flaeche
+        && (treffer.fenster_flaeche_qm ?? null)
+           === (fensterMilli === null ? null : alsNumerisch(fensterMilli))
         && (treffer.bezeichnung ?? null) === bezeichnung
+        && (treffer.etage ?? null) === etage
+        && (treffer.raumnummer ?? null) === raumnummer
         && (treffer.nutzungsart ?? null) === wert(satz, 'nutzungsart')
         && (treffer.belagsart_id ?? null) === belagId
         && (treffer.reinigungsklasse_id ?? null) === klasseId;
@@ -312,13 +355,24 @@ export async function pruefe(
 /** Legt den Import samt Zwischenzeilen an — noch OHNE das Raumbuch zu beruehren. */
 export async function legeImportAn(
   db: Abfrage, objektId: string, dateiname: string, inhalt: string,
+  benutzerId?: string,
 ): Promise<{ readonly importId: string; readonly vorschau: Vorschau }> {
   const vorschau = await pruefe(db, objektId, inhalt);
 
   const [kopf] = await db.abfrage<{ id: string }>(
+    /**
+     * `geprueft` MIT Zeitpunkt und Person.
+     *
+     * Der Status allein sagt, dass geprueft wurde, und verschweigt, wann und
+     * von wem — das Ereignis waere damit aufgezeichnet und unbelegt zugleich.
+     * Der Zeitstempel-Ausloeser hilft hier nicht: er stempelt nur ein Feld,
+     * das bereits gefuellt ist.
+     */
     `insert into raumbuch_import (mandant_id, objekt_id, dateiname, spalten_zuordnung,
-                                  zeilen_gesamt, zeilen_gueltig, zeilen_fehler, status)
-     values (app.aktiver_mandant(), $1, $2, $3::jsonb, $4, $5, $6, 'geprueft')
+                                  zeilen_gesamt, zeilen_gueltig, zeilen_fehler, status,
+                                  geprueft_am, geprueft_von)
+     values (app.aktiver_mandant(), $1, $2, $3::jsonb, $4, $5, $6, 'geprueft',
+             now(), $7)
      returning id`,
     /**
      * Das OBJEKT, nicht sein JSON-Text.
@@ -329,7 +383,7 @@ export async function legeImportAn(
      * serialisiert selbst; ihm zuvorzukommen kodiert zweimal.
      */
     [objektId, dateiname, vorschau.zuordnung as never,
-     vorschau.gesamt, vorschau.gueltig, vorschau.fehlerhaft],
+     vorschau.gesamt, vorschau.gueltig, vorschau.fehlerhaft, benutzerId ?? null],
   );
   if (kopf === undefined) throw new TabellenFehler('Der Import wurde nicht angelegt', 'format');
 
@@ -375,6 +429,39 @@ interface ZwischenZeile {
   readonly reinigungsklasse_id: string | null;
 }
 
+/** Der Vorher-Stand eines Raumes — dieselben Felder, die ueberschrieben werden. */
+interface VorherZeile {
+  readonly flaeche_qm: string | null;
+  readonly fenster_flaeche_qm: string | null;
+  readonly bezeichnung: string | null;
+  readonly etage: string | null;
+  readonly raumnummer: string | null;
+  readonly nutzungsart: string | null;
+  readonly belagsart_id: string | null;
+  readonly reinigungsklasse_id: string | null;
+}
+
+/**
+ * Der Nachher-Stand, aus der Zwischenzeile — in DERSELBEN Form wie der
+ * Vorher-Stand.
+ *
+ * Zwei Schnappschuesse mit verschiedenen Feldern liessen sich nicht
+ * vergleichen, und ein Verlauf, den man nicht vergleichen kann, beantwortet
+ * die einzige Frage nicht, die man ihm stellt: was hat sich geaendert?
+ */
+function standAus(z: ZwischenZeile): VorherZeile {
+  return {
+    flaeche_qm: z.flaeche_qm,
+    fenster_flaeche_qm: z.fenster_flaeche_qm,
+    bezeichnung: z.bezeichnung,
+    etage: z.etage,
+    raumnummer: z.raumnummer,
+    nutzungsart: z.nutzungsart,
+    belagsart_id: z.belagsart_id,
+    reinigungsklasse_id: z.reinigungsklasse_id,
+  };
+}
+
 /**
  * Die Uebernahme — der einzige Schritt, der das lebende Raumbuch aendert.
  *
@@ -385,8 +472,19 @@ interface ZwischenZeile {
 export async function uebernimm(
   db: Abfrage, importId: string, benutzerId: string,
 ): Promise<Uebernahme> {
+  /**
+   * `for update` — die Kopfzeile wird GESPERRT, bevor ihr Status gelesen wird.
+   *
+   * Zwei gleichzeitige Uebernahmen desselben Imports sehen sonst beide einen
+   * Status ungleich `uebernommen` und arbeiten beide die Zeilen ab. Fuer
+   * Raeume MIT Nummer faengt der natuerliche Schluessel das ab; fuer Raeume
+   * ohne Nummer gibt es keinen — und das Raumbuch haette jeden davon zweimal.
+   * Die Sperre serialisiert die beiden, und der zweite sieht dann den Status,
+   * den der erste hinterlassen hat.
+   */
   const [kopf] = await db.abfrage<{ objekt_id: string; status: string }>(
-    `select objekt_id::text, status::text from raumbuch_import where id = $1`, [importId]);
+    `select objekt_id::text, status::text from raumbuch_import where id = $1 for update`,
+    [importId]);
   if (kopf === undefined) throw new TabellenFehler('Import nicht gefunden', 'format');
   if (kopf.status === 'uebernommen') {
     throw new TabellenFehler('Dieser Import ist bereits uebernommen', 'format');
@@ -425,30 +523,40 @@ export async function uebernimm(
         `insert into raum_import_historie (mandant_id, raum_id, import_id, import_zeile_id,
                                            aktion, nachher)
          values (app.aktiver_mandant(), $1, $2, $3, 'anlegen', $4::jsonb)`,
-        [neu.id, importId, z.id,
-         { flaeche_qm: z.flaeche_qm, bezeichnung: z.bezeichnung } as never]);
+        [neu.id, importId, z.id, standAus(z) as never]);
       await db.abfrage(
         `update raumbuch_import_zeile set raum_id = $2 where id = $1`, [z.id, neu.id]);
       continue;
     }
 
-    const [vorher] = await db.abfrage<{ flaeche_qm: string; bezeichnung: string | null }>(
-      `select flaeche_qm::text, bezeichnung from raum where id = $1`, [z.raum_id]);
+    /**
+     * Der Schnappschuss traegt JEDES Feld, das gleich ueberschrieben wird —
+     * und `for update` sperrt die Zeile, aus der er stammt.
+     *
+     * Ohne den vollen Vorher-Stand erklaert die Historie einen Teil der
+     * Aenderungen nicht, und genau dafuer gibt es sie. Ohne die Sperre kann
+     * zwischen Lesen und Schreiben ein anderer Import dieselbe Zeile
+     * aendern; der Schnappschuss zeigte dann einen Zustand, den es zum
+     * Zeitpunkt des Ueberschreibens nicht mehr gab.
+     */
+    const [vorher] = await db.abfrage<VorherZeile>(
+      `select flaeche_qm::text, fenster_flaeche_qm::text, bezeichnung, etage, raumnummer,
+              nutzungsart, belagsart_id::text, reinigungsklasse_id::text
+         from raum where id = $1 for update`, [z.raum_id]);
     await db.abfrage(
       `update raum set bezeichnung = $2, nutzungsart = $3, flaeche_qm = $4::numeric,
                        fenster_flaeche_qm = $5::numeric, belagsart_id = $6,
-                       reinigungsklasse_id = $7
+                       reinigungsklasse_id = $7, etage = $8, raumnummer = $9
         where id = $1`,
       [z.raum_id, z.bezeichnung, z.nutzungsart, z.flaeche_qm, z.fenster_flaeche_qm,
-       z.belagsart_id, z.reinigungsklasse_id]);
+       z.belagsart_id, z.reinigungsklasse_id, z.etage, z.raumnummer]);
     aktualisiert += 1;
     await db.abfrage(
       `insert into raum_import_historie (mandant_id, raum_id, import_id, import_zeile_id,
                                          aktion, vorher, nachher)
        values (app.aktiver_mandant(), $1, $2, $3, 'aktualisieren', $4::jsonb, $5::jsonb)`,
       [z.raum_id, importId, z.id,
-       { flaeche_qm: vorher?.flaeche_qm ?? null, bezeichnung: vorher?.bezeichnung ?? null } as never,
-       { flaeche_qm: z.flaeche_qm, bezeichnung: z.bezeichnung } as never]);
+       (vorher ?? null) as never, standAus(z) as never]);
   }
 
   await db.abfrage(

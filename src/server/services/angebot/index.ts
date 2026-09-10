@@ -37,6 +37,19 @@ export class AngebotFehler extends Error {
   }
 }
 
+/**
+ * Ein Verstoss GEGEN GENAU DIESEN eindeutigen Index — nicht irgendeiner.
+ *
+ * `23505` allein zu pruefen faenge auch die Auftragsnummer und jede spaetere
+ * Eindeutigkeit mit ein und uebersetzte sie in eine Aussage ueber das
+ * Angebot, die nicht stimmt. Der Name steht deshalb im Vergleich.
+ */
+function istEindeutigkeitsverstoss(fehler: unknown, index: string): boolean {
+  if (typeof fehler !== 'object' || fehler === null) return false;
+  const f = fehler as { code?: unknown; constraint_name?: unknown };
+  return f.code === '23505' && f.constraint_name === index;
+}
+
 export interface AngebotAnlegen {
   readonly kundeId: string;
   readonly titel: string;
@@ -241,11 +254,18 @@ export interface Versandergebnis {
 export async function versendeAngebot(
   db: Abfrage & NummernAbfrage, angebotId: string, freigeberBenutzerId: string,
 ): Promise<Versandergebnis> {
+  /**
+   * Auch hier `for update`: zwei gleichzeitige Versandversuche lesen sonst
+   * beide `entwurf`, und der zweite zieht eine Nummer, bevor das erste
+   * UPDATE sichtbar ist. Er scheitert danach am Unveraenderlichkeits-
+   * Ausloeser — mit einem Fehler, der nichts erklaert, und einer verbrauchten
+   * Nummer. Die Sperre laesst ihn stattdessen den benannten Fehler sehen.
+   */
   const [vorher] = await db.abfrage<{ status: string; positionen: string }>(
     `select a.status,
             (select count(*) from angebotsposition p
               where p.angebot_id = a.id and p.typ = 'leistung')::text as positionen
-       from angebot a where a.id = $1`,
+       from angebot a where a.id = $1 for update`,
     [angebotId],
   );
   if (vorher === undefined) {
@@ -298,22 +318,36 @@ export interface AuftragAnlegen {
 export async function wandleInAuftrag(
   db: Abfrage & NummernAbfrage, angebotId: string, eingabe: AuftragAnlegen,
 ): Promise<{ readonly auftragId: string; readonly auftragsnummer: string }> {
+  /**
+   * `for update` — die Zeile wird GESPERRT, nicht nur gelesen.
+   *
+   * Zwei gleichzeitige Klicks auf „Angenommen“ lesen sonst beide denselben
+   * Zustand, sehen beide keinen Auftrag und legen beide einen an. Die Sperre
+   * serialisiert sie; der eindeutige Index `auftrag_angebot_uk` faengt den
+   * Rest, falls jemand einmal an diesem Dienst vorbeischreibt.
+   */
   const [angebot] = await db.abfrage<{
     kunde_id: string; objekt_id: string | null; lead_id: string | null;
     titel: string; netto_cent: string; status: string; versendet_am: Date | null;
   }>(
     `select kunde_id, objekt_id, lead_id, titel, netto_cent::text as netto_cent,
             status, versendet_am
-       from angebot where id = $1`,
+       from angebot where id = $1 for update`,
     [angebotId],
   );
   if (angebot === undefined) {
     throw new AngebotFehler('Angebot nicht gefunden', 'nicht_gefunden');
   }
-  if (angebot.versendet_am === null) {
-    throw new AngebotFehler(
-      'Ein nicht versendetes Angebot wird nicht zum Auftrag', 'kein_entwurf');
-  }
+  /**
+   * Erst der bestehende Auftrag, DANN der Status — die Reihenfolge ist die
+   * Nachricht.
+   *
+   * Die Wandlung setzt das Angebot am Ende auf `angenommen`. Ein zweiter
+   * Klick liefe deshalb in die Statuspruefung und bekaeme „Status
+   * angenommen“ zu lesen: richtig, und ohne Hinweis darauf, dass der Auftrag
+   * bereits existiert und wo er steht. Der spezifische Fall gehoert zuerst
+   * geprueft.
+   */
   const [schonDa] = await db.abfrage<{ id: string }>(
     `select id from auftrag where angebot_id = $1`, [angebotId]);
   if (schonDa !== undefined) {
@@ -321,19 +355,51 @@ export async function wandleInAuftrag(
       'Aus diesem Angebot ist bereits ein Auftrag entstanden', 'schon_gewandelt');
   }
 
+  /**
+   * Und dann der STATUS, nicht der Zeitstempel.
+   *
+   * `versendet_am` bleibt gesetzt, wenn ein Angebot spaeter abgelehnt,
+   * zurueckgezogen oder abgelaufen ist — es WURDE ja versendet. Wer nur den
+   * Zeitstempel prueft, macht aus einem abgelehnten Angebot einen Auftrag,
+   * und der traegt dann einen Wert, den der Kunde ausdruecklich nicht
+   * angenommen hat.
+   */
+  if (angebot.status !== 'versendet') {
+    throw new AngebotFehler(
+      `Ein Angebot im Status ${angebot.status} wird nicht zum Auftrag`, 'kein_entwurf');
+  }
+
   const nummer = await vergebeNummer(db as NummernAbfrage, { kreisTyp: 'auftrag' });
 
-  const [auftrag] = await db.abfrage<{ id: string; auftragsnummer: string }>(
-    `insert into auftrag (mandant_id, auftragsnummer, kunde_id, objekt_id, angebot_id,
-                          lead_id, art, bezeichnung, verantwortlich_benutzer_id,
-                          start_datum, laufzeit_bis, auftragswert_netto_cent)
-     values (app.aktiver_mandant(), $1, $2, $3, $4, $5, $6::auftrag_art, $7, $8,
-             $9::date, $10::date, $11)
-     returning id, auftragsnummer`,
-    [nummer.formatiert, angebot.kunde_id, angebot.objekt_id, angebotId, angebot.lead_id,
-     eingabe.art, angebot.titel, eingabe.verantwortlichBenutzerId,
-     eingabe.startDatum, eingabe.laufzeitBis ?? null, angebot.netto_cent],
-  );
+  /**
+   * Und wenn doch zwei gleichzeitig hier ankommen, entscheidet der eindeutige
+   * Index `auftrag_angebot_uk`. Sein Verstoss wird in DENSELBEN benannten
+   * Fehler uebersetzt wie die Vorabpruefung oben — sonst saehe der Verlierer
+   * eines Rennens einen anderen Fehler als der zweite Klick eine Sekunde
+   * spaeter, und beide meinen dasselbe.
+   */
+  const auftrag = await (async () => {
+    try {
+      const [z] = await db.abfrage<{ id: string; auftragsnummer: string }>(
+        `insert into auftrag (mandant_id, auftragsnummer, kunde_id, objekt_id, angebot_id,
+                              lead_id, art, bezeichnung, verantwortlich_benutzer_id,
+                              start_datum, laufzeit_bis, auftragswert_netto_cent)
+         values (app.aktiver_mandant(), $1, $2, $3, $4, $5, $6::auftrag_art, $7, $8,
+                 $9::date, $10::date, $11)
+         returning id, auftragsnummer`,
+        [nummer.formatiert, angebot.kunde_id, angebot.objekt_id, angebotId, angebot.lead_id,
+         eingabe.art, angebot.titel, eingabe.verantwortlichBenutzerId,
+         eingabe.startDatum, eingabe.laufzeitBis ?? null, angebot.netto_cent],
+      );
+      return z;
+    } catch (fehler) {
+      if (istEindeutigkeitsverstoss(fehler, 'auftrag_angebot_uk')) {
+        throw new AngebotFehler(
+          'Aus diesem Angebot ist bereits ein Auftrag entstanden', 'schon_gewandelt');
+      }
+      throw fehler;
+    }
+  })();
   if (auftrag === undefined) {
     throw new AngebotFehler('Der Auftrag wurde nicht angelegt', 'nicht_gefunden');
   }

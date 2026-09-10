@@ -98,6 +98,19 @@ export const ROUTEN: readonly RouteEintrag[] = [
     pfad: 'api/auftrag',
     recht: 'auftrag.schreiben',
   },
+  {
+    /**
+     * Die Werte bestaetigen, auf denen ein Preis ruht (OPS-07).
+     *
+     * `kalkulation.schreiben` und nicht `angebot.schreiben`: wer hier
+     * eintraegt, aendert den RECHENWEG, nicht den Text des Angebots. Und
+     * nicht `angebot.versenden`, denn dieser Weg laesst nichts aus dem Haus
+     * — er macht den Versand nur moeglich, und der bleibt ein eigener Klick
+     * mit eigenem Recht (Invariante 7).
+     */
+    pfad: 'api/kalkulation',
+    recht: 'kalkulation.schreiben',
+  },
 ] as const;
 
 /** Die Routen, die ein Recht verlangen. */

@@ -162,8 +162,18 @@ async function main(): Promise<void> {
    */
   const adminId = await authBenutzer('admin@cse-gruppe.de');
 
-  await sql`insert into auth.mfa_factors (user_id) values (${adminId})
-            on conflict do nothing`;
+  /**
+   * Erst lesen, dann schreiben — `on conflict do nothing` greift hier NICHT.
+   *
+   * `auth.mfa_factors` traegt nur einen Primaerschluessel auf der erzeugten
+   * `id`, keine Eindeutigkeit auf `user_id`. Der Konflikt trat also nie ein,
+   * und jeder Seed-Lauf legte einen weiteren Faktor an — bei einem Seed, der
+   * ausdruecklich wiederholbar sein soll.
+   */
+  await sql`
+    insert into auth.mfa_factors (user_id)
+    select ${adminId}
+     where not exists (select 1 from auth.mfa_factors f where f.user_id = ${adminId})`;
 
   const [sa] = await sql<{ id: string }[]>`
     select id from rolle where schluessel = 'super_admin' and mandant_id is null`;
@@ -549,8 +559,17 @@ async function main(): Promise<void> {
      * — das bleibt unberuehrt.
      */
     if (braucht2fa.has(rolle)) {
-      await sql`insert into auth.mfa_factors (user_id) values (${id})
-                on conflict do nothing`;
+      /**
+       * `on conflict do nothing` griff hier NIE: `auth.mfa_factors` traegt
+       * nur einen Primaerschluessel auf der erzeugten `id`, keine
+       * Eindeutigkeit auf `user_id`. Jeder Seed-Lauf legte also einen
+       * weiteren Faktor an — und der Seed ist ausdruecklich wiederholbar.
+       * Erst lesen, dann schreiben.
+       */
+      await sql`
+        insert into auth.mfa_factors (user_id)
+        select ${id}
+         where not exists (select 1 from auth.mfa_factors f where f.user_id = ${id})`;
     }
     await sql`
       insert into benutzer (id, email, name, person_id, status)

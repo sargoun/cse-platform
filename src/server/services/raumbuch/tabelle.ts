@@ -30,13 +30,38 @@ export interface Tabelle {
   readonly zeilen: readonly Readonly<Record<string, string>>[];
 }
 
-/** Erkennt das Trennzeichen an der Kopfzeile: `;` (deutsch), `,` oder Tab. */
+/**
+ * Erkennt das Trennzeichen an der Kopfzeile: `;` (deutsch), `,` oder Tab.
+ *
+ * Gezaehlt wird NUR AUSSERHALB von Anfuehrungszeichen. Sonst gewinnt in
+ * `Etage;"Bezeichnung, lang";"Flaeche, m²"` das Komma mit zwei Treffern gegen
+ * das Semikolon mit zweien — und die Datei zerfaellt an der falschen Stelle,
+ * worauf jede Spalte um eins verrutscht und die Flaeche in der Nutzungsart
+ * landet. Das faellt niemandem auf, weil die Vorschau dann ordentlich
+ * aussieht: sie zeigt ja genau das, was gelesen wurde.
+ */
 export function trennzeichenAus(kopfzeile: string): string {
   const kandidaten = [';', '\t', ','] as const;
+  const zaehler = new Map<string, number>(kandidaten.map((k) => [k, 0]));
+
+  let inAnfuehrung = false;
+  for (let i = 0; i < kopfzeile.length; i += 1) {
+    const z = kopfzeile[i];
+    if (z === '"') {
+      // `""` innerhalb eines Feldes ist ein Anfuehrungszeichen, kein Wechsel.
+      if (inAnfuehrung && kopfzeile[i + 1] === '"') { i += 1; continue; }
+      inAnfuehrung = !inAnfuehrung;
+      continue;
+    }
+    if (inAnfuehrung) continue;
+    const bisher = zaehler.get(z ?? '');
+    if (bisher !== undefined) zaehler.set(z ?? '', bisher + 1);
+  }
+
   let bestes: string = ';';
-  let meiste = -1;
+  let meiste = 0;
   for (const k of kandidaten) {
-    const anzahl = kopfzeile.split(k).length - 1;
+    const anzahl = zaehler.get(k) ?? 0;
     if (anzahl > meiste) { meiste = anzahl; bestes = k; }
   }
   return meiste > 0 ? bestes : ';';
@@ -105,47 +130,94 @@ export function leseCsv(text: string): Tabelle {
   return { kopf, zeilen };
 }
 
-/**
- * Eine deutsche Zahl in ganzzahlige Tausendstel.
- *
- * `"1.234,5"` → `1_234_500n`. Der Tausenderpunkt faellt weg, das Komma ist
- * der Dezimaltrenner. `"12.5"` — englisch geschrieben — ist mehrdeutig und
- * wird als 12,5 gelesen, WENN nach dem Punkt hoechstens zwei Stellen stehen
- * und kein weiterer Punkt vorkommt; sonst gilt der Punkt als Tausendertrenner.
- * Diese Regel steht hier, weil sie sonst an drei Stellen anders geraten wird.
- */
-export function deutscheZahl(roh: string): bigint | null {
-  const text = roh.trim().replace(/\s/gu, '');
-  if (text === '') return null;
-  if (!/^-?[\d.,]+$/u.test(text)) return null;
+/** Was beim Lesen einer Zahl herauskam — Wert UND Sicherheit. */
+export interface Zahlbefund {
+  /** Die Tausendstel, oder `null`, wenn hier keine Zahl steht. */
+  readonly wert: bigint | null;
+  /**
+   * Wahr, wenn die Schreibweise zwei Lesarten zulaesst und wir eine gewaehlt
+   * haben. `12.50` ist deutsch 1250 und englisch 12,50 — beides plausibel.
+   */
+  readonly mehrdeutig: boolean;
+  /** Die gewaehlte Lesart im Klartext, fuer die Vorschau. */
+  readonly deutung: string | null;
+}
 
-  let ganz: string;
-  let bruch: string;
+/** Ein Zifferngefuege mit Tausenderpunkten: `1.234`, `12.345.678`. */
+const GRUPPIERT = /^\d{1,3}(?:\.\d{3})+$/u;
+
+/**
+ * Eine deutsche Zahl in ganzzahlige Tausendstel — und die Auskunft, ob die
+ * Schreibweise eindeutig war.
+ *
+ * `"1.234,5"` → `1_234_500n`. Der Tausenderpunkt faellt weg, das Komma ist der
+ * Dezimaltrenner.
+ *
+ * **`"12.50"` ist MEHRDEUTIG** und wird als solche gemeldet, nicht stumm
+ * umgedeutet: deutsch gelesen sind es 1250, englisch 12,50 — ein Faktor 100
+ * auf einer Flaeche, aus der ein Preis wird (08-PR-PLAN §288 (3)). Gelesen
+ * wird sie als 12,50, weil das die haeufigere Herkunft solcher Dateien ist;
+ * gesagt wird es trotzdem.
+ *
+ * Was KEINE Zahl ist, ist keine: `"."`, `","`, `"1..2"` und `"1.2.3"` haben
+ * vorher 0, 0, 12000 und 123000 ergeben — Werte, die aussehen wie Messwerte
+ * und keine sind.
+ */
+export function leseZahl(roh: string): Zahlbefund {
+  const leer: Zahlbefund = { wert: null, mehrdeutig: false, deutung: null };
+  const text = roh.trim().replace(/\s/gu, '');
+  if (text === '') return leer;
+  if (!/^-?[\d.,]+$/u.test(text)) return leer;
+  // Ohne wenigstens eine Ziffer ist es Interpunktion, kein Wert.
+  if (!/\d/u.test(text)) return leer;
+
   const negativ = text.startsWith('-');
   const ohneVorzeichen = negativ ? text.slice(1) : text;
 
+  let ganz: string;
+  let bruch: string;
+  let mehrdeutig = false;
+  let deutung: string | null = null;
+
   if (ohneVorzeichen.includes(',')) {
     const teile = ohneVorzeichen.split(',');
-    if (teile.length > 2) return null;
-    ganz = (teile[0] ?? '').replaceAll('.', '');
+    if (teile.length > 2) return leer;
+    const kopf = teile[0] ?? '';
+    // Der Ganzteil darf gruppiert sein oder gar keinen Punkt tragen — alles
+    // dazwischen (`1..2`, `1.2.3`, `12.34`) ist keine gueltige Gruppierung.
+    if (kopf.includes('.') && !GRUPPIERT.test(kopf)) return leer;
+    ganz = kopf.replaceAll('.', '');
     bruch = teile[1] ?? '';
-  } else {
+  } else if (ohneVorzeichen.includes('.')) {
     const punkte = ohneVorzeichen.split('.');
-    if (punkte.length === 2 && (punkte[1] ?? '').length <= 2
-        && (punkte[1] ?? '').length > 0) {
-      ganz = punkte[0] ?? '';
-      bruch = punkte[1] ?? '';
-    } else {
+    if (punkte.some((t) => t === '')) return leer;         // `1..2`, `.5.`, `1.`
+    if (GRUPPIERT.test(ohneVorzeichen)) {
       ganz = ohneVorzeichen.replaceAll('.', '');
       bruch = '';
+    } else if (punkte.length === 2 && (punkte[1] ?? '').length <= 2) {
+      ganz = punkte[0] ?? '';
+      bruch = punkte[1] ?? '';
+      mehrdeutig = true;
+      deutung = `${ganz},${bruch} (Punkt als Dezimaltrenner gelesen)`;
+    } else {
+      return leer;                                          // `1.2.3`, `1.2345`
     }
+  } else {
+    ganz = ohneVorzeichen;
+    bruch = '';
   }
+
   if (ganz === '') ganz = '0';
-  if (!/^\d*$/u.test(ganz) || !/^\d*$/u.test(bruch)) return null;
-  if (bruch.length > 3) return null;
+  if (!/^\d*$/u.test(ganz) || !/^\d*$/u.test(bruch)) return leer;
+  if (bruch.length > 3) return leer;
 
   const tausendstel = BigInt(ganz) * 1000n + BigInt(bruch.padEnd(3, '0') || '0');
-  return negativ ? -tausendstel : tausendstel;
+  return { wert: negativ ? -tausendstel : tausendstel, mehrdeutig, deutung };
+}
+
+/** Nur der Wert — fuer Aufrufer, denen die Mehrdeutigkeit gleichgueltig ist. */
+export function deutscheZahl(roh: string): bigint | null {
+  return leseZahl(roh).wert;
 }
 
 /** `12_500n` → `"12.500"` — die Form, die `numeric(12,3)` erwartet. */

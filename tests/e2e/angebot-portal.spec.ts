@@ -24,6 +24,34 @@ async function zumRaumbuch(page: Page): Promise<void> {
   await expect(page.locator('h1')).toHaveText('Raumbuch');
 }
 
+
+/**
+ * Die Werte bestaetigen — der Schritt, den das Abnahmekriterium verlangt.
+ *
+ * Ein Angebot aus dem Raumbuch ruht auf den Platzhaltern O-16 und O-17; die
+ * Datenbank laesst es nicht hinaus, und der Versandknopf ist deshalb
+ * gesperrt. Genau das ist die Zusage dieser Phase — und der Weg daran vorbei
+ * ist kein Schalter, sondern das Eintragen der Zahlen.
+ */
+async function kalkulationBestaetigen(page: Page): Promise<void> {
+  await page.locator('[data-cse="zur-kalkulation"]').click();
+  await expect(page.locator('[data-cse="kalkulation-form"]')).toBeVisible();
+  await page.locator('[data-cse="feld-stundensatz"]').fill('29,00');
+  await page.locator('[data-cse="feld-gemeinkosten"]').fill('15');
+  await page.locator('[data-cse="feld-wagnis"]').fill('8');
+  /**
+   * Das Haekchen erscheint NUR, solange die Leistungswerte offen sind — und
+   * sie sind es je Belagsart, nicht je Angebot. Hat ein frueherer Test sie
+   * bestaetigt, gibt es hier nichts mehr anzuhaken, und das ist richtig. Die
+   * Suite teilt sich eine Datenbank; ein Helfer, der einen festen Zustand
+   * voraussetzt, prueft die Reihenfolge der Tests statt die Anwendung.
+   */
+  const haken = page.locator('[data-cse="feld-leistungswerte"]');
+  if (await haken.count() > 0) await haken.check();
+  await page.locator('[data-cse="kalkulation-bestaetigen"]').click();
+  await expect(page.locator('[data-cse="versenden"]')).toBeEnabled();
+}
+
 test.describe('(1) Aus der Kalkulation wird ein Angebot', () => {
   test('der Knopf legt eines an und führt hinein', async ({ page }) => {
     await anmelden(page, 'admin');
@@ -54,6 +82,11 @@ test.describe('(2) Der Versand — und was er erzeugt', () => {
     await page.locator('[data-cse="angebot-erzeugen"]').click();
     const angebotsUrl = page.url();
 
+    // Der Versandknopf ist GESPERRT, solange die Werte Platzhalter sind.
+    await expect(page.locator('[data-cse="versenden"]')).toBeDisabled();
+    await expect(page.locator('[data-cse="kalkulation-offen"]')).toBeVisible();
+    await kalkulationBestaetigen(page);
+
     await page.locator('[data-cse="versenden"]').click();
     await page.waitForURL(angebotsUrl);
 
@@ -68,6 +101,7 @@ test.describe('(2) Der Versand — und was er erzeugt', () => {
     await anmelden(page, 'admin');
     await zumRaumbuch(page);
     await page.locator('[data-cse="angebot-erzeugen"]').click();
+    await kalkulationBestaetigen(page);
     await page.locator('[data-cse="versenden"]').click();
     await page.getByRole('link', { name: 'Angebotsdokument' }).click();
 
@@ -88,6 +122,7 @@ test.describe('(3) Angebot → Auftrag, in einer Handlung (OPS-09)', () => {
     await zumRaumbuch(page);
     await page.locator('[data-cse="angebot-erzeugen"]').click();
     const angebotsUrl = page.url();
+    await kalkulationBestaetigen(page);
     await page.locator('[data-cse="versenden"]').click();
     await page.waitForURL(angebotsUrl);
 
@@ -107,5 +142,51 @@ test.describe('(4) barrierefrei', () => {
     const ergebnis = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
     expect(ergebnis.violations).toEqual([]);
+  });
+});
+
+test.describe('(5) Ein Preis auf Platzhaltern geht NICHT hinaus', () => {
+  /**
+   * Das Abnahmekriterium der Phase, im Browser: der Knopf ist gesperrt, der
+   * Grund steht daneben, und der Weg heraus ist sichtbar. Ein gesperrter
+   * Knopf ohne Erklaerung waere eine Sackgasse mit Tooltip.
+   */
+  test('der Versandknopf ist gesperrt, und die Seite sagt warum', async ({ page }) => {
+    await anmelden(page, 'admin');
+    await zumRaumbuch(page);
+    await page.locator('[data-cse="angebot-erzeugen"]').click();
+
+    await expect(page.locator('[data-cse="versenden"]')).toBeDisabled();
+    await expect(page.locator('[data-cse="kalkulation-offen"]')).toContainText('O-16');
+    await expect(page.locator('[data-cse="zur-kalkulation"]')).toBeVisible();
+  });
+
+  test('die Kalkulationsseite zeigt den Rechenweg, bevor sie nach Zahlen fragt',
+    async ({ page }) => {
+      await anmelden(page, 'admin');
+      await zumRaumbuch(page);
+      await page.locator('[data-cse="angebot-erzeugen"]').click();
+      await page.locator('[data-cse="zur-kalkulation"]').click();
+
+      await expect(page.locator('h1')).toHaveText('Kalkulation');
+      // Flaeche ÷ Leistungswert × Stundensatz — nachrechenbar, Zeile fuer Zeile.
+      await expect(page.getByText(/m²\/h/u).first()).toBeVisible();
+      await expect(page.locator('[data-cse="kalkulation-offen"]')).toBeVisible();
+      await expect(page.locator('[data-cse="kalkulation-form"]')).toBeVisible();
+    });
+
+  test('nach dem Versand ist die Kalkulation eingefroren', async ({ page }) => {
+    await anmelden(page, 'admin');
+    await zumRaumbuch(page);
+    await page.locator('[data-cse="angebot-erzeugen"]').click();
+    const angebotsUrl = page.url();
+    await kalkulationBestaetigen(page);
+    await page.locator('[data-cse="versenden"]').click();
+    await page.waitForURL(angebotsUrl);
+
+    // Die Seite bleibt erreichbar — nur aendern laesst sich dort nichts mehr.
+    await page.goto(`${angebotsUrl}/kalkulation`);
+    await expect(page.locator('[data-cse="kalkulation-eingefroren"]')).toBeVisible();
+    await expect(page.locator('[data-cse="kalkulation-form"]')).toHaveCount(0);
   });
 });

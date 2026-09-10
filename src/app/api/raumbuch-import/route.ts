@@ -86,7 +86,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         if (/\.xlsx?$/iu.test(datei.name)) return { art: 'kein_csv' as const };
 
         const inhalt = await datei.text();
-        const { importId } = await legeImportAn(dbSchicht, objektId, datei.name, inhalt);
+        const { importId } = await legeImportAn(
+          dbSchicht, objektId, datei.name, inhalt, sitzung.benutzerId);
         return { art: 'geprueft' as const, objektId, importId };
       })) as Promise<
         | { art: 'ungueltig' } | { art: 'zu_gross' } | { art: 'kein_csv' }

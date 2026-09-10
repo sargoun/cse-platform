@@ -16,6 +16,8 @@ import { PLATZHALTER_FREQUENZ, PLATZHALTER_TARIF }
 import {
   AngebotFehler, legeAngebotAn, uebernimmKalkulation, versendeAngebot, wandleInAuftrag,
 } from '../../src/server/services/angebot/index.js';
+import { bestaetigeKalkulation }
+  from '../../src/server/services/kalkulation/bestaetigung.js';
 
 let f: Fixtur;
 let chef = '';
@@ -100,27 +102,22 @@ beforeEach(async () => {
 afterAll(schliessen);
 
 /**
- * Die Kalkulation bestaetigen — das, was der Mensch tut, sobald O-16 und O-56
- * beantwortet sind. Bis dahin steht sie auf Platzhaltern, und genau deshalb
- * geht sie nicht hinaus.
+ * Die Kalkulation bestaetigen — ueber den ECHTEN Dienst, nicht ueber ein
+ * UPDATE im Test.
+ *
+ * Ein Testhelfer, der die Spalten direkt setzt, prueft die Sperre gegen sich
+ * selbst: er umgeht genau den Weg, den ein Mensch nimmt. Was hier laeuft, ist
+ * derselbe Code wie hinter `/api/kalkulation`.
  */
-async function bestaetigeKalkulation(angebotId: string): Promise<void> {
-  await sql.unsafe(
-    `update kalkulation
-        set ist_platzhalter = false,
-            stundenverrechnungssatz_cent = coalesce(stundenverrechnungssatz_cent, 2900),
-            gemeinkosten_basis = coalesce(gemeinkosten_basis, 'lohn'),
-            gemeinkosten_bp = coalesce(gemeinkosten_bp, 1500),
-            wagnis_gewinn_bp = coalesce(wagnis_gewinn_bp, 800)
-      where angebot_id = $1`, [angebotId]);
-  // Und die GRUNDLAGE: ein bestaetigter Tarif auf einem Platzhalter-
-  // Leistungswert (O-17) ist immer noch ein Preis auf einer offenen Frage.
-  await sql.unsafe(
-    `update belagsart set ist_platzhalter = false, quelle = 'bestaetigt'
-      where id in (select p.belagsart_id from kalkulation_position p
-                     join kalkulation k on k.id = p.kalkulation_id
-                    where k.angebot_id = $1 and p.belagsart_id is not null)`,
-    [angebotId]);
+async function bestaetige(angebotId: string): Promise<void> {
+  await alsChef((db) => bestaetigeKalkulation(db, angebotId, {
+    stundensatzEuro: '29,00',
+    gemeinkostenBasis: 'lohn',
+    gemeinkostenProzent: '15',
+    wagnisGewinnProzent: '8',
+    leistungswerteBestaetigen: true,
+    benutzerId: chef,
+  }));
 }
 
 describe('(1) Vom Raumbuch zum versendeten Angebot', () => {
@@ -190,7 +187,7 @@ describe('(1) Vom Raumbuch zum versendeten Angebot', () => {
         { objektId: o, turnusLabel: 'monatlich', tarif, frequenz });
       return { angebotId, positionen, netto: kalk.netto };
     });
-    await bestaetigeKalkulation(angelegt.angebotId);
+    await bestaetige(angelegt.angebotId);
     const versand = await alsChef((db) => versendeAngebot(db, angelegt.angebotId, chef));
     const ergebnis = { ...angelegt, versand };
 
@@ -469,6 +466,236 @@ describe('(3) Angebot → Auftrag (OPS-09) — in einer Handlung', () => {
       return wandleInAuftrag(db, id, {
         art: 'einzelauftrag', verantwortlichBenutzerId: chef, startDatum: '2026-04-01',
       });
-    })).rejects.toThrow(/nicht versendetes Angebot/u);
+    })).rejects.toThrow(/Status entwurf wird nicht zum Auftrag/u);
+  });
+});
+
+describe('(4) Zwei Klicks auf „Angenommen“ ergeben EINEN Auftrag', () => {
+  /**
+   * Der Dienst prueft erst und schreibt dann. Zwischen beidem liegt ein
+   * Fenster, und ein Doppelklick auf einem langsamen Netz ist genau die
+   * Bedingung, unter der es aufgeht. Zwei Auftraege aus einem Angebot heisst
+   * spaeter: zwei Rechnungsstroeme fuer dieselbe Zusage.
+   *
+   * Dieser Test faehrt beide Transaktionen WIRKLICH parallel. Ein Test, der
+   * sie nacheinander ausfuehrt, prueft die Vorabpruefung — nicht das Rennen.
+   */
+  async function versendetesAngebot(): Promise<string> {
+    const k = await kunde(f.reinigung);
+    const angebotId = await alsChef(async (db) => {
+      const id = await legeAngebotAn(db, { kundeId: k, titel: 'Rennen' });
+      await db.abfrage(
+        `insert into angebotsposition (mandant_id, angebot_id, position_nr, kurztext,
+                                       menge, einheit, einzelpreis_cent, steuersatz_bp)
+         values (app.aktiver_mandant(), $1, 1, 'Reinigung', 1, 'psch', 1000, 1900)`, [id]);
+      await versendeAngebot(db, id, chef);
+      return id;
+    });
+    return angebotId;
+  }
+
+  it('genau einer gewinnt, der andere sieht den benannten Fehler', async () => {
+    const angebotId = await versendetesAngebot();
+    const wandeln = () => alsChef((db) => wandleInAuftrag(db, angebotId, {
+      art: 'rahmenvertrag', verantwortlichBenutzerId: chef, startDatum: '2026-04-01',
+    }));
+
+    const ergebnisse = await Promise.allSettled([wandeln(), wandeln()]);
+    const erfuellt = ergebnisse.filter((e) => e.status === 'fulfilled');
+    const abgelehnt = ergebnisse.filter((e) => e.status === 'rejected');
+    expect(erfuellt).toHaveLength(1);
+    expect(abgelehnt).toHaveLength(1);
+    expect(String((abgelehnt[0] as PromiseRejectedResult).reason))
+      .toMatch(/bereits ein Auftrag entstanden/u);
+
+    const [z] = await sql.unsafe<{ n: string }[]>(
+      `select count(*)::text as n from auftrag where angebot_id = $1`, [angebotId]);
+    expect(z!.n).toBe('1');
+  });
+
+  /**
+   * Und dieselbe Zusage noch einmal OHNE den Dienst: der eindeutige Index ist
+   * die Stelle, die auch dann haelt, wenn spaeter jemand an `wandleInAuftrag`
+   * vorbeischreibt. Ohne diesen Fall waere nur die Vorabpruefung geprueft.
+   */
+  it('und die DATENBANK selbst laesst keinen zweiten Bezug zu', async () => {
+    const angebotId = await versendetesAngebot();
+    await alsChef((db) => wandleInAuftrag(db, angebotId, {
+      art: 'rahmenvertrag', verantwortlichBenutzerId: chef, startDatum: '2026-04-01',
+    }));
+    const [a] = await sql.unsafe<{ kunde_id: string }[]>(
+      `select kunde_id::text from angebot where id = $1`, [angebotId]);
+    await expect(sql.unsafe(
+      `insert into auftrag (mandant_id, auftragsnummer, kunde_id, angebot_id, art,
+                            bezeichnung, verantwortlich_benutzer_id, start_datum)
+       values ($1,'AU-2026-99999',$2,$3,'rahmenvertrag','Zweiter',$4,'2026-04-01')`,
+      [f.reinigung, a!.kunde_id, angebotId, chef],
+    )).rejects.toThrow(/auftrag_angebot_uk/u);
+  });
+});
+
+describe('(5) Ein abgelehntes Angebot wird nicht zum Auftrag', () => {
+  /**
+   * `versendet_am` bleibt gesetzt, wenn ein Angebot spaeter abgelehnt,
+   * zurueckgezogen oder abgelaufen ist — es WURDE ja versendet. Die Pruefung
+   * hing an diesem Zeitstempel und machte daraus einen Auftrag ueber einen
+   * Wert, den der Kunde ausdruecklich nicht angenommen hat. Sie haengt jetzt
+   * am STATUS.
+   */
+  async function versendetesAngebotMit(status: string): Promise<string> {
+    const k = await kunde(f.reinigung);
+    const angebotId = await alsChef(async (db) => {
+      const id = await legeAngebotAn(db, { kundeId: k, titel: `Status ${status}` });
+      await db.abfrage(
+        `insert into angebotsposition (mandant_id, angebot_id, position_nr, kurztext,
+                                       menge, einheit, einzelpreis_cent, steuersatz_bp)
+         values (app.aktiver_mandant(), $1, 1, 'Reinigung', 1, 'psch', 1000, 1900)`, [id]);
+      await versendeAngebot(db, id, chef);
+      return id;
+    });
+    await sql.unsafe(
+      `update angebot set status = $2::angebot_status where id = $1`, [angebotId, status]);
+    return angebotId;
+  }
+
+  it.each(['abgelehnt', 'zurueckgezogen', 'abgelaufen'])(
+    'Status %s wird abgewiesen — trotz gesetztem versendet_am', async (status) => {
+      const angebotId = await versendetesAngebotMit(status);
+
+      const [z] = await sql.unsafe<{ versendet_am: Date | null }[]>(
+        `select versendet_am from angebot where id = $1`, [angebotId]);
+      // Der Zeitstempel steht noch — genau das war die Falle.
+      expect(z!.versendet_am).not.toBeNull();
+
+      await expect(alsChef((db) => wandleInAuftrag(db, angebotId, {
+        art: 'rahmenvertrag', verantwortlichBenutzerId: chef, startDatum: '2026-04-01',
+      }))).rejects.toThrow(new RegExp(`Status ${status} wird nicht zum Auftrag`, 'u'));
+    });
+
+  it('und `versendet` selbst geht weiterhin', async () => {
+    const angebotId = await versendetesAngebotMit('versendet');
+    const auftrag = await alsChef((db) => wandleInAuftrag(db, angebotId, {
+      art: 'rahmenvertrag', verantwortlichBenutzerId: chef, startDatum: '2026-04-01',
+    }));
+    expect(auftrag.auftragsnummer).toMatch(/^AU-2026-/u);
+  });
+});
+
+describe('(6) Die Werte bestaetigen — der Weg aus der Sperre (OPS-07)', () => {
+  /**
+   * Ohne diesen Dienst waere `kern.angebot_versand_pruefen` eine Sackgasse:
+   * ein Angebot aus dem Raumbuch stuende auf Platzhaltern und liesse sich
+   * nie versenden. Der Ausweg ist ausdruecklich KEIN Schalter — er verlangt
+   * die Zahlen, und die Kalkulation haelt fest, wer sie wann genannt hat.
+   */
+  async function angebotMitKalkulation(): Promise<{ angebotId: string; objektId: string }> {
+    const k = await kunde(f.reinigung);
+    const o = await objektMitRaumbuch(f.reinigung, k);
+    const angebotId = await alsChef(async (db) => {
+      const grundlage = await ladeKalkulationsgrundlage(db, o, new Date());
+      const frequenz = PLATZHALTER_FREQUENZ.frequenz('1_pro_monat');
+      const tarif = PLATZHALTER_TARIF.tarif(f.reinigung, 'reinigung');
+      const kalk = kalkuliere({ posten: grundlage.posten, frequenz, tarif });
+      const id = await legeAngebotAn(db, { kundeId: k, titel: 'Bestaetigen', objektId: o });
+      await uebernimmKalkulation(db, id, kalk,
+        { objektId: o, turnusLabel: 'monatlich', tarif, frequenz });
+      return id;
+    });
+    return { angebotId, objektId: o };
+  }
+
+  const werte = {
+    stundensatzEuro: '31,50',
+    gemeinkostenBasis: 'lohn',
+    gemeinkostenProzent: '17',
+    wagnisGewinnProzent: '9,5',
+    leistungswerteBestaetigen: true,
+  };
+
+  it('nach der Bestaetigung geht der Versand — vorher nicht', async () => {
+    const { angebotId } = await angebotMitKalkulation();
+    await expect(alsChef((db) => versendeAngebot(db, angebotId, chef)))
+      .rejects.toThrow(/unbestaetigte Werte/u);
+
+    await alsChef((db) =>
+      bestaetigeKalkulation(db, angebotId, { ...werte, benutzerId: chef }));
+
+    const versand = await alsChef((db) => versendeAngebot(db, angebotId, chef));
+    expect(versand.angebotsnummer).toMatch(/^AN-2026-/u);
+  });
+
+  it('die Werte stehen danach in der Kalkulation — ganzzahlig, mit Urheber', async () => {
+    const { angebotId } = await angebotMitKalkulation();
+    await alsChef((db) =>
+      bestaetigeKalkulation(db, angebotId, { ...werte, benutzerId: chef }));
+
+    const [k] = await sql.unsafe<{
+      satz: string; basis: string; gk: number; wg: number;
+      platzhalter: boolean; von: string | null;
+    }[]>(
+      `select stundenverrechnungssatz_cent::text as satz, gemeinkosten_basis::text as basis,
+              gemeinkosten_bp as gk, wagnis_gewinn_bp as wg,
+              ist_platzhalter as platzhalter, geaendert_von::text as von
+         from kalkulation where angebot_id = $1`, [angebotId]);
+    expect(k).toMatchObject({
+      satz: '3150', basis: 'lohn', gk: 1700, wg: 950, platzhalter: false,
+    });
+    expect(k!.von).toBe(chef);
+  });
+
+  it('nur die BENUTZTEN Belagsarten werden mitbestaetigt, nicht der Katalog', async () => {
+    const { angebotId } = await angebotMitKalkulation();
+    // Eine zweite Belagsart, die in keiner Kalkulationszeile vorkommt.
+    const [fremd] = await sql.unsafe<{ id: string }[]>(
+      `insert into belagsart (mandant_id, code, bezeichnung, leistungswert_qm_pro_stunde,
+                              quelle, gueltig_ab)
+       values ($1,'LINO','Linoleum','300.000','Platzhalter (O-17)','2026-01-01')
+       returning id`, [f.reinigung]);
+
+    await alsChef((db) =>
+      bestaetigeKalkulation(db, angebotId, { ...werte, benutzerId: chef }));
+
+    const [unberuehrt] = await sql.unsafe<{ platzhalter: boolean }[]>(
+      `select ist_platzhalter as platzhalter from belagsart where id = $1`, [fremd!.id]);
+    expect(unberuehrt!.platzhalter).toBe(true);
+  });
+
+  it('ohne das Haekchen bleibt der Leistungswert offen — und der Versand gesperrt', async () => {
+    const { angebotId } = await angebotMitKalkulation();
+    await alsChef((db) => bestaetigeKalkulation(db, angebotId, {
+      ...werte, leistungswerteBestaetigen: false, benutzerId: chef,
+    }));
+    await expect(alsChef((db) => versendeAngebot(db, angebotId, chef)))
+      .rejects.toThrow(/unbestaetigte Werte/u);
+  });
+
+  it('eine unvollstaendige Eingabe wird abgewiesen, nicht halb gespeichert', async () => {
+    const { angebotId } = await angebotMitKalkulation();
+    await expect(alsChef((db) => bestaetigeKalkulation(db, angebotId, {
+      ...werte, gemeinkostenProzent: null, benutzerId: chef,
+    }))).rejects.toThrow(/alle drei/u);
+
+    const [k] = await sql.unsafe<{ platzhalter: boolean }[]>(
+      `select ist_platzhalter as platzhalter from kalkulation where angebot_id = $1`,
+      [angebotId]);
+    expect(k!.platzhalter).toBe(true);
+  });
+
+  it('eine unbekannte Gemeinkostenbasis ebenso', async () => {
+    const { angebotId } = await angebotMitKalkulation();
+    await expect(alsChef((db) => bestaetigeKalkulation(db, angebotId, {
+      ...werte, gemeinkostenBasis: 'nach_gefuehl', benutzerId: chef,
+    }))).rejects.toThrow(/Unbekannte Gemeinkostenbasis/u);
+  });
+
+  it('und eine eingefrorene Kalkulation wird nicht mehr geaendert', async () => {
+    const { angebotId } = await angebotMitKalkulation();
+    await alsChef((db) =>
+      bestaetigeKalkulation(db, angebotId, { ...werte, benutzerId: chef }));
+    await alsChef((db) => versendeAngebot(db, angebotId, chef));
+
+    await expect(alsChef((db) => bestaetigeKalkulation(db, angebotId, {
+      ...werte, stundensatzEuro: '99,00', benutzerId: chef,
+    }))).rejects.toThrow(/festgeschrieben/u);
   });
 });

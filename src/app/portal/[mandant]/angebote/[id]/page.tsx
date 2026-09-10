@@ -198,6 +198,33 @@ export default async function AngebotDetail(
         </p>
       ) : null}
 
+      {kopf.kalkulation_offen && kopf.darf_kalkulation_lesen ? (
+        <p className="mb-s5 text-sm text-text">
+          {/*
+            * Als Zeichenkette, NICHT als `{ pathname, query }`.
+            *
+            * Im App Router setzt `Link` die dynamischen Segmente eines
+            * Objektziels nicht ein: `/portal/[mandant]/…` bleibt woertlich
+            * stehen, und der Klick landet auf einer Adresse mit eckigen
+            * Klammern — also auf 404. In den Pages Router war es umgekehrt.
+            * Der Build merkt es nicht, weil das Muster gueltig ist.
+            */}
+          <Link
+            href={`/portal/${mandant}/angebote/${id}/kalkulation`}
+            data-cse="zur-kalkulation"
+            /*
+             * `text-text` mit Marke erst beim Hover — wie jeder andere Link
+             * im Portal. CSE-Rot auf dem dunklen Grund erreicht den
+             * WCAG-AA-Kontrast nicht (DESIGN §9: Farbe ist nie das einzige
+             * Signal, und sie muss lesbar sein).
+             */
+            className="text-text underline underline-offset-2 hover:text-brand"
+          >
+            Werte bestätigen und den Rechenweg ansehen →
+          </Link>
+        </p>
+      ) : null}
+
       {kopf.darf_kalkulation_lesen ? null : (
         <p
           data-cse="kalkulation-verdeckt"

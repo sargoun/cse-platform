@@ -97,7 +97,22 @@ create table auftrag (
   constraint auftrag_einbehalt_eindeutig check (
     num_nonnulls(sicherheitseinbehalt_bp, sicherheitseinbehalt_cent) <= 1),
   constraint auftrag_einbehalt_bereich check (
-    sicherheitseinbehalt_bp is null or sicherheitseinbehalt_bp between 0 and 10000)
+    sicherheitseinbehalt_bp is null or sicherheitseinbehalt_bp between 0 and 10000),
+  /**
+   * Mengen, die es nicht geben kann.
+   *
+   * `min="0"` im Formular ist eine Bitte an den Browser, keine Grenze: ein
+   * von Hand abgeschickter POST traegt -3 Personen und -40 Wochenstunden
+   * genauso hinein. Beides geht spaeter in Planung und Abrechnung, und dort
+   * sieht eine negative Menge aus wie eine Gutschrift.
+   *
+   * Die Obergrenze ist bewusst grosszuegig und trotzdem endlich: sie faengt
+   * den Tippfehler (4000 statt 40) und nicht die Wirklichkeit.
+   */
+  constraint auftrag_personalbedarf_bereich check (
+    personalbedarf_anzahl is null or personalbedarf_anzahl between 0 and 5000),
+  constraint auftrag_wochenstunden_bereich check (
+    wochenstunden_soll is null or wochenstunden_soll between 0 and 10000)
 );
 
 create index auftrag_liste_idx on auftrag (mandant_id, status, start_datum desc);
@@ -113,7 +128,24 @@ create index auftrag_gewaehrleistung_idx on auftrag (mandant_id, gewaehrleistung
 create index auftrag_referenz_idx on auftrag (mandant_id)
   where freigegeben_vom_kunden and freigabe_widerrufen_am is null and archiviert_am is null;
 create index auftrag_lead_idx on auftrag (lead_id) where lead_id is not null;
-create index auftrag_angebot_idx on auftrag (angebot_id) where angebot_id is not null;
+/**
+ * EIN Angebot ergibt hoechstens EINEN Auftrag — und zwar hier, nicht nur im
+ * Dienst.
+ *
+ * `wandleInAuftrag` prueft erst und schreibt dann. Zwischen beidem liegt ein
+ * Fenster: zwei gleichzeitige Klicks auf „Angenommen“ sehen beide keinen
+ * Auftrag und legen beide einen an. Ein gewoehnlicher Index verhindert das
+ * nicht; ein Vergleich im Anwendungscode auch nicht. Der eindeutige Index ist
+ * die einzige Stelle, an der die Regel unter Nebenlaeufigkeit haelt — und der
+ * Dienst uebersetzt seinen Verstoss in denselben benannten Fehler, den die
+ * Vorabpruefung liefert.
+ *
+ * Sollte ein Angebot einmal in zwei Auftraege zerfallen duerfen (zwei
+ * Objekte, zwei Vertraege), ist das eine Entscheidung des Mandanten und
+ * gehoert als solche aufgeschrieben — nicht als stillschweigend erlaubter
+ * Doppeleintrag.
+ */
+create unique index auftrag_angebot_uk on auftrag (angebot_id) where angebot_id is not null;
 
 -- Der Fremdschluessel, den 0023 noch nicht setzen konnte.
 alter table kalkulation add constraint kalkulation_auftrag_fk
