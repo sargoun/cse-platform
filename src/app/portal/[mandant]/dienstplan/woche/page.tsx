@@ -8,6 +8,7 @@ import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { ladePlanfenster, montag, tagePlus } from '../daten';
+import { berlinHeute } from '@/server/db/heute';
 
 /**
  * `/portal/[mandant]/dienstplan/woche` — TIM-01, TIM-04.
@@ -44,9 +45,14 @@ export default async function Wochenansicht({
 
   const frage = await searchParams;
   const roh = typeof frage['woche'] === 'string' ? frage['woche'] : null;
-  const anker = roh !== null && /^\d{4}-\d{2}-\d{2}$/u.test(roh)
-    ? roh
-    : new Date().toISOString().slice(0, 10);
+  /**
+   * „Heute" kommt aus der DATENBANK, nicht aus der Uhr dieses Prozesses:
+   * `new Date()` läse zwischen Mitternacht und 02:00 Berliner Zeit noch den
+   * gestrigen UTC-Tag — der Planer, der am Montag um 00:30 den Plan öffnet,
+   * sähe die vorige Woche (Invariante 2 und 5, `@/server/db/heute`).
+   */
+  const heute = await berlinHeute();
+  const anker = roh !== null && /^\d{4}-\d{2}-\d{2}$/u.test(roh) ? roh : heute;
   const von = montag(anker);
   const bis = tagePlus(von, 6);
 
@@ -74,7 +80,7 @@ export default async function Wochenansicht({
 
       <nav aria-label="Woche wechseln" className="mb-s4 flex flex-wrap items-center gap-s2">
         <Woechentlich mandant={mandant} ziel={tagePlus(von, -7)} text="← Vorige Woche" />
-        <Woechentlich mandant={mandant} ziel={new Date().toISOString().slice(0, 10)} text="Diese Woche" />
+        <Woechentlich mandant={mandant} ziel={heute} text="Diese Woche" />
         <Woechentlich mandant={mandant} ziel={tagePlus(von, 7)} text="Nächste Woche →" />
         <Link
           href={`/portal/${mandant}/dienstplan/monat?monat=${von}`}

@@ -18,6 +18,8 @@
  */
 
 /** Eine Schicht, so viel wie das Raster von ihr braucht. */
+import { stundenAusMinuten } from '@/lib/datum/stunden';
+
 export interface RasterSchicht {
   readonly id: string;
   /** UTC-Instant. Die Anzeige rechnet erst spaeter nach Europe/Berlin um. */
@@ -143,6 +145,5 @@ export function tagesanteil(
  */
 export function stundenText(schicht: RasterSchicht): string {
   const minuten = Math.round((schicht.ende.getTime() - schicht.beginn.getTime()) / 60_000);
-  const stunden = minuten / 60;
-  return `${stunden.toFixed(2).replace('.', ',')} h`;
+  return stundenAusMinuten(minuten);
 }

@@ -10,6 +10,7 @@ import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { stundenAusMinuten } from '@/lib/datum/stunden';
 
 /**
  * `/portal/[mandant]/dienstplan/konflikte` — der Konflikteingang (TIM-05,
@@ -199,7 +200,7 @@ function Karte({
         {zeile.objekt !== null && ` · ${zeile.objekt}`}
         {zeile.regel !== null && ` · ${REGEL_TEXT[zeile.regel] ?? zeile.regel}`}
         {zeile.ist_minuten !== null && zeile.grenzwert_minuten !== null
-          && ` · ${stunden(zeile.ist_minuten)} statt höchstens ${stunden(zeile.grenzwert_minuten)}`}
+          && ` · ${stundenAusMinuten(zeile.ist_minuten)} statt höchstens ${stundenAusMinuten(zeile.grenzwert_minuten)}`}
       </p>
 
       {zeile.einsatz_id !== null && (
@@ -241,6 +242,3 @@ function Karte({
   );
 }
 
-function stunden(minuten: number): string {
-  return `${(minuten / 60).toFixed(2).replace('.', ',')} h`;
-}

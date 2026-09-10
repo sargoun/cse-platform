@@ -202,22 +202,8 @@ export function beschriftung(datum: string): string {
 }
 
 /** Der Montag der Woche, in der `datum` liegt. */
-export function montag(datum: string): string {
-  const d = new Date(`${datum}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
-  return d.toISOString().slice(0, 10);
-}
-
-export function tagePlus(datum: string, tage: number): string {
-  const d = new Date(`${datum}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + tage);
-  return d.toISOString().slice(0, 10);
-}
-
-/** Der erste und der letzte Tag des Monats, in dem `datum` liegt. */
-export function monatsgrenzen(datum: string): { von: string; bis: string } {
-  const d = new Date(`${datum}T00:00:00Z`);
-  const von = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
-  const bis = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
-  return { von: von.toISOString().slice(0, 10), bis: bis.toISOString().slice(0, 10) };
-}
+/**
+ * Die Kalenderrechnung steht in `@/lib/datum/kalendertag` — hier wird sie nur
+ * weitergereicht, damit die Seiten des Dienstplans ihren Import behalten.
+ */
+export { monatsgrenzen, montag, tagePlus } from '@/lib/datum/kalendertag';

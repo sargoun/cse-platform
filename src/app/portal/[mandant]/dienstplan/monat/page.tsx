@@ -8,6 +8,7 @@ import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { ladePlanfenster, monatsgrenzen } from '../daten';
+import { berlinHeute } from '@/server/db/heute';
 
 /**
  * `/portal/[mandant]/dienstplan/monat` — TIM-01.
@@ -39,9 +40,8 @@ export default async function Monatsansicht({
 
   const frage = await searchParams;
   const roh = typeof frage['monat'] === 'string' ? frage['monat'] : null;
-  const anker = roh !== null && /^\d{4}-\d{2}-\d{2}$/u.test(roh)
-    ? roh
-    : new Date().toISOString().slice(0, 10);
+  // Der Berliner Tag kommt aus der Datenbank — siehe `@/server/db/heute`.
+  const anker = roh !== null && /^\d{4}-\d{2}-\d{2}$/u.test(roh) ? roh : await berlinHeute();
   const { von, bis } = monatsgrenzen(anker);
   const { tage, schichten } = await ladePlanfenster(sitzung, von, bis);
 

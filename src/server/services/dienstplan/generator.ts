@@ -32,6 +32,7 @@
 import {
   planeVorkommnisse, type Ausnahme, type Bedarfstraeger, type GeplanterEinsatz,
 } from './vorkommnisse.js';
+import { tagePlus } from '@/lib/datum/kalendertag';
 
 export interface Abfrage {
   unsafe(sql: string, werte?: readonly unknown[]): Promise<readonly unknown[]>;
@@ -98,12 +99,6 @@ export async function berlinHeute(db: Abfrage): Promise<string> {
  */
 function horizontEnde(heute: string, tage: number): string {
   return tagePlus(heute, Math.max(0, tage - 1));
-}
-
-function tagePlus(datum: string, tage: number): string {
-  const d = new Date(`${datum}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + tage);
-  return d.toISOString().slice(0, 10);
 }
 
 /**

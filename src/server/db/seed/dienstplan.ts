@@ -24,6 +24,7 @@ import type postgres from 'postgres';
 import {
   berlinHeute, generiereEinsaetze, type Abfrage,
 } from '../../services/dienstplan/generator.js';
+import { montag, tagePlus } from '@/lib/datum/kalendertag';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 
@@ -89,11 +90,22 @@ export async function seedDienstplan(
 
   const katalogPositionId = await katalogposition(sql, reinigung);
 
-  // Der Anker liegt auf dem MONTAG DIESER WOCHE, damit die Demodaten immer
-  // eine gefuellte laufende Woche zeigen — und nicht je nach Seed-Tag eine
-  // halbe.
+  /**
+   * Der Anker liegt drei Wochen VOR dem Montag dieser Woche.
+   *
+   * Nicht aus Nostalgie: ohne Vergangenheit gibt es nichts zu erfassen. Ein
+   * `zeiteintrag` haengt an einer Schicht, die stattgefunden hat, und mit
+   * einem Plan, der heute beginnt, blieben Zeitliste, Live-Brett,
+   * MiLoG-Aufzeichnung und Stundenkonto auf jedem Bildschirm leer — ohne
+   * Fehlermeldung, ohne Luecke, nur nichts. Genau die Sorte Zustand, in der
+   * ein Fehler monatelang niemandem auffaellt.
+   *
+   * Der Horizont der Serie (56 Tage) reicht vom Anker aus bis fuenf Wochen
+   * in die Zukunft, die laufende Woche also in jedem Fall gefuellt.
+   */
   const heute = await berlinHeute(sql as unknown as Abfrage);
-  const anker = montagDerWoche(heute);
+  const dieseWoche = montag(heute);
+  const anker = tagePlus(dieseWoche, -21);
 
   let reviere = 0;
   let turnusse = 0;
@@ -147,7 +159,9 @@ export async function seedDienstplan(
      where t.mandant_id = ${reinigung} and t.rrule like 'FREQ=WEEKLY;BYDAY=MO%'
      order by t.erstellt_am limit 1`;
   if (ersterTurnus !== undefined) {
-    const tag = tagePlus(anker, 7);
+    // Die Ausnahme liegt in der ZUKUNFT: ein Ausfall, der schon vorbei ist,
+    // erklaert im Plan nichts mehr.
+    const tag = tagePlus(dieseWoche, 7);
     const [da] = await sql<{ id: string }[]>`
       select id from turnus_ausnahme
        where turnus_id = ${ersterTurnus.id} and datum = ${tag}::date limit 1`;
@@ -159,10 +173,13 @@ export async function seedDienstplan(
     }
   }
 
-  // Und dann der ECHTE Lauf. Was danach im Plan steht, hat den Weg genommen,
-  // den auch die Nacht nimmt.
+  /**
+   * Und dann der ECHTE Lauf — vom Anker aus, nicht von heute: der Generator
+   * beginnt bei dem Tag, den er bekommt, und ein Lauf ab heute liesse die
+   * drei Wochen davor leer.
+   */
   const berichte = await generiereEinsaetze(sql as unknown as Abfrage, reinigung, {
-    heute, laufId: null,
+    heute: anker, laufId: null,
   });
   const einsaetze = berichte.reduce((a, b) => a + b.erzeugt + b.aktualisiert, 0);
   return { reviere, turnusse, serien, einsaetze };
@@ -217,16 +234,3 @@ async function revier(
   return neu?.id ?? null;
 }
 
-/** Der Montag der Woche, in der `datum` liegt — Berliner Kalendertag. */
-function montagDerWoche(datum: string): string {
-  const d = new Date(`${datum}T00:00:00Z`);
-  const wochentag = (d.getUTCDay() + 6) % 7; // Mo = 0
-  d.setUTCDate(d.getUTCDate() - wochentag);
-  return d.toISOString().slice(0, 10);
-}
-
-function tagePlus(datum: string, tage: number): string {
-  const d = new Date(`${datum}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + tage);
-  return d.toISOString().slice(0, 10);
-}

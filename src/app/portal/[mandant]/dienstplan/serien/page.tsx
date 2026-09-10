@@ -12,6 +12,7 @@ import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { leseRegel, RegelFehler } from '@/lib/datum/rrule';
+import { stundenAusMinuten } from '@/lib/datum/stunden';
 
 /**
  * `/portal/[mandant]/dienstplan/serien` — TIM-02, TIM-03, CLN-02.
@@ -139,7 +140,7 @@ export default async function Serienliste(
             {
               schluessel: 'zeit',
               kopf: 'Zeitfenster',
-              zelle: (z) => `${z.beginn_lokal} · ${minutenText(z.dauer_minuten)}`,
+              zelle: (z) => `${z.beginn_lokal} · ${stundenAusMinuten(z.dauer_minuten)}`,
             },
             {
               schluessel: 'feiertag',
@@ -213,7 +214,3 @@ function lesbareRegel(rrule: string): string {
   }
 }
 
-/** `210` → `3,50 h`. Dieselbe Schreibweise wie im Plan. */
-function minutenText(minuten: number): string {
-  return `${(minuten / 60).toFixed(2).replace('.', ',')} h`;
-}

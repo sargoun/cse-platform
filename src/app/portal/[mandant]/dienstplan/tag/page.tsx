@@ -8,6 +8,7 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { stundenText } from '@/server/services/dienstplan/wochenraster';
 import { beschriftung, ladePlanfenster, tagePlus } from '../daten';
+import { berlinHeute } from '@/server/db/heute';
 
 /**
  * `/portal/[mandant]/dienstplan/tag` — die Disposition (TIM-01, TIM-04, DSH-05).
@@ -44,9 +45,9 @@ export default async function Tagesansicht({
 
   const frage = await searchParams;
   const roh = typeof frage['tag'] === 'string' ? frage['tag'] : null;
-  const tag = roh !== null && /^\d{4}-\d{2}-\d{2}$/u.test(roh)
-    ? roh
-    : new Date().toISOString().slice(0, 10);
+  // Der Berliner Tag kommt aus der Datenbank — siehe `@/server/db/heute`.
+  const heuteTag = await berlinHeute();
+  const tag = roh !== null && /^\d{4}-\d{2}-\d{2}$/u.test(roh) ? roh : heuteTag;
 
   const { tage, schichten } = await ladePlanfenster(sitzung, tag, tag);
   const heute = tage[0];
@@ -88,7 +89,7 @@ export default async function Tagesansicht({
 
       <nav aria-label="Tag wechseln" className="mb-s4 flex flex-wrap gap-s2">
         <Sprung mandant={mandant} ziel={tagePlus(tag, -1)} text="← Vortag" />
-        <Sprung mandant={mandant} ziel={new Date().toISOString().slice(0, 10)} text="Heute" />
+        <Sprung mandant={mandant} ziel={heuteTag} text="Heute" />
         <Sprung mandant={mandant} ziel={tagePlus(tag, 1)} text="Folgetag →" />
         <Link
           href={`/portal/${mandant}/dienstplan/woche?woche=${tag}`}
