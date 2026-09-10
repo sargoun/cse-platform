@@ -89,6 +89,7 @@ export default async function Objektliste(
       wurzel={`/portal/${mandant}`}
       aktiverTab="objekte"
       sichtbareTabs={zugang.sichtbareTabs}
+      navigationsRechte={zugang.navigationsRechte}
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">Objekte</h1>

@@ -95,6 +95,7 @@ export async function Unterseite({ pfad, wurzel, bereich }: UnterseiteProps) {
       leiste={zugang.leiste}
       wurzel={echteWurzel}
       sichtbareTabs={zugang.sichtbareTabs}
+      navigationsRechte={zugang.navigationsRechte}
       phase={route?.phase ?? null}
       pfad={route?.pfad ?? pfad}
     />
@@ -123,6 +124,7 @@ export async function MandantUnterseite({ segmente, mandant }: {
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
       sichtbareTabs={zugang.sichtbareTabs}
+      navigationsRechte={zugang.navigationsRechte}
       phase={route?.phase ?? null}
       pfad={route?.pfad ?? pfad}
     />

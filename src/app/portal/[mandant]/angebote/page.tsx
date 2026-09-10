@@ -76,6 +76,7 @@ export default async function Angebotsliste(
       wurzel={`/portal/${mandant}`}
       aktiverTab="angebote"
       sichtbareTabs={zugang.sichtbareTabs}
+      navigationsRechte={zugang.navigationsRechte}
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">Angebote</h1>

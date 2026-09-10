@@ -5,6 +5,7 @@ import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { pruefeZugang, rechtepruefer, PORTAL_START } from '@/server/auth/zugang';
 import { bindeAnfrage, gruppenMandanten, rolleImMandanten } from '@/server/kontext/index';
+import { NAVIGATION } from '@/server/registry/navigation';
 import { leisteFuer, tableiste, type LeistenSchluessel }
   from '@/server/registry/tableiste';
 import type { Sitzung } from '@/server/kontext/index';
@@ -36,6 +37,14 @@ export interface PortalZugang {
    */
   readonly gruppenMandanten: readonly string[];
   /**
+   * Je Rechteschluessel des Navigationsbaums: haelt die Sitzung ihn?
+   *
+   * Das fuenfte Ziel der Tab-Leiste ist `Mehr` und zeigt genau diesen Baum
+   * (SEITENKARTE §11.2). Ohne die Rechte hier waere er entweder vollstaendig
+   * — und fuehrte auf 404 — oder gar nicht da.
+   */
+  readonly navigationsRechte: Readonly<Record<string, boolean>>;
+  /**
    * Je Tab-Schluessel: darf diese Sitzung ihn sehen?
    *
    * **Ein Menuepunkt, der auf 404 fuehrt, ist schlechter als keiner.** Er
@@ -54,6 +63,7 @@ interface Befund {
   readonly rolle: string | null;
   readonly mandanten: readonly string[];
   readonly sichtbareTabs: Readonly<Record<string, boolean>>;
+  readonly navigationsRechte: Readonly<Record<string, boolean>>;
   readonly mandantSlug: string | null;
 }
 
@@ -95,7 +105,8 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
     const entscheidung = await pruefeZugang(pfad, sitzung, pruefer);
     if (entscheidung.art !== 'erlaubt') {
       return {
-        entscheidung, rolle: null, mandanten, sichtbareTabs: {}, mandantSlug: null,
+        entscheidung, rolle: null, mandanten, sichtbareTabs: {}, navigationsRechte: {},
+        mandantSlug: null,
       } satisfies Befund;
     }
 
@@ -108,19 +119,32 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
      * viel.
      */
     const ziele = tableiste(leisteFuer(sitzung.portal, sitzung.ansicht, rolle)).ziele;
-    const gefragt = [...new Set(
-      ziele.map((z) => z.recht).filter((r): r is string => r !== null),
-    )];
+    /**
+     * Die Rechte der Tab-Leiste UND die des Navigationsbaums in EINER Frage.
+     *
+     * Das fuenfte Ziel der Leiste ist `Mehr` und zeigt den vollstaendigen
+     * Baum (SEITENKARTE §11.2). Dessen Rechte hier mitzufragen kostet nichts —
+     * sie stehen in derselben Abfrage; sie spaeter zu fragen kostete eine
+     * zweite Rundreise auf jedem Seitenaufruf, und ausserhalb dieser
+     * gebundenen Transaktion antwortete `app.hat_recht` ohnehin `false`.
+     */
+    const gefragt = [...new Set([
+      ...ziele.map((z) => z.recht).filter((r): r is string => r !== null),
+      ...NAVIGATION.map((n) => n.recht),
+    ])];
     const gehalten = await pruefer.hatRechte(gefragt, sitzung.aktiverMandantId);
     const sichtbareTabs: Record<string, boolean> = {};
     for (const z of ziele) {
       sichtbareTabs[z.schluessel] = z.recht === null || gehalten.has(z.recht);
     }
+    const navigationsRechte: Record<string, boolean> = {};
+    for (const n of NAVIGATION) navigationsRechte[n.recht] = gehalten.has(n.recht);
     const [m] = sitzung.aktiverMandantId === null ? [] : await abfrage<{ slug: string }>(
       `select slug from mandant where id = $1`, [sitzung.aktiverMandantId],
     );
     return {
-      entscheidung, rolle, mandanten, sichtbareTabs, mandantSlug: m?.slug ?? null,
+      entscheidung, rolle, mandanten, sichtbareTabs, navigationsRechte,
+      mandantSlug: m?.slug ?? null,
     } satisfies Befund;
   }) as Promise<Befund>);
 
@@ -160,6 +184,7 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
     leiste: leisteFuer(sitzung.portal, sitzung.ansicht, befund.rolle),
     gruppenMandanten: befund.mandanten,
     sichtbareTabs: befund.sichtbareTabs,
+    navigationsRechte: befund.navigationsRechte,
     mandantSlug: befund.mandantSlug,
   };
 }

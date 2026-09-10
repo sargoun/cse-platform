@@ -1,0 +1,282 @@
+import type postgres from 'postgres';
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
+import { withTenant } from '@/server/kontext/index';
+import { PortalRahmen } from '@/components/portal/PortalRahmen';
+import { DataTable } from '@/components/ui/DataTable';
+import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
+import { cent, formatiereGeld } from '@/server/services/finanz/geld';
+import { AnmeldungNoetig } from '../../../../Anmeldung';
+import { portalZugang } from '../../../../zugang';
+import { slugTor } from '../../../../unterseite';
+import { Wechselblatt } from '@/components/portal/Wechselblatt';
+import type { BereichSchluessel } from '@/lib/design/theme';
+
+/**
+ * `/portal/[mandant]/crm/kunden/[id]` — ein Kunde, seine Kontakte, seine
+ * Objekte und Auftraege.
+ *
+ * **Das UWG-Tor steht hier als ANZEIGE, nicht als Wiederholung der Regel.**
+ * Je Kontakt fragt die Seite `app.darf_kontaktiert_werden(kontakt, 'email',
+ * 'werbung')` — dieselbe Funktion, die auch der Sendepfad fragt. Eine
+ * Oberflaeche, die die Regel selbst noch einmal formuliert, waere eine
+ * zweite Wahrheit; hier ist sie ein Fenster auf die eine.
+ */
+export const dynamic = 'force-dynamic';
+
+const GRUNDLAGE_TEXT: Readonly<Record<string, string>> = {
+  einwilligung: 'Einwilligung',
+  bestandskunde: 'Bestandskunde',
+  anfrage: 'Anfrage',
+  keine: 'keine',
+};
+
+interface Kopf {
+  readonly id: string;
+  readonly kundennummer: string;
+  readonly name: string;
+  readonly rechtsform: string | null;
+  readonly typ: string;
+  readonly status: string;
+  readonly strasse: string | null;
+  readonly hausnummer: string | null;
+  readonly plz: string | null;
+  readonly ort: string | null;
+  readonly email_zentral: string | null;
+  readonly telefon_zentral: string | null;
+  readonly webseite: string | null;
+  readonly rechtsgrundlage: string;
+  readonly rechtsgrundlage_quelle: string | null;
+  readonly widerspruch: boolean;
+  readonly ist_oeffentlicher_auftraggeber: boolean;
+}
+
+interface KontaktZeile {
+  readonly id: string;
+  readonly name: string;
+  readonly position: string | null;
+  readonly email: string | null;
+  readonly telefon: string | null;
+  readonly darf_email: boolean;
+}
+
+interface ObjektZeile { readonly id: string; readonly bezeichnung: string;
+  readonly ort: string; }
+interface AuftragZeile { readonly id: string; readonly auftragsnummer: string;
+  readonly bezeichnung: string; readonly status: string; readonly wert: string | null; }
+
+const AUFTRAG_PILLE: Readonly<Record<string, PillZustand>> = {
+  angelegt: 'Geplant', aktiv: 'In Arbeit', pausiert: 'Wartet',
+  abgeschlossen: 'Abgeschlossen', storniert: 'Abgelehnt',
+};
+
+export default async function KundeDetail(
+  { params }: { params: Promise<{ mandant: string; id: string }> },
+) {
+  const { mandant, id } = await params;
+  const zugang = await portalZugang(`/portal/${mandant}/crm/kunden/${id}`);
+  if (zugang === null) return <AnmeldungNoetig />;
+  const tor = await slugTor(zugang, mandant);
+  if (tor.art === 'wechsel') {
+    return <Wechselblatt aktuell={tor.aktuell} zielTitel={mandant} zielSlug={tor.ziel} />;
+  }
+  const { sitzung } = zugang;
+  if (sitzung.aktiverMandantId === null) notFound();
+
+  const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+    withTenant(tx, sitzung, async (kontext) => {
+      const [kopf] = await kontext.abfrage<Kopf>(
+        `select k.id, k.kundennummer, k.name, k.rechtsform, k.typ::text as typ,
+                k.status::text as status, k.strasse, k.hausnummer, k.plz, k.ort,
+                k.email_zentral, k.telefon_zentral, k.webseite,
+                k.rechtsgrundlage::text as rechtsgrundlage, k.rechtsgrundlage_quelle,
+                (k.widerspruch_am is not null or k.werbewiderspruch_am is not null)
+                  as widerspruch,
+                k.ist_oeffentlicher_auftraggeber
+           from kunde k where k.id = $1`, [id]);
+      if (kopf === undefined) return null;
+
+      /**
+       * Das Tor wird JE KONTAKT gefragt — in derselben Abfrage, damit die
+       * Liste nicht N Rundreisen kostet, und mit derselben Funktion, die
+       * auch der Sendepfad fragt.
+       */
+      const kontakte = await kontext.abfrage<KontaktZeile>(
+        `select ap.id,
+                trim(coalesce(ap.vorname,'') || ' ' || ap.nachname) as name,
+                ap.position, ap.email, ap.telefon,
+                app.darf_kontaktiert_werden(ap.id, 'email', 'werbung') as darf_email
+           from ansprechpartner ap
+          where ap.kunde_id = $1 and ap.archiviert_am is null
+          order by ap.nachname, ap.vorname`, [id]);
+
+      const objekte = await kontext.abfrage<ObjektZeile>(
+        `select id, bezeichnung, ort from objekt
+          where kunde_id = $1 and archiviert_am is null order by bezeichnung`, [id]);
+
+      const auftraege = await kontext.abfrage<AuftragZeile>(
+        `select id, auftragsnummer, bezeichnung, status::text as status,
+                auftragswert_netto_cent::text as wert
+           from auftrag where kunde_id = $1 order by start_datum desc`, [id]);
+
+      return { kopf, kontakte, objekte, auftraege };
+    })) as Promise<{
+      kopf: Kopf; kontakte: readonly KontaktZeile[];
+      objekte: readonly ObjektZeile[]; auftraege: readonly AuftragZeile[];
+    } | null>);
+
+  if (daten === null) notFound();
+  const { kopf, kontakte, objekte, auftraege } = daten;
+
+  return (
+    <PortalRahmen
+      titel={kopf.name}
+      bereich={mandant as BereichSchluessel}
+      nurLesen={false}
+      leiste={zugang.leiste}
+      wurzel={`/portal/${mandant}`}
+      aktiverTab="dashboard"
+      sichtbareTabs={zugang.sichtbareTabs}
+      navigationsRechte={zugang.navigationsRechte}
+    >
+      <nav aria-label="Zurück" className="mb-s3">
+        <Link
+          href={`/portal/${mandant}/crm/kunden`}
+          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+        >
+          ← Alle Kunden
+        </Link>
+      </nav>
+
+      <div className="mb-s5 flex flex-wrap items-center gap-s3">
+        <h1 className="m-0 text-h1 text-text">{kopf.name}</h1>
+        {kopf.ist_oeffentlicher_auftraggeber ? (
+          <span className="text-xs text-text-muted">öffentlicher Auftraggeber</span>
+        ) : null}
+      </div>
+
+      <dl className="m-0 mb-s6 grid grid-cols-1 gap-s4 sm:grid-cols-2 lg:grid-cols-4">
+        <div>
+          <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">Nummer</dt>
+          <dd className="m-0 mt-s1 text-sm text-text">{kopf.kundennummer}</dd>
+        </div>
+        <div>
+          <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">Anschrift</dt>
+          <dd className="m-0 mt-s1 text-sm text-text">
+            {kopf.strasse === null ? '—' : (
+              <>
+                {`${kopf.strasse}${kopf.hausnummer === null ? '' : ` ${kopf.hausnummer}`}`}
+                <br />
+                {`${kopf.plz ?? ''} ${kopf.ort ?? ''}`}
+              </>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">Kontakt</dt>
+          <dd className="m-0 mt-s1 text-sm text-text">
+            {kopf.email_zentral ?? '—'}
+            <br />
+            {kopf.telefon_zentral ?? ''}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">
+            Rechtsgrundlage
+          </dt>
+          <dd data-cse="rechtsgrundlage" className="m-0 mt-s1 text-sm text-text">
+            {kopf.widerspruch
+              ? 'Widerspruch — keine Werbung'
+              : GRUNDLAGE_TEXT[kopf.rechtsgrundlage] ?? kopf.rechtsgrundlage}
+            {kopf.rechtsgrundlage_quelle === null ? null : (
+              <span className="block text-xs text-text-muted">
+                {kopf.rechtsgrundlage_quelle}
+              </span>
+            )}
+          </dd>
+        </div>
+      </dl>
+
+      <section aria-labelledby="kontakte" className="mb-s7">
+        <h2 id="kontakte" className="text-h2 text-text">Ansprechpartner</h2>
+        <p className="text-sm text-text-muted">
+          Die Spalte „Werbung per E-Mail" ist die Antwort des Tores selbst
+          (CRM-08) — dieselbe Funktion, die auch der Sendepfad fragt.
+        </p>
+        {kontakte.length === 0 ? (
+          <p className="text-sm text-text-muted">Kein Ansprechpartner hinterlegt.</p>
+        ) : (
+          <DataTable
+            beschriftung="Ansprechpartner dieses Kunden und ihr Werbestatus"
+            zeilen={kontakte}
+            schluessel={(z) => z.id}
+            spalten={[
+              { schluessel: 'name', kopf: 'Name', zelle: (z) => z.name },
+              { schluessel: 'position', kopf: 'Position', zelle: (z) => z.position ?? '—' },
+              { schluessel: 'email', kopf: 'E-Mail', zelle: (z) => z.email ?? '—' },
+              { schluessel: 'telefon', kopf: 'Telefon', zelle: (z) => z.telefon ?? '—' },
+              {
+                schluessel: 'werbung',
+                kopf: 'Werbung per E-Mail',
+                zelle: (z) => (
+                  <span data-cse="werbetor" data-erlaubt={String(z.darf_email)}>
+                    <StatusPill zustand={z.darf_email ? 'Bereit' : 'Abgelehnt'} />
+                  </span>
+                ),
+              },
+            ]}
+          />
+        )}
+      </section>
+
+      <section aria-labelledby="objekte" className="mb-s7">
+        <h2 id="objekte" className="text-h2 text-text">Objekte</h2>
+        {objekte.length === 0 ? (
+          <p className="text-sm text-text-muted">Kein Objekt zugeordnet.</p>
+        ) : (
+          <ul className="m-0 list-none p-0">
+            {objekte.map((o) => (
+              <li key={o.id} className="border-b border-line py-s3">
+                <Link
+                  href={`/portal/${mandant}/objekte/${o.id}`}
+                  className="text-sm text-text underline-offset-2 hover:text-brand hover:underline"
+                >
+                  {o.bezeichnung}
+                </Link>
+                <span className="ml-s3 text-xs text-text-muted">{o.ort}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section aria-labelledby="auftraege">
+        <h2 id="auftraege" className="text-h2 text-text">Aufträge</h2>
+        {auftraege.length === 0 ? (
+          <p className="text-sm text-text-muted">Noch kein Auftrag.</p>
+        ) : (
+          <DataTable
+            beschriftung="Aufträge dieses Kunden"
+            zeilen={auftraege}
+            schluessel={(z) => z.id}
+            spalten={[
+              { schluessel: 'nummer', kopf: 'Nummer', zelle: (z) => z.auftragsnummer },
+              { schluessel: 'bezeichnung', kopf: 'Auftrag', zelle: (z) => z.bezeichnung },
+              {
+                schluessel: 'wert', kopf: 'Wert netto', numerisch: true,
+                zelle: (z) => (z.wert === null
+                  ? <span className="text-text-subtle">offen</span>
+                  : formatiereGeld(cent(BigInt(z.wert)))),
+              },
+              {
+                schluessel: 'status', kopf: 'Status',
+                zelle: (z) => <StatusPill zustand={AUFTRAG_PILLE[z.status] ?? 'Geplant'} />,
+              },
+            ]}
+          />
+        )}
+      </section>
+    </PortalRahmen>
+  );
+}

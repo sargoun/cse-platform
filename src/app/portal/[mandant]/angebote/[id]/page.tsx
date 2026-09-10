@@ -124,6 +124,7 @@ export default async function AngebotDetail(
       wurzel={`/portal/${mandant}`}
       aktiverTab="angebote"
       sichtbareTabs={zugang.sichtbareTabs}
+      navigationsRechte={zugang.navigationsRechte}
     >
       <nav aria-label="Zurück" className="mb-s3">
         <Link

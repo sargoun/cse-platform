@@ -133,6 +133,7 @@ export default async function Raumbuch(
       wurzel={`/portal/${mandant}`}
       aktiverTab="objekte"
       sichtbareTabs={zugang.sichtbareTabs}
+      navigationsRechte={zugang.navigationsRechte}
     >
       <nav aria-label="Zurück" className="mb-s3">
         <Link
