@@ -1983,6 +1983,31 @@ hinter einem TLS-beendenden Proxy zeigte sonst jeder interne Redirect auf
 `http://…` — ein Downgrade, ausgeloest von der Funktion, die Ziele absichern
 soll. Derselbe Befund wie D-104, eine Ebene tiefer.
 
+
+### D-120 · Die Berliner Anzeige bekommt eine Wache
+
+Invariante 2 sagt: gespeichert UTC, angezeigt `Europe/Berlin`. Der
+Speicherteil war gedeckt — `wacheZeitstempel` und die Spaltentypen lassen kein
+`timestamp without time zone` durch. Der ANZEIGETEIL hing an der Disziplin.
+
+Und er faellt leise. `new Date(x).toLocaleDateString('de-DE')` nimmt die Zone
+des SERVERS; auf Vercel ist das UTC. Eine Schicht, die am 3. um 00:30 Berliner
+Zeit beginnt, erscheint dann als der 2.; im Sommer verschiebt sich jede
+Uhrzeit um zwei Stunden. Nichts wirft, nichts faellt rot — es steht ein
+plausibles Datum da, und es ist das falsche. Genau die Sorte Fehler, die erst
+im Streit ueber einen Stundennachweis auffaellt, wo sie am teuersten ist.
+
+**Entschieden:** `wacheAnzeigeZeitzone` weist jeden `toLocale*String`- und
+`Intl.DateTimeFormat`-Aufruf ab, der seine Zone nicht im selben Aufruf nennt.
+`toLocaleString('de-DE')` auf einer ZAHL (Prozente) ist ausgenommen — eine Zahl
+traegt keine Zone.
+
+Geprueft wurde die Wache gegen sich selbst: eine Sonde mit
+`toLocaleDateString('de-DE')` faellt, dieselbe Sonde mit
+`{ timeZone: 'Europe/Berlin' }` geht durch. Der Bestand war bereits sauber —
+alle drei Formatierer nannten Berlin schon; ab jetzt bleibt das so, ohne dass
+jemand daran denken muss.
+
 ## Carried over from the Phase 0 review — not client questions
 
 Three items the review surfaced that are ours to do, recorded here so they are not

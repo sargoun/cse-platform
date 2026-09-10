@@ -392,6 +392,46 @@ function wacheTailwindFarben(): void {
  * Eine Adresse, die in einer Konfiguration steht und nirgends sonst, veraltet
  * genau so: lautlos.
  */
+/**
+ * Wache — jede Datums-ANZEIGE nennt ihre Zeitzone, und die ist Berlin.
+ *
+ * Invariante 2: gespeichert UTC, angezeigt `Europe/Berlin`. Der Speicherteil
+ * ist durch `wacheZeitstempel` und die Spaltentypen gedeckt; der ANZEIGETEIL
+ * hing bis hierhin an der Disziplin.
+ *
+ * Und er faellt leise. `new Date(x).toLocaleDateString('de-DE')` nimmt die
+ * Zone des Servers — auf Vercel ist das UTC. Eine Schicht, die am 3. um 00:30
+ * Berliner Zeit beginnt, erscheint dann als der 2.; im Sommer verschiebt sich
+ * jede Uhrzeit um zwei Stunden. Nichts wirft, nichts faellt rot: es steht ein
+ * plausibles Datum da, und es ist das falsche. Genau die Sorte Fehler, die
+ * erst im Streit ueber einen Stundennachweis auffaellt.
+ *
+ * Erlaubt ist deshalb nur, was seine Zone ausdruecklich nennt — entweder
+ * `timeZone:` im selben Aufruf oder die geprueften Helfer aus
+ * `services/zeit/dauer.ts`.
+ */
+const ZEIT_ANZEIGE = /\.toLocale(?:Date|Time)?String\s*\(|new\s+Intl\.DateTimeFormat\s*\(/u;
+
+function wacheAnzeigeZeitzone(): void {
+  for (const datei of [...dateien('src', ['.ts', '.tsx']), ...dateien('scripts', ['.ts'])]) {
+    // Ohne Kommentare: der Beispielcode in einem Docblock ist kein Aufruf —
+    // diese Wache fand sonst zuerst ihre eigene Erklaerung.
+    const zeilen = ohneKommentare(readFileSync(datei, 'utf8')).split('\n');
+    zeilen.forEach((zeile, i) => {
+      if (!ZEIT_ANZEIGE.test(zeile)) return;
+      // Prozente und Zahlen tragen keine Zone — `toLocaleString` auf einer
+      // Zahl ist kein Datum und faellt hier nicht hinein.
+      if (/toLocaleString\s*\(\s*'de-DE'\s*\)/u.test(zeile)) return;
+      // Die Zone darf im selben Aufruf stehen, also auch ein paar Zeilen
+      // weiter unten: `new Intl.DateTimeFormat('de-DE', {` bricht um.
+      const fenster = zeilen.slice(i, i + 6).join(' ');
+      if (/timeZone\s*:/u.test(fenster)) return;
+      melde('anzeige-berlin', datei, i + 1,
+        `Datumsanzeige ohne timeZone — nimmt die Serverzone (auf Vercel UTC): ${zeile.trim()}`);
+    });
+  }
+}
+
 async function wacheKonfigAdressen(): Promise<void> {
   const dateien = ['lighthouserc.json'];
   const vorhanden = dateien.filter((d) => existsSync(join(WURZEL, d)));
@@ -442,6 +482,7 @@ async function main(): Promise<void> {
   wacheEuRegion();
   wacheEinAusgang();
   wacheTailwindFarben();
+  wacheAnzeigeZeitzone();
   await wacheKonfigAdressen();
 
   if (befunde.length > 0) {

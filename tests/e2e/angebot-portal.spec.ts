@@ -40,10 +40,21 @@ async function kalkulationBestaetigen(page: Page): Promise<void> {
   await page.locator('[data-cse="feld-gemeinkosten"]').fill('15');
   await page.locator('[data-cse="feld-wagnis"]').fill('8');
   /**
-   * Das Haekchen erscheint NUR, solange die Leistungswerte offen sind — und
-   * sie sind es je Belagsart, nicht je Angebot. Hat ein frueherer Test sie
-   * bestaetigt, gibt es hier nichts mehr anzuhaken, und das ist richtig. Die
-   * Suite teilt sich eine Datenbank; ein Helfer, der einen festen Zustand
+   * Der Frequenzfaktor (O-56) — seit D-105 ein eigenes Feld.
+   *
+   * `PLATZHALTER_FREQUENZ` raet ihn aus dem Turnus, und die Bestaetigung
+   * loeschte diese Raute frueher mit, ohne je danach gefragt zu haben. Wer
+   * bestaetigt, nennt ihn jetzt; `1` ist der Faktor des monatlichen Turnus,
+   * mit dem dieses Angebot gerechnet wurde.
+   */
+  const frequenz = page.locator('[data-cse="feld-frequenz"]');
+  if (await frequenz.count() > 0) await frequenz.fill('1');
+  /**
+   * Das Haekchen erscheint NUR, solange die Leistungswerte offen sind. Seit
+   * D-105 haengt das am SCHNAPPSCHUSS dieser Kalkulation, nicht mehr am
+   * geteilten Katalog: ein frueher bestaetigtes Angebot raeumt dieses hier
+   * nicht mehr mit ab. Die Pruefung auf `count()` bleibt trotzdem — die Suite
+   * teilt sich eine Datenbank, und ein Helfer, der einen festen Zustand
    * voraussetzt, prueft die Reihenfolge der Tests statt die Anwendung.
    */
   const haken = page.locator('[data-cse="feld-leistungswerte"]');
