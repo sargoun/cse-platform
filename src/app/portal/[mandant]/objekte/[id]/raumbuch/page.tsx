@@ -160,6 +160,7 @@ export default async function Raumbuch(
           Fläche keine Kalkulation.
         </p>
       ) : (
+        <section data-cse="raumbuch-tabelle">
         <DataTable
           beschriftung="Räume dieses Objekts mit Fläche, Belagsart und Reinigungsklasse"
           zeilen={raeume}
@@ -212,6 +213,7 @@ export default async function Raumbuch(
             },
           ]}
         />
+        </section>
       )}
 
       <section aria-labelledby="kalkulation" className="mt-s7">

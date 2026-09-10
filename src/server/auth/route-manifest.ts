@@ -93,6 +93,11 @@ export const ROUTEN: readonly RouteEintrag[] = [
     pfad: 'api/lead',
     recht: 'crm.schreiben',
   },
+  {
+    /** Der Auftragsassistent (OPS-10). Legt an, also `auftrag.schreiben`. */
+    pfad: 'api/auftrag',
+    recht: 'auftrag.schreiben',
+  },
 ] as const;
 
 /** Die Routen, die ein Recht verlangen. */

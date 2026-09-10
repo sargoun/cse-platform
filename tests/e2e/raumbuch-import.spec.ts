@@ -63,9 +63,37 @@ test.describe('(1) Hochladen zeigt eine Vorschau und ändert nichts', () => {
     await expect(page.getByText('1.250,50').first()).toBeVisible();
   });
 
-  test('das Raumbuch ist danach noch leer', async ({ page }) => {
+  /**
+   * Verglichen wird VORHER mit NACHHER, nicht mit "leer".
+   *
+   * Die Suite laeuft gegen EINE Datenbank, die zwischen Laeufen nicht
+   * geleert wird: nach dem ersten erfolgreichen Durchgang ist dieses Objekt
+   * nicht mehr leer, und ein Test auf "leer" scheiterte daran, dass er schon
+   * einmal gelaufen ist. Die AUSSAGE ist ohnehin eine andere: das Hochladen
+   * aendert NICHTS — egal, was vorher dastand.
+   */
+  test('das Raumbuch ist danach unveraendert', async ({ page }) => {
     await anmelden(page, 'admin');
-    await zumImport(page);
+    // Erst zaehlen, dann importieren — linear, ohne Zurueckspringen: eine
+    // Seite, die der Browser aus dem Verlauf holt, hat ihr Formular nicht
+    // mehr, und der Test scheiterte dann an der Navigation statt an der Sache.
+    await page.goto('/portal/reinigung/objekte');
+    await page.getByRole('link', { name: 'Veranstaltungshalle Tempelhof' }).click();
+    await page.getByRole('link', { name: 'Raumbuch und Kalkulation' }).click();
+    /**
+     * Erst die Seite abwarten, dann zaehlen: `count()` wartet NICHT, und
+     * direkt nach dem Klick stand die Antwort noch nicht da — der Test las
+     * dann 0 und verglich hinterher mit einer Seite, die gerendert war.
+     *
+     * Und gezaehlt wird die RAUMBUCH-Tabelle: die Seite traegt zwei
+     * (Raeume und Kalkulation), „die Tabelle" ist damit keine Angabe.
+     */
+    await expect(page.locator('h1')).toHaveText('Raumbuch');
+    const raeume = page.locator('[data-cse="raumbuch-tabelle"] [data-cse="tabelle"] tbody tr');
+    const vorher = await raeume.count();
+
+    await page.locator('[data-cse="zum-import"]').click();
+    await expect(page.locator('h1')).toHaveText('Raumbuch importieren');
     await page.setInputFiles('#datei', {
       name: 'raumbuch.csv', mimeType: 'text/csv', buffer: Buffer.from(DATEI, 'utf8'),
     });
@@ -73,7 +101,8 @@ test.describe('(1) Hochladen zeigt eine Vorschau und ändert nichts', () => {
     await page.waitForURL(/\?import=/u);
 
     await page.getByRole('link', { name: '← Raumbuch' }).click();
-    await expect(page.getByText('Noch kein Raum erfasst')).toBeVisible();
+    await expect(page.locator('h1')).toHaveText('Raumbuch');
+    expect(await raeume.count()).toBe(vorher);
   });
 });
 
