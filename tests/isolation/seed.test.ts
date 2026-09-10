@@ -107,3 +107,41 @@ describe('nach dem Seed ist die Plattform benutzbar', () => {
     expect(zeilen.every((z) => !z.auto_erlaubt)).toBe(true);
   });
 });
+
+describe('der Seed laeuft ZWEIMAL — sonst ist er keiner', () => {
+  /**
+   * Der Befund, den dieser Fall festhaelt: `db:seed` gelang genau einmal und
+   * starb beim zweiten Lauf mit
+   *
+   *     Konto benoetigt einen zweiten Faktor, bevor es aktiv wird (AUT-02)
+   *
+   * Beim ersten Lauf entsteht die `benutzer`-Zeile, BEVOR ihr die Rolle
+   * zugewiesen wird — der Ausloeser sieht keine 2FA-Rolle. Beim zweiten ist
+   * die Rolle da, `on conflict do update set status = 'aktiv'` feuert ihn, und
+   * er weist ab. Ein Seed, der genau einmal laeuft, ist kein Seed: danach
+   * traut sich niemand mehr, ihn anzufassen.
+   */
+  it('ein zweiter Lauf auf derselben Datenbank gelingt', () => {
+    const ergebnis = execFileSync(join(WURZEL, 'node_modules/.bin/tsx'),
+      [join(WURZEL, 'src/server/db/seed/index.ts')],
+      { cwd: WURZEL, encoding: 'utf8', env: { ...process.env, DATABASE_URL: DB_URL } });
+    expect(ergebnis).toContain('Seed fertig.');
+  }, 240_000);
+
+  it('und die Konten mit 2FA-Rolle tragen wirklich einen Faktor', async () => {
+    // Die Gegenrichtung: der Lauf oben gelaenge auch, wenn jemand den
+    // Ausloeser entschaerft haette. Geprueft wird die ERFUELLUNG von AUT-02,
+    // nicht ihr Ausbleiben.
+    const ohne = await sql<{ email: string }[]>`
+      select b.email from benutzer b
+       where b.status = 'aktiv'
+         and exists (select 1 from rolle r
+                      where (r.id = b.globale_rolle_id
+                             or r.id in (select bm.rolle_id from benutzer_mandant bm
+                                          where bm.benutzer_id = b.id and bm.entzogen_am is null))
+                        and r.erfordert_2fa)
+         and not exists (select 1 from auth.mfa_factors f where f.user_id = b.id)`;
+    expect(ohne.map((o) => o.email)).toEqual([]);
+  });
+});
+

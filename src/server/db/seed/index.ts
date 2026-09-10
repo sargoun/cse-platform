@@ -484,9 +484,44 @@ async function main(): Promise<void> {
     ['kunde.demo@example.test', 'Kundenzugang (Demo)', 'kunde', 'reinigung', null],
   ];
 
+  /**
+   * Welche Rollen einen zweiten Faktor verlangen (AUT-02).
+   *
+   * Gefragt wird GENAU DAS, was `kern.benutzer_2fa_pflicht()` fragt:
+   * `rolle.erfordert_2fa`. Der erste Versuch las stattdessen
+   * `berechtigung.erfordert_2fa` ueber die Rollenzuweisungen — eine plausible,
+   * aber ANDERE Frage, und der Seed fiel weiter um. Zwei Quellen fuer dieselbe
+   * Bedingung sind genau die Stelle, an der eine Zusicherung und ihre
+   * Vorbereitung auseinanderlaufen.
+   */
+  const braucht2fa = new Set(
+    (await sql<{ schluessel: string }[]>`
+      select schluessel from rolle
+       where mandant_id is null and erfordert_2fa`).map((r) => r.schluessel),
+  );
+
   for (const [email, name, rolle, bereich, personIndex] of konten) {
     const id = await authBenutzer(email);
     const personId = personIndex === null ? null : personIds[personIndex] ?? null;
+    /**
+     * Der Faktor kommt VOR dem `aktiv`, und das ist der ganze Punkt.
+     *
+     * Beim ERSTEN Lauf entsteht die `benutzer`-Zeile, bevor ihr die Rolle
+     * zugewiesen wird — `kern.benutzer_2fa_pflicht()` sieht also noch keine
+     * 2FA-Rolle und laesst sie durch. Beim ZWEITEN Lauf ist die Rolle da, der
+     * Ausloeser feuert, und der Seed starb mit "Konto benoetigt einen zweiten
+     * Faktor". Ein Seed, der genau einmal laeuft, ist kein Seed: danach traut
+     * sich niemand mehr, ihn anzufassen, und die Demodaten veralten.
+     *
+     * Der Faktor ist keine Umgehung der Zusicherung, sondern ihre Erfuellung:
+     * AUT-02 verlangt, dass ein Konto mit einer 2FA-Rolle einen hinterlegten
+     * Faktor HAT. Die aal2-SITZUNG verlangt `app.ist_super_admin()` zusaetzlich
+     * — das bleibt unberuehrt.
+     */
+    if (braucht2fa.has(rolle)) {
+      await sql`insert into auth.mfa_factors (user_id) values (${id})
+                on conflict do nothing`;
+    }
     await sql`
       insert into benutzer (id, email, name, person_id, status)
       values (${id}, ${email}, ${name}, ${personId}, 'aktiv')
