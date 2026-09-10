@@ -16,6 +16,7 @@
 import postgres from 'postgres';
 import { DATENSCHUTZ_VERSION, FORMULARE } from './formulare.js';
 import { seedOperations } from './operations.js';
+import { seedDienstplan } from './dienstplan.js';
 
 const url = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 if (url === undefined || url === '') {
@@ -603,6 +604,17 @@ async function main(): Promise<void> {
   process.stdout.write(
     `  ${String(ops.objekte)} Objekte, ${String(ops.raeume)} Raeume, `
     + 'Belagsarten und Reinigungsklassen (Leistungswerte: Platzhalter, O-17)\n',
+  );
+
+  /**
+   * Der Dienstplan kommt NACH den Objekten und laesst den echten Generator
+   * laufen. Er braucht das Raumbuch nicht, wohl aber ein Objekt mit Kunden —
+   * die Reihenfolge ist deshalb eine Abhaengigkeit, keine Vorliebe.
+   */
+  const plan = await seedDienstplan(sql, ids);
+  process.stdout.write(
+    `  ${String(plan.reviere)} Reviere, ${String(plan.turnusse)} Turnusse, `
+    + `${String(plan.einsaetze)} Einsaetze aus dem Generator (acht Wochen)\n`,
   );
 
   process.stdout.write('\nSeed fertig.\n');
