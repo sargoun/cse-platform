@@ -12,6 +12,7 @@ import {
 import { registriereBerichtKacheln } from '../../src/server/services/bericht/kacheln.js';
 import { belegteModule } from '../../src/server/services/bericht/dashboard.js';
 import { KATALOG } from '../../src/server/auth/katalog.generiert.js';
+import { istIconName } from '@/lib/design/icons';
 
 const gueltig = (ueber: Partial<Kachel> = {}): Kachel => ({
   schluessel: 'test_kachel',
@@ -67,13 +68,30 @@ describe('(2) eine Kachel ohne Abfrage oder Linkziel lässt sich nicht registrie
 });
 
 describe('die heutigen Kacheln sind vollständig und rechtlich verankert', () => {
-  it('sieben Kacheln, wie der Plan sie nennt', () => {
+  it('neun Kacheln — die sieben des Plans plus die beiden aus Phase 5', () => {
+    // Die Liste steht ausgeschrieben da und nicht als Zahl: eine Kachel, die
+    // jemand still hinzufuegt, aendert sonst nur eine Zahl, und dass sie ein
+    // Recht nennt, das es nicht gibt, faellt erst auf einem leeren Dashboard
+    // auf. Phase 5 bringt `schichten_unbesetzt` und `konflikte_offen`.
     const angelegt = registriereBerichtKacheln();
-    expect(angelegt.length).toBe(7);
+    expect(angelegt.length).toBe(9);
     expect(kacheln().map((k) => k.schluessel).sort()).toEqual([
-      'anstellungen', 'benutzer_aktiv', 'leads_ueber_sla', 'letzte_aktivitaet',
-      'neue_leads', 'offene_wiedervorlagen', 'personen',
+      'anstellungen', 'benutzer_aktiv', 'konflikte_offen', 'leads_ueber_sla',
+      'letzte_aktivitaet', 'neue_leads', 'offene_wiedervorlagen', 'personen',
+      'schichten_unbesetzt',
     ]);
+  });
+
+  it('jede Kachel nennt ein Icon aus dem geschlossenen Satz (DESIGN §5)', () => {
+    registriereBerichtKacheln();
+    for (const k of kacheln()) {
+      // `undefined` ist erlaubt — dann steht dort `info`. Ein NAME, den es
+      // nicht gibt, ist es nicht: `<path d={undefined}>` zeichnet nichts und
+      // wirft nicht.
+      if (k.icon !== undefined) {
+        expect(istIconName(k.icon), `${k.schluessel} → ${k.icon}`).toBe(true);
+      }
+    }
   });
 
   it('jedes genannte Recht hat eine Katalogzeile (K-19)', () => {
@@ -103,7 +121,9 @@ describe('(4) ein Modul, das nicht gemergt ist, hat KEINE Kachel', () => {
      * "Noch nicht gebaut" heisst etwas völlig anderes, und wer die beiden
      * verwechselt, plant auf einer Zahl, die es nicht gibt.
      */
-    expect(belegteModule()).toEqual(['bericht', 'crm', 'personal', 'system']
+    // `dienstplan` seit Phase 5 — er IST gemergt, also darf er eine Kachel
+    // haben. Die Liste waechst mit den Phasen; was fehlt, ist die Zusage.
+    expect(belegteModule()).toEqual(['bericht', 'crm', 'dienstplan', 'personal', 'system']
       .filter((m) => belegteModule().includes(m)));
     for (const nichtGebaut of ['finanzen', 'zahlung', 'mahnung', 'vergabe', 'radar']) {
       expect(belegteModule(), `${nichtGebaut} ist noch nicht gemergt`)

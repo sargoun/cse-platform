@@ -1,5 +1,6 @@
 import { KpiStat } from '@/components/ui/KpiStat';
 import type { Ton } from '@/server/registry/kennzahlen';
+import type { IconName } from '@/lib/design/icons';
 
 /**
  * Das Kachelraster (DSH-01, DESIGN §5).
@@ -18,6 +19,15 @@ export interface KachelAnzeige {
   readonly wert: number;
   readonly ton: Ton;
   readonly ziel: string;
+  /**
+   * `| undefined` ausgeschrieben, nicht nur `?`.
+   *
+   * `exactOptionalPropertyTypes` unterscheidet „Feld fehlt" von „Feld ist
+   * undefined", und die Kachel reicht den Wert durch, ohne ihn zu pruefen.
+   * Ohne das Wort haette der Aufrufer das Feld weglassen muessen — eine
+   * Bedingung am Aufrufort, die niemand sieht.
+   */
+  readonly icon?: IconName | undefined;
 }
 
 export function KachelRaster({ kacheln }: { readonly kacheln: readonly KachelAnzeige[] }) {
@@ -50,7 +60,7 @@ export function KachelRaster({ kacheln }: { readonly kacheln: readonly KachelAnz
           data-kachel={k.schluessel}
           className="block rounded-lg"
         >
-          <KpiStat label={k.label} wert={String(k.wert)} ton={k.ton} />
+          <KpiStat label={k.label} wert={String(k.wert)} ton={k.ton} icon={k.icon} />
         </a>
       ))}
     </div>

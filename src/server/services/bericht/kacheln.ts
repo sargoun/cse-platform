@@ -45,6 +45,7 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
   return [
     registriereKachel({
       schluessel: 'neue_leads',
+      icon: 'crm',
       label: 'Neue Anfragen',
       modul: 'crm',
       recht: 'crm.lesen',
@@ -61,6 +62,7 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
 
     registriereKachel({
       schluessel: 'leads_ueber_sla',
+      icon: 'warnung',
       label: 'Frist überschritten',
       modul: 'crm',
       recht: 'crm.lesen',
@@ -82,6 +84,7 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
 
     registriereKachel({
       schluessel: 'benutzer_aktiv',
+      icon: 'person',
       label: 'Aktive Benutzer',
       modul: 'system',
       recht: 'system.benutzer_lesen',
@@ -102,6 +105,7 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
 
     registriereKachel({
       schluessel: 'personen',
+      icon: 'person',
       label: 'Personen',
       modul: 'personal',
       recht: 'personal.lesen',
@@ -124,6 +128,7 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
 
     registriereKachel({
       schluessel: 'anstellungen',
+      icon: 'personal',
       label: 'Beschäftigungen',
       modul: 'personal',
       recht: 'personal.lesen',
@@ -143,6 +148,7 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
 
     registriereKachel({
       schluessel: 'letzte_aktivitaet',
+      icon: 'crm',
       label: 'Aktivität (7 Tage)',
       modul: 'crm',
       recht: 'crm.lesen',
@@ -159,6 +165,7 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
 
     registriereKachel({
       schluessel: 'offene_wiedervorlagen',
+      icon: 'kalender',
       label: 'Offene Wiedervorlagen',
       modul: 'crm',
       recht: 'crm.lesen',
@@ -172,6 +179,64 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
           where mandant_id = any($1) and faellig_am is not null and erledigt_am is null
           order by faellig_am`,
       ziel: (k) => kennzahlPfad(k, 'crm/wiedervorlagen', 'leads'),
+    }),
+
+    /**
+     * Unbesetzte Schichten der kommenden sieben Tage.
+     *
+     * Der Zeitraum steht in der Abfrage und nicht im Label: „unbesetzt" ohne
+     * Horizont zaehlte auch die Schicht in acht Wochen, und die Zahl waere
+     * jeden Tag gross und nie dringend. Sieben Tage sind der Zeitraum, in dem
+     * jemand noch jemanden findet.
+     */
+    registriereKachel({
+      schluessel: 'schichten_unbesetzt',
+      label: 'Unbesetzte Schichten',
+      modul: 'dienstplan',
+      recht: 'dienstplan.lesen',
+      ton: 'warning',
+      icon: 'dienstplan',
+      zaehlung:
+        `select count(*)::int as wert from einsatz
+          where mandant_id = any($1) and storniert_am is null
+            and status in ('geplant','laufend')
+            and besetzt_anzahl < soll_besetzung
+            and beginn_zeitpunkt between now() and now() + interval '7 days'`,
+      zeilen:
+        `select id, plan_datum, beginn_zeitpunkt, ende_zeitpunkt,
+                soll_besetzung, besetzt_anzahl, objekt_id
+           from einsatz
+          where mandant_id = any($1) and storniert_am is null
+            and status in ('geplant','laufend')
+            and besetzt_anzahl < soll_besetzung
+            and beginn_zeitpunkt between now() and now() + interval '7 days'
+          order by beginn_zeitpunkt`,
+      ziel: (k) => kennzahlPfad(k, 'dienstplan/woche', 'dienstplan'),
+    }),
+
+    /**
+     * Offene Planungskonflikte.
+     *
+     * `danger` und nicht `warning`: darunter sind die Sperren, und eine
+     * Sperre ist keine Warnung — sie ist eine Einteilung, die so nicht
+     * stattfinden darf.
+     */
+    registriereKachel({
+      schluessel: 'konflikte_offen',
+      label: 'Offene Konflikte',
+      modul: 'dienstplan',
+      recht: 'dienstplan.arbzg_lesen',
+      ton: 'danger',
+      icon: 'warnung',
+      zaehlung:
+        `select count(*)::int as wert from planungs_konflikt
+          where mandant_id = any($1) and status = 'offen' and hinfaellig_am is null`,
+      zeilen:
+        `select id, art, schwere, blockiert, person_id, zeitraum_beginn, einsatz_id
+           from planungs_konflikt
+          where mandant_id = any($1) and status = 'offen' and hinfaellig_am is null
+          order by blockiert desc, zeitraum_beginn`,
+      ziel: (k) => kennzahlPfad(k, 'dienstplan/konflikte', 'dienstplan'),
     }),
   ];
 }
