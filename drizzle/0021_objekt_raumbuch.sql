@@ -234,6 +234,24 @@ create table raum (
 create unique index raum_natuerlich_uk
   on raum (objekt_id, coalesce(etage, ''), raumnummer)
   where archiviert_am is null and raumnummer is not null;
+
+/**
+ * Und der Raum OHNE Nummer — die Luecke, durch die Dubletten kamen.
+ *
+ * Ein Flur, ein Treppenhaus, ein WC-Vorraum: viele Raumbuecher fuehren sie
+ * mit Bezeichnung und ohne Nummer. Fuer die griff bisher KEIN Schluessel —
+ * `raum_natuerlich_uk` verlangt eine Nummer, `raum_quelle_uk` einen
+ * Quellschluessel. Zwei getrennte Vorschauen derselben Datei entschieden
+ * darum beide auf „anlegen“, und die zweite Uebernahme legte den Flur ein
+ * zweites Mal an. Ab da zaehlt seine Flaeche doppelt in jede Kalkulation.
+ *
+ * Verglichen wird die Bezeichnung in Kleinschreibung und ohne Randleerzeichen
+ * — „Flur Nord“ und „flur nord “ sind derselbe Raum, und ein Import, der das
+ * anders sieht, hat dasselbe Problem unter anderem Namen.
+ */
+create unique index raum_bezeichnung_uk
+  on raum (objekt_id, coalesce(etage, ''), lower(btrim(bezeichnung)))
+  where archiviert_am is null and raumnummer is null and bezeichnung is not null;
 create unique index raum_quelle_uk on raum (objekt_id, quell_schluessel)
   where quell_schluessel is not null and archiviert_am is null;
 create index raum_liste_idx on raum (mandant_id, objekt_id, sortierung);

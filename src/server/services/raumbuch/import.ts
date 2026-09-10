@@ -497,14 +497,59 @@ export async function uebernimm(
        from raumbuch_import_zeile
       where import_id = $1 order by zeilennummer`, [importId]);
 
+  /**
+   * Das lebende Raumbuch, JETZT — nicht das von der Vorschau.
+   *
+   * Die Vorschau bleibt die Absicht („dieser Raum soll es geben“), aber ihre
+   * Entscheidung `anlegen` kann veraltet sein: zwei getrennte Vorschauen
+   * derselben Datei sehen beide ein leeres Raumbuch, und nach der ersten
+   * Uebernahme stimmt die zweite nicht mehr. Ohne diesen Abgleich legte sie
+   * den Raum ein zweites Mal an — und ab da zaehlt seine Flaeche doppelt in
+   * jede Kalkulation.
+   *
+   * Der Abgleich laeuft IN dieser Transaktion, nach der Sperre auf dem
+   * Importkopf. `raum_bezeichnung_uk` und `raum_natuerlich_uk` sind die
+   * zweite Linie: sie halten auch dann, wenn jemand an diesem Dienst vorbei
+   * schreibt.
+   */
+  const lebend = await db.abfrage<{
+    id: string; quell_schluessel: string | null; etage: string | null;
+    raumnummer: string | null; bezeichnung: string | null;
+  }>(
+    `select id, quell_schluessel, etage, raumnummer, bezeichnung
+       from raum where objekt_id = $1 and archiviert_am is null`, [kopf.objekt_id]);
+  const jetztNachSchluessel = new Map<string, string>();
+  const jetztNachNatur = new Map<string, string>();
+  for (const r of lebend) {
+    if (r.quell_schluessel !== null) jetztNachSchluessel.set(r.quell_schluessel, r.id);
+    const natur = schluesselAus(r.etage, r.raumnummer, r.bezeichnung);
+    if (natur !== null) jetztNachNatur.set(natur, r.id);
+  }
+
   let angelegt = 0;
   let aktualisiert = 0;
   let unveraendert = 0;
   let uebersprungen = 0;
 
-  for (const z of zeilen) {
+  for (const roh of zeilen) {
+    let z = roh;
     if (z.aktion === 'ignorieren') { uebersprungen += 1; continue; }
     if (z.aktion === 'unveraendert') { unveraendert += 1; continue; }
+
+    if (z.aktion === 'anlegen') {
+      /**
+       * Existiert der Raum inzwischen doch, wird AKTUALISIERT statt ein
+       * zweiter angelegt. Das ist naeher an dem, was der Mensch freigegeben
+       * hat („dieser Raum soll mit diesen Werten dastehen“) als ein Duplikat,
+       * das niemand wollte — und naeher als ein Abbruch, der die uebrigen
+       * Zeilen der Datei mitnimmt.
+       */
+      const natur = schluesselAus(z.etage, z.raumnummer, z.bezeichnung);
+      const schon = (z.quell_schluessel !== null
+        ? jetztNachSchluessel.get(z.quell_schluessel)
+        : undefined) ?? (natur === null ? undefined : jetztNachNatur.get(natur));
+      if (schon !== undefined) z = { ...z, aktion: 'aktualisieren', raum_id: schon };
+    }
 
     if (z.aktion === 'anlegen') {
       const [neu] = await db.abfrage<{ id: string }>(
@@ -519,6 +564,11 @@ export async function uebernimm(
          z.quell_schluessel, z.zeilennummer]);
       if (neu === undefined) throw new TabellenFehler('Raum nicht angelegt', 'format');
       angelegt += 1;
+      // Die Karten mitfuehren: die naechste Zeile DIESER Datei soll den eben
+      // angelegten Raum sehen, nicht denselben noch einmal anlegen.
+      if (z.quell_schluessel !== null) jetztNachSchluessel.set(z.quell_schluessel, neu.id);
+      const eben = schluesselAus(z.etage, z.raumnummer, z.bezeichnung);
+      if (eben !== null) jetztNachNatur.set(eben, neu.id);
       await db.abfrage(
         `insert into raum_import_historie (mandant_id, raum_id, import_id, import_zeile_id,
                                            aktion, nachher)

@@ -1684,6 +1684,37 @@ uebrige Portal bereits tut. Die Objektform bleibt richtig fuer einen
 FERTIGEN Pfad mit Abfrageparametern — dort setzt sie nichts ein und muss es
 auch nicht.
 
+### D-103 · Der Raum ohne Nummer bekommt einen Schluessel, und die Uebernahme prueft ihre eigene Entscheidung nach
+
+Die Sperre auf dem Importkopf (D-97-Umfeld) serialisiert zwei Uebernahmen
+DESSELBEN Imports. Sie hilft nicht gegen zwei getrennte Vorschauen derselben
+Datei: beide sehen ein leeres Raumbuch, beide entscheiden `anlegen`, und die
+zweite Uebernahme legt den Raum ein zweites Mal an. Fuer Raeume mit Nummer
+faengt `raum_natuerlich_uk` das ab; fuer einen Flur ohne Nummer griff KEIN
+Schluessel — `raum_quelle_uk` verlangt einen Quellschluessel, den die Datei
+nicht mitbringt. Ab dann zaehlt die Flaeche dieses Flurs doppelt in jede
+Kalkulation.
+
+**Entschieden — zwei Linien, und beide sind noetig:**
+
+1. `raum_bezeichnung_uk`: eindeutig ueber (Objekt, Etage, kleingeschriebene
+   Bezeichnung), wo keine Raumnummer steht. Damit ist die Zusage aus
+   08-PR-PLAN §288 (2) — „committing the same file twice produces zero
+   duplicates“ — auch fuer den unnummerierten Raum eine Eigenschaft der
+   DATEN und nicht eine des Ablaufs.
+2. Die Uebernahme gleicht ihre gespeicherte Entscheidung gegen das LEBENDE
+   Raumbuch ab. Existiert der Raum inzwischen doch, wird aktualisiert statt
+   ein zweiter angelegt.
+
+Warum beides: ohne (2) haelt (1) zwar die Regel, meldet aber `23505` und
+reisst die uebrigen Zeilen der Datei mit — beides in einem Mutationstest
+gezeigt. Ohne (1) haelt (2) nur, solange jeder Schreiber durch diesen Dienst
+geht.
+
+Der Grundsatz „was der Mensch in der Vorschau gesehen hat, ist das, was
+passiert“ bleibt gewahrt: freigegeben wurde „dieser Raum soll mit diesen
+Werten dastehen“. Ein Duplikat war nie Teil dieser Freigabe.
+
 ---
 
 ## Carried over from the Phase 0 review — not client questions

@@ -345,6 +345,38 @@ describe('(2) Die Uebernahme — und nur sie schreibt', () => {
     expect(h!.nachher['flaeche_qm']).toBe('70.000');
   });
 
+  /**
+   * Die VERALTETE Vorschau — und der Fall, den die Sperre auf dem Importkopf
+   * NICHT abdeckt.
+   *
+   * Zwei getrennte Rufe derselben Datei erzeugen ZWEI Vorschauen. Beide sehen
+   * ein leeres Raumbuch und schreiben `aktion = 'anlegen'`. Wird danach die
+   * erste uebernommen und dann die zweite, legt die zweite den Raum ein
+   * zweites Mal an: ihre Entscheidung stammt aus einer Welt, die es nicht
+   * mehr gibt. Fuer Raeume MIT Nummer faengt `raum_natuerlich_uk` das ab —
+   * fuer einen Raum ohne Nummer gab es keinen Schluessel.
+   *
+   * 08-PR-PLAN §288 (2) verlangt genau das Gegenteil: „Committing the same
+   * file twice produces zero duplicates.“
+   */
+  it('zwei getrennte Vorschauen derselben Datei ergeben EINEN Raum', async () => {
+    const o = await objektMitKatalog(f.reinigung);
+    const ohneNummer = 'Etage;Raumnummer;Bezeichnung;Flaeche;Belag;Klasse\n'
+      + 'EG;;Flur Nord;33,5;PVC;RK1\n';
+
+    const erster = await alsChef(async (db) =>
+      (await legeImportAn(db, o, 'a.csv', ohneNummer)).importId);
+    const zweiter = await alsChef(async (db) =>
+      (await legeImportAn(db, o, 'b.csv', ohneNummer)).importId);
+
+    await alsChef((db) => uebernimm(db, erster, chef));
+    await alsChef((db) => uebernimm(db, zweiter, chef));
+
+    const [z] = await sql.unsafe<{ n: string }[]>(
+      `select count(*)::text as n from raum where objekt_id = $1`, [o]);
+    expect(z!.n).toBe('1');
+  });
+
   it('und seine Auslegung ist danach unveraenderlich', async () => {
     const o = await objektMitKatalog(f.reinigung);
     const importId = await alsChef(async (db) => {
