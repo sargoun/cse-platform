@@ -131,8 +131,34 @@ export function berlinTagesZeitpunkt(datum: string, stunde = 0, minute = 0): Dat
   if (treffer === null) {
     throw new ZeitFehler(`Kein Datum in der Form JJJJ-MM-TT: ${JSON.stringify(datum)}`);
   }
-  return berlinInstant(
-    Number(treffer[1]), Number(treffer[2]), Number(treffer[3]), stunde, minute);
+  const jahr = Number(treffer[1]);
+  const monat = Number(treffer[2]);
+  const tag = Number(treffer[3]);
+  /**
+   * Die FORM zu pruefen genuegt nicht — `2026-02-30` hat sie.
+   *
+   * `Date.UTC(2026, 1, 30)` wirft nicht, sondern rutscht auf den 2. Maerz
+   * weiter. Ein eingetippter Tippfehler wuerde damit eine Wiedervorlage auf
+   * einen anderen Tag legen, den niemand gewaehlt hat, und die Oberflaeche
+   * zeigte danach brav das verschobene Datum an. Geprueft wird deshalb, dass
+   * der KALENDER den Tag wirklich kennt.
+   */
+  if (!istKalendertag(jahr, monat, tag)) {
+    throw new ZeitFehler(`Diesen Tag gibt es nicht: ${JSON.stringify(datum)}`);
+  }
+  return berlinInstant(jahr, monat, tag, stunde, minute);
+}
+
+/** Kennt der gregorianische Kalender diesen Tag — Schaltjahr eingeschlossen? */
+export function istKalendertag(jahr: number, monat: number, tag: number): boolean {
+  if (!Number.isInteger(jahr) || !Number.isInteger(monat) || !Number.isInteger(tag)) {
+    return false;
+  }
+  if (jahr < 1 || monat < 1 || monat > 12 || tag < 1) return false;
+  // Tag 0 des Folgemonats IST der letzte Tag dieses Monats — die Regel fuer
+  // den Februar steht damit nicht noch einmal hier abgeschrieben.
+  const letzter = new Date(Date.UTC(jahr, monat, 0)).getUTCDate();
+  return tag <= letzter;
 }
 
 /** The instant at which a Berlin month begins. */

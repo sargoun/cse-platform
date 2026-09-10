@@ -18,7 +18,7 @@
  */
 
 export class TabellenFehler extends Error {
-  constructor(nachricht: string, readonly grund: 'leer' | 'format' | 'kopfzeile') {
+  constructor(nachricht: string, readonly grund: 'leer' | 'format' | 'kopfzeile' | 'anfuehrung' | 'feldzahl') {
     super(nachricht);
     this.name = 'TabellenFehler';
   }
@@ -107,6 +107,20 @@ export function leseCsv(text: string): Tabelle {
     }
     feld += z;
   }
+  /**
+   * Ein nicht geschlossenes Anfuehrungszeichen ist ein FEHLER, kein Rest.
+   *
+   * Blieb `inAnfuehrung` am Dateiende wahr, hat der Parser alles ab dem
+   * offenen Zeichen — Zeilenumbrueche eingeschlossen — in EIN Feld gezogen.
+   * Er lieferte das bisher als gueltige Tabelle zurueck: die restlichen
+   * Zeilen verschwanden in einer Zelle, und der Import las verschobene Daten
+   * als sauber ein.
+   */
+  if (inAnfuehrung) {
+    throw new TabellenFehler(
+      'Ein Anfuehrungszeichen wurde nicht geschlossen — die Datei laesst sich '
+      + 'nicht sicher lesen', 'anfuehrung');
+  }
   if (feld !== '' || zeile.length > 0) { zeile.push(feld); felder.push(zeile); }
 
   const [kopfRoh, ...rest] = felder;
@@ -121,9 +135,20 @@ export function leseCsv(text: string): Tabelle {
     // haengt sie ans Dateiende, und ohne diese Bedingung entstuende bei jedem
     // Import ein leerer Raum.
     .filter((z) => z.some((w) => w.trim() !== ''))
-    .map((z) => {
+    .map((z, i) => {
+      /**
+       * Eine Zeile mit ANDERER Feldzahl wurde bisher still aufgefuellt oder
+       * abgeschnitten. Genau dann ist die Datei verschoben — und die Spalten,
+       * die es trifft, sind Flaeche und Belag. Ein stillschweigend
+       * aufgefuellter Raum bekommt die Flaeche des Nachbarn.
+       */
+      if (z.length !== kopf.length) {
+        throw new TabellenFehler(
+          `Zeile ${i + 2} hat ${z.length} Felder, die Kopfzeile ${kopf.length} — `
+          + 'die Datei ist verschoben', 'feldzahl');
+      }
       const satz: Record<string, string> = {};
-      kopf.forEach((name, i) => { satz[name] = (z[i] ?? '').trim(); });
+      kopf.forEach((name, j) => { satz[name] = (z[j] ?? '').trim(); });
       return satz;
     });
 
@@ -186,6 +211,10 @@ export function leseZahl(roh: string): Zahlbefund {
     // Der Ganzteil darf gruppiert sein oder gar keinen Punkt tragen — alles
     // dazwischen (`1..2`, `1.2.3`, `12.34`) ist keine gueltige Gruppierung.
     if (kopf.includes('.') && !GRUPPIERT.test(kopf)) return leer;
+    // `12,` ist eine angefangene Zahl, keine 12. Sie stillschweigend als
+    // 12,000 zu lesen hiesse, einen abgeschnittenen Wert als vollstaendig
+    // auszugeben — und es ist eine FLAECHE, die daraus wird.
+    if ((teile[1] ?? '') === '') return leer;
     ganz = kopf.replaceAll('.', '');
     bruch = teile[1] ?? '';
   } else if (ohneVorzeichen.includes('.')) {

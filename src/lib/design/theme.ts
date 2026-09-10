@@ -59,6 +59,24 @@ export const FARBEN_BEREICH = {
  * weiss. Diese fuenf tragen die Regel aus DESIGN §11, und ausserhalb eines
  * gedruckten Dokuments benutzt sie niemand.
  */
+/**
+ * Die MASSE des gedruckten Dokuments — DESIGN.md §11.
+ *
+ * Getrennt von der Bildschirmskala aus §2/§3, und aus demselben Grund wie die
+ * Druckfarben: eine Tabellenzeile, die am Bildschirm gut liest, verschenkt auf
+ * A4 ein Drittel des Blattes, und `--s3` zwischen zwei Zahlen ist keine Spalte
+ * mehr. In Punkt, nicht in Pixel: ein PDF wird in Punkt gesetzt, und die
+ * `10pt` Grundschrift bedeuten nur etwas, wenn daneben dasselbe Mass steht.
+ */
+export const MASSE_DRUCK = {
+  'druck-zelle-y': '6pt',
+  'druck-zelle-x': '4pt',
+  'druck-kopf-groesse': '8pt',
+  'druck-kopf-sperrung': '0.08em',
+  'druck-meta-groesse': '9pt',
+  'druck-block': '12pt',
+} as const;
+
 export const FARBEN_DRUCK = {
   'druck-papier': '#FFFFFF',
   'druck-text': '#111111',

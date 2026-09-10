@@ -189,3 +189,48 @@ describe('(3) Die Spaltenzuordnung ist ein VORSCHLAG', () => {
     expect(z.raumnummer).toBeUndefined();
   });
 });
+
+/**
+ * Drei Wege, auf denen eine verschobene Datei bisher als sauber durchging.
+ * Alle drei treffen dieselben zwei Spalten — Flaeche und Belag — und keiner
+ * meldete etwas: die Zeilen sahen aus wie Zeilen.
+ */
+describe('(9) Was NICHT als Tabelle durchgehen darf', () => {
+  it('ein nicht geschlossenes Anfuehrungszeichen ist ein Fehler, kein Rest', () => {
+    // Ohne die Pruefung zieht der Parser alles ab dem offenen Zeichen in EIN
+    // Feld — die restlichen Zeilen verschwinden lautlos in einer Zelle.
+    const csv = 'Etage;Raumnummer;Bezeichnung\n1;101;"Buero\n1;102;Flur\n';
+    expect(() => leseCsv(csv)).toThrow(TabellenFehler);
+    try { leseCsv(csv); } catch (f) {
+      expect((f as TabellenFehler).grund).toBe('anfuehrung');
+    }
+  });
+
+  it('eine Zeile mit zu wenigen Feldern wird abgewiesen, nicht aufgefuellt', () => {
+    const csv = 'Etage;Raumnummer;Bezeichnung;Flaeche\n1;101;Buero;25,5\n1;102;Flur\n';
+    try { leseCsv(csv); expect.unreachable(); } catch (f) {
+      expect((f as TabellenFehler).grund).toBe('feldzahl');
+      expect((f as TabellenFehler).message).toMatch(/Zeile 3/u);
+    }
+  });
+
+  it('und eine mit zu vielen ebenso — sie wird nicht abgeschnitten', () => {
+    const csv = 'Etage;Raumnummer;Bezeichnung\n1;101;Buero;25,5\n';
+    try { leseCsv(csv); expect.unreachable(); } catch (f) {
+      expect((f as TabellenFehler).grund).toBe('feldzahl');
+    }
+  });
+
+  it('eine vollstaendige Datei geht weiterhin durch', () => {
+    const { kopf, zeilen } = leseCsv('Etage;Raumnummer\n1;101\n2;201\n');
+    expect(kopf).toEqual(['Etage', 'Raumnummer']);
+    expect(zeilen).toHaveLength(2);
+  });
+
+  it('"12," ist eine angefangene Zahl, keine 12', () => {
+    // Eine abgeschnittene Flaeche als vollstaendig zu lesen ist der teure
+    // Fall: 12,000 m² sehen so aus, als haette jemand sie eingetragen.
+    expect(leseZahl('12,').wert).toBeNull();
+    expect(leseZahl('12,5').wert).toBe(12_500n);
+  });
+});

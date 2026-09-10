@@ -186,12 +186,13 @@ export async function uebernimmKalkulation(
       + `= ${stunden} Std. je Abrechnungsperiode (${opts.turnusLabel}); `
       + `Lohnkosten ${formatiereGeld(zeile.lohnkosten)}, `
       + 'zzgl. anteiliger Gemeinkosten, Wagnis und Gewinn';
-    await db.abfrage(
+    const [ap] = await db.abfrage<{ id: string }>(
       `insert into angebotsposition
          (mandant_id, angebot_id, position_nr, typ, kurztext, langtext, objekt_id,
           menge, einheit, einzelpreis_cent, steuersatz_bp, sortierung)
        values (app.aktiver_mandant(), $1, $2, 'leistung', $3, $4, $5,
-               1, 'psch', $6, $7, $2)`,
+               1, 'psch', $6, $7, $2)
+       returning id`,
       [angebotId, nr, `Unterhaltsreinigung ${zeile.bezeichnung}`, langtext,
        opts.objektId ?? null, preise[i], REGELSATZ_BP],
     );
@@ -208,9 +209,9 @@ export async function uebernimmKalkulation(
           belagsart_id, menge, einheit, einzelbetrag_cent, betrag_cent,
           leistungswert_qm_pro_stunde, frequenz_faktor, stundensatz_cent,
           rechenansatz, operanden, berechnungsweg, leistungswert_ist_platzhalter,
-          sortierung)
+          angebotsposition_id, sortierung)
        values (app.aktiver_mandant(), $1, $2, 'lohn', $3, $4, $5::numeric, 'std', $6, $7,
-               $8::numeric, $9::numeric, $10, $11, $12::jsonb, $13, $14, $2)`,
+               $8::numeric, $9::numeric, $10, $11, $12::jsonb, $13, $14, $15, $2)`,
       /**
        * `menge` sind STUNDEN, nicht Quadratmeter: nur so ist
        * `menge × einzelbetrag ≈ betrag` nachvollziehbar, und nur so traegt
@@ -234,7 +235,7 @@ export async function uebernimmKalkulation(
          lohnkosten_cent: String(zeile.lohnkosten),
          nettoanteil_cent: String(preise[i]),
        },
-       langtext, zeile.leistungswertIstPlatzhalter],
+       langtext, zeile.leistungswertIstPlatzhalter, ap?.id ?? null],
     );
   }
   return nr;

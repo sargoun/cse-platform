@@ -176,8 +176,21 @@ export async function pruefe(
     if (natur !== null) nachNatur.set(natur, r);
   }
 
+  /**
+   * BEIDE Grenzen, nicht nur das Ende.
+   *
+   * Ohne `gueltig_ab` waehlte die Uebernahme auch eine Katalogzeile, die erst
+   * kuenftig gilt — und weil die Reihenfolge offen war, konnte sie die HEUTE
+   * gueltige im Map ueberschreiben. Der Leser der Kalkulation weist dieselbe
+   * Zeile korrekt ab; der Import haette den Raum trotzdem daran gehaengt, und
+   * die Flaeche waere anschliessend mit einem Wert bepreist, den es zum
+   * Stichtag nicht gab.
+   */
   const belaege = await db.abfrage<{ id: string; code: string }>(
-    `select id, code from belagsart where gueltig_bis is null or gueltig_bis >= current_date`);
+    `select id, code from belagsart
+      where gueltig_ab <= current_date
+        and (gueltig_bis is null or gueltig_bis >= current_date)
+      order by gueltig_ab`);
   const klassen = await db.abfrage<{ id: string; code: string }>(
     `select id, code from reinigungsklasse where archiviert_am is null`);
   const belagNach = new Map(belaege.map((b) => [b.code.toLowerCase(), b.id]));
@@ -369,9 +382,10 @@ export async function legeImportAn(
      * das bereits gefuellt ist.
      */
     `insert into raumbuch_import (mandant_id, objekt_id, dateiname, spalten_zuordnung,
+                                  schluessel_spalte,
                                   zeilen_gesamt, zeilen_gueltig, zeilen_fehler, status,
                                   geprueft_am, geprueft_von)
-     values (app.aktiver_mandant(), $1, $2, $3::jsonb, $4, $5, $6, 'geprueft',
+     values (app.aktiver_mandant(), $1, $2, $3::jsonb, $8, $4, $5, $6, 'geprueft',
              now(), $7)
      returning id`,
     /**
@@ -382,8 +396,18 @@ export async function legeImportAn(
      * und jeder spaetere `->>`-Zugriff greift ins Leere. Der Treiber
      * serialisiert selbst; ihm zuvorzukommen kodiert zweimal.
      */
+    /**
+     * `schluessel_spalte` sagt, WORAN dieser Import seine Raeume erkannt hat.
+     *
+     * NULL bedeutet laut 0026 den natuerlichen Rueckfall ueber (Etage,
+     * Raumnummer). Nicht gefuellt zu werden hiess also nicht „unbekannt",
+     * sondern eine falsche Aussage: jeder Import behauptete den Rueckfall,
+     * auch wenn er eine stabile Quellspalte hatte. Bei der Frage, warum ein
+     * Raum zugeordnet wurde, wie er zugeordnet wurde, ist das die Antwort.
+     */
     [objektId, dateiname, vorschau.zuordnung as never,
-     vorschau.gesamt, vorschau.gueltig, vorschau.fehlerhaft, benutzerId ?? null],
+     vorschau.gesamt, vorschau.gueltig, vorschau.fehlerhaft, benutzerId ?? null,
+     vorschau.zuordnung.quell_schluessel ?? null],
   );
   if (kopf === undefined) throw new TabellenFehler('Der Import wurde nicht angelegt', 'format');
 

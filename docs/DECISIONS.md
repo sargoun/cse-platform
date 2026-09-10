@@ -1856,6 +1856,69 @@ stillschweigend durchgelassen.
 `as` verschwindet.
 
 
+
+### D-111 · Ein Datum muss der Kalender kennen, nicht nur die Form
+
+`berlinTagesZeitpunkt` prueft `\d{4}-\d{2}-\d{2}` und rief dann `Date.UTC`.
+`Date.UTC(2026, 1, 30)` wirft nicht — es rutscht auf den 2. Maerz weiter. Ein
+Tippfehler legte damit eine Wiedervorlage auf einen Tag, den niemand gewaehlt
+hat, und die Oberflaeche zeigte danach brav das verschobene Datum.
+
+**Entschieden:** `istKalendertag()` prueft ueber Tag 0 des Folgemonats, damit
+die Schaltjahrregel nicht ein zweites Mal abgeschrieben dasteht. `2026-02-29`
+faellt, `2028-02-29` geht.
+
+### D-112 · Eine verschobene CSV ist ein Fehler, kein Rest
+
+Drei Wege, auf denen eine verschobene Datei als sauber durchging — alle drei
+treffen dieselben zwei Spalten, Flaeche und Belag, und keiner meldete etwas:
+
+1. Ein **nicht geschlossenes Anfuehrungszeichen** zog alles ab dem offenen
+   Zeichen in EIN Feld; die restlichen Zeilen verschwanden in einer Zelle.
+2. Eine Zeile mit **anderer Feldzahl** wurde still aufgefuellt oder
+   abgeschnitten. Ein aufgefuellter Raum bekam die Flaeche des Nachbarn.
+3. **`12,`** wurde als 12,000 gelesen. Eine abgeschnittene Flaeche als
+   vollstaendig auszugeben ist der teure Fall: sie sieht eingetragen aus.
+
+**Entschieden:** alle drei werfen `TabellenFehler` mit eigenem Grund
+(`anfuehrung`, `feldzahl`) und nennen die Zeilennummer.
+
+Nicht uebernommen: der Befund, `12.50` werde still als Dezimalzahl gelesen.
+`leseZahl` gibt dafuer `mehrdeutig: true` zurueck, und die Vorschau zeigt es —
+nachgeprueft, die Kennzeichnung ist da.
+
+### D-113 · Der Import sagt, woran er erkannt hat — und liest nur den heute gueltigen Katalog
+
+`schluessel_spalte` blieb leer. Laut 0026 bedeutet NULL den natuerlichen
+Rueckfall ueber (Etage, Raumnummer) — nicht gefuellt zu werden war also keine
+fehlende Angabe, sondern eine falsche: jeder Import behauptete den Rueckfall,
+auch wenn er eine stabile Quellspalte hatte.
+
+Und die Katalogsuche prueft jetzt BEIDE Grenzen. Ohne `gueltig_ab` waehlte die
+Uebernahme auch eine kuenftig gueltige Zeile und konnte die heute gueltige
+ueberschreiben — der Kalkulationsleser weist dieselbe Zeile korrekt ab, der
+Import haette den Raum trotzdem daran gehaengt.
+
+### D-114 · Die Kalkulationszeile zeigt auf ihre Angebotsposition
+
+`angebotsposition_id` blieb null, obwohl 0024 den zusammengesetzten
+Fremdschluessel dafuer traegt. Preis und Kosten liessen sich nur ueber die
+Positionsnummer zusammenbringen — die einzige Verbindung war eine Konvention.
+`insert … returning id` schreibt sie jetzt mit.
+
+### D-115 · Druckmasse sind Marken, keine Zahlen im Seitencode
+
+Die PDF-Seite trug `6px 4px`, `8pt`, `0.08em`, `8.5pt`, `32px` als Literale.
+DESIGN.md §11 nennt A4, 20 mm und 10 pt und schwieg zum Rest; die Regel
+„Designwerte kommen nur aus DESIGN.md" war damit fuer alles darunter nicht
+erfuellbar.
+
+**Entschieden:** §11 traegt jetzt sechs Massmarken, `theme.ts` spiegelt sie als
+`MASSE_DRUCK`, und die Seite liest sie. In PUNKT, nicht in Pixel: ein PDF wird
+in Punkt gesetzt, und die 10 pt Grundschrift bedeuten nur etwas, wenn daneben
+dasselbe Mass steht.
+
+
 ## Carried over from the Phase 0 review — not client questions
 
 Three items the review surfaced that are ours to do, recorded here so they are not

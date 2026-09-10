@@ -4,7 +4,7 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { formatiereMenge, mengeAusPostgresOderNull } from '@/server/services/finanz/menge';
-import { FARBEN_DRUCK, FARBEN_MARKE } from '@/lib/design/theme';
+import { FARBEN_DRUCK, FARBEN_MARKE, MASSE_DRUCK } from '@/lib/design/theme';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
@@ -150,20 +150,28 @@ export default async function Angebotsdokument(
                      max-width: 210mm; margin: 0 auto; padding: 20mm;
                      font-size: 10pt; line-height: 1.5; }
         .cse-blatt table { width: 100%; border-collapse: collapse; }
-        .cse-blatt th, .cse-blatt td { padding: 6px 4px; vertical-align: top; }
+        .cse-blatt th, .cse-blatt td {
+                     padding: ${MASSE_DRUCK['druck-zelle-y']} ${MASSE_DRUCK['druck-zelle-x']};
+                     vertical-align: top; }
         .cse-blatt thead th { border-bottom: 1px solid ${FARBEN_DRUCK['druck-text']};
-                              text-align: left; font-size: 8pt; text-transform: uppercase;
-                              letter-spacing: 0.08em; }
+                              text-align: left;
+                              font-size: ${MASSE_DRUCK['druck-kopf-groesse']};
+                              text-transform: uppercase;
+                              letter-spacing: ${MASSE_DRUCK['druck-kopf-sperrung']}; }
         .cse-blatt tbody tr { border-bottom: 1px solid ${FARBEN_DRUCK['druck-linie-leicht']}; }
         .cse-blatt tfoot tr:last-child { border-top: 1px solid ${FARBEN_DRUCK['druck-text']};
                                          font-weight: 600; }
         .cse-blatt .zahl { text-align: right; font-variant-numeric: tabular-nums;
                            white-space: nowrap; }
-        .cse-blatt .leise { color: ${FARBEN_DRUCK['druck-text-leise']}; font-size: 8.5pt; }
+        .cse-blatt .leise { color: ${FARBEN_DRUCK['druck-text-leise']};
+                            font-size: ${MASSE_DRUCK['druck-meta-groesse']}; }
         .cse-blatt .kopflinie { border: 0; border-top: 3px solid ${FARBEN_MARKE.red};
-                                margin: 8px 0 24px; }
+                                margin: ${MASSE_DRUCK['druck-block']} 0
+                                        calc(2 * ${MASSE_DRUCK['druck-block']}); }
         .cse-blatt .fuss { border-top: 1px solid ${FARBEN_DRUCK['druck-linie']};
-                           margin-top: 32px; padding-top: 8px; font-size: 8pt;
+                           margin-top: calc(2 * ${MASSE_DRUCK['druck-block']});
+                           padding-top: ${MASSE_DRUCK['druck-block']};
+                           font-size: ${MASSE_DRUCK['druck-kopf-groesse']};
                            color: ${FARBEN_DRUCK['druck-text-leise']}; }
         @media print {
           @page { size: A4; margin: 20mm; }
