@@ -460,3 +460,31 @@ create trigger trg_auftrag_geaendert_am
 
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0026)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- raumbuch_import (archiv): OPS-04, LEG-01. Der Importkopf dokumentiert, WIE das heutige Raumbuch entstanden ist — eine GoBD-Frage. Er bleibt, auch wenn seine Zwischenzeilen geraeumt sind; sein Ende ist verworfen_am.
+create trigger trg_raumbuch_import_kein_hard_delete
+  before delete on raumbuch_import
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_raumbuch_import_kein_truncate
+  before truncate on raumbuch_import
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on raumbuch_import from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- raum_import_historie (append): OPS-04, SEC-A9. Welcher Import welchen Raum wie veraendert hat, mit Vorher und Nachher. Eine Herkunftsspur mit Loeschpfad ist keine.
+create trigger trg_raum_import_historie_kein_hard_delete
+  before delete on raum_import_historie
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_raum_import_historie_kein_truncate
+  before truncate on raum_import_historie
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on raum_import_historie from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_raumbuch_import_geaendert_am
+  before update on raumbuch_import
+  for each row execute function kern.setze_geaendert_am();
+
+
+-- >>> Ende des generierten Blocks

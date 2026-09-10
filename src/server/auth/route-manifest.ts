@@ -74,6 +74,16 @@ export const ROUTEN: readonly RouteEintrag[] = [
     pfad: 'api/angebot',
     recht: 'angebot.versenden',
   },
+  {
+    /**
+     * Hochladen UND uebernehmen tragen dasselbe Recht: die Vorschau legt
+     * bereits Zwischenzeilen an, und wer eine Datei in den Mandanten schiebt,
+     * schreibt — auch wenn das lebende Raumbuch erst der zweite Schritt
+     * beruehrt.
+     */
+    pfad: 'api/raumbuch-import',
+    recht: 'objekt_import.schreiben',
+  },
 ] as const;
 
 /** Die Routen, die ein Recht verlangen. */

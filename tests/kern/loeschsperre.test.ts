@@ -38,12 +38,22 @@ describe('the delete-lock registry is the single source (01-ORDNERSTRUKTUR §6.2
   });
 
   it('every table gets its locks in the migration that creates it', () => {
+    /**
+     * Der Tabellenname endet HIER, und das ist der Unterschied zwischen
+     * einer Pruefung und einem Zufall.
+     *
+     * `before delete on raum` als blosse Teilzeichenkette trifft auch
+     * `before delete on raum_import_historie` — und meldete dann, `raum`
+     * bekomme seine Sperre in zwei Migrationen. Der Zeilenumbruch dahinter
+     * ist die Grenze des Namens.
+     */
+    const sperrzeile = (tabelle: string): RegExp =>
+      new RegExp(`before delete on ${tabelle}\\s*$`, 'mu');
+
     for (const l of KEIN_HARD_DELETE) {
-      expect(erzeuge(l.migration), l.tabelle).toContain(`before delete on ${l.tabelle}`);
+      expect(erzeuge(l.migration), l.tabelle).toMatch(sperrzeile(l.tabelle));
       for (const andere of MIGRATIONEN.filter((m) => m !== l.migration)) {
-        expect(erzeuge(andere), `${l.tabelle} @ ${andere}`).not.toContain(
-          `before delete on ${l.tabelle}`,
-        );
+        expect(erzeuge(andere), `${l.tabelle} @ ${andere}`).not.toMatch(sperrzeile(l.tabelle));
       }
     }
   });

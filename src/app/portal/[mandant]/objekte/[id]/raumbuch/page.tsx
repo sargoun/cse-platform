@@ -142,7 +142,16 @@ export default async function Raumbuch(
           ← {objekt.bezeichnung}
         </Link>
       </nav>
-      <h1 className="mb-s5 text-h1 text-text">Raumbuch</h1>
+      <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
+        <h1 className="m-0 text-h1 text-text">Raumbuch</h1>
+        <Link
+          href={`/portal/${mandant}/objekte/${id}/raumbuch/import`}
+          data-cse="zum-import"
+          className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-sm text-text hover:bg-surface-2"
+        >
+          Aus Datei importieren
+        </Link>
+      </div>
 
       {raeume.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">

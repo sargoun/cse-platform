@@ -213,6 +213,23 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'abgeschlossen und archiviert, nie entfernt.',
   },
   {
+    tabelle: 'raumbuch_import',
+    art: 'archiv',
+    migration: '0026',
+    grund:
+      'OPS-04, LEG-01. Der Importkopf dokumentiert, WIE das heutige Raumbuch '
+      + 'entstanden ist — eine GoBD-Frage. Er bleibt, auch wenn seine '
+      + 'Zwischenzeilen geraeumt sind; sein Ende ist verworfen_am.',
+  },
+  {
+    tabelle: 'raum_import_historie',
+    art: 'append',
+    migration: '0026',
+    grund:
+      'OPS-04, SEC-A9. Welcher Import welchen Raum wie veraendert hat, mit '
+      + 'Vorher und Nachher. Eine Herkunftsspur mit Loeschpfad ist keine.',
+  },
+  {
     tabelle: 'audit_log',
     art: 'append',
     migration: '0005',
@@ -415,6 +432,10 @@ export const GEAENDERT_AM: readonly TabelleJeMigration[] = [
   { tabelle: 'angebot', migration: '0024' },
   { tabelle: 'angebotsposition', migration: '0024' },
   { tabelle: 'auftrag', migration: '0025' },
+  { tabelle: 'raumbuch_import', migration: '0026' },
+  // `raumbuch_import_zeile` NICHT: sie ist die eine RAEUMBARE Tabelle dieser
+  // Domaene (§1.8) und traegt deshalb weder Loeschsperre noch geaendert_am —
+  // mit Sperre koennte die Raeumungspolicy gar nicht feuern.
   // `angebot_steuer` NICHT: sie wird einmal geschrieben und nie geaendert.
   // `kalkulation_position` NICHT: sie traegt kein geaendert_am. Eine Position
   // einer festgeschriebenen Kalkulation ist unveraenderlich, und eine einer

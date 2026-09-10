@@ -49,6 +49,17 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'angebot', pfad: 'angebot/index',
     schreibend: true, schreibRecht: 'angebot.versenden',
   },
+  /**
+   * Der Tabellenleser liest nur; der Import SCHREIBT — und zwar zweimal
+   * verschieden: die Vorschau legt Zwischenzeilen an, die Uebernahme aendert
+   * das lebende Raumbuch. Beide tragen dasselbe Recht, weil beide eine Datei
+   * in den Mandanten bringen.
+   */
+  { modul: 'objekt_import', pfad: 'raumbuch/tabelle', schreibend: false },
+  {
+    modul: 'objekt_import', pfad: 'raumbuch/import',
+    schreibend: true, schreibRecht: 'objekt_import.schreiben',
+  },
   { modul: 'zeit', pfad: 'zeit/dauer', schreibend: false },
   { modul: 'zeit', pfad: 'zeit/spalten', schreibend: false },
   { modul: 'dienstplan', pfad: 'zeit/arbzg', schreibend: false },
