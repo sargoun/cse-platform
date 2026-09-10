@@ -50,6 +50,7 @@ export default async function MeinPortal() {
       wurzel="/portal/mein"
       aktiverTab="heute"
       sichtbareTabs={zugang.sichtbareTabs}
+      navigationsRechte={zugang.navigationsRechte}
     >
       <h1 className="mb-s5 text-h1 text-text">Heute</h1>
 

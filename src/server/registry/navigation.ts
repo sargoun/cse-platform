@@ -25,6 +25,7 @@ export interface NaviEintrag {
 
 export const NAVIGATION: readonly NaviEintrag[] = [
   { schluessel: 'dashboard', label: 'Übersicht', pfad: '', recht: 'bericht.dashboard_lesen', gruppe: true, symbol: '▤' },
+  { schluessel: 'crm', label: 'CRM', pfad: 'crm', recht: 'crm.lesen', gruppe: false, symbol: '☏' },
   { schluessel: 'objekte', label: 'Objekte', pfad: 'objekte', recht: 'objekt.lesen', gruppe: true, symbol: '⌂' },
   { schluessel: 'dienstplan', label: 'Dienstplan', pfad: 'dienstplan', recht: 'dienstplan.lesen', gruppe: true, symbol: '▦' },
   { schluessel: 'zeiten', label: 'Zeiten', pfad: 'zeiten', recht: 'zeit.lesen', gruppe: true, symbol: '◷' },

@@ -414,6 +414,39 @@ is unreadable and unprofessional.
 - Fixed footer: entity name, register court, HRB number, managing director
 - A4, `20mm` margins, `10pt` body
 
+**The print palette is its own set of tokens.** The screen palette is
+dark-first; the page is not. Reusing `--surface` on paper would print a black
+rectangle, and reusing `--text` would print near-white on white. These five
+carry the rule above, and nothing outside a printed document may use them:
+
+| Token | Value | Use |
+|---|---|---|
+| `--druck-papier` | `#ffffff` | the sheet |
+| `--druck-text` | `#111111` | body text |
+| `--druck-text-leise` | `#444444` | long text under a position, footer |
+| `--druck-linie` | `#dddddd` | the footer rule |
+| `--druck-linie-leicht` | `#eeeeee` | row separators in the position table |
+
+**Print metrics are tokens too.** The screen scale of §2 and §3 is built for a
+72 dpi viewport and a 16px root; paper is neither. A table row that reads well
+on screen wastes a third of an A4 sheet, and `--s3` between two figures is a
+column that no longer looks like a column. These are the values a printed
+document uses, and — like the palette above — nothing outside one may use them:
+
+| Token | Value | Use |
+|---|---|---|
+| `--druck-zelle-y` | `6pt` | cell padding, block axis |
+| `--druck-zelle-x` | `4pt` | cell padding, inline axis |
+| `--druck-kopf-groesse` | `8pt` | table header, uppercase |
+| `--druck-kopf-sperrung` | `0.08em` | its letter-spacing — same as `micro` in §2 |
+| `--druck-meta-groesse` | `9pt` | footer, long text under a position |
+| `--druck-block` | `12pt` | gap between two blocks on the sheet |
+
+Points, not pixels: a PDF is laid out in points, and `10pt` body from the list
+above only means anything if what sits next to it is measured the same way.
+
+The header rule is `--red` from §1 — the one place CSE red appears on paper.
+
 ---
 
 ## 12. Do not

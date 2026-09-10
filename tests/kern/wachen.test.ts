@@ -63,6 +63,29 @@ describe('the merge guards fail the branch that breaks an invariant', () => {
     expect(ausgabe).toContain('geld-nie-numeric');
   });
 
+  it('(3a-i) a money-named column stays caught even WITH an exemption comment', () => {
+    const { code, ausgabe } = guardsMit({
+      'drizzle/9999_fixture.sql': lies('tests/fixtures/wachen/geld-numeric-mit-ausnahme.sql'),
+    });
+    expect(code).toBe(1);
+    expect(ausgabe).toContain('geld-nie-numeric');
+  });
+
+  it('(3a-ii) an ambiguous `…wert` column that NAMES its unit passes', () => {
+    const { code } = guardsMit({
+      'drizzle/9999_fixture.sql': lies('tests/fixtures/wachen/nicht-geld-mit-einheit.sql'),
+    });
+    expect(code).toBe(0);
+  });
+
+  it('(3a-iii) the same column without a named unit still fails', () => {
+    const { code, ausgabe } = guardsMit({
+      'drizzle/9999_fixture.sql': lies('tests/fixtures/wachen/nicht-geld-ohne-einheit.sql'),
+    });
+    expect(code).toBe(1);
+    expect(ausgabe).toContain('geld-nie-numeric');
+  });
+
   it('(3b) a `timestamp without time zone` column fails CI (invariant 2)', () => {
     const { code, ausgabe } = guardsMit({
       'drizzle/9999_fixture.sql': lies('tests/fixtures/wachen/zeit-ohne-tz.sql'),
@@ -108,6 +131,17 @@ describe('the merge guards fail the branch that breaks an invariant', () => {
     expect(code).toBe(0);
   });
 });
+
+  it('(7b) eine CSS-Deklaration ist keine Klasse — die Klasse daneben aber schon', () => {
+    const { code, ausgabe } = guardsMit({
+      'src/components/Fixtur.tsx': lies('tests/fixtures/wachen/farbe-neben-css.tsx'),
+    });
+    expect(code).toBe(1);
+    expect(ausgabe).toContain('tailwind-farbe');
+    // Gemeldet wird die KLASSE, nicht die Deklaration darueber.
+    expect(ausgabe).toContain('text-gibtesnicht');
+    expect(ausgabe).not.toContain('border-bottom');
+  });
 
 describe('(6) the database region is pinned to the EU (D-04)', () => {
   it('supabase/config.toml names eu-central-1', () => {

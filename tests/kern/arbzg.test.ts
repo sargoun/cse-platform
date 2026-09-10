@@ -12,7 +12,7 @@ import {
   pruefeArbzg,
   type Schicht,
 } from '../../src/server/services/zeit/arbzg.js';
-import { ZeitFehler } from '../../src/server/services/zeit/dauer.js';
+import { berlinTagesZeitpunkt, ZeitFehler } from '../../src/server/services/zeit/dauer.js';
 
 const utc = (iso: string): Date => new Date(iso);
 
@@ -214,5 +214,29 @@ describe('the §3 Satz 2 extension changes severity, never the finding (O-18)', 
       }).find((b) => b.regel === 'tagesarbeitszeit_ueber_10h');
       expect(zehn?.schwere).toBe('verstoss');
     }
+  });
+});
+
+/**
+ * Ein Datum, das es nicht gibt, wird abgewiesen — nicht weitergerutscht.
+ *
+ * `Date.UTC(2026, 1, 30)` wirft nicht, sondern ergibt den 2. Maerz. Die
+ * Formpruefung `\d{4}-\d{2}-\d{2}` laesst `2026-02-30` durch, und danach
+ * legte eine Wiedervorlage auf einem Tag, den niemand gewaehlt hat.
+ */
+describe('berlinTagesZeitpunkt: der Kalender, nicht nur die Form', () => {
+  it.each(['2026-02-30', '2026-02-31', '2026-04-31', '2026-13-01', '2026-00-10', '2026-01-00'])(
+    'weist %s ab', (datum) => {
+      expect(() => berlinTagesZeitpunkt(datum)).toThrow(ZeitFehler);
+    });
+
+  it('der 29. Februar geht im Schaltjahr und faellt sonst', () => {
+    expect(() => berlinTagesZeitpunkt('2028-02-29')).not.toThrow();
+    expect(() => berlinTagesZeitpunkt('2026-02-29')).toThrow(ZeitFehler);
+  });
+
+  it('und ein gewoehnlicher Tag geht weiterhin', () => {
+    expect(berlinTagesZeitpunkt('2026-07-14', 9).toISOString())
+      .toBe('2026-07-14T07:00:00.000Z');   // CEST: 09:00 Berlin = 07:00 UTC
   });
 });

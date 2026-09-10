@@ -23,6 +23,8 @@ export interface NochNichtGebautProps {
   readonly leiste: LeistenSchluessel;
   readonly wurzel: string;
   readonly sichtbareTabs?: Readonly<Record<string, boolean>>;
+  /** Je Rechteschluessel der NAVIGATION — fuellt das Blatt hinter `Mehr`. */
+  readonly navigationsRechte?: Readonly<Record<string, boolean>>;
   readonly aktiverTab?: string;
   /** Die Phase aus dem Manifest — sie sagt, WANN, statt nur "spaeter". */
   readonly phase: number | null;
@@ -30,7 +32,7 @@ export interface NochNichtGebautProps {
 }
 
 export function NochNichtGebaut({
-  titel, bereich, leiste, wurzel, sichtbareTabs, aktiverTab, phase, pfad,
+  titel, bereich, leiste, wurzel, sichtbareTabs, aktiverTab, phase, pfad, navigationsRechte,
 }: NochNichtGebautProps) {
   return (
     <PortalRahmen
@@ -41,6 +43,7 @@ export function NochNichtGebaut({
       wurzel={wurzel}
       {...(aktiverTab === undefined ? {} : { aktiverTab })}
       {...(sichtbareTabs === undefined ? {} : { sichtbareTabs })}
+      {...(navigationsRechte === undefined ? {} : { navigationsRechte })}
     >
       <h1 className="mb-s4 text-h1 text-text">Dieses Modul wird noch gebaut</h1>
       <p data-cse="noch-nicht" className="max-w-[72ch] text-base text-text-muted">

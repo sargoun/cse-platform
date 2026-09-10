@@ -28,11 +28,14 @@ export interface PortalRahmenProps {
    * in derselben gebundenen Transaktion bewertet wie den Zugang zur Seite.
    */
   readonly sichtbareTabs?: Readonly<Record<string, boolean>>;
+  /** Je Rechteschluessel der NAVIGATION — fuellt das Blatt hinter `Mehr`. */
+  readonly navigationsRechte?: Readonly<Record<string, boolean>>;
   readonly children: React.ReactNode;
 }
 
 export function PortalRahmen({
-  titel, bereich, nurLesen, leiste, wurzel, aktiverTab, sichtbareTabs, children,
+  titel, bereich, nurLesen, leiste, wurzel, aktiverTab, sichtbareTabs,
+  navigationsRechte, children,
 }: PortalRahmenProps) {
   const tabs = tableiste(leiste);
   return (
@@ -74,6 +77,8 @@ export function PortalRahmen({
         wurzel={wurzel}
         {...(aktiverTab === undefined ? {} : { aktiv: aktiverTab })}
         {...(sichtbareTabs === undefined ? {} : { sichtbar: sichtbareTabs })}
+        {...(navigationsRechte === undefined ? {} : { navigationsRechte })}
+        gruppenansicht={leiste === 'gruppe'}
         label={titel}
       />
     </div>

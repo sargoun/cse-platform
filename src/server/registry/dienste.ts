@@ -29,6 +29,45 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'nummernkreis', pfad: 'finanz/nummernkreis',
     schreibend: true, schreibRecht: 'nummernkreis.ziehen',
   },
+  { modul: 'finanzen', pfad: 'finanz/menge', schreibend: false },
+  /**
+   * Die Kalkulation LIEST — sie schreibt nichts. Der Preis, den sie
+   * ausrechnet, wird erst vom Angebot gespeichert, und das ist der Dienst,
+   * der dann sein Schreibrecht nennt. Solange die Rechnung selbst nichts
+   * ablegt, gilt sie auch in der Gruppenansicht als unbedenklich.
+   */
+  { modul: 'objekt', pfad: 'kalkulation/richtzeit', schreibend: false },
+  { modul: 'objekt', pfad: 'kalkulation/tarif', schreibend: false },
+  { modul: 'objekt', pfad: 'kalkulation/raumbuch', schreibend: false },
+  { modul: 'objekt', pfad: 'kalkulation/index', schreibend: false },
+  /**
+   * Die BESTAETIGUNG schreibt dagegen: sie setzt die Werte, auf denen der
+   * Preis ruht, und hebt `ist_platzhalter`. Deshalb nennt sie ihr Recht.
+   */
+  {
+    modul: 'objekt', pfad: 'kalkulation/bestaetigung',
+    schreibend: true, schreibRecht: 'kalkulation.schreiben',
+  },
+  /**
+   * Der Angebotsdienst SCHREIBT — und sein Recht ist `angebot.versenden`,
+   * nicht `angebot.schreiben`: der Uebergang, der etwas aus dem Haus laesst,
+   * ist der, der ein eigenes Recht braucht (Invariante 7).
+   */
+  {
+    modul: 'angebot', pfad: 'angebot/index',
+    schreibend: true, schreibRecht: 'angebot.versenden',
+  },
+  /**
+   * Der Tabellenleser liest nur; der Import SCHREIBT — und zwar zweimal
+   * verschieden: die Vorschau legt Zwischenzeilen an, die Uebernahme aendert
+   * das lebende Raumbuch. Beide tragen dasselbe Recht, weil beide eine Datei
+   * in den Mandanten bringen.
+   */
+  { modul: 'objekt_import', pfad: 'raumbuch/tabelle', schreibend: false },
+  {
+    modul: 'objekt_import', pfad: 'raumbuch/import',
+    schreibend: true, schreibRecht: 'objekt_import.schreiben',
+  },
   { modul: 'zeit', pfad: 'zeit/dauer', schreibend: false },
   { modul: 'zeit', pfad: 'zeit/spalten', schreibend: false },
   { modul: 'dienstplan', pfad: 'zeit/arbzg', schreibend: false },

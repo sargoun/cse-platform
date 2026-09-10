@@ -1440,7 +1440,573 @@ von denen jemand ENTSCHIEDEN hat, dass sie ersetzt sind.
 Eine Adresse, die Seite UND Quelle waere, bricht den Import — vor dem ersten
 Schreibvorgang. Sonst zoege er diese Seite bei jedem Lauf still zurueck.
 
+### D-91 · Der natuerliche Schluessel des Raumbuchs traegt die Etage
+
+`UNIQUE (objekt_id, raumnummer)` sieht richtig aus und ist der teuerste Fehler
+dieser Phase: "101" im Untergeschoss und "101" im 1. OG sind zwei Raeume, und
+in jedem Buerohaus gibt es beide.
+
+**Entschieden:** der Schluessel ist `(objekt_id, coalesce(etage, ''),
+raumnummer)`, teilweise auf nicht archivierte Zeilen mit Nummer. Das
+`coalesce` gehoert dazu: ohne es waeren zwei nummerierte Raeume ohne Etage
+fuer den Index verschieden, und derselbe Flur kaeme bei jedem Import erneut
+herein.
+
+Warum das keine Kleinigkeit ist: ein verschmolzener Raum verliert seine m²
+aus `Σ m² ÷ Leistungswert`. Das Angebot wird dadurch zu billig, die Rechnung
+dazu bleibt korrekt, und niemand sieht dem Ergebnis etwas an. Raeume OHNE
+Nummer — Flur, Treppenhaus, Aufzugsvorraum — bleiben ausdruecklich erlaubt;
+`NOT NULL` zwaenge den Importeur, eine Nummer zu erfinden, und eine erfundene
+Nummer wird beim naechsten Import anders erfunden.
+
+### D-92 · Der Leistungswert ist eine entzogene Spalte, kein Katalogfeld
+
+`belagsart.leistungswert_qm_pro_stunde` ist die Marge in einer Spalte: aus ihr
+und der Flaeche entsteht der Preis, und wer sie kennt, rechnet jedes Angebot
+nach.
+
+**Entschieden:** `SELECT` darauf ist `cse_app` entzogen (K-05). Gelesen wird
+sie ueber `app.leistungswerte_lesen(stichtag)`, das Bereich und Recht selbst
+prueft und den ganzen Katalog auf einmal gibt — ein Leser je Zeile waere N
+Aufrufe fuer eine Antwort. `INSERT` und `UPDATE` bleiben erteilt: wer den
+Katalog pflegen darf, setzt den Wert, und die Policy entscheidet, ob er das
+darf. Ein `WHERE leistungswert > 3` scheitert ebenfalls — eine Bedingung ueber
+eine Spalte braucht deren `SELECT`-Recht.
+
+Anders als `app.rechtsgrundlage_lesen` schreibt dieser Leser NICHT ins Audit:
+ein Leistungswert ist ein Geschaeftsgeheimnis, kein personenbezogenes Datum,
+und ein Eintrag je Raumbuch-Ansicht ertraenkte genau das Protokoll, auf das
+sich eine Auskunft nach LEG-08 stuetzt. Dieselbe Ueberlegung gilt fuer
+`objekt.bemerkung`, `objekt.zutritt_hinweis` und `raum.bemerkung`: interne
+Notizen an einem Ort, den der Kunde selbst im Portal sieht.
+
+### D-93 · Eine Belagsart gilt fuer einen Zeitraum, und am Wechseltag genau einmal
+
+Ein neuer Leistungswert ersetzt den alten nicht, er loest ihn ab — sonst
+liesse sich ein bereits abgegebenes Angebot nicht mehr nachrechnen.
+
+**Entschieden:** `belagsart` traegt `gueltig_ab`/`gueltig_bis` (EINSCHLIESSLICH,
+§0.7) und einen GiST-Ausschluss ueber
+`daterange(gueltig_ab, gueltig_bis + 1, '[)')`. Ohne ihn haette "der
+Leistungswert am 1. Maerz" zwei Antworten, sobald jemand den neuen Satz am
+selben Tag beginnen laesst, an dem der alte endet — und welche der beiden die
+Kalkulation nimmt, entschiede die Sortierung.
+
+Aenderungen an `belagsart` stehen im Audit, Aenderungen an `raum` nicht. Das
+ist eine Entscheidung: ein geaenderter Leistungswert bepreist jedes offene
+Angebot neu und aendert sich selten; ein Raumbuch kommt zu Tausenden aus einem
+Import, und ein Eintrag je Raum ertraenkte das Protokoll.
+
+### D-94 · Ein Objekt ist ein ORT; die kaufmaennische Beziehung haengt am Auftrag
+
+`objekt.kunde_id` ist nullbar, und das ist keine Nachlaessigkeit.
+
+**Entschieden:** dasselbe Gebaeude wird zu Recht von zwei Kunden derselben
+Gesellschaft beauftragt (Eigentuemer und Mieter), und ein Veranstaltungsort
+(REQ-03) existiert, bevor es einen Kundenstamm gibt. Ein Objekt OHNE
+Kundenbezug ist damit im Kundenportal fuer niemanden sichtbar — `kunde_id =
+any(app.aktuelle_kunden())` faellt bei NULL von selbst durch, und genau so
+soll es sein. Der Ansprechpartner haengt am zusammengesetzten Schluessel
+`(mandant_id, kunde_id, id)`: ein Vor-Ort-Kontakt eines ANDEREN Kunden ist
+dadurch nicht einfuegbar, nicht nur unerwuenscht.
+
+Offen bleibt O-70 (ein Gebaeude fuer zwei Kunden: ein Objekt oder zwei) — die
+Nullbarkeit haelt beide Antworten offen, statt eine vorwegzunehmen.
+
+### D-95 · Die Kalkulation rechnet ganzzahlig, rundet je Zeile und nennt ihre Platzhalter
+
+`Σ (m² ÷ Leistungswert) × Frequenzfaktor` als Gleitkomma ergibt einen Preis,
+der um Bruchteile daneben liegt — jedes Mal in dieselbe Richtung.
+
+**Entschieden:** Flaechen und Leistungswerte sind ganzzahlige Tausendstel
+(`menge.ts`, das Gegenstueck zu `geld.ts`), Zeit sind ganze Sekunden, Geld
+sind ganze Cent. Die Einheiten kuerzen sich —
+`Sekunden = 3600 × Milli-m² ÷ Milli-m²/h` —, also gibt es keinen Zwischenwert
+mit Nachkommastellen. Gerundet wird JE ZEILE und dann summiert, damit die
+angezeigten Zeilen die Summe ergeben; eine Liste, unter der eine andere Summe
+steht, kostet Vertrauen an genau der Stelle, an der es zaehlt. Wagnis und
+Gewinn rechnen auf die Zwischensumme, nicht auf den Lohn.
+
+Stundensatz und Zuschlaege (O-16), die Umrechnung Turnus → Faktor (O-56) und
+die Leistungswerte selbst (O-17) sind offen. Sie stehen hinter je einer
+Schnittstelle mit einem sichtbaren Platzhalter, und JEDES Ergebnis traegt
+`istPlatzhalter` samt O-Nummern bis in die Oberflaeche. Ein unbekannter Turnus
+bekommt keinen Ersatzwert, sondern wirft — "dann eben monatlich" waere ein
+Preis, den niemand entschieden hat.
+
+Was nicht kalkulierbar ist, wird GENANNT: Flaeche ohne Belagsart und
+Belagsarten ohne am Stichtag gueltigen Wert kommen als eigene Groesse zurueck
+und stehen als Warnung ueber dem Betrag. Weggelassen ergaeben sie ein zu
+billiges Angebot, dem man nichts ansieht.
+
+### D-96 · Die Geld-Wache kennt zwei Wortklassen, und eine Ausnahme nennt ihre Einheit
+
+`geld-nie-numeric` schlug auf `leistungswert_qm_pro_stunde` an, weil `wert`
+in ihrer Wortliste stand. Der Wert ist m²/h, kein Betrag.
+
+**Entschieden:** die Wache trennt eindeutige Geldwoerter (`betrag`, `preis`,
+`summe`, `saldo`, `entgelt`, `kosten`, `honorar`, `einbehalt`) von
+mehrdeutigen (`wert`, `satz`). Eine mehrdeutige Spalte darf `numeric` sein,
+wenn die Zeile ihre EINHEIT nennt (`-- nicht-geld: m²/h`); eine geldbenannte
+nie, egal wie sie kommentiert ist. Die Ausnahme ist damit eine Aussage, die
+ein Pruefer nachlesen kann — kein Schalter, der die Wache stumm stellt. Drei
+Fixtures pruefen genau diese drei Faelle.
+
+### D-97 · Was nicht bepreisbar ist, wird nicht bepreist — und nicht weggelassen
+
+Die Copilot-Durchsicht der Phase 4 fand drei Wege, auf denen ein Angebot zu
+billig hinausgegangen waere, ohne dass irgendetwas daran falsch aussah:
+
+1. Die Positionen trugen `lohnkosten` statt des Nettoanteils — Gemeinkosten,
+   Wagnis und Gewinn fehlten im Dokument vollstaendig.
+2. Zum Angebot wurde keine `kalkulation`-Zeile gespeichert. Damit fragte
+   `kern.angebot_versand_pruefen` eine leere Sicht, und ein Preis auf den
+   Platzhaltern O-16/O-56 passierte die Sperre, die genau dafuer gebaut war.
+3. Flaeche ohne Belagsart und Belagsarten ohne am Stichtag gueltigen
+   Leistungswert steckten in keiner Zeile und verschwanden aus dem Preis.
+
+**Entschieden:** (1) `verteileNetto` verteilt den Nettopreis nach groesstem
+Rest auf die Zeilen, sodass die Zeilensumme das Netto EXAKT trifft; wie die
+Zuschlaege im Dokument erscheinen, ist O-208. (2) `uebernimmKalkulation`
+schreibt Kalkulationskopf und -positionen mit, samt Schnappschuss jeder
+Eingangsgroesse. (3) Ein Angebot ueber nicht bepreisbare Flaeche wird
+ABGEWIESEN, mit einem Fehler, der die Luecke benennt — statt sie zu schaetzen
+oder zu verschweigen. Ein Preis, den wir nicht rechnen koennen, ist keine Zahl,
+die wir waehlen duerfen.
+
+Dazu: `belagsart.ist_platzhalter` reist jetzt bis in `kalkuliere` (O-17). Ohne
+das haette die Kalkulation nach der Antwort auf O-16 und O-56 einen Preis als
+bestaetigt gemeldet, der auf einem geschaetzten Richtwert ruht.
+
 ---
+
+### D-98 · Ein Datum aus dem Formular wird ein Berliner Zeitpunkt, nie ein UTC-Tag
+
+Drei Stellen rechneten mit UTC, wo Europe/Berlin gemeint war: die
+Wiedervorlage eines Leads mit festem `+01:00`, das Startdatum eines Auftrags
+aus `toISOString()`, und der Stichtag, mit dem der Belagsart-Katalog gelesen
+wird. Alle drei sind die halbe Jahreshaelfte richtig — und in den frueben
+Stunden eines Berliner Tages beziehungsweise ueber die Sommerzeit hinweg
+falsch, ohne dass die Oberflaeche etwas davon zeigt.
+
+**Entschieden:** `berlinKalendertag` fuer jeden Kalendertag,
+`berlinTagesZeitpunkt(datum, stunde)` fuer jedes Datum, das ein Zeitpunkt
+wird. Beide liegen in `services/zeit/dauer.ts` neben den K-11-Faellen, und
+beide sind mit einem Sommer-, einem Winter- und beiden Umstellungstagen
+geprueft (Invariante 2).
+
+### D-99 · Das UWG-Sendetor haengt jetzt wirklich — und zwei Umgehungen sind zu
+
+`kern.uwg_sendetor()` war definiert, kommentiert (`BEFORE INSERT auf jeder
+Ausgangsspur`) und an KEIN Ereignis gehaengt. Die Regel stand da, und jede
+Zeile ging daran vorbei. Ein Test gegen `app.darf_kontaktiert_werden` blieb
+dabei gruen, waehrend der Sendepfad offen stand — die teuerste Sorte
+Sicherheit: eine, die man geprueft zu haben glaubt.
+
+**Entschieden:** der Ausloeser haengt an `lead_aktivitaet`, und drei Dinge
+kommen dazu.
+
+1. **`zweck = 'intern'` ist kein Freibrief.** `app.darf_kontaktiert_werden`
+   beantwortet `intern` mit `true` und ueberspringt Einwilligung, Widerspruch
+   und Kundenstatus — richtig fuer eine Notiz an einen Kollegen, ein offenes
+   Tor an einer ausgehenden E-Mail. Eine Mail an einen `ansprechpartner` geht
+   per Definition nach draussen und wird abgewiesen.
+2. **Ein fehlender Kanal ist eine Luecke, kein Freibrief.** `kanal not in (…)`
+   ergibt bei NULL weder wahr noch falsch; welchen Zweig die Zeile nahm, war
+   Zufall. Eine ausgehende E-Mail oder ein Anruf OHNE Kanal wird jetzt
+   abgewiesen, sonst waere das Tor mit einer leeren Spalte zu umgehen.
+3. **Der Beleg wird gezogen, nicht behauptet.** `rechtsgrundlage_snapshot`
+   fuellt der Ausloeser aus dem lebenden Kontakt — ueber den schmalen Leser
+   `app.rechtsgrundlage_von`, denn die Spalte bleibt `cse_app` entzogen
+   (K-05). Ohne den Schnappschuss stuende in der Aufzeichnung, DASS gesendet
+   wurde, aber nicht, warum es gedurft war — und genau das fragt eine
+   Abmahnung.
+
+Folge, sichtbar und gewollt: die Antwort auf eine Webanfrage braucht einen
+aufgezeichneten Empfaenger. Die Formularannahme legt heute keinen
+`ansprechpartner` an; bis sie es tut, verlangt die Datenbank, dass ihn jemand
+anlegt. Das ist die richtige Reihenfolge — eine Antwort, von der niemand sagen
+kann, an wen sie ging, belegt im Streitfall nichts.
+
+---
+
+### D-100 · Der Verantwortliche eines Auftrags gehoert zu dieser Gesellschaft
+
+`auftrag.verantwortlich_benutzer_id` zeigt auf `benutzer` — global, also traegt
+der Fremdschluessel den Mandanten nicht mit. Das Formular fuellt seine
+Auswahlliste mandantengefiltert, aber eine Auswahlliste ist keine Grenze: ein
+von Hand abgeschickter POST setzt jede id, und der Auftrag der Reinigung haette
+einen Verantwortlichen, der nur bei der Security arbeitet.
+
+**Entschieden:** die Grenze liegt in der DATENBANK, nicht in der Route — ein
+Ausloeser auf INSERT und UPDATE gegen `app.ist_mitglied(benutzer, mandant)`,
+`security definer`, weil `benutzer_mandant` unter RLS steht und der Aufrufer
+dort die Mitgliedschaften seiner Kollegen nicht sieht. Entzogene und
+abgelaufene Mitgliedschaften zaehlen nicht. Gleiches gilt fuer das Umhaengen:
+ein spaeterer Wechsel auf ein fremdes Konto ist derselbe Fehler.
+
+### D-101 · Wer den Versand sperrt, muss einen Weg heraus bauen
+
+Die Sperre aus D-97 machte etwas sichtbar, das vorher niemandem auffiel: es
+gab keinen Weg, die Werte zu bestaetigen. Ein Angebot aus dem Raumbuch stand
+auf O-16 und O-17 und liess sich damit NIE versenden — die Seite
+`/angebote/[id]/kalkulation` stand in der Seitenkarte und war nie gebaut.
+
+**Entschieden:** sie ist jetzt gebaut, und sie ist ausdruecklich kein
+Schalter. Sie zeigt zuerst den Rechenweg — Flaeche, Leistungswert, Stunden,
+Stundensatz, je Zeile — und fragt erst dann nach den Zahlen. Wer bestaetigt,
+ohne den Rechenweg gesehen zu haben, bestaetigt eine Ueberschrift.
+
+Zwei Aussagen bleiben dabei getrennt: die Zuschlaege gelten fuer DIESES
+Angebot; die Reinigungsrichtwerte (O-17) gelten fuer den Katalog und damit
+fuer jedes kuenftige Angebot. Beides in einem Haekchen zusammenzufassen
+hiesse, eine Katalogentscheidung als Angebotsdetail zu tarnen. Und was
+gruppenweit gilt, bleibt offen (O-16) — bis der Mandant es beantwortet,
+statt dass eine Vorgabe im Code es fuer ihn tut.
+
+Beide Eingaben gehen durch geprueft Funktionen: `prozentInBasispunkte`
+rechnet `15,5 %` ohne Gleitkomma auf 1550, `stundensatzInCent` ueber
+`parseGeld`. Was keine Zahl ist, wird abgewiesen statt gerundet.
+
+---
+
+### D-102 · Im App Router setzt `Link` die dynamischen Segmente eines Objektziels NICHT ein
+
+`href={{ pathname: '/portal/[mandant]/…', query: { mandant, id } }}` ist die
+Form, die im Pages Router die Segmente einsetzt. Im App Router bleibt der
+Pfad woertlich stehen: der Klick landet auf einer Adresse mit eckigen
+Klammern, also auf 404. `typedRoutes` merkt es nicht — das Muster IST eine
+gueltige Route.
+
+**Entschieden:** Ziele mit dynamischen Segmenten werden als Zeichenkette
+geschrieben (`` href={`/portal/${mandant}/angebote/${id}`} ``), so wie es das
+uebrige Portal bereits tut. Die Objektform bleibt richtig fuer einen
+FERTIGEN Pfad mit Abfrageparametern — dort setzt sie nichts ein und muss es
+auch nicht.
+
+### D-103 · Der Raum ohne Nummer bekommt einen Schluessel, und die Uebernahme prueft ihre eigene Entscheidung nach
+
+Die Sperre auf dem Importkopf (D-97-Umfeld) serialisiert zwei Uebernahmen
+DESSELBEN Imports. Sie hilft nicht gegen zwei getrennte Vorschauen derselben
+Datei: beide sehen ein leeres Raumbuch, beide entscheiden `anlegen`, und die
+zweite Uebernahme legt den Raum ein zweites Mal an. Fuer Raeume mit Nummer
+faengt `raum_natuerlich_uk` das ab; fuer einen Flur ohne Nummer griff KEIN
+Schluessel — `raum_quelle_uk` verlangt einen Quellschluessel, den die Datei
+nicht mitbringt. Ab dann zaehlt die Flaeche dieses Flurs doppelt in jede
+Kalkulation.
+
+**Entschieden — zwei Linien, und beide sind noetig:**
+
+1. `raum_bezeichnung_uk`: eindeutig ueber (Objekt, Etage, kleingeschriebene
+   Bezeichnung), wo keine Raumnummer steht. Damit ist die Zusage aus
+   08-PR-PLAN §288 (2) — „committing the same file twice produces zero
+   duplicates“ — auch fuer den unnummerierten Raum eine Eigenschaft der
+   DATEN und nicht eine des Ablaufs.
+2. Die Uebernahme gleicht ihre gespeicherte Entscheidung gegen das LEBENDE
+   Raumbuch ab. Existiert der Raum inzwischen doch, wird aktualisiert statt
+   ein zweiter angelegt.
+
+Warum beides: ohne (2) haelt (1) zwar die Regel, meldet aber `23505` und
+reisst die uebrigen Zeilen der Datei mit — beides in einem Mutationstest
+gezeigt. Ohne (1) haelt (2) nur, solange jeder Schreiber durch diesen Dienst
+geht.
+
+Der Grundsatz „was der Mensch in der Vorschau gesehen hat, ist das, was
+passiert“ bleibt gewahrt: freigegeben wurde „dieser Raum soll mit diesen
+Werten dastehen“. Ein Duplikat war nie Teil dieser Freigabe.
+
+---
+
+### D-104 · Das Ursprungstor vergleicht das Schema mit, und steht nur noch einmal da
+
+`istGleicherUrsprung` verglich `URL.host`. `host` ist Rechnername plus Port und
+traegt das Schema NICHT: `http://cse.example` und `https://cse.example` haben
+denselben `host`. Eine Seite unter `http` auf demselben Namen kam damit durch
+das Tor einer `https`-Anfrage — die CSRF-Schranke war offen fuer genau den
+Angriff, gegen den sie steht. Sie stand ausserdem sechsmal fast gleich in sechs
+Route-Dateien.
+
+**Entschieden:** ein Modul, `server/auth/ursprung.ts`, und verglichen wird der
+ganze Ursprung.
+
+**Nicht gegen `nextUrl.origin`,** und das ist der Teil, den der Befund offen
+liess. Hinter einem TLS-beendenden Proxy sieht die Anwendung `http`, waehrend
+der Browser `https` gesprochen hat; ein strenger Vergleich haette dann jede
+ECHTE Anfrage abgewiesen — das Tor waere zu gewesen, aber fuer die Falschen.
+Das Schema kommt darum aus `x-forwarded-proto`, wenn ein Proxy es setzt, sonst
+aus der Anfrage. `x-forwarded-host` wird bewusst nicht gelesen: er ist vom
+Aufrufer setzbar und liesse den erwarteten Ursprung selbst bestimmen.
+
+### D-105 · Der Platzhalter-Stand gehoert zur Kalkulation, nicht zum Katalog
+
+Die Bestaetigung eines Angebots schrieb `belagsart.ist_platzhalter = false` —
+in den GETEILTEN Katalog — und die Sperre `kalkulation_platzhalter` las den
+Katalog live. Wer O-17 fuer EIN Angebot bestaetigte, raeumte damit im selben
+Moment jedes ANDERE Angebot auf derselben Belagsart aus der Sperre. Preise, die
+auf dem Platzhalterwert gerechnet worden waren, durften anschliessend hinaus,
+ohne dass jemand sie angesehen hatte. Kein Fehler wurde sichtbar: die Sperre
+hoerte einfach auf, fuer sie zu gelten.
+
+Dieselbe Raute trug ausserdem DREI Fragen — Tarif (O-16), Frequenzfaktor
+(O-56) und Leistungswert (O-17) — und die Bestaetigung kannte nur die erste,
+loeschte aber alle drei. O-56 hatte nicht einmal ein Eingabefeld.
+
+**Entschieden (Migration 0027):** drei Fragen, drei Spalten.
+`kalkulation.ist_platzhalter` heisst nur noch „Tarif unbestaetigt“,
+`kalkulation.frequenz_ist_platzhalter` traegt O-56, und
+`kalkulation_position.leistungswert_ist_platzhalter` traegt O-17 je Zeile — als
+SCHNAPPSCHUSS. Die Sicht liest ausschliesslich Schnappschuesse; eine
+Katalogpflege raeumt dort nichts mehr ab, weil sie den laengst gerechneten
+Preis auch nicht aendert. Die Bestaetigung fragt nach dem Frequenzfaktor und
+laesst O-56 offen, wenn er fehlt; der Katalog bleibt unberuehrt.
+
+Die Bestandsdaten wurden nur in die vorsichtige Richtung gesetzt: was offen
+war, bleibt offen, nichts wurde freigegeben. Wer zu wenig freigibt, verlangt
+einen Blick zu viel; wer zu viel freigibt, verschickt einen ungeprueften Preis.
+
+### D-106 · Die Bestaetigung rechnet nach — sonst bestaetigt sie nur sich selbst
+
+Die Bestaetigung schrieb die neuen Tarifzahlen in den Kalkulationskopf und
+raeumte die Sperre ab. Die Betraege in `kalkulation_position` und die Preise in
+`angebotsposition` blieben stehen — gerechnet auf dem PLATZHALTER-Satz. Die
+Seite meldete „bestaetigt“, die Sperre liess das Angebot hinaus, und
+hinausgegangen waeren Cent aus dem geschaetzten Satz. Das ist die
+gefaehrlichste Sorte falscher Zahl: sie sieht geprueft aus.
+
+**Entschieden:** die Bestaetigung ruft `kalkuliere` erneut — dieselbe Funktion
+mit denselben Tests — auf den SCHNAPPSCHUESSEN der Zeilen (Flaeche,
+Leistungswert), nicht auf dem heutigen Raumbuch. Wer einen Stundensatz
+bestaetigt, bestaetigt keinen zwischenzeitlich geaenderten Raumbestand mit.
+Danach werden Kalkulations- und Angebotspositionen aktualisiert.
+
+Dabei faellt der zweite Befund derselben Runde mit weg: Gemeinkosten und
+Wagnis/Gewinn bekommen EIGENE Kalkulationszeilen. Vorher summierte
+`kalkulation.angebotssumme_netto_cent` nur Lohnzeilen, waehrend
+`angebot.netto_cent` den vollen Netto trug — dieselbe Kalkulation nannte zwei
+Betraege, und beide sahen richtig aus.
+
+Ein Nebeneffekt ist gewollt und im Test festgehalten: der Preis aendert sich
+bei der Bestaetigung geringfuegig (im Abnahmefall 72,14 € → 72,04 €). Der
+Platzhalter traegt Wagnis und Gewinn als ZWEI aufeinander rechnende Saetze
+(1,03 × 1,05), bestaetigt wird EIN Satz von 8 %. Die zehn Cent sind genau der
+Punkt: seit die Bestaetigung nachrechnet, steht im Angebot der Preis aus den
+bestaetigten Zahlen.
+
+Geloescht wird dabei nichts: `kalkulation_position` traegt die Loeschsperre
+(Invariante 8), Zuschlagszeilen werden geaendert oder angelegt. Eine
+Kalkulationszeile ist ein Beleg dafuer, wie ein Preis entstand, und ein Beleg
+verschwindet nicht, weil sich der Preis geaendert hat.
+
+### D-107 · Ein Stundensatz ist kein Geldbetrag mit Vorzeichen
+
+`parseGeld` nimmt negative Betraege an, und das ist dort richtig: eine
+Gutschrift und ein Storno sind negatives Geld. `stundensatzInCent` reichte das
+durch, `lohnkostenAusSekunden` multipliziert ohne Vorzeichenpruefung — ein
+negativer Satz haette negative Lohnkosten ergeben und darauf ein Angebot, das
+dem Kunden Geld verspricht.
+
+**Entschieden:** die Schranke steht am Rand, nicht in `parseGeld`. Ein
+Stundenverrechnungssatz muss groesser als null sein; 0,00 € ist keine
+Bestaetigung, sondern eine leere Eingabe mit einem Komma.
+
+
+
+### D-108 · Jede Handlung des Angebots prueft ihr eigenes Recht
+
+`POST /api/angebot` traegt drei Handlungen — kalkulieren, versenden, in einen
+Auftrag wandeln — und prueft vor der Verzweigung EIN Recht: `angebot.versenden`.
+Der Katalog fuehrt `angebot.annahme_erfassen` als eigenes Recht, und
+`04-SEITENKARTE.md` haengt die Annahme daran. Eine Rolle, die versenden durfte,
+konnte damit ein Angebot als angenommen buchen und einen Auftrag anlegen — eine
+kaufmaennische Zusage, fuer die sie nie berechtigt wurde.
+
+**Entschieden:** `rechtFuer(aktion)` — `angebot.schreiben` fuers Kalkulieren,
+`angebot.versenden` fuers Versenden, `angebot.annahme_erfassen` fuer die
+Annahme. Ein unbekannter Wert bekommt das ENGSTE Recht, nicht das weiteste: er
+faellt ohnehin gleich auf `ungueltig`, aber die Reihenfolge der Pruefungen soll
+nicht darueber entscheiden, ob das auffaellt.
+
+### D-109 · Das Rueckkehrziel muss im eigenen Ursprung liegen
+
+`new URL(zurueck, basis)` ignoriert die Basis, sobald `zurueck` ABSOLUT ist:
+`new URL('https://boese.example', 'https://cse.example')` ergibt
+`https://boese.example`. Das Feld kommt aus dem Formular, also vom Aufrufer.
+Ein praeparierter POST schickte den angemeldeten Benutzer nach dem
+Raumbuch-Import auf eine fremde Seite — und der Weg dorthin begann sichtbar im
+eigenen Portal, was genau die Gutglaeubigkeit ist, auf die es ankommt.
+
+**Entschieden:** `internesZiel()` nimmt nur Pfad, Abfrage und Anker, und nur,
+wenn das aufgeloeste Ziel im eigenen Ursprung liegt; alles andere faellt still
+auf das Standardziel zurueck. Still, weil eine Fehlermeldung hier dem
+Angreifer mehr saegte als dem Benutzer.
+
+### D-110 · Eine Zusicherung ist keine Pruefung — `art` bekommt einen Waechter
+
+Der Befund lautete, `art: art as 'einzelauftrag'` speichere jeden Auftrag mit
+der falschen Art. Das stimmt nicht: `as` ist eine Zusicherung an den
+Uebersetzer und aendert den Laufzeitwert nicht — gespeichert wurde die
+richtige Art. Nachgeprueft und nicht uebernommen.
+
+Falsch war trotzdem die Zusage: sie schaltete genau die Pruefung ab, die
+`AuftragAnlegen` traegt, und haette jede spaetere Aenderung an der Aufzaehlung
+stillschweigend durchgelassen.
+
+**Entschieden:** `ARTEN` ist eine `as const`-Liste mit einem Typwaechter
+`istAuftragsart`. Dieselbe Aussage, nur ueberpruefbar — und `Set<string>` plus
+`as` verschwindet.
+
+
+
+### D-111 · Ein Datum muss der Kalender kennen, nicht nur die Form
+
+`berlinTagesZeitpunkt` prueft `\d{4}-\d{2}-\d{2}` und rief dann `Date.UTC`.
+`Date.UTC(2026, 1, 30)` wirft nicht — es rutscht auf den 2. Maerz weiter. Ein
+Tippfehler legte damit eine Wiedervorlage auf einen Tag, den niemand gewaehlt
+hat, und die Oberflaeche zeigte danach brav das verschobene Datum.
+
+**Entschieden:** `istKalendertag()` prueft ueber Tag 0 des Folgemonats, damit
+die Schaltjahrregel nicht ein zweites Mal abgeschrieben dasteht. `2026-02-29`
+faellt, `2028-02-29` geht.
+
+### D-112 · Eine verschobene CSV ist ein Fehler, kein Rest
+
+Drei Wege, auf denen eine verschobene Datei als sauber durchging — alle drei
+treffen dieselben zwei Spalten, Flaeche und Belag, und keiner meldete etwas:
+
+1. Ein **nicht geschlossenes Anfuehrungszeichen** zog alles ab dem offenen
+   Zeichen in EIN Feld; die restlichen Zeilen verschwanden in einer Zelle.
+2. Eine Zeile mit **anderer Feldzahl** wurde still aufgefuellt oder
+   abgeschnitten. Ein aufgefuellter Raum bekam die Flaeche des Nachbarn.
+3. **`12,`** wurde als 12,000 gelesen. Eine abgeschnittene Flaeche als
+   vollstaendig auszugeben ist der teure Fall: sie sieht eingetragen aus.
+
+**Entschieden:** alle drei werfen `TabellenFehler` mit eigenem Grund
+(`anfuehrung`, `feldzahl`) und nennen die Zeilennummer.
+
+Nicht uebernommen: der Befund, `12.50` werde still als Dezimalzahl gelesen.
+`leseZahl` gibt dafuer `mehrdeutig: true` zurueck, und die Vorschau zeigt es —
+nachgeprueft, die Kennzeichnung ist da.
+
+### D-113 · Der Import sagt, woran er erkannt hat — und liest nur den heute gueltigen Katalog
+
+`schluessel_spalte` blieb leer. Laut 0026 bedeutet NULL den natuerlichen
+Rueckfall ueber (Etage, Raumnummer) — nicht gefuellt zu werden war also keine
+fehlende Angabe, sondern eine falsche: jeder Import behauptete den Rueckfall,
+auch wenn er eine stabile Quellspalte hatte.
+
+Und die Katalogsuche prueft jetzt BEIDE Grenzen. Ohne `gueltig_ab` waehlte die
+Uebernahme auch eine kuenftig gueltige Zeile und konnte die heute gueltige
+ueberschreiben — der Kalkulationsleser weist dieselbe Zeile korrekt ab, der
+Import haette den Raum trotzdem daran gehaengt.
+
+### D-114 · Die Kalkulationszeile zeigt auf ihre Angebotsposition
+
+`angebotsposition_id` blieb null, obwohl 0024 den zusammengesetzten
+Fremdschluessel dafuer traegt. Preis und Kosten liessen sich nur ueber die
+Positionsnummer zusammenbringen — die einzige Verbindung war eine Konvention.
+`insert … returning id` schreibt sie jetzt mit.
+
+### D-115 · Druckmasse sind Marken, keine Zahlen im Seitencode
+
+Die PDF-Seite trug `6px 4px`, `8pt`, `0.08em`, `8.5pt`, `32px` als Literale.
+DESIGN.md §11 nennt A4, 20 mm und 10 pt und schwieg zum Rest; die Regel
+„Designwerte kommen nur aus DESIGN.md" war damit fuer alles darunter nicht
+erfuellbar.
+
+**Entschieden:** §11 traegt jetzt sechs Massmarken, `theme.ts` spiegelt sie als
+`MASSE_DRUCK`, und die Seite liest sie. In PUNKT, nicht in Pixel: ein PDF wird
+in Punkt gesetzt, und die 10 pt Grundschrift bedeuten nur etwas, wenn daneben
+dasselbe Mass steht.
+
+
+
+### D-116 · Ein Platzhalter je Motiv, gezeichnet statt fotografiert
+
+Der erste Entwurf hatte EIN graues Rechteck fuer jedes Bild der Website:
+sichtbar leer, ehrlich — und unbrauchbar, um dem Mandanten zu zeigen, wie die
+Seite aussehen wird. Wer eine Reinigungsseite beurteilt, beurteilt sie mit
+einem Bild darauf.
+
+**Entschieden:** acht gezeichnete Szenen — Gruppe, Reinigung, Security, Bau,
+Operations, Objekt, Projekt, Team. Die Bereichsseite und die Markenkarte
+waehlen ihre eigene; das Motiv kommt aus dem Pfad, nicht aus einem zweiten
+Feld, das jemand pflegen muesste.
+
+**Es sind ILLUSTRATIONEN, und darin liegt die Grenze, die DESIGN §4.2 zieht.**
+Verboten sind erfundene Menschen, die als Belegschaft gelesen werden — nicht
+Bilder ueberhaupt. Eine gezeichnete Nachtszene behauptet nicht, ein Objekt der
+Gruppe zu sein; ein Stockfoto von Menschen in Warnwesten tut genau das. Das
+Team-Motiv bleibt deshalb bewusst abstrakt: Silhouetten in den vier
+Kennfarben, kein einziges Gesicht.
+
+Die Kennzeichnung liegt bei der SEITE, nicht im Bild. Der erste Entwurf trug
+sie doppelt — als Chip im SVG und als Marke der Seite — und die beiden
+ueberlagerten im Hero den Text. Eine sichtbare Marke genuegt; sie steht in
+`PLATZHALTER` und blockiert weiterhin den Produktionsbau.
+
+
+### D-117 · Der Bereich gehoert in den Handler, nicht nur in die Datenbank
+
+`auftrag_personalbedarf_bereich` (0..5000) und `auftrag_wochenstunden_bereich`
+(0..10000) fangen jeden Ausreisser — aber erst beim Schreiben, nachdem der
+Handler schon eine Auftragsnummer gezogen hat. Der Verstoss kam als roher
+Datenbankfehler heraus und verliess die Route als 500: der Aufrufer erfuhr
+„Serverfehler", wo „dieses Feld ist zu gross" richtig gewesen waere. Und eine
+gezogene Nummer ist eine gezogene Nummer.
+
+**Entschieden:** Bereich UND Ganzzahligkeit werden vor der Nummernvergabe
+geprueft und als `ausserhalb_bereich` mit Feldnamen als 400 beantwortet. Die
+Datenbankbedingung bleibt — sie ist die zweite Linie, nicht die einzige.
+
+### D-118 · Ein Blatt darf den Knopf nicht verdecken, der es schliesst
+
+Das „Mehr"-Blatt der mobilen Tab-Leiste lag als `fixed inset-0` ueber der
+ganzen Ansicht — und damit ueber der Leiste, in der sein eigenes `<summary>`
+steckt. Ohne JavaScript schliesst ein `<details>` nur ueber sein `<summary>`:
+verdeckt man das, gibt es keinen Weg zurueck, und der Fokus bleibt gefangen.
+
+**Entschieden:** `bottom-11` statt `inset-0`. Die Leiste ist `min-h-[44px]`
+hoch; das Blatt endet darueber und laesst genau den Knopf frei, der es wieder
+zumacht.
+
+### D-119 · Ein Kommentar, der die Ausgabe falsch nennt, ist schlimmer als keiner
+
+Zwei Stellen sagten etwas anderes als der Code: `formatiereMenge` versprach
+`25_500n → "25,5"`, liefert aber `"25,50"` (`minimumFractionDigits: 2`); und in
+`richtzeit.ts` hingen zwei JSDoc-Bloecke an den falschen Funktionen —
+`alsStundenText` stand ohne, `stundenNachPostgres` trug die Beschreibung des
+anderen. Wer bei der Fehlersuche dem Kommentar glaubt, sucht an der falschen
+Stelle. Beides berichtigt.
+
+Und `internesZiel` nimmt jetzt `erwarteterUrsprung()` statt `nextUrl.origin`:
+hinter einem TLS-beendenden Proxy zeigte sonst jeder interne Redirect auf
+`http://…` — ein Downgrade, ausgeloest von der Funktion, die Ziele absichern
+soll. Derselbe Befund wie D-104, eine Ebene tiefer.
+
+
+### D-120 · Die Berliner Anzeige bekommt eine Wache
+
+Invariante 2 sagt: gespeichert UTC, angezeigt `Europe/Berlin`. Der
+Speicherteil war gedeckt — `wacheZeitstempel` und die Spaltentypen lassen kein
+`timestamp without time zone` durch. Der ANZEIGETEIL hing an der Disziplin.
+
+Und er faellt leise. `new Date(x).toLocaleDateString('de-DE')` nimmt die Zone
+des SERVERS; auf Vercel ist das UTC. Eine Schicht, die am 3. um 00:30 Berliner
+Zeit beginnt, erscheint dann als der 2.; im Sommer verschiebt sich jede
+Uhrzeit um zwei Stunden. Nichts wirft, nichts faellt rot — es steht ein
+plausibles Datum da, und es ist das falsche. Genau die Sorte Fehler, die erst
+im Streit ueber einen Stundennachweis auffaellt, wo sie am teuersten ist.
+
+**Entschieden:** `wacheAnzeigeZeitzone` weist jeden `toLocale*String`- und
+`Intl.DateTimeFormat`-Aufruf ab, der seine Zone nicht im selben Aufruf nennt.
+`toLocaleString('de-DE')` auf einer ZAHL (Prozente) ist ausgenommen — eine Zahl
+traegt keine Zone.
+
+Geprueft wurde die Wache gegen sich selbst: eine Sonde mit
+`toLocaleDateString('de-DE')` faellt, dieselbe Sonde mit
+`{ timeZone: 'Europe/Berlin' }` geht durch. Der Bestand war bereits sauber —
+alle drei Formatierer nannten Berlin schon; ab jetzt bleibt das so, ohne dass
+jemand daran denken muss.
 
 ## Carried over from the Phase 0 review — not client questions
 
@@ -1768,6 +2334,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 |---|---|---|
 | O-205 | **Barrierefreiheitserklärung (BFSG):** which conformity status may be declared — fully, partially or not conformant — on the basis of which audit and dated when; which body is named as the enforcement authority; and which mailbox receives accessibility feedback? Until these three are answered the statement at `/barrierefreiheit` carries a visible "not yet issued" block rather than an invented claim. | LEG-07, launch |
 | O-207 | **Seitentexte:** every page currently carries scaffold copy — a factual description of what each company does, drawn from the trade names already recorded in `CLAUDE.md`, with no figures, awards, customer names or promises. The client must read and correct it, in particular anything that reads as a commitment to a customer: a marketing sentence nobody checked ends up quoted in an offer. | all 14 public pages, launch |
+| O-208 | **Gemeinkosten, Wagnis und Gewinn im Angebot: eigene Positionen oder im Einzelpreis?** Die Kalkulation rechnet Lohn → Gemeinkosten → Wagnis → Gewinn; der Nettopreis ist die Summe der vier. Was der Kunde im Dokument liest, ist damit noch nicht entschieden: entweder drei zusaetzliche Zeilen, die die Zuschlaege offenlegen, oder — wie derzeit — Leistungszeilen, deren Einzelpreis den Anteil bereits enthaelt und deren Langtext ihn benennt. Beides ist in der Gebaeudereinigung ueblich; die Wahl ist eine kaufmaennische und keine technische. Die Verteilung selbst liegt in `verteileNetto` an EINER Stelle, damit ein Wechsel eine Aenderung bleibt und keine Umbauaktion. | OPS-07, OPS-08, jedes Angebot |
 | O-206 | **Is "CSE Gruppe" a legal entity?** Does a group-level Rechtsträger (holding) exist — under which name, address and register entry — or is the group only a brand over four independent companies? A structured-data `Organization` block carries an address and therefore asserts that such a company exists; until this is answered the site emits four complete `LocalBusiness` entries and no umbrella. | PUB-11, `/impressum`, footer |
 
 ---

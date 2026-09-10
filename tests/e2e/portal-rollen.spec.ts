@@ -44,24 +44,21 @@ test.describe('(1) jede Rolle landet in ihrem Portal', () => {
     await expect(page.locator('[data-cse="anstellung"]')).toHaveCount(2);
   });
 
-  test('kunde kommt HEUTE nicht hinein — weil es noch keinen Kundenzugang gibt',
+  test('kunde kommt in SEIN Portal — seit es einen Kundenzugang gibt',
     async ({ page }) => {
       /**
-       * **Das ist kein Fehler, sondern der fail-closed Zustand.**
+       * Bis Phase 4 stand hier das Gegenteil, und es war richtig: das
+       * Kundenportal liest im `kunde`-Scope, dessen sichtbare Mandanten aus
+       * `kunde_zugang` kommen — einer Tabelle, die es noch nicht gab. Die Tuer
+       * war fehlgeschlossen zu.
        *
-       * Das Kundenportal liest im `kunde`-Scope, und dessen sichtbare
-       * Mandanten kommen aus `kunde_zugang` — einer Tabelle, die mit dem
-       * CRM-Modul entsteht (Phase 4). Bis dahin ist `app.mandant_id` NULL,
-       * `app.hat_recht('bericht.dashboard_lesen', null)` ist false, und das
-       * Tor antwortet 404.
-       *
-       * Die Seite dahinter ist gebaut und sagt, was ist; erreichbar wird sie,
-       * sobald es Zugänge gibt. Bis dahin hält diese Prüfung fest, dass die
-       * Tür wirklich zu ist — und nicht, dass sie versehentlich offen steht.
+       * Jetzt gibt es die Tabelle UND einen Seed-Zugang, und dieselbe Prüfung
+       * haelt die andere Haelfte fest: die Tuer geht auf, wenn ein Zugang
+       * besteht — und nur so weit, wie er reicht.
        */
       await anmelden(page, 'kunde');
       const antwort = await page.goto('/portal/kunde');
-      expect(antwort?.status()).toBe(404);
+      expect(antwort?.status()).toBe(200);
     });
 });
 

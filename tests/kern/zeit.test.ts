@@ -10,6 +10,7 @@ import {
   berlinAnzeige,
   berlinInstant,
   berlinKalendertag,
+  berlinTagesZeitpunkt,
   dauerMinuten,
   splitteNachMonat,
   verteilePausenMinuten,
@@ -146,5 +147,43 @@ describe('verteileSpalten — TIM-04', () => {
     ]);
     expect(verteilt.map((v) => v.spalte)).toEqual([0, 1]);
     expect(verteilt.every((v) => v.spaltenImCluster === 2)).toBe(true);
+  });
+});
+
+describe('Ein Datum aus dem Formular wird ein Zeitpunkt — in Berlin, nicht in UTC', () => {
+  /**
+   * Der Fehler, den diese Faelle festhalten: `${datum}T09:00:00+01:00`.
+   * Im Winter richtig, im Sommer eine Stunde daneben — und sichtbar ist im
+   * Formular nur der Tag, die Erinnerung kaeme trotzdem zur falschen Zeit.
+   */
+  it('09:00 im WINTER ist 08:00 UTC', () => {
+    expect(berlinTagesZeitpunkt('2026-01-15', 9).toISOString())
+      .toBe('2026-01-15T08:00:00.000Z');
+  });
+
+  it('09:00 im SOMMER ist 07:00 UTC — nicht 08:00', () => {
+    expect(berlinTagesZeitpunkt('2026-07-14', 9).toISOString())
+      .toBe('2026-07-14T07:00:00.000Z');
+  });
+
+  it('am Tag der Umstellung selbst', () => {
+    // 2026-03-29: Vorstellen um 02:00 → 09:00 liegt bereits in der Sommerzeit.
+    expect(berlinTagesZeitpunkt('2026-03-29', 9).toISOString())
+      .toBe('2026-03-29T07:00:00.000Z');
+    // 2026-10-25: Zurueckstellen um 03:00 → 09:00 liegt in der Winterzeit.
+    expect(berlinTagesZeitpunkt('2026-10-25', 9).toISOString())
+      .toBe('2026-10-25T08:00:00.000Z');
+  });
+
+  it('und der Berliner Kalendertag ist der von Berlin', () => {
+    // 22:30 UTC am 13. Juli ist in Berlin bereits der 14. Juli.
+    expect(berlinKalendertag(new Date('2026-07-13T22:30:00Z'))).toBe('2026-07-14');
+    // 23:30 UTC am 31. Dezember ebenso: in Berlin ist Neujahr.
+    expect(berlinKalendertag(new Date('2026-12-31T23:30:00Z'))).toBe('2027-01-01');
+  });
+
+  it('ein Datum, das keines ist, wird abgewiesen statt geraten', () => {
+    expect(() => berlinTagesZeitpunkt('14.07.2026')).toThrow(/JJJJ-MM-TT/u);
+    expect(() => berlinTagesZeitpunkt('')).toThrow(/JJJJ-MM-TT/u);
   });
 });

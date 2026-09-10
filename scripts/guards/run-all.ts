@@ -69,17 +69,29 @@ const melde = (wache: string, datei: string, zeile: number, text: string): void 
 /**
  * Guard 1 — money is never `numeric` or a float column (invariant 1, K-16).
  * A `numeric` money column is the schema-level twin of a float cent.
+ *
+ * Two word classes, because not every `…wert` is an amount. A column whose
+ * name says *money* (`betrag`, `preis`, …) can never be exempted. A column
+ * carrying one of the ambiguous words (`wert`, `satz`) may be — but only by
+ * NAMING its unit on the same line, so the exemption is a statement a
+ * reviewer can check rather than a way to silence the guard:
+ *
+ *     leistungswert_qm_pro_stunde numeric(10,3) not null, -- nicht-geld: m²/h
  */
 function wacheGeldSpalte(): void {
-  const GELD = /(betrag|preis|summe|saldo|entgelt|kosten|wert|satz|honorar|einbehalt)/iu;
+  const GELD_STARK = /(betrag|preis|summe|saldo|entgelt|kosten|honorar|einbehalt)/iu;
+  const GELD_MEHRDEUTIG = /(wert|satz)/iu;
+  /** An exemption is only valid if it names a unit. */
+  const NICHT_GELD = /(--|\/\/)\s*nicht-geld:\s*\S+/u;
   for (const datei of [...dateien('src/server/db', ['.ts']), ...dateien('drizzle', ['.sql'])]) {
     readFileSync(datei, 'utf8')
       .split('\n')
       .forEach((zeile, i) => {
-        if (!GELD.test(zeile)) return;
-        if (/\b(numeric|decimal|real|double precision|float)\b/iu.test(zeile)) {
-          melde('geld-nie-numeric', datei, i + 1, zeile);
-        }
+        const stark = GELD_STARK.test(zeile);
+        if (!stark && !GELD_MEHRDEUTIG.test(zeile)) return;
+        if (!/\b(numeric|decimal|real|double precision|float)\b/iu.test(zeile)) return;
+        if (!stark && NICHT_GELD.test(zeile)) return;
+        melde('geld-nie-numeric', datei, i + 1, zeile);
       });
   }
 }
@@ -320,6 +332,18 @@ function wacheTailwindFarben(): void {
       for (const m of geprueft.matchAll(/\b([a-z]+)-([a-z][a-z0-9-]*)\b/gu)) {
         const [, praefix, rest] = m as unknown as [string, string, string];
 
+        /**
+         * Eine CSS-EIGENSCHAFT ist keine Tailwind-Klasse.
+         *
+         * `border-bottom: 1px solid …` in einem `<style>`-Block sah fuer die
+         * Wache aus wie `border-bottom` als Klasse — und das Angebotsdokument
+         * (DESIGN §11) ist genau so gebaut: gedruckte Regeln, die es als
+         * Klassen nicht gibt. Das Unterscheidungsmerkmal ist der Doppelpunkt
+         * UNMITTELBAR danach: eine Deklaration hat ihn, eine Klasse nie —
+         * bei `hover:text-brand` steht er davor.
+         */
+        if (geprueft[(m.index ?? 0) + m[0].length] === ':') continue;
+
         if (praefix === 'text') {
           if (schriftgroessen.has(rest) || TEXT_SONST.has(rest) || farben.has(rest)) continue;
           melde('tailwind-farbe', datei, i + 1,
@@ -368,6 +392,46 @@ function wacheTailwindFarben(): void {
  * Eine Adresse, die in einer Konfiguration steht und nirgends sonst, veraltet
  * genau so: lautlos.
  */
+/**
+ * Wache — jede Datums-ANZEIGE nennt ihre Zeitzone, und die ist Berlin.
+ *
+ * Invariante 2: gespeichert UTC, angezeigt `Europe/Berlin`. Der Speicherteil
+ * ist durch `wacheZeitstempel` und die Spaltentypen gedeckt; der ANZEIGETEIL
+ * hing bis hierhin an der Disziplin.
+ *
+ * Und er faellt leise. `new Date(x).toLocaleDateString('de-DE')` nimmt die
+ * Zone des Servers — auf Vercel ist das UTC. Eine Schicht, die am 3. um 00:30
+ * Berliner Zeit beginnt, erscheint dann als der 2.; im Sommer verschiebt sich
+ * jede Uhrzeit um zwei Stunden. Nichts wirft, nichts faellt rot: es steht ein
+ * plausibles Datum da, und es ist das falsche. Genau die Sorte Fehler, die
+ * erst im Streit ueber einen Stundennachweis auffaellt.
+ *
+ * Erlaubt ist deshalb nur, was seine Zone ausdruecklich nennt — entweder
+ * `timeZone:` im selben Aufruf oder die geprueften Helfer aus
+ * `services/zeit/dauer.ts`.
+ */
+const ZEIT_ANZEIGE = /\.toLocale(?:Date|Time)?String\s*\(|new\s+Intl\.DateTimeFormat\s*\(/u;
+
+function wacheAnzeigeZeitzone(): void {
+  for (const datei of [...dateien('src', ['.ts', '.tsx']), ...dateien('scripts', ['.ts'])]) {
+    // Ohne Kommentare: der Beispielcode in einem Docblock ist kein Aufruf —
+    // diese Wache fand sonst zuerst ihre eigene Erklaerung.
+    const zeilen = ohneKommentare(readFileSync(datei, 'utf8')).split('\n');
+    zeilen.forEach((zeile, i) => {
+      if (!ZEIT_ANZEIGE.test(zeile)) return;
+      // Prozente und Zahlen tragen keine Zone — `toLocaleString` auf einer
+      // Zahl ist kein Datum und faellt hier nicht hinein.
+      if (/toLocaleString\s*\(\s*'de-DE'\s*\)/u.test(zeile)) return;
+      // Die Zone darf im selben Aufruf stehen, also auch ein paar Zeilen
+      // weiter unten: `new Intl.DateTimeFormat('de-DE', {` bricht um.
+      const fenster = zeilen.slice(i, i + 6).join(' ');
+      if (/timeZone\s*:/u.test(fenster)) return;
+      melde('anzeige-berlin', datei, i + 1,
+        `Datumsanzeige ohne timeZone — nimmt die Serverzone (auf Vercel UTC): ${zeile.trim()}`);
+    });
+  }
+}
+
 async function wacheKonfigAdressen(): Promise<void> {
   const dateien = ['lighthouserc.json'];
   const vorhanden = dateien.filter((d) => existsSync(join(WURZEL, d)));
@@ -418,6 +482,7 @@ async function main(): Promise<void> {
   wacheEuRegion();
   wacheEinAusgang();
   wacheTailwindFarben();
+  wacheAnzeigeZeitzone();
   await wacheKonfigAdressen();
 
   if (befunde.length > 0) {

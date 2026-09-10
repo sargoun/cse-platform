@@ -15,6 +15,7 @@
  */
 import postgres from 'postgres';
 import { DATENSCHUTZ_VERSION, FORMULARE } from './formulare.js';
+import { seedOperations } from './operations.js';
 
 const url = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 if (url === undefined || url === '') {
@@ -161,8 +162,18 @@ async function main(): Promise<void> {
    */
   const adminId = await authBenutzer('admin@cse-gruppe.de');
 
-  await sql`insert into auth.mfa_factors (user_id) values (${adminId})
-            on conflict do nothing`;
+  /**
+   * Erst lesen, dann schreiben — `on conflict do nothing` greift hier NICHT.
+   *
+   * `auth.mfa_factors` traegt nur einen Primaerschluessel auf der erzeugten
+   * `id`, keine Eindeutigkeit auf `user_id`. Der Konflikt trat also nie ein,
+   * und jeder Seed-Lauf legte einen weiteren Faktor an — bei einem Seed, der
+   * ausdruecklich wiederholbar sein soll.
+   */
+  await sql`
+    insert into auth.mfa_factors (user_id)
+    select ${adminId}
+     where not exists (select 1 from auth.mfa_factors f where f.user_id = ${adminId})`;
 
   const [sa] = await sql<{ id: string }[]>`
     select id from rolle where schluessel = 'super_admin' and mandant_id is null`;
@@ -439,8 +450,37 @@ async function main(): Promise<void> {
               'Leistungsnachweise', true, 'LN-{jahr}-{nr:5}',
               'jaehrlich', ${heute}, false, 'system', 'job:seed')
       on conflict do nothing`;
+    /**
+     * Angebot und Auftrag: bestaetigt, weil sie es duerfen.
+     *
+     * Beide sind KEIN § 14 UStG-Dokument. Ihre Nummer ist betrieblich, ihre
+     * Folge darf Luecken haben (ein verworfener Entwurf zieht keine Nummer),
+     * und ihre Maske ist eine Hausentscheidung — nicht die offene Frage
+     * O-134, die nur die Rechnungsnummer betrifft. Ein Platzhalterkreis hier
+     * hiesse: kein Angebot kann versendet werden, und zwar ohne dass irgendwer
+     * eine Frage beantworten muesste.
+     */
+    await sql`
+      insert into nummernkreis
+        (mandant_id, kreis_typ, jahr, bezeichnung, lueckenlos, format_maske,
+         zuruecksetzung, geoeffnet_am, ist_platzhalter, erstellt_von_art, erstellt_von_dienst)
+      values (${ids.get(b.slug)!}, 'angebot', 2026,
+              'Angebote', false, 'AN-{jahr}-{nr:5}',
+              'jaehrlich', ${heute}, false, 'system', 'job:seed')
+      on conflict do nothing`;
+
+    await sql`
+      insert into nummernkreis
+        (mandant_id, kreis_typ, jahr, bezeichnung, lueckenlos, format_maske,
+         zuruecksetzung, geoeffnet_am, ist_platzhalter, erstellt_von_art, erstellt_von_dienst)
+      values (${ids.get(b.slug)!}, 'auftrag', 2026,
+              'Auftraege', false, 'AU-{jahr}-{nr:5}',
+              'jaehrlich', ${heute}, false, 'system', 'job:seed')
+      on conflict do nothing`;
   }
-  process.stdout.write('  Nummernkreise: Rechnung als PLATZHALTER (O-134), Nachweis bestätigt\n');
+  process.stdout.write(
+    '  Nummernkreise: Rechnung als PLATZHALTER (O-134); Nachweis, Angebot und Auftrag bestätigt\n',
+  );
 
   // ------------------------------------------------------ Agent-Richtlinien
   /** Fail-closed: jede Zeile steht auf `auto_erlaubt = false`. */
@@ -484,9 +524,53 @@ async function main(): Promise<void> {
     ['kunde.demo@example.test', 'Kundenzugang (Demo)', 'kunde', 'reinigung', null],
   ];
 
+  /**
+   * Welche Rollen einen zweiten Faktor verlangen (AUT-02).
+   *
+   * Gefragt wird GENAU DAS, was `kern.benutzer_2fa_pflicht()` fragt:
+   * `rolle.erfordert_2fa`. Der erste Versuch las stattdessen
+   * `berechtigung.erfordert_2fa` ueber die Rollenzuweisungen — eine plausible,
+   * aber ANDERE Frage, und der Seed fiel weiter um. Zwei Quellen fuer dieselbe
+   * Bedingung sind genau die Stelle, an der eine Zusicherung und ihre
+   * Vorbereitung auseinanderlaufen.
+   */
+  const braucht2fa = new Set(
+    (await sql<{ schluessel: string }[]>`
+      select schluessel from rolle
+       where mandant_id is null and erfordert_2fa`).map((r) => r.schluessel),
+  );
+
   for (const [email, name, rolle, bereich, personIndex] of konten) {
     const id = await authBenutzer(email);
     const personId = personIndex === null ? null : personIds[personIndex] ?? null;
+    /**
+     * Der Faktor kommt VOR dem `aktiv`, und das ist der ganze Punkt.
+     *
+     * Beim ERSTEN Lauf entsteht die `benutzer`-Zeile, bevor ihr die Rolle
+     * zugewiesen wird — `kern.benutzer_2fa_pflicht()` sieht also noch keine
+     * 2FA-Rolle und laesst sie durch. Beim ZWEITEN Lauf ist die Rolle da, der
+     * Ausloeser feuert, und der Seed starb mit "Konto benoetigt einen zweiten
+     * Faktor". Ein Seed, der genau einmal laeuft, ist kein Seed: danach traut
+     * sich niemand mehr, ihn anzufassen, und die Demodaten veralten.
+     *
+     * Der Faktor ist keine Umgehung der Zusicherung, sondern ihre Erfuellung:
+     * AUT-02 verlangt, dass ein Konto mit einer 2FA-Rolle einen hinterlegten
+     * Faktor HAT. Die aal2-SITZUNG verlangt `app.ist_super_admin()` zusaetzlich
+     * — das bleibt unberuehrt.
+     */
+    if (braucht2fa.has(rolle)) {
+      /**
+       * `on conflict do nothing` griff hier NIE: `auth.mfa_factors` traegt
+       * nur einen Primaerschluessel auf der erzeugten `id`, keine
+       * Eindeutigkeit auf `user_id`. Jeder Seed-Lauf legte also einen
+       * weiteren Faktor an — und der Seed ist ausdruecklich wiederholbar.
+       * Erst lesen, dann schreiben.
+       */
+      await sql`
+        insert into auth.mfa_factors (user_id)
+        select ${id}
+         where not exists (select 1 from auth.mfa_factors f where f.user_id = ${id})`;
+    }
     await sql`
       insert into benutzer (id, email, name, person_id, status)
       values (${id}, ${email}, ${name}, ${personId}, 'aktiv')
@@ -505,6 +589,21 @@ async function main(): Promise<void> {
     }
   }
   process.stdout.write(`  ${konten.length} Rollenkonten (admin, leitung, mitarbeiter, kunde)\n`);
+
+  /**
+   * Phase 4 — CRM und Operations.
+   *
+   * Erst HIER, nach den Konten: `kunde_zugang` braucht das Kundenkonto, und
+   * ohne diesen Zugang kaeme niemand ins Kundenportal. Die Reihenfolge ist
+   * also nicht Geschmack, sondern die Abhaengigkeit selbst.
+   */
+  const [kundenKonto] = await sql<{ id: string }[]>`
+    select id from benutzer where email = 'kunde.demo@example.test' limit 1`;
+  const ops = await seedOperations(sql, ids, kundenKonto?.id ?? null);
+  process.stdout.write(
+    `  ${String(ops.objekte)} Objekte, ${String(ops.raeume)} Raeume, `
+    + 'Belagsarten und Reinigungsklassen (Leistungswerte: Platzhalter, O-17)\n',
+  );
 
   process.stdout.write('\nSeed fertig.\n');
   process.stdout.write('OFFEN, bevor eine Rechnung entstehen kann:\n');

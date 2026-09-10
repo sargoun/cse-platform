@@ -51,6 +51,16 @@ test.describe('/dev/portal — die Portal-Shell', () => {
 
   test('(5) Pfeile navigieren, Enter wechselt, Esc schliesst — ohne Maus', async ({ page }) => {
     await page.keyboard.press('ControlOrMeta+k');
+    /**
+     * Erst warten, dann tippen.
+     *
+     * Ohne diese Zeile drueckt der Test den Pfeil, bevor das Menue offen ist:
+     * unter Last kommt der Tastendruck bei niemandem an, Enter waehlt nichts,
+     * und der Test scheitert an einer Zeitfrage statt an der Sache. Geprueft
+     * werden soll, dass Pfeil und Enter WIRKEN — nicht, wie schnell React
+     * hydriert.
+     */
+    await expect(page.locator('[data-cse="umschalter-menue"]')).toBeVisible();
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
     // Von Reinigung eine Zeile runter: Security.

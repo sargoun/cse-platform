@@ -35,12 +35,13 @@ export const PLATZHALTER: readonly Platzhalter[] = [
     frage: 'O-12',
   },
   {
-    pfad: 'public/platzhalter/bild.svg',
+    pfad: 'public/platzhalter/*.svg',
     grund:
       'Alle Website-Bilder. DESIGN §4.1 verlangt echte Aufnahmen der eigenen Crews und '
       + 'Objekte; §4.2 verbietet KI-erzeugte Menschen als Belegschaft. Bis der Mandant '
-      + 'sein Material liefert, steht hier ein sichtbar leeres Bild — kein Stockfoto, '
-      + 'das nach Belegschaft aussieht.',
+      + 'sein Material liefert, stehen hier gezeichnete Szenen je Motiv: sie zeigen, '
+      + 'wie die Seite aussehen wird, ohne zu behaupten, ein Objekt der Gruppe oder '
+      + 'seine Belegschaft zu sein. Jede traegt ihre Marke sichtbar.',
     frage: 'O-13',
   },
   {
@@ -74,7 +75,58 @@ export function assertKeinePlatzhalter(umgebung: string): void {
  * Produktion landet.
  */
 export const PLATZHALTER_BILD = {
-  pfad: '/platzhalter/bild.svg',
+  pfad: '/platzhalter/hero.svg',
   alt: 'Platzhalterbild — hier stehen später eigene Aufnahmen der Gruppe.',
   platzhalter: true,
 } as const;
+
+/**
+ * Ein Platzhalter JE MOTIV statt eines grauen Rechtecks fuer alles.
+ *
+ * Der erste Entwurf hatte ein einziges Bild: sichtbar leer, ehrlich — und
+ * unbrauchbar, um dem Mandanten zu zeigen, wie die Seite aussehen wird. Wer
+ * eine Reinigungsseite bewertet, bewertet sie mit einem Bild darauf.
+ *
+ * Es sind ILLUSTRATIONEN, keine Fotos, und das ist die Grenze, die DESIGN §4.2
+ * zieht: kein erfundenes Gesicht, das als Belegschaft gelesen werden koennte.
+ * Eine gezeichnete Nachtszene behauptet nicht, ein Objekt der Gruppe zu sein;
+ * ein Stockfoto von Menschen in Warnwesten tut genau das. Jede traegt unten
+ * links ihre Marke und die offene Frage, unter der sie steht (O-13).
+ */
+export const PLATZHALTER_MOTIVE = {
+  gruppe: '/platzhalter/hero.svg',
+  reinigung: '/platzhalter/reinigung.svg',
+  security: '/platzhalter/security.svg',
+  bau: '/platzhalter/bau.svg',
+  operations: '/platzhalter/operations.svg',
+  objekt: '/platzhalter/objekt.svg',
+  projekt: '/platzhalter/projekt.svg',
+  team: '/platzhalter/team.svg',
+} as const;
+
+export type PlatzhalterMotiv = keyof typeof PLATZHALTER_MOTIVE;
+
+const ALT_TEXT: Readonly<Record<PlatzhalterMotiv, string>> = {
+  gruppe: 'Platzhalter-Illustration: nächtliche Gebäudezeile der vier Gesellschaften.',
+  reinigung: 'Platzhalter-Illustration: Flur in der Unterhaltsreinigung.',
+  security: 'Platzhalter-Illustration: Objektschutz bei Nacht.',
+  bau: 'Platzhalter-Illustration: Rohbau mit Turmdrehkran und Gerüst.',
+  operations: 'Platzhalter-Illustration: Betriebsübersicht am Bildschirm.',
+  objekt: 'Platzhalter-Illustration: Objekt bei Nacht.',
+  projekt: 'Platzhalter-Illustration: Bauprojekt.',
+  team: 'Platzhalter-Illustration: Team, bewusst abstrakt ohne erfundene Gesichter.',
+};
+
+/** Das Platzhalterbild zu einem Motiv — mit sichtbarer Kennzeichnung. */
+export function platzhalterBild(motiv: PlatzhalterMotiv): {
+  readonly pfad: string; readonly alt: string; readonly platzhalter: true;
+} {
+  return { pfad: PLATZHALTER_MOTIVE[motiv], alt: ALT_TEXT[motiv], platzhalter: true };
+}
+
+/** Der Bereichsschlüssel als Motiv — unbekanntes faellt auf die Gruppe zurueck. */
+export function motivFuerBereich(bereich: string | null | undefined): PlatzhalterMotiv {
+  return bereich !== null && bereich !== undefined && bereich in PLATZHALTER_MOTIVE
+    ? (bereich as PlatzhalterMotiv)
+    : 'gruppe';
+}

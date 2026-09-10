@@ -78,6 +78,7 @@ export default async function Gruppenuebersicht() {
       wurzel="/portal/gruppe"
       aktiverTab="uebersicht"
       sichtbareTabs={zugang.sichtbareTabs}
+      navigationsRechte={zugang.navigationsRechte}
     >
       <h1 className="mb-s5 text-h1 text-text">Gruppenübersicht</h1>
       <ul data-cse="gruppe-bereiche" className="flex flex-col gap-s3">

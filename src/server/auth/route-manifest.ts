@@ -61,6 +61,56 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + '§4.5) — plus den Trigger `kern.sitzung_mandant_pruefen`, der eine fremde Zeile '
       + 'auch dann abweist, wenn diese Route je umgangen würde.',
   },
+  {
+    /**
+     * Die drei Angebotsuebergaenge. Das Recht ist `angebot.versenden` und
+     * nicht `angebot.schreiben`: es gibt den Uebergang frei, der etwas aus
+     * dem Haus laesst (Invariante 7). Anlegen und Wandeln laufen ueber
+     * dieselbe Adresse, weil sie dieselbe Sitzung, denselben Ursprungscheck
+     * und denselben Mandantenkontext brauchen — und weil drei Adressen fuer
+     * drei Zeilen Unterschied drei Stellen waeren, an denen die Pruefung
+     * fehlen kann.
+     */
+    pfad: 'api/angebot',
+    recht: 'angebot.versenden',
+  },
+  {
+    /**
+     * Hochladen UND uebernehmen tragen dasselbe Recht: die Vorschau legt
+     * bereits Zwischenzeilen an, und wer eine Datei in den Mandanten schiebt,
+     * schreibt — auch wenn das lebende Raumbuch erst der zweite Schritt
+     * beruehrt.
+     */
+    pfad: 'api/raumbuch-import',
+    recht: 'objekt_import.schreiben',
+  },
+  {
+    /**
+     * Eine Notiz festhalten und die naechste Aktion setzen. `crm.schreiben`,
+     * nicht `crm.lesen`: beides aendert den Datenbestand, auch wenn das eine
+     * nur ein Satz ist.
+     */
+    pfad: 'api/lead',
+    recht: 'crm.schreiben',
+  },
+  {
+    /** Der Auftragsassistent (OPS-10). Legt an, also `auftrag.schreiben`. */
+    pfad: 'api/auftrag',
+    recht: 'auftrag.schreiben',
+  },
+  {
+    /**
+     * Die Werte bestaetigen, auf denen ein Preis ruht (OPS-07).
+     *
+     * `kalkulation.schreiben` und nicht `angebot.schreiben`: wer hier
+     * eintraegt, aendert den RECHENWEG, nicht den Text des Angebots. Und
+     * nicht `angebot.versenden`, denn dieser Weg laesst nichts aus dem Haus
+     * — er macht den Versand nur moeglich, und der bleibt ein eigener Klick
+     * mit eigenem Recht (Invariante 7).
+     */
+    pfad: 'api/kalkulation',
+    recht: 'kalkulation.schreiben',
+  },
 ] as const;
 
 /** Die Routen, die ein Recht verlangen. */

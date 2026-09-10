@@ -65,6 +65,171 @@ export interface Loeschsperre {
  */
 export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
   {
+    tabelle: 'firma',
+    art: 'archiv',
+    migration: '0020',
+    grund:
+      'CRM-06. Die Firma ist die geteilte Identitaet hinter zwei oder drei '
+      + 'Kundenbeziehungen. Sie zu loeschen macht die Historie der anderen '
+      + 'Gesellschaften unlesbar — und die verlorene Zeile einer Verschmelzung '
+      + 'bleibt fuer die referenzielle Historie stehen.',
+  },
+  {
+    tabelle: 'kunde',
+    art: 'archiv',
+    migration: '0020',
+    grund:
+      'LEG-01 und AO/HGB. An einem Kunden haengen Angebote, Auftraege und '
+      + 'Rechnungen mit zehnjaehriger Aufbewahrung; Art. 17 DSGVO wird durch '
+      + 'Anonymisierung erfuellt (anonymisiert_am), nicht durch Loeschen.',
+  },
+  {
+    tabelle: 'ansprechpartner',
+    art: 'archiv',
+    migration: '0020',
+    grund:
+      'CRM-08. Auf dieser Zeile sitzt der Nachweis nach § 7 UWG: Grundlage, '
+      + 'Beleg, Widerspruch. Sie zu loeschen loescht den Beweis, mit dem sich '
+      + 'eine Abmahnung abwehren laesst — auch die Loeschung nach Art. 17 '
+      + 'laeuft deshalb ueber anonymisiert_am.',
+  },
+  {
+    tabelle: 'kunde_zugang',
+    art: 'archiv',
+    migration: '0020',
+    grund:
+      'AUT-08. Wer wann fuer welchen Kunden ins Portal durfte, ist eine '
+      + 'Zugangsentscheidung. Ein entzogener Zugang wird auf entzogen_am '
+      + 'gesetzt, nicht entfernt.',
+  },
+  {
+    tabelle: 'belagsart',
+    art: 'archiv',
+    migration: '0021',
+    grund:
+      'OPS-03. Der Leistungswert ist die Zahl, aus der ein Angebotspreis '
+      + 'entstanden ist. Faellt die Zeile weg, laesst sich ein bereits '
+      + 'abgegebenes Angebot nicht mehr nachrechnen; abgeloest wird sie durch '
+      + 'gueltig_bis, nicht durch DELETE.',
+  },
+  {
+    tabelle: 'reinigungsklasse',
+    art: 'archiv',
+    migration: '0021',
+    grund:
+      'OPS-02. Die Klasse steht im Leistungsverzeichnis eines laufenden '
+      + 'Auftrags. Sie zu loeschen macht die vereinbarte Leistung unlesbar; '
+      + 'das Ende einer Klasse ist archiviert_am.',
+  },
+  {
+    tabelle: 'objekt',
+    art: 'archiv',
+    migration: '0021',
+    grund:
+      'OPS-01. An einem Objekt haengen Auftraege, Einsaetze, Nachweise und '
+      + 'Rechnungen mit zehnjaehriger Aufbewahrung. Ein beendetes Objekt wird '
+      + 'archiviert, nie entfernt.',
+  },
+  {
+    tabelle: 'raum',
+    art: 'archiv',
+    migration: '0021',
+    grund:
+      'OPS-02. Die Quadratmeter dieser Zeile sind die Grundlage einer '
+      + 'Kalkulation, die in ein Angebot und von dort in eine Rechnung '
+      + 'gewandert ist. Ein geloeschter Raum macht die Rechnung unpruefbar — '
+      + 'ein entfallener Raum bekommt archiviert_am.',
+  },
+  {
+    tabelle: 'leistungskatalog',
+    art: 'archiv',
+    migration: '0022',
+    grund:
+      'OPS-06. Der Katalog ist die Fassung, aus der ein abgegebenes Angebot '
+      + 'seine Texte und Listenpreise genommen hat. Ein geloeschter Katalog '
+      + 'macht dieses Angebot unlesbar; sein Ende ist status = archiviert.',
+  },
+  {
+    tabelle: 'leistungskatalog_position',
+    art: 'archiv',
+    migration: '0022',
+    grund:
+      'OPS-06. An der Position haengen kalkulation_position und '
+      + 'angebotsposition. Sie zu loeschen bricht die Spur vom Preis zur '
+      + 'Leistung; abgeloest wird sie durch gueltig_bis.',
+  },
+  {
+    tabelle: 'kalkulation',
+    art: 'archiv',
+    migration: '0023',
+    grund:
+      'OPS-07. Die Kalkulation ist die Begruendung eines abgegebenen Preises. '
+      + 'Sie zu loeschen nimmt einem Preisstreit seine Grundlage; eine '
+      + 'geaenderte Kalkulation ist eine neue Version, keine ersetzte Zeile.',
+  },
+  {
+    tabelle: 'kalkulation_position',
+    art: 'archiv',
+    migration: '0023',
+    grund:
+      'OPS-07, BAU-02. Auf der Position stehen die Schnappschuesse jeder '
+      + 'Eingangsgroesse und der Rechenansatz. Ohne sie laesst sich der '
+      + 'Betrag nicht mehr nachrechnen, nur noch glauben.',
+  },
+  {
+    tabelle: 'angebot',
+    art: 'archiv',
+    migration: '0024',
+    grund:
+      'OPS-08. Ein versendetes Angebot ist ein abgegebenes Vertragsangebot; '
+      + 'es zu loeschen entfernt den Beleg fuer das, was zugesagt wurde. Eine '
+      + 'Aenderung ist eine neue Version mit Rueckverweis.',
+  },
+  {
+    tabelle: 'angebotsposition',
+    art: 'archiv',
+    migration: '0024',
+    grund:
+      'OPS-08, FIN-07. Die Position ist die Zeile, die spaeter zur '
+      + 'Rechnungszeile wird. Ohne sie laesst sich nicht mehr zeigen, wofuer '
+      + 'der Preis galt.',
+  },
+  {
+    tabelle: 'angebot_steuer',
+    art: 'append',
+    migration: '0024',
+    grund:
+      'OPS-08, FIN-09. Die Steuerzeilen entstehen EINMAL beim Versand und '
+      + 'werden nie nachgerechnet — dieselbe Bauart, die K-12 von der '
+      + 'kanonischen Nutzlast einer Rechnung verlangt.',
+  },
+  {
+    tabelle: 'auftrag',
+    art: 'archiv',
+    migration: '0025',
+    grund:
+      'OPS-05, FIN-07. An einem Auftrag haengen Rechnungen mit '
+      + 'zehnjaehriger Aufbewahrung (§ 147 AO); ein beendeter Auftrag wird '
+      + 'abgeschlossen und archiviert, nie entfernt.',
+  },
+  {
+    tabelle: 'raumbuch_import',
+    art: 'archiv',
+    migration: '0026',
+    grund:
+      'OPS-04, LEG-01. Der Importkopf dokumentiert, WIE das heutige Raumbuch '
+      + 'entstanden ist — eine GoBD-Frage. Er bleibt, auch wenn seine '
+      + 'Zwischenzeilen geraeumt sind; sein Ende ist verworfen_am.',
+  },
+  {
+    tabelle: 'raum_import_historie',
+    art: 'append',
+    migration: '0026',
+    grund:
+      'OPS-04, SEC-A9. Welcher Import welchen Raum wie veraendert hat, mit '
+      + 'Vorher und Nachher. Eine Herkunftsspur mit Loeschpfad ist keine.',
+  },
+  {
     tabelle: 'audit_log',
     art: 'append',
     migration: '0005',
@@ -226,6 +391,14 @@ export const AUDITIERT: readonly TabelleJeMigration[] = [
   { tabelle: 'formular_definition', migration: '0016' },
   { tabelle: 'formular_zustaendigkeit', migration: '0016' },
   { tabelle: 'lead', migration: '0017' },
+  // `belagsart` ja, `raum` nein — eine Entscheidung, keine Auslassung. Ein
+  // geaenderter Leistungswert bepreist jedes noch offene Angebot neu und ist
+  // die Zeile, ueber die im Streitfall gestritten wird; er aendert sich
+  // selten. Ein Raumbuch dagegen kommt zu Tausenden aus einem Import, und ein
+  // Audit-Eintrag je Raum ertraenkte genau das Protokoll, auf das sich eine
+  // Auskunft stuetzt — die Historie des Raums steht ohnehin in seiner eigenen
+  // Zeile (`archiviert_am` plus Neuanlage).
+  { tabelle: 'belagsart', migration: '0021' },
 ] as const;
 
 /** Tables carrying S4 (`geloescht_am` / `geloescht_von`) — the finders' domain. */
@@ -249,6 +422,24 @@ export const GEAENDERT_AM: readonly TabelleJeMigration[] = [
   { tabelle: 'formular_definition', migration: '0016' },
   { tabelle: 'formular_zustaendigkeit', migration: '0016' },
   { tabelle: 'lead', migration: '0017' },
+  { tabelle: 'belagsart', migration: '0021' },
+  { tabelle: 'reinigungsklasse', migration: '0021' },
+  { tabelle: 'objekt', migration: '0021' },
+  { tabelle: 'raum', migration: '0021' },
+  { tabelle: 'leistungskatalog', migration: '0022' },
+  { tabelle: 'leistungskatalog_position', migration: '0022' },
+  { tabelle: 'kalkulation', migration: '0023' },
+  { tabelle: 'angebot', migration: '0024' },
+  { tabelle: 'angebotsposition', migration: '0024' },
+  { tabelle: 'auftrag', migration: '0025' },
+  { tabelle: 'raumbuch_import', migration: '0026' },
+  // `raumbuch_import_zeile` NICHT: sie ist die eine RAEUMBARE Tabelle dieser
+  // Domaene (§1.8) und traegt deshalb weder Loeschsperre noch geaendert_am —
+  // mit Sperre koennte die Raeumungspolicy gar nicht feuern.
+  // `angebot_steuer` NICHT: sie wird einmal geschrieben und nie geaendert.
+  // `kalkulation_position` NICHT: sie traegt kein geaendert_am. Eine Position
+  // einer festgeschriebenen Kalkulation ist unveraenderlich, und eine einer
+  // offenen wird ersetzt statt bearbeitet.
   // `formular_eingang` NICHT: er ist write-once. `verarbeitet_am` sagt, wann
   // jemand ihn angefasst hat, und ein `geaendert_am` daneben behauptete, der
   // Eingang selbst habe sich geändert — er darf es nicht.

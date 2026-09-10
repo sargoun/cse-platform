@@ -283,10 +283,30 @@ describe('(2) die Eskalation läuft einmal je Stunde und wird protokolliert', ()
   it('eine ausgehende Aktivität hält die Uhr an — und danach eskaliert nichts mehr', async () => {
     const { leadId } = await sende('angebot_reinigung', REINIGUNG);
     await sql`update lead set sla_frist_am = now() - interval '2 hours' where id = ${leadId}`;
-    await sql`
-      insert into lead_aktivitaet (mandant_id, lead_id, typ, richtung, zweck, betreff)
-      values (${ids.get('reinigung')!}, ${leadId}, 'email', 'ausgehend', 'vertraglich',
-              'Rückmeldung')`;
+
+    /**
+     * Die Rueckmeldung ist ein AUSGEHENDER elektronischer Kontakt, und
+     * `kern.uwg_sendetor` laesst sie nur zu, wenn drei Dinge belegt sind:
+     * der Kanal, der Empfaenger und seine Rechtsgrundlage. Genau das ist der
+     * Sinn — eine Antwort, von der niemand sagen kann, an wen sie ging,
+     * belegt im Streitfall nichts. Die Anfrage selbst begruendet `anfrage`
+     * (CRM-08), also traegt der Kontakt sie.
+     */
+    const [ap] = await sql<{ id: string }[]>`
+      insert into ansprechpartner (mandant_id, nachname, email, rechtsgrundlage,
+                                   rechtsgrundlage_quelle, rechtsgrundlage_erfasst_am)
+      values (${ids.get('reinigung')!}, 'Anfragende', 'anfrage@beispiel.test',
+              'anfrage', 'Webformular', now())
+      returning id`;
+    await sql`update lead set ansprechpartner_id = ${ap!.id} where id = ${leadId}`;
+    await alsApp(
+      { scope: 'mandant', mandantId: ids.get('reinigung')!, benutzerId: adminId,
+        portal: 'intern', readonly: false },
+      (tx) => tx`
+        insert into lead_aktivitaet (mandant_id, lead_id, ansprechpartner_id, typ,
+                                     richtung, zweck, kanal, betreff)
+        values (${ids.get('reinigung')!}, ${leadId}, ${ap!.id}, 'email', 'ausgehend',
+                'vertraglich', 'email', 'Rückmeldung')`);
 
     const [lead] = await sql<{ erste_reaktion_am: Date | null }[]>`
       select erste_reaktion_am from lead where id = ${leadId}`;
