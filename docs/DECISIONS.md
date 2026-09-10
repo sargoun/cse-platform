@@ -2301,6 +2301,273 @@ Tippfehler dort bricht den Build wie zuvor. Kennungen dieser Register stehen
 deshalb IM Aufruf und nicht vorher in einer Variablen — ausserhalb sieht der
 Scanner sie wieder als Recht.
 
+### D-150 · `auftrag_leistung` entsteht in PR 36, obwohl sie `02-CRM-OPERATIONS` gehoert
+
+PR 27 legte `auftrag` an und liess die Leistungszeilen darunter aus. Vier
+Migrationen tragen seither Spalten, die auf sie zeigen, ohne Fremdschluessel —
+`einsatz` (0028), `revier` und `turnus` (0029), `zeiteintrag` (0034) —, und
+jede hat ihre Anweisung woertlich als Kommentar hinterlegt.
+
+Der naheliegende Weg waere gewesen, PR 36 ohne den Elternteil zu bauen: die
+Spalte ist ja da. Das Ergebnis waere ein Abrechnungsanker, den niemand prueft.
+Ein `zeiteintrag.auftrag_leistung_id`, der auf nichts zeigt, faellt nicht auf —
+er erzeugt eine Abrechnungsabfrage, die still null Stunden liefert, und TIM-12
+("keine manuelle Uebertragung") waere eine Zusage ueber eine Kette mit einem
+fehlenden Glied.
+
+**Entschieden:** `0050_auftrag_leistung.sql` legt die Tabelle nach der Form von
+`02-CRM-OPERATIONS.md` §3.2 an — deren Eigentum sie bleibt — und loest in
+derselben Migration alle vier aufgeschobenen Fremdschluessel ein, jeden mit der
+Zeile, warum er dort stand. `0051` loest zusaetzlich die drei ein, die 0040
+gegen `zeiteintrag` (PR 34) und `qualifikation` (PR 31) offen liess, obwohl
+beide Elternteile schon standen.
+
+### D-151 · Der Monatssplit ist eine Sicht, und der Nettoanteil wird nicht in SQL gerundet
+
+Eine Schicht 31.10. 22:00 → 01.11. 06:00 gehoert zwei Monaten an. Sie in zwei
+Zeilen zu schreiben ist der naheliegende Entwurf und faelscht genau das, was
+§ 17 Abs. 1 MiLoG verlangt: Beginn, Ende und Dauer, EINMAL und so, wie sie
+waren.
+
+**Entschieden:** `zeiteintrag_monatsanteil` ist eine Sicht (04-PLANUNG-ZEIT
+§7.3, woertlich uebernommen); der Datensatz bleibt ungeteilt. Die Sicht liefert
+BRUTTOMINUTEN je Anteil — eine Differenz zweier Zeitpunkte, damit DST-richtig
+ohne Sonderfall —, und die aufgezeichnete Pause verteilt
+`services/zeit/monatsanteil.ts` nach groesstem Rest (§7.4). Jeden Anteil
+einzeln zu runden erzeugt oder vernichtet an jedem Monatsende eine Minute, die
+spaeter als Centdifferenz auf einer Rechnung auftaucht; eine Rundungsregel in
+einer DDL-Anweisung erreicht ausserdem kein Test.
+
+Die Gegenprobe laeuft immer: `pruefeAnteileGegenSchicht` rechnet den Split ein
+zweites Mal mit `splitteNachMonat` und wirft bei Abweichung. Zwei unabhaengige
+Umsetzungen derselben Regel, gegeneinander gehalten — die SQL-Sicht und die
+TypeScript-Funktion.
+
+### D-152 · Ein gesperrter Monat bekommt ein Artefakt mit Digest — `zeitnachweis`
+
+§7.3 verlangt, dass ein gesperrter Monat einmal rendert und danach nie wieder:
+eine Korrektur im Mai praegt eine neue Fassung mit Maerz-Zeitpunkten (§15.6),
+und wer den Maerz danach aus der lebenden Sicht neu rendert, erzeugt ein
+Dokument, das von dem abweicht, das die Arbeiterin bekommen hat. Beide sehen
+richtig aus.
+
+Kein Dokument der Phase 0 benennt einen Traeger fuer dieses Artefakt.
+`stundenkonto.abrechnung_dokument_id` (01-KERN §6.24, PR 37) zeigt auf das
+gerenderte PDF — das ist nicht dasselbe und darf auch keine zweite Quelle sein.
+
+**Entschieden:** `zeitnachweis` (0051) traegt die kanonische DATENFASSUNG je
+Beschaeftigung und Monat mit ihrem SHA-256, anfuegend, mit einem Ausloeser, der
+jedes UPDATE abweist — auch das des Eigentuemers. Das PDF von PR 37/39 entsteht
+AUS dieser Zeile; zwei Renderer aus einer Quelle koennen nicht auseinanderlaufen,
+zwei Quellen fuer ein Dokument tun es zwangslaeufig. Der Digest wird beim Lesen
+NACHGERECHNET und nicht geglaubt: ein gespeicherter Hash neben gespeicherten
+Zeilen beweist nichts, solange niemand die beiden gegeneinander haelt.
+
+Ein gesperrter Monat ohne Artefakt wird als `ungepraegt` gemeldet und
+ausdruecklich NICHT still aus der lebenden Sicht beantwortet — genau der
+Fallback waere der Fehler, den §7.3 beschreibt. Die Tabelle gehoert fachlich zu
+`04-PLANUNG-ZEIT.md` §7.3; sie ist dort nachzutragen (K-21).
+
+### D-153 · EMP-07 ist eine RESTRIKTIVE Policy, nicht eine Zusage der Oberflaeche
+
+0034 gibt `zeiteintrag` eine nur lesende `t_person`-Policy und die Decke
+`p_ma_decke`. Beides genuegt nicht: `t_mandant` ist `for all`, und ein Mandant,
+der der Rolle `mitarbeiter` einmal `zeit.schreiben` bindet — versehentlich oder
+mit einer gut gemeinten Begruendung —, oeffnet damit den UPDATE-Weg auf die
+eigenen Zeilen. Danach steht in der Datenbank ein § 17-Nachweis, den die
+betroffene Person selbst bewegt hat, und niemandem faellt es auf.
+
+**Entschieden:** `p_ma_kein_update` (0052) ist eine RESTRIKTIVE Policy auf
+`zeiteintrag` fuer `UPDATE`: restriktive Policies werden UND-verknuepft, ein
+zusaetzliches Recht kann sie nicht ueberstimmen. INSERT bleibt bewusst aussen
+vor — der Check-in schreibt ueber `cse_definer` (K-08), nicht ueber `cse_app`,
+und ein zweites Verbot verdeckte, dass genau EIN Weg gemeint ist. Der Test
+bindet der Mitarbeiterrolle `zeit.schreiben`, weist nach, dass das Recht
+tatsaechlich greift, und zeigt, dass das UPDATE trotzdem null Zeilen trifft.
+
+### D-154 · `zeit_einwand` bekommt eine Selbstlese-Policy im Mandanten-Scope
+
+01-KERN §6.27 gibt dem Mitarbeitenden eine INSERT-Policy und laesst ihn ueber
+`t_person` lesen — also im Personen-Scope. Der Einwand wird aber im
+MANDANTEN-Scope geschrieben (§12.1: der Dienst betritt `withTenant` mit dem
+aufgeloesten Mandanten neu), und dort trifft keine Lesepolicy zu.
+
+Das ist kein theoretisches Loch: Postgres verlangt fuer `INSERT … RETURNING`
+zusaetzlich eine SELECT-Policy. Ohne sie scheitert der eine Schreibweg, den
+EMP-07 dieser Person zusagt, mit `new row violates row-level security policy` —
+also mit der Auskunft „du darfst das nicht" fuer genau die Handlung, die ihr
+zusteht.
+
+**Entschieden:** `t_selbst_lesen` (0052) mit demselben Subjektpraedikat wie
+`t_selbst_einreichen`. Es werden keine anderen Zeilen sichtbar als in
+`t_person` — dieselben eigenen Einwaende, nur im anderen Scope. Die Alternative
+waere gewesen, der Mitarbeiterrolle `zeit.lesen` zu binden; das oeffnete die
+Einwaende ALLER Kollegen.
+
+### D-155 · Ueber den eigenen Einwand entscheidet niemand selbst
+
+`zk_nicht_selbst` (0036) verhindert, dass jemand seine eigene KORREKTUR
+schreibt. Das genuegt nicht: ein Einwand, den die betroffene Person selbst
+ABLEHNT, erzeugt gar keine Korrektur — also feuert `zk_nicht_selbst` nie, und
+im Eingang der Planung ist die Karte verschwunden.
+
+**Entschieden:** `einwand_status_maschine` (0052) weist eine Entscheidung ab,
+deren Konto zur betroffenen Person gehoert. Das ist das Geschwister von
+`zk_nicht_selbst` und nicht dieselbe Regel an zweiter Stelle: der eine schuetzt
+die Korrektur, der andere den Vorgang, der zu ihr fuehrt.
+
+### D-140 · Die Schichtmedien heissen `einsatz_medien`, nicht `medien`
+
+`04-PLANUNG-ZEIT.md` §5.8 nennt die Tabelle `medien`. Diesen Namen traegt in
+`public` aber seit `0014` schon die Bildablage der Website — mit
+`abschnitt.medien_id`, `referenz.medien_id` und zwei laufenden Diensten daran.
+Zwei Dokumente haben denselben Namen fuer zwei verschiedene Dinge vergeben; nur
+eines kann ihn haben, und die Migration meldet es als `relation "medien" already
+exists`. Das ist ein K-21-Fund: „jede Tabelle wird genau einmal deklariert" ist
+hier von zwei Eigentuemern gleichzeitig in Anspruch genommen worden.
+
+**Entschieden:** die Schichtmedien heissen `einsatz_medien`, ihr Register
+`einsatz_medien_bezug`. Der Name ist nicht erfunden — dieselbe Domaene benutzt
+ihn bereits: `einsatz_medien` ist ihr Aufbewahrungsklassenschluessel (§13) und,
+mit Bindestrich, ihr Bucket (`07-INTEGRATIONEN.md` §6.4). Umbenannt wird nichts
+Bestehendes; die Website-Ablage bleibt `medien`. Die fuenf Domaenen, die spaeter
+Medien anhaengen (PR 40, 41, 43, 45), adressieren die Tabelle ohnehin ueber ihr
+Register und nicht ueber einen Fremdschluessel, tragen den Namen also an genau
+einer Stelle. **Offen fuer die Gruppe:** ob `medien` mittelfristig in
+`inhalt_medien` umbenannt wird, damit die Domaene mit den mehr Referenzen den
+kuerzeren Namen bekommt. Das ist eine Migration mit Diensten und Seed daran und
+gehoert nicht in PR 35.
+
+### D-141 · Die Medienerfassung faehrt auf K-08-Registerzeile VIER, nicht auf einer sechsten
+
+`05-API-KARTE.md` §C.3 fuehrt `POST /api/check-in/[token]/medien` mit Prinzipal
+`cse_checkin`. K-08 fuehrt fuer diese Rolle genau zwei Funktionen —
+`checkin_verbrauchen` und `offline_ereignis_annehmen` — und nennt das Register
+ausdruecklich geschlossen. Beides zusammen geht nicht: eine Medienroute unter
+`cse_checkin` braucht eine Funktion, und eine neue waere die sechste Zeile.
+
+**Entschieden:** keine sechste Zeile. Die Aufnahme faehrt als das, was sie
+ohnehin ist — ein Ereignis der Warteschlange mit `art = 'foto'`, ein Wert, den
+`offline_ereignis_art` von Anfang an fuehrt. Die Route legt das Objekt in den
+privaten Bucket (Groesse, Magic Bytes, Metadaten entfernt) und uebergibt der
+vorhandenen Funktion die Koordinaten des abgelegten Objekts; die schreibt
+`einsatz_medien` unter `me_definer_insert` mit dem Menschen, den sie aus der
+Marke aufgeloest hat. Eine Zeile, deren Objekt nicht in den Bucket gekommen ist,
+entsteht damit nie — und ein Objekt ohne Zeile raeumt die Route wieder weg. D-135
+hat denselben Satz fuer die Check-in-Seite geschrieben: ein Register in einem PR
+zu erweitern, der es nicht muss, ist der Anfang davon, dass es keins mehr ist.
+
+### D-142 · Die Doppelerkennung haengt an `client_ereignis_id` allein, nicht am Paar
+
+`04-PLANUNG-ZEIT.md` §5.9 nennt `oe_idem_uk unique (geraet_id,
+client_ereignis_id)` als den Schluessel, der eine mehrfach gesendete
+Warteschlange auf eine Zeile zusammenfallen laesst. §1.15 desselben Dokuments
+sagt aber: solange `zeit.geraetekennung` aus ist, ist `geraet_id` **ein
+Zufallswert je Uebermittlung** — und aus ist die AUSGELIEFERTE Einstellung, weil
+O-06 offen ist. Damit ist das Paar bei jeder Wiedergabe ein anderes, die
+Doppelerkennung greift nie, und dieselbe Nachtschicht steht zweimal in der
+Warteschlange: zwei Ansprueche auf eine Stunde, beide plausibel, keiner
+auffaellig.
+
+**Entschieden:** beide Indizes. `oe_idem_uk` steht woertlich wie §5.9 ihn
+schreibt, und daneben `oe_client_uk unique (client_ereignis_id)` — die vom
+Geraet gepraegte UUID, die den Schluessel unter der ausgelieferten Einstellung
+ueberhaupt erst wirksam macht. Dasselbe Paar in `zeit_intern.offline_eingang`.
+`tests/isolation/offline-warteschlange.test.ts` (2) sendet dasselbe Ereignis
+zweimal mit VERSCHIEDENEN Geraetekennungen und faellt ohne den zweiten Index.
+
+### D-143 · Eine Nacherfassung nennt sich selbst als Ursprung UND als Ersatz
+
+§9.4 verlangt, dass die Uebernahme einer Offline-Behauptung in derselben
+Transaktion eine `zeiteintrag_korrektur`-Zeile mit `art = 'nacherfassung'`
+schreibt — sie ist der Beleg, ohne den `quelle_beginn = 'planer_entscheidung'`
+nach §1.8 nicht rechtmaessig ist. §5.7 gibt derselben Tabelle aber
+`ursprung_zeiteintrag_id NOT NULL`, `check (art = 'storno' or
+ersatz_zeiteintrag_id is not null)` und eine Kettenpruefung, die eine
+VORGAENGERFASSUNG voraussetzt und den Ursprung als abgeloest markiert. Eine
+Nacherfassung hat keinen Vorgaenger: sie legt den Datensatz erst an. Beide
+Regeln zusammen machen TIM-09s einzigen rechtmaessigen Weg unbaubar — und zwar
+nicht sichtbar, sondern als `check_violation` tief in einem Ausloeser.
+
+**Entschieden:** der minimale Schnitt. Die Korrekturzeile nennt den neu
+entstandenen Eintrag als Ursprung UND als Ersatz; damit ist die
+`CHECK`-Bedingung erfuellt, ohne dass eine Spalte nullbar wird.
+`kern.korrektur_kette_pruefen` bekommt in `0042` genau einen zusaetzlichen
+Zweig — `art = 'nacherfassung'`, Ursprung gleich Ersatz, Fassung 1,
+`nacherfasst` gesetzt —, der das Ablosen ueberspringt; jeder bestehende Pfad
+laeuft Zeichen fuer Zeichen unveraendert weiter. `vorher` traegt die Behauptung
+des Geraets, `nachher` den angelegten Datensatz: die Zeile beantwortet damit
+genau die Frage, um die es in §1.8 geht — worin unterscheidet sich, was das
+Telefon gemeldet hat, von dem, was ein Mensch aufgeschrieben hat.
+
+### D-144 · Die Aufnahme antwortet EINMAL fuer jeden Fall — und ihre Spalten heissen anders
+
+Zwei Entscheidungen an `app.offline_ereignis_annehmen`, beide klein und beide
+mit teurer Kehrseite.
+
+**Ein Ergebnis, kein Orakel.** Eine Einreichung, deren Marke aufloest, landet in
+`offline_ereignis`; eine, deren Marke nicht aufloest, in
+`zeit_intern.offline_eingang`. Die Antwort unterscheidet die Faelle NICHT: sie
+nennt eine `vorgang_id` und `empfangen`, und welches Buch das war, geht den
+Absender nichts an (AUT-06, §9.2). `05-API-KARTE.md` §C.3 schreibt hier
+`{ offline_ereignis_id, status: 'empfangen' }`; das Feld heisst `vorgang_id`,
+weil `offline_ereignis_id` fuer eine Zeile des Vorbereichs schlicht falsch waere
+— ein Name, der luegt, ist schlimmer als einer, der abweicht.
+
+**Und die Rueckgabespalten heissen `ereignis_kennung` und `ergebnis`.** In
+plpgsql sind OUT-Parameter Variablen, und Postgres setzt sie ueberall dort ein,
+wo ein Bezeichner sonst eine Spalte waere. Hiessen sie wie die Spalten, schluege
+`on conflict (client_ereignis_id)` mit „column reference is ambiguous" fehl —
+zur Laufzeit, beim ersten Wiedereinspielen, also genau an der Stelle, die die
+Funktion absichert. Der Test hat es gefunden.
+
+### D-145 · Videometadaten werden ueberschrieben, nicht herausgeschnitten
+
+`src/server/storage/exif.ts` lehnte `video/*` ab, weil es kein Verfahren gab —
+richtig, solange keines da war, aber TIM-10 verlangt „Photo **and video**
+capture, EXIF stripped". Der naheliegende Entwurf schneidet `moov/udta` heraus
+(dort steht Apples `©xyz`, die GPS-Koordinate der Aufnahme). Er macht die Datei
+kaputt: `stco`/`co64` im `stbl` sind ABSOLUTE Byteoffsets in `mdat`, und wenn
+`moov` davor liegt — der Normalfall bei allem, was auf einem Telefon aufgenommen
+wird —, verschiebt jede Verkuerzung jeden dieser Offsets. Nicht sichtbar kaputt:
+die Datei oeffnet sich und springt, und das faellt erst auf, wenn jemand das
+Video als Beweis braucht.
+
+**Entschieden:** gleiche Laenge. Der Boxtyp wird zu `free` (ISO/IEC 14496-12
+nennt `free`/`skip` ausdruecklich ignorierbar), der Inhalt zu Nullbytes. Kein
+Offset bewegt sich. Derselbe Kunstgriff wie beim PDF, aus demselben Grund.
+Abgelehnt wird jetzt, was **keine `ftyp`-Box** hat: eine Datei, deren Boxlaengen
+wir nicht kennen, laesst sich nicht ueberschreiben, ohne zu raten.
+
+Dabei gefunden und mitbehoben: in `SIGNATUREN` stand `video/mp4` (Signatur
+`ftyp`) VOR `video/quicktime` (`ftypqt`), und `find` nimmt den ersten Treffer.
+Jede `.mov` und jedes iPhone-Foto wurde damit als `video/mp4` erkannt, und
+`pruefeUpload` wies den Upload als „Widerspruch" ab, obwohl Inhalt und
+Deklaration uebereinstimmten — die unangenehme Sorte Fehler: die Datei ist in
+Ordnung, die Meldung beschuldigt sie, und niemand sucht in der Reihenfolge einer
+Liste. `image/heic` kam neu dazu und steht als spezifischste zuerst.
+
+### D-146 · `z_fenster_projizieren` wird in `0042` nachgezogen
+
+`0040` hat den dritten K-06-Projektionsausloeser als auskommentierten Block
+hinterlassen, weil `zeiteintrag` damals nicht existierte, und die Migration
+benannt, die ihn nachtraegt: „die, die `zeiteintrag` anlegt; ist die bereits
+angewendet, in die naechste danach." PR 34 hat ihn nicht nachgezogen.
+
+**Entschieden:** er steht in `0042`, woertlich mit dem Koerper aus `0040`
+Abschnitt 6 — und er gehoert ohnehin hierher, denn erst mit der
+Offline-Uebernahme entstehen `ist`-Fenster in Menge. Ohne ihn traegt
+`zeit_intern.arbeitszeit_fenster` nur `plan`-Zeilen: der ArbZG-Detektor prueft
+dann die GEPLANTE Belastung und nie die tatsaechliche, eine Kraft, die sechs
+Stunden laenger geblieben ist, bleibt unauffaellig, und eine gesetzlich
+vorgeschriebene Pruefung, die immer still besteht, ist schlimmer als keine
+(§15.1). **Weiterhin offen und NICHT in diesem PR:** `0040` §16 nennt zwei
+Fremdschluessel, die dieselbe Voraussetzung hatten und ebenfalls fehlen —
+`pk_zeiteintrag_fk` auf `planungs_konflikt` und `av_zeiteintrag_fk` auf
+`arbeitszeit_verstoss`. Beide Tabellen gehoeren der parallel laufenden
+ArbZG-Arbeit; sie hier anzufassen waere ein Konflikt mit ihr.
+
+
 ## Carried over from the Phase 0 review — not client questions
 
 Three items the review surfaced that are ours to do, recorded here so they are not

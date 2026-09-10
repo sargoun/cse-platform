@@ -387,9 +387,18 @@ export async function praegeNachweis(
      values ($1, $2, $3, $4::date, $5::jsonb, $6, $7, $8, $9, $10::timestamptz,
              'mensch', $11)
      on conflict (mandant_id, anstellung_id, monat) do nothing`,
+    /**
+     * `zeilen` geht als FELD hinein, nicht als Zeichenkette.
+     *
+     * Der Treiber kodiert selbst, sobald ein Parameter als `jsonb` gebraucht
+     * wird; eine schon kodierte Zeichenkette wuerde ein zweites Mal kodiert
+     * und landete als jsonb-ZEICHENKETTE. Die Bedingung `zn_zeilen_gezaehlt`
+     * faengt das hier („array length of a scalar") — ohne sie stuende im
+     * Artefakt ein Text, der wie ein Nachweis aussieht und keiner ist.
+     */
     [
       erste.mandant_id, eingabe.anstellungId, erste.person_id, eingabe.monat,
-      JSON.stringify(zeilen), zeilen.length, s.brutto, s.netto, hash,
+      zeilen, zeilen.length, s.brutto, s.netto, hash,
       gesperrtAm.toISOString(), kontext.benutzerId,
     ],
   );

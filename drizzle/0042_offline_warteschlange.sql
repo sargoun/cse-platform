@@ -842,7 +842,17 @@ end $$;
 create function app.offline_ereignis_annehmen(p_token_hash text,
                                               p_ereignisse jsonb,
                                               p_ip inet)
-returns table (client_ereignis_id uuid, vorgang_id uuid, status text)
+/**
+ * **Die Rueckgabespalten heissen `ereignis_kennung` und `ergebnis`, nicht
+ * `client_ereignis_id` und `status`** — und das ist kein Geschmack.
+ *
+ * In plpgsql sind OUT-Parameter Variablen, und Postgres setzt sie ueberall
+ * dort ein, wo ein Bezeichner sonst eine Spalte waere. Hiessen sie wie die
+ * Spalten, schluege `on conflict (client_ereignis_id)` mit „column reference
+ * is ambiguous" fehl — und zwar erst zur Laufzeit, beim ersten
+ * Wiedereinspielen, also genau an der Stelle, die diese Funktion absichert.
+ */
+returns table (ereignis_kennung uuid, vorgang_id uuid, ergebnis text)
 language plpgsql volatile security definer set search_path = pg_catalog, public as $$
 declare
   t            record;
@@ -954,9 +964,9 @@ begin
          where e.client_ereignis_id = v_client;
       end if;
 
-      client_ereignis_id := v_client;
+      ereignis_kennung := v_client;
       vorgang_id := v_id;
-      status := 'empfangen';
+      ergebnis := 'empfangen';
       return next;
       continue;
     end if;
@@ -1021,9 +1031,9 @@ begin
       -- Telefons wird nach einem Funkloch mehrfach gesendet (K-09).
       select o.id into v_id from public.offline_ereignis o
        where o.client_ereignis_id = v_client;
-      client_ereignis_id := v_client;
+      ereignis_kennung := v_client;
       vorgang_id := v_id;
-      status := 'empfangen';
+      ergebnis := 'empfangen';
       return next;
       continue;
     end if;
@@ -1090,9 +1100,9 @@ begin
                                                  'ip', p_ip::text),
                               t.mandant_id);
 
-    client_ereignis_id := v_client;
+    ereignis_kennung := v_client;
     vorgang_id := v_id;
-    status := 'empfangen';
+    ergebnis := 'empfangen';
     return next;
   end loop;
 end $$;

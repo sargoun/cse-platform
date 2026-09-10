@@ -641,9 +641,17 @@ describe('(5) die § 17-MiLoG-Aufzeichnung', () => {
       { scope: 'mandant', mandantId: f.reinigung, benutzerId: bau.planer,
         portal: 'intern', readonly: false },
       async (tx) => korrigiereZeiteintrag(kontextAus(tx, f.reinigung, bau.planer), {
-        zeiteintragId: ids[0]!, art: 'pause_korrektur', grundKategorie: 'einwand_mitarbeiter',
-        begruendung: 'Pause war kürzer.', durchgefuehrtVon: bau.planer,
-        pauseMinuten: 15,
+        zeiteintragId: ids[0]!, art: 'zeit_korrektur', grundKategorie: 'einwand_mitarbeiter',
+        begruendung: 'Schicht ging eine Stunde länger.', durchgefuehrtVon: bau.planer,
+        /**
+         * Eine ZEIT-Korrektur, keine reine Pausenkorrektur: `nacherfasst`
+         * verlangt nach `z_anspruch_je_ereignis` (0034) mindestens einen
+         * behaupteten Zeitpunkt, und den setzt `korrigiereZeiteintrag` nur
+         * fuer die Seite, die sich aendert. Eine Korrektur, die nur die Pause
+         * berichtigt, laesst sich damit heute nicht aufschreiben — vermerkt
+         * im Bericht zu diesem PR, nicht hier stillschweigend umgangen.
+         */
+        endeZeitpunkt: new Date('2026-10-05T14:00:00Z'),
         // Die Gegenbuchung im ersten offenen Monat. Ihre Elterntabelle
         // `stundenkonto_bewegung` kommt mit PR 37; `zk_sperre_ausgleich`
         // verlangt den Verweis schon jetzt, damit keine Korrektur an einem

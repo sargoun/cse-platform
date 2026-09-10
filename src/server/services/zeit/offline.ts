@@ -70,9 +70,9 @@ export interface OfflineAnnahme {
 }
 
 interface AnnahmeZeile {
-  client_ereignis_id: string;
+  ereignis_kennung: string;
   vorgang_id: string;
-  status: string;
+  ergebnis: string;
 }
 
 /**
@@ -165,7 +165,7 @@ export async function nimmClaimAn(
   try {
     zeilen = await withCheckin(tx, async (k) =>
       k.rufe<AnnahmeZeile>(
-        `select client_ereignis_id, vorgang_id, status
+        `select ereignis_kennung, vorgang_id, ergebnis
            from app.offline_ereignis_annehmen($1, $2::jsonb, $3::inet)`,
         [
           tokenHash(eingabe.token),
@@ -191,7 +191,7 @@ export async function nimmClaimAn(
   }
 
   return zeilen.map((z) => ({
-    clientEreignisId: z.client_ereignis_id,
+    clientEreignisId: z.ereignis_kennung,
     vorgangId: z.vorgang_id,
     status: 'empfangen' as const,
   }));

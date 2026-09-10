@@ -131,13 +131,20 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'zeit', pfad: 'zeit/auftrag', schreibend: false },
   /**
    * Die § 17-Aufzeichnung SCHREIBT — aber nur das Artefakt eines gesperrten
-   * Monats, und nur einmal (§7.3). Ihr Recht ist `zeit.exportieren` und nicht
-   * `zeit.schreiben`: gepraegt wird beim Ausgeben, und wer Zeiten erfassen
-   * darf, gibt darum noch keinen Nachweis heraus.
+   * Monats, und nur einmal (§7.3).
+   *
+   * `zeit.schreiben` und nicht `zeit.exportieren`, obwohl das Praegen beim
+   * Ausgeben passiert: K-03 nennt in jeder `WITH CHECK` `<modul>.schreiben`,
+   * und die Policy auf `zeitnachweis` haelt sich daran. Zwei verschiedene
+   * Schluessel — einer im Register, einer in der Datenbank — waeren ein
+   * Dienst, dessen erklaertes Recht ihn nicht schreiben laesst: der Bildschirm
+   * bliebe leer, und niemand suchte den Grund in der Policy. Das Tor, das die
+   * AUSGABE begrenzt, sitzt an der Route `/portal/[mandant]/zeiten/milog` und
+   * heisst dort `zeit.exportieren` (ACC-12).
    */
   {
     modul: 'zeit', pfad: 'zeit/milog',
-    schreibend: true, schreibRecht: 'zeit.exportieren',
+    schreibend: true, schreibRecht: 'zeit.schreiben',
   },
   /**
    * Der Einwand hat ZWEI Schreibwege mit verschiedenen Wachen: das Einreichen

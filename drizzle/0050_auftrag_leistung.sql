@@ -223,6 +223,78 @@ create policy p_ma_decke on auftrag_leistung as restrictive for all to cse_app
 
 grant select, insert, update on auftrag_leistung to cse_app;
 
+/**
+ * Und der Lesezugriff des Generators — dieselbe Konstruktion wie bei `objekt`
+ * in 0028.
+ *
+ * `kern.einsatz_auftrag_ableiten()` unten laeuft als die AUFRUFENDE Rolle; es
+ * kann nicht `security definer` sein, denn 04-PLANUNG-ZEIT §1.1 fuehrt eine
+ * GESCHLOSSENE Liste der `cse_definer`-Policies, und diese Tabelle steht nicht
+ * darauf. Der naechtliche Generator ist `cse_job` und traefe hier sonst null
+ * Zeilen.
+ *
+ * Ein SPALTEN-Grant: drei Spalten, mehr braucht die Ableitung nicht. Der
+ * Einzelpreis, der Steuersatz und das Erloeskonto bleiben dem Nachtlauf
+ * verschlossen — ein Dienstplanlauf hat mit dem Preis nichts zu tun.
+ */
+create policy t_job on auftrag_leistung for select to cse_job using (true);
+grant select (id, mandant_id, auftrag_id) on auftrag_leistung to cse_job;
+
+-- ---------------------------------------------------------------------------
+-- Der Auftrag folgt aus der Leistungszeile — abgeleitet, nicht mitgeliefert
+-- ---------------------------------------------------------------------------
+
+/**
+ * **Ohne diese Ableitung scheitert der naechtliche Dienstplanlauf, sobald ein
+ * Turnus einen Abrechnungsanker traegt** — und zwar an einer Bedingung, die
+ * nach einem Tippfehler aussieht.
+ *
+ * `turnus` traegt `auftrag_leistung_id` (0029) und keinen `auftrag_id`; der
+ * Generator uebernimmt den Anker von der Bedarfsquelle und setzt `auftrag_id`
+ * auf NULL, weil es dort keinen gibt (`services/dienstplan/generator.ts`).
+ * `einsatz_leistung_braucht_auftrag` (0028) verlangt aber beide zusammen. Bis
+ * heute fiel das niemandem auf, weil `turnus.auftrag_leistung_id` mangels
+ * Elterntabelle nie gefuellt war — mit 0050 ist sie es, und der erste
+ * Nachtlauf danach bricht ab.
+ *
+ * Die Ableitung gehoert in die Datenbank und nicht in den Generator: der
+ * Auftrag IST eine Funktion der Leistungszeile (`auftrag_leistung.auftrag_id`
+ * ist NOT NULL), und jeder Schreibpfad — Generator, Import, Oberflaeche,
+ * spaeterer Dienst — braucht dieselbe Antwort. Das Geschwister davon ist
+ * `kern.einsatz_kunde_setzen()`, das den Kunden aus dem Objekt ableitet.
+ *
+ * Ein bereits gesetzter `auftrag_id` bleibt UNBERUEHRT. Ihn zu ueberschreiben
+ * hiesse, einen Widerspruch stillschweigend aufzuloesen — und genau den soll
+ * der Enkel-Schluessel `einsatz_leistung_fk` melden.
+ */
+create function kern.einsatz_auftrag_ableiten() returns trigger
+language plpgsql as $$
+declare v_auftrag uuid;
+begin
+  if new.auftrag_leistung_id is null or new.auftrag_id is not null then
+    return new;
+  end if;
+  select al.auftrag_id into v_auftrag
+    from auftrag_leistung al
+   where al.mandant_id = new.mandant_id and al.id = new.auftrag_leistung_id;
+  if not found then
+    raise exception 'Die Leistungszeile dieser Schicht gehoert nicht zu dieser Gesellschaft'
+      using errcode = 'foreign_key_violation',
+            detail  = 'einsatz.auftrag_leistung_id zeigt auf keine Zeile dieses Mandanten.',
+            hint    = 'Anker der Bedarfsquelle (turnus, posten) pruefen.';
+  end if;
+  new.auftrag_id := v_auftrag;
+  return new;
+end $$;
+
+comment on function kern.einsatz_auftrag_ableiten() is
+  'Leitet einsatz.auftrag_id aus der Leistungszeile ab (TIM-12, FIN-07). Das '
+  'Geschwister von kern.einsatz_kunde_setzen().';
+
+create trigger trg_einsatz_auftrag_ableiten
+  before insert or update of auftrag_leistung_id on einsatz
+  for each row execute function kern.einsatz_auftrag_ableiten();
+
 -- ---------------------------------------------------------------------------
 -- Die aufgeschobenen Fremdschluessel — jetzt einloesbar (§14.4)
 -- ---------------------------------------------------------------------------

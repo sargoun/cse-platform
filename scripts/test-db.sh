@@ -21,8 +21,25 @@
 set -euo pipefail
 
 PGDATA="${PGDATA:-/var/lib/postgresql/cse-test}"
-PORT="${PGPORT:-55432}"
-DB="${PGDATABASE:-cse_test}"
+
+# Die Zieldatenbank kommt aus `TEST_DATABASE_URL`, wenn eine gesetzt ist.
+#
+# Vorher stand hier fest `cse_test`, und das Skript setzte SIE zurueck — auch
+# wenn die Suite auf eine andere Datenbank zeigte. Fuenf Isolationsdateien
+# rufen dieses Skript selbst auf; sie liefen damit gegen eine Datenbank, die
+# der Rest des Laufs gar nicht benutzt, und meldeten „skipped" statt eines
+# Ergebnisses. Schlimmer noch in die andere Richtung: wer die Suite auf eine
+# Demodatenbank zeigen laesst, um Screenshots zu machen, verlor sie hier.
+DSN="${TEST_DATABASE_URL:-${DATABASE_URL:-}}"
+if [ -n "$DSN" ]; then
+  # postgres://user@host:PORT/DBNAME  — Port und Name herausschneiden.
+  DSN_DB="${DSN##*/}"; DSN_DB="${DSN_DB%%\?*}"
+  DSN_HOSTPORT="${DSN#*://}"; DSN_HOSTPORT="${DSN_HOSTPORT%%/*}"
+  DSN_PORT="${DSN_HOSTPORT##*:}"
+  case "$DSN_PORT" in (*[!0-9]*) DSN_PORT="" ;; esac
+fi
+PORT="${PGPORT:-${DSN_PORT:-55432}}"
+DB="${PGDATABASE:-${DSN_DB:-cse_test}}"
 
 # `psql` und `pg_isready` liegen nicht ueberall auf dem PATH.
 for kandidat in /usr/lib/postgresql/*/bin; do

@@ -149,13 +149,16 @@ export async function seedAuftrag(
   /**
    * Und die schon materialisierten Schichten nach. Der Generator hat sie
    * angelegt, bevor es einen Anker gab; die naechsten Laeufe erben ihn selbst.
-   * `auftrag_id` MUSS mitgesetzt werden — `einsatz_leistung_braucht_auftrag`
-   * (0028) verlangt es, und `einsatz_leistung_fk` (0050) ist der
-   * Enkel-Schluessel, der beides zusammenhaelt.
+   *
+   * `auftrag_id` steht hier bewusst NICHT: `kern.einsatz_auftrag_ableiten()`
+   * (0050) leitet ihn aus der Leistungszeile ab. Ihn hier mitzusetzen liefe
+   * ebenso, wuerde aber verdecken, dass der naechtliche Generator ihn gar
+   * nicht kennt — und genau darauf beruht, dass sein Lauf nicht an
+   * `einsatz_leistung_braucht_auftrag` scheitert.
    */
   const einsaetze = await sql<{ id: string }[]>`
     update einsatz e
-       set auftrag_id = ${auftragId}, auftrag_leistung_id = t.auftrag_leistung_id
+       set auftrag_leistung_id = t.auftrag_leistung_id
       from turnus t
      where t.mandant_id = e.mandant_id and t.id = e.turnus_id
        and e.mandant_id = ${reinigung}

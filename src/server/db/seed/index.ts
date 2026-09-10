@@ -106,7 +106,28 @@ async function main(): Promise<void> {
          ${rechtseinheit ? `DE${String(100_000_000 + i)}` : null},
          ${rechtseinheit ? 'Amtsgericht Charlottenburg' : null},
          ${rechtseinheit ? `HRB ${String(200_000 + i)}` : null})
-      on conflict (slug) do update set name = excluded.name
+      /**
+       * `eigener_nummernkreis` wird beim Wiedertreffen MITGEZOGEN, und das ist
+       * kein Detail.
+       *
+       * Der Zweig darunter legt fuer jede Rechtseinheit einen
+       * `nummernkreis`-Kreis an, und `kern.nummernkreis_pruefen` verlangt dafuer
+       * `mandant.eigener_nummernkreis = true` (TEN-02). Trifft der Seed auf
+       * Mandanten, die eine andere Fixtur schon angelegt hat — die
+       * Isolationssuite tut genau das, `tests/isolation/harness.ts` legt die
+       * vier Bereiche mit dem Vorgabewert `false` an —, dann liess der alte
+       * `do update set name` diesen Wert stehen, und der Seed brach mit
+       * „ausgangsrechnung erfordert mandant.eigener_nummernkreis = true" ab.
+       *
+       * Sichtbar wurde das als eine WANDERNDE Fehlermeldung: welche Testdatei
+       * es traf, hing an der Reihenfolge, in der Vitest die Dateien ausfuehrt,
+       * und die aendert sich mit jeder neuen Datei. Ein Seed, der auf einer
+       * frischen Datenbank laeuft und auf einer benutzten nicht, ist genau die
+       * Sorte Fehler, die man dreimal beim Falschen sucht.
+       */
+      on conflict (slug) do update
+        set name = excluded.name,
+            eigener_nummernkreis = excluded.eigener_nummernkreis
       returning id`;
     ids.set(b.slug, z!.id);
   }

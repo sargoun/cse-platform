@@ -312,6 +312,29 @@ create policy t_selbst_einreichen on zeit_einwand for insert to cse_app
                              and a.id = zeit_einwand.anstellung_id
                              and a.person_id = app.aktuelle_person()));
 
+/**
+ * Und er sieht sie AUCH im Mandanten-Scope, in dem er sie einreicht.
+ *
+ * Ohne diese Policy scheitert der eigene Schreibweg an einer Stelle, die
+ * niemand erwartet: ein `INSERT … RETURNING` verlangt in Postgres zusaetzlich
+ * eine SELECT-Policy, und die einzige, die im Mandanten-Scope zutraefe, ist
+ * `t_mandant` mit `zeit.lesen` — ein Recht, das keine Mitarbeiterrolle haelt.
+ * Die Meldung waere `new row violates row-level security policy`, also die
+ * Auskunft „du darfst das nicht", fuer genau die eine Handlung, die EMP-07
+ * dieser Person zusagt.
+ *
+ * Das Praedikat ist dasselbe wie in `t_selbst_einreichen`, also werden hier
+ * keine anderen Zeilen sichtbar als in `t_person`: dieselben eigenen
+ * Einwaende, nur im anderen Scope. Wer stattdessen `zeit.lesen` an die
+ * Mitarbeiterrolle binden wollte, oeffnete die Einwaende ALLER Kollegen.
+ */
+create policy t_selbst_lesen on zeit_einwand for select to cse_app
+  using (mandant_id = app.aktiver_mandant()
+         and exists (select 1 from anstellung a
+                      where a.mandant_id = zeit_einwand.mandant_id
+                        and a.id = zeit_einwand.anstellung_id
+                        and a.person_id = app.aktuelle_person()));
+
 /** Der Mensch sieht seine eigenen Einwaende, ueber alle Beschaeftigungen. */
 create policy t_person on zeit_einwand for select to cse_app
   using (app.scope() = 'person'
