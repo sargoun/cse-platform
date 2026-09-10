@@ -198,15 +198,28 @@ const GRENZWERTE: Readonly<Record<ArbzgBefund['regel'], number>> = {
   ausgleichszeitraum_ueberschritten: 8 * 60,
 };
 
+/**
+ * Anfang und Ende der beteiligten Fenster.
+ *
+ * Beide WERFEN auf einer leeren Liste, statt auf „jetzt" auszuweichen. Ein
+ * Befund ohne Fenster kann es nicht geben — er entsteht ja aus ihnen —, und
+ * die Uhr dieses Prozesses als Ersatzwert einzusetzen hiesse, einem Verstoss
+ * einen Zeitraum anzudichten, den niemand gemessen hat (Invariante 5).
+ */
 function fensterAnfang(fenster: readonly Belastungsfenster[]): Date {
-  return fenster.reduce(
-    (a, f) => (f.beginn < a ? f.beginn : a), fenster[0]?.beginn ?? new Date(),
-  );
+  const erstes = fenster[0];
+  if (erstes === undefined) {
+    throw new ArbzgFehler('Ein Befund ohne beteiligte Fenster kann nicht geschrieben werden.');
+  }
+  return fenster.reduce((a, f) => (f.beginn < a ? f.beginn : a), erstes.beginn);
 }
 
 function fensterEnde(fenster: readonly Belastungsfenster[]): Date {
-  return fenster.reduce((a, f) => {
-    const e = f.ende ?? new Date(f.beginn.getTime() + f.minuten * 60_000);
-    return e > a ? e : a;
-  }, fenster[0]?.ende ?? fenster[0]?.beginn ?? new Date());
+  const erstes = fenster[0];
+  if (erstes === undefined) {
+    throw new ArbzgFehler('Ein Befund ohne beteiligte Fenster kann nicht geschrieben werden.');
+  }
+  const schluss = (f: Belastungsfenster): Date =>
+    f.ende ?? new Date(f.beginn.getTime() + f.minuten * 60_000);
+  return fenster.reduce((a, f) => (schluss(f) > a ? schluss(f) : a), schluss(erstes));
 }
