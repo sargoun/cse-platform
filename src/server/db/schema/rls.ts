@@ -230,6 +230,46 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'Vorher und Nachher. Eine Herkunftsspur mit Loeschpfad ist keine.',
   },
   {
+    tabelle: 'feiertag',
+    art: 'append',
+    migration: '0028',
+    grund:
+      'LEG-03, § 9 ArbZG. Der Feiertagskalender ist die Grundlage dafuer, ob an '
+      + 'einem Tag geplant werden durfte und welche Zuschlaege galten. Ein '
+      + 'geloeschter Feiertag macht jede vergangene Schicht an diesem Tag '
+      + 'unpruefbar — korrigiert wird er durch eine neue Zeile, nie durch DELETE.',
+  },
+  {
+    tabelle: 'planungsserie',
+    art: 'archiv',
+    migration: '0028',
+    grund:
+      'LEG-03, LEG-01. Sie beantwortet, WORAUS ein Plan entstanden ist — die '
+      + 'erste Frage einer ArbZG-Pruefung zu einer Schicht, die es nicht haette '
+      + 'geben duerfen. Eine pausierte Serie bekommt archiviert_am; sie zu '
+      + 'loeschen macht jede von ihr erzeugte Schicht herrenlos.',
+  },
+  {
+    tabelle: 'einsatz',
+    art: 'archiv',
+    migration: '0028',
+    grund:
+      'LEG-02, LEG-03. Die geplante Schicht ist die Gegenprobe zum § 17 '
+      + 'MiLoG-Nachweis und zur ArbZG-Auswertung: geplant gegen geleistet. Eine '
+      + 'abgesagte Schicht bekommt storniert_am mit Grund — geloescht waere sie '
+      + 'im Lohnstreit eine Luecke, die niemand mehr erklaeren kann.',
+  },
+  {
+    tabelle: 'einsatz_zuordnung',
+    art: 'archiv',
+    migration: '0028',
+    grund:
+      'LEG-03, D-09. Wer wann fuer WELCHE Gesellschaft eingeteilt war, ist der '
+      + 'Beweis, aus dem die entitaetsuebergreifende ArbZG-Belastung entsteht. '
+      + 'Eine zurueckgenommene Einteilung bekommt entfernt_am und bleibt Teil '
+      + 'des Planungsprotokolls.',
+  },
+  {
     tabelle: 'audit_log',
     art: 'append',
     migration: '0005',
@@ -399,6 +439,20 @@ export const AUDITIERT: readonly TabelleJeMigration[] = [
   // Auskunft stuetzt — die Historie des Raums steht ohnehin in seiner eigenen
   // Zeile (`archiviert_am` plus Neuanlage).
   { tabelle: 'belagsart', migration: '0021' },
+  /**
+   * `einsatz` und `einsatz_zuordnung` ja, `planungsserie` nein — eine
+   * Entscheidung, keine Auslassung (04-PLANUNG-ZEIT §14.1).
+   *
+   * Eine verschobene Schicht und eine zurueckgenommene Einteilung sind die
+   * beiden Zeilen, ueber die im Lohnstreit gestritten wird ("diese Schicht
+   * wurde zweimal verlegt"), und aus ihrem Vorher/Nachher entsteht die
+   * NOT-01-Meldung ueber Planaenderungen. Die Serie dagegen aendert sich nur
+   * durch den Nachtlauf, der seinen Fortschritt ohnehin in `job_lauf` und
+   * `letzte_meldung` protokolliert — ein Audit-Eintrag je Lauf und Serie
+   * ertraenkte genau das Protokoll, auf das sich eine Auskunft stuetzt.
+   */
+  { tabelle: 'einsatz', migration: '0028' },
+  { tabelle: 'einsatz_zuordnung', migration: '0028' },
 ] as const;
 
 /** Tables carrying S4 (`geloescht_am` / `geloescht_von`) — the finders' domain. */
@@ -433,6 +487,10 @@ export const GEAENDERT_AM: readonly TabelleJeMigration[] = [
   { tabelle: 'angebotsposition', migration: '0024' },
   { tabelle: 'auftrag', migration: '0025' },
   { tabelle: 'raumbuch_import', migration: '0026' },
+  { tabelle: 'feiertag', migration: '0028' },
+  { tabelle: 'planungsserie', migration: '0028' },
+  { tabelle: 'einsatz', migration: '0028' },
+  { tabelle: 'einsatz_zuordnung', migration: '0028' },
   // `raumbuch_import_zeile` NICHT: sie ist die eine RAEUMBARE Tabelle dieser
   // Domaene (§1.8) und traegt deshalb weder Loeschsperre noch geaendert_am —
   // mit Sperre koennte die Raeumungspolicy gar nicht feuern.

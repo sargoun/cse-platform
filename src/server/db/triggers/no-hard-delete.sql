@@ -488,3 +488,64 @@ create trigger trg_raumbuch_import_geaendert_am
 
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0028)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- feiertag (append): LEG-03, § 9 ArbZG. Der Feiertagskalender ist die Grundlage dafuer, ob an einem Tag geplant werden durfte und welche Zuschlaege galten. Ein geloeschter Feiertag macht jede vergangene Schicht an diesem Tag unpruefbar — korrigiert wird er durch eine neue Zeile, nie durch DELETE.
+create trigger trg_feiertag_kein_hard_delete
+  before delete on feiertag
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_feiertag_kein_truncate
+  before truncate on feiertag
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on feiertag from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- planungsserie (archiv): LEG-03, LEG-01. Sie beantwortet, WORAUS ein Plan entstanden ist — die erste Frage einer ArbZG-Pruefung zu einer Schicht, die es nicht haette geben duerfen. Eine pausierte Serie bekommt archiviert_am; sie zu loeschen macht jede von ihr erzeugte Schicht herrenlos.
+create trigger trg_planungsserie_kein_hard_delete
+  before delete on planungsserie
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_planungsserie_kein_truncate
+  before truncate on planungsserie
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on planungsserie from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- einsatz (archiv): LEG-02, LEG-03. Die geplante Schicht ist die Gegenprobe zum § 17 MiLoG-Nachweis und zur ArbZG-Auswertung: geplant gegen geleistet. Eine abgesagte Schicht bekommt storniert_am mit Grund — geloescht waere sie im Lohnstreit eine Luecke, die niemand mehr erklaeren kann.
+create trigger trg_einsatz_kein_hard_delete
+  before delete on einsatz
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_einsatz_kein_truncate
+  before truncate on einsatz
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on einsatz from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- einsatz_zuordnung (archiv): LEG-03, D-09. Wer wann fuer WELCHE Gesellschaft eingeteilt war, ist der Beweis, aus dem die entitaetsuebergreifende ArbZG-Belastung entsteht. Eine zurueckgenommene Einteilung bekommt entfernt_am und bleibt Teil des Planungsprotokolls.
+create trigger trg_einsatz_zuordnung_kein_hard_delete
+  before delete on einsatz_zuordnung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_einsatz_zuordnung_kein_truncate
+  before truncate on einsatz_zuordnung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on einsatz_zuordnung from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_feiertag_geaendert_am
+  before update on feiertag
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_planungsserie_geaendert_am
+  before update on planungsserie
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_einsatz_geaendert_am
+  before update on einsatz
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_einsatz_zuordnung_geaendert_am
+  before update on einsatz_zuordnung
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_einsatz_audit
+  after insert or update or delete on einsatz
+  for each row execute function kern.protokolliere_aenderung();
+create trigger trg_einsatz_zuordnung_audit
+  after insert or update or delete on einsatz_zuordnung
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
