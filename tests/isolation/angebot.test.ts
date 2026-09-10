@@ -541,3 +541,177 @@ describe('(6) Nichts davon ist loeschbar', () => {
     }
   });
 });
+
+describe('(7) Die Gruppenansicht liest das Angebot — mitsamt seinem Steuerbild', () => {
+  /**
+   * `angebot` und `angebotsposition` tragen eine `t_gruppe`-Policy, die
+   * Steuerzeile aber lange nicht. Der Fehler waere leise gewesen: die
+   * Gruppenansicht haette das Angebot samt Positionen gezeigt und darunter
+   * eine LEERE Steueraufstellung — also eine Zahl, die aussieht wie „keine
+   * Umsatzsteuer“ statt wie „hier fehlt eine Berechtigung“. Genau die Sorte
+   * Fehler, die erst auffaellt, wenn jemand die Summe nachrechnet.
+   *
+   * Das Steuerbild ist dabei nicht empfindlicher als das, was die
+   * Gruppenansicht ohnehin sieht: die Positionen fuehren dieselben Betraege
+   * und denselben Satz. Die Policy weitet also nichts aus, sie schliesst eine
+   * Luecke in einer bereits erteilten Sicht.
+   */
+  /**
+   * `super_admin` ist eine GLOBALE Rolle: sie haengt an
+   * `benutzer.globale_rolle_id`, nicht an `benutzer_mandant` — dort weist ein
+   * Ausloeser sie ab. Und sie fordert 2FA (AUT-02), also braucht das Konto
+   * einen Faktor, sonst ist es gar nicht aktiv.
+   */
+  async function superAdmin(): Promise<string> {
+    const id = await konto();
+    await sql.unsafe(`insert into auth.mfa_factors (user_id) values ($1)`, [id]);
+    await sql.unsafe(`update benutzer set globale_rolle_id = $1 where id = $2`,
+                     [await rolleId('super_admin'), id]);
+    return id;
+  }
+
+  it('alle drei Tabellen antworten — Kopf, Positionen UND Steuerzeilen', async () => {
+    const sa = await superAdmin();
+    const k = await kunde(f.reinigung);
+    const a = await angebot(f.reinigung, k);
+    await position(f.reinigung, a, 1, { menge: '10.000', einzelpreis: 250n, satz: 1900 });
+    await position(f.reinigung, a, 2, { menge: '4.000', einzelpreis: 500n, satz: 700 });
+    await versende(a);
+
+    const gesehen = await alsApp(
+      { scope: 'gruppe', mandantIds: [f.reinigung], benutzerId: sa, portal: 'intern', readonly: true },
+      async (tx) => ({
+        angebote: await tx.unsafe(`select id from angebot where id = $1`, [a]),
+        positionen: await tx.unsafe(`select id from angebotsposition where angebot_id = $1`, [a]),
+        steuer: await tx.unsafe(
+          `select steuersatz_bp from angebot_steuer where angebot_id = $1 order by steuersatz_bp`,
+          [a]),
+      }));
+    expect(gesehen.angebote).toHaveLength(1);
+    expect(gesehen.positionen).toHaveLength(2);
+    // Die eigentliche Zusage: nicht null Zeilen, sondern beide Saetze.
+    expect(gesehen.steuer).toHaveLength(2);
+  });
+
+  it('das Angebot eines Mandanten AUSSERHALB der Gruppe bleibt unsichtbar', async () => {
+    const sa = await superAdmin();
+    const k = await kunde(f.security);
+    const a = await angebot(f.security, k);
+    await position(f.security, a, 1);
+    await sql.unsafe(
+      `update angebot set status='versendet', freigegeben_von=$2, freigegeben_am=now(),
+                          versendet_von=$2, versendet_am=now(), angebotsnummer=$3
+        where id = $1`, [a, sa, `AN-2026-${zufall().slice(0, 5)}`]);
+
+    // Die Gruppe ist hier NUR die Reinigung — `security` gehoert nicht dazu.
+    const gesehen = await alsApp(
+      { scope: 'gruppe', mandantIds: [f.reinigung], benutzerId: sa, portal: 'intern', readonly: true },
+      async (tx) => ({
+        angebote: await tx.unsafe(`select id from angebot where id = $1`, [a]),
+        steuer: await tx.unsafe(`select id from angebot_steuer where angebot_id = $1`, [a]),
+      }));
+    expect(gesehen.angebote).toHaveLength(0);
+    expect(gesehen.steuer).toHaveLength(0);
+  });
+
+  it('und die Gruppenansicht schreibt nichts — auch keine Steuerzeile', async () => {
+    const sa = await superAdmin();
+    const k = await kunde(f.reinigung);
+    const a = await angebot(f.reinigung, k);
+    await position(f.reinigung, a, 1);
+    await versende(a);
+    await expect(alsApp(
+      { scope: 'gruppe', mandantIds: [f.reinigung], benutzerId: sa, portal: 'intern', readonly: true },
+      async (tx) => tx.unsafe(
+        `insert into angebot_steuer (mandant_id, angebot_id, steuersatz_bp, steuer_kennzeichen,
+                                     netto_cent, steuer_cent)
+         values ($1,$2,0,'steuerfrei',0,0)`, [f.reinigung, a]),
+    )).rejects.toThrow(/nur beim Versand|row-level security|KeinAktiverMandant/iu);
+  });
+});
+
+describe('(8) Ein zweites Recht, das das Tor der Seite nicht verlangt', () => {
+  /**
+   * Die Angebotsseite steht hinter `angebot.lesen` — liest aber `auftrag`
+   * (eigene Policy, eigenes Recht) und die Sicht `kalkulation_platzhalter`
+   * (`security_invoker`, also die Policy von `kalkulation`).
+   *
+   * Diese Tests halten fest, was die Datenbank in dem Fall WIRKLICH tut:
+   * sie antwortet mit nichts. Das ist richtig — und genau deshalb darf die
+   * Seite daraus nicht „es gibt keinen Auftrag“ oder „die Kalkulation ist
+   * bestaetigt“ machen. Die Merker, die sie stattdessen liest, sind hier
+   * mitgeprueft: sie sind die einzige Stelle, an der der Unterschied zwischen
+   * „nichts da“ und „nichts sichtbar“ ueberhaupt noch existiert.
+   */
+  async function ohneRecht(...rechte: readonly string[]): Promise<string> {
+    for (const recht of rechte) {
+      await sql.unsafe(
+        `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+         select $1, b.id, $2, false from berechtigung b where b.schluessel = $3`,
+        [await rolleId('leitung'), f.reinigung, recht]);
+    }
+    return chef;
+  }
+
+  it('ohne kalkulation.lesen meldet die Sicht NICHTS — nicht „bestaetigt“', async () => {
+    const k = await kunde(f.reinigung);
+    const a = await angebot(f.reinigung, k);
+    await position(f.reinigung, a, 1);
+    await kalkulation(f.reinigung, a, true);          // steht auf Platzhaltern
+
+    // Mit dem Recht: die Sicht meldet das offene Angebot.
+    const mit = await alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: chef, portal: 'intern' },
+      async (tx) => tx.unsafe(
+        `select 1 from kalkulation_platzhalter where angebot_id = $1`, [a]));
+    expect(mit).toHaveLength(1);
+
+    await ohneRecht('kalkulation.lesen');
+
+    const ohne = await alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: chef, portal: 'intern' },
+      async (tx) => ({
+        sicht: await tx.unsafe(
+          `select 1 from kalkulation_platzhalter where angebot_id = $1`, [a]),
+        merker: await tx.unsafe<{ angebot: boolean; kalk: boolean }[]>(
+          `select app.hat_recht('angebot.lesen', app.aktiver_mandant()) as angebot,
+                  app.hat_recht('kalkulation.lesen', app.aktiver_mandant()) as kalk`),
+      }));
+
+    // Die Sicht ist leer — und saehe damit aus wie „keine offenen Werte“.
+    expect(ohne.sicht).toHaveLength(0);
+    // Der Merker der Seite widerspricht: lesbar ist das Angebot, die
+    // Kalkulation nicht. Genau daran haengt der gesperrte Versandknopf.
+    expect(ohne.merker[0]).toMatchObject({ angebot: true, kalk: false });
+  });
+
+  it('ohne auftrag.lesen bleibt der bereits entstandene Auftrag unsichtbar', async () => {
+    const k = await kunde(f.reinigung);
+    const a = await angebot(f.reinigung, k);
+    await position(f.reinigung, a, 1);
+    await versende(a);
+    await sql.unsafe(
+      `insert into auftrag (mandant_id, auftragsnummer, kunde_id, angebot_id, art,
+                            bezeichnung, verantwortlich_benutzer_id, start_datum)
+       values ($1,'AU-2026-09001',$2,$3,'rahmenvertrag','Unterhaltsreinigung',$4,'2026-04-01')`,
+      [f.reinigung, k, a, chef]);
+
+    await ohneRecht('auftrag.lesen');
+
+    const gesehen = await alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: chef, portal: 'intern' },
+      async (tx) => ({
+        nummer: await tx.unsafe<{ auftragsnummer: string }[]>(
+          `select auftragsnummer from auftrag where angebot_id = $1`, [a]),
+        merker: await tx.unsafe<{ auftrag: boolean }[]>(
+          `select app.hat_recht('auftrag.lesen', app.aktiver_mandant()) as auftrag`),
+      }));
+
+    // Der Auftrag EXISTIERT — die Zeile ist nur nicht sichtbar.
+    expect(gesehen.nummer).toHaveLength(0);
+    expect(gesehen.merker[0]).toMatchObject({ auftrag: false });
+    const [wirklich] = await sql.unsafe<{ n: string }[]>(
+      `select count(*)::text as n from auftrag where angebot_id = $1`, [a]);
+    expect(wirklich!.n).toBe('1');
+  });
+});

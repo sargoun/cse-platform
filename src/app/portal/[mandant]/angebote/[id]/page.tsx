@@ -45,6 +45,20 @@ interface Kopf {
   readonly versendet_am: string | null;
   readonly auftragsnummer: string | null;
   readonly kalkulation_offen: boolean;
+  /**
+   * Zwei Rechte, die das Tor dieser Seite NICHT verlangt.
+   *
+   * Die Seite steht hinter `angebot.lesen`, liest aber zwei Tabellen mit
+   * eigenen Policies: `auftrag` verlangt `auftrag.lesen`, die Sicht
+   * `kalkulation_platzhalter` (security_invoker) verlangt
+   * `kalkulation.lesen`. Wem eines davon fehlt, dem antwortet die Datenbank
+   * korrekt mit NICHTS — und ohne diese beiden Merker haette die Seite daraus
+   * „es gibt keinen Auftrag“ und „die Kalkulation ist bestaetigt“ gemacht.
+   * Beides waere eine Aussage ueber die DATEN gewesen statt ueber die
+   * Berechtigung, und die zweite haette den Versandknopf freigegeben.
+   */
+  readonly darf_auftrag_lesen: boolean;
+  readonly darf_kalkulation_lesen: boolean;
 }
 
 interface PositionZeile {
@@ -91,7 +105,11 @@ export default async function AngebotDetail(
                 (select t.auftragsnummer from auftrag t where t.angebot_id = a.id)
                   as auftragsnummer,
                 exists (select 1 from kalkulation_platzhalter kp where kp.angebot_id = a.id)
-                  as kalkulation_offen
+                  as kalkulation_offen,
+                (select app.hat_recht('auftrag.lesen', app.aktiver_mandant()))
+                  as darf_auftrag_lesen,
+                (select app.hat_recht('kalkulation.lesen', app.aktiver_mandant()))
+                  as darf_kalkulation_lesen
            from angebot a
            join kunde k on k.id = a.kunde_id
            left join objekt o on o.id = a.objekt_id
@@ -178,6 +196,19 @@ export default async function AngebotDetail(
           nicht.
         </p>
       ) : null}
+
+      {kopf.darf_kalkulation_lesen ? null : (
+        <p
+          data-cse="kalkulation-verdeckt"
+          className="mb-s5 rounded-md border border-line bg-surface-2 p-s4 text-sm text-text-muted"
+        >
+          <strong>Der Kalkulationsstand ist Ihnen nicht sichtbar.</strong> Ihnen
+          fehlt <code className="text-text">kalkulation.lesen</code>; die
+          Datenbank antwortet deshalb mit nichts, und das heißt hier
+          ausdrücklich nicht „alles bestätigt“. Der Versand bleibt gesperrt,
+          weil sich seine Voraussetzung von hier aus nicht prüfen lässt.
+        </p>
+      )}
 
       <DataTable
         beschriftung="Positionen dieses Angebots"
@@ -278,7 +309,7 @@ export default async function AngebotDetail(
             <button
               type="submit"
               data-cse="versenden"
-              disabled={kopf.kalkulation_offen}
+              disabled={kopf.kalkulation_offen || !kopf.darf_kalkulation_lesen}
               className="inline-flex min-h-11 items-center rounded-md bg-brand px-s5 text-sm text-white hover:bg-brand-hover disabled:opacity-50"
             >
               Angebot versenden
@@ -286,7 +317,7 @@ export default async function AngebotDetail(
           </form>
         )}
 
-        {versendet && kopf.auftragsnummer === null ? (
+        {versendet && kopf.auftragsnummer === null && kopf.darf_auftrag_lesen ? (
           <form method="post" action={`/api/angebot?mandant=${mandant}`}>
             <input type="hidden" name="aktion" value="in_auftrag" />
             <input type="hidden" name="angebotId" value={id} />
@@ -309,6 +340,14 @@ export default async function AngebotDetail(
         {kopf.auftragsnummer === null ? null : (
           <p className="m-0 text-sm text-text-muted">
             {`Auftrag ${kopf.auftragsnummer} entstanden.`}
+          </p>
+        )}
+
+        {kopf.darf_auftrag_lesen ? null : (
+          <p data-cse="auftrag-verdeckt" className="m-0 text-sm text-text-muted">
+            Ob aus diesem Angebot bereits ein Auftrag entstanden ist, ist Ihnen
+            nicht sichtbar — dafür fehlt <code className="text-text">auftrag.lesen</code>.
+            Deshalb steht hier auch kein Knopf, der einen zweiten anlegen würde.
           </p>
         )}
       </div>

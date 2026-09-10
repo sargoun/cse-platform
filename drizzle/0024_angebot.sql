@@ -473,6 +473,23 @@ create policy t_versand_schreiben on angebot_steuer for insert to cse_app
               and not app.ist_readonly()
               and (select app.hat_recht('angebot.versenden', app.aktiver_mandant())));
 
+/**
+ * Die Gruppenansicht liest die Steuerzeile mit — unter demselben Recht wie
+ * den Kopf und die Positionen.
+ *
+ * Ohne sie waere der Fehler leise: die Gruppensicht zeigte das Angebot samt
+ * Positionen und darunter eine LEERE Steueraufstellung. Das liest sich wie
+ * „keine Umsatzsteuer“ und ist in Wahrheit „hier fehlt eine Policy“ — die
+ * Sorte Fehler, die erst auffaellt, wenn jemand die Summe nachrechnet.
+ *
+ * Ausgeweitet wird dabei nichts: `angebotsposition` traegt bereits dieselbe
+ * Policy und fuehrt dieselben Betraege und denselben Steuersatz. Die
+ * Steuerzeile fasst nur zusammen, was diese Sicht ohnehin sehen darf.
+ */
+create policy t_gruppe on angebot_steuer for select to cse_app
+  using (app.ist_gruppenansicht()
+         and mandant_id = any (app.rechte_mandanten('gruppe.angebot.lesen')));
+
 create policy t_kunde on angebot_steuer for select to cse_app
   using (app.scope() = 'kunde'
          and exists (select 1 from angebot a

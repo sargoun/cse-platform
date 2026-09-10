@@ -111,6 +111,20 @@ export default async function KundeDetail(
           where ap.kunde_id = $1 and ap.archiviert_am is null
           order by ap.nachname, ap.vorname`, [id]);
 
+      /**
+       * Zwei Rechte, die das Tor dieser Seite NICHT verlangt.
+       *
+       * Die Seite steht hinter `crm.lesen`, liest aber `objekt` und `auftrag`
+       * — beide mit eigener Policy und eigenem Recht. Wem eines fehlt, dem
+       * antwortet die Datenbank korrekt mit null Zeilen. Ohne diese Merker
+       * haette die Seite daraus „kein Objekt zugeordnet“ und „noch kein
+       * Auftrag“ gemacht: eine Aussage ueber den KUNDEN statt ueber die
+       * Berechtigung — und der Vertrieb ruft mit ihr beim Kunden an.
+       */
+      const [rechte] = await kontext.abfrage<{ objekt: boolean; auftrag: boolean }>(
+        `select app.hat_recht('objekt.lesen', app.aktiver_mandant()) as objekt,
+                app.hat_recht('auftrag.lesen', app.aktiver_mandant()) as auftrag`);
+
       const objekte = await kontext.abfrage<ObjektZeile>(
         `select id, bezeichnung, ort from objekt
           where kunde_id = $1 and archiviert_am is null order by bezeichnung`, [id]);
@@ -120,14 +134,18 @@ export default async function KundeDetail(
                 auftragswert_netto_cent::text as wert
            from auftrag where kunde_id = $1 order by start_datum desc`, [id]);
 
-      return { kopf, kontakte, objekte, auftraege };
+      return { kopf, kontakte, objekte, auftraege, rechte };
     })) as Promise<{
       kopf: Kopf; kontakte: readonly KontaktZeile[];
       objekte: readonly ObjektZeile[]; auftraege: readonly AuftragZeile[];
+      rechte: { objekt: boolean; auftrag: boolean } | undefined;
     } | null>);
 
   if (daten === null) notFound();
   const { kopf, kontakte, objekte, auftraege } = daten;
+  // Fehlt die Zeile, ist die engste Annahme die sichere: nichts behaupten.
+  const darfObjekt = daten.rechte?.objekt === true;
+  const darfAuftrag = daten.rechte?.auftrag === true;
 
   return (
     <PortalRahmen
@@ -232,7 +250,13 @@ export default async function KundeDetail(
 
       <section aria-labelledby="objekte" className="mb-s7">
         <h2 id="objekte" className="text-h2 text-text">Objekte</h2>
-        {objekte.length === 0 ? (
+        {!darfObjekt ? (
+          <p data-cse="objekte-verdeckt" className="text-sm text-text-muted">
+            Die Objekte dieses Kunden sind Ihnen nicht sichtbar — dafür fehlt
+            <code className="text-text"> objekt.lesen</code>. Das heißt nicht,
+            dass es keine gibt.
+          </p>
+        ) : objekte.length === 0 ? (
           <p className="text-sm text-text-muted">Kein Objekt zugeordnet.</p>
         ) : (
           <ul className="m-0 list-none p-0">
@@ -253,7 +277,13 @@ export default async function KundeDetail(
 
       <section aria-labelledby="auftraege">
         <h2 id="auftraege" className="text-h2 text-text">Aufträge</h2>
-        {auftraege.length === 0 ? (
+        {!darfAuftrag ? (
+          <p data-cse="auftraege-verdeckt" className="text-sm text-text-muted">
+            Die Aufträge dieses Kunden sind Ihnen nicht sichtbar — dafür fehlt
+            <code className="text-text"> auftrag.lesen</code>. Das heißt nicht,
+            dass es keine gibt.
+          </p>
+        ) : auftraege.length === 0 ? (
           <p className="text-sm text-text-muted">Noch kein Auftrag.</p>
         ) : (
           <DataTable
