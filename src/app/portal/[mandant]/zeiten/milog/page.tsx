@@ -269,9 +269,17 @@ export default async function MiLoGAufzeichnung({
               {
                 schluessel: 'art',
                 kopf: 'Erfassung',
+                /**
+                 * „erfasst" und nicht „gestempelt": die Zeile weiss nur, dass
+                 * sie NICHT nachträglich behauptet wurde — ob sie aus einem
+                 * Check-in-Link, aus dem Portal oder aus einem Import stammt,
+                 * steht in `erfassungsart` und gehört auf das Einzelblatt.
+                 * Ein Wort, das mehr behauptet als die Spalte weiss, ist auf
+                 * einer Zoll-Aufzeichnung genau falsch.
+                 */
                 zelle: (z) => (z.nacherfasst
                   ? <span className="text-warning">nacherfasst</span>
-                  : <span className="text-text-subtle">gestempelt</span>),
+                  : <span className="text-text-subtle">erfasst</span>),
               },
             ]}
           />

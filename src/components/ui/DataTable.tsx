@@ -49,7 +49,10 @@ export function DataTable<Z>({
                 key={s.schluessel}
                 scope="col"
                 className={[
-                  'py-s3 text-micro uppercase tracking-[0.08em] text-text-subtle',
+                  // `px-s2` wie in der Zelle: ohne es stand die rechtsbündige
+                  // Zahlenüberschrift direkt an der nächsten Überschrift —
+                  // „NETTO AUFTRAG" las sich wie EINE Spalte.
+                  'px-s2 py-s3 text-micro uppercase tracking-[0.08em] text-text-subtle',
                   s.numerisch === true ? 'cse-zahl' : 'text-left',
                 ].join(' ')}
               >

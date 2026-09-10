@@ -18,6 +18,7 @@ import { DATENSCHUTZ_VERSION, FORMULARE } from './formulare.js';
 import { seedOperations } from './operations.js';
 import { seedDienstplan } from './dienstplan.js';
 import { seedAuftrag } from './auftrag.js';
+import { seedZeit } from './zeit.js';
 
 const url = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 if (url === undefined || url === '') {
@@ -647,6 +648,19 @@ async function main(): Promise<void> {
     `  ${String(auftrag.auftraege)} Auftrag mit ${String(auftrag.leistungen)} `
     + `Leistungszeilen, ${String(auftrag.verankerteTurnusse)} Turnusse und `
     + `${String(auftrag.verankerteEinsaetze)} Einsaetze verankert (Preise: Demowerte)\n`,
+  );
+
+  /**
+   * Und zuletzt die Einteilung samt erfasster Zeit — sie braucht den Plan UND
+   * den Abrechnungsanker: ein Zeiteintrag erbt seine Leistungszeile von der
+   * Schicht (`z_erben`), und ohne den Anker haetten alle Eintraege keinen
+   * Auftrag. Die Reihenfolge ist eine Abhaengigkeit, keine Vorliebe.
+   */
+  const zeit = await seedZeit(sql, ids);
+  process.stdout.write(
+    `  ${String(zeit.einteilungen)} Einteilungen (davon ${String(zeit.uebergangen)} `
+    + `mit bestaetigtem ArbZG-Befund), ${String(zeit.zeiteintraege)} Zeiteintraege `
+    + `importiert, ${String(zeit.laufend)} laufend\n`,
   );
 
   process.stdout.write('\nSeed fertig.\n');
