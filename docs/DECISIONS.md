@@ -1206,6 +1206,240 @@ INSERT-Policy fuer `cse_app` unter `crm.kommunikation_versenden`. Sie ist keine
 Erlaubnis zu senden; `agent/policy.ts` entscheidet weiterhin, und die Zeile
 bezeugt nur, dass entschieden wurde.
 
+### D-77 · Eine Kennzahl entsteht im Register oder gar nicht
+
+`registriereKachel()` nimmt eine Kachel nur an, wenn sie vollstaendig ist:
+Schluessel, Label, Modul, **Recht**, Zaehlabfrage, Zeilenabfrage und ein
+Linkziel, das mit `/` beginnt. Fehlt eines davon, wirft die Registrierung — und
+weil die Kacheln beim Rendern registriert werden, faellt die Seite und nicht
+erst der Leser auf.
+
+Das klingt nach Zeremonie fuer sieben Zahlen. Es ist die Alternative zu einer
+Kachel, die in einer JSX-Datei entsteht: die haette eine Zahl und kein Recht,
+und sie wuerde jedem angezeigt, der die Seite oeffnet.
+
+### D-78 · Eine Kachel ohne Modul ist ABWESEND, nicht null
+
+Es waere leicht, heute schon "Offene Rechnungen" zu registrieren; die Abfrage
+ist zwei Zeilen und die Antwort ist `0`. Aber `0` heisst in einer Uebersicht
+"es gibt keine", nicht "das Modul kommt in Phase 6". Wer die beiden
+verwechselt, plant auf einer Zahl, die es nicht gibt.
+
+Das Register waechst deshalb **mit** den Modulen und nicht vor ihnen. Jeder
+spaetere PR registriert seine eigenen Kacheln.
+
+### D-79 · Zahl und Zeilen stammen aus einem Praedikat und einem Schnappschuss
+
+DSH-04 verlangt, dass eine Kennzahl zu den Zeilen fuehrt, die sie zaehlt. Zwei
+Mechanismen sichern das, und beide sind noetig:
+
+1. **Ein Praedikat.** `zaehlung` und `zeilen` derselben Kachel tragen dieselbe
+   `where`-Bedingung, und die generische Kennzahlseite rendert genau `zeilen`.
+   Zwei getrennt gepflegte Abfragen liefen frueher oder spaeter auseinander —
+   und zwar unbemerkt, weil beide plausibel aussaehen.
+2. **Ein Schnappschuss.** Beide laufen in einer Transaktion mit
+   `isolation level repeatable read` (`SCHNAPPSCHUSS` in `server/db/pool.ts`).
+   Unter dem Vorgabewert `read committed` sieht die zweite Abfrage einen
+   neueren Stand als die erste: eine Anfrage, die zwischen `count` und
+   `select` eintrifft, macht aus 14 und 14 ein 14 und 15. Selten,
+   unreproduzierbar — und genau die Art Abweichung, nach der niemand der Zahl
+   mehr glaubt.
+
+### D-80 · Der Bereichsfilter ist ein Argument und steht in der URL
+
+Jede Kachelabfrage nimmt `$1 = mandant_ids::uuid[]`; der Filter setzt dieses
+eine Argument fuer alle. Waere er je Kachel gebaut, zeigte nach einem Wechsel
+die eine den neuen Bereich und die andere noch den alten — beide plausibel.
+
+Dass er in der URL steht und nicht im Zustand der Seite, macht eine gefilterte
+Uebersicht zitierbar: ein Link in einer Mail zeigt dem Empfaenger dasselbe.
+Der aktive Mandant der **Sitzung** bleibt davon unberuehrt (Invariante 3) — die
+URL waehlt hier nur aus, was die Sitzung ohnehin sehen darf, und die
+Isolationssuite prueft das gegen einen erfundenen Bereichsparameter.
+
+### D-81 · Die Dashboards liegen vorerst unter `/dev`
+
+Es gibt noch keine Anmeldung (PR 20). Ein Dashboard braucht aber einen
+Benutzer, sonst prueft es seine Rechte gegen niemanden. `withDevAdmin()`
+bindet deshalb den Seed-Super-Admin — und wirft, wenn `CSE_DEV_FLAECHEN`
+nicht gesetzt ist, sodass ein Deployment eine 404 ausliefert und keinen
+Zugang.
+
+Der Pfad, auf den eine Kachel zeigt, entsteht an **einer** Stelle
+(`kennzahlPfad()`). Wenn die angemeldete Portal-Shell da ist, aendert sich
+diese Funktion — nicht sieben Kacheln, von denen man sechs findet.
+
+### D-82 · Die oeffentliche Website erscheint deutsch UND englisch
+
+Eine Mandantenentscheidung, keine technische. `CLAUDE.md` schrieb bisher
+"UI-Texte: Deutsch", mit Uebersetzung nur fuer die Arbeiterbildschirme
+(de/en/ar/tr, SPEC §10). Fuer die **oeffentliche** Website gilt ab jetzt:
+Deutsch und Englisch. Das interne Portal bleibt deutsch — die Fachbegriffe
+tragen dort Rechtsbedeutung (VOB, GoBD, UStG, GewO), und sie zu uebersetzen
+verliert Praezision.
+
+**Deutsch behaelt `/`, Englisch bekommt `/en`.** Die deutschen Adressen sind
+im Umlauf und in der Sitemap; ein nachtraegliches `/de` davor waere eine
+Umleitung fuer jede einzelne und eine unnoetige Ansage an die Suchmaschinen,
+die Startseite sei umgezogen.
+
+**Die Datenbank war vorbereitet.** `seite` traegt `sprache` und einen
+eindeutigen Index auf `(pfad, sprache)`; eine englische Seite ist eine eigene
+Zeile mit eigenen `abschnitt`-Zeilen. Keine Migration, keine
+Uebersetzungstabelle daneben. Der Filter `sprache = 'de'` stand an drei
+Stellen im Leseweg und ist dort jetzt ein Argument.
+
+**Der Pfad ist derselbe, nur der Praefix wechselt.** `/en/leistungen`, nicht
+`/en/services`. Ein zweiter Slug waere eine zweite Adresse fuer dieselbe Seite
+— und damit ein zweiter Eintrag in jeder Sitemap, jeder Pruefliste und jedem
+Verweis, der irgendwann auseinanderlaeuft.
+
+### D-83 · Die Formularfelder werden UEBERLAGERT, nicht verdoppelt
+
+`formular_definition` bleibt die eine Quelle: sie bestimmt, welche Felder es
+gibt, welche Pflicht sind, was validiert wird und was in `formular_eingang`
+landet. `src/lib/i18n/formular-en.ts` uebersetzt ausschliesslich, was ein
+Mensch liest.
+
+Zwei Definitionen je Formular waeren zwei Feldlisten, und die zweite liefe der
+ersten hinterher: ein Feld, das jemand deutsch ergaenzt, fehlte englisch — und
+dann validierte die Annahme gegen eine Liste, die der Besucher nie gesehen
+hat. Eine Auflage kann das nicht. `tests/kern/i18n.test.ts` verlangt fuer
+JEDES Feld JEDER Vorlage einen vollstaendigen englischen Eintrag samt jeder
+Auswahloption; ein neues deutsches Feld bricht damit den Build, statt still
+deutsch auszuliefern.
+
+**Die Optionswerte werden nie uebersetzt.** `buero` bleibt `buero`; nur seine
+Bezeichnung wird englisch. Uebersetzte Werte hiessen, dass in
+`formular_eingang` je nach Sprache etwas anderes steht — und keine Auswertung
+mehr ueber beide ginge.
+
+### D-84 · Impressum und Datenschutz gelten auf Deutsch
+
+§5 TMG und DSGVO Art. 13 verlangen die Pflichtangaben eines deutschen
+Anbieters auf Deutsch. Die englische Fassung ist eine Lesehilfe, und sie sagt
+das auch: der Fussbereich der englischen Seiten traegt den Satz, dass die
+deutsche Fassung die rechtsverbindliche ist. Ihn wegzulassen hiesse, die
+Uebersetzung als geltende Fassung auszugeben — bei einer Pflichtangabe kein
+Schoenheitsfehler.
+
+Die Barrierefreiheitserklaerung gibt es aus demselben Grund in beiden
+Sprachen, aus EINER Komponente mit zwei Textsaetzen: zwei Komponenten
+nebeneinander bekaemen den naechsten Absatz nur einmal, und dann sagte die
+englische Erklaerung etwas anderes als die deutsche.
+
+### D-85 · `<html lang>` kommt aus der Middleware
+
+Ein Wurzel-Layout kennt in Next.js den Pfad nicht — es bekommt `children` und
+sonst nichts. Ohne Umweg traegt eine englische Seite `lang="de-DE"`, und ein
+Screenreader liest englischen Text mit deutscher Aussprache vor: WCAG 3.1.1,
+und BFSG gilt fuer dieses Angebot.
+
+`src/middleware.ts` setzt deshalb zwei ANFRAGE-Koepfe — die Sprache und den
+Pfad ohne Praefix. Das Wurzel-Layout liest den ersten fuer `<html lang>`, die
+oeffentliche Huelle den zweiten, damit die Sprachwahl auf DIESELBE Seite
+zeigt und nicht auf die Startseite. Wer beim Sprachwechsel seinen Platz
+verliert, wechselt kein zweites Mal.
+
+Preis: das Wurzel-Layout liest `headers()` und ist damit dynamisch. Die
+oeffentlichen Seiten waren es ohnehin (PUB-07); die zwei statischen
+Dev-Flaechen verlieren ihr Vorrendern. Ein falsches `lang` ist der teurere
+Fehler.
+
+### D-86 · Ein Recht im mandantenuebergreifenden Scope gilt, wenn es in EINEM Bereich gilt
+
+`app.hat_recht(schluessel, p_mandant)` gibt `false` zurueck, sobald `p_mandant`
+NULL ist und die globale Rolle nicht traegt — der Rumpf sagt es in einer Zeile:
+`if p_mandant is null then return false; end if;`. In `GRP`, `KDN` und `PER→M1`
+ist der aktive Mandant per Konstruktion NULL (K-20). Das Routen-Tor fragte
+genau so, und damit waren 45 Routen fuer jeden 404, der kein `super_admin` ist:
+die Gruppenansicht war leer fuer das Publikum, fuer das TEN-05 sie gebaut hat.
+
+**Entschieden:** in diesen Scopes wird ueber `app.sichtbare_mandanten()`
+gefragt. Das Recht gilt, wenn es in mindestens einem sichtbaren Bereich gilt.
+
+Das oeffnet die SEITE, nicht die Zeilen. Welche Zeilen erscheinen, entscheidet
+weiter die Policy je Zeile, und die fragt mit dem `mandant_id` DER ZEILE — so
+steht es in `0009_dokument.sql` und so meint es `04-SEITENKARTE.md` §1.3 mit
+*"gated on `gruppe.<modul>.lesen` per mandant"*. Eine `leitung` der Reinigung
+sieht die Gruppenseite und darauf ihre Reinigungszeilen.
+
+Die Gegenprobe waere gewesen, jede Gruppenroute auf ein `nur_global`-Recht zu
+legen. Dann haette sie nur, wer eine Plattformrolle traegt — und die
+Gruppenansicht waere eine Super-Admin-Funktion statt einer Leitungsfunktion.
+§4.5 sagt das Gegenteil: sie verlangt eine `intern`-Mitgliedschaft, keine
+globale Rolle.
+
+### D-87 · Das Unternehmensprofil traegt eine Sprache, wie `seite`
+
+Die Markenkarten unter `/en` zeigten die deutsche `kurzbeschreibung`, weil
+`unternehmensprofil` keine Sprache hatte und `unique (mandant_id)` auch keine
+zuliess.
+
+**Entschieden:** `sprache` in der Zeile, Eindeutigkeit ueber
+`(mandant_id, sprache)` — dasselbe Muster wie `seite` seit 0014 (D-82).
+
+Nicht `kurzbeschreibung_en` neben `kurzbeschreibung`: ein Spaltenpaar haette
+bei jeder weiteren Sprache eine Migration verlangt, und `status` liesse sich
+nicht je Sprache setzen — eine Uebersetzung, die noch geprueft wird, waere
+veroeffentlicht, sobald die deutsche es ist.
+
+Fehlt die Uebersetzung, kommt der deutsche Satz. Ein deutscher Satz auf einer
+englischen Seite ist die schlechtere von zwei Auskuenften; eine LEERE Karte ist
+die schlechteste — sie liest sich wie "ueber diese Gesellschaft gibt es nichts
+zu sagen".
+
+### D-88 · Eine Route mit Manifestzeile und ohne Modul sagt das, statt 404 zu liefern
+
+`04-SEITENKARTE.md` fuehrt 432 Routen; gebaut sind die von Phase 3. §11.2
+verlangt fuenf Tab-Ziele je Portal, und darunter sind Module aus Phase 4 bis 9.
+
+**Entschieden:** Routen, die im Manifest stehen und deren Seite noch nicht
+existiert, beantworten das ausdruecklich — im Portalrahmen, mit der Phase aus
+dem Manifest.
+
+Die Wache bleibt unveraendert: keine Manifestzeile heisst weiterhin 404, ein
+fehlendes Recht ebenso, ein fremdes Portal die K-04-Decke. Es kommt keine
+Erreichbarkeit hinzu; es wird eine falsche Antwort durch die wahre ersetzt.
+404 hiesse "diese Seite gibt es nicht" fuer eine Seite, die das Dokument fuehrt
+und die Leiste anbietet, und eine leere Tabelle hiesse "hier ist nichts" statt
+"das gibt es noch nicht" — derselbe Unterschied, aus dem
+`KeinKundenzugangFehler` lieber wirft, als eine leere Liste zu zeigen.
+
+### D-89 · Der Bereichswechsel ist ein POST und hinterlaesst zwei Spuren
+
+Bis PR 19 betrat `/portal/gruppe` die Gruppenansicht dadurch, dass die Seite
+`withGroupScope` rief — unabhaengig von `benutzer_sitzung.ansicht`. Damit WAR
+die URL der Ansichtszustand.
+
+**Entschieden:** `POST /api/sitzung/mandant` ist der einzige Schreiber des
+aktiven Bereichs (03-AUTH §4.4). Ein GET wechselt nie; wo eine Adresse einen
+anderen Bereich meint als die Sitzung, steht das Zwischenblatt mit Knopf.
+
+Und der Auditausloeser schreibt eine Zeile je Seite, die es GIBT. Er schrieb
+eine, gekeyt auf den NEUEN Mandanten; beim Eintritt in die Gruppenansicht ist
+der NULL, und in der Spur der verlassenen Gesellschaft stand nichts.
+Ausdruecklich KEINE NULL-Zeile daneben: `app.protokolliere` faellt bei NULL auf
+`app.aktiver_mandant()` zurueck, im Anwendungspfad also auf den alten Bereich —
+es stuenden zwei gleiche Eintraege in derselben Gesellschaft.
+
+### D-90 · Zurueckgezogen wird nur, was als Weiterleitungsquelle eingetragen ist
+
+Der Inhaltsimport legt an und aendert; er nahm nie etwas weg. Eine Datenbank,
+in der `/reinigung` einmal veroeffentlicht wurde, behielt die Zeile auch,
+nachdem die Adresse `/unternehmen/reinigung` geworden war.
+
+**Entschieden:** der Import setzt `geloescht_am` auf genau die Pfade, die in
+`WEITERLEITUNGEN` als Quelle stehen — nicht auf alles, was er nicht kennt.
+
+Die zweite Fassung loeschte auch eine Seite, die jemand in der Anwendung
+angelegt hat, und zwar beim naechsten Deployment, ohne dass jemand es
+ausgeloest haette. Die Weiterleitungstabelle nennt dagegen genau die Adressen,
+von denen jemand ENTSCHIEDEN hat, dass sie ersetzt sind.
+
+Eine Adresse, die Seite UND Quelle waere, bricht den Import — vor dem ersten
+Schreibvorgang. Sonst zoege er diese Seite bei jedem Lauf still zurueck.
+
 ---
 
 ## Carried over from the Phase 0 review — not client questions

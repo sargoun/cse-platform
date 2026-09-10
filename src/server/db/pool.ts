@@ -35,3 +35,17 @@ export function db(): postgres.Sql {
   verbindung = postgres(url, { max: 8, onnotice: () => {} });
   return verbindung;
 }
+
+/**
+ * Der Transaktionsmodus für Seiten, die eine Zahl UND die Zeilen dahinter
+ * zeigen.
+ *
+ * DSH-04 verspricht, dass beide dasselbe meinen. Unter `read committed` — dem
+ * Vorgabewert — sieht die zweite Abfrage einer Transaktion einen neueren
+ * Schnappschuss als die erste: eine Anfrage, die zwischen `count` und `select`
+ * eintrifft, macht aus 14 und 14 ein 14 und 15. Selten, unreproduzierbar, und
+ * genau die Art Abweichung, nach der niemand der Zahl mehr glaubt.
+ *
+ * `repeatable read` kostet hier nichts: die Transaktion liest nur.
+ */
+export const SCHNAPPSCHUSS = 'isolation level repeatable read';

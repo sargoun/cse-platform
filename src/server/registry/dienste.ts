@@ -66,6 +66,10 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'crm.kommunikation_versenden',
   },
   { modul: 'crm', pfad: 'lead/benachrichtigung', schreibend: false },
+  // Kennzahlen. Sie ZÄHLEN — in der Gruppenansicht ist daran nichts
+  // gefährlich, und schreiben können sie nicht.
+  { modul: 'bericht', pfad: 'bericht/kacheln', schreibend: false },
+  { modul: 'bericht', pfad: 'bericht/dashboard', schreibend: false },
 ] as const;
 
 /**

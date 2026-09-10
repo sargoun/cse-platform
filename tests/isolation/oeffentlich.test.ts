@@ -10,6 +10,7 @@ import { execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { alsApp, DB_URL, sql } from './harness.js';
 import { withOeffentlich } from '../../src/server/kontext/oeffentlich.js';
+import { bereicheLesen } from '../../src/server/inhalt/lesen.js';
 import type { LeseKontext } from '../../src/server/kontext/index.js';
 
 /** Der Kontext so, wie ihn eine oeffentliche Seite bekommt. */
@@ -69,9 +70,15 @@ describe('der Renderer sieht die vier Gesellschaften — sonst bliebe der NAP le
   });
 
   it('veröffentlichte Seiten sind lesbar, Entwürfe nicht', async () => {
+    /**
+     * Seit D-82 gibt es die Startseite ZWEIMAL — deutsch und englisch, mit
+     * demselben Pfad und verschiedener `sprache`. Die Zusage dieser Prüfung
+     * ist aber nicht "genau eine Zeile", sondern "der Renderer sieht die
+     * veröffentlichten und keine Entwürfe". Also je Sprache eine.
+     */
     const sichtbar = await alsRenderer(async (k) =>
-      k.abfrage<{ pfad: string }>(`select pfad from seite where pfad = '/'`));
-    expect(sichtbar.length).toBe(1);
+      k.abfrage<{ sprache: string }>(`select sprache from seite where pfad = '/'`));
+    expect(sichtbar.map((z) => z.sprache).sort()).toEqual(['de', 'en']);
 
     const entwuerfe = await alsRenderer(async (k) =>
       k.abfrage<{ n: string }>(
@@ -148,3 +155,51 @@ describe('der Kontext selbst trägt die Zusagen', () => {
     expect(sichtbar.map((r: { titel: string }) => r.titel)).not.toContain('Ohne Freigabe');
   });
 });
+
+describe('D-82 — der Kurztext der Markenkarte steht in der Sprache der Seite', () => {
+  /**
+   * Der Befund: die Karten unter `/en` und der Bereichswaehler unter
+   * `/en/angebot` zeigten die DEUTSCHE `kurzbeschreibung` — eine englische
+   * Seite mit vier deutschen Saetzen mittendrin.
+   */
+  it('englisch liefert die englische Zeile', async () => {
+    const bereiche = await alsRenderer((k) => bereicheLesen(k, 'en'));
+    const reinigung = bereiche.find((b) => b.slug === 'reinigung');
+    expect(reinigung?.kurzbeschreibung).toBe('Building cleaning');
+  });
+
+  it('deutsch liefert die deutsche — und die beiden sind nicht dieselbe', async () => {
+    const de = await alsRenderer((k) => bereicheLesen(k, 'de'));
+    const en = await alsRenderer((k) => bereicheLesen(k, 'en'));
+    expect(de.find((b) => b.slug === 'reinigung')?.kurzbeschreibung)
+      .toBe('Gebäudereinigung');
+    // Ohne diese Zeile bestuende der Test auch dann, wenn beide Sprachen
+    // dieselbe Zeile lesen — also genau im Fehlerfall.
+    expect(de.map((b) => b.kurzbeschreibung))
+      .not.toEqual(en.map((b) => b.kurzbeschreibung));
+  });
+
+  it('fehlt die Uebersetzung, kommt der deutsche Satz — keine leere Karte', async () => {
+    /**
+     * Der Rueckfall ist eine Entscheidung: ein deutscher Satz auf einer
+     * englischen Seite ist die schlechtere von zwei Auskuenften, eine LEERE
+     * Karte die schlechteste — sie liest sich wie "ueber diese Gesellschaft
+     * gibt es nichts zu sagen".
+     */
+    await sql`
+      update unternehmensprofil set geloescht_am = now()
+       where sprache = 'en'
+         and mandant_id = (select id from mandant where slug = 'bau')`;
+    try {
+      const bereiche = await alsRenderer((k) => bereicheLesen(k, 'en'));
+      expect(bereiche.find((b) => b.slug === 'bau')?.kurzbeschreibung)
+        .toBe('Hochbau, Ausbau, Rückbau');
+    } finally {
+      await sql`
+        update unternehmensprofil set geloescht_am = null
+         where sprache = 'en'
+           and mandant_id = (select id from mandant where slug = 'bau')`;
+    }
+  });
+});
+

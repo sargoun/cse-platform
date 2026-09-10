@@ -20,6 +20,8 @@ export interface Abfrage {
 export interface SitemapEintrag {
   readonly pfad: string;
   readonly geaendert: Date;
+  /** Die Sprache der Zeile — dieselbe Seite steht je Sprache einmal drin. */
+  readonly sprache: string;
 }
 
 /** Kein oeffentlicher Pfad beginnt so. */
@@ -29,18 +31,27 @@ export function istAusgeschlossen(pfad: string): boolean {
   return AUSGESCHLOSSEN.some((p) => pfad === p || pfad.startsWith(`${p}/`));
 }
 
+/**
+ * Alle veroeffentlichten Seiten — in JEDER Sprache.
+ *
+ * Der Filter `sprache = 'de'` stand hier, solange es nur Deutsch gab. Ihn zu
+ * lassen hiesse, die englischen Seiten zu bauen und sie der Suchmaschine zu
+ * verschweigen: sie waeren erreichbar, verlinkt und unauffindbar. Welche
+ * Sprachen es gibt, entscheidet die Datenbank, nicht diese Abfrage.
+ */
 export async function sitemapEintraege(db: Abfrage): Promise<readonly SitemapEintrag[]> {
   const zeilen = (await db.unsafe(
-    `select pfad, coalesce(geaendert_am, erstellt_am) as geaendert
+    `select pfad, sprache, coalesce(geaendert_am, erstellt_am) as geaendert
        from seite
-      where status = 'veroeffentlicht' and geloescht_am is null and sprache = 'de'
-      order by pfad`,
-  )) as { pfad: string; geaendert: Date | string }[];
+      where status = 'veroeffentlicht' and geloescht_am is null
+      order by sprache, pfad`,
+  )) as { pfad: string; sprache: string; geaendert: Date | string }[];
 
   return zeilen
     .filter((z) => !istAusgeschlossen(z.pfad))
     .map((z) => ({
       pfad: z.pfad,
+      sprache: z.sprache,
       geaendert: z.geaendert instanceof Date ? z.geaendert : new Date(z.geaendert),
     }));
 }

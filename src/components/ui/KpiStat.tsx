@@ -31,7 +31,7 @@ export function KpiStat({ label, wert, ton = 'info', icon, delta }: KpiStatProps
         {icon ?? <span aria-hidden="true">◆</span>}
       </div>
       <div className="text-micro uppercase tracking-[0.08em] text-text-muted">{label}</div>
-      <div className="mt-s1 text-h2 text-text">{wert}</div>
+      <div data-cse="kpi-wert" className="mt-s1 text-h2 text-text">{wert}</div>
       {delta !== undefined && (
         <div
           className={`mt-s2 text-sm ${delta.richtung === 'auf' ? 'text-success' : 'text-danger'}`}

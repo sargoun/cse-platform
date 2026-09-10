@@ -48,6 +48,19 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + 'Formularversion (SEC-A4) und ein Prinzipal, der `formular.schreiben` hält und '
       + '`formular.lesen` nicht.',
   },
+  {
+    pfad: 'api/sitzung/mandant',
+    recht: null,
+    grund:
+      '03-AUTH §4.4. Der Wechsel des aktiven Bereichs verlangt kein MODULRECHT — es gibt '
+      + 'keines dafür, und es gäbe auch keinen Mandanten, gegen den man es prüfen könnte: '
+      + 'gefragt wird ja gerade nach einem anderen. Bewacht wird sie durch die Sitzung '
+      + '(`aktuelleSitzung`), den Origin-Vergleich, und vor allem durch die zwei '
+      + '`security definer`-Funktionen `app.mandant_fuer_wechsel` (nur Bereiche aus '
+      + '`switcher_mandanten()`) und `app.darf_gruppenansicht` (die drei Bedingungen aus '
+      + '§4.5) — plus den Trigger `kern.sitzung_mandant_pruefen`, der eine fremde Zeile '
+      + 'auch dann abweist, wenn diese Route je umgangen würde.',
+  },
 ] as const;
 
 /** Die Routen, die ein Recht verlangen. */

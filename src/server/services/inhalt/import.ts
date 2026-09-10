@@ -12,6 +12,8 @@
  * Historie.
  */
 
+import { WEITERLEITUNGEN } from '../../../lib/weiterleitungen.js';
+
 export interface Abfrage {
   unsafe(sql: string, werte?: readonly unknown[]): Promise<readonly unknown[]>;
 }
@@ -41,6 +43,8 @@ export interface ImportBericht {
   readonly angelegt: number;
   readonly geaendert: number;
   readonly unveraendert: number;
+  /** Wie viele abgeloeste Adressen zurueckgezogen wurden. */
+  readonly abgeloest: number;
 }
 
 /** Objektschlüssel sortiert — damit der Vergleich den Inhalt meint, nicht die Reihenfolge. */
@@ -53,9 +57,26 @@ function sortiereTief(wert: unknown): unknown {
   return wert;
 }
 
+/**
+ * Importiert die Seiten EINER Sprache.
+ *
+ * Die Sprache ist ein Argument und kein fester Wert, weil `seite` sie in
+ * ihrem eindeutigen Index fuehrt: `(pfad, sprache)`. Stuende hier weiter
+ * `'de'`, legte ein englischer Lauf die deutschen Zeilen um — dieselbe Seite,
+ * derselbe Pfad, neuer Text. Der Fehler waere nicht doppelter Inhalt, sondern
+ * ein deutscher Auftritt, der ueber Nacht englisch wird.
+ */
 export async function importiere(
-  db: Abfrage, seiten: readonly ImportSeite[],
+  db: Abfrage, seiten: readonly ImportSeite[], sprache = 'de',
 ): Promise<ImportBericht> {
+  /**
+   * ZUERST, vor jedem Schreibvorgang: eine Adresse kann nicht gleichzeitig
+   * eine Seite und eine Weiterleitungsquelle sein. Am Ende geprueft haette der
+   * Import die Seite schon angelegt, bevor er sie beanstandet.
+   */
+  const kollision = seiten.map((x) => x.pfad).filter((x) => x in WEITERLEITUNGEN);
+  if (kollision.length > 0) throw new WeiterleitungKollisionFehler(kollision);
+
   let angelegt = 0;
   let geaendert = 0;
   let unveraendert = 0;
@@ -63,16 +84,16 @@ export async function importiere(
   for (const s of seiten) {
     const vorhanden = (await db.unsafe(
       `select id, titel, beschreibung from seite
-        where pfad = $1 and sprache = 'de' and geloescht_am is null`,
-      [s.pfad],
+        where pfad = $1 and sprache = $2 and geloescht_am is null`,
+      [s.pfad, sprache],
     )) as { id: string; titel: string; beschreibung: string | null }[];
 
     let seiteId: string;
     if (vorhanden[0] === undefined) {
       const neu = (await db.unsafe(
-        `insert into seite (pfad, titel, beschreibung, status, veroeffentlicht_am)
-         values ($1,$2,$3,'veroeffentlicht',now()) returning id`,
-        [s.pfad, s.titel, s.beschreibung],
+        `insert into seite (pfad, sprache, titel, beschreibung, status, veroeffentlicht_am)
+         values ($1,$2,$3,$4,'veroeffentlicht',now()) returning id`,
+        [s.pfad, sprache, s.titel, s.beschreibung],
       )) as { id: string }[];
       seiteId = neu[0]!.id;
       angelegt += 1;
@@ -131,27 +152,67 @@ export async function importiere(
     }
   }
 
-  return { angelegt, geaendert, unveraendert };
+  const abgeloest = await zieheAbgeloesteZurueck(db, sprache);
+  return { angelegt, geaendert, unveraendert, abgeloest };
 }
 
 /**
- * Die Weiterleitungen der alten Seite (PUB-08).
+ * Eine Adresse kann nicht gleichzeitig eine Seite und eine Weiterleitung sein.
  *
- * Jede Alt-URL geht per **301** auf ihr Ziel. Ein 302 waere hier falsch: die
- * Suchmaschine behaelt dann den alten Eintrag, und die Autoritaet der alten
- * Adresse geht nicht auf die neue ueber.
- *
- * // TODO(client): O-13 — die vollstaendige Liste der Alt-URLs kommt aus dem
- * // Export von cse-dienstleistungen.de; hier stehen die bekannten.
+ * Ohne diese Pruefung wuerde ein spaeter eingetragener Umzug, dessen QUELLE
+ * noch eine gepflegte Seite ist, diese Seite bei jedem Import zurueckziehen —
+ * still, wiederholt, und sichtbar erst, wenn jemand die Website aufruft.
+ * Lieber ein lauter Fehler beim Import als eine Seite, die montags weg ist.
  */
-export const WEITERLEITUNGEN: Readonly<Record<string, string>> = {
-  '/index.html': '/',
-  '/home': '/',
-  '/leistungen.html': '/leistungen',
-  '/ueber-uns.html': '/ueber-uns',
-  '/kontakt.html': '/kontakt',
-  '/impressum.html': '/impressum',
-  '/datenschutz.html': '/datenschutz',
-  '/gebaeudereinigung': '/reinigung',
-  '/sicherheitsdienst': '/security',
-};
+export class WeiterleitungKollisionFehler extends Error {
+  constructor(pfade: readonly string[]) {
+    super(
+      `Diese Adressen stehen als Weiterleitungs-QUELLE und werden gleichzeitig als `
+      + `Seite importiert: ${pfade.join(', ')}. Eine von beiden ist falsch — `
+      + `entweder ist der Umzug erledigt (dann raus aus WEITERLEITUNGEN) oder die `
+      + `Seite gehört nicht mehr in den Import.`,
+    );
+    this.name = 'WeiterleitungKollisionFehler';
+  }
+}
+
+/**
+ * Zieht die Seiten zurueck, deren Adresse abgeloest wurde.
+ *
+ * **Der Befund.** Der Import legt an und aendert, er nimmt nie etwas weg. Eine
+ * Datenbank, in der `/reinigung` einmal veroeffentlicht wurde, behielt diese
+ * Zeile auch, nachdem die Adresse `/unternehmen/reinigung` geworden war — die
+ * alte Seite blieb erreichbar, stand weiter in der Sitemap, und die
+ * Suchmaschine sah zwei Adressen mit demselben Inhalt.
+ *
+ * **Zurueckgezogen wird nur, was in `WEITERLEITUNGEN` als Quelle steht.** Ein
+ * Import, der jede Zeile loescht, die er nicht kennt, wuerde auch eine Seite
+ * loeschen, die jemand in der Anwendung angelegt hat — und der Datenverlust
+ * faende beim naechsten Deployment statt, ohne dass jemand ihn ausgeloest
+ * haette. Die Weiterleitungstabelle nennt genau die Adressen, von denen
+ * jemand ENTSCHIEDEN hat, dass sie ersetzt sind.
+ *
+ * Kein hartes Loeschen: `geloescht_am` (Invariante 8 im Geist — was einmal
+ * veroeffentlicht war, bleibt nachvollziehbar).
+ */
+export async function zieheAbgeloesteZurueck(db: Abfrage, sprache: string): Promise<number> {
+  const quellen = Object.keys(WEITERLEITUNGEN);
+  if (quellen.length === 0) return 0;
+  const betroffen = (await db.unsafe(
+    `update seite set geloescht_am = now(), geaendert_am = now()
+      where sprache = $2 and geloescht_am is null and pfad = any($1)
+      returning id`,
+    [quellen, sprache],
+  )) as { id: string }[];
+  return betroffen.length;
+}
+
+/**
+ * Die Weiterleitungen — hier nur weitergereicht.
+ *
+ * Sie stehen in `src/lib/weiterleitungen.ts`, weil `next.config.ts` sie
+ * ebenfalls liest und dort kein Modul geladen werden kann, das `server-only`
+ * oder einen Treiber mitbringt. Der Re-Export bleibt, damit der Test und die
+ * bisherigen Aufrufer ihre Adresse behalten.
+ */
+export { WEITERLEITUNGEN };

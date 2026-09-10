@@ -354,6 +354,62 @@ function wacheTailwindFarben(): void {
  * FÜNF Wachenprüfungen scheiterten, ohne dass eine Wache etwas gefunden hätte:
  * der Prozess starb vorher. Eine Wache, die nicht startet, meldet nichts.
  */
+/**
+ * Fest verdrahtete oeffentliche Adressen in Konfigurationsdateien.
+ *
+ * **Der Fehler, der diese Wache erzwungen hat.** Die Angleichung der
+ * Profilpfade an die Seitenkarte (`/reinigung` → `/unternehmen/reinigung`)
+ * liess `lighthouserc.json` zurueck. Kein Test schlug an: die Kreuzprobe
+ * vergleicht die Routenliste und den App-Router-Baum gegen das Manifest und
+ * schaut in keine Konfigurationsdatei. CI fiel erst im Lighthouse-Schritt,
+ * mit `ERRORED_DOCUMENT_REQUEST` und Statuscode 404 — eine Viertelstunde
+ * spaeter und drei Ebenen von der Ursache entfernt.
+ *
+ * Eine Adresse, die in einer Konfiguration steht und nirgends sonst, veraltet
+ * genau so: lautlos.
+ */
+async function wacheKonfigAdressen(): Promise<void> {
+  const dateien = ['lighthouserc.json'];
+  const vorhanden = dateien.filter((d) => existsSync(join(WURZEL, d)));
+
+  /**
+   * Kein `lighthouserc.json` heisst: dies ist keiner der echten Baeume,
+   * sondern einer der Fixture-Baeume, in denen `wachen.test.ts` die Wachen
+   * gegen absichtlich kaputten Code laufen laesst. Dort gibt es nichts zu
+   * pruefen — und der Manifest-Import gaebe es auch nicht.
+   */
+  if (vorhanden.length === 0) return;
+
+  /**
+   * Lazy, aus demselben Grund: ein Import an der Dateispitze wird auch im
+   * Fixture-Baum aufgeloest, und dort existiert `src/` nicht. Genau daran
+   * fielen elf Wachenproben, nachdem diese Wache dazukam.
+   */
+  const { findeRoute } = await import('../../src/server/registry/routen.js');
+
+  const muster = /https?:\/\/[^"'\s]*localhost:3000(\/[^"'\s]*)?/gu;
+  let geprueft = 0;
+
+  for (const datei of vorhanden) {
+    const voll = join(WURZEL, datei);
+    readFileSync(voll, 'utf8').split('\n').forEach((zeile, i) => {
+      for (const m of zeile.matchAll(muster)) {
+        const pfad = m[1] ?? '/';
+        geprueft += 1;
+        if (findeRoute(pfad) === undefined) {
+          melde('konfig-adresse', voll, i + 1, `${pfad} steht in keinem Routen-Manifest`);
+        }
+      }
+    });
+  }
+
+  // Die Datei ist da, also muss sie Adressen nennen. Ohne diese Zusage
+  // bestünde die Wache über einer leeren Menge.
+  if (geprueft === 0) {
+    throw new Error('Wache Konfig-Adressen: keine einzige Adresse gefunden — Muster kaputt?');
+  }
+}
+
 async function main(): Promise<void> {
   wacheGeldSpalte();
   wacheZeitstempel();
@@ -362,6 +418,7 @@ async function main(): Promise<void> {
   wacheEuRegion();
   wacheEinAusgang();
   wacheTailwindFarben();
+  await wacheKonfigAdressen();
 
   if (befunde.length > 0) {
     console.error(`\n${befunde.length} Verstoß/Verstöße gegen die Merge-Wachen:\n`);

@@ -10,7 +10,7 @@
  * Beim Landen eines Moduls werden seine Zeilen hier gestrichen. Ergänzt wird
  * nur mit einer Begründung im Pull Request.
  *
-* 194 von 226 Schlüsseln.
+ * 198 von 242 Schlüsseln.
  *
  * Die Zahl stieg mit PR 17, weil der Extraktor bis dahin jede §12-Zeile
  * übersprang, die ZWEI Schlüssel nennt (`crm.lesen` / `crm.schreiben`). 19
@@ -18,11 +18,21 @@
  * einen fehlenden Schlüssel mit `false`. Vier davon benutzt PR 17 sofort
  * (`crm.*`, `formular.*`); die übrigen 15 gehören zu Modulen späterer Phasen
  * und stehen deshalb hier.
+ *
+ * PR 19 fügt VIER hinzu, und keiner davon ist erfunden: §12.9 trägt die
+ * `agent`-, `wissen`- und `freigabe`-Zeilen nach, die §14.2 in Prosa
+ * deklariert und die Matrix nie führte. Zwölf der sechzehn benennt die
+ * Seitenkarte sofort, also gelten sie als benutzt. Die übrigen vier —
+ * `agent.autonomie_setzen`, `freigabe.alle_lesen`, `wissen.lesen`,
+ * `wissen.vertraulich_lesen` — benennt keine ROUTE, sondern eine POLICY
+ * eines Datenmodell-Dokuments (Phase 8). Sie stehen deshalb hier und nicht
+ * im Code.
  */
 export const NOCH_UNBENUTZT: readonly string[] = [
   "abrechnung.freistellung_pflegen",
   "abrechnung.lesen",
   "abrechnung.schreiben",
+  "agent.autonomie_setzen",
   "angebot.annahme_erfassen",
   "angebot.preis_freigeben",
   "angebot.schreiben",
@@ -77,6 +87,7 @@ export const NOCH_UNBENUTZT: readonly string[] = [
   "finanzen.schreiben",
   "finanzen.steuerfall_uebersteuern",
   "finanzen.stornieren",
+  "freigabe.alle_lesen",
   "gruppe.abrechnung.lesen",
   "gruppe.agent.lesen",
   "gruppe.angebot.lesen",
@@ -197,6 +208,8 @@ export const NOCH_UNBENUTZT: readonly string[] = [
   "vergabe.schreiben",
   "wachbuch.lesen",
   "wachbuch.schreiben",
+  "wissen.lesen",
+  "wissen.vertraulich_lesen",
   "zahlung.lesen",
   "zahlung.schreiben",
   "zeit.abrechnung_freigeben",

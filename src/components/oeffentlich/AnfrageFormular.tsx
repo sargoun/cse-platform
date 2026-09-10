@@ -1,4 +1,6 @@
 import type { FormularFeld } from '@/lib/formular/schema';
+import { ANFRAGE_TEXTE } from '@/lib/i18n/texte';
+import { VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 
 /**
  * Das Angebotsanfrage-Formular (REQ-01 … REQ-04, PUB-09, LEG-07).
@@ -17,6 +19,8 @@ import type { FormularFeld } from '@/lib/formular/schema';
  * gemacht wird.
  */
 export interface AnfrageFormularProps {
+  /** Die Sprache der Seite. Die Feldbeschriftungen sind bereits übersetzt. */
+  readonly sprache?: Sprache;
   readonly bereich: string;
   readonly titel: string;
   readonly felder: readonly FormularFeld[];
@@ -24,7 +28,11 @@ export interface AnfrageFormularProps {
   readonly meldung?: string | undefined;
 }
 
-function Feld({ f, fehler }: { readonly f: FormularFeld; readonly fehler?: string | undefined }) {
+function Feld({ f, fehler, t }: {
+  readonly f: FormularFeld;
+  readonly fehler?: string | undefined;
+  readonly t: (typeof ANFRAGE_TEXTE)[Sprache];
+}) {
   const id = `f_${f.schluessel}`;
   const hilfeId = f.hilfetext === undefined ? undefined : `${id}_hilfe`;
   const fehlerId = fehler === undefined ? undefined : `${id}_fehler`;
@@ -52,7 +60,9 @@ function Feld({ f, fehler }: { readonly f: FormularFeld; readonly fehler?: strin
       {f.typ === 'textarea' && <textarea {...gemeinsam} rows={5} maxLength={f.maxLaenge} />}
       {f.typ === 'auswahl' && (
         <select {...gemeinsam}>
-          <option value="">Bitte wählen</option>
+          {/* Die AUSWAHL ist uebersetzt, die WERTE sind es nie (D-83): der
+              Wert reist in die Datenbank und ist Teil der Definition. */}
+          <option value="">{t.bitteWaehlen}</option>
           {f.optionen.map((o) => <option key={o.wert} value={o.wert}>{o.label}</option>)}
         </select>
       )}
@@ -85,9 +95,10 @@ function Feld({ f, fehler }: { readonly f: FormularFeld; readonly fehler?: strin
 }
 
 export function AnfrageFormular(
-  { bereich, titel, felder, fehler, meldung }: AnfrageFormularProps,
+  { bereich, titel, felder, fehler, meldung, sprache = VORGABE_SPRACHE }: AnfrageFormularProps,
 ) {
   const sortiert = [...felder].sort((a, b) => a.sortierung - b.sortierung);
+  const t = ANFRAGE_TEXTE[sprache];
   return (
     <section className="mx-auto flex max-w-content flex-col gap-s5 px-s5 py-s6">
       {/**
@@ -119,6 +130,16 @@ export function AnfrageFormular(
         noValidate
       >
         <input type="hidden" name="bereich" value={bereich} />
+        {/**
+          * Die Sprache reist MIT.
+          *
+          * Ohne sie antwortete `/api/anfrage` auf ein englisches Formular
+          * deutsch — an genau der Stelle, an der jemand etwas kaufen wollte.
+          * Nicht aus `Accept-Language`: der Header sagt, was der Browser
+          * eingestellt hat, nicht welche Fassung der Seite der Besucher
+          * bewusst geoeffnet hat.
+          */}
+        <input type="hidden" name="sprache" value={sprache} />
 
         {/**
           * Der Honigtopf.
@@ -143,7 +164,7 @@ export function AnfrageFormular(
           className="absolute size-px overflow-hidden border-0 p-0"
           style={{ clipPath: 'inset(50%)', whiteSpace: 'nowrap' }}
         >
-          <label htmlFor="f_website">Website (bitte leer lassen)</label>
+          <label htmlFor="f_website">{t.honigtopf}</label>
           {/* Auch das Feld selbst ist 1 px breit. Ein zugeschnittener Container
               allein genügte nicht: das voreingestellte 200-px-Textfeld
               verbreiterte den scrollbaren Bereich weiterhin, und die Seite lief
@@ -154,13 +175,15 @@ export function AnfrageFormular(
           />
         </div>
 
-        {sortiert.map((f) => <Feld key={f.schluessel} f={f} fehler={fehler?.[f.schluessel]} />)}
+        {sortiert.map((f) => (
+          <Feld key={f.schluessel} f={f} fehler={fehler?.[f.schluessel]} t={t} />
+        ))}
 
         <button
           type="submit"
           className="rounded-md bg-brand px-s5 py-s3 text-base font-medium text-white"
         >
-          Anfrage senden
+          {t.absenden}
         </button>
       </form>
     </section>

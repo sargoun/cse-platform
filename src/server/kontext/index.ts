@@ -13,7 +13,8 @@
  * `WITH CHECK`, und ein direkter POST landet auf `KeinAktiverMandantFehler`.
  * Ein Typ schützt den Code, den wir schreiben; die Datenbank schützt den Rest.
  */
-import { KeinAktiverMandantFehler } from './fehler.js';
+import { KeinAktiverMandantFehler, KeinKundenzugangFehler, KeinePersonFehler }
+  from './fehler.js';
 
 export type Scope = 'mandant' | 'gruppe' | 'person' | 'kunde';
 export type Portal = 'intern' | 'mitarbeiter' | 'kunde';
@@ -73,6 +74,68 @@ async function bindeSitzung(
   await setze('app.akteur_typ', 'mensch');
 }
 
+/**
+ * Die Bindung fuer eine reine ANFRAGE-Pruefung — Tor und Rollenabfrage.
+ *
+ * Sie setzt dieselben GUCs wie `bindeSitzung`, ohne einen Kontext
+ * zurueckzugeben: das Tor liest keine Fachzeilen, es fragt `app.hat_recht`.
+ * `app.mandant_ids` bleibt hier leer und wird vom Aufrufer nachgezogen, wo der
+ * Scope es verlangt — im Gruppen-Scope IST diese Menge die sichtbare Menge,
+ * und sie darf nicht aus der Anwendung kommen.
+ */
+export async function bindeAnfrage(tx: Transaktion, sitzung: Sitzung): Promise<void> {
+  await bindeSitzung(tx, sitzung, true, []);
+}
+
+/**
+ * Die Bereiche, die im Gruppen-Scope offenstehen — aus der Datenbank.
+ *
+ * `app.switcher_mandanten()` und NICHT `select id from mandant`: die zweite
+ * Fassung gab jeder Sitzung jeden nicht archivierten Bereich, und weil
+ * `app.sichtbare_mandanten()` im Gruppen-Scope genau `app.mandant_ids()` ist
+ * (`0004_rls_baseline.sql`), waere das die sichtbare Menge geworden.
+ * `t_mandant_lesen` prueft nur die Zugehoerigkeit zu dieser Menge und kein
+ * Recht — eine `leitung` der Reinigung haette die Namen aller vier
+ * Gesellschaften gelesen.
+ *
+ * Der Unterschied zu `sichtbare_mandanten()` ist Absicht (B14): ein
+ * archivierter Bereich bleibt LESBAR — seine Rechnungen stehen zehn Jahre —
+ * wird aber nicht mehr als Arbeitskontext angeboten.
+ */
+export async function gruppenMandanten(tx: Transaktion): Promise<readonly string[]> {
+  const [zeile] = (await tx.unsafe(
+    `select app.switcher_mandanten() as ids`,
+  )) as { ids: readonly string[] | null }[];
+  return zeile?.ids ?? [];
+}
+
+/**
+ * Die Rolle der aktiven Mitgliedschaft — IN der gebundenen Transaktion.
+ *
+ * `t_bm_lesen` verlangt `benutzer_id = app.aktueller_benutzer()`. Ohne
+ * gebundene Sitzung gibt `benutzer_mandant` deshalb null Zeilen zurueck, und
+ * `force row level security` laesst auch dem Eigentuemer keinen Weg daran
+ * vorbei. Diese Funktion setzt voraus, dass `bindeAnfrage` oder
+ * `bindeSitzung` bereits lief — sie bindet nicht selbst, damit es genau eine
+ * Stelle gibt, an der gebunden wird.
+ */
+export async function rolleImMandanten(
+  tx: Transaktion, sitzung: Sitzung,
+): Promise<string | null> {
+  if (sitzung.aktiverMandantId === null) return null;
+  const zeilen = (await tx.unsafe(
+    `select r.schluessel from benutzer_mandant bm
+       join rolle r on r.id = bm.rolle_id
+      where bm.benutzer_id = $1 and bm.mandant_id = $2
+        and bm.entzogen_am is null
+        and bm.gueltig_ab <= current_date
+        and (bm.gueltig_bis is null or bm.gueltig_bis >= current_date)
+      limit 1`,
+    [sitzung.benutzerId, sitzung.aktiverMandantId],
+  )) as { schluessel: string }[];
+  return zeilen[0]?.schluessel ?? null;
+}
+
 function basis(
   tx: Transaktion, sitzung: Sitzung, mandantIds: readonly string[],
 ): LeseKontext {
@@ -123,17 +186,26 @@ export async function withTenant<T>(
  * Es aus `aktiver_mandant` neu zu berechnen ergäbe das fail-closed
  * `mitarbeiter` — was jede K-04-Mitarbeiterdecke INNERHALB der Gruppenansicht
  * auslöst und sie für genau das Publikum leert, für das TEN-05 sie gebaut hat.
+ *
+ * **Die Menge nimmt dieser Kontext nicht entgegen, er leitet sie ab.** Sie
+ * einzureichen hiess, dass der Aufrufer bestimmt, was die Gruppenansicht
+ * umfasst — und der erste Aufrufer reichte `select id from mandant` ein, also
+ * jeden Bereich, unabhängig von jeder Mitgliedschaft.
  */
 export async function withGroupScope<T>(
   tx: Transaktion,
   sitzung: Sitzung,
-  mandantIds: readonly string[],
   fn: (kontext: LeseKontext) => Promise<T>,
 ): Promise<T> {
   const gruppe: Sitzung = {
     ...sitzung, ansicht: 'gruppe', aktiverMandantId: null, portal: 'intern',
   };
-  await bindeSitzung(tx, gruppe, true, mandantIds);
+  // Erst binden, dann ableiten, dann setzen — wie im Personen-Scope. Ohne
+  // gebundenen Benutzer gaebe `switcher_mandanten()` die leere Menge zurueck.
+  await bindeSitzung(tx, gruppe, true, []);
+  const mandantIds = await gruppenMandanten(tx);
+  await tx.unsafe(`select set_config('app.mandant_ids', $1, true)`,
+    [mandantIds.join(',')]);
   return fn(basis(tx, gruppe, mandantIds));
 }
 
@@ -150,4 +222,74 @@ export function readOnlyGroupContext(kontext: LeseKontext): LeseKontext {
   return kontext;
 }
 
-export { KeinAktiverMandantFehler };
+/**
+ * Der Personen-Scope (PER, K-18) — das Mitarbeiterportal.
+ *
+ * **Er spannt ueber Mandanten, aber als SUBJEKT.** Fatima arbeitet in zwei
+ * Gesellschaften (D-09); ihr Portal zeigt beide Beschaeftigungen. Das ist
+ * NICHT die Gruppenansicht: die verlangt `gruppe.<modul>.lesen`, ein
+ * Leitungsrecht, das kein `mitarbeiter` haelt. Ueber den Gruppen-Scope
+ * gelesen bliebe das Mitarbeiterportal LEER — kein Fehler, keine Meldung,
+ * nur nichts. Genau dieser Fehler steht in `04-SEITENKARTE.md` §1.3 als
+ * Kategorienfehler mit konkreter Folge.
+ *
+ * **Die sichtbaren Mandanten werden SERVERSEITIG abgeleitet** (K-02), und
+ * zwar von der Datenbank: `app.sichtbare_mandanten()` liest im
+ * Personen-Scope die lebenden `anstellung`-Zeilen dieser Person. Deshalb
+ * bindet diese Funktion zuerst Scope und Person, fragt dann die Menge ab und
+ * setzt sie erst danach — sie kann nicht von aussen gesetzt werden.
+ */
+export async function withPersonScope<T>(
+  tx: Transaktion,
+  sitzung: Sitzung,
+  fn: (kontext: LeseKontext) => Promise<T>,
+): Promise<T> {
+  if (sitzung.personId === null || sitzung.personId === '') throw new KeinePersonFehler();
+
+  const person: Sitzung = {
+    ...sitzung, ansicht: 'person', aktiverMandantId: null, portal: 'mitarbeiter',
+  };
+  // Erst binden — ohne `app.scope` und `app.person_id` antwortet
+  // `sichtbare_mandanten()` mit der leeren Menge.
+  await bindeSitzung(tx, person, true, []);
+  const [zeile] = (await tx.unsafe(
+    `select app.sichtbare_mandanten() as ids`,
+  )) as { ids: readonly string[] | null }[];
+  const mandantIds = zeile?.ids ?? [];
+  await tx.unsafe(`select set_config('app.mandant_ids', $1, true)`, [mandantIds.join(',')]);
+
+  return fn(basis(tx, person, mandantIds));
+}
+
+/**
+ * Der Kunden-Scope (KDN, K-18) — das Kundenportal.
+ *
+ * Er liest ueber `kunde_zugang`, und diese Tabelle entsteht mit dem
+ * CRM-Modul in Phase 4. `app.sichtbare_mandanten()` gibt hier heute `'{}'`
+ * zurueck — fail closed und im Funktionsrumpf ausdruecklich so vermerkt.
+ *
+ * **Deshalb wirft dieser Kontext, statt eine leere Menge zu binden.** Ein
+ * Kundenportal ueber einer leeren Menge zeigte lauter leere Listen, und die
+ * lesen sich wie "dieser Kunde hat keine Auftraege" — nicht wie "dieses
+ * Modul gibt es noch nicht". Wer die beiden verwechselt, ruft beim Kunden an.
+ */
+export async function withKundeScope<T>(
+  tx: Transaktion,
+  sitzung: Sitzung,
+  fn: (kontext: LeseKontext) => Promise<T>,
+): Promise<T> {
+  const kunde: Sitzung = {
+    ...sitzung, ansicht: 'kunde', aktiverMandantId: null, portal: 'kunde',
+  };
+  await bindeSitzung(tx, kunde, true, []);
+  const [zeile] = (await tx.unsafe(
+    `select app.sichtbare_mandanten() as ids`,
+  )) as { ids: readonly string[] | null }[];
+  const mandantIds = zeile?.ids ?? [];
+  if (mandantIds.length === 0) throw new KeinKundenzugangFehler();
+
+  await tx.unsafe(`select set_config('app.mandant_ids', $1, true)`, [mandantIds.join(',')]);
+  return fn(basis(tx, kunde, mandantIds));
+}
+
+export { KeinAktiverMandantFehler, KeinKundenzugangFehler, KeinePersonFehler };

@@ -282,7 +282,17 @@ describe('(4) ein gefälschtes Cookie mit fremdem Bereich wird abgewiesen', () =
     ).rejects.toThrow(/keinen Zugang/u);
   });
 
-  it('ein erlaubter Wechsel landet im audit_log (TEN-09)', async () => {
+  it('ein erlaubter Wechsel landet im audit_log — ZWEIMAL, gespiegelt (TEN-09)', async () => {
+    /**
+     * §4.4 Schritt 6: zwei Spiegelzeilen, eine auf den alten Mandanten
+     * gekeyt, eine auf den neuen.
+     *
+     * Der Grund steht daneben: ein Wechsel spannt per Definition ueber zwei
+     * Gesellschaften, und eine einzelne Zeile ist in der Pruefspur der
+     * ANDEREN unsichtbar. Bis 0018 schrieb der Ausloeser nur die neue Seite —
+     * beim Eintritt in die Gruppenansicht ist die NULL, und in der
+     * verlassenen Gesellschaft stand dann gar nichts.
+     */
     const b = await konto({ email: 'zwei@cse.test' });
     await mitgliedschaft(b, f.reinigung, 'leitung');
     await mitgliedschaft(b, f.security, 'leitung');
@@ -292,16 +302,64 @@ describe('(4) ein gefälschtes Cookie mit fremdem Bereich wird abgewiesen', () =
     await sql.unsafe(`update benutzer_sitzung set aktiver_mandant_id = $1 where id = $2`,
       [f.security, s]);
 
-    const zeilen = await sql.unsafe<{ aktion: string; vorher: Record<string, unknown> }[]>(
-      `select aktion, vorher from audit_log where objekt_typ = 'benutzer_sitzung' and objekt_id = $1`,
+    const zeilen = await sql.unsafe<{
+      aktion: string; mandant_id: string | null;
+      vorher: Record<string, unknown>; nachher: Record<string, unknown>;
+    }[]>(
+      `select aktion, mandant_id, vorher, nachher from audit_log
+        where objekt_typ = 'benutzer_sitzung' and objekt_id = $1
+        order by mandant_id`,
       [s],
     );
-    expect(zeilen).toHaveLength(1);
-    expect(zeilen[0]!.aktion).toBe('sitzung.mandant_gewechselt');
+    expect(zeilen).toHaveLength(2);
+    expect(zeilen.map((z) => z.aktion)).toEqual(
+      ['sitzung.mandant_gewechselt', 'sitzung.mandant_gewechselt'],
+    );
+    expect([...zeilen.map((z) => z.mandant_id)].sort())
+      .toEqual([f.reinigung, f.security].sort());
     // Das Paar reist IN vorher/nachher — audit_log führt dafür keine eigenen
-    // Spalten mandant_id_alt/neu.
-    expect(zeilen[0]!.vorher['mandant_id']).toBe(f.reinigung);
+    // Spalten mandant_id_alt/neu (K-21).
+    for (const z of zeilen) {
+      expect(z.vorher['mandant_id']).toBe(f.reinigung);
+      expect(z.nachher['mandant_id']).toBe(f.security);
+    }
   });
+
+  it('der Eintritt in die Gruppenansicht heisst so — und protokolliert die verlassene Seite',
+    async () => {
+      // §4.4: "Group entry sets ansicht = 'gruppe', aktiver_mandant_id = NULL,
+      // and is audited as sitzung.gruppenansicht_geoeffnet." Ein anderer Name
+      // waere nicht kosmetisch: es wird kein Mandant aktiv, es wird einer
+      // aufgegeben.
+      const b = await konto({ email: 'gruppe-eintritt@cse.test' });
+      await mitgliedschaft(b, f.reinigung, 'leitung');
+      await mitgliedschaft(b, f.security, 'leitung');
+      const token = await sitzung(b, { mandant: f.reinigung });
+      const s = (await aufloesen(token))!.sitzung_id;
+
+      await sql.unsafe(
+        `update benutzer_sitzung
+            set aktiver_mandant_id = null, ansicht = 'gruppe' where id = $1`, [s],
+      );
+
+      const zeilen = await sql.unsafe<{ aktion: string; mandant_id: string | null }[]>(
+        `select aktion, mandant_id from audit_log
+          where objekt_typ = 'benutzer_sitzung' and objekt_id = $1`, [s],
+      );
+      /**
+       * EINE Zeile, nicht zwei: es gibt keine zweite Seite. Der Wechsel gibt
+       * einen Bereich auf und betritt keinen.
+       *
+       * Eine Zeile mit `p_mandant = null` waere hier auch keine
+       * Plattformzeile: `app.protokolliere` faellt auf
+       * `app.aktiver_mandant()` zurueck, und im Anwendungspfad ist der beim
+       * Auditzeitpunkt noch der ALTE. Es stuenden dann zwei gleiche Eintraege
+       * in derselben Gesellschaft.
+       */
+      expect(zeilen).toHaveLength(1);
+      expect(zeilen[0]!.aktion).toBe('sitzung.gruppenansicht_geoeffnet');
+      expect(zeilen[0]!.mandant_id).toBe(f.reinigung);
+    });
 
   it('ein Dienstkonto meldet sich nie interaktiv an', async () => {
     const dienst = await konto({ email: 'jobs@cse.test', dienstkonto: true });

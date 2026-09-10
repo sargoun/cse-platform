@@ -7,9 +7,11 @@ import { Felder } from '@/lib/formular/schema';
 import { db } from '@/server/db/pool';
 import { withOeffentlich } from '@/server/kontext/oeffentlich';
 import { basisAusAnfrage } from '@/server/inhalt/seiten-daten';
+import { uebersetzeFelder, uebersetzeTitel } from '@/lib/i18n/formular-en';
+import { alternativen, mitSprache, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 
 /**
- * `/anfrage/[bereich]` — das Angebotsanfrage-Formular (REQ-01).
+ * `/angebot/[bereich]` — das Angebotsanfrage-Formular (REQ-01).
  *
  * Die Felder kommen aus der VEROEFFENTLICHTEN Formularversion, gelesen als
  * Renderer. Was die Seite zeigt, ist damit dasselbe, wogegen die Annahme
@@ -19,8 +21,6 @@ import { basisAusAnfrage } from '@/server/inhalt/seiten-daten';
  * Formular: CSE Operations hat noch keines (O-61), und ein Formular ohne
  * Felder saehe aus wie ein Fehler beim Laden.
  */
-export const dynamic = 'force-dynamic';
-
 
 interface Zeile { titel: string; felder: unknown }
 
@@ -38,23 +38,35 @@ async function ladeFormular(bereich: string): Promise<Zeile | null> {
   return zeilen[0] ?? null;
 }
 
-export async function generateMetadata(
-  { params }: { params: Promise<{ bereich: string }> },
+export async function angebotMetadaten(
+  bereich: string, sprache: Sprache = VORGABE_SPRACHE,
 ): Promise<Metadata> {
-  const { bereich } = await params;
   const formular = await ladeFormular(bereich);
-  if (formular === null) return { title: 'Nicht gefunden' };
+  if (formular === null) return { title: sprache === 'en' ? 'Not found' : 'Nicht gefunden' };
   const basis = await basisAusAnfrage();
+  const pfad = `/angebot/${bereich}`;
+  const schluessel = formularSchluessel(bereich) ?? '';
   return {
-    title: formular.titel,
-    alternates: { canonical: `${basis}/anfrage/${bereich}` },
+    title: sprache === 'en' ? uebersetzeTitel(schluessel, formular.titel) : formular.titel,
+    alternates: {
+      canonical: `${basis}${mitSprache(pfad, sprache)}`,
+      languages: alternativen(pfad, basis),
+    },
   };
 }
 
-export default async function AnfrageSeite(
-  { params }: { params: Promise<{ bereich: string }> },
+/**
+ * Das Formular in einer Sprache.
+ *
+ * Die FELDER kommen unveraendert aus der veroeffentlichten Definition — sie
+ * bestimmen, was validiert und was gespeichert wird. `uebersetzeFelder()` legt
+ * nur die Beschriftungen darueber. Damit gibt es weiterhin genau eine
+ * Feldliste, und die englische Seite kann nicht gegen eine andere pruefen als
+ * die, die sie gezeigt hat.
+ */
+export async function AngebotSeiteFuer(
+  bereich: string, sprache: Sprache = VORGABE_SPRACHE,
 ) {
-  const { bereich } = await params;
   const formular = await ladeFormular(bereich);
   if (formular === null) notFound();
 
@@ -63,7 +75,15 @@ export default async function AnfrageSeite(
   // halbes Formular wäre schlimmer.
   if (!felder.success) throw new Error(`Formular ${bereich}: Felddefinition ungültig.`);
 
+  const schluessel = formularSchluessel(bereich) ?? '';
+  const felderAnzeige = sprache === 'en'
+    ? uebersetzeFelder(schluessel, felder.data) : felder.data;
+  const titel = sprache === 'en'
+    ? uebersetzeTitel(schluessel, formular.titel) : formular.titel;
+
   return (
-    <AnfrageFormular bereich={bereich} titel={formular.titel} felder={felder.data} />
+    <AnfrageFormular
+      bereich={bereich} titel={titel} felder={felderAnzeige} sprache={sprache}
+    />
   );
 }

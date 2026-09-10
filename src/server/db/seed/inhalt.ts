@@ -244,7 +244,7 @@ export const SEITEN: readonly SeitenInhalt[] = [
     ],
   },
   {
-    pfad: '/reinigung',
+    pfad: '/unternehmen/reinigung',
     beschreibung: `CSE Dienstleistungen GmbH — ${GEWERK.reinigung} in Berlin.`,
     abschnitte: [
       { art: 'hero', ueberschrift: 'CSE Dienstleistung', text: GEWERK.reinigung },
@@ -278,7 +278,7 @@ export const SEITEN: readonly SeitenInhalt[] = [
     ],
   },
   {
-    pfad: '/security',
+    pfad: '/unternehmen/security',
     beschreibung: `SSE Security — ${GEWERK.security} in Berlin.`,
     abschnitte: [
       { art: 'hero', ueberschrift: 'SSE Security', text: GEWERK.security },
@@ -311,7 +311,7 @@ export const SEITEN: readonly SeitenInhalt[] = [
     ],
   },
   {
-    pfad: '/bau',
+    pfad: '/unternehmen/bau',
     beschreibung: `REALTIME Service GmbH — ${GEWERK.bau} in Berlin.`,
     abschnitte: [
       { art: 'hero', ueberschrift: 'REALTIME Service', text: GEWERK.bau },
@@ -346,7 +346,7 @@ export const SEITEN: readonly SeitenInhalt[] = [
     ],
   },
   {
-    pfad: '/operations',
+    pfad: '/unternehmen/operations',
     beschreibung: 'CSE Operations — digitale Abläufe, Auswertung und Gruppensteuerung.',
     abschnitte: [
       {

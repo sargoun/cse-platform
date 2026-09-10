@@ -3,6 +3,7 @@ import { bereicheLesen, einstellungLesen, oeffentlichLesen } from '@/server/inha
 import { sitemapEintraege } from '@/server/services/inhalt/sitemap';
 import { llmsTxt, type LlmsSeite } from '@/server/services/inhalt/llms';
 import { OEFFENTLICHE_ROUTEN } from '@/server/services/inhalt/routen';
+import { praefix, VORGABE_SPRACHE } from '@/lib/sprache';
 
 /**
  * `/llms.txt` (PUB-12) — aus derselben NAP-Quelle wie Impressum und JSON-LD.
@@ -34,8 +35,12 @@ export async function GET(): Promise<Response> {
     telefon: b.telefon, email: b.email,
   });
 
+  // Nur die Seiten der Vorgabesprache: `sitemapEintraege` liefert jede Seite
+  // je Sprache einmal, und zwei Zeilen mit demselben Titel unter zwei Adressen
+  // laesen sich wie zwei verschiedene Seiten. Auf die englische Fassung weist
+  // stattdessen ein eigener Abschnitt hin.
   const seitenListe: readonly LlmsSeite[] = seiten
-    .filter((s) => s.pfad !== '/')
+    .filter((s) => s.pfad !== '/' && s.sprache === VORGABE_SPRACHE)
     .map((s) => ({ pfad: s.pfad, titel: TITEL.get(s.pfad) ?? s.pfad }));
 
   const text = llmsTxt(
@@ -47,6 +52,7 @@ export async function GET(): Promise<Response> {
     })),
     seitenListe,
     basis,
+    `${basis}${praefix('en')}`,
   );
 
   return new Response(text, {
