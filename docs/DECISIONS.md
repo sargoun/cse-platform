@@ -2008,6 +2008,162 @@ Geprueft wurde die Wache gegen sich selbst: eine Sonde mit
 alle drei Formatierer nannten Berlin schon; ab jetzt bleibt das so, ohne dass
 jemand daran denken muss.
 
+
+### D-121 · `qualifikationsanforderung` ist eine Funktion; die Tabelle heisst `einsatzanforderung`
+
+Der PR-Plan nennt als vierte Tabelle von PR 31 `qualifikationsanforderung`.
+Eine Tabelle dieses Namens gibt es in keinem Datenmodell-Dokument.
+`app.qualifikationsanforderung(p_einsatz)` ist der **Aufloeser** aus
+`03-GEWERKE.md` §9.2, und die Tabelle, die er liest, heisst
+`einsatzanforderung` (§6.6) — sie ersetzt den `posten_qualifikation` des
+Entwurfs und ist die strukturelle Antwort darauf, dass §34a Abs. 1a GewO am
+EINSATZ eines Menschen haengt und nicht an der Existenz einer `posten`-Zeile.
+
+**Entschieden:** die Tabelle heisst `einsatzanforderung`, die Funktion
+`app.qualifikationsanforderung`. Der Plan benennt an dieser Stelle die
+Funktion, nicht eine Tabelle; K-21 (Eigentuemer gewinnt) entscheidet den Rest.
+`04-PLANUNG-ZEIT.md` §11 definiert die Funktion nicht, sondern uebernimmt sie
+namentlich — der Vertrag ist §9.2/§9.3 in `03-GEWERKE.md`.
+
+
+### D-122 · `nachweis_art.schluessel` laesst eine fuehrende Ziffer zu
+
+`01-KERN.md` §6.33 schreibt `CHECK (schluessel ~ '^[a-z][a-z0-9_]{2,49}$')` und
+seedet im selben Abschnitt `34a_sachkunde` und `34a_unterrichtung` — beide
+scheitern an ihrem eigenen Muster. Die Migration fiel darauf beim ersten Lauf.
+
+**Entschieden:** die Schluessel gewinnen. Sie stehen so in SEC-02 und ebenso
+als Beispiel in `§6.16`; das Muster ist eine Formregel desselben Dokuments und
+nicht aus der SPEC abgeleitet. Das Muster lautet daher
+`^[a-z0-9][a-z0-9_]{2,49}$` — die Ziffer nur an erster Stelle zugelassen,
+alles Uebrige unveraendert.
+
+
+### D-123 · Ein Sprachschluessel-CHECK darf keine Unterabfrage enthalten
+
+`01-KERN.md` §4 schreibt den `bezeichnung_i18n`-CHECK als
+`(select bool_and(k in ('de','en','ar','tr')) from jsonb_object_keys(...) k)`.
+Postgres nimmt das nicht an: ein `CHECK` darf keine Unterabfrage tragen, und
+`jsonb_object_keys` ist mengenliefernd. Der vorangestellte Disjunkt
+`i18n ?& array[]::text[]` war ausserdem IMMER wahr — jede Menge enthaelt die
+leere —, der ganze Ausdruck also eine Tautologie, die wie eine Pruefung aussah.
+
+**Entschieden:** dieselbe Aussage, unveraenderlich und wirksam:
+`check (bezeichnung_i18n - array['de','en','ar','tr'] = '{}'::jsonb)`. Nach
+Abzug der vier erlaubten Schluessel bleibt nichts uebrig. Gilt fuer
+`nachweis_art` und `qualifikation`; jeder weitere uebersetzte Katalog uebernimmt
+die Form.
+
+
+### D-124 · Die 60/30/7-Zusage braucht einen Traeger: `nachweis_warnung`
+
+SPEC §14 verlangt die eskalierende Ablaufwarnung, und PR 31 verlangt, dass sie
+**je Stufe genau einmal** feuert. Kein Datenmodell-Dokument nennt eine Tabelle,
+die das traegt. Ohne sie ist die Zusage eine Absichtserklaerung: ein taeglicher
+Waechter sieht denselben Nachweis an sechzig Tagen und meldet ihn sechzigmal,
+und wer sechzig Meldungen bekommt, liest keine. Sich die Stufe im
+Anwendungscode zu merken — lesen, vergleichen, schreiben — waere ein Wettlauf
+(K-09).
+
+**Entschieden:** `nachweis_warnung (nachweis_id, person_id, stufe_tage,
+gueltig_bis, ausgeloest_am)` mit
+`unique (nachweis_id, gueltig_bis, stufe_tage)`, append-only, kein Hard Delete.
+Der eindeutige Schluessel IST die Zusage; `on conflict do nothing` mit null
+betroffenen Zeilen ist die Antwort „schon gemeldet".
+
+**`gueltig_bis` steht IM Schluessel**, nicht daneben: wird ein Nachweis
+verlaengert, ist die 30-Tage-Warnung zum neuen Ablaufdatum eine andere Tatsache
+als die zum alten. Ohne die Spalte im Schluessel bliebe sie fuer immer aus, und
+der verlaengerte Nachweis liefe beim zweiten Mal unbemerkt ab.
+
+Ein verpasster Lauf holt nach: faellig ist jede Stufe, deren Schwelle
+unterschritten ist und die noch nicht quittiert wurde — nicht nur die, deren
+Schwelle genau heute erreicht wird. Ein bereits ABGELAUFENER Nachweis wird
+dagegen nicht gewarnt; „laeuft in 7 Tagen ab" ueber ein seit gestern
+ungueltiges Dokument waere eine falsche Aussage, und ab dem Ablauf ist die
+Hartsperre zustaendig.
+
+
+### D-125 · Der SEC-04-Dienst liegt unter `services/nachweis/`, nicht unter `services/dienstplan/`
+
+`03-GEWERKE.md` §9.2 nennt als Ort des Dienstes
+`src/server/services/dienstplan/assertQualifikation.ts`, und
+`04-PLANUNG-ZEIT.md` §11.1 nennt `services/dienstplan/zuordnen.ts` als
+Hauptaufrufer. Beide Pfade gehoeren dem parallel laufenden PR 30.
+
+**Entschieden:** das Tor steht in `src/server/services/nachweis/tor.ts` — bei
+den Tabellen, die es liest, und in dem PR, der sie anlegt. Der
+Dienstplandienst RUFT es auf; das ist ohnehin die richtige Richtung, denn die
+Sperre gehoert der Nachweisdomaene und wird von PR 41 (Posten) ein zweites Mal
+gebraucht. Der Pfad aus §9.2 ist eine Ortsangabe, kein Vertrag; der Vertrag ist
+die Funktion `app.einsatz_qualifikation_erfuellt` und ihre Signatur.
+
+
+### D-126 · `app.person_sichtbar` kommt ohne zwei ihrer fuenf Disjunkte
+
+`01-KERN.md` §3.2 definiert die Funktion mit fuenf Disjunkten. Zwei davon
+lesen Spalten, die es in `0002` nicht gibt:
+`anstellung.vorgesetzter_anstellung_id` (Vorgesetztenzweig) und
+`person.erfasst_von_mandant_id` (Bootstrap-Anker, O-141).
+
+**Entschieden:** die Funktion entsteht in `0030` mit den drei heute
+umsetzbaren Disjunkten — eigene Person, Super-Admin, bestehende Anstellung —
+und `SECURITY INVOKER`, so wie §3.2 es korrigiert hat. Die zwei fehlenden
+kommen mit ihren Spalten; die Migration benennt sie an ihrem Platz, damit
+niemand sie fuer eine Auslassung haelt. Wirkung heute: eine frisch erfasste
+`person` ohne Anstellung ist fuer niemanden ausser sich selbst sichtbar — die
+engere, fehlschliessende Richtung.
+
+
+### D-127 · Bewacherregister: der Status traegt seine Herkunft in einer Spalte
+
+CLAUDE.md verbietet vorgetaeuschte Integrationen, und fuer das Bewacherregister
+gibt es keine Schnittstelle. Ein handerfasster Status sieht in einer Zeile aber
+genauso aus wie ein abgefragter — und jede spaetere Oberflaeche, jeder Bericht
+und jeder Agentenlauf laese ihn als geprueft.
+
+**Entschieden:** `bewacher_eintrag.quelle text not null default 'manuell'
+check (quelle in ('manuell'))`. Der `CHECK` mit genau einem zugelassenen Wert
+ist Absicht: eine zweite Quelle einzutragen erfordert eine Migration, also eine
+Entscheidung, die jemand trifft. Der Dienst gibt das Feld als
+`quelle: 'manuell'` und `verbindung: 'nicht_verbunden'` weiter, damit die
+Oberflaeche es sagen MUSS und nicht sagen KANN.
+
+### D-128 · `qualifikation` ist der eine Katalog mit nullbarer Mandantenspalte — und ohne Rechtekonjunkt
+
+Zwei Konventionen sprechen hier gegen das Datenmodell, und beide Male gewinnt
+das Datenmodell — mit Grund, nicht aus Bequemlichkeit.
+
+**K-16 („Catalogues are never nullable-tenant") gegen `qualifikation.mandant_id`.**
+K-16 verbietet die Mittelform generisch, weil „manchmal geteilt, manchmal nicht"
+sich in keinem RLS-Praedikat ohne Zweig ausdruecken laesst, der die geteilten
+Zeilen in jeden Mandanten hineinschreiben laesst. `01-KERN.md` §6.16 und
+`03-GEWERKE.md` §2.1 verlangen sie trotzdem, dreimal und mit derselben
+Begruendung: eine §34a-Sachkunde gehoert dem MENSCHEN, und Fatima Yildiz
+arbeitet fuer die Reinigung und fuer die Security. Waere der Katalog je Mandant,
+gaebe es §34a zweimal — und `nachweis.qualifikation_id` zeigte je nach Erfasser
+auf eine andere Zeile, womit die Zusage aus D-09 („ein Nachweis, beide
+Anstellungen") an der einen Stelle brechen wuerde, an der sie zaehlt.
+
+**Entschieden:** nullbar, NULL = plattformweit. Der Zweig, den K-16 fuerchtet,
+wird ausgeschrieben statt vermieden: `q_lesen` liest `mandant_id is null or
+mandant_id = any (app.sichtbare_mandanten())`, `q_schreiben`/`q_aendern`
+verlangen fuer die plattformweite Zeile ausdruecklich `app.ist_super_admin()`.
+`einsatzanforderung.qualifikation_id` ist deshalb ein EINSPALTIGER
+Fremdschluessel — ein zusammengesetzter koennte eine plattformweite Zeile gar
+nicht referenzieren —, und das mandantenfremde Loch schliesst der Ausloeser
+`kern.pruefe_qualifikation_mandant()`.
+
+**K-03 („eine Policy ohne `hat_recht`-Konjunkt ist ein Defekt") gegen `q_lesen`.**
+K-03s Sorge ist benannt: sonst liest ein `kunde`-Login das Personalverzeichnis.
+Ein Katalog von Qualifikationsnamen ist ueber niemanden eine Aussage — die
+Personentatsache steht in `nachweis`, und die ist rechtegebunden. Und der
+Konjunkt waere aktiv schaedlich: `mitarbeiter` haelt laut
+`03-GEWERKE.md` §1.7 **kein einziges Modul-Leserecht**, also zeigte die
+EMP-08-Seite „meine Zertifikate" dem Wachmann eine Liste von UUIDs. §6.16 laesst
+den Konjunkt deshalb weg; die Auslassung ist tragend und steht als Kommentar in
+`0030`, damit sie beim naechsten Durchgang nicht als Versehen berichtigt wird.
+
 ## Carried over from the Phase 0 review — not client questions
 
 Three items the review surfaced that are ours to do, recorded here so they are not
@@ -2176,7 +2332,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-164 | `zeit-checkout-toleranz` | How long after the shift ends does the check-out link stay valid, and what happens when someone works substantially longer than planned? |
 | O-165 | `zeit-nacherfassungsfrist` | Which internal deadline applies to late entry, below the statutory seven days (§17 Abs. 1 MiLoG), and who is notified when it passes? |
 | O-166 | `zeit-konflikt-blockiert` | Which conflicts prevent saving and which only warn — overlap, ArbZG, qualification? |
-| O-167 | `zeit-feiertage-bundesland` | Are shift posts and event duties staffed normally on public holidays, and does the group work at objects outside Berlin — in which Länder? Which source supplies the holiday list? |
+| O-167 | `zeit-feiertage-bundesland` | Are shift posts and event duties staffed normally on public holidays, and does the group work at objects outside Berlin — in which Länder? Which source supplies the holiday list — and are 24 and 31 December treated as holidays by agreement? `src/lib/datum/feiertage-berlin.ts` records them with `gesetzlich = false` (§5.1) and skips no shift on them, because silently removing a planned shift is the direction §8.5 rules out |
 | O-168 | `zeit-pausenerfassung` | Are breaks stamped (start/end) or entered as a per-shift total? |
 | O-169 | `zeit-ohne-auftragsbezug` | Is there time without an order behind it — internal work, training, standby, travel — and how is it costed? |
 | O-170 | `zeit-schichtfunktionen` | Which functions exist on a shift (Objektleiter, Vorarbeiter, Springer), and which states does an assignment need? |
