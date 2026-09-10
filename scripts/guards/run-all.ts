@@ -351,6 +351,16 @@ function wacheTailwindFarben(): void {
           continue;
         }
         if (praefix === 'border') {
+          /**
+           * Eine SEITE plus eine BREITE ist keine Farbe.
+           *
+           * `border-t-0` setzt `border-top-width: 0`. Die Wache las davon nur
+           * `t-0`, fand es nicht in ihrer Liste und meldete „keine Farbe im
+           * Thema" — eine Falschmeldung, und die teuerste Sorte: wer sie ein
+           * paar Mal sieht, faengt an, die Wache zu umgehen, und dann faellt
+           * die echte Meldung mit durch.
+           */
+          if (/^(?:t|r|b|l|x|y|s|e)-(?:0|2|4|8)$/u.test(rest)) continue;
           if (BORDER_SONST.has(rest) || farben.has(rest)) continue;
           melde('tailwind-farbe', datei, i + 1,
             `\`border-${rest}\` — keine Farbe im Thema. Die Linie bleibt unsichtbar.`);

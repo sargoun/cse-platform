@@ -66,7 +66,7 @@ export default async function Monatsansicht({
       <nav aria-label="Ansicht wechseln" className="mb-s4 flex flex-wrap gap-s2">
         <Link
           href={`/portal/${mandant}/dienstplan/woche?woche=${von}`}
-          className="rounded-md border border-line px-s3 py-s1 text-sm text-text-muted hover:border-border-strong hover:text-text"
+          className="rounded-md border border-line px-s3 py-s1 text-sm text-text-muted hover:border-line-strong hover:text-text"
         >
           Wochenansicht
         </Link>

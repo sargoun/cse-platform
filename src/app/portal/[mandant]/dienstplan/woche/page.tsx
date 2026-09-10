@@ -78,7 +78,7 @@ export default async function Wochenansicht({
         <Woechentlich mandant={mandant} ziel={tagePlus(von, 7)} text="Nächste Woche →" />
         <Link
           href={`/portal/${mandant}/dienstplan/monat?monat=${von}`}
-          className="rounded-md border border-line px-s3 py-s1 text-sm text-text-muted hover:border-border-strong hover:text-text"
+          className="rounded-md border border-line px-s3 py-s1 text-sm text-text-muted hover:border-line-strong hover:text-text"
         >
           Monatsansicht
         </Link>
@@ -107,7 +107,7 @@ function Woechentlich(
   return (
     <Link
       href={`/portal/${mandant}/dienstplan/woche?woche=${ziel}`}
-      className="rounded-md border border-line px-s3 py-s1 text-sm text-text-muted hover:border-border-strong hover:text-text"
+      className="rounded-md border border-line px-s3 py-s1 text-sm text-text-muted hover:border-line-strong hover:text-text"
     >
       {text}
     </Link>

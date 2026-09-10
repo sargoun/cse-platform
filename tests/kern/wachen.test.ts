@@ -132,6 +132,23 @@ describe('the merge guards fail the branch that breaks an invariant', () => {
   });
 });
 
+  it('(7c) `border-t-0` ist eine Breite, keine Farbe — `border-blau` daneben schon', () => {
+    /**
+     * Eine Falschmeldung ist die teuerste Sorte Wache: wer sie ein paar Mal
+     * sieht, faengt an, die Wache zu umgehen, und dann faellt die echte
+     * Meldung mit durch. Die Fixtur beweist beides in einer Datei — sonst
+     * zeigte sie nur, dass die Wache schweigt.
+     */
+    const { code, ausgabe } = guardsMit({
+      'src/components/Fixtur.tsx': lies('tests/fixtures/wachen/rahmenbreite.tsx'),
+    });
+    expect(code).toBe(1);
+    expect(ausgabe).toContain('border-blau');
+    expect(ausgabe).not.toContain('border-t-0');
+    expect(ausgabe).not.toContain('border-b-2');
+    expect(ausgabe).not.toContain('border-x-4');
+  });
+
   it('(7b) eine CSS-Deklaration ist keine Klasse — die Klasse daneben aber schon', () => {
     const { code, ausgabe } = guardsMit({
       'src/components/Fixtur.tsx': lies('tests/fixtures/wachen/farbe-neben-css.tsx'),

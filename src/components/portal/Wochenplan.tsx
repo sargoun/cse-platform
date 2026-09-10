@@ -205,7 +205,7 @@ function Schichtblock({
       className={`absolute overflow-hidden rounded-md border px-s2 py-s1 text-micro leading-tight
         ${schicht.status === 'storniert'
           ? 'border-line bg-surface-3 text-text-subtle line-through'
-          : 'border-border-strong bg-surface text-text hover:border-brand'}`}
+          : 'border-line-strong bg-surface text-text hover:border-brand'}`}
       style={{
         top: oben,
         height: hoehe,
