@@ -241,3 +241,46 @@ create trigger trg_lead_audit
   for each row execute function kern.protokolliere_aenderung();
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0020)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- firma (archiv): CRM-06. Die Firma ist die geteilte Identitaet hinter zwei oder drei Kundenbeziehungen. Sie zu loeschen macht die Historie der anderen Gesellschaften unlesbar — und die verlorene Zeile einer Verschmelzung bleibt fuer die referenzielle Historie stehen.
+create trigger trg_firma_kein_hard_delete
+  before delete on firma
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_firma_kein_truncate
+  before truncate on firma
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on firma from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- kunde (archiv): LEG-01 und AO/HGB. An einem Kunden haengen Angebote, Auftraege und Rechnungen mit zehnjaehriger Aufbewahrung; Art. 17 DSGVO wird durch Anonymisierung erfuellt (anonymisiert_am), nicht durch Loeschen.
+create trigger trg_kunde_kein_hard_delete
+  before delete on kunde
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_kunde_kein_truncate
+  before truncate on kunde
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on kunde from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- ansprechpartner (archiv): CRM-08. Auf dieser Zeile sitzt der Nachweis nach § 7 UWG: Grundlage, Beleg, Widerspruch. Sie zu loeschen loescht den Beweis, mit dem sich eine Abmahnung abwehren laesst — auch die Loeschung nach Art. 17 laeuft deshalb ueber anonymisiert_am.
+create trigger trg_ansprechpartner_kein_hard_delete
+  before delete on ansprechpartner
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_ansprechpartner_kein_truncate
+  before truncate on ansprechpartner
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on ansprechpartner from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- kunde_zugang (archiv): AUT-08. Wer wann fuer welchen Kunden ins Portal durfte, ist eine Zugangsentscheidung. Ein entzogener Zugang wird auf entzogen_am gesetzt, nicht entfernt.
+create trigger trg_kunde_zugang_kein_hard_delete
+  before delete on kunde_zugang
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_kunde_zugang_kein_truncate
+  before truncate on kunde_zugang
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on kunde_zugang from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks

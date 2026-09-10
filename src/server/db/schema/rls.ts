@@ -65,6 +65,44 @@ export interface Loeschsperre {
  */
 export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
   {
+    tabelle: 'firma',
+    art: 'archiv',
+    migration: '0020',
+    grund:
+      'CRM-06. Die Firma ist die geteilte Identitaet hinter zwei oder drei '
+      + 'Kundenbeziehungen. Sie zu loeschen macht die Historie der anderen '
+      + 'Gesellschaften unlesbar — und die verlorene Zeile einer Verschmelzung '
+      + 'bleibt fuer die referenzielle Historie stehen.',
+  },
+  {
+    tabelle: 'kunde',
+    art: 'archiv',
+    migration: '0020',
+    grund:
+      'LEG-01 und AO/HGB. An einem Kunden haengen Angebote, Auftraege und '
+      + 'Rechnungen mit zehnjaehriger Aufbewahrung; Art. 17 DSGVO wird durch '
+      + 'Anonymisierung erfuellt (anonymisiert_am), nicht durch Loeschen.',
+  },
+  {
+    tabelle: 'ansprechpartner',
+    art: 'archiv',
+    migration: '0020',
+    grund:
+      'CRM-08. Auf dieser Zeile sitzt der Nachweis nach § 7 UWG: Grundlage, '
+      + 'Beleg, Widerspruch. Sie zu loeschen loescht den Beweis, mit dem sich '
+      + 'eine Abmahnung abwehren laesst — auch die Loeschung nach Art. 17 '
+      + 'laeuft deshalb ueber anonymisiert_am.',
+  },
+  {
+    tabelle: 'kunde_zugang',
+    art: 'archiv',
+    migration: '0020',
+    grund:
+      'AUT-08. Wer wann fuer welchen Kunden ins Portal durfte, ist eine '
+      + 'Zugangsentscheidung. Ein entzogener Zugang wird auf entzogen_am '
+      + 'gesetzt, nicht entfernt.',
+  },
+  {
     tabelle: 'audit_log',
     art: 'append',
     migration: '0005',
