@@ -168,8 +168,13 @@ export async function ladePlanfenster(
            * Begruendung schon.
            */
           befunde: (jeSchicht.get(s.id) ?? []).map((b) => ({
-            art: b.blockiert ? ('sperre' as const)
-              : b.schwere === 'verstoss' ? ('warnung' as const) : ('hinweis' as const),
+            art: b.blockiert
+              ? ('sperre' as const)
+              // `verstoss` UND `warnung` lesen sich als Warnung. Nur `warnung`
+              // auf „Hinweis" abzubilden waere eine Abschwaechung, die
+              // niemand entschieden hat — und die Planerin liest das mildere
+              // Wort, waehrend die Datenbank das schaerfere meint.
+              : b.schwere === 'hinweis' ? ('hinweis' as const) : ('warnung' as const),
             text: b.text,
           })),
         })),
