@@ -15,6 +15,7 @@
  */
 import postgres from 'postgres';
 import { DATENSCHUTZ_VERSION, FORMULARE } from './formulare.js';
+import { seedOperations } from './operations.js';
 
 const url = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 if (url === undefined || url === '') {
@@ -540,6 +541,21 @@ async function main(): Promise<void> {
     }
   }
   process.stdout.write(`  ${konten.length} Rollenkonten (admin, leitung, mitarbeiter, kunde)\n`);
+
+  /**
+   * Phase 4 — CRM und Operations.
+   *
+   * Erst HIER, nach den Konten: `kunde_zugang` braucht das Kundenkonto, und
+   * ohne diesen Zugang kaeme niemand ins Kundenportal. Die Reihenfolge ist
+   * also nicht Geschmack, sondern die Abhaengigkeit selbst.
+   */
+  const [kundenKonto] = await sql<{ id: string }[]>`
+    select id from benutzer where email = 'kunde.demo@example.test' limit 1`;
+  const ops = await seedOperations(sql, ids, kundenKonto?.id ?? null);
+  process.stdout.write(
+    `  ${String(ops.objekte)} Objekte, ${String(ops.raeume)} Raeume, `
+    + 'Belagsarten und Reinigungsklassen (Leistungswerte: Platzhalter, O-17)\n',
+  );
 
   process.stdout.write('\nSeed fertig.\n');
   process.stdout.write('OFFEN, bevor eine Rechnung entstehen kann:\n');

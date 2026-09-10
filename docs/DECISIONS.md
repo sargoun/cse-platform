@@ -1440,6 +1440,118 @@ von denen jemand ENTSCHIEDEN hat, dass sie ersetzt sind.
 Eine Adresse, die Seite UND Quelle waere, bricht den Import — vor dem ersten
 Schreibvorgang. Sonst zoege er diese Seite bei jedem Lauf still zurueck.
 
+### D-91 · Der natuerliche Schluessel des Raumbuchs traegt die Etage
+
+`UNIQUE (objekt_id, raumnummer)` sieht richtig aus und ist der teuerste Fehler
+dieser Phase: "101" im Untergeschoss und "101" im 1. OG sind zwei Raeume, und
+in jedem Buerohaus gibt es beide.
+
+**Entschieden:** der Schluessel ist `(objekt_id, coalesce(etage, ''),
+raumnummer)`, teilweise auf nicht archivierte Zeilen mit Nummer. Das
+`coalesce` gehoert dazu: ohne es waeren zwei nummerierte Raeume ohne Etage
+fuer den Index verschieden, und derselbe Flur kaeme bei jedem Import erneut
+herein.
+
+Warum das keine Kleinigkeit ist: ein verschmolzener Raum verliert seine m²
+aus `Σ m² ÷ Leistungswert`. Das Angebot wird dadurch zu billig, die Rechnung
+dazu bleibt korrekt, und niemand sieht dem Ergebnis etwas an. Raeume OHNE
+Nummer — Flur, Treppenhaus, Aufzugsvorraum — bleiben ausdruecklich erlaubt;
+`NOT NULL` zwaenge den Importeur, eine Nummer zu erfinden, und eine erfundene
+Nummer wird beim naechsten Import anders erfunden.
+
+### D-92 · Der Leistungswert ist eine entzogene Spalte, kein Katalogfeld
+
+`belagsart.leistungswert_qm_pro_stunde` ist die Marge in einer Spalte: aus ihr
+und der Flaeche entsteht der Preis, und wer sie kennt, rechnet jedes Angebot
+nach.
+
+**Entschieden:** `SELECT` darauf ist `cse_app` entzogen (K-05). Gelesen wird
+sie ueber `app.leistungswerte_lesen(stichtag)`, das Bereich und Recht selbst
+prueft und den ganzen Katalog auf einmal gibt — ein Leser je Zeile waere N
+Aufrufe fuer eine Antwort. `INSERT` und `UPDATE` bleiben erteilt: wer den
+Katalog pflegen darf, setzt den Wert, und die Policy entscheidet, ob er das
+darf. Ein `WHERE leistungswert > 3` scheitert ebenfalls — eine Bedingung ueber
+eine Spalte braucht deren `SELECT`-Recht.
+
+Anders als `app.rechtsgrundlage_lesen` schreibt dieser Leser NICHT ins Audit:
+ein Leistungswert ist ein Geschaeftsgeheimnis, kein personenbezogenes Datum,
+und ein Eintrag je Raumbuch-Ansicht ertraenkte genau das Protokoll, auf das
+sich eine Auskunft nach LEG-08 stuetzt. Dieselbe Ueberlegung gilt fuer
+`objekt.bemerkung`, `objekt.zutritt_hinweis` und `raum.bemerkung`: interne
+Notizen an einem Ort, den der Kunde selbst im Portal sieht.
+
+### D-93 · Eine Belagsart gilt fuer einen Zeitraum, und am Wechseltag genau einmal
+
+Ein neuer Leistungswert ersetzt den alten nicht, er loest ihn ab — sonst
+liesse sich ein bereits abgegebenes Angebot nicht mehr nachrechnen.
+
+**Entschieden:** `belagsart` traegt `gueltig_ab`/`gueltig_bis` (EINSCHLIESSLICH,
+§0.7) und einen GiST-Ausschluss ueber
+`daterange(gueltig_ab, gueltig_bis + 1, '[)')`. Ohne ihn haette "der
+Leistungswert am 1. Maerz" zwei Antworten, sobald jemand den neuen Satz am
+selben Tag beginnen laesst, an dem der alte endet — und welche der beiden die
+Kalkulation nimmt, entschiede die Sortierung.
+
+Aenderungen an `belagsart` stehen im Audit, Aenderungen an `raum` nicht. Das
+ist eine Entscheidung: ein geaenderter Leistungswert bepreist jedes offene
+Angebot neu und aendert sich selten; ein Raumbuch kommt zu Tausenden aus einem
+Import, und ein Eintrag je Raum ertraenkte das Protokoll.
+
+### D-94 · Ein Objekt ist ein ORT; die kaufmaennische Beziehung haengt am Auftrag
+
+`objekt.kunde_id` ist nullbar, und das ist keine Nachlaessigkeit.
+
+**Entschieden:** dasselbe Gebaeude wird zu Recht von zwei Kunden derselben
+Gesellschaft beauftragt (Eigentuemer und Mieter), und ein Veranstaltungsort
+(REQ-03) existiert, bevor es einen Kundenstamm gibt. Ein Objekt OHNE
+Kundenbezug ist damit im Kundenportal fuer niemanden sichtbar — `kunde_id =
+any(app.aktuelle_kunden())` faellt bei NULL von selbst durch, und genau so
+soll es sein. Der Ansprechpartner haengt am zusammengesetzten Schluessel
+`(mandant_id, kunde_id, id)`: ein Vor-Ort-Kontakt eines ANDEREN Kunden ist
+dadurch nicht einfuegbar, nicht nur unerwuenscht.
+
+Offen bleibt O-70 (ein Gebaeude fuer zwei Kunden: ein Objekt oder zwei) — die
+Nullbarkeit haelt beide Antworten offen, statt eine vorwegzunehmen.
+
+### D-95 · Die Kalkulation rechnet ganzzahlig, rundet je Zeile und nennt ihre Platzhalter
+
+`Σ (m² ÷ Leistungswert) × Frequenzfaktor` als Gleitkomma ergibt einen Preis,
+der um Bruchteile daneben liegt — jedes Mal in dieselbe Richtung.
+
+**Entschieden:** Flaechen und Leistungswerte sind ganzzahlige Tausendstel
+(`menge.ts`, das Gegenstueck zu `geld.ts`), Zeit sind ganze Sekunden, Geld
+sind ganze Cent. Die Einheiten kuerzen sich —
+`Sekunden = 3600 × Milli-m² ÷ Milli-m²/h` —, also gibt es keinen Zwischenwert
+mit Nachkommastellen. Gerundet wird JE ZEILE und dann summiert, damit die
+angezeigten Zeilen die Summe ergeben; eine Liste, unter der eine andere Summe
+steht, kostet Vertrauen an genau der Stelle, an der es zaehlt. Wagnis und
+Gewinn rechnen auf die Zwischensumme, nicht auf den Lohn.
+
+Stundensatz und Zuschlaege (O-16), die Umrechnung Turnus → Faktor (O-56) und
+die Leistungswerte selbst (O-17) sind offen. Sie stehen hinter je einer
+Schnittstelle mit einem sichtbaren Platzhalter, und JEDES Ergebnis traegt
+`istPlatzhalter` samt O-Nummern bis in die Oberflaeche. Ein unbekannter Turnus
+bekommt keinen Ersatzwert, sondern wirft — "dann eben monatlich" waere ein
+Preis, den niemand entschieden hat.
+
+Was nicht kalkulierbar ist, wird GENANNT: Flaeche ohne Belagsart und
+Belagsarten ohne am Stichtag gueltigen Wert kommen als eigene Groesse zurueck
+und stehen als Warnung ueber dem Betrag. Weggelassen ergaeben sie ein zu
+billiges Angebot, dem man nichts ansieht.
+
+### D-96 · Die Geld-Wache kennt zwei Wortklassen, und eine Ausnahme nennt ihre Einheit
+
+`geld-nie-numeric` schlug auf `leistungswert_qm_pro_stunde` an, weil `wert`
+in ihrer Wortliste stand. Der Wert ist m²/h, kein Betrag.
+
+**Entschieden:** die Wache trennt eindeutige Geldwoerter (`betrag`, `preis`,
+`summe`, `saldo`, `entgelt`, `kosten`, `honorar`, `einbehalt`) von
+mehrdeutigen (`wert`, `satz`). Eine mehrdeutige Spalte darf `numeric` sein,
+wenn die Zeile ihre EINHEIT nennt (`-- nicht-geld: m²/h`); eine geldbenannte
+nie, egal wie sie kommentiert ist. Die Ausnahme ist damit eine Aussage, die
+ein Pruefer nachlesen kann — kein Schalter, der die Wache stumm stellt. Drei
+Fixtures pruefen genau diese drei Faelle.
+
 ---
 
 ## Carried over from the Phase 0 review — not client questions
