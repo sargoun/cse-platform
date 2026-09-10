@@ -2164,6 +2164,143 @@ EMP-08-Seite „meine Zertifikate" dem Wachmann eine Liste von UUIDs. §6.16 lae
 den Konjunkt deshalb weg; die Auslassung ist tragend und steht als Kommentar in
 `0030`, damit sie beim naechsten Durchgang nicht als Versehen berichtigt wird.
 
+### D-129 · `mandant_einstellung` entsteht in PR 34, obwohl sie `01-KERN` gehoert
+
+Vier Dokumente lesen `app.einstellung(...)` — `03-GEWERKE.md` §1.16,
+`04-PLANUNG-ZEIT.md` §17.2, `05-FINANZEN.md` §3 und `03-AUTH-BERECHTIGUNGEN.md` —
+und **keine Migration legte die Tabelle an**. PR 34 ist der erste Schreiber, der
+sie wirklich braucht: LEG-10 haengt an `zeit.geolokalisierung`, und das
+Abnahmekriterium (5) nennt sie woertlich.
+
+Die Luecke faellt nicht auf, und das ist der Grund, sie hier zu schliessen: ohne
+Tabelle gaebe es die Funktion nicht, jeder Aufrufer fiele auf seinen eigenen
+Vorgabewert zurueck, und JEDE dieser Einstellungen waere dauerhaft
+unkonfigurierbar — ohne Fehlermeldung. Der Tag, an dem jemand einen Schalter
+umlegt, waere der Tag, an dem niemand versteht, warum nichts geschieht.
+
+**Entschieden:** `0033_mandant_einstellung.sql` legt sie in der kanonischen Form
+aus K-21 an (`id, mandant_id, schluessel, wert jsonb`, `unique (mandant_id,
+schluessel)`), dazu beide Signaturen von `app.einstellung`, die §3.5-Definer-
+Lesepolicy und die sieben O-06-Schalter auf ihrem restriktiven Wert. Wandert die
+Tabelle spaeter in eine KERN-Migration, ist das ein Umzug und kein Neubau.
+
+### D-130 · `z_geo_gate` liest die ZWEIARGUMENTIGE `app.einstellung`
+
+`04-PLANUNG-ZEIT.md` §5.6 schreibt `app.einstellung('zeit.geolokalisierung')`.
+`01-KERN.md` §3.2 — der Eigentuemer der Funktion — verbietet die einargumentige
+Form ausdruecklich in Ausloesern und mandantenlosen Kontexten, weil sie dort ueber
+`app.aktiver_mandant()` auf NULL auflöst.
+
+Der Check-in-Pfad ist genau so ein Kontext: er hat keine Sitzung (K-08). Die
+einargumentige Form lieferte dort NULL, die Einstellung waere fuer den EINZIGEN
+Pfad unwirksam, der ueberhaupt Punkte erfassen kann — und zwar fail-*closed*,
+also unauffaellig richtig, solange O-06 offen ist, und unauffaellig falsch am Tag
+danach.
+
+**Entschieden:** `kern.zeiteintrag_geo_tor()` ruft
+`app.einstellung(new.mandant_id, 'zeit.geolokalisierung')`. Wo Dokument und
+Konvention auseinandergehen, gilt die Konvention (04-PLANUNG-ZEIT §0).
+
+### D-131 · Jede Check-in-Ablehnung ist 409 `ungueltiger_zustand` — alle, mit demselben Text
+
+`08-PR-PLAN.md` PR 34 nennt fuer die zweite Einloesung woertlich **409
+`ungueltiger_zustand`**; `05-API-KARTE.md` §C schreibt an derselben Stelle
+**404**, mit der Begruendung, eine verbrauchte Marke duerfe von einer falschen
+nicht unterscheidbar sein.
+
+Beide Anliegen sind vereinbar, und nur die Vereinbarung zaehlt: entscheidend ist
+nicht die Zahl, sondern dass EINE Antwort fuer ALLE Gruende gilt — unbekannt,
+abgelaufen, zu frueh, widerrufen, schon benutzt (AUT-06, §9.2). Eine Antwort, die
+sie unterscheidet, macht das Durchprobieren lohnend.
+
+**Entschieden:** 409 `ungueltiger_zustand` mit derselben Meldung fuer jede
+Ablehnung, wie PR 34 es nennt. `05-API-KARTE.md` §C weicht ab und ist hiermit
+korrigiert.
+
+### D-132 · „Eingeloest heisst: es gibt einen Zeiteintrag" ist ein AUFGESCHOBENER Ausloeser
+
+`04-PLANUNG-ZEIT.md` §5.5 fuehrt `check ((eingeloest_am is null) =
+(eingeloest_zeiteintrag_id is null))`. Als `CHECK` widerspricht die Regel K-09:
+der bedingte Schreibvorgang setzt `eingeloest_am` und erfaehrt die Eintrags-id
+erst danach — sie entsteht ja aus seinem Rueckgabewert. Der `CHECK` schluege
+dazwischen an, und der einzige Ausweg waere, vorher zu lesen und danach zu
+schreiben: genau der Wettlauf, den K-09 entfernt.
+
+**Entschieden:** ein `CONSTRAINT TRIGGER … DEFERRABLE INITIALLY DEFERRED`
+(`CHECK`-Bedingungen sind in Postgres nicht aufschiebbar). Er liest die Zeile
+beim Commit NEU, statt `new` zu benutzen — ein aufgeschobener Ausloeser bekommt
+sonst den Zwischenstand seiner eigenen Anweisung — und er ist `SECURITY DEFINER`,
+weil er unter `cse_checkin` feuert, einer Rolle mit null Tabellenrechten. Die
+Zusage bleibt: am Ende der Transaktion gibt es keine verbrannte Marke ohne
+§ 17-Nachweis.
+
+### D-133 · Die Serveruhr stempelt nur die ERSTE Fassung einer Kette
+
+`kern.stempel_feldzeit()` ersetzt bei `quelle = 'server_uhr'` den mitgelieferten
+Zeitpunkt durch `now()` — sonst schriebe ein INSERT mit eigenem Wert einen
+beliebigen Zeitpunkt, und die Unveraenderlichkeitsregel machte ihn dauerhaft
+(§1.8).
+
+Eine Korrektur ist aber kein zweites Ereignis, sondern eine Kopie mit geaenderten
+Feldern. Die zweite Fassung einer Zeile, an der nur die Pause richtig gestellt
+wurde, traegt denselben Beginn wie die erste — und der kam damals von der
+Serveruhr; die Korrektur aendert das nicht. Ohne Unterscheidung zoege jede
+Pausenkorrektur den Schichtbeginn auf den Zeitpunkt der Korrektur, womoeglich
+Wochen nach vorn: der § 17-Nachweis waere danach falsch, und beide Werte saehen
+plausibel aus.
+
+**Entschieden:** gestempelt wird bei `version = 1`. Ab Fassung 2 erbt die Zeile
+den Zeitpunkt der Fassung, die sie ersetzt; woher er stammt, belegt
+`zeiteintrag_korrektur`.
+
+### D-134 · `zeitabweichung_sek` ist zwei Spalten, je Ereignis eine
+
+Invariante 5 nennt EINE Spalte. `04-PLANUNG-ZEIT.md` §5.6 teilt sie in
+`zeitabweichung_beginn_sek` und `zeitabweichung_ende_sek`, und das ist richtig:
+Beginn und Ende werden Stunden auseinander erfasst, oft auf verschiedenen
+Geraeten. Eine gemeinsame Spalte ueberschriebe die erste Messung mit der zweiten,
+und die Abweichung beim Einstempeln waere nicht mehr feststellbar.
+
+**Entschieden:** zwei Spalten, hier aufgeschrieben, damit eine Konformitaets-
+pruefung, die den woertlichen Namen sucht, den Grund findet. Das Vorzeichen ist
+GERAET MINUS SERVER: ein nachgehendes Telefon ergibt eine negative Zahl.
+
+### D-135 · `/check-in/[token]` loest die Marke beim Rendern NICHT auf
+
+Der naheliegende Entwurf zeigt Objekt, Schichtfenster und Namen an, bevor jemand
+tippt. Er waere ein Orakel: eine Seite, die fuer eine gueltige Marke „Objekt
+Musterstrasse 3, 22:00–06:00" zeigt und fuer eine ungueltige nichts, beantwortet
+jedem Durchprobierenden genau die Frage, die er stellt (AUT-06). Und er
+braeuchte eine sechste Zeile im GESCHLOSSENEN K-08-Register — ein Register in
+einem PR zu erweitern, der es nicht muss, ist der Anfang davon, dass es keins
+mehr ist.
+
+**Entschieden:** ein Knopf, ein Bildschirm, kein Vorabblick. Was passiert ist,
+sagt die Antwort auf das Antippen: Serverzeit in Berliner Anzeige, Objekt,
+Ergebnis. `05-API-KARTE.md` §C sieht `GET /check-in/[token]` als aufloesende
+Seite vor und weicht damit ab.
+
+### D-136 · Der K-19-Scanner kennt drei SQL-Register, die keine Rechte sind
+
+`'zeit.geolokalisierung'` (eine Einstellung), `'zeit.eingestempelt'` (eine
+Auditaktion) und `'zeit.lesen'` (ein Rechteschluessel) sehen fuer einen
+Textscanner gleich aus. Bis PR 34 fiel das nicht auf, weil die vorhandenen
+Einstellungs- und Auditkennungen mit Praefixen begannen, die keine Modulnamen
+sind (`auth.`, `website.`).
+
+Ohne Schnitt meldete `tests/kern/katalog.test.ts` jede Einstellung und jede
+Auditaktion als unregistriertes Recht — und wer die Pruefung kennt, benennt seine
+Einstellungen um, statt den echten Fund zu suchen. Das ist genau die Erosion, vor
+der `ohneRegisterKennungen` schon fuer die TypeScript-Seite warnt.
+
+**Entschieden:** `scripts/katalog/benutzung.ts` uebergeht in SQL drei Formen —
+`app.einstellung(...)`, den ganzen Aufruf `app.protokolliere(...);` und die
+`insert into mandant_einstellung … ;`-Anweisung. Was ein Rechteschluessel ist,
+bleibt unberuehrt: `app.hat_recht('…')` findet der Scanner weiter, und ein
+Tippfehler dort bricht den Build wie zuvor. Kennungen dieser Register stehen
+deshalb IM Aufruf und nicht vorher in einer Variablen — ausserhalb sieht der
+Scanner sie wieder als Recht.
+
 ## Carried over from the Phase 0 review — not client questions
 
 Three items the review surfaced that are ours to do, recorded here so they are not

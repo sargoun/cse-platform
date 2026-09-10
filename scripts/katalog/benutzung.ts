@@ -81,6 +81,55 @@ function ohneRegisterKennungen(inhalt: string): string {
   return inhalt.replace(/\bschluessel:\s*['"`][^'"`]*['"`]/gu, 'schluessel: _');
 }
 
+/**
+ * Dieselbe Aufgabe für SQL — und dort gibt es DREI Register mit derselben
+ * Form `<modul>.<etwas>`, die keine Rechteschlüssel sind.
+ *
+ * Der Unterschied ist nicht sichtbar: `'zeit.geolokalisierung'` (eine
+ * Einstellung), `'zeit.eingestempelt'` (eine Auditaktion) und `'zeit.lesen'`
+ * (ein Rechteschlüssel) sehen für einen Textscanner gleich aus. Ohne diesen
+ * Schnitt meldete die Prüfung jede Einstellung und jede Auditaktion als
+ * unregistriertes Recht — und wer sie kennt, benennt seine Einstellungen um,
+ * statt den echten Fund zu suchen. Genau davor warnt der Kommentar über
+ * `ohneRegisterKennungen`.
+ *
+ * Was ein Rechteschlüssel ist, bleibt unberührt: `app.hat_recht('…')` und
+ * `app.rechte_mandanten('gruppe.…')` findet `AUFRUF` weiterhin, und ein
+ * Tippfehler dort bricht den Build wie zuvor.
+ */
+function ohneSqlRegister(inhalt: string): string {
+  return inhalt
+    // (1) Betriebseinstellungen: `app.einstellung(<mandant>, '<schluessel>')`
+    //     und die einargumentige Form. Eigentümer: 01-KERN §6.30.
+    .replace(/\bapp\.einstellung\s*\([^)]*\)/gu, 'app.einstellung(_)')
+    /**
+     * (2) Auditaktionen: das erste Argument von `app.protokolliere(...)` ist
+     *     der Name der HANDLUNG (`zeit.eingestempelt`), nicht ein Recht.
+     *
+     * Verschluckt wird der ganze Aufruf bis zum abschliessenden `);`, mit
+     * Zeichenketten am Stück — sonst entkäme jede Aktion, die als Ausdruck
+     * geschrieben ist (`case when … then 'zeit.eingestempelt' … end`), und
+     * ausgerechnet die interessanten sind Ausdrücke.
+     */
+    .replace(/\bapp\.protokolliere\s*\((?:[^';]|'(?:[^']|'')*')*\);/gu,
+      'app.protokolliere(_);')
+    /**
+     * (3) Der Seed der Einstellungen selbst: eine `insert into
+     *     mandant_einstellung … ;`-Anweisung besteht der Länge nach aus
+     *     Schlüsseln dieses Registers.
+     *
+     * Das Muster verschluckt Zeichenketten AM STÜCK statt bis zum nächsten
+     * Semikolon zu laufen. Eine erste Fassung tat das Zweite und stolperte
+     * über einen Beschreibungstext, in dem ein Semikolon steht — sie schnitt
+     * mitten in der `values`-Liste ab, und die Hälfte der Schlüssel kam
+     * trotzdem durch. Ein Satzzeichen in einem Fließtext darf nicht
+     * entscheiden, was diese Prüfung sieht.
+     */
+    .replace(
+      /\binsert\s+into\s+(?:public\.)?mandant_einstellung(?:[^';]|'(?:[^']|'')*')*;/giu,
+      'insert into mandant_einstellung _;');
+}
+
 /** Schneidet den erzeugten Katalogblock heraus — er ist die Liste, nicht ihre Benutzung. */
 function ohneKatalogblock(inhalt: string): string {
   const von = inhalt.indexOf(BEGINN);
@@ -102,8 +151,8 @@ export function funde(): readonly Fund[] {
 
   const alle: Fund[] = [];
   for (const datei of quellen) {
-    const inhalt = ohneRegisterKennungen(
-      ohneKommentare(ohneKatalogblock(readFileSync(datei, 'utf8'))));
+    const inhalt = ohneSqlRegister(ohneRegisterKennungen(
+      ohneKommentare(ohneKatalogblock(readFileSync(datei, 'utf8')))));
     for (const m of inhalt.matchAll(MODUL_LITERAL)) {
       const schluessel = m[1]!;
       if (ENDUNGEN.has(schluessel.split('.').at(-1)!)) continue;
