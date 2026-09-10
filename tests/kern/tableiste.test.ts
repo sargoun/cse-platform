@@ -5,12 +5,16 @@
  * Dokument, und ohne diese Datei stünde sie nur dort — eine sechste Zeile
  * fiele beim Bauen niemandem auf und auf einem Telefon jedem.
  */
+import { readdirSync, statSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   OHNE_MEHR, TABLEISTEN, leisteFuer, tabZiel, tableiste, type LeistenSchluessel,
 } from '../../src/server/registry/tableiste.js';
 import { KATALOG } from '../../src/server/auth/katalog.generiert.js';
 import { familie, findeRoute } from '../../src/server/registry/routen.js';
+
+const WURZEL = resolve(import.meta.dirname, '../..');
 
 const SCHLUESSEL: readonly LeistenSchluessel[] = [
   'intern_global', 'intern_admin', 'intern_leitung', 'mitarbeiter', 'kunde', 'gruppe',
@@ -106,6 +110,76 @@ describe('jedes Ziel führt auf eine Route, die es in der Karte gibt', () => {
      * Gerät, auf dem am wenigsten Geduld da ist.
      */
     expect(tot).toEqual([]);
+  });
+
+  /**
+   * Die zweite Haelfte derselben Frage — und die WICHTIGERE.
+   *
+   * Die Pruefung darueber fragt das Manifest. Das Manifest ist ein Dokument;
+   * ausgeliefert wird, was im App-Router liegt. Ein Ziel kann im Manifest
+   * stehen, das Tor passieren und trotzdem 404 geben, weil es keine
+   * `page.tsx` gibt, die es bedient — genau das war der Zustand: `auftraege`,
+   * `dienstplan/woche` und `finanzen` standen in der Karte und in der Leiste,
+   * eine Seite hatte keines von ihnen.
+   *
+   * Geprueft wird deshalb gegen das DATEISYSTEM: fuer jedes Ziel muss es
+   * entweder eine genaue Seite geben oder einen Catch-all, der es abdeckt.
+   */
+  const APP = join(WURZEL, 'src/app');
+
+  /** Die Segmente aller `page.tsx` unter `src/app/portal`, ohne Gruppenordner. */
+  function seitenMuster(verzeichnis: string, praefix: readonly string[] = []):
+  readonly (readonly string[])[] {
+    const treffer: (readonly string[])[] = [];
+    for (const eintrag of readdirSync(verzeichnis)) {
+      const voll = join(verzeichnis, eintrag);
+      if (statSync(voll).isDirectory()) {
+        // `(gruppe)` ist ein Routengruppen-Ordner und erscheint nicht in der URL.
+        const teil = /^\(.*\)$/u.test(eintrag) ? praefix : [...praefix, eintrag];
+        treffer.push(...seitenMuster(voll, teil));
+      } else if (eintrag === 'page.tsx' || eintrag === 'page.ts') {
+        treffer.push(praefix);
+      }
+    }
+    return treffer;
+  }
+
+  /** Bedient dieses Seitenmuster diese konkrete URL? */
+  function bedient(muster: readonly string[], url: readonly string[]): boolean {
+    for (let i = 0; i < muster.length; i += 1) {
+      const m = muster[i]!;
+      // `[[...rest]]` und `[...rest]` schlucken den Rest — der optionale auch nichts.
+      if (/^\[\[\.\.\..+\]\]$/u.test(m)) return true;
+      if (/^\[\.\.\..+\]$/u.test(m)) return url.length > i;
+      if (url[i] === undefined) return false;
+      if (/^\[.+\]$/u.test(m)) continue;
+      if (m !== url[i]) return false;
+    }
+    return muster.length === url.length;
+  }
+
+  it('und jedes Ziel wird von einer ECHTEN Seite bedient, nicht nur vom Manifest', () => {
+    const muster = seitenMuster(APP);
+    const ohneSeite: string[] = [];
+    for (const l of TABLEISTEN) {
+      for (const z of l.ziele) {
+        if (z.schluessel === 'mehr') continue;
+        const ziel = tabZiel(wurzel[l.schluessel], z);
+        const url = ziel.split('/').filter((t) => t !== '');
+        if (!muster.some((m) => bedient(m, url))) {
+          ohneSeite.push(`${l.schluessel}.${z.schluessel} → ${ziel}`);
+        }
+      }
+    }
+    expect(ohneSeite, 'Ein Tab ohne Seite ist ein sichtbares Versprechen auf 404')
+      .toEqual([]);
+  });
+
+  it('und die Pruefung ist scharf — ein erfundenes Ziel faellt durch', () => {
+    // Ohne diese Zeile bestuende die Pruefung auch dann, wenn `bedient`
+    // versehentlich alles bejaht.
+    const muster = seitenMuster(APP);
+    expect(muster.some((m) => bedient(m, ['nicht', 'im', 'portal']))).toBe(false);
   });
 
   it('und jedes Ziel liegt in der Familie seiner Leiste', () => {
