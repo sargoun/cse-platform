@@ -1,36 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { istGleicherUrsprung } from '@/server/auth/ursprung';
-
-/**
- * Das Ziel nach dem Import — und warum `new URL(zurueck, basis)` nicht reicht.
- *
- * Ein ABSOLUTER Wert ignoriert die Basis: `new URL('https://boese.example',
- * 'https://cse.example')` ergibt `https://boese.example`. Das Feld `zurueck`
- * kommt aus dem Formular, also vom Aufrufer — ein praeparierter POST schickte
- * den angemeldeten Benutzer nach dem Import auf eine fremde Seite, und der
- * Weg dorthin begann sichtbar im eigenen Portal.
- *
- * Genommen wird darum nur der PFAD, und nur, wenn er im eigenen Ursprung
- * landet. Alles andere faellt auf das Standardziel zurueck — still, weil ein
- * Fehler hier dem Angreifer mehr saegte als dem Benutzer.
- */
-export function internesZiel(
-  zurueck: string | null | undefined, standard: string, anfrage: NextRequest,
-): URL {
-  const basis = new URL(anfrage.nextUrl.origin);
-  if (zurueck === null || zurueck === undefined || zurueck === '') {
-    return new URL(standard, basis);
-  }
-  try {
-    const ziel = new URL(zurueck, basis);
-    if (ziel.origin !== basis.origin) return new URL(standard, basis);
-    // Nur Pfad, Abfrage und Anker uebernehmen — nie Anmeldedaten im Ziel.
-    return new URL(`${ziel.pathname}${ziel.search}${ziel.hash}`, basis);
-  } catch {
-    return new URL(standard, basis);
-  }
-}
+import { internesZiel, istGleicherUrsprung } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';

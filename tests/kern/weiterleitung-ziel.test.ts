@@ -10,7 +10,7 @@
  * eigenen Portal, was genau die Gutglaeubigkeit ist, auf die es ankommt.
  */
 import { describe, expect, it } from 'vitest';
-import { internesZiel } from '@/app/api/raumbuch-import/route';
+import { internesZiel } from '@/server/auth/ursprung';
 import type { NextRequest } from 'next/server';
 
 const anfrage = { nextUrl: { origin: 'https://cse.example' } } as unknown as NextRequest;

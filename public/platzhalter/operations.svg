@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800" role="img" aria-label="Platzhalter: Betrieb und Steuerung"><defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#12121A"/><stop offset="0.55" stop-color="#0C0C12"/>
+      <stop offset="1" stop-color="#08080A"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.15" r="0.75">
+      <stop offset="0" stop-color="#8B5CF6" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#8B5CF6" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="vign" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#08080A" stop-opacity="0"/>
+      <stop offset="0.62" stop-color="#08080A" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#08080A" stop-opacity="0.95"/>
+    </linearGradient>
+    <linearGradient id="boden" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#15151C"/><stop offset="1" stop-color="#08080A"/>
+    </linearGradient>
+  </defs><rect width="1200" height="800" fill="url(#sky)"/><rect width="1200" height="800" fill="url(#glow)"/><rect x="120" y="150" width="960" height="520" rx="16" fill="#101018" stroke="#2A2A36" stroke-width="3"/><rect x="120" y="150" width="960" height="54" rx="16" fill="#191922"/><rect x="120" y="196" width="960" height="8" fill="#191922"/><circle cx="154" cy="177" r="6" fill="#33333F"/><circle cx="178" cy="177" r="6" fill="#33333F"/><circle cx="202" cy="177" r="6" fill="#33333F"/><rect x="154" y="240" width="270" height="150" rx="10" fill="#171720"/><rect x="174" y="266" width="60" height="12" rx="6" fill="#8B5CF6" opacity="0.65"/><rect x="174" y="298" width="210" height="26" rx="6" fill="#FFFFFF" opacity="0.10"/><rect x="174" y="340" width="170" height="10" rx="5" fill="#33333F"/><rect x="444" y="240" width="270" height="150" rx="10" fill="#171720"/><rect x="464" y="266" width="90" height="12" rx="6" fill="#8B5CF6" opacity="0.65"/><rect x="464" y="298" width="210" height="26" rx="6" fill="#FFFFFF" opacity="0.10"/><rect x="464" y="340" width="170" height="10" rx="5" fill="#33333F"/><rect x="734" y="240" width="326" height="150" rx="10" fill="#171720"/><rect x="754" y="266" width="120" height="12" rx="6" fill="#8B5CF6" opacity="0.65"/><rect x="754" y="298" width="266" height="26" rx="6" fill="#FFFFFF" opacity="0.10"/><rect x="754" y="340" width="226" height="10" rx="5" fill="#33333F"/><rect x="154" y="420" width="906" height="220" rx="10" fill="#171720"/><path d="M190 480 L260 505 L330 503 L400 472 L470 447 L540 522 L610 448 L680 449 L750 510 L820 503 L890 502 L960 465 L1030 455" stroke="#8B5CF6" stroke-width="4" fill="none" opacity="0.75"/><path d="M190 480 L260 505 L330 503 L400 472 L470 447 L540 522 L610 448 L680 449 L750 510 L820 503 L890 502 L960 465 L1030 455 L1030 640 L190 640 Z" fill="#8B5CF6" opacity="0.09"/><circle cx="190" cy="480" r="5" fill="#8B5CF6"/><circle cx="400" cy="472" r="5" fill="#8B5CF6"/><circle cx="610" cy="448" r="5" fill="#8B5CF6"/><circle cx="820" cy="503" r="5" fill="#8B5CF6"/><circle cx="1030" cy="455" r="5" fill="#8B5CF6"/><rect width="1200" height="800" fill="url(#vign)"/><rect x="0" y="0" width="1200" height="3" fill="#8B5CF6" opacity="0.85"/></svg>

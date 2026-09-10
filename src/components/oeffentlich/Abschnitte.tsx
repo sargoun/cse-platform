@@ -1,6 +1,6 @@
 import { Hero } from './Hero';
 import { MarkenKarte } from './MarkenKarte';
-import { PLATZHALTER_BILD } from '@/lib/placeholder-assets';
+import { motivFuerBereich, platzhalterBild } from '@/lib/placeholder-assets';
 import { faqAus, leistungenAus } from '@/server/services/inhalt/jsonld';
 import type { Abschnitt, Seite } from '@/server/services/inhalt/seite';
 import type { ShellBereich } from './OeffentlicheShell';
@@ -16,9 +16,22 @@ import { mitSprache, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
  * Bilder ohne gepflegtes Medium bekommen das markierte Platzhalterbild (D-10)
  * — sichtbar als Platzhalter, nicht als Foto, das keiner mehr austauscht.
  */
-function bildVon(a: Abschnitt) {
+/**
+ * Das Motiv, das zu DIESER Seite gehoert — abgeleitet aus ihrem Pfad.
+ *
+ * `/unternehmen/security` bekommt die Nachtszene, `/unternehmen/bau` den
+ * Rohbau, alles andere die Gebaeudezeile der Gruppe. Der Pfad ist die einzige
+ * Angabe, die hier ohnehin vorliegt, und ein zusaetzliches Feld an `seite`
+ * waere ein zweiter Ort, an dem dieselbe Zuordnung gepflegt werden muss.
+ */
+function motivFuerPfad(pfad: string): Parameters<typeof platzhalterBild>[0] {
+  const teil = pfad.replace(/^\/(?:en\/)?/u, '').split('/');
+  return motivFuerBereich(teil[0] === 'unternehmen' ? teil[1] : undefined);
+}
+
+function bildVon(a: Abschnitt, motiv: Parameters<typeof platzhalterBild>[0] = 'gruppe') {
   return a.medium === null
-    ? PLATZHALTER_BILD
+    ? platzhalterBild(motiv)
     : { pfad: a.medium.pfad, alt: a.medium.alt, platzhalter: a.medium.platzhalter };
 }
 
@@ -90,7 +103,7 @@ export function Abschnitte(
                 ueberschrift={a.ueberschrift ?? seite.titel}
                 akzentWort={a.akzentWort}
                 text={a.text}
-                bild={bildVon(a)}
+                bild={bildVon(a, motivFuerPfad(seite.pfad))}
               />
             );
           case 'markenkarten':
@@ -106,7 +119,7 @@ export function Abschnitte(
                     titel={b.name}
                     anspruch={ansprueche[b.slug] ?? ''}
                     href={mitSprache(`/unternehmen/${b.slug}`, sprache)}
-                    bild={PLATZHALTER_BILD}
+                    bild={platzhalterBild(motivFuerBereich(b.bereich))}
                   />
                 ))}
               </section>

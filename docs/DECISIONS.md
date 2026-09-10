@@ -1919,6 +1919,31 @@ in Punkt gesetzt, und die 10 pt Grundschrift bedeuten nur etwas, wenn daneben
 dasselbe Mass steht.
 
 
+
+### D-116 · Ein Platzhalter je Motiv, gezeichnet statt fotografiert
+
+Der erste Entwurf hatte EIN graues Rechteck fuer jedes Bild der Website:
+sichtbar leer, ehrlich — und unbrauchbar, um dem Mandanten zu zeigen, wie die
+Seite aussehen wird. Wer eine Reinigungsseite beurteilt, beurteilt sie mit
+einem Bild darauf.
+
+**Entschieden:** acht gezeichnete Szenen — Gruppe, Reinigung, Security, Bau,
+Operations, Objekt, Projekt, Team. Die Bereichsseite und die Markenkarte
+waehlen ihre eigene; das Motiv kommt aus dem Pfad, nicht aus einem zweiten
+Feld, das jemand pflegen muesste.
+
+**Es sind ILLUSTRATIONEN, und darin liegt die Grenze, die DESIGN §4.2 zieht.**
+Verboten sind erfundene Menschen, die als Belegschaft gelesen werden — nicht
+Bilder ueberhaupt. Eine gezeichnete Nachtszene behauptet nicht, ein Objekt der
+Gruppe zu sein; ein Stockfoto von Menschen in Warnwesten tut genau das. Das
+Team-Motiv bleibt deshalb bewusst abstrakt: Silhouetten in den vier
+Kennfarben, kein einziges Gesicht.
+
+Die Kennzeichnung liegt bei der SEITE, nicht im Bild. Der erste Entwurf trug
+sie doppelt — als Chip im SVG und als Marke der Seite — und die beiden
+ueberlagerten im Hero den Text. Eine sichtbare Marke genuegt; sie steht in
+`PLATZHALTER` und blockiert weiterhin den Produktionsbau.
+
 ## Carried over from the Phase 0 review — not client questions
 
 Three items the review surfaced that are ours to do, recorded here so they are not
