@@ -637,6 +637,27 @@ describe('(5) die § 17-MiLoG-Aufzeichnung', () => {
      * Eintrag des gesperrten Oktobers. Sie praegt eine neue Fassung mit
      * Oktober-Zeitpunkten — die lebende Sicht saehe danach anders aus.
      */
+    /**
+     * PR 37 hat `stundenkonto_bewegung` gebaut und mit ihr den
+     * Fremdschluessel, den 0036 §5 woertlich angekuendigt hatte. Die
+     * Platzhalter-UUID, die hier stand, ist damit keine mehr: die Gegenbuchung
+     * muss existieren. Sie entsteht hier von Hand, weil DIESER Test das
+     * Artefakt prueft und nicht den Buchungsweg — der steht in
+     * `stundenkonto.test.ts`.
+     */
+    const [ausgleichKonto] = await sql.unsafe<{ id: string }[]>(
+      `insert into stundenkonto (mandant_id, anstellung_id, jahr, monat)
+       values ($1, $2, 2027, 5) returning id`,
+      [f.reinigung, f.fatimaReinigung]);
+    const [ausgleich] = await sql.unsafe<{ id: string }[]>(
+      `insert into stundenkonto_bewegung
+         (mandant_id, stundenkonto_id, art, minuten, wirksam_am, quelle,
+          begruendung, erstellt_von)
+       values ($1, $2, 'korrektur', 60, '2027-05-01', 'manuell',
+               'Ausgleich fuer den gesperrten Oktober', $3)
+       returning id`,
+      [f.reinigung, ausgleichKonto!.id, bau.planer]);
+
     await alsApp(
       { scope: 'mandant', mandantId: f.reinigung, benutzerId: bau.planer,
         portal: 'intern', readonly: false },
@@ -652,11 +673,11 @@ describe('(5) die § 17-MiLoG-Aufzeichnung', () => {
          * im Bericht zu diesem PR, nicht hier stillschweigend umgangen.
          */
         endeZeitpunkt: new Date('2026-10-05T14:00:00Z'),
-        // Die Gegenbuchung im ersten offenen Monat. Ihre Elterntabelle
-        // `stundenkonto_bewegung` kommt mit PR 37; `zk_sperre_ausgleich`
-        // verlangt den Verweis schon jetzt, damit keine Korrektur an einem
-        // gesperrten Monat ohne Ausgleich entstehen kann.
-        ausgleichBewegungId: '00000000-0000-4000-8000-000000000001',
+        // Die Gegenbuchung im ersten offenen Monat. `zk_sperre_ausgleich`
+        // verlangt den Verweis, damit keine Korrektur an einem gesperrten
+        // Monat ohne Ausgleich entstehen kann — und seit PR 37 verlangt
+        // `zk_ausgleich_fk` (0060) zusaetzlich, dass es die Buchung GIBT.
+        ausgleichBewegungId: ausgleich!.id,
       }),
     );
 

@@ -158,6 +158,32 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'zeit', pfad: 'zeit/einwand',
     schreibend: true, schreibRecht: 'zeit.einwand_entscheiden',
   },
+  /**
+   * Die Sollzeitregel LIEST nichts und schreibt nichts — sie antwortet, oder
+   * sie verweigert die Antwort (O-18). Ein Dienst ohne Datenbank, damit die
+   * offene Frage an EINER Stelle sitzt statt in dreissig Formeln.
+   */
+  { modul: 'zeit', pfad: 'zeit/sollstunden', schreibend: false },
+  /**
+   * Das Stundenkonto SCHREIBT — und genannt ist das Recht des
+   * GEFAEHRLICHSTEN Weges: `zeit.konto_abschliessen`. Buchen darf, wer
+   * `zeit.schreiben` haelt; einen Monat unumkehrbar zu sperren ist eine
+   * eigene Entscheidung mit eigenem Recht, und eine Korrektur in einen
+   * gesperrten Monat verlangt zusaetzlich `zeit.konto_korrigieren`. Alle drei
+   * stehen in der Policy von 0060, nicht nur in diesem Register.
+   */
+  {
+    modul: 'zeit', pfad: 'zeit/stundenkonto',
+    schreibend: true, schreibRecht: 'zeit.konto_abschliessen',
+  },
+  /**
+   * Das Urlaubskonto SCHREIBT den eingetragenen Anspruch — die abgeleiteten
+   * Tage schreibt niemand von Hand (0061, PR 38).
+   */
+  {
+    modul: 'zeit', pfad: 'zeit/urlaubskonto',
+    schreibend: true, schreibRecht: 'zeit.schreiben',
+  },
   { modul: 'dienstplan', pfad: 'zeit/arbzg', schreibend: false },
   /**
    * Die Pruefung ueber Gesellschaftsgrenzen (K-06). Sie SCHREIBT, wenn der

@@ -901,3 +901,56 @@ create trigger trg_zeit_einwand_audit
   for each row execute function kern.protokolliere_aenderung();
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0060)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- stundenkonto (archiv): EMP-04, LEG-02, ACC-12. Der Monat ist die Bezugsgroesse eines gezahlten Lohns; ein geloeschtes Konto nimmt dem Vortrag des Folgemonats seine Grundlage und dem § 17-Nachweis seinen Rahmen. Beendet wird ein Monat durch `status = gesperrt`, nie durch DELETE.
+create trigger trg_stundenkonto_kein_hard_delete
+  before delete on stundenkonto
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_stundenkonto_kein_truncate
+  before truncate on stundenkonto
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on stundenkonto from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- stundenkonto_bewegung (append): EMP-04, TIM-11, Invariante 8. Die Bewegungen SIND das Konto — eine geloeschte Buchung ist eine Stunde, die nie stattgefunden hat, und die Summe daneben stimmt danach trotzdem. Eine falsche Buchung wird storniert (`storniert_bewegung_id`), nie entfernt.
+create trigger trg_stundenkonto_bewegung_kein_hard_delete
+  before delete on stundenkonto_bewegung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_stundenkonto_bewegung_kein_truncate
+  before truncate on stundenkonto_bewegung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on stundenkonto_bewegung from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_stundenkonto_geaendert_am
+  before update on stundenkonto
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_stundenkonto_audit
+  after insert or update or delete on stundenkonto
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0061)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- urlaubskonto (archiv): EMP-05, LEG-09. Anspruch, Uebertrag und genommene Tage sind der Nachweis nach § 7 BUrlG; sie zu loeschen macht einen Streit ueber Resturlaub unentscheidbar. Ein abgelaufenes Jahr traegt `abgeschlossen_am`.
+create trigger trg_urlaubskonto_kein_hard_delete
+  before delete on urlaubskonto
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_urlaubskonto_kein_truncate
+  before truncate on urlaubskonto
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on urlaubskonto from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_urlaubskonto_geaendert_am
+  before update on urlaubskonto
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_urlaubskonto_audit
+  after insert or update or delete on urlaubskonto
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks

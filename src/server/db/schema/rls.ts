@@ -628,6 +628,36 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'zurueckgezogen — hat, ist im Lohnstreit eine Tatsache und keine '
       + 'Datenpflege. Zurueckgenommen wird ueber `status`, nie durch DELETE.',
   },
+  {
+    tabelle: 'stundenkonto',
+    art: 'archiv',
+    migration: '0060',
+    grund:
+      'EMP-04, LEG-02, ACC-12. Der Monat ist die Bezugsgroesse eines '
+      + 'gezahlten Lohns; ein geloeschtes Konto nimmt dem Vortrag des '
+      + 'Folgemonats seine Grundlage und dem § 17-Nachweis seinen Rahmen. '
+      + 'Beendet wird ein Monat durch `status = gesperrt`, nie durch DELETE.',
+  },
+  {
+    tabelle: 'stundenkonto_bewegung',
+    art: 'append',
+    migration: '0060',
+    grund:
+      'EMP-04, TIM-11, Invariante 8. Die Bewegungen SIND das Konto — eine '
+      + 'geloeschte Buchung ist eine Stunde, die nie stattgefunden hat, und '
+      + 'die Summe daneben stimmt danach trotzdem. Eine falsche Buchung wird '
+      + 'storniert (`storniert_bewegung_id`), nie entfernt.',
+  },
+  {
+    tabelle: 'urlaubskonto',
+    art: 'archiv',
+    migration: '0061',
+    grund:
+      'EMP-05, LEG-09. Anspruch, Uebertrag und genommene Tage sind der '
+      + 'Nachweis nach § 7 BUrlG; sie zu loeschen macht einen Streit ueber '
+      + 'Resturlaub unentscheidbar. Ein abgelaufenes Jahr traegt '
+      + '`abgeschlossen_am`.',
+  },
 ] as const;
 
 /**
@@ -729,6 +759,19 @@ export const AUDITIERT: readonly TabelleJeMigration[] = [
    */
   { tabelle: 'auftrag_leistung', migration: '0050' },
   { tabelle: 'zeit_einwand', migration: '0052' },
+  /**
+   * `stundenkonto` und `urlaubskonto` ja, `stundenkonto_bewegung` nein.
+   *
+   * An den beiden Konten aendert sich etwas — Sollzeit, Vortrag, Zustand —,
+   * und WER den Monat gesperrt hat, ist im Lohnstreit die Frage. Die Bewegung
+   * dagegen IST der Nachweis: anfuegend, mit Urheber und Zeitpunkt in eigenen
+   * Spalten, und `bewegung_unveraenderlich` laesst kein UPDATE zu. Ein
+   * Auditeintrag je Buchung verdoppelte genau das Journal, auf das sich die
+   * Auskunft stuetzt — und `bewegung_summe` erzeugte je Buchung zusaetzlich
+   * eine zweite Zeile am Konto.
+   */
+  { tabelle: 'stundenkonto', migration: '0060' },
+  { tabelle: 'urlaubskonto', migration: '0061' },
 ] as const;
 
 /** Tables carrying S4 (`geloescht_am` / `geloescht_von`) — the finders' domain. */
@@ -792,6 +835,11 @@ export const GEAENDERT_AM: readonly TabelleJeMigration[] = [
   { tabelle: 'zeiteintrag', migration: '0034' },
   { tabelle: 'auftrag_leistung', migration: '0050' },
   { tabelle: 'zeit_einwand', migration: '0052' },
+  // `stundenkonto_bewegung` NICHT: sie ist anfuegend (§6.25). Ein
+  // `geaendert_am` daneben behauptete, eine gebuchte Minute liesse sich
+  // nachtraeglich bewegen — genau das verhindert `bewegung_unveraenderlich`.
+  { tabelle: 'stundenkonto', migration: '0060' },
+  { tabelle: 'urlaubskonto', migration: '0061' },
   // `zeitnachweis` NICHT: das Artefakt eines gesperrten Monats wird genau
   // einmal geschrieben, und `kern.zeitnachweis_write_once()` weist jedes
   // UPDATE ab. Ein `geaendert_am` daneben behauptete, es liesse sich aendern.

@@ -501,9 +501,27 @@ describe('(3) Korrektur ist eine neue Fassung mit Spur (TIM-11)', () => {
       [a.mandant, kette!.kette_id, id, ausgleich, planer] as never[]);
 
     await expect(korrektur(null)).rejects.toThrow(/gesperrt/iu);
+
+    /**
+     * Seit PR 37 gibt es `stundenkonto_bewegung` und mit ihr den
+     * Fremdschluessel `zk_ausgleich_fk` (0060): die Gegenbuchung muss
+     * EXISTIEREN und nicht nur benannt sein. Sie entsteht hier von Hand, weil
+     * dieser Test die BEDINGUNG prueft und nicht den Buchungsweg — der steht
+     * in `stundenkonto.test.ts`.
+     */
+    const [ausgleichKonto] = await sql.unsafe<{ id: string }[]>(
+      `insert into stundenkonto (mandant_id, anstellung_id, jahr, monat)
+       values ($1,$2,2027,6) returning id`, [a.mandant, a.anstellung]);
+    const [ausgleich] = await sql.unsafe<{ id: string }[]>(
+      `insert into stundenkonto_bewegung (mandant_id, stundenkonto_id, art, minuten,
+                                          wirksam_am, quelle, begruendung, erstellt_von)
+       values ($1,$2,'korrektur',-60,'2027-06-01','manuell',
+               'Ausgleich fuer den gesperrten Monat',$3) returning id`,
+      [a.mandant, ausgleichKonto!.id, planer]);
+
     // Mit Gegenbuchung geht sie durch — sonst bestuende der obere Fall auch
     // dann, wenn ueberhaupt keine Korrektur mehr moeglich waere.
-    await expect(korrektur('11111111-1111-1111-1111-111111111111')).resolves.toBeDefined();
+    await expect(korrektur(ausgleich!.id)).resolves.toBeDefined();
   });
 });
 

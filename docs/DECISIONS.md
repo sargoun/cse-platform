@@ -2568,6 +2568,131 @@ Fremdschluessel, die dieselbe Voraussetzung hatten und ebenfalls fehlen —
 ArbZG-Arbeit; sie hier anzufassen waere ein Konflikt mit ihr.
 
 
+### D-160 · Das Stundenkonto ist eine Buchungsreihe; `ist_minuten` wird abgewiesen, nicht geheilt
+
+`01-KERN.md` §6.24 fuehrt `ist_minuten` als „Summe der `stundenkonto_bewegung`;
+per Trigger gepflegt" und nennt daneben `job:stundenkonto_abgleich`, der
+naechtlich gegenrechnet. „Gepflegt" laesst zwei Umsetzungen zu, und die
+naheliegende ist die falsche: ein Ausloeser, der die Spalte bei jedem
+Schreibvorgang aus dem Journal UEBERSCHREIBT. Dann verschwindet jede Abweichung
+in dem Moment, in dem sie entsteht — samt der Auskunft, dass etwas am Konto
+vorbei gebucht hat. Der naechtliche Abgleich meldete danach fuer immer „alles
+sauber".
+
+**Entschieden:** `stundenkonto_summe` (0060) WEIST AB. Wer eine Summe schreibt,
+die das Journal nicht hergibt, bekommt einen Fehler und keine korrigierte Zahl;
+geschrieben werden `ist_minuten` und `korrektur_minuten` an genau einer Stelle,
+naemlich von `bewegung_summe` unmittelbar nach dem Einfuegen einer Buchung, und
+zwar durch Neuberechnung statt durch `+= new.minuten` — ein Aufaddieren ist
+einen Rollback oder eine Nebenlaeufigkeit von der Drift entfernt.
+`pruefeAbgleich` (`services/zeit/stundenkonto.ts`) MELDET Befunde und heilt
+nichts; der Test erzeugt die Drift mit `session_replication_role = replica`,
+also so, wie ein Wartungszugang sie erzeugen wuerde.
+
+### D-161 · Der Ausgleich geht in den ersten OFFENEN Monat, und der Dienst waehlt ihn
+
+EMP-04 sagt „corrections flow into the next month". Woertlich genommen waere das
+der Folgemonat — und der ist oft selbst schon gesperrt oder existiert noch gar
+nicht. `04-PLANUNG-ZEIT.md` §12.2 sagt praeziser „first open month".
+
+**Entschieden:** `bucheKorrektur` sucht das frueheste Konto mit
+`status <> 'gesperrt'` ab dem betroffenen Monat, sortiert nach `(jahr, monat)`
+und nicht nach `erstellt_am` — „der erste offene" ist eine Aussage ueber den
+Kalender, und Konten entstehen nicht zwingend in der Reihenfolge ihrer Monate.
+Gibt es keinen, wirft der Dienst (`KeinOffenerMonatFehler`) und legt KEINEN an:
+welcher Monat als naechster aufgemacht wird, entscheidet
+`job:konten_rollover`, und ein Korrekturlauf, der sich selbst einen Monat
+anlegt, verschoebe die Differenz in einen Zeitraum, den niemand geplant hat.
+`bewegung_sperre_pruefen` (0060) leitet ausdruecklich NICHT selbst um: ein
+Ausloeser, der Zeilen woandershin schreibt als der Aufrufer gesagt hat, faellt
+erst auf, wenn die Zahlen nicht mehr zusammenpassen. `wirksam_am` der
+Ausgleichsbuchung ist der erste Tag des ZIELmonats, nicht der Tag der
+korrigierten Schicht — sonst stuende im Mai-Auszug eine Buchung mit
+Maerz-Datum, und der Auszug erzaehlte, der Maerz sei doch bewegt worden.
+
+### D-162 · Der Monatsabschluss verweigert, solange Zeiten unfreigegeben sind
+
+EMP-04 verlangt, dass nur Freigegebenes ins Konto fliesst (§7.3), und dass ein
+gesperrter Monat keine Buchung mehr annimmt. Beides zusammen hat eine Folge,
+die keines der Dokumente ausspricht: eine beim Sperren noch unfreigegebene Zeit
+kann DANACH nie mehr gebucht werden. Ihre Minuten waeren aus dem Lohnmonat
+verschwunden — ohne Fehler, ohne Meldung, mit einer plausiblen Zahl auf dem
+Nachweis.
+
+**Entschieden:** `schliesseMonatAb` wirft `UnfreigegebeneZeitenFehler` und
+nennt die Anzahl. Die Alternative — trotzdem sperren — ist die einzige, die
+still falsch ist; die dritte (die Zeiten beim Sperren mitfreigeben) waere eine
+Freigabe ohne Pruefung und machte O-39 zur Attrappe. Die Reihenfolge des
+Abschlusses ist damit: verweigern · buchen · sperren · praegen. Wer das Praegen
+vor das Sperren zoege, praegte ein Artefakt ueber einen offenen Monat, also
+eine Zusage „so und nicht anders" ueber Zahlen, die sich morgen noch aendern.
+
+### D-163 · `stundenkonto` liest mit `zeit.konto_lesen`, nicht mit `zeit.lesen`
+
+`01-KERN.md` §6.24 nennt fuer beide Kontotabellen die „K-03-Standardpolicy,
+Modul `zeit`" — das waere `zeit.lesen`/`zeit.schreiben`. Der Katalog
+(`03-AUTH-BERECHTIGUNGEN.md` §12) macht `zeit.lesen` aber fuer die Rolle
+`kunde` BINDBAR, damit ein Auftraggeber Leistungsnachweise sehen kann. Unter
+demselben Schluessel saehe dieser Kunde die Arbeitszeitkonten der Menschen, die
+bei ihm putzen — mit Sollzeit, Saldo und Ueberstunden. Das ist die Vermischung,
+die EMP-13 verbietet, und sie faellt nicht auf, weil sie wie eine gewaehrte
+Berechtigung aussieht.
+
+**Entschieden:** `SELECT` verlangt `zeit.konto_lesen`, `INSERT`/`UPDATE`
+`zeit.schreiben` (K-03), der Uebergang nach `gesperrt` zusaetzlich
+`zeit.konto_abschliessen` und eine Bewegung mit `art = 'korrektur'`
+zusaetzlich `zeit.konto_korrigieren` — alle drei stehen im Katalog und sind
+damit keine Erfindung, sondern die Schluessel, die `04-SEITENKARTE.md` §5.12
+den Stundenkonto-Routen ohnehin schon zuweist. Die beiden zusaetzlichen
+Bedingungen stehen in der `WITH CHECK` derselben Policy und nicht in einem
+Dienst: ein Recht, das nur ein Dienst prueft, ist an einer zweiten Route
+weg. Dieselbe Aufteilung traegt `urlaubskonto` (0061).
+
+### D-164 · Eine reine Pausenkorrektur war nicht aufschreibbar — die Bedingung wird geweitet
+
+Der Bericht zu PR 36 hat es benannt: `korrigiereZeiteintrag` schreibt jede
+Ersatzfassung mit `quelle_* = 'planer_entscheidung'`, `z_quelle_*_belegt`
+verlangt dafuer `nacherfasst`, und `z_anspruch_je_ereignis` (0034) verlangt bei
+`nacherfasst` mindestens einen behaupteten ZEITPUNKT — den eine Pausenkorrektur
+nicht hat. `einwand_art = 'pause_falsch'` (0052) und
+`korrektur_art = 'pause_korrektur'` (0036) existieren beide; der Weg zwischen
+ihnen endete in einer `check_violation`.
+
+**Warum in PR 37:** das Stundenkonto bucht NETTOminuten. Eine Pausenkorrektur
+ist damit die haeufigste Differenz, die als Ausgleichsbuchung in den ersten
+offenen Monat laufen muss — ohne die Reparatur haette ein ganzer Zweig der
+Korrekturen keinen Weg auf das Konto.
+
+**Entschieden:** `0062` weitet die Bedingung um einen dritten Zweig —
+`ersetzt_zeiteintrag_id is not null`. Eine Fassung, die eine andere abloest,
+traegt ihren Beleg nicht in einer `behauptet_*`-Spalte, sondern in
+`zeiteintrag_korrektur`: Urheber, Zeitpunkt, Grund, Vorher und Nachher,
+unveraenderlich, und ohne sie darf die Ersatzfassung gar nicht entstehen. Das
+ist der staerkere Beleg. Was die Bedingung schuetzen sollte, schuetzt sie
+unveraendert: die ERSTFASSUNG einer Nacherfassung traegt
+`ersetzt_zeiteintrag_id is null` (D-143 setzt Ursprung = Ersatz auf der
+KORREKTURZEILE, nicht am Eintrag) und muss weiterhin sagen, was behauptet
+wurde. Beide Faelle haben einen Test. **Nicht repariert:** dass die
+Ersatzfassung einer reinen Pausenkorrektur `quelle_beginn =
+'planer_entscheidung'` traegt, obwohl der Planer diesen Zeitpunkt nicht
+entschieden hat. Das ist ein Befund an `services/zeit/korrektur.ts`, einer
+Datei, die dieser PR nicht anfassen darf.
+
+### D-165 · `zk_ausgleich_fk` macht eine Platzhalter-UUID in einem PR-36-Test ungueltig
+
+`0036` §5 hat den Fremdschluessel woertlich hinterlegt und auf PR 37 gewartet;
+`04-PLANUNG-ZEIT.md` §12.2 Punkt 4 verlangt ihn ausdruecklich, damit „die
+Differenz ist im offenen Monat angekommen" aus der Korrekturzeile BEWEISBAR ist
+und nicht von einem Dienst behauptet wird. `tests/isolation/zeit-auftrag.test.ts`
+hat, solange es die Elterntabelle nicht gab, eine erfundene UUID uebergeben.
+
+**Entschieden:** der Fremdschluessel kommt (0060), und der eine Test bekommt
+statt der Platzhalter-UUID eine echte Buchung — die kleinste Aenderung, die ihn
+gruen haelt, in genau einem `it`-Block. Die Alternativen waren beide
+schlechter: den Fremdschluessel weglassen hiesse, die Zusage von §12.2 nicht
+einzuloesen, und die Suite rot zu lassen verschoebe die Arbeit auf jemanden,
+der den Zusammenhang nicht mehr kennt.
+
 ## Carried over from the Phase 0 review — not client questions
 
 Three items the review surfaced that are ours to do, recorded here so they are not
