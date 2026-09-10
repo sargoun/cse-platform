@@ -17,7 +17,7 @@ import {
   type Flaechenposten,
 } from '../../src/server/services/kalkulation/richtzeit.js';
 import {
-  kalkuliere, lohnkostenAusSekunden, LEERE_KALKULATION,
+  kalkuliere, lohnkostenAusSekunden, verteileNetto, LEERE_KALKULATION,
 } from '../../src/server/services/kalkulation/index.js';
 import {
   PLATZHALTER_FREQUENZ, PLATZHALTER_TARIF, PLATZHALTER_TURNUSSE, TarifFehler,
@@ -222,5 +222,134 @@ describe('(5) Der Beweis gegen Gleitkomma', () => {
     }
     const einzeln = kalkuliere({ posten: [posten('33.333', '7')], frequenz, tarif }).netto;
     expect(summe).toBe(einzeln * 100n);
+  });
+});
+
+describe('(7) Der Nettoanteil je Zeile — sonst geht das Angebot zum Selbstkostenpreis', () => {
+  const tarif = PLATZHALTER_TARIF.tarif('m', 'reinigung');
+  const frequenz = PLATZHALTER_FREQUENZ.frequenz('1_pro_monat');
+
+  it('die verteilten Preise ergeben EXAKT das Netto, nicht die Lohnsumme', () => {
+    const k = kalkuliere({
+      posten: [posten('500', '250', 'PVC'), posten('120.5', '180', 'Teppich'),
+               posten('33.333', '90', 'Naturstein')],
+      frequenz, tarif,
+    });
+    const preise = verteileNetto(k.zeilen, k.netto);
+    expect(preise).toHaveLength(3);
+    expect(preise.reduce((s, p) => s + p, 0n)).toBe(k.netto);
+    // Und ausdruecklich NICHT die Lohnsumme — das war der Fehler.
+    expect(preise.reduce((s, p) => s + p, 0n)).not.toBe(k.lohnkosten);
+    expect(k.netto).toBeGreaterThan(k.lohnkosten);
+  });
+
+  it('jede Zeile bekommt mindestens ihren Lohnanteil — keine faellt unter Kosten', () => {
+    const k = kalkuliere({
+      posten: [posten('500', '250', 'PVC'), posten('7.001', '90', 'Winzig')],
+      frequenz, tarif,
+    });
+    const preise = verteileNetto(k.zeilen, k.netto);
+    for (const [i, zeile] of k.zeilen.entries()) {
+      expect(preise[i]!).toBeGreaterThanOrEqual(zeile.lohnkosten);
+    }
+  });
+
+  /**
+   * Der Fall, an dem eine naive Verteilung Cent verliert: drei gleich schwere
+   * Zeilen und ein Netto, das nicht durch drei teilbar ist. Abrunden ergaebe
+   * 3 × 2404 = 7212 statt 7214 — zwei Cent, die niemand sucht und die den
+   * Summentrigger gegen die Zeilen stellen.
+   */
+  it('der Rest wird verteilt und nicht verschluckt', () => {
+    const k = kalkuliere({
+      posten: [posten('500', '250', 'A'), posten('500', '250', 'B'),
+               posten('500', '250', 'C')],
+      frequenz, tarif,
+    });
+    const preise = verteileNetto(k.zeilen, k.netto);
+    expect(preise.reduce((s, p) => s + p, 0n)).toBe(k.netto);
+    // Drei gleiche Gewichte: die Differenz zwischen groesster und kleinster
+    // Zeile ist hoechstens ein Cent.
+    const sortiert = [...preise].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    expect(sortiert[2]! - sortiert[0]!).toBeLessThanOrEqual(1n);
+  });
+
+  it('zweimal dieselbe Kalkulation ergibt zweimal dieselben Zeilenpreise', () => {
+    const k = kalkuliere({
+      posten: [posten('333.333', '90', 'A'), posten('111.111', '90', 'B'),
+               posten('7.777', '90', 'C')],
+      frequenz, tarif,
+    });
+    expect(verteileNetto(k.zeilen, k.netto)).toEqual(verteileNetto(k.zeilen, k.netto));
+  });
+
+  it('keine Zeile, kein Preis — und Null bleibt Null', () => {
+    expect(verteileNetto([], cent(0n))).toEqual([]);
+    const k = kalkuliere({ posten: [posten('0', '250')], frequenz, tarif });
+    expect(k.netto).toBe(0n);
+    expect(verteileNetto(k.zeilen, k.netto)).toEqual([0n]);
+  });
+
+  it('ein Netto ohne Lohnkosten laesst sich nicht zuordnen und wird abgewiesen', () => {
+    const k = kalkuliere({ posten: [posten('0', '250')], frequenz, tarif });
+    expect(() => verteileNetto(k.zeilen, cent(100n)))
+      .toThrow(/laesst sich nicht zuordnen/u);
+  });
+});
+
+describe('(8) Die offenen Fragen reisen mit — auch die des Leistungswerts', () => {
+  const frequenz = PLATZHALTER_FREQUENZ.frequenz('1_pro_monat');
+
+  /** Ein Tarif, den jemand bestaetigt hat — O-16 und O-56 sind beantwortet. */
+  const bestaetigterTarif = {
+    stundensatz: cent(2900n),
+    gemeinkostenSatz: basisPunkte(1500),
+    wagnisSatz: basisPunkte(300),
+    gewinnSatz: basisPunkte(500),
+    istPlatzhalter: false,
+    offeneFragen: [] as readonly string[],
+  };
+  const bestaetigteFrequenz = { ...frequenz, istPlatzhalter: false, offeneFragen: [] };
+
+  it('ein Platzhalter-Leistungswert macht die Kalkulation vorlaeufig (O-17)', () => {
+    const k = kalkuliere({
+      posten: [{ ...posten('500', '250'), leistungswertIstPlatzhalter: true }],
+      frequenz: bestaetigteFrequenz, tarif: bestaetigterTarif,
+    });
+    // Tarif und Frequenz bestaetigt — und trotzdem kein bestaetigter Preis.
+    expect(k.istPlatzhalter).toBe(true);
+    expect(k.offeneFragen).toContain('O-17');
+  });
+
+  it('sind alle drei bestaetigt, ist die Kalkulation es auch', () => {
+    const k = kalkuliere({
+      posten: [{ ...posten('500', '250'), leistungswertIstPlatzhalter: false }],
+      frequenz: bestaetigteFrequenz, tarif: bestaetigterTarif,
+    });
+    expect(k.istPlatzhalter).toBe(false);
+    expect(k.offeneFragen).toEqual([]);
+  });
+
+  it('eine einzige Platzhalter-Belagsart unter vielen genuegt', () => {
+    const k = kalkuliere({
+      posten: [
+        { ...posten('500', '250', 'A'), leistungswertIstPlatzhalter: false },
+        { ...posten('300', '180', 'B'), leistungswertIstPlatzhalter: false },
+        { ...posten('100', '90', 'C'), leistungswertIstPlatzhalter: true },
+      ],
+      frequenz: bestaetigteFrequenz, tarif: bestaetigterTarif,
+    });
+    expect(k.istPlatzhalter).toBe(true);
+  });
+
+  it('die nicht bepreisbare Flaeche steht im Ergebnis, statt zu verschwinden', () => {
+    const k = kalkuliere({
+      posten: [posten('500', '250')],
+      frequenz, tarif: PLATZHALTER_TARIF.tarif('m', 'reinigung'),
+      flaecheOhneBelagsart: milliMenge(42_000n),
+      ohneGueltigenLeistungswert: ['b-1', 'b-2'],
+    });
+    expect(k.flaecheOhneBelagsart).toBe(42_000n);
+    expect(k.ohneGueltigenLeistungswert).toEqual(['b-1', 'b-2']);
   });
 });

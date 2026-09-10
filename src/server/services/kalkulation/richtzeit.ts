@@ -38,6 +38,17 @@ export interface Flaechenposten {
   readonly flaeche: MilliMenge;
   /** Leistungswert in Milli-m² je Stunde. */
   readonly leistungswert: MilliMenge;
+  /**
+   * Steht dieser Leistungswert selbst noch auf einer offenen Frage (O-17)?
+   *
+   * Ohne dieses Feld meldete `kalkuliere` nach der Beantwortung von O-16 und
+   * O-56 einen Preis als bestaetigt, der auf einem geschaetzten
+   * Reinigungsrichtwert ruht — die letzte offene Frage waere die einzige, die
+   * niemand mehr sieht.
+   */
+  readonly leistungswertIstPlatzhalter?: boolean;
+  /** Woher der Leistungswert stammt — fuer die Nachfrage im Preisstreit. */
+  readonly leistungswertQuelle?: string;
 }
 
 /**
@@ -79,6 +90,20 @@ export function sekundenJePeriode(posten: Flaechenposten, frequenzfaktor: MilliM
  * Bewusst getrennt von der Rechnung: wer Stunden anzeigt und mit Stunden
  * weiterrechnet, rundet zweimal. Weitergerechnet wird immer mit Sekunden.
  */
+/**
+ * Dieselben Stunden in der Form, die eine `numeric(12,3)`-Spalte liest.
+ *
+ * `alsStundenText` liefert die DEUTSCHE Anzeige mit Komma; die Datenbank
+ * liest Punkte. Zwei Formen fuer dieselbe Groesse gehoeren nebeneinander,
+ * damit niemand die eine dort einsetzt, wo die andere gemeint war.
+ */
+export function stundenNachPostgres(sekunden: bigint): string {
+  const tausendstel = teileHalbAuf(sekunden * 1000n, 3600n);
+  const negativ = tausendstel < 0n;
+  const abs = negativ ? -tausendstel : tausendstel;
+  return `${negativ ? '-' : ''}${String(abs / 1000n)}.${String(abs % 1000n).padStart(3, '0')}`;
+}
+
 export function alsStundenText(sekunden: bigint): string {
   const hundertstel = teileHalbAuf(sekunden * 100n, 3600n);
   const ganz = hundertstel / 100n;

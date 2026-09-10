@@ -128,18 +128,24 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           const turnus = koerper.turnus ?? '1_pro_monat';
           if (!PLATZHALTER_TURNUSSE.includes(turnus)) return { art: 'ungueltig' as const };
 
-          const grundlage = await ladeKalkulationsgrundlage(dbSchicht, objektId, new Date());
+          const stichtag = new Date();
+          const grundlage = await ladeKalkulationsgrundlage(dbSchicht, objektId, stichtag);
+          const frequenz = PLATZHALTER_FREQUENZ.frequenz(turnus);
+          const tarif = PLATZHALTER_TARIF.tarif(sitzung.aktiverMandantId!, 'reinigung');
           const kalk = kalkuliere({
             posten: grundlage.posten,
-            frequenz: PLATZHALTER_FREQUENZ.frequenz(turnus),
-            tarif: PLATZHALTER_TARIF.tarif(sitzung.aktiverMandantId!, 'reinigung'),
+            frequenz,
+            tarif,
             flaecheOhneBelagsart: grundlage.flaecheOhneBelagsart,
+            // Beide Luecken gehen MIT — `uebernimmKalkulation` weist ein
+            // Angebot ueber nicht bepreisbare Flaeche ab (D-97).
+            ohneGueltigenLeistungswert: grundlage.ohneGueltigenLeistungswert,
           });
           if (kalk.zeilen.length === 0) return { art: 'leer' as const };
 
           const angebotId = await legeAngebotAn(dbSchicht, { kundeId, titel, objektId });
           await uebernimmKalkulation(dbSchicht, angebotId, kalk,
-            { objektId, turnusLabel: turnus });
+            { objektId, turnusLabel: turnus, tarif, frequenz });
           return { art: 'angelegt' as const, angebotId };
         }
 

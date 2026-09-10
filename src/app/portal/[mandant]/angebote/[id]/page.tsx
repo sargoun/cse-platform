@@ -13,6 +13,7 @@ import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { berlinKalendertag } from '@/server/services/zeit/dauer';
 
 /**
  * `/portal/[mandant]/angebote/[id]` — ein Angebot, seine Positionen und die
@@ -325,7 +326,12 @@ export default async function AngebotDetail(
             <input
               type="hidden"
               name="startDatum"
-              value={new Date().toISOString().slice(0, 10)}
+              /**
+               * Der BERLINER Kalendertag, nicht der von UTC. In den ersten
+               * Stunden eines Berliner Tages liegt `toISOString()` noch auf
+               * dem Vortag — und der Auftrag begaenne einen Tag zu frueh.
+               */
+              value={berlinKalendertag(new Date())}
             />
             <button
               type="submit"

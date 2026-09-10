@@ -47,6 +47,12 @@ export interface Kalkulation {
   readonly netto: Cent;
   /** Flaeche in Raeumen ohne Belagsart. Nicht kalkulierbar, nicht verschwiegen. */
   readonly flaecheOhneBelagsart: MilliMenge;
+  /**
+   * Belagsarten, die im Raumbuch vorkommen, am Stichtag aber keinen gueltigen
+   * Leistungswert haben. Ihre Flaeche steckt in KEINER Zeile — sie faellt
+   * sonst lautlos aus dem Preis.
+   */
+  readonly ohneGueltigenLeistungswert: readonly string[];
   readonly istPlatzhalter: boolean;
   readonly offeneFragen: readonly string[];
 }
@@ -57,6 +63,8 @@ export interface Kalkulationseingabe {
   readonly tarif: Tarif;
   /** Flaeche, der keine Belagsart zugeordnet ist. */
   readonly flaecheOhneBelagsart?: MilliMenge;
+  /** Belagsarten ohne gueltigen Leistungswert am Stichtag. */
+  readonly ohneGueltigenLeistungswert?: readonly string[];
 }
 
 /** Lohnkosten aus Sekunden und Stundensatz — die einzige Zeit→Geld-Stelle. */
@@ -91,7 +99,18 @@ export function kalkuliere(eingabe: Kalkulationseingabe): Kalkulation {
   const wagnis = anteilInBasisPunkten(zwischensumme, tarif.wagnisSatz);
   const gewinn = anteilInBasisPunkten(addiere(zwischensumme, wagnis), tarif.gewinnSatz);
 
-  const fragen = [...new Set([...tarif.offeneFragen, ...frequenz.offeneFragen])].sort();
+  /**
+   * O-17 zaehlt MIT: ein Leistungswert, den niemand bestaetigt hat, macht den
+   * Preis genauso vorlaeufig wie ein unbestaetigter Stundensatz. Die
+   * Datenbank sieht das ueber `belagsart.ist_platzhalter` in
+   * `kalkulation_platzhalter`; hier ist die zweite, fruehere Sicht darauf —
+   * die, die die Oberflaeche liest, bevor ueberhaupt etwas gespeichert ist.
+   */
+  const grundlageOffen = posten.some((p) => p.leistungswertIstPlatzhalter === true);
+  const fragen = [...new Set([
+    ...tarif.offeneFragen, ...frequenz.offeneFragen,
+    ...(grundlageOffen ? ['O-17'] : []),
+  ])].sort();
 
   return {
     zeilen,
@@ -104,7 +123,8 @@ export function kalkuliere(eingabe: Kalkulationseingabe): Kalkulation {
     gewinn,
     netto: addiere(zwischensumme, wagnis, gewinn),
     flaecheOhneBelagsart: eingabe.flaecheOhneBelagsart ?? NULL_MENGE,
-    istPlatzhalter: tarif.istPlatzhalter || frequenz.istPlatzhalter,
+    ohneGueltigenLeistungswert: eingabe.ohneGueltigenLeistungswert ?? [],
+    istPlatzhalter: tarif.istPlatzhalter || frequenz.istPlatzhalter || grundlageOffen,
     offeneFragen: fragen,
   };
 }
@@ -113,5 +133,62 @@ export function kalkuliere(eingabe: Kalkulationseingabe): Kalkulation {
 export const LEERE_KALKULATION: Kalkulation = {
   zeilen: [], flaecheGesamt: NULL_MENGE, sekundenJeDurchgang: 0n, sekundenJePeriode: 0n,
   lohnkosten: NULL_CENT, gemeinkosten: NULL_CENT, wagnis: NULL_CENT, gewinn: NULL_CENT,
-  netto: NULL_CENT, flaecheOhneBelagsart: NULL_MENGE, istPlatzhalter: false, offeneFragen: [],
+  netto: NULL_CENT, flaecheOhneBelagsart: NULL_MENGE, ohneGueltigenLeistungswert: [],
+  istPlatzhalter: false, offeneFragen: [],
 };
+
+/**
+ * Der Zuschlagsanteil je Zeile — damit die Summe der Positionen den NETTOPREIS
+ * ergibt und nicht die blosse Lohnsumme.
+ *
+ * Der Fehler, den diese Funktion verhindert, ist der teuerste dieser Phase:
+ * `kalkuliere` rechnet Lohn → Gemeinkosten → Wagnis → Gewinn, und wer die
+ * Positionen anschliessend nur mit `lohnkosten` bepreist, verschickt ein
+ * Angebot ohne Gemeinkosten, ohne Wagnis und ohne Gewinn. Nichts daran sieht
+ * falsch aus: die Zeilen stimmen, die Summe stimmt zu den Zeilen, und der
+ * Auftrag wird zum Selbstkostenpreis unterschrieben.
+ *
+ * Verteilt wird nach dem GROESSTEN REST: jede Zeile bekommt ihren
+ * abgerundeten Anteil, und die verbleibenden Cent gehen an die Zeilen mit dem
+ * groessten Rest — bei Gleichstand an die weiter oben stehende. Das ist der
+ * einzige Weg, bei dem die Zeilensumme exakt `netto` ergibt, ohne dass eine
+ * Zeile die Rundung aller anderen traegt.
+ *
+ * Sind die Lohnkosten insgesamt null, ist auch `netto` null: alle Zuschlaege
+ * rechnen auf den Lohn. Dann bekommt jede Zeile null, und das ist richtig.
+ *
+ * TODO(client, O-208): Sollen Gemeinkosten, Wagnis und Gewinn im Angebot als
+ * EIGENE Positionen erscheinen, oder bleiben sie — wie hier — im Einzelpreis
+ * der Leistungszeilen enthalten? Beides ist ueblich; die Wahl entscheidet,
+ * was der Kunde im Dokument liest, und sie gehoert nicht uns.
+ */
+export function verteileNetto(
+  zeilen: readonly Kalkulationszeile[], netto: Cent,
+): readonly Cent[] {
+  if (zeilen.length === 0) return [];
+  const gewichte = zeilen.map((z) => z.lohnkosten as bigint);
+  const summe = gewichte.reduce((a, b) => a + b, 0n);
+  if (summe === 0n) {
+    if (netto !== NULL_CENT) {
+      throw new Error('Netto ohne Lohnkosten laesst sich nicht zuordnen');
+    }
+    return zeilen.map(() => NULL_CENT);
+  }
+
+  const gesamt = netto as bigint;
+  const anteile = gewichte.map((g) => (gesamt * g) / summe);          // abgerundet
+  const reste = gewichte.map((g, i) => (gesamt * g) - (anteile[i]! * summe));
+  let offen = gesamt - anteile.reduce((a, b) => a + b, 0n);
+
+  // Absteigend nach Rest, bei Gleichstand nach Position — stabil und
+  // reproduzierbar, damit zweimal dieselbe Kalkulation zweimal dieselben
+  // Zeilenpreise ergibt.
+  const reihenfolge = anteile.map((_, i) => i)
+    .sort((a, b) => (reste[b]! === reste[a]! ? a - b : (reste[b]! > reste[a]! ? 1 : -1)));
+  for (const i of reihenfolge) {
+    if (offen <= 0n) break;
+    anteile[i] = anteile[i]! + 1n;
+    offen -= 1n;
+  }
+  return anteile.map((a) => a as Cent);
+}

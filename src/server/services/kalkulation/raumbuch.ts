@@ -19,6 +19,7 @@
  * irgendeiner Stelle etwas falsch aussieht.
  */
 import { mengeAusPostgresOderNull, type MilliMenge } from '../finanz/menge.js';
+import { berlinKalendertag } from '../zeit/dauer.js';
 import type { Flaechenposten } from './richtzeit.js';
 
 export interface Abfrage {
@@ -44,6 +45,8 @@ interface KatalogZeile {
   readonly belagsart_id: string;
   readonly bezeichnung: string;
   readonly leistungswert_qm_pro_stunde: string;
+  readonly ist_platzhalter: boolean;
+  readonly quelle: string | null;
 }
 
 /**
@@ -66,9 +69,16 @@ export async function ladeKalkulationsgrundlage(
   );
 
   const katalog = await db.abfrage<KatalogZeile>(
-    `select belagsart_id, bezeichnung, leistungswert_qm_pro_stunde
+    `select belagsart_id, bezeichnung, leistungswert_qm_pro_stunde,
+            ist_platzhalter, quelle
        from app.leistungswerte_lesen($1::date)`,
-    [stichtag.toISOString().slice(0, 10)],
+    /**
+     * Der BERLINER Kalendertag. `toISOString()` gaebe den von UTC — und eine
+     * Kalkulation um 00:30 Uhr Berliner Zeit befragte den Katalog des
+     * VORTAGS. An einem Wechseltag (D-93) ist das ein anderer Leistungswert
+     * und damit ein anderer Preis, ohne dass irgendetwas danach aussieht.
+     */
+    [berlinKalendertag(stichtag)],
   );
   const nachId = new Map(katalog.map((k) => [k.belagsart_id, k]));
 
@@ -97,6 +107,11 @@ export async function ladeKalkulationsgrundlage(
       bezeichnung: eintrag.bezeichnung,
       flaeche,
       leistungswert: mengeAusPostgresOderNull(eintrag.leistungswert_qm_pro_stunde),
+      // O-17 reist MIT. Ohne diese beiden Felder haette die Kalkulation nach
+      // der Antwort auf O-16 und O-56 einen Platzhalter-Richtwert als
+      // bestaetigten Preis gemeldet.
+      leistungswertIstPlatzhalter: eintrag.ist_platzhalter,
+      ...(eintrag.quelle === null ? {} : { leistungswertQuelle: eintrag.quelle }),
     });
   }
 

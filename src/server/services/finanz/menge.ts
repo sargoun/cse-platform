@@ -52,6 +52,22 @@ export function mengeAusPostgres(text: string): MilliMenge {
   return ((zeichen === '-' ? -tausendstel : tausendstel)) as MilliMenge;
 }
 
+/**
+ * Der Rueckweg: `25_000n` → `"25.000"`.
+ *
+ * Die genaue Umkehrung von `mengeAusPostgres`, und genau deshalb hier und
+ * nicht am Aufrufort. `formatiereMenge` liefert die DEUTSCHE Anzeige
+ * (`"25,000"`); wer die in eine `numeric`-Spalte schreibt, bekommt entweder
+ * einen Syntaxfehler oder — schlimmer — in einer anderen Locale eine andere
+ * Zahl. Die Datenbank liest Punkte.
+ */
+export function mengeNachPostgres(menge: MilliMenge): string {
+  const negativ = menge < 0n;
+  const abs = negativ ? -menge : menge;
+  const bruch = String(abs % 1000n).padStart(3, '0');
+  return `${negativ ? '-' : ''}${String(abs / 1000n)}.${bruch}`;
+}
+
 /** `null` (an aggregate over no rows) becomes zero — every other input parses. */
 export function mengeAusPostgresOderNull(text: string | null): MilliMenge {
   return text === null ? NULL_MENGE : mengeAusPostgres(text);

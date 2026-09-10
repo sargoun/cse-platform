@@ -206,9 +206,16 @@ describe('(3) Das Abnahmekriterium: ein Preis ohne Handrechnung', () => {
     expect(k.lohnkosten).toBe(5800n);              // 2 h × 29,00 €
     expect(k.netto).toBe(7214n);                   // + 15 % + 3 % + 5 %
     expect(typeof k.netto).toBe('bigint');
-    // Und das Ergebnis sagt, dass es auf Platzhaltern steht.
+    /**
+     * Und das Ergebnis sagt, dass es auf Platzhaltern steht — auf DREI, nicht
+     * auf zwei. O-17 gehoert dazu: der Leistungswert dieser Belagsart ist
+     * selbst ein Richtwert, den niemand bestaetigt hat. Ohne ihn haette die
+     * Kalkulation nach der Antwort auf O-16 und O-56 einen Preis als
+     * bestaetigt gemeldet, der auf einer Schaetzung ruht — die letzte offene
+     * Frage waere die einzige gewesen, die keiner mehr sieht.
+     */
     expect(k.istPlatzhalter).toBe(true);
-    expect(k.offeneFragen).toEqual(['O-16', 'O-56']);
+    expect(k.offeneFragen).toEqual(['O-16', 'O-17', 'O-56']);
   });
 
   it('fuenfmal die Woche ergibt den 21,667-fachen Aufwand — eine Rundungsstelle', async () => {

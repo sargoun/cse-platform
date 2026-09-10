@@ -7,6 +7,7 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
+import { berlinTagesZeitpunkt } from '@/server/services/zeit/dauer';
 
 /**
  * `POST /api/lead` — eine Notiz festhalten und die naechste Aktion setzen
@@ -102,7 +103,16 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             `update lead
                 set naechste_aktion_text = $2, naechste_aktion_am = $3::timestamptz
               where id = $1`,
-            [leadId, aktion, am === null ? null : `${am}T09:00:00+01:00`],
+            /**
+             * 09:00 EUROPE/BERLIN, nicht 09:00+01:00.
+             *
+             * Ein fester Versatz ist die halbe Jahreshaelfte richtig: von
+             * Ende Maerz bis Ende Oktober gilt +02:00, und die Wiedervorlage
+             * laege eine Stunde daneben. Sichtbar ist im Formular nur das
+             * Datum — die Erinnerung kaeme trotzdem zur falschen Zeit
+             * (Invariante 2).
+             */
+            [leadId, aktion, am === null ? null : berlinTagesZeitpunkt(am, 9)],
           );
         }
 

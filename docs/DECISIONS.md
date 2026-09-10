@@ -1552,6 +1552,49 @@ nie, egal wie sie kommentiert ist. Die Ausnahme ist damit eine Aussage, die
 ein Pruefer nachlesen kann — kein Schalter, der die Wache stumm stellt. Drei
 Fixtures pruefen genau diese drei Faelle.
 
+### D-97 · Was nicht bepreisbar ist, wird nicht bepreist — und nicht weggelassen
+
+Die Copilot-Durchsicht der Phase 4 fand drei Wege, auf denen ein Angebot zu
+billig hinausgegangen waere, ohne dass irgendetwas daran falsch aussah:
+
+1. Die Positionen trugen `lohnkosten` statt des Nettoanteils — Gemeinkosten,
+   Wagnis und Gewinn fehlten im Dokument vollstaendig.
+2. Zum Angebot wurde keine `kalkulation`-Zeile gespeichert. Damit fragte
+   `kern.angebot_versand_pruefen` eine leere Sicht, und ein Preis auf den
+   Platzhaltern O-16/O-56 passierte die Sperre, die genau dafuer gebaut war.
+3. Flaeche ohne Belagsart und Belagsarten ohne am Stichtag gueltigen
+   Leistungswert steckten in keiner Zeile und verschwanden aus dem Preis.
+
+**Entschieden:** (1) `verteileNetto` verteilt den Nettopreis nach groesstem
+Rest auf die Zeilen, sodass die Zeilensumme das Netto EXAKT trifft; wie die
+Zuschlaege im Dokument erscheinen, ist O-208. (2) `uebernimmKalkulation`
+schreibt Kalkulationskopf und -positionen mit, samt Schnappschuss jeder
+Eingangsgroesse. (3) Ein Angebot ueber nicht bepreisbare Flaeche wird
+ABGEWIESEN, mit einem Fehler, der die Luecke benennt — statt sie zu schaetzen
+oder zu verschweigen. Ein Preis, den wir nicht rechnen koennen, ist keine Zahl,
+die wir waehlen duerfen.
+
+Dazu: `belagsart.ist_platzhalter` reist jetzt bis in `kalkuliere` (O-17). Ohne
+das haette die Kalkulation nach der Antwort auf O-16 und O-56 einen Preis als
+bestaetigt gemeldet, der auf einem geschaetzten Richtwert ruht.
+
+---
+
+### D-98 · Ein Datum aus dem Formular wird ein Berliner Zeitpunkt, nie ein UTC-Tag
+
+Drei Stellen rechneten mit UTC, wo Europe/Berlin gemeint war: die
+Wiedervorlage eines Leads mit festem `+01:00`, das Startdatum eines Auftrags
+aus `toISOString()`, und der Stichtag, mit dem der Belagsart-Katalog gelesen
+wird. Alle drei sind die halbe Jahreshaelfte richtig — und in den frueben
+Stunden eines Berliner Tages beziehungsweise ueber die Sommerzeit hinweg
+falsch, ohne dass die Oberflaeche etwas davon zeigt.
+
+**Entschieden:** `berlinKalendertag` fuer jeden Kalendertag,
+`berlinTagesZeitpunkt(datum, stunde)` fuer jedes Datum, das ein Zeitpunkt
+wird. Beide liegen in `services/zeit/dauer.ts` neben den K-11-Faellen, und
+beide sind mit einem Sommer-, einem Winter- und beiden Umstellungstagen
+geprueft (Invariante 2).
+
 ---
 
 ## Carried over from the Phase 0 review — not client questions
@@ -1880,6 +1923,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 |---|---|---|
 | O-205 | **Barrierefreiheitserklärung (BFSG):** which conformity status may be declared — fully, partially or not conformant — on the basis of which audit and dated when; which body is named as the enforcement authority; and which mailbox receives accessibility feedback? Until these three are answered the statement at `/barrierefreiheit` carries a visible "not yet issued" block rather than an invented claim. | LEG-07, launch |
 | O-207 | **Seitentexte:** every page currently carries scaffold copy — a factual description of what each company does, drawn from the trade names already recorded in `CLAUDE.md`, with no figures, awards, customer names or promises. The client must read and correct it, in particular anything that reads as a commitment to a customer: a marketing sentence nobody checked ends up quoted in an offer. | all 14 public pages, launch |
+| O-208 | **Gemeinkosten, Wagnis und Gewinn im Angebot: eigene Positionen oder im Einzelpreis?** Die Kalkulation rechnet Lohn → Gemeinkosten → Wagnis → Gewinn; der Nettopreis ist die Summe der vier. Was der Kunde im Dokument liest, ist damit noch nicht entschieden: entweder drei zusaetzliche Zeilen, die die Zuschlaege offenlegen, oder — wie derzeit — Leistungszeilen, deren Einzelpreis den Anteil bereits enthaelt und deren Langtext ihn benennt. Beides ist in der Gebaeudereinigung ueblich; die Wahl ist eine kaufmaennische und keine technische. Die Verteilung selbst liegt in `verteileNetto` an EINER Stelle, damit ein Wechsel eine Aenderung bleibt und keine Umbauaktion. | OPS-07, OPS-08, jedes Angebot |
 | O-206 | **Is "CSE Gruppe" a legal entity?** Does a group-level Rechtsträger (holding) exist — under which name, address and register entry — or is the group only a brand over four independent companies? A structured-data `Organization` block carries an address and therefore asserts that such a company exists; until this is answered the site emits four complete `LocalBusiness` entries and no umbrella. | PUB-11, `/impressum`, footer |
 
 ---

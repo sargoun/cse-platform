@@ -18,9 +18,11 @@
  */
 import { vergebeNummer, type Abfrage as NummernAbfrage }
   from '../finanz/nummernkreis.js';
-import { formatiereMenge, type MilliMenge } from '../finanz/menge.js';
-import { alsStundenText } from '../kalkulation/richtzeit.js';
-import type { Kalkulation } from '../kalkulation/index.js';
+import { formatiereGeld } from '../finanz/geld.js';
+import { formatiereMenge, mengeNachPostgres, type MilliMenge } from '../finanz/menge.js';
+import { alsStundenText, stundenNachPostgres } from '../kalkulation/richtzeit.js';
+import type { Frequenz, Tarif } from '../kalkulation/tarif.js';
+import { verteileNetto, type Kalkulation } from '../kalkulation/index.js';
 
 export interface Abfrage {
   abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
@@ -28,7 +30,8 @@ export interface Abfrage {
 
 export class AngebotFehler extends Error {
   constructor(nachricht: string, readonly grund:
-    | 'nicht_gefunden' | 'kein_entwurf' | 'ohne_positionen' | 'schon_gewandelt') {
+    | 'nicht_gefunden' | 'kein_entwurf' | 'ohne_positionen' | 'schon_gewandelt'
+    | 'unbepreiste_flaeche') {
     super(nachricht);
     this.name = 'AngebotFehler';
   }
@@ -79,15 +82,96 @@ export async function legeAngebotAn(
  */
 export async function uebernimmKalkulation(
   db: Abfrage, angebotId: string, kalkulation: Kalkulation,
-  opts: { readonly objektId?: string; readonly turnusLabel: string },
+  opts: {
+    readonly objektId?: string;
+    readonly turnusLabel: string;
+    readonly tarif: Tarif;
+    readonly frequenz: Frequenz;
+  },
 ): Promise<number> {
+  /**
+   * Zuerst: KEIN Angebot ueber eine Flaeche, die niemand bepreisen konnte.
+   *
+   * `ladeKalkulationsgrundlage` meldet zwei Luecken getrennt — Raeume ohne
+   * Belagsart und Belagsarten ohne am Stichtag gueltigen Leistungswert. Beide
+   * sind in KEINER Zeile enthalten. Wer daraus trotzdem ein Angebot macht,
+   * verschickt einen Preis fuer weniger Flaeche, als der Auftrag umfasst —
+   * und nichts daran sieht falsch aus: die Zeilen stimmen, die Summe stimmt
+   * zu den Zeilen, das Raumbuch ist vollstaendig, nur der Preis gilt fuer
+   * einen Teil davon.
+   *
+   * Deshalb wird hier abgewiesen statt geschaetzt (D-97). Ein Preis, den wir
+   * nicht rechnen koennen, ist keine Zahl, die wir waehlen duerfen.
+   */
+  if (kalkulation.flaecheOhneBelagsart > 0n
+      || kalkulation.ohneGueltigenLeistungswert.length > 0) {
+    const teile: string[] = [];
+    if (kalkulation.flaecheOhneBelagsart > 0n) {
+      teile.push(`${formatiereMenge(kalkulation.flaecheOhneBelagsart)} m² ohne Belagsart`);
+    }
+    if (kalkulation.ohneGueltigenLeistungswert.length > 0) {
+      teile.push(
+        `${kalkulation.ohneGueltigenLeistungswert.length} Belagsart(en) ohne gueltigen `
+        + 'Leistungswert am Stichtag');
+    }
+    throw new AngebotFehler(
+      `Nicht bepreisbare Flaeche: ${teile.join(', ')} — bitte zuerst das Raumbuch `
+      + 'vervollstaendigen', 'unbepreiste_flaeche');
+  }
+
+  /**
+   * Bepreist wird mit dem ANTEIL AM NETTO, nicht mit den Lohnkosten.
+   *
+   * `kalkuliere` rechnet Lohn → Gemeinkosten → Wagnis → Gewinn. Wer die
+   * Positionen mit `zeile.lohnkosten` bepreist, verschickt ein Angebot ohne
+   * alle drei Zuschlaege — die Zeilen stimmen, die Summe stimmt zu den
+   * Zeilen, und der Auftrag wird zum Selbstkostenpreis unterschrieben.
+   * `verteileNetto` verteilt nach groesstem Rest, damit die Zeilensumme
+   * `kalkulation.netto` EXAKT trifft.
+   */
+  const preise = verteileNetto(kalkulation.zeilen, kalkulation.netto);
+
+  /**
+   * Der Kalkulationssatz wird MITGESCHRIEBEN — sonst greift die Sperre nicht.
+   *
+   * `kern.angebot_versand_pruefen` fragt die Sicht `kalkulation_platzhalter`,
+   * und die kennt nur, was in `kalkulation` steht. Ein Angebot ohne
+   * Kalkulationszeile war deshalb genau das, was diese Phase ausschliessen
+   * wollte: ein Preis auf Platzhaltern (O-16, O-56), der die Pruefung
+   * passiert, weil es nichts zu pruefen gab.
+   *
+   * Geschrieben werden die WIRKLICH benutzten Werte, nicht NULL: die
+   * Kalkulation soll erklaeren, womit gerechnet wurde. `ist_platzhalter`
+   * traegt daneben, dass diese Werte noch niemand bestaetigt hat.
+   */
+  const [kopf] = await db.abfrage<{ id: string }>(
+    `insert into kalkulation
+       (mandant_id, angebot_id, basis_objekt_id, basis_stand_am,
+        stundenverrechnungssatz_cent, gemeinkosten_basis, gemeinkosten_bp,
+        wagnis_gewinn_bp, ist_platzhalter, bemerkung)
+     values (app.aktiver_mandant(), $1, $2, now(), $3, 'lohn', $4, $5, $6, $7)
+     returning id`,
+    [angebotId, opts.objektId ?? null,
+     String(opts.tarif.stundensatz), opts.tarif.gemeinkostenSatz,
+     opts.tarif.wagnisSatz + opts.tarif.gewinnSatz,
+     kalkulation.istPlatzhalter,
+     kalkulation.offeneFragen.length === 0
+       ? null
+       : `Offene Fragen: ${kalkulation.offeneFragen.join(', ')}`],
+  );
+  if (kopf === undefined) {
+    throw new AngebotFehler('Die Kalkulation wurde nicht angelegt', 'nicht_gefunden');
+  }
+
   let nr = 0;
-  for (const zeile of kalkulation.zeilen) {
+  for (const [i, zeile] of kalkulation.zeilen.entries()) {
     nr += 1;
     const stunden = alsStundenText(zeile.sekundenJePeriode);
     const langtext =
       `${formatiereMenge(zeile.flaeche)} m² ÷ ${formatiereMenge(zeile.leistungswert)} m²/h `
-      + `= ${stunden} Std. je Abrechnungsperiode (${opts.turnusLabel})`;
+      + `= ${stunden} Std. je Abrechnungsperiode (${opts.turnusLabel}); `
+      + `Lohnkosten ${formatiereGeld(zeile.lohnkosten)}, `
+      + 'zzgl. anteiliger Gemeinkosten, Wagnis und Gewinn';
     await db.abfrage(
       `insert into angebotsposition
          (mandant_id, angebot_id, position_nr, typ, kurztext, langtext, objekt_id,
@@ -95,7 +179,47 @@ export async function uebernimmKalkulation(
        values (app.aktiver_mandant(), $1, $2, 'leistung', $3, $4, $5,
                1, 'psch', $6, $7, $2)`,
       [angebotId, nr, `Unterhaltsreinigung ${zeile.bezeichnung}`, langtext,
-       opts.objektId ?? null, zeile.lohnkosten, REGELSATZ_BP],
+       opts.objektId ?? null, preise[i], REGELSATZ_BP],
+    );
+
+    /**
+     * Und dieselbe Zeile als Kalkulationsposition — mit den Eingangsgroessen
+     * als SCHNAPPSCHUSS. Ein Join zeigte den heutigen Leistungswert; hier
+     * steht der, mit dem gerechnet wurde. Genau darauf beruht spaeter jede
+     * Antwort auf die Frage, wie der Preis zustande kam.
+     */
+    await db.abfrage(
+      `insert into kalkulation_position
+         (mandant_id, kalkulation_id, position_nr, kostenart, bezeichnung,
+          belagsart_id, menge, einheit, einzelbetrag_cent, betrag_cent,
+          leistungswert_qm_pro_stunde, frequenz_faktor, stundensatz_cent,
+          rechenansatz, operanden, berechnungsweg, sortierung)
+       values (app.aktiver_mandant(), $1, $2, 'lohn', $3, $4, $5::numeric, 'std', $6, $7,
+               $8::numeric, $9::numeric, $10, $11, $12::jsonb, $13, $2)`,
+      /**
+       * `menge` sind STUNDEN, nicht Quadratmeter: nur so ist
+       * `menge × einzelbetrag ≈ betrag` nachvollziehbar, und nur so traegt
+       * die Zeile den Stundensatz, den `kp_lohn_mit_satz` verlangt. Flaeche
+       * und Leistungswert stehen als Schnappschuss daneben.
+       */
+      [kopf.id, nr, zeile.bezeichnung, zeile.belagsartId,
+       stundenNachPostgres(zeile.sekundenJePeriode),
+       String(opts.tarif.stundensatz), String(zeile.lohnkosten),
+       mengeNachPostgres(zeile.leistungswert),
+       (Number(opts.frequenz.faktor) / 1000).toFixed(4),
+       String(opts.tarif.stundensatz),
+       'Flaeche ÷ Leistungswert × Frequenz × Stundensatz',
+       {
+         flaeche_milli: String(zeile.flaeche),
+         leistungswert_milli: String(zeile.leistungswert),
+         frequenz_faktor_milli: String(opts.frequenz.faktor),
+         sekunden_je_durchgang: String(zeile.sekundenJeDurchgang),
+         sekunden_je_periode: String(zeile.sekundenJePeriode),
+         stundensatz_cent: String(opts.tarif.stundensatz),
+         lohnkosten_cent: String(zeile.lohnkosten),
+         nettoanteil_cent: String(preise[i]),
+       },
+       langtext],
     );
   }
   return nr;

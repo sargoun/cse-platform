@@ -118,6 +118,23 @@ export function berlinInstant(
   return versatz2 === versatz ? kandidat : new Date(naiv - versatz2 * 60_000);
 }
 
+/**
+ * `("2026-07-14", 9)` → the instant of 09:00 Berlin wall-clock on that day.
+ *
+ * The form a date-only input takes when it becomes a stored moment. Written
+ * with a FIXED offset (`+01:00`) it is right for half the year and an hour
+ * out for the other half — a reminder that fires at 08:00 all summer, in a
+ * field where the UI only ever shows the date and nobody sees the hour.
+ */
+export function berlinTagesZeitpunkt(datum: string, stunde = 0, minute = 0): Date {
+  const treffer = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(datum.trim());
+  if (treffer === null) {
+    throw new ZeitFehler(`Kein Datum in der Form JJJJ-MM-TT: ${JSON.stringify(datum)}`);
+  }
+  return berlinInstant(
+    Number(treffer[1]), Number(treffer[2]), Number(treffer[3]), stunde, minute);
+}
+
 /** The instant at which a Berlin month begins. */
 export function berlinMonatsBeginn(jahr: number, monat: number): Date {
   return berlinInstant(jahr, monat, 1, 0, 0);
