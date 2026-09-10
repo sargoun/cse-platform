@@ -25,6 +25,14 @@ interface TagZeile {
   readonly feiertag: string | null;
 }
 
+interface BefundZeile {
+  readonly einsatz_id: string;
+  readonly art: string;
+  readonly schwere: string;
+  readonly blockiert: boolean;
+  readonly text: string;
+}
+
 interface SchichtZeile {
   readonly id: string;
   readonly beginn: Date;
@@ -93,6 +101,47 @@ export async function ladePlanfenster(
         [vonDatum, bisDatum],
       );
 
+      /**
+       * Die Befunde zu den Schichten des Fensters (TIM-05, TIM-06, SEC-04).
+       *
+       * Sie kommen aus `planungs_konflikt`, nicht aus einer Neuberechnung im
+       * Seitenaufruf: der Detektor hat sie erkannt, quittiert wurden sie
+       * womoeglich nicht, und der Plan soll zeigen, was OFFEN ist. Eine
+       * Ansicht, die selbst nachrechnet, zeigte im Zweifel etwas anderes als
+       * die Konfliktliste — zwei Wahrheiten ueber denselben Verstoss.
+       *
+       * Fremde Gesellschaften bleiben dabei ungenannt: `betrifft_fremden_mandant`
+       * sagt DASS, nie wo (K-06).
+       */
+      const befunde = await kontext.abfrage<BefundZeile>(
+        `select k.einsatz_id,
+                k.art::text                       as art,
+                k.schwere::text                   as schwere,
+                k.blockiert,
+                case k.art::text
+                  when 'arbeitszeit'   then
+                    case when k.betrifft_fremden_mandant
+                         then 'Arbeitszeit über Gesellschaften hinweg'
+                         else 'Arbeitszeit überschritten' end
+                  when 'qualifikation' then 'Nachweis fehlt oder abgelaufen'
+                  when 'ueberschneidung' then 'Überschneidet eine andere Schicht'
+                  else 'Unterbesetzt'
+                end                               as text
+           from planungs_konflikt k
+          where k.einsatz_id is not null
+            and k.status = 'offen'
+            and k.hinfaellig_am is null
+            and k.zeitraum_ende   > ($1::date::timestamp)       at time zone 'Europe/Berlin'
+            and k.zeitraum_beginn < (($2::date + 1)::timestamp) at time zone 'Europe/Berlin'`,
+        [vonDatum, bisDatum],
+      );
+      const jeSchicht = new Map<string, BefundZeile[]>();
+      for (const b of befunde) {
+        const liste = jeSchicht.get(b.einsatz_id);
+        if (liste === undefined) jeSchicht.set(b.einsatz_id, [b]);
+        else liste.push(b);
+      }
+
       return {
         tage: tage.map((t) => ({
           datum: t.datum,
@@ -113,13 +162,16 @@ export async function ladePlanfenster(
           soll: Number(s.soll),
           status: s.status,
           /**
-           * Noch leer: die Befunde kommen aus PR 32 (ArbZG) und PR 31
-           * (Nachweise). Die Liste steht schon hier, damit die Anzeige nicht
-           * spaeter umgebaut werden muss — und sie ist LEER und nicht
-           * erfunden: ein ausgedachter Befund im Plan waere schlimmer als
-           * keiner.
+           * `blockiert` wird zur Sperre, alles andere zur Warnung oder zum
+           * Hinweis. Der Unterschied ist nicht Kosmetik: eine Sperre laesst
+           * sich nicht uebergehen (SEC-04, §34a), eine Warnung mit
+           * Begruendung schon.
            */
-          befunde: [],
+          befunde: (jeSchicht.get(s.id) ?? []).map((b) => ({
+            art: b.blockiert ? ('sperre' as const)
+              : b.schwere === 'verstoss' ? ('warnung' as const) : ('hinweis' as const),
+            text: b.text,
+          })),
         })),
       };
     }));
