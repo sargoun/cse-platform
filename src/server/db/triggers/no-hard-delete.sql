@@ -342,3 +342,121 @@ create trigger trg_belagsart_audit
   for each row execute function kern.protokolliere_aenderung();
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0022)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- leistungskatalog (archiv): OPS-06. Der Katalog ist die Fassung, aus der ein abgegebenes Angebot seine Texte und Listenpreise genommen hat. Ein geloeschter Katalog macht dieses Angebot unlesbar; sein Ende ist status = archiviert.
+create trigger trg_leistungskatalog_kein_hard_delete
+  before delete on leistungskatalog
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_leistungskatalog_kein_truncate
+  before truncate on leistungskatalog
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on leistungskatalog from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- leistungskatalog_position (archiv): OPS-06. An der Position haengen kalkulation_position und angebotsposition. Sie zu loeschen bricht die Spur vom Preis zur Leistung; abgeloest wird sie durch gueltig_bis.
+create trigger trg_leistungskatalog_position_kein_hard_delete
+  before delete on leistungskatalog_position
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_leistungskatalog_position_kein_truncate
+  before truncate on leistungskatalog_position
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on leistungskatalog_position from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_leistungskatalog_geaendert_am
+  before update on leistungskatalog
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_leistungskatalog_position_geaendert_am
+  before update on leistungskatalog_position
+  for each row execute function kern.setze_geaendert_am();
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0023)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- kalkulation (archiv): OPS-07. Die Kalkulation ist die Begruendung eines abgegebenen Preises. Sie zu loeschen nimmt einem Preisstreit seine Grundlage; eine geaenderte Kalkulation ist eine neue Version, keine ersetzte Zeile.
+create trigger trg_kalkulation_kein_hard_delete
+  before delete on kalkulation
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_kalkulation_kein_truncate
+  before truncate on kalkulation
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on kalkulation from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- kalkulation_position (archiv): OPS-07, BAU-02. Auf der Position stehen die Schnappschuesse jeder Eingangsgroesse und der Rechenansatz. Ohne sie laesst sich der Betrag nicht mehr nachrechnen, nur noch glauben.
+create trigger trg_kalkulation_position_kein_hard_delete
+  before delete on kalkulation_position
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_kalkulation_position_kein_truncate
+  before truncate on kalkulation_position
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on kalkulation_position from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_kalkulation_geaendert_am
+  before update on kalkulation
+  for each row execute function kern.setze_geaendert_am();
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0024)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- angebot (archiv): OPS-08. Ein versendetes Angebot ist ein abgegebenes Vertragsangebot; es zu loeschen entfernt den Beleg fuer das, was zugesagt wurde. Eine Aenderung ist eine neue Version mit Rueckverweis.
+create trigger trg_angebot_kein_hard_delete
+  before delete on angebot
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_angebot_kein_truncate
+  before truncate on angebot
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on angebot from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- angebotsposition (archiv): OPS-08, FIN-07. Die Position ist die Zeile, die spaeter zur Rechnungszeile wird. Ohne sie laesst sich nicht mehr zeigen, wofuer der Preis galt.
+create trigger trg_angebotsposition_kein_hard_delete
+  before delete on angebotsposition
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_angebotsposition_kein_truncate
+  before truncate on angebotsposition
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on angebotsposition from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- angebot_steuer (append): OPS-08, FIN-09. Die Steuerzeilen entstehen EINMAL beim Versand und werden nie nachgerechnet — dieselbe Bauart, die K-12 von der kanonischen Nutzlast einer Rechnung verlangt.
+create trigger trg_angebot_steuer_kein_hard_delete
+  before delete on angebot_steuer
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_angebot_steuer_kein_truncate
+  before truncate on angebot_steuer
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on angebot_steuer from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_angebot_geaendert_am
+  before update on angebot
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_angebotsposition_geaendert_am
+  before update on angebotsposition
+  for each row execute function kern.setze_geaendert_am();
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0025)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- auftrag (archiv): OPS-05, FIN-07. An einem Auftrag haengen Rechnungen mit zehnjaehriger Aufbewahrung (§ 147 AO); ein beendeter Auftrag wird abgeschlossen und archiviert, nie entfernt.
+create trigger trg_auftrag_kein_hard_delete
+  before delete on auftrag
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_auftrag_kein_truncate
+  before truncate on auftrag
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on auftrag from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_auftrag_geaendert_am
+  before update on auftrag
+  for each row execute function kern.setze_geaendert_am();
+
+
+-- >>> Ende des generierten Blocks

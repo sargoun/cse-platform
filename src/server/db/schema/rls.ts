@@ -141,6 +141,78 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'ein entfallener Raum bekommt archiviert_am.',
   },
   {
+    tabelle: 'leistungskatalog',
+    art: 'archiv',
+    migration: '0022',
+    grund:
+      'OPS-06. Der Katalog ist die Fassung, aus der ein abgegebenes Angebot '
+      + 'seine Texte und Listenpreise genommen hat. Ein geloeschter Katalog '
+      + 'macht dieses Angebot unlesbar; sein Ende ist status = archiviert.',
+  },
+  {
+    tabelle: 'leistungskatalog_position',
+    art: 'archiv',
+    migration: '0022',
+    grund:
+      'OPS-06. An der Position haengen kalkulation_position und '
+      + 'angebotsposition. Sie zu loeschen bricht die Spur vom Preis zur '
+      + 'Leistung; abgeloest wird sie durch gueltig_bis.',
+  },
+  {
+    tabelle: 'kalkulation',
+    art: 'archiv',
+    migration: '0023',
+    grund:
+      'OPS-07. Die Kalkulation ist die Begruendung eines abgegebenen Preises. '
+      + 'Sie zu loeschen nimmt einem Preisstreit seine Grundlage; eine '
+      + 'geaenderte Kalkulation ist eine neue Version, keine ersetzte Zeile.',
+  },
+  {
+    tabelle: 'kalkulation_position',
+    art: 'archiv',
+    migration: '0023',
+    grund:
+      'OPS-07, BAU-02. Auf der Position stehen die Schnappschuesse jeder '
+      + 'Eingangsgroesse und der Rechenansatz. Ohne sie laesst sich der '
+      + 'Betrag nicht mehr nachrechnen, nur noch glauben.',
+  },
+  {
+    tabelle: 'angebot',
+    art: 'archiv',
+    migration: '0024',
+    grund:
+      'OPS-08. Ein versendetes Angebot ist ein abgegebenes Vertragsangebot; '
+      + 'es zu loeschen entfernt den Beleg fuer das, was zugesagt wurde. Eine '
+      + 'Aenderung ist eine neue Version mit Rueckverweis.',
+  },
+  {
+    tabelle: 'angebotsposition',
+    art: 'archiv',
+    migration: '0024',
+    grund:
+      'OPS-08, FIN-07. Die Position ist die Zeile, die spaeter zur '
+      + 'Rechnungszeile wird. Ohne sie laesst sich nicht mehr zeigen, wofuer '
+      + 'der Preis galt.',
+  },
+  {
+    tabelle: 'angebot_steuer',
+    art: 'append',
+    migration: '0024',
+    grund:
+      'OPS-08, FIN-09. Die Steuerzeilen entstehen EINMAL beim Versand und '
+      + 'werden nie nachgerechnet — dieselbe Bauart, die K-12 von der '
+      + 'kanonischen Nutzlast einer Rechnung verlangt.',
+  },
+  {
+    tabelle: 'auftrag',
+    art: 'archiv',
+    migration: '0025',
+    grund:
+      'OPS-05, FIN-07. An einem Auftrag haengen Rechnungen mit '
+      + 'zehnjaehriger Aufbewahrung (§ 147 AO); ein beendeter Auftrag wird '
+      + 'abgeschlossen und archiviert, nie entfernt.',
+  },
+  {
     tabelle: 'audit_log',
     art: 'append',
     migration: '0005',
@@ -337,6 +409,16 @@ export const GEAENDERT_AM: readonly TabelleJeMigration[] = [
   { tabelle: 'reinigungsklasse', migration: '0021' },
   { tabelle: 'objekt', migration: '0021' },
   { tabelle: 'raum', migration: '0021' },
+  { tabelle: 'leistungskatalog', migration: '0022' },
+  { tabelle: 'leistungskatalog_position', migration: '0022' },
+  { tabelle: 'kalkulation', migration: '0023' },
+  { tabelle: 'angebot', migration: '0024' },
+  { tabelle: 'angebotsposition', migration: '0024' },
+  { tabelle: 'auftrag', migration: '0025' },
+  // `angebot_steuer` NICHT: sie wird einmal geschrieben und nie geaendert.
+  // `kalkulation_position` NICHT: sie traegt kein geaendert_am. Eine Position
+  // einer festgeschriebenen Kalkulation ist unveraenderlich, und eine einer
+  // offenen wird ersetzt statt bearbeitet.
   // `formular_eingang` NICHT: er ist write-once. `verarbeitet_am` sagt, wann
   // jemand ihn angefasst hat, und ein `geaendert_am` daneben behauptete, der
   // Eingang selbst habe sich geändert — er darf es nicht.

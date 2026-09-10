@@ -440,8 +440,37 @@ async function main(): Promise<void> {
               'Leistungsnachweise', true, 'LN-{jahr}-{nr:5}',
               'jaehrlich', ${heute}, false, 'system', 'job:seed')
       on conflict do nothing`;
+    /**
+     * Angebot und Auftrag: bestaetigt, weil sie es duerfen.
+     *
+     * Beide sind KEIN § 14 UStG-Dokument. Ihre Nummer ist betrieblich, ihre
+     * Folge darf Luecken haben (ein verworfener Entwurf zieht keine Nummer),
+     * und ihre Maske ist eine Hausentscheidung — nicht die offene Frage
+     * O-134, die nur die Rechnungsnummer betrifft. Ein Platzhalterkreis hier
+     * hiesse: kein Angebot kann versendet werden, und zwar ohne dass irgendwer
+     * eine Frage beantworten muesste.
+     */
+    await sql`
+      insert into nummernkreis
+        (mandant_id, kreis_typ, jahr, bezeichnung, lueckenlos, format_maske,
+         zuruecksetzung, geoeffnet_am, ist_platzhalter, erstellt_von_art, erstellt_von_dienst)
+      values (${ids.get(b.slug)!}, 'angebot', 2026,
+              'Angebote', false, 'AN-{jahr}-{nr:5}',
+              'jaehrlich', ${heute}, false, 'system', 'job:seed')
+      on conflict do nothing`;
+
+    await sql`
+      insert into nummernkreis
+        (mandant_id, kreis_typ, jahr, bezeichnung, lueckenlos, format_maske,
+         zuruecksetzung, geoeffnet_am, ist_platzhalter, erstellt_von_art, erstellt_von_dienst)
+      values (${ids.get(b.slug)!}, 'auftrag', 2026,
+              'Auftraege', false, 'AU-{jahr}-{nr:5}',
+              'jaehrlich', ${heute}, false, 'system', 'job:seed')
+      on conflict do nothing`;
   }
-  process.stdout.write('  Nummernkreise: Rechnung als PLATZHALTER (O-134), Nachweis bestätigt\n');
+  process.stdout.write(
+    '  Nummernkreise: Rechnung als PLATZHALTER (O-134); Nachweis, Angebot und Auftrag bestätigt\n',
+  );
 
   // ------------------------------------------------------ Agent-Richtlinien
   /** Fail-closed: jede Zeile steht auf `auto_erlaubt = false`. */
