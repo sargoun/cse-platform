@@ -1,0 +1,231 @@
+/**
+ * Der Detektor — er macht aus Befunden Zeilen, die jemand sieht (TIM-05,
+ * TIM-06, TIM-14).
+ *
+ * `pruefung.ts` beantwortet die Frage „ist diese Person ueberlastet?" fuer
+ * einen Aufruf. Diese Datei stellt sie **fuer alle**, naechtlich, und schreibt
+ * das Ergebnis nach `planungs_konflikt` — dorthin, wo der Plan und der
+ * Konflikteingang es lesen.
+ *
+ * ## Warum nicht die Ansicht selbst rechnet
+ *
+ * Eine Seite, die beim Aufruf nachrechnet, zeigt im Zweifel etwas anderes als
+ * die Konfliktliste: zwei Wahrheiten ueber denselben Verstoss, und die
+ * Planerin sieht die, die zufaellig in ihrem Bildschirm steht. Erkannt wird
+ * einmal, gespeichert einmal, gelesen ueberall.
+ *
+ * ## Der Fingerabdruck ist die ganze Idempotenz
+ *
+ * `sha256(mandant + person + art + berliner Tag)` fuer Arbeitszeitbefunde:
+ * eine Tagesgrenze verletzt man **einmal am Tag**, gleichgueltig wie viele
+ * Schichten beigetragen haben. Waere der Zeitraum Teil des Abdrucks, praegte
+ * jede Verschiebung um eine Minute einen neuen Befund, waehrend der alte fuer
+ * immer offen stehen bliebe — und der Eingang fuellte sich mit Karteileichen,
+ * bis niemand mehr hinsieht.
+ *
+ * Fuer Ueberschneidungen dagegen zaehlt die einzelne Zuordnung: die Tagesform
+ * faltete zwei betroffene Schichten in eine Zeile, der Planer repariert eine,
+ * und die andere bleibt unzulaessig besetzt, ohne dass irgendetwas es sagt.
+ */
+import { createHash } from 'node:crypto';
+import { berlinKalendertag } from '../zeit/dauer.js';
+import { pruefeEinsatz, type Abfrage } from './pruefung.js';
+import type { ArbzgBefund } from '../zeit/arbzg.js';
+
+/** Die vier Konfliktarten der Datenbank. */
+export type KonfliktArt =
+  | 'ueberschneidung' | 'qualifikation_entfallen' | 'arbzg' | 'aufzeichnungsfrist';
+
+export interface DetektorBericht {
+  readonly geprueft: number;
+  readonly neu: number;
+  readonly bestaetigt: number;
+  readonly hinfaellig: number;
+}
+
+interface Kandidat {
+  readonly personId: string;
+  readonly anstellungId: string;
+  /**
+   * Die frueheste EIGENE Schicht des Tages — der Anker des Konflikts.
+   *
+   * Der Befund gilt dem Tag, nicht dieser Schicht: elf Stunden entstehen aus
+   * mehreren. Die Zeile braucht aber einen Weg hinein (`pk_anker` verlangt
+   * ihn, und DSH-04 auch), und der einzige, den der Planer in seinem
+   * Mandanten oeffnen kann, ist eine eigene Schicht. Die fremde zu nennen
+   * waere ohnehin K-06-widrig — er darf sie nicht sehen.
+   */
+  readonly einsatzId: string;
+  readonly beginn: Date;
+  readonly ende: Date;
+}
+
+/**
+ * Der Fingerabdruck eines Arbeitszeitbefundes.
+ *
+ * Exportiert, weil ein Abdruck, den nur der Schreiber kennt, sich nicht
+ * pruefen laesst — und weil der Test genau das tun muss: zweimal erkennen,
+ * einmal Zeile.
+ */
+export function arbzgFingerabdruck(
+  mandantId: string, personId: string, art: KonfliktArt, berlinTag: string,
+): string {
+  return createHash('sha256')
+    .update([mandantId, personId, art, berlinTag].join(''))
+    .digest('hex');
+}
+
+/** Der Abdruck einer Ueberschneidung — je Zuordnung, nicht je Tag. */
+export function ueberschneidungsFingerabdruck(
+  mandantId: string, personId: string, zuordnungId: string,
+): string {
+  return createHash('sha256')
+    .update([mandantId, personId, 'ueberschneidung', zuordnungId].join(''))
+    .digest('hex');
+}
+
+/**
+ * Prueft alle Personen mit Schichten im Fenster und schreibt die Befunde.
+ *
+ * Das Fenster ist bewusst klein zu halten: `app.arbzg_belastung` laesst
+ * hoechstens 35 Tage zu, und der Detektor ist ein Waechter, kein Export.
+ */
+export async function erkenneKonflikte(
+  db: Abfrage, mandantId: string, vonUtc: Date, bisUtc: Date,
+): Promise<DetektorBericht> {
+  const kandidaten = await ladeKandidaten(db, mandantId, vonUtc, bisUtc);
+  let neu = 0;
+  let bestaetigt = 0;
+  const gesehen = new Set<string>();
+
+  for (const k of kandidaten) {
+    const ergebnis = await pruefeEinsatz(db, k.personId, k.beginn, k.ende);
+    for (const befund of ergebnis.befunde) {
+      const abdruck = arbzgFingerabdruck(mandantId, k.personId, 'arbzg', befund.kalendertag);
+      if (gesehen.has(abdruck)) continue;
+      gesehen.add(abdruck);
+      const war = await schreibeKonflikt(
+        db, mandantId, k, befund, abdruck, ergebnis.ueberGesellschaften,
+      );
+      if (war === 'neu') neu += 1;
+      else bestaetigt += 1;
+    }
+  }
+
+  const hinfaellig = await raeumeAuf(db, mandantId, vonUtc, bisUtc, gesehen);
+  return { geprueft: kandidaten.length, neu, bestaetigt, hinfaellig };
+}
+
+/**
+ * Eine Zeile je Person und Tag — nicht je Schicht.
+ *
+ * Zehn Schichten derselben Person an einem Tag ergaeben sonst zehn identische
+ * Pruefungen, und `app.arbzg_belastung` schriebe zehn Auditzeilen fuer
+ * dieselbe Frage. Der Uebertritt ueber die Mandantengrenze soll selten sein
+ * und sichtbar bleiben.
+ */
+async function ladeKandidaten(
+  db: Abfrage, mandantId: string, vonUtc: Date, bisUtc: Date,
+): Promise<readonly Kandidat[]> {
+  const zeilen = (await db.unsafe(
+    `select z.person_id,
+            min(z.anstellung_id::text)                       as anstellung_id,
+            (array_agg(e.id order by e.beginn_zeitpunkt))[1] as einsatz_id,
+            min(e.beginn_zeitpunkt)                          as beginn,
+            max(e.ende_zeitpunkt)                            as ende
+       from einsatz_zuordnung z
+       join einsatz e on e.mandant_id = z.mandant_id and e.id = z.einsatz_id
+      where z.mandant_id = $1
+        and z.entfernt_am is null
+        and e.storniert_am is null
+        and e.ende_zeitpunkt   > $2::timestamptz
+        and e.beginn_zeitpunkt < $3::timestamptz
+      group by z.person_id, (e.beginn_zeitpunkt at time zone 'Europe/Berlin')::date`,
+    [mandantId, vonUtc.toISOString(), bisUtc.toISOString()],
+  )) as Record<string, unknown>[];
+
+  return zeilen.map((z) => ({
+    personId: z['person_id'] as string,
+    anstellungId: z['anstellung_id'] as string,
+    einsatzId: z['einsatz_id'] as string,
+    beginn: new Date(z['beginn'] as string),
+    ende: new Date(z['ende'] as string),
+  }));
+}
+
+/**
+ * Schreibt oder bestaetigt einen Konflikt.
+ *
+ * `on conflict … do update` auf dem partiellen Index: derselbe Befund am
+ * naechsten Abend ist **dieselbe** Zeile, nicht die zweite. Der Status wird
+ * dabei NICHT zurueckgesetzt — sonst waere jede Quittung bis zum naechsten
+ * Lauf gueltig, und der Eingang haette am Morgen dieselben Karten wie am
+ * Abend.
+ */
+async function schreibeKonflikt(
+  db: Abfrage, mandantId: string, k: Kandidat, befund: ArbzgBefund,
+  abdruck: string, fremd: boolean,
+): Promise<'neu' | 'bestaetigt'> {
+  const zeilen = (await db.unsafe(
+    `insert into planungs_konflikt (
+       mandant_id, art, person_id, anstellung_id, einsatz_id,
+       zeitraum_beginn, zeitraum_ende, schwere, blockiert,
+       betrifft_fremden_mandant, details, fingerprint, erkannt_durch, erstellt_von_art
+     ) values (
+       $1, 'arbzg', $2, $3, $10, $4::timestamptz, $5::timestamptz, $6::verstoss_schwere, false,
+       $7, $8::jsonb, $9, 'detektor_job', 'system'
+     )
+     on conflict (mandant_id, fingerprint) where hinfaellig_am is null
+     do update set zeitraum_beginn = excluded.zeitraum_beginn,
+                   zeitraum_ende   = excluded.zeitraum_ende,
+                   schwere         = excluded.schwere,
+                   einsatz_id      = excluded.einsatz_id,
+                   details         = excluded.details
+     returning (xmax = 0) as neu`,
+    [
+      mandantId, k.personId, k.anstellungId,
+      k.beginn.toISOString(), k.ende.toISOString(), befund.schwere,
+      fremd,
+      JSON.stringify({
+        regel: befund.regel,
+        kalendertag: befund.kalendertag,
+        minuten: befund.minuten,
+        begruendung: befund.begruendung,
+      }),
+      abdruck, k.einsatzId,
+    ],
+  )) as { neu: boolean }[];
+  return zeilen[0]?.neu === true ? 'neu' : 'bestaetigt';
+}
+
+/**
+ * Was der Lauf nicht mehr findet, wird **hinfaellig** — nicht geloescht.
+ *
+ * Ein Konflikt, den jemand durch Umplanen aufgeloest hat, verschwindet nicht
+ * spurlos: er bekommt `hinfaellig_am` und faellt aus dem partiellen Index, so
+ * dass derselbe Fehler spaeter wieder erkannt werden kann. Geloescht waere er
+ * die Behauptung, es habe ihn nie gegeben (Invariante 8).
+ */
+async function raeumeAuf(
+  db: Abfrage, mandantId: string, vonUtc: Date, bisUtc: Date, gesehen: ReadonlySet<string>,
+): Promise<number> {
+  const zeilen = (await db.unsafe(
+    `update planungs_konflikt
+        set hinfaellig_am = now()
+      where mandant_id = $1
+        and art = 'arbzg'
+        and hinfaellig_am is null
+        and status = 'offen'
+        and zeitraum_ende   > $2::timestamptz
+        and zeitraum_beginn < $3::timestamptz
+        and not (fingerprint = any($4::text[]))
+      returning id`,
+    [mandantId, vonUtc.toISOString(), bisUtc.toISOString(), [...gesehen]],
+  )) as { id: string }[];
+  return zeilen.length;
+}
+
+/** Der Berliner Kalendertag eines Instants — fuer den Abdruck. */
+export function tagFuerAbdruck(instant: Date): string {
+  return berlinKalendertag(instant);
+}

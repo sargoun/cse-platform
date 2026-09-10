@@ -15,6 +15,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur, type Sitzung } from './harness.js';
 import { pruefeEinsatz, leseBelastung } from '../../src/server/services/arbzg/pruefung.js';
+import { erkenneKonflikte } from '../../src/server/services/arbzg/detektor.js';
 
 let f: Fixtur;
 const zufall = (): string => String(Math.random()).slice(2, 10);
@@ -222,5 +223,55 @@ describe('die Vorbedingungen der Definer-Funktion', () => {
     await expect(alsApp(sitzung, async (tx) =>
       leseBelastung(tx, f.fatima, new Date('2028-01-01T00:00:00Z'), new Date('2028-06-01T00:00:00Z')),
     )).rejects.toThrow(/zu gross/u);
+  });
+});
+
+describe('der Detektor macht aus Befunden Zeilen', () => {
+  it('schreibt einen Konflikt — und ein zweiter Lauf schreibt keinen zweiten', async () => {
+    await schichtMit(f.reinigung, f.fatimaReinigung, f.fatima, TAG, '06:00', '12:00');
+    await schichtMit(f.security, f.fatimaSecurity, f.fatima, TAG, '13:00', '18:00');
+    const sitzung = await planerin(f.reinigung);
+
+    const erste = await alsApp(sitzung, async (tx) =>
+      erkenneKonflikte(tx, f.reinigung,
+        new Date(`${TAG}T00:00:00Z`), new Date('2028-05-16T00:00:00Z')));
+    expect(erste.neu).toBeGreaterThan(0);
+
+    const zweite = await alsApp(sitzung, async (tx) =>
+      erkenneKonflikte(tx, f.reinigung,
+        new Date(`${TAG}T00:00:00Z`), new Date('2028-05-16T00:00:00Z')));
+    expect(zweite.neu, 'derselbe Befund ist dieselbe Zeile').toBe(0);
+    expect(zweite.bestaetigt).toBe(erste.neu);
+
+    const [z] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from planungs_konflikt
+        where mandant_id = $1 and art = 'arbzg' and hinfaellig_am is null`, [f.reinigung]);
+    expect(z!.n).toBe(erste.neu);
+  });
+
+  it('markiert einen aufgeloesten Konflikt als hinfaellig statt ihn zu loeschen', async () => {
+    const eins = await schichtMit(f.reinigung, f.fatimaReinigung, f.fatima, TAG, '06:00', '12:00');
+    await schichtMit(f.security, f.fatimaSecurity, f.fatima, TAG, '13:00', '18:00');
+    const sitzung = await planerin(f.reinigung);
+    const fenster = [new Date(`${TAG}T00:00:00Z`), new Date('2028-05-16T00:00:00Z')] as const;
+
+    await alsApp(sitzung, async (tx) => erkenneKonflikte(tx, f.reinigung, ...fenster));
+
+    // Umgeplant: die Reinigungsschicht wird zurueckgenommen.
+    await sql.unsafe(
+      `update einsatz_zuordnung set entfernt_am = now() where einsatz_id = $1`, [eins]);
+
+    const zweite = await alsApp(sitzung, async (tx) =>
+      erkenneKonflikte(tx, f.reinigung, ...fenster));
+    expect(zweite.hinfaellig).toBeGreaterThan(0);
+
+    const [offen] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from planungs_konflikt
+        where mandant_id = $1 and hinfaellig_am is null`, [f.reinigung]);
+    expect(offen!.n).toBe(0);
+    // Geloescht ist nichts — die Zeile steht noch da, nur nicht mehr offen.
+    const [alle] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from planungs_konflikt where mandant_id = $1`, [f.reinigung]);
+    expect(alle!.n).toBeGreaterThan(0);
   });
 });

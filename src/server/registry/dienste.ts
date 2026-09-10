@@ -107,6 +107,15 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'dienstplan.arbzg_pruefen',
   },
   /**
+   * Der naechtliche Detektor. Er schreibt `planungs_konflikt` — in der
+   * Gruppenansicht laeuft er darum nicht (Invariante 10); er laeuft ohnehin
+   * als `cse_job` je Mandant.
+   */
+  {
+    modul: 'dienstplan', pfad: 'arbzg/detektor',
+    schreibend: true, schreibRecht: 'dienstplan.arbzg_pruefen',
+  },
+  /**
    * Die Vorkommnisrechnung kennt keine Datenbank — sie sagt nur, WELCHE
    * Schichten eine Serie im Fenster verlangt.
    */
