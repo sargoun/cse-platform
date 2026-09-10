@@ -1595,6 +1595,56 @@ wird. Beide liegen in `services/zeit/dauer.ts` neben den K-11-Faellen, und
 beide sind mit einem Sommer-, einem Winter- und beiden Umstellungstagen
 geprueft (Invariante 2).
 
+### D-99 · Das UWG-Sendetor haengt jetzt wirklich — und zwei Umgehungen sind zu
+
+`kern.uwg_sendetor()` war definiert, kommentiert (`BEFORE INSERT auf jeder
+Ausgangsspur`) und an KEIN Ereignis gehaengt. Die Regel stand da, und jede
+Zeile ging daran vorbei. Ein Test gegen `app.darf_kontaktiert_werden` blieb
+dabei gruen, waehrend der Sendepfad offen stand — die teuerste Sorte
+Sicherheit: eine, die man geprueft zu haben glaubt.
+
+**Entschieden:** der Ausloeser haengt an `lead_aktivitaet`, und drei Dinge
+kommen dazu.
+
+1. **`zweck = 'intern'` ist kein Freibrief.** `app.darf_kontaktiert_werden`
+   beantwortet `intern` mit `true` und ueberspringt Einwilligung, Widerspruch
+   und Kundenstatus — richtig fuer eine Notiz an einen Kollegen, ein offenes
+   Tor an einer ausgehenden E-Mail. Eine Mail an einen `ansprechpartner` geht
+   per Definition nach draussen und wird abgewiesen.
+2. **Ein fehlender Kanal ist eine Luecke, kein Freibrief.** `kanal not in (…)`
+   ergibt bei NULL weder wahr noch falsch; welchen Zweig die Zeile nahm, war
+   Zufall. Eine ausgehende E-Mail oder ein Anruf OHNE Kanal wird jetzt
+   abgewiesen, sonst waere das Tor mit einer leeren Spalte zu umgehen.
+3. **Der Beleg wird gezogen, nicht behauptet.** `rechtsgrundlage_snapshot`
+   fuellt der Ausloeser aus dem lebenden Kontakt — ueber den schmalen Leser
+   `app.rechtsgrundlage_von`, denn die Spalte bleibt `cse_app` entzogen
+   (K-05). Ohne den Schnappschuss stuende in der Aufzeichnung, DASS gesendet
+   wurde, aber nicht, warum es gedurft war — und genau das fragt eine
+   Abmahnung.
+
+Folge, sichtbar und gewollt: die Antwort auf eine Webanfrage braucht einen
+aufgezeichneten Empfaenger. Die Formularannahme legt heute keinen
+`ansprechpartner` an; bis sie es tut, verlangt die Datenbank, dass ihn jemand
+anlegt. Das ist die richtige Reihenfolge — eine Antwort, von der niemand sagen
+kann, an wen sie ging, belegt im Streitfall nichts.
+
+---
+
+### D-100 · Der Verantwortliche eines Auftrags gehoert zu dieser Gesellschaft
+
+`auftrag.verantwortlich_benutzer_id` zeigt auf `benutzer` — global, also traegt
+der Fremdschluessel den Mandanten nicht mit. Das Formular fuellt seine
+Auswahlliste mandantengefiltert, aber eine Auswahlliste ist keine Grenze: ein
+von Hand abgeschickter POST setzt jede id, und der Auftrag der Reinigung haette
+einen Verantwortlichen, der nur bei der Security arbeitet.
+
+**Entschieden:** die Grenze liegt in der DATENBANK, nicht in der Route — ein
+Ausloeser auf INSERT und UPDATE gegen `app.ist_mitglied(benutzer, mandant)`,
+`security definer`, weil `benutzer_mandant` unter RLS steht und der Aufrufer
+dort die Mitgliedschaften seiner Kollegen nicht sieht. Entzogene und
+abgelaufene Mitgliedschaften zaehlen nicht. Gleiches gilt fuer das Umhaengen:
+ein spaeterer Wechsel auf ein fremdes Konto ist derselbe Fehler.
+
 ---
 
 ## Carried over from the Phase 0 review — not client questions

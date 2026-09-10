@@ -91,7 +91,21 @@ async function darf(mandantId: string, kontaktId: string,
   );
 }
 
-beforeEach(async () => { f = await seed(); chef = await konto(); });
+beforeEach(async () => {
+  f = await seed();
+  chef = await konto();
+  /**
+   * Eine Rolle, weil (6) wirklich SCHREIBT. Das Tor selbst prueft kein Recht
+   * — es prueft den Bereich —, aber die Policy auf `lead_aktivitaet` verlangt
+   * `crm.schreiben`, und ein Test, der schon an ihr scheitert, saehe wie ein
+   * funktionierendes Tor aus, ohne eines zu pruefen.
+   */
+  const [r] = await sql.unsafe<{ id: string }[]>(
+    `select id from rolle where schluessel = 'leitung' and mandant_id is null`);
+  await sql.unsafe(
+    `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id) values ($1,$2,$3)`,
+    [chef, f.reinigung, r!.id]);
+});
 afterAll(schliessen);
 
 describe('(1) fail closed — was unklar ist, ist verboten', () => {
@@ -223,5 +237,106 @@ describe('(5) eine Grundlage OHNE Beleg ist keine Grundlage', () => {
       `insert into ansprechpartner (mandant_id, nachname, rechtsgrundlage)
        values ($1, 'Unbelegt', 'einwilligung')`, [f.reinigung],
     )).rejects.toThrow(/grundlage_belegt/u);
+  });
+});
+
+describe('(6) Das Sendetor haengt WIRKLICH an lead_aktivitaet', () => {
+  /**
+   * Bis zur Durchsicht war `kern.uwg_sendetor` eine Funktion, die niemand
+   * aufruft: definiert, kommentiert — und an kein Ereignis gehaengt. Die
+   * Regel stand da, und jede Zeile ging daran vorbei.
+   *
+   * Diese Tests pruefen deshalb nicht die Funktion, sondern das INSERT. Ein
+   * Test gegen `app.darf_kontaktiert_werden` waere weiterhin gruen gewesen,
+   * waehrend der Sendepfad offen stand.
+   */
+  async function schreibe(mandantId: string, kundeId: string, zeile: {
+    ansprechpartnerId?: string | null; typ?: string; richtung?: string;
+    zweck?: string; kanal?: string | null;
+  }): Promise<readonly { rechtsgrundlage_snapshot: string | null }[]> {
+    return alsApp(
+      { scope: 'mandant', mandantId, benutzerId: chef, portal: 'intern', readonly: false },
+      async (tx) => tx.unsafe(
+        `insert into lead_aktivitaet
+           (mandant_id, kunde_id, ansprechpartner_id, typ, richtung, zweck, kanal, betreff)
+         values ($1, $2, $3, $4::aktivitaet_typ, $5::aktivitaet_richtung,
+                 $6::kommunikationszweck, $7, 'Test')
+         returning rechtsgrundlage_snapshot::text`,
+        [mandantId, kundeId, zeile.ansprechpartnerId ?? null, zeile.typ ?? 'email',
+         zeile.richtung ?? 'ausgehend', zeile.zweck ?? 'werbung',
+         zeile.kanal === undefined ? 'email' : zeile.kanal]),
+    );
+  }
+
+  it('eine Werbemail an einen Kontakt OHNE Grundlage wird abgewiesen', async () => {
+    const kd = await kunde(f.reinigung);
+    const ap = await kontakt(f.reinigung, kd, { rechtsgrundlage: 'keine' });
+    await expect(schreibe(f.reinigung, kd, { ansprechpartnerId: ap }))
+      .rejects.toThrow(/§ ?7 UWG/u);
+  });
+
+  it('dieselbe Mail an einen Bestandskunden geht — und traegt die Grundlage', async () => {
+    const kd = await kunde(f.reinigung);
+    const ap = await kontakt(f.reinigung, kd, { rechtsgrundlage: 'bestandskunde' });
+    const [z] = await schreibe(f.reinigung, kd, { ansprechpartnerId: ap });
+    // Der Beleg wird vom Ausloeser gezogen, nicht vom Aufrufer behauptet.
+    expect(z!.rechtsgrundlage_snapshot).toBe('bestandskunde');
+  });
+
+  it('ein Werbewiderspruch nach der Einwilligung stoppt den Versand SOFORT', async () => {
+    const kd = await kunde(f.reinigung);
+    const ap = await kontakt(f.reinigung, kd, {
+      rechtsgrundlage: 'einwilligung', kanaele: ['email'],
+    });
+    // Erst geht sie.
+    await schreibe(f.reinigung, kd, { ansprechpartnerId: ap });
+    await sql.unsafe(
+      `update ansprechpartner set werbewiderspruch_am = now() where id = $1`, [ap]);
+    // Und danach nicht mehr — gegen den LEBENDEN Kontakt, nicht gegen einen
+    // Wert, den jemand Minuten vorher gelesen hat.
+    await expect(schreibe(f.reinigung, kd, { ansprechpartnerId: ap }))
+      .rejects.toThrow(/§ ?7 UWG/u);
+  });
+
+  it('ohne Ansprechpartner ist ein ausgehender Kontakt nicht belegbar', async () => {
+    const kd = await kunde(f.reinigung);
+    await expect(schreibe(f.reinigung, kd, { ansprechpartnerId: null }))
+      .rejects.toThrow(/ohne Ansprechpartner/u);
+  });
+
+  /**
+   * Die beiden Umgehungen, die die Durchsicht benannt hat. Beide waren
+   * gefaehrlich, WEIL sie plausibel aussehen: ein Zweck und eine leere Spalte.
+   */
+  it('`zweck = intern` ist kein Freibrief fuer eine ausgehende Mail', async () => {
+    const kd = await kunde(f.reinigung);
+    const ap = await kontakt(f.reinigung, kd, { rechtsgrundlage: 'keine' });
+    // `app.darf_kontaktiert_werden` sagt zu 'intern' ausdruecklich true …
+    expect(await darf(f.reinigung, ap, 'email', 'intern')).toBe(true);
+    // … und das Sendetor laesst die Zeile trotzdem nicht durch.
+    await expect(schreibe(f.reinigung, kd, { ansprechpartnerId: ap, zweck: 'intern' }))
+      .rejects.toThrow(/nie 'intern'/u);
+  });
+
+  it('eine weggelassene Kanalspalte umgeht das Tor nicht', async () => {
+    const kd = await kunde(f.reinigung);
+    const ap = await kontakt(f.reinigung, kd, { rechtsgrundlage: 'keine' });
+    await expect(schreibe(f.reinigung, kd, { ansprechpartnerId: ap, kanal: null }))
+      .rejects.toThrow(/ohne Kanal/u);
+  });
+
+  it('eine interne Notiz und ein eingehender Anruf bleiben frei', async () => {
+    const kd = await kunde(f.reinigung);
+    const ap = await kontakt(f.reinigung, kd, { rechtsgrundlage: 'keine' });
+    await schreibe(f.reinigung, kd, {
+      ansprechpartnerId: ap, typ: 'notiz', richtung: 'intern', zweck: 'intern', kanal: null,
+    });
+    await schreibe(f.reinigung, kd, {
+      ansprechpartnerId: ap, typ: 'anruf', richtung: 'eingehend',
+    });
+    // Ein Termin ohne Kanal ist kein elektronischer Kontakt.
+    await schreibe(f.reinigung, kd, {
+      ansprechpartnerId: ap, typ: 'termin', zweck: 'vertraglich', kanal: null,
+    });
   });
 });

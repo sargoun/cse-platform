@@ -815,26 +815,104 @@ grant execute on function app.firma_kandidaten(text, char) to cse_app;
  * hier nicht mehr. Damit kann eine Genehmigung, die zwischenzeitlich durch
  * einen Widerspruch ueberholt wurde, nicht mehr ausgefuehrt werden.
  */
+/**
+ * Die Rechtsgrundlage EINES Kontakts — ein Feld, geprueft, ueber einen
+ * Definer.
+ *
+ * `ansprechpartner.rechtsgrundlage` ist `cse_app` entzogen (K-05), und das
+ * bleibt so: sie zurueckzugeben, damit ein Ausloeser sie lesen kann, gaebe
+ * jeder Abfrage im Portal denselben Blick. Stattdessen dieser Leser — eine
+ * Spalte, mit ausgeschriebener Mandantenpruefung wie in
+ * `app.darf_kontaktiert_werden`, damit er nicht zum Orakel ueber fremde ids
+ * wird (AUT-06).
+ */
+create function app.rechtsgrundlage_von(p_ansprechpartner uuid, p_mandant uuid)
+returns rechtsgrundlage
+language sql stable security definer set search_path = pg_catalog, public, app as $$
+  select ap.rechtsgrundlage from public.ansprechpartner ap
+   where ap.id = p_ansprechpartner and ap.mandant_id = p_mandant
+$$;
+
+grant execute on function app.rechtsgrundlage_von(uuid, uuid) to cse_app, cse_job;
+
 create function kern.uwg_sendetor() returns trigger
 language plpgsql set search_path = pg_catalog, public, app as $$
+declare
+  v_grundlage rechtsgrundlage;
 begin
   if new.richtung <> 'ausgehend' then return new; end if;
+
+  /**
+   * Ein fehlender Kanal ist eine LUECKE, kein Freibrief.
+   *
+   * `new.kanal not in (...)` ergibt bei NULL weder wahr noch falsch, und die
+   * Zeile faellt durch — welchen Zweig sie dann nimmt, war Zufall. Hier steht
+   * die Entscheidung: eine ausgehende E-Mail oder ein ausgehender Anruf OHNE
+   * Kanal ist kein Sonderfall, sondern eine Aufzeichnung, die ihren eigenen
+   * Weg nicht nennt. Sonst waere das Tor mit einer weggelassenen Spalte zu
+   * umgehen. Termine, Aufgaben und Notizen brauchen keinen Kanal.
+   */
+  if new.kanal is null then
+    if new.typ in ('email','anruf') then
+      raise exception 'Ausgehende %-Aktivitaet ohne Kanal ist nicht belegbar (§7 UWG)', new.typ
+        using errcode = 'check_violation',
+              hint = 'kanal setzen: email, telefon, sms, post oder whatsapp.';
+    end if;
+    return new;
+  end if;
+
   if new.kanal not in ('email','telefon','sms','post','whatsapp') then return new; end if;
   if new.ansprechpartner_id is null then
     raise exception 'Ein ausgehender Kontakt ohne Ansprechpartner ist nicht belegbar (§7 UWG)'
       using errcode = 'check_violation';
   end if;
+
+  /**
+   * `intern` ist KEIN Zweck fuer einen ausgehenden elektronischen Kontakt.
+   *
+   * `app.darf_kontaktiert_werden` beantwortet `intern` mit `true` und
+   * ueberspringt dabei Einwilligung, Widerspruch und Kundenstatus — richtig
+   * fuer eine Notiz an einen Kollegen, und ein offenes Tor, sobald dieselbe
+   * Marke an einer E-Mail nach draussen haengt. Eine E-Mail an einen
+   * `ansprechpartner` geht per Definition nach draussen. Sie wird deshalb
+   * hier abgewiesen, statt weitergereicht.
+   */
+  if new.zweck = 'intern' then
+    raise exception 'Ein ausgehender Kontakt ueber % ist nie ''intern'' (§7 UWG)', new.kanal
+      using errcode = 'check_violation',
+            hint = 'Zweck vertraglich, transaktional oder werbung waehlen.';
+  end if;
+
   if not app.darf_kontaktiert_werden(new.ansprechpartner_id, new.kanal,
                                      coalesce(new.zweck::text, 'werbung')) then
     raise exception 'Kontakt nach § 7 UWG / Art. 21 DSGVO nicht zulaessig (Kanal %, Zweck %)',
       new.kanal, coalesce(new.zweck::text, 'werbung')
       using errcode = 'insufficient_privilege';
   end if;
+
+  /**
+   * Und der BELEG: auf welcher Grundlage dieser Kontakt zulaessig war.
+   *
+   * Ohne ihn stuende in der Aufzeichnung, DASS gesendet wurde, aber nicht,
+   * WARUM es gedurft war — und genau das fragt eine Abmahnung. Der Wert wird
+   * hier gezogen und nicht vom Aufrufer uebernommen: was der Aufrufer
+   * Minuten vorher gelesen hat, gilt in diesem Moment vielleicht nicht mehr.
+   */
+  v_grundlage := app.rechtsgrundlage_von(new.ansprechpartner_id, new.mandant_id);
+  new.rechtsgrundlage_snapshot := coalesce(v_grundlage, 'keine');
   return new;
 end $$;
 
 comment on function kern.uwg_sendetor() is
   'BEFORE INSERT auf jeder Ausgangsspur: wertet app.darf_kontaktiert_werden gegen den LEBENDEN Kontakt neu aus (§5.4).';
+
+/**
+ * Und hier haengt es. Ohne diese Zeile war das Tor eine Funktion, die
+ * niemand aufruft — die Regel stand da, und jede Zeile ging daran vorbei.
+ */
+create trigger trg_lead_aktivitaet_uwg_sendetor
+  before insert on lead_aktivitaet
+  for each row execute function kern.uwg_sendetor();
 
 -- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0020)
 -- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.

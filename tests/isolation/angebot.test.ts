@@ -715,3 +715,67 @@ describe('(8) Ein zweites Recht, das das Tor der Seite nicht verlangt', () => {
     expect(wirklich!.n).toBe('1');
   });
 });
+
+describe('(9) Der Verantwortliche eines Auftrags gehoert zu DIESER Gesellschaft', () => {
+  /**
+   * Der Fremdschluessel zeigt auf `benutzer` — global, ohne Mandanten. Die
+   * Auswahlliste im Formular ist mandantengefiltert, aber eine Auswahlliste
+   * ist keine Grenze: ein von Hand abgeschickter POST setzt jede id. Der
+   * Auftrag der Reinigung haette dann einen Verantwortlichen, der nur bei der
+   * Security arbeitet — und das faellt erst auf, wenn ihn jemand anruft.
+   */
+  async function auftrag(mandant: string, kundeId: string,
+                         verantwortlich: string): Promise<readonly { id: string }[]> {
+    return sql.unsafe<{ id: string }[]>(
+      `insert into auftrag (mandant_id, auftragsnummer, kunde_id, art, bezeichnung,
+                            verantwortlich_benutzer_id, start_datum)
+       values ($1,$2,$3,'rahmenvertrag','Unterhaltsreinigung',$4,'2026-04-01')
+       returning id`,
+      [mandant, `AU-2026-${zufall().slice(0, 5)}`, kundeId, verantwortlich]);
+  }
+
+  it('ein Konto AUS EINER ANDEREN Gesellschaft wird abgewiesen', async () => {
+    const fremd = await konto();
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id) values ($1,$2,$3)`,
+      [fremd, f.security, await rolleId('leitung')]);
+    const k = await kunde(f.reinigung);
+    await expect(auftrag(f.reinigung, k, fremd))
+      .rejects.toThrow(/gehoert nicht zu dieser Gesellschaft/u);
+  });
+
+  it('ein Konto ganz OHNE Mitgliedschaft ebenso', async () => {
+    const k = await kunde(f.reinigung);
+    await expect(auftrag(f.reinigung, k, await konto()))
+      .rejects.toThrow(/gehoert nicht zu dieser Gesellschaft/u);
+  });
+
+  it('das eigene Konto geht', async () => {
+    const k = await kunde(f.reinigung);
+    const [z] = await auftrag(f.reinigung, k, chef);
+    expect(z!.id).toBeDefined();
+  });
+
+  it('eine ENTZOGENE Mitgliedschaft zaehlt nicht mehr', async () => {
+    const weg = await konto();
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, entzogen_am)
+       values ($1,$2,$3, now())`,
+      [weg, f.reinigung, await rolleId('leitung')]);
+    const k = await kunde(f.reinigung);
+    await expect(auftrag(f.reinigung, k, weg))
+      .rejects.toThrow(/gehoert nicht zu dieser Gesellschaft/u);
+  });
+
+  it('und das UMHAENGEN auf ein fremdes Konto wird ebenso abgewiesen', async () => {
+    const fremd = await konto();
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id) values ($1,$2,$3)`,
+      [fremd, f.security, await rolleId('leitung')]);
+    const k = await kunde(f.reinigung);
+    const [z] = await auftrag(f.reinigung, k, chef);
+    await expect(sql.unsafe(
+      `update auftrag set verantwortlich_benutzer_id = $2 where id = $1`, [z!.id, fremd],
+    )).rejects.toThrow(/gehoert nicht zu dieser Gesellschaft/u);
+  });
+});

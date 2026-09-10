@@ -178,6 +178,73 @@ create policy p_kunde_decke on auftrag as restrictive for all to cse_app
 
 grant select, insert, update on auftrag to cse_app;
 
+-- ---------------------------------------------------------------------------
+-- Der Verantwortliche gehoert zu DIESER Gesellschaft.
+-- ---------------------------------------------------------------------------
+
+/**
+ * Ist dieses Konto zum Stichtag Mitglied dieser Gesellschaft?
+ *
+ * `security definer`, weil `benutzer_mandant` unter RLS steht: der Ausloeser
+ * unten laeuft als der AUFRUFENDE Rolle, und die sieht dort nicht die
+ * Mitgliedschaften ihrer Kollegen. Ein Praedikat, das deshalb `false` saegte,
+ * wiese jeden gueltigen Verantwortlichen ausser dem Aufrufer selbst ab.
+ *
+ * Zurueckgegeben wird nur ja/nein — nie eine id, nie ein Name. Wer eine
+ * fremde Benutzer-id durchprobiert, erfaehrt daraus nichts ueber sie, ausser
+ * dass sie in DIESER Gesellschaft nicht arbeitet, und das durfte er ohnehin
+ * wissen, weil er sonst nichts eintragen koennte.
+ */
+create function app.ist_mitglied(p_benutzer uuid, p_mandant uuid,
+                                 p_stichtag date default current_date)
+returns boolean
+language sql stable security definer set search_path = pg_catalog, public, app as $$
+  select exists (
+    select 1 from public.benutzer_mandant bm
+     where bm.benutzer_id = p_benutzer
+       and bm.mandant_id  = p_mandant
+       and bm.entzogen_am is null
+       and bm.gueltig_ab <= p_stichtag
+       and (bm.gueltig_bis is null or bm.gueltig_bis >= p_stichtag))
+$$;
+
+grant execute on function app.ist_mitglied(uuid, uuid, date) to cse_app, cse_job;
+
+/**
+ * Und die Regel darauf.
+ *
+ * `verantwortlich_benutzer_id` zeigt auf `benutzer` — eine GLOBALE Tabelle,
+ * also traegt der Fremdschluessel den Mandanten nicht mit. Das Formular
+ * fuellt seine Auswahlliste zwar mandantengefiltert, aber eine Auswahlliste
+ * ist keine Grenze: ein von Hand abgeschickter POST setzt jede beliebige id.
+ * Der Auftrag der Reinigung haette dann einen Verantwortlichen, der nur bei
+ * der Security arbeitet — sichtbar erst, wenn jemand ihn anruft.
+ *
+ * Geprueft wird beim Anlegen UND beim Umhaengen: ein spaeterer Wechsel auf
+ * ein fremdes Konto ist derselbe Fehler.
+ */
+create function kern.auftrag_verantwortlich_im_mandant() returns trigger
+language plpgsql set search_path = pg_catalog, public, app as $$
+begin
+  if new.verantwortlich_benutzer_id is null then return new; end if;
+  if tg_op = 'UPDATE'
+     and old.verantwortlich_benutzer_id is not distinct from new.verantwortlich_benutzer_id
+  then return new; end if;
+
+  if not app.ist_mitglied(new.verantwortlich_benutzer_id, new.mandant_id) then
+    raise exception 'Der Verantwortliche gehoert nicht zu dieser Gesellschaft'
+      using errcode = 'check_violation',
+            detail  = 'auftrag.verantwortlich_benutzer_id zeigt auf ein Konto ohne '
+                      || 'gueltige benutzer_mandant-Zeile in diesem Mandanten.',
+            hint    = 'Erst die Mitgliedschaft anlegen, dann den Auftrag zuweisen.';
+  end if;
+  return new;
+end $$;
+
+create trigger trg_auftrag_verantwortlich_im_mandant
+  before insert or update on auftrag
+  for each row execute function kern.auftrag_verantwortlich_im_mandant();
+
 -- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0025)
 -- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
 
