@@ -28,12 +28,24 @@ export const NAVIGATION: readonly NaviEintrag[] = [
   { schluessel: 'dashboard', label: 'Übersicht', pfad: '', recht: 'bericht.dashboard_lesen', gruppe: true, icon: 'uebersicht' },
   { schluessel: 'crm', label: 'CRM', pfad: 'crm', recht: 'crm.lesen', gruppe: false, icon: 'crm' },
   { schluessel: 'objekte', label: 'Objekte', pfad: 'objekte', recht: 'objekt.lesen', gruppe: true, icon: 'objekt' },
-  { schluessel: 'dienstplan', label: 'Dienstplan', pfad: 'dienstplan', recht: 'dienstplan.lesen', gruppe: true, icon: 'dienstplan' },
+  /**
+   * `dienstplan/woche`, nicht `dienstplan`.
+   *
+   * Den nackten Pfad gibt es nicht — die Seitenkarte kennt `woche`, `monat`,
+   * `tag`, `serien`, `konflikte` und `einsatz/[id]`, aber keine Wurzel. Der
+   * Eintrag zeigte darum auf einen 404, und zwar den einzigen im Portal, den
+   * jeder Benutzer als erstes trifft: die Sidebar. Die Tab-Leiste zeigte
+   * laengst auf `woche`; hier stand die zweite, falsche Fassung.
+   */
+  { schluessel: 'dienstplan', label: 'Dienstplan', pfad: 'dienstplan/woche', recht: 'dienstplan.lesen', gruppe: true, icon: 'dienstplan' },
   { schluessel: 'zeiten', label: 'Zeiten', pfad: 'zeiten', recht: 'zeit.lesen', gruppe: true, icon: 'zeit' },
-  { schluessel: 'personal', label: 'Personal', pfad: 'personal', recht: 'personal.lesen', gruppe: true, icon: 'personal' },
+  // `personal/anstellungen`: den nackten Pfad kennt die Seitenkarte nicht.
+  { schluessel: 'personal', label: 'Personal', pfad: 'personal/anstellungen', recht: 'personal.lesen', gruppe: true, icon: 'personal' },
   { schluessel: 'angebote', label: 'Angebote', pfad: 'angebote', recht: 'angebot.lesen', gruppe: true, icon: 'angebot' },
   { schluessel: 'auftraege', label: 'Aufträge', pfad: 'auftraege', recht: 'auftrag.lesen', gruppe: true, icon: 'auftrag' },
-  { schluessel: 'rechnungen', label: 'Rechnungen', pfad: 'rechnungen', recht: 'finanzen.lesen', gruppe: true, icon: 'rechnung' },
+  // `finanzen/rechnungen`: die Rechnungen liegen unter `finanzen`, und `rechnungen`
+  // allein gibt es als Route nicht — der Punkt fuehrte auf einen 404.
+  { schluessel: 'rechnungen', label: 'Rechnungen', pfad: 'finanzen/rechnungen', recht: 'finanzen.lesen', gruppe: true, icon: 'rechnung' },
   { schluessel: 'dokumente', label: 'Dokumente', pfad: 'dokumente', recht: 'dokument.lesen', gruppe: true, icon: 'dokument' },
   { schluessel: 'einstellungen', label: 'Einstellungen', pfad: 'einstellungen', recht: 'system.einstellung_lesen', gruppe: false, icon: 'einstellungen' },
 ] as const;
