@@ -1,5 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
+import { istGleicherUrsprung } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
@@ -24,16 +25,6 @@ import { bestaetigeKalkulation, KalkulationFehler }
  * gesagt hat.
  */
 export const dynamic = 'force-dynamic';
-
-function istGleicherUrsprung(anfrage: NextRequest): boolean {
-  const origin = anfrage.headers.get('origin');
-  if (origin === null) return false;
-  try {
-    return new URL(origin).host === anfrage.nextUrl.host;
-  } catch {
-    return false;
-  }
-}
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (!istGleicherUrsprung(anfrage)) {

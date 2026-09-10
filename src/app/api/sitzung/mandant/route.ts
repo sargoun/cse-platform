@@ -1,5 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
+import { istGleicherUrsprung } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { wechsleMandant, type Wechsel, type Wechselziel } from '@/server/auth/switch-mandant';
@@ -21,18 +22,6 @@ import { wechsleMandant, type Wechsel, type Wechselziel } from '@/server/auth/sw
  * JSON-Aufruf mit JSON. Beides derselbe Weg; die Weiche ist nur die Darstellung.
  */
 export const dynamic = 'force-dynamic';
-
-function istGleicherUrsprung(anfrage: NextRequest): boolean {
-  const origin = anfrage.headers.get('origin');
-  // Ein Formular ohne `Origin` gibt es in keinem unterstuetzten Browser mehr;
-  // fehlt er, ist der Aufruf kein Browserformular und wird abgewiesen.
-  if (origin === null) return false;
-  try {
-    return new URL(origin).host === anfrage.nextUrl.host;
-  } catch {
-    return false;
-  }
-}
 
 async function zielAus(anfrage: NextRequest): Promise<Wechselziel | null> {
   const typ = anfrage.headers.get('content-type') ?? '';

@@ -1,5 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
+import { istGleicherUrsprung } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
@@ -30,16 +31,6 @@ import { NummernkreisFehler } from '@/server/services/finanz/nummernkreis';
 export const dynamic = 'force-dynamic';
 
 type Aktion = 'aus_raumbuch' | 'versenden' | 'in_auftrag';
-
-function istGleicherUrsprung(anfrage: NextRequest): boolean {
-  const origin = anfrage.headers.get('origin');
-  if (origin === null) return false;
-  try {
-    return new URL(origin).host === anfrage.nextUrl.host;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * `| undefined` steht ausdruecklich da, nicht nur `?`.
