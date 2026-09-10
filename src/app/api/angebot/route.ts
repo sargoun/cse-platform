@@ -33,6 +33,29 @@ export const dynamic = 'force-dynamic';
 type Aktion = 'aus_raumbuch' | 'versenden' | 'in_auftrag';
 
 /**
+ * Je Handlung ihr eigenes Recht — nicht ein Recht fuer alle drei.
+ *
+ * Vorher stand vor der Verzweigung EINE Pruefung auf `angebot.versenden`, und
+ * darunter lagen drei verschiedene Handlungen. Der Katalog fuehrt
+ * `angebot.annahme_erfassen` als eigenes Recht, und `04-SEITENKARTE.md` haengt
+ * die Annahme daran: eine Rolle, die versenden darf, konnte damit ein Angebot
+ * als angenommen buchen und einen Auftrag anlegen — eine kaufmaennische
+ * Zusage, fuer die sie nie berechtigt wurde.
+ *
+ * Ein unbekannter Wert bekommt das ENGSTE Recht, nicht das weiteste: er faellt
+ * ohnehin gleich auf `ungueltig`, aber die Reihenfolge der Pruefungen soll
+ * nicht darueber entscheiden, ob das auffaellt.
+ */
+function rechtFuer(aktion: Aktion | undefined): string {
+  switch (aktion) {
+    case 'aus_raumbuch': return 'angebot.schreiben';
+    case 'versenden': return 'angebot.versenden';
+    case 'in_auftrag': return 'angebot.annahme_erfassen';
+    default: return 'angebot.annahme_erfassen';
+  }
+}
+
+/**
  * `| undefined` steht ausdruecklich da, nicht nur `?`.
  *
  * `exactOptionalPropertyTypes` unterscheidet "Feld fehlt" von "Feld ist
@@ -65,7 +88,23 @@ async function koerperAus(anfrage: NextRequest): Promise<Koerper> {
   };
 }
 
-const ARTEN = new Set(['einzelauftrag', 'rahmenvertrag', 'dauerauftrag', 'projekt']);
+/**
+ * Die Auftragsarten — als getypte Menge mit einem Waechter, nicht als
+ * `Set<string>` plus `as`.
+ *
+ * Vorher stand hier `art: art as 'einzelauftrag'`. Das ist eine Zusicherung an
+ * den Uebersetzer und aendert den LAUFZEITWERT nicht — gespeichert wurde also
+ * die richtige Art. Falsch war die Zusage: sie schaltete genau die Pruefung
+ * ab, die `AuftragAnlegen` traegt, und haette jede spaetere Aenderung an der
+ * Aufzaehlung stillschweigend durchgelassen. Ein Waechter sagt dasselbe, nur
+ * ueberpruefbar.
+ */
+const ARTEN = ['einzelauftrag', 'rahmenvertrag', 'dauerauftrag', 'projekt'] as const;
+type Auftragsart = (typeof ARTEN)[number];
+
+function istAuftragsart(wert: string): wert is Auftragsart {
+  return (ARTEN as readonly string[]).includes(wert);
+}
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (!istGleicherUrsprung(anfrage)) {
@@ -107,7 +146,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             portal: sitzung.portal,
             sitzungId: sitzung.sitzungId,
           },
-          { recht: 'angebot.versenden', schreibend: true },
+          { recht: rechtFuer(aktion), schreibend: true },
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
 
@@ -149,12 +188,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
 
         if (aktion === 'in_auftrag') {
           const { angebotId, art, startDatum } = koerper;
-          if (angebotId === undefined || art === undefined || !ARTEN.has(art)
+          if (angebotId === undefined || art === undefined || !istAuftragsart(art)
               || startDatum === undefined) {
             return { art: 'ungueltig' as const };
           }
           const auftrag = await wandleInAuftrag(dbSchicht, angebotId, {
-            art: art as 'einzelauftrag', verantwortlichBenutzerId: sitzung.benutzerId,
+            art, verantwortlichBenutzerId: sitzung.benutzerId,
             startDatum,
           });
           return { art: 'gewandelt' as const, angebotId, auftrag };

@@ -1810,6 +1810,52 @@ Stundenverrechnungssatz muss groesser als null sein; 0,00 € ist keine
 Bestaetigung, sondern eine leere Eingabe mit einem Komma.
 
 
+
+### D-108 · Jede Handlung des Angebots prueft ihr eigenes Recht
+
+`POST /api/angebot` traegt drei Handlungen — kalkulieren, versenden, in einen
+Auftrag wandeln — und prueft vor der Verzweigung EIN Recht: `angebot.versenden`.
+Der Katalog fuehrt `angebot.annahme_erfassen` als eigenes Recht, und
+`04-SEITENKARTE.md` haengt die Annahme daran. Eine Rolle, die versenden durfte,
+konnte damit ein Angebot als angenommen buchen und einen Auftrag anlegen — eine
+kaufmaennische Zusage, fuer die sie nie berechtigt wurde.
+
+**Entschieden:** `rechtFuer(aktion)` — `angebot.schreiben` fuers Kalkulieren,
+`angebot.versenden` fuers Versenden, `angebot.annahme_erfassen` fuer die
+Annahme. Ein unbekannter Wert bekommt das ENGSTE Recht, nicht das weiteste: er
+faellt ohnehin gleich auf `ungueltig`, aber die Reihenfolge der Pruefungen soll
+nicht darueber entscheiden, ob das auffaellt.
+
+### D-109 · Das Rueckkehrziel muss im eigenen Ursprung liegen
+
+`new URL(zurueck, basis)` ignoriert die Basis, sobald `zurueck` ABSOLUT ist:
+`new URL('https://boese.example', 'https://cse.example')` ergibt
+`https://boese.example`. Das Feld kommt aus dem Formular, also vom Aufrufer.
+Ein praeparierter POST schickte den angemeldeten Benutzer nach dem
+Raumbuch-Import auf eine fremde Seite — und der Weg dorthin begann sichtbar im
+eigenen Portal, was genau die Gutglaeubigkeit ist, auf die es ankommt.
+
+**Entschieden:** `internesZiel()` nimmt nur Pfad, Abfrage und Anker, und nur,
+wenn das aufgeloeste Ziel im eigenen Ursprung liegt; alles andere faellt still
+auf das Standardziel zurueck. Still, weil eine Fehlermeldung hier dem
+Angreifer mehr saegte als dem Benutzer.
+
+### D-110 · Eine Zusicherung ist keine Pruefung — `art` bekommt einen Waechter
+
+Der Befund lautete, `art: art as 'einzelauftrag'` speichere jeden Auftrag mit
+der falschen Art. Das stimmt nicht: `as` ist eine Zusicherung an den
+Uebersetzer und aendert den Laufzeitwert nicht — gespeichert wurde die
+richtige Art. Nachgeprueft und nicht uebernommen.
+
+Falsch war trotzdem die Zusage: sie schaltete genau die Pruefung ab, die
+`AuftragAnlegen` traegt, und haette jede spaetere Aenderung an der Aufzaehlung
+stillschweigend durchgelassen.
+
+**Entschieden:** `ARTEN` ist eine `as const`-Liste mit einem Typwaechter
+`istAuftragsart`. Dieselbe Aussage, nur ueberpruefbar — und `Set<string>` plus
+`as` verschwindet.
+
+
 ## Carried over from the Phase 0 review — not client questions
 
 Three items the review surfaced that are ours to do, recorded here so they are not
