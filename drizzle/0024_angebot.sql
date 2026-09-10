@@ -453,8 +453,26 @@ create policy t_mandant on angebot_steuer for select to cse_app
   using (mandant_id = app.aktiver_mandant()
          and (select app.hat_recht('angebot.lesen', app.aktiver_mandant())));
 
--- Geschrieben wird sie ausschliesslich vom Versandausloeser, der als
--- Eigentuemer laeuft; `cse_app` braucht dafuer kein INSERT-Recht.
+/**
+ * Geschrieben wird sie NUR im Versand — und das erzwingt der Ausloeser, nicht
+ * das fehlende Recht.
+ *
+ * Der Versandausloeser laeuft als der AUFRUFENDE Rolle (kein `security
+ * definer`), also braucht `cse_app` hier ein INSERT. Das ist keine Luecke:
+ * `angebot_nach_versand_unveraenderlich()` laesst ein INSERT ausschliesslich
+ * durch, solange der transaktionslokale Waechter die id genau dieses Angebots
+ * traegt — also innerhalb des Versands und sonst nie. UPDATE und DELETE sind
+ * unbedingt verboten.
+ *
+ * Die Alternative waere ein `security definer`-Ausloeser gewesen. Der haette
+ * unter FORCE RLS als Eigentuemer wiederum keine Policy getroffen und die
+ * Zeile ebenso wenig geschrieben — nur waere der Grund dann versteckt.
+ */
+create policy t_versand_schreiben on angebot_steuer for insert to cse_app
+  with check (mandant_id = app.aktiver_mandant()
+              and not app.ist_readonly()
+              and (select app.hat_recht('angebot.versenden', app.aktiver_mandant())));
+
 create policy t_kunde on angebot_steuer for select to cse_app
   using (app.scope() = 'kunde'
          and exists (select 1 from angebot a
@@ -470,7 +488,7 @@ create policy p_kunde_decke on angebot_steuer as restrictive for all to cse_app
                        and a.versendet_am is not null));
 
 grant select, insert, update on angebot, angebotsposition to cse_app;
-grant select on angebot_steuer to cse_app;
+grant select, insert on angebot_steuer to cse_app;
 
 -- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0024)
 -- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.

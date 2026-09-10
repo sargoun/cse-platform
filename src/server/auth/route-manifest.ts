@@ -61,6 +61,19 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + '§4.5) — plus den Trigger `kern.sitzung_mandant_pruefen`, der eine fremde Zeile '
       + 'auch dann abweist, wenn diese Route je umgangen würde.',
   },
+  {
+    /**
+     * Die drei Angebotsuebergaenge. Das Recht ist `angebot.versenden` und
+     * nicht `angebot.schreiben`: es gibt den Uebergang frei, der etwas aus
+     * dem Haus laesst (Invariante 7). Anlegen und Wandeln laufen ueber
+     * dieselbe Adresse, weil sie dieselbe Sitzung, denselben Ursprungscheck
+     * und denselben Mandantenkontext brauchen — und weil drei Adressen fuer
+     * drei Zeilen Unterschied drei Stellen waeren, an denen die Pruefung
+     * fehlen kann.
+     */
+    pfad: 'api/angebot',
+    recht: 'angebot.versenden',
+  },
 ] as const;
 
 /** Die Routen, die ein Recht verlangen. */

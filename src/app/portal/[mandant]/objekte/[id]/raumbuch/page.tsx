@@ -88,8 +88,10 @@ export default async function Raumbuch(
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
-      const [objekt] = await kontext.abfrage<{ id: string; bezeichnung: string }>(
-        `select id, bezeichnung from objekt where id = $1`, [id],
+      const [objekt] = await kontext.abfrage<{
+        id: string; bezeichnung: string; kunde_id: string | null;
+      }>(
+        `select id, bezeichnung, kunde_id from objekt where id = $1`, [id],
       );
       if (objekt === undefined) return null;
 
@@ -107,7 +109,7 @@ export default async function Raumbuch(
       const grundlage = await ladeKalkulationsgrundlage(kontext, id, new Date());
       return { objekt, raeume, grundlage };
     })) as Promise<{
-      objekt: { id: string; bezeichnung: string };
+      objekt: { id: string; bezeichnung: string; kunde_id: string | null };
       raeume: readonly RaumZeile[];
       grundlage: Awaited<ReturnType<typeof ladeKalkulationsgrundlage>>;
     } | null>);
@@ -339,6 +341,49 @@ export default async function Raumbuch(
               Netto — die Umsatzsteuer entsteht erst auf der Rechnung, je
               Steuersatzgruppe.
             </p>
+
+            {/*
+              Der Uebergang vom Rechnen zum Anbieten.
+
+              Er ist ein POST und kein Link: aus einer Rechnung ein Angebot zu
+              machen legt einen Datensatz an, und eine Adresse, die das tut,
+              wird von jedem Vorschau-Abruf ausgeloest.
+
+              Ohne Kundenbezug am Objekt fehlt dem Angebot sein Empfaenger.
+              Statt einen zu erfinden, sagt die Seite, was fehlt.
+            */}
+            {objekt.kunde_id === null ? (
+              <p
+                data-cse="ohne-kunde"
+                className="mt-s5 rounded-md border border-line bg-surface p-s4 text-sm text-text-muted"
+              >
+                Dieses Objekt hat keinen Kundenbezug — ohne ihn hat ein Angebot
+                keinen Empfänger. Erst den Kunden am Objekt hinterlegen.
+              </p>
+            ) : (
+              <form
+                method="post"
+                action={`/api/angebot?mandant=${mandant}`}
+                className="mt-s5"
+              >
+                <input type="hidden" name="aktion" value="aus_raumbuch" />
+                <input type="hidden" name="objektId" value={id} />
+                <input type="hidden" name="kundeId" value={objekt.kunde_id} />
+                <input type="hidden" name="turnus" value={turnus} />
+                <input
+                  type="hidden"
+                  name="titel"
+                  value={`Unterhaltsreinigung ${objekt.bezeichnung}`}
+                />
+                <button
+                  type="submit"
+                  data-cse="angebot-erzeugen"
+                  className="inline-flex min-h-11 items-center rounded-md bg-brand px-s5 text-sm text-white hover:bg-brand-hover"
+                >
+                  Angebot aus dieser Kalkulation
+                </button>
+              </form>
+            )}
           </>
         )}
       </section>

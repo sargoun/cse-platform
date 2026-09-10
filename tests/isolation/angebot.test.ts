@@ -63,7 +63,7 @@ async function position(mandant: string, angebotId: string, nr: number, felder: 
      values ($1,$2,$3,$4::angebotsposition_typ,'Unterhaltsreinigung',
              $5,'m2',$6,$7,$8::steuer_kennzeichen,$9) returning id`,
     [mandant, angebotId, nr, felder.typ ?? 'leistung',
-     felder.menge ?? '10.000', felder.einzelpreis ?? 250n, felder.satz ?? 1900,
+     felder.menge ?? '10.000', String(felder.einzelpreis ?? 250n), felder.satz ?? 1900,
      felder.kennzeichen ?? 'regelsatz', felder.grund ?? null]);
   return z!.id;
 }

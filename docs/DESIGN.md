@@ -414,6 +414,21 @@ is unreadable and unprofessional.
 - Fixed footer: entity name, register court, HRB number, managing director
 - A4, `20mm` margins, `10pt` body
 
+**The print palette is its own set of tokens.** The screen palette is
+dark-first; the page is not. Reusing `--surface` on paper would print a black
+rectangle, and reusing `--text` would print near-white on white. These five
+carry the rule above, and nothing outside a printed document may use them:
+
+| Token | Value | Use |
+|---|---|---|
+| `--druck-papier` | `#ffffff` | the sheet |
+| `--druck-text` | `#111111` | body text |
+| `--druck-text-leise` | `#444444` | long text under a position, footer |
+| `--druck-linie` | `#dddddd` | the footer rule |
+| `--druck-linie-leicht` | `#eeeeee` | row separators in the position table |
+
+The header rule is `--red` from §1 — the one place CSE red appears on paper.
+
 ---
 
 ## 12. Do not

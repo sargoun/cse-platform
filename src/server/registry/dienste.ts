@@ -40,6 +40,15 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'objekt', pfad: 'kalkulation/tarif', schreibend: false },
   { modul: 'objekt', pfad: 'kalkulation/raumbuch', schreibend: false },
   { modul: 'objekt', pfad: 'kalkulation/index', schreibend: false },
+  /**
+   * Der Angebotsdienst SCHREIBT — und sein Recht ist `angebot.versenden`,
+   * nicht `angebot.schreiben`: der Uebergang, der etwas aus dem Haus laesst,
+   * ist der, der ein eigenes Recht braucht (Invariante 7).
+   */
+  {
+    modul: 'angebot', pfad: 'angebot/index',
+    schreibend: true, schreibRecht: 'angebot.versenden',
+  },
   { modul: 'zeit', pfad: 'zeit/dauer', schreibend: false },
   { modul: 'zeit', pfad: 'zeit/spalten', schreibend: false },
   { modul: 'dienstplan', pfad: 'zeit/arbzg', schreibend: false },

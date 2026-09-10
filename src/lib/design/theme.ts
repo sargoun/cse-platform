@@ -51,6 +51,22 @@ export const FARBEN_BEREICH = {
   operations: '#8B5CF6',
 } as const;
 
+/**
+ * §11 Print. Ein EIGENER Satz, und das ist der Punkt.
+ *
+ * Der Bildschirm ist dunkel zuerst, das Blatt ist es nicht. `--surface` auf
+ * Papier druckte ein schwarzes Rechteck, `--text` druckte fast-weiss auf
+ * weiss. Diese fuenf tragen die Regel aus DESIGN §11, und ausserhalb eines
+ * gedruckten Dokuments benutzt sie niemand.
+ */
+export const FARBEN_DRUCK = {
+  'druck-papier': '#FFFFFF',
+  'druck-text': '#111111',
+  'druck-text-leise': '#444444',
+  'druck-linie': '#DDDDDD',
+  'druck-linie-leicht': '#EEEEEE',
+} as const;
+
 /** §1 Semantic. Pills use the `-soft` background with solid text, never fills. */
 export const FARBEN_SEMANTIK = {
   success: '#22C55E',

@@ -132,6 +132,17 @@ describe('the merge guards fail the branch that breaks an invariant', () => {
   });
 });
 
+  it('(7b) eine CSS-Deklaration ist keine Klasse — die Klasse daneben aber schon', () => {
+    const { code, ausgabe } = guardsMit({
+      'src/components/Fixtur.tsx': lies('tests/fixtures/wachen/farbe-neben-css.tsx'),
+    });
+    expect(code).toBe(1);
+    expect(ausgabe).toContain('tailwind-farbe');
+    // Gemeldet wird die KLASSE, nicht die Deklaration darueber.
+    expect(ausgabe).toContain('text-gibtesnicht');
+    expect(ausgabe).not.toContain('border-bottom');
+  });
+
 describe('(6) the database region is pinned to the EU (D-04)', () => {
   it('supabase/config.toml names eu-central-1', () => {
     expect(lies('supabase/config.toml')).toMatch(/region\s*=\s*"eu-central-1"/u);

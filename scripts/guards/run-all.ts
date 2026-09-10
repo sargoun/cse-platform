@@ -332,6 +332,18 @@ function wacheTailwindFarben(): void {
       for (const m of geprueft.matchAll(/\b([a-z]+)-([a-z][a-z0-9-]*)\b/gu)) {
         const [, praefix, rest] = m as unknown as [string, string, string];
 
+        /**
+         * Eine CSS-EIGENSCHAFT ist keine Tailwind-Klasse.
+         *
+         * `border-bottom: 1px solid …` in einem `<style>`-Block sah fuer die
+         * Wache aus wie `border-bottom` als Klasse — und das Angebotsdokument
+         * (DESIGN §11) ist genau so gebaut: gedruckte Regeln, die es als
+         * Klassen nicht gibt. Das Unterscheidungsmerkmal ist der Doppelpunkt
+         * UNMITTELBAR danach: eine Deklaration hat ihn, eine Klasse nie —
+         * bei `hover:text-brand` steht er davor.
+         */
+        if (geprueft[(m.index ?? 0) + m[0].length] === ':') continue;
+
         if (praefix === 'text') {
           if (schriftgroessen.has(rest) || TEXT_SONST.has(rest) || farben.has(rest)) continue;
           melde('tailwind-farbe', datei, i + 1,
