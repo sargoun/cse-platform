@@ -38,6 +38,19 @@ Demodaten, die der **echte** Generator erzeugt.
   Datenbank, aus der jemand Screenshots macht, gehoert nicht in
   `TEST_DATABASE_URL`.
 
+## Was von Hand nachgewiesen ist
+
+Die Anzeige bleibt **Europe/Berlin**, auch wenn der SERVER woanders steht:
+mit `TZ=America/New_York` gestartet und im Browser derselben Zone geoeffnet
+zeigt der Dienstplan weiter `22:00–06:00 · 8,00 h`. Das ist die Zusage aus
+PR 33 (5) auf der Serverseite; die Browserseite deckt
+`tests/e2e/dienstplan.spec.ts` ab, und dass kein Anzeigepfad ohne `timeZone`
+formatiert, sichert die Merge-Wache `anzeige-zeitzone`.
+
+Strukturell traegt das Ganze eine einzige Zusage: **jede Uhrzeit kommt fertig
+aus der Datenbank**. Der Node-Prozess rechnet keine Zone um — es gibt genau
+eine Umrechnung, `app.loese_ortszeit`, und die laeuft in Postgres.
+
 ## Offen in dieser Phase
 
 PR 35 (Offline-Warteschlange, Medien) und PR 36 (Zeit → Auftrag, Monatssplit,
