@@ -13,6 +13,9 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { stundenText } from '@/server/services/dienstplan/wochenraster';
 import { beschriftung } from '../../daten';
+import { Button } from '@/components/ui/Button';
+import { pruefeEinteilung, type Vorschau } from '@/server/services/dienstplan/einteilung';
+import type { ArbzgBefund } from '@/server/services/zeit/arbzg';
 
 /**
  * `/portal/[mandant]/dienstplan/einsatz/[id]` — die einzelne Schicht.
@@ -52,6 +55,14 @@ interface Kopf {
   readonly storno_grund: string | null;
 }
 
+interface Kandidat {
+  readonly id: string;
+  readonly name: string;
+  readonly personalnummer: string | null;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
+
 interface Besetzung {
   readonly id: string;
   readonly name: string;
@@ -63,8 +74,11 @@ interface Besetzung {
 }
 
 export default async function Einsatzblatt({
-  params,
-}: { params: Promise<{ mandant: string; id: string }> }) {
+  params, searchParams,
+}: {
+  params: Promise<{ mandant: string; id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { mandant, id } = await params;
   const pfad = `/portal/${mandant}/dienstplan/einsatz/${id}`;
   const zugang = await portalZugang(pfad);
@@ -76,6 +90,10 @@ export default async function Einsatzblatt({
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  const frage = await searchParams;
+  const rohPruefling = typeof frage['pruefe'] === 'string' ? frage['pruefe'] : null;
+  const pruefling = rohPruefling !== null && UUID.test(rohPruefling) ? rohPruefling : null;
 
   const daten = await db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -120,12 +138,43 @@ export default async function Einsatzblatt({
           order by p.nachname, p.vorname`,
         [id],
       );
-      return { kopf, besetzung };
+      /**
+       * Wer ueberhaupt in Frage kommt: aktive Beschaeftigungen DIESER
+       * Gesellschaft, die auf dieser Schicht noch nicht stehen. Eine Auswahl,
+       * die schon Eingeteilte anbietet, fuehrt auf einen 409, den niemand
+       * gebraucht haette (D-09: die Einteilung nennt eine Beschaeftigung).
+       */
+      const kandidaten = await kontext.abfrage<Kandidat>(
+        `select a.id, (p.vorname || ' ' || p.nachname) as name, a.personalnummer
+           from anstellung a
+           join person p on p.id = a.person_id
+          where a.mandant_id = $2 and a.geloescht_am is null and a.status = 'aktiv'
+            and not exists (
+              select 1 from einsatz_zuordnung z
+               where z.einsatz_id = $1 and z.anstellung_id = a.id
+                 and z.entfernt_am is null and z.status <> 'abgesagt')
+          order by p.nachname, p.vorname`,
+        [id, kontext.aktiverMandantId],
+      );
+
+      /**
+       * Die VORSCHAU — nur, wenn eine Beschaeftigung benannt ist.
+       *
+       * Sie laeuft auf dem GET, weil PR 33 Abnahme 3 genau das verlangt: der
+       * Planer sieht Qualifikation und Arbeitszeit, BEVOR er speichert. Sie
+       * schreibt nichts ausser der Auditzeile, die K-06 fuer jeden Uebertritt
+       * ueber die Gesellschaftsgrenze fordert.
+       */
+      const vorschau = pruefling === null
+        ? null
+        : await pruefeEinteilung(kontext, id, pruefling);
+
+      return { kopf, besetzung, kandidaten, vorschau };
     }));
 
   // AUT-06: eine fremde oder nicht vorhandene Zeile ist 404, nie 403.
   if (daten === null) notFound();
-  const { kopf, besetzung } = daten;
+  const { kopf, besetzung, kandidaten, vorschau } = daten;
   const dauer = stundenText({ id: kopf.id, beginn: new Date(kopf.beginn), ende: new Date(kopf.ende) });
 
   return (
@@ -211,21 +260,115 @@ export default async function Einsatzblatt({
               className="flex flex-wrap items-baseline justify-between gap-s3 border-b border-line py-s3"
             >
               <span className="text-sm text-text">{b.name}</span>
-              <span className="text-sm tabular-nums text-text-muted">
-                {b.beginn_lokal}–{b.ende_lokal}
-                {b.personalnummer !== null ? ` · ${b.personalnummer}` : ''}
-                {b.funktion !== null ? ` · ${b.funktion}` : ''}
+              <span className="flex flex-wrap items-center gap-s3">
+                <span className="text-sm tabular-nums text-text-muted">
+                  {b.beginn_lokal}–{b.ende_lokal}
+                  {b.personalnummer !== null ? ` · ${b.personalnummer}` : ''}
+                  {b.funktion !== null ? ` · ${b.funktion}` : ''}
+                </span>
+                {/*
+                  Absagen mit Grund, in derselben Zeile. Die Zeile bleibt danach
+                  stehen (Invariante 8) — sie wandert nur aus der Besetzung
+                  heraus, und die ausgegebenen Check-in-Marken verfallen.
+                */}
+                <form
+                  action={`/api/einsaetze/${kopf.id}/absagen`}
+                  method="post"
+                  className="flex flex-wrap items-center gap-s2"
+                >
+                  <input type="hidden" name="zuordnung" value={b.id} />
+                  <input type="hidden" name="mandant" value={mandant} />
+                  <input type="hidden" name="zurueck" value={pfad} />
+                  <label>
+                    <span className="sr-only">Grund der Absage</span>
+                    <input
+                      name="grund"
+                      required
+                      placeholder="Grund"
+                      className="min-h-11 rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text"
+                    />
+                  </label>
+                  <Button type="submit" variante="ghost">Absagen</Button>
+                </form>
               </span>
             </li>
           ))}
         </ul>
       )}
 
+      {kopf.storno_grund === null && (
+        <section className="mt-s5 rounded-lg border border-line bg-surface p-s5">
+          <h3 className="mb-s2 mt-0 text-base text-text">Einteilen</h3>
+          <p className="mb-s4 max-w-prose text-sm text-text-muted">
+            {kopf.besetzt >= kopf.soll
+              ? `Die Schicht ist mit ${String(kopf.besetzt)} von ${String(kopf.soll)} besetzt. `
+                + 'Eine weitere Einteilung ist möglich — die Sollzahl ist ein Plan, keine Sperre.'
+              : `Noch ${String(kopf.soll - kopf.besetzt)} von ${String(kopf.soll)} offen.`}
+          </p>
+
+          {kandidaten.length === 0 ? (
+            <p className="m-0 text-sm text-text-muted">
+              Keine weitere aktive Beschäftigung in dieser Gesellschaft, die
+              nicht schon eingeteilt wäre.
+            </p>
+          ) : (
+            <form
+              action={`/api/einsaetze/${kopf.id}/besetzen`}
+              method="post"
+              className="flex flex-wrap items-end gap-s3"
+            >
+              <input type="hidden" name="mandant" value={mandant} />
+              <input type="hidden" name="zurueck" value={pfad} />
+              <label>
+                <span className="mb-s1 block text-micro uppercase tracking-[0.08em] text-text-muted">
+                  Beschäftigung
+                </span>
+                <select
+                  name="anstellung"
+                  defaultValue={vorschau === null ? '' : (pruefling ?? '')}
+                  required
+                  className="min-h-11 rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text"
+                >
+                  <option value="">Bitte wählen</option>
+                  {kandidaten.map((k) => (
+                    <option key={k.id} value={k.id}>
+                      {k.name}{k.personalnummer !== null ? ` · ${k.personalnummer}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span className="mb-s1 block text-micro uppercase tracking-[0.08em] text-text-muted">
+                  Funktion (optional)
+                </span>
+                <input
+                  name="funktion"
+                  placeholder="z. B. Vorarbeit"
+                  className="min-h-11 rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text"
+                />
+              </label>
+              <Button type="submit" variante="secondary">Prüfen und einteilen</Button>
+            </form>
+          )}
+
+          {vorschau !== null && pruefling !== null && (
+            <Pruefblatt
+              vorschau={vorschau}
+              einsatzId={kopf.id}
+              anstellungId={pruefling}
+              mandant={mandant}
+              pfad={pfad}
+              name={kandidaten.find((k) => k.id === pruefling)?.name ?? 'die Beschäftigung'}
+            />
+          )}
+        </section>
+      )}
+
       {/*
-        Die Felder für Qualifikation und ArbZG stehen NICHT hier, solange sie
-        nichts anzeigen können. Ein leeres Panel „Keine Verstöße" wäre eine
-        Aussage, die niemand geprüft hat — und genau die Sorte stiller
-        Falschauskunft, gegen die K-06 geschrieben ist.
+        Qualifikation und Arbeitszeit stehen als VORSCHAU im Einteilen-Feld —
+        also nur dann, wenn tatsächlich geprüft wurde. Ein Dauerpanel
+        „keine Verstöße" wäre eine Aussage, die niemand geprüft hat, und genau
+        die Sorte stiller Falschauskunft, gegen die K-06 geschrieben ist.
       */}
       <p className="mt-s6 text-micro text-text-subtle">
         Herkunft: {kopf.quelle} · Schlüssel <code className="tabular-nums">{kopf.quell_schluessel}</code>
@@ -256,4 +399,131 @@ function statusPille(status: string): 'In Arbeit' | 'Geplant' | 'Abgeschlossen' 
     case 'storniert': return 'Abgelehnt';
     default: return 'Geplant';
   }
+}
+
+const REGEL_TEXT: Readonly<Record<string, string>> = {
+  tagesarbeitszeit_ueber_8h: 'Tagesarbeitszeit über 8 Stunden (§ 3 ArbZG)',
+  tagesarbeitszeit_ueber_10h: 'Tagesarbeitszeit über 10 Stunden (§ 3 ArbZG)',
+  ruhezeit_unter_11h: 'Ruhezeit unter 11 Stunden (§ 5 ArbZG)',
+  pause_fehlt_ueber_6h: 'Pause fehlt bei über 6 Stunden (§ 4 ArbZG)',
+  pause_fehlt_ueber_9h: 'Pause zu kurz bei über 9 Stunden (§ 4 ArbZG)',
+  ausgleichszeitraum_ueberschritten: 'Ausgleichszeitraum überschritten (§ 3 Satz 2 ArbZG)',
+};
+
+/**
+ * Was die Prüfung gefunden hat — und was daraus folgt.
+ *
+ * **Zwei Sorten, zwei Ausgänge.** Eine fehlende Qualifikation hat KEIN
+ * Formular darunter: § 34a GewO kennt keine Begründung, die einen fehlenden
+ * Sachkundenachweis ersetzt (SEC-04). Ein Arbeitszeitbefund hat eines — mit
+ * dem ausdrücklichen Wort, dass er gesehen wurde. Übergangen heisst dabei
+ * nicht verschwunden: die Einteilung schreibt den Verstoss und legt den
+ * Konflikt an, der im Eingang mit Begründung quittiert werden muss.
+ *
+ * Text, nicht Farbe (DESIGN §9): jede Zeile sagt, WAS gefunden wurde.
+ */
+function Pruefblatt({
+  vorschau, einsatzId, anstellungId, mandant, pfad, name,
+}: {
+  readonly vorschau: Vorschau;
+  readonly einsatzId: string;
+  readonly anstellungId: string;
+  readonly mandant: string;
+  readonly pfad: string;
+  readonly name: string;
+}) {
+  const gesperrt = vorschau.qualifikationsfehler !== null;
+  const befunde: readonly ArbzgBefund[] = vorschau.arbzg ?? [];
+
+  return (
+    <div
+      data-cse="pruefblatt"
+      data-gesperrt={gesperrt ? 'ja' : 'nein'}
+      className={`mt-s5 rounded-lg border p-s4 ${
+        gesperrt ? 'border-danger bg-danger-soft' : 'border-line bg-surface-2'
+      }`}
+    >
+      <h4 className="mb-s2 mt-0 text-base text-text">Prüfung für {name}</h4>
+
+      {gesperrt ? (
+        <>
+          <p className="m-0 max-w-prose text-sm text-danger">
+            <strong>Gesperrt.</strong> {vorschau.qualifikationsfehler}
+          </p>
+          <p className="m-0 mt-s2 max-w-prose text-sm text-danger">
+            Es gibt hier kein Übergehen-Feld. § 34a GewO kennt keine
+            Begründung, die einen fehlenden Nachweis ersetzt — die Einteilung
+            muss eine andere Person bekommen.
+          </p>
+        </>
+      ) : (
+        <p className="m-0 text-sm text-text-muted">
+          Qualifikation geprüft zum Schichtdatum
+          {vorschau.qualifikation !== null && ` ${vorschau.qualifikation.stichtag}`}
+          {vorschau.qualifikation !== null
+            && vorschau.qualifikation.anforderungenGefunden === 0
+            && ' — es war allerdings keine Anforderung hinterlegt (O-149).'}
+        </p>
+      )}
+
+      <h5 className="mb-s2 mt-s4 text-sm uppercase tracking-[0.08em] text-text-muted">
+        Arbeitszeit
+      </h5>
+      {vorschau.arbzg === null ? (
+        <p className="m-0 max-w-prose text-sm text-warning">
+          Nicht geprüft: dafür fehlt das Recht `dienstplan.arbzg_pruefen`
+          (K-06). Das ist <strong>nicht</strong> dasselbe wie „kein Befund" —
+          und deshalb steht hier kein Häkchen.
+        </p>
+      ) : befunde.length === 0 ? (
+        <p className="m-0 text-sm text-text-muted">
+          Kein Befund über alle Beschäftigungen dieser Person hinweg — auch
+          nicht in anderen Gesellschaften (§ 2 Abs. 1 ArbZG rechnet zusammen).
+        </p>
+      ) : (
+        <ul className="m-0 list-none p-0">
+          {befunde.map((b) => (
+            <li
+              key={`${b.regel}:${b.kalendertag}`}
+              data-cse="arbzg-befund"
+              data-regel={b.regel}
+              className="border-t border-line py-s2 text-sm"
+            >
+              <strong className={b.schwere === 'verstoss' ? 'text-danger' : 'text-warning'}>
+                {b.schwere === 'verstoss' ? 'Verstoß' : 'Warnung'}
+              </strong>
+              {' · '}
+              {REGEL_TEXT[b.regel] ?? b.regel}
+              {' · '}
+              <span className="tabular-nums">{b.kalendertag}</span>
+              {b.ueberMandanten && ' · über Gesellschaften hinweg'}
+              <span className="block text-text-muted">{b.begruendung}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {!gesperrt && (
+        <form
+          action={`/api/einsaetze/${einsatzId}/besetzen`}
+          method="post"
+          className="mt-s4 flex flex-wrap items-center gap-s3"
+        >
+          <input type="hidden" name="anstellung" value={anstellungId} />
+          <input type="hidden" name="mandant" value={mandant} />
+          <input type="hidden" name="zurueck" value={pfad} />
+          <input type="hidden" name="bestaetigt" value="1" />
+          <Button type="submit" variante={befunde.length > 0 ? 'danger' : 'primary'}>
+            {befunde.length > 0 ? 'Trotz Befund einteilen' : 'Einteilen'}
+          </Button>
+          {befunde.length > 0 && (
+            <span className="max-w-prose text-sm text-text-muted">
+              Der Befund wird dabei festgeschrieben und erscheint im
+              Konflikteingang — dort ist er mit Begründung zu quittieren.
+            </span>
+          )}
+        </form>
+      )}
+    </div>
+  );
 }

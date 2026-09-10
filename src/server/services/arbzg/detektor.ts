@@ -29,7 +29,7 @@
  */
 import { createHash } from 'node:crypto';
 import { berlinKalendertag } from '../zeit/dauer.js';
-import { pruefeEinsatz, type Abfrage } from './pruefung.js';
+import { pruefeEinsatz, type Abfrage, schreibeBefund } from './pruefung.js';
 import type { ArbzgBefund } from '../zeit/arbzg.js';
 
 /** Die vier Konfliktarten der Datenbank. */
@@ -100,12 +100,37 @@ export async function erkenneKonflikte(
 
   for (const k of kandidaten) {
     const ergebnis = await pruefeEinsatz(db, k.personId, k.beginn, k.ende);
-    for (const befund of ergebnis.befunde) {
+    /**
+     * **Jeder Befund wird AUFGEZEICHNET, aber nur einer bekommt eine Karte.**
+     *
+     * Elf Stunden an einem Tag verletzen § 3 ArbZG zweimal — die Acht-Stunden-
+     * Grenze und die Zehn-Stunden-Grenze. Beide gehoeren in
+     * `arbeitszeit_verstoss`: die zweite ist die schwerere, und wer spaeter
+     * fragt, wie oft die harte Grenze fiel, findet sie sonst nicht.
+     *
+     * Der EINGANG dagegen soll je Person und Tag EINE Karte zeigen und nicht
+     * fuenf; deshalb bleibt die Entdoppelung dort, und die Karte bekommt den
+     * schwersten Befund. Vorher galt die Entdoppelung fuer beides — und der
+     * Zehn-Stunden-Befund wurde nie aufgezeichnet.
+     */
+    const nachSchwere = [...ergebnis.befunde].sort(
+      (a, b) => (a.schwere === b.schwere ? 0 : a.schwere === 'verstoss' ? -1 : 1));
+    for (const befund of nachSchwere) {
+      const verstossIdFuerAlle = await schreibeBefund(
+        db, k.personId, befund, ergebnis.fenster, mandantId,
+      );
       const abdruck = arbzgFingerabdruck(mandantId, k.personId, 'arbzg', befund.kalendertag);
       if (gesehen.has(abdruck)) continue;
       gesehen.add(abdruck);
+      /**
+       * Die Karte traegt den BELEG des Befunds, den sie zeigt
+       * (`arbeitszeit_verstoss_id`): ihren Regeltext, den Istwert und den
+       * Grenzwert liest der Eingang ueber diese Verbindung. Ohne sie stand
+       * dort „Arbeitszeit" und sonst nichts.
+       */
       const war = await schreibeKonflikt(
         db, mandantId, k, befund, abdruck, ergebnis.ueberGesellschaften,
+        verstossIdFuerAlle,
       );
       if (war === 'neu') neu += 1;
       else bestaetigt += 1;
@@ -164,23 +189,27 @@ async function ladeKandidaten(
  */
 async function schreibeKonflikt(
   db: Abfrage, mandantId: string, k: Kandidat, befund: ArbzgBefund,
-  abdruck: string, fremd: boolean,
+  abdruck: string, fremd: boolean, verstossId: string | null,
 ): Promise<'neu' | 'bestaetigt'> {
   const zeilen = (await db.unsafe(
     `insert into planungs_konflikt (
        mandant_id, art, person_id, anstellung_id, einsatz_id,
        zeitraum_beginn, zeitraum_ende, schwere, blockiert,
-       betrifft_fremden_mandant, details, fingerprint, erkannt_durch, erstellt_von_art
+       betrifft_fremden_mandant, details, fingerprint, erkannt_durch, erstellt_von_art,
+       arbeitszeit_verstoss_id
      ) values (
        $1, 'arbzg', $2, $3, $10, $4::timestamptz, $5::timestamptz, $6::verstoss_schwere, false,
-       $7, $8::jsonb, $9, 'detektor_job', 'system'
+       $7, $8::jsonb, $9, 'detektor_job', 'system', $11::uuid
      )
      on conflict (mandant_id, fingerprint) where hinfaellig_am is null
      do update set zeitraum_beginn = excluded.zeitraum_beginn,
                    zeitraum_ende   = excluded.zeitraum_ende,
                    schwere         = excluded.schwere,
                    einsatz_id      = excluded.einsatz_id,
-                   details         = excluded.details
+                   details         = excluded.details,
+                   arbeitszeit_verstoss_id = coalesce(
+                     excluded.arbeitszeit_verstoss_id,
+                     planungs_konflikt.arbeitszeit_verstoss_id)
      returning (xmax = 0) as neu`,
     [
       mandantId, k.personId, k.anstellungId,
@@ -192,7 +221,7 @@ async function schreibeKonflikt(
         minuten: befund.minuten,
         begruendung: befund.begruendung,
       }),
-      abdruck, k.einsatzId,
+      abdruck, k.einsatzId, verstossId,
     ],
   )) as { neu: boolean }[];
   return zeilen[0]?.neu === true ? 'neu' : 'bestaetigt';

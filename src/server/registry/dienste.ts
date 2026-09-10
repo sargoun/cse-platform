@@ -205,6 +205,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'dienstplan.arbzg_pruefen',
   },
   /**
+   * Die Einteilung SCHREIBT `einsatz_zuordnung` — und ist der einzige Weg
+   * dorthin. Genannt ist `dienstplan.schreiben`; die beiden Tore, die sie
+   * durchlaeuft, haben ihre eigenen Rechte an ihren eigenen Diensten
+   * (`nachweis/tor`, `arbzg/pruefung`).
+   */
+  {
+    modul: 'dienstplan', pfad: 'dienstplan/einteilung',
+    schreibend: true, schreibRecht: 'dienstplan.schreiben',
+  },
+  /**
    * Die Vorkommnisrechnung kennt keine Datenbank — sie sagt nur, WELCHE
    * Schichten eine Serie im Fenster verlangt.
    */

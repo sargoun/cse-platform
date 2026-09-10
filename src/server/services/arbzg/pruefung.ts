@@ -107,7 +107,26 @@ export async function pruefeEinsatz(
   personId: string,
   beginn: Date,
   ende: Date,
-  optionen: { readonly zehnStundenAusnahme?: boolean; readonly schreiben?: boolean } = {},
+  optionen: {
+    readonly zehnStundenAusnahme?: boolean;
+    readonly schreiben?: boolean;
+    /**
+     * Eine Schicht, die es NOCH NICHT gibt — die, die gerade eingeteilt werden
+     * soll.
+     *
+     * Ohne sie beantwortet diese Funktion eine andere Frage als die gestellte.
+     * `app.arbzg_belastung` liest gespeicherte Fenster; eine Einteilung, die
+     * noch nicht geschrieben ist, hat keines. Die Pruefung VOR dem Speichern
+     * (PR 33 Abnahme 3) saehe also genau die eine Schicht nicht, wegen der sie
+     * laeuft — sechs Stunden am Vormittag plus fuenf am Abend blieben sechs,
+     * und der Planer bekaeme grünes Licht fuer elf.
+     *
+     * Sie geht als „eigen" in die Rechnung: sie entsteht im aktiven Mandanten.
+     */
+    readonly zusatzSchicht?: { readonly beginn: Date; readonly ende: Date };
+    /** Die eigene Gesellschaft — nur zum SCHREIBEN nötig, nie zum Rechnen. */
+    readonly mandantId?: string;
+  } = {},
 ): Promise<Pruefergebnis> {
   if (ende.getTime() <= beginn.getTime()) {
     throw new ArbzgFehler('Das Pruefintervall endet vor seinem Anfang.');
@@ -136,12 +155,32 @@ export async function pruefeEinsatz(
     pauseMinuten: 0,
   }));
 
+  /**
+   * Die geplante, noch nicht geschriebene Schicht kommt dazu — und nur zur
+   * RECHNUNG. Sie wandert nicht in `fenster`, denn `fenster` ist, was die
+   * Datenbank gespeichert hat, und `schreibeBefund` misst seinen Zeitraum
+   * daran.
+   */
+  const zusatz = optionen.zusatzSchicht;
+  if (zusatz !== undefined) {
+    schichten.push({
+      id: 'geplant:neu',
+      personId,
+      mandantId: 'eigen',
+      vonUtc: zusatz.beginn,
+      bisUtc: zusatz.ende,
+      pauseMinuten: 0,
+    });
+  }
+
   const befunde = schichten.length === 0
     ? []
     : pruefeArbzg(schichten, { zehnStundenAusnahme: optionen.zehnStundenAusnahme ?? false });
 
   if (optionen.schreiben === true) {
-    for (const b of befunde) await schreibeBefund(db, personId, b, fenster);
+    for (const b of befunde) {
+      await schreibeBefund(db, personId, b, fenster, optionen.mandantId ?? null);
+    }
   }
 
   return {
@@ -166,26 +205,85 @@ export async function pruefeEinsatz(
  * Einschraenkung: eine frei benannte Regel waere eine, die niemand
  * wiederfindet.
  */
-async function schreibeBefund(
+/**
+ * Die Ursache eines Befunds: die FENSTER, die zu ihm beigetragen haben.
+ *
+ * `zeit_intern.ursache_fuer_mandant` erwartet ein Feld solcher Fenster und
+ * reduziert jedes, das nicht dem lesenden Mandanten gehoert, auf Dauer und
+ * Grenzen (§5.11) — es entscheidet an `mandant_id`. Deshalb traegt hier
+ * genau das EIGENE Fenster seine Gesellschaft, und das fremde traegt keine:
+ * dieser Dienst kennt sie nicht (K-06), und ein geratener Wert waere
+ * schlimmer als keiner.
+ *
+ * Kalendertag und Begruendung stehen NICHT hier. Sie gehoeren in die
+ * Konfliktkarte (`planungs_konflikt.details`); die Aufzeichnung traegt Regel,
+ * Istwert und Grenzwert in eigenen Spalten.
+ */
+function ursacheAusFenstern(
+  fenster: readonly Belastungsfenster[], mandantId: string | null,
+): readonly Record<string, unknown>[] {
+  return fenster.map((f) => ({
+    ...(f.fremd || mandantId === null ? {} : { mandant_id: mandantId }),
+    fenster_gruppe: f.fensterGruppe,
+    beginn: f.beginn.toISOString(),
+    ende: f.ende === null ? null : f.ende.toISOString(),
+    minuten: f.minuten,
+  }));
+}
+
+export async function schreibeBefund(
   db: Abfrage, personId: string, befund: ArbzgBefund,
   fenster: readonly Belastungsfenster[],
-): Promise<void> {
+  mandantId: string | null,
+): Promise<string | null> {
   const grenzwert = GRENZWERTE[befund.regel];
-  await db.unsafe(
+  /**
+   * **Die Liste der Gesellschaften, oder `null`.**
+   *
+   * Ein Befund, der NUR im eigenen Haus entstand, nennt sein Haus — sonst
+   * erfuehre eine unbeteiligte Gesellschaft, dass diese Person anderswo zu
+   * lange gearbeitet hat. Ein Befund UEBER Gesellschaften hinweg uebergibt
+   * `null`, weil dieser Dienst die fremde Seite gar nicht kennen darf (K-06):
+   * die Definer-Funktion leitet sie dann aus den Beschaeftigungen ab (0064).
+   *
+   * Vorher stand hier in beiden Faellen `null` — und `foreach … in array null`
+   * laeuft null Mal: `schreiben: true` schrieb nichts, ohne Fehler.
+   */
+  const mandanten = befund.ueberMandanten || mandantId === null ? null : [mandantId];
+  const zeilen = (await db.unsafe(
     `select app.arbzg_befund_schreiben($1, $2::arbzg_regel, $3::verstoss_schwere,
                                        $4::timestamptz, $5::timestamptz,
-                                       $6::integer, $7::integer, $8::jsonb, null)`,
+                                       $6::integer, $7::integer, $8::jsonb,
+                                       $9::uuid[]) as id`,
     [
       personId, befund.regel, befund.schwere,
       fensterAnfang(fenster).toISOString(), fensterEnde(fenster).toISOString(),
       befund.minuten, grenzwert,
-      JSON.stringify({
-        kalendertag: befund.kalendertag,
-        begruendung: befund.begruendung,
-        ueber_mandanten: befund.ueberMandanten,
-      }),
+      /**
+       * Als FELD, nicht als Zeichenkette: der Treiber kodiert selbst, und eine
+       * schon kodierte Zeichenkette landete als jsonb-SKALAR — worauf
+       * `zeit_intern.ursache_fuer_mandant` mit „cannot extract elements from a
+       * scalar" abbricht. Derselbe Fehler wie beim MiLoG-Artefakt in PR 36.
+       */
+      ursacheAusFenstern(fenster, mandantId),
+      mandanten,
     ],
-  );
+  )) as { id: string }[];
+
+  /**
+   * Zurueck kommt je geschriebener Gesellschaft eine Kennung — auch die der
+   * fremden. Sichtbar ist danach nur die eigene: die Abfrage laeuft unter der
+   * RLS des Aufrufers, und `arbeitszeit_verstoss` gibt fremde Zeilen nicht
+   * heraus. Genau so gehoert es: der Konflikt im eigenen Eingang bekommt
+   * seinen Beleg, und die fremde Kennung fuehrt nirgendwohin.
+   */
+  const ids = zeilen.map((z) => z.id);
+  if (ids.length === 0) return null;
+  const sichtbar = (await db.unsafe(
+    `select id from arbeitszeit_verstoss where id = any($1::uuid[]) limit 1`,
+    [ids],
+  )) as { id: string }[];
+  return sichtbar[0]?.id ?? null;
 }
 
 /** Die Grenze, gegen die gemessen wurde — sie gehoert in den Befund. */

@@ -167,6 +167,26 @@ export const ROUTEN: readonly RouteEintrag[] = [
     recht: 'zeit.einwand_entscheiden',
   },
   {
+    /**
+     * TIM-05, TIM-06, SEC-04, LEG-03, LEG-04 — der einzige Schreibweg auf
+     * `einsatz_zuordnung`. `dienstplan.schreiben` ist das Recht des Planers;
+     * die beiden Tore, die der Dienst durchläuft, prüfen nicht die
+     * Berechtigung, sondern die Zulässigkeit — ein Planer mit jedem Recht
+     * darf keinen Wachmann ohne § 34a-Nachweis einteilen.
+     */
+    pfad: 'api/einsaetze/[id]/besetzen',
+    recht: 'dienstplan.schreiben',
+  },
+  {
+    /**
+     * R-08. Absagen ist dieselbe Entscheidung wie Einteilen, in die andere
+     * Richtung, und trägt deshalb dasselbe Recht. Gelöscht wird nichts
+     * (Invariante 8): die Zeile bleibt mit Grund und Zeitpunkt stehen.
+     */
+    pfad: 'api/einsaetze/[id]/absagen',
+    recht: 'dienstplan.schreiben',
+  },
+  {
     pfad: 'api/check-in/[token]/offline',
     recht: null,
     grund:
