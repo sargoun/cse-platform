@@ -13,7 +13,17 @@ import { describe, expect, it } from 'vitest';
 import { internesZiel } from '@/server/auth/ursprung';
 import type { NextRequest } from 'next/server';
 
-const anfrage = { nextUrl: { origin: 'https://cse.example' } } as unknown as NextRequest;
+function anfrageMit(origin: string, weitergeleitet?: string): NextRequest {
+  const u = new URL(origin);
+  const koepfe = new Map<string, string>();
+  if (weitergeleitet !== undefined) koepfe.set('x-forwarded-proto', weitergeleitet);
+  return {
+    headers: { get: (n: string) => koepfe.get(n.toLowerCase()) ?? null },
+    nextUrl: { origin, host: u.host, protocol: u.protocol },
+  } as unknown as NextRequest;
+}
+
+const anfrage = anfrageMit('https://cse.example');
 const STANDARD = '/portal/reinigung/objekte';
 
 describe('internesZiel', () => {
@@ -48,5 +58,25 @@ describe('internesZiel', () => {
       expect(internesZiel(wert, STANDARD, anfrage).toString())
         .toBe(`https://cse.example${STANDARD}`);
     }
+  });
+});
+
+/**
+ * Hinter einem TLS-beendenden Proxy sieht die Anwendung `http`. Nahm
+ * `internesZiel` `nextUrl.origin` als Basis, zeigte jeder interne Redirect
+ * anschliessend auf `http://…` — ein Downgrade auf dem Rueckweg aus dem
+ * Portal, ausgeloest von der Funktion, die Ziele absichern soll.
+ */
+describe('internesZiel hinter einem Proxy', () => {
+  it('baut das Ziel mit dem Schema aus x-forwarded-proto', () => {
+    const a = anfrageMit('http://cse.example', 'https');
+    expect(internesZiel('/portal/x', STANDARD, a).toString())
+      .toBe('https://cse.example/portal/x');
+  });
+
+  it('und das Standardziel ebenso', () => {
+    const a = anfrageMit('http://cse.example', 'https');
+    expect(internesZiel(null, STANDARD, a).toString())
+      .toBe(`https://cse.example${STANDARD}`);
   });
 });

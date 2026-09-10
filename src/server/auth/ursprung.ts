@@ -83,7 +83,10 @@ export function istGleicherUrsprung(anfrage: NextRequest): boolean {
 export function internesZiel(
   zurueck: string | null | undefined, standard: string, anfrage: NextRequest,
 ): URL {
-  const basis = new URL(anfrage.nextUrl.origin);
+  // DIESELBE Herkunft wie das Tor oben, nicht `nextUrl.origin`: hinter einem
+  // TLS-beendenden Proxy steht dort `http`, und ein interner Redirect zeigte
+  // dann auf `http://…` — ein Downgrade auf dem Rueckweg aus dem Portal.
+  const basis = new URL(erwarteterUrsprung(anfrage));
   if (zurueck === null || zurueck === undefined || zurueck === '') {
     return new URL(standard, basis);
   }

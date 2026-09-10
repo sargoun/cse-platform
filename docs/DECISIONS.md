@@ -1944,6 +1944,45 @@ sie doppelt — als Chip im SVG und als Marke der Seite — und die beiden
 ueberlagerten im Hero den Text. Eine sichtbare Marke genuegt; sie steht in
 `PLATZHALTER` und blockiert weiterhin den Produktionsbau.
 
+
+### D-117 · Der Bereich gehoert in den Handler, nicht nur in die Datenbank
+
+`auftrag_personalbedarf_bereich` (0..5000) und `auftrag_wochenstunden_bereich`
+(0..10000) fangen jeden Ausreisser — aber erst beim Schreiben, nachdem der
+Handler schon eine Auftragsnummer gezogen hat. Der Verstoss kam als roher
+Datenbankfehler heraus und verliess die Route als 500: der Aufrufer erfuhr
+„Serverfehler", wo „dieses Feld ist zu gross" richtig gewesen waere. Und eine
+gezogene Nummer ist eine gezogene Nummer.
+
+**Entschieden:** Bereich UND Ganzzahligkeit werden vor der Nummernvergabe
+geprueft und als `ausserhalb_bereich` mit Feldnamen als 400 beantwortet. Die
+Datenbankbedingung bleibt — sie ist die zweite Linie, nicht die einzige.
+
+### D-118 · Ein Blatt darf den Knopf nicht verdecken, der es schliesst
+
+Das „Mehr"-Blatt der mobilen Tab-Leiste lag als `fixed inset-0` ueber der
+ganzen Ansicht — und damit ueber der Leiste, in der sein eigenes `<summary>`
+steckt. Ohne JavaScript schliesst ein `<details>` nur ueber sein `<summary>`:
+verdeckt man das, gibt es keinen Weg zurueck, und der Fokus bleibt gefangen.
+
+**Entschieden:** `bottom-11` statt `inset-0`. Die Leiste ist `min-h-[44px]`
+hoch; das Blatt endet darueber und laesst genau den Knopf frei, der es wieder
+zumacht.
+
+### D-119 · Ein Kommentar, der die Ausgabe falsch nennt, ist schlimmer als keiner
+
+Zwei Stellen sagten etwas anderes als der Code: `formatiereMenge` versprach
+`25_500n → "25,5"`, liefert aber `"25,50"` (`minimumFractionDigits: 2`); und in
+`richtzeit.ts` hingen zwei JSDoc-Bloecke an den falschen Funktionen —
+`alsStundenText` stand ohne, `stundenNachPostgres` trug die Beschreibung des
+anderen. Wer bei der Fehlersuche dem Kommentar glaubt, sucht an der falschen
+Stelle. Beides berichtigt.
+
+Und `internesZiel` nimmt jetzt `erwarteterUrsprung()` statt `nextUrl.origin`:
+hinter einem TLS-beendenden Proxy zeigte sonst jeder interne Redirect auf
+`http://…` — ein Downgrade, ausgeloest von der Funktion, die Ziele absichern
+soll. Derselbe Befund wie D-104, eine Ebene tiefer.
+
 ## Carried over from the Phase 0 review — not client questions
 
 Three items the review surfaced that are ours to do, recorded here so they are not

@@ -63,12 +63,39 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const stundenVorab = zahl('wochenstundenSoll');
   const personalVorab = zahl('personalbedarfAnzahl');
 
+  /**
+   * Der BEREICH gehoert hierher, nicht nur in die Datenbank.
+   *
+   * `auftrag_personalbedarf_bereich` (0..5000) und
+   * `auftrag_wochenstunden_bereich` (0..10000) fangen jeden Ausreisser — aber
+   * ERST beim Schreiben, nachdem der Handler schon eine Auftragsnummer
+   * gezogen hat. Der Verstoss kommt dann als roher Datenbankfehler heraus und
+   * verlaesst die Route als 500: der Aufrufer erfaehrt „Serverfehler", wo
+   * „dieses Feld ist zu gross" richtig waere. Und eine gezogene Nummer ist
+   * eine gezogene Nummer.
+   *
+   * Die Personenzahl muss zusaetzlich GANZ sein: `smallint` schneidet `2,5`
+   * nicht ab, es wirft — aber wieder erst unten.
+   */
+  const ausserhalb: string[] = [];
+  if (personalVorab !== null
+      && (!Number.isInteger(personalVorab) || personalVorab < 0 || personalVorab > 5000)) {
+    ausserhalb.push('personalbedarfAnzahl');
+  }
+  if (stundenVorab !== null && (stundenVorab < 0 || stundenVorab > 10_000)) {
+    ausserhalb.push('wochenstundenSoll');
+  }
+
   if (kundeId === null || bezeichnung === null || art === null || startDatum === null
       || !ARTEN.has(art)) {
     return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
   }
   if (ungueltig.length > 0) {
     return NextResponse.json({ fehler: 'keine_zahl', felder: ungueltig }, { status: 400 });
+  }
+  if (ausserhalb.length > 0) {
+    return NextResponse.json({ fehler: 'ausserhalb_bereich', felder: ausserhalb },
+      { status: 400 });
   }
 
   try {

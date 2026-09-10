@@ -85,12 +85,6 @@ export function sekundenJePeriode(posten: Flaechenposten, frequenzfaktor: MilliM
 }
 
 /**
- * Sekunden als Stunden mit zwei Nachkommastellen, zur ANZEIGE.
- *
- * Bewusst getrennt von der Rechnung: wer Stunden anzeigt und mit Stunden
- * weiterrechnet, rundet zweimal. Weitergerechnet wird immer mit Sekunden.
- */
-/**
  * Dieselben Stunden in der Form, die eine `numeric(12,3)`-Spalte liest.
  *
  * `alsStundenText` liefert die DEUTSCHE Anzeige mit Komma; die Datenbank
@@ -104,6 +98,12 @@ export function stundenNachPostgres(sekunden: bigint): string {
   return `${negativ ? '-' : ''}${String(abs / 1000n)}.${String(abs % 1000n).padStart(3, '0')}`;
 }
 
+/**
+ * Sekunden als Stunden mit zwei Nachkommastellen, zur ANZEIGE.
+ *
+ * Bewusst getrennt von der Rechnung: wer Stunden anzeigt und mit Stunden
+ * weiterrechnet, rundet zweimal. Weitergerechnet wird immer mit Sekunden.
+ */
 export function alsStundenText(sekunden: bigint): string {
   const hundertstel = teileHalbAuf(sekunden * 100n, 3600n);
   const ganz = hundertstel / 100n;

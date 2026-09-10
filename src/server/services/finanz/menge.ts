@@ -84,7 +84,8 @@ const DE_MENGE = new Intl.NumberFormat('de-DE', {
   maximumFractionDigits: 3,
 });
 
-/** `25_500n` → `"25,5"` — for display only (R-15), never for arithmetic. */
+/** `25_500n` → `"25,50"` — for display only (R-15), never for arithmetic.
+ *  Two decimals minimum, three maximum: `minimumFractionDigits: 2` above. */
 export function formatiereMenge(menge: MilliMenge): string {
   const negativ = menge < 0n;
   const abs = negativ ? -menge : menge;
