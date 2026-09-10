@@ -71,6 +71,20 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'zeit', pfad: 'zeit/dauer', schreibend: false },
   { modul: 'zeit', pfad: 'zeit/spalten', schreibend: false },
   { modul: 'dienstplan', pfad: 'zeit/arbzg', schreibend: false },
+  /**
+   * Die Vorkommnisrechnung kennt keine Datenbank — sie sagt nur, WELCHE
+   * Schichten eine Serie im Fenster verlangt.
+   */
+  { modul: 'dienstplan', pfad: 'dienstplan/vorkommnisse', schreibend: false },
+  /**
+   * Der Materialisierer schreibt: er legt `einsatz`-Zeilen an, aktualisiert
+   * sie und storniert verwaiste. In der Gruppenansicht laeuft er darum nicht
+   * (Invariante 10) — er laeuft ohnehin als `cse_job` je Mandant.
+   */
+  {
+    modul: 'dienstplan', pfad: 'dienstplan/generator',
+    schreibend: true, schreibRecht: 'dienstplan.schreiben',
+  },
   { modul: 'dokument', pfad: 'dokument/kategorie', schreibend: false },
   {
     modul: 'dokument', pfad: 'dokument/upload',
@@ -109,6 +123,33 @@ export const DIENSTE: readonly DienstEintrag[] = [
   // gefährlich, und schreiben können sie nicht.
   { modul: 'bericht', pfad: 'bericht/kacheln', schreibend: false },
   { modul: 'bericht', pfad: 'bericht/dashboard', schreibend: false },
+  /**
+   * Nachweise und Qualifikationen (PR 31, SEC-02/03/04, LEG-04, EMP-08).
+   *
+   * Modul `personal` und nicht `nachweis`: das Modul `nachweis` gehört dem
+   * LEISTUNGSNACHWEIS (03-GEWERKE §1.7), also dem unterschriebenen
+   * Leistungsbeleg. Die Zertifikate eines Menschen hängen unter
+   * `personal.nachweis_*`. Zwei Dinge unter einem Modulnamen wären ein Recht,
+   * das jemand für das eine erteilt und das für das andere gilt.
+   */
+  { modul: 'personal', pfad: 'nachweis/gueltigkeit', schreibend: false },
+  { modul: 'personal', pfad: 'nachweis/uebersicht', schreibend: false },
+  { modul: 'personal', pfad: 'nachweis/benachrichtigung', schreibend: false },
+  /**
+   * Das SEC-04-Tor LIEST — es entscheidet, es schreibt nicht. Geschrieben wird
+   * die `einsatz_zuordnung`, und das ist der Dienstplandienst, der sein
+   * eigenes Recht nennt. Auch in der Gruppenansicht ist an einer Prüfung
+   * nichts gefährlich: sie kann nichts ändern.
+   */
+  { modul: 'security', pfad: 'nachweis/tor', schreibend: false },
+  /**
+   * Der Ablaufwächter dagegen SCHREIBT: er quittiert je Stufe genau einmal in
+   * `nachweis_warnung`, und ohne diese Quittung gäbe es die Zusage nicht.
+   */
+  {
+    modul: 'personal', pfad: 'nachweis/ablauf',
+    schreibend: true, schreibRecht: 'personal.nachweis_verwalten',
+  },
 ] as const;
 
 /**

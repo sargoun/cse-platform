@@ -270,6 +270,97 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'des Planungsprotokolls.',
   },
   {
+    tabelle: 'revier',
+    art: 'archiv',
+    migration: '0029',
+    grund:
+      'CLN-01, FIN-07. Das Revier ist der Zuschnitt, auf den Sollzeit, Turnus '
+      + 'und Leistungsnachweis zeigen. Es zu loeschen macht jede vergangene '
+      + 'Abrechnung unpruefbar, weil niemand mehr sagen kann, welche Flaeche '
+      + 'gemeint war; ein aufgeloestes Revier bekommt archiviert_am.',
+  },
+  {
+    tabelle: 'turnus',
+    art: 'archiv',
+    migration: '0029',
+    grund:
+      'CLN-02, LEG-03. Der Turnus ist die vertraglich geschuldete Leistung in '
+      + 'ihrer Wiederholung — die Antwort darauf, ob eine Schicht stattfinden '
+      + 'musste. Geloescht waere jede von ihm erzeugte Schicht ohne Grundlage; '
+      + 'ein beendeter Turnus bekommt gueltig_bis, ein eingestellter '
+      + 'archiviert_am.',
+  },
+  {
+    tabelle: 'turnus_ausnahme',
+    art: 'append',
+    migration: '0029',
+    grund:
+      'CLN-03, FIN-01. Sie ist die dokumentierte Abweichung samt Grund und '
+      + 'Urheber — genau das, was im Streit ueber eine nicht erbrachte '
+      + 'Reinigung zaehlt. Eine Ausnahme, die sich loeschen laesst, ist keine '
+      + 'Dokumentation. Zurueckgenommen wird sie durch eine Gegenzeile.',
+  },
+  {
+    tabelle: 'nachweis_art',
+    art: 'archiv',
+    migration: '0030',
+    grund:
+      'LEG-04, § 34a GewO. Der Schluessel einer Nachweisart steht in '
+      + 'Vergabemappen, Agentenprotokollen und in jeder Qualifikation, die auf '
+      + 'ihn zeigt. Ihn zu loeschen macht rueckwirkend unlesbar, WELCHE Eignung '
+      + 'einmal verlangt war; sein Ende ist archiviert_am.',
+  },
+  {
+    tabelle: 'qualifikation',
+    art: 'archiv',
+    migration: '0030',
+    grund:
+      'LEG-04, § 34a GewO. Gegen diese Katalogzeile hat das SEC-04-Tor jede '
+      + 'vergangene Zuweisung entschieden, und der Schnappschuss auf der '
+      + 'Zuordnung verweist auf ihre id. Geloescht bliebe von der Entscheidung '
+      + 'eine UUID ohne Bedeutung uebrig; abgeloest wird sie durch archiviert_am.',
+  },
+  {
+    tabelle: 'nachweis',
+    art: 'archiv',
+    migration: '0030',
+    grund:
+      'LEG-04, D-09, § 34a GewO. Dieser Nachweis hat vergangene Schichten '
+      + 'GEDECKT — er ist der Beleg, mit dem sich gegenueber der Behoerde zeigen '
+      + 'laesst, dass der Einsatz zulaessig war. Ein Widerruf setzt '
+      + 'widerrufen_am und nimmt diese Deckung nicht rueckwirkend weg.',
+  },
+  {
+    tabelle: 'nachweis_warnung',
+    art: 'append',
+    migration: '0030',
+    grund:
+      'LEG-04, § 34a GewO. Die Quittung, dass die 60/30/7-Stufe gemeldet wurde. '
+      + 'Eine loeschbare Quittung ist keine: geloescht meldete der Waechter '
+      + 'dieselbe Stufe erneut, und die Zusage "je genau einmal" haette keinen '
+      + 'Traeger mehr.',
+  },
+  {
+    tabelle: 'bewacher_eintrag',
+    art: 'archiv',
+    migration: '0031',
+    grund:
+      'SEC-A9, LEG-04, § 34a GewO. Unter dieser Eintragung wurde ein Mensch im '
+      + 'Bewachungsgewerbe eingesetzt; sie zu loeschen entfernt den Beleg der '
+      + 'Zulaessigkeit und die einmal vergebene Bewacher-ID. Eine erloschene '
+      + 'Registrierung bekommt erloschen_am.',
+  },
+  {
+    tabelle: 'einsatzanforderung',
+    art: 'archiv',
+    migration: '0031',
+    grund:
+      'LEG-04, § 34a Abs. 1a GewO. Sie sagt, WAS zum Zeitpunkt der Planung '
+      + 'verlangt war — die Frage, an der eine Aufsicht eine vergangene '
+      + 'Besetzung misst. Geloescht saehe jede damals rechtmaessig besetzte '
+      + 'Schicht so aus, als habe nie eine Anforderung bestanden.',
+  },
+  {
     tabelle: 'audit_log',
     art: 'append',
     migration: '0005',
@@ -453,6 +544,21 @@ export const AUDITIERT: readonly TabelleJeMigration[] = [
    */
   { tabelle: 'einsatz', migration: '0028' },
   { tabelle: 'einsatz_zuordnung', migration: '0028' },
+  /**
+   * `nachweis` und `bewacher_eintrag` ja, `qualifikation` und
+   * `einsatzanforderung` nein — eine Entscheidung, keine Auslassung
+   * (01-KERN §6.17/§6.18).
+   *
+   * Eine verschobene Gueltigkeit und ein geaenderter Registerstatus sind die
+   * zwei Zeilen, an denen eine Aufsicht die Zulaessigkeit eines vergangenen
+   * Einsatzes aufhaengt: WER hat wann behauptet, dieser Mensch duerfe
+   * eingesetzt werden. Der Katalog daneben aendert sich selten und traegt seine
+   * Geschichte ohnehin in `archiviert_am` plus Neuanlage — ein Auditeintrag je
+   * Katalogpflege ertraenkte genau das Protokoll, auf das sich die Auskunft
+   * stuetzt.
+   */
+  { tabelle: 'nachweis', migration: '0030' },
+  { tabelle: 'bewacher_eintrag', migration: '0031' },
 ] as const;
 
 /** Tables carrying S4 (`geloescht_am` / `geloescht_von`) — the finders' domain. */
@@ -491,6 +597,17 @@ export const GEAENDERT_AM: readonly TabelleJeMigration[] = [
   { tabelle: 'planungsserie', migration: '0028' },
   { tabelle: 'einsatz', migration: '0028' },
   { tabelle: 'einsatz_zuordnung', migration: '0028' },
+  { tabelle: 'revier', migration: '0029' },
+  { tabelle: 'turnus', migration: '0029' },
+  { tabelle: 'turnus_ausnahme', migration: '0029' },
+  { tabelle: 'nachweis_art', migration: '0030' },
+  { tabelle: 'qualifikation', migration: '0030' },
+  { tabelle: 'nachweis', migration: '0030' },
+  { tabelle: 'bewacher_eintrag', migration: '0031' },
+  { tabelle: 'einsatzanforderung', migration: '0031' },
+  // `nachweis_warnung` NICHT: die Quittung wird einmal geschrieben und nie
+  // geaendert. Ein `geaendert_am` daneben behauptete, eine bereits ergangene
+  // Meldung habe sich geaendert — sie darf es nicht.
   // `raumbuch_import_zeile` NICHT: sie ist die eine RAEUMBARE Tabelle dieser
   // Domaene (§1.8) und traegt deshalb weder Loeschsperre noch geaendert_am —
   // mit Sperre koennte die Raeumungspolicy gar nicht feuern.

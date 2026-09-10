@@ -549,3 +549,135 @@ create trigger trg_einsatz_zuordnung_audit
   for each row execute function kern.protokolliere_aenderung();
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0029)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- revier (archiv): CLN-01, FIN-07. Das Revier ist der Zuschnitt, auf den Sollzeit, Turnus und Leistungsnachweis zeigen. Es zu loeschen macht jede vergangene Abrechnung unpruefbar, weil niemand mehr sagen kann, welche Flaeche gemeint war; ein aufgeloestes Revier bekommt archiviert_am.
+create trigger trg_revier_kein_hard_delete
+  before delete on revier
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_revier_kein_truncate
+  before truncate on revier
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on revier from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- turnus (archiv): CLN-02, LEG-03. Der Turnus ist die vertraglich geschuldete Leistung in ihrer Wiederholung — die Antwort darauf, ob eine Schicht stattfinden musste. Geloescht waere jede von ihm erzeugte Schicht ohne Grundlage; ein beendeter Turnus bekommt gueltig_bis, ein eingestellter archiviert_am.
+create trigger trg_turnus_kein_hard_delete
+  before delete on turnus
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_turnus_kein_truncate
+  before truncate on turnus
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on turnus from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- turnus_ausnahme (append): CLN-03, FIN-01. Sie ist die dokumentierte Abweichung samt Grund und Urheber — genau das, was im Streit ueber eine nicht erbrachte Reinigung zaehlt. Eine Ausnahme, die sich loeschen laesst, ist keine Dokumentation. Zurueckgenommen wird sie durch eine Gegenzeile.
+create trigger trg_turnus_ausnahme_kein_hard_delete
+  before delete on turnus_ausnahme
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_turnus_ausnahme_kein_truncate
+  before truncate on turnus_ausnahme
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on turnus_ausnahme from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_revier_geaendert_am
+  before update on revier
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_turnus_geaendert_am
+  before update on turnus
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_turnus_ausnahme_geaendert_am
+  before update on turnus_ausnahme
+  for each row execute function kern.setze_geaendert_am();
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0030)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- nachweis_art (archiv): LEG-04, § 34a GewO. Der Schluessel einer Nachweisart steht in Vergabemappen, Agentenprotokollen und in jeder Qualifikation, die auf ihn zeigt. Ihn zu loeschen macht rueckwirkend unlesbar, WELCHE Eignung einmal verlangt war; sein Ende ist archiviert_am.
+create trigger trg_nachweis_art_kein_hard_delete
+  before delete on nachweis_art
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_nachweis_art_kein_truncate
+  before truncate on nachweis_art
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on nachweis_art from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- qualifikation (archiv): LEG-04, § 34a GewO. Gegen diese Katalogzeile hat das SEC-04-Tor jede vergangene Zuweisung entschieden, und der Schnappschuss auf der Zuordnung verweist auf ihre id. Geloescht bliebe von der Entscheidung eine UUID ohne Bedeutung uebrig; abgeloest wird sie durch archiviert_am.
+create trigger trg_qualifikation_kein_hard_delete
+  before delete on qualifikation
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_qualifikation_kein_truncate
+  before truncate on qualifikation
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on qualifikation from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- nachweis (archiv): LEG-04, D-09, § 34a GewO. Dieser Nachweis hat vergangene Schichten GEDECKT — er ist der Beleg, mit dem sich gegenueber der Behoerde zeigen laesst, dass der Einsatz zulaessig war. Ein Widerruf setzt widerrufen_am und nimmt diese Deckung nicht rueckwirkend weg.
+create trigger trg_nachweis_kein_hard_delete
+  before delete on nachweis
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_nachweis_kein_truncate
+  before truncate on nachweis
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on nachweis from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- nachweis_warnung (append): LEG-04, § 34a GewO. Die Quittung, dass die 60/30/7-Stufe gemeldet wurde. Eine loeschbare Quittung ist keine: geloescht meldete der Waechter dieselbe Stufe erneut, und die Zusage "je genau einmal" haette keinen Traeger mehr.
+create trigger trg_nachweis_warnung_kein_hard_delete
+  before delete on nachweis_warnung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_nachweis_warnung_kein_truncate
+  before truncate on nachweis_warnung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on nachweis_warnung from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_nachweis_art_geaendert_am
+  before update on nachweis_art
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_qualifikation_geaendert_am
+  before update on qualifikation
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_nachweis_geaendert_am
+  before update on nachweis
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_nachweis_audit
+  after insert or update or delete on nachweis
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0031)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- bewacher_eintrag (archiv): SEC-A9, LEG-04, § 34a GewO. Unter dieser Eintragung wurde ein Mensch im Bewachungsgewerbe eingesetzt; sie zu loeschen entfernt den Beleg der Zulaessigkeit und die einmal vergebene Bewacher-ID. Eine erloschene Registrierung bekommt erloschen_am.
+create trigger trg_bewacher_eintrag_kein_hard_delete
+  before delete on bewacher_eintrag
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_bewacher_eintrag_kein_truncate
+  before truncate on bewacher_eintrag
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on bewacher_eintrag from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- einsatzanforderung (archiv): LEG-04, § 34a Abs. 1a GewO. Sie sagt, WAS zum Zeitpunkt der Planung verlangt war — die Frage, an der eine Aufsicht eine vergangene Besetzung misst. Geloescht saehe jede damals rechtmaessig besetzte Schicht so aus, als habe nie eine Anforderung bestanden.
+create trigger trg_einsatzanforderung_kein_hard_delete
+  before delete on einsatzanforderung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_einsatzanforderung_kein_truncate
+  before truncate on einsatzanforderung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on einsatzanforderung from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_bewacher_eintrag_geaendert_am
+  before update on bewacher_eintrag
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_einsatzanforderung_geaendert_am
+  before update on einsatzanforderung
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_bewacher_eintrag_audit
+  after insert or update or delete on bewacher_eintrag
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks

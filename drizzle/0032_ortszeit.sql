@@ -176,3 +176,41 @@ comment on function app.loese_ortszeit(date, time, text) is
 grant execute on function app.zonenversatz(timestamptz, text)  to cse_app, cse_job;
 grant execute on function app.zonenumstellung(date, text)      to cse_app, cse_job;
 grant execute on function app.loese_ortszeit(date, time, text) to cse_app, cse_job;
+
+-- ---------------------------------------------------------------------------
+-- 4. „Ist an dieser Schicht schon Zeit erfasst?" — heute immer nein
+-- ---------------------------------------------------------------------------
+--
+-- Der Generator darf eine Schicht nicht mehr veraendern, sobald jemand darauf
+-- gearbeitet hat (§8.2 Schritt 7). Die Bedingung dafuer liest `zeiteintrag` —
+-- eine Tabelle, die es erst in PR 34 gibt.
+--
+-- Der naheliegende Ausweg waere, den Zusatz in TypeScript wegzulassen, solange
+-- die Tabelle fehlt. Das waere genau die stille Sorte Fehler, die dieses
+-- Projekt sonst teuer bezahlt: die Anweisung liefe weiter, der Schutz waere
+-- weg, und niemand saehe es — bis der Generator eine bereits gearbeitete
+-- Schicht ueberschreibt.
+--
+-- Stattdessen steht die Frage hier, als Funktion mit stabiler Signatur. Heute
+-- ist ihre Antwort ein FAKT und keine Annahme: es gibt keine Tabelle, also
+-- gibt es keinen Zeiteintrag. PR 34 ersetzt den Rumpf in derselben Migration,
+-- die `zeiteintrag` anlegt — und ein Test dort haelt fest, dass sie es tat.
+
+create or replace function app.einsatz_hat_zeiterfassung(p_einsatz uuid)
+returns boolean
+language sql
+stable
+parallel safe
+as $$
+  -- PR 34 ersetzt diesen Rumpf durch:
+  --   select exists (select 1 from zeiteintrag t
+  --                   where t.einsatz_id = p_einsatz and t.storniert_am is null);
+  select false;
+$$;
+
+comment on function app.einsatz_hat_zeiterfassung(uuid) is
+  'Haengt an dieser Schicht eine nicht stornierte Zeiterfassung? Solange '
+  '`zeiteintrag` nicht existiert (bis PR 34) ist die Antwort ein Fakt, keine '
+  'Annahme. Der Generator fragt sie, statt die Bedingung wegzulassen.';
+
+grant execute on function app.einsatz_hat_zeiterfassung(uuid) to cse_app, cse_job;
