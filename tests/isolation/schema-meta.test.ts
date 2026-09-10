@@ -79,24 +79,48 @@ describe('(5) every mandant_id table carries RLS, FORCE and a policy', () => {
 
 describe('(6) costed things hang off anstellung, facts about the human off person', () => {
   it('every FK to person or anstellung follows the D-09 rule', async () => {
+    /**
+     * Geprueft wird die Spalte, die auf die IDENTITAET des Ziels zeigt — nicht
+     * jede Spalte des Schluessels.
+     *
+     * Ein zusammengesetzter Fremdschluessel `(mandant_id, anstellung_id) →
+     * anstellung (mandant_id, id)` traegt `mandant_id` als Geruest, damit die
+     * Mandantengrenze im Schluessel selbst steht (K-16). Ein Test, der beide
+     * Spalten auf `…anstellung_id` prueft, meldet dieses Geruest als
+     * D-09-Verstoss — und zwar bei JEDEM richtig gebauten Schluessel. Das ist
+     * eine Falschmeldung, die mit jeder Migration lauter wird, bis jemand den
+     * Test abschaltet und mit ihm die echte Zusage.
+     *
+     * `conkey` und `confkey` werden deshalb POSITIONSWEISE gepaart, und
+     * betrachtet wird nur das Paar, dessen Zielspalte die Identitaet ist:
+     * `anstellung.id`, `anstellung.person_id`, `person.id`.
+     */
     const fks = await sql.unsafe<
-      { quelle: string; spalte: string; ziel: string }[]
+      { quelle: string; spalte: string; ziel: string; zielspalte: string }[]
     >(`
-      select src.relname as quelle, att.attname as spalte, tgt.relname as ziel
+      select src.relname as quelle, att.attname as spalte,
+             tgt.relname as ziel,  ziel_att.attname as zielspalte
         from pg_constraint con
         join pg_class src on src.oid = con.conrelid
         join pg_class tgt on tgt.oid = con.confrelid
-        join unnest(con.conkey) as k(attnum) on true
-        join pg_attribute att on att.attrelid = src.oid and att.attnum = k.attnum
+        join lateral unnest(con.conkey, con.confkey)
+             with ordinality as paar(quell_attnum, ziel_attnum, pos) on true
+        join pg_attribute att      on att.attrelid      = src.oid
+                                  and att.attnum        = paar.quell_attnum
+        join pg_attribute ziel_att on ziel_att.attrelid = tgt.oid
+                                  and ziel_att.attnum   = paar.ziel_attnum
        where con.contype = 'f' and tgt.relname in ('person','anstellung')`);
 
     for (const fk of fks) {
-      if (fk.ziel === 'person') {
-        expect(fk.spalte, `${fk.quelle}.${fk.spalte} → person`).toMatch(/person_id$/u);
+      // Nur die Zeigerspalte, nie das Mandantengeruest daneben.
+      if (fk.zielspalte !== 'id' && fk.zielspalte !== 'person_id') continue;
+      if (fk.ziel === 'person' || fk.zielspalte === 'person_id') {
+        expect(fk.spalte, `${fk.quelle}.${fk.spalte} → ${fk.ziel}.${fk.zielspalte}`)
+          .toMatch(/person_id$/u);
+        continue;
       }
-      if (fk.ziel === 'anstellung') {
-        expect(fk.spalte, `${fk.quelle}.${fk.spalte} → anstellung`).toMatch(/anstellung_id$/u);
-      }
+      expect(fk.spalte, `${fk.quelle}.${fk.spalte} → anstellung.id`)
+        .toMatch(/anstellung_id$/u);
     }
     // The D-09 case itself: anstellung points at person, person points at nothing.
     expect(fks.some((f) => f.quelle === 'anstellung' && f.ziel === 'person')).toBe(true);

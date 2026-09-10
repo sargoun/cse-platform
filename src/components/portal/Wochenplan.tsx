@@ -87,8 +87,10 @@ export function Wochenplan({ tage, schichten, zielFuer }: WochenplanProps) {
 
   return (
     <div data-cse="wochenplan" className="overflow-x-auto">
-      <div className="flex min-w-[52rem] gap-s2">
-        <Stundenleiste hoehe={hoehe} />
+      <div className="flex min-w-[52rem] items-start gap-s2">
+        <div className="w-10 shrink-0 pt-[2.4rem]">
+          <Stundenleiste hoehe={hoehe} />
+        </div>
         {tage.map((tag) => (
           <Tagesspalte
             key={tag.datum}
@@ -104,13 +106,20 @@ export function Wochenplan({ tage, schichten, zielFuer }: WochenplanProps) {
 }
 
 function Stundenleiste({ hoehe }: { readonly hoehe: number }) {
+  /**
+   * Die Beschriftung sitzt UNTER ihrer Linie, nicht mittig darauf.
+   *
+   * Mittig zentriert ragte die erste zur Haelfte ueber den Rand des Rasters
+   * hinaus und wurde abgeschnitten — die Leiste begann sichtbar bei `01`, und
+   * eine Stunde des Tages sah aus, als gaebe es sie nicht.
+   */
   return (
-    <div aria-hidden="true" className="relative w-10 shrink-0" style={{ height: hoehe }}>
+    <div aria-hidden="true" className="relative w-full" style={{ height: hoehe }}>
       {Array.from({ length: BIS_STUNDE - VON_STUNDE }, (_, i) => VON_STUNDE + i).map((h) => (
         <div
           key={h}
-          className="absolute right-0 -translate-y-1/2 text-micro tabular-nums text-text-subtle"
-          style={{ top: (h - VON_STUNDE) * PIXEL_PRO_STUNDE }}
+          className="absolute right-0 text-micro leading-none tabular-nums text-text-subtle"
+          style={{ top: (h - VON_STUNDE) * PIXEL_PRO_STUNDE + 2 }}
         >
           {String(h).padStart(2, '0')}
         </div>
@@ -137,10 +146,17 @@ function Tagesspalte({
 
   return (
     <div data-cse="plantag" data-datum={tag.datum} className="min-w-[7.5rem] flex-1">
-      <div className="mb-s2 flex items-baseline justify-between gap-s2">
-        <span className="text-sm font-semibold text-text">{tag.beschriftung}</span>
-        <span className="text-micro text-text-muted">
-          {anteile.length === 0 ? '—' : `${String(anteile.length)}`}
+      {/*
+        Datum und Anzahl UNTEREINANDER, nicht nebeneinander.
+        Rechtsbuendig in einer breiten Spalte stand die Anzahl direkt neben
+        dem Datum des NAECHSTEN Tages und las sich, als gehoerte sie dorthin.
+      */}
+      <div className="mb-s2">
+        <span className="block text-sm font-semibold text-text">{tag.beschriftung}</span>
+        <span className="block text-micro text-text-muted">
+          {anteile.length === 0
+            ? 'keine Schicht'
+            : `${String(anteile.length)} ${anteile.length === 1 ? 'Schicht' : 'Schichten'}`}
         </span>
       </div>
       {tag.feiertag !== null && (
@@ -261,10 +277,12 @@ export function Monatsplan({
             data-datum={tag.datum}
             className="rounded-md border border-line bg-surface p-s3"
           >
-            <div className="mb-s2 flex items-baseline justify-between gap-s2">
-              <span className="text-sm font-semibold text-text">{tag.beschriftung}</span>
-              <span className="text-micro text-text-muted">
-                {desTages.length === 0 ? '—' : `${String(desTages.length)}`}
+            <div className="mb-s2">
+              <span className="block text-sm font-semibold text-text">{tag.beschriftung}</span>
+              <span className="block text-micro text-text-muted">
+                {desTages.length === 0
+                  ? 'keine Schicht'
+                  : `${String(desTages.length)} ${desTages.length === 1 ? 'Schicht' : 'Schichten'}`}
               </span>
             </div>
             {tag.feiertag !== null && (

@@ -20,7 +20,6 @@ import type { PlanSchicht, PlanTag } from '@/components/portal/Wochenplan';
 
 interface TagZeile {
   readonly datum: string;
-  readonly beschriftung: string;
   readonly beginn: Date;
   readonly ende: Date;
   readonly feiertag: string | null;
@@ -51,16 +50,16 @@ export async function ladePlanfenster(
     withTenant(tx, sitzung, async (kontext) => {
       const tage = await kontext.abfrage<TagZeile>(
         /**
-         * `to_char(..., 'TMDy TT.MM.')` mit `TM` — die Monats- und Tagesnamen
-         * kommen aus `lc_time` der Sitzung. Die Verbindung setzt `de_DE`; ohne
-         * `TM` stuende hier „Mon" statt „Mo" und der Plan waere zweisprachig,
-         * ohne dass jemand das entschieden haette.
+         * `d.tag::date` ueberall, weil `generate_series(date, date, interval)`
+         * **timestamp** liefert und nicht `date`. `d.tag + 1` waere dort
+         * `timestamp + integer` — ein Fehler, den Postgres wirft, und im
+         * besten Fall ist er das: eine stille Variante haette den Tag um eine
+         * Sekunde verschoben.
          */
-        `select to_char(d.tag, 'YYYY-MM-DD')                      as datum,
-                to_char(d.tag, 'TMDy TT.MM.')                     as beschriftung,
-                (d.tag::timestamp)       at time zone 'Europe/Berlin' as beginn,
-                ((d.tag + 1)::timestamp) at time zone 'Europe/Berlin' as ende,
-                f.bezeichnung                                     as feiertag
+        `select to_char(d.tag::date, 'YYYY-MM-DD')                    as datum,
+                (d.tag::date::timestamp)       at time zone 'Europe/Berlin' as beginn,
+                ((d.tag::date + 1)::timestamp) at time zone 'Europe/Berlin' as ende,
+                f.bezeichnung                                         as feiertag
            from generate_series($1::date, $2::date, interval '1 day') as d(tag)
            left join feiertag f
              on f.datum = d.tag::date and f.bundesland = 'BE' and f.gesetzlich
@@ -97,7 +96,7 @@ export async function ladePlanfenster(
       return {
         tage: tage.map((t) => ({
           datum: t.datum,
-          beschriftung: t.beschriftung.trim(),
+          beschriftung: beschriftung(t.datum),
           beginn: new Date(t.beginn),
           ende: new Date(t.ende),
           feiertag: t.feiertag,
@@ -124,6 +123,25 @@ export async function ladePlanfenster(
         })),
       };
     }));
+}
+
+/**
+ * Die Tagesbeschriftung — deutsch, und **nicht** aus `to_char(… 'TMDy …')`.
+ *
+ * `TM` nimmt die Namen aus `lc_time` der Verbindung. Steht die auf `C`, liest
+ * der Dienstplan „Tue" und „Wed" — auf einem deutschen Bildschirm, ohne
+ * Fehlermeldung, und je nach Serverbild anders. Eine Anzeige, die von einer
+ * Umgebungsvariablen abhaengt, ist keine Anzeige, sondern ein Zufall.
+ *
+ * Der Wochentag wird aus dem Kalendertag gerechnet (Zeller ueber `Date.UTC`,
+ * also ohne Zonenanteil) und aus einer festen Liste benannt.
+ */
+const WOCHENTAGE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'] as const;
+
+export function beschriftung(datum: string): string {
+  const d = new Date(`${datum}T00:00:00Z`);
+  const tag = WOCHENTAGE[(d.getUTCDay() + 6) % 7] ?? '';
+  return `${tag} ${datum.slice(8, 10)}.${datum.slice(5, 7)}.`;
 }
 
 /** Der Montag der Woche, in der `datum` liegt. */
