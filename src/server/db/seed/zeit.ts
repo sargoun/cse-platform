@@ -152,7 +152,108 @@ export async function seedZeit(
 
   const { erfasst, laufend } = await erfasseZeiten(sql, mandantId, zugeteilt);
   const abwesenheiten = await seedAbwesenheiten(sql, mandantId, planer.id, anstellungen, heute);
-  return { einteilungen, uebergangen, zeiteintraege: erfasst, laufend, abwesenheiten };
+  const konflikt = await seedRuhezeitkonflikt(sql, mandantId, planer.id, heute);
+  return {
+    einteilungen: einteilungen + konflikt,
+    uebergangen: uebergangen + konflikt,
+    zeiteintraege: erfasst,
+    laufend,
+    abwesenheiten,
+  };
+}
+
+/**
+ * EIN echter Arbeitszeitbefund — die Sonderreinigung nach der Veranstaltung.
+ *
+ * **Warum der Seed ihn ausdruecklich herstellt.** Der Turnusplan erzeugt
+ * Schichten, die brav zwanzig Stunden auseinanderliegen; damit findet die
+ * Pruefung nichts, und Konflikteingang, Kennzahl und Warnfeld stehen in der
+ * Demo leer da — als waere das Modul nicht gebaut. Frueher fuellte sie ein
+ * FALSCHER Befund: die Vorschau nahm fuer die geplante Schicht „null Minuten
+ * Pause" an und meldete auf jeder Schicht ueber sechs Stunden § 4. Der Fehler
+ * ist behoben (O-168), und mit ihm verschwand die Fuellung.
+ *
+ * Stattdessen steht hier ein Fall, den es wirklich gibt: eine Kraft raeumt
+ * abends nach einer Veranstaltung bis 02:00 auf und steht am selben Morgen um
+ * 06:00 wieder im Treppenhaus. Das sind vier Stunden Ruhe statt elf (§ 5
+ * ArbZG) — kein erfundener Befund, sondern eine erfundene SCHICHT, die einen
+ * echten Befund ausloest. Die Einteilung laeuft durch den normalen Dienst, und
+ * die Planung bestaetigt den Befund mit Grund, so wie sie es im Betrieb taete.
+ */
+async function seedRuhezeitkonflikt(
+  sql: Sql, mandantId: string, planerId: string, heute: string,
+): Promise<number> {
+  // Eine bereits besetzte FRUEHSCHICHT der vergangenen Tage — an sie haengt
+  // sich der Konflikt. Ohne sie gaebe es keinen zweiten Zeitraum zum Messen.
+  const [frueh] = await sql<{
+    einsatz: string; anstellung: string; objekt: string; kunde: string | null;
+    tag: string; beginn_lokal: string;
+  }[]>`
+    select e.id as einsatz, zo.anstellung_id as anstellung, e.objekt_id as objekt,
+           e.kunde_id as kunde,
+           to_char(e.plan_datum, 'YYYY-MM-DD') as tag,
+           to_char(e.beginn_lokal, 'HH24:MI')  as beginn_lokal
+      from einsatz e
+      join einsatz_zuordnung zo
+        on zo.mandant_id = e.mandant_id and zo.einsatz_id = e.id and zo.entfernt_am is null
+     where e.mandant_id = ${mandantId}
+       and e.storniert_am is null
+       and e.beginn_lokal < time '09:00'
+       and e.plan_datum between (${heute}::date - 14) and (${heute}::date - 1)
+     order by e.plan_datum desc, e.beginn_lokal
+     limit 1`;
+  if (frueh === undefined) return 0;
+
+  const vortag = tagePlus(frueh.tag, -1);
+  const schluessel = `seed:sonderreinigung:${vortag}`;
+
+  const [schon] = await sql<{ id: string }[]>`
+    select id from einsatz
+     where mandant_id = ${mandantId} and quell_schluessel = ${schluessel}`;
+  if (schon !== undefined) return 0;
+
+  /**
+   * 22:00–02:00 ueber Mitternacht, mit `app.loese_ortszeit`: aus Ortszeit
+   * einen Zeitpunkt zu machen ist die Aufgabe der Datenbank (Invariante 2),
+   * und ueber die Sommerzeitgrenze rechnet sie richtig, wo `new Date()`
+   * daneben laege.
+   */
+  const [neuerEinsatz] = await sql<{ id: string }[]>`
+    insert into einsatz (
+      mandant_id, quelle, quell_schluessel, plan_datum,
+      beginn_zeitpunkt, ende_zeitpunkt, zeitzone,
+      beginn_lokal, ende_lokal, endet_am_folgetag,
+      objekt_id, kunde_id, soll_besetzung, min_besetzung,
+      pause_geplant_minuten, erstellt_von_art, status, notiz
+    )
+    select ${mandantId}, 'manuell', ${schluessel}, ${vortag}::date,
+           (select zeitpunkt from app.loese_ortszeit(${vortag}::date, time '22:00', 'Europe/Berlin')),
+           (select zeitpunkt from app.loese_ortszeit((${vortag}::date + 1), time '02:00', 'Europe/Berlin')),
+           'Europe/Berlin', time '22:00', time '02:00', true,
+           ${frueh.objekt}, ${frueh.kunde}, 1, 1,
+           30, 'system', 'geplant',
+           'Sonderreinigung nach Veranstaltung — Demodaten (Seed)'
+    returning id`;
+  if (neuerEinsatz === undefined) return 0;
+
+  try {
+    await alsPortalSitzung(sql, mandantId, planerId, (k) =>
+      besetzeEinsatz(k, {
+        einsatzId: neuerEinsatz.id,
+        anstellungId: frueh.anstellung,
+        // Der Befund IST der Punkt. Bestaetigt, weil eine Planung, die ihn
+        // wegklickt, ihn auch begruenden muss — und genau diese Begruendung
+        // soll in der Demo lesbar sein.
+        bestaetigt: true,
+      }));
+    return 1;
+  } catch (fehler) {
+    process.stdout.write(
+      `  · Ruhezeitkonflikt nicht angelegt: `
+      + `${fehler instanceof Error ? fehler.message : String(fehler)}\n`,
+    );
+    return 0;
+  }
 }
 
 /**
