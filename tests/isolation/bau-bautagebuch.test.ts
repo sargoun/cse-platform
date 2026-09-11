@@ -147,6 +147,23 @@ async function zeiteintrag(
   return z!.id;
 }
 
+/**
+ * Wie viele Beobachtungen stehen in `wetter_beobachtung` — gesamt oder zu
+ * einer Station und einem Zeitpunkt.
+ *
+ * Gezaehlt wird, statt geleert zu werden: die Tabelle traegt kein
+ * `mandant_id` und ueberlebt den Fixture-Aufbau; sie ist oeffentliche
+ * Referenz und kennt ohnehin keine Loeschung (0083, Invariante 8).
+ */
+async function beobachtungen(station?: string, zeitpunkt?: string): Promise<number> {
+  const [z] = await sql.unsafe<{ n: string }[]>(
+    `select count(*)::text as n from wetter_beobachtung
+      where ($1::text is null or station_id = $1::text)
+        and ($2::timestamptz is null or zeitpunkt = $2::timestamptz)`,
+    [station ?? null, zeitpunkt ?? null] as never[]);
+  return Number(z!.n);
+}
+
 function kontextAus(
   tx: postgres.TransactionSql, mandant: string, benutzer: string,
 ): SchreibKontext {
@@ -463,19 +480,20 @@ describe('(2) das Wetter kommt vom DWD, mit Beobachtungszeit und Station', () =>
 
     const [zeile] = await sql.unsafe<{
       typ: string; station: string | null; beobachtet: string | null; quelle: string;
-      beobachtungen: string;
     }[]>(
       `select jsonb_typeof(wetter_snapshot) as typ,
               wetter_snapshot ->> 'station_id' as station,
               wetter_snapshot ->> 'beobachtet_am' as beobachtet,
-              wetter_quelle::text as quelle,
-              (select count(*)::text from wetter_beobachtung) as beobachtungen
+              wetter_quelle::text as quelle
          from bautagebuch where id = $1`, [tag]);
     expect(zeile!.typ).toBe('object');
     expect(zeile!.station).toBe('00433');
     expect(zeile!.beobachtet).toBe('2026-09-10T11:00:00.000Z');
     expect(zeile!.quelle).toBe('dwd');
-    expect(zeile!.beobachtungen).toBe('1');
+
+    // Und die Beobachtung steht wirklich in `wetter_beobachtung` — mit der
+    // BEOBACHTUNGSZEIT als Schluessel, nicht mit dem Abrufzeitpunkt.
+    expect(await beobachtungen('00433', '2026-09-10T11:00:00Z')).toBe(1);
   });
 
   it('ist die Quelle nicht zu erreichen, SPEICHERT der Tag trotzdem — und nichts wird erfunden',
@@ -486,6 +504,7 @@ describe('(2) das Wetter kommt vom DWD, mit Beobachtungszeit und Station', () =>
          values ('00433','Berlin-Tempelhof',52.4675,13.4021) on conflict do nothing`);
       await sql.unsafe(
         `update projekt set wetter_station_id = '00433' where id = $1`, [bau.projekt]);
+      const vorher = await beobachtungen();
 
       const tag = await alsBauleitung(bau, async (kontext) => {
         const id = await legeBautagAn(kontext, { projektId: bau.projekt, datum: TAG });
@@ -510,11 +529,9 @@ describe('(2) das Wetter kommt vom DWD, mit Beobachtungszeit und Station', () =>
 
       const [zeile] = await sql.unsafe<{
         quelle: string; snapshot: unknown; tmin: string | null; niederschlag: string | null;
-        beobachtungen: string;
       }[]>(
         `select wetter_quelle::text as quelle, wetter_snapshot as snapshot,
-                temperatur_min_c::text as tmin, niederschlag_mm::text as niederschlag,
-                (select count(*)::text from wetter_beobachtung) as beobachtungen
+                temperatur_min_c::text as tmin, niederschlag_mm::text as niederschlag
            from bautagebuch where id = $1`, [tag]);
       // „keine" heisst KEINE Zahl — die Bedingung aus 0083 laesst nichts
       // anderes zu. Kein Vorgabewetter, keine Null, keine Interpolation.
@@ -522,7 +539,10 @@ describe('(2) das Wetter kommt vom DWD, mit Beobachtungszeit und Station', () =>
       expect(zeile!.snapshot).toBeNull();
       expect(zeile!.tmin).toBeNull();
       expect(zeile!.niederschlag).toBeNull();
-      expect(zeile!.beobachtungen).toBe('0');
+      // Und es wurde auch keine Messung abgelegt: `vorher` zaehlt, was schon
+      // dastand — `wetter_beobachtung` traegt kein `mandant_id` und wird
+      // deshalb vom Fixture-Aufbau NICHT geleert (Referenzdaten, 0083).
+      expect(await beobachtungen()).toBe(vorher);
     });
 
   it('ohne Koordinaten am Objekt ist der Grund ein EIGENER, nicht „DWD hatte nichts"',

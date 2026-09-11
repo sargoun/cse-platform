@@ -804,6 +804,13 @@ export function alsStunden(minuten: number): string {
  * verschoebe jeden Tag ein bis zwei Stunden in den Nachbartag, und in der
  * Sommerzeit zwei.
  *
+ * **`($3::date)::timestamp at time zone …`, nicht `($3::date) at time zone …`.**
+ * Ohne den Zwischen-Cast waehlt PostgreSQL die Ueberladung
+ * `timestamptz → timestamp`: der Kalendertag wird als UTC-Mitternacht gelesen
+ * und nach Berlin GERECHNET, statt als Berliner Mitternacht gelesen zu werden.
+ * Das Fenster liegt dann zwei Stunden falsch (im Winter eine) — und sieht auf
+ * dem Bildschirm vollkommen plausibel aus.
+ *
  * **Ohne `zeit.lesen` gibt es KEINEN Befund**, und das ist die eigentliche
  * Falle dieser Funktion: die RLS auf `zeiteintrag` verlangt `zeit.lesen`, und
  * ohne das Recht antwortet sie mit null Zeilen — nicht mit einem Fehler. Die
@@ -894,15 +901,8 @@ export async function gleicheMannstundenAb(
         and z.projekt_id = $2::uuid
         and z.ersetzt_am is null
         and z.storniert_am is null
-        /**
-         * `::timestamp` VOR `at time zone`, und das ist kein Zierrat:
-         * `date at time zone 'Europe/Berlin'` waehlt die Ueberladung
-         * `timestamptz → timestamp` — der Tag wird also als UTC-Mitternacht
-         * gelesen und nach Berlin GERECHNET, statt als Berliner Mitternacht
-         * gelesen zu werden. Das Fenster liegt dann zwei Stunden falsch, in
-         * der Winterzeit eine, und beides sieht auf dem Bildschirm plausibel
-         * aus. Mit `::timestamp` greift die richtige Ueberladung.
-         */
+        -- Siehe den Kommentar oberhalb: der Doppelpunkt-Cast auf timestamp
+        -- steht VOR "at time zone" und entscheidet die Ueberladung.
         and z.beginn_zeitpunkt >= ($3::date)::timestamp at time zone 'Europe/Berlin'
         and z.beginn_zeitpunkt <  (($3::date) + 1)::timestamp at time zone 'Europe/Berlin'`,
     [kontext.aktiverMandantId, kopf.projekt_id, kopf.datum],
