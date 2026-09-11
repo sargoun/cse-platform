@@ -1,7 +1,13 @@
-# Phase 5 — Stand
+# Phase 5 — abgeschlossen
 
-Zweig `claude/phase-5-dienstplan-zeit`. Diese Datei sagt, was steht, was laeuft
-und was als naechstes dran ist — damit eine neue Sitzung nicht raten muss.
+Zweig `claude/phase-5-dienstplan-zeit`; der Stand der Abgabe liegt eingefroren
+auf `claude/phase-5-abschluss`. Diese Datei sagt, was steht, was dabei gefunden
+wurde und wo Phase 6 anfaengt — damit eine neue Sitzung nicht raten muss.
+
+**PR 30 bis 45 sind fertig**, 49 Commits. Dazu gehoeren die drei Gewerkemodule
+(Reinigung, Security, Bau) und das Mitarbeiterportal in vier Sprachen. Die
+Pruefung der Abgabe: Merge-Wachen sauber, `tsc` sauber, `eslint .` sauber,
+953 Einheitstests, 833 Isolationstests, e2e gegen einen echten Produktionsbau.
 
 ## Fertig und gepusht
 
@@ -16,8 +22,18 @@ und was als naechstes dran ist — damit eine neue Sitzung nicht raten muss.
 | **36** | Zeit → Auftrag, Monatssplit, § 17-MiLoG-Aufzeichnung, Zeit-Einwand | Isolations- und Einheitstests |
 | **37** | Stundenkonto, Urlaubskonto, Monatsabschluss (Einbahnstrasse) | 19 Isolations-, 9 Einheitstests |
 | **38** | `abwesenheit`, `antrag`, Genehmigungseingang, Kennzeichnung im Dienstplan | 12 Isolations-, 12 Einheitstests |
-| — | **Die Einteilung** (`einsatz_zuordnung`) — der Schreibweg, den es nicht gab | 8 Isolationstests |
+| **39** | Mitarbeiterportal `/portal/mein` in de/en/ar/tr, lesend bis auf zwei Selbstzugriffs-Routen | 19 Isolations-, 33 Einheitstests |
+| **40** | Reinigung: Reviere, Turnus-Raumzuordnung, Leistungsnachweis mit Unterschrift, Reklamation, Qualitaetspruefung | 20 Isolations-, 22 Einheitstests |
+| **41** | Security A: Posten, Wachbuch als Hash-Kette, kurzfristige Eventbesetzung | 23 Isolations-, 6 Einheitstests |
+| **42** | Security B: versionierte Dienstanweisung mit Kenntnisnahme, Schluesselquittungen | 34 Isolationstests |
+| **43** | Bau A: Leistungsverzeichnis mit OZ-Hierarchie, Aufmass mit eigenem Rechenansatz-Parser | 35 Isolations-, 43 Einheitstests |
+| **44** | Bau B: Nachtraege, Behinderungsanzeige, Warnung ausserhalb des LV | 44 Isolations-, 28 Einheitstests |
+| **45** | Bau C: Bautagebuch, DWD-Wetter (nicht verbunden), Mannstundenabgleich | 19 Isolations-, 16 Einheitstests |
+| — | **Die Einteilung** (`einsatz_zuordnung`) — der Schreibweg, den es nicht gab | 12 Isolationstests |
 | — | **Der Zeitbereich** (Wochenliste, Live-Brett, Einzelblatt, Korrekturbuch, MiLoG) | 6 Browsertests |
+| — | **Die Stundenkonten** (Liste, Kontoblatt, Monatsabschluss) — PR 37 hatte keinen Aufrufer | 5 Isolationstests |
+| — | **Das Nachweisregister** (60/30/7) — der Ablaufwaechter meldete an niemanden | 6 Isolationstests |
+| — | **Personenliste, Nacherfassungseingang, vier neue Dashboard-Kacheln** | 4 + 3 Isolationstests |
 
 Dazu ausserhalb der PR-Liste: der Iconsatz (`src/lib/design/icons.ts`, DESIGN §5),
 acht Platzhalterszenen, Dienstplan-Kacheln auf dem Dashboard, und die
@@ -100,3 +116,41 @@ Zwei Stuecke aus PR 38 haengen an offenen Fragen:
 
 Bei **Phase 7** ist eine zusaetzliche, unabhaengige Pruefrunde vereinbart,
 bevor der PR aufgemacht und die Copilot-Schleife gefahren wird.
+
+
+---
+
+## Wo Phase 6 anfaengt
+
+**PR 46 (Rechnungs-Lebenszyklus) ist fertig** und liegt bereits auf dem
+Arbeitszweig: `0075_rechnung` / `0076_rechnung_unveraenderlich` /
+`0077_rechnung_hash`, `services/finanz/rechnung.ts`, die Routen unter
+`api/rechnungen/**` und die Seiten unter `finanzen/rechnungen/**`. Seine
+Isolationstests sind die schaerfsten des Baums: 1.000 Entwuerfe anlegen und
+verwerfen hinterlaesst **null** Luecken, fuenfzig GLEICHZEITIGE
+Festschreibungen ziehen fuenfzig Nummern ohne Dublette, und eine
+festgeschriebene Rechnung laesst sich **auch als Eigentuemer der Tabelle**
+nicht aendern.
+
+Als naechstes laufen PR 47 (§ 14-UStG-Validator), PR 48 (fuenf
+Abrechnungsarten) und PR 49 (Positionsherkunft). Migrationsnummern ab `0085`;
+`0068`–`0071` aus dem PR-Plan sind laengst vergeben.
+
+## Die Schuld, die benannt ist
+
+**K-01 gilt nicht** (D-300): 95 von 98 `SECURITY DEFINER`-Funktionen gehoeren
+`postgres` statt `cse_definer` und laufen damit an jeder RLS vorbei. Die
+Reparatur ist ausprobiert und beschrieben; sie braucht eine eigene Pruefrunde,
+weil jede lesende Stelle sonst still null Zeilen liest.
+`tests/isolation/definer-eigentum.test.ts` friert die 95 ein: **jede neue**
+Definer-Funktion muss `alter function … owner to cse_definer` mitbringen.
+
+## Wachen, die es seit Phase 5 gibt
+
+| Wache | Was sie verhindert |
+|---|---|
+| `datum-zone-ueberladung` | `($1::date) at time zone …` — das Tagesfenster begann im Sommer vier Stunden zu spaet |
+| `todo-client-*` (repariert) | Der Ausdruck traf `TODO(client, O-nn)` nie; die Wache meldete jahrelang gruen |
+| `spaltennamen.test.ts` | Eine `insert`-Spaltenliste, die eine Spalte nennt, die es nicht gibt |
+| `definer-eigentum.test.ts` | Eine neue Definer-Funktion, die als Superuser laeuft |
+| `tableiste.test.ts` (erweitert) | Ein Navigationspunkt, der nur die Auffangseite erreicht |
