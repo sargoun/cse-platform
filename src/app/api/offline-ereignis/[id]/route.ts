@@ -1,6 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { istGleicherUrsprung } from '@/server/auth/ursprung';
+import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
@@ -8,6 +8,7 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
+import { berlinFormularZeitpunkt } from '@/lib/datum/formularzeit';
 import {
   ABLEHNUNG_GRUENDE, lehneAnspruchAb, uebernimmAnspruch, type AblehnungGrund,
 } from '@/server/services/zeit/offline';
@@ -44,10 +45,17 @@ class AnspruchFehler extends Error {
   }
 }
 
+/**
+ * Die Zeit, die ein MENSCH eintraegt, ist Wanduhrzeit ohne Zone.
+ *
+ * `new Date(wert)` las sie als Ortszeit des Prozesses (auf Vercel UTC) — die
+ * uebernommene Nacherfassung stuende damit zwei Stunden neben dem, was die
+ * Planerin eingetippt hat, und zwar nur im Sommer. `berlinFormularZeit` loest
+ * ueber Berlin auf und kennt die beiden Naechte, in denen eine Wanduhrzeit
+ * fehlt oder doppelt ist.
+ */
 function datumAus(wert: FormDataEntryValue | null): Date | null {
-  if (typeof wert !== 'string' || wert === '') return null;
-  const d = new Date(wert);
-  return Number.isNaN(d.getTime()) ? null : d;
+  return berlinFormularZeitpunkt(wert);
 }
 
 export async function POST(
@@ -126,9 +134,37 @@ export async function POST(
         return { zeiteintragId };
       })) as { abgelehnt: true } | { zeiteintragId: string };
 
+    /**
+     * Kam die Entscheidung aus einem FORMULAR, geht es zurueck auf die Seite.
+     *
+     * Die Route antwortete bisher immer mit JSON. Fuer einen Aufrufer mit
+     * Skript ist das richtig; fuer das Formular auf
+     * `zeiten/nacherfassung` war es eine Sackgasse — die Planerin landete auf
+     * einer weissen Seite mit `{"zeiteintragId":"…"}`. Das Feld `zurueck`
+     * sagt, welcher der beiden Aufrufer fragt; `internesZiel` laesst dabei
+     * kein fremdes Ziel durch.
+     */
+    const zurueck = daten.get('zurueck');
+    if (typeof zurueck === 'string' && zurueck !== '') {
+      const marke = 'abgelehnt' in ergebnis ? 'abgelehnt' : 'uebernommen';
+      return NextResponse.redirect(
+        internesZiel(`${zurueck}${zurueck.includes('?') ? '&' : '?'}erledigt=${marke}`,
+          zurueck, anfrage),
+        303,
+      );
+    }
     return NextResponse.json(ergebnis, { status: 200 });
   } catch (fehler) {
     if (fehler instanceof AnspruchFehler) {
+      const zurueck = daten.get('zurueck');
+      if (typeof zurueck === 'string' && zurueck !== '') {
+        return NextResponse.redirect(
+          internesZiel(
+            `${zurueck}${zurueck.includes('?') ? '&' : '?'}fehler=${fehler.schluessel}`,
+            zurueck, anfrage),
+          303,
+        );
+      }
       return NextResponse.json({ fehler: fehler.schluessel }, { status: fehler.status });
     }
     // AUT-06: ein fehlendes Recht sieht von aussen aus wie eine fehlende Zeile.

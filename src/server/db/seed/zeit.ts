@@ -25,6 +25,7 @@
  * natuerliche Schluessel eines Zeiteintrags ist hier die Einteilung, auf die
  * er zeigt.
  */
+import { randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
 import {
   ArbzgWarnungOffen, besetzeEinsatz,
@@ -32,6 +33,8 @@ import {
 import { berlinHeute, type Abfrage } from '../../services/dienstplan/generator.js';
 import { tagePlus } from '@/lib/datum/kalendertag';
 import { alsPortalSitzung } from './sitzung.js';
+import { gibCheckinAus } from '../../services/zeit/checkin.js';
+import { nimmClaimAn } from '../../services/zeit/offline.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 
@@ -41,6 +44,8 @@ export interface ZeitErgebnis {
   readonly zeiteintraege: number;
   readonly laufend: number;
   readonly abwesenheiten: number;
+  /** Wartende Offline-Nachreichungen — die Warteschlange der Planung. */
+  readonly ansprueche: number;
 }
 
 /** Wie weit zurueck und wie weit voraus besetzt wird. */
@@ -153,13 +158,72 @@ export async function seedZeit(
   const { erfasst, laufend } = await erfasseZeiten(sql, mandantId, zugeteilt);
   const abwesenheiten = await seedAbwesenheiten(sql, mandantId, planer.id, anstellungen, heute);
   const konflikt = await seedRuhezeitkonflikt(sql, mandantId, planer.id, heute);
+  const ansprueche = await seedOfflineAnspruch(sql, mandantId, planer.id);
   return {
     einteilungen: einteilungen + konflikt,
     uebergangen: uebergangen + konflikt,
     zeiteintraege: erfasst,
     laufend,
     abwesenheiten,
+    ansprueche,
   };
+}
+
+/**
+ * EIN wartender Offline-Anspruch — das Telefon im Treppenhaus ohne Netz.
+ *
+ * Er entsteht auf dem ECHTEN Weg: eine Check-in-Marke wird ausgegeben
+ * (`app.checkin_ausgeben`), und die Nachreichung laeuft durch
+ * `app.offline_ereignis_annehmen` als `cse_checkin` — dieselbe
+ * Definer-Funktion, die das Telefon aufruft, mit demselben K-08-Register
+ * dahinter. Ein direktes `insert into offline_ereignis` erzeugte eine Zeile,
+ * die es im Betrieb nicht geben koennte, und verdeckte genau den Weg, den die
+ * Warteschlange abbildet.
+ *
+ * **Er bleibt OFFEN.** Die Planung entscheidet auf
+ * `zeiten/nacherfassung`; ein Seed, der die Entscheidung gleich mitliefert,
+ * zeigte eine leere Warteschlange und damit einen Bildschirm, den niemand je
+ * mit Inhalt sieht.
+ */
+async function seedOfflineAnspruch(
+  sql: Sql, mandantId: string, planerId: string,
+): Promise<number> {
+  const [da] = await sql<{ anzahl: string }[]>`
+    select count(*)::text as anzahl from offline_ereignis where mandant_id = ${mandantId}`;
+  if (Number(da?.anzahl ?? '0') > 0) return 0;
+
+  // Eine vergangene Einteilung OHNE Zeiteintrag — genau der Fall, den die
+  // Nachreichung fuellt.
+  const [offen] = await sql<{ zuordnung: string; beginn: Date }[]>`
+    select zo.id as zuordnung, e.beginn_zeitpunkt as beginn
+      from einsatz_zuordnung zo
+      join einsatz e on e.mandant_id = zo.mandant_id and e.id = zo.einsatz_id
+     where zo.mandant_id = ${mandantId} and zo.entfernt_am is null
+       and e.ende_zeitpunkt < now()
+       and not exists (select 1 from zeiteintrag z where z.einsatz_zuordnung_id = zo.id)
+     order by e.beginn_zeitpunkt desc
+     limit 1`;
+  if (offen === undefined) return 0;
+
+  const marke = await alsPortalSitzung(sql, mandantId, planerId, (k) =>
+    gibCheckinAus(k, offen.zuordnung, 'checkin', 'seed'));
+
+  await sql.begin(async (tx) => {
+    await nimmClaimAn(tx as unknown as Parameters<typeof nimmClaimAn>[0], {
+      token: marke,
+      ereignisse: [{
+        clientEreignisId: randomUUID(),
+        art: 'checkin',
+        // Die Behauptung: „ich habe puenktlich angefangen." Ob das stimmt,
+        // entscheidet ein Mensch — hier steht nur, was das Geraet sagt.
+        behaupteteZeit: offen.beginn,
+        geraetId: 'demo-telefon-01',
+      }],
+      ip: null,
+      userAgent: 'Demodaten (Seed)',
+    });
+  });
+  return 1;
 }
 
 /**
@@ -327,7 +391,10 @@ async function seedAbwesenheiten(
 }
 
 function leer(): ZeitErgebnis {
-  return { einteilungen: 0, uebergangen: 0, zeiteintraege: 0, laufend: 0, abwesenheiten: 0 };
+  return {
+    einteilungen: 0, uebergangen: 0, zeiteintraege: 0,
+    laufend: 0, abwesenheiten: 0, ansprueche: 0,
+  };
 }
 
 /**

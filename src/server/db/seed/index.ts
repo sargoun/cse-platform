@@ -662,7 +662,8 @@ async function main(): Promise<void> {
     `  ${String(zeit.einteilungen)} Einteilungen (davon ${String(zeit.uebergangen)} `
     + `mit bestaetigtem ArbZG-Befund), ${String(zeit.zeiteintraege)} Zeiteintraege `
     + `importiert, ${String(zeit.laufend)} laufend, `
-    + `${String(zeit.abwesenheiten)} Abwesenheiten/Antraege\n`,
+    + `${String(zeit.abwesenheiten)} Abwesenheiten/Antraege, `
+    + `${String(zeit.ansprueche)} wartende Nachreichung(en)\n`,
   );
 
   /**

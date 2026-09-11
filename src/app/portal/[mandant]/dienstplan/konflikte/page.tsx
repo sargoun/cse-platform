@@ -55,6 +55,16 @@ const ART_TEXT: Readonly<Record<string, string>> = {
   unterbesetzung: 'Unterbesetzung',
 };
 
+/**
+ * Bei welchen Regeln der Grenzwert eine UNTERgrenze ist.
+ *
+ * Die Karte schrieb „4,07 h statt höchstens 11,00 h" — und das ist bei einer
+ * Ruhezeit schlicht falsch herum: § 5 ArbZG verlangt elf Stunden MINDESTENS.
+ * Eine Warnung, die ihren eigenen Paragrafen verdreht, macht aus einem Befund
+ * eine Formulierung, der niemand traut — und im Streit steht sie so im Ausdruck.
+ */
+const MINDESTWERT = new Set(['ruhezeit_unter_11h']);
+
 const REGEL_TEXT: Readonly<Record<string, string>> = {
   tagesarbeitszeit_ueber_8h: 'Tagesarbeitszeit über 8 Stunden (§ 3 ArbZG)',
   tagesarbeitszeit_ueber_10h: 'Tagesarbeitszeit über 10 Stunden (§ 3 ArbZG)',
@@ -200,7 +210,9 @@ function Karte({
         {zeile.objekt !== null && ` · ${zeile.objekt}`}
         {zeile.regel !== null && ` · ${REGEL_TEXT[zeile.regel] ?? zeile.regel}`}
         {zeile.ist_minuten !== null && zeile.grenzwert_minuten !== null
-          && ` · ${stundenAusMinuten(zeile.ist_minuten)} statt höchstens ${stundenAusMinuten(zeile.grenzwert_minuten)}`}
+          && ` · ${stundenAusMinuten(zeile.ist_minuten)} statt `
+            + `${MINDESTWERT.has(zeile.regel ?? '') ? 'mindestens' : 'höchstens'} `
+            + `${stundenAusMinuten(zeile.grenzwert_minuten)}`}
       </p>
 
       {zeile.einsatz_id !== null && (

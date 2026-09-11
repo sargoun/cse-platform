@@ -4,6 +4,7 @@ import { istGleicherUrsprung } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { withPersonScope, withTenant, type Sitzung } from '@/server/kontext/index';
+import { berlinFormularZeitpunkt } from '@/lib/datum/formularzeit';
 import {
   EinwandOhneBezugFehler, KeineAnstellungFehler, mandantDerAnstellung, reicheEinwandEin,
   type EinwandArt,
@@ -48,11 +49,17 @@ function textOder(daten: FormData, feld: string): string | null {
   return typeof wert === 'string' && wert.trim() !== '' ? wert.trim() : null;
 }
 
+/**
+ * `datetime-local` schickt WANDUHRZEIT ohne Zone, und die ist berlinerisch.
+ *
+ * `new Date('2026-07-01T06:00')` las sie als Ortszeit des Prozesses — auf
+ * Vercel UTC. Aus „06:00" wurde damit 08:00 Berliner Zeit: kein Fehler, keine
+ * Meldung, nur ein Einwand, der eine andere Zeit behauptet als der Mensch
+ * eingetragen hat. `berlinFormularZeit` loest sie ueber dieselbe getestete
+ * Funktion auf, mit der der Generator seine Schichten legt (§7.2).
+ */
 function zeitpunktOder(daten: FormData, feld: string): Date | null {
-  const roh = textOder(daten, feld);
-  if (roh === null) return null;
-  const d = new Date(roh);
-  return Number.isNaN(d.getTime()) ? null : d;
+  return berlinFormularZeitpunkt(textOder(daten, feld));
 }
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
