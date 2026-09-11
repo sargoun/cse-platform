@@ -131,4 +131,38 @@ body {
 .cse-zahl {
   font-variant-numeric: tabular-nums;
   text-align: right;
+  /*
+   * `direction: ltr` mit `unicode-bidi: isolate` — und das ist kein
+   * Schoenheitsfehler, den man weglassen koennte.
+   *
+   * In einem RTL-Absatz ordnet der Bidi-Algorithmus „0:00 h" um: die Ziffern
+   * sind neutral, das `h` ist stark links-nach-rechts, und heraus kommt
+   * sichtbar „h 0:00". Bei einer Uhrzeit ist das nur haesslich; bei einem
+   * Datum wie „11.09.2026" oder einem Betrag „1.234,56 €" verschiebt es
+   * Zeichen, die zusammengehoeren, und der Leser sieht eine andere Zahl als
+   * die gespeicherte.
+   *
+   * Zahl, Datum, Uhrzeit und Geld bleiben deshalb in der gesetzlichen Form,
+   * in JEDER Sprache — genau das verlangt SEITENKARTE §12: der MiLoG-Nachweis
+   * und die Rechnung sehen auf Arabisch aus wie auf Deutsch. `isolate` haelt
+   * den Ausschnitt zudem aus der Umgebung heraus, sodass er den Satz um sich
+   * herum nicht umordnet.
+   */
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/**
+ * Dieselbe Bidi-Isolation OHNE die Rechtsbuendigkeit.
+ *
+ * `cse-zahl` gehoert in eine Tabellenzelle, und dort ist rechtsbuendig
+ * richtig: Ziffern gleicher Stellenzahl stehen untereinander. Eine Kennzahl
+ * in einer Kachel oder eine Zahl mitten im Satz soll dagegen dort bleiben,
+ * wo das Layout sie hinstellt — sie braucht nur den Schutz vor der
+ * Umordnung, nicht die Ausrichtung.
+ */
+.cse-zahl-frei {
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
 }

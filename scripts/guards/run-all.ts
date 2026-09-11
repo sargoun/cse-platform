@@ -220,6 +220,70 @@ function wacheDatumZone(): void {
 }
 
 /**
+ * Wache — ein Backtick in einem SQL-Template beendet die Zeichenkette.
+ *
+ * Die Abfragen stehen in Template-Literalen. Wer darin einen Kommentar mit
+ * `Spaltenname` in Backticks schreibt — so, wie der ganze Rest dieses Baums
+ * kommentiert ist —, beendet die Zeichenkette mitten im SQL. Der Build
+ * scheitert dann mit `TS1005: ',' expected` an einer Zeile, die voellig in
+ * Ordnung aussieht, und man sucht den Fehler im falschen Ausdruck.
+ *
+ * Das ist in dieser Sitzung DREIMAL passiert, jedes Mal beim Erklaeren einer
+ * gerade reparierten Stelle. Eine Falle, in die man beim Sorgfaeltigsein
+ * tappt, gehoert in eine Wache und nicht in die Erinnerung.
+ *
+ * Erkannt wird der einfache, haeufige Fall: eine Zeile INNERHALB eines
+ * mehrzeiligen SQL-Templates, die mit einem SQL-Kommentar oder einem
+ * Block-Kommentarstern beginnt und einen Backtick enthaelt. Der richtige Weg
+ * ist derselbe Kommentar mit `--` und ohne Backticks.
+ */
+function wacheBacktickImSql(): void {
+  /*
+   * Der Bereich beginnt an einer Zeile, die eine SQL-Verbform UND einen
+   * Backtick traegt, und endet an der naechsten Zeile mit einem Backtick.
+   *
+   * Absichtlich eng: eine Paritaetszaehlung ueber die ganze Datei zaehlt jeden
+   * Backtick in jedem Regex und jeder Doku mit und meldet dann Kommentare, die
+   * voellig in Ordnung sind. Eine Wache mit falschen Treffern wird abgeschaltet
+   * — und dann prueft sie gar nichts mehr.
+   */
+  const OEFFNET = /(?:unsafe|abfrage|schreibe|sql)\s*(?:<[^>]*>)?\s*\(?\s*`/u;
+  for (const datei of dateien('src', ['.ts', '.tsx'])
+    .concat(dateien('tests', ['.ts']))) {
+    const zeilen = readFileSync(datei, 'utf8').split('\n');
+    let imSql = false;
+    zeilen.forEach((zeile, i) => {
+      if (!imSql) {
+        // Nur wenn das Template offen BLEIBT: `sql.unsafe(`…`)` in einer Zeile
+        // oeffnet und schliesst zugleich und faengt keinen Kommentar ein.
+        const offen = ((zeile.match(/`/gu) ?? []).length % 2) === 1;
+        /*
+         * Zwei Formen oeffnen ein SQL-Template, und die erste Fassung kannte
+         * nur eine. Bei der haeufigeren steht der Aufruf auf der einen Zeile
+         * und die Abfrage auf der naechsten:
+         *
+         *     await sql.unsafe<{ id: string }[]>(
+         *       `insert into einsatz (...
+         *
+         * Dort traegt die oeffnende Zeile KEINE Verbform — sie beginnt bloss
+         * mit einem Backtick. Genau diese Form hat der Fehler dreimal
+         * getroffen, und genau sie liess die Wache durch: sie meldete sauber
+         * und prueffte nichts.
+         */
+        const beginntMitTick = zeile.trimStart().startsWith('`');
+        if (offen && (beginntMitTick || OEFFNET.test(zeile))
+            && !zeile.trimStart().startsWith('*')) imSql = true;
+        return;
+      }
+      if (/^\s*(?:--|\*|\/\/)/u.test(zeile) && zeile.includes('`')) {
+        melde('sql-backtick-im-kommentar', datei, i + 1, zeile);
+      }
+      if (zeile.includes('`')) imSql = false;
+    });
+  }
+}
+
+/**
  * Guard 6 — Invariante 7: es gibt genau EINEN Ausgang.
  *
  * Ein Mailtransport oder ein HTTP-Sender ausserhalb von `server/versand`
@@ -537,6 +601,7 @@ async function main(): Promise<void> {
   wacheRouteOhneDb();
   wacheTodoClient();
   wacheDatumZone();
+  wacheBacktickImSql();
   wacheEuRegion();
   wacheEinAusgang();
   wacheTailwindFarben();

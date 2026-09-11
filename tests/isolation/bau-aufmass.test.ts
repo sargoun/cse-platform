@@ -530,7 +530,25 @@ describe('BAU-02: die Kraft vor Ort nimmt das Blatt selbst auf', () => {
                now() - interval '1 hour', now() + interval '6 hours',
                ((now() - interval '1 hour') at time zone 'Europe/Berlin')::time,
                ((now() + interval '6 hours') at time zone 'Europe/Berlin')::time,
-               false, $5, $3, $4, 'system')
+               -- endet_am_folgetag wird AUSGERECHNET, nicht behauptet.
+               --
+               -- Hier stand "false". Das Fenster laeuft von now() - 1h bis
+               -- now() + 6h, und ab etwa 18:00 Berliner Zeit liegt das Ende am
+               -- naechsten Tag: ende_lokal ist dann KLEINER als beginn_lokal,
+               -- und einsatz_folgetag weist die Zeile ab.
+               --
+               -- Die Pruefung war damit von der Tageszeit abhaengig: morgens
+               -- gruen, abends rot, ohne dass sich eine Zeile Code geaendert
+               -- haette. Das ist die unangenehmste Sorte Fehlschlag — er
+               -- erscheint, wenn niemand etwas getan hat, und verschwindet,
+               -- bevor jemand nachsieht.
+               --
+               -- Und die Ironie gehoert dazu: der Fall, ueber den die Fixtur
+               -- stolpert, ist genau der, um dessentwillen die Spalte
+               -- existiert — die Schicht ueber Mitternacht (K-11).
+               (((now() + interval '6 hours') at time zone 'Europe/Berlin')::time
+                 <= ((now() - interval '1 hour') at time zone 'Europe/Berlin')::time),
+               $5, $3, $4, 'system')
        returning id`,
       [bau.mandant, `manuell:${zufall()}${zufall()}`, bau.kunde, bau.projekt, o!.id] as never[]);
     await sql.unsafe(
