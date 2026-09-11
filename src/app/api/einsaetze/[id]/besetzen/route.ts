@@ -8,7 +8,9 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
-import { besetzeEinsatz, ArbzgWarnungOffen } from '@/server/services/dienstplan/einteilung';
+import {
+  besetzeEinsatz, AbwesendWarnungOffen, ArbzgWarnungOffen,
+} from '@/server/services/dienstplan/einteilung';
 import { QualifikationFehlt } from '@/server/services/nachweis/tor';
 
 /**
@@ -85,7 +87,8 @@ export async function POST(
      * Seite, dieselben Gründe, im Klartext. Der JSON-Aufrufer bekommt 422 mit
      * den Befunden; er hat kein Formular, in das er zurückkehren könnte.
      */
-    if (fehler instanceof ArbzgWarnungOffen || fehler instanceof QualifikationFehlt) {
+    if (fehler instanceof ArbzgWarnungOffen || fehler instanceof AbwesendWarnungOffen
+        || fehler instanceof QualifikationFehlt) {
       if (mandant !== '') {
         return NextResponse.redirect(
           internesZiel(
@@ -94,12 +97,16 @@ export async function POST(
           303,
         );
       }
+      if (fehler instanceof ArbzgWarnungOffen) {
+        return NextResponse.json(
+          { fehler: 'arbzg_warnung', befunde: fehler.befunde }, { status: 422 });
+      }
+      if (fehler instanceof AbwesendWarnungOffen) {
+        return NextResponse.json(
+          { fehler: 'abwesend', hinweis: fehler.hinweis }, { status: 422 });
+      }
       return NextResponse.json(
-        fehler instanceof ArbzgWarnungOffen
-          ? { fehler: 'arbzg_warnung', befunde: fehler.befunde }
-          : { fehler: 'qualifikation_fehlt', befund: fehler.befund },
-        { status: 422 },
-      );
+        { fehler: 'qualifikation_fehlt', befund: fehler.befund }, { status: 422 });
     }
     if (fehler instanceof NichtGefundenFehler) {
       return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });

@@ -19,7 +19,8 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import {
   besetzeEinsatz, pruefeEinteilung, sageZuordnungAb,
-  ArbzgWarnungOffen, BereitsEingeteilt, GrundFehlt, SchichtStorniert,
+  AbwesendWarnungOffen, ArbzgWarnungOffen, BereitsEingeteilt, GrundFehlt,
+  SchichtStorniert,
 } from '../../src/server/services/dienstplan/einteilung.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 
@@ -279,6 +280,71 @@ describe('(3) Der Arbeitszeitbefund haelt an — und laesst sich bestaetigen', (
         where mandant_id = $1 and person_id = $2 and art = 'arbzg'
           and hinfaellig_am is null limit 1`, [f.reinigung, f.jonas]);
     expect(karte?.verstoss_id, 'die Karte braucht ihren Beleg').not.toBeNull();
+  });
+});
+
+describe('Eine abgemeldete Person wird nicht still eingeteilt', () => {
+  /**
+   * Der Fall, der sonst erst um 06:00 vor einem verschlossenen Objekt
+   * auffaellt: jemand steht im Plan, der Urlaub hat. Der Dienst haelt an und
+   * sagt, WAS los ist — nie, warum (Art. 9 DSGVO).
+   */
+  async function abgemeldet(tag: string): Promise<void> {
+    const [art] = await sql.unsafe<{ id: string }[]>(
+      `update abwesenheitsart set bezahlt = true
+        where schluessel = 'urlaub' and mandant_id is null returning id`);
+    // Das Urlaubskonto steht VOR der Genehmigung — sonst weist der Ausloeser
+    // aus `0073` die Buchung ab (O-18), und das ist richtig so.
+    await sql.unsafe(
+      `insert into urlaubskonto (mandant_id, anstellung_id, jahr, anspruch_tage)
+       values ($1, $2, $3, 30) on conflict (anstellung_id, jahr) do nothing`,
+      [f.reinigung, f.jonasReinigung, Number(tag.slice(0, 4))]);
+    await sql.unsafe(
+      `insert into abwesenheit (mandant_id, anstellung_id, abwesenheitsart_id, von, bis,
+                                tage_angerechnet, status, erstellt_von)
+       values ($1, $2, $3, $4::date, $4::date, 1, 'genehmigt', $5)`,
+      [f.reinigung, f.jonasReinigung, art!.id, tag, chef]);
+  }
+
+  it('ohne Bestaetigung wird nichts geschrieben — und der Hinweis nennt den Zeitraum',
+    async () => {
+      const e = await schicht(f.reinigung, TAG, '06:00', '10:00');
+      await abgemeldet(TAG);
+
+      const fehler = await alsChef(f.reinigung, (k) =>
+        besetzeEinsatz(k, { einsatzId: e, anstellungId: f.jonasReinigung })
+          .then(() => null, (x: unknown) => x));
+
+      expect(fehler).toBeInstanceOf(AbwesendWarnungOffen);
+      expect((fehler as AbwesendWarnungOffen).hinweis).toContain('16.07.2029');
+      // Und KEIN Wort ueber die Art der Abwesenheit.
+      expect((fehler as AbwesendWarnungOffen).message).not.toContain('Urlaub');
+
+      const [n] = await sql.unsafe<{ anzahl: string }[]>(
+        `select count(*)::text as anzahl from einsatz_zuordnung where einsatz_id = $1`, [e]);
+      expect(Number(n?.anzahl ?? '1')).toBe(0);
+    });
+
+  it('mit Bestaetigung geht es — die Entscheidung bleibt beim Menschen', async () => {
+    const e = await schicht(f.reinigung, TAG, '06:00', '10:00');
+    await abgemeldet(TAG);
+
+    const befund = await alsChef(f.reinigung, (k) =>
+      besetzeEinsatz(k, {
+        einsatzId: e, anstellungId: f.jonasReinigung, bestaetigt: true,
+      }));
+    expect(befund.zuordnungId).toMatch(/^[0-9a-f-]{36}$/u);
+  });
+
+  it('und die Vorschau sagt dasselbe, ohne den Grund zu nennen', async () => {
+    const e = await schicht(f.reinigung, TAG, '06:00', '10:00');
+    await abgemeldet(TAG);
+
+    const vorschau = await alsChef(f.reinigung, (k) =>
+      pruefeEinteilung(k, e, f.jonasReinigung));
+    expect(vorschau.abwesenheitGeprueft).toBe(true);
+    expect(vorschau.abwesend).toContain('abgemeldet');
+    expect(vorschau.abwesend).not.toContain('Urlaub');
   });
 });
 

@@ -105,6 +105,30 @@ export class ArbzgWarnungOffen extends Error {
 }
 
 /**
+ * Die Person ist an diesem Tag abgemeldet — und das haelt die Einteilung an.
+ *
+ * Nicht als Sperre: eine Krankmeldung kann zurueckgenommen werden, ein Urlaub
+ * ist erst beantragt, und es gibt Faelle, in denen jemand bewusst trotzdem
+ * eingeteilt wird (und die Abwesenheit danach storniert). Aber still
+ * druebergehen darf der Weg nicht: eine Schicht, auf der jemand steht, der
+ * nicht kommt, faellt erst am Einsatztag auf — um 06:00, vor einem
+ * verschlossenen Objekt.
+ */
+export class AbwesendWarnungOffen extends Error {
+  readonly code = 'abwesend';
+  readonly status = 422;
+  readonly hinweis: string;
+  constructor(hinweis: string) {
+    super(
+      `Diese Beschäftigung ${hinweis}. Die Einteilung wird erst nach `
+      + 'ausdrücklicher Bestätigung geschrieben.',
+    );
+    this.name = 'AbwesendWarnungOffen';
+    this.hinweis = hinweis;
+  }
+}
+
+/**
  * Die Arbeitszeitpruefung ist ein eigenes Recht (`dienstplan.arbzg_pruefen`,
  * K-06) — und ihr Fehlen darf NICHT wie „keine Befunde" aussehen.
  *
@@ -169,6 +193,50 @@ export interface Vorschau {
   /** `null`: nicht geprüft, weil das Recht fehlt — nicht „nichts gefunden". */
   readonly arbzg: readonly ArbzgBefund[] | null;
   readonly ueberGesellschaften: boolean;
+  /**
+   * Ist die Person an diesem Tag abgemeldet? Der TEXT, nie der Grund
+   * (Art. 9 DSGVO, 0073) — und `null`, wenn dieser Sitzung
+   * `zeit.abwesenheit_lesen` fehlt: „nicht geprüft" ist etwas anderes als
+   * „nicht abwesend".
+   */
+  readonly abwesend: string | null;
+  readonly abwesenheitGeprueft: boolean;
+}
+
+/**
+ * Ist diese Beschaeftigung im Zeitraum der Schicht abgemeldet?
+ *
+ * Gefragt wird `abwesenheit` mit dem Fenster der Schicht — und geantwortet
+ * wird mit Status und Zeitraum, nie mit der Art. Der Planer erfaehrt, dass er
+ * gerade jemanden einteilt, der nicht kommt; warum, geht ihn nichts an.
+ *
+ * Ohne `zeit.abwesenheit_lesen` gibt die RLS nichts heraus. Das darf nicht wie
+ * „niemand ist abgemeldet" aussehen — deshalb wird das Recht zuerst gefragt.
+ */
+async function abwesenheitImFenster(
+  kontext: SchreibKontext, anstellungId: string, beginn: Date, ende: Date,
+): Promise<{ readonly geprueft: boolean; readonly text: string | null }> {
+  const [recht] = await kontext.abfrage<{ darf: boolean }>(
+    `select app.hat_recht('zeit.abwesenheit_lesen', app.aktiver_mandant()) as darf`,
+  );
+  if (recht?.darf !== true) return { geprueft: false, text: null };
+
+  const [zeile] = await kontext.abfrage<{ status: string; von: string; bis: string }>(
+    `select a.status::text as status,
+            to_char(a.von, 'DD.MM.YYYY') as von,
+            to_char(a.bis, 'DD.MM.YYYY') as bis
+       from abwesenheit a
+      where a.anstellung_id = $1::uuid
+        and a.status in ('beantragt','genehmigt','erfasst')
+        and daterange(a.von, a.bis, '[]') && daterange(
+              ($2::timestamptz at time zone 'Europe/Berlin')::date,
+              ($3::timestamptz at time zone 'Europe/Berlin')::date, '[]')
+      order by a.von limit 1`,
+    [anstellungId, beginn.toISOString(), ende.toISOString()],
+  );
+  if (zeile === undefined) return { geprueft: true, text: null };
+  const wort = zeile.status === 'beantragt' ? 'hat Urlaub beantragt' : 'ist abgemeldet';
+  return { geprueft: true, text: `${wort} vom ${zeile.von} bis ${zeile.bis}` };
 }
 
 async function ladeSchicht(kontext: SchreibKontext, id: string): Promise<SchichtZeile> {
@@ -214,9 +282,11 @@ export async function pruefeEinteilung(
     qualifikationsfehler = fehler instanceof Error ? fehler.message : String(fehler);
   }
 
+  const beginn = new Date(schicht.beginn_zeitpunkt);
+  const ende = new Date(schicht.ende_zeitpunkt);
+  const abmeldung = await abwesenheitImFenster(kontext, anstellungId, beginn, ende);
+
   try {
-    const beginn = new Date(schicht.beginn_zeitpunkt);
-    const ende = new Date(schicht.ende_zeitpunkt);
     const ergebnis = await pruefeEinsatz(db, personId, beginn, ende, {
       schreiben: false,
       // Die Schicht, um die es geht, ist noch nicht gespeichert — ohne sie
@@ -228,12 +298,17 @@ export async function pruefeEinteilung(
       qualifikationsfehler,
       arbzg: ergebnis.befunde,
       ueberGesellschaften: ergebnis.ueberGesellschaften,
+      abwesend: abmeldung.text,
+      abwesenheitGeprueft: abmeldung.geprueft,
     };
   } catch (fehler) {
     if (!istRechteFehler(fehler)) throw fehler;
     // `null` heisst UNGEPRUEFT und wird in der Anzeige auch so benannt —
     // nicht als leere Liste, die wie „nichts gefunden" aussaehe.
-    return { qualifikation, qualifikationsfehler, arbzg: null, ueberGesellschaften: false };
+    return {
+      qualifikation, qualifikationsfehler, arbzg: null, ueberGesellschaften: false,
+      abwesend: abmeldung.text, abwesenheitGeprueft: abmeldung.geprueft,
+    };
   }
 }
 
@@ -267,6 +342,16 @@ export async function besetzeEinsatz(
 
   const beginn = new Date(schicht.beginn_zeitpunkt);
   const ende = new Date(schicht.ende_zeitpunkt);
+  /**
+   * Die Abmeldung zuerst: sie ist die billigste Antwort auf die Frage „kommt
+   * dieser Mensch ueberhaupt?", und sie kostet eine Abfrage statt eines
+   * Uebertritts ueber die Mandantengrenze.
+   */
+  const abmeldung = await abwesenheitImFenster(kontext, eingabe.anstellungId, beginn, ende);
+  if (abmeldung.text !== null && eingabe.bestaetigt !== true) {
+    throw new AbwesendWarnungOffen(abmeldung.text);
+  }
+
   let vorher;
   try {
     vorher = await pruefeEinsatz(db, personId, beginn, ende, {

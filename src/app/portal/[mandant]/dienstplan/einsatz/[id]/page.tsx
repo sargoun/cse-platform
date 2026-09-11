@@ -467,6 +467,29 @@ function Pruefblatt({
       )}
 
       <h5 className="mb-s2 mt-s4 text-sm uppercase tracking-[0.08em] text-text-muted">
+        Abwesenheit
+      </h5>
+      {!vorschau.abwesenheitGeprueft ? (
+        <p className="m-0 max-w-prose text-sm text-warning">
+          Nicht geprüft: dafür fehlt das Recht `zeit.abwesenheit_lesen`. Das ist
+          <strong> nicht</strong> dasselbe wie „nicht abgemeldet".
+        </p>
+      ) : vorschau.abwesend === null ? (
+        <p className="m-0 text-sm text-text-muted">
+          Keine Abmeldung in diesem Zeitraum.
+        </p>
+      ) : (
+        <p
+          data-cse="abwesend-befund"
+          className="m-0 max-w-prose text-sm text-warning"
+        >
+          <strong>Achtung:</strong> Diese Beschäftigung {vorschau.abwesend}. Warum,
+          steht hier nicht — das ist ein Gesundheitsdatum und hängt an einem
+          eigenen Recht (Art. 9 DSGVO).
+        </p>
+      )}
+
+      <h5 className="mb-s2 mt-s4 text-sm uppercase tracking-[0.08em] text-text-muted">
         Arbeitszeit
       </h5>
       {vorschau.arbzg === null ? (
@@ -513,8 +536,13 @@ function Pruefblatt({
           <input type="hidden" name="mandant" value={mandant} />
           <input type="hidden" name="zurueck" value={pfad} />
           <input type="hidden" name="bestaetigt" value="1" />
-          <Button type="submit" variante={befunde.length > 0 ? 'danger' : 'primary'}>
-            {befunde.length > 0 ? 'Trotz Befund einteilen' : 'Einteilen'}
+          <Button
+            type="submit"
+            variante={befunde.length > 0 || vorschau.abwesend !== null ? 'danger' : 'primary'}
+          >
+            {vorschau.abwesend !== null
+              ? 'Trotz Abmeldung einteilen'
+              : befunde.length > 0 ? 'Trotz Befund einteilen' : 'Einteilen'}
           </Button>
           {befunde.length > 0 && (
             <span className="max-w-prose text-sm text-text-muted">
