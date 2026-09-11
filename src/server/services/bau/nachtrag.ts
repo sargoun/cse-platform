@@ -26,6 +26,7 @@
  * (Spalten-GRANT, K-05); die Nachtragskalkulation ist PR 48.
  */
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
+import { gate, type Freigabe, type Nutzlast } from '../../agent/policy.js';
 
 /** `nachtrag_status` (03-GEWERKE §3.3). */
 export type NachtragStatus =
@@ -317,6 +318,37 @@ export async function traegeAnmeldungNach(
  * VOB/B knuepft den Anspruch an die Ankuendigung, und ein eingereichter
  * Nachtrag ohne sie sagt dem Auftraggeber, es habe keine gegeben.
  */
+/**
+ * Die Nutzlast, ueber die die Freigabe erteilt wird — und ihr Hash ist die
+ * Bindung.
+ *
+ * Was hier hineingeht, entscheidet, was eine Freigabe deckt. Nummer, Projekt,
+ * Titel und Begruendung stehen drin, weil genau sie den Nachtrag ausmachen:
+ * wer nach der Freigabe die Begruendung umschreibt, hat einen anderen
+ * Nachtrag, und die Freigabe gilt dafuer nicht mehr.
+ *
+ * **Der Betrag steht NICHT drin** — nicht aus Nachlaessigkeit: `cse_app` darf
+ * `betrag_netto_cent` gar nicht lesen (K-05, siehe Kopfkommentar). Ihn hier
+ * aufzunehmen hiesse, ihn aus einer Rolle heraus zu lesen, der er entzogen
+ * ist. Die Bindung traegt stattdessen die Kennung des Nachtrags, und die ist
+ * eindeutig.
+ */
+export function nachtragNutzlast(mandantId: string, zeile: NachtragZeile): Nutzlast {
+  return {
+    aktion: 'nachtrag_einreichen',
+    mandantId,
+    inhalt: {
+      nachtrag_id: zeile.id,
+      nummer: zeile.nummer,
+      titel: zeile.titel,
+      projekt: `${zeile.projekt_nummer} · ${zeile.projekt}`,
+      grundlage: zeile.grundlage,
+      grundlage_fundstelle: zeile.grundlage_fundstelle,
+      begruendung: zeile.begruendung,
+    },
+  };
+}
+
 export async function reicheEin(
   kontext: SchreibKontext,
   eingabe: {
@@ -348,6 +380,71 @@ export async function reicheEin(
       + 'Freigabe (Invariante 7, APR-07).',
     );
   }
+
+  /**
+   * **Durch DASSELBE Tor wie alles andere, was hinausgeht.**
+   *
+   * Hier stand ein blosser `update … from freigabe f where f.status =
+   * 'genehmigt' and f.freigegeben_von is not null`. Geprueft wurde damit nur,
+   * DASS irgendein Mensch irgendetwas genehmigt hat — nicht, dass er DIESEN
+   * Nachtrag genehmigt hat, und nicht einmal, dass die Freigabe ueberhaupt
+   * eine Einreichung meinte.
+   *
+   * Konkret hiess das: eine Freigabe fuer ein Angebot, erteilt am Vortag,
+   * reichte aus, um einen beliebigen Nachtrag einzureichen — beliebig oft,
+   * denn verbraucht wurde sie auch nicht. Invariante 7 sagt „nichts verlaesst
+   * das System ohne menschliche Freigabe"; eine Freigabe fuer etwas anderes
+   * ist keine.
+   *
+   * `gate()` prueft die Bindung, die zaehlt: Aktion UND Nutzlast-Hash. Der
+   * Hash traegt Nummer, Projekt, Betrag und Begruendung — wer den Nachtrag
+   * nach der Freigabe aendert, bekommt einen anderen Hash und damit eine
+   * abgelaufene Freigabe. Genau denselben Weg nimmt die Behinderungsanzeige
+   * (BAU-06).
+   */
+  const [freigabeZeile] = await kontext.abfrage<{
+    id: string; aktion: string; status: string; freigegeben_von: string | null;
+    nutzlast_hash: string | null;
+  }>(
+    `select f.id, f.aktion, f.status::text as status, f.freigegeben_von,
+            (select s.nutzlast_hash from freigabe_snapshot s
+              where s.freigabe_id = f.id and s.mandant_id = f.mandant_id
+              order by s.kette_nr desc limit 1) as nutzlast_hash
+       from freigabe f
+      where f.id = $1::uuid and f.mandant_id = $2::uuid`,
+    [eingabe.freigabeId, kontext.aktiverMandantId],
+  );
+
+  const [richtlinieZeile] = await kontext.abfrage<{
+    auto_erlaubt: boolean; max_betrag_cent: string | null; ist_aktiv: boolean;
+  }>(
+    `select auto_erlaubt, max_betrag_cent::text as max_betrag_cent, ist_aktiv
+       from agent_richtlinie
+      where mandant_id = $1::uuid and aktion = 'nachtrag_einreichen'`,
+    [kontext.aktiverMandantId],
+  );
+
+  const entscheidung = gate(
+    nachtragNutzlast(kontext.aktiverMandantId, vorher),
+    freigabeZeile === undefined ? null : {
+      id: freigabeZeile.id,
+      aktion: freigabeZeile.aktion as Freigabe['aktion'],
+      mandantId: kontext.aktiverMandantId,
+      status: freigabeZeile.status as Freigabe['status'],
+      freigegebenVon: freigabeZeile.freigegeben_von,
+      nutzlastHash: freigabeZeile.nutzlast_hash ?? '',
+    },
+    richtlinieZeile === undefined ? null : {
+      mandantId: kontext.aktiverMandantId,
+      aktion: 'nachtrag_einreichen',
+      autoErlaubt: richtlinieZeile.auto_erlaubt,
+      maxBetragCent: richtlinieZeile.max_betrag_cent === null
+        ? null : BigInt(richtlinieZeile.max_betrag_cent),
+      ist_aktiv: richtlinieZeile.ist_aktiv,
+    },
+  );
+  // Der Fehler des Tors WOERTLICH weiter: er sagt, was fehlt.
+  if (!entscheidung.erlaubt) throw entscheidung.fehler;
 
   await kontext.schreibe(
     `update nachtrag

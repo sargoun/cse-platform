@@ -137,8 +137,22 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
     for (const z of ziele) {
       sichtbareTabs[z.schluessel] = z.recht === null || gehalten.has(z.recht);
     }
+    /*
+     * **Geschluesselt nach `schluessel`, nicht nach `recht`.**
+     *
+     * Hier stand `navigationsRechte[n.recht] = …` — also `crm.lesen` als
+     * Schluessel. `SeitenNavigation` schlaegt aber unter `z.schluessel` nach,
+     * also `crm`. Jede Abfrage lief damit ins Leere, `undefined !== false`
+     * war wahr, und die Sidebar zeigte JEDEN Punkt — auch den, dessen Recht
+     * der Benutzer nicht haelt.
+     *
+     * Das ist genau der Fall, den das Register verhindern soll (AUT-06): ein
+     * Menuepunkt, der auf einen 404 fuehrt, verraet die Existenz dessen, was
+     * er nicht zeigen darf. Gemerkt haette man es nie, denn ein sichtbarer
+     * Punkt zu viel sieht aus wie ein vollstaendiges Menue.
+     */
     const navigationsRechte: Record<string, boolean> = {};
-    for (const n of NAVIGATION) navigationsRechte[n.recht] = gehalten.has(n.recht);
+    for (const n of NAVIGATION) navigationsRechte[n.schluessel] = gehalten.has(n.recht);
     const [m] = sitzung.aktiverMandantId === null ? [] : await abfrage<{ slug: string }>(
       `select slug from mandant where id = $1`, [sitzung.aktiverMandantId],
     );

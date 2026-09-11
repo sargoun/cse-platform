@@ -23,6 +23,15 @@ export type Aktion =
   | 'email_senden' | 'angebot_senden' | 'social_veroeffentlichen'
   | 'bewerbung_antworten' | 'mahnung_senden' | 'rechnung_senden'
   /**
+   * BAU-05, § 2 Abs. 6 VOB/B. Eine eigene Aktion, aus demselben Grund wie
+   * `behinderung_senden`: die Einreichung eines Nachtrags ist eine
+   * Willenserklaerung gegenueber dem Auftraggeber mit Preisfolge, kein
+   * Anschreiben. Unter `email_senden` haette eine Richtlinie „Mails duerfen
+   * automatisch raus" sie mitgemeint — und damit einen Nachtrag ueber
+   * vierzigtausend Euro ohne einen Menschen hinausgelassen.
+   */
+  | 'nachtrag_einreichen'
+  /**
    * BAU-06, § 6 VOB/B. Eine eigene Aktion und nicht `email_senden`: die
    * Behinderungsanzeige geht ueberwiegend NICHT per Mail hinaus, sondern per
    * Einschreiben oder Bote — der Kanal ist Beweisrecht —, und sie ist eine

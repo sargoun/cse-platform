@@ -2,6 +2,7 @@ import { StatusPill } from '@/components/ui/StatusPill';
 import { TabLeiste } from './TabLeiste';
 import { SeitenNavigation } from './SeitenNavigation';
 import { tableiste, type LeistenSchluessel } from '@/server/registry/tableiste';
+import { NAVIGATION } from '@/server/registry/navigation';
 import type { BereichSchluessel } from '@/lib/design/theme';
 
 /**
@@ -60,11 +61,30 @@ export function PortalRahmen({
       </header>
 
       <div className="flex flex-1">
+        {/*
+          * **Der Schreibtisch bekommt das VOLLE Register, nicht die fuenf
+          * Ziele des Telefons.**
+          *
+          * Hier stand `ziele={tabs.ziele}`. Das sind die fuenf Punkte der
+          * Tab-Leiste — Uebersicht, Auftraege, Dienstplan, Freigaben und
+          * `Mehr` —, und `Mehr` traegt `pfad: ''`, zeigt also auf die Seite,
+          * auf der man ohnehin steht.
+          *
+          * Die Folge war, dass auf einem 1440-px-Bildschirm KEIN Weg zu
+          * Zeiten, Personal, Objekten, CRM, Finanzen, Reinigung, Security,
+          * Bau oder Qualitaet fuehrte. Alle diese Bildschirme waren gebaut,
+          * geprueft und erreichbar — nur nannte sie niemand. Wer das Portal
+          * oeffnete, sah vier Punkte und schloss daraus, es gebe vier Module.
+          *
+          * `NAVIGATION` ist das Register, das genau dafuer angelegt wurde
+          * (18 Eintraege, jeder mit seinem Recht). Es war da, die Sidebar war
+          * da — verbunden waren sie nie.
+          */}
         <SeitenNavigation
-          ziele={tabs.ziele}
+          ziele={NAVIGATION.filter((n) => leiste !== 'gruppe' || n.gruppe)}
           wurzel={wurzel}
           {...(aktiverTab === undefined ? {} : { aktiv: aktiverTab })}
-          {...(sichtbareTabs === undefined ? {} : { sichtbar: sichtbareTabs })}
+          {...(navigationsRechte === undefined ? {} : { sichtbar: navigationsRechte })}
           label={titel}
         />
         {/* `pb-20` unter `md`: die Tab-Leiste liegt fest am unteren Rand und
