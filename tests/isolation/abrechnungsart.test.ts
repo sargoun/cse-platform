@@ -120,7 +120,7 @@ interface Auftragsbau {
  */
 async function baueAuftrag(
   mandant: string,
-  opts: { einzelpreisCent?: number; einheit?: string; satzBp?: number } = {},
+  opts: { einzelpreisCent?: bigint; einheit?: string; satzBp?: number } = {},
 ): Promise<Auftragsbau> {
   const [k] = await sql.unsafe<{ id: string }[]>(
     `insert into kunde (mandant_id, kundennummer, name, strasse, hausnummer, plz, ort)
@@ -143,7 +143,7 @@ async function baueAuftrag(
      values ($1,$2,1,$3,'Unterhaltsreinigung Bürohaus',$4,$5,$6,'regelsatz','2026-01-01')
      returning id`,
     [mandant, a!.id, o!.id, opts.einheit ?? 'stk',
-     opts.einzelpreisCent ?? 12_500, opts.satzBp ?? 1900] as never[]);
+     opts.einzelpreisCent ?? 12_500n, opts.satzBp ?? 1900] as never[]);
 
   const [p] = await sql.unsafe<{ id: string }[]>(
     `insert into person (vorname, nachname) values ('Aylin',$1) returning id`,
@@ -162,9 +162,9 @@ async function baueAuftrag(
 interface KonfigurationsWunsch {
   readonly art: string;
   readonly parameter: Record<string, unknown>;
-  readonly pauschaleNettoCent?: number;
-  readonly stundensatzCent?: number;
-  readonly festpreisNettoCent?: number;
+  readonly pauschaleNettoCent?: bigint;
+  readonly stundensatzCent?: bigint;
+  readonly festpreisNettoCent?: bigint;
   readonly intervall?: string;
   readonly modus?: string;
   readonly gueltigAb?: string;
@@ -319,7 +319,7 @@ describe('(4) ein Auftrag ohne Abrechnungsart lässt sich nicht berechnen', () =
     const bau = await baueAuftrag(f.reinigung);
     await legeKonfigurationAn(bau, {
       art: 'monatspauschale', parameter: { teilmonat: 'keine' },
-      pauschaleNettoCent: 100_000, gueltigAb: '2026-01-01', gueltigBis: '2026-06-30',
+      pauschaleNettoCent: 100_000n, gueltigAb: '2026-01-01', gueltigBis: '2026-06-30',
     });
     const fehler = await alsApp(sitzung(f.reinigung), async (tx) => {
       try {
@@ -336,7 +336,7 @@ describe('(4) ein Auftrag ohne Abrechnungsart lässt sich nicht berechnen', () =
     const bau = await baueAuftrag(f.reinigung);
     await legeKonfigurationAn(bau, {
       art: 'monatspauschale', parameter: { teilmonat: 'kalendertage' },
-      pauschaleNettoCent: 100_000, gueltigAb: '2026-01-01', gueltigBis: '2026-08-15',
+      pauschaleNettoCent: 100_000n, gueltigAb: '2026-01-01', gueltigBis: '2026-08-15',
     });
     const gefunden = await alsApp(sitzung(f.reinigung), (tx) =>
       ladeKonfiguration(alsDienst(tx), {
@@ -357,7 +357,7 @@ describe('(1) Stundenlohn: aus Zeiteinträgen, auf den Cent', () => {
     const bau = await baueAuftrag(f.reinigung);
     await legeKonfigurationAn(bau, {
       art: 'stundenbasiert', parameter: { minuten_rundung: 15 },
-      stundensatzCent: 2_500, aufLeistung: true,
+      stundensatzCent: 2_500n, aufLeistung: true,
     });
     // 8:00–9:00 und 13:00–13:45 = 60 + 45 = 105 Minuten.
     await baueZeiteintrag(bau, '2026-08-03', '08:00', '09:00');
@@ -399,7 +399,7 @@ describe('(1) Stundenlohn: aus Zeiteinträgen, auf den Cent', () => {
     const bau = await baueAuftrag(f.reinigung);
     await legeKonfigurationAn(bau, {
       art: 'stundenbasiert', parameter: { minuten_rundung: 1 },
-      stundensatzCent: 2_500, aufLeistung: true,
+      stundensatzCent: 2_500n, aufLeistung: true,
     });
     await baueZeiteintrag(bau, '2026-08-03', '08:00', '09:40');
 
@@ -419,7 +419,7 @@ describe('(1) Stundenlohn: aus Zeiteinträgen, auf den Cent', () => {
     const bau = await baueAuftrag(f.reinigung);
     await legeKonfigurationAn(bau, {
       art: 'stundenbasiert', parameter: { minuten_rundung: 1 },
-      stundensatzCent: 2_500, aufLeistung: true,
+      stundensatzCent: 2_500n, aufLeistung: true,
     });
     // 8:00–16:00 = 480 Minuten brutto, 30 Minuten Pause = 450 netto.
     await baueZeiteintrag(bau, '2026-08-05', '08:00', '16:00', 30);
@@ -439,7 +439,7 @@ describe('(2) die Stundenzeile ist neu gerechnet und stimmt mit dem Stundenkonto
     const bau = await baueAuftrag(f.reinigung);
     await legeKonfigurationAn(bau, {
       art: 'stundenbasiert', parameter: { minuten_rundung: 1 },
-      stundensatzCent: 2_500, aufLeistung: true,
+      stundensatzCent: 2_500n, aufLeistung: true,
     });
     await baueZeiteintrag(bau, '2026-08-03', '08:00', '12:00');           // 240
     await baueZeiteintrag(bau, '2026-08-04', '08:00', '16:00', 30);       // 450
@@ -476,7 +476,7 @@ describe('(2) die Stundenzeile ist neu gerechnet und stimmt mit dem Stundenkonto
     const bau = await baueAuftrag(f.reinigung);
     await legeKonfigurationAn(bau, {
       art: 'stundenbasiert', parameter: { minuten_rundung: 1 },
-      stundensatzCent: 2_500, aufLeistung: true,
+      stundensatzCent: 2_500n, aufLeistung: true,
     });
     await baueZeiteintrag(bau, '2026-08-03', '08:00', '10:00');
 
@@ -506,7 +506,7 @@ describe('(2) die Stundenzeile ist neu gerechnet und stimmt mit dem Stundenkonto
     const bau = await baueAuftrag(f.reinigung);
     await legeKonfigurationAn(bau, {
       art: 'stundenbasiert', parameter: { minuten_rundung: 1 },
-      stundensatzCent: 2_500, aufLeistung: true,
+      stundensatzCent: 2_500n, aufLeistung: true,
     });
     const id = await baueZeiteintrag(bau, '2026-08-03', '08:00', '10:00');
     await sql.unsafe(
@@ -535,7 +535,7 @@ describe('(1) Monatspauschale: voller Monat und angebrochener Monat', () => {
     const bau = await baueAuftrag(f.reinigung);
     await legeKonfigurationAn(bau, {
       art: 'monatspauschale', parameter: { teilmonat: 'kalendertage' },
-      pauschaleNettoCent: 189_000, aufLeistung: true,
+      pauschaleNettoCent: 189_000n, aufLeistung: true,
     });
     const rechnungId = await alsApp(sitzung(f.reinigung), async (tx) => {
       const id = await entwurf(tx, bau);
@@ -563,7 +563,7 @@ describe('(1) Monatspauschale: voller Monat und angebrochener Monat', () => {
     const bau = await baueAuftrag(f.reinigung);
     await legeKonfigurationAn(bau, {
       art: 'monatspauschale', parameter: { teilmonat: 'kalendertage' },
-      pauschaleNettoCent: 189_000, gueltigBis: '2026-08-15', aufLeistung: true,
+      pauschaleNettoCent: 189_000n, gueltigBis: '2026-08-15', aufLeistung: true,
     });
     const rechnungId = await alsApp(sitzung(f.reinigung), async (tx) => {
       const id = await entwurf(tx, bau);
@@ -582,7 +582,7 @@ describe('(1) Monatspauschale: voller Monat und angebrochener Monat', () => {
     const bau = await baueAuftrag(f.reinigung);
     await legeKonfigurationAn(bau, {
       art: 'monatspauschale', parameter: { teilmonat: 'keine' },
-      pauschaleNettoCent: 189_000, gueltigBis: '2026-08-15', aufLeistung: true,
+      pauschaleNettoCent: 189_000n, gueltigBis: '2026-08-15', aufLeistung: true,
     });
     const rechnungId = await alsApp(sitzung(f.reinigung), async (tx) => {
       const id = await entwurf(tx, bau);
@@ -598,7 +598,7 @@ describe('(1) Monatspauschale: voller Monat und angebrochener Monat', () => {
     const bau = await baueAuftrag(f.reinigung);
     await legeKonfigurationAn(bau, {
       art: 'monatspauschale', parameter: { teilmonat: 'keine' },
-      pauschaleNettoCent: 100_000, intervall: 'quartalsweise', aufLeistung: true,
+      pauschaleNettoCent: 100_000n, intervall: 'quartalsweise', aufLeistung: true,
     });
     const rechnungId = await alsApp(sitzung(f.reinigung), async (tx) => {
       const id = await entwurf(tx, bau);
@@ -617,7 +617,7 @@ describe('(1) Monatspauschale: voller Monat und angebrochener Monat', () => {
     const bau = await baueAuftrag(f.reinigung);
     await legeKonfigurationAn(bau, {
       art: 'monatspauschale', parameter: { teilmonat: 'arbeitstage' },
-      pauschaleNettoCent: 189_000, gueltigBis: '2026-08-15', aufLeistung: true,
+      pauschaleNettoCent: 189_000n, gueltigBis: '2026-08-15', aufLeistung: true,
     });
     const ergebnis = await alsApp(sitzung(f.reinigung), (tx) =>
       berechneAbrechnung(alsDienst(tx), {
@@ -638,7 +638,7 @@ describe('(1) Pauschalpreis-Los: erst bei Abnahme oder anteilig', () => {
     const bau = await baueAuftrag(f.bau);
     await legeKonfigurationAn(bau, {
       art: 'festpreis_los', parameter: { teilleistung: 'erst_bei_abnahme' },
-      festpreisNettoCent: 1_250_000, intervall: 'einmalig', modus: 'manuell',
+      festpreisNettoCent: 1_250_000n, intervall: 'einmalig', modus: 'manuell',
     });
 
     const ohne = await alsApp(sitzung(f.bau), (tx) =>
@@ -668,7 +668,7 @@ describe('(1) Pauschalpreis-Los: erst bei Abnahme oder anteilig', () => {
     const bau = await baueAuftrag(f.bau);
     await legeKonfigurationAn(bau, {
       art: 'festpreis_los', parameter: { teilleistung: 'anteilig' },
-      festpreisNettoCent: 1_250_000, intervall: 'einmalig', modus: 'manuell',
+      festpreisNettoCent: 1_250_000n, intervall: 'einmalig', modus: 'manuell',
     });
     const rechnungId = await alsApp(sitzung(f.bau), async (tx) => {
       const id = await entwurf(tx, bau);
@@ -686,7 +686,7 @@ describe('(1) Pauschalpreis-Los: erst bei Abnahme oder anteilig', () => {
     const bau = await baueAuftrag(f.bau);
     await legeKonfigurationAn(bau, {
       art: 'festpreis_los', parameter: { teilleistung: 'anteilig' },
-      festpreisNettoCent: 1_250_000, intervall: 'einmalig', modus: 'manuell',
+      festpreisNettoCent: 1_250_000n, intervall: 'einmalig', modus: 'manuell',
     });
     const ergebnis = await alsApp(sitzung(f.bau), (tx) =>
       berechneAbrechnung(alsDienst(tx), {
@@ -709,7 +709,7 @@ interface Blattbau extends Auftragsbau {
 
 /** Ein Projekt mit LV-Position zu 45,99 €/m² auf der Leistungszeile des Auftrags. */
 async function baueProjekt(bauMandant: string): Promise<Blattbau> {
-  const bau = await baueAuftrag(bauMandant, { einheit: 'm2', einzelpreisCent: 4_599 });
+  const bau = await baueAuftrag(bauMandant, { einheit: 'm2', einzelpreisCent: 4_599n });
   const [p] = await sql.unsafe<{ id: string }[]>(
     `insert into projekt (mandant_id, auftrag_id, nummer, bezeichnung, kunde_id, art,
                           vertragsgrundlage)
@@ -981,7 +981,7 @@ async function baueAbruf(
 
 describe('(1) Einzelabruf', () => {
   it('rechnet jeden erbrachten Abruf als eigene Zeile zum Vertragspreis ab', async () => {
-    const bau = await baueAuftrag(f.reinigung, { einheit: 'stk', einzelpreisCent: 8_900 });
+    const bau = await baueAuftrag(f.reinigung, { einheit: 'stk', einzelpreisCent: 8_900n });
     await legeKonfigurationAn(bau, {
       art: 'einzelabruf', parameter: { mindestabrufmenge: null },
       intervall: 'nach_leistung', aufLeistung: true,
@@ -1005,7 +1005,7 @@ describe('(1) Einzelabruf', () => {
   });
 
   it('ein nur beauftragter Abruf wird nicht berechnet', async () => {
-    const bau = await baueAuftrag(f.reinigung, { einheit: 'stk', einzelpreisCent: 8_900 });
+    const bau = await baueAuftrag(f.reinigung, { einheit: 'stk', einzelpreisCent: 8_900n });
     await legeKonfigurationAn(bau, {
       art: 'einzelabruf', parameter: { mindestabrufmenge: null },
       intervall: 'nach_leistung', aufLeistung: true,
@@ -1023,7 +1023,7 @@ describe('(1) Einzelabruf', () => {
   });
 
   it('ohne den Parameter „mindestabrufmenge" wird nicht gerechnet (O-04)', async () => {
-    const bau = await baueAuftrag(f.reinigung, { einheit: 'stk', einzelpreisCent: 8_900 });
+    const bau = await baueAuftrag(f.reinigung, { einheit: 'stk', einzelpreisCent: 8_900n });
     await legeKonfigurationAn(bau, {
       art: 'einzelabruf', parameter: {}, intervall: 'nach_leistung', aufLeistung: true,
     });
@@ -1107,7 +1107,7 @@ describe('(5) eine sechste Abrechnungsart wird registriert, nicht eingebaut', ()
     const echt = await alsApp(sitzung(f.reinigung), async (tx) => {
       await legeKonfigurationAn(bau, {
         art: 'monatspauschale', parameter: { teilmonat: 'keine' },
-        pauschaleNettoCent: 1, aufLeistung: true,
+        pauschaleNettoCent: 1n, aufLeistung: true,
       });
       return ladeKonfiguration(alsDienst(tx), {
         auftragId: bau.auftrag, periode: { von: '2026-08-01', bis: '2026-08-31' },

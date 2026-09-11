@@ -529,6 +529,50 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * Schreibpfad auf einem Bildschirm, der keinen haben darf.
    */
   { modul: 'finanzen', pfad: 'finanz/ustg14', schreibend: false },
+  /**
+   * Die Positionsherkunft (PR 49, FIN-07/FIN-18). Sie SCHREIBT — sie legt
+   * `rechnungsposition_quelle` an und setzt in der Festschreibungstransaktion
+   * `zeiteintrag.abgerechnet_am`.
+   *
+   * Ihr Schreibrecht ist `finanzen.festschreiben` und nicht
+   * `finanzen.schreiben`: der Schreibweg, der ueber die Domaenengrenze geht —
+   * der Abrechnungsstempel auf einem fremden Zeiteintrag — haengt an den zwei
+   * schmalen Policies aus `0088`, und die verlangen genau dieses Recht. Das
+   * Anlegen einer Herkunftszeile im Entwurf laeuft im selben Dienst und ist
+   * durch die K-03-Policy auf `finanzen.schreiben` gebunden — zwei Rechte,
+   * eine Datei, und das engere steht hier (wie bei `finanz/rechnung`).
+   */
+  {
+    modul: 'finanzen', pfad: 'finanz/positionsquelle',
+    schreibend: true, schreibRecht: 'finanzen.festschreiben',
+  },
+  /**
+   * Die fuenf Abrechnungsarten (PR 48, FIN-01).
+   *
+   * **Vier der sechs Dateien LESEN nur** — eine Strategie fragt Zeiteintraege,
+   * Aufmasszeilen oder Sonderleistungen ab und gibt Zeilen-ENTWUERFE zurueck.
+   * Das ist Absicht und nicht Zufall: eine Strategie, die selbst schriebe,
+   * haette einen zweiten Weg in `rechnungsposition` neben
+   * `fuegePositionHinzu()` — also eine zweite Stelle, an der ein Nettobetrag
+   * entsteht (D-350, Abnahme 2).
+   *
+   * Geschrieben wird nur in `index.ts` (`bestuecke`, `bestueckeAusAbrechnungs
+   * art`), und dort durch den Rechnungsdienst. Sein Recht ist deshalb
+   * `finanzen.schreiben` — der Entwurf, nicht die Festschreibung: diese
+   * Schicht bestueckt einen Entwurf und beruehrt keinen festgeschriebenen
+   * Beleg.
+   */
+  { modul: 'finanzen', pfad: 'finanz/abrechnungsart/typen', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/abrechnungsart/register', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/abrechnungsart/stunden', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/abrechnungsart/monatspauschale', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/abrechnungsart/festpreis-los', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/abrechnungsart/einheitspreis-aufmass', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/abrechnungsart/einzelabruf', schreibend: false },
+  {
+    modul: 'finanzen', pfad: 'finanz/abrechnungsart/index',
+    schreibend: true, schreibRecht: 'finanzen.schreiben',
+  },
 ] as const;
 
 /**

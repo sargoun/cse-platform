@@ -579,8 +579,10 @@ create constraint trigger rp_hat_quelle
   for each row execute function fin.position_hat_quelle();
 
 comment on function fin.position_hat_quelle() is
-  'FIN-07 §4.4: beim COMMIT traegt jede Leistungszeile mindestens eine wirksame '
-  'Herkunftszeile. Aufgeschoben, weil der Beleg nach der Zeile geschrieben wird.';
+  'FIN-07 §4.4: beim COMMIT traegt jede Leistungszeile mindestens eine '
+  'Herkunftszeile. Gefragt ist die EXISTENZ, nicht ein lebender Anspruch — das '
+  'Storno uebernimmt den Beleg unwirksam. Aufgeschoben, weil der Beleg nach der '
+  'Zeile geschrieben wird.';
 
 -- ---------------------------------------------------------------------------
 -- 7. Der Aufmass-Schutz: eine SUMME, kein Unique-Index (§4.4, § 16 VOB/B)
@@ -663,18 +665,12 @@ create constraint trigger quelle_aufmass_menge
   execute function fin.pruefe_aufmass_menge();
 
 /**
- * Und die Gegenrichtung: faellt `wirksam`, sinkt die aufgelaufene Menge. Ohne
- * diesen zweiten Ausloeser bliebe `abgerechnet_menge` nach einem Storno auf
- * dem alten Stand stehen, und das Blatt gaelte als abgerechnet, obwohl seine
- * Rechnung aufgehoben ist. `when` kann `old` nur in einem eigenen Ausloeser
- * pruefen — deshalb zwei.
+ * **Ein Ausloeser, nicht zwei.** `insert or update` mit `new.quelle_typ =
+ * 'aufmass'` deckt auch den Storno ab: dort faellt `wirksam`, `quelle_typ`
+ * bleibt aber `aufmass`, der Ausloeser feuert und rechnet die Summe neu — sie
+ * sinkt. Ein zweiter Ausloeser fuer die Gegenrichtung liefe an derselben
+ * Zeile zweimal durch dieselbe Funktion.
  */
-create constraint trigger quelle_aufmass_menge_frei
-  after update on rechnungsposition_quelle
-  deferrable initially deferred
-  for each row
-  when (old.quelle_typ = 'aufmass' and old.wirksam and not new.wirksam)
-  execute function fin.pruefe_aufmass_menge();
 
 comment on function fin.pruefe_aufmass_menge() is
   '§4.4/review B11: die Summe der wirksamen Anteile eines Aufmassblattes '
