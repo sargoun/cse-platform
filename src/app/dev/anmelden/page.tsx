@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import type postgres from 'postgres';
 import { devFlaechenAn } from '@/lib/dev-flaechen';
@@ -28,13 +28,14 @@ interface Konto {
   rolle: string | null;
   mandant_id: string | null;
   mandant: string | null;
+  slug: string | null;
 }
 
 async function konten(): Promise<readonly Konto[]> {
   return db().begin(async (tx: postgres.TransactionSql) => tx.unsafe(
     `select b.id, b.name, b.email,
             coalesce(gr.schluessel, r.schluessel) as rolle,
-            bm.mandant_id, m.name as mandant
+            bm.mandant_id, m.name as mandant, m.slug
        from benutzer b
        left join rolle gr on gr.id = b.globale_rolle_id
        left join benutzer_mandant bm
@@ -55,6 +56,7 @@ export default async function DevAnmeldung() {
     if (!devFlaechenAn()) notFound();
     const benutzerId = String(daten.get('benutzer') ?? '');
     const mandantId = String(daten.get('mandant') ?? '');
+    const mandantSlug = String(daten.get('slug') ?? '');
     const ansicht = String(daten.get('ansicht') ?? 'mandant');
 
     const { token } = await (db().begin(async (tx: postgres.TransactionSql) =>
@@ -67,6 +69,27 @@ export default async function DevAnmeldung() {
     (await cookies()).set(SITZUNG_COOKIE, token, {
       httpOnly: true, sameSite: 'lax', path: '/', maxAge: 12 * 60 * 60,
     });
+
+    /**
+     * **Und dann WEITER — dorthin, wo dieses Konto hingehoert.**
+     *
+     * Vorher endete die Handlung hier. Die Sitzung stand, der Keks lag im
+     * Browser, und Next zeichnete dieselbe Liste neu: der Knopf sah aus, als
+     * reagiere er nicht. Wer das sieht, drueckt ein zweites Mal, legt eine
+     * zweite Sitzung an, gibt auf und meldet „die Anmeldung ist kaputt" —
+     * obwohl sie funktioniert hat.
+     *
+     * Eine Anmeldung, die nichts sichtbar tut, ist keine Anmeldung. Das Ziel
+     * folgt der Ansicht, weil es sonst zweimal gepflegt werden muesste:
+     * `person` hat kein Mandantenportal (und bekaeme dort 404), `kunde`
+     * ebenso, und die Gruppensicht liegt auf eigenem Pfad.
+     */
+    redirect(
+      ansicht === 'person' ? '/portal/mein'
+        : ansicht === 'kunde' ? '/portal/kunde'
+          : ansicht === 'gruppe' ? '/portal/gruppe'
+            : `/portal/${mandantSlug === '' ? 'gruppe' : mandantSlug}`,
+    );
   }
 
   return (
@@ -84,6 +107,8 @@ export default async function DevAnmeldung() {
             <form action={anmelden} className="flex flex-wrap items-center gap-s3">
               <input type="hidden" name="benutzer" value={k.id} />
               <input type="hidden" name="mandant" value={k.mandant_id ?? ''} />
+              {/* Der Slug fuer das Ziel: die Handlung kennt sonst nur die id. */}
+              <input type="hidden" name="slug" value={k.slug ?? ''} />
               <input
                 type="hidden" name="ansicht"
                 value={k.rolle === 'mitarbeiter' ? 'person'
