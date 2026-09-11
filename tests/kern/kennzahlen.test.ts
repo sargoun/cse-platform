@@ -68,18 +68,20 @@ describe('(2) eine Kachel ohne Abfrage oder Linkziel lässt sich nicht registrie
 });
 
 describe('die heutigen Kacheln sind vollständig und rechtlich verankert', () => {
-  it('elf Kacheln — die sieben des Plans plus die vier aus Phase 5', () => {
+  it('zwölf Kacheln — die sieben des Plans plus die fünf aus Phase 5', () => {
     // Die Liste steht ausgeschrieben da und nicht als Zahl: eine Kachel, die
     // jemand still hinzufuegt, aendert sonst nur eine Zahl, und dass sie ein
     // Recht nennt, das es nicht gibt, faellt erst auf einem leeren Dashboard
     // auf. Phase 5 bringt `schichten_unbesetzt` und `konflikte_offen` aus dem
-    // Dienstplan und `antraege_offen`/`abwesend_heute` aus der Abwesenheit.
+    // Dienstplan, `antraege_offen`/`abwesend_heute` aus der Abwesenheit und
+    // `nachweise_abgelaufen` aus dem Nachweisregister.
     const angelegt = registriereBerichtKacheln();
-    expect(angelegt.length).toBe(11);
+    expect(angelegt.length).toBe(12);
     expect(kacheln().map((k) => k.schluessel).sort()).toEqual([
       'abwesend_heute', 'anstellungen', 'antraege_offen', 'benutzer_aktiv',
-      'konflikte_offen', 'leads_ueber_sla', 'letzte_aktivitaet', 'neue_leads',
-      'offene_wiedervorlagen', 'personen', 'schichten_unbesetzt',
+      'konflikte_offen', 'leads_ueber_sla', 'letzte_aktivitaet',
+      'nachweise_abgelaufen', 'neue_leads', 'offene_wiedervorlagen', 'personen',
+      'schichten_unbesetzt',
     ]);
   });
 

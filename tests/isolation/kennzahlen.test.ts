@@ -77,12 +77,12 @@ function alsBereich<T>(slug: string, fn: (db: {
 describe('(1) DSH-04: jede Kachel zeigt die Zahl, die hinter ihrem Link steht', () => {
   it('es gibt überhaupt Kacheln zu prüfen', () => {
     // Ohne diese Zusage bestünde alles Folgende auf einer leeren Liste.
-    // Elf seit Phase 5: `schichten_unbesetzt`, `konflikte_offen`,
-    // `antraege_offen` und `abwesend_heute` kommen dazu. Die Zahl steht hier
+    // Zwölf seit Phase 5: `schichten_unbesetzt`, `konflikte_offen`,
+    // `antraege_offen`, `abwesend_heute` und `nachweise_abgelaufen` kommen dazu. Die Zahl steht hier
     // und nicht im Einheitstest allein, weil DIESE Datei jede Kachel gegen die
     // echte Datenbank stellt — eine Kachel, die sich hier nicht mitzählt, wird
     // nie gegen ihre Liste geprüft.
-    expect(alle.length).toBe(11);
+    expect(alle.length).toBe(12);
   });
 
   it.each([['reinigung'], ['security'], ['bau'], ['operations']])(

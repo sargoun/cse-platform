@@ -308,5 +308,54 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
           order by von`,
       ziel: (k) => kennzahlPfad(k, 'personal/abwesenheiten', ''),
     }),
+
+    /**
+     * Abgelaufene Nachweise (SEC-02, LEG-04).
+     *
+     * **`danger`, und zwar zu Recht:** ein abgelaufener § 34a-Nachweis sperrt
+     * die Einteilung HART — er ist keine Warnung, die jemand mit einer
+     * Begruendung uebergehen koennte. Wer ihn erst merkt, wenn die Einteilung
+     * abgewiesen wird, merkt ihn am Tag der Schicht.
+     *
+     * **Der Bereichsfilter laeuft ueber die BESCHAEFTIGUNG, nicht ueber
+     * `erfasst_von_mandant_id`.** Ein Nachweis haengt am Menschen (D-09): wer
+     * ihn erfasst hat, sagt nichts darueber, wen er betrifft. Ueber die
+     * erfassende Gesellschaft gezaehlt zeigte die Kachel eine andere Menge als
+     * die Liste dahinter — und DSH-04 verlangt, dass beide dieselbe sind.
+     *
+     * „Abgelaufen" ist der BERLINER Kalendertag: `current_date` im UTC-Prozess
+     * zeigt zwischen 00:00 und 02:00 noch den Vortag (Invariante 2).
+     */
+    registriereKachel({
+      schluessel: 'nachweise_abgelaufen',
+      label: 'Abgelaufene Nachweise',
+      modul: 'personal',
+      recht: 'personal.nachweis_lesen',
+      ton: 'danger',
+      icon: 'schloss',
+      zaehlung:
+        `select count(*)::int as wert
+           from nachweis n
+           join qualifikation q on q.id = n.qualifikation_id
+          where n.widerrufen_am is null
+            and n.gueltig_bis is not null
+            and n.gueltig_bis < (now() at time zone 'Europe/Berlin')::date
+            and exists (select 1 from anstellung a
+                         where a.person_id = n.person_id
+                           and a.mandant_id = any($1) and a.geloescht_am is null)`,
+      zeilen:
+        `select n.id, n.person_id, n.qualifikation_id, q.bezeichnung,
+                n.gueltig_bis, q.blockiert_einsatz
+           from nachweis n
+           join qualifikation q on q.id = n.qualifikation_id
+          where n.widerrufen_am is null
+            and n.gueltig_bis is not null
+            and n.gueltig_bis < (now() at time zone 'Europe/Berlin')::date
+            and exists (select 1 from anstellung a
+                         where a.person_id = n.person_id
+                           and a.mandant_id = any($1) and a.geloescht_am is null)
+          order by n.gueltig_bis`,
+      ziel: (k) => kennzahlPfad(k, 'personal/nachweise', ''),
+    }),
   ];
 }
