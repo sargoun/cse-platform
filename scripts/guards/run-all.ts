@@ -198,7 +198,13 @@ function wacheTodoClient(): void {
  * Security-Modul und hat dort ein Jahr lang niemandem etwas gemeldet.
  */
 function wacheDatumZone(): void {
-  const FALSCH = /::date\s*\)?\s*(?:\+\s*\d+\s*\))?\s*at\s+time\s+zone/iu;
+  /**
+   * Auch `make_date(...) at time zone` — der Fund, den die erste Fassung
+   * durchliess. Sie suchte nur `::date`; `make_date()` liefert aber
+   * ebenso `date` und trifft damit dieselbe falsche Ueberladung. Der
+   * Monatsabschluss stand vier Monate lang so da.
+   */
+  const FALSCH = /(?:::date|make_date\s*\([^)]*\))\s*\)?\s*(?:\+\s*(?:\d+|interval\s+'[^']*')\s*\))?\s*at\s+time\s+zone/iu;
   for (const datei of [
     ...dateien('src', ['.ts', '.tsx']),
     ...dateien('drizzle', ['.sql']),

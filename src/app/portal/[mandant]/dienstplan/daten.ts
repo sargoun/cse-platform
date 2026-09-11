@@ -126,13 +126,24 @@ export async function ladePlanfenster(
                 k.art::text                       as art,
                 k.schwere::text                   as schwere,
                 k.blockiert,
+                -- Die Zweige tragen die WIRKLICHEN Enum-Werte. konflikt_art ist
+                -- ('ueberschneidung','qualifikation_entfallen','arbzg',
+                --  'aufzeichnungsfrist'); gefragt wurde nach 'arbeitszeit' und
+                -- 'qualifikation' — beides gibt es nicht. Jeder ArbZG-Befund und
+                -- jeder entfallene Nachweis fiel damit in den else-Zweig und stand
+                -- als "Unterbesetzt" im Plan: ein Ruhezeitverstoss las sich wie
+                -- eine offene Stelle, und die Planung haette jemanden nachbesetzt
+                -- statt die Schicht zu verschieben.
+                -- (Kommentar als SQL-Zeilen, nicht als Block: Backticks in einem
+                --  Template-Literal beenden die Zeichenkette.)
                 case k.art::text
-                  when 'arbeitszeit'   then
+                  when 'arbzg' then
                     case when k.betrifft_fremden_mandant
                          then 'Arbeitszeit über Gesellschaften hinweg'
                          else 'Arbeitszeit überschritten' end
-                  when 'qualifikation' then 'Nachweis fehlt oder abgelaufen'
+                  when 'qualifikation_entfallen' then 'Nachweis fehlt oder abgelaufen'
                   when 'ueberschneidung' then 'Überschneidet eine andere Schicht'
+                  when 'aufzeichnungsfrist' then 'Aufzeichnungsfrist überschritten'
                   else 'Unterbesetzt'
                 end                               as text
            from planungs_konflikt k

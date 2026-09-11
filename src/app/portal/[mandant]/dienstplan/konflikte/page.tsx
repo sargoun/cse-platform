@@ -48,11 +48,21 @@ interface KonfliktZeile {
   readonly regel: string | null;
 }
 
+/**
+ * Die Schluessel sind die WIRKLICHEN Werte von `konflikt_art`.
+ *
+ * Sie lauteten `arbeitszeit`, `qualifikation` und `unterbesetzung` — keiner
+ * davon existiert. Das Enum ist ('ueberschneidung','qualifikation_entfallen',
+ * 'arbzg','aufzeichnungsfrist'), und ein Zugriff mit unbekanntem Schluessel
+ * gab `undefined`: im Eingang stand der rohe Enum-Wert statt einer
+ * Bezeichnung. Derselbe Fehler steckte im Plan (`daten.ts`), dort mit der
+ * teureren Wirkung — jeder Ruhezeitverstoss las sich als „Unterbesetzt".
+ */
 const ART_TEXT: Readonly<Record<string, string>> = {
-  arbeitszeit: 'Arbeitszeit',
-  qualifikation: 'Nachweis',
+  arbzg: 'Arbeitszeit',
+  qualifikation_entfallen: 'Nachweis',
   ueberschneidung: 'Überschneidung',
-  unterbesetzung: 'Unterbesetzung',
+  aufzeichnungsfrist: 'Aufzeichnungsfrist',
 };
 
 /**

@@ -15,6 +15,7 @@
  */
 import { createHash } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
+import { alsKonto, KONTO } from './hilfen/anmeldung';
 import postgres from 'postgres';
 
 const DSN = process.env['DATABASE_URL']
@@ -55,10 +56,14 @@ const ids: Record<string, string> = {};
 
 async function anmelden(page: Page): Promise<void> {
   await page.goto('/dev/anmelden');
-  const knopf = page.locator('[data-cse="dev-anmelden"][data-rolle="admin"]').first();
-  await expect(knopf, 'kein Seed-Konto für Rolle admin').toBeVisible();
-  await knopf.click();
-  await page.waitForLoadState('networkidle');
+  /**
+   * **Namentlich, nicht „der erste admin".** Seit der Seed eine
+   * `admin.bau` traegt, greift `.first()` den Bau — `order by b.name` stellt
+   * „Administration Bau" vor „Administration Reinigung". Diese Datei
+   * arbeitet in `reinigung`; die Slug-Wache haette 404 geantwortet, genau
+   * wie AUT-06 es vorschreibt.
+   */
+  await alsKonto(page, KONTO.adminReinigung);
 }
 
 /**
