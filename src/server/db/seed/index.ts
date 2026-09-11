@@ -19,6 +19,7 @@ import { seedOperations } from './operations.js';
 import { seedDienstplan } from './dienstplan.js';
 import { seedAuftrag } from './auftrag.js';
 import { seedZeit } from './zeit.js';
+import { seedKonten } from './konto.js';
 
 const url = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 if (url === undefined || url === '') {
@@ -662,6 +663,19 @@ async function main(): Promise<void> {
     + `mit bestaetigtem ArbZG-Befund), ${String(zeit.zeiteintraege)} Zeiteintraege `
     + `importiert, ${String(zeit.laufend)} laufend, `
     + `${String(zeit.abwesenheiten)} Abwesenheiten/Antraege\n`,
+  );
+
+  /**
+   * Und darauf das Stundenkonto: freigeben, Konto anlegen, buchen. Es kommt
+   * NACH der Zeit, weil es nichts erfindet — es bucht, was erfasst und
+   * freigegeben ist. Ohne diesen Schritt fuehrte PR 37 eine Buchhaltung, die
+   * nie gebucht hat.
+   */
+  const konto = await seedKonten(sql, ids);
+  process.stdout.write(
+    `  ${String(konto.freigegeben)} Zeiteintraege freigegeben (Demo-Annahme), `
+    + `${String(konto.konten)} Stundenkonten, ${String(konto.buchungen)} Buchungen `
+    + `ueber ${String(konto.minuten)} Minuten (Sollzeit bleibt offen: O-18)\n`,
   );
 
   process.stdout.write('\nSeed fertig.\n');

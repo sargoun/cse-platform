@@ -112,6 +112,12 @@ export default async function Abwesenheitsliste({
             <span className="ml-s2 text-warning">{offeneAntraege}</span>
           )}
         </Link>
+        <Link
+          href={`/portal/${mandant}/personal/stundenkonten`}
+          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+        >
+          Stundenkonten
+        </Link>
       </nav>
 
       {zeilen.length === 0 ? (

@@ -204,6 +204,16 @@ export const ROUTEN: readonly RouteEintrag[] = [
     recht: 'zeit.abwesenheit_genehmigen',
   },
   {
+    /**
+     * EMP-04, LEG-01. Einen Lohnmonat zu schliessen ist unumkehrbar und praegt
+     * den § 17-Nachweis; `zeit.konto_abschliessen` ist deshalb ein eigenes
+     * Recht neben `zeit.konto_lesen`, und die Route verlangt zusaetzlich den
+     * zweiten Faktor (05-API-KARTE §7.9).
+     */
+    pfad: 'api/stundenkonto/[id]/monat-abschliessen',
+    recht: 'zeit.konto_abschliessen',
+  },
+  {
     pfad: 'api/check-in/[token]/offline',
     recht: null,
     grund:

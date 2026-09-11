@@ -9,6 +9,7 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { berlinHeute } from '@/server/db/heute';
 import { stundenAusMinuten } from '@/lib/datum/stunden';
+import { monatsErster, monatVerschieben, monatsName } from '@/lib/datum/kalendertag';
 import { berlinAnzeige } from '@/server/services/zeit/dauer';
 import type { MiLoGZeile } from '@/server/services/zeit/milog';
 import { ladeAnstellungenMitZeit, ladeNachweis } from '../daten';
@@ -42,31 +43,6 @@ const QUELLE_TEXT: Readonly<Record<string, string>> = {
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
-
-/** `2026-09-10` → `2026-09-01`; ein Monat wird über seinen Ersten benannt. */
-function monatsErster(tag: string): string {
-  return `${tag.slice(0, 7)}-01`;
-}
-
-function monatVerschieben(monat: string, um: number): string {
-  const jahr = Number(monat.slice(0, 4));
-  const m = Number(monat.slice(5, 7));
-  const gesamt = jahr * 12 + (m - 1) + um;
-  const neuJahr = Math.floor(gesamt / 12);
-  const neuMonat = (gesamt % 12) + 1;
-  return `${String(neuJahr).padStart(4, '0')}-${String(neuMonat).padStart(2, '0')}-01`;
-}
-
-const MONATSNAMEN = [
-  'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
-  'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
-] as const;
-
-/** `2026-09-01` → `September 2026`. Ohne `TM`: das hinge an `lc_time`. */
-function monatsName(monat: string): string {
-  const m = Number(monat.slice(5, 7));
-  return `${MONATSNAMEN[m - 1] ?? monat.slice(5, 7)} ${monat.slice(0, 4)}`;
-}
 
 export default async function MiLoGAufzeichnung({
   params, searchParams,

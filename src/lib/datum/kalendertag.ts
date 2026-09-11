@@ -44,3 +44,42 @@ export function monatsgrenzen(datum: string): { von: string; bis: string } {
   const bis = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
   return { von: von.toISOString().slice(0, 10), bis: bis.toISOString().slice(0, 10) };
 }
+
+/**
+ * Der Erste des Monats, in dem `datum` liegt — ein Monat heisst hier wie sein
+ * erster Tag.
+ *
+ * Das ist keine Formatierungslaune: `zeiteintrag_monatsanteil.monat` und
+ * `stundenkonto` benennen den Monat genau so, und eine zweite Schreibweise in
+ * der Oberfläche müsste an jeder Grenze übersetzt werden.
+ */
+export function monatsErster(datum: string): string {
+  return `${datum.slice(0, 7)}-01`;
+}
+
+/** `monat` um `um` Monate verschoben — negative Werte gehen zurück. */
+export function monatVerschieben(monat: string, um: number): string {
+  const jahr = Number(monat.slice(0, 4));
+  const m = Number(monat.slice(5, 7));
+  const gesamt = jahr * 12 + (m - 1) + um;
+  const neuJahr = Math.floor(gesamt / 12);
+  const neuMonat = (gesamt % 12) + 1;
+  return `${String(neuJahr).padStart(4, '0')}-${String(neuMonat).padStart(2, '0')}-01`;
+}
+
+export const MONATSNAMEN = [
+  'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+  'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
+] as const;
+
+/**
+ * `2026-09-01` → `September 2026`.
+ *
+ * Ohne `to_char(…, 'TM')`: dessen Ausgabe hängt an `lc_time` der Verbindung,
+ * und die ist auf einem englischen Container `C`. Der Monatsname stünde dann
+ * je nach Server anders auf demselben Bildschirm.
+ */
+export function monatsName(monat: string): string {
+  const m = Number(monat.slice(5, 7));
+  return `${MONATSNAMEN[m - 1] ?? monat.slice(5, 7)} ${monat.slice(0, 4)}`;
+}
