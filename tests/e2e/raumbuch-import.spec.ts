@@ -6,6 +6,17 @@
  * erst der zweite Knopf schreibt.
  */
 import { expect, test, type Page } from '@playwright/test';
+/**
+ * Angemeldet wird als BESTIMMTES Konto, nicht als „irgendwer mit Rolle admin".
+ *
+ * Die oertliche Hilfe griff `[data-rolle="admin"]`.first(); seit der Seed ein
+ * zweites Verwaltungskonto kennt, steht „Administration Bau" in der nach Namen
+ * sortierten Liste vor „Administration Reinigung". Die Sitzung landete damit
+ * im Mandanten `bau`, und jeder Aufruf unter `/portal/reinigung/…` antwortete
+ * zu Recht mit 404 (Slug-Wache, AUT-06) — ein Fehlschlag, der wie ein kaputter
+ * Bildschirm aussah und eine falsche Anmeldung war.
+ */
+import { alsKonto, KONTO } from './hilfen/anmeldung';
 
 /**
  * SERIELL, und das ist keine Bequemlichkeit.
@@ -17,14 +28,6 @@ import { expect, test, type Page } from '@playwright/test';
  * entscheidet, prueft nichts.
  */
 test.describe.configure({ mode: 'serial' });
-
-async function anmelden(page: Page, rolle: string): Promise<void> {
-  await page.goto('/dev/anmelden');
-  const knopf = page.locator(`[data-cse="dev-anmelden"][data-rolle="${rolle}"]`).first();
-  await expect(knopf, `kein Seed-Konto für Rolle ${rolle}`).toBeVisible();
-  await knopf.click();
-  await page.waitForLoadState('networkidle');
-}
 
 /** Das leere Objekt aus dem Seed — die Veranstaltungshalle hat kein Raumbuch. */
 async function zumImport(page: Page): Promise<void> {
@@ -45,7 +48,7 @@ const DATEI = [
 
 test.describe('(1) Hochladen zeigt eine Vorschau und ändert nichts', () => {
   test('vier Zeilen, drei gültig, eine ohne Fläche', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await zumImport(page);
 
     await page.setInputFiles('#datei', {
@@ -73,7 +76,7 @@ test.describe('(1) Hochladen zeigt eine Vorschau und ändert nichts', () => {
    * aendert NICHTS — egal, was vorher dastand.
    */
   test('das Raumbuch ist danach unveraendert', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     // Erst zaehlen, dann importieren — linear, ohne Zurueckspringen: eine
     // Seite, die der Browser aus dem Verlauf holt, hat ihr Formular nicht
     // mehr, und der Test scheiterte dann an der Navigation statt an der Sache.
@@ -108,7 +111,7 @@ test.describe('(1) Hochladen zeigt eine Vorschau und ändert nichts', () => {
 
 test.describe('(2) Erst die Übernahme schreibt', () => {
   test('drei Räume entstehen, die vierte Zeile bleibt draußen', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await zumImport(page);
     await page.setInputFiles('#datei', {
       name: 'raumbuch.csv', mimeType: 'text/csv', buffer: Buffer.from(DATEI, 'utf8'),
@@ -128,7 +131,7 @@ test.describe('(2) Erst die Übernahme schreibt', () => {
 test.describe('(3) Was der Import ablehnt', () => {
   test('eine .xlsx wird abgewiesen — mit einem Satz, nicht mit halbem Lesen',
     async ({ page }) => {
-      await anmelden(page, 'admin');
+      await alsKonto(page, KONTO.adminReinigung);
       await zumImport(page);
       const antwort = await page.request.post(
         '/api/raumbuch-import?mandant=reinigung',

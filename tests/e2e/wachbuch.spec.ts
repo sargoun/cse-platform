@@ -34,8 +34,32 @@ const sql = postgres(DSN, { max: 2, onnotice: () => {} });
 
 /** Der Bereich, unter dem das Wachbuch liegt — die Security-Gesellschaft. */
 const BEREICH = 'security';
-/** Ein Tag weit genug in der Zukunft, damit keine andere Schicht dazwischenliegt. */
-const NACHT = '2028-06-13';
+
+/**
+ * **Die Nacht lag ausserhalb jedes Fensters, in dem sie jemand sehen konnte.**
+ *
+ * Hier stand ein festes `'2028-06-13'` mit der Begründung, es liege „weit
+ * genug in der Zukunft, damit keine andere Schicht dazwischenliegt". Weit
+ * genug war es — zu weit: beide Postenseiten zeigen die Abdeckung der
+ * nächsten VIER WOCHEN (`FENSTER_TAGE = 28`,
+ * `security/posten/page.tsx` und `…/[id]/page.tsx`). Eine Schicht in
+ * anderthalb Jahren stand deshalb weder im Dringlichkeitsblock, noch sah das
+ * Tor vor der Veröffentlichung sie: das Postenblatt meldete „Besetzt", und
+ * `[data-cse="nicht-veroeffentlichbar"]` gab es gar nicht. Die Prüfung
+ * scheiterte an ihrer eigenen Fixtur, nicht an der Seite.
+ *
+ * **Drei Wochen voraus** liegt darin: innerhalb der 28 Tage, die die Posten
+ * zeigen, und ausserhalb der SIEBEN Tage, auf die die Kachel „Unbesetzte
+ * Schichten" schaut (`services/bericht/kacheln.ts`). Das ist keine Feinheit —
+ * `dashboard.spec.ts` misst in `security` eine Kachelzahl gegen die Zeilen
+ * dahinter und verlässt sich darauf, dass hier niemand in ihr Fenster
+ * schreibt.
+ *
+ * Der Tag kommt aus der DATENBANK und nicht aus der Prozessuhr: die Seiten
+ * lösen ihr „heute" über `berlinHeute()` auf, und zwischen Mitternacht und
+ * 02:00 Berliner Zeit ist der UTC-Tag noch der gestrige (K-11).
+ */
+let NACHT = '';
 
 let mandantId = '';
 let objektId = '';
@@ -55,6 +79,11 @@ async function anmelden(page: Page): Promise<void> {
 }
 
 test.beforeAll(async () => {
+  const [tag] = await sql.unsafe<{ nacht: string }[]>(
+    `select to_char((now() at time zone 'Europe/Berlin')::date + 21, 'YYYY-MM-DD')
+              as nacht`);
+  NACHT = tag!.nacht;
+
   const [m] = await sql.unsafe<{ id: string }[]>(
     `select id from mandant where slug = $1`, [BEREICH]);
   mandantId = m!.id;

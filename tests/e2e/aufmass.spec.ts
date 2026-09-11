@@ -36,14 +36,37 @@ const FORMEL = '3 × (4,20 × 2,75) − 2 × (0,90 × 2,10)';
 const ERGEBNIS = '30,87';
 
 /**
- * Jeder Lauf legt EIGENE Stammdaten an.
+ * Auftrag, Projekt und LV sind FEST benannt und werden wiederverwendet.
  *
- * `projekt`, `auftrag` und `aufmass` tragen alle die Loeschsperre (Invariante
- * 8) — die Zeilen frueherer Laeufe bleiben also stehen, und feste Nummern
- * liefen beim zweiten Lauf in einen Eindeutigkeitsfehler, der nach einem
- * Fehler der Anwendung aussaehe und keiner waere.
+ * Hier stand `String(Date.now()).slice(-6)` — „jeder Lauf legt eigene
+ * Stammdaten an". Die letzten sechs Stellen einer Millisekundenuhr wiederholen
+ * sich aber alle 1000 Sekunden, und weil `auftrag` die Loeschsperre traegt
+ * (Invariante 8), bleibt der Auftrag des ersten Laufs stehen. Playwright
+ * verwirft nach einem Fehlschlag den Worker; der naechste fuehrt `beforeAll`
+ * erneut aus — und der zweite `insert` starb an `auftrag_nummer_uk`. Der
+ * Fehlschlag sah aus wie ein kaputtes Aufmass und war eine Fixtur, die sich
+ * selbst im Weg stand.
+ *
+ * Statt einer unwahrscheinlichen Kennung jetzt eine, die es nur EINMAL geben
+ * kann: `on conflict do nothing` und Nachlesen. Das haelt auch, wenn zwei
+ * Worker (`fullyParallel`) dieselbe Datei gleichzeitig aufbauen — der zweite
+ * wartet auf den ersten und liest dann dessen Zeile.
  */
-const LAUF = String(Date.now()).slice(-6);
+const AUFTRAG_NR = 'AU-E2E-AUFMASS';
+const PROJEKT_NR = 'P-E2E-AUFMASS';
+
+/**
+ * Die BLAETTER dagegen entstehen je Lauf neu — und das ist kein Widerspruch,
+ * sondern die Bedingung von (3): das Blatt mit Foto wird gegengezeichnet und
+ * ist danach eingefroren (`trg_aufmass_3_einfrieren`). Ein wiederverwendetes
+ * Blatt haette beim zweiten Versuch kein Gegenzeichnen-Formular mehr, und die
+ * Pruefung wuerde etwas anderes pruefen als beim ersten.
+ *
+ * Die Nummer traegt deshalb eine ganze UUID und nicht sechs Stellen einer Uhr
+ * — und `aufmass_nummer_uk` laeuft ueber `(projekt_id, nummer)`, das Blatt
+ * bleibt also auch im wiederverwendeten Projekt eindeutig.
+ */
+const LAUF = crypto.randomUUID();
 
 let mandantSlug = '';
 let projektId = '';
@@ -82,7 +105,23 @@ test.beforeAll(async () => {
 
   const [k] = await sql.unsafe<{ id: string }[]>(
     `select id from kunde where mandant_id = $1 limit 1`, [m!.id]);
-  const [a] = await sql.unsafe<{ id: string }[]>(
+
+  /**
+   * Legt die Zeile an — oder liest die, die schon dasteht. Ein `insert` mit
+   * `on conflict do nothing` gibt nichts zurueck, wenn er nichts eingefuegt
+   * hat; genau dann greift die Leseabfrage.
+   */
+  const einmalig = async (
+    einfuegen: string, werte: readonly unknown[],
+    lesen: string, leseWerte: readonly unknown[],
+  ): Promise<string> => {
+    const [neu] = await sql.unsafe<{ id: string }[]>(einfuegen, werte as never[]);
+    if (neu !== undefined) return neu.id;
+    const [da] = await sql.unsafe<{ id: string }[]>(lesen, leseWerte as never[]);
+    return da!.id;
+  };
+
+  const auftragId = await einmalig(
     `insert into auftrag (mandant_id, auftragsnummer, kunde_id, art, status, bezeichnung,
                           verantwortlich_benutzer_id, start_datum)
      select $1, $3, $2, 'projekt', 'aktiv', 'Rohbau Ost',
@@ -93,40 +132,59 @@ test.beforeAll(async () => {
                 and (bm.gueltig_bis is null or bm.gueltig_bis >= current_date)
               limit 1),
             '2026-01-01'
-     returning id`, [m!.id, k!.id, `AU-E2E-${LAUF}`] as never[]);
+     on conflict do nothing
+     returning id`,
+    [m!.id, k!.id, AUFTRAG_NR],
+    `select id from auftrag where mandant_id = $1 and auftragsnummer = $2`,
+    [m!.id, AUFTRAG_NR]);
 
-  const [p] = await sql.unsafe<{ id: string }[]>(
+  projektId = await einmalig(
     `insert into projekt (mandant_id, auftrag_id, nummer, bezeichnung, kunde_id, art,
                           vertragsgrundlage)
-     values ($1,$2,$4,'Rohbau Ost',$3,'hochbau','vob_b') returning id`,
-    [m!.id, a!.id, k!.id, `P-E2E-${LAUF}`] as never[]);
-  projektId = p!.id;
+     values ($1,$2,$4,'Rohbau Ost',$3,'hochbau','vob_b')
+     on conflict do nothing returning id`,
+    [m!.id, auftragId, k!.id, PROJEKT_NR],
+    `select id from projekt where mandant_id = $1 and nummer = $2`,
+    [m!.id, PROJEKT_NR]);
 
-  const [lv] = await sql.unsafe<{ id: string }[]>(
+  lvId = await einmalig(
     `insert into leistungsverzeichnis (mandant_id, projekt_id, art, bezeichnung)
-     values ($1,$2,'hauptauftrag','LV Rohbau Ost') returning id`,
-    [m!.id, projektId] as never[]);
-  lvId = lv!.id;
+     values ($1,$2,'hauptauftrag','LV Rohbau Ost')
+     on conflict do nothing returning id`,
+    [m!.id, projektId],
+    `select id from leistungsverzeichnis where projekt_id = $1 and art = 'hauptauftrag'
+      order by fassung limit 1`,
+    [projektId]);
 
   /**
    * Die OZ-Probe: `1.2.9`, `1.2.10` und `1.2.100` unter einem Titel. Eine
    * Textsortierung stellte `1.2.10` VOR `1.2.9` — in einem LV mit
    * vierhundert Zeilen faellt das niemandem auf.
    */
-  const [titel] = await sql.unsafe<{ id: string }[]>(
+  const titelId = await einmalig(
     `insert into lv_position (mandant_id, leistungsverzeichnis_id, projekt_id, oz, pfad,
                               sortier_pfad, ebene, art, kurztext)
-     values ($1,$2,$3,'1.2','','',1,'titel','Mauerarbeiten') returning id`,
-    [m!.id, lvId, projektId] as never[]);
+     values ($1,$2,$3,'1.2','','',1,'titel','Mauerarbeiten')
+     on conflict do nothing returning id`,
+    [m!.id, lvId, projektId],
+    `select id from lv_position where leistungsverzeichnis_id = $1 and oz = '1.2'`,
+    [lvId]);
   for (const [oz, menge, preis] of [
     ['1.2.9', '3.333', 1299], ['1.2.10', '17.500', 2450], ['1.2.100', '0.125', 99],
   ] as const) {
+    /**
+     * `on conflict do nothing` und nicht `do update`: die drei Positionen
+     * sind ueber `lv_position_oz_uk` eindeutig, und die Zeile eines frueheren
+     * Laufs traegt dieselben Werte. Ein zweites Einfuegen haette die Σ des
+     * Titels verdoppelt — die Pruefung darunter rechnet auf den Cent.
+     */
     await sql.unsafe(
       `insert into lv_position (mandant_id, leistungsverzeichnis_id, projekt_id, eltern_id,
                                 oz, pfad, sortier_pfad, ebene, art, kurztext, einheit,
                                 menge_vertrag, einheitspreis_cent)
-       values ($1,$2,$3,$4,$5,'','',2,'position','Mauerwerk','m²',$6::numeric,$7::bigint)`,
-      [m!.id, lvId, projektId, titel!.id, oz, menge, preis] as never[]);
+       values ($1,$2,$3,$4,$5,'','',2,'position','Mauerwerk','m²',$6::numeric,$7::bigint)
+       on conflict do nothing`,
+      [m!.id, lvId, projektId, titelId, oz, menge, preis] as never[]);
   }
 
   const [pos] = await sql.unsafe<{ id: string }[]>(

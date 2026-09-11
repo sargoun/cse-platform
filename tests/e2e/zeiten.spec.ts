@@ -197,8 +197,23 @@ test.describe('Zeiten — Wochenliste', () => {
     await expect(zeile).toHaveCount(1);
     await expect(zeile).toBeVisible();
 
-    // Die Zeile der Tabelle, in der der Eintrag steht.
-    const reihe = page.locator('tr', { has: zeile });
+    /**
+     * Die Zeile der Tabelle, in der der Eintrag steht.
+     *
+     * **Der `has`-Locator zaehlt AB DER ZEILE, nicht ab der Seite.** Hier
+     * stand `page.locator('tr', { has: zeile })` — und `zeile` beginnt mit
+     * `[data-cse="tabelle"]`. Playwright wertet den inneren Locator relativ
+     * zum aeusseren aus, gesucht wurde also ein `tr`, das seinerseits eine
+     * Tabelle enthaelt, die den Eintrag enthaelt. Die Tabelle ist aber der
+     * VORFAHR der Zeile. Kein Treffer — und der Fehlschlag las sich wie eine
+     * fehlende Zeile, obwohl `zeile` zwei Zeilen darueber gerade mit
+     * `toHaveCount(1)` bestaetigt hatte, dass sie dasteht.
+     *
+     * Das Tabellen-Rendering wird jetzt am AEUSSEREN Locator festgelegt; der
+     * Filter fragt nur noch nach dem, was wirklich in der Zeile steht.
+     */
+    const reihe = page.locator('[data-cse="tabelle"] tr')
+      .filter({ has: page.locator(`[data-zeiteintrag="${ids['nacht'] ?? ''}"]`) });
     await expect(reihe).toContainText('22:00');
     await expect(reihe).toContainText('06:00');
     // Der Tageswechsel steht DA — sonst läse 22:00 – 06:00 wie sechzehn
@@ -211,16 +226,20 @@ test.describe('Zeiten — Wochenliste', () => {
   test('(2) die beiden Umstellungsnächte lesen 6,50 h und 8,50 h', async ({ page }) => {
     await anmelden(page);
 
+    /**
+     * Derselbe Fehlgriff wie in (1): `[data-cse="tabelle"]` stand INNEN, im
+     * `has`, und wurde damit unterhalb des `tr` gesucht — also unterhalb
+     * seines eigenen Vorfahren. Das Rendering gehoert nach AUSSEN, an den
+     * Zeilen-Locator.
+     */
     await page.goto(`/portal/reinigung/zeiten?woche=${NACHT_VOR}`);
-    const vor = page.locator('tr', {
-      has: page.locator(`[data-cse="tabelle"] [data-zeiteintrag="${ids['vor'] ?? ''}"]`),
-    });
+    const vor = page.locator('[data-cse="tabelle"] tr')
+      .filter({ has: page.locator(`[data-zeiteintrag="${ids['vor'] ?? ''}"]`) });
     await expect(vor).toContainText('6,50 h');
 
     await page.goto(`/portal/reinigung/zeiten?woche=${NACHT_ZURUECK}`);
-    const zurueck = page.locator('tr', {
-      has: page.locator(`[data-cse="tabelle"] [data-zeiteintrag="${ids['zurueck'] ?? ''}"]`),
-    });
+    const zurueck = page.locator('[data-cse="tabelle"] tr')
+      .filter({ has: page.locator(`[data-zeiteintrag="${ids['zurueck'] ?? ''}"]`) });
     await expect(zurueck).toContainText('8,50 h');
   });
 

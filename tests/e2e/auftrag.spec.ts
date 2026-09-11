@@ -6,7 +6,18 @@
  * Assistent erfindet, hinterfragt spaeter niemand mehr.
  */
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+/**
+ * Angemeldet wird als BESTIMMTES Konto, nicht als „irgendwer mit Rolle admin".
+ *
+ * Die oertliche Hilfe griff `[data-rolle="admin"]`.first(); seit der Seed ein
+ * zweites Verwaltungskonto kennt, steht „Administration Bau" in der nach Namen
+ * sortierten Liste vor „Administration Reinigung". Die Sitzung landete damit
+ * im Mandanten `bau`, und jeder Aufruf unter `/portal/reinigung/…` antwortete
+ * zu Recht mit 404 (Slug-Wache, AUT-06) — ein Fehlschlag, der wie ein kaputter
+ * Bildschirm aussah und eine falsche Anmeldung war.
+ */
+import { alsKonto, KONTO } from './hilfen/anmeldung';
 
 /**
  * Ein eigener Name je Lauf.
@@ -20,17 +31,9 @@ const NAME = `Unterhaltsreinigung Kurfürstendamm ${LAUF}`;
 
 test.describe.configure({ mode: 'serial' });
 
-async function anmelden(page: Page, rolle: string): Promise<void> {
-  await page.goto('/dev/anmelden');
-  const knopf = page.locator(`[data-cse="dev-anmelden"][data-rolle="${rolle}"]`).first();
-  await expect(knopf, `kein Seed-Konto für Rolle ${rolle}`).toBeVisible();
-  await knopf.click();
-  await page.waitForLoadState('networkidle');
-}
-
 test.describe('(1) Der Assistent fragt, was OPS-10 verlangt', () => {
   test('alle sechs Felder stehen auf EINER Seite', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     const antwort = await page.goto('/portal/reinigung/auftraege/neu');
     expect(antwort?.status()).toBe(200);
 
@@ -41,7 +44,7 @@ test.describe('(1) Der Assistent fragt, was OPS-10 verlangt', () => {
   });
 
   test('ein angelegter Auftrag trägt genau das, was eingetragen wurde', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await page.goto('/portal/reinigung/auftraege/neu');
 
     await page.fill('#bezeichnung', NAME);
@@ -61,7 +64,7 @@ test.describe('(1) Der Assistent fragt, was OPS-10 verlangt', () => {
 
   test('und was NICHT eingetragen wurde, bleibt leer — nichts wird geschätzt',
     async ({ page }) => {
-      await anmelden(page, 'admin');
+      await alsKonto(page, KONTO.adminReinigung);
       await page.goto('/portal/reinigung/auftraege/neu');
       await page.fill('#bezeichnung', `Objektschutz ohne Angaben ${LAUF}`);
       await page.fill('#startDatum', '2026-12-01');
@@ -75,7 +78,7 @@ test.describe('(1) Der Assistent fragt, was OPS-10 verlangt', () => {
 
 test.describe('(2) Die Liste und der Rückweg', () => {
   test('der neue Auftrag steht in der Liste', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await page.goto('/portal/reinigung/auftraege');
     await expect(page.locator('h1')).toHaveText('Aufträge');
     await expect(page.getByRole('link', { name: NAME })).toBeVisible();
@@ -83,7 +86,7 @@ test.describe('(2) Die Liste und der Rückweg', () => {
 
   test('ein Auftrag ohne Kundenfreigabe sagt, dass er keine Referenz ist (PRO-05)',
     async ({ page }) => {
-      await anmelden(page, 'admin');
+      await alsKonto(page, KONTO.adminReinigung);
       await page.goto('/portal/reinigung/auftraege');
       await page.getByRole('link', { name: NAME }).click();
       await expect(page.getByText(/Ohne schriftliche Freigabe des Kunden/u)).toBeVisible();
@@ -92,7 +95,7 @@ test.describe('(2) Die Liste und der Rückweg', () => {
 
 test.describe('(3) barrierefrei', () => {
   test('axe findet nichts im Assistenten', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await page.goto('/portal/reinigung/auftraege/neu');
     const ergebnis = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();

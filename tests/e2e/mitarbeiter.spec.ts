@@ -29,6 +29,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import postgres from 'postgres';
+import { alsKonto, KONTO } from './hilfen/anmeldung';
 
 const DSN = process.env['DATABASE_URL']
   ?? process.env['TEST_DATABASE_URL']
@@ -37,32 +38,28 @@ const DSN = process.env['DATABASE_URL']
 const sql = postgres(DSN, { max: 2, onnotice: () => {} });
 
 /**
- * Anmeldung als die Person mit ZWEI Beschäftigungen.
+ * Anmeldung als ein BESTIMMTER Mensch — nicht als „irgendwer mit dieser
+ * Rolle".
  *
  * `/dev/anmelden` stellt für eine `mitarbeiter`-Rolle eine Sitzung mit
  * `ansicht = 'person'` aus — also genau den Personen-Scope, den K-18 für
  * dieses Portal verlangt. Alles danach ist echt: Policies, Rechte, Zeilen.
- */
-/**
- * Anmeldung als ein BESTIMMTER Mensch — nicht als „irgendwer mit dieser
- * Rolle".
  *
  * `[data-rolle="mitarbeiter"]` griff das erste Konto dieser Rolle heraus.
  * Solange es genau eines gab, stimmte das zufällig; mit dem zweiten prüfte
  * dieselbe Zeile stillschweigend eine andere Person. Die Kennung steht
  * deshalb am Knopf (`src/app/dev/anmelden/page.tsx`).
+ *
+ * **Die Hilfe stand hier als eigene Abschrift** — eine von zwölf. Sie ist
+ * nach `hilfen/anmeldung.ts` gezogen: dort sichert `toHaveCount(1)` zu, dass
+ * es GENAU EIN Konto dieser Kennung gibt, während das `.first()` hier den Tag
+ * verschwiegen hätte, an dem es zwei sind. Und die Kennungen stehen einmal
+ * statt zwölfmal getippt da.
  */
-async function alsKonto(page: Page, email: string): Promise<void> {
-  await page.goto('/dev/anmelden');
-  const knopf = page.locator(`[data-cse="dev-anmelden"][data-email="${email}"]`).first();
-  await expect(knopf, `kein Seed-Konto ${email}`).toBeVisible();
-  await knopf.click();
-  await page.waitForLoadState('networkidle');
-}
 
 /** Fatima Yildiz — ein Mensch, zwei Gesellschaften (D-09), Sprache Deutsch. */
 async function alsFatima(page: Page): Promise<void> {
-  await alsKonto(page, 'fatima.yildiz@cse-gruppe.de');
+  await alsKonto(page, KONTO.fatima);
 }
 
 /**
@@ -78,7 +75,7 @@ async function alsFatima(page: Page): Promise<void> {
  * anmeldet, und verändert dabei nichts.
  */
 async function alsAmir(page: Page): Promise<void> {
-  await alsKonto(page, 'amir.haddad@cse-gruppe.de');
+  await alsKonto(page, KONTO.amir);
 }
 
 /**
@@ -279,7 +276,7 @@ test.describe('(3) der Monatsnachweis nennt dieselbe Zahl wie das Stundenkonto',
           and ma.monat = date_trunc('month', (now() at time zone 'Europe/Berlin'))::date
           and ma.freigegeben_am is null
           and z.storniert_am is null`,
-      ['fatima.yildiz@cse-gruppe.de'] as never[]);
+      [KONTO.fatima] as never[]);
     const unfreigegeben = Number(offen?.anzahl ?? '0');
 
     if (unfreigegeben === 0) {
@@ -359,7 +356,7 @@ test.describe('(4) kein Lohnsatz, nirgends ein Kundenpreis (K-05, EMP-13)', () =
     const namen = await sql.unsafe<{ name: string }[]>(
       `select (p.vorname || ' ' || p.nachname) as name from person p
         where p.id <> (select person_id from benutzer where email = $1)`,
-      ['fatima.yildiz@cse-gruppe.de'] as never[]);
+      [KONTO.fatima] as never[]);
     const text = await page.locator('main').innerText();
     for (const n of namen) expect(text, `fremder Name: ${n.name}`).not.toContain(n.name);
   });

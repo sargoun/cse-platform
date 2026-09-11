@@ -8,14 +8,17 @@
  */
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-
-async function anmelden(page: Page, rolle: string): Promise<void> {
-  await page.goto('/dev/anmelden');
-  const knopf = page.locator(`[data-cse="dev-anmelden"][data-rolle="${rolle}"]`).first();
-  await expect(knopf, `kein Seed-Konto für Rolle ${rolle}`).toBeVisible();
-  await knopf.click();
-  await page.waitForLoadState('networkidle');
-}
+/**
+ * Angemeldet wird als BESTIMMTES Konto, nicht als „irgendwer mit Rolle admin".
+ *
+ * Die oertliche Hilfe griff `[data-rolle="admin"]`.first(); seit der Seed ein
+ * zweites Verwaltungskonto kennt, steht „Administration Bau" in der nach Namen
+ * sortierten Liste vor „Administration Reinigung". Die Sitzung landete damit
+ * im Mandanten `bau`, und jeder Aufruf unter `/portal/reinigung/…` antwortete
+ * zu Recht mit 404 (Slug-Wache, AUT-06) — ein Fehlschlag, der wie ein kaputter
+ * Bildschirm aussah und eine falsche Anmeldung war.
+ */
+import { alsKonto, KONTO } from './hilfen/anmeldung';
 
 async function zumRaumbuch(page: Page): Promise<void> {
   await page.goto('/portal/reinigung/objekte');
@@ -65,7 +68,7 @@ async function kalkulationBestaetigen(page: Page): Promise<void> {
 
 test.describe('(1) Aus der Kalkulation wird ein Angebot', () => {
   test('der Knopf legt eines an und führt hinein', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await zumRaumbuch(page);
     await page.locator('[data-cse="angebot-erzeugen"]').click();
 
@@ -77,7 +80,7 @@ test.describe('(1) Aus der Kalkulation wird ein Angebot', () => {
   });
 
   test('das Angebot erscheint in der Liste', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await zumRaumbuch(page);
     await page.locator('[data-cse="angebot-erzeugen"]').click();
     await page.goto('/portal/reinigung/angebote');
@@ -88,7 +91,7 @@ test.describe('(1) Aus der Kalkulation wird ein Angebot', () => {
 
 test.describe('(2) Der Versand — und was er erzeugt', () => {
   test('ein Klick, eine Nummer, ein unveränderliches Dokument', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await zumRaumbuch(page);
     await page.locator('[data-cse="angebot-erzeugen"]').click();
     const angebotsUrl = page.url();
@@ -109,7 +112,7 @@ test.describe('(2) Der Versand — und was er erzeugt', () => {
   });
 
   test('das Angebotsdokument trägt die Identität DIESER Gesellschaft', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await zumRaumbuch(page);
     await page.locator('[data-cse="angebot-erzeugen"]').click();
     await kalkulationBestaetigen(page);
@@ -129,7 +132,7 @@ test.describe('(2) Der Versand — und was er erzeugt', () => {
 
 test.describe('(3) Angebot → Auftrag, in einer Handlung (OPS-09)', () => {
   test('ein Klick, und der Auftrag steht', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await zumRaumbuch(page);
     await page.locator('[data-cse="angebot-erzeugen"]').click();
     const angebotsUrl = page.url();
@@ -147,7 +150,7 @@ test.describe('(3) Angebot → Auftrag, in einer Handlung (OPS-09)', () => {
 
 test.describe('(4) barrierefrei', () => {
   test('axe findet nichts auf dem Angebot', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await zumRaumbuch(page);
     await page.locator('[data-cse="angebot-erzeugen"]').click();
     const ergebnis = await new AxeBuilder({ page })
@@ -163,7 +166,7 @@ test.describe('(5) Ein Preis auf Platzhaltern geht NICHT hinaus', () => {
    * Knopf ohne Erklaerung waere eine Sackgasse mit Tooltip.
    */
   test('der Versandknopf ist gesperrt, und die Seite sagt warum', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await zumRaumbuch(page);
     await page.locator('[data-cse="angebot-erzeugen"]').click();
 
@@ -174,7 +177,7 @@ test.describe('(5) Ein Preis auf Platzhaltern geht NICHT hinaus', () => {
 
   test('die Kalkulationsseite zeigt den Rechenweg, bevor sie nach Zahlen fragt',
     async ({ page }) => {
-      await anmelden(page, 'admin');
+      await alsKonto(page, KONTO.adminReinigung);
       await zumRaumbuch(page);
       await page.locator('[data-cse="angebot-erzeugen"]').click();
       await page.locator('[data-cse="zur-kalkulation"]').click();
@@ -187,7 +190,7 @@ test.describe('(5) Ein Preis auf Platzhaltern geht NICHT hinaus', () => {
     });
 
   test('nach dem Versand ist die Kalkulation eingefroren', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await zumRaumbuch(page);
     await page.locator('[data-cse="angebot-erzeugen"]').click();
     const angebotsUrl = page.url();
