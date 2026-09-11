@@ -455,6 +455,19 @@ function Pruefblatt({
             Begründung, die einen fehlenden Nachweis ersetzt — die Einteilung
             muss eine andere Person bekommen.
           </p>
+          {/*
+            Der Weg aus der Sperre heraus. Ohne ihn endet der Bildschirm mit
+            einem Nein und lässt offen, WO man nachsieht — und die Planerin
+            sucht den Nachweisstand dann in einer Mail.
+          */}
+          <p className="m-0 mt-s2 text-sm">
+            <Link
+              href={`/portal/${mandant}/personal/nachweise`}
+              className="text-danger underline decoration-danger underline-offset-4"
+            >
+              Nachweisregister öffnen
+            </Link>
+          </p>
         </>
       ) : (
         <p className="m-0 text-sm text-text-muted">
