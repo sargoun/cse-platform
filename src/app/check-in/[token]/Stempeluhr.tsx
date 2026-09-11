@@ -115,8 +115,21 @@ export function Stempeluhr({ token }: { readonly token: string }) {
        * ueber die die Planung entscheidet. Wer stattdessen die Sendezeit
        * mitschickte, verschoebe jede Nachtschicht auf den Moment, in dem das
        * Telefon wieder Empfang hatte — und zwar plausibel und unauffaellig.
+       *
+       * **`unbekannt`, nicht `checkin`.** Ob dieses Antippen ein Beginn oder
+       * ein Ende ist, entscheidet der ZWECK DER MARKE auf dem Server — der
+       * Online-Pfad weiter oben liest es ja auch erst an der Antwort ab
+       * (`ergebnis === 'ausgecheckt'`). Diese Flaeche hat einen
+       * Knopf und loest die Marke absichtlich nicht auf (AUT-06); sie KANN
+       * die Richtung nicht wissen. Bis hierhin stand trotzdem `checkin` da:
+       * ein im Funkloch getipptes SchichtENDE reiste damit als SchichtBEGINN
+       * zur Planung, und niemand sah einen Fehler — nur einen falschen
+       * Beginn. Eine geratene Richtung ist genau die stille Falschaussage,
+       * gegen die Invariante 5 geschrieben ist. Die Datenbank setzt beim
+       * Nachreichen ein, was in der Marke steht (0090); loest keine Marke
+       * auf, bleibt `unbekannt` stehen, und ein Mensch entscheidet.
        */
-      const eintrag = stelleAn('checkin', getipptAm);
+      const eintrag = stelleAn('unbekannt', getipptAm);
       setzeZustand({
         art: 'gemerkt',
         zeit: UHR.format(new Date(eintrag.behaupteteZeit)),

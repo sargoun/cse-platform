@@ -22,6 +22,10 @@ import { seedAuftrag } from './auftrag.js';
 import { seedZeit } from './zeit.js';
 import { seedKonten } from './konto.js';
 import { seedSecurity } from './security.js';
+import { seedWachbuch } from './wachbuch.js';
+import { seedReinigung } from './reinigung.js';
+import { seedVertrieb } from './vertrieb.js';
+import { seedBau } from './bau.js';
 
 const url = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 if (url === undefined || url === '') {
@@ -443,9 +447,55 @@ async function main(): Promise<void> {
     ['Amir', 'Haddad', 'ar'],
     ['Marta', 'Kowalski', 'tr'],
     ['Kwame', 'Mensah', 'en'],
+    /**
+     * **Und die vier, die bisher keine Menschen waren** (D-09).
+     *
+     * `leitung.security`, `leitung.bau`, `admin.reinigung` und `admin.bau`
+     * standen als reine `benutzer`-Zeilen da: eine Anmeldung ohne Person und
+     * ohne Beschaeftigung. Das sah wie ein Schoenheitsfehler aus und war
+     * keiner. `schreibeEintrag` loest den Urheber einer Wachbuchseite ueber
+     * `anstellung where person_id = app.aktuelle_person()` auf und wirft
+     * sonst `KeinUrheber` (422, §10.5) — die Wachleitung der SSE Security
+     * konnte im geseedeten Bestand also keine einzige Seite fuehren, und der
+     * Grund stand nicht auf dem Bildschirm, sondern in einer Fremdschluessel-
+     * bedingung. Dieselbe Luecke traf jede andere Stelle, die den HANDELNDEN
+     * als Beschaeftigte fuehrt.
+     *
+     * Ein Konto ist keine Person, und eine Person ist keine Beschaeftigung:
+     * deshalb entsteht hier der Mensch, unten die Beschaeftigung in SEINER
+     * Gesellschaft, und beim Konto nur die Verbindung `benutzer.person_id`.
+     */
+    ['Katrin', 'Lehmann', 'de'],
+    ['Thomas', 'Schröder', 'de'],
+    ['Silke', 'Neumann', 'de'],
+    ['Hakan', 'Demir', 'de'],
   ];
+
+  /**
+   * LESEN ZUERST, wie ueberall in diesem Seed — und hier ist es keine Kosmetik.
+   *
+   * `person` traegt keinen natuerlichen Schluessel, also gab es fuer den
+   * frueheren blanken `insert` nie einen Konflikt: ein zweiter Seed-Lauf legte
+   * fuenf WEITERE Menschen an. Die Beschaeftigungen darunter prallten dagegen
+   * an `anstellung_personalnummer_uk` ab und blieben bei den ALTEN Personen —
+   * und weil der Kontenzweig weiter unten `person_id = excluded.person_id`
+   * setzt, zeigte danach jedes Konto auf einen Menschen OHNE Beschaeftigung.
+   * Genau der Zustand, den Teil 1 dieser Aenderung beseitigt, waere beim
+   * zweiten Lauf zurueckgekehrt: `app.aktuelle_person()` antwortet, die
+   * Anstellung dazu gibt es nicht, und das Wachbuch wirft wieder
+   * `KeinUrheber`.
+   *
+   * Vor- und Nachname sind fuer diese Fixtur der Schluessel. Das ist fuer
+   * echte Personendaten keine Annahme, die man treffen duerfte — fuer
+   * Demodaten, die dieselbe Datei erzeugt, ist es die einzige, die es gibt.
+   */
   const personIds: string[] = [];
   for (const [vorname, nachname, sprache] of menschen) {
+    const [da] = await sql<{ id: string }[]>`
+      select id from person
+       where vorname = ${vorname} and nachname = ${nachname} and geloescht_am is null
+       limit 1`;
+    if (da !== undefined) { personIds.push(da.id); continue; }
     const [p] = await sql<{ id: string }[]>`
       insert into person (vorname, nachname, sprache, telefon)
       values (${vorname}, ${nachname}, ${sprache},
@@ -454,14 +504,35 @@ async function main(): Promise<void> {
     personIds.push(p!.id);
   }
 
-  /** Beschaeftigungen. Alles Kostenrelevante haengt hier, nicht an `person`. */
-  const anstellungen: readonly (readonly [number, string, string, number])[] = [
+  /**
+   * Beschaeftigungen. Alles Kostenrelevante haengt hier, nicht an `person`.
+   *
+   * Der vierte Wert ist `stundensatz_intern` in ganzen Cent (Invariante 1).
+   * Er ist bei den sechs gewerblichen Beschaeftigungen ein DEMOWERT und bei
+   * den vier Fuehrungs- und Verwaltungsstellen `null` — nicht aus
+   * Bequemlichkeit:
+   * // TODO(client, O-347): In welcher Beschäftigungsform stehen die
+   * Führungs- und Verwaltungskräfte der drei Gesellschaften, und wird ihre
+   * Vergütung als Stundensatz geführt oder als Festgehalt, das die Plattform
+   * gar nicht trägt?
+   * Eine erfundene Zahl waere genau der Fall, den `docs/DECISIONS.md`
+   * verbietet: sie saehe bestaetigt aus, ginge in jede Kalkulation ein und
+   * fiele niemandem mehr auf. `arbeitszeitmodell` bleibt bei allen auf dem
+   * Vorgabewert `unbekannt` (O-18) — auch das ist eine offene Frage und kein
+   * Versaeumnis.
+   */
+  const anstellungen: readonly (readonly [number, string, string, number | null])[] = [
     [0, 'reinigung', 'R-1001', 1450],   // Fatima, Reinigung
     [0, 'security', 'S-2001', 1780],    // dieselbe Fatima, Sicherheit
     [1, 'reinigung', 'R-1002', 1400],
     [2, 'security', 'S-2002', 1690],
     [3, 'bau', 'B-3001', 2150],
     [4, 'reinigung', 'R-1003', 1400],
+    // Die vier Fuehrungs- und Verwaltungsstellen, je in IHRER Gesellschaft.
+    [5, 'security', 'S-2003', null],    // Katrin Lehmann, Wachleitung
+    [6, 'bau', 'B-3002', null],         // Thomas Schröder, Bauleitung
+    [7, 'reinigung', 'R-1004', null],   // Silke Neumann, Objektverwaltung
+    [8, 'bau', 'B-3003', null],         // Hakan Demir, Baubüro
   ];
   for (const [person, bereich, nummer, satz] of anstellungen) {
     await sql`
@@ -471,7 +542,9 @@ async function main(): Promise<void> {
               ${satz}, 'aktiv')
       on conflict do nothing`;
   }
-  process.stdout.write(`  ${menschen.length} Menschen, ${anstellungen.length} Beschäftigungen\n`);
+  process.stdout.write(
+    `  ${menschen.length} Menschen, ${anstellungen.length} Beschäftigungen `
+    + '(Vergütung der Leitungen offen: O-347)\n');
 
   // --------------------------------------------------------- Nummernkreise
   /**
@@ -562,6 +635,23 @@ async function main(): Promise<void> {
    * Der `mitarbeiter` haengt an FATIMA, dem D-09-Fall: ein Mensch, zwei
    * Gesellschaften. Ihr Portal muss beide Beschaeftigungen zeigen und trotzdem
    * keine fremde Zeile — das ist genau die Aussage, die sonst niemand prueft.
+   *
+   * **Die letzte Spalte ist kein Zierat, sondern `benutzer.person_id`** — und
+   * seit dieser Aenderung traegt sie JEDES Konto ausser dem Kundenzugang.
+   * Vier Konten standen ohne: `leitung.security`, `leitung.bau`,
+   * `admin.reinigung`, `admin.bau`. `app.aktuelle_person()` antwortete fuer
+   * sie mit NULL, und alles, was den Handelnden als BESCHAEFTIGTE fuehrt,
+   * wies sie ab — das Wachbuch mit `KeinUrheber` (422, §10.5), also genau
+   * dort, wo SEC-05 die Wachleitung das Buch fuehren laesst. Ein Konto ohne
+   * Mensch ist im Portal nicht halb angemeldet, sondern an jeder zweiten
+   * Stelle unerklaerlich ausgesperrt.
+   *
+   * **`benutzer.name` bleibt trotzdem die FUNKTION** („Leitung Security"),
+   * nicht der Name des Menschen. Das Konto ist der Platz in der
+   * Gesellschaft, der Mensch darauf steht in `person` — und genau von dort
+   * liest das Wachbuch seinen Urheber. Die Browsersuite waehlt ihre Konten
+   * ueber `data-email` (`tests/e2e/hilfen/anmeldung.ts`) und nicht ueber
+   * diesen Text; er darf deshalb bleiben, was er beschreibt.
    */
   const rollenIds = new Map<string, string>();
   for (const r of await sql<{ id: string; schluessel: string }[]>`
@@ -570,8 +660,8 @@ async function main(): Promise<void> {
   }
 
   const konten: readonly (readonly [string, string, string, string, number | null])[] = [
-    ['admin.reinigung@cse-gruppe.de', 'Administration Reinigung', 'admin', 'reinigung', null],
-    ['leitung.bau@cse-gruppe.de', 'Leitung Bau', 'leitung', 'bau', null],
+    ['admin.reinigung@cse-gruppe.de', 'Administration Reinigung', 'admin', 'reinigung', 7],
+    ['leitung.bau@cse-gruppe.de', 'Leitung Bau', 'leitung', 'bau', 6],
     /**
      * Und eine Administration fuer den Bau.
      *
@@ -582,7 +672,7 @@ async function main(): Promise<void> {
      * das sah aus wie eine fehlende Funktion. Dieselbe Luecke wie die
      * Gesellschaft ohne Leitung, nur eine Ebene tiefer.
      */
-    ['admin.bau@cse-gruppe.de', 'Administration Bau', 'admin', 'bau', null],
+    ['admin.bau@cse-gruppe.de', 'Administration Bau', 'admin', 'bau', 8],
     /**
      * Und eine Leitung fuer die Security.
      *
@@ -593,7 +683,7 @@ async function main(): Promise<void> {
      * leer oder 404. Eine Gesellschaft ohne Leitung ist kein Datenstand,
      * sondern eine Luecke, die wie eine fehlende Funktion aussieht.
      */
-    ['leitung.security@cse-gruppe.de', 'Leitung Security', 'leitung', 'security', null],
+    ['leitung.security@cse-gruppe.de', 'Leitung Security', 'leitung', 'security', 5],
     // Fatima: `mitarbeiter` in Reinigung UND Security (D-09).
     ['fatima.yildiz@cse-gruppe.de', 'Fatima Yildiz', 'mitarbeiter', 'reinigung', 0],
     /**
@@ -762,6 +852,117 @@ async function main(): Promise<void> {
     + `Generator, ${String(sec.einteilungen)} Einteilungen, `
     + `${String(sec.zeiteintraege)} Zeiteintraege (Qualifikationsbedarf offen: O-342)\n`,
   );
+
+  /**
+   * Und darauf das Wachbuch — NACH dem Posten, und das ist eine Abhaengigkeit
+   * und keine Reihenfolge nach Geschmack: eine Wachbuchseite traegt das Objekt
+   * und den Posten, auf den sie sich bezieht. Ohne `seedSecurity` gaebe es
+   * beides nicht, und das Buch stuende leer da — also genau der Bildschirm,
+   * den diese Datei fuellen soll.
+   *
+   * Die zweite Abhaengigkeit liegt weiter oben: der Urheber eines Eintrags ist
+   * eine BESCHAEFTIGUNG (§10.5). Sie entsteht im Menschen-Abschnitt, lange
+   * bevor hier geschrieben wird — bis dahin hatte die Wachleitung keine, und
+   * der Dienst wies jede Seite mit `KeinUrheber` ab.
+   */
+  const buch = await seedWachbuch(sql, ids.get('security')!, sec.postenId, sec.objektId);
+  process.stdout.write(
+    `  ${String(buch.eintraege)} Wachbucheintraege über den echten Dienst `
+    + `(davon ${String(buch.storniert)} richtiggestellt — beide Seiten bleiben stehen)\n`,
+  );
+
+  /**
+   * Und die Reinigung bekommt ihren Zuschnitt, ihre Nachweise und ihre
+   * Beanstandungen — NACH `seedZeit`, und das ist zweimal eine Abhaengigkeit
+   * und keine Reihenfolge nach Geschmack.
+   *
+   * Erstens entsteht eine Nachweisposition aus einem ZEITEINTRAG, und zwar
+   * ueber den dreispaltigen Schluessel Mandant → Auftragsleistung →
+   * Zeiteintrag (`lnp_zeiteintrag_fk`). Ohne erfasste Zeit mit
+   * Abrechnungsanker gaebe es kein einziges Blatt, und der Nachweisbereich
+   * stuende leer da — ohne Fehler, ohne Luecke, nur nichts.
+   *
+   * Zweitens BESTREITET eine Beanstandung einen Leistungsnachweis (OPS-11,
+   * FIN-18): erst der Nachweis, dann die Beschwerde ueber ihn. Umgekehrt
+   * bliebe die Spalte, um die es geht, auf jeder Zeile ein Gedankenstrich.
+   *
+   * Und der Zuschnitt der Reviere selbst haengt an `seedOperations` (Raeume)
+   * und `seedDienstplan` (Reviere): beide legen ihre Haelfte an, verbunden hat
+   * sie bisher niemand.
+   */
+  const rein = await seedReinigung(sql, ids);
+  process.stdout.write(
+    `  ${String(rein.reviere)} Reviere zugeschnitten mit `
+    + `${String(rein.revierRaeume)} Raumzuordnungen (davon `
+    + `${String(rein.aufPlatzhalter)} auf einem Platzhalter-Leistungswert, O-17), `
+    + `${String(rein.nachweise)} Leistungsnachweise mit `
+    + `${String(rein.positionen)} Positionen aus erfasster Zeit, `
+    + `${String(rein.unterschriften)} Unterschrift (Abzug eingefroren, CLN-04), `
+    + `${String(rein.reklamationen)} Reklamationen (Frist bleibt offen: O-14)\n`,
+  );
+  if (rein.nummerOffen !== null) {
+    process.stdout.write(`  · Nachweisnummer nicht gezogen: ${rein.nummerOffen}\n`);
+  }
+
+  /**
+   * Und darauf der Vertrieb — NACH `seedOperations`, weil er das RAUMBUCH
+   * bepreist und nicht eine Liste von Zahlen. Ohne Raeume mit Belagsart gibt
+   * es keine Kalkulationsgrundlage, und `uebernimmKalkulation` weist ein
+   * Angebot ueber nicht bepreisbare Flaeche ausdruecklich ab (D-97). Die
+   * Reihenfolge ist eine Abhaengigkeit, keine Vorliebe.
+   */
+  const vertrieb = await seedVertrieb(sql, ids);
+  if (vertrieb.angebote === 0) {
+    // Zweiter Lauf: die Demoangebote stehen schon. Ein versendetes Angebot ist
+    // unveraenderlich, und ein zweiter Zug aus dem Angebotskreis waere eine
+    // verbrauchte Nummer ohne Beleg.
+    process.stdout.write('  Angebote: bereits vorhanden, nichts nachgelegt\n');
+  } else {
+    process.stdout.write(
+      `  ${String(vertrieb.angebote)} Angebote mit ${String(vertrieb.positionen)} `
+      + `Positionen aus der Kalkulation (${vertrieb.angebotsnummer ?? 'ohne Nummer'} `
+      + `versendet → Auftrag ${vertrieb.auftragsnummer ?? '—'}, `
+      + `${String(vertrieb.entwuerfe)} Entwurf ohne Nummer — den sieht der Kunde nicht)\n`,
+    );
+    if (vertrieb.offeneFragen.length > 0) {
+      process.stdout.write(
+        `  \u00b7 gerechnet auf Platzhaltern, fuer dieses Angebot bestaetigt: `
+        + `${vertrieb.offeneFragen.join(', ')}\n`,
+      );
+    }
+  }
+
+  /**
+   * Und das Baugewerk — NACH `seedOperations`, weil Projekt und Bautagebuch am
+   * OBJEKT haengen (die Baustelle), und ohne Abhaengigkeit zur Reinigung: es
+   * ist eine andere Gesellschaft, ein anderer Kunde, ein anderer Nummernkreis.
+   * Der Auftrag entsteht hier direkt, denn ein Bauauftrag kommt aus dem LV des
+   * Auftraggebers und nicht aus der Reinigungskalkulation.
+   */
+  const bau = await seedBau(sql, ids);
+  if (bau.projekte === 0) {
+    // Zweiter Lauf: das Bauprojekt steht. Ein eingereichter Nachtrag laesst
+    // sich nicht zurueckziehen und ein abgeschlossener Bautag nicht aendern.
+    process.stdout.write('  Bau: Projekt bereits vorhanden, nichts nachgelegt\n');
+  } else {
+    process.stdout.write(
+      `  ${String(bau.projekte)} Bauprojekt mit ${String(bau.lvZeilen)} LV-Zeilen `
+      + `(Auftragssumme ${bau.lvSumme ?? '—'}, ${String(bau.ausgenommen)} Positionen `
+      + `ausgenommen: Bedarf und Alternative, O-155), `
+      + `${String(bau.aufmassblaetter)} Aufmassblatt mit ${String(bau.aufmassZeilen)} `
+      + `Zeilen aus dem Rechenansatz, ${String(bau.nachtraege)} Nachtrag `
+      + `${bau.nachtragsnummer ?? ''} eingereicht (mit gebundener Freigabe)\n`,
+    );
+    process.stdout.write(
+      `  ${String(bau.bautage)} Bautage mit ${String(bau.mannstunden)} Mannstundenzeilen `
+      + `und ${String(bau.tagespositionen)} Geraete-/Liefer-/Vorkommniszeilen ueber `
+      + `${String(bau.gewerke)} Gewerke (Katalog unbestaetigt: O-159)\n`,
+    );
+    process.stdout.write(
+      `  \u00b7 DWD Open Data: ${bau.wetterVerbunden ? 'verbunden' : 'NICHT verbunden'} `
+      + `\u2014 Wetter am Bautag: ${bau.wetterBefund}\n`,
+    );
+  }
 
   /**
    * Und darauf das Stundenkonto: freigeben, Konto anlegen, buchen. Es kommt

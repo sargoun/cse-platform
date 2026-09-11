@@ -29,7 +29,10 @@ export interface TabLeisteProps {
   readonly wurzel: string;
   readonly label: string;
   /**
-   * Je Rechteschluessel der NAVIGATION: haelt die Sitzung ihn?
+   * Je NAVIGATIONS-Schluessel (`crm`, `objekte`, …): darf der Punkt
+   * erscheinen? **Nicht je Rechteschluessel** — die Karte kommt aus
+   * `portalZugang` und ist dort nach `schluessel` gebaut, damit Sidebar und
+   * Blatt dieselbe Karte lesen.
    *
    * Nur damit kann das fuenfte Ziel sein Versprechen einloesen. Fehlt die
    * Angabe, bleibt `Mehr` ein gewoehnlicher Link — das ist der Zustand vor
@@ -57,8 +60,25 @@ function MehrZelle({ wurzel, rechte, gruppenansicht }: {
   readonly rechte: Readonly<Record<string, boolean>>;
   readonly gruppenansicht: boolean;
 }) {
+  /*
+   * **Nachgeschlagen unter `schluessel`, nicht unter `recht`.**
+   *
+   * Hier stand `rechte[n.recht] === true`. `portalZugang` schluesselt die
+   * Karte aber nach `n.schluessel` — also `crm` und nicht `crm.lesen`, seit
+   * die Sidebar dieselbe Karte benutzt (`SeitenNavigation` liest
+   * `sichtbar[z.schluessel]`). Jede Abfrage traf damit `undefined`,
+   * `undefined === true` war falsch, und das Blatt ging auf und war LEER:
+   * kein einziger Punkt, obwohl die Sitzung jedes Recht hielt. Unter 768 px
+   * ist dieses Blatt der einzige Weg zu den Modulen ausserhalb der vier
+   * Tabs — am Telefon war das Portal damit auf vier Bildschirme geschrumpft,
+   * ohne dass irgendwo ein Fehler erschien.
+   *
+   * `=== true` bleibt und ist NICHT das `!== false` der Sidebar: was nicht
+   * ausdruecklich erlaubt ist, erscheint hier nicht (AUT-06). Ein fehlender
+   * Schluessel blendet aus, statt aufzudecken.
+   */
   const punkte = (gruppenansicht ? GRUPPEN_NAVIGATION : NAVIGATION)
-    .filter((n) => rechte[n.recht] === true);
+    .filter((n) => rechte[n.schluessel] === true);
 
   return (
     <details data-cse="mehr" className="flex-1">

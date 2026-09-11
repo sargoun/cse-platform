@@ -4588,6 +4588,271 @@ unbekannt" da, und der Seed brach ab.
 denselben Weg. Ein Seed, der nur auf einer leeren Datenbank läuft, ist keiner:
 danach traut sich niemand mehr, ihn anzufassen, und die Demodaten veralten.
 
+### D-308 · Ein Anmeldekonto ohne Mensch ist an jeder zweiten Stelle ausgesperrt
+
+Vier der acht Seed-Konten — `leitung.security`, `leitung.bau`,
+`admin.reinigung`, `admin.bau` — waren reine `benutzer`-Zeilen: keine `person`,
+keine `anstellung`, `benutzer.person_id` NULL. Das las sich wie ein
+Schönheitsfehler und war keiner. `schreibeEintrag` löst den Urheber einer
+Wachbuchseite über `anstellung where person_id = app.aktuelle_person() and
+mandant_id = app.aktiver_mandant()` auf und wirft sonst `KeinUrheber` (422,
+§10.5). Im geseedeten Bestand konnte die Wachleitung der SSE Security damit
+**keine einzige Wachbuchseite führen** — bei genau der Rolle, der SEC-05 das
+Buch zuweist. Drei Browserprüfungen scheiterten daran, zu Recht.
+
+**Entschieden:** Jedes Konto, das im Betrieb HANDELT, bekommt seinen Menschen
+und seine Beschäftigung in seiner Gesellschaft. Die D-09-Trennung bleibt
+unberührt: die `person` ist der Mensch, die `anstellung` die Beschäftigung, und
+`benutzer.person_id` ist nur die Verbindung zwischen Anmeldung und Mensch.
+`benutzer.name` bleibt die Funktionsbezeichnung des Platzes („Leitung
+Security"); der Name des Menschen steht in `person`, und von dort liest ihn das
+Wachbuch.
+
+Was dabei NICHT entschieden wurde, ist die Vergütung: `stundensatz_intern`
+bleibt für diese vier NULL (O-347), `arbeitszeitmodell` auf `unbekannt` (O-18).
+Eine plausible Zahl hätte bestätigt ausgesehen und wäre in jede Kalkulation
+eingegangen.
+
+Zwei Nebenwirkungen, beide gewollt. Erstens legt der Seed `person` jetzt
+**lesend zuerst** an: die Tabelle trägt keinen natürlichen Schlüssel, ein
+zweiter Lauf erzeugte bisher fünf weitere Menschen, während die
+Beschäftigungen an `anstellung_personalnummer_uk` abprallten — danach zeigte
+jedes Konto auf einen Menschen ohne Beschäftigung, und `KeinUrheber` war
+zurück. Zweitens stehen die vier jetzt in der Belegschaft, aus der der
+Besetzungslauf des Seeds reihum einteilt. Das bleibt so: die Einteilung kennt
+keine Sperre gegen planende Personen, und eine einzuführen wäre eine
+Geschäftsregel, die niemand entschieden hat. Die Zahl der Einteilungen und
+Zeiteinträge ändert sich dadurch nicht, nur ihre Verteilung.
+
 | # | Question | Blocks |
 |---|---|---|
+| O-347 | **In welcher Beschäftigungsform stehen die Führungs- und Verwaltungskräfte der drei Gesellschaften, und wird ihre Vergütung als Stundensatz geführt oder als Festgehalt, das die Plattform gar nicht trägt?** Seit D-308 tragen `leitung.security`, `leitung.bau`, `admin.reinigung` und `admin.bau` eine `anstellung` — ohne sie kann in diesen Gesellschaften niemand ein Wachbuch führen (§10.5). `stundensatz_intern` bleibt dort NULL: ein erfundener Satz sähe wie eine geprüfte Angabe aus, ginge über `anstellung_id` in jede Kostenrechnung ein und fiele niemandem mehr auf. Lautet die Antwort „Festgehalt", ist die Folgefrage, ob die Plattform es überhaupt führen soll — sie rechnet keinen Lohn (out of scope) und braucht den Betrag nur für die Kalkulation. | EMP-01, D-09, K-05, O-16, O-18, `anstellung.stundensatz_intern` |
 | O-346 | **Soll die Plattform HEIC-Fotos annehmen?** Das hiesse, eine Bildbibliothek mit HEIF-Unterstützung in die Auslieferung zu nehmen und sie zu pflegen — eine eigene Abhängigkeit mit eigener Angriffsfläche, die auf jedem Upload läuft. Bis zur Antwort werden HEIC abgelehnt; iPhones können unter „Kamera › Formate › Maximale Kompatibilität" JPEG senden, und der Browser wandelt beim Hochladen aus der Mediathek ohnehin meist um. Die Frage ist keine technische: sie entscheidet, ob eine Reinigungskraft am Objekt ein Foto machen kann, ohne vorher eine Einstellung zu ändern. | TIM-10, LEG-10, `medien`, `exif.ts` |
+
+## Entschieden beim Phase-5-Abschluss — die Reinigung im Seed (Reviere, Nachweise, Beanstandungen)
+
+Die größte Gesellschaft der Gruppe stand im geseedeten Bestand mit **sechs
+leeren Revieren** da: `revier` 6 Zeilen, `revier_raum` 0, `leistungsnachweis`
+0, `reklamation` 0. Das sah nicht nach einer Lücke aus. Die Revierliste zeigte
+sechs Zeilen, jede mit einer Sollzeit im Kopf — und daneben eine Summe der
+Räume von null. Auf jedem Revierblatt stand damit „stimmt nicht überein", also
+genau die Aussage, die CLN-01 gerade nicht machen soll. Und der Kopfwert war
+keine Kalkulation: 210, 180 und 480 Minuten hatte `seedDienstplan` beim Anlegen
+hineingeschrieben.
+
+### D-309 · Der Revierzuschnitt läuft über `setzeRaeume`, nie über ein `insert`
+
+`src/server/db/seed/reinigung.ts` ordnet die Räume des Raumbuchs den Revieren
+über den echten Dienst zu. Der liest die Flächen unter RLS, holt die
+Leistungswerte über `app.leistungswerte_lesen()` (K-05), ruft die EINE
+getestete Rechnung aus PR 25 auf, macht die Gegenprobe `Σ revier_raum =
+revier.sollzeit_minuten` VOR dem Schreiben und setzt den Kopfwert danach auf
+das Ergebnis. Ein `insert` hätte sechs Reviere mit Räumen ergeben und einen
+Kopfwert, den weiterhin niemand gerechnet hat — dieselbe Lüge, nur besser
+versteckt.
+
+Drei Zonen liegen dabei über derselben Fläche, und das ist kein Versehen:
+0065 §5.2 erlaubt einen Raum ausdrücklich in zwei Revieren, weil
+Unterhaltsreinigung und Glasreinigung zwei Reviere über denselben Räumen sind
+(CLN-05). Der Zuschnitt selbst — welcher Raum in welche Zone fällt — ist eine
+Entscheidung der Objektleitung und keine Geschäftsregel; der Seed schneidet
+plausibel und sagt das im Kommentar.
+
+**Der Seed schneidet nur leere Reviere.** Eine Zuordnung steht unter
+Löschsperre (§5.2) und lässt sich nicht lösen; `setzeRaeume` ist additiv und
+wirft `RaumNichtEntfernbar`, sobald ein heute zugeordneter Raum in der neuen
+Menge fehlt. Ein zweiter Lauf mit geändertem Zuschnitt bräche deshalb ab — zu
+Recht, und darum wird gelesen, bevor geschrieben wird.
+
+### D-310 · Eine Nachweisposition entsteht aus einem Zeiteintrag, nicht aus einer erfundenen Zeile
+
+Beide Leistungsnachweise des Seeds tragen je Position `quelle = 'zeiteintrag'`
+und die Kennung der Schicht, aus der sie stammt — über den dreispaltigen
+Schlüssel Mandant → Auftragsleistung → Zeiteintrag (`lnp_zeiteintrag_fk`). Das
+ist der Weg, den FIN-07 verlangt, und er lässt sich nur prüfen, wenn Zeilen im
+Bestand stehen, die ihn gegangen sind. Die Glasreinigung hat mit Absicht keinen
+Abrechnungsanker (`auftrag.ts`) und taucht deshalb in keinem Nachweis auf — sie
+bleibt der Fall, den `zeiteintrag_ohne_auftrag` melden muss (FIN-18).
+
+Der Leistungszeitraum spannt vom ersten bis zum letzten aufgenommenen
+Durchgang und nicht über einen ganzen Kalendermonat. Ein Nachweis über „den
+Vormonat" wäre an jedem Tag nach dem 22. eines Monats ein Blatt ohne eine
+einzige Zeile, weil die geseedete Zeiterfassung drei Wochen vor heute beginnt.
+
+Unterschrieben wird über die **zwei Schritte** des Dienstes: Vorschau mit
+Prüfsumme, dann Unterschrift gegen dieselbe Prüfsumme. Der Abzug in
+`leistungsnachweis_signatur.snapshot` ist danach das, was das Blatt zeigt — die
+lebende Tabelle ist es nicht mehr. Eine selbst geschriebene Signaturzeile hätte
+den Vergleich beider Digests übersprungen, also genau die Zusage aus CLN-04.
+`signatur_medien_id` bleibt NULL: ohne Zugangsdaten zum Bildspeicher entsteht
+keine Medienzeile, und die Oberfläche sagt „nicht verbunden".
+
+### D-311 · „Behoben" bekommt eine Abstellmaßnahme, keine Umgehung
+
+Die behobene Beanstandung trägt Ursache, Maßnahme und die Nacharbeitsschicht
+(den `einsatz`, nicht die Person). `MassnahmeFehlt` (422) und
+`rk_behoben_hat_massnahme` weisen beide ab, was ohne Maßnahme auf „behoben"
+gesetzt wird — das ist keine Hürde, um die man herumseedet, sondern die Regel
+selbst. Die offene Beanstandung bestreitet den **unterschriebenen** Nachweis:
+der Kunde hat quittiert und beschwert sich über denselben Zeitraum, und genau
+diese Verknüpfung entscheidet, ob eine Rechnung berechtigt ist (FIN-18).
+`faellig_am` bleibt in beiden leer, solange O-14 unbeantwortet ist.
+
+| # | Question | Blocks |
+|---|---|---|
+| O-348 | **Trägt eine Position des Leistungsnachweises bei monatlicher Pauschale einen Einzelpreis je Durchgang, und wie wird er aus der Pauschale bestimmt?** Der Demoauftrag führt die Unterhaltsreinigung als Monatspauschale (`auftrag_leistung.einzelpreis_cent`, Demowert); der Nachweis weist Durchgänge nach. `leistungsnachweis_position.einzelpreis_cent` bleibt bis zur Antwort NULL — der Nachweis belegt die LEISTUNG, der Preis steht am Auftrag, und ein aus der Pauschale geteilter Betrag wäre eine erfundene Zahl auf einem Dokument, das der Kunde unterschreibt. Hängt an O-146 (wird ein ausgefallener Turnus gegen die Pauschale gutgeschrieben). | CLN-04, FIN-05, FIN-07, O-146, `leistungsnachweis_position.einzelpreis_cent` |
+| O-349 | **Rechnet ein Glasreinigungsrevier seine Sollzeit auf die Glasfläche, und mit welchem Leistungswert?** `berechneRevierSollzeit` rechnet für jede Zone auf die BODENfläche und den Leistungswert der Belagsart; die Glasfläche reist als Schnappschuss mit (`revier_raum.fenster_flaeche_qm`), geht aber in keine Zeit ein. Die Demozone „Glasflächen" trägt deshalb die Räume, die Glas haben — ihre Sollzeit ist bis zur Antwort die des Bodens und keine Glasreinigungszeit. Die Antwort ist eine zweite Bezugsgröße in `sollzeit.ts` und ein Leistungswert je m² Glas, der heute in keinem Katalog steht (verwandt mit O-17). | CLN-01, CLN-05, OPS-03, OPS-07, O-17, `revier.sollzeit_minuten`, `belagsart` |
+
+---
+
+## Entschieden beim Phase-5-Abschluss — Vertrieb und Bau im Seed (Angebot, Auftrag, LV, Aufmaß, Nachtrag, Bautagebuch)
+
+Zwei ganze Gewerke standen im geseedeten Bestand mit **null Zeilen** da:
+`projekt` 0 · `lv_position` 0 · `aufmass` 0 · `aufmass_zeile` 0 · `nachtrag` 0 ·
+`bautagebuch` 0 · `angebot` 0. Das ist der Grund, aus dem der Auftraggeber das
+Portal als „leer" erlebt hat — die Seiten sind gebaut, sie hatten nur nichts zu
+zeigen. Und eine leere Tabelle sieht aus wie ein fertiger Bildschirm, an dem
+heute zufällig nichts anliegt: niemand prüft an ihr, ob die Kette dahinter
+trägt.
+
+`src/server/db/seed/vertrieb.ts` und `src/server/db/seed/bau.ts` schließen
+beide Lücken. Beide gehen den Weg der ECHTEN Dienste — wie der Besetzungslauf
+der Security (D-303) und der Revierzuschnitt der Reinigung (D-309).
+
+### D-312 · Das Demoangebot wird bestätigt — mit genau den Platzhalterzahlen, mit denen gerechnet wurde
+
+`kern.angebot_versand_pruefen` lässt kein Angebot hinaus, dessen Kalkulation auf
+unbeantworteten Fragen steht (O-16 Tarif, O-56 Frequenzfaktor, O-17
+Leistungswert je Zeile). Ein versendetes Demoangebot ist ohne Bestätigung also
+nicht darstellbar — und das ist richtig so.
+
+Der Seed umgeht die Sperre nicht, sondern geht durch `bestaetigeKalkulation`,
+denselben Dienst wie ein Mensch, und bestätigt mit **genau den Zahlen, mit
+denen `kalkuliere` gerechnet hat**: 29,00 € Stundenverrechnungssatz, 15 %
+Gemeinkosten auf Lohn, 8 % Wagnis und Gewinn, Frequenzfaktor 21,667. Damit
+verschiebt die Bestätigung keinen Cent — und genau das ist die Probe: eine
+Bestätigung, die den Preis änderte, wäre eine andere Kalkulation unter
+derselben Überschrift.
+
+Was diese Bestätigung **nicht** ist: eine Antwort auf O-16. Sie gilt dem einen
+Demoangebot, sie schreibt keinen Katalogwert um (`belagsart.ist_platzhalter`
+bleibt unberührt, 0027), und `kalkulation.bemerkung` trägt weiter „Offene
+Fragen: O-16, O-17, O-56". `PLATZHALTER_TARIF` bleibt Platzhalter; jede andere
+Kalkulation bleibt in der Sperre.
+
+### D-313 · Ein zweites Angebot bleibt Entwurf — das ist die Prüfung, nicht der Rest
+
+Der Entwurf trägt **keine Angebotsnummer**: sie entsteht erst in demselben
+UPDATE, das `versendet_am` setzt (FIN-03), und ein Entwurf hat deshalb keine —
+dieselbe Einbahnstraße wie bei der Rechnung (Invariante 4). Und er ist dem
+Kundenportal nicht sichtbar: `t_kunde` und die Portaldecke verlangen beide
+`status <> 'entwurf'` (AUT-01). Beide Zusagen lassen sich nur an einem
+vorhandenen Entwurf prüfen — ein Bestand ohne einen ist ein Bestand, in dem die
+Browsersuite nichts zu unterscheiden hat.
+
+Beide Angebote rechnen auf dasselbe Raumbuch und unterscheiden sich im Turnus
+(5× wöchentlich gegen vierteljährlich). Das ist der Alltag einer
+Gebäudereinigung und macht den Vergleich lesbar: dieselbe Grundlage, der Faktor
+dazwischen ist der Turnus.
+
+### D-314 · Das LV geht bis `1.2.12`, und die Auftragssumme entsteht aus der GELESENEN Ordnung
+
+Ein Leistungsverzeichnis mit acht Positionen je Titel zeigt nicht, worum es
+geht. Erst ab `1.2.9` und `1.2.10` trennt sich die Ordnung der Datenbank
+(`sortier_pfad`) von der Zeichenkettensortierung, die `1.2.10` VOR `1.2.9`
+stellt. Die Demodaten gehen deshalb bis `1.2.12`.
+
+`pfad`, `sortier_pfad` und `ebene` schickt der Seed **nicht** mit:
+`kern.lvp_pfad_setzen` (0071) leitet alle drei vom Elternteil ab. Sie hier zu
+rechnen wäre eine zweite Fassung derselben Regel, und die zweite erführe nie,
+wenn die erste sich ändert.
+
+Die Auftragssumme wird anschließend aus den **gelesenen** Zeilen gebildet —
+`ladeLvPositionen` → `baueOzBaum` → `lvSummeCent` —, nicht aus der Liste, die
+der Seed geschrieben hat. Damit steht in `projekt.auftragssumme_netto_cent` und
+`auftrag.auftragswert_netto_cent` dieselbe Zahl, die die Oberfläche unter dem
+LV anzeigt, und nicht eine zweite, die daneben gerechnet worden wäre.
+
+**Je eine Bedarfs- und eine Alternativposition stehen mit Absicht im LV.** Sie
+zählen nach 03-GEWERKE §3.3 nicht in die Auftragssumme (O-155). Eine Demo, in
+der jede Zeile mitzählt, prüft die Unterscheidung gerade nicht.
+
+Der Seed läuft dafür unter einem Konto, das `bau.preis_lesen` hält:
+`app.lv_preis_lesen` gibt NULL zurück, wer das Recht nicht hat (K-05, §1.9) —
+die Summe wäre dann 0,00 €, die Zeile „unvollständig", und das Projekt trüge
+eine Auftragssumme, die plausibel aussieht und keine ist.
+
+### D-315 · Das Aufmaßblatt bleibt Entwurf, weil kein Messfoto entstehen kann
+
+`pruefeVorlage` verlangt für den Übergang `entwurf → vorgelegt` mindestens eine
+als Nachweis gekennzeichnete Aufnahme (BAU-03). Ein Foto entsteht nur über
+`legeMediumAb` im privaten Bucket — und ohne Zugangsdaten zum Medienspeicher
+entsteht keine Medienzeile. Eine selbst geschriebene `einsatz_medien`-Zeile mit
+`repeat('a',64)` als Prüfsumme wäre ein vorgetäuschter Beleg unter einer
+Gegenzeichnung, also genau das, was BAU-03 verhindern soll. Dieselbe
+Entscheidung wie bei der Nachweisunterschrift der Reinigung (D-310).
+
+Die Mengen entstehen dabei **serverseitig aus der Formel**: `erfasseAufmass`
+ruft `rechneZeilen` → `berechneRechenansatz`, und `3 × (4,20 × 2,75) − 2 ×
+(0,90 × 2,10)` wird zu 30,870 m². Ein Seed, der die Menge daneben hinschriebe,
+prüfte den Zerteiler nicht und könnte eine Zahl eintragen, die zur Formel nicht
+passt — der klassische Streitfall in einer Schlussrechnung.
+
+### D-316 · Der Nachtrag geht durch `gate()` — mit einer Freigabe, die genau ihn deckt
+
+Die dritte Aufmaßzeile liegt **außerhalb des LV** (BAU-05) und ist der Anlass
+des Nachtrags. Der Seed geht den ganzen Weg: `meldeNachtragAn` →
+`ordneAufmasszeileZu` (nur so verschwindet die Warnung „außerhalb des LV, ohne
+Nachtrag") → Freigabe → `reicheEin`.
+
+Die Freigabe wird über `nachtragNutzlast` und `nutzlastHash` an **diesen**
+Nachtrag gebunden, und der Kettenhash kommt aus `berechneHash` — derselben
+geprüften Funktion, mit der die Rechnungskette rechnet (Invariante 4). Einfach
+`hash = nutzlast_hash` zu schreiben sieht gleich aus und ist keine Kette: jedes
+Glied ließe sich dann einzeln austauschen.
+
+`betrag_netto_cent` bleibt NULL. Der Preis eines Nachtrags ist nicht vereinbart,
+solange der Auftraggeber nicht beauftragt hat — und `cse_app` darf die Spalte
+ohnehin nicht lesen (K-05), weshalb sie auch nicht im Nutzlast-Abdruck steht.
+
+### D-317 · Der Gewerkekatalog bekommt zwei Zeilen, und beide sind als unbestätigt gekennzeichnet
+
+Ohne ein Gewerk lässt sich keine Mannstundenzeile anlegen — `hefteMannstundenAn`
+weist ab, und der Bautag stünde ohne die Angabe da, um die es in einem
+Bauzeitenstreit überhaupt geht. Der Katalog wird nach O-159 leer ausgeliefert;
+der Seed legt deshalb genau zwei Zeilen an (`TRO` Trockenbau, `EST` Estrich und
+Bodenbelag), beide mit `ist_platzhalter = true`. Die Oberfläche schreibt
+„(unbestätigt)" dahinter — der Bildschirm ist dafür gebaut. Das ist kein
+Ersatz für die Antwort, sondern die sichtbare Form der offenen Frage.
+
+### D-318 · Das Wetter bleibt leer, und der Befund steht in der Schlussmeldung
+
+`hefteWetterAn` wird für jeden Bautag gerufen und wirft nie: es gibt einen
+BEFUND zurück, und der Tag bleibt, wie er ist (BAU-08). Heute lautet er
+`ohne_koordinaten` — die Baustelle trägt keine Geodaten, also wird die Station
+gar nicht erst gesucht; `src/server/versand/dwd.ts` ist ohne
+`DWD_OPENDATA_BASE` zusätzlich nicht verbunden. Beides steht wörtlich in der
+Schlussmeldung des Seeds.
+
+`wetter_notiz` bleibt dabei **leer**. Das Feld ist die Beobachtung eines
+Menschen („ab Mittag Dauerregen"); „Wetterdaten nicht verfügbar"
+hineinzuschreiben machte aus dem Befund der Integration eine Aussage der
+Bauleitung. Die Seite zeigt den Befund ohnehin selbst (`leseWetterAnzeige`).
+
+Der erste der drei Bautage wird **geschlossen**, die beiden anderen bleiben
+offen: ein abgeschlossener Bautag ist unveränderlich, korrigiert wird durch
+Storno und Ersatztag (BAU-07, LEG-01). Ein Bestand, in dem jeder Tag offen ist,
+zeigt diese Kante nie — und einer, in dem jeder Tag geschlossen ist, lässt die
+Erfassungsmaske nirgends prüfen.
+
+**Der Seed hört weiterhin vor der ersten Rechnung auf.** Der Angebots- und der
+Auftragskreis sind bestätigt und werden gezogen; der Rechnungskreis ist es
+nicht (O-134), und eine Nummer aus einem unbestätigten Kreis wäre eine
+erfundene.
+
+### Offen, neu aufgeworfen beim Phase-5-Abschluss (Vertrieb und Bau)
+
+| # | Question | Blocks |
+|---|---|---|
+| O-350 | **Wie lange ist ein Angebot bindend, und wird `gueltig_bis` beim Versand aus dieser Frist gesetzt?** Der Seed lässt `angebot.gueltig_bis` leer. Ein geratenes Datum stünde auf einem Dokument, das der Kunde als Zusage liest (§ 145 BGB), und der Ablaufbericht (`angebot_ablauf_idx`) mahnte danach zu einem Termin, den niemand vereinbart hat. Die Antwort ist eine Frist je Gesellschaft oder je Angebotsart und eine Zeile im Versanddienst. | OPS-08, `angebot.gueltig_bis`, `versendeAngebot` |
+| O-351 | **Nach welchem Schlüssel werden Bauprojekte nummeriert — ein eigener Nummernkreis je Gesellschaft, die Auftragsnummer oder eine Bauvorhabenskennung des Auftraggebers?** `projekt.nummer` hat keinen Kreis hinter sich. Der Seed setzt die AUFTRAGSNUMMER ein, weil das Projekt der Auftrag ist (§7.1, `projekt_auftrag_uk`) und diese Wahl am wenigsten erfindet; ein ausgedachtes Format „BV-2026-001" sähe dagegen aus wie ein bestätigter Nummernkreis und wäre keiner. | BAU-01, FIN-03, `projekt.nummer`, `nummernkreis` |

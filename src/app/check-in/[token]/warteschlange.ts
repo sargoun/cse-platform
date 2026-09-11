@@ -5,7 +5,7 @@
  * trotzdem Schichtbeginn. Was hier passiert, ist bewusst klein — merken, was
  * getippt wurde, und es senden, sobald wieder Netz da ist.
  *
- * **Vier Entscheidungen, an denen der naheliegende Entwurf still falsch wäre:**
+ * **Fünf Entscheidungen, an denen der naheliegende Entwurf still falsch wäre:**
  *
  *  1. **`localStorage`, nicht `sessionStorage` und nicht der Zustand der
  *     Komponente.** Das Abnahmekriterium verlangt, dass die Schlange einen
@@ -29,9 +29,39 @@
  *     behauptet hat. Der massgebliche Zeitpunkt entsteht auf dem Server
  *     (Invariante 5, TIM-08) — und für ein nachgereichtes Ereignis entsteht er
  *     erst, wenn ein Mensch entschieden hat (§9.4).
+ *
+ *  5. **Die RICHTUNG behauptet das Gerät nicht.** Es weiss sie nicht: eine
+ *     Fläche mit einem Knopf, eine Marke, die diese Seite absichtlich nicht
+ *     auflöst. Ein gemerkter Stempel heisst `unbekannt`, und der Server setzt
+ *     beim Nachreichen ein, was im Zweck der Marke steht (0090). Die frühere
+ *     Fassung stellte jeden Stempel als `checkin` an — ein im Funkloch
+ *     getipptes Schichtende reiste damit als Schichtbeginn zur Planung. Sie
+ *     sah aus wie eine Aufzeichnung und war eine Falschaussage.
  */
 
-export type WarteArt = 'checkin' | 'checkout';
+/**
+ * Was ein gemerkter Vorgang IST — und ausdrücklich nicht, in welche Richtung
+ * er zeigt.
+ *
+ * **Die Richtung weiss das Gerät nicht, und deshalb behauptet es sie nicht.**
+ * Die Fläche ist EIN Knopf; ob ein Antippen Beginn oder Ende bedeutet,
+ * entscheidet der Zweck der Marke auf dem Server — eine Marke je Bein (0035
+ * §5.5 Nr. 3), und `app.checkin_verbrauchen` liest Beginn oder Ende an nichts
+ * anderem ab. Diese Seite löst die Marke bewusst nicht auf (AUT-06), sie
+ * könnte die Richtung also gar nicht kennen. Ein gemerkter Stempel heisst
+ * darum `unbekannt`; beim Nachreichen setzt die Datenbank ein, was in der
+ * Marke steht (0090), und wo keine Marke auflöst, bleibt es `unbekannt`.
+ *
+ * Der naheliegende Entwurf liesse das Gerät die Richtung ableiten — aus der
+ * zuletzt bestätigten Richtung plus den seither eingereihten Stempeln. Das
+ * wäre eine Vermutung, und sie ist überflüssig: der Server weiss es sicher.
+ *
+ * `checkin` und `checkout` bleiben im Typ, weil eine ältere Fassung dieser
+ * Datei `checkin` in `localStorage` geschrieben hat. Diese Einträge liegen
+ * heute auf Telefonen, sie werden noch gesendet, und der Server ordnet sie
+ * richtig ein, statt sie zu glauben. Erzeugt werden sie hier nicht mehr.
+ */
+export type WarteArt = 'unbekannt' | 'checkin' | 'checkout';
 
 export interface WarteEintrag {
   /** Beim ANLEGEN geprägt — sie trägt die Doppelerkennung des Servers. */

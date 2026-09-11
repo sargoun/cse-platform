@@ -37,7 +37,13 @@ export interface PortalZugang {
    */
   readonly gruppenMandanten: readonly string[];
   /**
-   * Je Rechteschluessel des Navigationsbaums: haelt die Sitzung ihn?
+   * Je NAVIGATIONS-Schluessel (`crm`, `objekte`, …): haelt die Sitzung das
+   * Recht dieses Punktes?
+   *
+   * **Geschluesselt nach `schluessel`, nicht nach `recht`** — beide Leser,
+   * `SeitenNavigation` am Schreibtisch und das `Mehr`-Blatt am Telefon,
+   * schlagen unter dem Schluessel des Eintrags nach. Der Name des Feldes
+   * sagt „Rechte", der Schluessel ist es nicht.
    *
    * Das fuenfte Ziel der Tab-Leiste ist `Mehr` und zeigt genau diesen Baum
    * (SEITENKARTE §11.2). Ohne die Rechte hier waere er entweder vollstaendig

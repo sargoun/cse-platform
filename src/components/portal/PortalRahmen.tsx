@@ -29,7 +29,11 @@ export interface PortalRahmenProps {
    * in derselben gebundenen Transaktion bewertet wie den Zugang zur Seite.
    */
   readonly sichtbareTabs?: Readonly<Record<string, boolean>>;
-  /** Je Rechteschluessel der NAVIGATION — fuellt das Blatt hinter `Mehr`. */
+  /**
+   * Je NAVIGATIONS-Schluessel (`crm`, `objekte`, …): darf der Punkt
+   * erscheinen? Fuellt die Sidebar UND das Blatt hinter `Mehr` — beide lesen
+   * unter `schluessel`, nicht unter `recht`.
+   */
   readonly navigationsRechte?: Readonly<Record<string, boolean>>;
   readonly children: React.ReactNode;
 }

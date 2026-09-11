@@ -37,9 +37,20 @@ import { ABLEHNUNG_GRUENDE, offeneAnsprueche, type OfflineWartend }
  */
 export const dynamic = 'force-dynamic';
 
+/**
+ * `unbekannt` steht hier ausgeschrieben, und das ist der Punkt.
+ *
+ * Die Richtung eines Stempels kommt aus dem Zweck der Marke (0090). Löst die
+ * Marke nicht auf — widerrufen, Einteilung zurückgenommen, Hash unbekannt —,
+ * dann kennt sie niemand: weder das Telefon, das nur einen Knopf hat, noch
+ * der Server. Ein Kürzel wie „Stempel" verschwiege das; ein vorgegebenes
+ * „Beginn" wäre die Falschaussage, wegen der diese Zeile existiert. Wer hier
+ * entscheidet, soll lesen, was wirklich gilt.
+ */
 const ART_TEXT: Readonly<Record<string, string>> = {
   checkin: 'Beginn', checkout: 'Ende', pause: 'Pause',
   foto: 'Foto', nacherfassung: 'Nacherfassung',
+  unbekannt: 'Richtung vom Gerät nicht feststellbar',
 };
 
 const GRUND_TEXT: Readonly<Record<string, string>> = {
@@ -176,18 +187,48 @@ export default async function Nacherfassung({
         </p>
       ) : (
         <ul className="m-0 grid list-none grid-cols-1 gap-s4 p-0 xl:grid-cols-2">
-          {zeilen.map((z) => (
+          {zeilen.map((z) => {
+            /**
+             * Als `string` gelesen, nicht als `OfflineArt`.
+             *
+             * Die Spalte kennt seit 0090 den Wert `unbekannt`; die
+             * Vereinigung in `services/zeit/offline.ts` führt ihn noch nicht.
+             * Der Vergleich am engeren Typ wäre ein Übersetzungsfehler, und
+             * ihn durch ein stillschweigendes `as` zu erzwingen hiesse, dem
+             * Typ mehr zu glauben als der Datenbank. Die Datenbank hat recht.
+             */
+            const art: string = z.art;
+            return (
             <li
               key={z.id}
               data-cse="anspruch"
               className="rounded-lg border border-line bg-surface p-s5"
             >
               <div className="mb-s4 flex flex-wrap items-baseline justify-between gap-s2">
-                <h2 className="m-0 text-h3 text-text">{ART_TEXT[z.art] ?? z.art}</h2>
+                <h2 className="m-0 text-h3 text-text">{ART_TEXT[art] ?? art}</h2>
                 <span className="text-sm text-text-muted">
                   {STATUS_TEXT[z.status] ?? z.status}
                 </span>
               </div>
+
+              {/*
+                * Die Auskunft, die den Unterschied macht: hier steht KEIN
+                * geratener Beginn. Wer entscheidet, muss wissen, dass die
+                * Richtung offen ist — sonst trägt er einen Beginn ein, den
+                * niemand behauptet hat.
+                */}
+              {art === 'unbekannt' && (
+                <p
+                  data-cse="richtung-unbekannt"
+                  className="m-0 mb-s4 rounded-md border border-warning bg-warning-soft p-s3 text-sm text-warning"
+                >
+                  Das Gerät hat einen Stempel festgehalten, aber keine Richtung:
+                  die Fläche hat einen Knopf, und die Marke, die Beginn oder
+                  Ende bestimmt, hat beim Nachreichen nicht aufgelöst. Ob hier
+                  eine Schicht beginnt oder endet, klären Sie am Dienstplan und
+                  an den übrigen Einträgen dieser Kraft — nicht an dieser Zeile.
+                </p>
+              )}
 
               <dl className="m-0 mb-s4 grid grid-cols-1 gap-s3 sm:grid-cols-2">
                 <div>
@@ -286,7 +327,8 @@ export default async function Nacherfassung({
                 </div>
               </form>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </PortalRahmen>

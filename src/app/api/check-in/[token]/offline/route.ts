@@ -36,7 +36,12 @@ export const dynamic = 'force-dynamic';
 /** Hoechstens so viele Ereignisse je Einreichung — eine Warteschlange, kein Fass. */
 const MAX_EREIGNISSE = 200;
 
-const ARTEN: readonly OfflineArt[] = ['checkin', 'checkout', 'pause', 'foto', 'nacherfassung'];
+const ARTEN: readonly OfflineArt[] = [
+  // `unbekannt` MUSS hier stehen: ohne den Wert verwirft die Route genau
+  // die Ereignisse, die wahrheitsgemäss keine Richtung behaupten, und das
+  // Gerät hinge mit einer Schlange da, die es nie los wird.
+  'checkin', 'checkout', 'unbekannt', 'pause', 'foto', 'nacherfassung',
+];
 
 interface RohEreignis {
   readonly client_ereignis_id?: unknown;

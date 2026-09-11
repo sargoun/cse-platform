@@ -240,6 +240,24 @@ test.describe('(3) der Monatsnachweis nennt dieselbe Zahl wie das Stundenkonto',
     const summe = minuten(await page.locator('[data-cse="nachweis-summe"]').innerText());
     const abgleich = minuten(await page.locator('[data-cse="konto-ist"]').innerText());
 
+    /**
+     * **WELCHE Beschaeftigung auf dem Blatt steht, sagt das Blatt selbst.**
+     *
+     * Fatima hat zwei (D-09), und `.first()` oben waehlt die erste des
+     * Stundenkontos — welche das ist, entscheidet die Sortierung nach
+     * `anstellung_id`, also eine im Seed gewuerfelte UUID. Die Frage unten
+     * muss deshalb DIESER Beschaeftigung gelten und nicht dem Menschen: eine
+     * Person-weite Frage beantwortet, ob IRGENDWO etwas offen ist, waehrend
+     * das Blatt von EINER Gesellschaft spricht. Beides auseinander zu halten
+     * ist hier keine Feinheit — stand bei der einen etwas offen und bei der
+     * anderen nicht, verlangte die Pruefung eine Erklaerung auf einem Blatt,
+     * das zu Recht keine trug, und der Muenzwurf der UUID-Sortierung
+     * entschied ueber rot und gruen.
+     */
+    const anstellungId = new URL(page.url()).searchParams.get('anstellung');
+    expect(anstellungId, 'das Blatt nennt seine Beschaeftigung in der Adresse')
+      .toMatch(/^[0-9a-f-]{36}$/u);
+
     // Dieselbe Beschaeftigung, derselbe Monat — der Abgleich auf dem Blatt
     // ist der des Kontos, von dem der Weg hierher ausging.
     expect(abgleich).toBe(kontoIst);
@@ -264,6 +282,10 @@ test.describe('(3) der Monatsnachweis nennt dieselbe Zahl wie das Stundenkonto',
      * nicht hin, sondern rechnet sie gegen die Datenbank nach. Eine falsche
      * Buchung von 7 Minuten faellt hier auf; unter `toBe` waere sie nur ein
      * weiterer Unterschied gewesen.
+     *
+     * Gefragt wird nach der Beschaeftigung des Blattes UND nach Fatima: die
+     * zweite Bedingung haelt die Aussage der Pruefung fest — es geht um DIESEN
+     * Menschen —, die erste um die Gesellschaft, von der das Blatt spricht.
      */
     const [offen] = await sql.unsafe<{ anzahl: string }[]>(
       `select count(*)::text as anzahl
@@ -273,10 +295,11 @@ test.describe('(3) der Monatsnachweis nennt dieselbe Zahl wie das Stundenkonto',
          join person p on p.id = a.person_id
          join benutzer b on b.person_id = p.id
         where b.email = $1
+          and a.id = $2
           and ma.monat = date_trunc('month', (now() at time zone 'Europe/Berlin'))::date
           and ma.freigegeben_am is null
           and z.storniert_am is null`,
-      [KONTO.fatima] as never[]);
+      [KONTO.fatima, anstellungId] as never[]);
     const unfreigegeben = Number(offen?.anzahl ?? '0');
 
     if (unfreigegeben === 0) {
