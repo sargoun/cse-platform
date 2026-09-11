@@ -34,6 +34,9 @@ import type { BereichSchluessel } from '@/lib/design/theme';
  */
 export const dynamic = 'force-dynamic';
 
+const FELD = 'mt-s2 min-h-11 w-full rounded-md border border-line bg-surface-3 '
+  + 'p-s3 text-sm text-text';
+
 interface Kopf {
   readonly auftragsnummer: string;
   readonly bezeichnung: string;
@@ -211,6 +214,145 @@ export default async function AuftragAbrechnung(
         erklärbar, nach welcher Regel eine bereits festgeschriebene Rechnung
         entstanden ist.
       </p>
+
+      {/*
+        * Das Formular ist der Weg, auf dem O-04 beantwortet wird: die offenen
+        * Regeln stehen als Parameter am VERTRAG, weil sie je Vertrag
+        * verhandelt werden. Kein Feld ist vorbelegt — weder die Art noch der
+        * Rhythmus noch der Leistungszeitraum (0086).
+        */}
+      <form
+        method="post"
+        action={`/api/abrechnung?mandant=${mandant}`}
+        className="mt-s5 max-w-prose rounded-lg border border-line bg-surface p-s5"
+      >
+        <h2 className="mb-s4 text-h3 text-text">Abrechnungsart festlegen</h2>
+        <input type="hidden" name="aktion" value="anlegen" />
+        <input type="hidden" name="auftragId" value={id} />
+
+        <label className="block text-sm text-text" htmlFor="abrechnungsart">Art</label>
+        <select id="abrechnungsart" name="abrechnungsart" required className={FELD}>
+          <option value="">— bitte wählen —</option>
+          {alleAbrechnungsarten().map((a) => (
+            <option key={a.schluessel} value={a.schluessel}>
+              {a.bezeichnung} (provisorisch)
+            </option>
+          ))}
+        </select>
+
+        <label className="mt-s4 block text-sm text-text" htmlFor="auftragLeistungId">
+          Geltungsbereich
+        </label>
+        <select id="auftragLeistungId" name="auftragLeistungId" className={FELD}>
+          <option value="">ganzer Auftrag</option>
+          {daten.leistungen.map((l) => (
+            <option key={l.id} value={l.id}>{l.bezeichnung}</option>
+          ))}
+        </select>
+
+        <label className="mt-s4 block text-sm text-text" htmlFor="parameter">
+          Parameter
+        </label>
+        <textarea
+          id="parameter" name="parameter" rows={3} className={FELD}
+          placeholder={'minuten_rundung=15\nteilmonat=kalendertage'}
+        />
+        <p className="mt-s1 text-xs text-text-muted">
+          Eine Zeile je Regel, <code>schluessel=wert</code>. Welche Regeln die
+          gewählte Art verlangt, steht unter{' '}
+          <Link
+            href={`/portal/${mandant}/einstellungen/abrechnungsarten`}
+            className="underline underline-offset-2"
+          >
+            Abrechnungsarten
+          </Link>
+          . Fehlt eine, wird nichts gespeichert — und nichts geraten (O-04).
+        </p>
+
+        <div className="mt-s4 grid grid-cols-1 gap-s4 sm:grid-cols-3">
+          <div>
+            <label className="block text-sm text-text" htmlFor="pauschaleNettoCent">
+              Monatspauschale (Cent)
+            </label>
+            <input
+              id="pauschaleNettoCent" name="pauschaleNettoCent" type="number"
+              min="0" step="1" className={FELD}
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-text" htmlFor="stundensatzCent">
+              Stundensatz (Cent)
+            </label>
+            <input
+              id="stundensatzCent" name="stundensatzCent" type="number"
+              min="0" step="1" className={FELD}
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-text" htmlFor="festpreisNettoCent">
+              Festpreis (Cent)
+            </label>
+            <input
+              id="festpreisNettoCent" name="festpreisNettoCent" type="number"
+              min="0" step="1" className={FELD}
+            />
+          </div>
+        </div>
+        <p className="mt-s1 text-xs text-text-muted">
+          Beträge in GANZEN Cent — 1.890,00 € sind <code>189000</code>. Die
+          Oberfläche rechnet nichts um: eine Gleitkommazahl wäre ein Bruchteil
+          eines Cents, der später niemandem mehr auffällt (Invariante 1).
+        </p>
+
+        <div className="mt-s4 grid grid-cols-1 gap-s4 sm:grid-cols-2">
+          <div>
+            <label className="block text-sm text-text" htmlFor="abrechnungsintervall">
+              Rhythmus
+            </label>
+            <select
+              id="abrechnungsintervall" name="abrechnungsintervall" required className={FELD}
+            >
+              <option value="">— bitte wählen —</option>
+              {['einmalig', 'monatlich', 'quartalsweise', 'halbjaehrlich', 'jaehrlich',
+                'nach_leistung'].map((w) => <option key={w} value={w}>{w}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm text-text" htmlFor="leistungszeitraumModus">
+              Leistungszeitraum
+            </label>
+            <select
+              id="leistungszeitraumModus" name="leistungszeitraumModus" required
+              className={FELD}
+            >
+              <option value="">— bitte wählen —</option>
+              {['kalendermonat', 'nach_leistungsnachweis', 'manuell'].map((w) => (
+                <option key={w} value={w}>{w}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-s4 grid grid-cols-1 gap-s4 sm:grid-cols-2">
+          <div>
+            <label className="block text-sm text-text" htmlFor="gueltigAb">Gilt ab</label>
+            <input id="gueltigAb" name="gueltigAb" type="date" required className={FELD} />
+          </div>
+          <div>
+            <label className="block text-sm text-text" htmlFor="gueltigBis">
+              Gilt bis (einschließlich)
+            </label>
+            <input id="gueltigBis" name="gueltigBis" type="date" className={FELD} />
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          className="mt-s5 min-h-11 rounded-md bg-brand px-s5 py-s3 text-base font-semibold text-white hover:bg-brand-hover"
+        >
+          Abrechnungsart eintragen
+        </button>
+      </form>
     </PortalRahmen>
   );
 }

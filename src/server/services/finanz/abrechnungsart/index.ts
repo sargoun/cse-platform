@@ -15,6 +15,7 @@
  * eine Rechnung nach einer Regel, die im Vertrag nicht steht, und einen
  * Augenblick spaeter ist sie festgeschrieben, gehasht und unveraenderlich.
  */
+import type { Cent } from '../geld.js';
 import type { QuelleEingabe } from '../positionsquelle.js';
 import { fuegePositionHinzu, type Abfrage } from '../rechnung.js';
 import { EINHEITSPREIS_AUFMASS } from './einheitspreis-aufmass.js';
@@ -33,6 +34,7 @@ import {
   type VertragAbrechnung,
   centOderNull,
   mengeOderNull,
+  pruefeParameter,
 } from './typen.js';
 
 /**
@@ -191,6 +193,127 @@ export async function ladeKonfigurationen(
     [auftragId],
   );
   return zeilen.map(alsKonfiguration);
+}
+
+// ---------------------------------------------------------------------------
+// Die Konfiguration schreiben
+// ---------------------------------------------------------------------------
+
+export interface KonfigurationAnlegen {
+  readonly auftragId: string;
+  /** `null` heisst „der ganze Auftrag" (O-53). */
+  readonly auftragLeistungId?: string | null;
+  readonly abrechnungsart: string;
+  /** Die offenen Regeln aus O-04 — ohne Geldbetrag (der steht in den Spalten). */
+  readonly parameter: Readonly<Record<string, unknown>>;
+  readonly pauschaleNettoCent?: Cent | null;
+  readonly stundensatzCent?: Cent | null;
+  readonly festpreisNettoCent?: Cent | null;
+  readonly abrechnungsintervall: string;
+  readonly leistungszeitraumModus: string;
+  readonly zahlungszielTage?: number | null;
+  readonly gueltigAb: string;
+  readonly gueltigBis?: string | null;
+}
+
+/**
+ * Eine Abrechnungskonfiguration anlegen — der Weg, auf dem O-04 zu einer
+ * DATENAENDERUNG wird statt zu einer Codeaenderung.
+ *
+ * Zwei Prüfungen laufen vorher, und beide sind absichtlich hier und nicht im
+ * Handler: dass es zu der genannten Art überhaupt eine Umsetzung gibt (sonst
+ * entstünde eine Konfiguration, die niemand rechnen kann), und dass die
+ * Parameter dieser Art gesetzt und zulässig sind. Ohne die zweite liesse sich
+ * eine Konfiguration speichern, die erst am Tag der Rechnung abweist — und
+ * dann steht jemand vor einem Beleg, den er heute braucht.
+ *
+ * Der zeitliche Überlapp prüft die DATENBANK (`va_kein_ueberlapp`, 0086): zwei
+ * gleichzeitige Anlagen sähen beide keinen Konflikt, und eine Vorabprüfung
+ * hier wäre genau die Lücke.
+ */
+export async function legeKonfigurationAn(
+  db: Abfrage, eingabe: KonfigurationAnlegen,
+): Promise<string> {
+  const art = hole(eingabe.abrechnungsart);
+  const probe: VertragAbrechnung = {
+    id: '', mandantId: '', auftragId: eingabe.auftragId,
+    auftragLeistungId: eingabe.auftragLeistungId ?? null,
+    abrechnungsart: eingabe.abrechnungsart,
+    parameter: eingabe.parameter,
+    pauschaleNettoCent: eingabe.pauschaleNettoCent ?? null,
+    stundensatzCent: eingabe.stundensatzCent ?? null,
+    festpreisNettoCent: eingabe.festpreisNettoCent ?? null,
+    mindestabnahmeStunden: null,
+    abrechnungsintervall: eingabe.abrechnungsintervall,
+    leistungszeitraumModus: eingabe.leistungszeitraumModus,
+    zahlungszielTage: eingabe.zahlungszielTage ?? null,
+    reverseCharge13b: false,
+    unterliegtBauabzugsteuer: false,
+    gueltigAb: eingabe.gueltigAb,
+    gueltigBis: eingabe.gueltigBis ?? null,
+  };
+  const offen = pruefeParameter(art, probe).filter((b) => b.art === 'fehler');
+  if (offen.length > 0) {
+    throw new AbrechnungFehler(
+      offen.map((b) => b.textDe).join(' '), 'parameter_offen',
+    );
+  }
+
+  const [zeile] = await db.abfrage<{ id: string }>(
+    `insert into vertrag_abrechnung
+       (mandant_id, auftrag_id, auftrag_leistung_id, abrechnungsart, parameter,
+        pauschale_netto_cent, stundensatz_cent, festpreis_netto_cent,
+        abrechnungsintervall, leistungszeitraum_modus, zahlungsziel_tage,
+        gueltig_ab, gueltig_bis, erstellt_von)
+     values (app.aktiver_mandant(), $1::uuid, $2::uuid, $3::abrechnungsart,
+             ($4::text)::jsonb, $5::bigint, $6::bigint, $7::bigint,
+             $8::abrechnungsintervall, $9::leistungszeitraum_modus, $10,
+             $11::date, $12::date, app.aktueller_benutzer())
+     returning id`,
+    [
+      eingabe.auftragId, eingabe.auftragLeistungId ?? null, eingabe.abrechnungsart,
+      JSON.stringify(eingabe.parameter),
+      eingabe.pauschaleNettoCent?.toString() ?? null,
+      eingabe.stundensatzCent?.toString() ?? null,
+      eingabe.festpreisNettoCent?.toString() ?? null,
+      eingabe.abrechnungsintervall, eingabe.leistungszeitraumModus,
+      eingabe.zahlungszielTage ?? null,
+      eingabe.gueltigAb, eingabe.gueltigBis ?? null,
+    ],
+  );
+  if (zeile === undefined) {
+    throw new AbrechnungFehler(
+      'Die Abrechnungskonfiguration wurde nicht angelegt.', 'keine_abrechnungsart',
+    );
+  }
+  return zeile.id;
+}
+
+/**
+ * Eine laufende Konfiguration BEENDEN — nie überschreiben.
+ *
+ * `gueltig_bis` ist einschliesslich. Eine Konfiguration zu ändern hiesse, die
+ * Grundlage einer bereits festgeschriebenen Rechnung rückwirkend zu ändern;
+ * beendet und durch eine neue Zeile abgelöst bleibt jede vergangene Rechnung
+ * erklärbar (FIN-06, K-12).
+ */
+export async function beendeKonfiguration(
+  db: Abfrage, konfigurationId: string, gueltigBis: string,
+): Promise<void> {
+  const betroffen = await db.abfrage<{ id: string }>(
+    `update vertrag_abrechnung set gueltig_bis = $2::date,
+            geaendert_von = app.aktueller_benutzer()
+      where id = $1 and (gueltig_bis is null or gueltig_bis > $2::date)
+      returning id`,
+    [konfigurationId, gueltigBis],
+  );
+  if (betroffen.length === 0) {
+    throw new AbrechnungFehler(
+      `Die Abrechnungskonfiguration ${konfigurationId} gibt es nicht, oder sie endet `
+      + `bereits am oder vor dem ${gueltigBis}.`,
+      'keine_abrechnungsart',
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------

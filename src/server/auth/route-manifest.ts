@@ -640,6 +640,20 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Die Abrechnungsart eines Auftrags festlegen oder beenden (PR 48,
+     * FIN-01, O-04).
+     *
+     * `abrechnung.schreiben` und nicht `finanzen.schreiben`: hier entsteht
+     * keine Rechnung, sondern die REGEL, nach der eine entsteht — und die
+     * Seitenkarte bewacht `auftraege/[id]/abrechnung` mit genau diesem
+     * Schluessel. Ein Rechnungsschreiber soll den Stundensatz eines laufenden
+     * Vertrages nicht nebenbei aendern koennen.
+     */
+    pfad: 'api/abrechnung',
+    recht: 'abrechnung.schreiben',
+  },
+  {
+    /**
      * Das einseitige Tor (FIN-02, FIN-03, Invariante 4). Hinter ihm zieht die
      * Datenbank die Nummer aus dem lueckenlosen Kreis und schreibt den
      * Kettensatz — in DERSELBEN Transaktion, sonst gaebe es vergebene Nummern

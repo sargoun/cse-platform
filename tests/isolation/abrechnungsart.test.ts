@@ -20,7 +20,8 @@ import { milliMenge } from '../../src/server/services/finanz/menge.js';
 import { legeEntwurfAn, type Abfrage } from '../../src/server/services/finanz/rechnung.js';
 import {
   AbrechnungFehler, alleAbrechnungsarten, berechneAbrechnung, berechneMitKonfiguration,
-  bestuecke, bestueckeAusAbrechnungsart, entferne, hole, ladeKonfiguration, registriere,
+  beendeKonfiguration, bestuecke, bestueckeAusAbrechnungsart, entferne, hole,
+  ladeKonfiguration, legeKonfigurationAn, registriere,
   type Abrechnungsart, type RechnungspositionEntwurf, type VertragAbrechnung,
 } from '../../src/server/services/finanz/abrechnungsart/index.js';
 import { bucheFreigegebeneZeiten, eroeffneKonto }
@@ -1139,3 +1140,100 @@ describe('(5) eine sechste Abrechnungsart wird registriert, nicht eingebaut', ()
       .toThrow(AbrechnungFehler);
   });
 });
+
+
+// ---------------------------------------------------------------------------
+// Der Schreibweg: O-04 wird zu einer Datenänderung, nicht zu einer Codeänderung
+// ---------------------------------------------------------------------------
+
+describe('eine Abrechnungskonfiguration anlegen und beenden', () => {
+  it('speichert nichts, solange ein Parameter der Art fehlt (O-04)', async () => {
+    const bau = await baueAuftrag(f.reinigung);
+    const fehler = await alsApp(sitzung(f.reinigung), async (tx) => {
+      try {
+        await legeKonfigurationAn(alsDienst(tx), {
+          auftragId: bau.auftrag,
+          abrechnungsart: 'stundenbasiert',
+          parameter: {},
+          stundensatzCent: cent(2_500n),
+          abrechnungsintervall: 'monatlich',
+          leistungszeitraumModus: 'kalendermonat',
+          gueltigAb: '2026-01-01',
+        });
+        return null;
+      } catch (e) { return e; }
+    });
+    expect((fehler as AbrechnungFehler).grund).toBe('parameter_offen');
+    const [{ n }] = await sql.unsafe<{ n: string }[]>(
+      `select count(*)::text as n from vertrag_abrechnung where auftrag_id = $1`,
+      [bau.auftrag]);
+    // Nicht „angelegt und später abgewiesen": es steht keine Zeile da.
+    expect(n).toBe('0');
+  });
+
+  it('legt mit gesetztem Parameter an — und weist eine unbekannte Art ab', async () => {
+    const bau = await baueAuftrag(f.reinigung);
+    const id = await alsApp(sitzung(f.reinigung), (tx) =>
+      legeKonfigurationAn(alsDienst(tx), {
+        auftragId: bau.auftrag,
+        abrechnungsart: 'stundenbasiert',
+        parameter: { minuten_rundung: 15 },
+        stundensatzCent: cent(2_500n),
+        abrechnungsintervall: 'monatlich',
+        leistungszeitraumModus: 'kalendermonat',
+        gueltigAb: '2026-01-01',
+      }));
+    expect(id).toMatch(/^[0-9a-f-]{36}$/u);
+
+    const fehler = await alsApp(sitzung(f.reinigung), async (tx) => {
+      try {
+        await legeKonfigurationAn(alsDienst(tx), {
+          auftragId: bau.auftrag, abrechnungsart: 'gibt_es_nicht', parameter: {},
+          abrechnungsintervall: 'monatlich', leistungszeitraumModus: 'kalendermonat',
+          gueltigAb: '2027-01-01',
+        });
+        return null;
+      } catch (e) { return e; }
+    });
+    expect((fehler as AbrechnungFehler).grund).toBe('unbekannte_abrechnungsart');
+  });
+
+  it('zwei überlappende Konfigurationen desselben Bereichs weist die DATENBANK ab', async () => {
+    const bau = await baueAuftrag(f.reinigung);
+    await legeKonfigurationAn2(bau, '2026-01-01', null);
+    await expect(legeKonfigurationAn2(bau, '2026-06-01', null)).rejects.toThrow(
+      /va_kein_ueberlapp/u);
+  });
+
+  it('eine laufende Konfiguration wird BEENDET, nicht überschrieben', async () => {
+    const bau = await baueAuftrag(f.reinigung);
+    const id = await legeKonfigurationAn2(bau, '2026-01-01', null);
+    await alsApp(sitzung(f.reinigung), (tx) =>
+      beendeKonfiguration(alsDienst(tx), id, '2026-08-15'));
+    const [z] = await sql.unsafe<{ gueltig_bis: string }[]>(
+      `select to_char(gueltig_bis, 'YYYY-MM-DD') as gueltig_bis
+         from vertrag_abrechnung where id = $1`, [id]);
+    expect(z!.gueltig_bis).toBe('2026-08-15');
+
+    // Und danach passt die Nachfolgerin lückenlos daneben.
+    const nachfolger = await legeKonfigurationAn2(bau, '2026-08-16', null);
+    expect(nachfolger).not.toBe(id);
+  });
+});
+
+/** Dieselbe Konfiguration, nur mit Zeitraum — als Kurzform für die Überlappung. */
+async function legeKonfigurationAn2(
+  bau: Auftragsbau, ab: string, bis: string | null,
+): Promise<string> {
+  return alsApp(sitzung(bau.mandant), (tx) =>
+    legeKonfigurationAn(alsDienst(tx), {
+      auftragId: bau.auftrag,
+      abrechnungsart: 'monatspauschale',
+      parameter: { teilmonat: 'keine' },
+      pauschaleNettoCent: cent(100_000n),
+      abrechnungsintervall: 'monatlich',
+      leistungszeitraumModus: 'kalendermonat',
+      gueltigAb: ab,
+      gueltigBis: bis,
+    }));
+}
