@@ -365,6 +365,51 @@ describe('(1) Eine Leistungszeile ohne Herkunft lässt sich nicht anlegen', () =
       .toBe('rpq_manuell_begruendet');
   });
 
+  it('die Materialspalte ist da und BENANNT — der Fremdschlüssel fehlt mit Grund', async () => {
+    /**
+     * `ausgabe` kommt mit PR 54 (§8.5). Die STRUKTUR steht trotzdem schon:
+     * eine spätere Spalte auf einer Tabelle, deren Zeilen per Invariante 4
+     * unveränderlich sind, wäre eine Migration mit Datenwanderung.
+     *
+     * Diese Prüfung friert genau das ein — Spalte und partieller Unique-Index
+     * gelten heute, der Fremdschlüssel fehlt heute. Wer PR 54 baut, sieht hier,
+     * was dann dazukommen muss.
+     */
+    const [spalte] = await sql.unsafe<{ data_type: string }[]>(
+      `select data_type from information_schema.columns
+        where table_name = 'rechnungsposition_quelle' and column_name = 'ausgabe_id'`);
+    expect(spalte?.data_type).toBe('uuid');
+
+    const fks = await sql.unsafe<{ n: string }[]>(
+      `select count(*)::text as n from information_schema.key_column_usage k
+         join information_schema.table_constraints c
+           on c.constraint_name = k.constraint_name
+        where k.table_name = 'rechnungsposition_quelle'
+          and k.column_name = 'ausgabe_id' and c.constraint_type = 'FOREIGN KEY'`);
+    expect(Number(fks[0]!.n)).toBe(0);
+
+    const [idx] = await sql.unsafe<{ indexdef: string }[]>(
+      `select indexdef from pg_indexes
+        where tablename = 'rechnungsposition_quelle' and indexname = 'quelle_ausgabe_uk'`);
+    expect(idx?.indexdef).toMatch(/UNIQUE.*ausgabe_id.*material.*wirksam/su);
+
+    // Und die Sperre greift schon heute: zweimal dieselbe Ausgabe geht nicht.
+    const fehler = await inSitzung(bau.mandant, async (tx) => {
+      const d = alsDienst(tx);
+      const ausgabe = crypto.randomUUID();
+      for (const nr of [1, 2]) {
+        const r = await leerEntwurf(tx, { mitAuftrag: false });
+        await fuegePositionHinzu(d, {
+          rechnungId: r, bezeichnung: `Material ${String(nr)}`, menge: milliMenge(1_000n),
+          einheit: 'stk', einzelpreisCent: cent(4_99n), steuergruppe: 'ust_19',
+          quellen: [{ typ: 'material', id: ausgabe }],
+        });
+      }
+      return 'durchgekommen';
+    }).catch((e: unknown) => e);
+    expect((fehler as { constraint_name?: string }).constraint_name).toBe('quelle_ausgabe_uk');
+  });
+
   it('eine Herkunftszeile entsteht NICHT an einem festgeschriebenen Beleg', async () => {
     const fehler = await inSitzung(bau.mandant, async (tx) => {
       const d = alsDienst(tx);
@@ -482,9 +527,25 @@ describe('(3) Abgeschlossener Auftrag ohne erfasste Minute', () => {
       [bau.auftrag]);
   });
 
-  it('blockiert die Festschreibung und BENENNT den Auftrag', async () => {
+  it('blockiert die Festschreibung, BENENNT den Auftrag — und der Zähler steht still', async () => {
     const vorher = await zaehlerstand();
-    const fehler = await inSitzung(bau.mandant, async (tx) => {
+
+    /**
+     * **Die Abweisung wird INNERHALB der Transaktion gefangen** — und das ist
+     * der Kern dieser Prüfung.
+     *
+     * `Fin18Fehler` ist ein TypeScript-Fehler, keine Postgres-Ausnahme: die
+     * Transaktion ist danach nicht abgebrochen, sondern lebt. Also lässt sich
+     * genau dort nachsehen, was bis dahin passiert ist. Ein Vergleich des
+     * Zählers NACH dem Rollback bewiese dagegen nichts — der Zug ist
+     * transaktional (PR 46), und der Zähler stünde auch dann still, wenn die
+     * Prüfung zu spät käme.
+     *
+     * Verschiebt man den FIN-18-Block in `finalisiere()` hinter Definer-Aufruf
+     * A, fällt dieser Fall: `naechste_nummer` wäre dann schon bewegt und
+     * `rechnung.nummer` gesetzt.
+     */
+    const befund = await inSitzung(bau.mandant, async (tx) => {
       const d = alsDienst(tx);
       const r = await leerEntwurf(tx);
       await fuegePositionHinzu(d, {
@@ -492,22 +553,31 @@ describe('(3) Abgeschlossener Auftrag ohne erfasste Minute', () => {
         einheit: 'psch', einzelpreisCent: cent(500_00n), steuergruppe: 'ust_19',
         quellen: vonHand('Pauschale ohne Zeitbezug'),
       });
-      return finalisiere(d, r);
-    }).catch((e: unknown) => e);
+      const fehler = await finalisiere(d, r).then(() => null, (e: unknown) => e);
+      const [kreis] = await tx.unsafe<{ naechste_nummer: string }[]>(
+        `select naechste_nummer::text from nummernkreis
+          where mandant_id = $1 and kreis_typ = 'ausgangsrechnung'`,
+        [bau.mandant] as never[]);
+      const [beleg] = await tx.unsafe<{ nummer: string | null; status: string }[]>(
+        `select nummer, status::text as status from rechnung where id = $1`,
+        [r] as never[]);
+      return {
+        fehler, inTransaktion: Number(kreis!.naechste_nummer),
+        nummer: beleg!.nummer, status: beleg!.status,
+      };
+    });
 
-    expect((fehler as Error).name).toBe('Fin18Fehler');
-    expect((fehler as Error).message).toMatch(/FIN-18/u);
+    expect((befund.fehler as Error).name).toBe('Fin18Fehler');
+    expect((befund.fehler as Error).message).toMatch(/FIN-18/u);
     // Der Auftrag steht IN der Meldung — „irgendein Auftrag" wäre nutzlos.
     const [a] = await sql.unsafe<{ auftragsnummer: string }[]>(
       `select auftragsnummer from auftrag where id = $1`, [bau.auftrag]);
-    expect((fehler as Error).message).toContain(a!.auftragsnummer);
+    expect((befund.fehler as Error).message).toContain(a!.auftragsnummer);
 
-    /**
-     * **BEVOR eine Nummer gezogen wird.** Der Zähler steht unverändert. Zöge
-     * die Prüfung erst nach Definer-Aufruf A, wäre die Nummer verbraucht und
-     * der einzige Rückweg ein Storno auf einen Beleg, den niemand wollte.
-     */
-    expect(await zaehlerstand()).toBe(vorher);
+    // Und der Beleg ist unberührt: keine Nummer, kein Zustandswechsel.
+    expect(befund.inTransaktion).toBe(vorher);
+    expect(befund.nummer).toBeNull();
+    expect(befund.status).toBe('entwurf');
   });
 
   it('eine zu kurze Begründung übergeht sie NICHT', async () => {
