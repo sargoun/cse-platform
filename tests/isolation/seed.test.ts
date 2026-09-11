@@ -61,11 +61,36 @@ describe('nach dem Seed ist die Plattform benutzbar', () => {
 
   it('ein Leistungsnachweis lässt sich SOFORT nummerieren', async () => {
     const m = await mandant('reinigung');
+    /**
+     * **Der erwartete Wert kommt aus dem Zähler, nicht aus einer Konstante.**
+     *
+     * Hier stand `LN-2026-00001` — und das war richtig, solange der Seed
+     * keinen einzigen Leistungsnachweis anlegte. Seit er zwei anlegt (einen
+     * vorgelegten und einen unterschriebenen, CLN-04), hat er die ersten
+     * beiden Nummern gezogen, und die Prüfung fiel auf `00003`. Sie hätte
+     * damit den Seed dafür bestraft, dass er die Plattform vorführt.
+     *
+     * Die Zusicherung dieses Falls ist nicht die Zahl, sondern dass NACH dem
+     * Seed sofort eine Nummer entsteht — im Gegensatz zur Rechnung eine
+     * Prüfung weiter unten, die es wegen O-134 nicht kann. Der Zähler wird
+     * deshalb vorher gelesen: die gezogene Nummer muss GENAU die nächste
+     * sein. Das prüft zusätzlich die Lückenlosigkeit (§14 Abs. 4 Nr. 4 UStG
+     * gilt der Rechnung, der Anspruch hier ist derselbe) und bleibt richtig,
+     * wie viele Nachweise der Seed künftig auch anlegt.
+     */
+    const [kreis] = await sql<{ naechste: string; maske: string }[]>`
+      select naechste_nummer::text as naechste, format_maske as maske
+        from nummernkreis
+       where mandant_id = ${m} and kreis_typ = 'leistungsnachweis'
+         and kontext_id is null and geschlossen_am is null`;
+    expect(kreis, 'der Seed legt den Leistungsnachweis-Kreis an').toBeDefined();
+    const erwartet = `LN-2026-${Number(kreis!.naechste).toString().padStart(5, '0')}`;
+
     const gezogen = await alsApp(
       { scope: 'mandant', mandantId: m, portal: 'intern', readonly: false },
       (tx) => vergebeNummer(tx, { kreisTyp: 'leistungsnachweis' }),
     );
-    expect(gezogen.formatiert).toBe('LN-2026-00001');
+    expect(gezogen.formatiert).toBe(erwartet);
   });
 
   it('eine RECHNUNG dagegen nicht — der Kreis ist ein Platzhalter (O-134)', async () => {
