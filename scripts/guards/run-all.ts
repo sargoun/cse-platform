@@ -183,6 +183,37 @@ function wacheTodoClient(): void {
 }
 
 /**
+ * Guard 5b — `date at time zone` waehlt die falsche Ueberladung.
+ *
+ * `($1::date) at time zone 'Europe/Berlin'` sieht aus, als machte es aus einem
+ * Berliner Kalendertag den Zeitpunkt seiner Mitternacht. Es tut das Gegenteil:
+ * Postgres castet das Datum nach `timestamptz` (UTC-Mitternacht) und rechnet
+ * es dann NACH Berlin. Heraus kommt `02:00` als zonenlose Zeit — im Vergleich
+ * mit einer `timestamptz`-Spalte also 02:00 UTC. Ein Tagesfenster beginnt
+ * damit im Sommer vier Stunden zu spaet und im Winter zwei, und was fehlt, ist
+ * genau die Nachtschicht.
+ *
+ * Richtig ist `($1::date)::timestamp at time zone 'Europe/Berlin'` — oder, in
+ * einer Migration, `app.loese_ortszeit`. Der Fehler stand an fuenf Stellen im
+ * Security-Modul und hat dort ein Jahr lang niemandem etwas gemeldet.
+ */
+function wacheDatumZone(): void {
+  const FALSCH = /::date\s*\)?\s*(?:\+\s*\d+\s*\))?\s*at\s+time\s+zone/iu;
+  for (const datei of [
+    ...dateien('src', ['.ts', '.tsx']),
+    ...dateien('drizzle', ['.sql']),
+  ]) {
+    readFileSync(datei, 'utf8')
+      .split('\n')
+      .forEach((zeile, i) => {
+        // Der Kommentar, der das Muster ERKLAERT, ist kein Verstoss.
+        if (/^\s*(--|\*|\/\/)/u.test(zeile)) return;
+        if (FALSCH.test(zeile)) melde('datum-zone-ueberladung', datei, i + 1, zeile);
+      });
+  }
+}
+
+/**
  * Guard 6 — Invariante 7: es gibt genau EINEN Ausgang.
  *
  * Ein Mailtransport oder ein HTTP-Sender ausserhalb von `server/versand`
@@ -499,6 +530,7 @@ async function main(): Promise<void> {
   wacheZeitstempel();
   wacheRouteOhneDb();
   wacheTodoClient();
+  wacheDatumZone();
   wacheEuRegion();
   wacheEinAusgang();
   wacheTailwindFarben();

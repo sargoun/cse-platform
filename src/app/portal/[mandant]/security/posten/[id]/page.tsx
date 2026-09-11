@@ -135,8 +135,8 @@ export default async function PostenBlatt(
                   e.soll_besetzung, e.min_besetzung, e.besetzt_anzahl
              from einsatz e
             where e.posten_id = $1::uuid and e.storniert_am is null
-              and e.beginn_zeitpunkt >= ($2::date) at time zone 'Europe/Berlin'
-              and e.beginn_zeitpunkt <  (($3::date) + 1) at time zone 'Europe/Berlin'
+              and e.beginn_zeitpunkt >= ($2::date)::timestamp at time zone 'Europe/Berlin'
+              and e.beginn_zeitpunkt <  (($3::date) + 1)::timestamp at time zone 'Europe/Berlin'
             order by e.beginn_zeitpunkt`,
           [id, heute, bis],
         );

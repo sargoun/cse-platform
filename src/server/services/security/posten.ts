@@ -98,8 +98,8 @@ export async function unterbesetzung(
               as ende_lokal,
             u.min_besetzung, u.soll_besetzung, u.besetzt_anzahl, u.fehlend
        from posten_unterbesetzung u
-      where u.beginn_zeitpunkt >= ($1::date) at time zone 'Europe/Berlin'
-        and u.beginn_zeitpunkt <  (($2::date) + 1) at time zone 'Europe/Berlin'
+      where u.beginn_zeitpunkt >= ($1::date)::timestamp at time zone 'Europe/Berlin'
+        and u.beginn_zeitpunkt <  (($2::date) + 1)::timestamp at time zone 'Europe/Berlin'
         and ($3::uuid is null or u.posten_id = $3::uuid)
       order by u.beginn_zeitpunkt`,
     [fenster.von, fenster.bis, fenster.postenId ?? null],
@@ -208,13 +208,13 @@ export async function postenUebersicht(
               where ea.posten_id = p.id and ea.archiviert_am is null) as anforderungen,
             (select count(*) from einsatz e
               where e.posten_id = p.id and e.storniert_am is null
-                and e.beginn_zeitpunkt >= ($1::date) at time zone 'Europe/Berlin'
-                and e.beginn_zeitpunkt <  (($2::date) + 1) at time zone 'Europe/Berlin')
+                and e.beginn_zeitpunkt >= ($1::date)::timestamp at time zone 'Europe/Berlin'
+                and e.beginn_zeitpunkt <  (($2::date) + 1)::timestamp at time zone 'Europe/Berlin')
               as schichten,
             (select count(*) from posten_unterbesetzung u
               where u.posten_id = p.id
-                and u.beginn_zeitpunkt >= ($1::date) at time zone 'Europe/Berlin'
-                and u.beginn_zeitpunkt <  (($2::date) + 1) at time zone 'Europe/Berlin')
+                and u.beginn_zeitpunkt >= ($1::date)::timestamp at time zone 'Europe/Berlin'
+                and u.beginn_zeitpunkt <  (($2::date) + 1)::timestamp at time zone 'Europe/Berlin')
               as unterbesetzt
        from posten p
        join objekt o on o.id = p.objekt_id and o.mandant_id = p.mandant_id

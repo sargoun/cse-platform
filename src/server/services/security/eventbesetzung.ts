@@ -312,7 +312,7 @@ export async function kommendeVeranstaltungen(
        left join einsatz e on e.veranstaltung_id = v.id and e.mandant_id = v.mandant_id
                           and e.storniert_am is null
       where v.archiviert_am is null
-        and v.ende >= ($1::date) at time zone 'Europe/Berlin'
+        and v.ende >= ($1::date)::timestamp at time zone 'Europe/Berlin'
       order by v.beginn`,
     [abTag],
   );

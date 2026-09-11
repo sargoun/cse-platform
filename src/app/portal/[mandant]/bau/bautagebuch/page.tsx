@@ -68,8 +68,16 @@ export default async function BautagebuchUeberProjekte(
             Alle Baustellen · {nurOffene ? 'nur offene Tage' : 'alle Tage'}
           </p>
         </div>
+        {/*
+          * Die Adresse steht AUSGESCHRIEBEN und nicht als Variable: die
+          * typisierten Routen von Next prüfen ein Vorlagenliteral gegen die
+          * bekannten Muster, und eine Variable vom Typ `string` erfüllt keines
+          * — der Filterlink wäre dann der einzige ungeprüfte Link der Seite.
+          */}
         <Link
-          href={nurOffene ? pfad : `${pfad}?offen=1`}
+          href={nurOffene
+            ? `/portal/${mandant}/bau/bautagebuch`
+            : `/portal/${mandant}/bau/bautagebuch?offen=1`}
           className="rounded-md border border-line px-s5 py-s3 text-sm text-text hover:bg-surface-2"
         >
           {nurOffene ? 'Alle Tage zeigen' : 'Nur offene Tage'}

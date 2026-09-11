@@ -58,7 +58,6 @@ export default async function BautagebuchListe(
   // AUT-06: ein fremdes Projekt ist nicht vorhanden, nicht verboten.
   if (daten === null) notFound();
 
-  const wurzel = `/portal/${mandant}/bau/projekte/${id}/bautagebuch`;
 
   return (
     <PortalRahmen
@@ -79,7 +78,7 @@ export default async function BautagebuchListe(
           </p>
         </div>
         <Link
-          href={`${wurzel}/${heute}`}
+          href={`/portal/${mandant}/bau/projekte/${id}/bautagebuch/${heute}`}
           className="rounded-md bg-brand px-s5 py-s3 text-sm font-semibold text-white hover:bg-brand-hover"
         >
           Heutigen Tag führen
@@ -101,7 +100,7 @@ export default async function BautagebuchListe(
               kopf: 'Tag',
               zelle: (z) => (
                 <Link
-                  href={`${wurzel}/${z.datum}`}
+                  href={`/portal/${mandant}/bau/projekte/${id}/bautagebuch/${z.datum}`}
                   className="text-text underline-offset-2 hover:text-brand hover:underline"
                 >
                   {z.datum_lokal}

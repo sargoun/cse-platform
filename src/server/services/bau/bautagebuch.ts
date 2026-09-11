@@ -1043,15 +1043,6 @@ const KOPF_FELDER = `
   from bautagebuch b
   join projekt p on p.id = b.projekt_id and p.mandant_id = b.mandant_id`;
 
-export async function findeBautag(
-  kontext: LeseKontext, id: string,
-): Promise<BautagKopfZeile | null> {
-  const [zeile] = await kontext.abfrage<BautagKopfZeile>(
-    `select ${KOPF_FELDER} where b.id = $1::uuid`, [id],
-  );
-  return zeile ?? null;
-}
-
 /** Der LEBENDE Tag zu einem Projekt und Kalendertag — oder keiner. */
 export async function findeBautagZuDatum(
   kontext: LeseKontext, projektId: string, datum: string,

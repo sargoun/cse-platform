@@ -426,10 +426,17 @@ export async function leseBuch(
     `select ${FELDER}
       where ($1::uuid is null or w.objekt_id = $1::uuid)
         and ($2::text is null or w.art::text = $2::text)
+        -- Der Doppelpunkt-Umweg ist kein Zierat: ($3::date) at time zone
+        -- 'Europe/Berlin' waehlt die ANDERE Ueberladung — Postgres castet das
+        -- Datum nach timestamptz (UTC-Mitternacht) und rechnet es dann NACH
+        -- Berlin. Heraus kommt 02:00 als zonenlose Zeit, und im Vergleich mit
+        -- einer timestamptz-Spalte wird daraus 02:00 UTC. Das Fenster begann
+        -- damit im Sommer vier Stunden zu spaet und im Winter zwei: genau das
+        -- Nachtschichtfenster fehlte, ohne Fehlermeldung.
         and ($3::date is null
-             or w.erfasst_am >= ($3::date) at time zone 'Europe/Berlin')
+             or w.erfasst_am >= ($3::date)::timestamp at time zone 'Europe/Berlin')
         and ($4::date is null
-             or w.erfasst_am <  (($4::date) + 1) at time zone 'Europe/Berlin')
+             or w.erfasst_am <  (($4::date) + 1)::timestamp at time zone 'Europe/Berlin')
       order by w.erfasst_am desc
       limit $5::integer`,
     [

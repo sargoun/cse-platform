@@ -128,6 +128,31 @@ describe('the merge guards fail the branch that breaks an invariant', () => {
     expect(ausgabe).toContain('todo-client-nicht-im-register');
   });
 
+  /**
+   * Die Ueberladung, die vier Stunden verschluckt.
+   *
+   * `($1::date) at time zone 'Europe/Berlin'` liest das Datum als
+   * UTC-Mitternacht und rechnet es NACH Berlin — ein Tagesfenster beginnt
+   * damit im Sommer vier Stunden zu spaet. Der Fehler stand an sieben Stellen
+   * im Security-Modul; gemeldet hat ihn nie jemand, weil nichts bricht.
+   */
+  it('(5c) `($n::date) at time zone` fällt durch — `::timestamp` dazwischen nicht', () => {
+    const kaputt = guardsMit({
+      'src/server/services/fixture.ts':
+        'export const q = `select 1 from t where a >= ($1::date) '
+        + "at time zone 'Europe/Berlin'`;\n",
+    });
+    expect(kaputt.code).toBe(1);
+    expect(kaputt.ausgabe).toContain('datum-zone-ueberladung');
+
+    const richtig = guardsMit({
+      'src/server/services/fixture.ts':
+        'export const q = `select 1 from t where a >= ($1::date)::timestamp '
+        + "at time zone 'Europe/Berlin'`;\n",
+    });
+    expect(richtig.code).toBe(0);
+  });
+
   it('a TODO(client) with no number at all fails CI', () => {
     const { code, ausgabe } = guardsMit({
       'src/lib/fixture.ts': '// TODO(client): eine Frage ohne Nummer\nexport const x = 1;\n',
