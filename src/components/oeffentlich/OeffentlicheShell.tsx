@@ -145,10 +145,24 @@ export function OeffentlicheShell(
               lang={s}
               data-sprache={s}
               aria-current={s === sprache ? 'true' : undefined}
+              aria-label={EIGENNAME[s]}
               className={`rounded-sm px-s2 py-s1 text-sm ${
                 s === sprache ? 'text-text' : 'text-text-muted hover:text-text'}`}
             >
-              {EIGENNAME[s]}
+              {/*
+                * Auf dem Telefon das Kürzel, ab `sm` der Eigenname.
+                *
+                * Nicht Geschmack, sondern Arithmetik: bei 375px stehen im Kopf
+                * der Auftrittsname, „Anmelden" und zwei Sprachen nebeneinander,
+                * und „Deutsch English" ausgeschrieben schob die Zeile über den
+                * Rand — `documentElement.scrollWidth > clientWidth`, also
+                * waagerechtes Scrollen auf JEDER öffentlichen Seite. Der
+                * zugängliche Name bleibt der ausgeschriebene: `aria-label`
+                * gewinnt gegen den Textinhalt, und `hreflang`/`lang` stehen
+                * ohnehin daneben. Eine Maschine liest weiter „Deutsch".
+                */}
+              <span className="sm:hidden">{s.toUpperCase()}</span>
+              <span className="hidden sm:inline">{EIGENNAME[s]}</span>
             </a>
           ))}
         </nav>

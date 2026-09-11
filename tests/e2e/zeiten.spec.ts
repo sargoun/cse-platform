@@ -280,9 +280,18 @@ test.describe('Zeiten — Einzelansicht', () => {
 
       await expect(page.getByText('Beginn (Serveruhr)')).toBeVisible();
       await expect(page.getByText('Gerätezeit Beginn')).toBeVisible();
-      // Das Gerät ging zwei Stunden vor; die Aufzeichnung nennt beides.
+      /*
+       * Das Gerät ging zwei Stunden NACH, und der Kommentar hier sagte das
+       * Gegenteil — genauso wie der Code, den diese Prüfung misst. Beide waren
+       * gleich falsch, also war sie grün.
+       *
+       * Die Fixtur setzt `geraete_zeit_beginn = beginn_zeitpunkt - 2h`. Die
+       * Abweichung ist GERÄT MINUS SERVER (0034:503), also -7200 — und ein
+       * Gerät, dessen Uhr hinter der Serveruhr liegt, geht NACH. D-134 sagt es
+       * wörtlich: „ein nachgehendes Telefon ergibt eine negative Abweichung".
+       */
       await expect(page.getByText('-7200 s')).toBeVisible();
-      await expect(page.getByText('Gerät ging vor')).toBeVisible();
+      await expect(page.getByText('Gerät ging nach')).toBeVisible();
     });
 
   test('ohne Korrektur sagt die Spur genau das', async ({ page }) => {

@@ -61,7 +61,13 @@ test.beforeAll(async () => {
   await sql.unsafe(
     `update nummernkreis nk
         set ist_platzhalter = false,
-            zuruecksetzung  = coalesce(nk.zuruecksetzung, 'nie'::nummernkreis_zuruecksetzung)
+            -- 'jaehrlich' und nicht 'nie': der Seed traegt jahr = 2026 und die
+            -- Maske RE-{jahr}-{nr:5}. Ein fortlaufender Kreis verlangt jahr = 0,
+            -- und die Pruefung sagte das auch — 'Nummernkreis (unbestaetigt):
+            -- fortlaufend, aber jahr = 2026 statt 0'. Die Vorrichtung muss zum
+            -- Kreis passen, den sie bestaetigt, sonst bestaetigt sie einen
+            -- Widerspruch. Dieselbe Wahl trifft tests/isolation/seed.test.ts.
+            zuruecksetzung  = 'jaehrlich'::nummernkreis_zuruecksetzung
        from mandant m
       where m.id = nk.mandant_id
         and m.slug = $1
@@ -160,6 +166,17 @@ test.describe('Das Rechnungsausgangsbuch (FIN-16)', () => {
 
   test('die Liste nennt Brutto rechtsbündig und den Zustand als Pille', async ({ page }) => {
     await anmelden(page);
+    /*
+     * Erst eine Zeile, dann die Spaltenüberschriften. Eine leere Liste rendert
+     * keine Tabelle — sie sagt „noch keine Rechnung" —, und die Prüfung suchte
+     * eine Überschrift, die es dann zu Recht nicht gibt. Vorher stand sie nur
+     * deshalb da, weil eine ANDERE Prüfung derselben Datei zufällig vorher
+     * gelaufen war; `fullyParallel` verspricht das nicht. Der Seed legt keine
+     * Rechnung an (O-134), also legt diese Prüfung ihre eigene an.
+     */
+    await page.goto(`/portal/${MANDANT}/finanzen/rechnungen/neu`);
+    await page.getByLabel('Zahlungsziel (Tage)').fill('30');
+    await page.getByRole('button', { name: 'Entwurf anlegen' }).click();
     await page.goto(`/portal/${MANDANT}/finanzen/rechnungen`);
     await expect(page.getByRole('columnheader', { name: 'Brutto' })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'Zustand' })).toBeVisible();

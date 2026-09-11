@@ -16,7 +16,9 @@ import {
   findeNachweis, ladePositionen, ladeSignaturen,
 } from '@/server/services/reinigung/leistungsnachweis';
 import { pruefeSchnappschuss } from '@/server/services/reinigung/schnappschuss';
-import type { SchnappschussPosition } from '@/server/services/reinigung/schnappschuss';
+import type {
+  SchnappschussPosition, SchnappschussWert,
+} from '@/server/services/reinigung/schnappschuss';
 
 /**
  * `/portal/[mandant]/reinigung/leistungsnachweise/[id]` — der Nachweis, nach
@@ -52,6 +54,62 @@ function cent(text: string | null): string {
   return `${negativ ? '-' : ''}${ganz},${rest} €`;
 }
 
+/**
+ * Den gespeicherten Abzug lesen — in der Schreibweise, in der er WIRKLICH
+ * steht.
+ *
+ * `baueSchnappschuss` schreibt die kanonische Form mit Unterstrichen
+ * (`einzelpreis_cent`, `leistung_von_lokal`, `leistung_bis_lokal`), denn genau
+ * über diese Bytes läuft der Digest. Hier stand stattdessen
+ * `snapshot.positionen as readonly SchnappschussPosition[]` — eine Zusicherung
+ * in Camel-Schreibweise über Daten in Unterstrich-Schreibweise. An einer
+ * Zusicherung prüft TypeScript nichts, also kam `einzelpreisCent` zur Laufzeit
+ * als `undefined` in `cent()` an: `text === null` war falsch, `text.startsWith`
+ * warf, und Next beantwortete JEDEN unterschriebenen Nachweis mit
+ * „Application error: a server-side exception has occurred" statt des Abzugs.
+ * Der Beweis lag gespeichert in der Datenbank und war über die Oberfläche
+ * nicht mehr abrufbar — aufgefallen wäre das erst im Streitfall, also genau
+ * dann, wenn ihn jemand braucht.
+ *
+ * Gelesen wird deshalb GEPRÜFT und nicht behauptet: was keine Zeichenkette
+ * ist, wird `null` und steht als „—" da. Ein Abzug in fremder Fassung bringt
+ * die Seite nicht mehr zum Umfallen — und die Probe darunter sagt ohnehin rot,
+ * dass er nicht zu seiner Prüfsumme passt.
+ */
+function alsObjekt(
+  wert: SchnappschussWert | undefined,
+): { readonly [schluessel: string]: SchnappschussWert } | null {
+  if (wert === null || wert === undefined) return null;
+  if (typeof wert !== 'object') return null;
+  if (Array.isArray(wert)) return null;
+  return wert as { readonly [schluessel: string]: SchnappschussWert };
+}
+
+function alsText(wert: SchnappschussWert | undefined): string | null {
+  return typeof wert === 'string' ? wert : null;
+}
+
+function abzugZeilen(schnappschuss: SchnappschussWert): readonly SchnappschussPosition[] {
+  const roh = alsObjekt(schnappschuss)?.['positionen'];
+  if (!Array.isArray(roh)) return [];
+  return (roh as readonly SchnappschussWert[]).map((zeile, i) => {
+    const f = alsObjekt(zeile) ?? {};
+    return {
+      // Der Schlüssel der Tabellenzeile. Fehlt die Angabe, steht die Stelle in
+      // der Liste da — nie `undefined`, das React still zum Index machen würde.
+      reihenfolge: alsText(f['reihenfolge']) ?? String(i + 1),
+      bezeichnung: alsText(f['bezeichnung']) ?? '',
+      menge: alsText(f['menge']) ?? '',
+      einheit: alsText(f['einheit']) ?? '',
+      einzelpreisCent: alsText(f['einzelpreis_cent']),
+      quelle: alsText(f['quelle']) ?? '',
+      leistungVonLokal: alsText(f['leistung_von_lokal']),
+      leistungBisLokal: alsText(f['leistung_bis_lokal']),
+      bemerkung: alsText(f['bemerkung']),
+    };
+  });
+}
+
 export default async function NachweisBlatt({
   params,
 }: {
@@ -85,8 +143,7 @@ export default async function NachweisBlatt({
    */
   const abzug = unterschrift === undefined
     ? null
-    : ((unterschrift.snapshot as { positionen?: readonly SchnappschussPosition[] })
-      .positionen ?? []);
+    : abzugZeilen(unterschrift.snapshot);
   const zeilen: readonly SchnappschussPosition[] = abzug ?? positionen;
 
   const stimmig = unterschrift !== undefined

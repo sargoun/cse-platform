@@ -93,14 +93,103 @@ async function alsAmir(page: Page): Promise<void> {
  * beendet den Worker, und das Betriebssystem raeumt die Verbindungen ab.
  */
 
+/**
+ * **Die Woche wird aus den DATEN gewaehlt, nicht aus dem Kalender.**
+ *
+ * `/portal/mein/schichten` zeigt ohne `?woche` die laufende Berliner
+ * Kalenderwoche (`page.tsx`: `montag(berlinHeute())` bis `+6`). Die Pruefung
+ * ging stillschweigend davon aus, dass Fatima in JEDER Woche in beiden
+ * Gesellschaften steht — und das kann der Seed nicht zusagen: der
+ * Security-Posten laeuft `FREQ=WEEKLY;BYDAY=TU,TH` (`seed/security.ts`), also
+ * zwei Dienste je Woche, und `besetzeUndErfasse` verteilt sie reihum auf die
+ * DREI Beschaeftigten der Security. Fatima bekommt damit jeden dritten
+ * Dienst — rechnerisch alle anderthalb Wochen —, und ungefaehr jede dritte
+ * Kalenderwoche faellt fuer sie ganz aus. Genau eine solche Woche war die
+ * laufende: zwei Reinigungsschichten, kein Sicherheitsdienst, also EINE
+ * Gesellschaft statt zwei.
+ *
+ * Die alte Fassung war deshalb an zwei von drei Wochen gruen und am dritten
+ * rot, ohne dass sich an Produkt oder Seed etwas geaendert haette — ein
+ * Fehlschlag, der nach einem kaputten Portal aussah und keiner war, und der
+ * beim naechsten Lauf von selbst verschwunden waere. Ein echtes Loch in D-09
+ * haette er in demselben Rauschen versteckt.
+ *
+ * Gefragt wird jetzt die Datenbank, mit GENAU dem Fensterausdruck der Seite
+ * (Ueberschneidung, nicht Plantag — sonst faellt die Nachtschicht vom Sonntag
+ * auf den Montag zwischen die beiden Fassungen). Die laufende Woche steht
+ * zuerst, also prueft der Normalfall weiterhin den Bildschirm OHNE Parameter.
+ *
+ * Und die Zusicherung ist schaerfer als vorher: nicht „mehr als eine
+ * Gesellschaft", sondern GENAU DIE Gesellschaften, die in dieser Woche Zeilen
+ * haben. Eine Seite, die eine der beiden stillschweigend wegfiltert, war
+ * unter `> 1` noch gruen, sobald irgendwo eine dritte auftauchte.
+ */
+interface DoppelWoche {
+  /** Berliner Montag, `JJJJ-MM-TT`. */
+  readonly montag: string;
+  /** Die Gesellschaften, die in dieser Woche Zeilen haben — aus der Datenbank. */
+  readonly slugs: readonly string[];
+  readonly istLaufendeWoche: boolean;
+}
+
+async function wocheMitBeidenGesellschaften(email: string): Promise<DoppelWoche> {
+  const zeilen = await sql.unsafe<{
+    montag: string; aktuell: boolean; slugs: string[];
+  }[]>(
+    `with mensch as (
+       select p.id from person p join benutzer b on b.person_id = p.id where b.email = $1
+     ), anker as (
+       select date_trunc('week', (now() at time zone 'Europe/Berlin')::date)::date as montag
+     ), wochen as (
+       select ((select montag from anker) + (n * 7))::date as montag, n
+         from generate_series(-3, 3) as n
+     )
+     select to_char(w.montag, 'YYYY-MM-DD')        as montag,
+            (w.n = 0)                              as aktuell,
+            array_agg(distinct m.slug order by m.slug) as slugs
+       from wochen w
+       join einsatz_zuordnung z
+         on z.entfernt_am is null
+        and z.beginn_zeitpunkt < ((w.montag + 7)::timestamp) at time zone 'Europe/Berlin'
+        and z.ende_zeitpunkt   > (w.montag::timestamp) at time zone 'Europe/Berlin'
+       join anstellung a on a.mandant_id = z.mandant_id and a.id = z.anstellung_id
+       join mandant m on m.id = z.mandant_id
+       join mensch on mensch.id = a.person_id
+      group by w.montag, w.n
+      order by abs(w.n), w.n`,
+    [email] as never[]);
+
+  const treffer = zeilen.find((z) => z.slugs.length > 1);
+  /**
+   * Kein `test.skip`: gibt es in sieben Wochen um heute herum keine einzige,
+   * in der dieser Mensch in zwei Gesellschaften eingeteilt ist, dann liefert
+   * die Plattform den D-09-Fall nicht mehr aus — und das ist der Fehlschlag,
+   * den diese Datei melden soll, nicht ein Grund, sie zu ueberspringen.
+   */
+  expect(
+    treffer,
+    `kein Fenster mit zwei Gesellschaften fuer ${email} — der D-09-Fall fehlt in den Daten`,
+  ).toBeDefined();
+  return {
+    montag: treffer!.montag,
+    slugs: treffer!.slugs,
+    istLaufendeWoche: treffer!.aktuell,
+  };
+}
+
 // ---------------------------------------------------------------------------
 
 test.describe('(1) eine Anmeldung, zwei Gesellschaften', () => {
   test('die Schichtliste zeigt beide, jede mit ihrer Gesellschaft beschriftet', async ({
     page,
   }) => {
+    const woche = await wocheMitBeidenGesellschaften(KONTO.fatima);
     await alsFatima(page);
-    await page.goto('/portal/mein/schichten');
+    // Ohne Parameter, wenn die laufende Woche es hergibt — das ist der
+    // Bildschirm, den die Kraft morgens wirklich oeffnet.
+    await page.goto(woche.istLaufendeWoche
+      ? '/portal/mein/schichten'
+      : `/portal/mein/schichten?woche=${woche.montag}`);
 
     const schichten = page.locator('[data-cse="schicht"]');
     await expect(schichten.first()).toBeVisible();
@@ -108,7 +197,11 @@ test.describe('(1) eine Anmeldung, zwei Gesellschaften', () => {
     // Jede Zeile trägt ihre GmbH — als NAME und nicht nur als Farbe (DESIGN §9).
     const bereiche = await schichten.evaluateAll(
       (es) => es.map((e) => e.getAttribute('data-mandant')));
-    expect(new Set(bereiche).size, 'beide Gesellschaften stehen in der Liste')
+    expect([...new Set(bereiche)].sort(), 'beide Gesellschaften stehen in der Liste')
+      .toEqual([...woche.slugs]);
+    // Und die Aussage von D-09 noch einmal fuer sich, unabhaengig von der
+    // Liste oben: es sind ZWEI Gesellschaften und nicht eine.
+    expect(new Set(bereiche).size, 'zwei Gesellschaften auf einem Bildschirm')
       .toBeGreaterThan(1);
     for (const s of await schichten.all()) {
       await expect(s.locator('[data-cse="gesellschaft"]')).toHaveText(/\S/u);

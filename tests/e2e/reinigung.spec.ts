@@ -275,7 +275,13 @@ test.describe('Reklamation (OPS-11)', () => {
     await page.goto(`/portal/${MANDANT}/qualitaet/reklamationen/${reklamationBehoben}`);
 
     await page.getByLabel('Abstellmaßnahme — Pflicht, sobald der Zustand „Behoben" ist').fill('');
-    await page.getByLabel('Zustand').selectOption('behoben');
+    /*
+     * `exact: true`, weil `getByLabel` sonst als Teilzeichenkette sucht: das
+     * Feld darüber heisst „Abstellmaßnahme — Pflicht, sobald der Zustand
+     * „Behoben" ist" und enthält das Wort ebenfalls. Zwei Treffer sind im
+     * strikten Modus ein Fehler, und er las sich wie eine kaputte Seite.
+     */
+    await page.getByLabel('Zustand', { exact: true }).selectOption('behoben');
     await page.getByRole('button', { name: 'Speichern' }).click();
 
     // Der Dienst weist ab; die Datenbank täte es ein zweites Mal.
