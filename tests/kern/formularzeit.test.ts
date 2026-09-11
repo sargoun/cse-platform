@@ -21,9 +21,23 @@ describe('Wanduhrzeit ohne Zone ist BERLINER Zeit', () => {
     expect(z?.toISOString()).toBe('2026-01-15T05:00:00.000Z');
   });
 
-  it('mit Sekunden gelesen, ohne dass sich die Zone ändert', () => {
+  /**
+   * Dieser Fall hiess „mit Sekunden gelesen" und bewies das Gegenteil: er
+   * erwartete `04:00:00Z` fuer `06:00:30` — also genau die Verkuerzung, die
+   * die Umsetzung vornahm. Test und Code trugen denselben Irrtum, und damit
+   * war er gruen. Dasselbe Muster wie beim HEIC-Test und bei der
+   * Geraeteabweichung.
+   */
+  it('mit Sekunden gelesen — und die Sekunden bleiben stehen', () => {
     const z = berlinFormularZeitpunkt('2026-07-01T06:00:30');
-    expect(z?.toISOString()).toBe('2026-07-01T04:00:00.000Z');
+    expect(z?.toISOString()).toBe('2026-07-01T04:00:30.000Z');
+  });
+
+  it('auch mit Bruchteilen, und ohne Sekunden bleibt es bei null', () => {
+    expect(berlinFormularZeitpunkt('2026-07-01T06:00:30.250')?.toISOString())
+      .toBe('2026-07-01T04:00:30.250Z');
+    expect(berlinFormularZeitpunkt('2026-07-01T06:00')?.toISOString())
+      .toBe('2026-07-01T04:00:00.000Z');
   });
 
   /**

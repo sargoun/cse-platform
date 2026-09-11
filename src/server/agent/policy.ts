@@ -43,7 +43,12 @@ export type Aktion =
 export const AKTIONEN: readonly Aktion[] = [
   'email_senden', 'angebot_senden', 'social_veroeffentlichen',
   'bewerbung_antworten', 'mahnung_senden', 'rechnung_senden',
-  'behinderung_senden',
+  // `nachtrag_einreichen` fehlte hier, obwohl der Typ es fuehrt.
+  // `tests/kern/gate.test.ts` laeuft ueber AKTIONEN als den VOLLSTAENDIGEN
+  // Konfigurationsraum — die Aktion war damit von der erschoepfenden Pruefung
+  // ausgenommen und aus jeder registerbasierten Einstellung. Ein Typ, der
+  // mehr kennt als sein Register, macht genau diese Luecke unsichtbar.
+  'nachtrag_einreichen', 'behinderung_senden',
 ];
 
 /** § 7 UWG: ohne aufgezeichnete Rechtsgrundlage kein Kontakt. */
@@ -230,6 +235,34 @@ export function gate(
    * `server/agent/policy.ts` **with human approval**". Die Sperre steht
    * deshalb im Code und nicht als Zeile, die jemand umstellen kann.
    */
+  /**
+   * Ein Nachtrag geht NIE automatisch raus.
+   *
+   * **Diese Sperre fehlte, und der Kommentar am Typ oben beschrieb genau den
+   * Schaden, den ihr Fehlen ermoeglichte:** unter einer Richtlinie mit
+   * `auto_erlaubt = true` antwortete `gate()` mit `erlaubt: true`, und
+   * `reicheEin` fuhr durch — ein Nachtrag ueber vierzigtausend Euro ohne
+   * einen Menschen, also Invariante 7 gebrochen. Die eigene Aktion zu
+   * schaffen war die halbe Arbeit; ohne diesen Zweig war sie nur eine
+   * Beschriftung.
+   *
+   * § 2 Abs. 6 VOB/B: die Einreichung ist eine Willenserklaerung gegenueber
+   * dem Auftraggeber mit unmittelbarer Preisfolge. Sie steht deshalb im Code
+   * und nicht als Zeile, die jemand in der Oberflaeche umstellen kann — wie
+   * das Angebot und die Behinderungsanzeige, aus demselben Grund an
+   * derselben Stelle.
+   */
+  if (nutzlast.aktion === 'nachtrag_einreichen') {
+    return {
+      erlaubt: false,
+      fehler: new FreigabeErforderlich(
+        'nachtrag_einreichen',
+        'ein Nachtrag ist eine Willenserklaerung nach § 2 Abs. 6 VOB/B mit '
+        + 'Preisfolge und geht nie ohne benannten Menschen raus',
+      ),
+    };
+  }
+
   if (nutzlast.aktion === 'behinderung_senden') {
     return {
       erlaubt: false,

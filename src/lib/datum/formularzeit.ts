@@ -22,7 +22,7 @@
 import { loeseOrtszeitAuf, type Ortszeitaufloesung } from './rrule.js';
 
 /** `2026-03-29T02:30` oder `2026-03-29T02:30:00` — Wanduhrzeit ohne Zone. */
-const OHNE_ZONE = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/u;
+const OHNE_ZONE = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2})(\.\d+)?)?$/u;
 
 export interface FormularZeit {
   readonly zeitpunkt: Date;
@@ -48,10 +48,36 @@ export function berlinFormularZeit(roh: unknown): FormularZeit | null {
 
   const ohneZone = OHNE_ZONE.exec(text);
   if (ohneZone !== null) {
-    const [, datum, stunde, minute] = ohneZone;
+    const [, datum, stunde, minute, sekunde, bruchteil] = ohneZone;
     try {
       const aufloesung = loeseOrtszeitAuf(datum!, Number(stunde), Number(minute));
-      return { zeitpunkt: aufloesung.zeitpunkt, aufloesung };
+      /**
+       * **Die Sekunden reisen mit.**
+       *
+       * Der Ausdruck oben nahm sie schon immer an — als NICHT einfangende
+       * Gruppe. Sie fielen damit still weg: `2026-07-01T06:00:30` wurde zu
+       * `04:00:00Z` statt `04:00:30Z`, und der Test darunter hielt genau
+       * diese Verkuerzung fest, statt sie zu melden. Eine BEHAUPTETE Zeit
+       * still um dreissig Sekunden zu verschieben ist derselbe Fehler, gegen
+       * den diese Datei geschrieben ist — nur kleiner und deshalb noch
+       * schlechter zu bemerken.
+       *
+       * Aufgeloest wird weiterhin auf die MINUTE, und das ist richtig: der
+       * Zonenversatz wechselt nie innerhalb einer Minute (die Umstellung
+       * liegt auf 02:00 → 03:00). Der Versatz gilt also fuer die ganze
+       * Minute, und die Sekunden sind eine reine Verschiebung darin. Damit
+       * bleibt `loeseOrtszeitAuf` unangetastet — dieselbe Funktion, mit der
+       * der Dienstplangenerator seine Schichten legt.
+       */
+      const millis = sekunde === undefined
+        ? 0
+        : Number(sekunde) * 1000 + Math.round(Number(bruchteil ?? '0') * 1000);
+      const zeitpunkt = millis === 0
+        ? aufloesung.zeitpunkt
+        : new Date(aufloesung.zeitpunkt.getTime() + millis);
+      // `aufloesung` traegt denselben Zeitpunkt: zwei Felder mit zwei
+      // verschiedenen Instants waeren die naechste Falle.
+      return { zeitpunkt, aufloesung: { ...aufloesung, zeitpunkt } };
     } catch {
       // Ein Datum, das es nicht gibt (31.02.) — dasselbe Ergebnis wie ein
       // unlesbares Feld, und dieselbe Entscheidung beim Aufrufer.
