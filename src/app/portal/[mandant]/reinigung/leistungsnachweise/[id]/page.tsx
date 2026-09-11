@@ -286,11 +286,29 @@ export default async function NachweisBlatt({
             </p>
           </div>
 
+          {/*
+            Das Bild bekommt KEINE eingebettete Quelle und keinen Bucket-Pfad.
+            Die einzige Adresse, unter der es erreichbar ist, wird auf Abruf
+            signiert und läuft nach fünfzehn Minuten ab (DOC-03, SEC-A6); die
+            Zeile dahinter wird durch die Sitzung des Aufrufers gelesen, damit
+            die Datenbank dieselbe Bedingung ein zweites Mal prüft.
+          */}
           <p className="mt-s4 m-0 text-sm text-text-muted">
-            {unterschrift.signaturMedienId === null
-              ? 'Kein Unterschriftsbild hinterlegt — der Bildspeicher war nicht verbunden.'
-              : 'Das Unterschriftsbild liegt in einem privaten Bucket und ist '
-                + 'ausschliesslich über eine befristet signierte Adresse erreichbar.'}
+            {unterschrift.signaturMedienId === null ? (
+              'Kein Unterschriftsbild hinterlegt — der Bildspeicher war nicht verbunden.'
+            ) : (
+              <>
+                <Link
+                  href={`/api/medien/${unterschrift.signaturMedienId}`}
+                  className="underline hover:text-text"
+                  prefetch={false}
+                >
+                  Unterschriftsbild anfordern
+                </Link>
+                {' '}— privater Bucket, Adresse wird auf Abruf signiert und läuft
+                nach 15 Minuten ab.
+              </>
+            )}
           </p>
         </Card>
       )}

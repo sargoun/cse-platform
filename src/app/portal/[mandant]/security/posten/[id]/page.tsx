@@ -197,10 +197,10 @@ export default async function PostenBlatt(
           {kopf.objekt}
           {kopf.kurzzeichen !== null && ` · ${kopf.kurzzeichen}`}
           {kopf.art !== null && ` · ${kopf.art}`}
+          {/* Als WORT, nicht als Pille — das Pillenvokabular aus DESIGN §5
+              kennt „Unbestätigter Wert" noch nicht (03-GEWERKE §2.3 Nr. 5). */}
           {kopf.art_platzhalter === true && (
-            <span className="ml-s2 rounded-full bg-warning-soft px-s3 py-s1 text-xs text-warning">
-              Unbestätigter Wert
-            </span>
+            <span className="ml-s2 text-warning">· Art unbestätigt (O-148)</span>
           )}
         </p>
         <p className="m-0 mt-s2 text-sm tabular-nums text-text-muted">
@@ -268,9 +268,7 @@ export default async function PostenBlatt(
                   {a.rechtsgrundlage !== null && ` · ${a.rechtsgrundlage}`}
                 </span>
                 {a.platzhalter && (
-                  <span className="ml-s2 rounded-full bg-warning-soft px-s3 py-s1 text-xs text-warning">
-                    Unbestätigter Wert
-                  </span>
+                  <span className="ml-s2 text-warning">· Anforderung unbestätigt</span>
                 )}
               </li>
             ))}

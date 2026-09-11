@@ -48,11 +48,17 @@ test.describe('Reviere (CLN-01)', () => {
     await page.getByRole('link', { name: /EG|Revier|Zone/u }).first().click();
     await page.getByRole('link', { name: /Räume zuordnen/u }).click();
 
-    const gesetzt = page.locator('input[name="raum"][checked]').first();
+    const gesetzt = page.locator('input[type="checkbox"][disabled]').first();
     if (await gesetzt.count() > 0) {
-      // Gesperrt, nicht bloss vorausgewählt: eine Zuordnung steht unter
-      // Löschsperre und lässt sich nicht lösen (§5.2).
-      await expect(gesetzt).toHaveAttribute('readonly', '');
+      // Abgeschaltet, nicht bloss vorausgewählt: eine Zuordnung steht unter
+      // Löschsperre und lässt sich nicht lösen (§5.2). `readonly` täte auf
+      // einem Kontrollkästchen nichts.
+      await expect(gesetzt).toBeChecked();
+      await expect(gesetzt).toBeDisabled();
+      // Und der Wert reist trotzdem mit — sonst fiele die Zuordnung beim
+      // Speichern heraus und der Dienst meldete „nicht entfernbar".
+      const versteckt = page.locator('input[type="hidden"][name="raum"]');
+      await expect(versteckt.first()).toHaveCount(1);
     }
   });
 });

@@ -829,6 +829,36 @@ select m.id, 'unbestimmt', 'Unbestimmtes Prüfverfahren',
        true, 'system'
   from mandant m;
 
+/**
+ * Und dieselbe Zeile fuer jede Gesellschaft, die SPAETER entsteht.
+ *
+ * Ohne diesen Ausloeser bekaeme ein neu angelegter Mandant keinen Katalog, und
+ * `qualitaetspruefung.pruefverfahren_id` ist `not null`: die erste Pruefung
+ * schluege mit einem Fremdschluesselfehler fehl, und zwar erst vor Ort auf dem
+ * Geraet. Dieselbe Bauart wie `kern.mandant_einstellungen_vorbelegen()` (0033)
+ * — Vorbelegung gehoert an die Entstehung des Mandanten, nicht in eine
+ * Migration, die nur die heute vorhandenen kennt.
+ *
+ * `security definer`, weil der Anlegende `pruefverfahren` nicht zwingend
+ * schreiben darf: einen Mandanten legt an, wer Gesellschaften verwaltet, und
+ * das ist nicht dasselbe Recht wie `qualitaet.schreiben`.
+ */
+create function kern.mandant_pruefverfahren_vorbelegen() returns trigger
+language plpgsql security definer set search_path = pg_catalog, public as $$
+begin
+  insert into public.pruefverfahren (mandant_id, schluessel, bezeichnung, beschreibung,
+                                     ist_platzhalter, erstellt_von_art)
+  values (new.id, 'unbestimmt', 'Unbestimmtes Prüfverfahren',
+          'Platzhalter, bis O-29 beantwortet ist: Welches Prüfverfahren wird '
+          || 'verwendet, und welcher Erfüllungsgrad gilt als bestanden?',
+          true, 'system');
+  return null;
+end $$;
+
+create trigger trg_mandant_pruefverfahren_vorbelegen
+  after insert on mandant
+  for each row execute function kern.mandant_pruefverfahren_vorbelegen();
+
 -- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0068)
 -- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
 

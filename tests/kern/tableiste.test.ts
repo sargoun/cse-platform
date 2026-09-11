@@ -212,7 +212,6 @@ describe('jedes Ziel führt auf eine Route, die es in der Karte gibt', () => {
    * zeigte und es die Seite nicht gab.
    */
   const NUR_AUFFANGSEITE: readonly string[] = [
-    'rechnungen',    // Phase 6, PR 46 ff.
     'dokumente',     // Phase 4 hat die Ablage, die Uebersicht kommt mit PR 58
     // `bau` ist hier NICHT mehr aufgeführt: PR 43 hat die Seite gebaut, und
     // die Prüfung darunter hat genau das gemeldet.

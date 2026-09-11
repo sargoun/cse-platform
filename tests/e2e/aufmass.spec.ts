@@ -34,6 +34,16 @@ const sql = postgres(DSN, { max: 2, onnotice: () => {} });
 const FORMEL = '3 × (4,20 × 2,75) − 2 × (0,90 × 2,10)';
 const ERGEBNIS = '30,87';
 
+/**
+ * Jeder Lauf legt EIGENE Stammdaten an.
+ *
+ * `projekt`, `auftrag` und `aufmass` tragen alle die Loeschsperre (Invariante
+ * 8) — die Zeilen frueherer Laeufe bleiben also stehen, und feste Nummern
+ * liefen beim zweiten Lauf in einen Eindeutigkeitsfehler, der nach einem
+ * Fehler der Anwendung aussaehe und keiner waere.
+ */
+const LAUF = String(Date.now()).slice(-6);
+
 let mandantSlug = '';
 let projektId = '';
 let aufmassOhneFoto = '';
@@ -58,16 +68,15 @@ test.beforeAll(async () => {
   const [a] = await sql.unsafe<{ id: string }[]>(
     `insert into auftrag (mandant_id, auftragsnummer, kunde_id, art, status, bezeichnung,
                           verantwortlich_benutzer_id, start_datum)
-     select $1, 'AU-E2E-AUFMASS', $2, 'projekt', 'aktiv', 'Rohbau Ost',
+     select $1, $3, $2, 'projekt', 'aktiv', 'Rohbau Ost',
             (select id from benutzer limit 1), '2026-01-01'
-     on conflict do nothing
-     returning id`, [m!.id, k!.id] as never[]);
+     returning id`, [m!.id, k!.id, `AU-E2E-${LAUF}`] as never[]);
 
   const [p] = await sql.unsafe<{ id: string }[]>(
     `insert into projekt (mandant_id, auftrag_id, nummer, bezeichnung, kunde_id, art,
                           vertragsgrundlage)
-     values ($1,$2,'P-E2E','Rohbau Ost',$3,'hochbau','vob_b') returning id`,
-    [m!.id, a!.id, k!.id] as never[]);
+     values ($1,$2,$4,'Rohbau Ost',$3,'hochbau','vob_b') returning id`,
+    [m!.id, a!.id, k!.id, `P-E2E-${LAUF}`] as never[]);
   projektId = p!.id;
 
   const [lv] = await sql.unsafe<{ id: string }[]>(
@@ -115,8 +124,8 @@ test.beforeAll(async () => {
     return b!.id;
   };
 
-  aufmassOhneFoto = await blatt('A-E2E-1');
-  aufmassMitFoto = await blatt('A-E2E-2');
+  aufmassOhneFoto = await blatt(`A-${LAUF}-1`);
+  aufmassMitFoto = await blatt(`A-${LAUF}-2`);
 
   // Das Messfoto des zweiten Blattes — ohne es gibt es keine Gegenzeichnung.
   const [medium] = await sql.unsafe<{ id: string }[]>(

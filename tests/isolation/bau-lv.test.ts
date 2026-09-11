@@ -163,6 +163,29 @@ describe('(4) die OZ-Ordnung der Datenbank', () => {
     expect(k!.pfad).toBe('01.02.40');
   });
 
+  it('wird ein Titel umgehaengt, wandert sein Teilbaum mit', async () => {
+    /**
+     * Ohne die Fortschreibung behielten die Kinder den alten Pfad. In der
+     * Oberflaeche saehe der Baum weiter richtig aus (die haengt an
+     * `eltern_id`), aber `pfad like '2.%'` faende sie nicht — die Titelsumme
+     * waere zu klein und die Gesamtsumme trotzdem richtig. Zwei plausible
+     * Zahlen, eine davon falsch.
+     */
+    const bau = await baueProjekt(f.bau);
+    const los1 = await position(bau, { oz: '1', art: 'los' });
+    const los2 = await position(bau, { oz: '2', art: 'los' });
+    const titel = await position(bau, { oz: '10', art: 'titel', eltern: los1 });
+    const pos = await position(bau, { oz: '30', art: 'position', eltern: titel });
+
+    await sql.unsafe(`update lv_position set eltern_id = $1 where id = $2`, [los2, titel]);
+
+    const [k] = await sql.unsafe<{ pfad: string; sortier_pfad: string; ebene: number }[]>(
+      `select pfad, sortier_pfad, ebene from lv_position where id = $1`, [pos]);
+    expect(k!.pfad).toBe('2.10.30');
+    expect(k!.sortier_pfad).toBe('000002.000010.000030');
+    expect(k!.ebene).toBe(3);
+  });
+
   it('eine Position kann nicht ihr eigener Vorfahr werden', async () => {
     const bau = await baueProjekt(f.bau);
     const a = await position(bau, { oz: '1', art: 'titel' });

@@ -18,7 +18,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import {
-  erfasseAufmass, gegenzeichne, ladeVorlageStand, pruefeVorlage,
+  erfasseAufmass, gegenzeichne, hefteFotoAn, ladeVorlageStand, pruefeVorlage,
 } from '../../src/server/services/bau/aufmass.js';
 
 let f: Fixtur;
@@ -235,6 +235,49 @@ describe('(3) ohne Gegenzeichnung und ohne Foto wird nichts festgeschrieben', ()
   });
 });
 
+describe('der Kopfzustand kommt bei den Kindern an — unter `cse_app`, nicht als Eigentuemer', () => {
+  /**
+   * **Dieser Fall ist der Grund, warum `kern.aufmass_kopf_denorm()` ein
+   * Definer ist.** Als Eigentuemer laufen die Pruefungen oben an RLS vorbei
+   * und saehen nichts; unter `cse_app` traefe ein UPDATE auf `aufmass_foto`
+   * und `aufmass_signatur` keine Policy — und ein UPDATE ohne Policy aendert
+   * null Zeilen und MELDET ERFOLG. Die Kinder blieben auf `entwurf`, der Kunde
+   * saehe sein eigenes unterschriebenes Blatt nicht, und es gaebe keinen
+   * Fehler, an dem das auffiele.
+   */
+  it('Zeile, Foto und Unterschrift tragen den Zustand des Kopfes', async () => {
+    const bau = await baueProjekt(f.bau);
+    const blatt = await baueBlatt(bau);
+    await baueFoto(bau, blatt.id);
+
+    await alsApp(
+      {
+        scope: 'mandant', mandantId: f.bau, benutzerId: bau.benutzer,
+        portal: 'intern', readonly: false,
+      },
+      async (tx) => {
+        await tx.unsafe(`update aufmass set status = 'vorgelegt' where id = $1`, [blatt.id]);
+        await tx.unsafe(
+          `insert into aufmass_signatur (mandant_id, aufmass_id, kunde_id, rolle,
+                                         unterzeichner_name, snapshot, snapshot_hash,
+                                         erstellt_von)
+           values ($1,$2,$3,'auftraggeber','Frau Beyer','{}'::jsonb,repeat('c',64),
+                   app.aktueller_benutzer())`,
+          [bau.mandant, blatt.id, bau.kunde] as never[]);
+      },
+    );
+
+    const [z] = await sql.unsafe<{ zeile: string; foto: string; signatur: string }[]>(
+      `select (select kopf_status::text from aufmass_zeile where aufmass_id = $1) as zeile,
+              (select kopf_status::text from aufmass_foto where aufmass_id = $1) as foto,
+              (select kopf_status::text from aufmass_signatur where aufmass_id = $1) as signatur`,
+      [blatt.id]);
+    expect(z!.zeile).toBe('gegengezeichnet');
+    expect(z!.foto).toBe('gegengezeichnet');
+    expect(z!.signatur).toBe('gegengezeichnet');
+  });
+});
+
 describe('(3) B10: eine einseitige Feststellung ist keine Gegenzeichnung', () => {
   it('die Unterschrift des Auftragnehmers macht ein gemeinsames Blatt NICHT fertig', async () => {
     const bau = await baueProjekt(f.bau);
@@ -395,6 +438,27 @@ describe('(1) der Dienst rechnet die Menge selbst', () => {
     )).rejects.toThrow(/Messfoto/u);
   });
 
+  it('und ein zweites Mal unterschreibt niemand — das waere ein zweiter Beleg', async () => {
+    const bau = await baueProjekt(f.bau);
+    const blatt = await baueBlatt(bau);
+    await baueFoto(bau, blatt.id);
+
+    const zeichnen = async (): Promise<unknown> => alsApp(
+      {
+        scope: 'mandant', mandantId: f.bau, benutzerId: bau.benutzer,
+        portal: 'intern', readonly: false,
+      },
+      async (tx) => gegenzeichne(kontextAus(tx, f.bau, bau.benutzer), {
+        aufmassId: blatt.id, unterzeichnerName: 'Frau Beyer',
+      }),
+    );
+
+    await zeichnen();
+    // Eine Auskunft, kein Datenbankfehler: die Eindeutigkeitsbedingung
+    // `aufmass_signatur_uk` haelt ohnehin — aber sie spricht nicht Deutsch.
+    await expect(zeichnen()).rejects.toThrow(/bereits abgeschlossen/u);
+  });
+
   it('mit Foto schreibt sie fest — mit Schnappschuss und SHA-256', async () => {
     const bau = await baueProjekt(f.bau);
     const blatt = await baueBlatt(bau);
@@ -424,6 +488,177 @@ describe('(1) der Dienst rechnet die Menge selbst', () => {
       `select snapshot from aufmass_signatur where aufmass_id = $1`, [blatt.id]);
     expect(s!.snapshot.zeilen[0]!.rechenansatz)
       .toBe('3 × (4,20 × 2,75) − 2 × (0,90 × 2,10)');
+  });
+});
+
+describe('BAU-02: die Kraft vor Ort nimmt das Blatt selbst auf', () => {
+  /**
+   * Der Weg, den §1.7 der Rolle `mitarbeiter` zusagt: EIN Bau-Schluessel,
+   * `bau.aufmass_erfassen`, und kein `bau.lesen`. Ohne die beiden
+   * Erfassungs-Policies auf `projekt` und `lv_position` fände der Dienst das
+   * Projekt nicht, auf dem die Kraft gerade steht — und die Meldung waere
+   * „Projekt nicht gefunden", also die falsche Auskunft fuer die eine
+   * Handlung, die diese Rolle besitzt.
+   */
+  async function eingeteilt(bau: Aufbau): Promise<{ benutzer: string; person: string }> {
+    const [person] = await sql.unsafe<{ id: string; }[]>(
+      `insert into person (vorname, nachname) values ('Kraft',$1) returning id`,
+      [`Nr-${zufall()}`]);
+    const [anst] = await sql.unsafe<{ id: string }[]>(
+      `insert into anstellung (mandant_id, person_id, personalnummer, eintritt)
+       values ($1,$2,$3,'2026-01-01') returning id`,
+      [bau.mandant, person!.id, `PN-${zufall()}`] as never[]);
+    const benutzer = await konto(`kraft-${zufall()}@cse.test`, person!.id);
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id) values ($1,$2,$3)`,
+      [benutzer, bau.mandant, await rolleId('mitarbeiter')]);
+
+    // Eine laufende Schicht AUF DIESEM PROJEKT — daran haengt der Lesepfad.
+    // Mit Objekt: `kern.einsatz_kunde_setzen()` leitet den Kunden aus dem
+    // Objekt ab und weist eine Schicht ab, deren Objekt einer anderen
+    // Gesellschaft gehoert — eine Fixtur ohne Objekt ist keine Schicht.
+    const [o] = await sql.unsafe<{ id: string }[]>(
+      `insert into objekt (mandant_id, kunde_id, objektnummer, bezeichnung, strasse, plz, ort)
+       values ($1,$2,$3,'Baustelle Nord','Teststr. 7','10115','Berlin') returning id`,
+      [bau.mandant, bau.kunde, `O-${zufall()}`] as never[]);
+    const [e] = await sql.unsafe<{ id: string }[]>(
+      `insert into einsatz (mandant_id, quelle, quell_schluessel, plan_datum,
+                            beginn_zeitpunkt, ende_zeitpunkt, beginn_lokal, ende_lokal,
+                            endet_am_folgetag, objekt_id, kunde_id, projekt_id,
+                            erstellt_von_art)
+       values ($1,'manuell',$2, (now() at time zone 'Europe/Berlin')::date,
+               now() - interval '1 hour', now() + interval '6 hours',
+               ((now() - interval '1 hour') at time zone 'Europe/Berlin')::time,
+               ((now() + interval '6 hours') at time zone 'Europe/Berlin')::time,
+               false, $5, $3, $4, 'system')
+       returning id`,
+      [bau.mandant, `manuell:${zufall()}${zufall()}`, bau.kunde, bau.projekt, o!.id] as never[]);
+    await sql.unsafe(
+      `insert into einsatz_zuordnung (mandant_id, einsatz_id, anstellung_id, person_id,
+                                      beginn_zeitpunkt, ende_zeitpunkt, status,
+                                      erstellt_von_art)
+       select $1, e.id, $2, $3, e.beginn_zeitpunkt, e.ende_zeitpunkt, 'geplant', 'system'
+         from einsatz e where e.id = $4`,
+      [bau.mandant, anst!.id, person!.id, e!.id] as never[]);
+
+    return { benutzer, person: person!.id };
+  }
+
+  it('ohne bau.lesen — aber mit bau.aufmass_erfassen auf ihrem Projekt', async () => {
+    const bau = await baueProjekt(f.bau);
+    const kraft = await eingeteilt(bau);
+
+    const angelegt = await alsApp(
+      {
+        scope: 'mandant', mandantId: f.bau, benutzerId: kraft.benutzer,
+        personId: kraft.person, portal: 'mitarbeiter', readonly: false,
+      },
+      async (tx) => erfasseAufmass(kontextAus(tx, f.bau, kraft.benutzer), {
+        projektId: bau.projekt,
+        bezeichnung: 'Wand Achse D',
+        bereich: null,
+        messdatum: '2026-09-10',
+        erhebungsart: 'gemeinsam',
+        ankuendigungAm: null,
+        zeilen: [{
+          bezeichnung: 'Wand Achse D',
+          rechenansatz: '3 × (4,20 × 2,75) − 2 × (0,90 × 2,10)',
+          einheit: 'm²',
+          lvPositionId: bau.position,
+          ausserhalbLv: false,
+        }],
+      }),
+    );
+
+    const [z] = await sql.unsafe<{ skaliert: string; anstellung: string | null }[]>(
+      `select z.ergebnis_skaliert::text as skaliert,
+              a.aufgenommen_von_anstellung_id::text as anstellung
+         from aufmass_zeile z join aufmass a on a.id = z.aufmass_id
+        where z.aufmass_id = $1`, [angelegt.id]);
+    expect(z!.skaliert).toBe('308700');
+    // Das Blatt traegt die Beschaeftigung der Kraft — nicht bloss ein Konto.
+    expect(z!.anstellung).not.toBeNull();
+  });
+
+  it('und sie haengt ihr Messfoto selbst an — sonst waere BAU-03 unerfuellbar', async () => {
+    /**
+     * Der Weg geht durch `einsatz_medien` (0041): privater Bucket,
+     * Magic-Byte-Pruefung, EXIF entfernt. `t_mandant` verlangt dort
+     * `zeit.schreiben` — ein Recht, das diese Rolle nicht hat. Ohne die
+     * schmale `t_bau_medien`-Policy aus 0072 scheiterte das Anhaengen, und das
+     * Blatt liesse sich nie vorlegen.
+     */
+    const bau = await baueProjekt(f.bau);
+    const kraft = await eingeteilt(bau);
+    const medienId = crypto.randomUUID();
+
+    const angelegt = await alsApp(
+      {
+        scope: 'mandant', mandantId: f.bau, benutzerId: kraft.benutzer,
+        personId: kraft.person, portal: 'mitarbeiter', readonly: false,
+      },
+      async (tx) => {
+        const kontext = kontextAus(tx, f.bau, kraft.benutzer);
+        const kopf = await erfasseAufmass(kontext, {
+          projektId: bau.projekt,
+          bezeichnung: 'Wand Achse E',
+          bereich: null,
+          messdatum: '2026-09-10',
+          erhebungsart: 'gemeinsam',
+          ankuendigungAm: null,
+          zeilen: [{
+            bezeichnung: 'Wand Achse E',
+            rechenansatz: '4,20 × 2,75',
+            einheit: 'm²',
+            lvPositionId: bau.position,
+            ausserhalbLv: false,
+          }],
+        });
+        await tx.unsafe(
+          `insert into einsatz_medien (id, mandant_id, bezug_tabelle, bezug_id, art, bucket,
+                                       pfad, mime_typ, groesse_bytes, sha256,
+                                       erstellt_von, erstellt_von_person_id)
+           values ($1,$2,'aufmass',$3,'foto','einsatz-medien',$4,'image/jpeg',999,
+                   repeat('d',64), app.aktueller_benutzer(), app.aktuelle_person())`,
+          [medienId, f.bau, kopf.id, `${f.bau}/${medienId}`] as never[]);
+        await hefteFotoAn(kontext, { aufmassId: kopf.id, medienId });
+        return kopf;
+      },
+    );
+
+    const [z] = await sql.unsafe<{ fotos: string }[]>(
+      `select count(*)::text as fotos from aufmass_foto
+        where aufmass_id = $1 and zweck = 'nachweis'`, [angelegt.id]);
+    expect(Number(z!.fotos)).toBe(1);
+  });
+
+  it('aber nicht auf einem Projekt, auf dem sie nicht eingeteilt ist', async () => {
+    const bau = await baueProjekt(f.bau);
+    const anderes = await baueProjekt(f.bau);
+    const kraft = await eingeteilt(bau);
+
+    await expect(alsApp(
+      {
+        scope: 'mandant', mandantId: f.bau, benutzerId: kraft.benutzer,
+        personId: kraft.person, portal: 'mitarbeiter', readonly: false,
+      },
+      async (tx) => erfasseAufmass(kontextAus(tx, f.bau, kraft.benutzer), {
+        projektId: anderes.projekt,
+        bezeichnung: 'Fremde Baustelle',
+        bereich: null,
+        messdatum: '2026-09-10',
+        erhebungsart: 'gemeinsam',
+        ankuendigungAm: null,
+        zeilen: [{
+          bezeichnung: 'Wand',
+          rechenansatz: '1',
+          einheit: 'm²',
+          lvPositionId: anderes.position,
+          ausserhalbLv: false,
+        }],
+      }),
+      // AUT-06: nicht „verboten", sondern „nicht vorhanden".
+    )).rejects.toThrow(/nicht gefunden/u);
   });
 });
 

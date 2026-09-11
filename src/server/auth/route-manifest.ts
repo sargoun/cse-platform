@@ -391,6 +391,86 @@ export const ROUTEN: readonly RouteEintrag[] = [
     pfad: 'api/qualitaet/reklamationen',
     recht: 'qualitaet.schreiben',
   },
+  {
+    /**
+     * Antrag einreichen aus dem Mitarbeiterportal (EMP-10).
+     *
+     * Bewusst OHNE Rechteschluessel: SEITENKARTE §7 fuehrt das Einreichen als
+     * Selbstzugriff (`S`) und nicht als Modulrecht — „Almost nothing here is a
+     * permission. Self-access ... is a policy branch keyed on the server-set
+     * `app.person_id` GUC, not a right." Ein erfundener Schluessel muesste jeder
+     * Mitarbeiterrolle gebunden werden, also nichts pruefen und dabei
+     * behaupten, man pruefe; und `super_admin` bekaeme ihn mit. Bewacht wird
+     * der Weg durch die Sitzung, den Ursprungsvergleich, den serverseitig aus
+     * der Beschaeftigung aufgeloesten Mandanten (K-02, nie ein Feld der
+     * Anfrage) und die Policy `t_selbst_einreichen` auf `antrag`, die nur
+     * Zeilen zulaesst, deren Anstellung dem angemeldeten Menschen gehoert —
+     * mit der restriktiven K-04-Mitarbeiterdecke darueber.
+     */
+    pfad: 'api/mein/antraege',
+    recht: null,
+    grund:
+      'EMP-10, SEITENKARTE §7. Das Einreichen eines eigenen Antrags ist Selbstzugriff und '
+      + 'kein Modulrecht: ein Recht gehoert einer Rolle und eine Rolle vielen Menschen, also '
+      + 'liesse sich „nur der Betroffene" gar nicht als Recht ausdruecken. Die Wache ist die '
+      + 'Sitzung, der Ursprungsvergleich, der aus der Beschaeftigung serverseitig '
+      + 'aufgeloeste Mandant (K-02) und die Policy `t_selbst_einreichen` plus die '
+      + 'restriktive Mitarbeiterdecke (K-04).',
+  },
+  {
+    /**
+     * Abwesenheit melden (EMP-10) — der EINE Schreibweg des Portals mit einem
+     * Recht. `zeit.abwesenheit_melden` ist im Katalog an `mitarbeiter`
+     * gebunden, und die INSERT-Policy auf `abwesenheit` prueft denselben
+     * Schluessel ein zweites Mal (AUT-05).
+     */
+    pfad: 'api/mein/abwesenheit',
+    recht: 'zeit.abwesenheit_melden',
+  },
+
+  /**
+   * Die vier Wege der Ausgangsrechnung (PR 46) — VIER Adressen und nicht eine.
+   *
+   * Der Grund steht in den Rechten selbst: Entwurf schreiben, festschreiben,
+   * verwerfen und stornieren sind im Katalog vier Schluessel, und vier
+   * Handlungen hinter EINER Adresse hiessen, dass die Rechteprüfung sich
+   * innerhalb des Handlers verzweigt — also an genau der Stelle, an der eine
+   * Aufzaehlungsprobe von aussen nichts mehr sieht. Wer eine Position tippen
+   * darf, soll damit keine Rechnung ausgestellt haben.
+   */
+  {
+    pfad: 'api/rechnungen',
+    recht: 'finanzen.schreiben',
+  },
+  {
+    /**
+     * Das einseitige Tor (FIN-02, FIN-03, Invariante 4). Hinter ihm zieht die
+     * Datenbank die Nummer aus dem lueckenlosen Kreis und schreibt den
+     * Kettensatz — in DERSELBEN Transaktion, sonst gaebe es vergebene Nummern
+     * ohne Kettenglied.
+     */
+    pfad: 'api/rechnungen/festschreiben',
+    recht: 'finanzen.festschreiben',
+  },
+  {
+    /**
+     * Verwerfen ist ein ZUSTANDSWECHSEL, kein Loeschen (Invariante 8). Der
+     * Entwurf bleibt mit Grund stehen — er ist der Satz, den eine
+     * Betriebspruefung liest, wenn sie nach der fehlenden Nummer fragt.
+     */
+    pfad: 'api/rechnungen/verwerfen',
+    recht: 'finanzen.entwurf_verwerfen',
+  },
+  {
+    /**
+     * Storno und Korrektur. Eigenes Recht, weil hier ein bereits ausgestellter
+     * Beleg aufgehoben wird — wer festschreiben darf, darf deshalb noch lange
+     * nicht aufheben. O-77 fragt, WER das sein soll; bis dahin gilt die
+     * Katalogvorgabe.
+     */
+    pfad: 'api/rechnungen/storno',
+    recht: 'finanzen.stornieren',
+  },
 ] as const;
 
 /** Die Routen, die ein Recht verlangen. */

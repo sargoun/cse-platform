@@ -391,6 +391,61 @@ describe('der Urheber kommt aus der Sitzung, nicht aus der Anfrage', () => {
     expect(fehler).toBeInstanceOf(KeinUrheber);
   });
 
+  it('die WACHE selbst schreibt — mit `wachbuch.schreiben` und OHNE `wachbuch.lesen`',
+    async () => {
+      /**
+       * **Der Weg, fuer den SEC-05 gebaut ist.** Die Rolle `mitarbeiter` haelt
+       * `wachbuch.schreiben` und NICHT `wachbuch.lesen` (03-AUTH §12.7); ihre
+       * eigenen Seiten liest sie im eigenen Portal ueber `t_person`, ganz ohne
+       * Modulrecht (K-18).
+       *
+       * Dieser Test ist der Grund, aus dem der Dienst die `id` selbst erzeugt:
+       * `insert … returning id` zoege die SELECT-Policy mit herein, und genau
+       * hier schluege sie fehl — bei der Wache, die das Buch fuehrt.
+       */
+      /**
+       * Ein EIGENER Mensch, nicht Fatima: `benutzer.person_id` ist eindeutig
+       * (ein Zugang je Mensch, EMP-14), und die Fixtur hat Fatima bereits ein
+       * Konto gegeben. Ein zweites waere kein Testaufbau, sondern ein Verstoss
+       * gegen genau die Regel, die das Portal traegt.
+       */
+      const [mensch] = await sql.unsafe<{ id: string }[]>(
+        `insert into person (vorname, nachname) values ('Nadia','Kowalski') returning id`);
+      const [beschaeftigung] = await sql.unsafe<{ id: string }[]>(
+        `insert into anstellung (mandant_id, person_id, personalnummer, eintritt,
+                                 stundensatz_intern)
+         values ($1,$2,$3,'2024-01-01',1780) returning id`,
+        [f.security, mensch!.id, `S-${zufall()}`]);
+      const guard = await konto(mensch!.id);
+      await sql.unsafe(
+        `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id) values ($1,$2,$3)`,
+        [guard, f.security, await rolleId('mitarbeiter')]);
+
+      const id = await alsApp(
+        {
+          scope: 'mandant', mandantId: f.security, benutzerId: guard,
+          personId: mensch!.id, portal: 'mitarbeiter', readonly: false,
+        },
+        async (tx) => {
+          const abfrage = async <R,>(x: string, w: readonly unknown[] = []) =>
+            (await tx.unsafe(x, w as never[])) as readonly R[];
+          return schreibeEintrag({
+            scope: 'mandant', portal: 'mitarbeiter', benutzerId: guard,
+            aktiverMandantId: f.security, mandantIds: [f.security],
+            abfrage, schreibe: abfrage,
+          }, {
+            objektId, art: 'rundgang', betreff: 'Rundgang 01:00',
+            eintragstext: 'Türen kontrolliert, ohne Befund.',
+          });
+        },
+      );
+
+      const [zeile] = await sql.unsafe<{ anstellung_id: string; laufnummer: string }[]>(
+        `select anstellung_id, laufnummer from wachbuch_eintrag where id = $1`, [id]);
+      expect(zeile!.anstellung_id).toBe(beschaeftigung!.id);
+      expect(Number(zeile!.laufnummer)).toBe(1);
+    });
+
   it('die Art `schluessel` wird benannt abgewiesen, solange es keine Schluessel gibt',
     async () => {
       const fehler = await alsWache((k) => schreibeEintrag(k, {

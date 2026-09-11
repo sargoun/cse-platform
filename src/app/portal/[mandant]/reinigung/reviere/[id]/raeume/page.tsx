@@ -114,15 +114,25 @@ export default async function RaeumeZuordnen({
           <ul className="m-0 list-none space-y-s2 p-0">
             {raeume.map((r) => (
               <li key={r.id} className="flex min-h-11 items-center gap-s3">
+                {/*
+                  `disabled`, NICHT `readOnly`: auf einem Kontrollkästchen tut
+                  `readonly` nichts — der Browser lässt es trotzdem abwählen,
+                  und das Formular behauptete eine Wirkung, die es nicht gibt.
+                  Ein abgeschaltetes Feld wird aber auch nicht abgeschickt,
+                  also trägt das versteckte Feld daneben den Wert. Zusammen
+                  heisst das: sichtbar gesetzt, nicht abwählbar, und die
+                  Zuordnung bleibt im Absenden erhalten.
+                */}
                 <input
                   type="checkbox"
                   id={`raum-${r.id}`}
-                  name="raum"
+                  name={r.zugeordnet ? undefined : 'raum'}
                   value={r.id}
                   defaultChecked={r.zugeordnet}
-                  readOnly={r.zugeordnet}
+                  disabled={r.zugeordnet}
                   className="h-5 w-5"
                 />
+                {r.zugeordnet && <input type="hidden" name="raum" value={r.id} />}
                 <label htmlFor={`raum-${r.id}`} className="text-base text-text">
                   {r.nummer ?? '—'}
                   {r.bezeichnung === null ? '' : ` · ${r.bezeichnung}`}

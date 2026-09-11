@@ -107,6 +107,24 @@ export function rechneZeilen(eingaben: readonly ZeileEingabe[]): readonly ZeileG
     throw new AufmassFehler('keine_zeile', 'Ein Aufmassblatt ohne Zeile misst nichts.');
   }
   return eingaben.map((zeile, index) => {
+    if (zeile.einheit.trim() === '') {
+      /**
+       * Die Einheit ist keine Formsache: sie muss der der LV-Position
+       * entsprechen (§1.4), und der Ausloeser weist eine falsche ab. Hier
+       * abgefangen bekommt der Mensch einen Satz statt eines Datenbankfehlers
+       * mit Zwangsabbruch der ganzen Aufnahme.
+       */
+      throw new ZeilenFehler(
+        index + 1, 'ohne_einheit', 0,
+        'Die Zeile braucht eine Einheit — dieselbe, in der die LV-Position bepreist ist.',
+      );
+    }
+    if (zeile.bezeichnung.trim() === '') {
+      throw new ZeilenFehler(
+        index + 1, 'ohne_bezeichnung', 0,
+        'Die Zeile braucht eine Bezeichnung — „Wand Achse C, OG1" und nicht „Zeile 1".',
+      );
+    }
     if (zeile.lvPositionId === null && !zeile.ausserhalbLv) {
       throw new ZeilenFehler(
         index + 1, 'ohne_bezug', 0,
@@ -413,10 +431,12 @@ export interface AufmassEingabe {
  *
  * Die Nummer entsteht je Projekt fortlaufend aus dem, was schon da ist. Das
  * ist bewusst KEIN `nummernkreis`: der Zaehler aus FIN-03 gehoert den
- * Belegnummern, deren Lueckenlosigkeit § 14 UStG verlangt, und ein Aufmassblatt
- * ist kein Beleg in diesem Sinn.
- * // TODO(client, O-155): Folgt die Aufmassnummer einer Vorgabe des
- * Auftraggebers (Blattnummer im LV-Kopf), oder zaehlt sie je Projekt?
+ * Belegnummern, deren Lueckenlosigkeit § 14 UStG verlangt und deren Kreis
+ * unter `SELECT … FOR UPDATE` gezogen wird. Ein Aufmassblatt ist kein Beleg in
+ * diesem Sinn — seine Nummer ordnet, sie beweist nichts, und eine Luecke darin
+ * hat keine steuerliche Bedeutung. Eindeutig ist sie trotzdem
+ * (`aufmass_nummer_uk`), und wo der Auftraggeber eine eigene Blattnummer
+ * vorgibt, wird sie beim Erfassen eingetragen statt erzeugt.
  */
 export async function erfasseAufmass(
   kontext: SchreibKontext, eingabe: AufmassEingabe,
@@ -530,6 +550,22 @@ export async function gegenzeichne(
 ): Promise<{ readonly status: AufmassStatus; readonly hash: string }> {
   const stand = await ladeVorlageStand(kontext, eingabe.aufmassId);
   if (stand === null) throw new AufmassFehler('nicht_gefunden', 'Aufmass nicht gefunden.');
+
+  /**
+   * Ein bereits festgestelltes Blatt wird nicht ein zweites Mal unterschrieben.
+   *
+   * Ohne diese Zeile liefe der Aufruf in die Eindeutigkeitsbedingung
+   * `aufmass_signatur_uk` — ein Datenbankfehler mit Abbruch, wo eine Auskunft
+   * gehoert. Und einen zweiten Weg zum Aendern gibt es nicht: die Korrektur
+   * ist ein Storno mit Ersatzblatt (§14 VOB/B, LEG-01).
+   */
+  if (stand.status !== 'entwurf' && stand.status !== 'vorgelegt') {
+    throw new AufmassFehler(
+      'gesperrt',
+      `Dieses Blatt ist bereits abgeschlossen (${stand.status}). Eine Korrektur ist `
+      + 'ein Storno mit Ersatzblatt, keine zweite Unterschrift.',
+    );
+  }
 
   const hindernisse = pruefeVorlage(stand).filter((h) => h !== 'nicht_entwurf');
   if (hindernisse.length > 0) {

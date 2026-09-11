@@ -65,6 +65,16 @@ export const MIGRATIONS_DATEIEN: Readonly<Record<string, string>> = {
   '0074': join(WURZEL, 'drizzle/0074_antrag.sql'),
   '0071': join(WURZEL, 'drizzle/0071_lv_position.sql'),
   '0072': join(WURZEL, 'drizzle/0072_aufmass.sql'),
+  // Finanzen (PR 46). `0076` traegt keinen Block: es legt keine Tabelle an,
+  // sondern nur Ausloeser auf den Tabellen aus `0075`.
+  '0075': join(WURZEL, 'drizzle/0075_rechnung.sql'),
+  '0077': join(WURZEL, 'drizzle/0077_rechnung_hash.sql'),
+  // Bau B (PR 44). Der PR-Plan nennt 0061/0062 — beide sind vergeben.
+  '0080': join(WURZEL, 'drizzle/0080_nachtrag.sql'),
+  '0081': join(WURZEL, 'drizzle/0081_behinderung.sql'),
+  // Bau C (PR 45). Der PR-Plan nennt 0063/0064 — beide sind vergeben.
+  '0082': join(WURZEL, 'drizzle/0082_bautagebuch.sql'),
+  '0083': join(WURZEL, 'drizzle/0083_wetter_beobachtung.sql'),
 };
 export const BEGINN = '-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern';
 export const ENDE = '-- >>> Ende des generierten Blocks';

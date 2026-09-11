@@ -938,6 +938,307 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'Schnappschuss IST die Feststellung. Sie zu loeschen liesse ein Blatt '
       + 'zurueck, das gegengezeichnet heisst und niemanden nennt.',
   },
+
+  /**
+   * Bau (PR 44, 03-GEWERKE §7.10, §7.11). Zwei Katalogtabellen und zwei
+   * Beweistabellen — keine von ihnen kennt einen Loeschpfad.
+   */
+  {
+    tabelle: 'nachtrag_grundlage',
+    art: 'archiv',
+    migration: '0080',
+    grund:
+      'BAU-04, K-17. Die Zeile ist die Anspruchsgrundlage, unter der ein '
+      + 'Nachtrag angemeldet wurde — im Streit um § 2 VOB/B die Frage selbst. '
+      + 'Geloescht bliebe der Nachtrag stehen und niemand wuesste mehr, worauf '
+      + 'er gestuetzt war; abgeloest wird sie durch archiviert_am.',
+  },
+  {
+    tabelle: 'nachtrag',
+    art: 'archiv',
+    migration: '0080',
+    grund:
+      'BAU-04, BAU-05, FIN-07, LEG-01. Am Nachtrag haengen die Ankuendigung '
+      + '(§ 2 Abs. 6 Nr. 1 VOB/B), die eingereichte Kalkulation und spaeter '
+      + 'eine Rechnungsposition. Ein zurueckgezogener wird storniert und durch '
+      + 'ersetzt_durch_id abgeloest — geloescht fehlte im Werklohnprozess der '
+      + 'Beleg, dass rechtzeitig angekuendigt wurde.',
+  },
+  {
+    tabelle: 'behinderung_vorlage',
+    art: 'archiv',
+    migration: '0081',
+    grund:
+      'BAU-06, LEG-01. Die Vorlage ist der Wortlaut, in dem eine hinausgegangene '
+      + 'Rechtserklaerung abgefasst wurde. Geloescht liesse sich nicht mehr '
+      + 'zeigen, welcher Text damals galt; eine ueberholte bekommt archiviert_am.',
+  },
+  {
+    tabelle: 'behinderung',
+    art: 'archiv',
+    migration: '0081',
+    grund:
+      'BAU-06, § 6 VOB/B, LEG-01. Die angezeigte Behinderung ist eine '
+      + 'empfangsbeduerftige Erklaerung mit anspruchswahrender Wirkung — sie '
+      + 'entscheidet ueber Bauzeitverlaengerung und Schadensersatz. Korrigiert '
+      + 'wird durch Storno und eine neue Anzeige, nie durch Entfernen.',
+  },
+
+  /**
+   * Bau C (PR 45, 03-GEWERKE §7.12 – §7.17). Der Gewerkekatalog wird
+   * archiviert; der Tageskopf und seine beiden Kindtabellen tragen die
+   * Stornospur aus §1.3, und die beiden Wettertabellen sind reine
+   * Referenzdaten, an denen ein Bautagebuch haengt.
+   */
+  {
+    tabelle: 'gewerk',
+    art: 'archiv',
+    migration: '0082',
+    grund:
+      'BAU-07, REP-05. Der Katalogeintrag ist der Bezug jeder Mannstundenzeile. '
+      + 'Geloescht traegt eine abgeschlossene Tagesseite eine Gewerkekennung, '
+      + 'zu der es nichts mehr gibt — und die Auswertung „Stunden je Gewerk" '
+      + 'verliert rueckwirkend Zeilen. Ein aufgegebenes Gewerk bekommt '
+      + 'archiviert_am und verschwindet aus der Auswahl, nicht aus der Historie.',
+  },
+  {
+    tabelle: 'bautagebuch',
+    art: 'archiv',
+    migration: '0082',
+    grund:
+      'BAU-07, LEG-01. Der Bautag traegt Bauzeit, Behinderung und '
+      + 'Mehrverguetungsanspruch. Ein abgeschlossener Tag ist unveraenderlich; '
+      + 'korrigiert wird durch Storno und einen Ersatztag (ersetzt_durch_id). '
+      + 'Geloescht bliebe eine Luecke in der Bauzeit, die niemand mehr erklaeren '
+      + 'kann — und genau daraus wird im Prozess ein Anspruch hergeleitet.',
+  },
+  {
+    tabelle: 'bautagebuch_mannstunden',
+    art: 'append',
+    migration: '0082',
+    grund:
+      'BAU-07, TIM-12, REP-05. Die Zeile IST die Mannstundenangabe des Tages — '
+      + 'die Zahl, gegen die der Abgleich mit dem zeiteintrag laeuft und aus der '
+      + 'ein Bauzeitnachtrag gerechnet wird. Sie ist anfuegend: eine falsche '
+      + 'Zeile wird storniert und ersetzt, damit sichtbar bleibt, dass zuerst '
+      + 'etwas anderes dastand.',
+  },
+  {
+    tabelle: 'bautagebuch_position',
+    art: 'append',
+    migration: '0082',
+    grund:
+      'BAU-07, LEG-01. Geraet, Lieferung und Vorkommnis des Tages. Ein '
+      + 'geloeschtes Vorkommnis ist genau die Seite, die im Streit fehlt; eine '
+      + 'irrtuemliche Zeile wird storniert und ersetzt.',
+  },
+  {
+    tabelle: 'wetter_station',
+    art: 'archiv',
+    migration: '0083',
+    grund:
+      'BAU-08. An der Station haengt jede Beobachtung, und an der Beobachtung '
+      + 'der Wetterbeleg eines Bautags. Eine stillgelegte Station bekommt '
+      + 'archiviert_am — geloescht verloeren alle Tage, die auf sie zeigen, '
+      + 'ihren Messort, und „3 °C" ohne Ort ist keine Aussage.',
+  },
+  {
+    tabelle: 'wetter_beobachtung',
+    art: 'append',
+    migration: '0083',
+    grund:
+      'BAU-07, BAU-08, LEG-01. Die Messung, auf die sich ein Bautagebuch '
+      + 'beruft. Der DWD revidiert Werte — eine Revision ist eine NEUE Zeile '
+      + 'mit hoeherem Qualitaetsniveau, nie ein Ersetzen der alten. Geloescht '
+      + 'zeigte der Tag auf nichts, und der Schnappschuss daneben liesse sich '
+      + 'nicht mehr gegenpruefen.',
+  },
+
+  /**
+   * Finanzen (PR 46). Invariante 8 gilt in dieser Domaene OHNE Ausnahme —
+   * `05-FINANZEN.md` §1.6 stellt vier Schichten davor und sagt ausdruecklich,
+   * dass keine dieser Tabellen eine Bereinigungstabelle ist.
+   *
+   * Auch die drei globalen Referenztabellen stehen hier, und das ist kein
+   * Uebereifer: ein geloeschter Steuersatz macht jede festgeschriebene
+   * Rechnung unlesbar, die auf ihn zeigt — und das sind, zehn Jahre lang,
+   * alle.
+   */
+  {
+    tabelle: 'steuersatz_gruppe',
+    art: 'archiv',
+    migration: '0075',
+    grund:
+      'K-21, §14 Abs. 4 Nr. 8 UStG. Der EINE Steuerkatalog der Plattform. Eine '
+      + 'Zeile zu loeschen bricht den Fremdschluessel jeder Rechnungsposition, '
+      + 'die auf sie zeigt — und die Rechnung selbst darf sich nicht mehr '
+      + 'aendern. Ein Satz laeuft ueber `gueltig_bis` aus; eine Aenderung ist '
+      + 'eine NEUE Zeile mit eigenem Gueltigkeitsbeginn.',
+  },
+  {
+    tabelle: 'masseinheit',
+    art: 'append',
+    migration: '0075',
+    grund:
+      'FIN-11, EN 16931 BT-130. Die Einheit einer festgeschriebenen Position '
+      + 'wird beim Nachdrucken und beim Export gelesen. Faellt die Zeile weg, '
+      + 'laesst sich dieselbe Rechnung nicht mehr zweimal gleich ausgeben.',
+  },
+  {
+    tabelle: 'kleinbetrag_grenze',
+    art: 'archiv',
+    migration: '0075',
+    grund:
+      'FIN-13, §33 UStDV. `ist_kleinbetrag` wird gegen die Schwelle des '
+      + 'LEISTUNGSDATUMS eingefroren. Die historische Zeile zu loeschen hiesse, '
+      + 'die Entscheidung nicht mehr begruenden zu koennen.',
+  },
+  {
+    tabelle: 'rechnung',
+    art: 'archiv',
+    migration: '0075',
+    grund:
+      'Invariante 4 und 8, §147 AO, §14b UStG. Eine festgeschriebene Rechnung '
+      + 'wird durch STORNO aufgehoben, nie entfernt; ein verworfener Entwurf '
+      + 'bekommt `verworfen_am` samt Grund und bleibt stehen — genau er ist die '
+      + 'Zeile, die eine Betriebspruefung liest, wenn sie nach der fehlenden '
+      + 'Nummer fragt.',
+  },
+  {
+    tabelle: 'rechnungsposition',
+    art: 'append',
+    migration: '0075',
+    grund:
+      'FIN-01, §14 Abs. 4 Nr. 5 UStG. Die Position IST der Leistungsnachweis '
+      + 'auf dem Beleg. Waere sie loeschbar, koennte eine festgeschriebene '
+      + 'Rechnung nachtraeglich kuerzer werden, waehrend Kopfsummen und Hash '
+      + 'unveraendert stehen bleiben.',
+  },
+  {
+    tabelle: 'rechnung_zuschlag',
+    art: 'append',
+    migration: '0075',
+    grund:
+      'EN 16931 BG-20/BG-21. Ein entfernter Nachlass veraendert die '
+      + 'Bemessungsgrundlage einer Steuergruppe, ohne dass der Kopf es zeigt.',
+  },
+  {
+    tabelle: 'rechnung_steuer',
+    art: 'append',
+    migration: '0075',
+    grund:
+      '§14 Abs. 4 Nr. 8 UStG. Die Aufschluesselung nach Steuersaetzen ist der '
+      + 'Teil des Belegs, den die Umsatzsteuervoranmeldung uebernimmt. Neu '
+      + 'gerechnet wird im Entwurf durch UPSERT; eine Gruppe, die wegfaellt, '
+      + 'faellt auf null statt aus der Tabelle.',
+  },
+  {
+    tabelle: 'rechnung_beziehung',
+    art: 'append',
+    migration: '0075',
+    grund:
+      'K-12, Invariante 4. Sie IST die Storno-Rueckbeziehung — der einzige Ort, '
+      + 'an dem steht, dass eine Rechnung aufgehoben wurde. Sie zu loeschen '
+      + 'liesse die aufgehobene Rechnung wieder als gueltige dastehen.',
+  },
+  {
+    tabelle: 'rechnung_snapshot',
+    art: 'append',
+    migration: '0077',
+    grund:
+      'FIN-06, LEG-01, ACC-06. Der Snapshot IST das Dokument; PDF und '
+      + 'XRechnung werden aus ihm erzeugt, nie aus lebenden Stammdaten. Ohne '
+      + 'ihn verifiziert die Kette gegen nichts.',
+  },
+  {
+    tabelle: 'rechnung_hash',
+    art: 'append',
+    migration: '0077',
+    grund:
+      'FIN-06, LEG-01. Ein fehlendes Glied ist genau die Manipulation, gegen '
+      + 'die die Kette geschrieben ist. Eine geleerte Kettentabelle laesst den '
+      + 'naechtlichen Lauf eine LEERE Kette melden statt einer gebrochenen — '
+      + 'und das liest sich wie „nichts zu pruefen".',
+  },
+
+  /**
+   * Security B (PR 42). Vier Tabellen der Dienstanweisung, drei der
+   * Schluesselverwaltung — und die Begruendung ist bei allen sieben dieselbe
+   * Familie: sie beantworten im Streitfall „wer wusste was" und „wer hatte
+   * welchen Schluessel".
+   */
+  {
+    tabelle: 'dienstanweisung',
+    art: 'archiv',
+    migration: '0078',
+    grund:
+      'SEC-06, LEG-04. Der Kopf ist der Bezug, auf den jede Fassung und jede '
+      + 'Kenntnisnahme zeigt. Geloescht steht die Bestaetigung einer Wache vor '
+      + 'einem Regelwerk, das es angeblich nie gab. Eine ausser Kraft gesetzte '
+      + 'Anweisung bekommt `archiviert_am`.',
+  },
+  {
+    tabelle: 'dienstanweisung_version',
+    art: 'append',
+    migration: '0078',
+    grund:
+      'SEC-06, LEG-04, DOC-05. Die Fassung IST der Text, gegen den bestaetigt '
+      + 'wurde — `da_kenntnisnahme.bestaetigter_inhalt_hash` ist ihr Digest. '
+      + 'Ohne die Zeile laesst sich nicht mehr zeigen, WAS gelesen wurde, und '
+      + 'die Kenntnisnahme wird zur Behauptung. Eine Aenderung ist eine neue '
+      + 'Fassung.',
+  },
+  {
+    tabelle: 'da_pflicht',
+    art: 'archiv',
+    migration: '0078',
+    grund:
+      'SEC-06, LEG-04. „Diese Person musste die Anweisung kennen" ist die '
+      + 'Auskunft, nicht ihr Fehlen: eine geloeschte Pflichtzeile macht aus '
+      + 'einer nicht bestaetigten Anweisung eine, die niemanden betraf. Eine '
+      + 'beendete Pflicht bekommt `entfallen_am` und bleibt stehen.',
+  },
+  {
+    tabelle: 'da_kenntnisnahme',
+    art: 'append',
+    migration: '0078',
+    grund:
+      'SEC-06, EMP-09, LEG-04. Im Haftungsfall der einzige Beleg, dass die '
+      + 'Unterweisung stattgefunden hat — mit Serverzeit, Person und dem Digest '
+      + 'des bestaetigten Textes. Ein Irrtum wird durch eine neue Fassung '
+      + 'ueberholt, nicht durch Loeschen.',
+  },
+  {
+    tabelle: 'schluesselart',
+    art: 'archiv',
+    migration: '0079',
+    grund:
+      'SEC-07. Der Katalog ist der Bezug jedes Schluessels; geloescht traegt '
+      + 'eine zehn Jahre alte Quittung eine Art, die niemand mehr aufloesen '
+      + 'kann. Eine nicht mehr gefuehrte Art bekommt `archiviert_am`.',
+  },
+  {
+    tabelle: 'schluessel',
+    art: 'archiv',
+    migration: '0079',
+    grund:
+      'SEC-07, LEG-01. Am Schluessel haengt sein Journal. Ihn zu loeschen '
+      + 'nimmt dem Journal seinen Gegenstand und macht die Frage „wer hatte '
+      + 'Zutritt" unbeantwortbar — die erste Frage nach einem Einbruch. Ein '
+      + 'ausgemusterter Schluessel bekommt `archiviert_am` oder eine '
+      + 'Vernichtungszeile.',
+  },
+  {
+    tabelle: 'schluessel_quittung',
+    art: 'append',
+    migration: '0079',
+    grund:
+      'SEC-07, LEG-01. Das Journal ist der Nachweis der Schluesselgewalt und '
+      + 'die Grundlage jeder Haftungsfrage nach einem Schliessanlagenaustausch. '
+      + 'Eine loeschbare Quittung heisst, dass sich „wer hatte den Schluessel" '
+      + 'nachtraeglich umschreiben laesst. Richtiggestellt wird durch eine '
+      + 'Gegenquittung.',
+  },
 ] as const;
 
 /**
@@ -1094,6 +1395,59 @@ export const AUDITIERT: readonly TabelleJeMigration[] = [
    */
   { tabelle: 'lv_position', migration: '0071' },
   { tabelle: 'aufmass', migration: '0072' },
+  /**
+   * `nachtrag` und `behinderung` ja, ihre Kataloge auch (PR 44).
+   *
+   * Am Nachtrag bewegen sich zwei Daten, an denen ein Anspruch haengt, und
+   * wer sie bewegt hat, ist im § 2-Streit die Frage. An der Behinderung
+   * bewegt sich der Zustand bis zum Versand — danach laesst der Ausloeser
+   * `behinderung_einfrieren` ohnehin nichts mehr zu, und genau deshalb ist
+   * interessant, wer kurz davor noch etwas angefasst hat. Die beiden Kataloge
+   * tragen Rechtstexte und die Platzhaltermarkierung: sie zu aendern aendert
+   * die Grundlage jedes kuenftigen Nachtrags und jedes kuenftigen Schreibens.
+   */
+  { tabelle: 'nachtrag_grundlage', migration: '0080' },
+  { tabelle: 'nachtrag', migration: '0080' },
+  { tabelle: 'behinderung_vorlage', migration: '0081' },
+  { tabelle: 'behinderung', migration: '0081' },
+  /**
+   * `bautagebuch` ja, seine beiden Kindtabellen nicht (PR 45, §13.1
+   * „logged at head granularity").
+   *
+   * Wer einen Bautag geschlossen, gegengezeichnet oder storniert hat, ist im
+   * Bauzeitstreit genau die Frage — mit Vorher und Nachher. Die Mannstunden-
+   * und Positionszeilen SIND dagegen bereits der Nachweis: anfuegend, mit
+   * Urheber und Serverzeit in eigenen Spalten, und `bautagebuch_kind_nur_storno`
+   * laesst kein inhaltliches UPDATE zu. Ein Auditeintrag je Zeile verdoppelte
+   * bei zwanzig Zeilen am Tag genau das Protokoll, auf das sich eine Auskunft
+   * stuetzt.
+   */
+  { tabelle: 'bautagebuch', migration: '0082' },
+
+  /**
+   * Finanzen (PR 46) — und `rechnung_snapshot` steht ausdruecklich NICHT
+   * dabei.
+   *
+   * Der Rechnungskopf, seine Kinder und die drei Referenztabellen werden
+   * auditiert: wer eine Position kurz vor dem Festschreiben noch angefasst
+   * hat, ist im Streitfall genau die Frage, und wer einen Steuersatz bewegt
+   * hat, entscheidet ueber jede kuenftige Rechnung der Gruppe.
+   *
+   * Der Snapshot dagegen IST das Protokoll. Ihn zusaetzlich nach `audit_log`
+   * zu spiegeln legte dasselbe Dokument ein zweites Mal ab — samt
+   * `nutzlast_bytes` als Hextext, also mit doppeltem Volumen — und die zweite
+   * Kopie waere die, die niemand hasht. `rechnung_hash` dagegen ist eine
+   * Handvoll Spalten und die Zeile, an der eine Manipulation sichtbar wuerde.
+   */
+  { tabelle: 'steuersatz_gruppe', migration: '0075' },
+  { tabelle: 'masseinheit', migration: '0075' },
+  { tabelle: 'kleinbetrag_grenze', migration: '0075' },
+  { tabelle: 'rechnung', migration: '0075' },
+  { tabelle: 'rechnungsposition', migration: '0075' },
+  { tabelle: 'rechnung_zuschlag', migration: '0075' },
+  { tabelle: 'rechnung_steuer', migration: '0075' },
+  { tabelle: 'rechnung_beziehung', migration: '0075' },
+  { tabelle: 'rechnung_hash', migration: '0077' },
 ] as const;
 
 /** Tables carrying S4 (`geloescht_am` / `geloescht_von`) — the finders' domain. */
@@ -1216,6 +1570,59 @@ export const GEAENDERT_AM: readonly TabelleJeMigration[] = [
   { tabelle: 'lv_position', migration: '0071' },
   { tabelle: 'aufmass', migration: '0072' },
   { tabelle: 'aufmass_zeile', migration: '0072' },
+  // Bau (PR 44): alle vier — am Nachtrag und an der Behinderung bewegt sich
+  // bis zur Einreichung bzw. bis zum Versand etwas, und die Kataloge werden
+  // gepflegt, sobald O-23 beantwortet ist.
+  { tabelle: 'nachtrag_grundlage', migration: '0080' },
+  { tabelle: 'nachtrag', migration: '0080' },
+  { tabelle: 'behinderung_vorlage', migration: '0081' },
+  { tabelle: 'behinderung', migration: '0081' },
+  // Bau (PR 45): der Gewerkekatalog und der Tageskopf, an dem sich bis zum
+  // Abschluss noch etwas bewegt. Die beiden Kindtabellen NICHT: sie sind
+  // anfuegend, und ein `geaendert_am` an einer Mannstundenzeile behauptete,
+  // eine gebuchte Stunde liesse sich nachtraeglich bewegen — genau das weist
+  // `bautagebuch_kind_nur_storno` ab.
+  { tabelle: 'gewerk', migration: '0082' },
+  { tabelle: 'bautagebuch', migration: '0082' },
+  // `wetter_station` ja, `wetter_beobachtung` nicht: eine Station wird
+  // umbenannt oder stillgelegt, eine Messung nie korrigiert — ihre Revision
+  // ist eine neue Zeile (§7.17).
+  { tabelle: 'wetter_station', migration: '0083' },
+
+  /**
+   * Finanzen (PR 46): beweglich ist, was im ENTWURF noch bewegt wird — der
+   * Kopf, seine Positionen, die Zu- und Abschlaege und die
+   * Steueraufschluesselung, die `berechneSteuer()` bei jeder Positionsaenderung
+   * neu setzt.
+   *
+   * `rechnung_beziehung`, `rechnung_snapshot` und `rechnung_hash` NICHT: alle
+   * drei sind anfuegend, und ein `geaendert_am` an einem Kettenglied
+   * behauptete, es liesse sich nachtraeglich bearbeiten — was
+   * `fin.kette_unveraenderlich()` gerade nicht zulaesst.
+   *
+   * `kleinbetrag_grenze` ebenfalls nicht: eine ausgelaufene Schwelle bekommt
+   * `gueltig_bis`, eine neue ist eine neue Zeile.
+   */
+  { tabelle: 'steuersatz_gruppe', migration: '0075' },
+  { tabelle: 'masseinheit', migration: '0075' },
+  { tabelle: 'rechnung', migration: '0075' },
+  { tabelle: 'rechnungsposition', migration: '0075' },
+  { tabelle: 'rechnung_zuschlag', migration: '0075' },
+  { tabelle: 'rechnung_steuer', migration: '0075' },
+
+  /**
+   * Security B (PR 42): beweglich sind der Kopf der Dienstanweisung, die
+   * Pflichtzeile und die zwei Stammdatentabellen der Schluessel.
+   *
+   * `dienstanweisung_version`, `da_kenntnisnahme` und `schluessel_quittung`
+   * NICHT: alle drei sind anfuegend, und ein `geaendert_am` daneben
+   * behauptete, jemand duerfe eine veroeffentlichte Fassung, eine Bestaetigung
+   * oder eine Quittung bearbeiten — was die Ausloeser gerade nicht zulassen.
+   */
+  { tabelle: 'dienstanweisung', migration: '0078' },
+  { tabelle: 'da_pflicht', migration: '0078' },
+  { tabelle: 'schluesselart', migration: '0079' },
+  { tabelle: 'schluessel', migration: '0079' },
 ] as const;
 
 /** Every migration that carries a generated block, in order. */

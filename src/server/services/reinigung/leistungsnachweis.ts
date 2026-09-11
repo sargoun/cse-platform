@@ -94,6 +94,25 @@ export class AnzeigeVeraltet extends Error {
   }
 }
 
+/**
+ * Objekt und Kunde gehören nicht zusammen.
+ *
+ * Eigener Fehler statt `FalscherZustand`: es ist kein Zustand, der sich durch
+ * Warten ändert, sondern eine Eingabe, die nicht stimmt — und die Meldung
+ * muss sagen, welche.
+ */
+export class KundePasstNichtZumObjekt extends Error {
+  readonly code = 'ungueltiger_zustand';
+  readonly status = 422;
+  constructor() {
+    super(
+      'Der angegebene Kunde ist nicht der Kunde des Objekts. Der Nachweis würde '
+      + 'sonst im Portal eines Kunden auftauchen, dem das Objekt nicht gehört.',
+    );
+    this.name = 'KundePasstNichtZumObjekt';
+  }
+}
+
 export class BereitsUnterschrieben extends Error {
   readonly code = 'ungueltiger_zustand';
   readonly status = 409;
@@ -307,11 +326,7 @@ export async function erstelleEntwurf(
     `select kunde_id from objekt where id = $1::uuid`, [eingabe.objektId],
   );
   if (objekt === undefined) throw new NachweisNichtGefunden(eingabe.objektId);
-  if (objekt.kunde_id !== eingabe.kundeId) {
-    throw new FalscherZustand(
-      'Kunde des Objekts', 'derselbe Kunde wie auf dem Nachweis',
-    );
-  }
+  if (objekt.kunde_id !== eingabe.kundeId) throw new KundePasstNichtZumObjekt();
 
   const [kopf] = await kontext.schreibe<{ id: string }>(
     `insert into leistungsnachweis

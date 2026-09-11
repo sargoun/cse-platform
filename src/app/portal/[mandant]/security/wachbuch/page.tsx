@@ -77,9 +77,21 @@ export default async function Wachbuch(
         eintraege: readonly EintragZeile[]; objekte: readonly Objektzeile[];
       }>);
 
-  const pille = (aktiv: boolean): string =>
-    `rounded-full px-s3 py-s1 text-xs no-underline ${
-      aktiv ? 'bg-surface-2 text-text' : 'bg-surface-3 text-text-muted'}`;
+  /**
+   * Die Filterpille als LINK, nicht als Knopf.
+   *
+   * `components/ui/FilterPill` ist ein `<button onClick>` und damit eine
+   * Client-Komponente; diese Seite rendert auf dem Server und stellt ihre
+   * Filter in die Adresse (teilbar, lesezeichenfähig, ohne JavaScript
+   * bedienbar). Die Klassen sind deshalb WÖRTLICH die der Komponente
+   * (DESIGN §5: inaktiv `--surface-3` + `--text-muted`, aktiv Weiss auf
+   * `--ink`) — dasselbe Aussehen, dasselbe Vokabular, nur ein anderes
+   * Element. Ein eigener Farbwert stünde hier nicht.
+   */
+  const pille = (aktiv: boolean): string => [
+    'inline-flex min-h-11 shrink-0 items-center rounded-full px-s4 text-sm no-underline',
+    aktiv ? 'bg-white text-ink' : 'bg-surface-3 text-text-muted hover:text-text',
+  ].join(' ');
 
   return (
     <PortalRahmen

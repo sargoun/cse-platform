@@ -100,32 +100,24 @@ interface KatalogZeile {
 }
 
 /**
- * Die Räume, die einem Revier zugeordnet SIND — mit den heutigen Größen aus
- * dem Raumbuch, nicht mit den Schnappschüssen.
+ * Die zugeordneten Räume MIT ihren Schnappschüssen liest die Oberfläche, nicht
+ * dieser Dienst: `app/portal/[mandant]/reinigung/daten.ts#ladeZugeordneteRaeume`
+ * stellt genau die Spalten zusammen, die das Revierblatt zeigt.
  *
- * Der Unterschied ist der Punkt: was in `revier_raum` steht, ist der
- * Rechenweg von damals; was hier zurückkommt, ist der Stand von heute. Die
- * Differenz sichtbar zu machen ist der ganze Grund, warum die
- * Schnappschussspalten nie automatisch nachgezogen werden.
+ * Hier stand einmal dieselbe Abfrage ein zweites Mal. Zwei Lesewege auf
+ * dieselbe Zeile sind zwei Wahrheiten darüber, was in ihr steht — und die eine
+ * bleibt beim ersten Spaltenzusatz stehen. Was der Dienst braucht, ist die
+ * HEUTIGE Grösse aus dem Raumbuch (`ladeRaeume`), nicht der Schnappschuss von
+ * damals.
  */
-export async function ladeRevierRaeume(
-  kontext: LeseKontext, revierId: string, stichtag: Date,
-): Promise<readonly RaumZeile[]> {
-  const zeilen = await kontext.abfrage<RaumDbZeile>(
-    `select r.id, r.raumnummer, r.bezeichnung, r.etage, r.belagsart_id,
-            r.flaeche_qm::text as flaeche_qm,
-            r.fenster_flaeche_qm::text as fenster_flaeche_qm,
-            rr.reihenfolge as sortierung
-       from revier_raum rr
-       join raum r on r.id = rr.raum_id and r.mandant_id = rr.mandant_id
-      where rr.revier_id = $1::uuid
-      order by rr.reihenfolge, r.raumnummer nulls last`,
-    [revierId],
-  );
-  return verbindeMitKatalog(kontext, zeilen, stichtag);
-}
 
-/** Dieselbe Form für eine Auswahl von Raum-ids, die noch nicht zugeordnet ist. */
+/**
+ * Die Räume einer Auswahl, mit Fläche und Leistungswert von HEUTE.
+ *
+ * Das ist die Eingabe der Kalkulation: gerechnet wird mit dem, was jetzt im
+ * Raumbuch und im Katalog steht, und genau dieser Stand wird anschliessend als
+ * Schnappschuss in `revier_raum` festgehalten.
+ */
 export async function ladeRaeume(
   kontext: LeseKontext, objektId: string, raumIds: readonly string[], stichtag: Date,
 ): Promise<readonly RaumZeile[]> {

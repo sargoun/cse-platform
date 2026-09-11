@@ -32,6 +32,9 @@ import {
   erstelleReklamation, schreibeAbstellung, findeReklamation, NachweisPasstNicht,
 } from '../../src/server/services/reinigung/reklamation.js';
 import { berechneRevierSollzeit } from '../../src/server/services/reinigung/sollzeit.js';
+import {
+  erfassePruefung, listePruefverfahren, schwellenBewertung,
+} from '../../src/server/services/reinigung/qualitaet.js';
 import { legeMediumAb, signierteMedienAdresse } from '../../src/server/services/zeit/medien.js';
 import { LokalerSpeicher, NichtVerbundenFehler, SupabaseSpeicher }
   from '../../src/server/storage/adapter.js';
@@ -751,5 +754,118 @@ describe('die Mandantengrenze hält', () => {
     );
     // AUT-01: ein Kunde sieht `vorgelegt` und `signiert`, nie einen Entwurf.
     expect(sichtbar).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('die Qualitätsprüfung bleibt unbewertet, solange O-29 offen ist', () => {
+  it('eine neu angelegte Gesellschaft bekommt ihre Platzhalterzeile', async () => {
+    /**
+     * Der Auslöser, ohne den eine neue Gesellschaft keinen Katalog hätte —
+     * und `qualitaetspruefung.pruefverfahren_id` ist `not null`: die erste
+     * Prüfung schlüge erst vor Ort auf dem Gerät mit einem
+     * Fremdschlüsselfehler fehl.
+     *
+     * Der Mandant entsteht hier über den GEWÖHNLICHEN Weg, nicht über
+     * `seed()`: die Fixtur läuft unter `session_replication_role = replica`,
+     * und dort feuert kein Auslöser. Ein Test, der die Fixtur befragt, prüfte
+     * genau das Gegenteil von dem, was er behauptet.
+     */
+    const slug = `pruef-${zufall()}`;
+    const [neu] = await sql.unsafe<{ id: string }[]>(
+      `insert into mandant (slug, name, firma, strasse, plz, ort, land)
+       values ($1,$1,$1,'Teststr. 1','10115','Berlin','DE') returning id`, [slug]);
+
+    const zeilen = await sql.unsafe<{
+      schluessel: string; ist_platzhalter: boolean; schwelle: string | null;
+    }[]>(
+      `select schluessel, ist_platzhalter,
+              bestehensschwelle_prozent::text as schwelle
+         from pruefverfahren where mandant_id = $1`, [neu!.id]);
+
+    expect(zeilen).toHaveLength(1);
+    expect(zeilen[0]?.schluessel).toBe('unbestimmt');
+    expect(zeilen[0]?.ist_platzhalter).toBe(true);
+    // Die Schwelle ist die offene Frage — NULL, nicht 0 und nicht 90 (O-29).
+    expect(zeilen[0]?.schwelle).toBeNull();
+  });
+
+  it('`bestanden` bleibt NULL, weil niemand die Schwelle gesetzt hat', async () => {
+    const bau = await baueRevier(f.reinigung);
+    /**
+     * Die Katalogzeile von Hand, weil `seed()` unter
+     * `session_replication_role = replica` läuft und der Vorbelegungs-Auslöser
+     * dort nicht feuert (siehe oben). Sie trägt bewusst KEINE Skala und KEINE
+     * Schwelle — genau der Zustand, den O-29 offen lässt.
+     */
+    await sql.unsafe(
+      `insert into pruefverfahren (mandant_id, schluessel, bezeichnung,
+                                   ist_platzhalter, erstellt_von_art)
+       values ($1,'unbestimmt','Unbestimmtes Prüfverfahren',true,'system')`,
+      [bau.mandant]);
+
+    const ergebnis = await alsApp(
+      { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => {
+        const kontext = kontextAus(tx, bau.mandant, bau.leitung);
+        const [verfahren] = await listePruefverfahren(kontext);
+        return erfassePruefung(kontext, {
+          objektId: bau.objekt,
+          revierId: bau.revier,
+          kundeId: bau.kunde,
+          pruefverfahrenId: verfahren!.id,
+          mitKunde: true,
+          positionen: [
+            { kriterium: 'Treppenhaus EG', ergebnis: 'io', punkte: '5.00' },
+            {
+              kriterium: 'Sanitär 1. OG', ergebnis: 'nio', punkte: '1.00',
+              mangelBeschreibung: 'Waschbecken nicht gereinigt',
+            },
+          ],
+        });
+      },
+    );
+    expect(ergebnis.bewertung).toBe('unbestimmt');
+
+    const [zeile] = await sql.unsafe<{ bestanden: boolean | null; punkte: string | null }[]>(
+      `select bestanden, punkte::text as punkte from qualitaetspruefung where id = $1`,
+      [ergebnis.id]);
+    // NICHT `false`: „nicht bestanden" wäre eine Antwort, die niemand gegeben
+    // hat (K-17, O-29).
+    expect(zeile!.bestanden).toBeNull();
+    /**
+     * Und auch keine Kopfsumme: das Platzhalterverfahren trägt keine Skala,
+     * und eine 6 ohne „von wie vielen" ist keine Bewertung. Die EINZELNEN
+     * Befunde behalten ihre Punkte — es geht nichts verloren, sobald der Kunde
+     * die Skala nennt.
+     */
+    expect(zeile!.punkte).toBeNull();
+    const [befunde] = await sql.unsafe<{ summe: string }[]>(
+      `select sum(punkte)::text as summe from qualitaetspruefung_position
+        where qualitaetspruefung_id = $1`, [ergebnis.id]);
+    expect(befunde!.summe).toBe('6.00');
+
+    // Ein „nio" ohne Mangelbeschreibung lässt die Datenbank nicht zu.
+    await expect(sql.unsafe(
+      `update qualitaetspruefung_position set mangel_beschreibung = null
+        where qualitaetspruefung_id = $1 and ergebnis = 'nio'`, [ergebnis.id],
+    )).rejects.toThrow();
+  });
+
+  it('mit gesetzter Schwelle entscheidet der Dienst — ganzzahlig, ohne Gleitkomma', () => {
+    // 84,995 % gegen 85 %: der Fall, der als Double je nach Rundung anders
+    // ausgeht. In Hundertstelprozent ist er eindeutig.
+    expect(schwellenBewertung.bewerte({
+      punkte: '84.99', maxPunkte: '100.00', schwelleProzent: '85.00',
+    })).toBe('nicht_bestanden');
+    expect(schwellenBewertung.bewerte({
+      punkte: '85.00', maxPunkte: '100.00', schwelleProzent: '85.00',
+    })).toBe('bestanden');
+    // Ohne Schwelle bleibt es unbestimmt — das ist der heutige Zustand.
+    expect(schwellenBewertung.bewerte({
+      punkte: '85.00', maxPunkte: '100.00', schwelleProzent: null,
+    })).toBe('unbestimmt');
   });
 });

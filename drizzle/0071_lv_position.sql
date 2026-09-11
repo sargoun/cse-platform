@@ -572,6 +572,22 @@ create policy t_person on projekt for select to cse_app
          and app.ist_eingesetzt_auf_projekt(id));
 
 /**
+ * **Und sie sieht es AUCH im Mandanten-Scope, in dem sie ihr Aufmass schreibt.**
+ *
+ * Der Weg des Formulars laeuft ueber `withTenant` mit genau einem Mandanten
+ * (K-18); dort greift `t_person` nicht, und `t_mandant` verlangt `bau.lesen` —
+ * ein Recht, das die Rolle `mitarbeiter` ausdruecklich NICHT haelt (§1.7).
+ * Ohne diese Policy fände das `insert … select from projekt` des
+ * Aufmassdienstes keine Zeile, und die Kraft bekaeme „Projekt nicht gefunden"
+ * fuer das Projekt, auf dem sie steht. Das Praedikat ist dasselbe wie in
+ * `t_person`: es oeffnet keine Zeile, die dort verschlossen waere.
+ */
+create policy t_erfassen_lesen on projekt for select to cse_app
+  using (mandant_id = app.aktiver_mandant()
+         and (select app.hat_recht('bau.aufmass_erfassen', app.aktiver_mandant()))
+         and app.ist_eingesetzt_auf_projekt(id));
+
+/**
  * EINE Decke mit drei Zweigen, nicht drei Decken (§1.8).
  *
  * Restriktive Policies werden UND-verknuepft: eine Kundendecke neben einer
@@ -636,6 +652,12 @@ create policy t_gruppe on lv_position for select to cse_app
 create policy t_person on lv_position for select to cse_app
   using (app.scope() = 'person'
          and mandant_id = any (app.sichtbare_mandanten())
+         and app.ist_eingesetzt_auf_projekt(projekt_id));
+
+/** Dasselbe eine Ebene tiefer: ohne die Position gaebe es nichts zu buchen. */
+create policy t_erfassen_lesen on lv_position for select to cse_app
+  using (mandant_id = app.aktiver_mandant()
+         and (select app.hat_recht('bau.aufmass_erfassen', app.aktiver_mandant()))
          and app.ist_eingesetzt_auf_projekt(projekt_id));
 
 create policy p_portal_decke on lv_position as restrictive for all to cse_app

@@ -21,11 +21,20 @@ import { createHash } from 'node:crypto';
 
 export type Aktion =
   | 'email_senden' | 'angebot_senden' | 'social_veroeffentlichen'
-  | 'bewerbung_antworten' | 'mahnung_senden' | 'rechnung_senden';
+  | 'bewerbung_antworten' | 'mahnung_senden' | 'rechnung_senden'
+  /**
+   * BAU-06, § 6 VOB/B. Eine eigene Aktion und nicht `email_senden`: die
+   * Behinderungsanzeige geht ueberwiegend NICHT per Mail hinaus, sondern per
+   * Einschreiben oder Bote — der Kanal ist Beweisrecht —, und sie ist eine
+   * Rechtserklaerung mit anspruchswahrender Wirkung. Unter `email_senden`
+   * haette eine Richtlinie „Mails duerfen automatisch raus" sie mitgemeint.
+   */
+  | 'behinderung_senden';
 
 export const AKTIONEN: readonly Aktion[] = [
   'email_senden', 'angebot_senden', 'social_veroeffentlichen',
   'bewerbung_antworten', 'mahnung_senden', 'rechnung_senden',
+  'behinderung_senden',
 ];
 
 /** § 7 UWG: ohne aufgezeichnete Rechtsgrundlage kein Kontakt. */
@@ -196,6 +205,29 @@ export function gate(
       fehler: new FreigabeErforderlich(
         'angebot_senden',
         'ein Angebot ist ein bindendes Vertragsangebot (§ 145 BGB) und geht nie automatisch raus',
+      ),
+    };
+  }
+
+  /**
+   * Eine Behinderungsanzeige geht NIE automatisch raus — wie das Angebot,
+   * und aus demselben Grund an derselben Stelle.
+   *
+   * Sie ist eine empfangsbeduerftige Rechtserklaerung nach § 6 Abs. 1 VOB/B:
+   * sie waelzt Verantwortung auf den Auftraggeber ab, wahrt Anspruechte auf
+   * Bauzeitverlaengerung und Schadensersatz — und eine zu Unrecht erhobene
+   * belastet dieselbe Geschaeftsbeziehung. `02-datenmodell/03-GEWERKE.md`
+   * §7.11 ist woertlich: „Dispatch itself runs only through
+   * `server/agent/policy.ts` **with human approval**". Die Sperre steht
+   * deshalb im Code und nicht als Zeile, die jemand umstellen kann.
+   */
+  if (nutzlast.aktion === 'behinderung_senden') {
+    return {
+      erlaubt: false,
+      fehler: new FreigabeErforderlich(
+        'behinderung_senden',
+        'eine Behinderungsanzeige ist eine Rechtserklaerung nach § 6 Abs. 1 VOB/B '
+        + 'und geht nie ohne benannten Menschen raus',
       ),
     };
   }

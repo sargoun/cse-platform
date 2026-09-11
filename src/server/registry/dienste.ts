@@ -400,6 +400,42 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'qualitaet', pfad: 'reinigung/qualitaet',
     schreibend: true, schreibRecht: 'qualitaet.schreiben',
   },
+  /**
+   * Das Mitarbeiterportal LIEST — jeder dieser Dienste ist `schreibend:
+   * false`, und das ist keine Nachlaessigkeit, sondern die Zusage von EMP-07
+   * und K-18: die einzigen Schreibwege des Menschen sind der Zeit-Einwand
+   * (`zeit/einwand`), der Antrag (`abwesenheit/antrag`) und die
+   * Abwesenheitsmeldung (`abwesenheit/index`) — alle drei laufen im
+   * Mandanten-Scope mit einem serverseitig aufgeloesten Mandanten und stehen
+   * bereits mit ihrem Schreibrecht in diesem Register. Ein vierter, hier
+   * angelegter Schreibpfad waere genau der, der an ihnen vorbeifuehrt.
+   */
+  { modul: 'zeit', pfad: 'mitarbeiter/person', schreibend: false },
+  { modul: 'dienstplan', pfad: 'mitarbeiter/schichten', schreibend: false },
+  { modul: 'zeit', pfad: 'mitarbeiter/stunden', schreibend: false },
+  { modul: 'zeit', pfad: 'mitarbeiter/zeiten', schreibend: false },
+  { modul: 'nachweis', pfad: 'mitarbeiter/nachweise', schreibend: false },
+  { modul: 'zeit', pfad: 'mitarbeiter/antraege', schreibend: false },
+  { modul: 'zeit', pfad: 'mitarbeiter/felder', schreibend: false },
+
+  /**
+   * Die Rechnung (PR 46). Der Kanonisierer und der Kettenlauf LESEN — der
+   * eine formatiert, der andere rechnet nach und schreibt ausdruecklich
+   * nichts (§5.7: ein Pruefer, der repariert, bezeugt nichts mehr).
+   *
+   * Der Rechnungsdienst schreibt, und sein Recht ist `finanzen.festschreiben`
+   * und nicht `finanzen.schreiben`: der Uebergang, der eine Nummer vergibt
+   * und einen Beleg unveraenderlich macht, ist der, der ein eigenes Recht
+   * braucht. Das Anlegen eines Entwurfs laeuft im selben Dienst und ist durch
+   * die K-03-Policy auf `finanzen.schreiben` gebunden — zwei Rechte, eine
+   * Datei, und das engere steht hier.
+   */
+  { modul: 'finanzen', pfad: 'finanz/kanonisch', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/kettenlauf', schreibend: false },
+  {
+    modul: 'finanzen', pfad: 'finanz/rechnung',
+    schreibend: true, schreibRecht: 'finanzen.festschreiben',
+  },
 ] as const;
 
 /**

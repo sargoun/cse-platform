@@ -17,6 +17,7 @@
  *    Korrektur, bei der nur die Haelfte ankommt, ist schlimmer als keine.
  *  - Er uebersetzt die Kettenpruefung in einen Befund, den ein Mensch liest.
  */
+import { randomUUID } from 'node:crypto';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 
 /** Die fuenf Arten aus SEC-05 — der Aufzaehlungstyp `wachbuch_art` (0070). */
@@ -176,17 +177,32 @@ export async function schreibeEintrag(
   pruefeText(eingabe);
   const wer = await urheber(kontext);
 
-  const [zeile] = await kontext.schreibe<{ id: string }>(
+  /**
+   * **Die `id` entsteht in der Anwendung, und das ist nicht Geschmack.**
+   *
+   * `insert … returning id` zieht die SELECT-Policy der Tabelle mit hinein —
+   * PostgreSQL wendet sie auf die zurueckgegebene Zeile an. `t_mandant`
+   * verlangt zum Lesen `wachbuch.lesen`, und genau das haelt die Rolle
+   * `mitarbeiter` NICHT (03-AUTH §12.7: sie haelt `wachbuch.schreiben`, weil
+   * SEC-05 die Wache das Buch fuehren laesst, und liest ihre eigenen Seiten im
+   * eigenen Portal ueber `t_person`). Mit `returning` schluege also ausgerechnet
+   * der Schreibweg fehl, fuer den diese Tabelle gebaut ist — und zwar mit
+   * „null Zeilen", also wie ein Rechtefehler, der keiner ist.
+   *
+   * Dieselbe Bauart wie beim Generator (`04-PLANUNG-ZEIT.md` §8.3): der Dienst
+   * kennt die Kennung, bevor er schreibt.
+   */
+  const id = randomUUID();
+  await kontext.schreibe(
     `insert into wachbuch_eintrag
-       (mandant_id, objekt_id, posten_id, veranstaltung_id, einsatz_id,
+       (id, mandant_id, objekt_id, posten_id, veranstaltung_id, einsatz_id,
         anstellung_id, person_id, art, betreff, eintragstext,
         kontrollpunkt_id, praesenz_bestaetigt, polizei_informiert,
         geraete_zeit, nachgetragen, erstellt_von_art, erstellt_von, erstellt_von_person_id)
-     values ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid,
+     values ($17::uuid, $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid,
              $6::uuid, $7::uuid, $8::wachbuch_art, $9, $10,
              $11::uuid, $12::boolean, $13::boolean,
-             $14::timestamptz, $15::boolean, 'mensch', $16::uuid, $7::uuid)
-     returning id`,
+             $14::timestamptz, $15::boolean, 'mensch', $16::uuid, $7::uuid)`,
     [
       kontext.aktiverMandantId, eingabe.objektId,
       eingabe.postenId ?? null, eingabe.veranstaltungId ?? null, eingabe.einsatzId ?? null,
@@ -195,16 +211,10 @@ export async function schreibeEintrag(
       eingabe.kontrollpunktId ?? null,
       eingabe.praesenzBestaetigt === true, eingabe.polizeiInformiert === true,
       eingabe.geraeteZeit ?? null, eingabe.nachgetragen === true,
-      kontext.benutzerId,
+      kontext.benutzerId, id,
     ],
   );
-  if (zeile === undefined) {
-    throw new WachbuchEingabeFehlt(
-      'Der Eintrag wurde nicht geschrieben — das Objekt gehört nicht zu dieser '
-      + 'Gesellschaft, oder die Sitzung hält `wachbuch.schreiben` nicht.',
-    );
-  }
-  return zeile.id;
+  return id;
 }
 
 export interface KorrekturEingabe {
@@ -386,7 +396,14 @@ const FELDER = `
   w.zeitabweichung_sek, w.nachgetragen, w.polizei_informiert,
   k.bezeichnung as kontrollpunkt, w.praesenz_bestaetigt,
   (w.storniert_am is not null) as storniert, w.storno_grund, w.ersetzt_durch_id,
-  (select v.id from wachbuch_eintrag v where v.ersetzt_durch_id = w.id) as ersetzt_id
+  -- „Welche Seite stellt DIESE richtig?" — mit limit 1, und das ist kein
+  -- Zufall: ersetzt_durch_id traegt keine Eindeutigkeit, und ein zweiter
+  -- Verweis auf dieselbe Richtigstellung (von Hand geschrieben, nicht ueber
+  -- den Dienst) liesse eine SKALARE Unterabfrage werfen. Ein Buch, das sich
+  -- wegen einer Verweisdoppelung nicht mehr oeffnen laesst, ist die
+  -- schlechtere Antwort als ein Verweis, der einen von zweien zeigt.
+  (select v.id from wachbuch_eintrag v
+    where v.ersetzt_durch_id = w.id order by v.laufnummer limit 1) as ersetzt_id
   from wachbuch_eintrag w
   join person p on p.id = w.person_id
   join objekt o on o.id = w.objekt_id and o.mandant_id = w.mandant_id

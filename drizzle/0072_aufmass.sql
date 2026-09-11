@@ -444,7 +444,24 @@ create trigger trg_as_1_erben
  * eine leere Liste.
  */
 create function kern.aufmass_kopf_denorm() returns trigger
-language plpgsql set search_path = pg_catalog, public as $$
+/**
+ * **`security definer`, und zwar zwingend** — dieselbe Lage wie bei
+ * `kern.ln_kopfstatus_fortschreiben()` (0066, D-184) und
+ * `kern.einsatz_medien_bezug_pruefen()` (0041).
+ *
+ * `aufmass_foto` und `aufmass_signatur` sind ANFUEGEND: fuer `cse_app` gibt es
+ * dort keine UPDATE-Policy, und das ist die Zusage, nicht eine Luecke. Ein
+ * Ausloeser unter der Rolle des Schreibenden traefe deshalb keine Policy — und
+ * zwar OHNE Fehler: ein UPDATE ohne passende Policy aendert null Zeilen und
+ * meldet Erfolg. Die Kinder behielten `kopf_status = 'entwurf'`, der Kunde
+ * saehe sein eigenes unterschriebenes Blatt nicht, und niemand bekaeme etwas
+ * zu sehen ausser einer leeren Liste.
+ *
+ * Erhoeht wird damit nichts, was der Aufrufer nicht ohnehin bewirkt: die
+ * Funktion schreibt AUSSCHLIESSLICH die Kopfzustandsspalten und
+ * ausschliesslich auf Kinder DESSELBEN Kopfes.
+ */
+language plpgsql security definer set search_path = pg_catalog, public as $$
 begin
   if new.status is not distinct from old.status
      and new.gesperrt_am is not distinct from old.gesperrt_am
@@ -976,10 +993,12 @@ create policy p_portal_decke on aufmass_foto as restrictive for all to cse_app
              and kopf_aufgenommen_von_anstellung_id in
                  (select a.id from anstellung a where a.person_id = app.aktuelle_person())));
 
+/**
+ * ANFUEGEND: kein UPDATE fuer `cse_app`. Der Kopfzustand wird von
+ * `kern.aufmass_kopf_denorm()` fortgeschrieben, und der laeuft als Definer
+ * (siehe dort) — ein Grant hier waere ein Schreibweg, den niemand braucht.
+ */
 grant select, insert on aufmass_foto to cse_app;
-/** `kern.aufmass_kopf_denorm()` schreibt den Kopfzustand nach unten. */
-grant update (kopf_status, kopf_gesperrt_am, kopf_storniert_am,
-              kopf_aufgenommen_von_anstellung_id) on aufmass_foto to cse_app;
 
 alter table aufmass_signatur enable row level security;
 alter table aufmass_signatur force  row level security;
@@ -1026,8 +1045,8 @@ create policy p_portal_decke on aufmass_signatur as restrictive for all to cse_a
              and anstellung_id in
                  (select a.id from anstellung a where a.person_id = app.aktuelle_person())));
 
+/** Ebenfalls anfuegend — eine Unterschrift ist ein Ereignis, kein Datensatz. */
 grant select, insert on aufmass_signatur to cse_app;
-grant update (kopf_status, kopf_storniert_am) on aufmass_signatur to cse_app;
 
 -- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0072)
 -- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.

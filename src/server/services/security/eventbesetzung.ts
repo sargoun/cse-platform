@@ -23,7 +23,7 @@
  */
 import type { SchreibKontext } from '../../kontext/index.js';
 import {
-  besetzeEinsatz, ArbzgWarnungOffen, BereitsEingeteilt,
+  besetzeEinsatz, AbwesendWarnungOffen, ArbzgWarnungOffen, BereitsEingeteilt,
 } from '../dienstplan/einteilung.js';
 import { QualifikationFehlt } from '../nachweis/tor.js';
 
@@ -165,7 +165,7 @@ export interface Besetzungsergebnis {
    * `arbzg` ist die WARNUNG (LEG-03): sie verlangt eine ausdrückliche
    * Bestätigung, und die schreibt den Verstoß samt Konflikt mit.
    */
-  readonly befund: 'besetzt' | 'qualifikation' | 'arbzg' | 'doppelt' | 'fehler';
+  readonly befund: 'besetzt' | 'qualifikation' | 'arbzg' | 'abwesend' | 'doppelt' | 'fehler';
   readonly meldung: string | null;
 }
 
@@ -221,6 +221,17 @@ export async function besetzeVeranstaltung(
         ergebnisse.push({
           anstellungId, zuordnungId: null, befund: 'arbzg', meldung: fehler.message,
         });
+      } else if (fehler instanceof AbwesendWarnungOffen) {
+        /**
+         * Die dritte Sorte Befund (EMP-10): die Person ist an diesem Tag
+         * abgemeldet. Wie der Arbeitszeitbefund eine WARNUNG — sie laesst sich
+         * mit `bestaetigt` uebergehen, und wie dort wird sie eingesammelt statt
+         * geworfen: dass eine von acht Wachen krank ist, darf die anderen
+         * sieben nicht aufhalten.
+         */
+        ergebnisse.push({
+          anstellungId, zuordnungId: null, befund: 'abwesend', meldung: fehler.message,
+        });
       } else if (fehler instanceof BereitsEingeteilt) {
         ergebnisse.push({
           anstellungId, zuordnungId: null, befund: 'doppelt', meldung: fehler.message,
@@ -231,6 +242,14 @@ export async function besetzeVeranstaltung(
          * des Vorgangs — ein fehlendes Recht, eine abgewiesene Prüfung. Er
          * fliegt weiter, damit die Route ihn als das beantwortet, was er ist,
          * statt ihn als „nicht qualifiziert" in eine Liste zu schreiben.
+         *
+         * **Und er MUSS weiterfliegen**, wenn er aus der Datenbank kam: ein
+         * Auslöser, der abweist, bricht die laufende Transaktion ab, und jede
+         * weitere Anweisung darin scheitert mit „current transaction is
+         * aborted". Die Schleife weiterlaufen zu lassen produzierte dann eine
+         * Liste aus lauter Folgefehlern — jeder davon eine Aussage über eine
+         * Person, die nichts getan hat. Die drei Befunde oben entstehen alle
+         * VOR dem Schreiben und lassen die Transaktion unberührt.
          */
         throw fehler;
       }

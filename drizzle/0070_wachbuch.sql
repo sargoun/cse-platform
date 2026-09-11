@@ -395,14 +395,20 @@ comment on column wachbuch_eintrag.jahr is
  * Hashen geschrieben, und waeren sie Teil der Nutzlast, braeche jedes Storno
  * die Kette.
  *
- * `immutable`: derselbe Satz ergibt immer dieselbe Zeichenkette. Die
- * Zeitformate sind ausgeschrieben (RFC 3339, UTC, Millisekunden) und haengen
- * damit an keiner Sitzungseinstellung — `to_char` ohne Zone laese `TimeZone`
- * des Aufrufers, und derselbe Eintrag ergaebe in Berlin und in London zwei
- * verschiedene Hashes.
+ * **`stable`, nicht `immutable`** — obwohl derselbe Satz immer dieselbe
+ * Zeichenkette ergibt. `to_char(timestamp, text)` ist in PostgreSQL als STABLE
+ * gekennzeichnet, und eine Funktion strenger zu kennzeichnen als ihr Inhalt
+ * ist eine Zusage an den Planer, die niemand einloest. Gebraucht wird die
+ * Strenge auch nicht: die Nutzlast steht in keinem Index und in keiner
+ * Bedingung (§1.13).
+ *
+ * Die Zeitformate sind ausgeschrieben (RFC 3339, UTC, Millisekunden) und
+ * haengen damit an keiner Sitzungseinstellung — `to_char` ohne die
+ * ausdrueckliche Zone laese `TimeZone` des Aufrufers, und derselbe Eintrag
+ * ergaebe in Berlin und in London zwei verschiedene Hashes.
  */
 create function kern.wachbuch_nutzlast(p wachbuch_eintrag) returns text
-language sql immutable as $$
+language sql stable as $$
   select json_build_array(
            p.objekt_id::text,
            p.anstellung_id::text,
@@ -449,8 +455,12 @@ $$;
  * Silvesternacht aus der falschen. Der Name beginnt trotzdem mit `a_`, damit
  * dieser Ausloeser vor jedem spaeter hinzukommenden laeuft.
  *
- * **`security definer`, und zwar aus einem konkreten Grund:** der Zaehler
- * steht in `nummernkreis`, und dort haelt `cse_app` weder ein INSERT-Recht
+ * **`security definer`, und zwar aus ZWEI konkreten Gruenden.** Der erste ist
+ * der Kettenkopf: die Wache liest ihre eigenen Seiten und sonst keine
+ * (`p_ma_decke`, §6.12) — als Aufrufer gelesen faende sie den letzten Eintrag
+ * einer Kollegin NICHT, haenge ihre Seite an den falschen Vorgaenger, und die
+ * Kette waere ab da gebrochen. Der zweite ist der Zaehler: er steht in
+ * `nummernkreis`, und dort haelt `cse_app` weder ein INSERT-Recht
  * noch eine INSERT-Policy (0006). Ein Kreis je (Mandant, Objekt, Jahr) laesst
  * sich also nicht von der Anwendung anlegen — und ohne Kreis gaebe es keinen
  * ersten Wachbucheintrag an einem neuen Objekt. Der Definer legt ihn an; was

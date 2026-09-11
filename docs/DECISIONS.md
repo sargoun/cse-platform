@@ -3276,3 +3276,272 @@ sind in der Praxis zwei- bis vierstellig je Stufe; sechs lässt Luft, ohne den
 Pfad unlesbar zu machen. Eine Stufe über 999.999 sortiert hinter alles andere —
 das fällt auf, statt still falsch zu sein. Die Zahl steht an zwei Stellen
 (`OZ_BREITE`, `kern.oz_sortierschluessel`) und wird von D-193 verglichen.
+
+---
+
+## Entschieden in PR 39 — Mitarbeiterportal (Stunden, Monatsnachweis, Nachweise, Anträge, vier Sprachen)
+
+Die Nummern beginnen bei **D-200** und nicht bei D-195: an diesem Branch
+arbeiten mehrere Sitzungen gleichzeitig, und eine Lücke im Register ist
+harmloser als zwei Entscheidungen unter derselben Nummer.
+
+### D-200 · Die Kopfzahl des Portals folgt der Regel des Stundenkontos, nicht einer eigenen
+
+EMP-03 verlangt „Hours today · this week · **month total**". Die naheliegende
+Rechnung ist „ein Zeiteintrag zählt ganz auf den Tag seines Beginns". Sie ist
+eine Zeile kürzer und erzeugt für die Nacht vom 31.10. auf den 01.11. eine
+andere Zahl als das Stundenkonto — das teilt an der **Berliner** Monatsgrenze
+(`zeiteintrag_monatsanteil`, K-11) und verteilt die erfasste Pause nach größtem
+Rest auf die Anteile (`verteilePauseAufAnteile`, §7.4).
+
+Zwei plausible Zahlen für dieselbe Schicht sind schlimmer als eine unbequeme
+Rechnung: die Kraft liest oben `8:00 h`, im Stundenkonto `4:00 h` und hat keine
+Möglichkeit, zu erkennen, welche stimmt. `leseStundenFenster` benutzt deshalb
+dieselben zwei Funktionen wie `bucheFreigegebeneZeiten` und zählt jeden Anteil
+auf den Berliner Kalendertag, an dem er **beginnt** — genau so, wie die Buchung
+ihr `wirksam_am` setzt. Damit ist die Summe der Tage eines Monats gleich der
+Summe des Monats, und die Woche über eine Monatsgrenze zählt beide Anteile.
+
+**Der verbleibende Unterschied ist sichtbar und gewollt:** die Kopfzahl zählt
+ERFASSTE Zeit, das Stundenkonto nur FREIGEGEBENE (§7.3). Das ist der
+Unterschied zwischen „was ich gearbeitet habe" und „was verbucht ist"; er wird
+angezeigt (der Monatsnachweis nennt beide Zahlen nebeneinander) und nicht
+weggerechnet.
+
+### D-201 · `dir="rtl"` sitzt auf der Portalhülle, nicht auf `<html>` — vorläufig
+
+`04-SEITENKARTE.md` §12 sagt „`dir="rtl"` on the document". Das Wurzel-Layout
+(`src/app/layout.tsx`) kennt aber nur die **zwei** Sprachen der öffentlichen
+Website (`src/lib/sprache.ts`, D-82) und bekommt sie aus einem Kopf, den
+`src/middleware.ts` setzt; beide Dateien gehören nicht zu diesem PR, und die
+Middleware handelt für `/portal/mein` heute gar keine Sprache aus.
+
+`MeinRahmen` setzt `dir` und `lang` deshalb auf einem Element **um** die Seite.
+`dir` ist ein globales HTML-Attribut und wirkt auf jedem Element: die
+Spiegelung der Oberfläche, die Laufrichtung der Tab-Leiste und die Ausrichtung
+jedes Textes darin folgen ihm; logische Abstände (`ms-*`/`me-*`) spiegeln mit.
+Was fehlt, ist ausschließlich das Feld **außerhalb** der Hülle — Bildlaufleiste
+und Seitenrand des Browsers. Die vollständige Erfüllung von §12 braucht drei
+Zeilen in zwei gesperrten Dateien: `person.sprache` in den Sprachkopf der
+Middleware und `dir={…}` auf `<html>`. Bis dahin ist die Abweichung benannt
+statt behauptet.
+
+### D-202 · Das Mitarbeiterportal LIEST; jeder Schreibweg bleibt im Fachdienst
+
+`src/server/services/mitarbeiter/**` enthält sieben Dienste, und alle sieben
+sind im Register `schreibend: false`. Die drei Schreibwege, die ein Mensch in
+diesem Portal hat, stehen weiter dort, wo sie entstanden sind:
+`reicheEinwandEin` (`zeit/einwand.ts`, EMP-07), `reicheAntragEin`
+(`abwesenheit/antrag.ts`, EMP-10) und `meldeAbwesenheit`
+(`abwesenheit/index.ts`, EMP-10).
+
+Der Grund ist K-18: im Personen-Scope ist `app.aktiver_mandant()` NULL, und
+keine Schreibpolicy trifft zu. Jeder Schreibweg muss den Mandanten aus der
+betroffenen **Beschäftigung** auflösen und `withTenant` neu betreten. Ein
+vierter, im Portaldienst angelegter Schreibpfad wäre genau der, der an dieser
+Auflösung vorbeiführte — und er sähe aus wie eine Abkürzung.
+
+### D-203 · Auch der EIGENE Lohnsatz steht nicht im Portal
+
+K-05 nimmt `cse_app` die Spalten `anstellung.stundensatz_intern` und
+`tarifgruppe` per `GRANT` weg; der einzige Weg dorthin ist
+`app.anstellung_entgelt_lesen`, die `personal.entgelt_lesen` verlangt und eine
+Auditzeile schreibt. Die Rolle `mitarbeiter` hält dieses Recht nicht.
+
+Damit zeigt das Portal **gar keinen** Stundensatz — auch nicht den der
+angemeldeten Person. Das ist eine Entscheidung und keine Lücke: der eigene Satz
+steht im Arbeitsvertrag und in der Lohnabrechnung, die ein Lohnsystem erzeugt
+(D-06). Ihn hier zu zeigen verlangte, `cse_app` die Spalte zu öffnen — und
+damit dieselbe Linie zu durchbrechen, die verhindert, dass eine Planerin der
+Reinigung den Satz der Security sieht (D-09 §6).
+
+### D-204 · Der Monatsnachweis ist eine druckbare Seite, keine erzeugte Datei
+
+Dieselbe Entscheidung wie beim Angebotsdokument (`/portal/[mandant]/angebote/
+[id]/pdf`): ein serverseitiger PDF-Renderer ist eine eigene Abhängigkeit mit
+eigener Laufzeit, und solange keine eingerichtet ist, wäre ein Knopf „PDF" ohne
+Datei eine vorgetäuschte Funktion. `/portal/mein/monatsnachweis` IST das
+Dokument — A4, 20 mm Rand, 10 pt, weißes Blatt mit `#111` Text aus den fünf
+Drucktoken von DESIGN §11.
+
+**Die „signed-URL only"-Zusage des PR-Plans greift damit noch nicht**, weil es
+kein Speicherobjekt gibt, das eine signierte Adresse tragen könnte. Was den
+Zugriff heute begrenzt, ist die Sitzung plus die Personen-RLS: die Seite liest
+ausschließlich Beschäftigungen der angemeldeten Person, eine fremde
+`anstellung`-id liefert null Zeilen und damit 404. Sobald ein Renderer
+feststeht, schreibt er genau dieses Layout nach `dokument`, und erst dann ist
+die signierte Adresse die richtige Frage.
+
+### D-205 · Der Zurückzieh-Knopf fehlt, weil die Policy fehlt — gemeldet, nicht gebaut
+
+`zieheAntragZurueck` steht in `abwesenheit/antrag.ts` und ist für genau diesen
+Fall geschrieben („Zieht einen **eigenen** Antrag zurück"). `antrag` trägt aber
+keine permissive UPDATE-Policy für `app.aktuelle_person()`: die einzige ist
+`t_mandant_entscheiden`, und die verlangt `zeit.antrag_entscheiden` — ein Recht
+der Planung. Der Aufruf träfe null Zeilen und antwortete `AntragNichtGefunden`,
+also 404.
+
+`/portal/mein/antraege` bietet das Zurückziehen deshalb **nicht** an. Ein Knopf,
+der 404 ergibt, ist schlechter als keiner: er verspricht eine Handlung, die es
+nicht gibt. Die fehlende Policy (`t_selbst_zurueckziehen`, UPDATE, `status in
+('eingereicht','in_pruefung')`) braucht eine Migration; PR 39 hat laut Plan
+keine, und eine anzulegen wäre eine Planänderung und keine Umsetzung.
+
+### D-206 · Statuspillen und Tabellenzellen bleiben, wie sie sind — mit zwei benannten Abweichungen
+
+Zwei Regeln stoßen im Arbeiterportal aufeinander, und beide gehören Dateien,
+die dieser PR nicht ändert:
+
+1. `StatusPill` (`src/components/ui/StatusPill.tsx`) hat ein **festes
+   deutsches** Vokabular. Das ist für die internen Bildschirme richtig (die
+   Begriffe tragen dort fachliche Bedeutung) und steht gegen EMP-12, sobald
+   dieselbe Pille auf einem arabischen Bildschirm steht. Die Seiten benutzen
+   sie trotzdem — ein zweites, hier erfundenes Zustandsvokabular wäre der
+   schlechtere Tausch (DESIGN §12: „No component invented ad hoc").
+2. `DataTable` setzt Zellen auf `text-sm` (14 px). `04-SEITENKARTE.md` §13
+   verlangt für `/portal/mein/**` mindestens 16 px Fließtext. Die Zeitliste
+   benutzt `DataTable` — sie IST eine Datentabelle, und ihre Stapelansicht
+   unter 768 px ist genau das, was DESIGN §8 verlangt.
+
+Beide Abweichungen sind im Abschlussbericht mit ihrem konkreten Ort vermerkt;
+keine davon wird hier durch eine Kopie der Komponente umgangen.
+
+---
+
+## Entschieden in PR 46 — Rechnungs-Lebenszyklus, Nummernvergabe, Kette, Storno
+
+Diese Entscheidungen lösen Widersprüche zwischen den Vorgabedokumenten oder
+halten eine Stelle fest, an der die Umsetzung vom Wortlaut abweicht. Sie stehen
+hier, weil die nächste Person sonst dieselbe Stelle noch einmal entscheidet —
+und möglicherweise anders.
+
+### D-210 · Der Nachfolgekreis zum Jahreswechsel entsteht NICHT in der Festschreibung
+
+`05-FINANZEN.md` §5.6 Schritt 2 schreibt, das Öffnen des Nachfolgekreises
+geschehe „here" — also innerhalb von `fin.rechnung_nummer_ziehen`. Das ist mit
+`0006` unvereinbar, und zwar nicht stilistisch: `fin.nummernkreis_pruefen()`
+lässt jedem, der nur `nummernkreis.ziehen` hält, ausschliesslich
+`naechste_nummer`, `letzter_hash` und die `geaendert_*`-Spalten. Den Vorgänger
+zu schliessen heisst `geschlossen_am` zu setzen, und das verlangt
+`nummernkreis.verwalten`. Die Definer-Funktion läuft zwar als `cse_definer`,
+aber `app.hat_recht` fragt nach dem angemeldeten **Menschen** — und eine
+Leitung, die festschreibt, hält `verwalten` nicht.
+
+Die drei denkbaren Auswege sind schlechter: dem Festschreibenden `verwalten`
+geben öffnet jedem Rechnungsschreiber die Maske seiner Gesellschaft; den
+Auslöser aufweichen macht den Geltungsbereich eines Kreises nach der ersten
+Nummer wieder beweglich (LEG-01); und es stillschweigend zu unterlassen
+begänne am 2. Januar eine Kette, die an keiner hängt.
+
+Gewählt: eine **benannte Ablehnung**, die den Verwaltungsakt nennt. Das Öffnen
+eines Nachfolgekreises kopiert `letzter_hash` in `genesis_hash` und macht damit
+die Kette über die Jahresgrenze zu **einer** Linie (§5.4) — das ist ein Akt mit
+rechtlicher Wirkung, kein Nebenprodukt einer Festschreibung. Solange O-134 offen
+ist und jeder Kreis ein Platzhalter, kann der Fall ohnehin nicht eintreten.
+
+### D-211 · `d_kreis_lesen` / `d_kreis_ziehen` heissen auf `nummernkreis` anders
+
+§1.1 vergibt diese zwei Namen an `cse_definer`-Policies. `0006` (PR 5) hat sie
+bereits an die `cse_app`-Policies vergeben, und ein Policyname ist je Tabelle
+eindeutig. Umbenannt wird nicht — der `cse_app`-Zug der fünf übrigen Kreistypen
+hängt daran. Die Definer-Policies heissen deshalb `d_rechnungskreis_lesen` und
+`d_rechnungskreis_ziehen`; Bedingungen und Spaltengrants sind die des §1.1.
+
+### D-212 · `zuschlaege[]` trägt `gruppe_satz_bp` und `gruppe_kategorie`
+
+Die Nutzlast in §5.3 führt im `zuschlaege`-Objekt **zweimal** den Schlüssel
+`satz_bp` — einmal als BT-94/BT-101 und einmal als Satz der Steuergruppe. Ein
+JSON-Objekt kann denselben Schlüssel nicht zweimal tragen; die zweite Nennung
+überschriebe die erste, und welche das ist, entschiede die Reihenfolge im
+Quelltext. Aufgelöst wie die Tabelle es auflöst (§4.3): `gruppe_satz_bp` und
+`gruppe_kategorie`. Die Spaltennamen sind die eindeutige Fassung derselben
+Aussage.
+
+### D-213 · `rechnung_steuer` bekommt `geaendert_am`, und wird per UPSERT geschrieben
+
+§4.5 nennt nur `erstellt_am`. Die Zeile ist während der Entwurfsbearbeitung aber
+beweglich — `berechneSteuer()` läuft bei jeder Positionsänderung —, und K-16
+verlangt für jede bewegliche Tabelle diese Spalte. Wo Kapitel und Konvention
+auseinandergehen, gilt die Konvention.
+
+Daraus folgt der Schreibweg: neu gerechnet wird per `INSERT … ON CONFLICT DO
+UPDATE`, nie durch Löschen und Neuanlegen — in dieser Domäne gibt es keinen
+Hard Delete (Invariante 8, §1.6). Eine Gruppe, die nicht mehr vorkommt, fällt
+auf `netto_cent = 0` und damit aus jeder Summe heraus; sie verschwindet nicht,
+sie wird leer.
+
+### D-214 · Die aufgeschobene Summenprüfung liest die Zeile NEU, statt `NEW` zu benutzen
+
+Ein aufgeschobener Constraint-Auslöser feuert beim COMMIT, aber `NEW` ist der
+Stand **der auslösenden Anweisung**. Beim Anlegen eines Entwurfs ist das
+`netto_gesamt_cent = 0`; kommt in derselben Transaktion eine Position hinzu,
+meldete genau dieses eine Ereignis beim COMMIT „0 gegen 10000", obwohl der Kopf
+längst stimmt. §4.9 meint den Stand **beim COMMIT**, und der steht in der
+Tabelle, nicht im Ereignis. `fin.rechnung_summen_stimmig()` und
+`fin.rechnung_verkettet()` lesen deshalb beide die Zeile über `new.id` neu.
+
+### D-215 · Eine Rechnungsposition lässt sich korrigieren, aber nicht entfernen
+
+§4.3 gibt `rechnungsposition` sowohl `fin.kind_unveraenderlich()` als auch
+`kern.verhindere_loeschung()`. Zusammen heisst das: eine versehentlich erfasste
+Zeile bleibt auch im Entwurf stehen. Das ist die Konsequenz von Invariante 8 und
+keine Auslassung — die Oberfläche bietet deshalb **kein** „Position entfernen"
+an, sondern den Weg, den das Modell vorsieht: den Entwurf verwerfen (er kostet
+keine Nummer) und neu beginnen. Sollte sich das im Betrieb als untragbar
+erweisen, ist die Antwort eine Zustandsspalte auf `rechnungsposition` und keine
+Löschpolicy.
+
+### D-216 · Die Statuspillen `Festgeschrieben`, `Storniert` und `Verworfen` fehlen DESIGN §5
+
+`05-FINANZEN.md` §2.3 Nr. 8 verlangt elf Pillenbeschriftungen von `DESIGN.md`
+§5; sechs davon fehlen dort. CLAUDE.md lässt nur einen Weg zu — erst DESIGN.md
+ergänzen, dann benutzen —, und `DESIGN.md` gehört diesem PR nicht. Die
+Rechnungsbildschirme bilden deshalb auf das **vorhandene** Vokabular ab:
+`entwurf → Entwurf`, `festgeschrieben → Abgeschlossen`, `verworfen →
+Archiviert`. Ob ein Beleg ein Storno ist, steht als eigene Spalte daneben — das
+ist ohnehin die Rechnungsart und keine Zustandsfrage. Die Abbildung steht an
+genau einer Stelle je Seite, damit das Ergänzen von DESIGN §5 eine Änderung
+bleibt und keine Suche.
+
+### D-217 · Der Pflichtfeldbericht von PR 46 behauptet nicht, geprüft zu haben
+
+`rechnung_snapshot.pflichtfeld_pruefung` ist `NOT NULL`, und die
+§14-UStG-Vorabprüfung kommt erst mit PR 47. Ein leerer Befund „keine Fehler"
+wäre im Snapshot die Bezeugung, dass geprüft wurde. Abgelegt wird deshalb
+`{ geprueft: false, grund: "…kommt mit PR 47" }` mit
+`regelwerk_version = 'ustg14-nicht-gebaut'` — so ist später erkennbar, welche
+Belege vor dem Validator entstanden sind.
+
+### D-218 · `rechnung_snapshot` steht nicht im Audit-Register
+
+Jede andere Tabelle dieser Domäne trägt `kern.protokolliere_aenderung()`. Der
+Snapshot nicht: er **ist** das Protokoll. Ihn zusätzlich nach `audit_log` zu
+spiegeln legte dasselbe Dokument ein zweites Mal ab — `nutzlast_bytes` als
+Hextext, also mit doppeltem Volumen — und die zweite Kopie wäre die, die
+niemand hasht. `rechnung_hash` steht dagegen im Register: eine Handvoll Spalten,
+und die Zeile, an der eine Manipulation sichtbar würde.
+
+### D-219 · `abrechnungsart` auf der Position ist `text` und nicht der CRM-Enum
+
+§4.3 typisiert die Spalte als den `abrechnungsart`-Enum, den K-21
+`02-CRM-OPERATIONS.md` §2 zuweist. Den Enum gibt es noch nicht (PR 48), und ihn
+hier anzulegen schüfe einen zweiten Eigentümer für eine Liste, die niemand
+bestätigt hat (**O-04**). Die Spalte ist deshalb `text` und nullable; die
+Pflichtbedingung des Kapitels (`positionsart <> 'leistung' OR abrechnungsart IS
+NOT NULL`) kommt mit dem Katalog, der sie erfüllbar macht.
+
+### D-220 · Die Nummernmaske wird an zwei Stellen aufgelöst — und beide werden verglichen
+
+Der Zug der Rechnungsnummer läuft in SQL (er braucht die Zeilensperre), die
+übrigen fünf Kreistypen zieht die Anwendung. Es gibt deshalb
+`fin.nummer_formatieren` **und** `formatiereNummer()`. Zwei Fassungen, die
+niemand vergleicht, sind zwei Rechnungsnummernformate; also prüft
+`tests/isolation/rechnung-kette.test.ts` beide gegen dieselben Vektoren. Der
+Vergleich hat sofort einen echten Fehler gefunden: `lpad(…, 0, '0')` schneidet
+auf null Zeichen, und `RE-{jahr}-{nr}` hätte `RE-2027-` ergeben.
+
+### Offen, neu aufgeworfen in PR 46
+
+| # | Question | Blocks |
+|---|---|---|
+| O-212 | **Darf eine Rechnungsposition im Entwurf entfernt werden?** Invariante 8 und §1.6 verbieten in dieser Domäne jeden Hard Delete, auch auf `rechnungsposition` — eine versehentlich erfasste Zeile bleibt damit im Entwurf stehen, und der einzige Ausweg ist, den ganzen Entwurf zu verwerfen. Wenn das im Alltag untragbar ist, braucht `rechnungsposition` eine Zustandsspalte (`entfernt_am` plus Grund), die aus jeder Summe herausfällt — nicht eine Löschpolicy. Die Entscheidung ist buchhalterisch, nicht technisch: ob eine nie ausgestellte Entwurfszeile überhaupt aufbewahrungspflichtig ist. | FIN-01, Invariante 8, `rechnungsposition` |

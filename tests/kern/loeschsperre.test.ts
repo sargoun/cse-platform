@@ -123,6 +123,12 @@ describe('the delete-lock registry is the single source (01-ORDNERSTRUKTUR §6.2
     // generator reads the registry rather than a constant.
     const jetzt = erzeuge();
     expect(jetzt).toContain('trg_anstellung_kein_hard_delete');
-    expect(jetzt).not.toContain('trg_rechnung_kein_hard_delete');
+    /**
+     * Der Gegenbeweis braucht eine Tabelle, die es NOCH NICHT gibt. Das war
+     * `rechnung`, bis PR 46 sie angelegt hat — genau das, was diese Prüfung
+     * bemerken soll. `buchungssatz` kommt mit Phase 7 und tritt an ihre
+     * Stelle; wer es anlegt, sucht sich die nächste.
+     */
+    expect(jetzt).not.toContain('trg_buchungssatz_kein_hard_delete');
   });
 });

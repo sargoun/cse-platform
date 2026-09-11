@@ -172,10 +172,18 @@ export async function erfassePruefung(
   );
   if (verfahren === undefined) throw new PruefungNichtGefunden(eingabe.pruefverfahrenId);
 
+  /**
+   * **Ohne Skala keine Kopfsumme.** `qp_punkte_brauchen_skala` weist eine
+   * Punktzahl ohne `max_punkte` zurück, und das zu Recht: eine 6 ohne die
+   * Angabe „von wie vielen" ist keine Bewertung, sondern eine Zahl. Solange
+   * das Platzhalterverfahren keine Skala trägt (O-29), bleibt der Kopf leer —
+   * die EINZELNEN Befunde behalten ihre Punkte, damit nichts verloren geht,
+   * sobald der Kunde die Skala nennt.
+   */
   const punkte = eingabe.positionen
     .map((p) => p.punkte)
     .filter((p): p is string => p !== null && p !== undefined);
-  const summe = punkte.length === 0
+  const summe = punkte.length === 0 || verfahren.max_punkte === null
     ? null
     : summiereText(punkte);
 

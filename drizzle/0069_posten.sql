@@ -663,6 +663,20 @@ end $$;
 
 grant select on einsatz_zuordnung to cse_definer;
 
+/**
+ * Und die Haelfte, die 0031 offen gelassen hat: die Policies `a_definer` und
+ * `e_definer` stehen dort, das TABELLENRECHT dazu nicht.
+ *
+ * Heute faellt das nicht auf, weil die Definer-Funktionen in diesem Baum dem
+ * Superuser gehoeren und Rechte wie Zeilenpolitik an ihm vorbeigehen. In der
+ * Auslieferung, die K-01 beschreibt, gehoeren sie `cse_definer` — und dann
+ * scheitert `app.eigene_einsatz_objekte()` an „permission denied for table
+ * anstellung", also an einer Stelle, die mit dem Mitarbeiterportal nichts zu
+ * tun zu haben scheint. Ein `grant select` neben einer bereits erklaerten
+ * Lesepolicy weitet nichts: er macht die erklaerte Absicht ausfuehrbar.
+ */
+grant select on anstellung to cse_definer;
+
 -- ---------------------------------------------------------------------------
 -- 8. Zeilenschutz (§1.6, §1.8)
 -- ---------------------------------------------------------------------------

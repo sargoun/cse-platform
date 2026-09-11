@@ -1327,3 +1327,306 @@ create trigger trg_antrag_audit
   for each row execute function kern.protokolliere_aenderung();
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0075)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- steuersatz_gruppe (archiv): K-21, §14 Abs. 4 Nr. 8 UStG. Der EINE Steuerkatalog der Plattform. Eine Zeile zu loeschen bricht den Fremdschluessel jeder Rechnungsposition, die auf sie zeigt — und die Rechnung selbst darf sich nicht mehr aendern. Ein Satz laeuft ueber `gueltig_bis` aus; eine Aenderung ist eine NEUE Zeile mit eigenem Gueltigkeitsbeginn.
+create trigger trg_steuersatz_gruppe_kein_hard_delete
+  before delete on steuersatz_gruppe
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_steuersatz_gruppe_kein_truncate
+  before truncate on steuersatz_gruppe
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on steuersatz_gruppe from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- masseinheit (append): FIN-11, EN 16931 BT-130. Die Einheit einer festgeschriebenen Position wird beim Nachdrucken und beim Export gelesen. Faellt die Zeile weg, laesst sich dieselbe Rechnung nicht mehr zweimal gleich ausgeben.
+create trigger trg_masseinheit_kein_hard_delete
+  before delete on masseinheit
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_masseinheit_kein_truncate
+  before truncate on masseinheit
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on masseinheit from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- kleinbetrag_grenze (archiv): FIN-13, §33 UStDV. `ist_kleinbetrag` wird gegen die Schwelle des LEISTUNGSDATUMS eingefroren. Die historische Zeile zu loeschen hiesse, die Entscheidung nicht mehr begruenden zu koennen.
+create trigger trg_kleinbetrag_grenze_kein_hard_delete
+  before delete on kleinbetrag_grenze
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_kleinbetrag_grenze_kein_truncate
+  before truncate on kleinbetrag_grenze
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on kleinbetrag_grenze from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- rechnung (archiv): Invariante 4 und 8, §147 AO, §14b UStG. Eine festgeschriebene Rechnung wird durch STORNO aufgehoben, nie entfernt; ein verworfener Entwurf bekommt `verworfen_am` samt Grund und bleibt stehen — genau er ist die Zeile, die eine Betriebspruefung liest, wenn sie nach der fehlenden Nummer fragt.
+create trigger trg_rechnung_kein_hard_delete
+  before delete on rechnung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_rechnung_kein_truncate
+  before truncate on rechnung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on rechnung from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- rechnungsposition (append): FIN-01, §14 Abs. 4 Nr. 5 UStG. Die Position IST der Leistungsnachweis auf dem Beleg. Waere sie loeschbar, koennte eine festgeschriebene Rechnung nachtraeglich kuerzer werden, waehrend Kopfsummen und Hash unveraendert stehen bleiben.
+create trigger trg_rechnungsposition_kein_hard_delete
+  before delete on rechnungsposition
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_rechnungsposition_kein_truncate
+  before truncate on rechnungsposition
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on rechnungsposition from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- rechnung_zuschlag (append): EN 16931 BG-20/BG-21. Ein entfernter Nachlass veraendert die Bemessungsgrundlage einer Steuergruppe, ohne dass der Kopf es zeigt.
+create trigger trg_rechnung_zuschlag_kein_hard_delete
+  before delete on rechnung_zuschlag
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_rechnung_zuschlag_kein_truncate
+  before truncate on rechnung_zuschlag
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on rechnung_zuschlag from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- rechnung_steuer (append): §14 Abs. 4 Nr. 8 UStG. Die Aufschluesselung nach Steuersaetzen ist der Teil des Belegs, den die Umsatzsteuervoranmeldung uebernimmt. Neu gerechnet wird im Entwurf durch UPSERT; eine Gruppe, die wegfaellt, faellt auf null statt aus der Tabelle.
+create trigger trg_rechnung_steuer_kein_hard_delete
+  before delete on rechnung_steuer
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_rechnung_steuer_kein_truncate
+  before truncate on rechnung_steuer
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on rechnung_steuer from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- rechnung_beziehung (append): K-12, Invariante 4. Sie IST die Storno-Rueckbeziehung — der einzige Ort, an dem steht, dass eine Rechnung aufgehoben wurde. Sie zu loeschen liesse die aufgehobene Rechnung wieder als gueltige dastehen.
+create trigger trg_rechnung_beziehung_kein_hard_delete
+  before delete on rechnung_beziehung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_rechnung_beziehung_kein_truncate
+  before truncate on rechnung_beziehung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on rechnung_beziehung from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_steuersatz_gruppe_geaendert_am
+  before update on steuersatz_gruppe
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_masseinheit_geaendert_am
+  before update on masseinheit
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_rechnung_geaendert_am
+  before update on rechnung
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_rechnungsposition_geaendert_am
+  before update on rechnungsposition
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_rechnung_zuschlag_geaendert_am
+  before update on rechnung_zuschlag
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_rechnung_steuer_geaendert_am
+  before update on rechnung_steuer
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_steuersatz_gruppe_audit
+  after insert or update or delete on steuersatz_gruppe
+  for each row execute function kern.protokolliere_aenderung();
+create trigger trg_masseinheit_audit
+  after insert or update or delete on masseinheit
+  for each row execute function kern.protokolliere_aenderung();
+create trigger trg_kleinbetrag_grenze_audit
+  after insert or update or delete on kleinbetrag_grenze
+  for each row execute function kern.protokolliere_aenderung();
+create trigger trg_rechnung_audit
+  after insert or update or delete on rechnung
+  for each row execute function kern.protokolliere_aenderung();
+create trigger trg_rechnungsposition_audit
+  after insert or update or delete on rechnungsposition
+  for each row execute function kern.protokolliere_aenderung();
+create trigger trg_rechnung_zuschlag_audit
+  after insert or update or delete on rechnung_zuschlag
+  for each row execute function kern.protokolliere_aenderung();
+create trigger trg_rechnung_steuer_audit
+  after insert or update or delete on rechnung_steuer
+  for each row execute function kern.protokolliere_aenderung();
+create trigger trg_rechnung_beziehung_audit
+  after insert or update or delete on rechnung_beziehung
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0077)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- rechnung_snapshot (append): FIN-06, LEG-01, ACC-06. Der Snapshot IST das Dokument; PDF und XRechnung werden aus ihm erzeugt, nie aus lebenden Stammdaten. Ohne ihn verifiziert die Kette gegen nichts.
+create trigger trg_rechnung_snapshot_kein_hard_delete
+  before delete on rechnung_snapshot
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_rechnung_snapshot_kein_truncate
+  before truncate on rechnung_snapshot
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on rechnung_snapshot from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- rechnung_hash (append): FIN-06, LEG-01. Ein fehlendes Glied ist genau die Manipulation, gegen die die Kette geschrieben ist. Eine geleerte Kettentabelle laesst den naechtlichen Lauf eine LEERE Kette melden statt einer gebrochenen — und das liest sich wie „nichts zu pruefen".
+create trigger trg_rechnung_hash_kein_hard_delete
+  before delete on rechnung_hash
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_rechnung_hash_kein_truncate
+  before truncate on rechnung_hash
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on rechnung_hash from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+create trigger trg_rechnung_hash_audit
+  after insert or update or delete on rechnung_hash
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0080)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- nachtrag_grundlage (archiv): BAU-04, K-17. Die Zeile ist die Anspruchsgrundlage, unter der ein Nachtrag angemeldet wurde — im Streit um § 2 VOB/B die Frage selbst. Geloescht bliebe der Nachtrag stehen und niemand wuesste mehr, worauf er gestuetzt war; abgeloest wird sie durch archiviert_am.
+create trigger trg_nachtrag_grundlage_kein_hard_delete
+  before delete on nachtrag_grundlage
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_nachtrag_grundlage_kein_truncate
+  before truncate on nachtrag_grundlage
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on nachtrag_grundlage from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- nachtrag (archiv): BAU-04, BAU-05, FIN-07, LEG-01. Am Nachtrag haengen die Ankuendigung (§ 2 Abs. 6 Nr. 1 VOB/B), die eingereichte Kalkulation und spaeter eine Rechnungsposition. Ein zurueckgezogener wird storniert und durch ersetzt_durch_id abgeloest — geloescht fehlte im Werklohnprozess der Beleg, dass rechtzeitig angekuendigt wurde.
+create trigger trg_nachtrag_kein_hard_delete
+  before delete on nachtrag
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_nachtrag_kein_truncate
+  before truncate on nachtrag
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on nachtrag from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_nachtrag_grundlage_geaendert_am
+  before update on nachtrag_grundlage
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_nachtrag_geaendert_am
+  before update on nachtrag
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_nachtrag_grundlage_audit
+  after insert or update or delete on nachtrag_grundlage
+  for each row execute function kern.protokolliere_aenderung();
+create trigger trg_nachtrag_audit
+  after insert or update or delete on nachtrag
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0081)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- behinderung_vorlage (archiv): BAU-06, LEG-01. Die Vorlage ist der Wortlaut, in dem eine hinausgegangene Rechtserklaerung abgefasst wurde. Geloescht liesse sich nicht mehr zeigen, welcher Text damals galt; eine ueberholte bekommt archiviert_am.
+create trigger trg_behinderung_vorlage_kein_hard_delete
+  before delete on behinderung_vorlage
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_behinderung_vorlage_kein_truncate
+  before truncate on behinderung_vorlage
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on behinderung_vorlage from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- behinderung (archiv): BAU-06, § 6 VOB/B, LEG-01. Die angezeigte Behinderung ist eine empfangsbeduerftige Erklaerung mit anspruchswahrender Wirkung — sie entscheidet ueber Bauzeitverlaengerung und Schadensersatz. Korrigiert wird durch Storno und eine neue Anzeige, nie durch Entfernen.
+create trigger trg_behinderung_kein_hard_delete
+  before delete on behinderung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_behinderung_kein_truncate
+  before truncate on behinderung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on behinderung from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_behinderung_vorlage_geaendert_am
+  before update on behinderung_vorlage
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_behinderung_geaendert_am
+  before update on behinderung
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_behinderung_vorlage_audit
+  after insert or update or delete on behinderung_vorlage
+  for each row execute function kern.protokolliere_aenderung();
+create trigger trg_behinderung_audit
+  after insert or update or delete on behinderung
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0082)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- gewerk (archiv): BAU-07, REP-05. Der Katalogeintrag ist der Bezug jeder Mannstundenzeile. Geloescht traegt eine abgeschlossene Tagesseite eine Gewerkekennung, zu der es nichts mehr gibt — und die Auswertung „Stunden je Gewerk" verliert rueckwirkend Zeilen. Ein aufgegebenes Gewerk bekommt archiviert_am und verschwindet aus der Auswahl, nicht aus der Historie.
+create trigger trg_gewerk_kein_hard_delete
+  before delete on gewerk
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_gewerk_kein_truncate
+  before truncate on gewerk
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on gewerk from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- bautagebuch (archiv): BAU-07, LEG-01. Der Bautag traegt Bauzeit, Behinderung und Mehrverguetungsanspruch. Ein abgeschlossener Tag ist unveraenderlich; korrigiert wird durch Storno und einen Ersatztag (ersetzt_durch_id). Geloescht bliebe eine Luecke in der Bauzeit, die niemand mehr erklaeren kann — und genau daraus wird im Prozess ein Anspruch hergeleitet.
+create trigger trg_bautagebuch_kein_hard_delete
+  before delete on bautagebuch
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_bautagebuch_kein_truncate
+  before truncate on bautagebuch
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on bautagebuch from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- bautagebuch_mannstunden (append): BAU-07, TIM-12, REP-05. Die Zeile IST die Mannstundenangabe des Tages — die Zahl, gegen die der Abgleich mit dem zeiteintrag laeuft und aus der ein Bauzeitnachtrag gerechnet wird. Sie ist anfuegend: eine falsche Zeile wird storniert und ersetzt, damit sichtbar bleibt, dass zuerst etwas anderes dastand.
+create trigger trg_bautagebuch_mannstunden_kein_hard_delete
+  before delete on bautagebuch_mannstunden
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_bautagebuch_mannstunden_kein_truncate
+  before truncate on bautagebuch_mannstunden
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on bautagebuch_mannstunden from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- bautagebuch_position (append): BAU-07, LEG-01. Geraet, Lieferung und Vorkommnis des Tages. Ein geloeschtes Vorkommnis ist genau die Seite, die im Streit fehlt; eine irrtuemliche Zeile wird storniert und ersetzt.
+create trigger trg_bautagebuch_position_kein_hard_delete
+  before delete on bautagebuch_position
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_bautagebuch_position_kein_truncate
+  before truncate on bautagebuch_position
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on bautagebuch_position from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_gewerk_geaendert_am
+  before update on gewerk
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_bautagebuch_geaendert_am
+  before update on bautagebuch
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_bautagebuch_audit
+  after insert or update or delete on bautagebuch
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0083)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- wetter_station (archiv): BAU-08. An der Station haengt jede Beobachtung, und an der Beobachtung der Wetterbeleg eines Bautags. Eine stillgelegte Station bekommt archiviert_am — geloescht verloeren alle Tage, die auf sie zeigen, ihren Messort, und „3 °C" ohne Ort ist keine Aussage.
+create trigger trg_wetter_station_kein_hard_delete
+  before delete on wetter_station
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_wetter_station_kein_truncate
+  before truncate on wetter_station
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on wetter_station from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- wetter_beobachtung (append): BAU-07, BAU-08, LEG-01. Die Messung, auf die sich ein Bautagebuch beruft. Der DWD revidiert Werte — eine Revision ist eine NEUE Zeile mit hoeherem Qualitaetsniveau, nie ein Ersetzen der alten. Geloescht zeigte der Tag auf nichts, und der Schnappschuss daneben liesse sich nicht mehr gegenpruefen.
+create trigger trg_wetter_beobachtung_kein_hard_delete
+  before delete on wetter_beobachtung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_wetter_beobachtung_kein_truncate
+  before truncate on wetter_beobachtung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on wetter_beobachtung from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_wetter_station_geaendert_am
+  before update on wetter_station
+  for each row execute function kern.setze_geaendert_am();
+
+
+-- >>> Ende des generierten Blocks

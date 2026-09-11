@@ -160,11 +160,18 @@ export default async function PostenListe(
               <p className="m-0 mt-s2 text-sm text-text-muted">
                 {p.objekt}
                 {p.art !== null && ` · ${p.art}`}
-                {/* DESIGN §5: eine unbestätigte Katalogzeile sagt das (§1.16). */}
+                {/**
+                  * Eine unbestätigte Katalogzeile sagt das (§1.16) — als WORT
+                  * und nicht als Pille. `docs/DESIGN.md` §5 führt ein
+                  * geschlossenes Pillenvokabular, und „Unbestätigter Wert"
+                  * steht noch nicht darin; `03-GEWERKE.md` §2.3 Nr. 5 verlangt
+                  * die Ergänzung, und bis sie da ist, wäre eine selbstgebaute
+                  * Pille genau die erfundene Komponente, die CLAUDE.md
+                  * ausschliesst. Die Farbe trägt die Bedeutung ohnehin nicht
+                  * allein (DESIGN §9).
+                  */}
                 {p.artIstPlatzhalter && (
-                  <span className="ml-s2 rounded-full bg-warning-soft px-s3 py-s1 text-xs text-warning">
-                    Unbestätigter Wert
-                  </span>
+                  <span className="ml-s2 text-warning">· Art unbestätigt (O-148)</span>
                 )}
               </p>
               <p className="m-0 mt-s2 text-sm text-text-muted">
