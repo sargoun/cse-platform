@@ -658,6 +658,286 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'Resturlaub unentscheidbar. Ein abgelaufenes Jahr traegt '
       + '`abgeschlossen_am`.',
   },
+  {
+    tabelle: 'abwesenheit',
+    art: 'archiv',
+    migration: '0073',
+    grund:
+      'EMP-10, LEG-09, Invariante 8. Dass jemand krank gemeldet war oder '
+      + 'Urlaub hatte, ist die Grundlage von Lohnfortzahlung und Urlaubskonto '
+      + '— und im Streit die Tatsache selbst. Zurueckgenommen wird ueber '
+      + '`status = storniert`, nie durch DELETE.',
+  },
+  {
+    tabelle: 'abwesenheitsart',
+    art: 'archiv',
+    migration: '0073',
+    grund:
+      'EMP-05, ACC-12, K-17. Der Katalog traegt die Lohnwirkung; eine geloeschte Art '
+      + 'nimmt jeder Abwesenheit, die auf sie zeigt, ihre Bedeutung. Ausser '
+      + 'Gebrauch kommt sie ueber `archiviert_am`.',
+  },
+  {
+    tabelle: 'antrag',
+    art: 'archiv',
+    migration: '0074',
+    grund:
+      'EMP-10, NOT-01. Der Antrag ist der BELEG der Entscheidung: wer wann '
+      + 'was beantragt und wer mit welchem Wort entschieden hat. Genau diese '
+      + 'Spur verschwaende, wenn man ihn nach der Umsetzung aufraeumte.',
+  },
+  {
+    tabelle: 'antragsart',
+    art: 'archiv',
+    migration: '0074',
+    grund:
+      'EMP-10, K-17. Wie `abwesenheitsart`: der Katalog gibt jedem Antrag '
+      + 'seine Bedeutung, und die drei Systemarten aus EMP-10 sind nicht '
+      + 'entfernbar.',
+  },
+  {
+    tabelle: 'postenart',
+    art: 'archiv',
+    migration: '0069',
+    grund:
+      'SEC-01, LEG-04. Die Postenart sagt, WOFUER ein Mensch eingeteilt war — '
+      + 'Empfang, Streife, Objektschutz. Geloescht liesse sich einer vergangenen '
+      + 'Besetzung nicht mehr ansehen, welche Taetigkeit sie war, und genau '
+      + 'daran misst eine Aufsicht die Qualifikation. Eine aufgegebene Art '
+      + 'bekommt `archiviert_am`.',
+  },
+  {
+    tabelle: 'posten',
+    art: 'archiv',
+    migration: '0069',
+    grund:
+      'SEC-01, LEG-04, TIM-04. Der Posten ist das vertraglich Geschuldete: die '
+      + 'Antwort darauf, ob eine Wachschicht stattfinden musste und mit welcher '
+      + 'Mindestbesetzung. Geloescht stuende jede von ihm erzeugte Schicht ohne '
+      + 'Grundlage da; ein beendeter Posten bekommt `gueltig_bis`, ein '
+      + 'aufgegebener `archiviert_am`.',
+  },
+  {
+    tabelle: 'posten_ausnahme',
+    art: 'append',
+    migration: '0069',
+    grund:
+      'SEC-01, TIM-02, LEG-04. Sie ist die dokumentierte Abweichung samt Grund '
+      + 'und Urheber — im Streit ueber eine unbesetzte Nacht genau die Zeile, '
+      + 'die zaehlt. Eine Ausnahme, die sich loeschen laesst, ist keine '
+      + 'Dokumentation; zurueckgenommen wird sie durch eine Gegenzeile.',
+  },
+  {
+    tabelle: 'veranstaltung',
+    art: 'archiv',
+    migration: '0069',
+    grund:
+      'SEC-08, LEG-04. Der Eventdienst traegt Kunde, Ort und Fenster einer '
+      + 'kurzfristigen Bewachung; er ist der Traeger, an dem die '
+      + '§ 34a-Anforderung fuer Einsaetze ohne festen Posten haengt. Geloescht '
+      + 'saehe eine damals gepruefte Besetzung so aus, als habe nie eine '
+      + 'Anforderung bestanden. Abgesagt heisst `archiviert_am`.',
+  },
+  {
+    tabelle: 'kontrollpunkt',
+    art: 'archiv',
+    migration: '0070',
+    grund:
+      'SEC-05, LEG-10. Der Kontrollpunkt ist der Bezug, auf den sich ein '
+      + 'Praesenznachweis im Wachbuch beruft („war an Punkt 4"). Geloescht '
+      + 'zeigt jeder Rundgangseintrag auf nichts mehr, und der Nachweis gegen '
+      + 'den Auftraggeber ist wertlos. Ein abgebauter Punkt bekommt '
+      + '`archiviert_am`.',
+  },
+  {
+    tabelle: 'wachbuch_eintrag',
+    art: 'archiv',
+    migration: '0070',
+    grund:
+      'SEC-05, LEG-01, § 34a GewO. Das Wachbuch ist die einzige laufende '
+      + 'Beweisfuehrung der Bewachung — Rundgang, Vorkommnis, Uebergabe, '
+      + 'Alarm. Eine loeschbare Seite macht die Hashkette daneben zur '
+      + 'Behauptung: fehlt ein Glied, laesst sich nicht mehr zeigen, dass '
+      + 'nichts entfernt wurde. Korrigiert wird durch einen NEUEN, verknuepften '
+      + 'Eintrag; die falsche Zeile bekommt `storniert_am` und '
+      + '`ersetzt_durch_id`.',
+  },
+  {
+    tabelle: 'revier_raum',
+    art: 'append',
+    migration: '0065',
+    grund:
+      'CLN-01, OPS-07. Die Zeile IST der Rechenweg einer Kalkulation: Flaeche, '
+      + 'Leistungswert und die daraus gewonnene Sollzeit, alle drei als '
+      + 'Schnappschuss vom Kalkulationszeitpunkt. Geloescht laesst sich ein '
+      + 'abgegebenes Angebot nicht mehr nachrechnen, und die Zusage '
+      + '"Σ revier_raum.sollzeit = revier.sollzeit" waere ohne Vorwarnung '
+      + 'falsch. Eine neu zugeschnittene Zone entsteht als NEUES Revier; das '
+      + 'alte bekommt archiviert_am.',
+  },
+  {
+    tabelle: 'leistungsnachweis',
+    art: 'archiv',
+    migration: '0066',
+    grund:
+      'CLN-04, LEG-01, § 147 AO. Das ist das Dokument, das der Kunde '
+      + 'unterschrieben hat und aus dem eine Rechnung abgeleitet wird — zehn '
+      + 'Jahre aufbewahrungspflichtig (Klasse gobd_10j). Geloescht bliebe eine '
+      + 'Rechnung ohne Leistungsbeleg stehen; korrigiert wird durch Stornieren '
+      + 'und einen Ersatz (ersetzt_durch_id), nie durch Entfernen.',
+  },
+  {
+    tabelle: 'leistungsnachweis_position',
+    art: 'append',
+    migration: '0066',
+    grund:
+      'CLN-04, FIN-07. Die Zeile traegt den Rueckverweis auf ihre Quelle — den '
+      + 'Zeiteintrag, die Aufmasszeile, die Katalogposition. Sie zu loeschen '
+      + 'macht aus der Nachvollziehbarkeit einer Rechnungsposition eine '
+      + 'Behauptung. Eine eigene Lebendigkeitsspalte hat sie nicht: sie lebt '
+      + 'und stirbt mit ihrem Kopf, dessen Zustand sie kopiert traegt.',
+  },
+  {
+    tabelle: 'leistungsnachweis_signatur',
+    art: 'append',
+    migration: '0066',
+    grund:
+      'CLN-04, LEG-01, SEC-A9. Name, Serverzeit, Ort und der unveraenderliche '
+      + 'Abzug dessen, was angezeigt wurde — die Zeile, um die im Streitfall '
+      + 'gestritten wird. Sie ist anfuegend bis in die Rechte hinein: kein '
+      + 'UPDATE, kein DELETE, keine geaendert_*-Spalten. Eine loeschbare '
+      + 'Unterschrift ist keine.',
+  },
+  {
+    tabelle: 'sonderleistung',
+    art: 'archiv',
+    migration: '0067',
+    grund:
+      'CLN-05, FIN-01, FIN-07. Der Einzelabruf ist die Grundlage einer '
+      + 'einzelabruf-Abrechnung und Teil der Abrechnungsspur (Klasse '
+      + 'gobd_10j). Geloescht stuende die Rechnung ueber eine Sonderreinigung '
+      + 'ohne den Beleg da, dass sie beauftragt war; ein zurueckgezogener '
+      + 'Abruf bekommt storniert_am.',
+  },
+  {
+    tabelle: 'pruefverfahren',
+    art: 'archiv',
+    migration: '0068',
+    grund:
+      'OPS-11. Das Verfahren ist die Messvorschrift, nach der eine vergangene '
+      + 'Pruefung bewertet wurde — samt der Bestehensschwelle, die damals '
+      + 'galt. Geloescht liesse sich ein Protokoll nicht mehr lesen: die '
+      + 'Punktzahl bliebe stehen und niemand wuesste, wogegen sie gemessen '
+      + 'wurde. Abgeloest wird es durch archiviert_am.',
+  },
+  {
+    tabelle: 'reklamation',
+    art: 'archiv',
+    migration: '0068',
+    grund:
+      'OPS-11, CRM-06, REP-05. Die Beanstandung ist Gewaehrleistungsbeweis: '
+      + 'sie zeigt, was wann geruegt und wie abgestellt wurde, und der '
+      + 'Wiederholungsfall (wiederholung_von_id) haengt an ihr. Geloescht ist '
+      + 'die dritte Beschwerde ueber denselben Mangel die erste; eine '
+      + 'erledigte bekommt geschlossen_am, eine gegenstandslose '
+      + 'archiviert_am.',
+  },
+  {
+    tabelle: 'qualitaetspruefung',
+    art: 'archiv',
+    migration: '0068',
+    grund:
+      'OPS-11, PRO-05, REP-05. Das Pruefprotokoll ist die Grundlage des '
+      + 'Kundengespraechs und der Nachschulung — und im Streit um eine '
+      + 'Vertragsstrafe der Beleg, dass kontrolliert wurde. Geloescht bliebe '
+      + 'nur die Behauptung; eine gegenstandslose Pruefung bekommt '
+      + 'archiviert_am.',
+  },
+  {
+    tabelle: 'qualitaetspruefung_position',
+    art: 'append',
+    migration: '0068',
+    grund:
+      'OPS-11, TIM-10. Der einzelne Befund samt Foto und Frist. Er zu '
+      + 'loeschen liesse die Kopfsumme stehen und ihre Herleitung '
+      + 'verschwinden — und der Mangel, aus dem eine Reklamation entstanden '
+      + 'ist, zeigte auf nichts mehr. Eine eigene Lebendigkeitsspalte hat sie '
+      + 'nicht: sie lebt mit ihrem Kopf.',
+  },
+  /**
+   * Bau (PR 43, 03-GEWERKE §7.1, §7.4 – §7.9). Die drei Stammdatentabellen
+   * werden archiviert, die vier Beweistabellen sind anfuegend oder werden
+   * storniert — keine von ihnen kennt einen Loeschpfad.
+   */
+  {
+    tabelle: 'projekt',
+    art: 'archiv',
+    migration: '0071',
+    grund:
+      'OPS-05, BAU-01, LEG-01. Am Projekt haengen Leistungsverzeichnis, '
+      + 'Aufmass, Abnahme und Rechnungen mit zehnjaehriger Aufbewahrung '
+      + '(§ 147 AO). Ein beendetes Projekt wird abgeschlossen und archiviert; '
+      + 'geloescht bliebe eine Schlussrechnung ohne Bauvorhaben stehen.',
+  },
+  {
+    tabelle: 'leistungsverzeichnis',
+    art: 'archiv',
+    migration: '0071',
+    grund:
+      'BAU-01, BAU-04. Das Verzeichnis ist die Fassung, gegen die abgerechnet '
+      + 'wird — und bei einem Nachtrag der Beleg dafuer, was urspruenglich '
+      + 'eingereicht wurde (§ 2 Abs. 6 VOB/B). Eine neue Verhandlungsrunde ist '
+      + 'eine neue Fassung, nie eine ersetzte Zeile.',
+  },
+  {
+    tabelle: 'lv_position',
+    art: 'archiv',
+    migration: '0071',
+    grund:
+      'BAU-01, BAU-02, FIN-07. Auf der Position stehen Vertragsmenge und '
+      + 'Einheitspreis, aus denen jede Einheitspreisrechnung entsteht. Sie zu '
+      + 'loeschen macht ein bereits gestelltes Aufmass unlesbar: die Menge '
+      + 'bliebe stehen, und niemand wuesste mehr, wofuer sie galt.',
+  },
+  {
+    tabelle: 'aufmass',
+    art: 'archiv',
+    migration: '0072',
+    grund:
+      'BAU-02, BAU-03, LEG-01, § 14 VOB/B. Das gegengezeichnete Blatt ist das '
+      + 'Beweismittel, aus dem eine Werklohnforderung entsteht. Korrigiert '
+      + 'wird durch Storno und ein Ersatzblatt (`ersetzt_durch_id`), nie durch '
+      + 'Entfernen — geloescht waere im Werklohnprozess eine Luecke, die '
+      + 'niemand mehr erklaeren kann.',
+  },
+  {
+    tabelle: 'aufmass_zeile',
+    art: 'append',
+    migration: '0072',
+    grund:
+      'BAU-02, FIN-07. Die Zeile traegt den Rechenansatz WOERTLICH neben dem '
+      + 'Ergebnis — genau das, was ein Pruefer nachrechnet. Sie lebt und '
+      + 'stirbt mit ihrem Kopf, dessen Zustand sie kopiert traegt, und hat '
+      + 'darum keine eigene Lebendigkeitsspalte.',
+  },
+  {
+    tabelle: 'aufmass_foto',
+    art: 'append',
+    migration: '0072',
+    grund:
+      'BAU-03, DOC-07. Ohne Messfoto wird kein Blatt vorgelegt; ein '
+      + 'geloeschtes Foto nimmt der Feststellung nachtraeglich ihre '
+      + 'Voraussetzung, waehrend das Blatt gegengezeichnet stehen bleibt.',
+  },
+  {
+    tabelle: 'aufmass_signatur',
+    art: 'append',
+    migration: '0072',
+    grund:
+      'BAU-03, § 14 VOB/B. Die Unterschrift mit ihrem eingefrorenen '
+      + 'Schnappschuss IST die Feststellung. Sie zu loeschen liesse ein Blatt '
+      + 'zurueck, das gegengezeichnet heisst und niemanden nennt.',
+  },
 ] as const;
 
 /**
@@ -731,6 +1011,20 @@ export const AUDITIERT: readonly TabelleJeMigration[] = [
   { tabelle: 'nachweis', migration: '0030' },
   { tabelle: 'bewacher_eintrag', migration: '0031' },
   /**
+   * `abwesenheit` und `antrag` ja, die beiden Kataloge nein — eine
+   * Entscheidung, keine Auslassung (01-KERN §6.22–§6.29).
+   *
+   * Wer eine Krankmeldung nachtraeglich verschiebt oder einen Urlaub
+   * storniert, aendert eine Lohntatsache; und wer einen Antrag entscheidet,
+   * entscheidet ueber die Freizeit eines Menschen. Beides ist die Zeile, ueber
+   * die im Streit mit Vorher und Nachher gestritten wird. Die Kataloge
+   * dagegen aendern sich selten und tragen ihre Geschichte in `archiviert_am`
+   * plus Neuanlage — und `abwesenheitsart_schutz` (0073) haelt ohnehin fest,
+   * was an einer benutzten Art unveraenderlich ist.
+   */
+  { tabelle: 'abwesenheit', migration: '0073' },
+  { tabelle: 'antrag', migration: '0074' },
+  /**
    * `mandant_einstellung` und `zeiteintrag` ja, `checkin_token` und
    * `zeiteintrag_korrektur` nein — eine Entscheidung, keine Auslassung
    * (04-PLANUNG-ZEIT §14.1).
@@ -772,6 +1066,34 @@ export const AUDITIERT: readonly TabelleJeMigration[] = [
    */
   { tabelle: 'stundenkonto', migration: '0060' },
   { tabelle: 'urlaubskonto', migration: '0061' },
+  /**
+   * `leistungsnachweis` ja, seine Zeilen und `revier_raum` nein — eine
+   * Entscheidung, keine Auslassung (§13.1).
+   *
+   * Wer einen Nachweis vorgelegt, abgelehnt oder storniert hat, ist die Zeile,
+   * ueber die im Streit um eine Rechnung gestritten wird, mit Vorher und
+   * Nachher. Die Positionen und die Raumzuordnung kommen dagegen zu Hunderten
+   * aus einem Import; ein Auditeintrag je Zeile ertraenkte genau das
+   * Protokoll, auf das sich eine Auskunft stuetzt — §13.1 nennt das
+   * ausdruecklich „logged at head granularity".
+   */
+  { tabelle: 'leistungsnachweis', migration: '0066' },
+  /**
+   * `lv_position` und `aufmass` ja, ihre Kinder nein — eine Entscheidung,
+   * keine Auslassung (03-GEWERKE §12).
+   *
+   * An der LV-Position bewegt sich die Vertragsmenge und der Einheitspreis,
+   * und WER sie bewegt hat, aendert jede kuenftige Rechnung aus diesem
+   * Projekt; am Aufmassblatt bewegt sich der Zustand bis zur Sperre, und ob
+   * jemand ein Blatt kurz vor der Gegenzeichnung noch angefasst hat, ist im
+   * Werklohnstreit genau die Frage. Zeile, Foto und Unterschrift dagegen SIND
+   * bereits der Nachweis: sie sind anfuegend, tragen Urheber und Serverzeit in
+   * eigenen Spalten und werden mit der Sperre eingefroren. Ein zweiter
+   * Auditeintrag je Zeile verdoppelte genau das Protokoll, auf das sich eine
+   * Auskunft stuetzt.
+   */
+  { tabelle: 'lv_position', migration: '0071' },
+  { tabelle: 'aufmass', migration: '0072' },
 ] as const;
 
 /** Tables carrying S4 (`geloescht_am` / `geloescht_von`) — the finders' domain. */
@@ -840,6 +1162,16 @@ export const GEAENDERT_AM: readonly TabelleJeMigration[] = [
   // nachtraeglich bewegen — genau das verhindert `bewegung_unveraenderlich`.
   { tabelle: 'stundenkonto', migration: '0060' },
   { tabelle: 'urlaubskonto', migration: '0061' },
+  { tabelle: 'postenart', migration: '0069' },
+  { tabelle: 'posten', migration: '0069' },
+  { tabelle: 'posten_ausnahme', migration: '0069' },
+  { tabelle: 'veranstaltung', migration: '0069' },
+  { tabelle: 'kontrollpunkt', migration: '0070' },
+  // `wachbuch_eintrag` NICHT: die Seite ist geschrieben, sobald sie steht
+  // (§6.12). Ein `geaendert_am` daneben behauptete, ein Mensch habe einen
+  // Wachbucheintrag bearbeitet — genau das laesst `w_nur_storno` nicht zu, und
+  // die Hashkette waere danach gebrochen. Korrigiert wird durch einen neuen,
+  // verknuepften Eintrag.
   // `zeitnachweis` NICHT: das Artefakt eines gesperrten Monats wird genau
   // einmal geschrieben, und `kern.zeitnachweis_write_once()` weist jedes
   // UPDATE ab. Ein `geaendert_am` daneben behauptete, es liesse sich aendern.
@@ -861,6 +1193,29 @@ export const GEAENDERT_AM: readonly TabelleJeMigration[] = [
   // `formular_eingang` NICHT: er ist write-once. `verarbeitet_am` sagt, wann
   // jemand ihn angefasst hat, und ein `geaendert_am` daneben behauptete, der
   // Eingang selbst habe sich geändert — er darf es nicht.
+  { tabelle: 'revier_raum', migration: '0065' },
+  { tabelle: 'leistungsnachweis', migration: '0066' },
+  { tabelle: 'leistungsnachweis_position', migration: '0066' },
+  /**
+   * `leistungsnachweis_signatur` fehlt hier mit Absicht: sie hat gar keine
+   * `geaendert_*`-Spalten (§5.8). Ein Stempel darauf behauptete, jemand duerfe
+   * eine Unterschrift bearbeiten — und `ln_signatur_unveraenderlich` laesst es
+   * ohnehin nicht zu.
+   */
+  { tabelle: 'sonderleistung', migration: '0067' },
+  { tabelle: 'pruefverfahren', migration: '0068' },
+  { tabelle: 'reklamation', migration: '0068' },
+  { tabelle: 'qualitaetspruefung', migration: '0068' },
+  { tabelle: 'qualitaetspruefung_position', migration: '0068' },
+  // Bau (PR 43): die drei Stammdatentabellen und die zwei Tabellen, an denen
+  // sich im Entwurf noch etwas bewegt. `aufmass_foto` und `aufmass_signatur`
+  // NICHT: beide sind anfuegend, und ein `geaendert_am` an einer Unterschrift
+  // behauptete, sie liesse sich nachtraeglich bearbeiten.
+  { tabelle: 'projekt', migration: '0071' },
+  { tabelle: 'leistungsverzeichnis', migration: '0071' },
+  { tabelle: 'lv_position', migration: '0071' },
+  { tabelle: 'aufmass', migration: '0072' },
+  { tabelle: 'aufmass_zeile', migration: '0072' },
 ] as const;
 
 /** Every migration that carries a generated block, in order. */

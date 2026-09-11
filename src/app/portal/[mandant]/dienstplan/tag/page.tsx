@@ -49,7 +49,7 @@ export default async function Tagesansicht({
   const heuteTag = await berlinHeute();
   const tag = roh !== null && /^\d{4}-\d{2}-\d{2}$/u.test(roh) ? roh : heuteTag;
 
-  const { tage, schichten } = await ladePlanfenster(sitzung, tag, tag);
+  const { tage, schichten, abwesenheitGeprueft } = await ladePlanfenster(sitzung, tag, tag);
   const heute = tage[0];
 
   // Nach Objekt gruppieren — die Reihenfolge innerhalb bleibt die Zeit.
@@ -87,6 +87,13 @@ export default async function Tagesansicht({
         </p>
       </div>
 
+      {!abwesenheitGeprueft && (
+        <p className="mb-s4 rounded-lg border border-line bg-surface p-s4 text-sm text-text-muted">
+          Abwesenheiten werden hier nicht geprüft — dafür fehlt das Recht
+          `zeit.abwesenheit_lesen`. Das heißt <strong>nicht</strong>, dass
+          niemand abgemeldet ist.
+        </p>
+      )}
       <nav aria-label="Tag wechseln" className="mb-s4 flex flex-wrap gap-s2">
         <Sprung mandant={mandant} ziel={tagePlus(tag, -1)} text="← Vortag" />
         <Sprung mandant={mandant} ziel={heuteTag} text="Heute" />

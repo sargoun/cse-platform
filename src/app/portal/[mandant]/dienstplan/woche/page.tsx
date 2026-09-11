@@ -56,7 +56,7 @@ export default async function Wochenansicht({
   const von = montag(anker);
   const bis = tagePlus(von, 6);
 
-  const { tage, schichten } = await ladePlanfenster(sitzung, von, bis);
+  const { tage, schichten, abwesenheitGeprueft } = await ladePlanfenster(sitzung, von, bis);
 
   return (
     <PortalRahmen
@@ -78,6 +78,13 @@ export default async function Wochenansicht({
         </p>
       </div>
 
+      {!abwesenheitGeprueft && (
+        <p className="mb-s4 rounded-lg border border-line bg-surface p-s4 text-sm text-text-muted">
+          Abwesenheiten werden hier nicht geprüft — dafür fehlt das Recht
+          `zeit.abwesenheit_lesen`. Das heißt <strong>nicht</strong>, dass
+          niemand abgemeldet ist.
+        </p>
+      )}
       <nav aria-label="Woche wechseln" className="mb-s4 flex flex-wrap items-center gap-s2">
         <Woechentlich mandant={mandant} ziel={tagePlus(von, -7)} text="← Vorige Woche" />
         <Woechentlich mandant={mandant} ziel={heute} text="Diese Woche" />

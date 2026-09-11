@@ -205,6 +205,24 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'dienstplan.arbzg_pruefen',
   },
   /**
+   * Abwesenheiten und Antraege (PR 38). Genannt ist je Weg das Recht des
+   * GEFAEHRLICHSTEN Zugriffs: wer eine Abwesenheit entscheidet, entscheidet
+   * ueber Lohnfortzahlung und Urlaubskonto, und wer einen Antrag entscheidet,
+   * ueber die Freizeit eines Menschen. Der GRUND einer Abwesenheit haengt
+   * daneben an `zeit.abwesenheit_grund_lesen` und kommt nur durch die
+   * Definer-Funktion (Art. 9 DSGVO).
+   */
+  {
+    modul: 'zeit', pfad: 'abwesenheit/index',
+    schreibend: true, schreibRecht: 'zeit.abwesenheit_genehmigen',
+  },
+  {
+    modul: 'zeit', pfad: 'abwesenheit/antrag',
+    schreibend: true, schreibRecht: 'zeit.antrag_entscheiden',
+  },
+  /** Die Tagesrechnung kennt keine Datenbank — sie rechnet Kalendertage. */
+  { modul: 'zeit', pfad: 'abwesenheit/tage', schreibend: false },
+  /**
    * Die Einteilung SCHREIBT `einsatz_zuordnung` — und ist der einzige Weg
    * dorthin. Genannt ist `dienstplan.schreiben`; die beiden Tore, die sie
    * durchlaeuft, haben ihre eigenen Rechte an ihren eigenen Diensten
@@ -297,6 +315,90 @@ export const DIENSTE: readonly DienstEintrag[] = [
   {
     modul: 'personal', pfad: 'nachweis/ablauf',
     schreibend: true, schreibRecht: 'personal.nachweis_verwalten',
+  },
+  /**
+   * Der Postendienst SCHREIBT — er legt Posten an — und trägt deshalb
+   * `security.schreiben`. Seine Lesehälfte (die Dringlichkeitsabfrage und das
+   * Tor vor der Veröffentlichung) ist in der Gruppenansicht ungefährlich; das
+   * Register kennt aber einen Eintrag je Datei, und die Datei schreibt.
+   */
+  {
+    modul: 'security', pfad: 'security/posten',
+    schreibend: true, schreibRecht: 'security.schreiben',
+  },
+  /**
+   * Das Wachbuch schreibt mit `wachbuch.schreiben` — dem einen Schreibrecht,
+   * das die Rolle `mitarbeiter` in dieser Domäne tatsächlich hält (SEC-05: die
+   * Wache führt das Buch). Gelesen wird mit `wachbuch.lesen`, im eigenen
+   * Portal über `t_person` ganz ohne Modulrecht (K-18).
+   */
+  {
+    modul: 'wachbuch', pfad: 'security/wachbuch',
+    schreibend: true, schreibRecht: 'wachbuch.schreiben',
+  },
+  /**
+   * Die Eventbesetzung trägt `dienstplan.schreiben` und NICHT
+   * `security.schreiben`: was sie anlegt, ist eine Schicht und eine
+   * Einteilung, und beides gehört dem Dienstplan. Ein eigenes „Security darf
+   * einteilen"-Recht wäre ein zweiter Schlüssel zu derselben Tür — und der
+   * eine, den niemand mitzieht, wenn die Tür enger wird.
+   */
+  {
+    modul: 'dienstplan', pfad: 'security/eventbesetzung',
+    schreibend: true, schreibRecht: 'dienstplan.schreiben',
+  },
+  /**
+   * Bau (PR 43, BAU-01 – BAU-03).
+   *
+   * Der Parser und die LV-Rechnung LESEN — sie sind reine Arithmetik ohne
+   * Datenbankgriff und damit auch in der Gruppenansicht unbedenklich. Der
+   * Aufmassdienst SCHREIBT, und sein Recht ist `bau.aufmass_erfassen` und
+   * nicht `bau.schreiben`: das ist der eine Bauschluessel, den die Rolle
+   * `mitarbeiter` haelt (03-GEWERKE §1.7), und BAU-02 laesst die Kraft vor Ort
+   * das Blatt aufnehmen. Die Gegenzeichnung verlangt darueber hinaus
+   * `bau.aufmass_freigeben` — geprueft an der Route, weil sie ein zweiter
+   * Vorgang ist und nicht ein zweites Schreibrecht desselben.
+   */
+  { modul: 'bau', pfad: 'bau/rechenansatz', schreibend: false },
+  { modul: 'bau', pfad: 'bau/lv', schreibend: false },
+  {
+    modul: 'bau', pfad: 'bau/aufmass',
+    schreibend: true, schreibRecht: 'bau.aufmass_erfassen',
+  },
+  /**
+   * Die Reinigung — die Sollzeitrechnung und der Abzug LESEN, der Rest
+   * schreibt.
+   *
+   * `sollzeit` und `schnappschuss` sind reine Funktionen: sie rechnen und
+   * hashen, sie legen nichts ab. Wer etwas ablegt, nennt sein Recht — und das
+   * ist beim Nachweis `nachweis.schreiben`, nicht `reinigung.schreiben`: das
+   * Modul `nachweis` gehört dem Leistungsnachweis (CLN-04), während das
+   * Zuschneiden einer Zone Reinigungsstammdaten sind.
+   */
+  { modul: 'reinigung', pfad: 'reinigung/sollzeit', schreibend: false },
+  { modul: 'reinigung', pfad: 'reinigung/schnappschuss', schreibend: false },
+  { modul: 'reinigung', pfad: 'reinigung/index', schreibend: false },
+  {
+    modul: 'reinigung', pfad: 'reinigung/revier',
+    schreibend: true, schreibRecht: 'reinigung.schreiben',
+  },
+  {
+    modul: 'nachweis', pfad: 'reinigung/leistungsnachweis',
+    schreibend: true, schreibRecht: 'nachweis.schreiben',
+  },
+  /**
+   * Qualität liegt im Modul `qualitaet` und nicht bei der Reinigung: die
+   * Tabellen sind gewerkeübergreifend (04-SEITENKARTE.md §5.6). Dass die
+   * Dateien unter `services/reinigung/` liegen, ist Ablage — das Recht
+   * entscheidet der Modulname hier.
+   */
+  {
+    modul: 'qualitaet', pfad: 'reinigung/reklamation',
+    schreibend: true, schreibRecht: 'qualitaet.schreiben',
+  },
+  {
+    modul: 'qualitaet', pfad: 'reinigung/qualitaet',
+    schreibend: true, schreibRecht: 'qualitaet.schreiben',
   },
 ] as const;
 

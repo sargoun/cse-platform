@@ -660,7 +660,8 @@ async function main(): Promise<void> {
   process.stdout.write(
     `  ${String(zeit.einteilungen)} Einteilungen (davon ${String(zeit.uebergangen)} `
     + `mit bestaetigtem ArbZG-Befund), ${String(zeit.zeiteintraege)} Zeiteintraege `
-    + `importiert, ${String(zeit.laufend)} laufend\n`,
+    + `importiert, ${String(zeit.laufend)} laufend, `
+    + `${String(zeit.abwesenheiten)} Abwesenheiten/Antraege\n`,
   );
 
   process.stdout.write('\nSeed fertig.\n');

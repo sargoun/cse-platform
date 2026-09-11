@@ -47,6 +47,46 @@ export const NAVIGATION: readonly NaviEintrag[] = [
   // allein gibt es als Route nicht — der Punkt fuehrte auf einen 404.
   { schluessel: 'rechnungen', label: 'Rechnungen', pfad: 'finanzen/rechnungen', recht: 'finanzen.lesen', gruppe: true, icon: 'rechnung' },
   { schluessel: 'dokumente', label: 'Dokumente', pfad: 'dokumente', recht: 'dokument.lesen', gruppe: true, icon: 'dokument' },
+  /**
+   * `bau/projekte`, nicht `bau`: die Seitenkarte fuehrt zwar beides, aber die
+   * Modulübersicht ist eine Phase-5-Seite ohne Inhalt, solange Nachträge,
+   * Behinderungen und Bautagebuch fehlen (PR 44/45). Der Punkt zeigt deshalb
+   * dorthin, wo etwas steht — ein Menüpunkt auf eine leere Seite ist die
+   * teuerste Art, eine Lücke zu zeigen.
+   */
+  { schluessel: 'bau', label: 'Bau', pfad: 'bau/projekte', recht: 'bau.lesen', gruppe: true, icon: 'aufmass' },
+  /**
+   * `security/posten`, nicht `security`: die Modulübersicht der Seitenkarte
+   * (§5.8, Zeile 1) ist noch nicht gebaut, und ein Menüpunkt auf eine Seite,
+   * die es nicht gibt, ist der sichtbarste 404 im ganzen Portal.
+   *
+   * `gruppe: false` — und das ist eine Entscheidung, keine Auslassung. Posten
+   * tragen zwar eine Gruppenlesepolicy (`gruppe.security.lesen`), aber der
+   * Punkt führte in der Gruppenansicht auf `/portal/gruppe/security/posten`,
+   * und diese Seite gibt es nicht. Das Wachbuch hat ohnehin KEINEN
+   * Gruppenlesepfad (§1.7): eine Gruppenleitung liest keine
+   * Vorkommnismeldungen einer anderen Gesellschaft.
+   */
+  { schluessel: 'security', label: 'Security', pfad: 'security/posten', recht: 'security.lesen', gruppe: false, icon: 'schloss' },
+  /**
+   * `reinigung/reviere`, nicht `reinigung`: die Modulübersicht steht zwar in
+   * der Seitenkarte, hat aber erst mit dem Turnus-Gesundheitsblatt einen
+   * Inhalt (PR 42). Der Punkt zeigt dorthin, wo etwas steht — ein Menüpunkt
+   * auf eine leere Seite ist die teuerste Art, eine Lücke zu zeigen.
+   *
+   * Das Icon ist `objekt` und nicht ein eigenes: der geschlossene Satz aus
+   * DESIGN §5 führt keines für die Reinigung, und ein neues zu zeichnen hiesse
+   * zuerst DESIGN.md zu ändern. Ein Revier IST eine Zone in einem Gebäude,
+   * also ist das Gebäude das nächstliegende Bild.
+   */
+  { schluessel: 'reinigung', label: 'Reinigung', pfad: 'reinigung/reviere', recht: 'reinigung.lesen', gruppe: true, icon: 'objekt' },
+  /**
+   * Qualität steht NEBEN den Gewerken, nicht darin: eine Beanstandung über
+   * einen Wachmann ist dieselbe Zeile wie eine über eine Reinigungsrunde
+   * (04-SEITENKARTE.md §5.6). `warnung` als Icon, weil der Punkt im Alltag
+   * genau dafür angeklickt wird — die offenen Fälle.
+   */
+  { schluessel: 'qualitaet', label: 'Qualität', pfad: 'qualitaet/reklamationen', recht: 'qualitaet.lesen', gruppe: true, icon: 'warnung' },
   { schluessel: 'einstellungen', label: 'Einstellungen', pfad: 'einstellungen', recht: 'system.einstellung_lesen', gruppe: false, icon: 'einstellungen' },
 ] as const;
 

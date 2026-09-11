@@ -40,6 +40,7 @@ export interface ZeitErgebnis {
   readonly uebergangen: number;
   readonly zeiteintraege: number;
   readonly laufend: number;
+  readonly abwesenheiten: number;
 }
 
 /** Wie weit zurueck und wie weit voraus besetzt wird. */
@@ -184,11 +185,82 @@ export async function seedZeit(
   }
 
   const { erfasst, laufend } = await erfasseZeiten(sql, mandantId, zugeteilt);
-  return { einteilungen, uebergangen, zeiteintraege: erfasst, laufend };
+  const abwesenheiten = await seedAbwesenheiten(sql, mandantId, planer.id, anstellungen, heute);
+  return { einteilungen, uebergangen, zeiteintraege: erfasst, laufend, abwesenheiten };
+}
+
+/**
+ * Zwei Abwesenheiten und ein offener Antrag — damit die Personalseiten nicht
+ * leer sind und der Dienstplan zeigt, was er bei einer Abmeldung tut.
+ *
+ * **Der Urlaubsanspruch wird VORHER eingetragen**, weil die Genehmigung sonst
+ * mit „kein Urlaubsanspruch hinterlegt (O-18)" abbricht — und genau das soll
+ * sie: eine Demo, die diesen Halt umgeht, zeigt eine Plattform, die es nicht
+ * gibt. 30 Tage sind hier ein DEMOWERT und keine Zusage; die Frage steht
+ * offen.
+ */
+async function seedAbwesenheiten(
+  sql: Sql, mandantId: string, planerId: string,
+  anstellungen: readonly string[], heute: string,
+): Promise<number> {
+  const [krank] = await sql<{ id: string }[]>`
+    select id from abwesenheitsart where schluessel = 'krankheit' and mandant_id is null`;
+  const [urlaub] = await sql<{ id: string }[]>`
+    select id from abwesenheitsart where schluessel = 'urlaub' and mandant_id is null`;
+  const [urlaubsantrag] = await sql<{ id: string }[]>`
+    select id from antragsart where schluessel = 'urlaub' and mandant_id is null`;
+  const ersteAnstellung = anstellungen[0];
+  const zweiteAnstellung = anstellungen[1] ?? anstellungen[0];
+  if (krank === undefined || urlaub === undefined || urlaubsantrag === undefined
+      || ersteAnstellung === undefined || zweiteAnstellung === undefined) {
+    return 0;
+  }
+
+  /**
+   * Die Lohnfrage der beiden benutzten Arten wird hier beantwortet — und zwar
+   * SICHTBAR als Demowert. Ohne Antwort verweigert der Dienst die Verwendung
+   * (O-139), und das ist richtig so; ein Seed, der die Verweigerung umgeht,
+   * ohne es zu sagen, waere die schlechtere Haelfte.
+   */
+  await sql`
+    update abwesenheitsart set bezahlt = true
+     where id in (${krank.id}, ${urlaub.id}) and bezahlt is null`;
+
+  const [da] = await sql<{ anzahl: string }[]>`
+    select count(*)::text as anzahl from abwesenheit where mandant_id = ${mandantId}`;
+  if (Number(da?.anzahl ?? '0') > 0) return 0;
+
+  let angelegt = 0;
+  // Eine laufende Krankmeldung — der Fall, den der Dienstplan kennzeichnen soll.
+  await sql`
+    insert into abwesenheit
+      (mandant_id, anstellung_id, abwesenheitsart_id, von, bis, tage_angerechnet,
+       status, erstellt_von)
+    values (${mandantId}, ${ersteAnstellung}, ${krank.id},
+            ${tagePlus(heute, -1)}::date, ${tagePlus(heute, 2)}::date, 4,
+            'erfasst', ${planerId})`;
+  angelegt += 1;
+
+  // Und ein offener Urlaubsantrag im Posteingang der Planung.
+  const jahr = Number(tagePlus(heute, 30).slice(0, 4));
+  await sql`
+    insert into urlaubskonto (mandant_id, anstellung_id, jahr, anspruch_tage, erstellt_von)
+    values (${mandantId}, ${zweiteAnstellung}, ${jahr}, 30, ${planerId})
+    on conflict (anstellung_id, jahr) do nothing`;
+  await sql`
+    insert into antrag
+      (mandant_id, anstellung_id, antragsart_id, von_datum, bis_datum,
+       abwesenheitsart_id, nachricht, eingereicht_von_benutzer_id)
+    values (${mandantId}, ${zweiteAnstellung}, ${urlaubsantrag.id},
+            ${tagePlus(heute, 30)}::date, ${tagePlus(heute, 34)}::date,
+            ${urlaub.id}, 'Kurzurlaub — Demodaten (Seed)', ${planerId})`;
+  angelegt += 1;
+
+  return angelegt;
 }
 
 function leer(): ZeitErgebnis {
-  return { einteilungen: 0, uebergangen: 0, zeiteintraege: 0, laufend: 0 };
+  return { einteilungen: 0, uebergangen: 0, zeiteintraege: 0, laufend: 0, abwesenheiten: 0 };
 }
 
 /**

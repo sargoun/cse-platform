@@ -49,6 +49,14 @@ interface SchichtZeile {
 export interface Planfenster {
   readonly tage: readonly PlanTag[];
   readonly schichten: readonly PlanSchicht[];
+  /**
+   * Wurden Abwesenheiten ueberhaupt geprueft?
+   *
+   * `false` heisst: dieser Sitzung fehlt `zeit.abwesenheit_lesen`, und die
+   * Schichten tragen deshalb keinen Abmeldebefund. Das ist etwas anderes als
+   * „niemand ist abgemeldet", und die Seite sagt den Unterschied.
+   */
+  readonly abwesenheitGeprueft: boolean;
 }
 
 export async function ladePlanfenster(
@@ -135,6 +143,47 @@ export async function ladePlanfenster(
             and k.zeitraum_beginn < (($2::date + 1)::timestamp) at time zone 'Europe/Berlin'`,
         [vonDatum, bisDatum],
       );
+      /**
+       * **Wer eingeteilt ist und an diesem Tag abgemeldet ist** (EMP-10,
+       * TIM-05).
+       *
+       * Die Abfrage nennt die PERSON und den Status — nie die Art der
+       * Abwesenheit. Der Plan sagt „abgemeldet", nie „krank": die
+       * Grundspalten sind `cse_app` als Spaltenrecht entzogen (0073,
+       * Art. 9 DSGVO), und diese Abfrage fragt sie gar nicht erst.
+       *
+       * Ohne `zeit.abwesenheit_lesen` gibt die RLS hier nichts heraus. Das
+       * darf nicht wie „niemand ist abgemeldet" aussehen, deshalb wird das
+       * Recht daneben abgefragt und die Seite sagt es.
+       */
+      const [rechtZeile] = await kontext.abfrage<{ darf: boolean }>(
+        `select app.hat_recht('zeit.abwesenheit_lesen', app.aktiver_mandant()) as darf`,
+      );
+      const abwesenheitSichtbar = rechtZeile?.darf === true;
+
+      const abwesend = abwesenheitSichtbar
+        ? await kontext.abfrage<{ einsatz_id: string; person: string; status: string }>(
+          `select z.einsatz_id,
+                  (p.vorname || ' ' || p.nachname) as person,
+                  a.status::text                   as status
+             from einsatz_zuordnung z
+             join einsatz e   on e.mandant_id = z.mandant_id and e.id = z.einsatz_id
+             join anstellung an on an.mandant_id = z.mandant_id and an.id = z.anstellung_id
+             join person p    on p.id = an.person_id
+             join abwesenheit a
+               on a.mandant_id = z.mandant_id
+              and a.anstellung_id = z.anstellung_id
+              and a.status in ('beantragt','genehmigt','erfasst')
+              and daterange(a.von, a.bis, '[]') && daterange(
+                    (e.beginn_zeitpunkt at time zone 'Europe/Berlin')::date,
+                    (e.ende_zeitpunkt   at time zone 'Europe/Berlin')::date, '[]')
+            where z.entfernt_am is null
+              and e.ende_zeitpunkt   > ($1::date::timestamp)       at time zone 'Europe/Berlin'
+              and e.beginn_zeitpunkt < (($2::date + 1)::timestamp) at time zone 'Europe/Berlin'`,
+          [vonDatum, bisDatum],
+        )
+        : [];
+
       const jeSchicht = new Map<string, BefundZeile[]>();
       for (const b of befunde) {
         const liste = jeSchicht.get(b.einsatz_id);
@@ -142,7 +191,23 @@ export async function ladePlanfenster(
         else liste.push(b);
       }
 
+      /**
+       * Die Abmeldung wird zu einem Befund der Schicht — in DERSELBEN Liste
+       * wie ArbZG und Nachweis. Ein eigener Kanal daneben hiesse, dass eine
+       * Planerin zwei Stellen ansehen muss, um zu wissen, ob eine Schicht
+       * haelt.
+       */
+      const jeAbwesenheit = new Map<string, string[]>();
+      for (const a of abwesend) {
+        const wort = a.status === 'beantragt' ? 'hat Urlaub beantragt' : 'ist abgemeldet';
+        const text = `${a.person} ${wort}`;
+        const liste = jeAbwesenheit.get(a.einsatz_id);
+        if (liste === undefined) jeAbwesenheit.set(a.einsatz_id, [text]);
+        else if (!liste.includes(text)) liste.push(text);
+      }
+
       return {
+        abwesenheitGeprueft: abwesenheitSichtbar,
         tage: tage.map((t) => ({
           datum: t.datum,
           beschriftung: beschriftung(t.datum),
@@ -167,16 +232,21 @@ export async function ladePlanfenster(
            * sich nicht uebergehen (SEC-04, §34a), eine Warnung mit
            * Begruendung schon.
            */
-          befunde: (jeSchicht.get(s.id) ?? []).map((b) => ({
-            art: b.blockiert
-              ? ('sperre' as const)
-              // `verstoss` UND `warnung` lesen sich als Warnung. Nur `warnung`
-              // auf „Hinweis" abzubilden waere eine Abschwaechung, die
-              // niemand entschieden hat — und die Planerin liest das mildere
-              // Wort, waehrend die Datenbank das schaerfere meint.
-              : b.schwere === 'hinweis' ? ('hinweis' as const) : ('warnung' as const),
-            text: b.text,
-          })),
+          befunde: [
+            ...(jeSchicht.get(s.id) ?? []).map((b) => ({
+              art: b.blockiert
+                ? ('sperre' as const)
+                // `verstoss` UND `warnung` lesen sich als Warnung. Nur `warnung`
+                // auf „Hinweis" abzubilden waere eine Abschwaechung, die
+                // niemand entschieden hat — und die Planerin liest das mildere
+                // Wort, waehrend die Datenbank das schaerfere meint.
+                : b.schwere === 'hinweis' ? ('hinweis' as const) : ('warnung' as const),
+              text: b.text,
+            })),
+            ...(jeAbwesenheit.get(s.id) ?? []).map((text) => ({
+              art: 'warnung' as const, text,
+            })),
+          ],
         })),
       };
     }));

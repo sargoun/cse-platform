@@ -187,6 +187,23 @@ export const ROUTEN: readonly RouteEintrag[] = [
     recht: 'dienstplan.schreiben',
   },
   {
+    /**
+     * EMP-10, NOT-01. Ueber einen Antrag zu entscheiden heisst, ueber die
+     * Freizeit eines Menschen zu entscheiden — ein eigenes Recht, nicht
+     * `zeit.schreiben`.
+     */
+    pfad: 'api/antraege/[id]',
+    recht: 'zeit.antrag_entscheiden',
+  },
+  {
+    /**
+     * EMP-10, EMP-05. Genehmigen, ablehnen und stornieren sind drei Wege
+     * derselben Entscheidung — sie betrifft Lohnfortzahlung und Urlaubskonto.
+     */
+    pfad: 'api/abwesenheiten/[id]',
+    recht: 'zeit.abwesenheit_genehmigen',
+  },
+  {
     pfad: 'api/check-in/[token]/offline',
     recht: null,
     grund:
@@ -235,6 +252,134 @@ export const ROUTEN: readonly RouteEintrag[] = [
      */
     pfad: 'api/offline-ereignis/[id]',
     recht: 'zeit.nacherfassung_pruefen',
+  },
+  {
+    /**
+     * SEC-01. Einen Wachposten anlegen — Mindestbesetzung, Sollbesetzung,
+     * Abdeckung. `security.schreiben`, dasselbe Recht, das die
+     * `WITH CHECK`-Haelfte der Zeilenpolitik von `posten` verlangt (K-03).
+     */
+    pfad: 'api/sicherheit/posten',
+    recht: 'security.schreiben',
+  },
+  {
+    /**
+     * SEC-05, TIM-08, TIM-10 — eine Wachbuchseite schreiben oder
+     * richtigstellen.
+     *
+     * `wachbuch.schreiben` und nicht `wachbuch.lesen`: das ist das eine Recht
+     * dieser Domaene, das die Rolle `mitarbeiter` wirklich haelt (03-AUTH
+     * §12.7), denn SEC-05 laesst die Wache das Buch fuehren. Ihr Leseweg im
+     * eigenen Portal laeuft ueber `t_person` ganz ohne Modulrecht (K-18) —
+     * deshalb ist dieses Recht hier tragend und nicht bloss symmetrisch.
+     *
+     * Korrigieren traegt DASSELBE Recht: eine Korrektur ist ein neuer Eintrag
+     * mit einem Storno daneben, kein zweiter Vorgang mit eigener Schwelle.
+     */
+    pfad: 'api/sicherheit/wachbuch',
+    recht: 'wachbuch.schreiben',
+  },
+  {
+    /**
+     * SEC-08, SEC-04, TIM-05 — kurzfristige Eventbesetzung.
+     *
+     * `dienstplan.schreiben`, nicht `security.schreiben`: was hier entsteht,
+     * ist eine Schicht und eine Einteilung, und beide gehoeren dem
+     * Dienstplan. Dasselbe Recht traegt `api/einsaetze/[id]/besetzen`, und
+     * das ist der Punkt — es gibt genau EINEN Schreibweg auf
+     * `einsatz_zuordnung`, und diese Adresse benutzt ihn, statt einen zweiten
+     * zu oeffnen.
+     */
+    pfad: 'api/sicherheit/event-besetzung',
+    recht: 'dienstplan.schreiben',
+  },
+  {
+    /**
+     * Die Vorschau auf den Rechenansatz (BAU-02).
+     *
+     * `bau.aufmass_erfassen` und nicht `bau.lesen`: sie gehoert zum
+     * Erfassungsbildschirm `…/aufmass/neu`, und genau dieses Recht haelt die
+     * Kraft vor Ort — `bau.lesen` haelt sie nicht (03-GEWERKE §1.7). Sie
+     * schreibt nichts: Formel hinein, Zahl heraus.
+     */
+    pfad: 'api/bau/aufmasse/vorschau',
+    recht: 'bau.aufmass_erfassen',
+  },
+  {
+    /**
+     * Ein Aufmassblatt aufnehmen (BAU-02, BAU-03).
+     *
+     * Dieselbe Begruendung, und die Route nimmt die MESSFOTOS mit: BAU-03
+     * verlangt sie, bevor ein Blatt vorgelegt wird, und ein zweiter Schritt
+     * erzeugte den Zustand „Blatt ohne Foto", in dem die Kraft die Baustelle
+     * schon verlassen hat.
+     */
+    pfad: 'api/bau/aufmasse',
+    recht: 'bau.aufmass_erfassen',
+  },
+  {
+    /**
+     * Die Gegenzeichnung (BAU-03).
+     *
+     * `bau.aufmass_freigeben`, nicht `bau.aufmass_erfassen`: wer ein Blatt
+     * aufnimmt, stellt damit noch nicht fest, dass der Auftraggeber es
+     * anerkannt hat — dieselbe Trennung wie zwischen
+     * `dienstplan.konflikt_quittieren` und `dienstplan.schreiben`.
+     */
+    pfad: 'api/bau/aufmasse/[id]/gegenzeichnung',
+    recht: 'bau.aufmass_freigeben',
+  },
+  {
+    /**
+     * Raeume einer Zone zuordnen und ihre Sollzeit neu rechnen (CLN-01,
+     * OPS-07).
+     *
+     * `reinigung.schreiben` und nicht `kalkulation.schreiben`: hier wird
+     * keine Grundlage BESTAETIGT, sondern eine Zone zugeschnitten. Der
+     * Leistungswert selbst bleibt, was der Katalog sagt; was sich aendert,
+     * ist die Menge Raeume, ueber die gerechnet wird.
+     *
+     * `POST` statt des in der API-Karte genannten `PUT`: der Aufrufer ist ein
+     * HTML-Formular, und ein Formular kennt nur `GET` und `POST`.
+     */
+    pfad: 'api/reinigung/reviere/[id]/raeume',
+    recht: 'reinigung.schreiben',
+  },
+  {
+    /**
+     * Schritt 1 des Leistungsnachweises: den Entwurf samt Zeilen anlegen
+     * (CLN-04, TIM-12).
+     *
+     * `nachweis.schreiben` — das Modul gehoert dem Leistungsnachweis, nicht
+     * dem Qualifikationsnachweis (der laeuft unter `personal.nachweis_*`).
+     */
+    pfad: 'api/reinigung/leistungsnachweise/entwurf',
+    recht: 'nachweis.schreiben',
+  },
+  {
+    /**
+     * Schritt 2: vorlegen und unterschreiben (CLN-04, TIM-08, LEG-10).
+     *
+     * Beides unter EINER Adresse, weil beides dieselbe Sitzung, denselben
+     * Ursprungscheck und denselben Mandantenkontext braucht — dieselbe
+     * Begruendung wie bei `api/angebot`. Was den Vorgang absichert, ist nicht
+     * eine zweite Adresse, sondern die bestaetigte Pruefsumme: stimmt sie
+     * nicht mehr mit den Zeilen ueberein, wird nichts geschrieben.
+     */
+    pfad: 'api/reinigung/leistungsnachweise',
+    recht: 'nachweis.schreiben',
+  },
+  {
+    /**
+     * Beanstandung anlegen und abstellen (OPS-11, SPEC §22).
+     *
+     * `qualitaet.schreiben` und nicht `reinigung.schreiben`: eine Beschwerde
+     * ueber einen Wachmann ist dieselbe Zeile wie eine ueber eine
+     * Reinigungsrunde, und das Modul ist fuer drei Bereiche freigeschaltet
+     * (04-SEITENKARTE.md §5.6).
+     */
+    pfad: 'api/qualitaet/reklamationen',
+    recht: 'qualitaet.schreiben',
   },
 ] as const;
 

@@ -954,3 +954,376 @@ create trigger trg_urlaubskonto_audit
   for each row execute function kern.protokolliere_aenderung();
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0065)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- revier_raum (append): CLN-01, OPS-07. Die Zeile IST der Rechenweg einer Kalkulation: Flaeche, Leistungswert und die daraus gewonnene Sollzeit, alle drei als Schnappschuss vom Kalkulationszeitpunkt. Geloescht laesst sich ein abgegebenes Angebot nicht mehr nachrechnen, und die Zusage "Σ revier_raum.sollzeit = revier.sollzeit" waere ohne Vorwarnung falsch. Eine neu zugeschnittene Zone entsteht als NEUES Revier; das alte bekommt archiviert_am.
+create trigger trg_revier_raum_kein_hard_delete
+  before delete on revier_raum
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_revier_raum_kein_truncate
+  before truncate on revier_raum
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on revier_raum from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_revier_raum_geaendert_am
+  before update on revier_raum
+  for each row execute function kern.setze_geaendert_am();
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0066)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- leistungsnachweis (archiv): CLN-04, LEG-01, § 147 AO. Das ist das Dokument, das der Kunde unterschrieben hat und aus dem eine Rechnung abgeleitet wird — zehn Jahre aufbewahrungspflichtig (Klasse gobd_10j). Geloescht bliebe eine Rechnung ohne Leistungsbeleg stehen; korrigiert wird durch Stornieren und einen Ersatz (ersetzt_durch_id), nie durch Entfernen.
+create trigger trg_leistungsnachweis_kein_hard_delete
+  before delete on leistungsnachweis
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_leistungsnachweis_kein_truncate
+  before truncate on leistungsnachweis
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on leistungsnachweis from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- leistungsnachweis_position (append): CLN-04, FIN-07. Die Zeile traegt den Rueckverweis auf ihre Quelle — den Zeiteintrag, die Aufmasszeile, die Katalogposition. Sie zu loeschen macht aus der Nachvollziehbarkeit einer Rechnungsposition eine Behauptung. Eine eigene Lebendigkeitsspalte hat sie nicht: sie lebt und stirbt mit ihrem Kopf, dessen Zustand sie kopiert traegt.
+create trigger trg_leistungsnachweis_position_kein_hard_delete
+  before delete on leistungsnachweis_position
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_leistungsnachweis_position_kein_truncate
+  before truncate on leistungsnachweis_position
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on leistungsnachweis_position from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- leistungsnachweis_signatur (append): CLN-04, LEG-01, SEC-A9. Name, Serverzeit, Ort und der unveraenderliche Abzug dessen, was angezeigt wurde — die Zeile, um die im Streitfall gestritten wird. Sie ist anfuegend bis in die Rechte hinein: kein UPDATE, kein DELETE, keine geaendert_*-Spalten. Eine loeschbare Unterschrift ist keine.
+create trigger trg_leistungsnachweis_signatur_kein_hard_delete
+  before delete on leistungsnachweis_signatur
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_leistungsnachweis_signatur_kein_truncate
+  before truncate on leistungsnachweis_signatur
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on leistungsnachweis_signatur from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_leistungsnachweis_geaendert_am
+  before update on leistungsnachweis
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_leistungsnachweis_position_geaendert_am
+  before update on leistungsnachweis_position
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_leistungsnachweis_audit
+  after insert or update or delete on leistungsnachweis
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0067)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- sonderleistung (archiv): CLN-05, FIN-01, FIN-07. Der Einzelabruf ist die Grundlage einer einzelabruf-Abrechnung und Teil der Abrechnungsspur (Klasse gobd_10j). Geloescht stuende die Rechnung ueber eine Sonderreinigung ohne den Beleg da, dass sie beauftragt war; ein zurueckgezogener Abruf bekommt storniert_am.
+create trigger trg_sonderleistung_kein_hard_delete
+  before delete on sonderleistung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_sonderleistung_kein_truncate
+  before truncate on sonderleistung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on sonderleistung from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_sonderleistung_geaendert_am
+  before update on sonderleistung
+  for each row execute function kern.setze_geaendert_am();
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0068)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- pruefverfahren (archiv): OPS-11. Das Verfahren ist die Messvorschrift, nach der eine vergangene Pruefung bewertet wurde — samt der Bestehensschwelle, die damals galt. Geloescht liesse sich ein Protokoll nicht mehr lesen: die Punktzahl bliebe stehen und niemand wuesste, wogegen sie gemessen wurde. Abgeloest wird es durch archiviert_am.
+create trigger trg_pruefverfahren_kein_hard_delete
+  before delete on pruefverfahren
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_pruefverfahren_kein_truncate
+  before truncate on pruefverfahren
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on pruefverfahren from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- reklamation (archiv): OPS-11, CRM-06, REP-05. Die Beanstandung ist Gewaehrleistungsbeweis: sie zeigt, was wann geruegt und wie abgestellt wurde, und der Wiederholungsfall (wiederholung_von_id) haengt an ihr. Geloescht ist die dritte Beschwerde ueber denselben Mangel die erste; eine erledigte bekommt geschlossen_am, eine gegenstandslose archiviert_am.
+create trigger trg_reklamation_kein_hard_delete
+  before delete on reklamation
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_reklamation_kein_truncate
+  before truncate on reklamation
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on reklamation from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- qualitaetspruefung (archiv): OPS-11, PRO-05, REP-05. Das Pruefprotokoll ist die Grundlage des Kundengespraechs und der Nachschulung — und im Streit um eine Vertragsstrafe der Beleg, dass kontrolliert wurde. Geloescht bliebe nur die Behauptung; eine gegenstandslose Pruefung bekommt archiviert_am.
+create trigger trg_qualitaetspruefung_kein_hard_delete
+  before delete on qualitaetspruefung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_qualitaetspruefung_kein_truncate
+  before truncate on qualitaetspruefung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on qualitaetspruefung from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- qualitaetspruefung_position (append): OPS-11, TIM-10. Der einzelne Befund samt Foto und Frist. Er zu loeschen liesse die Kopfsumme stehen und ihre Herleitung verschwinden — und der Mangel, aus dem eine Reklamation entstanden ist, zeigte auf nichts mehr. Eine eigene Lebendigkeitsspalte hat sie nicht: sie lebt mit ihrem Kopf.
+create trigger trg_qualitaetspruefung_position_kein_hard_delete
+  before delete on qualitaetspruefung_position
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_qualitaetspruefung_position_kein_truncate
+  before truncate on qualitaetspruefung_position
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on qualitaetspruefung_position from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_pruefverfahren_geaendert_am
+  before update on pruefverfahren
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_reklamation_geaendert_am
+  before update on reklamation
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_qualitaetspruefung_geaendert_am
+  before update on qualitaetspruefung
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_qualitaetspruefung_position_geaendert_am
+  before update on qualitaetspruefung_position
+  for each row execute function kern.setze_geaendert_am();
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0069)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- postenart (archiv): SEC-01, LEG-04. Die Postenart sagt, WOFUER ein Mensch eingeteilt war — Empfang, Streife, Objektschutz. Geloescht liesse sich einer vergangenen Besetzung nicht mehr ansehen, welche Taetigkeit sie war, und genau daran misst eine Aufsicht die Qualifikation. Eine aufgegebene Art bekommt `archiviert_am`.
+create trigger trg_postenart_kein_hard_delete
+  before delete on postenart
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_postenart_kein_truncate
+  before truncate on postenart
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on postenart from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- posten (archiv): SEC-01, LEG-04, TIM-04. Der Posten ist das vertraglich Geschuldete: die Antwort darauf, ob eine Wachschicht stattfinden musste und mit welcher Mindestbesetzung. Geloescht stuende jede von ihm erzeugte Schicht ohne Grundlage da; ein beendeter Posten bekommt `gueltig_bis`, ein aufgegebener `archiviert_am`.
+create trigger trg_posten_kein_hard_delete
+  before delete on posten
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_posten_kein_truncate
+  before truncate on posten
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on posten from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- posten_ausnahme (append): SEC-01, TIM-02, LEG-04. Sie ist die dokumentierte Abweichung samt Grund und Urheber — im Streit ueber eine unbesetzte Nacht genau die Zeile, die zaehlt. Eine Ausnahme, die sich loeschen laesst, ist keine Dokumentation; zurueckgenommen wird sie durch eine Gegenzeile.
+create trigger trg_posten_ausnahme_kein_hard_delete
+  before delete on posten_ausnahme
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_posten_ausnahme_kein_truncate
+  before truncate on posten_ausnahme
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on posten_ausnahme from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- veranstaltung (archiv): SEC-08, LEG-04. Der Eventdienst traegt Kunde, Ort und Fenster einer kurzfristigen Bewachung; er ist der Traeger, an dem die § 34a-Anforderung fuer Einsaetze ohne festen Posten haengt. Geloescht saehe eine damals gepruefte Besetzung so aus, als habe nie eine Anforderung bestanden. Abgesagt heisst `archiviert_am`.
+create trigger trg_veranstaltung_kein_hard_delete
+  before delete on veranstaltung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_veranstaltung_kein_truncate
+  before truncate on veranstaltung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on veranstaltung from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_postenart_geaendert_am
+  before update on postenart
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_posten_geaendert_am
+  before update on posten
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_posten_ausnahme_geaendert_am
+  before update on posten_ausnahme
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_veranstaltung_geaendert_am
+  before update on veranstaltung
+  for each row execute function kern.setze_geaendert_am();
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0070)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- kontrollpunkt (archiv): SEC-05, LEG-10. Der Kontrollpunkt ist der Bezug, auf den sich ein Praesenznachweis im Wachbuch beruft („war an Punkt 4"). Geloescht zeigt jeder Rundgangseintrag auf nichts mehr, und der Nachweis gegen den Auftraggeber ist wertlos. Ein abgebauter Punkt bekommt `archiviert_am`.
+create trigger trg_kontrollpunkt_kein_hard_delete
+  before delete on kontrollpunkt
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_kontrollpunkt_kein_truncate
+  before truncate on kontrollpunkt
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on kontrollpunkt from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- wachbuch_eintrag (archiv): SEC-05, LEG-01, § 34a GewO. Das Wachbuch ist die einzige laufende Beweisfuehrung der Bewachung — Rundgang, Vorkommnis, Uebergabe, Alarm. Eine loeschbare Seite macht die Hashkette daneben zur Behauptung: fehlt ein Glied, laesst sich nicht mehr zeigen, dass nichts entfernt wurde. Korrigiert wird durch einen NEUEN, verknuepften Eintrag; die falsche Zeile bekommt `storniert_am` und `ersetzt_durch_id`.
+create trigger trg_wachbuch_eintrag_kein_hard_delete
+  before delete on wachbuch_eintrag
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_wachbuch_eintrag_kein_truncate
+  before truncate on wachbuch_eintrag
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on wachbuch_eintrag from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_kontrollpunkt_geaendert_am
+  before update on kontrollpunkt
+  for each row execute function kern.setze_geaendert_am();
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0071)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- projekt (archiv): OPS-05, BAU-01, LEG-01. Am Projekt haengen Leistungsverzeichnis, Aufmass, Abnahme und Rechnungen mit zehnjaehriger Aufbewahrung (§ 147 AO). Ein beendetes Projekt wird abgeschlossen und archiviert; geloescht bliebe eine Schlussrechnung ohne Bauvorhaben stehen.
+create trigger trg_projekt_kein_hard_delete
+  before delete on projekt
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_projekt_kein_truncate
+  before truncate on projekt
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on projekt from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- leistungsverzeichnis (archiv): BAU-01, BAU-04. Das Verzeichnis ist die Fassung, gegen die abgerechnet wird — und bei einem Nachtrag der Beleg dafuer, was urspruenglich eingereicht wurde (§ 2 Abs. 6 VOB/B). Eine neue Verhandlungsrunde ist eine neue Fassung, nie eine ersetzte Zeile.
+create trigger trg_leistungsverzeichnis_kein_hard_delete
+  before delete on leistungsverzeichnis
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_leistungsverzeichnis_kein_truncate
+  before truncate on leistungsverzeichnis
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on leistungsverzeichnis from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- lv_position (archiv): BAU-01, BAU-02, FIN-07. Auf der Position stehen Vertragsmenge und Einheitspreis, aus denen jede Einheitspreisrechnung entsteht. Sie zu loeschen macht ein bereits gestelltes Aufmass unlesbar: die Menge bliebe stehen, und niemand wuesste mehr, wofuer sie galt.
+create trigger trg_lv_position_kein_hard_delete
+  before delete on lv_position
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_lv_position_kein_truncate
+  before truncate on lv_position
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on lv_position from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_projekt_geaendert_am
+  before update on projekt
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_leistungsverzeichnis_geaendert_am
+  before update on leistungsverzeichnis
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_lv_position_geaendert_am
+  before update on lv_position
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_lv_position_audit
+  after insert or update or delete on lv_position
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0072)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- aufmass (archiv): BAU-02, BAU-03, LEG-01, § 14 VOB/B. Das gegengezeichnete Blatt ist das Beweismittel, aus dem eine Werklohnforderung entsteht. Korrigiert wird durch Storno und ein Ersatzblatt (`ersetzt_durch_id`), nie durch Entfernen — geloescht waere im Werklohnprozess eine Luecke, die niemand mehr erklaeren kann.
+create trigger trg_aufmass_kein_hard_delete
+  before delete on aufmass
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_aufmass_kein_truncate
+  before truncate on aufmass
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on aufmass from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- aufmass_zeile (append): BAU-02, FIN-07. Die Zeile traegt den Rechenansatz WOERTLICH neben dem Ergebnis — genau das, was ein Pruefer nachrechnet. Sie lebt und stirbt mit ihrem Kopf, dessen Zustand sie kopiert traegt, und hat darum keine eigene Lebendigkeitsspalte.
+create trigger trg_aufmass_zeile_kein_hard_delete
+  before delete on aufmass_zeile
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_aufmass_zeile_kein_truncate
+  before truncate on aufmass_zeile
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on aufmass_zeile from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- aufmass_foto (append): BAU-03, DOC-07. Ohne Messfoto wird kein Blatt vorgelegt; ein geloeschtes Foto nimmt der Feststellung nachtraeglich ihre Voraussetzung, waehrend das Blatt gegengezeichnet stehen bleibt.
+create trigger trg_aufmass_foto_kein_hard_delete
+  before delete on aufmass_foto
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_aufmass_foto_kein_truncate
+  before truncate on aufmass_foto
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on aufmass_foto from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- aufmass_signatur (append): BAU-03, § 14 VOB/B. Die Unterschrift mit ihrem eingefrorenen Schnappschuss IST die Feststellung. Sie zu loeschen liesse ein Blatt zurueck, das gegengezeichnet heisst und niemanden nennt.
+create trigger trg_aufmass_signatur_kein_hard_delete
+  before delete on aufmass_signatur
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_aufmass_signatur_kein_truncate
+  before truncate on aufmass_signatur
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on aufmass_signatur from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_aufmass_geaendert_am
+  before update on aufmass
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_aufmass_zeile_geaendert_am
+  before update on aufmass_zeile
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_aufmass_audit
+  after insert or update or delete on aufmass
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0073)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- abwesenheit (archiv): EMP-10, LEG-09, Invariante 8. Dass jemand krank gemeldet war oder Urlaub hatte, ist die Grundlage von Lohnfortzahlung und Urlaubskonto — und im Streit die Tatsache selbst. Zurueckgenommen wird ueber `status = storniert`, nie durch DELETE.
+create trigger trg_abwesenheit_kein_hard_delete
+  before delete on abwesenheit
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_abwesenheit_kein_truncate
+  before truncate on abwesenheit
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on abwesenheit from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- abwesenheitsart (archiv): EMP-05, ACC-12, K-17. Der Katalog traegt die Lohnwirkung; eine geloeschte Art nimmt jeder Abwesenheit, die auf sie zeigt, ihre Bedeutung. Ausser Gebrauch kommt sie ueber `archiviert_am`.
+create trigger trg_abwesenheitsart_kein_hard_delete
+  before delete on abwesenheitsart
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_abwesenheitsart_kein_truncate
+  before truncate on abwesenheitsart
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on abwesenheitsart from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+create trigger trg_abwesenheit_audit
+  after insert or update or delete on abwesenheit
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0074)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- antrag (archiv): EMP-10, NOT-01. Der Antrag ist der BELEG der Entscheidung: wer wann was beantragt und wer mit welchem Wort entschieden hat. Genau diese Spur verschwaende, wenn man ihn nach der Umsetzung aufraeumte.
+create trigger trg_antrag_kein_hard_delete
+  before delete on antrag
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_antrag_kein_truncate
+  before truncate on antrag
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on antrag from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- antragsart (archiv): EMP-10, K-17. Wie `abwesenheitsart`: der Katalog gibt jedem Antrag seine Bedeutung, und die drei Systemarten aus EMP-10 sind nicht entfernbar.
+create trigger trg_antragsart_kein_hard_delete
+  before delete on antragsart
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_antragsart_kein_truncate
+  before truncate on antragsart
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on antragsart from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+create trigger trg_antrag_audit
+  after insert or update or delete on antrag
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks

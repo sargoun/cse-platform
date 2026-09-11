@@ -3020,6 +3020,9 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-205 | **Barrierefreiheitserklärung (BFSG):** which conformity status may be declared — fully, partially or not conformant — on the basis of which audit and dated when; which body is named as the enforcement authority; and which mailbox receives accessibility feedback? Until these three are answered the statement at `/barrierefreiheit` carries a visible "not yet issued" block rather than an invented claim. | LEG-07, launch |
 | O-207 | **Seitentexte:** every page currently carries scaffold copy — a factual description of what each company does, drawn from the trade names already recorded in `CLAUDE.md`, with no figures, awards, customer names or promises. The client must read and correct it, in particular anything that reads as a commitment to a customer: a marketing sentence nobody checked ends up quoted in an offer. | all 14 public pages, launch |
 | O-208 | **Gemeinkosten, Wagnis und Gewinn im Angebot: eigene Positionen oder im Einzelpreis?** Die Kalkulation rechnet Lohn → Gemeinkosten → Wagnis → Gewinn; der Nettopreis ist die Summe der vier. Was der Kunde im Dokument liest, ist damit noch nicht entschieden: entweder drei zusaetzliche Zeilen, die die Zuschlaege offenlegen, oder — wie derzeit — Leistungszeilen, deren Einzelpreis den Anteil bereits enthaelt und deren Langtext ihn benennt. Beides ist in der Gebaeudereinigung ueblich; die Wahl ist eine kaufmaennische und keine technische. Die Verteilung selbst liegt in `verteileNetto` an EINER Stelle, damit ein Wechsel eine Aenderung bleibt und keine Umbauaktion. | OPS-07, OPS-08, jedes Angebot |
+| O-209 | **Macht eine Abwesenheit in einer Gesellschaft die Person auch in der anderen unverfügbar?** Ein Mensch mit zwei Beschäftigungen (D-09) meldet sich heute zweimal ab — zwei Vorgesetzte, zwei Entscheidungen, zwei Lohnwirkungen. Ob die Planung der einen Gesellschaft sehen soll, dass die Person in der anderen abgemeldet ist, ist damit **nicht** entschieden: es wäre eine zweite Durchlässigkeit in der Mandantenwand, und K-06 lässt ausdrücklich genau eine zu (die ArbZG-Belastung). Technisch wäre der Weg derselbe — eine Definer-Funktion, die nur Zeiträume und ein „nicht verfügbar" zurückgibt, nie den Grund. Die Frage ist keine technische: sie braucht eine Rechtsgrundlage und die Zustimmung der Betroffenen, weil eine Krankmeldung ein Gesundheitsdatum ist (Art. 9 DSGVO). Bis dahin gilt: jede Gesellschaft sieht nur ihre eigenen Abwesenheiten. | EMP-10, K-06, LEG-09, `abwesenheit` |
+| O-210 | **Gilt bei einem Veranstaltungsdienst die vereinbarte Stärke zugleich als Mindestbesetzung?** SEC-08 nennt für einen Eventdienst eine Sollbesetzung (`veranstaltung.soll_besetzung`) und keine Untergrenze. Der Posten hat beides, und der Unterschied ist folgenreich: die Mindestbesetzung ist die Zahl, an der die Dringlichkeitsmeldung und die Veröffentlichungssperre hängen. Eine Veranstaltung mit `min = soll` meldet jede unvollständig besetzte Feier als dringend; mit `min = 1` meldet sie keine. Die Eventschicht entsteht deshalb mit dem Spaltenvorgabewert 1, und kein Dienst leitet daraus etwas ab, bis die Frage beantwortet ist (K-17). | SEC-08, `posten_unterbesetzung`, SPEC §14 |
+| O-211 | **Wie weit im Voraus sieht eine Wache die Kontrollpunkte und die Dienstanweisung ihres nächsten Objekts — und wie lange nach der letzten Schicht noch?** `03-GEWERKE.md` §1.10 nennt ein „SEC-06 lookahead window", und kein Dokument nennt seine Länge. `app.eigene_einsatz_objekte()` zieht die Grenze deshalb aus den Daten statt aus einer erfundenen Zahl: ein Einsatz, der noch nicht zu Ende ist. Die Wache sieht damit ihr laufendes und ihr kommendes Objekt und verliert den Zugriff, sobald die letzte Schicht vorbei ist. Eine Antwort verschiebt genau eine Bedingung in dieser Funktion. | SEC-05, SEC-06, EMP-09, `kontrollpunkt`, `posten` |
 | O-206 | **Is "CSE Gruppe" a legal entity?** Does a group-level Rechtsträger (holding) exist — under which name, address and register entry — or is the group only a brand over four independent companies? A structured-data `Organization` block carries an address and therefore asserts that such a company exists; until this is answered the site emits four complete `LocalBusiness` entries and no umbrella. | PUB-11, `/impressum`, footer |
 
 ---
@@ -3027,3 +3030,248 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 O-02 has been answered — see **D-11**. O-03 has been answered — see **D-09**; the
 `person` / `anstellung` split is confirmed and must be in the schema from the first
 migration.
+
+---
+
+## Entschieden in PR 41 — Security A (Posten, Wachbuch, Eventbesetzung)
+
+Diese sechs Entscheidungen loesen Widersprueche zwischen den Vorgabedokumenten
+oder halten eine Stelle fest, an der die Umsetzung vom Wortlaut abweicht. Sie
+stehen hier, weil die naechste Person sonst dieselbe Stelle noch einmal
+entscheidet — und moeglicherweise anders.
+
+### D-166 · `posten` bekommt die Einsatzdecke, nicht die Interndecke
+
+`03-GEWERKE.md` §1.8 widerspricht sich: die Deckentabelle gibt `posten` die
+reine `p_intern_ceiling`, die Tabelle der Subjektumfaenge zwei Absaetze weiter
+fuehrt `posten` unter `t_person` mit `ist_eingesetzt_auf_objekt(objekt_id)`.
+Beides zusammen ist unmoeglich — `portal() = 'intern'` ist RESTRICTIVE, wird
+also mit der `t_person`-Policy UND-verknuepft, und die Wache laese im eigenen
+Portal null Zeilen, ohne Fehler.
+
+Aufgeloest gilt die vierte Variante, `p_intern_einsatz_ceiling`, wie bei
+`kontrollpunkt`. §1.8 nennt die Regel selbst, an der das zu entscheiden ist
+(die Bauprobe verlangt, dass Deckenliste und `t_person`-Liste Tabelle fuer
+Tabelle uebereinstimmen), und §6.1 traegt nur diese Lesart: dass eine Wache
+„die Art ihres eigenen Postens" sieht, ist wertlos, wenn ihr der Posten selbst
+verschlossen ist. Umgesetzt in `0069`.
+
+### D-167 · Die kanonische Wachbuch-Nutzlast ist ein ARRAY, kein JCS-Objekt
+
+`03-GEWERKE.md` §6.12 verlangt „JCS-canonical JSON" ueber achtzehn benannte
+Felder. JCS ordnet Objektschluessel nach UTF-16-Codeeinheiten; PostgreSQLs
+`jsonb` ordnet sie nach LAENGE und dann nach Bytes. Ein `jsonb_build_object`
+liefert also nicht JCS — und die Abweichung faellt niemandem auf, weil beide
+Fassungen wie kanonisches JSON aussehen, bis zwei Implementierungen verglichen
+werden.
+
+`kern.wachbuch_nutzlast` baut deshalb ein `json_build_array` in der vom
+Dokument aufgezaehlten REIHENFOLGE: ein Array hat keine Schluessel, die jemand
+sortieren koennte. Dieselbe Eigenschaft, ohne die Falle. Sie ist die EINZIGE
+Fassung — der Einfuegeausloeser und `app.wachbuch_kette_pruefen` rufen beide
+sie, und der Dienst rechnet nichts nach.
+
+### D-168 · Der Wachbuchzaehler entsteht im Ausloeser, und er ist kein Platzhalter
+
+`wachbuch_eintrag.laufnummer` kommt aus `nummernkreis` je
+`(mandant, 'wachbuch', objekt, jahr)` (§2.3 Nr. 4). Auf `nummernkreis` haelt
+`cse_app` weder ein INSERT-Recht noch eine INSERT-Policy (`0006`), und der Seed
+legt Wachbuchkreise nicht an — ein neues Objekt haette also nie einen ersten
+Wachbucheintrag. `kern.wachbuch_eintrag_vorbereiten` ist deshalb
+`security definer` und legt den fehlenden Kreis an; was der Definer darf, steht
+als Policy und Spalten-Grant in `0070` und ist auf `kreis_typ = 'wachbuch'`
+begrenzt.
+
+Der Kreis traegt `ist_platzhalter = false`, und das ist keine Umgehung von
+O-134: bestaetigt wird nur, was ohnehin feststeht — der Geltungsbereich und die
+jaehrliche Ruecksetzung, beide von §6.12 vorgegeben. Die `format_maske` ist die
+einzige geratene Angabe, und sie rendert nirgends: `wachbuch_eintrag` speichert
+`jahr` und `laufnummer` als Zahlen, und die Anzeige `2026/0001` bildet der
+Dienst an einer Stelle. O-134 betrifft die RECHNUNGSnummer und bleibt offen.
+
+### D-169 · Der Kettenpruefindex traegt `jahr` vor `laufnummer`
+
+§6.12 nennt `wachbuch_kettenpruef_idx on (mandant_id, objekt_id, laufnummer desc)`
+— das kann die Kette nicht ordnen. Dieselbe Stelle sagt zwei Absaetze weiter
+oben, dass die Kette am 1. Januar ausdruecklich DURCHLAEUFT, waehrend
+`laufnummer` wieder bei 1 beginnt. Nach Laufnummer allein sortiert stuende der
+erste Eintrag des neuen Jahres vor dem letzten des alten, und der Pruefer
+meldete jeden Jahreswechsel als Bruch. Der Index heisst deshalb
+`(mandant_id, objekt_id, jahr desc, laufnummer desc)`.
+
+### D-170 · Der `veranstaltung`-Zweig von `app.planungsbedarf` bleibt leer
+
+`0029` hat fuer PR 41 zwei `where false`-Zweige hinterlassen. Gefuellt wird nur
+`posten`. Eine Veranstaltung ist EIN Fenster ohne RRULE, und der Generator
+zaehlt Regeln auf; sie in den Nachtlauf zu haengen hiesse, ihm eine Zeile ohne
+Regel zu geben und zu hoffen, dass er sie versteht. SEC-08 laeuft stattdessen
+ueber `services/security/eventbesetzung.ts`, der die Schicht SOFORT anlegt —
+kurzfristig heisst kurzfristig, nicht „heute Nacht um drei".
+
+### D-171 · Ein Eventdienst ohne hinterlegtes Objekt laesst sich nicht besetzen
+
+`veranstaltung.objekt_id` ist nullbar (§6.5: ein Veranstaltungsort existiert
+oft, bevor es eine Objektakte gibt), `einsatz.objekt_id` dagegen NOT NULL
+(`0028`) — die Kundendecke, der Check-in und die Medien haengen daran. Der
+Dienst weist die Besetzung deshalb mit einer benannten Meldung ab, statt eine
+Objektzeile zu erfinden. Die Oberflaeche sagt, was zu tun ist: den Ort als
+Objekt anlegen und der Veranstaltung zuordnen.
+
+### D-180 · `Σ revier_raum.sollzeit_minuten` ist kein Vergleich, sondern eine Konstruktion
+
+K-16(c) erlaubt zwei Träger derselben Zielzeit auf derselben Skala, damit die
+OPS-07-Rechnung zwischen ihnen nicht zweimal rundet. „Nicht zweimal runden" ist
+aber keine Prüfung, die man nachträglich anstellt — es ist eine Reihenfolge:
+
+ 1. Die Räume werden nach BELAGSART gruppiert, weil PR 25 so gruppiert.
+ 2. Je Gruppe EINMAL `sekundenJeDurchgang` aus `kalkulation/richtzeit.ts` —
+    das ist die einzige Rundung des ganzen Wegs.
+ 3. Die Summe wird EINMAL in Hundertstelminuten umgerechnet; das ist die
+    Speichergenauigkeit von `numeric(8,2)`.
+ 4. Die Räume bekommen ihre Anteile durch VERTEILUNG dieser Summe nach
+    grösstem Rest — nicht durch eine eigene Rundung.
+
+Damit gilt `Σ Räume = Kopf` exakt und konstruktiv. Die naive Fassung — jeden
+Raum einzeln runden und summieren — liegt regelmässig daneben, und
+`tests/kern/reinigung-sollzeit.test.ts` weist beide Wege gegeneinander nach,
+damit die Zusage nicht leer ist.
+
+### D-181 · Der Schnappschuss wird kanonisiert, und Zahlen sind darin verboten
+
+`snapshot_hash` soll sich NACH dem Zurücklesen aus `jsonb` nachrechnen lassen —
+sonst beweist er nichts. `jsonb` sortiert Schlüssel um, also läuft der Digest
+über eine kanonische Form: Schlüssel nach Codepunkten sortiert, kein Whitespace.
+
+Das ist ausdrücklich NICHT RFC 8785: JCS schreibt für Zahlen die
+Double-Ausgabe nach ECMAScript vor, und damit liefe jeder Cent-Betrag durch
+eine Gleitkommazahl — Invariante 1, gebrochen an der Stelle, an der es niemand
+sucht. Im Abzug sind deshalb alle Werte Zeichenketten, und `kanonischesJson`
+wirft bei einer `number`, statt sie stillschweigend zu formatieren.
+
+Zusatz aus dem Betrieb: `postgres.js` liefert eine `jsonb`-Spalte je nach
+Abfrageweg als geparstes Objekt ODER als rohen Text. `alsSchnappschuss()` fängt
+beides ab; ohne diese Stelle ergaben zwei Lesewege zwei Digests für dieselben
+Daten.
+
+### D-182 · Unterschrieben wird gegen eine Prüfsumme, nicht gegen einen Zeitpunkt
+
+CLN-04 verlangt „einen Schnappschuss der Positionen genau wie angezeigt".
+Zwischen dem Aufbau des Bildschirms und dem Fingerdruck auf dem Tablet liegen
+Minuten, in denen das Büro eine Zeile korrigieren kann. Der Ablauf ist deshalb
+zweistufig: `bereiteUnterschriftVor` liefert den Abzug samt Digest,
+`signiere` baut ihn neu und schreibt nur bei Gleichheit. Weicht er ab, wird
+NICHTS geschrieben (`AnzeigeVeraltet`, HTTP 409).
+
+### D-183 · Eine Revierzuordnung lässt sich nicht lösen — und das ist eine offene Frage
+
+`03-GEWERKE.md` §5.2 gibt `revier_raum` weder `archiviert_am` noch
+`storniert_am` und §13.1 legt `kern.verhindere_loeschung()` auf **jede** Tabelle
+der Domäne. Zusammen heisst das: ein einmal zugeordneter Raum bleibt in seiner
+Zone. `setzeRaeume` ist deshalb ADDITIV und wirft `RaumNichtEntfernbar`, statt
+eine Spalte zu erfinden, die kein Dokument beschreibt (K-17); die Oberfläche
+zeigt bereits zugeordnete Räume gesetzt und gesperrt.
+
+Wie eine Zone im Betrieb neu zugeschnitten wird, beantwortet keine Quelle. Der
+einzige beschriebene Weg ist: Revier archivieren, neues anlegen. Das gehört in
+die nächste DECISIONS-Runde — als erfundene Spalte wäre es schlechter.
+
+### D-184 · `kern.ln_kopfstatus_fortschreiben()` ist `security definer`
+
+`leistungsnachweis_signatur` hält für `cse_app` keinen UPDATE-Grant und keine
+UPDATE-Policy: §5.8 macht sie anfügend, und das ist die Zusage. Der Auslöser,
+der den Kopfzustand auf die Kinder fortschreibt, lief damit unter der Rolle des
+Schreibenden in „permission denied" — bei JEDER Unterschrift, weil die Sperre
+des Kopfes die Fortschreibung auslöst. Er ist deshalb `security definer` mit
+wörtlichem `search_path` (dieselbe Bauart wie
+`kern.einsatz_medien_bezug_pruefen()` in 0041) und schreibt ausschliesslich die
+drei Kopfzustandsspalten auf Kinder desselben Kopfes.
+
+### D-185 · `reklamation.nummer` und `qualitaetspruefung.nummer` kommen aus keinem Nummernkreis
+
+`nummernkreis_typ` (0006) ist ein geschlossener Aufzählungstyp und führt beide
+nicht; `03-GEWERKE.md` §8.2/§8.3 verlangt `nummer text not null unique`, mehr
+nicht. Den Typ zu erweitern hiesse, eine Lückenlosigkeit zu behaupten, die
+niemand verlangt — FIN-03 fordert sie für Rechnungen. Vergeben wird deshalb
+`RK-<Jahr>-<0001>` bzw. `QP-<Jahr>-<0001>` im Dienst, mit dem eindeutigen Index
+als Schranke. Das Jahr kommt als Berliner Kalenderjahr aus der Datenbank, nicht
+aus `new Date()` im Node-Prozess (K-11).
+
+### D-186 · Fünf Statuspillen fehlen DESIGN §5 — abgebildet statt erfunden
+
+`03-GEWERKE.md` §3.5 beantragt für DESIGN §5 fünf neue Pillen: **Signiert**,
+**Storniert**, **Behoben**, **Geschlossen** und **Unbestätigter Wert**. Weder
+`docs/DESIGN.md` noch `src/components/ui/StatusPill.tsx` gehören zum
+Änderungsbereich dieses PRs, und eine halbe Umsetzung (DESIGN geändert, Code
+nicht) liesse beide auseinanderlaufen.
+
+Die Reinigungs- und Qualitätsbildschirme bilden deshalb auf das vorhandene
+geschlossene Vokabular ab: `signiert` → *Abgeschlossen*, `storniert` →
+*Archiviert*, `behoben` → *Bereit*, `geschlossen` → *Abgeschlossen*. Der Antrag
+aus §3.5 bleibt offen und ist mit DESIGN.md und `StatusPill.tsx` in EINEM
+Schritt nachzuholen.
+
+### D-190 · Das Aufmaß-Ergebnis ist eine ganze Zahl, `menge` ist ihre Projektion
+
+`03-GEWERKE.md` §7.7 führt `aufmass_zeile.menge` als `numeric(12,3)`. PR 43
+verlangt zusätzlich, das Ergebnis **in fester Skala als ganze Zahl** zu
+speichern. Beides nebeneinander wäre zweimal dieselbe Zahl mit zwei
+Rundungen — und im Streitfall zwei Antworten auf die Frage, was abgerechnet
+wurde.
+
+Entschieden: `ergebnis_skaliert bigint` in **10⁻⁴ der Einheit** (bei m²
+Quadratzentimeter, `30,87 m² = 308700`) ist der massgebliche Wert. Der Parser
+rundet **genau einmal**, aus dem exakten Ergebnis, kaufmännisch. `menge` ist
+die **Projektion** dieser Zahl auf drei Stellen, und die Datenbank rechnet das
+nach (`az_menge_projektion`). Eine zweite, unabhängige Rundung aus der Formel
+gibt es nicht.
+
+### D-191 · `projekt` entsteht in PR 43, nicht in PR 27
+
+Der PR-Plan legt `projekt` in PR 27 an (`0032_auftrag_projekt`). Im Baum steht
+`auftrag` (0025) mit Bauspalten, die Erweiterungstabelle fehlt — und mit ihr
+die zwei Fremdschlüssel, die `0028` und `0034` wörtlich hinterlegt und auf sie
+vertagt haben (`einsatz_projekt_fk`, `z_projekt_fk`).
+
+`lv_position` und `aufmass` hängen beide an `projekt_id`; ohne die Tabelle
+bliebe es eine Spalte ohne Fremdschlüssel, also genau die Lücke, durch die eine
+Schicht der Reinigung an einem Bauprojekt der Security hängt. `0071` legt
+`projekt` nach §7.1 an (`auftrag_id NOT NULL UNIQUE` — das Projekt IST der
+Auftrag) und trägt beide aufgeschobenen Fremdschlüssel nach.
+
+### D-192 · Messfotos fahren im vorhandenen privaten Bucket, mit eigener Bezugsart
+
+`03-GEWERKE.md` §7.8 lässt `aufmass_foto.medien_id` auf `medien` zeigen. In
+diesem Baum ist `medien` die **Website-Ablage** (Alt-Text, Platzhalterflag);
+der private Bucket mit Magic-Byte-Prüfung, EXIF-Entfernung und ausschliesslich
+signierten Adressen ist `einsatz_medien` (0041) — dieselbe Tabelle, die PR 40
+für die Unterschrift des Leistungsnachweises benutzt.
+
+`0072` erweitert deshalb das geschlossene Bezugsregister von 0041 um
+`aufmass` (Modul `bau`, `kunde_pfad = 'kunde_id'`) — die Erweiterung, die 0041
+§14 ausdrücklich vorsieht — und legt zwei **permissive** Policies auf
+`einsatz_medien` an, eingeschnürt auf `bezug_tabelle = 'aufmass'`. Ohne sie
+scheiterte das Anhängen eines Messfotos daran, dass `t_mandant` dort
+`zeit.schreiben` verlangt, und eine Bauleitung hält kein Zeitrecht: BAU-03 wäre
+nicht erfüllbar. Die restriktiven Decken von 0041 gelten unverändert darüber.
+
+### D-193 · Die OZ-Ordnung steht zweimal — und wird deshalb verglichen
+
+Die Datenbank sortiert (`order by sortier_pfad`), die Oberfläche gruppiert
+(`baueOzBaum`). Beide brauchen dieselbe Normierung von `1.2.10` zu
+`000001.000002.000010`, und eine gemeinsame Umsetzung gibt es nicht: die eine
+ist SQL, die andere TypeScript.
+
+Statt die Doppelung zu verstecken, wird sie geprüft:
+`tests/isolation/bau-lv.test.ts` vergleicht `kern.oz_sortierschluessel` mit
+`ozSortierSchluessel` zeichenweise an vierzehn Eingaben. Die erste Fassung ging
+bei der leeren OZ auseinander (`string_to_array('', '.')` ist in Postgres ein
+leeres Feld, `''.split('.')` in JavaScript ein Segment) — gefunden hat es genau
+dieser Vergleich.
+
+### D-194 · Stufenbreite 6 im Sortierpfad
+
+`sortier_pfad` füllt jede OZ-Stufe auf sechs Stellen. GAEB-Ordnungszahlmasken
+sind in der Praxis zwei- bis vierstellig je Stufe; sechs lässt Luft, ohne den
+Pfad unlesbar zu machen. Eine Stufe über 999.999 sortiert hinter alles andere —
+das fällt auf, statt still falsch zu sein. Die Zahl steht an zwei Stellen
+(`OZ_BREITE`, `kern.oz_sortierschluessel`) und wird von D-193 verglichen.

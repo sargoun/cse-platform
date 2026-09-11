@@ -186,6 +186,53 @@ export function dauerMinuten(vonUtc: Date, bisUtc: Date): number {
   return ms / 60_000;
 }
 
+/**
+ * Dieselbe Dauer, aber auf die Minute GERUNDET — für gemessene Zeitpunkte.
+ *
+ * `dauerMinuten` verlangt volle Minuten, und das ist für eine ERFASSTE Dauer
+ * richtig: `dauer_netto_minuten` ist eine Spalte in Minuten, und ein Rest von
+ * 37 Sekunden darin wäre ein Rechenfehler, der sich durch die Lohnabrechnung
+ * zieht.
+ *
+ * Eine gemessene GRENZE ist etwas anderes. `app.checkin_verbrauchen` schreibt
+ * `now()` — mit Mikrosekunden, weil das die Serveruhr ist (Invariante 5). Wer
+ * um 05:55:37 einstempelt, erzeugt damit ein Arbeitszeitfenster, dessen Abstand
+ * zur nächsten Schicht keine ganze Minute ist. `dauerMinuten` warf dort, und
+ * zwar in der ArbZG-Prüfung: nach dem ersten echten Check-in scheiterte jede
+ * Einteilung dieser Person mit „Zeiten sind auf die Minute genau zu erfassen".
+ * Ein Fehler, den kein Test fand, weil jede Fixtur runde Zeiten setzt.
+ */
+export function dauerMinutenGerundet(vonUtc: Date, bisUtc: Date): number {
+  const ms = bisUtc.getTime() - vonUtc.getTime();
+  if (Number.isNaN(ms)) throw new ZeitFehler('Ungültiges Datum');
+  if (ms < 0) {
+    throw new ZeitFehler(
+      `Ende liegt vor Beginn: ${vonUtc.toISOString()} → ${bisUtc.toISOString()}`,
+    );
+  }
+  return Math.round(ms / 60_000);
+}
+
+/**
+ * Und abgerundet — für Abstände, bei denen die kürzere Zahl die vorsichtigere
+ * ist.
+ *
+ * Die Ruhezeit nach § 5 ArbZG ist so ein Abstand: 10:59:40 auf 11 Stunden
+ * aufzurunden hiesse, eine Unterschreitung wegzurunden. Wer hier rundet,
+ * entscheidet — also rundet diese Funktion in die Richtung, in der ein Befund
+ * entsteht und ein Mensch hinsieht.
+ */
+export function dauerMinutenAbgerundet(vonUtc: Date, bisUtc: Date): number {
+  const ms = bisUtc.getTime() - vonUtc.getTime();
+  if (Number.isNaN(ms)) throw new ZeitFehler('Ungültiges Datum');
+  if (ms < 0) {
+    throw new ZeitFehler(
+      `Ende liegt vor Beginn: ${vonUtc.toISOString()} → ${bisUtc.toISOString()}`,
+    );
+  }
+  return Math.floor(ms / 60_000);
+}
+
 export interface MonatsAnteil {
   readonly jahr: number;
   readonly monat: number;

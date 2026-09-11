@@ -1,0 +1,755 @@
+/**
+ * PR 40 gegen die echte Datenbank — die vier Abnahmekriterien, jedes als
+ * eigener Fall und jedes so gebaut, dass es OHNE die Umsetzung fehlschlägt.
+ *
+ * Zwei davon entscheiden diesen PR, und sie sind hier die ausführlichsten:
+ *
+ *  - **Der Schnappschuss überlebt eine Änderung am Revier.** Der Fehler, den
+ *    dieser Test fängt, sieht in Produktion nach nichts aus: die Oberfläche
+ *    lädt die Positionen nach, zeigt den heutigen Stand und nennt ihn
+ *    „unterschrieben". Erst im Streitfall fällt auf, dass niemand mehr sagen
+ *    kann, was der Kunde gesehen hat.
+ *  - **`Σ revier_raum.sollzeit_minuten = revier.sollzeit_minuten`.** Ein
+ *    doppeltes Runden erzeugt keine Ausnahme, sondern einen Preis, der um
+ *    Minuten danebenliegt — und zwar jedes Mal in dieselbe Richtung.
+ *
+ * Der Test legt seine Stammdaten selbst an (Kunde, Objekt, Belagsart, Räume,
+ * Revier, Auftrag), weil der Seed sie in dieser Form nicht kennt.
+ */
+import type postgres from 'postgres';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
+import type { SchreibKontext } from '../../src/server/kontext/index.js';
+import { setzeRaeume, RaumNichtEntfernbar } from '../../src/server/services/reinigung/revier.js';
+import {
+  bereiteUnterschriftVor, erstelleEntwurf, ladeSignaturen, legeVor, signiere,
+  AnzeigeVeraltet, FalscherZustand,
+} from '../../src/server/services/reinigung/leistungsnachweis.js';
+import {
+  alsSchnappschuss, pruefeSchnappschuss, schnappschussHash,
+} from '../../src/server/services/reinigung/schnappschuss.js';
+import {
+  erstelleReklamation, schreibeAbstellung, findeReklamation, NachweisPasstNicht,
+} from '../../src/server/services/reinigung/reklamation.js';
+import { berechneRevierSollzeit } from '../../src/server/services/reinigung/sollzeit.js';
+import { legeMediumAb, signierteMedienAdresse } from '../../src/server/services/zeit/medien.js';
+import { LokalerSpeicher, NichtVerbundenFehler, SupabaseSpeicher }
+  from '../../src/server/storage/adapter.js';
+import type { MilliMenge } from '../../src/server/services/finanz/menge.js';
+
+let f: Fixtur;
+const zufall = (): string => String(Math.random()).slice(2, 10);
+
+/** Ein winziges, gültiges PNG — Magic Bytes, mehr braucht die Prüfkette nicht. */
+const PNG = new Uint8Array([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+  0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+  0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+  0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
+  0x89, 0x00, 0x00, 0x00, 0x0a, 0x49, 0x44, 0x41,
+  0x54, 0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00,
+  0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00,
+  0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae,
+  0x42, 0x60, 0x82,
+]);
+
+interface Aufbau {
+  readonly mandant: string;
+  readonly kunde: string;
+  readonly objekt: string;
+  readonly revier: string;
+  readonly auftrag: string;
+  readonly leistung: string;
+  readonly leitung: string;
+  readonly raeume: readonly string[];
+}
+
+async function rolleId(schluessel: string): Promise<string> {
+  const [r] = await sql.unsafe<{ id: string }[]>(
+    `select id from rolle where schluessel = $1 and mandant_id is null`, [schluessel]);
+  return r!.id;
+}
+
+async function konto(email: string, personId: string | null = null): Promise<string> {
+  const [u] = await sql.unsafe<{ id: string }[]>(
+    `insert into auth.users (email) values ($1) returning id`, [email]);
+  await sql.unsafe(
+    `insert into benutzer (id, email, name, status, person_id)
+     values ($1,$2,$2,'aktiv',$3)`, [u!.id, email, personId] as never[]);
+  return u!.id;
+}
+
+async function mitglied(b: string, m: string, rolle: string): Promise<void> {
+  await sql.unsafe(
+    `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id) values ($1,$2,$3)`,
+    [b, m, await rolleId(rolle)]);
+}
+
+/** Der Kontext, den ein Dienst erwartet — auf der Transaktion der Sitzung. */
+function kontextAus(
+  tx: postgres.TransactionSql, mandant: string, benutzer: string,
+  portal: 'intern' | 'mitarbeiter' | 'kunde' = 'intern',
+): SchreibKontext {
+  const abfrage = async <T>(
+    anweisung: string, werte?: readonly unknown[],
+  ): Promise<readonly T[]> =>
+    (await tx.unsafe(anweisung, (werte ?? []) as never[])) as unknown as readonly T[];
+  return {
+    scope: 'mandant', portal, benutzerId: benutzer,
+    aktiverMandantId: mandant, mandantIds: [mandant],
+    abfrage, schreibe: abfrage,
+  };
+}
+
+/**
+ * Kunde, Objekt, Belagsart, Räume, Revier, Auftrag — die CLN-01-Kette.
+ *
+ * Die Flächen sind absichtlich krumm: `12.345 m²` bei `137 m²/h` ergibt keine
+ * runde Minute, und genau daran misst K-16(c) seine Begründung.
+ */
+async function baueRevier(mandant: string, anzahlRaeume = 5): Promise<Aufbau> {
+  const leitung = await konto(`reinigung-${zufall()}@cse.test`);
+  await mitglied(leitung, mandant, 'leitung');
+
+  const [k] = await sql.unsafe<{ id: string }[]>(
+    `insert into kunde (mandant_id, kundennummer, name)
+     values ($1,$2,'Bezirksamt Mitte') returning id`, [mandant, `K-${zufall()}`]);
+  const [o] = await sql.unsafe<{ id: string }[]>(
+    `insert into objekt (mandant_id, kunde_id, objektnummer, bezeichnung, strasse, plz, ort)
+     values ($1,$2,$3,'Rathaus Mitte','Karl-Marx-Allee 31','10178','Berlin') returning id`,
+    [mandant, k!.id, `O-${zufall()}`]);
+  const [b] = await sql.unsafe<{ id: string }[]>(
+    `insert into belagsart (mandant_id, code, bezeichnung, leistungswert_qm_pro_stunde,
+                            quelle, gueltig_ab)
+     values ($1,$2,$2,137,'Platzhalter (O-17)','2020-01-01') returning id`,
+    [mandant, `PVC-${zufall()}`]);
+
+  const raeume: string[] = [];
+  for (let i = 0; i < anzahlRaeume; i += 1) {
+    const [r] = await sql.unsafe<{ id: string }[]>(
+      `insert into raum (mandant_id, objekt_id, raumnummer, bezeichnung, flaeche_qm,
+                         belagsart_id, sortierung)
+       values ($1,$2,$3,'Büro',$4::numeric,$5,$6) returning id`,
+      [mandant, o!.id, `R-${String(i)}-${zufall()}`,
+        String(12.345 + i * 0.017), b!.id, i] as never[]);
+    raeume.push(r!.id);
+  }
+
+  const [rv] = await sql.unsafe<{ id: string }[]>(
+    `insert into revier (mandant_id, objekt_id, bezeichnung, kurzzeichen,
+                         sollzeit_minuten, aktiv_ab, erstellt_von_art)
+     values ($1,$2,$3,$4,1,'2026-01-01','system') returning id`,
+    [mandant, o!.id, `EG-Nord ${zufall()}`, `EGN${zufall().slice(0, 3)}`] as never[]);
+
+  const [a] = await sql.unsafe<{ id: string }[]>(
+    `insert into auftrag (mandant_id, auftragsnummer, kunde_id, objekt_id, art, status,
+                          bezeichnung, verantwortlich_benutzer_id, start_datum)
+     values ($1,$2,$3,$4,'rahmenvertrag','aktiv','Unterhaltsreinigung',$5,'2026-01-01')
+     returning id`,
+    [mandant, `AU-${zufall()}`, k!.id, o!.id, leitung] as never[]);
+  const [l] = await sql.unsafe<{ id: string }[]>(
+    `insert into auftrag_leistung (mandant_id, auftrag_id, position_nr, objekt_id,
+                                   bezeichnung, menge, einheit, einzelpreis_cent,
+                                   steuersatz_bp, gueltig_ab)
+     values ($1,$2,1,$3,'Unterhaltsreinigung',1,'Monat',189000,1900,'2026-01-01')
+     returning id`,
+    [mandant, a!.id, o!.id] as never[]);
+
+  return {
+    mandant, kunde: k!.id, objekt: o!.id, revier: rv!.id,
+    auftrag: a!.id, leistung: l!.id, leitung, raeume,
+  };
+}
+
+/** Ein Nachweis im Zustand `vorgelegt` — bereit zum Unterschreiben. */
+async function baueVorgelegtenNachweis(bau: Aufbau): Promise<string> {
+  return alsApp(
+    { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung,
+      portal: 'intern', readonly: false },
+    async (tx) => {
+      const kontext = kontextAus(tx, bau.mandant, bau.leitung);
+      const id = await erstelleEntwurf(kontext, {
+        objektId: bau.objekt,
+        kundeId: bau.kunde,
+        revierId: bau.revier,
+        auftragLeistungId: bau.leistung,
+        von: '2026-06-01',
+        bis: '2026-06-30',
+        positionen: [
+          {
+            bezeichnung: 'Unterhaltsreinigung Juni',
+            menge: '21.000', einheit: 'Durchgang',
+            einzelpreisCent: 4250n, quelle: 'manuell',
+          },
+          {
+            bezeichnung: 'Glasreinigung Treppenhaus',
+            menge: '1.000', einheit: 'Pauschale',
+            einzelpreisCent: 18_900n, quelle: 'manuell',
+            bemerkung: 'Nur Innenseite, Gerüst fehlte',
+          },
+        ],
+      });
+      await legeVor(kontext, id);
+      return id;
+    },
+  );
+}
+
+beforeEach(async () => { f = await seed(); });
+afterAll(async () => { await schliessen(); });
+
+// ---------------------------------------------------------------------------
+
+describe('(3) Σ revier_raum.sollzeit_minuten = revier.sollzeit_minuten', () => {
+  it('steht so in der Datenbank, nicht nur im Rechenergebnis', async () => {
+    const bau = await baueRevier(f.reinigung, 12);
+
+    const ergebnis = await alsApp(
+      { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => setzeRaeume(
+        kontextAus(tx, bau.mandant, bau.leitung), bau.revier, bau.raeume,
+        new Date('2026-06-15T10:00:00Z'),
+      ),
+    );
+    expect(ergebnis.zeit.raeume).toHaveLength(12);
+
+    /**
+     * Gelesen wird, was WIRKLICH in den Spalten steht — über `sum()` in der
+     * Datenbank. Ein Test, der die Rückgabe des Dienstes summiert, prüfte den
+     * Dienst gegen sich selbst; `numeric(8,2)` könnte dabei noch
+     * dazwischenrunden.
+     */
+    const [zahlen] = await sql.unsafe<{ kopf: string; summe: string }[]>(
+      `select r.sollzeit_minuten::text as kopf,
+              (select sum(rr.sollzeit_minuten) from revier_raum rr
+                where rr.revier_id = r.id)::text as summe
+         from revier r where r.id = $1`,
+      [bau.revier]);
+
+    expect(zahlen!.summe).toBe(zahlen!.kopf);
+    expect(zahlen!.kopf).toBe(ergebnis.zeit.sollzeitMinuten);
+  });
+
+  it('und stimmt mit der Kalkulation aus PR 25 für dieselben Räume überein', async () => {
+    const bau = await baueRevier(f.reinigung, 7);
+
+    await alsApp(
+      { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => setzeRaeume(
+        kontextAus(tx, bau.mandant, bau.leitung), bau.revier, bau.raeume,
+        new Date('2026-06-15T10:00:00Z'),
+      ),
+    );
+
+    /**
+     * Die Gegenrechnung läuft über dieselben Flächen und denselben
+     * Leistungswert, die in `revier_raum` als SCHNAPPSCHUSS liegen — und über
+     * die Funktion, die PR 25 dafür hat. Stimmen beide überein, ist zwischen
+     * Kopf und Räumen nicht zweimal gerundet worden.
+     */
+    const zeilen = await sql.unsafe<{
+      raum_id: string; flaeche: string; lw: string; reihenfolge: number;
+    }[]>(
+      `select raum_id, flaeche_qm::text as flaeche,
+              leistungswert_qm_pro_stunde::text as lw, reihenfolge
+         from revier_raum where revier_id = $1 order by reihenfolge`,
+      [bau.revier]);
+
+    const milli = (text: string): MilliMenge =>
+      BigInt(Math.round(Number(text) * 1000)) as MilliMenge;
+    const erwartet = berechneRevierSollzeit(zeilen.map((z) => ({
+      raumId: z.raum_id,
+      belagsartId: 'pvc',
+      belagsartBezeichnung: 'PVC',
+      flaeche: milli(z.flaeche),
+      leistungswert: milli(z.lw),
+      reihenfolge: z.reihenfolge,
+    })));
+
+    const [kopf] = await sql.unsafe<{ kopf: string }[]>(
+      `select sollzeit_minuten::text as kopf from revier where id = $1`, [bau.revier]);
+    expect(kopf!.kopf).toBe(erwartet.sollzeitMinuten);
+  });
+
+  it('eine Zuordnung lässt sich nicht lösen — sie steht unter Löschsperre', async () => {
+    const bau = await baueRevier(f.reinigung, 3);
+    await alsApp(
+      { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => setzeRaeume(
+        kontextAus(tx, bau.mandant, bau.leitung), bau.revier, bau.raeume,
+        new Date('2026-06-15T10:00:00Z'),
+      ),
+    );
+
+    // Der Dienst sagt es als benannter Fehler …
+    await expect(alsApp(
+      { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => setzeRaeume(
+        kontextAus(tx, bau.mandant, bau.leitung), bau.revier, [bau.raeume[0]!],
+        new Date('2026-06-15T10:00:00Z'),
+      ),
+    )).rejects.toBeInstanceOf(RaumNichtEntfernbar);
+
+    // … und die Datenbank als zweite Linie (Invariante 8).
+    await expect(
+      sql.unsafe(`delete from revier_raum where revier_id = $1`, [bau.revier]),
+    ).rejects.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('(1) die Unterschrift friert den Schnappschuss ein', () => {
+  it('speichert Name, SERVERZEIT, Ort und die Positionen wie angezeigt', async () => {
+    const bau = await baueRevier(f.reinigung);
+    const nachweis = await baueVorgelegtenNachweis(bau);
+
+    const ergebnis = await alsApp(
+      { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => {
+        const kontext = kontextAus(tx, bau.mandant, bau.leitung);
+        const vorschau = await bereiteUnterschriftVor(kontext, nachweis);
+        return signiere(kontext, {
+          nachweisId: nachweis,
+          rolle: 'auftraggeber',
+          unterzeichnerName: 'Frau Özdemir',
+          unterzeichnerFunktion: 'Objektverantwortliche',
+          bestaetigtePruefsumme: vorschau.pruefsumme,
+          breitengrad: '52.520000',
+          laengengrad: '13.404954',
+          geoGenauigkeitM: '12.50',
+          ip: '203.0.113.7',
+          userAgent: 'CSE-Tablet/1.0',
+        });
+      },
+    );
+
+    const [zeile] = await sql.unsafe<{
+      name: string; funktion: string; lat: string; lon: string;
+      hash: string; snapshot: unknown; status: string; gesperrt: string | null;
+      serverzeit_nah: boolean;
+    }[]>(
+      `select s.unterzeichner_name as name, s.unterzeichner_funktion as funktion,
+              s.breitengrad::text as lat, s.laengengrad::text as lon,
+              s.snapshot_hash as hash, s.snapshot,
+              l.status::text as status, l.gesperrt_am::text as gesperrt,
+              abs(extract(epoch from (now() - s.unterzeichnet_am))) < 60 as serverzeit_nah
+         from leistungsnachweis_signatur s
+         join leistungsnachweis l on l.id = s.leistungsnachweis_id
+        where s.leistungsnachweis_id = $1`,
+      [nachweis]);
+
+    expect(zeile!.name).toBe('Frau Özdemir');
+    expect(zeile!.funktion).toBe('Objektverantwortliche');
+    expect(zeile!.lat).toBe('52.520000');
+    expect(zeile!.lon).toBe('13.404954');
+    /**
+     * Die Zeit kommt vom SERVER: der Auslöser stempelt sie mit `now()`, und
+     * was der Aufrufer geschickt hätte, spielt keine Rolle (Invariante 5).
+     */
+    expect(zeile!.serverzeit_nah).toBe(true);
+    // Die Unterschrift hat den Kopf in einem Zug gesperrt.
+    expect(zeile!.status).toBe('signiert');
+    expect(zeile!.gesperrt).not.toBeNull();
+    // Und der gespeicherte Digest lässt sich am zurückgelesenen Abzug nachrechnen.
+    expect(pruefeSchnappschuss(
+      zeile!.snapshot as never, zeile!.hash,
+    )).toBe(true);
+    expect(ergebnis.snapshotHash).toBe(zeile!.hash);
+  });
+
+  it('eine spätere Änderung am Revier ändert den Schnappschuss NICHT', async () => {
+    const bau = await baueRevier(f.reinigung);
+    const nachweis = await baueVorgelegtenNachweis(bau);
+
+    const vorher = await alsApp(
+      { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => {
+        const kontext = kontextAus(tx, bau.mandant, bau.leitung);
+        const vorschau = await bereiteUnterschriftVor(kontext, nachweis);
+        return signiere(kontext, {
+          nachweisId: nachweis, rolle: 'auftraggeber',
+          unterzeichnerName: 'Frau Özdemir',
+          bestaetigtePruefsumme: vorschau.pruefsumme,
+        });
+      },
+    );
+
+    /**
+     * Jetzt wird die Grundlage verändert — so, wie es im Alltag passiert:
+     * das Revier wird umbenannt und neu zugeschnitten. Der Name steht im
+     * Kopf des Abzugs, also würde ein NACHGELADENER Abzug hier abweichen.
+     */
+    await sql.unsafe(
+      `update revier set bezeichnung = 'EG-Nord (neu zugeschnitten)',
+                         sollzeit_minuten = 999.99
+        where id = $1`, [bau.revier]);
+
+    const [nachher] = await sql.unsafe<{ hash: string; snapshot: unknown }[]>(
+      `select snapshot_hash as hash, snapshot from leistungsnachweis_signatur
+        where leistungsnachweis_id = $1`, [nachweis]);
+
+    // Der Beweis: derselbe Hash vorher wie nachher.
+    expect(nachher!.hash).toBe(vorher.snapshotHash);
+    // Und er passt weiterhin zum gespeicherten Abzug — der Abzug wurde also
+    // nicht etwa mitgeändert und der Hash stehen gelassen.
+    expect(schnappschussHash(alsSchnappschuss(nachher!.snapshot))).toBe(vorher.snapshotHash);
+
+    // Gegenprobe: ein HEUTE gebauter Abzug wäre ein anderer. Ohne diese Zeile
+    // bewiese der Test nur, dass sich nichts geändert hat, was sich ohnehin
+    // nicht ändern konnte.
+    const heute = await alsApp(
+      { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung, portal: 'intern' },
+      async (tx) => bereiteUnterschriftVor(kontextAus(tx, bau.mandant, bau.leitung), nachweis),
+    );
+    expect(heute.pruefsumme).not.toBe(vorher.snapshotHash);
+  });
+
+  it('die Unterschriftszeile lässt sich nicht nachbessern', async () => {
+    const bau = await baueRevier(f.reinigung);
+    const nachweis = await baueVorgelegtenNachweis(bau);
+    await alsApp(
+      { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => {
+        const kontext = kontextAus(tx, bau.mandant, bau.leitung);
+        const v = await bereiteUnterschriftVor(kontext, nachweis);
+        return signiere(kontext, {
+          nachweisId: nachweis, rolle: 'auftraggeber',
+          unterzeichnerName: 'Frau Özdemir', bestaetigtePruefsumme: v.pruefsumme,
+        });
+      },
+    );
+
+    // Selbst als Eigentümer: der Auslöser wirft.
+    await expect(sql.unsafe(
+      `update leistungsnachweis_signatur set unterzeichner_name = 'Herr Müller'
+        where leistungsnachweis_id = $1`, [nachweis],
+    )).rejects.toThrow();
+    await expect(sql.unsafe(
+      `delete from leistungsnachweis_signatur where leistungsnachweis_id = $1`, [nachweis],
+    )).rejects.toThrow();
+  });
+
+  it('ändert sich die Anzeige zwischen Vorschau und Unterschrift, wird abgewiesen', async () => {
+    const bau = await baueRevier(f.reinigung);
+    const nachweis = await baueVorgelegtenNachweis(bau);
+
+    await expect(alsApp(
+      { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => {
+        const kontext = kontextAus(tx, bau.mandant, bau.leitung);
+        // Die Prüfsumme eines Abzugs, den es so nicht gibt.
+        return signiere(kontext, {
+          nachweisId: nachweis, rolle: 'auftraggeber',
+          unterzeichnerName: 'Frau Özdemir',
+          bestaetigtePruefsumme: '0'.repeat(64),
+        });
+      },
+    )).rejects.toBeInstanceOf(AnzeigeVeraltet);
+  });
+
+  it('ein Entwurf wird nicht unterschrieben — erst vorlegen', async () => {
+    const bau = await baueRevier(f.reinigung);
+    await expect(alsApp(
+      { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => {
+        const kontext = kontextAus(tx, bau.mandant, bau.leitung);
+        const id = await erstelleEntwurf(kontext, {
+          objektId: bau.objekt, kundeId: bau.kunde, von: '2026-06-01', bis: '2026-06-30',
+          positionen: [{
+            bezeichnung: 'Test', menge: '1.000', einheit: 'Stück', quelle: 'manuell',
+          }],
+        });
+        const v = await bereiteUnterschriftVor(kontext, id);
+        return signiere(kontext, {
+          nachweisId: id, rolle: 'auftraggeber',
+          unterzeichnerName: 'Frau Özdemir', bestaetigtePruefsumme: v.pruefsumme,
+        });
+      },
+    )).rejects.toBeInstanceOf(FalscherZustand);
+  });
+
+  it('und der Rückweg aus „signiert" ist versperrt', async () => {
+    const bau = await baueRevier(f.reinigung);
+    const nachweis = await baueVorgelegtenNachweis(bau);
+    await alsApp(
+      { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => {
+        const kontext = kontextAus(tx, bau.mandant, bau.leitung);
+        const v = await bereiteUnterschriftVor(kontext, nachweis);
+        return signiere(kontext, {
+          nachweisId: nachweis, rolle: 'auftraggeber',
+          unterzeichnerName: 'Frau Özdemir', bestaetigtePruefsumme: v.pruefsumme,
+        });
+      },
+    );
+    await expect(sql.unsafe(
+      `update leistungsnachweis set status = 'entwurf' where id = $1`, [nachweis],
+    )).rejects.toThrow();
+    // Und die Positionen sind mitgefroren.
+    await expect(sql.unsafe(
+      `update leistungsnachweis_position set menge = 99 where leistungsnachweis_id = $1`,
+      [nachweis],
+    )).rejects.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('(2) Gerätezeit getrennt, Unterschriftsbild privat', () => {
+  it('speichert die Gerätezeit NEBEN der Serverzeit und leitet die Abweichung ab', async () => {
+    const bau = await baueRevier(f.reinigung);
+    const nachweis = await baueVorgelegtenNachweis(bau);
+
+    /**
+     * Ein Tablet, das zwei Stunden vorgeht. Die Behauptung wird gespeichert,
+     * nicht übernommen — und die Abweichung entsteht daraus, statt verhandelt
+     * zu werden (TIM-08, TIM-09).
+     */
+    const geraet = new Date(Date.now() + 2 * 60 * 60 * 1000);
+    const ergebnis = await alsApp(
+      { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => {
+        const kontext = kontextAus(tx, bau.mandant, bau.leitung);
+        const v = await bereiteUnterschriftVor(kontext, nachweis);
+        return signiere(kontext, {
+          nachweisId: nachweis, rolle: 'auftraggeber',
+          unterzeichnerName: 'Frau Özdemir', bestaetigtePruefsumme: v.pruefsumme,
+          geraeteZeit: geraet,
+        });
+      },
+    );
+
+    expect(ergebnis.zeitabweichungSek).not.toBeNull();
+    // Rund zwei Stunden, mit Luft für die Laufzeit des Tests.
+    expect(Math.abs((ergebnis.zeitabweichungSek ?? 0) - 7200)).toBeLessThan(60);
+
+    const [zeile] = await sql.unsafe<{ getrennt: boolean }[]>(
+      `select geraete_zeit is distinct from unterzeichnet_am as getrennt
+         from leistungsnachweis_signatur where leistungsnachweis_id = $1`, [nachweis]);
+    expect(zeile!.getrennt).toBe(true);
+  });
+
+  it('das Bild liegt im privaten Bucket und ist nur signiert erreichbar', async () => {
+    const bau = await baueRevier(f.reinigung);
+    const nachweis = await baueVorgelegtenNachweis(bau);
+    const speicher = new LokalerSpeicher();
+    const medienId = crypto.randomUUID();
+
+    const adresse = await alsApp(
+      { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => {
+        const kontext = kontextAus(tx, bau.mandant, bau.leitung);
+        const ablage = await legeMediumAb(
+          { mandantId: bau.mandant, medienId, daten: PNG, behaupteterTyp: 'image/png' },
+          speicher,
+        );
+        /**
+         * Die Medienzeile hängt am Nachweis (`bezug_tabelle`), und der
+         * Auslöser aus 0041 leitet daraus `kunde_id` ab — nie aus der
+         * Anfrage. Die Registerzeile dafür legt 0066 an.
+         */
+        await kontext.schreibe(
+          `insert into einsatz_medien
+             (id, mandant_id, bezug_tabelle, bezug_id, art, bucket, pfad, mime_typ,
+              groesse_bytes, sha256, exif_entfernt, erstellt_von, erstellt_von_person_id)
+           values ($1::uuid, app.aktiver_mandant(), 'leistungsnachweis', $2::uuid,
+                   'foto', $3, $4, $5, $6, $7, true, app.aktueller_benutzer(), $8::uuid)`,
+          [medienId, nachweis, ablage.bucket, ablage.pfad, ablage.mimeTyp,
+            ablage.groesseBytes, ablage.sha256, f.fatima],
+        );
+        const v = await bereiteUnterschriftVor(kontext, nachweis);
+        await signiere(kontext, {
+          nachweisId: nachweis, rolle: 'auftraggeber',
+          unterzeichnerName: 'Frau Özdemir', bestaetigtePruefsumme: v.pruefsumme,
+          signaturMedienId: medienId,
+        });
+        return signierteMedienAdresse(kontext, medienId, speicher, 1_700_000_000);
+      },
+    );
+
+    expect(adresse).not.toBeNull();
+    // Eine ABLAUFENDE Adresse, kein Bucket-Pfad (DOC-03, SEC-A6).
+    expect(adresse!.gueltigBis).toBeGreaterThan(1_700_000_000);
+    expect(adresse!.url).toMatch(/einsatz-medien/u);
+
+    const signaturen = await alsApp(
+      { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung, portal: 'intern' },
+      async (tx) => ladeSignaturen(kontextAus(tx, bau.mandant, bau.leitung), nachweis),
+    );
+    expect(signaturen[0]?.signaturMedienId).toBe(medienId);
+  });
+
+  it('ohne Zugangsdaten entsteht KEINE Zeile — „nicht verbunden" statt Schein', async () => {
+    /**
+     * Der Adapter ohne Zugangsdaten wirft, statt Erfolg vorzutäuschen
+     * (CLAUDE.md: keine Schein-Integrationen). Die Unterschrift selbst
+     * gelingt trotzdem — Name, Serverzeit und Abzug sind das rechtlich
+     * Tragende, das Bild ist die Beigabe.
+     */
+    const speicher = new SupabaseSpeicher('', '');
+    expect(speicher.verbunden).toBe(false);
+    await expect(legeMediumAb(
+      { mandantId: f.reinigung, medienId: crypto.randomUUID(), daten: PNG,
+        behaupteterTyp: 'image/png' },
+      speicher,
+    )).rejects.toBeInstanceOf(NichtVerbundenFehler);
+
+    const bau = await baueRevier(f.reinigung);
+    const nachweis = await baueVorgelegtenNachweis(bau);
+    const ohneBild = await alsApp(
+      { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => {
+        const kontext = kontextAus(tx, bau.mandant, bau.leitung);
+        const v = await bereiteUnterschriftVor(kontext, nachweis);
+        return signiere(kontext, {
+          nachweisId: nachweis, rolle: 'auftraggeber',
+          unterzeichnerName: 'Frau Özdemir', bestaetigtePruefsumme: v.pruefsumme,
+        });
+      },
+    );
+    expect(ohneBild.snapshotHash).toMatch(/^[0-9a-f]{64}$/u);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('(4) die Reklamation verweist auf Nachweis und Nacharbeitsschicht', () => {
+  it('legt beide Verweise an und liest sie zurück', async () => {
+    const bau = await baueRevier(f.reinigung);
+    const nachweis = await baueVorgelegtenNachweis(bau);
+
+    // Eine Nacharbeitsschicht auf demselben Objekt.
+    const [einsatz] = await sql.unsafe<{ id: string }[]>(
+      `insert into einsatz (mandant_id, quelle, quell_schluessel, plan_datum,
+                            beginn_zeitpunkt, ende_zeitpunkt, beginn_lokal, ende_lokal,
+                            endet_am_folgetag, objekt_id, kunde_id, erstellt_von_art)
+       values ($1,'manuell',$2,'2026-07-03',
+               '2026-07-03T05:00:00Z','2026-07-03T08:00:00Z','07:00','10:00',false,
+               $3,$4,'system') returning id`,
+      [bau.mandant, `manuell:${zufall()}${zufall()}`, bau.objekt, bau.kunde] as never[]);
+
+    const gelesen = await alsApp(
+      { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => {
+        const kontext = kontextAus(tx, bau.mandant, bau.leitung);
+        const { id } = await erstelleReklamation(kontext, {
+          objektId: bau.objekt,
+          kundeId: bau.kunde,
+          revierId: bau.revier,
+          leistungsnachweisId: nachweis,
+          quelle: 'kunde',
+          prioritaet: 'hoch',
+          beschreibung: 'Treppenhaus im 2. OG war am 30.06. nicht gereinigt.',
+          gemeldetVonName: 'Herr Kraus, Hausverwaltung',
+        });
+        await schreibeAbstellung(kontext, {
+          id,
+          status: 'behoben',
+          ursache: 'Ausfall der Kraft, keine Vertretung disponiert',
+          massnahme: 'Nachreinigung am 03.07., Vertretungsregel im Objektblatt ergänzt',
+          nacharbeitEinsatzId: einsatz!.id,
+        });
+        return findeReklamation(kontext, id);
+      },
+    );
+
+    expect(gelesen?.leistungsnachweisId).toBe(nachweis);
+    expect(gelesen?.nacharbeitEinsatzId).toBe(einsatz!.id);
+    expect(gelesen?.status).toBe('behoben');
+    expect(gelesen?.nummer).toMatch(/^RK-\d{4}-\d{4}$/u);
+    // Der Nachweis ist über seine Nummer benannt, nicht nur über eine id —
+    // das ist die Auskunft, die vor einer Rechnungsfreigabe zählt.
+    expect(gelesen?.nacharbeitDatum).toBe('03.07.2026');
+  });
+
+  it('„behoben" ohne Maßnahme wird abgewiesen — vom Dienst und von der Datenbank', async () => {
+    const bau = await baueRevier(f.reinigung);
+    const id = await alsApp(
+      { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => (await erstelleReklamation(kontextAus(tx, bau.mandant, bau.leitung), {
+        objektId: bau.objekt, kundeId: bau.kunde, quelle: 'eigenkontrolle',
+        beschreibung: 'Fenster im EG verschmiert.',
+      })).id,
+    );
+
+    await expect(sql.unsafe(
+      `update reklamation set status = 'behoben' where id = $1`, [id],
+    )).rejects.toThrow();
+  });
+
+  it('ein Nachweis eines anderen Objekts wird nicht angehängt', async () => {
+    const eins = await baueRevier(f.reinigung);
+    const zwei = await baueRevier(f.reinigung);
+    const fremd = await baueVorgelegtenNachweis(zwei);
+
+    await expect(alsApp(
+      { scope: 'mandant', mandantId: eins.mandant, benutzerId: eins.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => erstelleReklamation(kontextAus(tx, eins.mandant, eins.leitung), {
+        objektId: eins.objekt, kundeId: eins.kunde, leistungsnachweisId: fremd,
+        quelle: 'kunde', beschreibung: 'Falsches Objekt.',
+      }),
+    )).rejects.toBeInstanceOf(NachweisPasstNicht);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('die Mandantengrenze hält', () => {
+  it('die Security sieht die Nachweise der Reinigung nicht', async () => {
+    const bau = await baueRevier(f.reinigung);
+    const nachweis = await baueVorgelegtenNachweis(bau);
+    const fremder = await konto(`security-${zufall()}@cse.test`);
+    await mitglied(fremder, f.security, 'leitung');
+
+    const sichtbar = await alsApp(
+      { scope: 'mandant', mandantId: f.security, benutzerId: fremder, portal: 'intern' },
+      async (tx) => tx.unsafe(
+        `select id from leistungsnachweis where id = $1`, [nachweis] as never[]),
+    );
+    expect(sichtbar).toHaveLength(0);
+  });
+
+  it('das Kundenportal sieht keinen Entwurf', async () => {
+    const bau = await baueRevier(f.reinigung);
+    const entwurf = await alsApp(
+      { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => erstelleEntwurf(kontextAus(tx, bau.mandant, bau.leitung), {
+        objektId: bau.objekt, kundeId: bau.kunde, von: '2026-06-01', bis: '2026-06-30',
+        positionen: [{
+          bezeichnung: 'Entwurfszeile', menge: '1.000', einheit: 'Stück', quelle: 'manuell',
+        }],
+      }),
+    );
+
+    const kundenkonto = await konto(`kunde-${zufall()}@cse.test`);
+    await sql.unsafe(
+      `insert into kunde_zugang (mandant_id, kunde_id, benutzer_id)
+       values ($1,$2,$3)`, [bau.mandant, bau.kunde, kundenkonto]);
+
+    const sichtbar = await alsApp(
+      { scope: 'kunde', mandantIds: [bau.mandant], benutzerId: kundenkonto, portal: 'kunde' },
+      async (tx) => tx.unsafe(
+        `select id from leistungsnachweis where id = $1`, [entwurf] as never[]),
+    );
+    // AUT-01: ein Kunde sieht `vorgelegt` und `signiert`, nie einen Entwurf.
+    expect(sichtbar).toHaveLength(0);
+  });
+});

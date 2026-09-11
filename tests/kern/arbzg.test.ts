@@ -240,3 +240,125 @@ describe('berlinTagesZeitpunkt: der Kalender, nicht nur die Form', () => {
       .toBe('2026-07-14T07:00:00.000Z');   // CEST: 09:00 Berlin = 07:00 UTC
   });
 });
+
+/**
+ * **Eine echte Stempelzeit hat Sekunden** — und die Prüfung muss das aushalten.
+ *
+ * `app.checkin_verbrauchen` schreibt `now()`: wer um 05:55:37 einstempelt,
+ * erzeugt ein Arbeitszeitfenster, dessen Abstand zur nächsten Schicht keine
+ * ganze Minute ist. Die Regelrechnung verlangte volle Minuten und warf —
+ * also scheiterte nach dem ersten echten Check-in jede Einteilung dieser
+ * Person mit „Zeiten sind auf die Minute genau zu erfassen". Kein Test fand
+ * das, weil jede Fixtur runde Zeiten setzt; gefunden hat es der Demo-Seed,
+ * der einen laufenden Eintrag anlegt.
+ */
+describe('gemessene Zeiten tragen Sekunden — die Prüfung rechnet trotzdem', () => {
+  const gestempelt: Schicht = {
+    id: 'ist-fenster',
+    personId: PERSON,
+    mandantId: REINIGUNG,
+    vonUtc: utc('2026-05-04T03:55:37.116Z'),
+    bisUtc: utc('2026-05-04T09:28:12.884Z'),
+    pauseMinuten: 0,
+  };
+
+  it('wirft nicht, sondern rundet auf die Minute', () => {
+    expect(() => pruefeArbzg([gestempelt])).not.toThrow();
+    // 5 h 32,6 min — unter acht Stunden, also kein Befund.
+    expect(pruefeArbzg([gestempelt])).toEqual([]);
+  });
+
+  it('und findet die Überschreitung auch dann, wenn die Sekunden sie tragen', () => {
+    const zweite: Schicht = {
+      id: 'ist-fenster-2',
+      personId: PERSON,
+      mandantId: SECURITY,
+      vonUtc: utc('2026-05-04T12:01:03.5Z'),
+      bisUtc: utc('2026-05-04T17:59:58.2Z'),
+      pauseMinuten: 0,
+    };
+    const regeln = pruefeArbzg([gestempelt, zweite]).map((b) => b.regel);
+    expect(regeln).toContain('tagesarbeitszeit_ueber_8h');
+    expect(regeln).toContain('tagesarbeitszeit_ueber_10h');
+  });
+
+  it('die Ruhezeit wird ABGERUNDET — 10:59:40 ist keine elfte Stunde', () => {
+    const abend: Schicht = {
+      id: 'abend',
+      personId: PERSON,
+      mandantId: REINIGUNG,
+      vonUtc: utc('2026-05-04T14:00:00Z'),
+      bisUtc: utc('2026-05-04T20:00:00Z'),
+      pauseMinuten: 0,
+    };
+    const morgen: Schicht = {
+      id: 'morgen',
+      personId: PERSON,
+      mandantId: SECURITY,
+      // 10 h 59 min 40 s später — knapp unter der Ruhezeit.
+      vonUtc: utc('2026-05-05T06:59:40Z'),
+      bisUtc: utc('2026-05-05T10:00:00Z'),
+      pauseMinuten: 0,
+    };
+    expect(pruefeArbzg([abend, morgen]).map((b) => b.regel))
+      .toContain('ruhezeit_unter_11h');
+  });
+});
+
+/**
+ * **Keine Angabe ist kein Verstoss** — § 4 und die Lücke im Plan.
+ *
+ * Der Plan kennt keine Pausenspalte (O-168), und `app.arbzg_belastung` gibt
+ * keine zurück (K-06). Wer daraus „0 Minuten Pause" macht, erzeugt auf jeder
+ * Schicht über sechs Stunden einen Befund, den niemand auflösen kann — es gibt
+ * kein Feld, in das eine geplante Pause gehörte. Genau das tat die Prüfung,
+ * und im Demo-Bestand trug jede Nachtschicht dieselbe Warnung.
+ */
+describe('§ 4: eine unbekannte Pause sagt nichts', () => {
+  const achtStunden = (pause: number | null): Schicht => ({
+    id: 'nacht',
+    personId: PERSON,
+    mandantId: REINIGUNG,
+    vonUtc: utc('2026-05-04T20:00:00Z'),
+    bisUtc: utc('2026-05-05T04:00:00Z'),
+    pauseMinuten: pause,
+  });
+
+  it('`null` erzeugt keinen § 4-Befund', () => {
+    expect(pruefeArbzg([achtStunden(null)]).map((b) => b.regel))
+      .not.toContain('pause_fehlt_ueber_6h');
+  });
+
+  it('`0` dagegen schon — das ist eine ERFASSTE Null', () => {
+    expect(pruefeArbzg([achtStunden(0)]).map((b) => b.regel))
+      .toContain('pause_fehlt_ueber_6h');
+  });
+
+  it('und eine erfasste halbe Stunde genügt', () => {
+    expect(pruefeArbzg([achtStunden(30)]).map((b) => b.regel))
+      .not.toContain('pause_fehlt_ueber_6h');
+  });
+
+  it('eine Summe aus Angabe und Nicht-Angabe ist keine Angabe', () => {
+    const zweite: Schicht = {
+      id: 'zweite',
+      personId: PERSON,
+      mandantId: SECURITY,
+      vonUtc: utc('2026-05-04T10:00:00Z'),
+      bisUtc: utc('2026-05-04T13:00:00Z'),
+      pauseMinuten: null,
+    };
+    const mitAngabe: Schicht = {
+      id: 'erste',
+      personId: PERSON,
+      mandantId: REINIGUNG,
+      vonUtc: utc('2026-05-04T04:00:00Z'),
+      bisUtc: utc('2026-05-04T09:00:00Z'),
+      pauseMinuten: 30,
+    };
+    // Acht Stunden am Tag, davon eine Schicht ohne Pausenangabe: § 4 schweigt,
+    // § 3 nicht.
+    const regeln = pruefeArbzg([mitAngabe, zweite]).map((b) => b.regel);
+    expect(regeln).not.toContain('pause_fehlt_ueber_6h');
+  });
+});

@@ -152,7 +152,18 @@ export async function pruefeEinsatz(
     mandantId: f.fremd ? 'fremd' : 'eigen',
     vonUtc: f.beginn,
     bisUtc: f.ende ?? new Date(f.beginn.getTime() + f.minuten * 60_000),
-    pauseMinuten: 0,
+    /**
+     * **`null` und nicht `0`** — der Leser kennt keine Pause.
+     *
+     * `app.arbzg_belastung` gibt Dauern und Grenzen zurueck, nie eine
+     * Pausenangabe (K-06), und der PLAN hat ohnehin keine (O-168). Mit `0`
+     * hiess das fuer die Regelrechnung „null Minuten Pause erfasst" — und
+     * jede Schicht ueber sechs Stunden trug einen § 4-Befund, der sich nicht
+     * aufloesen liess: es gibt kein Feld, in das eine geplante Pause
+     * gehoerte. Eine Warnung, die auf jeder Nachtschicht steht, bringt der
+     * Planung bei, Warnungen wegzuklicken — teurer als gar keine.
+     */
+    pauseMinuten: null,
   }));
 
   /**
