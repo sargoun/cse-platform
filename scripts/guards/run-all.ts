@@ -101,6 +101,18 @@ function wacheGeldSpalte(): void {
  * `timestamp without time zone` silently drops the offset, and every DST
  * calculation downstream is then wrong by an hour twice a year.
  */
+/**
+ * Ein Bezeichner, dann Leerraum, dann ein BLANKER `timestamp`.
+ *
+ * Nicht getroffen wird, was keine Spalte anlegt: `::timestamp` steht ohne
+ * Leerraum am Bezeichner, `timestamptz` traegt keine Wortgrenze nach
+ * `timestamp`, und die ausgeschriebenen Formen fangen die beiden
+ * Lookaheads ab — sie haben ihre eigene Meldung und sollen nicht doppelt
+ * erscheinen.
+ */
+const BLANKER_ZEITSTEMPEL =
+  /\b([a-z_][a-z0-9_]*)\s+timestamp\b(?!\s*\()(?!\s+with(?:out)?\s+time\s+zone)/giu;
+
 function wacheZeitstempel(): void {
   for (const datei of [...dateien('src/server/db', ['.ts']), ...dateien('drizzle', ['.sql'])]) {
     readFileSync(datei, 'utf8')
@@ -110,6 +122,37 @@ function wacheZeitstempel(): void {
           melde('zeit-immer-tz', datei, i + 1, zeile);
         }
         if (/\btimestamp\s*\(/iu.test(zeile) && !/withTimezone|with\s+time\s+zone/iu.test(zeile)) {
+          melde('zeit-immer-tz', datei, i + 1, zeile);
+        }
+        /*
+         * Der BLANKE `timestamp` — ohne Klammern, ohne Zusatz.
+         *
+         * Die Wache kannte genau zwei Formen: `timestamp without time zone`
+         * ausgeschrieben und den Drizzle-Aufruf `timestamp(`. Eine
+         * Spaltendeklaration in einer Migration schreibt aber keine von
+         * beiden:
+         *
+         *     erfasst_am timestamp not null default now(),
+         *
+         * PostgreSQL liest das als `timestamp without time zone` — genau die
+         * Spalte, gegen die Invariante 2 geschrieben ist. Die Wache sah sie
+         * nicht und meldete "alle sauber". Der Offset faellt dann beim
+         * Schreiben weg, jede Dauer ueber eine Zeitumstellung ist um eine
+         * Stunde falsch, zweimal im Jahr, und nichts bricht: es steht bloss
+         * eine plausible falsche Zahl auf dem Stundennachweis.
+         *
+         * Zwei Ausnahmen, beide am Text pruefbar: ein Bezeichner auf `_lokal`
+         * ist der dokumentierte Wanduhr-Anker aus 0029/0069 — die Ortszeit
+         * einer Serie, die absichtlich ohne Zone steht —, und ein
+         * Kommentar ist keine Deklaration. Die beiden Pruefungen darueber
+         * lesen Kommentarzeilen weiter mit; sie treffen nur ausgeschriebene
+         * Formen, die in Prosa nicht zufaellig entstehen.
+         */
+        const roh = zeile.trimStart();
+        if (roh.startsWith('--') || roh.startsWith('*') || roh.startsWith('//')
+            || roh.startsWith('/*')) return;
+        for (const m of zeile.matchAll(BLANKER_ZEITSTEMPEL)) {
+          if (/_lokal$/iu.test(m[1] ?? '')) continue;
           melde('zeit-immer-tz', datei, i + 1, zeile);
         }
       });
@@ -297,6 +340,19 @@ const TRANSPORTE = [
   '@aws-sdk/client-ses', 'twilio', 'node-fetch', 'axios', 'got', 'undici',
 ];
 
+/**
+ * Das native `fetch` braucht keinen Import — und war deshalb der eine
+ * Ausgang, den die Liste oben nicht sehen konnte.
+ *
+ * `server/storage` steht hier und NICHT in `erlaubt`: der Speicher-Adapter
+ * spricht mit dem eigenen Supabase-Bucket, also mit der eigenen
+ * Infrastruktur und nicht mit einem Empfaenger. Ein `nodemailer` dort waere
+ * trotzdem ein Verstoss, und die Importpruefung faengt ihn weiterhin.
+ */
+const FETCH_ERLAUBT = [
+  join('server', 'versand'), join('server', 'agent', 'policy'), join('server', 'storage'),
+];
+
 function wacheEinAusgang(): void {
   const erlaubt = [join('server', 'versand'), join('server', 'agent', 'policy')];
   const zuPruefen = dateien('src', ['.ts', '.tsx']).filter(
@@ -304,7 +360,28 @@ function wacheEinAusgang(): void {
   );
 
   for (const datei of zuPruefen) {
+    const fetchErlaubt = FETCH_ERLAUBT.some((e) => datei.includes(e));
     readFileSync(datei, 'utf8').split('\n').forEach((zeile, i) => {
+      /*
+       * **Was die Wache vorher nicht sah.** Sie las ausschliesslich
+       * Importnamen. `nodemailer` fiel auf, `await fetch('https://…/send')`
+       * nicht — und `fetch` ist seit Node 18 global, es braucht keinen
+       * Import und keine Abhaengigkeit. Der eine Ausgang war damit eine
+       * Zusage ueber die `package.json` und nicht ueber den Code: jede
+       * Mailversand-API, jeder Webhook, jeder Kanal liess sich in einer
+       * Zeile danebenlegen, ohne dass etwas rot wurde. Invariante 7 ist
+       * dann nur noch ein Vorsatz.
+       *
+       * Erlaubt bleibt der Ruf an die EIGENE API: ein Pfad, der mit `/`
+       * beginnt, verlaesst das System nicht.
+       */
+      const roh = zeile.trimStart();
+      const istKommentar = roh.startsWith('//') || roh.startsWith('*') || roh.startsWith('/*');
+      if (!istKommentar && !fetchErlaubt && /\bfetch\s*\(/u.test(zeile)
+          && !/\bfetch\s*\(\s*[`'"]\//u.test(zeile)) {
+        melde('ein-ausgang', datei, i + 1,
+          `natives \`fetch\` ausserhalb von server/versand — Invariante 7 kennt genau einen Ausgang.`);
+      }
       const treffer = /(?:from|require\()\s*['"]([^'"]+)['"]/u.exec(zeile);
       if (treffer === null) return;
       const modul = treffer[1] ?? '';
@@ -540,9 +617,26 @@ function wacheAnzeigeZeitzone(): void {
     const zeilen = ohneKommentare(readFileSync(datei, 'utf8')).split('\n');
     zeilen.forEach((zeile, i) => {
       if (!ZEIT_ANZEIGE.test(zeile)) return;
-      // Prozente und Zahlen tragen keine Zone — `toLocaleString` auf einer
-      // Zahl ist kein Datum und faellt hier nicht hinein.
-      if (/toLocaleString\s*\(\s*'de-DE'\s*\)/u.test(zeile)) return;
+      /*
+       * Prozente und Zahlen tragen keine Zone — `toLocaleString` auf einer
+       * Zahl ist kein Datum und faellt hier nicht hinein.
+       *
+       * **Die Ausnahme war vorher blind.** Sie sah nur den AUFRUF und nicht,
+       * worauf er steht: `new Date(x).toLocaleString('de-DE')` ist Zeichen
+       * fuer Zeichen derselbe Aufruf — und genau der Fehler, gegen den diese
+       * Wache geschrieben ist. Er ging durch, ohne dass jemand etwas
+       * umgehen musste. Auf Vercel laeuft der Server in UTC: eine Schicht,
+       * die am 3. um 00:30 Berliner Zeit beginnt, stand als der 2. im
+       * Stundennachweis, im Sommer jede Uhrzeit zwei Stunden daneben.
+       *
+       * Ausgenommen bleibt deshalb nur, was auf derselben Zeile kein
+       * Datum nennt. Im Zweifel meldet die Wache — eine Zahl, die einmal
+       * zuviel gemeldet wird, kostet eine Zeile Kommentar; ein Datum, das
+       * einmal zuwenig gemeldet wird, kostet einen Streit ueber Stunden.
+       */
+      const ZAHL_OHNE_ZONE = /\.toLocaleString\s*\(\s*'de-DE'\s*\)/u;
+      const NENNT_DATUM = /new\s+Date|Date\s*[.(]|datum|zeit|date|uhr|_am\b|_at\b/iu;
+      if (ZAHL_OHNE_ZONE.test(zeile) && !NENNT_DATUM.test(zeile)) return;
       // Die Zone darf im selben Aufruf stehen, also auch ein paar Zeilen
       // weiter unten: `new Intl.DateTimeFormat('de-DE', {` bricht um.
       const fenster = zeilen.slice(i, i + 6).join(' ');

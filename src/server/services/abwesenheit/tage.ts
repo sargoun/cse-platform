@@ -92,10 +92,11 @@ export function rechneTage(eingabe: TageEingabe): MilliMenge {
   }
 
   const arbeitstage = new Set<Wochentag>(eingabe.arbeitstage ?? ARBEITSTAGE_PLATZHALTER);
+  const zaehlt = (tag: string): boolean =>
+    arbeitstage.has(wochentag(tag)) && !istFeiertag(tag);
   let gezaehlt = 0;
   for (let tag = eingabe.von; tag <= eingabe.bis; tag = tagePlus(tag, 1)) {
-    if (!arbeitstage.has(wochentag(tag))) continue;
-    if (istFeiertag(tag)) continue;
+    if (!zaehlt(tag)) continue;
     gezaehlt += 1;
   }
   if (gezaehlt === 0) return milliMenge(0n);
@@ -108,11 +109,25 @@ export function rechneTage(eingabe: TageEingabe): MilliMenge {
    * findet (dieselbe Regel wie beim Geld, Invariante 1).
    */
   let tage = BigInt(gezaehlt) * 1000n;
-  if (eingabe.vonHalbtags === true) tage -= 500n;
-  // Bei EINEM gezaehlten Tag ziehen beide Flaggen zusammen nicht mehr als eine
-  // halbe ab: ein halber Vormittag und ein halber Nachmittag desselben Tages
-  // sind ein ganzer Tag, kein leerer.
-  if (eingabe.bisHalbtags === true && gezaehlt > 1) tage -= 500n;
+  /**
+   * Halbiert wird nur, wenn der Rand SELBST ein gezaehlter Tag ist.
+   *
+   * Vorher zog `von_halbtags` die halbe Zahl auch dann ab, wenn der erste Tag
+   * des Zeitraums ein Samstag, ein Sonntag oder ein Feiertag war — an einem
+   * Tag also, der gar nicht mitgezaehlt wurde und an dem es nichts zu
+   * halbieren gibt. Ein Urlaub „Samstag halbtags bis Freitag" kostete damit
+   * 4,5 statt 5 Tage: ein halber Tag zuviel auf dem Urlaubskonto, jedes Mal,
+   * und `rest_tage` haengt als erzeugte Spalte daran.
+   *
+   * Die zweite Bedingung ist dieselbe Regel wie vorher, nur an der richtigen
+   * Groesse festgemacht: faellt derselbe Tag auf beide Raender, ergeben ein
+   * halber Vormittag und ein halber Nachmittag einen ganzen Tag, keinen
+   * leeren.
+   */
+  if (eingabe.vonHalbtags === true && zaehlt(eingabe.von)) tage -= 500n;
+  if (eingabe.bisHalbtags === true && zaehlt(eingabe.bis) && eingabe.bis !== eingabe.von) {
+    tage -= 500n;
+  }
 
   return milliMenge(tage);
 }

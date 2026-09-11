@@ -206,6 +206,16 @@ async function schreibeKonflikt(
                    zeitraum_ende   = excluded.zeitraum_ende,
                    schwere         = excluded.schwere,
                    einsatz_id      = excluded.einsatz_id,
+                   -- Die Spalte wurde beim Bestaetigen NICHT nachgefuehrt: wurde
+                   -- aus einem einzelgesellschaftlichen Befund am naechsten Abend
+                   -- einer ueber Gesellschaften hinweg, blieb die Zeile auf
+                   -- false stehen. Der Dienstplan sagte dann "Arbeitszeit
+                   -- ueberschritten" statt "ueber Gesellschaften hinweg" -- genau
+                   -- die Unterscheidung, fuer die 0064 geschrieben wurde, und der
+                   -- Fall, den eine Leitung am dringendsten sehen muss (TIM-14).
+                   -- Derselbe Fehler stand in app.arbzg_befund_schreiben; 0085
+                   -- hat ihn dort auf demselben Weg behoben.
+                   betrifft_fremden_mandant = excluded.betrifft_fremden_mandant,
                    details         = excluded.details,
                    arbeitszeit_verstoss_id = coalesce(
                      excluded.arbeitszeit_verstoss_id,
@@ -243,6 +253,24 @@ async function schreibeKonflikt(
  * spurlos: er bekommt `hinfaellig_am` und faellt aus dem partiellen Index, so
  * dass derselbe Fehler spaeter wieder erkannt werden kann. Geloescht waere er
  * die Behauptung, es habe ihn nie gegeben (Invariante 8).
+ *
+ * **Und der BELEG geht mit.** Ueberholt wurde vorher nur die Karte; der Befund
+ * in `arbeitszeit_verstoss`, auf den sie zeigt, blieb fuer immer `offen` —
+ * `hinfaellig_am` hatte dort ueberhaupt keinen Schreiber, obwohl §6.7 genau
+ * diesen Dienst dafuer benennt. Die Karte verschwand also aus dem Eingang,
+ * waehrend die gesetzlich gefuehrte Verstossliste den umgeplanten Tag weiter
+ * als offenen Verstoss auswies — und der partielle Abdruckindex
+ * (`av_fingerprint_uk … where hinfaellig_am is null`) blieb von einer Zeile
+ * belegt, die niemand mehr meint.
+ *
+ * Ueberholt wird ausschliesslich, worauf eine gerade ueberholte Karte ZEIGT.
+ * Ein Fenster-Kriterium waere hier nicht dasselbe wie oben: der Zeitraum eines
+ * Befundes umfasst den Vorlauf und den Nachlauf der Belastungsabfrage und
+ * reicht damit ueber den geprueften Tag hinaus — er ueberlappte das Fenster
+ * eines schmalen Laufs (die Einteilung prueft nur ±24 h um eine Schicht) auch
+ * dann, wenn dieser Lauf den zugehoerigen Tag nie nachgerechnet hat. Ein
+ * faelschlich ueberholter Befund ist ein geloeschter Nachweis; ein stehen
+ * gebliebener ist bloss einer zu viel.
  */
 async function raeumeAuf(
   db: Abfrage, mandantId: string, vonUtc: Date, bisUtc: Date, gesehen: ReadonlySet<string>,
@@ -257,9 +285,25 @@ async function raeumeAuf(
         and zeitraum_ende   > $2::timestamptz
         and zeitraum_beginn < $3::timestamptz
         and not (fingerprint = any($4::text[]))
-      returning id`,
+      returning id, arbeitszeit_verstoss_id`,
     [mandantId, vonUtc.toISOString(), bisUtc.toISOString(), [...gesehen]],
-  )) as { id: string }[];
+  )) as { id: string; arbeitszeit_verstoss_id: string | null }[];
+
+  const belege = zeilen
+    .map((z) => z.arbeitszeit_verstoss_id)
+    .filter((id): id is string => id !== null);
+  if (belege.length > 0) {
+    /**
+     * Ueber die Definer-Funktion und **nur** so: `arbeitszeit_verstoss` hat
+     * fuer `cse_app` keine UPDATE-Policy (K-06). Ein direktes UPDATE traefe
+     * null Zeilen und meldete Erfolg — dieselbe lautlose Nulloperation, gegen
+     * die 0040 die Policy bewusst weggelassen hat.
+     */
+    await db.unsafe(
+      `select app.arbzg_befund_ueberholen($1::uuid[]) as anzahl`,
+      [belege],
+    );
+  }
   return zeilen.length;
 }
 

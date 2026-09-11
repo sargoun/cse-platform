@@ -24,6 +24,7 @@
 import type { SchreibKontext } from '../../kontext/index.js';
 import {
   besetzeEinsatz, AbwesendWarnungOffen, ArbzgWarnungOffen, BereitsEingeteilt,
+  UeberschneidungWarnungOffen,
 } from '../dienstplan/einteilung.js';
 import { QualifikationFehlt } from '../nachweis/tor.js';
 
@@ -232,7 +233,17 @@ export async function besetzeVeranstaltung(
         ergebnisse.push({
           anstellungId, zuordnungId: null, befund: 'abwesend', meldung: fehler.message,
         });
-      } else if (fehler instanceof BereitsEingeteilt) {
+      } else if (fehler instanceof BereitsEingeteilt
+                 || fehler instanceof UeberschneidungWarnungOffen) {
+        /*
+         * Zwei Nachbarn derselben Aussage: `BereitsEingeteilt` heisst „steht
+         * schon auf DIESER Schicht", die Ueberschneidung „steht zu dieser
+         * Stunde auf einer ANDEREN". Beides ist ein Befund ueber diese eine
+         * Person und nicht ueber den Vorgang — faellt die Ueberschneidung in
+         * den `else`-Zweig, fliegt sie weiter und bricht die Besetzung der
+         * ganzen Veranstaltung ab, weil EINE Wache doppelt stand. Sieben
+         * andere waeren dann ohne Grund unbesetzt geblieben.
+         */
         ergebnisse.push({
           anstellungId, zuordnungId: null, befund: 'doppelt', meldung: fehler.message,
         });

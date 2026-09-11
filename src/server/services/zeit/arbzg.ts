@@ -238,29 +238,47 @@ export function pruefeArbzg(
   }
 
   // --- §5 rest period: 11 h between the end of one shift and the next start --
-  for (let i = 1; i < sortiert.length; i += 1) {
-    const vorige = sortiert[i - 1];
-    const naechste = sortiert[i];
-    if (vorige === undefined || naechste === undefined) continue;
-    if (naechste.vonUtc.getTime() < vorige.bisUtc.getTime()) continue; // overlap, not a rest gap
-    // ABGERUNDET: 10:59:40 ist keine elfte Stunde, und Wegrunden hiesse, eine
-    // Unterschreitung zu verschweigen.
-    const ruhe = dauerMinutenAbgerundet(vorige.bisUtc, naechste.vonUtc);
-    if (ruhe < RUHEZEIT_MINUTEN) {
-      const ueber = vorige.mandantId !== naechste.mandantId;
-      befunde.push({
-        regel: 'ruhezeit_unter_11h',
-        schwere: 'verstoss',
-        personId,
-        kalendertag: berlinKalendertag(naechste.vonUtc),
-        minuten: ruhe,
-        beteiligteSchichten: [vorige.id, naechste.id],
-        ueberMandanten: ueber,
-        begruendung:
-          `${ruhe} min Ruhezeit zwischen Schichtende und nächstem Beginn; ` +
-          `§5 ArbZG verlangt ${RUHEZEIT_MINUTEN} min` +
-          (ueber ? ' — die Schichten liegen in zwei Gesellschaften' : ''),
-      });
+  /**
+   * Gefuehrt wird das bisher SPAETESTE Schichtende, nicht das Ende der nach
+   * BEGINN vorangehenden Schicht.
+   *
+   * Die Liste ist nach Beginn sortiert; das Ende folgt dieser Ordnung nicht.
+   * Vorher verglich die Pruefung starr die Nachbarn dieser Sortierung — und
+   * mass damit bei zwei ueberlappenden oder verschachtelten Schichten die
+   * falsche Luecke: eine Tagschicht 08:00–20:00 mit einem eingeschobenen
+   * Einsatz 09:00–10:00 liess die naechste Schicht gegen 10:00 messen statt
+   * gegen 20:00. Aus einer Stunde Ruhezeit wurden so elf, und § 5 schwieg
+   * genau im Fall, fuer den er da ist. Die verschachtelte Schicht ist kein
+   * Sonderfall, sondern der K-06-Alltag: die zweite Gesellschaft plant in die
+   * laufende Schicht der ersten hinein.
+   */
+  let spaetestesEnde: Schicht | undefined;
+  for (const naechste of sortiert) {
+    if (spaetestesEnde !== undefined
+        && naechste.vonUtc.getTime() >= spaetestesEnde.bisUtc.getTime()) {
+      // ABGERUNDET: 10:59:40 ist keine elfte Stunde, und Wegrunden hiesse, eine
+      // Unterschreitung zu verschweigen.
+      const ruhe = dauerMinutenAbgerundet(spaetestesEnde.bisUtc, naechste.vonUtc);
+      if (ruhe < RUHEZEIT_MINUTEN) {
+        const ueber = spaetestesEnde.mandantId !== naechste.mandantId;
+        befunde.push({
+          regel: 'ruhezeit_unter_11h',
+          schwere: 'verstoss',
+          personId,
+          kalendertag: berlinKalendertag(naechste.vonUtc),
+          minuten: ruhe,
+          beteiligteSchichten: [spaetestesEnde.id, naechste.id],
+          ueberMandanten: ueber,
+          begruendung:
+            `${ruhe} min Ruhezeit zwischen Schichtende und nächstem Beginn; ` +
+            `§5 ArbZG verlangt ${RUHEZEIT_MINUTEN} min` +
+            (ueber ? ' — die Schichten liegen in zwei Gesellschaften' : ''),
+        });
+      }
+    }
+    if (spaetestesEnde === undefined
+        || naechste.bisUtc.getTime() > spaetestesEnde.bisUtc.getTime()) {
+      spaetestesEnde = naechste;
     }
   }
 

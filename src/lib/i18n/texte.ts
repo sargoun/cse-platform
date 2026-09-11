@@ -20,6 +20,15 @@ export interface ShellTexte {
   readonly rechtlichesNav: string;
   readonly sprachwahl: string;
   readonly zurStartseite: string;
+  /**
+   * Der Weg vom oeffentlichen Auftritt IN die Plattform.
+   *
+   * Er fehlte, und das war kein Schoenheitsfehler: es gab von `/` aus
+   * ueberhaupt keinen Verweis auf das Portal — wer sich anmelden wollte,
+   * musste die Adresse kennen und tippen. Zwei Flaechen derselben Anwendung
+   * lasen sich dadurch wie zwei Anwendungen.
+   */
+  readonly anmelden: string;
   readonly navigation: Readonly<Record<'unternehmen' | 'leistungen' | 'projekte' | 'kontakt', string>>;
   readonly rechtlich: Readonly<Record<'impressum' | 'datenschutz' | 'barrierefreiheit', string>>;
   /**
@@ -40,6 +49,7 @@ export const SHELL_TEXTE: Readonly<Record<Sprache, ShellTexte>> = {
     rechtlichesNav: 'Rechtliches',
     sprachwahl: 'Sprache',
     zurStartseite: 'Zur Startseite',
+    anmelden: 'Anmelden',
     navigation: {
       unternehmen: 'Unternehmen',
       leistungen: 'Leistungen',
@@ -59,6 +69,7 @@ export const SHELL_TEXTE: Readonly<Record<Sprache, ShellTexte>> = {
     rechtlichesNav: 'Legal',
     sprachwahl: 'Language',
     zurStartseite: 'To the home page',
+    anmelden: 'Sign in',
     navigation: {
       unternehmen: 'Companies',
       leistungen: 'Services',

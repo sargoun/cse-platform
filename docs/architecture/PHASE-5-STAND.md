@@ -110,8 +110,15 @@ Fehlermeldung, nur ein falsches oder fehlendes Ergebnis.
 
 ## Offen in dieser Phase
 
-PR 40 (Reinigung), 41 (Security A) und 43 (Bau A) waren zuletzt in Arbeit.
-Danach fehlen 39 (Mitarbeiterportal), 42 (Security B), 44/45 (Bau B/C).
+Hier stand: „PR 40, 41 und 43 waren zuletzt in Arbeit; danach fehlen 39, 42
+und 44/45." Das war der Stand einer frueheren Sitzung und widersprach der
+Tabelle zwoelf Zeilen weiter oben, die dieselben PRs mit Testzahlen als
+fertig auffuehrt. Wer nur diesen Abschnitt las, haette sechs fertige Module
+noch einmal gebaut — und der Bau haette die bestehenden ueberschrieben, weil
+man nicht nachbaut, was man fuer fehlend haelt.
+
+**PR 30 bis 45 sind fertig**; offen ist in dieser Phase nichts an Modulen.
+Was bleibt, sind Fragen, die niemand im Code beantworten kann.
 
 Zwei Stuecke aus PR 38 haengen an offenen Fragen:
 - Die **Sollzeitgutschrift** einer Abwesenheit ins Stundenkonto braucht die
@@ -139,8 +146,18 @@ festgeschriebene Rechnung laesst sich **auch als Eigentuemer der Tabelle**
 nicht aendern.
 
 Als naechstes laufen PR 47 (§ 14-UStG-Validator), PR 48 (fuenf
-Abrechnungsarten) und PR 49 (Positionsherkunft). Migrationsnummern ab `0085`;
-`0068`–`0071` aus dem PR-Plan sind laengst vergeben.
+Abrechnungsarten) und PR 49 (Positionsherkunft). Ihre Entscheidungen stehen in
+`docs/DECISIONS.md` unter „PHASE 6, NICHT IN DIESEM ZWEIG" — der Code dazu
+liegt auf `claude/phase-5-dienstplan-zeit`, nicht hier.
+
+**Die Migrationsnummer wird nicht aus diesem Dokument abgeschrieben,
+sondern in `drizzle/` nachgesehen.** Hier stand „ab `0085`"; `0085` und die
+Nummern darueber sind seither vergeben, und jede weitere Sitzung vergibt
+weitere. `drizzle` nummeriert nicht, es sortiert nur — zwei Dateien mit
+derselben Nummer sind keine Fehlermeldung, sondern zwei Migrationen in
+unbestimmter Reihenfolge. Wer eine neue braucht, nimmt die naechste, die in
+`drizzle/` noch fehlt. `0068`–`0071` aus dem PR-Plan sind ohnehin laengst
+vergeben.
 
 ## Die Schuld, die benannt ist
 

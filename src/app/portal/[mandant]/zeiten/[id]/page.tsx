@@ -346,11 +346,24 @@ export default async function Zeiteintragsblatt(
   );
 }
 
-/** `-7200` → `−7200 s (Gerät ging vor)`. Das Vorzeichen trägt die Richtung. */
+/**
+ * `-7200` → `-7200 s — Gerät ging nach`. Das Vorzeichen trägt die Richtung.
+ *
+ * **Die Richtung stand hier verkehrt herum.** Die Abweichung ist GERÄT MINUS
+ * SERVER (`kern.stempel_feldzeit()` in 0034, D-134): eine negative Zahl heisst,
+ * die Telefonuhr lag HINTER der Serveruhr — das Gerät ging nach. Dieser Satz
+ * nannte genau dann „Gerät ging vor", und für eine vorgehende Uhr „ging nach".
+ *
+ * Die Zahl daneben war immer richtig, und das ist das Teure daran: die Seite
+ * widersprach sich in einem Detail, das niemand nachrechnet. Wer eine § 17-
+ * Aufzeichnung prüft, liest den Satz, nicht das Vorzeichen — und „das Gerät
+ * ging vor" heisst im Streitfall: die Kraft hat früher getippt, als
+ * aufgezeichnet wurde. Die falsche Richtung erfindet diesen Vorwurf.
+ */
 function abweichung(sekunden: number | null): string {
   if (sekunden === null) return '—';
   if (sekunden === 0) return '0 s — Gerät und Server gleich';
-  const richtung = sekunden < 0 ? 'Gerät ging vor' : 'Gerät ging nach';
+  const richtung = sekunden < 0 ? 'Gerät ging nach' : 'Gerät ging vor';
   return `${String(sekunden)} s — ${richtung}`;
 }
 

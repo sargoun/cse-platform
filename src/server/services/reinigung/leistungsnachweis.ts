@@ -562,12 +562,23 @@ export async function signiere(
       eingabe.geoGenauigkeitM ?? null,
       eingabe.signaturMedienId ?? null,
       /**
-       * Der Abzug geht als KANONISCHE Zeichenkette in die Spalte, nicht als
-       * `JSON.stringify` mit zufälliger Schlüsselreihenfolge. `jsonb` sortiert
-       * ohnehin um; dass der Digest davon unabhängig ist, sichert der
+       * Der Abzug geht als OBJEKT hinein, nicht als Zeichenkette.
+       *
+       * Vorher stand hier `JSON.stringify(...)`. Der Treiber schickt eine
+       * Zeichenkette als Text, und `$12::jsonb` macht daraus keinen
+       * Schnappschuss, sondern einen jsonb-STRING: `jsonb_typeof` sagt dann
+       * `string` statt `object`, und jedes `->>` darauf liefert NULL. Der
+       * Lesepfad fiel das nicht auf, weil `alsSchnappschuss` eine
+       * Zeichenkette nachträglich parst — in SQL aber, und damit in jeder
+       * Auswertung und jedem Export über die Unterschriften, wäre der Abzug
+       * leer gewesen. Derselbe Fehler wie früher bei
+       * `planungs_konflikt.details`.
+       *
+       * Die Schlüsselreihenfolge spielt keine Rolle: `jsonb` sortiert
+       * ohnehin um, und dass der Digest davon unabhängig ist, sichert der
        * Kanonisierer beim Wiederauslesen.
        */
-      JSON.stringify(vorschau.schnappschuss),
+      vorschau.schnappschuss,
       vorschau.pruefsumme,
       eingabe.ip ?? null, eingabe.userAgent ?? null,
     ],

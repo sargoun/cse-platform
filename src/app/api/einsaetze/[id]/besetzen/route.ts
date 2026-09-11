@@ -9,7 +9,7 @@ import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
 import {
-  besetzeEinsatz, AbwesendWarnungOffen, ArbzgWarnungOffen,
+  besetzeEinsatz, AbwesendWarnungOffen, ArbzgWarnungOffen, UeberschneidungWarnungOffen,
 } from '@/server/services/dienstplan/einteilung';
 import { QualifikationFehlt } from '@/server/services/nachweis/tor';
 
@@ -88,6 +88,7 @@ export async function POST(
      * den Befunden; er hat kein Formular, in das er zurückkehren könnte.
      */
     if (fehler instanceof ArbzgWarnungOffen || fehler instanceof AbwesendWarnungOffen
+        || fehler instanceof UeberschneidungWarnungOffen
         || fehler instanceof QualifikationFehlt) {
       if (mandant !== '') {
         return NextResponse.redirect(
@@ -104,6 +105,18 @@ export async function POST(
       if (fehler instanceof AbwesendWarnungOffen) {
         return NextResponse.json(
           { fehler: 'abwesend', hinweis: fehler.hinweis }, { status: 422 });
+      }
+      /*
+       * Die Überschneidungswarnung ist neu, und ohne diesen Zweig wäre sie
+       * hier als unbekannter Fehler gelandet: 500 statt 422, und dem Planer
+       * stünde „Serverfehler" da, wo „dieser Mensch steht um dieselbe Stunde
+       * schon auf jener Schicht" stehen muss. Die Gegenschichten reisen mit —
+       * eine Warnung, die nicht sagt WOGEGEN, ist keine.
+       */
+      if (fehler instanceof UeberschneidungWarnungOffen) {
+        return NextResponse.json(
+          { fehler: 'ueberschneidung', ueberschneidungen: fehler.ueberschneidungen },
+          { status: 422 });
       }
       return NextResponse.json(
         { fehler: 'qualifikation_fehlt', befund: fehler.befund }, { status: 422 });

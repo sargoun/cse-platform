@@ -3861,7 +3861,27 @@ sondern ein `text-warning`-Vermerk mit `title` — so wie ihn
 
 ---
 
-## Entschieden in PR 49 — Positionsherkunft und Warnung bei fehlender Zeiterfassung
+## Phase 6, noch nicht in `main` — die drei Abschnitte PR 49, PR 47 und PR 48
+
+**Lesehinweis, bevor jemand nach den genannten Dateien sucht.** Die rund
+dreissig Entscheidungen der naechsten drei Abschnitte (D-360 bis D-371,
+D-320 bis D-326, D-340 bis D-350) sind getroffen und beschrieben — ihr Code
+liegt aber auf dem Arbeitszweig `claude/phase-5-dienstplan-zeit` und ist in
+diesem Zweig **nicht enthalten**. Hier steht die Rechnung auf dem Stand von
+PR 46: `REGELWERK_VERSION` traegt woertlich `'ustg14-nicht-gebaut'`,
+`services/finanz/ustg14.ts` gibt es nicht, `rechnungsposition_quelle` ist ein
+Kommentar in `0075_rechnung.sql`, und `rechnungsposition.abrechnungsart` ist
+eine freie `text`-Spalte ohne Katalog. Auch die Migrationsnummern der
+Abschnitte (`0085_rechnung_pflichtfelder`, `0086`, `0088`) sind hier anders
+belegt.
+
+Die Abschnitte bleiben stehen und werden **nicht** geloescht: sie sind der
+Beschluss, nicht der Bericht ueber den Bau. Wer sie liest, liest den Plan
+fuer Phase 6 — und darf aus dem Wort „ist gebaut" in ihnen nicht schliessen,
+dass es in diesem Zweig gebaut ist. Beim Zusammenfuehren von Phase 6 faellt
+dieser Hinweis weg.
+
+## Entschieden in PR 49 — Positionsherkunft und Warnung bei fehlender Zeiterfassung · PHASE 6, NICHT IN DIESEM ZWEIG
 
 Die Zeilen liegen seit PR 46, aber keine trug einen Beleg. FIN-07 verlangt, dass
 jede Rechnungszeile auf das zurückführt, woraus sie entstanden ist, und FIN-18,
@@ -4060,7 +4080,7 @@ immer gesperrt.
 
 ---
 
-## Entschieden in PR 47 — §14-UStG-Pre-Flight-Validator, Leistungszeitraum, Kleinbetragsrechnung
+## Entschieden in PR 47 — §14-UStG-Pre-Flight-Validator, Leistungszeitraum, Kleinbetragsrechnung · PHASE 6, NICHT IN DIESEM ZWEIG
 
 Sieben Entscheidungen. Zwei davon lösen einen Widerspruch zwischen zwei
 Vorgabedokumenten, zwei halten fest, wo die Umsetzung vom Wortlaut eines
@@ -4217,7 +4237,7 @@ hätte sich als Erlaubnis lesen lassen, eine Rechnung ohne Nummer auszustellen.
 | O-300 | **Erbringt die Gruppe Leistungen an Privatkunden im Zusammenhang mit einem Grundstück — und soll der §14b-Hinweis dann auf JEDER Privatkundenrechnung stehen oder nur auf den grundstücksbezogenen?** §14 Abs. 4 Nr. 9 UStG verlangt bei einer solchen Leistung an einen Nichtunternehmer den gedruckten Hinweis auf die zweijährige Aufbewahrungspflicht (§14b Abs. 1 S. 5 UStG); für Gebäudereinigung und Bau ist das der Regelfall und keine Lehrbuchecke. Ob eine Leistung grundstücksbezogen ist, führt die Plattform nirgends — im zweiten Fall braucht `auftrag` oder `leistungskatalog_position` ein Merkmal. Bis zur Antwort ist die Regel eine **Warnung** und kein blockierender Fehler (D-323). | FIN-04, LEG-05, `§14 Abs. 4 Nr. 9 UStG`, `services/finanz/ustg14.ts` |
 | O-301 | **Gilt bei genau 250,00 € brutto die Erleichterung des §33 UStDV?** Der Verordnungstext („deren Gesamtbetrag 250 Euro nicht übersteigt") sagt ja, SPEC FIN-13 („Kleinbetragsrechnung < €250") sagt nein — die beiden gehen um einen Cent auseinander. PR 47 nimmt die strengere Lesart und verlangt bei genau 250,00 € die vollen Empfängerangaben (D-322). Die Antwort ist ein Vergleichsoperator an genau zwei Stellen: `fin.kleinbetrag_greift` (0085) und `kleinbetragLage()` in `services/finanz/ustg14.ts`. Sie hängt an O-175 — ob die Gruppe Kleinbetragsrechnungen überhaupt ausstellt. | FIN-13, `§33 UStDV`, `kleinbetrag_grenze` |
 
-## Entschieden in PR 48 — Fünf Abrechnungsarten hinter einem Interface
+## Entschieden in PR 48 — Fünf Abrechnungsarten hinter einem Interface · PHASE 6, NICHT IN DIESEM ZWEIG
 
 Diese Entscheidungen lösen Widersprüche zwischen den Vorgabedokumenten oder
 halten eine Stelle fest, an der die Umsetzung vom Wortlaut abweicht. Sie stehen
@@ -4400,6 +4420,8 @@ Eine Monatspauschale und ein Pauschalpreis-Los tragen dabei
 erfundenen Verweis auf eine Leistungszeile, die die Konfiguration gar nicht
 nennt. FIN-07 verlangt einen BELEG; der Beleg einer Pauschale ist der Vertrag,
 und das schreibt die Notiz auch hin.
+
+*(Ende des Phase-6-Blocks — ab hier gilt wieder der Stand dieses Zweigs.)*
 
 ---
 

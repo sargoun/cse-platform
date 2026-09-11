@@ -55,11 +55,24 @@ export interface OeffentlicheShellProps {
    * seinen Platz verliert, wechselt sie kein zweites Mal.
    */
   readonly pfad: string;
+  /**
+   * Wohin „Anmelden" fuehrt — oder `null`, wenn es diesen Weg noch nicht gibt.
+   *
+   * **Warum als Eigenschaft und nicht als Literal.** Die echte Anmeldung
+   * (Telefon + Einmalcode) ist PR 20 und noch nicht gebaut; bis dahin gibt es
+   * nur `/dev/anmelden`, und das steht hinter `CSE_DEV_FLAECHEN`. Ein festes
+   * Ziel hier waere in einem Produktionsbau ein Verweis ins Leere — also
+   * entscheidet die Huelle nichts, sondern bekommt den Pfad von der Schicht,
+   * die die Umgebung kennt. Ist er `null`, steht der Punkt gar nicht da:
+   * lieber kein Knopf als einer, der auf 404 fuehrt.
+   */
+  readonly anmeldePfad?: string | null;
   readonly children: React.ReactNode;
 }
 
 export function OeffentlicheShell(
-  { bereiche, aktiv, gruppeName, sprache, pfad, children }: OeffentlicheShellProps,
+  { bereiche, aktiv, gruppeName, sprache, pfad, anmeldePfad = null, children }:
+  OeffentlicheShellProps,
 ) {
   const t = shellTexte(sprache);
   return (
@@ -87,6 +100,29 @@ export function OeffentlicheShell(
             </a>
           ))}
         </nav>
+
+        {/*
+          * Der Weg ins Portal — und er ist NICHT hinter `md:` versteckt.
+          *
+          * Die Hauptnavigation ist es (`hidden md:flex`), und das ist dort
+          * richtig: sie fuehrt zu Lesestoff. Dieser Punkt fuehrt zur Arbeit.
+          * Wer ihn braucht, steht mit einem Telefon im Treppenhaus, nicht mit
+          * einem Bildschirm am Schreibtisch — auf genau dem Geraet also,
+          * auf dem er sonst fehlte.
+          *
+          * `min-h-11` sind 44px: DESIGN §8 nennt das Tap-Ziel nicht als
+          * Richtwert, sondern als Untergrenze.
+          */}
+        {anmeldePfad !== null && (
+          <a
+            href={anmeldePfad}
+            data-cse="anmelden"
+            className="ml-auto flex min-h-11 items-center rounded-sm border border-line
+                       px-s4 text-sm text-text hover:bg-surface-2 md:ml-s4"
+          >
+            {t.anmelden}
+          </a>
+        )}
 
         {/*
           * Die Sprachwahl: zwei Verweise, kein Auswahlfeld.

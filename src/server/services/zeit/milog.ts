@@ -415,23 +415,50 @@ export async function praegeNachweis(
  * Die Gegenprobe fuer die Abnahme: stimmt die Summe der Aufzeichnung mit der
  * Summe der Eintraege ueberein?
  *
- * Sie liest die Eintraege ein zweites Mal und direkt — ohne die Sicht —, weil
- * eine Gegenprobe, die dieselbe Quelle benutzt wie das Gepruefte, nur
- * bestaetigt, dass die Quelle mit sich selbst uebereinstimmt.
+ * Sie liest die Eintraege ein zweites Mal und rechnet unabhaengig vom
+ * ausgegebenen Nachweis — der bei einem gesperrten Monat aus dem GEPRAEGTEN
+ * Artefakt kommt. Genau dort traegt sie: weicht das Artefakt von den heutigen
+ * Eintraegen ab, sagt es diese Zahl und nicht erst der Lohnstreit.
+ *
+ * **Beide Zahlen liegen auf DEMSELBEN Massstab: dem Monatsanteil.** Vorher
+ * kam das Brutto als Anteil aus der Sicht, das Netto dagegen als
+ * `z.dauer_netto_minuten` — die volle Schicht. Eine Schicht ueber die
+ * Monatsgrenze (31.10. 22:00 → 01.11. 06:00) zaehlte damit in BEIDEN
+ * Monatsblaettern mit ihren vollen acht Stunden netto, und die Gegenprobe
+ * behauptete eine Abweichung, wo keine war — jeden Monatswechsel, und nur bei
+ * den Nachtschichten, an denen § 17 MiLoG haengt.
+ *
+ * Die Pause wird dafuer ueber `verteilePauseAufAnteile` verteilt, also mit
+ * derselben getesteten Regel wie ueberall (§7.4) — nicht mit einer zweiten,
+ * die in SQL formuliert waere und an jedem Monatsende eine Minute erzeugte.
  */
 export async function summeDerEintraege(
   kontext: LeseKontext, eingabe: NachweisEingabe,
 ): Promise<{ readonly bruttoMinuten: number; readonly nettoMinuten: number }> {
-  const [z] = await kontext.abfrage<{ brutto: string | null; netto: string | null }>(
-    `select sum(m.anteil_brutto_minuten)::text as brutto,
-            sum(z.dauer_netto_minuten)::text   as netto
-       from milog_aufzeichnung m
-       join zeiteintrag z on z.mandant_id = m.mandant_id and z.id = m.zeiteintrag_id
-      where m.anstellung_id = $1 and m.monat = $2::date`,
-    [eingabe.anstellungId, eingabe.monat],
-  );
-  return {
-    bruttoMinuten: Number(z?.brutto ?? '0'),
-    nettoMinuten: Number(z?.netto ?? '0'),
-  };
+  const alle = await leseAnteile(kontext, eingabe);
+  const nachEintrag = new Map<string, AufzeichnungZeile[]>();
+  for (const z of alle) {
+    const liste = nachEintrag.get(z.zeiteintrag_id) ?? [];
+    liste.push(z);
+    nachEintrag.set(z.zeiteintrag_id, liste);
+  }
+
+  let brutto = 0;
+  let netto = 0;
+  for (const teile of nachEintrag.values()) {
+    const erste = teile[0];
+    if (erste === undefined) continue;
+    const mitPause = verteilePauseAufAnteile(
+      teile.map((t) => ({
+        monat: tag(t.monat), bruttoMinuten: Number(t.anteil_brutto_minuten),
+      })),
+      Number(erste.dauer_brutto_minuten), Number(erste.pause_minuten),
+    );
+    for (const anteil of mitPause) {
+      if (anteil.monat !== eingabe.monat) continue;
+      brutto += anteil.bruttoMinuten;
+      netto += anteil.nettoMinuten;
+    }
+  }
+  return { bruttoMinuten: brutto, nettoMinuten: netto };
 }

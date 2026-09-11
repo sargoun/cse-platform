@@ -45,6 +45,63 @@ async function anmelden(page: Page): Promise<void> {
 
 const MANDANT = 'reinigung';
 
+/**
+ * **Jede Prüfung schreibt ihren EIGENEN Beleg fest.**
+ *
+ * Zwei Prüfungen unten — der Storno und die BT-130-Spalte — öffneten
+ * `getByRole('link', { name: /^RE-/u }).first()` im Rechnungsausgangsbuch. Die
+ * einzige Rechnung, die dort je stand, legte die Prüfung „danach gibt es kein
+ * Positionsformular mehr" an, und der Seed legt keine an (O-134, siehe unten).
+ * `playwright.config.ts` läuft `fullyParallel`: die drei Fälle liegen in
+ * verschiedenen Arbeitern, laufen gleichzeitig, und keine Reihenfolge
+ * garantiert, dass der Beleg schon da ist. Die beiden Prüfungen fielen
+ * deshalb an wechselnden Stellen um — mal mit einem Zeitablauf auf dem
+ * Verweis, mal gar nicht.
+ *
+ * Schlimmer als das Wandern war der andere Ausgang: lief die erste Prüfung
+ * zufällig zuerst durch, STORNIERTE der Storno-Fall genau den Beleg, an dem
+ * die dritte Prüfung anschliessend ihre Spaltenüberschrift suchte — und auf
+ * einer stornierten Rechnung steht kein Korrekturformular mehr.
+ *
+ * Der Helfer legt Entwurf und Position an und schreibt fest. Er ist damit
+ * auch die einzige Stelle, an der der Weg beschrieben steht; drei Abschriften
+ * waren drei Gelegenheiten, ihn verschieden zu tippen.
+ */
+async function festgeschriebenerBeleg(page: Page): Promise<void> {
+  await anmelden(page);
+  await page.goto(`/portal/${MANDANT}/finanzen/rechnungen/neu`);
+  await page.getByLabel('Zahlungsziel (Tage)').fill('30');
+  await page.getByRole('button', { name: 'Entwurf anlegen' }).click();
+
+  await page.getByLabel('Handelsübliche Bezeichnung').fill('Unterhaltsreinigung');
+  await page.getByLabel('Menge (Tausendstel)').fill('1000');
+  await page.getByLabel('Einzelpreis (Cent)').fill('10000');
+  await page.getByRole('button', { name: 'Position hinzufügen' }).click();
+
+  await page.getByRole('button', { name: 'Rechnung festschreiben' }).click();
+  await page.waitForLoadState('domcontentloaded');
+
+  /**
+   * `/api/rechnungen/festschreiben` antwortet auf eine Abweisung mit JSON und
+   * 409, nicht mit einer Seite — der Browser zeigt dann den rohen Text. Ohne
+   * diese Probe suchte die nächste Zusicherung eine Überschrift auf einem
+   * JSON-Dokument und meldete einen Zeitablauf, der wie ein kaputter
+   * Bildschirm aussieht statt wie ein benannter Grund.
+   *
+   * Der häufigste Grund ist kein Programmfehler: der Seed legt den
+   * Rechnungsnummernkreis bewusst als PLATZHALTER an, weil O-134 offen ist
+   * (fortlaufend oder jährlich neu?), und `fin.rechnung_nummer_ziehen` zieht
+   * aus einem unbestätigten Kreis keine Nummer. Dann gibt es in dieser
+   * Gesellschaft keine festschreibbare Rechnung, und das soll hier stehen.
+   */
+  const koerper = (await page.locator('body').innerText()).trim();
+  expect(
+    koerper.startsWith('{') ? koerper.slice(0, 400) : null,
+    'Festschreiben abgewiesen — ohne bestätigten Rechnungsnummernkreis (O-134) '
+    + 'gibt es keine festgeschriebene Rechnung, und alles darunter prüft nichts',
+  ).toBeNull();
+}
+
 test.describe('Das Rechnungsausgangsbuch (FIN-16)', () => {
   test('ein Entwurf steht ohne Nummer in der Liste', async ({ page }) => {
     await anmelden(page);
@@ -107,17 +164,7 @@ test.describe('Der Entwurf (FIN-01)', () => {
 
 test.describe('Das Festschreiben ist einseitig (Invariante 4)', () => {
   test('danach gibt es kein Positionsformular mehr, sondern die Kettenbindung', async ({ page }) => {
-    await anmelden(page);
-    await page.goto(`/portal/${MANDANT}/finanzen/rechnungen/neu`);
-    await page.getByLabel('Zahlungsziel (Tage)').fill('30');
-    await page.getByRole('button', { name: 'Entwurf anlegen' }).click();
-
-    await page.getByLabel('Handelsübliche Bezeichnung').fill('Unterhaltsreinigung');
-    await page.getByLabel('Menge (Tausendstel)').fill('1000');
-    await page.getByLabel('Einzelpreis (Cent)').fill('10000');
-    await page.getByRole('button', { name: 'Position hinzufügen' }).click();
-
-    await page.getByRole('button', { name: 'Rechnung festschreiben' }).click();
+    await festgeschriebenerBeleg(page);
 
     // Die Nummer steht jetzt in der Überschrift, und zwar aus der Maske des
     // Kreises — nicht aus einer Verkettung im Aufrufcode.
@@ -134,9 +181,9 @@ test.describe('Das Festschreiben ist einseitig (Invariante 4)', () => {
   });
 
   test('korrigiert wird durch Storno mit auditfähigem Grund, nicht durch Änderung', async ({ page }) => {
-    await anmelden(page);
-    await page.goto(`/portal/${MANDANT}/finanzen/rechnungen`);
-    await page.getByRole('link', { name: /^RE-/u }).first().click();
+    // Der EIGENE Beleg: ein fremder wäre schon storniert, sobald zwei Arbeiter
+    // gleichzeitig in dieselbe Liste greifen.
+    await festgeschriebenerBeleg(page);
 
     await expect(page.getByRole('heading', { name: 'Korrigieren' })).toBeVisible();
     const grund = page.getByLabel(/Grund \(mindestens zehn Zeichen/u);
@@ -160,9 +207,7 @@ test.describe('Unbestätigte Werte sind sichtbar (§1.11)', () => {
   });
 
   test('und eine Position ohne BT-130 zeigt „offen" statt eines geratenen Codes', async ({ page }) => {
-    await anmelden(page);
-    await page.goto(`/portal/${MANDANT}/finanzen/rechnungen`);
-    await page.getByRole('link', { name: /^RE-/u }).first().click();
+    await festgeschriebenerBeleg(page);
     await expect(page.getByRole('columnheader', { name: 'BT-130' })).toBeVisible();
   });
 });

@@ -204,16 +204,50 @@ export async function fuegePositionHinzu(
     );
   }
 
+  /**
+   * Der Stichtag der Satzaufloesung ist das LEISTUNGSdatum, nicht der heutige
+   * Tag.
+   *
+   * Vorher stand hier zweimal `app.berlin_heute()`. §13 Abs. 1 Nr. 1 UStG
+   * knuepft die Steuer an den Zeitpunkt der LEISTUNG: eine im Januar
+   * geschriebene Rechnung ueber eine Dezemberleistung schuldet den
+   * Dezembersatz. Nach einer Satzaenderung haette jede Rechnung, die dem
+   * Leistungsmonat hinterherlaeuft — und das tun sie alle —, den NEUEN Satz
+   * getragen. Zu hoch ausgewiesene Umsatzsteuer schuldet man nach §14c Abs. 1
+   * UStG trotzdem, und der Beleg ist nach dem Festschreiben nicht mehr
+   * aenderbar: die Korrektur waere Storno plus Neuausstellung, jeweils an
+   * jeden betroffenen Kunden.
+   *
+   * Massgeblich ist das ENDE des Leistungszeitraums — mit ihm ist die
+   * Leistung ausgefuehrt. Fehlt der Zeitraum, weil es eine Abschlags- oder
+   * Anzahlungsrechnung ist (§14 Abs. 4 Nr. 6 UStG), zaehlt der geplante
+   * Vereinnahmungstag. Hat der Entwurf noch keines von beidem, bleibt der
+   * heutige Tag: festschreiben laesst er sich ohnehin erst, wenn
+   * `rechnung_leistungszeitpunkt` erfuellt ist.
+   */
+  const [kopf] = await db.abfrage<{ stichtag: string }>(
+    `select to_char(coalesce(leistung_bis, leistung_von, vereinnahmung_geplant_am,
+                             app.berlin_heute()), 'YYYY-MM-DD') as stichtag
+       from rechnung where id = $1`,
+    [eingabe.rechnungId],
+  );
+  if (kopf === undefined) {
+    throw new RechnungFehler(
+      `Rechnung ${eingabe.rechnungId} nicht gefunden`, 'nicht_gefunden',
+    );
+  }
+
   const [gruppe] = await db.abfrage<{ id: string; satz_bp: number; kategorie: string }>(
     `select id, satz_bp, kategorie::text as kategorie from steuersatz_gruppe
       where schluessel = $1
-        and app.berlin_heute() >= gueltig_von
-        and (gueltig_bis is null or app.berlin_heute() <= gueltig_bis)`,
-    [eingabe.steuergruppe],
+        and $2::date >= gueltig_von
+        and (gueltig_bis is null or $2::date <= gueltig_bis)`,
+    [eingabe.steuergruppe, kopf.stichtag],
   );
   if (gruppe === undefined) {
     throw new RechnungFehler(
-      `Keine gueltige Steuersatzgruppe „${eingabe.steuergruppe}" am heutigen Tag.`,
+      `Keine gueltige Steuersatzgruppe „${eingabe.steuergruppe}" am Leistungsdatum `
+      + `${kopf.stichtag}.`,
       'unbekannte_steuergruppe',
     );
   }
@@ -1010,6 +1044,33 @@ export async function korrigiere(
             'mensch', app.aktueller_benutzer()
        from rechnungsposition p
       where p.rechnung_id = $1 and p.positionsart = 'leistung'`,
+    [rechnungId, neu.id],
+  );
+
+  /**
+   * Und die Zu- und Abschlaege — 1:1, mit unveraenderter `art`.
+   *
+   * Sie fehlten hier. `storniere()` spiegelte sie (Zuschlag wird Nachlass),
+   * die Neuausstellung uebernahm nur die Positionen: das Storno hob also den
+   * vollen Betrag auf, der Ersatzbeleg trug aber nur noch die Positionssumme.
+   * Ein Nachlass von 3 % waere dem Kunden bei jeder Korrektur stillschweigend
+   * gestrichen worden, ein Zuschlag — Express, Wochenende, Kleinmengen — dem
+   * Haus. Auffallen konnte das nicht: beide Belege sind in sich stimmig,
+   * `schreibeSummen()` rechnet sauber ueber das, was DA ist, und die
+   * Differenz steht nur im Vergleich der drei Belege.
+   *
+   * Nicht gespiegelt wird hier: die Neuausstellung ist der Beleg, wie er
+   * haette lauten sollen, nicht dessen Aufhebung.
+   */
+  await db.abfrage(
+    `insert into rechnung_zuschlag
+       (mandant_id, rechnung_id, art, bezeichnung, grund_code, basis_cent, satz_bp,
+        betrag_cent, steuersatz_gruppe_id, gruppe_satz_bp, gruppe_kategorie,
+        erstellt_von_art, erstellt_von)
+     select z.mandant_id, $2::uuid, z.art, z.bezeichnung, z.grund_code, z.basis_cent,
+            z.satz_bp, z.betrag_cent, z.steuersatz_gruppe_id, z.gruppe_satz_bp,
+            z.gruppe_kategorie, 'mensch', app.aktueller_benutzer()
+       from rechnung_zuschlag z where z.rechnung_id = $1`,
     [rechnungId, neu.id],
   );
 
