@@ -266,8 +266,20 @@ test.describe('Das Festschreiben ist einseitig (Invariante 4)', () => {
     // „Fehler" reicht nicht: `rechnung_beziehung` verlangt zehn Zeichen, und
     // das Formular sagt es, statt es die Datenbank sagen zu lassen.
     await grund.fill('Falsche Rechnungsanschrift des Auftraggebers');
+    /*
+     * Die Adresse des Belegs MUSS vor dem Absenden festgehalten werden.
+     *
+     * `/api/rechnungen/storno` leitet auf das AUSGANGSBUCH weiter, nicht auf
+     * den Beleg — und das ist richtig so: nach einer Korrektur gibt es zwei
+     * Belege, und welcher der gemeinte ist, entscheidet nicht die Route. Der
+     * Hinweis „Aufgehoben durch Stornorechnung" steht aber auf dem
+     * ursprünglichen Beleg, und die Prüfung suchte ihn auf der Liste.
+     */
+    const beleg = page.url();
     await page.getByRole('button', { name: 'Stornieren' }).click();
+    await page.waitForURL(/\/finanzen\/rechnungen$/u);
 
+    await page.goto(beleg);
     await expect(page.getByText(/Aufgehoben durch Stornorechnung/u).first()).toBeVisible();
   });
 });

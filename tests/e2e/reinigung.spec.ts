@@ -134,8 +134,13 @@ test.beforeAll(async () => {
         `insert into leistungsnachweis_position
            (mandant_id, leistungsnachweis_id, kunde_id, reihenfolge, bezeichnung,
             menge, einheit, einzelpreis_cent, quelle, erstellt_von_art)
-         values ($1,$2,$3,$4,$5,$6::numeric,$7,$8::bigint,'manuell','system')
-         on conflict do nothing`,
+         values ($1,$2,$3,$4,$5,$6::numeric,$7,$8::bigint,'manuell','system')`,
+        // KEIN `on conflict` hier: `lnp_reihenfolge_uk` ist DEFERRABLE, und
+        // Postgres laesst eine aufschiebbare Bedingung nicht als Schiedsrichter
+        // zu — „ON CONFLICT does not support deferrable unique constraints as
+        // arbiters", auch ohne Zielangabe. Es braucht auch keines: hierher
+        // kommt nur, wer den Nachweis GERADE angelegt hat; ein zweiter
+        // Durchgang ist oben schon mit der vorhandenen Kennung zurueck.
         [m!.id, n!.id, ort!.kunde_id, reihe, text, menge, einheit, preis] as never[]);
     }
     return n!.id;
