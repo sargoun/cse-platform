@@ -305,6 +305,84 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * SEC-06, DOC-05, EMP-12 — eine Dienstanweisung anlegen.
+     *
+     * `dienstanweisung.schreiben`, dasselbe Recht, das die `WITH
+     * CHECK`-Haelfte der Zeilenpolitik von `dienstanweisung` und
+     * `dienstanweisung_version` verlangt (K-03). Die Rolle `mitarbeiter`
+     * haelt es NICHT — ihr Weg ist die Bestaetigung, und die hat ihre eigene
+     * Adresse unter `api/mein/`.
+     */
+    pfad: 'api/sicherheit/dienstanweisungen',
+    recht: 'dienstanweisung.schreiben',
+  },
+  {
+    /**
+     * SEC-06, DOC-05, Abnahme 1 — eine neue Fassung anlegen oder eine
+     * bestehende freigeben.
+     *
+     * DASSELBE Recht: eine Fassung anzulegen und sie freizugeben sind zwei
+     * Haelften eines Vorgangs, nicht zwei Schwellen. Was die Freigabe
+     * ausloest — Kopf fortschreiben, Pflichtpopulation vervollstaendigen —
+     * tut ohnehin der Ausloeser und nicht diese Adresse.
+     */
+    pfad: 'api/sicherheit/dienstanweisungen/[id]/version',
+    recht: 'dienstanweisung.schreiben',
+  },
+  {
+    /**
+     * SEC-07 — einen Schluessel in den Bestand nehmen.
+     *
+     * `schluessel.schreiben`, dasselbe Recht wie in der Zeilenpolitik (K-03).
+     * Der ZUSTAND des Schluessels laesst sich hier nicht setzen: er ist aus
+     * dem Journal abgeleitet, und `s_status_abgeleitet` weist jede direkte
+     * Aenderung ab (0079 §6).
+     */
+    pfad: 'api/sicherheit/schluessel',
+    recht: 'schluessel.schreiben',
+  },
+  {
+    /**
+     * SEC-07, TIM-08, LEG-01 — eine Journalzeile schreiben: Uebergabe,
+     * Ruecknahme, Verlust, Sperrung, Entsperrung, Vernichtung,
+     * Wiederauffinden, Inventur.
+     *
+     * Alle acht ueber EINE Adresse, weil alle acht dieselbe Sitzung, denselben
+     * Ursprungscheck, denselben Mandantenkontext und dasselbe Recht brauchen —
+     * und dieselbe Zeile in derselben Tabelle sind. Die zweite Uebergabe ohne
+     * Ruecknahme weist `sq_offene_ausgabe_uk` ab, nicht dieser Eintrag.
+     */
+    pfad: 'api/sicherheit/schluessel/[id]/quittung',
+    recht: 'schluessel.schreiben',
+  },
+  {
+    /**
+     * EMP-09, SEC-06 — die Wache bestaetigt eine Dienstanweisung mit einem
+     * Tipp.
+     *
+     * Bewusst OHNE Rechteschluessel: die Rolle `mitarbeiter` haelt
+     * `dienstanweisung.schreiben` nicht (03-AUTH §12.3), und K-19 verbietet,
+     * dafuer einen neuen Schluessel zu erfinden — er muesste jeder
+     * Mitarbeiterrolle gebunden werden, also nichts pruefen und dabei
+     * behaupten, man pruefe; und `super_admin` bekaeme ihn mit. Genau diesen
+     * Fall nennt 0078 §12 als Begruendung fuer `t_selbst_bestaetigen`.
+     */
+    pfad: 'api/mein/dienstanweisungen/[id]/kenntnisnahme',
+    recht: null,
+    grund:
+      'EMP-09, SEC-06, SEITENKARTE §7. Die Bestaetigung einer Dienstanweisung ist '
+      + 'Selbstzugriff und kein Modulrecht: ein Recht gehoert einer Rolle und eine Rolle '
+      + 'vielen Menschen, also liesse sich „nur der Betroffene" gar nicht als Recht '
+      + 'ausdruecken — und `dienstanweisung.schreiben` ist an super_admin, admin und '
+      + 'leitung gebunden, nicht an die Wache, die bestaetigt. Die Wache ist die Sitzung, '
+      + 'der Ursprungsvergleich, der aus der Anweisung serverseitig aufgeloeste Mandant '
+      + '(K-02), die Policy `t_selbst_bestaetigen` auf `da_kenntnisnahme` und die '
+      + 'restriktive Mitarbeiterdecke (K-04); die Fassung selbst ist im Personen-Scope '
+      + 'nur ueber `t_person` sichtbar, also nur auf einem Objekt, auf dem dieser Mensch '
+      + 'eingesetzt ist.',
+  },
+  {
+    /**
      * Die Vorschau auf den Rechenansatz (BAU-02).
      *
      * `bau.aufmass_erfassen` und nicht `bau.lesen`: sie gehoert zum
@@ -338,6 +416,124 @@ export const ROUTEN: readonly RouteEintrag[] = [
      */
     pfad: 'api/bau/aufmasse/[id]/gegenzeichnung',
     recht: 'bau.aufmass_freigeben',
+  },
+  {
+    /**
+     * Das Bautagebuch — anlegen, anfuegen, korrigieren, abschliessen,
+     * gegenzeichnen (BAU-07).
+     *
+     * `bau.schreiben` und nicht `bau.aufmass_erfassen`: die Seitenkarte gibt
+     * `…/bautagebuch/[datum]` genau dieses Recht. Ein Bautagebuch ist die
+     * laufende Beweisfuehrung der Bauleitung und keine Mengenfeststellung
+     * der Kraft vor Ort.
+     *
+     * Ein Eingang fuer mehrere Vorgaenge: alle teilen Sitzung,
+     * Ursprungspruefung, Mandantenkontext und Recht, und die Korrektur IST
+     * ein Anfuegen mit einem Storno daneben.
+     */
+    pfad: 'api/bau/bautagebuch',
+    recht: 'bau.schreiben',
+  },
+  {
+    /**
+     * Das Wetter eines Bautags anheften (BAU-08).
+     *
+     * Dasselbe Recht wie der Tag, an den es sich heftet — es entsteht kein
+     * zweiter Vorgang, sondern ein Feld desselben. Die Route gibt einen
+     * BEFUND zurueck und wirft nicht, wenn der DWD schweigt: der Tag
+     * speichert trotzdem, und nichts wird erfunden.
+     */
+    pfad: 'api/bau/bautagebuch/[id]/wetter',
+    recht: 'bau.schreiben',
+  },
+  {
+    /**
+     * Einen Nachtrag ANMELDEN (BAU-04, BAU-05).
+     *
+     * `bau.nachtrag_anmelden` — das Recht der Ankuendigung nach § 2 Abs. 6
+     * Nr. 1 VOB/B, nicht `bau.schreiben`: wer ein Leistungsverzeichnis
+     * pflegt, kuendigt damit noch keinen Verguetungsanspruch an. Und nicht
+     * `bau.nachtrag_einreichen`: das ist der Uebergang, an dem etwas das Haus
+     * verlaesst, und er hat seine eigene Adresse.
+     *
+     * `POST` statt des in der API-Karte genannten Methodenpaars: der Aufrufer
+     * ist ein HTML-Formular, und ein Formular kennt nur `GET` und `POST`.
+     */
+    pfad: 'api/bau/nachtraege',
+    recht: 'bau.nachtrag_anmelden',
+  },
+  {
+    /**
+     * Die Ankuendigung nachtragen (BAU-04).
+     *
+     * Dasselbe Recht wie das Anmelden und trotzdem eine eigene Adresse: das
+     * Datum ist write-once, und ein Weg, der ein bestehendes Datum
+     * verschoebe, waere in einem auditierten Datensatz kein Versehen mehr.
+     */
+    pfad: 'api/bau/nachtraege/[id]/anmelden',
+    recht: 'bau.nachtrag_anmelden',
+  },
+  {
+    /**
+     * Die Einreichung beim Auftraggeber (BAU-04, Invariante 7).
+     *
+     * `bau.nachtrag_einreichen` — der Uebergang, an dem die Kalkulation das
+     * Haus verlaesst. Er verlangt zusaetzlich eine genehmigte `freigabe`;
+     * ohne sie ist der Zustand `eingereicht` nicht einmal in der Datenbank
+     * darstellbar (`nachtrag_eingereicht_freigegeben`, 0080).
+     */
+    pfad: 'api/bau/nachtraege/[id]/einreichen',
+    recht: 'bau.nachtrag_einreichen',
+  },
+  {
+    /**
+     * Leistung ausserhalb des LV ohne Nachtrag (BAU-05).
+     *
+     * `bau.lesen` und nicht `bau.nachtrag_anmelden`: die Warnung zu SEHEN
+     * heisst nicht, einen Anspruch anmelden zu duerfen. Die einzige Route
+     * dieses PRs, die in der API-Karte als `GET` steht — sie liest und
+     * schreibt nichts.
+     */
+    pfad: 'api/bau/nachtrag-warnungen',
+    recht: 'bau.lesen',
+  },
+  {
+    /**
+     * Die Behinderungsanzeige entwerfen (BAU-06, § 6 Abs. 1 VOB/B).
+     *
+     * `bau.behinderung_erstellen` — ein eigener Schluessel im Katalog, und
+     * das aus gutem Grund: eine Behinderungsanzeige ist eine
+     * anspruchswahrende Rechtserklaerung und kein Datensatz.
+     *
+     * `POST` statt `PUT`: der Aufrufer ist ein HTML-Formular.
+     */
+    pfad: 'api/bau/behinderungen',
+    recht: 'bau.behinderung_erstellen',
+  },
+  {
+    /**
+     * Den Versand dokumentieren (BAU-06, Invariante 7).
+     *
+     * Das Recht ist `bau.behinderung_erstellen` und NICHT
+     * `versand.freigeben`: hier wird festgehalten, was ein Mensch getan hat.
+     * Die Freigabe ist ein anderer Vorgang mit einem anderen Recht — sie wird
+     * hier durch `server/agent/policy.ts` GEPRUEFT, nie erteilt. Ohne
+     * genehmigte Freigabe mit benanntem Menschen und passendem Nutzlast-Hash
+     * geht nichts hinaus, und `e_mail`/`portal` werden als nicht verbunden
+     * abgewiesen statt nachgebaut (O-116).
+     */
+    pfad: 'api/bau/behinderungen/[id]/versenden',
+    recht: 'bau.behinderung_erstellen',
+  },
+  {
+    /**
+     * Der Wegfall nach § 6 Abs. 3 VOB/B (BAU-06).
+     *
+     * Kein Ausgang und deshalb kein Tor: der Wegfall wird festgehalten, das
+     * Schreiben darueber ist ein VERSAND und laeuft ueber die Adresse daneben.
+     */
+    pfad: 'api/bau/behinderungen/[id]/wegfall',
+    recht: 'bau.behinderung_erstellen',
   },
   {
     /**

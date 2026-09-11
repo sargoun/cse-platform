@@ -2,6 +2,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { findeEigeneSchicht, type EigeneSchicht }
   from '@/server/services/mitarbeiter/schichten';
+import {
+  listeEigeneDienstanweisungen, type EigeneDienstanweisung,
+} from '@/server/services/mitarbeiter/dienstanweisungen';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../rahmen';
 import { Feld, Felder, SchichtKarte } from '../../bausteine';
@@ -21,18 +24,39 @@ import { Feld, Felder, SchichtKarte } from '../../bausteine';
  */
 export const dynamic = 'force-dynamic';
 
+/** Was diese Seite in EINER Transaktion liest — Schicht plus ihre Anweisungen. */
+interface Blatt {
+  readonly schicht: EigeneSchicht;
+  readonly anweisungen: readonly EigeneDienstanweisung[];
+}
+
 export default async function MeineSchicht(
   { params }: { params: Promise<{ zuordnungId: string }> },
 ) {
   const { zuordnungId } = await params;
-  const ergebnis = await meinPortal<EigeneSchicht | null>(
+  const ergebnis = await meinPortal<Blatt | null>(
     `/portal/mein/schichten/${zuordnungId}`,
-    async (kontext) => findeEigeneSchicht(kontext, zuordnungId),
+    async (kontext, teil) => {
+      const schicht = await findeEigeneSchicht(kontext, zuordnungId);
+      if (schicht === null) return null;
+      /**
+       * Die Anweisungen DIESES Objekts, in derselben Transaktion und
+       * demselben Personen-Scope. Ein zweiter Scope waere ein zweiter
+       * Einstieg, und `withGroupScope` liesse die Liste lautlos leer (K-18).
+       */
+      const anweisungen = schicht.objektId === null ? [] as const
+        : await listeEigeneDienstanweisungen(kontext, teil.sprache,
+          { objektId: schicht.objektId });
+      return { schicht, anweisungen };
+    },
   );
   if (ergebnis.art === 'anmeldung') return <AnmeldungNoetig />;
   if (ergebnis.daten === null) notFound();
 
-  const { basis, daten } = ergebnis;
+  const { basis } = ergebnis;
+  const daten = ergebnis.daten.schicht;
+  const anweisungen = ergebnis.daten.anweisungen;
+  const offene = anweisungen.filter((a) => a.offen);
   const t = basis.texte;
 
   return (
@@ -64,11 +88,41 @@ export default async function MeineSchicht(
       </section>
 
       {/*
-        Die Dienstanweisung gehoert laut Seitenkarte hierher, entsteht aber
-        erst mit PR 42 (SEC-06, EMP-09). Hier steht deshalb NICHTS statt eines
-        toten Verweises: ein Menuepunkt, der auf 404 fuehrt, ist schlechter als
-        keiner.
+        Die Dienstanweisung dieses Objekts — der Weg, den EMP-09 „vor der
+        naechsten Schicht" nennt. Offene stehen zuerst und sind als offen
+        bezeichnet; eine Zeile ohne Wort waere ein Verweis, den man uebersieht.
       */}
+      {anweisungen.length > 0 && (
+        <section className="mt-s5" data-cse="schicht-dienstanweisungen">
+          <h2 className="mb-s3 text-h2 text-text">{t.dienstanweisungen}</h2>
+          {offene.length > 0 && (
+            <p className="mb-s3 text-base text-warning" data-cse="offene-anweisungen">
+              <span className="cse-zahl">{offene.length}</span> · {t.nichtBestaetigt}
+            </p>
+          )}
+          <ul className="m-0 list-none p-0">
+            {anweisungen.map((a) => (
+              <li key={a.id} className="mb-s3">
+                <Link
+                  href={`/portal/mein/dienstanweisungen/${a.id}`}
+                  data-cse="dienstanweisung"
+                  data-anweisung={a.id}
+                  data-offen={a.offen ? 'ja' : 'nein'}
+                  className="block min-h-11 rounded-lg border border-line bg-surface p-s4
+                             no-underline transition-colors duration-fast hover:bg-surface-2"
+                >
+                  <span className="block text-base text-text">{a.titel}</span>
+                  <span
+                    className={`mt-s1 block text-sm ${a.offen ? 'text-warning' : 'text-text-muted'}`}
+                  >
+                    {a.offen ? t.bestaetigen : `${t.bestaetigtAm} ${a.bestaetigtLokal ?? ''}`}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </MeinRahmen>
   );
 }

@@ -130,6 +130,32 @@ export default async function Projektliste(
                 </Link>
               ),
             },
+            {
+              /**
+               * Die beiden Vorgänge des § 2 und des § 6 VOB/B (BAU-04,
+               * BAU-06). Sie stehen als Wege und nicht als Zahlen: eine Zahl
+               * hier verlangte je Projekt zwei weitere Abfragen, und was die
+               * Bauleitung von dieser Liste aus sucht, ist der Weg dorthin.
+               */
+              schluessel: 'vorgaenge',
+              kopf: '§ 2 / § 6 VOB/B',
+              zelle: (z) => (
+                <span className="inline-flex flex-wrap gap-s3">
+                  <Link
+                    href={`/portal/${mandant}/bau/projekte/${z.id}/nachtraege`}
+                    className="text-text underline-offset-2 hover:text-brand hover:underline"
+                  >
+                    Nachträge
+                  </Link>
+                  <Link
+                    href={`/portal/${mandant}/bau/projekte/${z.id}/behinderungen`}
+                    className="text-text underline-offset-2 hover:text-brand hover:underline"
+                  >
+                    Behinderungen
+                  </Link>
+                </span>
+              ),
+            },
           ]}
         />
       )}

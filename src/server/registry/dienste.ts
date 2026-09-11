@@ -353,6 +353,34 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'dienstplan.schreiben',
   },
   /**
+   * PR 42 — die versionierte Dienstanweisung (SEC-06, EMP-09).
+   *
+   * Genannt ist `dienstanweisung.schreiben`, das Recht des GEFAEHRLICHSTEN
+   * Zugriffs dieser Datei: wer eine Fassung veroeffentlicht, verpflichtet
+   * jede Wache des Objekts, sie zu lesen. Die Kenntnisnahme liegt in derselben
+   * Datei und traegt ausdruecklich KEIN Modulrecht — die Rolle `mitarbeiter`
+   * haelt `dienstanweisung.schreiben` nicht, und K-19 verbietet, dafuer einen
+   * zweiten Schluessel zu erfinden. Sie laeuft ueber die INSERT-Policy
+   * `t_selbst_bestaetigen` (0078 §12), die genau Zeilen der eigenen
+   * Beschaeftigung zulaesst. Zwei Rechte, eine Datei, und das engere steht
+   * hier — dieselbe Regel wie bei `abwesenheit/antrag`.
+   */
+  {
+    modul: 'dienstanweisung', pfad: 'security/dienstanweisung',
+    schreibend: true, schreibRecht: 'dienstanweisung.schreiben',
+  },
+  /**
+   * PR 42 — die Schluesselverwaltung (SEC-07).
+   *
+   * `schluessel.schreiben` ist hier wirklich tragend und nicht bloss
+   * symmetrisch: die Rolle `mitarbeiter` HAELT es (03-AUTH §12.3), weil SEC-07
+   * die Wache vor Ort quittieren laesst — anders als bei der Dienstanweisung.
+   */
+  {
+    modul: 'schluessel', pfad: 'security/schluessel',
+    schreibend: true, schreibRecht: 'schluessel.schreiben',
+  },
+  /**
    * Bau (PR 43, BAU-01 – BAU-03).
    *
    * Der Parser und die LV-Rechnung LESEN — sie sind reine Arithmetik ohne
@@ -399,6 +427,22 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   {
     modul: 'bau', pfad: 'bau/wetter',
+    schreibend: true, schreibRecht: 'bau.schreiben',
+  },
+  /**
+   * PR 45 — das Bautagebuch selbst (BAU-07).
+   *
+   * `bau.schreiben` und nicht `bau.aufmass_erfassen`: ein Aufmass ist eine
+   * Mengenfeststellung, ein Bautagebuch die laufende Beweisfuehrung der
+   * Bauleitung. Die Seitenkarte gibt `…/bautagebuch/[datum]` dasselbe Recht.
+   *
+   * Der Dienst SCHREIBT, obwohl sein sichtbarster Teil — der Abgleich der
+   * Mannstunden gegen `zeiteintrag` — nur liest: ein Register, das nach dem
+   * Schwerpunkt einer Datei entscheidet, laesst irgendwann den Anfuegeweg in
+   * der Gruppenansicht laufen.
+   */
+  {
+    modul: 'bau', pfad: 'bau/bautagebuch',
     schreibend: true, schreibRecht: 'bau.schreiben',
   },
   /**
@@ -453,6 +497,12 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'nachweis', pfad: 'mitarbeiter/nachweise', schreibend: false },
   { modul: 'zeit', pfad: 'mitarbeiter/antraege', schreibend: false },
   { modul: 'zeit', pfad: 'mitarbeiter/felder', schreibend: false },
+  /**
+   * PR 42 — die eigenen Dienstanweisungen. LESEND: der Schreibweg der
+   * Bestaetigung liegt in `security/dienstanweisung` und steht dort mit
+   * seinem Recht.
+   */
+  { modul: 'dienstanweisung', pfad: 'mitarbeiter/dienstanweisungen', schreibend: false },
 
   /**
    * Die Rechnung (PR 46). Der Kanonisierer und der Kettenlauf LESEN — der

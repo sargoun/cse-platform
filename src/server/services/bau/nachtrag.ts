@@ -257,7 +257,7 @@ export async function meldeNachtragAn(
               (select max(nullif(regexp_replace(n2.nummer, '\\D', '', 'g'), '')::bigint)
                  from nachtrag n2 where n2.projekt_id = p.id), 0) + 1)::text, 3, '0'),
             $3, $4::uuid, $5, 'angemeldet', $6::date,
-            $7::nachtrag_anordnung_form, $8, $10
+            $7::nachtrag_anordnung_form, $8, $10, app.aktueller_benutzer()
        from projekt p
       where p.id = $2 and p.mandant_id = $1
      returning id, nummer`,
@@ -367,6 +367,54 @@ export async function reicheEin(
       'ohne_freigabe',
       'Zu diesem Nachtrag liegt keine genehmigte Freigabe mit benanntem Menschen vor. '
       + 'Es wurde nichts eingereicht (Invariante 7).',
+    );
+  }
+}
+
+/**
+ * Hängt eine Aufmasszeile ausserhalb des LV an den Nachtrag, den die Warnung
+ * angeboten hat (BAU-05).
+ *
+ * **Ohne diesen Weg verschwindet die Warnung nie.** `ladeAusserhalbLv` waehlt
+ * genau `ausserhalb_lv and nachtrag_id is null`; ein Nachtrag, der neben der
+ * Zeile entsteht, ohne sie zu erfassen, laesst dieselbe Warnung stehen — und
+ * eine Warnung, die nach der Abhilfe weiter dasteht, liest nach der dritten
+ * Woche niemand mehr.
+ *
+ * `nachtrag_id` steht bewusst NICHT in `kern.aufmass_zeile_einfrieren()`: ein
+ * gegengezeichnetes Blatt ist in Menge, Formel und Bezeichnung unveraenderlich,
+ * aber die Zuordnung zu einem Nachtrag entsteht typischerweise SPAETER — der
+ * Streit ueber die Vergueetung beginnt, wenn die Menge laengst festgestellt ist.
+ * Die Zuordnung wird deshalb nur GESETZT, nie umgehaengt: `nachtrag_id is null`
+ * steht in der Bedingung.
+ *
+ * Der Grosselternschluessel (`az_nachtrag_fk`, 0080) haelt Zeile und Nachtrag
+ * im selben Projekt; die Bedingung hier sagt es noch einmal lesbar, damit der
+ * Fehlschlag ein deutscher Satz ist und kein Fremdschluesselfehler.
+ */
+export async function ordneAufmasszeileZu(
+  kontext: SchreibKontext,
+  eingabe: { readonly zeileId: string; readonly nachtragId: string },
+): Promise<void> {
+  const [zeile] = await kontext.schreibe<{ id: string }>(
+    `update aufmass_zeile z
+        set nachtrag_id = $2::uuid, geaendert_von = app.aktueller_benutzer()
+       from nachtrag n
+      where z.id = $1::uuid
+        and n.id = $2::uuid
+        and n.mandant_id = z.mandant_id
+        and n.projekt_id = z.projekt_id
+        and z.ausserhalb_lv
+        and z.nachtrag_id is null
+     returning z.id`,
+    [eingabe.zeileId, eingabe.nachtragId],
+  );
+  if (zeile === undefined) {
+    throw new NachtragFehler(
+      'nicht_gefunden',
+      'Diese Aufmaßzeile gehört nicht zu diesem Projekt, steht nicht außerhalb des '
+      + 'Leistungsverzeichnisses oder hängt bereits an einem Nachtrag. Es wurde nichts '
+      + 'umgehängt.',
     );
   }
 }

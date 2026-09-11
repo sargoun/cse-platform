@@ -411,6 +411,25 @@ export interface MeinTexte {
   readonly sprache: string;
   readonly drucken: string;
   readonly summe: string;
+
+  /**
+   * Die Dienstanweisung auf dem Telefon (EMP-09, SEC-06, PR 42).
+   *
+   * `pruefsumme` steht hier, weil sie auf dem Bildschirm steht: die
+   * Bestaetigung kopiert den Digest der Fassung, und wer spaeter fragt, was
+   * bestaetigt wurde, soll dieselbe Zeichenfolge sehen wie die Wache damals.
+   */
+  readonly dienstanweisungen: string;
+  readonly dienstanweisungLesen: string;
+  readonly bestaetigen: string;
+  readonly bestaetigtAm: string;
+  readonly nichtBestaetigt: string;
+  readonly neueFassung: string;
+  readonly fassung: string;
+  readonly giltAb: string;
+  readonly pruefsumme: string;
+  readonly nurAufDeutsch: string;
+  readonly vorNaechsterSchicht: string;
 }
 
 export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
@@ -489,6 +508,17 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     sprache: 'Sprache',
     drucken: 'Drucken',
     summe: 'Summe',
+    dienstanweisungen: 'Dienstanweisungen',
+    dienstanweisungLesen: 'Anweisung lesen',
+    bestaetigen: 'Gelesen und verstanden',
+    bestaetigtAm: 'Bestätigt am',
+    nichtBestaetigt: 'Noch nicht bestätigt',
+    neueFassung: 'Neue Fassung — bitte erneut bestätigen',
+    fassung: 'Fassung',
+    giltAb: 'Gilt ab',
+    pruefsumme: 'Prüfsumme der Fassung',
+    nurAufDeutsch: 'Dieser Text liegt nur auf Deutsch vor.',
+    vorNaechsterSchicht: 'Vor Ihrer nächsten Schicht',
   },
   en: {
     heute: 'Today',
@@ -564,6 +594,17 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     sprache: 'Language',
     drucken: 'Print',
     summe: 'Total',
+    dienstanweisungen: 'Duty instructions',
+    dienstanweisungLesen: 'Read instruction',
+    bestaetigen: 'Read and understood',
+    bestaetigtAm: 'Acknowledged on',
+    nichtBestaetigt: 'Not acknowledged yet',
+    neueFassung: 'New version — please acknowledge again',
+    fassung: 'Version',
+    giltAb: 'Valid from',
+    pruefsumme: 'Version checksum',
+    nurAufDeutsch: 'This text is available in German only.',
+    vorNaechsterSchicht: 'Before your next shift',
   },
   ar: {
     heute: 'اليوم',
@@ -639,6 +680,17 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     sprache: 'اللغة',
     drucken: 'طباعة',
     summe: 'المجموع',
+    dienstanweisungen: 'تعليمات الخدمة',
+    dienstanweisungLesen: 'اقرأ التعليمات',
+    bestaetigen: 'قرأتُ التعليمات وفهمتُها',
+    bestaetigtAm: 'تم التأكيد في',
+    nichtBestaetigt: 'لم يتم التأكيد بعد',
+    neueFassung: 'نسخة جديدة — يرجى التأكيد من جديد',
+    fassung: 'النسخة',
+    giltAb: 'سارية اعتباراً من',
+    pruefsumme: 'بصمة النسخة',
+    nurAufDeutsch: 'هذا النص متوفر باللغة الألمانية فقط.',
+    vorNaechsterSchicht: 'قبل ورديتك القادمة',
   },
   tr: {
     heute: 'Bugün',
@@ -714,6 +766,17 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     sprache: 'Dil',
     drucken: 'Yazdır',
     summe: 'Toplam',
+    dienstanweisungen: 'Hizmet talimatları',
+    dienstanweisungLesen: 'Talimatı oku',
+    bestaetigen: 'Okudum ve anladım',
+    bestaetigtAm: 'Onaylandığı tarih',
+    nichtBestaetigt: 'Henüz onaylanmadı',
+    neueFassung: 'Yeni sürüm — lütfen yeniden onaylayın',
+    fassung: 'Sürüm',
+    giltAb: 'Geçerlilik başlangıcı',
+    pruefsumme: 'Sürüm sağlama değeri',
+    nurAufDeutsch: 'Bu metin yalnızca Almanca olarak mevcuttur.',
+    vorNaechsterSchicht: 'Bir sonraki vardiyanızdan önce',
   },
 };
 

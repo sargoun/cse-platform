@@ -3026,6 +3026,9 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-210 | **Gilt bei einem Veranstaltungsdienst die vereinbarte Stärke zugleich als Mindestbesetzung?** SEC-08 nennt für einen Eventdienst eine Sollbesetzung (`veranstaltung.soll_besetzung`) und keine Untergrenze. Der Posten hat beides, und der Unterschied ist folgenreich: die Mindestbesetzung ist die Zahl, an der die Dringlichkeitsmeldung und die Veröffentlichungssperre hängen. Eine Veranstaltung mit `min = soll` meldet jede unvollständig besetzte Feier als dringend; mit `min = 1` meldet sie keine. Die Eventschicht entsteht deshalb mit dem Spaltenvorgabewert 1, und kein Dienst leitet daraus etwas ab, bis die Frage beantwortet ist (K-17). | SEC-08, `posten_unterbesetzung`, SPEC §14 |
 | O-211 | **Wie weit im Voraus sieht eine Wache die Kontrollpunkte und die Dienstanweisung ihres nächsten Objekts — und wie lange nach der letzten Schicht noch?** `03-GEWERKE.md` §1.10 nennt ein „SEC-06 lookahead window", und kein Dokument nennt seine Länge. `app.eigene_einsatz_objekte()` zieht die Grenze deshalb aus den Daten statt aus einer erfundenen Zahl: ein Einsatz, der noch nicht zu Ende ist. Die Wache sieht damit ihr laufendes und ihr kommendes Objekt und verliert den Zugriff, sobald die letzte Schicht vorbei ist. Eine Antwort verschiebt genau eine Bedingung in dieser Funktion. | SEC-05, SEC-06, EMP-09, `kontrollpunkt`, `posten` |
 | O-206 | **Is "CSE Gruppe" a legal entity?** Does a group-level Rechtsträger (holding) exist — under which name, address and register entry — or is the group only a brand over four independent companies? A structured-data `Organization` block carries an address and therefore asserts that such a company exists; until this is answered the site emits four complete `LocalBusiness` entries and no umbrella. | PUB-11, `/impressum`, footer |
+| O-280 | **Ab welcher Abweichung gilt der Mannstundenabgleich als auffällig — und ist überhaupt eine Toleranz gewollt?** BAU-07 verlangt, dass die Mannstunden je Gewerk gegen `zeiteintrag` desselben Tages und derselben Baustelle gehalten werden und eine Abweichung **gemeldet** wird. Wie groß eine Differenz sein darf, bevor jemand ihr nachgeht, ist eine Entscheidung der Bauleitung und keine technische: eine Toleranz, die niemand beschlossen hat, verschweigt ab dem ersten Tag genau die Fälle, wegen derer der Abgleich existiert. Bis zur Antwort meldet `gleicheMannstundenAb` **jede** Differenz ab einer Minute und glättet keine; ein Schwellenwert wäre eine Zeile in genau dieser Funktion. | BAU-07, TIM-12, `bautagebuch_mannstunden`, `zeiteintrag` |
+| O-281 | **Zählen die Mannstunden im Bautagebuch die Anwesenheit auf der Baustelle (brutto) oder die Arbeitszeit ohne Pausen (netto)?** `bautagebuch_mannstunden.dauer_minuten` ist laut `03-GEWERKE.md` §7.13 eine *gemessene* Dauer und sagt nicht, ob die Pause darin steckt; `zeiteintrag` führt beides getrennt (`dauer_brutto_minuten`, `dauer_netto_minuten`). Solange die Frage offen ist, ist jeder Abgleich um die Pausenzeit einer Kolonne verschoben — bei acht Leuten und 30 Minuten sind das vier Mannstunden am Tag, also genau die Größenordnung, die der Abgleich finden soll. Verglichen wird derzeit gegen `dauer_netto_minuten`, und die Tagesseite sagt es sichtbar dazu. | BAU-07, TIM-12, `bautagebuch_mannstunden`, `zeiteintrag` |
+| O-282 | **Soll die Zeiterfassung das Gewerk mitführen, damit der Abgleich je Gewerk statt nur in der Tagessumme laufen kann?** `zeiteintrag` trägt `objekt_id`, `revier_id`, `posten_id` und `projekt_id`, aber kein `gewerk_id` — ein Abgleich je Gewerk ist damit heute unmöglich, und die Seite hält die Summe der eigenen Stunden gegen die Tagesnettozeit der Baustelle. Das ist ehrlich, aber gröber, als BAU-07 („Mannstunden per trade") nahelegt: eine Verschiebung zwischen zwei Gewerken desselben Tages fällt nicht auf. Die Antwort ist keine technische — sie entscheidet, ob die Kolonne beim Einstempeln ein Gewerk wählen muss. | BAU-07, TIM-12, `zeiteintrag`, `gewerk` |
 
 ---
 
@@ -3546,3 +3549,135 @@ auf null Zeichen, und `RE-{jahr}-{nr}` hätte `RE-2027-` ergeben.
 | # | Question | Blocks |
 |---|---|---|
 | O-212 | **Darf eine Rechnungsposition im Entwurf entfernt werden?** Invariante 8 und §1.6 verbieten in dieser Domäne jeden Hard Delete, auch auf `rechnungsposition` — eine versehentlich erfasste Zeile bleibt damit im Entwurf stehen, und der einzige Ausweg ist, den ganzen Entwurf zu verwerfen. Wenn das im Alltag untragbar ist, braucht `rechnungsposition` eine Zustandsspalte (`entfernt_am` plus Grund), die aus jeder Summe herausfällt — nicht eine Löschpolicy. Die Entscheidung ist buchhalterisch, nicht technisch: ob eine nie ausgestellte Entwurfszeile überhaupt aufbewahrungspflichtig ist. | FIN-01, Invariante 8, `rechnungsposition` |
+
+---
+
+## Entschieden in PR 42 — Security B (versionierte Dienstanweisung mit Kenntnisnahme, Schlüsselverwaltung)
+
+Sieben Entscheidungen. Jede löst einen Widerspruch zwischen zwei
+Vorgabedokumenten oder hält eine Stelle fest, an der die Umsetzung vom
+Wortlaut abweicht — damit die nächste Person sie nicht noch einmal entscheidet,
+und möglicherweise anders.
+
+### D-230 · Die Bestätigungsroute liegt unter `/api/mein/…`, nicht `/api/mitarbeiter/…`
+
+`05-API-KARTE.md` §C.13 nennt sie
+`POST /api/mitarbeiter/dienstanweisungen/[id]/kenntnisnahme`. Das Repository
+führt die beiden bereits gebauten Schreibwege des Mitarbeiterportals aber unter
+`/api/mein/antraege` und `/api/mein/abwesenheit` (PR 39) — obwohl die Karte
+dort `…/antrag` und `…/krankmeldung` sagt. Zwei Präfixe für dasselbe Publikum
+wären zwei Stellen, an denen jemand die Sitzungs- und Scope-Behandlung
+nachbaut; und `tests/kern/mitarbeiter.test.ts` zählt die Schreibrouten des
+Portals über genau dieses Präfix.
+
+Gebaut ist deshalb
+`POST /api/mein/dienstanweisungen/[id]/kenntnisnahme`. Die Abweichung ist eine
+Namens- und keine Vertragsfrage: Aufrufer ist ausschliesslich das eigene
+Formular derselben Anwendung, es gibt keinen externen Verbraucher dieser
+Adresse. Wird die API-Karte je maßgeblich für ein fremdes System, wandern alle
+drei Adressen zusammen — nicht diese eine allein.
+
+### D-231 · Der „Diff" der Seitenkarte ist ein Nebeneinander, keine zeichenweise Gegenüberstellung
+
+`04-SEITENKARTE.md` §5.8 schreibt zu `…/dienstanweisungen/[id]`: „versions with
+a diff between them". Eine zeichenweise Gegenüberstellung ist ein eigenes
+Bauteil; es steht nicht in `DESIGN.md`, und §12 verbietet ausdrücklich, ein
+Bauteil in einer Seitendatei zu erfinden.
+
+Gebaut sind deshalb die Fassungen untereinander — jede mit ihrem Text, ihrem
+Gültigkeitsdatum, ihrem Digest und der Zahl ihrer Bestätigungen —, und an der
+neueren steht der `aenderungshinweis`. Was die Gegenüberstellung beantworten
+soll (was hat sich geändert), beantwortet der Hinweis genauer, weil ihn ein
+Mensch geschrieben hat: eine markierte Zeile sagt, dass etwas anders ist, nicht
+warum. Ein echter Diff bleibt möglich — er beginnt mit einem Eintrag in
+`DESIGN.md`, nicht mit einer Seite.
+
+### D-232 · Die Unterschrift auf der Schlüsselquittung ist heute ein Name; das Bild ist „nicht verbunden"
+
+`0079` legt `schluessel_quittung.signatur_medien_id` an, und `05-API-KARTE.md`
+§C.13 verlangt, dass Unterschriftsbilder Dateien sind und über
+`POST /api/dokumente/upload-ticket` laufen. Beides ist heute nicht
+zusammenführbar: ein Medium hängt nur an einer Elterntabelle, die im
+geschlossenen Register `einsatz_medien_bezug` steht (0041 §5.8.1), und
+`schluessel_quittung` steht dort nicht — es fehlt ausserdem die Schreibpolicy
+auf `einsatz_medien` für diese Bezugsart.
+
+Die Quittung trägt deshalb `unterzeichner_name` (Pflicht bei Ausgabe und
+Rücknahme, `sq_unterzeichner`), und beide Bildschirme sagen „Unterschriftsbild:
+nicht verbunden" statt eine Unterschriftsfläche zu zeigen, die nichts
+speichert. Dieselbe Linie wie bei der Leistungsnachweis-Unterschrift (0066):
+lieber eine ehrliche Lücke als ein vorgetäuschter Erfolg (CLAUDE.md, „No fake
+integrations"). Die Bedingung `da_kenntnis_signatur_vorhanden` und
+`sq_medien_fk` stehen bereits und halten von selbst, sobald der Uploadweg da
+ist.
+
+### D-233 · Der Quittungsabzug benutzt den EINEN Kanonisierer und die Serverzeit derselben Transaktion
+
+`snapshot` und `snapshot_hash` schreibt kein Auslöser — sie sind der
+Quittungstext, *wie angezeigt*, und die Anzeige kennt nur die Anwendung.
+Gehasht wird mit `finanz/kanonisch.ts` (D-181), nicht mit einer zweiten
+Fassung: zwei Kanonisierer melden beim ersten Umlaut einen Bruch, den es nicht
+gibt.
+
+Die Zeit im Abzug kommt aus `select now()` **derselben** Transaktion. Das ist
+kein Zufall, sondern die Eigenschaft, auf der es ruht: `now()` ist in
+PostgreSQL die Transaktionszeit und ändert sich innerhalb der Transaktion
+nicht — der Wert im Abzug ist damit bitgleich der, den
+`kern.schluessel_quittung_vorbereiten` gleich als `quittiert_am` stempelt. Eine
+Zeit aus dem Node-Prozess wäre eine zweite Uhr (Invariante 5) und der Abzug
+nennte eine andere Sekunde als die Zeile, die er beschreibt.
+
+Der Abzug trägt ausschliesslich Zeichenketten, `null` und Wahrheitswerte: nur
+so übersteht er die Rundreise durch `jsonb` unverändert, und
+`pruefeQuittungen()` kann den Hash nachrechnen.
+
+### D-234 · „Veraltet" wird beim LESEN abgeleitet — `neue_version_oeffnet_pflicht` steuert nur diese Ableitung
+
+`0078` §8 sagt es, und die Umsetzung hält sich daran: Fassung 3 zu
+veröffentlichen ändert **keine** `da_kenntnisnahme`. Ob eine Bestätigung noch
+zählt, entscheidet der Vergleich mit `dienstanweisung.aktive_version_id`; bei
+`neue_version_oeffnet_pflicht = false` zählt stattdessen die Bestätigung
+irgendeiner veröffentlichten Fassung weiter (O-153).
+
+Diese Bedingung steht in `security/dienstanweisung.ts` **einmal** (`ZAEHLT_NOCH`)
+und wird von Liste, Kenntnisstand und Mitarbeiterportal benutzt. Sie beginnt
+mit `k.id is not null`, und das ist tragend: ohne diese Hälfte wäre der
+Ausdruck für einen Kopf mit `neue_version_oeffnet_pflicht = false` auch dann
+wahr, wenn es gar keine Bestätigung gibt — die Liste meldete „alle bestätigt"
+für eine Anweisung, die niemand gelesen hat.
+
+### D-235 · Die Schlüsselseiten stehen nur im internen Portal
+
+`0079` §7 gibt `schluessel` die vierte Deckenvariante
+(`p_intern_einsatz_decke`) und begründet sie damit, dass die Wache den
+Schlüssel ihres Objekts nimmt und dort zurückgibt; `03-AUTH` bindet
+`schluessel.schreiben` tatsächlich an `mitarbeiter`. Die Seitenkarte kennt
+dafür aber **keine** Route unter `/portal/mein` — nur `…/security/schluessel`,
+`/[id]` und `/[id]/quittung`, alle drei im Mandantenportal.
+
+Gebaut ist deshalb der interne Weg. Zwei Gründe, und der zweite wiegt schwerer:
+die Seitenkarte schlägt jede andere Quelle für Seitenpfade, und im
+Mandanten-Scope kann eine `mitarbeiter`-Anmeldung `schluessel` gar nicht lesen
+— `schluessel.lesen` ist nicht an sie gebunden, und keine permissive Policy
+greift dort. Ein Mitarbeiterweg wäre also nicht bloss eine Seite, sondern
+derselbe Zwei-Scope-Umweg wie bei der Kenntnisnahme (Personen-Scope lesen,
+Mandanten-Scope schreiben) — und ohne eine Route in der Karte wäre er
+erfunden. Siehe **O-240**.
+
+### D-236 · `bestaetigter_inhalt_hash` steht in keinem `INSERT`
+
+Die Spalte ist `not null`, und der Dienst schickt sie trotzdem nicht mit.
+PostgreSQL prüft NOT NULL und CHECK **nach** den BEFORE-Auslösern; 
+`kern.da_kenntnisnahme_vorbereiten` setzt den Hash aus der Fassung. Ein
+mitgeschickter Wert wäre die Antwort des Bestätigenden auf die Frage, was er
+bestätigt hat — und ein Platzhalter („64 Nullen") wäre eine Zeile, die für
+einen Moment eine falsche Prüfsumme trägt. Dasselbe gilt für `bestaetigt_am`,
+`zeitabweichung_sek` und `da_pflicht_id`: was der Auslöser setzt, sendet der
+Dienst nicht einmal.
+
+### Offen, neu aufgeworfen in PR 42
+
+| # | Question | Blocks |
+|---|---|---|
+| O-240 | **Darf die Wache vor Ort einen Schlüssel selbst quittieren — und auf welchem Bildschirm?** `03-AUTH` bindet `schluessel.schreiben` an die Rolle `mitarbeiter`, und `0079` gibt `schluessel` die Einsatzdecke; `04-SEITENKARTE.md` §7 kennt dafür aber keine Route unter `/portal/mein`. Beides zusammen ergibt ein Recht ohne Bildschirm. Die Frage ist organisatorisch und nicht technisch: quittiert die Objektleitung im Büro (dann ist die Bindung an `mitarbeiter` zu weit), oder die Wache am Objekt (dann fehlt eine Seite in der Karte, und sie braucht denselben Zwei-Scope-Umweg wie die Kenntnisnahme). Bis zur Antwort ist der Weg intern (**D-235**). | SEC-07, `schluessel_quittung`, `/portal/mein` |
+| O-241 | **Sperrt eine unbestätigte Dienstanweisung die Einteilung?** SEC-06 verlangt die Kenntnisnahme, nennt aber keine Folge, wenn sie ausbleibt — anders als SEC-04, wo ein abgelaufener Nachweis die Einteilung hart sperrt. Die Plattform sperrt heute **nicht**: die Anweisung steht offen im Portal, die Leitung sieht „4 von 11", und niemand wird deshalb aus dem Plan genommen. Eine Sperre wäre eine erfundene Rechtsfolge (K-17); eine Frist („bis zum Schichtbeginn") ebenso. Gefragt ist beides: ab wann gilt eine Unterweisung als versäumt, und was folgt daraus — Warnung, Freigabepflicht der Leitung oder Einteilungssperre? | SEC-06, EMP-09, `da_pflicht`, `dienstplan/einteilung` |

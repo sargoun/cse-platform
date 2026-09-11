@@ -12,7 +12,10 @@ import {
   type AufmassKopfZeile, type AufmassZeileZeile, type FotoZeile, type SignaturZeile,
   type VorlageHindernis, type VorlageStand,
 } from '@/server/services/bau/aufmass';
+import { ladeAusserhalbLvJeBlatt, type AusserhalbLvWarnung }
+  from '@/server/services/bau/ausserhalb-lv';
 import { AUFMASS_PILLE, AUFMASS_STATUS_TEXT, ERHEBUNGSART_TEXT } from '../../../../aufmass-anzeige';
+import { AusserhalbLvWarnungen } from '../../../../AusserhalbLvWarnungen';
 import { AnmeldungNoetig } from '../../../../../../Anmeldung';
 import { portalZugang } from '../../../../../../zugang';
 import { slugTor } from '../../../../../../unterseite';
@@ -60,12 +63,17 @@ export default async function AufmassBlatt(
         fotos: await ladeFotos(kontext, aufmassId),
         signaturen: await ladeSignaturen(kontext, aufmassId),
         stand: await ladeVorlageStand(kontext, aufmassId),
+        // BAU-05: welche Zeile dieses Blattes steht in keinem LV und haengt
+        // an keinem Nachtrag? Die Frage gehoert hierher, weil das Blatt der
+        // Ort ist, an dem sie entsteht.
+        ausserhalbLv: await ladeAusserhalbLvJeBlatt(kontext, aufmassId),
       };
     }),
   ) as Promise<{
     kopf: AufmassKopfZeile; zeilen: readonly AufmassZeileZeile[];
     fotos: readonly FotoZeile[]; signaturen: readonly SignaturZeile[];
     stand: VorlageStand | null;
+    ausserhalbLv: readonly AusserhalbLvWarnung[];
   } | null>);
 
   // AUT-06: ein fremdes Blatt ist nicht vorhanden, nicht verboten.
@@ -106,6 +114,15 @@ export default async function AufmassBlatt(
           </span>
         </span>
       </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* BAU-05: Leistung ausserhalb des LV — benannt und mit Angebot.       */}
+      {/* ------------------------------------------------------------------ */}
+      <AusserhalbLvWarnungen
+        warnungen={daten.ausserhalbLv}
+        mandant={mandant}
+        projektId={id}
+      />
 
       {/* ------------------------------------------------------------------ */}
       {/* Formel und Ergebnis — nebeneinander (BAU-02).                       */}

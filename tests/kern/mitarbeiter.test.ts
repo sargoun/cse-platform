@@ -63,10 +63,30 @@ describe('(2) es gibt keinen Weg, der einen Zeiteintrag aendert (EMP-07)', () =>
     expect(verdaechtig).toEqual([]);
   });
 
-  it('das Mitarbeiterportal hat genau ZWEI eigene Schreibrouten, und keine davon ist Zeit', () => {
+  it('das Mitarbeiterportal hat genau DREI eigene Schreibrouten, und keine davon ist Zeit', () => {
+    /**
+     * Die Liste ist die Zusage, nicht ihre Laenge: jede Adresse unter
+     * `api/mein/` steht hier namentlich, und eine vierte faellt auf, bevor
+     * jemand sie benutzt. PR 42 hat die dritte gebracht — die Kenntnisnahme
+     * einer Dienstanweisung (EMP-09) —, und sie ist so wenig eine Zeitroute
+     * wie die beiden anderen.
+     */
     const meine = API_ROUTEN.filter((r) => r.pfad.startsWith('api/mein/'));
     expect(meine.map((r) => r.pfad).sort())
-      .toEqual(['api/mein/abwesenheit', 'api/mein/antraege']);
+      .toEqual([
+        'api/mein/abwesenheit',
+        'api/mein/antraege',
+        'api/mein/dienstanweisungen/[id]/kenntnisnahme',
+      ]);
+  });
+
+  it('die Kenntnisnahme ist Selbstzugriff — ohne Recht, aber mit einem Grund', () => {
+    const k = API_ROUTEN.find(
+      (r) => r.pfad === 'api/mein/dienstanweisungen/[id]/kenntnisnahme');
+    expect(k?.recht).toBeNull();
+    // Der Grund ist die Stelle, an der jemand die Entscheidung nachlesen kann.
+    expect((k?.grund ?? '').length).toBeGreaterThan(40);
+    expect(k?.grund).toContain('EMP-09');
   });
 
   it('das Einreichen ist Selbstzugriff — ohne Recht, aber mit einem Grund', () => {
@@ -189,6 +209,8 @@ describe('die Seiten der Seitenkarte gibt es wirklich', () => {
     '/portal/mein/antraege/neu',
     '/portal/mein/abwesenheit/neu',
     '/portal/mein/nachweise',
+    '/portal/mein/dienstanweisungen',
+    '/portal/mein/dienstanweisungen/[id]',
   ];
 
   it('jede gebaute Route steht in der Seitenkarte', () => {
