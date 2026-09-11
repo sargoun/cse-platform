@@ -110,7 +110,7 @@ export function erkenneMime(daten: Uint8Array): string | null {
 /** Was in einer Kategorie überhaupt hochgeladen werden darf. */
 export const ERLAUBTE_MIME: readonly string[] = [
   'application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/tiff',
-  'image/heic',
+  // image/heic steht bewusst NICHT hier — siehe exif.ts und O-346.
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'video/mp4', 'video/quicktime',

@@ -126,9 +126,23 @@ async function main(): Promise<void> {
          ${rechtseinheit ? `DE${String(100_000_000 + i)}` : null},
          ${rechtseinheit ? 'Amtsgericht Charlottenburg' : null},
          ${rechtseinheit ? `HRB ${String(200_000 + i)}` : null})
+      -- ist_rechtseinheit MUSS mit: der CHECK verbindet beide Spalten, ein
+      -- eigener Nummernkreis setzt eine Rechtseinheit voraus. Der Zweig setzte
+      -- nur eigener_nummernkreis. Traf er eine Zeile, die von anderswo kam
+      -- (tests/isolation/harness.ts gibt ist_rechtseinheit nicht an, es bleibt
+      -- NULL), stand danach "eigener Kreis ja, Rechtseinheit unbekannt" da und
+      -- der CHECK hielt den ganzen Seed an. Ein Seed, der nur auf einer leeren
+      -- Datenbank laeuft, ist keiner: danach fasst ihn niemand mehr an.
+      -- Die Identitaetsspalten haengen an derselben Entscheidung und gehen
+      -- denselben Weg. (Kommentar als SQL-Zeilen: Backticks in einem
+      -- Template-Literal beenden die Zeichenkette.)
       on conflict (slug) do update
         set name = excluded.name,
-            eigener_nummernkreis = excluded.eigener_nummernkreis
+            ist_rechtseinheit = excluded.ist_rechtseinheit,
+            eigener_nummernkreis = excluded.eigener_nummernkreis,
+            ust_id = excluded.ust_id,
+            handelsregister_gericht = excluded.handelsregister_gericht,
+            handelsregister_nummer = excluded.handelsregister_nummer
       returning id`;
     ids.set(b.slug, z!.id);
   }

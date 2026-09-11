@@ -4529,3 +4529,43 @@ mit denselben Regeln und demselben Fingerabdruck — sonst entstehen zwei Zeilen
 für denselben Tag, eine aus dem Plan und eine aus der Erfassung. Das ist eine
 eigene Runde, keine Zeile in diesem PR, und sie gehört vor den ersten echten
 Lohnlauf.
+
+### D-306 · HEIC wird abgelehnt, statt zerstört und mit GPS gespeichert
+
+Die Metadaten-Bereinigung schickte HEIC durch dieselbe ISO-BMFF-Boxroutine wie
+MP4 — nachvollziehbar, denn HEIC *ist* ein ISO-BMFF-Container. Sie blendet
+`udta`, `meta` und `uuid` aus. Bei einem Video ist `meta` Beiwerk; **bei einem
+HEIC ist es der Index des Bildes** (`iinf`, `iloc`, `iprp` sagen, wo die
+Bilddaten liegen). Mit Nullen überschrieben ist die Datei für jeden Betrachter
+kaputt.
+
+Und die Ortsdaten blieben trotzdem drin: EXIF steht in HEIC als eigenes
+**Item**, dessen Nutzlast in `mdat` liegt — und `mdat` fasst die Bereinigung nie
+an. Das Ergebnis war eine zerstörte Datei mit vollständigem GPS, gemeldet als
+`entfernt: true`, und die Oberfläche zeigte dazu „ohne Ortsdaten abgelegt"
+(TIM-10). Beide Aussagen falsch; die zweite ist die teure — eine
+Reinigungskraft, die ein Objekt fotografiert, gibt damit die Adresse preis, an
+der sie nachts allein arbeitet.
+
+**Entschieden:** HEIC wird abgelehnt, mit einem Satz, der sagt was zu tun ist.
+Eine item-genaue Bereinigung von Hand — `iloc` auflösen, den EXIF-Extent in
+`mdat` finden, ihn nullen, die Offsets halten — ist möglich und genau die Sorte
+Arbeit, bei der ein Fehler *still* ist: es sieht bereinigt aus. Solange keine
+geprüfte Bibliothek eingerichtet ist, ist die Ablehnung die ehrliche Antwort.
+
+### D-307 · Der Seed muss auf einer nicht leeren Datenbank laufen
+
+`on conflict (slug) do update` setzte `name` und `eigener_nummernkreis`, aber
+nicht `ist_rechtseinheit`. Der CHECK verbindet beide: ein eigener Nummernkreis
+setzt eine Rechtseinheit voraus. Traf der Zweig eine Zeile, die von anderswo
+kam — `tests/isolation/harness.ts` legt `mandant` ohne `ist_rechtseinheit` an,
+die Spalte bleibt NULL —, stand danach „eigener Kreis ja, Rechtseinheit
+unbekannt" da, und der Seed brach ab.
+
+**Entschieden:** `ist_rechtseinheit` und die drei Identitätsspalten gehen
+denselben Weg. Ein Seed, der nur auf einer leeren Datenbank läuft, ist keiner:
+danach traut sich niemand mehr, ihn anzufassen, und die Demodaten veralten.
+
+| # | Question | Blocks |
+|---|---|---|
+| O-346 | **Soll die Plattform HEIC-Fotos annehmen?** Das hiesse, eine Bildbibliothek mit HEIF-Unterstützung in die Auslieferung zu nehmen und sie zu pflegen — eine eigene Abhängigkeit mit eigener Angriffsfläche, die auf jedem Upload läuft. Bis zur Antwort werden HEIC abgelehnt; iPhones können unter „Kamera › Formate › Maximale Kompatibilität" JPEG senden, und der Browser wandelt beim Hochladen aus der Mediathek ohnehin meist um. Die Frage ist keine technische: sie entscheidet, ob eine Reinigungskraft am Objekt ein Foto machen kann, ohne vorher eine Einstellung zu ändern. | TIM-10, LEG-10, `medien`, `exif.ts` |

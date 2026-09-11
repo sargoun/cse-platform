@@ -256,14 +256,46 @@ export function entferneMetadaten(daten: Uint8Array, mime: string): ExifErgebnis
   if (!brauchtBereinigung(mime)) return { bytes: daten, entfernt: false };
   if (mime === 'image/jpeg') return jpegOhneMetadaten(daten);
   if (mime === 'image/png') return pngOhneMetadaten(daten);
-  if (mime === 'video/mp4' || mime === 'video/quicktime' || mime === 'image/heic') {
+  if (mime === 'image/heic') {
     /**
-     * HEIC steht hier und nicht bei den Bildern: es IST ein ISO-BMFF-Container
-     * mit demselben Boxaufbau, und ein iPhone liefert Schichtfotos genau so.
-     * Es mit der JPEG-Segmentkette bereinigen zu wollen fände kein einziges
-     * Segment und meldete `entfernt = false` — eine Datei mit vollständigem
-     * GPS, die als bereinigt in den Bucket geht.
+     * **HEIC wird ABGELEHNT — und das ist die Korrektur eines Fehlers, der
+     * beides zugleich falsch machte.**
+     *
+     * HEIC ist ein ISO-BMFF-Container, und genau daran ist der erste Entwurf
+     * gescheitert: er schickte es durch dieselbe Boxbereinigung wie MP4. Die
+     * blendet `udta`, `meta` und `uuid` aus. Bei einem Video ist `meta`
+     * tatsächlich Beiwerk — bei einem HEIC ist es der **Index des Bildes**:
+     * `iinf`, `iloc` und `iprp` sagen, wo die Bilddaten liegen und wie sie zu
+     * lesen sind. Wer ihn mit Nullen überschreibt, hat eine Datei, die kein
+     * Betrachter mehr öffnet.
+     *
+     * Und die Ortsdaten blieben trotzdem drin: in HEIC steht EXIF als eigenes
+     * **Item**, dessen Nutzlast in `mdat` liegt — und `mdat` fasst die
+     * Bereinigung nie an. Das Ergebnis war eine zerstörte Datei mit
+     * vollständigem GPS, gemeldet als `entfernt: true`. Die Oberfläche zeigte
+     * dazu „ohne Ortsdaten abgelegt" (TIM-10). Beide Aussagen falsch, und die
+     * zweite ist die teure.
+     *
+     * Eine item-genaue HEIC-Bereinigung von Hand zu schreiben — `iloc`
+     * auflösen, den EXIF-Extent in `mdat` finden, ihn nullen, die Offsets
+     * halten — ist möglich und genau die Sorte Arbeit, bei der ein Fehler
+     * still ist: es sieht bereinigt aus. Solange keine geprüfte Bibliothek
+     * dafür eingerichtet ist, ist die ehrliche Antwort die Ablehnung.
+     *
+     * // TODO(client, O-346): Soll die Plattform HEIC annehmen? Das hiesse
+     * eine Bildbibliothek mit HEIF-Unterstützung in die Auslieferung zu
+     * nehmen. Bis dahin: iPhones können „Maximale Kompatibilität" senden
+     * (JPEG), und der Browser wandelt beim Hochladen aus der Mediathek
+     * ohnehin meist um.
      */
+    throw new ExifFehler(
+      'HEIC-Bilder werden derzeit nicht angenommen: ihre Ortsdaten liegen als '
+      + 'eigenes Item im Datenbereich, und dafür ist keine geprüfte Bereinigung '
+      + 'eingerichtet (O-346). Bitte als JPEG senden — am iPhone unter '
+      + '„Einstellungen › Kamera › Formate › Maximale Kompatibilität".',
+    );
+  }
+  if (mime === 'video/mp4' || mime === 'video/quicktime') {
     if (!istIsoBmff(daten)) {
       throw new ExifFehler(
         `Die Datei gibt sich als ${mime} aus, hat aber keine lesbare ftyp-Box. `
