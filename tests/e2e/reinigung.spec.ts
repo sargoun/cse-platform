@@ -19,8 +19,20 @@
  *    gesetzt und gesperrt da, weil `revier_raum` unter Löschsperre steht.
  */
 import { expect, test } from '@playwright/test';
+import { alsKonto, KONTO } from './hilfen/anmeldung';
 
 const MANDANT = 'reinigung';
+
+/**
+ * **Diese Datei hat sich nie angemeldet.**
+ *
+ * Jede Portalseite beantwortet eine fehlende Sitzung mit „Anmeldung
+ * erforderlich" — nicht mit einem Fehler, sondern mit einem gültigen,
+ * freundlichen Bildschirm ohne die gesuchte Überschrift. Sieben Fehlschläge
+ * lasen sich deshalb wie sieben kaputte Seiten. Derselbe Fehler steckte in
+ * `rechnung.spec.ts` (behoben in 30a294c); hier stand er noch.
+ */
+test.beforeEach(async ({ page }) => { await alsKonto(page, KONTO.adminReinigung); });
 
 test.describe('Reviere (CLN-01)', () => {
   test('die Liste nennt die Sollzeit als ZIELWERT und zeigt die Gegenprobe', async ({ page }) => {

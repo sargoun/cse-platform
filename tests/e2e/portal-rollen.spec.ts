@@ -9,6 +9,7 @@
  */
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { alsKonto, KONTO } from './hilfen/anmeldung';
 
 /** Meldet sich über die Entwicklungsanmeldung an — eine echte Sitzung. */
 async function anmelden(page: Page, rolle: string): Promise<void> {
@@ -32,7 +33,15 @@ test.describe('(1) jede Rolle landet in ihrem Portal', () => {
   });
 
   test('mitarbeiter sieht sein eigenes Portal — mit BEIDEN Beschäftigungen', async ({ page }) => {
-    await anmelden(page, 'mitarbeiter');
+    /**
+     * **Fatima namentlich**, nicht „der erste mitarbeiter". Seit der Seed ein
+     * zweites Mitarbeiterkonto traegt (Amir, arabisch), griff `.first()` ihn
+     * — `order by b.name` stellt „Amir Haddad" vor „Fatima Yildiz". Die
+     * Ueberschrift stand dann auf „اليوم", und das war RICHTIG: das Portal
+     * spricht die Sprache des angemeldeten Menschen (EMP-12). Falsch war die
+     * Annahme, man wisse, wer angemeldet ist.
+     */
+    await alsKonto(page, KONTO.fatima);
     const antwort = await page.goto('/portal/mein');
     expect(antwort?.status()).toBe(200);
     await expect(page.locator('h1')).toHaveText('Heute');

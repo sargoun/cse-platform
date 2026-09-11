@@ -24,6 +24,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import postgres from 'postgres';
+import { alsKonto, KONTO } from './hilfen/anmeldung';
 
 const DSN = process.env['DATABASE_URL']
   ?? process.env['TEST_DATABASE_URL']
@@ -42,10 +43,15 @@ let postenId = '';
 
 async function anmelden(page: Page): Promise<void> {
   await page.goto('/dev/anmelden');
-  const knopf = page.locator('[data-cse="dev-anmelden"][data-rolle="admin"]').first();
-  await expect(knopf, 'kein Seed-Konto für Rolle admin').toBeVisible();
-  await knopf.click();
-  await page.waitForLoadState('networkidle');
+  /**
+   * **Die Leitung der SECURITY.** Hier stand `[data-rolle="admin"]`.first()
+   * — das einzige `admin`-Konto gehoert `reinigung` und haelt
+   * `wachbuch.schreiben` ueberhaupt nicht (nur `leitung`, `mitarbeiter` und
+   * `super_admin` halten es). Zwei Tore schlugen deshalb zu, beide mit
+   * Absicht: das Rechtetor im aktiven Mandanten und die Slug-Wache. Beide
+   * antworten 404, und vier Fehlschlaege sahen aus wie eine fehlende Seite.
+   */
+  await alsKonto(page, KONTO.leitungSecurity);
 }
 
 test.beforeAll(async () => {
@@ -93,7 +99,8 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await sql.end({ timeout: 5 });
+  // Kein `sql.end()` — siehe `mitarbeiter.spec.ts`: der Pool gehoert dem
+  // Worker-Prozess, nicht dieser Suite.
 });
 
 test.describe('(3) das Wachbuch ist anfuegbar, nicht bearbeitbar', () => {

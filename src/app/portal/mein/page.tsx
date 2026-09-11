@@ -95,9 +95,17 @@ export default async function MeinPortal() {
               </li>
             ))}
           </ul>
+          {/*
+            * `inline-flex min-h-11 items-center` und nicht `inline-block`:
+            * DESIGN §8 verlangt 44×44 px, und ein `inline-block` mit
+            * 16px/26px Zeilenhöhe ist 26 px hoch. Auf einem 390-px-Telefon
+            * ist das der Unterschied zwischen „getroffen" und „daneben" —
+            * und getroffen wird hier die einzige Stelle, an der jemand
+            * nachsieht, warum er nicht mehr eingeteilt wird.
+            */}
           <Link
             href="/portal/mein/nachweise"
-            className="mt-s3 inline-block text-base text-text underline"
+            className="mt-s3 inline-flex min-h-11 items-center text-base text-text underline"
           >
             {t.nachweise}
           </Link>
@@ -133,7 +141,10 @@ export default async function MeinPortal() {
         {daten.schicht === null
           ? <Leer text={t.keineSchicht} />
           : <SchichtKarte schicht={daten.schicht} texte={t} />}
-        <Link href="/portal/mein/schichten" className="text-base text-text underline">
+        <Link
+          href="/portal/mein/schichten"
+          className="inline-flex min-h-11 items-center text-base text-text underline"
+        >
           {t.schichten}
         </Link>
       </section>

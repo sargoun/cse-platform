@@ -19,6 +19,24 @@ const sql = postgres(DSN, { max: 2, onnotice: () => {} });
 const VON = '2029-04-09';   // Montag
 const BIS = '2029-04-11';
 
+/**
+ * **Eine EIGENE Woche fuer den Dienstplantest.**
+ *
+ * Er lag auf derselben Woche wie der Stornotest — und teilte sich mit ihm die
+ * Abwesenheitszeile. Der Quelltext unterstellte die Reihenfolge „erst
+ * stornieren, dann neu anlegen"; bei `fullyParallel` laufen die beiden
+ * `describe`-Bloecke aber in verschiedenen Workern, und die Reihenfolge gilt
+ * nicht. Lief der Dienstplantest zuerst, griff sein `where not exists`-
+ * Waechter auf die noch nicht stornierte Krankheitszeile, die eigene
+ * Abmeldung entstand gar nicht, und die Schicht trug kein „abgemeldet".
+ *
+ * Zwei Tests, die sich eine Zeile teilen, sind kein Fixturdetail, sondern
+ * ein Rennen. Getrennte Wochen sind die Reparatur, die keine Reihenfolge
+ * voraussetzt.
+ */
+const PLAN_VON = '2029-04-16';   // Montag, eigene Woche
+const PLAN_BIS = '2029-04-18';
+
 let mandantId = '';
 let anstellungId = '';
 let abwesenheitId = '';
@@ -146,10 +164,10 @@ test.describe('Der Dienstplan kennzeichnet die betroffene Schicht', () => {
               $4, $5, 1, 1, 'system', 'geplant'
        on conflict (mandant_id, quell_schluessel) where storniert_am is null do nothing
        returning id`,
-      [mandantId, `e2e:abwesenheit:${VON}`, VON, objekt!.id, kunde!.id]);
+      [mandantId, `e2e:abwesenheit-plan:${PLAN_VON}`, PLAN_VON, objekt!.id, kunde!.id]);
     const einsatzId = e?.id ?? (await sql.unsafe<{ id: string }[]>(
       `select id from einsatz where mandant_id = $1 and quell_schluessel = $2`,
-      [mandantId, `e2e:abwesenheit:${VON}`]))[0]!.id;
+      [mandantId, `e2e:abwesenheit-plan:${PLAN_VON}`]))[0]!.id;
 
     const [person] = await sql.unsafe<{ person_id: string }[]>(
       `select person_id from anstellung where id = $1`, [anstellungId]);
@@ -160,7 +178,12 @@ test.describe('Der Dienstplan kennzeichnet die betroffene Schicht', () => {
        on conflict do nothing`,
       [mandantId, einsatzId, anstellungId, person!.person_id]);
 
-    // Eine frische Abmeldung — die vorige ist im Test darüber storniert worden.
+    /**
+     * Die eigene Abmeldung, in der eigenen Woche — und der Waechter fragt
+     * nach GENAU DIESER Zeile statt nach „irgendeiner nicht stornierten".
+     * Der alte fremdbezogene Waechter liess den `insert` ausfallen, sobald
+     * eine fremde Zeile derselben Anstellung offen war, und schwieg dabei.
+     */
     const [art] = await sql.unsafe<{ id: string }[]>(
       `select id from abwesenheitsart where schluessel = 'urlaub' and mandant_id is null`);
     await sql.unsafe(
@@ -169,11 +192,12 @@ test.describe('Der Dienstplan kennzeichnet die betroffene Schicht', () => {
        select $1, $2, $3, $4::date, $5::date, 3, 'erfasst'
         where not exists (
           select 1 from abwesenheit a
-           where a.anstellung_id = $2 and a.von = $4::date and a.status <> 'storniert')`,
-      [mandantId, anstellungId, art!.id, VON, BIS]);
+           where a.anstellung_id = $2 and a.von = $4::date
+             and a.abwesenheitsart_id = $3 and a.status <> 'storniert')`,
+      [mandantId, anstellungId, art!.id, PLAN_VON, PLAN_BIS]);
 
     await anmelden(page);
-    await page.goto(`/portal/reinigung/dienstplan/woche?woche=${VON}`);
+    await page.goto(`/portal/reinigung/dienstplan/woche?woche=${PLAN_VON}`);
     const block = page.locator(`[data-cse="schicht"][data-schicht="${einsatzId}"]`);
     await expect(block).toBeVisible();
     // Text, nicht Farbe (DESIGN §9) — und ohne den Grund zu nennen.
