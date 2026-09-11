@@ -173,7 +173,23 @@ test.describe('Zeiten — Wochenliste', () => {
     await anmelden(page);
     await page.goto(`/portal/reinigung/zeiten?woche=${NACHT}`);
 
-    const zeile = page.locator(`[data-zeiteintrag="${ids['nacht'] ?? ''}"]`);
+    /**
+     * **`[data-cse="tabelle"]` davor, und das ist die Aussage.**
+     *
+     * `DataTable` gibt JEDE Zeile zweimal aus: als `<table>` fuer den
+     * Schreibtisch und als Kartenstapel fuer das Telefon; eine Medienabfrage
+     * zeigt je eine. Playwrights strikter Modus zaehlt aber TREFFER, nicht
+     * sichtbare Treffer — der Locator fand zwei und warf, bevor
+     * `toBeVisible()` ueberhaupt filtern konnte. Die Seite ist in Ordnung;
+     * die Pruefung fasste ein Merkmal an, das die Seite per Entwurf zweimal
+     * traegt.
+     *
+     * `toHaveCount(1)` spricht die Einzigkeit aus, statt sie mit `.first()`
+     * zu verschweigen.
+     */
+    const zeile = page.locator(
+      `[data-cse="tabelle"] [data-zeiteintrag="${ids['nacht'] ?? ''}"]`);
+    await expect(zeile).toHaveCount(1);
     await expect(zeile).toBeVisible();
 
     // Die Zeile der Tabelle, in der der Eintrag steht.
@@ -192,13 +208,13 @@ test.describe('Zeiten — Wochenliste', () => {
 
     await page.goto(`/portal/reinigung/zeiten?woche=${NACHT_VOR}`);
     const vor = page.locator('tr', {
-      has: page.locator(`[data-zeiteintrag="${ids['vor'] ?? ''}"]`),
+      has: page.locator(`[data-cse="tabelle"] [data-zeiteintrag="${ids['vor'] ?? ''}"]`),
     });
     await expect(vor).toContainText('6,50 h');
 
     await page.goto(`/portal/reinigung/zeiten?woche=${NACHT_ZURUECK}`);
     const zurueck = page.locator('tr', {
-      has: page.locator(`[data-zeiteintrag="${ids['zurueck'] ?? ''}"]`),
+      has: page.locator(`[data-cse="tabelle"] [data-zeiteintrag="${ids['zurueck'] ?? ''}"]`),
     });
     await expect(zurueck).toContainText('8,50 h');
   });
@@ -207,8 +223,16 @@ test.describe('Zeiten — Wochenliste', () => {
     await anmelden(page);
     await page.goto(`/portal/reinigung/zeiten?woche=${TAG}&merkmal=ohne_auftrag`);
 
-    await expect(page.locator(`[data-zeiteintrag="${ids['ohne'] ?? ''}"]`)).toBeVisible();
-    // Und der Eintrag MIT Auftrag ist nicht dabei — sonst filterte nichts.
+    const ohne = page.locator(
+      `[data-cse="tabelle"] [data-zeiteintrag="${ids['ohne'] ?? ''}"]`);
+    await expect(ohne).toHaveCount(1);
+    await expect(ohne).toBeVisible();
+    /**
+     * Diese Zusicherung bleibt UNEINGESCHRAENKT: „in keinem der beiden
+     * Renderings" ist staerker als „nicht in der Tabelle". Ein gefilterter
+     * Eintrag, der nur aus der Tabelle verschwindet und in der Telefonkarte
+     * stehen bleibt, waere genau der Fehler, den sie fangen soll.
+     */
     await expect(page.locator(`[data-zeiteintrag="${ids['tag'] ?? ''}"]`)).toHaveCount(0);
   });
 
@@ -216,7 +240,9 @@ test.describe('Zeiten — Wochenliste', () => {
     await anmelden(page);
     await page.goto(`/portal/reinigung/zeiten?woche=${TAG}`);
 
-    const zeilen = await page.locator('[data-cse="zeiteintrag"]').count();
+    // Auch hier: EIN Rendering zaehlen, sonst ist jede Zahl verdoppelt.
+    const zeilen = await page
+      .locator('[data-cse="tabelle"] [data-cse="zeiteintrag"]').count();
     const kachel = page.locator('[data-cse="kpi-wert"]').first();
     await expect(kachel).toHaveText(String(zeilen));
   });
@@ -268,7 +294,16 @@ test.describe('Zeiten — Live-Brett', () => {
     const karte = page.locator(`[data-cse="laufend"][data-zeiteintrag="${laufend}"]`);
     await expect(karte).toBeVisible();
     await expect(karte).toContainText('seit');
-    await expect(page.getByText('Stand')).toBeVisible();
+    /**
+     * Die Standzeile, nicht irgendein Absatz mit dem Wort „Stand" darin.
+     *
+     * `getByText('Stand')` traf auch den Erklaersatz „Die Dauer ist der
+     * Abstand zweier Zeitpunkte …" — im strikten Modus zwei Treffer. Das
+     * Brett ist eine LIVE-Ansicht; dass sie ihren Stand nennt, ist ihre
+     * wichtigste Zusicherung, und deshalb wird hier der Zeitpunkt gepruft
+     * und nicht das Wort.
+     */
+    await expect(page.getByText(/^Stand \d{2}\.\d{2}\.\d{4} \d{2}:\d{2}/u)).toBeVisible();
   });
 });
 

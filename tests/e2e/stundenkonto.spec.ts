@@ -38,16 +38,30 @@ test.beforeAll(async () => {
     `select id from mandant where slug = 'reinigung' limit 1`);
   mandantId = m!.id;
 
+  /**
+   * **Die Fixtur traegt ihre Lauf-Kennung im NAMEN, nicht nur in der
+   * Personalnummer.**
+   *
+   * Sie hiess fest „Konto Abschlussprobe". Playwright wirft einen Worker nach
+   * einem fehlgeschlagenen Test weg und fuehrt `beforeAll` im naechsten
+   * erneut aus; geloescht wird nichts (Invariante 8). Nach dem zweiten Lauf
+   * standen also mehrere Menschen desselben Namens in der Datenbank — und
+   * der Locator unten suchte die Zeile ueber genau diesen Namen. Der strikte
+   * Modus fand zwei und warf, und der Fehlschlag las sich, als zeige die
+   * Abschluss-Seite eine Zeile doppelt.
+   */
+  const lauf = `E2E-${String(Date.now()).slice(-6)}-${process.env['TEST_WORKER_INDEX'] ?? '0'}`;
   const [p] = await sql.unsafe<{ id: string; name: string }[]>(
     `insert into person (vorname, nachname)
-     values ('Konto', 'Abschlussprobe')
-     returning id, (vorname || ' ' || nachname) as name`);
+     values ('Konto', $1)
+     returning id, (vorname || ' ' || nachname) as name`,
+    [`Abschlussprobe ${lauf}`] as never[]);
   personName = p!.name;
   const [a] = await sql.unsafe<{ id: string }[]>(
     `insert into anstellung (mandant_id, person_id, personalnummer, eintritt, status)
      values ($1, $2, $3, '2026-01-01'::date, 'aktiv')
      returning id`,
-    [mandantId, p!.id, `E2E-${String(Date.now()).slice(-6)}`] as never[]);
+    [mandantId, p!.id, lauf] as never[]);
   anstellungId = a!.id;
 
   const [b] = await sql.unsafe<{ id: string }[]>(
@@ -119,7 +133,8 @@ test.describe('Monatsabschluss — ein Formular, kein Skript', () => {
     await page.goto(
       `/portal/reinigung/personal/stundenkonten/abschluss?monat=${MONAT}`);
 
-    const zeile = page.locator('[data-cse="tabelle"] tr', { hasText: personName });
+    const zeile = page.locator(
+      `[data-cse="tabelle"] tr:has(a[href*="${anstellungId}"])`);
     await expect(zeile).toContainText('nicht freigegeben');
     // Kein Knopf, der scheitern wuerde.
     await expect(zeile.locator('button')).toHaveCount(0);
@@ -141,19 +156,22 @@ test.describe('Monatsabschluss — ein Formular, kein Skript', () => {
     await page.goto(
       `/portal/reinigung/personal/stundenkonten/abschluss?monat=${MONAT}`);
 
-    const zeile = page.locator('[data-cse="tabelle"] tr', { hasText: personName });
+    const zeile = page.locator(
+      `[data-cse="tabelle"] tr:has(a[href*="${anstellungId}"])`);
     await zeile.locator('button', { hasText: 'Abschließen' }).click();
     await page.waitForLoadState('networkidle');
 
     await expect(page.locator('[data-cse="abschluss-erfolg"]')).toBeVisible();
     await expect(page.locator('[data-cse="abschluss-fehler"]')).toHaveCount(0);
     // Die Zeile ist aus der Liste der OFFENEN Konten verschwunden.
-    await expect(page.locator('[data-cse="tabelle"] tr', { hasText: personName }))
+    await expect(page.locator(
+      `[data-cse="tabelle"] tr:has(a[href*="${anstellungId}"])`))
       .toHaveCount(0);
 
     // Und die Liste sagt jetzt „Abgeschlossen".
     await page.goto(`/portal/reinigung/personal/stundenkonten?monat=${MONAT}`);
-    await expect(page.locator('[data-cse="tabelle"] tr', { hasText: personName }))
+    await expect(page.locator(
+      `[data-cse="tabelle"] tr:has(a[href*="${anstellungId}"])`))
       .toContainText('Abgeschlossen');
 
     const [konto] = await sql.unsafe<{ status: string }[]>(
