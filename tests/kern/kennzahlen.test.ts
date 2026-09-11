@@ -68,17 +68,18 @@ describe('(2) eine Kachel ohne Abfrage oder Linkziel lässt sich nicht registrie
 });
 
 describe('die heutigen Kacheln sind vollständig und rechtlich verankert', () => {
-  it('neun Kacheln — die sieben des Plans plus die beiden aus Phase 5', () => {
+  it('elf Kacheln — die sieben des Plans plus die vier aus Phase 5', () => {
     // Die Liste steht ausgeschrieben da und nicht als Zahl: eine Kachel, die
     // jemand still hinzufuegt, aendert sonst nur eine Zahl, und dass sie ein
     // Recht nennt, das es nicht gibt, faellt erst auf einem leeren Dashboard
-    // auf. Phase 5 bringt `schichten_unbesetzt` und `konflikte_offen`.
+    // auf. Phase 5 bringt `schichten_unbesetzt` und `konflikte_offen` aus dem
+    // Dienstplan und `antraege_offen`/`abwesend_heute` aus der Abwesenheit.
     const angelegt = registriereBerichtKacheln();
-    expect(angelegt.length).toBe(9);
+    expect(angelegt.length).toBe(11);
     expect(kacheln().map((k) => k.schluessel).sort()).toEqual([
-      'anstellungen', 'benutzer_aktiv', 'konflikte_offen', 'leads_ueber_sla',
-      'letzte_aktivitaet', 'neue_leads', 'offene_wiedervorlagen', 'personen',
-      'schichten_unbesetzt',
+      'abwesend_heute', 'anstellungen', 'antraege_offen', 'benutzer_aktiv',
+      'konflikte_offen', 'leads_ueber_sla', 'letzte_aktivitaet', 'neue_leads',
+      'offene_wiedervorlagen', 'personen', 'schichten_unbesetzt',
     ]);
   });
 
@@ -121,10 +122,12 @@ describe('(4) ein Modul, das nicht gemergt ist, hat KEINE Kachel', () => {
      * "Noch nicht gebaut" heisst etwas völlig anderes, und wer die beiden
      * verwechselt, plant auf einer Zahl, die es nicht gibt.
      */
-    // `dienstplan` seit Phase 5 — er IST gemergt, also darf er eine Kachel
-    // haben. Die Liste waechst mit den Phasen; was fehlt, ist die Zusage.
-    expect(belegteModule()).toEqual(['bericht', 'crm', 'dienstplan', 'personal', 'system']
-      .filter((m) => belegteModule().includes(m)));
+    // `dienstplan` und `zeit` seit Phase 5 — beide SIND gemergt, also duerfen
+    // sie Kacheln haben. Die Liste waechst mit den Phasen; was fehlt, ist die
+    // Zusage.
+    expect(belegteModule())
+      .toEqual(['bericht', 'crm', 'dienstplan', 'personal', 'system', 'zeit']
+        .filter((m) => belegteModule().includes(m)));
     for (const nichtGebaut of ['finanzen', 'zahlung', 'mahnung', 'vergabe', 'radar']) {
       expect(belegteModule(), `${nichtGebaut} ist noch nicht gemergt`)
         .not.toContain(nichtGebaut);

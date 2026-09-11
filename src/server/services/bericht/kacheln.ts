@@ -238,5 +238,75 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
           order by blockiert desc, zeitraum_beginn`,
       ziel: (k) => kennzahlPfad(k, 'dienstplan/konflikte', 'dienstplan'),
     }),
+
+    /**
+     * Antraege, die auf eine Entscheidung warten (EMP-10).
+     *
+     * `eingereicht` UND `in_pruefung`: „in Pruefung" heisst, dass jemand
+     * hingesehen hat — entschieden ist damit nichts. Zaehlte die Kachel nur
+     * `eingereicht`, verschwaende jeder Antrag aus der Zahl, sobald ihn jemand
+     * einmal anfasst; der Urlaubsantrag laege drei Wochen in einem Zustand,
+     * den keine Anzeige mehr zaehlt, und niemandem fiele es auf.
+     */
+    registriereKachel({
+      schluessel: 'antraege_offen',
+      label: 'Offene Anträge',
+      modul: 'zeit',
+      recht: 'zeit.antrag_entscheiden',
+      ton: 'warning',
+      icon: 'freigabe',
+      zaehlung:
+        `select count(*)::int as wert from antrag
+          where mandant_id = any($1) and status in ('eingereicht','in_pruefung')`,
+      zeilen:
+        `select id, anstellung_id, antragsart_id, status, von_datum, bis_datum,
+                eingereicht_am
+           from antrag
+          where mandant_id = any($1) and status in ('eingereicht','in_pruefung')
+          order by eingereicht_am`,
+      ziel: (k) => kennzahlPfad(k, 'personal/antraege', ''),
+    }),
+
+    /**
+     * Wer heute nicht kommt.
+     *
+     * **„Heute" ist der BERLINER Kalendertag, und die Datenbank sagt, welcher
+     * das ist.** `von`/`bis` sind Datumsspalten; `current_date` im UTC-Prozess
+     * zeigt zwischen 00:00 und 02:00 Berliner Zeit noch den Vortag — die
+     * Kachel zaehlte dann die Abwesenheiten von gestern (Invariante 2).
+     *
+     * **`genehmigt` und `erfasst`, nicht `beantragt`.** Beantragt heisst: der
+     * Mensch kommt, solange niemand zugestimmt hat. Wer die Beantragten
+     * mitzaehlte, plante die Schicht um eine Abwesenheit herum, die es
+     * vielleicht nie gibt.
+     *
+     * Ohne `abwesenheitsart_id`: die Art ist fuer `cse_app` nicht lesbar
+     * (Spaltenrechte in `0073`, Art. 9 DSGVO). Eine Liste, die „krank" von
+     * „Urlaub" unterscheidet, waere genau die Auskunft, die die Spaltensperre
+     * verhindert — und sie faellt hier auch nicht an: gebraucht wird, WER
+     * fehlt, nicht warum.
+     */
+    registriereKachel({
+      schluessel: 'abwesend_heute',
+      label: 'Heute abwesend',
+      modul: 'zeit',
+      recht: 'zeit.abwesenheit_lesen',
+      ton: 'info',
+      icon: 'kalender',
+      zaehlung:
+        `select count(*)::int as wert from abwesenheit
+          where mandant_id = any($1) and status in ('genehmigt','erfasst')
+            and von <= (now() at time zone 'Europe/Berlin')::date
+            and bis >= (now() at time zone 'Europe/Berlin')::date`,
+      zeilen:
+        `select id, anstellung_id, status, von, bis, von_halbtags, bis_halbtags,
+                tage_angerechnet
+           from abwesenheit
+          where mandant_id = any($1) and status in ('genehmigt','erfasst')
+            and von <= (now() at time zone 'Europe/Berlin')::date
+            and bis >= (now() at time zone 'Europe/Berlin')::date
+          order by von`,
+      ziel: (k) => kennzahlPfad(k, 'personal/abwesenheiten', ''),
+    }),
   ];
 }
