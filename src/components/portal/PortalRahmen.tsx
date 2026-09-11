@@ -58,10 +58,58 @@ export function PortalRahmen({
 
       <header className="flex h-14 shrink-0 items-center gap-s3 border-b border-line
                          bg-surface px-s4">
-        <span className="text-h3 text-text">{titel}</span>
+        {/*
+          * Der Auftrittsname ist ein WEG, kein Schild.
+          *
+          * Er stand als `span` da, und die Kopfzeile trug sonst nichts: wer
+          * in `/portal/bau/zeiten` stand, kam von dort nicht zur Uebersicht
+          * dieser Gesellschaft, nicht in eine andere, nicht zu seinem Konto
+          * und nicht zurueck auf die Website. Das Portal hatte einen Eingang
+          * und keinen Ausgang.
+          */}
+        <a href={wurzel} className="text-h3 text-text hover:underline">{titel}</a>
         {nurLesen && (
           <span data-cse="header-nur-lesen"><StatusPill zustand="Nur Lesen" /></span>
         )}
+        {/*
+          * Am Schreibtisch in der Kopfzeile, am Telefon im „Mehr"-Blatt.
+          *
+          * NICHT beides auf einmal: bei 375px stehen hier schon der
+          * Auftrittsname und die Lesemarke, und drei weitere Punkte daneben
+          * schoeben die Zeile ueber den Rand — derselbe Fehler, der die
+          * oeffentliche Kopfzeile schon einmal zum waagerechten Scrollen
+          * gebracht hat. Das Telefon hat sein Blatt, und dort stehen
+          * dieselben drei Ziele.
+          */}
+        <nav
+          aria-label="Sitzung"
+          data-cse="sitzungsnavigation"
+          className="ms-auto hidden items-center gap-s4 sm:flex"
+        >
+          <a href="/auth/bereich"
+             className="flex min-h-11 items-center text-sm text-text-muted hover:text-text">
+            Bereich wechseln
+          </a>
+          <a href="/portal/konto"
+             className="flex min-h-11 items-center text-sm text-text-muted hover:text-text">
+            Konto
+          </a>
+          <a href="/"
+             className="flex min-h-11 items-center text-sm text-text-muted hover:text-text">
+            Website
+          </a>
+          {/*
+            * Ein FORMULAR, kein Verweis: eine Abmeldung aendert Zustand, und
+            * ein GET dafuer laesst sich von einem fremden Bild-Tag ausloesen.
+            */}
+          <form method="post" action="/api/abmelden">
+            <button type="submit"
+                    className="flex min-h-11 items-center text-sm text-text-muted
+                               hover:text-text">
+              Abmelden
+            </button>
+          </form>
+        </nav>
       </header>
 
       <div className="flex flex-1">

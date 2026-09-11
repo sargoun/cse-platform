@@ -109,10 +109,24 @@ export default async function DevAnmeldung() {
               <input type="hidden" name="mandant" value={k.mandant_id ?? ''} />
               {/* Der Slug fuer das Ziel: die Handlung kennt sonst nur die id. */}
               <input type="hidden" name="slug" value={k.slug ?? ''} />
+              {/*
+                * Die Ansicht folgt der MITGLIEDSCHAFT, nicht nur der Rolle.
+                *
+                * Vorher fiel alles, was nicht `mitarbeiter` oder `kunde` war,
+                * auf `mandant` — auch die Gruppen-Administration, die in
+                * keiner Gesellschaft Mitglied ist. Die Sitzung entstand dann
+                * mit `ansicht = 'mandant'` und `aktiver_mandant_id = null`,
+                * und `sitzung_ansicht_stimmig` wies sie ab: die Anmeldung
+                * endete in „Application error" mit einem Digest, aus dem
+                * niemand etwas lesen kann. `'gruppe'` erzeugte dieser
+                * Ausdruck ueberhaupt nie — die Handlung und die Weiterleitung
+                * kannten den Fall, das Formular schickte ihn nur nicht.
+                */}
               <input
                 type="hidden" name="ansicht"
                 value={k.rolle === 'mitarbeiter' ? 'person'
-                  : k.rolle === 'kunde' ? 'kunde' : 'mandant'}
+                  : k.rolle === 'kunde' ? 'kunde'
+                    : k.mandant_id === null ? 'gruppe' : 'mandant'}
               />
               <span className="text-base text-text">{k.name}</span>
               <span className="text-sm text-text-muted">

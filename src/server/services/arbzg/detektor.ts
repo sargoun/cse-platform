@@ -92,6 +92,17 @@ export function ueberschneidungsFingerabdruck(
  */
 export async function erkenneKonflikte(
   db: Abfrage, mandantId: string, vonUtc: Date, bisUtc: Date,
+  /**
+   * `true` heisst: dieser Lauf ist der NACHTLAUF und verbindet sich als
+   * `cse_job`, nicht als `cse_app`.
+   *
+   * Die Unterscheidung muss hier stehen und kann nicht erraten werden: die
+   * beiden Rollen haben verschiedene Leser fuer dieselbe Belastung, weil ein
+   * Job keinen aktiven Mandanten hat (§6.4). Ohne dieses Kennzeichen las der
+   * Nachtlauf `app.arbzg_belastung` — die nur `cse_app` gewaehrt ist — und
+   * scheiterte mit `42501`, bevor ein Befund entstehen konnte.
+   */
+  alsJob = false,
 ): Promise<DetektorBericht> {
   const kandidaten = await ladeKandidaten(db, mandantId, vonUtc, bisUtc);
   let neu = 0;
@@ -99,7 +110,8 @@ export async function erkenneKonflikte(
   const gesehen = new Set<string>();
 
   for (const k of kandidaten) {
-    const ergebnis = await pruefeEinsatz(db, k.personId, k.beginn, k.ende);
+    const ergebnis = await pruefeEinsatz(db, k.personId, k.beginn, k.ende,
+      alsJob ? { jobMandantId: mandantId } : {});
     /**
      * **Jeder Befund wird AUFGEZEICHNET, aber nur einer bekommt eine Karte.**
      *

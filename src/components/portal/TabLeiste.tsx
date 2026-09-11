@@ -122,6 +122,36 @@ function MehrZelle({ wurzel, rechte, gruppenansicht }: {
             </li>
           ))}
         </ul>
+
+        {/*
+          * Dieselben Ziele wie in der Kopfzeile am Schreibtisch.
+          *
+          * Am Telefon traegt die Kopfzeile sie nicht — bei 375px stehen dort
+          * schon der Auftrittsname und die Lesemarke, und vier weitere Punkte
+          * schoeben die Zeile ueber den Rand. Das Blatt ist der Ort, an dem
+          * das Telefon alles findet, was nicht in fuenf Tabs passt; ein
+          * Portal ohne Ausgang waere es sonst genau hier.
+          */}
+        <h2 className="mt-s5 text-h3 text-text">Sitzung</h2>
+        <ul className="m-0 list-none p-0">
+          {([['/auth/bereich', 'Bereich wechseln'], ['/portal/konto', 'Konto'],
+             ['/', 'Website']] as const).map(([ziel, text]) => (
+               <li key={ziel} className="border-b border-line">
+                 <a href={ziel} data-cse="mehr-sitzung"
+                    className="flex min-h-[44px] items-center py-s3 text-sm text-text">
+                   {text}
+                 </a>
+               </li>
+             ))}
+          <li className="border-b border-line">
+            <form method="post" action="/api/abmelden">
+              <button type="submit" data-cse="mehr-abmelden"
+                      className="flex min-h-[44px] w-full items-center py-s3 text-sm text-text">
+                Abmelden
+              </button>
+            </form>
+          </li>
+        </ul>
       </nav>
     </details>
   );

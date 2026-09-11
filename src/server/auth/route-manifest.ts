@@ -39,6 +39,18 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + 'veröffentlichten Seiten. Hinter einer Anmeldung wäre die Datei sinnlos.',
   },
   {
+    pfad: 'api/abmelden',
+    recht: null,
+    grund:
+      'AUT-01. Der Gegenweg zur Anmeldung: er beendet die EIGENE Sitzung, und der '
+      + 'Aufrufer weist sie durch den Besitz des Tokens aus — ein Recht zu verlangen '
+      + 'hiesse, eine Abmeldung an eine Berechtigung zu binden, die gerade entzogen '
+      + 'worden sein kann. Geschützt ist sie stattdessen durch die Methode: POST, damit '
+      + 'kein fremdes Bild-Tag und kein Vorauslader sie auslösen kann, und durch den '
+      + 'Zuschnitt der Anweisung auf `token_hash = $1 and beendet_am is null` — mehr als '
+      + 'die eigene, noch offene Zeile ist damit nicht erreichbar.',
+  },
+  {
     pfad: 'api/anfrage',
     recht: null,
     grund:

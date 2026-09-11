@@ -63,8 +63,15 @@ export function registriereKonfliktDetektor(db: Abfrage): JobDefinition {
       const von = new Date(jetzt.getTime() - RUECKBLICK_TAGE * 86_400_000);
       const bis = new Date(jetzt.getTime() + FENSTER_TAGE * 86_400_000);
 
+      /**
+       * `true`: dieser Lauf verbindet sich als `cse_job`. Ohne das Kennzeichen
+       * griff der Detektor `app.arbzg_belastung` — nur `cse_app` gewaehrt —
+       * und der Nachtlauf endete in `42501`, bevor er einen einzigen Befund
+       * schreiben konnte. Ein Waechter, der jede Nacht abgewiesen wird und
+       * nichts meldet, sieht von aussen aus wie einer, der nichts findet.
+       */
       const bericht: DetektorBericht = await erkenneKonflikte(
-        db, kontext.mandantId, von, bis,
+        db, kontext.mandantId, von, bis, true,
       );
       return {
         ...bericht,

@@ -78,10 +78,32 @@ const NACHLAUF_STUNDEN = 24;
  */
 export async function leseBelastung(
   db: Abfrage, personId: string, vonUtc: Date, bisUtc: Date,
+  /**
+   * Gesetzt heisst: der Aufrufer ist der NACHTLAUF, nicht das Portal.
+   *
+   * **Ohne diesen Weg lief der Nachtlauf ueberhaupt nicht.**
+   * `app.arbzg_belastung` ist ausschliesslich `cse_app` gewaehrt (0040:1183)
+   * und verlangt aktive Sitzung, Mandant und `dienstplan.arbzg_pruefen`. Der
+   * Job verbindet sich als `cse_job` — er lief also bei jedem Aufruf in
+   * `42501`, BEVOR ein einziger Befund entstehen konnte. Ein
+   * Arbeitszeitwaechter, der jede Nacht abgewiesen wird und niemandem etwas
+   * meldet, ist genau die Sorte Stille, gegen die dieses Projekt geschrieben
+   * ist.
+   *
+   * Der Leser fuer diesen Fall gibt es seit 0040:1219 —
+   * `zeit_intern.arbzg_belastung_job`, `cse_job` gewaehrt — und NIEMAND rief
+   * ihn auf. Er liefert statt `fremd` die rohe `mandant_id`: ein Job hat
+   * keinen aktiven Mandanten, gegen den sich „fremd" bestimmen liesse, also
+   * entscheidet es der Aufrufer. Genau dafuer steht der Mandant hier.
+   */
+  jobMandantId?: string,
 ): Promise<readonly Belastungsfenster[]> {
   const zeilen = (await db.unsafe(
-    `select fenster_gruppe, beginn_utc, ende_utc, minuten, fremd
-       from app.arbzg_belastung($1, $2::timestamptz, $3::timestamptz)`,
+    jobMandantId === undefined
+      ? `select fenster_gruppe, beginn_utc, ende_utc, minuten, fremd
+           from app.arbzg_belastung($1, $2::timestamptz, $3::timestamptz)`
+      : `select fenster_gruppe, beginn_utc, ende_utc, minuten, mandant_id::text as mandant_id
+           from zeit_intern.arbzg_belastung_job($1, $2::timestamptz, $3::timestamptz)`,
     [personId, vonUtc.toISOString(), bisUtc.toISOString()],
   )) as Record<string, unknown>[];
 
@@ -90,7 +112,11 @@ export async function leseBelastung(
     beginn: new Date(z['beginn_utc'] as string),
     ende: z['ende_utc'] === null ? null : new Date(z['ende_utc'] as string),
     minuten: Number(z['minuten']),
-    fremd: z['fremd'] === true,
+    // Im Portal beantwortet die Datenbank die Frage; im Job gibt es keinen
+    // aktiven Mandanten, gegen den sie sich beantworten liesse.
+    fremd: jobMandantId === undefined
+      ? z['fremd'] === true
+      : z['mandant_id'] !== jobMandantId,
   }));
 }
 
@@ -110,6 +136,8 @@ export async function pruefeEinsatz(
   optionen: {
     readonly zehnStundenAusnahme?: boolean;
     readonly schreiben?: boolean;
+    /** Gesetzt nur im Nachtlauf — siehe `leseBelastung`. */
+    readonly jobMandantId?: string;
     /**
      * Eine Schicht, die es NOCH NICHT gibt — die, die gerade eingeteilt werden
      * soll.
@@ -147,7 +175,8 @@ export async function pruefeEinsatz(
   const von = new Date(beginn.getTime() - VORLAUF_STUNDEN * 3_600_000);
   const bis = new Date(ende.getTime() + NACHLAUF_STUNDEN * 3_600_000);
 
-  const fenster = await leseBelastung(db, personId, von, bis);
+  const fenster = await leseBelastung(
+    db, personId, von, bis, optionen.jobMandantId);
 
   /**
    * Ein noch offenes Fenster (`ende_utc is null`) ist jemand, der eingestempelt

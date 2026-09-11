@@ -469,6 +469,27 @@ async function main(): Promise<void> {
     ['Thomas', 'Schröder', 'de'],
     ['Silke', 'Neumann', 'de'],
     ['Hakan', 'Demir', 'de'],
+    /**
+     * **Und die zwei, die den Bestand erst symmetrisch machen.**
+     *
+     * Der Seed trug `admin` in Reinigung und Bau, `leitung` in Bau und
+     * Security — also in keiner der drei Gesellschaften BEIDE. Was daraus
+     * folgte, sah je Gesellschaft nach einer fehlenden Funktion aus:
+     *
+     *   * In der SSE Security konnte NIEMAND eine Rechnung festschreiben
+     *     (`finanzen.festschreiben` haelt `admin`, `leitung` nicht), keinen
+     *     LV-Preis lesen (`bau.preis_lesen`) und die Einstellungen nicht
+     *     oeffnen (`system.einstellung_lesen`).
+     *   * In der Reinigung fehlte umgekehrt die Ebene, die planen und
+     *     gegenzeichnen darf, ohne Verwaltungsrechte zu haben — und damit der
+     *     Gegenbeweis, dass die Rechtematrix an dieser Grenze wirklich
+     *     trennt.
+     *
+     * Eine Rolle, die in keiner Demogesellschaft besetzt ist, laesst sich
+     * nicht vorfuehren und nicht widerlegen.
+     */
+    ['Nadia', 'Özkan', 'de'],
+    ['Peter', 'Brandt', 'de'],
   ];
 
   /**
@@ -533,6 +554,8 @@ async function main(): Promise<void> {
     [6, 'bau', 'B-3002', null],         // Thomas Schröder, Bauleitung
     [7, 'reinigung', 'R-1004', null],   // Silke Neumann, Objektverwaltung
     [8, 'bau', 'B-3003', null],         // Hakan Demir, Baubüro
+    [9, 'security', 'S-2004', null],    // Nadia Özkan, Verwaltung Security
+    [10, 'reinigung', 'R-1005', null],  // Peter Brandt, Objektleitung
   ];
   for (const [person, bereich, nummer, satz] of anstellungen) {
     await sql`
@@ -695,6 +718,13 @@ async function main(): Promise<void> {
      * indem sie die Sprache einer fremden Zeile umschrieb.
      */
     ['amir.haddad@cse-gruppe.de', 'Amir Haddad', 'mitarbeiter', 'security', 2],
+    /**
+     * Die beiden Konten, die den Bestand symmetrisch machen: jede der drei
+     * Gesellschaften hat jetzt eine Verwaltung UND eine Leitung. Warum das
+     * keine Kosmetik ist, steht bei den beiden Menschen weiter oben.
+     */
+    ['admin.security@cse-gruppe.de', 'Administration Security', 'admin', 'security', 9],
+    ['leitung.reinigung@cse-gruppe.de', 'Leitung Reinigung', 'leitung', 'reinigung', 10],
     ['kunde.demo@example.test', 'Kundenzugang (Demo)', 'kunde', 'reinigung', null],
   ];
 

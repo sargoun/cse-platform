@@ -63,7 +63,12 @@ const ALTLAST: readonly string[] = [
   'fin.rechnung_summen_stimmig', 'fin.rechnung_verkettet', 'fin.setze_aufbewahrung',
   'kern.abwesenheit_urlaubskonto', 'kern.antrag_erzeugt_abwesenheit', 'kern.aufmass_kopf_denorm',
   'kern.behinderung_vorlagen_vorbelegen', 'kern.benutzer_2fa_pflicht', 'kern.bewegung_summe',
-  'kern.checkin_einloesung_paarweise', 'kern.checkin_token_widerrufen', 'kern.da_kenntnisnahme_vorbereiten',
+  'kern.checkin_einloesung_paarweise', 'kern.da_kenntnisnahme_vorbereiten',
+  // `kern.checkin_token_widerrufen` stand hier und gehoert nicht hierher:
+  // die Funktion wurde in 0063 ZU einem Definer gemacht, die Grenze ist also
+  // neu gezogen worden. Diese Liste friert ein, was vor K-01 entstand — sie
+  // aufzunehmen hiess, die Altlast wachsen zu lassen, und genau das soll
+  // dieser Test verhindern. 0091 gibt ihr `cse_definer`.
   'kern.da_version_vorbereiten', 'kern.einsatz_medien_bezug_pruefen', 'kern.einsatz_medien_loeschsperre',
   'kern.ln_kopfstatus_fortschreiben', 'kern.mandant_behinderung_vorlagen_vorbelegen', 'kern.mandant_nachtrag_grundlagen_vorbelegen',
   'kern.mandant_pruefverfahren_vorbelegen', 'kern.nachtrag_grundlagen_vorbelegen', 'kern.nachweis_dokumentpflicht',
