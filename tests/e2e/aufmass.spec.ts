@@ -22,6 +22,7 @@
  * insgesamt laeuft.
  */
 import { expect, test, type Page } from '@playwright/test';
+import { alsKonto, KONTO } from './hilfen/anmeldung';
 import postgres from 'postgres';
 
 const DSN = process.env['DATABASE_URL']
@@ -50,12 +51,18 @@ let aufmassOhneFoto = '';
 let aufmassMitFoto = '';
 let lvId = '';
 
+/**
+ * **Die Administration des BAUS, nicht die der Reinigung.**
+ *
+ * Hier stand `[data-rolle="admin"]`.first(). Das einzige `admin`-Konto des
+ * Seeds gehoert `reinigung`; diese Datei legt ihre Daten aber in `bau` an.
+ * Die Sitzung trug damit `aktiverMandantId = reinigung`, die URL den Slug
+ * `bau`, und die Slug-Wache antwortete 404 — richtig so (AUT-06, §4.5), nur
+ * sah der Fehlschlag aus wie ein kaputtes Aufmassblatt. Und die Σ-Zusicherung
+ * braucht `bau.preis_lesen`, das laut Rechtematrix nur `admin` haelt.
+ */
 async function anmelden(page: Page): Promise<void> {
-  await page.goto('/dev/anmelden');
-  const knopf = page.locator('[data-cse="dev-anmelden"][data-rolle="admin"]').first();
-  await expect(knopf, 'kein Seed-Konto für Rolle admin').toBeVisible();
-  await knopf.click();
-  await page.waitForLoadState('networkidle');
+  await alsKonto(page, KONTO.adminBau);
 }
 
 /**
@@ -158,7 +165,10 @@ test.beforeAll(async () => {
     [m!.id, aufmassMitFoto, k!.id, medium!.id] as never[]);
 });
 
-test.afterAll(async () => { await sql.end(); });
+// Kein `sql.end()`: der Pool lebt je Worker-PROZESS, `afterAll` laeuft beim
+// Verlassen der Datei. Nimmt derselbe Worker sie spaeter wieder auf, ist das
+// Modul geladen und der Pool tot — jede Abfrage stirbt dann mit
+// `CONNECTION_ENDED`, bevor sie den Server sieht.
 
 test.describe('(1) Formel und Ergebnis stehen nebeneinander', () => {
   test('das Blatt zeigt den Rechenansatz wörtlich und 30,87 m² daneben', async ({ page }) => {

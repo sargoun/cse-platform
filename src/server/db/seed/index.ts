@@ -559,6 +559,17 @@ async function main(): Promise<void> {
     ['admin.reinigung@cse-gruppe.de', 'Administration Reinigung', 'admin', 'reinigung', null],
     ['leitung.bau@cse-gruppe.de', 'Leitung Bau', 'leitung', 'bau', null],
     /**
+     * Und eine Administration fuer den Bau.
+     *
+     * `bau.preis_lesen` halten laut Rechtematrix nur `admin` und
+     * `super_admin` — `leitung` ausdruecklich NICHT. Ohne dieses Konto konnte
+     * in den Demodaten KEIN Mensch der REALTIME Service GmbH einen
+     * LV-Einheitspreis sehen: das Aufmassblatt zeigte Mengen ohne Geld, und
+     * das sah aus wie eine fehlende Funktion. Dieselbe Luecke wie die
+     * Gesellschaft ohne Leitung, nur eine Ebene tiefer.
+     */
+    ['admin.bau@cse-gruppe.de', 'Administration Bau', 'admin', 'bau', null],
+    /**
      * Und eine Leitung fuer die Security.
      *
      * Sie fehlte, und das war keine Kleinigkeit: `security` hatte ausser zwei

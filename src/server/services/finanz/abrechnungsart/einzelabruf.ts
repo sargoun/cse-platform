@@ -187,6 +187,14 @@ export const EINZELABRUF: Abrechnungsart = {
           `Der Abruf „${abruf.bezeichnung}" trägt keine Menge.`, 'keine_menge',
         );
       }
+      if (abruf.auftrag_leistung_id === null) {
+        // Der Verbund oben ist ein INNER JOIN — dieser Zweig ist der Beweis,
+        // dass die Zeile ihren Beleg hat, und kein `?? ''`, das ihn erfindet.
+        throw new AbrechnungFehler(
+          `Der Abruf „${abruf.bezeichnung}" hängt an keiner Vertragszeile (FIN-07).`,
+          'kein_preis',
+        );
+      }
       if (abruf.steuersatz_bp === null || abruf.steuer_kennzeichen === null) {
         throw new AbrechnungFehler(
           `Die Vertragszeile hinter dem Abruf „${abruf.bezeichnung}" führt keinen `
@@ -230,7 +238,7 @@ export const EINZELABRUF: Abrechnungsart = {
         leistungVon: zeitraum.von === null ? null : tag,
         leistungBis: zeitraum.bis === null ? null : tag,
         herkunft: [
-          { art: 'vertrag', id: abruf.auftrag_leistung_id ?? '', anteil: menge },
+          { art: 'vertrag', id: abruf.auftrag_leistung_id, anteil: menge },
         ],
       });
     }

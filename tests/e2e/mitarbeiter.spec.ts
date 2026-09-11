@@ -81,9 +81,20 @@ async function alsAmir(page: Page): Promise<void> {
   await alsKonto(page, 'amir.haddad@cse-gruppe.de');
 }
 
-test.afterAll(async () => {
-  await sql.end({ timeout: 5 });
-});
+/**
+ * **Der Pool wird NICHT mehr in `afterAll` geschlossen.**
+ *
+ * `const sql = postgres(...)` steht auf Modulebene, existiert also einmal je
+ * Worker-PROZESS — `test.afterAll` dagegen laeuft, sobald ein Worker diese
+ * Datei verlaesst. Nimmt er sie spaeter wieder auf (bei `fullyParallel` der
+ * Normalfall), ist das Modul noch geladen und der Pool tot: jede weitere
+ * Abfrage stirbt mit `write CONNECTION_ENDED`, bevor sie den Server sieht.
+ * Genau so scheiterte „die Person sieht keinen zweiten Menschen" — an der
+ * Datenbankzeile, nicht an ihrer Zusicherung, die damit nie gemessen wurde.
+ *
+ * Ein Pool, der mit dem Prozess endet, braucht kein `end()`: Playwright
+ * beendet den Worker, und das Betriebssystem raeumt die Verbindungen ab.
+ */
 
 // ---------------------------------------------------------------------------
 
@@ -232,9 +243,67 @@ test.describe('(3) der Monatsnachweis nennt dieselbe Zahl wie das Stundenkonto',
     const summe = minuten(await page.locator('[data-cse="nachweis-summe"]').innerText());
     const abgleich = minuten(await page.locator('[data-cse="konto-ist"]').innerText());
 
-    // Beide Zahlen stehen auf demselben Blatt, und sie sind dieselbe.
-    expect(summe).toBe(abgleich);
-    expect(summe).toBe(kontoIst);
+    // Dieselbe Beschaeftigung, derselbe Monat — der Abgleich auf dem Blatt
+    // ist der des Kontos, von dem der Weg hierher ausging.
+    expect(abgleich).toBe(kontoIst);
+
+    /**
+     * **Gleich, oder die Differenz ist auf die Minute erklaert.**
+     *
+     * Hier stand `expect(summe).toBe(abgleich)` — unbedingt. Das ist die
+     * Zusicherung fuer einen ABGESCHLOSSENEN Monat und nur fuer ihn: auf das
+     * Stundenkonto fliesst ausschliesslich Freigegebenes (§7.3), die
+     * MiLoG-Aufzeichnung fuehrt dagegen JEDEN Anteil des Monats. Ein offener
+     * Monat darf deshalb abweichen, und die Seite sagt selbst, warum
+     * (`monatsnachweis/page.tsx`, D-162). Ein abgeschlossener kann es nicht:
+     * `schliesseMonatAb` verweigert die Sperre, solange ein Eintrag
+     * unfreigegeben ist.
+     *
+     * Die alte Fassung war nur an Tagen gruen, an denen in den letzten zwei
+     * Tagen niemand gearbeitet hat — sie war nie richtig, nur oft genug
+     * zufaellig wahr.
+     *
+     * Die neue Fassung ist SCHAERFER, nicht weicher: sie nimmt die Differenz
+     * nicht hin, sondern rechnet sie gegen die Datenbank nach. Eine falsche
+     * Buchung von 7 Minuten faellt hier auf; unter `toBe` waere sie nur ein
+     * weiterer Unterschied gewesen.
+     */
+    const [offen] = await sql.unsafe<{ anzahl: string }[]>(
+      `select count(*)::text as anzahl
+         from zeiteintrag_monatsanteil ma
+         join zeiteintrag z on z.id = ma.zeiteintrag_id
+         join anstellung a on a.id = ma.anstellung_id
+         join person p on p.id = a.person_id
+         join benutzer b on b.person_id = p.id
+        where b.email = $1
+          and ma.monat = date_trunc('month', (now() at time zone 'Europe/Berlin'))::date
+          and ma.freigegeben_am is null
+          and z.storniert_am is null`,
+      ['fatima.yildiz@cse-gruppe.de'] as never[]);
+    const unfreigegeben = Number(offen?.anzahl ?? '0');
+
+    if (unfreigegeben === 0) {
+      // Nichts steht offen — dann gibt es keinen Grund fuer eine Differenz,
+      // und die Zusicherung von EMP-04/EMP-06 gilt unbedingt.
+      expect(summe, 'ohne offene Zeiten sind es dieselben Minuten').toBe(abgleich);
+      return;
+    }
+
+    /**
+     * Es steht etwas offen. Zwei Dinge muessen dann gelten, und beide sind
+     * schaerfer als die alte Gleichheit es war:
+     *
+     * (a) Die Aufzeichnung ist NIE kleiner als das Konto. Gebucht wird nur
+     *     Freigegebenes, aufgezeichnet wird alles — die Differenz kann also
+     *     nur in eine Richtung gehen. Eine Buchung, die MEHR enthaelt als die
+     *     Aufzeichnung, waere Geld aus dem Nichts und faellt hier auf.
+     * (b) Das Blatt sagt den Grund. Eine Differenz ohne Erklaerung auf einem
+     *     Dokument, das jemand unterschreibt, ist die schlechteste Variante
+     *     (D-162).
+     */
+    expect(summe, 'die Aufzeichnung ist nie kleiner als das Konto').toBeGreaterThanOrEqual(abgleich);
+    await expect(page.locator('[data-cse="konto-abgleich"]'))
+      .toContainText(/noch offen ist und nur freigegebene/u);
   });
 
   test('das Blatt ist weiss mit dunklem Text — Print ist nicht die App (DESIGN §11)', async ({
@@ -385,10 +454,21 @@ test.describe('(6) Arabisch: `dir="rtl"` und null axe-Verstöße', () => {
     });
   }
 
-  test('Tippziele bleiben ≥ 44×44 px und Fliesstext ≥ 16 px (DESIGN §8)', async ({ page }) => {
+  /**
+   * **Gemessen wird JEDE Seite, nicht die Startseite.**
+   *
+   * Vorher stand hier ein einziges `goto('/portal/mein')`. Genau deshalb
+   * blieb ein 19 px hoher Link auf `/portal/mein/zeiten` unbemerkt: die
+   * Regel galt überall, gemessen wurde an einer Stelle. Eine Zusicherung,
+   * die nur einen von neun Bildschirmen ansieht, sagt über die anderen acht
+   * nichts — und liest sich trotzdem wie „geprüft".
+   */
+  for (const pfad of SEITEN) {
+  test(`Tippziele ≥ 44×44 px und Fliesstext ≥ 16 px auf ${pfad} (DESIGN §8)`, async ({ page }) => {
     await alsAmir(page);
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/portal/mein');
+    const antwort = await page.goto(pfad);
+    expect(antwort?.status(), pfad).toBe(200);
 
     const zuKlein = await page.evaluate(() => {
       const bedienbar = [...document.querySelectorAll<HTMLElement>(
@@ -401,7 +481,7 @@ test.describe('(6) Arabisch: `dir="rtl"` und null axe-Verstöße', () => {
         })
         .map((e) => `${e.tagName}: ${(e.textContent ?? '').trim().slice(0, 30)}`);
     });
-    expect(zuKlein).toEqual([]);
+    expect(zuKlein, pfad).toEqual([]);
 
     /**
      * 16 px Fliesstext — mit einer ausdrücklichen Ausnahme.
@@ -422,6 +502,7 @@ test.describe('(6) Arabisch: `dir="rtl"` und null axe-Verstöße', () => {
         .filter((e) => Number.parseFloat(getComputedStyle(e).fontSize) < 16)
         .map((e) => `${e.tagName}: ${(e.textContent ?? '').trim().slice(0, 30)}`);
     });
-    expect(zuKleinerText).toEqual([]);
+    expect(zuKleinerText, pfad).toEqual([]);
   });
+  }
 });

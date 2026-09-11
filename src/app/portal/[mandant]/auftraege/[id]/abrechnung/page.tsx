@@ -31,6 +31,9 @@ import type { BereichSchluessel } from '@/lib/design/theme';
  * **Und jede Art trägt die Marke „provisorisch"** (O-04). Fehlt ein
  * Parameter, steht das an der Zeile — nicht erst in der Fehlermeldung des
  * Abrechnungslaufs, wenn jemand schon eine Rechnung erwartet.
+ *
+ * // TODO(client, O-04): sind dies exakt die fünf Abrechnungsarten?
+ * Bezeichnung, Rundung und Satzbasis je Art bestätigen.
  */
 export const dynamic = 'force-dynamic';
 

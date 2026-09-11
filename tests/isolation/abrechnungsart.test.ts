@@ -17,7 +17,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import { cent } from '../../src/server/services/finanz/geld.js';
 import { milliMenge } from '../../src/server/services/finanz/menge.js';
-import { legeEntwurfAn, type Abfrage } from '../../src/server/services/finanz/rechnung.js';
+import {
+  fuegePositionHinzu, legeEntwurfAn, type Abfrage,
+} from '../../src/server/services/finanz/rechnung.js';
 import {
   AbrechnungFehler, alleAbrechnungsarten, berechneAbrechnung, berechneMitKonfiguration,
   beendeKonfiguration, bestuecke, bestueckeAusAbrechnungsart, entferne, hole,
@@ -1237,3 +1239,99 @@ async function legeKonfigurationAn2(
       gueltigBis: bis,
     }));
 }
+
+
+// ---------------------------------------------------------------------------
+// (1) Umsatzsteuer JE STEUERSATZGRUPPE — nicht aus einer Bruttosumme
+// ---------------------------------------------------------------------------
+
+describe('(1) die Umsatzsteuer wird je Steuersatzgruppe gebildet', () => {
+  it('zwei Gruppen auf einer Rechnung ergeben zwei Steuerzeilen, je Gruppe gerundet',
+    async () => {
+      /**
+       * Die Leistungszeile trägt den vereinbarten Satz, und die Strategie löst
+       * ihn am Leistungsende auf. Hier hängt eine Monatspauschale an einer
+       * 19-%-Zeile und ein Einzelabruf an einer 7-%-Zeile desselben Auftrags —
+       * genau der Fall, für den `rechnung_steuer` eine eigene Tabelle ist
+       * (§14 Abs. 4 Nr. 8 UStG).
+       */
+      const bau = await baueAuftrag(f.reinigung, { einheit: 'stk', einzelpreisCent: 3_333n });
+      const [zweite] = await sql.unsafe<{ id: string }[]>(
+        `insert into auftrag_leistung (mandant_id, auftrag_id, position_nr, objekt_id,
+                                       bezeichnung, einheit, einzelpreis_cent, steuersatz_bp,
+                                       steuer_kennzeichen, gueltig_ab)
+         values ($1,$2,2,$3,'Wäschepflege (ermäßigt)','stk',1_111,700,'ermaessigt',
+                 '2026-01-01')
+         returning id`,
+        [bau.mandant, bau.auftrag, bau.objekt] as never[]);
+
+      await legeKonfigurationAn(bau, {
+        art: 'monatspauschale', parameter: { teilmonat: 'keine' },
+        pauschaleNettoCent: 100_003n, aufLeistung: true,
+      });
+
+      const rechnungId = await alsApp(sitzung(f.reinigung), async (tx) => {
+        const id = await entwurf(tx, bau);
+        await bestueckeAusAbrechnungsart(alsDienst(tx), id, {
+          auftragId: bau.auftrag, auftragLeistungId: bau.leistung,
+          periode: { von: '2026-08-01', bis: '2026-08-31' },
+        });
+        /**
+         * Die zweite Zeile zum ermässigten Satz — hier geht es um die
+         * Steueraufschlüsselung, nicht um eine zweite Strategie. Sie läuft
+         * durch denselben Dienst: eine Zeile an `fuegePositionHinzu` vorbei
+         * hätte weder einen gerechneten Betrag noch einen Beleg (FIN-07).
+         */
+        await fuegePositionHinzu(alsDienst(tx), {
+          rechnungId: id,
+          bezeichnung: 'Wäschepflege',
+          menge: milliMenge(3_000n),
+          einheit: 'stk',
+          einzelpreisCent: cent(1_111n),
+          steuergruppe: 'ust_07',
+          auftragLeistungId: zweite!.id,
+          quellen: [{ typ: 'vertrag', id: zweite!.id }],
+        });
+        return id;
+      });
+
+      const steuer = await steuerzeilen(rechnungId);
+      expect(steuer.map((z) => z.schluessel)).toEqual(['ust_07', 'ust_19']);
+      // 3333 × 7 % = 233,31 → 233; 100003 × 19 % = 19000,57 → 19001.
+      expect(steuer.map((z) => z.steuer_cent)).toEqual(['233', '19001']);
+      const summe = await kopf(rechnungId);
+      expect(summe.netto_gesamt_cent).toBe('103336');
+      expect(summe.steuer_gesamt_cent).toBe('19234');
+      expect(summe.brutto_cent).toBe('122570');
+    });
+});
+
+describe('die eingefrorene Abrechnungsart gehört zur Konfiguration', () => {
+  it('eine Zeile mit vertrag_abrechnung_id und ohne Art weist die DATENBANK ab', async () => {
+    const bau = await baueAuftrag(f.reinigung);
+    const konfiguration = await legeKonfigurationAn(bau, {
+      art: 'monatspauschale', parameter: { teilmonat: 'keine' },
+      pauschaleNettoCent: 100_000n, aufLeistung: true,
+    });
+    const rechnungId = await alsApp(sitzung(f.reinigung), (tx) => entwurf(tx, bau));
+    /**
+     * Als EIGENTÜMER, also mit umgangener Anwendung: die Bedingung ist eine
+     * des Schemas und keine des Dienstes (0087). Ohne sie stünde auf einem
+     * festgeschriebenen Beleg ein Verweis auf eine Konfiguration, deren Art
+     * sich seither geändert haben kann.
+     */
+    await expect(sql.unsafe(
+      `insert into rechnungsposition
+         (mandant_id, rechnung_id, position_nr, bezeichnung, menge, einheit,
+          masseinheit_id, preis_basismenge, einzelpreis_cent, netto_cent,
+          steuersatz_gruppe_id, satz_bp, kategorie, vertrag_abrechnung_id,
+          erstellt_von_art, erstellt_von)
+       values ($1, $2, 50, 'Ohne Art', 1, 'stk',
+               (select id from masseinheit where schluessel = 'stk'),
+               1, 100, 100,
+               (select id from steuersatz_gruppe where schluessel = 'ust_19'),
+               1900, 'S', $3, 'mensch', $4)`,
+      [bau.mandant, rechnungId, konfiguration, benutzer] as never[]),
+    ).rejects.toThrow(/rp_abrechnungsart_bei_konfiguration/u);
+  });
+});

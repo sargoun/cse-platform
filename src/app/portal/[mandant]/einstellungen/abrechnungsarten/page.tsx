@@ -22,6 +22,9 @@ import type { BereichSchluessel } from '@/lib/design/theme';
  * Die Seite ist eine ÜBERSICHT und kein Formular: die Regeln werden nicht
  * global gesetzt, sondern je Vertrag, weil sie je Vertrag verhandelt werden.
  * Der Weg dorthin steht daneben.
+ *
+ * // TODO(client, O-04): sind dies exakt die fünf Abrechnungsarten?
+ * Bezeichnung, Rundung und Satzbasis je Art bestätigen.
  */
 export const dynamic = 'force-dynamic';
 

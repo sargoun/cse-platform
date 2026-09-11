@@ -67,7 +67,8 @@ export default async function MeineZeiten({
         <Link
           href={`/portal/mein/zeiten/${z.id}`}
           data-cse="zeit-zeile"
-          className={`text-text underline ${z.storniert ? 'line-through' : ''}`}
+          className={`inline-flex min-h-11 items-center gap-s2 text-text underline ${
+            z.storniert ? 'line-through' : ''}`}
         >
           <span className="cse-zahl">{z.beginnLokal}</span>
         </Link>
