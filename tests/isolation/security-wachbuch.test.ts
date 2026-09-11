@@ -143,7 +143,20 @@ describe('(3) nur anfuegbar — UPDATE und DELETE scheitern an der DATENBANK', (
 
     await expect(sql.unsafe(`delete from wachbuch_eintrag`))
       .rejects.toThrow(/Hard delete/u);
+    /**
+     * Zwei Waechter, dieselbe Zusage — und der Test verlangt beide.
+     *
+     * Seit `schluessel_quittung` (0079) auf `wachbuch_eintrag` zeigt, weist
+     * Postgres ein blosses `truncate` schon wegen des Fremdschluessels ab,
+     * bevor der Ausloeser drankommt. Das ist eine Abweisung und keine Luecke —
+     * aber sie liesse sich mit `cascade` umgehen, und GENAU dort muss der
+     * Ausloeser stehen. Deshalb: das schlichte `truncate` scheitert (an
+     * welchem der beiden, ist gleichgueltig), das `cascade` scheitert am
+     * Ausloeser, mit seiner Meldung.
+     */
     await expect(sql.unsafe(`truncate wachbuch_eintrag`))
+      .rejects.toThrow(/Hard delete|cannot truncate a table referenced/u);
+    await expect(sql.unsafe(`truncate wachbuch_eintrag cascade`))
       .rejects.toThrow(/Hard delete/u);
   });
 
