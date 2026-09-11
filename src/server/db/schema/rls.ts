@@ -1119,8 +1119,10 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
     art: 'append',
     migration: '0075',
     grund:
-      'EN 16931 BG-20/BG-21. Ein entfernter Nachlass veraendert die '
-      + 'Bemessungsgrundlage einer Steuergruppe, ohne dass der Kopf es zeigt.',
+      'FIN-01, §10 UStG, EN 16931 BG-20/BG-21. Ein entfernter Nachlass '
+      + 'veraendert die Bemessungsgrundlage einer Steuergruppe, ohne dass der '
+      + 'Kopf es zeigt — und die Bemessungsgrundlage ist genau die Zahl, aus '
+      + 'der die Voranmeldung ihre Steuer rechnet.',
   },
   {
     tabelle: 'rechnung_steuer',
@@ -1137,9 +1139,10 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
     art: 'append',
     migration: '0075',
     grund:
-      'K-12, Invariante 4. Sie IST die Storno-Rueckbeziehung — der einzige Ort, '
-      + 'an dem steht, dass eine Rechnung aufgehoben wurde. Sie zu loeschen '
-      + 'liesse die aufgehobene Rechnung wieder als gueltige dastehen.',
+      'K-12, Invariante 4, §17 UStG. Sie IST die Storno-Rueckbeziehung — der '
+      + 'einzige Ort, an dem steht, dass eine Rechnung aufgehoben wurde, und '
+      + 'damit der Beleg fuer die Aenderung der Bemessungsgrundlage. Sie zu '
+      + 'loeschen liesse die aufgehobene Rechnung wieder als gueltige dastehen.',
   },
   {
     tabelle: 'rechnung_snapshot',

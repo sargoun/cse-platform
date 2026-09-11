@@ -923,4 +923,39 @@ grant select on schluessel_quittung to cse_job;
 -- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0079)
 -- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
 
+-- schluesselart (archiv): SEC-07. Der Katalog ist der Bezug jedes Schluessels; geloescht traegt eine zehn Jahre alte Quittung eine Art, die niemand mehr aufloesen kann. Eine nicht mehr gefuehrte Art bekommt `archiviert_am`.
+create trigger trg_schluesselart_kein_hard_delete
+  before delete on schluesselart
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_schluesselart_kein_truncate
+  before truncate on schluesselart
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on schluesselart from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- schluessel (archiv): SEC-07, LEG-01. Am Schluessel haengt sein Journal. Ihn zu loeschen nimmt dem Journal seinen Gegenstand und macht die Frage „wer hatte Zutritt" unbeantwortbar — die erste Frage nach einem Einbruch. Ein ausgemusterter Schluessel bekommt `archiviert_am` oder eine Vernichtungszeile.
+create trigger trg_schluessel_kein_hard_delete
+  before delete on schluessel
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_schluessel_kein_truncate
+  before truncate on schluessel
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on schluessel from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- schluessel_quittung (append): SEC-07, LEG-01. Das Journal ist der Nachweis der Schluesselgewalt und die Grundlage jeder Haftungsfrage nach einem Schliessanlagenaustausch. Eine loeschbare Quittung heisst, dass sich „wer hatte den Schluessel" nachtraeglich umschreiben laesst. Richtiggestellt wird durch eine Gegenquittung.
+create trigger trg_schluessel_quittung_kein_hard_delete
+  before delete on schluessel_quittung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_schluessel_quittung_kein_truncate
+  before truncate on schluessel_quittung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on schluessel_quittung from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_schluesselart_geaendert_am
+  before update on schluesselart
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_schluessel_geaendert_am
+  before update on schluessel
+  for each row execute function kern.setze_geaendert_am();
+
+
 -- >>> Ende des generierten Blocks

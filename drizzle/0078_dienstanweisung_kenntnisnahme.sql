@@ -1168,4 +1168,48 @@ grant select, insert on da_kenntnisnahme to cse_app;
 -- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0078)
 -- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
 
+-- dienstanweisung (archiv): SEC-06, LEG-04. Der Kopf ist der Bezug, auf den jede Fassung und jede Kenntnisnahme zeigt. Geloescht steht die Bestaetigung einer Wache vor einem Regelwerk, das es angeblich nie gab. Eine ausser Kraft gesetzte Anweisung bekommt `archiviert_am`.
+create trigger trg_dienstanweisung_kein_hard_delete
+  before delete on dienstanweisung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_dienstanweisung_kein_truncate
+  before truncate on dienstanweisung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on dienstanweisung from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- dienstanweisung_version (append): SEC-06, LEG-04, DOC-05. Die Fassung IST der Text, gegen den bestaetigt wurde — `da_kenntnisnahme.bestaetigter_inhalt_hash` ist ihr Digest. Ohne die Zeile laesst sich nicht mehr zeigen, WAS gelesen wurde, und die Kenntnisnahme wird zur Behauptung. Eine Aenderung ist eine neue Fassung.
+create trigger trg_dienstanweisung_version_kein_hard_delete
+  before delete on dienstanweisung_version
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_dienstanweisung_version_kein_truncate
+  before truncate on dienstanweisung_version
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on dienstanweisung_version from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- da_pflicht (archiv): SEC-06, LEG-04. „Diese Person musste die Anweisung kennen" ist die Auskunft, nicht ihr Fehlen: eine geloeschte Pflichtzeile macht aus einer nicht bestaetigten Anweisung eine, die niemanden betraf. Eine beendete Pflicht bekommt `entfallen_am` und bleibt stehen.
+create trigger trg_da_pflicht_kein_hard_delete
+  before delete on da_pflicht
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_da_pflicht_kein_truncate
+  before truncate on da_pflicht
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on da_pflicht from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- da_kenntnisnahme (append): SEC-06, EMP-09, LEG-04. Im Haftungsfall der einzige Beleg, dass die Unterweisung stattgefunden hat — mit Serverzeit, Person und dem Digest des bestaetigten Textes. Ein Irrtum wird durch eine neue Fassung ueberholt, nicht durch Loeschen.
+create trigger trg_da_kenntnisnahme_kein_hard_delete
+  before delete on da_kenntnisnahme
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_da_kenntnisnahme_kein_truncate
+  before truncate on da_kenntnisnahme
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on da_kenntnisnahme from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_dienstanweisung_geaendert_am
+  before update on dienstanweisung
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_da_pflicht_geaendert_am
+  before update on da_pflicht
+  for each row execute function kern.setze_geaendert_am();
+
+
 -- >>> Ende des generierten Blocks

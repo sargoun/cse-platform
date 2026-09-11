@@ -69,6 +69,9 @@ export const MIGRATIONS_DATEIEN: Readonly<Record<string, string>> = {
   // sondern nur Ausloeser auf den Tabellen aus `0075`.
   '0075': join(WURZEL, 'drizzle/0075_rechnung.sql'),
   '0077': join(WURZEL, 'drizzle/0077_rechnung_hash.sql'),
+  // Security B (PR 42). Der PR-Plan nennt 0057/0058 — beide sind vergeben.
+  '0078': join(WURZEL, 'drizzle/0078_dienstanweisung_kenntnisnahme.sql'),
+  '0079': join(WURZEL, 'drizzle/0079_schluessel_quittung.sql'),
   // Bau B (PR 44). Der PR-Plan nennt 0061/0062 — beide sind vergeben.
   '0080': join(WURZEL, 'drizzle/0080_nachtrag.sql'),
   '0081': join(WURZEL, 'drizzle/0081_behinderung.sql'),

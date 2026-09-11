@@ -495,6 +495,19 @@ export async function dokumentiereVersand(
   const [jahr] = await kontext.abfrage<{ jahr: number }>(
     `select extract(year from app.berlin_heute())::int as jahr`,
   );
+  /**
+   * KEIN Rueckfall auf `new Date()`.
+   *
+   * Die Abfrage darueber liefert immer genau eine Zeile — `select extract(…)`
+   * ohne `from` tut das. Kommt trotzdem keine, ist die Datenbank kaputt, und
+   * die Uhr des Node-Prozesses waere die falsche Antwort darauf: sie liest UTC
+   * und legte eine Anzeige vom 31.12., 23:30 Berliner Zeit, in das FOLGENDE
+   * Jahr (K-11, Invariante 2, Lintregel `cse/no-client-clock`).
+   */
+  if (jahr === undefined) {
+    throw new Error('Die Datenbank lieferte kein Berliner Kalenderjahr.');
+  }
+
   const hoch = await ladeHoch(
     {
       mandantId: kontext.aktiverMandantId,
@@ -505,7 +518,7 @@ export async function dokumentiereVersand(
       behaupteterTyp: 'application/pdf',
     },
     speicher,
-    jahr?.jahr ?? new Date().getUTCFullYear(),
+    jahr.jahr,
   );
 
   await kontext.schreibe(

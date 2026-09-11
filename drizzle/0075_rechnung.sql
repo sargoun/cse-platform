@@ -1203,7 +1203,7 @@ create trigger trg_rechnungsposition_kein_truncate
   for each statement execute function kern.verhindere_loeschung();
 revoke delete, truncate on rechnungsposition from cse_app, cse_anon, cse_checkin, cse_job;
 
--- rechnung_zuschlag (append): EN 16931 BG-20/BG-21. Ein entfernter Nachlass veraendert die Bemessungsgrundlage einer Steuergruppe, ohne dass der Kopf es zeigt.
+-- rechnung_zuschlag (append): FIN-01, §10 UStG, EN 16931 BG-20/BG-21. Ein entfernter Nachlass veraendert die Bemessungsgrundlage einer Steuergruppe, ohne dass der Kopf es zeigt — und die Bemessungsgrundlage ist genau die Zahl, aus der die Voranmeldung ihre Steuer rechnet.
 create trigger trg_rechnung_zuschlag_kein_hard_delete
   before delete on rechnung_zuschlag
   for each row execute function kern.verhindere_loeschung();
@@ -1221,7 +1221,7 @@ create trigger trg_rechnung_steuer_kein_truncate
   for each statement execute function kern.verhindere_loeschung();
 revoke delete, truncate on rechnung_steuer from cse_app, cse_anon, cse_checkin, cse_job;
 
--- rechnung_beziehung (append): K-12, Invariante 4. Sie IST die Storno-Rueckbeziehung — der einzige Ort, an dem steht, dass eine Rechnung aufgehoben wurde. Sie zu loeschen liesse die aufgehobene Rechnung wieder als gueltige dastehen.
+-- rechnung_beziehung (append): K-12, Invariante 4, §17 UStG. Sie IST die Storno-Rueckbeziehung — der einzige Ort, an dem steht, dass eine Rechnung aufgehoben wurde, und damit der Beleg fuer die Aenderung der Bemessungsgrundlage. Sie zu loeschen liesse die aufgehobene Rechnung wieder als gueltige dastehen.
 create trigger trg_rechnung_beziehung_kein_hard_delete
   before delete on rechnung_beziehung
   for each row execute function kern.verhindere_loeschung();

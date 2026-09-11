@@ -12,12 +12,13 @@
  */
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import postgres from 'postgres';
-import { alsApp, alsRolle, DB_URL, schliessen, seed, sql, type Fixtur } from './harness.js';
+import { alsApp, DB_URL, schliessen, seed, sql, type Fixtur } from './harness.js';
 import { cent } from '../../src/server/services/finanz/geld.js';
 import { milliMenge } from '../../src/server/services/finanz/menge.js';
+import type {
+  RechnungFehler} from '../../src/server/services/finanz/rechnung.js';
 import {
-  fuegePositionHinzu, korrigiere, legeEntwurfAn, finalisiere, storniere, verwerfe,
-  RechnungFehler, type Abfrage,
+  fuegePositionHinzu, korrigiere, legeEntwurfAn, finalisiere, storniere, verwerfe, type Abfrage,
 } from '../../src/server/services/finanz/rechnung.js';
 
 let f: Fixtur;

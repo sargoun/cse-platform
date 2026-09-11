@@ -63,6 +63,11 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * das lebende Raumbuch. Beide tragen dasselbe Recht, weil beide eine Datei
    * in den Mandanten bringen.
    */
+  /**
+   * Der PDF-Schreiber ist eine reine Funktion: Text hinein, Bytes heraus. Er
+   * legt nichts ab — wer das Ergebnis speichert, tut das ueber `dokument`.
+   */
+  { modul: 'dokument', pfad: 'dokument/pdf', schreibend: false },
   { modul: 'objekt_import', pfad: 'raumbuch/tabelle', schreibend: false },
   {
     modul: 'objekt_import', pfad: 'raumbuch/import',
@@ -364,6 +369,37 @@ export const DIENSTE: readonly DienstEintrag[] = [
   {
     modul: 'bau', pfad: 'bau/aufmass',
     schreibend: true, schreibRecht: 'bau.aufmass_erfassen',
+  },
+  /**
+   * PR 44 — Nachtrag, Behinderungsanzeige, Warnung ausserhalb des LV.
+   *
+   * `bau/ausserhalb-lv` LIEST: es vergleicht erfasste Zeit und Aufmass gegen
+   * das Leistungsverzeichnis und meldet, was dort nicht steht. Ein Dienst, der
+   * nur warnt, darf in der Gruppenansicht laufen — er aendert nichts.
+   *
+   * `bau/nachtrag` traegt `bau.nachtrag_anmelden` und nicht
+   * `bau.nachtrag_einreichen`: der Anmeldung folgt die Einreichung als
+   * ZWEITER Vorgang mit eigenem Recht, und sie wird an der Route geprueft.
+   * Anmelden und Einreichen sind in § 2 VOB/B zwei Erklaerungen, nicht zwei
+   * Zustaende derselben.
+   */
+  { modul: 'bau', pfad: 'bau/ausserhalb-lv', schreibend: false },
+  {
+    modul: 'bau', pfad: 'bau/nachtrag',
+    schreibend: true, schreibRecht: 'bau.nachtrag_anmelden',
+  },
+  {
+    modul: 'bau', pfad: 'bau/behinderung',
+    schreibend: true, schreibRecht: 'bau.behinderung_erstellen',
+  },
+  /**
+   * PR 45 — das Wetter am Bautagebuch. Es SCHREIBT (`wetter_beobachtung`),
+   * und das Recht ist das des Eintrags, an den es sich heftet: wer ein
+   * Bautagebuch fuehren darf, heftet das Wetter daran.
+   */
+  {
+    modul: 'bau', pfad: 'bau/wetter',
+    schreibend: true, schreibRecht: 'bau.schreiben',
   },
   /**
    * Die Reinigung — die Sollzeitrechnung und der Abzug LESEN, der Rest

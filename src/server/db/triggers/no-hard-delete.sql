@@ -1376,7 +1376,7 @@ create trigger trg_rechnungsposition_kein_truncate
   for each statement execute function kern.verhindere_loeschung();
 revoke delete, truncate on rechnungsposition from cse_app, cse_anon, cse_checkin, cse_job;
 
--- rechnung_zuschlag (append): EN 16931 BG-20/BG-21. Ein entfernter Nachlass veraendert die Bemessungsgrundlage einer Steuergruppe, ohne dass der Kopf es zeigt.
+-- rechnung_zuschlag (append): FIN-01, §10 UStG, EN 16931 BG-20/BG-21. Ein entfernter Nachlass veraendert die Bemessungsgrundlage einer Steuergruppe, ohne dass der Kopf es zeigt — und die Bemessungsgrundlage ist genau die Zahl, aus der die Voranmeldung ihre Steuer rechnet.
 create trigger trg_rechnung_zuschlag_kein_hard_delete
   before delete on rechnung_zuschlag
   for each row execute function kern.verhindere_loeschung();
@@ -1394,7 +1394,7 @@ create trigger trg_rechnung_steuer_kein_truncate
   for each statement execute function kern.verhindere_loeschung();
 revoke delete, truncate on rechnung_steuer from cse_app, cse_anon, cse_checkin, cse_job;
 
--- rechnung_beziehung (append): K-12, Invariante 4. Sie IST die Storno-Rueckbeziehung — der einzige Ort, an dem steht, dass eine Rechnung aufgehoben wurde. Sie zu loeschen liesse die aufgehobene Rechnung wieder als gueltige dastehen.
+-- rechnung_beziehung (append): K-12, Invariante 4, §17 UStG. Sie IST die Storno-Rueckbeziehung — der einzige Ort, an dem steht, dass eine Rechnung aufgehoben wurde, und damit der Beleg fuer die Aenderung der Bemessungsgrundlage. Sie zu loeschen liesse die aufgehobene Rechnung wieder als gueltige dastehen.
 create trigger trg_rechnung_beziehung_kein_hard_delete
   before delete on rechnung_beziehung
   for each row execute function kern.verhindere_loeschung();
@@ -1474,6 +1474,95 @@ revoke delete, truncate on rechnung_hash from cse_app, cse_anon, cse_checkin, cs
 create trigger trg_rechnung_hash_audit
   after insert or update or delete on rechnung_hash
   for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0078)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- dienstanweisung (archiv): SEC-06, LEG-04. Der Kopf ist der Bezug, auf den jede Fassung und jede Kenntnisnahme zeigt. Geloescht steht die Bestaetigung einer Wache vor einem Regelwerk, das es angeblich nie gab. Eine ausser Kraft gesetzte Anweisung bekommt `archiviert_am`.
+create trigger trg_dienstanweisung_kein_hard_delete
+  before delete on dienstanweisung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_dienstanweisung_kein_truncate
+  before truncate on dienstanweisung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on dienstanweisung from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- dienstanweisung_version (append): SEC-06, LEG-04, DOC-05. Die Fassung IST der Text, gegen den bestaetigt wurde — `da_kenntnisnahme.bestaetigter_inhalt_hash` ist ihr Digest. Ohne die Zeile laesst sich nicht mehr zeigen, WAS gelesen wurde, und die Kenntnisnahme wird zur Behauptung. Eine Aenderung ist eine neue Fassung.
+create trigger trg_dienstanweisung_version_kein_hard_delete
+  before delete on dienstanweisung_version
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_dienstanweisung_version_kein_truncate
+  before truncate on dienstanweisung_version
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on dienstanweisung_version from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- da_pflicht (archiv): SEC-06, LEG-04. „Diese Person musste die Anweisung kennen" ist die Auskunft, nicht ihr Fehlen: eine geloeschte Pflichtzeile macht aus einer nicht bestaetigten Anweisung eine, die niemanden betraf. Eine beendete Pflicht bekommt `entfallen_am` und bleibt stehen.
+create trigger trg_da_pflicht_kein_hard_delete
+  before delete on da_pflicht
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_da_pflicht_kein_truncate
+  before truncate on da_pflicht
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on da_pflicht from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- da_kenntnisnahme (append): SEC-06, EMP-09, LEG-04. Im Haftungsfall der einzige Beleg, dass die Unterweisung stattgefunden hat — mit Serverzeit, Person und dem Digest des bestaetigten Textes. Ein Irrtum wird durch eine neue Fassung ueberholt, nicht durch Loeschen.
+create trigger trg_da_kenntnisnahme_kein_hard_delete
+  before delete on da_kenntnisnahme
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_da_kenntnisnahme_kein_truncate
+  before truncate on da_kenntnisnahme
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on da_kenntnisnahme from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_dienstanweisung_geaendert_am
+  before update on dienstanweisung
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_da_pflicht_geaendert_am
+  before update on da_pflicht
+  for each row execute function kern.setze_geaendert_am();
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0079)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- schluesselart (archiv): SEC-07. Der Katalog ist der Bezug jedes Schluessels; geloescht traegt eine zehn Jahre alte Quittung eine Art, die niemand mehr aufloesen kann. Eine nicht mehr gefuehrte Art bekommt `archiviert_am`.
+create trigger trg_schluesselart_kein_hard_delete
+  before delete on schluesselart
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_schluesselart_kein_truncate
+  before truncate on schluesselart
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on schluesselart from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- schluessel (archiv): SEC-07, LEG-01. Am Schluessel haengt sein Journal. Ihn zu loeschen nimmt dem Journal seinen Gegenstand und macht die Frage „wer hatte Zutritt" unbeantwortbar — die erste Frage nach einem Einbruch. Ein ausgemusterter Schluessel bekommt `archiviert_am` oder eine Vernichtungszeile.
+create trigger trg_schluessel_kein_hard_delete
+  before delete on schluessel
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_schluessel_kein_truncate
+  before truncate on schluessel
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on schluessel from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- schluessel_quittung (append): SEC-07, LEG-01. Das Journal ist der Nachweis der Schluesselgewalt und die Grundlage jeder Haftungsfrage nach einem Schliessanlagenaustausch. Eine loeschbare Quittung heisst, dass sich „wer hatte den Schluessel" nachtraeglich umschreiben laesst. Richtiggestellt wird durch eine Gegenquittung.
+create trigger trg_schluessel_quittung_kein_hard_delete
+  before delete on schluessel_quittung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_schluessel_quittung_kein_truncate
+  before truncate on schluessel_quittung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on schluessel_quittung from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_schluesselart_geaendert_am
+  before update on schluesselart
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_schluessel_geaendert_am
+  before update on schluessel
+  for each row execute function kern.setze_geaendert_am();
+
 
 -- >>> Ende des generierten Blocks
 

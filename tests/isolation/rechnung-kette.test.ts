@@ -13,7 +13,7 @@
  * gleichzeitigen Brüchen geprüft.
  */
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import postgres from 'postgres';
+import type postgres from 'postgres';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import { cent } from '../../src/server/services/finanz/geld.js';
 import { milliMenge } from '../../src/server/services/finanz/menge.js';
