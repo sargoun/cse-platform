@@ -110,6 +110,24 @@ describe('the merge guards fail the branch that breaks an invariant', () => {
     expect(ausgabe).toContain('todo-client-nicht-im-register');
   });
 
+  /**
+   * Die Schreibweise, die dieses Projekt TATSÄCHLICH benutzt.
+   *
+   * Der Ausdruck der Wache verlangte die schließende Klammer direkt nach
+   * `client` und traf damit KEINE einzige Zeile im Baum — jahrelang grün,
+   * ohne je etwas zu prüfen. Dieser Fall ist der Beleg, dass die Form mit
+   * O-Nummer in der Klammer gesehen wird.
+   */
+  it('(5b) dieselbe Prüfung für `TODO(client, O-nnn)` — die Form des Projekts', () => {
+    const { code, ausgabe } = guardsMit({
+      'src/lib/fixture.ts':
+        '// TODO(client, O-999): eine Nummer, die das Register nicht kennt\n'
+        + 'export const x = 1;\n',
+    });
+    expect(code).toBe(1);
+    expect(ausgabe).toContain('todo-client-nicht-im-register');
+  });
+
   it('a TODO(client) with no number at all fails CI', () => {
     const { code, ausgabe } = guardsMit({
       'src/lib/fixture.ts': '// TODO(client): eine Frage ohne Nummer\nexport const x = 1;\n',

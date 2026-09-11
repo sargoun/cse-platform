@@ -184,6 +184,8 @@ interface SchichtZeile {
   readonly beginn_zeitpunkt: string;
   readonly ende_zeitpunkt: string;
   readonly storniert: boolean;
+  /** `0` heisst im Plan „nicht hinterlegt", nicht „keine Pause" (O-168). */
+  readonly pause_geplant_minuten: number;
 }
 
 /** Die Vorschau: derselbe Befund, ohne zu schreiben (PR 33 Abnahme 3). */
@@ -239,9 +241,24 @@ async function abwesenheitImFenster(
   return { geprueft: true, text: `${wort} vom ${zeile.von} bis ${zeile.bis}` };
 }
 
+/**
+ * Die geplante Pause — oder `null`, wenn keine hinterlegt ist.
+ *
+ * `einsatz.pause_geplant_minuten` hat den Vorgabewert `0`, und `0` bedeutet
+ * dort „niemand hat eine Pause geplant". Als Zahl an die Arbeitszeitrechnung
+ * gegeben hiesse es „null Minuten Pause" — und damit truege jede Schicht ueber
+ * sechs Stunden einen § 4-Befund, den kein Feld aufloesen kann, solange O-168
+ * offen ist.
+ */
+function geplantePause(schicht: SchichtZeile): number | null {
+  const wert = Number(schicht.pause_geplant_minuten);
+  return Number.isFinite(wert) && wert > 0 ? wert : null;
+}
+
 async function ladeSchicht(kontext: SchreibKontext, id: string): Promise<SchichtZeile> {
   const [e] = await kontext.abfrage<SchichtZeile>(
-    `select id, beginn_zeitpunkt, ende_zeitpunkt, (storniert_am is not null) as storniert
+    `select id, beginn_zeitpunkt, ende_zeitpunkt, pause_geplant_minuten,
+            (storniert_am is not null) as storniert
        from einsatz where id = $1::uuid`,
     [id],
   );
@@ -291,7 +308,7 @@ export async function pruefeEinteilung(
       schreiben: false,
       // Die Schicht, um die es geht, ist noch nicht gespeichert — ohne sie
       // rechnete die Vorschau ohne den Anlass.
-      zusatzSchicht: { beginn, ende },
+      zusatzSchicht: { beginn, ende, pauseMinuten: geplantePause(schicht) },
     });
     return {
       qualifikation,
@@ -355,7 +372,8 @@ export async function besetzeEinsatz(
   let vorher;
   try {
     vorher = await pruefeEinsatz(db, personId, beginn, ende, {
-      schreiben: false, zusatzSchicht: { beginn, ende },
+      schreiben: false,
+      zusatzSchicht: { beginn, ende, pauseMinuten: geplantePause(schicht) },
     });
   } catch (fehler) {
     if (istRechteFehler(fehler)) throw new ArbzgPruefungNichtErlaubt();

@@ -215,12 +215,21 @@ async function schreibeKonflikt(
       mandantId, k.personId, k.anstellungId,
       k.beginn.toISOString(), k.ende.toISOString(), befund.schwere,
       fremd,
-      JSON.stringify({
+      /**
+       * Das OBJEKT, nicht sein JSON-Text.
+       *
+       * `JSON.stringify(...)` in einem `::jsonb`-Parameter schreibt eine
+       * JSON-ZEICHENKETTE in die Spalte: `jsonb_typeof(details)` ist dann
+       * `string`, und `details->>'regel'` liefert NULL. Kein Fehler, keine
+       * Meldung — die Zeile steht da und sieht vollstaendig aus. Der Treiber
+       * serialisiert selbst; ihm zuvorzukommen kodiert zweimal.
+       */
+      {
         regel: befund.regel,
         kalendertag: befund.kalendertag,
         minuten: befund.minuten,
         begruendung: befund.begruendung,
-      }),
+      },
       abdruck, k.einsatzId, verstossId,
     ],
   )) as { neu: boolean }[];

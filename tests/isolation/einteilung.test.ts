@@ -170,6 +170,31 @@ describe('(1) Einteilen schreibt genau eine Zeile — und alles, was daran haeng
     expect(Number(zeilen?.anzahl ?? '0')).toBe(0);
   });
 
+  /**
+   * Eine ACHTSTUNDENSCHICHT ohne geplante Pause ist keine § 4-Verletzung.
+   *
+   * `einsatz.pause_geplant_minuten` hat den Vorgabewert `0`, und `0` hiess in
+   * der Vorschau einmal „null Minuten Pause erfasst". Damit trug JEDE Schicht
+   * ueber sechs Stunden beim ersten Einteilen einen Befund — ein Warnhinweis,
+   * der immer da ist, bringt der Planung bei, Warnungen wegzuklicken, und mit
+   * ihnen die echten. Solange O-168 offen ist, heisst `0` „nicht hinterlegt".
+   */
+  it('acht Stunden ohne hinterlegte Pause sind kein § 4-Befund (O-168)', async () => {
+    const e = await schicht(f.reinigung, TAG, '06:00', '14:00');
+
+    const vorschau = await alsChef(f.reinigung, (k) =>
+      pruefeEinteilung(k, e, f.jonasReinigung));
+    expect(vorschau.arbzg.map((b) => b.regel)).not.toContain('pause_fehlt_ueber_6h');
+
+    // Und mit hinterlegter, ZU KURZER Pause meldet dieselbe Vorschau sehr wohl.
+    const zweite = await schicht(f.reinigung, TAG, '06:00', '14:00');
+    await sql.unsafe(
+      `update einsatz set pause_geplant_minuten = 10 where id = $1`, [zweite]);
+    const streng = await alsChef(f.reinigung, (k) =>
+      pruefeEinteilung(k, zweite, f.jonasReinigung));
+    expect(streng.arbzg.map((b) => b.regel)).toContain('pause_fehlt_ueber_6h');
+  });
+
   it('eine stornierte Schicht wird nicht besetzt', async () => {
     const e = await schicht(f.reinigung, TAG, '06:00', '10:00');
     await sql.unsafe(

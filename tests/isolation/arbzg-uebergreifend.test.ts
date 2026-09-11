@@ -249,6 +249,32 @@ describe('der Detektor macht aus Befunden Zeilen', () => {
     expect(z!.n).toBe(erste.neu);
   });
 
+  /**
+   * `details` ist ein OBJEKT — und das ist keine Formatfrage.
+   *
+   * Ein `JSON.stringify` im `::jsonb`-Parameter legt eine JSON-ZEICHENKETTE in
+   * die Spalte. Die Zeile sieht danach vollstaendig aus, `details` ist gefuellt,
+   * und trotzdem liefert `details->>'regel'` NULL: kein Fehler, keine Meldung,
+   * nur eine Konfliktkarte ohne Grund. Deshalb prueft dieser Fall den TYP und
+   * liest anschliessend ein Feld heraus.
+   */
+  it('legt `details` als Objekt ab, nicht als JSON-Zeichenkette', async () => {
+    await schichtMit(f.reinigung, f.fatimaReinigung, f.fatima, TAG, '06:00', '12:00');
+    await schichtMit(f.security, f.fatimaSecurity, f.fatima, TAG, '13:00', '18:00');
+    const sitzung = await planerin(f.reinigung);
+    await alsApp(sitzung, async (tx) =>
+      erkenneKonflikte(tx, f.reinigung,
+        new Date(`${TAG}T00:00:00Z`), new Date('2028-05-16T00:00:00Z')));
+
+    const [z] = await sql.unsafe<{ typ: string; regel: string | null }[]>(
+      `select jsonb_typeof(details) as typ, details->>'regel' as regel
+         from planungs_konflikt
+        where mandant_id = $1 and art = 'arbzg' and hinfaellig_am is null
+        limit 1`, [f.reinigung]);
+    expect(z!.typ).toBe('object');
+    expect(z!.regel, 'die Regel steht im Objekt und ist einzeln lesbar').not.toBeNull();
+  });
+
   it('markiert einen aufgeloesten Konflikt als hinfaellig statt ihn zu loeschen', async () => {
     const eins = await schichtMit(f.reinigung, f.fatimaReinigung, f.fatima, TAG, '06:00', '12:00');
     await schichtMit(f.security, f.fatimaSecurity, f.fatima, TAG, '13:00', '18:00');

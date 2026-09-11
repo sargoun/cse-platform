@@ -298,7 +298,10 @@ async function schreibeSerienstand(
             letzter_job_lauf_id   = $3,
             letzte_meldung        = $4::jsonb
       where id = $1`,
-    [serie.planungsserieId, bis, lage.laufId, JSON.stringify(meldung)],
+    // Das OBJEKT, nicht sein JSON-Text: `JSON.stringify` in einem
+    // `::jsonb`-Parameter legt eine JSON-Zeichenkette in die Spalte, und jeder
+    // spaetere `->>`-Zugriff greift ins Leere (siehe `arbzg/detektor.ts`).
+    [serie.planungsserieId, bis, lage.laufId, meldung],
   );
 }
 

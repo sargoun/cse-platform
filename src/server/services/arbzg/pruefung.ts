@@ -123,7 +123,20 @@ export async function pruefeEinsatz(
      *
      * Sie geht als „eigen" in die Rechnung: sie entsteht im aktiven Mandanten.
      */
-    readonly zusatzSchicht?: { readonly beginn: Date; readonly ende: Date };
+    readonly zusatzSchicht?: {
+      readonly beginn: Date;
+      readonly ende: Date;
+      /**
+       * Die GEPLANTE Pause dieser Schicht, oder `null` — „nicht hinterlegt".
+       *
+       * `0` waere hier eine Behauptung: „null Minuten Pause". Ein Plan, der
+       * keine Pause nennt, sagt nichts ueber die Pause; was die Gruppe
+       * vereinbart hat, ist offen (O-168). Siehe die Begruendung an
+       * `pauseMinuten: null` weiter unten — sie gilt fuer die geplante Schicht
+       * genauso wie fuer die gespeicherten Fenster.
+       */
+      readonly pauseMinuten?: number | null;
+    };
     /** Die eigene Gesellschaft — nur zum SCHREIBEN nötig, nie zum Rechnen. */
     readonly mandantId?: string;
   } = {},
@@ -180,7 +193,15 @@ export async function pruefeEinsatz(
       mandantId: 'eigen',
       vonUtc: zusatz.beginn,
       bisUtc: zusatz.ende,
-      pauseMinuten: 0,
+      /**
+       * `null` heisst „unbekannt", und unbekannt ist der Normalfall.
+       *
+       * Mit `0` trug JEDE geplante Schicht ueber sechs Stunden einen
+       * § 4-Befund — beim allerersten Einteilen, vor jeder erfassten Minute.
+       * Die Planung haette gelernt, die Warnung wegzuklicken, und mit ihr die
+       * echten.
+       */
+      pauseMinuten: zusatz.pauseMinuten ?? null,
     });
   }
 

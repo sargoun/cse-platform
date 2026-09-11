@@ -161,7 +161,17 @@ function wacheTodoClient(): void {
     readFileSync(datei, 'utf8')
       .split('\n')
       .forEach((zeile, i) => {
-        if (!/TODO\(client\)/u.test(zeile)) return;
+        /**
+         * `TODO\(client\b` — nicht `TODO\(client\)`.
+         *
+         * Der Ausdruck verlangte die schliessende Klammer UNMITTELBAR nach
+         * `client`. Die Schreibweise dieses Projekts ist aber
+         * `TODO(client, O-18): …` — die Wache traf also KEINE einzige Zeile
+         * und meldete jahrelang nichts. Ein gruener Waechter, der nichts
+         * prueft, ist schlechter als gar keiner: er belegt den Platz, an dem
+         * jemand sonst nachgesehen haette.
+         */
+        if (!/TODO\(client\b/u.test(zeile)) return;
         const nummer = /\b(O-\d{1,3})\b/u.exec(zeile)?.[1];
         if (nummer === undefined) {
           melde('todo-client-ohne-nummer', datei, i + 1, zeile);
