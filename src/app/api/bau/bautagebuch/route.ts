@@ -11,13 +11,13 @@ import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter
 import { legeMediumAb, MedienFehler, MEDIEN_MAX_BYTES } from '@/server/services/zeit/medien';
 import {
   BautagebuchFehler, ersetzeBautag, findeOderLegeBautagAn, gegenzeichneBautag,
-  hefteMannstundenAn, hefteTagesfotoAn, heftePositionAn, istHerkunft, istKalendertag,
-  istPositionArt, korrigiereMannstunden, korrigierePosition, listeBautage, schliesseBautag,
+  hefteMannstundenAn, hefteTagesfotoAn, heftePositionAn, istHerkunft,
+  istPositionArt, korrigiereMannstunden, korrigierePosition, schliesseBautag,
 } from '@/server/services/bau/bautagebuch';
 import { alsAntwort } from './antwort';
 
 /**
- * `GET/POST /api/bau/bautagebuch` — das Bautagebuch (BAU-07, API-KARTE §C.15).
+ * `POST /api/bau/bautagebuch` — das Bautagebuch (BAU-07, API-KARTE §C.15).
  *
  * **Ein Eingang, mehrere Vorgaenge, und das ist kein Sammelsurium.** Anlegen,
  * Anfuegen, Korrigieren, Abschliessen und Gegenzeichnen brauchen dieselbe
@@ -35,6 +35,15 @@ import { alsAntwort } from './antwort';
  * **Der Tag speichert auch ohne Wetter.** Diese Route holt keines: das Wetter
  * ist ein eigener Vorgang (`…/[id]/wetter`), damit ein nicht erreichbarer DWD
  * niemals eine Tageseintragung mitreisst (BAU-08).
+ *
+ * **Nur `POST`, obwohl die API-Karte `GET/POST` fuehrt.** Gelesen wird in
+ * diesem Baum von Server-Komponenten, die den Dienst direkt aufrufen — so wie
+ * bei `aufmasse`, `wachbuch` und `posten` auch. Eine zweite Leseflaeche unter
+ * derselben Adresse braeuchte ein zweites, schwaecheres Recht (`bau.lesen`)
+ * als die Zeile im Route-Manifest nennt, und ein Manifest, das fuer eine
+ * Adresse zwei Dinge behauptet, ist als Pruefliste nichts mehr wert. Sobald
+ * ein Aufrufer AUSSERHALB des Portals liest, bekommt er eine eigene Adresse
+ * und eine eigene Manifestzeile.
  */
 export const dynamic = 'force-dynamic';
 
@@ -57,56 +66,16 @@ function akteur(sitzung: Sitzung) {
 }
 
 /**
- * `GET` — die Tage, gefiltert. Lesen, nichts sonst.
- *
- * Das eigene Recht ist `bau.lesen`; geschrieben wird hier nicht, also faellt
- * auch das Schreibtor nicht.
- */
-export async function GET(anfrage: NextRequest): Promise<NextResponse> {
-  const sitzung = await aktuelleSitzung();
-  if (sitzung === null || sitzung.aktiverMandantId === null) {
-    return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
-  }
-  const suche = anfrage.nextUrl.searchParams;
-  const tag = (name: string): string | null => {
-    const wert = suche.get(name);
-    return wert !== null && istKalendertag(wert) ? wert : null;
-  };
-
-  try {
-    const tage = await (db().begin(async (tx: postgres.TransactionSql) =>
-      withTenant(tx, sitzung, async (kontext) => {
-        await authorize(
-          akteur(sitzung), { recht: 'bau.lesen', schreibend: false },
-          rechtepruefer(kontext.abfrage.bind(kontext)),
-        );
-        return listeBautage(kontext, {
-          projektId: suche.get('projekt'),
-          von: tag('von'),
-          bis: tag('bis'),
-          nurOffene: suche.get('offen') === '1',
-        });
-      })));
-    return NextResponse.json({ tage });
-  } catch (fehler: unknown) {
-    const antwort = alsAntwort(fehler);
-    if (antwort !== null) return antwort;
-    throw fehler;
-  }
-}
-
-/**
- * `POST` — der Vorgang steht im Feld `vorgang`.
+ * Der Vorgang steht im Feld `vorgang`.
  *
  * Ohne Feld ist es `tag`: das Formular der Tagesseite legt den Tag an oder
  * findet ihn. Ein unbekannter Wert wird ABGEWIESEN und nicht auf einen
- * Vorgabewert gebogen — sonst laendet ein Tippfehler als „Tag anlegen", und
+ * Vorgabewert gebogen — sonst landete ein Tippfehler als „Tag anlegen", und
  * das ist der Vorgang, der etwas erzeugt.
- */
-/*
- * Eine Verzweigung je Vorgang, und sie steht ABSICHTLICH in einer Funktion:
- * jeder Weg teilt sich Ursprungscheck, Sitzung, Mandantenkontext und
- * Autorisierung. Sie aufzuteilen verteilte genau diese vier auf acht Stellen.
+ *
+ * Die Verzweigung steht ABSICHTLICH in EINER Funktion: jeder Weg teilt sich
+ * Ursprungscheck, Sitzung, Mandantenkontext und Autorisierung. Sie
+ * aufzuteilen verteilte genau diese vier auf acht Stellen.
  */
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (!istGleicherUrsprung(anfrage)) {

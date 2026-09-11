@@ -156,6 +156,24 @@ export default async function Projektliste(
                 </span>
               ),
             },
+            {
+              /**
+               * Der Weg ins Bautagebuch (BAU-07). Ebenfalls ein WEG und keine
+               * Zahl: „wie viele Tage sind erfasst" beantwortet nicht die
+               * Frage, die man von dieser Liste aus stellt — und eine Zahl je
+               * Projekt kostete eine weitere Abfrage je Zeile.
+               */
+              schluessel: 'bautagebuch',
+              kopf: 'Bautagebuch',
+              zelle: (z) => (
+                <Link
+                  href={`/portal/${mandant}/bau/projekte/${z.id}/bautagebuch`}
+                  className="text-text underline-offset-2 hover:text-brand hover:underline"
+                >
+                  Tage
+                </Link>
+              ),
+            },
           ]}
         />
       )}

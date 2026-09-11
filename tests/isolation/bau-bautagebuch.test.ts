@@ -23,6 +23,7 @@
  * (`server/versand/dwd.ts`) wird in dieser Datei NIE aufgerufen — es geht
  * nichts nach draussen.
  */
+import { randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { schliessen, seed, sql, type Fixtur } from './harness.js';
@@ -35,8 +36,8 @@ import {
 } from '../../src/server/services/bau/wetter.js';
 import {
   BautagebuchFehler, ersetzeBautag, findeBautagZuDatum, gleicheMannstundenAb,
-  hefteMannstundenAn, heftePositionAn, korrigiereMannstunden, legeBautagAn,
-  leseMannstunden, lesePositionen, schliesseBautag,
+  hefteMannstundenAn, heftePositionAn, hefteTagesfotoAn, korrigiereMannstunden, legeBautagAn,
+  leseMannstunden, lesePositionen, leseTagesfotos, schliesseBautag,
 } from '../../src/server/services/bau/bautagebuch.js';
 
 let f: Fixtur;
@@ -295,6 +296,36 @@ describe('(1) der Tag ist nur anfuegbar, und die Korrekturspur bleibt stehen', (
       expect(positionen.map((p) => p.art).sort()).toEqual(
         ['geraet', 'lieferung', 'vorkommnis'],
       );
+    });
+  });
+
+  it('ein Foto haengt am Tag — die Registerzeile aus 0082 traegt den Bezug', async () => {
+    /**
+     * Ohne die Zeile `('bautagebuch','bau',null)` in `einsatz_medien_bezug`
+     * und ohne die beiden schmalen Policies aus 0082 weist
+     * `kern.einsatz_medien_bezug_pruefen()` JEDES Tagebuchfoto ab — und zwar
+     * erst beim ersten Upload, Monate spaeter, mitten auf einer Baustelle.
+     * Deshalb steht der Weg hier und nicht nur in der Migration.
+     */
+    const bau = await baueBaustelle(f.bau);
+    await alsBauleitung(bau, async (kontext) => {
+      const tag = await legeBautagAn(kontext, { projektId: bau.projekt, datum: TAG });
+      await hefteTagesfotoAn(kontext, {
+        bautagebuchId: tag,
+        medienId: randomUUID(),
+        art: 'foto',
+        bucket: 'einsatz-medien',
+        pfad: `${bau.mandant}/${randomUUID()}`,
+        mimeTyp: 'image/jpeg',
+        groesseBytes: 12345,
+        sha256: 'a'.repeat(64),
+        beschreibung: 'Schalung Achse C',
+      });
+
+      const fotos = await leseTagesfotos(kontext, tag);
+      expect(fotos).toHaveLength(1);
+      expect(fotos[0]!.beschreibung).toBe('Schalung Achse C');
+      expect(fotos[0]!.mime_typ).toBe('image/jpeg');
     });
   });
 

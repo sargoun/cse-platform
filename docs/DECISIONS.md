@@ -3281,6 +3281,55 @@ Pfad unlesbar zu machen. Eine Stufe über 999.999 sortiert hinter alles andere �
 das fällt auf, statt still falsch zu sein. Die Zahl steht an zwei Stellen
 (`OZ_BREITE`, `kern.oz_sortierschluessel`) und wird von D-193 verglichen.
 
+
+---
+
+## Befund aus der Integration — D-300
+
+### D-300 · 95 von 98 `SECURITY DEFINER`-Funktionen gehören dem Superuser, nicht `cse_definer`
+
+**Gemessen, nicht vermutet.** `00-KONVENTIONEN.md` K-01 sagt zwei Dinge:
+„`SECURITY DEFINER` functions are owned by `cse_definer`" und „no application
+role holds `BYPASSRLS`". Das zweite stimmt — keine der sechs Anwendungsrollen
+hält es. Das erste stimmte für **drei** von 98 Funktionen
+(`app.abwesenheit_grund_lesen`, `fin.rechnung_nummer_ziehen`,
+`fin.rechnung_kette_schreiben`); die übrigen 95 gehören `postgres`, dem Konto,
+das die Migrationen ausführt — Superuser, `BYPASSRLS`.
+
+Eine `SECURITY DEFINER`-Funktion läuft mit den Rechten **ihres Eigentümers**.
+Diese 95 laufen damit an jeder RLS vorbei und mit vollem Zugriff auf jede
+Tabelle. Die sorgfältig geschriebenen `cse_definer`-Policies — `n_definer`,
+`q_definer`, `aa_definer`, `sk_definer_lesen`, `z_definer_insert` und ein
+Dutzend weitere — werden nie erreicht. Sie stehen da wie eine zweite
+Verteidigungslinie, und es gibt sie nicht.
+
+**Warum es nicht auffiel:** es geht nichts kaputt. Es funktioniert genau so
+lange gut, bis eine vergessene `mandant_id` in einer `where`-Klausel nicht an
+einer Policy scheitert, sondern liest, was sie greifen kann.
+
+**Warum die Reparatur nicht in diesem Commit steht.** Sie wurde ausprobiert:
+`alter function … owner to cse_definer` über alle 98 ist eine Schleife und
+läuft sauber durch. Danach fehlen `cse_definer` Schreibrechte auf **32
+Tabellen** (der Seed bricht an der ersten ab: `permission denied for table
+audit_log`), und das ist die leichtere Hälfte. Die teurere: jede **lesende**
+Stelle in einer Definer-Funktion braucht eine `cse_definer`-Policy auf der
+gelesenen Tabelle — sonst liest die Funktion unter FORCE RLS stillschweigend
+null Zeilen und schreibt einen falschen Wert, **ohne Fehlermeldung**. Das ist
+Arbeit je Funktion, mit Urteil je Funktion, und sie gehört in eine eigene
+Prüfrunde mit eigener Abnahme — nicht zwischen zwei Gewerke-PRs, wo sie den
+Baum tagelang rot hielte.
+
+**Was stattdessen jetzt gilt (Sperrklinke):**
+`tests/isolation/definer-eigentum.test.ts` friert die 95 als benannte Altlast
+ein. Jede **neue** Definer-Funktion muss `alter function … owner to
+cse_definer` in ihrer Migration mitbringen, sonst fällt der Test. Und die
+Liste veraltet nicht still: wer eine alte repariert und sie stehen lässt,
+bringt den Test ebenfalls zu Fall. Die Schuld ist damit benannt, gedeckelt und
+sichtbar — statt in einer Konvention zu stehen, die nicht gilt.
+
+Die zweite Hälfte von K-01 ist übrigens erfüllt: **alle 98** Funktionen setzen
+ihren `search_path`. Auch das prüft die Datei jetzt.
+
 ---
 
 ## Entschieden in PR 39 — Mitarbeiterportal (Stunden, Monatsnachweis, Nachweise, Anträge, vier Sprachen)

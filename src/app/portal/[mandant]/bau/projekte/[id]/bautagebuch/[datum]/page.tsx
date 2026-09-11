@@ -408,8 +408,16 @@ export default async function Bautag(
             </div>
             <div>
               <dt className={BESCHRIFTUNG}>Zeiterfassung (netto)</dt>
+              {/*
+                * Bei `zeit_nicht_lesbar` steht hier ein Strich und keine Null:
+                * „0,00 h" waere eine Aussage ueber die Zeiterfassung, die
+                * dieser Zugang gar nicht lesen durfte — und sie sähe aus wie
+                * eine hundertprozentige Abweichung.
+                */}
               <dd className="m-0 font-mono text-text" data-cse="abgleich-zeit">
-                {alsStunden(daten.abgleich.zeiteintragMinuten)} h
+                {daten.abgleich.befund === 'zeit_nicht_lesbar'
+                  ? '—'
+                  : `${alsStunden(daten.abgleich.zeiteintragMinuten)} h`}
               </dd>
             </div>
             <div>
@@ -419,8 +427,10 @@ export default async function Bautag(
                   daten.abgleich.befund === 'abweichung' ? 'text-warning' : 'text-text'}`}
                 data-cse="abgleich-abweichung"
               >
-                {daten.abgleich.abweichungMinuten > 0 ? '+' : ''}
-                {alsStunden(daten.abgleich.abweichungMinuten)} h
+                {daten.abgleich.befund === 'zeit_nicht_lesbar'
+                  ? '—'
+                  : `${daten.abgleich.abweichungMinuten > 0 ? '+' : ''}`
+                    + `${alsStunden(daten.abgleich.abweichungMinuten)} h`}
               </dd>
             </div>
             <div>
