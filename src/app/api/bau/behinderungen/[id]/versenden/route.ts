@@ -41,7 +41,11 @@ import {
  * `bau.behinderung_erstellen` und nicht `versand.freigeben`: hier wird
  * dokumentiert, was ein Mensch getan hat. Die FREIGABE dafuer ist ein
  * anderer Vorgang mit einem anderen Recht — und sie wird hier geprueft,
- * nicht erteilt.
+ * nicht erteilt (D-250).
+ *
+ * // TODO(client, O-260): Wer gibt eine Behinderungsanzeige nach § 6 Abs. 1
+ * VOB/B frei — die Bauleitung selbst oder ein Zweiter? `versand.freigeben` ist
+ * heute an `super_admin`/`admin` gebunden und fuer `leitung` nur bindbar.
  *
  * `POST` statt `PATCH`: der Aufrufer ist ein HTML-Formular.
  */

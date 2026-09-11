@@ -427,17 +427,27 @@ describe('(3) mit Freigabe: Datum dokumentiert, Schreiben archiviert, eingefrore
 
     const [dok] = await sql.unsafe<{
       id: string; kategorie: string; mime_typ: string; bucket: string;
-      objekt_schluessel: string; sha256: string; loeschsperre: boolean;
+      objekt_schluessel: string; loeschsperre: boolean;
     }[]>(
       `select id, kategorie::text as kategorie, mime_typ, bucket, objekt_schluessel,
-              sha256, loeschsperre
+              loeschsperre
          from dokument where id = $1`, [ergebnis.dokumentId]);
     expect(dok).toBeDefined();
     expect(dok!.kategorie).toBe('projekt');
     expect(dok!.mime_typ).toBe('application/pdf');
     // DOC-03: es gibt keinen öffentlichen Bucket.
     expect(['dokumente', 'archiv']).toContain(dok!.bucket);
-    expect(dok!.sha256).toMatch(/^[0-9a-f]{64}$/u);
+
+    /**
+     * Der Digest steht in der FASSUNG (0009), nicht im Kopf. Ohne ihn liesse
+     * sich spaeter nicht zeigen, dass die abgelegte Datei noch dieselbe ist —
+     * und das Schreiben ist ein Beweisstueck.
+     */
+    const [fassung] = await sql.unsafe<{ sha256: string; version: number }[]>(
+      `select sha256, version from dokument_version where dokument_id = $1`,
+      [ergebnis.dokumentId]);
+    expect(fassung!.version).toBe(1);
+    expect(fassung!.sha256).toMatch(/^[0-9a-f]{64}$/u);
 
     // Und es ist eine ECHTE Datei, keine Zeile, die eine behauptet.
     const bytes = speicher.rohBytes(dok!.bucket as 'dokumente', dok!.objekt_schluessel);

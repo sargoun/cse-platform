@@ -87,11 +87,22 @@ describe('(5) es gibt genau EINEN Schreibweg auf `einsatz_zuordnung`', () => {
     }
   });
 
-  it('die drei Sicherheitsrouten stehen im Manifest, mit Recht', () => {
+  it('die Sicherheitsrouten stehen im Manifest, jede mit Recht', () => {
+    /**
+     * Die Liste ist die Zusage, nicht ihre Laenge: jede Adresse unter
+     * `api/sicherheit/` steht hier namentlich, und eine neue faellt auf,
+     * bevor jemand sie benutzt. PR 42 hat vier gebracht — die versionierte
+     * Dienstanweisung und die Schluesselverwaltung —, und keine davon
+     * schreibt eine `einsatz_zuordnung`.
+     */
     const sicherheit = ROUTEN.filter((r) => r.pfad.startsWith('api/sicherheit/'));
     expect(sicherheit.map((r) => r.pfad).sort()).toEqual([
+      'api/sicherheit/dienstanweisungen',
+      'api/sicherheit/dienstanweisungen/[id]/version',
       'api/sicherheit/event-besetzung',
       'api/sicherheit/posten',
+      'api/sicherheit/schluessel',
+      'api/sicherheit/schluessel/[id]/quittung',
       'api/sicherheit/wachbuch',
     ]);
     // Keine davon ist offen: jede schreibt.

@@ -3681,3 +3681,131 @@ Dienst nicht einmal.
 |---|---|---|
 | O-240 | **Darf die Wache vor Ort einen Schlüssel selbst quittieren — und auf welchem Bildschirm?** `03-AUTH` bindet `schluessel.schreiben` an die Rolle `mitarbeiter`, und `0079` gibt `schluessel` die Einsatzdecke; `04-SEITENKARTE.md` §7 kennt dafür aber keine Route unter `/portal/mein`. Beides zusammen ergibt ein Recht ohne Bildschirm. Die Frage ist organisatorisch und nicht technisch: quittiert die Objektleitung im Büro (dann ist die Bindung an `mitarbeiter` zu weit), oder die Wache am Objekt (dann fehlt eine Seite in der Karte, und sie braucht denselben Zwei-Scope-Umweg wie die Kenntnisnahme). Bis zur Antwort ist der Weg intern (**D-235**). | SEC-07, `schluessel_quittung`, `/portal/mein` |
 | O-241 | **Sperrt eine unbestätigte Dienstanweisung die Einteilung?** SEC-06 verlangt die Kenntnisnahme, nennt aber keine Folge, wenn sie ausbleibt — anders als SEC-04, wo ein abgelaufener Nachweis die Einteilung hart sperrt. Die Plattform sperrt heute **nicht**: die Anweisung steht offen im Portal, die Leitung sieht „4 von 11", und niemand wird deshalb aus dem Plan genommen. Eine Sperre wäre eine erfundene Rechtsfolge (K-17); eine Frist („bis zum Schichtbeginn") ebenso. Gefragt ist beides: ab wann gilt eine Unterweisung als versäumt, und was folgt daraus — Warnung, Freigabepflicht der Leitung oder Einteilungssperre? | SEC-06, EMP-09, `da_pflicht`, `dienstplan/einteilung` |
+
+---
+
+## Entschieden in PR 44 — Bau B: Nachträge, Behinderungsanzeige, Warnung außerhalb des LV
+
+Die Migrationen `0080`/`0081` und die drei Dienste standen; gefehlt haben die
+Adressen, die Seiten und die Tests. Diese Entscheidungen halten fest, wo die
+Umsetzung von einem Vorgabedokument abweicht oder eine Stelle klärt, die sonst
+die nächste Person noch einmal — und möglicherweise anders — entscheidet.
+
+### D-250 · PR 44 schreibt keine `freigabe`-Zeile; es prüft sie
+
+Die API-Karte §C.15 nennt als Antwort von `POST /api/bau/behinderungen` ein
+`{ freigabe_id }`. Umgesetzt ist es **nicht**, und zwar aus drei Gründen, die
+zusammen eindeutig sind:
+
+1. `0012` lässt einen `INSERT` auf `freigabe` nur mit `versand.freigeben` zu
+   (`t_mandant … with check`). Im Katalog ist dieses Recht an `super_admin` und
+   `admin` **gebunden** und für `leitung` nur *bindbar* — die Bauleitung, die
+   `bau.behinderung_erstellen` hält, hält es also nicht von selbst. Eine
+   Freigabe im Anlegepfad zu erzeugen liesse die Anzeige für genau die Rolle
+   scheitern, für die sie gebaut ist.
+2. **Kein Modul dieses Repositoriums erzeugt Freigaben.** Das durchgehende
+   Muster ist `gate(nutzlast, freigabe, richtlinie)` mit einer Freigabe, die
+   der Aufrufer mitbringt (`services/lead/bestaetigung.ts`, `api/anfrage`).
+   Eine achte Stelle, die eigene Kettenglieder in `freigabe_snapshot` schreibt,
+   wäre eine zweite Fassung der Kettenmechanik neben der, die PR 62 baut.
+3. Der Freigabe-Posteingang **ist** PR 62 und im PR-Plan ausdrücklich nicht
+   Teil dieses Scopes.
+
+Umgesetzt ist deshalb: beide Ausgänge — die Nachtragseinreichung und der
+Behinderungsversand — nehmen die **Kennung einer bereits genehmigten Freigabe**
+entgegen und schicken die Nutzlast durch `server/agent/policy.ts`. Ohne
+genehmigte Freigabe mit benanntem Menschen und mit einem Hash über *den* Text,
+der in der Zeile steht, geht nichts hinaus; die Richtlinie wird bewusst als
+`null` übergeben, damit das Tor fail-closed entscheidet. Das Kriterium „der
+Versand läuft durch `policy.ts`" ist damit erfüllt; erzeugt wird die Freigabe
+dort, wo sie hingehört. Siehe O-260.
+
+### D-251 · Die Aufmaßzeile wird an den Nachtrag gehängt — sonst verschwindet die Warnung nie
+
+`ladeAusserhalbLv` wählt genau `ausserhalb_lv and nachtrag_id is null`. Der
+Nachtrag allein räumt die Warnung also **nicht** ab: für die Quelle „Zeit"
+genügt `nachtrag.auftrag_leistung_id` (der Dienst nahm sie schon entgegen), für
+die Quelle „Aufmaß" fehlte der Weg, `aufmass_zeile.nachtrag_id` zu setzen —
+obwohl `0080` den Fremdschlüssel `az_nachtrag_fk` eigens dafür nachträgt und
+`0071` vermerkt, der Schlüssel komme mit PR 44.
+
+Neu ist deshalb `ordneAufmasszeileZu` in `services/bau/nachtrag.ts`. Sie setzt
+`nachtrag_id` nur, wenn noch keine steht, und nur innerhalb desselben Projekts.
+Dass das auch nach der Gegenzeichnung geht, ist kein Versehen von `0072`:
+`kern.aufmass_zeile_einfrieren()` zählt `nachtrag_id` bewusst **nicht** zu den
+eingefrorenen Spalten — Menge, Formel und Bezeichnung sind unveränderlich, aber
+der Streit über die Vergütung beginnt regelmäßig, wenn die Menge längst
+festgestellt ist.
+
+Eine Warnung, die sich nicht abstellen lässt, liest nach drei Wochen niemand
+mehr — und dann auch nicht die, die etwas kostet.
+
+### D-252 · Sieben `POST`-Adressen statt der Methodenpaare der API-Karte
+
+Die API-Karte führt `GET/POST /api/bau/nachtraege` und `GET/POST
+/api/bau/behinderungen`. Gebaut sind die `POST`-Hälften; die `GET`-Hälften
+nicht. Das ist keine Auslassung, sondern das Muster dieses Repositoriums:
+**genau eine** der rund vierzig vorhandenen Routen hat einen `GET`-Handler
+(`api/medien/[id]`, der eine signierte Adresse ausgibt). Gelesen wird auf den
+Seiten, durch `withTenant` und den Fachdienst — eine JSON-Liste ohne Aufrufer
+wäre toter Code mit eigener Rechteprüfung, also eine zweite Stelle, an der die
+Mandantenbedingung fehlen kann.
+
+Die eine Ausnahme ist `GET /api/bau/nachtrag-warnungen`: sie steht in der Karte
+als reine `GET`-Route, sie liest, und sie hat mit `warnungsText` /
+`nachtragTitelVorschlag` eine Antwort, die über die Zeilen hinausgeht.
+
+`POST` statt `PATCH`/`PUT` bei `…/anmelden`, `…/einreichen`, `…/versenden` und
+`…/wegfall`: der Aufrufer ist ein HTML-Formular, und ein Formular kennt nur
+`GET` und `POST` — dieselbe Begründung wie bei `api/reinigung/reviere/[id]/raeume`.
+
+`…/wegfall` steht in keinem Vorgabedokument. Sie ist trotzdem gebaut, weil
+`zeigeWegfallAn` im Dienst steht, § 6 Abs. 3 VOB/B die Wegfallanzeige
+ausdrücklich verlangt und `behinderung_laufend_idx` sonst eine Liste wäre, die
+nur wächst: eine Bauzeitverlängerung stünde auf einer Behinderung, die seit
+Monaten vorbei ist.
+
+### D-253 · Zwei Fehler in den vorhandenen Diensten korrigiert, nicht umgangen
+
+Beide fielen erst, als die Tests die Dienste zum ersten Mal gegen eine echte
+Datenbank riefen — sie sind keine Stilfragen, sondern Abbrüche:
+
+- **`meldeNachtragAn`**: das `INSERT` nannte 14 Spalten und lieferte 13
+  Ausdrücke; `erstellt_von` blieb ohne Wert. Postgres antwortete mit
+  *„INSERT has more target columns than expressions"* — **jeder** Nachtrag
+  scheiterte. Ergänzt: `app.aktueller_benutzer()`, wie es `erstelleBehinderung`
+  zwei Dateien weiter bereits tut.
+- **`dokumentiereVersand`**: das `INSERT` auf `dokument` schrieb `dateiname` und
+  `sha256`. Beide Spalten gibt es in `0009` nicht — der Digest lebt in
+  `dokument_version`, der Dateiname steckt im `objekt_schluessel`. Der Versand
+  brach damit **nach** dem Tor und **nach** dem Hochladen ab. Korrigiert auf die
+  beiden Zeilen, die das Schema führt: `dokument` (Kopf, Aufbewahrung) und
+  `dokument_version` (Fassung 1 mit SHA-256). Den Digest wegzulassen wäre hier
+  besonders teuer — das Schreiben ist ein Beweisstück.
+
+**Ausserhalb der Grenzen dieses PRs, aber derselbe Fehler:**
+`src/app/api/anfrage/route.ts` schreibt beim LV-Anhang einer Angebotsanfrage
+ebenfalls `dokument (… dateiname …, sha256 …)`. Dieser Pfad läuft nur, wenn
+eine Datei mitgeschickt wird und der Speicher verbunden ist — deshalb ist er
+bisher nicht aufgefallen. Er ist nicht angefasst worden; er gehört gemeldet.
+
+### D-254 · Keine neuen Statuspillen — abgebildet statt erfunden
+
+DESIGN §5 kennt „Angemeldet", „Eingereicht", „Beauftragt" und „Angezeigt"
+nicht. Erfunden wird hier keine: `bau/nachtrag-anzeige.ts` bildet jeden Zustand
+auf das nächstliegende Wort des geschlossenen Vokabulars ab und stellt die
+**genaue** Bezeichnung mit ihrer Fundstelle daneben — dieselbe Lösung wie
+D-186 und D-206, und §9 verlangt ohnehin, dass die Bedeutung im Wort steht und
+nicht in der Farbe. Der Unterschied zwischen „angemeldet" und „eingereicht" ist
+der zwischen Anspruch und Fälligkeit; eine Pille, die beides „Offen" nennt,
+wäre die falsche Vereinfachung, und der Text daneben verhindert sie.
+
+Der Platzhalterhinweis („unbestätigter Wert") ist ebenfalls **keine** Pille,
+sondern ein `text-warning`-Vermerk mit `title` — so wie ihn
+`finanzen/rechnungen/[id]` für O-174 schon führt.
+
+### Offen, neu aufgeworfen in PR 44
+
+| # | Question | Blocks |
+|---|---|---|
+| O-260 | **Wer gibt bei der Gruppe eine ausgehende Bau-Rechtserklärung frei — die Behinderungsanzeige nach § 6 Abs. 1 VOB/B und die Einreichung eines Nachtrags nach § 2 VOB/B?** Beides sind Erklärungen mit anspruchswahrender bzw. anspruchsbegründender Wirkung, und Invariante 7 verlangt dafür einen benannten Menschen. Der Rechtekatalog bindet `versand.freigeben` heute an `super_admin` und `admin` und macht es für `leitung` nur *bindbar* — die Bauleitung, die die Anzeige schreibt, darf sie also nicht selbst freigeben. Ob das so gewollt ist (Vier-Augen-Prinzip) oder ob die Bauleitung das Recht erhalten soll, ist eine Frage der Vollmachtsordnung und keine technische. Bis zur Antwort verlangen beide Formulare die Kennung einer bereits genehmigten Freigabe und erzeugen keine (D-250); der Freigabe-Posteingang entsteht ohnehin erst mit PR 62. | BAU-04, BAU-06, Invariante 7, `versand.freigeben` |

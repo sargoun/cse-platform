@@ -26,7 +26,12 @@ import { NachtragFehler, reicheEin } from '@/server/services/bau/nachtrag';
  * Nachtrag ohne Anmeldedatum sagt dem Auftraggeber, es habe keine gegeben.
  *
  * Eigenes Recht `bau.nachtrag_einreichen`: wer ankuendigen darf, hat damit
- * noch nichts an den Auftraggeber geschickt.
+ * noch nichts an den Auftraggeber geschickt. Die Freigabe wird hier GEPRUEFT
+ * und nicht erteilt (D-250).
+ *
+ * // TODO(client, O-260): Wer gibt die Einreichung eines Nachtrags nach § 2
+ * VOB/B frei — die Bauleitung selbst oder ein Zweiter? `versand.freigeben` ist
+ * heute an `super_admin`/`admin` gebunden und fuer `leitung` nur bindbar.
  *
  * `POST` statt `PATCH`: der Aufrufer ist ein HTML-Formular.
  */

@@ -281,10 +281,15 @@ describe('(1) der Tag ist nur anfuegbar, und die Korrekturspur bleibt stehen', (
 
       const stunden = await leseMannstunden(kontext, tag);
       expect(stunden).toHaveLength(2);
+      // Nach GEWERK gesucht statt nach Position in der Liste: zwei Zeilen
+      // derselben Transaktion tragen dasselbe `erstellt_am`, und ein Test,
+      // der sich auf die Reihenfolge verlaesst, ist von Lauf zu Lauf anders.
+      const rohbau = stunden.find((z) => z.gewerk_id === bau.gewerkRohbau)!;
+      const elektro = stunden.find((z) => z.gewerk_id === bau.gewerkElektro)!;
       // 4 Personen × 480 Minuten ÷ 60 = 32,00 — eine erzeugte Spalte, die von
       // ihren Eingaben nicht abweichen kann.
-      expect(stunden[0]!.mannstunden).toBe('32.00');
-      expect(stunden[1]!.nachunternehmer).toBe('Elektro Sued GmbH');
+      expect(rohbau.mannstunden).toBe('32.00');
+      expect(elektro.nachunternehmer).toBe('Elektro Sued GmbH');
 
       const positionen = await lesePositionen(kontext, tag);
       expect(positionen.map((p) => p.art).sort()).toEqual(

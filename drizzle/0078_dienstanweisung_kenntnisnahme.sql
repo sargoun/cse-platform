@@ -671,8 +671,19 @@ begin
     insert into public.da_pflicht
       (mandant_id, dienstanweisung_id, anstellung_id, person_id, quelle,
        aus_zuordnung, erstellt_von_art)
+    /**
+     * **Die Aufzaehlungswerte tragen ihren Cast, und das ist nicht Kosmetik.**
+     * `INSERT … SELECT DISTINCT 'objekt_einsatz'` loest das untypisierte
+     * Literal zu `text` auf, BEVOR die Zielspalte es sieht — DISTINCT braucht
+     * einen Gleichheitsoperator und erzwingt die Aufloesung. Ergebnis:
+     * „column \"quelle\" is of type da_pflicht_quelle but expression is of
+     * type text", und zwar erst dann, wenn es wirklich eine Einteilung auf dem
+     * Objekt gibt — also genau im Normalfall und nie im leeren Testlauf.
+     * `kern.pflege_da_pflicht` unten hat kein DISTINCT und braucht die Casts
+     * deshalb nicht; hier sind sie tragend.
+     */
     select distinct v_kopf.mandant_id, v_kopf.id, z.anstellung_id, z.person_id,
-           'objekt_einsatz', true, 'system'
+           'objekt_einsatz'::da_pflicht_quelle, true, 'system'::akteur_art
       from public.einsatz_zuordnung z
       join public.einsatz e on e.id = z.einsatz_id and e.mandant_id = z.mandant_id
      where e.mandant_id = v_kopf.mandant_id

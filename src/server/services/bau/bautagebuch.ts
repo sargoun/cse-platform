@@ -1147,7 +1147,11 @@ export async function leseMannstunden(
        join gewerk g on g.id = m.gewerk_id and g.mandant_id = m.mandant_id
        left join firma f on f.id = m.nachunternehmer_firma_id
       where m.bautagebuch_id = $1::uuid
-      order by m.erstellt_am, m.id`,
+      -- Nach GEWERK gruppiert und darin nach Erfassung: so steht eine
+      -- Richtigstellung neben der Zeile, die sie ersetzt. Die Kennung zuletzt,
+      -- weil zwei Zeilen derselben Transaktion dasselbe erstellt_am tragen —
+      -- ohne sie waere die Reihenfolge von Lauf zu Lauf verschieden.
+      order by g.sortierung, g.code, m.erstellt_am, m.id`,
     [bautagebuchId],
   );
 }
@@ -1189,7 +1193,7 @@ export async function lesePositionen(
        left join firma f on f.id = q.lieferant_firma_id
        left join gewerk g on g.id = q.gewerk_id and g.mandant_id = q.mandant_id
       where q.bautagebuch_id = $1::uuid
-      order by q.art, q.reihenfolge, q.erstellt_am`,
+      order by q.art, q.reihenfolge, q.erstellt_am, q.id`,
     [bautagebuchId],
   );
 }

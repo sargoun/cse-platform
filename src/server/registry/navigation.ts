@@ -87,6 +87,27 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * genau dafür angeklickt wird — die offenen Fälle.
    */
   { schluessel: 'qualitaet', label: 'Qualität', pfad: 'qualitaet/reklamationen', recht: 'qualitaet.lesen', gruppe: true, icon: 'warnung' },
+  /**
+   * PR 42 — die beiden Security-Register bekommen eigene Punkte.
+   *
+   * Nicht weil das Modul zwei Sidebar-Zeilen braucht, sondern weil der eine
+   * `security`-Punkt auf `security/posten` zeigt und dort nichts steht, was
+   * zu den Dienstanweisungen oder zum Schluesselbestand fuehrt. Ein Register,
+   * das nur ueber die Adresszeile erreichbar ist, ist eines, das niemand
+   * pflegt — und ein ungepflegter Schluesselbestand beantwortet die Frage
+   * „wer hatte Zutritt" nicht.
+   *
+   * `gruppe: false` fuer beide: `da_kenntnisnahme` traegt bewusst KEINE
+   * Gruppenpolicy (0078 §12), und §1.7 schliesst das Gruppenlesen fuer
+   * `schluessel` ausdruecklich aus. Ein Punkt, der in der Gruppenansicht auf
+   * eine leere Seite fuehrt, ist schlechter als keiner.
+   *
+   * Die Icons kommen aus dem geschlossenen Satz (DESIGN §5): `dokument` fuer
+   * die Anweisung, die gelesen und bestaetigt wird, `schloss` fuer den
+   * Schluessel. Ein eigenes zu zeichnen hiesse zuerst DESIGN.md zu aendern.
+   */
+  { schluessel: 'dienstanweisungen', label: 'Dienstanweisungen', pfad: 'security/dienstanweisungen', recht: 'dienstanweisung.lesen', gruppe: false, icon: 'dokument' },
+  { schluessel: 'schluessel', label: 'Schlüssel', pfad: 'security/schluessel', recht: 'schluessel.lesen', gruppe: false, icon: 'schloss' },
   { schluessel: 'einstellungen', label: 'Einstellungen', pfad: 'einstellungen', recht: 'system.einstellung_lesen', gruppe: false, icon: 'einstellungen' },
 ] as const;
 

@@ -116,6 +116,26 @@ export class SchluesselNichtGefunden extends Error {
 }
 
 /**
+ * Die Beschaeftigung gehoert nicht in diese Gesellschaft (D-09, review B8).
+ *
+ * 404 und nicht 403: eine Quittung haengt an der BESCHAEFTIGUNG, nicht am
+ * Menschen — sie ist betrieblicher Nachweis EINER GmbH ueber EIN Objekt. Dass
+ * es die Beschaeftigung anderswo gibt, ist selbst eine Auskunft (AUT-06).
+ */
+export class EmpfaengerNichtGefunden extends Error {
+  readonly code = 'nicht_gefunden';
+  readonly status = 404;
+  constructor() {
+    super(
+      'Diese Beschäftigung gibt es in dieser Gesellschaft nicht. Eine '
+      + 'Schlüsselquittung hängt an der Beschäftigung, nicht am Menschen — sie '
+      + 'ist der Nachweis DIESER Gesellschaft über IHR Objekt.',
+    );
+    this.name = 'EmpfaengerNichtGefunden';
+  }
+}
+
+/**
  * Abnahme 4, uebersetzt. Die Ablehnung selbst kommt aus dem Index.
  */
 export class SchonAusgegeben extends Error {
@@ -316,6 +336,28 @@ export async function buche(
   );
   if (kopf === undefined) throw new SchluesselNichtGefunden(eingabe.schluesselId);
 
+  /**
+   * **Der Mensch hinter der Beschaeftigung wird HIER aufgeloest, nicht in der
+   * Einfuegung.**
+   *
+   * Vorher stand dort eine Unterabfrage `(select a.person_id from anstellung a
+   * where a.id = $n)`. Sie ist der Zeilenpolitik von `anstellung` unterworfen
+   * und liefert NULL, sobald die Beschaeftigung einer anderen Gesellschaft
+   * gehoert — die Zeile scheiterte dann an `sq_person_bei_anstellung`, also an
+   * einer Bedingung, die mit dem Fehler nichts zu tun zu haben scheint. Jetzt
+   * faellt die Antwort dort, wo die Frage gestellt wurde: die Beschaeftigung
+   * gibt es in dieser Gesellschaft nicht (D-09).
+   */
+  let personId: string | null = null;
+  if (eingabe.empfaengerArt === 'mitarbeiter' && (eingabe.anstellungId ?? '') !== '') {
+    const [a] = await kontext.abfrage<{ person_id: string }>(
+      `select a.person_id from anstellung a where a.id = $1::uuid`,
+      [eingabe.anstellungId],
+    );
+    if (a === undefined) throw new EmpfaengerNichtGefunden();
+    personId = a.person_id;
+  }
+
   const empfaengerName = leer(eingabe.empfaengerName);
   const abzug = baueAbzug(kopf, eingabe, empfaengerName);
   const hash = createHash('sha256').update(kanonisiere(abzug)).digest('hex');
@@ -330,8 +372,7 @@ export async function buche(
           geplante_rueckgabe, unterzeichner_name, snapshot, snapshot_hash,
           bemerkung, erstellt_von_art, erstellt_von)
        values ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::schluessel_ereignis_art,
-               $6::uuid, $7::schluessel_empfaenger_art, $8::uuid,
-               (select a.person_id from anstellung a where a.id = $8::uuid),
+               $6::uuid, $7::schluessel_empfaenger_art, $8::uuid, $20::uuid,
                $9::uuid, $10::uuid, $11, $12::timestamptz, $13::boolean, $14::uuid,
                $15::date, $16, $17::text::jsonb, $18, $19, 'mensch', $14::uuid)`,
       [
@@ -351,6 +392,7 @@ export async function buche(
         JSON.stringify(abzug),
         hash,
         leer(eingabe.bemerkung),
+        personId,
       ],
     );
   } catch (fehler) {

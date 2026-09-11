@@ -521,17 +521,37 @@ export async function dokumentiereVersand(
     jahr.jahr,
   );
 
+  /**
+   * Die Ablage besteht aus ZWEI Zeilen, weil das Schema sie so fuehrt (0009):
+   * `dokument` traegt Titel, Kategorie und Aufbewahrung, `dokument_version`
+   * traegt die Fassung mit ihrem **SHA-256**. Der Dateiname ist keine Spalte —
+   * er steckt im `objekt_schluessel` und im Titel.
+   *
+   * Den Digest wegzulassen waere hier besonders teuer: das Schreiben ist ein
+   * Beweisstueck, und ohne Pruefsumme laesst sich spaeter nicht zeigen, dass
+   * die abgelegte Datei noch dieselbe ist.
+   */
   await kontext.schreibe(
-    `insert into dokument (id, mandant_id, kategorie, titel, dateiname, mime_typ,
-                           mime_verifiziert, groesse_bytes, sha256, bucket,
-                           objekt_schluessel, exif_entfernt, aufbewahrung_bis, loeschsperre)
-     values ($1, $2, 'projekt', $3, $4, $5, true, $6, $7, $8, $9, $10, $11::date, $12)`,
+    `insert into dokument (id, mandant_id, kategorie, titel, mime_typ,
+                           mime_verifiziert, groesse_bytes, bucket,
+                           objekt_schluessel, exif_entfernt, aufbewahrung_bis,
+                           loeschsperre, erstellt_von)
+     values ($1, $2, 'projekt', $3, $4, true, $5, $6, $7, $8, $9::date, $10,
+             app.aktueller_benutzer())`,
     [
       hoch.dokumentId, kontext.aktiverMandantId,
       `Behinderungsanzeige ${zeile.nummer} (${zeile.projekt_nummer})`,
-      `behinderungsanzeige-${zeile.nummer}.pdf`, hoch.mimeTyp,
-      hoch.groesseBytes, hoch.sha256, hoch.bucket, hoch.objektSchluessel,
+      hoch.mimeTyp, hoch.groesseBytes, hoch.bucket, hoch.objektSchluessel,
       hoch.exifEntfernt, hoch.aufbewahrungBis, hoch.loeschsperre,
+    ],
+  );
+  await kontext.schreibe(
+    `insert into dokument_version (mandant_id, dokument_id, version, objekt_schluessel,
+                                   sha256, groesse_bytes, mime_typ, erstellt_von)
+     values ($1, $2, 1, $3, $4, $5, $6, app.aktueller_benutzer())`,
+    [
+      kontext.aktiverMandantId, hoch.dokumentId, hoch.objektSchluessel,
+      hoch.sha256, hoch.groesseBytes, hoch.mimeTyp,
     ],
   );
 
