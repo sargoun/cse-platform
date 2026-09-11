@@ -110,6 +110,13 @@ test.describe('Das Festschreiben ist einseitig (Invariante 4)', () => {
     await page.getByLabel('Handelsübliche Bezeichnung').fill('Unterhaltsreinigung');
     await page.getByLabel('Menge (Tausendstel)').fill('1000');
     await page.getByLabel('Einzelpreis (Cent)').fill('10000');
+    /**
+     * PR 49: jede Leistungszeile nennt ihren Beleg (FIN-07). Dieser Entwurf
+     * hängt an keinem Auftrag, also gibt es nur „von Hand" — und dann ist die
+     * Begründung Pflicht, im Formular wie in der Datenbank.
+     */
+    await page.getByLabel('Begründung, falls von Hand erfasst')
+      .fill('Einmalige Leistung ohne Auftragsbezug');
     await page.getByRole('button', { name: 'Position hinzufügen' }).click();
 
     await page.getByRole('button', { name: 'Rechnung festschreiben' }).click();

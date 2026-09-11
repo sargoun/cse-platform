@@ -11,8 +11,11 @@ import { withTenant, type SchreibKontext } from '@/server/kontext/index';
 import { cent } from '@/server/services/finanz/geld';
 import { milliMenge } from '@/server/services/finanz/menge';
 import {
-  RechnungFehler, fuegePositionHinzu, legeEntwurfAn,
+  RechnungFehler, fuegePositionHinzu, fuegeZeitPositionHinzu, legeEntwurfAn,
 } from '@/server/services/finanz/rechnung';
+import {
+  QuellenFehler, type QuelleEingabe,
+} from '@/server/services/finanz/positionsquelle';
 
 /**
  * `POST /api/rechnungen` — den Entwurf anlegen und ihn bestuecken.
@@ -60,6 +63,32 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
 
+        /**
+         * **Die Zeile AUS der Zeiterfassung** (TIM-12, FIN-07) — der Weg, den
+         * die Seitenkarte „billing type, then source" nennt.
+         *
+         * Er steht vor `position`, weil er der Regelfall sein soll: eine Zeile,
+         * die aus freigegebenen Zeiteintraegen entsteht, traegt ihren Beleg
+         * von selbst und kann sich nicht vertippen. Die Handeingabe darunter
+         * ist die Ausnahme und verlangt deshalb eine Begruendung.
+         */
+        if (aktion === 'aus-zeiten') {
+          const rechnungId = text('rechnungId');
+          const stundensatz = text('stundensatzCent');
+          if (rechnungId === null || stundensatz === null) return null;
+          await fuegeZeitPositionHinzu(kontext, {
+            rechnungId,
+            bezeichnung: text('bezeichnung') ?? 'Geleistete Stunden',
+            stundensatzCent: cent(BigInt(stundensatz)),
+            steuergruppe: text('steuergruppe') ?? 'ust_19',
+            auftragLeistungId: text('auftragLeistungId'),
+            auftragId: text('auftragId'),
+            vonDatum: text('vonDatum'),
+            bisDatum: text('bisDatum'),
+          });
+          return `/${rechnungId}`;
+        }
+
         if (aktion === 'position') {
           const rechnungId = text('rechnungId');
           const menge = text('menge');
@@ -67,6 +96,19 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           if (rechnungId === null || menge === null || einzelpreis === null) {
             return null;
           }
+          /**
+           * **Die Herkunft ist Pflicht** (FIN-07, §4.4). Das Formular bietet
+           * genau zwei Wege an: eine Vertragszeile als Beleg, oder
+           * ausdruecklich „von Hand" MIT Begruendung. Einen dritten — „ohne
+           * Angabe" — gibt es nicht, und der Handler erfindet auch keinen:
+           * fehlt die Begruendung, weist der Dienst ab, und die Datenbank
+           * taete es beim COMMIT ohnehin.
+           */
+          const herkunft = text('herkunft') ?? 'manuell';
+          const quellen: QuelleEingabe[] = herkunft === 'vertrag'
+            ? [{ typ: 'vertrag', id: text('auftragLeistungId') }]
+            : [{ typ: 'manuell', notiz: text('herkunftNotiz') }];
+
           /**
            * Menge und Preis kommen als ganze Zahlen herein — Tausendstel und
            * Cent (K-16, Invariante 1). Die Oberflaeche rechnet nicht um: eine
@@ -81,6 +123,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             einheit: text('einheit') ?? '',
             einzelpreisCent: cent(BigInt(einzelpreis)),
             steuergruppe: text('steuergruppe') ?? 'ust_19',
+            auftragLeistungId: herkunft === 'vertrag' ? text('auftragLeistungId') : null,
+            quellen,
           });
           return `/${rechnungId}`;
         }
@@ -114,6 +158,14 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ fehler: 'unbekannt' }, { status: 404 });
     }
     if (fehler instanceof RechnungFehler) {
+      return NextResponse.json({ fehler: fehler.grund, text: fehler.message }, { status: 409 });
+    }
+    /**
+     * Eine fehlende oder unbelegbare Herkunft ist eine Abweisung, kein
+     * Programmfehler (FIN-07): der Mensch hat die Begruendung vergessen oder
+     * im Zeitraum liegt keine freigegebene Stunde. 409 mit Text, nicht 500.
+     */
+    if (fehler instanceof QuellenFehler) {
       return NextResponse.json({ fehler: fehler.grund, text: fehler.message }, { status: 409 });
     }
     throw fehler;

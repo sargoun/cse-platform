@@ -242,3 +242,67 @@ describe('(6) the database region is pinned to the EU (D-04)', () => {
     expect(code).toBe(0);
   });
 });
+
+/**
+ * (11) Die §14-UStG-Vorabpruefung hat genau EINE Fassung, und `finalisiere()`
+ * ruft sie (PR 47, FIN-04, Abnahme 4).
+ *
+ * Die Wache liest zwei Dateien, die es im Wegwerf-Baum nicht gibt — also legt
+ * jeder Fall sie selbst an. Das ist der Punkt: die Wache soll den Baum
+ * beurteilen, den sie vorfindet, und nicht schweigen, weil eine Datei fehlt,
+ * die sie fuer entscheidend haelt.
+ */
+describe('(11) die §14-UStG-Vorabpruefung laesst sich nicht ueberspringen', () => {
+  const PRUEFER =
+    'export function pruefePflichtfelder(): void {}\n'
+    + 'export async function pruefeRechnung(): Promise<void> {}\n';
+
+  it('finalisiere() ohne Aufruf des Validators bricht CI', () => {
+    const { code, ausgabe } = guardsMit({
+      'src/server/services/finanz/ustg14.ts': PRUEFER,
+      'src/server/services/finanz/rechnung.ts':
+        'export async function finalisiere(): Promise<void> {\n'
+        + '  // kein Aufruf der Vorabpruefung\n}\n',
+    });
+    expect(code).toBe(1);
+    expect(ausgabe).toContain('validator-nicht-uebersprungen');
+    expect(ausgabe).toContain('pruefeRechnung');
+  });
+
+  it('ein Aufruf OHNE Auswertung des Befundes bricht CI ebenfalls', () => {
+    const { code, ausgabe } = guardsMit({
+      'src/server/services/finanz/ustg14.ts': PRUEFER,
+      'src/server/services/finanz/rechnung.ts':
+        'export async function finalisiere(): Promise<void> {\n'
+        + '  await pruefeRechnung();\n}\n',
+    });
+    expect(code).toBe(1);
+    expect(ausgabe).toContain('validator-nicht-uebersprungen');
+  });
+
+  it('eine ZWEITE Regelliste bricht CI', () => {
+    const { code, ausgabe } = guardsMit({
+      'src/server/services/finanz/ustg14.ts': PRUEFER,
+      'src/server/services/finanz/rechnung.ts':
+        'export async function finalisiere(): Promise<void> {\n'
+        + '  const b = await pruefeRechnung();\n'
+        + '  if (b.fehler.length > 0) throw new Error("");\n}\n',
+      'src/app/api/fixtur/route.ts':
+        'export function pruefePflichtfelder(): void {}\n',
+    });
+    expect(code).toBe(1);
+    expect(ausgabe).toContain('validator-nicht-uebersprungen');
+    expect(ausgabe).toContain('pruefePflichtfelder');
+  });
+
+  it('und die richtige Fassung geht durch', () => {
+    const { code } = guardsMit({
+      'src/server/services/finanz/ustg14.ts': PRUEFER,
+      'src/server/services/finanz/rechnung.ts':
+        'export async function finalisiere(): Promise<void> {\n'
+        + '  const b = await pruefeRechnung();\n'
+        + '  if (b.fehler.length > 0) throw new Error("");\n}\n',
+    });
+    expect(code).toBe(0);
+  });
+});

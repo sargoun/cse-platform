@@ -667,6 +667,17 @@ export const ROUTEN: readonly RouteEintrag[] = [
     pfad: 'api/rechnungen/storno',
     recht: 'finanzen.stornieren',
   },
+  {
+    /**
+     * Der §14-UStG-Vorabbericht (PR 47, FIN-04). Er LIEST — deshalb
+     * `finanzen.lesen` und nicht `finanzen.festschreiben`: der Bericht sagt,
+     * welches Pflichtfeld fehlt, und stellt nichts aus. Haette er das engere
+     * Recht, müsste die Buchhaltung jemanden mit Festschreibungsrecht fragen,
+     * um einen Tippfehler in der Kundenanschrift zu finden.
+     */
+    pfad: 'api/rechnungen/pruefung',
+    recht: 'finanzen.lesen',
+  },
 ] as const;
 
 /** Die Routen, die ein Recht verlangen. */

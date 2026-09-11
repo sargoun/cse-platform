@@ -18,7 +18,7 @@ import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import { cent } from '../../src/server/services/finanz/geld.js';
 import { milliMenge } from '../../src/server/services/finanz/menge.js';
 import {
-  fuegePositionHinzu, legeEntwurfAn, finalisiere, type Abfrage,
+  fuegePositionHinzu, legeEntwurfAn, finalisiere, vonHand, type Abfrage,
 } from '../../src/server/services/finanz/rechnung.js';
 import { meldung, pruefeKette } from '../../src/server/services/finanz/kettenlauf.js';
 import { formatiereNummer } from '../../src/server/services/finanz/nummernkreis.js';
@@ -96,6 +96,7 @@ beforeEach(async () => {
         rechnungId: id, bezeichnung: `Leistung ${String(i + 1)}`,
         menge: milliMenge(1000n), einheit: 'stk',
         einzelpreisCent: cent(BigInt(1000 + i)), steuergruppe: 'ust_19',
+        quellen: vonHand('Testfixtur ohne Beleg — von Hand erfasst'),
       });
       return (await finalisiere(d, id)).nummer;
     }));

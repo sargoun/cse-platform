@@ -8,6 +8,8 @@ import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { formatiereGeld, cent } from '@/server/services/finanz/geld';
 import { formatiereMenge, mengeAusPostgres } from '@/server/services/finanz/menge';
+import { ladeQuellen, pruefeZeiterfassung, type Fin18Befund, type QuelleZeile }
+  from '@/server/services/finanz/positionsquelle';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
@@ -81,6 +83,12 @@ interface Steuer {
   readonly steuer_cent: string;
 }
 
+interface Leistung {
+  readonly id: string;
+  readonly position_nr: number;
+  readonly bezeichnung: string;
+}
+
 interface Einheit { readonly schluessel: string; readonly bezeichnung: string;
   readonly ist_platzhalter: boolean }
 interface Gruppe { readonly schluessel: string; readonly bezeichnung: string }
@@ -143,9 +151,43 @@ export default async function Rechnungsblatt(
           where app.berlin_heute() >= gueltig_von
             and (gueltig_bis is null or app.berlin_heute() <= gueltig_bis)
           order by satz_bp desc`),
+      /**
+       * Die Herkunft jeder Zeile (FIN-07, DSH-04) — mit Beschriftung, Ziel und
+       * dem auf sie entfallenden Anteil. Gebildet wird das im DIENST, nicht
+       * hier: dieselbe Zeile fuehrt aus der Rechnung, aus dem Bericht und aus
+       * einem spaeteren Export an dieselbe Stelle, und drei Kopien eines
+       * Pfades driften.
+       */
+      quellen: await ladeQuellen(kontext, id),
+      /**
+       * Die Leistungszeilen des Auftrags — die eine Herkunft, die sich hier
+       * OHNE Zeiterfassung belegen laesst, und zugleich der Anker der
+       * Stundenzeile darunter. Ist die Rechnung keinem Auftrag zugeordnet,
+       * bleibt die Liste leer und das Formular bietet nur „von Hand" an.
+       */
+      leistungen: await kontext.abfrage<Leistung>(
+        `select al.id::text as id, al.position_nr, al.bezeichnung
+           from auftrag_leistung al
+           join rechnung r on r.mandant_id = al.mandant_id and r.auftrag_id = al.auftrag_id
+          where r.id = $1
+          order by al.position_nr`, [id]),
+      /**
+       * FIN-18 — und nur, wenn der Betrachter ueberhaupt festschreiben darf.
+       *
+       * `fin.auftrag_erfasste_minuten()` verlangt `finanzen.festschreiben` und
+       * weist sonst ab. Den Aufruf ungeprueft zu wagen liesse diese Seite fuer
+       * jeden abstuerzen, der eine Rechnung nur ANSEHEN darf.
+       */
+      fin18: (await kontext.abfrage<{ darf: boolean }>(
+        `select app.hat_recht('finanzen.festschreiben', app.aktiver_mandant()) as darf`,
+      ))[0]?.darf === true
+        ? await pruefeZeiterfassung(kontext, id)
+        : null,
     }))) as Promise<{
       kopf: Kopf | null; positionen: readonly Pos[]; steuer: readonly Steuer[];
       einheiten: readonly Einheit[]; gruppen: readonly Gruppe[];
+      quellen: readonly QuelleZeile[]; leistungen: readonly Leistung[];
+      fin18: Fin18Befund | null;
     }>);
 
   const k = daten.kopf;
@@ -165,12 +207,24 @@ export default async function Rechnungsblatt(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label="Zurück" className="mb-s3">
+      <nav aria-label="Zurück" className="mb-s3 flex flex-wrap gap-s4">
         <Link
           href={`/portal/${mandant}/finanzen/rechnungen`}
           className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
         >
           ← Alle Rechnungen
+        </Link>
+        {/*
+          * Der §14-UStG-Vorabbericht (PR 47). Er steht auf einer EIGENEN
+          * Seite und nicht als Kasten hier: er nennt jedes fehlende Feld auf
+          * einmal, und diese Seite ist der Editor — zwei Aufgaben auf einem
+          * Blatt heisst, dass man beim Tippen scrollt.
+          */}
+        <Link
+          href={`/portal/${mandant}/finanzen/rechnungen/${k.id}/pruefung`}
+          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+        >
+          §14-UStG-Prüfung ansehen
         </Link>
       </nav>
 
@@ -254,6 +308,78 @@ export default async function Rechnungsblatt(
         </div>
       )}
 
+      {/*
+        * **Die Herkunft jeder Zeile** (FIN-07, DSH-04, Abnahme 2).
+        *
+        * Sie steht als eigener Abschnitt und nicht als achte Spalte der
+        * Tabelle: eine Zeile hat oft ein Dutzend Belege — auf einer
+        * Reinigungsrechnung auch siebenundachtzig —, und eine Spalte, die
+        * siebenundachtzig Verweise fassen soll, ist keine Spalte.
+        *
+        * Der Klick fuehrt an GENAU den Satz dahinter: an den Zeiteintrag, an
+        * das Aufmassblatt, an den Nachtrag. Wo es (noch) keine Seite gibt,
+        * steht der Beleg ohne Verweis da — ein Link ins Leere waere die
+        * schlechtere Auskunft.
+        */}
+      {daten.quellen.length === 0 ? null : (
+        <>
+          <h2 className="mb-s3 text-h3 text-text">Herkunft der Positionen</h2>
+          <div className="mb-s5 rounded-lg border border-line bg-surface p-s5">
+            {daten.positionen.map((p) => {
+              const belege = daten.quellen.filter((q) => q.positionId === p.id);
+              if (belege.length === 0) return null;
+              const summe = belege.reduce((a, q) => a + q.anteilCent, 0n);
+              return (
+                <section key={p.id} className="mb-s4 last:mb-0">
+                  <h3 className="text-sm text-text">
+                    Position {p.position_nr} · {p.bezeichnung}
+                  </h3>
+                  <ul className="mt-s2">
+                    {belege.map((q) => (
+                      <li
+                        key={q.id}
+                        className="flex flex-wrap items-baseline justify-between gap-s3 border-b border-line py-s2 text-sm last:border-b-0"
+                      >
+                        <span className="text-text-muted">
+                          {q.ziel === null ? q.bezeichnung : (
+                            <Link
+                              href={`/portal/${mandant}/${q.ziel}`}
+                              className="text-text underline-offset-2 hover:underline"
+                            >
+                              {q.bezeichnung}
+                            </Link>
+                          )}
+                          {q.mengeAnteil === null ? '' : ` · ${formatiereMenge(
+                            mengeAusPostgres(q.mengeAnteil))} ${p.einheit ?? ''}`}
+                          {q.wirksam ? '' : ' · Anspruch erloschen'}
+                        </span>
+                        <span className="cse-zahl text-text">
+                          {formatiereGeld(cent(q.anteilCent))}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {/*
+                    * Die Probe, die Abnahme 2 verlangt: die Anteile summieren
+                    * sich AUF DEN CENT zur Zeile. Sie steht sichtbar da und
+                    * nicht nur im Test — wer sie einmal nicht aufgehen sieht,
+                    * soll es sehen, statt es zu erfahren, wenn der Beleg
+                    * draussen ist.
+                    */}
+                  <p className="mt-s2 text-xs text-text-muted">
+                    Summe der Belege: {formatiereGeld(cent(summe))}
+                    {p.netto_cent !== null && summe === BigInt(p.netto_cent)
+                      ? ' — stimmt mit der Position überein.'
+                      : ` — die Position trägt ${p.netto_cent === null ? '—'
+                        : formatiereGeld(cent(BigInt(p.netto_cent)))}.`}
+                  </p>
+                </section>
+              );
+            })}
+          </div>
+        </>
+      )}
+
       <h2 className="mb-s3 text-h3 text-text">Umsatzsteuer je Steuergruppe</h2>
       <table className="mb-s5 w-full max-w-prose border-collapse text-sm">
         <caption className="sr-only">
@@ -298,6 +424,102 @@ export default async function Rechnungsblatt(
 
       {entwurf ? (
         <>
+          {/*
+            * **Der Regelweg: eine Zeile AUS der Zeiterfassung** (TIM-12,
+            * FIN-07). Er steht VOR der Handeingabe, weil er der bessere ist —
+            * die Stunden kommen aus freigegebenen Eintraegen, jeder einzelne
+            * haengt anschliessend als Beleg unter der Zeile, und niemand kann
+            * sich vertippen. Er erscheint nur, wenn die Rechnung einem Auftrag
+            * zugeordnet ist: ohne Auftrag gibt es keine Leistungszeile, an der
+            * Zeit haengen koennte.
+            */}
+          {daten.leistungen.length === 0 ? null : (
+            <>
+              <h2 className="mb-s3 text-h3 text-text">Zeile aus der Zeiterfassung</h2>
+              <form
+                method="post"
+                action={`/api/rechnungen?mandant=${mandant}`}
+                className="mb-s5 max-w-prose rounded-lg border border-line bg-surface p-s5"
+              >
+                <input type="hidden" name="aktion" value="aus-zeiten" />
+                <input type="hidden" name="rechnungId" value={k.id} />
+                <p className="max-w-prose text-sm text-text-muted">
+                  Nimmt jeden freigegebenen und noch nicht abgerechneten
+                  Zeiteintrag der gewählten Leistungszeile, bildet daraus
+                  <strong className="text-text"> eine</strong> Zeile und hängt
+                  jeden Eintrag als Beleg darunter. Die Menge wird genau einmal
+                  gerundet, am Ende.
+                </p>
+
+                <label className="mt-s4 block text-sm text-text" htmlFor="zeitLeistung">
+                  Leistungszeile des Auftrags
+                </label>
+                <select
+                  id="zeitLeistung" name="auftragLeistungId" required className={feld}
+                >
+                  {daten.leistungen.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.position_nr}. {l.bezeichnung}
+                    </option>
+                  ))}
+                </select>
+
+                <div className="mt-s4 grid grid-cols-1 gap-s4 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-sm text-text" htmlFor="zeitBezeichnung">
+                      Handelsübliche Bezeichnung
+                    </label>
+                    <input
+                      id="zeitBezeichnung" name="bezeichnung" type="text" required
+                      defaultValue="Geleistete Stunden" className={feld}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-text" htmlFor="stundensatzCent">
+                      Stundensatz (Cent)
+                    </label>
+                    <input
+                      id="stundensatzCent" name="stundensatzCent" type="number" step="1"
+                      required className={feld}
+                    />
+                    <p className="mt-s1 text-xs text-text-muted">4250 = 42,50 €</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-text" htmlFor="vonDatum">
+                      Von (Berliner Kalendertag)
+                    </label>
+                    <input id="vonDatum" name="vonDatum" type="date" className={feld} />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-text" htmlFor="bisDatum">
+                      Bis (einschließlich)
+                    </label>
+                    <input id="bisDatum" name="bisDatum" type="date" className={feld} />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-text" htmlFor="zeitSteuergruppe">
+                      Steuergruppe
+                    </label>
+                    <select
+                      id="zeitSteuergruppe" name="steuergruppe" required className={feld}
+                    >
+                      {daten.gruppen.map((g) => (
+                        <option key={g.schluessel} value={g.schluessel}>{g.bezeichnung}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="mt-s5 min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-base text-text hover:bg-surface-2"
+                >
+                  Stunden übernehmen
+                </button>
+              </form>
+            </>
+          )}
+
           <h2 className="mb-s3 text-h3 text-text">Position hinzufügen</h2>
           <form
             method="post"
@@ -358,6 +580,58 @@ export default async function Rechnungsblatt(
               </div>
             </div>
 
+            {/*
+              * **Die Herkunft ist Pflicht** (FIN-07, §4.4). Es gibt genau zwei
+              * Wege und keinen dritten: eine Vertragszeile als Beleg oder
+              * ausdruecklich „von Hand" MIT Begruendung. Ein „ohne Angabe"
+              * faende die Datenbank beim COMMIT — dann aber erst, nachdem
+              * jemand das ganze Formular ausgefuellt hat.
+              */}
+            <fieldset className="mt-s5 rounded-md border border-line p-s4">
+              <legend className="px-s2 text-sm text-text">Herkunft dieser Zeile</legend>
+              {daten.leistungen.length === 0 ? (
+                <input type="hidden" name="herkunft" value="manuell" />
+              ) : (
+                <>
+                  <label className="block text-sm text-text" htmlFor="herkunft">Beleg</label>
+                  <select id="herkunft" name="herkunft" defaultValue="vertrag" className={feld}>
+                    <option value="vertrag">Vertragsposition des Auftrags</option>
+                    <option value="manuell">Von Hand — mit Begründung</option>
+                  </select>
+
+                  <label className="mt-s4 block text-sm text-text" htmlFor="auftragLeistungId">
+                    Vertragsposition
+                  </label>
+                  <select id="auftragLeistungId" name="auftragLeistungId" className={feld}>
+                    {daten.leistungen.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.position_nr}. {l.bezeichnung}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
+
+              <label className="mt-s4 block text-sm text-text" htmlFor="herkunftNotiz">
+                Begründung, falls von Hand erfasst
+              </label>
+              {/*
+                * `required` genau dann, wenn es KEINE andere Herkunft gibt:
+                * ohne Auftrag bleibt nur „von Hand", und dann ist die
+                * Begründung die einzige Angabe, die die Zeile belegt. Mit
+                * Auftrag steht sie daneben und wird nur für den Fall gebraucht,
+                * dass jemand bewusst „von Hand" wählt — das kann HTML allein
+                * nicht bedingen, und der Dienst weist es sauber ab.
+                */}
+              <input
+                id="herkunftNotiz" name="herkunftNotiz" type="text" minLength={3}
+                required={daten.leistungen.length === 0} className={feld}
+              />
+              <p className="mt-s1 text-xs text-text-muted">
+                Eine Zeile ohne Beleg entsteht nicht — auch nicht versehentlich.
+              </p>
+            </fieldset>
+
             <button
               type="submit"
               className="mt-s5 min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-base text-text hover:bg-surface-2"
@@ -380,6 +654,35 @@ export default async function Rechnungsblatt(
                 <strong className="text-text"> Danach ist der Beleg unveränderlich.</strong>
                 {' '}Eine Korrektur ist dann ein Storno mit Neuausstellung.
               </p>
+
+              {/*
+                * **FIN-18 — blockierend, und sie fällt VOR der Nummer**
+                * (Abnahme 3). Der Knopf bleibt bedienbar, aber die
+                * Festschreibung weist ab, solange keine Begründung dasteht;
+                * das ist der Unterschied zwischen einer Warnung, die man
+                * wegklickt, und einer, die man beantwortet. Die Begründung
+                * landet im Audit-Log und im Schnappschuss und ist danach
+                * unveränderlich.
+                */}
+              {daten.fin18 === null ? null : (
+                <div className="mt-s4 max-w-prose rounded-md border border-warning bg-warning-soft p-s4 text-sm text-warning">
+                  <p>
+                    <strong>Auftrag {daten.fin18.auftragsnummer}</strong> („
+                    {daten.fin18.bezeichnung}") ist abgeschlossen, aber es ist
+                    keine einzige Minute erfasst (FIN-18). Entweder fehlt die
+                    Zeiterfassung, oder diese Rechnung gehört zu einem anderen
+                    Auftrag.
+                  </p>
+                  <label className="mt-s3 block" htmlFor="fin18Begruendung">
+                    Begründung, um trotzdem festzuschreiben (mind. zehn Zeichen)
+                  </label>
+                  <input
+                    id="fin18Begruendung" name="fin18Begruendung" type="text" minLength={10}
+                    className={feld}
+                  />
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={daten.positionen.length === 0}

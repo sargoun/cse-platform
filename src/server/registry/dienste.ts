@@ -522,6 +522,13 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'finanzen', pfad: 'finanz/rechnung',
     schreibend: true, schreibRecht: 'finanzen.festschreiben',
   },
+  /**
+   * Der §14-UStG-Vorabpruefer (PR 47). Er LIEST — und das ist keine
+   * Formalie: die Vorschau `rechnungen/[id]/pruefung` laeuft auch in einer
+   * Nur-Lese-Sitzung, und ein Pruefer, der nebenbei etwas ablegt, waere ein
+   * Schreibpfad auf einem Bildschirm, der keinen haben darf.
+   */
+  { modul: 'finanzen', pfad: 'finanz/ustg14', schreibend: false },
 ] as const;
 
 /**

@@ -525,6 +525,78 @@ async function wacheKonfigAdressen(): Promise<void> {
   }
 }
 
+/**
+ * Guard 11 — die §14-UStG-Vorabpruefung hat GENAU EINE Fassung, und die
+ * Festschreibung ruft sie (PR 47, FIN-04, `05-FINANZEN.md` §6).
+ *
+ * Zwei Ausfaelle, beide leise:
+ *
+ *  1. Jemand baut eine zweite Regelliste — in einer Route, in einer Seite, in
+ *     einem spaeteren Dienst. Ab dann gibt es zwei Antworten auf „erfuellt
+ *     dieser Beleg §14 UStG", und die eine, die blockiert, ist nicht die, die
+ *     der Mensch auf dem Bildschirm gesehen hat.
+ *  2. Jemand nimmt den Aufruf aus `finalisiere()` heraus — weil ein Test
+ *     stoert, weil eine Migration gerade laeuft, weil es schnell gehen muss.
+ *     Die Datenbank weist den Beleg dann immer noch ab (`0085`), aber mit
+ *     einer Meldung ueber einen Ausloeser statt mit der deutschen Feldliste.
+ *
+ * Die Wache prueft beides. Fehlt `finanz/rechnung.ts` ganz — so wie im
+ * Wegwerf-Baum der Wachenprobe —, gibt es nichts zu pruefen und sie schweigt.
+ */
+function wacheValidator(): void {
+  const dienst = join(WURZEL, 'src/server/services/finanz/rechnung.ts');
+  if (!existsSync(dienst)) return;
+
+  const pruefer = join(WURZEL, 'src/server/services/finanz/ustg14.ts');
+  if (!existsSync(pruefer)) {
+    melde('validator-nicht-uebersprungen', dienst, 1,
+      'services/finanz/ustg14.ts fehlt — die §14-UStG-Vorabpruefung hat keine Fassung.');
+    return;
+  }
+
+  /**
+   * Der RUMPF von `finalisiere` — nicht die ganze Datei. Ein Import oben
+   * genuegt nicht: eine Datei kann den Pruefer importieren und ihn an genau
+   * der einen Stelle nicht rufen, an der er zaehlt.
+   */
+  const inhalt = readFileSync(dienst, 'utf8');
+  const start = inhalt.indexOf('export async function finalisiere');
+  if (start === -1) {
+    melde('validator-nicht-uebersprungen', dienst, 1,
+      'finalisiere() gibt es nicht mehr — die Wache weiss nicht, wo sie nachsehen soll.');
+  } else {
+    const rest = inhalt.slice(start + 1);
+    const ende = rest.indexOf('\nexport ');
+    const rumpf = ende === -1 ? rest : rest.slice(0, ende);
+    const zeile = inhalt.slice(0, start).split('\n').length;
+    if (!/pruefeRechnung\s*\(/u.test(rumpf)) {
+      melde('validator-nicht-uebersprungen', dienst, zeile,
+        'finalisiere() ruft pruefeRechnung() nicht — §14 UStG wird vor der '
+        + 'Nummernvergabe nicht geprueft (FIN-04).');
+    }
+    if (!/\.fehler\.length\s*>\s*0/u.test(rumpf)) {
+      melde('validator-nicht-uebersprungen', dienst, zeile,
+        'finalisiere() wertet den Befund nicht aus — ein Bericht ohne Abbruch bei '
+        + 'einem Fehler ist eine Pruefung, die nichts verhindert.');
+    }
+  }
+
+  // Und die zweite Fassung: niemand sonst definiert diese Funktionen.
+  const DEFINITION =
+    /(?:function|const|let|var)\s+(pruefePflichtfelder|pruefeRechnung|kleinbetragLage)\b/u;
+  for (const datei of dateien('src', ['.ts', '.tsx'])) {
+    if (datei === pruefer) continue;
+    ohneKommentare(readFileSync(datei, 'utf8')).split('\n').forEach((z, i) => {
+      const treffer = DEFINITION.exec(z);
+      if (treffer !== null) {
+        melde('validator-nicht-uebersprungen', datei, i + 1,
+          `\`${treffer[1] ?? ''}\` ist hier ein zweites Mal definiert — die `
+          + '§14-UStG-Regelliste steht ausschliesslich in services/finanz/ustg14.ts.');
+      }
+    });
+  }
+}
+
 async function main(): Promise<void> {
   wacheGeldSpalte();
   wacheZeitstempel();
@@ -535,6 +607,7 @@ async function main(): Promise<void> {
   wacheEinAusgang();
   wacheTailwindFarben();
   wacheAnzeigeZeitzone();
+  wacheValidator();
   await wacheKonfigAdressen();
 
   if (befunde.length > 0) {

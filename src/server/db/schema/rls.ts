@@ -964,6 +964,21 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'ersetzt_durch_id abgeloest — geloescht fehlte im Werklohnprozess der '
       + 'Beleg, dass rechtzeitig angekuendigt wurde.',
   },
+  /**
+   * Finanzen / CRM (PR 48, 02-CRM-OPERATIONS.md §3.2). Die
+   * Abrechnungskonfiguration eines Auftrags.
+   */
+  {
+    tabelle: 'vertrag_abrechnung',
+    art: 'archiv',
+    migration: '0086',
+    grund:
+      'FIN-01, FIN-06, K-12. Die Zeile ist die Grundlage, auf der eine '
+      + 'festgeschriebene und gehashte Rechnung entstanden ist. Geloescht '
+      + 'liesse sich ein vergangener Abrechnungszeitraum nicht mehr '
+      + 'rekonstruieren — eine dauerhafte Luecke im Pruefpfad. Abgeloest wird '
+      + 'sie durch gueltig_bis, nie durch DELETE.',
+  },
   {
     tabelle: 'behinderung_vorlage',
     art: 'archiv',
@@ -1162,6 +1177,27 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'die die Kette geschrieben ist. Eine geleerte Kettentabelle laesst den '
       + 'naechtlichen Lauf eine LEERE Kette melden statt einer gebrochenen — '
       + 'und das liest sich wie „nichts zu pruefen".',
+  },
+  /**
+   * Finanzen (PR 49): die Herkunft einer Rechnungszeile (FIN-07, §4.4).
+   *
+   * `archiv` und nicht `append`, weil `wirksam` genau der Zustand ist, den
+   * §4.4 vorsieht: ein Anspruch erlischt, die Zeile bleibt. Eine loeschbare
+   * Herkunftszeile hiesse, die Doppelabrechnungssperre mit einem DELETE
+   * aufheben zu koennen — derselbe Zeiteintrag stuende dann auf zwei
+   * Rechnungen, ohne dass irgendwo eine Zeile fehlte.
+   */
+  {
+    tabelle: 'rechnungsposition_quelle',
+    art: 'archiv',
+    migration: '0088',
+    grund:
+      'FIN-07, §4.4, Invariante 8. Sie IST der Beleg, dass eine abgerechnete '
+      + 'Stunde abgerechnet ist. Waere sie loeschbar, liesse sich die '
+      + 'Doppelabrechnungssperre durch ein DELETE aufheben — und derselbe '
+      + 'Zeiteintrag stuende auf zwei Rechnungen, ohne dass irgendwo eine '
+      + 'Zeile fehlte. Ein erloschener Anspruch faellt auf `wirksam = false` '
+      + 'und bleibt stehen.',
   },
 
   /**
@@ -1451,6 +1487,20 @@ export const AUDITIERT: readonly TabelleJeMigration[] = [
   { tabelle: 'rechnung_steuer', migration: '0075' },
   { tabelle: 'rechnung_beziehung', migration: '0075' },
   { tabelle: 'rechnung_hash', migration: '0077' },
+  /**
+   * CRM (PR 48): die Abrechnungskonfiguration. Wer den Stundensatz oder die
+   * Monatspauschale eines laufenden Vertrages bewegt hat — mit Vorher und
+   * Nachher —, ist die Frage, die jede kuenftige Rechnung dieses Auftrags
+   * entscheidet (02-CRM §13.1 fuehrt `vertrag_abrechnung` ausdruecklich in
+   * der Liste der protokollierten Tabellen).
+   */
+  { tabelle: 'vertrag_abrechnung', migration: '0086' },
+  /**
+   * Finanzen (PR 49): wer welche Stunde auf welche Rechnung gesetzt — und wer
+   * sie mit einem Storno wieder freigegeben — hat, ist die Frage, die eine
+   * Betriebspruefung an der Doppelabrechnungssperre stellt (§4.4, FIN-07).
+   */
+  { tabelle: 'rechnungsposition_quelle', migration: '0088' },
 ] as const;
 
 /** Tables carrying S4 (`geloescht_am` / `geloescht_von`) — the finders' domain. */
@@ -1626,6 +1676,24 @@ export const GEAENDERT_AM: readonly TabelleJeMigration[] = [
   { tabelle: 'da_pflicht', migration: '0078' },
   { tabelle: 'schluesselart', migration: '0079' },
   { tabelle: 'schluessel', migration: '0079' },
+
+  /**
+   * CRM (PR 48): die Abrechnungskonfiguration ist beweglich, solange ihr
+   * Zeitraum laeuft — Zahlungsziel, Skonto, Leitweg-ID und Bestellnummer
+   * werden gepflegt. Was sie NICHT ist, ist rueckwirkend loeschbar: sie wird
+   * durch `gueltig_bis` abgeloest (siehe KEIN_HARD_DELETE).
+   */
+  { tabelle: 'vertrag_abrechnung', migration: '0086' },
+
+  /**
+   * Finanzen (PR 49): `rechnungsposition_quelle` ist beweglich in genau einer
+   * Spalte — `wirksam` faellt beim Storno. §4.4 nennt den Auditblock
+   * „insert only" und fuehrt `wirksam` zugleich als veraenderlich; K-16
+   * verlangt fuer jede bewegliche Tabelle ein `geaendert_am`, und wo Kapitel
+   * und Konvention auseinandergehen, gilt die Konvention (wie bei
+   * `rechnung_steuer`, D-213).
+   */
+  { tabelle: 'rechnungsposition_quelle', migration: '0088' },
 ] as const;
 
 /** Every migration that carries a generated block, in order. */
