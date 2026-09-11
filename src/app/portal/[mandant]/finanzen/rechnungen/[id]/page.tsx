@@ -143,9 +143,34 @@ export default async function Rechnungsblatt(
           where app.berlin_heute() >= gueltig_von
             and (gueltig_bis is null or app.berlin_heute() <= gueltig_bis)
           order by satz_bp desc`),
+      /**
+       * Darf dieser Mensch ueberhaupt stornieren?
+       *
+       * Die Frage MUSS hier gestellt werden und nicht erst an der Route.
+       * `finanzen.stornieren` haelt heute nur `super_admin` (Katalog:
+       * `gebunden: ['super_admin'], bindbar: ['admin','leitung']`) — und der
+       * Vorgabewert ist ausdruecklich vorlaeufig, solange O-77 offen ist.
+       * Das Formular stand trotzdem auf JEDEM festgeschriebenen Beleg: die
+       * Verwaltung einer Gesellschaft tippte einen auditfaehigen Grund, drueckte
+       * „Stornieren" und bekam die rohe Zeichenkette `{"fehler":"unbekannt"}`
+       * ins Fenster — 404, weil dieses Projekt fehlende Rechte nicht
+       * bestaetigt (AUT-06). Ein Bedienelement, das jeder sieht und niemand
+       * benutzen kann, ist schlimmer als keines: es sagt, die Korrektur sei
+       * moeglich, und nimmt dem Leser die eine Auskunft, die er braucht —
+       * naemlich WER sie vornehmen kann.
+       *
+       * // TODO(client, O-77): Wer darf eine festgeschriebene Rechnung
+       * stornieren — nur die Gruppenleitung, oder auch die Verwaltung einer
+       * Gesellschaft? Invariante 4 legt den MECHANISMUS fest (Stornobuchung)
+       * und sagt ueber die Befugnis nichts.
+       */
+      darfStornieren: ((await kontext.abfrage<{ darf: boolean }>(
+        `select app.hat_recht('finanzen.stornieren', app.aktiver_mandant()) as darf`,
+      ))[0]?.darf) === true,
     }))) as Promise<{
       kopf: Kopf | null; positionen: readonly Pos[]; steuer: readonly Steuer[];
       einheiten: readonly Einheit[]; gruppen: readonly Gruppe[];
+      darfStornieren: boolean;
     }>);
 
   const k = daten.kopf;
@@ -423,7 +448,18 @@ export default async function Rechnungsblatt(
             )}
           </p>
 
-          {k.status === 'festgeschrieben' && k.storniert_durch === null ? (
+          {k.status === 'festgeschrieben' && k.storniert_durch === null
+           && !daten.darfStornieren ? (
+             <p className="max-w-prose text-sm text-text-muted">
+               Eine festgeschriebene Rechnung wird nicht geändert, sondern durch
+               eine Stornobuchung aufgehoben. Dieses Konto hält das Recht
+               <span className="text-text"> finanzen.stornieren </span>
+               nicht — wer es hält, ist noch offen (O-77).
+             </p>
+           ) : null}
+
+          {k.status === 'festgeschrieben' && k.storniert_durch === null
+           && daten.darfStornieren ? (
             <form
               method="post"
               action={`/api/rechnungen/storno?mandant=${mandant}`}

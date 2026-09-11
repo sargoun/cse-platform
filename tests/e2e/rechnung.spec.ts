@@ -58,6 +58,36 @@ const sql = postgres(DSN, { max: 2, onnotice: () => {} });
  * fortlaufend weiter oder setzen sie jährlich zurück, und mit welcher Maske?
  */
 test.beforeAll(async () => {
+  /**
+   * **Die Storno-Befugnis ist eine VORRICHTUNG, keine Antwort auf O-77.**
+   *
+   * `finanzen.stornieren` haelt im Katalog nur `super_admin`
+   * (`gebunden: ['super_admin']`), und der einzige solche Zugang im Seed
+   * gehoert keiner Gesellschaft an — in `reinigung` kann heute also NIEMAND
+   * korrigieren, und der Weg, um den es in Invariante 4 geht, liesse sich im
+   * Browser ueberhaupt nicht gehen.
+   *
+   * Der Katalog fuehrt `admin` ausdruecklich unter `bindbar`: die Bindung ist
+   * eine vorgesehene Einstellung, keine erfundene Regel. Genau sie wird hier
+   * fuer die Testdatenbank gesetzt — und NICHT im Seed, denn welche Rolle sie
+   * im Betrieb traegt, ist offen.
+   *
+   * Was damit ungeprueft bleibt: der Zweig OHNE das Recht, der auf dem Beleg
+   * statt des Formulars den Satz „dieses Konto haelt das Recht nicht (O-77)"
+   * zeigt. Beides in einem Lauf zu pruefen hiesse, dieselbe Rolle gleichzeitig
+   * mit und ohne Recht zu fuehren; `app.hat_recht` selbst ist in der
+   * Isolationssuite abgedeckt.
+   *
+   * // TODO(client, O-77): Wer darf eine festgeschriebene Rechnung
+   * stornieren — nur die Gruppenleitung, oder auch die Verwaltung einer
+   * Gesellschaft?
+   */
+  await sql.unsafe(
+    `insert into rolle_berechtigung (rolle_id, berechtigung_id)
+     select r.id, b.id from rolle r, berechtigung b
+      where r.schluessel = 'admin' and b.schluessel = 'finanzen.stornieren'
+     on conflict do nothing`);
+
   await sql.unsafe(
     `update nummernkreis nk
         set ist_platzhalter = false,
