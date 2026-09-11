@@ -21,18 +21,35 @@
  *    eine Rechnung unter einer geratenen Maske hinaus, und niemand hat es
  *    gesehen.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+/**
+ * **Ohne Anmeldung antwortet jede Portalseite mit „Anmeldung erforderlich"** —
+ * und dann ist die Ueberschrift, auf die dieser Test wartet, nicht da. Der
+ * Helfer stand in jeder anderen e2e-Datei; hier fehlte er, und deshalb
+ * scheiterten alle zehn Faelle mit demselben `toBeVisible()`, das wie ein
+ * fehlender Bildschirm aussah.
+ */
+async function anmelden(page: Page): Promise<void> {
+  await page.goto('/dev/anmelden');
+  const knopf = page.locator('[data-cse="dev-anmelden"][data-rolle="admin"]').first();
+  await expect(knopf, 'kein Seed-Konto für Rolle admin').toBeVisible();
+  await knopf.click();
+  await page.waitForLoadState('networkidle');
+}
 
 const MANDANT = 'reinigung';
 
 test.describe('Das Rechnungsausgangsbuch (FIN-16)', () => {
   test('ein Entwurf steht ohne Nummer in der Liste', async ({ page }) => {
+    await anmelden(page);
     await page.goto(`/portal/${MANDANT}/finanzen/rechnungen`);
     await expect(page.getByRole('heading', { name: 'Rechnungen', level: 1 })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Neuer Entwurf' })).toBeVisible();
   });
 
   test('die Liste nennt Brutto rechtsbündig und den Zustand als Pille', async ({ page }) => {
+    await anmelden(page);
     await page.goto(`/portal/${MANDANT}/finanzen/rechnungen`);
     await expect(page.getByRole('columnheader', { name: 'Brutto' })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'Zustand' })).toBeVisible();
@@ -41,6 +58,7 @@ test.describe('Das Rechnungsausgangsbuch (FIN-16)', () => {
 
 test.describe('Der Entwurf (FIN-01)', () => {
   test('das Formular füllt kein Zahlungsziel vor — §4.2 kennt keinen Vorgabewert', async ({ page }) => {
+    await anmelden(page);
     await page.goto(`/portal/${MANDANT}/finanzen/rechnungen/neu`);
     const ziel = page.getByLabel('Zahlungsziel (Tage)');
     await expect(ziel).toBeVisible();
@@ -51,6 +69,7 @@ test.describe('Der Entwurf (FIN-01)', () => {
   });
 
   test('ein Entwurf entsteht, bekommt aber keine Nummer', async ({ page }) => {
+    await anmelden(page);
     await page.goto(`/portal/${MANDANT}/finanzen/rechnungen/neu`);
     await page.getByLabel('Zahlungsziel (Tage)').fill('30');
     await page.getByRole('button', { name: 'Entwurf anlegen' }).click();
@@ -60,6 +79,7 @@ test.describe('Der Entwurf (FIN-01)', () => {
   });
 
   test('ohne Position lässt sich nicht festschreiben — der Knopf ist gesperrt', async ({ page }) => {
+    await anmelden(page);
     await page.goto(`/portal/${MANDANT}/finanzen/rechnungen/neu`);
     await page.getByLabel('Zahlungsziel (Tage)').fill('30');
     await page.getByRole('button', { name: 'Entwurf anlegen' }).click();
@@ -67,6 +87,7 @@ test.describe('Der Entwurf (FIN-01)', () => {
   });
 
   test('Menge und Preis werden als GANZE Zahlen erfasst (K-16, Invariante 1)', async ({ page }) => {
+    await anmelden(page);
     await page.goto(`/portal/${MANDANT}/finanzen/rechnungen/neu`);
     await page.getByLabel('Zahlungsziel (Tage)').fill('30');
     await page.getByRole('button', { name: 'Entwurf anlegen' }).click();
@@ -81,6 +102,7 @@ test.describe('Der Entwurf (FIN-01)', () => {
 
 test.describe('Das Festschreiben ist einseitig (Invariante 4)', () => {
   test('danach gibt es kein Positionsformular mehr, sondern die Kettenbindung', async ({ page }) => {
+    await anmelden(page);
     await page.goto(`/portal/${MANDANT}/finanzen/rechnungen/neu`);
     await page.getByLabel('Zahlungsziel (Tage)').fill('30');
     await page.getByRole('button', { name: 'Entwurf anlegen' }).click();
@@ -107,6 +129,7 @@ test.describe('Das Festschreiben ist einseitig (Invariante 4)', () => {
   });
 
   test('korrigiert wird durch Storno mit auditfähigem Grund, nicht durch Änderung', async ({ page }) => {
+    await anmelden(page);
     await page.goto(`/portal/${MANDANT}/finanzen/rechnungen`);
     await page.getByRole('link', { name: /^RE-/u }).first().click();
 
@@ -124,6 +147,7 @@ test.describe('Das Festschreiben ist einseitig (Invariante 4)', () => {
 
 test.describe('Unbestätigte Werte sind sichtbar (§1.11)', () => {
   test('eine Platzhalter-Mengeneinheit sagt es in der Auswahl', async ({ page }) => {
+    await anmelden(page);
     await page.goto(`/portal/${MANDANT}/finanzen/rechnungen/neu`);
     await page.getByLabel('Zahlungsziel (Tage)').fill('30');
     await page.getByRole('button', { name: 'Entwurf anlegen' }).click();
@@ -131,6 +155,7 @@ test.describe('Unbestätigte Werte sind sichtbar (§1.11)', () => {
   });
 
   test('und eine Position ohne BT-130 zeigt „offen" statt eines geratenen Codes', async ({ page }) => {
+    await anmelden(page);
     await page.goto(`/portal/${MANDANT}/finanzen/rechnungen`);
     await page.getByRole('link', { name: /^RE-/u }).first().click();
     await expect(page.getByRole('columnheader', { name: 'BT-130' })).toBeVisible();

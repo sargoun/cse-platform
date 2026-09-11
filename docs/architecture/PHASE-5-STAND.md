@@ -59,6 +59,12 @@ Demodaten, die der **echte** Generator erzeugt.
 - Isolationstests **truncaten die Datenbank**, gegen die sie laufen. Eine
   Datenbank, aus der jemand Screenshots macht, gehoert nicht in
   `TEST_DATABASE_URL`.
+- **Die e2e-Datenbank braucht `pnpm content:import` nach `pnpm db:seed`.** Die
+  oeffentlichen Seiten lesen ihren Inhalt aus `seite`/`abschnitt` (PUB-07);
+  ohne den Import antwortet `/` mit **404**, und 42 Faelle in `a11y`,
+  `sprachen` und `seo` scheitern an etwas, das wie ein kaputter Bildschirm
+  aussieht und eine fehlende Zeile ist. `.github/workflows/a11y.yml` macht es
+  richtig; wer die Suite von Hand fahert, vergisst es.
 
 ## Was von Hand nachgewiesen ist
 
