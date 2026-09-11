@@ -123,6 +123,16 @@ async function anmelden(page: Page): Promise<void> {
 async function festgeschriebenerBeleg(page: Page): Promise<void> {
   await anmelden(page);
   await page.goto(`/portal/${MANDANT}/finanzen/rechnungen/neu`);
+  /*
+   * Der Leistungszeitraum ist keine Zierde, sondern die Bedingung, unter der
+   * sich der Beleg überhaupt festschreiben lässt: `rechnung_leistungszeitpunkt`
+   * verlangt entweder `leistung_von` UND `leistung_bis`, oder — bei Abschlag
+   * und Anzahlung — einen geplanten Vereinnahmungstag (§ 14 Abs. 4 Nr. 6
+   * UStG). Der Helfer füllte nur das Zahlungsziel; die Festschreibung fiel
+   * deshalb an der Datenbank, und zwar zu Recht.
+   */
+  await page.getByLabel('Leistung von').fill('2026-08-01');
+  await page.getByLabel('Leistung bis').fill('2026-08-31');
   await page.getByLabel('Zahlungsziel (Tage)').fill('30');
   await page.getByRole('button', { name: 'Entwurf anlegen' }).click();
 

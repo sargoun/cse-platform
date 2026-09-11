@@ -54,7 +54,22 @@ const sql = postgres(DSN, { max: 2, onnotice: () => {} });
  * hätte für die beiden lesenden Prüfungen kein Unterschriftsformular mehr,
  * sobald die dritte zuerst fertig ist.
  */
-const LAUF = crypto.randomUUID();
+/**
+ * Die Kennung gehört dem ARBEITER, nicht dem Modulimport.
+ *
+ * `crypto.randomUUID()` beim Laden des Moduls sah richtig aus und war es
+ * nicht: `beforeAll` lief in diesem Lauf ein zweites Mal mit DERSELBEN
+ * Kennung — in der Datenbank stand genau EIN Satz Fixturen, und der zweite
+ * Einfügeversuch brach an `ln_nummer_uk`. Ein Nachweis ist nicht löschbar
+ * (Invariante 8), die Zeile des ersten Durchgangs bleibt also stehen.
+ *
+ * `TEST_PARALLEL_INDEX` setzt Playwright je Arbeiter. Damit ist die Kennung
+ * zwischen gleichzeitigen Arbeitern VERSCHIEDEN — zwei dürfen nicht
+ * denselben Nachweis unterschreiben, das Unterschreiben friert ihn ein — und
+ * innerhalb eines Arbeiters GLEICH, sodass ein zweiter Durchgang dieselben
+ * Zeilen wiederfindet, statt sie ein zweites Mal anzulegen.
+ */
+const LAUF = `w${process.env['TEST_PARALLEL_INDEX'] ?? '0'}`;
 
 let nachweisLesend = '';
 let nachweisZumUnterschreiben = '';
@@ -95,8 +110,20 @@ test.beforeAll(async () => {
           erstellt_von_art)
        values ($1, $2, $3, $4, $5, '2026-08-01', '2026-08-31', 'vorgelegt', now(),
                'system')
+       on conflict (mandant_id, nummer) where nummer is not null do nothing
        returning id`,
       [m!.id, nummer, ort!.objekt_id, ort!.revier_id, ort!.kunde_id] as never[]);
+
+    // Kam nichts zurueck, gibt es die Zeile schon — aus einem frueheren
+    // Durchgang desselben Arbeiters. Dann wird sie WIEDERVERWENDET und nicht
+    // ein zweites Mal angelegt; die Positionen unten haengen an derselben
+    // Kennung und entstehen ebenfalls nur einmal.
+    if (n === undefined) {
+      const [vorhanden] = await sql.unsafe<{ id: string }[]>(
+        'select id from leistungsnachweis where mandant_id = $1 and nummer = $2',
+        [m!.id, nummer] as never[]);
+      return vorhanden!.id;
+    }
 
     // Zwei Zeilen, damit der Abzug nach der Unterschrift etwas zu zeigen hat.
     for (const [reihe, text, menge, einheit, preis] of [
@@ -107,7 +134,8 @@ test.beforeAll(async () => {
         `insert into leistungsnachweis_position
            (mandant_id, leistungsnachweis_id, kunde_id, reihenfolge, bezeichnung,
             menge, einheit, einzelpreis_cent, quelle, erstellt_von_art)
-         values ($1,$2,$3,$4,$5,$6::numeric,$7,$8::bigint,'manuell','system')`,
+         values ($1,$2,$3,$4,$5,$6::numeric,$7,$8::bigint,'manuell','system')
+         on conflict do nothing`,
         [m!.id, n!.id, ort!.kunde_id, reihe, text, menge, einheit, preis] as never[]);
     }
     return n!.id;
@@ -129,10 +157,19 @@ test.beforeAll(async () => {
        values ($1,$2,$3,$4,$5,$6,'kunde','mittel','offen',
                'Treppenhaus im 3. OG am Montag nicht gereinigt, Flecken vor Aufzug.',
                'Frau Özdemir, Objektverantwortliche', 'system')
+       on conflict (mandant_id, nummer) do nothing
        returning id`,
       [m!.id, nummer, ort!.objekt_id, ort!.revier_id, ort!.kunde_id,
         nachweisLesend] as never[]);
-    return r!.id;
+    // Wie beim Nachweis: ein zweiter Durchgang desselben Arbeiters findet die
+    // Zeile wieder, statt an `reklamation_nummer_uk` zu brechen.
+    if (r === undefined) {
+      const [vorhanden] = await sql.unsafe<{ id: string }[]>(
+        'select id from reklamation where mandant_id = $1 and nummer = $2',
+        [m!.id, nummer] as never[]);
+      return vorhanden!.id;
+    }
+    return r.id;
   };
 
   reklamationBehoben = await reklamation(`RK-E2E-${LAUF}-1`);
