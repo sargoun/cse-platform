@@ -3858,3 +3858,646 @@ sondern ein `text-warning`-Vermerk mit `title` — so wie ihn
 | # | Question | Blocks |
 |---|---|---|
 | O-260 | **Wer gibt bei der Gruppe eine ausgehende Bau-Rechtserklärung frei — die Behinderungsanzeige nach § 6 Abs. 1 VOB/B und die Einreichung eines Nachtrags nach § 2 VOB/B?** Beides sind Erklärungen mit anspruchswahrender bzw. anspruchsbegründender Wirkung, und Invariante 7 verlangt dafür einen benannten Menschen. Der Rechtekatalog bindet `versand.freigeben` heute an `super_admin` und `admin` und macht es für `leitung` nur *bindbar* — die Bauleitung, die die Anzeige schreibt, darf sie also nicht selbst freigeben. Ob das so gewollt ist (Vier-Augen-Prinzip) oder ob die Bauleitung das Recht erhalten soll, ist eine Frage der Vollmachtsordnung und keine technische. Bis zur Antwort verlangen beide Formulare die Kennung einer bereits genehmigten Freigabe und erzeugen keine (D-250); der Freigabe-Posteingang entsteht ohnehin erst mit PR 62. | BAU-04, BAU-06, Invariante 7, `versand.freigeben` |
+
+---
+
+## Entschieden in PR 49 — Positionsherkunft und Warnung bei fehlender Zeiterfassung
+
+Die Zeilen liegen seit PR 46, aber keine trug einen Beleg. FIN-07 verlangt, dass
+jede Rechnungszeile auf das zurückführt, woraus sie entstanden ist, und FIN-18,
+dass ein abgeschlossener Auftrag ohne eine einzige erfasste Minute nicht
+unbemerkt fakturiert wird. Beides ist gebaut, und beides liegt in der Datenbank
+— nicht im Dienst.
+
+### D-360 · Die Zeile ohne Beleg gibt es nicht — und zwar als aufgeschobener Auslöser
+
+`rp_hat_quelle` (`0088`) ist ein `deferrable initially deferred`
+Constraint-Trigger auf `rechnungsposition`. Er prüft beim COMMIT, also **nachdem**
+die Quellzeilen geschrieben sind.
+
+Sofort geprüft wiese er jede Position zurück, deren Beleg eine Anweisung später
+folgt — also jede. Im Dienst geprüft wäre er eine Zusage, die jeder zweite
+Schreibweg einzeln wiederholen müsste: `storniere()`, `korrigiere()` und jeder
+spätere Import schreiben Positionen mit rohem SQL, und genau dort wird eine
+Prüfung vergessen. Aufgeschoben in der Datenbank sagt er die Zusage einmal für
+alle Schreibwege.
+
+Er gilt nur für `positionsart = 'leistung'`. Eine `textzeile` trägt weder Menge
+noch Betrag (0075) und eine `zwischensumme` ist reine Anzeige — von ihnen einen
+Beleg zu verlangen hieße, für einen VOB-Verweis eine Quellzeile zu erfinden.
+
+### D-361 · Er fragt nach der EXISTENZ eines Belegs, nicht nach einem lebenden Anspruch
+
+Die erste Fassung prüfte `exists (… and q.wirksam)`. Das ist falsch, und zwar auf
+die teure Art: die Stornorechnung übernimmt den Beleg des Originals ausdrücklich
+**unwirksam** (D-363). Mit `wirksam` in der Bedingung wäre ausgerechnet die
+Korrektur die eine Buchung, die sich nicht mehr schreiben lässt — die
+Doppelabrechnungssperre verhinderte dann genau den Vorgang, mit dem man eine zu
+Unrecht gestellte Rechnung wieder loswird.
+
+### D-362 · `zeiteintrag` exklusiv, `aufmass` ausdrücklich nicht
+
+Für die Stunde ist der partielle Unique-Index
+`quelle_zeiteintrag_uk (zeiteintrag_id) where quelle_typ = 'zeiteintrag' and wirksam`
+der Anspruch. Für das Aufmaßblatt wäre derselbe Index falsch: § 16 VOB/B rechnet
+ein Blatt anteilig über aufeinanderfolgende Abschlagsrechnungen und noch einmal
+in der Schlussrechnung ab. Ein Unique-Index machte die **zweite** Bezugnahme zu
+einem Constraint-Bruch, FIN-08 auf gemessener Leistung unausführbar und
+`menge_anteil` — das genau für die Teilentnahme existiert — unbenutzbar.
+
+Der Schutz dort ist deshalb eine **Summe**: `fin.pruefe_aufmass_menge()`,
+aufgeschoben, vergleicht Σ `menge_anteil` aller wirksamen Zeilen gegen die
+gemessene Menge des Blattes und schreibt den Stand nach `aufmass.abgerechnet_menge`
+zurück (§2.3 Punkt 5). Verglichen wird in **Beträgen**, nicht mit `>`: ein
+Rückbaublatt misst negativ, und `−40 > −30` wäre dort die falsche Richtung.
+
+**Die gemessene Menge ist Σ `aufmass_zeile.menge`, nicht `aufmass.menge`.**
+`05-FINANZEN.md` §4.4 nennt eine Spalte `aufmass.menge`; `0072` legt sie nicht an,
+und sie gehört auch nicht dorthin — gemessen wird auf der Zeile. Daraus folgt
+eine offene Frage (O-340).
+
+### D-363 · Der Storno übernimmt den Beleg unwirksam, die Neuausstellung wirksam
+
+`uebernimmQuellen()` kopiert die Herkunftszeilen über `position_nr` (beide
+Vorgänge legen die Zeilen mit derselben Nummer an, `rp_position_uk` macht sie
+eindeutig).
+
+* Das **Storno** übernimmt mit `wirksam = false` und gespiegeltem `menge_anteil`.
+  Es bezeugt, *was* aufgehoben wurde, und beansprucht nichts — sonst stünden nach
+  jedem Storno zwei wirksame Zeilen auf demselben Zeiteintrag.
+* Das **Original** gibt seine Quellen im selben Vorgang frei (`gibQuellenFrei`):
+  `wirksam` fällt, `zeiteintrag.abgerechnet_am` wird gelöscht, die aufgelaufene
+  Aufmaßmenge sinkt.
+* Die **Neuausstellung** übernimmt mit `wirksam = true` und beansprucht die
+  Quellen neu. Das geht nur, weil die Freigabe vorher lief.
+
+`fin.quelle_unveraenderlich()` lässt an einem festgeschriebenen Beleg genau diese
+eine Bewegung zu: `wirksam` von `true` nach `false`. Alles andere — jede Spalte,
+auch eine später hinzukommende, verglichen über `to_jsonb` — ist gesperrt, und
+ein erloschener Anspruch lebt nicht wieder auf.
+
+### D-364 · Der Index und `abgerechnet_am` sind kein Paar aus Original und Kopie
+
+Beide existieren, und keiner ersetzt den anderen (§4.4):
+
+* `zeiteintrag.abgerechnet_am` / `.abrechnung_referenz` beantworten „ist diese
+  Stunde abgerechnet, und auf welchem Beleg?" **ohne Join** und treiben die
+  Arbeitsliste, die entscheidet, was überhaupt in eine Rechnung kommt.
+* Der partielle Unique-Index verhindert die zweite Abrechnung auch dann, wenn
+  diese Liste falsch gelesen wurde.
+
+Geschrieben wird der Spiegel von `markiereQuellenAbgerechnet()` **in der
+Festschreibungstransaktion** (§5.6 Schritt 6), nie in einem Nachlauf: sonst gäbe
+es festgeschriebene Rechnungen, deren Stunden weiter als offen gelten, der
+nächste Lauf nähme sie ein zweites Mal auf, und der Index meldete den Fehler an
+einer Stelle, an der niemand nach der Ursache sucht. Die Funktion zählt die
+getroffenen Zeilen und wirft, wenn es weniger sind als erwartet — unter FORCE RLS
+trifft ein UPDATE ohne passende Policy null Zeilen, **geräuschlos**.
+
+### D-365 · `zeiteintrag` bekommt zwei schmale UPDATE-Policies aus der Finanzdomäne
+
+`t_mandant` auf `zeiteintrag` verlangt im `WITH CHECK` `zeit.schreiben`. Eine
+Buchhaltung hält das nicht und muss es nicht halten, um eine Rechnung
+festzuschreiben. Ohne eigene Policy schriebe `markiereQuellenAbgerechnet()`
+nichts — lautlos.
+
+`0088` legt deshalb an, was `05-FINANZEN.md` §2.3 Punkt 6 von der Zeitdomäne
+verlangt: `z_finanz_abrechnung` (`finanzen.festschreiben`, nur von *nicht
+abgerechnet* nach *abgerechnet*) und `z_finanz_freigabe` (`finanzen.stornieren`,
+nur die Gegenrichtung). Beide sind **schmaler** als der gewöhnliche Weg, nicht
+breiter: ein UPDATE auf Beginn, Ende oder Zuordnung passt durch sie ebenso wenig
+wie durch `kern.zeiteintrag_unveraenderlich()`. Dazu kommt der Fremdschlüssel,
+den `0034` angekündigt hatte (`z_abrechnung_referenz_fk`).
+
+### D-366 · FIN-18 fragt eine ZAHL, keine Zeile — über `fin.auftrag_erfasste_minuten`
+
+Die naheliegende Prüfung liest `zeiteintrag_auftrag`. Diese Sicht läuft mit
+`security_invoker` (0051), und eine Rolle ohne `zeit.lesen` bekäme dort **null
+Minuten** — die Warnung schlüge dann bei jedem Auftrag an, auch bei denen mit
+tausend erfassten Stunden. Eine Warnung, die immer kommt, wird nach dem dritten
+Mal ungelesen weggeklickt, und dann ist die eine echte auch weg.
+
+`fin.auftrag_erfasste_minuten(uuid)` ist deshalb `SECURITY DEFINER` (Eigentümer
+`cse_definer`, K-01), prüft Mandant und `finanzen.festschreiben` ausdrücklich
+gegen die Sitzungs-GUCs und gibt **eine Zahl** zurück: keinen Namen, keine
+Schicht, keine Beschäftigung. Die Buchhaltung erfährt, *dass* Zeit erfasst wurde,
+nicht von wem (EMP-13).
+
+### D-367 · Die FIN-18-Warnung fällt VOR der Nummernvergabe, und ein Storno wird nie an ihr gehindert
+
+Sie steht in `finalisiere()` als Schritt 2b — nach dem §14-Validator, vor
+Definer-Aufruf A. Danach wäre sie wertlos: die Nummer ist gezogen, der Zähler
+unwiderruflich weitergerückt, und der einzige Rückweg wäre ein Storno auf einen
+Beleg, den niemand ausstellen wollte.
+
+Übergehbar ist sie nur mit einer Begründung von mindestens zehn Zeichen, und die
+steht danach an zwei unveränderlichen Stellen: im `audit_log`
+(`rechnung.fin18_uebergangen`) und im Pflichtfeldbericht, der mit
+`rechnung_snapshot` eingefroren wird. Eine `rechnungsart = 'storno'` ist von der
+Prüfung ausgenommen — sie hebt einen Beleg auf, der schon draußen ist, und die
+Warnung träfe sonst den, der den Fehler behebt, statt den, der ihn gemacht hat.
+
+### D-368 · Der Cent-Anteil je Quelle entsteht durch Verteilung, nicht durch eine zweite Multiplikation
+
+`verteileAufQuellen()` verteilt den **Zeilenbetrag** nach dem
+Größter-Rest-Verfahren auf die Quellen; die Summe ist exakt der Zeilenbetrag.
+
+Jede Quelle einzeln zu rechnen wäre der naheliegende Weg und falsch: 187 Minuten
+× 42,50 €/h gerundet, dreimal addiert, ergibt nicht denselben Betrag wie 494
+Minuten × 42,50 €/h gerundet. Der Unterschied sind ein bis zwei Cent — genug,
+damit die Detailansicht einer Rechnungszeile ihrer eigenen Summe widerspricht,
+und genau das verspricht DSH-04 nicht zu tun. Die Reihenfolge der Nachschläge ist
+deterministisch (größter Rest, bei Gleichstand die frühere Quelle), weil zwei
+Ausgaben derselben Rechnung sonst zwei verschiedene Aufteilungen zeigten.
+
+Entsprechend rundet `fuegeZeitPositionHinzu()` die Menge **einmal**, am Ende:
+Σ Minuten / 60 auf drei Stellen. Der `menge_anteil` je Quelle ist die gerundete
+Einzelentnahme und damit ein Beleg, keine Rechengröße.
+
+### D-369 · Die Herkunft steht in der kanonischen Nutzlast, `wirksam` nicht
+
+`ladeRechnungVollstaendig()` füllt jetzt `positionen[].quellen` (§5.3) — bis
+PR 49 stand dort ein leeres Array mit dem ehrlichen Vermerk „keine Quelle
+hinterlegt". Damit steht der Beleg im **Hash**: wer später behauptet, eine andere
+Stunde sei abgerechnet worden, widerspricht einem Dokument, das sich nicht mehr
+ändern lässt.
+
+`wirksam` steht ausdrücklich **nicht** in der Nutzlast. Es fällt beim Storno, also
+nach der Festschreibung; im Hash machte es jede stornierte Rechnung
+unverifizierbar — dieselbe Überlegung, die `versendet_am` von der Rechnungszeile
+fernhält (K-12).
+
+### D-370 · `PositionAnlegen.quellen` ist Pflicht, und es gibt keinen Vorgabewert
+
+Die Signatur bildet ab, was die Datenbank ohnehin erzwingt. Ein Dienst, der bei
+fehlender Angabe still eine `manuell`-Zeile mit einer erfundenen Begründung
+schriebe, wäre genau die erfundene Angabe, gegen die FIN-07 steht. `vonHand(…)`
+ist die Kurzform für den beleglosen Fall und verlangt den Grund als eigenen
+Parameter, damit er an der Aufrufstelle steht.
+
+Betroffen sind die drei vorhandenen Aufrufstellen (API-Route und zwei
+Isolationsdateien aus PR 46); sie tragen jetzt eine benannte Herkunft.
+
+### D-371 · `rechnungsposition_quelle` ist intern — ohne `t_kunde`, mit einzweigiger Decke
+
+Sie nennt die `zeiteintrag`-Zeilen hinter einer Rechnungsposition, also wer welche
+Stunden gearbeitet hat. DSH-04 („jede Zahl führt auf die Sätze dahinter") ist eine
+Forderung an die **internen** Auswertungen; ein Kunde bekommt die Rechnungszeile,
+den Leistungsnachweis und das Aufmaßblatt über seine eigenen Dokumente — nie den
+Dienstplan (§1.4, EMP-13).
+
+Das `WITH CHECK` von `t_mandant` nennt `finanzen.schreiben` **oder**
+`finanzen.stornieren`: das Erlöschen von `wirksam` ist ein UPDATE, und die
+Storno-Rolle hält Schreiben nicht zwingend. Ohne diesen zweiten Zweig ließe sich
+eine Rechnung stornieren, ohne ihre Quellen freizugeben — die Stunden blieben für
+immer gesperrt.
+
+### Offen, neu aufgeworfen in PR 49
+
+| # | Question | Blocks |
+|---|---|---|
+| O-340 | **Darf ein Aufmaßblatt Zeilen in verschiedenen Einheiten tragen — m², m und Stk auf demselben Blatt?** Der Schutz gegen die doppelte Abrechnung eines Aufmaßes ist nach § 16 VOB/B eine Summe und kein Unique-Index (D-362); die Obergrenze ist die gemessene Menge des Blattes. `aufmass_zeile` führt `einheit` je Zeile, `aufmass` selbst keine — eine Blattsumme über gemischte Einheiten addierte Äpfel und Birnen, und die Sperre säße dann an der falschen Zahl. Falls gemischte Blätter vorkommen, ist die Obergrenze je Einheit oder je LV-Position zu bilden; das ist eine Zeile in `fin.pruefe_aufmass_menge()`. Bis zur Antwort prüft der Auslöser gegen die Blattsumme, und `aufmass.abgerechnet_menge` trägt sie. | BAU-02, FIN-07, FIN-08, § 16 VOB/B, `aufmass`, `rechnungsposition_quelle` |
+
+---
+
+## Entschieden in PR 47 — §14-UStG-Pre-Flight-Validator, Leistungszeitraum, Kleinbetragsrechnung
+
+Sieben Entscheidungen. Zwei davon lösen einen Widerspruch zwischen zwei
+Vorgabedokumenten, zwei halten fest, wo die Umsetzung vom Wortlaut eines
+Kapitels abweicht, und drei benennen eine Stelle, an der ein plausibler Weg
+still nichts geprüft hätte.
+
+### D-320 · Der Validator ist ein reiner Dienst — und die Datenbank hält die Bedingung trotzdem
+
+Die Abnahme verlangt beides, und es sind zwei verschiedene Aussagen. „Ein
+reiner Dienst, den Festschreibung, Vorschau und API rufen" ist eine Aussage
+über den Code: `src/server/services/finanz/ustg14.ts` führt die Regelliste als
+**Daten** (`REGELN`), `pruefePflichtfelder()` ist eine Funktion von Daten auf
+Daten, und die Wache `validator-nicht-uebersprungen` bricht den Build, wenn
+`finalisiere()` den Aufruf verliert oder jemand eine zweite Fassung schreibt.
+
+„Ein Aufrufer, der ihn überspringt, kann trotzdem nicht festschreiben" ist eine
+Aussage über die Datenbank, und TypeScript kann sie nicht halten: `cse_app`
+darf `fin.rechnung_nummer_ziehen` unmittelbar rufen. Deshalb trägt
+`0085_rechnung_pflichtfelder.sql` einen **aufgeschobenen** Auslöser mit der
+Teilmenge der Regeln, die sich ohne Auslegung prüfen lässt — beide Beteiligten
+mit Name und Anschrift, Steuernummer oder USt-IdNr., mindestens eine
+Leistungszeile, mindestens eine Steuerzeile. Der Validator ist das, was einem
+Menschen **vorher** sagt, welches Feld fehlt; der Auslöser ist das, was
+verhindert, dass es ohne ihn geht.
+
+Regeln, die eine Auslegung brauchen — §14b-Aufbewahrungshinweis, §13b, §48
+EStG —, stehen ausdrücklich **nicht** im Auslöser. Eine halb abgebildete
+Rechtsregel in plpgsql ist eine Behauptung, die niemand liest.
+
+### D-321 · Der Pflichtfeld-Auslöser ist `SECURITY DEFINER` — gemessen, nicht gewählt
+
+Die erste Fassung war ein Invoker, mit Begründung: ein aufgeschobener Auslöser
+feuert beim COMMIT, also lange nachdem die beiden Definer-Aufrufe des §5.6
+zurückgekehrt sind, und sollte deshalb als `cse_app` laufen — mit genau den
+Policies, unter denen Schritt 4 derselben Transaktion (`ladeRechnungVollstaendig`)
+`mandant`, `kunde`, `rechnungsposition` und `rechnung_steuer` ohnehin schon
+liest.
+
+**Sie tat es nicht.** PostgreSQL feuert einen aufgeschobenen Auslöser im
+Sicherheitskontext *der auslösenden Anweisung*, und die ist hier das `UPDATE`
+in `fin.rechnung_nummer_ziehen` — also `cse_definer`. Der Auslöser scheiterte
+an „permission denied for table rechnungsposition", und zwar bei **jeder**
+Festschreibung; die Isolationsdatei hat es beim ersten Lauf gezeigt.
+
+Also `security definer`, Eigentümer `cse_definer` (K-01), plus vier schmale
+**Lese**policies. `0077` zählt sechs `cse_definer`-Policies auf und sagt „und
+keine siebte" — diese vier sind keine Widerlegung, sondern die Fortschreibung
+derselben Regel: jene sechs beschreiben, was die zwei **schreibenden**
+Definer-Aufrufe dürfen; hier kommt eine **Prüfung** dazu, sie liest
+ausschließlich, nur im aktiven Mandanten, und auf `kunde` nur die zehn Spalten
+der Anschrift (K-05 — `zahlungsziel_tage`, `debitorennummer` und `mahnsperre_*`
+stehen bewusst nicht dabei, und der Auslöser liest deshalb spaltenweise statt
+mit `select *`).
+
+Nebenbefund derselben Runde: `kleinbetrag_grenze` hatte seit `0075` einen
+`grant select` an `cse_definer`, aber keine Policy für ihn. Unter FORCE RLS ist
+das kein Lesezugriff — `fin.kleinbetrag_greift` hätte die Schwelle nie
+gefunden und die Erleichterung wäre für den Auslöser immer „greift nicht"
+gewesen. Die sichere Richtung, aber aus dem falschen Grund. `0085` ergänzt die
+Policy.
+
+### D-322 · §33 UStDV wird mit `<` gelesen — und `ist_kleinbetrag` bleibt, wie PR 46 es rechnet
+
+Zwei Vorgaben widersprechen sich um einen Cent. **SPEC FIN-13** sagt
+„Kleinbetragsrechnung **< €250**"; der **Verordnungstext des §33 UStDV** sagt
+„deren Gesamtbetrag 250 Euro **nicht übersteigt**", also ≤ 250 €. Die Abnahme
+von PR 47 verlangt ausdrücklich „249,99 € schreibt sich fest, 250,00 € nicht" —
+sie folgt der SPEC.
+
+Genommen wird die **strengere** Lesart (`<`): eine Rechnung mit vollständigen
+Empfängerangaben ist nie rechtswidrig, eine zu Unrecht als Kleinbetrag
+ausgestellte schon. Die Frage geht als **O-301** an den Steuerberater; die
+Antwort ist ein Vergleichsoperator an genau zwei Stellen
+(`fin.kleinbetrag_greift`, `kleinbetragLage`).
+
+`fin.rechnung_nummer_ziehen` (PR 46) vergleicht mit `<=` und setzt
+`ist_kleinbetrag` entsprechend. Diese Funktion wird **nicht** umgebaut — sie
+ist festgeschriebener Bestand eines abgeschlossenen PRs. Stattdessen hängt die
+Erleichterung nicht an der Spalte: `fin.kleinbetrag_greift` liest die Schwelle
+selbst. Hinge sie an `ist_kleinbetrag`, unterschieden sich Auslöser und
+Validator bei genau 250,00 € — der Validator blockierte, die Datenbank ließe
+durch, und wer den Validator überginge, bekäme die Erleichterung geschenkt.
+`ist_kleinbetrag` bleibt damit die **Tatsache** „auf oder unter der Schwelle",
+und „die Erleichterung greift" ist eine zweite, engere Frage (sie nimmt
+zusätzlich die Fälle des §13b und der innergemeinschaftlichen Lieferung aus —
+Kategorie `AE` und `K`).
+
+Und die Schwelle steht in `kleinbetrag_grenze`, nicht im Code: dieselbe
+Rechnung mit einer anderen Zeile hat ein anderes Ergebnis, und genau das prüft
+`tests/isolation/rechnung-pflichtfelder.test.ts`.
+
+### D-323 · Der §14-Abs.-4-Nr.-9-Hinweis ist eine WARNUNG — Abweichung von §6
+
+`02-datenmodell/05-FINANZEN.md` §6 führt den Aufbewahrungshinweis nach
+§14 Abs. 4 Nr. 9 UStG / §14b Abs. 1 S. 5 als **fehler**. Er gilt bei einer
+Leistung an einen Nichtunternehmer **im Zusammenhang mit einem Grundstück** —
+und ob eine Leistung grundstücksbezogen ist, steht in keiner Spalte dieser
+Plattform.
+
+Beide naheliegenden Auswege sind falsch: „jede Leistung an einen Privatkunden"
+wäre eine erfundene Rechtsregel (K-17), und ein blockierender Fehler ohne
+erfüllbare Bedingung machte jede Privatkundenrechnung unausstellbar. Die
+Prüfung meldet deshalb eine **Warnung**, die den Fall benennt und sagt, dass
+der Hinweis bis zur Klärung von Hand in den Fußtext gehört (**O-300**).
+
+### D-324 · Die Vorschau liegt unter `/api/rechnungen/pruefung` und verlangt `finanzen.lesen`
+
+`05-API-KARTE.md` §C.9 schreibt `POST /api/finanzen/rechnungen/[id]/preflight`.
+Dieses Modul führt seine vier vorhandenen Adressen flach unter
+`/api/rechnungen/…` (D-252); eine fünfte in einem anderen Schema wäre zwei
+Konventionen in einem Ordner. Der Pfad folgt deshalb den Geschwistern, die
+Methode (`POST`) folgt der API-Karte.
+
+Das Recht ist `finanzen.lesen` und **nicht** `finanzen.festschreiben`: der
+Bericht sagt, welches Pflichtfeld fehlt, und stellt nichts aus. Mit dem engeren
+Recht müsste die Buchhaltung jemanden mit Festschreibungsrecht fragen, um einen
+Tippfehler in der Kundenanschrift zu finden. Die Seite
+`/portal/[mandant]/finanzen/rechnungen/[id]/pruefung` steht so in
+`04-SEITENKARTE.md` §5.14 — Seitenpfade schlagen jede andere Quelle — und
+trägt dort dasselbe Recht.
+
+### D-325 · `REGELWERK_VERSION` wandert nach `ustg14.ts`, die angewandte Grenze in den Snapshot
+
+PR 46 legte `'ustg14-nicht-gebaut'` mit `geprueft: false` ab — die ehrliche
+Aussage, solange es keinen Validator gab. Ab jetzt kommt die Fassung von dem
+Dienst, der die Regeln führt (`ustg14.v1`); `rechnung.ts` exportiert sie nur
+weiter, damit es keine zweite Konstante gibt, die niemand pflegt. Belege aus
+der Zeit davor bleiben an ihrer alten Fassung erkennbar.
+
+Zusätzlich trägt die kanonische Nutzlast jetzt `kleinbetrag_grenze_cent` — den
+Wert, gegen den entschieden wurde (FIN-13). `ist_kleinbetrag` allein sagt „ja"
+oder „nein"; ohne die Zahl ließe sich die Entscheidung nach der nächsten
+Änderung des §33 UStDV nicht mehr begründen. Ist die Schwelle ein Platzhalter,
+steht dort `null` — genau wie `ist_kleinbetrag` dann `false` ist.
+
+### D-326 · Die fortlaufende Nummer wird vor dem Zug als „es gibt einen ziehbaren Kreis" geprüft
+
+§6 Regel 5 verlangt „`nummer` drawn from the circle and unique per mandant".
+Zum Zeitpunkt der Vorabprüfung gibt es die Nummer noch nicht — sie entsteht
+erst in der Festschreibungstransaktion (§5.5), und das ist der Grund, warum
+verworfene Entwürfe keine Lücke hinterlassen. Geprüft wird deshalb, ob eine
+entstehen **kann**: ein offener, bestätigter, lückenloser Kreis auf dem OFFENEN
+Schlüssel (nie über das heutige Jahr — ein `nie`-Kreis trägt `jahr = 0`).
+
+Und die Regel entfällt bei der Kleinbetragsrechnung **nicht**. Sie hat keinen
+empfängerbezogenen Teil, und die Lückenlosigkeit des §14 Abs. 4 Nr. 4 UStG gilt
+für jeden ausgestellten Beleg — die ältere Lesart „Regeln 2 und 5 entfallen"
+hätte sich als Erlaubnis lesen lassen, eine Rechnung ohne Nummer auszustellen.
+
+### Offen, neu aufgeworfen in PR 47
+
+| # | Question | Blocks |
+|---|---|---|
+| O-300 | **Erbringt die Gruppe Leistungen an Privatkunden im Zusammenhang mit einem Grundstück — und soll der §14b-Hinweis dann auf JEDER Privatkundenrechnung stehen oder nur auf den grundstücksbezogenen?** §14 Abs. 4 Nr. 9 UStG verlangt bei einer solchen Leistung an einen Nichtunternehmer den gedruckten Hinweis auf die zweijährige Aufbewahrungspflicht (§14b Abs. 1 S. 5 UStG); für Gebäudereinigung und Bau ist das der Regelfall und keine Lehrbuchecke. Ob eine Leistung grundstücksbezogen ist, führt die Plattform nirgends — im zweiten Fall braucht `auftrag` oder `leistungskatalog_position` ein Merkmal. Bis zur Antwort ist die Regel eine **Warnung** und kein blockierender Fehler (D-323). | FIN-04, LEG-05, `§14 Abs. 4 Nr. 9 UStG`, `services/finanz/ustg14.ts` |
+| O-301 | **Gilt bei genau 250,00 € brutto die Erleichterung des §33 UStDV?** Der Verordnungstext („deren Gesamtbetrag 250 Euro nicht übersteigt") sagt ja, SPEC FIN-13 („Kleinbetragsrechnung < €250") sagt nein — die beiden gehen um einen Cent auseinander. PR 47 nimmt die strengere Lesart und verlangt bei genau 250,00 € die vollen Empfängerangaben (D-322). Die Antwort ist ein Vergleichsoperator an genau zwei Stellen: `fin.kleinbetrag_greift` (0085) und `kleinbetragLage()` in `services/finanz/ustg14.ts`. Sie hängt an O-175 — ob die Gruppe Kleinbetragsrechnungen überhaupt ausstellt. | FIN-13, `§33 UStDV`, `kleinbetrag_grenze` |
+
+## Entschieden in PR 48 — Fünf Abrechnungsarten hinter einem Interface
+
+Diese Entscheidungen lösen Widersprüche zwischen den Vorgabedokumenten oder
+halten eine Stelle fest, an der die Umsetzung vom Wortlaut abweicht. Sie stehen
+hier, weil die nächste Person sonst dieselbe Stelle noch einmal entscheidet —
+und möglicherweise anders.
+
+### D-340 · Die Migrationen heissen `0086`/`0087`, nicht `0069`/`0070`
+
+Der PR-Plan nennt `0069_abrechnungsart` und `0070_rechnungsposition_typ`. Beide
+Nummern sind seit Phase 5 vergeben (`0069_posten`, `0070_wachbuch`), und `0085`
+und `0088` sind in denselben Tagen von PR 47 und PR 49 belegt worden. Die
+Nummern laufen weiter; die Migrationen tragen ihren Plannamen im Kopf, damit die
+Zuordnung lesbar bleibt. Dieselbe Entscheidung hatten PR 42, 44 und 45 schon zu
+treffen.
+
+### D-341 · Der TypeScript-Schlüssel heisst `stundenbasiert`, nicht `stunden`
+
+`05-API-KARTE.md` §D.7 schreibt `AbrechnungsartSchluessel = 'stunden' | …`, der
+Eigentümer des Vokabulars (`02-CRM-OPERATIONS.md` §2, K-21) schreibt
+`stundenbasiert`. Es gilt der Eigentümer — und zwar **wörtlich**, nicht
+übersetzt.
+
+Eine Übersetzungsschicht zwischen Aufzählungswert und Dienstschlüssel wäre zwei
+Vokabulare für eine Sache. Sie hält genau so lange, bis jemand die eine Hälfte
+pflegt und die andere nicht; danach schreibt eine Strategie eine Zeile, deren
+eingefrorene `abrechnungsart` leer bleibt oder nicht castbar ist — und das
+merkt niemand, weil die Beträge stimmen. Die vier übrigen Schlüssel sind in
+beiden Dokumenten identisch.
+
+### D-342 · Eine Abrechnungsart ist ein EINGABETYP, kein generischer Parameter
+
+§D.7 entwirft `Abrechnungsart<E>` und ein Register
+`Record<AbrechnungsartSchluessel, Abrechnungsart<never>>`. Das ist nicht
+benutzbar: `never` macht jede Methode unaufrufbar, und ein generischer
+Registereintrag zwingt jeden Aufrufer, den Eingabetyp vorher zu kennen — also
+genau die Fallunterscheidung, die das Register beseitigen soll.
+
+Umgesetzt ist deshalb **eine** `AbrechnungsEingabe` mit den optionalen Feldern,
+die einzelne Arten brauchen (`aufmassIds`, `fertigstellungBp`). Das Register ist
+eine `Map<string, Abrechnungsart>` und **nicht** auf die fünf Schlüssel getippt:
+ein `Record<AbrechnungsartSchluessel, …>` verlangte für eine sechste Art eine
+Typänderung — also genau die Änderung, die Abnahme (5) ausschliesst.
+
+### D-343 · Eine Stundenlohnzeile führt MINUTEN, mit `preis_basismenge = 60`
+
+Eine Menge ist `numeric(12,3)`. In Stunden ausgedrückt sind 100 Minuten
+`1,667`, und `1,667 × 25,00 €` ist 41,68 €, während `100 × 25,00 € / 60`
+41,67 € ergibt. Ein Cent, jeden Monat, auf einem Beleg, der sich nach der
+Festschreibung nicht mehr ändern lässt — und die Zeile widerspräche sich
+ausserdem selbst: §4.3 verlangt
+`netto_cent = rundeCent(menge / preis_basismenge × einzelpreis_cent)`.
+
+Die Zeile trägt deshalb die Minuten als Menge und den Stundensatz über
+`preis_basismenge = 60` — genau der Fall, für den BT-149/150 existiert. Dafür
+kommen zwei Mengeneinheiten als PLATZHALTER hinzu: `min` (UN/ECE `MIN`) und
+`tag` (`DAY`, für den angebrochenen Monat). Beide unter O-174 wie die sechs aus
+`0075`.
+
+Die Alternative — den Nettobetrag exakt aus Minuten rechnen und eine gerundete
+Stundenzahl daneben drucken — wurde verworfen: dann steht auf der Rechnung eine
+Menge, mit der der Betrag nicht nachrechenbar ist, und genau das prüft ein
+Betriebsprüfer.
+
+### D-344 · `rechnungsposition.abrechnungsart` wird NICHT verpflichtend
+
+`05-FINANZEN.md` §4.3 nennt
+`CHECK (positionsart <> 'leistung' OR abrechnungsart IS NOT NULL)`, und `0075`
+hat die Bedingung ausdrücklich diesem PR überlassen — „sie kommt mit dem
+Katalog, der sie erfüllbar macht".
+
+Erfüllbar macht der Katalog sie trotzdem nicht überall. Eine von Hand erfasste
+Zeile auf einer einmaligen Rechnung an einen Kunden, zu dem es keinen `auftrag`
+gibt, hat keine Abrechnungsart — und welche der fünf das wäre, hat niemand
+entschieden (O-04). Die Bedingung zu übernehmen hiesse, dass `fuegePosition
+Hinzu()` eine setzen muss, und jeder Wert dort wäre ein erfundener
+Produktionswert (K-17).
+
+Umgesetzt ist die Hälfte, die entscheidbar ist und die eigentliche Gefahr
+abdeckt: `CHECK (vertrag_abrechnung_id IS NULL OR abrechnungsart IS NOT NULL)`.
+Eine Zeile, die eine Abrechnungskonfiguration NENNT, muss sagen, welche Art
+daraus angewandt wurde — sonst verweist der Beleg auf eine Konfiguration, deren
+Art sich seither geändert haben kann, während die eingefrorene Kopie leer ist.
+Mit der Antwort auf O-04 wird die Bedingung auf die Fassung des §4.3
+verschärft; der Marker steht an der Bedingung.
+
+### D-345 · Die offenen Regeln der fünf Arten sind PARAMETER, keine Vorgabewerte
+
+O-04 fragt nach den Regeln, nicht nach den Namen: Minutenrundung,
+Teilmonatsbehandlung, Teilfertigstellung, abrechenbare Aufmasszustände,
+Mindestabruf. `05-API-KARTE.md` §D.7 verlangt, dass jede Strategie ihre
+Parameter „als Konfiguration mit einem als PLATZHALTER gekennzeichneten Wert"
+führt und die Festschreibung verweigert, solange der Parameter nicht gesetzt
+ist.
+
+Umgesetzt auf `vertrag_abrechnung.parameter` (jsonb, ohne Geldbetrag — Geld
+steht in den getippten Cent-Spalten). Fehlt ein Schlüssel, liefert `pruefe()`
+einen **blockierenden** Befund mit der Frage im Klartext und `O-04` daneben,
+und `positionen()` wirft `AbrechnungFehler('parameter_offen')`. Es gibt keinen
+Vorgabewert und keinen Rückfall.
+
+Zwei Feinheiten, die sonst verlorengingen:
+
+- **`einzelabruf.mindestabrufmenge` darf ausdrücklich `null` sein.** „Keine
+  Mindestabnahme" ist eine ENTSCHEIDUNG und muss im Vertrag stehen; die
+  Abwesenheit des Schlüssels ist etwas anderes und wird abgewiesen.
+- **`monatspauschale.teilmonat = 'arbeitstage'` rechnet nicht.** Welche Tage
+  Arbeitstage dieses Vertrages sind (Mo–Fr? Mo–Sa nach §3 BUrlG? welche
+  Feiertagsliste?) steht nirgends, und O-167 ist offen. Ein voller Monat wird
+  auch in diesem Modus berechnet — dort gibt es nichts zu teilen.
+
+### D-346 · Ein Aufmass wird beim Abrechnen NICHT neu ausgewertet
+
+Abnahme (3) verlangt das gespeicherte Ergebnis. Umgesetzt: die Strategie liest
+`aufmass_zeile.ergebnis_skaliert` (ganze Zahl, 10⁻⁴ der Einheit) und
+`rechenansatz` **als Text**; `rechenansatz_ast` und `parser_version` werden
+nicht einmal selektiert. Was diese Datei nicht liest, kann sie nicht
+versehentlich neu auswerten — und ein geänderter Übermessungsschritt (O-23)
+veränderte sonst rückwirkend, was ein Auftraggeber unterschrieben hat.
+
+Summiert wird in der festen Skala und **einmal** auf `numeric(12,3)`
+projiziert. Je Zeile zu projizieren und dann zu summieren rundete so oft, wie
+das Blatt Zeilen hat.
+
+Der Rechenansatz steht wörtlich in `beschreibung`, mit der Blattnummer davor.
+
+### D-347 · Ein nicht gegengezeichnetes Aufmass wird VERWEIGERT, nicht übersprungen
+
+Die Blätter werden der Strategie ausdrücklich genannt (`aufmassIds`) und nicht
+gesucht. Ein Blatt, das die Abfrage still überginge, weil sein Zustand nicht
+passt, ergäbe eine Rechnung, der eine Leistung fehlt — und niemand sähe, dass
+etwas fehlt. Ein genanntes Blatt in einem nicht abrechenbaren Zustand ist
+deshalb ein getippter Fehler (`aufmass_nicht_abrechenbar`), und die Vorprüfung
+meldet denselben Sachverhalt als blockierenden Befund.
+
+`gegengezeichnet` ist immer abrechenbar — dass eine vom Auftraggeber
+unterschriebene Aufmassurkunde gilt, ist keine offene Frage. Die **einseitige
+Feststellung** nach §14 Abs. 2 VOB/B ist ein eigener Zustand (B10) und gilt nur,
+wenn der Vertrag sie ausdrücklich führt (O-04).
+
+Eine Zeile ausserhalb des Leistungsverzeichnisses hat keinen vereinbarten
+Einheitspreis und wird ebenfalls abgewiesen: sie gehört in einen Nachtrag
+(BAU-05, §2 Abs. 6 VOB/B), und mit null Euro durchzulaufen wäre geleistete
+Arbeit, die niemand berechnet.
+
+### D-348 · Der Einheitspreis kommt aus `app.lv_preis_lesen()`, nicht aus der Spalte
+
+`lv_position.einheitspreis_cent` ist `cse_app` spaltenweise entzogen (K-05,
+`0071` §8) — ein `select p.einheitspreis_cent` scheitert mit „permission denied
+for table lv_position". Das ist kein Hindernis, sondern die Absicht: der
+Zugriff auf einen Kalkulationspreis prüft `bau.preis_lesen` und landet im
+Protokoll. Die Strategie ruft deshalb den Definer-Leser. Gibt er NULL zurück,
+weist sie benannt ab und nennt beide möglichen Gründe (kein Preis hinterlegt /
+Recht fehlt), statt mit null Euro zu rechnen.
+
+### D-349 · Die Steuersatzgruppe wird aus der Leistungszeile aufgelöst, nie geraten
+
+`auftrag_leistung` trägt `steuersatz_bp` und `steuer_kennzeichen`; der Katalog
+`steuersatz_gruppe` trägt dieselben zwei Angaben. Gefunden wird über das Paar,
+**am Leistungsende** und nicht am heutigen Tag. Findet sich keine Gruppe oder
+finden sich zwei — der §13b-Fall, in dem `bau` und `gebaeudereinigung` beide
+Satz 0 und dasselbe Kennzeichen tragen —, wird ein getippter Fehler geworfen.
+Eine von zweien zu wählen hiesse, die §13b-Kategorie zu erfinden, und die steht
+gedruckt auf dem Beleg (§14a Abs. 5 UStG, O-104). Die Ermittlung selbst gehört
+FIN-09 und PR 51.
+
+Für eine auftragsweite Pauschale müssen alle lebenden Leistungszeilen denselben
+Satz tragen; sonst hat die Pauschale keinen eindeutigen, und der Fehler sagt,
+dass die Konfiguration dann je Leistungszeile gehört (O-53).
+
+### D-350 · Der Herkunftstyp der Abrechnungsschicht ist ein eigener, mit EINER Abbildung
+
+`rechnungsposition_quelle` und ihr Vokabular gehören PR 49. Die
+Abrechnungsschicht führt einen eigenen `HerkunftVerweis` und bildet ihn an
+genau einer Stelle (`alsQuellen` in `abrechnungsart/index.ts`) auf
+`QuelleEingabe` ab. Ändert der Nachbar seine Form, ist das eine Funktion und
+nicht fünf Strategien.
+
+Eine Monatspauschale und ein Pauschalpreis-Los tragen dabei
+`{ typ: 'manuell', notiz: … }` mit der Vertragsabrechnung im Text — nicht einen
+erfundenen Verweis auf eine Leistungszeile, die die Konfiguration gar nicht
+nennt. FIN-07 verlangt einen BELEG; der Beleg einer Pauschale ist der Vertrag,
+und das schreibt die Notiz auch hin.
+
+---
+
+## Entschieden beim Phase-5-Abschluss — die Demodaten und die Sprache einer Prüfung
+
+Die Browsersuite fiel an wechselnden Stellen um, und die Ursachen lagen nicht
+in der Anwendung, sondern in dem, was sie vorfand. Vier Befunde, jeder mit
+Folgen über den Testlauf hinaus.
+
+### D-301 · Der Seed liefert alle vier Portalsprachen aus — jede an einem Menschen
+
+`person.sprache` ist die EINZIGE Quelle der Portalsprache (SEITENKARTE §12).
+Eine Prüfung, die Arabisch ansehen wollte, musste die Sprache der einzigen
+Mitarbeiterin im Seed umschreiben; `playwright.config.ts` läuft aber
+`fullyParallel`, und mehrere Arbeiter schrieben gleichzeitig in dieselbe Zeile.
+Das Ergebnis war nicht ein Fehlschlag, sondern ein wandernder: einmal stand
+`dir="ltr"` auf der arabischen Prüfung, einmal „Bugün" auf einer deutschen in
+einer ganz anderen Datei.
+
+**Entschieden:** der Seed trägt alle vier Sprachen, jede an einer eigenen
+Person — Fatima Yildiz deutsch (sie ist die meistgenutzte Fixtur), Amir Haddad
+arabisch, Marta Kowalski türkisch, Kwame Mensah englisch. Amir bekommt ein
+eigenes Mitarbeiterkonto, und `/dev/anmelden` trägt die Kennung am Knopf, damit
+eine Prüfung sich als einen BESTIMMTEN Menschen anmelden kann statt als „den
+ersten mit dieser Rolle". Keine Prüfung schreibt mehr in `person`.
+
+### D-302 · Die Browsersuite bekommt für jeden Lauf eine frische Datenbank
+
+Die Suite legt an — Posten, Aufträge, Projekte, Aufmaßblätter, Wachbuchseiten,
+Personen —, weil sie das Anlegen prüft. Löschen kann sie nichts: in Finanzen,
+Zeiterfassung und Audit gibt es keine harten Löschungen (Invariante 8). Der
+zweite Lauf gegen dieselbe Datenbank fand deshalb jede Fixtur doppelt, und
+Playwright meldete im strikten Modus Fehler, die wie kaputte Bildschirme
+aussahen. Gemessen wurden 24 Fehlschläge im einen Lauf und 38 im nächsten —
+derselbe Commit.
+
+**Entschieden:** `pnpm e2e:db` verwirft die Datenbank, migriert, seedet und
+importiert den Seiteninhalt. Der Inhaltsimport gehört dazu und ist kein
+Zusatz — ohne ihn antwortet `/` mit 404 (PUB-07). Die Datenbankeinstellung
+`cse.fenster_schluessel` (K-06) überlebt ein `drop database` nicht und wird
+mit gesetzt; ohne sie lässt der Besetzungslauf jede Schicht offen und meldet
+„unrecognized configuration parameter".
+
+### D-303 · Die Security bekommt Posten, Plan, Leitung — und Fatima ihre zweite Gesellschaft
+
+D-09 verspricht: ein Mensch, zwei Gesellschaften, zwei Stundenkonten, beide
+Schichtlisten. Geliefert wurde eine Gesellschaft. `security` hatte keinen
+Posten, keine Planungsserie, keinen einzigen Dienst und ausser zwei
+Mitarbeitenden **niemanden** — keine Leitung, die planen, gegenzeichnen oder
+entscheiden könnte. Das Mitarbeiterportal zeigte die halbe Wahrheit auf einem
+Bildschirm, der vollständig aussah.
+
+**Entschieden:** `src/server/db/seed/security.ts` legt einen Posten mit
+Abdeckungsregel an, dazu die Planungsserie, und lässt den ECHTEN Generator
+laufen; besetzt wird über `besetzeEinsatz`. Der Besetzungslauf aus `zeit.ts`
+ist dafür zu `besetzeUndErfasse` herausgezogen — eine zweite Abschrift wäre
+die Stelle, an der die eine Fassung eine Sperre respektiert und die andere sie
+vergisst. Der Seed bekommt ausserdem eine `leitung.security@cse-gruppe.de`.
+
+**Und der Dienst liegt dort, wo das ArbZG ihn zulässt.** Der erste Entwurf
+setzte ihn auf 14:00–22:00; `besetzeEinsatz` wies ihn zurück, weil die
+Reinigung am Folgetag um 06:00 beginnt und zwischen 22:00 und 06:00 acht
+Stunden liegen, nicht die elf des § 5 ArbZG. Die Grenzen gelten dem MENSCHEN
+und nicht dem Mandanten (D-09) — die zweite Gesellschaft stolperte über die
+erste. Genau deshalb läuft der Seed über den Dienst und nicht über ein
+`insert`: ein direktes Einfügen hätte die Zeilen geschrieben, der Bildschirm
+hätte voll ausgesehen, und der Verstoss wäre täglich vorgeführt worden, ohne
+sichtbar zu sein.
+
+### D-304 · Der Qualifikationskatalog war leer — und damit sperrte die Sperre nichts
+
+`qualifikation` und `nachweis` hatten im Seed NULL Zeilen. Das Nachweisregister
+aus PR 44 zeigte einen leeren Bildschirm, der Ablaufwächter warnte nie, und
+`app.einsatz_qualifikation_erfuellt` beantwortete jede Frage mit „erfüllt",
+weil es keine Anforderung gab. Der gefährlichste Zustand war dabei nicht der
+sichtbar leere Bildschirm, sondern die grüne Einteilung.
+
+**Entschieden:** vier Katalogeinträge, jeder mit seiner Rechtsgrundlage —
+Sachkundeprüfung und Unterrichtung nach §34a Abs. 1a GewO, Bewacherausweis nach
+§11b GewO, jährliche Unterweisung nach §4 DGUV Vorschrift 1. Nachweise für drei
+Menschen in drei Lagen: gültig, in der Warnfrist, abgelaufen. Fatimas
+Bewacherausweis ist der abgelaufene Fall — mit Absicht an der meistgenutzten
+Fixtur, denn eine Sperre, die nur an einem Randdatensatz zu sehen ist, sieht
+beim Abnehmen niemand.
+
+**`kern.nachweis_dokumentpflicht` wird NICHT umgangen.** DOC-01 verweigert
+`gueltig`, solange bei einer dokumentpflichtigen Qualifikation keine Urkunde
+hängt. Der Seed könnte eine `dokument`-Zeile schreiben, die auf einen
+Speicherschlüssel zeigt, unter dem nichts liegt — es ist kein Objektspeicher
+angebunden, und eine Zeile, die eine Datei verspricht, die beim Anklicken nicht
+da ist, ist die vorgetäuschte Integration, die CLAUDE.md verbietet. Die
+betroffenen Nachweise stehen deshalb als `beantragt` da: erfasst, ohne
+hinterlegte Urkunde — als das, was sie sind.
+
+### Offen, neu aufgeworfen beim Phase-5-Abschluss
+
+| # | Question | Blocks |
+|---|---|---|
+| O-341 | **Mit welcher Frist läuft ein Bewacherausweis in Ihrem Haus ab — folgt sie der Wiederholung der Zuverlässigkeitsprüfung oder dem aufgedruckten Datum des Ausweises?** `qualifikation.standard_gueltigkeit_monate` bleibt deshalb leer; das Ablaufdatum steht am einzelnen Nachweis, wo es herkommt. Ein geratener Vorgabewert trägt sich sonst in jeden neu erfassten Nachweis ein und sieht dort aus wie eine geprüfte Angabe — und der 60/30/7-Wächter mahnt zu einem Datum, das niemand geprüft hat. | SEC-02, EMP-08, §11b GewO, `qualifikation` |
+| O-342 | **Welche Qualifikation verlangt welcher Posten — genügt die Unterrichtung nach §34a Abs. 1a GewO, oder verlangt der Objektschutz am Kurfürstendamm die Sachkundeprüfung?** Die Sperre ist gebaut und geprüft (`app.einsatz_qualifikation_erfuellt`, `einsatzanforderung`); welche Zeile sie scharf stellt, entscheidet der Vertrag und nicht der Seed. Bis zur Antwort trägt der Demoposten KEINE `einsatzanforderung` — die Einteilung fragt also, findet nichts und lässt durch. | SEC-01, SEC-04, §34a GewO, `einsatzanforderung`, `posten` |
+| O-343 | **Sollen die Urkunden zu §34a und Bewacherausweis in der Plattform liegen, oder genügt die Personalakte auf Papier und die Plattform führt nur Nummer und Frist?** `qualifikation.erfordert_dokument` steht für die drei gesetzlichen Einträge auf `true`, und DOC-01 verweigert deshalb `gueltig` ohne hinterlegte Urkunde. Das ist die strengere und damit laute Variante: sie blockiert sichtbar, statt still eine Gültigkeit zu behaupten, für die kein Papier da ist. Antwortet der Mandant mit „Papierakte genügt", ist es ein Boolean. | SEC-02, DOC-01, `qualifikation`, `nachweis`, `dokument` |

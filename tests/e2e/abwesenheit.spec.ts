@@ -92,7 +92,17 @@ test.describe('Abwesenheiten — die Liste der Planung', () => {
     await seite.waitForLoadState('domcontentloaded');
     await seite.goto(`/portal/reinigung/personal/abwesenheiten?woche=${VON}`);
 
-    const formular = seite.locator(`form[action="/api/abwesenheiten/${abwesenheitId}"]`);
+    /**
+     * `:visible` ist hier keine Bequemlichkeit, sondern die Aussage.
+     *
+     * `DataTable` legt jede Zeile ZWEIMAL ins Dokument: als `tr` fuer den
+     * Schreibtisch und als `dl`-Karte fuer das Telefon; eine Medienabfrage
+     * blendet die je andere aus. Beide tragen dasselbe `action` — ohne den
+     * Filter faende der strikte Modus zwei Treffer und meldete einen Fehler,
+     * wo keiner ist. Gepruefte Bedienung ist die SICHTBARE Bedienung.
+     */
+    const formular = seite
+      .locator(`form[action="/api/abwesenheiten/${abwesenheitId}"]:visible`);
     await expect(formular).toBeVisible();
     await formular.locator('input[name="grund"]').fill('Meldung war eine Verwechslung.');
     await formular.getByRole('button', { name: 'Stornieren' }).click();

@@ -50,9 +50,11 @@ function leer(): KontoErgebnis {
 export async function seedKonten(
   sql: Sql, ids: ReadonlyMap<string, string>,
 ): Promise<KontoErgebnis> {
-  // Zeiten entstehen heute nur im Bereich `reinigung` (`seedZeit`); die
-  // Schleife bleibt trotzdem ueber alle Bereiche, damit der Tag, an dem
-  // Security Zeiten erfasst, hier keine zweite Stelle braucht.
+  // Die Schleife laeuft ueber ALLE Bereiche — und seit `seedSecurity` hat das
+  // Folgen: Fatima traegt zwei Beschaeftigungen und bekommt zwei getrennte
+  // Konten, eines je Gesellschaft. Getrennt ist dabei keine Darstellungsfrage:
+  // ein Stundenkonto haengt an der `anstellung`, und eine Summe ueber beide
+  // waere eine Zahl, die es in keiner Lohnabrechnung gibt (D-09, EMP-15).
   let freigegeben = 0;
   let konten = 0;
   let buchungen = 0;

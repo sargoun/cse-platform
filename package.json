@@ -17,6 +17,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "e2e:db": "bash scripts/e2e-db.sh",
     "test:a11y": "playwright test tests/e2e/a11y.spec.ts tests/e2e/seo.spec.ts",
     "lighthouse": "npx --yes @lhci/cli@0.15.1 autorun",
     "db:generate": "drizzle-kit generate",

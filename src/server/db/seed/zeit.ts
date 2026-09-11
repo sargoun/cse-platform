@@ -82,6 +82,41 @@ export async function seedZeit(
   if (anstellungen.length === 0) return leer();
 
   const heute = await berlinHeute(sql as unknown as Abfrage);
+  const lauf = await besetzeUndErfasse(sql, mandantId, planer.id, anstellungen, heute);
+  const { einteilungen, uebergangen, erfasst, laufend } = lauf;
+
+  const abwesenheiten = await seedAbwesenheiten(sql, mandantId, planer.id, anstellungen, heute);
+  const konflikt = await seedRuhezeitkonflikt(sql, mandantId, planer.id, heute);
+  const ansprueche = await seedOfflineAnspruch(sql, mandantId, planer.id);
+  return {
+    einteilungen: einteilungen + konflikt,
+    uebergangen: uebergangen + konflikt,
+    zeiteintraege: erfasst,
+    laufend,
+    abwesenheiten,
+    ansprueche,
+  };
+}
+
+export interface BesetzungsLauf {
+  readonly einteilungen: number;
+  readonly uebergangen: number;
+  readonly erfasst: number;
+  readonly laufend: number;
+}
+
+/**
+ * Der Besetzungslauf — reihum durch die Belegschaft, dann die Zeiterfassung.
+ *
+ * Er stand als Rumpf in `seedZeit` und galt deshalb nur fuer die Reinigung.
+ * Die Security braucht denselben Lauf auf ihren Posten, und eine zweite
+ * Abschrift waere die Stelle, an der die eine Fassung eine Sperre respektiert
+ * und die andere sie vergisst.
+ */
+export async function besetzeUndErfasse(
+  sql: Sql, mandantId: string, planerId: string,
+  anstellungen: readonly string[], heute: string,
+): Promise<BesetzungsLauf> {
   const von = tagePlus(heute, -RUECKBLICK_TAGE);
   const bis = tagePlus(heute, VORSCHAU_TAGE);
 
@@ -119,7 +154,7 @@ export async function seedZeit(
       for (let versuch = 0; versuch < anstellungen.length && !gesetzt; versuch += 1) {
         const anstellungId = anstellungen[(naechster + versuch) % anstellungen.length]!;
         try {
-          const befund = await alsPortalSitzung(sql, mandantId, planer.id, (k) =>
+          const befund = await alsPortalSitzung(sql, mandantId, planerId, (k) =>
             besetzeEinsatz(k, { einsatzId: s.id, anstellungId }));
           zugeteilt.push({
             einsatzId: s.id, zuordnungId: befund.zuordnungId, vergangen: s.vergangen,
@@ -140,7 +175,7 @@ export async function seedZeit(
             continue;
           }
           if (uebergangen < UEBERGEHEN_HOECHSTENS) {
-            const befund = await alsPortalSitzung(sql, mandantId, planer.id, (k) =>
+            const befund = await alsPortalSitzung(sql, mandantId, planerId, (k) =>
               besetzeEinsatz(k, { einsatzId: s.id, anstellungId, bestaetigt: true }));
             zugeteilt.push({
               einsatzId: s.id, zuordnungId: befund.zuordnungId, vergangen: s.vergangen,
@@ -156,17 +191,7 @@ export async function seedZeit(
   }
 
   const { erfasst, laufend } = await erfasseZeiten(sql, mandantId, zugeteilt);
-  const abwesenheiten = await seedAbwesenheiten(sql, mandantId, planer.id, anstellungen, heute);
-  const konflikt = await seedRuhezeitkonflikt(sql, mandantId, planer.id, heute);
-  const ansprueche = await seedOfflineAnspruch(sql, mandantId, planer.id);
-  return {
-    einteilungen: einteilungen + konflikt,
-    uebergangen: uebergangen + konflikt,
-    zeiteintraege: erfasst,
-    laufend,
-    abwesenheiten,
-    ansprueche,
-  };
+  return { einteilungen, uebergangen, erfasst, laufend };
 }
 
 /**

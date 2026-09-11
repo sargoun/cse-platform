@@ -98,6 +98,15 @@ export default async function DevAnmeldung() {
                 type="submit"
                 data-cse="dev-anmelden"
                 data-rolle={k.rolle ?? ''}
+                /**
+                 * Die Kennung des Kontos steht am Knopf, damit eine Pruefung
+                 * sich als EINEN BESTIMMTEN Menschen anmelden kann.
+                 * `[data-rolle="mitarbeiter"]` griff das erste Konto dieser
+                 * Rolle heraus — solange es nur eines gab, war das dasselbe,
+                 * und mit dem zweiten prueft dieselbe Zeile plötzlich eine
+                 * andere Person, ohne dass irgendetwas rot wird.
+                 */
+                data-email={k.email ?? ''}
                 className="ml-auto min-h-[44px] rounded-md bg-brand px-s4 text-base text-white"
               >
                 Anmelden

@@ -43,35 +43,45 @@ const sql = postgres(DSN, { max: 2, onnotice: () => {} });
  * `ansicht = 'person'` aus — also genau den Personen-Scope, den K-18 für
  * dieses Portal verlangt. Alles danach ist echt: Policies, Rechte, Zeilen.
  */
-async function alsFatima(page: Page): Promise<void> {
+/**
+ * Anmeldung als ein BESTIMMTER Mensch — nicht als „irgendwer mit dieser
+ * Rolle".
+ *
+ * `[data-rolle="mitarbeiter"]` griff das erste Konto dieser Rolle heraus.
+ * Solange es genau eines gab, stimmte das zufällig; mit dem zweiten prüfte
+ * dieselbe Zeile stillschweigend eine andere Person. Die Kennung steht
+ * deshalb am Knopf (`src/app/dev/anmelden/page.tsx`).
+ */
+async function alsKonto(page: Page, email: string): Promise<void> {
   await page.goto('/dev/anmelden');
-  const knopf = page.locator('[data-cse="dev-anmelden"][data-rolle="mitarbeiter"]').first();
-  await expect(knopf, 'kein Seed-Konto für Rolle mitarbeiter').toBeVisible();
+  const knopf = page.locator(`[data-cse="dev-anmelden"][data-email="${email}"]`).first();
+  await expect(knopf, `kein Seed-Konto ${email}`).toBeVisible();
   await knopf.click();
   await page.waitForLoadState('networkidle');
 }
 
-async function spracheSetzen(sprache: 'de' | 'en' | 'ar' | 'tr'): Promise<void> {
-  await sql.unsafe(
-    `update person set sprache = $1
-      where id = (select person_id from benutzer where email = $2)`,
-    [sprache, 'fatima.yildiz@cse-gruppe.de'] as never[]);
+/** Fatima Yildiz — ein Mensch, zwei Gesellschaften (D-09), Sprache Deutsch. */
+async function alsFatima(page: Page): Promise<void> {
+  await alsKonto(page, 'fatima.yildiz@cse-gruppe.de');
 }
 
 /**
- * Jede Prüfung setzt die Sprache, die sie meint.
+ * Amir Haddad — dieselbe Oberfläche auf **Arabisch** (EMP-12, DESIGN §9).
  *
- * Der Seed gibt Fatima **Türkisch** (`src/server/db/seed/index.ts`: der D-09-Fall
- * ist zugleich der EMP-12-Fall). Das ist richtig so und macht jede Prüfung, die
- * einen deutschen Satz erwartet, ohne diese Zeile zufällig abhängig von der
- * Reihenfolge. Am Ende wird der Seed-Zustand wiederhergestellt — ein Testlauf,
- * der die Daten anders zurücklässt, als er sie vorgefunden hat, macht den
- * nächsten unerklärlich.
+ * **Diese Datei schreibt `person.sprache` NICHT mehr um.** Sie tat es, und
+ * das war ein Rennen: `playwright.config.ts` läuft `fullyParallel`, mehrere
+ * Arbeiter schrieben gleichzeitig in dieselbe Zeile, und die Suite fiel an
+ * wechselnden Stellen um — einmal stand `dir="ltr"` auf der arabischen
+ * Prüfung, einmal „Bugün" auf einer deutschen in einer ganz anderen Datei.
+ * Der Seed trägt jetzt alle vier Sprachen, jede an einem eigenen Menschen;
+ * eine Prüfung sieht eine Sprache an, indem sie sich als dieser Mensch
+ * anmeldet, und verändert dabei nichts.
  */
-test.beforeEach(async () => { await spracheSetzen('de'); });
+async function alsAmir(page: Page): Promise<void> {
+  await alsKonto(page, 'amir.haddad@cse-gruppe.de');
+}
 
 test.afterAll(async () => {
-  await spracheSetzen('tr');
   await sql.end({ timeout: 5 });
 });
 
@@ -290,13 +300,16 @@ test.describe('(4) kein Lohnsatz, nirgends ein Kundenpreis (K-05, EMP-13)', () =
 
 test.describe('(5) ein abgelaufener Nachweis warnt die Person (EMP-08)', () => {
   test('die Warnung steht auf „Heute" und nennt die Folge', async ({ page }) => {
-    // Ein sperrender Nachweis, der gestern abgelaufen ist.
-    await sql.unsafe(
-      `update nachweis set gueltig_bis = (now() at time zone 'Europe/Berlin')::date - 1
-        where person_id = (select person_id from benutzer where email = $1)
-          and qualifikation_id in (select id from qualifikation where blockiert_einsatz)`,
-      ['fatima.yildiz@cse-gruppe.de'] as never[]);
-
+    /**
+     * **Der abgelaufene Nachweis kommt aus dem SEED, nicht aus dieser Zeile.**
+     *
+     * Hier stand ein `update nachweis set gueltig_bis = gestern`. Es tat sein
+     * Werk und liess die Datenbank anders zurueck, als es sie vorfand — die
+     * naechste Datei fand einen gesperrten Menschen vor, ohne dass irgendwo
+     * stand, warum. Fatimas Bewacherausweis ist jetzt im Seed abgelaufen
+     * (`src/server/db/seed/qualifikation.ts`), und diese Pruefung SIEHT nur
+     * noch hin.
+     */
     await alsFatima(page);
     await page.goto('/portal/mein');
     const warnung = page.locator('[data-cse="nachweis-warnung"]');
@@ -335,10 +348,8 @@ test.describe('(6) Arabisch: `dir="rtl"` und null axe-Verstöße', () => {
     '/portal/mein/nachweise',
   ];
 
-  test.beforeEach(async () => { await spracheSetzen('ar'); });
-
   test('die Hülle trägt `dir="rtl"` und `lang="ar"`', async ({ page }) => {
-    await alsFatima(page);
+    await alsAmir(page);
     await page.goto('/portal/mein');
     const huelle = page.locator('[data-cse="mein-portal"]');
     await expect(huelle).toHaveAttribute('dir', 'rtl');
@@ -351,7 +362,7 @@ test.describe('(6) Arabisch: `dir="rtl"` und null axe-Verstöße', () => {
   test('Zahlen, Geld und Zeit bleiben in der gesetzlichen Form (SEITENKARTE §12)', async ({
     page,
   }) => {
-    await alsFatima(page);
+    await alsAmir(page);
     await page.goto('/portal/mein/zeiten');
     // Eine Uhrzeit in Europe/Berlin, mit deutschem Datumsformat — in jeder
     // Sprache dieselbe, weil sie im MiLoG-Nachweis genauso steht.
@@ -360,7 +371,7 @@ test.describe('(6) Arabisch: `dir="rtl"` und null axe-Verstöße', () => {
 
   for (const pfad of SEITEN) {
     test(`axe: ${pfad} auf Arabisch`, async ({ page }) => {
-      await alsFatima(page);
+      await alsAmir(page);
       const antwort = await page.goto(pfad);
       // Null Verstösse auf einer 404 wäre ein bestandener Test über nichts.
       expect(antwort?.status(), pfad).toBe(200);
@@ -375,7 +386,7 @@ test.describe('(6) Arabisch: `dir="rtl"` und null axe-Verstöße', () => {
   }
 
   test('Tippziele bleiben ≥ 44×44 px und Fliesstext ≥ 16 px (DESIGN §8)', async ({ page }) => {
-    await alsFatima(page);
+    await alsAmir(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/portal/mein');
 

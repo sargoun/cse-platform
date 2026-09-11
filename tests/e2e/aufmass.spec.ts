@@ -58,6 +58,16 @@ async function anmelden(page: Page): Promise<void> {
   await page.waitForLoadState('networkidle');
 }
 
+/**
+ * **Der Verantwortliche muss ein MITGLIED von `bau` sein.**
+ *
+ * `(select id from benutzer limit 1)` griff irgendein Konto heraus — und
+ * `kern.auftrag_verantwortlich_im_mandant` wies es zurueck, sobald das erste
+ * Konto im Seed zu einer anderen Gesellschaft gehoerte. Der Fehler sah aus
+ * wie ein kaputtes Aufmass und war eine kaputte Fixtur. Die Auswahl hier
+ * stellt dieselbe Frage wie `app.ist_mitglied` und bekommt deshalb dieselbe
+ * Antwort.
+ */
 test.beforeAll(async () => {
   const [m] = await sql.unsafe<{ id: string; slug: string }[]>(
     `select id, slug from mandant where slug = 'bau'`);
@@ -69,7 +79,13 @@ test.beforeAll(async () => {
     `insert into auftrag (mandant_id, auftragsnummer, kunde_id, art, status, bezeichnung,
                           verantwortlich_benutzer_id, start_datum)
      select $1, $3, $2, 'projekt', 'aktiv', 'Rohbau Ost',
-            (select id from benutzer limit 1), '2026-01-01'
+            (select bm.benutzer_id from benutzer_mandant bm
+              where bm.mandant_id = $1
+                and bm.entzogen_am is null
+                and bm.gueltig_ab <= current_date
+                and (bm.gueltig_bis is null or bm.gueltig_bis >= current_date)
+              limit 1),
+            '2026-01-01'
      returning id`, [m!.id, k!.id, `AU-E2E-${LAUF}`] as never[]);
 
   const [p] = await sql.unsafe<{ id: string }[]>(

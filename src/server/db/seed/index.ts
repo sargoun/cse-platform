@@ -17,9 +17,11 @@ import postgres from 'postgres';
 import { DATENSCHUTZ_VERSION, FORMULARE } from './formulare.js';
 import { seedOperations } from './operations.js';
 import { seedDienstplan } from './dienstplan.js';
+import { seedQualifikationen } from './qualifikation.js';
 import { seedAuftrag } from './auftrag.js';
 import { seedZeit } from './zeit.js';
 import { seedKonten } from './konto.js';
+import { seedSecurity } from './security.js';
 
 const url = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 if (url === undefined || url === '') {
@@ -405,12 +407,27 @@ async function main(): Promise<void> {
     on conflict (schluessel) do nothing`;
 
   // --------------------------------------------------------------- Menschen
-  /** Fatima ist der D-09-Fall: ein Mensch, zwei Gesellschaften, zwei Saetze. */
+  /**
+   * Fatima ist der D-09-Fall: ein Mensch, zwei Gesellschaften, zwei Saetze.
+   *
+   * **Alle vier Portalsprachen stehen im Seed** (EMP-12) — und jede an EINEM
+   * Menschen. Das ist keine Kosmetik: die Sprache haengt an `person.sprache`
+   * und an sonst nichts (SEITENKARTE §12), eine Pruefung kann sie also nur
+   * ansehen, indem sie sich als der betreffende Mensch anmeldet.
+   *
+   * Fatima spricht DEUTSCH, obwohl sie die meistbenutzte Fixtur ist — genau
+   * deshalb. Solange sie tuerkisch war, setzte jede Pruefung, die einen
+   * deutschen Satz erwartete, vorher `person.sprache` auf `de` zurueck; bei
+   * `fullyParallel` schrieben mehrere Arbeiter gleichzeitig in dieselbe Zeile,
+   * und die Suite fiel an wechselnden Stellen um. Eine gemeinsame Zeile, die
+   * Pruefungen veraendern muessen, ist kein Fixturdetail, sondern ein Rennen.
+   * Tuerkisch steht jetzt bei Marta, Arabisch bei Amir, Englisch bei Kwame.
+   */
   const menschen: readonly (readonly [string, string, string])[] = [
-    ['Fatima', 'Yildiz', 'tr'],
+    ['Fatima', 'Yildiz', 'de'],
     ['Jonas', 'Berger', 'de'],
     ['Amir', 'Haddad', 'ar'],
-    ['Marta', 'Kowalski', 'de'],
+    ['Marta', 'Kowalski', 'tr'],
     ['Kwame', 'Mensah', 'en'],
   ];
   const personIds: string[] = [];
@@ -541,8 +558,28 @@ async function main(): Promise<void> {
   const konten: readonly (readonly [string, string, string, string, number | null])[] = [
     ['admin.reinigung@cse-gruppe.de', 'Administration Reinigung', 'admin', 'reinigung', null],
     ['leitung.bau@cse-gruppe.de', 'Leitung Bau', 'leitung', 'bau', null],
+    /**
+     * Und eine Leitung fuer die Security.
+     *
+     * Sie fehlte, und das war keine Kleinigkeit: `security` hatte ausser zwei
+     * Mitarbeitenden und zwei Dienstkonten NIEMANDEN. Kein Mensch konnte den
+     * Posten planen, eine Wachbuchseite gegenzeichnen oder eine Abwesenheit
+     * entscheiden — `/portal/security/**` war fuer jede Anmeldung im Seed
+     * leer oder 404. Eine Gesellschaft ohne Leitung ist kein Datenstand,
+     * sondern eine Luecke, die wie eine fehlende Funktion aussieht.
+     */
+    ['leitung.security@cse-gruppe.de', 'Leitung Security', 'leitung', 'security', null],
     // Fatima: `mitarbeiter` in Reinigung UND Security (D-09).
     ['fatima.yildiz@cse-gruppe.de', 'Fatima Yildiz', 'mitarbeiter', 'reinigung', 0],
+    /**
+     * Amir ist die Anmeldung, an der RTL zu sehen ist (EMP-12, DESIGN §9).
+     *
+     * Ohne ein Konto blieb Arabisch eine Zeile in `person` ohne Bildschirm:
+     * `/portal/mein` verlangt eine Sitzung, und die einzige Mitarbeiterin im
+     * Seed sprach Deutsch. Eine Pruefung konnte RTL deshalb nur ansehen,
+     * indem sie die Sprache einer fremden Zeile umschrieb.
+     */
+    ['amir.haddad@cse-gruppe.de', 'Amir Haddad', 'mitarbeiter', 'security', 2],
     ['kunde.demo@example.test', 'Kundenzugang (Demo)', 'kunde', 'reinigung', null],
   ];
 
@@ -602,8 +639,14 @@ async function main(): Promise<void> {
       insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, ist_standard)
       values (${id}, ${ids.get(bereich)!}, ${rollenIds.get(rolle)!}, true)
       on conflict do nothing`;
-    // Fatima ist in zwei Gesellschaften beschaeftigt, also auch dort Benutzerin.
-    if (rolle === 'mitarbeiter') {
+    /**
+     * Fatima ist in ZWEI Gesellschaften beschaeftigt, also auch dort
+     * Benutzerin — und zwar sie, nicht „jede mitarbeiter-Rolle". Die
+     * Bedingung stand auf der Rolle, und damit haette jedes weitere
+     * Mitarbeiterkonto stillschweigend eine zweite Mitgliedschaft bekommen,
+     * die es im Betrieb nicht haette (D-09).
+     */
+    if (personIndex === 0) {
       await sql`
         insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id)
         values (${id}, ${ids.get('security')!}, ${rollenIds.get('mitarbeiter')!})
@@ -625,6 +668,20 @@ async function main(): Promise<void> {
   process.stdout.write(
     `  ${String(ops.objekte)} Objekte, ${String(ops.raeume)} Raeume, `
     + 'Belagsarten und Reinigungsklassen (Leistungswerte: Platzhalter, O-17)\n',
+  );
+
+  /**
+   * Der Qualifikationskatalog kommt VOR dem Dienstplan und vor jeder
+   * Einteilung: `besetzeEinsatz` fragt `app.einsatz_qualifikation_erfuellt`,
+   * und ein leerer Katalog beantwortet jede Frage mit „erfuellt". Ein Seed,
+   * der zuerst einteilt und danach die Sperre nachreicht, erzeugt genau die
+   * Zeilen, die es im Betrieb nie geben koennte.
+   */
+  const qual = await seedQualifikationen(sql, ids);
+  process.stdout.write(
+    `  ${String(qual.qualifikationen)} Qualifikationen (§34a GewO, §11b GewO, `
+    + `DGUV V1), ${String(qual.nachweise)} Nachweise — gültig, in der Warnfrist `
+    + 'und abgelaufen (Ablauffrist des Bewacherausweises offen: O-341)\n',
   );
 
   /**
@@ -664,6 +721,21 @@ async function main(): Promise<void> {
     + `importiert, ${String(zeit.laufend)} laufend, `
     + `${String(zeit.abwesenheiten)} Abwesenheiten/Antraege, `
     + `${String(zeit.ansprueche)} wartende Nachreichung(en)\n`,
+  );
+
+  /**
+   * Und die Security bekommt ihren eigenen Plan — NACH `seedZeit`, weil der
+   * Besetzungslauf dieselbe Person greift: Fatima arbeitet in beiden
+   * Gesellschaften, und die ArbZG-Grenzen gelten ihr und nicht dem Mandanten
+   * (D-09). Erst die Reinigung, dann die Security heisst: der Spaetdienst
+   * wird gegen die schon gesetzten Frueschichten geprueft und nicht
+   * umgekehrt.
+   */
+  const sec = await seedSecurity(sql, ids);
+  process.stdout.write(
+    `  ${String(sec.posten)} Posten, ${String(sec.einsaetze)} Einsaetze aus dem `
+    + `Generator, ${String(sec.einteilungen)} Einteilungen, `
+    + `${String(sec.zeiteintraege)} Zeiteintraege (Qualifikationsbedarf offen: O-342)\n`,
   );
 
   /**
