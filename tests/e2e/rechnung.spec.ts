@@ -22,7 +22,55 @@
  *    gesehen.
  */
 import { expect, test, type Page } from '@playwright/test';
+import postgres from 'postgres';
 import { alsKonto, KONTO } from './hilfen/anmeldung';
+
+const MANDANT = 'reinigung';
+
+const DSN = process.env['DATABASE_URL']
+  ?? process.env['TEST_DATABASE_URL']
+  ?? 'postgres://postgres@localhost:55432/cse_test';
+const sql = postgres(DSN, { max: 2, onnotice: () => {} });
+
+/**
+ * **Der Nummernkreis ist eine VORRICHTUNG dieser Datei, keine Antwort auf O-134.**
+ *
+ * Der Seed legt den Kreis `ausgangsrechnung` mit Absicht als Platzhalter an
+ * (`src/server/db/seed/index.ts`), weil niemand entschieden hat, ob die
+ * Gruppe fortlaufend oder jährlich neu nummeriert.
+ * `fin.rechnung_nummer_ziehen` verweigert daraufhin jede Nummer — „eine
+ * Nummer aus einem unbestätigten Kreis wäre eine erfundene", und das ist im
+ * Betrieb genau richtig. Für den Browser heisst es aber: es gibt in dieser
+ * Gesellschaft keine festschreibbare Rechnung, und damit prüfte der ganze
+ * Block darunter nichts. Drei Fälle standen deshalb rot, ohne dass ein
+ * einziger davon einen Programmfehler gemeldet hätte.
+ *
+ * Die Suite baut sich den Kreis deshalb selbst — dasselbe, was
+ * `tests/isolation/rechnung.test.ts` in `macheFakturierfaehig()` tut und was
+ * `tests/isolation/seed.test.ts` als den einen fehlenden Handgriff
+ * beschreibt. Was hier NICHT passiert: die Maske wird nicht angefasst. Sie
+ * ist der offene Teil der Frage, und diese Datei hat darauf keine Antwort;
+ * geprüft wird der WEG (Entwurf → Nummer → Kette → Storno), und der ist von
+ * der Maske unabhängig. Im Seed bleibt der Kreis ein Platzhalter — dies hier
+ * ist die Testdatenbank und nur sie.
+ *
+ * // TODO(client, O-134): Laufen die Rechnungsnummern je Gesellschaft
+ * fortlaufend weiter oder setzen sie jährlich zurück, und mit welcher Maske?
+ */
+test.beforeAll(async () => {
+  await sql.unsafe(
+    `update nummernkreis nk
+        set ist_platzhalter = false,
+            zuruecksetzung  = coalesce(nk.zuruecksetzung, 'nie'::nummernkreis_zuruecksetzung)
+       from mandant m
+      where m.id = nk.mandant_id
+        and m.slug = $1
+        and nk.kreis_typ = 'ausgangsrechnung'
+        and nk.kontext_id is null
+        and nk.geschlossen_am is null`,
+    [MANDANT],
+  );
+});
 
 /**
  * **Ohne Anmeldung antwortet jede Portalseite mit „Anmeldung erforderlich"** —
@@ -43,7 +91,6 @@ async function anmelden(page: Page): Promise<void> {
   await alsKonto(page, KONTO.adminReinigung);
 }
 
-const MANDANT = 'reinigung';
 
 /**
  * **Jede Prüfung schreibt ihren EIGENEN Beleg fest.**
@@ -88,11 +135,12 @@ async function festgeschriebenerBeleg(page: Page): Promise<void> {
    * JSON-Dokument und meldete einen Zeitablauf, der wie ein kaputter
    * Bildschirm aussieht statt wie ein benannter Grund.
    *
-   * Der häufigste Grund ist kein Programmfehler: der Seed legt den
-   * Rechnungsnummernkreis bewusst als PLATZHALTER an, weil O-134 offen ist
-   * (fortlaufend oder jährlich neu?), und `fin.rechnung_nummer_ziehen` zieht
-   * aus einem unbestätigten Kreis keine Nummer. Dann gibt es in dieser
-   * Gesellschaft keine festschreibbare Rechnung, und das soll hier stehen.
+   * Der Grund, der hier am längsten stand, ist keiner mehr: der Seed legt den
+   * Rechnungsnummernkreis bewusst als PLATZHALTER an (O-134), und
+   * `fin.rechnung_nummer_ziehen` zieht aus einem unbestätigten Kreis keine
+   * Nummer. Das `beforeAll` dieser Datei baut sich den Kreis deshalb als
+   * Vorrichtung. Bleibt die Abweisung trotzdem stehen, ist sie ein echter
+   * Befund und ihr Text steht hier — statt eines Zeitablaufs weiter unten.
    */
   const koerper = (await page.locator('body').innerText()).trim();
   expect(
