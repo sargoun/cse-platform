@@ -184,7 +184,7 @@ describe('(1) Einteilen schreibt genau eine Zeile — und alles, was daran haeng
 
     const vorschau = await alsChef(f.reinigung, (k) =>
       pruefeEinteilung(k, e, f.jonasReinigung));
-    expect(vorschau.arbzg.map((b) => b.regel)).not.toContain('pause_fehlt_ueber_6h');
+    expect((vorschau.arbzg ?? []).map((b) => b.regel)).not.toContain('pause_fehlt_ueber_6h');
 
     // Und mit hinterlegter, ZU KURZER Pause meldet dieselbe Vorschau sehr wohl.
     const zweite = await schicht(f.reinigung, TAG, '06:00', '14:00');
@@ -192,7 +192,7 @@ describe('(1) Einteilen schreibt genau eine Zeile — und alles, was daran haeng
       `update einsatz set pause_geplant_minuten = 10 where id = $1`, [zweite]);
     const streng = await alsChef(f.reinigung, (k) =>
       pruefeEinteilung(k, zweite, f.jonasReinigung));
-    expect(streng.arbzg.map((b) => b.regel)).toContain('pause_fehlt_ueber_6h');
+    expect((streng.arbzg ?? []).map((b) => b.regel)).toContain('pause_fehlt_ueber_6h');
   });
 
   it('eine stornierte Schicht wird nicht besetzt', async () => {
