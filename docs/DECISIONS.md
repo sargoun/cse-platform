@@ -4501,3 +4501,31 @@ hinterlegte Urkunde — als das, was sie sind.
 | O-341 | **Mit welcher Frist läuft ein Bewacherausweis in Ihrem Haus ab — folgt sie der Wiederholung der Zuverlässigkeitsprüfung oder dem aufgedruckten Datum des Ausweises?** `qualifikation.standard_gueltigkeit_monate` bleibt deshalb leer; das Ablaufdatum steht am einzelnen Nachweis, wo es herkommt. Ein geratener Vorgabewert trägt sich sonst in jeden neu erfassten Nachweis ein und sieht dort aus wie eine geprüfte Angabe — und der 60/30/7-Wächter mahnt zu einem Datum, das niemand geprüft hat. | SEC-02, EMP-08, §11b GewO, `qualifikation` |
 | O-342 | **Welche Qualifikation verlangt welcher Posten — genügt die Unterrichtung nach §34a Abs. 1a GewO, oder verlangt der Objektschutz am Kurfürstendamm die Sachkundeprüfung?** Die Sperre ist gebaut und geprüft (`app.einsatz_qualifikation_erfuellt`, `einsatzanforderung`); welche Zeile sie scharf stellt, entscheidet der Vertrag und nicht der Seed. Bis zur Antwort trägt der Demoposten KEINE `einsatzanforderung` — die Einteilung fragt also, findet nichts und lässt durch. | SEC-01, SEC-04, §34a GewO, `einsatzanforderung`, `posten` |
 | O-343 | **Sollen die Urkunden zu §34a und Bewacherausweis in der Plattform liegen, oder genügt die Personalakte auf Papier und die Plattform führt nur Nummer und Frist?** `qualifikation.erfordert_dokument` steht für die drei gesetzlichen Einträge auf `true`, und DOC-01 verweigert deshalb `gueltig` ohne hinterlegte Urkunde. Das ist die strengere und damit laute Variante: sie blockiert sichtbar, statt still eine Gültigkeit zu behaupten, für die kein Papier da ist. Antwortet der Mandant mit „Papierakte genügt", ist es ein Boolean. | SEC-02, DOC-01, `qualifikation`, `nachweis`, `dokument` |
+
+### D-305 · Der Konfliktlauf prüft die EINTEILUNG, nicht die erfasste Zeit
+
+Der nächtliche `konflikte_erkennen` lief ab `now()` vorwärts, und
+`ladeKandidaten` filtert `e.ende_zeitpunkt > $2`. Eine Schicht, die bereits
+vorbei war, konnte damit **niemals** Kandidat werden: ein Plan, der am Vorabend
+kurzfristig geändert wurde — Einspringen für eine Kranke, eine vorgezogene
+Nachtschicht —, war am nächsten Morgen unprüfbar. Der Verstoß hatte
+stattgefunden und stand nirgends.
+
+**Entschieden:** das Fenster reicht sieben Tage zurück. Sieben ist kein runder
+Wert, sondern die Woche, in der eine Korrektur noch etwas bewirkt — die
+Zeiterfassung ist offen, der Monat nicht abgeschlossen, und die Ruhezeit der
+Folgewoche lässt sich noch planen.
+
+**Was das nicht löst, und warum es hier steht statt in einem stillen TODO:**
+geprüft wird die **Einteilung**, nicht die erfasste Zeit. Eine Schicht, die
+06:00–14:00 geplant war und 06:00–18:00 gearbeitet wurde, fällt weiter durch —
+`ladeKandidaten` liest `einsatz_zuordnung`, nicht `zeiteintrag`. Das ist die
+Lücke, die zählt: § 16 Abs. 2 ArbZG verlangt die Aufzeichnung der über acht
+Stunden hinausgehenden Arbeitszeit, und das ist die tatsächliche, nicht die
+geplante.
+
+Der Detektor braucht dafür einen **zweiten Kandidatenweg** über `zeiteintrag`
+mit denselben Regeln und demselben Fingerabdruck — sonst entstehen zwei Zeilen
+für denselben Tag, eine aus dem Plan und eine aus der Erfassung. Das ist eine
+eigene Runde, keine Zeile in diesem PR, und sie gehört vor den ersten echten
+Lohnlauf.
