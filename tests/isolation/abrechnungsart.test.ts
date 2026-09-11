@@ -21,7 +21,7 @@ import { legeEntwurfAn, type Abfrage } from '../../src/server/services/finanz/re
 import {
   AbrechnungFehler, alleAbrechnungsarten, berechneAbrechnung, berechneMitKonfiguration,
   beendeKonfiguration, bestuecke, bestueckeAusAbrechnungsart, entferne, hole,
-  ladeKonfiguration, legeKonfigurationAn, registriere,
+  ladeKonfiguration, legeKonfigurationAn as schreibeKonfiguration, registriere,
   type Abrechnungsart, type RechnungspositionEntwurf, type VertragAbrechnung,
 } from '../../src/server/services/finanz/abrechnungsart/index.js';
 import { bucheFreigegebeneZeiten, eroeffneKonto }
@@ -1151,7 +1151,7 @@ describe('eine Abrechnungskonfiguration anlegen und beenden', () => {
     const bau = await baueAuftrag(f.reinigung);
     const fehler = await alsApp(sitzung(f.reinigung), async (tx) => {
       try {
-        await legeKonfigurationAn(alsDienst(tx), {
+        await schreibeKonfiguration(alsDienst(tx), {
           auftragId: bau.auftrag,
           abrechnungsart: 'stundenbasiert',
           parameter: {},
@@ -1164,17 +1164,17 @@ describe('eine Abrechnungskonfiguration anlegen und beenden', () => {
       } catch (e) { return e; }
     });
     expect((fehler as AbrechnungFehler).grund).toBe('parameter_offen');
-    const [{ n }] = await sql.unsafe<{ n: string }[]>(
+    const anzahl = await sql.unsafe<{ n: string }[]>(
       `select count(*)::text as n from vertrag_abrechnung where auftrag_id = $1`,
       [bau.auftrag]);
     // Nicht „angelegt und später abgewiesen": es steht keine Zeile da.
-    expect(n).toBe('0');
+    expect(anzahl[0]!.n).toBe('0');
   });
 
   it('legt mit gesetztem Parameter an — und weist eine unbekannte Art ab', async () => {
     const bau = await baueAuftrag(f.reinigung);
     const id = await alsApp(sitzung(f.reinigung), (tx) =>
-      legeKonfigurationAn(alsDienst(tx), {
+      schreibeKonfiguration(alsDienst(tx), {
         auftragId: bau.auftrag,
         abrechnungsart: 'stundenbasiert',
         parameter: { minuten_rundung: 15 },
@@ -1187,7 +1187,7 @@ describe('eine Abrechnungskonfiguration anlegen und beenden', () => {
 
     const fehler = await alsApp(sitzung(f.reinigung), async (tx) => {
       try {
-        await legeKonfigurationAn(alsDienst(tx), {
+        await schreibeKonfiguration(alsDienst(tx), {
           auftragId: bau.auftrag, abrechnungsart: 'gibt_es_nicht', parameter: {},
           abrechnungsintervall: 'monatlich', leistungszeitraumModus: 'kalendermonat',
           gueltigAb: '2027-01-01',
@@ -1226,7 +1226,7 @@ async function legeKonfigurationAn2(
   bau: Auftragsbau, ab: string, bis: string | null,
 ): Promise<string> {
   return alsApp(sitzung(bau.mandant), (tx) =>
-    legeKonfigurationAn(alsDienst(tx), {
+    schreibeKonfiguration(alsDienst(tx), {
       auftragId: bau.auftrag,
       abrechnungsart: 'monatspauschale',
       parameter: { teilmonat: 'keine' },
