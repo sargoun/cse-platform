@@ -202,42 +202,32 @@ export function OeffentlicheShell(
         </details>
 
         {/*
-          * Der Weg ins Portal — und er ist NICHT hinter `md:` versteckt.
-          *
-          * Die Hauptnavigation ist es (`hidden md:flex`), und das ist dort
-          * richtig: sie fuehrt zu Lesestoff. Dieser Punkt fuehrt zur Arbeit.
-          * Wer ihn braucht, steht mit einem Telefon im Treppenhaus, nicht mit
-          * einem Bildschirm am Schreibtisch — auf genau dem Geraet also,
-          * auf dem er sonst fehlte.
-          *
-          * `min-h-11` sind 44px: DESIGN §8 nennt das Tap-Ziel nicht als
-          * Richtwert, sondern als Untergrenze.
-          */}
-        {/*
           * **Der rote Knopf, den DESIGN §5 woertlich nennt** — „rot *Angebot
           * anfragen* + ghost *Login* rechts".
           *
           * Er fehlte, und mit ihm der einzige Weg, den dieser Auftritt
           * geschaeftlich hat: `/angebot` war gebaut, geprueft und erreichbar
           * — und stand in KEINER Navigation. Wer ein Angebot wollte, musste
-          * die Adresse kennen. Das ist derselbe Fehler wie die leere
-          * „Mehr"-Liste im Portal, nur an der Stelle, an der er Geld kostet.
+          * die Adresse kennen. Derselbe Fehler wie die leere „Mehr"-Liste im
+          * Portal, nur an der Stelle, an der er Geld kostet.
           *
-          * Nicht hinter `md:`: auf dem Telefon ist er erst recht der Punkt,
-          * um den es geht.
-          */}
-        {/*
-          * **Am Telefon steht hier NICHTS ausser dem Menue** — und das ist
-          * dieselbe Lehre zum dritten Mal.
+          * **Und trotzdem `md:flex`** — am Telefon steht in der Kopfzeile
+          * NICHTS ausser dem Namen und dem Menue. Hier standen einmal drei
+          * Absaetze uebereinander, von denen einer erklaerte, warum dieser
+          * Knopf NICHT hinter `md:` liegt; er lag da bereits. Ein Kommentar,
+          * der das Gegenteil des Codes darunter behauptet, ist schlechter als
+          * keiner.
           *
-          * Erst der Auftrittsname, dann „Anmelden", dann der rote Knopf, das
-          * Menue und die Sprachwahl: bei 375px schob das die Zeile ueber den
-          * Rand, und `kein waagerechtes Scrollen bei 375px` fiel auf `/` wie
-          * auf `/en`. Genau dasselbe hatte „Anmelden" schon einmal ausgeloest.
+          * Der Grund fuer `md:`: erst der Auftrittsname, dann „Anmelden",
+          * dann der rote Knopf, das Menue und die Sprachwahl — bei 375px
+          * schob das die Zeile ueber den Rand, und „kein waagerechtes
+          * Scrollen bei 375px" fiel auf `/` wie auf `/en`. DESIGN §5 sagt es
+          * auch: „Mobile: full-screen overlay menu." Nicht „dasselbe, nur
+          * enger", sondern: unter `md` gehoert alles in das Blatt — und das
+          * Blatt fuehrt `/angebot` als ersten Punkt nach den vier Seiten.
           *
-          * DESIGN §5 sagt es auch: „Mobile: full-screen overlay menu." Nicht
-          * „dasselbe, nur enger" — sondern: unter `md` gehoert alles in das
-          * Blatt, und in der Zeile bleiben der Name und der Weg dorthin.
+          * `min-h-11` sind 44px: DESIGN §8 nennt das Tap-Ziel nicht als
+          * Richtwert, sondern als Untergrenze.
           */}
         <a
           href={mitSprache('/angebot', sprache)}
