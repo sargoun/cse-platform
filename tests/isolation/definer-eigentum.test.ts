@@ -149,3 +149,83 @@ describe('K-01 · das Eigentum der Definer-Funktionen', () => {
     expect(ohne.map((z) => z.name)).toEqual([]);
   });
 });
+
+/**
+ * K-08, die andere Haelfte: wer DARF die Definer-Funktionen aufrufen?
+ *
+ * **Was offenstand.** Postgres gibt jeder neuen Funktion `EXECUTE` an PUBLIC.
+ * Ein spaeteres `grant execute … to cse_app` fuegt HINZU und ersetzt nichts —
+ * der Eintrag fuer PUBLIC bleibt daneben stehen. 41 Funktionen in `app` trugen
+ * deshalb beides: die benannte Rolle UND jede andere, `cse_anon` eingeschlossen.
+ * Darunter `app.anstellung_entgelt_lesen` (das Entgelt, das K-05 der Zeile
+ * entzieht), `app.leistungswerte_lesen` (die Marge, D-92) und
+ * `app.checkin_ausgeben`, das eine Marke ausstellt.
+ *
+ * Zurueckgehalten hat sie bis dahin die Sitzung: ohne die K-02-GUCs findet
+ * `app.aktueller_benutzer()` niemanden. Das ist eine Zusicherung ueber den
+ * RUMPF jeder einzelnen Funktion und gilt nur, solange niemand eine schreibt,
+ * die auch ohne Sitzung etwas herausgibt. K-08 will genau diese Abhaengigkeit
+ * nicht.
+ *
+ * Die Pruefung ist deshalb eine Sperrklinke wie die darueber: sie zaehlt, was
+ * NOCH offensteht, und laesst die Zahl nur sinken.
+ */
+describe('K-08 — PUBLIC haelt kein EXECUTE auf den `app`-Funktionen', () => {
+  it('keine `app`-Definer-Funktion mit benannter Rolle laesst PUBLIC daneben stehen', async () => {
+    const offen = await sql.unsafe<{ name: string }[]>(`
+      select p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' as name
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+       where p.prosecdef and n.nspname = 'app'
+         and p.proacl is not null
+         and exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0)
+       order by 1`);
+    expect(offen.map((z) => z.name)).toEqual([]);
+  });
+
+  /**
+   * Die eine, die BLEIBT — benannt statt uebersehen.
+   *
+   * `app.sichtbare_mandanten()` traegt PUBLIC als EINZIGEN Eintrag
+   * (`proacl is null`). Ein Entzug ohne vorherige Grants liesse jeden Aufrufer
+   * lautlos ausfallen, und welche Rolle sie ueber welche Policy erreicht, ist
+   * Urteil je Policy (D-301). Diese Prüfung haelt fest, dass es GENAU diese
+   * eine ist: kaeme eine zweite dazu, faellt sie.
+   */
+  it('genau eine `app`-Funktion steht noch ohne eigenen Grant da', async () => {
+    const ohne = await sql.unsafe<{ proname: string }[]>(`
+      select p.proname
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+       where p.prosecdef and n.nspname = 'app' and p.proacl is null
+       order by 1`);
+    expect(ohne.map((z) => z.proname)).toEqual(['sichtbare_mandanten']);
+  });
+
+  /**
+   * Und die Gegenprobe, dass der Entzug nicht zu weit ging: die benannten
+   * Rollen duerfen weiterhin. Ohne sie hiesse „PUBLIC haelt nichts mehr"
+   * moeglicherweise „niemand haelt mehr etwas" — und das faellt erst dem
+   * Betrieb auf.
+   */
+  it('die benannten Rollen behalten ihr EXECUTE', async () => {
+    const paare: readonly [string, string][] = [
+      ['hat_recht', 'cse_app'],
+      ['hat_recht', 'cse_definer'],
+      ['sitzung_aufloesen', 'cse_anon'],
+      ['checkin_verbrauchen', 'cse_checkin'],
+      ['offline_ereignis_annehmen', 'cse_checkin'],
+      ['planungsbedarf', 'cse_job'],
+      ['anstellung_entgelt_lesen', 'cse_app'],
+    ];
+    for (const [name, rolle] of paare) {
+      const [z] = await sql.unsafe<{ ok: boolean }[]>(
+        `select bool_or(has_function_privilege($1, p.oid, 'EXECUTE')) as ok
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+          where n.nspname = 'app' and p.proname = $2`,
+        [rolle, name],
+      );
+      expect(z?.ok, `${rolle} darf app.${name} nicht mehr`).toBe(true);
+    }
+  });
+});
