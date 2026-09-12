@@ -92,7 +92,7 @@ did and are unchanged. The measurement is in DECISIONS.md.
 **Why `--danger` has a second, darker value.** `--danger` is tuned to be read
 *as text* on `--danger-soft` and on the dark surfaces — it has to be light. The
 danger *button* is the opposite case: white text on a solid fill. White on
-`#EF4444` was **3.76:1** and failed AA for body-sized text, so a solid danger
+`--danger` is **2.98:1** and fails AA for body-sized text, so a solid danger
 surface uses `--danger-strong` (**4.83:1**). One token cannot do both jobs, and
 the button is the one where the failure is a legal problem rather than a
 cosmetic one (§9, BFSG).
