@@ -450,7 +450,25 @@ describe('Abnahme 3 — §33 UStDV (FIN-13)', () => {
    * niemand vergleicht, sind zwei Auslegungen — und die eine, die blockiert,
    * ist dann nicht die, die der Mensch auf dem Bildschirm gesehen hat.
    */
-  it('fin.kleinbetrag_greift und kleinbetragLage stimmen überein', async () => {
+  /**
+   * **Drei Stellen, nicht zwei.** Diese Prüfung verglich die beiden LESER —
+   * `fin.kleinbetrag_greift` und `kleinbetragLage` — und liess den SCHREIBER
+   * aus: `fin.rechnung_nummer_ziehen` friert `ist_kleinbetrag` auf dem Beleg
+   * ein, und zwar mit einer eigenen Abschrift derselben Regel. Die stand auf
+   * `<=` statt auf `<`.
+   *
+   * Bei GENAU der Schwelle liess die Vorprüfung den Beleg also nur mit
+   * vollständiger Empfängeranschrift durch und schrieb ihm im selben Vorgang
+   * dauerhaft „Kleinbetrag" auf. Ein unveränderlicher Beleg, der seiner
+   * eigenen Prüfung widerspricht — korrigierbar nur durch Storno und
+   * Neuausstellung. Behoben in `0110`; gefunden hat es der Copilot-Durchgang
+   * auf PR #7, nicht diese Prüfung, weil sie eine Ebene neben der Stelle lag.
+   *
+   * `24_999n` und `25_000n` sind die beiden Cent-Werte, an denen sich die
+   * Auslegungen trennen. Ohne sie misst die Schleife nur, dass 40 € und
+   * 250,01 € unstrittig sind.
+   */
+  it('Leser, Leser und SCHREIBER legen §33 UStDV gleich aus', async () => {
     await bestaetigeGrenze(25_000n);
     for (const betrag of [4_000n, 24_999n, 25_000n, 25_001n]) {
       const gleich = await inSitzung(f.reinigung, async (tx) => {
@@ -458,10 +476,20 @@ describe('Abnahme 3 — §33 UStDV (FIN-13)', () => {
         await finalisiere(alsDienst(tx), id);
         const [sqlSeite] = await tx.unsafe<{ greift: boolean }[]>(
           `select fin.kleinbetrag_greift($1::uuid) as greift`, [id]);
+        const [eingefroren] = await tx.unsafe<{ ist_kleinbetrag: boolean }[]>(
+          `select ist_kleinbetrag from rechnung where id = $1::uuid`, [id]);
         const tsSeite = kleinbetragLage(await ladePruefEingabe(alsDienst(tx), id));
-        return { sql: sqlSeite?.greift, ts: tsSeite.greift, betrag };
+        return {
+          sql: sqlSeite?.greift, ts: tsSeite.greift,
+          beleg: eingefroren?.ist_kleinbetrag, betrag,
+        };
       });
       expect(gleich.ts).toBe(gleich.sql);
+      expect(
+        gleich.beleg,
+        `bei ${gleich.betrag} Cent widerspricht der eingefrorene Beleg der Prüfung, `
+        + 'die ihn durchgelassen hat',
+      ).toBe(gleich.ts);
       expect(gleich.ts).toBe(betrag < 25_000n);
     }
   });

@@ -764,17 +764,6 @@ async function main(): Promise<void> {
      */
     ['admin.bau@cse-gruppe.de', 'Administration Bau', 'admin', 'bau', 8],
     /**
-     * Und eine Administration fuer den Bau.
-     *
-     * `bau.preis_lesen` halten laut Rechtematrix nur `admin` und
-     * `super_admin` — `leitung` ausdruecklich NICHT. Ohne dieses Konto konnte
-     * in den Demodaten KEIN Mensch der REALTIME Service GmbH einen
-     * LV-Einheitspreis sehen: das Aufmassblatt zeigte Mengen ohne Geld, und
-     * das sah aus wie eine fehlende Funktion. Dieselbe Luecke wie die
-     * Gesellschaft ohne Leitung, nur eine Ebene tiefer.
-     */
-    ['admin.bau@cse-gruppe.de', 'Administration Bau', 'admin', 'bau', null],
-    /**
      * Und eine Leitung fuer die Security.
      *
      * Sie fehlte, und das war keine Kleinigkeit: `security` hatte ausser zwei
@@ -805,6 +794,33 @@ async function main(): Promise<void> {
     ['leitung.reinigung@cse-gruppe.de', 'Leitung Reinigung', 'leitung', 'reinigung', 10],
     ['kunde.demo@example.test', 'Kundenzugang (Demo)', 'kunde', 'reinigung', null],
   ];
+
+  /**
+   * **Zwei Zeilen fuer dieselbe Kennung sind kein doppelter Eintrag, sondern
+   * ein stilles Loeschen.**
+   *
+   * `admin.bau@cse-gruppe.de` stand hier zweimal — einmal mit Person 8, einmal
+   * mit `null`, samt woertlich kopiertem Kommentar. Die Schleife laeuft beide
+   * Zeilen, und die zweite trifft unten auf
+   * `on conflict (id) do update set ... person_id = excluded.person_id`: bei
+   * JEDEM Lauf verlor der Bau-Administrator seine Person. Ein Konto ohne
+   * Person ist nach D-09 kein Mensch mehr — Zertifikate, Beschaeftigungen und
+   * Zeiten haengen daran, und in den Demodaten sah es aus, als gehoere dieser
+   * Zugang zu niemandem.
+   *
+   * Auffallen konnte das nicht: die Kennung ist eindeutig, der Upsert
+   * erfolgreich, der Lauf gruen. Deshalb steht die Probe hier und nicht in
+   * einem Test — sie faellt bei dem, der die Zeile einfuegt.
+   */
+  const doppelt = konten
+    .map(([email]) => email)
+    .filter((email, i, alle) => alle.indexOf(email) !== i);
+  if (doppelt.length > 0) {
+    throw new Error(
+      `Seed: doppelte Kontokennung(en) ${[...new Set(doppelt)].join(', ')}. `
+      + 'Die zweite Zeile ueberschreibt die erste — auch ihre person_id.',
+    );
+  }
 
   /**
    * Welche Rollen einen zweiten Faktor verlangen (AUT-02).
