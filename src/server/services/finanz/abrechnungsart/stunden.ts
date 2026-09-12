@@ -114,10 +114,25 @@ function rundeMinuten(minuten: number, stufe: number): number {
 }
 
 /**
- * `105` → `"1,75"`. Nur fuer den ANZEIGETEXT der Zeile, und deshalb aus ganzer
- * Arithmetik: eine Gleitkommadivision waere hier zwar folgenlos, aber sie
- * stuende neben einem Betrag, und die naechste Person kopierte sie eine Zeile
- * weiter.
+ * `105` → `"1,75"`. Nur fuer den ANZEIGETEXT der Zeile — hier entsteht kein
+ * Betrag, und `netto_cent` wird aus Minuten und Cent-Satz gerechnet, nicht
+ * aus dieser Zeichenkette.
+ *
+ * **Die Division ist Gleitkomma, und das war hier als „ganze Arithmetik"
+ * beschrieben — das stimmte nicht.** `/` auf `number` ist in JavaScript immer
+ * Gleitkomma; ganzzahlig wird es erst durch `Math.round` und `Math.trunc`
+ * darunter. Der Satz stand neben einem Betragsrechner, und die naechste
+ * Person haette ihn als Freibrief gelesen.
+ *
+ * Richtig ist das Ergebnis trotzdem, und zwar beweisbar: `minuten * 100 / 60`
+ * ist `minuten * 5 / 3`, der gebrochene Anteil also stets 0, 1/3 oder 2/3 —
+ * nie 1/2. Der einzige Fall, in dem ein Rundungsfehler im letzten Bit die
+ * Entscheidung kippen koennte, kann gar nicht auftreten. `minuten * 100` ist
+ * ausserdem fuer jede Minutenzahl, die diese Plattform erzeugen kann, exakt
+ * darstellbar.
+ *
+ * Wer hier einmal einen BETRAG rechnet, nimmt `bigint` — Invariante 1, und
+ * dann traegt dieser Absatz nicht mehr.
  */
 function stundenText(minuten: number): string {
   const hundertstel = Math.round((minuten * 100) / 60);
