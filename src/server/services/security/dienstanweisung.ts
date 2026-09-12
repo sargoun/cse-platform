@@ -301,13 +301,33 @@ async function schreibeFassung(
  * `kern.oeffne_kenntnisnahme_pflicht` (0078 §8), und zwar auch fuer einen
  * Import, der diesen Dienst nicht kennt.
  */
+/**
+ * **Die Fassung muss zu DIESER Dienstanweisung gehoeren.**
+ *
+ * Vorher nahm die Funktion nur die Kennung der Fassung. Die RLS haelt sie im
+ * Mandanten, mehr nicht: wer `dienstanweisung.schreiben` hat und die UUID
+ * einer fremden Fassung kennt, konnte sie ueber die Route JEDER anderen
+ * Dienstanweisung freigeben. Die Adresse traegt `[id]`, und die Aussage
+ * dahinter — „ich gebe eine Fassung DIESES Dokuments frei" — stimmte nicht.
+ *
+ * Heute ist der Schaden begrenzt, weil das Recht ohnehin mandantenweit gilt;
+ * die Freigabe waere ueber die richtige Adresse genauso moeglich. Die Luecke
+ * ist trotzdem eine: sobald ein Recht je Dokument dazukommt — und §6.10 nennt
+ * die Dienstanweisung als das Dokument, dessen Fassungen einzeln gelten —,
+ * ist sie der Weg daran vorbei. Und eine Route, deren Pfad eine andere Sache
+ * meint als ihr Rumpf, faellt beim Lesen niemandem auf.
+ *
+ * Ein Fehlgriff antwortet wie etwas, das es nicht gibt (AUT-06): dass die
+ * Fassung existiert, aber woanders haengt, ist eine Auskunft fuer sich.
+ */
 export async function veroeffentlicheFassung(
-  kontext: SchreibKontext, versionId: string,
+  kontext: SchreibKontext, versionId: string, dienstanweisungId: string,
 ): Promise<void> {
   const [fassung] = await kontext.abfrage<{ veroeffentlicht: boolean }>(
     `select (veroeffentlicht_am is not null) as veroeffentlicht
-       from dienstanweisung_version where id = $1::uuid`,
-    [versionId],
+       from dienstanweisung_version
+      where id = $1::uuid and dienstanweisung_id = $2::uuid`,
+    [versionId, dienstanweisungId],
   );
   if (fassung === undefined) throw new FassungNichtGefunden(versionId);
   if (fassung.veroeffentlicht) throw new FassungSchonVeroeffentlicht();
@@ -315,9 +335,10 @@ export async function veroeffentlicheFassung(
   const zeilen = await kontext.schreibe<{ id: string }>(
     `update dienstanweisung_version
         set veroeffentlicht_am = now(), veroeffentlicht_von = $2::uuid
-      where id = $1::uuid and veroeffentlicht_am is null
+      where id = $1::uuid and dienstanweisung_id = $3::uuid
+        and veroeffentlicht_am is null
       returning id`,
-    [versionId, kontext.benutzerId],
+    [versionId, kontext.benutzerId, dienstanweisungId],
   );
   // Null Zeilen heisst: zwischen Lesen und Schreiben hat jemand anderes
   // freigegeben. Werfen, statt Erfolg zu melden.

@@ -9,7 +9,8 @@ import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
 import {
-  erstelleEntwurf, FalscherZustand, KundePasstNichtZumObjekt, NachweisNichtGefunden,
+  BezugPasstNichtZumObjekt, erstelleEntwurf, FalscherZustand,
+  KundePasstNichtZumObjekt, NachweisNichtGefunden,
   type PositionEingabe,
 } from '@/server/services/reinigung/leistungsnachweis';
 
@@ -107,7 +108,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         });
       }));
   } catch (fehler) {
-    if (fehler instanceof KundePasstNichtZumObjekt || fehler instanceof FalscherZustand) {
+    if (fehler instanceof KundePasstNichtZumObjekt || fehler instanceof FalscherZustand
+      || fehler instanceof BezugPasstNichtZumObjekt) {
       return NextResponse.json(
         { fehler: 'ungueltiger_zustand', hinweis: fehler.message }, { status: 422 },
       );

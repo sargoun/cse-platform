@@ -19,7 +19,7 @@ import type { LeseKontext, SchreibKontext } from '../../src/server/kontext/index
 import {
   bestaetigeKenntnisnahme, legeAnweisungAn, leseAnweisung, leseFassungen,
   leseKenntnisstand, neueFassung, veroeffentlicheFassung,
-  SchonBestaetigt,
+  SchonBestaetigt, FassungNichtGefunden,
 } from '../../src/server/services/security/dienstanweisung.js';
 import {
   findeBestaetigungsziel, findeEigeneDienstanweisung,
@@ -340,11 +340,49 @@ describe('(1) Fassung 3 veraltet die alten Bestaetigungen — ohne eine anzufass
     await alsLeitung((k) => neueFassung(k, anweisungId, {
       inhalt: 'Fassung 3', gueltigAb: '2026-03-01', veroeffentlichen: true,
     }));
-    await alsLeitung((k) => veroeffentlicheFassung(k, entwurf));
+    await alsLeitung((k) => veroeffentlicheFassung(k, entwurf, anweisungId));
 
     const kopf = await alsLeitung((k) => leseAnweisung(k, anweisungId));
     // Eine stille Ruecknahme gaebe es nicht: 3 bleibt die geltende Fassung.
     expect(kopf!.aktiveVersion).toBe(3);
+  });
+
+  /**
+   * **Eine Fassung gehoert zu EINER Dienstanweisung** — und die Freigabe
+   * nimmt die aus dem Pfad.
+   *
+   * Vorher nahm `veroeffentlicheFassung` nur die Kennung der Fassung. Die RLS
+   * haelt sie im Mandanten, mehr nicht: wer das Schreibrecht hat und eine
+   * fremde Fassungs-UUID kennt, konnte sie ueber die Route JEDER anderen
+   * Dienstanweisung freigeben. Der Pfad sagte das eine, der Rumpf tat das
+   * andere.
+   *
+   * Geantwortet wird wie auf etwas, das es nicht gibt (AUT-06): dass die
+   * Fassung existiert und woanders haengt, ist eine Auskunft fuer sich.
+   */
+  it('eine Fassung einer ANDEREN Anweisung laesst sich hier nicht freigeben', async () => {
+    const eins = await alsLeitung((k) => legeAnweisungAn(k, {
+      titel: 'Haus A', objektId, inhalt: 'A1',
+      gueltigAb: '2026-01-01', veroeffentlichen: true,
+    }));
+    const zwei = await alsLeitung((k) => legeAnweisungAn(k, {
+      titel: 'Haus B', objektId, inhalt: 'B1',
+      gueltigAb: '2026-01-01', veroeffentlichen: false,
+    }));
+    // Ein Entwurf, der zu `zwei` gehoert.
+    const fremd = await alsLeitung((k) => neueFassung(k, zwei.anweisungId, {
+      inhalt: 'B2', gueltigAb: '2026-02-01',
+    }));
+
+    await expect(
+      alsLeitung((k) => veroeffentlicheFassung(k, fremd, eins.anweisungId)),
+    ).rejects.toThrow(FassungNichtGefunden);
+
+    // Gegenprobe: ueber die RICHTIGE Anweisung geht sie durch. Sonst hiesse
+    // die Reparatur nur „es geht gar nicht mehr".
+    await alsLeitung((k) => veroeffentlicheFassung(k, fremd, zwei.anweisungId));
+    const kopf = await alsLeitung((k) => leseAnweisung(k, zwei.anweisungId));
+    expect(kopf!.aktiveVersion).toBe(2);
   });
 });
 

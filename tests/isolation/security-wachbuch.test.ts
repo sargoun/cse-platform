@@ -16,7 +16,7 @@ import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import {
   korrigiereEintrag, leseEintrag, pruefeKette, schreibeEintrag,
-  KeinUrheber, SchonStorniert, WachbuchEingabeFehlt,
+  BezugPasstNichtZumObjekt, KeinUrheber, SchonStorniert, WachbuchEingabeFehlt,
 } from '../../src/server/services/security/wachbuch.js';
 
 let f: Fixtur;
@@ -54,6 +54,30 @@ async function objekt(mandant: string): Promise<string> {
      values ($1,$2,$3,'Werkstor','Teststr. 1','10115','Berlin') returning id`,
     [mandant, k!.id, `O-${zufall()}`]);
   return o!.id;
+}
+
+/** Ein Posten AN einem Objekt (SEC-02). */
+async function posten(mandant: string, objekt: string): Promise<string> {
+  const [p] = await sql.unsafe<{ id: string }[]>(
+    `insert into posten (mandant_id, objekt_id, bezeichnung, gueltig_ab,
+                         erstellt_von_art)
+     values ($1,$2,$3,'2026-01-01','system') returning id`,
+    [mandant, objekt, `Pforte ${zufall()}`]);
+  return p!.id;
+}
+
+/** Eine Schicht AN einem Objekt — die Kennung, die der Eintrag mitführt. */
+async function einsatz(mandant: string, objekt: string): Promise<string> {
+  const [k] = await sql.unsafe<{ kunde_id: string }[]>(
+    `select kunde_id from objekt where id = $1`, [objekt]);
+  const [e] = await sql.unsafe<{ id: string }[]>(
+    `insert into einsatz (mandant_id, quell_schluessel, plan_datum,
+                          beginn_zeitpunkt, ende_zeitpunkt, beginn_lokal, ende_lokal,
+                          objekt_id, kunde_id, endet_am_folgetag, erstellt_von_art)
+     values ($1,$2,'2026-06-01','2026-06-01T20:00:00+02','2026-06-02T04:00:00+02',
+             '22:00','06:00',$3,$4,true,'system') returning id`,
+    [mandant, `E-${zufall()}`, objekt, k!.kunde_id]);
+  return e!.id;
 }
 
 /** Als die Wache selbst — `app.person_id` gesetzt, Rolle `mitarbeiter`. */
@@ -468,4 +492,84 @@ describe('der Urheber kommt aus der Sitzung, nicht aus der Anfrage', () => {
       expect(fehler).toBeInstanceOf(WachbuchEingabeFehlt);
       expect((fehler as Error).message).toContain('SEC-07');
     });
+});
+
+// ---------------------------------------------------------------------------
+
+/**
+ * **Fremde Bezüge kommen nicht in die Kette.**
+ *
+ * Das Wachbuch ist nach 0070 anfügbar und nicht änderbar — mit laufender
+ * Nummer und Kettenglied. Eine Zeile, die eine Schicht aus einem anderen Haus
+ * nennt, bleibt für immer stehen; richtigstellen heißt hier, beide Seiten
+ * lesbar zu lassen. § 34a GewO lebt von genau dieser Unveränderlichkeit.
+ *
+ * Beide Objekte liegen im SELBEN Mandanten. Läge das zweite in einem anderen,
+ * hielte schon die RLS den Test — und die Prüfung, um die es geht, bliebe
+ * unbewiesen. Das ist der Unterschied zwischen einem grünen Test und einem
+ * Beweis.
+ */
+describe('ein Bezug aus einem anderen Objekt wird abgewiesen', () => {
+  it('ein fremder Posten', async () => {
+    const fremdesObjekt = await objekt(f.security);
+    const fremderPosten = await posten(f.security, fremdesObjekt);
+
+    const fehler = await alsWache((k) => schreibeEintrag(k, {
+      objektId, art: 'rundgang', betreff: 'Rundgang 02:00',
+      eintragstext: 'Alles ruhig.', postenId: fremderPosten,
+    }).then(() => null, (x: unknown) => x));
+
+    expect(fehler).toBeInstanceOf(BezugPasstNichtZumObjekt);
+    expect((fehler as { tabelle?: string }).tabelle).toBe('posten');
+  });
+
+  it('eine fremde Schicht', async () => {
+    const fremdesObjekt = await objekt(f.security);
+    const fremdeSchicht = await einsatz(f.security, fremdesObjekt);
+
+    const fehler = await alsWache((k) => schreibeEintrag(k, {
+      objektId, art: 'rundgang', betreff: 'Rundgang 03:00',
+      eintragstext: 'Alles ruhig.', einsatzId: fremdeSchicht,
+    }).then(() => null, (x: unknown) => x));
+
+    expect(fehler).toBeInstanceOf(BezugPasstNichtZumObjekt);
+    expect((fehler as { tabelle?: string }).tabelle).toBe('einsatz');
+  });
+
+  it('und nichts davon steht hinterher in der Kette', async () => {
+    const vorher = await sql.unsafe<{ n: string }[]>(
+      `select count(*)::text as n from wachbuch_eintrag where objekt_id = $1`, [objektId]);
+    const fremdesObjekt = await objekt(f.security);
+    const fremderPosten = await posten(f.security, fremdesObjekt);
+
+    await alsWache((k) => schreibeEintrag(k, {
+      objektId, art: 'rundgang', betreff: 'Rundgang 04:00',
+      eintragstext: 'Alles ruhig.', postenId: fremderPosten,
+    })).catch(() => null);
+
+    const nachher = await sql.unsafe<{ n: string }[]>(
+      `select count(*)::text as n from wachbuch_eintrag where objekt_id = $1`, [objektId]);
+    expect(nachher[0]!.n).toBe(vorher[0]!.n);
+  });
+
+  /**
+   * Die Gegenprobe. Ohne sie bewiesen die drei Fälle oben nur, dass
+   * `schreibeEintrag` mit einem Posten irgendwann scheitert — nicht, dass es
+   * am fremden Objekt scheitert.
+   */
+  it('derselbe Eintrag mit EIGENEM Posten und EIGENER Schicht kommt durch', async () => {
+    const eigenerPosten = await posten(f.security, objektId);
+    const eigeneSchicht = await einsatz(f.security, objektId);
+
+    const id = await alsWache((k) => schreibeEintrag(k, {
+      objektId, art: 'rundgang', betreff: 'Rundgang 05:00',
+      eintragstext: 'Alles ruhig, Nebeneingang verschlossen.',
+      postenId: eigenerPosten, einsatzId: eigeneSchicht,
+    }));
+
+    const [zeile] = await sql.unsafe<{ posten_id: string; einsatz_id: string }[]>(
+      `select posten_id, einsatz_id from wachbuch_eintrag where id = $1`, [id]);
+    expect(zeile!.posten_id).toBe(eigenerPosten);
+    expect(zeile!.einsatz_id).toBe(eigeneSchicht);
+  });
 });

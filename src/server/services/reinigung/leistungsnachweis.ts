@@ -313,6 +313,22 @@ export interface EntwurfEingabe {
 }
 
 /**
+ * Ein Bezug, der an einem anderen Objekt haengt.
+ *
+ * Die Meldung nennt die TABELLE — wer die Eingabe korrigieren soll, muss
+ * wissen, welche.
+ */
+export class BezugPasstNichtZumObjekt extends Error {
+  readonly code = 'ungueltiger_zustand';
+  /** 422 wie `KundePasstNichtZumObjekt` — derselbe Fehler, andere Spalte. */
+  readonly status = 422;
+  constructor(readonly tabelle: string) {
+    super(`Der Bezug auf \`${tabelle}\` gehoert zu einem anderen Objekt.`);
+    this.name = 'BezugPasstNichtZumObjekt';
+  }
+}
+
+/**
  * Den Entwurf anlegen — Kopf und Zeilen in EINER Transaktion.
  *
  * Der Kunde wird nicht aus der Eingabe geglaubt, sondern gegen das Objekt
@@ -327,6 +343,63 @@ export async function erstelleEntwurf(
   );
   if (objekt === undefined) throw new NachweisNichtGefunden(eingabe.objektId);
   if (objekt.kunde_id !== eingabe.kundeId) throw new KundePasstNichtZumObjekt();
+
+  /**
+   * **Auch Revier und Auftragszeile gehoeren zu DIESEM Objekt** — im Kopf wie
+   * in jeder Zeile.
+   *
+   * Geprueft wurde bisher nur der Kunde. Die uebrigen Bezuege standen unter
+   * der RLS, und die sagt „derselbe Mandant", nicht „dasselbe Gebaeude". Eine
+   * Zeile konnte damit eine Auftragsleistung eines fremden Auftrags nennen;
+   * `zeiteintrag_id` bleibt dabei oft null, also greift auch der
+   * zusammengesetzte Fremdschluessel nicht.
+   *
+   * Warum das hier teuer ist: dieser Nachweis wird UNTERSCHRIEBEN. Der
+   * Schnappschuss friert ihn samt Abzug ein (CLN-04), er geht als Beleg zum
+   * Kunden und spaeter in die Rechnung. Fremde Arbeit darin faellt niemandem
+   * auf — sie sieht aus wie Arbeit.
+   */
+/**
+ * Wo der Bezug wirklich haengt — und warum `null` kein Verstoss ist.
+ *
+ * `auftrag_leistung.objekt_id` ist nullbar, und zwar mit Absicht (0050): „ein
+ * Rahmenvertrag ueber mehrere Liegenschaften traegt seine Standorte hier und
+ * nicht im Kopf". Eine Zeile ohne Standort gilt also fuer ALLE Standorte des
+ * Auftrags. Wer sie strikt gegen ein Objekt prueft, weist den Rahmenvertrag
+ * ab — das waere eine erfundene Regel, und zwar eine, die geltende Vertraege
+ * unbrauchbar macht.
+ *
+ * Die Regel lautet deshalb: abgewiesen wird, was ein ANDERES Objekt nennt.
+ * Was gar keines nennt, widerspricht nicht. Ist die Zeile selbst ohne
+ * Standort, entscheidet der Kopf des Auftrags; ist auch der ohne, deckt die
+ * Zeile mehrere Liegenschaften und bleibt zulaessig — die Mandantengrenze
+ * haelt sie ohnehin.
+ */
+  const ABFRAGE: Readonly<Record<string, string>> = {
+    revier: `select objekt_id from revier where id = $1::uuid`,
+    auftrag_leistung:
+      `select coalesce(al.objekt_id, a.objekt_id) as objekt_id
+         from auftrag_leistung al join auftrag a on a.id = al.auftrag_id
+        where al.id = $1::uuid`,
+  };
+  const gehoertZumObjekt = async (tabelle: string, kennung: string): Promise<void> => {
+    const [z] = await kontext.schreibe<{ objekt_id: string | null }>(
+      ABFRAGE[tabelle]!, [kennung],
+    );
+    if (z === undefined) throw new BezugPasstNichtZumObjekt(tabelle);
+    if (z.objekt_id != null && z.objekt_id !== eingabe.objektId) {
+      throw new BezugPasstNichtZumObjekt(tabelle);
+    }
+  };
+  if (eingabe.revierId != null) await gehoertZumObjekt('revier', eingabe.revierId);
+  if (eingabe.auftragLeistungId != null) {
+    await gehoertZumObjekt('auftrag_leistung', eingabe.auftragLeistungId);
+  }
+  for (const p of eingabe.positionen) {
+    if (p.auftragLeistungId != null) {
+      await gehoertZumObjekt('auftrag_leistung', p.auftragLeistungId);
+    }
+  }
 
   const [kopf] = await kontext.schreibe<{ id: string }>(
     `insert into leistungsnachweis

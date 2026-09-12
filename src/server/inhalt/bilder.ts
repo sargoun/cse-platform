@@ -35,14 +35,25 @@ import {
 const ENDUNGEN = ['avif', 'webp', 'jpg', 'jpeg', 'png'] as const;
 
 /**
- * Der Fund wird gemerkt.
+ * **Gemerkt wird nur der FUND, nie das Fehlen.**
  *
- * `existsSync` je Seitenaufruf waere fuenf Dateisystemzugriffe je Bild. Im
- * Entwicklungsbetrieb faellt das nicht auf, unter Last schon — und ein
- * Verzeichnis, das sich im Betrieb aendert, gibt es hier nicht: die Dateien
- * liegen im Abbild.
+ * Der erste Entwurf legte auch `null` ab — und widersprach damit dem Satz
+ * darueber, den er selbst versprach: „Datei hinlegen, Seite neu laden."
+ * Genau das ging dann nicht mehr. Wer den Auftritt einmal aufruft, BEVOR das
+ * Bild im Ordner liegt (und das tut jeder: der Ordner ist anfangs leer),
+ * bekommt fuer die Lebensdauer des Prozesses den Platzhalter — auch wenn die
+ * Datei zwei Minuten spaeter daliegt. Auf einem Server, der wochenlang laeuft,
+ * heisst das: nie.
+ *
+ * Ein gefundener Pfad dagegen darf bleiben. Eine Datei, die da ist,
+ * verschwindet nicht: die Ablage liegt im Abbild, und ein Austausch geht
+ * ueber ein neues Abbild.
+ *
+ * Was das kostet: bis zu fuenf `existsSync` je Bild und Aufruf, solange
+ * nichts abgelegt ist. Das ist ein Verzeichniseintrag im Seitencache des
+ * Betriebssystems — deutlich billiger als eine Zusage, die nicht gilt.
  */
-const gemerkt = new Map<string, string | null>();
+const gemerkt = new Map<string, string>();
 
 function sucheDatei(motiv: PlatzhalterMotiv): string | null {
   const bekannt = gemerkt.get(motiv);
@@ -56,7 +67,6 @@ function sucheDatei(motiv: PlatzhalterMotiv): string | null {
       return pfad;
     }
   }
-  gemerkt.set(motiv, null);
   return null;
 }
 

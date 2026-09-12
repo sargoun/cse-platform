@@ -59,7 +59,9 @@ export async function POST(
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
 
-        if (fassungId !== null) return veroeffentlicheFassung(kontext, fassungId);
+        // Die Kennung aus dem PFAD geht mit: die Route sagt, welche
+        // Dienstanweisung gemeint ist, und der Dienst prueft es (AUT-06).
+        if (fassungId !== null) return veroeffentlicheFassung(kontext, fassungId, id);
 
         const gueltigAb = text(daten, 'gueltig_ab');
         if (gueltigAb === null) {

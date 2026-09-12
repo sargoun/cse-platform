@@ -168,6 +168,25 @@ function pruefeText(eingabe: EintragEingabe): void {
 }
 
 /**
+ * Ein Bezug, der an einem anderen Objekt haengt.
+ *
+ * Die Meldung nennt die TABELLE: „irgendetwas passt nicht" hilft niemandem,
+ * der eine Eingabe korrigieren soll.
+ */
+export class BezugPasstNichtZumObjekt extends Error {
+  readonly code = 'ungueltiger_zustand';
+  /**
+   * 422 — dieselbe Klasse Fehler wie ueberall sonst in diesem Baum: die
+   * Eingabe ist syntaktisch in Ordnung und inhaltlich falsch.
+   */
+  readonly status = 422;
+  constructor(readonly tabelle: string) {
+    super(`Der Bezug auf \`${tabelle}\` gehoert zu einem anderen Objekt.`);
+    this.name = 'BezugPasstNichtZumObjekt';
+  }
+}
+
+/**
  * Schreibt eine Seite. Serverzeit, Nummer und Kettenglied kommen aus der
  * Datenbank (0070) — dieser Dienst schickt sie nicht einmal mit.
  */
@@ -176,6 +195,49 @@ export async function schreibeEintrag(
 ): Promise<string> {
   pruefeText(eingabe);
   const wer = await urheber(kontext);
+
+  /**
+   * **Posten, Veranstaltung und Schicht gehoeren zu DIESEM Objekt.**
+   *
+   * Der Einschub sicherte bisher nur die Mandantenzugehoerigkeit — ueber die
+   * RLS und die Fremdschluessel. Die sagt „dieselbe Gesellschaft", nicht
+   * „dasselbe Objekt". Eine gueltige Schicht aus Haus B liess sich damit in
+   * die Beweiskette von Haus A eintragen.
+   *
+   * Warum das hier schwerer wiegt als anderswo: das Wachbuch ist nach 0070
+   * ANFUEGBAR und nicht aenderbar, mit Kettenglied und laufender Nummer. Eine
+   * falsche Zeile bleibt fuer immer stehen — korrigieren heisst hier
+   * richtigstellen, und beide Seiten bleiben lesbar. § 34a GewO und die
+   * Nachweispflicht leben genau von dieser Unveraenderlichkeit; eine Kette,
+   * in der Fremdes stehen kann, traegt sie nicht.
+   *
+   * Geprueft wird VOR dem Schreiben, nicht ueber eine Bedingung in der
+   * Datenbank: eine zusammengesetzte Fremdschluesselbedingung braeuchte auf
+   * drei Tabellen je einen eindeutigen Index ueber `(objekt_id, id)`, und das
+   * ist eine Schemaaenderung fuer eine Pruefung, die hier hingehoert.
+   */
+  const AM_OBJEKT: readonly [string, string | null | undefined][] = [
+    ['posten', eingabe.postenId],
+    ['veranstaltung', eingabe.veranstaltungId],
+    ['einsatz', eingabe.einsatzId],
+  ];
+  for (const [tabelle, kennung] of AM_OBJEKT) {
+    if (kennung == null) continue;
+    const [z] = await kontext.schreibe<{ objekt_id: string | null }>(
+      `select objekt_id from ${tabelle} where id = $1::uuid`, [kennung],
+    );
+    /*
+     * `veranstaltung.objekt_id` ist nullbar — eine Veranstaltung kann beim
+     * Kunden haengen und nicht an einem Gebaeude. Abgewiesen wird, was ein
+     * ANDERES Objekt nennt; was gar keines nennt, widerspricht nicht.
+     * `posten` und `einsatz` tragen die Spalte `not null`, dort faellt der
+     * Zweig ohnehin nie.
+     */
+    if (z === undefined) throw new BezugPasstNichtZumObjekt(tabelle);
+    if (z.objekt_id != null && z.objekt_id !== eingabe.objektId) {
+      throw new BezugPasstNichtZumObjekt(tabelle);
+    }
+  }
 
   /**
    * **Die `id` entsteht in der Anwendung, und das ist nicht Geschmack.**
