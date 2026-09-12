@@ -6,7 +6,7 @@ import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { pruefeZugang, rechtepruefer, PORTAL_START } from '@/server/auth/zugang';
 import { bindeAnfrage, gruppenMandanten, rolleImMandanten } from '@/server/kontext/index';
 import { NAVIGATION } from '@/server/registry/navigation';
-import { modulAktiv, type Modulbuchung } from '@/server/registry/module';
+import { modulAktiv, type Modulbuchung } from '@/server/registry/modul';
 import { findeRoute } from '@/server/registry/routen';
 import { leisteFuer, tableiste, type LeistenSchluessel }
   from '@/server/registry/tableiste';
@@ -114,12 +114,7 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
 
     const pruefer = rechtepruefer(abfrage);
     const entscheidung = await pruefeZugang(pfad, sitzung, pruefer);
-    /**
-   * Ein nicht gebuchtes Modul sieht von aussen aus wie eine Seite, die es
-   * nicht gibt — und fuer diese Gesellschaft ist es das auch.
-   */
-  if (befund.modulGesperrt) notFound();
-  if (entscheidung.art !== 'erlaubt') {
+    if (entscheidung.art !== 'erlaubt') {
       return {
         entscheidung, rolle: null, mandanten, sichtbareTabs: {}, navigationsRechte: {},
         mandantSlug: null, modulGesperrt: false,
@@ -235,6 +230,19 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
   }) as Promise<Befund>);
 
   const { entscheidung } = befund;
+  /**
+   * **Ein nicht gebuchtes Modul sieht aus wie eine Seite, die es nicht gibt**
+   * — und fuer diese Gesellschaft ist es das auch (D-377, AUT-06).
+   *
+   * Diese Zeile stand zuerst IM Rueckruf der Transaktion und griff dort auf
+   * `befund` zu — also auf das Ergebnis eben jener Transaktion, die gerade
+   * laeuft. TypeScript sieht das nicht: in einer Closure ist die Bindung im
+   * Gueltigkeitsbereich, nur zur Laufzeit noch nicht belegt. Der Build war
+   * sauber, und JEDE Portalseite antwortete mit 500
+   * („Cannot access 'c' before initialization"). Gefunden hat es der
+   * Browserlauf, nicht der Typpruefer.
+   */
+  if (befund.modulGesperrt) notFound();
   if (entscheidung.art === 'anmeldung') return null;
   if (entscheidung.art === 'falsches_portal') {
     /**

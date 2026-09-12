@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
 import {
   GEWERKE, GEWERK_FUER_MODUL, QUERSCHNITT, modulAktiv, modulFuerRecht,
   type Modulbuchung,
-} from '../../src/server/registry/module.js';
+} from '../../src/server/registry/modul.js';
 import { NAVIGATION } from '../../src/server/registry/navigation.js';
 
 /** Eine EINGETRAGENE Buchung — der Normalfall nach dem Seed (0103). */
