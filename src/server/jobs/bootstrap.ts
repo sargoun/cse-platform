@@ -22,6 +22,7 @@ import { registriereEinsatzGenerator } from './einsaetzeGenerieren.js';
 import { registriereKonfliktDetektor } from './konflikteErkennen.js';
 import { registriereLeadSlaJob } from './lead-sla.js';
 import { registriereNachweisWarnungen } from './nachweisWarnungen.js';
+import { registriereKettenpruefer } from './kettenpruefer.js';
 
 /*
  * Methodensyntax, nicht Eigenschaftssyntax — wie ueberall sonst im Baum
@@ -32,6 +33,16 @@ import { registriereNachweisWarnungen } from './nachweisWarnungen.js';
  */
 export interface Abfrage {
   unsafe(anweisung: string, werte?: readonly unknown[]): Promise<readonly unknown[]>;
+  /*
+   * `begin` steht hier, seit der Kettenpruefer registriert ist: er braucht
+   * eine TRANSAKTION, weil seine Sitzungsvariablen transaktionslokal sind
+   * (`sitzung.ts`). Jeder Aufrufer von `alleJobs` reicht ohnehin eine
+   * `postgres.Sql` herein, die beides kann — die Erweiterung kostet also
+   * keinen Aufrufer und macht die Abhaengigkeit sichtbar.
+   */
+  begin<T>(rueckruf: (tx: {
+    unsafe(anweisung: string, werte?: readonly unknown[]): Promise<readonly unknown[]>;
+  }) => Promise<T>): Promise<T>;
 }
 
 let geschehen = false;
@@ -49,6 +60,7 @@ export function alleJobs(db: Abfrage): readonly JobDefinition[] {
     registriereKonfliktDetektor(db);
     registriereLeadSlaJob(db);
     registriereNachweisWarnungen(db);
+    registriereKettenpruefer(db);
     geschehen = true;
   }
   return jobs();
@@ -63,26 +75,27 @@ export function vergissRegistrierung(): void {
  * **Was hier NOCH NICHT steht, und warum — damit niemand es fuer erledigt
  * haelt.**
  *
- * SPEC §14 nennt acht Waechter. Vier laufen (oben). Von den uebrigen vier ist
- * einer vollstaendig gebaut und trotzdem nicht registriert:
+ * SPEC §14 nennt acht Waechter. Fuenf laufen (oben). Der Kettenpruefer
+ * (`kette_pruefen`) kam zuletzt dazu; was ihn aufgehalten hatte, war keine
+ * fehlende Zeile, sondern eine fehlende Sitzung: `pruefeKette` filtert ueber
+ * `app.aktiver_mandant()`, und ein Job hatte keine. Beides steht jetzt —
+ * `sitzung.ts` bindet den Mandanten unter `set local role cse_job`, `0108`
+ * gibt `cse_job` die beiden Leserechte samt mandantengebundener Policies,
+ * die ihm auf `nummernkreis` und `rechnung` fehlten.
  *
- *   `src/server/services/finanz/kettenlauf.ts` — der naechtliche
- *   Hashketten-Pruefer (FIN-06, LEG-01). Der Dienst ist fertig und geprueft,
- *   und 0101 hat `cse_job` die Leserechte auf `rechnung_snapshot` und
- *   `rechnung_hash` nachgezogen, die 0077 ihm schon gewaehrt hatte.
+ * Die drei uebrigen Waechter — Schicht beendet ohne Zeiteintrag, morgige
+ * Schicht unbesetzt, Rechnung ueber 14 Tage faellig — haengen an Diensten,
+ * die es noch nicht gibt.
  *
- * Es fehlt eine Sache, und sie ist keine Kleinigkeit: `pruefeKette` filtert
- * ueber `app.aktiver_mandant()`, braucht also eine GEBUNDENE Sitzung. Ein
- * Job hat keine — `JobKontext` reicht eine `mandantId` durch, aber niemand
- * setzt daraus die Sitzungsvariablen, und `cse_job` ist nicht `cse_app`. Den
- * Pruefer heute einzutragen hiesse, einen Lauf zu registrieren, der jede
- * Nacht null Rechnungen prueft und „ok" meldet — schlimmer als kein Pruefer,
- * weil eine gruene Meldung Vertrauen schafft, das sie nicht deckt.
- *
- * Der richtige Schritt ist ein Sitzungsbinder fuer `je_mandant`-Jobs; das ist
- * eine eigene Runde mit eigenen Tests. Die drei weiteren Waechter (Schicht
- * beendet ohne Zeiteintrag, morgige Schicht unbesetzt, Rechnung ueber 14 Tage
- * faellig) haengen an Diensten, die es noch nicht gibt.
+ * **Und eine Altlast, die der Kettenpruefer sichtbar gemacht hat.** Die
+ * anderen vier Jobs laufen weiterhin OHNE `set local role cse_job`: sie
+ * nehmen die Rolle, die in `DATABASE_URL` steht. Die Kommentare an vielen
+ * Stellen („der Job verbindet sich als `cse_job`") beschrieben eine Absicht,
+ * die nichts umsetzte — jede Policy und jedes Spaltenrecht, das seit 0012
+ * fuer `cse_job` geschrieben wurde, lief bis hierher ungeprueft mit. Sie
+ * umzustellen heisst, fuer jeden einzeln Rechte und Policies nachzuziehen und
+ * jeden einzeln gegen die enge Rolle zu fahren; das ist eine eigene Runde mit
+ * eigenen Tests, kein Nebenschritt. Siehe D-378.
  *
  * // TODO(client, O-357): Sollen die Waechter-Meldungen aus SPEC §14 in den
  * Posteingang, per Mail oder beides — und wer bekommt die Kettenmeldung,

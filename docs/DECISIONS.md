@@ -5195,3 +5195,69 @@ müssen sie dort, wo sie stehen:
    standen und mit jedem Commit dieser Nacht weiterlaufen. Die Beschreibung ist
    das, was beim Merge in die Geschichte eingeht; sie gehört vor dem Merge
    nachgezogen, und die drei Kopfzahlen am besten zuletzt.
+
+### D-378 · Der Kettenprüfer läuft unter `cse_job` — als erster Job überhaupt
+
+`pruefeKette` (FIN-06, LEG-01) war seit PR 46 gebaut, geprüft und **nicht
+registriert**. Der Grund stand als langer Kommentar in `bootstrap.ts`: der
+Dienst filtert über `app.aktiver_mandant()`, und ein Job hat keine Sitzung, in
+der diese Frage eine Antwort hat. Ihn trotzdem einzutragen hätte jede Nacht
+null Rechnungen geprüft und „keine Abweichung" gemeldet — eine grüne Meldung
+über nichts, und damit schlimmer als kein Prüfer.
+
+`src/server/jobs/sitzung.ts` schließt das: `alsJobSitzung` öffnet eine
+Transaktion, setzt `set local role cse_job` und bindet `app.scope`,
+`app.mandant_id` und `app.mandant_ids` transaktionslokal. Benutzer und Person
+bleiben LEER — ein Nachtlauf ist keiner, und `app.akteur_typ = 'system'` ist
+die Angabe, die stimmt (0004:132). `app.readonly = 'on'` ist Vorgabe: ein
+Prüfer, der schreiben könnte, könnte auch reparieren, und eine Kette, die sich
+selbst repariert, bezeugt nichts mehr.
+
+**Was beim Bauen auffiel und größer ist als der Prüfer.** Im ganzen Baum stand
+kein einziges `set local role cse_job`. Die Kommentare sagen seit 0012 an
+vielen Stellen „der Job verbindet sich als `cse_job`" — nichts machte das
+wahr. Die vier bestehenden Nachtläufe nehmen die Rolle aus `DATABASE_URL`,
+und die ist in CI und im Seed `postgres`: Superuser mit `BYPASSRLS`. Jede
+Spaltenbeschränkung und jede Policy, die seit 0012 für `cse_job` geschrieben
+wurde — 0041, 0075, 0077, 0099, 0100, 0101 —, lief damit ungeprüft mit. Sie
+war nicht falsch; sie war nur nie auf dem Weg, den irgendetwas tatsächlich
+geht.
+
+Die vier umzustellen heißt, für jeden einzeln Rechte und Policies nachzuziehen
+und jeden einzeln gegen die enge Rolle zu fahren — das ist eine eigene Runde
+mit eigenen Tests, kein Nebenschritt, und wird hier ausdrücklich NICHT
+miterledigt. Der Kettenprüfer ist der erste Lauf, der die Rolle wirklich
+trägt; `tests/isolation/kette-job.test.ts` hält das mit
+`select current_user` fest, statt es zu glauben.
+
+**`0108` bindet die Policy an den Mandanten, nicht an `true`.** Die sieben
+Policies aus 0101 stehen auf `using (true)`, weil ein Job damals keine Sitzung
+hatte. Jetzt hat er eine, also kann die Wand in der Datenbank stehen statt in
+der Abfrage: `app.aktiver_mandant()` ist NULL, solange niemand gebunden hat,
+und `mandant_id = NULL` liefert keine Zeile. Wer den Prüfer künftig ohne
+Binder aufruft, sieht nichts — und die dritte Prüfung der Testdatei hält genau
+das fest, damit „sieht nichts" von „ist in Ordnung" unterscheidbar bleibt.
+
+**Die Zusicherung ist `geprueft`, nicht `ok`.** Eine blinde Prüfung meldet
+ebenfalls `ok`. Deshalb steht in jeder Prüfung der Datei die Zahl der
+geprüften Rechnungen — es ist die einzige Zusicherung, die eine leere Messung
+von einer sauberen Kette trennt. Dasselbe Muster wie bei der Gegenprobe in
+`tests/isolation/spaltenrechte.test.ts`.
+
+### D-379 · `versuche` hat bei einem `je_mandant`-Job heute keine Wirkung
+
+Beim Festlegen von `versuche: 0` für den Kettenprüfer fiel auf, dass die Zahl
+dort gar nichts steuert. `runner.ts` fängt bei `bereich: 'je_mandant'` den
+Fehler JE MANDANT, vermerkt ihn in `job_lauf_mandant`, meldet am Ende Alarm
+und **kehrt zurück** — die Wiederholungsschleife darüber wird nie ein zweites
+Mal betreten. Die drei bestehenden `je_mandant`-Jobs (`einsaetze_generieren`,
+`konflikte_erkennen`, `lead_sla_eskalation`) versprechen mit `versuche: 2`
+also eine Wiederholung, die niemand ausführt.
+
+Das ist hier festgehalten und **nicht** nebenbei geändert: ob ein einzelner
+fehlgeschlagener Mandant wiederholt werden soll — und ob dann der ganze Lauf
+oder nur dieser Mandant —, ist eine Entscheidung mit Folgen für Idempotenz und
+Alarmhäufigkeit. Für den Kettenprüfer ist `0` ohnehin die richtige Angabe: ein
+gebrochener Hash wird beim zweiten Hinsehen nicht heil, und was eine
+Wiederholung dort kaufen würde, ist Verzögerung zwischen Fund und Meldung —
+bei „alert immediately" (SPEC §14) genau das Falsche.
