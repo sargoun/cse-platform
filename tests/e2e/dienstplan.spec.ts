@@ -326,6 +326,23 @@ test.describe('(3)/(4) Befunde und ihre Quittung', () => {
     await warnung.locator('button[type="submit"]').click();
     await page.waitForLoadState('networkidle');
 
+    /*
+     * **Erst nachsehen, WO wir stehen.**
+     *
+     * `toHaveCount(0)` ist wahr, sobald die Karte nicht da ist — und das ist
+     * sie auch auf jeder anderen Seite der Anwendung. Fuehrte der Klick aus
+     * irgendeinem Grund woandershin, bestuende die Zusicherung, ohne dass
+     * irgendetwas quittiert waere. Genau dieser Ausgang ist eingetreten: die
+     * Karte war „weg", `hinfaellig_am` war NULL, und der Status stand
+     * unveraendert auf `offen`.
+     */
+    expect(new URL(page.url()).pathname, 'der Klick fuehrte woandershin')
+      .toBe('/portal/reinigung/dienstplan/konflikte');
+    await expect(
+      page.locator('[data-cse="konflikt"]').first(),
+      'der Eingang wurde gar nicht gerendert',
+    ).toBeAttached();
+
     // Quittiert heisst: verschwunden aus dem Eingang, aber nicht geloescht.
     await expect(page.locator(`[data-cse="konflikt"][data-konflikt="${warnKonflikt}"]`))
       .toHaveCount(0);

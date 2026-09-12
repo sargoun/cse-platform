@@ -316,6 +316,30 @@ test.describe('Zeiten — Live-Brett', () => {
     // täte es, und ein offener Eintrag von 2029 stünde dort in jeder Woche.
     const [heute] = await sql.unsafe<{ tag: string }[]>(
       `select to_char((now() at time zone 'Europe/Berlin')::date, 'YYYY-MM-DD') as tag`);
+
+    /**
+     * **Erst den offenen Eintrag schliessen, den der Seed schon angelegt hat.**
+     *
+     * `z_offen_uk` laesst je Beschaeftigung GENAU EINEN offenen Eintrag zu —
+     * das ist die Zusicherung, wegen der es den Index gibt. Der Seed legt
+     * selbst einen laufenden an („1 laufend"), und zwar fuer dieselbe
+     * Beschaeftigung, die dieser Test benutzt. Der Einschub hier scheiterte
+     * deshalb mit `duplicate key value violates unique constraint
+     * "z_offen_uk"` — ein Fehlschlag, der nach einem Produktfehler aussieht
+     * und die eigene Fixtur meint.
+     *
+     * Geschlossen wird, nicht geloescht (Invariante 8): der Eintrag bleibt
+     * mit Ende stehen, wie ein Feierabend ihn hinterliesse. Danach ist der
+     * einzige offene Eintrag der, den dieser Test gleich anlegt — und genau
+     * das will er messen.
+     */
+    await sql.unsafe(
+      `update zeiteintrag
+          set ende_zeitpunkt = now(), status = 'abgeschlossen',
+              erfassungsart_ende = 'import', quelle_ende = 'import'
+        where anstellung_id = $1 and status = 'laufend'`,
+      [anstellungId],
+    );
     const laufend = await eintrag({
       schluessel: 'e2e:zeit:laufend', datum: heute!.tag, von: '00:30', bis: null,
       folgetag: false, pause: 0, mitAuftrag: false,

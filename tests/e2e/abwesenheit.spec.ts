@@ -87,6 +87,24 @@ test.afterAll(() => {
   // `sql.end()` — siehe `dienstplan.spec.ts`.
 });
 
+/**
+ * **Diese Datei laeuft SERIELL** — wie `auftrag.spec.ts` und aus demselben
+ * Grund.
+ *
+ * `fullyParallel: true` verteilt auch die Pruefungen INNERHALB einer Datei auf
+ * verschiedene Arbeiter. Die drei Beschreibungen hier teilen sich aber die
+ * Fixtur aus `beforeAll`: dieselbe Abwesenheit, derselbe Antrag. Entscheidet
+ * die eine Pruefung ueber den Antrag, waehrend die andere sein Formular sucht,
+ * findet die zweite nichts — und meldet „element(s) not found" fuer ein
+ * Formular, das es gab, bis der Nachbar es benutzt hat.
+ *
+ * Genau so ist es gefallen: „und eine Entscheidung funktioniert ohne
+ * JavaScript" suchte ein Formular, das „Der Posteingang steht und nennt seinen
+ * Zweck" Sekunden vorher abgeraeumt hatte. Loeschen kann die Suite nichts
+ * (Invariante 8), also ist Reihenfolge die einzige Trennung, die traegt.
+ */
+test.describe.configure({ mode: 'serial' });
+
 test.describe('Abwesenheiten — die Liste der Planung', () => {
   test('zeigt den Zeitraum und nirgends den Grund', async ({ page }) => {
     await anmelden(page);

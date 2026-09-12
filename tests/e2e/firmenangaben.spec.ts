@@ -213,14 +213,32 @@ test.describe('die englische Seite traegt kein deutsches Bedienwort', () => {
  * die Adresse kennen.
  */
 test.describe('die oeffentliche Kopfzeile fuehrt weiter', () => {
-  test('der rote Weg ins Angebot steht da — auf jeder Breite', async ({ page }) => {
-    for (const breite of [375, 1280]) {
-      await page.setViewportSize({ width: breite, height: 900 });
-      await page.goto('/');
-      const knopf = page.locator('[data-cse="angebot-anfragen"]');
-      await expect(knopf, `bei ${String(breite)}px kein Angebotsweg`).toBeVisible();
-      await expect(knopf).toHaveAttribute('href', '/angebot');
-    }
+  test('der Weg ins Angebot steht auf jeder Breite — am Telefon im Blatt', async ({ page }) => {
+    /*
+     * **Auf jeder Breite erreichbar, aber nicht an derselben Stelle.**
+     *
+     * In der Kopfzeile steht der rote Knopf erst ab `md`. Am Telefon waere er
+     * der fuenfte Punkt in einer Zeile, die bei 375px schon voll ist — genau
+     * das hat `kein waagerechtes Scrollen bei 375px` auf `/` und `/en`
+     * umgeworfen, und dieselbe Zeile hatte „Anmelden" schon einmal ueber den
+     * Rand geschoben. DESIGN §5 sagt es: unter `md` gehoert alles ins
+     * Vollbild-Blatt.
+     *
+     * Was diese Pruefung deshalb festhaelt, ist nicht die Stelle, sondern die
+     * ERREICHBARKEIT: ein Tipp, und man ist im Angebot.
+     */
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/');
+    const knopf = page.locator('[data-cse="angebot-anfragen"]');
+    await expect(knopf, 'am Schreibtisch kein roter Angebotsweg').toBeVisible();
+    await expect(knopf).toHaveAttribute('href', '/angebot');
+
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto('/');
+    await expect(knopf, 'bei 375px darf er die Zeile nicht fuellen').toBeHidden();
+    await page.locator('[data-cse="menue"] summary').click();
+    const imBlatt = page.locator('[data-cse="menue-blatt"] a[href="/angebot"]');
+    await expect(imBlatt, 'am Telefon kein Weg ins Angebot').toBeVisible();
 
     /*
      * **Und die Seite dahinter gibt es wirklich.**
@@ -247,8 +265,8 @@ test.describe('die oeffentliche Kopfzeile fuehrt weiter', () => {
     await menue.locator('summary').click();
     const blatt = page.locator('[data-cse="menue-blatt"]');
     await expect(blatt).toBeVisible();
-    // Vier Seiten plus der Angebotsweg.
-    await expect(blatt.locator('[data-cse="menue-ziel"]')).toHaveCount(5);
+    // Vier Seiten, der Angebotsweg und die Anmeldung.
+    await expect(blatt.locator('[data-cse="menue-ziel"]')).toHaveCount(6);
 
     await blatt.getByText('Leistungen').click();
     await page.waitForLoadState('domcontentloaded');
@@ -259,8 +277,11 @@ test.describe('die oeffentliche Kopfzeile fuehrt weiter', () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto('/');
     await expect(page.locator('[data-cse="menue"]')).toBeHidden();
-    await expect(page.getByRole('navigation', { name: 'Hauptnavigation' }).first())
-      .toBeVisible();
+    // Genau EINE Landmarke mit diesem Namen — zwei waeren fuer einen
+    // Screenreader zwei gleich heissende Sprungziele.
+    const haupt = page.getByRole('navigation', { name: 'Hauptnavigation' });
+    await expect(haupt).toHaveCount(1);
+    await expect(haupt).toBeVisible();
   });
 
   test('und auf Englisch fuehrt der Angebotsweg nach `/en/angebot`', async ({ page }) => {

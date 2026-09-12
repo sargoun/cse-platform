@@ -137,7 +137,7 @@ export function OeffentlicheShell(
           * JavaScript und ist damit auch dann da, wenn das Netz schlecht ist.
           * Derselbe Weg wie im Portal (`TabLeiste`), aus demselben Grund.
           */}
-        <details data-cse="menue" className="ml-s3 md:hidden">
+        <details data-cse="menue" className="ml-auto md:hidden">
           <summary
             aria-label={t.menue}
             className="flex min-h-11 min-w-11 cursor-pointer list-none items-center
@@ -150,8 +150,18 @@ export function OeffentlicheShell(
             das `<summary>`, mit dem sich das Blatt wieder schliesst. Laege es
             darueber, gaebe es ohne JavaScript keinen Weg zurueck.
           */}
+          {/*
+            * **Eine eigene Beschriftung, nicht noch einmal „Hauptnavigation".**
+            *
+            * Zwei `nav`-Elemente mit demselben Namen sind fuer einen
+            * Screenreader zwei gleich heissende Landmarken — er kann sie nicht
+            * auseinanderhalten, und die Sprungliste nennt beide gleich. Fuer
+            * jeden Locator sind sie ausserdem ZWEI Treffer: dreizehn
+            * Sprachpruefungen fielen daran, weil
+            * `nav[aria-label="Main navigation"]` ploetzlich mehrdeutig war.
+            */}
           <nav
-            aria-label={t.hauptnavigation}
+            aria-label={t.menue}
             data-cse="menue-blatt"
             className="fixed inset-x-0 bottom-0 top-[72px] z-50 overflow-y-auto
                        bg-surface p-s5"
@@ -177,6 +187,17 @@ export function OeffentlicheShell(
                   {t.angebotAnfragen}
                 </a>
               </li>
+              {anmeldePfad !== null && (
+                <li className="border-b border-line">
+                  <a
+                    href={anmeldePfad}
+                    data-cse="menue-ziel"
+                    className="flex min-h-11 items-center py-s3 text-base text-text"
+                  >
+                    {t.anmelden}
+                  </a>
+                </li>
+              )}
             </ul>
           </nav>
         </details>
@@ -206,11 +227,24 @@ export function OeffentlicheShell(
           * Nicht hinter `md:`: auf dem Telefon ist er erst recht der Punkt,
           * um den es geht.
           */}
+        {/*
+          * **Am Telefon steht hier NICHTS ausser dem Menue** — und das ist
+          * dieselbe Lehre zum dritten Mal.
+          *
+          * Erst der Auftrittsname, dann „Anmelden", dann der rote Knopf, das
+          * Menue und die Sprachwahl: bei 375px schob das die Zeile ueber den
+          * Rand, und `kein waagerechtes Scrollen bei 375px` fiel auf `/` wie
+          * auf `/en`. Genau dasselbe hatte „Anmelden" schon einmal ausgeloest.
+          *
+          * DESIGN §5 sagt es auch: „Mobile: full-screen overlay menu." Nicht
+          * „dasselbe, nur enger" — sondern: unter `md` gehoert alles in das
+          * Blatt, und in der Zeile bleiben der Name und der Weg dorthin.
+          */}
         <a
           href={mitSprache('/angebot', sprache)}
           data-cse="angebot-anfragen"
-          className="ml-auto flex min-h-11 items-center rounded-sm bg-brand px-s4
-                     text-sm font-semibold text-white hover:bg-brand-hover md:ml-s4"
+          className="ml-auto hidden min-h-11 items-center rounded-sm bg-brand px-s4
+                     text-sm font-semibold text-white hover:bg-brand-hover md:ml-s4 md:flex"
         >
           {t.angebotAnfragen}
         </a>
@@ -219,8 +253,8 @@ export function OeffentlicheShell(
           <a
             href={anmeldePfad}
             data-cse="anmelden"
-            className="ml-s3 flex min-h-11 items-center rounded-sm border border-line
-                       px-s4 text-sm text-text hover:bg-surface-2"
+            className="ml-s3 hidden min-h-11 items-center rounded-sm border border-line
+                       px-s4 text-sm text-text hover:bg-surface-2 md:flex"
           >
             {t.anmelden}
           </a>
