@@ -29,6 +29,7 @@
 import { addiere, cent, negiere, type Cent } from './geld.js';
 import { mengeAusPostgres, mengeNachPostgres, milliMenge, type MilliMenge } from './menge.js';
 import { berechneSteuer, type SteuerZeile } from './steuer/satz.js';
+import { zahlungsmittelCode } from './zahlungsmittel.js';
 import {
   buildKanonischePayload, SCHEMA_VERSION,
   type Position, type Quelle, type RechnungVollstaendig, type Steuerzeile, type Zuschlag,
@@ -96,6 +97,15 @@ export interface EntwurfAnlegen {
   readonly leistungVon?: string | null;
   readonly leistungBis?: string | null;
   readonly zahlungszielTage?: number | null;
+  /**
+   * BT-81, UNTDID 4461 — wie gezahlt wird.
+   *
+   * Ohne Vorgabewert wie das Zahlungsziel daneben: bei einem oeffentlichen
+   * Auftraggeber verlangt BR-DE-1 die Angabe, und die Vorpruefung sperrt
+   * ohne sie. Bei jedem anderen Kunden darf sie fehlen — ein stilles `58`
+   * behauptete eine Ueberweisung, die niemand vereinbart hat.
+   */
+  readonly zahlungsmittelCode?: string | null;
   readonly kopftext?: string | null;
   readonly fusstext?: string | null;
 }
@@ -156,14 +166,16 @@ export async function legeEntwurfAn(db: Abfrage, eingabe: EntwurfAnlegen): Promi
 
   const [zeile] = await db.abfrage<{ id: string }>(
     `insert into rechnung (mandant_id, kunde_id, objekt_id, auftrag_id, rechnungsart,
-                           leistung_von, leistung_bis, zahlungsziel_tage, kopftext, fusstext,
+                           leistung_von, leistung_bis, zahlungsziel_tage,
+                           zahlungsmittel_code, kopftext, fusstext,
                            erstellt_von_art, erstellt_von)
      values (app.aktiver_mandant(), $1, $2, $3, coalesce($4,'standard')::rechnungsart,
-             $5::date, $6::date, $7, $8, $9, 'mensch', app.aktueller_benutzer())
+             $5::date, $6::date, $7, $8, $9, $10, 'mensch', app.aktueller_benutzer())
      returning id`,
     [eingabe.kundeId, eingabe.objektId ?? null, eingabe.auftragId ?? null,
      eingabe.rechnungsart ?? null, eingabe.leistungVon ?? null, eingabe.leistungBis ?? null,
-     ziel, eingabe.kopftext ?? null, eingabe.fusstext ?? null],
+     ziel, zahlungsmittelCode(eingabe.zahlungsmittelCode),
+     eingabe.kopftext ?? null, eingabe.fusstext ?? null],
   );
   if (zeile === undefined) {
     throw new RechnungFehler('Der Entwurf wurde nicht angelegt', 'nicht_gefunden');

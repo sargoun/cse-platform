@@ -5914,3 +5914,52 @@ wirklicher Auftraggeber hat, bleibt O-22.
 **Die Abnahme ist damit vorführbar und nicht nur behauptet:** ein Beleg aus der
 Seed-Datenbank, festgeschrieben über den echten Weg, aus dem Snapshot gebaut,
 vom KoSIT-Prüfer angenommen — Schema und Schematron, ohne Beanstandung.
+
+### D-395 · BT-81 hatte kein Feld — und der erste Browsertest hat es gefunden
+
+PR 52.2 (FIN-11, §4.2).
+
+Die FIN-11-Regel aus PR 52 sperrt die Festschreibung an einen öffentlichen
+Auftraggeber, wenn eine Pflichtangabe fehlt. Richtig — aber **BT-81
+(Zahlungsart, UNTDID 4461) hatte keine Maske.** `rechnung.zahlungsmittel_code`
+gab es seit 0075; kein Formular setzte ihn. Eine Rechnung an das Bezirksamt
+liess sich damit über die Oberfläche gar nicht anlegen: die Vorprüfung nannte
+ein Feld, das niemand ausfüllen konnte.
+
+Gefunden hat das nicht ein Gedanke, sondern der erste Browsertest, der einen
+Beleg wirklich bis zum Dokument führen wollte. **Dieselbe Klasse Fehler wie
+D-394, nur eine Ebene höher:** ein Riegel ohne Schlüssel.
+
+Das Feld steht jetzt im Anlegen-Formular, **ohne Vorgabewert** — aus demselben
+Grund wie das Zahlungsziel (§4.2): ein stilles `58` behauptete eine
+SEPA-Überweisung, die niemand vereinbart hat, und stünde unveränderlich im
+Beleg. Die Liste in `services/finanz/zahlungsmittel.ts` ist die normative
+UNTDID-4461-Teilmenge und entscheidet nichts: welches Zahlungsmittel für einen
+Beleg gilt, setzt ein Mensch. `zahlungsmittelCode()` siebt, was nicht auf der
+Liste steht — ein Freitext käme sonst unverändert ins Dokument und fiele beim
+Prüfer über BR-CL-16, nach dem Versand.
+
+**Zwei weitere Lücken im selben Lauf**, beide Stammdaten, beide gleich
+behandelt: die Demogesellschaften hatten keine Bankverbindung (BT-84, ohne die
+BR-DE-13 jede SEPA-Rechnung sperrt) — jetzt eine öffentlich dokumentierte
+TESTkennung mit `TODO(client, O-353)`, nie eine echte Kontonummer in einer
+Quelldatei. Und die Vorauswahl der Mengeneinheit ist `einsatz`, die keinen
+UN/ECE-Rec-20-Code hat und auch keinen bekommen kann (O-174): der Beleg wird
+zu Recht abgewiesen, und der Test wählt jetzt Quadratmeter. Die Lehre steht im
+Test und nicht in einer stillen Änderung — wer für einen öffentlichen
+Auftraggeber abrechnet, braucht eine Einheit mit Code.
+
+**Und ein echter Barrierefreiheitsmangel, den ich selbst eingebaut hatte.**
+Der Vorschaukasten der XRechnung rollt; ohne `tabIndex` kommt eine Person ohne
+Maus an die Zeilen unterhalb der ersten vierzig nicht heran
+(`scrollable-region-focusable`, DESIGN §9, BFSG/LEG-07). Der axe-Fall, den ich
+zur Seite geschrieben hatte, hat ihn beim ersten Lauf gemeldet.
+
+**Ein flackernder Test, mit Ursache statt mit Wiederholung behoben.** Die
+axe-Prüfung der Anmeldung war zeitweise rot mit `document-title`. Gemessen:
+unmittelbar nach `waitForURL` meldet der Browser `document.title === ''`, kurz
+darauf den richtigen Titel — der zweite Schritt entsteht durch eine
+clientseitige Navigation, und die Adresse wechselt, bevor Next die Metadaten
+angewandt hat. axe lief in dieses Fenster. Die Prüfung wartet jetzt auf die
+Bedingung, von der sie abhängt, und die Wartezeile ist zugleich eine
+Zusicherung auf den erwarteten Titel: strenger als vorher, nicht lascher.

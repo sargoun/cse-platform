@@ -167,7 +167,8 @@ async function main(): Promise<void> {
          module_gepflegt, sortierung,
          ust_id, handelsregister_gericht, handelsregister_nummer,
          rechnung_kontakt_name,
-         elektronische_adresse, elektronische_adresse_schema)
+         elektronische_adresse, elektronische_adresse_schema,
+         iban, bic, bank)
       values
         (${b.slug}, ${b.name}, ${b.firma}, ${b.rechtsform}, ${b.rechtseinheit},
          ${rechtseinheit},
@@ -203,7 +204,16 @@ async function main(): Promise<void> {
          -- nichts (der CHECK verlangt beide Haelften oder keine).
          -- (Keine Backticks: dieser Kommentar steht IN einem Template-Literal.)
          ${rechtseinheit ? `DE${String(100_000_000 + i)}` : null},
-         ${rechtseinheit ? '9930' : null})  -- TODO(client, O-353): echte E-Adresse je Gesellschaft
+         ${rechtseinheit ? '9930' : null},  -- TODO(client, O-353): echte E-Adresse je Gesellschaft
+         -- BT-84 und BG-17. Ohne Bankverbindung sperrt BR-DE-13 jede Rechnung
+         -- mit SEPA-Ueberweisung an einen oeffentlichen Auftraggeber — und
+         -- genau daran ist der erste Browsertest gescheitert, der einen Beleg
+         -- an das Bezirksamt fuehren wollte. Eine oeffentlich dokumentierte
+         -- TESTKENNUNG, keine Kontonummer: die echte Bankverbindung je
+         -- Gesellschaft gehoert dem Mandanten und in keine Quelldatei.
+         ${rechtseinheit ? 'DE02120300000000202051' : null},
+         ${rechtseinheit ? 'BYLADEM1001' : null},
+         ${rechtseinheit ? 'Testbank (Demodaten)' : null})  -- TODO(client, O-353): echte Bankverbindung
       -- ist_rechtseinheit MUSS mit: der CHECK verbindet beide Spalten, ein
       -- eigener Nummernkreis setzt eine Rechtseinheit voraus. Der Zweig setzte
       -- nur eigener_nummernkreis. Traf er eine Zeile, die von anderswo kam
@@ -224,6 +234,12 @@ async function main(): Promise<void> {
             rechnung_kontakt_name = excluded.rechnung_kontakt_name,
             elektronische_adresse = excluded.elektronische_adresse,
             elektronische_adresse_schema = excluded.elektronische_adresse_schema,
+            -- Nur WAS FEHLT: wer eine echte Bankverbindung eingetragen hat,
+            -- behaelt sie. Ein Seed, der eine Kontonummer ueberschreibt, ist
+            -- ein Seed, den niemand mehr laufen laesst.
+            iban = coalesce(mandant.iban, excluded.iban),
+            bic  = coalesce(mandant.bic,  excluded.bic),
+            bank = coalesce(mandant.bank, excluded.bank),
             -- Die Buchung gehoert zur Gesellschaft und nicht zum ersten Lauf:
             -- ohne diese Zeile blieben vier bereits angelegte Bereiche fuer
             -- immer bei '{}', und der Modulriegel griffe nirgends.

@@ -379,10 +379,22 @@ test.describe('Die XRechnung im Browser (FIN-11)', () => {
     await page.getByLabel('Leistung von').fill('2026-08-01');
     await page.getByLabel('Leistung bis').fill('2026-08-31');
     await page.getByLabel('Zahlungsziel (Tage)').fill('30');
+    // BT-81: bei einem öffentlichen Auftraggeber verlangt BR-DE-1 die Angabe.
+    await page.getByLabel('Zahlungsart').selectOption('58');
     await page.getByRole('button', { name: 'Entwurf anlegen' }).click();
 
     await page.getByLabel('Handelsübliche Bezeichnung').fill('Unterhaltsreinigung');
     await page.getByLabel('Menge (Tausendstel)').fill('1000');
+    /*
+     * **Quadratmeter, nicht die Vorauswahl.** Die erste Einheit der Liste ist
+     * `einsatz`, und die hat keinen UN/ECE-Rec-20-Code — O-174 ist für sie
+     * offen, weil es für „Einsatz" keine normative Entsprechung gibt. Die
+     * Vorprüfung weist einen Beleg damit zu Recht ab (BT-130), und genau das
+     * hat diese Prüfung beim ersten Lauf getan. Die Lehre steht hier, nicht in
+     * einer stillen Änderung: wer für einen öffentlichen Auftraggeber
+     * abrechnet, braucht eine Einheit mit Code.
+     */
+    await page.getByLabel('Einheit').selectOption('m2');
     await page.getByLabel('Einzelpreis (Cent)').fill('100000');
     await page.getByLabel('Begründung, falls von Hand erfasst')
       .fill('Einmalige Leistung ohne Auftragsbezug');

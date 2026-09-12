@@ -203,10 +203,24 @@ export default async function XRechnungBlatt(
               XRechnung herunterladen
             </a>
           </p>
-          <h2 className="mb-s3 text-h3 text-text">Vorschau</h2>
+          <h2 className="mb-s3 text-h3 text-text" id="vorschau-titel">Vorschau</h2>
+          {/*
+            * **`tabIndex` und `role` sind hier kein Beiwerk** (DESIGN §9,
+            * BFSG/LEG-07). Ein Kasten, der rollt, muss mit der Tastatur
+            * erreichbar sein — sonst kommt eine Person ohne Maus an die
+            * Zeilen unterhalb der ersten vierzig gar nicht heran. axe nennt
+            * das `scrollable-region-focusable`, und genau daran ist diese
+            * Seite beim ersten Browserlauf gescheitert.
+            *
+            * Mit `tabIndex` braucht der Bereich einen NAMEN, sonst kündigt
+            * ein Screenreader „Gruppe" an und sagt nichts über den Inhalt.
+            */}
           <pre
             className="max-h-quelltext overflow-auto rounded-lg border border-line bg-surface p-s5 text-xs text-text"
             data-cse="xrechnung-vorschau"
+            tabIndex={0}
+            role="region"
+            aria-labelledby="vorschau-titel"
           >
             {lage.xml}
           </pre>

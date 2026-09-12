@@ -200,6 +200,28 @@ test('die Codeseite ohne angefangene Anmeldung schickt zum ersten Schritt', asyn
  * BFSG gilt für dieses Angebot, und die Anmeldung ist die Seite, an der ein
  * Zugänglichkeitsfehler den ganzen Rest unerreichbar macht.
  */
+/**
+ * **Auf den Titel WARTEN, und ihn dabei gleich mitprüfen.**
+ *
+ * Dieser Fall war zeitweise rot mit `document-title` — und die Seite war nie
+ * schuld. Gemessen: unmittelbar nach `waitForURL` meldet der Browser
+ * `document.title === ''`, kurz darauf „Code eingeben — CSE Gruppe". Der
+ * zweite Schritt entsteht durch eine CLIENTSEITIGE Navigation (Server Action
+ * plus Weiterleitung); die Adresse wechselt, bevor Next die Metadaten
+ * angewandt hat. axe lief in genau dieses Fenster — mal gewann der eine, mal
+ * der andere, und ein Lauf, der von der Tagesform der Maschine abhängt,
+ * beweist nichts.
+ *
+ * Gewartet wird deshalb auf die Bedingung, von der die Prüfung abhängt — und
+ * die Wartezeile ist zugleich eine ZUSICHERUNG: sie nennt den erwarteten
+ * Titel. Das ist strenger als vorher, nicht lascher. Ein leeres `<title>`
+ * fiele hier ebenso wie ein falsches, nur nicht mehr zufällig.
+ */
+const TITEL = {
+  erst: /Anmeldung für Mitarbeitende/u,
+  dann: /Code eingeben/u,
+} as const;
+
 test('beide Anmeldeschritte sind ohne axe-Verstoss', async ({ page }) => {
   for (const schritt of ['erst', 'dann'] as const) {
     if (schritt === 'erst') {
@@ -209,6 +231,8 @@ test('beide Anmeldeschritte sind ohne axe-Verstoss', async ({ page }) => {
       await page.locator('[data-cse="code-anfordern"]').click();
       await page.waitForURL('**/auth/mitarbeiter/code');
     }
+    await expect(page).toHaveTitle(TITEL[schritt]);
+
     const ergebnis = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();

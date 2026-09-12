@@ -627,6 +627,11 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * (`finanzen.herunterladen`) sitzt an der Route und an der Seite, weil es
    * dort um die AUSGABE geht und nicht um die Berechnung.
    */
+  /*
+   * Die UNTDID-4461-Teilmenge (BT-81). Eine Liste und zwei reine Funktionen —
+   * sie liest nichts und schreibt nichts.
+   */
+  { modul: 'finanzen', pfad: 'finanz/zahlungsmittel', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/index', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/xml', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/aus-snapshot', schreibend: false },
