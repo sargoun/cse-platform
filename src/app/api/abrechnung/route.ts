@@ -81,15 +81,72 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     const wert = daten.get(name);
     return typeof wert === 'string' && wert.trim() !== '' ? wert.trim() : null;
   };
+
+  /**
+   * **Zahlen werden GEPRUEFT, nicht gecastet** — und zwar hier oben, vor der
+   * Transaktion.
+   *
+   * Hier stand `cent(BigInt(wert))` und `Number(ziel)` mitten im
+   * Schreibvorgang. `BigInt('abc')` wirft einen `SyntaxError`, den die
+   * Fehlerkette darunter nicht kennt (sie faengt `AbrechnungFehler`,
+   * `NichtAngemeldetFehler` und Verwandte) — aus einer Falscheingabe wurde
+   * damit eine 500. `Number('1.5')` wiederum kommt durch und faellt erst am
+   * `smallint` der Datenbank, also ebenfalls als 500. Beides ist dieselbe
+   * Verwechslung: eine falsch ausgefuellte Zeile ist eine Abweisung, kein
+   * Programmfehler.
+   *
+   * `SyntaxError` einfach mitzufangen waere die schlechtere Reparatur: dann
+   * antwortete auch ein echter Programmfehler mit 400.
+   */
+  const ungueltig: string[] = [];
   const centOderNull = (name: string) => {
     const wert = text(name);
-    return wert === null ? null : cent(BigInt(wert));
+    if (wert === null) return null;
+    if (!/^-?\d{1,18}$/u.test(wert)) { ungueltig.push(name); return null; }
+    return cent(BigInt(wert));
+  };
+  const ganzzahlOderNull = (name: string, min: number, max: number) => {
+    const wert = text(name);
+    if (wert === null) return null;
+    if (!/^\d{1,9}$/u.test(wert)) { ungueltig.push(name); return null; }
+    const zahl = Number(wert);
+    if (zahl < min || zahl > max) { ungueltig.push(name); return null; }
+    return zahl;
   };
 
   const aktion = text('aktion') ?? 'anlegen';
   const auftragId = text('auftragId');
   if (auftragId === null) {
     return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
+  }
+
+  /**
+   * **Die Vollstaendigkeit wird HIER entschieden, nicht im Rueckruf.**
+   *
+   * Beide Zweige standen mit `if (… === null) return;` INNERHALB der
+   * Transaktion. Der Rueckruf kehrte dann zurueck, die Transaktion schloss
+   * ohne Schreibvorgang, und der Handler antwortete mit derselben 303
+   * Weiterleitung wie im Erfolgsfall. Ueber das Formular faellt das nicht auf
+   * — der Browser landet auf einer Seite, die die neue Konfiguration nicht
+   * zeigt —, aber ein unmittelbarer Aufrufer bekam „angelegt" gemeldet und
+   * hatte nichts.
+   */
+  const pflicht = aktion === 'beenden'
+    ? ['konfigurationId', 'gueltigBis']
+    : ['abrechnungsart', 'abrechnungsintervall', 'leistungszeitraumModus', 'gueltigAb'];
+  const fehlend = pflicht.filter((f) => text(f) === null);
+
+  const pauschaleNettoCent = centOderNull('pauschaleNettoCent');
+  const stundensatzCent = centOderNull('stundensatzCent');
+  const festpreisNettoCent = centOderNull('festpreisNettoCent');
+  // `smallint` und ein Zahlungsziel: mehr als zehn Jahre ist keine Frist.
+  const zahlungszielTage = ganzzahlOderNull('zahlungszielTage', 0, 3650);
+
+  if (fehlend.length > 0 || ungueltig.length > 0) {
+    return NextResponse.json(
+      { fehler: fehlend.length > 0 ? 'unvollstaendig' : 'ungueltig', felder: [...fehlend, ...ungueltig] },
+      { status: 400 },
+    );
   }
 
   try {
@@ -102,34 +159,24 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         );
 
         if (aktion === 'beenden') {
-          const id = text('konfigurationId');
-          const bis = text('gueltigBis');
-          if (id === null || bis === null) return;
-          await beendeKonfiguration(kontext, id, bis);
+          await beendeKonfiguration(kontext, text('konfigurationId')!, text('gueltigBis')!);
           return;
         }
 
-        const art = text('abrechnungsart');
-        const intervall = text('abrechnungsintervall');
-        const modus = text('leistungszeitraumModus');
-        const ab = text('gueltigAb');
-        // Kein Vorgabewert für Art, Rhythmus und Leistungszeitraum (0086):
-        // fehlt eines davon, wird nichts angelegt und nichts geraten.
-        if (art === null || intervall === null || modus === null || ab === null) return;
-
-        const ziel = text('zahlungszielTage');
+        // Kein Vorgabewert für Art, Rhythmus und Leistungszeitraum (0086) —
+        // dass alle vier da sind, ist oben entschieden und beantwortet.
         await legeKonfigurationAn(kontext, {
           auftragId,
           auftragLeistungId: text('auftragLeistungId'),
-          abrechnungsart: art,
+          abrechnungsart: text('abrechnungsart')!,
           parameter: leseParameter(text('parameter')),
-          pauschaleNettoCent: centOderNull('pauschaleNettoCent'),
-          stundensatzCent: centOderNull('stundensatzCent'),
-          festpreisNettoCent: centOderNull('festpreisNettoCent'),
-          abrechnungsintervall: intervall,
-          leistungszeitraumModus: modus,
-          zahlungszielTage: ziel === null ? null : Number(ziel),
-          gueltigAb: ab,
+          pauschaleNettoCent,
+          stundensatzCent,
+          festpreisNettoCent,
+          abrechnungsintervall: text('abrechnungsintervall')!,
+          leistungszeitraumModus: text('leistungszeitraumModus')!,
+          zahlungszielTage,
+          gueltigAb: text('gueltigAb')!,
           gueltigBis: text('gueltigBis'),
         });
       })));
