@@ -837,6 +837,49 @@ function wacheValidator(): void {
   }
 }
 
+/**
+ * Guard 13 — zwei Migrationen duerfen nicht dieselbe Nummer tragen.
+ *
+ * **Der Fall, aus dem diese Wache kommt.** Zwei Zweige liefen eine Nacht lang
+ * nebeneinander, und beide nummerierten weiter, wo sie abgezweigt waren:
+ * `0085`, `0087` und `0088` gab es danach zweimal. Der Migrator sortiert
+ * `readdirSync(...).sort()` — er nummeriert nicht, er reiht Dateinamen. Zwei
+ * `0087` laufen also in alphabetischer Reihenfolge ihres NAMENS, und die hat
+ * mit der Reihenfolge, in der sie geschrieben wurden, nichts zu tun.
+ *
+ * Das ist keine Fehlermeldung, sondern ein stiller Tausch: `0087_r…` lief vor
+ * `0087_s…`, obwohl `0087_s…` zwei Tage aelter ist. Solange die beiden
+ * dieselbe Tabelle nicht anfassen, faellt nichts auf. Fassen sie sie an, ist
+ * das Ergebnis von der Sortierreihenfolge abhaengig — und ein Zweig, der beim
+ * Zusammenfuehren gruen war, kann auf `main` eine andere Datenbank erzeugen
+ * als beim Pruefen.
+ *
+ * Wer zusammenfuehrt, benennt deshalb um, bevor er merged. Diese Wache sagt
+ * ihm, dass er es muss.
+ */
+function wacheMigrationsnummer(): void {
+  const verzeichnis = join(WURZEL, 'drizzle');
+  if (!existsSync(verzeichnis)) return;
+  const jeNummer = new Map<string, string[]>();
+  for (const name of readdirSync(verzeichnis).filter((d) => d.endsWith('.sql')).sort()) {
+    const nummer = /^(\d{4})_/u.exec(name)?.[1];
+    if (nummer === undefined) {
+      melde('migrationsnummer', `drizzle/${name}`, 1,
+        'Dateiname beginnt nicht mit vier Ziffern und einem Unterstrich.');
+      continue;
+    }
+    jeNummer.set(nummer, [...(jeNummer.get(nummer) ?? []), name]);
+  }
+  for (const [nummer, namen] of jeNummer) {
+    if (namen.length > 1) {
+      melde('migrationsnummer', `drizzle/${namen[0] ?? ''}`, 1,
+        `Nummer ${nummer} ist ${namen.length}× vergeben: ${namen.join(', ')} — `
+        + 'der Migrator sortiert nach NAMEN, nicht nach Nummer. Umbenennen, '
+        + 'bevor zusammengefuehrt wird.');
+    }
+  }
+}
+
 async function main(): Promise<void> {
   wacheGeldSpalte();
   wacheZeitstempel();
@@ -849,6 +892,7 @@ async function main(): Promise<void> {
   wacheTailwindFarben();
   wacheAnzeigeZeitzone();
   wacheValidator();
+  wacheMigrationsnummer();
   await wacheKonfigAdressen();
 
   if (befunde.length > 0) {

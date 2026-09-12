@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0088 — Positionsherkunft: `rechnungsposition_quelle`, die Doppel-
+-- 0107 — Positionsherkunft: `rechnungsposition_quelle`, die Doppel-
 --        abrechnungssperre und ihr Spiegel auf der Quellseite
 --        (FIN-07, FIN-18, TIM-12, BAU-02, BAU-04, CLN-04, CRM-05, DSH-04,
 --         Invarianten 1, 3, 4, 8)
@@ -9,7 +9,7 @@
 -- (K-nn) auseinandergehen, gilt die Konvention.
 --
 -- Der PR-Plan nennt `0071_position_herkunft`. `0071` ist an `lv_position`
--- vergeben, `0078`–`0087` liegen bei den parallelen Sitzungen — deshalb 0088.
+-- vergeben, `0078`-`0103` liegen bei den parallelen Sitzungen — deshalb 0107.
 --
 -- Vier Entscheidungen tragen diese Datei, und keine davon ist Geschmack:
 --
@@ -133,7 +133,7 @@ create policy d_aufmass_abrechnung on aufmass for update to cse_definer
  * Ausloeser feuert im Sicherheitskontext der ausloesenden Anweisung, und die
  * ist hier immer eine des Anwendungsrollen-Pfades. Sie zu Definern zu machen
  * haette eine zweite, breitere Lesepolicy auf `rechnungsposition` verlangt —
- * neben der, die `0085` fuer den §14-Ausloeser schon haelt.
+ * neben der, die `0104` fuer den §14-Ausloeser schon haelt.
  *
  * Die zwei, die es sein MUESSEN, und warum:
  *
@@ -798,7 +798,7 @@ grant select on rechnungsposition_quelle to cse_definer;
 create policy d_quelle_lesen on rechnungsposition_quelle for select to cse_definer
   using (true);
 
--- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0088)
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0107)
 -- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
 
 -- rechnungsposition_quelle (archiv): FIN-07, §4.4, Invariante 8. Sie IST der Beleg, dass eine abgerechnete Stunde abgerechnet ist. Waere sie loeschbar, liesse sich die Doppelabrechnungssperre durch ein DELETE aufheben — und derselbe Zeiteintrag stuende auf zwei Rechnungen, ohne dass irgendwo eine Zeile fehlte. Ein erloschener Anspruch faellt auf `wirksam = false` und bleibt stehen.

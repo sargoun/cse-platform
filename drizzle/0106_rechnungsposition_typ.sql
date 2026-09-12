@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0087 — Die Rechnungszeile bekommt ihre Abrechnungsart als TYP und ihren
+-- 0106 — Die Rechnungszeile bekommt ihre Abrechnungsart als TYP und ihren
 --        Verweis auf die Konfiguration, aus der sie entstanden ist
 --        (FIN-01, FIN-07-Vorarbeit, O-04)
 --

@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0085 — Die §14-UStG-Pflichtfelder als BEDINGUNG, nicht als Vorsatz
+-- 0104 — Die §14-UStG-Pflichtfelder als BEDINGUNG, nicht als Vorsatz
 --        (FIN-04, FIN-05, FIN-13, LEG-05, O-24, Invariante 4)
 --
 -- Vertrag: `docs/architecture/02-datenmodell/05-FINANZEN.md` §6 (der

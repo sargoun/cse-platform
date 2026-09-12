@@ -971,7 +971,7 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
   {
     tabelle: 'vertrag_abrechnung',
     art: 'archiv',
-    migration: '0086',
+    migration: '0105',
     grund:
       'FIN-01, FIN-06, K-12. Die Zeile ist die Grundlage, auf der eine '
       + 'festgeschriebene und gehashte Rechnung entstanden ist. Geloescht '
@@ -1190,7 +1190,7 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
   {
     tabelle: 'rechnungsposition_quelle',
     art: 'archiv',
-    migration: '0088',
+    migration: '0107',
     grund:
       'FIN-07, §4.4, Invariante 8. Sie IST der Beleg, dass eine abgerechnete '
       + 'Stunde abgerechnet ist. Waere sie loeschbar, liesse sich die '
@@ -1494,13 +1494,13 @@ export const AUDITIERT: readonly TabelleJeMigration[] = [
    * entscheidet (02-CRM §13.1 fuehrt `vertrag_abrechnung` ausdruecklich in
    * der Liste der protokollierten Tabellen).
    */
-  { tabelle: 'vertrag_abrechnung', migration: '0086' },
+  { tabelle: 'vertrag_abrechnung', migration: '0105' },
   /**
    * Finanzen (PR 49): wer welche Stunde auf welche Rechnung gesetzt — und wer
    * sie mit einem Storno wieder freigegeben — hat, ist die Frage, die eine
    * Betriebspruefung an der Doppelabrechnungssperre stellt (§4.4, FIN-07).
    */
-  { tabelle: 'rechnungsposition_quelle', migration: '0088' },
+  { tabelle: 'rechnungsposition_quelle', migration: '0107' },
 ] as const;
 
 /** Tables carrying S4 (`geloescht_am` / `geloescht_von`) — the finders' domain. */
@@ -1683,7 +1683,7 @@ export const GEAENDERT_AM: readonly TabelleJeMigration[] = [
    * werden gepflegt. Was sie NICHT ist, ist rueckwirkend loeschbar: sie wird
    * durch `gueltig_bis` abgeloest (siehe KEIN_HARD_DELETE).
    */
-  { tabelle: 'vertrag_abrechnung', migration: '0086' },
+  { tabelle: 'vertrag_abrechnung', migration: '0105' },
 
   /**
    * Finanzen (PR 49): `rechnungsposition_quelle` ist beweglich in genau einer
@@ -1693,7 +1693,7 @@ export const GEAENDERT_AM: readonly TabelleJeMigration[] = [
    * und Konvention auseinandergehen, gilt die Konvention (wie bei
    * `rechnung_steuer`, D-213).
    */
-  { tabelle: 'rechnungsposition_quelle', migration: '0088' },
+  { tabelle: 'rechnungsposition_quelle', migration: '0107' },
 ] as const;
 
 /** Every migration that carries a generated block, in order. */

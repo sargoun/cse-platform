@@ -23,7 +23,7 @@
  * Betrag vor und fuellt kein Feld.
  *
  * **Und er ist nicht die Sicherung.** Die Bedingung haelt die Datenbank
- * (`0085_rechnung_pflichtfelder.sql`): ein Aufrufer, der diesen Dienst
+ * (`0104_rechnung_pflichtfelder.sql`): ein Aufrufer, der diesen Dienst
  * ueberspringt, bekommt beim COMMIT dieselbe Abweisung — nur ohne die
  * deutsche Feldliste, die ein Mensch lesen kann.
  */

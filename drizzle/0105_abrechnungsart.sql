@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0086 — Die fuenf Abrechnungsarten: `abrechnungsart`, `abrechnungsintervall`,
+-- 0105 — Die fuenf Abrechnungsarten: `abrechnungsart`, `abrechnungsintervall`,
 --        `leistungszeitraum_modus` und `vertrag_abrechnung`
 --        (FIN-01, FIN-05, FIN-08…FIN-11, O-04)
 --
@@ -301,7 +301,7 @@ create policy p_intern_decke on vertrag_abrechnung as restrictive for all to cse
 grant select, insert, update on vertrag_abrechnung to cse_app;
 grant select on vertrag_abrechnung to cse_job;
 
--- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0086)
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0105)
 -- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
 
 -- vertrag_abrechnung (archiv): FIN-01, FIN-06, K-12. Die Zeile ist die Grundlage, auf der eine festgeschriebene und gehashte Rechnung entstanden ist. Geloescht liesse sich ein vergangener Abrechnungszeitraum nicht mehr rekonstruieren — eine dauerhafte Luecke im Pruefpfad. Abgeloest wird sie durch gueltig_bis, nie durch DELETE.
