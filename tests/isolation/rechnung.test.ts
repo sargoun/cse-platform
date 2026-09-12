@@ -18,7 +18,8 @@ import { milliMenge } from '../../src/server/services/finanz/menge.js';
 import type {
   RechnungFehler} from '../../src/server/services/finanz/rechnung.js';
 import {
-  fuegePositionHinzu, korrigiere, legeEntwurfAn, finalisiere, storniere, verwerfe, type Abfrage,
+  fuegePositionHinzu, korrigiere, legeEntwurfAn, finalisiere, storniere, verwerfe, vonHand,
+  type Abfrage,
 } from '../../src/server/services/finanz/rechnung.js';
 
 let f: Fixtur;
@@ -107,6 +108,9 @@ async function entwurfMitPosition(
     rechnungId: id, bezeichnung: 'Unterhaltsreinigung August',
     menge: milliMenge(1000n), einheit: 'm2',
     einzelpreisCent: cent(netto), steuergruppe: 'ust_19',
+    // FIN-07 (PR 49): eine Leistungszeile ohne Herkunft weist die Datenbank
+    // beim COMMIT ab. Diese Zeile ist von Hand erfasst und sagt es.
+    quellen: vonHand('Testfixtur ohne Beleg — von Hand erfasst'),
   });
   return id;
 }
@@ -504,6 +508,22 @@ describe('(4) eine festgeschriebene Rechnung ist unveränderlich — auf DATENBA
     expect(policies.map((p) => p.policyname)).toEqual([
       'd_hash_schreiben', 'd_rechnung_festschreiben', 'd_rechnung_lesen',
       'd_rechnungskreis_lesen', 'd_rechnungskreis_ziehen', 'd_snapshot_schreiben',
+      /**
+       * **PR 47 (D-321): zwei LESEpolicies dazu, und keine dritte Art.**
+       *
+       * `0077` zaehlte sechs auf und sagte „keine siebte". Diese zwei sind
+       * keine Widerlegung: jene sechs beschreiben, was die zwei SCHREIBENDEN
+       * Definer-Aufrufe des §5.6 duerfen; hier kommt eine PRUEFUNG dazu — der
+       * aufgeschobene §14-Pflichtfeld-Ausloeser aus `0085`. Ein aufgeschobener
+       * Ausloeser feuert im Sicherheitskontext der AUSLOESENDEN Anweisung,
+       * also als `cse_definer`, und scheiterte ohne diese zwei an „permission
+       * denied for table rechnungsposition" — bei JEDER Festschreibung.
+       *
+       * Beide sind `SELECT`, beide auf den aktiven Mandanten begrenzt. Die
+       * Zeile darunter haelt genau das fest: keine dieser Policies darf
+       * schreiben.
+       */
+      'd_rp_pflichtfeld', 'd_rs_pflichtfeld',
       // `nk_wachbuch_definer*` gehören 0070 und liegen auf demselben
       // `nummernkreis`; sie sind hier ausgeschlossen, weil sie `wachbuch`
       // betreffen — siehe die Filterzeile darunter.
@@ -648,12 +668,21 @@ describe('Ohne Zahlungsziel geht kein Beleg hinaus (§4.2, O-66)', () => {
       await fuegePositionHinzu(d, {
         rechnungId: id, bezeichnung: 'Ohne Ziel', menge: milliMenge(1000n),
         einheit: 'stk', einzelpreisCent: cent(100n), steuergruppe: 'ust_19',
+        quellen: vonHand('Testfixtur ohne Beleg — von Hand erfasst'),
       });
       return finalisiere(d, id);
     }).catch((e: unknown) => e);
+    /**
+     * **Seit PR 47 faengt die §14-Vorabpruefung diesen Fall ab, bevor die
+     * Datenbank ihn sieht** (FIN-04) — und sie nennt dieselben drei Stellen.
+     * Frueher kam die Meldung samt `hint` aus `fin.rechnung_nummer_ziehen`;
+     * geprueft wird deshalb jetzt der SATZ, nicht das Feld `hint` eines
+     * Postgres-Fehlers, den es auf diesem Weg nicht mehr gibt. Die Abweisung
+     * der Datenbank bleibt als zweite Linie bestehen — sie greift fuer jeden
+     * Aufrufer, der den Dienst uebergeht.
+     */
     expect((fehler as Error).message).toMatch(/kein Zahlungsziel hinterlegt/u);
-    expect((fehler as { hint?: string }).hint ?? '')
-      .toMatch(/zahlungsziel_tage_standard/u);
+    expect((fehler as Error).message).toMatch(/zahlungsziel_tage_standard/u);
   });
 });
 

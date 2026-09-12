@@ -1719,3 +1719,47 @@ create trigger trg_wetter_station_geaendert_am
 
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0105)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- vertrag_abrechnung (archiv): FIN-01, FIN-06, K-12. Die Zeile ist die Grundlage, auf der eine festgeschriebene und gehashte Rechnung entstanden ist. Geloescht liesse sich ein vergangener Abrechnungszeitraum nicht mehr rekonstruieren — eine dauerhafte Luecke im Pruefpfad. Abgeloest wird sie durch gueltig_bis, nie durch DELETE.
+create trigger trg_vertrag_abrechnung_kein_hard_delete
+  before delete on vertrag_abrechnung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_vertrag_abrechnung_kein_truncate
+  before truncate on vertrag_abrechnung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on vertrag_abrechnung from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_vertrag_abrechnung_geaendert_am
+  before update on vertrag_abrechnung
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_vertrag_abrechnung_audit
+  after insert or update or delete on vertrag_abrechnung
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0107)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- rechnungsposition_quelle (archiv): FIN-07, §4.4, Invariante 8. Sie IST der Beleg, dass eine abgerechnete Stunde abgerechnet ist. Waere sie loeschbar, liesse sich die Doppelabrechnungssperre durch ein DELETE aufheben — und derselbe Zeiteintrag stuende auf zwei Rechnungen, ohne dass irgendwo eine Zeile fehlte. Ein erloschener Anspruch faellt auf `wirksam = false` und bleibt stehen.
+create trigger trg_rechnungsposition_quelle_kein_hard_delete
+  before delete on rechnungsposition_quelle
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_rechnungsposition_quelle_kein_truncate
+  before truncate on rechnungsposition_quelle
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on rechnungsposition_quelle from cse_app, cse_anon, cse_checkin, cse_job;
+
+create trigger trg_rechnungsposition_quelle_geaendert_am
+  before update on rechnungsposition_quelle
+  for each row execute function kern.setze_geaendert_am();
+
+create trigger trg_rechnungsposition_quelle_audit
+  after insert or update or delete on rechnungsposition_quelle
+  for each row execute function kern.protokolliere_aenderung();
+
+-- >>> Ende des generierten Blocks

@@ -6,9 +6,9 @@
  * TypeScript. Was zaehlt, ist was diese Verbindung in Postgres darf.
  */
 import { beforeAll, describe, expect, it } from 'vitest';
-import { execFileSync } from 'node:child_process';
-import { join, resolve } from 'node:path';
-import { alsApp, DB_URL, sql } from './harness.js';
+import { eigeneDatenbank } from './eigene-datenbank.js';
+
+const { alsApp, sql, baueAuf } = eigeneDatenbank('cse_oeffentlich');
 import { withOeffentlich } from '../../src/server/kontext/oeffentlich.js';
 import { bereicheLesen } from '../../src/server/inhalt/lesen.js';
 import type { LeseKontext } from '../../src/server/kontext/index.js';
@@ -18,33 +18,25 @@ async function alsRenderer<T>(fn: (k: LeseKontext) => Promise<T>): Promise<T> {
   return sql.begin((tx) => withOeffentlich(tx, fn)) as Promise<T>;
 }
 
-const WURZEL = resolve(import.meta.dirname, '../..');
-
 let rendererId: string;
 
 /**
- * Frisch aufsetzen UND seeden — wie `seed.test.ts`, und aus demselben Grund.
+ * Frisch aufsetzen UND seeden — auf einer EIGENEN Datenbank.
  *
- * Der Seed allein genuegt nicht: fruehere Dateien dieser Suite setzen
- * `mandant.ist_rechtseinheit` auf NULL, um die TEN-02-Sperre zu pruefen, und
- * der Mandanten-Upsert des Seeds schreibt nur `name` zurueck. Ein zweiter Lauf
- * auf einer so veraenderten Datenbank scheitert dann an genau der Sperre, die
- * eine andere Datei absichtlich ausgeloest hat — ein Fehlschlag, der nach
- * einem Seed-Fehler aussieht und keiner ist.
+ * Der Kommentar hier sagte einmal „wie `seed.test.ts`, und aus demselben
+ * Grund", und er beschrieb `test-db.sh up`, solange das noch bedingungslos
+ * `drop database` machte. Seit `up` nur noch sicherstellt, dass die Datenbank
+ * steht, lief der Seed hier auf dem Stand der jeweils vorherigen Datei — und
+ * brach an `benutzer_person_key` ab, sobald die Harness-Fixtur denselben
+ * Menschen schon angelegt und ihm einen Zugang gegeben hatte (EMP-14 lässt
+ * genau einen zu). Warum das keine Seed-Schwäche ist und wie die eigene
+ * Datenbank es löst, steht in `eigene-datenbank.ts`.
  *
- * Ohne Seed wiederum bestuenden die Schreibpruefungen unten aus dem falschen
- * Grund: ein INSERT, der NULL Zeilen erzeugt, wirft nicht.
+ * Der Inhaltsimport gehört dazu: die Prüfungen unten lesen `seite`/`abschnitt`
+ * (PUB-07), und ein INSERT, der NULL Zeilen erzeugt, wirft nicht.
  */
 beforeAll(async () => {
-  const umgebung = { ...process.env, DATABASE_URL: DB_URL };
-  execFileSync('bash', [join(WURZEL, 'scripts/test-db.sh'), 'up'],
-    { cwd: WURZEL, encoding: 'utf8' });
-  execFileSync(join(WURZEL, 'node_modules/.bin/tsx'),
-    [join(WURZEL, 'src/server/db/seed/index.ts')],
-    { cwd: WURZEL, encoding: 'utf8', env: umgebung });
-  execFileSync(join(WURZEL, 'node_modules/.bin/tsx'),
-    [join(WURZEL, 'scripts/content-import.ts')],
-    { cwd: WURZEL, encoding: 'utf8', env: umgebung });
+  baueAuf({ inhalt: true });
 
   const [z] = await sql<{ id: string }[]>`
     select wert #>> '{}' as id from plattform_einstellung

@@ -9,6 +9,10 @@ import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant, type SchreibKontext } from '@/server/kontext/index';
 import { RechnungFehler, finalisiere } from '@/server/services/finanz/rechnung';
+import { Fin18Fehler } from '@/server/services/finanz/positionsquelle';
+import {
+  berichtAlsJson, PflichtfeldFehler,
+} from '@/server/services/finanz/ustg14';
 
 /**
  * `POST /api/rechnungen/festschreiben` — das einseitige Tor (FIN-02, FIN-03).
@@ -62,6 +66,16 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (typeof rechnungId !== 'string' || rechnungId === '') {
     return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
   }
+  /**
+   * Die FIN-18-Begruendung — leer, solange niemand etwas uebergehen will.
+   *
+   * Sie steht in DIESEM Formular und nicht in einem zweiten Schritt: die
+   * Warnung ist blockierend, und ein Mensch, der sie uebergeht, tut das in
+   * derselben Handlung, in der er festschreibt. Ein eigener „Warnung
+   * bestaetigen"-Knopf waere ein Klick, den man sich angewoehnt.
+   */
+  const fin18Roh = daten.get('fin18Begruendung');
+  const fin18Begruendung = typeof fin18Roh === 'string' ? fin18Roh.trim() : null;
 
   try {
     await (db().begin(async (tx: postgres.TransactionSql) =>
@@ -71,7 +85,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           { recht: 'finanzen.festschreiben', schreibend: true },
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
-        return finalisiere(kontext, rechnungId);
+        return finalisiere(kontext, rechnungId, { fin18Begruendung });
       })));
 
     const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
@@ -86,6 +100,32 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     }
     if (fehler instanceof NichtGefundenFehler) {
       return NextResponse.json({ fehler: 'unbekannt' }, { status: 404 });
+    }
+    /**
+     * FIN-18 ist eine ABWEISUNG mit Handlungsanweisung, kein Programmfehler:
+     * sie nennt den Auftrag und sagt, dass es eine Begruendung braucht. 409,
+     * mit dem Auftrag im Rumpf, damit die Oberflaeche ihn benennen kann.
+     */
+    if (fehler instanceof Fin18Fehler) {
+      return NextResponse.json({
+        fehler: 'fin18_zeiterfassung',
+        text: fehler.message,
+        auftrag: fehler.befund.auftragsnummer,
+      }, { status: 409 });
+    }
+    /**
+     * Die §14-UStG-Vorabpruefung (FIN-04). Sie ist eine ABWEISUNG mit
+     * Feldliste, kein Programmfehler: der Beleg ist unvollstaendig, und der
+     * Mensch braucht jedes fehlende Feld auf einmal — nicht das erste. 409,
+     * mit dem ganzen Befund im Rumpf, damit die Oberflaeche ihn anzeigen
+     * kann, ohne ein zweites Mal zu pruefen.
+     */
+    if (fehler instanceof PflichtfeldFehler) {
+      return NextResponse.json({
+        fehler: fehler.grund,
+        text: fehler.message,
+        bericht: berichtAlsJson(fehler.bericht),
+      }, { status: 409 });
     }
     if (fehler instanceof RechnungFehler) {
       return NextResponse.json({ fehler: fehler.grund, text: fehler.message }, { status: 409 });

@@ -78,6 +78,12 @@ export const MIGRATIONS_DATEIEN: Readonly<Record<string, string>> = {
   // Bau C (PR 45). Der PR-Plan nennt 0063/0064 — beide sind vergeben.
   '0082': join(WURZEL, 'drizzle/0082_bautagebuch.sql'),
   '0083': join(WURZEL, 'drizzle/0083_wetter_beobachtung.sql'),
+  // Die fuenf Abrechnungsarten (PR 48). Der PR-Plan nennt 0069/0070 — beide
+  // sind vergeben. `0106` traegt keinen Block: es legt keine Tabelle an,
+  // sondern typisiert eine Spalte auf `rechnungsposition` (0075).
+  '0105': join(WURZEL, 'drizzle/0105_abrechnungsart.sql'),
+  // Finanzen (PR 49). Der PR-Plan nennt 0071 — an `lv_position` vergeben.
+  '0107': join(WURZEL, 'drizzle/0107_position_herkunft.sql'),
 };
 export const BEGINN = '-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern';
 export const ENDE = '-- >>> Ende des generierten Blocks';

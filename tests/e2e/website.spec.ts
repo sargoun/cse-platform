@@ -90,39 +90,84 @@ test.describe('/ — die oeffentliche Startseite', () => {
     expect(ohneAlt).toBe(0);
   });
 
-  test('Platzhalterbilder sind SICHTBAR als solche markiert (§4.1)', async ({ page }) => {
+  /**
+   * **Jeder Platzhalter traegt seine Marke — und nicht: es gibt Platzhalter.**
+   *
+   * Vorher stand hier `marken > 0`, also die Behauptung, die Startseite HABE
+   * Platzhalter. Das ist nicht, was §4.1 verlangt, und es war auf zwei Arten
+   * falsch: es liess drei unmarkierte Platzhalter durchgehen, solange EINER
+   * markiert war, und es faellt an dem Tag, an dem echte Bilder eintreffen —
+   * am Tag des Erfolgs (D-383).
+   *
+   * Geprueft wird jetzt die Aussage selbst: so viele Marken wie Bilder, die
+   * auf `/platzhalter/` zeigen. Null Platzhalter erfuellen das richtig, vier
+   * unmarkierte nicht.
+   */
+  test('jedes Platzhalterbild traegt seine Marke (§4.1)', async ({ page }) => {
     await page.goto('/');
-    // Ein unauffälliger Platzhalter ist einer, der in Produktion landet.
-    const marken = await page.locator('[data-cse="platzhalter-marke"]').count();
-    expect(marken).toBeGreaterThan(0);
+    const zahlen = await page.evaluate(() => {
+      const bilder = [...document.querySelectorAll('img')];
+      // `next/image` schiebt die Quelle durch `/_next/image?url=…`, der Pfad
+      // steht darin url-kodiert. Beide Schreibweisen zaehlen.
+      const istPlatzhalter = (i: HTMLImageElement): boolean => {
+        const q = `${i.currentSrc} ${i.getAttribute('src') ?? ''}`;
+        return q.includes('/platzhalter/') || q.includes('%2Fplatzhalter%2F');
+      };
+      return {
+        bilder: bilder.length,
+        platzhalter: bilder.filter(istPlatzhalter).length,
+        marken: document.querySelectorAll('[data-cse="platzhalter-marke"]').length,
+      };
+    });
+
+    // Eine Pruefung, die nichts gesehen hat, ist gruen und wertlos.
+    expect(zahlen.bilder, 'die Startseite hat ueberhaupt Bilder').toBeGreaterThan(0);
+    expect(zahlen.marken, 'markierte Platzhalter je Platzhalterbild')
+      .toBe(zahlen.platzhalter);
   });
 
   /**
-   * **Der Test hiess „im Fussbereich" — und DESIGN §6 sagt „under the hero".**
+   * **Die Gesellschaftswahl steht im KOPF** (DESIGN §6, D-381).
    *
-   * Code, Pruefung und Testname waren sich einig und lagen gemeinsam daneben:
-   * wieder eine Pruefung, die denselben Irrtum traegt wie der Code und deshalb
-   * gruen ist. Sie prueft jetzt die POSITION, nicht nur die Anzahl — genau die
-   * Aussage, die falsch war.
+   * Vorher stand hier die Markenavatar-Reihe unter dem Hero, und der Test
+   * prueft dieselbe Frage an der neuen Stelle: nicht nur, DASS es die vier
+   * Ziele gibt, sondern WO sie stehen — das war die Aussage, die zweimal
+   * falsch war (erst Fussbereich, dann unter dem Hero).
    */
-  test('die Markenavatar-Reihe steht UNTER DEM HERO (PUB-14, DESIGN §6)',
+  test('die Gesellschaftswahl sitzt im Kopf und fuehrt zu allen vier',
     async ({ page }) => {
       await page.goto('/');
-      const reihe = page.locator('[data-cse="marken-reihe"]');
-      await expect(reihe).toBeVisible();
-      await expect(reihe.locator('[data-cse="marken-avatar"]')).toHaveCount(4);
+      const wahl = page.locator('[data-cse="gesellschaftswahl"]');
+      await expect(wahl).toBeVisible();
+      await expect(wahl.locator('[data-cse="gesellschaftswahl-ziel"]')).toHaveCount(4);
 
-      const lagen = await page.evaluate(() => {
-        const oben = (w: string): number => {
-          const e = document.querySelector(w);
-          return e === null ? -1 : e.getBoundingClientRect().top + window.scrollY;
-        };
-        return { hero: oben('[data-cse="hero"]'), reihe: oben('[data-cse="marken-reihe"]'),
-          fuss: oben('footer') };
-      });
-      expect(lagen.hero, 'kein Hero auf der Startseite').toBeGreaterThanOrEqual(0);
-      expect(lagen.reihe).toBeGreaterThan(lagen.hero);
-      expect(lagen.reihe).toBeLessThan(lagen.fuss);
+      // Im Kopf heisst: INNERHALB des Kopfelements, nicht bloss oberhalb von
+      // etwas. Ein Element, das zufaellig weit oben liegt, erfuellt das nicht.
+      await expect(
+        page.locator('[data-cse="oeffentlicher-kopf"] [data-cse="gesellschaftswahl"]'),
+      ).toHaveCount(1);
+
+      // Und unter dem Hero steht sie NICHT mehr — die Reihe ist weg, nicht
+      // verdoppelt. Zwei Wege zur selben Wahl waeren zwei Landmarken mit
+      // demselben Namen.
+      await expect(page.locator('[data-cse="marken-reihe"]')).toHaveCount(0);
+    });
+
+  test('sie oeffnet ohne JavaScript und nennt die offene Gesellschaft',
+    async ({ page }) => {
+      await page.goto('/unternehmen/bau');
+      const wahl = page.locator('[data-cse="gesellschaftswahl"]');
+      // `<details>` ist zu, bis jemand darauf tippt — ohne ein Skript.
+      await expect(wahl).not.toHaveAttribute('open', /.*/u);
+      await wahl.locator('summary').click();
+      await expect(wahl).toHaveAttribute('open', /.*/u);
+
+      const blatt = wahl.locator('[data-cse="gesellschaftswahl-blatt"]');
+      await expect(blatt).toBeVisible();
+      // Die Zusammenfassung zeigt, wo man IST. `aktiv` kam bis hierher nie an:
+      // die alte Reihe bekam immer `null` und hat nie etwas hervorgehoben.
+      await expect(wahl.locator('summary')).toContainText('REALTIME');
+      await expect(blatt.locator('[aria-current="page"]')).toHaveCount(1);
     });
 
   test('der Fussbereich fuehrt dieselben vier Ziele — als Textlinks', async ({ page }) => {
@@ -130,6 +175,7 @@ test.describe('/ — die oeffentliche Startseite', () => {
     // Zwei `nav` mit demselben zugaenglichen Namen waeren ein mehrdeutiges
     // Landmark; der Fussbereich traegt deshalb einen eigenen.
     await expect(page.locator('footer [data-cse="fuss-gesellschaft"]')).toHaveCount(4);
-    await expect(page.locator('footer [data-cse="marken-avatar"]')).toHaveCount(0);
+    // Die Wahl sitzt im Kopf, nicht im Fuss — hier stehen Textlinks.
+    await expect(page.locator('footer [data-cse="gesellschaftswahl"]')).toHaveCount(0);
   });
 });

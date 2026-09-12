@@ -678,6 +678,20 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Die Abrechnungsart eines Auftrags festlegen oder beenden (PR 48,
+     * FIN-01, O-04).
+     *
+     * `abrechnung.schreiben` und nicht `finanzen.schreiben`: hier entsteht
+     * keine Rechnung, sondern die REGEL, nach der eine entsteht — und die
+     * Seitenkarte bewacht `auftraege/[id]/abrechnung` mit genau diesem
+     * Schluessel. Ein Rechnungsschreiber soll den Stundensatz eines laufenden
+     * Vertrages nicht nebenbei aendern koennen.
+     */
+    pfad: 'api/abrechnung',
+    recht: 'abrechnung.schreiben',
+  },
+  {
+    /**
      * Das einseitige Tor (FIN-02, FIN-03, Invariante 4). Hinter ihm zieht die
      * Datenbank die Nummer aus dem lueckenlosen Kreis und schreibt den
      * Kettensatz — in DERSELBEN Transaktion, sonst gaebe es vergebene Nummern
@@ -704,6 +718,17 @@ export const ROUTEN: readonly RouteEintrag[] = [
      */
     pfad: 'api/rechnungen/storno',
     recht: 'finanzen.stornieren',
+  },
+  {
+    /**
+     * Der §14-UStG-Vorabbericht (PR 47, FIN-04). Er LIEST — deshalb
+     * `finanzen.lesen` und nicht `finanzen.festschreiben`: der Bericht sagt,
+     * welches Pflichtfeld fehlt, und stellt nichts aus. Haette er das engere
+     * Recht, müsste die Buchhaltung jemanden mit Festschreibungsrecht fragen,
+     * um einen Tippfehler in der Kundenanschrift zu finden.
+     */
+    pfad: 'api/rechnungen/pruefung',
+    recht: 'finanzen.lesen',
   },
 ] as const;
 

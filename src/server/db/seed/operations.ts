@@ -93,21 +93,44 @@ interface KundeVorgabe {
   readonly nummer: string;
   readonly name: string;
   readonly kontakt: readonly [string, string, string];
+  /**
+   * **Die Anschrift ist keine Zierde, sondern die Bedingung fuer jede
+   * Rechnung.** §14 Abs. 4 Nr. 1 UStG verlangt Name UND Anschrift des
+   * Leistungsempfaengers; `ustg14.ts` liest sie aus `kunde.strasse`,
+   * `kunde.plz`, `kunde.ort` (beziehungsweise der Rechnungsanschrift, wenn
+   * eine abweicht) und weist ohne sie ab.
+   *
+   * Sie fehlte hier ganz — bei ALLEN vier Eintraegen —, und damit war in den
+   * Demodaten kein einziger Beleg festschreibbar. Aufgefallen ist das erst,
+   * als der §14-Pruefer aus Phase 6 auf den Seed aus Phase 5 traf: drei
+   * Browserpruefungen brachen ab, und ihre Meldung machte den offenen
+   * Nummernkreis (O-134) dafuer verantwortlich, weil das die einzige Ursache
+   * war, die sie kannten.
+   *
+   * Erfundene Firmen an erfundenen Adressen — dieselbe Machart wie die
+   * `.example`-Kennungen daneben. Ein Kunde mit echter Anschrift in einem
+   * Repository waere ein Datenschutzproblem und keine Demodatei.
+   */
+  readonly anschrift: readonly [strasse: string, hausnummer: string, plz: string, ort: string];
 }
 
 const KUNDEN: readonly KundeVorgabe[] = [
   { bereich: 'reinigung', firma: 'Berliner Hausverwaltung GmbH', rechtsform: 'GmbH',
     nummer: 'K-10001', name: 'Berliner Hausverwaltung GmbH',
-    kontakt: ['Anna', 'Radtke', 'a.radtke@bhv-berlin.example'] },
+    kontakt: ['Anna', 'Radtke', 'a.radtke@bhv-berlin.example'],
+    anschrift: ['Musterallee', '12', '10115', 'Berlin'] },
   { bereich: 'reinigung', firma: 'Charlottenburg Immobilien GmbH', rechtsform: 'GmbH',
     nummer: 'K-10002', name: 'Charlottenburg Immobilien GmbH',
-    kontakt: ['Jens', 'Petrow', 'j.petrow@chb-immo.example'] },
+    kontakt: ['Jens', 'Petrow', 'j.petrow@chb-immo.example'],
+    anschrift: ['Beispielstrasse', '48', '10707', 'Berlin'] },
   { bereich: 'security', firma: 'Berliner Hausverwaltung GmbH', rechtsform: 'GmbH',
     nummer: 'K-20001', name: 'Berliner Hausverwaltung GmbH',
-    kontakt: ['Anna', 'Radtke', 'a.radtke@bhv-berlin.example'] },
+    kontakt: ['Anna', 'Radtke', 'a.radtke@bhv-berlin.example'],
+    anschrift: ['Musterallee', '12', '10115', 'Berlin'] },
   { bereich: 'bau', firma: 'Charlottenburg Immobilien GmbH', rechtsform: 'GmbH',
     nummer: 'K-30001', name: 'Charlottenburg Immobilien GmbH',
-    kontakt: ['Jens', 'Petrow', 'j.petrow@chb-immo.example'] },
+    kontakt: ['Jens', 'Petrow', 'j.petrow@chb-immo.example'],
+    anschrift: ['Beispielstrasse', '48', '10707', 'Berlin'] },
 ];
 
 interface ObjektVorgabe {
@@ -221,12 +244,33 @@ export async function seedOperations(
     if (kundeId === undefined) {
       const [neu] = await sql<{ id: string }[]>`
         insert into kunde (mandant_id, firma_id, kundennummer, typ, name, rechtsform,
+                           strasse, hausnummer, plz, ort,
                            rechtsgrundlage, rechtsgrundlage_quelle, rechtsgrundlage_erfasst_am,
                            status)
         values (${mandant}, ${firma!.id}, ${k.nummer}, 'firma', ${k.name}, ${k.rechtsform},
+                ${k.anschrift[0]}, ${k.anschrift[1]}, ${k.anschrift[2]}, ${k.anschrift[3]},
                 'bestandskunde', 'Rahmenvertrag (Demodaten)', now(), 'aktiv')
         returning id`;
       kundeId = neu!.id;
+    } else {
+      /**
+       * **Nachtragen, aber nur was fehlt.**
+       *
+       * Der Seed schreibt sonst nichts zurueck — wer eine Demozeile von Hand
+       * korrigiert, soll sie behalten. Eine LEERE Anschrift ist aber keine
+       * Korrektur, sondern die Luecke, an der §14 Abs. 4 Nr. 1 UStG scheitert:
+       * eine bestehende Datenbank aus der Zeit vor diesem Commit bekaeme sonst
+       * nie eine Anschrift und bliebe fuer immer ohne festschreibbare
+       * Rechnung. `where ... is null` fasst nichts an, was jemand gesetzt hat.
+       */
+      await sql`
+        update kunde
+           set strasse = coalesce(strasse, ${k.anschrift[0]}),
+               hausnummer = coalesce(hausnummer, ${k.anschrift[1]}),
+               plz = coalesce(plz, ${k.anschrift[2]}),
+               ort = coalesce(ort, ${k.anschrift[3]})
+         where id = ${kundeId}
+           and (strasse is null or plz is null or ort is null)`;
     }
     kundenIds.set(k.nummer, kundeId);
 

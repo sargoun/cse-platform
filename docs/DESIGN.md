@@ -199,13 +199,55 @@ the images right and the design carries itself.
    - **Figures are silhouettes, never faces.** Rule 2 is untouched: no person
      on this site may be read as a member of staff unless they are one. A
      silhouetted figure at a distance depicts *work*, not a worker.
-   - **It carries the same placeholder caption** as the empty panel, in the
-     same place, naming the motif that belongs there. The panel says what it
-     is; nobody has to guess.
+   - **The panel is the drawing and nothing else — no overlay, no caption
+     baked in.** It stands in for a photograph, so it behaves like one: a
+     photograph brings neither a gradient nor a caption with it, and both
+     belong to the surface that places it. This was learnt the expensive way.
+     The panel baked in the §4.4 overlay while `Hero` and `MarkenKarte` apply
+     it too, and two layers multiply — 0.55 in the middle became 0.80, 0.92 at
+     the foot became 0.994, which is black. And the baked caption
+     ("REALTIME SERVICE") landed directly under the page's own heading for the
+     same company, a half-transparent double that read as a rendering fault.
+     The placeholder is still declared, by the `Platzhalterbild` badge the
+     page already renders — one marking, on the surface, where it can see what
+     else is there. **D-382.**
    - **A real file under `public/bilder/` wins.** The panel is what the page
      falls back to, never what it prefers — `bildFuerMotiv()` already works
      this way, and the day the client's photographs arrive, nothing in the
      code changes.
+
+   **1b. The panel has its own luminance ramp, and it is brighter than the UI
+   ramp.** The first set of motif panels was drawn in the surface ramp of §1
+   (`--surface` … `--surface-3`, topping out at `#1F1F24`) and was, in
+   practice, invisible: the mandatory overlay in §4.4 is 55 % opaque at the
+   middle of the panel and 92 % at the foot, so a backdrop at luminance 31 and
+   a silhouette at luminance 11 arrived on screen five levels apart. The
+   drawing was there. Nobody could see it, and a page of them read as a site
+   with the images missing — which is exactly what the empty panel was
+   supposed to avoid.
+
+   The cause is a category error, not a taste dispute. **The §1 ramp is for UI
+   chrome sitting ON the page background; a motif panel stands in for a
+   photograph, and the overlay is calibrated for photographic range.** A photo
+   carries mid-tones around luminance 90–140; the UI ramp never leaves the
+   30s. Reusing it under an overlay built for a photograph is what made the
+   panels vanish.
+
+   So the panel — and only the panel — uses this ramp. It never appears in UI
+   chrome, and `--bild-overlay` is untouched:
+
+   ```css
+   --tafel-himmel: #33333C;   /* backdrop behind everything */
+   --tafel-fern:   #4A4A56;   /* distant volumes, hazier and lighter */
+   --tafel-mitte:  #2C2C34;   /* mid-ground */
+   --tafel-nah:    #14141A;   /* near silhouettes — figures live here */
+   --tafel-grund:  #0C0C10;   /* foreground floor */
+   ```
+
+   Far is lighter than near, which is the whole depth effect and the reason no
+   silhouette needs a gradient on it. The ordering matters more than the exact
+   values: a figure must stay clearly darker than the band it stands in after
+   the overlay has been applied, not before.
 
    Which of the two a surface gets is a **size** decision, not a taste one:
    large surfaces (hero, brand card, company page) take the motif panel,
@@ -407,9 +449,27 @@ enters with `opacity 0→1` + `translateY(-4px→0)` over 180ms.
 5. Keyboard: `⌘K` opens it; arrows navigate; `Enter` switches; `Esc` closes.
 6. Switching writes to `audit_log` and lands on the new area's dashboard.
 
-**Public site** uses the same circular-avatar row — four brand avatars under
-the hero, tapping one opens that company's profile. Same visual language,
-public intent.
+**Public site** puts the four companies in a **dropdown in the header**, next
+to the language switcher: the summary shows the company whose page you are on
+(avatar + name), the panel lists all four, and picking one opens that company's
+profile. Same visual language as the portal switcher, public intent.
+
+**Why not the avatar row under the hero, which this section asked for before.**
+The row was built and it was wrong in practice, for two reasons the mockup
+could not show. It sat directly under the hero image, where the hero's own
+oversized ghost heading bleeds through — the four names landed on top of that
+type and read as a collision rather than a control. And it consumed a full band
+of vertical space immediately below the fold on exactly the surface where the
+first impression is decided. The owner asked for the dropdown after seeing it
+on the running site; that is the better evidence than the mockup, and this
+section follows it. **D-381.**
+
+The row lives on only in the **footer**, where the four companies are text
+links beside their addresses — that was always separate and stays.
+
+On phones the header has no room for a second control beside the menu button,
+so the four companies are a section **inside the full-screen menu** rather than
+a dropdown of their own.
 
 ---
 

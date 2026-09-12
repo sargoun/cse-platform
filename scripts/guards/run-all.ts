@@ -8,6 +8,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, relative } from 'node:path';
+import { pruefeXml } from './xml-wohlgeformt.js';
 
 const WURZEL = process.cwd();
 
@@ -765,6 +766,187 @@ async function wacheKonfigAdressen(): Promise<void> {
   }
 }
 
+/**
+ * Guard 11 — die §14-UStG-Vorabpruefung hat GENAU EINE Fassung, und die
+ * Festschreibung ruft sie (PR 47, FIN-04, `05-FINANZEN.md` §6).
+ *
+ * Zwei Ausfaelle, beide leise:
+ *
+ *  1. Jemand baut eine zweite Regelliste — in einer Route, in einer Seite, in
+ *     einem spaeteren Dienst. Ab dann gibt es zwei Antworten auf „erfuellt
+ *     dieser Beleg §14 UStG", und die eine, die blockiert, ist nicht die, die
+ *     der Mensch auf dem Bildschirm gesehen hat.
+ *  2. Jemand nimmt den Aufruf aus `finalisiere()` heraus — weil ein Test
+ *     stoert, weil eine Migration gerade laeuft, weil es schnell gehen muss.
+ *     Die Datenbank weist den Beleg dann immer noch ab (`0085`), aber mit
+ *     einer Meldung ueber einen Ausloeser statt mit der deutschen Feldliste.
+ *
+ * Die Wache prueft beides. Fehlt `finanz/rechnung.ts` ganz — so wie im
+ * Wegwerf-Baum der Wachenprobe —, gibt es nichts zu pruefen und sie schweigt.
+ */
+function wacheValidator(): void {
+  const dienst = join(WURZEL, 'src/server/services/finanz/rechnung.ts');
+  if (!existsSync(dienst)) return;
+
+  const pruefer = join(WURZEL, 'src/server/services/finanz/ustg14.ts');
+  if (!existsSync(pruefer)) {
+    melde('validator-nicht-uebersprungen', dienst, 1,
+      'services/finanz/ustg14.ts fehlt — die §14-UStG-Vorabpruefung hat keine Fassung.');
+    return;
+  }
+
+  /**
+   * Der RUMPF von `finalisiere` — nicht die ganze Datei. Ein Import oben
+   * genuegt nicht: eine Datei kann den Pruefer importieren und ihn an genau
+   * der einen Stelle nicht rufen, an der er zaehlt.
+   */
+  const inhalt = readFileSync(dienst, 'utf8');
+  const start = inhalt.indexOf('export async function finalisiere');
+  if (start === -1) {
+    melde('validator-nicht-uebersprungen', dienst, 1,
+      'finalisiere() gibt es nicht mehr — die Wache weiss nicht, wo sie nachsehen soll.');
+  } else {
+    const rest = inhalt.slice(start + 1);
+    const ende = rest.indexOf('\nexport ');
+    const rumpf = ende === -1 ? rest : rest.slice(0, ende);
+    const zeile = inhalt.slice(0, start).split('\n').length;
+    if (!/pruefeRechnung\s*\(/u.test(rumpf)) {
+      melde('validator-nicht-uebersprungen', dienst, zeile,
+        'finalisiere() ruft pruefeRechnung() nicht — §14 UStG wird vor der '
+        + 'Nummernvergabe nicht geprueft (FIN-04).');
+    }
+    if (!/\.fehler\.length\s*>\s*0/u.test(rumpf)) {
+      melde('validator-nicht-uebersprungen', dienst, zeile,
+        'finalisiere() wertet den Befund nicht aus — ein Bericht ohne Abbruch bei '
+        + 'einem Fehler ist eine Pruefung, die nichts verhindert.');
+    }
+  }
+
+  // Und die zweite Fassung: niemand sonst definiert diese Funktionen.
+  const DEFINITION =
+    /(?:function|const|let|var)\s+(pruefePflichtfelder|pruefeRechnung|kleinbetragLage)\b/u;
+  for (const datei of dateien('src', ['.ts', '.tsx'])) {
+    if (datei === pruefer) continue;
+    ohneKommentare(readFileSync(datei, 'utf8')).split('\n').forEach((z, i) => {
+      const treffer = DEFINITION.exec(z);
+      if (treffer !== null) {
+        melde('validator-nicht-uebersprungen', datei, i + 1,
+          `\`${treffer[1] ?? ''}\` ist hier ein zweites Mal definiert — die `
+          + '§14-UStG-Regelliste steht ausschliesslich in services/finanz/ustg14.ts.');
+      }
+    });
+  }
+}
+
+/**
+ * Guard 13 — zwei Migrationen duerfen nicht dieselbe Nummer tragen.
+ *
+ * **Der Fall, aus dem diese Wache kommt.** Zwei Zweige liefen eine Nacht lang
+ * nebeneinander, und beide nummerierten weiter, wo sie abgezweigt waren:
+ * `0085`, `0087` und `0088` gab es danach zweimal. Der Migrator sortiert
+ * `readdirSync(...).sort()` — er nummeriert nicht, er reiht Dateinamen. Zwei
+ * `0087` laufen also in alphabetischer Reihenfolge ihres NAMENS, und die hat
+ * mit der Reihenfolge, in der sie geschrieben wurden, nichts zu tun.
+ *
+ * Das ist keine Fehlermeldung, sondern ein stiller Tausch: `0087_r…` lief vor
+ * `0087_s…`, obwohl `0087_s…` zwei Tage aelter ist. Solange die beiden
+ * dieselbe Tabelle nicht anfassen, faellt nichts auf. Fassen sie sie an, ist
+ * das Ergebnis von der Sortierreihenfolge abhaengig — und ein Zweig, der beim
+ * Zusammenfuehren gruen war, kann auf `main` eine andere Datenbank erzeugen
+ * als beim Pruefen.
+ *
+ * Wer zusammenfuehrt, benennt deshalb um, bevor er merged. Diese Wache sagt
+ * ihm, dass er es muss.
+ */
+function wacheMigrationsnummer(): void {
+  const verzeichnis = join(WURZEL, 'drizzle');
+  if (!existsSync(verzeichnis)) return;
+  const jeNummer = new Map<string, string[]>();
+  for (const name of readdirSync(verzeichnis).filter((d) => d.endsWith('.sql')).sort()) {
+    const nummer = /^(\d{4})_/u.exec(name)?.[1];
+    if (nummer === undefined) {
+      melde('migrationsnummer', `drizzle/${name}`, 1,
+        'Dateiname beginnt nicht mit vier Ziffern und einem Unterstrich.');
+      continue;
+    }
+    jeNummer.set(nummer, [...(jeNummer.get(nummer) ?? []), name]);
+  }
+  for (const [nummer, namen] of jeNummer) {
+    if (namen.length > 1) {
+      melde('migrationsnummer', `drizzle/${namen[0] ?? ''}`, 1,
+        `Nummer ${nummer} ist ${namen.length}× vergeben: ${namen.join(', ')} — `
+        + 'der Migrator sortiert nach NAMEN, nicht nach Nummer. Umbenennen, '
+        + 'bevor zusammengefuehrt wird.');
+    }
+  }
+}
+
+
+/**
+ * Jede SVG unter `public/` ist wohlgeformtes XML.
+ *
+ * **Warum es diese Wache gibt.** Alle acht Motivtafeln waren monatelang
+ * kaputt und niemand sah es: der Kommentar ueber dem Overlay-Verlauf nannte
+ * den CSS-Token mitsamt seinen zwei fuehrenden Bindestrichen, und ein
+ * XML-Kommentar darf keinen doppelten Bindestrich enthalten. Eine SVG IST
+ * XML. Der Server lieferte die Datei mit 200, der Browser weigerte sich sie
+ * zu zeichnen, und die Startseite zeigte an jeder Bildstelle ein kaputtes
+ * Symbol.
+ *
+ * **Warum kein Test es fing.** Der Browsertest prueft die sichtbare
+ * Kennzeichnung `Platzhalterbild` — ein `<span>` NEBEN dem Bild. Das
+ * `<img>`-Element war da, sein `src` stimmte, die Antwort war 200. Gruen war
+ * also alles, was geprueft wurde; ungeprueft blieb das einzige, worauf es
+ * ankam. Deshalb steht die Pruefung hier und nicht dort: eine Datei, die kein
+ * Browser lesen kann, ist im Repository falsch, nicht erst auf der Seite.
+ *
+ * Geprueft wird mit `DOMParser` gegen `image/svg+xml`; der meldet denselben
+ * Fehler, an dem auch der Browser aussteigt.
+ */
+/**
+ * Jede SVG unter `public/` muss wohlgeformtes XML sein (D-376).
+ *
+ * **Der Ausfall, gegen den das geschrieben ist.** Acht Motivtafeln lagen im
+ * Baum, sahen im Editor richtig aus und waren nie wohlgeformt: ein
+ * XML-Kommentar enthielt einen doppelten Bindestrich. Der Server lieferte sie
+ * mit 200 aus, der Browser verwarf sie beim Parsen und zeichnete ein kaputtes
+ * Bild. Die Startseite war leer, und niemand sah warum.
+ *
+ * **Warum keine Pruefung im Browsertest.** Es gab eine. Sie war gruen. Sie
+ * prueft die sichtbare Kennzeichnung NEBEN dem Bild — und die stand ja da.
+ * Das `<img>` war im DOM, der `src` stimmte, die Antwort war 200, die Datei
+ * existierte. Alles eine Ebene unter dem Fehler war in Ordnung; genau deshalb
+ * gehoert die Pruefung hierher, wo die Datei selbst gelesen wird, und nicht
+ * dorthin, wo eine Seite sie einbindet.
+ */
+function wacheSvgWohlgeformt(): void {
+  /**
+   * Geprueft wird das VERZEICHNIS, nicht die Trefferzahl.
+   *
+   * `mussLesen` waere hier falsch: kommen eines Tages echte Fotos und
+   * verschwinden die Tafeln, ist null SVG das richtige Ergebnis und kein
+   * Grund, den Zweig rot zu faerben. Der Ausfall, den `mussLesen` abfaengt —
+   * ein vertippter Pfad, der still nichts liest —, faellt hier auf den
+   * Pfad selbst zurueck: `public/` gibt es im echten Baum immer.
+   */
+  if (ECHTER_BAUM && !existsSync(join(WURZEL, 'public'))) {
+    throw new Error(
+      'Merge-Wachen: `public/` fehlt. Eine Wache, die nichts liest, meldet "sauber".',
+    );
+  }
+
+  for (const datei of dateien('public', ['.svg'])) {
+    const fehler = pruefeXml(readFileSync(datei, 'utf8'));
+    if (fehler !== null) {
+      melde(
+        'svg-wohlgeformt', datei, fehler.zeile,
+        `Kein wohlgeformtes XML — der Browser liefert die Datei mit 200 aus und `
+        + `zeichnet sie NICHT: ${fehler.text}`,
+      );
+    }
+  }
+}
+
 async function main(): Promise<void> {
   wacheGeldSpalte();
   wacheZeitstempel();
@@ -776,6 +958,9 @@ async function main(): Promise<void> {
   wacheEinAusgang();
   wacheTailwindFarben();
   wacheAnzeigeZeitzone();
+  wacheValidator();
+  wacheMigrationsnummer();
+  wacheSvgWohlgeformt();
   await wacheKonfigAdressen();
 
   if (befunde.length > 0) {

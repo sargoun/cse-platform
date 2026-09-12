@@ -27,9 +27,26 @@ HUE = {
     'bau': '#F59E0B', 'operations': '#8B5CF6',
 }
 
-# Drei Tiefen. Je naeher, desto dunkler — das ist die ganze Raumwirkung,
-# und sie kommt ohne einen einzigen Verlauf auf einer Silhouette aus.
-FERN, MITTE, NAH = '#1C1C21', '#131318', '#0B0B0E'
+# Der Tafel-Leuchtdichteverlauf aus DESIGN §4.1b — NICHT der Flaechenverlauf
+# aus §1.
+#
+# **Warum es dafuer einen eigenen gibt.** Die erste Fassung nahm den
+# §1-Verlauf (`--surface` … `--surface-3`, oben bei #1F1F24) und war in der
+# Praxis unsichtbar. Der Pflicht-Overlay aus §4.4 deckt in der Mitte der Tafel
+# 55 Prozent und am Fuss 92 Prozent; ein Hintergrund bei Leuchtdichte 31 und
+# eine Silhouette bei 11 kamen damit fuenf Stufen voneinander entfernt auf dem
+# Schirm an. Die Zeichnung war da. Sehen konnte sie niemand — und eine Seite
+# voll davon las sich als Auftritt mit fehlenden Bildern, also genau als das,
+# was die leere Tafel verhindern sollte.
+#
+# Der Grund ist eine Verwechslung, kein Geschmacksstreit: der §1-Verlauf ist
+# fuer UI auf dem Seitenhintergrund gedacht, eine Motivtafel steht fuer ein
+# FOTO, und der Overlay ist auf fotografischen Umfang gerechnet. Ein Foto
+# traegt Mitteltoene um 90 bis 140; der §1-Verlauf verlaesst die 30er nie.
+#
+# Je naeher, desto dunkler bleibt: das ist die ganze Raumwirkung, und sie
+# kommt ohne einen einzigen Verlauf auf einer Silhouette aus.
+HIMMEL, FERN, MITTE, NAH, GRUND = '#33333C', '#4A4A56', '#2C2C34', '#14141A', '#0C0C10'
 
 
 def kopf(motiv, hue, alt):
@@ -43,24 +60,18 @@ def kopf(motiv, hue, alt):
     Erzeugt von scripts/motivtafeln.py — nicht von Hand aendern.
   -->
   <defs>
+    <!-- Der Tafel-Verlauf aus DESIGN §4.1b, nicht der UI-Flaechenverlauf aus
+         §1. Warum das zwei verschiedene sind, steht oben bei HIMMEL. -->
     <linearGradient id="grund" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="{FLAECHE3}"/>
-      <stop offset="0.55" stop-color="{FLAECHE2}"/>
-      <stop offset="1" stop-color="{FLAECHE}"/>
+      <stop offset="0" stop-color="{HIMMEL}"/>
+      <stop offset="0.55" stop-color="{MITTE}"/>
+      <stop offset="1" stop-color="{GRUND}"/>
     </linearGradient>
     <radialGradient id="schein" cx="0.5" cy="0.22" r="0.78">
       <stop offset="0" stop-color="{hue}" stop-opacity="0.16"/>
       <stop offset="0.55" stop-color="{hue}" stop-opacity="0.05"/>
       <stop offset="1" stop-color="{hue}" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="overlay" x1="0" y1="0" x2="0" y2="1">
-      <!-- derselbe Verlauf wie `--bild-overlay` in DESIGN §4.4, hier
-           ausgeschrieben: eine SVG-Datei sieht die CSS-Variablen des
-           Dokuments nicht. -->
-      <stop offset="0" stop-color="{INK}" stop-opacity="0.15"/>
-      <stop offset="0.55" stop-color="{INK}" stop-opacity="0.55"/>
-      <stop offset="1" stop-color="{INK}" stop-opacity="0.92"/>
-    </linearGradient>
   </defs>
 
   <rect width="{B}" height="{H}" fill="url(#grund)"/>
@@ -69,20 +80,33 @@ def kopf(motiv, hue, alt):
 
 
 def fuss(hue, marke, zeile):
-    return f'''  <rect width="{B}" height="{H}" fill="url(#overlay)"/>
+    """Der Abschluss — und er traegt WEDER Overlay NOCH Beschriftung mehr.
 
-  <!-- Die Akzentlinie: sechs Pixel, die Gesellschaft, sonst nichts. -->
-  <rect x="128" y="1204" width="112" height="6" fill="{hue}"/>
-  <text x="128" y="1280" fill="{TEXT}"
-        font-family="Inter, system-ui, sans-serif" font-size="46" font-weight="600"
-        letter-spacing="4">{marke}</text>
-  <text x="128" y="1336" fill="{TEXT_LEISE}"
-        font-family="Inter, system-ui, sans-serif" font-size="30" font-weight="400">{zeile}</text>
-  <text x="2432" y="1336" fill="{TEXT_LEISE}" text-anchor="end"
-        font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="26"
-        letter-spacing="3">PLATZHALTER · O-13</text>
-</svg>
-'''
+    **Zwei Fehler standen hier, und beide sahen einzeln richtig aus.**
+
+    *Der Overlay lag doppelt.* Die Seite legt ihn selbst ueber jedes Bild
+    (`Hero.tsx`, `MarkenKarte.tsx`, beide ueber den Token aus DESIGN §4.4) —
+    so gehoert es sich, denn ein FOTO bringt keinen mit. Die Tafel brachte ihn
+    trotzdem mit, und zwei Schichten multiplizieren sich: aus 0.55 in der Mitte
+    wurden 0.80, aus 0.92 am Fuss 0.994. Auf dem Schirm war das Schwarz. Die
+    Tafel, die als Datei einwandfrei aussah, war auf der Seite wieder weg.
+
+    *Die Beschriftung stand zweimal da.* Die Seite setzt ihre eigene
+    Ueberschrift ueber das Bild und daneben die Marke „Platzhalterbild". Die
+    eingebackene Zeile „REALTIME SERVICE" landete damit unmittelbar unter der
+    Ueberschrift derselben Gesellschaft — als halbdurchsichtiger Doppelgaenger,
+    der wie ein Darstellungsfehler aussah. Genau das hat der Mandant gemeldet.
+
+    **Die Regel dahinter:** eine Motivtafel steht fuer ein Foto, also verhaelt
+    sie sich wie eines. Ein Foto bringt keinen Farbverlauf und keine Bildunterschrift
+    mit; beides gehoert der Flaeche, die es einbaut. DESIGN §4.1a ist
+    mitgezogen. D-382.
+
+    Die Funktion bleibt — sie schliesst die Datei, und die Aufrufer nennen
+    weiterhin Marke und Zeile, weil beides im `aria-label` des Wurzelelements
+    landet und dort die einzige Auskunft fuer einen Screenreader ist.
+    """
+    return '</svg>\n'
 
 
 def figur(x, boden, hoehe, farbe, helm=None, blick=1):
@@ -154,7 +178,7 @@ def buehne(hue, hoch=520):
   </defs>
   <rect x="0" y="{hoch}" width="{B}" height="{BODEN - hoch}" fill="url(#{kennung})"/>
   <rect x="0" y="{BODEN - 3}" width="{B}" height="3" fill="{hue}" opacity="0.55"/>
-  <rect x="0" y="{BODEN}" width="{B}" height="{H - BODEN}" fill="{NAH}"/>
+  <rect x="0" y="{BODEN}" width="{B}" height="{H - BODEN}" fill="{GRUND}"/>
 '''
 
 

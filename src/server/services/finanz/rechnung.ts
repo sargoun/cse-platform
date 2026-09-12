@@ -31,8 +31,17 @@ import { mengeAusPostgres, mengeNachPostgres, milliMenge, type MilliMenge } from
 import { berechneSteuer, type SteuerZeile } from './steuer/satz.js';
 import {
   buildKanonischePayload, SCHEMA_VERSION,
-  type Position, type RechnungVollstaendig, type Steuerzeile, type Zuschlag,
+  type Position, type Quelle, type RechnungVollstaendig, type Steuerzeile, type Zuschlag,
 } from './kanonisch.js';
+import {
+  berichtAlsJson, PflichtfeldFehler, pruefeRechnung,
+  REGELWERK_VERSION as USTG14_REGELWERK_VERSION,
+} from './ustg14.js';
+import {
+  FIN18_BEGRUENDUNG_MINDESTLAENGE, Fin18Fehler, fuegeQuelleHinzu, gibQuellenFrei,
+  markiereQuellenAbgerechnet, protokolliereFin18Uebergehung, pruefeZeiterfassung,
+  QuellenFehler, type QuelleEingabe,
+} from './positionsquelle.js';
 
 /** Derselbe schmale Treiberausschnitt, den jeder Dienst hier benutzt. */
 export interface Abfrage {
@@ -55,7 +64,8 @@ export class RechnungFehler extends Error {
       | 'mehrdeutige_steuergruppe'
       | 'basismenge_ungueltig'
       | 'kopf_nicht_uebernehmbar'
-      | 'leistungszeitpunkt_fehlt',
+      | 'leistungszeitpunkt_fehlt'
+      | 'quelle_passt_nicht',
   ) {
     super(nachricht);
     this.name = 'RechnungFehler';
@@ -63,25 +73,16 @@ export class RechnungFehler extends Error {
 }
 
 /**
- * Der Pflichtfeldbericht, den PR 46 ablegt.
+ * Der Pflichtfeldbericht, der im Snapshot landet.
  *
- * **Er behauptet nichts.** Die §14-UStG-Vorabpruefung kommt mit PR 47; hier
- * einen leeren Befund „keine Fehler" abzulegen hiesse, im Snapshot zu
- * bezeugen, dass geprueft wurde. `geprueft: false` ist die Wahrheit, und der
- * Snapshot traegt sie mit, damit ein Pruefer spaeter sehen kann, welche
- * Belege vor dem Validator entstanden sind.
+ * Bis PR 46 stand hier `'ustg14-nicht-gebaut'` und ein Befund mit
+ * `geprueft: false` — die ehrliche Aussage, solange es keinen Validator gab.
+ * Mit PR 47 gibt es ihn, und die Fassung kommt von dort:
+ * `services/finanz/ustg14.ts` ist die EINE Regelliste, und die Version, die
+ * sie ausgibt, ist die, die eingefroren wird. Eine zweite Konstante hier
+ * waere die Fassung, die niemand pflegt.
  */
-export const REGELWERK_VERSION = 'ustg14-nicht-gebaut' as const;
-
-function offenerBericht(): Record<string, unknown> {
-  return {
-    geprueft: false,
-    regelwerk_version: REGELWERK_VERSION,
-    grund: 'Die §14-UStG-Vorabpruefung wird mit PR 47 gebaut (FIN-04).',
-    fehler: [],
-    warnungen: [],
-  };
-}
+export const REGELWERK_VERSION = USTG14_REGELWERK_VERSION;
 
 // ---------------------------------------------------------------------------
 // Entwurf anlegen und bestuecken
@@ -183,6 +184,36 @@ export interface PositionAnlegen {
   /** Der Schluessel aus `steuersatz_gruppe`, z. B. `ust_19`. */
   readonly steuergruppe: string;
   readonly preisBasismenge?: MilliMenge;
+
+  /**
+   * Die sechs Felder, die eine von einer ABRECHNUNGSART erzeugte Zeile
+   * zusaetzlich traegt (PR 48, FIN-01). Alle optional und alle nullbar: eine
+   * von Hand erfasste Zeile eines Belegs ohne Auftrag hat keines davon, und
+   * eine Pflichtangabe ohne entscheidbare Antwort waere ein Vorgabewert
+   * (K-17, O-04).
+   */
+  readonly abrechnungsart?: string | null;
+  readonly vertragAbrechnungId?: string | null;
+  readonly auftragLeistungId?: string | null;
+  readonly lvPositionId?: string | null;
+  /** Nur wo die Zeile einen ANDEREN Zeitraum traegt als der Beleg (§4.3). */
+  readonly leistungVon?: string | null;
+  readonly leistungBis?: string | null;
+
+  /**
+   * **Der Beleg hinter der Zeile — PFLICHT** (FIN-07, §4.4, PR 49).
+   *
+   * Mindestens eine Angabe, und sie ist NICHT optional: die Datenbank weist
+   * eine Leistungszeile ohne Herkunft beim COMMIT ab (`rp_hat_quelle`, 0088).
+   * Diese Signatur bildet das ab, statt den Aufrufer in einen Fehler laufen
+   * zu lassen, dessen Ursache drei Anweisungen frueher liegt.
+   *
+   * Eine von Hand getippte Zeile traegt `{ typ: 'manuell', notiz: '…' }` —
+   * ausdruecklich beleglos MIT Grund. Einen Vorgabewert gibt es hier nicht:
+   * „manuell, Grund unbekannt" automatisch zu schreiben waere genau die
+   * erfundene Angabe, gegen die FIN-07 steht.
+   */
+  readonly quellen: readonly QuelleEingabe[];
 }
 
 /**
@@ -191,8 +222,13 @@ export interface PositionAnlegen {
  * `netto = runde(menge / basismenge × einzelpreis × (10000 − rabatt) / 10000)`,
  * ganzzahlig in Cent, halb aufgerundet. Die Rundungsregel steht an der Stelle,
  * an der gerundet wird (K-16).
+ *
+ * **Exportiert seit PR 48**, damit die fuenf Abrechnungsarten dieselbe Formel
+ * benutzen und nicht jede ihre eigene. Eine Strategie, die ihren Nettobetrag
+ * selbst zusammenrechnete, koennte gegen die Zeile driften, die anschliessend
+ * in der Datenbank steht — und zwar um Betraege, die niemandem auffallen.
  */
-function berechneNetto(
+export function berechneNetto(
   menge: MilliMenge, basismenge: MilliMenge, einzelpreis: Cent, rabattBp: number,
 ): Cent {
   if (basismenge <= 0n) {
@@ -285,24 +321,241 @@ export async function fuegePositionHinzu(
     `insert into rechnungsposition
        (mandant_id, rechnung_id, position_nr, bezeichnung, beschreibung, menge, einheit,
         masseinheit_id, preis_basismenge, einzelpreis_cent, rabatt_bp, netto_cent,
-        steuersatz_gruppe_id, satz_bp, kategorie, erstellt_von_art, erstellt_von)
+        steuersatz_gruppe_id, satz_bp, kategorie, abrechnungsart, vertrag_abrechnung_id,
+        auftrag_leistung_id, lv_position_id, leistung_von, leistung_bis,
+        erstellt_von_art, erstellt_von)
      select app.aktiver_mandant(), $1,
             coalesce((select max(p.position_nr) from rechnungsposition p
                        where p.rechnung_id = $1), 0) + 1,
             $2, $3, $4::numeric, $5, $6::uuid, $7::numeric, $8::bigint, $9, $10::bigint,
-            $11::uuid, $12, $13::en16931_steuerkategorie, 'mensch', app.aktueller_benutzer()
+            $11::uuid, $12, $13::en16931_steuerkategorie,
+            $14::abrechnungsart, $15::uuid, $16::uuid, $17::uuid, $18::date, $19::date,
+            'mensch', app.aktueller_benutzer()
      returning id`,
     [eingabe.rechnungId, eingabe.bezeichnung, eingabe.beschreibung ?? null,
      mengeNachPostgres(eingabe.menge), eingabe.einheit, einheit.id,
      mengeNachPostgres(basis), eingabe.einzelpreisCent.toString(), rabatt, netto.toString(),
-     gruppe.id, gruppe.satz_bp, gruppe.kategorie],
+     gruppe.id, gruppe.satz_bp, gruppe.kategorie,
+     eingabe.abrechnungsart ?? null, eingabe.vertragAbrechnungId ?? null,
+     eingabe.auftragLeistungId ?? null, eingabe.lvPositionId ?? null,
+     eingabe.leistungVon ?? null, eingabe.leistungBis ?? null],
   );
   if (zeile === undefined) {
     throw new RechnungFehler('Die Position wurde nicht angelegt', 'nicht_gefunden');
   }
 
+  /**
+   * Der Beleg, unmittelbar nach der Zeile und in DERSELBEN Transaktion
+   * (FIN-07). `rp_hat_quelle` ist aufgeschoben und prueft beim COMMIT; hier
+   * schon zu scheitern nennt dem Aufrufer die Position, um die es geht,
+   * statt ihn am Transaktionsende raten zu lassen.
+   */
+  if (eingabe.quellen.length === 0) {
+    throw new QuellenFehler(
+      `Position „${eingabe.bezeichnung}" ohne Herkunft — jede Leistungszeile nennt ihren `
+      + 'Beleg (FIN-07). Eine von Hand erfasste Zeile traegt `manuell` MIT Begruendung.',
+      'ohne_quelle',
+    );
+  }
+  for (const quelle of eingabe.quellen) {
+    await fuegeQuelleHinzu(db, zeile.id, quelle);
+  }
+
   await schreibeSummen(db, eingabe.rechnungId);
   return zeile.id;
+}
+
+/**
+ * Die Kurzform fuer eine Zeile, die niemand aus einem Beleg erzeugt hat.
+ *
+ * Sie nimmt die Begruendung als eigenen Parameter, damit sie an der Aufrufstelle
+ * steht und nicht in einem Objektliteral verschwindet — eine leere Begruendung
+ * ist hier der einzige denkbare Fehler, und ein Vorgabewert waere er.
+ */
+export function vonHand(notiz: string): readonly QuelleEingabe[] {
+  return [{ typ: 'manuell', notiz }];
+}
+
+export interface ZeitPositionAnlegen {
+  readonly rechnungId: string;
+  readonly bezeichnung: string;
+  readonly stundensatzCent: Cent;
+  readonly steuergruppe: string;
+  /** Genau eine der beiden — die Leistungszeile oder der ganze Auftrag. */
+  readonly auftragLeistungId?: string | null;
+  readonly auftragId?: string | null;
+  /** Berliner Kalendertage (K-11), einschliessend. */
+  readonly vonDatum?: string | null;
+  readonly bisDatum?: string | null;
+}
+
+export interface ZeitPositionErgebnis {
+  readonly positionId: string;
+  readonly zeiteintraege: number;
+  readonly minuten: number;
+}
+
+/**
+ * **Eine Rechnungszeile AUS der Zeiterfassung** (TIM-12, FIN-07).
+ *
+ * TIM-12 sagt: „Zeit haengt am Auftrag — keine manuelle Uebertragung in die
+ * Abrechnung." Das ist diese Funktion: sie liest die freigegebenen, noch nicht
+ * abgerechneten Eintraege, bildet daraus EINE Zeile und haengt jeden einzelnen
+ * Eintrag als Herkunft darunter. Wer die Stunden abtippte, koennte sich
+ * vertippen; wer sie hier erzeugt, kann es nicht.
+ *
+ * **Gerundet wird genau einmal, am Ende** (K-16): die Menge ist
+ * `Σ Minuten / 60`, auf drei Stellen gerundet — nicht die Summe je Eintrag
+ * gerundeter Stunden. Der `menge_anteil` je Quelle ist die gerundete
+ * Einzelentnahme und damit ein BELEG, keine Rechengroesse; der Cent-Betrag je
+ * Quelle entsteht durch Verteilung des Zeilenbetrags (`verteileAufQuellen`)
+ * und nicht durch eine zweite Multiplikation.
+ *
+ * Der Preis steht NICHT hier: `stundensatzCent` kommt vom Aufrufer, und die
+ * fuenf Abrechnungsarten (PR 48) entscheiden, woher. Ihn hier aus einem
+ * Vertrag zu raten waere eine erfundene Geschaeftsregel.
+ */
+export async function fuegeZeitPositionHinzu(
+  db: Abfrage, eingabe: ZeitPositionAnlegen,
+): Promise<ZeitPositionErgebnis> {
+  /**
+   * Ohne `zeit.lesen` liest diese Abfrage NULL Zeilen — nicht, weil es keine
+   * gibt, sondern weil `zeiteintrag_auftrag` mit `security_invoker` laeuft
+   * (0051). Eine leere Zeile daraus zu bauen waere die teuerste Art zu
+   * scheitern: eine Rechnung ueber 0,000 Stunden, die niemandem auffaellt.
+   */
+  const [recht] = await db.abfrage<{ darf: boolean }>(
+    `select app.hat_recht('zeit.lesen', app.aktiver_mandant()) as darf`,
+  );
+  if (recht?.darf !== true) {
+    throw new RechnungFehler(
+      'Ohne `zeit.lesen` sind die Zeiteintraege dieser Gesellschaft nicht sichtbar — '
+      + 'eine Zeile daraus waere eine ueber null Stunden.',
+      'nicht_gefunden',
+    );
+  }
+
+  /**
+   * **GENAU EINE Auswahl — das stand im Typ und in keiner Zeile Code.**
+   *
+   * `ZeitPositionAnlegen` sagt „genau eine der beiden"; die Abfrage darunter
+   * macht aus jedem fehlenden Wert ein `is null` und damit ein „egal". Ohne
+   * beide Kennungen sammelte sie JEDE freigegebene, noch nicht abgerechnete
+   * Stunde der ganzen Gesellschaft in EINE Rechnungszeile — und markierte sie
+   * anschliessend als abgerechnet. Mit beiden bildete sie einen
+   * Durchschnitt, den niemand bestellt hat.
+   *
+   * Ueber das Formular kam das nicht: die Route schickt eine Kennung. Ueber
+   * `POST /api/rechnungen` von Hand schon, und die Zeile waere danach
+   * festgeschrieben und unveraenderlich.
+   */
+  const hatLeistung = (eingabe.auftragLeistungId ?? null) !== null;
+  const hatAuftrag = (eingabe.auftragId ?? null) !== null;
+  if (hatLeistung === hatAuftrag) {
+    throw new RechnungFehler(
+      hatLeistung
+        ? 'Leistungszeile UND Auftrag angegeben — gemeint ist genau eine der beiden.'
+        : 'Weder Leistungszeile noch Auftrag angegeben. Ohne Anker waere die Zeile '
+          + 'die Summe aller offenen Stunden dieser Gesellschaft.',
+      'quelle_passt_nicht',
+    );
+  }
+
+  /**
+   * **Die Quelle muss zu DIESER Rechnung gehoeren.**
+   *
+   * Die Abfrage unten filtert ueber die mitgegebenen Kennungen und ueber die
+   * Mandantengrenze — und die sagt „dieselbe Gesellschaft", nicht „derselbe
+   * Auftrag". Traegt die Rechnung einen Auftrag, liessen sich ihr damit die
+   * Stunden eines ANDEREN anhaengen: jede Zeile fuer sich stimmig, jeder
+   * Fremdschluessel erfuellt, und die Eintraege des fremden Auftrags danach
+   * als abgerechnet markiert. Dieselbe Luecke wie die fuenf Fremdbezuege, die
+   * in der Nachtrunde von PR #5 an `reklamation`, `leistungsnachweis` und
+   * `wachbuch` geschlossen wurden — nur eine Ebene weiter oben, und hier
+   * haengt Geld daran.
+   *
+   * Abgewiesen wird, was einen ANDEREN Auftrag nennt. Eine Rechnung OHNE
+   * Auftrag widerspricht nicht — den Fall gibt es ausdruecklich (eine
+   * Einmalleistung ohne Auftragsbezug), und ihn zu verbieten hiesse, eine
+   * Regel zu erfinden.
+   */
+  const [bezug] = await db.abfrage<{ rechnung_auftrag: string | null; quelle_auftrag: string }>(
+    `select r.auftrag_id::text as rechnung_auftrag,
+            coalesce($2::uuid, al.auftrag_id)::text as quelle_auftrag
+       from rechnung r
+       left join auftrag_leistung al
+              on al.mandant_id = r.mandant_id and al.id = $3::uuid
+      where r.id = $1::uuid`,
+    [eingabe.rechnungId, eingabe.auftragId ?? null, eingabe.auftragLeistungId ?? null],
+  );
+  if (bezug === undefined) {
+    throw new RechnungFehler(
+      `Rechnung ${eingabe.rechnungId} nicht gefunden`, 'nicht_gefunden',
+    );
+  }
+  if (bezug.quelle_auftrag === null) {
+    throw new RechnungFehler(
+      'Die angegebene Leistungszeile gehoert zu keinem Auftrag dieser Gesellschaft.',
+      'quelle_passt_nicht',
+    );
+  }
+  if (bezug.rechnung_auftrag !== null && bezug.rechnung_auftrag !== bezug.quelle_auftrag) {
+    throw new RechnungFehler(
+      'Die Zeit gehoert zu einem anderen Auftrag als diese Rechnung.',
+      'quelle_passt_nicht',
+    );
+  }
+
+  const zeilen = await db.abfrage<{ zeiteintrag_id: string; minuten: string }>(
+    `select zeiteintrag_id::text as zeiteintrag_id, dauer_netto_minuten::text as minuten
+       from zeiteintrag_auftrag
+      where ($1::uuid is null or auftrag_leistung_id = $1::uuid)
+        and ($2::uuid is null or auftrag_id = $2::uuid)
+        and freigegeben_am is not null
+        and abgerechnet_am is null
+        and dauer_netto_minuten is not null
+        -- ($3::date)::timestamp at time zone … und NICHT ($3::date) at time
+        -- zone …: die zweite Form waehlt die Ueberladung
+        -- timezone(text, timestamptz), castet also erst nach UTC-Mitternacht
+        -- und rechnet DANN nach Berlin. Das Tagesfenster begaenne im Sommer
+        -- zwei Stunden zu spaet — und was fehlte, waere genau die Nachtschicht.
+        and ($3::date is null
+             or beginn_zeitpunkt >= ($3::date)::timestamp at time zone 'Europe/Berlin')
+        and ($4::date is null
+             or beginn_zeitpunkt < (($4::date) + 1)::timestamp at time zone 'Europe/Berlin')
+      order by beginn_zeitpunkt, zeiteintrag_id`,
+    [eingabe.auftragLeistungId ?? null, eingabe.auftragId ?? null,
+     eingabe.vonDatum ?? null, eingabe.bisDatum ?? null],
+  );
+
+  if (zeilen.length === 0) {
+    throw new QuellenFehler(
+      'Keine freigegebene, noch nicht abgerechnete Zeit in diesem Zeitraum — '
+      + 'eine Zeile ohne Beleg entsteht hier nicht.',
+      'ohne_quelle',
+    );
+  }
+
+  const minuten = zeilen.reduce((s, z) => s + BigInt(z.minuten), 0n);
+  // Stunden in Tausendsteln, halb aufgerundet — EINE Rundung, hier.
+  const stunden = milliMenge((minuten * 1000n * 2n + 60n) / (60n * 2n));
+
+  const positionId = await fuegePositionHinzu(db, {
+    rechnungId: eingabe.rechnungId,
+    bezeichnung: eingabe.bezeichnung,
+    menge: stunden,
+    einheit: 'h',
+    einzelpreisCent: eingabe.stundensatzCent,
+    steuergruppe: eingabe.steuergruppe,
+    auftragLeistungId: eingabe.auftragLeistungId ?? null,
+    quellen: zeilen.map((z) => ({
+      typ: 'zeiteintrag' as const,
+      id: z.zeiteintrag_id,
+      mengeAnteil: milliMenge((BigInt(z.minuten) * 1000n * 2n + 60n) / (60n * 2n)),
+    })),
+  });
+
+  return { positionId, zeiteintraege: zeilen.length, minuten: Number(minuten) };
 }
 
 interface PositionSumme {
@@ -525,6 +778,7 @@ interface KopfZeile {
   readonly bauabzugsteuer_grundlage_cent: string | null;
   readonly einbehalt_bauabzugsteuer_cent: string;
   readonly ist_kleinbetrag: boolean;
+  readonly kleinbetrag_grenze_cent: string | null;
   readonly reverse_charge: boolean;
   readonly reverse_charge_grundlage: string | null;
   readonly zahlungsmittel_code: string | null;
@@ -571,7 +825,20 @@ const KOPF_SQL = `
          r.abzug_brutto_cent::text, r.zahlbetrag_cent::text, r.ueberweisungsbetrag_cent::text,
          r.bauabzugsteuer_pflichtig, r.bauabzugsteuer_satz_bp,
          r.bauabzugsteuer_grundlage_cent::text, r.einbehalt_bauabzugsteuer_cent::text,
-         r.ist_kleinbetrag, r.reverse_charge,
+         r.ist_kleinbetrag,
+         -- FIN-13: die ANGEWANDTE Schwelle wandert mit in den Snapshot.
+         -- ist_kleinbetrag allein sagt nur ja oder nein; ohne die Zahl, gegen
+         -- die entschieden wurde, laesst sich die Entscheidung nach der
+         -- naechsten Aenderung des §33 UStDV nicht mehr begruenden. Dasselbe
+         -- Praedikat wie in fin.rechnung_nummer_ziehen: eine unbestaetigte
+         -- Zeile (O-175) zaehlt nicht, und dann steht hier NULL — genau wie
+         -- ist_kleinbetrag dann false ist.
+         (select g.grenze_brutto_cent::text from kleinbetrag_grenze g
+           where not g.ist_platzhalter
+             and r.rechnungsdatum >= g.gueltig_von
+             and (g.gueltig_bis is null or r.rechnungsdatum <= g.gueltig_bis)
+           order by g.gueltig_von desc limit 1) as kleinbetrag_grenze_cent,
+         r.reverse_charge,
          r.reverse_charge_grundlage::text as reverse_charge_grundlage,
          r.zahlungsmittel_code, r.zahlungsbedingung_text, r.zahlungsziel_tage,
          to_char(r.faellig_am, 'YYYY-MM-DD') as faellig_am, r.skonto_bp, r.skonto_tage,
@@ -656,6 +923,46 @@ export async function ladeRechnungVollstaendig(
     [rechnungId],
   );
 
+  /**
+   * **Die Herkunft gehoert in die Nutzlast** (§5.3, FIN-07).
+   *
+   * Bis PR 49 stand hier ein leeres Array mit dem ehrlichen Vermerk „keine
+   * Quelle hinterlegt". Jetzt steht der Beleg drin — und damit im HASH: wer
+   * spaeter behauptet, eine andere Stunde sei abgerechnet worden, widerspricht
+   * einem Dokument, das sich nicht mehr aendern laesst.
+   *
+   * `wirksam` steht NICHT in der Nutzlast. Es faellt beim Storno, also nach
+   * der Festschreibung — es in den Hash zu nehmen machte jede stornierte
+   * Rechnung unverifizierbar (K-12, dieselbe Ueberlegung wie bei
+   * `versendet_am`).
+   */
+  const quellzeilen = await db.abfrage<{
+    position_nr: number; typ: string; quelle_id: string | null; menge_anteil: string | null;
+  }>(
+    `select p.position_nr, q.quelle_typ::text as typ,
+            coalesce(q.zeiteintrag_id, q.aufmass_id, q.auftrag_leistung_id, q.ausgabe_id,
+                     q.leistungsnachweis_id, q.nachtrag_id)::text as quelle_id,
+            q.menge_anteil::text
+       from rechnungsposition_quelle q
+       join rechnungsposition p on p.mandant_id = q.mandant_id and p.id = q.rechnungsposition_id
+      where q.rechnung_id = $1
+      order by p.position_nr, q.quelle_typ, q.id`,
+    [rechnungId],
+  );
+
+  const quellenJePosition = new Map<number, Quelle[]>();
+  for (const q of quellzeilen) {
+    const liste = quellenJePosition.get(Number(q.position_nr)) ?? [];
+    liste.push({
+      typ: q.typ,
+      // Eine `manuell`-Zeile hat keinen Schluessel; der leere String ist hier
+      // die kanonische Form von „keiner", weil `id` in §5.3 nicht nullbar ist.
+      id: q.quelle_id ?? '',
+      mengeAnteil: q.menge_anteil === null ? null : mengeAusPostgres(q.menge_anteil),
+    });
+    quellenJePosition.set(Number(q.position_nr), liste);
+  }
+
   const zuschlaege = await db.abfrage<{
     art: string; bezeichnung: string; grund_code: string | null;
     basis_cent: string | null; satz_bp: number | null; betrag_cent: string;
@@ -702,9 +1009,7 @@ export async function ladeRechnungVollstaendig(
     abrechnungsart: p.abrechnungsart,
     leistungVon: p.leistung_von,
     leistungBis: p.leistung_bis,
-    // FIN-07 kommt mit PR 48; ein leeres Array ist die ehrliche Aussage
-    // „keine Quelle hinterlegt", und es steht im Hash.
-    quellen: [],
+    quellen: quellenJePosition.get(p.position_nr) ?? [],
   });
 
   const alsZuschlag = (z: (typeof zuschlaege)[number]): Zuschlag => ({
@@ -806,8 +1111,8 @@ export async function ladeRechnungVollstaendig(
       skontoTage: kopf.skonto_tage,
     },
     istKleinbetrag: kopf.ist_kleinbetrag,
-    // Die Schwelle steht im Snapshot, sobald PR 47 sie auswertet (O-175).
-    kleinbetragGrenzeCent: null,
+    kleinbetragGrenzeCent: kopf.kleinbetrag_grenze_cent === null
+      ? null : cent(BigInt(kopf.kleinbetrag_grenze_cent)),
     reverseCharge: kopf.reverse_charge,
     reverseChargeGrundlage: kopf.reverse_charge_grundlage,
     festgeschriebenAm: kopf.festgeschrieben_am,
@@ -836,7 +1141,18 @@ export interface Festschreibung {
  * Sperre auf dem Nummernkreis zwischen ihnen, und die Kettenreihenfolge ist
  * nicht mehr die Nummernreihenfolge.
  */
-export async function finalisiere(db: Abfrage, rechnungId: string): Promise<Festschreibung> {
+export interface FestschreibungOptionen {
+  /**
+   * Die protokollierte Begruendung, mit der eine FIN-18-Warnung uebergangen
+   * wird (Abnahme 3). Ohne sie bleibt die Warnung BLOCKIEREND — sie ist keine
+   * Anzeige, die man wegklickt.
+   */
+  readonly fin18Begruendung?: string | null;
+}
+
+export async function finalisiere(
+  db: Abfrage, rechnungId: string, optionen: FestschreibungOptionen = {},
+): Promise<Festschreibung> {
   // 1. Sperren. Ab hier aendert sich nichts mehr unter uns.
   const [gesperrt] = await db.abfrage<{ id: string; status: string }>(
     `select id, status::text as status from rechnung where id = $1 for update`,
@@ -864,9 +1180,64 @@ export async function finalisiere(db: Abfrage, rechnungId: string): Promise<Fest
     );
   }
 
-  // 2. Die Vorabpruefung. Sie behauptet in PR 46 nichts — siehe
-  //    `offenerBericht()`; der Validator kommt mit PR 47.
-  const bericht = offenerBericht();
+  /**
+   * 2. **Die §14-UStG-Vorabpruefung — HINTER der Sperre und in derselben
+   * Transaktion** (§5.6, FIN-04). Davor gelaufen, koennte eine gleichzeitige
+   * Bearbeitung zwischen Pruefung und Sperre eine Rechnung festschreiben, die
+   * §14 UStG nicht erfuellt; und ausserhalb der Transaktion lese sie einen
+   * Stand, den der Zug anschliessend gar nicht festschreibt.
+   *
+   * Der Aufruf geht an den EINEN Dienst (`services/finanz/ustg14.ts`), den
+   * auch die Vorschau und die API rufen. Eine eigene Liste hier waere die
+   * zweite, und die zweite ist die, die veraltet. Die Wache
+   * `validator-nicht-uebersprungen` bricht den Build, wenn dieser Aufruf
+   * verschwindet — und die Datenbank weist den Beleg ohnehin ab (0085), weil
+   * ein anderer Aufrufer diesen Dienst gar nicht erst benutzen muss.
+   */
+  const pruefung = await pruefeRechnung(db, rechnungId);
+  if (pruefung.fehler.length > 0) throw new PflichtfeldFehler(pruefung);
+  const bericht = berichtAlsJson(pruefung);
+
+  /**
+   * 2b. **FIN-18 — und zwar HIER, vor Schritt 3** (Abnahme 3).
+   *
+   * Ein abgeschlossener Auftrag, auf dem keine einzige Minute erfasst ist, und
+   * trotzdem eine Rechnung: entweder fehlt die Zeiterfassung oder die Rechnung
+   * gehoert zu einem anderen Auftrag. Beides will jemand wissen, BEVOR eine
+   * Nummer gezogen ist — danach waere die Warnung wertlos, weil der Zaehler
+   * unwiderruflich weitergerueckt ist und der einzige Rueckweg ein Storno auf
+   * einen Beleg waere, den niemand ausstellen wollte.
+   *
+   * Uebergehbar ist sie nur mit einer Begruendung, und die steht danach an
+   * zwei unveraenderlichen Stellen: im `audit_log` und im Pflichtfeldbericht,
+   * der mit dem Snapshot eingefroren wird.
+   */
+  const fin18 = await pruefeZeiterfassung(db, rechnungId);
+  if (fin18 !== null) {
+    const begruendung = (optionen.fin18Begruendung ?? '').trim();
+    if (begruendung.length < FIN18_BEGRUENDUNG_MINDESTLAENGE) {
+      throw new Fin18Fehler(fin18);
+    }
+    await protokolliereFin18Uebergehung(db, rechnungId, fin18, begruendung);
+    bericht['fin18'] = {
+      uebergangen: true,
+      auftrag_id: fin18.auftragId,
+      auftragsnummer: fin18.auftragsnummer,
+      erfasste_minuten: fin18.erfassteMinuten,
+      begruendung,
+    };
+    const warnungen = bericht['warnungen'];
+    if (Array.isArray(warnungen)) {
+      warnungen.push({
+        feld: 'auftrag_id',
+        regel: 'FIN-18',
+        text_de: `Auftrag ${fin18.auftragsnummer} ist abgeschlossen, aber es ist keine `
+          + `Minute erfasst — übergangen mit Begründung: ${begruendung}`,
+        link: null,
+        stufe: 'warnung',
+      });
+    }
+  }
 
   // 3. Definer-Aufruf A.
   const [kopf] = await db.abfrage<{
@@ -902,13 +1273,21 @@ export async function finalisiere(db: Abfrage, rechnungId: string): Promise<Fest
   }
 
   /**
-   * 6. Buchhaltung in derselben Transaktion — `offener_posten`,
-   *    `buchungssatz`, `periode` und `markiereQuellenAbgerechnet` (§5.6
-   *    Schritt 6). Alle vier Tabellen kommen mit PR 48 bis PR 50. Der Schritt
-   *    steht als Kommentar und nicht als stille Auslassung: er gehoert in
-   *    DIESE Transaktion, nicht in einen Nachlauf, sonst gibt es
-   *    festgeschriebene Rechnungen ohne offenen Posten.
+   * 6. **Der Spiegel auf der Quellseite — in DIESER Transaktion** (§5.6
+   *    Schritt 6, Abnahme 4).
+   *
+   *    `zeiteintrag.abgerechnet_am` und `.abrechnung_referenz` werden gesetzt,
+   *    solange die Rechnung noch nicht committet ist: ein Nachlauf hinterliesse
+   *    festgeschriebene Rechnungen, deren Stunden weiter als offen gelten, und
+   *    der naechste Abrechnungslauf naehme sie ein zweites Mal auf. Dann greift
+   *    zwar der partielle Unique-Index — aber an einer Stelle, an der niemand
+   *    nach der Ursache sucht.
+   *
+   *    `offener_posten`, `buchungssatz` und `periode` gehoeren ebenfalls
+   *    hierher und kommen mit PR 50 bis PR 53. Der Schritt steht als Kommentar
+   *    und nicht als stille Auslassung.
    */
+  await markiereQuellenAbgerechnet(db, rechnungId);
 
   return {
     nummer: kopf.nummer,
@@ -1025,8 +1404,59 @@ export interface StornoErgebnis {
  * `storniert`; ein solcher waere ein Uebergang, den der
  * Unveraenderlichkeitsausloeser anschliessend nur abzuweisen haette.
  */
+/**
+ * Die Herkunftszeilen einer Rechnung auf die Zeilen einer anderen kopieren.
+ *
+ * Verbunden wird ueber `position_nr` — `storniere` und `korrigiere` legen die
+ * Zeilen mit derselben Nummer an, und `rp_position_uk` (0075) macht sie
+ * eindeutig. Eine Abbildung ueber IDs muesste dieselbe Tatsache ein zweites
+ * Mal fuehren.
+ *
+ * `wirksam` ist der Unterschied zwischen den beiden Aufrufern und der ganze
+ * Punkt dieser Funktion:
+ *
+ *  · Das STORNO uebernimmt den Beleg mit `wirksam = false`. Es bezeugt, WAS
+ *    aufgehoben wurde, und beansprucht nichts — sonst stuenden nach jedem
+ *    Storno zwei wirksame Zeilen auf demselben Zeiteintrag, und der partielle
+ *    Unique-Index wiese den Storno ab. Ausgerechnet die Korrektur waere dann
+ *    der eine Vorgang, den die Doppelabrechnungssperre verhindert.
+ *  · Die NEUAUSSTELLUNG uebernimmt ihn mit `wirksam = true` und beansprucht
+ *    die Quellen damit neu — moeglich, weil das Original sie im selben
+ *    Vorgang freigegeben hat.
+ *
+ * Der Anteil wird mit der Menge gespiegelt: eine Stornozeile traegt eine
+ * negative Menge (siehe unten), und ein positiver Anteil daneben liesse die
+ * Summenpruefung des Aufmasses den Verbrauch verdoppeln statt ihn aufzuheben.
+ */
+async function uebernimmQuellen(
+  db: Abfrage, vonRechnung: string, nachRechnung: string,
+  { wirksam, spiegeln }: { wirksam: boolean; spiegeln: boolean },
+): Promise<void> {
+  await db.abfrage(
+    `insert into rechnungsposition_quelle
+       (mandant_id, rechnungsposition_id, rechnung_id, quelle_typ,
+        zeiteintrag_id, aufmass_id, auftrag_leistung_id, ausgabe_id,
+        leistungsnachweis_id, nachtrag_id, menge_anteil, notiz, wirksam,
+        erstellt_von_art, erstellt_von)
+     select q.mandant_id, np.id, $2::uuid, q.quelle_typ,
+            q.zeiteintrag_id, q.aufmass_id, q.auftrag_leistung_id, q.ausgabe_id,
+            q.leistungsnachweis_id, q.nachtrag_id,
+            case when $4::boolean then -q.menge_anteil else q.menge_anteil end,
+            q.notiz, $3::boolean, 'mensch', app.aktueller_benutzer()
+       from rechnungsposition_quelle q
+       join rechnungsposition ap
+         on ap.mandant_id = q.mandant_id and ap.id = q.rechnungsposition_id
+       join rechnungsposition np
+         on np.mandant_id = q.mandant_id and np.rechnung_id = $2::uuid
+        and np.position_nr = ap.position_nr
+      where q.rechnung_id = $1`,
+    [vonRechnung, nachRechnung, wirksam, spiegeln],
+  );
+}
+
 export async function storniere(
   db: Abfrage, rechnungId: string, grund: string,
+  optionen: FestschreibungOptionen = {},
 ): Promise<StornoErgebnis> {
   if (grund.trim().length < 10) {
     throw new RechnungFehler(
@@ -1151,8 +1581,27 @@ export async function storniere(
     [rechnungId, entwurf.id],
   );
 
+  /**
+   * Der Beleg wandert mit — unwirksam. Er sagt, WAS aufgehoben wurde; der
+   * Anspruch auf die Quelle bleibt beim Original, bis dieses ihn gleich
+   * freigibt. Ohne diese Uebernahme haette die Stornozeile gar keine Herkunft
+   * und `rp_hat_quelle` wiese sie beim COMMIT ab.
+   */
+  await uebernimmQuellen(db, rechnungId, entwurf.id, { wirksam: false, spiegeln: true });
+
+  /**
+   * Und die Freigabe des Originals (§4.4): `wirksam` faellt, der partielle
+   * Unique-Index laesst die Stunde wieder zu, `zeiteintrag.abgerechnet_am`
+   * wird geloescht und die aufgelaufene Aufmassmenge sinkt.
+   *
+   * VOR der Festschreibung des Stornos, nicht danach: waere die Stunde in dem
+   * Moment noch als abgerechnet markiert, in dem die Neuausstellung sie
+   * beansprucht (`korrigiere`), bliebe die zweite Rechnung ohne Beleg stehen.
+   */
+  await gibQuellenFrei(db, rechnungId);
+
   await schreibeSummen(db, entwurf.id);
-  const festgeschrieben = await finalisiere(db, entwurf.id);
+  const festgeschrieben = await finalisiere(db, entwurf.id, optionen);
 
   await db.abfrage(
     `insert into rechnung_beziehung
@@ -1187,8 +1636,9 @@ export interface KorrekturErgebnis {
  */
 export async function korrigiere(
   db: Abfrage, rechnungId: string, grund: string,
+  optionen: FestschreibungOptionen = {},
 ): Promise<KorrekturErgebnis> {
-  const storno = await storniere(db, rechnungId, grund);
+  const storno = await storniere(db, rechnungId, grund, optionen);
 
   const [original] = await db.abfrage<{
     kunde_id: string; objekt_id: string | null; auftrag_id: string | null;
@@ -1283,8 +1733,16 @@ export async function korrigiere(
     [rechnungId, neu.id],
   );
 
+  /**
+   * Die Neuausstellung beansprucht die Quellen NEU (`wirksam = true`). Das ist
+   * nur moeglich, weil `storniere()` sie im selben Vorgang freigegeben hat —
+   * sonst schluege der partielle Unique-Index zu, und die Korrektur waere der
+   * eine Vorgang, den die Doppelabrechnungssperre verhindert.
+   */
+  await uebernimmQuellen(db, rechnungId, neu.id, { wirksam: true, spiegeln: false });
+
   await schreibeSummen(db, neu.id);
-  const festgeschrieben = await finalisiere(db, neu.id);
+  const festgeschrieben = await finalisiere(db, neu.id, optionen);
 
   await db.abfrage(
     `insert into rechnung_beziehung

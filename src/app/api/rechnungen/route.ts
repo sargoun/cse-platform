@@ -8,11 +8,14 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant, type SchreibKontext } from '@/server/kontext/index';
-import { cent } from '@/server/services/finanz/geld';
-import { milliMenge } from '@/server/services/finanz/menge';
+import { cent, type Cent } from '@/server/services/finanz/geld';
+import { milliMenge, type MilliMenge } from '@/server/services/finanz/menge';
 import {
-  RechnungFehler, fuegePositionHinzu, legeEntwurfAn,
+  RechnungFehler, fuegePositionHinzu, fuegeZeitPositionHinzu, legeEntwurfAn,
 } from '@/server/services/finanz/rechnung';
+import {
+  QuellenFehler, type QuelleEingabe,
+} from '@/server/services/finanz/positionsquelle';
 
 /**
  * `POST /api/rechnungen` — den Entwurf anlegen und ihn bestuecken.
@@ -49,6 +52,51 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     return typeof wert === 'string' && wert.trim() !== '' ? wert.trim() : null;
   };
 
+  /**
+   * **Zahlen werden GEPRUEFT, nicht gecastet.**
+   *
+   * Unten stand dreimal `BigInt(text(...))` und einmal `Number(...)` mitten
+   * im Schreibvorgang. `BigInt('abc')` wirft einen `SyntaxError`, den die
+   * Fehlerkette nicht kennt — sie faengt `RechnungFehler` und `QuellenFehler`
+   * —, also wurde aus einer falsch ausgefuellten Zeile eine 500. Eine
+   * Falscheingabe ist eine Abweisung, kein Programmfehler, und diese Route
+   * antwortet darauf sonst ueberall mit 400.
+   *
+   * `SyntaxError` mitzufangen waere die schlechtere Reparatur: dann
+   * antwortete auch ein echter Programmfehler mit 400.
+   */
+  const ungueltig: string[] = [];
+  const centOderNull = (name: string): Cent | null => {
+    const wert = text(name);
+    if (wert === null) return null;
+    if (!/^-?\d{1,18}$/u.test(wert)) { ungueltig.push(name); return null; }
+    return cent(BigInt(wert));
+  };
+  const mengeOderNull = (name: string): MilliMenge | null => {
+    const wert = text(name);
+    if (wert === null) return null;
+    if (!/^-?\d{1,18}$/u.test(wert)) { ungueltig.push(name); return null; }
+    return milliMenge(BigInt(wert));
+  };
+  const ganzzahlOderNull = (name: string, min: number, max: number): number | null => {
+    const wert = text(name);
+    if (wert === null) return null;
+    if (!/^\d{1,9}$/u.test(wert)) { ungueltig.push(name); return null; }
+    const zahl = Number(wert);
+    if (zahl < min || zahl > max) { ungueltig.push(name); return null; }
+    return zahl;
+  };
+
+  const stundensatzCent = centOderNull('stundensatzCent');
+  const einzelpreisCent = centOderNull('einzelpreisCent');
+  const mengeWert = mengeOderNull('menge');
+  // `smallint` und ein Zahlungsziel: mehr als zehn Jahre ist keine Frist.
+  const zahlungszielTage = ganzzahlOderNull('zahlungszielTage', 0, 3650);
+
+  if (ungueltig.length > 0) {
+    return NextResponse.json({ fehler: 'ungueltig', felder: ungueltig }, { status: 400 });
+  }
+
   const aktion = text('aktion') ?? 'anlegen';
 
   try {
@@ -60,13 +108,49 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
 
+        /**
+         * **Die Zeile AUS der Zeiterfassung** (TIM-12, FIN-07) — der Weg, den
+         * die Seitenkarte „billing type, then source" nennt.
+         *
+         * Er steht vor `position`, weil er der Regelfall sein soll: eine Zeile,
+         * die aus freigegebenen Zeiteintraegen entsteht, traegt ihren Beleg
+         * von selbst und kann sich nicht vertippen. Die Handeingabe darunter
+         * ist die Ausnahme und verlangt deshalb eine Begruendung.
+         */
+        if (aktion === 'aus-zeiten') {
+          const rechnungId = text('rechnungId');
+          if (rechnungId === null || stundensatzCent === null) return null;
+          await fuegeZeitPositionHinzu(kontext, {
+            rechnungId,
+            bezeichnung: text('bezeichnung') ?? 'Geleistete Stunden',
+            stundensatzCent,
+            steuergruppe: text('steuergruppe') ?? 'ust_19',
+            auftragLeistungId: text('auftragLeistungId'),
+            auftragId: text('auftragId'),
+            vonDatum: text('vonDatum'),
+            bisDatum: text('bisDatum'),
+          });
+          return `/${rechnungId}`;
+        }
+
         if (aktion === 'position') {
           const rechnungId = text('rechnungId');
-          const menge = text('menge');
-          const einzelpreis = text('einzelpreisCent');
-          if (rechnungId === null || menge === null || einzelpreis === null) {
+          if (rechnungId === null || mengeWert === null || einzelpreisCent === null) {
             return null;
           }
+          /**
+           * **Die Herkunft ist Pflicht** (FIN-07, §4.4). Das Formular bietet
+           * genau zwei Wege an: eine Vertragszeile als Beleg, oder
+           * ausdruecklich „von Hand" MIT Begruendung. Einen dritten — „ohne
+           * Angabe" — gibt es nicht, und der Handler erfindet auch keinen:
+           * fehlt die Begruendung, weist der Dienst ab, und die Datenbank
+           * taete es beim COMMIT ohnehin.
+           */
+          const herkunft = text('herkunft') ?? 'manuell';
+          const quellen: QuelleEingabe[] = herkunft === 'vertrag'
+            ? [{ typ: 'vertrag', id: text('auftragLeistungId') }]
+            : [{ typ: 'manuell', notiz: text('herkunftNotiz') }];
+
           /**
            * Menge und Preis kommen als ganze Zahlen herein — Tausendstel und
            * Cent (K-16, Invariante 1). Die Oberflaeche rechnet nicht um: eine
@@ -77,17 +161,18 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             rechnungId,
             bezeichnung: text('bezeichnung') ?? '',
             beschreibung: text('beschreibung'),
-            menge: milliMenge(BigInt(menge)),
+            menge: mengeWert,
             einheit: text('einheit') ?? '',
-            einzelpreisCent: cent(BigInt(einzelpreis)),
+            einzelpreisCent,
             steuergruppe: text('steuergruppe') ?? 'ust_19',
+            auftragLeistungId: herkunft === 'vertrag' ? text('auftragLeistungId') : null,
+            quellen,
           });
           return `/${rechnungId}`;
         }
 
         const kundeId = text('kundeId');
         if (kundeId === null) return null;
-        const zielTage = text('zahlungszielTage');
         const neu = await legeEntwurfAn(kontext, {
           kundeId,
           objektId: text('objektId'),
@@ -95,7 +180,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           leistungBis: text('leistungBis'),
           // Kein Vorgabewert (§4.2): fehlt die Eingabe, loest der Dienst auf,
           // und bleibt es NULL, weist die Festschreibung benannt ab.
-          zahlungszielTage: zielTage === null ? null : Number(zielTage),
+          zahlungszielTage,
           kopftext: text('kopftext'),
         });
         return `/${neu}`;
@@ -114,6 +199,14 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ fehler: 'unbekannt' }, { status: 404 });
     }
     if (fehler instanceof RechnungFehler) {
+      return NextResponse.json({ fehler: fehler.grund, text: fehler.message }, { status: 409 });
+    }
+    /**
+     * Eine fehlende oder unbelegbare Herkunft ist eine Abweisung, kein
+     * Programmfehler (FIN-07): der Mensch hat die Begruendung vergessen oder
+     * im Zeitraum liegt keine freigegebene Stunde. 409 mit Text, nicht 500.
+     */
+    if (fehler instanceof QuellenFehler) {
       return NextResponse.json({ fehler: fehler.grund, text: fehler.message }, { status: 409 });
     }
     throw fehler;

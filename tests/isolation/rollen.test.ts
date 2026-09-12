@@ -17,23 +17,28 @@
  * baut, prüft die Rollen, die er baut.
  */
 import { beforeAll, describe, expect, it } from 'vitest';
-import { execFileSync } from 'node:child_process';
-import { join, resolve } from 'node:path';
-import { alsApp, DB_URL, sql } from './harness.js';
+import { eigeneDatenbank } from './eigene-datenbank.js';
+
+/*
+ * Eigene Datenbank, frisch gebaut und geseedet — siehe
+ * `eigene-datenbank.ts`. Diese Datei faehrt den ECHTEN Seed; mit
+ * `test-db.sh up` auf der gemeinsamen `cse_test` lief er auf dem Stand,
+ * den die vorherige Datei hinterlassen hat, und brach an
+ * `benutzer_person_key` ab, sobald die Harness-Fixtur denselben
+ * Menschen schon angelegt und ihm einen Zugang gegeben hatte (EMP-14
+ * laesst genau einen zu). Rot oder gruen entschied die Reihenfolge der
+ * Dateien.
+ */
+const { alsApp, sql, baueAuf } = eigeneDatenbank('cse_rollen');
 import { ROUTEN, familie, leserechte, routeMitPfad } from '../../src/server/registry/routen.js';
 import { pruefeZugang, rechtepruefer, type Entscheidung } from '../../src/server/auth/zugang.js';
 import type { Sitzung } from '../../src/server/kontext/index.js';
 
-const WURZEL = resolve(import.meta.dirname, '../..');
 const ids = new Map<string, string>();
 const konten = new Map<string, { benutzerId: string; personId: string | null }>();
 
 beforeAll(async () => {
-  execFileSync('bash', [join(WURZEL, 'scripts/test-db.sh'), 'up'],
-    { cwd: WURZEL, encoding: 'utf8' });
-  execFileSync(join(WURZEL, 'node_modules/.bin/tsx'),
-    [join(WURZEL, 'src/server/db/seed/index.ts')],
-    { cwd: WURZEL, encoding: 'utf8', env: { ...process.env, DATABASE_URL: DB_URL } });
+  baueAuf();
 
   for (const m of await sql<{ id: string; slug: string }[]>`select id, slug from mandant`) {
     ids.set(m.slug, m.id);

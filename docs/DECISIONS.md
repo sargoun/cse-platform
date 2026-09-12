@@ -5195,3 +5195,263 @@ müssen sie dort, wo sie stehen:
    standen und mit jedem Commit dieser Nacht weiterlaufen. Die Beschreibung ist
    das, was beim Merge in die Geschichte eingeht; sie gehört vor dem Merge
    nachgezogen, und die drei Kopfzahlen am besten zuletzt.
+
+### D-378 · Der Kettenprüfer läuft unter `cse_job` — als erster Job überhaupt
+
+`pruefeKette` (FIN-06, LEG-01) war seit PR 46 gebaut, geprüft und **nicht
+registriert**. Der Grund stand als langer Kommentar in `bootstrap.ts`: der
+Dienst filtert über `app.aktiver_mandant()`, und ein Job hat keine Sitzung, in
+der diese Frage eine Antwort hat. Ihn trotzdem einzutragen hätte jede Nacht
+null Rechnungen geprüft und „keine Abweichung" gemeldet — eine grüne Meldung
+über nichts, und damit schlimmer als kein Prüfer.
+
+`src/server/jobs/sitzung.ts` schließt das: `alsJobSitzung` öffnet eine
+Transaktion, setzt `set local role cse_job` und bindet `app.scope`,
+`app.mandant_id` und `app.mandant_ids` transaktionslokal. Benutzer und Person
+bleiben LEER — ein Nachtlauf ist keiner, und `app.akteur_typ = 'system'` ist
+die Angabe, die stimmt (0004:132). `app.readonly = 'on'` ist Vorgabe: ein
+Prüfer, der schreiben könnte, könnte auch reparieren, und eine Kette, die sich
+selbst repariert, bezeugt nichts mehr.
+
+**Was beim Bauen auffiel und größer ist als der Prüfer.** Im ganzen Baum stand
+kein einziges `set local role cse_job`. Die Kommentare sagen seit 0012 an
+vielen Stellen „der Job verbindet sich als `cse_job`" — nichts machte das
+wahr. Die vier bestehenden Nachtläufe nehmen die Rolle aus `DATABASE_URL`,
+und die ist in CI und im Seed `postgres`: Superuser mit `BYPASSRLS`. Jede
+Spaltenbeschränkung und jede Policy, die seit 0012 für `cse_job` geschrieben
+wurde — 0041, 0075, 0077, 0099, 0100, 0101 —, lief damit ungeprüft mit. Sie
+war nicht falsch; sie war nur nie auf dem Weg, den irgendetwas tatsächlich
+geht.
+
+Die vier umzustellen heißt, für jeden einzeln Rechte und Policies nachzuziehen
+und jeden einzeln gegen die enge Rolle zu fahren — das ist eine eigene Runde
+mit eigenen Tests, kein Nebenschritt, und wird hier ausdrücklich NICHT
+miterledigt. Der Kettenprüfer ist der erste Lauf, der die Rolle wirklich
+trägt; `tests/isolation/kette-job.test.ts` hält das mit
+`select current_user` fest, statt es zu glauben.
+
+**`0108` bindet die Policy an den Mandanten, nicht an `true`.** Die sieben
+Policies aus 0101 stehen auf `using (true)`, weil ein Job damals keine Sitzung
+hatte. Jetzt hat er eine, also kann die Wand in der Datenbank stehen statt in
+der Abfrage: `app.aktiver_mandant()` ist NULL, solange niemand gebunden hat,
+und `mandant_id = NULL` liefert keine Zeile. Wer den Prüfer künftig ohne
+Binder aufruft, sieht nichts — und die dritte Prüfung der Testdatei hält genau
+das fest, damit „sieht nichts" von „ist in Ordnung" unterscheidbar bleibt.
+
+**Die Zusicherung ist `geprueft`, nicht `ok`.** Eine blinde Prüfung meldet
+ebenfalls `ok`. Deshalb steht in jeder Prüfung der Datei die Zahl der
+geprüften Rechnungen — es ist die einzige Zusicherung, die eine leere Messung
+von einer sauberen Kette trennt. Dasselbe Muster wie bei der Gegenprobe in
+`tests/isolation/spaltenrechte.test.ts`.
+
+### D-379 · `versuche` hat bei einem `je_mandant`-Job heute keine Wirkung
+
+Beim Festlegen von `versuche: 0` für den Kettenprüfer fiel auf, dass die Zahl
+dort gar nichts steuert. `runner.ts` fängt bei `bereich: 'je_mandant'` den
+Fehler JE MANDANT, vermerkt ihn in `job_lauf_mandant`, meldet am Ende Alarm
+und **kehrt zurück** — die Wiederholungsschleife darüber wird nie ein zweites
+Mal betreten. Die drei bestehenden `je_mandant`-Jobs (`einsaetze_generieren`,
+`konflikte_erkennen`, `lead_sla_eskalation`) versprechen mit `versuche: 2`
+also eine Wiederholung, die niemand ausführt.
+
+Das ist hier festgehalten und **nicht** nebenbei geändert: ob ein einzelner
+fehlgeschlagener Mandant wiederholt werden soll — und ob dann der ganze Lauf
+oder nur dieser Mandant —, ist eine Entscheidung mit Folgen für Idempotenz und
+Alarmhäufigkeit. Für den Kettenprüfer ist `0` ohnehin die richtige Angabe: ein
+gebrochener Hash wird beim zweiten Hinsehen nicht heil, und was eine
+Wiederholung dort kaufen würde, ist Verzögerung zwischen Fund und Meldung —
+bei „alert immediately" (SPEC §14) genau das Falsche.
+
+### D-380 · SVG ist XML, und eine Merge-Wache liest jede einzelne
+
+Die acht Motivtafeln aus D-376 waren **nie wohlgeformt**. Der Erzeuger
+`scripts/motivtafeln.py` schrieb den Namen des Overlay-Tokens in einen
+XML-Kommentar — mitsamt seinen zwei fuehrenden Bindestrichen. Ein
+XML-Kommentar darf keinen doppelten Bindestrich enthalten, und eine SVG ist
+XML. Der Server lieferte die acht Dateien mit **200** aus, der Browser verwarf
+sie beim Parsen und zeichnete nichts. Die Startseite sah leer aus, und dass
+sie es war, stand in keinem Testbericht.
+
+**Warum das monatelang gruen war.** Es gab eine Pruefung. Sie prueft die
+sichtbare Platzhalter-Kennzeichnung NEBEN dem Bild — und die stand ja da. Das
+`<img>` war im DOM, der `src` stimmte, die Datei existierte, die Antwort war
+200. Jede Ebene UNTER dem Fehler war in Ordnung; genau das ist die Bauart, an
+der man solche Fehler erkennt. Eine Pruefung, die eine Ebene zu tief ansetzt,
+ist nicht halb so gut wie die richtige — sie ist gruen und damit schlechter
+als keine, weil sie den Platz besetzt.
+
+Die Wache `svg-wohlgeformt` in `pnpm guards` liest deshalb **die Datei
+selbst**, nicht die Seite, die sie einbindet.
+
+**Der Pruefer ist von Hand geschrieben** (`scripts/guards/xml-wohlgeformt.ts`).
+Node bringt kein `DOMParser` mit — das ist eine Browser-Schnittstelle, und weil
+`DOM` in `tsconfig.lib` steht, waere der erste Entwurf sauber durch den
+Typecheck gegangen und erst zur Laufzeit gestorben. Eine Abhaengigkeit
+aufzunehmen waere fuer eine Wache zu viel Gewicht.
+
+Ein selbstgeschriebener Parser hat genau eine gefaehrliche Fehlerart: **er ist
+sich einig mit sich selbst**, und ein Test aus derselben Hand teilt seine
+blinden Flecken. Deshalb wurde er gegen einen fremden, ausgewachsenen Parser
+abgeglichen — Pythons expat — auf zwei Wegen: 61 handgeschriebene Faelle und
+3000 zufaellige Mutationen der acht echten Tafeln (800 davon noch wohlgeformt,
+2200 kaputt). **Null Abweichungen in beide Richtungen.** Die 61 Faelle stehen
+als Tabelle in `tests/kern/xml-wohlgeformt.test.ts`; der Fuzzer war eine
+einmalige Gegenprobe und liegt nicht im Baum, weil er Python voraussetzt.
+
+Zwei Entwurfsentscheidungen, die dazugehoeren:
+
+- **Im Zweifel rot.** Was der Pruefer nicht versteht — eine `<!DOCTYPE …>` mit
+  interner Teilmenge, eine fremde `<!…>`-Deklaration —, meldet er, statt es zu
+  ueberspringen. Eine Wache, die im Zweifel schweigt, ist die Wache, die
+  diesen Fehler durchgelassen hat.
+- **Geprueft wird das Verzeichnis, nicht die Trefferzahl.** `mussLesen` waere
+  hier falsch: kommen eines Tages echte Fotos und verschwinden die Tafeln, ist
+  null SVG das richtige Ergebnis. Der Ausfall, den `mussLesen` sonst abfaengt —
+  ein vertippter Pfad, der still nichts liest —, faellt hier auf die Existenz
+  von `public/` zurueck.
+
+### D-381 · Die Gesellschaftswahl zieht in den Kopf
+
+DESIGN §6 verlangte sie woertlich „under the hero": vier runde Markenavatare
+unter dem Kopfbild. So war sie gebaut, und der Weg dorthin war selbst schon
+eine Korrektur — sie hatte vorher im Fussbereich gestanden, wo Code, Test und
+Testname sich einig waren und gemeinsam danebenlagen.
+
+**Unter dem Hero war sie aus zwei Gruenden falsch, die ein Entwurf nicht zeigen
+kann.** Sie sass unmittelbar unter dem Kopfbild, wo die ueberlebensgrosse
+Geisterschrift des Heros durchschlaegt; die vier Firmennamen landeten auf
+dieser Schrift und lasen sich als Kollision statt als Bedienelement. Und sie
+verbrauchte ein ganzes Band Hoehe direkt unter der Falz — auf genau der
+Flaeche, auf der der erste Eindruck entschieden wird.
+
+Der Mandant hat den Umzug verlangt, nachdem er den laufenden Auftritt gesehen
+hat. Das ist das bessere Beweismittel als der Entwurf, und DESIGN §6 ist
+mitgezogen, nicht umgangen.
+
+**Was der Umzug nebenbei behoben hat.** `aktiv` gab es an der Huelle und an
+`Abschnitte` — und gesetzt hat es niemand. Die Markenreihe bekam also immer
+`null` und hat die offene Gesellschaft nie hervorgehoben. Eine Eigenschaft, die
+alle durchreichen und keiner fuellt, faellt nicht auf: sie sieht nur auf jeder
+Seite gleich aus. Das Layout rechnet den Slug jetzt aus dem Pfad aus und prueft
+ihn gegen die ECHTEN Slugs — `/unternehmen/erfunden` hebt nichts hervor.
+
+**Drei Entwurfsentscheidungen.**
+
+- **Kein JavaScript.** `<details>` oeffnet ohne — wie das Telefonmenue daneben
+  und die Tableiste im Portal. Ein Auswahlfeld, das erst laedt, ist auf einem
+  schlechten Netz keines.
+- **Die Zusammenfassung zeigt, wo man IST**, nicht was man waehlen kann.
+  „Gesellschaften" als Dauerbeschriftung sagt auf allen fuenf Seiten dasselbe;
+  der Firmenname sagt etwas.
+- **Auf dem Telefon steht sie nicht im Kopf.** Der Kopf ist 72px hoch und
+  traegt dort schon den Menueknopf; ein zweites Klappelement daneben waere bei
+  375px kein Ziel mehr, das man trifft. Die vier Gesellschaften stehen deshalb
+  als eigener Abschnitt IM Vollbildmenue, vor „Angebot anfragen": erst wohin,
+  dann was.
+
+Der Fussbereich bleibt unveraendert — dort stehen die vier weiterhin als
+Textlinks neben ihrer Anschrift, mit eigener Beschriftung. Zwei `nav` mit
+demselben zugaenglichen Namen waeren ein mehrdeutiges Landmark; das hat dieser
+Zweig beim Telefonmenue schon einmal gekostet.
+
+`MarkenReihe.tsx` ist geloescht und nicht auskommentiert stehengeblieben.
+
+### D-382 · Die Motivtafel ist die Zeichnung — Overlay und Beschriftung gehoeren der Seite
+
+Nachdem D-380 (nicht wohlgeformtes XML) und der Tafel-Verlauf aus D-376/§4.1b
+behoben waren, war der Auftritt **immer noch** zu dunkel, und der Mandant sah
+ausserdem einen halbdurchsichtigen Doppelgaenger seiner eigenen Ueberschrift.
+Zwei weitere Ursachen, beide vom selben Denkfehler.
+
+**Der Overlay lag doppelt.** `Hero.tsx` und `MarkenKarte.tsx` legen den Token
+aus DESIGN §4.4 ueber jedes Bild — richtig so, denn ein Foto bringt keinen mit.
+Die Tafel brachte ihn trotzdem mit, ausgeschrieben, weil eine SVG die
+CSS-Variablen des Dokuments nicht sieht. Zwei Schichten multiplizieren sich:
+
+| Stelle | eine Schicht | zwei Schichten |
+|---|---|---|
+| Mitte | 0.55 | **0.80** |
+| Fuss | 0.92 | **0.994** |
+
+0.994 ist Schwarz. Die Tafel, die als Datei einwandfrei aussah, war auf der
+Seite wieder verschwunden — und zwar aus einem Grund, den man ihr nicht ansieht,
+weil er erst beim Einbau entsteht.
+
+**Die Beschriftung stand zweimal da.** Die Tafel trug „REALTIME SERVICE" und
+darunter „Hier steht spaeter eine Aufnahme …" eingebacken. Die Seite setzt ihre
+eigene Ueberschrift derselben Gesellschaft unmittelbar darueber. Das Ergebnis
+las sich als Darstellungsfehler, nicht als Kennzeichnung. Gemeldet hat es der
+Mandant, gesehen hatte es vorher niemand: im Dateibetrachter sieht die Tafel
+richtig aus, und der Browsertest prueft die Marke `Platzhalterbild` — die stand
+ja da, ein zweites Mal daneben faellt einer Zusicherung nicht auf.
+
+**Die Regel, die daraus folgt:** eine Motivtafel steht fuer ein Foto, also
+verhaelt sie sich wie eines. Kein Farbverlauf, keine Bildunterschrift — beides
+gehoert der Flaeche, die sie einbaut. DESIGN §4.1a ist mitgezogen.
+
+Gekennzeichnet bleibt der Platzhalter durch die Marke `Platzhalterbild`, die
+die Seite ohnehin rendert: **eine** Kennzeichnung, auf der Flaeche, wo sie
+sehen kann, was sonst noch dort steht.
+
+Die Zeile und die Marke wandern damit nicht ins Nichts — sie stehen weiter im
+`aria-label` des Wurzelelements der SVG und sind dort die einzige Auskunft, die
+ein Screenreader ueber das Bild bekommt.
+
+**Vier unabhaengige Ursachen fuer ein Symptom.** „Der Auftritt sieht von innen
+sehr schlecht aus und es ist nichts da" hatte am Ende vier Gruende: die Dateien
+waren kein gueltiges XML (D-380), der Mandant lief auf einem alten Stand ohne
+die Dateien, der Zeichenverlauf war fuer UI statt fuer Bild gerechnet (§4.1b),
+und Overlay wie Beschriftung lagen doppelt (hier). Jede einzelne haette
+gereicht. Dass drei davon erst nach der Behebung der jeweils vorigen sichtbar
+wurden, ist der Grund, warum „einmal hinsehen" hier nicht genuegt hat.
+
+### D-383 · Fuenf CC0-Aufnahmen als Zwischenloesung — kein Objekt, keine Person
+
+Der Mandant hat dreimal um echte Bilder gebeten und beim dritten Mal den
+entscheidenden Satz gesagt: es muessen **keine Personen** sein, nur nicht
+gezeichnet und ohne Lizenzkosten. Damit war die Aufgabe eine andere.
+
+**Warum die ersten beiden Runden nichts ergaben.** Gesucht wurde nach
+Menschen bei der Arbeit — „Reinigungskraft", „Wachmann", „Bauarbeiter". Die
+freien Quellen sind dort Archiv und nicht Werbefotografie: fuer die Reinigung
+kamen Scheuersaugmaschinen auf Parkdecks und ein Kind auf einer Maschine, fuer
+die Security ukrainische Kriegsgraeber und ein Friedhof in Pionki. Nichts
+davon geht auf den Auftritt eines Sicherheitsdienstes, und es wurde auch
+nichts davon abgelegt.
+
+**Architektur ist die Staerke derselben Quellen.** Ohne Personen oeffnet sich
+der CC0-Bestand, den Commons aus Unsplash uebernommen hat: professionelle
+Aufnahmen, 4000 bis 6700 px, gemeinfrei gestellt. Fuenf davon liegen jetzt in
+`public/bilder/` — Stadtbild, Innenraum, Fassade bei Nacht, Baustelle, Buero.
+
+**Drei Bedingungen, die alle fuenf erfuellen:**
+
+- **CC0.** Keine Namensnennungspflicht, keine Gebuehr. Damit braucht der
+  Auftritt keine Impressumszeile fuer Bildrechte und keinen Credits-Abschnitt,
+  den beim naechsten Bild jemand vergisst. CC BY waere fachlich sauber
+  gewesen, haette aber eine Pflicht eingefuehrt, die niemand bestellt hat.
+- **Kein bestimmtes Objekt der Gruppe.** §4.3 bleibt unangetastet: ein fremdes
+  Gebaeude auf der Projektseite DIESER Gruppe waere eine Behauptung, die
+  niemand deckt. Die fuenf tragen das Gewerk und sagen nichts ueber einen
+  konkreten Auftrag. Objekt- und Projektkacheln bekommen ausdruecklich keines
+  — dort bleibt die reservierte Flaeche.
+- **Keine Personen.** §4.2 ist damit gar nicht erst beruehrt, und niemand auf
+  dem Auftritt kann fuer Belegschaft gehalten werden, der keine ist.
+
+**Was sie NICHT sind: das Ende von O-13.** DESIGN §4.1 verlangt eigene
+Aufnahmen, und das bleibt richtig — eine Gruppe, die koerperliche Anwesenheit
+verkauft, zeigt am Ende ihre eigenen Objekte. Die Herkunft jeder Datei steht in
+`public/bilder/HERKUNFT.md`; ein Austausch ist eine Datei, kein Codepfad.
+
+**Die sichtbare Folge, die dazugehoert.** Was in `public/bilder/` liegt,
+erscheint OHNE Platzhalter-Kennzeichnung — die Seite behauptet ab jetzt, das
+Bild gehoere zum Motiv. Das ist die Zusage, die der Ordner seit jeher macht
+(`LIESMICH.md`), und sie gilt jetzt zum ersten Mal wirklich.
+
+**Und eine Zusicherung, die daran zerbrochen waere.** Der Browsertest
+verlangte `marken > 0` — also dass die Startseite Platzhalter HAT. Das ist
+nicht, was §4.1 fordert, und es war doppelt falsch: drei unmarkierte
+Platzhalter waren erlaubt, solange einer markiert war, und die Zusicherung
+faellt am Tag des Erfolgs, wenn echte Bilder eintreffen. Sie prueft jetzt die
+Aussage selbst — so viele Marken wie Platzhalterbilder, und null Platzhalter
+erfuellen das richtig.

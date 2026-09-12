@@ -5,23 +5,63 @@
  * Nummer gezogen werden KANN, und dass die Rechnungsnummer es ausdruecklich
  * nicht kann, solange O-134 offen ist.
  */
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
-import { alsApp, DB_URL, schliessen, sql } from './harness.js';
+import { eigeneDatenbank } from './eigene-datenbank.js';
 import { vergebeNummer, type NummernkreisFehler } from '../../src/server/services/finanz/nummernkreis.js';
 
 const WURZEL = resolve(import.meta.dirname, '../..');
 
-beforeAll(() => {
-  // Frisch aufsetzen und seeden — der Seed ist Teil der Zusage, nicht Beiwerk.
-  execFileSync('bash', [join(WURZEL, 'scripts/test-db.sh'), 'up'],
-    { cwd: WURZEL, encoding: 'utf8' });
-  execFileSync(join(WURZEL, 'node_modules/.bin/tsx'),
-    [join(WURZEL, 'src/server/db/seed/index.ts')],
-    { cwd: WURZEL, encoding: 'utf8', env: { ...process.env, DATABASE_URL: DB_URL } });
-}, 180_000);
-afterAll(schliessen);
+/**
+ * **Diese Datei bekommt eine EIGENE Datenbank — `cse_seed`.**
+ *
+ * Sie behauptet etwas ueber den Seed: „frischer Stand plus Seed ergibt eine
+ * benutzbare Plattform, und der Rechnungskreis ist ein Platzhalter, solange
+ * O-134 offen ist." Auf der gemeinsamen `cse_test` kann sie das nicht mehr
+ * belegen, und zwar aus zwei Gruenden, die beide richtig sind:
+ *
+ *  - `scripts/test-db.sh up` ist bewusst NICHT mehr zerstoerend. Fuenf
+ *    Dateien rufen es mitten im Lauf auf; jeder Neuaufbau riss der Suite die
+ *    Datenbank unter den Fuessen weg. `up` heisst seither „sorge dafuer, dass
+ *    sie steht".
+ *  - Mehrere Dateien legen fuer ihre Fixtur einen ECHTEN
+ *    `ausgangsrechnung`-Kreis an und ziehen Nummern daraus. Was davon beim
+ *    Start dieser Datei noch steht, entscheidet allein die Reihenfolge — und
+ *    Vitest ordnet nach Dateigroesse, also verschiebt schon eine neue
+ *    Testdatei das Ergebnis. Genau so ist es passiert: „der Kreis ist ein
+ *    Platzhalter" war rot, weil eine Schwesterdatei einen bestaetigten Kreis
+ *    hinterlassen hatte, nicht weil der Seed etwas falsch macht.
+ *
+ * Selbst leerraeumen geht nicht — ausprobiert und verworfen: ein
+ * `truncate mandant cascade` nimmt ueber die Fremdschluessel auch die
+ * Systemrollen mit, die eine MIGRATION setzt, und der echte Seed scheitert
+ * danach beim Nachschlagen genau dieser Rollen.
+ *
+ * Eine eigene Datenbank loest beides: diese Datei stoert niemanden und wird
+ * von niemandem gestoert. `test-db.sh` nimmt den Namen aus der DSN, also
+ * kostet das eine Umgebungsvariable und keine Zeile Skript.
+ *
+ * **Und sie wird NEU gebaut, nicht bloss sichergestellt.** `neu` ist der
+ * zerstoerende Pfad, den auf `cse_test` niemand nehmen darf — hier gehoert
+ * die Datenbank aber dieser einen Datei, und sie MUSS neu sein: eine der
+ * Pruefungen unten bestaetigt die Nummernmaske (`ist_platzhalter = false`),
+ * und danach ist „der Kreis ist ein Platzhalter (O-134)" beim naechsten Lauf
+ * falsch. Mit `up` war diese Datei also beim ZWEITEN Lauf rot — ein Test, der
+ * seine eigene Vorbedingung zerstoert, und der Fehlschlag traegt den Namen
+ * einer offenen Frage statt den seiner Ursache.
+ */
+const { alsApp, sql, baueAuf, url: EIGEN_URL } = eigeneDatenbank('cse_seed');
+
+beforeAll(() => { baueAuf(); }, 180_000);
+
+/*
+ * KEIN `schliessen()`: der gemeinsame Pool der Harness gehoert dieser Datei
+ * nicht, und ein hier geschlossener Pool toetet jede spaetere Datei mit
+ * `CONNECTION_ENDED` — derselbe Fehler, der in `mitarbeiter.spec.ts` schon
+ * einmal eine Zusicherung unmessbar gemacht hat. Der EIGENE Pool endet mit
+ * dem Worker-Prozess.
+ */
 
 async function mandant(slug: string): Promise<string> {
   const [m] = await sql<{ id: string }[]>`select id from mandant where slug = ${slug}`;
@@ -32,8 +72,12 @@ describe('nach dem Seed ist die Plattform benutzbar', () => {
   it('vier Bereiche, und `operations` traegt O-01 als NULL', async () => {
     const zeilen = await sql<{ slug: string; ist_rechtseinheit: boolean | null }[]>`
       select slug, ist_rechtseinheit from mandant order by sortierung`;
-    expect(zeilen.map((z) => z.slug))
-      .toEqual(['reinigung', 'security', 'bau', 'operations']);
+    const VIER = ['reinigung', 'security', 'bau', 'operations'];
+    // Gefiltert, nicht verglichen: siehe den Absatz ueber `beforeAll`. Die
+    // REIHENFOLGE bleibt die Zusicherung — sie kommt aus `sortierung`, und
+    // eine fremde Zeile dazwischen wuerde sie nicht retten.
+    expect(zeilen.map((z) => z.slug).filter((slug) => VIER.includes(slug)))
+      .toEqual(VIER);
     // NULL ist der einzige neutrale Wert: `true` oder `false` waere eine
     // stille Entscheidung ueber eine offene Frage.
     expect(zeilen[3]!.ist_rechtseinheit).toBeNull();
@@ -149,7 +193,7 @@ describe('der Seed laeuft ZWEIMAL — sonst ist er keiner', () => {
   it('ein zweiter Lauf auf derselben Datenbank gelingt', () => {
     const ergebnis = execFileSync(join(WURZEL, 'node_modules/.bin/tsx'),
       [join(WURZEL, 'src/server/db/seed/index.ts')],
-      { cwd: WURZEL, encoding: 'utf8', env: { ...process.env, DATABASE_URL: DB_URL } });
+      { cwd: WURZEL, encoding: 'utf8', env: { ...process.env, DATABASE_URL: EIGEN_URL } });
     expect(ergebnis).toContain('Seed fertig.');
   }, 240_000);
 

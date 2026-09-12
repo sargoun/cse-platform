@@ -355,13 +355,22 @@ export default async function NachweisBlatt({
               'Kein Unterschriftsbild hinterlegt — der Bildspeicher war nicht verbunden.'
             ) : (
               <>
-                <Link
+                {/*
+                  Ein `<a>`, kein `<Link>`.
+
+                  `/api/medien/[id]` ist ein Endpunkt, keine Seite: er
+                  signiert eine Adresse und leitet auf den Speicher um. Die
+                  Client-Navigation von `next/link` hat dort nichts zu
+                  suchen — und `typedRoutes` sagt das auch, weil eine
+                  API-Route in der Routenkarte gar nicht steht. Die
+                  Zeitenseite macht es an derselben Stelle schon so.
+                */}
+                <a
                   href={`/api/medien/${unterschrift.signaturMedienId}`}
                   className="underline hover:text-text"
-                  prefetch={false}
                 >
                   Unterschriftsbild anfordern
-                </Link>
+                </a>
                 {' '}— privater Bucket, Adresse wird auf Abruf signiert und läuft
                 nach 15 Minuten ab.
               </>

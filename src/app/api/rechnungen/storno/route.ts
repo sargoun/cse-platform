@@ -9,6 +9,9 @@ import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant, type SchreibKontext } from '@/server/kontext/index';
 import { RechnungFehler, korrigiere, storniere } from '@/server/services/finanz/rechnung';
+import {
+  berichtAlsJson, PflichtfeldFehler,
+} from '@/server/services/finanz/ustg14';
 
 /**
  * `POST /api/rechnungen/storno` — die stornierende Buchung (Invariante 4).
@@ -93,6 +96,20 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     }
     if (fehler instanceof NichtGefundenFehler) {
       return NextResponse.json({ fehler: 'unbekannt' }, { status: 404 });
+    }
+    /**
+     * Auch der Storno laeuft durch `finalisiere` — und damit durch die
+     * §14-UStG-Vorabpruefung (FIN-04). Ein Original, dessen Kundenanschrift
+     * seither geloescht wurde, laesst sich deshalb nicht mehr stornieren,
+     * ohne den Stammsatz zu reparieren. Das ist richtig so: die Stornozeile
+     * ist selbst eine Rechnung und schuldet dieselben Pflichtangaben.
+     */
+    if (fehler instanceof PflichtfeldFehler) {
+      return NextResponse.json({
+        fehler: fehler.grund,
+        text: fehler.message,
+        bericht: berichtAlsJson(fehler.bericht),
+      }, { status: 409 });
     }
     if (fehler instanceof RechnungFehler) {
       return NextResponse.json({ fehler: fehler.grund, text: fehler.message }, { status: 409 });
