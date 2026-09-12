@@ -197,19 +197,19 @@ unbestimmter Reihenfolge. Wer eine neue braucht, nimmt die naechste, die in
 `drizzle/` noch fehlt. `0068`–`0071` aus dem PR-Plan sind ohnehin laengst
 vergeben.
 
-**Mit einer Ausnahme: `0086` bleibt frei.** „Die naechste, die noch fehlt" ist
-hier `0086` — und genau die darf niemand nehmen. Sie liegt auf
-`claude/phase-5-dienstplan-zeit` als `0086_abrechnungsart` (PR 48) und waere
-nach dem Zusammenfuehren zweimal vergeben. Dasselbe gilt in die andere
-Richtung: `0085`, `0087` und `0088` heissen hier
-`0085_arbzg_befund_zeitraum`, `0087_steuersatz_historie` und
+**Die drei Kollisionen sind aufgeloest — und eine Wache haelt sie jetzt
+fern.** Beim Zusammenfuehren von Phase 6 gab es `0085`, `0087` und `0088`
+zweimal: hier `0085_arbzg_befund_zeitraum`, `0087_steuersatz_historie` und
 `0088_arbzg_befund_ueberholen`, auf dem Phase-6-Zweig
 `0085_rechnung_pflichtfelder`, `0087_rechnungsposition_typ` und
-`0088_position_herkunft`. Drei Kollisionen und eine reservierte Luecke, und
-keine davon meldet sich: wer Phase 6 hereinholt, benennt sie vorher um. Eine
-neue Migration in DIESEM Zweig
-faengt deshalb oberhalb des hoechsten vergebenen Standes an, nicht in der
-Luecke.
+`0088_position_herkunft`; dazu `0086_abrechnungsart`, fuer das hier eine
+Luecke reserviert war. Die vier Phase-6-Migrationen heissen seit dem Merge
+`0104`–`0107` und laufen damit hinter allem, was auf `main` steht.
+
+Gemeldet hat sich keine davon — deshalb gibt es seither die Merge-Wache
+`migrationsnummer` (`scripts/guards/run-all.ts`): zwei `.sql`-Dateien mit
+derselben vierstelligen Nummer machen `pnpm guards` rot, mit Nennung beider
+Dateinamen. Falsifiziert gegen eine angelegte Doppelnummer.
 
 ## Die Schuld, die benannt ist
 
