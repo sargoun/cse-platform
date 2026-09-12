@@ -1,0 +1,26 @@
+-- 0098 — `mandant.angaben_bestaetigt_von` faellt wieder weg.
+--
+-- **Was 0097 ausgeloest hat.** Die Spalte trug
+-- `references benutzer (id)` — einen Fremdschluessel VOM Mandanten AUF einen
+-- Benutzer. Das kehrt die Richtung um, in der dieses Schema sonst zeigt:
+-- `mandant` ist die Wurzel, alles andere verweist auf sie. Mit der neuen
+-- Kante nimmt ein Schreibvorgang auf `mandant` eine Sperre auf einer
+-- `benutzer`-Zeile — waehrend das Anlegen eines Benutzers ueber
+-- `benutzer_mandant` in die andere Richtung sperrt. Zwei Transaktionen, die
+-- beides tun, greifen die Sperren in umgekehrter Reihenfolge:
+-- `deadlock detected`.
+--
+-- Aufgefallen ist es in der Isolationssuite, die je Pruefung frisch seedet und
+-- dabei beides anfasst — sieben Fehlschlaege in einer Datei, davon sechs
+-- Folgefehler aus der abgebrochenen Transaktion („insert or update on table
+-- benutzer violates foreign key constraint"). Ein Deadlock, den eine Fixtur
+-- ausloest, loest im Betrieb auch jemand aus.
+--
+-- **Und die Spalte war ohnehin die schwaechere Loesung.** WER etwas bestaetigt
+-- hat, gehoert in das Auditprotokoll — dort steht es mit Zeitpunkt, Aktion und
+-- Nutzlast, und dort steht es unveraenderlich. Eine Spalte daneben ist eine
+-- zweite Wahrheit, die beim naechsten `update` ohne Protokollzeile still
+-- auseinanderlaeuft. `angaben_bestaetigt_am` bleibt: es beantwortet die einzige
+-- Frage, die die Oberflaeche stellt — bestaetigt oder nicht (O-353).
+
+alter table mandant drop column if exists angaben_bestaetigt_von;

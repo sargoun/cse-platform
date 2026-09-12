@@ -35,4 +35,7 @@ comment on column mandant.angaben_bestaetigt_am is
 
 -- Lesbar fuer die Anwendung wie die uebrigen Stammdaten; der Auftritt liest
 -- sie ueber denselben Weg wie Firma und Anschrift.
-grant select (angaben_bestaetigt_am, angaben_bestaetigt_von) on mandant to cse_app;
+grant select (angaben_bestaetigt_am) on mandant to cse_app;
+-- `angaben_bestaetigt_von` stand hier ebenfalls und faellt in 0098 wieder weg:
+-- ein Fremdschluessel vom Mandanten auf einen Benutzer kehrt die Richtung des
+-- Schemas um und hat Deadlocks erzeugt. Wer bestaetigt hat, steht im Audit.
