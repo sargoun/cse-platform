@@ -1,10 +1,13 @@
 import { Hero } from './Hero';
 import { MarkenKarte } from './MarkenKarte';
-import { motivFuerBereich, platzhalterBild } from '@/lib/placeholder-assets';
+import { MarkenReihe } from './MarkenReihe';
+import { motivFuerBereich, type PlatzhalterMotiv } from '@/lib/placeholder-assets';
+import { bildFuerMotiv } from '@/server/inhalt/bilder';
 import { faqAus, leistungenAus } from '@/server/services/inhalt/jsonld';
 import type { Abschnitt, Seite } from '@/server/services/inhalt/seite';
 import type { ShellBereich } from './OeffentlicheShell';
 import { mitSprache, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
+import { shellTexte } from '@/lib/i18n/texte';
 
 /**
  * Rendert die Abschnitte einer `seite`.
@@ -24,14 +27,27 @@ import { mitSprache, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
  * Angabe, die hier ohnehin vorliegt, und ein zusaetzliches Feld an `seite`
  * waere ein zweiter Ort, an dem dieselbe Zuordnung gepflegt werden muss.
  */
-function motivFuerPfad(pfad: string): Parameters<typeof platzhalterBild>[0] {
+function motivFuerPfad(pfad: string): PlatzhalterMotiv {
   const teil = pfad.replace(/^\/(?:en\/)?/u, '').split('/');
   return motivFuerBereich(teil[0] === 'unternehmen' ? teil[1] : undefined);
 }
 
-function bildVon(a: Abschnitt, motiv: Parameters<typeof platzhalterBild>[0] = 'gruppe') {
+/*
+ * **Drei Stufen, in dieser Reihenfolge.**
+ *
+ * 1. Das Medium, das jemand DIESEM Abschnitt zugeordnet hat (`medien`) — die
+ *    einzige Stufe, die etwas ueber diesen Abschnitt weiss.
+ * 2. Eine Datei in `public/bilder/<motiv>.*` — der schnelle Weg, solange der
+ *    Speicher nicht verbunden ist: Datei hinlegen, fertig.
+ * 3. Der Platzhalter, sichtbar gekennzeichnet.
+ *
+ * Die Reihenfolge ist die Aussage: je spezifischer die Zuordnung, desto eher
+ * gewinnt sie. Umgekehrt ueberschriebe eine allgemeine Bereichsdatei das
+ * Bild, das jemand fuer genau diesen Abschnitt ausgesucht hat.
+ */
+function bildVon(a: Abschnitt, motiv: PlatzhalterMotiv = 'gruppe') {
   return a.medium === null
-    ? platzhalterBild(motiv)
+    ? bildFuerMotiv(motiv)
     : { pfad: a.medium.pfad, alt: a.medium.alt, platzhalter: a.medium.platzhalter };
 }
 
@@ -87,24 +103,42 @@ export interface AbschnitteProps {
   readonly bereiche: readonly ShellBereich[];
   /** Kurztexte je Bereich fuer die Markenkarten der Startseite. */
   readonly ansprueche: Readonly<Record<string, string>>;
+  /** Der Slug der Gesellschaft, deren Seite gerade offen ist — sonst `null`. */
+  readonly aktiv?: string | null;
 }
 
 export function Abschnitte(
-  { seite, bereiche, ansprueche, sprache = VORGABE_SPRACHE }: AbschnitteProps,
+  { seite, bereiche, ansprueche, aktiv = null, sprache = VORGABE_SPRACHE }: AbschnitteProps,
 ) {
+  const t = shellTexte(sprache);
   return (
     <>
       {seite.abschnitte.map((a) => {
         switch (a.art) {
           case 'hero':
+            /*
+             * Die Markenreihe gehoert UNTER den Hero — DESIGN §6 woertlich:
+             * „four brand avatars under the hero, tapping one opens that
+             * company's profile". Sie stand im Fussbereich, und der Test hiess
+             * genauso; Code, Pruefung und Testname waren sich einig und lagen
+             * gemeinsam daneben.
+             */
             return (
-              <Hero
-                key={a.id}
-                ueberschrift={a.ueberschrift ?? seite.titel}
-                akzentWort={a.akzentWort}
-                text={a.text}
-                bild={bildVon(a, motivFuerPfad(seite.pfad))}
-              />
+              <div key={a.id}>
+                <Hero
+                  ueberschrift={a.ueberschrift ?? seite.titel}
+                  akzentWort={a.akzentWort}
+                  text={a.text}
+                  bild={bildVon(a, motivFuerPfad(seite.pfad))}
+                  sprache={sprache}
+                />
+                <MarkenReihe
+                  bereiche={bereiche}
+                  aktiv={aktiv}
+                  sprache={sprache}
+                  beschriftung={t.bereicheNav}
+                />
+              </div>
             );
           case 'markenkarten':
             return (
@@ -119,7 +153,8 @@ export function Abschnitte(
                     titel={b.name}
                     anspruch={ansprueche[b.slug] ?? ''}
                     href={mitSprache(`/unternehmen/${b.slug}`, sprache)}
-                    bild={platzhalterBild(motivFuerBereich(b.bereich))}
+                    bild={bildFuerMotiv(motivFuerBereich(b.bereich))}
+                    sprache={sprache}
                   />
                 ))}
               </section>

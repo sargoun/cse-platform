@@ -34,7 +34,9 @@ export function KpiStat({ label, wert, ton = 'info', icon, delta }: KpiStatProps
         {typeof icon === 'string' ? <Icon name={icon as IconName} /> : (icon ?? <Icon name="info" />)}
       </div>
       <div className="text-micro uppercase tracking-[0.08em] text-text-muted">{label}</div>
-      <div data-cse="kpi-wert" className="mt-s1 text-h2 text-text">{wert}</div>
+      {/* `cse-zahl`: der Wert ist eine Zahl mit Einheit und darf in einem
+          RTL-Absatz nicht umgeordnet werden — siehe globals.css. */}
+      <div data-cse="kpi-wert" className="cse-zahl-frei mt-s1 text-h2 text-text">{wert}</div>
       {delta !== undefined && (
         <div
           className={`mt-s2 text-sm ${delta.richtung === 'auf' ? 'text-success' : 'text-danger'}`}

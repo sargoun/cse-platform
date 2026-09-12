@@ -1,131 +1,133 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" role="img" aria-label="Platzhalter: Crew von hinten im Morgenlicht — bewusst ohne Gesichter">
-<defs>
- <linearGradient id="hi" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2A3A55"/><stop offset="0.36" stop-color="#5D5A64"/><stop offset="0.62" stop-color="#9E7A5C"/><stop offset="0.84" stop-color="#C58F55"/><stop offset="1" stop-color="#5A4130"/></linearGradient>
- <radialGradient id="key" cx="0.5" cy="0.62" r="0.9">
-   <stop offset="0" stop-color="#FFD79A" stop-opacity="0.55"/>
-   <stop offset="0.34" stop-color="#FFD79A" stop-opacity="0.17"/>
-   <stop offset="1" stop-color="#FFD79A" stop-opacity="0"/></radialGradient>
- <radialGradient id="scheibe" cx="0.5" cy="0.5" r="0.5">
-   <stop offset="0" stop-color="#FFFCF2" stop-opacity="1"/>
-   <stop offset="0.55" stop-color="#FFF3D8" stop-opacity="0.92"/>
-   <stop offset="0.82" stop-color="#FFE3A8" stop-opacity="0.45"/>
-   <stop offset="1" stop-color="#FFD79A" stop-opacity="0"/></radialGradient>
- <linearGradient id="tuer" x1="0" y1="0" x2="1" y2="0">
-   <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.55"/>
-   <stop offset="0.35" stop-color="#FFFFFF" stop-opacity="0.12"/>
-   <stop offset="1" stop-color="#07080B" stop-opacity="0.16"/></linearGradient>
- <linearGradient id="wand" x1="0" y1="0" x2="0" y2="1">
-   <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.30"/>
-   <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.04"/>
-   <stop offset="1" stop-color="#07080B" stop-opacity="0.22"/></linearGradient>
- <linearGradient id="dunst" x1="0" y1="0" x2="0" y2="1">
-   <stop offset="0" stop-color="#FFFFFF" stop-opacity="0"/>
-   <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.16"/></linearGradient>
- <linearGradient id="vig" x1="0" y1="0" x2="0" y2="1">
-   <stop offset="0" stop-color="#07080B" stop-opacity="0.20"/>
-   <stop offset="0.38" stop-color="#07080B" stop-opacity="0"/>
-   <stop offset="0.78" stop-color="#07080B" stop-opacity="0.06"/>
-   <stop offset="1" stop-color="#07080B" stop-opacity="0.26"/></linearGradient>
- <radialGradient id="rand" cx="0.5" cy="0.5" r="0.82">
-   <stop offset="0.6" stop-color="#07080B" stop-opacity="0"/>
-   <stop offset="1" stop-color="#07080B" stop-opacity="0.30"/></radialGradient>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2560 1440" width="2560" height="1440"
+     role="img" aria-label="Motivtafel — hier steht spaeter eine Aufnahme des Teams.">
+  <!--
+    Motivtafel, kein Bild (DESIGN §4.1a, D-376). Sie ist erkennbar eine
+    Zeichnung: flache Flaechen, keine Fototiefe, Figuren als Silhouette ohne
+    Gesicht (§4.2). Sie haelt den Platz sichtbar frei und behauptet nichts.
+    Liegt eine Datei unter public/bilder/team.*, gewinnt die. O-13.
+    Erzeugt von scripts/motivtafeln.py — nicht von Hand aendern.
+  -->
+  <defs>
+    <linearGradient id="grund" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1F1F24"/>
+      <stop offset="0.55" stop-color="#17171B"/>
+      <stop offset="1" stop-color="#101013"/>
+    </linearGradient>
+    <radialGradient id="schein" cx="0.5" cy="0.22" r="0.78">
+      <stop offset="0" stop-color="#E30613" stop-opacity="0.16"/>
+      <stop offset="0.55" stop-color="#E30613" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#E30613" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="overlay" x1="0" y1="0" x2="0" y2="1">
+      <!-- derselbe Verlauf wie `--bild-overlay` in DESIGN §4.4, hier
+           ausgeschrieben: eine SVG-Datei sieht die CSS-Variablen des
+           Dokuments nicht. -->
+      <stop offset="0" stop-color="#08080A" stop-opacity="0.15"/>
+      <stop offset="0.55" stop-color="#08080A" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#08080A" stop-opacity="0.92"/>
+    </linearGradient>
+  </defs>
 
- <filter id="korn" x="0" y="0" width="100%" height="100%">
-   <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch" result="n"/>
-   <feColorMatrix in="n" type="saturate" values="0" result="g"/>
-   <feComponentTransfer in="g" result="k">
-     <feFuncA type="linear" slope="0.13" intercept="0"/>
-   </feComponentTransfer>
-   <feComposite in="k" in2="SourceGraphic" operator="in"/>
- </filter>
- <filter id="fern" x="-10%" y="-10%" width="120%" height="120%">
-   <feGaussianBlur stdDeviation="7"/></filter>
- <filter id="mittel" x="-10%" y="-10%" width="120%" height="120%">
-   <feGaussianBlur stdDeviation="2.6"/></filter>
- <filter id="nah" x="-10%" y="-10%" width="120%" height="120%">
-   <feGaussianBlur stdDeviation="0.7"/></filter>
- <filter id="glanz" x="-60%" y="-60%" width="220%" height="220%">
-   <feGaussianBlur stdDeviation="26"/></filter>
- <filter id="weich" x="-40%" y="-40%" width="180%" height="180%">
-   <feGaussianBlur stdDeviation="9"/></filter>
-</defs>
-<rect width="1600" height="900" fill="url(#hi)"/>
-<rect width="1600" height="900" fill="url(#key)"/><circle cx="800" cy="600" r="210" fill="#FFD08A" opacity="0.5" filter="url(#glanz)"/><circle cx="800" cy="600" r="120" fill="url(#scheibe)" opacity="0.55"/><g opacity="0.62" filter="url(#fern)"><rect x="0" y="601" width="72" height="79" fill="#3A3F4E"/><rect x="88" y="452" width="94" height="228" fill="#3A3F4E"/><rect x="119" y="426" width="23" height="26" fill="#3A3F4E"/><rect x="193" y="476" width="155" height="204" fill="#3A3F4E"/><rect x="244" y="450" width="38" height="26" fill="#3A3F4E"/><rect x="350" y="537" width="146" height="143" fill="#3A3F4E"/><rect x="518" y="570" width="116" height="110" fill="#3A3F4E"/><rect x="657" y="603" width="75" height="77" fill="#3A3F4E"/><rect x="743" y="468" width="161" height="212" fill="#3A3F4E"/><rect x="796" y="442" width="40" height="26" fill="#3A3F4E"/><rect x="916" y="492" width="61" height="188" fill="#3A3F4E"/><rect x="990" y="401" width="128" height="279" fill="#3A3F4E"/><rect x="1134" y="473" width="72" height="207" fill="#3A3F4E"/><rect x="1158" y="447" width="18" height="26" fill="#3A3F4E"/><rect x="1217" y="582" width="162" height="98" fill="#3A3F4E"/><rect x="1389" y="470" width="158" height="210" fill="#3A3F4E"/><rect x="1548" y="566" width="122" height="114" fill="#3A3F4E"/></g><rect x="0" y="310" width="1600" height="380" fill="url(#dunst)" opacity="0.5"/><g opacity="0.5"><g stroke="#4E4A42" stroke-width="6" fill="none" stroke-linecap="round"><path d="M1235 684 V254"/><path d="M1265 684 V254"/><path d="M1235 684 H1265" stroke-width="3.5" opacity="0.85"/><path d="M1235 684 L1265 632 M1265 684 L1235 632" stroke-width="3" opacity="0.7"/><path d="M1235 632 H1265" stroke-width="3.5" opacity="0.85"/><path d="M1235 632 L1265 580 M1265 632 L1235 580" stroke-width="3" opacity="0.7"/><path d="M1235 580 H1265" stroke-width="3.5" opacity="0.85"/><path d="M1235 580 L1265 528 M1265 580 L1235 528" stroke-width="3" opacity="0.7"/><path d="M1235 528 H1265" stroke-width="3.5" opacity="0.85"/><path d="M1235 528 L1265 476 M1265 528 L1235 476" stroke-width="3" opacity="0.7"/><path d="M1235 476 H1265" stroke-width="3.5" opacity="0.85"/><path d="M1235 476 L1265 424 M1265 476 L1235 424" stroke-width="3" opacity="0.7"/><path d="M1235 424 H1265" stroke-width="3.5" opacity="0.85"/><path d="M1235 424 L1265 372 M1265 424 L1235 372" stroke-width="3" opacity="0.7"/><path d="M1235 372 H1265" stroke-width="3.5" opacity="0.85"/><path d="M1235 372 L1265 320 M1265 372 L1235 320" stroke-width="3" opacity="0.7"/><path d="M1235 320 H1265" stroke-width="3.5" opacity="0.85"/><path d="M1235 320 L1265 268 M1265 320 L1235 268" stroke-width="3" opacity="0.7"/><path d="M1235 254 H1265" stroke-width="4"/><path d="M1250 258 H1520"/><path d="M1250 258 H1160"/><path d="M1250 258 L1250 208"/><path d="M1250 208 L1520 258" stroke-width="3"/><path d="M1250 208 L1385 258" stroke-width="3"/><path d="M1250 208 L1160 258" stroke-width="3"/></g><rect x="1224" y="262" width="52" height="34" rx="4" fill="#4C566B"/><rect x="1228" y="266" width="30" height="18" rx="2" fill="#9FB4D0" opacity="0.55"/><rect x="1138" y="250" width="34" height="26" fill="#556075"/><rect x="1405" y="256" width="24" height="12" rx="3" fill="#8A93A5"/><path d="M1417 268 V404" stroke="#8A93A5" stroke-width="3"/><rect x="1371" y="404" width="92" height="60" rx="4" fill="#6E6154"/><rect x="1371" y="404" width="92" height="10" rx="4" fill="#8B7C6B"/></g><circle cx="800" cy="604" r="150" fill="#FFE7B4" opacity="0.55" filter="url(#glanz)"/><circle cx="800" cy="604" r="104" fill="url(#scheibe)"/><rect x="0" y="520" width="1600" height="200" fill="#FFDCA0" opacity="0.10" filter="url(#weich)"/><rect x="0" y="690" width="1600" height="210" fill="#3A3128"/><rect x="0" y="690" width="1600" height="6" fill="#544635"/><path d="M0 780 Q500 744 1010 788 T1600 764 L1600 900 L0 900 Z" fill="#2E2820"/><ellipse cx="800" cy="716" rx="620" ry="56" fill="#FFD79A" opacity="0.20" filter="url(#weich)"/><g transform="translate(330,838) scale(1.32,1.32)">
- <ellipse cx="2" cy="3" rx="26" ry="6" fill="#07080B" opacity="0.4" filter="url(#weich)"/>
- <g fill="#14161D">
-  <path d="M-13 0 l1 -46 h6 l3 30 l3 -30 h6 l1 46 z"/><path d="M-15 -46 q15 -8 30 0 l-2 -30 q-13 -6 -26 0 z"/><path d="M-15 -76 q-9 6 -11 30 l7 2 q2 -18 6 -24 zM15 -76 q9 6 11 30 l-7 2 q-2 -18 -6 -24 z"/>
-  <circle cx="0" cy="-84" r="10"/>
-  <path d="M-15 -76 q15 -7 30 0 l-3 -9 q-12 -5 -24 0 z"/>
- </g>
- <path d="M-14 -60 q14 -6 28 0 l1 -7 q-15 -6 -30 0 z" fill="#F5A524" opacity="0.85"/>
- <path d="M-14 -70 q14 -6 28 0 l1 -5 q-15 -5 -30 0 z" fill="#EDF4FF" opacity="0.5"/>
- <g fill="#FFE3B0" opacity="0.55" transform="scale(-1,1)">
-  <path d="M13 -78 q4 14 3 32 l-4 -1 q1 -17 -2 -30 z"/>
-  <circle cx="7" cy="-88" r="3.5"/>
- </g>
-</g><g transform="translate(496,838) scale(-1.44,1.44)">
- <ellipse cx="2" cy="3" rx="26" ry="6" fill="#07080B" opacity="0.4" filter="url(#weich)"/>
- <g fill="#14161D">
-  <path d="M-14 0 l2 -46 h6 l2 30 l3 -30 h6 l2 46 z"/><path d="M-16 -46 q16 -8 32 0 l-3 -30 q-13 -6 -26 0 z"/><path d="M-15 -74 q-10 10 -8 30 l7 -1 q-1 -16 4 -22 zM15 -74 q10 10 8 30 l-7 -1 q1 -16 -4 -22 z"/>
-  <circle cx="0" cy="-84" r="10"/>
-  <path d="M-15 -76 q15 -7 30 0 l-3 -9 q-12 -5 -24 0 z"/>
- </g>
- <path d="M-14 -60 q14 -6 28 0 l1 -7 q-15 -6 -30 0 z" fill="#B93A46" opacity="0.85"/>
- <path d="M-14 -70 q14 -6 28 0 l1 -5 q-15 -5 -30 0 z" fill="#EDF4FF" opacity="0.5"/>
- <g fill="#FFE3B0" opacity="0.55" transform="scale(-1,1)">
-  <path d="M13 -78 q4 14 3 32 l-4 -1 q1 -17 -2 -30 z"/>
-  <circle cx="7" cy="-88" r="3.5"/>
- </g>
-</g><g transform="translate(664,838) scale(1.56,1.56)">
- <ellipse cx="2" cy="3" rx="26" ry="6" fill="#07080B" opacity="0.4" filter="url(#weich)"/>
- <g fill="#14161D">
-  <path d="M-13 0 l1 -46 h6 l3 30 l3 -30 h6 l1 46 z"/><path d="M-15 -46 q15 -8 30 0 l-2 -30 q-13 -6 -26 0 z"/><path d="M-15 -76 q-9 6 -11 30 l7 2 q2 -18 6 -24 zM15 -76 q9 6 11 30 l-7 2 q-2 -18 -6 -24 z"/>
-  <circle cx="0" cy="-84" r="10"/>
-  <path d="M-15 -76 q15 -7 30 0 l-3 -9 q-12 -5 -24 0 z"/>
- </g>
- <path d="M-14 -60 q14 -6 28 0 l1 -7 q-15 -6 -30 0 z" fill="#2F6BFF" opacity="0.85"/>
- <path d="M-14 -70 q14 -6 28 0 l1 -5 q-15 -5 -30 0 z" fill="#EDF4FF" opacity="0.5"/>
- <g fill="#FFE3B0" opacity="0.55" transform="scale(-1,1)">
-  <path d="M13 -78 q4 14 3 32 l-4 -1 q1 -17 -2 -30 z"/>
-  <circle cx="7" cy="-88" r="3.5"/>
- </g>
-</g><g transform="translate(856,838) scale(1.62,1.62)">
- <ellipse cx="2" cy="3" rx="26" ry="6" fill="#07080B" opacity="0.4" filter="url(#weich)"/>
- <g fill="#14161D">
-  <path d="M-14 0 l2 -46 h6 l2 30 l3 -30 h6 l2 46 z"/><path d="M-16 -46 q16 -8 32 0 l-3 -30 q-13 -6 -26 0 z"/><path d="M-15 -74 q-10 10 -8 30 l7 -1 q-1 -16 4 -22 zM15 -74 q10 10 8 30 l-7 -1 q1 -16 -4 -22 z"/>
-  <circle cx="0" cy="-84" r="10"/>
-  <path d="M-15 -76 q15 -7 30 0 l-3 -9 q-12 -5 -24 0 z"/>
- </g>
- <path d="M-14 -60 q14 -6 28 0 l1 -7 q-15 -6 -30 0 z" fill="#F5D14E" opacity="0.85"/>
- <path d="M-14 -70 q14 -6 28 0 l1 -5 q-15 -5 -30 0 z" fill="#EDF4FF" opacity="0.5"/>
- <g fill="#FFE3B0" opacity="0.55" transform="scale(1,1)">
-  <path d="M13 -78 q4 14 3 32 l-4 -1 q1 -17 -2 -30 z"/>
-  <circle cx="7" cy="-88" r="3.5"/>
- </g>
-</g><g transform="translate(1032,838) scale(-1.48,1.48)">
- <ellipse cx="2" cy="3" rx="26" ry="6" fill="#07080B" opacity="0.4" filter="url(#weich)"/>
- <g fill="#14161D">
-  <path d="M-13 0 l1 -46 h6 l3 30 l3 -30 h6 l1 46 z"/><path d="M-15 -46 q15 -8 30 0 l-2 -30 q-13 -6 -26 0 z"/><path d="M-15 -76 q-9 6 -11 30 l7 2 q2 -18 6 -24 zM15 -76 q9 6 11 30 l-7 2 q-2 -18 -6 -24 z"/>
-  <circle cx="0" cy="-84" r="10"/>
-  <path d="M-15 -76 q15 -7 30 0 l-3 -9 q-12 -5 -24 0 z"/>
- </g>
- <path d="M-14 -60 q14 -6 28 0 l1 -7 q-15 -6 -30 0 z" fill="#A7B3C6" opacity="0.85"/>
- <path d="M-14 -70 q14 -6 28 0 l1 -5 q-15 -5 -30 0 z" fill="#EDF4FF" opacity="0.5"/>
- <g fill="#FFE3B0" opacity="0.55" transform="scale(1,1)">
-  <path d="M13 -78 q4 14 3 32 l-4 -1 q1 -17 -2 -30 z"/>
-  <circle cx="7" cy="-88" r="3.5"/>
- </g>
-</g><g transform="translate(1196,838) scale(1.34,1.34)">
- <ellipse cx="2" cy="3" rx="26" ry="6" fill="#07080B" opacity="0.4" filter="url(#weich)"/>
- <g fill="#14161D">
-  <path d="M-14 0 l2 -46 h6 l2 30 l3 -30 h6 l2 46 z"/><path d="M-16 -46 q16 -8 32 0 l-3 -30 q-13 -6 -26 0 z"/><path d="M-15 -74 q-10 10 -8 30 l7 -1 q-1 -16 4 -22 zM15 -74 q10 10 8 30 l-7 -1 q1 -16 -4 -22 z"/>
-  <circle cx="0" cy="-84" r="10"/>
-  <path d="M-15 -76 q15 -7 30 0 l-3 -9 q-12 -5 -24 0 z"/>
- </g>
- <path d="M-14 -60 q14 -6 28 0 l1 -7 q-15 -6 -30 0 z" fill="#B93A46" opacity="0.85"/>
- <path d="M-14 -70 q14 -6 28 0 l1 -5 q-15 -5 -30 0 z" fill="#EDF4FF" opacity="0.5"/>
- <g fill="#FFE3B0" opacity="0.55" transform="scale(1,1)">
-  <path d="M13 -78 q4 14 3 32 l-4 -1 q1 -17 -2 -30 z"/>
-  <circle cx="7" cy="-88" r="3.5"/>
- </g>
-</g><g opacity="0.92"><rect x="44" y="808" width="220" height="34" rx="17" fill="#07080B" opacity="0.55"/><circle cx="66" cy="825" r="6" fill="#E7ECF4"/><text x="82" y="831" font-family="Inter, system-ui, sans-serif" font-size="15" fill="#E7ECF4" opacity="0.85">Team · Platzhalter</text></g><rect width="1600" height="900" fill="url(#vig)"/><rect width="1600" height="900" fill="url(#rand)"/><rect width="1600" height="900" fill="#8A8A8A" filter="url(#korn)" opacity="0.5" style="mix-blend-mode:overlay"/></svg>
+  <rect width="2560" height="1440" fill="url(#grund)"/>
+  <rect width="2560" height="1440" fill="url(#schein)"/>
+
+  <defs>
+    <linearGradient id="buehne400" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E30613" stop-opacity="0"/>
+      <stop offset="0.62" stop-color="#E30613" stop-opacity="0.085"/>
+      <stop offset="1" stop-color="#E30613" stop-opacity="0.13"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="400" width="2560" height="610" fill="url(#buehne400)"/>
+  <rect x="0" y="1007" width="2560" height="3" fill="#E30613" opacity="0.55"/>
+  <rect x="0" y="1010" width="2560" height="430" fill="#0B0B0E"/>
+
+  <!-- Eine Wand aus Lamellen, damit die Reihe VOR etwas steht — und -->
+  <!-- zwar vor etwas Hellerem: sonst ist eine dunkle Silhouette auf -->
+  <!-- dunklem Grund keine Silhouette, sondern ein Fleck. -->
+  <g fill="#1F1F24">
+    <rect x="60" y="330" width="112" height="680" rx="6"/>
+    <rect x="236" y="330" width="112" height="680" rx="6"/>
+    <rect x="412" y="330" width="112" height="680" rx="6"/>
+    <rect x="588" y="330" width="112" height="680" rx="6"/>
+    <rect x="764" y="330" width="112" height="680" rx="6"/>
+    <rect x="940" y="330" width="112" height="680" rx="6"/>
+    <rect x="1116" y="330" width="112" height="680" rx="6"/>
+    <rect x="1292" y="330" width="112" height="680" rx="6"/>
+    <rect x="1468" y="330" width="112" height="680" rx="6"/>
+    <rect x="1644" y="330" width="112" height="680" rx="6"/>
+    <rect x="1820" y="330" width="112" height="680" rx="6"/>
+    <rect x="1996" y="330" width="112" height="680" rx="6"/>
+    <rect x="2172" y="330" width="112" height="680" rx="6"/>
+    <rect x="2348" y="330" width="112" height="680" rx="6"/>
+    <rect x="2524" y="330" width="112" height="680" rx="6"/>
+  </g>
+  <g fill="#E30613" opacity="0.07">
+    <rect x="60" y="330" width="112" height="680" rx="6"/>
+    <rect x="236" y="330" width="112" height="680" rx="6"/>
+    <rect x="412" y="330" width="112" height="680" rx="6"/>
+    <rect x="588" y="330" width="112" height="680" rx="6"/>
+    <rect x="764" y="330" width="112" height="680" rx="6"/>
+    <rect x="940" y="330" width="112" height="680" rx="6"/>
+    <rect x="1116" y="330" width="112" height="680" rx="6"/>
+    <rect x="1292" y="330" width="112" height="680" rx="6"/>
+    <rect x="1468" y="330" width="112" height="680" rx="6"/>
+    <rect x="1644" y="330" width="112" height="680" rx="6"/>
+    <rect x="1820" y="330" width="112" height="680" rx="6"/>
+    <rect x="1996" y="330" width="112" height="680" rx="6"/>
+    <rect x="2172" y="330" width="112" height="680" rx="6"/>
+    <rect x="2348" y="330" width="112" height="680" rx="6"/>
+    <rect x="2524" y="330" width="112" height="680" rx="6"/>
+  </g>
+  <!-- Sieben Silhouetten, unterschiedlich gross. Kein Gesicht (§4.2): -->
+  <!-- die Reihe zeigt eine Belegschaft, sie behauptet keine Person. -->
+  <g fill="#08080A">
+    <circle cx="790" cy="702" r="25.2" fill="#08080A"/>
+    <path d="M 744 737 L 836 737 L 846 870 L 734 870 Z" fill="#08080A"/>
+    <rect x="738" y="863" width="38" height="147" fill="#08080A"/>
+    <rect x="804" y="863" width="38" height="147" fill="#08080A"/>
+    <rect x="748" y="744" width="32" height="119" fill="#08080A" transform="rotate(-18 790 765)"/>
+    <circle cx="960" cy="672" r="27.6" fill="#08080A"/>
+    <path d="M 910 710 L 1010 710 L 1021 856 L 899 856 Z" fill="#08080A"/>
+    <rect x="902" y="849" width="42" height="161" fill="#08080A"/>
+    <rect x="975" y="849" width="42" height="161" fill="#08080A"/>
+    <rect x="1006" y="718" width="35" height="131" fill="#08080A" transform="rotate(18 960 741)"/>
+    <circle cx="1130" cy="691" r="26.1" fill="#08080A"/>
+    <path d="M 1083 728 L 1177 728 L 1188 865 L 1072 865 Z" fill="#08080A"/>
+    <rect x="1076" y="858" width="40" height="152" fill="#08080A"/>
+    <rect x="1144" y="858" width="40" height="152" fill="#08080A"/>
+    <rect x="1087" y="735" width="33" height="123" fill="#08080A" transform="rotate(-18 1130 757)"/>
+    <circle cx="1300" cy="658" r="28.8" fill="#08080A"/>
+    <path d="M 1248 698 L 1352 698 L 1364 850 L 1236 850 Z" fill="#08080A"/>
+    <rect x="1240" y="842" width="44" height="168" fill="#08080A"/>
+    <rect x="1316" y="842" width="44" height="168" fill="#08080A"/>
+    <rect x="1348" y="706" width="36" height="136" fill="#08080A" transform="rotate(18 1300 730)"/>
+    <circle cx="1470" cy="686" r="26.5" fill="#08080A"/>
+    <path d="M 1422 723 L 1518 723 L 1529 863 L 1411 863 Z" fill="#08080A"/>
+    <rect x="1415" y="855" width="40" height="155" fill="#08080A"/>
+    <rect x="1485" y="855" width="40" height="155" fill="#08080A"/>
+    <rect x="1426" y="730" width="33" height="125" fill="#08080A" transform="rotate(-18 1470 752)"/>
+    <circle cx="1640" cy="667" r="28.1" fill="#08080A"/>
+    <path d="M 1589 706 L 1691 706 L 1702 854 L 1578 854 Z" fill="#08080A"/>
+    <rect x="1582" y="846" width="43" height="164" fill="#08080A"/>
+    <rect x="1656" y="846" width="43" height="164" fill="#08080A"/>
+    <rect x="1687" y="714" width="35" height="133" fill="#08080A" transform="rotate(18 1640 737)"/>
+    <circle cx="1810" cy="697" r="25.6" fill="#08080A"/>
+    <path d="M 1764 732 L 1856 732 L 1867 868 L 1753 868 Z" fill="#08080A"/>
+    <rect x="1757" y="860" width="39" height="150" fill="#08080A"/>
+    <rect x="1824" y="860" width="39" height="150" fill="#08080A"/>
+    <rect x="1767" y="739" width="32" height="121" fill="#08080A" transform="rotate(-18 1810 761)"/>
+  </g>
+  <rect width="2560" height="1440" fill="url(#overlay)"/>
+
+  <!-- Die Akzentlinie: sechs Pixel, die Gesellschaft, sonst nichts. -->
+  <rect x="128" y="1204" width="112" height="6" fill="#E30613"/>
+  <text x="128" y="1280" fill="#FAFAFA"
+        font-family="Inter, system-ui, sans-serif" font-size="46" font-weight="600"
+        letter-spacing="4">CSE GRUPPE</text>
+  <text x="128" y="1336" fill="#8B8B95"
+        font-family="Inter, system-ui, sans-serif" font-size="30" font-weight="400">Hier steht spaeter eine Aufnahme des Teams.</text>
+  <text x="2432" y="1336" fill="#8B8B95" text-anchor="end"
+        font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="26"
+        letter-spacing="3">PLATZHALTER · O-13</text>
+</svg>

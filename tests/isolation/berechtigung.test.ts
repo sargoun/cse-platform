@@ -346,3 +346,103 @@ describe('(5) der letzte super_admin kann sich nicht aussperren', () => {
       .rejects.toThrow(/kann sich Rechte nicht entziehen/u);
   });
 });
+
+// ---------------------------------------------------------------------------
+
+/**
+ * **Der Entzug einer Bereichszuweisung — der Weg, den es nicht gab.**
+ *
+ * `benutzer_mandant` traegt seit 0007 `grant select, insert, update` fuer
+ * `cse_app` und hatte Policies nur fuer `select` und `insert`. Unter `force
+ * row level security` heisst das nicht „alles erlaubt", sondern „nichts": ein
+ * `update`, das `entzogen_am` setzt, traf null Zeilen. Der ausgeschiedene
+ * Mitarbeiter behielt seinen Zugang, und die Oberflaeche meldete Erfolg.
+ *
+ * Gefunden hat es die Katalogwache in `spaltenrechte.test.ts`, nachdem sie von
+ * „gibt es IRGENDEINE Policy" auf „gibt es eine fuer DIESE ANWEISUNG"
+ * geschaerft wurde. Behoben in 0102.
+ *
+ * Diese Faelle pruefen die WIRKUNG, nicht den Katalog. Eine Policy, die
+ * dasteht, und ein Entzug, der stattfindet, sind zwei verschiedene Aussagen —
+ * und in diesem Zweig ist der Unterschied schon dreimal teuer gewesen.
+ */
+describe('eine Bereichszuweisung laesst sich entziehen (0102)', () => {
+  /** Setzt `entzogen_am` als der Benutzer — nicht als Superuser. */
+  async function entzieheZuweisung(
+    wer: string, mandant: string, ziel: string, aal = 'aal2',
+  ): Promise<number> {
+    return alsApp(
+      { scope: 'mandant', mandantId: mandant, benutzerId: wer,
+        portal: 'intern', readonly: false },
+      async (tx) => {
+        await tx.unsafe(`select set_config('app.aal',$1,true)`, [aal]);
+        const zeilen = await tx.unsafe(
+          `update benutzer_mandant set entzogen_am = now()
+            where benutzer_id = $1 and mandant_id = $2 and entzogen_am is null
+            returning id`, [ziel, mandant] as never[]);
+        return zeilen.length;
+      },
+    );
+  }
+
+  it('wer verwalten darf, entzieht — und das Recht ist danach weg', async () => {
+    const admin = await konto('bm-admin@cse.test', { faktor: true });
+    await mitglied(admin, f.reinigung, 'admin');
+    const weg = await konto('bm-weg@cse.test');
+    await mitglied(weg, f.reinigung, 'leitung');
+
+    expect(await hatRecht(weg, 'objekt.lesen', f.reinigung)).toBe(true);
+    expect(await entzieheZuweisung(admin, f.reinigung, weg)).toBe(1);
+    // AUT-03: der Entzug wirkt bei der NAECHSTEN Anfrage, ohne Deployment.
+    expect(await hatRecht(weg, 'objekt.lesen', f.reinigung)).toBe(false);
+  });
+
+  it('die Zeile bleibt stehen — entzogen ist nicht geloescht (Invariante 8)', async () => {
+    const admin = await konto('bm-admin2@cse.test', { faktor: true });
+    await mitglied(admin, f.reinigung, 'admin');
+    const weg = await konto('bm-weg2@cse.test');
+    await mitglied(weg, f.reinigung, 'leitung');
+    await entzieheZuweisung(admin, f.reinigung, weg);
+
+    const [z] = await sql.unsafe<{ entzogen_am: string | null }[]>(
+      `select entzogen_am from benutzer_mandant
+        where benutzer_id = $1 and mandant_id = $2`, [weg, f.reinigung]);
+    expect(z?.entzogen_am).not.toBeNull();
+  });
+
+  it('ohne `system.benutzer_verwalten` trifft der Entzug NULL Zeilen', async () => {
+    const leitung = await konto('bm-leitung@cse.test', { faktor: true });
+    await mitglied(leitung, f.reinigung, 'leitung');
+    const weg = await konto('bm-weg3@cse.test');
+    await mitglied(weg, f.reinigung, 'leitung');
+
+    expect(await entzieheZuweisung(leitung, f.reinigung, weg)).toBe(0);
+    expect(await hatRecht(weg, 'objekt.lesen', f.reinigung)).toBe(true);
+  });
+
+  /**
+   * Die offene Seite derselben Tuer: `p_bm_aal2` sicherte bisher nur das
+   * Anlegen. Ein Entzug ohne zweiten Faktor waere derselbe Eingriff in die
+   * Zugangsverwaltung, nur andersherum.
+   */
+  it('ohne zweiten Faktor auch nicht (K-15)', async () => {
+    const admin = await konto('bm-admin3@cse.test', { faktor: true });
+    await mitglied(admin, f.reinigung, 'admin');
+    const weg = await konto('bm-weg4@cse.test');
+    await mitglied(weg, f.reinigung, 'leitung');
+
+    expect(await entzieheZuweisung(admin, f.reinigung, weg, 'aal1')).toBe(0);
+  });
+
+  it('und nicht in einer FREMDEN Gesellschaft', async () => {
+    const admin = await konto('bm-admin4@cse.test', { faktor: true });
+    await mitglied(admin, f.reinigung, 'admin');
+    const weg = await konto('bm-weg5@cse.test');
+    await mitglied(weg, f.security, 'leitung');
+
+    // Sitzung in `reinigung`, Ziel in `security`: die Zeile ist nicht einmal
+    // sichtbar, also trifft das UPDATE sie auch nicht.
+    expect(await entzieheZuweisung(admin, f.reinigung, weg)).toBe(0);
+    expect(await hatRecht(weg, 'objekt.lesen', f.security)).toBe(true);
+  });
+});

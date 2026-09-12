@@ -17,9 +17,42 @@ import type { Sprache } from '../sprache.js';
 export interface ShellTexte {
   readonly hauptnavigation: string;
   readonly bereicheNav: string;
+  /** Der Fussbereich fuehrt dieselben Ziele — unter eigenem Namen (PUB-14). */
+  readonly gesellschaftenNav: string;
   readonly rechtlichesNav: string;
   readonly sprachwahl: string;
   readonly zurStartseite: string;
+  /**
+   * Die Aufforderung auf der Markenkarte und das Schild am Platzhalterbild.
+   *
+   * Sie standen als deutsche Literale in `MarkenKarte.tsx`. Die Karten
+   * erscheinen auf `/` UND auf `/en`, also las die englische Startseite
+   * „Mehr erfahren →" und „Platzhalterbild" — genau der Fall, den der
+   * Kopfkommentar dieser Datei beschreibt: ein deutsches Wort auf der Seite,
+   * die jemand liest, WEIL er kein Deutsch kann.
+   */
+  readonly mehrErfahren: string;
+  readonly platzhalterbild: string;
+  /**
+   * Der rote Knopf rechts in der Kopfzeile — DESIGN §5 nennt ihn woertlich:
+   * „rot *Angebot anfragen* + ghost *Login* rechts".
+   *
+   * Er fehlte, und mit ihm der einzige Weg, den der oeffentliche Auftritt
+   * geschaeftlich hat: `/angebot` war gebaut und stand in KEINER Navigation.
+   */
+  readonly angebotAnfragen: string;
+  /** Das Vollbild-Menue des Telefons (DESIGN §5) — Beschriftung und Schliessen. */
+  readonly menue: string;
+  readonly menueSchliessen: string;
+  /**
+   * Der Weg vom oeffentlichen Auftritt IN die Plattform.
+   *
+   * Er fehlte, und das war kein Schoenheitsfehler: es gab von `/` aus
+   * ueberhaupt keinen Verweis auf das Portal — wer sich anmelden wollte,
+   * musste die Adresse kennen und tippen. Zwei Flaechen derselben Anwendung
+   * lasen sich dadurch wie zwei Anwendungen.
+   */
+  readonly anmelden: string;
   readonly navigation: Readonly<Record<'unternehmen' | 'leistungen' | 'projekte' | 'kontakt', string>>;
   readonly rechtlich: Readonly<Record<'impressum' | 'datenschutz' | 'barrierefreiheit', string>>;
   /**
@@ -37,9 +70,16 @@ export const SHELL_TEXTE: Readonly<Record<Sprache, ShellTexte>> = {
   de: {
     hauptnavigation: 'Hauptnavigation',
     bereicheNav: 'Unsere Bereiche',
+    gesellschaftenNav: 'Gesellschaften der Gruppe',
     rechtlichesNav: 'Rechtliches',
     sprachwahl: 'Sprache',
     zurStartseite: 'Zur Startseite',
+    mehrErfahren: 'Mehr erfahren →',
+    platzhalterbild: 'Platzhalterbild',
+    angebotAnfragen: 'Angebot anfragen',
+    menue: 'Menü',
+    menueSchliessen: 'Menü schliessen',
+    anmelden: 'Anmelden',
     navigation: {
       unternehmen: 'Unternehmen',
       leistungen: 'Leistungen',
@@ -56,9 +96,16 @@ export const SHELL_TEXTE: Readonly<Record<Sprache, ShellTexte>> = {
   en: {
     hauptnavigation: 'Main navigation',
     bereicheNav: 'Our divisions',
+    gesellschaftenNav: 'Group companies',
     rechtlichesNav: 'Legal',
     sprachwahl: 'Language',
     zurStartseite: 'To the home page',
+    mehrErfahren: 'Learn more →',
+    platzhalterbild: 'Placeholder image',
+    angebotAnfragen: 'Request a quote',
+    menue: 'Menu',
+    menueSchliessen: 'Close menu',
+    anmelden: 'Sign in',
     navigation: {
       unternehmen: 'Companies',
       leistungen: 'Services',

@@ -17,6 +17,7 @@
  * (6) Die MiLoG-Aufzeichnung nennt dieselbe Summe wie ihre Gegenprobe.
  */
 import { expect, test, type Page } from '@playwright/test';
+import { alsKonto, KONTO } from './hilfen/anmeldung';
 import postgres from 'postgres';
 
 const DSN = process.env['DATABASE_URL']
@@ -44,10 +45,14 @@ const ids: Record<string, string> = {};
 
 async function anmelden(page: Page): Promise<void> {
   await page.goto('/dev/anmelden');
-  const knopf = page.locator('[data-cse="dev-anmelden"][data-rolle="admin"]').first();
-  await expect(knopf, 'kein Seed-Konto für Rolle admin').toBeVisible();
-  await knopf.click();
-  await page.waitForLoadState('networkidle');
+  /**
+   * **Namentlich, nicht „der erste admin".** Seit der Seed eine
+   * `admin.bau` traegt, greift `.first()` den Bau — `order by b.name` stellt
+   * „Administration Bau" vor „Administration Reinigung". Diese Datei
+   * arbeitet in `reinigung`; die Slug-Wache haette 404 geantwortet, genau
+   * wie AUT-06 es vorschreibt.
+   */
+  await alsKonto(page, KONTO.adminReinigung);
 }
 
 /**
@@ -192,8 +197,23 @@ test.describe('Zeiten — Wochenliste', () => {
     await expect(zeile).toHaveCount(1);
     await expect(zeile).toBeVisible();
 
-    // Die Zeile der Tabelle, in der der Eintrag steht.
-    const reihe = page.locator('tr', { has: zeile });
+    /**
+     * Die Zeile der Tabelle, in der der Eintrag steht.
+     *
+     * **Der `has`-Locator zaehlt AB DER ZEILE, nicht ab der Seite.** Hier
+     * stand `page.locator('tr', { has: zeile })` — und `zeile` beginnt mit
+     * `[data-cse="tabelle"]`. Playwright wertet den inneren Locator relativ
+     * zum aeusseren aus, gesucht wurde also ein `tr`, das seinerseits eine
+     * Tabelle enthaelt, die den Eintrag enthaelt. Die Tabelle ist aber der
+     * VORFAHR der Zeile. Kein Treffer — und der Fehlschlag las sich wie eine
+     * fehlende Zeile, obwohl `zeile` zwei Zeilen darueber gerade mit
+     * `toHaveCount(1)` bestaetigt hatte, dass sie dasteht.
+     *
+     * Das Tabellen-Rendering wird jetzt am AEUSSEREN Locator festgelegt; der
+     * Filter fragt nur noch nach dem, was wirklich in der Zeile steht.
+     */
+    const reihe = page.locator('[data-cse="tabelle"] tr')
+      .filter({ has: page.locator(`[data-zeiteintrag="${ids['nacht'] ?? ''}"]`) });
     await expect(reihe).toContainText('22:00');
     await expect(reihe).toContainText('06:00');
     // Der Tageswechsel steht DA — sonst läse 22:00 – 06:00 wie sechzehn
@@ -206,16 +226,20 @@ test.describe('Zeiten — Wochenliste', () => {
   test('(2) die beiden Umstellungsnächte lesen 6,50 h und 8,50 h', async ({ page }) => {
     await anmelden(page);
 
+    /**
+     * Derselbe Fehlgriff wie in (1): `[data-cse="tabelle"]` stand INNEN, im
+     * `has`, und wurde damit unterhalb des `tr` gesucht — also unterhalb
+     * seines eigenen Vorfahren. Das Rendering gehoert nach AUSSEN, an den
+     * Zeilen-Locator.
+     */
     await page.goto(`/portal/reinigung/zeiten?woche=${NACHT_VOR}`);
-    const vor = page.locator('tr', {
-      has: page.locator(`[data-cse="tabelle"] [data-zeiteintrag="${ids['vor'] ?? ''}"]`),
-    });
+    const vor = page.locator('[data-cse="tabelle"] tr')
+      .filter({ has: page.locator(`[data-zeiteintrag="${ids['vor'] ?? ''}"]`) });
     await expect(vor).toContainText('6,50 h');
 
     await page.goto(`/portal/reinigung/zeiten?woche=${NACHT_ZURUECK}`);
-    const zurueck = page.locator('tr', {
-      has: page.locator(`[data-cse="tabelle"] [data-zeiteintrag="${ids['zurueck'] ?? ''}"]`),
-    });
+    const zurueck = page.locator('[data-cse="tabelle"] tr')
+      .filter({ has: page.locator(`[data-zeiteintrag="${ids['zurueck'] ?? ''}"]`) });
     await expect(zurueck).toContainText('8,50 h');
   });
 
@@ -256,9 +280,18 @@ test.describe('Zeiten — Einzelansicht', () => {
 
       await expect(page.getByText('Beginn (Serveruhr)')).toBeVisible();
       await expect(page.getByText('Gerätezeit Beginn')).toBeVisible();
-      // Das Gerät ging zwei Stunden vor; die Aufzeichnung nennt beides.
+      /*
+       * Das Gerät ging zwei Stunden NACH, und der Kommentar hier sagte das
+       * Gegenteil — genauso wie der Code, den diese Prüfung misst. Beide waren
+       * gleich falsch, also war sie grün.
+       *
+       * Die Fixtur setzt `geraete_zeit_beginn = beginn_zeitpunkt - 2h`. Die
+       * Abweichung ist GERÄT MINUS SERVER (0034:503), also -7200 — und ein
+       * Gerät, dessen Uhr hinter der Serveruhr liegt, geht NACH. D-134 sagt es
+       * wörtlich: „ein nachgehendes Telefon ergibt eine negative Abweichung".
+       */
       await expect(page.getByText('-7200 s')).toBeVisible();
-      await expect(page.getByText('Gerät ging vor')).toBeVisible();
+      await expect(page.getByText('Gerät ging nach')).toBeVisible();
     });
 
   test('ohne Korrektur sagt die Spur genau das', async ({ page }) => {
@@ -283,6 +316,30 @@ test.describe('Zeiten — Live-Brett', () => {
     // täte es, und ein offener Eintrag von 2029 stünde dort in jeder Woche.
     const [heute] = await sql.unsafe<{ tag: string }[]>(
       `select to_char((now() at time zone 'Europe/Berlin')::date, 'YYYY-MM-DD') as tag`);
+
+    /**
+     * **Erst den offenen Eintrag schliessen, den der Seed schon angelegt hat.**
+     *
+     * `z_offen_uk` laesst je Beschaeftigung GENAU EINEN offenen Eintrag zu —
+     * das ist die Zusicherung, wegen der es den Index gibt. Der Seed legt
+     * selbst einen laufenden an („1 laufend"), und zwar fuer dieselbe
+     * Beschaeftigung, die dieser Test benutzt. Der Einschub hier scheiterte
+     * deshalb mit `duplicate key value violates unique constraint
+     * "z_offen_uk"` — ein Fehlschlag, der nach einem Produktfehler aussieht
+     * und die eigene Fixtur meint.
+     *
+     * Geschlossen wird, nicht geloescht (Invariante 8): der Eintrag bleibt
+     * mit Ende stehen, wie ein Feierabend ihn hinterliesse. Danach ist der
+     * einzige offene Eintrag der, den dieser Test gleich anlegt — und genau
+     * das will er messen.
+     */
+    await sql.unsafe(
+      `update zeiteintrag
+          set ende_zeitpunkt = now(), status = 'abgeschlossen',
+              erfassungsart_ende = 'import', quelle_ende = 'import'
+        where anstellung_id = $1 and status = 'laufend'`,
+      [anstellungId],
+    );
     const laufend = await eintrag({
       schluessel: 'e2e:zeit:laufend', datum: heute!.tag, von: '00:30', bis: null,
       folgetag: false, pause: 0, mitAuftrag: false,

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { headers } from 'next/headers';
 import { OeffentlicheShell } from '@/components/oeffentlich/OeffentlicheShell';
+import { devFlaechenAn } from '@/lib/dev-flaechen';
 import { KOPF_PFAD, KOPF_SPRACHE } from '@/lib/kopf';
 import { istSprache, VORGABE_SPRACHE } from '@/lib/sprache';
 import { bereicheLesen, einstellungLesen, oeffentlichLesen } from '@/server/inhalt/lesen';
@@ -35,6 +36,14 @@ export default async function OeffentlichesLayout({ children }: { children: Reac
       gruppeName={typeof name === 'string' ? name : ''}
       sprache={sprache}
       pfad={pfad}
+      /*
+       * Solange die echte Anmeldung nicht gebaut ist (PR 20 — Telefon und
+       * Einmalcode), fuehrt der Punkt auf die Entwicklungsflaeche, und NUR
+       * wenn die eingeschaltet ist. In einem Produktionsbau ohne
+       * `CSE_DEV_FLAECHEN` steht er nicht da: ein Anmeldeknopf ohne Anmeldung
+       * waere die Sorte Fassade, die dieses Projekt nirgends baut.
+       */
+      anmeldePfad={devFlaechenAn() ? '/dev/anmelden' : null}
     >
       {children}
     </OeffentlicheShell>

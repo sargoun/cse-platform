@@ -36,7 +36,12 @@ export const dynamic = 'force-dynamic';
 /** Hoechstens so viele Ereignisse je Einreichung — eine Warteschlange, kein Fass. */
 const MAX_EREIGNISSE = 200;
 
-const ARTEN: readonly OfflineArt[] = ['checkin', 'checkout', 'pause', 'foto', 'nacherfassung'];
+const ARTEN: readonly OfflineArt[] = [
+  // `unbekannt` MUSS hier stehen: ohne den Wert verwirft die Route genau
+  // die Ereignisse, die wahrheitsgemäss keine Richtung behaupten, und das
+  // Gerät hinge mit einer Schlange da, die es nie los wird.
+  'checkin', 'checkout', 'unbekannt', 'pause', 'foto', 'nacherfassung',
+];
 
 interface RohEreignis {
   readonly client_ereignis_id?: unknown;
@@ -46,6 +51,21 @@ interface RohEreignis {
   readonly geraet_id?: unknown;
   readonly geo?: unknown;
 }
+
+/**
+ * Die Kennung muss die FORM einer UUID haben, nicht nur die einer Zeichenkette.
+ *
+ * `client_ereignis_id` wird in der Datenbank mit `::uuid` gelesen. Eine
+ * Zeichenkette, die keine ist, lief bis hierhin durch diese Pruefung und warf
+ * dort — und weil die ganze Einreichung in EINER Transaktion laeuft, fiel mit
+ * ihr jedes gueltige Ereignis desselben Rumpfes zurueck. Die Route antwortete
+ * 500, das Telefon zaehlte einen Versuch und sendete unveraendert weiter: eine
+ * Schlange, die an einem einzigen krummen Eintrag fuer immer haengenbleibt —
+ * genau der Fall, gegen den `ereignisAus` geschrieben ist. Ein Fremder
+ * brauchte dafuer einen einzigen POST.
+ */
+const UUID_FORM =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
 function datumAus(wert: unknown): Date | null {
   if (typeof wert !== 'string') return null;
@@ -73,7 +93,7 @@ function ereignisAus(roh: RohEreignis): OfflineEreignis | null {
   const id = roh.client_ereignis_id;
   const art = roh.art;
   const behauptet = datumAus(roh.behauptete_zeit);
-  if (typeof id !== 'string' || id === '') return null;
+  if (typeof id !== 'string' || !UUID_FORM.test(id)) return null;
   if (typeof art !== 'string' || !ARTEN.includes(art as OfflineArt)) return null;
   if (behauptet === null) return null;
   return {
@@ -105,7 +125,13 @@ export async function POST(
 
   let rumpf: { ereignisse?: unknown } = {};
   try {
-    rumpf = (await anfrage.json()) as { ereignisse?: unknown };
+    // Gleiche Falle wie beim Check-in: der Rumpf `null` ist gueltiges JSON,
+    // und `rumpf.ereignisse` warf darauf — 500 statt der 202, die diese Route
+    // laut ihrem eigenen Kopf IMMER gibt. Ein `as` prueft nichts.
+    const gelesen: unknown = await anfrage.json();
+    if (typeof gelesen === 'object' && gelesen !== null) {
+      rumpf = gelesen as { ereignisse?: unknown };
+    }
   } catch {
     rumpf = {};
   }

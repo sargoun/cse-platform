@@ -23,13 +23,14 @@ import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import { setzeRaeume, RaumNichtEntfernbar } from '../../src/server/services/reinigung/revier.js';
 import {
   bereiteUnterschriftVor, erstelleEntwurf, ladeSignaturen, legeVor, signiere,
-  AnzeigeVeraltet, FalscherZustand,
+  AnzeigeVeraltet, BezugPasstNichtZumObjekt, FalscherZustand,
 } from '../../src/server/services/reinigung/leistungsnachweis.js';
 import {
   alsSchnappschuss, pruefeSchnappschuss, schnappschussHash,
 } from '../../src/server/services/reinigung/schnappschuss.js';
 import {
   erstelleReklamation, schreibeAbstellung, findeReklamation, NachweisPasstNicht,
+  BezugPasstNicht,
 } from '../../src/server/services/reinigung/reklamation.js';
 import { berechneRevierSollzeit } from '../../src/server/services/reinigung/sollzeit.js';
 import {
@@ -162,6 +163,33 @@ async function baueRevier(mandant: string, anzahlRaeume = 5): Promise<Aufbau> {
     mandant, kunde: k!.id, objekt: o!.id, revier: rv!.id,
     auftrag: a!.id, leistung: l!.id, leitung, raeume,
   };
+}
+
+/**
+ * Eine Auftragszeile OHNE Standort — der Rahmenvertrag ueber mehrere
+ * Liegenschaften, den 0050 ausdruecklich vorsieht.
+ *
+ * Der Test dazu ist die Gegenprobe zur Objektpruefung: eine Pruefung, die
+ * `objekt_id is null` fuer einen Verstoss haelt, weist geltende Vertraege ab.
+ */
+async function baueRahmenzeile(
+  mandant: string, kunde: string, verantwortlich: string,
+): Promise<string> {
+  const [a] = await sql.unsafe<{ id: string }[]>(
+    `insert into auftrag (mandant_id, auftragsnummer, kunde_id, art, status,
+                          bezeichnung, verantwortlich_benutzer_id, start_datum)
+     values ($1,$2,$3,'rahmenvertrag','aktiv','Rahmen über mehrere Häuser',$4,
+             '2026-01-01')
+     returning id`,
+    [mandant, `AU-${zufall()}`, kunde, verantwortlich] as never[]);
+  const [l] = await sql.unsafe<{ id: string }[]>(
+    `insert into auftrag_leistung (mandant_id, auftrag_id, position_nr, bezeichnung,
+                                   menge, einheit, einzelpreis_cent, steuersatz_bp,
+                                   gueltig_ab)
+     values ($1,$2,1,'Unterhaltsreinigung',1,'Monat',189000,1900,'2026-01-01')
+     returning id`,
+    [mandant, a!.id] as never[]);
+  return l!.id;
 }
 
 /** Ein Nachweis im Zustand `vorgelegt` — bereit zum Unterschreiben. */
@@ -709,6 +737,258 @@ describe('(4) die Reklamation verweist auf Nachweis und Nacharbeitsschicht', () 
         quelle: 'kunde', beschreibung: 'Falsches Objekt.',
       }),
     )).rejects.toBeInstanceOf(NachweisPasstNicht);
+  });
+
+  /**
+   * **Die anderen vier Verweise, jeder einzeln.**
+   *
+   * Geprüft wurde bisher allein `leistungsnachweis_id`; die übrigen standen
+   * unter der RLS, und die sagt „derselbe Mandant", nicht „dasselbe Gebäude".
+   * Beide Aufbauten liegen deshalb ABSICHTLICH im selben Mandanten — sonst
+   * fiele der fremde Verweis schon an der Mandantengrenze, und der Test
+   * bewiese die Prüfung nicht, die er beweisen soll.
+   */
+  describe('jeder einzelne Fremdverweis fällt — und der eigene bleibt gültig', () => {
+    const fremdverweise: readonly [string, (z: Aufbau) => Partial<{
+      revierId: string; auftragLeistungId: string; kundeId: string;
+    }>][] = [
+      ['revier', (z) => ({ revierId: z.revier })],
+      ['auftrag_leistung', (z) => ({ auftragLeistungId: z.leistung })],
+      ['kunde', (z) => ({ kundeId: z.kunde })],
+    ];
+
+    for (const [spalte, fremd] of fremdverweise) {
+      it(`\`${spalte}\` eines anderen Objekts wird abgewiesen`, async () => {
+        const eins = await baueRevier(f.reinigung);
+        const zwei = await baueRevier(f.reinigung);
+
+        const versuch = alsApp(
+          { scope: 'mandant', mandantId: eins.mandant, benutzerId: eins.leitung,
+            portal: 'intern', readonly: false },
+          async (tx) => erstelleReklamation(kontextAus(tx, eins.mandant, eins.leitung), {
+            objektId: eins.objekt, quelle: 'kunde',
+            beschreibung: 'Verweis gehört zu einem anderen Haus.',
+            ...fremd(zwei),
+          }),
+        );
+        await expect(versuch).rejects.toBeInstanceOf(BezugPasstNicht);
+        await expect(versuch).rejects.toMatchObject({ spalte, status: 422 });
+      });
+    }
+
+    it('`wiederholung_von` aus einem anderen Objekt wird abgewiesen', async () => {
+      const eins = await baueRevier(f.reinigung);
+      const zwei = await baueRevier(f.reinigung);
+      const vorherige = await alsApp(
+        { scope: 'mandant', mandantId: zwei.mandant, benutzerId: zwei.leitung,
+          portal: 'intern', readonly: false },
+        async (tx) => (await erstelleReklamation(
+          kontextAus(tx, zwei.mandant, zwei.leitung), {
+            objektId: zwei.objekt, quelle: 'eigenkontrolle',
+            beschreibung: 'Erstmeldung im anderen Haus.',
+          })).id,
+      );
+
+      await expect(alsApp(
+        { scope: 'mandant', mandantId: eins.mandant, benutzerId: eins.leitung,
+          portal: 'intern', readonly: false },
+        async (tx) => erstelleReklamation(kontextAus(tx, eins.mandant, eins.leitung), {
+          objektId: eins.objekt, quelle: 'kunde', wiederholungVonId: vorherige,
+          beschreibung: 'Angebliche Wiederholung — anderes Haus.',
+        }),
+      )).rejects.toBeInstanceOf(BezugPasstNicht);
+    });
+
+    /**
+     * Die Gegenprobe. Ohne sie bewiese die Schleife oben nur, dass
+     * `erstelleReklamation` irgendetwas ablehnt — nicht, dass sie das
+     * Richtige ablehnt.
+     */
+    it('dieselben fünf Verweise am EIGENEN Objekt werden angenommen', async () => {
+      const bau = await baueRevier(f.reinigung);
+      const nachweis = await baueVorgelegtenNachweis(bau);
+
+      const gelesen = await alsApp(
+        { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung,
+          portal: 'intern', readonly: false },
+        async (tx) => {
+          const kontext = kontextAus(tx, bau.mandant, bau.leitung);
+          const erste = await erstelleReklamation(kontext, {
+            objektId: bau.objekt, quelle: 'eigenkontrolle',
+            beschreibung: 'Erstmeldung.',
+          });
+          const { id } = await erstelleReklamation(kontext, {
+            objektId: bau.objekt, kundeId: bau.kunde, revierId: bau.revier,
+            auftragLeistungId: bau.leistung, leistungsnachweisId: nachweis,
+            wiederholungVonId: erste.id, quelle: 'kunde',
+            beschreibung: 'Dasselbe Treppenhaus, zweiter Monat.',
+          });
+          return findeReklamation(kontext, id);
+        },
+      );
+
+      expect(gelesen?.leistungsnachweisId).toBe(nachweis);
+      expect(gelesen?.nummer).toMatch(/^RK-\d{4}-\d{4}$/u);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+/**
+ * Der Nachweis wird UNTERSCHRIEBEN — deshalb steht diese Prüfung hier und
+ * nicht in der Oberfläche.
+ *
+ * Der Schnappschuss friert ihn samt Abzug ein (CLN-04), er geht als Beleg zum
+ * Kunden und später in die Rechnung. Eine Zeile mit fremder Auftragsleistung
+ * fällt niemandem auf — sie sieht aus wie Arbeit. `zeiteintrag_id` bleibt
+ * dabei oft null, also greift auch der zusammengesetzte Fremdschlüssel nicht.
+ *
+ * Beide Aufbauten liegen im SELBEN Mandanten: sonst hielte die RLS den Test,
+ * und die Prüfung, um die es geht, bliebe unbewiesen.
+ */
+describe('der Entwurf nimmt keine Bezüge fremder Objekte auf', () => {
+  it('ein fremdes Revier im Kopf wird abgewiesen', async () => {
+    const eins = await baueRevier(f.reinigung);
+    const zwei = await baueRevier(f.reinigung);
+
+    const versuch = alsApp(
+      { scope: 'mandant', mandantId: eins.mandant, benutzerId: eins.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => erstelleEntwurf(kontextAus(tx, eins.mandant, eins.leitung), {
+        objektId: eins.objekt, kundeId: eins.kunde, revierId: zwei.revier,
+        von: '2026-06-01', bis: '2026-06-30',
+        positionen: [{
+          bezeichnung: 'Unterhaltsreinigung Juni', menge: '1.000',
+          einheit: 'Pauschale', einzelpreisCent: 4250n, quelle: 'manuell',
+        }],
+      }),
+    );
+    await expect(versuch).rejects.toBeInstanceOf(BezugPasstNichtZumObjekt);
+    await expect(versuch).rejects.toMatchObject({ tabelle: 'revier', status: 422 });
+  });
+
+  it('eine fremde Auftragszeile im Kopf wird abgewiesen', async () => {
+    const eins = await baueRevier(f.reinigung);
+    const zwei = await baueRevier(f.reinigung);
+
+    await expect(alsApp(
+      { scope: 'mandant', mandantId: eins.mandant, benutzerId: eins.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => erstelleEntwurf(kontextAus(tx, eins.mandant, eins.leitung), {
+        objektId: eins.objekt, kundeId: eins.kunde, auftragLeistungId: zwei.leistung,
+        von: '2026-06-01', bis: '2026-06-30',
+        positionen: [{
+          bezeichnung: 'Unterhaltsreinigung Juni', menge: '1.000',
+          einheit: 'Pauschale', einzelpreisCent: 4250n, quelle: 'manuell',
+        }],
+      }),
+    )).rejects.toMatchObject({ tabelle: 'auftrag_leistung' });
+  });
+
+  /**
+   * Der Fall, der ohne diesen Test durchginge: der Kopf ist sauber, die
+   * ZWEITE Zeile nicht. Wer nur den Kopf prüft, hält den Nachweis für
+   * geprüft.
+   */
+  it('eine fremde Auftragszeile in einer POSITION wird abgewiesen', async () => {
+    const eins = await baueRevier(f.reinigung);
+    const zwei = await baueRevier(f.reinigung);
+
+    await expect(alsApp(
+      { scope: 'mandant', mandantId: eins.mandant, benutzerId: eins.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => erstelleEntwurf(kontextAus(tx, eins.mandant, eins.leitung), {
+        objektId: eins.objekt, kundeId: eins.kunde,
+        revierId: eins.revier, auftragLeistungId: eins.leistung,
+        von: '2026-06-01', bis: '2026-06-30',
+        positionen: [
+          {
+            bezeichnung: 'Unterhaltsreinigung Juni', menge: '1.000',
+            einheit: 'Pauschale', einzelpreisCent: 4250n, quelle: 'manuell',
+            auftragLeistungId: eins.leistung,
+          },
+          {
+            bezeichnung: 'Glasreinigung', menge: '1.000',
+            einheit: 'Pauschale', einzelpreisCent: 18_900n, quelle: 'manuell',
+            auftragLeistungId: zwei.leistung,
+          },
+        ],
+      }),
+    )).rejects.toBeInstanceOf(BezugPasstNichtZumObjekt);
+  });
+
+  it('nichts davon steht hinterher in der Datenbank', async () => {
+    const eins = await baueRevier(f.reinigung);
+    const zwei = await baueRevier(f.reinigung);
+
+    await expect(alsApp(
+      { scope: 'mandant', mandantId: eins.mandant, benutzerId: eins.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => erstelleEntwurf(kontextAus(tx, eins.mandant, eins.leitung), {
+        objektId: eins.objekt, kundeId: eins.kunde, revierId: zwei.revier,
+        von: '2026-06-01', bis: '2026-06-30',
+        positionen: [{
+          bezeichnung: 'Unterhaltsreinigung Juni', menge: '1.000',
+          einheit: 'Pauschale', einzelpreisCent: 4250n, quelle: 'manuell',
+        }],
+      }),
+    )).rejects.toThrow();
+
+    const uebrig = await sql.unsafe(
+      `select id from leistungsnachweis where objekt_id = $1`, [eins.objekt]);
+    expect(uebrig).toHaveLength(0);
+  });
+
+  /**
+   * **Die Gegenprobe, die die Prüfung ehrlich hält.**
+   *
+   * `auftrag_leistung.objekt_id` ist nullbar, und zwar mit Absicht (0050):
+   * ein Rahmenvertrag über mehrere Liegenschaften trägt seine Standorte in
+   * den Zeilen und nicht im Kopf — oder gar nicht. Eine Prüfung, die `null`
+   * für einen Verstoß hält, weist geltende Verträge ab; dieser Fall wäre
+   * grün, solange sie das tut, und das ist genau die Sorte Test, die nichts
+   * beweist. Deshalb prüft er, dass der Entwurf DURCHKOMMT.
+   */
+  it('eine Rahmenvertragszeile ohne Standort bleibt zulässig', async () => {
+    const bau = await baueRevier(f.reinigung);
+    const rahmen = await baueRahmenzeile(bau.mandant, bau.kunde, bau.leitung);
+
+    const id = await alsApp(
+      { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => erstelleEntwurf(kontextAus(tx, bau.mandant, bau.leitung), {
+        objektId: bau.objekt, kundeId: bau.kunde, auftragLeistungId: rahmen,
+        von: '2026-06-01', bis: '2026-06-30',
+        positionen: [{
+          bezeichnung: 'Unterhaltsreinigung Juni', menge: '1.000',
+          einheit: 'Pauschale', einzelpreisCent: 4250n, quelle: 'manuell',
+          auftragLeistungId: rahmen,
+        }],
+      }),
+    );
+    expect(id).toMatch(/^[0-9a-f-]{36}$/u);
+  });
+
+  /** Gegenprobe: derselbe Aufruf mit EIGENEN Bezügen kommt durch. */
+  it('Kopf und Zeilen am eigenen Objekt werden angenommen', async () => {
+    const bau = await baueRevier(f.reinigung);
+
+    const id = await alsApp(
+      { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung,
+        portal: 'intern', readonly: false },
+      async (tx) => erstelleEntwurf(kontextAus(tx, bau.mandant, bau.leitung), {
+        objektId: bau.objekt, kundeId: bau.kunde,
+        revierId: bau.revier, auftragLeistungId: bau.leistung,
+        von: '2026-06-01', bis: '2026-06-30',
+        positionen: [{
+          bezeichnung: 'Unterhaltsreinigung Juni', menge: '1.000',
+          einheit: 'Pauschale', einzelpreisCent: 4250n, quelle: 'manuell',
+          auftragLeistungId: bau.leistung,
+        }],
+      }),
+    );
+    expect(id).toMatch(/^[0-9a-f-]{36}$/u);
   });
 });
 

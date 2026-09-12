@@ -19,7 +19,23 @@ import type { SchreibKontext, Transaktion } from '../../kontext/index.js';
 import { withCheckin } from '../../kontext/checkin.js';
 import { tokenHash } from './checkin.js';
 
-export type OfflineArt = 'checkin' | 'checkout' | 'pause' | 'foto' | 'nacherfassung';
+/**
+ * `unbekannt` ist die ehrliche Antwort eines Geraets ohne Netz.
+ *
+ * Die Stempelflaeche ist EIN Knopf, und welches Bein er meint, entscheidet
+ * die Marke — `token_zweck` traegt `checkin` oder `checkout`, und der Server
+ * liest es an ihr ab. Ein Telefon im Funkloch kann die Marke nicht aufloesen
+ * und WEISS die Richtung damit nicht. Es behauptete sie trotzdem: jeder
+ * gemerkte Stempel reiste als `checkin`, also stand ein im Treppenhaus
+ * getipptes Schichtende der Planung als Beginn in der Nacherfassung.
+ *
+ * Der dritte Wert sagt stattdessen, was der Fall ist. Aufloesen tut ihn der
+ * Server an der Marke; bleibt sie unaufloesbar, bleibt es `unbekannt`, und
+ * der Mensch, der die Nachreichung entscheidet, liest genau das — statt
+ * einer Richtung, die niemand geprueft hat.
+ */
+export type OfflineArt =
+  'checkin' | 'checkout' | 'unbekannt' | 'pause' | 'foto' | 'nacherfassung';
 
 export const ABLEHNUNG_GRUENDE = [
   'token_ungueltig', 'ausserhalb_fenster', 'bereits_eingeloest',
@@ -195,6 +211,35 @@ export async function nimmClaimAn(
     vorgangId: z.vorgang_id,
     status: 'empfangen' as const,
   }));
+}
+
+/**
+ * Darf diese Marke ueberhaupt vorgelegt werden? (0095, K-08 Registerzeile 5)
+ *
+ * **Sie wird gelesen, nicht verbraucht** — und sie wird gelesen, BEVOR die
+ * Medienroute 100 MiB in den Bucket legt. Dort stand der Schreibvorgang
+ * vorher vor der einzigen Pruefung, die den Aufrufer betrifft, und die
+ * Kompensation im `catch` lief nie: eine Marke, die nicht aufloest, laesst
+ * `app.offline_ereignis_annehmen` nicht werfen, sondern in den Vorbereich
+ * schreiben und Erfolg melden (§5.13, AUT-06). Das Objekt blieb ohne Zeile
+ * liegen — von aussen gefuellt, von innen nicht mehr loeschbar.
+ *
+ * Die Antwort ist EIN Bit und nennt weder Mandant noch Person noch
+ * Einteilung: dieselben drei Bedingungen wie das Tor in
+ * `app.offline_ereignis_annehmen`, und ausdruecklich nicht mehr. Waere sie
+ * strenger — Fenster, `eingeloest_am` —, wiese die Route Aufnahmen ab, die
+ * die Warteschlange danach annimmt.
+ */
+export async function markePraesentierbar(
+  tx: Transaktion,
+  token: string,
+): Promise<boolean> {
+  const zeilen = await withCheckin(tx, async (k) =>
+    k.rufe<{ ok: boolean }>(
+      `select app.checkin_marke_praesentierbar($1) as ok`,
+      [tokenHash(token)],
+    ));
+  return zeilen[0]?.ok === true;
 }
 
 // ---------------------------------------------------------------------------

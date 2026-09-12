@@ -499,8 +499,27 @@ begin
     return null;
   end if;
 
-  v_beginn := (make_date(new.jahr, new.monat, 1))                    at time zone 'Europe/Berlin';
-  v_ende   := (make_date(new.jahr, new.monat, 1) + interval '1 month') at time zone 'Europe/Berlin';
+  /*
+   * `::timestamp` ist hier die ganze Aussage, und ihr Fehlen kostete vier
+   * Stunden je Monatsgrenze.
+   *
+   * `make_date()` liefert `date`. `date at time zone text` loest Postgres
+   * ueber den bevorzugten Typ nach `timezone(text, timestamptz)` auf: das
+   * Datum wird erst nach UTC-Mitternacht gecastet und dann NACH Berlin
+   * gerechnet — heraus kommt 02:00 im Sommer und 01:00 im Winter, als
+   * zonenloser Zeitstempel. Die naechste Zeile traf die richtige Ueberladung
+   * nur zufaellig, weil `date + interval` bereits einen zonenlosen
+   * Zeitstempel ergibt.
+   *
+   * Wirkung: die Sperre liess die Zeiteintraege des Monatsersten zwischen
+   * 00:00 und 02:00 (Winter) bzw. 04:00 (Sommer) ungesperrt — also genau die
+   * Nachtschicht, die in den Monat hineinreicht. Gebucht wurden sie, gesperrt
+   * nicht; ein abgeschlossener Monat blieb an seinem Rand aenderbar.
+   */
+  v_beginn := (make_date(new.jahr, new.monat, 1))::timestamp
+                at time zone 'Europe/Berlin';
+  v_ende   := (make_date(new.jahr, new.monat, 1) + interval '1 month')::timestamp
+                at time zone 'Europe/Berlin';
 
   update zeiteintrag z
      set gesperrt_am = new.gesperrt_am

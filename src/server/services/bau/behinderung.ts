@@ -81,7 +81,8 @@ export class BehinderungFehler extends Error {
   constructor(
     readonly grund:
       | 'nicht_gefunden' | 'keine_vorlage' | 'platzhalter_unbekannt'
-      | 'bereits_angezeigt' | 'ohne_freigabe' | 'ohne_text',
+      | 'bereits_angezeigt' | 'ohne_freigabe' | 'ohne_text'
+      | 'zeichen_nicht_darstellbar',
     nachricht: string,
   ) {
     super(nachricht);
@@ -492,6 +493,28 @@ export async function dokumentiereVersand(
     titel: `Behinderungsanzeige ${zeile.nummer} — ${zeile.projekt_nummer}`,
     text: zeile.anzeigetext,
   });
+  /**
+   * `ersetzteZeichen` wird GELESEN — vorher zaehlte der PDF-Schreiber, und
+   * niemand sah die Zahl an.
+   *
+   * Der Schreiber kann eine Schrift mit WinAnsi-Kodierung; was darin fehlt —
+   * arabische, tuerkische, kyrillische Zeichen in einem Namen, einer
+   * Projektbezeichnung oder einem zitierten Schriftsatz — wird zu `?`. Ohne
+   * diese Pruefung ginge ein Schreiben nach § 6 VOB/B mit stummen
+   * Fragezeichen an den Auftraggeber, das Absendedatum stuende, und der
+   * Vorgang waere nicht wiederholbar: eine Korrektur ist eine NEUE Anzeige.
+   * Abgebrochen wird hier, vor der Ablage — es entsteht nichts, und die
+   * Zeile bleibt im Entwurf.
+   */
+  if (pdf.ersetzteZeichen > 0) {
+    throw new BehinderungFehler(
+      'zeichen_nicht_darstellbar',
+      `${String(pdf.ersetzteZeichen)} Zeichen des Schreibens lassen sich in der Schrift `
+      + 'des PDF nicht darstellen und stuenden als Fragezeichen darin. Es wurde NICHTS '
+      + 'abgelegt und kein Absendedatum gesetzt. Bitte den Anzeigetext beziehungsweise '
+      + 'die Projektbezeichnung anpassen.',
+    );
+  }
   const [jahr] = await kontext.abfrage<{ jahr: number }>(
     `select extract(year from app.berlin_heute())::int as jahr`,
   );

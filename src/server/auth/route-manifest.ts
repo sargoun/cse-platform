@@ -39,6 +39,44 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + 'veröffentlichten Seiten. Hinter einer Anmeldung wäre die Datei sinnlos.',
   },
   {
+    pfad: 'api/abmelden',
+    recht: null,
+    grund:
+      'AUT-01. Der Gegenweg zur Anmeldung: er beendet die EIGENE Sitzung, und der '
+      + 'Aufrufer weist sie durch den Besitz des Tokens aus — ein Recht zu verlangen '
+      + 'hiesse, eine Abmeldung an eine Berechtigung zu binden, die gerade entzogen '
+      + 'worden sein kann. Geschützt ist sie stattdessen durch die Methode: POST, damit '
+      + 'kein fremdes Bild-Tag und kein Vorauslader sie auslösen kann, und durch den '
+      + 'Zuschnitt der Anweisung auf `token_hash = $1 and beendet_am is null` — mehr als '
+      + 'die eigene, noch offene Zeile ist damit nicht erreichbar.',
+  },
+  {
+    /**
+     * Der Ausloeser der Nachtlaeufe (SPEC §14).
+     *
+     * `recht: null`, und das ist KEINE offene Route: sie verlangt ein
+     * Geheimnis im Kopf `x-job-token`, das in konstanter Zeit verglichen
+     * wird, und antwortet ohne gesetztes `JOB_TOKEN` mit 503 statt
+     * ersatzweise zu laufen. Ein Rechteschluessel waere hier die falsche
+     * Sperre: der Aufrufer ist ein Zeitplan und kein Mensch — er hat keine
+     * Sitzung, keinen Mandanten und keine Rolle, gegen die `authorize()`
+     * etwas pruefen koennte.
+     *
+     * Was sie dennoch nicht darf: mehr tun, als der Job tut. Der Lauf
+     * selbst verbindet sich als `cse_job`, und die Mandantenschleife
+     * kommt aus `mandant`, nicht aus der Anfrage. Wer das Geheimnis hat,
+     * kann einen Nachtlauf ausloesen — er kann damit nichts lesen.
+     */
+    pfad: 'api/jobs/[schluessel]',
+    recht: null,
+    grund:
+      'SPEC §14. Der externe Zeitplan (Supabase cron / Vercel cron) hat keine Sitzung, '
+      + 'gegen die sich ein Recht pruefen liesse. Gesperrt ist sie stattdessen durch ein '
+      + 'Geheimnis in `JOB_TOKEN`, in konstanter Zeit verglichen; ohne gesetztes '
+      + 'Geheimnis antwortet sie 503 „nicht verbunden" und loest nichts aus. Ein '
+      + 'falsches Geheimnis bekommt 404, nicht 403 (AUT-06).',
+  },
+  {
     pfad: 'api/anfrage',
     recht: null,
     grund:

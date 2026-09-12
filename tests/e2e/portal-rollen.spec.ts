@@ -8,22 +8,32 @@
  * getippte fremde URL wirklich 404 gibt und nicht 403.
  */
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { alsKonto, KONTO } from './hilfen/anmeldung';
 
-/** Meldet sich über die Entwicklungsanmeldung an — eine echte Sitzung. */
-async function anmelden(page: Page, rolle: string): Promise<void> {
-  await page.goto('/dev/anmelden');
-  const knopf = page.locator(`[data-cse="dev-anmelden"][data-rolle="${rolle}"]`).first();
-  await expect(knopf, `kein Seed-Konto für Rolle ${rolle}`).toBeVisible();
-  await knopf.click();
-  // Der Server setzt das Cookie; danach steht die Sitzung.
-  await page.waitForLoadState('networkidle');
-}
+/**
+ * **Diese Datei prüft Rollen — und meldet sich trotzdem als ein BESTIMMTER
+ * Mensch an.**
+ *
+ * Hier stand eine eigene `anmelden(page, rolle)`-Hilfe, die
+ * `[data-rolle="…"]`.first() griff. Solange es je Rolle genau ein Seed-Konto
+ * gab, war das dasselbe; seit der Seed ein zweites Verwaltungskonto trägt
+ * („Administration Bau", und `/dev/anmelden` listet `order by b.name`, also
+ * VOR „Administration Reinigung"), bekam jede `admin`-Prüfung eine Sitzung im
+ * Mandanten `bau`. Jeder Aufruf von `/portal/reinigung/…` antwortete danach
+ * mit 404 — richtig so (AUT-06, Slug-Wache) — und drei Fehlschläge lasen sich
+ * wie ein kaputtes Dashboard.
+ *
+ * Die Aussage jeder Prüfung bleibt unverändert: welche Rolle gemeint ist,
+ * steht jetzt im Konto statt in einer Auswahl, die sich beim nächsten Seed
+ * anders entscheidet.
+ */
 
 test.describe('(1) jede Rolle landet in ihrem Portal', () => {
   test('admin sieht das Dashboard seiner Gesellschaft', async ({ page }) => {
-    await anmelden(page, 'admin');
+    // „Seiner Gesellschaft" ist hier `reinigung` — das Konto muss dasselbe
+    // sagen wie die Adresse darunter, sonst prüft die Zeile die Slug-Wache.
+    await alsKonto(page, KONTO.adminReinigung);
     const antwort = await page.goto('/portal/reinigung');
     expect(antwort?.status()).toBe(200);
     await expect(page.locator('h1')).toHaveText('Übersicht');
@@ -65,7 +75,7 @@ test.describe('(1) jede Rolle landet in ihrem Portal', () => {
        * haelt die andere Haelfte fest: die Tuer geht auf, wenn ein Zugang
        * besteht — und nur so weit, wie er reicht.
        */
-      await anmelden(page, 'kunde');
+      await alsKonto(page, KONTO.kunde);
       const antwort = await page.goto('/portal/kunde');
       expect(antwort?.status()).toBe(200);
     });
@@ -74,7 +84,13 @@ test.describe('(1) jede Rolle landet in ihrem Portal', () => {
 test.describe('(2) 404, nie 403 — und nie eine fremde Zeile (AUT-06, SEC-A3)', () => {
   test('ein mitarbeiter, der eine Mandantenroute tippt, landet in SEINEM Portal',
     async ({ page }) => {
-      await anmelden(page, 'mitarbeiter');
+      /**
+       * Fatima, und damit der schärfere Fall: `reinigung` ist IHRE
+       * Gesellschaft (D-09, sie hat dort eine Beschäftigung). Die Decke
+       * schickt sie trotzdem zurück — nicht weil der Mandant fremd wäre,
+       * sondern weil das Mandantenportal nicht ihr Portal ist.
+       */
+      await alsKonto(page, KONTO.fatima);
       await page.goto('/portal/reinigung');
       // Die K-04-Decke schickt ihn zurück — kein 404, das ratlos zurücklässt,
       // und erst recht kein Dashboard.
@@ -83,7 +99,10 @@ test.describe('(2) 404, nie 403 — und nie eine fremde Zeile (AUT-06, SEC-A3)',
 
   test('eine leitung von bau bekommt security NICHT — 404 und nicht 403',
     async ({ page, request }) => {
-      await anmelden(page, 'leitung');
+      // „Eine leitung von BAU" steht im Namen der Prüfung — also namentlich
+      // die Leitung Bau und nicht die erste Zeile der Rolle `leitung`, die
+      // seit dem Seed der Security gehören kann.
+      await alsKonto(page, KONTO.leitungBau);
       const antwort = await request.get('/portal/security', {
         headers: { cookie: (await page.context().cookies())
           .map((c) => `${c.name}=${c.value}`).join('; ') },
@@ -97,7 +116,7 @@ test.describe('(2) 404, nie 403 — und nie eine fremde Zeile (AUT-06, SEC-A3)',
     });
 
   test('und eine erfundene Portalroute ebenfalls 404', async ({ page, request }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     const kekse = (await page.context().cookies())
       .map((c) => `${c.name}=${c.value}`).join('; ');
     const antwort = await request.get('/portal/reinigung/gibtesnicht',
@@ -118,7 +137,7 @@ test.describe('(3) ohne Anmeldung ist das Portal zu — aber ehrlich zu', () => 
 test.describe('(4) §11.2 — fünf Ziele bei 375px, Tap-Ziele ≥ 44px', () => {
   test('das Mitarbeiterportal trägt fünf und KEIN "Mehr"', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
-    await anmelden(page, 'mitarbeiter');
+    await alsKonto(page, KONTO.fatima);
     await page.goto('/portal/mein');
 
     const tabs = page.locator('[data-cse="tableiste"] [data-cse="tab"]');
@@ -131,7 +150,7 @@ test.describe('(4) §11.2 — fünf Ziele bei 375px, Tap-Ziele ≥ 44px', () => 
 
   test('das interne Portal trägt fünf MIT "Mehr"', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await page.goto('/portal/reinigung');
     await expect(page.locator('[data-cse="tableiste"] [data-cse="tab"]')).toHaveCount(5);
     await expect(page.locator('[data-cse="tab"][data-tab="mehr"]')).toHaveCount(1);
@@ -139,14 +158,14 @@ test.describe('(4) §11.2 — fünf Ziele bei 375px, Tap-Ziele ≥ 44px', () => 
 
   test('am Schreibtisch ist die Leiste weg', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await page.goto('/portal/reinigung');
     await expect(page.locator('[data-cse="tableiste"]')).toBeHidden();
   });
 
   test('kein waagerechtes Scrollen bei 375px', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await page.goto('/portal/reinigung');
     const ueberlauf = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
@@ -157,22 +176,41 @@ test.describe('(4) §11.2 — fünf Ziele bei 375px, Tap-Ziele ≥ 44px', () => 
 
 test.describe('(5) barrierefrei — das Portal ist der Arbeitsplatz', () => {
   /**
-   * `/portal/kunde` fehlt hier, weil es heute 404 gibt (siehe oben) — axe auf
-   * einer Fehlerseite prüfte die Fehlerseite. Es kommt dazu, sobald
-   * `kunde_zugang` existiert.
+   * `/portal/kunde` fehlt hier, weil es bis Phase 4 404 gab — axe auf einer
+   * Fehlerseite prüfte die Fehlerseite. Seit `kunde_zugang` steht, geht die
+   * Tür auf (siehe oben); die Seite hier aufzunehmen ist eine neue Zusage und
+   * gehört in den PR, der sie prüft.
+   *
+   * **Konto statt Rolle**: gemessen wird der Bildschirm, den ein bestimmtes
+   * Konto wirklich sieht. Mit `[data-rolle="admin"]`.first() stand seit dem
+   * zweiten Verwaltungskonto eine `bau`-Sitzung hinter `/portal/reinigung`;
+   * die Statuszusicherung darunter fing das ab — 404 statt 200 — und der
+   * Fehlschlag las sich wie ein Barrierefreiheitsmangel, den es nicht gab.
    */
-  for (const [rolle, pfad] of [
-    ['admin', '/portal/reinigung'],
-    ['mitarbeiter', '/portal/mein'],
+  for (const [konto, pfad] of [
+    [KONTO.adminReinigung, '/portal/reinigung'],
+    [KONTO.fatima, '/portal/mein'],
   ] as const) {
     test(`axe: ${pfad}`, async ({ page }) => {
-      await anmelden(page, rolle);
+      await alsKonto(page, konto);
       const antwort = await page.goto(pfad);
       expect(antwort?.status(), pfad).toBe(200);
       const ergebnis = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
       expect(
-        ergebnis.violations.map((v) => `${v.id}: ${v.help} (${String(v.nodes.length)}×)`),
+        /*
+         * Der Ort gehoert in die Meldung, nicht in eine zweite Sitzung.
+         *
+         * Hier stand nur `id: help (1×)`. Ein Kontrastverstoss auf einer Seite
+         * mit ueber hundert Knoten sagt damit, DASS etwas zu blass ist, und
+         * verschweigt, WAS — der Fehlschlag kostete einen kompletten zweiten
+         * Lauf mit einer eigens veraenderten Zusicherung, nur um den Selektor
+         * zu erfahren. `target` steht in jedem axe-Ergebnis bereit.
+         */
+        ergebnis.violations.map((v) =>
+          `${v.id}: ${v.help} (${String(v.nodes.length)}×) — `
+          + v.nodes.map((n) => `${n.target.join(' ')} ${n.html.slice(0, 120)}`)
+              .join(' | ')),
         pfad,
       ).toEqual([]);
     });

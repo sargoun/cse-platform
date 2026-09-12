@@ -15,6 +15,7 @@
  */
 import { createHash } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
+import { alsKonto, KONTO } from './hilfen/anmeldung';
 import postgres from 'postgres';
 
 const DSN = process.env['DATABASE_URL']
@@ -55,10 +56,14 @@ const ids: Record<string, string> = {};
 
 async function anmelden(page: Page): Promise<void> {
   await page.goto('/dev/anmelden');
-  const knopf = page.locator('[data-cse="dev-anmelden"][data-rolle="admin"]').first();
-  await expect(knopf, 'kein Seed-Konto für Rolle admin').toBeVisible();
-  await knopf.click();
-  await page.waitForLoadState('networkidle');
+  /**
+   * **Namentlich, nicht „der erste admin".** Seit der Seed eine
+   * `admin.bau` traegt, greift `.first()` den Bau — `order by b.name` stellt
+   * „Administration Bau" vor „Administration Reinigung". Diese Datei
+   * arbeitet in `reinigung`; die Slug-Wache haette 404 geantwortet, genau
+   * wie AUT-06 es vorschreibt.
+   */
+  await alsKonto(page, KONTO.adminReinigung);
 }
 
 /**
@@ -321,12 +326,51 @@ test.describe('(3)/(4) Befunde und ihre Quittung', () => {
     await warnung.locator('button[type="submit"]').click();
     await page.waitForLoadState('networkidle');
 
+    /*
+     * **Erst nachsehen, WO wir stehen.**
+     *
+     * `toHaveCount(0)` ist wahr, sobald die Karte nicht da ist — und das ist
+     * sie auch auf jeder anderen Seite der Anwendung. Fuehrte der Klick aus
+     * irgendeinem Grund woandershin, bestuende die Zusicherung, ohne dass
+     * irgendetwas quittiert waere. Genau dieser Ausgang ist eingetreten: die
+     * Karte war „weg", `hinfaellig_am` war NULL, und der Status stand
+     * unveraendert auf `offen`.
+     */
+    expect(new URL(page.url()).pathname, 'der Klick fuehrte woandershin')
+      .toBe('/portal/reinigung/dienstplan/konflikte');
+    await expect(
+      page.locator('[data-cse="konflikt"]').first(),
+      'der Eingang wurde gar nicht gerendert',
+    ).toBeAttached();
+
     // Quittiert heisst: verschwunden aus dem Eingang, aber nicht geloescht.
     await expect(page.locator(`[data-cse="konflikt"][data-konflikt="${warnKonflikt}"]`))
       .toHaveCount(0);
-    const [z] = await sql.unsafe<{ status: string; grund: string | null }[]>(
-      `select status::text as status, quittierung_begruendung as grund
+    /**
+     * **Verschwunden ist nicht dasselbe wie quittiert.**
+     *
+     * Der Eingang zeigt `status = 'offen' and hinfaellig_am is null`
+     * (`konflikte/page.tsx:136`). Eine Karte faellt also aus ihm heraus, wenn
+     * sie quittiert wurde ODER wenn sie hinfaellig wurde — und seit es fuer
+     * `hinfaellig_am` einen Schreiber gibt, ist der zweite Weg kein
+     * theoretischer mehr.
+     *
+     * Genau so ist diese Pruefung einmal gefallen: die Karte war weg, der
+     * Status stand auf `offen`, und die Meldung lautete `Received: "offen"` —
+     * ohne ein Wort darueber, dass die Karte ueberholt worden war. Die
+     * Abfrage liest `hinfaellig_am` jetzt mit und sagt es.
+     */
+    const [z] = await sql.unsafe<
+      { status: string; grund: string | null; hinfaellig: Date | null }[]
+    >(
+      `select status::text as status, quittierung_begruendung as grund,
+              hinfaellig_am as hinfaellig
          from planungs_konflikt where id = $1`, [warnKonflikt]);
+    expect(
+      z!.hinfaellig,
+      'die Karte wurde ueberholt, nicht quittiert — ein anderer Lauf hat sie '
+      + 'hinfaellig gesetzt, bevor diese Pruefung ihre Begruendung abgab',
+    ).toBeNull();
     expect(z!.status).toBe('quittiert');
     expect(z!.grund).toContain('Ersatz kurzfristig');
   });

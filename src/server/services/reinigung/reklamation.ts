@@ -57,6 +57,46 @@ export class NachweisPasstNicht extends Error {
 }
 
 /**
+ * Ein Bezug, der in einem anderen Objekt haengt.
+ *
+ * Eigene Klasse statt `NachweisPasstNicht` fuer alles: die Meldung nennt die
+ * SPALTE, und das ist der Unterschied zwischen „irgendetwas passt nicht" und
+ * einem Hinweis, mit dem jemand die Eingabe korrigieren kann.
+ */
+/**
+ * Ein mitgegebener Bezug, den es nicht gibt.
+ *
+ * Nicht `ReklamationNichtGefunden`: dessen Meldung sagt „Reklamation … gibt es
+ * nicht", und das ist bei einem unbekannten Revier schlicht falsch. Wer eine
+ * Eingabe korrigieren soll, braucht die Tabelle, die gemeint ist.
+ *
+ * 404 und nicht 403 — AUT-06: eine Zeile einer fremden Gesellschaft ist unter
+ * der RLS unsichtbar, und unsichtbar heisst „gibt es nicht".
+ */
+export class BezugNichtGefunden extends Error {
+  readonly code = 'nicht_gefunden';
+  readonly status = 404;
+  constructor(readonly tabelle: string, id: string) {
+    super(`Den Bezug \`${tabelle}\` (${id}) gibt es in dieser Gesellschaft nicht.`);
+    this.name = 'BezugNichtGefunden';
+  }
+}
+
+export class BezugPasstNicht extends Error {
+  readonly code = 'ungueltiger_zustand';
+  /**
+   * 422 wie `NachweisPasstNicht` — es ist derselbe Fehler, nur in einer
+   * anderen Spalte. Zwei Statuscodes fuer eine Fehlerklasse zwingen jeden
+   * Aufrufer, beide zu kennen.
+   */
+  readonly status = 422;
+  constructor(readonly spalte: string) {
+    super(`Der Bezug \`${spalte}\` gehoert zu einem anderen Objekt.`);
+    this.name = 'BezugPasstNicht';
+  }
+}
+
+/**
  * Das Nummernformat der Beanstandung.
  *
  * KEIN Nummernkreis: `nummernkreis_typ` (0006) führt `reklamation` nicht, und
@@ -109,13 +149,88 @@ export interface ReklamationEingabe {
 export async function erstelleReklamation(
   kontext: SchreibKontext, eingabe: ReklamationEingabe,
 ): Promise<{ readonly id: string; readonly nummer: string }> {
+  /**
+   * **Jede mitgegebene Kennung gehoert zu DIESEM Objekt** — nicht nur der
+   * Nachweis.
+   *
+   * Geprueft wurde bisher allein `leistungsnachweis_id`. Die uebrigen vier
+   * standen nur unter der RLS, und die sagt „derselbe Mandant", nicht
+   * „dasselbe Gebaeude". Eine Beschwerde ueber Haus A liess sich damit an das
+   * Revier von Haus B haengen, an die Auftragszeile von Haus C und an den
+   * Kunden von Haus D — jede Zeile fuer sich stimmig, jeder Fremdschluessel
+   * erfuellt, und die Nacharbeit, die Qualitaetsauswertung und spaeter die
+   * Rechnungsfreigabe arbeiteten am falschen Vorgang.
+   *
+   * Die Begruendung stand schon im Kopfkommentar dieser Funktion; sie galt nur
+   * fuer eine der fuenf Spalten.
+   */
+/**
+ * Wo der Bezug wirklich haengt — und warum `null` kein Verstoss ist.
+ *
+ * `auftrag_leistung.objekt_id` ist nullbar, und zwar mit Absicht (0050): „ein
+ * Rahmenvertrag ueber mehrere Liegenschaften traegt seine Standorte hier und
+ * nicht im Kopf". Eine Zeile ohne Standort gilt also fuer ALLE Standorte des
+ * Auftrags. Wer sie strikt gegen ein Objekt prueft, weist den Rahmenvertrag
+ * ab — das waere eine erfundene Regel, und zwar eine, die geltende Vertraege
+ * unbrauchbar macht.
+ *
+ * Die Regel lautet deshalb: abgewiesen wird, was ein ANDERES Objekt nennt.
+ * Was gar keines nennt, widerspricht nicht. Ist die Zeile selbst ohne
+ * Standort, entscheidet der Kopf des Auftrags; ist auch der ohne, deckt die
+ * Zeile mehrere Liegenschaften und bleibt zulaessig — die Mandantengrenze
+ * haelt sie ohnehin.
+ */
+  const passtZumObjekt = async (
+    tabelle: string, kennung: string, abfrage: string, fehler: () => Error,
+  ): Promise<void> => {
+    const [z] = await kontext.schreibe<{ objekt_id: string | null }>(abfrage, [kennung]);
+    if (z === undefined) throw new BezugNichtGefunden(tabelle, kennung);
+    if (z.objekt_id != null && z.objekt_id !== eingabe.objektId) throw fehler();
+  };
+
   if (eingabe.leistungsnachweisId != null) {
-    const [n] = await kontext.schreibe<{ objekt_id: string | null }>(
+    await passtZumObjekt(
+      'leistungsnachweis', eingabe.leistungsnachweisId,
       `select objekt_id from leistungsnachweis where id = $1::uuid`,
-      [eingabe.leistungsnachweisId],
+      () => new NachweisPasstNicht(),
     );
-    if (n === undefined) throw new ReklamationNichtGefunden(eingabe.leistungsnachweisId);
-    if (n.objekt_id !== eingabe.objektId) throw new NachweisPasstNicht();
+  }
+  if (eingabe.revierId != null) {
+    await passtZumObjekt(
+      'revier', eingabe.revierId,
+      `select objekt_id from revier where id = $1::uuid`,
+      () => new BezugPasstNicht('revier'),
+    );
+  }
+  if (eingabe.auftragLeistungId != null) {
+    await passtZumObjekt(
+      'auftrag_leistung', eingabe.auftragLeistungId,
+      `select coalesce(al.objekt_id, a.objekt_id) as objekt_id
+         from auftrag_leistung al join auftrag a on a.id = al.auftrag_id
+        where al.id = $1::uuid`,
+      () => new BezugPasstNicht('auftrag_leistung'),
+    );
+  }
+  if (eingabe.wiederholungVonId != null) {
+    await passtZumObjekt(
+      'reklamation', eingabe.wiederholungVonId,
+      `select objekt_id from reklamation where id = $1::uuid`,
+      () => new BezugPasstNicht('wiederholung_von'),
+    );
+  }
+  if (eingabe.kundeId != null) {
+    /*
+     * Der Kunde haengt nicht am Objekt, sondern das Objekt am Kunden — also
+     * wird andersherum gefragt. Ein Objekt ohne Kunden gibt es (noch nicht
+     * zugeordnet); dann ist jede Angabe hier falsch, denn sie behauptete eine
+     * Zuordnung, die es nicht gibt.
+     */
+    const [o] = await kontext.schreibe<{ kunde_id: string | null }>(
+      `select kunde_id from objekt where id = $1::uuid`,
+      [eingabe.objektId],
+    );
+    if (o === undefined) throw new BezugNichtGefunden('objekt', eingabe.objektId);
+    if (o.kunde_id !== eingabe.kundeId) throw new BezugPasstNicht('kunde');
   }
 
   const nummer = await naechsteNummer(kontext);

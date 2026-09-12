@@ -98,6 +98,24 @@ function luminanz(hex: string): number {
   const lin = teile.map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
   return 0.2126 * lin[0]! + 0.7152 * lin[1]! + 0.0722 * lin[2]!;
 }
+/**
+ * `rgba(r,g,b,a)` über einem deckenden Hex — der Hintergrund, den ein Auge
+ * wirklich sieht. Ohne diesen Schritt misst eine Kontrastprüfung eine Farbe,
+ * die auf keinem Bildschirm vorkommt.
+ */
+function ueberlagert(marke: string, grund: string): string {
+  const t = /^rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)$/u.exec(marke.trim());
+  if (t === null) throw new Error(`Keine rgba-Marke: ${marke}`);
+  const a = Number(t[4]);
+  const g = grund.replace('#', '');
+  const misch = [1, 2, 3].map((i) => {
+    const vorne = Number(t[i]);
+    const hinten = parseInt(g.slice((i - 1) * 2, i * 2), 16);
+    return Math.round(vorne * a + hinten * (1 - a));
+  });
+  return `#${misch.map((c) => c.toString(16).padStart(2, '0')).join('')}`;
+}
+
 function kontrast(a: string, b: string): number {
   const [hell, dunkel] = [luminanz(a), luminanz(b)].sort((x, y) => y - x);
   return (hell! + 0.05) / (dunkel! + 0.05);
@@ -145,7 +163,7 @@ describe('(2) contrast — BFSG applies, WCAG 2.1 AA', () => {
       [FARBEN_BASIS['text-muted'], FARBEN_BASIS.surface, '`--text-muted` 7.4:1'],
       [FARBEN_BASIS['text-subtle'], FARBEN_BASIS.surface, '`--text-subtle` 5.6:1'],
       [FARBEN_BASIS['text-subtle'], FARBEN_BASIS['surface-3'], '4.86:1'],
-      ['#FFFFFF', FARBEN_SEMANTIK.danger, '**3.76:1**'],
+      ['#FFFFFF', FARBEN_SEMANTIK.danger, '**2.98:1**'],
       ['#FFFFFF', FARBEN_SEMANTIK['danger-strong'], '(**4.83:1**)'],
     ];
 
@@ -158,12 +176,40 @@ describe('(2) contrast — BFSG applies, WCAG 2.1 AA', () => {
     }
   });
 
-  it('every semantic colour passes AA on its own -soft background over --surface', () => {
-    // The soft tints are 12% alpha over --surface, so the effective background
-    // is close to --surface itself; asserting against --surface is the
-    // conservative reading.
+  /**
+   * **Die Prüfung trug denselben Irrtum wie das Dokument.**
+   *
+   * Hier stand: „die Tönungen sind 12 % Alpha über `--surface`, also ist der
+   * wirksame Hintergrund fast `--surface` selbst; gegen `--surface` zu messen
+   * ist die konservative Lesart" — und dann `toBeGreaterThanOrEqual(3)`.
+   * Beides war falsch, und zwar auf eine Art, die grün aussieht:
+   *
+   * 1. `--surface` ist der HELLSTE Fall nicht, sondern der DUNKELSTE der drei
+   *    Untergründe. Eine Pille sitzt auf Karten (`--surface-2`, `--surface-3`),
+   *    und je heller der Untergrund, desto geringer der Abstand zum Text.
+   *    Konservativ ist der schlechteste Untergrund, nicht der bequemste.
+   * 2. `3` ist die Schwelle für grafische Objekte (WCAG 1.4.11). Eine Pille
+   *    trägt Text mit 13px — das ist Fliesstext und braucht 4.5 (1.4.3).
+   *
+   * Mit den richtigen Zahlen fielen `--danger` und `--info` auf **3.86:1**
+   * durch. Gemeldet hat es nicht diese Prüfung, sondern axe auf
+   * `/portal/mein`, nachdem der Seed dort die erste Schicht „Geplant" anlegte.
+   *
+   * Gemessen wird jetzt der wirklich gerenderte Hintergrund: die `-soft`-Marke
+   * selbst, über jeden der drei Untergründe gelegt — nicht eine Annahme
+   * darüber, wie nah er an `--surface` liege.
+   */
+  it('every semantic colour passes AA as pill text on its own -soft, on EVERY surface', () => {
+    const GRUENDE = ['surface', 'surface-2', 'surface-3'] as const;
     for (const ton of ['success', 'warning', 'danger', 'info'] as const) {
-      expect(kontrast(FARBEN_SEMANTIK[ton], FARBEN_BASIS.surface), ton).toBeGreaterThanOrEqual(3);
+      const marke = FARBEN_SEMANTIK[`${ton}-soft`];
+      for (const grund of GRUENDE) {
+        const hintergrund = ueberlagert(marke!, FARBEN_BASIS[grund]!);
+        expect(
+          kontrast(FARBEN_SEMANTIK[ton]!, hintergrund),
+          `${ton} auf ${ton}-soft über --${grund}`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
     }
   });
 });

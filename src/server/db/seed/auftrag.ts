@@ -14,8 +14,17 @@
  * also in dem Bericht, den FIN-18 verlangt. Demodaten, in denen alles
  * aufgeht, pruefen die Haelfte, auf die es ankommt, gerade nicht.
  *
+ * **Die Auftragsnummer kommt aus dem KREIS** (FIN-03), wie in `vertrieb.ts`
+ * und `bau.ts`. Hier stand eine von Hand geschriebene — `AU-2026-DEMO1`, die
+ * einzige Nummer im ganzen Bestand ohne Zaehler dahinter. Sie sah nach
+ * Demodaten aus und war etwas anderes: eine Zeile, die im Betrieb nicht
+ * entstehen koennte und die verdeckt, ob der Kreis ueberhaupt zieht.
+ *
  * **Idempotent durch LESEN ZUERST** — wie `dienstplan.ts` und aus demselben
- * Grund: die natuerlichen Schluessel liegen auf teilweisen Indizes.
+ * Grund: die natuerlichen Schluessel liegen auf teilweisen Indizes. Der
+ * Schluessel dieses Auftrags ist seit der Kreisvergabe die BEZEICHNUNG: eine
+ * gezogene Nummer laesst sich nicht wiedererkennen, und ein zweiter Lauf
+ * zoege sonst eine zweite.
  *
  * Laeuft NACH `seedDienstplan`, weil es dessen Turnusse und Einsaetze
  * nachtraeglich verankert. Die Reihenfolge ist eine Abhaengigkeit, keine
@@ -23,6 +32,8 @@
  */
 import type postgres from 'postgres';
 import { cent, type Cent } from '../../services/finanz/geld.js';
+import { vergebeNummer } from '../../services/finanz/nummernkreis.js';
+import { alsPortalSitzung } from './sitzung.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 
@@ -59,26 +70,78 @@ export async function seedAuftrag(
      order by objektnummer limit 1`;
   if (objekt === undefined) return LEER;
 
+  /**
+   * Der Verantwortliche wird ueber sein RECHT gesucht, nicht ueber das
+   * Alphabet.
+   *
+   * Die Abfrage stand ohne jede Bedingung da — `order by b.email limit 1` ueber
+   * ALLE Mitglieder der Gesellschaft. Heute gewann `admin.reinigung@`, und
+   * deshalb fiel es nicht auf; in derselben Liste stehen aber der
+   * Kundenzugang, der Website-Renderer und der Formular-Eingang. Ein Auftrag,
+   * dessen `verantwortlich_benutzer_id` auf ein Dienstkonto oder auf den
+   * KUNDEN zeigt, ist eine Zeile, die im Betrieb nie entstehen koennte — und
+   * sie entsteht schon beim naechsten Konto, dessen Adresse frueher sortiert.
+   * `vertrieb.ts` fragt aus demselben Grund nach `angebot.versenden`.
+   */
   const [leitung] = await sql<{ id: string }[]>`
     select b.id from benutzer b
      join benutzer_mandant bm on bm.benutzer_id = b.id and bm.mandant_id = ${reinigung}
-     order by b.email limit 1`;
+     join rolle_berechtigung rb on rb.rolle_id = bm.rolle_id
+     join berechtigung be on be.id = rb.berechtigung_id
+    where be.schluessel = 'auftrag.schreiben'
+      and b.status = 'aktiv' and b.ist_dienstkonto = false and bm.entzogen_am is null
+    order by b.email limit 1`;
   if (leitung === undefined) return LEER;
 
-  const nummer = 'AU-2026-DEMO1';
+  /**
+   * Der Schluessel dieses Auftrags ist seine BEZEICHNUNG, nicht seine Nummer.
+   *
+   * Hier stand `AU-2026-DEMO1` — eine von Hand geschriebene Auftragsnummer,
+   * und zwar die einzige im ganzen Bestand ohne Kreis dahinter. `index.ts`
+   * legt fuer jede Rechtseinheit einen BESTAETIGTEN `auftrag`-Kreis an
+   * (`AU-{jahr}-{nr:5}`), `vertrieb.ts` und `bau.ts` ziehen daraus — dieser
+   * Seed schrieb daneben eine Nummer, die keinem Format folgt, keinen Zaehler
+   * bewegt und im Betrieb nie entstehen koennte. Genau solche Zeilen
+   * verdecken, ob die Nummernvergabe traegt (FIN-03).
+   *
+   * Gezogen wird deshalb aus dem Kreis, und damit in einer Sitzung:
+   * `vergebeNummer` liest `app.aktiver_mandant()` und sperrt die Kreiszeile
+   * mit `SELECT … FOR UPDATE`. Der Wiedererkennungsschluessel muss dann ein
+   * anderer sein — eine gezogene Nummer kennt man vorher nicht —, sonst zoege
+   * jeder zweite Lauf eine WEITERE und legte einen zweiten Auftrag an.
+   *
+   * Er ist Objekt + Bezeichnung + `angebot_id is null`, und der letzte Teil
+   * ist kein Zierat: `wandleInAuftrag` legt aus dem Demoangebot einen Auftrag
+   * am SELBEN Objekt an, und eine Browserpruefung hinterlaesst dort einen mit
+   * genau derselben Bezeichnung. Ohne diese Bedingung haengte der naechste
+   * Lauf seine Leistungszeilen an einen fremden Auftrag — und die Turnusse
+   * daran gleich mit.
+   */
+  const bezeichnung = `Unterhaltsreinigung ${objekt.bezeichnung}`;
   let auftragId: string;
   const [vorhanden] = await sql<{ id: string }[]>`
-    select id from auftrag where mandant_id = ${reinigung} and auftragsnummer = ${nummer}`;
+    select id from auftrag
+     where mandant_id = ${reinigung} and objekt_id = ${objekt.id}
+       and bezeichnung = ${bezeichnung} and angebot_id is null
+     limit 1`;
   if (vorhanden === undefined) {
-    const [neu] = await sql<{ id: string }[]>`
-      insert into auftrag
-        (mandant_id, auftragsnummer, kunde_id, objekt_id, art, status, bezeichnung,
-         verantwortlich_benutzer_id, start_datum)
-      values (${reinigung}, ${nummer}, ${objekt.kunde_id}, ${objekt.id},
-              'rahmenvertrag', 'aktiv',
-              ${`Unterhaltsreinigung ${objekt.bezeichnung}`},
-              ${leitung.id}, '2026-01-01')
-      returning id`;
+    const neu = await alsPortalSitzung(sql, reinigung, leitung.id, async (kontext) => {
+      const db = {
+        unsafe: async (s: string, w: readonly unknown[] = []): Promise<readonly unknown[]> =>
+          kontext.schreibe<unknown>(s, w),
+      };
+      const nummer = await vergebeNummer(db, { kreisTyp: 'auftrag' });
+      const [zeile] = await kontext.schreibe<{ id: string }>(
+        `insert into auftrag
+           (mandant_id, auftragsnummer, kunde_id, objekt_id, art, status, bezeichnung,
+            verantwortlich_benutzer_id, start_datum)
+         values ($1, $2, $3, $4, 'rahmenvertrag', 'aktiv', $5, $6, '2026-01-01')
+         returning id`,
+        [kontext.aktiverMandantId, nummer.formatiert, objekt.kunde_id, objekt.id,
+         bezeichnung, leitung.id],
+      );
+      return zeile;
+    });
     if (neu === undefined) return LEER;
     auftragId = neu.id;
   } else {

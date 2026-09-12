@@ -32,6 +32,9 @@
  * alles andere am Bautagebuch funktioniert unveraendert.
  */
 
+import { tagePlus } from '@/lib/datum/kalendertag';
+import { berlinTagesZeitpunkt } from '../services/zeit/dauer.js';
+
 /** Eine gelesene Beobachtung. Alle Zahlen nullbar: „nicht gemessen" ist ein Wert. */
 export interface WetterMessung {
   readonly stationId: string;
@@ -186,13 +189,28 @@ export function zerlegePoi(
     niederschlagMm: number | null; windMs: number | null;
   }[] = [];
 
+  /**
+   * Das Fenster ist der BERLINER Kalendertag, als Zeitpunktspanne.
+   *
+   * Vorher wurde mit `zeitpunkt.startsWith(tag)` gefiltert — das ist der
+   * UTC-Tag. `tag` ist aber der Berliner Kalendertag des Bautagebuchs (K-11):
+   * im Sommer fehlten damit die zwei Stunden zwischen 22:00 und 24:00
+   * Berliner Zeit, und stattdessen standen die ersten zwei Stunden des
+   * FOLGETAGES im Wetter dieses Bautages. Ein Regenguss um 23:00 tauchte
+   * damit am falschen Tag auf — in genau dem Feld, das im Bauzeitenstreit
+   * eine Behinderung belegen soll.
+   */
+  const vonMs = berlinTagesZeitpunkt(tag).getTime();
+  const bisMs = berlinTagesZeitpunkt(tagePlus(tag, 1)).getTime();
   // Zeile 0 sind die Namen, Zeile 1 die Einheiten — die Saetze beginnen bei 2.
   for (const zeile of zeilen.slice(2)) {
     const felder = zeile.split(';');
     const zeitpunkt = poiZeitpunkt(
       felder[spalte(SPALTEN.datum)] ?? '', felder[spalte(SPALTEN.zeit)] ?? '',
     );
-    if (zeitpunkt === null || !zeitpunkt.startsWith(tag)) continue;
+    if (zeitpunkt === null) continue;
+    const ms = Date.parse(zeitpunkt);
+    if (ms < vonMs || ms >= bisMs) continue;
     treffer.push({
       beobachtetAm: zeitpunkt,
       temperaturC: zahl(felder[spalte(SPALTEN.temperatur)]),

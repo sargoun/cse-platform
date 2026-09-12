@@ -78,11 +78,50 @@ const NACHLAUF_STUNDEN = 24;
  */
 export async function leseBelastung(
   db: Abfrage, personId: string, vonUtc: Date, bisUtc: Date,
+  /**
+   * Gesetzt heisst: der Aufrufer ist der NACHTLAUF, nicht das Portal.
+   *
+   * **Ohne diesen Weg lief der Nachtlauf ueberhaupt nicht.**
+   * `app.arbzg_belastung` ist ausschliesslich `cse_app` gewaehrt (0040:1183)
+   * und verlangt aktive Sitzung, Mandant und `dienstplan.arbzg_pruefen`. Der
+   * Job verbindet sich als `cse_job` — er lief also bei jedem Aufruf in
+   * `42501`, BEVOR ein einziger Befund entstehen konnte. Ein
+   * Arbeitszeitwaechter, der jede Nacht abgewiesen wird und niemandem etwas
+   * meldet, ist genau die Sorte Stille, gegen die dieses Projekt geschrieben
+   * ist.
+   *
+   * Der Leser fuer diesen Fall gibt es seit 0040:1219 —
+   * `zeit_intern.arbzg_belastung_job`, `cse_job` gewaehrt — und NIEMAND rief
+   * ihn auf. Er liefert statt `fremd` die rohe `mandant_id`: ein Job hat
+   * keinen aktiven Mandanten, gegen den sich „fremd" bestimmen liesse, also
+   * entscheidet es der Aufrufer. Genau dafuer steht der Mandant hier.
+   */
+  jobMandantId?: string,
 ): Promise<readonly Belastungsfenster[]> {
+  /**
+   * **Beide Leser liefern `fremd`, und beide lassen die DATENBANK vergleichen.**
+   *
+   * Der Job-Leser gibt `mandant_id uuid` heraus; die erste Fassung las sie als
+   * `::text` zurueck und verglich in TypeScript mit `!==`. Das ist ein
+   * Zeichenkettenvergleich auf einer UUID: eine Schreibweise in Grossbuchstaben
+   * oder mit Bindestrichen an anderer Stelle — und JEDES Fenster gilt als
+   * fremd. Der Nachtlauf meldete dann eine Gesellschaftsgrenze, wo keine war,
+   * still und in jeder Zeile. `mandant_id <> $4::uuid` vergleicht dagegen uuid
+   * gegen uuid; ein unbrauchbarer Wert hebt sofort `22P02`, statt das Ergebnis
+   * lautlos zu verdrehen. Nebenbei faellt damit auch der zweite Schluessel im
+   * Rueckleseobjekt weg — genau die Stelle, an der sich Camel- und
+   * Unterstrich-Schreibweise sonst unbemerkt verfehlen.
+   */
   const zeilen = (await db.unsafe(
-    `select fenster_gruppe, beginn_utc, ende_utc, minuten, fremd
-       from app.arbzg_belastung($1, $2::timestamptz, $3::timestamptz)`,
-    [personId, vonUtc.toISOString(), bisUtc.toISOString()],
+    jobMandantId === undefined
+      ? `select fenster_gruppe, beginn_utc, ende_utc, minuten, fremd
+           from app.arbzg_belastung($1, $2::timestamptz, $3::timestamptz)`
+      : `select fenster_gruppe, beginn_utc, ende_utc, minuten,
+                (mandant_id <> $4::uuid) as fremd
+           from zeit_intern.arbzg_belastung_job($1, $2::timestamptz, $3::timestamptz)`,
+    jobMandantId === undefined
+      ? [personId, vonUtc.toISOString(), bisUtc.toISOString()]
+      : [personId, vonUtc.toISOString(), bisUtc.toISOString(), jobMandantId],
   )) as Record<string, unknown>[];
 
   return zeilen.map((z) => ({
@@ -110,6 +149,8 @@ export async function pruefeEinsatz(
   optionen: {
     readonly zehnStundenAusnahme?: boolean;
     readonly schreiben?: boolean;
+    /** Gesetzt nur im Nachtlauf — siehe `leseBelastung`. */
+    readonly jobMandantId?: string;
     /**
      * Eine Schicht, die es NOCH NICHT gibt — die, die gerade eingeteilt werden
      * soll.
@@ -147,7 +188,8 @@ export async function pruefeEinsatz(
   const von = new Date(beginn.getTime() - VORLAUF_STUNDEN * 3_600_000);
   const bis = new Date(ende.getTime() + NACHLAUF_STUNDEN * 3_600_000);
 
-  const fenster = await leseBelastung(db, personId, von, bis);
+  const fenster = await leseBelastung(
+    db, personId, von, bis, optionen.jobMandantId);
 
   /**
    * Ein noch offenes Fenster (`ende_utc is null`) ist jemand, der eingestempelt
@@ -304,16 +346,30 @@ export async function schreibeBefund(
 
   /**
    * Zurueck kommt je geschriebener Gesellschaft eine Kennung — auch die der
-   * fremden. Sichtbar ist danach nur die eigene: die Abfrage laeuft unter der
-   * RLS des Aufrufers, und `arbeitszeit_verstoss` gibt fremde Zeilen nicht
-   * heraus. Genau so gehoert es: der Konflikt im eigenen Eingang bekommt
-   * seinen Beleg, und die fremde Kennung fuehrt nirgendwohin.
+   * fremden. Gesucht ist die EIGENE, und deshalb steht der Mandant im
+   * Praedikat und nicht bloss in der RLS.
+   *
+   * **Die RLS allein trug es nicht.** Sie verengt auf den aktiven Mandanten,
+   * wenn `cse_app` fragt — der NACHTLAUF fragt aber als `cse_job`, und dessen
+   * Policy ist `t_job … using (true)` (0040:1530): er sieht beide Zeilen.
+   * `limit 1` ohne Ordnung und ohne Mandant gab dann bei jedem
+   * gesellschaftsuebergreifenden Befund mit etwa gleicher Wahrscheinlichkeit
+   * die FREMDE Kennung zurueck — und der darauf folgende Einschub in
+   * `planungs_konflikt` lief in `pk_verstoss_fk`
+   * (`(mandant_id, arbeitszeit_verstoss_id)`), also in eine
+   * Fremdschluesselverletzung, die den ganzen Nachtlauf dieses Mandanten
+   * abbrach. Ausgerechnet im K-06-Fall, fuer den der Lauf da ist; und keine
+   * Pruefung sah es, weil alle als `cse_app` laufen, wo die RLS den Fehler
+   * zudeckt.
    */
   const ids = zeilen.map((z) => z.id);
   if (ids.length === 0) return null;
   const sichtbar = (await db.unsafe(
-    `select id from arbeitszeit_verstoss where id = any($1::uuid[]) limit 1`,
-    [ids],
+    `select id from arbeitszeit_verstoss
+      where id = any($1::uuid[])
+        and ($2::uuid is null or mandant_id = $2::uuid)
+      limit 1`,
+    [ids, mandantId],
   )) as { id: string }[];
   return sichtbar[0]?.id ?? null;
 }

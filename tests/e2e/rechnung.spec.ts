@@ -22,6 +22,91 @@
  *    gesehen.
  */
 import { expect, test, type Page } from '@playwright/test';
+import postgres from 'postgres';
+import { alsKonto, KONTO } from './hilfen/anmeldung';
+
+const MANDANT = 'reinigung';
+
+const DSN = process.env['DATABASE_URL']
+  ?? process.env['TEST_DATABASE_URL']
+  ?? 'postgres://postgres@localhost:55432/cse_test';
+const sql = postgres(DSN, { max: 2, onnotice: () => {} });
+
+/**
+ * **Der Nummernkreis ist eine VORRICHTUNG dieser Datei, keine Antwort auf O-134.**
+ *
+ * Der Seed legt den Kreis `ausgangsrechnung` mit Absicht als Platzhalter an
+ * (`src/server/db/seed/index.ts`), weil niemand entschieden hat, ob die
+ * Gruppe fortlaufend oder jährlich neu nummeriert.
+ * `fin.rechnung_nummer_ziehen` verweigert daraufhin jede Nummer — „eine
+ * Nummer aus einem unbestätigten Kreis wäre eine erfundene", und das ist im
+ * Betrieb genau richtig. Für den Browser heisst es aber: es gibt in dieser
+ * Gesellschaft keine festschreibbare Rechnung, und damit prüfte der ganze
+ * Block darunter nichts. Drei Fälle standen deshalb rot, ohne dass ein
+ * einziger davon einen Programmfehler gemeldet hätte.
+ *
+ * Die Suite baut sich den Kreis deshalb selbst — dasselbe, was
+ * `tests/isolation/rechnung.test.ts` in `macheFakturierfaehig()` tut und was
+ * `tests/isolation/seed.test.ts` als den einen fehlenden Handgriff
+ * beschreibt. Was hier NICHT passiert: die Maske wird nicht angefasst. Sie
+ * ist der offene Teil der Frage, und diese Datei hat darauf keine Antwort;
+ * geprüft wird der WEG (Entwurf → Nummer → Kette → Storno), und der ist von
+ * der Maske unabhängig. Im Seed bleibt der Kreis ein Platzhalter — dies hier
+ * ist die Testdatenbank und nur sie.
+ *
+ * // TODO(client, O-134): Laufen die Rechnungsnummern je Gesellschaft
+ * fortlaufend weiter oder setzen sie jährlich zurück, und mit welcher Maske?
+ */
+test.beforeAll(async () => {
+  /**
+   * **Die Storno-Befugnis ist eine VORRICHTUNG, keine Antwort auf O-77.**
+   *
+   * `finanzen.stornieren` haelt im Katalog nur `super_admin`
+   * (`gebunden: ['super_admin']`), und der einzige solche Zugang im Seed
+   * gehoert keiner Gesellschaft an — in `reinigung` kann heute also NIEMAND
+   * korrigieren, und der Weg, um den es in Invariante 4 geht, liesse sich im
+   * Browser ueberhaupt nicht gehen.
+   *
+   * Der Katalog fuehrt `admin` ausdruecklich unter `bindbar`: die Bindung ist
+   * eine vorgesehene Einstellung, keine erfundene Regel. Genau sie wird hier
+   * fuer die Testdatenbank gesetzt — und NICHT im Seed, denn welche Rolle sie
+   * im Betrieb traegt, ist offen.
+   *
+   * Was damit ungeprueft bleibt: der Zweig OHNE das Recht, der auf dem Beleg
+   * statt des Formulars den Satz „dieses Konto haelt das Recht nicht (O-77)"
+   * zeigt. Beides in einem Lauf zu pruefen hiesse, dieselbe Rolle gleichzeitig
+   * mit und ohne Recht zu fuehren; `app.hat_recht` selbst ist in der
+   * Isolationssuite abgedeckt.
+   *
+   * // TODO(client, O-77): Wer darf eine festgeschriebene Rechnung
+   * stornieren — nur die Gruppenleitung, oder auch die Verwaltung einer
+   * Gesellschaft?
+   */
+  await sql.unsafe(
+    `insert into rolle_berechtigung (rolle_id, berechtigung_id)
+     select r.id, b.id from rolle r, berechtigung b
+      where r.schluessel = 'admin' and b.schluessel = 'finanzen.stornieren'
+     on conflict do nothing`);
+
+  await sql.unsafe(
+    `update nummernkreis nk
+        set ist_platzhalter = false,
+            -- 'jaehrlich' und nicht 'nie': der Seed traegt jahr = 2026 und die
+            -- Maske RE-{jahr}-{nr:5}. Ein fortlaufender Kreis verlangt jahr = 0,
+            -- und die Pruefung sagte das auch — 'Nummernkreis (unbestaetigt):
+            -- fortlaufend, aber jahr = 2026 statt 0'. Die Vorrichtung muss zum
+            -- Kreis passen, den sie bestaetigt, sonst bestaetigt sie einen
+            -- Widerspruch. Dieselbe Wahl trifft tests/isolation/seed.test.ts.
+            zuruecksetzung  = 'jaehrlich'::nummernkreis_zuruecksetzung
+       from mandant m
+      where m.id = nk.mandant_id
+        and m.slug = $1
+        and nk.kreis_typ = 'ausgangsrechnung'
+        and nk.kontext_id is null
+        and nk.geschlossen_am is null`,
+    [MANDANT],
+  );
+});
 
 /**
  * **Ohne Anmeldung antwortet jede Portalseite mit „Anmeldung erforderlich"** —
@@ -32,13 +117,112 @@ import { expect, test, type Page } from '@playwright/test';
  */
 async function anmelden(page: Page): Promise<void> {
   await page.goto('/dev/anmelden');
-  const knopf = page.locator('[data-cse="dev-anmelden"][data-rolle="admin"]').first();
-  await expect(knopf, 'kein Seed-Konto für Rolle admin').toBeVisible();
-  await knopf.click();
-  await page.waitForLoadState('networkidle');
+  /**
+   * **Namentlich, nicht „der erste admin".** Seit der Seed eine
+   * `admin.bau` traegt, greift `.first()` den Bau — `order by b.name` stellt
+   * „Administration Bau" vor „Administration Reinigung". Diese Datei
+   * arbeitet in `reinigung`; die Slug-Wache haette 404 geantwortet, genau
+   * wie AUT-06 es vorschreibt.
+   */
+  await alsKonto(page, KONTO.adminReinigung);
 }
 
-const MANDANT = 'reinigung';
+
+/**
+ * **Jede Prüfung schreibt ihren EIGENEN Beleg fest.**
+ *
+ * Zwei Prüfungen unten — der Storno und die BT-130-Spalte — öffneten
+ * `getByRole('link', { name: /^RE-/u }).first()` im Rechnungsausgangsbuch. Die
+ * einzige Rechnung, die dort je stand, legte die Prüfung „danach gibt es kein
+ * Positionsformular mehr" an, und der Seed legt keine an (O-134, siehe unten).
+ * `playwright.config.ts` läuft `fullyParallel`: die drei Fälle liegen in
+ * verschiedenen Arbeitern, laufen gleichzeitig, und keine Reihenfolge
+ * garantiert, dass der Beleg schon da ist. Die beiden Prüfungen fielen
+ * deshalb an wechselnden Stellen um — mal mit einem Zeitablauf auf dem
+ * Verweis, mal gar nicht.
+ *
+ * Schlimmer als das Wandern war der andere Ausgang: lief die erste Prüfung
+ * zufällig zuerst durch, STORNIERTE der Storno-Fall genau den Beleg, an dem
+ * die dritte Prüfung anschliessend ihre Spaltenüberschrift suchte — und auf
+ * einer stornierten Rechnung steht kein Korrekturformular mehr.
+ *
+ * Der Helfer legt Entwurf und Position an und schreibt fest. Er ist damit
+ * auch die einzige Stelle, an der der Weg beschrieben steht; drei Abschriften
+ * waren drei Gelegenheiten, ihn verschieden zu tippen.
+ */
+async function festgeschriebenerBeleg(page: Page): Promise<void> {
+  await anmelden(page);
+  await page.goto(`/portal/${MANDANT}/finanzen/rechnungen/neu`);
+  /*
+   * Der Leistungszeitraum ist keine Zierde, sondern die Bedingung, unter der
+   * sich der Beleg überhaupt festschreiben lässt: `rechnung_leistungszeitpunkt`
+   * verlangt entweder `leistung_von` UND `leistung_bis`, oder — bei Abschlag
+   * und Anzahlung — einen geplanten Vereinnahmungstag (§ 14 Abs. 4 Nr. 6
+   * UStG). Der Helfer füllte nur das Zahlungsziel; die Festschreibung fiel
+   * deshalb an der Datenbank, und zwar zu Recht.
+   */
+  await page.getByLabel('Leistung von').fill('2026-08-01');
+  await page.getByLabel('Leistung bis').fill('2026-08-31');
+  await page.getByLabel('Zahlungsziel (Tage)').fill('30');
+  await page.getByRole('button', { name: 'Entwurf anlegen' }).click();
+
+  await page.getByLabel('Handelsübliche Bezeichnung').fill('Unterhaltsreinigung');
+  await page.getByLabel('Menge (Tausendstel)').fill('1000');
+  await page.getByLabel('Einzelpreis (Cent)').fill('10000');
+  /*
+   * PR 49: jede Leistungszeile nennt ihren Beleg (FIN-07). Dieser Entwurf
+   * hängt an keinem Auftrag, also gibt es nur „von Hand" — und dann ist die
+   * Begründung Pflicht, im Formular wie in der Datenbank.
+   */
+  await page.getByLabel('Begründung, falls von Hand erfasst')
+    .fill('Einmalige Leistung ohne Auftragsbezug');
+  await page.getByRole('button', { name: 'Position hinzufügen' }).click();
+
+  /**
+   * **Erst nachsehen, ob die Position wirklich steht.**
+   *
+   * Hier stand der naechste Klick direkt daneben. Der Knopf „Rechnung
+   * festschreiben" ist `disabled`, solange kein Posten da ist — Playwright
+   * wartet dann brav 30 Sekunden darauf, dass er `enabled` wird, und meldet
+   * am Ende „Test timeout exceeded". Das ist die teuerste Art, einen Fehler
+   * zu melden: sie nennt die Stelle, an der gewartet wurde, und verschweigt
+   * die Stelle, an der etwas schiefging.
+   *
+   * Genau so ist es passiert — allein gefahren gruen, mit drei Arbeitern auf
+   * derselben Datenbank einmal rot. Was der Lauf NICHT sagte: ob die
+   * Uebernahme fehlschlug, ob die Seite gar nicht neu rendete, oder ob eine
+   * Meldung dastand. Diese Zeile beantwortet das beim naechsten Mal: sie
+   * faellt dort, wo es passiert, mit dem, was auf dem Bildschirm steht.
+   */
+  await expect(
+    page.getByText('Unterhaltsreinigung').first(),
+    'die Position wurde nicht übernommen — der Beleg ist ohne sie nicht festschreibbar',
+  ).toBeVisible();
+
+  await page.getByRole('button', { name: 'Rechnung festschreiben' }).click();
+  await page.waitForLoadState('domcontentloaded');
+
+  /**
+   * `/api/rechnungen/festschreiben` antwortet auf eine Abweisung mit JSON und
+   * 409, nicht mit einer Seite — der Browser zeigt dann den rohen Text. Ohne
+   * diese Probe suchte die nächste Zusicherung eine Überschrift auf einem
+   * JSON-Dokument und meldete einen Zeitablauf, der wie ein kaputter
+   * Bildschirm aussieht statt wie ein benannter Grund.
+   *
+   * Der Grund, der hier am längsten stand, ist keiner mehr: der Seed legt den
+   * Rechnungsnummernkreis bewusst als PLATZHALTER an (O-134), und
+   * `fin.rechnung_nummer_ziehen` zieht aus einem unbestätigten Kreis keine
+   * Nummer. Das `beforeAll` dieser Datei baut sich den Kreis deshalb als
+   * Vorrichtung. Bleibt die Abweisung trotzdem stehen, ist sie ein echter
+   * Befund und ihr Text steht hier — statt eines Zeitablaufs weiter unten.
+   */
+  const koerper = (await page.locator('body').innerText()).trim();
+  expect(
+    koerper.startsWith('{') ? koerper.slice(0, 400) : null,
+    'Festschreiben abgewiesen — ohne bestätigten Rechnungsnummernkreis (O-134) '
+    + 'gibt es keine festgeschriebene Rechnung, und alles darunter prüft nichts',
+  ).toBeNull();
+}
 
 test.describe('Das Rechnungsausgangsbuch (FIN-16)', () => {
   test('ein Entwurf steht ohne Nummer in der Liste', async ({ page }) => {
@@ -50,6 +234,17 @@ test.describe('Das Rechnungsausgangsbuch (FIN-16)', () => {
 
   test('die Liste nennt Brutto rechtsbündig und den Zustand als Pille', async ({ page }) => {
     await anmelden(page);
+    /*
+     * Erst eine Zeile, dann die Spaltenüberschriften. Eine leere Liste rendert
+     * keine Tabelle — sie sagt „noch keine Rechnung" —, und die Prüfung suchte
+     * eine Überschrift, die es dann zu Recht nicht gibt. Vorher stand sie nur
+     * deshalb da, weil eine ANDERE Prüfung derselben Datei zufällig vorher
+     * gelaufen war; `fullyParallel` verspricht das nicht. Der Seed legt keine
+     * Rechnung an (O-134), also legt diese Prüfung ihre eigene an.
+     */
+    await page.goto(`/portal/${MANDANT}/finanzen/rechnungen/neu`);
+    await page.getByLabel('Zahlungsziel (Tage)').fill('30');
+    await page.getByRole('button', { name: 'Entwurf anlegen' }).click();
     await page.goto(`/portal/${MANDANT}/finanzen/rechnungen`);
     await expect(page.getByRole('columnheader', { name: 'Brutto' })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'Zustand' })).toBeVisible();
@@ -102,24 +297,7 @@ test.describe('Der Entwurf (FIN-01)', () => {
 
 test.describe('Das Festschreiben ist einseitig (Invariante 4)', () => {
   test('danach gibt es kein Positionsformular mehr, sondern die Kettenbindung', async ({ page }) => {
-    await anmelden(page);
-    await page.goto(`/portal/${MANDANT}/finanzen/rechnungen/neu`);
-    await page.getByLabel('Zahlungsziel (Tage)').fill('30');
-    await page.getByRole('button', { name: 'Entwurf anlegen' }).click();
-
-    await page.getByLabel('Handelsübliche Bezeichnung').fill('Unterhaltsreinigung');
-    await page.getByLabel('Menge (Tausendstel)').fill('1000');
-    await page.getByLabel('Einzelpreis (Cent)').fill('10000');
-    /**
-     * PR 49: jede Leistungszeile nennt ihren Beleg (FIN-07). Dieser Entwurf
-     * hängt an keinem Auftrag, also gibt es nur „von Hand" — und dann ist die
-     * Begründung Pflicht, im Formular wie in der Datenbank.
-     */
-    await page.getByLabel('Begründung, falls von Hand erfasst')
-      .fill('Einmalige Leistung ohne Auftragsbezug');
-    await page.getByRole('button', { name: 'Position hinzufügen' }).click();
-
-    await page.getByRole('button', { name: 'Rechnung festschreiben' }).click();
+    await festgeschriebenerBeleg(page);
 
     // Die Nummer steht jetzt in der Überschrift, und zwar aus der Maske des
     // Kreises — nicht aus einer Verkettung im Aufrufcode.
@@ -136,9 +314,9 @@ test.describe('Das Festschreiben ist einseitig (Invariante 4)', () => {
   });
 
   test('korrigiert wird durch Storno mit auditfähigem Grund, nicht durch Änderung', async ({ page }) => {
-    await anmelden(page);
-    await page.goto(`/portal/${MANDANT}/finanzen/rechnungen`);
-    await page.getByRole('link', { name: /^RE-/u }).first().click();
+    // Der EIGENE Beleg: ein fremder wäre schon storniert, sobald zwei Arbeiter
+    // gleichzeitig in dieselbe Liste greifen.
+    await festgeschriebenerBeleg(page);
 
     await expect(page.getByRole('heading', { name: 'Korrigieren' })).toBeVisible();
     const grund = page.getByLabel(/Grund \(mindestens zehn Zeichen/u);
@@ -146,8 +324,20 @@ test.describe('Das Festschreiben ist einseitig (Invariante 4)', () => {
     // „Fehler" reicht nicht: `rechnung_beziehung` verlangt zehn Zeichen, und
     // das Formular sagt es, statt es die Datenbank sagen zu lassen.
     await grund.fill('Falsche Rechnungsanschrift des Auftraggebers');
+    /*
+     * Die Adresse des Belegs MUSS vor dem Absenden festgehalten werden.
+     *
+     * `/api/rechnungen/storno` leitet auf das AUSGANGSBUCH weiter, nicht auf
+     * den Beleg — und das ist richtig so: nach einer Korrektur gibt es zwei
+     * Belege, und welcher der gemeinte ist, entscheidet nicht die Route. Der
+     * Hinweis „Aufgehoben durch Stornorechnung" steht aber auf dem
+     * ursprünglichen Beleg, und die Prüfung suchte ihn auf der Liste.
+     */
+    const beleg = page.url();
     await page.getByRole('button', { name: 'Stornieren' }).click();
+    await page.waitForURL(/\/finanzen\/rechnungen$/u);
 
+    await page.goto(beleg);
     await expect(page.getByText(/Aufgehoben durch Stornorechnung/u).first()).toBeVisible();
   });
 });
@@ -162,9 +352,7 @@ test.describe('Unbestätigte Werte sind sichtbar (§1.11)', () => {
   });
 
   test('und eine Position ohne BT-130 zeigt „offen" statt eines geratenen Codes', async ({ page }) => {
-    await anmelden(page);
-    await page.goto(`/portal/${MANDANT}/finanzen/rechnungen`);
-    await page.getByRole('link', { name: /^RE-/u }).first().click();
+    await festgeschriebenerBeleg(page);
     await expect(page.getByRole('columnheader', { name: 'BT-130' })).toBeVisible();
   });
 });

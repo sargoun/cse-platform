@@ -1,0 +1,32 @@
+-- ---------------------------------------------------------------------------
+-- 0091 — `kern.checkin_token_widerrufen` gehoert `cse_definer`
+--
+-- `0063` hat diesen Ausloeser zu `SECURITY DEFINER` gemacht, und das war
+-- richtig: `cse_app` hat auf `checkin_token` kein Recht, und ein Ausloeser,
+-- den nur der Eigentuemer ausfuehren kann, ist auf einer Tabelle mit
+-- erzwungener RLS kein Schutz, sondern eine Zeitbombe.
+--
+-- **Nur ist der Eigentuemer `postgres` geblieben.** `create or replace
+-- function` erbt ihn, und damit lief der Rumpf ab 0063 als SUPERUSER — an
+-- jeder RLS vorbei, auf jeder Tabelle, bei jedem verschobenen Einsatz. Die
+-- Funktion wurde stattdessen in die Altlastenliste von
+-- `tests/isolation/definer-eigentum.test.ts` aufgenommen. Genau das darf sie
+-- nicht: die Liste friert ein, was vor K-01 entstanden ist, und ihr Test
+-- heisst „die Altlast waechst nicht". Hier ist die Grenze NEU gezogen worden
+-- (vorher war die Funktion kein Definer) — sie gehoert also nicht auf die
+-- Liste, sondern unter die Regel.
+--
+-- Dass das geht, ist nachgesehen und nicht vermutet:
+--   * `checkin_token` gewaehrt `cse_definer=arw` — Lesen, Einfuegen, Aendern,
+--     also genau das, was der Rumpf tut (Widerruf mit Grund an lebenden
+--     Marken).
+--   * Die Tabelle traegt `force row level security`, und `ct_definer` ist eine
+--     PERMISSIVE Policy `for all to cse_definer`. Ohne sie laese die Funktion
+--     nach dem Eigentuemerwechsel still null Zeilen — der Fehler, der bei
+--     einem Definer NIE eine Meldung erzeugt.
+--
+-- Der Rumpf bleibt unveraendert; die beiden Ausloeser bleiben, wie sie sind.
+-- Gefunden hat es die Copilot-Durchsicht zu PR #5.
+-- ---------------------------------------------------------------------------
+
+alter function kern.checkin_token_widerrufen() owner to cse_definer;

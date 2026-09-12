@@ -7,6 +7,7 @@
  * Planerin hinsieht, bevor sie einteilt.
  */
 import { expect, test, type Page } from '@playwright/test';
+import { alsKonto, KONTO } from './hilfen/anmeldung';
 import postgres from 'postgres';
 
 const DSN = process.env['DATABASE_URL']
@@ -43,10 +44,14 @@ let abwesenheitId = '';
 
 async function anmelden(page: Page): Promise<void> {
   await page.goto('/dev/anmelden');
-  const knopf = page.locator('[data-cse="dev-anmelden"][data-rolle="admin"]').first();
-  await expect(knopf, 'kein Seed-Konto für Rolle admin').toBeVisible();
-  await knopf.click();
-  await page.waitForLoadState('networkidle');
+  /**
+   * **Namentlich, nicht „der erste admin".** Seit der Seed eine
+   * `admin.bau` traegt, greift `.first()` den Bau — `order by b.name` stellt
+   * „Administration Bau" vor „Administration Reinigung". Diese Datei
+   * arbeitet in `reinigung`; die Slug-Wache haette 404 geantwortet, genau
+   * wie AUT-06 es vorschreibt.
+   */
+  await alsKonto(page, KONTO.adminReinigung);
 }
 
 test.beforeAll(async () => {
@@ -82,6 +87,24 @@ test.afterAll(() => {
   // `sql.end()` — siehe `dienstplan.spec.ts`.
 });
 
+/**
+ * **Diese Datei laeuft SERIELL** — wie `auftrag.spec.ts` und aus demselben
+ * Grund.
+ *
+ * `fullyParallel: true` verteilt auch die Pruefungen INNERHALB einer Datei auf
+ * verschiedene Arbeiter. Die drei Beschreibungen hier teilen sich aber die
+ * Fixtur aus `beforeAll`: dieselbe Abwesenheit, derselbe Antrag. Entscheidet
+ * die eine Pruefung ueber den Antrag, waehrend die andere sein Formular sucht,
+ * findet die zweite nichts — und meldet „element(s) not found" fuer ein
+ * Formular, das es gab, bis der Nachbar es benutzt hat.
+ *
+ * Genau so ist es gefallen: „und eine Entscheidung funktioniert ohne
+ * JavaScript" suchte ein Formular, das „Der Posteingang steht und nennt seinen
+ * Zweck" Sekunden vorher abgeraeumt hatte. Loeschen kann die Suite nichts
+ * (Invariante 8), also ist Reihenfolge die einzige Trennung, die traegt.
+ */
+test.describe.configure({ mode: 'serial' });
+
 test.describe('Abwesenheiten — die Liste der Planung', () => {
   test('zeigt den Zeitraum und nirgends den Grund', async ({ page }) => {
     await anmelden(page);
@@ -106,7 +129,8 @@ test.describe('Abwesenheiten — die Liste der Planung', () => {
     const kontext = await browser.newContext({ javaScriptEnabled: false });
     const seite = await kontext.newPage();
     await seite.goto('/dev/anmelden');
-    await seite.locator('[data-cse="dev-anmelden"][data-rolle="admin"]').first().click();
+    await seite.locator(
+      `[data-cse="dev-anmelden"][data-email="${KONTO.adminReinigung}"]`).click();
     await seite.waitForLoadState('domcontentloaded');
     await seite.goto(`/portal/reinigung/personal/abwesenheiten?woche=${VON}`);
 

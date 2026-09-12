@@ -51,6 +51,19 @@ export interface SecurityErgebnis {
   readonly einsaetze: number;
   readonly einteilungen: number;
   readonly zeiteintraege: number;
+  /**
+   * Posten und Objekt, auf die das Wachbuch aufsetzt — ZURUECKGEGEBEN und
+   * nicht noch einmal gesucht.
+   *
+   * `seedWachbuch` koennte den Posten ueber sein Kurzzeichen nachschlagen;
+   * dann stuende `OS-TD` an zwei Stellen, und die zweite erfuehre nie, wenn
+   * die erste sich aendert — das Wachbuch bliebe still leer. Die Rueckgabe
+   * macht die Abhaengigkeit sichtbar: ohne Posten kein Buch.
+   *
+   * `null`, wenn diese Datei fruehzeitig aussteigt (kein Objekt, kein Planer).
+   */
+  readonly postenId: string | null;
+  readonly objektId: string | null;
 }
 
 const POSTEN = {
@@ -78,6 +91,7 @@ export async function seedSecurity(
 ): Promise<SecurityErgebnis> {
   const leer: SecurityErgebnis = {
     posten: 0, einsaetze: 0, einteilungen: 0, zeiteintraege: 0,
+    postenId: null, objektId: null,
   };
   const mandantId = ids.get('security');
   if (mandantId === undefined) throw new Error('Bereich security fehlt');
@@ -150,12 +164,18 @@ export async function seedSecurity(
     select a.id from anstellung a
      where a.mandant_id = ${mandantId} and a.status = 'aktiv' and a.geloescht_am is null
      order by a.personalnummer`).map((a) => a.id);
-  if (anstellungen.length === 0) return { ...leer, posten, einsaetze };
+  // Auch ohne Belegschaft gehoeren Posten und Objekt in die Rueckgabe: das
+  // Wachbuch haengt an der LEITUNG und nicht an der Einteilung — es kann
+  // gefuehrt werden, wenn auf dem Posten (noch) niemand steht.
+  if (anstellungen.length === 0) {
+    return { ...leer, posten, einsaetze, postenId, objektId: objekt.id };
+  }
 
   const lauf = await besetzeUndErfasse(sql, mandantId, planer.id, anstellungen, heute);
   return {
     posten, einsaetze,
     einteilungen: lauf.einteilungen,
     zeiteintraege: lauf.erfasst,
+    postenId, objektId: objekt.id,
   };
 }

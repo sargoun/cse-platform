@@ -91,9 +91,9 @@ export const FARBEN_SEMANTIK = {
   'success-soft': 'rgba(34,197,94,0.12)',
   warning: '#F59E0B',
   'warning-soft': 'rgba(245,158,11,0.12)',
-  danger: '#EF4444',
+  danger: '#F26A6A',
   'danger-soft': 'rgba(239,68,68,0.12)',
-  info: '#3B82F6',
+  info: '#5895F7',
   'info-soft': 'rgba(59,130,246,0.12)',
   /**
    * The solid danger SURFACE. `--danger` is tuned to be read as text and is

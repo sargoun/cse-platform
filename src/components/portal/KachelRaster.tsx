@@ -58,7 +58,15 @@ export function KachelRaster({ kacheln }: { readonly kacheln: readonly KachelAnz
           href={k.ziel}
           data-cse="kachel"
           data-kachel={k.schluessel}
-          className="block rounded-lg"
+          /*
+           * `block rounded-lg` allein sagte nicht, dass hier etwas anklickbar
+           * ist. Die Kachel WAR ein Link und sah aus wie eine Anzeige — auf
+           * dem Dashboard stehen zwölf davon, und wer keine davon für einen
+           * Weg hält, hält die Seite fuer eine Sackgasse. DESIGN §5 nennt den
+           * Hover-Zustand (`--surface-2`, 150 ms); der Fokusring kommt aus
+           * `globals.css` und wird hier absichtlich nicht wiederholt.
+           */
+          className="block rounded-lg transition-colors duration-150 hover:bg-surface-2"
         >
           <KpiStat label={k.label} wert={String(k.wert)} ton={k.ton} icon={k.icon} />
         </a>

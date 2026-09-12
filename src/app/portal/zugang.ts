@@ -6,6 +6,8 @@ import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { pruefeZugang, rechtepruefer, PORTAL_START } from '@/server/auth/zugang';
 import { bindeAnfrage, gruppenMandanten, rolleImMandanten } from '@/server/kontext/index';
 import { NAVIGATION } from '@/server/registry/navigation';
+import { modulAktiv, type Modulbuchung } from '@/server/registry/modul';
+import { findeRoute } from '@/server/registry/routen';
 import { leisteFuer, tableiste, type LeistenSchluessel }
   from '@/server/registry/tableiste';
 import type { Sitzung } from '@/server/kontext/index';
@@ -37,7 +39,13 @@ export interface PortalZugang {
    */
   readonly gruppenMandanten: readonly string[];
   /**
-   * Je Rechteschluessel des Navigationsbaums: haelt die Sitzung ihn?
+   * Je NAVIGATIONS-Schluessel (`crm`, `objekte`, …): haelt die Sitzung das
+   * Recht dieses Punktes?
+   *
+   * **Geschluesselt nach `schluessel`, nicht nach `recht`** — beide Leser,
+   * `SeitenNavigation` am Schreibtisch und das `Mehr`-Blatt am Telefon,
+   * schlagen unter dem Schluessel des Eintrags nach. Der Name des Feldes
+   * sagt „Rechte", der Schluessel ist es nicht.
    *
    * Das fuenfte Ziel der Tab-Leiste ist `Mehr` und zeigt genau diesen Baum
    * (SEITENKARTE §11.2). Ohne die Rechte hier waere er entweder vollstaendig
@@ -56,6 +64,8 @@ export interface PortalZugang {
   readonly sichtbareTabs: Readonly<Record<string, boolean>>;
   /** Der Slug des aktiven Bereichs — die Portalwurzel haengt daran. */
   readonly mandantSlug: string | null;
+  /** Ist das Modul dieser Seite in dieser Gesellschaft gar nicht gebucht? */
+  readonly modulGesperrt: boolean;
 }
 
 interface Befund {
@@ -65,6 +75,7 @@ interface Befund {
   readonly sichtbareTabs: Readonly<Record<string, boolean>>;
   readonly navigationsRechte: Readonly<Record<string, boolean>>;
   readonly mandantSlug: string | null;
+  readonly modulGesperrt: boolean;
 }
 
 /** Die Portalwurzel, unter der die Leiste ihre relativen Ziele aufloest. */
@@ -106,11 +117,20 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
     if (entscheidung.art !== 'erlaubt') {
       return {
         entscheidung, rolle: null, mandanten, sichtbareTabs: {}, navigationsRechte: {},
-        mandantSlug: null,
+        mandantSlug: null, modulGesperrt: false,
       } satisfies Befund;
     }
 
     const rolle = await rolleImMandanten(tx, sitzung);
+    /**
+     * Slug UND gebuchte Module in EINER Abfrage — sie stehen in derselben
+     * Zeile, und eine zweite Rundreise fuer eine Spalte daneben waere eine
+     * Rundreise auf jedem Seitenaufruf.
+     */
+    const [m] = sitzung.aktiverMandantId === null ? [] : await abfrage<{
+      slug: string; module: readonly string[] | null; module_gepflegt: boolean;
+    }>(`select slug, module, module_gepflegt from mandant where id = $1`,
+      [sitzung.aktiverMandantId]);
     /**
      * Die Leiste wird IN dieser Transaktion bewertet, nicht danach: die
      * Bindung steht nur hier, und `app.hat_recht` ohne sie antwortet `false`
@@ -133,22 +153,96 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
       ...NAVIGATION.map((n) => n.recht),
     ])];
     const gehalten = await pruefer.hatRechte(gefragt, sitzung.aktiverMandantId);
+    /**
+     * **Recht UND Modul** — die Schnittmenge, wie 0008 sie fuer
+     * `benutzer_mandant.module` bildet.
+     *
+     * Das Recht allein reichte nicht, und das war der Befund des Mandanten:
+     * `admin` und `leitung` halten `reinigung.lesen` mit
+     * `rolle.mandant_id is null`, also in jedem Bereich. Ohne die zweite
+     * Frage sah der Hochbau-Admin die Reinigung — und die Bauleitung der
+     * Reinigung das Wachbuch.
+     *
+     * Im GRUPPEN-Scope gibt es keine Buchung, die entscheiden koennte: die
+     * Ansicht umfasst mehrere Gesellschaften mit verschiedenen Modulen. Dort
+     * bleibt es beim Recht; was die Gruppenansicht zeigt, ist ohnehin lesend
+     * (Invariante 10) und je Zeile mandantengebunden.
+     */
+    const buchung: Modulbuchung = sitzung.ansicht === 'gruppe'
+      ? { module: [], gepflegt: false }
+      : { module: m?.module ?? [], gepflegt: m?.module_gepflegt === true };
+    const frei = (recht: string | null): boolean =>
+      recht === null || modulAktiv(buchung, recht);
+
     const sichtbareTabs: Record<string, boolean> = {};
     for (const z of ziele) {
-      sichtbareTabs[z.schluessel] = z.recht === null || gehalten.has(z.recht);
+      sichtbareTabs[z.schluessel] =
+        (z.recht === null || gehalten.has(z.recht)) && frei(z.recht);
     }
+    /*
+     * **Geschluesselt nach `schluessel`, nicht nach `recht`.**
+     *
+     * Hier stand `navigationsRechte[n.recht] = …` — also `crm.lesen` als
+     * Schluessel. `SeitenNavigation` schlaegt aber unter `z.schluessel` nach,
+     * also `crm`. Jede Abfrage lief damit ins Leere, `undefined !== false`
+     * war wahr, und die Sidebar zeigte JEDEN Punkt — auch den, dessen Recht
+     * der Benutzer nicht haelt.
+     *
+     * Das ist genau der Fall, den das Register verhindern soll (AUT-06): ein
+     * Menuepunkt, der auf einen 404 fuehrt, verraet die Existenz dessen, was
+     * er nicht zeigen darf. Gemerkt haette man es nie, denn ein sichtbarer
+     * Punkt zu viel sieht aus wie ein vollstaendiges Menue.
+     */
     const navigationsRechte: Record<string, boolean> = {};
-    for (const n of NAVIGATION) navigationsRechte[n.recht] = gehalten.has(n.recht);
-    const [m] = sitzung.aktiverMandantId === null ? [] : await abfrage<{ slug: string }>(
-      `select slug from mandant where id = $1`, [sitzung.aktiverMandantId],
-    );
+    for (const n of NAVIGATION) {
+      navigationsRechte[n.schluessel] = gehalten.has(n.recht) && frei(n.recht);
+    }
+
+    /**
+     * Und dieselbe Frage fuer die SEITE, nicht nur fuer das Menue.
+     *
+     * Ein ausgeblendeter Menuepunkt ist keine Sperre — die Adresse tippen
+     * kann jeder. Ohne diese Zeile antwortete `/portal/bau/reinigung/reviere`
+     * weiterhin 200, und das Menue haette die Luecke nur unsichtbar gemacht.
+     * 404 und nicht 403: ein 403 bestaetigt, dass es die Seite gibt (AUT-06).
+     *
+     * Geprueft werden LESE- und SCHREIBRECHTE der Route, obwohl `pruefeZugang`
+     * nur die Leserechte fuer den Zugang heranzieht. Das ist eine Stufe
+     * strenger und mit Absicht: eine Seite, die man lesen darf und deren
+     * Schaltflaeche in ein nicht gebuchtes Gewerk schreibt, waere ein Knopf,
+     * der beim Druecken 404 gibt. Heute unterscheidet keine Route die beiden
+     * Seiten — nachgemessen ueber alle Manifestzeilen —, also kostet die
+     * Strenge nichts und faengt den Tag ab, an dem eine dazukommt.
+     *
+     * `some` und nicht `every`: mehrere Leserechte sind eine UND-Verknuepfung
+     * (`zugang.ts` sammelt jedes fehlende in `fehlend`), also genuegt ein
+     * ungebuchtes Modul, um die Seite unerreichbar zu machen. Dieselbe
+     * Semantik, nur eine Frage frueher.
+     */
+    const route = findeRoute(pfad);
+    const bewachung = route?.bewachung;
+    const modulGesperrt = bewachung !== undefined && bewachung.art === 'recht'
+      && [...bewachung.lesen, ...bewachung.schreiben].some((r) => !modulAktiv(buchung, r));
     return {
       entscheidung, rolle, mandanten, sichtbareTabs, navigationsRechte,
-      mandantSlug: m?.slug ?? null,
+      mandantSlug: m?.slug ?? null, modulGesperrt,
     } satisfies Befund;
   }) as Promise<Befund>);
 
   const { entscheidung } = befund;
+  /**
+   * **Ein nicht gebuchtes Modul sieht aus wie eine Seite, die es nicht gibt**
+   * — und fuer diese Gesellschaft ist es das auch (D-377, AUT-06).
+   *
+   * Diese Zeile stand zuerst IM Rueckruf der Transaktion und griff dort auf
+   * `befund` zu — also auf das Ergebnis eben jener Transaktion, die gerade
+   * laeuft. TypeScript sieht das nicht: in einer Closure ist die Bindung im
+   * Gueltigkeitsbereich, nur zur Laufzeit noch nicht belegt. Der Build war
+   * sauber, und JEDE Portalseite antwortete mit 500
+   * („Cannot access 'c' before initialization"). Gefunden hat es der
+   * Browserlauf, nicht der Typpruefer.
+   */
+  if (befund.modulGesperrt) notFound();
   if (entscheidung.art === 'anmeldung') return null;
   if (entscheidung.art === 'falsches_portal') {
     /**
@@ -186,6 +280,7 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
     sichtbareTabs: befund.sichtbareTabs,
     navigationsRechte: befund.navigationsRechte,
     mandantSlug: befund.mandantSlug,
+    modulGesperrt: befund.modulGesperrt,
   };
 }
 

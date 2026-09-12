@@ -16,9 +16,27 @@ import type { SchreibKontext } from '../../kontext/index.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 
+/**
+ * Wahlweise MIT Mensch hinter dem Konto.
+ *
+ * `app.person_id` ist die zweite Haelfte einer Sitzung: `app.aktuelle_person()`
+ * liest sie, und daran haengen die Spalten, die festhalten, WER etwas getan
+ * hat — `aufmass.aufgenommen_von_anstellung_id`, `erstellt_von_person_id` im
+ * Bautagebuch. Ohne sie entstehen Zeilen, die niemand aufgenommen hat: nicht
+ * falsch, aber im Streitfall wertlos.
+ *
+ * Sie ist OPTIONAL, weil es Konten ohne Menschen gibt — der Website-Renderer
+ * und der Formular-Eingang haben keine Person, und eine Pflichtangabe haette
+ * sie aus dem Seed gedraengt.
+ */
+export interface SitzungsOptionen {
+  readonly personId?: string | null;
+}
+
 export async function alsPortalSitzung<T>(
   sql: Sql, mandantId: string, benutzerId: string,
   fn: (kontext: SchreibKontext) => Promise<T>,
+  optionen: SitzungsOptionen = {},
 ): Promise<T> {
   return sql.begin(async (tx) => {
     await tx.unsafe(`set local role cse_app`);
@@ -29,6 +47,7 @@ export async function alsPortalSitzung<T>(
     await setze('app.mandant_id', mandantId);
     await setze('app.mandant_ids', mandantId);
     await setze('app.benutzer_id', benutzerId);
+    await setze('app.person_id', optionen.personId ?? '');
     await setze('app.portal', 'intern');
     await setze('app.readonly', 'off');
     await setze('app.akteur_typ', 'mensch');

@@ -38,7 +38,32 @@ test.describe('(1) axe meldet NULL AA-Verstösse auf jeder öffentlichen Route',
 });
 
 test.describe('(5) die Startseite ist vollständig mit der Tastatur bedienbar', () => {
-  const BEDIENBAR = 'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
+  const BEDIENBAR =
+    'a[href], button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])';
+
+  /**
+   * **Nur was gerade GERENDERT ist.**
+   *
+   * Ein geschlossenes `<details>` behaelt seinen Inhalt im DOM. Die Ziele des
+   * Telefon-Menues stehen also auch am Schreibtisch in
+   * `querySelectorAll(BEDIENBAR)` — unsichtbar, per Tab nicht erreichbar, und
+   * `focus()` auf ihnen tut nichts. Ohne diesen Filter meldete die Pruefung
+   * sie als „nicht erreichbar" und „ohne Fokusrahmen": zwei Fehlschlaege fuer
+   * einen Zustand, der richtig ist. Ein verborgener Verweis SOLL nicht
+   * fokussierbar sein; dass er es wird, sobald das Menue aufgeht, haelt
+   * `firmenangaben.spec.ts` fest.
+   *
+   * `offsetParent` ist das Kriterium und nicht `visibility`: es ist genau
+   * dann null, wenn das Element (oder ein Vorfahr) `display: none` traegt —
+   * derselbe Test, den die Tap-Ziel-Pruefung schon benutzt. Die
+   * `position: fixed`-Ausnahme gehoert dazu: bei einem fixierten Element ist
+   * `offsetParent` auch dann null, wenn es sichtbar ist.
+   *
+   * Der Filter steht ZWEIMAL ausgeschrieben, in beiden `page.evaluate`. Ein
+   * gemeinsamer Helfer waere hier keiner: der Rumpf wird in den Browser
+   * serialisiert, und eine Funktion aus dem Modulgeltungsbereich ist dort
+   * nicht definiert.
+   */
 
   /**
    * Jedes Element bekommt eine eigene Nummer, bevor getabbt wird.
@@ -51,7 +76,10 @@ test.describe('(5) die Startseite ist vollständig mit der Tastatur bedienbar', 
    */
   async function nummeriere(page: Page): Promise<number> {
     return page.evaluate((auswahl) => {
-      const es = [...document.querySelectorAll(auswahl)];
+      const es = [...document.querySelectorAll(auswahl)].filter(
+        (e) => (e as HTMLElement).offsetParent !== null
+          || getComputedStyle(e).position === 'fixed',
+      );
       es.forEach((e, i) => { e.setAttribute('data-a11y-nr', String(i)); });
       return es.length;
     }, BEDIENBAR);
@@ -84,7 +112,11 @@ test.describe('(5) die Startseite ist vollständig mit der Tastatur bedienbar', 
 
     const ohneRing = await page.evaluate((auswahl) => {
       const schlecht: string[] = [];
-      for (const e of document.querySelectorAll(auswahl)) {
+      const sichtbare = [...document.querySelectorAll(auswahl)].filter(
+        (e) => (e as HTMLElement).offsetParent !== null
+          || getComputedStyle(e).position === 'fixed',
+      );
+      for (const e of sichtbare) {
         (e as HTMLElement).focus();
         const s = getComputedStyle(e);
         const sichtbar = (s.outlineStyle !== 'none' && s.outlineWidth !== '0px')

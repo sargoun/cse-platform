@@ -70,18 +70,29 @@ that puts an invoice in the wrong GmbH.
 ```css
 --success: #22C55E;   --success-soft: rgba(34,197,94,0.12);
 --warning: #F59E0B;   --warning-soft: rgba(245,158,11,0.12);
---danger:  #EF4444;   --danger-soft:  rgba(239,68,68,0.12);
---info:    #3B82F6;   --info-soft:    rgba(59,130,246,0.12);
+--danger:  #F26A6A;   --danger-soft:  rgba(239,68,68,0.12);
+--info:    #5895F7;   --info-soft:    rgba(59,130,246,0.12);
 
 --danger-strong: #DC2626;   /* solid danger SURFACE, white text on it */
 ```
 
 Status pills use `-soft` background + solid text. Never solid fills.
 
+**Why `--danger` and `--info` are lighter than the `-soft` colour they sit on.**
+The pill rule above says solid text on a `-soft` background. `-soft` is 12%
+alpha, so the pill's real background is almost the surface beneath it — and a
+pill sits on cards, not only on `--surface`. Measured against
+`--surface-3`-backed soft, the original `#EF4444` and `#3B82F6` gave **3.86:1**
+each and failed AA for the 13px pill text; on plain `--surface` they were
+4.53 and 4.55, one rounding from the same failure. The values above are the
+same hues lightened until the worst of the three surfaces clears **4.7:1**
+(danger 4.88, info 4.77). `--success` (5.88) and `--warning` (6.16) already
+did and are unchanged. The measurement is in DECISIONS.md.
+
 **Why `--danger` has a second, darker value.** `--danger` is tuned to be read
 *as text* on `--danger-soft` and on the dark surfaces — it has to be light. The
 danger *button* is the opposite case: white text on a solid fill. White on
-`#EF4444` is **3.76:1** and fails AA for body-sized text, so a solid danger
+`--danger` is **2.98:1** and fails AA for body-sized text, so a solid danger
 surface uses `--danger-strong` (**4.83:1**). One token cannot do both jobs, and
 the button is the one where the failure is a legal problem rather than a
 cosmetic one (§9, BFSG).
@@ -154,6 +165,53 @@ the images right and the design carries itself.
 1. **Real photographs of their own crews, sites and projects.** They have
    genuine references worth showing. Placeholder imagery only until the client
    supplies theirs — and marked as placeholder in the code.
+
+   **What a placeholder looks like, and why it is not a drawing.** The first
+   set were illustrated scenes — a cleaner with a cart, a guard at a barrier.
+   They read as clip-art, and clip-art on a page selling physical work says
+   the opposite of what rule 3 asks for: it looks like a company that has no
+   photographs of itself. A placeholder therefore claims **nothing**. It is a
+   reserved image area in the palette of §1: the surface ramp as a soft
+   vertical fall, one thin accent line in the area colour, a low-contrast
+   perspective grid so the panel has depth rather than flatness, the
+   `--bild-overlay` token, and one line of caption type naming the motif that
+   belongs there. No figures, no objects, no scene.
+
+   That is also the honest answer to "make the placeholders realistic": a
+   photograph cannot be invented. Either the client's own material arrives
+   (§4.1) or a licensed set is bought — and a stock photo of somebody else's
+   building on a page about this group's projects would be rule 3 broken with
+   better lighting. **O-13.**
+
+   **1a. The owner may ask for a motif panel instead, and then it is a
+   drawing — declared as one.** The empty panel is the correct default and
+   stays the default. But a page of empty panels reads as an unfinished site
+   to someone being shown the platform for the first time, and the owner has
+   asked for surfaces that carry the trade. The permitted middle is a **motif
+   panel**: a flat vector scene in the palette of §1 that evokes the trade —
+   scaffolding and a crane for Hochbau, a lit corridor for Reinigung, a gate
+   at night for Security — under four conditions, all of which must hold:
+
+   - **It must read as a drawing at a glance.** Flat fills, no photographic
+     gradients on surfaces, no texture, no depth-of-field. The point of rule 1
+     was that clip-art pretending to be a photograph is worse than an empty
+     panel; a drawing that is plainly a drawing makes no claim to be one.
+   - **Figures are silhouettes, never faces.** Rule 2 is untouched: no person
+     on this site may be read as a member of staff unless they are one. A
+     silhouetted figure at a distance depicts *work*, not a worker.
+   - **It carries the same placeholder caption** as the empty panel, in the
+     same place, naming the motif that belongs there. The panel says what it
+     is; nobody has to guess.
+   - **A real file under `public/bilder/` wins.** The panel is what the page
+     falls back to, never what it prefers — `bildFuerMotiv()` already works
+     this way, and the day the client's photographs arrive, nothing in the
+     code changes.
+
+   Which of the two a surface gets is a **size** decision, not a taste one:
+   large surfaces (hero, brand card, company page) take the motif panel,
+   because that is where emptiness reads as breakage. Small ones (object and
+   project thumbnails) keep the empty reserved area, because a drawing at
+   180 px is a smudge. See **D-376**.
 2. **Never publish AI-generated people as if they were staff.** For a company
    selling trust and physical presence, that backfires the moment anyone
    notices.

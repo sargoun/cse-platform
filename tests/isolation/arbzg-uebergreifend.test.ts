@@ -301,3 +301,50 @@ describe('der Detektor macht aus Befunden Zeilen', () => {
     expect(alle!.n).toBeGreaterThan(0);
   });
 });
+
+/**
+ * **Ein Befund geht nur die Gesellschaften an, die zur TATZEIT beschaeftigt
+ * haben.**
+ *
+ * `app.arbzg_befund_schreiben` leitete die Empfaenger aus JEDER Anstellung
+ * der Person ab — ohne Bedingung auf `austritt`. Eine Gesellschaft, bei der
+ * die Person 2018 ein halbes Jahr gearbeitet hat, bekam damit einen Befund
+ * von 2028 in ihre `arbeitszeit_verstoss` geschrieben und las dort Person,
+ * Regel, Zeitraum und Dauer.
+ *
+ * Das ist kein Anzeigefehler: K-06 erlaubt genau EINE Ueberschreitung der
+ * Mandantenwand (`app.arbzg_belastung`), und die gibt Zahlen zurueck, nie
+ * eine Zeile in einer fremden Tabelle. Migration 0085.
+ */
+describe('(6) ein Befund erreicht keine Gesellschaft, die damals nicht beschaeftigt hat', () => {
+  it('die laengst beendete Anstellung bekommt nichts zu sehen', async () => {
+    // Fatima hat frueher beim BAU gearbeitet — und dort seit 2019 nicht mehr.
+    await sql.unsafe(
+      `insert into anstellung (mandant_id, person_id, personalnummer, eintritt, austritt,
+                               status)
+       values ($1, $2, $3, '2018-01-01'::date, '2019-06-30'::date, 'beendet')
+       on conflict do nothing`,
+      [f.bau, f.fatima, `B-ALT-${String(Date.now()).slice(-6)}`]);
+
+    // Ein gesellschaftsuebergreifender Befund im Jahr 2028.
+    await schichtMit(f.reinigung, f.fatimaReinigung, f.fatima, TAG, '06:00', '12:00');
+    await schichtMit(f.security, f.fatimaSecurity, f.fatima, TAG, '13:00', '18:00');
+    const sitzung = await planerin(f.reinigung);
+    await alsApp(sitzung, async (tx) =>
+      erkenneKonflikte(tx, f.reinigung,
+        new Date(`${TAG}T00:00:00Z`), new Date('2028-05-16T00:00:00Z')));
+
+    const [beim_bau] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from arbeitszeit_verstoss
+        where mandant_id = $1 and person_id = $2`, [f.bau, f.fatima]);
+    expect(beim_bau!.n,
+      'der Bau hat 2028 nicht beschaeftigt und darf den Befund nicht sehen').toBe(0);
+
+    // Gegenprobe: die beiden, die WIRKLICH beschaeftigt haben, sehen ihn.
+    const [betroffen] = await sql.unsafe<{ n: number }[]>(
+      `select count(distinct mandant_id)::int as n from arbeitszeit_verstoss
+        where person_id = $1 and mandant_id = any($2::uuid[])`,
+      [f.fatima, [f.reinigung, f.security]]);
+    expect(betroffen!.n, 'Reinigung und Security sind betroffen').toBeGreaterThan(0);
+  });
+});

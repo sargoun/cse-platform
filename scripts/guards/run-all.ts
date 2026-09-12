@@ -61,6 +61,37 @@ function dateien(verzeichnis: string, endungen: readonly string[]): string[] {
   return treffer;
 }
 
+/**
+ * Ist das der ECHTE Baum? `wachen.test.ts` laesst die Wachen in einem
+ * Wegwerf-Baum ohne `package.json` laufen; dort fehlen `drizzle/`,
+ * `src/server/db` und `tests/` mit Absicht.
+ */
+const ECHTER_BAUM = existsSync(join(WURZEL, 'package.json'));
+
+/**
+ * Wie `dateien`, aber im echten Baum muss etwas dabei herauskommen.
+ *
+ * **Der Ausfall, gegen den das geschrieben ist, steht oben in `dateien`
+ * schon beschrieben und hat sich seitdem nicht geaendert:** ein falsch
+ * zusammengesetzter Pfad, `readdirSync` wirft, der `catch` schluckt es, und
+ * die Wache meldet "alles sauber", ohne eine einzige Datei gelesen zu haben.
+ * Bisher trug genau EINE Wache diese Kehrseite selbst (`wacheTailwindFarben`).
+ * Verschiebt jemand `drizzle/` oder `src/server/db`, gehen ohne diese Zeilen
+ * die Wachen ueber Invariante 1 und Invariante 2 still aus — und still ist
+ * hier das teure Wort: eine `numeric`-Geldspalte und ein zonenloser
+ * Zeitstempel brechen nichts, sie stehen bloss ab da falsch da.
+ */
+function mussLesen(verzeichnis: string, endungen: readonly string[]): string[] {
+  const treffer = dateien(verzeichnis, endungen);
+  if (ECHTER_BAUM && treffer.length === 0) {
+    throw new Error(
+      `Merge-Wachen: \`${verzeichnis}\` liefert keine Datei (${endungen.join(', ')}). `
+      + 'Eine Wache, die nichts liest, meldet "sauber" — das waere schlimmer als keine.',
+    );
+  }
+  return treffer;
+}
+
 const befunde: Befund[] = [];
 const melde = (wache: string, datei: string, zeile: number, text: string): void => {
   befunde.push({ wache, datei: relative(WURZEL, datei), zeile, text: text.trim().slice(0, 160) });
@@ -83,7 +114,7 @@ function wacheGeldSpalte(): void {
   const GELD_MEHRDEUTIG = /(wert|satz)/iu;
   /** An exemption is only valid if it names a unit. */
   const NICHT_GELD = /(--|\/\/)\s*nicht-geld:\s*\S+/u;
-  for (const datei of [...dateien('src/server/db', ['.ts']), ...dateien('drizzle', ['.sql'])]) {
+  for (const datei of [...mussLesen('src/server/db', ['.ts']), ...mussLesen('drizzle', ['.sql'])]) {
     readFileSync(datei, 'utf8')
       .split('\n')
       .forEach((zeile, i) => {
@@ -101,6 +132,18 @@ function wacheGeldSpalte(): void {
  * `timestamp without time zone` silently drops the offset, and every DST
  * calculation downstream is then wrong by an hour twice a year.
  */
+/**
+ * Ein Bezeichner, dann Leerraum, dann ein BLANKER `timestamp`.
+ *
+ * Nicht getroffen wird, was keine Spalte anlegt: `::timestamp` steht ohne
+ * Leerraum am Bezeichner, `timestamptz` traegt keine Wortgrenze nach
+ * `timestamp`, und die ausgeschriebenen Formen fangen die beiden
+ * Lookaheads ab — sie haben ihre eigene Meldung und sollen nicht doppelt
+ * erscheinen.
+ */
+const BLANKER_ZEITSTEMPEL =
+  /\b([a-z_][a-z0-9_]*)\s+timestamp\b(?!\s*\()(?!\s+with(?:out)?\s+time\s+zone)/giu;
+
 function wacheZeitstempel(): void {
   for (const datei of [...dateien('src/server/db', ['.ts']), ...dateien('drizzle', ['.sql'])]) {
     readFileSync(datei, 'utf8')
@@ -110,6 +153,37 @@ function wacheZeitstempel(): void {
           melde('zeit-immer-tz', datei, i + 1, zeile);
         }
         if (/\btimestamp\s*\(/iu.test(zeile) && !/withTimezone|with\s+time\s+zone/iu.test(zeile)) {
+          melde('zeit-immer-tz', datei, i + 1, zeile);
+        }
+        /*
+         * Der BLANKE `timestamp` — ohne Klammern, ohne Zusatz.
+         *
+         * Die Wache kannte genau zwei Formen: `timestamp without time zone`
+         * ausgeschrieben und den Drizzle-Aufruf `timestamp(`. Eine
+         * Spaltendeklaration in einer Migration schreibt aber keine von
+         * beiden:
+         *
+         *     erfasst_am timestamp not null default now(),
+         *
+         * PostgreSQL liest das als `timestamp without time zone` — genau die
+         * Spalte, gegen die Invariante 2 geschrieben ist. Die Wache sah sie
+         * nicht und meldete "alle sauber". Der Offset faellt dann beim
+         * Schreiben weg, jede Dauer ueber eine Zeitumstellung ist um eine
+         * Stunde falsch, zweimal im Jahr, und nichts bricht: es steht bloss
+         * eine plausible falsche Zahl auf dem Stundennachweis.
+         *
+         * Zwei Ausnahmen, beide am Text pruefbar: ein Bezeichner auf `_lokal`
+         * ist der dokumentierte Wanduhr-Anker aus 0029/0069 — die Ortszeit
+         * einer Serie, die absichtlich ohne Zone steht —, und ein
+         * Kommentar ist keine Deklaration. Die beiden Pruefungen darueber
+         * lesen Kommentarzeilen weiter mit; sie treffen nur ausgeschriebene
+         * Formen, die in Prosa nicht zufaellig entstehen.
+         */
+        const roh = zeile.trimStart();
+        if (roh.startsWith('--') || roh.startsWith('*') || roh.startsWith('//')
+            || roh.startsWith('/*')) return;
+        for (const m of zeile.matchAll(BLANKER_ZEITSTEMPEL)) {
+          if (/_lokal$/iu.test(m[1] ?? '')) continue;
           melde('zeit-immer-tz', datei, i + 1, zeile);
         }
       });
@@ -122,7 +196,7 @@ function wacheZeitstempel(): void {
  * is a handler that can be given one without a tenant predicate.
  */
 function wacheRouteOhneDb(): void {
-  for (const datei of dateien('src/app', ['.ts', '.tsx'])) {
+  for (const datei of mussLesen('src/app', ['.ts', '.tsx'])) {
     if (!/route\.tsx?$/u.test(datei)) continue;
     readFileSync(datei, 'utf8')
       .split('\n')
@@ -145,8 +219,8 @@ function wacheTodoClient(): void {
     [...register.matchAll(/^\|\s*(O-\d{1,3})\s*\|/gmu)].map((m) => m[1] ?? ''),
   );
   const zuPruefen = [
-    ...dateien('src', ['.ts', '.tsx']),
-    ...dateien('scripts', ['.ts']),
+    ...mussLesen('src', ['.ts', '.tsx']),
+    ...mussLesen('scripts', ['.ts']),
     // Migrations too. `0001` and `0002` each raise a real client question in a
     // SQL comment, and a question the guard cannot see is a question that can
     // fall out of the register without anything noticing.
@@ -198,10 +272,31 @@ function wacheTodoClient(): void {
  * Security-Modul und hat dort ein Jahr lang niemandem etwas gemeldet.
  */
 function wacheDatumZone(): void {
-  const FALSCH = /::date\s*\)?\s*(?:\+\s*\d+\s*\))?\s*at\s+time\s+zone/iu;
+  /**
+   * Auch `make_date(...) at time zone` — der Fund, den die erste Fassung
+   * durchliess. Sie suchte nur `::date`; `make_date()` liefert aber
+   * ebenso `date` und trifft damit dieselbe falsche Ueberladung. Der
+   * Monatsabschluss stand vier Monate lang so da.
+   */
+  const FALSCH = /(?:::date|make_date\s*\([^)]*\))\s*\)?\s*(?:\+\s*(?:\d+|interval\s+'[^']*')\s*\))?\s*at\s+time\s+zone/iu;
   for (const datei of [
-    ...dateien('src', ['.ts', '.tsx']),
-    ...dateien('drizzle', ['.sql']),
+    ...mussLesen('src', ['.ts', '.tsx']),
+    ...mussLesen('drizzle', ['.sql']),
+    /*
+     * **Auch die Pruefungen.** Die Wache las sie nicht, und genau dort faellt
+     * der Fehler am teuersten aus: eine Pruefung, die dieselbe Ueberladung
+     * benutzt wie der Code, ist gruen und beweist nichts. In diesem Zweig ist
+     * das VIERMAL vorgekommen (HEIC, Geraeteabweichung, Formularsekunden,
+     * Monatsnachweis) — jedes Mal stand daneben eine gruene Zusicherung, die
+     * den Irrtum bloss wiederholte.
+     *
+     * `wachen.test.ts` ist ausgenommen, aus demselben Grund wie
+     * `scripts/guards` bei der TODO-Wache: dort steht das Muster als
+     * FIXTUR, damit diese Wache daran gemessen werden kann. Ein Waechter, der
+     * ueber seiner eigenen Falsifikation stolpert, wird abgeschaltet.
+     */
+    ...mussLesen('tests', ['.ts', '.tsx'])
+      .filter((d) => !d.endsWith(join('tests', 'kern', 'wachen.test.ts'))),
   ]) {
     readFileSync(datei, 'utf8')
       .split('\n')
@@ -210,6 +305,70 @@ function wacheDatumZone(): void {
         if (/^\s*(--|\*|\/\/)/u.test(zeile)) return;
         if (FALSCH.test(zeile)) melde('datum-zone-ueberladung', datei, i + 1, zeile);
       });
+  }
+}
+
+/**
+ * Wache — ein Backtick in einem SQL-Template beendet die Zeichenkette.
+ *
+ * Die Abfragen stehen in Template-Literalen. Wer darin einen Kommentar mit
+ * `Spaltenname` in Backticks schreibt — so, wie der ganze Rest dieses Baums
+ * kommentiert ist —, beendet die Zeichenkette mitten im SQL. Der Build
+ * scheitert dann mit `TS1005: ',' expected` an einer Zeile, die voellig in
+ * Ordnung aussieht, und man sucht den Fehler im falschen Ausdruck.
+ *
+ * Das ist in dieser Sitzung DREIMAL passiert, jedes Mal beim Erklaeren einer
+ * gerade reparierten Stelle. Eine Falle, in die man beim Sorgfaeltigsein
+ * tappt, gehoert in eine Wache und nicht in die Erinnerung.
+ *
+ * Erkannt wird der einfache, haeufige Fall: eine Zeile INNERHALB eines
+ * mehrzeiligen SQL-Templates, die mit einem SQL-Kommentar oder einem
+ * Block-Kommentarstern beginnt und einen Backtick enthaelt. Der richtige Weg
+ * ist derselbe Kommentar mit `--` und ohne Backticks.
+ */
+function wacheBacktickImSql(): void {
+  /*
+   * Der Bereich beginnt an einer Zeile, die eine SQL-Verbform UND einen
+   * Backtick traegt, und endet an der naechsten Zeile mit einem Backtick.
+   *
+   * Absichtlich eng: eine Paritaetszaehlung ueber die ganze Datei zaehlt jeden
+   * Backtick in jedem Regex und jeder Doku mit und meldet dann Kommentare, die
+   * voellig in Ordnung sind. Eine Wache mit falschen Treffern wird abgeschaltet
+   * — und dann prueft sie gar nichts mehr.
+   */
+  const OEFFNET = /(?:unsafe|abfrage|schreibe|sql)\s*(?:<[^>]*>)?\s*\(?\s*`/u;
+  for (const datei of mussLesen('src', ['.ts', '.tsx'])
+    .concat(mussLesen('tests', ['.ts']))) {
+    const zeilen = readFileSync(datei, 'utf8').split('\n');
+    let imSql = false;
+    zeilen.forEach((zeile, i) => {
+      if (!imSql) {
+        // Nur wenn das Template offen BLEIBT: `sql.unsafe(`…`)` in einer Zeile
+        // oeffnet und schliesst zugleich und faengt keinen Kommentar ein.
+        const offen = ((zeile.match(/`/gu) ?? []).length % 2) === 1;
+        /*
+         * Zwei Formen oeffnen ein SQL-Template, und die erste Fassung kannte
+         * nur eine. Bei der haeufigeren steht der Aufruf auf der einen Zeile
+         * und die Abfrage auf der naechsten:
+         *
+         *     await sql.unsafe<{ id: string }[]>(
+         *       `insert into einsatz (...
+         *
+         * Dort traegt die oeffnende Zeile KEINE Verbform — sie beginnt bloss
+         * mit einem Backtick. Genau diese Form hat der Fehler dreimal
+         * getroffen, und genau sie liess die Wache durch: sie meldete sauber
+         * und prueffte nichts.
+         */
+        const beginntMitTick = zeile.trimStart().startsWith('`');
+        if (offen && (beginntMitTick || OEFFNET.test(zeile))
+            && !zeile.trimStart().startsWith('*')) imSql = true;
+        return;
+      }
+      if (/^\s*(?:--|\*|\/\/)/u.test(zeile) && zeile.includes('`')) {
+        melde('sql-backtick-im-kommentar', datei, i + 1, zeile);
+      }
+      if (zeile.includes('`')) imSql = false;
+    });
   }
 }
 
@@ -227,14 +386,48 @@ const TRANSPORTE = [
   '@aws-sdk/client-ses', 'twilio', 'node-fetch', 'axios', 'got', 'undici',
 ];
 
+/**
+ * Das native `fetch` braucht keinen Import — und war deshalb der eine
+ * Ausgang, den die Liste oben nicht sehen konnte.
+ *
+ * `server/storage` steht hier und NICHT in `erlaubt`: der Speicher-Adapter
+ * spricht mit dem eigenen Supabase-Bucket, also mit der eigenen
+ * Infrastruktur und nicht mit einem Empfaenger. Ein `nodemailer` dort waere
+ * trotzdem ein Verstoss, und die Importpruefung faengt ihn weiterhin.
+ */
+const FETCH_ERLAUBT = [
+  join('server', 'versand'), join('server', 'agent', 'policy'), join('server', 'storage'),
+];
+
 function wacheEinAusgang(): void {
   const erlaubt = [join('server', 'versand'), join('server', 'agent', 'policy')];
-  const zuPruefen = dateien('src', ['.ts', '.tsx']).filter(
+  const zuPruefen = mussLesen('src', ['.ts', '.tsx']).filter(
     (d) => !erlaubt.some((e) => d.includes(e)),
   );
 
   for (const datei of zuPruefen) {
+    const fetchErlaubt = FETCH_ERLAUBT.some((e) => datei.includes(e));
     readFileSync(datei, 'utf8').split('\n').forEach((zeile, i) => {
+      /*
+       * **Was die Wache vorher nicht sah.** Sie las ausschliesslich
+       * Importnamen. `nodemailer` fiel auf, `await fetch('https://…/send')`
+       * nicht — und `fetch` ist seit Node 18 global, es braucht keinen
+       * Import und keine Abhaengigkeit. Der eine Ausgang war damit eine
+       * Zusage ueber die `package.json` und nicht ueber den Code: jede
+       * Mailversand-API, jeder Webhook, jeder Kanal liess sich in einer
+       * Zeile danebenlegen, ohne dass etwas rot wurde. Invariante 7 ist
+       * dann nur noch ein Vorsatz.
+       *
+       * Erlaubt bleibt der Ruf an die EIGENE API: ein Pfad, der mit `/`
+       * beginnt, verlaesst das System nicht.
+       */
+      const roh = zeile.trimStart();
+      const istKommentar = roh.startsWith('//') || roh.startsWith('*') || roh.startsWith('/*');
+      if (!istKommentar && !fetchErlaubt && /\bfetch\s*\(/u.test(zeile)
+          && !/\bfetch\s*\(\s*[`'"]\//u.test(zeile)) {
+        melde('ein-ausgang', datei, i + 1,
+          `natives \`fetch\` ausserhalb von server/versand — Invariante 7 kennt genau einen Ausgang.`);
+      }
       const treffer = /(?:from|require\()\s*['"]([^'"]+)['"]/u.exec(zeile);
       if (treffer === null) return;
       const modul = treffer[1] ?? '';
@@ -325,6 +518,13 @@ function wacheTailwindFarben(): void {
     'left', 'center', 'right', 'justify', 'start', 'end',
     'wrap', 'nowrap', 'balance', 'pretty', 'ellipsis', 'clip',
   ]);
+  /**
+   * Tailwinds eigene Schattenstufen. `theme.extend` ersetzt sie nicht, es legt
+   * daneben — `shadow-lg` ist also gueltig, ohne im Thema zu stehen.
+   * `shadow-2xl` und das blanke `shadow` fasst der Ausdruck unten gar nicht an:
+   * er verlangt nach dem Bindestrich einen Buchstaben.
+   */
+  const SHADOW_VORGABE = new Set(['sm', 'md', 'lg', 'xl', 'inner', 'none']);
 
   /**
    * Gelesen wird, was WIRKLICH eine Klassenliste ist.
@@ -337,7 +537,7 @@ function wacheTailwindFarben(): void {
    * Deshalb: Kommentare weg, und ausserhalb von `.tsx` nur Zeilen, die
    * überhaupt von Klassen sprechen.
    */
-  const quellen = dateien('src', ['.ts', '.tsx']);
+  const quellen = mussLesen('src', ['.ts', '.tsx']);
   /**
    * Hier MUSS etwas gefunden werden: die Konfiguration oben gibt es, also ist
    * das der echte Baum. Null Dateien hiesse, die Wache liest ins Leere und
@@ -408,7 +608,22 @@ function wacheTailwindFarben(): void {
           continue;
         }
         if (praefix === 'shadow') {
-          if (schatten.has(rest) || rest === 'none' || farben.has(rest)) continue;
+          /**
+           * **Der Zweig endete vorher in beiden Faellen mit `continue`.**
+           *
+           * `schatten` wurde aus dem Thema gelesen und dann nie benutzt: ein
+           * `shadow-…`, das es im Thema nicht gibt, ging still durch. Das ist
+           * derselbe Ausfall, gegen den diese Wache ueberhaupt geschrieben ist
+           * — Tailwind erzeugt fuer einen unbekannten Schatten keine Regel und
+           * meldet nichts. Wer `shadow-pop` im Thema umbenennt, verliert damit
+           * die Erhebung jeder Karte auf jedem Bildschirm; im Markup steht
+           * alles richtig, im Browser ist die Flaeche flach, und kein Test
+           * schlaegt an. Eine Pruefung, die geschrieben und dann stillgelegt
+           * wurde, ist schlimmer als keine: sie belegt den Platz.
+           */
+          if (schatten.has(rest) || SHADOW_VORGABE.has(rest) || farben.has(rest)) continue;
+          melde('tailwind-farbe', datei, i + 1,
+            `\`shadow-${rest}\` — kein Schatten im Thema. Die Flaeche bleibt flach.`);
           continue;
         }
         if (!FARBPRAEFIX.includes(praefix)) continue;
@@ -464,15 +679,40 @@ function wacheTailwindFarben(): void {
 const ZEIT_ANZEIGE = /\.toLocale(?:Date|Time)?String\s*\(|new\s+Intl\.DateTimeFormat\s*\(/u;
 
 function wacheAnzeigeZeitzone(): void {
-  for (const datei of [...dateien('src', ['.ts', '.tsx']), ...dateien('scripts', ['.ts'])]) {
+  // `tests` steht mit dabei, aus demselben Grund wie bei `wacheDatumZone`:
+  // eine Zusicherung, die ein Datum ohne Zone formatiert, misst die Serverzone
+  // gegen die Serverzone und geht IMMER auf — auch dann, wenn die Anzeige
+  // daneben falsch ist.
+  for (const datei of [
+    ...mussLesen('src', ['.ts', '.tsx']),
+    ...mussLesen('scripts', ['.ts']),
+    ...mussLesen('tests', ['.ts', '.tsx']),
+  ]) {
     // Ohne Kommentare: der Beispielcode in einem Docblock ist kein Aufruf —
     // diese Wache fand sonst zuerst ihre eigene Erklaerung.
     const zeilen = ohneKommentare(readFileSync(datei, 'utf8')).split('\n');
     zeilen.forEach((zeile, i) => {
       if (!ZEIT_ANZEIGE.test(zeile)) return;
-      // Prozente und Zahlen tragen keine Zone — `toLocaleString` auf einer
-      // Zahl ist kein Datum und faellt hier nicht hinein.
-      if (/toLocaleString\s*\(\s*'de-DE'\s*\)/u.test(zeile)) return;
+      /*
+       * Prozente und Zahlen tragen keine Zone — `toLocaleString` auf einer
+       * Zahl ist kein Datum und faellt hier nicht hinein.
+       *
+       * **Die Ausnahme war vorher blind.** Sie sah nur den AUFRUF und nicht,
+       * worauf er steht: `new Date(x).toLocaleString('de-DE')` ist Zeichen
+       * fuer Zeichen derselbe Aufruf — und genau der Fehler, gegen den diese
+       * Wache geschrieben ist. Er ging durch, ohne dass jemand etwas
+       * umgehen musste. Auf Vercel laeuft der Server in UTC: eine Schicht,
+       * die am 3. um 00:30 Berliner Zeit beginnt, stand als der 2. im
+       * Stundennachweis, im Sommer jede Uhrzeit zwei Stunden daneben.
+       *
+       * Ausgenommen bleibt deshalb nur, was auf derselben Zeile kein
+       * Datum nennt. Im Zweifel meldet die Wache — eine Zahl, die einmal
+       * zuviel gemeldet wird, kostet eine Zeile Kommentar; ein Datum, das
+       * einmal zuwenig gemeldet wird, kostet einen Streit ueber Stunden.
+       */
+      const ZAHL_OHNE_ZONE = /\.toLocaleString\s*\(\s*'de-DE'\s*\)/u;
+      const NENNT_DATUM = /new\s+Date|Date\s*[.(]|datum|zeit|date|uhr|_am\b|_at\b/iu;
+      if (ZAHL_OHNE_ZONE.test(zeile) && !NENNT_DATUM.test(zeile)) return;
       // Die Zone darf im selben Aufruf stehen, also auch ein paar Zeilen
       // weiter unten: `new Intl.DateTimeFormat('de-DE', {` bricht um.
       const fenster = zeilen.slice(i, i + 6).join(' ');
@@ -603,6 +843,7 @@ async function main(): Promise<void> {
   wacheRouteOhneDb();
   wacheTodoClient();
   wacheDatumZone();
+  wacheBacktickImSql();
   wacheEuRegion();
   wacheEinAusgang();
   wacheTailwindFarben();

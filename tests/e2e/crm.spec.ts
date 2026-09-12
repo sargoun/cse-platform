@@ -8,19 +8,22 @@
  * Funktion, die auch der Sendepfad fragt.
  */
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
-
-async function anmelden(page: Page, rolle: string): Promise<void> {
-  await page.goto('/dev/anmelden');
-  const knopf = page.locator(`[data-cse="dev-anmelden"][data-rolle="${rolle}"]`).first();
-  await expect(knopf, `kein Seed-Konto für Rolle ${rolle}`).toBeVisible();
-  await knopf.click();
-  await page.waitForLoadState('networkidle');
-}
+import { expect, test } from '@playwright/test';
+/**
+ * Angemeldet wird als BESTIMMTES Konto, nicht als „irgendwer mit Rolle admin".
+ *
+ * Die oertliche Hilfe griff `[data-rolle="admin"]`.first(); seit der Seed ein
+ * zweites Verwaltungskonto kennt, steht „Administration Bau" in der nach Namen
+ * sortierten Liste vor „Administration Reinigung". Die Sitzung landete damit
+ * im Mandanten `bau`, und jeder Aufruf unter `/portal/reinigung/…` antwortete
+ * zu Recht mit 404 (Slug-Wache, AUT-06) — ein Fehlschlag, der wie ein kaputter
+ * Bildschirm aussah und eine falsche Anmeldung war.
+ */
+import { alsKonto, KONTO } from './hilfen/anmeldung';
 
 test.describe('(1) Die Kundenliste zeigt den Werbestatus', () => {
   test('sie führt die Seed-Kunden mit Rechtsgrundlage', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     const antwort = await page.goto('/portal/reinigung/crm/kunden');
     expect(antwort?.status()).toBe(200);
     await expect(page.locator('h1')).toHaveText('Kunden');
@@ -30,7 +33,7 @@ test.describe('(1) Die Kundenliste zeigt den Werbestatus', () => {
   });
 
   test('und nicht die Kunden einer anderen Gesellschaft', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await page.goto('/portal/reinigung/crm/kunden');
     // K-20001 gehoert der Security — dieselbe Firma, andere Kundenbeziehung.
     await expect(page.getByText('K-20001')).toHaveCount(0);
@@ -40,7 +43,7 @@ test.describe('(1) Die Kundenliste zeigt den Werbestatus', () => {
 
 test.describe('(2) Das UWG-Tor steht als Anzeige auf der Kundenseite', () => {
   test('der Bestandskunden-Kontakt darf per E-Mail beworben werden', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await page.goto('/portal/reinigung/crm/kunden');
     await page.getByRole('link', { name: 'Berliner Hausverwaltung GmbH' }).click();
     await expect(page.locator('h1')).toHaveText('Berliner Hausverwaltung GmbH');
@@ -52,7 +55,7 @@ test.describe('(2) Das UWG-Tor steht als Anzeige auf der Kundenseite', () => {
   });
 
   test('das Objekt des Kunden ist von hier erreichbar', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await page.goto('/portal/reinigung/crm/kunden');
     await page.getByRole('link', { name: 'Berliner Hausverwaltung GmbH' }).click();
     await page.getByRole('link', { name: 'Bürohaus Kurfürstendamm' }).click();
@@ -62,7 +65,7 @@ test.describe('(2) Das UWG-Tor steht als Anzeige auf der Kundenseite', () => {
 
 test.describe('(3) Der Lead-Posteingang und der Verlauf', () => {
   test('er führt die offenen Anfragen', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     const antwort = await page.goto('/portal/reinigung/crm/leads');
     expect(antwort?.status()).toBe(200);
     await expect(page.locator('h1')).toHaveText('Leads');
@@ -72,7 +75,7 @@ test.describe('(3) Der Lead-Posteingang und der Verlauf', () => {
 
   test('eine Anfrage ohne nächsten Schritt sagt das — sonst liegt sie still',
     async ({ page }) => {
-      await anmelden(page, 'admin');
+      await alsKonto(page, KONTO.adminReinigung);
       await page.goto('/portal/reinigung/crm/leads');
       await page.getByRole('link', { name: /Unterhaltsreinigung Buerohaus/u }).click();
       await expect(page.locator('[data-cse="ohne-naechsten-schritt"]')).toBeVisible();
@@ -80,7 +83,7 @@ test.describe('(3) Der Lead-Posteingang und der Verlauf', () => {
 
   test('eine Notiz landet im Verlauf, und der nächste Schritt steht danach fest',
     async ({ page }) => {
-      await anmelden(page, 'admin');
+      await alsKonto(page, KONTO.adminReinigung);
       await page.goto('/portal/reinigung/crm/leads');
       await page.getByRole('link', { name: /Glasreinigung/u }).click();
       await page.waitForURL(/\/crm\/leads\/[0-9a-f-]{36}$/u);
@@ -104,7 +107,7 @@ test.describe('(3) Der Lead-Posteingang und der Verlauf', () => {
 test.describe('(4) „Mehr" öffnet den vollständigen Baum (SEITENKARTE §11.2)', () => {
   test('am Telefon führt das fünfte Ziel in die übrigen Module', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 720 });
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await page.goto('/portal/reinigung');
 
     const mehr = page.locator('[data-cse="mehr"]');
@@ -120,7 +123,15 @@ test.describe('(4) „Mehr" öffnet den vollständigen Baum (SEITENKARTE §11.2)
 
   test('ein Modul ohne Recht steht NICHT im Blatt', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 720 });
-    await anmelden(page, 'leitung');
+    /**
+     * Hier ist die ROLLE die Aussage, nicht der Mensch: geprueft wird, was
+     * `leitung` NICHT darf. `[data-rolle="leitung"]`.first() traf das nur so
+     * lange verlaesslich, wie die nach Namen sortierte Liste „Leitung Bau" vor
+     * „Leitung Security" stellte — eine Zusicherung, die niemand gegeben hat.
+     * `leitung.bau` ist genau die Leitung DIESER Gesellschaft; unter einer
+     * Sitzung in `security` haette `/portal/bau` mit 404 geantwortet.
+     */
+    await alsKonto(page, KONTO.leitungBau);
     await page.goto('/portal/bau');
     await page.locator('[data-cse="tab"][data-tab="mehr"]').click();
     // `leitung` hält `system.einstellung_lesen` nicht — der Punkt fehlt,
@@ -134,7 +145,7 @@ test.describe('(4) „Mehr" öffnet den vollständigen Baum (SEITENKARTE §11.2)
 
 test.describe('(5) barrierefrei', () => {
   test('axe findet nichts auf der Kundenseite', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await page.goto('/portal/reinigung/crm/kunden');
     const ergebnis = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();

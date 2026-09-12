@@ -10,7 +10,8 @@ import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
 import { withTenant } from '@/server/kontext/index';
 import {
   erstelleReklamation, schreibeAbstellung,
-  MassnahmeFehlt, NachweisPasstNicht, ReklamationNichtGefunden,
+  BezugNichtGefunden, BezugPasstNicht, MassnahmeFehlt, NachweisPasstNicht,
+  ReklamationNichtGefunden,
   type ReklamationPrioritaet, type ReklamationQuelle, type ReklamationStatus,
 } from '@/server/services/reinigung/reklamation';
 
@@ -111,13 +112,15 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     if (fehler instanceof Unvollstaendig) {
       return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
     }
-    if (fehler instanceof MassnahmeFehlt || fehler instanceof NachweisPasstNicht) {
+    if (fehler instanceof MassnahmeFehlt || fehler instanceof NachweisPasstNicht
+      || fehler instanceof BezugPasstNicht) {
       return NextResponse.json(
         { fehler: 'ungueltiger_zustand', hinweis: fehler.message }, { status: 422 },
       );
     }
     // AUT-06: eine fremde Zeile ist nicht vorhanden, nicht verboten.
-    if (fehler instanceof ReklamationNichtGefunden || fehler instanceof NichtGefundenFehler) {
+    if (fehler instanceof ReklamationNichtGefunden || fehler instanceof BezugNichtGefunden
+      || fehler instanceof NichtGefundenFehler) {
       return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
     }
     if (fehler instanceof NichtAngemeldetFehler) {

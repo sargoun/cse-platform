@@ -81,30 +81,29 @@ export function Stempeluhr({ token }: { readonly token: string }) {
   const stemple = async (): Promise<void> => {
     setzeZustand({ art: 'sendet' });
     const getipptAm = new Date();
+    /**
+     * **Nur ein Fehlschlag der UEBERTRAGUNG gehoert in die Warteschlange.**
+     *
+     * Der `fetch`-Aufruf und das Lesen der Antwort standen bis hierhin in
+     * EINEM `try`. Damit landete auch ein Stempel in der Schlange, auf den der
+     * Server geantwortet hatte — ein 500 mit HTML-Rumpf genuegt, damit
+     * `antwort.json()` wirft. Die Marke war dann womoeglich verbraucht und der
+     * `zeiteintrag` geschrieben, und die Nachreichung legte daneben einen
+     * zweiten Anspruch auf dieselbe Stunde. Doppelt erfasste Zeit ist doppelt
+     * abgerechnete Zeit (FIN-07) und ein doppelter § 17-Nachweis — genau das,
+     * wogegen K-09 gebaut ist.
+     *
+     * Ab der Antwort gibt es deshalb kein Merken mehr: hat der Server
+     * gesprochen, entscheidet er.
+     */
+    let antwort: Response;
     try {
-      const antwort = await fetch(`/api/check-in/${encodeURIComponent(token)}`, {
+      antwort = await fetch(`/api/check-in/${encodeURIComponent(token)}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         // Die Geraetezeit reist mit, damit die Abweichung festgehalten werden
         // kann (Invariante 5) — sie wird nie zur Stempelzeit.
         body: JSON.stringify({ geraetezeit: getipptAm.toISOString() }),
-      });
-      const daten = (await antwort.json()) as {
-        ergebnis?: string; objekt?: string | null; server_zeit?: string;
-        error?: { message?: string };
-      };
-      if (!antwort.ok) {
-        setzeZustand({
-          art: 'abgelehnt',
-          meldung: daten.error?.message ?? 'Dieser Link ist nicht gültig.',
-        });
-        return;
-      }
-      setzeZustand({
-        art: 'bestaetigt',
-        zeit: UHR.format(new Date(daten.server_zeit ?? Date.now())),
-        objekt: daten.objekt ?? null,
-        ausgestempelt: daten.ergebnis === 'ausgecheckt',
       });
     } catch {
       /**
@@ -115,8 +114,21 @@ export function Stempeluhr({ token }: { readonly token: string }) {
        * ueber die die Planung entscheidet. Wer stattdessen die Sendezeit
        * mitschickte, verschoebe jede Nachtschicht auf den Moment, in dem das
        * Telefon wieder Empfang hatte — und zwar plausibel und unauffaellig.
+       *
+       * **`unbekannt`, nicht `checkin`.** Ob dieses Antippen ein Beginn oder
+       * ein Ende ist, entscheidet der ZWECK DER MARKE auf dem Server — der
+       * Online-Pfad weiter oben liest es ja auch erst an der Antwort ab
+       * (`ergebnis === 'ausgecheckt'`). Diese Flaeche hat einen
+       * Knopf und loest die Marke absichtlich nicht auf (AUT-06); sie KANN
+       * die Richtung nicht wissen. Bis hierhin stand trotzdem `checkin` da:
+       * ein im Funkloch getipptes SchichtENDE reiste damit als SchichtBEGINN
+       * zur Planung, und niemand sah einen Fehler — nur einen falschen
+       * Beginn. Eine geratene Richtung ist genau die stille Falschaussage,
+       * gegen die Invariante 5 geschrieben ist. Die Datenbank setzt beim
+       * Nachreichen ein, was in der Marke steht (0090); loest keine Marke
+       * auf, bleibt `unbekannt` stehen, und ein Mensch entscheidet.
        */
-      const eintrag = stelleAn('checkin', getipptAm);
+      const eintrag = stelleAn('unbekannt', getipptAm, token);
       setzeZustand({
         art: 'gemerkt',
         zeit: UHR.format(new Date(eintrag.behaupteteZeit)),
@@ -124,7 +136,32 @@ export function Stempeluhr({ token }: { readonly token: string }) {
       });
       setzeOffen(lies().length);
       leere();
+      return;
     }
+
+    /**
+     * Ein unlesbarer Rumpf ist hier KEIN Netzfehler mehr, sondern eine
+     * Ablehnung ohne Grund — dieselbe Auskunft, die jede andere Ablehnung
+     * bekommt (AUT-06). Was der Server getan hat, wiederholt diese Flaeche
+     * nicht auf eigene Faust.
+     */
+    const daten = (await antwort.json().catch(() => ({}))) as {
+      ergebnis?: string; objekt?: string | null; server_zeit?: string;
+      error?: { message?: string };
+    };
+    if (!antwort.ok) {
+      setzeZustand({
+        art: 'abgelehnt',
+        meldung: daten.error?.message ?? 'Dieser Link ist nicht gültig.',
+      });
+      return;
+    }
+    setzeZustand({
+      art: 'bestaetigt',
+      zeit: UHR.format(new Date(daten.server_zeit ?? Date.now())),
+      objekt: daten.objekt ?? null,
+      ausgestempelt: daten.ergebnis === 'ausgecheckt',
+    });
   };
 
   if (zustand.art === 'bestaetigt') {

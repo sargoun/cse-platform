@@ -314,13 +314,48 @@ export async function seedOperations(
    * ueberschrittene Frist und KEINEN naechsten Schritt — genau der Fall, den
    * die Oberflaeche benennen muss, weil er sonst still liegen bleibt.
    */
+  /**
+   * Der Besitzer ist ein MENSCH mit `crm.schreiben` — nicht der erste Eintrag
+   * der Tabelle.
+   *
+   * Die Abfrage nahm den zuerst angelegten Benutzer der Gesellschaft, und das
+   * war seit dem Tag, an dem es Dienstprinzipale gibt, der
+   * WEBSITE-RENDERER: er entsteht in `index.ts` vor allen Rollenkonten und
+   * bekommt eine `benutzer_mandant`-Zeile in jedem Bereich. Beide Demoleads
+   * standen damit auf einem Konto, das `oeffentlich.lesen` haelt, mit
+   * `app.readonly = 'on'` laeuft und keinen Lead je oeffnen koennte — der
+   * Posteingang zeigte „Website-Renderer" als Zustaendigen, und die
+   * SLA-Eskalation zielte auf ein Dienstkonto. Ein Lead ohne erreichbaren
+   * Menschen bleibt genau so lange liegen, wie die Frist braucht.
+   *
+   * `ist_dienstkonto` steht zusaetzlich zum Recht in der Bedingung, denn der
+   * Formular-Eingang haelt `crm.schreiben` mit Absicht: er nimmt Anfragen an.
+   * Zustaendig ist er deshalb fuer keine.
+   */
   const [besitzer] = await sql<{ id: string }[]>`
     select b.id from benutzer b
-      join benutzer_mandant bm on bm.benutzer_id = b.id
-     where bm.mandant_id = ${reinigung} order by b.erstellt_am limit 1`;
+      join benutzer_mandant bm on bm.benutzer_id = b.id and bm.mandant_id = ${reinigung}
+      join rolle_berechtigung rb on rb.rolle_id = bm.rolle_id
+      join berechtigung be on be.id = rb.berechtigung_id
+     where be.schluessel = 'crm.schreiben'
+       and b.status = 'aktiv' and b.ist_dienstkonto = false and bm.entzogen_am is null
+     order by b.email limit 1`;
 
   if (besitzer !== undefined) {
-    const leads: readonly (readonly [string, string, string, string, string, number | null])[] = [
+    /**
+     * Der letzte Wert ist die SLA-Frist in Stunden ab jetzt — negativ heisst
+     * vorbei.
+     *
+     * „Der eine hat eine ueberschrittene Frist" war frueher „beide": die
+     * Anweisung setzte fest `now() - interval '2 hours'`, also fuer jeden Lead
+     * eine Frist in der Vergangenheit. Die Leadliste markiert
+     * `frist_ueberschritten` und sortiert danach — in einem Posteingang, in
+     * dem ALLES rot ist, sagt die Markierung nichts mehr und die Sortierung
+     * hat nichts zu zeigen. Die Frist gehoert deshalb zum Lead und nicht in
+     * die Anweisung.
+     */
+    const leads: readonly (
+      readonly [string, string, string, string, string, number | null, number])[] = [
       /**
        * BEIDE `manuell`, und das ist keine Bequemlichkeit: ein Lead mit
        * `quelle = 'webformular'` verlangt einen echten `formular_eingang`
@@ -329,14 +364,16 @@ export async function seedOperations(
        * Leads ist genau das, was REQ-07 und REP-03 auswerten. Wer einen
        * Webformular-Lead sehen will, schickt das Angebotsformular ab.
        */
+      // Der liegengebliebene: Frist vorbei, niemand hat reagiert.
       ['L-2026-0001', 'Unterhaltsreinigung Buerohaus, 3 Etagen',
        'Telefonisch aufgenommen: rund 470 m² Bueroflaeche, 5x woechentlich, '
-       + 'Start zum Quartalsbeginn.', 'manuell', 'neu', 240000],
+       + 'Start zum Quartalsbeginn.', 'manuell', 'neu', 240000, -2],
+      // Und der Normalfall daneben — sonst waere „rot" keine Aussage.
       ['L-2026-0002', 'Glasreinigung halbjaehrlich',
        'Telefonisch: Fensterfront Erdgeschoss, zweimal im Jahr.',
-       'manuell', 'in_bearbeitung', 85000],
+       'manuell', 'in_bearbeitung', 85000, 20],
     ];
-    for (const [nummer, betreff, bedarf, quelle, status, wert] of leads) {
+    for (const [nummer, betreff, bedarf, quelle, status, wert, fristStunden] of leads) {
       const [da] = await sql<{ id: string }[]>`
         select id from lead where mandant_id = ${reinigung} and leadnummer = ${nummer} limit 1`;
       if (da !== undefined) continue;
@@ -348,7 +385,7 @@ export async function seedOperations(
         values (${reinigung}, ${nummer}, ${quelle}::lead_quelle, ${betreff}, ${bedarf},
                 ${status}::lead_status, 'hoch'::lead_prioritaet, ${besitzer.id},
                 'Berliner Hausverwaltung GmbH', ${wert},
-                now() - interval '2 hours', 72,
+                now() + make_interval(hours => ${fristStunden}::int), 72,
                 'Platzhalter: Flaeche und Frequenz bekannt, Budget unbestaetigt (O-73)')`;
     }
   }

@@ -46,13 +46,25 @@ interface KonfliktZeile {
   readonly ist_minuten: number | null;
   readonly grenzwert_minuten: number | null;
   readonly regel: string | null;
+  /** Die Gegenschichten einer Überschneidung — fertig beschriftet, Europe/Berlin. */
+  readonly gegenschichten: readonly string[];
 }
 
+/**
+ * Die Schluessel sind die WIRKLICHEN Werte von `konflikt_art`.
+ *
+ * Sie lauteten `arbeitszeit`, `qualifikation` und `unterbesetzung` — keiner
+ * davon existiert. Das Enum ist ('ueberschneidung','qualifikation_entfallen',
+ * 'arbzg','aufzeichnungsfrist'), und ein Zugriff mit unbekanntem Schluessel
+ * gab `undefined`: im Eingang stand der rohe Enum-Wert statt einer
+ * Bezeichnung. Derselbe Fehler steckte im Plan (`daten.ts`), dort mit der
+ * teureren Wirkung — jeder Ruhezeitverstoss las sich als „Unterbesetzt".
+ */
 const ART_TEXT: Readonly<Record<string, string>> = {
-  arbeitszeit: 'Arbeitszeit',
-  qualifikation: 'Nachweis',
+  arbzg: 'Arbeitszeit',
+  qualifikation_entfallen: 'Nachweis',
   ueberschneidung: 'Überschneidung',
-  unterbesetzung: 'Unterbesetzung',
+  aufzeichnungsfrist: 'Aufzeichnungsfrist',
 };
 
 /**
@@ -99,7 +111,23 @@ export default async function Konflikteingang(
               to_char((k.zeitraum_ende   at time zone 'Europe/Berlin'), 'DD.MM. HH24:MI')
                                              as ende_lokal,
               k.einsatz_id, o.bezeichnung as objekt,
-              v.ist_minuten, v.grenzwert_minuten, v.regel::text as regel
+              v.ist_minuten, v.grenzwert_minuten, v.regel::text as regel,
+              -- Die Gegenschichten stehen seit dem ersten Tag in details, und
+              -- niemand las sie: im Eingang stand „Überschneidung", ohne zu
+              -- sagen WOGEGEN. Eine Warnung, die die Gegenschicht nicht nennt,
+              -- laesst sich nicht aufloesen -- nur quittieren.
+              -- jsonb_typeof davor, weil ein einmal doppelt kodiertes details
+              -- eine JSON-ZEICHENKETTE ist: der Pfadzugriff liefert dort nichts
+              -- Brauchbares, und jsonb_array_elements_text braeche die Seite.
+              -- (Kommentar ohne Backticks: einer im Template-Literal beendet
+              --  die Zeichenkette und bricht den Build.)
+              coalesce((
+                select array_agg(t.x)
+                  from jsonb_array_elements_text(
+                         case when jsonb_typeof(k.details->'gegenschichten') = 'array'
+                              then k.details->'gegenschichten'
+                              else '[]'::jsonb end) as t(x)
+              ), '{}'::text[]) as gegenschichten
          from planungs_konflikt k
          join person p on p.id = k.person_id
          left join einsatz e on e.mandant_id = k.mandant_id and e.id = k.einsatz_id
@@ -214,6 +242,12 @@ function Karte({
             + `${MINDESTWERT.has(zeile.regel ?? '') ? 'mindestens' : 'höchstens'} `
             + `${stundenAusMinuten(zeile.grenzwert_minuten)}`}
       </p>
+
+      {zeile.gegenschichten.length > 0 && (
+        <p data-cse="gegenschicht" className="m-0 mt-s2 max-w-prose text-sm text-warning">
+          Gegenschicht: {zeile.gegenschichten.join(' · ')}
+        </p>
+      )}
 
       {zeile.einsatz_id !== null && (
         <p className="m-0 mt-s2 text-sm">

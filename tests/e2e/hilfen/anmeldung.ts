@@ -41,6 +41,8 @@ export async function alsKonto(page: Page, email: string): Promise<void> {
 export const KONTO = {
   adminReinigung: 'admin.reinigung@cse-gruppe.de',
   adminBau: 'admin.bau@cse-gruppe.de',
+  adminSecurity: 'admin.security@cse-gruppe.de',
+  leitungReinigung: 'leitung.reinigung@cse-gruppe.de',
   leitungBau: 'leitung.bau@cse-gruppe.de',
   leitungSecurity: 'leitung.security@cse-gruppe.de',
   gruppe: 'admin@cse-gruppe.de',

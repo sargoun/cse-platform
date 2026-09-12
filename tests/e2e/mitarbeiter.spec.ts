@@ -29,6 +29,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import postgres from 'postgres';
+import { alsKonto, KONTO } from './hilfen/anmeldung';
 
 const DSN = process.env['DATABASE_URL']
   ?? process.env['TEST_DATABASE_URL']
@@ -37,32 +38,28 @@ const DSN = process.env['DATABASE_URL']
 const sql = postgres(DSN, { max: 2, onnotice: () => {} });
 
 /**
- * Anmeldung als die Person mit ZWEI Beschäftigungen.
+ * Anmeldung als ein BESTIMMTER Mensch — nicht als „irgendwer mit dieser
+ * Rolle".
  *
  * `/dev/anmelden` stellt für eine `mitarbeiter`-Rolle eine Sitzung mit
  * `ansicht = 'person'` aus — also genau den Personen-Scope, den K-18 für
  * dieses Portal verlangt. Alles danach ist echt: Policies, Rechte, Zeilen.
- */
-/**
- * Anmeldung als ein BESTIMMTER Mensch — nicht als „irgendwer mit dieser
- * Rolle".
  *
  * `[data-rolle="mitarbeiter"]` griff das erste Konto dieser Rolle heraus.
  * Solange es genau eines gab, stimmte das zufällig; mit dem zweiten prüfte
  * dieselbe Zeile stillschweigend eine andere Person. Die Kennung steht
  * deshalb am Knopf (`src/app/dev/anmelden/page.tsx`).
+ *
+ * **Die Hilfe stand hier als eigene Abschrift** — eine von zwölf. Sie ist
+ * nach `hilfen/anmeldung.ts` gezogen: dort sichert `toHaveCount(1)` zu, dass
+ * es GENAU EIN Konto dieser Kennung gibt, während das `.first()` hier den Tag
+ * verschwiegen hätte, an dem es zwei sind. Und die Kennungen stehen einmal
+ * statt zwölfmal getippt da.
  */
-async function alsKonto(page: Page, email: string): Promise<void> {
-  await page.goto('/dev/anmelden');
-  const knopf = page.locator(`[data-cse="dev-anmelden"][data-email="${email}"]`).first();
-  await expect(knopf, `kein Seed-Konto ${email}`).toBeVisible();
-  await knopf.click();
-  await page.waitForLoadState('networkidle');
-}
 
 /** Fatima Yildiz — ein Mensch, zwei Gesellschaften (D-09), Sprache Deutsch. */
 async function alsFatima(page: Page): Promise<void> {
-  await alsKonto(page, 'fatima.yildiz@cse-gruppe.de');
+  await alsKonto(page, KONTO.fatima);
 }
 
 /**
@@ -78,7 +75,7 @@ async function alsFatima(page: Page): Promise<void> {
  * anmeldet, und verändert dabei nichts.
  */
 async function alsAmir(page: Page): Promise<void> {
-  await alsKonto(page, 'amir.haddad@cse-gruppe.de');
+  await alsKonto(page, KONTO.amir);
 }
 
 /**
@@ -96,14 +93,103 @@ async function alsAmir(page: Page): Promise<void> {
  * beendet den Worker, und das Betriebssystem raeumt die Verbindungen ab.
  */
 
+/**
+ * **Die Woche wird aus den DATEN gewaehlt, nicht aus dem Kalender.**
+ *
+ * `/portal/mein/schichten` zeigt ohne `?woche` die laufende Berliner
+ * Kalenderwoche (`page.tsx`: `montag(berlinHeute())` bis `+6`). Die Pruefung
+ * ging stillschweigend davon aus, dass Fatima in JEDER Woche in beiden
+ * Gesellschaften steht — und das kann der Seed nicht zusagen: der
+ * Security-Posten laeuft `FREQ=WEEKLY;BYDAY=TU,TH` (`seed/security.ts`), also
+ * zwei Dienste je Woche, und `besetzeUndErfasse` verteilt sie reihum auf die
+ * DREI Beschaeftigten der Security. Fatima bekommt damit jeden dritten
+ * Dienst — rechnerisch alle anderthalb Wochen —, und ungefaehr jede dritte
+ * Kalenderwoche faellt fuer sie ganz aus. Genau eine solche Woche war die
+ * laufende: zwei Reinigungsschichten, kein Sicherheitsdienst, also EINE
+ * Gesellschaft statt zwei.
+ *
+ * Die alte Fassung war deshalb an zwei von drei Wochen gruen und am dritten
+ * rot, ohne dass sich an Produkt oder Seed etwas geaendert haette — ein
+ * Fehlschlag, der nach einem kaputten Portal aussah und keiner war, und der
+ * beim naechsten Lauf von selbst verschwunden waere. Ein echtes Loch in D-09
+ * haette er in demselben Rauschen versteckt.
+ *
+ * Gefragt wird jetzt die Datenbank, mit GENAU dem Fensterausdruck der Seite
+ * (Ueberschneidung, nicht Plantag — sonst faellt die Nachtschicht vom Sonntag
+ * auf den Montag zwischen die beiden Fassungen). Die laufende Woche steht
+ * zuerst, also prueft der Normalfall weiterhin den Bildschirm OHNE Parameter.
+ *
+ * Und die Zusicherung ist schaerfer als vorher: nicht „mehr als eine
+ * Gesellschaft", sondern GENAU DIE Gesellschaften, die in dieser Woche Zeilen
+ * haben. Eine Seite, die eine der beiden stillschweigend wegfiltert, war
+ * unter `> 1` noch gruen, sobald irgendwo eine dritte auftauchte.
+ */
+interface DoppelWoche {
+  /** Berliner Montag, `JJJJ-MM-TT`. */
+  readonly montag: string;
+  /** Die Gesellschaften, die in dieser Woche Zeilen haben — aus der Datenbank. */
+  readonly slugs: readonly string[];
+  readonly istLaufendeWoche: boolean;
+}
+
+async function wocheMitBeidenGesellschaften(email: string): Promise<DoppelWoche> {
+  const zeilen = await sql.unsafe<{
+    montag: string; aktuell: boolean; slugs: string[];
+  }[]>(
+    `with mensch as (
+       select p.id from person p join benutzer b on b.person_id = p.id where b.email = $1
+     ), anker as (
+       select date_trunc('week', (now() at time zone 'Europe/Berlin')::date)::date as montag
+     ), wochen as (
+       select ((select montag from anker) + (n * 7))::date as montag, n
+         from generate_series(-3, 3) as n
+     )
+     select to_char(w.montag, 'YYYY-MM-DD')        as montag,
+            (w.n = 0)                              as aktuell,
+            array_agg(distinct m.slug order by m.slug) as slugs
+       from wochen w
+       join einsatz_zuordnung z
+         on z.entfernt_am is null
+        and z.beginn_zeitpunkt < ((w.montag + 7)::timestamp) at time zone 'Europe/Berlin'
+        and z.ende_zeitpunkt   > (w.montag::timestamp) at time zone 'Europe/Berlin'
+       join anstellung a on a.mandant_id = z.mandant_id and a.id = z.anstellung_id
+       join mandant m on m.id = z.mandant_id
+       join mensch on mensch.id = a.person_id
+      group by w.montag, w.n
+      order by abs(w.n), w.n`,
+    [email] as never[]);
+
+  const treffer = zeilen.find((z) => z.slugs.length > 1);
+  /**
+   * Kein `test.skip`: gibt es in sieben Wochen um heute herum keine einzige,
+   * in der dieser Mensch in zwei Gesellschaften eingeteilt ist, dann liefert
+   * die Plattform den D-09-Fall nicht mehr aus — und das ist der Fehlschlag,
+   * den diese Datei melden soll, nicht ein Grund, sie zu ueberspringen.
+   */
+  expect(
+    treffer,
+    `kein Fenster mit zwei Gesellschaften fuer ${email} — der D-09-Fall fehlt in den Daten`,
+  ).toBeDefined();
+  return {
+    montag: treffer!.montag,
+    slugs: treffer!.slugs,
+    istLaufendeWoche: treffer!.aktuell,
+  };
+}
+
 // ---------------------------------------------------------------------------
 
 test.describe('(1) eine Anmeldung, zwei Gesellschaften', () => {
   test('die Schichtliste zeigt beide, jede mit ihrer Gesellschaft beschriftet', async ({
     page,
   }) => {
+    const woche = await wocheMitBeidenGesellschaften(KONTO.fatima);
     await alsFatima(page);
-    await page.goto('/portal/mein/schichten');
+    // Ohne Parameter, wenn die laufende Woche es hergibt — das ist der
+    // Bildschirm, den die Kraft morgens wirklich oeffnet.
+    await page.goto(woche.istLaufendeWoche
+      ? '/portal/mein/schichten'
+      : `/portal/mein/schichten?woche=${woche.montag}`);
 
     const schichten = page.locator('[data-cse="schicht"]');
     await expect(schichten.first()).toBeVisible();
@@ -111,7 +197,11 @@ test.describe('(1) eine Anmeldung, zwei Gesellschaften', () => {
     // Jede Zeile trägt ihre GmbH — als NAME und nicht nur als Farbe (DESIGN §9).
     const bereiche = await schichten.evaluateAll(
       (es) => es.map((e) => e.getAttribute('data-mandant')));
-    expect(new Set(bereiche).size, 'beide Gesellschaften stehen in der Liste')
+    expect([...new Set(bereiche)].sort(), 'beide Gesellschaften stehen in der Liste')
+      .toEqual([...woche.slugs]);
+    // Und die Aussage von D-09 noch einmal fuer sich, unabhaengig von der
+    // Liste oben: es sind ZWEI Gesellschaften und nicht eine.
+    expect(new Set(bereiche).size, 'zwei Gesellschaften auf einem Bildschirm')
       .toBeGreaterThan(1);
     for (const s of await schichten.all()) {
       await expect(s.locator('[data-cse="gesellschaft"]')).toHaveText(/\S/u);
@@ -171,11 +261,27 @@ function minuten(text: string): number {
 test.describe('(2) kein Bearbeitungsfeld auf einem Zeiteintrag (EMP-07)', () => {
   test('die Liste und die Einzelansicht tragen kein Eingabefeld', async ({ page }) => {
     await alsFatima(page);
+    /*
+     * **Gemessen wird `main`, nicht das Dokument.**
+     *
+     * Hier stand `page.locator('form')` ohne Bereich — „kein Formular,
+     * nirgends". Das galt, solange die Huelle keines trug. Seit die Abmeldung
+     * ein POST-Formular ist (ein GET dafuer laesst sich von einem fremden
+     * Bild-Tag ausloesen), steht in der Navigation eines, und die Zusicherung
+     * fiel — ohne dass an EMP-07 irgendetwas kaputt war.
+     *
+     * EMP-07 sagt: der Mensch BEARBEITET seinen Zeiteintrag nicht. Das ist
+     * eine Aussage ueber den Inhalt, und `main` ist der Inhalt. Eine
+     * Zusicherung, die weiter misst als die Regel reicht, meldet Umbauten der
+     * Huelle als Rechteverstoss — und wer sie dreimal so erlebt hat, glaubt
+     * ihr beim vierten Mal nicht mehr.
+     */
+    const inhalt = page.locator('main');
     for (const pfad of ['/portal/mein/zeiten']) {
       await page.goto(pfad);
-      // Kein Formular, kein Eingabefeld, kein „speichern" — nirgends.
-      await expect(page.locator('form')).toHaveCount(0);
-      await expect(page.locator('input:not([type="hidden"]), textarea, select'))
+      // Kein Formular, kein Eingabefeld, kein „speichern" — im ganzen Inhalt.
+      await expect(inhalt.locator('form')).toHaveCount(0);
+      await expect(inhalt.locator('input:not([type="hidden"]), textarea, select'))
         .toHaveCount(0);
       await expect(page.locator('[data-cse="kein-bearbeiten"]')).toBeVisible();
     }
@@ -183,7 +289,7 @@ test.describe('(2) kein Bearbeitungsfeld auf einem Zeiteintrag (EMP-07)', () => 
     const ersteZeile = page.locator('[data-cse="zeit-zeile"]').first();
     await expect(ersteZeile).toBeVisible();
     await ersteZeile.click();
-    await expect(page.locator('form')).toHaveCount(0);
+    await expect(inhalt.locator('form')).toHaveCount(0);
     // Das EINZIGE Angebot dieser Seite.
     await expect(page.locator('[data-cse="einwand-link"]')).toBeVisible();
   });
@@ -243,6 +349,24 @@ test.describe('(3) der Monatsnachweis nennt dieselbe Zahl wie das Stundenkonto',
     const summe = minuten(await page.locator('[data-cse="nachweis-summe"]').innerText());
     const abgleich = minuten(await page.locator('[data-cse="konto-ist"]').innerText());
 
+    /**
+     * **WELCHE Beschaeftigung auf dem Blatt steht, sagt das Blatt selbst.**
+     *
+     * Fatima hat zwei (D-09), und `.first()` oben waehlt die erste des
+     * Stundenkontos — welche das ist, entscheidet die Sortierung nach
+     * `anstellung_id`, also eine im Seed gewuerfelte UUID. Die Frage unten
+     * muss deshalb DIESER Beschaeftigung gelten und nicht dem Menschen: eine
+     * Person-weite Frage beantwortet, ob IRGENDWO etwas offen ist, waehrend
+     * das Blatt von EINER Gesellschaft spricht. Beides auseinander zu halten
+     * ist hier keine Feinheit — stand bei der einen etwas offen und bei der
+     * anderen nicht, verlangte die Pruefung eine Erklaerung auf einem Blatt,
+     * das zu Recht keine trug, und der Muenzwurf der UUID-Sortierung
+     * entschied ueber rot und gruen.
+     */
+    const anstellungId = new URL(page.url()).searchParams.get('anstellung');
+    expect(anstellungId, 'das Blatt nennt seine Beschaeftigung in der Adresse')
+      .toMatch(/^[0-9a-f-]{36}$/u);
+
     // Dieselbe Beschaeftigung, derselbe Monat — der Abgleich auf dem Blatt
     // ist der des Kontos, von dem der Weg hierher ausging.
     expect(abgleich).toBe(kontoIst);
@@ -267,6 +391,10 @@ test.describe('(3) der Monatsnachweis nennt dieselbe Zahl wie das Stundenkonto',
      * nicht hin, sondern rechnet sie gegen die Datenbank nach. Eine falsche
      * Buchung von 7 Minuten faellt hier auf; unter `toBe` waere sie nur ein
      * weiterer Unterschied gewesen.
+     *
+     * Gefragt wird nach der Beschaeftigung des Blattes UND nach Fatima: die
+     * zweite Bedingung haelt die Aussage der Pruefung fest — es geht um DIESEN
+     * Menschen —, die erste um die Gesellschaft, von der das Blatt spricht.
      */
     const [offen] = await sql.unsafe<{ anzahl: string }[]>(
       `select count(*)::text as anzahl
@@ -276,10 +404,11 @@ test.describe('(3) der Monatsnachweis nennt dieselbe Zahl wie das Stundenkonto',
          join person p on p.id = a.person_id
          join benutzer b on b.person_id = p.id
         where b.email = $1
+          and a.id = $2
           and ma.monat = date_trunc('month', (now() at time zone 'Europe/Berlin'))::date
           and ma.freigegeben_am is null
           and z.storniert_am is null`,
-      ['fatima.yildiz@cse-gruppe.de'] as never[]);
+      [KONTO.fatima, anstellungId] as never[]);
     const unfreigegeben = Number(offen?.anzahl ?? '0');
 
     if (unfreigegeben === 0) {
@@ -359,7 +488,7 @@ test.describe('(4) kein Lohnsatz, nirgends ein Kundenpreis (K-05, EMP-13)', () =
     const namen = await sql.unsafe<{ name: string }[]>(
       `select (p.vorname || ' ' || p.nachname) as name from person p
         where p.id <> (select person_id from benutzer where email = $1)`,
-      ['fatima.yildiz@cse-gruppe.de'] as never[]);
+      [KONTO.fatima] as never[]);
     const text = await page.locator('main').innerText();
     for (const n of namen) expect(text, `fremder Name: ${n.name}`).not.toContain(n.name);
   });

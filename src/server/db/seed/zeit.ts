@@ -452,6 +452,23 @@ async function erfasseZeiten(
     const beginnVersatz = (streu % 11) - 5;          // -5 … +5 Minuten
     const endeVersatz = ((streu >> 3) % 13) - 4;     // -4 … +8 Minuten
     const nacherfasst = !nacherfasstGesetzt && streu % 7 === 3;
+    /**
+     * Die Uhr des Telefons geht gut zwei Minuten nach — mehr sagt dieser Wert
+     * nicht, und mehr darf er nicht sagen (TIM-08, Invariante 5).
+     *
+     * Er wird unten auf den ERFASSTEN Beginn gesetzt und nicht mehr auf den
+     * geplanten. Vorher stand die Geraetezeit am Planbeginn, der Eintrag aber
+     * am Planbeginn PLUS `beginnVersatz` — der Ausloeser schrieb in
+     * `zeitabweichung_beginn_sek` also die Summe aus Uhrenversatz und
+     * Verspaetung. Genau die beiden Groessen, die TIM-08 in getrennte Spalten
+     * legt, standen in derselben. Sichtbar wurde es nicht: `beginnVersatz`
+     * haengt an der Zuordnungskennung, also an einer zufaelligen UUID, und
+     * lag zwischen −5 und +5 Minuten. Die angezeigte Geraeteabweichung war
+     * damit je Seed eine andere Zahl zwischen −427 und +173 Sekunden — bei
+     * positivem Versatz ginge das Telefon ploetzlich VOR, und die eine Zeile,
+     * an der sich die Trennung vorfuehren laesst, zeigte das Gegenteil dessen,
+     * was hier steht.
+     */
     const geraeteVersatz = !geraeteAbweichungGesetzt && streu % 5 === 2 ? -127 : null;
     if (nacherfasst) nacherfasstGesetzt = true;
     if (geraeteVersatz !== null) geraeteAbweichungGesetzt = true;
@@ -485,7 +502,9 @@ async function erfasseZeiten(
              ${nacherfasst ? 'nacherfassung' : 'import'}::erfassungs_art, 'import'::zeitquelle,
              'import'::erfassungs_art, 'import'::zeitquelle,
              case when ${geraeteVersatz}::int is null then null
-                  else e.beginn_zeitpunkt + make_interval(secs => ${geraeteVersatz}::int) end,
+                  else e.beginn_zeitpunkt
+                       + make_interval(mins => ${beginnVersatz})
+                       + make_interval(secs => ${geraeteVersatz}::int) end,
              ${nacherfasst},
              case when ${nacherfasst} then e.beginn_zeitpunkt else null end,
              'abgeschlossen', 'Demodaten (Seed)', 'system'

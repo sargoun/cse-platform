@@ -38,10 +38,15 @@ export const PLATZHALTER: readonly Platzhalter[] = [
     pfad: 'public/platzhalter/*.svg',
     grund:
       'Alle Website-Bilder. DESIGN §4.1 verlangt echte Aufnahmen der eigenen Crews und '
-      + 'Objekte; §4.2 verbietet KI-erzeugte Menschen als Belegschaft. Bis der Mandant '
-      + 'sein Material liefert, stehen hier gezeichnete Szenen je Motiv: sie zeigen, '
-      + 'wie die Seite aussehen wird, ohne zu behaupten, ein Objekt der Gruppe oder '
-      + 'seine Belegschaft zu sein. Jede traegt ihre Marke sichtbar.',
+      + 'Objekte; §4.2 verbietet KI-erzeugte Menschen als Belegschaft. Bis das Material '
+      + 'des Mandanten da ist, stehen hier zwei Sorten Platzhalter (§4.1a, D-376): auf '
+      + 'den grossen Flaechen — Kopfbild, Markenkarte, Gesellschaftsseite — eine '
+      + 'MOTIVTAFEL, erkennbar eine Zeichnung (flache Flaechen, keine Fototiefe, '
+      + 'Figuren nur als Silhouette ohne Gesicht), erzeugt von scripts/motivtafeln.py; '
+      + 'auf den kleinen — Objekt- und Projektkachel — die reservierte FLAECHE, weil '
+      + 'eine Zeichnung auf 180 px ein Fleck ist. Beide tragen dieselbe sichtbare '
+      + 'Kennzeichnung. Ein Foto laesst sich damit nicht ersetzen: dafuer braucht es '
+      + 'eigenes Material oder einen lizenzierten Satz.',
     frage: 'O-13',
   },
   {
@@ -81,17 +86,31 @@ export const PLATZHALTER_BILD = {
 } as const;
 
 /**
- * Ein Platzhalter JE MOTIV statt eines grauen Rechtecks fuer alles.
+ * Ein Platzhalter JE MOTIV — in zwei Sorten, nach GROESSE getrennt (D-376).
  *
- * Der erste Entwurf hatte ein einziges Bild: sichtbar leer, ehrlich — und
- * unbrauchbar, um dem Mandanten zu zeigen, wie die Seite aussehen wird. Wer
- * eine Reinigungsseite bewertet, bewertet sie mit einem Bild darauf.
+ * **Gross: eine Motivtafel.** Kopfbild, Markenkarte und Gesellschaftsseite
+ * tragen eine Zeichnung, die das Gewerk zeigt — Geruest und Kran fuer den
+ * Hochbau, ein Flur mit Wagen fuer die Reinigung, das Werkstor bei Nacht fuer
+ * die Security. Sie ist erkennbar eine Zeichnung und gibt sich fuer nichts
+ * anderes aus: flache Flaechen, keine Fototiefe, keine Textur, Figuren nur als
+ * Silhouette und nie mit Gesicht (§4.2). Genau das ist der Unterschied zum
+ * ersten Versuch, der den Fotolook suchte und als Clipart endete — eine
+ * Zeichnung, die ein Foto sein will, ist beides schlecht.
  *
- * Es sind ILLUSTRATIONEN, keine Fotos, und das ist die Grenze, die DESIGN §4.2
- * zieht: kein erfundenes Gesicht, das als Belegschaft gelesen werden koennte.
- * Eine gezeichnete Nachtszene behauptet nicht, ein Objekt der Gruppe zu sein;
- * ein Stockfoto von Menschen in Warnwesten tut genau das. Jede traegt unten
- * links ihre Marke und die offene Frage, unter der sie steht (O-13).
+ * **Klein: eine reservierte Flaeche.** Objekt- und Projektkacheln bleiben
+ * leer. Eine Zeichnung auf 180 px ist ein Fleck.
+ *
+ * Beide tragen dieselbe sichtbare Kennzeichnung: Akzentlinie der Gesellschaft,
+ * Marke, die Zeile „Hier steht spaeter …" und rechts `PLATZHALTER · O-13`.
+ *
+ * **Die ehrliche Haelfte der Antwort bleibt:** ein Foto laesst sich nicht
+ * erfinden. Entweder kommt das Material des Mandanten (§4.1) oder ein
+ * lizenzierter Satz wird gekauft. Ein Stockfoto vom Gebaeude eines Fremden auf
+ * der Projektseite dieser Gruppe waere §4.3 gebrochen, nur besser
+ * ausgeleuchtet. Liegt eine Datei unter `public/bilder/`, gewinnt sie ohnehin
+ * — `bildFuerMotiv()` fragt zuerst dort.
+ *
+ * Erzeugt von `scripts/motivtafeln.py`; die SVG nicht von Hand aendern.
  */
 export const PLATZHALTER_MOTIVE = {
   gruppe: '/platzhalter/hero.svg',
@@ -106,15 +125,21 @@ export const PLATZHALTER_MOTIVE = {
 
 export type PlatzhalterMotiv = keyof typeof PLATZHALTER_MOTIVE;
 
+/*
+ * Der Alternativtext beschreibt, was WIRKLICH da ist — eine reservierte
+ * Flaeche —, und nennt daneben das Motiv, das hierher gehoert. Ein `alt`, das
+ * eine Szene beschreibt, die niemand sieht, ist fuer einen Screenreader eine
+ * Falschauskunft: er liest sie vor, als waere sie da.
+ */
 const ALT_TEXT: Readonly<Record<PlatzhalterMotiv, string>> = {
-  gruppe: 'Platzhalter-Illustration: nächtliche Gebäudezeile der vier Gesellschaften.',
-  reinigung: 'Platzhalter-Illustration: Flur in der Unterhaltsreinigung.',
-  security: 'Platzhalter-Illustration: Objektschutz bei Nacht.',
-  bau: 'Platzhalter-Illustration: Rohbau mit Turmdrehkran und Gerüst.',
-  operations: 'Platzhalter-Illustration: Betriebsübersicht am Bildschirm.',
-  objekt: 'Platzhalter-Illustration: Objekt bei Nacht.',
-  projekt: 'Platzhalter-Illustration: Bauprojekt.',
-  team: 'Platzhalter-Illustration: Team, bewusst abstrakt ohne erfundene Gesichter.',
+  gruppe: 'Motivtafel — hier steht später eine Aufnahme der Gruppe.',
+  reinigung: 'Motivtafel — hier steht später eine Aufnahme aus der Unterhaltsreinigung.',
+  security: 'Motivtafel — hier steht später eine Aufnahme aus dem Objektschutz.',
+  bau: 'Motivtafel — hier steht später eine Aufnahme von der Baustelle.',
+  operations: 'Motivtafel — hier steht später eine Aufnahme aus dem Betrieb.',
+  objekt: 'Platzhalter — hier steht später eine Aufnahme des Objekts.',
+  projekt: 'Platzhalter — hier steht später eine Aufnahme des Projekts.',
+  team: 'Motivtafel — hier steht später eine Aufnahme des Teams.',
 };
 
 /** Das Platzhalterbild zu einem Motiv — mit sichtbarer Kennzeichnung. */

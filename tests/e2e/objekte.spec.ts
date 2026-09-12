@@ -9,14 +9,17 @@
  */
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-
-async function anmelden(page: Page, rolle: string): Promise<void> {
-  await page.goto('/dev/anmelden');
-  const knopf = page.locator(`[data-cse="dev-anmelden"][data-rolle="${rolle}"]`).first();
-  await expect(knopf, `kein Seed-Konto für Rolle ${rolle}`).toBeVisible();
-  await knopf.click();
-  await page.waitForLoadState('networkidle');
-}
+/**
+ * Angemeldet wird als BESTIMMTES Konto, nicht als „irgendwer mit Rolle admin".
+ *
+ * Die oertliche Hilfe griff `[data-rolle="admin"]`.first(); seit der Seed ein
+ * zweites Verwaltungskonto kennt, steht „Administration Bau" in der nach Namen
+ * sortierten Liste vor „Administration Reinigung". Die Sitzung landete damit
+ * im Mandanten `bau`, und jeder Aufruf unter `/portal/reinigung/…` antwortete
+ * zu Recht mit 404 (Slug-Wache, AUT-06) — ein Fehlschlag, der wie ein kaputter
+ * Bildschirm aussah und eine falsche Anmeldung war.
+ */
+import { alsKonto, KONTO } from './hilfen/anmeldung';
 
 /** Die Objekt-id aus der Liste — der Test kennt keine ids, er klickt. */
 async function oeffneBuerohaus(page: Page): Promise<void> {
@@ -27,7 +30,7 @@ async function oeffneBuerohaus(page: Page): Promise<void> {
 
 test.describe('(1) die Objektliste zeigt, was da ist', () => {
   test('admin sieht die Objekte seiner Gesellschaft mit Fläche', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     const antwort = await page.goto('/portal/reinigung/objekte');
     expect(antwort?.status()).toBe(200);
     await expect(page.locator('h1')).toHaveText('Objekte');
@@ -37,7 +40,7 @@ test.describe('(1) die Objektliste zeigt, was da ist', () => {
   });
 
   test('und nicht die einer anderen Gesellschaft', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await page.goto('/portal/reinigung/objekte');
     // OBJ-2001 gehoert der Security. Ein Objekt derselben Anschrift, anderer Mandant.
     await expect(page.getByText('Objektschutz')).toHaveCount(0);
@@ -46,7 +49,7 @@ test.describe('(1) die Objektliste zeigt, was da ist', () => {
 
 test.describe('(2) das Raumbuch — und der Fehler, der sonst niemandem auffällt', () => {
   test('jede Etage bringt ihre eigene 101 mit', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await oeffneBuerohaus(page);
     await page.getByRole('link', { name: 'Raumbuch und Kalkulation' }).click();
     await expect(page.locator('h1')).toHaveText('Raumbuch');
@@ -62,7 +65,7 @@ test.describe('(2) das Raumbuch — und der Fehler, der sonst niemandem auffäll
   });
 
   test('Räume ohne Nummer sind trotzdem Räume', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await oeffneBuerohaus(page);
     await page.getByRole('link', { name: 'Raumbuch und Kalkulation' }).click();
     await expect(page.getByRole('cell', { name: 'Flur 1. OG' })).toBeVisible();
@@ -73,7 +76,7 @@ test.describe('(2) das Raumbuch — und der Fehler, der sonst niemandem auffäll
 
 test.describe('(3) der Preis entsteht aus dem Raumbuch (Abnahmekriterium Phase 4)', () => {
   test('es steht ein Netto-Betrag da, in Euro, aus der Fläche gerechnet', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await oeffneBuerohaus(page);
     await page.getByRole('link', { name: 'Raumbuch und Kalkulation' }).click();
 
@@ -84,7 +87,7 @@ test.describe('(3) der Preis entsteht aus dem Raumbuch (Abnahmekriterium Phase 4
 
   test('ein anderer Turnus ergibt einen anderen Preis — und zwar einen höheren',
     async ({ page }) => {
-      await anmelden(page, 'admin');
+      await alsKonto(page, KONTO.adminReinigung);
       await oeffneBuerohaus(page);
       await page.getByRole('link', { name: 'Raumbuch und Kalkulation' }).click();
 
@@ -106,7 +109,7 @@ test.describe('(3) der Preis entsteht aus dem Raumbuch (Abnahmekriterium Phase 4
     });
 
   test('und der Preis sagt von sich, dass er auf Platzhaltern steht', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await oeffneBuerohaus(page);
     await page.getByRole('link', { name: 'Raumbuch und Kalkulation' }).click();
     const hinweis = page.locator('[data-cse="platzhalter-hinweis"]');
@@ -118,7 +121,7 @@ test.describe('(3) der Preis entsteht aus dem Raumbuch (Abnahmekriterium Phase 4
 
 test.describe('(4) die internen Notizen bleiben intern', () => {
   test('das interne Portal zeigt den Zutrittshinweis', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await oeffneBuerohaus(page);
     await expect(page.getByText('Schlüsselkasten Hintereingang')).toBeVisible();
   });
@@ -126,7 +129,7 @@ test.describe('(4) die internen Notizen bleiben intern', () => {
 
 test.describe('(5) barrierefrei — BFSG gilt auch im Portal', () => {
   test('axe findet nichts auf dem Raumbuch', async ({ page }) => {
-    await anmelden(page, 'admin');
+    await alsKonto(page, KONTO.adminReinigung);
     await oeffneBuerohaus(page);
     await page.getByRole('link', { name: 'Raumbuch und Kalkulation' }).click();
     const ergebnis = await new AxeBuilder({ page })
