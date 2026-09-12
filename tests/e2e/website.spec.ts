@@ -90,11 +90,40 @@ test.describe('/ — die oeffentliche Startseite', () => {
     expect(ohneAlt).toBe(0);
   });
 
-  test('Platzhalterbilder sind SICHTBAR als solche markiert (§4.1)', async ({ page }) => {
+  /**
+   * **Jeder Platzhalter traegt seine Marke — und nicht: es gibt Platzhalter.**
+   *
+   * Vorher stand hier `marken > 0`, also die Behauptung, die Startseite HABE
+   * Platzhalter. Das ist nicht, was §4.1 verlangt, und es war auf zwei Arten
+   * falsch: es liess drei unmarkierte Platzhalter durchgehen, solange EINER
+   * markiert war, und es faellt an dem Tag, an dem echte Bilder eintreffen —
+   * am Tag des Erfolgs (D-383).
+   *
+   * Geprueft wird jetzt die Aussage selbst: so viele Marken wie Bilder, die
+   * auf `/platzhalter/` zeigen. Null Platzhalter erfuellen das richtig, vier
+   * unmarkierte nicht.
+   */
+  test('jedes Platzhalterbild traegt seine Marke (§4.1)', async ({ page }) => {
     await page.goto('/');
-    // Ein unauffälliger Platzhalter ist einer, der in Produktion landet.
-    const marken = await page.locator('[data-cse="platzhalter-marke"]').count();
-    expect(marken).toBeGreaterThan(0);
+    const zahlen = await page.evaluate(() => {
+      const bilder = [...document.querySelectorAll('img')];
+      // `next/image` schiebt die Quelle durch `/_next/image?url=…`, der Pfad
+      // steht darin url-kodiert. Beide Schreibweisen zaehlen.
+      const istPlatzhalter = (i: HTMLImageElement): boolean => {
+        const q = `${i.currentSrc} ${i.getAttribute('src') ?? ''}`;
+        return q.includes('/platzhalter/') || q.includes('%2Fplatzhalter%2F');
+      };
+      return {
+        bilder: bilder.length,
+        platzhalter: bilder.filter(istPlatzhalter).length,
+        marken: document.querySelectorAll('[data-cse="platzhalter-marke"]').length,
+      };
+    });
+
+    // Eine Pruefung, die nichts gesehen hat, ist gruen und wertlos.
+    expect(zahlen.bilder, 'die Startseite hat ueberhaupt Bilder').toBeGreaterThan(0);
+    expect(zahlen.marken, 'markierte Platzhalter je Platzhalterbild')
+      .toBe(zahlen.platzhalter);
   });
 
   /**

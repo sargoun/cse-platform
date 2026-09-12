@@ -5404,3 +5404,54 @@ die Dateien, der Zeichenverlauf war fuer UI statt fuer Bild gerechnet (§4.1b),
 und Overlay wie Beschriftung lagen doppelt (hier). Jede einzelne haette
 gereicht. Dass drei davon erst nach der Behebung der jeweils vorigen sichtbar
 wurden, ist der Grund, warum „einmal hinsehen" hier nicht genuegt hat.
+
+### D-383 · Fuenf CC0-Aufnahmen als Zwischenloesung — kein Objekt, keine Person
+
+Der Mandant hat dreimal um echte Bilder gebeten und beim dritten Mal den
+entscheidenden Satz gesagt: es muessen **keine Personen** sein, nur nicht
+gezeichnet und ohne Lizenzkosten. Damit war die Aufgabe eine andere.
+
+**Warum die ersten beiden Runden nichts ergaben.** Gesucht wurde nach
+Menschen bei der Arbeit — „Reinigungskraft", „Wachmann", „Bauarbeiter". Die
+freien Quellen sind dort Archiv und nicht Werbefotografie: fuer die Reinigung
+kamen Scheuersaugmaschinen auf Parkdecks und ein Kind auf einer Maschine, fuer
+die Security ukrainische Kriegsgraeber und ein Friedhof in Pionki. Nichts
+davon geht auf den Auftritt eines Sicherheitsdienstes, und es wurde auch
+nichts davon abgelegt.
+
+**Architektur ist die Staerke derselben Quellen.** Ohne Personen oeffnet sich
+der CC0-Bestand, den Commons aus Unsplash uebernommen hat: professionelle
+Aufnahmen, 4000 bis 6700 px, gemeinfrei gestellt. Fuenf davon liegen jetzt in
+`public/bilder/` — Stadtbild, Innenraum, Fassade bei Nacht, Baustelle, Buero.
+
+**Drei Bedingungen, die alle fuenf erfuellen:**
+
+- **CC0.** Keine Namensnennungspflicht, keine Gebuehr. Damit braucht der
+  Auftritt keine Impressumszeile fuer Bildrechte und keinen Credits-Abschnitt,
+  den beim naechsten Bild jemand vergisst. CC BY waere fachlich sauber
+  gewesen, haette aber eine Pflicht eingefuehrt, die niemand bestellt hat.
+- **Kein bestimmtes Objekt der Gruppe.** §4.3 bleibt unangetastet: ein fremdes
+  Gebaeude auf der Projektseite DIESER Gruppe waere eine Behauptung, die
+  niemand deckt. Die fuenf tragen das Gewerk und sagen nichts ueber einen
+  konkreten Auftrag. Objekt- und Projektkacheln bekommen ausdruecklich keines
+  — dort bleibt die reservierte Flaeche.
+- **Keine Personen.** §4.2 ist damit gar nicht erst beruehrt, und niemand auf
+  dem Auftritt kann fuer Belegschaft gehalten werden, der keine ist.
+
+**Was sie NICHT sind: das Ende von O-13.** DESIGN §4.1 verlangt eigene
+Aufnahmen, und das bleibt richtig — eine Gruppe, die koerperliche Anwesenheit
+verkauft, zeigt am Ende ihre eigenen Objekte. Die Herkunft jeder Datei steht in
+`public/bilder/HERKUNFT.md`; ein Austausch ist eine Datei, kein Codepfad.
+
+**Die sichtbare Folge, die dazugehoert.** Was in `public/bilder/` liegt,
+erscheint OHNE Platzhalter-Kennzeichnung — die Seite behauptet ab jetzt, das
+Bild gehoere zum Motiv. Das ist die Zusage, die der Ordner seit jeher macht
+(`LIESMICH.md`), und sie gilt jetzt zum ersten Mal wirklich.
+
+**Und eine Zusicherung, die daran zerbrochen waere.** Der Browsertest
+verlangte `marken > 0` — also dass die Startseite Platzhalter HAT. Das ist
+nicht, was §4.1 fordert, und es war doppelt falsch: drei unmarkierte
+Platzhalter waren erlaubt, solange einer markiert war, und die Zusicherung
+faellt am Tag des Erfolgs, wenn echte Bilder eintreffen. Sie prueft jetzt die
+Aussage selbst — so viele Marken wie Platzhalterbilder, und null Platzhalter
+erfuellen das richtig.
