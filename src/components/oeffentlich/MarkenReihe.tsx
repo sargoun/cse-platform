@@ -49,10 +49,21 @@ export function MarkenReihe(
            * `min-h-11` = 44px (DESIGN §5): der Avatar allein misst 32px, und
            * ein Ziel, das man auf dem Telefon nicht trifft, ist keines.
            */
+          aria-label={b.name}
           className="flex min-h-11 items-center gap-s2 text-sm text-text-muted hover:text-text"
         >
           <BereichsAvatar bereich={b.bereich} aktiv={b.slug === aktiv} />
-          {b.name}
+          {/*
+            * Auf dem Telefon nur der Avatar. Vier Firmennamen — „CSE
+            * Dienstleistung", „SSE Security", „REALTIME Service", „CSE
+            * Operations" — brechen bei 375px in vier Zeilen und schieben den
+            * Inhalt unter die Falz; die Reihe soll unter dem Hero stehen und
+            * nicht die halbe Seite fuellen. Der zugaengliche Name bleibt
+            * vollstaendig: `aria-label` gewinnt gegen den Textinhalt, also
+            * liest ein Screenreader weiter „CSE Dienstleistung". Dasselbe
+            * Muster wie bei der Sprachwahl im Kopf.
+            */}
+          <span className="hidden sm:inline">{b.name}</span>
         </a>
       ))}
     </nav>
