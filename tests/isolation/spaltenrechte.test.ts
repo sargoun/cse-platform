@@ -131,3 +131,82 @@ describe('0094 — der Nachtlauf muss den Mandanten nennen', () => {
     })).rejects.toThrow(/nicht der aktive|nicht berechtigt/u);
   });
 });
+
+/**
+ * **Wer aufruft, ist nicht wer sich verbunden hat.**
+ *
+ * Im Rumpf einer `security definer`-Funktion ist `current_user` ihr
+ * EIGENTUEMER. Ruft sie eine zweite Funktion, wird gegen diesen Eigentuemer
+ * geprueft — nicht gegen `cse_app`.
+ *
+ * Das hat 0093 gekostet: der Entzug des PUBLIC-Eintrags war richtig, die
+ * Annahme „jede betroffene Funktion traegt ohnehin einen `cse_*`-Grant" war
+ * es nicht. `fin.rechnung_nummer_ziehen` gehoert `cse_definer` und ruft
+ * `app.protokolliere`, das an `cse_app` vergeben war; gedeckt war
+ * `cse_definer` allein durch PUBLIC. Das Festschreiben JEDER Rechnung endete
+ * danach mit `permission denied for function protokolliere`.
+ *
+ * **Warum die Isolationssuite es nicht gefunden hat und diese Pruefung es
+ * findet.** Die Fixtur verbindet als `postgres`; ein Superuser unterliegt
+ * keiner Rechtepruefung, also laeuft dort auch durch, was fuer `cse_definer`
+ * verboten waere. Gefunden hat es die Browsersuite in CI. Diese Pruefung
+ * fragt deshalb nicht die Laufzeit, sondern den KATALOG: sie liest die
+ * Rumpftexte und vergleicht die Aufrufe gegen die Grants.
+ *
+ * Sie waechst von selbst mit: jede weitere Funktion, die im Zuge von D-300
+ * auf `cse_definer` umgestellt wird, bringt ihre Aufrufe mit.
+ */
+describe('K-01/K-08 — eine Definer-Funktion darf, was sie aufruft', () => {
+  it('jeder `app.*`-Aufruf aus einer `cse_definer`-Funktion ist ihr erlaubt', async () => {
+    const fehlend = await sql.unsafe<{ von: string; ruft: string }[]>(`
+      with quelle as (
+        select n.nspname || '.' || p.proname as von, p.prosrc
+          from pg_proc p
+          join pg_namespace n on n.oid = p.pronamespace
+         where pg_get_userbyid(p.proowner) = 'cse_definer'
+           and n.nspname in ('app', 'kern', 'fin', 'zeit_intern')
+      ),
+      aufruf as (
+        select distinct q.von, m[1] as ruft
+          from quelle q,
+               regexp_matches(q.prosrc, 'app\\.([a-z_]+)\\s*\\(', 'g') m
+      )
+      select a.von, a.ruft
+        from aufruf a
+       where exists (
+               -- nur Funktionen, die es in \`app\` wirklich gibt: \`app.guc\`
+               -- und Verwandte stehen teils in einem anderen Schema oder sind
+               -- gar keine Funktion, und eine fehlende Zeile ist dann kein
+               -- Rechteproblem, sondern ein Treffer des Ausdrucks.
+               select 1 from pg_proc p2
+                 join pg_namespace n2 on n2.oid = p2.pronamespace
+                where n2.nspname = 'app' and p2.proname = a.ruft)
+         and not exists (
+               select 1 from pg_proc p3
+                 join pg_namespace n3 on n3.oid = p3.pronamespace
+                where n3.nspname = 'app' and p3.proname = a.ruft
+                  and has_function_privilege('cse_definer', p3.oid, 'EXECUTE'))
+       order by 1, 2`);
+
+    expect(
+      fehlend.map((z) => `${z.von} ruft app.${z.ruft}, darf aber nicht`),
+    ).toEqual([]);
+  });
+
+  it('und die Gegenprobe: der Ausdruck findet ueberhaupt Aufrufe', async () => {
+    /*
+     * Ohne sie hiesse „nichts fehlt" moeglicherweise „nichts gemessen" — der
+     * Fehler, den in diesem Zweig schon neun Merge-Wachen gemacht haben.
+     */
+    const [z] = await sql.unsafe<{ anzahl: string }[]>(`
+      with quelle as (
+        select p.prosrc from pg_proc p
+          join pg_namespace n on n.oid = p.pronamespace
+         where pg_get_userbyid(p.proowner) = 'cse_definer'
+           and n.nspname in ('app', 'kern', 'fin', 'zeit_intern')
+      )
+      select count(*)::text as anzahl
+        from quelle q, regexp_matches(q.prosrc, 'app\\.([a-z_]+)\\s*\\(', 'g') m`);
+    expect(Number(z?.anzahl)).toBeGreaterThan(0);
+  });
+});
