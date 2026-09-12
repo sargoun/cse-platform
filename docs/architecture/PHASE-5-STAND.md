@@ -1,13 +1,25 @@
 # Phase 5 — abgeschlossen
 
-Zweig `claude/phase-5-dienstplan-zeit`; der Stand der Abgabe liegt eingefroren
-auf `claude/phase-5-abschluss`. Diese Datei sagt, was steht, was dabei gefunden
-wurde und wo Phase 6 anfaengt — damit eine neue Sitzung nicht raten muss.
+Gebaut auf `claude/phase-5-dienstplan-zeit`; abgegeben wird aus
+`claude/phase-5-abschluss` (PR #5). Diese Datei sagt, was steht, was dabei
+gefunden wurde und wo Phase 6 anfaengt — damit eine neue Sitzung nicht raten
+muss.
 
-**PR 30 bis 45 sind fertig**, 49 Commits. Dazu gehoeren die drei Gewerkemodule
-(Reinigung, Security, Bau) und das Mitarbeiterportal in vier Sprachen. Die
-Pruefung der Abgabe: Merge-Wachen sauber, `tsc` sauber, `eslint .` sauber,
-953 Einheitstests, 833 Isolationstests, e2e gegen einen echten Produktionsbau.
+**PR 30 bis 45 sind fertig.** Dazu gehoeren die drei Gewerkemodule (Reinigung,
+Security, Bau) und das Mitarbeiterportal in vier Sprachen.
+
+**Zahlen, die weiterlaufen, stehen hier nicht mehr als Zahl.** Hier stand „49
+Commits, 953 Einheitstests, 833 Isolationstests" — der Stand des Tages, an dem
+der Abschnitt geschrieben wurde. Der Zweig ist seither nicht eingefroren
+geblieben: er hat die ganze Nacharbeit aufgenommen, und die PR-Beschreibung
+nannte zur selben Zeit 954 Einheits- und 941 Isolationstests. Zwei Zahlen fuer
+dieselbe Messung in zwei Dokumenten sind schlimmer als keine — die naechste
+Sitzung haelt eine davon fuer einen Rueckgang und sucht nach geloeschten
+Pruefungen. Der Commit-Stand kommt aus
+`git rev-list --count origin/main..HEAD`, die Testzahlen aus dem letzten Lauf
+der drei Suiten, und beides steht in der PR-Beschreibung, nicht hier. Was
+bleibt: Merge-Wachen sauber, `tsc` sauber, `eslint .` sauber, e2e gegen einen
+echten Produktionsbau.
 
 ## Fertig und gepusht
 
@@ -64,7 +76,7 @@ Demodaten, die der **echte** Generator erzeugt.
   ohne den Import antwortet `/` mit **404**, und 42 Faelle in `a11y`,
   `sprachen` und `seo` scheitern an etwas, das wie ein kaputter Bildschirm
   aussieht und eine fehlende Zeile ist. `.github/workflows/a11y.yml` macht es
-  richtig; wer die Suite von Hand fahert, vergisst es.
+  richtig; wer die Suite von Hand faehrt, vergisst es.
 
 ## Was von Hand nachgewiesen ist
 
@@ -73,7 +85,10 @@ mit `TZ=America/New_York` gestartet und im Browser derselben Zone geoeffnet
 zeigt der Dienstplan weiter `22:00–06:00 · 8,00 h`. Das ist die Zusage aus
 PR 33 (5) auf der Serverseite; die Browserseite deckt
 `tests/e2e/dienstplan.spec.ts` ab, und dass kein Anzeigepfad ohne `timeZone`
-formatiert, sichert die Merge-Wache `anzeige-zeitzone`.
+formatiert, sichert die Merge-Wache `anzeige-berlin`. (Hier stand
+`anzeige-zeitzone` — eine Wache dieses Namens gibt es nicht, und `pnpm guards`
+haette den Namen nie bestaetigt: wer sie suchen ging, fand nichts und konnte
+ebenso gut schliessen, die Zusage sei ungedeckt.)
 
 Strukturell traegt das Ganze eine einzige Zusage: **jede Uhrzeit kommt fertig
 aus der Datenbank**. Der Node-Prozess rechnet keine Zone um — es gibt genau
@@ -159,14 +174,36 @@ unbestimmter Reihenfolge. Wer eine neue braucht, nimmt die naechste, die in
 `drizzle/` noch fehlt. `0068`–`0071` aus dem PR-Plan sind ohnehin laengst
 vergeben.
 
+**Mit einer Ausnahme: `0086` bleibt frei.** „Die naechste, die noch fehlt" ist
+hier `0086` — und genau die darf niemand nehmen. Sie liegt auf
+`claude/phase-5-dienstplan-zeit` als `0086_abrechnungsart` (PR 48) und waere
+nach dem Zusammenfuehren zweimal vergeben. Dasselbe gilt in die andere
+Richtung: `0085`, `0087` und `0088` heissen hier
+`0085_arbzg_befund_zeitraum`, `0087_steuersatz_historie` und
+`0088_arbzg_befund_ueberholen`, auf dem Phase-6-Zweig
+`0085_rechnung_pflichtfelder`, `0087_rechnungsposition_typ` und
+`0088_position_herkunft`. Drei Kollisionen und eine reservierte Luecke, und
+keine davon meldet sich: wer Phase 6 hereinholt, benennt sie vorher um. Eine
+neue Migration in DIESEM Zweig
+faengt deshalb oberhalb des hoechsten vergebenen Standes an, nicht in der
+Luecke.
+
 ## Die Schuld, die benannt ist
 
-**K-01 gilt nicht** (D-300): 95 von 98 `SECURITY DEFINER`-Funktionen gehoeren
-`postgres` statt `cse_definer` und laufen damit an jeder RLS vorbei. Die
-Reparatur ist ausprobiert und beschrieben; sie braucht eine eigene Pruefrunde,
-weil jede lesende Stelle sonst still null Zeilen liest.
-`tests/isolation/definer-eigentum.test.ts` friert die 95 ein: **jede neue**
-Definer-Funktion muss `alter function … owner to cse_definer` mitbringen.
+**K-01 gilt nicht** (D-300): die grosse Mehrheit der `SECURITY DEFINER`-
+Funktionen gehoert `postgres` statt `cse_definer` und laeuft damit an jeder RLS
+vorbei. Die Reparatur ist ausprobiert und beschrieben; sie braucht eine eigene
+Pruefrunde, weil jede lesende Stelle sonst still null Zeilen liest.
+`tests/isolation/definer-eigentum.test.ts` friert die Altlast ein: **jede neue**
+Definer-Funktion muss `alter function … owner to cse_definer` mitbringen, und
+eine reparierte muss aus der Liste heraus.
+
+Hier stand „95 von 98". Nachgezaehlt in `cse_p5` (Stand `0091`): **94 von 99**
+gehoeren `postgres`, fuenf `cse_definer`; mit `0095` sind es 94 von 100 und
+sechs. Die Altlast ist um eine geschrumpft (`kern.checkin_token_widerrufen`,
+`0091`), und `ALTLAST` fuehrt sie nicht mehr — die Liste ist also die Quelle,
+dieser Absatz ist es nicht. Eine mitgefuehrte Zahl wird bei jeder reparierten
+Funktion falsch und liest sich dann wie eine zweite Messung.
 
 ## Wachen, die es seit Phase 5 gibt
 
@@ -177,3 +214,38 @@ Definer-Funktion muss `alter function … owner to cse_definer` mitbringen.
 | `spaltennamen.test.ts` | Eine `insert`-Spaltenliste, die eine Spalte nennt, die es nicht gibt |
 | `definer-eigentum.test.ts` | Eine neue Definer-Funktion, die als Superuser laeuft |
 | `tableiste.test.ts` (erweitert) | Ein Navigationspunkt, der nur die Auffangseite erreicht |
+| `sql-backtick-im-kommentar` | Ein Backtick in einem Kommentar INNERHALB eines SQL-Template-Literals — er beendet die Zeichenkette und bricht den Build |
+| `zeit-immer-tz` (repariert) | Sah eine unparenthesierte `timestamp`-Spalte nicht |
+| `anzeige-berlin` (repariert) | Nahm jedes `toLocaleString('de-DE')` aus — also genau den Fehler, gegen den sie geschrieben ist |
+| `ein-ausgang` (repariert) | Pruefte nur Importnamen, waehrend natives `fetch` keinen Import braucht |
+
+`validator-nicht-uebersprungen` steht in dieser Liste bewusst **nicht**: die
+Wache gehoert zum § 14-Validator aus PR 47 und liegt mit ihm auf dem
+Phase-6-Zweig. Wer die Wachen der beiden Zweige vergleicht, findet sie dort und
+hier nicht — das ist kein Verlust.
+
+## Nach der Abgabe: was die Nacharbeit am Stand geaendert hat
+
+Der Abschnitt „abgeschlossen" oben gilt den MODULEN. Der Zweig hat danach
+mehrere Pruefrunden aufgenommen, und drei davon aendern etwas, das eine neue
+Sitzung wissen muss — der Rest steht in der PR-Beschreibung und im `git log`:
+
+1. **Das K-08-Register des Check-in-Prinzipals war offen.** Postgres legt jede
+   Funktion mit `EXECUTE` fuer PUBLIC an; der ausdrueckliche Grant an
+   `cse_checkin` daneben schloss also nichts aus — er las sich wie eine
+   Schranke und war eine Beschriftung. `0092` nimmt PUBLIC die beiden
+   Check-in-Funktionen, `0093` weitere 41 `app`-Funktionen. Stehen bleibt
+   PUBLIC mit Absicht auf `app.sichtbare_mandanten()`, wo es der EINZIGE
+   Eintrag ist und ein Entzug jeden Aufrufer lautlos ausfallen liesse (D-301),
+   und auf den Ausloeser-Funktionen, deren direkten Aufruf Postgres ohnehin
+   abweist. Die andere Haelfte derselben Frage — das Definer-Eigentum — bleibt
+   offen (D-300).
+2. **Neue Definer-Funktionen bringen ihr Eigentum jetzt mit** (`0091`, `0094`,
+   `0095`). `create or replace` erbt den Eigentuemer — aus einem
+   Nicht-Definer wird damit lautlos ein Superuser-Definer, und genau das hat
+   `app.arbzg_befund_ueberholen` in dieser Runde einmal vorgefuehrt.
+3. **Die Dokumente wurden gegen `cse_p5` nachgezaehlt** (DECISIONS.md,
+   Abschnitt „Der Text gegen den Code"). Vier Behauptungen waren falsch oder zu
+   weit, darunter zwei in dieser Datei: die Testzahlen und „95 von 98". Wer
+   hier eine Zahl liest, soll sehen koennen, woher sie kommt — sonst ist der
+   naechste Leser derjenige, der sie ungeprueft weitertraegt.

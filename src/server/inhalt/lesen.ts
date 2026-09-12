@@ -51,7 +51,7 @@ export interface BereichZeile {
    *
    * `false` heisst NICHT „falsch", sondern „ungeprueft" — und die Oberflaeche
    * sagt es, statt eine erfundene Registernummer als Angabe nach § 5 TMG
-   * auszugeben (O-352).
+   * auszugeben (O-353).
    */
   readonly angabenBestaetigt: boolean;
 }

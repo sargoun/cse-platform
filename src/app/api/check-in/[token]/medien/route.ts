@@ -6,7 +6,9 @@ import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter
 import {
   legeMediumAb, MedienFehler, MEDIEN_MAX_BYTES, pruefeMedienGroesse,
 } from '@/server/services/zeit/medien';
-import { KeinBenutzerkontoFuerMediumFehler, nimmClaimAn } from '@/server/services/zeit/offline';
+import {
+  KeinBenutzerkontoFuerMediumFehler, markePraesentierbar, nimmClaimAn,
+} from '@/server/services/zeit/offline';
 
 /**
  * `POST /api/check-in/[token]/medien` — ein Foto oder Video von der Schicht
@@ -23,16 +25,33 @@ import { KeinBenutzerkontoFuerMediumFehler, nimmClaimAn } from '@/server/service
  * Beschaeftigung und Mensch aus der Marke auf und schreibt in derselben
  * Transaktion die `einsatz_medien`-Zeile.
  *
- * **Die Reihenfolge ist die Sicherheit:** Groesse → Typ aus Magic Bytes →
- * Metadaten entfernen → Bucket → Zeile. Und wenn die Zeile scheitert, wird das
- * Objekt WIEDER ENTFERNT: eine Datei ohne Zeile ist eine, die niemand
- * erreichen und niemand verantworten kann — ein Leck, kein geretteter Upload.
+ * **Die Reihenfolge ist die Sicherheit:** MARKE → Groesse → Typ aus Magic
+ * Bytes → Metadaten entfernen → Bucket → Zeile. Die Marke steht ganz vorn,
+ * noch vor dem Lesen des Rumpfes. Und wenn die Zeile scheitert,
+ * wird das Objekt WIEDER ENTFERNT: eine Datei ohne Zeile ist eine, die
+ * niemand erreichen und niemand verantworten kann — ein Leck, kein geretteter
+ * Upload.
+ *
+ * **Die Marke stand bis 0095 am ENDE dieser Reihe**, und das war die eine
+ * Stelle, an der die Reihenfolge nicht die Sicherheit war, sondern ihr
+ * Gegenteil: der Bucket wurde beschrieben, bevor irgendetwas den Aufrufer
+ * geprueft hatte. Die Kompensation unten fing das nicht auf — eine Marke, die
+ * nicht aufloest, laesst `app.offline_ereignis_annehmen` NICHT werfen, sondern
+ * in den Vorbereich schreiben und Erfolg melden (§5.13, AUT-06). Der `catch`
+ * lief also nie. Ein Fremder ohne jede Marke konnte damit 100 MiB je Anfrage
+ * in den privaten Medienbucket legen, beliebig oft, jedes Mal mitsamt
+ * Magic-Byte-Erkennung und EXIF-Bereinigung — und weil der Vorbereich keine
+ * `einsatz_medien`-Zeile schreibt, lag das Objekt danach ohne Zeile da:
+ * unerreichbar, unauffindbar und ueber die Anwendung nicht mehr loeschbar.
  *
  * **Ist der Speicher nicht verbunden, sagt die Antwort das.** Es wird kein
  * Erfolg vorgetaeuscht und keine Zeile geschrieben (CLAUDE.md: keine
  * Schein-Integrationen).
  */
 export const dynamic = 'force-dynamic';
+
+const UUID_FORM =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
 function ipAus(anfrage: NextRequest): string | null {
   const kopf = anfrage.headers.get('x-forwarded-for');
@@ -64,6 +83,48 @@ export async function POST(
       `Die Datei überschreitet ${String(MEDIEN_MAX_BYTES / 1_048_576)} MB.`, 413);
   }
 
+  /**
+   * **Die Marke, BEVOR ein Byte des Rumpfes gelesen wird** (0095).
+   *
+   * Sie stand bis hierhin ganz am Ende — nach `formData()`, nach
+   * `arrayBuffer()`, nach Magic Bytes, nach der EXIF-Bereinigung und nach dem
+   * Schreiben in den Bucket. Das Objekt lag also schon drin, wenn zum ersten
+   * Mal geprueft wurde, wer da schreibt, und die Kompensation im `catch` unten
+   * lief nicht: eine Marke, die nicht aufloest, laesst
+   * `app.offline_ereignis_annehmen` NICHT werfen, sondern in den Vorbereich
+   * schreiben und Erfolg melden (§5.13, AUT-06).
+   *
+   * Gelesen, nicht verbraucht — die Marke bleibt fuer den Check-in und fuer
+   * die Warteschlange, was sie war. Und dieselben drei Bedingungen wie das Tor
+   * dahinter, nicht mehr: waere die Pruefung strenger, wiese die Route
+   * Aufnahmen ab, die die Warteschlange danach annimmt.
+   *
+   * **Der Beweis geht nicht verloren.** Die Einreichung wandert weiterhin in
+   * den Vorbereich — nur ohne Medium, denn es wurde keins abgelegt, und eine
+   * Zeile, die eins behauptet, waere eine Falschaussage ueber ein Objekt, das
+   * es nicht gibt. Die Kennung wird hier gepraegt statt aus dem Formular
+   * gelesen: das Formular ist der Rumpf, den wir gerade NICHT anfassen.
+   *
+   * Die Ablehnung lautet woertlich wie die auf eine formal unmoegliche Marke
+   * weiter oben — EIN Status, EIN Satz, kein Grund (AUT-06).
+   */
+  const praesentierbar = await (db().begin(async (tx: postgres.TransactionSql) =>
+    markePraesentierbar(tx as never, token)) as Promise<boolean>);
+  if (!praesentierbar) {
+    await (db().begin(async (tx: postgres.TransactionSql) =>
+      nimmClaimAn(tx as never, {
+        token,
+        ereignisse: [{
+          clientEreignisId: randomUUID(),
+          art: 'foto',
+          behaupteteZeit: new Date(),
+        }],
+        ip: ipAus(anfrage),
+        userAgent: anfrage.headers.get('user-agent'),
+      })) as Promise<unknown>);
+    return fehlerAntwort('ungueltiger_zustand', 'Dieser Link ist nicht gültig.', 409);
+  }
+
   let formular: FormData;
   try {
     formular = await anfrage.formData();
@@ -81,7 +142,10 @@ export async function POST(
   const medienId = randomUUID();
   const clientEreignisId = (() => {
     const roh = formular.get('client_ereignis_id');
-    return typeof roh === 'string' && roh !== '' ? roh : randomUUID();
+    // Die Kennung wird in der Datenbank mit `::uuid` gelesen; eine beliebige
+    // Zeichenkette liesse die ganze Einreichung dort werfen, und das Objekt
+    // laege dann schon im Bucket.
+    return typeof roh === 'string' && UUID_FORM.test(roh) ? roh : randomUUID();
   })();
 
   let ablage: Awaited<ReturnType<typeof legeMediumAb>>;

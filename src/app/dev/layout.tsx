@@ -44,14 +44,24 @@ export default function DevLayout({ children }: { children: ReactNode }) {
           Kein Teil der Anwendung — hier gibt es keine Sitzung und deshalb keine
           Portalnavigation.
         </span>
-        <span className="ms-auto flex flex-wrap gap-x-s4 gap-y-s2">
-          <a href="/dev/anmelden" className="text-text underline underline-offset-4">
+        {/*
+          * `min-h-11` an jedem der drei: DESIGN §8 verlangt 44px fuer alles
+          * Bedienbare, und die Zeilenhoehe von `text-sm` sind 22. Der Streifen
+          * ist die einzige Navigation, die `/dev/**` hat — ein Ausgang, den man
+          * auf dem Telefon zweimal verfehlt, ist der Zustand, den er beheben
+          * sollte.
+          */}
+        <span className="ms-auto flex flex-wrap items-center gap-x-s4 gap-y-s2">
+          <a href="/dev/anmelden"
+             className="flex min-h-11 items-center text-text underline underline-offset-4">
             Anmelden
           </a>
-          <a href="/portal/reinigung" className="text-text underline underline-offset-4">
+          <a href="/portal/reinigung"
+             className="flex min-h-11 items-center text-text underline underline-offset-4">
             Zum Portal
           </a>
-          <a href="/" className="text-text underline underline-offset-4">
+          <a href="/"
+             className="flex min-h-11 items-center text-text underline underline-offset-4">
             Zur Website
           </a>
         </span>

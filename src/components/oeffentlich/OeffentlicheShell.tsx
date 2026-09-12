@@ -82,12 +82,34 @@ export function OeffentlicheShell(
         className="sticky top-0 z-40 flex h-[72px] items-center gap-s5 border-b border-line
                    bg-surface/80 px-s5 backdrop-blur"
       >
+        {/*
+          * `min-h-11`: der Auftrittsname ist ein Verweis, also ein Tippziel
+          * (DESIGN §8). Als blosser `text-h3` war er 30px hoch.
+          *
+          * `min-w-0` (mit `truncate` am Span darin): die Kopfzeile ist eine
+          * Reihe ohne Umbruch, und rechts stehen „Anmelden" und die Sprachwahl
+          * mit fester Mindestbreite.
+          * Ohne diese beiden Klassen drueckt ein laengerer `gruppenname` — er
+          * kommt aus `plattform_einstellung`, nicht aus dem Quelltext — die
+          * Zeile ueber den Rand, und zwar auf JEDER oeffentlichen Seite. Das
+          * Kuerzel in der Sprachwahl wurde genau deswegen eingefuehrt; die
+          * Ursache lag daneben.
+          */}
         <a
           href={mitSprache('/', sprache)}
           aria-label={t.zurStartseite}
-          className="text-h3 text-text"
+          className="flex min-h-11 min-w-0 items-center text-h3 text-text"
         >
-          {gruppeName}
+          {/*
+            * `truncate` gehoert an das SPAN, nicht an das `a`.
+            *
+            * `text-overflow` greift nicht am Flex-Container — der Text waere
+            * dort ein anonymes Flex-Element und wuerde ohne Auslassungszeichen
+            * abgeschnitten. Und `min-w-0` gehoert dazu: `white-space: nowrap`
+            * macht die Mindestbreite des Spans zur GANZEN Zeichenkette, und
+            * ein Flex-Element schrumpft nicht unter seine Mindestbreite.
+            */}
+          <span className="min-w-0 truncate">{gruppeName}</span>
         </a>
         <nav aria-label={t.hauptnavigation} className="ml-auto hidden gap-s4 md:flex">
           {HAUPT.map(([ziel, schluessel]) => (
@@ -146,7 +168,15 @@ export function OeffentlicheShell(
               data-sprache={s}
               aria-current={s === sprache ? 'true' : undefined}
               aria-label={EIGENNAME[s]}
-              className={`rounded-sm px-s2 py-s1 text-sm ${
+              /*
+               * 44×44 (DESIGN §8) — und `min-w-11` ist hier nicht Zierde:
+               * unter `sm` steht im Verweis nur „DE", also ein Ziel von rund
+               * 36×30 px. Das ist die Groesse, die man mit dem Daumen zweimal
+               * verfehlt, und sie stand auf jeder oeffentlichen Seite genau
+               * auf dem Geraet, fuer das das Kuerzel eingefuehrt wurde.
+               */
+              className={`flex min-h-11 min-w-11 items-center justify-center rounded-sm px-s2
+                          text-sm ${
                 s === sprache ? 'text-text' : 'text-text-muted hover:text-text'}`}
             >
               {/*

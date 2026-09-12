@@ -213,6 +213,35 @@ export async function nimmClaimAn(
   }));
 }
 
+/**
+ * Darf diese Marke ueberhaupt vorgelegt werden? (0095, K-08 Registerzeile 5)
+ *
+ * **Sie wird gelesen, nicht verbraucht** — und sie wird gelesen, BEVOR die
+ * Medienroute 100 MiB in den Bucket legt. Dort stand der Schreibvorgang
+ * vorher vor der einzigen Pruefung, die den Aufrufer betrifft, und die
+ * Kompensation im `catch` lief nie: eine Marke, die nicht aufloest, laesst
+ * `app.offline_ereignis_annehmen` nicht werfen, sondern in den Vorbereich
+ * schreiben und Erfolg melden (§5.13, AUT-06). Das Objekt blieb ohne Zeile
+ * liegen — von aussen gefuellt, von innen nicht mehr loeschbar.
+ *
+ * Die Antwort ist EIN Bit und nennt weder Mandant noch Person noch
+ * Einteilung: dieselben drei Bedingungen wie das Tor in
+ * `app.offline_ereignis_annehmen`, und ausdruecklich nicht mehr. Waere sie
+ * strenger — Fenster, `eingeloest_am` —, wiese die Route Aufnahmen ab, die
+ * die Warteschlange danach annimmt.
+ */
+export async function markePraesentierbar(
+  tx: Transaktion,
+  token: string,
+): Promise<boolean> {
+  const zeilen = await withCheckin(tx, async (k) =>
+    k.rufe<{ ok: boolean }>(
+      `select app.checkin_marke_praesentierbar($1) as ok`,
+      [tokenHash(token)],
+    ));
+  return zeilen[0]?.ok === true;
+}
+
 // ---------------------------------------------------------------------------
 // Die Warteschlange der Planung — Entscheidungen mit Sitzung dahinter.
 // ---------------------------------------------------------------------------

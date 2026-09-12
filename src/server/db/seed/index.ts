@@ -130,7 +130,7 @@ async function main(): Promise<void> {
      * (§ 14 UStG). Die Werte muessen da sein, damit das System arbeitet; sie
      * duerfen nur nicht als gesichert AUFTRETEN. Genau dafuer gibt es seit
      * 0097 `angaben_bestaetigt_am`, und der Auftritt sagt es sichtbar, solange
-     * die Spalte NULL ist (O-352).
+     * die Spalte NULL ist (O-353).
      */
     const rechtseinheit = b.rechtseinheit === true;
     const [z] = await sql<{ id: string }[]>`
@@ -141,12 +141,12 @@ async function main(): Promise<void> {
       values
         (${b.slug}, ${b.name}, ${b.firma}, ${b.rechtsform}, ${b.rechtseinheit},
          ${rechtseinheit},
-         'Kurfürstendamm 21', '10719', 'Berlin', 'DE', -- TODO(client, O-352): echte Anschrift je Gesellschaft
-         '+49 30 555 0100', ${`kontakt@${b.slug}.cse-gruppe.de`}, ${b.farbe}, -- TODO(client, O-352): echte Rufnummer
+         'Kurfürstendamm 21', '10719', 'Berlin', 'DE', -- TODO(client, O-353): echte Anschrift je Gesellschaft
+         '+49 30 555 0100', ${`kontakt@${b.slug}.cse-gruppe.de`}, ${b.farbe}, -- TODO(client, O-353): echte Rufnummer
          '{}', ${i},
-         ${rechtseinheit ? `DE${String(100_000_000 + i)}` : null}, -- TODO(client, O-352): echte USt-IdNr.
+         ${rechtseinheit ? `DE${String(100_000_000 + i)}` : null}, -- TODO(client, O-353): echte USt-IdNr.
          ${rechtseinheit ? 'Amtsgericht Charlottenburg' : null},
-         ${rechtseinheit ? `HRB ${String(200_000 + i)}` : null})  -- TODO(client, O-352): echte HRB-Nummer
+         ${rechtseinheit ? `HRB ${String(200_000 + i)}` : null})  -- TODO(client, O-353): echte HRB-Nummer
       -- ist_rechtseinheit MUSS mit: der CHECK verbindet beide Spalten, ein
       -- eigener Nummernkreis setzt eine Rechtseinheit voraus. Der Zweig setzte
       -- nur eigener_nummernkreis. Traf er eine Zeile, die von anderswo kam

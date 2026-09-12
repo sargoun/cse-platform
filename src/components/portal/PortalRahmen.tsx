@@ -59,11 +59,24 @@ export function PortalRahmen({
         aria-hidden="true"
         data-cse="identitaets-streifen"
         data-bereich={bereich ?? 'gruppe'}
-        className="h-[3px] w-full shrink-0"
-        style={{
-          background: bereich === null
-            ? 'var(--border-line-strong)' : `var(--area-${bereich})`,
-        }}
+        /*
+         * **Der neutrale Fall kommt aus dem Thema, nicht aus einem `var()`.**
+         *
+         * Hier stand `background: 'var(--border-line-strong)'`. Diese
+         * Eigenschaft gibt es in `globals.css` nicht — sie heisst dort
+         * `--border-strong`; `border-line-strong` ist der Name der
+         * TAILWIND-Klasse. Ein `var()` auf eine unbekannte Eigenschaft ohne
+         * Ersatzwert ist ungueltig, die ganze Deklaration faellt weg, und der
+         * Balken wurde durchsichtig: in der Gruppenansicht fehlte der
+         * 3px-Streifen aus DESIGN §6 Regel 4 ganz. Nichts im Log, nichts rot —
+         * nur die eine Ansicht ohne das Zeichen, das sagt, wo man ist. Als
+         * Klasse kann derselbe Vertipper nicht mehr passieren: die
+         * Tailwind-Wache kennt die Farbnamen des Themas.
+         */
+        className={`h-[3px] w-full shrink-0 ${bereich === null ? 'bg-line-strong' : ''}`}
+        {...(bereich === null
+          ? {}
+          : { style: { background: `var(--area-${bereich})` } })}
       />
 
       <header className="flex h-14 shrink-0 items-center gap-s3 border-b border-line
@@ -167,8 +180,8 @@ export function PortalRahmen({
           * da — verbunden waren sie nie.
           */}
         {/*
-          * **Die Arbeiterin und die Kundin haben am Schreibtisch dieselben
-          * Ziele wie am Telefon — nicht gar keine.**
+          * **Die Arbeiterin, die Kundin und die Gruppenleitung haben am
+          * Schreibtisch dieselben Ziele wie am Telefon — nicht gar keine.**
           *
           * `NAVIGATION` ist das Register der MANDANTEN-Module, jedes mit einem
           * Modulrecht. Eine Reinigungskraft haelt keines davon; die Schiene
@@ -176,16 +189,43 @@ export function PortalRahmen({
           * keine Navigation — die Tab-Leiste ist `md:hidden`. Ihre Ziele
           * stehen in ihrer eigenen Leiste (`mitarbeiter`), und die ist hier
           * die richtige Quelle. `Mehr` faellt dabei ohnehin weg (`OHNE_MEHR`).
+          *
+          * **Die Gruppenansicht gehoerte in dieselbe Zeile und stand in der
+          * anderen.** Sie bekam `NAVIGATION.filter(n => n.gruppe)` — also die
+          * MANDANTEN-Module unter `/portal/gruppe`. Beides daran war falsch:
+          *
+          *  - Die Rechte. `navigationsRechte` traegt `objekt.lesen`,
+          *    `crm.lesen`, …; die Gruppenrouten verlangen `gruppe.objekt.lesen`
+          *    und Geschwister (`0004`/`0009`). Wer nur `gruppe.*` haelt — das
+          *    Publikum, fuer das TEN-05 diese Ansicht gebaut hat — sah eine
+          *    LEERE Schiene, und `SeitenNavigation` blendet sie dann ganz aus:
+          *    am 1440-px-Bildschirm keine Navigation, weil die Leiste
+          *    `md:hidden` ist.
+          *  - Die Pfade. `dienstplan/woche`, `zeiten`, `personal/anstellungen`,
+          *    `angebote`, `finanzen/rechnungen`, `bau/projekte`,
+          *    `reinigung/reviere`, `qualitaet/reklamationen` gibt es unter
+          *    `/portal/gruppe` NICHT (§6 der Seitenkarte kennt `dienstplan`,
+          *    `auslastung`, `personen`, `rechnungen`, `projekte` …). Ein
+          *    `super_admin`, der jedes Modulrecht haelt, bekam die Schiene also
+          *    voll — und 8 von 12 Punkten fuehrten auf 404.
+          *
+          * Die Gruppenleiste traegt bewusst kein `Mehr`: „jede Gruppenseite ist
+          * lesend und von den fuenf Knotenpunkten aus erreichbar"
+          * (`registry/tableiste.ts`). Genau diese fuenf stehen hier, mit den
+          * `gruppe.*`-Rechten, die `sichtbareTabs` ohnehin schon bewertet hat.
           */}
         <SeitenNavigation
-          ziele={leiste === 'mitarbeiter' || leiste === 'kunde'
-            ? tabs.ziele
-            : NAVIGATION.filter((n) => leiste !== 'gruppe' || n.gruppe)}
+          ziele={leiste === 'intern_global' || leiste === 'intern_admin'
+            || leiste === 'intern_leitung'
+            ? NAVIGATION
+            : tabs.ziele}
           wurzel={wurzel}
           {...(aktiverTab === undefined ? {} : { aktiv: aktiverTab })}
-          {...(leiste === 'mitarbeiter' || leiste === 'kunde'
-            ? (sichtbareTabs === undefined ? {} : { sichtbar: sichtbareTabs })
-            : (navigationsRechte === undefined ? {} : { sichtbar: navigationsRechte }))}
+          {...(leiste === 'intern_global' || leiste === 'intern_admin'
+            || leiste === 'intern_leitung'
+            ? (navigationsRechte === undefined ? {} : { sichtbar: navigationsRechte })
+            : (sichtbareTabs === undefined ? {} : { sichtbar: sichtbareTabs }))}
+          bereich={bereich}
           label={titel}
         />
         {/* `pb-20` unter `md`: die Tab-Leiste liegt fest am unteren Rand und

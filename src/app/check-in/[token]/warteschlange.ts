@@ -37,6 +37,20 @@
  *     Fassung stellte jeden Stempel als `checkin` an — ein im Funkloch
  *     getipptes Schichtende reiste damit als Schichtbeginn zur Planung. Sie
  *     sah aus wie eine Aufzeichnung und war eine Falschaussage.
+ *
+ *  6. **Jeder Eintrag merkt sich SEINE Marke und reist nur unter ihr.** Der
+ *     Speicher gehört dem Browser, nicht der Adresse: eine einzige Schlange
+ *     für alle `/check-in/…`-Links dieses Geräts. Sie wurde bis hierhin
+ *     KOMPLETT unter der gerade geöffneten Marke gesendet — und seit 0090
+ *     setzt der Server die Richtung aus genau dieser Marke. Wer um 22:00 im
+ *     Funkloch seinen Beginn-Link antippte und um 06:00 den Ende-Link
+ *     öffnete, dessen gemerkter SCHICHTBEGINN wurde beim Leeren als
+ *     SCHICHTENDE verbucht. Auf einem geteilten Objekt-Telefon war es
+ *     schlimmer: die Nachreichung der einen Kraft lief unter der Marke der
+ *     nächsten und trug damit deren `person_id` — eine fremde Stunde unter
+ *     fremdem Namen, plausibel und ohne eine einzige Fehlermeldung. 0090 hat
+ *     die geratene Richtung aus dem Gerät entfernt; diese Schlange hat sie
+ *     über die falsche Marke wieder hereingeholt.
  */
 
 /**
@@ -71,6 +85,16 @@ export interface WarteEintrag {
   readonly behaupteteZeit: string;
   /** Wie oft schon vergeblich gesendet — nur für die Anzeige. */
   readonly versuche: number;
+  /**
+   * Die Marke, unter der getippt wurde — beim ANLEGEN festgehalten, wie die
+   * Kennung.
+   *
+   * Sie entscheidet auf dem Server über Richtung, Einteilung und MENSCH; unter
+   * einer anderen gesendet ist der Eintrag eine Aussage über jemand anderen.
+   * `undefined` steht nur auf Einträgen, die eine ältere Fassung dieser Datei
+   * ohne Marke abgelegt hat.
+   */
+  readonly token?: string;
 }
 
 const SCHLUESSEL = 'cse.zeit.warteschlange';
@@ -106,6 +130,9 @@ export function lies(): readonly WarteEintrag[] {
     if (roh === null || roh === undefined) return [];
     const daten: unknown = JSON.parse(roh);
     if (!Array.isArray(daten)) return [];
+    // `token` wird NICHT verlangt: Einträge einer älteren Fassung haben keins,
+    // und sie hier wegzuwerfen hiesse, gemerkte Stunden zu löschen, um eine
+    // Spalte durchzusetzen.
     return daten.filter((e): e is WarteEintrag =>
       typeof e === 'object' && e !== null
       && typeof (e as WarteEintrag).clientEreignisId === 'string'
@@ -115,9 +142,17 @@ export function lies(): readonly WarteEintrag[] {
   }
 }
 
+/**
+ * Die Obergrenze schneidet VORNE ab, nicht hinten.
+ *
+ * `slice(0, MAX)` warf den letzten Eintrag weg — also genau den, der gerade
+ * getippt worden war und für den auf dem Bildschirm „Ohne Verbindung gemerkt"
+ * stand, mit Uhrzeit. Die Fläche bestätigte eine Stunde, die der Speicher im
+ * selben Moment verwarf.
+ */
 function schreibe(eintraege: readonly WarteEintrag[]): void {
   try {
-    globalThis.localStorage?.setItem(SCHLUESSEL, JSON.stringify(eintraege.slice(0, MAX)));
+    globalThis.localStorage?.setItem(SCHLUESSEL, JSON.stringify(eintraege.slice(-MAX)));
   } catch {
     // Voller oder gesperrter Speicher. Der Stempelvorgang läuft trotzdem
     // weiter — er wird dann eben sofort gesendet oder geht verloren, und
@@ -125,13 +160,28 @@ function schreibe(eintraege: readonly WarteEintrag[]): void {
   }
 }
 
-/** Legt einen Eintrag an und gibt ihn zurück — mit seiner endgültigen Kennung. */
-export function stelleAn(art: WarteArt, jetzt: Date): WarteEintrag {
+/**
+ * Legt einen Eintrag an und gibt ihn zurück — mit seiner endgültigen Kennung
+ * UND seiner Marke.
+ *
+ * Beides wird hier geprägt und nie später: die Kennung trägt die
+ * Doppelerkennung des Servers, die Marke trägt Richtung, Einteilung und
+ * Mensch. Was beim Senden eingesetzt wird, gehört zum Sendezeitpunkt — und
+ * der ist eine andere Schicht, manchmal eine andere Person.
+ *
+ * `token` ist nur deshalb weglassbar, weil es Einträge OHNE Marke gibt — die
+ * einer älteren Fassung. Ein weggelassener bedeutet genau das: „unter welcher
+ * Marke dieser Stempel entstand, weiss niemand", und `sende` schickt ihn dann
+ * notgedrungen unter der gerade geöffneten. **Die Stempelfläche lässt ihn
+ * nicht weg**, und wer hier einen neuen Aufrufer anlegt, tut es auch nicht.
+ */
+export function stelleAn(art: WarteArt, jetzt: Date, token?: string): WarteEintrag {
   const eintrag: WarteEintrag = {
     clientEreignisId: neueId(),
     art,
     behaupteteZeit: jetzt.toISOString(),
     versuche: 0,
+    ...(token === undefined ? {} : { token }),
   };
   schreibe([...lies(), eintrag]);
   return eintrag;
@@ -152,40 +202,54 @@ export interface SendeErgebnis {
 }
 
 /**
- * Schickt die ganze Schlange in EINER Anfrage.
+ * Schickt die Schlange — EINE Anfrage je MARKE, nicht eine je Eintrag.
  *
  * Ein Aufruf je Eintrag wäre auf einer schlechten Verbindung genau die
  * Bauart, die auf halbem Weg abbricht und den Rest liegen lässt. Der Server
  * nimmt eine Liste entgegen und dedupliziert je Eintrag (K-09), also ist ein
  * zweiter Versuch harmlos.
  *
+ * **Gebündelt wird nach der Marke des EINTRAGS, nicht nach der gerade
+ * geöffneten.** Der Speicher gehört dem Browser, nicht der Adresse: in
+ * derselben Schlange liegen Stempel aus mehreren `/check-in/…`-Links — und
+ * seit 0090 liest der Server Richtung, Einteilung und Mensch an genau der
+ * Marke ab, unter der eine Nachreichung ankommt. Alles unter der zuletzt
+ * geöffneten zu senden machte aus einem gemerkten Schichtbeginn ein
+ * Schichtende und auf einem geteilten Objekt-Telefon aus der Stunde der einen
+ * Kraft die Stunde der nächsten.
+ *
  * **Entfernt wird nur, was der Server BESTÄTIGT hat** — nicht die ganze
  * Schlange, weil die Antwort 202 lautete. Ein Eintrag, den der Server nicht
  * nennt, bleibt stehen und geht beim nächsten Mal wieder mit.
  */
-export async function sende(token: string): Promise<SendeErgebnis> {
-  const offen = lies();
-  if (offen.length === 0) return { gesendet: 0, verblieben: 0 };
-
-  const antwort = await fetch(`/api/check-in/${encodeURIComponent(token)}/offline`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      ereignisse: offen.map((e) => ({
-        client_ereignis_id: e.clientEreignisId,
-        art: e.art,
-        behauptete_zeit: e.behaupteteZeit,
-        geraete_zeit: new Date().toISOString(),
-      })),
-    }),
-  });
-
-  if (!antwort.ok) {
-    for (const e of offen) zaehleVersuch(e.clientEreignisId);
-    return { gesendet: 0, verblieben: offen.length };
+async function sendeGruppe(
+  marke: string, eintraege: readonly WarteEintrag[],
+): Promise<number> {
+  let antwort: Response;
+  try {
+    antwort = await fetch(`/api/check-in/${encodeURIComponent(marke)}/offline`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        ereignisse: eintraege.map((e) => ({
+          client_ereignis_id: e.clientEreignisId,
+          art: e.art,
+          behauptete_zeit: e.behaupteteZeit,
+          geraete_zeit: new Date().toISOString(),
+        })),
+      }),
+    });
+  } catch {
+    for (const e of eintraege) zaehleVersuch(e.clientEreignisId);
+    return 0;
   }
 
-  const daten = (await antwort.json()) as {
+  if (!antwort.ok) {
+    for (const e of eintraege) zaehleVersuch(e.clientEreignisId);
+    return 0;
+  }
+
+  const daten = (await antwort.json().catch(() => ({}))) as {
     angenommen?: { client_ereignis_id?: string }[];
   };
   const bestaetigt = new Set(
@@ -194,5 +258,35 @@ export async function sende(token: string): Promise<SendeErgebnis> {
       .filter((id): id is string => typeof id === 'string'),
   );
   for (const id of bestaetigt) entferne(id);
-  return { gesendet: bestaetigt.size, verblieben: lies().length };
+  return bestaetigt.size;
+}
+
+export async function sende(token: string): Promise<SendeErgebnis> {
+  const offen = lies();
+  if (offen.length === 0) return { gesendet: 0, verblieben: 0 };
+
+  const gruppen = new Map<string, WarteEintrag[]>();
+  for (const e of offen) {
+    /**
+     * Ein Eintrag OHNE Marke stammt aus einer Fassung, die keine abgelegt hat.
+     * Er geht unter der gerade geöffneten mit — das ist der einzige Weg, den
+     * es für ihn gibt, und es ist genau das, was vorher mit ALLEN Einträgen
+     * geschah. Neu angelegte tragen ihre eigene, also schrumpft dieser Rest
+     * auf null, statt mitzuwachsen.
+     */
+    const marke = typeof e.token === 'string' && e.token !== '' ? e.token : token;
+    const liste = gruppen.get(marke);
+    if (liste === undefined) gruppen.set(marke, [e]);
+    else liste.push(e);
+  }
+
+  let gesendet = 0;
+  // Nacheinander und nicht nebenläufig: jede Gruppe schreibt beim Bestätigen
+  // dieselbe `localStorage`-Zeile, und zwei Läufe würden sich gegenseitig
+  // überschreiben — ein bestätigter Eintrag käme zurück und würde ein zweites
+  // Mal gesendet.
+  for (const [marke, eintraege] of gruppen) {
+    gesendet += await sendeGruppe(marke, eintraege);
+  }
+  return { gesendet, verblieben: lies().length };
 }

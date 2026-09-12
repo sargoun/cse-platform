@@ -8,6 +8,45 @@ No time estimates by design — sequence and acceptance, not duration.
 
 Feature IDs refer to `SPEC.md`.
 
+## Where the work actually stands — this file does not say it
+
+**None of the boxes below have ever been ticked.** This file has not been
+touched since the commit that created it, five phases ago; every `- [ ]` in it
+means "planned", never "open". Read as a status board it says the platform is
+empty, which is the opposite of true — and a session that believes it rebuilds
+what already exists, on top of what already exists.
+
+The status lives in three places, and each of them is kept:
+
+- `docs/architecture/PHASE-5-STAND.md` — what is built, what was found, where
+  Phase 6 begins.
+- `docs/DECISIONS.md` — every decision with its reason, and the open questions
+  under "Open" / "Offen".
+- The pull request for the branch in hand — the test counts and the file and
+  commit numbers of the moment. They move with every commit and therefore do
+  not belong in this file either.
+
+Two facts that this sequence otherwise hides, both true at the time of
+Phase 5's hand-off (PR #5):
+
+1. **Phases 0 to 5 are built** — the three trade modules, scheduling, time,
+   hour accounts and the employee portal in four languages — **with one named
+   exception: there is no login.** PR 20 (employee access by phone and one-time
+   code) has not been built; sessions are issued by `/dev/anmelden`, which only
+   exists when `CSE_DEV_FLAECHEN` is on. Phase 1's "Supabase Auth; 2FA for
+   `super_admin` and `admin`" is therefore still open, and so is every promise
+   that rests on a real session. Whatever else is missing is named
+   individually, not by a blank box: `PHASE-5-STAND.md` §"Offen in dieser
+   Phase" and the open questions in `DECISIONS.md`.
+2. **Phase 6 has already begun**, against the "phases are sequential" rule at
+   the top. PR 46 — invoice lifecycle, number assignment, hash chain, Storno —
+   ships inside the Phase 5 branch (`0075`–`0077`,
+   `src/server/services/finanz/rechnung.ts`); PR 47 to 49 sit on
+   `claude/phase-5-dienstplan-zeit`. That was a deliberate call, not a slip,
+   and the reason is in `DECISIONS.md` under "PHASE 6, NICHT IN DIESEM ZWEIG".
+   The invoice itself stays locked until **O-134** is answered: no number is
+   ever drawn from an unconfirmed circle.
+
 ---
 
 ## Phase 0 · Analysis & architecture
@@ -233,7 +272,12 @@ Tracked in `DECISIONS.md`. Until answered, build behind an interface with
 `// TODO(client)`.
 
 1. Is **CSE Operations** a GmbH or a department? (invoice circle)
-2. Is **CSE Security** the same entity as Select-Security Event GmbH, or a rename?
+2. ~~Is **CSE Security** the same entity as Select-Security Event GmbH, or a
+   rename?~~ **Answered** — D-11: **SSE Security** is the brand of
+   *Select-Security Event GmbH*, a separate entity with its own tax number and
+   its own invoice circle (O-02 closed). It is listed here only so that nobody
+   asks the client a second time; the platform, the seed and `CLAUDE.md`
+   have run on that answer since Phase 1.
 3. The exact five billing types.
 4. DATEV: Beraternummer, Mandantennummer per entity, SKR03/04, Sachkontenlänge,
    Steuerschlüssel, fiscal year start — plus a **real sample export**.

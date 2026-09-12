@@ -31,7 +31,7 @@ alter table mandant
 comment on column mandant.angaben_bestaetigt_am is
   'Wann ein Mensch Anschrift, Register- und Steuernummern dieser Gesellschaft '
   'bestaetigt hat. NULL heisst: noch nicht bestaetigt — die Oberflaeche sagt '
-  'es dann, statt die Angabe als gesichert auszugeben (O-352).';
+  'es dann, statt die Angabe als gesichert auszugeben (O-353).';
 
 -- Lesbar fuer die Anwendung wie die uebrigen Stammdaten; der Auftritt liest
 -- sie ueber denselben Weg wie Firma und Anschrift.

@@ -191,11 +191,15 @@ export default async function Nacherfassung({
             /**
              * Als `string` gelesen, nicht als `OfflineArt`.
              *
-             * Die Spalte kennt seit 0090 den Wert `unbekannt`; die
-             * Vereinigung in `services/zeit/offline.ts` führt ihn noch nicht.
-             * Der Vergleich am engeren Typ wäre ein Übersetzungsfehler, und
-             * ihn durch ein stillschweigendes `as` zu erzwingen hiesse, dem
-             * Typ mehr zu glauben als der Datenbank. Die Datenbank hat recht.
+             * Hier stand, die Vereinigung in `services/zeit/offline.ts` kenne
+             * `unbekannt` nicht — sie kennt ihn seit 0090, und ein Kommentar,
+             * der eine Lücke beschreibt, die es nicht mehr gibt, verdeckt beim
+             * nächsten Lesen die Lücke, die es dann gibt. Der Grund ist ein
+             * anderer und bleibt: `offline_ereignis_art` ist ein Enum der
+             * Datenbank, die Vereinigung daneben eine Abschrift davon. Wächst
+             * das Enum und die Abschrift nicht mit, fällt hier ein Wert aus
+             * der Anzeige, den `ART_TEXT[art] ?? art` sonst wenigstens roh
+             * hinschreibt. Die Datenbank hat recht, nicht der Typ.
              */
             const art: string = z.art;
             return (

@@ -48,13 +48,48 @@ function Feld({ f, fehler, t }: {
     className: 'w-full rounded-md border border-line bg-surface-2 p-s3 text-base text-text',
   } as const;
 
+  const beschriftung = (
+    <>
+      {f.label}
+      {f.pflicht && <span aria-hidden="true" className="text-brand"> *</span>}
+    </>
+  );
+
+  /*
+   * **Der Kasten steht NEBEN seiner Beschriftung, und die Zeile ist das
+   * Tippziel.**
+   *
+   * Er stand darunter: ein 20px-Quadrat unter einem 22px hohen Label. DESIGN §8
+   * verlangt 44px, WCAG 2.5.8 mindestens 24 — und getroffen werden musste es
+   * von jemandem, der auf dem Telefon die Pflichtzustimmung zum Datenschutz
+   * gibt (LEG-07). Wer sie nicht trifft, bekommt beim Absenden „Pflichtfeld"
+   * fuer ein Feld, das er anzuklicken glaubte. `<label>` umschliesst hier
+   * beides, also ist die ganze 44px-Zeile die Klickflaeche; `htmlFor` bleibt
+   * stehen, damit die Bindung auch explizit ist.
+   */
+  if (f.typ === 'checkbox') {
+    return (
+      <div className="flex flex-col gap-s2" data-cse="formularfeld">
+        <label htmlFor={id} className="flex min-h-11 items-center gap-s3 text-sm text-text">
+          <input {...gemeinsam} type="checkbox" className="size-5 shrink-0 accent-brand" />
+          <span>{beschriftung}</span>
+        </label>
+        {f.hilfetext !== undefined && (
+          <p id={hilfeId} className="text-xs text-text-subtle">{f.hilfetext}</p>
+        )}
+        {fehler !== undefined && (
+          <p id={fehlerId} className="text-xs text-danger-strong">{fehler}</p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-s2" data-cse="formularfeld">
       {/* Das Label steht IMMER über dem Feld (DESIGN §5) und ist nie ein
           Platzhalter: ein Platzhalter verschwindet beim Tippen. */}
       <label htmlFor={id} className="text-sm text-text">
-        {f.label}
-        {f.pflicht && <span aria-hidden="true" className="text-brand"> *</span>}
+        {beschriftung}
       </label>
 
       {f.typ === 'textarea' && <textarea {...gemeinsam} rows={5} maxLength={f.maxLaenge} />}
@@ -65,9 +100,6 @@ function Feld({ f, fehler, t }: {
           <option value="">{t.bitteWaehlen}</option>
           {f.optionen.map((o) => <option key={o.wert} value={o.wert}>{o.label}</option>)}
         </select>
-      )}
-      {f.typ === 'checkbox' && (
-        <input {...gemeinsam} type="checkbox" className="size-5 accent-brand" />
       )}
       {f.typ === 'datei' && (
         <input {...gemeinsam} type="file" accept={f.mime.join(',')} />

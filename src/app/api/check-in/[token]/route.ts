@@ -88,7 +88,17 @@ export async function POST(
 
   let rumpf: Rumpf = {};
   try {
-    rumpf = (await anfrage.json()) as Rumpf;
+    /**
+     * Das Ergebnis wird GEPRUEFT, nicht nur behauptet.
+     *
+     * `as Rumpf` prueft nichts: ein Rumpf aus den vier Zeichen `null` ist
+     * gueltiges JSON, `json()` liefert dafuer `null`, und der Zugriff auf
+     * `rumpf.geraetezeit` warf danach — die Route antwortete 500 auf einen
+     * Fall, den ihr eigener Kommentar zwei Zeilen tiefer als „kein Fehler"
+     * bezeichnet. Dasselbe gilt fuer eine Zahl oder eine Zeichenkette.
+     */
+    const gelesen: unknown = await anfrage.json();
+    if (typeof gelesen === 'object' && gelesen !== null) rumpf = gelesen as Rumpf;
   } catch {
     // Ein leerer oder unlesbarer Rumpf ist kein Fehler: die Marke traegt
     // alles, was noetig ist. Geraetezeit und Ort sind Beiwerk.

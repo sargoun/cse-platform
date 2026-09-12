@@ -3348,6 +3348,18 @@ sichtbar — statt in einer Konvention zu stehen, die nicht gilt.
 Die zweite Hälfte von K-01 ist übrigens erfüllt: **alle 98** Funktionen setzen
 ihren `search_path`. Auch das prüft die Datei jetzt.
 
+**Nachtrag, Phase-5-Abschluss: die Zahl „95 von 98" ist der Stand des Befundes
+und nicht mehr der Stand der Datenbank.** In `cse_p5` (migriert bis `0091`)
+tragen **94 von 99** Definer-Funktionen `postgres` als Eigentümer, fünf
+gehören `cse_definer`; mit `0095` sind es 94 von 100 und sechs. Die Altlast ist
+um genau eine geschrumpft — `kern.checkin_token_widerrufen`, die `0091`
+umgehängt hat —, und `ALTLAST` in `tests/isolation/definer-eigentum.test.ts`
+führt sie seither nicht mehr. Wer eine Zahl braucht, nimmt sie aus dieser
+Datei und nicht von hier: sie ist die Sperrklinke, dieser Absatz ist die
+Begründung. Ein Text, der die Zahl mitführt, wird bei jeder reparierten
+Funktion falsch — und eine falsche Zahl an dieser Stelle liest sich wie eine
+zweite Messung, die der ersten widerspricht.
+
 ---
 
 ## Entschieden in PR 39 — Mitarbeiterportal (Stunden, Monatsnachweis, Nachweise, Anträge, vier Sprachen)
@@ -3889,9 +3901,22 @@ diesem Zweig **nicht enthalten**. Hier steht die Rechnung auf dem Stand von
 PR 46: `REGELWERK_VERSION` traegt woertlich `'ustg14-nicht-gebaut'`,
 `services/finanz/ustg14.ts` gibt es nicht, `rechnungsposition_quelle` ist ein
 Kommentar in `0075_rechnung.sql`, und `rechnungsposition.abrechnungsart` ist
-eine freie `text`-Spalte ohne Katalog. Auch die Migrationsnummern der
-Abschnitte (`0085_rechnung_pflichtfelder`, `0086`, `0088`) sind hier anders
-belegt.
+eine freie `text`-Spalte ohne Katalog.
+
+**Die Migrationsnummern der drei Abschnitte kollidieren, und das ist beim
+Zusammenführen nicht harmlos.** Nachgezählt in `drizzle/` dieses Zweiges:
+`0085` heisst hier `0085_arbzg_befund_zeitraum`, `0087` heisst
+`0087_steuersatz_historie`, `0088` heisst `0088_arbzg_befund_ueberholen` — die
+Abschnitte meinen mit denselben Nummern `0085_rechnung_pflichtfelder`,
+`0086_abrechnungsart`, `0087_rechnungsposition_typ` und `0088_position_herkunft`
+(D-340). `0086` dagegen ist hier **frei und muss frei bleiben**: die Nummer
+liegt auf `claude/phase-5-dienstplan-zeit` und wäre nach dem Merge zweimal
+vergeben. Drizzle nummeriert nicht, es sortiert nur — zwei Dateien mit
+derselben Nummer sind keine Fehlermeldung, sondern zwei Migrationen in
+unbestimmter Reihenfolge, und eine davon legt Spalten an, die die andere
+braucht. Wer Phase 6 hereinholt, benennt die Doppelten vorher um (die neuen
+Nummern ab der höchsten dann vergebenen) und fasst die Lücke bei `0086` nicht
+mit einer eigenen Datei zu.
 
 Die Abschnitte bleiben stehen und werden **nicht** geloescht: sie sind der
 Beschluss, nicht der Bericht ueber den Bau. Wer sie liest, liest den Plan
@@ -4627,16 +4652,16 @@ Security"); der Name des Menschen steht in `person`, und von dort liest ihn das
 Wachbuch.
 
 Was dabei NICHT entschieden wurde, ist die Vergütung: `stundensatz_intern`
-bleibt für diese vier NULL (O-347), `arbeitszeitmodell` auf `unbekannt` (O-18).
-Eine plausible Zahl hätte bestätigt ausgesehen und wäre in jede Kalkulation
-eingegangen.
+bleibt für diese Stellen NULL (O-347), `arbeitszeitmodell` auf `unbekannt`
+(O-18). Eine plausible Zahl hätte bestätigt ausgesehen und wäre in jede
+Kalkulation eingegangen.
 
 Zwei Nebenwirkungen, beide gewollt. Erstens legt der Seed `person` jetzt
 **lesend zuerst** an: die Tabelle trägt keinen natürlichen Schlüssel, ein
 zweiter Lauf erzeugte bisher fünf weitere Menschen, während die
 Beschäftigungen an `anstellung_personalnummer_uk` abprallten — danach zeigte
 jedes Konto auf einen Menschen ohne Beschäftigung, und `KeinUrheber` war
-zurück. Zweitens stehen die vier jetzt in der Belegschaft, aus der der
+zurück. Zweitens stehen diese Stellen jetzt in der Belegschaft, aus der der
 Besetzungslauf des Seeds reihum einteilt. Das bleibt so: die Einteilung kennt
 keine Sperre gegen planende Personen, und eine einzuführen wäre eine
 Geschäftsregel, die niemand entschieden hat. Die Zahl der Einteilungen und
@@ -4644,7 +4669,7 @@ Zeiteinträge ändert sich dadurch nicht, nur ihre Verteilung.
 
 | # | Question | Blocks |
 |---|---|---|
-| O-347 | **In welcher Beschäftigungsform stehen die Führungs- und Verwaltungskräfte der drei Gesellschaften, und wird ihre Vergütung als Stundensatz geführt oder als Festgehalt, das die Plattform gar nicht trägt?** Seit D-308 tragen `leitung.security`, `leitung.bau`, `admin.reinigung` und `admin.bau` eine `anstellung` — ohne sie kann in diesen Gesellschaften niemand ein Wachbuch führen (§10.5). `stundensatz_intern` bleibt dort NULL: ein erfundener Satz sähe wie eine geprüfte Angabe aus, ginge über `anstellung_id` in jede Kostenrechnung ein und fiele niemandem mehr auf. Lautet die Antwort „Festgehalt", ist die Folgefrage, ob die Plattform es überhaupt führen soll — sie rechnet keinen Lohn (out of scope) und braucht den Betrag nur für die Kalkulation. | EMP-01, D-09, K-05, O-16, O-18, `anstellung.stundensatz_intern` |
+| O-347 | **In welcher Beschäftigungsform stehen die Führungs- und Verwaltungskräfte der drei Gesellschaften, und wird ihre Vergütung als Stundensatz geführt oder als Festgehalt, das die Plattform gar nicht trägt?** Seit D-308 tragen `leitung.security`, `leitung.bau`, `admin.reinigung` und `admin.bau` eine `anstellung` — ohne sie kann in diesen Gesellschaften niemand ein Wachbuch führen (§10.5). **Seit der Symmetrie-Ergänzung sind es SECHS**: `admin.security` (S-2004, Nadia Özkan) und `leitung.reinigung` (R-1005, Peter Brandt) kamen dazu, damit jede der drei Gesellschaften eine Verwaltung UND eine Leitung hat. Die Aufzählung stand hier bei vier, und der Seed-Kommentar auch — wer die Frage nach dieser Liste beantwortet hätte, hätte zwei Beschäftigungen ohne Satz übersehen. `stundensatz_intern` bleibt dort NULL: ein erfundener Satz sähe wie eine geprüfte Angabe aus, ginge über `anstellung_id` in jede Kostenrechnung ein und fiele niemandem mehr auf. Lautet die Antwort „Festgehalt", ist die Folgefrage, ob die Plattform es überhaupt führen soll — sie rechnet keinen Lohn (out of scope) und braucht den Betrag nur für die Kalkulation. | EMP-01, D-09, K-05, O-16, O-18, `anstellung.stundensatz_intern` |
 | O-346 | **Soll die Plattform HEIC-Fotos annehmen?** Das hiesse, eine Bildbibliothek mit HEIF-Unterstützung in die Auslieferung zu nehmen und sie zu pflegen — eine eigene Abhängigkeit mit eigener Angriffsfläche, die auf jedem Upload läuft. Bis zur Antwort werden HEIC abgelehnt; iPhones können unter „Kamera › Formate › Maximale Kompatibilität" JPEG senden, und der Browser wandelt beim Hochladen aus der Mediathek ohnehin meist um. Die Frage ist keine technische: sie entscheidet, ob eine Reinigungskraft am Objekt ein Foto machen kann, ohne vorher eine Einstellung zu ändern. | TIM-10, LEG-10, `medien`, `exif.ts` |
 
 ## Entschieden beim Phase-5-Abschluss — die Reinigung im Seed (Reviere, Nachweise, Beanstandungen)
@@ -4734,8 +4759,25 @@ heute zufällig nichts anliegt: niemand prüft an ihr, ob die Kette dahinter
 trägt.
 
 `src/server/db/seed/vertrieb.ts` und `src/server/db/seed/bau.ts` schließen
-beide Lücken. Beide gehen den Weg der ECHTEN Dienste — wie der Besetzungslauf
-der Security (D-303) und der Revierzuschnitt der Reinigung (D-309).
+beide Lücken. **Was über einen Dienst läuft, läuft über den Dienst** — wie der
+Besetzungslauf der Security (D-303) und der Revierzuschnitt der Reinigung
+(D-309): Kalkulation und Versand des Angebots, Aufmaß (`erfasseAufmass` mit
+serverseitigem Rechenansatz), Nachtrag (`meldeNachtragAn`,
+`ordneAufmasszeileZu`, `reicheEin` — durch das Ausgangstor), Bautagebuch und
+Wetter.
+
+Hier stand „**beide** gehen den Weg der ECHTEN Dienste", und das war eine
+Zusage, die der Kopf von `bau.ts` selbst zurücknimmt: Auftrag, Projekt und die
+LV-Zeilen schreibt der Seed **direkt**, weil es für sie keinen schreibenden
+Dienst gibt (`services/bau/lv.ts` liest und rechnet), und der Import eines
+echten LV käme aus GAEB. Dasselbe gilt für `gewerk` und für die beiden
+`freigabe`-Zeilen des Nachtrags. Der Satz kostete nichts, solange ihn niemand
+prüfte — und genau dann etwas, wenn die nächste Sitzung aus ihm schließt, für
+jede dieser Tabellen habe schon einmal ein Dienst die Vorbedingungen geprüft.
+Geschrieben wurden sie als `cse_app` mit gebundenem Mandanten
+(`alsPortalSitzung`), also unter RLS, Policies, Spaltendecken und Auslösern,
+und die Auftragsnummer kommt aus `vergebeNummer` — durch einen Dienst gelaufen
+ist die Zeile selbst nicht.
 
 ### D-312 · Das Demoangebot wird bestätigt — mit genau den Platzhalterzahlen, mit denen gerechnet wurde
 
@@ -4874,3 +4916,203 @@ erfundene.
 |---|---|---|
 | O-350 | **Wie lange ist ein Angebot bindend, und wird `gueltig_bis` beim Versand aus dieser Frist gesetzt?** Der Seed lässt `angebot.gueltig_bis` leer. Ein geratenes Datum stünde auf einem Dokument, das der Kunde als Zusage liest (§ 145 BGB), und der Ablaufbericht (`angebot_ablauf_idx`) mahnte danach zu einem Termin, den niemand vereinbart hat. Die Antwort ist eine Frist je Gesellschaft oder je Angebotsart und eine Zeile im Versanddienst. | OPS-08, `angebot.gueltig_bis`, `versendeAngebot` |
 | O-351 | **Nach welchem Schlüssel werden Bauprojekte nummeriert — ein eigener Nummernkreis je Gesellschaft, die Auftragsnummer oder eine Bauvorhabenskennung des Auftraggebers?** `projekt.nummer` hat keinen Kreis hinter sich. Der Seed setzt die AUFTRAGSNUMMER ein, weil das Projekt der Auftrag ist (§7.1, `projekt_auftrag_uk`) und diese Wahl am wenigsten erfindet; ein ausgedachtes Format „BV-2026-001" sähe dagegen aus wie ein bestätigter Nummernkreis und wäre keiner. | BAU-01, FIN-03, `projekt.nummer`, `nummernkreis` |
+
+## Entschieden beim Phase-5-Abschluss — die Stempelfläche, ihre Warteschlange und die Medienroute
+
+### D-372 · Ein gemerkter Stempel reist unter SEINER Marke, nicht unter der zuletzt geöffneten
+
+Seit 0090 liest der Server Richtung, Einteilung und **Mensch** einer
+Nachreichung an der Marke ab, unter der sie ankommt. Die Warteschlange auf dem
+Gerät liegt aber in `localStorage` — eine einzige Schlange für alle
+`/check-in/…`-Links dieses Browsers — und wurde komplett unter der gerade
+geöffneten Marke gesendet.
+
+Damit holte die Schlange genau die geratene Richtung zurück, die 0090 aus dem
+Gerät entfernt hat: wer um 22:00 im Funkloch seinen Beginn-Link antippte und um
+06:00 den Ende-Link öffnete, dessen gemerkter Schichtbeginn wurde beim Leeren
+als Schichtende verbucht. Auf einem geteilten Objekt-Telefon war es
+schlimmer — die Nachreichung der einen Kraft lief unter der Marke der nächsten
+und trug deren `person_id`.
+
+`WarteEintrag` trägt deshalb seit hier seine Marke, geprägt beim ANLEGEN wie
+die `client_ereignis_id`, und `sende` bündelt je Marke eine Anfrage. Einträge
+einer älteren Fassung haben keine; sie gehen notgedrungen unter der gerade
+geöffneten mit — der einzige Weg, den es für sie gibt, und genau das, was
+vorher mit allen geschah.
+
+### D-373 · Die Medienroute prüft die Marke VOR dem Bucket — die dritte Funktion des Prinzipals `cse_checkin`
+
+`POST /api/check-in/[token]/medien` ist offen (`recht: null`), und was sie
+schützt, soll die Marke sein. Die Reihenfolge war jedoch Größe → Magic Bytes →
+EXIF → **Bucket** → Marke, und die Kompensation im `catch` lief nie: eine Marke,
+die nicht auflöst, lässt `app.offline_ereignis_annehmen` nicht werfen, sondern
+in den Vorbereich schreiben und Erfolg melden (§5.13, AUT-06). Ein Fremder ohne
+jede Marke konnte damit 100 MiB je Anfrage in den privaten Medienbucket legen,
+beliebig oft — und weil der Vorbereich keine `einsatz_medien`-Zeile schreibt,
+lag das Objekt danach ohne Zeile da: über die Anwendung nicht mehr löschbar.
+
+`app.checkin_marke_praesentierbar(text)` (0095) zieht die Prüfung vor, ohne die
+Marke zu verbrauchen. Dass damit eine **dritte** Funktion des Prinzipals
+`cse_checkin` im geschlossenen K-08-Register steht, ist der Preis und bewusst
+gezahlt: `cse_checkin` hält kein Tabellenrecht, kann also nicht selbst
+nachsehen, und beide vorhandenen Funktionen schreiben. Die neue Zeile ist die engste denkbare — ein Argument,
+`boolean` zurück, `stable`, kein Schreibvorgang, keine Auskunft über Mandant,
+Person oder Einteilung. Sie verrät ein Bit, das der Check-in-Endpunkt ohnehin
+herausgibt, dort sogar auf Kosten der Marke. Sie prüft **dieselben drei
+Bedingungen** wie das Tor dahinter (existiert, nicht widerrufen, Einteilung
+nicht zurückgenommen) und ausdrücklich weder Gültigkeitsfenster noch
+`eingeloest_am` — wäre sie strenger, wiese die Route Aufnahmen ab, die die
+Warteschlange danach annimmt.
+
+**Was dabei am Register selbst nachgezählt werden musste.** Die Überschrift
+dieses Abschnitts sagte „fünfte Zeile", der Absatz darunter „dritte Funktion",
+und der Kommentar an der Funktion in `0095` sagt „Zeile 5" — drei Zahlen für
+eine Sache, und keine davon stand neben der Zählweise, aus der sie stammt.
+Nachgesehen: `03-AUTH-BERECHTIGUNGEN.md` §6.3 führt das Register als
+**geschlossene Liste von fünf** Funktionen — `app.sitzung_aufloesen`,
+`app.versuch_protokollieren`, `app.checkin_verbrauchen`,
+`app.offline_ereignis_annehmen`, `app.ical_feed_lesen`. Vier davon gibt es
+heute; den Kalenderfeed hat niemand gebaut (`grep -rn ical_feed_lesen src
+tests` → kein Treffer). Diese hier ist also die **fünfte gebaute** und die
+**sechste benannte** Funktion des Registers, und die dritte, die `cse_checkin`
+aufrufen darf. Wer die Zahlen ohne diesen Satz liest, hält die Liste für voll
+oder für halb leer, je nachdem, welche er erwischt.
+
+Zwei Dinge folgen daraus und gehören nicht in diese Datei, sondern dorthin, wo
+sie stehen: §6.3 nennt als Sperrklinke `tests/invariants/route-manifest.test.ts`
+und sagt, die Liste „fails the build on any sixth" — **diesen Pfad gibt es im
+Baum nicht**, und `tests/kern/routen-manifest.test.ts`, das es gibt, zählt das
+Register nirgends auf. Die sechste Zeile fällt also niemandem auf; sie ist hier
+begründet, nicht erschlichen. Und §6.3 selbst muss die sechste aufnehmen,
+sonst widerspricht die Konvention ab jetzt der Datenbank.
+
+## Entschieden beim Phase-5-Abschluss — der Text gegen den Code
+
+Diese Runde hat keine Zeile Anwendungscode angefasst, sondern die Dokumente
+gegen `cse_p5` (migriert bis `0091`) und gegen den Baum nachgezählt. Der Anlass
+ist eine Erfahrung dieses Zweiges: die nächste Sitzung liest nicht den Code,
+sie liest das, was hier steht — und handelt danach. Eine falsche Zahl in einer
+Entscheidung ist deshalb kein Schönheitsfehler, sondern eine Anweisung, die
+jemand befolgt.
+
+Vier Behauptungen **in dieser Datei** wurden gestrichen oder eingegrenzt, jede
+an ihrer Stelle: die Zählung des K-08-Registers (D-373), „beide Seed-Dateien
+gehen den Weg der echten Dienste" (Abschnitt Vertrieb und Bau), „95 von 98
+Definer-Funktionen" (D-300) und die Migrationsnummern der Phase-6-Abschnitte.
+Dazu in `PHASE-5-STAND.md` die Test- und Commit-Zahlen, dieselbe
+Definer-Zahl, eine Merge-Wache, die unter einem Namen genannt war, den es nicht
+gibt (`anzeige-zeitzone`), und die freie Nummer `0086`; in `ROADMAP.md` die
+Tatsache, dass keines seiner Kästchen je gesetzt wurde, und eine längst
+beantwortete offene Frage (D-11). Was dort steht, ist jetzt nachgezählt und
+nennt, woher die Zahl kommt.
+
+### D-374 · Der Steuersatz wird am LEISTUNGSdatum aufgelöst — die Reihenfolge der Stichtage gehört hierher, nicht nur in einen Codekommentar
+
+`0087_steuersatz_historie` nimmt `steuersatz_gruppe` den Schlüsselzwang
+(`ssg_schluessel_uk`) und erlaubt damit zum ersten Mal **zwei datierte Zeilen
+desselben Schlüssels** — 19 % bis zum Stichtag, der neue Satz danach. Erst mit
+dieser Migration bekommt die Frage „welcher Tag zählt" überhaupt eine Wirkung.
+
+Sie zählt nach **§ 13 Abs. 1 Nr. 1 UStG**: die Steuer entsteht mit Ausführung
+der Leistung, nicht mit dem Schreiben der Rechnung. Der Stichtag ist deshalb
+`leistung_bis` vor `leistung_von` vor `vereinnahmung_geplant_am` vor
+`app.berlin_heute()` — das Ende des Leistungszeitraums, weil mit ihm die
+Leistung ausgeführt ist; der geplante Vereinnahmungstag für die Abschlags- und
+Anzahlungsrechnung, die keinen Zeitraum trägt (§ 14 Abs. 4 Nr. 6 UStG); der
+heutige Tag nur für den Entwurf, der noch keines von beidem hat.
+
+Vorher stand dort zweimal `app.berlin_heute()`. Der Preis wäre nach der ersten
+Satzänderung angefallen, und zwar auf jedem Beleg, der dem Leistungsmonat
+hinterherläuft — das tun sie alle: die Januarrechnung über eine
+Dezemberleistung hätte den Januarsatz getragen. Zu hoch ausgewiesene
+Umsatzsteuer schuldet man nach § 14c Abs. 1 UStG trotzdem, und festgeschrieben
+ist der Beleg unveränderlich (Invariante 4) — die Korrektur wäre Storno plus
+Neuausstellung, je Kunde.
+
+**Warum das hier steht und nicht nur im Code:** Die Auflösungsreihenfolge ist
+eine Auslegung des § 13 UStG und keine Implementierungsfrage. Wer sie im
+Codekommentar allein lässt, hat sie beim nächsten Umbau der Positionsanlage
+verloren, ohne dass jemand merkt, dass eine Rechtsauslegung mit umgezogen ist.
+
+### D-375 · Der Eröffnungsakt des Nachfolgekreises schreibt AUCH `vorgaenger_nummernkreis_id` — sonst prüft der Kettenlauf einen Übergang, den niemand aufgeschrieben hat
+
+`kettenlauf.ts` kennt seit dieser Phase zwei zusätzliche Bruchgründe:
+`kettenkopf_weicht_ab` (der gespeicherte `nummernkreis.letzter_hash` ist nicht
+der Hash des letzten Gliedes) und `kreisuebergang_gebrochen` (der `genesis_hash`
+eines Kreises ist nicht der nachgerechnete Kettenkopf seines Vorgängers).
+Beide standen in keiner Entscheidung, und der zweite hängt an einer Spalte, die
+**keine Zeile der Anwendung schreibt**: `vorgaenger_nummernkreis_id` kommt
+ausserhalb von `kettenlauf.ts` nur in der DDL von `0006_nummernkreis.sql` und in
+der Fixtur von `tests/isolation/rechnung-kette.test.ts` vor. In `cse_p5` tragen
+alle drei `ausgangsrechnung`-Kreise `genesis_hash IS NULL` und
+`vorgaenger_nummernkreis_id IS NULL`.
+
+Der Lauf schweigt deshalb, solange kein Vorgänger BENANNT ist — §5.7 Schritt 3b
+prüft den Übergang ausdrücklich nur für einen Kreis, dessen
+`vorgaenger_nummernkreis_id` gesetzt ist. Die Zwischenfassung meldete schon beim
+blossen Vorhandensein eines `genesis_hash`, und diese Meldung konnte nur falsch
+sein: wer den Nachfolger genau so eröffnet, wie der Hinweistext in
+`0077_rechnung_hash.sql` es beschreibt, bekäme ab dem 2. Januar jede Nacht eine
+`kritisch`-Meldung nach NOT-01/NOT-03 auf einer unversehrten Rechnung. In
+derselben Fassung beendete der Übergang ausserdem die Prüfung des Kreises
+(`continue`), so dass ein ECHTER Bruch im laufenden Jahr hinter dem Fehlalarm
+unsichtbar blieb und `geprueft` 0 zählte. Beides ist behoben: der Übergang ist
+Schritt 0 und eine ZUSÄTZLICHE Aussage, kein Ersatz für die Schritte 1 bis 4.
+
+D-210 hat entschieden, dass der Nachfolgekreis **nicht** in der Festschreibung
+entsteht, sondern ein Verwaltungsakt mit `nummernkreis.verwalten` ist. Was
+D-210 offen liess und der Hinweistext in `0077_rechnung_hash.sql` ebenfalls
+nicht nennt: dieser Akt kopiert nicht nur `letzter_hash` nach `genesis_hash`,
+er muss auch den Vorgänger **eintragen**. Ohne diese Spalte ist der Übergang
+für jeden Prüfer unsichtbar — die Kette wäre über die Jahresgrenze eine Linie
+(D-29, § 5.4) und sähe aus wie zwei, und ein Kreis mit gesetztem Genesis ohne
+eingetragenen Vorgänger ist ein Befund für die Nummernkreisverwaltung und kein
+Beweis für eine gebrochene Kette.
+
+Solange O-134 offen ist, kann der Fall nicht eintreten: jeder
+`ausgangsrechnung`-Kreis ist Platzhalter und vergibt keine Nummer. Genau
+deshalb steht der Satz jetzt hier — am 2. Januar des ersten echten Jahres wird
+niemand ihn suchen.
+
+### Offen, neu aufgeworfen beim Phase-5-Abschluss (Dokumentenrunde)
+
+| # | Question | Blocks |
+|---|---|---|
+| O-352 | **Wer hält in den drei Gesellschaften `nummernkreis.verwalten`, und wer führt den Jahreswechsel des Rechnungskreises aus?** Das Öffnen des Nachfolgekreises schliesst den Vorgänger (`geschlossen_am`), kopiert `letzter_hash` nach `genesis_hash` und trägt den Vorgänger ein (D-210, D-375) — ein Akt mit rechtlicher Wirkung, der bewusst nicht in der Festschreibung liegt: wer festschreibt, hält `verwalten` nicht. Bis zur Antwort gibt es den Vorgang nicht, und es kann ihn nicht geben, ohne eine Rolle zu erfinden, die ihn auslöst. Verwandt mit O-77 (wer darf stornieren) und O-134 (wie der Kreis überhaupt geschnitten wird). | FIN-03, LEG-01, O-77, O-134, `nummernkreis`, D-210 |
+| O-353 | **Wie lauten Anschrift, Rufnummer, Handelsregister- und Umsatzsteuer-Identifikationsnummer der vier Gesellschaften wirklich?** Was heute in `mandant` steht, ist ERFUNDEN: `Kurfürstendamm 21`, `+49 30 555 0100`, `DE1000000xx`, `HRB 2000xx` — fortlaufend hochgezählt, nie erfragt. Weglassen geht nicht, `mandant_ustg14_vollstaendig` verlangt Anschrift und Steuernummer von jeder Gesellschaft mit eigenem Rechnungskreis (§ 14 UStG). Deshalb tragen die Zeilen seit 0097 `angaben_bestaetigt_am = NULL`, und das Impressum sagt es sichtbar VOR den Angaben: sie stammen aus dem Demonstrationsbestand und sind keine gültige Auskunft nach § 5 TMG. Mit der Antwort werden die Werte gesetzt und die Spalte gefüllt; die Prüfung, die den Hinweis erzwingt, gehört dann umgeschrieben — nicht der Hinweis entfernt. | LEG-01, § 5 TMG, § 14 UStG, `mandant`, D-19 |
+
+### Vier Befunde, die ausserhalb dieser Datei liegen
+
+Sie stehen hier, weil sie sonst mit dieser Runde verschwinden — geändert werden
+müssen sie dort, wo sie stehen:
+
+1. **`docs/ANNAHMEN.md` nennt die Zahlen nicht, mit denen gerechnet wird.** Das
+   Blatt für den Auftraggeber führt elf vorläufige Werte und fünf bewusst
+   offene. Nicht darunter: `PLATZHALTER_TARIF` (29,00 € Stundenverrechnungs-
+   satz, 15 % Gemeinkosten, 8 % Wagnis und Gewinn, O-16) und
+   `PLATZHALTER_FREQUENZ` (21,667, O-56) — also genau die Werte, aus denen ein
+   Angebotspreis entsteht. Der Versand ist gesperrt
+   (`kern.angebot_versand_pruefen`), die Sperre ist aber das, was der Kunde
+   NICHT sieht: er liest eine Liste mit elf Punkten und schliesst, der
+   Stundensatz sei keiner davon. Die Datei wird erzeugt; die Zeile gehört nach
+   `src/lib/annahmen.ts` (`OFFEN_GEBLIEBEN`), nicht in das Markdown.
+2. **`03-AUTH-BERECHTIGUNGEN.md` §6.3 führt das K-08-Register als geschlossene
+   Liste von fünf und beruft sich auf `tests/invariants/route-manifest.test.ts`
+   — den Pfad gibt es nicht.** Mit `0095` hat das Register eine sechste
+   benannte Zeile (D-373). Die Konvention muss sie aufnehmen, und die
+   Sperrklinke, auf die sie sich beruft, muss entweder gebaut oder aus dem Satz
+   gestrichen werden.
+3. **`PortalRahmen.tsx` nennt `NAVIGATION` „18 Eintraege"; es sind 17.** Die
+   erste Fundstelle von `schluessel:` in `registry/navigation.ts` ist das Feld
+   der Schnittstelle, nicht ein Modul. Die Zahl in der PR-Beschreibung (17)
+   stimmt, der Kommentar daneben nicht — und der Kommentar ist der, den die
+   nächste Sitzung liest.
+4. **Die Beschreibung von PR #5 trägt dieselben zwei Behauptungen weiter**, die
+   hier gestrichen wurden: „**Alles über die echten Dienste**" (Auftrag,
+   Projekt, LV-Zeilen, `gewerk` und die beiden `freigabe`-Zeilen schreibt der
+   Seed direkt) und „95 von 98 `SECURITY DEFINER`-Funktionen" (94 von 99, mit
+   `0095` von 100). Dazu ihre Kopfzahlen — „72 Commits · 406 Dateien · 45
+   Migrationen" —, die beim Nachzählen gegen `origin/main` bei 82 · 427 · 49
+   standen und mit jedem Commit dieser Nacht weiterlaufen. Die Beschreibung ist
+   das, was beim Merge in die Geschichte eingeht; sie gehört vor dem Merge
+   nachgezogen, und die drei Kopfzahlen am besten zuletzt.
