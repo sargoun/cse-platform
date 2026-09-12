@@ -174,9 +174,9 @@ describe('K-01/K-08 — eine Definer-Funktion darf, was sie aufruft', () => {
       select a.von, a.ruft
         from aufruf a
        where exists (
-               -- nur Funktionen, die es in \`app\` wirklich gibt: \`app.guc\`
-               -- und Verwandte stehen teils in einem anderen Schema oder sind
-               -- gar keine Funktion, und eine fehlende Zeile ist dann kein
+               -- Nur Funktionen, die es im Schema app wirklich gibt: guc und
+               -- Verwandte stehen teils in einem anderen Schema oder sind gar
+               -- keine Funktion, und eine fehlende Zeile ist dann kein
                -- Rechteproblem, sondern ein Treffer des Ausdrucks.
                select 1 from pg_proc p2
                  join pg_namespace n2 on n2.oid = p2.pronamespace
