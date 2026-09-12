@@ -30,9 +30,27 @@ export default async function OeffentlichesLayout({ children }: { children: Reac
     zeilen: await bereicheLesen(kontext, sprache),
     name: await einstellungLesen(kontext, 'website.gruppenname'),
   }));
+  /*
+   * Welche Gesellschaft gerade offen ist — aus dem Pfad, gegen die ECHTEN
+   * Slugs geprueft.
+   *
+   * `aktiv` gab es an der Huelle schon, und gesetzt hat es niemand: die
+   * Markenreihe unter dem Hero bekam immer `null` und hat die offene
+   * Gesellschaft nie hervorgehoben. Eine Eigenschaft, die alle durchreichen
+   * und keiner fuellt, faellt nicht auf — sie sieht nur immer gleich aus.
+   *
+   * Geprueft wird gegen `bereiche` und nicht bloss auf das Pfadmuster: ein
+   * `/unternehmen/erfunden` soll in der Wahl nichts hervorheben, sondern die
+   * Beschriftung zeigen. `pfad` kommt ohne Sprachpraefix herein.
+   */
+  const bereiche = shellBereiche(zeilen);
+  const ausPfad = /^\/unternehmen\/([^/]+)/u.exec(pfad)?.[1];
+  const aktiv = bereiche.some((b) => b.slug === ausPfad) ? ausPfad ?? null : null;
+
   return (
     <OeffentlicheShell
-      bereiche={shellBereiche(zeilen)}
+      bereiche={bereiche}
+      aktiv={aktiv}
       gruppeName={typeof name === 'string' ? name : ''}
       sprache={sprache}
       pfad={pfad}

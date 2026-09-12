@@ -20,21 +20,6 @@
       <stop offset="0.55" stop-color="#E30613" stop-opacity="0.05"/>
       <stop offset="1" stop-color="#E30613" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="overlay" x1="0" y1="0" x2="0" y2="1">
-      <!-- derselbe Verlauf wie der Bild-Overlay-Token in DESIGN §4.4, hier
-           ausgeschrieben: eine SVG-Datei sieht die CSS-Variablen des
-           Dokuments nicht.
-
-           Der Tokenname steht hier BEWUSST ohne seine beiden fuehrenden
-           Bindestriche: ein XML-Kommentar darf keinen doppelten Bindestrich
-           enthalten, und eine SVG ist XML. Mit ihnen war jede der acht
-           Tafeln nicht wohlgeformt; der Browser lud sie mit 200 und
-           zeichnete ein kaputtes Bild. Die Datei sah im Editor richtig aus
-           und war es nie. -->
-      <stop offset="0" stop-color="#08080A" stop-opacity="0.15"/>
-      <stop offset="0.55" stop-color="#08080A" stop-opacity="0.55"/>
-      <stop offset="1" stop-color="#08080A" stop-opacity="0.92"/>
-    </linearGradient>
   </defs>
 
   <rect width="2560" height="1440" fill="url(#grund)"/>
@@ -258,16 +243,4 @@
     <rect x="1310" y="1078" width="180" height="10" fill="#F59E0B"/>
     <rect x="1570" y="1078" width="180" height="10" fill="#8B5CF6"/>
   </g>
-  <rect width="2560" height="1440" fill="url(#overlay)"/>
-
-  <!-- Die Akzentlinie: sechs Pixel, die Gesellschaft, sonst nichts. -->
-  <rect x="128" y="1204" width="112" height="6" fill="#E30613"/>
-  <text x="128" y="1280" fill="#FAFAFA"
-        font-family="Inter, system-ui, sans-serif" font-size="46" font-weight="600"
-        letter-spacing="4">CSE GRUPPE</text>
-  <text x="128" y="1336" fill="#8B8B95"
-        font-family="Inter, system-ui, sans-serif" font-size="30" font-weight="400">Hier steht spaeter eine Aufnahme der Gruppe.</text>
-  <text x="2432" y="1336" fill="#8B8B95" text-anchor="end"
-        font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="26"
-        letter-spacing="3">PLATZHALTER · O-13</text>
 </svg>

@@ -1,13 +1,11 @@
 import { Hero } from './Hero';
 import { MarkenKarte } from './MarkenKarte';
-import { MarkenReihe } from './MarkenReihe';
 import { motivFuerBereich, type PlatzhalterMotiv } from '@/lib/placeholder-assets';
 import { bildFuerMotiv } from '@/server/inhalt/bilder';
 import { faqAus, leistungenAus } from '@/server/services/inhalt/jsonld';
 import type { Abschnitt, Seite } from '@/server/services/inhalt/seite';
 import type { ShellBereich } from './OeffentlicheShell';
 import { mitSprache, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
-import { shellTexte } from '@/lib/i18n/texte';
 
 /**
  * Rendert die Abschnitte einer `seite`.
@@ -103,42 +101,42 @@ export interface AbschnitteProps {
   readonly bereiche: readonly ShellBereich[];
   /** Kurztexte je Bereich fuer die Markenkarten der Startseite. */
   readonly ansprueche: Readonly<Record<string, string>>;
-  /** Der Slug der Gesellschaft, deren Seite gerade offen ist — sonst `null`. */
-  readonly aktiv?: string | null;
+  /*
+   * `aktiv` stand hier und wurde von KEINEM Aufrufer gesetzt — die Markenreihe
+   * darunter bekam also immer `null` und hat die offene Gesellschaft nie
+   * hervorgehoben. Der Slug gehoert zur Huelle, die ihn ohnehin schon
+   * bekommt (`OeffentlicheShellProps.aktiv`), und dort steht jetzt auch die
+   * Klappwahl. D-381.
+   */
 }
 
 export function Abschnitte(
-  { seite, bereiche, ansprueche, aktiv = null, sprache = VORGABE_SPRACHE }: AbschnitteProps,
+  { seite, bereiche, ansprueche, sprache = VORGABE_SPRACHE }: AbschnitteProps,
 ) {
-  const t = shellTexte(sprache);
   return (
     <>
       {seite.abschnitte.map((a) => {
         switch (a.art) {
           case 'hero':
             /*
-             * Die Markenreihe gehoert UNTER den Hero — DESIGN §6 woertlich:
-             * „four brand avatars under the hero, tapping one opens that
-             * company's profile". Sie stand im Fussbereich, und der Test hiess
-             * genauso; Code, Pruefung und Testname waren sich einig und lagen
-             * gemeinsam daneben.
+             * Der Hero steht allein. Die vier Gesellschaften sassen hier
+             * darunter — DESIGN §6 verlangte das woertlich — und waren an
+             * dieser Stelle falsch: sie landeten auf der ueberlebensgrossen
+             * Geisterschrift des Heros und lasen sich als Kollision, und sie
+             * verbrauchten ein Band Hoehe direkt unter der Falz. Sie stehen
+             * jetzt als Klappwahl im Kopf (`GesellschaftsWahl`), wo sie von
+             * JEDER Seite aus erreichbar sind und nicht nur von einer mit
+             * Hero. DESIGN §6 ist mitgezogen, D-381.
              */
             return (
-              <div key={a.id}>
-                <Hero
-                  ueberschrift={a.ueberschrift ?? seite.titel}
-                  akzentWort={a.akzentWort}
-                  text={a.text}
-                  bild={bildVon(a, motivFuerPfad(seite.pfad))}
-                  sprache={sprache}
-                />
-                <MarkenReihe
-                  bereiche={bereiche}
-                  aktiv={aktiv}
-                  sprache={sprache}
-                  beschriftung={t.bereicheNav}
-                />
-              </div>
+              <Hero
+                key={a.id}
+                ueberschrift={a.ueberschrift ?? seite.titel}
+                akzentWort={a.akzentWort}
+                text={a.text}
+                bild={bildVon(a, motivFuerPfad(seite.pfad))}
+                sprache={sprache}
+              />
             );
           case 'markenkarten':
             return (

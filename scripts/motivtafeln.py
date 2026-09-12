@@ -72,21 +72,6 @@ def kopf(motiv, hue, alt):
       <stop offset="0.55" stop-color="{hue}" stop-opacity="0.05"/>
       <stop offset="1" stop-color="{hue}" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="overlay" x1="0" y1="0" x2="0" y2="1">
-      <!-- derselbe Verlauf wie der Bild-Overlay-Token in DESIGN §4.4, hier
-           ausgeschrieben: eine SVG-Datei sieht die CSS-Variablen des
-           Dokuments nicht.
-
-           Der Tokenname steht hier BEWUSST ohne seine beiden fuehrenden
-           Bindestriche: ein XML-Kommentar darf keinen doppelten Bindestrich
-           enthalten, und eine SVG ist XML. Mit ihnen war jede der acht
-           Tafeln nicht wohlgeformt; der Browser lud sie mit 200 und
-           zeichnete ein kaputtes Bild. Die Datei sah im Editor richtig aus
-           und war es nie. -->
-      <stop offset="0" stop-color="{INK}" stop-opacity="0.15"/>
-      <stop offset="0.55" stop-color="{INK}" stop-opacity="0.55"/>
-      <stop offset="1" stop-color="{INK}" stop-opacity="0.92"/>
-    </linearGradient>
   </defs>
 
   <rect width="{B}" height="{H}" fill="url(#grund)"/>
@@ -95,20 +80,33 @@ def kopf(motiv, hue, alt):
 
 
 def fuss(hue, marke, zeile):
-    return f'''  <rect width="{B}" height="{H}" fill="url(#overlay)"/>
+    """Der Abschluss — und er traegt WEDER Overlay NOCH Beschriftung mehr.
 
-  <!-- Die Akzentlinie: sechs Pixel, die Gesellschaft, sonst nichts. -->
-  <rect x="128" y="1204" width="112" height="6" fill="{hue}"/>
-  <text x="128" y="1280" fill="{TEXT}"
-        font-family="Inter, system-ui, sans-serif" font-size="46" font-weight="600"
-        letter-spacing="4">{marke}</text>
-  <text x="128" y="1336" fill="{TEXT_LEISE}"
-        font-family="Inter, system-ui, sans-serif" font-size="30" font-weight="400">{zeile}</text>
-  <text x="2432" y="1336" fill="{TEXT_LEISE}" text-anchor="end"
-        font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="26"
-        letter-spacing="3">PLATZHALTER · O-13</text>
-</svg>
-'''
+    **Zwei Fehler standen hier, und beide sahen einzeln richtig aus.**
+
+    *Der Overlay lag doppelt.* Die Seite legt ihn selbst ueber jedes Bild
+    (`Hero.tsx`, `MarkenKarte.tsx`, beide ueber den Token aus DESIGN §4.4) —
+    so gehoert es sich, denn ein FOTO bringt keinen mit. Die Tafel brachte ihn
+    trotzdem mit, und zwei Schichten multiplizieren sich: aus 0.55 in der Mitte
+    wurden 0.80, aus 0.92 am Fuss 0.994. Auf dem Schirm war das Schwarz. Die
+    Tafel, die als Datei einwandfrei aussah, war auf der Seite wieder weg.
+
+    *Die Beschriftung stand zweimal da.* Die Seite setzt ihre eigene
+    Ueberschrift ueber das Bild und daneben die Marke „Platzhalterbild". Die
+    eingebackene Zeile „REALTIME SERVICE" landete damit unmittelbar unter der
+    Ueberschrift derselben Gesellschaft — als halbdurchsichtiger Doppelgaenger,
+    der wie ein Darstellungsfehler aussah. Genau das hat der Mandant gemeldet.
+
+    **Die Regel dahinter:** eine Motivtafel steht fuer ein Foto, also verhaelt
+    sie sich wie eines. Ein Foto bringt keinen Farbverlauf und keine Bildunterschrift
+    mit; beides gehoert der Flaeche, die es einbaut. DESIGN §4.1a ist
+    mitgezogen. D-382.
+
+    Die Funktion bleibt — sie schliesst die Datei, und die Aufrufer nennen
+    weiterhin Marke und Zeile, weil beides im `aria-label` des Wurzelelements
+    landet und dort die einzige Auskunft fuer einen Screenreader ist.
+    """
+    return '</svg>\n'
 
 
 def figur(x, boden, hoehe, farbe, helm=None, blick=1):

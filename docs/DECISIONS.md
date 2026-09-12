@@ -5309,3 +5309,98 @@ Zwei Entwurfsentscheidungen, die dazugehoeren:
   null SVG das richtige Ergebnis. Der Ausfall, den `mussLesen` sonst abfaengt —
   ein vertippter Pfad, der still nichts liest —, faellt hier auf die Existenz
   von `public/` zurueck.
+
+### D-381 · Die Gesellschaftswahl zieht in den Kopf
+
+DESIGN §6 verlangte sie woertlich „under the hero": vier runde Markenavatare
+unter dem Kopfbild. So war sie gebaut, und der Weg dorthin war selbst schon
+eine Korrektur — sie hatte vorher im Fussbereich gestanden, wo Code, Test und
+Testname sich einig waren und gemeinsam danebenlagen.
+
+**Unter dem Hero war sie aus zwei Gruenden falsch, die ein Entwurf nicht zeigen
+kann.** Sie sass unmittelbar unter dem Kopfbild, wo die ueberlebensgrosse
+Geisterschrift des Heros durchschlaegt; die vier Firmennamen landeten auf
+dieser Schrift und lasen sich als Kollision statt als Bedienelement. Und sie
+verbrauchte ein ganzes Band Hoehe direkt unter der Falz — auf genau der
+Flaeche, auf der der erste Eindruck entschieden wird.
+
+Der Mandant hat den Umzug verlangt, nachdem er den laufenden Auftritt gesehen
+hat. Das ist das bessere Beweismittel als der Entwurf, und DESIGN §6 ist
+mitgezogen, nicht umgangen.
+
+**Was der Umzug nebenbei behoben hat.** `aktiv` gab es an der Huelle und an
+`Abschnitte` — und gesetzt hat es niemand. Die Markenreihe bekam also immer
+`null` und hat die offene Gesellschaft nie hervorgehoben. Eine Eigenschaft, die
+alle durchreichen und keiner fuellt, faellt nicht auf: sie sieht nur auf jeder
+Seite gleich aus. Das Layout rechnet den Slug jetzt aus dem Pfad aus und prueft
+ihn gegen die ECHTEN Slugs — `/unternehmen/erfunden` hebt nichts hervor.
+
+**Drei Entwurfsentscheidungen.**
+
+- **Kein JavaScript.** `<details>` oeffnet ohne — wie das Telefonmenue daneben
+  und die Tableiste im Portal. Ein Auswahlfeld, das erst laedt, ist auf einem
+  schlechten Netz keines.
+- **Die Zusammenfassung zeigt, wo man IST**, nicht was man waehlen kann.
+  „Gesellschaften" als Dauerbeschriftung sagt auf allen fuenf Seiten dasselbe;
+  der Firmenname sagt etwas.
+- **Auf dem Telefon steht sie nicht im Kopf.** Der Kopf ist 72px hoch und
+  traegt dort schon den Menueknopf; ein zweites Klappelement daneben waere bei
+  375px kein Ziel mehr, das man trifft. Die vier Gesellschaften stehen deshalb
+  als eigener Abschnitt IM Vollbildmenue, vor „Angebot anfragen": erst wohin,
+  dann was.
+
+Der Fussbereich bleibt unveraendert — dort stehen die vier weiterhin als
+Textlinks neben ihrer Anschrift, mit eigener Beschriftung. Zwei `nav` mit
+demselben zugaenglichen Namen waeren ein mehrdeutiges Landmark; das hat dieser
+Zweig beim Telefonmenue schon einmal gekostet.
+
+`MarkenReihe.tsx` ist geloescht und nicht auskommentiert stehengeblieben.
+
+### D-382 · Die Motivtafel ist die Zeichnung — Overlay und Beschriftung gehoeren der Seite
+
+Nachdem D-380 (nicht wohlgeformtes XML) und der Tafel-Verlauf aus D-376/§4.1b
+behoben waren, war der Auftritt **immer noch** zu dunkel, und der Mandant sah
+ausserdem einen halbdurchsichtigen Doppelgaenger seiner eigenen Ueberschrift.
+Zwei weitere Ursachen, beide vom selben Denkfehler.
+
+**Der Overlay lag doppelt.** `Hero.tsx` und `MarkenKarte.tsx` legen den Token
+aus DESIGN §4.4 ueber jedes Bild — richtig so, denn ein Foto bringt keinen mit.
+Die Tafel brachte ihn trotzdem mit, ausgeschrieben, weil eine SVG die
+CSS-Variablen des Dokuments nicht sieht. Zwei Schichten multiplizieren sich:
+
+| Stelle | eine Schicht | zwei Schichten |
+|---|---|---|
+| Mitte | 0.55 | **0.80** |
+| Fuss | 0.92 | **0.994** |
+
+0.994 ist Schwarz. Die Tafel, die als Datei einwandfrei aussah, war auf der
+Seite wieder verschwunden — und zwar aus einem Grund, den man ihr nicht ansieht,
+weil er erst beim Einbau entsteht.
+
+**Die Beschriftung stand zweimal da.** Die Tafel trug „REALTIME SERVICE" und
+darunter „Hier steht spaeter eine Aufnahme …" eingebacken. Die Seite setzt ihre
+eigene Ueberschrift derselben Gesellschaft unmittelbar darueber. Das Ergebnis
+las sich als Darstellungsfehler, nicht als Kennzeichnung. Gemeldet hat es der
+Mandant, gesehen hatte es vorher niemand: im Dateibetrachter sieht die Tafel
+richtig aus, und der Browsertest prueft die Marke `Platzhalterbild` — die stand
+ja da, ein zweites Mal daneben faellt einer Zusicherung nicht auf.
+
+**Die Regel, die daraus folgt:** eine Motivtafel steht fuer ein Foto, also
+verhaelt sie sich wie eines. Kein Farbverlauf, keine Bildunterschrift — beides
+gehoert der Flaeche, die sie einbaut. DESIGN §4.1a ist mitgezogen.
+
+Gekennzeichnet bleibt der Platzhalter durch die Marke `Platzhalterbild`, die
+die Seite ohnehin rendert: **eine** Kennzeichnung, auf der Flaeche, wo sie
+sehen kann, was sonst noch dort steht.
+
+Die Zeile und die Marke wandern damit nicht ins Nichts — sie stehen weiter im
+`aria-label` des Wurzelelements der SVG und sind dort die einzige Auskunft, die
+ein Screenreader ueber das Bild bekommt.
+
+**Vier unabhaengige Ursachen fuer ein Symptom.** „Der Auftritt sieht von innen
+sehr schlecht aus und es ist nichts da" hatte am Ende vier Gruende: die Dateien
+waren kein gueltiges XML (D-380), der Mandant lief auf einem alten Stand ohne
+die Dateien, der Zeichenverlauf war fuer UI statt fuer Bild gerechnet (§4.1b),
+und Overlay wie Beschriftung lagen doppelt (hier). Jede einzelne haette
+gereicht. Dass drei davon erst nach der Behebung der jeweils vorigen sichtbar
+wurden, ist der Grund, warum „einmal hinsehen" hier nicht genuegt hat.

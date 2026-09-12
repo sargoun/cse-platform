@@ -133,7 +133,15 @@ describe('die acht echten Motivtafeln sind wohlgeformt', () => {
     const echt = readFileSync(join(WURZEL, 'public/platzhalter/bau.svg'), 'utf8');
     expect(pruefeXml(echt)).toBeNull();
 
-    const sabotiert = echt.replace('ausgeschrieben', 'ausgeschrieben (--cse-bild-overlay)');
+    /*
+     * Der Anker ist ABSICHTLICH ein Wort, das der Erzeuger in jede Tafel
+     * schreibt, und nicht eines aus einem bestimmten Kommentar: der erste
+     * Entwurf hing an „ausgeschrieben" aus dem Overlay-Kommentar, und als
+     * D-382 diesen Kommentar entfernte, sabotierte der Test nichts mehr und
+     * war trotzdem gruen geblieben — haette die Zeile darunter ihn nicht
+     * gehalten. Genau dafuer steht sie da.
+     */
+    const sabotiert = echt.replace('Motivtafel, kein Bild', 'Motivtafel (--cse-bild-overlay)');
     expect(sabotiert).not.toBe(echt);
     const fehler = pruefeXml(sabotiert);
     expect(fehler).not.toBeNull();

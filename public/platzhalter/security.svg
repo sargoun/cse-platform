@@ -20,21 +20,6 @@
       <stop offset="0.55" stop-color="#2F6BFF" stop-opacity="0.05"/>
       <stop offset="1" stop-color="#2F6BFF" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="overlay" x1="0" y1="0" x2="0" y2="1">
-      <!-- derselbe Verlauf wie der Bild-Overlay-Token in DESIGN §4.4, hier
-           ausgeschrieben: eine SVG-Datei sieht die CSS-Variablen des
-           Dokuments nicht.
-
-           Der Tokenname steht hier BEWUSST ohne seine beiden fuehrenden
-           Bindestriche: ein XML-Kommentar darf keinen doppelten Bindestrich
-           enthalten, und eine SVG ist XML. Mit ihnen war jede der acht
-           Tafeln nicht wohlgeformt; der Browser lud sie mit 200 und
-           zeichnete ein kaputtes Bild. Die Datei sah im Editor richtig aus
-           und war es nie. -->
-      <stop offset="0" stop-color="#08080A" stop-opacity="0.15"/>
-      <stop offset="0.55" stop-color="#08080A" stop-opacity="0.55"/>
-      <stop offset="1" stop-color="#08080A" stop-opacity="0.92"/>
-    </linearGradient>
   </defs>
 
   <rect width="2560" height="1440" fill="url(#grund)"/>
@@ -207,16 +192,4 @@
     <rect x="964" y="863" width="38" height="147" fill="#14141A"/>
     <rect x="992" y="744" width="32" height="119" fill="#14141A" transform="rotate(18 950 765)"/>
   </g>
-  <rect width="2560" height="1440" fill="url(#overlay)"/>
-
-  <!-- Die Akzentlinie: sechs Pixel, die Gesellschaft, sonst nichts. -->
-  <rect x="128" y="1204" width="112" height="6" fill="#2F6BFF"/>
-  <text x="128" y="1280" fill="#FAFAFA"
-        font-family="Inter, system-ui, sans-serif" font-size="46" font-weight="600"
-        letter-spacing="4">SSE SECURITY</text>
-  <text x="128" y="1336" fill="#8B8B95"
-        font-family="Inter, system-ui, sans-serif" font-size="30" font-weight="400">Hier steht spaeter eine Aufnahme aus dem Objektschutz.</text>
-  <text x="2432" y="1336" fill="#8B8B95" text-anchor="end"
-        font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="26"
-        letter-spacing="3">PLATZHALTER · O-13</text>
 </svg>

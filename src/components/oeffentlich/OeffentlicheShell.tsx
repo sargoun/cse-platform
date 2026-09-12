@@ -1,5 +1,6 @@
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { shellTexte } from '@/lib/i18n/texte';
+import { GesellschaftsWahl } from './GesellschaftsWahl';
 import { EIGENNAME, SPRACHEN, mitSprache, type Sprache } from '@/lib/sprache';
 
 /**
@@ -42,7 +43,15 @@ const HAUPT = [
 
 export interface OeffentlicheShellProps {
   readonly bereiche: readonly ShellBereich[];
-  readonly aktiv?: string;
+  /**
+   * Der Slug der Gesellschaft, deren Seite offen ist — `null` sonst.
+   *
+   * `null` und nicht `undefined`: `exactOptionalPropertyTypes` laesst eine
+   * ausgelassene Eigenschaft nicht mit `undefined` belegen, und das Layout
+   * rechnet sie aus dem Pfad aus, hat also immer einen Wert zu uebergeben —
+   * auch den leeren.
+   */
+  readonly aktiv?: string | null;
   /** Der Auftrittsname der Gruppe — aus `plattform_einstellung`, nicht als Literal. */
   readonly gruppeName: string;
   readonly sprache: Sprache;
@@ -123,6 +132,19 @@ export function OeffentlicheShell(
         </nav>
 
         {/*
+          * Die Gesellschaftswahl steht NEBEN der Hauptnavigation und nicht
+          * darin: „Unternehmen" fuehrt auf die Uebersicht aller vier, die Wahl
+          * springt in eine davon. Zwei verschiedene Fragen, zwei Elemente.
+          * DESIGN §6, D-381.
+          */}
+        <GesellschaftsWahl
+          bereiche={bereiche}
+          aktiv={aktiv ?? null}
+          sprache={sprache}
+          beschriftung={t.bereicheNav}
+        />
+
+        {/*
           * **Das Vollbild-Menue des Telefons** — DESIGN §5: „Mobile:
           * full-screen overlay menu".
           *
@@ -174,6 +196,30 @@ export function OeffentlicheShell(
                     className="flex min-h-11 items-center py-s3 text-base text-text"
                   >
                     {t.navigation[schluessel]}
+                  </a>
+                </li>
+              ))}
+              {/*
+                * **Die vier Gesellschaften — auf dem Telefon HIER und nicht im
+                * Kopf** (DESIGN §6, D-381).
+                *
+                * Der Kopf ist 72px hoch und traegt unter `md` schon den
+                * Menueknopf; ein zweites Klappelement daneben waere bei 375px
+                * kein Ziel mehr, das man trifft. Also eine Ebene tiefer, im
+                * Blatt, das ohnehin offen ist, wenn jemand navigiert.
+                *
+                * Sie stehen VOR „Angebot anfragen", weil sie zu den Seiten
+                * gehoeren und nicht zur Handlung: erst wohin, dann was.
+                */}
+              {bereiche.length > 1 && bereiche.map((b) => (
+                <li key={b.slug} className="border-b border-line">
+                  <a
+                    href={mitSprache(`/unternehmen/${b.slug}`, sprache)}
+                    data-cse="menue-gesellschaft"
+                    aria-current={b.slug === aktiv ? 'page' : undefined}
+                    className="flex min-h-11 items-center py-s3 text-base text-text-muted"
+                  >
+                    {b.name}
                   </a>
                 </li>
               ))}
@@ -304,8 +350,8 @@ export function OeffentlicheShell(
       <main className="flex-1">{children}</main>
 
       {/*
-        * Die RUNDE Avatarreihe steht unter dem Hero (PUB-14, DESIGN §6) und
-        * nicht mehr hier — siehe `MarkenReihe`. Unten bleiben die vier
+        * Die Gesellschaftswahl steht im KOPF (PUB-14, DESIGN §6, D-381) und
+        * nicht hier — siehe `GesellschaftsWahl`. Unten bleiben die vier
         * Gesellschaften als Textlinks neben ihrer Anschrift: derselbe Weg,
         * anderer Anlass, und mit eigener Beschriftung. Zwei `nav` mit
         * demselben zugaenglichen Namen waeren ein mehrdeutiges Landmark und
