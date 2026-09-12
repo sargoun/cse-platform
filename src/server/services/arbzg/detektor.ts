@@ -381,9 +381,19 @@ async function raeumeAuf(
      * null Zeilen und meldete Erfolg — dieselbe lautlose Nulloperation, gegen
      * die 0040 die Policy bewusst weggelassen hat.
      */
+    /*
+     * Der Mandant wird GENANNT und nicht aus der Sitzung geraten.
+     *
+     * Im Nachtlauf gibt es keine — `cse_job` verbindet ohne Mandanten —, und
+     * solange die Funktion ihn sich selbst holte, lautete ihr Praedikat dort
+     * `(null is null or …)`: wahr, also keine Schranke. Die Kennungen kommen
+     * teils aus `details.belege`, einer freien `jsonb`-Liste ohne
+     * Fremdschluessel; eine fremde Kennung darin haette einen ArbZG-Befund
+     * einer anderen Gesellschaft ueberholt, ohne dass irgendwo etwas meldet.
+     */
     await db.unsafe(
-      `select app.arbzg_befund_ueberholen($1::uuid[]) as anzahl`,
-      [belege],
+      `select app.arbzg_befund_ueberholen($1::uuid[], $2::uuid) as anzahl`,
+      [belege, mandantId],
     );
   }
   return zeilen.length;
