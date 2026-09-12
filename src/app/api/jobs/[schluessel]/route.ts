@@ -29,6 +29,7 @@ import { finde } from '@/server/jobs/registry';
 import { fuehreAus } from '@/server/jobs/runner';
 import { PostgresProtokoll } from '@/server/jobs/postgres-protokoll';
 import { ProtokollAlarm } from '@/server/jobs/alarm';
+import { aktiveMandanten } from '@/server/jobs/mandanten';
 
 export const dynamic = 'force-dynamic';
 
@@ -95,11 +96,7 @@ export async function POST(
    * entstuende, und ihr Dienstplan bliebe leer, ohne dass irgendwo etwas
    * rot wird.
    */
-  const mandanten = job.bereich === 'je_mandant'
-    ? ((await sql.unsafe(
-      `select id from mandant where aktiv = true order by schluessel`,
-    )) as unknown as readonly { id: string }[]).map((m) => m.id)
-    : [];
+  const mandanten = job.bereich === 'je_mandant' ? await aktiveMandanten(sql) : [];
 
   const ergebnis = await fuehreAus(job, new PostgresProtokoll(sql), new ProtokollAlarm(), {
     idempotenzSchluessel: `${job.schluessel}:${tag!.tag}`,

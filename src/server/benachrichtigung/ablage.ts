@@ -46,8 +46,18 @@ export interface Zustellauftrag {
 
 export interface Zustellbericht {
   readonly zugestellt: number;
-  /** Je Auftrag, der niemanden erreicht hat — mit dem Grund. */
+  /** Je Auftrag, der NIEMANDEN erreicht hat — mit dem Grund. */
   readonly ohneEmpfaenger: readonly { personId: string; art: string; grund: string }[];
+  /**
+   * Zugestellt, aber auffaellig: mehrere aktive Zugaenge zu einer Person.
+   *
+   * **Eine eigene Liste, und das ist kein Ordnungssinn.** Der erste Entwurf
+   * legte diesen Fall zu `ohneEmpfaenger` — also eine Meldung, die ANKAM, in
+   * eine Liste mit dem Namen „ohne Empfaenger". Wer die Kennzahlen eines
+   * Nachtlaufs liest, zaehlt dann Zustellungen als Ausfaelle, und die eine
+   * Zahl, auf die es ankommt („hat es jemanden erreicht"), stimmt nicht mehr.
+   */
+  readonly mehrdeutig: readonly { personId: string; art: string; zugaenge: number }[];
 }
 
 /**
@@ -62,6 +72,7 @@ export async function stelleZu(
   db: Abfrage, auftraege: readonly Zustellauftrag[],
 ): Promise<Zustellbericht> {
   const ohneEmpfaenger: { personId: string; art: string; grund: string }[] = [];
+  const mehrdeutig: { personId: string; art: string; zugaenge: number }[] = [];
   let zugestellt = 0;
 
   for (const auftrag of auftraege) {
@@ -87,11 +98,10 @@ export async function stelleZu(
      * Meldung zu vervielfachen — der aelteste gilt, und der Bericht sagt es.
      */
     if (konten.length > 1) {
-      ohneEmpfaenger.push({
+      mehrdeutig.push({
         personId: auftrag.personId,
         art: auftrag.benachrichtigung.art,
-        grund: `${String(konten.length)} aktive Zugaenge zu einer Person (EMP-14 verlangt einen)`
-          + ' — zugestellt an den aeltesten.',
+        zugaenge: konten.length,
       });
     }
 
@@ -106,5 +116,5 @@ export async function stelleZu(
     zugestellt += 1;
   }
 
-  return { zugestellt, ohneEmpfaenger };
+  return { zugestellt, ohneEmpfaenger, mehrdeutig };
 }

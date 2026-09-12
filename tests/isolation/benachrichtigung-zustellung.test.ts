@@ -119,6 +119,39 @@ describe('der Nachtlauf schreibt Benachrichtigungen — als `cse_job`', () => {
     expect(uebrig).toHaveLength(0);
   });
 
+  /**
+   * **Zugestellt und trotzdem auffaellig** — und das gehoert NICHT in die
+   * Liste „ohne Empfaenger".
+   *
+   * EMP-14 verlangt einen Zugang je Person. Sind es zwei, ist das ein
+   * Datenfehler; die Meldung geht an den aelteren, reproduzierbar, und der
+   * Bericht sagt es getrennt. Der erste Entwurf legte diesen Fall zu den
+   * Ausfaellen — wer die Kennzahlen liest, haette Zustellungen als Ausfaelle
+   * gezaehlt.
+   */
+  it('zwei Zugaenge zu einer Person: EINE Meldung, und der Bericht sagt es',
+    async () => {
+      const erster = await konto(f.fatima);
+      await konto(f.fatima);
+      const nachweisId = crypto.randomUUID();
+      const bericht = await alsRolle('cse_job', async (tx) => stelleZu(
+        { unsafe: (a, w) => tx.unsafe(a, (w ?? []) as never[]) },
+        [{ benachrichtigung: meldung(f.security, nachweisId), personId: f.fatima,
+          objektTyp: 'nachweis', objektId: nachweisId }],
+      ));
+
+      expect(bericht.zugestellt).toBe(1);
+      expect(bericht.ohneEmpfaenger).toHaveLength(0);
+      expect(bericht.mehrdeutig).toEqual([
+        { personId: f.fatima, art: 'nachweis.ablauf_60', zugaenge: 2 },
+      ]);
+
+      const zeilen = await sql.unsafe<{ empfaenger_id: string }[]>(
+        `select empfaenger_id from benachrichtigung where objekt_id = $1`, [nachweisId]);
+      expect(zeilen).toHaveLength(1);
+      expect(zeilen[0]!.empfaenger_id).toBe(erster);
+    });
+
   it('ein GESPERRTER Zugang zaehlt nicht als Empfaenger', async () => {
     const benutzer = await konto(f.fatima);
     await sql.unsafe(`update benutzer set status = 'gesperrt' where id = $1`, [benutzer]);
