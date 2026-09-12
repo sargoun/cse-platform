@@ -496,7 +496,7 @@ describe('(4) eine festgeschriebene Rechnung ist unveränderlich — auf DATENBA
     expect(policies).toEqual([]);
   });
 
-  it('genau sechs cse_definer-Policies in dieser Domäne, und keine siebte (§14)', async () => {
+  it('genau die aufgezählten cse_definer-Policies in dieser Domäne, und keine weitere', async () => {
     const policies = await sql.unsafe<{ tablename: string; policyname: string; cmd: string }[]>(
       `select tablename, policyname, cmd from pg_policies
         where 'cse_definer' = any(roles)
@@ -524,6 +524,21 @@ describe('(4) eine festgeschriebene Rechnung ist unveränderlich — auf DATENBA
        * schreiben.
        */
       'd_rp_pflichtfeld', 'd_rs_pflichtfeld',
+      /**
+       * **PR 50 (D-389): eine LESEpolicy dazu, und wieder keine schreibende.**
+       *
+       * `fin.abschlag_pruefen()` (0117) laeuft als `cse_definer` und muss
+       * wissen, ob der abzuziehende Abschlag storniert ist — die Antwort steht
+       * in `rechnung_beziehung`, und ohne Recht UND Policy laese die Funktion
+       * dort null Zeilen und liesse jeden Abzug eines stornierten Abschlags
+       * durch. Ein Riegel, der aussieht wie einer und keiner ist (D-388).
+       *
+       * `SELECT`, auf den aktiven Mandanten begrenzt, und ausdruecklich NICHT
+       * `using (true)`: eine zweite permissive Policy mit `true` haette sich
+       * mit `d_rechnung_lesen` ODER-verknuepft und deren Mandantenschnitt
+       * aufgehoben — eine Verbreiterung, die wie eine Ergaenzung aussieht.
+       */
+      'd_beziehung_storno_lesen',
       // `nk_wachbuch_definer*` gehören 0070 und liegen auf demselben
       // `nummernkreis`; sie sind hier ausgeschlossen, weil sie `wachbuch`
       // betreffen — siehe die Filterzeile darunter.

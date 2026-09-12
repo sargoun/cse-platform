@@ -183,7 +183,8 @@ proven by test, not by inspection.
 - [ ] Pre-flight validator blocking on any missing §14 UStG field
 - [ ] Hash chain + nightly verification job
 - [ ] Line-to-source traceability
-- [ ] Abschlags- / Schlussrechnung with automatic deduction
+- [x] Abschlags- / Schlussrechnung with automatic deduction (PR 50; Sicherheits-
+      einbehalt stays open — O-20)
 - [ ] §13b UStG; §48 EStG with certificate validity at service date
 - [ ] XRechnung with Leitweg-ID, KoSIT-validated in CI
 - [ ] ZUGFeRD 2.x PDF/A-3

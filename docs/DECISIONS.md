@@ -5637,3 +5637,48 @@ Minuten und starb an „Warte-Zeit abgelaufen", was aussieht wie ein haengender
 Postgres. `9>&-` schliesst den Kanal fuer den abgeloesten Prozess;
 `tests/kern/test-db-sperre.test.ts` faehrt den Wortlaut der Funktion aus dem
 Skript und prueft beide Richtungen — mit und ohne.
+
+---
+
+### D-389 · Der Abzug der Abschläge trägt die Beträge der Belege, er rechnet sie nicht nach
+
+PR 50 (FIN-08). Eine Schlussrechnung zieht die vorher gestellten Abschläge ab.
+Drei Entscheidungen stecken darin, und jede hat eine Gegenprobe im Test.
+
+**Je Steuergruppe, nie aus einer Bruttosumme.** §14 Abs. 4 Nr. 8 UStG verlangt
+die Umsatzsteuer je Satz, und die abgezogenen Abschläge müssen in derselben
+Aufteilung dastehen. Wer vom Brutto abzieht, hat einen Zahlbetrag, der stimmt,
+und eine Steueraufteilung, die es nicht tut — und die Voranmeldung zieht aus
+der falschen. Deshalb `abschlagsrechnung_bezug` mit
+`abzug_netto_cent`/`abzug_steuer_cent` je `steuersatz_gruppe_id` und nicht eine
+Zeile in `rechnung_beziehung`, die nur verweisen kann.
+
+**Summiert, nicht neu gerundet.** Jeder Abschlag hat seine Steuer beim
+Festschreiben schon auf ganze Cent gerundet und ist danach unveränderlich. Die
+Summe dreier einzeln gerundeter Beträge ist NICHT dasselbe wie der Satz auf die
+Gesamtsumme: `tests/kern/abschlag.test.ts` fährt den Fall (drei Abschläge,
+deren Steuer je genau auf der halben Stelle liegt) und prüft zuerst, dass die
+beiden Wege überhaupt auseinandergehen — ohne diesen Vortest bewiese die
+eigentliche Zusage nichts. Der Abzug folgt den Belegen. Der Kunde, der
+nachrechnet, hat sonst recht.
+
+**Ein stornierter Abschlag hält an, statt still zu verschwinden.** Es gibt
+keinen Zustand `storniert` auf `rechnung` — eine Stornierung ist ein eigener
+Beleg, der zurückverweist (Invariante 4, K-12). Ob die Schlussrechnung den
+Abschlag deshalb gar nicht, den Storno mit, oder einen Ersatz abzieht, ist eine
+kaufmännische Entscheidung. Die Plattform nennt die Nummer und hört auf; das
+ist die einzige Antwort, die nicht falsch sein kann.
+
+**Und die Festschreibung weist eine unvollständige Schlussrechnung ab**, vor
+der Nummernvergabe (Schritt 2a in `finalisiere`) — danach wäre die Warnung
+wertlos, weil der Zähler unwiderruflich weitergerückt ist. Die Meldung nennt
+die Nummern; „es fehlt etwas" ist keine Auskunft, mit der jemand arbeiten kann.
+
+**Offen: der Sicherheitseinbehalt (O-20).**
+`finanz/abschlag/bedingungen.platzhalter.ts` setzt `einbehalt: null`, und das
+ist die einzige Belegung, die dort stehen darf. Jeder Zahlenwert — auch der
+branchenübliche — wäre eine Vertragsklausel, die niemand vereinbart hat, auf
+einem Beleg, der nach dem Festschreiben unveränderlich ist. Die Richtung ist
+bewusst gewählt: ohne Entscheidung wird nichts einbehalten, der Kunde zahlt den
+vollen Betrag, und die Gruppe trägt das Risiko einer Nachverhandlung.
+Andersherum stünde auf einer Rechnung ein Abzug ohne Grundlage.

@@ -28,6 +28,10 @@
  * deutsche Feldliste, die ein Mensch lesen kann.
  */
 import { type Cent, cent } from './geld.js';
+import {
+  offeneAbschlaege as ladeOffeneAbschlaege, offeneAbschlaegeSatz,
+  type OffenerAbschlag,
+} from './abschlag/index.js';
 import { mengeAusPostgres, type MilliMenge } from './menge.js';
 
 /**
@@ -190,6 +194,15 @@ export interface PruefEingabe {
   readonly steuerzeilen: readonly PruefSteuerzeile[];
   readonly kreis: PruefKreis;
   readonly kleinbetragGrenze: PruefGrenze | null;
+  /**
+   * Die Abschläge dieses Auftrags, die diese Rechnung NICHT abzieht (FIN-08).
+   *
+   * Leer bei allem, was keine Schlussrechnung ist — `offeneAbschlaege` kehrt
+   * dort in einer Abfrage wieder um. Sie steht in der EINGABE und nicht in
+   * der Regel, weil die Regeln rein sind: was die Datenbank weiss, bringt
+   * `ladePruefEingabe` mit.
+   */
+  readonly offeneAbschlaege: readonly OffenerAbschlag[];
 }
 
 // ---------------------------------------------------------------------------
@@ -664,6 +677,29 @@ export const REGELN: readonly Regel[] = [
         + 'Leistung gilt (LEG-05).');
     },
   },
+  /**
+   * **FIN-08 — eine Schlussrechnung zieht jeden gestellten Abschlag ab.**
+   *
+   * Kein §14-Feld, sondern eine kaufmaennische Vollstaendigkeit — und sie
+   * gehoert trotzdem hierher: der Bericht wird mit dem Snapshot eingefroren,
+   * und „diese Schlussrechnung hat jeden Abschlag abgezogen" ist genau die
+   * Aussage, die eine Betriebspruefung 2032 daraus lesen will.
+   *
+   * Eine Schlussrechnung, die einen Abschlag vergisst, verlangt dasselbe Geld
+   * zweimal. Das faellt beim Kunden auf, nicht bei uns — und auf einem Beleg,
+   * der dann schon unveraenderlich ist.
+   */
+  {
+    feld: 'abschlag.abzug',
+    regel: 'FIN-08, VOB/B §16 Abs. 3',
+    stufe: 'fehler',
+    kleinbetragEntfaellt: false,
+    link: beleg,
+    pruefe: (e) => {
+      const satz = offeneAbschlaegeSatz(e.offeneAbschlaege);
+      return satz === null ? leer : [satz];
+    },
+  },
 ];
 
 /**
@@ -681,9 +717,19 @@ export const NICHT_GEPRUEFT: readonly NichtGeprueft[] = [
   { regel: 'FIN-09, LEG-06 — §13b UStG',
     grund: 'Kommt mit PR 51 (Steuerfall je Kunde, kunde_bauleistender_status).',
     solangeOhne: ['kunde_bauleistender_status'] },
-  { regel: 'FIN-08 — Abzug der Abschlagsrechnungen auf der Schlussrechnung',
-    grund: 'Kommt mit PR 50 (abschlagsplan, abschlagsrechnung_bezug).',
-    solangeOhne: ['abschlagsplan', 'abschlagsrechnung_bezug'] },
+  /**
+   * **Der Abzug selbst wird seit PR 50 geprueft** (Regel `abschlag.abzug`
+   * oben). Was offen bleibt, ist die Frage davor: ob die Abschlaege dem
+   * VEREINBARTEN Zahlungsplan folgen — nach VOB/B §16 Abs. 1 nach dem Wert
+   * der erbrachten Leistung, nach festem Plan, oder nach Baufortschritt. Ohne
+   * `abschlagsplan` gibt es keinen Soll-Stand, gegen den sich das pruefen
+   * liesse, und ohne O-20 keine Regel, nach der er entstuende.
+   */
+  { regel: 'FIN-08, OPS-05 — Abschlaege folgen dem vereinbarten Zahlungsplan',
+    grund: 'Der ABZUG wird geprueft (Regel abschlag.abzug). Der PLAN nicht: '
+      + 'abschlagsplan gibt es noch nicht, und nach welchen Bedingungen '
+      + 'Abschlaege gestellt werden, ist offen (O-20).',
+    solangeOhne: ['abschlagsplan'] },
   { regel: 'FIN-10, LEG-06 — §48 EStG Bauabzugsteuer',
     grund: 'Kommt mit PR 51 (freistellungsbescheinigung, bauabzugsteuer_freigrenze).',
     solangeOhne: ['freistellungsbescheinigung', 'bauabzugsteuer_freigrenze'] },
@@ -1021,6 +1067,12 @@ export async function ladePruefEingabe(
       fundstelle: grenze.fundstelle,
       istPlatzhalter: grenze.ist_platzhalter,
     },
+    /*
+     * FIN-08. Bei allem, was keine Schlussrechnung ist, kehrt die Abfrage in
+     * einer Anweisung mit einer leeren Liste zurueck — die Regel kostet dort
+     * nichts.
+     */
+    offeneAbschlaege: await ladeOffeneAbschlaege(db, rechnungId),
   };
 }
 

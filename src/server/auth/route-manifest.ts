@@ -702,6 +702,18 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Der Abzug der Abschlaege in einer Schlussrechnung (FIN-08).
+     *
+     * `finanzen.schreiben` und NICHT `finanzen.festschreiben`: er aendert
+     * einen Entwurf, vergibt keine Nummer und macht nichts unveraenderlich.
+     * Am Festschreibungsrecht haengend koennte die Buchhaltungskraft die
+     * Rechnung nicht vorbereiten, die eine andere dann festschreibt.
+     */
+    pfad: 'api/rechnungen/abschlaege',
+    recht: 'finanzen.schreiben',
+  },
+  {
+    /**
      * Verwerfen ist ein ZUSTANDSWECHSEL, kein Loeschen (Invariante 8). Der
      * Entwurf bleibt mit Grund stehen — er ist der Satz, den eine
      * Betriebspruefung liest, wenn sie nach der fehlenden Nummer fragt.

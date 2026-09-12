@@ -596,10 +596,15 @@ describe('„kommt mit PR nn" bleibt wahr — sonst lügt ein eingefrorener Bele
   it('keine der Tabellen, deren Fehlen einen Eintrag begründet, gibt es schon', async () => {
     const genannt = NICHT_GEPRUEFT.flatMap((n) => n.solangeOhne ?? []);
 
-    // Gegenprobe gegen die leere Messung: vier Einträge nennen zusammen
-    // sieben Tabellen (1 + 2 + 2 + 2). Fällt das auf null, prüfte der Rest
-    // nichts — und wer einen Eintrag ergänzt, kommt hier vorbei.
-    expect(genannt).toHaveLength(7);
+    /*
+     * Gegenprobe gegen die leere Messung. Waren es sieben Tabellen aus vier
+     * Eintraegen (1 + 2 + 2 + 2); mit PR 50 gibt es `abschlagsrechnung_bezug`,
+     * der ABZUG wird geprueft (Regel `abschlag.abzug`), und der Eintrag nennt
+     * nur noch `abschlagsplan` — den vereinbarten Zahlungsplan, den es ohne
+     * die Antwort auf O-20 nicht gibt. Faellt die Zahl auf null, prueft der
+     * Rest nichts; wer einen Eintrag ergaenzt, kommt hier vorbei.
+     */
+    expect(genannt).toHaveLength(6);
 
     const vorhanden = await sql.unsafe<{ table_name: string }[]>(
       `select table_name from information_schema.tables

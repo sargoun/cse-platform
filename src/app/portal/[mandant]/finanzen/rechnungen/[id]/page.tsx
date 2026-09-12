@@ -50,6 +50,9 @@ interface Kopf {
   readonly rechnungsdatum: string | null;
   readonly leistung_von: string | null;
   readonly leistung_bis: string | null;
+  readonly abzug_brutto_cent: string;
+  readonly zahlbetrag_cent: string;
+  readonly auftrag_id: string | null;
   readonly zahlungsziel_tage: number | null;
   readonly faellig_am: string | null;
   readonly netto_gesamt_cent: string;
@@ -77,6 +80,22 @@ interface Pos {
 }
 
 interface Steuer {
+  readonly gruppe: string;
+  readonly satz_bp: number;
+  readonly netto_cent: string;
+  readonly steuer_cent: string;
+}
+
+/**
+ * Eine abgezogene Abschlagsrechnung, je Steuergruppe (FIN-08).
+ *
+ * Sie steht auf dem Beleg, weil der Kunde sonst einen Zahlbetrag sieht, den
+ * er aus dem Sichtbaren nicht nachrechnen kann — Positionen, Summen, und
+ * dazwischen eine Differenz ohne Erklaerung.
+ */
+interface Abzug {
+  readonly nummer: string;
+  readonly rechnungsdatum: string | null;
   readonly gruppe: string;
   readonly satz_bp: number;
   readonly netto_cent: string;
@@ -117,6 +136,7 @@ export default async function Rechnungsblatt(
                 to_char(r.leistung_bis, 'DD.MM.YYYY') as leistung_bis,
                 r.zahlungsziel_tage, to_char(r.faellig_am, 'DD.MM.YYYY') as faellig_am,
                 r.netto_gesamt_cent::text, r.steuer_gesamt_cent::text, r.brutto_cent::text,
+                r.abzug_brutto_cent::text, r.zahlbetrag_cent::text, r.auftrag_id,
                 r.kopftext, r.verworfen_grund,
                 h.hash, h.kette_position::text,
                 (select s.nummer from rechnung_beziehung b
@@ -138,6 +158,24 @@ export default async function Rechnungsblatt(
            join steuersatz_gruppe g on g.id = p.steuersatz_gruppe_id
            left join masseinheit e on e.id = p.masseinheit_id
           where p.rechnung_id = $1 order by p.position_nr`, [id]),
+      /**
+       * Die abgezogenen Abschlaege — nur die WIRKSAMEN. Eine unwirksam
+       * gewordene Zeile (die Schlussrechnung wurde storniert) bleibt in der
+       * Tabelle stehen (Invariante 8) und gehoert nicht mehr auf den Beleg.
+       */
+      abzuege: await kontext.abfrage<Abzug>(
+        `select a.nummer, to_char(a.rechnungsdatum, 'DD.MM.YYYY') as rechnungsdatum,
+                g.schluessel as gruppe,
+                (select rs.satz_bp from rechnung_steuer rs
+                  where rs.rechnung_id = b.abschlag_rechnung_id
+                    and rs.steuersatz_gruppe_id = b.steuersatz_gruppe_id) as satz_bp,
+                b.abzug_netto_cent::text as netto_cent,
+                b.abzug_steuer_cent::text as steuer_cent
+           from abschlagsrechnung_bezug b
+           join rechnung a on a.mandant_id = b.mandant_id and a.id = b.abschlag_rechnung_id
+           join steuersatz_gruppe g on g.id = b.steuersatz_gruppe_id
+          where b.schluss_rechnung_id = $1 and b.wirksam
+          order by a.rechnungsdatum, a.nummer, g.schluessel`, [id]),
       steuer: await kontext.abfrage<Steuer>(
         `select g.schluessel as gruppe, s.satz_bp, s.netto_cent::text, s.steuer_cent::text
            from rechnung_steuer s
@@ -209,6 +247,7 @@ export default async function Rechnungsblatt(
       ))[0]?.darf) === true,
     }))) as Promise<{
       kopf: Kopf | null; positionen: readonly Pos[]; steuer: readonly Steuer[];
+      abzuege: readonly Abzug[];
       einheiten: readonly Einheit[]; gruppen: readonly Gruppe[];
       quellen: readonly QuelleZeile[]; leistungen: readonly Leistung[];
       fin18: Fin18Befund | null;
@@ -446,6 +485,101 @@ export default async function Rechnungsblatt(
           </tr>
         </tbody>
       </table>
+
+      {/*
+        * **Die Abzugstabelle** (FIN-08, Abnahme 5).
+        *
+        * Sie steht auf dem Beleg, weil der Kunde sonst einen Zahlbetrag saehe,
+        * den er aus dem Sichtbaren nicht nachrechnen kann: Positionen, Summen,
+        * und dazwischen eine Differenz ohne Erklaerung. Sie steht je Beleg UND
+        * je Steuergruppe, weil §14 Abs. 4 Nr. 8 UStG die Umsatzsteuer je Satz
+        * verlangt und ein Abzug in einer einzigen Zahl sich darauf nicht
+        * abbilden liesse.
+        */}
+      {daten.abzuege.length > 0 && (
+        <>
+          <h2 className="mb-s3 text-h3 text-text">Abgezogene Abschlagsrechnungen</h2>
+          <table
+            data-cse="abzugstabelle"
+            className="mb-s5 w-full max-w-prose border-collapse text-sm"
+          >
+            <caption className="sr-only">
+              Bereits gestellte Abschläge, je Beleg und Steuersatz (FIN-08)
+            </caption>
+            <thead>
+              <tr className="border-b border-line-strong text-text-muted">
+                <th scope="col" className="py-s2 text-left font-normal">Beleg</th>
+                <th scope="col" className="py-s2 text-left font-normal">Steuersatz</th>
+                <th scope="col" className="py-s2 text-right font-normal">Netto</th>
+                <th scope="col" className="py-s2 text-right font-normal">Umsatzsteuer</th>
+              </tr>
+            </thead>
+            <tbody>
+              {daten.abzuege.map((a) => (
+                <tr key={`${a.nummer}-${a.gruppe}`} className="border-b border-line">
+                  <th scope="row" className="py-s2 text-left font-normal text-text">
+                    {a.nummer}
+                    {a.rechnungsdatum === null ? '' : ` vom ${a.rechnungsdatum}`}
+                  </th>
+                  <td className="py-s2 text-text-muted">
+                    {a.gruppe}
+                    {a.satz_bp === null ? '' : ` (${(a.satz_bp / 100).toFixed(2).replace('.', ',')} %)`}
+                  </td>
+                  <td className="cse-zahl py-s2 text-right text-text">
+                    −{formatiereGeld(cent(BigInt(a.netto_cent)))}
+                  </td>
+                  <td className="cse-zahl py-s2 text-right text-text">
+                    −{formatiereGeld(cent(BigInt(a.steuer_cent)))}
+                  </td>
+                </tr>
+              ))}
+              <tr>
+                <th scope="row" colSpan={2} className="py-s2 text-left text-text">
+                  Zahlbetrag
+                </th>
+                <td
+                  data-cse="zahlbetrag"
+                  className="cse-zahl py-s2 text-right font-semibold text-text"
+                  colSpan={2}
+                >
+                  {formatiereGeld(cent(BigInt(k.zahlbetrag_cent)))}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {/*
+        * **Abschlaege abziehen** — nur an einem Entwurf, und nur bei einer
+        * Schlussrechnung mit Auftrag. Nach dem Festschreiben waere derselbe
+        * Knopf eine stille Aenderung an einem Beleg, den der Kunde schon hat
+        * (Invariante 4); ohne Auftrag gibt es keine Frage, welche Abschlaege
+        * gemeint sind, und geraten wird hier nichts.
+        */}
+      {entwurf && k.rechnungsart === 'schluss' && k.auftrag_id !== null && (
+        <form
+          method="post"
+          action={`/api/rechnungen/abschlaege?mandant=${mandant}`}
+          className="mb-s5 rounded-md border border-line bg-surface p-s4"
+        >
+          <input type="hidden" name="rechnungId" value={k.id} />
+          <p className="mb-s3 max-w-prose text-sm text-text-muted">
+            Zieht jeden festgeschriebenen Abschlag dieses Auftrags ab — je
+            Steuergruppe, in den Beträgen, die auf den Abschlagsrechnungen
+            stehen. Ohne diesen Schritt weist die Festschreibung den Beleg ab:
+            eine Schlussrechnung, die einen gestellten Abschlag nicht abzieht,
+            verlangt das Geld zweimal.
+          </p>
+          <button
+            type="submit"
+            data-cse="abschlaege-abziehen"
+            className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-base text-text hover:bg-surface-2"
+          >
+            Abschläge abziehen
+          </button>
+        </form>
+      )}
 
       {entwurf ? (
         <>

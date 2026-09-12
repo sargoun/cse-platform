@@ -573,6 +573,22 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'finanzen', pfad: 'finanz/abrechnungsart/index',
     schreibend: true, schreibRecht: 'finanzen.schreiben',
   },
+
+  /**
+   * PR 50 — der Abzug der Abschlaege in einer Schlussrechnung (FIN-08).
+   *
+   * `index` SCHREIBT (`schreibeVerrechnung` legt die Bezugszeilen an und setzt
+   * den Kopfbetrag), die beiden Bedingungsdateien nicht: `bedingungen` ist
+   * eine reine Rechnung ueber Basispunkte, `bedingungen.platzhalter` eine
+   * Konstante. Das engere Recht steht an der Datei, die es braucht — wie bei
+   * `finanz/rechnung`.
+   */
+  {
+    modul: 'finanzen', pfad: 'finanz/abschlag/index',
+    schreibend: true, schreibRecht: 'finanzen.schreiben',
+  },
+  { modul: 'finanzen', pfad: 'finanz/abschlag/bedingungen', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/abschlag/bedingungen.platzhalter', schreibend: false },
 ] as const;
 
 /**
