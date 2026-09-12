@@ -185,7 +185,8 @@ proven by test, not by inspection.
 - [ ] Line-to-source traceability
 - [x] Abschlags- / Schlussrechnung with automatic deduction (PR 50; Sicherheits-
       einbehalt stays open — O-20)
-- [ ] §13b UStG; §48 EStG with certificate validity at service date
+- [x] §13b UStG; §48 EStG with certificate validity at service date (PR 51;
+      the relevant date stays open — O-21, one injected parameter)
 - [ ] XRechnung with Leitweg-ID, KoSIT-validated in CI
 - [ ] ZUGFeRD 2.x PDF/A-3
 - [ ] Incoming invoices, expenses, payments, dunning

@@ -5682,3 +5682,59 @@ einem Beleg, der nach dem Festschreiben unveränderlich ist. Die Richtung ist
 bewusst gewählt: ohne Entscheidung wird nichts einbehalten, der Kunde zahlt den
 vollen Betrag, und die Gruppe trägt das Risiko einer Nachverhandlung.
 Andersherum stünde auf einer Rechnung ein Abzug ohne Grundlage.
+
+---
+
+### D-390 · §13b und §48 werden aus Nachweisen gelesen, nicht aus dem Gewerk abgeleitet
+
+PR 51 (FIN-09, FIN-10, LEG-06).
+
+**Der Fehler, der hier nicht gemacht wird**, steht in `01-ORDNERSTRUKTUR.md`
+§8.6 beim Namen: „a reverse-charge invoice inferred from a trade code". Die
+REALTIME Service GmbH baut auch um, ohne dass jede Position eine Bauleistung
+nach §13b Abs. 2 Nr. 4 wäre; die CSE Dienstleistungen reinigt für Kunden, die
+selbst reinigen, und für solche, die es nicht tun. Aus dem Mandanten lässt sich
+der Steuerfall nicht ableiten. Die Art der Leistung steht deshalb auf dem BELEG
+(`rechnung.reverse_charge_grundlage`), gesetzt von einem Menschen; der Dienst
+beantwortet nur, was daraus folgt.
+
+**Zwei Tatbestände, nicht einer.** Nr. 4 verlagert bei Bauleistungen, Nr. 8 bei
+Gebäudereinigungsleistungen an einen Unternehmer, der selbst reinigt. In dieser
+Gruppe ist der zweite der häufigere. `kunde_bauleistender_status` trägt deshalb
+`leistungsart`, und ein `EXCLUDE` schliesst überlappende Zeiträume je Kunde und
+Art aus — zwei Antworten auf eine Frage, deren Auswahl die Sortierung träfe,
+sind so gar nicht erst speicherbar.
+
+**Der Status wird am Leistungsdatum gelesen, nicht heute.** Ein Kunde, der seit
+letztem Monat kein Bauleistender mehr ist, war es im August; eine Rechnung über
+August muss das tragen. Ein boolesches Kennzeichen auf `kunde` hätte jede
+historische Rechnung beim nächsten Statuswechsel rückwirkend umgedeutet — auf
+Belegen, die unveränderlich sind.
+
+**Der Riegel gegen §13b ohne Nachweis sitzt in der Datenbank**
+(`fin.reverse_charge_pruefen`, 0118), nicht nur im Dienst: ein Import, ein
+Skript oder eine spätere Route ginge sonst daran vorbei. Wer die Steuer zu
+Unrecht verlagert, weist keine Umsatzsteuer aus, der Empfänger schuldet sie
+nicht, und der Leistende schuldet sie trotzdem (§13a UStG), ohne sie eingenommen
+zu haben — Jahre später, auf einem Beleg, den niemand mehr ändert.
+
+**§48 EStG hat zwei teure Richtungen, und beide hängen an einem Datum.** Wer
+nicht einbehält, obwohl er müsste, haftet (§48a Abs. 3 EStG); wer einbehält,
+obwohl eine gültige Bescheinigung vorlag, zieht dem Kunden Geld ab, das ihm
+zusteht. Die Tests fahren deshalb die GRENZTAGE einzeln: eine Bescheinigung,
+die am Tag vor dem Stichtag endet, befreit nicht; eine, die am Stichtag endet,
+befreit. Dazwischen liegen bei 10.000 € genau 1.500 €.
+
+**Und §48b kennt zwei Formen.** Eine auftragsbezogene Bescheinigung befreit
+EINEN Auftrag; ohne `umfang` und `auftrag_id` nähme der Prüfer sie für jeden
+anderen mit an.
+
+**Offen (O-21), und sichtbar statt still entschieden.** Welcher Stichtag gilt —
+Leistungsende, Zahlung, oder geteilte Abrechnung —, ist nicht beantwortet. Bis
+dahin `leistung_bis`, als EIN injizierter Parameter
+(`estg48/grenzen.platzhalter.ts`: die Antwort ist ein Wert dort plus ein Test,
+kein Umbau). Endet die Gültigkeit einer Bescheinigung INNERHALB des
+Leistungszeitraums, trägt die Lage eine Warnung mit der Nummer und dem Datum —
+der Mensch, der unterschreibt, sieht den Fall. Die Bagatellgrenzen des §48
+Abs. 2 EStG bleiben unangewandt: ohne Grenze wird immer einbehalten, und das
+ist die Seite, die nicht haftet.

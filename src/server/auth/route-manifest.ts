@@ -714,6 +714,18 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * §13b UStG und §48 EStG an einem Entwurf bestimmen (FIN-09, FIN-10).
+     *
+     * `finanzen.schreiben` wie der Abzug daneben: die Route aendert einen
+     * Entwurf. Was sie NICHT kann, ist einen Reverse Charge setzen, den die
+     * Nachweise nicht decken — das entscheidet `fin.reverse_charge_pruefen`
+     * in der Datenbank und nicht dieses Recht.
+     */
+    pfad: 'api/rechnungen/steuerfall',
+    recht: 'finanzen.schreiben',
+  },
+  {
+    /**
      * Verwerfen ist ein ZUSTANDSWECHSEL, kein Loeschen (Invariante 8). Der
      * Entwurf bleibt mit Grund stehen — er ist der Satz, den eine
      * Betriebspruefung liest, wenn sie nach der fehlenden Nummer fragt.

@@ -127,7 +127,24 @@ function ohneSqlRegister(inhalt: string): string {
      */
     .replace(
       /\binsert\s+into\s+(?:public\.)?mandant_einstellung(?:[^';]|'(?:[^']|'')*')*;/giu,
-      'insert into mandant_einstellung _;');
+      'insert into mandant_einstellung _;')
+    /**
+     * (4) Das VIERTE Register derselben Form: die Plattformeinstellungen.
+     *
+     * `app.plattform_einstellung('finanzen.bauabzugsteuer_satz_bp')` ist ein
+     * Einstellungsschlüssel und kein Recht — genau wie (1) für die
+     * Betriebseinstellungen. Dass es so lange gutging, ist Zufall: die
+     * vorhandenen Plattformschlüssel beginnen mit `auth.`, und `auth` steht
+     * nicht in `MODULE`. `finanzen` steht dort, und der erste Schlüssel mit
+     * diesem Präfix meldete sich prompt als unregistriertes Recht.
+     *
+     * Beide Formen: der Aufruf (auch in einer SQL-Zeichenkette in TypeScript,
+     * denn `funde()` schneidet jede Quelle gleich) und der Seed der Tabelle.
+     */
+    .replace(/\bapp\.plattform_einstellung\s*\([^)]*\)/gu, 'app.plattform_einstellung(_)')
+    .replace(
+      /\binsert\s+into\s+(?:public\.)?plattform_einstellung(?:[^';]|'(?:[^']|'')*')*;/giu,
+      'insert into plattform_einstellung _;');
 }
 
 /** Schneidet den erzeugten Katalogblock heraus — er ist die Liste, nicht ihre Benutzung. */

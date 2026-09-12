@@ -589,6 +589,29 @@ export const DIENSTE: readonly DienstEintrag[] = [
   },
   { modul: 'finanzen', pfad: 'finanz/abschlag/bedingungen', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/abschlag/bedingungen.platzhalter', schreibend: false },
+
+  /**
+   * PR 51 — §13b UStG und §48 EStG (FIN-09, FIN-10).
+   *
+   * Beide SIND reine Entscheidungen: sie bekommen die Zeilen, die der Aufrufer
+   * schon gelesen hat, und geben eine Lage zurueck. Kein Schreibrecht, weil
+   * keine von ihnen schreibt — die Werte landen ueber `finanz/rechnung` auf
+   * dem Beleg, und dort haengt das Recht.
+   */
+  { modul: 'finanzen', pfad: 'finanz/steuer/nachweis', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/estg48/abzug', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/estg48/grenzen.platzhalter', schreibend: false },
+
+  /**
+   * Der Steuerfall SCHREIBT: er setzt `reverse_charge`, den Pflichthinweis und
+   * die §48-Felder am Entwurf. Was er NICHT kann, ist eine Verlagerung ohne
+   * Nachweis setzen — das entscheidet `fin.reverse_charge_pruefen` in der
+   * Datenbank.
+   */
+  {
+    modul: 'finanzen', pfad: 'finanz/steuerfall',
+    schreibend: true, schreibRecht: 'finanzen.schreiben',
+  },
 ] as const;
 
 /**

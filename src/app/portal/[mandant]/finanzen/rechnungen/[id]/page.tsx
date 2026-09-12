@@ -8,6 +8,7 @@ import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { formatiereGeld, cent } from '@/server/services/finanz/geld';
 import { formatiereMenge, mengeAusPostgres } from '@/server/services/finanz/menge';
+import { ermittleSteuerfall } from '@/server/services/finanz/steuerfall';
 import { ladeQuellen, pruefeZeiterfassung, type Fin18Befund, type QuelleZeile }
   from '@/server/services/finanz/positionsquelle';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
@@ -51,6 +52,14 @@ interface Kopf {
   readonly leistung_von: string | null;
   readonly leistung_bis: string | null;
   readonly abzug_brutto_cent: string;
+  readonly reverse_charge: boolean;
+  readonly reverse_charge_grundlage: string | null;
+  readonly steuerhinweis: string | null;
+  readonly bauabzugsteuer_pflichtig: boolean;
+  readonly bauabzugsteuer_satz_bp: number | null;
+  readonly einbehalt_bauabzugsteuer_cent: string;
+  readonly ueberweisungsbetrag_cent: string;
+  readonly freistellung_nummer: string | null;
   readonly zahlbetrag_cent: string;
   readonly auftrag_id: string | null;
   readonly zahlungsziel_tage: number | null;
@@ -137,6 +146,10 @@ export default async function Rechnungsblatt(
                 r.zahlungsziel_tage, to_char(r.faellig_am, 'DD.MM.YYYY') as faellig_am,
                 r.netto_gesamt_cent::text, r.steuer_gesamt_cent::text, r.brutto_cent::text,
                 r.abzug_brutto_cent::text, r.zahlbetrag_cent::text, r.auftrag_id,
+                r.reverse_charge, r.reverse_charge_grundlage::text as reverse_charge_grundlage,
+                r.steuerhinweis, r.bauabzugsteuer_pflichtig, r.bauabzugsteuer_satz_bp,
+                r.einbehalt_bauabzugsteuer_cent::text, r.ueberweisungsbetrag_cent::text,
+                fb.bescheinigung_nummer as freistellung_nummer,
                 r.kopftext, r.verworfen_grund,
                 h.hash, h.kette_position::text,
                 (select s.nummer from rechnung_beziehung b
@@ -149,6 +162,9 @@ export default async function Rechnungsblatt(
            join kunde k on k.mandant_id = r.mandant_id and k.id = r.kunde_id
            left join objekt o on o.mandant_id = r.mandant_id and o.id = r.objekt_id
            left join rechnung_hash h on h.rechnung_id = r.id
+           left join freistellungsbescheinigung fb
+                  on fb.mandant_id = r.mandant_id
+                 and fb.id = r.freistellungsbescheinigung_id
           where r.id = $1`, [id]))[0] ?? null,
       positionen: await kontext.abfrage<Pos>(
         `select p.id, p.position_nr, p.bezeichnung, p.menge::text, p.einheit,
@@ -197,6 +213,15 @@ export default async function Rechnungsblatt(
        * Pfades driften.
        */
       quellen: await ladeQuellen(kontext, id),
+      /**
+       * Der Steuerfall, NEU GERECHNET beim Anzeigen (FIN-09, FIN-10).
+       *
+       * Gespeichert sind die Folgen (`reverse_charge`, der Einbehalt); was
+       * NICHT gespeichert ist, ist der Hinweis, wenn Kopf und Positionen
+       * auseinandergehen — und genau der muss auf dem Bildschirm stehen,
+       * bevor jemand festschreibt.
+       */
+      steuerfall: await ermittleSteuerfall(kontext, id),
       /**
        * Die Leistungszeilen des Auftrags — die eine Herkunft, die sich hier
        * OHNE Zeiterfassung belegen laesst, und zugleich der Anker der
@@ -251,6 +276,7 @@ export default async function Rechnungsblatt(
       einheiten: readonly Einheit[]; gruppen: readonly Gruppe[];
       quellen: readonly QuelleZeile[]; leistungen: readonly Leistung[];
       fin18: Fin18Befund | null;
+      steuerfall: Awaited<ReturnType<typeof ermittleSteuerfall>>;
       darfStornieren: boolean;
     }>);
 
@@ -548,6 +574,110 @@ export default async function Rechnungsblatt(
             </tbody>
           </table>
         </>
+      )}
+
+      {/*
+        * **Der Steuerfall** (FIN-09, FIN-10).
+        *
+        * Er steht auf dem Bildschirm, weil beide Regeln Geld bewegen und
+        * beide an einem Datum haengen: §13b verlagert die Steuerschuld (der
+        * Beleg weist dann 0,00 € Umsatzsteuer aus und sagt warum), §48 behaelt
+        * 15 % der Gegenleistung ein. Wer die Rechnung freigibt, soll beides
+        * sehen — nicht erst der Steuerberater im naechsten Quartal.
+        */}
+      {(k.reverse_charge || k.bauabzugsteuer_pflichtig) && (
+        <section
+          data-cse="steuerfall"
+          className="mb-s5 max-w-prose rounded-md border border-line bg-surface p-s4"
+        >
+          <h2 className="mb-s3 text-h3 text-text">Steuerfall</h2>
+          {k.reverse_charge && (
+            <p data-cse="reverse-charge" className="mb-s3 text-sm text-text">
+              <strong className="text-text">§13b UStG:</strong>{' '}
+              {k.steuerhinweis ?? 'Steuerschuldnerschaft des Leistungsempfängers'}
+              {k.reverse_charge_grundlage === null ? '' : (
+                k.reverse_charge_grundlage === 'bau'
+                  ? ' (§13b Abs. 2 Nr. 4 — Bauleistung)'
+                  : ' (§13b Abs. 2 Nr. 8 — Gebäudereinigung)'
+              )}
+            </p>
+          )}
+          {k.bauabzugsteuer_pflichtig && (
+            <p data-cse="bauabzugsteuer" className="text-sm text-text">
+              <strong className="text-text">§48 EStG:</strong>{' '}
+              {k.bauabzugsteuer_satz_bp === null
+                ? ''
+                : `${(k.bauabzugsteuer_satz_bp / 100).toFixed(2).replace('.', ',')} % `}
+              Bauabzugsteuer einbehalten —{' '}
+              {formatiereGeld(cent(BigInt(k.einbehalt_bauabzugsteuer_cent)))}. An die
+              Gesellschaft überwiesen werden{' '}
+              {formatiereGeld(cent(BigInt(k.ueberweisungsbetrag_cent)))}.
+              {k.freistellung_nummer === null
+                ? ' Es liegt keine am Leistungsdatum gültige Freistellungsbescheinigung vor.'
+                : ` Freistellungsbescheinigung ${k.freistellung_nummer}.`}
+            </p>
+          )}
+          {!k.bauabzugsteuer_pflichtig && k.freistellung_nummer !== null && (
+            <p className="text-sm text-text-muted">
+              <strong className="text-text">§48 EStG:</strong> kein Einbehalt —
+              Freistellungsbescheinigung {k.freistellung_nummer} gilt am Leistungsdatum.
+            </p>
+          )}
+        </section>
+      )}
+
+      {daten.steuerfall.positionenHinweis !== null && (
+        <p
+          data-cse="steuerfall-hinweis"
+          className="mb-s5 max-w-prose rounded-md border border-warning bg-warning-soft p-s4 text-sm text-warning"
+        >
+          {daten.steuerfall.positionenHinweis}
+        </p>
+      )}
+
+      {/*
+        * **Den Steuerfall bestimmen** — nur am Entwurf. Der Mensch sagt, WAS
+        * geleistet wurde; ob daraus ein Reverse Charge folgt, entscheidet der
+        * hinterlegte §13b-Status am Leistungsdatum. Ein aus dem Gewerk der
+        * Gesellschaft abgeleiteter Reverse Charge waere genau der Fehler, den
+        * `01-ORDNERSTRUKTUR.md` §8.6 beim Namen nennt.
+        */}
+      {entwurf && (
+        <form
+          method="post"
+          action={`/api/rechnungen/steuerfall?mandant=${mandant}`}
+          className="mb-s5 max-w-prose rounded-md border border-line bg-surface p-s4"
+        >
+          <input type="hidden" name="rechnungId" value={k.id} />
+          <label htmlFor="steuerfall-grundlage" className="text-xs text-text-muted">
+            Art der Leistung (§13b Abs. 2 UStG)
+          </label>
+          <select
+            id="steuerfall-grundlage"
+            name="grundlage"
+            data-cse="steuerfall-grundlage"
+            defaultValue={k.reverse_charge_grundlage ?? ''}
+            className={feld}
+          >
+            <option value="">weder Bauleistung noch Gebäudereinigung</option>
+            <option value="bau">Bauleistung (§13b Abs. 2 Nr. 4)</option>
+            <option value="gebaeudereinigung">
+              Gebäudereinigungsleistung (§13b Abs. 2 Nr. 8)
+            </option>
+          </select>
+          <p className="mt-s3 text-sm text-text-muted">
+            Aus der Angabe folgt nicht automatisch eine Verlagerung: sie greift
+            nur, wenn für diesen Kunden am Leistungsdatum ein §13b-Status
+            hinterlegt ist. Ohne Nachweis wird die Umsatzsteuer ausgewiesen.
+          </p>
+          <button
+            type="submit"
+            data-cse="steuerfall-bestimmen"
+            className="mt-s4 min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-base text-text hover:bg-surface-2"
+          >
+            Steuerfall bestimmen
+          </button>
+        </form>
       )}
 
       {/*
