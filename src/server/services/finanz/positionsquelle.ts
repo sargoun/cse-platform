@@ -40,7 +40,7 @@ export interface Abfrage {
  */
 export type QuelleTyp =
   | 'zeiteintrag' | 'aufmass' | 'vertrag' | 'material'
-  | 'leistungsnachweis' | 'nachtrag' | 'manuell';
+  | 'leistungsnachweis' | 'nachtrag' | 'sonderleistung' | 'manuell';
 
 export class QuellenFehler extends Error {
   constructor(
@@ -83,6 +83,7 @@ export interface QuelleEingabe {
  */
 const SPALTE_JE_TYP: Readonly<Record<Exclude<QuelleTyp, 'manuell'>, string>> = {
   zeiteintrag: 'zeiteintrag_id',
+  sonderleistung: 'sonderleistung_id',
   aufmass: 'aufmass_id',
   vertrag: 'auftrag_leistung_id',
   material: 'ausgabe_id',
@@ -91,7 +92,7 @@ const SPALTE_JE_TYP: Readonly<Record<Exclude<QuelleTyp, 'manuell'>, string>> = {
 };
 
 const SPALTEN: readonly string[] = [
-  'zeiteintrag_id', 'aufmass_id', 'auftrag_leistung_id', 'ausgabe_id',
+  'zeiteintrag_id', 'aufmass_id', 'auftrag_leistung_id', 'ausgabe_id', 'sonderleistung_id',
   'leistungsnachweis_id', 'nachtrag_id',
 ];
 
@@ -134,11 +135,11 @@ export async function fuegeQuelleHinzu(
     `insert into rechnungsposition_quelle
        (mandant_id, rechnungsposition_id, rechnung_id, quelle_typ,
         zeiteintrag_id, aufmass_id, auftrag_leistung_id, ausgabe_id,
-        leistungsnachweis_id, nachtrag_id, menge_anteil, notiz,
+        sonderleistung_id, leistungsnachweis_id, nachtrag_id, menge_anteil, notiz,
         erstellt_von_art, erstellt_von)
      select app.aktiver_mandant(), p.id, p.rechnung_id, $2::quelle_typ,
-            $3::uuid, $4::uuid, $5::uuid, $6::uuid, $7::uuid, $8::uuid,
-            $9::numeric, $10, 'mensch', app.aktueller_benutzer()
+            $3::uuid, $4::uuid, $5::uuid, $6::uuid, $7::uuid, $8::uuid, $9::uuid,
+            $10::numeric, $11, 'mensch', app.aktueller_benutzer()
        from rechnungsposition p
       where p.id = $1
      returning id`,
@@ -290,6 +291,7 @@ export async function ladeQuellen(
     `select q.id, q.rechnungsposition_id, p.position_nr,
             q.quelle_typ::text as quelle_typ,
             coalesce(q.zeiteintrag_id, q.aufmass_id, q.auftrag_leistung_id, q.ausgabe_id,
+                     q.sonderleistung_id,
                      q.leistungsnachweis_id, q.nachtrag_id)::text as quelle_id,
             q.menge_anteil::text, q.notiz, q.wirksam, p.netto_cent::text,
             case q.quelle_typ
@@ -302,6 +304,7 @@ export async function ladeQuellen(
                                                      'Leistungsnachweis')
               when 'nachtrag' then coalesce('Nachtrag ' || n.nummer, 'Nachtrag')
               when 'material' then 'Ausgabe'
+              when 'sonderleistung' then coalesce('Abruf: ' || sl.bezeichnung, 'Einzelabruf')
               else coalesce(q.notiz, 'Von Hand erfasst')
             end as bezeichnung,
             case q.quelle_typ
@@ -312,6 +315,11 @@ export async function ladeQuellen(
               when 'nachtrag' then 'bau/projekte/' || n.projekt_id::text
                                 || '/nachtraege/' || n.id::text
               when 'leistungsnachweis' then 'reinigung/leistungsnachweise'
+              -- Ein Abruf hat heute kein eigenes Blatt; das Objekt, an dem er
+              -- haengt, ist die naechste wahre Adresse. Ein geratener Pfad
+              -- waere ein Verweis ins Leere, und DSH-04 verspricht das Ziel,
+              -- nicht die Beschriftung.
+              when 'sonderleistung' then 'objekte/' || sl.objekt_id::text
               else null
             end as ziel
        from rechnungsposition_quelle q
@@ -324,6 +332,8 @@ export async function ladeQuellen(
        left join leistungsnachweis ln
          on ln.mandant_id = q.mandant_id and ln.id = q.leistungsnachweis_id
        left join nachtrag n on n.mandant_id = q.mandant_id and n.id = q.nachtrag_id
+       left join sonderleistung sl
+         on sl.mandant_id = q.mandant_id and sl.id = q.sonderleistung_id
       where q.rechnung_id = $1
       order by p.position_nr, q.quelle_typ, q.erstellt_am, q.id`,
     [rechnungId],
@@ -425,7 +435,48 @@ export async function markiereQuellenAbgerechnet(
       'nicht_uebernommen',
     );
   }
-  return getroffen.length;
+
+  /**
+   * **Und dieselbe Zusage fuer den Einzelabruf.**
+   *
+   * `sonderleistung.status` kennt `abgerechnet` seit jeher, und
+   * `einzelabruf.ts` liest ausschliesslich `erbracht`. Gesetzt hat den Status
+   * nur niemand — der Abruf blieb nach seiner Rechnung abrechenbar. Der
+   * Sperrindex `quelle_sonderleistung_uk` (0112) faengt den zweiten Versuch
+   * inzwischen ohnehin ab; hier steht der Grund, den ein Mensch auf dem
+   * Blatt liest, statt einer Eindeutigkeitsverletzung.
+   *
+   * Wie oben: die Zahl muss stimmen. Ein Stempel, der die Haelfte trifft, ist
+   * schlimmer als keiner, weil er Sicherheit vortaeuscht.
+   */
+  const [sollAbruf] = await db.abfrage<{ n: string }>(
+    `select count(*)::text as n
+       from rechnungsposition_quelle q
+       join sonderleistung s on s.mandant_id = q.mandant_id and s.id = q.sonderleistung_id
+      where q.rechnung_id = $1 and q.quelle_typ = 'sonderleistung' and q.wirksam
+        and s.status = 'erbracht'`,
+    [rechnungId],
+  );
+  const abrufe = await db.abfrage<{ id: string }>(
+    `update sonderleistung s
+        set status = 'abgerechnet'
+       from rechnungsposition_quelle q
+      where q.rechnung_id = $1 and q.quelle_typ = 'sonderleistung' and q.wirksam
+        and s.mandant_id = q.mandant_id and s.id = q.sonderleistung_id
+        and s.status = 'erbracht'
+      returning s.id`,
+    [rechnungId],
+  );
+  if (abrufe.length !== Number(sollAbruf?.n ?? '0')) {
+    throw new QuellenFehler(
+      `Der Abrechnungsstempel traf ${String(abrufe.length)} von `
+      + `${sollAbruf?.n ?? '0'} Einzelabrufen — ohne ihn steht die `
+      + 'Doppelabrechnungssperre nur halb.',
+      'nicht_uebernommen',
+    );
+  }
+
+  return getroffen.length + abrufe.length;
 }
 
 /**

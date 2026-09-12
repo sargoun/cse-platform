@@ -76,7 +76,8 @@ export interface HerkunftVerweis {
    * ausdruecklich beleglose Zeile MIT Begruendung — und nicht eine erfundene
    * Leistungszeile.
    */
-  readonly art: 'zeiteintrag' | 'aufmass' | 'vertrag' | 'vertrag_abrechnung';
+  readonly art: 'zeiteintrag' | 'aufmass' | 'vertrag' | 'vertrag_abrechnung'
+    | 'sonderleistung';
   readonly id: string;
   /** Der Anteil, mit dem die Quelle in die Zeile eingeht — `null`: ganz. */
   readonly anteil: MilliMenge | null;

@@ -18,7 +18,7 @@ import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import { cent } from '../../src/server/services/finanz/geld.js';
 import { milliMenge } from '../../src/server/services/finanz/menge.js';
 import {
-  fuegePositionHinzu, legeEntwurfAn, type Abfrage,
+  finalisiere, fuegePositionHinzu, legeEntwurfAn, type Abfrage,
 } from '../../src/server/services/finanz/rechnung.js';
 import {
   AbrechnungFehler, alleAbrechnungsarten, berechneAbrechnung, berechneMitKonfiguration,
@@ -1005,6 +1005,60 @@ describe('(1) Einzelabruf', () => {
     expect(zeilen.map((z) => z.netto_cent)).toEqual(['17800', '8900']);
     expect((await kopf(rechnungId)).netto_gesamt_cent).toBe('26700');
     expect((await steuerzeilen(rechnungId))[0]!.steuer_cent).toBe('5073');
+  });
+
+  /**
+   * **Der Einzelabruf war die einzige der fünf Arten OHNE
+   * Doppelabrechnungssperre.**
+   *
+   * Die Herkunft nannte die VERTRAGSZEILE und nicht den Abruf. Auf
+   * `auftrag_leistung_id` gibt es bewusst keinen Sperrindex — eine
+   * Vertragszeile trägt jeden Monat eine neue Rechnung (0107) —, also blieb
+   * derselbe `erbracht`-Abruf nach seiner Rechnung abrechenbar. Der nächste
+   * Lauf hätte ihn ein zweites Mal berechnet, und der Beleg sähe stimmig
+   * aus: die Vertragszeile, auf die er zeigt, gibt es wirklich.
+   *
+   * Gemeldet vom Copilot-Durchgang auf PR #7. Geschlossen in `0112`
+   * (`quelle_sonderleistung_uk`) und in `markiereQuellenAbgerechnet`, das
+   * den Abruf beim Festschreiben auf `abgerechnet` setzt.
+   */
+  it('derselbe Abruf kommt kein ZWEITES Mal auf eine Rechnung', async () => {
+    const bau = await baueAuftrag(f.reinigung, { einheit: 'stk', einzelpreisCent: 8_900n });
+    await legeKonfigurationAn(bau, {
+      art: 'einzelabruf', parameter: { mindestabrufmenge: null },
+      intervall: 'nach_leistung', aufLeistung: true,
+    });
+    const abruf = await baueAbruf(bau, '2.000', '2026-08-12');
+
+    const ersteRechnung = await alsApp(sitzung(f.reinigung), async (tx) => {
+      const id = await entwurf(tx, bau);
+      await bestueckeAusAbrechnungsart(alsDienst(tx), id, {
+        auftragId: bau.auftrag, periode: { von: '2026-08-01', bis: '2026-08-31' },
+      });
+      await finalisiere(alsDienst(tx), id);
+      return id;
+    });
+    expect(await positionen(ersteRechnung)).toHaveLength(1);
+
+    // Die Herkunft nennt den ABRUF — sonst gäbe es nichts zu sperren.
+    const [quelle] = await sql.unsafe<{ sonderleistung_id: string | null }[]>(
+      `select sonderleistung_id::text from rechnungsposition_quelle
+        where rechnung_id = $1 and quelle_typ = 'sonderleistung'`, [ersteRechnung]);
+    expect(quelle?.sonderleistung_id).toBe(abruf);
+
+    // Und der Abruf ist beim Festschreiben abgehakt worden.
+    const [stand] = await sql.unsafe<{ status: string }[]>(
+      `select status::text from sonderleistung where id = $1`, [abruf]);
+    expect(stand?.status).toBe('abgerechnet');
+
+    // Der zweite Lauf findet deshalb nichts mehr — und sagt das, statt eine
+    // zweite Zeile über dieselbe Leistung zu schreiben.
+    await expect(alsApp(sitzung(f.reinigung), async (tx) => {
+      const id = await entwurf(tx, bau);
+      return bestueckeAusAbrechnungsart(alsDienst(tx), id, {
+        auftragId: bau.auftrag, periode: { von: '2026-08-01', bis: '2026-08-31' },
+      });
+    })).rejects.toMatchObject({ name: 'AbrechnungFehler', grund: 'nichts_abzurechnen' });
   });
 
   it('ein nur beauftragter Abruf wird nicht berechnet', async () => {

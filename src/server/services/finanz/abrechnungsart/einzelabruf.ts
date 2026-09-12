@@ -237,8 +237,27 @@ export const EINZELABRUF: Abrechnungsart = {
         lvPositionId: null,
         leistungVon: zeitraum.von === null ? null : tag,
         leistungBis: zeitraum.bis === null ? null : tag,
+        /**
+         * **Der ABRUF ist der Beleg, nicht die Vertragszeile.**
+         *
+         * Hier stand nur `{ art: 'vertrag', id: auftrag_leistung_id }`. Auf
+         * `auftrag_leistung_id` gibt es bewusst keine Sperre — eine
+         * Vertragszeile traegt jeden Monat eine neue Rechnung (0107) —, also
+         * war der Einzelabruf die einzige der fuenf Arten OHNE
+         * Doppelabrechnungssperre: derselbe `erbracht`-Abruf blieb nach der
+         * Rechnung abrechenbar, und der naechste Lauf haette ihn ein zweites
+         * Mal berechnet. Der Beleg saehe dabei stimmig aus, denn die
+         * Vertragszeile, auf die er zeigt, gibt es wirklich.
+         *
+         * Beides steht jetzt: der Abruf traegt `quelle_sonderleistung_uk`
+         * (0112), und `markiereQuellenAbgerechnet` setzt ihn beim
+         * Festschreiben auf `abgerechnet`. Die Vertragszeile bleibt als
+         * zweite Herkunft daneben — sie ist der PREIS, und ohne sie waere
+         * auf dem Blatt nicht zu sehen, woher er kommt.
+         */
         herkunft: [
-          { art: 'vertrag', id: abruf.auftrag_leistung_id, anteil: menge },
+          { art: 'sonderleistung', id: abruf.id, anteil: menge },
+          { art: 'vertrag', id: abruf.auftrag_leistung_id, anteil: null },
         ],
       });
     }
