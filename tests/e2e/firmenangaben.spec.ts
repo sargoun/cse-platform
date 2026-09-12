@@ -196,3 +196,64 @@ test.describe('die englische Seite traegt kein deutsches Bedienwort', () => {
     expect(text).toContain('learn more');
   });
 });
+
+/**
+ * **Die Kopfzeile, die DESIGN §5 beschreibt** — und die es so nicht gab.
+ *
+ * „Logo left, nav centre, red *Angebot anfragen* + ghost *Login* right.
+ * Mobile: full-screen overlay menu."
+ *
+ * Beide rechten Punkte fehlten in ihrer Wirkung: der rote Knopf gar nicht, und
+ * unter `md` gab es UEBERHAUPT keine Hauptnavigation — vier gebaute Seiten
+ * (Unternehmen, Leistungen, Projekte, Kontakt) ohne einen einzigen Verweis auf
+ * dem Geraet, mit dem die meisten Besucher kommen.
+ *
+ * Der rote Knopf ist dabei nicht Schmuck: `/angebot` war gebaut, geprueft und
+ * erreichbar — und stand in keiner Navigation. Wer ein Angebot wollte, musste
+ * die Adresse kennen.
+ */
+test.describe('die oeffentliche Kopfzeile fuehrt weiter', () => {
+  test('der rote Weg ins Angebot steht da — auf jeder Breite', async ({ page }) => {
+    for (const breite of [375, 1280]) {
+      await page.setViewportSize({ width: breite, height: 900 });
+      await page.goto('/');
+      const knopf = page.locator('[data-cse="angebot-anfragen"]');
+      await expect(knopf, `bei ${String(breite)}px kein Angebotsweg`).toBeVisible();
+      await expect(knopf).toHaveAttribute('href', '/angebot');
+    }
+  });
+
+  test('das Telefon hat ein Menue, und darin stehen die vier Seiten', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto('/');
+
+    const menue = page.locator('[data-cse="menue"]');
+    await expect(menue).toBeVisible();
+    // Zu: das Blatt ist nicht da. Sonst waere es kein Menue, sondern eine Liste.
+    await expect(page.locator('[data-cse="menue-blatt"]')).toBeHidden();
+
+    await menue.locator('summary').click();
+    const blatt = page.locator('[data-cse="menue-blatt"]');
+    await expect(blatt).toBeVisible();
+    // Vier Seiten plus der Angebotsweg.
+    await expect(blatt.locator('[data-cse="menue-ziel"]')).toHaveCount(5);
+
+    await blatt.getByText('Leistungen').click();
+    await page.waitForLoadState('domcontentloaded');
+    expect(new URL(page.url()).pathname).toBe('/leistungen');
+  });
+
+  test('am Schreibtisch ist das Menue weg — die Navigation steht offen da', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/');
+    await expect(page.locator('[data-cse="menue"]')).toBeHidden();
+    await expect(page.getByRole('navigation', { name: 'Hauptnavigation' }).first())
+      .toBeVisible();
+  });
+
+  test('und auf Englisch fuehrt der Angebotsweg nach `/en/angebot`', async ({ page }) => {
+    await page.goto('/en');
+    await expect(page.locator('[data-cse="angebot-anfragen"]'))
+      .toHaveAttribute('href', '/en/angebot');
+  });
+});

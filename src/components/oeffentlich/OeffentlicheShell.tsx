@@ -124,6 +124,64 @@ export function OeffentlicheShell(
         </nav>
 
         {/*
+          * **Das Vollbild-Menue des Telefons** — DESIGN §5: „Mobile:
+          * full-screen overlay menu".
+          *
+          * Es gab keines. Die Hauptnavigation ist `hidden md:flex`, und
+          * darunter stand NICHTS: auf einem Telefon fuehrte vom oeffentlichen
+          * Auftritt kein Weg zu Unternehmen, Leistungen, Projekten oder
+          * Kontakt. Vier gebaute Seiten, kein Verweis — dasselbe Muster wie im
+          * Portal, nur auf dem Geraet, mit dem die meisten Besucher kommen.
+          *
+          * `<details>` und kein Zustand im Browser: das Blatt oeffnet ohne
+          * JavaScript und ist damit auch dann da, wenn das Netz schlecht ist.
+          * Derselbe Weg wie im Portal (`TabLeiste`), aus demselben Grund.
+          */}
+        <details data-cse="menue" className="ml-s3 md:hidden">
+          <summary
+            aria-label={t.menue}
+            className="flex min-h-11 min-w-11 cursor-pointer list-none items-center
+                       justify-center rounded-sm border border-line px-s3 text-sm text-text"
+          >
+            {t.menue}
+          </summary>
+          {/*
+            `top-[72px]`: die Kopfzeile ist 72px hoch (DESIGN §5) und traegt
+            das `<summary>`, mit dem sich das Blatt wieder schliesst. Laege es
+            darueber, gaebe es ohne JavaScript keinen Weg zurueck.
+          */}
+          <nav
+            aria-label={t.hauptnavigation}
+            data-cse="menue-blatt"
+            className="fixed inset-x-0 bottom-0 top-[72px] z-50 overflow-y-auto
+                       bg-surface p-s5"
+          >
+            <ul className="m-0 list-none p-0">
+              {HAUPT.map(([ziel, schluessel]) => (
+                <li key={schluessel} className="border-b border-line">
+                  <a
+                    href={mitSprache(ziel, sprache)}
+                    data-cse="menue-ziel"
+                    className="flex min-h-11 items-center py-s3 text-base text-text"
+                  >
+                    {t.navigation[schluessel]}
+                  </a>
+                </li>
+              ))}
+              <li className="border-b border-line">
+                <a
+                  href={mitSprache('/angebot', sprache)}
+                  data-cse="menue-ziel"
+                  className="flex min-h-11 items-center py-s3 text-base text-brand"
+                >
+                  {t.angebotAnfragen}
+                </a>
+              </li>
+            </ul>
+          </nav>
+        </details>
+
+        {/*
           * Der Weg ins Portal — und er ist NICHT hinter `md:` versteckt.
           *
           * Die Hauptnavigation ist es (`hidden md:flex`), und das ist dort
@@ -135,12 +193,34 @@ export function OeffentlicheShell(
           * `min-h-11` sind 44px: DESIGN §8 nennt das Tap-Ziel nicht als
           * Richtwert, sondern als Untergrenze.
           */}
+        {/*
+          * **Der rote Knopf, den DESIGN §5 woertlich nennt** — „rot *Angebot
+          * anfragen* + ghost *Login* rechts".
+          *
+          * Er fehlte, und mit ihm der einzige Weg, den dieser Auftritt
+          * geschaeftlich hat: `/angebot` war gebaut, geprueft und erreichbar
+          * — und stand in KEINER Navigation. Wer ein Angebot wollte, musste
+          * die Adresse kennen. Das ist derselbe Fehler wie die leere
+          * „Mehr"-Liste im Portal, nur an der Stelle, an der er Geld kostet.
+          *
+          * Nicht hinter `md:`: auf dem Telefon ist er erst recht der Punkt,
+          * um den es geht.
+          */}
+        <a
+          href={mitSprache('/angebot', sprache)}
+          data-cse="angebot-anfragen"
+          className="ml-auto flex min-h-11 items-center rounded-sm bg-brand px-s4
+                     text-sm font-semibold text-white hover:bg-brand-hover md:ml-s4"
+        >
+          {t.angebotAnfragen}
+        </a>
+
         {anmeldePfad !== null && (
           <a
             href={anmeldePfad}
             data-cse="anmelden"
-            className="ml-auto flex min-h-11 items-center rounded-sm border border-line
-                       px-s4 text-sm text-text hover:bg-surface-2 md:ml-s4"
+            className="ml-s3 flex min-h-11 items-center rounded-sm border border-line
+                       px-s4 text-sm text-text hover:bg-surface-2"
           >
             {t.anmelden}
           </a>

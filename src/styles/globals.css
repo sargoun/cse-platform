@@ -104,7 +104,21 @@ body {
  * failure mode is a component that forgets it, and a keyboard user then loses
  * the ability to see where they are — a BFSG problem, not a styling one.
  */
-:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+/*
+ * `summary` gehoert dazu, und das ist nicht offensichtlich.
+ *
+ * Ein `<summary>` ist von sich aus fokussierbar — der Browser gibt ihm
+ * `tabindex` nicht als Attribut, sondern als Verhalten. Der Selektor
+ * `[tabindex]` traf es deshalb NICHT, und jedes `<details>`-Menue bekam beim
+ * Tabben keinen sichtbaren Ring: die Tastatur kam hin, sah aber nicht, dass
+ * sie da war. Aufgefallen an der oeffentlichen Kopfzeile, als sie ihr
+ * Telefon-Menue bekam; betroffen war auch das „Mehr"-Blatt im Portal, seit es
+ * existiert.
+ *
+ * DESIGN §9 sagt „focus rings are never removed" — ein Ring, den es fuer ein
+ * bedienbares Element nie gab, ist derselbe Verstoss, nur schwerer zu sehen.
+ */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
   outline: 2px solid transparent;
   outline-offset: 2px;
   box-shadow: 0 0 0 3px var(--red-ring);

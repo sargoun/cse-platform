@@ -32,6 +32,17 @@ export interface ShellTexte {
   readonly mehrErfahren: string;
   readonly platzhalterbild: string;
   /**
+   * Der rote Knopf rechts in der Kopfzeile — DESIGN §5 nennt ihn woertlich:
+   * „rot *Angebot anfragen* + ghost *Login* rechts".
+   *
+   * Er fehlte, und mit ihm der einzige Weg, den der oeffentliche Auftritt
+   * geschaeftlich hat: `/angebot` war gebaut und stand in KEINER Navigation.
+   */
+  readonly angebotAnfragen: string;
+  /** Das Vollbild-Menue des Telefons (DESIGN §5) — Beschriftung und Schliessen. */
+  readonly menue: string;
+  readonly menueSchliessen: string;
+  /**
    * Der Weg vom oeffentlichen Auftritt IN die Plattform.
    *
    * Er fehlte, und das war kein Schoenheitsfehler: es gab von `/` aus
@@ -62,6 +73,9 @@ export const SHELL_TEXTE: Readonly<Record<Sprache, ShellTexte>> = {
     zurStartseite: 'Zur Startseite',
     mehrErfahren: 'Mehr erfahren →',
     platzhalterbild: 'Platzhalterbild',
+    angebotAnfragen: 'Angebot anfragen',
+    menue: 'Menü',
+    menueSchliessen: 'Menü schliessen',
     anmelden: 'Anmelden',
     navigation: {
       unternehmen: 'Unternehmen',
@@ -84,6 +98,9 @@ export const SHELL_TEXTE: Readonly<Record<Sprache, ShellTexte>> = {
     zurStartseite: 'To the home page',
     mehrErfahren: 'Learn more →',
     platzhalterbild: 'Placeholder image',
+    angebotAnfragen: 'Request a quote',
+    menue: 'Menu',
+    menueSchliessen: 'Close menu',
     anmelden: 'Sign in',
     navigation: {
       unternehmen: 'Companies',
