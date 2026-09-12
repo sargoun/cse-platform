@@ -46,6 +46,14 @@ export interface BereichZeile {
   readonly handelsregisterNummer: string | null;
   readonly geschaeftsfuehrer: readonly string[];
   readonly ustId: string | null;
+  /**
+   * Hat ein Mensch diese Stammdaten bestaetigt?
+   *
+   * `false` heisst NICHT „falsch", sondern „ungeprueft" — und die Oberflaeche
+   * sagt es, statt eine erfundene Registernummer als Angabe nach § 5 TMG
+   * auszugeben (O-352).
+   */
+  readonly angabenBestaetigt: boolean;
 }
 
 /**
@@ -78,6 +86,7 @@ export async function bereicheLesen(
             m.handelsregister_nummer  as "handelsregisterNummer",
             coalesce(m.geschaeftsfuehrer, '{}') as geschaeftsfuehrer,
             m.ust_id                  as "ustId",
+            (m.angaben_bestaetigt_am is not null) as "angabenBestaetigt",
             coalesce(p.kurzbeschreibung, d.kurzbeschreibung) as kurzbeschreibung
        from mandant m
        left join unternehmensprofil p

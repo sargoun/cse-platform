@@ -44,6 +44,37 @@ test.describe('das Impressum traegt die Pflichtangaben', () => {
       .toContainText('Amtsgericht Charlottenburg');
   });
 
+  test('unbestaetigte Angaben sagen es — VOR der Nummer, nicht darunter', async ({ page }) => {
+    await page.goto('/impressum');
+    const block = page.locator('[data-cse="gesellschaften"]');
+    /*
+     * Anschrift, Register- und Steuernummer stammen bis zur Bestaetigung aus
+     * dem Demonstrationsbestand: `Kurfürstendamm 21`, `HRB 200000`,
+     * `DE100000000` — fortlaufend hochgezaehlt, nie erfragt. Sie ohne
+     * Kennzeichnung als Angaben nach § 5 TMG auszugeben, waere eine amtlich
+     * aussehende Falschauskunft.
+     *
+     * Diese Pruefung faellt an dem Tag, an dem `angaben_bestaetigt_am` gesetzt
+     * wird — und das ist richtig so: dann gehoert sie umgeschrieben, nicht der
+     * Hinweis entfernt.
+     */
+    const warnungen = block.locator('[data-cse="angaben-unbestaetigt"]');
+    await expect(warnungen).toHaveCount(4);
+    await expect(warnungen.first()).toContainText('§ 5 TMG');
+
+    // Die Reihenfolge ist die Aussage: wer erst die Nummer liest und dann den
+    // Hinweis, hat die Nummer schon geglaubt.
+    const ersteKarte = block.locator('[data-slug="reinigung"]');
+    const stellung = await ersteKarte.evaluate((el) => {
+      const w = el.querySelector('[data-cse="angaben-unbestaetigt"]');
+      const dl = el.querySelector('dl');
+      if (w === null || dl === null) return 'fehlt';
+      return (w.compareDocumentPosition(dl) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+        ? 'davor' : 'danach';
+    });
+    expect(stellung).toBe('davor');
+  });
+
   test('was fehlt, steht als Fehlendes da — nicht gar nicht', async ({ page }) => {
     await page.goto('/impressum');
     const block = page.locator('[data-cse="gesellschaften"]');

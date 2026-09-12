@@ -115,6 +115,23 @@ async function main(): Promise<void> {
      * Datenbank laeuft und auf einer benutzten nicht, ist genau die Sorte
      * Fehler, die man dreimal beim Falschen sucht.
      */
+    /**
+     * **Diese Stammdaten sind ERFUNDEN, und `angaben_bestaetigt_am` bleibt
+     * deshalb NULL.**
+     *
+     * `Kurfürstendamm 21`, `+49 30 555 0100`, `DE1000000xx`, `HRB 2000xx` —
+     * fortlaufend hochgezaehlt, nie beim Mandanten erfragt. Als reine Fixtur
+     * war das folgenlos. Seit das Impressum die Angaben nach § 5 TMG ausweist,
+     * ist es das Gegenteil: eine rechtlich bindende Seite naennte eine
+     * Registernummer, die es nicht gibt.
+     *
+     * Weglassen geht nicht — `mandant_ustg14_vollstaendig` verlangt Anschrift
+     * und Steuernummer von jeder Gesellschaft mit eigenem Rechnungskreis
+     * (§ 14 UStG). Die Werte muessen da sein, damit das System arbeitet; sie
+     * duerfen nur nicht als gesichert AUFTRETEN. Genau dafuer gibt es seit
+     * 0097 `angaben_bestaetigt_am`, und der Auftritt sagt es sichtbar, solange
+     * die Spalte NULL ist (O-352).
+     */
     const rechtseinheit = b.rechtseinheit === true;
     const [z] = await sql<{ id: string }[]>`
       insert into mandant
@@ -124,12 +141,12 @@ async function main(): Promise<void> {
       values
         (${b.slug}, ${b.name}, ${b.firma}, ${b.rechtsform}, ${b.rechtseinheit},
          ${rechtseinheit},
-         'Kurfürstendamm 21', '10719', 'Berlin', 'DE',
-         '+49 30 555 0100', ${`kontakt@${b.slug}.cse-gruppe.de`}, ${b.farbe},
+         'Kurfürstendamm 21', '10719', 'Berlin', 'DE', -- TODO(client, O-352): echte Anschrift je Gesellschaft
+         '+49 30 555 0100', ${`kontakt@${b.slug}.cse-gruppe.de`}, ${b.farbe}, -- TODO(client, O-352): echte Rufnummer
          '{}', ${i},
-         ${rechtseinheit ? `DE${String(100_000_000 + i)}` : null},
+         ${rechtseinheit ? `DE${String(100_000_000 + i)}` : null}, -- TODO(client, O-352): echte USt-IdNr.
          ${rechtseinheit ? 'Amtsgericht Charlottenburg' : null},
-         ${rechtseinheit ? `HRB ${String(200_000 + i)}` : null})
+         ${rechtseinheit ? `HRB ${String(200_000 + i)}` : null})  -- TODO(client, O-352): echte HRB-Nummer
       -- ist_rechtseinheit MUSS mit: der CHECK verbindet beide Spalten, ein
       -- eigener Nummernkreis setzt eine Rechtseinheit voraus. Der Zweig setzte
       -- nur eigener_nummernkreis. Traf er eine Zeile, die von anderswo kam
@@ -530,7 +547,7 @@ async function main(): Promise<void> {
    *
    * Der vierte Wert ist `stundensatz_intern` in ganzen Cent (Invariante 1).
    * Er ist bei den sechs gewerblichen Beschaeftigungen ein DEMOWERT und bei
-   * den vier Fuehrungs- und Verwaltungsstellen `null` — nicht aus
+   * den SECHS Fuehrungs- und Verwaltungsstellen `null` — nicht aus
    * Bequemlichkeit:
    * // TODO(client, O-347): In welcher Beschäftigungsform stehen die
    * Führungs- und Verwaltungskräfte der drei Gesellschaften, und wird ihre
@@ -541,6 +558,13 @@ async function main(): Promise<void> {
    * fiele niemandem mehr auf. `arbeitszeitmodell` bleibt bei allen auf dem
    * Vorgabewert `unbekannt` (O-18) — auch das ist eine offene Frage und kein
    * Versaeumnis.
+   *
+   * **Die Zahl stand auf „vier"**, und zwar hier und im Register, seit dem
+   * Tag, an dem `admin.security` und `leitung.reinigung` dazukamen. Sie ist
+   * kein Schmuck: O-347 zaehlt die betroffenen Konten AUF, und wer die offene
+   * Frage nach dieser Liste beantwortet haette, haette zwei Beschaeftigungen
+   * uebersehen — zwei Kostenstellen ohne Satz, die in der Antwort nicht
+   * vorkommen und danach niemandem mehr auffallen.
    */
   const anstellungen: readonly (readonly [number, string, string, number | null])[] = [
     [0, 'reinigung', 'R-1001', 1450],   // Fatima, Reinigung
@@ -549,7 +573,7 @@ async function main(): Promise<void> {
     [2, 'security', 'S-2002', 1690],
     [3, 'bau', 'B-3001', 2150],
     [4, 'reinigung', 'R-1003', 1400],
-    // Die vier Fuehrungs- und Verwaltungsstellen, je in IHRER Gesellschaft.
+    // Die sechs Fuehrungs- und Verwaltungsstellen, je in IHRER Gesellschaft.
     [5, 'security', 'S-2003', null],    // Katrin Lehmann, Wachleitung
     [6, 'bau', 'B-3002', null],         // Thomas Schröder, Bauleitung
     [7, 'reinigung', 'R-1004', null],   // Silke Neumann, Objektverwaltung
