@@ -118,6 +118,7 @@ export function Abschnitte(
                 akzentWort={a.akzentWort}
                 text={a.text}
                 bild={bildVon(a, motivFuerPfad(seite.pfad))}
+                sprache={sprache}
               />
             );
           case 'markenkarten':
@@ -134,6 +135,7 @@ export function Abschnitte(
                     anspruch={ansprueche[b.slug] ?? ''}
                     href={mitSprache(`/unternehmen/${b.slug}`, sprache)}
                     bild={bildFuerMotiv(motivFuerBereich(b.bereich))}
+                    sprache={sprache}
                   />
                 ))}
               </section>

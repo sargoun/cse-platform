@@ -21,6 +21,17 @@ export interface ShellTexte {
   readonly sprachwahl: string;
   readonly zurStartseite: string;
   /**
+   * Die Aufforderung auf der Markenkarte und das Schild am Platzhalterbild.
+   *
+   * Sie standen als deutsche Literale in `MarkenKarte.tsx`. Die Karten
+   * erscheinen auf `/` UND auf `/en`, also las die englische Startseite
+   * „Mehr erfahren →" und „Platzhalterbild" — genau der Fall, den der
+   * Kopfkommentar dieser Datei beschreibt: ein deutsches Wort auf der Seite,
+   * die jemand liest, WEIL er kein Deutsch kann.
+   */
+  readonly mehrErfahren: string;
+  readonly platzhalterbild: string;
+  /**
    * Der Weg vom oeffentlichen Auftritt IN die Plattform.
    *
    * Er fehlte, und das war kein Schoenheitsfehler: es gab von `/` aus
@@ -49,6 +60,8 @@ export const SHELL_TEXTE: Readonly<Record<Sprache, ShellTexte>> = {
     rechtlichesNav: 'Rechtliches',
     sprachwahl: 'Sprache',
     zurStartseite: 'Zur Startseite',
+    mehrErfahren: 'Mehr erfahren →',
+    platzhalterbild: 'Platzhalterbild',
     anmelden: 'Anmelden',
     navigation: {
       unternehmen: 'Unternehmen',
@@ -69,6 +82,8 @@ export const SHELL_TEXTE: Readonly<Record<Sprache, ShellTexte>> = {
     rechtlichesNav: 'Legal',
     sprachwahl: 'Language',
     zurStartseite: 'To the home page',
+    mehrErfahren: 'Learn more →',
+    platzhalterbild: 'Placeholder image',
     anmelden: 'Sign in',
     navigation: {
       unternehmen: 'Companies',

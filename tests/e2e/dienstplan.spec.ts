@@ -329,9 +329,31 @@ test.describe('(3)/(4) Befunde und ihre Quittung', () => {
     // Quittiert heisst: verschwunden aus dem Eingang, aber nicht geloescht.
     await expect(page.locator(`[data-cse="konflikt"][data-konflikt="${warnKonflikt}"]`))
       .toHaveCount(0);
-    const [z] = await sql.unsafe<{ status: string; grund: string | null }[]>(
-      `select status::text as status, quittierung_begruendung as grund
+    /**
+     * **Verschwunden ist nicht dasselbe wie quittiert.**
+     *
+     * Der Eingang zeigt `status = 'offen' and hinfaellig_am is null`
+     * (`konflikte/page.tsx:136`). Eine Karte faellt also aus ihm heraus, wenn
+     * sie quittiert wurde ODER wenn sie hinfaellig wurde — und seit es fuer
+     * `hinfaellig_am` einen Schreiber gibt, ist der zweite Weg kein
+     * theoretischer mehr.
+     *
+     * Genau so ist diese Pruefung einmal gefallen: die Karte war weg, der
+     * Status stand auf `offen`, und die Meldung lautete `Received: "offen"` —
+     * ohne ein Wort darueber, dass die Karte ueberholt worden war. Die
+     * Abfrage liest `hinfaellig_am` jetzt mit und sagt es.
+     */
+    const [z] = await sql.unsafe<
+      { status: string; grund: string | null; hinfaellig: Date | null }[]
+    >(
+      `select status::text as status, quittierung_begruendung as grund,
+              hinfaellig_am as hinfaellig
          from planungs_konflikt where id = $1`, [warnKonflikt]);
+    expect(
+      z!.hinfaellig,
+      'die Karte wurde ueberholt, nicht quittiert — ein anderer Lauf hat sie '
+      + 'hinfaellig gesetzt, bevor diese Pruefung ihre Begruendung abgab',
+    ).toBeNull();
     expect(z!.status).toBe('quittiert');
     expect(z!.grund).toContain('Ersatz kurzfristig');
   });

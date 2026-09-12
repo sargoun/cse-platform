@@ -171,6 +171,27 @@ async function festgeschriebenerBeleg(page: Page): Promise<void> {
   await page.getByLabel('Einzelpreis (Cent)').fill('10000');
   await page.getByRole('button', { name: 'Position hinzufügen' }).click();
 
+  /**
+   * **Erst nachsehen, ob die Position wirklich steht.**
+   *
+   * Hier stand der naechste Klick direkt daneben. Der Knopf „Rechnung
+   * festschreiben" ist `disabled`, solange kein Posten da ist — Playwright
+   * wartet dann brav 30 Sekunden darauf, dass er `enabled` wird, und meldet
+   * am Ende „Test timeout exceeded". Das ist die teuerste Art, einen Fehler
+   * zu melden: sie nennt die Stelle, an der gewartet wurde, und verschweigt
+   * die Stelle, an der etwas schiefging.
+   *
+   * Genau so ist es passiert — allein gefahren gruen, mit drei Arbeitern auf
+   * derselben Datenbank einmal rot. Was der Lauf NICHT sagte: ob die
+   * Uebernahme fehlschlug, ob die Seite gar nicht neu rendete, oder ob eine
+   * Meldung dastand. Diese Zeile beantwortet das beim naechsten Mal: sie
+   * faellt dort, wo es passiert, mit dem, was auf dem Bildschirm steht.
+   */
+  await expect(
+    page.getByText('Unterhaltsreinigung').first(),
+    'die Position wurde nicht übernommen — der Beleg ist ohne sie nicht festschreibbar',
+  ).toBeVisible();
+
   await page.getByRole('button', { name: 'Rechnung festschreiben' }).click();
   await page.waitForLoadState('domcontentloaded');
 

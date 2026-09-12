@@ -148,3 +148,51 @@ test.describe('die Kontaktseite zeigt die Wege, die sie nennt', () => {
     await expect(ziel).toHaveAttribute('href', '/en/angebot/bau');
   });
 });
+
+/**
+ * **Kein deutsches Wort auf der englischen Seite.**
+ *
+ * D-82 sagt: eine englische Seite ist eine eigene Zeile. Fuer Inhalt gilt das
+ * ueber `seite`/`abschnitt`; fuer BEDIENWOERTER ueber `SHELL_TEXTE`. Genau
+ * dort fehlten zwei: „Mehr erfahren →" und „Platzhalterbild" standen als
+ * Literale in `MarkenKarte` und `Hero`. Beide Komponenten erscheinen auf `/`
+ * UND auf `/en` — die englische Startseite las also Deutsch.
+ *
+ * Das ist kein Schoenheitsfehler. Es ist ein deutsches Wort auf der Seite, die
+ * jemand liest, WEIL er kein Deutsch kann; der Kopfkommentar von
+ * `src/lib/i18n/texte.ts` sagt es seit dem ersten Tag.
+ *
+ * Die Pruefung nimmt die englische Startseite und sucht nach den Woertern, die
+ * hier schon einmal standen — nicht nach „deutschen Woertern" allgemein: eine
+ * Wortliste waere eine Heuristik, und eine Heuristik, die gelegentlich Recht
+ * hat, wird beim ersten Fehlalarm abgeschaltet.
+ */
+test.describe('die englische Seite traegt kein deutsches Bedienwort', () => {
+  for (const pfad of ['/en', '/en/unternehmen']) {
+    test(`${pfad}: weder „Mehr erfahren" noch „Platzhalterbild"`, async ({ page }) => {
+      const antwort = await page.goto(pfad);
+      expect(antwort?.status(), pfad).toBe(200);
+      const text = (await page.locator('body').innerText()).toLowerCase();
+      for (const wort of ['mehr erfahren', 'platzhalterbild', 'zur startseite']) {
+        expect(text, `${pfad} traegt „${wort}"`).not.toContain(wort);
+      }
+    });
+  }
+
+  test('und die deutsche Seite traegt sie sehr wohl', async ({ page }) => {
+    /*
+     * Die Gegenprobe. Ohne sie liesse sich „das Wort steht nicht da" nicht von
+     * „die Karte wird gar nicht gerendert" unterscheiden — und genau so sieht
+     * ein kaputter Abschnitt aus.
+     */
+    await page.goto('/');
+    const text = (await page.locator('body').innerText()).toLowerCase();
+    expect(text).toContain('mehr erfahren');
+  });
+
+  test('auf Englisch steht die Uebersetzung da', async ({ page }) => {
+    await page.goto('/en');
+    const text = (await page.locator('body').innerText()).toLowerCase();
+    expect(text).toContain('learn more');
+  });
+});
