@@ -190,7 +190,10 @@ proven by test, not by inspection.
 - [x] XRechnung with Leitweg-ID, KoSIT-validated in CI (PR 52; the transmission
       route per public client stays open — O-22)
 - [ ] ZUGFeRD 2.x PDF/A-3
-- [ ] Incoming invoices, expenses, payments, dunning
+- [~] Incoming invoices, expenses, payments, dunning — **payments and open
+      items done** (PR 54.1: `zahlung`, `offener_posten`, `zahlung_zuordnung`,
+      `op_ausgleich`, nightly reconciliation). Incoming invoices, receipts and
+      expenses follow in PR 54.3, dunning in PR 55 (O-19 open)
 - [ ] Rechnungsausgangsbuch
 
 **Acceptance:**

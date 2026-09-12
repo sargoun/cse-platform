@@ -771,6 +771,19 @@ export const ROUTEN: readonly RouteEintrag[] = [
     pfad: 'api/rechnungen/pruefung',
     recht: 'finanzen.lesen',
   },
+  {
+    /**
+     * Zahlungseingang erfassen und stornieren (PR 54.1, FIN-14, ACC-04).
+     *
+     * `zahlung.schreiben` und NICHT `finanzen.schreiben`: eine Zahlung zu
+     * erfassen ist keine Handlung am Beleg. Wer Rechnungen schreibt, darf
+     * deshalb nicht schon deswegen Geldeingaenge buchen — die Trennung ist
+     * die uebliche im Rechnungswesen, und der Katalog fuehrt beide Rechte
+     * getrennt.
+     */
+    pfad: 'api/finanzen/zahlungen',
+    recht: 'zahlung.schreiben',
+  },
 ] as const;
 
 /** Die Routen, die ein Recht verlangen. */

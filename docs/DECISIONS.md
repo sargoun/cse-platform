@@ -6003,3 +6003,152 @@ und die betroffene Datei liegt in der zweiten Hälfte. Die Lehre ist nicht
 „öfter laufen lassen", sondern: **ein Lauf, der abgebrochen wird, hat nichts
 bewiesen** — und die drei grünen Teilläufe davor haben mich das Gegenteil
 glauben lassen.
+
+---
+
+### D-397 · Der offene Posten entsteht an der Tabelle, nicht in der Festschreibungsfunktion
+
+PR 54.1 (FIN-14, ACC-07, `05-FINANZEN.md` §7.3).
+
+Eine festgeschriebene Rechnung war bisher das Ende der Kette: Nummer, Hash,
+Fälligkeit — und danach wusste das System nicht, ob sie bezahlt wurde. Ohne
+offenen Posten gibt es keinen Mahnlauf (FIN-15), keine Wache „überfällig > 14
+Tage", keine Altersliste und kein Ausgangsbuch, das sich abstimmen lässt
+(FIN-16). 0121 bringt `zahlung`, `offener_posten`, `zahlung_zuordnung`,
+`op_ausgleich` und die beiden Stammtische `bankkonto` und `kasse`.
+
+**Wo der Posten entsteht, ist die eigentliche Entscheidung.** Der naheliegende
+Ort wäre `fin.rechnung_nummer_ziehen` — dort läuft heute jede Festschreibung
+durch. „Heute" ist das Problem: ein Import, ein Reparaturskript oder eine
+spätere Route setzt `status` und ginge daran vorbei. Die Rechnung stünde dann
+gestellt in den Büchern und in keiner Forderungsliste, und bemerkt würde es,
+wenn das Geld ausbleibt. Der Auslöser hängt deshalb an `rechnung`, mit
+derselben Begründung wie `fin.eadresse_einfrieren` (0120) und
+`fin.reverse_charge_pruefen` (D-390): **der Riegel gehört an die Tabelle.**
+
+Nachstellen lässt sich der zweite Weg heute nicht — 0077 lässt keine
+festgeschriebene Rechnung ohne Snapshot zu, und 0076 lässt den Status nur
+einmal wandern. Die Eigenschaft wird deshalb dort geprüft, wo sie steht: ein
+Isolationstest liest `pg_trigger` und verlangt, dass
+`fin.rechnung_nummer_ziehen` das Wort `offener_posten` NICHT enthält. Diese
+Prüfung schlägt an dem Tag an, an dem jemand den Auslöser in die Funktion
+zurückholt.
+
+**Kein Cent-Feld trägt ein Vorzeichen.** Die Richtung steht in
+`zahlung.richtung` und `offener_posten.art`. Ein Storno öffnet deshalb
+`debitor_guthaben` mit positivem Betrag und nicht `debitor` mit negativem:
+`offen_cent` ist `betrag_cent − bezahlt_cent`, und ein negativer Posten
+erreichte die Null nur über `bezahlt_cent < 0`, was `CHECK (bezahlt_cent >= 0)`
+verbietet. Er stünde für immer in der Altersliste.
+
+---
+
+### D-398 · Eine Überzahlung wird ein Guthaben — sie verschwindet nie
+
+PR 54.1 (FIN-14, ACC-07).
+
+Kommen 1.500,00 € auf eine Rechnung über 1.190,00 €, gibt es drei
+Möglichkeiten und zwei davon sind falsch: den Rest wegwerfen (der Kunde
+bekommt sein Geld nie zurück, und niemand sieht es) oder ihn auf die Rechnung
+buchen (der Posten wäre „mehr als bezahlt", und die Forderungsliste stimmt
+nicht mehr). Richtig ist die dritte: die Rechnung ist ausgeglichen, und
+310,00 € stehen als `debitor_guthaben` offen — eine Verbindlichkeit gegenüber
+dem Kunden.
+
+`fin.op_fortschreiben` weist jede Zuordnung ab, die `bezahlt_cent` über
+`betrag_cent` schöbe; nur eine ausdrückliche `differenz` mit Begründung darf
+abschließen, und auch die nur bis zur Höhe des Restes. Eine
+`ueberzahlung`-Zeile berührt `bezahlt_cent` gar nicht: sie ERZEUGT das
+Guthaben, sie gleicht es nicht aus.
+
+**Die Deckungsprüfung zählt nur, was von der Zahlung wirklich abgeht.** Die
+erste Fassung verlangte „Summe aller Zuordnungen ≤ Zahlungsbetrag" und machte
+damit den häufigsten Alltagsfall unbuchbar: 1.189,00 € kommen auf eine
+Rechnung über 1.190,00 €, der eine Euro wird abgeschrieben — Summe 1.190,00 €,
+Zahlung 1.189,00 €, abgewiesen. Vier der acht Arten bewegen kein Geld
+(`skonto`, `bauabzugsteuer_einbehalt`, `differenz`, `gebuehr`), und sie zählen
+seither nicht mit. Gefunden hat es der Test, nicht das Nachdenken.
+
+**Und der Skonto wird nach BRUTTO aufgeteilt, nicht nach Netto.** §17 UStG
+mindert das Entgelt je Steuersatzgruppe. Bei 1.000,00 € zu 19 % und 1.000,00 €
+nach §13b und 2 % Skonto sind das 23,80 € und 20,00 € — beide Nettos sinken um
+exakt 2 %. Nach Netto geteilt wären es 21,90 € und 21,90 €: die Summe stimmte,
+jede einzelne Zeile wäre falsch, und die Voranmeldung zöge daraus. **OB** ein
+Skonto gewährt wird, entscheidet niemand hier: `skonto.platzhalter.ts` hält die
+Toleranz auf 0, bis O-177 beantwortet ist, und jede Unterzahlung bleibt bis
+dahin ein offener Rest.
+
+---
+
+### D-399 · Eine erzeugte Spalte ist im BEFORE-Auslöser NULL — und hat den Änderungsschutz der Rechnung blockiert
+
+PR 54.1, Nebenbefund (Invariante 4, LEG-01, GoBD).
+
+`fin.rechnung_unveraenderlich` (0076) vergleicht `to_jsonb(old)` mit
+`to_jsonb(new)` und nimmt vier Spalten aus — darunter `aufbewahrung_bis`, weil
+der Aufbewahrungslauf die GoBD-Frist auf einem festgeschriebenen Beleg setzen
+muss.
+
+**Diese Ausnahme war tot.** `rechnung.ueberweisungsbetrag_cent` ist eine
+erzeugte Spalte, und PostgreSQL berechnet erzeugte Spalten erst NACH den
+BEFORE-Auslösern: in `new` steht dort NULL, in `old` der Wert. Die beiden
+Abbilder waren damit auf JEDER Änderung verschieden — auch auf einer, die gar
+nichts ändert. Nachgestellt:
+
+```
+update rechnung set aufbewahrung_bis = date '2036-12-31' where id = …;
+ERROR: Rechnung RE-00001: … unveraenderlich — ueberweisungsbetrag_cent wurde geaendert
+```
+
+Zwei Schäden, und der zweite ist der größere: der Aufbewahrungslauf kam an
+keine festgeschriebene Rechnung heran, und die Meldung nannte eine Spalte, die
+niemand angefasst hatte. Wer sie liest, sucht einen Schreibzugriff, den es
+nicht gibt.
+
+0122 nimmt erzeugte Spalten aus dem KATALOG heraus (`pg_attribute.attgenerated`)
+und nicht aus einer Liste. `0084` kennt dieselbe Falle und schreibt
+`- 'mannstunden'`; das ist dort richtig und hier zu wenig, weil 0076 den
+`to_jsonb`-Vergleich ausdrücklich damit begründet, dass eine später
+hinzukommende Spalte automatisch geschützt sein soll. Eine ausgeschriebene
+Ausnahmeliste wäre am Tag der nächsten erzeugten Spalte wieder falsch — und
+wieder still. Verloren geht dabei nichts: eine erzeugte Spalte ist eine
+Funktion ihrer Quellspalten, und die stehen im Vergleich.
+
+**Nebenbei aufgefallen und NICHT behoben:** `rechnung.aufbewahrung_klasse`
+steht auf `rechnung_ausgang`, und `dokument_aufbewahrung` kennt nur
+`rechnung`. Zu keiner Ausgangsrechnung gibt es also eine Regel, `aufbewahrung_bis`
+bleibt NULL und `loeschsperre` steht — fail-closed, wie §1.10 es will. Der
+Eintrag fehlt trotzdem sichtbar, statt sichtbar offen zu sein; das gehört in
+die Runde, die O-25 beantwortet, und nicht in diese.
+
+---
+
+### D-400 · Der nächtliche Abgleich rechnet die offenen Posten unabhängig nach — und repariert nie
+
+PR 54.1 (ACC-07, `05-FINANZEN.md` §7.3, §10).
+
+`offener_posten.bezahlt_cent` ist eine fortgeschriebene Zahl: die Auslöser
+erhöhen sie bei jeder Zuordnung und jedem Ausgleich. Das ist nötig — der
+Mahnlauf muss sich erinnern, was er gemahnt hat, und eine Altersliste muss
+nachträglich reproduzierbar sein. Es ist zugleich die Stelle, an der ein
+Rechenfehler still bleibt.
+
+Die Sicht `offener_posten_berechnet` rechnet dieselbe Zahl aus den Belegzeilen
+noch einmal, auf einem anderen Weg als der Auslöser. Der Job
+`offene_posten_abgleichen` hält beide gegeneinander und nennt die
+**Rechnungsnummer** — dieselbe Bauart wie der Kettenlauf (§5.7): zwei Wege zu
+derselben Zahl, mit Absicht.
+
+**Er repariert nicht, und das steht nicht in einer Zusage dieses Codes.**
+`cse_job` hält auf `offener_posten` genau ein Schreibrecht: `neu_berechnet_am`,
+den Stempel „geprüft am". `bezahlt_cent` ist für ihn unerreichbar, weil das
+Spaltenrecht es verbietet — ein Isolationstest weist beides nach.
+
+**Die Sabotage, die zunächst grün durchlief.** Nimmt man den
+`ueberzahlung`-Ausschluss aus der Sicht heraus, meldete der Lauf auf jedem
+Guthabenposten jede Nacht eine Abweichung. Fünf Sabotagen fielen auf ihren
+Test; diese eine nicht, weil keine Prüfung eine Überzahlung buchte. Eine
+Wache, die täglich dasselbe falsch meldet, wird abgeschaltet — und meldet dann
+auch das Richtige nicht mehr. Der fehlende Fall steht jetzt als eigener Test
+daneben. Die Lehre ist nicht „mehr Tests", sondern: **eine Sabotage, die
+niemanden weckt, prüft die Prüfung.**

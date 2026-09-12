@@ -46,6 +46,16 @@ export const NAVIGATION: readonly NaviEintrag[] = [
   // `finanzen/rechnungen`: die Rechnungen liegen unter `finanzen`, und `rechnungen`
   // allein gibt es als Route nicht — der Punkt fuehrte auf einen 404.
   { schluessel: 'rechnungen', label: 'Rechnungen', pfad: 'finanzen/rechnungen', recht: 'finanzen.lesen', gruppe: true, icon: 'rechnung' },
+  /**
+   * `finanzen/zahlungen` — offene Forderungen, Guthaben und erfasste
+   * Eingaenge (FIN-14). Eigenes Recht: wer Rechnungen schreiben darf, darf
+   * nicht schon deswegen Zahlungseingaenge sehen, und umgekehrt.
+   *
+   * In der Gruppenansicht lesend sinnvoll: was die vier Gesellschaften
+   * zusammen offen haben, ist genau die Frage, fuer die es sie gibt
+   * (Invariante 10 — lesend, ohne Erfassungsformular).
+   */
+  { schluessel: 'zahlungen', label: 'Zahlungen', pfad: 'finanzen/zahlungen', recht: 'zahlung.lesen', gruppe: true, icon: 'euro' },
   { schluessel: 'dokumente', label: 'Dokumente', pfad: 'dokumente', recht: 'dokument.lesen', gruppe: true, icon: 'dokument' },
   /**
    * `bau/projekte`, nicht `bau`: die Seitenkarte fuehrt zwar beides, aber die

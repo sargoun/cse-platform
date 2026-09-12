@@ -736,6 +736,40 @@ async function main(): Promise<void> {
     '  Nummernkreise: Rechnung als PLATZHALTER (O-134); Nachweis, Angebot und Auftrag bestätigt\n',
   );
 
+  // -------------------------------------------------------------- Bankkonto
+  /**
+   * Ein Bankkonto je Rechtseinheit — AUS DER GESELLSCHAFT, nicht daneben.
+   *
+   * Die Kennungen stehen schon auf `mandant` (BT-84/BT-85, oben in diesem
+   * Seed). Sie hier ein zweites Mal zu tippen hiesse, zwei Wahrheiten ueber
+   * dieselbe Bankverbindung zu pflegen — und die eine, die auf der Rechnung
+   * landet, waere dann Zufall. Das Konto liest sie deshalb aus der Zeile,
+   * die es besitzt.
+   *
+   * `ist_standard`: eine neue Rechnung schlaegt dieses Konto vor. Ohne ein
+   * Standardkonto muesste jeder Fakturierende es einzeln waehlen, und wer es
+   * vergisst, stellt eine Rechnung ohne Zahlungsempfaenger — BR-DE-13 weist
+   * sie beim oeffentlichen Auftraggeber zurueck.
+   *
+   * `on conflict do nothing` ueber den Teilindex auf der IBAN: der Seed ist
+   * gegen seine eigene Ausgabe wiederholbar und ueberschreibt kein Konto,
+   * das jemand gepflegt hat.
+   */
+  for (const b of BEREICHE.filter((x) => x.rechtseinheit === true)) {
+    await sql`
+      insert into bankkonto
+        (mandant_id, bezeichnung, iban, bic, kontoinhaber, ist_standard,
+         erstellt_von_art, erstellt_von_dienst)
+      select m.id, 'Geschäftskonto', m.iban, m.bic, m.name, true,
+             'system', 'job:seed'
+        from mandant m
+       where m.id = ${ids.get(b.slug)!} and m.iban is not null
+      on conflict do nothing`;
+  }
+  process.stdout.write(
+    '  Bankkonten: je Rechtseinheit eines, aus der Gesellschaft gelesen (O-353)\n',
+  );
+
   // ------------------------------------------------------ Agent-Richtlinien
   /** Fail-closed: jede Zeile steht auf `auto_erlaubt = false`. */
   for (const b of BEREICHE) {
