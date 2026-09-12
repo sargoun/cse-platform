@@ -142,6 +142,29 @@ Zwei Stuecke aus PR 38 haengen an offenen Fragen:
   unverfuegbar macht, ist **O-209** — es waere die zweite Durchlaessigkeit in
   der Mandantenwand, und K-06 laesst genau eine zu.
 
+**Ein Satz in der Tabelle oben war zu grosszuegig, und die Nachtrunde hat ihn
+korrigiert.** PR 30 steht dort als „Generator + naechtlicher Job" und PR 32
+als „Pruefdienst + Detektor + Job". Die Jobs waren gebaut — Register, Runner,
+Laufprotokoll, vier Definitionen — und **in Produktion registrierte sie
+niemand**: `jobs()` war dort leer, also materialisierte sich der Dienstplan
+nie, wurden Konflikte nie erkannt und liefen Nachweise unbemerkt ab. Jede
+Datei war einzeln geprueft; zusammen taten sie nichts.
+
+Seit `0aaac30` gibt es `src/server/jobs/bootstrap.ts` und
+`POST /api/jobs/<schluessel>` als Ausloeser fuer Supabase cron. „Job" in der
+Tabelle heisst damit jetzt, was es zu heissen vorgab. Die Wache dagegen steht
+in `tests/kern/jobs-bootstrap.test.ts`: sie liest das Verzeichnis und
+verlangt, dass jede Datei mit einer `registriere*`-Funktion im Bootstrap
+steht.
+
+Offen bleibt an dieser Stelle einer der acht Waechter aus SPEC §14: der
+naechtliche **Hashketten-Pruefer** ist vollstaendig gebaut
+(`services/finanz/kettenlauf.ts`) und bewusst NICHT registriert — er filtert
+ueber `app.aktiver_mandant()` und braucht eine gebundene Sitzung, die der
+Job-Kontext nicht stellt. Ein Lauf, der jede Nacht null Rechnungen prueft und
+„ok" meldet, waere schlimmer als keiner. Die Begruendung steht im Bootstrap,
+die offene Frage nach dem Empfaenger als **O-357**.
+
 Bei **Phase 7** ist eine zusaetzliche, unabhaengige Pruefrunde vereinbart,
 bevor der PR aufgemacht und die Copilot-Schleife gefahren wird.
 
