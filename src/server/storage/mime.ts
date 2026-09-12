@@ -55,9 +55,35 @@ const SIGNATUREN: readonly Signatur[] = [
     zusatz: (d) => enthaelt(d, 'xl/'),
   },
   { mime: 'application/zip', bytes: [0x50, 0x4b, 0x03, 0x04] },
-  { mime: 'video/mp4', bytes: ASCII('ftyp'), offset: 4 },
+  /**
+   * **Die Reihenfolge dieser drei ist die Erkennung, nicht ihre Deko.**
+   *
+   * Alle drei sind ISO-BMFF-Container und beginnen bei Offset 4 mit `ftyp`;
+   * unterschieden werden sie erst durch die MARKE dahinter. `find` nimmt den
+   * ersten Treffer, also muss die spezifischste Signatur zuerst stehen. Stand
+   * `video/mp4` (nur `ftyp`) vorn, wurde jede `.mov` und jedes iPhone-Foto als
+   * `video/mp4` erkannt — und `pruefeUpload` wies den Upload dann als
+   * „Widerspruch" ab, obwohl Inhalt und Deklaration übereinstimmten. Das ist
+   * die unangenehme Sorte Fehler: die Datei ist in Ordnung, die Meldung
+   * beschuldigt sie, und niemand sucht in der Reihenfolge einer Liste.
+   */
+  { mime: 'image/heic', bytes: ASCII('ftyp'), offset: 4, zusatz: (d) => istHeicMarke(d) },
   { mime: 'video/quicktime', bytes: ASCII('ftypqt'), offset: 4 },
+  { mime: 'video/mp4', bytes: ASCII('ftyp'), offset: 4 },
 ];
+
+/**
+ * Die HEIF-Marken, die ein Telefon in `ftyp` schreibt. `mif1` und `msf1` sind
+ * die generischen HEIF-Marken; die Bildvarianten heissen `heic`/`heix`/`heim`,
+ * die Sequenzvarianten `hevc`/`hevx`.
+ */
+const HEIC_MARKEN = ['heic', 'heix', 'heim', 'hevc', 'hevx', 'mif1', 'msf1'];
+
+function istHeicMarke(daten: Uint8Array): boolean {
+  if (daten.length < 12) return false;
+  const marke = String.fromCharCode(daten[8]!, daten[9]!, daten[10]!, daten[11]!);
+  return HEIC_MARKEN.includes(marke);
+}
 
 function enthaelt(daten: Uint8Array, text: string): boolean {
   const muster = ASCII(text);
@@ -84,6 +110,7 @@ export function erkenneMime(daten: Uint8Array): string | null {
 /** Was in einer Kategorie überhaupt hochgeladen werden darf. */
 export const ERLAUBTE_MIME: readonly string[] = [
   'application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/tiff',
+  // image/heic steht bewusst NICHT hier — siehe exif.ts und O-346.
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'video/mp4', 'video/quicktime',

@@ -15,7 +15,9 @@
  * is the only writer: a finding that does not map onto those values cannot be
  * persisted at all.
  */
-import { berlinKalendertag, dauerMinuten, ZeitFehler } from './dauer.js';
+import {
+  berlinKalendertag, dauerMinutenAbgerundet, dauerMinutenGerundet, ZeitFehler,
+} from './dauer.js';
 
 /** `02-datenmodell/04-PLANUNG-ZEIT.md` §3 — the enum, mirrored value for value. */
 export const ARBZG_REGELN = [
@@ -44,7 +46,20 @@ export interface Schicht {
   readonly vonUtc: Date;
   readonly bisUtc: Date;
   /** Recorded break total. Never invented — a missing break is a finding. */
-  readonly pauseMinuten: number;
+  /**
+   * Die erfasste Pause — oder `null`, wenn es dazu KEINE Angabe gibt.
+   *
+   * Der Unterschied trägt § 4 ArbZG: `0` heisst „es wurde keine Pause
+   * erfasst" und ist ein Befund; `null` heisst „diese Quelle weiss es nicht"
+   * und ist keiner. Ein GEPLANTES Fenster weiss es nie — der Plan kennt keine
+   * Pausenspalte (O-168), und `app.arbzg_belastung` gibt Dauern und Grenzen
+   * zurück, nie eine Pause (K-06). Aus fehlender Angabe einen Verstoss zu
+   * machen wäre derselbe Fehler wie aus ihr eine Einhaltung zu machen: eine
+   * Aussage ohne Grundlage. Und praktisch der teurere von beiden — eine
+   * Warnung, die auf jeder Nachtschicht steht und sich nicht auflösen lässt,
+   * bringt der Planung bei, Warnungen wegzuklicken.
+   */
+  readonly pauseMinuten: number | null;
 }
 
 export interface ArbzgBefund {
@@ -131,9 +146,26 @@ export function pruefeArbzg(
   }
 
   for (const [tag, tagesSchichten] of [...proTag.entries()].sort()) {
-    const brutto = tagesSchichten.reduce((m, s) => m + dauerMinuten(s.vonUtc, s.bisUtc), 0);
-    const pause = tagesSchichten.reduce((m, s) => m + s.pauseMinuten, 0);
-    const netto = brutto - pause;
+    /**
+     * GERUNDET, nicht exakt gefordert: die Grenzen kommen aus der Serveruhr
+     * und tragen Sekunden (siehe `dauerMinutenGerundet`). Eine Prüfung, die
+     * an einer echten Stempelzeit abbricht, prüft nichts.
+     */
+    const brutto = tagesSchichten.reduce(
+      (m, s) => m + dauerMinutenGerundet(s.vonUtc, s.bisUtc), 0);
+    /**
+     * `null`, sobald EINE beteiligte Schicht nichts über ihre Pause weiss:
+     * eine Summe aus „30 min" und „keine Angabe" ist keine 30 min.
+     */
+    const pause = tagesSchichten.some((s) => s.pauseMinuten === null)
+      ? null
+      : tagesSchichten.reduce((m, s) => m + (s.pauseMinuten ?? 0), 0);
+    /**
+     * Ohne Pausenangabe zaehlt die BRUTTOZEIT. Das ist die vorsichtige
+     * Richtung: wer eine unbekannte Pause abzoege, redete Arbeitszeit klein
+     * und liesse § 3 schweigen, wo er sprechen muesste.
+     */
+    const netto = brutto - (pause ?? 0);
     const ids = tagesSchichten.map((s) => s.id);
     const mandanten = new Set(tagesSchichten.map((s) => s.mandantId));
     const ueber = mandanten.size > 1;
@@ -178,8 +210,9 @@ export function pruefeArbzg(
     }
 
     // §4: 30 min above 6 h, 45 min above 9 h. The recorded total is read; a
-    // missing break is reported, never invented (§3.4, O-168).
-    if (netto > 9 * 60 && pause < PAUSE_AB_9H) {
+    // missing break is reported, never invented (§3.4, O-168). `pause === null`
+    // heisst: keine Quelle wusste es — dann sagt § 4 hier nichts.
+    if (pause !== null && netto > 9 * 60 && pause < PAUSE_AB_9H) {
       befunde.push({
         regel: 'pause_fehlt_ueber_9h',
         schwere: 'verstoss',
@@ -190,7 +223,7 @@ export function pruefeArbzg(
         ueberMandanten: ueber,
         begruendung: `${pause} min Pause bei ${netto} min Arbeitszeit; §4 ArbZG verlangt ${PAUSE_AB_9H} min — ${quelle}`,
       });
-    } else if (netto > 6 * 60 && pause < PAUSE_AB_6H) {
+    } else if (pause !== null && netto > 6 * 60 && pause < PAUSE_AB_6H) {
       befunde.push({
         regel: 'pause_fehlt_ueber_6h',
         schwere: 'verstoss',
@@ -205,27 +238,47 @@ export function pruefeArbzg(
   }
 
   // --- §5 rest period: 11 h between the end of one shift and the next start --
-  for (let i = 1; i < sortiert.length; i += 1) {
-    const vorige = sortiert[i - 1];
-    const naechste = sortiert[i];
-    if (vorige === undefined || naechste === undefined) continue;
-    if (naechste.vonUtc.getTime() < vorige.bisUtc.getTime()) continue; // overlap, not a rest gap
-    const ruhe = dauerMinuten(vorige.bisUtc, naechste.vonUtc);
-    if (ruhe < RUHEZEIT_MINUTEN) {
-      const ueber = vorige.mandantId !== naechste.mandantId;
-      befunde.push({
-        regel: 'ruhezeit_unter_11h',
-        schwere: 'verstoss',
-        personId,
-        kalendertag: berlinKalendertag(naechste.vonUtc),
-        minuten: ruhe,
-        beteiligteSchichten: [vorige.id, naechste.id],
-        ueberMandanten: ueber,
-        begruendung:
-          `${ruhe} min Ruhezeit zwischen Schichtende und nächstem Beginn; ` +
-          `§5 ArbZG verlangt ${RUHEZEIT_MINUTEN} min` +
-          (ueber ? ' — die Schichten liegen in zwei Gesellschaften' : ''),
-      });
+  /**
+   * Gefuehrt wird das bisher SPAETESTE Schichtende, nicht das Ende der nach
+   * BEGINN vorangehenden Schicht.
+   *
+   * Die Liste ist nach Beginn sortiert; das Ende folgt dieser Ordnung nicht.
+   * Vorher verglich die Pruefung starr die Nachbarn dieser Sortierung — und
+   * mass damit bei zwei ueberlappenden oder verschachtelten Schichten die
+   * falsche Luecke: eine Tagschicht 08:00–20:00 mit einem eingeschobenen
+   * Einsatz 09:00–10:00 liess die naechste Schicht gegen 10:00 messen statt
+   * gegen 20:00. Aus einer Stunde Ruhezeit wurden so elf, und § 5 schwieg
+   * genau im Fall, fuer den er da ist. Die verschachtelte Schicht ist kein
+   * Sonderfall, sondern der K-06-Alltag: die zweite Gesellschaft plant in die
+   * laufende Schicht der ersten hinein.
+   */
+  let spaetestesEnde: Schicht | undefined;
+  for (const naechste of sortiert) {
+    if (spaetestesEnde !== undefined
+        && naechste.vonUtc.getTime() >= spaetestesEnde.bisUtc.getTime()) {
+      // ABGERUNDET: 10:59:40 ist keine elfte Stunde, und Wegrunden hiesse, eine
+      // Unterschreitung zu verschweigen.
+      const ruhe = dauerMinutenAbgerundet(spaetestesEnde.bisUtc, naechste.vonUtc);
+      if (ruhe < RUHEZEIT_MINUTEN) {
+        const ueber = spaetestesEnde.mandantId !== naechste.mandantId;
+        befunde.push({
+          regel: 'ruhezeit_unter_11h',
+          schwere: 'verstoss',
+          personId,
+          kalendertag: berlinKalendertag(naechste.vonUtc),
+          minuten: ruhe,
+          beteiligteSchichten: [spaetestesEnde.id, naechste.id],
+          ueberMandanten: ueber,
+          begruendung:
+            `${ruhe} min Ruhezeit zwischen Schichtende und nächstem Beginn; ` +
+            `§5 ArbZG verlangt ${RUHEZEIT_MINUTEN} min` +
+            (ueber ? ' — die Schichten liegen in zwei Gesellschaften' : ''),
+        });
+      }
+    }
+    if (spaetestesEnde === undefined
+        || naechste.bisUtc.getTime() > spaetestesEnde.bisUtc.getTime()) {
+      spaetestesEnde = naechste;
     }
   }
 

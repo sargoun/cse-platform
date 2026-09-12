@@ -1,18 +1,132 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800" role="img" aria-label="Platzhalter: Rohbau"><defs>
-    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#12121A"/><stop offset="0.55" stop-color="#0C0C12"/>
-      <stop offset="1" stop-color="#08080A"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2560 1440" width="2560" height="1440"
+     role="img" aria-label="Motivtafel — hier steht spaeter eine Aufnahme von der Baustelle.">
+  <!--
+    Motivtafel, kein Bild (DESIGN §4.1a, D-376). Sie ist erkennbar eine
+    Zeichnung: flache Flaechen, keine Fototiefe, Figuren als Silhouette ohne
+    Gesicht (§4.2). Sie haelt den Platz sichtbar frei und behauptet nichts.
+    Liegt eine Datei unter public/bilder/bau.*, gewinnt die. O-13.
+    Erzeugt von scripts/motivtafeln.py — nicht von Hand aendern.
+  -->
+  <defs>
+    <linearGradient id="grund" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1F1F24"/>
+      <stop offset="0.55" stop-color="#17171B"/>
+      <stop offset="1" stop-color="#101013"/>
     </linearGradient>
-    <radialGradient id="glow" cx="0.5" cy="0.15" r="0.75">
-      <stop offset="0" stop-color="#F59E0B" stop-opacity="0.20"/>
+    <radialGradient id="schein" cx="0.5" cy="0.22" r="0.78">
+      <stop offset="0" stop-color="#F59E0B" stop-opacity="0.16"/>
+      <stop offset="0.55" stop-color="#F59E0B" stop-opacity="0.05"/>
       <stop offset="1" stop-color="#F59E0B" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="vign" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#08080A" stop-opacity="0"/>
-      <stop offset="0.62" stop-color="#08080A" stop-opacity="0.35"/>
-      <stop offset="1" stop-color="#08080A" stop-opacity="0.95"/>
+    <linearGradient id="overlay" x1="0" y1="0" x2="0" y2="1">
+      <!-- derselbe Verlauf wie `--bild-overlay` in DESIGN §4.4, hier
+           ausgeschrieben: eine SVG-Datei sieht die CSS-Variablen des
+           Dokuments nicht. -->
+      <stop offset="0" stop-color="#08080A" stop-opacity="0.15"/>
+      <stop offset="0.55" stop-color="#08080A" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#08080A" stop-opacity="0.92"/>
     </linearGradient>
-    <linearGradient id="boden" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#15151C"/><stop offset="1" stop-color="#08080A"/>
+  </defs>
+
+  <rect width="2560" height="1440" fill="url(#grund)"/>
+  <rect width="2560" height="1440" fill="url(#schein)"/>
+
+  <!-- Ferne: der Bestand, zwischen dem gebaut wird. -->
+  <g fill="#1C1C21">
+    <rect x="0" y="640" width="340" height="370"/>
+    <rect x="340" y="720" width="300" height="290"/>
+    <rect x="2060" y="660" width="280" height="350"/>
+    <rect x="2340" y="730" width="220" height="280"/>
+  </g>
+  <defs>
+    <linearGradient id="buehne430" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F59E0B" stop-opacity="0"/>
+      <stop offset="0.62" stop-color="#F59E0B" stop-opacity="0.085"/>
+      <stop offset="1" stop-color="#F59E0B" stop-opacity="0.13"/>
     </linearGradient>
-  </defs><rect width="1200" height="800" fill="url(#sky)"/><rect width="1200" height="800" fill="url(#glow)"/><rect x="110" y="220" width="620" height="400" fill="#14141C"/><rect x="110" y="300" width="620" height="9" fill="#3C3C4A"/><rect x="110" y="300" width="620" height="3" fill="#FFFFFF" opacity="0.10"/><rect x="110" y="380" width="620" height="9" fill="#3C3C4A"/><rect x="110" y="380" width="620" height="3" fill="#FFFFFF" opacity="0.10"/><rect x="110" y="460" width="620" height="9" fill="#3C3C4A"/><rect x="110" y="460" width="620" height="3" fill="#FFFFFF" opacity="0.10"/><rect x="110" y="540" width="620" height="9" fill="#3C3C4A"/><rect x="110" y="540" width="620" height="3" fill="#FFFFFF" opacity="0.10"/><rect x="110" y="620" width="620" height="9" fill="#3C3C4A"/><rect x="110" y="620" width="620" height="3" fill="#FFFFFF" opacity="0.10"/><rect x="105" y="220" width="10" height="400" fill="#2E2E3A"/><rect x="229" y="220" width="10" height="400" fill="#2E2E3A"/><rect x="353" y="220" width="10" height="400" fill="#2E2E3A"/><rect x="477" y="220" width="10" height="400" fill="#2E2E3A"/><rect x="601" y="220" width="10" height="400" fill="#2E2E3A"/><rect x="725" y="220" width="10" height="400" fill="#2E2E3A"/><rect x="244" y="312" width="104" height="58" fill="#F59E0B" opacity="0.09"/><rect x="368" y="312" width="104" height="58" fill="#F59E0B" opacity="0.12"/><rect x="492" y="312" width="104" height="58" fill="#FFFFFF" opacity="0.04"/><rect x="616" y="312" width="104" height="58" fill="#F59E0B" opacity="0.11"/><rect x="616" y="392" width="104" height="58" fill="#FFFFFF" opacity="0.04"/><rect x="368" y="472" width="104" height="58" fill="#F59E0B" opacity="0.09"/><rect x="492" y="472" width="104" height="58" fill="#FFFFFF" opacity="0.04"/><rect x="616" y="472" width="104" height="58" fill="#FFFFFF" opacity="0.04"/><rect x="120" y="552" width="104" height="58" fill="#F59E0B" opacity="0.08"/><rect x="368" y="552" width="104" height="58" fill="#FFFFFF" opacity="0.04"/><rect x="616" y="552" width="104" height="58" fill="#F59E0B" opacity="0.07"/><g stroke="#4A4A58" stroke-width="3" opacity="0.75" fill="none"><path d="M96 202 V620"/><path d="M158 202 V620"/><path d="M220 202 V620"/><path d="M282 202 V620"/><path d="M344 202 V620"/><path d="M406 202 V620"/><path d="M468 202 V620"/><path d="M530 202 V620"/><path d="M592 202 V620"/><path d="M654 202 V620"/><path d="M716 202 V620"/><path d="M96 202 H744"/><path d="M96 256 H744"/><path d="M96 310 H744"/><path d="M96 364 H744"/><path d="M96 418 H744"/><path d="M96 472 H744"/><path d="M96 526 H744"/><path d="M96 580 H744"/></g><rect x="871" y="110" width="18" height="510" fill="#F59E0B" opacity="0.9"/><g stroke="#F59E0B" stroke-width="3" opacity="0.45"><path d="M871 150 L889 177 M889 150 L871 177"/><path d="M871 204 L889 231 M889 204 L871 231"/><path d="M871 258 L889 285 M889 258 L871 285"/><path d="M871 312 L889 339 M889 312 L871 339"/><path d="M871 366 L889 393 M889 366 L871 393"/><path d="M871 420 L889 447 M889 420 L871 447"/><path d="M871 474 L889 501 M889 474 L871 501"/><path d="M871 528 L889 555 M889 528 L871 555"/><path d="M871 582 L889 609 M889 582 L871 609"/></g><rect x="878" y="64" width="4" height="46" fill="#F59E0B" opacity="0.7"/><rect x="630" y="106" width="250" height="12" fill="#F59E0B" opacity="0.85"/><rect x="644" y="76" width="86" height="34" fill="#2A2A36"/><rect x="880" y="106" width="290" height="12" fill="#F59E0B" opacity="0.95"/><g stroke="#F59E0B" stroke-width="3" opacity="0.8" fill="none"><path d="M878 64 L1166 108 M878 64 L636 108"/></g><rect x="888" y="120" width="40" height="30" fill="#2A2A36"/><path d="M1094 118 V400" stroke="#4A4A58" stroke-width="3"/><rect x="1052" y="400" width="84" height="58" fill="#F59E0B" opacity="0.55"/><rect x="1052" y="400" width="84" height="6" fill="#FFFFFF" opacity="0.12"/><rect x="0" y="620" width="1200" height="180" fill="url(#boden)"/><rect x="0" y="620" width="1200" height="2" fill="#FFFFFF" opacity="0.07"/><g opacity="0.55"><rect x="90" y="654" width="230" height="20" fill="#F59E0B"/><rect x="90" y="680" width="180" height="20" fill="#F59E0B" opacity="0.7"/><rect x="360" y="660" width="140" height="20" fill="#3A3A46"/><rect x="360" y="686" width="96" height="20" fill="#3A3A46" opacity="0.7"/></g><rect x="560" y="650" width="46" height="10" fill="#F59E0B" opacity="0.5"/><rect x="650" y="650" width="46" height="10" fill="#F59E0B" opacity="0.5"/><rect x="740" y="650" width="46" height="10" fill="#F59E0B" opacity="0.5"/><rect x="830" y="650" width="46" height="10" fill="#F59E0B" opacity="0.5"/><rect x="920" y="650" width="46" height="10" fill="#F59E0B" opacity="0.5"/><rect x="1010" y="650" width="46" height="10" fill="#F59E0B" opacity="0.5"/><rect width="1200" height="800" fill="url(#vign)"/><rect x="0" y="0" width="1200" height="3" fill="#F59E0B" opacity="0.85"/></svg>
+  </defs>
+  <rect x="0" y="430" width="2560" height="580" fill="url(#buehne430)"/>
+  <rect x="0" y="1007" width="2560" height="3" fill="#F59E0B" opacity="0.55"/>
+  <rect x="0" y="1010" width="2560" height="430" fill="#0B0B0E"/>
+
+  <!-- Mitte: Rohbau im Geruest. Das Geruest IST das Motiv. -->
+  <rect x="700" y="300" width="760" height="710" fill="#131318"/>
+  <g stroke="#34343C" stroke-width="7" fill="none">
+    <line x1="682" y1="360" x2="1478" y2="360"/>
+    <line x1="682" y1="478" x2="1478" y2="478"/>
+    <line x1="682" y1="596" x2="1478" y2="596"/>
+    <line x1="682" y1="714" x2="1478" y2="714"/>
+    <line x1="682" y1="832" x2="1478" y2="832"/>
+    <line x1="682" y1="950" x2="1478" y2="950"/>
+    <line x1="700" y1="300" x2="700" y2="1010"/>
+    <line x1="808" y1="300" x2="808" y2="1010"/>
+    <line x1="916" y1="300" x2="916" y2="1010"/>
+    <line x1="1024" y1="300" x2="1024" y2="1010"/>
+    <line x1="1132" y1="300" x2="1132" y2="1010"/>
+    <line x1="1240" y1="300" x2="1240" y2="1010"/>
+    <line x1="1348" y1="300" x2="1348" y2="1010"/>
+    <line x1="1456" y1="300" x2="1456" y2="1010"/>
+  </g>
+  <g stroke="#26262C" stroke-width="4" opacity="0.8">
+    <line x1="700" y1="478" x2="808" y2="360"/>
+    <line x1="1352" y1="478" x2="1460" y2="360"/>
+    <line x1="700" y1="714" x2="808" y2="596"/>
+    <line x1="1352" y1="714" x2="1460" y2="596"/>
+    <line x1="700" y1="950" x2="808" y2="832"/>
+    <line x1="1352" y1="950" x2="1460" y2="832"/>
+  </g>
+  <rect x="682" y="294" width="796" height="8" fill="#F59E0B" opacity="0.9"/>
+  <g fill="#131318" opacity="0.7">
+    <rect x="730" y="370" width="320" height="94"/>
+    <rect x="950" y="488" width="320" height="94"/>
+    <rect x="730" y="606" width="320" height="94"/>
+    <rect x="950" y="724" width="320" height="94"/>
+    <rect x="730" y="842" width="320" height="94"/>
+  </g>
+  <!-- Der Kran: das eine Element, an dem jeder eine Baustelle erkennt. -->
+  <g fill="#0B0B0E">
+    <rect x="1700" y="210" width="30" height="800"/>
+    <rect x="1280" y="196" width="880" height="24"/>
+    <rect x="1678" y="130" width="74" height="72"/>
+  </g>
+  <g stroke="#0B0B0E" stroke-width="9" fill="none">
+    <path d="M 1715 130 L 1330 204"/>
+    <path d="M 1715 130 L 2130 204"/>
+  </g>
+  <line x1="1470" y1="220" x2="1470" y2="690" stroke="#0B0B0E" stroke-width="5"/>
+  <rect x="1424" y="690" width="92" height="70" fill="#0B0B0E"/>
+  <!-- Vorn: Paletten und zwei Silhouetten bei der Arbeit. -->
+  <g fill="#0B0B0E">
+    <rect x="1520" y="976" width="280" height="30"/>
+    <rect x="1528" y="942" width="280" height="30"/>
+    <rect x="1536" y="908" width="280" height="30"/>
+    <rect x="1544" y="874" width="280" height="30"/>
+  </g>
+  <g fill="#0B0B0E">
+    <circle cx="900" cy="702" r="25.2" fill="#0B0B0E"/>
+    <path d="M 854 737 L 946 737 L 956 870 L 844 870 Z" fill="#0B0B0E"/>
+    <rect x="848" y="863" width="38" height="147" fill="#0B0B0E"/>
+    <rect x="914" y="863" width="38" height="147" fill="#0B0B0E"/>
+    <rect x="942" y="744" width="32" height="119" fill="#0B0B0E" transform="rotate(18 900 765)"/>
+    <path d="M 865 695 a 35.0 35.0 0 0 1 70 0 Z" fill="#F59E0B"/>
+    <circle cx="1120" cy="727" r="23.2" fill="#0B0B0E"/>
+    <path d="M 1078 759 L 1162 759 L 1172 881 L 1068 881 Z" fill="#0B0B0E"/>
+    <rect x="1072" y="875" width="35" height="135" fill="#0B0B0E"/>
+    <rect x="1133" y="875" width="35" height="135" fill="#0B0B0E"/>
+    <rect x="1081" y="765" width="29" height="109" fill="#0B0B0E" transform="rotate(-18 1120 785)"/>
+    <path d="M 1088 720 a 32.2 32.2 0 0 1 64 0 Z" fill="#F59E0B"/>
+  </g>
+  <rect x="1132" y="680" width="9" height="330" fill="#0B0B0E"/>
+  <rect width="2560" height="1440" fill="url(#overlay)"/>
+
+  <!-- Die Akzentlinie: sechs Pixel, die Gesellschaft, sonst nichts. -->
+  <rect x="128" y="1204" width="112" height="6" fill="#F59E0B"/>
+  <text x="128" y="1280" fill="#FAFAFA"
+        font-family="Inter, system-ui, sans-serif" font-size="46" font-weight="600"
+        letter-spacing="4">REALTIME SERVICE</text>
+  <text x="128" y="1336" fill="#8B8B95"
+        font-family="Inter, system-ui, sans-serif" font-size="30" font-weight="400">Hier steht spaeter eine Aufnahme von der Baustelle.</text>
+  <text x="2432" y="1336" fill="#8B8B95" text-anchor="end"
+        font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="26"
+        letter-spacing="3">PLATZHALTER · O-13</text>
+</svg>

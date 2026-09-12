@@ -1,0 +1,542 @@
+/**
+ * Der EINE Kanonisierer — `cse.rechnung.v1`, RFC 8785 (JCS).
+ *
+ * `05-FINANZEN.md` §5.3. Diese Datei erzeugt die Bytes, die gehasht werden.
+ * Es gibt sie genau einmal, und das ist keine Stilfrage: die Kette wird in
+ * SQL geschrieben (`fin.rechnung_kette_schreiben`) und in TypeScript geprueft
+ * (`hash-chain.ts`). Gaebe es zwei Kanonisierer, verifizierte die Kette gegen
+ * keinen von beiden — und der Bruch faellt erst dem naechtlichen Lauf auf,
+ * Wochen nachdem die Rechnungen aus dem Haus sind.
+ *
+ * **Vier Regeln, und jede verhindert einen konkreten Ausfall:**
+ *
+ * 1. **Betraege sind ganzzahlige Cent-JSON-Zahlen.** Kein `19.99`, nirgends.
+ *    Ein Gleitkommawert ueberlebt die Rundreise `parse(stringify(x))` nicht
+ *    zuverlaessig, und ein Beleg, dessen Nutzlast sich nicht byte-genau
+ *    reproduzieren laesst, ist kein Beweis.
+ *
+ * 2. **Mengen und Dezimalsaetze sind ZEICHENKETTEN mit genau drei
+ *    Nachkommastellen** (`"12.500"`). `numeric(12,3)` in eine JS-Zahl zu
+ *    wandeln und zurueck ist nicht reproduzierbar; als Zeichenkette ist es
+ *    exakt dasselbe, was in der Spalte steht.
+ *
+ * 3. **Nullwerte werden AUSGESCHRIEBEN, nie weggelassen.** Ein spaeter
+ *    hinzukommendes Feld aendert damit sichtbar den Hash, statt unsichtbar
+ *    zu fehlen. `undefined` ist deshalb ein FEHLER und kein stilles `null`:
+ *    ein vergessenes Feld soll laut sein.
+ *
+ * 4. **Schluessel sortiert nach UTF-16-Codeeinheiten, Arrays in
+ *    festgelegter Reihenfolge.** Das ist RFC 8785; die Array-Ordnungen
+ *    (`positionen` nach `nr`, `zuschlaege` nach `(art, bezeichnung)`,
+ *    `steuerzeilen` nach Gruppenschluessel …) stehen daneben, weil JCS ueber
+ *    Arrays nichts sagt und zwei Abfragen ohne `order by` zwei Hashes
+ *    ergaeben.
+ *
+ * **Was hier NICHT steht:** irgendeine Rechnung. Der Kanonisierer nimmt
+ * fertige Werte entgegen und formatiert sie. Rechnen tut `steuer/satz.ts`
+ * (Invariante 1, Invariante 6).
+ */
+import type { Cent } from './geld.js';
+import { mengeNachPostgres, type MilliMenge } from './menge.js';
+
+/** Die Gestalt der Nutzlast. Sie wird erhoeht, BEVOR damit festgeschrieben wird. */
+export const SCHEMA_VERSION = 'cse.rechnung.v1' as const;
+
+export class KanonisierungsFehler extends Error {
+  constructor(nachricht: string) {
+    super(nachricht);
+    this.name = 'KanonisierungsFehler';
+  }
+}
+
+/**
+ * Was der Kanonisierer ueberhaupt annimmt.
+ *
+ * `bigint` steht ausdruecklich drin — Geld ist `bigint` Cent (Invariante 1),
+ * und `JSON.stringify` wirft darauf. Deshalb serialisiert diese Datei selbst,
+ * statt `JSON.stringify` mit sortierten Schluesseln zu fuettern.
+ */
+export type KanonischerWert =
+  | null
+  | boolean
+  | number
+  | bigint
+  | string
+  | readonly KanonischerWert[]
+  | { readonly [k: string]: KanonischerWert };
+
+/**
+ * Zeichenketten nach RFC 8785: die ES-`JSON.stringify`-Escapes, und der Text
+ * zuvor NFC-normalisiert.
+ *
+ * Ohne NFC ergeben „Müller" in zusammengesetzter und in zerlegter Form zwei
+ * verschiedene Byte-Folgen und damit zwei verschiedene Hashes — derselbe
+ * Kundenname, je nachdem, ueber welches Betriebssystem er einmal eingetippt
+ * wurde.
+ */
+function zeichenkette(wert: string): string {
+  return JSON.stringify(wert.normalize('NFC'));
+}
+
+function zahl(wert: number): string {
+  if (!Number.isInteger(wert)) {
+    throw new KanonisierungsFehler(
+      `Nur ganze Zahlen sind kanonisierbar, nicht ${String(wert)} — `
+      + 'Betraege sind Cent, Mengen sind Zeichenketten (§5.3).',
+    );
+  }
+  if (!Number.isSafeInteger(wert)) {
+    throw new KanonisierungsFehler(`Zahl ausserhalb des sicheren Bereichs: ${String(wert)}`);
+  }
+  // `-0` und `0` sind derselbe Betrag und muessen dieselben Bytes ergeben.
+  return String(wert === 0 ? 0 : wert);
+}
+
+/**
+ * Der Serialisierer. Rekursiv, ohne Zwischenobjekt, ohne `JSON.stringify` auf
+ * der Struktur — nur auf einzelnen Zeichenketten.
+ */
+function schreibe(wert: KanonischerWert, pfad: string): string {
+  if (wert === null) return 'null';
+  if (typeof wert === 'boolean') return wert ? 'true' : 'false';
+  if (typeof wert === 'bigint') return wert.toString(10);
+  if (typeof wert === 'number') return zahl(wert);
+  if (typeof wert === 'string') return zeichenkette(wert);
+
+  if (Array.isArray(wert)) {
+    const teile = (wert as readonly KanonischerWert[]).map(
+      (w, i) => schreibe(w, `${pfad}[${String(i)}]`),
+    );
+    return `[${teile.join(',')}]`;
+  }
+
+  const objekt = wert as { readonly [k: string]: KanonischerWert };
+  // RFC 8785: Sortierung nach UTF-16-Codeeinheiten. Genau das tut
+  // `Array.prototype.sort` ohne Vergleichsfunktion — und genau deshalb steht
+  // hier keine.
+  const schluessel = Object.keys(objekt).sort();
+  const teile = schluessel.map((k) => {
+    const v = objekt[k];
+    if (v === undefined) {
+      throw new KanonisierungsFehler(
+        `${pfad}.${k} ist undefined. Nullwerte werden AUSGESCHRIEBEN (§5.3) — `
+        + 'ein weggelassenes Feld aendert den Hash unsichtbar.',
+      );
+    }
+    return `${zeichenkette(k)}:${schreibe(v, `${pfad}.${k}`)}`;
+  });
+  return `{${teile.join(',')}}`;
+}
+
+/** Die kanonischen UTF-8-Bytes eines Wertes. Massgeblich ist diese Ausgabe. */
+export function kanonisiere(wert: KanonischerWert): Uint8Array {
+  return Buffer.from(schreibe(wert, '$'), 'utf8');
+}
+
+/** Dieselbe Ausgabe als Text — fuer Tests und Fehlermeldungen. */
+export function kanonischerText(wert: KanonischerWert): string {
+  return schreibe(wert, '$');
+}
+
+/**
+ * `25_000n` → `"25.000"`. Die Mengenform des §5.3: drei Nachkommastellen,
+ * Punkt als Trenner, nie eine JSON-Zahl.
+ */
+export function mengeAlsText(menge: MilliMenge | null): string | null {
+  return menge === null ? null : mengeNachPostgres(menge);
+}
+
+/**
+ * Ein Instant als RFC 3339 UTC mit Millisekunden.
+ *
+ * Ausgeschrieben und nicht `toISOString()` ueberlassen? Doch — genau das tut
+ * `toISOString()`, und es haengt an keiner Zonen- oder Locale-Einstellung.
+ * Was hier geprueft wird, ist die EINGABE: ein ungueltiges Datum ergaebe
+ * „Invalid Date" und damit eine Nutzlast, die aussieht wie eine Nutzlast.
+ */
+export function instantAlsText(wert: Date | string | null): string | null {
+  if (wert === null) return null;
+  const d = typeof wert === 'string' ? new Date(wert) : wert;
+  if (Number.isNaN(d.getTime())) {
+    throw new KanonisierungsFehler(`Kein gueltiger Zeitpunkt: ${String(wert)}`);
+  }
+  return d.toISOString();
+}
+
+// ---------------------------------------------------------------------------
+// Die Gestalt von `cse.rechnung.v1` (§5.3)
+// ---------------------------------------------------------------------------
+
+/**
+ * **Identitaet wird abgebildet, nicht verwiesen** (K-12).
+ *
+ * Mit nur `kunde_id` und `mandant_id` als Verweis aenderte eine spaetere
+ * Pflege des Kundenstamms oder der Steuernummer, was die Rechnung, die
+ * XRechnung und das PDF SAGEN — waehrend die Kettenpruefung weiter
+ * „intakt: true" meldet. Deshalb steht hier der Name, die Anschrift und die
+ * Steuernummer, wie sie an dem Tag lauteten.
+ */
+export interface Leistender {
+  readonly id: string;
+  readonly name: string;
+  readonly rechtsform: string | null;
+  readonly anschrift: string;
+  readonly steuernummer: string | null;
+  readonly ustid: string | null;
+  readonly gericht: string | null;
+  readonly hrb: string | null;
+  readonly geschaeftsfuehrer: string | null;
+  readonly eadresse: string | null;
+  readonly eadresseSchema: string | null;
+}
+
+export interface Empfaenger {
+  readonly id: string;
+  readonly name: string;
+  readonly anschrift: string;
+  readonly ustid: string | null;
+  readonly leitwegId: string | null;
+  readonly kaeuferReferenz: string | null;
+  readonly bestellnummer: string | null;
+  readonly eadresse: string | null;
+  readonly eadresseSchema: string | null;
+}
+
+export interface Leistungsort {
+  readonly id: string;
+  readonly bezeichnung: string;
+  readonly anschrift: string;
+}
+
+/** Eine Quelle hinter einer Position (FIN-07). In PR 46 immer leer. */
+export interface Quelle {
+  readonly typ: string;
+  readonly id: string;
+  readonly mengeAnteil: MilliMenge | null;
+}
+
+export interface Position {
+  readonly nr: number;
+  readonly art: string;
+  readonly bezeichnung: string;
+  readonly beschreibung: string | null;
+  readonly menge: MilliMenge | null;
+  readonly einheit: string | null;
+  /** BT-130, UN/ECE Rec 20. NULL, solange die Zuordnung Platzhalter ist (O-174). */
+  readonly einheitCode: string | null;
+  readonly preisBasismenge: MilliMenge;
+  readonly einzelpreisCent: Cent | null;
+  readonly rabattBp: number;
+  readonly nettoCent: Cent | null;
+  readonly steuersatzGruppe: string;
+  readonly satzBp: number;
+  readonly kategorie: string;
+  readonly abrechnungsart: string | null;
+  readonly leistungVon: string | null;
+  readonly leistungBis: string | null;
+  readonly quellen: readonly Quelle[];
+}
+
+/**
+ * §5.3 fuehrt in `zuschlaege` ZWEIMAL den Schluessel `satz_bp` — einmal als
+ * BT-94/BT-101 (der Satz des Nachlasses) und einmal als Satz der
+ * Steuergruppe. Ein JSON-Objekt kann denselben Schluessel nicht zweimal
+ * tragen; die zweite Nennung ueberschriebe die erste, und welche das ist,
+ * entschiede die Reihenfolge im Quelltext.
+ *
+ * Aufgeloest wie die TABELLE es aufloest (§4.3): `gruppe_satz_bp` und
+ * `gruppe_kategorie`. Die Spaltennamen sind die eindeutige Fassung derselben
+ * Aussage, also ist das die Lesart, die niemand neu erfindet.
+ */
+export interface Zuschlag {
+  readonly art: string;
+  readonly bezeichnung: string;
+  readonly grundCode: string | null;
+  readonly basisCent: Cent | null;
+  readonly satzBp: number | null;
+  readonly betragCent: Cent;
+  readonly steuersatzGruppe: string;
+  readonly gruppeSatzBp: number;
+  readonly gruppeKategorie: string;
+}
+
+export interface Steuerzeile {
+  readonly steuersatzGruppe: string;
+  readonly kategorie: string;
+  readonly satzBp: number;
+  readonly nettoCent: Cent;
+  readonly steuerCent: Cent;
+  readonly befreiungsgrundCode: string | null;
+  readonly befreiungsgrundText: string | null;
+}
+
+/** Der Abzug eines Abschlags (FIN-08, PR 48). In PR 46 immer leer. */
+export interface Abzug {
+  readonly abschlagNummer: string;
+  readonly steuersatzGruppe: string;
+  readonly abzugNettoCent: Cent;
+  readonly abzugSteuerCent: Cent;
+}
+
+export interface Freistellungsbescheinigung {
+  readonly nummer: string;
+  readonly finanzamt: string;
+  readonly gueltigVon: string;
+  readonly gueltigBis: string;
+  readonly umfang: string;
+}
+
+export interface Bauabzugsteuer {
+  readonly pflichtig: boolean;
+  readonly satzBp: number | null;
+  readonly grundlageCent: Cent | null;
+  readonly einbehaltCent: Cent;
+  readonly freistellungsbescheinigung: Freistellungsbescheinigung | null;
+}
+
+export interface Bankkonto {
+  readonly iban: string;
+  readonly bic: string | null;
+  readonly kontoinhaber: string;
+}
+
+export interface Zahlungsangaben {
+  /** BG-16. NULL, solange `bankkonto` nicht existiert (PR 49). */
+  readonly bankkonto: Bankkonto | null;
+  readonly zahlungsmittelCode: string | null;
+  readonly zahlungsbedingungText: string | null;
+  readonly zahlungszielTage: number | null;
+  readonly faelligAm: string | null;
+  readonly skontoBp: number | null;
+  readonly skontoTage: number | null;
+}
+
+/** Alles, was in die Nutzlast eingeht — fertig aufgeloest, nichts verwiesen. */
+export interface RechnungVollstaendig {
+  readonly leistender: Leistender;
+  readonly empfaenger: Empfaenger;
+  readonly nummernkreisId: string;
+  readonly nummer: string;
+  readonly kettePosition: number;
+  readonly rechnungsart: string;
+  readonly rechnungsartCode: string;
+  readonly rechnungsdatum: string;
+  readonly leistungVon: string | null;
+  readonly leistungBis: string | null;
+  readonly vereinnahmungGeplantAm: string | null;
+  readonly objekt: Leistungsort | null;
+  readonly sprache: string;
+  readonly waehrung: string;
+  readonly kopftext: string | null;
+  readonly fusstext: string | null;
+  readonly steuerhinweis: string | null;
+  readonly hinweise: readonly string[];
+  readonly positionen: readonly Position[];
+  readonly zuschlaege: readonly Zuschlag[];
+  readonly steuerzeilen: readonly Steuerzeile[];
+  readonly abzuege: readonly Abzug[];
+  readonly nettoGesamtCent: Cent;
+  readonly steuerGesamtCent: Cent;
+  readonly bruttoCent: Cent;
+  readonly abzugBruttoCent: Cent;
+  readonly zahlbetragCent: Cent;
+  readonly bauabzugsteuer: Bauabzugsteuer;
+  readonly ueberweisungsbetragCent: Cent;
+  readonly zahlung: Zahlungsangaben;
+  readonly istKleinbetrag: boolean;
+  readonly kleinbetragGrenzeCent: Cent | null;
+  readonly reverseCharge: boolean;
+  readonly reverseChargeGrundlage: string | null;
+  readonly festgeschriebenAm: string;
+  readonly festgeschriebenVon: string;
+}
+
+/** `positionen` nach `nr`; das ist die Ordnung des §5.3. */
+function nachNr(a: Position, b: Position): number {
+  return a.nr - b.nr;
+}
+
+/** Reine Codeeinheiten-Ordnung — dieselbe, nach der JCS Schluessel sortiert. */
+function textOrdnung(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function nachArtBezeichnung(a: Zuschlag, b: Zuschlag): number {
+  return textOrdnung(a.art, b.art) || textOrdnung(a.bezeichnung, b.bezeichnung);
+}
+
+function nachGruppe(a: Steuerzeile, b: Steuerzeile): number {
+  return textOrdnung(a.steuersatzGruppe, b.steuersatzGruppe);
+}
+
+function nachAbschlag(a: Abzug, b: Abzug): number {
+  return textOrdnung(a.abschlagNummer, b.abschlagNummer)
+      || textOrdnung(a.steuersatzGruppe, b.steuersatzGruppe);
+}
+
+function nachTypId(a: Quelle, b: Quelle): number {
+  return textOrdnung(a.typ, b.typ) || textOrdnung(a.id, b.id);
+}
+
+/**
+ * Die Nutzlast als Struktur — in der Form, die `kanonisiere` erwartet.
+ *
+ * Sie wird getrennt von der Serialisierung angeboten, weil
+ * `rechnung_snapshot.nutzlast` (jsonb, nur zum Suchen) denselben INHALT
+ * traegt und die Bytes daraus NICHT abgeleitet werden duerfen: `jsonb`
+ * sortiert um und formatiert Zahlen neu.
+ */
+export function baueNutzlast(r: RechnungVollstaendig): KanonischerWert {
+  return {
+    schema: SCHEMA_VERSION,
+    leistender: {
+      id: r.leistender.id,
+      name: r.leistender.name,
+      rechtsform: r.leistender.rechtsform,
+      anschrift: r.leistender.anschrift,
+      steuernummer: r.leistender.steuernummer,
+      ustid: r.leistender.ustid,
+      gericht: r.leistender.gericht,
+      hrb: r.leistender.hrb,
+      geschaeftsfuehrer: r.leistender.geschaeftsfuehrer,
+      eadresse: r.leistender.eadresse,
+      eadresse_schema: r.leistender.eadresseSchema,
+    },
+    empfaenger: {
+      id: r.empfaenger.id,
+      name: r.empfaenger.name,
+      anschrift: r.empfaenger.anschrift,
+      ustid: r.empfaenger.ustid,
+      leitweg_id: r.empfaenger.leitwegId,
+      kaeufer_referenz: r.empfaenger.kaeuferReferenz,
+      bestellnummer: r.empfaenger.bestellnummer,
+      eadresse: r.empfaenger.eadresse,
+      eadresse_schema: r.empfaenger.eadresseSchema,
+    },
+    nummernkreis_id: r.nummernkreisId,
+    nummer: r.nummer,
+    kette_position: r.kettePosition,
+    rechnungsart: r.rechnungsart,
+    rechnungsart_code: r.rechnungsartCode,
+    rechnungsdatum: r.rechnungsdatum,
+    leistung_von: r.leistungVon,
+    leistung_bis: r.leistungBis,
+    vereinnahmung_geplant_am: r.vereinnahmungGeplantAm,
+    objekt: r.objekt === null ? null : {
+      id: r.objekt.id,
+      bezeichnung: r.objekt.bezeichnung,
+      anschrift: r.objekt.anschrift,
+    },
+    sprache: r.sprache,
+    waehrung: r.waehrung,
+    kopftext: r.kopftext,
+    fusstext: r.fusstext,
+    steuerhinweis: r.steuerhinweis,
+    hinweise: [...r.hinweise],
+    positionen: [...r.positionen].sort(nachNr).map((p) => ({
+      nr: p.nr,
+      art: p.art,
+      bezeichnung: p.bezeichnung,
+      beschreibung: p.beschreibung,
+      menge: mengeAlsText(p.menge),
+      einheit: p.einheit,
+      einheit_code: p.einheitCode,
+      preis_basismenge: mengeAlsText(p.preisBasismenge),
+      einzelpreis_cent: p.einzelpreisCent,
+      rabatt_bp: p.rabattBp,
+      netto_cent: p.nettoCent,
+      steuersatz_gruppe: p.steuersatzGruppe,
+      satz_bp: p.satzBp,
+      kategorie: p.kategorie,
+      abrechnungsart: p.abrechnungsart,
+      leistung_von: p.leistungVon,
+      leistung_bis: p.leistungBis,
+      quellen: [...p.quellen].sort(nachTypId).map((q) => ({
+        typ: q.typ,
+        id: q.id,
+        menge_anteil: mengeAlsText(q.mengeAnteil),
+      })),
+    })),
+    zuschlaege: [...r.zuschlaege].sort(nachArtBezeichnung).map((z) => ({
+      art: z.art,
+      bezeichnung: z.bezeichnung,
+      grund_code: z.grundCode,
+      basis_cent: z.basisCent,
+      satz_bp: z.satzBp,
+      betrag_cent: z.betragCent,
+      steuersatz_gruppe: z.steuersatzGruppe,
+      gruppe_satz_bp: z.gruppeSatzBp,
+      gruppe_kategorie: z.gruppeKategorie,
+    })),
+    steuerzeilen: [...r.steuerzeilen].sort(nachGruppe).map((s) => ({
+      steuersatz_gruppe: s.steuersatzGruppe,
+      kategorie: s.kategorie,
+      satz_bp: s.satzBp,
+      netto_cent: s.nettoCent,
+      steuer_cent: s.steuerCent,
+      befreiungsgrund_code: s.befreiungsgrundCode,
+      befreiungsgrund_text: s.befreiungsgrundText,
+    })),
+    abzuege: [...r.abzuege].sort(nachAbschlag).map((a) => ({
+      abschlag_nummer: a.abschlagNummer,
+      steuersatz_gruppe: a.steuersatzGruppe,
+      abzug_netto_cent: a.abzugNettoCent,
+      abzug_steuer_cent: a.abzugSteuerCent,
+    })),
+    netto_gesamt_cent: r.nettoGesamtCent,
+    steuer_gesamt_cent: r.steuerGesamtCent,
+    brutto_cent: r.bruttoCent,
+    abzug_brutto_cent: r.abzugBruttoCent,
+    zahlbetrag_cent: r.zahlbetragCent,
+    bauabzugsteuer: {
+      pflichtig: r.bauabzugsteuer.pflichtig,
+      satz_bp: r.bauabzugsteuer.satzBp,
+      grundlage_cent: r.bauabzugsteuer.grundlageCent,
+      einbehalt_cent: r.bauabzugsteuer.einbehaltCent,
+      freistellungsbescheinigung: r.bauabzugsteuer.freistellungsbescheinigung === null ? null : {
+        nummer: r.bauabzugsteuer.freistellungsbescheinigung.nummer,
+        finanzamt: r.bauabzugsteuer.freistellungsbescheinigung.finanzamt,
+        gueltig_von: r.bauabzugsteuer.freistellungsbescheinigung.gueltigVon,
+        gueltig_bis: r.bauabzugsteuer.freistellungsbescheinigung.gueltigBis,
+        umfang: r.bauabzugsteuer.freistellungsbescheinigung.umfang,
+      },
+    },
+    ueberweisungsbetrag_cent: r.ueberweisungsbetragCent,
+    zahlung: {
+      bankkonto: r.zahlung.bankkonto === null ? null : {
+        iban: r.zahlung.bankkonto.iban,
+        bic: r.zahlung.bankkonto.bic,
+        kontoinhaber: r.zahlung.bankkonto.kontoinhaber,
+      },
+      zahlungsmittel_code: r.zahlung.zahlungsmittelCode,
+      zahlungsbedingung_text: r.zahlung.zahlungsbedingungText,
+      zahlungsziel_tage: r.zahlung.zahlungszielTage,
+      faellig_am: r.zahlung.faelligAm,
+      skonto_bp: r.zahlung.skontoBp,
+      skonto_tage: r.zahlung.skontoTage,
+    },
+    ist_kleinbetrag: r.istKleinbetrag,
+    kleinbetrag_grenze_cent: r.kleinbetragGrenzeCent,
+    reverse_charge: r.reverseCharge,
+    reverse_charge_grundlage: r.reverseChargeGrundlage,
+    festgeschrieben_am: r.festgeschriebenAm,
+    festgeschrieben_von: r.festgeschriebenVon,
+  };
+}
+
+/**
+ * Die kanonischen Bytes einer Rechnung — die EINE Hasheingabe der Plattform.
+ *
+ * Sie kann erst nach dem Zug der Nummer gebaut werden: `nummer` und
+ * `kette_position` stehen darin. Genau deshalb ist die Festschreibung in zwei
+ * Definer-Aufrufe geteilt (§5.6) und nicht in einen.
+ */
+export function buildKanonischePayload(r: RechnungVollstaendig): Uint8Array {
+  if (r.nummer === '' || r.kettePosition <= 0) {
+    throw new KanonisierungsFehler(
+      'Nutzlast ohne Nummer oder ohne Kettenposition — sie wird NACH dem Zug '
+      + 'gebaut, nicht davor (§5.6).',
+    );
+  }
+  return kanonisiere(baueNutzlast(r));
+}

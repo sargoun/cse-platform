@@ -1,5 +1,6 @@
 import { tabZiel, type TabZiel } from '@/server/registry/tableiste';
 import { GRUPPEN_NAVIGATION, NAVIGATION } from '@/server/registry/navigation';
+import { Icon } from '@/components/ui/Icon';
 
 /**
  * Die Tab-Leiste unter 768 px (DESIGN §5/§8, SEITENKARTE §11.2).
@@ -28,7 +29,10 @@ export interface TabLeisteProps {
   readonly wurzel: string;
   readonly label: string;
   /**
-   * Je Rechteschluessel der NAVIGATION: haelt die Sitzung ihn?
+   * Je NAVIGATIONS-Schluessel (`crm`, `objekte`, …): darf der Punkt
+   * erscheinen? **Nicht je Rechteschluessel** — die Karte kommt aus
+   * `portalZugang` und ist dort nach `schluessel` gebaut, damit Sidebar und
+   * Blatt dieselbe Karte lesen.
    *
    * Nur damit kann das fuenfte Ziel sein Versprechen einloesen. Fehlt die
    * Angabe, bleibt `Mehr` ein gewoehnlicher Link — das ist der Zustand vor
@@ -56,8 +60,25 @@ function MehrZelle({ wurzel, rechte, gruppenansicht }: {
   readonly rechte: Readonly<Record<string, boolean>>;
   readonly gruppenansicht: boolean;
 }) {
+  /*
+   * **Nachgeschlagen unter `schluessel`, nicht unter `recht`.**
+   *
+   * Hier stand `rechte[n.recht] === true`. `portalZugang` schluesselt die
+   * Karte aber nach `n.schluessel` — also `crm` und nicht `crm.lesen`, seit
+   * die Sidebar dieselbe Karte benutzt (`SeitenNavigation` liest
+   * `sichtbar[z.schluessel]`). Jede Abfrage traf damit `undefined`,
+   * `undefined === true` war falsch, und das Blatt ging auf und war LEER:
+   * kein einziger Punkt, obwohl die Sitzung jedes Recht hielt. Unter 768 px
+   * ist dieses Blatt der einzige Weg zu den Modulen ausserhalb der vier
+   * Tabs — am Telefon war das Portal damit auf vier Bildschirme geschrumpft,
+   * ohne dass irgendwo ein Fehler erschien.
+   *
+   * `=== true` bleibt und ist NICHT das `!== false` der Sidebar: was nicht
+   * ausdruecklich erlaubt ist, erscheint hier nicht (AUT-06). Ein fehlender
+   * Schluessel blendet aus, statt aufzudecken.
+   */
   const punkte = (gruppenansicht ? GRUPPEN_NAVIGATION : NAVIGATION)
-    .filter((n) => rechte[n.recht] === true);
+    .filter((n) => rechte[n.schluessel] === true);
 
   return (
     <details data-cse="mehr" className="flex-1">
@@ -67,7 +88,7 @@ function MehrZelle({ wurzel, rechte, gruppenansicht }: {
         className="flex min-h-[44px] cursor-pointer list-none flex-col items-center
                    justify-center gap-s1 px-s2 py-s2 text-micro text-text-muted"
       >
-        <span aria-hidden="true" className="text-base">⋯</span>
+        <Icon name="menue" groesse="md" />
         Mehr
       </summary>
       {/*
@@ -95,11 +116,41 @@ function MehrZelle({ wurzel, rechte, gruppenansicht }: {
                 data-ziel={n.schluessel}
                 className="flex min-h-[44px] items-center gap-s3 py-s3 text-sm text-text"
               >
-                <span aria-hidden="true" className="text-base">{n.symbol}</span>
+                <Icon name={n.icon} groesse="md" className="shrink-0" />
                 {n.label}
               </a>
             </li>
           ))}
+        </ul>
+
+        {/*
+          * Dieselben Ziele wie in der Kopfzeile am Schreibtisch.
+          *
+          * Am Telefon traegt die Kopfzeile sie nicht — bei 375px stehen dort
+          * schon der Auftrittsname und die Lesemarke, und vier weitere Punkte
+          * schoeben die Zeile ueber den Rand. Das Blatt ist der Ort, an dem
+          * das Telefon alles findet, was nicht in fuenf Tabs passt; ein
+          * Portal ohne Ausgang waere es sonst genau hier.
+          */}
+        <h2 className="mt-s5 text-h3 text-text">Sitzung</h2>
+        <ul className="m-0 list-none p-0">
+          {([['/auth/bereich', 'Bereich wechseln'], ['/portal/konto', 'Konto'],
+             ['/', 'Website']] as const).map(([ziel, text]) => (
+               <li key={ziel} className="border-b border-line">
+                 <a href={ziel} data-cse="mehr-sitzung"
+                    className="flex min-h-[44px] items-center py-s3 text-sm text-text">
+                   {text}
+                 </a>
+               </li>
+             ))}
+          <li className="border-b border-line">
+            <form method="post" action="/api/abmelden">
+              <button type="submit" data-cse="mehr-abmelden"
+                      className="flex min-h-[44px] w-full items-center py-s3 text-sm text-text">
+                Abmelden
+              </button>
+            </form>
+          </li>
         </ul>
       </nav>
     </details>
@@ -139,7 +190,7 @@ export function TabLeiste({
                         px-s2 py-s2 text-micro ${
                           z.schluessel === aktiv ? 'text-text' : 'text-text-muted'}`}
           >
-            <span aria-hidden="true" className="text-base">{z.symbol}</span>
+            <Icon name={z.icon} groesse="md" />
             {z.label}
           </a>
         );

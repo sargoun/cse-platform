@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ARBZG_REGELN,
   pruefeArbzg,
+  type ArbzgBefund,
   type Schicht,
 } from '../../src/server/services/zeit/arbzg.js';
 import { berlinTagesZeitpunkt, ZeitFehler } from '../../src/server/services/zeit/dauer.js';
@@ -238,5 +239,299 @@ describe('berlinTagesZeitpunkt: der Kalender, nicht nur die Form', () => {
   it('und ein gewoehnlicher Tag geht weiterhin', () => {
     expect(berlinTagesZeitpunkt('2026-07-14', 9).toISOString())
       .toBe('2026-07-14T07:00:00.000Z');   // CEST: 09:00 Berlin = 07:00 UTC
+  });
+});
+
+/**
+ * **Eine echte Stempelzeit hat Sekunden** — und die Prüfung muss das aushalten.
+ *
+ * `app.checkin_verbrauchen` schreibt `now()`: wer um 05:55:37 einstempelt,
+ * erzeugt ein Arbeitszeitfenster, dessen Abstand zur nächsten Schicht keine
+ * ganze Minute ist. Die Regelrechnung verlangte volle Minuten und warf —
+ * also scheiterte nach dem ersten echten Check-in jede Einteilung dieser
+ * Person mit „Zeiten sind auf die Minute genau zu erfassen". Kein Test fand
+ * das, weil jede Fixtur runde Zeiten setzt; gefunden hat es der Demo-Seed,
+ * der einen laufenden Eintrag anlegt.
+ */
+describe('gemessene Zeiten tragen Sekunden — die Prüfung rechnet trotzdem', () => {
+  const gestempelt: Schicht = {
+    id: 'ist-fenster',
+    personId: PERSON,
+    mandantId: REINIGUNG,
+    vonUtc: utc('2026-05-04T03:55:37.116Z'),
+    bisUtc: utc('2026-05-04T09:28:12.884Z'),
+    pauseMinuten: 0,
+  };
+
+  it('wirft nicht, sondern rundet auf die Minute', () => {
+    expect(() => pruefeArbzg([gestempelt])).not.toThrow();
+    // 5 h 32,6 min — unter acht Stunden, also kein Befund.
+    expect(pruefeArbzg([gestempelt])).toEqual([]);
+  });
+
+  it('und findet die Überschreitung auch dann, wenn die Sekunden sie tragen', () => {
+    const zweite: Schicht = {
+      id: 'ist-fenster-2',
+      personId: PERSON,
+      mandantId: SECURITY,
+      vonUtc: utc('2026-05-04T12:01:03.5Z'),
+      bisUtc: utc('2026-05-04T17:59:58.2Z'),
+      pauseMinuten: 0,
+    };
+    const regeln = pruefeArbzg([gestempelt, zweite]).map((b) => b.regel);
+    expect(regeln).toContain('tagesarbeitszeit_ueber_8h');
+    expect(regeln).toContain('tagesarbeitszeit_ueber_10h');
+  });
+
+  it('die Ruhezeit wird ABGERUNDET — 10:59:40 ist keine elfte Stunde', () => {
+    const abend: Schicht = {
+      id: 'abend',
+      personId: PERSON,
+      mandantId: REINIGUNG,
+      vonUtc: utc('2026-05-04T14:00:00Z'),
+      bisUtc: utc('2026-05-04T20:00:00Z'),
+      pauseMinuten: 0,
+    };
+    const morgen: Schicht = {
+      id: 'morgen',
+      personId: PERSON,
+      mandantId: SECURITY,
+      // 10 h 59 min 40 s später — knapp unter der Ruhezeit.
+      vonUtc: utc('2026-05-05T06:59:40Z'),
+      bisUtc: utc('2026-05-05T10:00:00Z'),
+      pauseMinuten: 0,
+    };
+    expect(pruefeArbzg([abend, morgen]).map((b) => b.regel))
+      .toContain('ruhezeit_unter_11h');
+  });
+});
+
+/**
+ * **Keine Angabe ist kein Verstoss** — § 4 und die Lücke im Plan.
+ *
+ * Der Plan kennt keine Pausenspalte (O-168), und `app.arbzg_belastung` gibt
+ * keine zurück (K-06). Wer daraus „0 Minuten Pause" macht, erzeugt auf jeder
+ * Schicht über sechs Stunden einen Befund, den niemand auflösen kann — es gibt
+ * kein Feld, in das eine geplante Pause gehörte. Genau das tat die Prüfung,
+ * und im Demo-Bestand trug jede Nachtschicht dieselbe Warnung.
+ */
+describe('§ 4: eine unbekannte Pause sagt nichts', () => {
+  const achtStunden = (pause: number | null): Schicht => ({
+    id: 'nacht',
+    personId: PERSON,
+    mandantId: REINIGUNG,
+    vonUtc: utc('2026-05-04T20:00:00Z'),
+    bisUtc: utc('2026-05-05T04:00:00Z'),
+    pauseMinuten: pause,
+  });
+
+  it('`null` erzeugt keinen § 4-Befund', () => {
+    expect(pruefeArbzg([achtStunden(null)]).map((b) => b.regel))
+      .not.toContain('pause_fehlt_ueber_6h');
+  });
+
+  it('`0` dagegen schon — das ist eine ERFASSTE Null', () => {
+    expect(pruefeArbzg([achtStunden(0)]).map((b) => b.regel))
+      .toContain('pause_fehlt_ueber_6h');
+  });
+
+  it('und eine erfasste halbe Stunde genügt', () => {
+    expect(pruefeArbzg([achtStunden(30)]).map((b) => b.regel))
+      .not.toContain('pause_fehlt_ueber_6h');
+  });
+
+  it('eine Summe aus Angabe und Nicht-Angabe ist keine Angabe', () => {
+    const zweite: Schicht = {
+      id: 'zweite',
+      personId: PERSON,
+      mandantId: SECURITY,
+      vonUtc: utc('2026-05-04T10:00:00Z'),
+      bisUtc: utc('2026-05-04T13:00:00Z'),
+      pauseMinuten: null,
+    };
+    const mitAngabe: Schicht = {
+      id: 'erste',
+      personId: PERSON,
+      mandantId: REINIGUNG,
+      vonUtc: utc('2026-05-04T04:00:00Z'),
+      bisUtc: utc('2026-05-04T09:00:00Z'),
+      pauseMinuten: 30,
+    };
+    // Acht Stunden am Tag, davon eine Schicht ohne Pausenangabe: § 4 schweigt,
+    // § 3 nicht.
+    const regeln = pruefeArbzg([mitAngabe, zweite]).map((b) => b.regel);
+    expect(regeln).not.toContain('pause_fehlt_ueber_6h');
+  });
+});
+
+/**
+ * **§ 5 misst gegen das SPÄTESTE Schichtende, nicht gegen den Vorgänger in der
+ * Sortierung.**
+ *
+ * Die Ruhezeitprüfung wurde umgeschrieben (`spaetestesEnde` statt
+ * `sortiert[i-1]`), und keine Prüfung hielt den neuen Fall fest: alle vier
+ * bestehenden `ruhezeit_unter_11h`-Fälle haben Schichten, die sich nicht
+ * überschneiden — unter beiden Fassungen grün. Ein zurückgedrehter Index oder
+ * ein `>` statt `>=` hätte den Verstoß lautlos zurückgebracht, und 954 Unit-
+ * Tests hätten weiter bestanden.
+ *
+ * Was auf dem Spiel steht, ist kein Sonderfall, sondern der K-06-Alltag: die
+ * zweite Gesellschaft plant in die laufende Schicht der ersten hinein. Die
+ * Liste ist nach BEGINN sortiert, das Ende folgt dieser Ordnung nicht — wer
+ * gegen den Sortier-Vorgänger misst, misst gegen eine Schicht, die längst
+ * vorbei war, und macht aus zwei Stunden Ruhezeit elf.
+ */
+describe('§ 5: verschachtelte und gleich beginnende Schichten', () => {
+  const ruhezeiten = (schichten: readonly Schicht[]): readonly ArbzgBefund[] =>
+    pruefeArbzg(schichten).filter((b) => b.regel === 'ruhezeit_unter_11h');
+
+  it('(a) ein eingeschobener Einsatz verkürzt die Ruhezeit nicht auf dem Papier', () => {
+    // 04.05.2026 ist CEST (UTC+2).
+    const tagschicht: Schicht = {
+      id: 'tagschicht', personId: PERSON, mandantId: REINIGUNG,
+      vonUtc: utc('2026-05-04T06:00:00Z'),   // 08:00 Berlin
+      bisUtc: utc('2026-05-04T18:00:00Z'),   // 20:00 Berlin
+      pauseMinuten: null,
+    };
+    const eingeschoben: Schicht = {
+      id: 'eingeschoben', personId: PERSON, mandantId: SECURITY,
+      vonUtc: utc('2026-05-04T07:00:00Z'),   // 09:00 Berlin
+      bisUtc: utc('2026-05-04T08:00:00Z'),   // 10:00 Berlin
+      pauseMinuten: null,
+    };
+    const folgeschicht: Schicht = {
+      id: 'folgeschicht', personId: PERSON, mandantId: REINIGUNG,
+      vonUtc: utc('2026-05-04T20:00:00Z'),   // 22:00 Berlin
+      bisUtc: utc('2026-05-04T21:00:00Z'),   // 23:00 Berlin
+      pauseMinuten: null,
+    };
+
+    const befunde = ruhezeiten([tagschicht, eingeschoben, folgeschicht]);
+    expect(befunde).toHaveLength(1);
+    // 20:00 → 22:00 Berlin sind ZWEI Stunden. Gegen den eingeschobenen Einsatz
+    // gemessen wären es zwölf gewesen, und § 5 hätte geschwiegen.
+    expect(befunde[0]?.minuten).toBe(120);
+    expect(befunde[0]?.beteiligteSchichten).toEqual(['tagschicht', 'folgeschicht']);
+    expect(befunde[0]?.ueberMandanten).toBe(false);
+    expect(befunde[0]?.kalendertag).toBe('2026-05-04');
+  });
+
+  it('(b) bei gleicher Beginnzeit zählt die Schicht, die SPÄTER endet', () => {
+    const bis14: Schicht = {
+      id: 'bis-14', personId: PERSON, mandantId: REINIGUNG,
+      vonUtc: utc('2026-05-04T04:00:00Z'),   // 06:00 Berlin
+      bisUtc: utc('2026-05-04T12:00:00Z'),   // 14:00 Berlin
+      pauseMinuten: null,
+    };
+    const bis10: Schicht = {
+      id: 'bis-10', personId: PERSON, mandantId: SECURITY,
+      vonUtc: utc('2026-05-04T04:00:00Z'),   // 06:00 Berlin — DIESELBE Minute
+      bisUtc: utc('2026-05-04T08:00:00Z'),   // 10:00 Berlin
+      pauseMinuten: null,
+    };
+    const abends: Schicht = {
+      id: 'abends', personId: PERSON, mandantId: SECURITY,
+      vonUtc: utc('2026-05-04T16:00:00Z'),   // 18:00 Berlin
+      bisUtc: utc('2026-05-04T17:00:00Z'),   // 19:00 Berlin
+      pauseMinuten: null,
+    };
+
+    const befunde = ruhezeiten([bis14, bis10, abends]);
+    expect(befunde).toHaveLength(1);
+    // 14:00 → 18:00 sind 240 Minuten. Gegen die 10:00-Schicht wären es 480 —
+    // immer noch ein Befund, aber mit der doppelten Ruhezeit und der falschen
+    // Gesellschaft.
+    expect(befunde[0]?.minuten).toBe(240);
+    expect(befunde[0]?.beteiligteSchichten).toEqual(['bis-14', 'abends']);
+    expect(befunde[0]?.ueberMandanten).toBe(true);
+
+    // Und das Ergebnis hängt NICHT an der Reihenfolge der Eingabe: bei
+    // gleichem Beginn entscheidet sonst die Stabilität der Sortierung, also
+    // der Zufall, in welcher Reihenfolge die Fenster aus der Datenbank kamen.
+    const andersHerum = ruhezeiten([abends, bis10, bis14]);
+    expect(andersHerum).toHaveLength(1);
+    expect(andersHerum[0]?.minuten).toBe(240);
+    expect(andersHerum[0]?.beteiligteSchichten).toEqual(['bis-14', 'abends']);
+    expect(andersHerum[0]?.ueberMandanten).toBe(true);
+  });
+
+  it('(c) K-06: die überdeckende Schicht der ANDEREN Gesellschaft trägt den Befund', () => {
+    const langFremd: Schicht = {
+      id: 'lang-fremd', personId: PERSON, mandantId: SECURITY,
+      vonUtc: utc('2026-05-04T06:00:00Z'),   // 08:00 Berlin
+      bisUtc: utc('2026-05-04T18:00:00Z'),   // 20:00 Berlin
+      pauseMinuten: null,
+    };
+    const kurzEigen: Schicht = {
+      id: 'kurz-eigen', personId: PERSON, mandantId: REINIGUNG,
+      vonUtc: utc('2026-05-04T17:00:00Z'),   // 19:00 Berlin
+      bisUtc: utc('2026-05-04T17:30:00Z'),   // 19:30 Berlin
+      pauseMinuten: null,
+    };
+    const spaetEigen: Schicht = {
+      id: 'spaet-eigen', personId: PERSON, mandantId: REINIGUNG,
+      vonUtc: utc('2026-05-04T18:30:00Z'),   // 20:30 Berlin
+      bisUtc: utc('2026-05-04T20:00:00Z'),   // 22:00 Berlin
+      pauseMinuten: null,
+    };
+
+    const befunde = ruhezeiten([langFremd, kurzEigen, spaetEigen]);
+    expect(befunde).toHaveLength(1);
+    // 20:00 → 20:30 Berlin: eine halbe Stunde. Gegen die eigene 19:30-Schicht
+    // gemessen wäre es eine ganze — und vor allem: der Befund wäre als rein
+    // hauseigen geschrieben worden, obwohl die fremde Gesellschaft ihn trägt.
+    expect(befunde[0]?.minuten).toBe(30);
+    expect(befunde[0]?.beteiligteSchichten).toEqual(['lang-fremd', 'spaet-eigen']);
+    expect(befunde[0]?.ueberMandanten).toBe(true);
+    expect(befunde[0]?.begruendung).toContain('zwei Gesellschaften');
+  });
+
+  it('(d) über Mitternacht: der alte Vergleich fand hier GAR NICHTS', () => {
+    const nachtschicht: Schicht = {
+      id: 'nachtschicht', personId: PERSON, mandantId: REINIGUNG,
+      vonUtc: utc('2026-05-04T20:00:00Z'),   // 04.05. 22:00 Berlin
+      bisUtc: utc('2026-05-05T04:00:00Z'),   // 05.05. 06:00 Berlin
+      pauseMinuten: null,
+    };
+    const kurzFremd: Schicht = {
+      id: 'kurz-fremd', personId: PERSON, mandantId: SECURITY,
+      vonUtc: utc('2026-05-04T21:00:00Z'),   // 04.05. 23:00 Berlin
+      bisUtc: utc('2026-05-04T21:30:00Z'),   // 04.05. 23:30 Berlin
+      pauseMinuten: null,
+    };
+    const amMorgen: Schicht = {
+      id: 'am-morgen', personId: PERSON, mandantId: REINIGUNG,
+      vonUtc: utc('2026-05-05T09:00:00Z'),   // 05.05. 11:00 Berlin
+      bisUtc: utc('2026-05-05T13:00:00Z'),   // 05.05. 15:00 Berlin
+      pauseMinuten: null,
+    };
+
+    const befunde = ruhezeiten([nachtschicht, kurzFremd, amMorgen]);
+    // Gegen die 23:30-Schicht gemessen wären es 690 Minuten — über elf Stunden,
+    // also KEIN Befund. Die Nachtschicht endete aber um 06:00, und bis 11:00
+    // sind es fünf Stunden. Genau dieser Fall verschwand lautlos.
+    expect(befunde).toHaveLength(1);
+    expect(befunde[0]?.minuten).toBe(300);
+    expect(befunde[0]?.beteiligteSchichten).toEqual(['nachtschicht', 'am-morgen']);
+    expect(befunde[0]?.kalendertag).toBe('2026-05-05');
+    expect(befunde[0]?.ueberMandanten).toBe(false);
+  });
+
+  it('überlappende Schichten erzeugen keinen Ruhezeitbefund aus dem Nichts', () => {
+    // Zwei Schichten, die sich überschneiden, haben keine Ruhezeit ZWISCHEN
+    // sich — 0 Minuten zu melden wäre eine erfundene Aussage.
+    const a: Schicht = {
+      id: 'a', personId: PERSON, mandantId: REINIGUNG,
+      vonUtc: utc('2026-05-04T06:00:00Z'),
+      bisUtc: utc('2026-05-04T10:00:00Z'),
+      pauseMinuten: null,
+    };
+    const b: Schicht = {
+      id: 'b', personId: PERSON, mandantId: SECURITY,
+      vonUtc: utc('2026-05-04T09:00:00Z'),
+      bisUtc: utc('2026-05-04T12:00:00Z'),
+      pauseMinuten: null,
+    };
+    expect(ruhezeiten([a, b])).toEqual([]);
   });
 });

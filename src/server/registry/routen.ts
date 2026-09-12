@@ -49,15 +49,40 @@ function segmente(pfad: string): readonly string[] {
 const IST_PARAMETER = /^\[.+\]$/u;
 
 /**
+ * Die Namen, die unter `/portal/` KEINE Gesellschaft bezeichnen.
+ *
+ * Es sind genau die, die `familie()` eine Zeile vorher aufzaehlt — dieselbe
+ * Liste, hier fuer den Mustervergleich.
+ */
+const RESERVIERT_UNTER_PORTAL: ReadonlySet<string> =
+  new Set(['gruppe', 'mein', 'kunde', 'konto']);
+
+/**
  * Passt eine KONKRETE URL auf ein Muster?
  *
  * `[x]` nimmt genau ein Segment — nicht mehrere. Ein Muster, das `[...pfad]`
  * schriebe, gaebe es in der Karte nicht, und eines zu erfinden hiesse, eine
  * Route breiter zu machen, als das Dokument sie erlaubt.
+ *
+ * **`[mandant]` nimmt keinen reservierten Namen.** Hier stand nur
+ * `IST_PARAMETER.test(m)`, also passte JEDES Segment — auch `konto`. Damit
+ * traf `/portal/konto` auf `/portal/[mandant]`, die Wurzelroute des
+ * Mandanten-Dashboards, und wurde unter DEREN Bedingung geprueft
+ * (`bericht.dashboard_lesen`) und mit DEREN Auskunft beantwortet: „dieses
+ * Modul entsteht in Phase 3" — fuer eine Adresse, die keine Gesellschaft ist.
+ * Wer `konto` heisst, ist keine Gesellschaft; `familie()` weiss das seit jeher,
+ * der Mustervergleich wusste es nicht. Eine Route unter der falschen Wache ist
+ * kein Anzeigefehler: sie kann zu eng ODER zu weit stehen, und welches von
+ * beidem, entscheidet dann der Zufall der Rechtevergabe.
  */
 function passt(muster: readonly string[], url: readonly string[]): boolean {
   if (muster.length !== url.length) return false;
-  return muster.every((m, i) => IST_PARAMETER.test(m) || m === url[i]);
+  return muster.every((m, i) => {
+    if (!IST_PARAMETER.test(m)) return m === url[i];
+    const reserviert = i === 1 && url[0] === 'portal'
+      && RESERVIERT_UNTER_PORTAL.has(url[i] ?? '');
+    return !reserviert;
+  });
 }
 
 /** Wie viele feste Segmente ein Muster hat — je mehr, desto spezifischer. */

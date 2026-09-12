@@ -32,6 +32,28 @@ export interface BereichZeile {
   readonly telefon: string | null;
   readonly email: string | null;
   readonly kurzbeschreibung: string | null;
+  /**
+   * Die Angaben nach § 5 TMG.
+   *
+   * Sie stehen hier und nicht in einer zweiten Abfrage, weil das Impressum
+   * dieselbe Zeile braucht wie der Fussbereich und eine zweite Abfrage die
+   * beiden auseinanderlaufen liesse. `null` heisst „noch nicht hinterlegt"
+   * und wird als solches ANGEZEIGT — eine weggelassene Zeile im Impressum
+   * sieht aus wie eine vollstaendige Auskunft und ist eine unvollstaendige.
+   */
+  readonly rechtsform: string | null;
+  readonly handelsregisterGericht: string | null;
+  readonly handelsregisterNummer: string | null;
+  readonly geschaeftsfuehrer: readonly string[];
+  readonly ustId: string | null;
+  /**
+   * Hat ein Mensch diese Stammdaten bestaetigt?
+   *
+   * `false` heisst NICHT „falsch", sondern „ungeprueft" — und die Oberflaeche
+   * sagt es, statt eine erfundene Registernummer als Angabe nach § 5 TMG
+   * auszugeben (O-353).
+   */
+  readonly angabenBestaetigt: boolean;
 }
 
 /**
@@ -59,6 +81,12 @@ export async function bereicheLesen(
   return kontext.abfrage<BereichZeile>(
     `select m.id, m.slug, m.name, m.firma, m.strasse, m.plz, m.ort, m.land,
             m.telefon, m.email,
+            m.rechtsform,
+            m.handelsregister_gericht as "handelsregisterGericht",
+            m.handelsregister_nummer  as "handelsregisterNummer",
+            coalesce(m.geschaeftsfuehrer, '{}') as geschaeftsfuehrer,
+            m.ust_id                  as "ustId",
+            (m.angaben_bestaetigt_am is not null) as "angabenBestaetigt",
             coalesce(p.kurzbeschreibung, d.kurzbeschreibung) as kurzbeschreibung
        from mandant m
        left join unternehmensprofil p

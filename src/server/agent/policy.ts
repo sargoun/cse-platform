@@ -21,11 +21,34 @@ import { createHash } from 'node:crypto';
 
 export type Aktion =
   | 'email_senden' | 'angebot_senden' | 'social_veroeffentlichen'
-  | 'bewerbung_antworten' | 'mahnung_senden' | 'rechnung_senden';
+  | 'bewerbung_antworten' | 'mahnung_senden' | 'rechnung_senden'
+  /**
+   * BAU-05, § 2 Abs. 6 VOB/B. Eine eigene Aktion, aus demselben Grund wie
+   * `behinderung_senden`: die Einreichung eines Nachtrags ist eine
+   * Willenserklaerung gegenueber dem Auftraggeber mit Preisfolge, kein
+   * Anschreiben. Unter `email_senden` haette eine Richtlinie „Mails duerfen
+   * automatisch raus" sie mitgemeint — und damit einen Nachtrag ueber
+   * vierzigtausend Euro ohne einen Menschen hinausgelassen.
+   */
+  | 'nachtrag_einreichen'
+  /**
+   * BAU-06, § 6 VOB/B. Eine eigene Aktion und nicht `email_senden`: die
+   * Behinderungsanzeige geht ueberwiegend NICHT per Mail hinaus, sondern per
+   * Einschreiben oder Bote — der Kanal ist Beweisrecht —, und sie ist eine
+   * Rechtserklaerung mit anspruchswahrender Wirkung. Unter `email_senden`
+   * haette eine Richtlinie „Mails duerfen automatisch raus" sie mitgemeint.
+   */
+  | 'behinderung_senden';
 
 export const AKTIONEN: readonly Aktion[] = [
   'email_senden', 'angebot_senden', 'social_veroeffentlichen',
   'bewerbung_antworten', 'mahnung_senden', 'rechnung_senden',
+  // `nachtrag_einreichen` fehlte hier, obwohl der Typ es fuehrt.
+  // `tests/kern/gate.test.ts` laeuft ueber AKTIONEN als den VOLLSTAENDIGEN
+  // Konfigurationsraum — die Aktion war damit von der erschoepfenden Pruefung
+  // ausgenommen und aus jeder registerbasierten Einstellung. Ein Typ, der
+  // mehr kennt als sein Register, macht genau diese Luecke unsichtbar.
+  'nachtrag_einreichen', 'behinderung_senden',
 ];
 
 /** § 7 UWG: ohne aufgezeichnete Rechtsgrundlage kein Kontakt. */
@@ -196,6 +219,57 @@ export function gate(
       fehler: new FreigabeErforderlich(
         'angebot_senden',
         'ein Angebot ist ein bindendes Vertragsangebot (§ 145 BGB) und geht nie automatisch raus',
+      ),
+    };
+  }
+
+  /**
+   * Eine Behinderungsanzeige geht NIE automatisch raus — wie das Angebot,
+   * und aus demselben Grund an derselben Stelle.
+   *
+   * Sie ist eine empfangsbeduerftige Rechtserklaerung nach § 6 Abs. 1 VOB/B:
+   * sie waelzt Verantwortung auf den Auftraggeber ab, wahrt Anspruechte auf
+   * Bauzeitverlaengerung und Schadensersatz — und eine zu Unrecht erhobene
+   * belastet dieselbe Geschaeftsbeziehung. `02-datenmodell/03-GEWERKE.md`
+   * §7.11 ist woertlich: „Dispatch itself runs only through
+   * `server/agent/policy.ts` **with human approval**". Die Sperre steht
+   * deshalb im Code und nicht als Zeile, die jemand umstellen kann.
+   */
+  /**
+   * Ein Nachtrag geht NIE automatisch raus.
+   *
+   * **Diese Sperre fehlte, und der Kommentar am Typ oben beschrieb genau den
+   * Schaden, den ihr Fehlen ermoeglichte:** unter einer Richtlinie mit
+   * `auto_erlaubt = true` antwortete `gate()` mit `erlaubt: true`, und
+   * `reicheEin` fuhr durch — ein Nachtrag ueber vierzigtausend Euro ohne
+   * einen Menschen, also Invariante 7 gebrochen. Die eigene Aktion zu
+   * schaffen war die halbe Arbeit; ohne diesen Zweig war sie nur eine
+   * Beschriftung.
+   *
+   * § 2 Abs. 6 VOB/B: die Einreichung ist eine Willenserklaerung gegenueber
+   * dem Auftraggeber mit unmittelbarer Preisfolge. Sie steht deshalb im Code
+   * und nicht als Zeile, die jemand in der Oberflaeche umstellen kann — wie
+   * das Angebot und die Behinderungsanzeige, aus demselben Grund an
+   * derselben Stelle.
+   */
+  if (nutzlast.aktion === 'nachtrag_einreichen') {
+    return {
+      erlaubt: false,
+      fehler: new FreigabeErforderlich(
+        'nachtrag_einreichen',
+        'ein Nachtrag ist eine Willenserklaerung nach § 2 Abs. 6 VOB/B mit '
+        + 'Preisfolge und geht nie ohne benannten Menschen raus',
+      ),
+    };
+  }
+
+  if (nutzlast.aktion === 'behinderung_senden') {
+    return {
+      erlaubt: false,
+      fehler: new FreigabeErforderlich(
+        'behinderung_senden',
+        'eine Behinderungsanzeige ist eine Rechtserklaerung nach § 6 Abs. 1 VOB/B '
+        + 'und geht nie ohne benannten Menschen raus',
       ),
     };
   }

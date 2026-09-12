@@ -69,9 +69,15 @@ describe('the delete-lock registry is the single source (01-ORDNERSTRUKTUR §6.2
         // `FIN`, die schon dastanden — nicht eine Lockerung, sondern die
         // Fortsetzung derselben Liste in die Phase-2-Domäne. `OPS` (SPEC §5,
         // OPS-01 bis OPS-03: Objekte, Raumbuch, Belagsart-Katalog) setzt sie
-        // in die Phase-4-Domäne fort.
+        // in die Phase-4-Domäne fort, `TIM`, `CLN`, `SEC-\d\d` und `EMP` in
+        // die von Phase 5 — Dienstplan, Zeiterfassung und die beiden
+        // Gewerkemodule; `BAU-\d\d` setzt sie ins dritte fort (SPEC §7,
+        // BAU-01 bis BAU-08: Leistungsverzeichnis, Aufmass, Nachtrag,
+        // Behinderung, Bautagebuch, Wetter). Die Liste bleibt eine Liste von
+        // SPEC-Ankern; sie waechst mit den Phasen, statt sich zu „irgendein
+        // Grund" zu oeffnen.
         .toMatch(
-          /LEG-\d\d|SEC-A9|DSGVO|MiLoG|D-09|APR-\d\d|DOC-\d\d|FIN-\d\d|AUT-\d\d|REQ-\d\d|REP-\d\d|CRM-\d\d|OPS-\d\d|§/u,
+          /LEG-\d\d|SEC-A9|DSGVO|MiLoG|D-09|APR-\d\d|DOC-\d\d|FIN-\d\d|AUT-\d\d|REQ-\d\d|REP-\d\d|CRM-\d\d|OPS-\d\d|TIM-\d\d|CLN-\d\d|SEC-\d\d|EMP-\d\d|BAU-\d\d|§/u,
         );
       expect(l.grund.length, l.tabelle).toBeGreaterThan(60);
     }
@@ -120,6 +126,12 @@ describe('the delete-lock registry is the single source (01-ORDNERSTRUKTUR §6.2
     // generator reads the registry rather than a constant.
     const jetzt = erzeuge();
     expect(jetzt).toContain('trg_anstellung_kein_hard_delete');
-    expect(jetzt).not.toContain('trg_rechnung_kein_hard_delete');
+    /**
+     * Der Gegenbeweis braucht eine Tabelle, die es NOCH NICHT gibt. Das war
+     * `rechnung`, bis PR 46 sie angelegt hat — genau das, was diese Prüfung
+     * bemerken soll. `buchungssatz` kommt mit Phase 7 und tritt an ihre
+     * Stelle; wer es anlegt, sucht sich die nächste.
+     */
+    expect(jetzt).not.toContain('trg_buchungssatz_kein_hard_delete');
   });
 });

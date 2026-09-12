@@ -23,7 +23,23 @@ class SammelAlarm implements Alarm {
 beforeEach(async () => {
   f = await seed();
   leereRegister();
-  await sql.unsafe(`truncate job_lauf_mandant, job_lauf`);
+  /**
+   * `cascade`, seit `planungsserie.letzter_job_lauf_id` und
+   * `einsatz.generator_lauf_id` auf `job_lauf` zeigen (0028) — ohne das weist
+   * Postgres das TRUNCATE ab, und der Fehler saehe aus wie ein Defekt der
+   * Jobs statt wie eine neue Fremdschluesselbeziehung.
+   *
+   * Und in einer Transaktion mit `session_replication_role = replica`, weil
+   * das `cascade` damit auf Tabellen trifft, die die Loeschsperre der
+   * Invariante 8 tragen. Das ist dieselbe Ausnahme, die `seed()` sich nimmt:
+   * ein Testaufbau ist kein Loeschen von Geschaeftsdaten. Sie steht hier
+   * ausdruecklich und lokal, damit sie nicht versehentlich in einen Dienst
+   * wandert.
+   */
+  await sql.begin(async (tx) => {
+    await tx.unsafe(`set local session_replication_role = replica`);
+    await tx.unsafe(`truncate job_lauf_mandant, job_lauf cascade`);
+  });
 });
 afterAll(schliessen);
 

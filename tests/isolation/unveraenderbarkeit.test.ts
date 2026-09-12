@@ -124,7 +124,18 @@ describe('(2) a soft-deleted row leaves the finder and stays in the table', () =
     // invitation". So `audit_log` must fail here, loudly, at the call site.
     expect(() => loeschPraedikat('audit_log')).toThrow(SoftDeleteFehler);
     expect(() => loeschPraedikat('mandant')).toThrow(/als `archiv` registriert/u);
-    expect(() => loeschPraedikat('rechnung')).toThrow(/steht nicht in KEIN_HARD_DELETE/u);
+    /**
+     * Ein NAME, den keine Registerzeile je tragen wird — und ausdruecklich
+     * keine echte Tabelle.
+     *
+     * Hier stand `rechnung`, solange es die Tabelle nicht gab. Mit PR 46 kam
+     * sie, wurde als `archiv` registriert, und der Fall pruefte ploetzlich
+     * den falschen Zweig: die Meldung lautete „ist als archiv registriert"
+     * statt „steht nicht im Register". Der Test prueft den ZWEIG, nicht eine
+     * bestimmte Tabelle; ein erfundener Name haelt das aus.
+     */
+    expect(() => loeschPraedikat('tabelle_die_es_nicht_gibt'))
+      .toThrow(/steht nicht in KEIN_HARD_DELETE/u);
     // `dokument` kam mit PR 9 dazu — die Liste ist abgeleitet, nicht gepflegt.
     expect(SOFT_DELETE).toEqual(['dokument', 'person', 'anstellung']);
   });

@@ -106,6 +106,7 @@ export default async function MandantDashboard(
     label: w.kachel.label,
     wert: w.wert,
     ton: w.kachel.ton,
+    icon: w.kachel.icon,
     ziel: w.ziel,
   }));
 

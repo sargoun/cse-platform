@@ -1,5 +1,7 @@
 import Image from 'next/image';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { shellTexte } from '@/lib/i18n/texte';
+import { VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 
 /**
  * Die Markenkarte der Startseite — DESIGN §4.4 und §4 "Brand-card composition".
@@ -22,9 +24,22 @@ export interface MarkenKarteProps {
   readonly anspruch: string;
   readonly href: string;
   readonly bild: { readonly pfad: string; readonly alt: string; readonly platzhalter: boolean };
+  /**
+   * Die Karte erscheint auf `/` UND auf `/en`.
+   *
+   * Ohne diese Angabe stand hier „Mehr erfahren →" und „Platzhalterbild" als
+   * deutsches Literal — auf der englischen Startseite. D-82 sagt, eine
+   * englische Seite ist eine eigene Zeile; fuer Bedienwoerter ist die Zeile
+   * `SHELL_TEXTE`, und ein fehlender Eintrag dort ist ein Bauzeitfehler statt
+   * eines deutschen Wortes fuer jemanden, der kein Deutsch kann.
+   */
+  readonly sprache?: Sprache;
 }
 
-export function MarkenKarte({ bereich, titel, anspruch, href, bild }: MarkenKarteProps) {
+export function MarkenKarte({
+  bereich, titel, anspruch, href, bild, sprache = VORGABE_SPRACHE,
+}: MarkenKarteProps) {
+  const t = shellTexte(sprache);
   return (
     <a
       href={href}
@@ -50,14 +65,14 @@ export function MarkenKarte({ bereich, titel, anspruch, href, bild }: MarkenKart
       <span className="relative flex flex-col gap-s1 p-s4">
         <span className="text-h3 text-white">{titel}</span>
         <span className="text-sm text-white/80">{anspruch}</span>
-        <span className="mt-s2 text-sm font-semibold text-brand">Mehr erfahren →</span>
+        <span className="mt-s2 text-sm font-semibold text-brand">{t.mehrErfahren}</span>
       </span>
       {bild.platzhalter && (
         <span
           data-cse="platzhalter-marke"
           className="absolute right-s2 top-s2 rounded-full bg-warning-soft px-s3 py-s1 text-micro text-warning"
         >
-          Platzhalterbild
+          {t.platzhalterbild}
         </span>
       )}
     </a>

@@ -13,6 +13,8 @@ import {
 } from '../../src/server/registry/tableiste.js';
 import { KATALOG } from '../../src/server/auth/katalog.generiert.js';
 import { familie, findeRoute } from '../../src/server/registry/routen.js';
+import { NAVIGATION } from '../../src/server/registry/navigation.js';
+import { istIconName } from '@/lib/design/icons';
 
 const WURZEL = resolve(import.meta.dirname, '../..');
 
@@ -38,11 +40,14 @@ describe('§11.2 — genau fünf Ziele je Portal', () => {
     }
   });
 
-  it('jedes Ziel hat eine Beschriftung und ein Symbol', () => {
+  it('jedes Ziel hat eine Beschriftung und ein Icon AUS DEM SATZ', () => {
+    // `istIconName` statt `!== ''`: ein Tippfehler im Namen ist sonst ein
+    // Tab ohne Bild — und zwar still, weil `ICON_PFADE[name]` `undefined`
+    // liefert und `<path d={undefined}>` nichts zeichnet, ohne zu werfen.
     for (const l of TABLEISTEN) {
       for (const z of l.ziele) {
         expect(z.label, `${l.schluessel}.${z.schluessel}`).not.toBe('');
-        expect(z.symbol, `${l.schluessel}.${z.schluessel}`).not.toBe('');
+        expect(istIconName(z.icon), `${l.schluessel}.${z.schluessel}: ${z.icon}`).toBe(true);
       }
     }
   });
@@ -158,6 +163,18 @@ describe('jedes Ziel führt auf eine Route, die es in der Karte gibt', () => {
     return muster.length === url.length;
   }
 
+  /** Wie `bedient`, aber die Auffangseite `[...rest]` zaehlt NICHT. */
+  function bedientOhneAuffang(muster: readonly string[], url: readonly string[]): boolean {
+    for (let i = 0; i < muster.length; i += 1) {
+      const m = muster[i]!;
+      if (/^\[\[?\.\.\..+\]\]?$/u.test(m)) return false;
+      if (url[i] === undefined) return false;
+      if (/^\[.+\]$/u.test(m)) continue;
+      if (m !== url[i]) return false;
+    }
+    return muster.length === url.length;
+  }
+
   it('und jedes Ziel wird von einer ECHTEN Seite bedient, nicht nur vom Manifest', () => {
     const muster = seitenMuster(APP);
     const ohneSeite: string[] = [];
@@ -174,6 +191,62 @@ describe('jedes Ziel führt auf eine Route, die es in der Karte gibt', () => {
     expect(ohneSeite, 'Ein Tab ohne Seite ist ein sichtbares Versprechen auf 404')
       .toEqual([]);
   });
+
+  /**
+   * **Dieselbe Frage fuer die SEITENNAVIGATION** — den Baum hinter „Mehr" und
+   * in der Seitenleiste.
+   *
+   * Sie stand bisher nicht unter dieser Pruefung, und das war teuer: der
+   * Eintrag „Personal" zeigte auf `personal/anstellungen`, und die Seite gab
+   * es nicht. Ein Menuepunkt auf einen 404 ist die teuerste Art, eine Luecke
+   * zu zeigen — er verspricht etwas, das es nicht gibt, und zwar an der
+   * Stelle, an der jemand zuerst sucht.
+   */
+  /**
+   * Die Punkte, die heute nur die Auffangseite erreichen — und die deshalb
+   * „noch nicht gebaut" sagen statt etwas zu zeigen.
+   *
+   * Diese Liste ist eine ERKLAERUNG, kein Freibrief: sie schrumpft mit jedem
+   * PR, und ein NEUER Navigationspunkt ohne Seite faellt durch, weil er hier
+   * nicht steht. Genau das fehlte, als „Personal" auf `personal/anstellungen`
+   * zeigte und es die Seite nicht gab.
+   */
+  const NUR_AUFFANGSEITE: readonly string[] = [
+    'dokumente',     // Phase 4 hat die Ablage, die Uebersicht kommt mit PR 58
+    // `bau` ist hier NICHT mehr aufgeführt: PR 43 hat die Seite gebaut, und
+    // die Prüfung darunter hat genau das gemeldet.
+    'einstellungen', // Phase 8
+  ];
+
+  it('und jeder Navigationspunkt wird von einer ECHTEN Seite bedient — oder steht auf der Liste',
+    () => {
+      const muster = seitenMuster(APP);
+      const ohneSeite: string[] = [];
+      const unnoetig: string[] = [];
+      for (const eintrag of NAVIGATION) {
+        // Absolute Ziele (`/portal/konto/profil`) tragen ihren Pfad selbst.
+        const ziel = eintrag.pfad.startsWith('/')
+          ? eintrag.pfad
+          : `/portal/beispiel/${eintrag.pfad}`;
+        const url = ziel.split('/').filter((t) => t !== '');
+        /**
+         * OHNE Auffangseite geprueft: `[...rest]` bedient jeden Pfad, also
+         * bestuende diese Pruefung mit ihr immer — und sagte nichts.
+         */
+        const echt = muster.some((m) => bedientOhneAuffang(m, url));
+        if (!echt && !NUR_AUFFANGSEITE.includes(eintrag.schluessel)) {
+          ohneSeite.push(`${eintrag.schluessel} → ${ziel}`);
+        }
+        if (echt && NUR_AUFFANGSEITE.includes(eintrag.schluessel)) {
+          unnoetig.push(eintrag.schluessel);
+        }
+      }
+      expect(ohneSeite, 'Ein Navigationspunkt ohne Seite ist ein sichtbares Versprechen auf 404')
+        .toEqual([]);
+      // Und die Liste veraltet nicht still: wer die Seite baut, streicht sie.
+      expect(unnoetig, 'Diese Punkte haben jetzt eine Seite — aus der Liste nehmen')
+        .toEqual([]);
+    });
 
   it('und die Pruefung ist scharf — ein erfundenes Ziel faellt durch', () => {
     // Ohne diese Zeile bestuende die Pruefung auch dann, wenn `bedient`

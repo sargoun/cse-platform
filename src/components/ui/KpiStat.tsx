@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 import type { SemantikTon } from '@/lib/design/theme';
+import type { IconName } from '@/lib/design/icons';
+import { Icon } from '@/components/ui/Icon';
 
 /**
  * DESIGN §5 KPI stat card: a 40×40 icon tile on a `-soft` tint, a `micro`
@@ -20,7 +22,8 @@ export interface KpiStatProps {
   readonly label: string;
   readonly wert: string;
   readonly ton?: SemantikTon;
-  readonly icon?: ReactNode;
+  /** Ein Name aus dem Satz (DESIGN §5) — oder eigenes JSX, wenn es sein muss. */
+  readonly icon?: IconName | ReactNode;
   readonly delta?: { readonly richtung: 'auf' | 'ab'; readonly text: string };
 }
 
@@ -28,15 +31,22 @@ export function KpiStat({ label, wert, ton = 'info', icon, delta }: KpiStatProps
   return (
     <div className="rounded-lg border border-line bg-surface p-s5">
       <div className={`mb-s4 flex h-10 w-10 items-center justify-center rounded-md ${TINT[ton]}`}>
-        {icon ?? <span aria-hidden="true">◆</span>}
+        {typeof icon === 'string' ? <Icon name={icon as IconName} /> : (icon ?? <Icon name="info" />)}
       </div>
       <div className="text-micro uppercase tracking-[0.08em] text-text-muted">{label}</div>
-      <div data-cse="kpi-wert" className="mt-s1 text-h2 text-text">{wert}</div>
+      {/* `cse-zahl`: der Wert ist eine Zahl mit Einheit und darf in einem
+          RTL-Absatz nicht umgeordnet werden — siehe globals.css. */}
+      <div data-cse="kpi-wert" className="cse-zahl-frei mt-s1 text-h2 text-text">{wert}</div>
       {delta !== undefined && (
         <div
           className={`mt-s2 text-sm ${delta.richtung === 'auf' ? 'text-success' : 'text-danger'}`}
         >
-          <span aria-hidden="true">{delta.richtung === 'auf' ? '▲' : '▼'}</span>{' '}
+          {/* §9: die Farbe allein traegt die Richtung nicht — die Form auch. */}
+          <Icon
+            name="pfeil-runter"
+            groesse="sm"
+            className={`inline-block align-[-2px] ${delta.richtung === 'auf' ? 'rotate-180' : ''}`}
+          />{' '}
           {delta.text}
         </div>
       )}

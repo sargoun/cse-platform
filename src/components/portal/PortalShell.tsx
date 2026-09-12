@@ -39,12 +39,19 @@ export function PortalShell({
         aria-hidden="true"
         data-cse="identitaets-streifen"
         data-bereich={gruppenansicht ? 'gruppe' : aktiv?.bereich}
-        className="h-[3px] w-full shrink-0"
-        style={{
-          background: gruppenansicht || aktiv === undefined
-            ? 'var(--border-line-strong)'
-            : `var(--area-${aktiv.bereich})`,
-        }}
+        /*
+         * Der neutrale Fall als Klasse, nicht als `var()`: hier stand
+         * `var(--border-line-strong)`, und diese Eigenschaft gibt es nicht —
+         * in `globals.css` heisst sie `--border-strong`, `border-line-strong`
+         * ist der Name der Tailwind-Klasse. Ein `var()` auf eine unbekannte
+         * Eigenschaft ohne Ersatzwert faellt weg, und der Streifen war in der
+         * Gruppenansicht durchsichtig statt neutral (DESIGN §6 Regel 4).
+         */
+        className={`h-[3px] w-full shrink-0 ${
+          gruppenansicht || aktiv === undefined ? 'bg-line-strong' : ''}`}
+        {...(gruppenansicht || aktiv === undefined
+          ? {}
+          : { style: { background: `var(--area-${aktiv.bereich})` } })}
       />
 
       <header className="flex h-14 shrink-0 items-center gap-s3 border-b border-line bg-surface px-s3">

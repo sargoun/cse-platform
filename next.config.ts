@@ -40,6 +40,33 @@ const config: NextConfig = {
     })),
   ),
 
+  /**
+   * Das Telefon im selben WLAN darf den Entwicklungsserver aufrufen.
+   *
+   * **Warum das eine Zeile Konfiguration braucht.** Seit Next 15.3 weist
+   * `next dev` Anfragen nach internen Entwicklungsressourcen ab, wenn ihr
+   * Ursprung nicht hier steht — eine Gegenmassnahme gegen Seiten, die den
+   * Entwicklungsserver eines Fremden im Hintergrund ausfragen. Die Folge auf
+   * dem Telefon ist aber kein Hinweis, sondern eine Seite, die einfach nicht
+   * kommt: `http://192.168.x.y:3001` laedt nichts und sagt nicht, warum.
+   *
+   * Und genau dieses Gerät ist der Prüfstand. Die Stempelfläche, der
+   * QR-Zugang, die Tab-Leiste bei 375px, die vier Sprachen des
+   * Mitarbeiterportals — das sind Telefonflächen. Sie am Schreibtisch zu
+   * beurteilen heisst, sie nicht zu beurteilen.
+   *
+   * Aufgeführt sind die drei privaten Bereiche aus RFC 1918, also genau das
+   * Heim- oder Büronetz, in dem Rechner und Telefon ohnehin nebeneinander
+   * stehen. Das Feld gilt AUSSCHLIESSLICH für `next dev`; ein
+   * Produktionsbau kennt es nicht und wird davon nicht berührt.
+   */
+  allowedDevOrigins: [
+    '192.168.*.*',
+    '10.*.*.*',
+    '172.16.*.*', '172.17.*.*', '172.18.*.*', '172.19.*.*',
+    '172.2*.*.*', '172.30.*.*', '172.31.*.*',
+  ],
+
   webpack: (konfiguration) => {
     konfiguration.resolve.extensionAlias = {
       '.js': ['.ts', '.tsx', '.js'],

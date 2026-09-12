@@ -11,7 +11,35 @@ const chromium = existsSync(VORHANDEN) ? { executablePath: VORHANDEN } : {};
 
 export default defineConfig({
   testDir: './tests/e2e',
-  fullyParallel: true,
+  /**
+   * **Ein Arbeiter, und das ist kein Rueckschritt.**
+   *
+   * Die Suite teilt sich EINE Datenbank und darf nichts loeschen
+   * (Invariante 8): keine Fixtur raeumt hinter sich auf, jede Zeile bleibt
+   * stehen. Mit mehreren Arbeitern messen die Pruefungen deshalb einander
+   * statt des Produkts — und zwar auf die unangenehmste Art: jeder Lauf faellt
+   * woanders um.
+   *
+   * Der Beleg aus dieser Nacht, drei Laeufe hintereinander auf demselben
+   * Stand: einmal `rechnung.spec.ts` („Position hinzufuegen" war noch nicht
+   * durch), einmal `dienstplan.spec.ts` (die Karte war weg, aber unquittiert),
+   * einmal `abwesenheit.spec.ts` („element(s) not found" fuer ein Formular,
+   * das ein Nachbar Sekunden vorher abgeraeumt hatte). Drei verschiedene
+   * Dateien, dieselbe Ursache — und jedes Mal eine Stunde Suche nach einem
+   * Produktfehler, den es nicht gab. `mode: 'serial'` je Datei half nicht: die
+   * Nachbarn stehen in ANDEREN Dateien.
+   *
+   * **Was dadurch NICHT verloren geht.** Nebenlaeufigkeit ist hier nie
+   * Prueflast gewesen: dass zwei Sitzungen gleichzeitig sauber arbeiten,
+   * beweist die Isolationssuite an echtem Postgres — mit Sperren, Policies und
+   * `FOR UPDATE`. Der Browser prueft Wege durch die Oberflaeche, und die sind
+   * seriell genauso wahr.
+   *
+   * **Was es kostet:** etwa acht Minuten statt drei. Das ist der Preis dafuer,
+   * dass ein roter Lauf wieder etwas bedeutet.
+   */
+  fullyParallel: false,
+  workers: 1,
   forbidOnly: Boolean(process.env['CI']),
   retries: process.env['CI'] !== undefined ? 2 : 0,
   use: { baseURL: 'http://localhost:3000', trace: 'on-first-retry' },
@@ -45,6 +73,19 @@ export default defineConfig({
        * A fixture page with hard-coded copy would need none of this, and that
        * was the problem: it could keep every promise while the delivered page
        * broke them.
+       *
+       * **Wenn der Server ein Passwort verlangt, muss `DATABASE_URL` gesetzt
+       * sein** — die Vorgabe hier traegt keines, weil `scripts/test-db.sh`
+       * einen Server mit `--auth=trust` startet und CI einen Dienst-Container
+       * ohne Passwort reicht. Zeigt die Adresse auf einen VORHANDENEN Server
+       * mit Passwortpflicht, kommt die Anwendung nicht an die Datenbank, und
+       * dann antwortet JEDE oeffentliche Seite mit 500 — der Lauf meldet
+       * vierzig Barrierefreiheitsfehler, die keine sind.
+       *
+       * Die Bereitschaftsprobe faengt das NICHT: `/healthz` liest bewusst
+       * keine Zeile (das ist ihr Zweck), antwortet also 200, und Playwright
+       * startet zufrieden. Wer hier vierzig rote Routen sieht, prueft zuerst
+       * `curl localhost:3000/` — 500 heisst Datenbank, nicht Barrierefreiheit.
        */
       DATABASE_URL:
         process.env['DATABASE_URL']

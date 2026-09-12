@@ -190,6 +190,18 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
          */
         let dokumentId: string | null = null;
         if (datei !== null) {
+          /**
+           * Das Jahr des Ablagepfades kommt aus der DATENBANK.
+           *
+           * `new Date().getUTCFullYear()` stand hier und las die Uhr des
+           * Prozesses in UTC: eine Anfrage, die am 31.12. um 23:30 Berliner
+           * Zeit eingeht, laege damit im Ordner des FOLGENDEN Jahres — und
+           * eine Aufbewahrungsfrist rechnet ab dem falschen (K-11).
+           */
+          const [jetzt] = await kontext.abfrage<{ jahr: number }>(
+            `select extract(year from app.berlin_heute())::int as jahr`);
+          const jahr = jetzt?.jahr;
+          if (jahr === undefined) throw new Error('Kein Berliner Kalenderjahr aus der Datenbank.');
           const hoch = await ladeHoch(
             {
               mandantId: formular.mandant_id,
@@ -200,18 +212,41 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
               behaupteterTyp: datei.mime,
             },
             new SupabaseSpeicher(),
-            new Date().getUTCFullYear(),
+            jahr,
           );
+          /**
+           * **`dokument` traegt weder `dateiname` noch `sha256`** — beide
+           * Spalten gibt es nicht (0009: der Digest lebt in
+           * `dokument_version`, weil eine zweite Fassung einen zweiten Digest
+           * hat und eine Spalte am Kopf ihn ueberschriebe).
+           *
+           * Die Anweisung hier nannte sie trotzdem. Sie scheiterte damit
+           * IMMER, wenn eine Datei mitkam und der Speicher verbunden war — und
+           * genau dann erst: ohne Datei laeuft der Zweig nicht, ohne Speicher
+           * bricht er vorher ab. Deshalb ist es nie jemandem aufgefallen,
+           * obwohl es der Weg ist, auf dem ein Leistungsverzeichnis in die
+           * Angebotsanfrage kommt (REQ-04). Gefunden hat es die Sitzung zu
+           * PR 44 am gleichen Fehler in ihrem eigenen Dienst.
+           */
           await kontext.schreibe(
-            `insert into dokument (id, mandant_id, kategorie, titel, dateiname, mime_typ,
-                                   mime_verifiziert, groesse_bytes, sha256, bucket,
+            `insert into dokument (id, mandant_id, kategorie, titel, mime_typ,
+                                   mime_verifiziert, groesse_bytes, bucket,
                                    objekt_schluessel, exif_entfernt)
-             values ($1, $2, 'angebot', $3, $4, $5, true, $6, $7, $8, $9, $10)`,
+             values ($1, $2, 'angebot', $3, $4, true, $5, $6, $7, $8)`,
             [
               hoch.dokumentId, formular.mandant_id,
-              `Leistungsverzeichnis ${datei.name}`, datei.name, hoch.mimeTyp,
-              hoch.groesseBytes, hoch.sha256, hoch.bucket, hoch.objektSchluessel,
+              `Leistungsverzeichnis ${datei.name}`, hoch.mimeTyp,
+              hoch.groesseBytes, hoch.bucket, hoch.objektSchluessel,
               hoch.exifEntfernt,
+            ],
+          );
+          await kontext.schreibe(
+            `insert into dokument_version (mandant_id, dokument_id, version,
+                                           objekt_schluessel, sha256, groesse_bytes, mime_typ)
+             values ($1, $2, 1, $3, $4, $5, $6)`,
+            [
+              formular.mandant_id, hoch.dokumentId, hoch.objektSchluessel,
+              hoch.sha256, hoch.groesseBytes, hoch.mimeTyp,
             ],
           );
           dokumentId = hoch.dokumentId;

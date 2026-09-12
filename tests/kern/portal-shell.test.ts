@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest';
 import { GRUPPEN_NAVIGATION, NAVIGATION } from '../../src/server/registry/navigation';
 import { DIENSTE, SCHREIBENDE_DIENSTE } from '../../src/server/registry/dienste';
 import { KATALOG } from '../../src/server/auth/katalog.generiert';
+import { ROUTEN } from '../../src/server/registry/routen';
 
 const WURZEL = resolve(import.meta.dirname, '../..');
 const SCHLUESSEL = new Set(KATALOG.map((e) => e.schluessel));
@@ -60,6 +61,7 @@ describe('(3) der Gruppenkontext HAT keine Schreibmethode', () => {
     const datei = join(verzeichnis, 'probe.ts');
     writeFileSync(datei, `
 import type { LeseKontext } from '${join(WURZEL, 'src/server/kontext/index.js')}';
+import { ROUTEN } from '../../src/server/registry/routen';
 export async function schreibeInDerGruppe(k: LeseKontext): Promise<void> {
   await k.schreibe('insert into person (vorname, nachname) values ($1,$2)', ['A', 'B']);
 }
@@ -110,6 +112,31 @@ describe('das Navigationsregister', () => {
     // `einstellungen` ist ein Verwaltungspunkt — in einer Ansicht ohne
     // aktiven Mandanten gibt es nichts einzustellen.
     expect(GRUPPEN_NAVIGATION.map((n) => n.schluessel)).not.toContain('einstellungen');
+  });
+
+  it('jeder Punkt zeigt auf eine Route, die es GIBT', () => {
+    /**
+     * Die Sidebar ist der erste Klick jedes Benutzers, und ein Punkt, der
+     * nirgendwohin fuehrt, ist der sichtbarste 404 im ganzen Portal — und der
+     * am leichtesten zu uebersehende, weil das Register ihn plausibel
+     * ausfuellt. Genau das war er: `dienstplan` gab es als Pfad nicht, die
+     * Seitenkarte kennt nur `dienstplan/woche` und seine Geschwister. Die
+     * Tab-Leiste zeigte laengst richtig; hier stand die zweite Fassung.
+     *
+     * Geprueft wird gegen das Routen-Manifest, also gegen die Seitenkarte —
+     * nicht gegen den Dateibaum, denn der beantwortet nur, was jemand gebaut
+     * hat, und nicht, was gebaut sein sollte.
+     */
+    const mandantenrouten = new Set(
+      ROUTEN.map((r) => r.pfad)
+        .filter((p) => p.startsWith('/portal/[mandant]/'))
+        .map((p) => p.slice('/portal/[mandant]/'.length)),
+    );
+    for (const n of NAVIGATION) {
+      // Der Dashboardpunkt hat den leeren Pfad — er IST `/portal/[mandant]`.
+      if (n.pfad === '') continue;
+      expect(mandantenrouten, `${n.schluessel} → ${n.pfad}`).toContain(n.pfad);
+    }
   });
 
   it('kein Punkt doppelt, kein Pfad doppelt', () => {

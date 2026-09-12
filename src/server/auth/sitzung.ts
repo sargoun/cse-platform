@@ -112,6 +112,30 @@ export interface DevAnmeldung {
  * `aal2`, weil Rechte mit `erfordert_2fa` sonst still leer blieben und ein
  * Bildschirm ohne Zahlen aussaehe wie ein Modul, das es nicht gibt.
  */
+/**
+ * Eine Sitzung beenden — der Gegenweg zur Anmeldung.
+ *
+ * **Es gab ihn nicht.** `sitzung_ende_grund` fuehrt `'abmeldung'` seit 0007,
+ * `beendet_am` und `ende_grund` stehen in der Tabelle, und
+ * `sitzung_ende_stimmig` haelt beide zusammen — nur schrieb sie niemand. Wer
+ * sich angemeldet hatte, blieb es zwoelf Stunden lang, und ein geteilter
+ * Rechner trug die fremde Sitzung weiter. Den Keks allein zu loeschen waere
+ * keine Abmeldung, sondern ein Verstecken: die Zeile blieb offen, und wer den
+ * Token noch hat, ist weiter angemeldet.
+ *
+ * Nur die EIGENE, noch offene Sitzung: der Aufrufer weist sie durch Besitz des
+ * Tokens aus, und `beendet_am is null` macht den zweiten Aufruf wirkungslos
+ * statt fehlerhaft.
+ */
+export async function beendeSitzung(tx: Transaktion, token: string): Promise<void> {
+  await tx.unsafe(
+    `update benutzer_sitzung
+        set beendet_am = now(), ende_grund = 'abmeldung'
+      where token_hash = $1 and beendet_am is null`,
+    [tokenHash(token)],
+  );
+}
+
 export async function devSitzungAusstellen(
   tx: Transaktion,
   benutzerId: string,
@@ -125,6 +149,24 @@ export async function devSitzungAusstellen(
   // andere Ansicht verlangt KEINEN. Die Tabelle haelt das fest; hier wird es
   // nur nicht verletzt.
   const gebunden = ansicht === 'mandant' ? mandantId : null;
+  /**
+   * Zwei Angaben, die einander widersprechen, gehoeren hier abgefangen und
+   * nicht an die Datenbank weitergereicht.
+   *
+   * `sitzung_ansicht_stimmig` (0007) verlangt `(ansicht = 'mandant') =
+   * (aktiver_mandant_id is not null)`. Wer beides falsch zusammensetzt,
+   * bekam bisher einen rohen `23514` — im Browser „Application error" mit
+   * einem Digest, aus dem niemand etwas lesen kann, und im Log eine
+   * Fehlerzeile ueber eine Tabelle statt ueber die Ursache. Genau so ist die
+   * Gruppen-Administration steckengeblieben: sie ist in keiner Gesellschaft
+   * Mitglied, und das Formular schickte trotzdem `mandant`.
+   */
+  if (ansicht === 'mandant' && gebunden === null) {
+    throw new Error(
+      'Sitzung mit ansicht="mandant" ohne Mandanten: ein Konto ohne '
+      + 'Mitgliedschaft gehoert in die Gruppenansicht ("gruppe").',
+    );
+  }
   const zeilen = (await tx.unsafe(
     `insert into benutzer_sitzung
        (benutzer_id, token_hash, aktiver_mandant_id, ansicht, aal, ablauf_am)

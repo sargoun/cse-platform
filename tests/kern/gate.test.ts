@@ -142,6 +142,25 @@ describe('(5) KEINE Konfiguration sendet ein Angebot automatisch', () => {
   const limits: readonly (bigint | null)[] = [null, 0n, 1n, 1_999_999n, 2_000_000n, 999_999_999n];
   const betraege: readonly bigint[] = [0n, 1n, 1_999_999n, 2_000_000n, 2_000_001n, 50_000_000n];
 
+  /**
+   * Die drei Aktionen, die im CODE gesperrt sind — nicht in einer Zeile, die
+   * jemand in der Oberflaeche umstellen kann.
+   *
+   * Geprueft wurde hier lange nur `angebot_senden`. `behinderung_senden` trug
+   * seine Sperre ungeprueft, und `nachtrag_einreichen` trug ueberhaupt keine:
+   * die Aktion stand im Typ, fehlte aber im Register `AKTIONEN`, ueber das
+   * diese Schleife laeuft — sie war damit aus dem „ganzen Konfigurationsraum"
+   * ausgenommen, den ihr Name verspricht. Unter einer Richtlinie mit
+   * `auto_erlaubt` waere ein Nachtrag nach § 2 Abs. 6 VOB/B ohne einen
+   * Menschen hinausgegangen (Invariante 7).
+   *
+   * Die Liste steht deshalb hier und nicht als drittes `if`: eine vierte
+   * gesperrte Aktion faellt so nicht durch, sondern muss eingetragen werden.
+   */
+  const NIE_AUTOMATISCH: readonly string[] = [
+    'angebot_senden', 'nachtrag_einreichen', 'behinderung_senden',
+  ];
+
   it('ueber den ganzen Konfigurationsraum: nie automatisch', () => {
     let geprueft = 0;
     for (const aktion of AKTIONEN) {
@@ -157,10 +176,9 @@ describe('(5) KEINE Konfiguration sendet ein Angebot automatisch', () => {
                 const e = gate(n, null, richtlinie({
                   aktion, autoErlaubt, maxBetragCent, ist_aktiv,
                 }));
-                if (aktion === 'angebot_senden') {
-                  // Ein Angebot ist ein bindendes Vertragsangebot (§ 145 BGB).
+                if (NIE_AUTOMATISCH.includes(aktion)) {
                   expect(e.erlaubt,
-                    `angebot auto=${String(autoErlaubt)} limit=${String(maxBetragCent)} `
+                    `${aktion} auto=${String(autoErlaubt)} limit=${String(maxBetragCent)} `
                     + `betrag=${String(betragCent)}`).toBe(false);
                 }
                 // Und ueber 20.000 € geht ueberhaupt nichts automatisch,
@@ -184,6 +202,16 @@ describe('(5) KEINE Konfiguration sendet ein Angebot automatisch', () => {
     // Sonst pruefte der Test nur, dass Angebote nie rausgehen.
     const n = nutzlast({ aktion: 'angebot_senden', betragCent: 50_000_000n });
     expect(gate(n, freigabe({ aktion: 'angebot_senden' }, n), null).erlaubt).toBe(true);
+  });
+
+  it('Nachtrag und Behinderungsanzeige gehen mit menschlicher Freigabe raus', () => {
+    // Ohne diesen Fall pruefte die Schleife oben nur, dass sie NIE rausgehen —
+    // und eine Sperre, die auch den Menschen aussperrt, waere kein Tor,
+    // sondern eine Mauer.
+    for (const aktion of ['nachtrag_einreichen', 'behinderung_senden'] as const) {
+      const n = nutzlast({ aktion });
+      expect(gate(n, freigabe({ aktion }, n), null).erlaubt, aktion).toBe(true);
+    }
   });
 
   it('ueber dem Limit verweigert die Richtlinie', () => {

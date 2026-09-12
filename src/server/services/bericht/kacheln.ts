@@ -45,6 +45,7 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
   return [
     registriereKachel({
       schluessel: 'neue_leads',
+      icon: 'crm',
       label: 'Neue Anfragen',
       modul: 'crm',
       recht: 'crm.lesen',
@@ -61,6 +62,7 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
 
     registriereKachel({
       schluessel: 'leads_ueber_sla',
+      icon: 'warnung',
       label: 'Frist überschritten',
       modul: 'crm',
       recht: 'crm.lesen',
@@ -82,6 +84,7 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
 
     registriereKachel({
       schluessel: 'benutzer_aktiv',
+      icon: 'person',
       label: 'Aktive Benutzer',
       modul: 'system',
       recht: 'system.benutzer_lesen',
@@ -102,6 +105,7 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
 
     registriereKachel({
       schluessel: 'personen',
+      icon: 'person',
       label: 'Personen',
       modul: 'personal',
       recht: 'personal.lesen',
@@ -124,6 +128,7 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
 
     registriereKachel({
       schluessel: 'anstellungen',
+      icon: 'personal',
       label: 'Beschäftigungen',
       modul: 'personal',
       recht: 'personal.lesen',
@@ -143,6 +148,7 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
 
     registriereKachel({
       schluessel: 'letzte_aktivitaet',
+      icon: 'crm',
       label: 'Aktivität (7 Tage)',
       modul: 'crm',
       recht: 'crm.lesen',
@@ -159,6 +165,7 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
 
     registriereKachel({
       schluessel: 'offene_wiedervorlagen',
+      icon: 'kalender',
       label: 'Offene Wiedervorlagen',
       modul: 'crm',
       recht: 'crm.lesen',
@@ -172,6 +179,183 @@ export function registriereBerichtKacheln(): readonly Kachel[] {
           where mandant_id = any($1) and faellig_am is not null and erledigt_am is null
           order by faellig_am`,
       ziel: (k) => kennzahlPfad(k, 'crm/wiedervorlagen', 'leads'),
+    }),
+
+    /**
+     * Unbesetzte Schichten der kommenden sieben Tage.
+     *
+     * Der Zeitraum steht in der Abfrage und nicht im Label: „unbesetzt" ohne
+     * Horizont zaehlte auch die Schicht in acht Wochen, und die Zahl waere
+     * jeden Tag gross und nie dringend. Sieben Tage sind der Zeitraum, in dem
+     * jemand noch jemanden findet.
+     */
+    registriereKachel({
+      schluessel: 'schichten_unbesetzt',
+      label: 'Unbesetzte Schichten',
+      modul: 'dienstplan',
+      recht: 'dienstplan.lesen',
+      ton: 'warning',
+      icon: 'dienstplan',
+      zaehlung:
+        `select count(*)::int as wert from einsatz
+          where mandant_id = any($1) and storniert_am is null
+            and status in ('geplant','laufend')
+            and besetzt_anzahl < soll_besetzung
+            and beginn_zeitpunkt between now() and now() + interval '7 days'`,
+      zeilen:
+        `select id, plan_datum, beginn_zeitpunkt, ende_zeitpunkt,
+                soll_besetzung, besetzt_anzahl, objekt_id
+           from einsatz
+          where mandant_id = any($1) and storniert_am is null
+            and status in ('geplant','laufend')
+            and besetzt_anzahl < soll_besetzung
+            and beginn_zeitpunkt between now() and now() + interval '7 days'
+          order by beginn_zeitpunkt`,
+      ziel: (k) => kennzahlPfad(k, 'dienstplan/woche', 'dienstplan'),
+    }),
+
+    /**
+     * Offene Planungskonflikte.
+     *
+     * `danger` und nicht `warning`: darunter sind die Sperren, und eine
+     * Sperre ist keine Warnung — sie ist eine Einteilung, die so nicht
+     * stattfinden darf.
+     */
+    registriereKachel({
+      schluessel: 'konflikte_offen',
+      label: 'Offene Konflikte',
+      modul: 'dienstplan',
+      recht: 'dienstplan.arbzg_lesen',
+      ton: 'danger',
+      icon: 'warnung',
+      zaehlung:
+        `select count(*)::int as wert from planungs_konflikt
+          where mandant_id = any($1) and status = 'offen' and hinfaellig_am is null`,
+      zeilen:
+        `select id, art, schwere, blockiert, person_id, zeitraum_beginn, einsatz_id
+           from planungs_konflikt
+          where mandant_id = any($1) and status = 'offen' and hinfaellig_am is null
+          order by blockiert desc, zeitraum_beginn`,
+      ziel: (k) => kennzahlPfad(k, 'dienstplan/konflikte', 'dienstplan'),
+    }),
+
+    /**
+     * Antraege, die auf eine Entscheidung warten (EMP-10).
+     *
+     * `eingereicht` UND `in_pruefung`: „in Pruefung" heisst, dass jemand
+     * hingesehen hat — entschieden ist damit nichts. Zaehlte die Kachel nur
+     * `eingereicht`, verschwaende jeder Antrag aus der Zahl, sobald ihn jemand
+     * einmal anfasst; der Urlaubsantrag laege drei Wochen in einem Zustand,
+     * den keine Anzeige mehr zaehlt, und niemandem fiele es auf.
+     */
+    registriereKachel({
+      schluessel: 'antraege_offen',
+      label: 'Offene Anträge',
+      modul: 'zeit',
+      recht: 'zeit.antrag_entscheiden',
+      ton: 'warning',
+      icon: 'freigabe',
+      zaehlung:
+        `select count(*)::int as wert from antrag
+          where mandant_id = any($1) and status in ('eingereicht','in_pruefung')`,
+      zeilen:
+        `select id, anstellung_id, antragsart_id, status, von_datum, bis_datum,
+                eingereicht_am
+           from antrag
+          where mandant_id = any($1) and status in ('eingereicht','in_pruefung')
+          order by eingereicht_am`,
+      ziel: (k) => kennzahlPfad(k, 'personal/antraege', ''),
+    }),
+
+    /**
+     * Wer heute nicht kommt.
+     *
+     * **„Heute" ist der BERLINER Kalendertag, und die Datenbank sagt, welcher
+     * das ist.** `von`/`bis` sind Datumsspalten; `current_date` im UTC-Prozess
+     * zeigt zwischen 00:00 und 02:00 Berliner Zeit noch den Vortag — die
+     * Kachel zaehlte dann die Abwesenheiten von gestern (Invariante 2).
+     *
+     * **`genehmigt` und `erfasst`, nicht `beantragt`.** Beantragt heisst: der
+     * Mensch kommt, solange niemand zugestimmt hat. Wer die Beantragten
+     * mitzaehlte, plante die Schicht um eine Abwesenheit herum, die es
+     * vielleicht nie gibt.
+     *
+     * Ohne `abwesenheitsart_id`: die Art ist fuer `cse_app` nicht lesbar
+     * (Spaltenrechte in `0073`, Art. 9 DSGVO). Eine Liste, die „krank" von
+     * „Urlaub" unterscheidet, waere genau die Auskunft, die die Spaltensperre
+     * verhindert — und sie faellt hier auch nicht an: gebraucht wird, WER
+     * fehlt, nicht warum.
+     */
+    registriereKachel({
+      schluessel: 'abwesend_heute',
+      label: 'Heute abwesend',
+      modul: 'zeit',
+      recht: 'zeit.abwesenheit_lesen',
+      ton: 'info',
+      icon: 'kalender',
+      zaehlung:
+        `select count(*)::int as wert from abwesenheit
+          where mandant_id = any($1) and status in ('genehmigt','erfasst')
+            and von <= (now() at time zone 'Europe/Berlin')::date
+            and bis >= (now() at time zone 'Europe/Berlin')::date`,
+      zeilen:
+        `select id, anstellung_id, status, von, bis, von_halbtags, bis_halbtags,
+                tage_angerechnet
+           from abwesenheit
+          where mandant_id = any($1) and status in ('genehmigt','erfasst')
+            and von <= (now() at time zone 'Europe/Berlin')::date
+            and bis >= (now() at time zone 'Europe/Berlin')::date
+          order by von`,
+      ziel: (k) => kennzahlPfad(k, 'personal/abwesenheiten', ''),
+    }),
+
+    /**
+     * Abgelaufene Nachweise (SEC-02, LEG-04).
+     *
+     * **`danger`, und zwar zu Recht:** ein abgelaufener § 34a-Nachweis sperrt
+     * die Einteilung HART — er ist keine Warnung, die jemand mit einer
+     * Begruendung uebergehen koennte. Wer ihn erst merkt, wenn die Einteilung
+     * abgewiesen wird, merkt ihn am Tag der Schicht.
+     *
+     * **Der Bereichsfilter laeuft ueber die BESCHAEFTIGUNG, nicht ueber
+     * `erfasst_von_mandant_id`.** Ein Nachweis haengt am Menschen (D-09): wer
+     * ihn erfasst hat, sagt nichts darueber, wen er betrifft. Ueber die
+     * erfassende Gesellschaft gezaehlt zeigte die Kachel eine andere Menge als
+     * die Liste dahinter — und DSH-04 verlangt, dass beide dieselbe sind.
+     *
+     * „Abgelaufen" ist der BERLINER Kalendertag: `current_date` im UTC-Prozess
+     * zeigt zwischen 00:00 und 02:00 noch den Vortag (Invariante 2).
+     */
+    registriereKachel({
+      schluessel: 'nachweise_abgelaufen',
+      label: 'Abgelaufene Nachweise',
+      modul: 'personal',
+      recht: 'personal.nachweis_lesen',
+      ton: 'danger',
+      icon: 'schloss',
+      zaehlung:
+        `select count(*)::int as wert
+           from nachweis n
+           join qualifikation q on q.id = n.qualifikation_id
+          where n.widerrufen_am is null
+            and n.gueltig_bis is not null
+            and n.gueltig_bis < (now() at time zone 'Europe/Berlin')::date
+            and exists (select 1 from anstellung a
+                         where a.person_id = n.person_id
+                           and a.mandant_id = any($1) and a.geloescht_am is null)`,
+      zeilen:
+        `select n.id, n.person_id, n.qualifikation_id, q.bezeichnung,
+                n.gueltig_bis, q.blockiert_einsatz
+           from nachweis n
+           join qualifikation q on q.id = n.qualifikation_id
+          where n.widerrufen_am is null
+            and n.gueltig_bis is not null
+            and n.gueltig_bis < (now() at time zone 'Europe/Berlin')::date
+            and exists (select 1 from anstellung a
+                         where a.person_id = n.person_id
+                           and a.mandant_id = any($1) and a.geloescht_am is null)
+          order by n.gueltig_bis`,
+      ziel: (k) => kennzahlPfad(k, 'personal/nachweise', ''),
     }),
   ];
 }

@@ -119,6 +119,26 @@ const AUFBEWAHRUNG_VORGABE: readonly (readonly [string, number | null, boolean, 
   ['unternehmen', null, true, 'offen (O-25)', true],
 ];
 
+/** Die Abwesenheitsarten aus `0073` §6.22 — Schlüssel, Label, drei Flaggen. */
+const ABWESENHEITSARTEN:
+readonly (readonly [string, string, boolean, boolean, boolean])[] = [
+  ['urlaub', 'Urlaub', true, true, false],
+  ['krankheit', 'Krankheit', false, true, true],
+  ['kind_krank', 'Kind krank', false, true, true],
+  ['unbezahlt', 'Unbezahlte Freistellung', false, false, false],
+  ['fortbildung', 'Fortbildung', false, true, false],
+  ['freizeitausgleich', 'Freizeitausgleich', false, false, false],
+  ['sonstige', 'Sonstige', false, false, false],
+];
+
+/** Die drei Antragsarten aus `0074` §6.28, die EMP-10 nennt. */
+const ANTRAGSARTEN:
+readonly (readonly [string, string, boolean, boolean, boolean, boolean, boolean])[] = [
+  ['urlaub', 'Urlaubsantrag', true, true, false, false, true],
+  ['krankmeldung', 'Krankmeldung', true, true, false, false, true],
+  ['schichttausch', 'Schichttausch', false, false, true, true, false],
+];
+
 /**
  * Seeds the four areas and the D-09 case, as the owner (migrations do this).
  *
@@ -167,6 +187,40 @@ export async function seed(): Promise<Fixtur> {
                                             grundlage, ist_platzhalter)
          values (null, $1, $2, $3, $4, $5)`,
         [kategorie, jahre, sperre, grundlage, platzhalter] as never[],
+      );
+    }
+    /**
+     * Die beiden Personal-Kataloge aus `0073`/`0074`.
+     *
+     * Sie kommen mit der MIGRATION und nicht aus dem Seed — und `truncate …
+     * cascade` oben nimmt sie trotzdem mit, weil beide über `mandant_id` an
+     * `mandant` hängen (auch die Zeilen mit `mandant_id IS NULL`: TRUNCATE
+     * leert die Tabelle, nicht nur die verweisenden Zeilen). Ohne diese
+     * Schleife scheitert jeder Abwesenheitstest an einem Fremdschlüssel — und
+     * zwar mit einer Meldung, die nach einem Fehler im Dienst aussieht.
+     *
+     * `bezahlt` bleibt NULL, wie ausgeliefert (O-139): ein Test, der die
+     * Lohnfrage beantwortet bekommt, ohne sie zu stellen, prüft eine Plattform,
+     * die es nicht gibt.
+     */
+    for (const [schluessel, bezeichnung, urlaub, stunden, gesundheit] of ABWESENHEITSARTEN) {
+      await tx.unsafe(
+        `insert into abwesenheitsart (mandant_id, schluessel, bezeichnung,
+                                      zaehlt_auf_urlaubskonto,
+                                      erzeugt_stundenkonto_bewegung,
+                                      ist_gesundheitsbezogen)
+         values (null, $1, $2, $3, $4, $5)`,
+        [schluessel, bezeichnung, urlaub, stunden, gesundheit] as never[],
+      );
+    }
+    for (const [schluessel, bezeichnung, zeitraum, art, einsatz, partner, erzeugt]
+      of ANTRAGSARTEN) {
+      await tx.unsafe(
+        `insert into antragsart (mandant_id, schluessel, bezeichnung, erfordert_zeitraum,
+                                 erfordert_abwesenheitsart, erfordert_einsatz,
+                                 erfordert_tauschpartner, erzeugt_abwesenheit, ist_system)
+         values (null, $1, $2, $3, $4, $5, $6, $7, true)`,
+        [schluessel, bezeichnung, zeitraum, art, einsatz, partner, erzeugt] as never[],
       );
     }
     for (const [schluessel, bezeichnung, bereich, portal, zweiFaktor] of STANDARDROLLEN) {

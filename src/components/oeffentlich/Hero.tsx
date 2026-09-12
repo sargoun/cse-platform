@@ -1,5 +1,7 @@
 import Image from 'next/image';
 import { KARTEN_GRADIENT } from './MarkenKarte';
+import { shellTexte } from '@/lib/i18n/texte';
+import { VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 
 /**
  * Der Hero — 21:9 am Schreibtisch, 4:5 am Telefon (DESIGN §4.5).
@@ -15,9 +17,14 @@ export interface HeroProps {
   readonly akzentWort?: string | null;
   readonly text?: string | null;
   readonly bild: { readonly pfad: string; readonly alt: string; readonly platzhalter: boolean };
+  /** Dieselbe Begruendung wie bei `MarkenKarte`: das Schild erscheint auch auf `/en`. */
+  readonly sprache?: Sprache;
 }
 
-export function Hero({ ueberschrift, akzentWort, text, bild }: HeroProps) {
+export function Hero({
+  ueberschrift, akzentWort, text, bild, sprache = VORGABE_SPRACHE,
+}: HeroProps) {
+  const t = shellTexte(sprache);
   return (
     <section
       data-cse="hero"
@@ -52,7 +59,7 @@ export function Hero({ ueberschrift, akzentWort, text, bild }: HeroProps) {
           data-cse="platzhalter-marke"
           className="absolute right-s3 top-s3 rounded-full bg-warning-soft px-s3 py-s1 text-micro text-warning"
         >
-          Platzhalterbild
+          {t.platzhalterbild}
         </span>
       )}
     </section>

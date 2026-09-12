@@ -28,6 +28,8 @@ interface Bereich {
 interface Wahl {
   readonly bereiche: readonly Bereich[];
   readonly gruppe: boolean;
+  /** Der Slug des AKTIVEN Bereichs — der Weg zurueck, falls es einen gibt. */
+  readonly aktiv: string | null;
 }
 
 async function wahl(sitzung: Parameters<typeof bindeAnfrage>[1]): Promise<Wahl> {
@@ -46,14 +48,39 @@ async function wahl(sitzung: Parameters<typeof bindeAnfrage>[1]): Promise<Wahl> 
     const [g] = (await tx.unsafe(
       `select app.darf_gruppenansicht() as ok`,
     )) as { ok: boolean }[];
-    return { bereiche, gruppe: g?.ok === true };
+    /*
+     * `switcher_bereiche()` sagt, WOHIN gewechselt werden kann, nicht, wo man
+     * gerade steht. Ohne diese Zeile wusste die Seite nicht, ob es ueberhaupt
+     * ein Zurueck gibt — und bot deshalb keines an.
+     */
+    const [a] = sitzung.aktiverMandantId === null ? [] : (await tx.unsafe(
+      `select slug from mandant where id = $1`, [sitzung.aktiverMandantId],
+    )) as { slug: string }[];
+    return { bereiche, gruppe: g?.ok === true, aktiv: a?.slug ?? null };
   }) as Promise<Wahl>;
 }
 
 export default async function Bereichswahl() {
   const sitzung = await aktuelleSitzung();
   if (sitzung === null) return <AnmeldungNoetig />;
-  const { bereiche, gruppe } = await wahl(sitzung);
+  const { bereiche, gruppe, aktiv } = await wahl(sitzung);
+  /*
+   * **Diese Seite war eine Sackgasse.**
+   *
+   * Sie rendert ein blankes `main` ohne Portalhuelle — richtig, denn wer den
+   * Bereich noch nicht gewaehlt hat, hat auch keine Navigation, die sich aus
+   * ihm ergaebe. Nur stand dann auf dem Bildschirm: eine Ueberschrift, eine
+   * Zeile je Mitgliedschaft und sonst nichts. Wer die Seite aus einer
+   * laufenden Sitzung heraus oeffnete — die Kopfzeile jeder Portalseite bietet
+   * sie an —, kam ohne den Zurueck-Knopf des Browsers nicht mehr weg.
+   *
+   * `zurueck` ist deshalb nur dann gesetzt, wenn es wirklich ein Zurueck gibt:
+   * ein aktiver Bereich oder die Gruppenansicht. Direkt nach der Anmeldung
+   * gibt es keines, und dann steht hier auch keiner — ein Knopf, der auf eine
+   * Seite fuehrt, die man nicht sehen darf, waere schlechter als keiner.
+   */
+  const zurueck = sitzung.ansicht === 'gruppe' ? '/portal/gruppe'
+    : aktiv === null ? null : `/portal/${aktiv}`;
 
   return (
     <main className="mx-auto flex max-w-content flex-col gap-s5 p-s6">
@@ -93,6 +120,26 @@ export default async function Bereichswahl() {
         Nichts ist vorausgewählt — der Wechsel geschieht erst mit dem Klick und
         wird protokolliert.
       </p>
+
+      <nav aria-label="Ausgang" data-cse="bereich-ausgang"
+           className="flex flex-wrap items-center gap-s4 border-t border-line pt-s4">
+        {zurueck !== null && (
+          <a href={zurueck} data-cse="bereich-zurueck"
+             className="flex min-h-11 items-center text-sm text-text-muted hover:text-text">
+            ‹ Zurück ohne Wechsel
+          </a>
+        )}
+        <a href="/" className="flex min-h-11 items-center text-sm text-text-muted hover:text-text">
+          Website
+        </a>
+        {/* Ein FORMULAR, kein Verweis: eine Abmeldung ändert Zustand. */}
+        <form method="post" action="/api/abmelden">
+          <button type="submit"
+                  className="flex min-h-11 items-center text-sm text-text-muted hover:text-text">
+            Abmelden
+          </button>
+        </form>
+      </nav>
     </main>
   );
 }

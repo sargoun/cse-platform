@@ -1,0 +1,224 @@
+import type postgres from 'postgres';
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
+import { withTenant } from '@/server/kontext/index';
+import { PortalRahmen } from '@/components/portal/PortalRahmen';
+import { Button } from '@/components/ui/Button';
+import { AnmeldungNoetig } from '../../../../Anmeldung';
+import { portalZugang } from '../../../../zugang';
+import { slugTor } from '../../../../unterseite';
+import { Wechselblatt } from '@/components/portal/Wechselblatt';
+import type { BereichSchluessel } from '@/lib/design/theme';
+import { stundenMinutenText } from '@/lib/datum/stunden';
+import {
+  ART_TEXT, leseEintrag, pruefeKette,
+  type EintragZeile, type Kettenbefund,
+} from '@/server/services/security/wachbuch';
+
+/**
+ * `/portal/[mandant]/security/wachbuch/[id]` — eine Seite, mit Serverzeit,
+ * Kettenzustand und dem Weg zur Korrektur (SEC-05, TIM-08, TIM-10, LEG-01).
+ *
+ * **Es gibt kein Bearbeiten-Formular, und das ist die Aussage.** Ein Eintrag
+ * ist geschrieben, sobald er steht; die Datenbank weist jedes UPDATE ausser
+ * dem Storno ab (0070). Was hier steht, ist das Formular für die
+ * RICHTIGSTELLUNG: sie legt einen neuen Eintrag an, der auf diesen zeigt, und
+ * markiert diesen als storniert. Beide bleiben lesbar.
+ *
+ * **Die Geräteabweichung wird GEZEIGT, nicht verschwiegen.** Zwei Stunden
+ * Unterschied zwischen Telefon und Server sind eine Tatsache über die
+ * Aufzeichnung, und sie gehört auf die Seite, die als Beweis dient — nicht in
+ * eine Auswertung, die jemand später gegen den Menschen richtet (O-06,
+ * § 87 Abs. 1 Nr. 6 BetrVG).
+ */
+export const dynamic = 'force-dynamic';
+
+export default async function Wachbuchblatt(
+  { params }: { params: Promise<{ mandant: string; id: string }> },
+) {
+  const { mandant, id } = await params;
+  const pfad = `/portal/${mandant}/security/wachbuch/${id}`;
+  const zugang = await portalZugang(pfad);
+  if (zugang === null) return <AnmeldungNoetig />;
+
+  const tor = await slugTor(zugang, mandant);
+  if (tor.art === 'wechsel') {
+    return <Wechselblatt aktuell={tor.aktuell} zielTitel={mandant} zielSlug={tor.ziel} />;
+  }
+  const { sitzung } = zugang;
+  if (sitzung.aktiverMandantId === null) notFound();
+
+  const daten = await (db().begin(
+    SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+      withTenant(tx, sitzung, async (kontext) => {
+        const eintrag = await leseEintrag(kontext, id);
+        if (eintrag === null) return null;
+        return { eintrag, kette: await pruefeKette(kontext, eintrag.objektId) };
+      })) as Promise<{ eintrag: EintragZeile; kette: Kettenbefund } | null>);
+
+  // AUT-06: eine fremde Seite ist nicht vorhanden, nicht verboten.
+  if (daten === null) notFound();
+  const { eintrag, kette } = daten;
+
+  const feld = 'mb-s1 block text-micro uppercase tracking-[0.08em] text-text-muted';
+  const eingabe = 'min-h-11 w-full rounded-md border border-line bg-surface-3 '
+    + 'px-s3 py-s2 text-sm text-text';
+
+  return (
+    <PortalRahmen
+      titel={`Wachbuch ${eintrag.nummer}`}
+      bereich={mandant as BereichSchluessel}
+      nurLesen={false}
+      leiste={zugang.leiste}
+      wurzel={`/portal/${mandant}`}
+      aktiverTab="mehr"
+      sichtbareTabs={zugang.sichtbareTabs}
+      navigationsRechte={zugang.navigationsRechte}
+    >
+      <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
+        <h1 className="m-0 text-h1 text-text">
+          <span className="tabular-nums text-text-muted">{eintrag.nummer}</span>
+          {' · '}
+          <span className={eintrag.storniert ? 'line-through' : undefined}>
+            {eintrag.betreff}
+          </span>
+        </h1>
+        <Link
+          href={`/portal/${mandant}/security/wachbuch`}
+          className="rounded-md border border-line px-s3 py-s1 text-sm text-text-muted
+                     hover:border-line-strong hover:text-text"
+        >
+          Zum Buch
+        </Link>
+      </div>
+
+      <article
+        data-cse="wachbuch-blatt"
+        data-eintrag={eintrag.id}
+        className="mb-s6 rounded-lg border border-line bg-surface p-s5"
+      >
+        <p className="m-0 text-sm text-text-muted">
+          {ART_TEXT[eintrag.art]}
+          {' · '}
+          {eintrag.objekt}
+          {' · '}
+          {eintrag.urheber}
+        </p>
+        <p className="m-0 mt-s2 text-sm tabular-nums text-text-muted">
+          Serverzeit {eintrag.erfasstLokal}
+          {eintrag.zeitabweichungSek !== null && (
+            <span data-cse="zeitabweichung">
+              {' · Geräteuhr wich um '}
+              {stundenMinutenText(Math.round(Math.abs(eintrag.zeitabweichungSek) / 60))}
+              {eintrag.zeitabweichungSek > 0 ? ' vor' : ' nach'}
+            </span>
+          )}
+          {eintrag.nachgetragen && ' · nachgetragen'}
+        </p>
+        {eintrag.kontrollpunkt !== null && (
+          <p className="m-0 mt-s2 text-sm text-text-muted">
+            Kontrollpunkt {eintrag.kontrollpunkt}
+            {eintrag.praesenzBestaetigt ? ' · Präsenz bestätigt' : ' · ohne Präsenznachweis'}
+          </p>
+        )}
+        {eintrag.polizeiInformiert && (
+          <p className="m-0 mt-s2 text-sm text-text">Polizei informiert.</p>
+        )}
+
+        <p className="mt-s4 whitespace-pre-wrap text-base text-text">
+          {eintrag.eintragstext}
+        </p>
+
+        {eintrag.storniert && (
+          <p className="m-0 mt-s4 text-sm text-danger">
+            Storniert: {eintrag.stornoGrund}
+            {eintrag.ersetztDurchId !== null && (
+              <>
+                {' · '}
+                <Link
+                  href={`/portal/${mandant}/security/wachbuch/${eintrag.ersetztDurchId}`}
+                  className="underline-offset-2 hover:underline"
+                >
+                  Zur Richtigstellung
+                </Link>
+              </>
+            )}
+          </p>
+        )}
+        {eintrag.ersetztId !== null && (
+          <p className="m-0 mt-s4 text-sm text-text-muted">
+            Dieser Eintrag stellt{' '}
+            <Link
+              href={`/portal/${mandant}/security/wachbuch/${eintrag.ersetztId}`}
+              className="underline-offset-2 hover:underline"
+            >
+              einen früheren Eintrag
+            </Link>
+            {' '}richtig.
+          </p>
+        )}
+      </article>
+
+      <section data-cse="kettenzustand" className="mb-s6">
+        <h2 className="mb-s2 text-h3 text-text">Nachweiskette dieses Objekts</h2>
+        <p
+          className={`m-0 rounded-lg border border-line bg-surface p-s5 text-sm ${
+            kette.intakt ? 'text-success' : 'text-danger'}`}
+        >
+          {kette.intakt
+            ? `Intakt — ${String(kette.geprueft)} Einträge, jeder mit dem Hash seines `
+              + 'Vorgängers verkettet.'
+            : `${String(kette.brueche.length)} von ${String(kette.geprueft)} Einträgen `
+              + 'passen nicht zu ihrer Kette. Das heisst: an der Datenbank vorbei wurde '
+              + 'geschrieben oder gelöscht. Diesen Befund bitte melden, nicht beheben.'}
+        </p>
+      </section>
+
+      {!eintrag.storniert && (
+        <section>
+          <h2 className="mb-s2 text-h3 text-text">Richtigstellen</h2>
+          <p className="mb-s4 max-w-prose text-sm text-text-muted">
+            Der Eintrag bleibt stehen und wird als storniert gekennzeichnet; die
+            Richtigstellung ist ein neuer Eintrag mit eigener Nummer, der auf ihn
+            zeigt. Beide sind danach lesbar — genau das ist der Beweiswert.
+          </p>
+          <form
+            action="/api/sicherheit/wachbuch"
+            method="post"
+            className="max-w-prose rounded-lg border border-line bg-surface p-s5"
+          >
+            <input type="hidden" name="mandant" value={mandant} />
+            <input type="hidden" name="korrigiert" value={eintrag.id} />
+
+            <label className="mb-s4 block">
+              <span className={feld}>Warum war der Eintrag falsch?</span>
+              <input name="grund" required minLength={5} maxLength={200}
+                className={eingabe} placeholder="Falsches Objekt genannt" />
+            </label>
+
+            <label className="mb-s4 block">
+              <span className={feld}>Betreff der Richtigstellung</span>
+              <input name="betreff" required maxLength={120} className={eingabe}
+                defaultValue={eintrag.betreff} />
+            </label>
+
+            <label className="mb-s5 block">
+              <span className={feld}>Richtiger Text</span>
+              <textarea
+                name="eintragstext"
+                required
+                rows={6}
+                className="w-full rounded-md border border-line bg-surface-3 px-s3 py-s2
+                           text-sm text-text"
+                defaultValue={eintrag.eintragstext}
+              />
+            </label>
+
+            <Button type="submit" variante="secondary">Richtigstellung schreiben</Button>
+          </form>
+        </section>
+      )}
+    </PortalRahmen>
+  );
+}

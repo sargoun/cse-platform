@@ -181,7 +181,11 @@ export async function vergebeNummer(
       where mandant_id = app.aktiver_mandant()
         and kreis_typ = $1::nummernkreis_typ
         and kontext_id is not distinct from $2::uuid
-      order by geschlossen_am nulls first`,
+      -- Absteigend, damit die erste Zeile der ZULETZT geschlossene Kreis ist.
+      -- Aufsteigend nannte die Fehlermeldung unten „geschlossen seit …" das
+      -- Datum des AELTESTEN Kreises — bei einer Gesellschaft, die jaehrlich
+      -- zuruecksetzt, ein Jahre altes Datum, nach dem niemand sucht.
+      order by geschlossen_am desc nulls first`,
     [kreisTyp, kontextId],
   );
 
@@ -229,10 +233,28 @@ export async function vergebeNummer(
   const nummer = Number(kreis.naechste_nummer);
   const formatiert = formatiereNummer(kreis.format_maske, nummer, kreis.jahr);
 
-  await tx.unsafe(
-    `update nummernkreis set naechste_nummer = naechste_nummer + 1 where id = $1`,
+  /**
+   * `returning id` und die Pruefung darunter: ein UPDATE, der unter FORCE RLS
+   * keine Policy trifft, beruehrt null Zeilen und meldet nichts. Der Zaehler
+   * bliebe stehen, waehrend diese Funktion die Nummer zurueckgibt — die
+   * naechste Vergabe zoege DIESELBE, und `rechnung_laufend_uk` schluege erst
+   * beim zweiten Beleg zu, mit einer Nummer, die der erste schon traegt.
+   * §14 Abs. 4 Nr. 4 UStG verlangt Einmaligkeit; das ist der Preis fuer eine
+   * Zeile, die im Erfolgsfall nichts kostet.
+   */
+  const bewegt = await zeilen<{ id: string }>(
+    tx,
+    `update nummernkreis set naechste_nummer = naechste_nummer + 1
+      where id = $1 returning id`,
     [kreis.id],
   );
+  if (bewegt.length === 0) {
+    throw new NummernkreisFehler(
+      `Der Zaehler des Nummernkreises ${wo} liess sich nicht bewegen — die `
+      + 'Nummer waere ein zweites Mal vergeben worden (§5.6).',
+      'definer_kreis',
+    );
+  }
 
   return {
     nummernkreisId: kreis.id,

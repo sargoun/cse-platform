@@ -17,6 +17,7 @@
  * heisst etwas voellig anderes. Wer die beiden verwechselt, plant auf einer
  * Zahl, die es nicht gibt. Eine Kachel erscheint erst, wenn ihr Modul da ist.
  */
+import type { IconName } from '@/lib/design/icons';
 
 export type Ton = 'success' | 'warning' | 'danger' | 'info' | 'muted';
 
@@ -46,6 +47,12 @@ export interface Kachel {
   /** Der Rechteschluessel, ohne den die Kachel nicht gerendert wird. */
   readonly recht: string;
   readonly ton: Ton;
+  /**
+   * Das Icon der Kachel (DESIGN §5: die KPI-Kachel traegt eine 40×40-Flaeche
+   * mit Icon). Ohne Angabe steht dort `info` — sichtbar unspezifisch, statt
+   * dass sich jemand eins ausdenkt.
+   */
+  readonly icon?: IconName;
   /**
    * Die Zaehlung. Bekommt die sichtbaren Mandanten als `$1::uuid[]` und gibt
    * GENAU EINE Zeile mit einer Spalte `wert` zurueck.

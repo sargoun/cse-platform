@@ -38,7 +38,14 @@ bower_components
 build/Release
 
 # Dependency directories
-node_modules/
+# OHNE Schrägstrich — sonst greift die Regel nur auf VERZEICHNISSE.
+# Ein `node_modules`, das ein Symlink ist (so arbeitet ein git-worktree, der
+# sich die Abhängigkeiten des Hauptbaums leiht), ist fuer git eine DATEI und
+# rutschte an dieser Regel vorbei. `git add -A` nahm sie mit, und CI starb
+# beim naechsten Lauf mit `ENOTDIR: not a directory, mkdir .../node_modules`:
+# der Checkout legt den Symlink an, und pnpm kann darin kein Verzeichnis
+# erzeugen.
+node_modules
 jspm_packages/
 
 # Snowpack dependency directory (https://snowpack.dev/)
