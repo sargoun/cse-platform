@@ -6,16 +6,14 @@
  * eine Aussage ueber RLS und nicht ueber eine `where`-Bedingung im Dienst.
  */
 import { beforeAll, describe, expect, it } from 'vitest';
-import { execFileSync } from 'node:child_process';
-import { join, resolve } from 'node:path';
-import { alsApp, DB_URL, sql } from './harness.js';
+import { eigeneDatenbank } from './eigene-datenbank.js';
+
+const { alsApp, sql, baueAuf } = eigeneDatenbank('cse_lead');
 import { withEingang } from '../../src/server/kontext/eingang.js';
 import { nimmAn, pruefeRatenlimit, RatenlimitFehler, LIMIT_JE_IP }
   from '../../src/server/services/lead/annahme.js';
 import { eskaliereFaellige } from '../../src/server/services/lead/eskalation.js';
 import { Felder, type FormularFeld } from '../../src/lib/formular/schema.js';
-
-const WURZEL = resolve(import.meta.dirname, '../..');
 
 interface FormularZeile {
   id: string; mandant_id: string; schluessel: string;
@@ -26,13 +24,14 @@ const ids = new Map<string, string>();
 const formulare = new Map<string, FormularZeile>();
 let adminId = '';
 
+/*
+ * Eigene Datenbank, frisch gebaut und geseedet — siehe `eigene-datenbank.ts`.
+ * Mit `test-db.sh up` auf der gemeinsamen `cse_test` lief der Seed hier auf
+ * dem Stand der vorherigen Datei, und rot oder gruen entschied die
+ * Reihenfolge der Dateien.
+ */
 beforeAll(async () => {
-  const umgebung = { ...process.env, DATABASE_URL: DB_URL };
-  execFileSync('bash', [join(WURZEL, 'scripts/test-db.sh'), 'up'],
-    { cwd: WURZEL, encoding: 'utf8' });
-  execFileSync(join(WURZEL, 'node_modules/.bin/tsx'),
-    [join(WURZEL, 'src/server/db/seed/index.ts')],
-    { cwd: WURZEL, encoding: 'utf8', env: umgebung });
+  baueAuf();
 
   for (const m of await sql<{ id: string; slug: string }[]>`select id, slug from mandant`) {
     ids.set(m.slug, m.id);

@@ -8,8 +8,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
-import postgres from 'postgres';
-import { DB_URL } from './harness.js';
+import { eigeneDatenbank } from './eigene-datenbank.js';
 import { vergebeNummer, type NummernkreisFehler } from '../../src/server/services/finanz/nummernkreis.js';
 
 const WURZEL = resolve(import.meta.dirname, '../..');
@@ -52,48 +51,9 @@ const WURZEL = resolve(import.meta.dirname, '../..');
  * seine eigene Vorbedingung zerstoert, und der Fehlschlag traegt den Namen
  * einer offenen Frage statt den seiner Ursache.
  */
-const EIGEN_URL = DB_URL.replace(/\/[^/?]+(\?|$)/u, '/cse_seed$1');
+const { alsApp, sql, baueAuf, url: EIGEN_URL } = eigeneDatenbank('cse_seed');
 
-const sql = postgres(EIGEN_URL, { max: 2, onnotice: () => {} });
-
-interface Sitzung {
-  readonly scope: 'mandant' | 'gruppe' | 'person' | 'kunde';
-  readonly mandantId?: string | null;
-  readonly mandantIds?: readonly string[];
-  readonly benutzerId?: string;
-  readonly personId?: string | null;
-  readonly portal?: string;
-  readonly readonly?: boolean;
-}
-
-/** Dieselbe Bindung wie `harness.alsApp` — nur auf DIESER Datenbank. */
-async function alsApp<T>(
-  sitzung: Sitzung,
-  fn: (tx: postgres.TransactionSql) => Promise<T>,
-): Promise<T> {
-  return sql.begin(async (tx) => {
-    await tx.unsafe(`set local role cse_app`);
-    await tx.unsafe(`select set_config('app.scope', $1, true)`, [sitzung.scope]);
-    await tx.unsafe(`select set_config('app.mandant_id', $1, true)`, [sitzung.mandantId ?? '']);
-    await tx.unsafe(`select set_config('app.mandant_ids', $1, true)`,
-      [(sitzung.mandantIds ?? []).join(',')]);
-    await tx.unsafe(`select set_config('app.person_id', $1, true)`, [sitzung.personId ?? '']);
-    await tx.unsafe(`select set_config('app.benutzer_id', $1, true)`, [sitzung.benutzerId ?? '']);
-    await tx.unsafe(`select set_config('app.readonly', $1, true)`,
-      [sitzung.readonly === false ? 'off' : 'on']);
-    await tx.unsafe(`select set_config('app.portal', $1, true)`, [sitzung.portal ?? '']);
-    await tx.unsafe(`select set_config('app.akteur_typ', 'mensch', true)`);
-    return fn(tx);
-  }) as Promise<T>;
-}
-
-beforeAll(() => {
-  execFileSync('bash', [join(WURZEL, 'scripts/test-db.sh'), 'neu'],
-    { cwd: WURZEL, encoding: 'utf8', env: { ...process.env, TEST_DATABASE_URL: EIGEN_URL } });
-  execFileSync(join(WURZEL, 'node_modules/.bin/tsx'),
-    [join(WURZEL, 'src/server/db/seed/index.ts')],
-    { cwd: WURZEL, encoding: 'utf8', env: { ...process.env, DATABASE_URL: EIGEN_URL } });
-}, 180_000);
+beforeAll(() => { baueAuf(); }, 180_000);
 
 /*
  * KEIN `schliessen()`: der gemeinsame Pool der Harness gehoert dieser Datei
