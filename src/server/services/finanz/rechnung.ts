@@ -64,7 +64,8 @@ export class RechnungFehler extends Error {
       | 'mehrdeutige_steuergruppe'
       | 'basismenge_ungueltig'
       | 'kopf_nicht_uebernehmbar'
-      | 'leistungszeitpunkt_fehlt',
+      | 'leistungszeitpunkt_fehlt'
+      | 'quelle_passt_nicht',
   ) {
     super(nachricht);
     this.name = 'RechnungFehler';
@@ -431,6 +432,77 @@ export async function fuegeZeitPositionHinzu(
       'Ohne `zeit.lesen` sind die Zeiteintraege dieser Gesellschaft nicht sichtbar — '
       + 'eine Zeile daraus waere eine ueber null Stunden.',
       'nicht_gefunden',
+    );
+  }
+
+  /**
+   * **GENAU EINE Auswahl — das stand im Typ und in keiner Zeile Code.**
+   *
+   * `ZeitPositionAnlegen` sagt „genau eine der beiden"; die Abfrage darunter
+   * macht aus jedem fehlenden Wert ein `is null` und damit ein „egal". Ohne
+   * beide Kennungen sammelte sie JEDE freigegebene, noch nicht abgerechnete
+   * Stunde der ganzen Gesellschaft in EINE Rechnungszeile — und markierte sie
+   * anschliessend als abgerechnet. Mit beiden bildete sie einen
+   * Durchschnitt, den niemand bestellt hat.
+   *
+   * Ueber das Formular kam das nicht: die Route schickt eine Kennung. Ueber
+   * `POST /api/rechnungen` von Hand schon, und die Zeile waere danach
+   * festgeschrieben und unveraenderlich.
+   */
+  const hatLeistung = (eingabe.auftragLeistungId ?? null) !== null;
+  const hatAuftrag = (eingabe.auftragId ?? null) !== null;
+  if (hatLeistung === hatAuftrag) {
+    throw new RechnungFehler(
+      hatLeistung
+        ? 'Leistungszeile UND Auftrag angegeben — gemeint ist genau eine der beiden.'
+        : 'Weder Leistungszeile noch Auftrag angegeben. Ohne Anker waere die Zeile '
+          + 'die Summe aller offenen Stunden dieser Gesellschaft.',
+      'quelle_passt_nicht',
+    );
+  }
+
+  /**
+   * **Die Quelle muss zu DIESER Rechnung gehoeren.**
+   *
+   * Die Abfrage unten filtert ueber die mitgegebenen Kennungen und ueber die
+   * Mandantengrenze — und die sagt „dieselbe Gesellschaft", nicht „derselbe
+   * Auftrag". Traegt die Rechnung einen Auftrag, liessen sich ihr damit die
+   * Stunden eines ANDEREN anhaengen: jede Zeile fuer sich stimmig, jeder
+   * Fremdschluessel erfuellt, und die Eintraege des fremden Auftrags danach
+   * als abgerechnet markiert. Dieselbe Luecke wie die fuenf Fremdbezuege, die
+   * in der Nachtrunde von PR #5 an `reklamation`, `leistungsnachweis` und
+   * `wachbuch` geschlossen wurden — nur eine Ebene weiter oben, und hier
+   * haengt Geld daran.
+   *
+   * Abgewiesen wird, was einen ANDEREN Auftrag nennt. Eine Rechnung OHNE
+   * Auftrag widerspricht nicht — den Fall gibt es ausdruecklich (eine
+   * Einmalleistung ohne Auftragsbezug), und ihn zu verbieten hiesse, eine
+   * Regel zu erfinden.
+   */
+  const [bezug] = await db.abfrage<{ rechnung_auftrag: string | null; quelle_auftrag: string }>(
+    `select r.auftrag_id::text as rechnung_auftrag,
+            coalesce($2::uuid, al.auftrag_id)::text as quelle_auftrag
+       from rechnung r
+       left join auftrag_leistung al
+              on al.mandant_id = r.mandant_id and al.id = $3::uuid
+      where r.id = $1::uuid`,
+    [eingabe.rechnungId, eingabe.auftragId ?? null, eingabe.auftragLeistungId ?? null],
+  );
+  if (bezug === undefined) {
+    throw new RechnungFehler(
+      `Rechnung ${eingabe.rechnungId} nicht gefunden`, 'nicht_gefunden',
+    );
+  }
+  if (bezug.quelle_auftrag === null) {
+    throw new RechnungFehler(
+      'Die angegebene Leistungszeile gehoert zu keinem Auftrag dieser Gesellschaft.',
+      'quelle_passt_nicht',
+    );
+  }
+  if (bezug.rechnung_auftrag !== null && bezug.rechnung_auftrag !== bezug.quelle_auftrag) {
+    throw new RechnungFehler(
+      'Die Zeit gehoert zu einem anderen Auftrag als diese Rechnung.',
+      'quelle_passt_nicht',
     );
   }
 

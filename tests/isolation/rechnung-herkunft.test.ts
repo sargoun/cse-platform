@@ -1004,3 +1004,94 @@ describe('Die Herkunft verlässt das interne Portal nicht', () => {
     expect((fehler as Error).message).toMatch(/gel|Loesch|delete/iu);
   });
 });
+
+// ===========================================================================
+// (9) Die Quelle muss zu DIESER Rechnung gehören
+// ===========================================================================
+
+/**
+ * **Die RLS sagt „dieselbe Gesellschaft", nicht „derselbe Auftrag".**
+ *
+ * `fuegeZeitPositionHinzu` filterte die Zeiteinträge ausschliesslich über die
+ * mitgegebenen Kennungen. Keine Zeile band sie an die Rechnung, in die sie
+ * geschrieben wurden — und keine erzwang, dass überhaupt eine Kennung kommt.
+ * Beides fand der Copilot-Durchgang auf PR #7.
+ *
+ * Zwei Fälle, und der erste ist der teurere:
+ *
+ *  - **Ohne jeden Anker** wird aus `($1 is null or …)` ein „egal": die Zeile
+ *    war dann die Summe ALLER freigegebenen, noch nicht abgerechneten Stunden
+ *    der Gesellschaft — und markierte sie anschliessend als abgerechnet. Der
+ *    Typ sagte seit jeher „genau eine der beiden"; durchgesetzt hat es nichts.
+ *  - **Ein fremder Auftrag** liess sich an eine Rechnung hängen, die einen
+ *    anderen trägt. Jede Zeile für sich stimmig, jeder Fremdschlüssel erfüllt.
+ *
+ * Über das Formular kam beides nicht — die Route schickt genau eine Kennung.
+ * Über `POST /api/rechnungen` von Hand schon, und die Zeile wäre danach
+ * festgeschrieben und unveränderlich.
+ */
+describe('(9) Zeit aus einem fremden Auftrag kommt nicht auf diese Rechnung', () => {
+  it('ohne Anker wird abgewiesen — sonst ist die Zeile die Summe aller offenen Stunden', async () => {
+    await baueZeiteintrag('2026-08-10T06:00:00Z', '2026-08-10T10:00:00Z');
+    await expect(inSitzung(bau.mandant, async (tx) => {
+      const r = await leerEntwurf(tx);
+      return fuegeZeitPositionHinzu(alsDienst(tx), {
+        rechnungId: r, bezeichnung: 'Ohne Anker',
+        stundensatzCent: cent(42_50n), steuergruppe: 'ust_19',
+      });
+    })).rejects.toMatchObject({ name: 'RechnungFehler', grund: 'quelle_passt_nicht' });
+  });
+
+  it('und mit BEIDEN Ankern ebenso — „genau eine" ist keine Empfehlung', async () => {
+    await expect(inSitzung(bau.mandant, async (tx) => {
+      const r = await leerEntwurf(tx);
+      return fuegeZeitPositionHinzu(alsDienst(tx), {
+        rechnungId: r, bezeichnung: 'Beide Anker',
+        stundensatzCent: cent(42_50n), steuergruppe: 'ust_19',
+        auftragId: bau.auftrag, auftragLeistungId: bau.leistung,
+      });
+    })).rejects.toMatchObject({ name: 'RechnungFehler', grund: 'quelle_passt_nicht' });
+  });
+
+  it('die Zeit eines ANDEREN Auftrags wird abgewiesen, nicht stillschweigend gebucht', async () => {
+    // Ein zweiter Auftrag beim selben Kunden, im selben Objekt, derselbe
+    // Mandant — alles, was die RLS prüft, stimmt. Nur der Auftrag ist ein
+    // anderer, und genau das ist der Fall.
+    const [fremd] = await sql.unsafe<{ id: string }[]>(
+      `insert into auftrag (mandant_id, auftragsnummer, kunde_id, objekt_id, art, status,
+                            bezeichnung, verantwortlich_benutzer_id, start_datum)
+       select $1, $2, kunde_id, objekt_id, 'rahmenvertrag', 'aktiv', 'Zweiter Auftrag',
+              verantwortlich_benutzer_id, '2026-01-01'
+         from auftrag where id = $3
+       returning id`,
+      [bau.mandant, `AU-${zufall()}`, bau.auftrag] as never[]);
+
+    await expect(inSitzung(bau.mandant, async (tx) => {
+      const r = await legeEntwurfAn(alsDienst(tx), {
+        kundeId: bau.kunde, objektId: bau.objekt, auftragId: fremd!.id,
+        leistungVon: '2026-08-01', leistungBis: '2026-08-31', zahlungszielTage: 30,
+      });
+      return fuegeZeitPositionHinzu(alsDienst(tx), {
+        rechnungId: r, bezeichnung: 'Stunden des anderen Auftrags',
+        stundensatzCent: cent(42_50n), steuergruppe: 'ust_19',
+        auftragLeistungId: bau.leistung,
+      });
+    })).rejects.toThrow(/anderen Auftrag/u);
+  });
+
+  it('Gegenprobe: eine Rechnung OHNE Auftrag nimmt dieselbe Zeile an', async () => {
+    // Der Fall gibt es ausdrücklich — eine Einmalleistung ohne Auftragsbezug.
+    // Ihn zu verbieten wäre eine erfundene Regel, und ohne diese Prüfung
+    // stünde oben nur, dass Festschreiben schwierig ist.
+    await baueZeiteintrag('2026-08-11T06:00:00Z', '2026-08-11T10:00:00Z');
+    const ergebnis = await inSitzung(bau.mandant, async (tx) => {
+      const r = await leerEntwurf(tx, { mitAuftrag: false });
+      return fuegeZeitPositionHinzu(alsDienst(tx), {
+        rechnungId: r, bezeichnung: 'Einmalleistung',
+        stundensatzCent: cent(42_50n), steuergruppe: 'ust_19',
+        auftragLeistungId: bau.leistung,
+      });
+    });
+    expect(ergebnis.zeiteintraege).toBeGreaterThan(0);
+  });
+});
