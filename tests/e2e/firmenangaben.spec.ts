@@ -68,3 +68,52 @@ test.describe('das Impressum traegt die Pflichtangaben', () => {
     await expect(block.locator('[data-cse="gesellschaft"]')).toHaveCount(4);
   });
 });
+
+/**
+ * Und dieselbe Frage fuer die Kontaktseite.
+ *
+ * Sie trug einen Satz, der auf zwei andere Seiten verwies — Impressum fuer
+ * Anschrift und Telefon, Angebotsformular fuer alles Weitere. Eine Seite, auf
+ * der jemand Kontakt sucht und keinen findet, ist kein Textproblem.
+ */
+test.describe('die Kontaktseite zeigt die Wege, die sie nennt', () => {
+  test('vier Gesellschaften mit Telefon und E-Mail', async ({ page }) => {
+    const antwort = await page.goto('/kontakt');
+    expect(antwort?.status()).toBe(200);
+
+    const block = page.locator('[data-cse="kontaktwege"]');
+    await expect(block).toBeVisible();
+    await expect(block.locator('[data-cse="kontaktweg"]')).toHaveCount(4);
+
+    // Anrufbar heisst `tel:` — eine Nummer als Text ist am Telefon kein Weg.
+    await expect(block.locator('a[href^="tel:"]').first()).toBeVisible();
+    await expect(block.locator('a[href^="mailto:"]').first()).toBeVisible();
+  });
+
+  test('drei Bereiche fuehren ins Angebot — `operations` nicht', async ({ page }) => {
+    await page.goto('/kontakt');
+    const block = page.locator('[data-cse="kontaktwege"]');
+    /*
+     * `operations` fuehrt die Gruppe und verkauft nichts. Ein „Angebot
+     * anfragen" dort fuehrte auf ein Formular, das es nicht gibt — genau der
+     * Fehler, gegen den diese Datei geschrieben ist, nur auf der anderen Seite
+     * der Anwendung.
+     */
+    await expect(block.locator('[data-cse="kontakt-angebot"]')).toHaveCount(3);
+    await expect(
+      block.locator('[data-slug="operations"] [data-cse="kontakt-angebot"]'),
+    ).toHaveCount(0);
+
+    const ziel = block.locator('[data-slug="reinigung"] [data-cse="kontakt-angebot"]');
+    await expect(ziel).toHaveAttribute('href', '/angebot/reinigung');
+    await ziel.click();
+    await page.waitForLoadState('networkidle');
+    expect(new URL(page.url()).pathname).toBe('/angebot/reinigung');
+  });
+
+  test('auf Englisch fuehrt der Weg nach `/en/angebot/...`', async ({ page }) => {
+    await page.goto('/en/kontakt');
+    const ziel = page.locator('[data-cse="kontaktwege"] [data-slug="bau"] [data-cse="kontakt-angebot"]');
+    await expect(ziel).toHaveAttribute('href', '/en/angebot/bau');
+  });
+});

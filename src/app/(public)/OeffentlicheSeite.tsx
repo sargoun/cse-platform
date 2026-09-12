@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { Abschnitte } from '@/components/oeffentlich/Abschnitte';
 import { JsonLd } from '@/components/oeffentlich/JsonLd';
 import { Gesellschaften } from '@/components/oeffentlich/Gesellschaften';
+import { Kontaktwege } from '@/components/oeffentlich/Kontaktwege';
 import { ansprueche, seitenDaten } from '@/server/inhalt/seiten-daten';
 import { VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 import { shellBereiche } from './lade-shell';
@@ -47,6 +48,14 @@ export async function OeffentlicheSeite(
         */}
       {pfad === '/impressum' && (
         <Gesellschaften bereiche={daten.bereiche} sprache={sprache} />
+      )}
+      {/*
+        * Dieselbe Begruendung, andere Seite: `/kontakt` verwies auf das
+        * Impressum und auf die Angebotsformulare, statt die Wege zu zeigen,
+        * die es nennt. Wer Kontakt sucht, soll ihn hier finden.
+        */}
+      {pfad === '/kontakt' && (
+        <Kontaktwege bereiche={daten.bereiche} sprache={sprache} />
       )}
     </>
   );
