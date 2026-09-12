@@ -19,6 +19,16 @@ import type { BereichSchluessel } from '@/lib/design/theme';
  */
 export interface PortalRahmenProps {
   readonly titel: string;
+  /**
+   * Der Name der Portalwurzel, wenn `titel` ihn NICHT schon traegt.
+   *
+   * Dann zeigt die Kopfzeile eine Spur: `‹ Wurzel › Seite`, und der erste
+   * Teil ist der Weg zurueck. Ohne ihn stand dort nur der Seitenname — der
+   * zwar auf die Wurzel verwies, aber wie eine Ueberschrift aussah. „Wie
+   * komme ich hier weg" wurde daraufhin zweimal gefragt, und das ist zweimal
+   * mehr, als eine sichtbare Spur gekostet haette.
+   */
+  readonly wurzelTitel?: string;
   readonly bereich: BereichSchluessel | null;
   readonly nurLesen: boolean;
   readonly leiste: LeistenSchluessel;
@@ -39,7 +49,7 @@ export interface PortalRahmenProps {
 }
 
 export function PortalRahmen({
-  titel, bereich, nurLesen, leiste, wurzel, aktiverTab, sichtbareTabs,
+  titel, wurzelTitel, bereich, nurLesen, leiste, wurzel, aktiverTab, sichtbareTabs,
   navigationsRechte, children,
 }: PortalRahmenProps) {
   const tabs = tableiste(leiste);
@@ -75,10 +85,23 @@ export function PortalRahmen({
           * Zeilenhoehe von `text-h3` sind 28. Neun Bildschirme unter
           * `/portal/mein/**` fielen daran, jeder mit genau diesem einen Knoten.
           */}
-        <a href={wurzel}
-           className="flex min-h-11 min-w-11 items-center text-h3 text-text hover:underline">
-          {titel}
-        </a>
+        {wurzelTitel === undefined || wurzelTitel === titel ? (
+          <a href={wurzel}
+             className="flex min-h-11 min-w-11 items-center text-h3 text-text hover:underline">
+            {titel}
+          </a>
+        ) : (
+          <nav aria-label="Pfad" data-cse="spur" className="flex min-w-0 items-center gap-s2">
+            <a href={wurzel} data-cse="spur-zurueck"
+               className="flex min-h-11 min-w-11 items-center gap-s1 text-sm text-text-muted
+                          hover:text-text">
+              <span aria-hidden="true">‹</span>
+              {wurzelTitel}
+            </a>
+            <span aria-hidden="true" className="text-text-subtle">›</span>
+            <span className="truncate text-h3 text-text">{titel}</span>
+          </nav>
+        )}
         {nurLesen && (
           <span data-cse="header-nur-lesen"><StatusPill zustand="Nur Lesen" /></span>
         )}
@@ -143,11 +166,26 @@ export function PortalRahmen({
           * (18 Eintraege, jeder mit seinem Recht). Es war da, die Sidebar war
           * da — verbunden waren sie nie.
           */}
+        {/*
+          * **Die Arbeiterin und die Kundin haben am Schreibtisch dieselben
+          * Ziele wie am Telefon — nicht gar keine.**
+          *
+          * `NAVIGATION` ist das Register der MANDANTEN-Module, jedes mit einem
+          * Modulrecht. Eine Reinigungskraft haelt keines davon; die Schiene
+          * blieb deshalb leer, und am Schreibtisch trug ihr Portal ueberhaupt
+          * keine Navigation — die Tab-Leiste ist `md:hidden`. Ihre Ziele
+          * stehen in ihrer eigenen Leiste (`mitarbeiter`), und die ist hier
+          * die richtige Quelle. `Mehr` faellt dabei ohnehin weg (`OHNE_MEHR`).
+          */}
         <SeitenNavigation
-          ziele={NAVIGATION.filter((n) => leiste !== 'gruppe' || n.gruppe)}
+          ziele={leiste === 'mitarbeiter' || leiste === 'kunde'
+            ? tabs.ziele
+            : NAVIGATION.filter((n) => leiste !== 'gruppe' || n.gruppe)}
           wurzel={wurzel}
           {...(aktiverTab === undefined ? {} : { aktiv: aktiverTab })}
-          {...(navigationsRechte === undefined ? {} : { sichtbar: navigationsRechte })}
+          {...(leiste === 'mitarbeiter' || leiste === 'kunde'
+            ? (sichtbareTabs === undefined ? {} : { sichtbar: sichtbareTabs })
+            : (navigationsRechte === undefined ? {} : { sichtbar: navigationsRechte }))}
           label={titel}
         />
         {/* `pb-20` unter `md`: die Tab-Leiste liegt fest am unteren Rand und

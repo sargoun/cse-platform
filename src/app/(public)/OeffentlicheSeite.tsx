@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { Abschnitte } from '@/components/oeffentlich/Abschnitte';
 import { JsonLd } from '@/components/oeffentlich/JsonLd';
+import { Gesellschaften } from '@/components/oeffentlich/Gesellschaften';
 import { ansprueche, seitenDaten } from '@/server/inhalt/seiten-daten';
 import { VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 import { shellBereiche } from './lade-shell';
@@ -29,6 +30,24 @@ export async function OeffentlicheSeite(
         ansprueche={ansprueche(daten.bereiche)}
         sprache={sprache}
       />
+      {/*
+        * Das Impressum bekommt die Pflichtangaben aus `mandant` angehaengt.
+        *
+        * Vorher stand dort ein Satz, der auf den Fussbereich verwies und
+        * Handelsregister, Umsatzsteuer-Identifikationsnummer und
+        * Geschaeftsfuehrung „sobald bestaetigt" versprach — also ein
+        * Impressum ohne die Angaben, die § 5 TMG verlangt. Der Fussbereich
+        * traegt Anschrift und Telefon, mehr nicht.
+        *
+        * Die Sonderbehandlung steht hier und nicht als Abschnittsart im
+        * Redaktionssystem: die Angaben stehen schon in `mandant`, wo auch die
+        * Rechnung sie hernimmt. Ein zweites Mal als Fliesstext gepflegt,
+        * liefen sie auseinander — und das Impressum waere die Fassung, die
+        * niemand nachzieht.
+        */}
+      {pfad === '/impressum' && (
+        <Gesellschaften bereiche={daten.bereiche} sprache={sprache} />
+      )}
     </>
   );
 }

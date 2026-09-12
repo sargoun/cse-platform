@@ -113,6 +113,14 @@ export function MeinRahmen({
     >
       <PortalRahmen
         titel={titel}
+        /*
+         * `Heute` ist die Wurzel dieses Portals, und `titel` ist der Name der
+         * Seite, auf der man steht. Auf `/portal/mein/schichten` stand in der
+         * Kopfzeile nur „Schichten" — ein Verweis auf `/portal/mein`, der wie
+         * eine Ueberschrift aussah. Mit beidem liest sich die Zeile als Weg:
+         * `‹ Heute › Schichten`.
+         */
+        wurzelTitel="Heute"
         /**
          * Kein Bereich: eine Anmeldung, mehrere Gesellschaften. Der Streifen
          * oben ist neutral, und die Zugehoerigkeit steht an jeder ZEILE —

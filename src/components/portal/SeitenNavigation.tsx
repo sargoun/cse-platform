@@ -27,6 +27,17 @@ export function SeitenNavigation({
   ziele, aktiv, wurzel, label, sichtbar,
 }: SeitenNavigationProps) {
   const gezeigt = ziele.filter((z) => sichtbar?.[z.schluessel] !== false);
+  /*
+   * **Keine Schiene, wenn kein Punkt uebrig ist.**
+   *
+   * Das `<nav>` ist `w-56` breit und traegt eine Trennlinie. Blieb nichts
+   * uebrig — auf `/portal/mein/**` hielt die Sitzung kein einziges Modulrecht
+   * —, stand am Schreibtisch trotzdem eine leere Spalte von 224px mit einem
+   * Strich daneben. Das liest sich nicht als „hier gibt es nichts zu
+   * navigieren", sondern als „hier fehlt etwas", und beim dritten Mal glaubt
+   * man es dem Bildschirm.
+   */
+  if (gezeigt.length === 0) return null;
   return (
     <nav
       aria-label={label}
