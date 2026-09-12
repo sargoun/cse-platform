@@ -210,3 +210,70 @@ describe('K-01/K-08 — eine Definer-Funktion darf, was sie aufruft', () => {
     expect(Number(z?.anzahl)).toBeGreaterThan(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+
+/**
+ * **Ein Recht ist kein Weg** — die verallgemeinerte Fassung eines Fehlers,
+ * der in diesem Zweig dreimal aufgetreten ist.
+ *
+ *   0096  `grant execute` auf `app.protokolliere`, aber nicht an den
+ *         EIGENTUEMER der aufrufenden Definer-Funktion.
+ *   0099  `grant insert on benachrichtigung to cse_job` (aus 0011) — und
+ *         keine Policy fuer `cse_job` auf einer Tabelle mit `force row level
+ *         security`.
+ *   0100  `cse_job` musste `benutzer` lesen, um den Empfaenger aufzuloesen,
+ *         und hatte weder Spaltenrecht noch Policy.
+ *
+ * Alle drei sehen im Quelltext nach Absicht aus, und alle drei haetten erst
+ * zur Laufzeit gemeldet — zwei davon um drei Uhr nachts, in einem Prozess,
+ * dem niemand zusieht. Unter `force row level security` heisst „keine
+ * anwendbare Policy" nicht „alles erlaubt", sondern „nichts": das Recht steht
+ * im Katalog, die Zeile kommt nie an.
+ *
+ * Dieser Test faellt beim naechsten Mal, und zwar beim Anlegen der Migration
+ * statt beim ersten Lauf.
+ */
+describe('kein Tabellenrecht ohne Policy (force RLS)', () => {
+  it('jede Rolle mit einem Recht auf einer force-RLS-Tabelle hat dort auch eine Policy',
+    async () => {
+      const luecken = await sql.unsafe<{ rolle: string; tabelle: string; rechte: string }[]>(`
+        with rechte as (
+          select g.grantee as rolle, g.table_name as tabelle,
+                 string_agg(distinct g.privilege_type, ',' order by g.privilege_type) as rechte
+            from information_schema.role_table_grants g
+            join pg_class c on c.relname = g.table_name
+            join pg_namespace n on n.oid = c.relnamespace and n.nspname = g.table_schema
+           where g.grantee like 'cse\\_%'
+             and g.table_schema = 'public'
+             and c.relforcerowsecurity
+             -- Der Eigentuemer einer Definer-Funktion arbeitet ueber sie und
+             -- nicht ueber eigene Policies; K-01 regelt ihn getrennt.
+             and g.grantee <> 'cse_definer'
+           group by 1, 2
+        )
+        select r.rolle, r.tabelle, r.rechte
+          from rechte r
+         where not exists (
+               select 1 from pg_policy p
+                 join pg_class c2 on c2.oid = p.polrelid
+                where c2.relname = r.tabelle
+                  and r.rolle::regrole::oid = any(p.polroles))
+         order by 1, 2`);
+
+      expect(
+        luecken.map((z) => `${z.rolle} hat ${z.rechte} auf ${z.tabelle}, aber keine Policy`),
+      ).toEqual([]);
+    });
+
+  it('und die Gegenprobe: der Ausdruck sieht ueberhaupt Rechte', async () => {
+    const [z] = await sql.unsafe<{ anzahl: string }[]>(`
+      select count(*)::text as anzahl
+        from information_schema.role_table_grants g
+        join pg_class c on c.relname = g.table_name
+        join pg_namespace n on n.oid = c.relnamespace and n.nspname = g.table_schema
+       where g.grantee like 'cse\\_%' and g.table_schema = 'public'
+         and c.relforcerowsecurity`);
+    expect(Number(z?.anzahl)).toBeGreaterThan(50);
+  });
+});

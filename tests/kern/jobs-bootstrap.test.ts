@@ -1,0 +1,102 @@
+/**
+ * Der Test gegen den Fehler, den kein anderer Test sehen konnte.
+ *
+ * Es gab ein Register, einen Runner, ein Laufprotokoll und vier
+ * Jobdefinitionen — und ausserhalb der Tests registrierte sie niemand.
+ * `jobs()` war in Produktion leer: der Dienstplan materialisierte sich nie,
+ * Konflikte wurden nie erkannt, Nachweise liefen unbemerkt ab. Jede Datei war
+ * gebaut und geprueft; zusammen taten sie nichts.
+ *
+ * Genau das ist die Luecke, die eine Einzelpruefung nicht findet. Ein Test,
+ * der einen Job direkt registriert und ausfuehrt, ist gruen — er beweist,
+ * dass der Job funktioniert, und sagt nichts darueber, ob ihn jemand aufruft.
+ * Deshalb prueft dieser Test nicht die Jobs, sondern die VERDRAHTUNG: er
+ * liest das Verzeichnis und verlangt, dass jede Datei, die eine
+ * Registrierfunktion ausfuehrt, auch im Bootstrap steht.
+ */
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { alleJobs, vergissRegistrierung } from '../../src/server/jobs/bootstrap.js';
+import { leereRegister } from '../../src/server/jobs/registry.js';
+
+const JOBS = fileURLToPath(new URL('../../src/server/jobs', import.meta.url));
+
+/** Eine Attrappe: der Bootstrap darf beim Registrieren nichts abfragen. */
+const db = {
+  unsafe: (): Promise<readonly unknown[]> => Promise.resolve([]),
+};
+
+beforeEach(() => {
+  leereRegister();
+  vergissRegistrierung();
+});
+afterEach(() => {
+  leereRegister();
+  vergissRegistrierung();
+});
+
+describe('der Bootstrap verdrahtet ALLE Jobs', () => {
+  it('registriert die vier Jobs, die es gibt', () => {
+    const schluessel = alleJobs(db).map((j) => j.schluessel).sort();
+    expect(schluessel).toEqual([
+      'einsaetze_generieren', 'konflikte_erkennen', 'lead_sla_eskalation', 'nachweis_warnungen',
+    ]);
+  });
+
+  /**
+   * Die eigentliche Wache. Sie faellt, sobald jemand eine fuenfte Jobdatei
+   * anlegt und den Eintrag im Bootstrap vergisst — also genau in dem Moment,
+   * in dem der Fehler entsteht, und nicht Wochen spaeter beim Vermissen von
+   * Zahlen.
+   */
+  it('keine Jobdatei bleibt unverdrahtet', () => {
+    const dateien = readdirSync(JOBS)
+      .filter((d) => d.endsWith('.ts'))
+      .filter((d) => !['registry.ts', 'runner.ts', 'bootstrap.ts', 'alarm.ts',
+        'postgres-protokoll.ts'].includes(d));
+
+    const registrierend = dateien.filter((d) =>
+      /export function registriere[A-Z]/u.test(readFileSync(join(JOBS, d), 'utf8')));
+    expect(registrierend.length).toBeGreaterThan(0);
+
+    const bootstrap = readFileSync(join(JOBS, 'bootstrap.ts'), 'utf8');
+    const fehlend = registrierend.filter((d) => !bootstrap.includes(`./${d.replace(/\.ts$/u, '.js')}`));
+    expect(fehlend).toEqual([]);
+  });
+
+  it('zweimal aufgerufen registriert nicht doppelt', () => {
+    const erst = alleJobs(db).length;
+    // `registriere()` wirft beim zweiten Mal mit demselben Schluessel — ohne
+    // das Merken waere das hier ein Fehler und in der Entwicklung, wo Next.js
+    // Module neu laedt, ein Absturz beim zweiten Seitenaufruf.
+    expect(() => alleJobs(db)).not.toThrow();
+    expect(alleJobs(db).length).toBe(erst);
+  });
+
+  it('jeder Job erklaert Mandantenbezug, Zeitplan und Wiederholungen', () => {
+    for (const job of alleJobs(db)) {
+      expect(['je_mandant', 'uebergreifend', 'plattform']).toContain(job.bereich);
+      expect(job.zeitplan).toMatch(/^(\S+\s+){4}\S+$/u);
+      expect(job.versuche).toBeGreaterThanOrEqual(0);
+      expect(job.bezeichnung.length).toBeGreaterThan(10);
+    }
+  });
+
+  /**
+   * Die Nachtlaeufe duerfen sich nicht auf dieselbe Minute legen: der
+   * Generator braucht die Nachweislage, bevor er einteilt, und zwei
+   * gleichzeitige Laeufe auf derselben Datenbank sind kein Plan, sondern ein
+   * Zufall.
+   */
+  it('die Ablaufwarnungen laufen VOR dem Dienstplangenerator', () => {
+    const minute = (s: string): number => {
+      const [m, h] = s.split(' ');
+      return Number(h) * 60 + Number(m);
+    };
+    const register = new Map(alleJobs(db).map((j) => [j.schluessel, j.zeitplan]));
+    expect(minute(register.get('nachweis_warnungen')!))
+      .toBeLessThan(minute(register.get('einsaetze_generieren')!));
+  });
+});
