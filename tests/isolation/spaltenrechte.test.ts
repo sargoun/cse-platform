@@ -235,34 +235,51 @@ describe('K-01/K-08 — eine Definer-Funktion darf, was sie aufruft', () => {
  * statt beim ersten Lauf.
  */
 describe('kein Tabellenrecht ohne Policy (force RLS)', () => {
-  it('jede Rolle mit einem Recht auf einer force-RLS-Tabelle hat dort auch eine Policy',
+  it('jedes Recht auf einer force-RLS-Tabelle hat eine Policy FUER DIESE ANWEISUNG',
     async () => {
-      const luecken = await sql.unsafe<{ rolle: string; tabelle: string; rechte: string }[]>(`
-        with rechte as (
+      /**
+       * **Je Anweisung, nicht je Tabelle.** Die erste Fassung fragte nur
+       * „gibt es irgendeine Policy fuer diese Rolle auf dieser Tabelle" — und
+       * uebersah damit den Fall, der in diesem Zweig tatsaechlich steht:
+       * `benutzer_mandant` gewaehrt `cse_app` ein UPDATE und traegt Policies
+       * fuer SELECT und INSERT. Ein UPDATE, das `entzogen_am` setzt, trifft
+       * damit null Zeilen — der Entzug einer Bereichszuweisung meldet Erfolg
+       * und passiert nicht.
+       *
+       * `polcmd`: r = select, a = insert, w = update, d = delete, * = all.
+       * TRUNCATE, REFERENCES und TRIGGER stehen nicht unter RLS und bleiben
+       * darum aussen vor.
+       */
+      const luecken = await sql.unsafe<{ rolle: string; tabelle: string; recht: string }[]>(`
+        with noetig as (
           select g.grantee as rolle, g.table_name as tabelle,
-                 string_agg(distinct g.privilege_type, ',' order by g.privilege_type) as rechte
+                 g.privilege_type as recht,
+                 case g.privilege_type
+                   when 'SELECT' then 'r' when 'INSERT' then 'a'
+                   when 'UPDATE' then 'w' when 'DELETE' then 'd' end as cmd
             from information_schema.role_table_grants g
             join pg_class c on c.relname = g.table_name
             join pg_namespace n on n.oid = c.relnamespace and n.nspname = g.table_schema
            where g.grantee like 'cse\\_%'
              and g.table_schema = 'public'
              and c.relforcerowsecurity
+             and g.privilege_type in ('SELECT','INSERT','UPDATE','DELETE')
              -- Der Eigentuemer einer Definer-Funktion arbeitet ueber sie und
              -- nicht ueber eigene Policies; K-01 regelt ihn getrennt.
              and g.grantee <> 'cse_definer'
-           group by 1, 2
         )
-        select r.rolle, r.tabelle, r.rechte
-          from rechte r
+        select distinct x.rolle, x.tabelle, x.recht
+          from noetig x
          where not exists (
                select 1 from pg_policy p
                  join pg_class c2 on c2.oid = p.polrelid
-                where c2.relname = r.tabelle
-                  and r.rolle::regrole::oid = any(p.polroles))
-         order by 1, 2`);
+                where c2.relname = x.tabelle
+                  and x.rolle::regrole::oid = any(p.polroles)
+                  and (p.polcmd = x.cmd or p.polcmd = '*'))
+         order by 1, 2, 3`);
 
       expect(
-        luecken.map((z) => `${z.rolle} hat ${z.rechte} auf ${z.tabelle}, aber keine Policy`),
+        luecken.map((z) => `${z.rolle} darf ${z.recht} auf ${z.tabelle} — ohne Policy dafuer`),
       ).toEqual([]);
     });
 
