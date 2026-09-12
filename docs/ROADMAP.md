@@ -30,14 +30,18 @@ Two facts that this sequence otherwise hides, both true at the time of
 Phase 5's hand-off (PR #5):
 
 1. **Phases 0 to 5 are built** — the three trade modules, scheduling, time,
-   hour accounts and the employee portal in four languages — **with one named
-   exception: there is no login.** PR 20 (employee access by phone and one-time
-   code) has not been built; sessions are issued by `/dev/anmelden`, which only
-   exists when `CSE_DEV_FLAECHEN` is on. Phase 1's "Supabase Auth; 2FA for
-   `super_admin` and `admin`" is therefore still open, and so is every promise
-   that rests on a real session. Whatever else is missing is named
-   individually, not by a blank box: `PHASE-5-STAND.md` §"Offen in dieser
-   Phase" and the open questions in `DECISIONS.md`.
+   hour accounts and the employee portal in four languages. The login was the
+   one named exception; **PR 20 has since closed half of it.** Employees sign
+   in for real at `/auth/mitarbeiter` with a phone number and a one-time code
+   (`0113`–`0115`, EMP-01), and `/dev/anmelden` no longer lists them.
+   **What is still open is the other half:** `/auth/login` — e-mail, password
+   and the second factor Phase 1 promises for `super_admin` and `admin`
+   (AUT-01, AUT-02) — is not built, so those roles and the customer login
+   still come from `/dev/anmelden`, which only exists when `CSE_DEV_FLAECHEN`
+   is on. That page is narrowed, not retired, and it goes when `/auth/login`
+   arrives (D-386). Whatever else is missing is named individually, not by a
+   blank box: `PHASE-5-STAND.md` §"Offen in dieser Phase" and the open
+   questions in `DECISIONS.md`.
 2. **Phase 6 has already begun**, against the "phases are sequential" rule at
    the top. PR 46 — invoice lifecycle, number assignment, hash chain, Storno —
    ships inside the Phase 5 branch (`0075`–`0077`,

@@ -21,6 +21,7 @@ import { seedQualifikationen } from './qualifikation.js';
 import { seedAuftrag } from './auftrag.js';
 import { seedZeit } from './zeit.js';
 import { seedKonten } from './konto.js';
+import { normalisiereTelefon } from '../../../lib/telefon.js';
 import { seedSecurity } from './security.js';
 import { seedWachbuch } from './wachbuch.js';
 import { seedReinigung } from './reinigung.js';
@@ -893,6 +894,55 @@ async function main(): Promise<void> {
     }
   }
   process.stdout.write(`  ${konten.length} Rollenkonten (admin, leitung, mitarbeiter, kunde)\n`);
+
+  /**
+   * **Die Telefonzugaenge — ohne die sich niemand anmelden kann** (EMP-01,
+   * PR 20).
+   *
+   * Sie haengen an `person`, nicht an `anstellung`: Fatima putzt vormittags
+   * fuer die CSE Dienstleistungen und bewacht abends fuer die SSE Security,
+   * und sie hat EIN Telefon. `mitarbeiter_zugang.person_id` ist darum UNIQUE
+   * (D-09, EMP-14) — haenge der Zugang an der Beschaeftigung, haette sie zwei
+   * fuer dieselbe Nummer, und die Frage „welchen nehme ich?" haette keine
+   * Antwort, die sie interessieren sollte.
+   *
+   * **Die Nummer wird normalisiert, nicht uebernommen.** `person.telefon`
+   * steht so da, wie ein Mensch sie schreibt (`+49 170 1000000`);
+   * `telefon_e164` verlangt `^\+[1-9][0-9]{6,14}$` und ist eindeutig. Ohne
+   * `normalisiereTelefon` schlaegt die Einfuegung am CHECK fehl — und der
+   * Seed muss dieselbe Regel benutzen wie die Anmeldung, sonst legt er
+   * Zugaenge an, die niemand findet.
+   *
+   * Wer keine brauchbare Nummer traegt, bekommt keinen Zugang und keine
+   * erfundene: eine ausgedachte Mobilnummer in Demodaten ist eine, die
+   * irgendwann jemand anwaehlt.
+   */
+  const zugangsPersonen = await sql<{ id: string; telefon: string | null }[]>`
+    select distinct p.id, p.telefon
+      from person p
+      join benutzer b on b.person_id = p.id
+     where p.geloescht_am is null and b.status = 'aktiv' and not b.ist_dienstkonto`;
+
+  let zugaenge = 0;
+  let ohneNummer = 0;
+  for (const p of zugangsPersonen) {
+    const e164 = p.telefon === null ? null : normalisiereTelefon(p.telefon);
+    if (e164 === null) { ohneNummer += 1; continue; }
+    /*
+     * `on conflict (person_id) do update` und nicht `do nothing`: der Seed ist
+     * wiederholbar, und wer die Nummer eines Demomenschen aendert, will sie
+     * beim naechsten Lauf geaendert sehen — nicht die alte behalten und sich
+     * wundern, warum die SMS an ein Telefon geht, das es nicht mehr gibt.
+     */
+    await sql`
+      insert into mitarbeiter_zugang (person_id, telefon_e164)
+      values (${p.id}, ${e164})
+      on conflict (person_id) do update set telefon_e164 = excluded.telefon_e164`;
+    zugaenge += 1;
+  }
+  process.stdout.write(
+    `  ${String(zugaenge)} Telefonzugaenge (EMP-01)`
+    + `${ohneNummer === 0 ? '' : `, ${String(ohneNummer)} ohne brauchbare Nummer`}\n`);
 
   /**
    * Phase 4 — CRM und Operations.

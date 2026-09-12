@@ -5455,3 +5455,185 @@ Platzhalter waren erlaubt, solange einer markiert war, und die Zusicherung
 faellt am Tag des Erfolgs, wenn echte Bilder eintreffen. Sie prueft jetzt die
 Aussage selbst — so viele Marken wie Platzhalterbilder, und null Platzhalter
 erfuellen das richtig.
+
+---
+
+### D-384 · Die Anmeldung der Beschaeftigten liegt in der Datenbank, nicht in der Anwendung
+
+PR 20 schliesst die eine benannte Luecke der Phasen 0 bis 5: es gab keine
+Anmeldung. Sitzungen kamen aus `/dev/anmelden`, und das steht hinter
+`CSE_DEV_FLAECHEN`.
+
+**Drei Funktionen unter dem Eigentuemer, nicht drei Anweisungen in der
+Anwendung** (`0114`, `0115`). Wer sich anmeldet, ist noch niemand:
+`app.aktueller_benutzer()` ist NULL, `cse_app` sieht unter RLS nichts, und es
+gibt keinen Mandanten zu binden. Die Anmeldung ist damit der eine Weg, der VOR
+der Autorisierung liegt und trotzdem in die Datenbank greifen muss.
+
+Das ist keine Vorliebe, sondern zweimal nachgewiesen:
+
+- **`cse_app` hat auf `benutzer_sitzung` kein INSERT**, und die beiden
+  Policies darauf lauten `benutzer_id = app.aktueller_benutzer()`. Ein
+  direktes `insert` — so wie `devSitzungAusstellen` es tut — funktioniert nur,
+  solange die Anwendung als Eigentuemer verbindet. In einer Auslieferung, die
+  richtigerweise als `cse_app` laeuft, waere die Anmeldung tot gewesen: erst
+  dort, nicht hier.
+- **Die Abmeldung traf dasselbe.** `beendeSitzung` setzte `beendet_am` mit
+  einem eigenen UPDATE. Unter `cse_app` traf das null Zeilen und meldete
+  nichts — eine Abmeldung, die wie eine aussieht und keine ist. Sie laeuft
+  jetzt ueber `app.sitzung_beenden`, und der Besitz des Tokens ist der
+  Ausweis.
+
+Beide Befunde stehen als Test in `tests/isolation/mitarbeiter-anmeldung.test.ts`
+(„ein direktes INSERT als cse_app scheitert", „ein direktes UPDATE als cse_app
+beendet dagegen nichts"). Wer die Funktionen „vereinfacht", faellt dort.
+
+**`ansicht = 'person'` ist die Decke, nicht der Vorgabewert** (K-04).
+`app.sitzung_aufloesen` leitet das Portal aus der Ansicht ab; `person` ergibt
+`mitarbeiter`, unabhaengig von jeder weiteren Rolle des Kontos. Wer als
+Leitung gefuehrt wird und sich mit dem Telefon anmeldet, landet im
+Mitarbeiterportal — der leichte Weg (EMP-01, ein Faktor) kann den schweren
+(AUT-02, zwei Faktoren) nicht ersetzen. Das ist die sichere Richtung; ob sie
+die gewollte ist, ist **O-88**.
+
+**`aal1`, nicht `aal2`.** Der Einmalcode IST der erste Faktor, nicht der
+zweite. `devSitzungAusstellen` setzt `aal2`, damit Rechte mit `erfordert_2fa`
+auf den Entwicklungsflaechen nicht still leer bleiben; in der echten Anmeldung
+waere dieselbe Zeile eine Falschangabe.
+
+**Offen und als Platzhalter gefuehrt:** `auth.sitzung_stunden` = 12
+(`ist_vorlaeufig`), **O-79**. Zwoelf Stunden sind der Wert, den die
+Dev-Anmeldung seit PR 19 benutzt; er steht jetzt als Einstellung statt als
+Zahl im Code, damit die Antwort an einer Stelle landet. Fuer Reinigungskraefte
+und Wachleute ist die Frage eine andere als fuer die Buchhaltung: das Telefon
+liegt auf dem Objekt, und eine zwoelf Stunden gueltige Sitzung ueberlebt das
+Schichtende.
+
+---
+
+### D-385 · „Nicht verbunden" und „Code anzeigen" sind ZWEI Zusagen, nicht eine
+
+`codeAnfordern` gab den Klartextcode zurueck, wenn `!sms.verbunden`. Beide
+Dienste im Baum sind `verbunden = false` — der eine, weil O-82 offen ist, der
+andere, weil er auf der Entwicklungsflaeche absichtlich nichts sendet. Die
+Bedingung galt also fuer beide.
+
+**Was das in einer Auslieferung ohne Gateway bedeutet hätte:** jeder
+Unbekannte tippt die Mobilnummer einer Beschaeftigten ein und liest den Code
+daneben. Ein Einmalcode, den der Anfordernde sieht, ohne das Telefon zu haben,
+ist kein Faktor, sondern eine Tuer — und die Anmeldung, die PR 20 baut, waere
+schwaecher gewesen als gar keine, weil sie nach einer aussieht.
+
+`SmsDienst` traegt deshalb `zeigtCode` als EIGENE Zusage. Sie ist nur auf der
+Entwicklungsflaeche wahr; ein kuenftiger echter Anbieter setzt sie nie. Der
+Umkehrschluss aus `verbunden` ist damit ausgeschlossen, und
+`tests/kern/mitarbeiter-anmeldung.test.ts` prueft beide Faelle GETRENNT — samt
+eines dritten Dienstes, den es im Baum nicht gibt (verbunden UND anzeigend),
+damit die alte Regel den Test nicht gruen machen kann.
+
+Und die Folge fuer den Betrieb steht auf dem Bildschirm statt in einer Datei:
+ohne Gateway sagt `/auth/mitarbeiter` „nicht verbunden" und nennt O-82 — genau
+das, was 01-ORDNERSTRUKTUR §11.3 festhaelt. Die Zeiterfassung haengt trotzdem
+nicht daran: der planerseitige Check-in-Link (TIM-07) ist tokenisiert und
+braucht keine Anmeldung.
+
+---
+
+### D-386 · `/dev/anmelden` wird VERENGT, nicht abgeschafft
+
+Die ROADMAP sagt, PR 20 ersetze die Dev-Anmeldung. Woertlich genommen waere
+das falsch: PR 20 baut EMP-01, also den Zugang der Beschaeftigten.
+`/auth/login` mit E-Mail, Kennwort und zweitem Faktor ist Phase 1 (AUT-01,
+AUT-02) und nicht gebaut. Wer die Seite ganz entfernte, naehme `admin`,
+`leitung`, `super_admin` und dem Kundenzugang den einzigen Eingang, den sie
+haben.
+
+Die Seite listet deshalb seit PR 20 **keine `mitarbeiter`-Konten mehr**. Fuer
+den einen Weg, den PR 20 abdeckt, gibt es jetzt eine Anmeldung, und eine
+Abkuerzung daneben hiesse, dass jede Pruefung sie nimmt und die Anmeldung
+ungeprueft bleibt — und dass ein Entwicklungsbau zwei Eingaenge in dasselbe
+Portal hat.
+
+**Die Weiche sitzt im Anmeldehelfer der Browsersuite, nicht an den
+Aufrufstellen.** `alsKonto(page, email)` liest die Rolle des Kontos und nimmt
+fuer `mitarbeiter` den echten Weg. Fuenfzehn Aufrufstellen umzuschreiben waere
+moeglich gewesen — nur stehen mehrere davon in TABELLEN (`[pfad, konto]`), und
+eine Weiche, die man je Aufrufer trifft, trifft man irgendwo nicht.
+
+---
+
+### D-387 · Die vier Anmeldefunktionen gehoeren `cse_definer` — und das zieht mehr nach sich als eine Zeile
+
+`0114` und `0115` legen `SECURITY DEFINER`-Funktionen an und sagten nicht, wem
+sie gehoeren. Postgres gibt sie dann dem Konto, das die Migration ausfuehrt:
+`postgres`, Superuser mit `BYPASSRLS`. Eine Definer-Funktion laeuft mit den
+Rechten IHRES Eigentuemers — die vier liefen also an jeder Zeilensicherheit
+vorbei und mit vollem Zugriff auf jede Tabelle. Ausgerechnet die vier, die ein
+Unangemeldeter aufrufen darf.
+
+**Gefunden hat es die Sperrklinke aus D-300**, `tests/isolation/definer-eigentum.test.ts`,
+und zwar in CI, nicht im Betrieb. Sie ist genau dafuer da, dass die Altlast von
+95 Funktionen nicht waechst; sie hat funktioniert.
+
+**Das Umhaengen ist eine Zeile, die Folgen sind es nicht.** Ohne
+Superuser-Rechte stehen zwei Fragen offen, die vorher niemand stellen musste:
+welche Tabellen darf die Funktion anfassen, und welche Zeilen sieht sie dort.
+`0116` beantwortet beide — spaltengenau (K-05) und mit einer Policy je Tabelle
+und Anweisung. Drei Dinge fielen dabei auf, die alle erst zur Laufzeit
+gemeldet haetten:
+
+- **`app.plattform_einstellung`** wird aus `mitarbeiter_sitzung_ausstellen`
+  gerufen. Als `postgres` ging das ohne Recht; als `cse_definer` stirbt die
+  Anmeldung mit „permission denied for function plattform_einstellung".
+- **PUBLIC hielt EXECUTE auf allen vieren.** `create function` vergibt das,
+  ohne dass es jemand hinschreibt. Bei einer Funktion, die als `cse_definer`
+  laeuft, ist „jeder andere Aufrufer" genau die Menge, die es nicht geben darf.
+  `0093` hatte denselben Entzug fuer die damals vorhandenen Funktionen
+  gefahren; diese vier kamen danach.
+- **`using (true)` ist hier die richtige Verengung.** Eine Anmeldung MUSS eine
+  Nummer nachschlagen koennen, die sie noch nicht kennt; jede Bedingung auf
+  „eigene Zeilen" waere zirkulaer, es gibt ja noch keinen Handelnden. Die
+  Verengung liegt woanders und ist schaerfer: `cse_definer` ist `NOLOGIN`,
+  niemand ist Mitglied, und die Rolle laesst sich nur ueber genau diese vier
+  Funktionen betreten.
+
+---
+
+### D-388 · Es gibt jetzt beide Richtungen: kein Recht ohne Policy UND keine Policy ohne Recht
+
+`tests/isolation/spaltenrechte.test.ts` prueft seit 0100, dass kein
+Tabellenrecht ohne passende Policy dasteht — unter FORCE heisst „keine
+anwendbare Policy" *nichts*, und die Zeile kommt nie an.
+
+**Die Gegenrichtung fehlte, und sie hat sofort etwas gefunden.** `0113` (PR 20)
+kam mit drei sorgfaeltig geschnittenen Policies fuer `cse_app` auf
+`mitarbeiter_zugang` — und mit keinem einzigen Recht darauf. Postgres prueft
+in dieser Reihenfolge: erst das GRANT, dann die Policy. Eine Policy auf einer
+Tabelle, auf die die Rolle kein Recht hat, wird nie ausgewertet. Die Migration
+lief durch, die Policies standen in `pg_policies`, und die Personalstelle
+haette beim ersten Versuch `permission denied` gesehen — an einem Bildschirm,
+den bis dahin niemand geoeffnet hatte.
+
+Zwei Dinge, die der erste Entwurf falsch machte und die jetzt ausdruecklich
+dastehen:
+
+- **Spalten zaehlen mit.** K-05 gewaehrt bewusst je Spalte;
+  `information_schema.role_table_grants` kennt nur Tabellenrechte. Gefragt
+  wird deshalb `has_any_column_privilege` — und fuer DELETE
+  `has_table_privilege`, weil es DELETE auf einer Spalte gar nicht gibt.
+- **RESTRICTIVE zaehlt nicht mit.** Eine restriktive Policy erlaubt nichts,
+  sie verengt nur; ihr fehlendes Recht macht sie nicht tot, sondern doppelt
+  zu. `p_intern_eingang_delete` auf `formular_eingang` ist genau der Fall, und
+  eine eigene Pruefung haelt fest, dass es GENAU diese eine ist — kaeme eine
+  zweite dazu, muss jemand sie ansehen, statt dass sie durch eine stille
+  Bedingung rutscht.
+
+**Und ein dritter Befund aus demselben Nachmittag, der nichts mit Rechten zu
+tun hat:** `scripts/test-db.sh` haelt die Aufbausperre auf Dateikanal 9 und
+startete den Server innerhalb dieser Sperre. `pg_ctl start` loest einen Prozess
+ab, der den Kanal erbt — und die Sperre damit auf Lebenszeit haelt. Der erste
+`db:test:up` auf einem frischen Rechner lief durch, jeder folgende wartete zehn
+Minuten und starb an „Warte-Zeit abgelaufen", was aussieht wie ein haengender
+Postgres. `9>&-` schliesst den Kanal fuer den abgeloesten Prozess;
+`tests/kern/test-db-sperre.test.ts` faehrt den Wortlaut der Funktion aus dem
+Skript und prueft beide Richtungen — mit und ohne.

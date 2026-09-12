@@ -72,7 +72,9 @@ const config: Config = {
       boxShadow: { pop: SCHATTEN['shadow-pop'] },
       transitionTimingFunction: { brand: BEWEGUNG.ease },
       transitionDuration: { fast: '150ms', base: '220ms', slow: '400ms' },
-      maxWidth: { content: '1280px', prose: '72ch' },
+      // `form`: DESIGN §3 — Seiten, die nur ein Formular tragen (Anmeldung,
+      // Einmalcode). 32rem Feld plus die --s6-Rinne beidseits.
+      maxWidth: { content: '1280px', prose: '72ch', form: '608px' },
     },
   },
   plugins: [],

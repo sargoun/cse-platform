@@ -45,6 +45,23 @@ export class SmsNichtVerbundenFehler extends Error {
 export interface SmsDienst {
   /** Ob ueberhaupt versendet werden kann — die Oberflaeche fragt das. */
   readonly verbunden: boolean;
+  /**
+   * Ob der Code dem Anfordernden AUF DEM BILDSCHIRM gezeigt werden darf.
+   *
+   * **Das ist nicht `!verbunden`, und der Unterschied hat einmal gereicht,
+   * um die ganze Anmeldung wertlos zu machen.** Beide Dienste hier sind
+   * `verbunden = false` — der eine, weil O-82 offen ist, der andere, weil er
+   * absichtlich nichts sendet. `codeAnfordern` entschied ueber die Anzeige
+   * aber genau an `!sms.verbunden`, und damit galt sie fuer beide: in einer
+   * Auslieferung ohne Gateway haette jeder Unbekannte die Nummer eines
+   * Beschaeftigten eingetippt und den Code daneben gelesen. Ein Einmalcode,
+   * den der Anfordernde sieht, ohne das Telefon zu haben, ist kein Faktor,
+   * sondern eine Tuer.
+   *
+   * Deshalb eine EIGENE Zusage. Sie ist nur auf der Entwicklungsflaeche wahr,
+   * und ein kuenftiger echter Anbieter setzt sie nie.
+   */
+  readonly zeigtCode: boolean;
   /** Der Name fuer die Anzeige — nie erfunden. */
   readonly name: string;
   sende(auftrag: SmsAuftrag): Promise<void>;
@@ -59,6 +76,7 @@ export interface SmsDienst {
  */
 export class NichtVerbundenerSmsDienst implements SmsDienst {
   readonly verbunden = false;
+  readonly zeigtCode = false;
   readonly name = 'nicht verbunden';
 
   /*
@@ -87,6 +105,7 @@ export class NichtVerbundenerSmsDienst implements SmsDienst {
  */
 export class EntwicklungsSmsDienst implements SmsDienst {
   readonly verbunden = false;
+  readonly zeigtCode = true;
   readonly name = 'Entwicklungsfläche (kein Versand)';
 
   sende(auftrag: SmsAuftrag): Promise<void> {

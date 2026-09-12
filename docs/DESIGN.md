@@ -153,6 +153,17 @@ Shadow only on genuinely floating layers:
 
 Content max width `1280px`; long-form text max `72ch`.
 
+**Standalone form pages max `608px`** (`max-w-form`). These are the pages that
+carry nothing but a form and the sentences around it — sign-in, the one-time
+code, a single-purpose request. They are not content pages: at `1280px` a
+two-field form sits in the top-left corner of an empty screen, and at `72ch`
+the label and its input drift apart far enough that the eye loses the pairing.
+`608px` is `32rem` of field plus the page's own `--s6` gutter on both sides, so
+the form keeps one measure on a phone and on a desktop.
+
+Set as a theme token, never as a one-off: a width written into a page file is a
+width the next page gets slightly wrong.
+
 ---
 
 ## 4. Photography

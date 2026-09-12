@@ -7,8 +7,11 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
-  codeHash, neuerCode, normalisiereTelefon,
+  codeAnfordern, codeHash, neuerCode, normalisiereTelefon,
 } from '../../src/server/auth/mitarbeiter-anmeldung.js';
+import {
+  EntwicklungsSmsDienst, NichtVerbundenerSmsDienst,
+} from '../../src/server/auth/sms.js';
 
 describe('eine Telefonnummer hat GENAU EINE Schreibweise (EMP-14)', () => {
   /**
@@ -99,5 +102,91 @@ describe('der Einmalcode', () => {
     expect(codeHash('123456')).not.toBe(codeHash('123457'));
     expect(codeHash('123456')).toMatch(/^[0-9a-f]{64}$/u);
     expect(codeHash('123456')).not.toContain('123456');
+  });
+});
+
+/**
+ * **Der Klartextcode verlaesst die Anwendung nur auf der Entwicklungsflaeche.**
+ *
+ * Das stand hier nicht, und die erste Fassung war deshalb falsch: sie gab den
+ * Code frei, wenn `!sms.verbunden` — und BEIDE Dienste sind `verbunden =
+ * false`. Der eine, weil O-82 offen ist, der andere, weil er absichtlich
+ * nichts sendet. In einer Auslieferung ohne Gateway haette also jeder
+ * Unbekannte die Nummer eines Beschaeftigten eingetippt und den Code daneben
+ * gelesen: ein Einmalcode, den der Anfordernde sieht, ohne das Telefon zu
+ * haben, ist kein Faktor, sondern eine Tuer.
+ *
+ * Die Zusage heisst jetzt `zeigtCode` und ist eine EIGENE, kein Umkehrschluss.
+ */
+describe('der Code wird nur gezeigt, wo er gezeigt werden darf', () => {
+  /**
+   * Eine Abfrage, die `app.zugang_code_anfordern` immer mit `true` beantwortet
+   * — die Datenbankentscheidung selbst steht in der Isolationssuite. Hier geht
+   * es nur darum, was die Anwendung mit dem Code TUT.
+   */
+  const abfrageJa = {
+    unsafe: (): Promise<readonly unknown[]> => Promise.resolve([{ ok: true }]),
+  };
+
+  it('nicht verbundener Dienst: kein Klartextcode in der Antwort', async () => {
+    const ergebnis = await codeAnfordern(
+      abfrageJa, '0170 1234567', new NichtVerbundenerSmsDienst(),
+    );
+    expect(ergebnis.angenommen).toBe(true);
+    expect(
+      ergebnis.codeFuerEntwicklung,
+      'ohne Gateway darf der Code NICHT auf dem Bildschirm dessen landen, der '
+      + 'ihn angefordert hat — sonst genuegt eine fremde Nummer zum Anmelden',
+    ).toBeNull();
+  });
+
+  it('Entwicklungsdienst: Klartextcode, sechsstellig', async () => {
+    const ergebnis = await codeAnfordern(
+      abfrageJa, '0170 1234567', new EntwicklungsSmsDienst(),
+    );
+    expect(ergebnis.codeFuerEntwicklung).toMatch(/^[0-9]{6}$/u);
+  });
+
+  /**
+   * **Die Gegenprobe: `verbunden` allein traegt die Entscheidung NICHT.**
+   *
+   * Wer `zeigtCode` wieder durch `!verbunden` ersetzt, macht diesen Test
+   * gruen — beide Dienste oben sind ja `verbunden = false`. Deshalb hier ein
+   * dritter, den es im Baum nicht gibt: verbunden UND anzeigend. Unter der
+   * alten Regel gaebe er `null` zurueck, unter der richtigen den Code. Die
+   * beiden Faelle sind damit nachweislich unabhaengig.
+   */
+  it('verbunden und anzeigend zugleich: die Anzeige folgt zeigtCode', async () => {
+    const beides = {
+      verbunden: true, zeigtCode: true, name: 'Prüfstand',
+      sende: (): Promise<void> => Promise.resolve(),
+    };
+    const ergebnis = await codeAnfordern(abfrageJa, '0170 1234567', beides);
+    expect(ergebnis.codeFuerEntwicklung).toMatch(/^[0-9]{6}$/u);
+  });
+
+  it('unbrauchbare Nummer: nichts angenommen, nichts gezeigt', async () => {
+    const ergebnis = await codeAnfordern(
+      abfrageJa, 'keine Nummer', new EntwicklungsSmsDienst(),
+    );
+    expect(ergebnis.angenommen).toBe(false);
+    expect(ergebnis.codeFuerEntwicklung).toBeNull();
+  });
+
+  /**
+   * Legt die Datenbank keinen Code an — unbekannte Nummer, gesperrt, oder drei
+   * offene Codes —, gibt es auch nichts anzuzeigen. Sonst stuende auf dem
+   * Bildschirm ein Code, den niemand einloesen kann, und die Anzeige waere
+   * genau das Orakel, das 0114 vermeidet.
+   */
+  it('die Datenbank legt keinen Code an: auch der Entwicklungsdienst zeigt nichts', async () => {
+    const abfrageNein = {
+      unsafe: (): Promise<readonly unknown[]> => Promise.resolve([{ ok: false }]),
+    };
+    const ergebnis = await codeAnfordern(
+      abfrageNein, '0170 1234567', new EntwicklungsSmsDienst(),
+    );
+    expect(ergebnis.angenommen, 'nach aussen immer dieselbe Antwort').toBe(true);
+    expect(ergebnis.codeFuerEntwicklung).toBeNull();
   });
 });

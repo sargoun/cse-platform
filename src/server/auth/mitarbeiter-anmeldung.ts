@@ -1,5 +1,6 @@
 import 'server-only';
 import { createHash, randomInt } from 'node:crypto';
+import { normalisiereTelefon } from '../../lib/telefon.js';
 import { type SmsDienst } from './sms.js';
 
 /**
@@ -34,35 +35,7 @@ export function codeHash(code: string): string {
   return createHash('sha256').update(code, 'utf8').digest('hex');
 }
 
-/**
- * Eine deutsche Telefonnummer auf E.164 bringen.
- *
- * **Warum das nicht der Eingabe ueberlassen wird.** `0170 1234567`,
- * `+49 170 1234567`, `0049-170-1234567` und `(0170) 1234567` sind dieselbe
- * Nummer. Ohne Normalisierung legt jede Schreibweise einen eigenen Zugang an,
- * und die Spalte `telefon_e164 unique` haelt genau nichts mehr zusammen.
- *
- * **Die Laenderkennung ist ein Parameter, kein Literal.** Die Vorwahl `49`
- * steht hier als Vorgabe, weil die Gruppe in Berlin arbeitet und ihre
- * Beschaeftigten deutsche Nummern haben; wer eine auslaendische Nummer
- * eintraegt, schreibt sie mit `+` und wird durchgereicht. Ein hart
- * verdrahtetes `+49` haette eine polnische oder tuerkische Mobilnummer still
- * zu einer deutschen gemacht — und das faellt erst auf, wenn die SMS nicht
- * ankommt.
- */
-export function normalisiereTelefon(eingabe: string, laenderkennung = '49'): string | null {
-  const roh = eingabe.replace(/[\s/()\-.]/gu, '');
-  if (roh === '') return null;
-
-  let ziffern: string;
-  if (roh.startsWith('+')) ziffern = roh.slice(1);
-  else if (roh.startsWith('00')) ziffern = roh.slice(2);
-  else if (roh.startsWith('0')) ziffern = laenderkennung + roh.slice(1);
-  else return null;   // Weder international noch mit nationaler Null: unklar.
-
-  if (!/^[1-9][0-9]{6,14}$/u.test(ziffern)) return null;
-  return `+${ziffern}`;
-}
+export { normalisiereTelefon };
 
 /** Zehn Minuten — siehe 0113. */
 export const CODE_GUELTIG_MINUTEN = 10;
@@ -82,10 +55,13 @@ export interface AnforderungsErgebnis {
    */
   readonly angenommen: boolean;
   /**
-   * Der Code im Klartext — NUR auf den Entwicklungsflaechen und nur, wenn
-   * kein Dienst verbunden ist. Sonst `null`. Er steht hier, damit die
-   * Anmeldung ohne Gateway pruefbar ist, und er wird von der Oberflaeche
-   * sichtbar als Entwicklungsauskunft gezeigt, nie als „gesendet".
+   * Der Code im Klartext — NUR auf den Entwicklungsflaechen. Sonst `null`.
+   *
+   * Er steht hier, damit die Anmeldung ohne Gateway pruefbar ist, und die
+   * Oberflaeche zeigt ihn sichtbar als Entwicklungsauskunft, nie als
+   * „gesendet". Die Entscheidung darueber gehoert dem Dienst
+   * (`SmsDienst.zeigtCode`) und NICHT dem Umkehrschluss aus `verbunden` —
+   * siehe die Begruendung dort.
    */
   readonly codeFuerEntwicklung: string | null;
 }
@@ -122,7 +98,7 @@ export async function codeAnfordern(
 
   return {
     angenommen: true,
-    codeFuerEntwicklung: angelegt && !sms.verbunden ? code : null,
+    codeFuerEntwicklung: angelegt && sms.zeigtCode ? code : null,
   };
 }
 

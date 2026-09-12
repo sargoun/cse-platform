@@ -43,6 +43,18 @@ async function konten(): Promise<readonly Konto[]> {
        left join rolle r on r.id = bm.rolle_id
        left join mandant m on m.id = bm.mandant_id
       where b.status = 'aktiv' and not b.ist_dienstkonto and b.deaktiviert_am is null
+        -- Ohne die mitarbeiter-Konten, seit PR 20 (EMP-01). Fuer diesen
+        -- einen Weg gibt es jetzt eine echte Anmeldung: /auth/mitarbeiter,
+        -- Telefon und Einmalcode. Eine Abkuerzung daneben stehen zu lassen
+        -- hiesse, dass jede Pruefung sie nimmt und die Anmeldung ungeprueft
+        -- bleibt -- und dass ein Entwicklungsbau einen zweiten Eingang zu
+        -- demselben Portal hat.
+        --
+        -- Die uebrigen Rollen bleiben, weil ihr richtiger Eingang noch nicht
+        -- existiert: /auth/login mit E-Mail, Kennwort und zweitem Faktor ist
+        -- Phase 1 (AUT-01, AUT-02) und nicht gebaut. Diese Seite verschwindet
+        -- mit ihm, nicht vorher.
+        and coalesce(gr.schluessel, r.schluessel) is distinct from 'mitarbeiter'
       order by b.name`,
   )) as Promise<readonly Konto[]>;
 }
@@ -97,8 +109,15 @@ export default async function DevAnmeldung() {
       <h1 className="text-h1 text-text">Entwicklungsanmeldung</h1>
       <p className="max-w-[72ch] text-base text-text-muted">
         Stellt eine echte Sitzung aus, ohne nach einem Kennwort zu fragen. Nur
-        auf den Entwicklungsflächen; ein Deployment liefert hier 404. Die
-        richtige Anmeldung (Telefon + Einmalcode) kommt mit PR 20.
+        auf den Entwicklungsflächen; ein Deployment liefert hier 404.{' '}
+        <strong className="text-text">
+          Beschäftigte stehen hier nicht mehr:
+        </strong>{' '}
+        sie melden sich unter <a className="underline" href="/auth/mitarbeiter">
+          /auth/mitarbeiter
+        </a> mit Telefonnummer und Einmalcode an (EMP-01). Für die übrigen
+        Rollen bleibt diese Seite, bis <code>/auth/login</code> mit Kennwort
+        und zweitem Faktor gebaut ist (Phase 1, AUT-01/AUT-02).
       </p>
 
       <ul className="flex flex-col gap-s3">

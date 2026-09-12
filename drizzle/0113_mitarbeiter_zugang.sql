@@ -169,3 +169,43 @@ create policy t_zugang_aendern on mitarbeiter_zugang for update to cse_app
  * Ein Weg, auf dem die Anwendung den Hash lesen koennte, waere ein Weg, auf
  * dem ein Fehler in einer Route ihn herausgibt.
  */
+
+/**
+ * **Die Rechte — ohne die die Policies darüber tot wären.**
+ *
+ * Postgres prüft in dieser Reihenfolge: erst das GRANT, dann die Policy. Eine
+ * Policy auf einer Tabelle, auf die `cse_app` kein Recht hat, wird nie
+ * ausgewertet — sie steht da und tut nichts. Das ist der Spiegel des Befunds
+ * aus `0109`: dort war das Recht da und der Weg fehlte, hier wäre der Weg da
+ * und das Recht fehlte. Beide Male sieht die Migration vollständig aus.
+ *
+ * **Spalten, nicht Tabellen (K-05).** Die Personalstelle muss sehen, DASS
+ * jemand einen Zugang hat, seit wann er zuletzt benutzt wurde und ob er
+ * gesperrt ist — und sie muss ihn anlegen und sperren können. Was sie NICHT
+ * braucht, ist `erstellt_von`/`geaendert_von` zu setzen: die schreibt der
+ * Audit-Trigger.
+ */
+grant select (
+  id, person_id, telefon_e164, gesperrt_am, gesperrt_grund,
+  letzter_login_am, erstellt_am, geaendert_am
+) on mitarbeiter_zugang to cse_app;
+
+grant insert (person_id, telefon_e164) on mitarbeiter_zugang to cse_app;
+
+/**
+ * Ändern heißt hier: sperren, entsperren, Nummer korrigieren. NICHT
+ * `person_id` — ein Zugang, der den Menschen wechselt, ist kein geänderter
+ * Zugang, sondern ein fremder. Wer sich vertan hat, sperrt und legt neu an;
+ * die alte Zeile bleibt als Spur stehen.
+ */
+grant update (telefon_e164, gesperrt_am, gesperrt_grund, geaendert_am)
+  on mitarbeiter_zugang to cse_app;
+
+/**
+ * **Auf `mitarbeiter_einmalcode` bekommt `cse_app` KEIN Recht** — passend zu
+ * der fehlenden Policy weiter oben. Die Ausnahme ist damit eine Verengung
+ * und kein Loch: kein Recht UND keine Policy, beides bewusst.
+ *
+ * `cse_definer` braucht ebenfalls kein explizites Recht: die beiden
+ * Funktionen in 0114 laufen als SECURITY DEFINER unter dem Eigentümer.
+ */
