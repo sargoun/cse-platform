@@ -776,7 +776,19 @@ export function berichtAlsJson(b: PflichtfeldBericht): Record<string, unknown> {
       ist_platzhalter: b.kleinbetrag.istPlatzhalter,
       grund: b.kleinbetrag.grund,
     },
-    nicht_geprueft: b.nichtGeprueft.map((n) => ({ regel: n.regel, grund: n.grund })),
+    /*
+     * `solangeOhne` gehoert MIT in den Snapshot. Der Bericht wird eingefroren
+     * und 2032 gelesen; „kommt mit PR 51" ist dann eine Behauptung ohne
+     * Beleg, waehrend die Tabellenliste sie pruefbar macht — es steht dann
+     * nachlesbar da, WORAN die Pruefung damals fehlte. Die Serialisierung
+     * hatte das Feld stillschweigend fallen lassen; gemeldet vom
+     * Copilot-Durchgang auf PR #7.
+     */
+    nicht_geprueft: b.nichtGeprueft.map((n) => ({
+      regel: n.regel,
+      grund: n.grund,
+      ...(n.solangeOhne === undefined ? {} : { solange_ohne: [...n.solangeOhne] }),
+    })),
   };
 }
 
