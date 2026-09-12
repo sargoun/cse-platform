@@ -42,6 +42,23 @@ interface Bereich {
   readonly rechtsform: string | null;
   readonly rechtseinheit: boolean | null;
   readonly farbe: string;
+  /**
+   * Die GEBUCHTEN Gewerkmodule (`mandant.module`, seit 0001 vorhanden und bis
+   * jetzt leer).
+   *
+   * Das ist keine Erfindung, sondern steht in `CLAUDE.md`: CSE
+   * Dienstleistungen macht Gebaeudereinigung, SSE Security Sicherheits- und
+   * Objektschutzdienste, REALTIME Service Hochbau/Ausbau/Rueckbau. CSE
+   * Operations fuehrt kein Gewerk — es ist die Gruppensteuerung.
+   *
+   * Was daraus folgt, ist sichtbar: der Hochbau-Admin sieht „Reinigung" und
+   * „Security" nicht mehr in seiner Sidebar und bekommt auf
+   * `/portal/bau/reinigung/reviere` einen 404 statt einer leeren Seite.
+   *
+   * // TODO(client, O-356): Bucht eine Gesellschaft je ein Gewerk, oder gibt
+   * es Ueberschneidungen — etwa Bauendreinigung bei der REALTIME Service?
+   */
+  readonly module: readonly string[];
 }
 
 /**
@@ -52,13 +69,22 @@ interface Bereich {
  */
 const BEREICHE: readonly Bereich[] = [
   { slug: 'reinigung', name: 'CSE Dienstleistung', firma: 'CSE Dienstleistungen GmbH',
-    rechtsform: 'GmbH', rechtseinheit: true, farbe: 'reinigung' },
+    rechtsform: 'GmbH', rechtseinheit: true, farbe: 'reinigung',
+    module: ['reinigung'] },
   { slug: 'security', name: 'SSE Security', firma: 'Select-Security Event GmbH',
-    rechtsform: 'GmbH', rechtseinheit: true, farbe: 'security' },
+    rechtsform: 'GmbH', rechtseinheit: true, farbe: 'security',
+    module: ['security'] },
   { slug: 'bau', name: 'REALTIME Service', firma: 'REALTIME Service GmbH',
-    rechtsform: 'GmbH', rechtseinheit: true, farbe: 'bau' },
+    rechtsform: 'GmbH', rechtseinheit: true, farbe: 'bau',
+    module: ['bau'] },
+  /*
+   * `operations` bucht KEIN Gewerk — und das ist die Aussage, nicht eine
+   * Luecke. Die Gruppensteuerung fuehrt weder Reviere noch Posten noch
+   * Baustellen; was sie braucht (Uebersicht, CRM, Finanzen, Dokumente,
+   * Personal), steht in `QUERSCHNITT` und wird nicht gebucht.
+   */
   { slug: 'operations', name: 'CSE Operations', firma: 'CSE Operations',
-    rechtsform: null, rechtseinheit: null, farbe: 'operations' },
+    rechtsform: null, rechtseinheit: null, farbe: 'operations', module: [] },
 ];
 
 /**
@@ -143,7 +169,7 @@ async function main(): Promise<void> {
          ${rechtseinheit},
          'Kurfürstendamm 21', '10719', 'Berlin', 'DE', -- TODO(client, O-353): echte Anschrift je Gesellschaft
          '+49 30 555 0100', ${`kontakt@${b.slug}.cse-gruppe.de`}, ${b.farbe}, -- TODO(client, O-353): echte Rufnummer
-         '{}', ${i},
+         ${sql.array([...b.module])}, ${i},
          ${rechtseinheit ? `DE${String(100_000_000 + i)}` : null}, -- TODO(client, O-353): echte USt-IdNr.
          ${rechtseinheit ? 'Amtsgericht Charlottenburg' : null},
          ${rechtseinheit ? `HRB ${String(200_000 + i)}` : null})  -- TODO(client, O-353): echte HRB-Nummer
@@ -163,7 +189,11 @@ async function main(): Promise<void> {
             eigener_nummernkreis = excluded.eigener_nummernkreis,
             ust_id = excluded.ust_id,
             handelsregister_gericht = excluded.handelsregister_gericht,
-            handelsregister_nummer = excluded.handelsregister_nummer
+            handelsregister_nummer = excluded.handelsregister_nummer,
+            -- Die Buchung gehoert zur Gesellschaft und nicht zum ersten Lauf:
+            -- ohne diese Zeile blieben vier bereits angelegte Bereiche fuer
+            -- immer bei '{}', und der Modulriegel griffe nirgends.
+            module = excluded.module
       returning id`;
     ids.set(b.slug, z!.id);
   }

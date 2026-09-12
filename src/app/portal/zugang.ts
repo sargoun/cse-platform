@@ -6,6 +6,8 @@ import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { pruefeZugang, rechtepruefer, PORTAL_START } from '@/server/auth/zugang';
 import { bindeAnfrage, gruppenMandanten, rolleImMandanten } from '@/server/kontext/index';
 import { NAVIGATION } from '@/server/registry/navigation';
+import { modulAktiv } from '@/server/registry/module';
+import { findeRoute } from '@/server/registry/routen';
 import { leisteFuer, tableiste, type LeistenSchluessel }
   from '@/server/registry/tableiste';
 import type { Sitzung } from '@/server/kontext/index';
@@ -62,6 +64,8 @@ export interface PortalZugang {
   readonly sichtbareTabs: Readonly<Record<string, boolean>>;
   /** Der Slug des aktiven Bereichs — die Portalwurzel haengt daran. */
   readonly mandantSlug: string | null;
+  /** Ist das Modul dieser Seite in dieser Gesellschaft gar nicht gebucht? */
+  readonly modulGesperrt: boolean;
 }
 
 interface Befund {
@@ -71,6 +75,7 @@ interface Befund {
   readonly sichtbareTabs: Readonly<Record<string, boolean>>;
   readonly navigationsRechte: Readonly<Record<string, boolean>>;
   readonly mandantSlug: string | null;
+  readonly modulGesperrt: boolean;
 }
 
 /** Die Portalwurzel, unter der die Leiste ihre relativen Ziele aufloest. */
@@ -109,14 +114,27 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
 
     const pruefer = rechtepruefer(abfrage);
     const entscheidung = await pruefeZugang(pfad, sitzung, pruefer);
-    if (entscheidung.art !== 'erlaubt') {
+    /**
+   * Ein nicht gebuchtes Modul sieht von aussen aus wie eine Seite, die es
+   * nicht gibt — und fuer diese Gesellschaft ist es das auch.
+   */
+  if (befund.modulGesperrt) notFound();
+  if (entscheidung.art !== 'erlaubt') {
       return {
         entscheidung, rolle: null, mandanten, sichtbareTabs: {}, navigationsRechte: {},
-        mandantSlug: null,
+        mandantSlug: null, modulGesperrt: false,
       } satisfies Befund;
     }
 
     const rolle = await rolleImMandanten(tx, sitzung);
+    /**
+     * Slug UND gebuchte Module in EINER Abfrage — sie stehen in derselben
+     * Zeile, und eine zweite Rundreise fuer eine Spalte daneben waere eine
+     * Rundreise auf jedem Seitenaufruf.
+     */
+    const [m] = sitzung.aktiverMandantId === null ? [] : await abfrage<{
+      slug: string; module: readonly string[] | null;
+    }>(`select slug, module from mandant where id = $1`, [sitzung.aktiverMandantId]);
     /**
      * Die Leiste wird IN dieser Transaktion bewertet, nicht danach: die
      * Bindung steht nur hier, und `app.hat_recht` ohne sie antwortet `false`
@@ -139,9 +157,29 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
       ...NAVIGATION.map((n) => n.recht),
     ])];
     const gehalten = await pruefer.hatRechte(gefragt, sitzung.aktiverMandantId);
+    /**
+     * **Recht UND Modul** — die Schnittmenge, wie 0008 sie fuer
+     * `benutzer_mandant.module` bildet.
+     *
+     * Das Recht allein reichte nicht, und das war der Befund des Mandanten:
+     * `admin` und `leitung` halten `reinigung.lesen` mit
+     * `rolle.mandant_id is null`, also in jedem Bereich. Ohne die zweite
+     * Frage sah der Hochbau-Admin die Reinigung — und die Bauleitung der
+     * Reinigung das Wachbuch.
+     *
+     * Im GRUPPEN-Scope gibt es keine Buchung, die entscheiden koennte: die
+     * Ansicht umfasst mehrere Gesellschaften mit verschiedenen Modulen. Dort
+     * bleibt es beim Recht; was die Gruppenansicht zeigt, ist ohnehin lesend
+     * (Invariante 10) und je Zeile mandantengebunden.
+     */
+    const module = sitzung.ansicht === 'gruppe' ? [] : (m?.module ?? []);
+    const frei = (recht: string | null): boolean =>
+      recht === null || modulAktiv(module, recht);
+
     const sichtbareTabs: Record<string, boolean> = {};
     for (const z of ziele) {
-      sichtbareTabs[z.schluessel] = z.recht === null || gehalten.has(z.recht);
+      sichtbareTabs[z.schluessel] =
+        (z.recht === null || gehalten.has(z.recht)) && frei(z.recht);
     }
     /*
      * **Geschluesselt nach `schluessel`, nicht nach `recht`.**
@@ -158,13 +196,25 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
      * Punkt zu viel sieht aus wie ein vollstaendiges Menue.
      */
     const navigationsRechte: Record<string, boolean> = {};
-    for (const n of NAVIGATION) navigationsRechte[n.schluessel] = gehalten.has(n.recht);
-    const [m] = sitzung.aktiverMandantId === null ? [] : await abfrage<{ slug: string }>(
-      `select slug from mandant where id = $1`, [sitzung.aktiverMandantId],
-    );
+    for (const n of NAVIGATION) {
+      navigationsRechte[n.schluessel] = gehalten.has(n.recht) && frei(n.recht);
+    }
+
+    /**
+     * Und dieselbe Frage fuer die SEITE, nicht nur fuer das Menue.
+     *
+     * Ein ausgeblendeter Menuepunkt ist keine Sperre — die Adresse tippen
+     * kann jeder. Ohne diese Zeile antwortete `/portal/bau/reinigung/reviere`
+     * weiterhin 200, und das Menue haette die Luecke nur unsichtbar gemacht.
+     * 404 und nicht 403: ein 403 bestaetigt, dass es die Seite gibt (AUT-06).
+     */
+    const route = findeRoute(pfad);
+    const bewachung = route?.bewachung;
+    const modulGesperrt = bewachung !== undefined && bewachung.art === 'recht'
+      && [...bewachung.lesen, ...bewachung.schreiben].some((r) => !modulAktiv(module, r));
     return {
       entscheidung, rolle, mandanten, sichtbareTabs, navigationsRechte,
-      mandantSlug: m?.slug ?? null,
+      mandantSlug: m?.slug ?? null, modulGesperrt,
     } satisfies Befund;
   }) as Promise<Befund>);
 
@@ -206,6 +256,7 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
     sichtbareTabs: befund.sichtbareTabs,
     navigationsRechte: befund.navigationsRechte,
     mandantSlug: befund.mandantSlug,
+    modulGesperrt: befund.modulGesperrt,
   };
 }
 

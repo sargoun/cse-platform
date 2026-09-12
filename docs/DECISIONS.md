@@ -999,6 +999,43 @@ Bis der Mandant sein Material liefert (O-13), steht ein sichtbar leeres Bild
 mit einer Marke daneben. Kein Stockfoto, das nach Belegschaft aussieht: ein
 unauffaelliger Platzhalter ist einer, der in Produktion landet.
 
+### D-377 · Der Modulriegel ist eine SCHNITTMENGE aus Recht und Buchung
+
+Der Mandant hat es selbst gemeldet: „Ich klicke `admin` und `leitung` an und
+sehe ueberall dasselbe." Er hatte recht, und die Rolle war nicht der Grund.
+`navigation.ts` filterte ausschliesslich nach RECHT, und die Plattformrollen
+`admin`, `leitung` und `super_admin` halten `reinigung.lesen`,
+`security.lesen`, `wachbuch.lesen` und `schluessel.lesen` mit
+`rolle.mandant_id is null` — also in JEDEM Bereich. Der Hochbau-Admin bekam
+damit Sidebar-Punkte „Reinigung" und „Security" und erreichte
+`/portal/bau/reinigung/reviere` mit 200, obwohl REALTIME Service nicht
+reinigt. SEITENKARTE §1.7 versprach an dieser Stelle `notFound()`.
+
+`mandant.module` gibt es seit 0001 und wurde im ganzen Baum nirgends gelesen
+— eine Absicht ohne Umsetzung. Das Vokabular war schon da: 0008 schneidet die
+Rechte einer Mitgliedschaft ueber `split_part(schluessel, '.', 1)` zu, ein
+Modul ist also der erste Abschnitt eines Rechteschluessels. Dieselbe Regel
+gilt jetzt fuer die Gesellschaft.
+
+**Drei Stellen, oder keine.** Ein ausgeblendeter Menuepunkt ist keine Sperre
+— die Adresse tippen kann jeder. Gesperrt wird deshalb in der Sidebar, in der
+Tab-Leiste UND auf der Seite selbst (404, nicht 403: ein 403 bestaetigt, dass
+es die Seite gibt, AUT-06). Wer nur eines davon baut, hat die Luecke
+unsichtbar gemacht statt geschlossen.
+
+**Die Sperre trifft auch den Super-Admin.** Sonst haengt die Antwort auf „wer
+sieht das Reinigungsmodul der Bau-GmbH" an der Rolle statt an der Buchung,
+und genau das war der Fehler.
+
+**Im Gruppen-Scope gilt sie nicht.** Die Ansicht umfasst mehrere
+Gesellschaften mit verschiedenen Buchungen; es gaebe keine, die entscheiden
+koennte. Was dort steht, ist ohnehin lesend (Invariante 10) und je Zeile
+mandantengebunden.
+
+Offen bleiben zwei Fragen, die niemand hier beantworten darf: was eine leere
+Liste heisst (**O-355**) und ob eine Gesellschaft mehr als ein Gewerk bucht
+(**O-356**).
+
 ### D-376 · Grosse Flaechen bekommen eine Motivtafel, kleine bleiben leer
 
 D-62 bleibt richtig und bleibt stehen: ein Platzhalter, der wie ein Foto
@@ -5107,6 +5144,8 @@ niemand ihn suchen.
 | O-352 | **Wer hält in den drei Gesellschaften `nummernkreis.verwalten`, und wer führt den Jahreswechsel des Rechnungskreises aus?** Das Öffnen des Nachfolgekreises schliesst den Vorgänger (`geschlossen_am`), kopiert `letzter_hash` nach `genesis_hash` und trägt den Vorgänger ein (D-210, D-375) — ein Akt mit rechtlicher Wirkung, der bewusst nicht in der Festschreibung liegt: wer festschreibt, hält `verwalten` nicht. Bis zur Antwort gibt es den Vorgang nicht, und es kann ihn nicht geben, ohne eine Rolle zu erfinden, die ihn auslöst. Verwandt mit O-77 (wer darf stornieren) und O-134 (wie der Kreis überhaupt geschnitten wird). | FIN-03, LEG-01, O-77, O-134, `nummernkreis`, D-210 |
 | O-353 | **Wie lauten Anschrift, Rufnummer, Handelsregister- und Umsatzsteuer-Identifikationsnummer der vier Gesellschaften wirklich?** Was heute in `mandant` steht, ist ERFUNDEN: `Kurfürstendamm 21`, `+49 30 555 0100`, `DE1000000xx`, `HRB 2000xx` — fortlaufend hochgezählt, nie erfragt. Weglassen geht nicht, `mandant_ustg14_vollstaendig` verlangt Anschrift und Steuernummer von jeder Gesellschaft mit eigenem Rechnungskreis (§ 14 UStG). Deshalb tragen die Zeilen seit 0097 `angaben_bestaetigt_am = NULL`, und das Impressum sagt es sichtbar VOR den Angaben: sie stammen aus dem Demonstrationsbestand und sind keine gültige Auskunft nach § 5 TMG. Mit der Antwort werden die Werte gesetzt und die Spalte gefüllt; die Prüfung, die den Hinweis erzwingt, gehört dann umgeschrieben — nicht der Hinweis entfernt. | LEG-01, § 5 TMG, § 14 UStG, `mandant`, D-19 |
 | O-354 | **An welche Adresse geht ein gescheiterter Nachtlauf, und ab welchem Rang wird jemand geweckt?** `runner.ts` verspricht „kein stiller Tod", und `ProtokollAlarm` löst das heute so ehrlich, wie es ohne verbundenen Kanal geht: eine `JOB-ALARM`-Zeile auf `stderr` (auf Vercel in den Funktionsprotokollen) plus `job_lauf.ergebnis = 'fehler'` in der Datenbank. Beides setzt voraus, dass jemand nachsieht. Was fehlt, ist der Weg nach draußen — Mailadresse, Dienst oder Nummer — und die Schwelle: der Dienstplangenerator, der zweimal scheitert, ist etwas anderes als der Lead-SLA-Job, der einmal aussetzt. | SPEC §14, `src/server/jobs/alarm.ts`, `job_lauf` |
+| O-355 | **Soll eine Gesellschaft OHNE hinterlegte Module alle Gewerke sehen oder gar keines, und wer trägt die Buchung ein?** `mandant.module` ist seit 0001 `text[] not null default '{}'`. Die leere Liste wird heute als „nicht hinterlegt" gelesen und filtert nichts — dieselbe Lesart wie `null` bei `benutzer_mandant.module` (0008). Die Gegenprobe entscheidet es: hiesse leer „nichts gebucht", machte ein vergessener Eintrag beim Anlegen einer Gesellschaft aus einem Datenfehler einen Totalausfall. Offen bleibt, wer die Buchung pflegt — Vertrag, Verwaltung oder Super-Admin über `system.module_zuweisen`. | `src/server/registry/module.ts`, 0008, AUT-01 |
+| O-356 | **Bucht jede Gesellschaft genau ein Gewerk, oder gibt es Überschneidungen?** Der Seed setzt `reinigung → [reinigung]`, `security → [security]`, `bau → [bau]`, `operations → []` — abgeleitet aus den Gewerken, die in `CLAUDE.md` stehen. Praktisch plausibel wäre anderes: Bauendreinigung bei der REALTIME Service, Veranstaltungsreinigung bei der SSE Security. Bis zur Antwort sieht eine Gesellschaft nur ihr eigenes Gewerk; die Korrektur ist eine Zeile in `mandant.module` und kein Codeeingriff. | `mandant.module`, `src/server/db/seed/index.ts`, D-377 |
 
 ### Vier Befunde, die ausserhalb dieser Datei liegen
 
