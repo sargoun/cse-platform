@@ -6,7 +6,7 @@ import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { pruefeZugang, rechtepruefer, PORTAL_START } from '@/server/auth/zugang';
 import { bindeAnfrage, gruppenMandanten, rolleImMandanten } from '@/server/kontext/index';
 import { NAVIGATION } from '@/server/registry/navigation';
-import { modulAktiv } from '@/server/registry/module';
+import { modulAktiv, type Modulbuchung } from '@/server/registry/module';
 import { findeRoute } from '@/server/registry/routen';
 import { leisteFuer, tableiste, type LeistenSchluessel }
   from '@/server/registry/tableiste';
@@ -133,8 +133,9 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
      * Rundreise auf jedem Seitenaufruf.
      */
     const [m] = sitzung.aktiverMandantId === null ? [] : await abfrage<{
-      slug: string; module: readonly string[] | null;
-    }>(`select slug, module from mandant where id = $1`, [sitzung.aktiverMandantId]);
+      slug: string; module: readonly string[] | null; module_gepflegt: boolean;
+    }>(`select slug, module, module_gepflegt from mandant where id = $1`,
+      [sitzung.aktiverMandantId]);
     /**
      * Die Leiste wird IN dieser Transaktion bewertet, nicht danach: die
      * Bindung steht nur hier, und `app.hat_recht` ohne sie antwortet `false`
@@ -172,9 +173,11 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
      * bleibt es beim Recht; was die Gruppenansicht zeigt, ist ohnehin lesend
      * (Invariante 10) und je Zeile mandantengebunden.
      */
-    const module = sitzung.ansicht === 'gruppe' ? [] : (m?.module ?? []);
+    const buchung: Modulbuchung = sitzung.ansicht === 'gruppe'
+      ? { module: [], gepflegt: false }
+      : { module: m?.module ?? [], gepflegt: m?.module_gepflegt === true };
     const frei = (recht: string | null): boolean =>
-      recht === null || modulAktiv(module, recht);
+      recht === null || modulAktiv(buchung, recht);
 
     const sichtbareTabs: Record<string, boolean> = {};
     for (const z of ziele) {
@@ -224,7 +227,7 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
     const route = findeRoute(pfad);
     const bewachung = route?.bewachung;
     const modulGesperrt = bewachung !== undefined && bewachung.art === 'recht'
-      && [...bewachung.lesen, ...bewachung.schreiben].some((r) => !modulAktiv(module, r));
+      && [...bewachung.lesen, ...bewachung.schreiben].some((r) => !modulAktiv(buchung, r));
     return {
       entscheidung, rolle, mandanten, sichtbareTabs, navigationsRechte,
       mandantSlug: m?.slug ?? null, modulGesperrt,

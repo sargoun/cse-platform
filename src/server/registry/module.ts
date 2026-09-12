@@ -56,28 +56,38 @@ export function modulFuerRecht(recht: string): string {
   return punkt === -1 ? recht : recht.slice(0, punkt);
 }
 
+/** Was eine Gesellschaft gebucht hat — und ob es ueberhaupt jemand eintrug. */
+export interface Modulbuchung {
+  readonly module: readonly string[];
+  /**
+   * `false` heisst „niemand hat es eingetragen" und filtert NICHTS; `true`
+   * heisst „die Liste gilt", und dann bedeutet leer: kein Gewerk (0103).
+   */
+  readonly gepflegt: boolean;
+}
+
 /**
  * Ist das Modul dieses Rechts in dieser Gesellschaft freigeschaltet?
  *
- * **Eine leere Liste heisst „nicht hinterlegt", nicht „nichts".** Das ist
- * dieselbe Lesart wie bei `benutzer_mandant.module`, wo `null` „keine
- * Einschraenkung" bedeutet (0008) — nur dass die Spalte hier `not null
- * default '{}'` traegt und die leere Liste die Rolle des `null` uebernimmt.
+ * **„Kein Gewerk gebucht" und „noch nicht eingetragen" sind zwei Aussagen**,
+ * und eine leere Liste konnte nur eine davon machen. Die erste Fassung las
+ * leer als „nicht hinterlegt" — mit gutem Grund: waere leer gleich „nichts
+ * gebucht", machte ein vergessener Eintrag beim Anlegen einer Gesellschaft
+ * aus einem Datenfehler einen Totalausfall. Nur passt diese Lesart nicht auf
+ * CSE Operations, deren leere Liste die Aussage IST; ihr Verwalter sah genau
+ * die drei Gewerke, die sie nicht hat.
  *
- * Die Gegenprobe zur anderen Lesart entscheidet es: waere leer gleich
- * „nichts gebucht", machte ein vergessener Eintrag beim Anlegen einer
- * Gesellschaft aus einem Datenfehler einen Totalausfall — ein Portal, das
- * niemandem etwas zeigt und dessen Ursache in einer Spalte steht, die
- * niemand ansieht. Ein nicht gesetzter Filter filtert nicht.
+ * `gepflegt` trennt die beiden Faelle, ohne einen davon zu erfinden.
  *
- * // TODO(client, O-355): Soll eine Gesellschaft OHNE hinterlegte Module
- * alle Gewerke sehen (heutiges Verhalten) oder gar keines, und wer trägt die
- * Buchung ein — Vertrag, Verwaltung oder Super-Admin?
+ * // TODO(client, O-355): Wer trägt die Modulbuchung ein und pflegt das
+ * Kennzeichen — Vertrag, Verwaltung oder Super-Admin über
+ * `system.module_zuweisen`?
  */
-export function modulAktiv(module: readonly string[], recht: string): boolean {
+export function modulAktiv(buchung: Modulbuchung, recht: string): boolean {
+  const { module, gepflegt } = buchung;
   const modul = modulFuerRecht(recht);
   if (QUERSCHNITT.has(modul)) return true;
-  if (module.length === 0) return true;
+  if (!gepflegt) return true;
   const gewerk = GEWERK_FUER_MODUL[modul];
   /*
    * Ein Modul, das in KEINER der beiden Tabellen steht, ist neu — und ein

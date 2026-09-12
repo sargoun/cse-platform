@@ -1032,9 +1032,21 @@ Gesellschaften mit verschiedenen Buchungen; es gaebe keine, die entscheiden
 koennte. Was dort steht, ist ohnehin lesend (Invariante 10) und je Zeile
 mandantengebunden.
 
-Offen bleiben zwei Fragen, die niemand hier beantworten darf: was eine leere
-Liste heisst (**O-355**) und ob eine Gesellschaft mehr als ein Gewerk bucht
-(**O-356**).
+**„Kein Gewerk" und „nicht eingetragen" sind zwei Aussagen** — und eine leere
+Liste konnte nur eine davon machen. Die erste Fassung las leer als „nicht
+hinterlegt" und filterte nicht; die Begruendung dafuer bleibt richtig (ein
+vergessener Eintrag beim Anlegen einer Gesellschaft darf kein Totalausfall
+werden). Nur passte sie nicht auf CSE Operations, deren leere Liste die
+Aussage IST: ihr Verwalter sah genau die drei Gewerke, die sie nicht hat —
+derselbe Befund wie beim Hochbau, eine Gesellschaft weiter. `0103` trennt die
+Faelle ueber `mandant.module_gepflegt`: `false` filtert nicht, `true` laesst
+die Liste gelten, und leer heisst dann kein Gewerk. Kein Sentinelwert in der
+Liste — ein Wert, der kein Modul ist und in einer Modulliste steht, faellt
+beim ersten Vergleich um, den jemand ohne diesen Absatz schreibt.
+
+Offen bleiben zwei Fragen, die niemand hier beantworten darf: wer das
+Kennzeichen pflegt (**O-355**) und ob eine Gesellschaft mehr als ein Gewerk
+bucht (**O-356**).
 
 ### D-376 · Grosse Flaechen bekommen eine Motivtafel, kleine bleiben leer
 
@@ -5144,7 +5156,7 @@ niemand ihn suchen.
 | O-352 | **Wer hält in den drei Gesellschaften `nummernkreis.verwalten`, und wer führt den Jahreswechsel des Rechnungskreises aus?** Das Öffnen des Nachfolgekreises schliesst den Vorgänger (`geschlossen_am`), kopiert `letzter_hash` nach `genesis_hash` und trägt den Vorgänger ein (D-210, D-375) — ein Akt mit rechtlicher Wirkung, der bewusst nicht in der Festschreibung liegt: wer festschreibt, hält `verwalten` nicht. Bis zur Antwort gibt es den Vorgang nicht, und es kann ihn nicht geben, ohne eine Rolle zu erfinden, die ihn auslöst. Verwandt mit O-77 (wer darf stornieren) und O-134 (wie der Kreis überhaupt geschnitten wird). | FIN-03, LEG-01, O-77, O-134, `nummernkreis`, D-210 |
 | O-353 | **Wie lauten Anschrift, Rufnummer, Handelsregister- und Umsatzsteuer-Identifikationsnummer der vier Gesellschaften wirklich?** Was heute in `mandant` steht, ist ERFUNDEN: `Kurfürstendamm 21`, `+49 30 555 0100`, `DE1000000xx`, `HRB 2000xx` — fortlaufend hochgezählt, nie erfragt. Weglassen geht nicht, `mandant_ustg14_vollstaendig` verlangt Anschrift und Steuernummer von jeder Gesellschaft mit eigenem Rechnungskreis (§ 14 UStG). Deshalb tragen die Zeilen seit 0097 `angaben_bestaetigt_am = NULL`, und das Impressum sagt es sichtbar VOR den Angaben: sie stammen aus dem Demonstrationsbestand und sind keine gültige Auskunft nach § 5 TMG. Mit der Antwort werden die Werte gesetzt und die Spalte gefüllt; die Prüfung, die den Hinweis erzwingt, gehört dann umgeschrieben — nicht der Hinweis entfernt. | LEG-01, § 5 TMG, § 14 UStG, `mandant`, D-19 |
 | O-354 | **An welche Adresse geht ein gescheiterter Nachtlauf, und ab welchem Rang wird jemand geweckt?** `runner.ts` verspricht „kein stiller Tod", und `ProtokollAlarm` löst das heute so ehrlich, wie es ohne verbundenen Kanal geht: eine `JOB-ALARM`-Zeile auf `stderr` (auf Vercel in den Funktionsprotokollen) plus `job_lauf.ergebnis = 'fehler'` in der Datenbank. Beides setzt voraus, dass jemand nachsieht. Was fehlt, ist der Weg nach draußen — Mailadresse, Dienst oder Nummer — und die Schwelle: der Dienstplangenerator, der zweimal scheitert, ist etwas anderes als der Lead-SLA-Job, der einmal aussetzt. | SPEC §14, `src/server/jobs/alarm.ts`, `job_lauf` |
-| O-355 | **Soll eine Gesellschaft OHNE hinterlegte Module alle Gewerke sehen oder gar keines, und wer trägt die Buchung ein?** `mandant.module` ist seit 0001 `text[] not null default '{}'`. Die leere Liste wird heute als „nicht hinterlegt" gelesen und filtert nichts — dieselbe Lesart wie `null` bei `benutzer_mandant.module` (0008). Die Gegenprobe entscheidet es: hiesse leer „nichts gebucht", machte ein vergessener Eintrag beim Anlegen einer Gesellschaft aus einem Datenfehler einen Totalausfall. Offen bleibt, wer die Buchung pflegt — Vertrag, Verwaltung oder Super-Admin über `system.module_zuweisen`. | `src/server/registry/module.ts`, 0008, AUT-01 |
+| O-355 | **Wer trägt die Modulbuchung ein und pflegt `mandant.module_gepflegt`?** Seit 0103 ist die Frage nicht mehr, was eine leere Liste heisst — das Kennzeichen sagt es: `false` = nicht eingetragen, es wird nicht gefiltert (damit eine neu angelegte Gesellschaft nicht schwarz wird); `true` = die Liste gilt, leer heisst kein Gewerk. Offen bleibt der Vorgang: kommt die Buchung aus dem Vertrag, aus der Verwaltung oder setzt sie ein Super-Admin über `system.module_zuweisen` — und wer merkt, wenn sie fehlt? | `src/server/registry/module.ts`, 0103, D-377 |
 | O-356 | **Bucht jede Gesellschaft genau ein Gewerk, oder gibt es Überschneidungen?** Der Seed setzt `reinigung → [reinigung]`, `security → [security]`, `bau → [bau]`, `operations → []` — abgeleitet aus den Gewerken, die in `CLAUDE.md` stehen. Praktisch plausibel wäre anderes: Bauendreinigung bei der REALTIME Service, Veranstaltungsreinigung bei der SSE Security. Bis zur Antwort sieht eine Gesellschaft nur ihr eigenes Gewerk; die Korrektur ist eine Zeile in `mandant.module` und kein Codeeingriff. | `mandant.module`, `src/server/db/seed/index.ts`, D-377 |
 
 ### Vier Befunde, die ausserhalb dieser Datei liegen

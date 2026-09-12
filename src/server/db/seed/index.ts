@@ -162,7 +162,8 @@ async function main(): Promise<void> {
     const [z] = await sql<{ id: string }[]>`
       insert into mandant
         (slug, name, firma, rechtsform, ist_rechtseinheit, eigener_nummernkreis,
-         strasse, plz, ort, land, telefon, email, farbe_token, module, sortierung,
+         strasse, plz, ort, land, telefon, email, farbe_token, module,
+         module_gepflegt, sortierung,
          ust_id, handelsregister_gericht, handelsregister_nummer)
       values
         (${b.slug}, ${b.name}, ${b.firma}, ${b.rechtsform}, ${b.rechtseinheit},
@@ -177,7 +178,10 @@ async function main(): Promise<void> {
          -- (Keine Backticks in diesem Kommentar: er steht IN einem
          -- Template-Literal, und ein Backtick beendet es. Dafuer gibt es die
          -- Merge-Wache sql-backtick-im-kommentar — sie hat hier zugeschlagen.)
-         ${b.module}::text[], ${i},
+         ${b.module}::text[],
+         -- Der Seed TRAEGT sie ein, also gilt die Liste — auch die leere von
+         -- CSE Operations, und genau das ist dort die Aussage (0103).
+         true, ${i},
          ${rechtseinheit ? `DE${String(100_000_000 + i)}` : null}, -- TODO(client, O-353): echte USt-IdNr.
          ${rechtseinheit ? 'Amtsgericht Charlottenburg' : null},
          ${rechtseinheit ? `HRB ${String(200_000 + i)}` : null})  -- TODO(client, O-353): echte HRB-Nummer
@@ -201,7 +205,8 @@ async function main(): Promise<void> {
             -- Die Buchung gehoert zur Gesellschaft und nicht zum ersten Lauf:
             -- ohne diese Zeile blieben vier bereits angelegte Bereiche fuer
             -- immer bei '{}', und der Modulriegel griffe nirgends.
-            module = excluded.module
+            module = excluded.module,
+            module_gepflegt = excluded.module_gepflegt
       returning id`;
     ids.set(b.slug, z!.id);
   }

@@ -10,8 +10,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   GEWERKE, GEWERK_FUER_MODUL, QUERSCHNITT, modulAktiv, modulFuerRecht,
+  type Modulbuchung,
 } from '../../src/server/registry/module.js';
 import { NAVIGATION } from '../../src/server/registry/navigation.js';
+
+/** Eine EINGETRAGENE Buchung — der Normalfall nach dem Seed (0103). */
+const gebucht = (module: readonly string[]): Modulbuchung => ({ module, gepflegt: true });
 
 describe('welches Modul ein Recht traegt', () => {
   it('ist der erste Abschnitt des Schluessels — wie in 0008', () => {
@@ -25,15 +29,15 @@ describe('welches Modul ein Recht traegt', () => {
 
 describe('die Buchung entscheidet, nicht die Rolle', () => {
   it('der Hochbau sieht die Reinigung nicht — der Befund des Mandanten', () => {
-    expect(modulAktiv(['bau'], 'reinigung.lesen')).toBe(false);
-    expect(modulAktiv(['bau'], 'security.lesen')).toBe(false);
-    expect(modulAktiv(['bau'], 'wachbuch.lesen')).toBe(false);
-    expect(modulAktiv(['bau'], 'schluessel.lesen')).toBe(false);
-    expect(modulAktiv(['bau'], 'dienstanweisung.lesen')).toBe(false);
+    expect(modulAktiv(gebucht(['bau']), 'reinigung.lesen')).toBe(false);
+    expect(modulAktiv(gebucht(['bau']), 'security.lesen')).toBe(false);
+    expect(modulAktiv(gebucht(['bau']), 'wachbuch.lesen')).toBe(false);
+    expect(modulAktiv(gebucht(['bau']), 'schluessel.lesen')).toBe(false);
+    expect(modulAktiv(gebucht(['bau']), 'dienstanweisung.lesen')).toBe(false);
   });
 
   it('und sein eigenes Gewerk sehr wohl', () => {
-    expect(modulAktiv(['bau'], 'bau.lesen')).toBe(true);
+    expect(modulAktiv(gebucht(['bau']), 'bau.lesen')).toBe(true);
   });
 
   /**
@@ -44,7 +48,7 @@ describe('die Buchung entscheidet, nicht die Rolle', () => {
   it('wer Security bucht, bucht Wachbuch, Dienstanweisung und Schluessel mit', () => {
     for (const recht of ['security.lesen', 'wachbuch.schreiben',
       'dienstanweisung.lesen', 'schluessel.lesen']) {
-      expect(modulAktiv(['security'], recht), recht).toBe(true);
+      expect(modulAktiv(gebucht(['security']), recht), recht).toBe(true);
     }
   });
 
@@ -52,24 +56,40 @@ describe('die Buchung entscheidet, nicht die Rolle', () => {
     for (const recht of ['zeit.lesen', 'dienstplan.lesen', 'finanzen.lesen',
       'personal.lesen', 'objekt.lesen', 'dokument.lesen', 'qualitaet.lesen',
       'bericht.dashboard_lesen', 'system.einstellung_lesen']) {
-      expect(modulAktiv([], recht), recht).toBe(true);
-      expect(modulAktiv(['bau'], recht), recht).toBe(true);
+      expect(modulAktiv(gebucht([]), recht), recht).toBe(true);
+      expect(modulAktiv(gebucht(['bau']), recht), recht).toBe(true);
     }
   });
 
   /**
-   * O-355: eine leere Liste heisst „nicht hinterlegt", nicht „nichts". Die
-   * andere Lesart machte aus einem vergessenen Eintrag beim Anlegen einer
-   * Gesellschaft einen Totalausfall.
+   * **„Kein Gewerk gebucht" und „noch nicht eingetragen" sind zwei Aussagen**
+   * — und eine leere Liste konnte nur eine davon machen (0103).
+   *
+   * Nicht eingetragen filtert nichts: sonst machte ein vergessener Eintrag
+   * beim Anlegen einer Gesellschaft aus einem Datenfehler einen
+   * Totalausfall. Eingetragen und leer heisst dagegen: kein Gewerk — das ist
+   * CSE Operations, die Gruppensteuerung.
    */
-  it('eine leere Liste filtert NICHT (O-355)', () => {
+  it('nicht eingetragen filtert NICHT', () => {
     for (const recht of ['reinigung.lesen', 'security.lesen', 'bau.lesen']) {
-      expect(modulAktiv([], recht), recht).toBe(true);
+      expect(modulAktiv({ module: [], gepflegt: false }, recht), recht).toBe(true);
+    }
+  });
+
+  it('eingetragen und leer heisst KEIN Gewerk — CSE Operations', () => {
+    for (const recht of ['reinigung.lesen', 'security.lesen', 'bau.lesen',
+      'wachbuch.lesen', 'schluessel.lesen']) {
+      expect(modulAktiv(gebucht([]), recht), recht).toBe(false);
+    }
+    // Und der Betrieb bleibt ihr: sie fuehrt die Gruppe, nicht ein Gewerk.
+    for (const recht of ['bericht.dashboard_lesen', 'crm.lesen', 'finanzen.lesen',
+      'dokument.lesen', 'personal.lesen']) {
+      expect(modulAktiv(gebucht([]), recht), recht).toBe(true);
     }
   });
 
   it('ein unbekanntes Modul bleibt offen, statt still zu verschwinden', () => {
-    expect(modulAktiv(['bau'], 'gartenbau.lesen')).toBe(true);
+    expect(modulAktiv(gebucht(['bau']), 'gartenbau.lesen')).toBe(true);
   });
 });
 
