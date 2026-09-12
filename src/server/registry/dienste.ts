@@ -659,6 +659,36 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'zahlung', pfad: 'finanz/zahlung/index',
     schreibend: true, schreibRecht: 'zahlung.schreiben',
   },
+  /**
+   * Die Kreditorenseite (PR 54.3, FIN-14). Modul `eingang` und nicht
+   * `finanzen`: eine Eingangsrechnung ist kein Beleg, den wir ausstellen —
+   * wer fakturiert, prueft deshalb nicht schon deswegen Lieferantenrechnungen.
+   * Das Freigeben traegt noch einmal ein eigenes Recht (`eingang.freigeben`),
+   * und es steht auf der Route, nicht hier: hier steht das ENGERE der beiden
+   * Schreibrechte dieser Datei.
+   */
+  {
+    modul: 'eingang', pfad: 'finanz/eingangsrechnung',
+    schreibend: true, schreibRecht: 'eingang.schreiben',
+  },
+  /**
+   * Die Freigabe als Vorgang (K-13, APR-07, PR 54.3).
+   *
+   * Modul `freigabe` und Schreibrecht `freigabe.entscheiden`: die
+   * Entscheidung IST die Handlung, und sie traegt ein eigenes Recht — nicht
+   * das der Domaene, die sie braucht. Wer eine Eingangsrechnung erfassen
+   * darf, darf damit noch keine Freigabe in die Kette schreiben.
+   */
+  {
+    modul: 'freigabe', pfad: 'freigabe',
+    schreibend: true, schreibRecht: 'freigabe.entscheiden',
+  },
+  /**
+   * Das Rechnungsausgangsbuch (PR 56, FIN-16). Es LIEST — und das ist keine
+   * Formalie: ein Buch, das beim Lesen etwas ablegt, ist kein Buch. Modul
+   * `nummernkreis`, weil es die Sicht auf den Kreis ist.
+   */
+  { modul: 'nummernkreis', pfad: 'finanz/ausgangsbuch', schreibend: false },
 ] as const;
 
 /**

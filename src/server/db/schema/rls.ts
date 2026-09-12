@@ -1384,6 +1384,51 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'wieder und liesse die Wache eine stornierte Rechnung anmahnen.',
   },
   {
+    tabelle: 'lieferant',
+    art: 'archiv',
+    migration: '0123',
+    grund:
+      'FIN-14, ACC-05, ACC-07, §147 AO. Am Lieferanten haengen Eingangs'
+      + 'rechnungen mit zehnjaehriger Aufbewahrung und der §48-EStG-Nachweis, '
+      + 'wem gegenueber einbehalten wurde. Ihn zu loeschen macht jede Buchung '
+      + 'darauf unlesbar; Art. 17 DSGVO wird bei einer natuerlichen Person '
+      + 'ueber `anonymisiert_am` erfuellt, aufgeloest wird ueber '
+      + '`archiviert_am`.',
+  },
+  {
+    tabelle: 'beleg',
+    art: 'archiv',
+    migration: '0123',
+    grund:
+      'ACC-03, ACC-06, DOC-08, LEG-01, GoBD. Der Beleg IST der Nachweis zur '
+      + 'Buchung — er nennt die Dokumentversion und ihren SHA-256. Ihn zu '
+      + 'loeschen liesse eine Buchung ohne Beleg zurueck, und genau das ist '
+      + 'der Mangel, den eine Betriebspruefung zuerst feststellt. Das '
+      + 'Ausscheiden nach Fristablauf laeuft ueber `aufbewahrung_bis` und '
+      + '`loeschsperre`.',
+  },
+  {
+    tabelle: 'eingangsrechnung',
+    art: 'archiv',
+    migration: '0123',
+    grund:
+      'FIN-14, ACC-05, ACC-06, LEG-01, §14b UStG. Sie traegt den '
+      + 'Vorsteuerabzug und den §48-EStG-Einbehalt. Eine geloeschte '
+      + 'Eingangsrechnung nimmt der Voranmeldung ihre Grundlage, und die '
+      + 'interne Belegnummer hinterliesse eine Luecke in einem lueckenlosen '
+      + 'Kreis. Zurueckgewiesen wird ueber `abgelehnt` mit Grund.',
+  },
+  {
+    tabelle: 'eingangsrechnung_steuer',
+    art: 'append',
+    migration: '0123',
+    grund:
+      'FIN-14, ACC-08, §15 UStG. Die Aufteilung nach Steuersaetzen IST der '
+      + 'Vorsteuerabzug — ohne sie steht ein Bruttobetrag da, aus dem sich '
+      + 'kein Satz mehr ableiten laesst. Sie zu loeschen aenderte die '
+      + 'Voranmeldung ohne Spur.',
+  },
+  {
     tabelle: 'schluessel_quittung',
     art: 'append',
     migration: '0079',

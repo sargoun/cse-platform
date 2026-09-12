@@ -1865,3 +1865,46 @@ revoke delete, truncate on op_ausgleich from cse_app, cse_anon, cse_checkin, cse
 
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0123)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- lieferant (archiv): FIN-14, ACC-05, ACC-07, §147 AO. Am Lieferanten haengen Eingangsrechnungen mit zehnjaehriger Aufbewahrung und der §48-EStG-Nachweis, wem gegenueber einbehalten wurde. Ihn zu loeschen macht jede Buchung darauf unlesbar; Art. 17 DSGVO wird bei einer natuerlichen Person ueber `anonymisiert_am` erfuellt, aufgeloest wird ueber `archiviert_am`.
+create trigger trg_lieferant_kein_hard_delete
+  before delete on lieferant
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_lieferant_kein_truncate
+  before truncate on lieferant
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on lieferant from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- beleg (archiv): ACC-03, ACC-06, DOC-08, LEG-01, GoBD. Der Beleg IST der Nachweis zur Buchung — er nennt die Dokumentversion und ihren SHA-256. Ihn zu loeschen liesse eine Buchung ohne Beleg zurueck, und genau das ist der Mangel, den eine Betriebspruefung zuerst feststellt. Das Ausscheiden nach Fristablauf laeuft ueber `aufbewahrung_bis` und `loeschsperre`.
+create trigger trg_beleg_kein_hard_delete
+  before delete on beleg
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_beleg_kein_truncate
+  before truncate on beleg
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on beleg from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- eingangsrechnung (archiv): FIN-14, ACC-05, ACC-06, LEG-01, §14b UStG. Sie traegt den Vorsteuerabzug und den §48-EStG-Einbehalt. Eine geloeschte Eingangsrechnung nimmt der Voranmeldung ihre Grundlage, und die interne Belegnummer hinterliesse eine Luecke in einem lueckenlosen Kreis. Zurueckgewiesen wird ueber `abgelehnt` mit Grund.
+create trigger trg_eingangsrechnung_kein_hard_delete
+  before delete on eingangsrechnung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_eingangsrechnung_kein_truncate
+  before truncate on eingangsrechnung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on eingangsrechnung from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- eingangsrechnung_steuer (append): FIN-14, ACC-08, §15 UStG. Die Aufteilung nach Steuersaetzen IST der Vorsteuerabzug — ohne sie steht ein Bruttobetrag da, aus dem sich kein Satz mehr ableiten laesst. Sie zu loeschen aenderte die Voranmeldung ohne Spur.
+create trigger trg_eingangsrechnung_steuer_kein_hard_delete
+  before delete on eingangsrechnung_steuer
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_eingangsrechnung_steuer_kein_truncate
+  before truncate on eingangsrechnung_steuer
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on eingangsrechnung_steuer from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks

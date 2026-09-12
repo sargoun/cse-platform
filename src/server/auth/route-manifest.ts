@@ -784,6 +784,21 @@ export const ROUTEN: readonly RouteEintrag[] = [
     pfad: 'api/finanzen/zahlungen',
     recht: 'zahlung.schreiben',
   },
+  {
+    /**
+     * Eingangsrechnungen erfassen und weiterschieben (PR 54.3, FIN-14,
+     * ACC-03, ACC-05).
+     *
+     * Hier steht `eingang.schreiben`, das SCHWAECHERE der beiden Rechte, die
+     * diese Adresse traegt: das Erfassen. Freigeben und Buchen pruefen im
+     * Handler zusaetzlich `eingang.freigeben` — wer erfasst, gibt nicht schon
+     * deswegen frei (Invariante 7). Das Manifest fuehrt das Eintrittsrecht;
+     * die engere Pruefung steht dort, wo sie greift, und ein Isolationstest
+     * haelt beide auseinander.
+     */
+    pfad: 'api/finanzen/eingangsrechnungen',
+    recht: 'eingang.schreiben',
+  },
 ] as const;
 
 /** Die Routen, die ein Recht verlangen. */

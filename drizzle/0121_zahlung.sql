@@ -1050,9 +1050,19 @@ create policy t_gruppe on offener_posten for select to cse_app
          and mandant_id = any (app.rechte_mandanten('gruppe.zahlung.lesen')));
 
 /**
- * K-18: das Kundenportal sieht die eigene offene Forderung — und nur die
- * Forderung. Ein Guthaben, eine Mahnstufe oder eine Mahnsperre gehen den
- * Kunden nichts an; sie stehen in Spalten, die er nicht liest (K-05).
+ * K-18: das Kundenportal sieht die eigene offene FORDERUNG — und nur sie.
+ * `debitor` und der eigene Kunde, beides zusammen: ein Guthaben ist eine
+ * interne Verbindlichkeit und steht nicht im Kundenportal.
+ *
+ * **Was diese Policy NICHT tut, und das ist beabsichtigt:** sie schneidet
+ * keine Spalten. `letzte_mahnstufe`, `letzte_mahnung_am` und
+ * `mahnsperre_bis` stehen auf der Zeile, und ein Spaltenrecht koennte sie
+ * nicht nur dem Kunden entziehen — alle Portale fahren unter derselben Rolle
+ * `cse_app`, ein Spaltenentzug traefe also auch die Buchhaltung, die genau
+ * diese Werte braucht (K-05 loest das sonst ueber einen Definer-Leser, und
+ * einer waere hier ein Umweg um drei Felder, die der Kunde ohnehin kennt: er
+ * hat die Mahnung bekommen). Welche Spalten das Kundenportal ZEIGT,
+ * entscheidet dessen Abfrage — PR 57.
  */
 create policy t_kunde on offener_posten for select to cse_app
   using (app.scope() = 'kunde'
@@ -1076,10 +1086,10 @@ grant update (mahnsperre_bis) on offener_posten to cse_app;
  * eine Rechnung als „teilweise bezahlt" ohne die Zeilen, aus denen sich das
  * ergibt: genau der Bildschirm, nach dem ein Kunde anruft.
  *
- * Der Kunde sieht dabei NICHT, warum ein Rest abgeschrieben wurde — `notiz`
- * ist kein Kundenfeld. Die Spaltenrechte bleiben trotzdem grob, weil eine
- * zweite Spaltenliste je Rolle hier mehr Fehler erzeugte als sie verhindert;
- * die Sicht des Kundenportals waehlt die Spalten aus, die sie zeigt.
+ * Die Spaltenrechte bleiben dabei grob: alle Portale fahren unter derselben
+ * Rolle, ein Entzug von `notiz` traefe die Buchhaltung mit. Welche Spalten das
+ * Kundenportal zeigt, entscheidet dessen Abfrage (PR 57) — dieser Kommentar
+ * behauptet ausdruecklich KEINE Spaltenwand, weil hier keine steht.
  */
 create policy t_mandant on zahlung_zuordnung for all to cse_app
   using      (mandant_id = app.aktiver_mandant()

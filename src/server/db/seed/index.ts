@@ -731,6 +731,24 @@ async function main(): Promise<void> {
               'Auftraege', false, 'AU-{jahr}-{nr:5}',
               'jaehrlich', ${heute}, false, 'system', 'job:seed')
       on conflict do nothing`;
+
+    /**
+     * Die interne Belegnummer der EINGANGSrechnung — bestaetigt, lueckenlos.
+     *
+     * Sie ist keine Rechnungsnummer nach §14 UStG: sie nummeriert nicht
+     * unsere Ausgangsbelege, sondern unsere Ablage. Ihre Maske ist damit eine
+     * Hausentscheidung und nicht die offene Frage O-134. Lueckenlos ist sie
+     * trotzdem, weil GoBD eine fortlaufende Belegnummerierung verlangt — und
+     * deshalb zieht sie die Nummer erst beim BUCHEN (0123).
+     */
+    await sql`
+      insert into nummernkreis
+        (mandant_id, kreis_typ, jahr, bezeichnung, lueckenlos, format_maske,
+         zuruecksetzung, geoeffnet_am, ist_platzhalter, erstellt_von_art, erstellt_von_dienst)
+      values (${ids.get(b.slug)!}, 'eingangsrechnung_beleg', 2026,
+              'Eingangsbelege', true, 'EB-{jahr}-{nr:5}',
+              'jaehrlich', ${heute}, false, 'system', 'job:seed')
+      on conflict do nothing`;
   }
   process.stdout.write(
     '  Nummernkreise: Rechnung als PLATZHALTER (O-134); Nachweis, Angebot und Auftrag bestätigt\n',
@@ -768,6 +786,47 @@ async function main(): Promise<void> {
   }
   process.stdout.write(
     '  Bankkonten: je Rechtseinheit eines, aus der Gesellschaft gelesen (O-353)\n',
+  );
+
+  // -------------------------------------------------------------- Lieferant
+  /**
+   * Zwei Lieferanten je Rechtseinheit — Stammdaten, mehr nicht.
+   *
+   * **Warum KEINE Eingangsrechnung mitkommt.** Eine Eingangsrechnung braucht
+   * ihren Beleg, und ein Beleg zeigt auf eine Dokumentversion samt SHA-256
+   * (ACC-03). Der Seed legt nirgends `dokument`-Zeilen an, und aus gutem
+   * Grund: eine Zeile, die auf Bytes zeigt, die es im Speicher nicht gibt,
+   * ist ein Beleg, den niemand oeffnen kann — genau die Sorte Demodatum, die
+   * spaeter als Fehler gemeldet wird. Die Lieferanten dagegen sind echte
+   * Stammdaten, und ohne sie ist die Erfassungsmaske unbenutzbar.
+   *
+   * Die Bankverbindung bleibt NULL: eine erfundene IBAN eines erfundenen
+   * Lieferanten ist die Zeile, an der spaeter eine Zahlung haengt.
+   * TODO(client, O-183): Wer im Haus pflegt Lieferantenstammdaten, und wer
+   * darf eine Bankverbindung aendern?
+   */
+  const LIEFERANTEN: Readonly<Record<string, readonly string[]>> = {
+    reinigung: ['Hygiene Nord Handels GmbH', 'Papier & Spender Berlin e.K.'],
+    security:  ['Funktechnik Spandau GmbH', 'Dienstkleidung Meyer OHG'],
+    bau:       ['Baustoffe Lichtenberg GmbH', 'Gerüstbau Treptow GmbH & Co. KG'],
+  };
+  let lieferanten = 0;
+  for (const b of BEREICHE.filter((x) => x.rechtseinheit === true)) {
+    const namen = LIEFERANTEN[b.slug] ?? [];
+    for (const [i, name] of namen.entries()) {
+      await sql`
+        insert into lieferant
+          (mandant_id, lieferantennummer, name, plz, ort, status,
+           erstellt_von_art, erstellt_von_dienst)
+        values (${ids.get(b.slug)!}, ${`L-${String(70_001 + i)}`}, ${name},
+                '10115', 'Berlin', 'aktiv', 'system', 'job:seed')
+        on conflict do nothing`;
+      lieferanten += 1;
+    }
+  }
+  process.stdout.write(
+    `  ${lieferanten} Lieferanten (ohne Bankverbindung — O-183; keine `
+    + 'Eingangsrechnung, weil ein Beleg ohne Datei keiner ist)\n',
   );
 
   // ------------------------------------------------------ Agent-Richtlinien

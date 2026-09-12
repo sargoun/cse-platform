@@ -6152,3 +6152,149 @@ Wache, die täglich dasselbe falsch meldet, wird abgeschaltet — und meldet dan
 auch das Richtige nicht mehr. Der fehlende Fall steht jetzt als eigener Test
 daneben. Die Lehre ist nicht „mehr Tests", sondern: **eine Sabotage, die
 niemanden weckt, prüft die Prüfung.**
+
+---
+
+### D-401 · Die interne Belegnummer der Eingangsrechnung entsteht beim BUCHEN, nicht bei der Freigabe
+
+PR 54.3 (FIN-14, ACC-06, GoBD; `05-FINANZEN.md` §8.2).
+
+Der Kreis `eingangsrechnung_beleg` ist lückenlos — GoBD verlangt eine
+fortlaufende Belegnummerierung. Zöge die FREIGABE die Nummer, verbrauchte eine
+freigegebene und danach abgelehnte Rechnung eine und liesse sie liegen: genau
+die Lücke, deren Unmöglichkeit §5.5 für die Ausgangsrechnung über mehrere
+Seiten beweist, im selben Dokument wieder eingeführt. Buchen ist der
+unumkehrbare Schritt, also wird dort gezogen — unter `SELECT … FOR UPDATE` auf
+der Kreiszeile, wie bei der Ausgangsrechnung.
+
+Die Übergangstabelle steht als **Auslöser**, nicht als Prosa, und `gebucht` ist
+ein Endzustand: korrigiert wird durch eine Gegenbuchung (PR 58), nie durch
+einen Zustandswechsel. Ein Weg zurück hiesse, dass die Finanzbuchhaltung und
+dieses System verschiedene Wahrheiten führen.
+
+**Die Vier-Augen-Freigabe ist Einstellung, kein `CHECK`.** Ein fest
+verdrahtetes `freigegeben_von <> erstellt_von` erfände eine
+Organisationsregel und sperrte in einem Rückbüro aus zwei Menschen jede
+Freigabe ohne Ausweg. `app.einstellung('eingang.vier_augen_ab_cent')` bleibt
+NULL, bis O-183 beantwortet ist — dann gilt sie, und der Dienst weist eine
+Selbstfreigabe darüber ab.
+
+---
+
+### D-402 · Drei Befunde, die erst der erste Testlauf gezeigt hat
+
+PR 54.3. Alle drei hätten im Betrieb geschwiegen, und zwei davon dauerhaft.
+
+**(a) Der Aufbewahrungsauslöser durfte seine eigene Regelabfrage nicht rufen.**
+`fin.aufbewahrung_aus_klasse` läuft als `cse_definer` und ruft
+`app.aufbewahrung_regel` (0009), deren `grant execute` nur an `cse_app` ging —
+weil bis dahin jeder Aufrufer unter `cse_app` lief. Ergebnis: „permission
+denied for function", und zwar so, dass NICHTS rot geworden wäre. Die GoBD-Frist
+wäre auf jedem Beleg NULL geblieben, die Löschsperre stünde, und niemand hätte
+einen Grund gehabt hinzusehen. Es ist derselbe Befund wie D-388, nur eine Ebene
+höher: nicht Recht und Policy auf einer TABELLE, sondern das Ausführungsrecht
+auf einer FUNKTION.
+
+**(b) `freigabe_status` heisst `genehmigt`, nicht `freigegeben`.** Der
+Übergangsauslöser verglich mit einem Wert, den das Enum nicht kennt; Postgres
+weist das ab, also wäre JEDE Freigabe gescheitert. Eine Zeichenkette gegen ein
+Enum zu vergleichen sieht in SQL richtig aus, bis sie läuft.
+
+**(c) Die Steuerzeilen brauchen ein UPDATE-Recht.** ACC-05 schlägt zuerst den
+Kopf vor und die Sätze danach; wer erfasst, korrigiert die Aufteilung, bis sie
+stimmt. Mit `insert`-only scheiterte das `on conflict do update` an „permission
+denied". Beweglich sind sie jetzt bis zum Buchen, danach nicht mehr — und das
+hält ein Auslöser, kein Rechteentzug: ein Recht kann nicht zwischen „vor" und
+„nach dem Buchen" unterscheiden.
+
+Die Lehre ist nicht „mehr Tests". Sie ist: **ein Riegel, der nie gelaufen ist,
+ist kein Riegel.** Alle drei Befunde lagen in Code, der beim Lesen richtig
+aussah.
+
+---
+
+### D-403 · Die Freigabe bekommt einen Dienst, weil eine abgeschriebene Hashkette nichts bezeugt
+
+PR 54.3 (K-13, APR-07).
+
+Die drei Schritte einer Freigabe — `freigabe`, Kettennummer über
+`app.freigabe_kette_ziehen`, `freigabe_snapshot` mit `berechneHash` — standen
+bisher an genau EINER Stelle ausgeschrieben: im Seed der Bau-Domäne. Die
+zweite Domäne, die eine Freigabe braucht, hätte sie abgeschrieben, und eine
+abgeschriebene Hashkette ist eine, die beim ersten Tippfehler nichts mehr
+bezeugt — `hash = nutzlast_hash` zu schreiben sieht gleich aus und ist keine
+Kette.
+
+`services/freigabe.ts` erteilt sie jetzt an einer Stelle. Die Freigabe friert
+ein, WORÜBER entschieden wurde — Lieferant, Nummer, Datum, Betrag —, damit
+eine nachträgliche Änderung sie nicht mehr deckt.
+
+**Der Abdruck ist getrennt von `agent/policy.ts::nutzlastHash`, und das ist
+Absicht.** Dort geht es um das Tor vor dem, was das Haus VERLÄSST (Invariante
+7), und die dortige `Aktion` ist genau diese geschlossene Menge. Die Freigabe
+einer Eingangsrechnung ist eine interne Kontrolle; sie in jene Liste zu
+schreiben hiesse, eine Buchhaltungsentscheidung als Aussendung zu führen — und
+beim nächsten Blick auf die Liste stünde eine Richtlinie „darf automatisch
+raus" über einer Rechnungsfreigabe.
+
+Die Freigabe verlangt im Portal ZWEI Rechte: `eingang.freigeben` für die
+Entscheidung über die Rechnung und `freigabe.entscheiden` für das Schreiben in
+die Kette. Zwei Handlungen, zwei Rechte — und eine Kette, in die jeder
+schreiben darf, bezeugt nichts.
+
+---
+
+### D-404 · Das Ausgangsbuch ist eine Lesart, keine Tabelle — und es rechnet zweimal
+
+PR 56 (FIN-16, REP-07, `05-FINANZEN.md` §10).
+
+Jede Zahl im Rechnungsausgangsbuch steht schon irgendwo: auf der Rechnung, im
+Snapshot, im Kettenglied. Sie ein zweites Mal zu speichern hiesse, eine zweite
+Wahrheit zu führen, die beim ersten Nachtrag von der ersten abweicht. Das Buch
+ist deshalb eine Sicht (`security_invoker`), und die Mandantenwand steht dort,
+wo sie ohnehin steht — in den Policies der drei Tabellen darunter.
+
+**Die Summe wird trotzdem zweimal gebildet.** `stimmeAb()` liest sie einmal
+aus der Sicht und einmal direkt aus `rechnung`, ohne die Joins auf Snapshot
+und Kette. Weichen beide ab, liegt der Fehler in der Sicht — und den findet
+sonst niemand, weil eine Sicht mit einem falschen Join plausible Zahlen zeigt.
+Dieselbe Bauart wie beim Kettenlauf und beim Postenabgleich: zwei Wege zu
+derselben Zahl, mit Absicht.
+
+**Der Kundenname kommt aus dem SNAPSHOT** (K-12). Wird ein Kunde umbenannt
+oder nach Art. 17 DSGVO anonymisiert, muss das Buch weiter zeigen, was auf dem
+Beleg stand. Ein Join auf den Stammsatz gäbe ein Buch, das sich rückwirkend
+ändert — und die Hashkette meldete weiter „intakt", weil die Rechnung selbst
+sich nicht bewegt hat. Genau dieser Fall steht als Prüfung daneben.
+
+**Wie eine Lücke überhaupt entstehen kann.** Nicht durch Löschen (Invariante
+8), nicht durch Verwerfen (0076 weist `festgeschrieben → verworfen` ab) — nur
+über den ZÄHLER. Wer `nummernkreis.naechste_nummer` vorstellt, überspringt eine
+Nummer, ohne dass sich ein Beleg bewegt. Dafür gibt es dieses Buch, und genau
+so wird es geprüft.
+
+**Zwei Prüfungen dieser Datei waren zunächst zu schwach — und beide fielen
+erst der Sabotage auf.**
+
+`expect(zeilen.every(z => !z.luecke)).toBe(true)` lief grün durch, als der
+`coalesce` aus der Sicht entfernt wurde: ohne ihn ist `luecke` auf der ersten
+Zeile jeder Gruppe NULL, und `!null` ist `true`. §10 warnt genau davor — „die
+Zusage hätte bestanden oder nicht bestanden, je nachdem wie ein Test sie prüft,
+und das ist von drei Ausgängen der schlechteste" — und die erste Fassung dieser
+Prüfung tat es trotzdem. Sie vergleicht jetzt gegen `[false, false, false]`.
+
+Die zweite zählte nur Zeilen und lief deshalb auch dann grün, als der Join auf
+den Nummernkreis zu einem LEFT JOIN wurde und Entwürfe im Buch auftauchten.
+Sie prüft jetzt die ZUSAGE: jede Zeile trägt eine Nummer und ein Kettenglied.
+
+Die Lehre steht schon in D-400 und gilt hier zum zweiten Mal: **eine Sabotage,
+die niemanden weckt, prüft die Prüfung.**
+
+**Was PR 56 NICHT bringt: FIN-17.** Umsatz, Kosten und Ergebnis je Periode
+hängen an der Frage, ob eine Gesellschaft nach vereinbarten Entgelten (Soll)
+oder nach vereinnahmten (Ist, §20 UStG) versteuert — das entscheidet, in
+welchem Monat ein Umsatz zählt. `mandant.versteuerungsart` gibt es nicht, und
+die Frage ist Teil von O-05. Eine Kennzahl, die sich still für Soll
+entscheidet, wäre eine erfundene steuerliche Regel in genau der Zahl, die die
+Geschäftsführung liest. Die Kennzahlen kommen, wenn die Frage beantwortet ist
+— zusammen mit `buchungssatz` (PR 58), der ohnehin ihre richtige Quelle ist.
