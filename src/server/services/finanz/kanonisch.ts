@@ -1,5 +1,5 @@
 /**
- * Der EINE Kanonisierer — `cse.rechnung.v1`, RFC 8785 (JCS).
+ * Der EINE Kanonisierer — `cse.rechnung.v2`, RFC 8785 (JCS).
  *
  * `05-FINANZEN.md` §5.3. Diese Datei erzeugt die Bytes, die gehasht werden.
  * Es gibt sie genau einmal, und das ist keine Stilfrage: die Kette wird in
@@ -39,8 +39,32 @@
 import type { Cent } from './geld.js';
 import { mengeNachPostgres, type MilliMenge } from './menge.js';
 
-/** Die Gestalt der Nutzlast. Sie wird erhoeht, BEVOR damit festgeschrieben wird. */
-export const SCHEMA_VERSION = 'cse.rechnung.v1' as const;
+/**
+ * Die Gestalt der Nutzlast. Sie wird erhoeht, BEVOR damit festgeschrieben
+ * wird — nie danach.
+ *
+ * **v1 → v2 (PR 52, FIN-11).** v1 trug die Anschriften als EINE Zeile
+ * (`"Musterstr. 1, 10115 Berlin, DE"`), erzeugt von `concat_ws` in der
+ * Kopfabfrage. Fuer das PDF genuegt das; fuer eine XRechnung nicht. EN 16931
+ * verlangt Strasse, Ort, Postleitzahl und Laendercode als EIGENE Felder
+ * (BT-35, BT-37, BT-38, BT-40 — und fuer den Empfaenger BT-50, BT-52, BT-53,
+ * BT-55), und die XRechnung-CIUS macht drei davon zu harten Regeln (BR-DE-3
+ * bis BR-DE-5). Aus einer Zeile liessen sie sich nur RATEN — ein Komma ist
+ * kein Feldtrenner, „Berlin, DE" und „Berlin" sind beide plausibel, und ein
+ * falscher Laendercode macht aus einer Rechnung eine abgelehnte Rechnung.
+ *
+ * K-12 laesst dafuer genau einen Weg: der Snapshot ist das Dokument, also
+ * muss er die Felder tragen. Deshalb eine neue Gestalt statt eines Parsers.
+ *
+ * **Bestehende Glieder bleiben gueltig.** Der Kettenlauf hasht
+ * `rechnung_snapshot.nutzlast_bytes`, wie sie gespeichert sind; er baut die
+ * Nutzlast nie neu. Eine v1-Zeile bleibt damit byte-gleich und verifiziert
+ * weiter — sie traegt ihre Gestalt in `schema_version` bei sich.
+ */
+export const SCHEMA_VERSION = 'cse.rechnung.v2' as const;
+
+/** Die Gestalt, mit der bis PR 52 festgeschrieben wurde. Nur noch zum Lesen. */
+export const SCHEMA_VERSION_V1 = 'cse.rechnung.v1' as const;
 
 export class KanonisierungsFehler extends Error {
   constructor(nachricht: string) {
@@ -176,11 +200,60 @@ export function instantAlsText(wert: Date | string | null): string | null {
  * „intakt: true" meldet. Deshalb steht hier der Name, die Anschrift und die
  * Steuernummer, wie sie an dem Tag lauteten.
  */
+/**
+ * Eine Anschrift in ihren Teilen — und zusaetzlich als Zeile.
+ *
+ * `zeile` ist, was v1 allein trug, und sie bleibt: das PDF setzt sie, und
+ * sie ist die Fassung, die ein Mensch gegenliest. Die Teile daneben sind
+ * das, was EN 16931 verlangt; aus der Zeile waeren sie nur zu erraten.
+ *
+ * `land` ist ISO 3166-1 alpha-2 (BT-40 / BT-55) und NICHT optional — ohne
+ * Laendercode ist kein EN-16931-Dokument gueltig, und ein stilles `DE` waere
+ * fuer einen Kunden in Wien schlicht falsch. Woher der Wert kommt, ist
+ * geklaert: `mandant.land`, `kunde.land` und `objekt.land` sind alle
+ * `char(2) not null default 'DE'`.
+ */
+export interface Anschrift {
+  /** Die einzeilige Fassung — `concat_ws`, wie v1 sie trug. */
+  readonly zeile: string;
+  /** BT-35 / BT-50 — Strasse samt Hausnummer. */
+  readonly strasse: string | null;
+  /** BT-36 / BT-51 — Adresszusatz, „c/o", Gebaeude. */
+  readonly zusatz: string | null;
+  /** BT-38 / BT-53. */
+  readonly plz: string | null;
+  /** BT-37 / BT-52. */
+  readonly ort: string | null;
+  /** BT-40 / BT-55 — ISO 3166-1 alpha-2. */
+  readonly land: string;
+}
+
+/**
+ * Der Kontakt des Leistenden (BG-6) — in der XRechnung KEIN Beiwerk.
+ *
+ * BR-DE-2 macht die Gruppe zur Pflicht, BR-DE-6 bis BR-DE-8 die drei Felder
+ * darin. Ein Dokument ohne sie wird vom Pruefer des oeffentlichen
+ * Auftraggebers abgewiesen — und das faellt erst DORT auf, an einer
+ * Rechnung, die nicht mehr geaendert werden darf.
+ *
+ * Die Werte sind Stammdaten und werden nie erfunden: fehlt einer, nennt der
+ * Bauer ihn und erzeugt nichts.
+ */
+export interface Kontakt {
+  /** BT-41 — die Stelle, nicht zwingend ein Mensch („Buchhaltung"). */
+  readonly name: string | null;
+  /** BT-42. */
+  readonly telefon: string | null;
+  /** BT-43. */
+  readonly email: string | null;
+}
+
 export interface Leistender {
   readonly id: string;
   readonly name: string;
   readonly rechtsform: string | null;
-  readonly anschrift: string;
+  readonly anschrift: Anschrift;
+  readonly kontakt: Kontakt;
   readonly steuernummer: string | null;
   readonly ustid: string | null;
   readonly gericht: string | null;
@@ -193,7 +266,7 @@ export interface Leistender {
 export interface Empfaenger {
   readonly id: string;
   readonly name: string;
-  readonly anschrift: string;
+  readonly anschrift: Anschrift;
   readonly ustid: string | null;
   readonly leitwegId: string | null;
   readonly kaeuferReferenz: string | null;
@@ -205,7 +278,7 @@ export interface Empfaenger {
 export interface Leistungsort {
   readonly id: string;
   readonly bezeichnung: string;
-  readonly anschrift: string;
+  readonly anschrift: Anschrift;
 }
 
 /** Eine Quelle hinter einer Position (FIN-07). In PR 46 immer leer. */
@@ -378,6 +451,18 @@ function nachTypId(a: Quelle, b: Quelle): number {
   return textOrdnung(a.typ, b.typ) || textOrdnung(a.id, b.id);
 }
 
+/** Eine Anschrift in kanonischer Form. Alle sechs Felder, immer. */
+function anschriftAlsWert(a: Anschrift): KanonischerWert {
+  return {
+    zeile: a.zeile,
+    strasse: a.strasse,
+    zusatz: a.zusatz,
+    plz: a.plz,
+    ort: a.ort,
+    land: a.land,
+  };
+}
+
 /**
  * Die Nutzlast als Struktur — in der Form, die `kanonisiere` erwartet.
  *
@@ -393,7 +478,12 @@ export function baueNutzlast(r: RechnungVollstaendig): KanonischerWert {
       id: r.leistender.id,
       name: r.leistender.name,
       rechtsform: r.leistender.rechtsform,
-      anschrift: r.leistender.anschrift,
+      anschrift: anschriftAlsWert(r.leistender.anschrift),
+      kontakt: {
+        name: r.leistender.kontakt.name,
+        telefon: r.leistender.kontakt.telefon,
+        email: r.leistender.kontakt.email,
+      },
       steuernummer: r.leistender.steuernummer,
       ustid: r.leistender.ustid,
       gericht: r.leistender.gericht,
@@ -405,7 +495,7 @@ export function baueNutzlast(r: RechnungVollstaendig): KanonischerWert {
     empfaenger: {
       id: r.empfaenger.id,
       name: r.empfaenger.name,
-      anschrift: r.empfaenger.anschrift,
+      anschrift: anschriftAlsWert(r.empfaenger.anschrift),
       ustid: r.empfaenger.ustid,
       leitweg_id: r.empfaenger.leitwegId,
       kaeufer_referenz: r.empfaenger.kaeuferReferenz,
@@ -425,7 +515,7 @@ export function baueNutzlast(r: RechnungVollstaendig): KanonischerWert {
     objekt: r.objekt === null ? null : {
       id: r.objekt.id,
       bezeichnung: r.objekt.bezeichnung,
-      anschrift: r.objekt.anschrift,
+      anschrift: anschriftAlsWert(r.objekt.anschrift),
     },
     sprache: r.sprache,
     waehrung: r.waehrung,

@@ -30,6 +30,7 @@
     "db:seed": "tsx src/server/db/seed/index.ts",
     "content:import": "tsx scripts/content-import.ts",
     "test:isolation": "vitest run --config vitest.isolation.config.ts",
+    "test:compliance": "vitest run --config vitest.compliance.config.ts",
     "db:test:up": "bash scripts/test-db.sh up",
     "db:test:down": "bash scripts/test-db.sh down"
   },

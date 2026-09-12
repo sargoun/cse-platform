@@ -726,6 +726,23 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Die XRechnung als Datei (FIN-11, PR 52).
+     *
+     * `finanzen.herunterladen` und NICHT `finanzen.lesen`: das ist dasselbe
+     * Recht wie fuer das PDF (03-AUTH §2524), und es traegt eine eigene
+     * Entscheidung — wer eine Rechnung am Bildschirm sehen darf, darf sie
+     * damit noch nicht als Datei aus dem Haus tragen. Der Kunde haelt es
+     * ebenfalls, fuer seine eigenen festgeschriebenen Belege.
+     *
+     * Die Route SCHREIBT nichts. Sie liest den Snapshot und erzeugt daraus
+     * Text; entsteht das Dokument nicht, antwortet sie 422 mit der Liste der
+     * fehlenden Felder und nie mit einer halben Datei.
+     */
+    pfad: 'api/finanzen/rechnungen/[id]/xrechnung.xml',
+    recht: 'finanzen.herunterladen',
+  },
+  {
+    /**
      * Verwerfen ist ein ZUSTANDSWECHSEL, kein Loeschen (Invariante 8). Der
      * Entwurf bleibt mit Grund stehen — er ist der Satz, den eine
      * Betriebspruefung liest, wenn sie nach der fehlenden Nummer fragt.

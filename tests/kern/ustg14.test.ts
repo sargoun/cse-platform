@@ -74,6 +74,20 @@ const BASIS: PruefEingabe = {
   },
   /** FIN-08: eine gewöhnliche Rechnung zieht nichts ab. */
   offeneAbschlaege: [],
+  /*
+   * FIN-11 greift NUR, wenn der Kunde eine XRechnung verlangt — die Basis
+   * ist eine gewoehnliche Rechnung an eine Hausverwaltung, und die Regel
+   * kostet dort nichts. Ihre eigenen Faelle stehen weiter unten; dass die
+   * Liste hier NICHT leer ist, ist Absicht: sie darf ohne `pflicht` folgenlos
+   * bleiben, und genau das prueft einer der Faelle.
+   */
+  xrechnung: {
+    pflicht: false,
+    fehlend: [{
+      bt: 'BT-41', regel: 'BR-DE-6', feld: 'mandant.rechnung_kontakt_name',
+      text: 'Die Kontaktstelle der Gesellschaft fehlt.',
+    }],
+  },
 };
 
 interface Fall {
@@ -246,6 +260,19 @@ const FAELLE: readonly Fall[] = [
       offeneAbschlaege: [{ nummer: 'RE-2026-00007', verrechnetVon: null }],
     }),
     text: /RE-2026-00007/u,
+  },
+  {
+    /**
+     * FIN-11, und der Fall dreht die Basis um: dort ist `pflicht: false` und
+     * die Liste trotzdem NICHT leer. Das ist kein Zufall — es prueft, dass
+     * die Regel ohne Pflicht folgenlos bleibt (der Test oben ueber den
+     * vollstaendigen Beleg faellt sonst) und MIT Pflicht sperrt.
+     */
+    feld: 'xrechnung.pflichtfelder',
+    angabe: 'XRechnung-Pflichtangaben bei einem öffentlichen Auftraggeber (FIN-11)',
+    stufe: 'fehler',
+    defekt: (e) => ({ ...e, xrechnung: { ...e.xrechnung, pflicht: true } }),
+    text: /BT-41, BR-DE-6 — zu pflegen unter mandant\.rechnung_kontakt_name/u,
   },
 ];
 

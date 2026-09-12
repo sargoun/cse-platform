@@ -316,6 +316,20 @@ export default async function Rechnungsblatt(
         >
           §14-UStG-Prüfung ansehen
         </Link>
+        {/*
+          * Die XRechnung (PR 52). Auch sie auf einer eigenen Seite: sie zeigt
+          * das erzeugte UBL und den Pruefstand, und beides gehoert nicht in
+          * einen Editor. Der Verweis steht bei JEDEM Beleg und nicht nur bei
+          * einem oeffentlichen Auftraggeber — wer wissen will, ob eine
+          * Rechnung elektronisch zustellbar waere, findet die Antwort sonst
+          * nur, indem er sie verschickt.
+          */}
+        <Link
+          href={`/portal/${mandant}/finanzen/rechnungen/${k.id}/xrechnung`}
+          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+        >
+          XRechnung ansehen
+        </Link>
       </nav>
 
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">

@@ -161,3 +161,6 @@ next-env.d.ts
 
 # Lighthouse-CI-Berichte. Sie gehören zu einem Lauf, nicht zum Quellstand.
 .lighthouseci/
+
+# Der KoSIT-Pruefer und sein Regelwerk werden in CI geholt, nicht eingecheckt.
+.kosit/

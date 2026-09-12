@@ -25,8 +25,14 @@ export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts'],
     // The isolation suite needs a live Postgres and its own sequential
-    // runner — `pnpm test:isolation`, vitest.isolation.config.ts.
-    exclude: ['tests/e2e/**', 'tests/fixtures/**', 'tests/isolation/**', 'node_modules/**'],
+    // runner — `pnpm test:isolation`, vitest.isolation.config.ts. The
+    // compliance suite needs Java and the downloaded KoSIT validator —
+    // `pnpm test:compliance`, vitest.compliance.config.ts. Neither belongs in
+    // the suite a developer runs on every save.
+    exclude: [
+      'tests/e2e/**', 'tests/fixtures/**', 'tests/isolation/**',
+      'tests/compliance/**', 'node_modules/**',
+    ],
     environment: 'node',
     // The reference cases are Berlin wall-clock. Pinning the runner's zone to
     // UTC is deliberate: a test that only passes because the CI box happens to

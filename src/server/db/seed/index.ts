@@ -165,7 +165,8 @@ async function main(): Promise<void> {
         (slug, name, firma, rechtsform, ist_rechtseinheit, eigener_nummernkreis,
          strasse, plz, ort, land, telefon, email, farbe_token, module,
          module_gepflegt, sortierung,
-         ust_id, handelsregister_gericht, handelsregister_nummer)
+         ust_id, handelsregister_gericht, handelsregister_nummer,
+         rechnung_kontakt_name)
       values
         (${b.slug}, ${b.name}, ${b.firma}, ${b.rechtsform}, ${b.rechtseinheit},
          ${rechtseinheit},
@@ -185,7 +186,13 @@ async function main(): Promise<void> {
          true, ${i},
          ${rechtseinheit ? `DE${String(100_000_000 + i)}` : null}, -- TODO(client, O-353): echte USt-IdNr.
          ${rechtseinheit ? 'Amtsgericht Charlottenburg' : null},
-         ${rechtseinheit ? `HRB ${String(200_000 + i)}` : null})  -- TODO(client, O-353): echte HRB-Nummer
+         ${rechtseinheit ? `HRB ${String(200_000 + i)}` : null},  -- TODO(client, O-353): echte HRB-Nummer
+         -- BT-41, XRechnung BR-DE-6. Steht hier wie die Anschrift daneben:
+         -- eingetragen, damit das System arbeitet, und ausdruecklich NICHT
+         -- als gesicherte Angabe (angaben_bestaetigt_am bleibt NULL). Ohne
+         -- einen Wert entstuende zu keinem oeffentlichen Auftraggeber eine
+         -- XRechnung, und die Abnahme der Phase 6 waere nicht pruefbar.
+         'Buchhaltung')  -- TODO(client, O-353): echte Kontaktstelle je Gesellschaft
       -- ist_rechtseinheit MUSS mit: der CHECK verbindet beide Spalten, ein
       -- eigener Nummernkreis setzt eine Rechtseinheit voraus. Der Zweig setzte
       -- nur eigener_nummernkreis. Traf er eine Zeile, die von anderswo kam
@@ -203,6 +210,7 @@ async function main(): Promise<void> {
             ust_id = excluded.ust_id,
             handelsregister_gericht = excluded.handelsregister_gericht,
             handelsregister_nummer = excluded.handelsregister_nummer,
+            rechnung_kontakt_name = excluded.rechnung_kontakt_name,
             -- Die Buchung gehoert zur Gesellschaft und nicht zum ersten Lauf:
             -- ohne diese Zeile blieben vier bereits angelegte Bereiche fuer
             -- immer bei '{}', und der Modulriegel griffe nirgends.

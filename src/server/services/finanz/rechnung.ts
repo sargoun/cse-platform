@@ -792,6 +792,13 @@ interface KopfZeile {
   readonly m_name: string;
   readonly m_rechtsform: string | null;
   readonly m_anschrift: string;
+  readonly m_strasse: string | null;
+  readonly m_plz: string | null;
+  readonly m_ort: string | null;
+  readonly m_land: string;
+  readonly m_kontakt_name: string | null;
+  readonly m_kontakt_telefon: string | null;
+  readonly m_kontakt_email: string | null;
   readonly m_steuernummer: string | null;
   readonly m_ust_id: string | null;
   readonly m_gericht: string | null;
@@ -800,6 +807,10 @@ interface KopfZeile {
   readonly k_id: string;
   readonly k_name: string;
   readonly k_anschrift: string;
+  readonly k_strasse: string | null;
+  readonly k_plz: string | null;
+  readonly k_ort: string | null;
+  readonly k_land: string;
   readonly k_ust_id: string | null;
   readonly k_leitweg_id: string | null;
   readonly k_kaeufer_referenz: string | null;
@@ -811,6 +822,11 @@ interface KopfZeile {
   readonly o_id: string | null;
   readonly o_bezeichnung: string | null;
   readonly o_anschrift: string | null;
+  readonly o_strasse: string | null;
+  readonly o_zusatz: string | null;
+  readonly o_plz: string | null;
+  readonly o_ort: string | null;
+  readonly o_land: string | null;
 }
 
 const KOPF_SQL = `
@@ -849,6 +865,12 @@ const KOPF_SQL = `
          r.kaeufer_eadresse, r.kaeufer_eadresse_schema,
          m.firma as m_name, m.rechtsform as m_rechtsform,
          concat_ws(', ', m.strasse, concat_ws(' ', m.plz, m.ort), m.land) as m_anschrift,
+         -- Dieselbe Anschrift NOCH EINMAL, in Teilen: EN 16931 verlangt
+         -- BT-35/37/38/40 einzeln, und aus der Zeile darueber liessen sie
+         -- sich nur raten (Nutzlast v2, §5.3).
+         m.strasse as m_strasse, m.plz as m_plz, m.ort as m_ort, m.land as m_land,
+         m.rechnung_kontakt_name as m_kontakt_name,
+         m.telefon as m_kontakt_telefon, m.email as m_kontakt_email,
          m.steuernummer as m_steuernummer, m.ust_id as m_ust_id,
          m.handelsregister_gericht as m_gericht, m.handelsregister_nummer as m_hrb,
          nullif(array_to_string(m.geschaeftsfuehrer, ', '), '') as m_geschaeftsfuehrer,
@@ -861,11 +883,24 @@ const KOPF_SQL = `
               else concat_ws(', ', concat_ws(' ', k.strasse, k.hausnummer),
                              concat_ws(' ', k.plz, k.ort), k.land)
          end as k_anschrift,
+         -- Und die Teile, mit DERSELBEN Verzweigung: eine abweichende
+         -- Rechnungsanschrift, die nur in der Zeile ankommt und nicht in
+         -- BT-50/52/53, ergaebe zwei Dokumente mit zwei Empfaengern.
+         case when k.rechnungsadresse_abweichend
+              then nullif(concat_ws(' ', k.rechnung_strasse, k.rechnung_hausnummer), '')
+              else nullif(concat_ws(' ', k.strasse, k.hausnummer), '')
+         end as k_strasse,
+         case when k.rechnungsadresse_abweichend then k.rechnung_plz else k.plz end as k_plz,
+         case when k.rechnungsadresse_abweichend then k.rechnung_ort else k.ort end as k_ort,
+         case when k.rechnungsadresse_abweichend
+              then coalesce(k.rechnung_land, k.land) else k.land end as k_land,
          k.ust_id as k_ust_id, k.leitweg_id as k_leitweg_id,
          k.kaeufer_referenz as k_kaeufer_referenz,
          o.id::text as o_id, o.bezeichnung as o_bezeichnung,
          concat_ws(', ', concat_ws(' ', o.strasse, o.hausnummer),
-                   concat_ws(' ', o.plz, o.ort), o.land) as o_anschrift
+                   concat_ws(' ', o.plz, o.ort), o.land) as o_anschrift,
+         nullif(concat_ws(' ', o.strasse, o.hausnummer), '') as o_strasse,
+         o.adresszusatz as o_zusatz, o.plz as o_plz, o.ort as o_ort, o.land as o_land
     from rechnung r
     join mandant m on m.id = r.mandant_id
     join kunde k on k.mandant_id = r.mandant_id and k.id = r.kunde_id
@@ -1039,7 +1074,19 @@ export async function ladeRechnungVollstaendig(
       id: kopf.mandant_id,
       name: kopf.m_name,
       rechtsform: kopf.m_rechtsform,
-      anschrift: kopf.m_anschrift,
+      anschrift: {
+        zeile: kopf.m_anschrift,
+        strasse: kopf.m_strasse,
+        zusatz: null,
+        plz: kopf.m_plz,
+        ort: kopf.m_ort,
+        land: kopf.m_land,
+      },
+      kontakt: {
+        name: kopf.m_kontakt_name,
+        telefon: kopf.m_kontakt_telefon,
+        email: kopf.m_kontakt_email,
+      },
       steuernummer: kopf.m_steuernummer,
       ustid: kopf.m_ust_id,
       gericht: kopf.m_gericht,
@@ -1051,7 +1098,14 @@ export async function ladeRechnungVollstaendig(
     empfaenger: {
       id: kopf.k_id,
       name: kopf.k_name,
-      anschrift: kopf.k_anschrift,
+      anschrift: {
+        zeile: kopf.k_anschrift,
+        strasse: kopf.k_strasse,
+        zusatz: null,
+        plz: kopf.k_plz,
+        ort: kopf.k_ort,
+        land: kopf.k_land,
+      },
       ustid: kopf.k_ust_id,
       leitwegId: kopf.k_leitweg_id,
       kaeuferReferenz: kopf.k_kaeufer_referenz,
@@ -1071,7 +1125,16 @@ export async function ladeRechnungVollstaendig(
     objekt: kopf.o_id === null ? null : {
       id: kopf.o_id,
       bezeichnung: kopf.o_bezeichnung ?? '',
-      anschrift: kopf.o_anschrift ?? '',
+      anschrift: {
+        zeile: kopf.o_anschrift ?? '',
+        strasse: kopf.o_strasse,
+        zusatz: kopf.o_zusatz,
+        plz: kopf.o_plz,
+        ort: kopf.o_ort,
+        // `objekt.land` ist `not null`; der Linksverbund macht die SPALTE
+        // nullbar, nicht den Wert. Ohne Objekt gibt es diesen Zweig nicht.
+        land: kopf.o_land ?? 'DE',
+      },
     },
     sprache: kopf.sprache,
     waehrung: kopf.waehrung,

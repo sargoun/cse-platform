@@ -612,6 +612,26 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'finanzen', pfad: 'finanz/steuerfall',
     schreibend: true, schreibRecht: 'finanzen.schreiben',
   },
+
+  /**
+   * PR 52 — die XRechnung (FIN-11).
+   *
+   * **Keiner dieser fuenf schreibt**, und das ist die ganze Aussage dieses
+   * Blocks: die XRechnung entsteht aus dem Snapshot, der laengst
+   * festgeschrieben ist (K-12). Ein Schreibrecht hier waere ein Hinweis
+   * darauf, dass irgendwo doch etwas am Beleg geaendert wird — und genau das
+   * darf nicht sein.
+   *
+   * `dienst` ist der einzige, der ueberhaupt an die Datenbank geht, und auch
+   * er nur lesend: eine Zeile aus `rechnung_snapshot`. Das Recht dafuer
+   * (`finanzen.herunterladen`) sitzt an der Route und an der Seite, weil es
+   * dort um die AUSGABE geht und nicht um die Berechnung.
+   */
+  { modul: 'finanzen', pfad: 'finanz/xrechnung/index', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/xrechnung/xml', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/xrechnung/aus-snapshot', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/xrechnung/pruefstand', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/xrechnung/dienst', schreibend: false },
 ] as const;
 
 /**

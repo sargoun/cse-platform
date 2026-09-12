@@ -187,7 +187,8 @@ proven by test, not by inspection.
       einbehalt stays open — O-20)
 - [x] §13b UStG; §48 EStG with certificate validity at service date (PR 51;
       the relevant date stays open — O-21, one injected parameter)
-- [ ] XRechnung with Leitweg-ID, KoSIT-validated in CI
+- [x] XRechnung with Leitweg-ID, KoSIT-validated in CI (PR 52; the transmission
+      route per public client stays open — O-22)
 - [ ] ZUGFeRD 2.x PDF/A-3
 - [ ] Incoming invoices, expenses, payments, dunning
 - [ ] Rechnungsausgangsbuch

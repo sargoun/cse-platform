@@ -1,0 +1,65 @@
+name: Konformität
+
+# Die Prüfungen, die gegen FREMDE Werkzeuge laufen — nicht gegen meine
+# eigenen Zusagen (FIN-11, 01-ORDNERSTRUKTUR.md §11.2, §21).
+#
+# **Warum ein eigener Auftrag.** Der KoSIT-Prüfer ist ein Java-Werkzeug mit
+# einer eigenen Regelwerksfassung, die getrennt veröffentlicht wird. Ihn in
+# `pruefung` zu hängen hiesse, jeden Lauf an zwei Downloads zu binden, die mit
+# dem Rest der Prüfung nichts zu tun haben — und ein Ausfall von Maven Central
+# stoppte dann auch einen reinen Textfehler.
+#
+# **Er läuft trotzdem bei JEDEM Pull Request**, und er ist erforderlich: er
+# fällt trivial durch, solange keine Muster da sind, und genau deshalb kann
+# das erste Muster nicht ungeprüft hineinkommen.
+
+on:
+  push: { branches: [main] }
+  pull_request:
+
+jobs:
+  xrechnung:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+
+      - run: pnpm install --frozen-lockfile
+
+      # Der Prüfer und sein Regelwerk, beide auf eine FESTE Fassung gepinnt.
+      #
+      # Ohne Pin brächte eine neue Regelwerksfassung den Bau an einem
+      # beliebigen Dienstag zu Fall, ohne dass jemand etwas geändert hätte —
+      # und niemand wüsste, ob die neue Regel richtig ist oder unsere
+      # Rechnung. Mit Pin ist die Anhebung eine eigene Änderung mit einem
+      # eigenen Diff, so wie jede andere auch.
+      - name: KoSIT-Prüfer und XRechnung-Regelwerk holen
+        run: |
+          set -euo pipefail
+          mkdir -p .kosit
+          curl -sSL --retry 3 --retry-delay 5 -o .kosit/validator.jar \
+            https://repo1.maven.org/maven2/de/kosit/validationtool/1.5.0/validationtool-1.5.0-standalone.jar
+          curl -sSL --retry 3 --retry-delay 5 -o .kosit/konfiguration.zip \
+            https://github.com/itplr-kosit/validator-configuration-xrechnung/releases/download/release-2024-06-20/validator-configuration-xrechnung_3.0.2_2024-06-20.zip
+          unzip -q .kosit/konfiguration.zip -d .kosit/konfiguration
+
+      - name: XRechnung gegen KoSIT prüfen
+        env:
+          KOSIT_JAR: ${{ github.workspace }}/.kosit/validator.jar
+          KOSIT_SZENARIEN: ${{ github.workspace }}/.kosit/konfiguration/scenarios.xml
+        run: pnpm test:compliance
+
+      # Die Prüfberichte bleiben liegen, auch wenn alles grün war: wer eine
+      # Regel nachlesen will, braucht sie nicht erst rot zu machen.
+      - name: Prüfberichte
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kosit-berichte
+          path: /tmp/cse-xrechnung-*/berichte
+          if-no-files-found: ignore
+          retention-days: 14

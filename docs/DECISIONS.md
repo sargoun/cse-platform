@@ -5738,3 +5738,118 @@ Leistungszeitraums, trägt die Lage eine Warnung mit der Nummer und dem Datum �
 der Mensch, der unterschreibt, sieht den Fall. Die Bagatellgrenzen des §48
 Abs. 2 EStG bleiben unangewandt: ohne Grenze wird immer einbehalten, und das
 ist die Seite, die nicht haftet.
+
+### D-391 · Die Nutzlast bekommt eine zweite Gestalt, weil eine Anschrift kein Satz ist
+
+PR 52 (FIN-11, K-12, §5.3).
+
+`cse.rechnung.v1` trug jede Anschrift als EINE Zeile — `concat_ws(', ', strasse,
+concat_ws(' ', plz, ort), land)`, erzeugt in der Kopfabfrage. Für das PDF genügt
+das; ein Mensch liest die Zeile und erkennt die Adresse.
+
+**EN 16931 liest keine Zeilen.** Die Norm führt Straße, Ort, Postleitzahl und
+Ländercode als eigene Geschäftsanforderungen (BT-35, BT-37, BT-38, BT-40 für
+den Leistenden; BT-50, BT-52, BT-53, BT-55 für den Empfänger), und die
+XRechnung-CIUS macht drei davon zu harten Regeln (BR-DE-3 bis BR-DE-5). Aus
+einer Zeile ergeben sie sich nur durch Raten: ein Komma ist kein Feldtrenner,
+`"Berlin, DE"` und `"Berlin"` sind beide plausibel, und ein falscher Ländercode
+lässt die Rechnung beim Empfänger durchfallen — nachdem sie festgeschrieben und
+damit unveränderlich ist.
+
+**K-12 lässt genau einen Weg offen.** Der Snapshot IST das Dokument; die
+XRechnung liest ihn und nicht die Stammdaten. Also muss der Snapshot die Felder
+tragen. Die Alternative — beim Erzeugen doch frisch abfragen — hiesse, dass eine
+spätere Pflege des Kundenstamms ändert, was die XRechnung sagt, während die
+Kettenprüfung weiter „intakt" meldet: zwei Dokumente zu einer Rechnungsnummer,
+und das zweite beweist nichts.
+
+**Bestehende Glieder bleiben gültig, und zwar ohne Zutun.** Der Kettenlauf hasht
+`rechnung_snapshot.nutzlast_bytes`, wie sie gespeichert sind; er baut die
+Nutzlast nie neu. Eine v1-Zeile bleibt byte-gleich, verifiziert weiter und trägt
+ihre Gestalt in `schema_version` bei sich. Genau dafür gibt es das Feld.
+
+**Eine v1-Rechnung bekommt trotzdem keine XRechnung** (`SnapshotZuAltFehler`).
+Sie ist nicht verloren — sie ist nur nicht maschinenlesbar zustellbar, und der
+Weg dahin ist Storno und Neuausstellung. Das ist eine kaufmännische
+Entscheidung und keine, die ein Parser heimlich trifft.
+
+Mitgekommen ist der **Verkäuferkontakt** (BG-6): BR-DE-2 macht die Gruppe zur
+Pflicht, BR-DE-6 bis BR-DE-8 die drei Felder darin. Zwei standen längst auf
+`mandant` (`telefon`, `email`); das dritte, die Kontaktstelle (BT-41), gab es
+nicht. `0119` legt die Spalte an und lässt sie NULL: was der öffentliche
+Auftraggeber auf der Rechnung liest und wen er anruft, entscheidet die
+Gesellschaft. Ein `default 'Buchhaltung'` wäre in neun von zehn Fällen richtig
+und damit die teuerste Sorte Erfindung.
+
+### D-392 · Die XRechnung-Pflichtfelder sperren die Festschreibung, nicht den Download
+
+PR 52 (FIN-11, §14 UStG-Vorprüfung).
+
+Der naheliegende Ort für die Prüfung wäre das Erzeugen des Dokuments gewesen:
+wer herunterlädt, bekommt entweder eine XRechnung oder eine Fehlerliste. Das
+ist **zu spät**. Zum Zeitpunkt des Downloads ist die Rechnung festgeschrieben,
+trägt eine gezogene Nummer und hängt in der Hashkette; der einzige Weg zurück
+ist ein Storno und eine neue Rechnung — wegen einer fehlenden Telefonnummer.
+
+05-API-KARTE §D sagt es für die Leitweg-ID ausdrücklich: bei einem öffentlichen
+Auftraggeber ist sie sperrend, „weil FIN-11 die XRechnung zum einzigen Weg
+macht, ihn überhaupt abzurechnen". Dasselbe gilt für die übrigen
+Pflichtangaben derselben Norm. Die Regel `xrechnung.pflichtfelder` steht deshalb
+im §14-Bericht und blockiert die Festschreibung.
+
+**Sie greift nur, wenn der Kunde eine XRechnung verlangt** (`xrechnung_pflicht`
+oder `ist_oeffentlicher_auftraggeber`) — und dann als Fehler, nicht als Warnung.
+Eine Reinigungsrechnung an eine Hausverwaltung braucht kein BT-41; eine Warnung,
+die auf jedem zweiten Beleg steht, liest nach zwei Wochen niemand mehr.
+
+**Eine Liste, zwei Aufrufer.** `fehlendePflichtfelder` nimmt eine schmalere
+Gestalt als eine ganze Rechnung (`XRechnungEingabe`), und `RechnungVollstaendig`
+erfüllt sie von selbst. Die Vorprüfung baut sie aus ihrer eigenen Abfrage, weil
+ein Entwurf weder Nummer noch Kettenposition hat. Zwei getrennte Listen wären
+die teurere Lösung: sie driften auseinander, und zwar in der Richtung, in der
+die Vorschau „vollständig" sagt und der Erzeuger sich danach weigert.
+
+`BT-3` ist die eine Ausnahme: der Rechnungsart-Code entsteht erst beim Zug der
+Nummer. Ihn in der Vorprüfung zu verlangen hiesse, jeden Entwurf zu sperren.
+
+### D-393 · Der KoSIT-Prüfer läuft in CI — und hat sofort zwei Fehler gefunden, die keine Eigenprüfung findet
+
+PR 52 (FIN-11, SPEC §14, 01-ORDNERSTRUKTUR §11.2).
+
+Jede Zusage in `tests/kern/xrechnung.test.ts` stammt aus demselben Kopf wie der
+Erzeuger und teilt seine Irrtümer. Der KoSIT-Prüfer ist das Werkzeug, gegen das
+die Rechnungseingangsplattformen des Bundes und der Länder prüfen; er kennt die
+Regeln, an die ich nicht gedacht habe. Beim ersten Lauf gegen die vier Muster:
+
+1. **Die `CustomizationID` trug die Schreibweise der Fassung 2.x**
+   (`urn:xoev-de:kosit:standard:xrechnung_3.0`). Zur 3.0 hat die KoSIT den
+   Bezeichner auf `urn:xeinkauf.de:kosit:xrechnung_3.0` umgestellt. Das Dokument
+   war wohlgeformt, vollständig und inhaltlich richtig; der Prüfer meldete
+   `noScenarioMatched` und wies ALLE VIER ab, ohne einen einzigen inhaltlichen
+   Fehler zu nennen. Keine selbstgeschriebene Prüfung hätte das gefunden — sie
+   hätte dieselbe falsche Zeichenkette erwartet.
+2. **`PartyLegalEntity/RegistrationAddress` mit dem Registergericht.** Nach §35a
+   GmbHG gehört es auf jeden Geschäftsbrief; UBL-CR-185 schliesst das Element in
+   einem Rechnungsdokument aus. Der Prüfer nahm die Rechnung an und beanstandete
+   sie — ein Zustand, in dem niemand arbeiten will. Das Gericht steht weiter im
+   Snapshot und auf dem PDF.
+
+**Eigener Auftrag, nicht in `pruefung`.** Der Prüfer ist ein Java-Werkzeug mit
+einer getrennt veröffentlichten Regelwerksfassung. Ihn in den Hauptlauf zu
+hängen hiesse, jede Prüfung an zwei Downloads zu binden, die mit ihr nichts zu
+tun haben. Beide Fassungen sind **gepinnt**: ohne Pin brächte eine neue
+Regelwerksfassung den Bau an einem beliebigen Dienstag zu Fall, ohne dass jemand
+etwas geändert hätte, und niemand wüsste, ob die neue Regel richtig ist oder
+unsere Rechnung.
+
+**Der Lauf fällt, wenn der Prüfer fehlt — er überspringt nicht.** Ein
+übersprungener Konformitätstest ist ein grüner Lauf ohne Prüfung, und das ist
+genau die Freigabe, die 04-SEITENKARTE §5.14.3 verbietet. Nur lokal, ohne Java
+und ohne Prüfer, gibt es einen Hinweis statt eines Fehlschlags.
+
+**Und die Oberfläche behauptet weiterhin nichts.** §5.14.3 nennt drei Zustände —
+„In CI validiert" mit der Regelwerksfassung, „Prüfung ausstehend", „Prüfer nicht
+verbunden" — und verbietet einen vierten, der wie ein Bestehen aussieht.
+`pruefstand.ts` kennt genau diese drei, und sein Vorgabewert ist der
+zurückhaltendste. „In CI validiert" sagt ausdrücklich, dass die Aussage dem
+ERZEUGER gilt und nicht dieser einzelnen Rechnung.
