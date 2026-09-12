@@ -5963,3 +5963,43 @@ clientseitige Navigation, und die Adresse wechselt, bevor Next die Metadaten
 angewandt hat. axe lief in dieses Fenster. Die Prüfung wartet jetzt auf die
 Bedingung, von der sie abhängt, und die Wartezeile ist zugleich eine
 Zusicherung auf den erwarteten Titel: strenger als vorher, nicht lascher.
+
+### D-396 · Die Löschsperre gehört in die Registratur, nicht in die Migration
+
+PR 52.3 (Invariante 8, K-16, LEG-01).
+
+`src/server/db/schema/rls.ts` führt jede Tabelle, die
+`kern.verhindere_loeschung()` trägt, mit ihrer **Löschart** und ihrem
+**Grund**; `scripts/generate-triggers.ts` schreibt daraus den Block ans Ende
+der jeweiligen Migration. Die Liste ist damit kein Kommentar, sondern die
+Quelle — und sie ist das, was ein Prüfer liest, wenn er fragt, welche Daten
+dieses Hauses nicht gelöscht werden dürfen.
+
+**PR 50 und PR 51 haben daran vorbeigearbeitet.** `abschlagsrechnung_bezug`,
+`kunde_bauleistender_status` und `freistellungsbescheinigung` bekamen ihre
+Sperre von Hand in die Migration geschrieben. In der Datenbank war alles
+richtig; die Registratur nannte sie nicht. Der Unterschied ist nicht
+kosmetisch: eine Liste, die drei Finanztabellen unterschlägt, liest sich für
+den nächsten Menschen so, als dürfte man sie löschen — und die Löschart, die
+den Weg *heraus* beschreibt (`wirksam`, `gilt_bis`, `widerrufen_am`), stand
+nirgends.
+
+Gefunden hat es `unveraenderbarkeit.test.ts` §(4), und zwar in der Richtung,
+die man beim Schreiben einer Wache leicht vergisst: nicht „steht jede
+registrierte Tabelle auch in der Datenbank", sondern **„trägt eine Tabelle den
+Auslöser, ohne registriert zu sein"**. Nur diese Richtung fängt den Fall, in
+dem jemand die Sperre setzt und die Liste vergisst. Der Kommentar über der
+Wache sagt es wörtlich: „the registry cannot go stale in either direction."
+
+Alle drei sind `archiv`: die Zeile bleibt, ihr Zustand ändert sich. Der
+Präzedenzfall ist `kleinbetrag_grenze` und `steuersatz_gruppe` — eine
+ausgelaufene Gültigkeit bekommt ihr Enddatum, eine neue Lage ist eine neue
+Zeile.
+
+**Und der Fall war lange unsichtbar, weil ich ihn nie erreicht habe.** Die
+Isolationssuite läuft ~25 Minuten; ich hatte sie viermal vorzeitig
+abgebrochen, um an einem roten CI-Lauf oder an einer Migration zu arbeiten,
+und die betroffene Datei liegt in der zweiten Hälfte. Die Lehre ist nicht
+„öfter laufen lassen", sondern: **ein Lauf, der abgebrochen wird, hat nichts
+bewiesen** — und die drei grünen Teilläufe davor haben mich das Gegenteil
+glauben lassen.

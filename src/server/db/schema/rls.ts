@@ -1267,6 +1267,56 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'ausgemusterter Schluessel bekommt `archiviert_am` oder eine '
       + 'Vernichtungszeile.',
   },
+  /**
+   * **Diese drei standen nicht hier — und die Wache hat es gemeldet.**
+   *
+   * PR 50 und PR 51 haben ihre Tabellen angelegt UND die Sperre von Hand
+   * dazugeschrieben, statt sie hier einzutragen und erzeugen zu lassen. In
+   * der Datenbank war damit alles richtig; die REGISTRATUR war es nicht, und
+   * genau das ist der Fall, den `unveraenderbarkeit.test.ts` §(4) in beide
+   * Richtungen prueft: „no table carries the trigger without being
+   * registered — the registry cannot go stale". Eine Liste, die drei
+   * Finanztabellen unterschlaegt, liest sich fuer den naechsten Menschen so,
+   * als duerften sie geloescht werden.
+   */
+  {
+    tabelle: 'abschlagsrechnung_bezug',
+    art: 'archiv',
+    migration: '0117',
+    grund:
+      'FIN-08, §14 Abs. 4 Nr. 8 UStG, LEG-01. Sie IST der Nachweis, welcher '
+      + 'Abschlag auf welcher Schlussrechnung mit welchem Betrag je '
+      + 'Steuergruppe abgezogen wurde. Sie zu loeschen liesse denselben '
+      + 'Abschlag ein zweites Mal abziehbar erscheinen — und der Kunde zahlte '
+      + 'zweimal oder gar nicht. Zurueckgenommen wird ueber `wirksam`: der '
+      + 'Zustand aendert sich, die Zeile bleibt.',
+  },
+  {
+    tabelle: 'kunde_bauleistender_status',
+    art: 'archiv',
+    migration: '0118',
+    grund:
+      'FIN-09, LEG-06, §13b UStG. Sie ist der datierte Nachweis, auf den sich '
+      + 'eine Verlagerung der Steuerschuld stuetzt — und der Zeitraum, in dem '
+      + 'sie galt, ist die Begruendung jeder Rechnung aus dieser Zeit. Wer sie '
+      + 'loescht, nimmt einer festgeschriebenen Rechnung nachtraeglich ihre '
+      + 'Grundlage, und der Leistende schuldet die Steuer, ohne sie '
+      + 'eingenommen zu haben (§13a UStG). Beendet wird ein Status durch '
+      + '`gilt_bis`, wie bei `kleinbetrag_grenze` — eine neue Lage ist eine '
+      + 'neue Zeile.',
+  },
+  {
+    tabelle: 'freistellungsbescheinigung',
+    art: 'archiv',
+    migration: '0118',
+    grund:
+      'FIN-10, LEG-06, §48b EStG. Ohne sie haette einbehalten werden muessen; '
+      + 'mit ihr durfte ausgezahlt werden. Sie ist damit der Beleg dafuer, '
+      + 'dass die Gruppe ihrer Einbehaltungspflicht genuegt hat — und die '
+      + 'Haftung nach §48a Abs. 3 EStG haengt genau daran. Ein Widerruf setzt '
+      + '`widerrufen_am`; die Bescheinigung bleibt stehen, weil sie fuer die '
+      + 'Zeit davor weiter gilt.',
+  },
   {
     tabelle: 'schluessel_quittung',
     art: 'append',

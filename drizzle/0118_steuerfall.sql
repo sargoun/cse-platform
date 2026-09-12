@@ -269,11 +269,35 @@ begin
       create policy p_decke on %I as restrictive for all to cse_app
         using (app.portal() = 'intern') with check (app.portal() = 'intern')$p$, t);
 
-    execute format('create trigger %I_kein_delete before delete on %I '
-                   'for each row execute function kern.verhindere_loeschung()', t, t);
-    execute format('create trigger %I_kein_truncate before truncate on %I '
-                   'execute function kern.verhindere_loeschung()', t, t);
-    execute format('revoke delete, truncate on %I from cse_app, cse_anon, cse_checkin, cse_job', t);
+    -- Die Löschsperre kommt aus der Registratur (rls.ts) und wird von
+    -- `pnpm db:triggers` an das Ende dieser Datei geschrieben — nicht hier.
+    -- Von Hand gesetzt stünde sie in der Datenbank und nicht in der Liste,
+    -- und `unveraenderbarkeit.test.ts` §(4) prüft beide Richtungen.
     execute format('grant select, insert, update on %I to cse_app', t);
   end loop;
 end $$;
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0118)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- kunde_bauleistender_status (archiv): FIN-09, LEG-06, §13b UStG. Sie ist der datierte Nachweis, auf den sich eine Verlagerung der Steuerschuld stuetzt — und der Zeitraum, in dem sie galt, ist die Begruendung jeder Rechnung aus dieser Zeit. Wer sie loescht, nimmt einer festgeschriebenen Rechnung nachtraeglich ihre Grundlage, und der Leistende schuldet die Steuer, ohne sie eingenommen zu haben (§13a UStG). Beendet wird ein Status durch `gilt_bis`, wie bei `kleinbetrag_grenze` — eine neue Lage ist eine neue Zeile.
+create trigger trg_kunde_bauleistender_status_kein_hard_delete
+  before delete on kunde_bauleistender_status
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_kunde_bauleistender_status_kein_truncate
+  before truncate on kunde_bauleistender_status
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on kunde_bauleistender_status from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- freistellungsbescheinigung (archiv): FIN-10, LEG-06, §48b EStG. Ohne sie haette einbehalten werden muessen; mit ihr durfte ausgezahlt werden. Sie ist damit der Beleg dafuer, dass die Gruppe ihrer Einbehaltungspflicht genuegt hat — und die Haftung nach §48a Abs. 3 EStG haengt genau daran. Ein Widerruf setzt `widerrufen_am`; die Bescheinigung bleibt stehen, weil sie fuer die Zeit davor weiter gilt.
+create trigger trg_freistellungsbescheinigung_kein_hard_delete
+  before delete on freistellungsbescheinigung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_freistellungsbescheinigung_kein_truncate
+  before truncate on freistellungsbescheinigung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on freistellungsbescheinigung from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks

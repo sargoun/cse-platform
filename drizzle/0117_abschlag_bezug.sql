@@ -164,17 +164,19 @@ create trigger abschlag_pruefen
   for each row execute function fin.abschlag_pruefen();
 
 /**
- * Unveränderlichkeit und Löschsperre — wie bei jeder Finanztabelle
- * (Invariante 8, K-16). `wirksam` bleibt änderbar: das ist der Weg, auf dem
- * ein Abzug zurückgenommen wird, ohne eine Zeile zu verlieren.
+ * **Die Löschsperre steht NICHT hier, sondern in der Registratur.**
+ *
+ * `src/server/db/schema/rls.ts` führt jede Tabelle, die
+ * `kern.verhindere_loeschung()` trägt, mit ihrer Löschart und ihrem Grund;
+ * `pnpm db:triggers` schreibt daraus den Block am Ende dieser Datei. Von Hand
+ * geschrieben stand die Sperre zwar in der Datenbank, aber nicht in der
+ * Liste — und `unveraenderbarkeit.test.ts` §(4) prüft beide Richtungen, weil
+ * eine Registratur, die drei Finanztabellen unterschlägt, sich liest, als
+ * dürfte man sie löschen. Genau so ist es hier passiert.
+ *
+ * `wirksam` bleibt änderbar: das ist der Weg, auf dem ein Abzug
+ * zurückgenommen wird, ohne eine Zeile zu verlieren (Löschart `archiv`).
  */
-create trigger arb_kein_delete
-  before delete on abschlagsrechnung_bezug
-  for each row execute function kern.verhindere_loeschung();
-create trigger arb_kein_truncate
-  before truncate on abschlagsrechnung_bezug
-  execute function kern.verhindere_loeschung();
-revoke delete, truncate on abschlagsrechnung_bezug from cse_app, cse_anon, cse_checkin, cse_job;
 
 alter table abschlagsrechnung_bezug enable row level security;
 alter table abschlagsrechnung_bezug force  row level security;
@@ -245,3 +247,19 @@ grant select (mandant_id, zu_rechnung_id, art) on rechnung_beziehung to cse_defi
 
 create policy d_beziehung_storno_lesen on rechnung_beziehung for select to cse_definer
   using (mandant_id = app.aktiver_mandant());
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0117)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- abschlagsrechnung_bezug (archiv): FIN-08, §14 Abs. 4 Nr. 8 UStG, LEG-01. Sie IST der Nachweis, welcher Abschlag auf welcher Schlussrechnung mit welchem Betrag je Steuergruppe abgezogen wurde. Sie zu loeschen liesse denselben Abschlag ein zweites Mal abziehbar erscheinen — und der Kunde zahlte zweimal oder gar nicht. Zurueckgenommen wird ueber `wirksam`: der Zustand aendert sich, die Zeile bleibt.
+create trigger trg_abschlagsrechnung_bezug_kein_hard_delete
+  before delete on abschlagsrechnung_bezug
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_abschlagsrechnung_bezug_kein_truncate
+  before truncate on abschlagsrechnung_bezug
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on abschlagsrechnung_bezug from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
