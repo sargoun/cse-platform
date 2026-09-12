@@ -221,7 +221,12 @@ export type AbrechnungGrund =
   | 'unbekannte_einheit'
   | 'mehrdeutige_steuergruppe'
   | 'ausserhalb_lv'
-  | 'nichts_abzurechnen';
+  | 'nichts_abzurechnen'
+  /**
+   * Die Rechnung traegt einen ANDEREN Auftrag als der Vorgang, der sie
+   * bestueckt. Siehe `bestueckeAusAbrechnungsart`.
+   */
+  | 'auftrag_passt_nicht';
 
 /**
  * Der eine getippte Fehler dieser Schicht.

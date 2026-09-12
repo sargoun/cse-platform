@@ -138,6 +138,23 @@ const KONFIGURATION_FELDER = `
          to_char(v.gueltig_bis, 'YYYY-MM-DD') as gueltig_bis
     from vertrag_abrechnung v`;
 
+/*
+ * **Die Vorrangordnung haengt davon ab, WONACH gefragt wurde.**
+ *
+ * Hier stand `order by case when v.auftrag_leistung_id is null then 1 else 0`
+ * — die zeilenbezogene Konfiguration also IMMER vor der auftragsweiten. Fuer
+ * eine Frage nach einer Leistungszeile ist das richtig: das Speziellere
+ * schlaegt das Allgemeine. Fuer eine Frage nach dem GANZEN Auftrag ist es
+ * verkehrt herum, und zwar still: gibt es beides, rechnete der Auftragslauf
+ * mit dem Satz, den jemand fuer EINE Zeile zugesagt hat.
+ *
+ * `$2::uuid is null` dreht die Ordnung deshalb um. Die Bereichsbedingung
+ * bleibt weit — ein Vertrag mit einer einzigen Leistungszeile hinterlegt
+ * seine Abrechnung an dieser Zeile, und der Auftragslauf muss sie finden.
+ * Was dabei NICHT stillschweigend passieren darf, steht in
+ * `ladeKonfiguration`: mehrere Zeilenkonfigurationen sind fuer einen
+ * Auftragslauf keine Auswahl, sondern eine Frage.
+ */
 const KONFIGURATION_SQL = `${KONFIGURATION_FELDER}
    where v.auftrag_id = $1
      and ($2::uuid is null
@@ -148,7 +165,11 @@ const KONFIGURATION_SQL = `${KONFIGURATION_FELDER}
      -- die Leistung vom 1. bis 15. Maerz nie berechnet.
      and v.gueltig_ab <= $4::date
      and (v.gueltig_bis is null or v.gueltig_bis >= $3::date)
-   order by case when v.auftrag_leistung_id is null then 1 else 0 end,
+   order by case
+              when $2::uuid is null
+                then case when v.auftrag_leistung_id is null then 0 else 1 end
+              else case when v.auftrag_leistung_id is null then 1 else 0 end
+            end,
             v.gueltig_ab desc`;
 
 /**
@@ -171,6 +192,34 @@ export async function ladeKonfiguration(
       'keine_abrechnungsart',
     );
   }
+
+  /**
+   * **Ein Auftragslauf waehlt nicht zwischen Zeilenkonfigurationen.**
+   *
+   * Ohne auftragsweite Zeile findet der Auftragslauf die Vereinbarungen der
+   * einzelnen Leistungszeilen. Bei EINER ist das die richtige Antwort — ein
+   * Vertrag mit einer Zeile hinterlegt seine Abrechnung dort. Bei mehreren
+   * ist es keine Antwort, sondern eine Auswahl, und getroffen haette sie
+   * `order by … gueltig_ab desc`: der Auftrag waere nach dem Satz gerechnet
+   * worden, der zufaellig zuletzt vereinbart wurde, und der Beleg naennte
+   * diese eine Konfiguration als Herkunft — stimmig aussehend und falsch.
+   *
+   * Die richtige Antwort ist eine Frage: welche Zeile ist gemeint? Wer den
+   * ganzen Auftrag abrechnen will, ruft je Zeile.
+   */
+  if ((suche.auftragLeistungId ?? null) === null && zeile.auftrag_leistung_id !== null) {
+    const zeilenScharf = zeilen.filter((z) => z.auftrag_leistung_id !== null);
+    if (zeilenScharf.length > 1) {
+      throw new AbrechnungFehler(
+        `Der Auftrag ${suche.auftragId} hat für ${suche.periode.von} bis `
+        + `${suche.periode.bis} ${String(zeilenScharf.length)} Abrechnungsarten auf `
+        + 'einzelnen Leistungszeilen und keine für den ganzen Auftrag. Welche gilt, '
+        + 'entscheidet nicht die Reihenfolge — bitte je Leistungszeile abrechnen.',
+        'keine_abrechnungsart',
+      );
+    }
+  }
+
   return alsKonfiguration(zeile);
 }
 
@@ -452,6 +501,40 @@ export async function bestuecke(
 export async function bestueckeAusAbrechnungsart(
   db: Abfrage, rechnungId: string, auftrag: AbrechnungsAuftrag,
 ): Promise<AbrechnungsErgebnis & { readonly positionIds: readonly string[] }> {
+  /**
+   * **Die Rechnung und der Auftrag kamen unabhaengig herein.**
+   *
+   * Beide Kennungen wurden fuer sich geprueft — die Fremdschluessel halten
+   * die Mandantengrenze, und die sagt „dieselbe Gesellschaft", nicht
+   * „derselbe Auftrag". Damit liessen sich die berechneten Zeilen des
+   * Auftrags A in eine Rechnung schreiben, die Auftrag B traegt: jede Zeile
+   * fuer sich stimmig, die Herkunft unter jeder Position korrekt auf A
+   * zeigend, und der Beleg einen Augenblick spaeter festgeschrieben und
+   * unveraenderlich.
+   *
+   * Abgewiesen wird nur, was einen ANDEREN Auftrag nennt. Eine Rechnung ohne
+   * Auftrag widerspricht nicht — den Fall gibt es ausdruecklich (eine
+   * Einmalleistung ohne Auftragsbezug), und ihn zu verbieten waere eine
+   * erfundene Regel. Dieselbe Regel wie bei `fuegeZeitPositionHinzu` und bei
+   * den fuenf Fremdbezuegen aus der Nachtrunde von PR #5.
+   */
+  const [beleg] = await db.abfrage<{ auftrag_id: string | null }>(
+    `select auftrag_id::text as auftrag_id from rechnung where id = $1::uuid`,
+    [rechnungId],
+  );
+  if (beleg === undefined) {
+    throw new AbrechnungFehler(
+      `Rechnung ${rechnungId} nicht gefunden.`, 'auftrag_passt_nicht',
+    );
+  }
+  if (beleg.auftrag_id !== null && beleg.auftrag_id !== auftrag.auftragId) {
+    throw new AbrechnungFehler(
+      'Diese Rechnung gehoert zu einem anderen Auftrag als der Vorgang, der sie '
+      + 'bestuecken soll.',
+      'auftrag_passt_nicht',
+    );
+  }
+
   const ergebnis = await berechneAbrechnung(db, auftrag);
   if (ergebnis.positionen.length === 0) {
     return { ...ergebnis, positionIds: [] };

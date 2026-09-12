@@ -1335,3 +1335,96 @@ describe('die eingefrorene Abrechnungsart gehört zur Konfiguration', () => {
     ).rejects.toThrow(/rp_abrechnungsart_bei_konfiguration/u);
   });
 });
+
+// ===========================================================================
+// (9) Welche Konfiguration gilt — und für welche Rechnung
+// ===========================================================================
+
+/**
+ * **Drei Wege, auf denen ein falscher Satz in eine Rechnung kam.** Alle drei
+ * meldete der Copilot-Durchgang auf PR #7, und alle drei sahen im Beleg
+ * stimmig aus: die Herkunft zeigte jeweils auf eine echte Konfiguration.
+ */
+describe('(9) Geltungsbereich und Zugehörigkeit', () => {
+  it('der Auftragslauf nimmt die AUFTRAGSWEITE Zeile, nicht die der Leistungszeile', async () => {
+    const bau = await baueAuftrag(f.reinigung);
+    // Zwei Konfigurationen: eine für die Leistungszeile, eine für den Auftrag.
+    await legeKonfigurationAn(bau, {
+      art: 'monatspauschale', parameter: { teilmonat: 'kalendertage' },
+      pauschaleNettoCent: 1_000_00n, aufLeistung: true,
+    });
+    await legeKonfigurationAn(bau, {
+      art: 'monatspauschale', parameter: { teilmonat: 'kalendertage' },
+      pauschaleNettoCent: 2_000_00n,
+    });
+
+    const rechnungId = await alsApp(sitzung(f.reinigung), async (tx) => {
+      const id = await entwurf(tx, bau);
+      await bestueckeAusAbrechnungsart(alsDienst(tx), id, {
+        auftragId: bau.auftrag, periode: { von: '2026-08-01', bis: '2026-08-31' },
+      });
+      return id;
+    });
+
+    /*
+     * 2 000 € und nicht 1 000 €. Die Sortierung stellte die zeilenbezogene
+     * Zeile IMMER nach vorn — für eine Frage nach der Leistungszeile richtig,
+     * für eine Frage nach dem ganzen Auftrag verkehrt herum, und still: es
+     * entsteht keine Fehlermeldung, sondern ein Preis, den jemand einmal für
+     * etwas anderes zugesagt hat.
+     */
+    const zeilen = await positionen(rechnungId);
+    expect(zeilen[0]?.netto_cent).toBe('200000');
+  });
+
+  it('und bei ZWEI Zeilenkonfigurationen ohne auftragsweite fragt er zurück', async () => {
+    const bau = await baueAuftrag(f.reinigung);
+    const [zweite] = await sql.unsafe<{ id: string }[]>(
+      `insert into auftrag_leistung (mandant_id, auftrag_id, position_nr, objekt_id,
+                                     bezeichnung, menge, einheit, einzelpreis_cent,
+                                     steuersatz_bp, gueltig_ab)
+       values ($1,$2,2,$3,'Zweite Leistung',1,'Monat',99000,1900,'2026-01-01')
+       returning id`,
+      [bau.mandant, bau.auftrag, bau.objekt] as never[]);
+
+    await legeKonfigurationAn(bau, {
+      art: 'monatspauschale', parameter: { teilmonat: 'kalendertage' },
+      pauschaleNettoCent: 1_000_00n, aufLeistung: true,
+    });
+    await sql.unsafe(
+      `insert into vertrag_abrechnung
+         (mandant_id, auftrag_id, auftrag_leistung_id, abrechnungsart, parameter,
+          pauschale_netto_cent, abrechnungsintervall, leistungszeitraum_modus, gueltig_ab)
+       values ($1,$2,$3,'monatspauschale','{"teilmonat":"kalendertage"}'::jsonb,
+               300000,'monatlich','kalendermonat','2026-01-01')`,
+      [bau.mandant, bau.auftrag, zweite!.id] as never[]);
+
+    await expect(alsApp(sitzung(f.reinigung), async (tx) => {
+      const id = await entwurf(tx, bau);
+      return bestueckeAusAbrechnungsart(alsDienst(tx), id, {
+        auftragId: bau.auftrag, periode: { von: '2026-08-01', bis: '2026-08-31' },
+      });
+    })).rejects.toThrow(/2 Abrechnungsarten auf einzelnen Leistungszeilen/u);
+  });
+
+  it('eine Rechnung für einen ANDEREN Auftrag nimmt die Zeilen nicht an', async () => {
+    const bau = await baueAuftrag(f.reinigung);
+    const fremd = await baueAuftrag(f.reinigung);
+    await legeKonfigurationAn(bau, {
+      art: 'monatspauschale', parameter: { teilmonat: 'kalendertage' },
+      pauschaleNettoCent: 1_000_00n,
+    });
+
+    /*
+     * Beide Aufträge gehören derselben Gesellschaft, beide Kennungen sind
+     * gültig, jeder Fremdschlüssel hält. Die RLS sagt „derselbe Mandant" —
+     * über den Auftrag sagt sie nichts, und genau das war die Lücke.
+     */
+    await expect(alsApp(sitzung(f.reinigung), async (tx) => {
+      const id = await entwurf(tx, fremd);
+      return bestueckeAusAbrechnungsart(alsDienst(tx), id, {
+        auftragId: bau.auftrag, periode: { von: '2026-08-01', bis: '2026-08-31' },
+      });
+    })).rejects.toMatchObject({ name: 'AbrechnungFehler', grund: 'auftrag_passt_nicht' });
+  });
+});
