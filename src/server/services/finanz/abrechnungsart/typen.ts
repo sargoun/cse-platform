@@ -517,6 +517,35 @@ export async function steuergruppeDesAuftrags(
 }
 
 /**
+ * Die Steuergruppe der EINEN Leistungszeile, an der die Konfiguration haengt.
+ *
+ * **Sie stand als lokale Funktion in `monatspauschale.ts`** — und genau
+ * deshalb fehlte sie `festpreis-los.ts`, das die Datei sonst Zeile fuer Zeile
+ * nachbildet: dort loeste der Satz immer auftragsweit auf, auch bei einer
+ * zeilenbezogenen Konfiguration. Eine Vereinbarung, die an einer Zeile
+ * haengt, scheiterte damit an einem Auftrag mit mehreren Saetzen (O-53) —
+ * an einer Zeile also, die sie nichts angeht.
+ *
+ * Hier kann keine Abschrift sie mehr vergessen.
+ */
+export async function steuergruppeDerLeistung(
+  db: Abfrage, konfiguration: VertragAbrechnung, stichtag: string,
+): Promise<string> {
+  const [zeile] = await db.abfrage<{ steuersatz_bp: number; steuer_kennzeichen: string }>(
+    `select steuersatz_bp, steuer_kennzeichen::text as steuer_kennzeichen
+       from auftrag_leistung where id = $1`,
+    [konfiguration.auftragLeistungId],
+  );
+  if (zeile === undefined) {
+    throw new AbrechnungFehler(
+      `Die Leistungszeile ${String(konfiguration.auftragLeistungId)} gibt es nicht.`,
+      'mehrdeutige_steuergruppe',
+    );
+  }
+  return loeseSteuergruppe(db, zeile.steuer_kennzeichen, zeile.steuersatz_bp, stichtag);
+}
+
+/**
  * Ein Einheitenlabel auf einen `masseinheit`-Schluessel abbilden.
  *
  * `auftrag_leistung.einheit` und `aufmass_zeile.einheit` sind Freitext — ein

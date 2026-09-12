@@ -64,6 +64,8 @@ interface AufmassKopf {
   readonly bezeichnung: string;
   readonly status: string;
   readonly storniert_am: string | null;
+  /** Der Auftrag des Projekts, zu dem das Blatt gehoert — `null`, wenn keiner. */
+  readonly auftrag_id: string | null;
   readonly messdatum: string;
 }
 
@@ -85,16 +87,40 @@ interface AufmassZeile {
   readonly steuer_kennzeichen: string | null;
 }
 
+/**
+ * **Der Auftrag hinter dem Blatt kommt mit — sonst laesst sich nicht sagen,
+ * ob es dazugehoert.**
+ *
+ * Die Blaetter werden vom Aufrufer BENANNT (`aufmassIds`), und geprueft wurde
+ * bisher nur, ob es sie in dieser Gesellschaft gibt. Die Mandantengrenze sagt
+ * „dieselbe Gesellschaft", nicht „derselbe Auftrag": ein gegengezeichnetes
+ * Blatt des Auftrags B liess sich damit in die Abrechnung des Auftrags A
+ * geben, und die entstehenden Zeilen trugen A als Vertrag und B als
+ * LV-Herkunft. Gemeldet vom Copilot-Durchgang auf PR #7.
+ *
+ * `aufmass.projekt_id → projekt.auftrag_id` ist die Kette, an der das haengt.
+ * Ein Projekt OHNE Auftrag widerspricht nicht — abgewiesen wird nur, was
+ * einen ANDEREN nennt; dieselbe Regel wie ueberall sonst in diesem Zweig.
+ */
 async function ladeKoepfe(db: Abfrage, ids: readonly string[]): Promise<readonly AufmassKopf[]> {
   return db.abfrage<AufmassKopf>(
     `select a.id, a.nummer, a.bezeichnung, a.status::text as status,
             a.storniert_am::text as storniert_am,
-            to_char(a.messdatum, 'YYYY-MM-DD') as messdatum
+            to_char(a.messdatum, 'YYYY-MM-DD') as messdatum,
+            p.auftrag_id::text as auftrag_id
        from aufmass a
+       left join projekt p on p.mandant_id = a.mandant_id and p.id = a.projekt_id
       where a.id = any($1::uuid[])
       order by a.nummer`,
     [ids],
   );
+}
+
+/** Blaetter, die einen ANDEREN Auftrag nennen als die Konfiguration. */
+function fremdeBlaetter(
+  koepfe: readonly AufmassKopf[], auftragId: string,
+): readonly AufmassKopf[] {
+  return koepfe.filter((k) => k.auftrag_id !== null && k.auftrag_id !== auftragId);
 }
 
 /**
@@ -213,7 +239,14 @@ export const EINHEITSPREIS_AUFMASS: Abrechnungsart = {
     const zulaessig = eingabe.konfiguration.parameter['abrechenbare_aufmass_zustaende'] === undefined
       ? [GEGENGEZEICHNET]
       : abrechenbareZustaende(eingabe.konfiguration);
-    for (const kopf of await ladeKoepfe(db, ids)) {
+    const koepfeVorab = await ladeKoepfe(db, ids);
+    for (const k of fremdeBlaetter(koepfeVorab, eingabe.konfiguration.auftragId)) {
+      befunde.push(fehler(
+        'aufmass.auftrag',
+        `Aufmaß ${k.nummer} gehört zu einem anderen Auftrag als diese Abrechnung.`,
+      ));
+    }
+    for (const kopf of koepfeVorab) {
       if (kopf.storniert_am !== null || !zulaessig.includes(kopf.status)) {
         befunde.push(fehler(
           'aufmass.status',
@@ -243,6 +276,15 @@ export const EINHEITSPREIS_AUFMASS: Abrechnungsart = {
     if (fehlend.length > 0) {
       throw new AbrechnungFehler(
         `Aufmaß ${fehlend.join(', ')} gibt es in dieser Gesellschaft nicht.`,
+        'aufmass_nicht_abrechenbar',
+      );
+    }
+    const fremde = fremdeBlaetter(koepfe, konfiguration.auftragId);
+    if (fremde.length > 0) {
+      throw new AbrechnungFehler(
+        `Aufmaß ${fremde.map((k) => k.nummer).join(', ')} gehört zu einem anderen Auftrag `
+        + 'als diese Abrechnung. Ein Blatt, das nicht zu diesem Auftrag gehört, wird nicht '
+        + 'stillschweigend übergangen und nicht stillschweigend berechnet.',
         'aufmass_nicht_abrechenbar',
       );
     }

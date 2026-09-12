@@ -40,6 +40,7 @@ import {
   leistungszeitraum,
   parameterText,
   pruefeParameter,
+  steuergruppeDerLeistung,
   steuergruppeDesAuftrags,
 } from './typen.js';
 
@@ -122,9 +123,24 @@ export const FESTPREIS_LOS: Abrechnungsart = {
 
     const auftrag = await ladeAuftrag(db, konfiguration.auftragId);
     const zeitraum = leistungszeitraum(konfiguration, periode);
-    const steuergruppe = await steuergruppeDesAuftrags(
-      db, konfiguration.auftragId, periode.bis,
-    );
+    /**
+     * **Der Steuersatz kommt aus dem Geltungsbereich der Konfiguration.**
+     *
+     * Hier stand unbedingt `steuergruppeDesAuftrags`. Das ist richtig fuer
+     * eine auftragsweite Vereinbarung und falsch fuer eine, die an EINER
+     * Leistungszeile haengt: die Funktion weist ausdruecklich ab, sobald der
+     * Auftrag mehrere Steuersaetze traegt (O-53) — ein gueltiger
+     * zeilenbezogener Festpreis scheiterte damit an einer anderen Zeile, die
+     * ihn nichts angeht. Traegt der Auftrag nur einen Satz, loeste er
+     * stattdessen am falschen Bereich auf und war zufaellig richtig.
+     *
+     * `monatspauschale.ts` macht es seit jeher richtig; diese Datei war die
+     * Abschrift, in der die Fallunterscheidung fehlte. Gemeldet vom
+     * Copilot-Durchgang auf PR #7.
+     */
+    const steuergruppe = konfiguration.auftragLeistungId === null
+      ? await steuergruppeDesAuftrags(db, konfiguration.auftragId, periode.bis)
+      : await steuergruppeDerLeistung(db, konfiguration, periode.bis);
 
     const betrag = modus === 'anteilig'
       ? anteiligerBetrag(festpreis, eingabe.fertigstellungBp)

@@ -29,7 +29,7 @@
  * Arbeitstagen oder gar nicht — und bei Arbeitstagen, welche Tage das sind.
  */
 import { type Cent } from '../geld.js';
-import { berechneNetto, type Abfrage } from '../rechnung.js';
+import { berechneNetto } from '../rechnung.js';
 import {
   AbrechnungFehler,
   type AbrechnungsBefund,
@@ -41,10 +41,10 @@ import {
   fehler,
   ganzeMenge,
   leistungszeitraum,
-  loeseSteuergruppe,
   monateDerPeriode,
   parameterText,
   pruefeParameter,
+  steuergruppeDerLeistung,
   steuergruppeDesAuftrags,
   tageImMonat,
   zerlegeTag,
@@ -228,20 +228,3 @@ export const MONATSPAUSCHALE: Abrechnungsart = {
   },
 };
 
-/** Die Steuergruppe der EINEN Leistungszeile, an der die Konfiguration haengt. */
-async function steuergruppeDerLeistung(
-  db: Abfrage, konfiguration: VertragAbrechnung, stichtag: string,
-): Promise<string> {
-  const [zeile] = await db.abfrage<{ steuersatz_bp: number; steuer_kennzeichen: string }>(
-    `select steuersatz_bp, steuer_kennzeichen::text as steuer_kennzeichen
-       from auftrag_leistung where id = $1`,
-    [konfiguration.auftragLeistungId],
-  );
-  if (zeile === undefined) {
-    throw new AbrechnungFehler(
-      `Die Leistungszeile ${String(konfiguration.auftragLeistungId)} gibt es nicht.`,
-      'mehrdeutige_steuergruppe',
-    );
-  }
-  return loeseSteuergruppe(db, zeile.steuer_kennzeichen, zeile.steuersatz_bp, stichtag);
-}
