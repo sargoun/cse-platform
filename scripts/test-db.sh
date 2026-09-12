@@ -44,6 +44,31 @@ fi
 PORT="${PGPORT:-${DSN_PORT:-55432}}"
 DB="${PGDATABASE:-${DSN_DB:-cse_test}}"
 
+# **Das Passwort kommt aus derselben Adresse wie Port und Name.**
+#
+# Der Server, den dieses Skript selbst startet, laeuft mit `--auth=trust`; dort
+# fragt niemand. Zeigt `TEST_DATABASE_URL` aber auf einen VORHANDENEN Server —
+# den Dienst-Container in CI, einen Entwicklungs-Postgres, den jemand schon
+# hat —, dann kann der ein Passwort verlangen. `psql` fragte es dann auf einem
+# Terminal ab, das in einem Testlauf keines ist, und starb an
+# "fe_sendauth: no password supplied".
+#
+# Das kostete einen vollen Lauf: fuenf Isolationsdateien rufen dieses Skript in
+# ihrem `beforeAll` auf. Sie meldeten „5 failed" mit NULL fehlgeschlagenen
+# Tests — ein Ergebnis, das wie ein Produktfehler aussieht und keiner war. Die
+# Adresse trug das Passwort die ganze Zeit; gelesen wurde es nicht.
+if [ -z "${PGPASSWORD:-}" ] && [ -n "$DSN" ]; then
+  DSN_CRED="${DSN#*://}"
+  case "$DSN_CRED" in
+    *@*)
+      DSN_CRED="${DSN_CRED%%@*}"
+      case "$DSN_CRED" in
+        *:*) PGPASSWORD="${DSN_CRED#*:}"; export PGPASSWORD ;;
+      esac
+      ;;
+  esac
+fi
+
 # `psql` und `pg_isready` liegen nicht ueberall auf dem PATH.
 for kandidat in /usr/lib/postgresql/*/bin; do
   [ -d "$kandidat" ] && PATH="$PATH:$kandidat"
