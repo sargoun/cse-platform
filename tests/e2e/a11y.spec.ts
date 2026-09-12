@@ -55,11 +55,15 @@ test.describe('(5) die Startseite ist vollständig mit der Tastatur bedienbar', 
    *
    * `offsetParent` ist das Kriterium und nicht `visibility`: es ist genau
    * dann null, wenn das Element (oder ein Vorfahr) `display: none` traegt —
-   * derselbe Test, den die Tap-Ziel-Pruefung schon benutzt.
+   * derselbe Test, den die Tap-Ziel-Pruefung schon benutzt. Die
+   * `position: fixed`-Ausnahme gehoert dazu: bei einem fixierten Element ist
+   * `offsetParent` auch dann null, wenn es sichtbar ist.
+   *
+   * Der Filter steht ZWEIMAL ausgeschrieben, in beiden `page.evaluate`. Ein
+   * gemeinsamer Helfer waere hier keiner: der Rumpf wird in den Browser
+   * serialisiert, und eine Funktion aus dem Modulgeltungsbereich ist dort
+   * nicht definiert.
    */
-  const SICHTBAR = (e: Element): boolean =>
-    (e as HTMLElement).offsetParent !== null
-    || getComputedStyle(e).position === 'fixed';
 
   /**
    * Jedes Element bekommt eine eigene Nummer, bevor getabbt wird.
