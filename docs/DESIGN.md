@@ -165,6 +165,23 @@ the images right and the design carries itself.
 1. **Real photographs of their own crews, sites and projects.** They have
    genuine references worth showing. Placeholder imagery only until the client
    supplies theirs — and marked as placeholder in the code.
+
+   **What a placeholder looks like, and why it is not a drawing.** The first
+   set were illustrated scenes — a cleaner with a cart, a guard at a barrier.
+   They read as clip-art, and clip-art on a page selling physical work says
+   the opposite of what rule 3 asks for: it looks like a company that has no
+   photographs of itself. A placeholder therefore claims **nothing**. It is a
+   reserved image area in the palette of §1: the surface ramp as a soft
+   vertical fall, one thin accent line in the area colour, a low-contrast
+   perspective grid so the panel has depth rather than flatness, the
+   `--bild-overlay` token, and one line of caption type naming the motif that
+   belongs there. No figures, no objects, no scene.
+
+   That is also the honest answer to "make the placeholders realistic": a
+   photograph cannot be invented. Either the client's own material arrives
+   (§4.1) or a licensed set is bought — and a stock photo of somebody else's
+   building on a page about this group's projects would be rule 3 broken with
+   better lighting. **O-13.**
 2. **Never publish AI-generated people as if they were staff.** For a company
    selling trust and physical presence, that backfires the moment anyone
    notices.

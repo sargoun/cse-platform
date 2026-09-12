@@ -38,10 +38,13 @@ export const PLATZHALTER: readonly Platzhalter[] = [
     pfad: 'public/platzhalter/*.svg',
     grund:
       'Alle Website-Bilder. DESIGN §4.1 verlangt echte Aufnahmen der eigenen Crews und '
-      + 'Objekte; §4.2 verbietet KI-erzeugte Menschen als Belegschaft. Bis der Mandant '
-      + 'sein Material liefert, stehen hier gezeichnete Szenen je Motiv: sie zeigen, '
-      + 'wie die Seite aussehen wird, ohne zu behaupten, ein Objekt der Gruppe oder '
-      + 'seine Belegschaft zu sein. Jede traegt ihre Marke sichtbar.',
+      + 'Objekte; §4.2 verbietet KI-erzeugte Menschen als Belegschaft. Bis das Material '
+      + 'des Mandanten da ist, steht hier je Motiv eine reservierte FLAECHE — '
+      + 'Farbverlauf, Akzentlinie der Gesellschaft, Perspektivraster und eine Zeile, '
+      + 'die das fehlende Motiv nennt. Vorher waren es gezeichnete Szenen; die lasen '
+      + 'sich als Clipart und liessen die Gruppe aussehen, als haette sie keine Fotos '
+      + 'von sich. Ein Foto laesst sich nicht erfinden: entweder eigenes Material oder '
+      + 'ein lizenzierter Satz.',
     frage: 'O-13',
   },
   {
@@ -81,17 +84,26 @@ export const PLATZHALTER_BILD = {
 } as const;
 
 /**
- * Ein Platzhalter JE MOTIV statt eines grauen Rechtecks fuer alles.
+ * Ein Platzhalter JE MOTIV — und seit dieser Runde eine FLAECHE, keine Szene.
  *
- * Der erste Entwurf hatte ein einziges Bild: sichtbar leer, ehrlich — und
- * unbrauchbar, um dem Mandanten zu zeigen, wie die Seite aussehen wird. Wer
- * eine Reinigungsseite bewertet, bewertet sie mit einem Bild darauf.
+ * **Warum die gezeichneten Szenen weg sind.** Es waren Illustrationen: eine
+ * Reinigungskraft mit Wagen, ein Wachmann an der Schranke. Sie sollten zeigen,
+ * wie die Seite aussehen wird — und lasen sich als Clipart. Auf einer Seite,
+ * die koerperliche Arbeit verkauft, sagt Clipart das Gegenteil dessen, was
+ * DESIGN §4.3 verlangt: sie laesst eine Firma aussehen, die keine Fotos von
+ * sich hat. Der Mandant hat genau das zurueckgemeldet.
  *
- * Es sind ILLUSTRATIONEN, keine Fotos, und das ist die Grenze, die DESIGN §4.2
- * zieht: kein erfundenes Gesicht, das als Belegschaft gelesen werden koennte.
- * Eine gezeichnete Nachtszene behauptet nicht, ein Objekt der Gruppe zu sein;
- * ein Stockfoto von Menschen in Warnwesten tut genau das. Jede traegt unten
- * links ihre Marke und die offene Frage, unter der sie steht (O-13).
+ * Was jetzt dort steht, behauptet NICHTS: der Flaechenverlauf aus §1, eine
+ * duenne Akzentlinie in der Farbe der Gesellschaft, ein flaches
+ * Perspektivraster fuer Tiefe, der `--bild-overlay`-Verlauf und EINE Zeile,
+ * die das Motiv nennt, das hier hingehoert. Keine Menschen (§4.2), kein
+ * Objekt, keine Szene.
+ *
+ * **Und die ehrliche Haelfte der Antwort:** ein Foto laesst sich nicht
+ * erfinden. Entweder kommt das Material des Mandanten (§4.1) oder ein
+ * lizenzierter Satz wird gekauft. Ein Stockfoto vom Gebaeude eines Fremden auf
+ * der Projektseite dieser Gruppe waere §4.3 gebrochen, nur besser
+ * ausgeleuchtet. O-13.
  */
 export const PLATZHALTER_MOTIVE = {
   gruppe: '/platzhalter/hero.svg',
@@ -106,15 +118,21 @@ export const PLATZHALTER_MOTIVE = {
 
 export type PlatzhalterMotiv = keyof typeof PLATZHALTER_MOTIVE;
 
+/*
+ * Der Alternativtext beschreibt, was WIRKLICH da ist — eine reservierte
+ * Flaeche —, und nennt daneben das Motiv, das hierher gehoert. Ein `alt`, das
+ * eine Szene beschreibt, die niemand sieht, ist fuer einen Screenreader eine
+ * Falschauskunft: er liest sie vor, als waere sie da.
+ */
 const ALT_TEXT: Readonly<Record<PlatzhalterMotiv, string>> = {
-  gruppe: 'Platzhalter-Illustration: nächtliche Gebäudezeile der vier Gesellschaften.',
-  reinigung: 'Platzhalter-Illustration: Flur in der Unterhaltsreinigung.',
-  security: 'Platzhalter-Illustration: Objektschutz bei Nacht.',
-  bau: 'Platzhalter-Illustration: Rohbau mit Turmdrehkran und Gerüst.',
-  operations: 'Platzhalter-Illustration: Betriebsübersicht am Bildschirm.',
-  objekt: 'Platzhalter-Illustration: Objekt bei Nacht.',
-  projekt: 'Platzhalter-Illustration: Bauprojekt.',
-  team: 'Platzhalter-Illustration: Team, bewusst abstrakt ohne erfundene Gesichter.',
+  gruppe: 'Platzhalter — hier steht später eine Aufnahme der Gruppe.',
+  reinigung: 'Platzhalter — hier steht später eine Aufnahme aus der Unterhaltsreinigung.',
+  security: 'Platzhalter — hier steht später eine Aufnahme aus dem Objektschutz.',
+  bau: 'Platzhalter — hier steht später eine Aufnahme von der Baustelle.',
+  operations: 'Platzhalter — hier steht später eine Aufnahme aus dem Betrieb.',
+  objekt: 'Platzhalter — hier steht später eine Aufnahme des Objekts.',
+  projekt: 'Platzhalter — hier steht später eine Aufnahme des Projekts.',
+  team: 'Platzhalter — hier steht später eine Aufnahme des Teams.',
 };
 
 /** Das Platzhalterbild zu einem Motiv — mit sichtbarer Kennzeichnung. */
