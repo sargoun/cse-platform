@@ -67,7 +67,18 @@ export function PortalRahmen({
           * und nicht zurueck auf die Website. Das Portal hatte einen Eingang
           * und keinen Ausgang.
           */}
-        <a href={wurzel} className="text-h3 text-text hover:underline">{titel}</a>
+        {/*
+          * `min-h-11 min-w-11`: aus einem Schild wurde ein Tippziel.
+          *
+          * Als `span` unterlag der Name keiner Mindestgroesse. Als Verweis
+          * schon — DESIGN §8 verlangt 44px fuer alles Bedienbare, und die
+          * Zeilenhoehe von `text-h3` sind 28. Neun Bildschirme unter
+          * `/portal/mein/**` fielen daran, jeder mit genau diesem einen Knoten.
+          */}
+        <a href={wurzel}
+           className="flex min-h-11 min-w-11 items-center text-h3 text-text hover:underline">
+          {titel}
+        </a>
         {nurLesen && (
           <span data-cse="header-nur-lesen"><StatusPill zustand="Nur Lesen" /></span>
         )}

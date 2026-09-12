@@ -272,6 +272,24 @@ The axe run over the whole design system found two failures, and both lived in
 Both were corrected in DESIGN.md **first**, then mirrored into the code, because
 CLAUDE.md makes DESIGN.md the source and not the record of what was built.
 
+**Nachtrag: die Pille selbst war der dritte Fall.** D-19 prüfte `--danger` als
+Text auf `--danger-soft` über `--surface` und liess es stehen. Eine Pille sitzt
+aber auf Karten, und `-soft` sind 12 % Alpha — der wirkliche Hintergrund ist
+fast der Untergrund darunter. Gemessen:
+
+| Text auf `-soft` über … | `--surface` | `--surface-2` | `--surface-3` |
+|---|---|---|---|
+| `--danger` `#EF4444` (alt) | 4.53 | 4.22 | **3.86** |
+| `--info` `#3B82F6` (alt) | 4.55 | 4.23 | **3.86** |
+| `--danger` `#F26A6A` (neu) | 5.72 | 5.33 | 4.88 |
+| `--info` `#5895F7` (neu) | 5.63 | 5.23 | 4.77 |
+
+`--success` (5.88 im schlechtesten Fall) und `--warning` (6.16) bestanden schon
+und bleiben unverändert. Gefunden hat es nicht die Prüfung, sondern der Seed:
+`/portal/mein` trug erstmals eine Schicht im Zustand „Geplant", und mit der
+ersten Pille erschien der Verstoss, der seit D-19 dort lag. Eine Tabelle ohne
+Zeilen verbirgt den Fehler, den die erste echte Zeile findet.
+
 1. **`--danger-strong: #DC2626` is a new token, not a replacement.** `--danger`
    must stay light: it is read *as text* on `--danger-soft` and on the dark
    surfaces. The danger *button* is the inverse case — white on a solid fill.

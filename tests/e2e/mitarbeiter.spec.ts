@@ -261,11 +261,27 @@ function minuten(text: string): number {
 test.describe('(2) kein Bearbeitungsfeld auf einem Zeiteintrag (EMP-07)', () => {
   test('die Liste und die Einzelansicht tragen kein Eingabefeld', async ({ page }) => {
     await alsFatima(page);
+    /*
+     * **Gemessen wird `main`, nicht das Dokument.**
+     *
+     * Hier stand `page.locator('form')` ohne Bereich — „kein Formular,
+     * nirgends". Das galt, solange die Huelle keines trug. Seit die Abmeldung
+     * ein POST-Formular ist (ein GET dafuer laesst sich von einem fremden
+     * Bild-Tag ausloesen), steht in der Navigation eines, und die Zusicherung
+     * fiel — ohne dass an EMP-07 irgendetwas kaputt war.
+     *
+     * EMP-07 sagt: der Mensch BEARBEITET seinen Zeiteintrag nicht. Das ist
+     * eine Aussage ueber den Inhalt, und `main` ist der Inhalt. Eine
+     * Zusicherung, die weiter misst als die Regel reicht, meldet Umbauten der
+     * Huelle als Rechteverstoss — und wer sie dreimal so erlebt hat, glaubt
+     * ihr beim vierten Mal nicht mehr.
+     */
+    const inhalt = page.locator('main');
     for (const pfad of ['/portal/mein/zeiten']) {
       await page.goto(pfad);
-      // Kein Formular, kein Eingabefeld, kein „speichern" — nirgends.
-      await expect(page.locator('form')).toHaveCount(0);
-      await expect(page.locator('input:not([type="hidden"]), textarea, select'))
+      // Kein Formular, kein Eingabefeld, kein „speichern" — im ganzen Inhalt.
+      await expect(inhalt.locator('form')).toHaveCount(0);
+      await expect(inhalt.locator('input:not([type="hidden"]), textarea, select'))
         .toHaveCount(0);
       await expect(page.locator('[data-cse="kein-bearbeiten"]')).toBeVisible();
     }
@@ -273,7 +289,7 @@ test.describe('(2) kein Bearbeitungsfeld auf einem Zeiteintrag (EMP-07)', () => 
     const ersteZeile = page.locator('[data-cse="zeit-zeile"]').first();
     await expect(ersteZeile).toBeVisible();
     await ersteZeile.click();
-    await expect(page.locator('form')).toHaveCount(0);
+    await expect(inhalt.locator('form')).toHaveCount(0);
     // Das EINZIGE Angebot dieser Seite.
     await expect(page.locator('[data-cse="einwand-link"]')).toBeVisible();
   });

@@ -198,7 +198,19 @@ test.describe('(5) barrierefrei — das Portal ist der Arbeitsplatz', () => {
       const ergebnis = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
       expect(
-        ergebnis.violations.map((v) => `${v.id}: ${v.help} (${String(v.nodes.length)}×)`),
+        /*
+         * Der Ort gehoert in die Meldung, nicht in eine zweite Sitzung.
+         *
+         * Hier stand nur `id: help (1×)`. Ein Kontrastverstoss auf einer Seite
+         * mit ueber hundert Knoten sagt damit, DASS etwas zu blass ist, und
+         * verschweigt, WAS — der Fehlschlag kostete einen kompletten zweiten
+         * Lauf mit einer eigens veraenderten Zusicherung, nur um den Selektor
+         * zu erfahren. `target` steht in jedem axe-Ergebnis bereit.
+         */
+        ergebnis.violations.map((v) =>
+          `${v.id}: ${v.help} (${String(v.nodes.length)}×) — `
+          + v.nodes.map((n) => `${n.target.join(' ')} ${n.html.slice(0, 120)}`)
+              .join(' | ')),
         pfad,
       ).toEqual([]);
     });

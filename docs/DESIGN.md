@@ -70,18 +70,29 @@ that puts an invoice in the wrong GmbH.
 ```css
 --success: #22C55E;   --success-soft: rgba(34,197,94,0.12);
 --warning: #F59E0B;   --warning-soft: rgba(245,158,11,0.12);
---danger:  #EF4444;   --danger-soft:  rgba(239,68,68,0.12);
---info:    #3B82F6;   --info-soft:    rgba(59,130,246,0.12);
+--danger:  #F26A6A;   --danger-soft:  rgba(239,68,68,0.12);
+--info:    #5895F7;   --info-soft:    rgba(59,130,246,0.12);
 
 --danger-strong: #DC2626;   /* solid danger SURFACE, white text on it */
 ```
 
 Status pills use `-soft` background + solid text. Never solid fills.
 
+**Why `--danger` and `--info` are lighter than the `-soft` colour they sit on.**
+The pill rule above says solid text on a `-soft` background. `-soft` is 12%
+alpha, so the pill's real background is almost the surface beneath it — and a
+pill sits on cards, not only on `--surface`. Measured against
+`--surface-3`-backed soft, the original `#EF4444` and `#3B82F6` gave **3.86:1**
+each and failed AA for the 13px pill text; on plain `--surface` they were
+4.53 and 4.55, one rounding from the same failure. The values above are the
+same hues lightened until the worst of the three surfaces clears **4.7:1**
+(danger 4.88, info 4.77). `--success` (5.88) and `--warning` (6.16) already
+did and are unchanged. The measurement is in DECISIONS.md.
+
 **Why `--danger` has a second, darker value.** `--danger` is tuned to be read
 *as text* on `--danger-soft` and on the dark surfaces — it has to be light. The
 danger *button* is the opposite case: white text on a solid fill. White on
-`#EF4444` is **3.76:1** and fails AA for body-sized text, so a solid danger
+`#EF4444` was **3.76:1** and failed AA for body-sized text, so a solid danger
 surface uses `--danger-strong` (**4.83:1**). One token cannot do both jobs, and
 the button is the one where the failure is a legal problem rather than a
 cosmetic one (§9, BFSG).
