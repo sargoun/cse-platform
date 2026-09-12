@@ -210,11 +210,15 @@ export const SEITEN: readonly SeitenInhalt[] = [
       {
         art: 'text',
         ueberschrift: 'Angaben nach § 5 TMG',
+        // Der Satz stand hier und verwies auf den Fussbereich und auf eine
+        // spätere Ergänzung. Beides stimmt nicht mehr: die Angaben je
+        // Gesellschaft stehen unter diesem Abschnitt, und was von ihnen noch
+        // nicht bestätigt ist, sagt die Seite dort selbst (O-353).
         text:
-          'Die vier Gesellschaften mit Firma, Anschrift und Telefonnummer stehen '
-          + 'im Fussbereich dieser Seite. Handelsregister, Umsatzsteuer-'
-          + 'Identifikationsnummer und Geschäftsführung werden hier je '
-          + 'Gesellschaft ergänzt, sobald die Angaben bestätigt sind.',
+          'Die Angaben nach § 5 TMG stehen unten je Gesellschaft — Firma, '
+          + 'Anschrift, vertretungsberechtigte Personen, Handelsregister und '
+          + 'Umsatzsteuer-Identifikationsnummer. Wo eine Angabe noch nicht '
+          + 'bestätigt ist, ist sie dort als solche gekennzeichnet.',
       },
     ],
   },
