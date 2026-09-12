@@ -70,6 +70,21 @@ export interface Befund {
 export interface NichtGeprueft {
   readonly regel: string;
   readonly grund: string;
+  /**
+   * Die Tabellen, deren FEHLEN diesen Eintrag begruendet — als Feld und nicht
+   * als Fliesstext.
+   *
+   * Der erste Entwurf klaubte die Namen mit einem Ausdruck aus `grund`. Die
+   * Gegenprobe im Test hat das sofort gemeldet: die Namen stehen dort in
+   * Klammern, nicht in Backticks, und der Ausdruck fand zwei von sechs. Eine
+   * Wache, die aus Prosa liest, prueft am Ende die Prosa.
+   *
+   * `tests/isolation/rechnung-pflichtfelder.test.ts` nimmt die Liste beim
+   * Wort: gibt es eine dieser Tabellen, faellt der Eintrag — bei dem, der die
+   * Tabelle anlegt, nicht bei dem Buchpruefer, der 2032 den eingefrorenen
+   * Bericht liest.
+   */
+  readonly solangeOhne?: readonly string[];
 }
 
 export interface KleinbetragLage {
@@ -664,13 +679,17 @@ export const NICHT_GEPRUEFT: readonly NichtGeprueft[] = [
     grund: 'Ob eine Minderung VEREINBART wurde, steht in keiner Spalte — nur die '
       + 'gebuchte steht in rechnung_zuschlag (BG-20).' },
   { regel: 'FIN-09, LEG-06 — §13b UStG',
-    grund: 'Kommt mit PR 51 (Steuerfall je Kunde, kunde_bauleistender_status).' },
+    grund: 'Kommt mit PR 51 (Steuerfall je Kunde, kunde_bauleistender_status).',
+    solangeOhne: ['kunde_bauleistender_status'] },
   { regel: 'FIN-08 — Abzug der Abschlagsrechnungen auf der Schlussrechnung',
-    grund: 'Kommt mit PR 50 (abschlagsplan, abschlagsrechnung_bezug).' },
+    grund: 'Kommt mit PR 50 (abschlagsplan, abschlagsrechnung_bezug).',
+    solangeOhne: ['abschlagsplan', 'abschlagsrechnung_bezug'] },
   { regel: 'FIN-10, LEG-06 — §48 EStG Bauabzugsteuer',
-    grund: 'Kommt mit PR 51 (freistellungsbescheinigung, bauabzugsteuer_freigrenze).' },
+    grund: 'Kommt mit PR 51 (freistellungsbescheinigung, bauabzugsteuer_freigrenze).',
+    solangeOhne: ['freistellungsbescheinigung', 'bauabzugsteuer_freigrenze'] },
   { regel: 'FIN-11 — XRechnung-Pflichtfelder (Leitweg-ID, BT-130)',
-    grund: 'Kommt mit PR 52/53 (rechnung_dokument, rechnung_versand).' },
+    grund: 'Kommt mit PR 52/53 (rechnung_dokument, rechnung_versand).',
+    solangeOhne: ['rechnung_dokument', 'rechnung_versand'] },
   /*
    * Diese beiden standen bis PR 49 auf „kommt noch" — und blieben stehen,
    * nachdem PR 49 sie gebracht hatte. Der Bericht wird mit dem Snapshot

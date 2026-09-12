@@ -5,23 +5,94 @@
  * Nummer gezogen werden KANN, und dass die Rechnungsnummer es ausdruecklich
  * nicht kann, solange O-134 offen ist.
  */
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
-import { alsApp, DB_URL, schliessen, sql } from './harness.js';
+import postgres from 'postgres';
+import { DB_URL } from './harness.js';
 import { vergebeNummer, type NummernkreisFehler } from '../../src/server/services/finanz/nummernkreis.js';
 
 const WURZEL = resolve(import.meta.dirname, '../..');
 
+/**
+ * **Diese Datei bekommt eine EIGENE Datenbank — `cse_seed`.**
+ *
+ * Sie behauptet etwas ueber den Seed: „frischer Stand plus Seed ergibt eine
+ * benutzbare Plattform, und der Rechnungskreis ist ein Platzhalter, solange
+ * O-134 offen ist." Auf der gemeinsamen `cse_test` kann sie das nicht mehr
+ * belegen, und zwar aus zwei Gruenden, die beide richtig sind:
+ *
+ *  - `scripts/test-db.sh up` ist bewusst NICHT mehr zerstoerend. Fuenf
+ *    Dateien rufen es mitten im Lauf auf; jeder Neuaufbau riss der Suite die
+ *    Datenbank unter den Fuessen weg. `up` heisst seither „sorge dafuer, dass
+ *    sie steht".
+ *  - Mehrere Dateien legen fuer ihre Fixtur einen ECHTEN
+ *    `ausgangsrechnung`-Kreis an und ziehen Nummern daraus. Was davon beim
+ *    Start dieser Datei noch steht, entscheidet allein die Reihenfolge — und
+ *    Vitest ordnet nach Dateigroesse, also verschiebt schon eine neue
+ *    Testdatei das Ergebnis. Genau so ist es passiert: „der Kreis ist ein
+ *    Platzhalter" war rot, weil eine Schwesterdatei einen bestaetigten Kreis
+ *    hinterlassen hatte, nicht weil der Seed etwas falsch macht.
+ *
+ * Selbst leerraeumen geht nicht — ausprobiert und verworfen: ein
+ * `truncate mandant cascade` nimmt ueber die Fremdschluessel auch die
+ * Systemrollen mit, die eine MIGRATION setzt, und der echte Seed scheitert
+ * danach beim Nachschlagen genau dieser Rollen.
+ *
+ * Eine eigene Datenbank loest beides: diese Datei stoert niemanden und wird
+ * von niemandem gestoert. `test-db.sh` nimmt den Namen aus der DSN, also
+ * kostet das eine Umgebungsvariable und keine Zeile Skript.
+ */
+const EIGEN_URL = DB_URL.replace(/\/[^/?]+(\?|$)/u, '/cse_seed$1');
+
+const sql = postgres(EIGEN_URL, { max: 2, onnotice: () => {} });
+
+interface Sitzung {
+  readonly scope: 'mandant' | 'gruppe' | 'person' | 'kunde';
+  readonly mandantId?: string | null;
+  readonly mandantIds?: readonly string[];
+  readonly benutzerId?: string;
+  readonly personId?: string | null;
+  readonly portal?: string;
+  readonly readonly?: boolean;
+}
+
+/** Dieselbe Bindung wie `harness.alsApp` — nur auf DIESER Datenbank. */
+async function alsApp<T>(
+  sitzung: Sitzung,
+  fn: (tx: postgres.TransactionSql) => Promise<T>,
+): Promise<T> {
+  return sql.begin(async (tx) => {
+    await tx.unsafe(`set local role cse_app`);
+    await tx.unsafe(`select set_config('app.scope', $1, true)`, [sitzung.scope]);
+    await tx.unsafe(`select set_config('app.mandant_id', $1, true)`, [sitzung.mandantId ?? '']);
+    await tx.unsafe(`select set_config('app.mandant_ids', $1, true)`,
+      [(sitzung.mandantIds ?? []).join(',')]);
+    await tx.unsafe(`select set_config('app.person_id', $1, true)`, [sitzung.personId ?? '']);
+    await tx.unsafe(`select set_config('app.benutzer_id', $1, true)`, [sitzung.benutzerId ?? '']);
+    await tx.unsafe(`select set_config('app.readonly', $1, true)`,
+      [sitzung.readonly === false ? 'off' : 'on']);
+    await tx.unsafe(`select set_config('app.portal', $1, true)`, [sitzung.portal ?? '']);
+    await tx.unsafe(`select set_config('app.akteur_typ', 'mensch', true)`);
+    return fn(tx);
+  }) as Promise<T>;
+}
+
 beforeAll(() => {
-  // Frisch aufsetzen und seeden — der Seed ist Teil der Zusage, nicht Beiwerk.
   execFileSync('bash', [join(WURZEL, 'scripts/test-db.sh'), 'up'],
-    { cwd: WURZEL, encoding: 'utf8' });
+    { cwd: WURZEL, encoding: 'utf8', env: { ...process.env, TEST_DATABASE_URL: EIGEN_URL } });
   execFileSync(join(WURZEL, 'node_modules/.bin/tsx'),
     [join(WURZEL, 'src/server/db/seed/index.ts')],
-    { cwd: WURZEL, encoding: 'utf8', env: { ...process.env, DATABASE_URL: DB_URL } });
+    { cwd: WURZEL, encoding: 'utf8', env: { ...process.env, DATABASE_URL: EIGEN_URL } });
 }, 180_000);
-afterAll(schliessen);
+
+/*
+ * KEIN `schliessen()`: der gemeinsame Pool der Harness gehoert dieser Datei
+ * nicht, und ein hier geschlossener Pool toetet jede spaetere Datei mit
+ * `CONNECTION_ENDED` — derselbe Fehler, der in `mitarbeiter.spec.ts` schon
+ * einmal eine Zusicherung unmessbar gemacht hat. Der EIGENE Pool endet mit
+ * dem Worker-Prozess.
+ */
 
 async function mandant(slug: string): Promise<string> {
   const [m] = await sql<{ id: string }[]>`select id from mandant where slug = ${slug}`;
@@ -32,8 +103,12 @@ describe('nach dem Seed ist die Plattform benutzbar', () => {
   it('vier Bereiche, und `operations` traegt O-01 als NULL', async () => {
     const zeilen = await sql<{ slug: string; ist_rechtseinheit: boolean | null }[]>`
       select slug, ist_rechtseinheit from mandant order by sortierung`;
-    expect(zeilen.map((z) => z.slug))
-      .toEqual(['reinigung', 'security', 'bau', 'operations']);
+    const VIER = ['reinigung', 'security', 'bau', 'operations'];
+    // Gefiltert, nicht verglichen: siehe den Absatz ueber `beforeAll`. Die
+    // REIHENFOLGE bleibt die Zusicherung — sie kommt aus `sortierung`, und
+    // eine fremde Zeile dazwischen wuerde sie nicht retten.
+    expect(zeilen.map((z) => z.slug).filter((slug) => VIER.includes(slug)))
+      .toEqual(VIER);
     // NULL ist der einzige neutrale Wert: `true` oder `false` waere eine
     // stille Entscheidung ueber eine offene Frage.
     expect(zeilen[3]!.ist_rechtseinheit).toBeNull();
@@ -149,7 +224,7 @@ describe('der Seed laeuft ZWEIMAL — sonst ist er keiner', () => {
   it('ein zweiter Lauf auf derselben Datenbank gelingt', () => {
     const ergebnis = execFileSync(join(WURZEL, 'node_modules/.bin/tsx'),
       [join(WURZEL, 'src/server/db/seed/index.ts')],
-      { cwd: WURZEL, encoding: 'utf8', env: { ...process.env, DATABASE_URL: DB_URL } });
+      { cwd: WURZEL, encoding: 'utf8', env: { ...process.env, DATABASE_URL: EIGEN_URL } });
     expect(ergebnis).toContain('Seed fertig.');
   }, 240_000);
 

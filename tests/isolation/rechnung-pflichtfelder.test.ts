@@ -559,33 +559,25 @@ describe('„kommt mit PR nn" bleibt wahr — sonst lügt ein eingefrorener Bele
    * Auffallen konnte das nicht: die Einträge sind Fließtext, den kein
    * Typprüfer liest, und der Bericht wurde nur auf seine FEHLER geprüft.
    *
-   * Die Prüfung nimmt die Einträge beim Wort. Wer schreibt „kommt mit PR 51
-   * (`freistellungsbescheinigung`)", sagt damit: diese Tabelle gibt es noch
-   * nicht. Sobald es sie gibt, fällt diese Zeile — und zwar bei dem, der sie
-   * anlegt, nicht bei dem Buchprüfer, der 2032 den Beleg liest.
+   * **Die erste Fassung dieser Prüfung las die Namen mit einem Ausdruck aus
+   * dem Fließtext — und fand zwei von sechs**, weil sie dort in Klammern
+   * stehen und nicht in Backticks. Gemeldet hat das die Gegenprobe unten,
+   * nicht ich. Eine Wache, die aus Prosa liest, prüft am Ende die Prosa;
+   * deshalb trägt jeder Eintrag seine Tabellen jetzt in `solangeOhne`.
    */
-  it('jede genannte Tabelle, die es noch nicht geben soll, gibt es auch nicht', async () => {
-    const genannt = NICHT_GEPRUEFT.flatMap((n) =>
-      [...n.grund.matchAll(/`([a-z][a-z0-9_]{2,})`/gu)].map((m) => m[1] ?? ''))
-      .filter((name) => /^[a-z]+(_[a-z0-9]+)+$/u.test(name));
+  it('keine der Tabellen, deren Fehlen einen Eintrag begründet, gibt es schon', async () => {
+    const genannt = NICHT_GEPRUEFT.flatMap((n) => n.solangeOhne ?? []);
 
-    // Gegenprobe gegen die leere Messung: findet der Ausdruck überhaupt etwas?
-    expect(genannt.length).toBeGreaterThan(3);
+    // Gegenprobe gegen die leere Messung: vier Einträge nennen zusammen
+    // sieben Tabellen (1 + 2 + 2 + 2). Fällt das auf null, prüfte der Rest
+    // nichts — und wer einen Eintrag ergänzt, kommt hier vorbei.
+    expect(genannt).toHaveLength(7);
 
     const vorhanden = await sql.unsafe<{ table_name: string }[]>(
       `select table_name from information_schema.tables
         where table_schema = 'public' and table_name = any($1::text[])`,
       [genannt] as never[],
     );
-    const gebaut = vorhanden.map((z) => z.table_name).sort();
-
-    /*
-     * `rechnungsposition_quelle` ist die Ausnahme, und sie steht hier
-     * namentlich: PR 49 hat sie gebracht, der Eintrag daneben sagt deshalb
-     * nicht mehr „kommt", sondern wo die Regel stattdessen greift. Ein
-     * Ausschluss ohne Namen wäre eine Hintertür für die nächste Zeile, die
-     * stehen bleibt.
-     */
-    expect(gebaut).toEqual(['rechnungsposition_quelle']);
+    expect(vorhanden.map((z) => z.table_name)).toEqual([]);
   });
 });
