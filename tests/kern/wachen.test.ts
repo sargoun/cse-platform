@@ -306,3 +306,77 @@ describe('(11) die §14-UStG-Vorabpruefung laesst sich nicht ueberspringen', () 
     expect(code).toBe(0);
   });
 });
+
+describe('(8) eine nicht wohlgeformte SVG faellt durch (D-376)', () => {
+  /**
+   * **Der Ausfall dahinter.** Acht Motivtafeln lagen im Baum, sahen im Editor
+   * richtig aus und waren nie wohlgeformtes XML: ein Kommentar enthielt einen
+   * doppelten Bindestrich. Der Server lieferte sie mit 200 aus, der Browser
+   * verwarf sie beim Parsen, die Startseite blieb leer.
+   *
+   * **Warum kein Browsertest das gefunden hat.** Es gab einen, und er war
+   * gruen. Er prueft die sichtbare Kennzeichnung NEBEN dem Bild — und die
+   * stand da. Das `<img>` war im DOM, der `src` stimmte, die Antwort war 200,
+   * die Datei existierte. Alles eine Ebene unter dem Fehler war in Ordnung.
+   * Deshalb liegt die Pruefung jetzt dort, wo die Datei selbst gelesen wird.
+   */
+  const GUT =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">\n'
+    + '  <!-- ein sauberer Kommentar -->\n'
+    + '  <rect width="10" height="10" fill="#000"/>\n'
+    + '</svg>\n';
+
+  it('der doppelte Bindestrich im Kommentar — genau der echte Fehler', () => {
+    const { code, ausgabe } = guardsMit({
+      'public/platzhalter/fixtur.svg': GUT.replace(
+        'ein sauberer Kommentar', 'der Token --cse-bild-overlay',
+      ),
+    });
+    expect(code).toBe(1);
+    expect(ausgabe).toContain('svg-wohlgeformt');
+    expect(ausgabe).toContain('public/platzhalter/fixtur.svg');
+    expect(ausgabe).toContain('Doppelter Bindestrich');
+  });
+
+  it('ein nacktes `&` — der zweite Weg, eine SVG still unsichtbar zu machen', () => {
+    const { code, ausgabe } = guardsMit({
+      'public/fixtur.svg': GUT.replace('<rect', '<text>Reinigung & Service</text><rect'),
+    });
+    expect(code).toBe(1);
+    expect(ausgabe).toContain('svg-wohlgeformt');
+  });
+
+  it('ein nicht geschlossenes Element', () => {
+    const { code, ausgabe } = guardsMit({ 'public/fixtur.svg': GUT.replace('</svg>', '') });
+    expect(code).toBe(1);
+    expect(ausgabe).toContain('svg-wohlgeformt');
+  });
+
+  it('die Wache findet SVG auch tief im Unterverzeichnis', () => {
+    const { code, ausgabe } = guardsMit({
+      'public/a/b/c/fixtur.svg': GUT.replace('sauberer', 'kaputter --'),
+    });
+    expect(code).toBe(1);
+    expect(ausgabe).toContain('public/a/b/c/fixtur.svg');
+  });
+
+  it('und die saubere Fassung geht durch — sonst waere die Wache ein Fehlalarm', () => {
+    const { code, ausgabe } = guardsMit({ 'public/platzhalter/fixtur.svg': GUT });
+    expect(code).toBe(0);
+    expect(ausgabe).toContain('alle sauber');
+  });
+
+  it('die acht echten Tafeln gehen durch', () => {
+    const { code } = guardsMit({
+      'public/platzhalter/hero.svg': lies('public/platzhalter/hero.svg'),
+      'public/platzhalter/reinigung.svg': lies('public/platzhalter/reinigung.svg'),
+      'public/platzhalter/security.svg': lies('public/platzhalter/security.svg'),
+      'public/platzhalter/bau.svg': lies('public/platzhalter/bau.svg'),
+      'public/platzhalter/operations.svg': lies('public/platzhalter/operations.svg'),
+      'public/platzhalter/objekt.svg': lies('public/platzhalter/objekt.svg'),
+      'public/platzhalter/projekt.svg': lies('public/platzhalter/projekt.svg'),
+      'public/platzhalter/team.svg': lies('public/platzhalter/team.svg'),
+    });
+    expect(code).toBe(0);
+  });
+});

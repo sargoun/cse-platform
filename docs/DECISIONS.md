@@ -5261,3 +5261,51 @@ Alarmhäufigkeit. Für den Kettenprüfer ist `0` ohnehin die richtige Angabe: ei
 gebrochener Hash wird beim zweiten Hinsehen nicht heil, und was eine
 Wiederholung dort kaufen würde, ist Verzögerung zwischen Fund und Meldung —
 bei „alert immediately" (SPEC §14) genau das Falsche.
+
+### D-380 · SVG ist XML, und eine Merge-Wache liest jede einzelne
+
+Die acht Motivtafeln aus D-376 waren **nie wohlgeformt**. Der Erzeuger
+`scripts/motivtafeln.py` schrieb den Namen des Overlay-Tokens in einen
+XML-Kommentar — mitsamt seinen zwei fuehrenden Bindestrichen. Ein
+XML-Kommentar darf keinen doppelten Bindestrich enthalten, und eine SVG ist
+XML. Der Server lieferte die acht Dateien mit **200** aus, der Browser verwarf
+sie beim Parsen und zeichnete nichts. Die Startseite sah leer aus, und dass
+sie es war, stand in keinem Testbericht.
+
+**Warum das monatelang gruen war.** Es gab eine Pruefung. Sie prueft die
+sichtbare Platzhalter-Kennzeichnung NEBEN dem Bild — und die stand ja da. Das
+`<img>` war im DOM, der `src` stimmte, die Datei existierte, die Antwort war
+200. Jede Ebene UNTER dem Fehler war in Ordnung; genau das ist die Bauart, an
+der man solche Fehler erkennt. Eine Pruefung, die eine Ebene zu tief ansetzt,
+ist nicht halb so gut wie die richtige — sie ist gruen und damit schlechter
+als keine, weil sie den Platz besetzt.
+
+Die Wache `svg-wohlgeformt` in `pnpm guards` liest deshalb **die Datei
+selbst**, nicht die Seite, die sie einbindet.
+
+**Der Pruefer ist von Hand geschrieben** (`scripts/guards/xml-wohlgeformt.ts`).
+Node bringt kein `DOMParser` mit — das ist eine Browser-Schnittstelle, und weil
+`DOM` in `tsconfig.lib` steht, waere der erste Entwurf sauber durch den
+Typecheck gegangen und erst zur Laufzeit gestorben. Eine Abhaengigkeit
+aufzunehmen waere fuer eine Wache zu viel Gewicht.
+
+Ein selbstgeschriebener Parser hat genau eine gefaehrliche Fehlerart: **er ist
+sich einig mit sich selbst**, und ein Test aus derselben Hand teilt seine
+blinden Flecken. Deshalb wurde er gegen einen fremden, ausgewachsenen Parser
+abgeglichen — Pythons expat — auf zwei Wegen: 61 handgeschriebene Faelle und
+3000 zufaellige Mutationen der acht echten Tafeln (800 davon noch wohlgeformt,
+2200 kaputt). **Null Abweichungen in beide Richtungen.** Die 61 Faelle stehen
+als Tabelle in `tests/kern/xml-wohlgeformt.test.ts`; der Fuzzer war eine
+einmalige Gegenprobe und liegt nicht im Baum, weil er Python voraussetzt.
+
+Zwei Entwurfsentscheidungen, die dazugehoeren:
+
+- **Im Zweifel rot.** Was der Pruefer nicht versteht — eine `<!DOCTYPE …>` mit
+  interner Teilmenge, eine fremde `<!…>`-Deklaration —, meldet er, statt es zu
+  ueberspringen. Eine Wache, die im Zweifel schweigt, ist die Wache, die
+  diesen Fehler durchgelassen hat.
+- **Geprueft wird das Verzeichnis, nicht die Trefferzahl.** `mussLesen` waere
+  hier falsch: kommen eines Tages echte Fotos und verschwinden die Tafeln, ist
+  null SVG das richtige Ergebnis. Der Ausfall, den `mussLesen` sonst abfaengt —
+  ein vertippter Pfad, der still nichts liest —, faellt hier auf die Existenz
+  von `public/` zurueck.

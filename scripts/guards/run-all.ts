@@ -8,6 +8,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, relative } from 'node:path';
+import { pruefeXml } from './xml-wohlgeformt.js';
 
 const WURZEL = process.cwd();
 
@@ -880,6 +881,72 @@ function wacheMigrationsnummer(): void {
   }
 }
 
+
+/**
+ * Jede SVG unter `public/` ist wohlgeformtes XML.
+ *
+ * **Warum es diese Wache gibt.** Alle acht Motivtafeln waren monatelang
+ * kaputt und niemand sah es: der Kommentar ueber dem Overlay-Verlauf nannte
+ * den CSS-Token mitsamt seinen zwei fuehrenden Bindestrichen, und ein
+ * XML-Kommentar darf keinen doppelten Bindestrich enthalten. Eine SVG IST
+ * XML. Der Server lieferte die Datei mit 200, der Browser weigerte sich sie
+ * zu zeichnen, und die Startseite zeigte an jeder Bildstelle ein kaputtes
+ * Symbol.
+ *
+ * **Warum kein Test es fing.** Der Browsertest prueft die sichtbare
+ * Kennzeichnung `Platzhalterbild` — ein `<span>` NEBEN dem Bild. Das
+ * `<img>`-Element war da, sein `src` stimmte, die Antwort war 200. Gruen war
+ * also alles, was geprueft wurde; ungeprueft blieb das einzige, worauf es
+ * ankam. Deshalb steht die Pruefung hier und nicht dort: eine Datei, die kein
+ * Browser lesen kann, ist im Repository falsch, nicht erst auf der Seite.
+ *
+ * Geprueft wird mit `DOMParser` gegen `image/svg+xml`; der meldet denselben
+ * Fehler, an dem auch der Browser aussteigt.
+ */
+/**
+ * Jede SVG unter `public/` muss wohlgeformtes XML sein (D-376).
+ *
+ * **Der Ausfall, gegen den das geschrieben ist.** Acht Motivtafeln lagen im
+ * Baum, sahen im Editor richtig aus und waren nie wohlgeformt: ein
+ * XML-Kommentar enthielt einen doppelten Bindestrich. Der Server lieferte sie
+ * mit 200 aus, der Browser verwarf sie beim Parsen und zeichnete ein kaputtes
+ * Bild. Die Startseite war leer, und niemand sah warum.
+ *
+ * **Warum keine Pruefung im Browsertest.** Es gab eine. Sie war gruen. Sie
+ * prueft die sichtbare Kennzeichnung NEBEN dem Bild — und die stand ja da.
+ * Das `<img>` war im DOM, der `src` stimmte, die Antwort war 200, die Datei
+ * existierte. Alles eine Ebene unter dem Fehler war in Ordnung; genau deshalb
+ * gehoert die Pruefung hierher, wo die Datei selbst gelesen wird, und nicht
+ * dorthin, wo eine Seite sie einbindet.
+ */
+function wacheSvgWohlgeformt(): void {
+  /**
+   * Geprueft wird das VERZEICHNIS, nicht die Trefferzahl.
+   *
+   * `mussLesen` waere hier falsch: kommen eines Tages echte Fotos und
+   * verschwinden die Tafeln, ist null SVG das richtige Ergebnis und kein
+   * Grund, den Zweig rot zu faerben. Der Ausfall, den `mussLesen` abfaengt —
+   * ein vertippter Pfad, der still nichts liest —, faellt hier auf den
+   * Pfad selbst zurueck: `public/` gibt es im echten Baum immer.
+   */
+  if (ECHTER_BAUM && !existsSync(join(WURZEL, 'public'))) {
+    throw new Error(
+      'Merge-Wachen: `public/` fehlt. Eine Wache, die nichts liest, meldet "sauber".',
+    );
+  }
+
+  for (const datei of dateien('public', ['.svg'])) {
+    const fehler = pruefeXml(readFileSync(datei, 'utf8'));
+    if (fehler !== null) {
+      melde(
+        'svg-wohlgeformt', datei, fehler.zeile,
+        `Kein wohlgeformtes XML — der Browser liefert die Datei mit 200 aus und `
+        + `zeichnet sie NICHT: ${fehler.text}`,
+      );
+    }
+  }
+}
+
 async function main(): Promise<void> {
   wacheGeldSpalte();
   wacheZeitstempel();
@@ -893,6 +960,7 @@ async function main(): Promise<void> {
   wacheAnzeigeZeitzone();
   wacheValidator();
   wacheMigrationsnummer();
+  wacheSvgWohlgeformt();
   await wacheKonfigAdressen();
 
   if (befunde.length > 0) {

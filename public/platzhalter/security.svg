@@ -19,9 +19,16 @@
       <stop offset="1" stop-color="#2F6BFF" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="overlay" x1="0" y1="0" x2="0" y2="1">
-      <!-- derselbe Verlauf wie `--bild-overlay` in DESIGN §4.4, hier
+      <!-- derselbe Verlauf wie der Bild-Overlay-Token in DESIGN §4.4, hier
            ausgeschrieben: eine SVG-Datei sieht die CSS-Variablen des
-           Dokuments nicht. -->
+           Dokuments nicht.
+
+           Der Tokenname steht hier BEWUSST ohne seine beiden fuehrenden
+           Bindestriche: ein XML-Kommentar darf keinen doppelten Bindestrich
+           enthalten, und eine SVG ist XML. Mit ihnen war jede der acht
+           Tafeln nicht wohlgeformt; der Browser lud sie mit 200 und
+           zeichnete ein kaputtes Bild. Die Datei sah im Editor richtig aus
+           und war es nie. -->
       <stop offset="0" stop-color="#08080A" stop-opacity="0.15"/>
       <stop offset="0.55" stop-color="#08080A" stop-opacity="0.55"/>
       <stop offset="1" stop-color="#08080A" stop-opacity="0.92"/>
