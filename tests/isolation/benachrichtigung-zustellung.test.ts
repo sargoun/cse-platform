@@ -120,36 +120,27 @@ describe('der Nachtlauf schreibt Benachrichtigungen — als `cse_job`', () => {
   });
 
   /**
-   * **Zugestellt und trotzdem auffaellig** — und das gehoert NICHT in die
-   * Liste „ohne Empfaenger".
+   * **Der Fall „zwei Zugaenge zu einer Person" existiert nicht — und das ist
+   * die bessere Antwort.**
    *
-   * EMP-14 verlangt einen Zugang je Person. Sind es zwei, ist das ein
-   * Datenfehler; die Meldung geht an den aelteren, reproduzierbar, und der
-   * Bericht sagt es getrennt. Der erste Entwurf legte diesen Fall zu den
-   * Ausfaellen — wer die Kennzahlen liest, haette Zustellungen als Ausfaelle
-   * gezaehlt.
+   * Hier stand ein Test, der genau das herstellen wollte, um zu pruefen, wie
+   * der Dienst damit umgeht. Er scheiterte an
+   * `duplicate key value violates unique constraint "benutzer_person_key"`:
+   * 0007 legt einen eindeutigen Index ueber `person_id` an (EMP-14, D-09),
+   * und die Zeile kommt gar nicht erst zustande.
+   *
+   * `stelleZu` behandelte den Fall trotzdem — mit einer Sortierung nach
+   * `erstellt_am`, einem eigenen Berichtsfeld und einem Spaltenrecht in 0100,
+   * das nur fuer diese Sortierung da war. Toter Code gegen etwas, das das
+   * Schema verhindert; die Abfrage ist jetzt deckungsgleich mit dem Index und
+   * liefert hoechstens eine Zeile nach Schema statt nach Hoffnung.
+   *
+   * Was bleibt, ist dieser Fall: die ZUSICHERUNG selbst, gegen die Datenbank.
    */
-  it('zwei Zugaenge zu einer Person: EINE Meldung, und der Bericht sagt es',
+  it('zwei Zugaenge zu einer Person laesst die Datenbank nicht zu (EMP-14)',
     async () => {
-      const erster = await konto(f.fatima);
       await konto(f.fatima);
-      const nachweisId = crypto.randomUUID();
-      const bericht = await alsRolle('cse_job', async (tx) => stelleZu(
-        { unsafe: (a, w) => tx.unsafe(a, (w ?? []) as never[]) },
-        [{ benachrichtigung: meldung(f.security, nachweisId), personId: f.fatima,
-          objektTyp: 'nachweis', objektId: nachweisId }],
-      ));
-
-      expect(bericht.zugestellt).toBe(1);
-      expect(bericht.ohneEmpfaenger).toHaveLength(0);
-      expect(bericht.mehrdeutig).toEqual([
-        { personId: f.fatima, art: 'nachweis.ablauf_60', zugaenge: 2 },
-      ]);
-
-      const zeilen = await sql.unsafe<{ empfaenger_id: string }[]>(
-        `select empfaenger_id from benachrichtigung where objekt_id = $1`, [nachweisId]);
-      expect(zeilen).toHaveLength(1);
-      expect(zeilen[0]!.empfaenger_id).toBe(erster);
+      await expect(konto(f.fatima)).rejects.toThrow(/benutzer_person_key/u);
     });
 
   it('ein GESPERRTER Zugang zaehlt nicht als Empfaenger', async () => {

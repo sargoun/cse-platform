@@ -18,17 +18,18 @@
  * **Vier Spalten, nicht die Tabelle (K-05).** `benutzer` traegt E-Mail, Name,
  * Sprache, letzte IP, letzter Login. Nichts davon braucht ein Nachtlauf, um
  * eine Meldung zuzustellen — er braucht die Kennung, die Verknuepfung zum
- * Menschen, die Auskunft, ob der Zugang aktiv ist, und `erstellt_am`. Ein
+ * Menschen und die beiden Spalten, die sagen, ob der Zugang gilt. Ein
  * `grant select on benutzer` waere bequemer und gaebe einem Prozess, der um
  * drei Uhr nachts ohne Aufsicht laeuft, das Adressbuch der Belegschaft dazu.
  *
- * `erstellt_am` steht mit in der Liste, weil es SORTIERT wird, und Postgres
- * verlangt das Leserecht auch fuer eine Spalte, die nur in `order by` steht —
- * nicht nur fuer die, die in der Ergebnisliste auftaucht. Der erste Entwurf
- * gewaehrte drei Spalten und sortierte ueber die vierte; der Fehler lautete
- * dann `permission denied for table benutzer` und nannte die Spalte nicht.
- * Sortiert wird ueberhaupt, weil EMP-14 einen Zugang je Person verlangt: sind
- * es doch zwei, entscheidet der aeltere, und zwar reproduzierbar.
+ * `deaktiviert_am` steht mit in der Liste, weil die Abfrage deckungsgleich
+ * mit `benutzer_person_key` sein muss — dem eindeutigen Index aus 0007, der
+ * EIN Login je Mensch erzwingt (EMP-14). Nur mit `deaktiviert_am is null`
+ * liefert sie hoechstens eine Zeile, und zwar nach Schema statt nach Hoffnung.
+ * Der erste Entwurf gewaehrte stattdessen `erstellt_am`, um nach ihm zu
+ * SORTIEREN — Postgres verlangt das Leserecht naemlich auch fuer eine Spalte,
+ * die nur in `order by` steht. Sortiert wurde, weil der Code mehrere Zugaenge
+ * fuer moeglich hielt; das Schema laesst sie nicht zu.
  *
  * **Und eine Policy, nicht nur ein Grant.** Dieselbe Falle wie in 0099 und
  * 0096: `benutzer` traegt `force row level security`, die beiden vorhandenen
@@ -41,7 +42,7 @@
  * Eingabe, nicht seine Sitzung — eine hat er nicht. Was ihn begrenzt, sind
  * die drei Spalten darueber.
  */
-grant select (id, person_id, status, erstellt_am) on benutzer to cse_job;
+grant select (id, person_id, status, deaktiviert_am) on benutzer to cse_job;
 
 create policy t_benutzer_job_empfaenger on benutzer
   for select to cse_job

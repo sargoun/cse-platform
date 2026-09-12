@@ -48,20 +48,14 @@ export interface Zustellbericht {
   readonly zugestellt: number;
   /** Je Auftrag, der NIEMANDEN erreicht hat — mit dem Grund. */
   readonly ohneEmpfaenger: readonly { personId: string; art: string; grund: string }[];
-  /**
-   * Zugestellt, aber auffaellig: mehrere aktive Zugaenge zu einer Person.
-   *
-   * **Eine eigene Liste, und das ist kein Ordnungssinn.** Der erste Entwurf
-   * legte diesen Fall zu `ohneEmpfaenger` — also eine Meldung, die ANKAM, in
-   * eine Liste mit dem Namen „ohne Empfaenger". Wer die Kennzahlen eines
-   * Nachtlaufs liest, zaehlt dann Zustellungen als Ausfaelle, und die eine
-   * Zahl, auf die es ankommt („hat es jemanden erreicht"), stimmt nicht mehr.
-   */
-  readonly mehrdeutig: readonly { personId: string; art: string; zugaenge: number }[];
 }
 
 /**
  * Schreibt die Auftraege in den Posteingang und sagt, was nicht ankam.
+ *
+ * Je Auftrag hoechstens EINE Zeile: der Empfaenger wird ueber
+ * `benutzer_person_key` aufgeloest, und der Index laesst nur einen
+ * nicht-deaktivierten Zugang je Mensch zu (EMP-14).
  *
  * Kein `on conflict`: die Eindeutigkeit liegt eine Ebene hoeher. Im
  * Ablaufweg entsteht die Zeile in `nachweis_warnung` VOR dieser Zustellung
@@ -72,14 +66,30 @@ export async function stelleZu(
   db: Abfrage, auftraege: readonly Zustellauftrag[],
 ): Promise<Zustellbericht> {
   const ohneEmpfaenger: { personId: string; art: string; grund: string }[] = [];
-  const mehrdeutig: { personId: string; art: string; zugaenge: number }[] = [];
   let zugestellt = 0;
 
   for (const auftrag of auftraege) {
+    /**
+     * **Deckungsgleich mit `benutzer_person_key`** — und deshalb liefert die
+     * Abfrage hoechstens EINE Zeile, ohne dass jemand darauf hoffen muss.
+     *
+     * 0007 legt den Index als `unique … on benutzer (person_id) where
+     * person_id is not null and deaktiviert_am is null` an: EIN Login je
+     * Mensch (EMP-14, D-09). Der erste Entwurf hier filterte auf
+     * `status = 'aktiv'`, sortierte nach `erstellt_am` und behandelte den
+     * Fall „mehrere Zugaenge" — toter Code gegen etwas, das das Schema
+     * verhindert. Gefunden hat es der Test, der genau diesen Fall herstellen
+     * wollte und an `duplicate key value violates unique constraint
+     * "benutzer_person_key"` scheiterte.
+     *
+     * `deaktiviert_am is null` MUSS dabei mit: nur diese Bedingung macht die
+     * Abfrage zur Teilmenge des Index. `status` allein tut es nicht — die
+     * beiden Spalten bewegen sich per Gewohnheit zusammen, nicht per
+     * Bedingung.
+     */
     const konten = (await db.unsafe(
       `select id from benutzer
-        where person_id = $1::uuid and status = 'aktiv'
-        order by erstellt_am`,
+        where person_id = $1::uuid and status = 'aktiv' and deaktiviert_am is null`,
       [auftrag.personId],
     )) as readonly { id: string }[];
 
@@ -90,19 +100,6 @@ export async function stelleZu(
         grund: 'Kein aktiver Zugang zu dieser Person (D-09) — PR 20 steht aus.',
       });
       continue;
-    }
-
-    /*
-     * EIN Zugang je Person (EMP-14: „One login per person"). Findet die
-     * Abfrage mehrere, ist das ein Datenfehler und keine Einladung, die
-     * Meldung zu vervielfachen — der aelteste gilt, und der Bericht sagt es.
-     */
-    if (konten.length > 1) {
-      mehrdeutig.push({
-        personId: auftrag.personId,
-        art: auftrag.benachrichtigung.art,
-        zugaenge: konten.length,
-      });
     }
 
     const b = auftrag.benachrichtigung;
@@ -116,5 +113,5 @@ export async function stelleZu(
     zugestellt += 1;
   }
 
-  return { zugestellt, ohneEmpfaenger, mehrdeutig };
+  return { zugestellt, ohneEmpfaenger };
 }

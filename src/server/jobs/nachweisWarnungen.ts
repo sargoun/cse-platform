@@ -59,7 +59,6 @@ export function registriereNachweisWarnungen(db: Abfrage): JobDefinition {
         gemeldet: bericht.gemeldet.length,
         zugestellt: zustellung.zugestellt,
         ohne_empfaenger: zustellung.ohneEmpfaenger,
-        mehrdeutige_zugaenge: zustellung.mehrdeutig,
         unzustellbar: bericht.unzustellbar,
       };
     },
