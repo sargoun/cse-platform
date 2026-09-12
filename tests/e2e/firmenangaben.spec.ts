@@ -290,3 +290,40 @@ test.describe('die oeffentliche Kopfzeile fuehrt weiter', () => {
       .toHaveAttribute('href', '/en/angebot');
   });
 });
+
+/**
+ * **Die Profilseite einer Gesellschaft endete nach den Leistungen.**
+ *
+ * `/unternehmen/<slug>` traegt genau zwei Abschnitte: `hero` und
+ * `leistungen`. Wer dort gelesen hatte, was die Gesellschaft tut, fand keinen
+ * Weg, sie zu erreichen — kein Telefon, keine Adresse, keine Anfrage. Die
+ * Auftragsbeschreibung nennt beides ausdruecklich (§3), und es ist die Stelle,
+ * an der ein Besucher am ehesten bereit ist.
+ */
+test.describe('jede Gesellschaftsseite fuehrt zu ihrer Gesellschaft', () => {
+  for (const slug of ['reinigung', 'security', 'bau']) {
+    test(`/unternehmen/${slug}: Telefon, E-Mail und Angebot`, async ({ page }) => {
+      const antwort = await page.goto(`/unternehmen/${slug}`);
+      expect(antwort?.status()).toBe(200);
+
+      const block = page.locator('[data-cse="kontaktwege"]');
+      await expect(block).toBeVisible();
+      /*
+       * GENAU EINE Karte: wer auf der Seite von SSE Security steht, will SSE
+       * Security anrufen — nicht aus vier Nummern die richtige suchen.
+       */
+      await expect(block.locator('[data-cse="kontaktweg"]')).toHaveCount(1);
+      await expect(block.locator(`[data-slug="${slug}"]`)).toHaveCount(1);
+      await expect(block.locator('a[href^="tel:"]')).toBeVisible();
+      await expect(block.locator('[data-cse="kontakt-angebot"]'))
+        .toHaveAttribute('href', `/angebot/${slug}`);
+    });
+  }
+
+  test('`operations` fuehrt nicht ins Angebot — sie verkauft nichts', async ({ page }) => {
+    await page.goto('/unternehmen/operations');
+    const block = page.locator('[data-cse="kontaktwege"]');
+    await expect(block).toBeVisible();
+    await expect(block.locator('[data-cse="kontakt-angebot"]')).toHaveCount(0);
+  });
+});

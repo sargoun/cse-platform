@@ -57,6 +57,27 @@ export async function OeffentlicheSeite(
       {pfad === '/kontakt' && (
         <Kontaktwege bereiche={daten.bereiche} sprache={sprache} />
       )}
+      {/*
+        * **Die Profilseite einer Gesellschaft endete nach den Leistungen.**
+        *
+        * `/unternehmen/<slug>` traegt genau zwei Abschnitte: `hero` und
+        * `leistungen`. Wer dort gelesen hat, was die Gesellschaft tut, fand
+        * keinen Weg, sie zu erreichen — kein Telefon, keine Adresse, keine
+        * Angebotsanfrage. Die Auftragsbeschreibung nennt beides ausdruecklich
+        * (§3, „Contact" und „Request an offer"), und es ist die Stelle, an der
+        * ein Besucher am ehesten bereit ist.
+        *
+        * Gezeigt wird GENAU DIESE Gesellschaft, nicht alle vier: wer auf der
+        * Seite von SSE Security steht, will SSE Security anrufen.
+        */}
+      {(() => {
+        const slug = /^\/(?:en\/)?unternehmen\/([a-z-]+)$/u.exec(pfad)?.[1];
+        const eine = slug === undefined
+          ? [] : daten.bereiche.filter((b) => b.slug === slug);
+        return eine.length === 1
+          ? <Kontaktwege bereiche={eine} sprache={sprache} />
+          : null;
+      })()}
     </>
   );
 }
