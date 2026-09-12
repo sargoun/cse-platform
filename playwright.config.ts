@@ -73,6 +73,19 @@ export default defineConfig({
        * A fixture page with hard-coded copy would need none of this, and that
        * was the problem: it could keep every promise while the delivered page
        * broke them.
+       *
+       * **Wenn der Server ein Passwort verlangt, muss `DATABASE_URL` gesetzt
+       * sein** — die Vorgabe hier traegt keines, weil `scripts/test-db.sh`
+       * einen Server mit `--auth=trust` startet und CI einen Dienst-Container
+       * ohne Passwort reicht. Zeigt die Adresse auf einen VORHANDENEN Server
+       * mit Passwortpflicht, kommt die Anwendung nicht an die Datenbank, und
+       * dann antwortet JEDE oeffentliche Seite mit 500 — der Lauf meldet
+       * vierzig Barrierefreiheitsfehler, die keine sind.
+       *
+       * Die Bereitschaftsprobe faengt das NICHT: `/healthz` liest bewusst
+       * keine Zeile (das ist ihr Zweck), antwortet also 200, und Playwright
+       * startet zufrieden. Wer hier vierzig rote Routen sieht, prueft zuerst
+       * `curl localhost:3000/` — 500 heisst Datenbank, nicht Barrierefreiheit.
        */
       DATABASE_URL:
         process.env['DATABASE_URL']
