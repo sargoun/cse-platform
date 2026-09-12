@@ -123,7 +123,34 @@ async function seedKontenEinesBereichs(
   let buchungen = 0;
   let minuten = 0;
 
+  /**
+   * **Ein GESCHLOSSENER Monat wird uebersprungen, nicht gebucht.**
+   *
+   * Der Seed schliesst weiter unten einen Monat ab (EMP-04, Monatsabschluss
+   * mit Sperre). Beim ZWEITEN Lauf stand dieser Monat wieder in `monate`,
+   * `bucheFreigegebeneZeiten` fand ihn `gesperrt` und warf
+   * `MonatGesperrtFehler` — der ganze Seed brach ab, mitten in den Konten,
+   * mit einer Meldung, die wie ein Datenfehler aussieht und keiner ist.
+   *
+   * Das war kein theoretischer Fall: `pnpm db:seed` zweimal auf derselben
+   * Datenbank ist der normale Weg eines Entwicklers, und die Zusage „der Seed
+   * ist wiederholbar" steht seit PR 2 in der Beschreibung. Gemessen hatte es
+   * niemand — `e2e-db.sh` verwirft die Datenbank vorher, also kam der zweite
+   * Lauf nie vor.
+   *
+   * Das Ueberspringen ist die richtige Antwort und nicht ein Ausweichen: ein
+   * abgeschlossener Monat IST fertig. Ihn erneut zu buchen waere der Fehler,
+   * den die Sperre verhindert.
+   */
   for (const m of monate) {
+    const [zustand] = await sql<{ status: string | null }[]>`
+      select status::text as status
+        from stundenkonto
+       where mandant_id = ${mandantId}
+         and anstellung_id = ${m.anstellung_id}
+         and jahr = ${Number(m.jahr)} and monat = ${Number(m.monat)}`;
+    if (zustand?.status === 'gesperrt') continue;
+
     const ergebnis = await alsPortalSitzung(
       sql, mandantId, verantwortlich.id, async (kontext) => {
         // Die Sollzeit bleibt 0 — „nicht hinterlegt" (O-18). Ein Demowert

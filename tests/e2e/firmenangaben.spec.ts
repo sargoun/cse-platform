@@ -221,6 +221,18 @@ test.describe('die oeffentliche Kopfzeile fuehrt weiter', () => {
       await expect(knopf, `bei ${String(breite)}px kein Angebotsweg`).toBeVisible();
       await expect(knopf).toHaveAttribute('href', '/angebot');
     }
+
+    /*
+     * **Und die Seite dahinter gibt es wirklich.**
+     *
+     * Ein Verweis, der auf 404 fuehrt, ist schlechter als keiner: er
+     * verspricht den Weg, den er nicht hat. `/angebot` steht in KEINER
+     * `seite`-Zeile — es ist eine gebaute Seite, keine redaktionelle —, also
+     * prueft die axe-Runde ueber `OEFFENTLICHE_ROUTEN` sie auch nicht. Diese
+     * Zeile ist damit die einzige Stelle, an der jemand nachsieht.
+     */
+    const antwort = await page.goto('/angebot');
+    expect(antwort?.status(), '/angebot antwortet nicht').toBe(200);
   });
 
   test('das Telefon hat ein Menue, und darin stehen die vier Seiten', async ({ page }) => {
