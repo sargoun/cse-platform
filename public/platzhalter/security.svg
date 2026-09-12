@@ -33,9 +33,9 @@
 
   <!-- Nacht am Werkstor: Halle, Mastleuchte, Zaun, Schranke. -->
   <g fill="#1C1C21">
-    <rect x="90" y="520" width="900" height="490"/>
-    <path d="M 90 520 L 540 386 L 990 520 Z"/>
-    <rect x="1700" y="600" width="760" height="410"/>
+    <rect x="200" y="520" width="880" height="490"/>
+    <path d="M 200 520 L 640 386 L 1080 520 Z"/>
+    <rect x="1560" y="600" width="800" height="410"/>
   </g>
   <defs>
     <linearGradient id="buehne470" x1="0" y1="0" x2="0" y2="1">
@@ -49,13 +49,13 @@
   <rect x="0" y="1010" width="2560" height="430" fill="#0B0B0E"/>
 
   <g fill="#2F6BFF" opacity="0.16">
-    <rect x="180" y="640" width="66" height="118"/>
-    <rect x="298" y="640" width="66" height="118"/>
-    <rect x="416" y="640" width="66" height="118"/>
-    <rect x="534" y="640" width="66" height="118"/>
-    <rect x="652" y="640" width="66" height="118"/>
-    <rect x="770" y="640" width="66" height="118"/>
-    <rect x="888" y="640" width="66" height="118"/>
+    <rect x="280" y="640" width="66" height="118"/>
+    <rect x="398" y="640" width="66" height="118"/>
+    <rect x="516" y="640" width="66" height="118"/>
+    <rect x="634" y="640" width="66" height="118"/>
+    <rect x="752" y="640" width="66" height="118"/>
+    <rect x="870" y="640" width="66" height="118"/>
+    <rect x="988" y="640" width="66" height="118"/>
   </g>
   <!-- Der Lichtkegel: zwei flache Stufen, kein Verlauf. -->
   <path d="M 1290 250 L 900 1010 L 1680 1010 Z" fill="#2F6BFF" opacity="0.13"/>
@@ -180,23 +180,23 @@
   </g>
   <!-- Die Schranke, halb offen: eine Kontrolle, die stattfindet. -->
   <g fill="#0B0B0E">
-    <rect x="1900" y="850" width="36" height="160"/>
-    <rect x="1874" y="806" width="88" height="48" rx="10"/>
+    <rect x="1620" y="850" width="36" height="160"/>
+    <rect x="1594" y="806" width="88" height="48" rx="10"/>
   </g>
-  <g transform="rotate(-42 1918 818)">
-    <rect x="1918" y="806" width="540" height="22" rx="9" fill="#0B0B0E"/>
-    <rect x="1938" y="806" width="52" height="22" fill="#2F6BFF" opacity="0.75"/>
-    <rect x="2042" y="806" width="52" height="22" fill="#2F6BFF" opacity="0.75"/>
-    <rect x="2146" y="806" width="52" height="22" fill="#2F6BFF" opacity="0.75"/>
-    <rect x="2250" y="806" width="52" height="22" fill="#2F6BFF" opacity="0.75"/>
-    <rect x="2354" y="806" width="52" height="22" fill="#2F6BFF" opacity="0.75"/>
+  <g transform="rotate(-42 1638 818)">
+    <rect x="1638" y="806" width="470" height="22" rx="9" fill="#0B0B0E"/>
+    <rect x="1656" y="806" width="46" height="22" fill="#2F6BFF" opacity="0.75"/>
+    <rect x="1746" y="806" width="46" height="22" fill="#2F6BFF" opacity="0.75"/>
+    <rect x="1836" y="806" width="46" height="22" fill="#2F6BFF" opacity="0.75"/>
+    <rect x="1926" y="806" width="46" height="22" fill="#2F6BFF" opacity="0.75"/>
+    <rect x="2016" y="806" width="46" height="22" fill="#2F6BFF" opacity="0.75"/>
   </g>
   <g fill="#0B0B0E">
-    <circle cx="640" cy="702" r="25.2" fill="#0B0B0E"/>
-    <path d="M 594 737 L 686 737 L 696 870 L 584 870 Z" fill="#0B0B0E"/>
-    <rect x="588" y="863" width="38" height="147" fill="#0B0B0E"/>
-    <rect x="654" y="863" width="38" height="147" fill="#0B0B0E"/>
-    <rect x="682" y="744" width="32" height="119" fill="#0B0B0E" transform="rotate(18 640 765)"/>
+    <circle cx="950" cy="702" r="25.2" fill="#0B0B0E"/>
+    <path d="M 904 737 L 996 737 L 1006 870 L 894 870 Z" fill="#0B0B0E"/>
+    <rect x="898" y="863" width="38" height="147" fill="#0B0B0E"/>
+    <rect x="964" y="863" width="38" height="147" fill="#0B0B0E"/>
+    <rect x="992" y="744" width="32" height="119" fill="#0B0B0E" transform="rotate(18 950 765)"/>
   </g>
   <rect width="2560" height="1440" fill="url(#overlay)"/>
 

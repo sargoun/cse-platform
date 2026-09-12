@@ -244,10 +244,10 @@
   <!-- Die vier Gesellschaften als vier Baender, in der Reihenfolge von -->
   <!-- CLAUDE.md. Sie stehen UEBER der Textzeile, nicht darin. -->
   <g>
-    <rect x="128" y="1078" width="220" height="10" fill="#E30613"/>
-    <rect x="428" y="1078" width="220" height="10" fill="#2F6BFF"/>
-    <rect x="728" y="1078" width="220" height="10" fill="#F59E0B"/>
-    <rect x="1028" y="1078" width="220" height="10" fill="#8B5CF6"/>
+    <rect x="790" y="1078" width="180" height="10" fill="#E30613"/>
+    <rect x="1050" y="1078" width="180" height="10" fill="#2F6BFF"/>
+    <rect x="1310" y="1078" width="180" height="10" fill="#F59E0B"/>
+    <rect x="1570" y="1078" width="180" height="10" fill="#8B5CF6"/>
   </g>
   <rect width="2560" height="1440" fill="url(#overlay)"/>
 

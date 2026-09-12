@@ -120,6 +120,21 @@ def figur(x, boden, hoehe, farbe, helm=None, blick=1):
 # dunkler als der Streifen, und mehr Raumwirkung braucht eine Zeichnung nicht.
 BODEN = 1010
 
+# **Der Mittelstreifen — und warum jedes Motiv darin stehen muss.**
+#
+# Die Seite legt diese Tafeln mit `object-cover` in einen Rahmen: 21:9 am
+# Schreibtisch, **4:5 am Telefon** (DESIGN §4.5). 4:5 auf 2560 Breite heisst,
+# dass die volle Hoehe bleibt und waagerecht auf 1152 px beschnitten wird —
+# sichtbar ist dann nur x 704 bis 1856. Der erste Entwurf stellte die
+# Bauarbeiter auf x 470 und 660 und den Kran auf 1940: am Telefon, wo die
+# meisten Menschen diese Seite sehen, war von der Baustelle ein Stueck
+# Geruest zu sehen und sonst nichts.
+#
+# Alles, was das Motiv AUSMACHT, liegt darum zwischen diesen beiden Marken.
+# Was ausserhalb steht, darf fehlen, ohne dass das Bild seine Aussage
+# verliert — Kulisse, kein Motiv.
+MITTE_LINKS, MITTE_RECHTS = 704, 1856
+
 
 def buehne(hue, hoch=520):
     """Der helle Streifen — als VERLAUF, nicht als Kante.
@@ -150,52 +165,54 @@ def bau():
     a = t.append
     a('  <!-- Ferne: der Bestand, zwischen dem gebaut wird. -->')
     a(f'  <g fill="{FERN}">')
-    for x, w, y in [(0, 300, 640), (330, 220, 720), (2080, 260, 660), (2360, 200, 730)]:
+    for x, w, y in [(0, 340, 640), (340, 300, 720), (2060, 280, 660), (2340, 220, 730)]:
         a(f'    <rect x="{x}" y="{y}" width="{w}" height="{BODEN - y}"/>')
     a('  </g>')
     a(buehne(hue, 430))
     a('  <!-- Mitte: Rohbau im Geruest. Das Geruest IST das Motiv. -->')
-    a(f'  <rect x="760" y="300" width="800" height="710" fill="{MITTE}"/>')
+    a(f'  <rect x="700" y="300" width="760" height="710" fill="{MITTE}"/>')
     a(f'  <g stroke="{RAND_STARK}" stroke-width="7" fill="none">')
     for y in range(360, BODEN + 1, 118):
-        a(f'    <line x1="742" y1="{y}" x2="1578" y2="{y}"/>')
-    for x in range(760, 1561, 114):
+        a(f'    <line x1="682" y1="{y}" x2="1478" y2="{y}"/>')
+    for x in range(700, 1461, 108):
         a(f'    <line x1="{x}" y1="300" x2="{x}" y2="{BODEN}"/>')
     a('  </g>')
     a(f'  <g stroke="{RAND}" stroke-width="4" opacity="0.8">')
     for y in range(478, BODEN + 1, 236):
-        a(f'    <line x1="760" y1="{y}" x2="874" y2="{y - 118}"/>')
-        a(f'    <line x1="1446" y1="{y}" x2="1560" y2="{y - 118}"/>')
+        a(f'    <line x1="700" y1="{y}" x2="808" y2="{y - 118}"/>')
+        a(f'    <line x1="1352" y1="{y}" x2="1460" y2="{y - 118}"/>')
     a('  </g>')
-    a(f'  <rect x="742" y="294" width="836" height="8" fill="{hue}" opacity="0.9"/>')
+    a(f'  <rect x="682" y="294" width="796" height="8" fill="{hue}" opacity="0.9"/>')
     a(f'  <g fill="{MITTE}" opacity="0.7">')
     for i, y in enumerate(range(370, 950, 118)):
-        a(f'    <rect x="{790 + (i % 2) * 230}" y="{y}" width="340" height="94"/>')
+        a(f'    <rect x="{730 + (i % 2) * 220}" y="{y}" width="320" height="94"/>')
     a('  </g>')
 
     a('  <!-- Der Kran: das eine Element, an dem jeder eine Baustelle erkennt. -->')
     a(f'  <g fill="{NAH}">')
-    a(f'    <rect x="1940" y="210" width="30" height="{BODEN - 210}"/>')
-    a('    <rect x="1500" y="196" width="900" height="24"/>')
-    a('    <rect x="1918" y="130" width="74" height="72"/>')
+    a(f'    <rect x="1700" y="210" width="30" height="{BODEN - 210}"/>')
+    a('    <rect x="1280" y="196" width="880" height="24"/>')
+    a('    <rect x="1678" y="130" width="74" height="72"/>')
     a('  </g>')
     a(f'  <g stroke="{NAH}" stroke-width="9" fill="none">')
-    a('    <path d="M 1955 130 L 1560 204"/>')
-    a('    <path d="M 1955 130 L 2370 204"/>')
+    a('    <path d="M 1715 130 L 1330 204"/>')
+    a('    <path d="M 1715 130 L 2130 204"/>')
     a('  </g>')
-    a(f'  <line x1="1700" y1="220" x2="1700" y2="690" stroke="{NAH}" stroke-width="5"/>')
-    a(f'  <rect x="1654" y="690" width="92" height="70" fill="{NAH}"/>')
+    a(f'  <line x1="1470" y1="220" x2="1470" y2="690" stroke="{NAH}" stroke-width="5"/>')
+    a(f'  <rect x="1424" y="690" width="92" height="70" fill="{NAH}"/>')
 
     a('  <!-- Vorn: Paletten und zwei Silhouetten bei der Arbeit. -->')
     a(f'  <g fill="{NAH}">')
     for i in range(4):
-        a(f'    <rect x="{1810 + i * 8}" y="{BODEN - 34 - i * 34}" width="300" height="30"/>')
+        a(f'    <rect x="{1520 + i * 8}" y="{BODEN - 34 - i * 34}" width="280" height="30"/>')
     a('  </g>')
     a(f'  <g fill="{NAH}">')
-    a('    ' + figur(470, BODEN, 350, NAH, helm=hue, blick=1))
-    a('    ' + figur(660, BODEN, 322, NAH, helm=hue, blick=-1))
+    # Die beiden Figuren stehen VOR dem Geruest und im Mittelstreifen: sie
+    # sind das Motiv, nicht die Kulisse.
+    a('    ' + figur(900, BODEN, 350, NAH, helm=hue, blick=1))
+    a('    ' + figur(1120, BODEN, 322, NAH, helm=hue, blick=-1))
     a('  </g>')
-    a(f'  <rect x="672" y="{BODEN - 330}" width="9" height="330" fill="{NAH}"/>')
+    a(f'  <rect x="1132" y="{BODEN - 330}" width="9" height="330" fill="{NAH}"/>')
     a(fuss(hue, 'REALTIME SERVICE', 'Hier steht spaeter eine Aufnahme von der Baustelle.'))
     return '\n'.join(t)
 
@@ -238,16 +255,16 @@ def reinigung():
     a('  </g>')
     a('  <!-- Vorn: eine Figur mit Reinigungswagen, gross genug zum Erkennen. -->')
     a(f'  <g fill="{NAH}">')
-    a('    <rect x="1690" y="700" width="250" height="22" rx="9"/>')
-    a('    <rect x="1696" y="720" width="16" height="250"/>')
-    a('    <rect x="1918" y="720" width="16" height="250"/>')
-    a('    <rect x="1690" y="856" width="250" height="18" rx="7"/>')
-    a('    <rect x="1732" y="874" width="76" height="98" rx="8"/>')
-    a('    <rect x="1846" y="876" width="60" height="96" rx="6"/>')
-    a('    <circle cx="1712" cy="994" r="24"/>')
-    a('    <circle cx="1918" cy="994" r="24"/>')
-    a('    <rect x="1852" y="520" width="13" height="184"/>')
-    a('    ' + figur(1520, 1010, 380, NAH, blick=1))
+    a('    <rect x="1420" y="700" width="250" height="22" rx="9"/>')
+    a('    <rect x="1426" y="720" width="16" height="250"/>')
+    a('    <rect x="1648" y="720" width="16" height="250"/>')
+    a('    <rect x="1420" y="856" width="250" height="18" rx="7"/>')
+    a('    <rect x="1462" y="874" width="76" height="98" rx="8"/>')
+    a('    <rect x="1576" y="876" width="60" height="96" rx="6"/>')
+    a('    <circle cx="1442" cy="994" r="24"/>')
+    a('    <circle cx="1648" cy="994" r="24"/>')
+    a('    <rect x="1582" y="520" width="13" height="184"/>')
+    a('    ' + figur(1180, 1010, 380, NAH, blick=1))
     a('  </g>')
     a(fuss(hue, 'CSE DIENSTLEISTUNG',
            'Hier steht spaeter eine Aufnahme aus der Unterhaltsreinigung.'))
@@ -262,13 +279,13 @@ def security():
     a = t.append
     a('  <!-- Nacht am Werkstor: Halle, Mastleuchte, Zaun, Schranke. -->')
     a(f'  <g fill="{FERN}">')
-    a(f'    <rect x="90" y="520" width="900" height="{BODEN - 520}"/>')
-    a('    <path d="M 90 520 L 540 386 L 990 520 Z"/>')
-    a(f'    <rect x="1700" y="600" width="760" height="{BODEN - 600}"/>')
+    a(f'    <rect x="200" y="520" width="880" height="{BODEN - 520}"/>')
+    a('    <path d="M 200 520 L 640 386 L 1080 520 Z"/>')
+    a(f'    <rect x="1560" y="600" width="800" height="{BODEN - 600}"/>')
     a('  </g>')
     a(buehne(hue, 470))
     a(f'  <g fill="{hue}" opacity="0.16">')
-    for c in range(180, 900, 118):
+    for c in range(280, 1000, 118):
         a(f'    <rect x="{c}" y="640" width="66" height="118"/>')
     a('  </g>')
     a('  <!-- Der Lichtkegel: zwei flache Stufen, kein Verlauf. -->')
@@ -292,17 +309,17 @@ def security():
     a('  </g>')
     a('  <!-- Die Schranke, halb offen: eine Kontrolle, die stattfindet. -->')
     a(f'  <g fill="{NAH}">')
-    a(f'    <rect x="1900" y="850" width="36" height="{BODEN - 850}"/>')
-    a('    <rect x="1874" y="806" width="88" height="48" rx="10"/>')
+    a(f'    <rect x="1620" y="850" width="36" height="{BODEN - 850}"/>')
+    a('    <rect x="1594" y="806" width="88" height="48" rx="10"/>')
     a('  </g>')
-    a('  <g transform="rotate(-42 1918 818)">')
-    a(f'    <rect x="1918" y="806" width="540" height="22" rx="9" fill="{NAH}"/>')
+    a('  <g transform="rotate(-42 1638 818)">')
+    a(f'    <rect x="1638" y="806" width="470" height="22" rx="9" fill="{NAH}"/>')
     for i in range(5):
-        a(f'    <rect x="{1938 + i * 104}" y="806" width="52" height="22" fill="{hue}" '
+        a(f'    <rect x="{1656 + i * 90}" y="806" width="46" height="22" fill="{hue}" '
           f'opacity="0.75"/>')
     a('  </g>')
     a(f'  <g fill="{NAH}">')
-    a('    ' + figur(640, BODEN, 350, NAH, blick=1))
+    a('    ' + figur(950, BODEN, 350, NAH, blick=1))
     a('  </g>')
     a(fuss(hue, 'SSE SECURITY', 'Hier steht spaeter eine Aufnahme aus dem Objektschutz.'))
     return '\n'.join(t)
@@ -317,31 +334,31 @@ def operations():
     a(buehne(hue, 560))
     a('  <!-- Die Leitstelle: drei Wandtafeln, Tisch, eine Person davor. -->')
     a(f'  <g fill="{MITTE}" stroke="{RAND_STARK}" stroke-width="4">')
-    for x, y, w, h in [(250, 250, 620, 380), (940, 200, 660, 430), (1670, 270, 600, 360)]:
+    for x, y, w, h in [(230, 250, 560, 380), (860, 200, 700, 430), (1630, 270, 620, 360)]:
         a(f'    <rect x="{x}" y="{y}" width="{w}" height="{h}" rx="14"/>')
     a('  </g>')
     a('  <!-- Was auf den Tafeln steht: Balken und eine Linie. Keine Zahl, die -->')
     a('  <!-- jemand fuer eine Auskunft halten koennte (Inv. 6). -->')
     a(f'  <g fill="{hue}" opacity="0.65">')
     for i, hbar in enumerate([120, 200, 90, 262, 160, 224, 132]):
-        a(f'    <rect x="{306 + i * 78}" y="{578 - hbar}" width="46" height="{hbar}" rx="6"/>')
+        a(f'    <rect x="{286 + i * 70}" y="{578 - hbar}" width="42" height="{hbar}" rx="6"/>')
     a('  </g>')
-    a(f'  <polyline points="990,548 1110,462 1230,506 1350,372 1450,428 1548,306" '
+    a(f'  <polyline points="910,548 1030,462 1150,506 1270,372 1390,428 1510,306" '
       f'fill="none" stroke="{hue}" stroke-width="9" opacity="0.85" '
       f'stroke-linecap="round" stroke-linejoin="round"/>')
     a(f'  <g fill="{hue}" opacity="0.25">')
     for k, r in enumerate(range(330, 580, 52)):
-        a(f'    <rect x="1726" y="{r}" width="{440 if k % 2 == 0 else 310}" height="20" rx="10"/>')
+        a(f'    <rect x="1686" y="{r}" width="{450 if k % 2 == 0 else 320}" height="20" rx="10"/>')
     a('  </g>')
-    a(f'  <rect x="940" y="192" width="660" height="10" fill="{hue}" opacity="0.9"/>')
+    a(f'  <rect x="860" y="192" width="700" height="10" fill="{hue}" opacity="0.9"/>')
     a('  <!-- Tisch und Figur, beide VOR den Tafeln. -->')
     a(f'  <g fill="{NAH}">')
-    a(f'    <rect x="820" y="884" width="900" height="{BODEN - 884}" rx="10"/>')
-    a('    <rect x="1010" y="820" width="240" height="64" rx="10"/>')
-    a('    <rect x="1104" y="792" width="52" height="30"/>')
+    a(f'    <rect x="780" y="884" width="820" height="{BODEN - 884}" rx="10"/>')
+    a('    <rect x="940" y="820" width="240" height="64" rx="10"/>')
+    a('    <rect x="1034" y="792" width="52" height="30"/>')
     # Die Figur steht NEBEN dem Tisch auf dem Boden — auf der Tischkante
     # stehend sah sie aus, als schwebe sie.
-    a('    ' + figur(1830, BODEN, 320, NAH, blick=-1))
+    a('    ' + figur(1560, BODEN, 320, NAH, blick=-1))
     a('  </g>')
     a(fuss(hue, 'CSE OPERATIONS', 'Hier steht spaeter eine Aufnahme aus dem Betrieb.'))
     return '\n'.join(t)
@@ -382,7 +399,7 @@ def gruppe():
     a('  <!-- CLAUDE.md. Sie stehen UEBER der Textzeile, nicht darin. -->')
     a('  <g>')
     for i, (_, farbe) in enumerate(HUE.items()):
-        a(f'    <rect x="{128 + i * 300}" y="1078" width="220" height="10" fill="{farbe}"/>')
+        a(f'    <rect x="{790 + i * 260}" y="1078" width="180" height="10" fill="{farbe}"/>')
     a('  </g>')
     a(fuss(ROT, 'CSE GRUPPE', 'Hier steht spaeter eine Aufnahme der Gruppe.'))
     return '\n'.join(t)
@@ -397,18 +414,18 @@ def team():
     a('  <!-- zwar vor etwas Hellerem: sonst ist eine dunkle Silhouette auf -->')
     a('  <!-- dunklem Grund keine Silhouette, sondern ein Fleck. -->')
     a(f'  <g fill="{FLAECHE3}">')
-    for i in range(9):
-        a(f'    <rect x="{104 + i * 280}" y="330" width="176" height="{BODEN - 330}" rx="6"/>')
+    for i in range(15):
+        a(f'    <rect x="{60 + i * 176}" y="330" width="112" height="{BODEN - 330}" rx="6"/>')
     a('  </g>')
     a(f'  <g fill="{ROT}" opacity="0.07">')
-    for i in range(9):
-        a(f'    <rect x="{104 + i * 280}" y="330" width="176" height="{BODEN - 330}" rx="6"/>')
+    for i in range(15):
+        a(f'    <rect x="{60 + i * 176}" y="330" width="112" height="{BODEN - 330}" rx="6"/>')
     a('  </g>')
     a('  <!-- Sieben Silhouetten, unterschiedlich gross. Kein Gesicht (§4.2): -->')
     a('  <!-- die Reihe zeigt eine Belegschaft, sie behauptet keine Person. -->')
     a(f'  <g fill="{INK}">')
-    for i, (x, hoehe) in enumerate([(500, 350), (760, 384), (1020, 362), (1280, 400),
-                                    (1540, 368), (1800, 390), (2060, 356)]):
+    for i, (x, hoehe) in enumerate([(790, 350), (960, 384), (1130, 362), (1300, 400),
+                                    (1470, 368), (1640, 390), (1810, 356)]):
         a('    ' + figur(x, BODEN, hoehe, INK, blick=1 if i % 2 else -1))
     a('  </g>')
     a(fuss(ROT, 'CSE GRUPPE', 'Hier steht spaeter eine Aufnahme des Teams.'))
