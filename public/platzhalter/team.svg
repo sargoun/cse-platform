@@ -1,10 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2560 1440" width="2560" height="1440"
-     role="img" aria-label="Platzhalter — hier steht spaeter eine Aufnahme des Teams">
+     role="img" aria-label="Motivtafel — hier steht spaeter eine Aufnahme des Teams.">
   <!--
-    Platzhalter, kein Bild. DESIGN §4.1 verlangt echte Aufnahmen der eigenen
-    Crews und Objekte; bis sie da sind, behauptet diese Flaeche NICHTS: kein
-    Objekt, keine Szene, keine Menschen (§4.2). Sie reserviert nur den Platz,
-    in den Farben aus §1, und nennt das Motiv, das hier hingehoert. O-13.
+    Motivtafel, kein Bild (DESIGN §4.1a, D-376). Sie ist erkennbar eine
+    Zeichnung: flache Flaechen, keine Fototiefe, Figuren als Silhouette ohne
+    Gesicht (§4.2). Sie haelt den Platz sichtbar frei und behauptet nichts.
+    Liegt eine Datei unter public/bilder/team.*, gewinnt die. O-13.
+    Erzeugt von scripts/motivtafeln.py — nicht von Hand aendern.
   -->
   <defs>
     <linearGradient id="grund" x1="0" y1="0" x2="0" y2="1">
@@ -12,14 +13,15 @@
       <stop offset="0.55" stop-color="#17171B"/>
       <stop offset="1" stop-color="#101013"/>
     </linearGradient>
-    <radialGradient id="licht" cx="0.5" cy="0.18" r="0.85">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.055"/>
-      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0.018"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    <radialGradient id="schein" cx="0.5" cy="0.22" r="0.78">
+      <stop offset="0" stop-color="#E30613" stop-opacity="0.16"/>
+      <stop offset="0.55" stop-color="#E30613" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#E30613" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="overlay" x1="0" y1="0" x2="0" y2="1">
-      <!-- derselbe Verlauf wie `--bild-overlay` in §4.4, hier ausgeschrieben,
-           weil eine SVG-Datei keine CSS-Variablen des Dokuments sieht. -->
+      <!-- derselbe Verlauf wie `--bild-overlay` in DESIGN §4.4, hier
+           ausgeschrieben: eine SVG-Datei sieht die CSS-Variablen des
+           Dokuments nicht. -->
       <stop offset="0" stop-color="#08080A" stop-opacity="0.15"/>
       <stop offset="0.55" stop-color="#08080A" stop-opacity="0.55"/>
       <stop offset="1" stop-color="#08080A" stop-opacity="0.92"/>
@@ -27,47 +29,92 @@
   </defs>
 
   <rect width="2560" height="1440" fill="url(#grund)"/>
-  <g stroke="#26262C" stroke-width="1.5" opacity="0.5" fill="none">
-    <line x1="-1280" y1="1440" x2="1280" y2="893"/>
-    <line x1="-996" y1="1440" x2="1280" y2="893"/>
-    <line x1="-711" y1="1440" x2="1280" y2="893"/>
-    <line x1="-427" y1="1440" x2="1280" y2="893"/>
-    <line x1="-142" y1="1440" x2="1280" y2="893"/>
-    <line x1="142" y1="1440" x2="1280" y2="893"/>
-    <line x1="427" y1="1440" x2="1280" y2="893"/>
-    <line x1="711" y1="1440" x2="1280" y2="893"/>
-    <line x1="996" y1="1440" x2="1280" y2="893"/>
-    <line x1="1280" y1="1440" x2="1280" y2="893"/>
-    <line x1="1564" y1="1440" x2="1280" y2="893"/>
-    <line x1="1849" y1="1440" x2="1280" y2="893"/>
-    <line x1="2133" y1="1440" x2="1280" y2="893"/>
-    <line x1="2418" y1="1440" x2="1280" y2="893"/>
-    <line x1="2702" y1="1440" x2="1280" y2="893"/>
-    <line x1="2987" y1="1440" x2="1280" y2="893"/>
-    <line x1="3271" y1="1440" x2="1280" y2="893"/>
-    <line x1="3556" y1="1440" x2="1280" y2="893"/>
-    <line x1="3840" y1="1440" x2="1280" y2="893"/>
-    <line x1="0" y1="898" x2="2560" y2="898"/>
-    <line x1="0" y1="916" x2="2560" y2="916"/>
-    <line x1="0" y1="947" x2="2560" y2="947"/>
-    <line x1="0" y1="992" x2="2560" y2="992"/>
-    <line x1="0" y1="1052" x2="2560" y2="1052"/>
-    <line x1="0" y1="1126" x2="2560" y2="1126"/>
-    <line x1="0" y1="1216" x2="2560" y2="1216"/>
-    <line x1="0" y1="1320" x2="2560" y2="1320"/>
+  <rect width="2560" height="1440" fill="url(#schein)"/>
+
+  <defs>
+    <linearGradient id="buehne400" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E30613" stop-opacity="0"/>
+      <stop offset="0.62" stop-color="#E30613" stop-opacity="0.085"/>
+      <stop offset="1" stop-color="#E30613" stop-opacity="0.13"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="400" width="2560" height="610" fill="url(#buehne400)"/>
+  <rect x="0" y="1007" width="2560" height="3" fill="#E30613" opacity="0.55"/>
+  <rect x="0" y="1010" width="2560" height="430" fill="#0B0B0E"/>
+
+  <!-- Eine Wand aus Lamellen, damit die Reihe VOR etwas steht — und -->
+  <!-- zwar vor etwas Hellerem: sonst ist eine dunkle Silhouette auf -->
+  <!-- dunklem Grund keine Silhouette, sondern ein Fleck. -->
+  <g fill="#1F1F24">
+    <rect x="104" y="330" width="176" height="680" rx="6"/>
+    <rect x="384" y="330" width="176" height="680" rx="6"/>
+    <rect x="664" y="330" width="176" height="680" rx="6"/>
+    <rect x="944" y="330" width="176" height="680" rx="6"/>
+    <rect x="1224" y="330" width="176" height="680" rx="6"/>
+    <rect x="1504" y="330" width="176" height="680" rx="6"/>
+    <rect x="1784" y="330" width="176" height="680" rx="6"/>
+    <rect x="2064" y="330" width="176" height="680" rx="6"/>
+    <rect x="2344" y="330" width="176" height="680" rx="6"/>
   </g>
-  <rect width="2560" height="1440" fill="url(#licht)"/>
+  <g fill="#E30613" opacity="0.07">
+    <rect x="104" y="330" width="176" height="680" rx="6"/>
+    <rect x="384" y="330" width="176" height="680" rx="6"/>
+    <rect x="664" y="330" width="176" height="680" rx="6"/>
+    <rect x="944" y="330" width="176" height="680" rx="6"/>
+    <rect x="1224" y="330" width="176" height="680" rx="6"/>
+    <rect x="1504" y="330" width="176" height="680" rx="6"/>
+    <rect x="1784" y="330" width="176" height="680" rx="6"/>
+    <rect x="2064" y="330" width="176" height="680" rx="6"/>
+    <rect x="2344" y="330" width="176" height="680" rx="6"/>
+  </g>
+  <!-- Sieben Silhouetten, unterschiedlich gross. Kein Gesicht (§4.2): -->
+  <!-- die Reihe zeigt eine Belegschaft, sie behauptet keine Person. -->
+  <g fill="#08080A">
+    <circle cx="500" cy="702" r="25.2" fill="#08080A"/>
+    <path d="M 454 737 L 546 737 L 556 870 L 444 870 Z" fill="#08080A"/>
+    <rect x="448" y="863" width="38" height="147" fill="#08080A"/>
+    <rect x="514" y="863" width="38" height="147" fill="#08080A"/>
+    <rect x="458" y="744" width="32" height="119" fill="#08080A" transform="rotate(-18 500 765)"/>
+    <circle cx="760" cy="672" r="27.6" fill="#08080A"/>
+    <path d="M 710 710 L 810 710 L 821 856 L 699 856 Z" fill="#08080A"/>
+    <rect x="702" y="849" width="42" height="161" fill="#08080A"/>
+    <rect x="775" y="849" width="42" height="161" fill="#08080A"/>
+    <rect x="806" y="718" width="35" height="131" fill="#08080A" transform="rotate(18 760 741)"/>
+    <circle cx="1020" cy="691" r="26.1" fill="#08080A"/>
+    <path d="M 973 728 L 1067 728 L 1078 865 L 962 865 Z" fill="#08080A"/>
+    <rect x="966" y="858" width="40" height="152" fill="#08080A"/>
+    <rect x="1034" y="858" width="40" height="152" fill="#08080A"/>
+    <rect x="977" y="735" width="33" height="123" fill="#08080A" transform="rotate(-18 1020 757)"/>
+    <circle cx="1280" cy="658" r="28.8" fill="#08080A"/>
+    <path d="M 1228 698 L 1332 698 L 1344 850 L 1216 850 Z" fill="#08080A"/>
+    <rect x="1220" y="842" width="44" height="168" fill="#08080A"/>
+    <rect x="1296" y="842" width="44" height="168" fill="#08080A"/>
+    <rect x="1328" y="706" width="36" height="136" fill="#08080A" transform="rotate(18 1280 730)"/>
+    <circle cx="1540" cy="686" r="26.5" fill="#08080A"/>
+    <path d="M 1492 723 L 1588 723 L 1599 863 L 1481 863 Z" fill="#08080A"/>
+    <rect x="1485" y="855" width="40" height="155" fill="#08080A"/>
+    <rect x="1555" y="855" width="40" height="155" fill="#08080A"/>
+    <rect x="1496" y="730" width="33" height="125" fill="#08080A" transform="rotate(-18 1540 752)"/>
+    <circle cx="1800" cy="667" r="28.1" fill="#08080A"/>
+    <path d="M 1749 706 L 1851 706 L 1862 854 L 1738 854 Z" fill="#08080A"/>
+    <rect x="1742" y="846" width="43" height="164" fill="#08080A"/>
+    <rect x="1816" y="846" width="43" height="164" fill="#08080A"/>
+    <rect x="1847" y="714" width="35" height="133" fill="#08080A" transform="rotate(18 1800 737)"/>
+    <circle cx="2060" cy="697" r="25.6" fill="#08080A"/>
+    <path d="M 2014 732 L 2106 732 L 2117 868 L 2003 868 Z" fill="#08080A"/>
+    <rect x="2007" y="860" width="39" height="150" fill="#08080A"/>
+    <rect x="2074" y="860" width="39" height="150" fill="#08080A"/>
+    <rect x="2017" y="739" width="32" height="121" fill="#08080A" transform="rotate(-18 2060 761)"/>
+  </g>
   <rect width="2560" height="1440" fill="url(#overlay)"/>
 
-  <!-- Die Akzentlinie: drei Pixel, die Gesellschaft, sonst nichts. -->
-  <rect x="128" y="1204" width="112" height="6" fill="#8B8B95"/>
+  <!-- Die Akzentlinie: sechs Pixel, die Gesellschaft, sonst nichts. -->
+  <rect x="128" y="1204" width="112" height="6" fill="#E30613"/>
   <text x="128" y="1280" fill="#FAFAFA"
         font-family="Inter, system-ui, sans-serif" font-size="46" font-weight="600"
-        letter-spacing="4">TEAM</text>
+        letter-spacing="4">CSE GRUPPE</text>
   <text x="128" y="1336" fill="#8B8B95"
-        font-family="Inter, system-ui, sans-serif" font-size="30" font-weight="400">
-    Hier steht spaeter eine Aufnahme des Teams.
-  </text>
+        font-family="Inter, system-ui, sans-serif" font-size="30" font-weight="400">Hier steht spaeter eine Aufnahme des Teams.</text>
   <text x="2432" y="1336" fill="#8B8B95" text-anchor="end"
         font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="26"
         letter-spacing="3">PLATZHALTER · O-13</text>

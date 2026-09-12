@@ -1,10 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2560 1440" width="2560" height="1440"
-     role="img" aria-label="Platzhalter — hier steht spaeter eine Aufnahme des Objekts">
+     role="img" aria-label="Platzhalter — hier steht spaeter eine Aufnahme des Objekts.">
   <!--
-    Platzhalter, kein Bild. DESIGN §4.1 verlangt echte Aufnahmen der eigenen
-    Crews und Objekte; bis sie da sind, behauptet diese Flaeche NICHTS: kein
-    Objekt, keine Szene, keine Menschen (§4.2). Sie reserviert nur den Platz,
-    in den Farben aus §1, und nennt das Motiv, das hier hingehoert. O-13.
+    Motivtafel, kein Bild (DESIGN §4.1a, D-376). Sie ist erkennbar eine
+    Zeichnung: flache Flaechen, keine Fototiefe, Figuren als Silhouette ohne
+    Gesicht (§4.2). Sie haelt den Platz sichtbar frei und behauptet nichts.
+    Liegt eine Datei unter public/bilder/objekt.*, gewinnt die. O-13.
+    Erzeugt von scripts/motivtafeln.py — nicht von Hand aendern.
   -->
   <defs>
     <linearGradient id="grund" x1="0" y1="0" x2="0" y2="1">
@@ -12,14 +13,15 @@
       <stop offset="0.55" stop-color="#17171B"/>
       <stop offset="1" stop-color="#101013"/>
     </linearGradient>
-    <radialGradient id="licht" cx="0.5" cy="0.18" r="0.85">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.055"/>
-      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0.018"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    <radialGradient id="schein" cx="0.5" cy="0.22" r="0.78">
+      <stop offset="0" stop-color="#E30613" stop-opacity="0.16"/>
+      <stop offset="0.55" stop-color="#E30613" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#E30613" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="overlay" x1="0" y1="0" x2="0" y2="1">
-      <!-- derselbe Verlauf wie `--bild-overlay` in §4.4, hier ausgeschrieben,
-           weil eine SVG-Datei keine CSS-Variablen des Dokuments sieht. -->
+      <!-- derselbe Verlauf wie `--bild-overlay` in DESIGN §4.4, hier
+           ausgeschrieben: eine SVG-Datei sieht die CSS-Variablen des
+           Dokuments nicht. -->
       <stop offset="0" stop-color="#08080A" stop-opacity="0.15"/>
       <stop offset="0.55" stop-color="#08080A" stop-opacity="0.55"/>
       <stop offset="1" stop-color="#08080A" stop-opacity="0.92"/>
@@ -27,26 +29,28 @@
   </defs>
 
   <rect width="2560" height="1440" fill="url(#grund)"/>
+  <rect width="2560" height="1440" fill="url(#schein)"/>
+
   <g stroke="#26262C" stroke-width="1.5" opacity="0.5" fill="none">
+    <line x1="-2416" y1="1440" x2="1280" y2="893"/>
+    <line x1="-2132" y1="1440" x2="1280" y2="893"/>
+    <line x1="-1848" y1="1440" x2="1280" y2="893"/>
+    <line x1="-1564" y1="1440" x2="1280" y2="893"/>
     <line x1="-1280" y1="1440" x2="1280" y2="893"/>
     <line x1="-996" y1="1440" x2="1280" y2="893"/>
-    <line x1="-711" y1="1440" x2="1280" y2="893"/>
-    <line x1="-427" y1="1440" x2="1280" y2="893"/>
-    <line x1="-142" y1="1440" x2="1280" y2="893"/>
-    <line x1="142" y1="1440" x2="1280" y2="893"/>
-    <line x1="427" y1="1440" x2="1280" y2="893"/>
-    <line x1="711" y1="1440" x2="1280" y2="893"/>
-    <line x1="996" y1="1440" x2="1280" y2="893"/>
-    <line x1="1280" y1="1440" x2="1280" y2="893"/>
-    <line x1="1564" y1="1440" x2="1280" y2="893"/>
-    <line x1="1849" y1="1440" x2="1280" y2="893"/>
-    <line x1="2133" y1="1440" x2="1280" y2="893"/>
-    <line x1="2418" y1="1440" x2="1280" y2="893"/>
-    <line x1="2702" y1="1440" x2="1280" y2="893"/>
-    <line x1="2987" y1="1440" x2="1280" y2="893"/>
-    <line x1="3271" y1="1440" x2="1280" y2="893"/>
-    <line x1="3556" y1="1440" x2="1280" y2="893"/>
-    <line x1="3840" y1="1440" x2="1280" y2="893"/>
+    <line x1="-712" y1="1440" x2="1280" y2="893"/>
+    <line x1="-428" y1="1440" x2="1280" y2="893"/>
+    <line x1="-144" y1="1440" x2="1280" y2="893"/>
+    <line x1="140" y1="1440" x2="1280" y2="893"/>
+    <line x1="424" y1="1440" x2="1280" y2="893"/>
+    <line x1="708" y1="1440" x2="1280" y2="893"/>
+    <line x1="992" y1="1440" x2="1280" y2="893"/>
+    <line x1="1276" y1="1440" x2="1280" y2="893"/>
+    <line x1="1560" y1="1440" x2="1280" y2="893"/>
+    <line x1="1844" y1="1440" x2="1280" y2="893"/>
+    <line x1="2128" y1="1440" x2="1280" y2="893"/>
+    <line x1="2412" y1="1440" x2="1280" y2="893"/>
+    <line x1="2696" y1="1440" x2="1280" y2="893"/>
     <line x1="0" y1="898" x2="2560" y2="898"/>
     <line x1="0" y1="916" x2="2560" y2="916"/>
     <line x1="0" y1="947" x2="2560" y2="947"/>
@@ -56,18 +60,15 @@
     <line x1="0" y1="1216" x2="2560" y2="1216"/>
     <line x1="0" y1="1320" x2="2560" y2="1320"/>
   </g>
-  <rect width="2560" height="1440" fill="url(#licht)"/>
   <rect width="2560" height="1440" fill="url(#overlay)"/>
 
-  <!-- Die Akzentlinie: drei Pixel, die Gesellschaft, sonst nichts. -->
-  <rect x="128" y="1204" width="112" height="6" fill="#8B8B95"/>
+  <!-- Die Akzentlinie: sechs Pixel, die Gesellschaft, sonst nichts. -->
+  <rect x="128" y="1204" width="112" height="6" fill="#E30613"/>
   <text x="128" y="1280" fill="#FAFAFA"
         font-family="Inter, system-ui, sans-serif" font-size="46" font-weight="600"
-        letter-spacing="4">OBJEKT</text>
+        letter-spacing="4">CSE GRUPPE</text>
   <text x="128" y="1336" fill="#8B8B95"
-        font-family="Inter, system-ui, sans-serif" font-size="30" font-weight="400">
-    Hier steht spaeter eine Aufnahme des Objekts.
-  </text>
+        font-family="Inter, system-ui, sans-serif" font-size="30" font-weight="400">Hier steht spaeter eine Aufnahme des Objekts.</text>
   <text x="2432" y="1336" fill="#8B8B95" text-anchor="end"
         font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="26"
         letter-spacing="3">PLATZHALTER · O-13</text>

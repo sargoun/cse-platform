@@ -182,6 +182,36 @@ the images right and the design carries itself.
    (§4.1) or a licensed set is bought — and a stock photo of somebody else's
    building on a page about this group's projects would be rule 3 broken with
    better lighting. **O-13.**
+
+   **1a. The owner may ask for a motif panel instead, and then it is a
+   drawing — declared as one.** The empty panel is the correct default and
+   stays the default. But a page of empty panels reads as an unfinished site
+   to someone being shown the platform for the first time, and the owner has
+   asked for surfaces that carry the trade. The permitted middle is a **motif
+   panel**: a flat vector scene in the palette of §1 that evokes the trade —
+   scaffolding and a crane for Hochbau, a lit corridor for Reinigung, a gate
+   at night for Security — under four conditions, all of which must hold:
+
+   - **It must read as a drawing at a glance.** Flat fills, no photographic
+     gradients on surfaces, no texture, no depth-of-field. The point of rule 1
+     was that clip-art pretending to be a photograph is worse than an empty
+     panel; a drawing that is plainly a drawing makes no claim to be one.
+   - **Figures are silhouettes, never faces.** Rule 2 is untouched: no person
+     on this site may be read as a member of staff unless they are one. A
+     silhouetted figure at a distance depicts *work*, not a worker.
+   - **It carries the same placeholder caption** as the empty panel, in the
+     same place, naming the motif that belongs there. The panel says what it
+     is; nobody has to guess.
+   - **A real file under `public/bilder/` wins.** The panel is what the page
+     falls back to, never what it prefers — `bildFuerMotiv()` already works
+     this way, and the day the client's photographs arrive, nothing in the
+     code changes.
+
+   Which of the two a surface gets is a **size** decision, not a taste one:
+   large surfaces (hero, brand card, company page) take the motif panel,
+   because that is where emptiness reads as breakage. Small ones (object and
+   project thumbnails) keep the empty reserved area, because a drawing at
+   180 px is a smudge. See **D-376**.
 2. **Never publish AI-generated people as if they were staff.** For a company
    selling trust and physical presence, that backfires the moment anyone
    notices.

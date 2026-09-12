@@ -999,6 +999,32 @@ Bis der Mandant sein Material liefert (O-13), steht ein sichtbar leeres Bild
 mit einer Marke daneben. Kein Stockfoto, das nach Belegschaft aussieht: ein
 unauffaelliger Platzhalter ist einer, der in Produktion landet.
 
+### D-376 · Grosse Flaechen bekommen eine Motivtafel, kleine bleiben leer
+
+D-62 bleibt richtig und bleibt stehen: ein Platzhalter, der wie ein Foto
+aussieht, ist ein Platzhalter, der in Produktion landet. Der Mandant hat
+jedoch ausdruecklich um Flaechen gebeten, die das Gewerk zeigen, damit die
+Seite jemandem vorgefuehrt werden kann, bevor eigene Aufnahmen existieren —
+zweimal gefragt, beim zweiten Mal mit Beispiel („Bauarbeiter").
+
+**Die Aufloesung ist keine Abschwaechung, sondern eine Unterscheidung.** Ein
+Bild, das vorgibt eine Aufnahme zu sein, ist verboten wie zuvor. Eine
+**Zeichnung, die sichtbar eine Zeichnung ist**, behauptet nichts: flache
+Flaechen, keine Fototiefe, Figuren nur als Silhouette und nie mit Gesicht,
+und daneben dieselbe Platzhalterzeile wie bisher. Sie ersetzt kein Foto, sie
+haelt den Platz sichtbarer frei.
+
+Wo welche steht, entscheidet die **Groesse**: Kopfbild, Markenkarte und
+Gesellschaftsseite tragen die Motivtafel, weil dort Leere wie ein Defekt
+aussieht; Objekt- und Projektkacheln bleiben leer, weil eine Zeichnung auf
+180 px ein Fleck ist.
+
+Die Reihenfolge bleibt unveraendert: liegt eine Datei unter `public/bilder/`,
+gewinnt sie — `bildFuerMotiv()` fragt zuerst dort. Am Tag, an dem die echten
+Aufnahmen kommen, aendert sich kein Codepfad. **O-13** bleibt offen, und zwar
+als das, was es ist: eine Lieferung, die aussteht, und nicht eine Frage, die
+diese Tafeln beantworten.
+
 ### D-63 · DESIGN §2 wird beim Rendern durchgesetzt, nicht gehofft
 
 Die Schreibschrift und das rote Akzentwort erscheinen **einmal je Seite**.
