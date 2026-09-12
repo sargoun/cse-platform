@@ -671,10 +671,26 @@ export const NICHT_GEPRUEFT: readonly NichtGeprueft[] = [
     grund: 'Kommt mit PR 51 (freistellungsbescheinigung, bauabzugsteuer_freigrenze).' },
   { regel: 'FIN-11 — XRechnung-Pflichtfelder (Leitweg-ID, BT-130)',
     grund: 'Kommt mit PR 52/53 (rechnung_dokument, rechnung_versand).' },
+  /*
+   * Diese beiden standen bis PR 49 auf „kommt noch" — und blieben stehen,
+   * nachdem PR 49 sie gebracht hatte. Der Bericht wird mit dem Snapshot
+   * EINGEFROREN: jede ab dann festgeschriebene Rechnung haette dauerhaft
+   * behauptet, ihre Herkunft sei nicht geprueft worden, obwohl beides in
+   * derselben Transaktion geprueft wurde. Eine falsche Angabe in einem
+   * unveraenderlichen Beleg ist teurer als eine fehlende.
+   *
+   * Sie bleiben in der Liste, weil die Liste sagt, was DIESER Pruefer nicht
+   * tut — nur sagt der Grund jetzt, wer es stattdessen tut.
+   */
   { regel: 'FIN-07 — Herkunft je Position',
-    grund: 'Kommt mit PR 49 (rechnungsposition_quelle).' },
+    grund: 'Nicht hier, sondern beim Anlegen der Position: `PositionAnlegen.quellen` '
+      + 'ist Pflicht ohne Vorgabewert (D-370), und `rechnungsposition_quelle` '
+      + 'haelt die Doppelabrechnungssperre (0107). Eine Zeile ohne Herkunft '
+      + 'entsteht gar nicht erst, also gibt es hier nichts nachzupruefen.' },
   { regel: 'FIN-18 — Auftrag ohne erfasste Zeit',
-    grund: 'Kommt mit PR 49.' },
+    grund: 'Nicht hier, sondern in `finalisiere()`: `pruefeZeiterfassung` laeuft vor '
+      + 'dem Zug der Nummer, und eine Uebergehung steht mit Begruendung im '
+      + '`audit_log` UND als `fin18` in diesem Bericht.' },
 ];
 
 // ---------------------------------------------------------------------------

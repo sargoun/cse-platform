@@ -23,7 +23,7 @@ import {
   fuegePositionHinzu, legeEntwurfAn, finalisiere, vonHand, type Abfrage,
 } from '../../src/server/services/finanz/rechnung.js';
 import {
-  kleinbetragLage, ladePruefEingabe, pruefeRechnung, REGELWERK_VERSION,
+  kleinbetragLage, ladePruefEingabe, NICHT_GEPRUEFT, pruefeRechnung, REGELWERK_VERSION,
 } from '../../src/server/services/finanz/ustg14.js';
 
 let f: Fixtur;
@@ -544,4 +544,48 @@ describe('Abnahme 4 — die Bedingung hält die Datenbank', () => {
       // Dieselben Sätze, nicht bloss derselbe Ausgang.
       expect(beide.meldung).toContain(beide.vorschau.fehler[0]!.textDe);
     });
+});
+
+describe('„kommt mit PR nn" bleibt wahr — sonst lügt ein eingefrorener Beleg', () => {
+  /**
+   * **Der Fall, aus dem diese Prüfung kommt.** Zwei Einträge in
+   * `NICHT_GEPRUEFT` sagten „Kommt mit PR 49", nachdem PR 49 sie gebracht
+   * hatte. Der Pflichtfeldbericht wird mit dem Snapshot EINGEFROREN: jede ab
+   * dann festgeschriebene Rechnung hätte dauerhaft behauptet, ihre Herkunft
+   * sei nicht geprüft worden — obwohl beides in derselben Transaktion
+   * geprüft wurde. Eine falsche Angabe in einem unveränderlichen Beleg ist
+   * teurer als eine fehlende, und niemand kann sie später korrigieren.
+   *
+   * Auffallen konnte das nicht: die Einträge sind Fließtext, den kein
+   * Typprüfer liest, und der Bericht wurde nur auf seine FEHLER geprüft.
+   *
+   * Die Prüfung nimmt die Einträge beim Wort. Wer schreibt „kommt mit PR 51
+   * (`freistellungsbescheinigung`)", sagt damit: diese Tabelle gibt es noch
+   * nicht. Sobald es sie gibt, fällt diese Zeile — und zwar bei dem, der sie
+   * anlegt, nicht bei dem Buchprüfer, der 2032 den Beleg liest.
+   */
+  it('jede genannte Tabelle, die es noch nicht geben soll, gibt es auch nicht', async () => {
+    const genannt = NICHT_GEPRUEFT.flatMap((n) =>
+      [...n.grund.matchAll(/`([a-z][a-z0-9_]{2,})`/gu)].map((m) => m[1] ?? ''))
+      .filter((name) => /^[a-z]+(_[a-z0-9]+)+$/u.test(name));
+
+    // Gegenprobe gegen die leere Messung: findet der Ausdruck überhaupt etwas?
+    expect(genannt.length).toBeGreaterThan(3);
+
+    const vorhanden = await sql.unsafe<{ table_name: string }[]>(
+      `select table_name from information_schema.tables
+        where table_schema = 'public' and table_name = any($1::text[])`,
+      [genannt] as never[],
+    );
+    const gebaut = vorhanden.map((z) => z.table_name).sort();
+
+    /*
+     * `rechnungsposition_quelle` ist die Ausnahme, und sie steht hier
+     * namentlich: PR 49 hat sie gebracht, der Eintrag daneben sagt deshalb
+     * nicht mehr „kommt", sondern wo die Regel stattdessen greift. Ein
+     * Ausschluss ohne Namen wäre eine Hintertür für die nächste Zeile, die
+     * stehen bleibt.
+     */
+    expect(gebaut).toEqual(['rechnungsposition_quelle']);
+  });
 });
