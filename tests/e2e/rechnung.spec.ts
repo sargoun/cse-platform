@@ -215,12 +215,19 @@ async function festgeschriebenerBeleg(page: Page): Promise<void> {
    * Nummer. Das `beforeAll` dieser Datei baut sich den Kreis deshalb als
    * Vorrichtung. Bleibt die Abweisung trotzdem stehen, ist sie ein echter
    * Befund und ihr Text steht hier — statt eines Zeitablaufs weiter unten.
+   *
+   * **Deshalb nennt die Meldung keinen Grund mehr.** Sie nannte O-134, und
+   * genau das hat in dieser Runde eine Stunde gekostet: abgewiesen wurde mit
+   * `{"fehler":"pflichtfelder"}`, weil den Seed-Kunden die Anschrift fehlte
+   * (§14 Abs. 4 Nr. 1 UStG) — der Nummernkreis war längst bestätigt. Eine
+   * Zusicherung, die eine Ursache RÄT, schickt den nächsten Leser in die
+   * falsche Datei; der Rumpf der Antwort steht ohnehin daneben.
    */
   const koerper = (await page.locator('body').innerText()).trim();
   expect(
     koerper.startsWith('{') ? koerper.slice(0, 400) : null,
-    'Festschreiben abgewiesen — ohne bestätigten Rechnungsnummernkreis (O-134) '
-    + 'gibt es keine festgeschriebene Rechnung, und alles darunter prüft nichts',
+    'Festschreiben abgewiesen — der Grund steht im JSON daneben, und alles '
+    + 'darunter prüft ohne festgeschriebenen Beleg nichts',
   ).toBeNull();
 }
 
