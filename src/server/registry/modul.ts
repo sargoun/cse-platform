@@ -54,7 +54,9 @@ export const QUERSCHNITT: ReadonlySet<string> = new Set([
   // `nummernkreis` (PR 56): das Ausgangsbuch prueft die Lueckenlosigkeit der
   // Rechnungsnummern — jede Rechtseinheit hat einen Kreis, unabhaengig vom
   // Gewerk.
-  'zahlung', 'eingang', 'nummernkreis',
+  // `mahnung` (PR 55): eine Forderung wird ueberfaellig, unabhaengig davon,
+  // wofuer sie entstand.
+  'zahlung', 'eingang', 'nummernkreis', 'mahnung',
   'qualitaet', 'nachweis', 'system', 'vergabe', 'agent', 'formular',
   'nachricht', 'versand', 'medien', 'abwesenheit', 'lead', 'kunde',
 ]);

@@ -68,6 +68,16 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * Sicht auf den KREIS, und wer es liest, prueft die Lueckenlosigkeit.
    */
   { schluessel: 'ausgangsbuch', label: 'Ausgangsbuch', pfad: 'finanzen/ausgangsbuch', recht: 'nummernkreis.lesen', gruppe: true, icon: 'export' },
+  /**
+   * `finanzen/mahnungen` — die Mahnungen (FIN-15). Eigenes Recht
+   * `mahnung.lesen`: eine Mahnung ist eine Aussage ueber die Zahlungsmoral
+   * eines Kunden, und wer Rechnungen schreibt, sieht sie nicht schon deshalb.
+   *
+   * In der Gruppenansicht lesend: was die Gruppe zusammen anmahnt, ist eine
+   * Leitungsfrage — ohne Freigabeknopf, denn dafuer braucht es genau einen
+   * aktiven Mandanten (Invariante 10).
+   */
+  { schluessel: 'mahnungen', label: 'Mahnungen', pfad: 'finanzen/mahnungen', recht: 'mahnung.lesen', gruppe: true, icon: 'warnung' },
   { schluessel: 'dokumente', label: 'Dokumente', pfad: 'dokumente', recht: 'dokument.lesen', gruppe: true, icon: 'dokument' },
   /**
    * `bau/projekte`, nicht `bau`: die Seitenkarte fuehrt zwar beides, aber die

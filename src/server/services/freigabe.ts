@@ -75,6 +75,19 @@ export interface FreigabeErteilen {
   readonly inhalt: Record<string, unknown>;
   readonly begruendung: string;
   readonly entscheidung?: Entscheidung;
+  /**
+   * Der Abdruck, wenn ihn der Aufrufer vorgibt.
+   *
+   * **Für alles, was das Haus verlässt, MUSS er vorgegeben werden.** Der
+   * Versand läuft durch `agent/policy.ts::gate`, und das vergleicht den
+   * gespeicherten `nutzlast_hash` mit `policy.nutzlastHash` über die Nutzlast,
+   * wie sie im Moment des Versands dasteht. Der hausinterne `abdruck()` unten
+   * kanonisiert anders (ohne `betragCent`) — eine damit erteilte Freigabe
+   * passte nie zu dem, was hinausgeht, und das Tor wiese jede einzelne ab.
+   * Für rein interne Kontrollen (eine gebuchte Eingangsrechnung) bleibt
+   * `abdruck()` richtig; die gehören nicht in die Aktionsliste des Tors.
+   */
+  readonly abdruck?: string;
 }
 
 /**
@@ -117,7 +130,7 @@ export async function erteileFreigabe(
      values ($1::uuid, $2::uuid, $3::bigint, $4::jsonb, $5, $6, $7,
              $8::freigabe_status, app.aktueller_benutzer())`,
     [freigabe.mandant_id, freigabe.id, kette.kette_nr, JSON.stringify(e.inhalt),
-     abdruck(e.aktion, freigabe.mandant_id, e.inhalt), kette.vorheriger_hash,
+     e.abdruck ?? abdruck(e.aktion, freigabe.mandant_id, e.inhalt), kette.vorheriger_hash,
      berechneHash(bytes, kette.vorheriger_hash), entscheidung]);
 
   return freigabe.id;

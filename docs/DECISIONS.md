@@ -2983,6 +2983,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-188 | Who signs the Verfahrensdokumentation per entity, and at what interval is it reviewed? |
 | O-189 | Will any of the three entities ever invoice, or receive invoices, in a currency other than EUR? |
 | O-190 | Is the counter-signed Leistungsnachweis (CLN-04) kept as evidence behind a cleaning invoice line, in addition to the time entries? |
+| O-358 | Who maintains the §247 BGB Basiszinssatz — accounting per entity or the group centrally — and should the watchdog notify a named person instead of only failing the run? |
 
 **`02-datenmodell/06-RADAR-KI-INHALT.md`**
 
@@ -6298,3 +6299,159 @@ die Frage ist Teil von O-05. Eine Kennzahl, die sich still für Soll
 entscheidet, wäre eine erfundene steuerliche Regel in genau der Zahl, die die
 Geschäftsführung liest. Die Kennzahlen kommen, wenn die Frage beantwortet ist
 — zusammen mit `buchungssatz` (PR 58), der ohnehin ihre richtige Quelle ist.
+
+### D-405 · Das Mahnwesen schlägt vor; ein Mensch entscheidet, und erst danach läuft der Verzug
+
+FIN-15 verlangt Mahnungen mit Stufen, Gebühren und Zinsen. Was PR 55 dabei
+NICHT baut, ist der Automat: der Nachtlauf `mahnvorschlaege_erzeugen` legt
+**Entwürfe** an, und ein Entwurf geht nirgendwohin. Er trägt keine Nummer, er
+hat keinen Empfänger, er wartet.
+
+Die Kette ist bewusst dreiteilig:
+
+1. **Der Lauf** liest `faellige_forderung` und legt je Kunde und Stufe einen
+   Entwurf an — nur, wo eine **bestätigte** `mahnstufe` vorliegt. Wo keine
+   liegt, entsteht nichts und der Grund steht auf dem Bildschirm (O-19).
+2. **Die Freigabe** ist ein K-13-Vorgang mit Begründung. Erst sie kippt den
+   Zustand, und erst dabei zieht `fin.mahnung_uebergang` die Nummer unter
+   `FOR UPDATE`.
+3. **Der Versand** wird dokumentiert, nicht ausgelöst: es gibt keinen
+   Mailversand (O-116), also gehen Brief, Einschreiben und Bote — und
+   `e_mail`/`portal` werden abgewiesen statt nachgebaut. Erst danach schreibt
+   `mahnung_2_versand` `letzte_mahnstufe` und `letzte_mahnung_am` auf den
+   Posten fort.
+
+**§286 Abs. 1 BGB steht in Schritt 3, nicht in Schritt 1.** Der Verzug tritt
+durch die Mahnung ein, also trägt die erste keine Zinsen — auch dann nicht,
+wenn die Stufe welche vorsieht. Die Ausnahmen des Abs. 2 und 3 hängen an
+Vereinbarungen und am Zugang der Rechnung; beides ist offen und bleibt
+unangewandt. `zahlbar_bis = mahndatum` folgt §271 BGB: eine überfällige
+Forderung ist bereits fällig, und eine im Brief gewährte Frist ist ein
+Entgegenkommen, keine Rechtsfolge (O-19).
+
+**Was nicht geraten wird:** Fristen, Gebühren und Zinsart je Stufe (O-19), der
+Basiszinssatz selbst (D-409), und wer eine Eskalation freigibt (O-181). Der
+Seed legt drei Stufen als **Platzhalter** an — der Demobildschirm zeigt damit
+die Sperre statt einer leeren Liste.
+
+### D-406 · Ein Entwurf trägt keine Nummer — jetzt auch erzwungen
+
+`mahnung` hatte die Schranke „freigegeben ohne Nummer ist unmöglich" und die
+Gegenrichtung nicht. Damit war eine Nummer auf einem **Entwurf** erlaubt.
+Heute schreibt sie niemand; das ist genau die Sorte Zusage, die hält, bis sie
+jemand ändert.
+
+Der Befund kam aus einer Sabotage, die zunächst NICHT auffiel: der Auslöser
+`mahnung_1_uebergang` wurde so verbogen, dass er die Nummer schon beim Entwurf
+zieht — und der Test blieb grün, weil der Entwurf per `INSERT` entsteht und der
+Auslöser `BEFORE UPDATE` ist. Die zweite Sabotage — der Dienst schreibt eine
+Nummer direkt in den `INSERT` — zeigte die Lücke.
+
+`mahnung_entwurf_ohne_nummer` schliesst sie, wörtlich wie
+`rechnung_entwurf_ohne_nummer` in 0075: im Zustand `entwurf` sind `nummer`,
+`nummernkreis_id`, `freigegeben_am`, `freigegeben_von` und `freigabe_id` NULL.
+Der Grund ist derselbe: eine gezogene Nummer auf einem verworfenen Entwurf ist
+eine Lücke im Register, und die erklärt später niemand.
+
+### D-407 · `kunde.mahnsperre_bis` bleibt eine K-05-Spalte — die Sicht fragt ein Tor
+
+Die Sicht `faellige_forderung` muss sagen, warum eine überfällige Forderung
+nicht gemahnt wird; eine Mahnsperre beim Kunden ist einer dieser Gründe. Die
+Spalte gehört aber seit 0020 zum wirtschaftlichen Block, den `cse_app` NICHT
+lesen darf (0104 nennt das ausdrücklich kein Versehen) — und eine
+`security_invoker`-Sicht, die sie selbst liest, scheitert für jeden Aufrufer
+mit „permission denied for table kunde".
+
+Beide naheliegenden Auswege wären falsch gewesen: das Spaltenrecht zu erteilen
+öffnete Sperre und Datum jedem `crm.lesen`; `security_invoker` abzuschalten
+hängte die ganze Sicht an `cse_definer` und damit an der Mandantentrennung
+vorbei (§1.12).
+
+`app.kunde_mahnsperre_aktiv(kunde, mandant)` ist das engste, was die Frage
+beantwortet: **ein Wahrheitswert**, nie das Datum und nie der Grund; das Recht
+selbst geprüft, in derselben Dreiteilung wie überall (Nachtlauf `cse_job`,
+Gruppenansicht `gruppe.mahnung.lesen`, Mandantensicht `mahnung.lesen`); und
+eine Ausnahme statt eines stillen `false`, denn „nicht gesperrt" legte genau
+den gesperrten Posten zum Mahnen vor.
+
+### D-408 · Der Abdruck einer Freigabe ist der des TORS, sobald etwas hinausgeht
+
+`erteileFreigabe` (D-403) rechnete einen hauseigenen Abdruck über
+`{aktion, mandantId, inhalt}`. `agent/policy.ts::gate` vergleicht beim Versand
+gegen `nutzlastHash`, der zusätzlich `betragCent` kanonisiert. Eine mit dem
+einen erteilte Freigabe passt also nie zu dem, was das andere prüft — das Tor
+hätte **jede** Mahnung abgewiesen, mit der Begründung, die Nutzlast sei nach
+der Freigabe geändert worden. Sie war es nie.
+
+`FreigabeErteilen.abdruck` gibt ihn deshalb vor: wer etwas freigibt, das das
+Haus verlässt, übergibt `policy.nutzlastHash(nutzlast)`, und der Schnappschuss
+speichert Nutzlast und Abdruck zueinander passend. Für rein interne Kontrollen
+(eine gebuchte Eingangsrechnung) bleibt der hauseigene richtig; sie gehören
+nicht in die Aktionsliste des Tors.
+
+**Die Nutzlast enthält die Mahnungsnummer NICHT** — sie entsteht erst durch die
+Freigabe. Entschieden wird über Empfänger, Stufe, Positionen und Beträge; die
+Nummer kommt lückenlos aus dem Zähler und ist nichts, worüber ein Mensch
+befindet.
+
+### D-409 · Zwei Löcher, die erst der zweite Testlauf zeigte — und der Basiszinssatz, der nicht erfunden wird
+
+**(a) `cse_definer` durfte `freigabe` nicht lesen.** `fin.mahnung_uebergang`
+ist `SECURITY DEFINER` (K-01) und fragte „steht der Freigabesatz auf
+`genehmigt`?" — ohne Grant und ohne Policy. Jede Freigabe wäre mit „permission
+denied for table freigabe" gescheitert, und zwar erst im Betrieb.
+
+Die Reparatur ist nicht nur der Grant. `fin.eingangsrechnung_uebergang` (0123)
+stellte dieselbe Frage als gewöhnlicher Auslöser — also unter den Policies des
+AUFRUFERS, und `t_mandant` auf `freigabe` verlangt `versand.lesen`. Wem dieses
+fremde Recht fehlt, dem hätte die Datenbank „der Freigabesatz steht nicht auf
+genehmigt" gesagt: eine falsche Aussage über eine Zeile, die er nicht sehen
+darf. Heute halten beide Rollen zufällig beide Rechte; das ist keine Zusage.
+`app.freigabe_genehmigt(freigabe, mandant)` beantwortet die **strukturelle**
+Frage mit ja/nein, als Definer mit eigenem Spaltenrecht, und beide Auslöser
+rufen sie.
+
+**(b) Der Basiszinssatz wird nicht geseedet.** § 247 BGB ist eine echte Zahl
+der Deutschen Bundesbank, die halbjährlich wechselt. Ein plausibler Demowert
+stellte eine Zinsforderung auf eine erfundene Grundlage — und sähe aus wie
+eine richtige. Ohne Zeile fordert jede Mahnung NULL Zins und sagt es; der
+Wächter `basiszinssatz_pruefen` fällt am 15. Juni und am 15. Dezember aus,
+wenn die kommende Hälfte nicht gedeckt ist. Er holt den Satz nicht selbst: es
+gibt keine Bundesbank-Anbindung, und ein falsch geparster Satz erzeugte
+falsche Forderungen an echte Kunden. Wer ihn pflegt, ist O-358.
+
+### D-410 · O-19 bekommt einen Bildschirm — und drei Regeln, die vorher an der Sortierung hingen
+
+Eine offene Geschäftsregel braucht zwei Dinge: eine Sperre, damit niemand rät,
+und **einen Weg, sie zu beantworten**. Das zweite fehlte. Ohne
+`/portal/[mandant]/einstellungen/mahnwesen` liesse sich eine Mahnstufe nur per
+SQL bestätigen — und dann bestätigt sie niemand, und die Sperre wird
+irgendwann als Fehler gemeldet statt als Frage gelesen.
+
+Drei Entscheidungen stecken darin:
+
+**(a) Bestätigen heisst ablösen, nicht überschreiben.** Die neue Fassung gilt
+ab einem Tag, die alte endet am Tag davor und bleibt lesbar. Eine versendete
+Mahnung beruft sich auf die Stufe, wie sie GALT; ohne die alte Fassung liesse
+sich ein geforderter Betrag nicht mehr herleiten — und genau danach fragt der
+Anwalt des Empfängers (Invariante 8).
+
+**(b) Zwei gültige Fassungen derselben Stufe an einem Tag gibt es nicht.** Der
+Lauf sucht die Stufe zur nächsten Nummer und nimmt die erste, die er findet.
+Gäbe es zwei — die alte mit Gebühr 0, die neue mit 5,00 € —, hinge der
+geforderte Betrag an der Sortierung, und **beide Antworten sähen richtig aus**.
+`mahnstufe_kein_ueberlapp` (`EXCLUDE USING gist`, dieselbe Konstruktion wie
+`bzs_kein_ueberlapp`) macht den Zustand unmöglich, statt ihn zu erkennen.
+
+**(c) Der Verzug beginnt am Versandtag, nicht am Entwurfstag.** Zwischen Lauf
+und Freigabe können Tage liegen. `letzte_mahnung_am` nahm bisher das
+`mahndatum` — die nächste Stufe forderte damit Zinsen für Tage, an denen noch
+nichts hinausgegangen war, zu unseren Gunsten und ohne Grundlage. Der Auslöser
+nimmt jetzt den Berliner Kalendertag von `versendet_am`. §286 BGB knüpft
+genau genommen an den ZUGANG an, der noch später liegt; dass der Verzugsbeginn
+damit höchstens zu früh und nie zu spät steht, ist die konservative Seite
+dieser Näherung, und die genaue Regel ist Teil von O-19.
+
+Was der Bildschirm NICHT tut: den Basiszinssatz pflegen. Er gilt für alle
+Gesellschaften und ist eine Bekanntmachung der Bundesbank, keine
+Hausentscheidung (D-409, O-358).

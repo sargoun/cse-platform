@@ -749,9 +749,69 @@ async function main(): Promise<void> {
               'Eingangsbelege', true, 'EB-{jahr}-{nr:5}',
               'jaehrlich', ${heute}, false, 'system', 'job:seed')
       on conflict do nothing`;
+
+    /**
+     * Der Mahnungskreis — bestaetigt, lueckenlos, und beides mit Grund.
+     *
+     * Er ist keine Rechnungsnummer nach §14 UStG, also faellt er nicht unter
+     * O-134: die Maske ist eine Hausentscheidung. Lueckenlos ist er, weil er
+     * es ohnehin ist — die Nummer entsteht erst mit der FREIGABE (0125), ein
+     * verworfener Entwurf zieht keine, und damit kann die Folge keine Luecke
+     * haben. Ein Platzhalterkreis hier hiesse: keine Mahnung kann jemals
+     * freigegeben werden, ohne dass irgendwer eine Frage zu beantworten
+     * haette.
+     */
+    await sql`
+      insert into nummernkreis
+        (mandant_id, kreis_typ, jahr, bezeichnung, lueckenlos, format_maske,
+         zuruecksetzung, geoeffnet_am, ist_platzhalter, erstellt_von_art, erstellt_von_dienst)
+      values (${ids.get(b.slug)!}, 'mahnung', 2026,
+              'Mahnungen', true, 'MA-{jahr}-{nr:5}',
+              'jaehrlich', ${heute}, false, 'system', 'job:seed')
+      on conflict do nothing`;
+
+    /**
+     * Drei Mahnstufen als PLATZHALTER (O-19) — und deshalb mahnt der Lauf
+     * nichts.
+     *
+     * Fristen, Gebuehren und die Zinsart sind eine Entscheidung des
+     * Mandanten; sie hier zu erfinden hiesse, echten Kunden Betraege zu
+     * berechnen, die niemand beschlossen hat. Die Zeilen stehen trotzdem da,
+     * damit der Bildschirm die Sperre ZEIGT statt einer leeren Liste: der
+     * Lauf uebergeht jede Forderung mit „Mahnstufe … ist unbestaetigt".
+     */
+    for (const [stufe, bez, tage] of [
+      [1, 'Zahlungserinnerung (unbestätigt)', 14],
+      [2, 'Erste Mahnung (unbestätigt)', 28],
+      [3, 'Letzte Mahnung (unbestätigt)', 42],
+    ] as const) {
+      await sql`
+        insert into mahnstufe
+          (mandant_id, stufe, bezeichnung, tage_nach_faelligkeit, gebuehr_cent,
+           zinsberechnung, ist_platzhalter, gueltig_ab,
+           erstellt_von_art, erstellt_von_dienst)
+        values (${ids.get(b.slug)!}, ${stufe}, ${bez}, ${tage}, 0,
+                'keine', true, ${heute}, 'system', 'job:seed')
+        on conflict do nothing`;
+    }
   }
   process.stdout.write(
     '  Nummernkreise: Rechnung als PLATZHALTER (O-134); Nachweis, Angebot und Auftrag bestätigt\n',
+  );
+  /**
+   * **Kein Basiszinssatz im Seed, und das ist kein Vergessen.**
+   *
+   * Der Satz nach § 247 BGB ist eine echte Zahl der Deutschen Bundesbank, die
+   * halbjaehrlich wechselt. Einen plausiblen Wert einzutragen hiesse, eine
+   * Zinsforderung auf eine erfundene Grundlage zu stellen — und sie sieht
+   * dann genauso aus wie eine richtige. Ohne Zeile fordert jede Mahnung NULL
+   * Zins und sagt es (`lauf.ts`), und der Waechter `basiszinssatz_pruefen`
+   * meldet die Luecke am 15. Juni und am 15. Dezember.
+   */
+  process.stdout.write(
+    '  Mahnstufen: drei je Rechtseinheit, alle PLATZHALTER (O-19) — es wird nichts gemahnt\n'
+    + '  · Basiszinssatz (§ 247 BGB): NICHT gesetzt — eine echte Zahl der Bundesbank, '
+    + 'kein Demowert\n',
   );
 
   // -------------------------------------------------------------- Bankkonto

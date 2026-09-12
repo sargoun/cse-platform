@@ -575,6 +575,46 @@ comment on table eingangsrechnung_steuer is
 -- =========================================================================
 
 /**
+ * **Steht dieser Freigabesatz auf `genehmigt`? — die eine Frage, die jeder
+ * Zustandswechsel stellt.**
+ *
+ * Sie sieht harmlos aus und ist es nicht. Wer sie als `select … from
+ * freigabe` in einen Ausloeser schreibt, laesst sie unter den Policies des
+ * AUFRUFERS beantworten — und `t_mandant` auf `freigabe` verlangt
+ * `versand.lesen`. Ein Mensch mit `eingang.freigeben` (oder
+ * `mahnung.freigeben`) ohne dieses fremde Recht bekaeme dann nicht „dir fehlt
+ * ein Recht", sondern „der Freigabesatz steht nicht auf genehmigt" — eine
+ * Aussage ueber die Freigabe, die falsch ist, ueber eine Zeile, die er nicht
+ * sehen darf. Er sucht den Fehler in der Freigabe, und die ist in Ordnung.
+ *
+ * Die Frage ist STRUKTURELL („gibt es zu dieser Kennung in diesem Mandanten
+ * eine genehmigte Zeile"), nicht inhaltlich — sie gibt nichts preis ausser
+ * ja/nein zu einer Kennung, die der Aufrufer ohnehin in der Hand hat.
+ * Deshalb beantwortet sie ein Definer mit einem eigenen, engen Spaltenrecht
+ * (K-01, D-388) und nicht der Aufrufer.
+ */
+create function app.freigabe_genehmigt(p_freigabe uuid, p_mandant uuid)
+returns boolean
+language sql stable security definer set search_path = pg_catalog, public, app as $$
+  select exists (
+    select 1 from public.freigabe f
+     where f.id = p_freigabe and f.mandant_id = p_mandant and f.status = 'genehmigt');
+$$;
+
+comment on function app.freigabe_genehmigt(uuid, uuid) is
+  'K-13: liegt zu dieser Kennung eine genehmigte Freigabe dieses Mandanten vor? '
+  'Strukturell, ja/nein — gerufen von den Zustandsausloesern (0123, 0125).';
+
+alter function app.freigabe_genehmigt(uuid, uuid) owner to cse_definer;
+revoke execute on function app.freigabe_genehmigt(uuid, uuid) from public;
+grant  execute on function app.freigabe_genehmigt(uuid, uuid) to cse_app, cse_definer;
+
+/** Recht UND Policy — eines allein ist tot (D-388). */
+grant select (id, mandant_id, status) on freigabe to cse_definer;
+create policy d_freigabe_lesen on freigabe for select to cse_definer
+  using (mandant_id = app.aktiver_mandant());
+
+/**
  * Die Uebergangstabelle aus §8.2, als Ausloeser statt als Prosa:
  *
  *   eingegangen                → in_pruefung   `lieferant_id` gesetzt
@@ -634,9 +674,7 @@ begin
      * es beim ersten Lauf gezeigt; im Betrieb waere es der Bildschirm
      * gewesen, an dem die Buchhaltung haengen bleibt.
      */
-    if not exists (select 1 from public.freigabe f
-                    where f.id = new.freigabe_id and f.mandant_id = new.mandant_id
-                      and f.status = 'genehmigt') then
+    if not app.freigabe_genehmigt(new.freigabe_id, new.mandant_id) then
       raise exception 'Der genannte Freigabesatz steht nicht auf `genehmigt` (K-13).'
         using errcode = 'check_violation';
     end if;

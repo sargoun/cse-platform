@@ -1908,3 +1908,46 @@ revoke delete, truncate on eingangsrechnung_steuer from cse_app, cse_anon, cse_c
 
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0125)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- mahnstufe (archiv): FIN-15, §288 BGB. Die Stufe traegt Gebuehr, Zinsart und Frist — also die Grundlage jedes Betrags, der je auf einer Mahnung stand. Sie zu loeschen nimmt einem versendeten Brief seine Herleitung. Abgeloest wird ueber `gueltig_bis`.
+create trigger trg_mahnstufe_kein_hard_delete
+  before delete on mahnstufe
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_mahnstufe_kein_truncate
+  before truncate on mahnstufe
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on mahnstufe from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- mahnung (archiv): FIN-15, ACC-07, §286 BGB, LEG-01. Sie IST die Mahnung — der Vorgang, an den der Verzug und damit der Zinsanspruch anknuepft. Ein geloeschter Brief laesst die naechste Stufe ohne Grundlage und den Zinsanspruch ohne Beleg. Nicht Versendetes wird ueber `verworfen` mit Grund beendet.
+create trigger trg_mahnung_kein_hard_delete
+  before delete on mahnung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_mahnung_kein_truncate
+  before truncate on mahnung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on mahnung from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- mahnung_position (append): FIN-15, §288 BGB. Die Zeile traegt, WIE der Zins hergeleitet wurde: Verzugsbeginn, angewandte Regel, Tageszaehlung, Tage und Satz. Sie zu loeschen laesst einen geforderten Betrag ohne Rechenweg zurueck — und genau danach fragt der Anwalt des Empfaengers.
+create trigger trg_mahnung_position_kein_hard_delete
+  before delete on mahnung_position
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_mahnung_position_kein_truncate
+  before truncate on mahnung_position
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on mahnung_position from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- mahnung_eskalation (archiv): FIN-15, APR-07, LEG-12. Eine Inkasso-Uebergabe oder ein Mahnbescheid beruehrt gegenueber einer natuerlichen Person Art. 22 DSGVO; die Zeile ist der Nachweis, WER sie freigegeben hat. Zurueckgenommen wird ueber `widerrufen_am`.
+create trigger trg_mahnung_eskalation_kein_hard_delete
+  before delete on mahnung_eskalation
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_mahnung_eskalation_kein_truncate
+  before truncate on mahnung_eskalation
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on mahnung_eskalation from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks

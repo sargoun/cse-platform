@@ -689,6 +689,29 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * `nummernkreis`, weil es die Sicht auf den Kreis ist.
    */
   { modul: 'nummernkreis', pfad: 'finanz/ausgangsbuch', schreibend: false },
+  /**
+   * Das Mahnwesen (PR 55, FIN-15).
+   *
+   * `zins` und `stufen.platzhalter` rechnen nur — keine Datenbank. `lauf`
+   * SCHREIBT: er legt Entwuerfe an, und das traegt `mahnung.schreiben`.
+   * `index` schreibt ebenfalls, und sein engeres Recht (`mahnung.freigeben`
+   * fuer die Freigabe) steht auf der Route, nicht hier — hier steht das
+   * engere der beiden Schreibrechte dieser Datei.
+   */
+  { modul: 'mahnung', pfad: 'finanz/mahnung/zins', schreibend: false },
+  { modul: 'mahnung', pfad: 'finanz/mahnung/stufen.platzhalter', schreibend: false },
+  {
+    modul: 'mahnung', pfad: 'finanz/mahnung/lauf',
+    schreibend: true, schreibRecht: 'mahnung.schreiben',
+  },
+  {
+    modul: 'mahnung', pfad: 'finanz/mahnung/index',
+    schreibend: true, schreibRecht: 'mahnung.schreiben',
+  },
+  {
+    modul: 'mahnung', pfad: 'finanz/mahnung/stufen',
+    schreibend: true, schreibRecht: 'mahnung.schreiben',
+  },
 ] as const;
 
 /**

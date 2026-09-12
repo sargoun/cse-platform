@@ -1429,6 +1429,47 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'Voranmeldung ohne Spur.',
   },
   {
+    tabelle: 'mahnstufe',
+    art: 'archiv',
+    migration: '0125',
+    grund:
+      'FIN-15, §288 BGB. Die Stufe traegt Gebuehr, Zinsart und Frist — also '
+      + 'die Grundlage jedes Betrags, der je auf einer Mahnung stand. Sie zu '
+      + 'loeschen nimmt einem versendeten Brief seine Herleitung. Abgeloest '
+      + 'wird ueber `gueltig_bis`.',
+  },
+  {
+    tabelle: 'mahnung',
+    art: 'archiv',
+    migration: '0125',
+    grund:
+      'FIN-15, ACC-07, §286 BGB, LEG-01. Sie IST die Mahnung — der Vorgang, '
+      + 'an den der Verzug und damit der Zinsanspruch anknuepft. Ein '
+      + 'geloeschter Brief laesst die naechste Stufe ohne Grundlage und den '
+      + 'Zinsanspruch ohne Beleg. Nicht Versendetes wird ueber `verworfen` '
+      + 'mit Grund beendet.',
+  },
+  {
+    tabelle: 'mahnung_position',
+    art: 'append',
+    migration: '0125',
+    grund:
+      'FIN-15, §288 BGB. Die Zeile traegt, WIE der Zins hergeleitet wurde: '
+      + 'Verzugsbeginn, angewandte Regel, Tageszaehlung, Tage und Satz. Sie '
+      + 'zu loeschen laesst einen geforderten Betrag ohne Rechenweg zurueck — '
+      + 'und genau danach fragt der Anwalt des Empfaengers.',
+  },
+  {
+    tabelle: 'mahnung_eskalation',
+    art: 'archiv',
+    migration: '0125',
+    grund:
+      'FIN-15, APR-07, LEG-12. Eine Inkasso-Uebergabe oder ein Mahnbescheid '
+      + 'beruehrt gegenueber einer natuerlichen Person Art. 22 DSGVO; die '
+      + 'Zeile ist der Nachweis, WER sie freigegeben hat. Zurueckgenommen '
+      + 'wird ueber `widerrufen_am`.',
+  },
+  {
     tabelle: 'schluessel_quittung',
     art: 'append',
     migration: '0079',

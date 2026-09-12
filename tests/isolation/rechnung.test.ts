@@ -587,6 +587,20 @@ describe('(4) eine festgeschriebene Rechnung ist unveränderlich — auf DATENBA
        * aufgehoben — eine Verbreiterung, die wie eine Ergaenzung aussieht.
        */
       'd_beziehung_storno_lesen',
+      /**
+       * **PR 54.3 und PR 55: vier Kreis-Policies dazu — und jede eng.**
+       *
+       * `nummernkreis` traegt jetzt drei Definer-Zieher: die Ausgangsrechnung
+       * (0077), die interne Belegnummer der Eingangsrechnung (0123) und die
+       * Mahnung (0125). Jeder liest und zieht NUR seinen eigenen Kreistyp.
+       *
+       * Das ist der Punkt dieser Liste: ein Definer, der jeden Kreis ziehen
+       * darf, zieht beim naechsten Programmfehler den falschen — und eine
+       * verbrauchte Rechnungsnummer nimmt niemand zurueck. Vier Zeilen mehr
+       * hier sind der Preis dafuer, dass die Enge sichtbar bleibt.
+       */
+      'd_eingangskreis_lesen', 'd_eingangskreis_ziehen',
+      'd_mahnkreis_lesen', 'd_mahnkreis_ziehen',
       // `nk_wachbuch_definer*` gehören 0070 und liegen auf demselben
       // `nummernkreis`; sie sind hier ausgeschlossen, weil sie `wachbuch`
       // betreffen — siehe die Filterzeile darunter.

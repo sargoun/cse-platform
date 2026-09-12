@@ -799,6 +799,32 @@ export const ROUTEN: readonly RouteEintrag[] = [
     pfad: 'api/finanzen/eingangsrechnungen',
     recht: 'eingang.schreiben',
   },
+  {
+    /**
+     * Mahnungen: Entwuerfe anlegen, verwerfen, freigeben, Versand
+     * dokumentieren (PR 55, FIN-15).
+     *
+     * Hier steht `mahnung.schreiben`, das SCHWAECHERE der beiden Rechte
+     * dieser Adresse. Freigeben und Versenden pruefen im Handler zusaetzlich
+     * `mahnung.freigeben` — wer eine Mahnung vorbereitet, laesst sie nicht
+     * schon deswegen hinausgehen (Invariante 7). Ein Isolationstest haelt
+     * beide auseinander.
+     */
+    pfad: 'api/finanzen/mahnungen',
+    recht: 'mahnung.schreiben',
+  },
+  {
+    /**
+     * Eine Mahnstufe bestaetigen (PR 55, FIN-15, O-19).
+     *
+     * `mahnung.schreiben` und nicht `mahnung.freigeben`: hier wird die REGEL
+     * gesetzt, nicht ein Brief freigegeben. Die beiden auseinanderzuhalten
+     * ist der Kern von Invariante 7 — wer Stufen pflegt, laesst damit noch
+     * nichts hinausgehen.
+     */
+    pfad: 'api/einstellungen/mahnwesen',
+    recht: 'mahnung.schreiben',
+  },
 ] as const;
 
 /** Die Routen, die ein Recht verlangen. */
