@@ -94,6 +94,18 @@ export default async function Einsatzblatt({
   const frage = await searchParams;
   const rohPruefling = typeof frage['pruefe'] === 'string' ? frage['pruefe'] : null;
   const pruefling = rohPruefling !== null && UUID.test(rohPruefling) ? rohPruefling : null;
+  /**
+   * Die getippte Funktion reist ueber die Vorschau mit.
+   *
+   * Sie ging verloren: das erste Formular schickt `funktion`, der Dienst wirft
+   * eine Warnung, die Route leitet auf `?pruefe=` um — und das Formular unter
+   * dem Pruefblatt trug das Feld nicht. „Vorarbeit" war nach der Bestaetigung
+   * weg, ohne Meldung, und die Schicht stand mit einer Besetzung ohne Rolle im
+   * Plan. Gekuerzt auf die Laenge, die ein Rollenname hat; `funktion` ist
+   * `text` und nimmt sonst jede beliebige Adressenlaenge auf.
+   */
+  const rohFunktion = typeof frage['funktion'] === 'string' ? frage['funktion'] : '';
+  const funktion = rohFunktion.trim().slice(0, 80);
 
   const daten = await db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -358,6 +370,7 @@ export default async function Einsatzblatt({
               anstellungId={pruefling}
               mandant={mandant}
               pfad={pfad}
+              funktion={funktion}
               name={kandidaten.find((k) => k.id === pruefling)?.name ?? 'die Beschäftigung'}
             />
           )}
@@ -401,6 +414,12 @@ function statusPille(status: string): 'In Arbeit' | 'Geplant' | 'Abgeschlossen' 
   }
 }
 
+/** „A" · „A und B" · „A, B und C" — damit die Schaltfläche keinen Grund verschweigt. */
+function satzliste(worte: readonly string[]): string {
+  if (worte.length <= 1) return worte[0] ?? '';
+  return `${worte.slice(0, -1).join(', ')} und ${worte[worte.length - 1] ?? ''}`;
+}
+
 const REGEL_TEXT: Readonly<Record<string, string>> = {
   tagesarbeitszeit_ueber_8h: 'Tagesarbeitszeit über 8 Stunden (§ 3 ArbZG)',
   tagesarbeitszeit_ueber_10h: 'Tagesarbeitszeit über 10 Stunden (§ 3 ArbZG)',
@@ -423,17 +442,40 @@ const REGEL_TEXT: Readonly<Record<string, string>> = {
  * Text, nicht Farbe (DESIGN §9): jede Zeile sagt, WAS gefunden wurde.
  */
 function Pruefblatt({
-  vorschau, einsatzId, anstellungId, mandant, pfad, name,
+  vorschau, einsatzId, anstellungId, mandant, pfad, funktion, name,
 }: {
   readonly vorschau: Vorschau;
   readonly einsatzId: string;
   readonly anstellungId: string;
   readonly mandant: string;
   readonly pfad: string;
+  readonly funktion: string;
   readonly name: string;
 }) {
   const gesperrt = vorschau.qualifikationsfehler !== null;
   const befunde: readonly ArbzgBefund[] = vorschau.arbzg ?? [];
+  const doppelt = vorschau.ueberschneidungen;
+
+  /**
+   * Was dieser eine Klick übergeht — beim Namen genannt.
+   *
+   * Die Beschriftung kannte die Überschneidung nicht: das Blatt zeigte
+   * „Qualifikation geprüft", „Keine Abmeldung", „Kein Befund" und eine
+   * primäre Schaltfläche „Einteilen", während das Formular darunter
+   * unbedingt `bestaetigt=1` trug. Wer auf dem einzigen Weg ankam, den die
+   * Oberfläche anbietet — 422 aus `besetzeEinsatz`, 303 auf `?pruefe=` —,
+   * übersah die Doppelbesetzung nicht, er bekam sie nie zu sehen; die Zusage
+   * „der Planer sieht die Gegenschicht und muss sie mit `bestaetigt`
+   * übergehen" war auf diesem Weg unerfüllbar, und der Fall fiel erst am
+   * Einsatztag um 06:00 vor dem zweiten Objekt auf.
+   */
+  const uebergangen: string[] = [];
+  if (vorschau.abwesend !== null) uebergangen.push('Abmeldung');
+  if (doppelt.length > 0) uebergangen.push('Doppelbesetzung');
+  if (befunde.length > 0) uebergangen.push('Befund');
+  const beschriftungKnopf = uebergangen.length === 0
+    ? 'Einteilen'
+    : `Trotz ${satzliste(uebergangen)} einteilen`;
 
   return (
     <div
@@ -503,6 +545,44 @@ function Pruefblatt({
       )}
 
       <h5 className="mb-s2 mt-s4 text-sm uppercase tracking-[0.08em] text-text-muted">
+        Überschneidung
+      </h5>
+      {doppelt.length === 0 ? (
+        <p className="m-0 max-w-prose text-sm text-text-muted">
+          Keine andere Schicht dieser Person in diesem Zeitfenster — in dieser
+          Gesellschaft. Eine Schicht in einer Schwestergesellschaft bleibt hier
+          ungenannt (K-06); sie erreicht die Planung über den Arbeitszeitbefund.
+        </p>
+      ) : (
+        <ul className="m-0 list-none p-0">
+          {doppelt.map((u) => (
+            <li
+              key={u.zuordnungId}
+              data-cse="ueberschneidung-befund"
+              className="border-t border-line py-s2 text-sm text-warning"
+            >
+              <strong>Doppelbesetzung:</strong> Diese Person steht im selben
+              Zeitraum bereits auf{' '}
+              {/*
+                Der Weg zur Gegenschicht. Ohne ihn nennt die Warnung ein Objekt
+                und eine Uhrzeit, und die Planerin sucht die Schicht von Hand
+                im Wochenraster — mit dem Ergebnis, dass sie sie nicht auflöst.
+              */}
+              <Link
+                href={`/portal/${mandant}/dienstplan/einsatz/${u.einsatzId}`}
+                className="text-warning underline decoration-warning underline-offset-4"
+              >
+                {u.text}
+              </Link>
+              . Zwei Objekte zur selben Stunde gehen nicht, und die
+              Arbeitszeitprüfung fängt das nicht auf: zwei Vierstundenschichten
+              sind acht Stunden.
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <h5 className="mb-s2 mt-s4 text-sm uppercase tracking-[0.08em] text-text-muted">
         Arbeitszeit
       </h5>
       {vorschau.arbzg === null ? (
@@ -548,19 +628,22 @@ function Pruefblatt({
           <input type="hidden" name="anstellung" value={anstellungId} />
           <input type="hidden" name="mandant" value={mandant} />
           <input type="hidden" name="zurueck" value={pfad} />
+          {funktion !== '' && <input type="hidden" name="funktion" value={funktion} />}
           <input type="hidden" name="bestaetigt" value="1" />
           <Button
             type="submit"
-            variante={befunde.length > 0 || vorschau.abwesend !== null ? 'danger' : 'primary'}
+            variante={uebergangen.length > 0 ? 'danger' : 'primary'}
           >
-            {vorschau.abwesend !== null
-              ? 'Trotz Abmeldung einteilen'
-              : befunde.length > 0 ? 'Trotz Befund einteilen' : 'Einteilen'}
+            {beschriftungKnopf}
           </Button>
-          {befunde.length > 0 && (
+          {(befunde.length > 0 || doppelt.length > 0) && (
             <span className="max-w-prose text-sm text-text-muted">
-              Der Befund wird dabei festgeschrieben und erscheint im
-              Konflikteingang — dort ist er mit Begründung zu quittieren.
+              {befunde.length > 0 && doppelt.length > 0
+                ? 'Befund und Doppelbesetzung werden dabei festgeschrieben und erscheinen im '
+                : befunde.length > 0
+                  ? 'Der Befund wird dabei festgeschrieben und erscheint im '
+                  : 'Die Doppelbesetzung wird dabei festgeschrieben und erscheint im '}
+              Konflikteingang — dort ist mit Begründung zu quittieren.
             </span>
           )}
         </form>

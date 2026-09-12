@@ -56,7 +56,16 @@ export default async function Wochenansicht({
   const von = montag(anker);
   const bis = tagePlus(von, 6);
 
-  const { tage, schichten, abwesenheitGeprueft } = await ladePlanfenster(sitzung, von, bis);
+  const { tage, schichten, abwesenheitGeprueft, konflikteSichtbar }
+    = await ladePlanfenster(sitzung, von, bis);
+  /**
+   * Der Tag, den die Tagesansicht zeigen soll: heute, solange heute in der
+   * gezeigten Woche liegt — sonst deren Montag. Fest auf „heute" verwiesen
+   * spraenge die Disposition aus der Woche heraus, die der Planer gerade
+   * ansieht. Der Vergleich geht auf den ISO-Zeichenketten und braucht deshalb
+   * keine zweite Zonenrechnung (Invariante 2).
+   */
+  const tagZiel = heute >= von && heute <= bis ? heute : von;
 
   return (
     <PortalRahmen
@@ -89,18 +98,38 @@ export default async function Wochenansicht({
         <Woechentlich mandant={mandant} ziel={tagePlus(von, -7)} text="← Vorige Woche" />
         <Woechentlich mandant={mandant} ziel={heute} text="Diese Woche" />
         <Woechentlich mandant={mandant} ziel={tagePlus(von, 7)} text="Nächste Woche →" />
-        <Link
-          href={`/portal/${mandant}/dienstplan/monat?monat=${von}`}
-          className="rounded-md border border-line px-s3 py-s1 text-sm text-text-muted hover:border-line-strong hover:text-text"
-        >
-          Monatsansicht
-        </Link>
+      </nav>
+
+      {/*
+        Der Weg zu den uebrigen Blaettern des Moduls.
+
+        Die Seitenleiste kennt genau EINEN Dienstplanpunkt (`dienstplan/woche`),
+        und von hier fuehrte nur ein Verweis weiter — auf den Monat. Tagesplan
+        und Serien waren damit gebaut, im Routenregister eingetragen, mit
+        Rechten bewacht und fuer niemanden erreichbar; die Serien ausgerechnet
+        die Seite, auf die der leere Wochenplan zwei Absaetze tiefer verweist
+        („Schichten entstehen aus Serien"). Der Konflikteingang hing an einer
+        Kachel des Dashboards, die nur erscheint, wenn gerade etwas offen ist.
+      */}
+      <nav aria-label="Dienstplan-Ansichten" className="mb-s4 flex flex-wrap items-center gap-s2">
+        <Blatt mandant={mandant} ziel={`dienstplan/tag?tag=${tagZiel}`} text="Tagesansicht" />
+        <Blatt mandant={mandant} ziel={`dienstplan/monat?monat=${von}`} text="Monatsansicht" />
+        <Blatt mandant={mandant} ziel="dienstplan/serien" text="Serien" />
+        {konflikteSichtbar && (
+          <Blatt mandant={mandant} ziel="dienstplan/konflikte" text="Konflikte" />
+        )}
       </nav>
 
       {schichten.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-          In dieser Woche ist nichts geplant. Schichten entstehen aus Serien —
-          der Generator füllt acht Wochen im Voraus; eine leere Woche heißt
+          In dieser Woche ist nichts geplant. Schichten entstehen aus{' '}
+          <Link
+            href={`/portal/${mandant}/dienstplan/serien`}
+            className="text-text underline-offset-2 hover:text-brand hover:underline"
+          >
+            Serien
+          </Link>{' '}
+          — der Generator füllt acht Wochen im Voraus; eine leere Woche heißt
           also, dass für diesen Zeitraum noch keine Serie läuft.
         </p>
       ) : (
@@ -111,6 +140,20 @@ export default async function Wochenansicht({
         />
       )}
     </PortalRahmen>
+  );
+}
+
+/** Ein Verweis auf ein anderes Blatt des Moduls — dieselbe Optik wie die Wochensprünge. */
+function Blatt(
+  { mandant, ziel, text }: { readonly mandant: string; readonly ziel: string; readonly text: string },
+) {
+  return (
+    <Link
+      href={`/portal/${mandant}/${ziel}`}
+      className="rounded-md border border-line px-s3 py-s1 text-sm text-text-muted hover:border-line-strong hover:text-text"
+    >
+      {text}
+    </Link>
   );
 }
 

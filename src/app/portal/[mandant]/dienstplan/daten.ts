@@ -57,6 +57,16 @@ export interface Planfenster {
    * „niemand ist abgemeldet", und die Seite sagt den Unterschied.
    */
   readonly abwesenheitGeprueft: boolean;
+  /**
+   * Darf diese Sitzung den Konflikteingang ueberhaupt oeffnen?
+   *
+   * `/dienstplan/konflikte` verlangt `dienstplan.lesen` UND
+   * `dienstplan.arbzg_lesen` (Routenregister). Ein Verweis dorthin ohne das
+   * zweite Recht fuehrte auf 404 — und ein Menuepunkt, der auf 404 fuehrt,
+   * ist schlechter als keiner: er verraet die Existenz dessen, was er nicht
+   * zeigen darf (AUT-06).
+   */
+  readonly konflikteSichtbar: boolean;
 }
 
 export async function ladePlanfenster(
@@ -167,10 +177,12 @@ export async function ladePlanfenster(
        * darf nicht wie „niemand ist abgemeldet" aussehen, deshalb wird das
        * Recht daneben abgefragt und die Seite sagt es.
        */
-      const [rechtZeile] = await kontext.abfrage<{ darf: boolean }>(
-        `select app.hat_recht('zeit.abwesenheit_lesen', app.aktiver_mandant()) as darf`,
+      const [rechtZeile] = await kontext.abfrage<{ darf: boolean; konflikte: boolean }>(
+        `select app.hat_recht('zeit.abwesenheit_lesen', app.aktiver_mandant()) as darf,
+                app.hat_recht('dienstplan.arbzg_lesen', app.aktiver_mandant()) as konflikte`,
       );
       const abwesenheitSichtbar = rechtZeile?.darf === true;
+      const konflikteSichtbar = rechtZeile?.konflikte === true;
 
       const abwesend = abwesenheitSichtbar
         ? await kontext.abfrage<{ einsatz_id: string; person: string; status: string }>(
@@ -219,6 +231,7 @@ export async function ladePlanfenster(
 
       return {
         abwesenheitGeprueft: abwesenheitSichtbar,
+        konflikteSichtbar,
         tage: tage.map((t) => ({
           datum: t.datum,
           beschriftung: beschriftung(t.datum),

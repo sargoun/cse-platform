@@ -91,9 +91,17 @@ export async function POST(
         || fehler instanceof UeberschneidungWarnungOffen
         || fehler instanceof QualifikationFehlt) {
       if (mandant !== '') {
+        /*
+         * Die getippte Funktion reist mit. Ohne sie war sie nach dem Umweg
+         * ueber die Vorschau weg: das Formular unter dem Pruefblatt schickt
+         * nur, was in der Adresse steht — „Vorarbeit" verschwand stumm, und
+         * die bestaetigte Einteilung stand ohne Rolle im Plan.
+         */
+        const mitFunktion = funktion === null
+          ? '' : `&funktion=${encodeURIComponent(funktion)}`;
         return NextResponse.redirect(
           internesZiel(
-            `${zurueckStandard}?pruefe=${encodeURIComponent(anstellungId)}`,
+            `${zurueckStandard}?pruefe=${encodeURIComponent(anstellungId)}${mitFunktion}`,
             zurueckStandard, anfrage),
           303,
         );

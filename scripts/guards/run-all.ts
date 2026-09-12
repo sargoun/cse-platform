@@ -61,6 +61,37 @@ function dateien(verzeichnis: string, endungen: readonly string[]): string[] {
   return treffer;
 }
 
+/**
+ * Ist das der ECHTE Baum? `wachen.test.ts` laesst die Wachen in einem
+ * Wegwerf-Baum ohne `package.json` laufen; dort fehlen `drizzle/`,
+ * `src/server/db` und `tests/` mit Absicht.
+ */
+const ECHTER_BAUM = existsSync(join(WURZEL, 'package.json'));
+
+/**
+ * Wie `dateien`, aber im echten Baum muss etwas dabei herauskommen.
+ *
+ * **Der Ausfall, gegen den das geschrieben ist, steht oben in `dateien`
+ * schon beschrieben und hat sich seitdem nicht geaendert:** ein falsch
+ * zusammengesetzter Pfad, `readdirSync` wirft, der `catch` schluckt es, und
+ * die Wache meldet "alles sauber", ohne eine einzige Datei gelesen zu haben.
+ * Bisher trug genau EINE Wache diese Kehrseite selbst (`wacheTailwindFarben`).
+ * Verschiebt jemand `drizzle/` oder `src/server/db`, gehen ohne diese Zeilen
+ * die Wachen ueber Invariante 1 und Invariante 2 still aus — und still ist
+ * hier das teure Wort: eine `numeric`-Geldspalte und ein zonenloser
+ * Zeitstempel brechen nichts, sie stehen bloss ab da falsch da.
+ */
+function mussLesen(verzeichnis: string, endungen: readonly string[]): string[] {
+  const treffer = dateien(verzeichnis, endungen);
+  if (ECHTER_BAUM && treffer.length === 0) {
+    throw new Error(
+      `Merge-Wachen: \`${verzeichnis}\` liefert keine Datei (${endungen.join(', ')}). `
+      + 'Eine Wache, die nichts liest, meldet "sauber" — das waere schlimmer als keine.',
+    );
+  }
+  return treffer;
+}
+
 const befunde: Befund[] = [];
 const melde = (wache: string, datei: string, zeile: number, text: string): void => {
   befunde.push({ wache, datei: relative(WURZEL, datei), zeile, text: text.trim().slice(0, 160) });
@@ -83,7 +114,7 @@ function wacheGeldSpalte(): void {
   const GELD_MEHRDEUTIG = /(wert|satz)/iu;
   /** An exemption is only valid if it names a unit. */
   const NICHT_GELD = /(--|\/\/)\s*nicht-geld:\s*\S+/u;
-  for (const datei of [...dateien('src/server/db', ['.ts']), ...dateien('drizzle', ['.sql'])]) {
+  for (const datei of [...mussLesen('src/server/db', ['.ts']), ...mussLesen('drizzle', ['.sql'])]) {
     readFileSync(datei, 'utf8')
       .split('\n')
       .forEach((zeile, i) => {
@@ -165,7 +196,7 @@ function wacheZeitstempel(): void {
  * is a handler that can be given one without a tenant predicate.
  */
 function wacheRouteOhneDb(): void {
-  for (const datei of dateien('src/app', ['.ts', '.tsx'])) {
+  for (const datei of mussLesen('src/app', ['.ts', '.tsx'])) {
     if (!/route\.tsx?$/u.test(datei)) continue;
     readFileSync(datei, 'utf8')
       .split('\n')
@@ -188,8 +219,8 @@ function wacheTodoClient(): void {
     [...register.matchAll(/^\|\s*(O-\d{1,3})\s*\|/gmu)].map((m) => m[1] ?? ''),
   );
   const zuPruefen = [
-    ...dateien('src', ['.ts', '.tsx']),
-    ...dateien('scripts', ['.ts']),
+    ...mussLesen('src', ['.ts', '.tsx']),
+    ...mussLesen('scripts', ['.ts']),
     // Migrations too. `0001` and `0002` each raise a real client question in a
     // SQL comment, and a question the guard cannot see is a question that can
     // fall out of the register without anything noticing.
@@ -249,8 +280,23 @@ function wacheDatumZone(): void {
    */
   const FALSCH = /(?:::date|make_date\s*\([^)]*\))\s*\)?\s*(?:\+\s*(?:\d+|interval\s+'[^']*')\s*\))?\s*at\s+time\s+zone/iu;
   for (const datei of [
-    ...dateien('src', ['.ts', '.tsx']),
-    ...dateien('drizzle', ['.sql']),
+    ...mussLesen('src', ['.ts', '.tsx']),
+    ...mussLesen('drizzle', ['.sql']),
+    /*
+     * **Auch die Pruefungen.** Die Wache las sie nicht, und genau dort faellt
+     * der Fehler am teuersten aus: eine Pruefung, die dieselbe Ueberladung
+     * benutzt wie der Code, ist gruen und beweist nichts. In diesem Zweig ist
+     * das VIERMAL vorgekommen (HEIC, Geraeteabweichung, Formularsekunden,
+     * Monatsnachweis) — jedes Mal stand daneben eine gruene Zusicherung, die
+     * den Irrtum bloss wiederholte.
+     *
+     * `wachen.test.ts` ist ausgenommen, aus demselben Grund wie
+     * `scripts/guards` bei der TODO-Wache: dort steht das Muster als
+     * FIXTUR, damit diese Wache daran gemessen werden kann. Ein Waechter, der
+     * ueber seiner eigenen Falsifikation stolpert, wird abgeschaltet.
+     */
+    ...mussLesen('tests', ['.ts', '.tsx'])
+      .filter((d) => !d.endsWith(join('tests', 'kern', 'wachen.test.ts'))),
   ]) {
     readFileSync(datei, 'utf8')
       .split('\n')
@@ -291,8 +337,8 @@ function wacheBacktickImSql(): void {
    * — und dann prueft sie gar nichts mehr.
    */
   const OEFFNET = /(?:unsafe|abfrage|schreibe|sql)\s*(?:<[^>]*>)?\s*\(?\s*`/u;
-  for (const datei of dateien('src', ['.ts', '.tsx'])
-    .concat(dateien('tests', ['.ts']))) {
+  for (const datei of mussLesen('src', ['.ts', '.tsx'])
+    .concat(mussLesen('tests', ['.ts']))) {
     const zeilen = readFileSync(datei, 'utf8').split('\n');
     let imSql = false;
     zeilen.forEach((zeile, i) => {
@@ -355,7 +401,7 @@ const FETCH_ERLAUBT = [
 
 function wacheEinAusgang(): void {
   const erlaubt = [join('server', 'versand'), join('server', 'agent', 'policy')];
-  const zuPruefen = dateien('src', ['.ts', '.tsx']).filter(
+  const zuPruefen = mussLesen('src', ['.ts', '.tsx']).filter(
     (d) => !erlaubt.some((e) => d.includes(e)),
   );
 
@@ -472,6 +518,13 @@ function wacheTailwindFarben(): void {
     'left', 'center', 'right', 'justify', 'start', 'end',
     'wrap', 'nowrap', 'balance', 'pretty', 'ellipsis', 'clip',
   ]);
+  /**
+   * Tailwinds eigene Schattenstufen. `theme.extend` ersetzt sie nicht, es legt
+   * daneben — `shadow-lg` ist also gueltig, ohne im Thema zu stehen.
+   * `shadow-2xl` und das blanke `shadow` fasst der Ausdruck unten gar nicht an:
+   * er verlangt nach dem Bindestrich einen Buchstaben.
+   */
+  const SHADOW_VORGABE = new Set(['sm', 'md', 'lg', 'xl', 'inner', 'none']);
 
   /**
    * Gelesen wird, was WIRKLICH eine Klassenliste ist.
@@ -484,7 +537,7 @@ function wacheTailwindFarben(): void {
    * Deshalb: Kommentare weg, und ausserhalb von `.tsx` nur Zeilen, die
    * überhaupt von Klassen sprechen.
    */
-  const quellen = dateien('src', ['.ts', '.tsx']);
+  const quellen = mussLesen('src', ['.ts', '.tsx']);
   /**
    * Hier MUSS etwas gefunden werden: die Konfiguration oben gibt es, also ist
    * das der echte Baum. Null Dateien hiesse, die Wache liest ins Leere und
@@ -555,7 +608,22 @@ function wacheTailwindFarben(): void {
           continue;
         }
         if (praefix === 'shadow') {
-          if (schatten.has(rest) || rest === 'none' || farben.has(rest)) continue;
+          /**
+           * **Der Zweig endete vorher in beiden Faellen mit `continue`.**
+           *
+           * `schatten` wurde aus dem Thema gelesen und dann nie benutzt: ein
+           * `shadow-…`, das es im Thema nicht gibt, ging still durch. Das ist
+           * derselbe Ausfall, gegen den diese Wache ueberhaupt geschrieben ist
+           * — Tailwind erzeugt fuer einen unbekannten Schatten keine Regel und
+           * meldet nichts. Wer `shadow-pop` im Thema umbenennt, verliert damit
+           * die Erhebung jeder Karte auf jedem Bildschirm; im Markup steht
+           * alles richtig, im Browser ist die Flaeche flach, und kein Test
+           * schlaegt an. Eine Pruefung, die geschrieben und dann stillgelegt
+           * wurde, ist schlimmer als keine: sie belegt den Platz.
+           */
+          if (schatten.has(rest) || SHADOW_VORGABE.has(rest) || farben.has(rest)) continue;
+          melde('tailwind-farbe', datei, i + 1,
+            `\`shadow-${rest}\` — kein Schatten im Thema. Die Flaeche bleibt flach.`);
           continue;
         }
         if (!FARBPRAEFIX.includes(praefix)) continue;
@@ -611,7 +679,15 @@ function wacheTailwindFarben(): void {
 const ZEIT_ANZEIGE = /\.toLocale(?:Date|Time)?String\s*\(|new\s+Intl\.DateTimeFormat\s*\(/u;
 
 function wacheAnzeigeZeitzone(): void {
-  for (const datei of [...dateien('src', ['.ts', '.tsx']), ...dateien('scripts', ['.ts'])]) {
+  // `tests` steht mit dabei, aus demselben Grund wie bei `wacheDatumZone`:
+  // eine Zusicherung, die ein Datum ohne Zone formatiert, misst die Serverzone
+  // gegen die Serverzone und geht IMMER auf — auch dann, wenn die Anzeige
+  // daneben falsch ist.
+  for (const datei of [
+    ...mussLesen('src', ['.ts', '.tsx']),
+    ...mussLesen('scripts', ['.ts']),
+    ...mussLesen('tests', ['.ts', '.tsx']),
+  ]) {
     // Ohne Kommentare: der Beispielcode in einem Docblock ist kein Aufruf —
     // diese Wache fand sonst zuerst ihre eigene Erklaerung.
     const zeilen = ohneKommentare(readFileSync(datei, 'utf8')).split('\n');

@@ -73,15 +73,54 @@ server_binaries() {
   fi
 }
 
-# Der Fingerabdruck der Migrationen — Namen UND Inhalte. Er beantwortet die
-# einzige Frage, auf die es bei `up` ankommt: traegt die vorhandene Datenbank
-# noch genau das, was der Baum beschreibt?
+# Der Fingerabdruck dessen, was den Stand ausmacht — die Migrationen mit Namen
+# UND Inhalten, und dieses Skript selbst. Er beantwortet die einzige Frage, auf
+# die es bei `up` ankommt: traegt die vorhandene Datenbank noch genau das, was
+# der Baum beschreibt?
+#
+# **Zwei Luecken, durch die eine VERALTETE Datenbank als aktuell durchging.**
+#
+# `drizzle/0*.sql` war enger als der Migrator. `src/server/db/migrate.ts` — der
+# Weg, den `scripts/e2e-db.sh` und die Auslieferung gehen — wendet `*.sql` an.
+# Eine Migration ohne fuehrende Null wurde dort angewendet und hier weder
+# angewendet noch mitgezaehlt: der Abdruck blieb derselbe, `up` meldete "nichts
+# angefasst", und die Isolationssuite lief gegen ein Schema, das dem Baum nicht
+# mehr entspricht. Ihre Fehlschlaege sehen dann aus wie RLS-Defekte — das
+# schlechteste denkbare Signal in genau dieser Suite.
+#
+# Und der Stand besteht nicht nur aus Migrationen: dieses Skript legt die
+# Datenbank an und setzt selbst `cse.fenster_schluessel`. Wer den Testschluessel
+# hier aendert oder einen Aufbauschritt dazulegt, aendert den Stand, ohne den
+# Abdruck zu bewegen — die alte Datenbank gilt weiter als aktuell und traegt
+# den alten Schluessel, und `app.arbzg_belastung` rechnet ueber Fenstergruppen,
+# die niemand mehr nachvollziehen kann.
+SELBST="${BASH_SOURCE[0]}"
 abdruck() {
-  md5sum drizzle/0*.sql | md5sum | cut -d' ' -f1
+  # `md5sum < datei` und nicht `md5sum datei`: die Pfadform stuende sonst mit
+  # im Ergebnis. Aufrufer uebergeben dieses Skript mal relativ (`pnpm
+  # db:test:up`), mal absolut (die fuenf Isolationsdateien) — der Abdruck waere
+  # je Aufrufer ein anderer, und `up` baute jedes Mal neu auf.
+  { md5sum drizzle/*.sql; md5sum < "$SELBST"; } | md5sum | cut -d' ' -f1
 }
 
 case "${1:-up}" in
   up|neu)
+    # Nur EIN Aufbau zur Zeit. Dieselbe Datenbank wird von mehreren Laeufen
+    # benutzt; zwei gleichzeitige `drop database` sind nicht bloss langsam,
+    # sondern zerlegen einander.
+    #
+    # Die Sperre stand vorher ERST hinter dem Serverstart, und damit lag der
+    # eine Schritt ausserhalb, der sich am wenigsten teilen laesst: zwei
+    # gleichzeitige `up` auf einem Rechner ohne laufenden Server riefen beide
+    # `initdb` auf dasselbe `$PGDATA`. Eines der beiden starb an
+    # "directory not empty" — ein roter Lauf ohne einen einzigen Defekt im
+    # Code, und beim naechsten Versuch war er weg.
+    LOCK="${TMPDIR:-/tmp}/cse-test-db-$PORT-$DB.lock"
+    exec 9>"$LOCK"
+    if command -v flock >/dev/null 2>&1; then
+      flock -w 600 9 || { echo "Warte-Zeit fuer $LOCK abgelaufen." >&2; exit 1; }
+    fi
+
     if ! pg_isready -h localhost -p "$PORT" >/dev/null 2>&1; then
       server_binaries
       [ -d "$PGDATA" ] || als_postgres "initdb -D $PGDATA -U postgres --auth=trust -E UTF8 --locale=C"
@@ -91,19 +130,10 @@ case "${1:-up}" in
 
     # Ohne Migrationen gibt es nichts aufzubauen, und ein Fingerabdruck ueber
     # eine leere Menge waere ein stabiler Wert, der nichts bedeutet.
-    ls drizzle/0*.sql >/dev/null 2>&1 || {
-      echo "Keine Migrationen unter drizzle/0*.sql — falsches Arbeitsverzeichnis?" >&2
+    ls drizzle/*.sql >/dev/null 2>&1 || {
+      echo "Keine Migrationen unter drizzle/*.sql — falsches Arbeitsverzeichnis?" >&2
       exit 1
     }
-
-    # Nur EIN Aufbau zur Zeit. Dieselbe Datenbank wird von mehreren Laeufen
-    # benutzt; zwei gleichzeitige `drop database` sind nicht bloss langsam,
-    # sondern zerlegen einander.
-    LOCK="${TMPDIR:-/tmp}/cse-test-db-$PORT-$DB.lock"
-    exec 9>"$LOCK"
-    if command -v flock >/dev/null 2>&1; then
-      flock -w 600 9 || { echo "Warte-Zeit fuer $LOCK abgelaufen." >&2; exit 1; }
-    fi
 
     ABDRUCK="$(abdruck)"
 
@@ -133,7 +163,7 @@ case "${1:-up}" in
       GESEHEN="$(psql -h localhost -p "$PORT" -U postgres -d "$DB" -tAc \
         "select current_setting('cse.migrationen', true);" 2>/dev/null || true)"
       if [ "$GESEHEN" = "$ABDRUCK" ]; then
-        echo "Testdatenbank steht bereits auf diesem Migrationsstand — nichts angefasst."
+        echo "Testdatenbank steht bereits auf diesem Stand — nichts angefasst."
         echo "postgres://postgres@localhost:$PORT/$DB"
         exit 0
       fi
@@ -155,7 +185,7 @@ case "${1:-up}" in
     # das ist die richtige Richtung.
     psql -h localhost -p "$PORT" -U postgres -q -c \
       "alter database $DB set cse.fenster_schluessel = 'VEVTVC1LRVktTklDSFQtRlVFUi1QUk9EVUtUSU9O';"
-    for f in drizzle/0*.sql; do
+    for f in drizzle/*.sql; do
       echo "  → $f"
       psql -h localhost -p "$PORT" -U postgres -d "$DB" -v ON_ERROR_STOP=1 -q -f "$f"
     done

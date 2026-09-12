@@ -51,7 +51,11 @@ export class RechnungFehler extends Error {
       | 'kein_kreis'
       | 'schon_storniert'
       | 'unbekannte_einheit'
-      | 'unbekannte_steuergruppe',
+      | 'unbekannte_steuergruppe'
+      | 'mehrdeutige_steuergruppe'
+      | 'basismenge_ungueltig'
+      | 'kopf_nicht_uebernehmbar'
+      | 'leistungszeitpunkt_fehlt',
   ) {
     super(nachricht);
     this.name = 'RechnungFehler';
@@ -130,8 +134,18 @@ export async function ermittleZahlungsziel(
     if (k?.zahlungsziel_tage != null) return k.zahlungsziel_tage;
   }
 
+  /**
+   * `#>> '{}'` und nicht `::text`. `app.einstellung` liefert `jsonb`, und
+   * dessen Textform ist die JSON-Schreibweise: aus der Zahl `14` wird zwar
+   * `'14'`, aus der Zeichenkette `"14"` aber `'"14"'` und aus JSON-`null` das
+   * Wort `'null'` — beides scheitert am `::integer` mit einem rohen
+   * Postgres-Syntaxfehler, und zwar beim ANLEGEN jedes Entwurfs, also fuer
+   * jeden Fakturierenden der Gesellschaft gleichzeitig. Der Pfadoperator
+   * holt den Skalar als Text heraus und gibt fuer JSON-`null` SQL-NULL
+   * zurueck, was hier die richtige Antwort ist: „nicht gesetzt".
+   */
   const [e] = await db.abfrage<{ tage: number | null }>(
-    `select (app.einstellung('finanzen.zahlungsziel_tage_standard'))::text::integer as tage`,
+    `select (app.einstellung('finanzen.zahlungsziel_tage_standard') #>> '{}')::integer as tage`,
   );
   return e?.tage ?? null;
 }
@@ -181,6 +195,17 @@ export interface PositionAnlegen {
 function berechneNetto(
   menge: MilliMenge, basismenge: MilliMenge, einzelpreis: Cent, rabattBp: number,
 ): Cent {
+  if (basismenge <= 0n) {
+    // `rp_basismenge_positiv` (0075) weist das ab — aber erst in der
+    // Datenbank. Hier flog vorher ein rohes `RangeError: Division by zero`
+    // aus einer Geldrechnung, ohne Rechnung, ohne Position, ohne Spalte im
+    // Text. Der benannte Fehler nennt die Bedingung, die gemeint ist.
+    throw new RechnungFehler(
+      `Die Preisbasismenge muss positiv sein (rp_basismenge_positiv), ist aber `
+      + `${basismenge.toString()}.`,
+      'basismenge_ungueltig',
+    );
+  }
   const zaehler = menge * einzelpreis * BigInt(10_000 - rabattBp);
   const nenner = basismenge * 10_000n;
   const negativ = zaehler < 0n;
@@ -340,11 +365,61 @@ export async function schreibeSummen(db: Abfrage, rechnungId: string): Promise<v
   }));
 
   const ergebnis = berechneSteuer(eingaben);
-  const idJeSchluessel = new Map(
-    [...zeilen, ...zuschlaege].map((z) => [z.schluessel, z.steuersatz_gruppe_id]),
-  );
+
+  /**
+   * Die Zuordnung Schluessel → `steuersatz_gruppe_id`, und warum sie hier
+   * eine Pruefung ist statt einer Map.
+   *
+   * `berechneSteuer` fasst je SCHLUESSEL zusammen (`steuer/satz.ts`), die
+   * Zeile in `rechnung_steuer` haengt aber an der GRUPPEN-ID — bis `0087`
+   * war das dasselbe, denn `ssg_schluessel_uk` liess je Schluessel genau eine
+   * Zeile zu. `0087` hat diese Bedingung fallen lassen, damit ein Satz eine
+   * Geschichte haben kann: `ust_19` mit 19 % bis zum Stichtag und `ust_19`
+   * mit dem neuen Satz danach. Ab der ersten Satzaenderung koennen die
+   * Positionen EINES Entwurfs auf zwei datierte Zeilen desselben Schluessels
+   * zeigen — die Map nahm dann stillschweigend die zuletzt gelesene Id,
+   * schrieb beide Nettosummen unter EINE Gruppe und setzte die andere Zeile
+   * gleich darauf auf 0. Die Aufschluesselung nach §14 Abs. 4 Nr. 8 UStG
+   * wiese damit EINE datierte Gruppe fuer die Nettobetraege zweier Saetze aus,
+   * auf einem Beleg, der nach dem Festschreiben unveraenderlich ist.
+   *
+   * Hier faellt das auf, statt sich zu verrechnen. Aufgeloest gehoert es an
+   * der Wurzel — je Position am Leistungsdatum DER POSITION, nicht am
+   * Kopfstichtag —, und das ist eine Aenderung an `steuer/satz.ts` und am
+   * Einfuegepfad, nicht an dieser Schleife.
+   */
+  const idJeSchluessel = new Map<string, string>();
+  for (const z of [...zeilen, ...zuschlaege]) {
+    const vorhanden = idJeSchluessel.get(z.schluessel);
+    if (vorhanden !== undefined && vorhanden !== z.steuersatz_gruppe_id) {
+      throw new RechnungFehler(
+        `Die Steuergruppe „${z.schluessel}" steht auf dieser Rechnung mit zwei `
+        + 'datierten Zeilen (0087). Welcher Satz gilt, entscheidet das '
+        + 'Leistungsdatum je Position — dieser Beleg muesste neu aufgeloest '
+        + 'werden, bevor er eine Aufschluesselung nach §14 Abs. 4 Nr. 8 UStG '
+        + 'tragen kann.',
+        'mehrdeutige_steuergruppe',
+      );
+    }
+    idJeSchluessel.set(z.schluessel, z.steuersatz_gruppe_id);
+  }
+
+  /** Die Gruppen, die diese Rechnung JETZT traegt — gesammelt beim Schreiben. */
+  const geschrieben: string[] = [];
 
   for (const s of ergebnis.zeilen) {
+    const gruppeId = idJeSchluessel.get(s.steuersatzGruppe);
+    if (gruppeId === undefined) {
+      // Unerreichbar: `berechneSteuer` gibt nur Schluessel zurueck, die es
+      // bekommen hat. Aber ein `?? null` in der Liste unten machte aus
+      // `not (x = any(array[…, null]))` ein NULL — und damit die
+      // Nullsetzung geraeuschlos wirkungslos.
+      throw new RechnungFehler(
+        `Die Steuergruppe „${s.steuersatzGruppe}" hat keine Gruppen-Id.`,
+        'unbekannte_steuergruppe',
+      );
+    }
+    geschrieben.push(gruppeId);
     await db.abfrage(
       `insert into rechnung_steuer
          (mandant_id, rechnung_id, steuersatz_gruppe_id, satz_bp, kategorie,
@@ -356,7 +431,7 @@ export async function schreibeSummen(db: Abfrage, rechnungId: string): Promise<v
              netto_cent = excluded.netto_cent, steuer_cent = excluded.steuer_cent,
              befreiungsgrund_code = excluded.befreiungsgrund_code,
              befreiungsgrund_text = excluded.befreiungsgrund_text`,
-      [rechnungId, idJeSchluessel.get(s.steuersatzGruppe), s.satzBp, s.kategorie,
+      [rechnungId, gruppeId, s.satzBp, s.kategorie,
        s.nettoCent.toString(), s.steuerCent.toString(),
        s.befreiungsgrundCode, s.befreiungsgrundText],
     );
@@ -369,7 +444,7 @@ export async function schreibeSummen(db: Abfrage, rechnungId: string): Promise<v
       where rechnung_id = $1
         and not (steuersatz_gruppe_id = any($2::uuid[]))
         and (netto_cent <> 0 or steuer_cent <> 0)`,
-    [rechnungId, ergebnis.zeilen.map((s) => idJeSchluessel.get(s.steuersatzGruppe) ?? null)],
+    [rechnungId, geschrieben],
   );
 
   await db.abfrage(
@@ -849,6 +924,92 @@ export async function finalisiere(db: Abfrage, rechnungId: string): Promise<Fest
 // Storno und Korrektur (Invariante 4)
 // ---------------------------------------------------------------------------
 
+/**
+ * Die Kopfmerkmale, die ein Storno und eine Neuausstellung MITNEHMEN.
+ *
+ * Die Kopierliste stand zweimal als Handzaehlung da — `kunde_id`, `objekt_id`,
+ * `auftrag_id`, `rechnungsart`, die Leistungsdaten, `zahlungsziel_tage`, die
+ * Texte — und was `rechnung` sonst noch traegt, fiel weg. Es ist derselbe
+ * Fehler, den die Zuschlagskopie in `korrigiere()` gerade geschlossen hat, nur
+ * eine Ebene hoeher: das Storno hebt den einen Betrag auf, der Ersatzbeleg
+ * traegt einen anderen, und beide Belege sind IN SICH stimmig, weil
+ * `schreibeSummen()` sauber ueber das rechnet, was da ist. Die Differenz steht
+ * nur im Vergleich der drei Belege — und auf einem unveraenderlichen Beleg.
+ */
+interface KopfMerkmale {
+  readonly vereinnahmung_geplant_am: string | null;
+  readonly reverse_charge: boolean;
+  readonly reverse_charge_grundlage: string | null;
+  readonly steuerhinweis: string | null;
+  readonly ist_kleinbetrag: boolean;
+  readonly bauabzugsteuer_pflichtig: boolean;
+  readonly bauabzugsteuer_satz_bp: number | null;
+  readonly abzug_brutto_cent: string;
+  readonly einbehalt_bauabzugsteuer_cent: string;
+  readonly bauabzugsteuer_grundlage_cent: string | null;
+}
+
+/** Die Spalten aus `rechnung`, die `KopfMerkmale` fuellen — an EINER Stelle. */
+const KOPF_MERKMALE_SQL = `
+  to_char(vereinnahmung_geplant_am, 'YYYY-MM-DD') as vereinnahmung_geplant_am,
+  reverse_charge, reverse_charge_grundlage::text as reverse_charge_grundlage,
+  steuerhinweis, ist_kleinbetrag,
+  bauabzugsteuer_pflichtig, bauabzugsteuer_satz_bp,
+  abzug_brutto_cent::text, einbehalt_bauabzugsteuer_cent::text,
+  bauabzugsteuer_grundlage_cent::text`;
+
+/** Die Werte in der Reihenfolge, in der beide Inserts sie einsetzen. */
+function kopfMerkmalWerte(k: KopfMerkmale): readonly unknown[] {
+  return [
+    k.vereinnahmung_geplant_am, k.reverse_charge, k.reverse_charge_grundlage,
+    k.steuerhinweis, k.ist_kleinbetrag,
+    k.bauabzugsteuer_pflichtig, k.bauabzugsteuer_satz_bp,
+  ];
+}
+
+/**
+ * Die drei BETRAEGE, die dieser Weg nicht mitnehmen kann — und die er deshalb
+ * nicht stillschweigend fallen laesst.
+ *
+ * `abzug_brutto_cent` geht in `rechnung_zahlbetrag_stimmig` (0075) ein und hat
+ * bis FIN-08 keine Quellzeilen: die Nutzlast fuehrt `abzuege: []`. Ein
+ * Ersatzbeleg mit dem Betrag, aber ohne die Zeilen dahinter, behauptete einen
+ * Abzug, den kein Beleg begruendet; ohne den Betrag fordert er den vollen
+ * Rechnungsbetrag, waehrend das Storno nur den geminderten Zahlbetrag
+ * aufgehoben hat — eine bereits gezahlte Anzahlung waere dem Kunden ein
+ * zweites Mal berechnet.
+ *
+ * `einbehalt_bauabzugsteuer_cent` und `bauabzugsteuer_grundlage_cent` haengen
+ * ueber `rechnung_einbehalt_vorzeichen` und
+ * `rechnung_bauabzug_grundlage_vorzeichen` am Vorzeichen von `brutto_cent` —
+ * das auf dem frischen Entwurf 0 ist und erst `schreibeSummen()` bekommt. Sie
+ * beim Anlegen zu setzen bricht die Bedingung, sie danach zu setzen ist ein
+ * eigener Schritt, den §15 (Bauabzugsteuer) noch nicht beschreibt.
+ *
+ * Heute stehen alle drei ueberall auf 0 — keine Zeile im Dienst schreibt sie.
+ * Die Ablehnung kostet also nichts und schlaegt genau dann zu, wenn der erste
+ * Schreiber dazukommt.
+ */
+function pruefeKopfUebernehmbar(nummer: string, k: KopfMerkmale): void {
+  const offen: string[] = [];
+  if (BigInt(k.abzug_brutto_cent) !== 0n) offen.push('abzug_brutto_cent');
+  if (BigInt(k.einbehalt_bauabzugsteuer_cent) !== 0n) {
+    offen.push('einbehalt_bauabzugsteuer_cent');
+  }
+  if (k.bauabzugsteuer_grundlage_cent !== null
+      && BigInt(k.bauabzugsteuer_grundlage_cent) !== 0n) {
+    offen.push('bauabzugsteuer_grundlage_cent');
+  }
+  if (offen.length === 0) return;
+  throw new RechnungFehler(
+    `Rechnung ${nummer} traegt ${offen.join(', ')} — Betraege, die Storno und `
+    + 'Neuausstellung hier nicht uebernehmen koennen. Ein Ersatzbeleg ohne sie '
+    + 'forderte mehr, als das Storno aufgehoben hat; ein Ersatzbeleg mit ihnen '
+    + 'behauptete einen Abzug ohne die Zeilen, die ihn begruenden (FIN-08).',
+    'kopf_nicht_uebernehmbar',
+  );
+}
+
 export interface StornoErgebnis {
   readonly stornoId: string;
   readonly nummer: string;
@@ -878,12 +1039,13 @@ export async function storniere(
     id: string; status: string; kunde_id: string; objekt_id: string | null;
     auftrag_id: string | null; zahlungsziel_tage: number | null;
     leistung_von: string | null; leistung_bis: string | null; nummer: string;
-  }>(
+  } & KopfMerkmale>(
     `select id, status::text as status, kunde_id::text as kunde_id,
             objekt_id::text as objekt_id, auftrag_id::text as auftrag_id,
             zahlungsziel_tage,
             to_char(leistung_von, 'YYYY-MM-DD') as leistung_von,
-            to_char(leistung_bis, 'YYYY-MM-DD') as leistung_bis, nummer
+            to_char(leistung_bis, 'YYYY-MM-DD') as leistung_bis, nummer,
+            ${KOPF_MERKMALE_SQL}
        from rechnung where id = $1`,
     [rechnungId],
   );
@@ -906,17 +1068,47 @@ export async function storniere(
       `Rechnung ${original.nummer} ist bereits vollstaendig storniert.`, 'schon_storniert',
     );
   }
+  pruefeKopfUebernehmbar(original.nummer, original);
+
+  /**
+   * Der Leistungszeitpunkt des Stornos.
+   *
+   * `rechnung_leistungszeitpunkt` (0075) laesst die Alternative des §14
+   * Abs. 4 Nr. 6 UStG — `vereinnahmung_geplant_am` statt eines
+   * Leistungszeitraums — nur fuer `abschlag` und `anzahlung` zu. Ein Storno
+   * traegt aber `rechnungsart = 'storno'`, und das MUSS es: nur unter dieser
+   * Art laesst `rechnung_nur_storno_negativ` negative Betraege zu. Eine
+   * Anzahlungsrechnung ohne Leistungszeitraum ist damit hier nicht
+   * stornierbar — vorher fiel das als roher Bedingungsfehler mitten in
+   * `finalisiere()` an, nachdem das Storno schon eine Nummer gezogen hatte.
+   */
+  if (original.leistung_von === null || original.leistung_bis === null) {
+    throw new RechnungFehler(
+      `Rechnung ${original.nummer} nennt ihren Leistungszeitpunkt nur ueber `
+      + 'vereinnahmung_geplant_am. Ein Storno traegt rechnungsart = storno, und '
+      + 'rechnung_leistungszeitpunkt laesst diese Alternative nur fuer abschlag '
+      + 'und anzahlung zu — der Stornoentwurf waere nicht festschreibbar.',
+      'leistungszeitpunkt_fehlt',
+    );
+  }
 
   const [entwurf] = await db.abfrage<{ id: string }>(
     `insert into rechnung (mandant_id, kunde_id, objekt_id, auftrag_id, rechnungsart,
                            leistung_von, leistung_bis, zahlungsziel_tage,
-                           kopftext, erstellt_von_art, erstellt_von)
+                           kopftext,
+                           vereinnahmung_geplant_am, reverse_charge,
+                           reverse_charge_grundlage, steuerhinweis, ist_kleinbetrag,
+                           bauabzugsteuer_pflichtig, bauabzugsteuer_satz_bp,
+                           erstellt_von_art, erstellt_von)
      values (app.aktiver_mandant(), $1::uuid, $2::uuid, $3::uuid, 'storno',
-             $4::date, $5::date, $6, $7, 'mensch', app.aktueller_benutzer())
+             $4::date, $5::date, $6, $7,
+             $8::date, $9, $10::bauleistungsart, $11, $12, $13, $14,
+             'mensch', app.aktueller_benutzer())
      returning id`,
     [original.kunde_id, original.objekt_id, original.auftrag_id,
      original.leistung_von, original.leistung_bis, original.zahlungsziel_tage,
-     `Storno zu Rechnung ${original.nummer}`],
+     `Storno zu Rechnung ${original.nummer}`,
+     ...kopfMerkmalWerte(original)],
   );
   if (entwurf === undefined) {
     throw new RechnungFehler('Der Stornoentwurf wurde nicht angelegt', 'nicht_gefunden');
@@ -1003,12 +1195,13 @@ export async function korrigiere(
     zahlungsziel_tage: number | null; leistung_von: string | null;
     leistung_bis: string | null; kopftext: string | null; fusstext: string | null;
     rechnungsart: string; nummer: string;
-  }>(
+  } & KopfMerkmale>(
     `select kunde_id::text as kunde_id, objekt_id::text as objekt_id,
             auftrag_id::text as auftrag_id, zahlungsziel_tage,
             to_char(leistung_von, 'YYYY-MM-DD') as leistung_von,
             to_char(leistung_bis, 'YYYY-MM-DD') as leistung_bis,
-            kopftext, fusstext, rechnungsart::text as rechnungsart, nummer
+            kopftext, fusstext, rechnungsart::text as rechnungsart, nummer,
+            ${KOPF_MERKMALE_SQL}
        from rechnung where id = $1`,
     [rechnungId],
   );
@@ -1016,16 +1209,32 @@ export async function korrigiere(
     throw new RechnungFehler(`Rechnung ${rechnungId} nicht gefunden`, 'nicht_gefunden');
   }
 
+  /**
+   * Dieselben Kopfmerkmale wie beim Storno — und hier traegt
+   * `vereinnahmung_geplant_am` mehr als eine Kopie: die Neuausstellung behaelt
+   * die `rechnungsart` des Originals. Ist das eine Abschlags- oder
+   * Anzahlungsrechnung, die ihren Leistungszeitpunkt ueber die Vereinnahmung
+   * nennt (§14 Abs. 4 Nr. 6 UStG), war sie ohne diese Spalte gar nicht
+   * festschreibbar — `rechnung_leistungszeitpunkt` haette sie abgewiesen,
+   * nachdem das Storno bereits festgeschrieben war.
+   */
   const [neu] = await db.abfrage<{ id: string }>(
     `insert into rechnung (mandant_id, kunde_id, objekt_id, auftrag_id, rechnungsart,
                            leistung_von, leistung_bis, zahlungsziel_tage,
-                           kopftext, fusstext, erstellt_von_art, erstellt_von)
+                           kopftext, fusstext,
+                           vereinnahmung_geplant_am, reverse_charge,
+                           reverse_charge_grundlage, steuerhinweis, ist_kleinbetrag,
+                           bauabzugsteuer_pflichtig, bauabzugsteuer_satz_bp,
+                           erstellt_von_art, erstellt_von)
      values (app.aktiver_mandant(), $1::uuid, $2::uuid, $3::uuid, $4::rechnungsart,
-             $5::date, $6::date, $7, $8, $9, 'mensch', app.aktueller_benutzer())
+             $5::date, $6::date, $7, $8, $9,
+             $10::date, $11, $12::bauleistungsart, $13, $14, $15, $16,
+             'mensch', app.aktueller_benutzer())
      returning id`,
     [original.kunde_id, original.objekt_id, original.auftrag_id, original.rechnungsart,
      original.leistung_von, original.leistung_bis, original.zahlungsziel_tage,
-     original.kopftext, original.fusstext],
+     original.kopftext, original.fusstext,
+     ...kopfMerkmalWerte(original)],
   );
   if (neu === undefined) {
     throw new RechnungFehler('Die Neuausstellung wurde nicht angelegt', 'nicht_gefunden');

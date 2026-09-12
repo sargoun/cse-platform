@@ -254,9 +254,10 @@ export interface Vorschau {
   readonly abwesend: string | null;
   readonly abwesenheitGeprueft: boolean;
   /**
-   * Andere Schichten derselben Person im selben Zeitfenster — im EIGENEN
-   * Mandanten. Eine Schicht in einer Schwestergesellschaft bleibt hier
-   * ungenannt (K-06); sie erreicht den Planer ueber `ueberGesellschaften`.
+   * Schichten derselben Person im selben Zeitfenster — im EIGENEN Mandanten,
+   * die geprüfte Schicht ueber eine ZWEITE Anstellung eingeschlossen (D-09).
+   * Eine Schicht in einer Schwestergesellschaft bleibt hier ungenannt (K-06);
+   * sie erreicht den Planer ueber `ueberGesellschaften`.
    */
   readonly ueberschneidungen: readonly Ueberschneidung[];
 }
@@ -304,16 +305,27 @@ async function abwesenheitImFenster(
  * kann in derselben Gesellschaft zwei Anstellungen haben, und in zwei
  * Objekten gleichzeitig kann er trotzdem nicht stehen (D-09, Invariante 9).
  *
- * Die Schicht selbst bleibt aussen vor — sie ist beim Schreiben noch nicht in
- * der Tabelle, und bei der Vorschau waere sie es nur, wenn schon jemand
- * anderes auf ihr steht.
+ * **Ausgeschlossen wird die ZUORDNUNG, nicht die Schicht.** Hier stand
+ * `e.id <> $2` — der ganze Einsatz fiel aus der Suche, und damit genau der
+ * Fall, den der Absatz darueber beansprucht: Person P mit zwei Anstellungen
+ * (A1 Reinigungskraft, A2 Objektleitung) liess sich ueber A1 und danach ueber
+ * A2 auf DIESELBE Schicht setzen. `BereitsEingeteilt` greift dort nicht (es
+ * fragt `einsatz_id` UND `anstellung_id`), `ez_einsatz_anstellung_uk` ebenso
+ * wenig, und `kern.einsatz_besetzung_zaehlen` zaehlte auf zwei hoch: bei
+ * `soll_besetzung = 2` meldete der Plan „vollstaendig besetzt", und am
+ * Einsatztag stand ein Mensch am Objekt. Ausgenommen ist deshalb nur das Paar
+ * (Schicht, gepruefte Beschaeftigung) — beim Schreiben gibt es diese Zeile
+ * ohnehin noch nicht, bei der Vorschau faellt sie sich selbst nicht auf.
+ *
+ * Ob eine Ueberschneidung sperren soll, bleibt O-166; sie ist auch hier eine
+ * Warnung und kein Riegel.
  *
  * Halboffenes Intervall: eine Schicht, die um 14:00 endet, und eine, die um
  * 14:00 beginnt, ueberschneiden sich NICHT. Die Ruhezeit dazwischen ist eine
  * andere Frage und gehoert der ArbZG-Pruefung.
  */
 async function ueberschneidungenFinden(
-  kontext: SchreibKontext, personId: string, einsatzId: string,
+  kontext: SchreibKontext, personId: string, einsatzId: string, anstellungId: string,
   beginn: Date, ende: Date,
 ): Promise<readonly Ueberschneidung[]> {
   const zeilen = await kontext.abfrage<{
@@ -333,12 +345,15 @@ async function ueberschneidungenFinden(
         and z.entfernt_am is null
         and z.status not in ('abgesagt','ersetzt')
         and e.storniert_am is null
-        and e.id <> $2::uuid
+        -- Nur die gepruefte Beschaeftigung auf dieser Schicht faellt aus, nicht
+        -- die ganze Schicht: eine ZWEITE Anstellung derselben Person auf
+        -- derselben Schicht ist genau der D-09-Fall, den sonst niemand sieht.
+        and not (z.einsatz_id = $2::uuid and z.anstellung_id = $5::uuid)
         -- Halboffen, siehe oben: Ende > Beginn UND Beginn < Ende.
         and e.ende_zeitpunkt   > $3::timestamptz
         and e.beginn_zeitpunkt < $4::timestamptz
       order by e.beginn_zeitpunkt`,
-    [personId, einsatzId, beginn.toISOString(), ende.toISOString()],
+    [personId, einsatzId, beginn.toISOString(), ende.toISOString(), anstellungId],
   );
   return zeilen.map((z) => ({
     zuordnungId: z.zuordnung_id, einsatzId: z.einsatz_id, text: z.text,
@@ -349,10 +364,13 @@ async function ueberschneidungenFinden(
  * Die Konfliktzeile zur uebergangenen Doppelbesetzung — EINE je Einteilung.
  *
  * Der Abdruck haengt an der neuen Zuordnung (`ueberschneidungsFingerabdruck`),
- * nicht am Tag: wer zweimal doppelt eingeteilt wird, bekommt zwei Karten, und
- * wer dieselbe Einteilung zweimal speichert, nur eine. Die Gegenseite steht in
- * `gegen_zuordnung_id`; liegt sie in einer fremden Gesellschaft, bliebe sie
- * ungenannt (§6.3) — dieser Weg sieht ohnehin nur den eigenen Mandanten.
+ * nicht am Tag: wer zweimal doppelt eingeteilt wird, bekommt zwei Karten. Das
+ * bleibt so — und es haeuft nichts mehr an, seit `sageZuordnungAb` die Karten
+ * einer entfernten Zuordnung ueberholt: dieselbe Schicht zweimal geplant und
+ * einmal zurueckgenommen hinterlaesst eine offene Karte und eine hinfaellige,
+ * nicht zwei offene. Die Gegenseite steht in `gegen_zuordnung_id`; liegt sie
+ * in einer fremden Gesellschaft, bliebe sie ungenannt (§6.3) — dieser Weg
+ * sieht ohnehin nur den eigenen Mandanten.
  *
  * `blockiert` bleibt `false`, weil es der ausgelieferte Vorgabewert ist,
  * solange O-166 offen ist; die Zeile ist der Nachweis, nicht die Bremse.
@@ -398,6 +416,89 @@ async function schreibeUeberschneidungsKonflikt(
       kontext.benutzerId,
     ],
   );
+}
+
+/**
+ * Die Karten, die an dieser Zuordnung hingen, werden **hinfaellig**.
+ *
+ * **Es gab dafuer keinen einzigen Schreiber.** `raeumeAuf` im Detektor holt
+ * sich ausdruecklich nur `art = 'arbzg'`, und sonst setzt niemand im ganzen
+ * Haus `planungs_konflikt.hinfaellig_am`. Eine uebergangene Doppelbesetzung
+ * blieb damit fuer immer `offen`: der Planer nimmt die Gegenschicht am
+ * Folgetag zurueck, die Ueberschneidung existiert nicht mehr — und die Karte
+ * „Ueberschneidet eine andere Schicht" steht weiter im Eingang und in der
+ * Dashboard-Kachel. Der einzige Ausgang waere eine Quittierung MIT
+ * Begruendung gewesen (`pk_quittierung_begruendet`), also eine geschriebene
+ * Rechtfertigung fuer einen Zustand, den es nicht mehr gibt. Genau so
+ * entsteht der Eingang voller Karteileichen, bis niemand mehr hinsieht.
+ *
+ * **Ueberholt, nie geloescht** (Invariante 8): `hinfaellig_am` faellt aus dem
+ * partiellen Abdruckindex, die Zeile bleibt lesbar.
+ *
+ * **Und nicht blind.** Haengt die Karte nur mit ihrer GEGENSEITE an dieser
+ * Zuordnung, wird noch einmal gesucht: bei drei ueberlappenden Schichten
+ * bleibt nach dem Entfernen der einen die andere bestehen, und eine Karte,
+ * die dann verschwaende, waere ein geloeschter Befund zu einem bestehenden
+ * Konflikt. In dem Fall wandert die Karte auf die verbliebene Gegenschicht.
+ *
+ * Quittierte Karten bleiben unberuehrt — wie bei `raeumeAuf`: sie halten eine
+ * Entscheidung fest, keinen Zustand.
+ */
+async function ueberholeUeberschneidungsKonflikte(
+  kontext: SchreibKontext, zuordnungId: string,
+): Promise<void> {
+  const karten = await kontext.abfrage<{
+    id: string;
+    person_id: string;
+    anstellung_id: string;
+    einsatz_id: string | null;
+    eigene: boolean;
+    // Der Treiber gibt `timestamptz` als `Date` heraus. Als Zeichenkette
+    // getippt und ueber `new Date(...)` zurueckgedreht kostete der Umweg die
+    // Millisekunden — eine Grenze, die auf der Sekunde liegt, kippte damit auf
+    // die falsche Seite. Hier steht deshalb der Typ, den die Zeile wirklich hat.
+    beginn: Date;
+    ende: Date;
+  }>(
+    `select k.id, k.person_id, k.anstellung_id, k.einsatz_id,
+            (k.einsatz_zuordnung_id = $1::uuid) as eigene,
+            k.zeitraum_beginn as beginn, k.zeitraum_ende as ende
+       from planungs_konflikt k
+      where k.art = 'ueberschneidung'
+        and k.status = 'offen'
+        and k.hinfaellig_am is null
+        and (k.einsatz_zuordnung_id = $1::uuid or k.gegen_zuordnung_id = $1::uuid)`,
+    [zuordnungId],
+  );
+
+  for (const karte of karten) {
+    if (!karte.eigene && karte.einsatz_id !== null) {
+      const rest = await ueberschneidungenFinden(
+        kontext, karte.person_id, karte.einsatz_id, karte.anstellung_id,
+        karte.beginn, karte.ende,
+      );
+      const erste = rest[0];
+      if (erste !== undefined) {
+        await kontext.schreibe(
+          `update planungs_konflikt
+              set gegen_zuordnung_id = $2::uuid, details = $3::jsonb
+            where id = $1::uuid`,
+          [
+            karte.id, erste.zuordnungId,
+            // Das OBJEKT, nicht sein JSON-Text — siehe den Schreiber oben.
+            { gegenschichten: rest.map((u) => u.text) },
+          ],
+        );
+        continue;
+      }
+    }
+    await kontext.schreibe(
+      `update planungs_konflikt
+          set hinfaellig_am = now()
+        where id = $1::uuid and hinfaellig_am is null`,
+      [karte.id],
+    );
+  }
 }
 
 /**
@@ -462,7 +563,7 @@ export async function pruefeEinteilung(
   const ende = new Date(schicht.ende_zeitpunkt);
   const abmeldung = await abwesenheitImFenster(kontext, anstellungId, beginn, ende);
   const ueberschneidungen = await ueberschneidungenFinden(
-    kontext, personId, einsatzId, beginn, ende);
+    kontext, personId, einsatzId, anstellungId, beginn, ende);
 
   try {
     const ergebnis = await pruefeEinsatz(db, personId, beginn, ende, {
@@ -538,7 +639,7 @@ export async function besetzeEinsatz(
    * deshalb vor dem Uebertritt ueber die Mandantengrenze.
    */
   const ueberschneidungen = await ueberschneidungenFinden(
-    kontext, personId, eingabe.einsatzId, beginn, ende);
+    kontext, personId, eingabe.einsatzId, eingabe.anstellungId, beginn, ende);
   if (ueberschneidungen.length > 0 && eingabe.bestaetigt !== true) {
     throw new UeberschneidungWarnungOffen(ueberschneidungen);
   }
@@ -661,4 +762,8 @@ export async function sageZuordnungAb(
     [zuordnungId, grund.trim(), kontext.benutzerId],
   );
   if (zeilen.length === 0) throw new ZuordnungNichtGefunden(zuordnungId);
+
+  // Erst nach dem `entfernt_am`: die Nachsuche der Gegenseite liest
+  // `einsatz_zuordnung` und darf die soeben abgesagte Zeile nicht mehr finden.
+  await ueberholeUeberschneidungsKonflikte(kontext, zuordnungId);
 }

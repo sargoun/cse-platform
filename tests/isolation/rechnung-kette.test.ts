@@ -308,3 +308,131 @@ describe('SQL und TypeScript lösen dieselbe Maske gleich auf', () => {
     )).rejects.toThrow(/unbekannter Platzhalter/u);
   });
 });
+
+/**
+ * Die beiden Pruefungen, die in dieser Runde dazukamen — und ohne die hier
+ * keine Zeile stuende.
+ *
+ * Beide melden `kritisch` nach NOT-01/NOT-03 und nennen eine Rechnungsnummer.
+ * Eine solche Meldung ist teuer: sie holt nachts jemanden aus dem Bett und
+ * behauptet, eine festgeschriebene Rechnung sei manipuliert. Was sie deshalb
+ * braucht, ist beides — dass sie im Ernstfall kommt UND dass sie sonst
+ * schweigt. Die zweite Haelfte ist die, die hier gefehlt hat: der urspruengliche
+ * `kreisuebergang_gebrochen` KONNTE gar nichts anderes als falsch melden.
+ */
+describe('(7) die Kopf- und die Uebergangspruefung', () => {
+  /**
+   * Der laufende Kreis ist der VORGAENGER, und ein leerer Kreis der Nachfolger.
+   *
+   * Drei Anlaeufe haben dasselbe gelehrt: eine Fixtur, die einen Zustand
+   * herstellt, den das System nie erzeugt, prueft die Pruefung nicht, sondern
+   * die Fixtur. Ein `genesis_hash`, nachtraeglich auf einen Kreis mit Gliedern
+   * gesetzt, bricht zuerst Schritt 2 (`verkettung_gebrochen` am ersten Glied),
+   * und ein `letzter_hash` auf einem Kreis OHNE Glieder bricht Schritt 3a
+   * (`kettenkopf_weicht_ab`, erwartet 64 Nullen). Beides ist richtig so und
+   * hat mit dem Uebergang nichts zu tun.
+   *
+   * Wie es wirklich laeuft: der alte Kreis wird geschlossen und traegt seinen
+   * `letzter_hash` aus der letzten Festschreibung; der neue wird mit genau
+   * diesem Wert als `genesis_hash` eroeffnet und ist noch leer.
+   */
+  async function nachfolger(genesisHash: string): Promise<void> {
+    await sql.unsafe(
+      `update nummernkreis set geschlossen_am = '2026-08-31'
+        where mandant_id = $1 and kreis_typ = 'ausgangsrechnung'`,
+      [f.reinigung],
+    );
+    const [alt] = await sql.unsafe<{ id: string }[]>(
+      `select id from nummernkreis
+        where mandant_id = $1 and kreis_typ = 'ausgangsrechnung'`,
+      [f.reinigung],
+    );
+    await sql.unsafe(
+      `insert into nummernkreis
+         (mandant_id, kreis_typ, kontext_id, jahr, bezeichnung, lueckenlos, format_maske,
+          zuruecksetzung, geoeffnet_am, ist_platzhalter,
+          erstellt_von_art, erstellt_von_dienst,
+          vorgaenger_nummernkreis_id, genesis_hash)
+       values ($1, 'ausgangsrechnung', null, 2026, 'Rechnungen 2026', true,
+               'RE-{jahr}-{nr:5}', 'jaehrlich',
+               '2026-09-01', false, 'system', 'job:test', $2, $3)`,
+      [f.reinigung, alt!.id, genesisHash],
+    );
+  }
+
+  /** Der Kopf, den die fuenf Festschreibungen wirklich hinterlassen haben. */
+  async function echterKopf(): Promise<string> {
+    const [z] = await sql.unsafe<{ letzter_hash: string }[]>(
+      `select letzter_hash from nummernkreis
+        where mandant_id = $1 and kreis_typ = 'ausgangsrechnung'`,
+      [f.reinigung],
+    );
+    return z!.letzter_hash;
+  }
+
+  it('ein abweichender Kettenkopf wird an der LETZTEN Rechnung benannt', async () => {
+    /*
+     * `nummernkreis.letzter_hash` ist der Kopf, gegen den ein neues Glied
+     * anschliesst. Weicht er vom Hash des letzten Gliedes ab, wuerde die
+     * naechste Festschreibung auf einem falschen Vorgaenger aufsetzen — der
+     * Bruch liegt also in der Zukunft und wird am letzten VORHANDENEN Glied
+     * gemeldet, weil es das ist, was der Kopf nennen sollte.
+     */
+    await ohneAusloeser(
+      `update nummernkreis set letzter_hash = repeat('a', 64)
+        where mandant_id = $1 and kreis_typ = 'ausgangsrechnung'`,
+      [f.reinigung],
+    );
+
+    const befund = await alsApp(sitzung(), (tx) => pruefeKette(alsDienst(tx)));
+    expect(befund.ok).toBe(false);
+    expect(befund.ersterBruch?.grund).toBe('kettenkopf_weicht_ab');
+    expect(befund.ersterBruch?.nummer).toBe(nummern[4]);
+  });
+
+  it('ein Kreis OHNE benannten Vorgaenger meldet nichts — auch mit Genesis', async () => {
+    /**
+     * **Die Gegenprobe, die vorher fehlte.**
+     *
+     * `0077` sagt einem, wie man einen Nachfolgekreis eroeffnet: „letzter_hash
+     * wird als genesis_hash uebernommen". `vorgaenger_nummernkreis_id`
+     * schreibt in diesem Repo keine Zeile. Wer also genau das tut, was da
+     * steht, bekam ab der ersten Nacht eine `kritisch`-Meldung auf einer
+     * unversehrten Kette.
+     *
+     * §5.7 Schritt 3b prueft den Uebergang nur fuer einen Kreis, dessen
+     * Vorgaenger BENANNT ist. Ein Genesis ohne benannten Vorgaenger ist ein
+     * Datenbefund fuer die Nummernkreisverwaltung, kein Kettenbruch.
+     */
+    await nachfolger(await echterKopf());
+    await sql.unsafe(
+      `update nummernkreis set vorgaenger_nummernkreis_id = null
+        where mandant_id = $1 and jahr = 2026`,
+      [f.reinigung],
+    );
+
+    const befund = await alsApp(sitzung(), (tx) => pruefeKette(alsDienst(tx)));
+    expect(befund.ok, meldung(befund)).toBe(true);
+    expect(befund.ersterBruch).toBeNull();
+  });
+
+  it('ein BENANNTER Vorgaenger dagegen muss passen', async () => {
+    /*
+     * Derselbe Aufbau, nur mit gesetztem Vorgaenger und einem Genesis, der
+     * nicht dessen Kopf ist. Ohne diesen Fall hiesse die Reparatur oben nur
+     * „die Pruefung schweigt jetzt immer".
+     */
+    await nachfolger('d'.repeat(64));
+
+    const befund = await alsApp(sitzung(), (tx) => pruefeKette(alsDienst(tx)));
+    expect(befund.ok).toBe(false);
+    expect(befund.ersterBruch?.grund).toBe('kreisuebergang_gebrochen');
+  });
+
+  it('und mit PASSENDEM Uebergang schweigt sie wieder', async () => {
+    await nachfolger(await echterKopf());
+
+    const befund = await alsApp(sitzung(), (tx) => pruefeKette(alsDienst(tx)));
+    expect(befund.ok, meldung(befund)).toBe(true);
+  });
+});

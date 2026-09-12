@@ -81,6 +81,18 @@ interface GliedZeile {
   readonly netto_gesamt_cent: string;
   readonly steuer_gesamt_cent: string;
   readonly brutto_cent: string;
+  /**
+   * Der Kettenkopf DIESES Kreises, aus derselben Anweisung wie die Glieder.
+   *
+   * Er stand vorher nur in der Kreisabfrage ganz oben — also aus einem
+   * aelteren Snapshot als die Glieder. Solange `letzter_hash` gelesen und nie
+   * benutzt wurde, war das folgenlos; seit Schritt 3a ihn vergleicht, meldete
+   * eine Festschreibung, die zwischen beide Abfragen faellt,
+   * `kettenkopf_weicht_ab` auf einer unversehrten Kette — als
+   * `kritisch`-Benachrichtigung nach NOT-01/NOT-03. Reinigung und
+   * Objektschutz fakturieren auch nachts; der Lauf faellt mitten hinein.
+   */
+  readonly letzter_hash: string | null;
 }
 
 /**
@@ -98,10 +110,12 @@ const GLIEDER_SQL = `
          s.nutzlast ->> 'netto_gesamt_cent' as nutzlast_netto,
          s.nutzlast ->> 'steuer_gesamt_cent' as nutzlast_steuer,
          s.nutzlast ->> 'brutto_cent' as nutzlast_brutto,
-         r.netto_gesamt_cent::text, r.steuer_gesamt_cent::text, r.brutto_cent::text
+         r.netto_gesamt_cent::text, r.steuer_gesamt_cent::text, r.brutto_cent::text,
+         n.letzter_hash
     from rechnung_hash h
     join rechnung_snapshot s on s.rechnung_id = h.rechnung_id
     join rechnung r on r.id = h.rechnung_id
+    join nummernkreis n on n.id = h.nummernkreis_id
    where h.nummernkreis_id = $1
    order by h.kette_position`;
 
@@ -131,16 +145,29 @@ function uebergangsBruch(
   kreis: KreisZeile,
   koepfe: ReadonlyMap<string, string>,
   kreise: ReadonlyMap<string, KreisZeile>,
+  kopfBrueche: ReadonlySet<string>,
 ): { grund: 'kreisuebergang_gebrochen'; erwartet: string; gefunden: string } | null {
-  const genesis = kreis.genesis_hash ?? GENESIS;
-
   if (kreis.vorgaenger_nummernkreis_id === null) {
-    // Ein Kreis ohne Vorgaenger beginnt die Linie dieser Gesellschaft, und
-    // deren Vorgaenger sind 64 Nullen (§5.4). Ein Genesis ohne benannten
-    // Vorgaenger behauptet eine Fortsetzung, die niemand nachschlagen kann.
-    return genesis === GENESIS
-      ? null
-      : { grund: 'kreisuebergang_gebrochen', erwartet: GENESIS, gefunden: genesis };
+    /**
+     * KEIN Bruch — und hier stand einer.
+     *
+     * Gemeldet wurde, sobald ein Kreis OHNE benannten Vorgaenger einen
+     * `genesis_hash` trug. Diese Meldung konnte ausschliesslich falsch sein:
+     * `vorgaenger_nummernkreis_id` wird in diesem Repo von keiner Zeile
+     * geschrieben, und die einzige Anleitung zum Eroeffnen eines
+     * Nachfolgekreises — der Hinweistext in `0077` — nennt nur „letzter_hash
+     * wird als genesis_hash uebernommen". Wer den Nachfolger genau so
+     * eroeffnet, wie ihm gesagt wird, bekaeme ab dem 2. Januar JEDE Nacht
+     * eine `kritisch`-Meldung nach NOT-01/NOT-03, die eine unversehrte
+     * Rechnung des neuen Jahres beim Namen nennt.
+     *
+     * §5.7 Schritt 3b prueft den Uebergang ausdruecklich nur fuer einen
+     * Kreis, „whose `vorgaenger_nummernkreis_id` is set". Ein Genesis ohne
+     * benannten Vorgaenger ist ein Datenbefund fuer die
+     * Nummernkreisverwaltung — kein Kettenbruch, und diese Funktion erfindet
+     * die Regel nicht, die einen daraus machte.
+     */
+    return null;
   }
 
   const vorgaenger = kreise.get(kreis.vorgaenger_nummernkreis_id);
@@ -151,14 +178,174 @@ function uebergangsBruch(
     // Meldung, die eine Rechnungsnummer verspricht.
     return null;
   }
+
+  if (kopfBrueche.has(vorgaenger.id)) {
+    /**
+     * Der Vorgaenger hat in DIESEM Lauf `kettenkopf_weicht_ab` gemeldet: sein
+     * gespeicherter Kopf und sein nachgerechneter gehen auseinander. Dass der
+     * Genesis hier am einen und nicht am anderen haengt, ist die FOLGE davon
+     * und keine zweite Tatsache.
+     *
+     * Ohne diese Zeile erzeugte EIN Eingriff — die letzten Glieder eines
+     * Geschaeftsjahres entfernt — zwei Meldungen, und die lautere von beiden
+     * nannte die erste Rechnung des FOLGEJAHRES, die nachweislich unversehrt
+     * ist. Der Dateikopf verspricht das Gegenteil: die erste kaputte Nummer,
+     * keine Folgefehler.
+     */
+    return null;
+  }
+
   // Derselbe Rueckfall wie beim Schreiber (0077, Schritt 8): ein Vorgaenger,
   // der nie eine Rechnung getragen hat, reicht seinen eigenen Genesis durch.
+  const genesis = kreis.genesis_hash ?? GENESIS;
   const erwartet = koepfe.get(vorgaenger.id)
     ?? vorgaenger.letzter_hash ?? vorgaenger.genesis_hash ?? GENESIS;
 
   return genesis === erwartet
     ? null
     : { grund: 'kreisuebergang_gebrochen', erwartet, gefunden: genesis };
+}
+
+/** Was die Schritte 1 bis 4 ueber EINEN Kreis sagen. */
+interface InhaltsBefund {
+  readonly geprueft: number;
+  readonly bruch: KettenBruch | null;
+  /** Der nachgerechnete Kettenkopf — null, solange Schritt 1 oder 2/3 abbrach. */
+  readonly kopf: string | null;
+  /** Schritt 3a hat gemeldet; dieser Bruch wird zurueckgestellt (siehe dort). */
+  readonly kopfBruch: boolean;
+}
+
+/**
+ * Die Schritte 1 bis 4 fuer einen Kreis — der INHALT, ohne den Uebergang.
+ *
+ * Herausgeloest, weil der Uebergang (Schritt 0) diese Pruefung frueher per
+ * `continue` uebersprungen hat: hatte er etwas zu melden, lief der Kreis durch
+ * KEINEN der vier Schritte, `geprueft` blieb 0, und ein echter Bruch im
+ * laufenden Geschaeftsjahr stand hinter der Uebergangsmeldung und kam nie
+ * heraus. Der Uebergang ist eine ZUSAETZLICHE Aussage ueber den Kreis, kein
+ * Ersatz fuer die Pruefung seines Inhalts.
+ */
+function pruefeKreisInhalt(
+  kreis: KreisZeile, glieder: readonly GliedZeile[],
+): InhaltsBefund {
+  /**
+   * Schritt 1 — Lueckenlosigkeit. Eine fehlende Position heisst, dass eine
+   * Zeile UNTERHALB der Anwendungsschicht entfernt wurde; danach hat jeder
+   * weitere Vergleich keinen Aussagewert mehr, also wird hier abgebrochen.
+   */
+  const positionen = glieder.map((g) => Number(g.kette_position));
+  const luecke = positionen.findIndex((p, i) => p !== i + 1);
+  if (luecke >= 0) {
+    return {
+      geprueft: luecke, kopf: null, kopfBruch: false,
+      bruch: {
+        nummer: glieder[luecke]?.nummer ?? '—',
+        rechnungId: glieder[luecke]?.rechnung_id ?? '',
+        nummernkreis: kreis.bezeichnung,
+        position: positionen[luecke] ?? luecke + 1,
+        grund: 'position_luecke',
+        erwartet: String(luecke + 1),
+        gefunden: String(positionen[luecke] ?? '—'),
+      },
+    };
+  }
+
+  /**
+   * Schritte 2 und 3 — Nutzlast und Verkettung, durch die unabhaengige
+   * TypeScript-Fassung. `genesis` ist der Kettenkopf des Vorgaengerkreises;
+   * fehlt er, ist es der allererste Kreis dieser Gesellschaft und der
+   * Vorgaenger sind 64 Nullen.
+   */
+  const saetze: KettenSatz[] = glieder.map((g) => ({
+    position: Number(g.kette_position),
+    nutzlastBytes: g.nutzlast_bytes,
+    vorherigerHash: g.vorheriger_hash,
+    hash: g.hash,
+    nutzlastSha256: g.nutzlast_sha256,
+  }));
+
+  const pruefung = verifyChain(saetze, kreis.genesis_hash ?? GENESIS);
+  if (!pruefung.ok) {
+    const glied = glieder[pruefung.ersterBruch.position - 1];
+    return {
+      geprueft: pruefung.geprueft, kopf: null, kopfBruch: false,
+      bruch: {
+        nummer: glied?.nummer ?? '—',
+        rechnungId: glied?.rechnung_id ?? '',
+        nummernkreis: kreis.bezeichnung,
+        position: pruefung.ersterBruch.position,
+        grund: pruefung.ersterBruch.grund,
+        erwartet: pruefung.ersterBruch.erwartet,
+        gefunden: pruefung.ersterBruch.gefunden,
+      },
+    };
+  }
+
+  /**
+   * Schritt 3a — der Kettenkopf. `nummernkreis.letzter_hash` muss der Hash
+   * des letzten Gliedes sein; er ist der Wert, an dem der NAECHSTE Kreis
+   * haengt, und wird vom Aufrufer fuer dessen Uebergang gemerkt.
+   *
+   * Das ist die Gegenrichtung zur Lueckenpruefung: werden die LETZTEN
+   * Glieder eines Kreises entfernt, bleiben die verbliebenen lueckenlos und
+   * verketten sauber — nur der Kopf zeigt dann auf ein Glied, das es nicht
+   * mehr gibt. Ohne diesen Vergleich waere das Abschneiden eines
+   * Jahresendes die eine Manipulation, die durch jeden Schritt kommt.
+   *
+   * Der gespeicherte Kopf kommt aus DERSELBEN Anweisung wie die Glieder
+   * (`GLIEDER_SQL`, `n.letzter_hash`) — siehe dort, warum der Wert aus der
+   * Kreisabfrage ganz oben dafuer der falsche ist.
+   */
+  const gerechneterKopf = kettenKopf(saetze, kreis.genesis_hash ?? GENESIS);
+  const erstes = glieder[0];
+  const gespeicherterKopf =
+    (erstes === undefined ? kreis.letzter_hash : erstes.letzter_hash)
+    ?? kreis.genesis_hash ?? GENESIS;
+  if (gespeicherterKopf !== gerechneterKopf) {
+    const letztes = glieder.at(-1);
+    return {
+      geprueft: glieder.length, kopf: gerechneterKopf, kopfBruch: true,
+      bruch: {
+        nummer: letztes?.nummer ?? '—',
+        rechnungId: letztes?.rechnung_id ?? '',
+        nummernkreis: kreis.bezeichnung,
+        position: glieder.length,
+        grund: 'kettenkopf_weicht_ab',
+        erwartet: gerechneterKopf,
+        gefunden: gespeicherterKopf,
+      },
+    };
+  }
+
+  /**
+   * Schritt 4 — Stimmigkeit. Nummer und die drei Summen auf der Zeile
+   * gegen die im Snapshot. Das faengt eine Aenderung, die AN DEN AUSLOESERN
+   * VORBEI in die Zeile gelangt ist: der Hash bliebe dann gueltig, denn er
+   * bezeugt den Snapshot, nicht die Zeile.
+   */
+  const abweichend = glieder.find((g) =>
+    g.nutzlast_nummer !== g.nummer
+    || g.nutzlast_netto !== g.netto_gesamt_cent
+    || g.nutzlast_steuer !== g.steuer_gesamt_cent
+    || g.nutzlast_brutto !== g.brutto_cent);
+
+  if (abweichend !== undefined) {
+    return {
+      geprueft: glieder.length, kopf: gerechneterKopf, kopfBruch: false,
+      bruch: {
+        nummer: abweichend.nummer,
+        rechnungId: abweichend.rechnung_id,
+        nummernkreis: kreis.bezeichnung,
+        position: Number(abweichend.kette_position),
+        grund: 'kopf_weicht_ab',
+        erwartet: `${abweichend.nutzlast_nummer ?? '—'} / ${abweichend.nutzlast_brutto ?? '—'}`,
+        gefunden: `${abweichend.nummer} / ${abweichend.brutto_cent}`,
+      },
+    };
+  }
+
+  return { geprueft: glieder.length, kopf: gerechneterKopf, kopfBruch: false, bruch: null };
 }
 
 /**
@@ -194,6 +381,12 @@ export async function pruefeKette(db: Abfrage): Promise<KettenBefund> {
    */
   const koepfe = new Map<string, string>();
   const kreisJeId = new Map(kreise.map((k) => [k.id, k]));
+  /**
+   * Die Kreise, deren Kopf in DIESEM Lauf abgewichen ist. `uebergangsBruch`
+   * liest es, damit ein abgeschnittenes Jahresende nicht zweimal gemeldet
+   * wird — einmal richtig und einmal auf der unversehrten Folgerechnung.
+   */
+  const kopfBrueche = new Set<string>();
   /** Zurueckgestellt — siehe Schritt 3a. */
   let kopfBruch: KettenBruch | null = null;
 
@@ -202,171 +395,48 @@ export async function pruefeKette(db: Abfrage): Promise<KettenBefund> {
 
     /**
      * Schritt 0 — der Uebergang vom Vorgaengerkreis. Er steht VOR allem
-     * anderen: haengt dieser Kreis am falschen Kopf, sind seine Glieder zwar
-     * untereinander stimmig, aber die Linie als Ganzes ist es nicht, und
-     * jeder weitere Vergleich innerhalb des Kreises bestaetigte nur noch die
-     * gefaelschte Fortsetzung.
-     */
-    const uebergang = uebergangsBruch(kreis, koepfe, kreisJeId);
-    if (uebergang !== null) {
-      const bruch: KettenBruch = {
-        nummer: glieder[0]?.nummer ?? '—',
-        rechnungId: glieder[0]?.rechnung_id ?? '',
-        nummernkreis: kreis.bezeichnung,
-        position: 1,
-        grund: uebergang.grund,
-        erwartet: uebergang.erwartet,
-        gefunden: uebergang.gefunden,
-      };
-      befunde.push({
-        nummernkreisId: kreis.id, bezeichnung: kreis.bezeichnung,
-        geprueft: 0, bruch,
-      });
-      erster ??= bruch;
-      continue;
-    }
-
-    /**
-     * Schritt 1 — Lueckenlosigkeit. Eine fehlende Position heisst, dass eine
-     * Zeile UNTERHALB der Anwendungsschicht entfernt wurde; danach hat jeder
-     * weitere Vergleich keinen Aussagewert mehr, also wird hier abgebrochen.
-     */
-    const positionen = glieder.map((g) => Number(g.kette_position));
-    const luecke = positionen.findIndex((p, i) => p !== i + 1);
-    if (luecke >= 0) {
-      const bruch: KettenBruch = {
-        nummer: glieder[luecke]?.nummer ?? '—',
-        rechnungId: glieder[luecke]?.rechnung_id ?? '',
-        nummernkreis: kreis.bezeichnung,
-        position: positionen[luecke] ?? luecke + 1,
-        grund: 'position_luecke',
-        erwartet: String(luecke + 1),
-        gefunden: String(positionen[luecke] ?? '—'),
-      };
-      befunde.push({
-        nummernkreisId: kreis.id, bezeichnung: kreis.bezeichnung,
-        geprueft: luecke, bruch,
-      });
-      erster ??= bruch;
-      gesamt += luecke;
-      continue;
-    }
-
-    /**
-     * Schritte 2 und 3 — Nutzlast und Verkettung, durch die unabhaengige
-     * TypeScript-Fassung. `genesis` ist der Kettenkopf des Vorgaengerkreises;
-     * fehlt er, ist es der allererste Kreis dieser Gesellschaft und der
-     * Vorgaenger sind 64 Nullen.
-     */
-    const saetze: KettenSatz[] = glieder.map((g) => ({
-      position: Number(g.kette_position),
-      nutzlastBytes: g.nutzlast_bytes,
-      vorherigerHash: g.vorheriger_hash,
-      hash: g.hash,
-      nutzlastSha256: g.nutzlast_sha256,
-    }));
-
-    const pruefung = verifyChain(saetze, kreis.genesis_hash ?? GENESIS);
-
-    if (!pruefung.ok) {
-      const glied = glieder[pruefung.ersterBruch.position - 1];
-      const bruch: KettenBruch = {
-        nummer: glied?.nummer ?? '—',
-        rechnungId: glied?.rechnung_id ?? '',
-        nummernkreis: kreis.bezeichnung,
-        position: pruefung.ersterBruch.position,
-        grund: pruefung.ersterBruch.grund,
-        erwartet: pruefung.ersterBruch.erwartet,
-        gefunden: pruefung.ersterBruch.gefunden,
-      };
-      befunde.push({
-        nummernkreisId: kreis.id, bezeichnung: kreis.bezeichnung,
-        geprueft: pruefung.geprueft, bruch,
-      });
-      erster ??= bruch;
-      gesamt += pruefung.geprueft;
-      continue;
-    }
-
-    /**
-     * Schritt 3a — der Kettenkopf. `nummernkreis.letzter_hash` muss der Hash
-     * des letzten Gliedes sein; er ist der Wert, an dem der NAECHSTE Kreis
-     * haengt, und wird hier fuer dessen Uebergang gemerkt.
+     * anderen, weil er die frueheste Stelle der Linie beschreibt: haengt
+     * dieser Kreis am falschen Kopf, bricht die Linie schon vor seinem ersten
+     * Glied.
      *
-     * Das ist die Gegenrichtung zur Lueckenpruefung: werden die LETZTEN
-     * Glieder eines Kreises entfernt, bleiben die verbliebenen lueckenlos und
-     * verketten sauber — nur der Kopf zeigt dann auf ein Glied, das es nicht
-     * mehr gibt. Ohne diesen Vergleich waere das Abschneiden eines
-     * Jahresendes die eine Manipulation, die durch jeden Schritt kommt.
+     * Er BEENDET die Pruefung dieses Kreises aber nicht mehr. Hier stand
+     * `continue`, und damit wurde aus einer zusaetzlichen Aussage ein Ersatz
+     * fuer alle vier Schritte — ein echter Bruch im laufenden Jahr blieb
+     * hinter der Uebergangsmeldung unsichtbar und `geprueft` zaehlte 0.
      */
-    const gerechneterKopf = kettenKopf(saetze, kreis.genesis_hash ?? GENESIS);
-    koepfe.set(kreis.id, gerechneterKopf);
-    const gespeicherterKopf = kreis.letzter_hash ?? kreis.genesis_hash ?? GENESIS;
-    if (gespeicherterKopf !== gerechneterKopf) {
-      const letztes = glieder.at(-1);
-      const bruch: KettenBruch = {
-        nummer: letztes?.nummer ?? '—',
-        rechnungId: letztes?.rechnung_id ?? '',
-        nummernkreis: kreis.bezeichnung,
-        position: glieder.length,
-        grund: 'kettenkopf_weicht_ab',
-        erwartet: gerechneterKopf,
-        gefunden: gespeicherterKopf,
-      };
-      befunde.push({
-        nummernkreisId: kreis.id, bezeichnung: kreis.bezeichnung,
-        geprueft: glieder.length, bruch,
-      });
-      /**
-       * NICHT `erster ??=`, sondern zurueckgestellt. Ein abgeschnittenes
-       * Kettenende zeigt sich an zwei Stellen: hier als Kopf, der auf ein
-       * Glied zeigt, das es nicht mehr gibt — und unten als festgeschriebene
-       * Rechnung ohne Kettenglied. Die zweite Meldung nennt die
-       * RECHNUNGSNUMMER, diese nur zwei Hashes, und die Meldung muss die
-       * Nummer nennen (§5.7). Bleibt der Bruch unten unbemerkt, wird dieser
-       * hier eingereiht.
-       */
-      kopfBruch ??= bruch;
-      gesamt += glieder.length;
-      continue;
-    }
+    const uebergang = uebergangsBruch(kreis, koepfe, kreisJeId, kopfBrueche);
+    const uebergangBruch: KettenBruch | null = uebergang === null ? null : {
+      nummer: glieder[0]?.nummer ?? '—',
+      rechnungId: glieder[0]?.rechnung_id ?? '',
+      nummernkreis: kreis.bezeichnung,
+      position: 1,
+      grund: uebergang.grund,
+      erwartet: uebergang.erwartet,
+      gefunden: uebergang.gefunden,
+    };
 
-    /**
-     * Schritt 4 — Stimmigkeit. Nummer und die drei Summen auf der Zeile
-     * gegen die im Snapshot. Das faengt eine Aenderung, die AN DEN AUSLOESERN
-     * VORBEI in die Zeile gelangt ist: der Hash bliebe dann gueltig, denn er
-     * bezeugt den Snapshot, nicht die Zeile.
-     */
-    const abweichend = glieder.find((g) =>
-      g.nutzlast_nummer !== g.nummer
-      || g.nutzlast_netto !== g.netto_gesamt_cent
-      || g.nutzlast_steuer !== g.steuer_gesamt_cent
-      || g.nutzlast_brutto !== g.brutto_cent);
-
-    if (abweichend !== undefined) {
-      const bruch: KettenBruch = {
-        nummer: abweichend.nummer,
-        rechnungId: abweichend.rechnung_id,
-        nummernkreis: kreis.bezeichnung,
-        position: Number(abweichend.kette_position),
-        grund: 'kopf_weicht_ab',
-        erwartet: `${abweichend.nutzlast_nummer ?? '—'} / ${abweichend.nutzlast_brutto ?? '—'}`,
-        gefunden: `${abweichend.nummer} / ${abweichend.brutto_cent}`,
-      };
-      befunde.push({
-        nummernkreisId: kreis.id, bezeichnung: kreis.bezeichnung,
-        geprueft: glieder.length, bruch,
-      });
-      erster ??= bruch;
-      gesamt += glieder.length;
-      continue;
-    }
+    const inhalt = pruefeKreisInhalt(kreis, glieder);
+    if (inhalt.kopf !== null) koepfe.set(kreis.id, inhalt.kopf);
+    if (inhalt.kopfBruch) kopfBrueche.add(kreis.id);
 
     befunde.push({
       nummernkreisId: kreis.id, bezeichnung: kreis.bezeichnung,
-      geprueft: glieder.length, bruch: null,
+      geprueft: inhalt.geprueft, bruch: uebergangBruch ?? inhalt.bruch,
     });
-    gesamt += glieder.length;
+    gesamt += inhalt.geprueft;
+
+    /**
+     * Ein Uebergangsbruch, der bis hierher kommt, ist KEINE Folge eines
+     * anderen: `uebergangsBruch` hat den Fall schon verworfen, in dem der
+     * Vorgaenger selbst einen Kopfbruch gemeldet hat. Er nennt damit genau
+     * die Rechnung, an der die Linie reisst — die erste dieses Kreises — und
+     * liegt vor jedem Glied des Kreises.
+     */
+    if (uebergangBruch !== null) erster ??= uebergangBruch;
+    if (inhalt.bruch !== null) {
+      if (inhalt.kopfBruch) kopfBruch ??= inhalt.bruch;
+      else erster ??= inhalt.bruch;
+    }
   }
 
   /**

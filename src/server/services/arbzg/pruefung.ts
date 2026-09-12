@@ -98,13 +98,30 @@ export async function leseBelastung(
    */
   jobMandantId?: string,
 ): Promise<readonly Belastungsfenster[]> {
+  /**
+   * **Beide Leser liefern `fremd`, und beide lassen die DATENBANK vergleichen.**
+   *
+   * Der Job-Leser gibt `mandant_id uuid` heraus; die erste Fassung las sie als
+   * `::text` zurueck und verglich in TypeScript mit `!==`. Das ist ein
+   * Zeichenkettenvergleich auf einer UUID: eine Schreibweise in Grossbuchstaben
+   * oder mit Bindestrichen an anderer Stelle — und JEDES Fenster gilt als
+   * fremd. Der Nachtlauf meldete dann eine Gesellschaftsgrenze, wo keine war,
+   * still und in jeder Zeile. `mandant_id <> $4::uuid` vergleicht dagegen uuid
+   * gegen uuid; ein unbrauchbarer Wert hebt sofort `22P02`, statt das Ergebnis
+   * lautlos zu verdrehen. Nebenbei faellt damit auch der zweite Schluessel im
+   * Rueckleseobjekt weg — genau die Stelle, an der sich Camel- und
+   * Unterstrich-Schreibweise sonst unbemerkt verfehlen.
+   */
   const zeilen = (await db.unsafe(
     jobMandantId === undefined
       ? `select fenster_gruppe, beginn_utc, ende_utc, minuten, fremd
            from app.arbzg_belastung($1, $2::timestamptz, $3::timestamptz)`
-      : `select fenster_gruppe, beginn_utc, ende_utc, minuten, mandant_id::text as mandant_id
+      : `select fenster_gruppe, beginn_utc, ende_utc, minuten,
+                (mandant_id <> $4::uuid) as fremd
            from zeit_intern.arbzg_belastung_job($1, $2::timestamptz, $3::timestamptz)`,
-    [personId, vonUtc.toISOString(), bisUtc.toISOString()],
+    jobMandantId === undefined
+      ? [personId, vonUtc.toISOString(), bisUtc.toISOString()]
+      : [personId, vonUtc.toISOString(), bisUtc.toISOString(), jobMandantId],
   )) as Record<string, unknown>[];
 
   return zeilen.map((z) => ({
@@ -112,11 +129,7 @@ export async function leseBelastung(
     beginn: new Date(z['beginn_utc'] as string),
     ende: z['ende_utc'] === null ? null : new Date(z['ende_utc'] as string),
     minuten: Number(z['minuten']),
-    // Im Portal beantwortet die Datenbank die Frage; im Job gibt es keinen
-    // aktiven Mandanten, gegen den sie sich beantworten liesse.
-    fremd: jobMandantId === undefined
-      ? z['fremd'] === true
-      : z['mandant_id'] !== jobMandantId,
+    fremd: z['fremd'] === true,
   }));
 }
 
@@ -333,16 +346,30 @@ export async function schreibeBefund(
 
   /**
    * Zurueck kommt je geschriebener Gesellschaft eine Kennung — auch die der
-   * fremden. Sichtbar ist danach nur die eigene: die Abfrage laeuft unter der
-   * RLS des Aufrufers, und `arbeitszeit_verstoss` gibt fremde Zeilen nicht
-   * heraus. Genau so gehoert es: der Konflikt im eigenen Eingang bekommt
-   * seinen Beleg, und die fremde Kennung fuehrt nirgendwohin.
+   * fremden. Gesucht ist die EIGENE, und deshalb steht der Mandant im
+   * Praedikat und nicht bloss in der RLS.
+   *
+   * **Die RLS allein trug es nicht.** Sie verengt auf den aktiven Mandanten,
+   * wenn `cse_app` fragt — der NACHTLAUF fragt aber als `cse_job`, und dessen
+   * Policy ist `t_job … using (true)` (0040:1530): er sieht beide Zeilen.
+   * `limit 1` ohne Ordnung und ohne Mandant gab dann bei jedem
+   * gesellschaftsuebergreifenden Befund mit etwa gleicher Wahrscheinlichkeit
+   * die FREMDE Kennung zurueck — und der darauf folgende Einschub in
+   * `planungs_konflikt` lief in `pk_verstoss_fk`
+   * (`(mandant_id, arbeitszeit_verstoss_id)`), also in eine
+   * Fremdschluesselverletzung, die den ganzen Nachtlauf dieses Mandanten
+   * abbrach. Ausgerechnet im K-06-Fall, fuer den der Lauf da ist; und keine
+   * Pruefung sah es, weil alle als `cse_app` laufen, wo die RLS den Fehler
+   * zudeckt.
    */
   const ids = zeilen.map((z) => z.id);
   if (ids.length === 0) return null;
   const sichtbar = (await db.unsafe(
-    `select id from arbeitszeit_verstoss where id = any($1::uuid[]) limit 1`,
-    [ids],
+    `select id from arbeitszeit_verstoss
+      where id = any($1::uuid[])
+        and ($2::uuid is null or mandant_id = $2::uuid)
+      limit 1`,
+    [ids, mandantId],
   )) as { id: string }[];
   return sichtbar[0]?.id ?? null;
 }

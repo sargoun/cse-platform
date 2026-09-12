@@ -20,7 +20,24 @@
 # an etwas, das wie ein kaputtes Routing aussieht.
 set -euo pipefail
 
-DSN="${TEST_DATABASE_URL:-${DATABASE_URL:-postgres://postgres:postgres@127.0.0.1:55432/cse_e2e}}"
+# **Dieselbe Datenbank, die die Browsersuite auch wirklich benutzt.**
+#
+# Hier stand `cse_e2e`, und dieser Name kam im ganzen Baum genau einmal vor:
+# hier. `playwright.config.ts` und alle zehn `tests/e2e/*.spec.ts` greifen auf
+# `postgres://postgres@localhost:55432/cse_test` zurueck, und a11y.yml setzt
+# ebenfalls `cse_test`. `pnpm e2e:db && pnpm test:e2e` baute also die eine
+# Datenbank frisch auf und mass die andere — im besten Fall scheiterte alles an
+# einer Datenbank, die es nicht gibt, im schlechteren schrieb die Browsersuite
+# ihre bleibenden Zeilen (Posten, Auftraege, Personen; sie kann nichts
+# loeschen, Invariante 8) in `cse_test`, also in die Datenbank der
+# Isolationssuite. Deren naechster Lauf fiel dann an Zeilen, die eine ganz
+# andere Suite hinterlassen hatte — genau die Abhaengigkeit vom Vorlauf, die
+# dieses Skript oben als Ausschlusskriterium nennt.
+#
+# Die Reihenfolge `DATABASE_URL` vor `TEST_DATABASE_URL` ist die von
+# `playwright.config.ts`. Sie war vorher umgekehrt: sind beide gesetzt und
+# verschieden, baute dieses Skript die eine und die Suite las die andere.
+DSN="${DATABASE_URL:-${TEST_DATABASE_URL:-postgres://postgres@localhost:55432/cse_test}}"
 DB="${DSN##*/}"; DB="${DB%%\?*}"
 VERWALTUNG="${DSN%/*}/postgres"
 

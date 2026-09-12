@@ -38,8 +38,10 @@
  */
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { nutzlastHash } from '../finanz/hash-chain.js';
-import { ZeitFehler } from './dauer.js';
-import { pruefeAnteileGegenSchicht, verteilePauseAufAnteile } from './monatsanteil.js';
+import { splitteNachMonat, ZeitFehler } from './dauer.js';
+import {
+  monatsBeginnInstant, monatsErster, pruefeAnteileGegenSchicht, verteilePauseAufAnteile,
+} from './monatsanteil.js';
 
 /** Eine Zeile der Aufzeichnung — ein Zeiteintrag, gesehen aus einem Monat. */
 export interface MiLoGZeile {
@@ -411,48 +413,98 @@ export async function praegeNachweis(
   return artefakt;
 }
 
+interface EintragZeile {
+  id: string;
+  beginn_zeitpunkt: Date;
+  ende_zeitpunkt: Date;
+  pause_minuten: number;
+  dauer_brutto_minuten: number;
+}
+
+/** Der Monatserste, der auf diesen folgt — die obere Grenze des Fensters. */
+function naechsterMonat(monat: string): string {
+  const treffer = /^(\d{4})-(\d{2})-01$/u.exec(monat.trim());
+  if (treffer === null) {
+    throw new ZeitFehler(`Kein Monatserster in der Form JJJJ-MM-01: ${JSON.stringify(monat)}`);
+  }
+  const jahr = Number(treffer[1]);
+  const nr = Number(treffer[2]);
+  return nr === 12 ? monatsErster(jahr + 1, 1) : monatsErster(jahr, nr + 1);
+}
+
 /**
  * Die Gegenprobe fuer die Abnahme: stimmt die Summe der Aufzeichnung mit der
  * Summe der Eintraege ueberein?
  *
- * Sie liest die Eintraege ein zweites Mal und rechnet unabhaengig vom
- * ausgegebenen Nachweis — der bei einem gesperrten Monat aus dem GEPRAEGTEN
- * Artefakt kommt. Genau dort traegt sie: weicht das Artefakt von den heutigen
- * Eintraegen ab, sagt es diese Zahl und nicht erst der Lohnstreit.
+ * **Sie liest ausdruecklich NICHT, was sie pruefen soll.** Der Nachweis kommt
+ * aus `milog_aufzeichnung` — Zeilenauswahl, Monatszuordnung und
+ * `anteil_brutto_minuten` alle aus derselben Sicht. Eine zweite Zahl, die aus
+ * genau diesen Spalten gebildet wird, kann von der ersten nicht abweichen: sie
+ * traegt jeden Irrtum der Sicht mit und meldet ihn als stimmig. Genau so stand
+ * es hier, und fuer jeden NICHT gesperrten Monat — also den laufenden, den
+ * § 17 MiLoG taeglich betrifft — war die angezeigte Gegenprobe damit eine
+ * Tautologie.
+ *
+ * Diese Fassung geht auf `zeiteintrag` zurueck und rechnet beides selbst:
+ * welche Eintraege den Monat beruehren (Ueberschneidung mit den BERLINER
+ * Monatsgrenzen als Zeitpunkte, nicht ueber `monat` der Sicht) und wie sie
+ * sich auf die Monate verteilen (`splitteNachMonat` in TypeScript, nicht
+ * `least`/`greatest` in SQL). Damit ist sie das, was ihr Name sagt: eine
+ * zweite, unabhaengige Rechnung. Weicht die Sicht in der Zuordnung ab — der
+ * Fehler, den `pruefeAnteileGegenSchicht` NICHT sieht, weil der die Form EINES
+ * geladenen Eintrags prueft und nicht, ob die richtigen geladen wurden —,
+ * sagen es diese Zahlen.
  *
  * **Beide Zahlen liegen auf DEMSELBEN Massstab: dem Monatsanteil.** Vorher
- * kam das Brutto als Anteil aus der Sicht, das Netto dagegen als
- * `z.dauer_netto_minuten` — die volle Schicht. Eine Schicht ueber die
- * Monatsgrenze (31.10. 22:00 → 01.11. 06:00) zaehlte damit in BEIDEN
- * Monatsblaettern mit ihren vollen acht Stunden netto, und die Gegenprobe
- * behauptete eine Abweichung, wo keine war — jeden Monatswechsel, und nur bei
- * den Nachtschichten, an denen § 17 MiLoG haengt.
+ * kam das Brutto als Anteil, das Netto dagegen als `z.dauer_netto_minuten` —
+ * die volle Schicht. Eine Schicht ueber die Monatsgrenze (31.10. 22:00 →
+ * 01.11. 06:00) zaehlte damit in BEIDEN Monatsblaettern mit ihren vollen acht
+ * Stunden netto, und die Gegenprobe behauptete eine Abweichung, wo keine war —
+ * jeden Monatswechsel, und nur bei den Nachtschichten, an denen § 17 MiLoG
+ * haengt.
  *
- * Die Pause wird dafuer ueber `verteilePauseAufAnteile` verteilt, also mit
- * derselben getesteten Regel wie ueberall (§7.4) — nicht mit einer zweiten,
- * die in SQL formuliert waere und an jedem Monatsende eine Minute erzeugte.
+ * Die Pause wird ueber `verteilePauseAufAnteile` verteilt, also mit derselben
+ * getesteten Regel wie ueberall (§7.4) — nicht mit einer zweiten, die in SQL
+ * formuliert waere und an jedem Monatsende eine Minute erzeugte. Sie wirft,
+ * wenn die Anteile die aufgezeichnete Bruttodauer nicht exakt ergeben; auch
+ * das ist eine Gegenprobe und keine Formalie.
  */
 export async function summeDerEintraege(
   kontext: LeseKontext, eingabe: NachweisEingabe,
 ): Promise<{ readonly bruttoMinuten: number; readonly nettoMinuten: number }> {
-  const alle = await leseAnteile(kontext, eingabe);
-  const nachEintrag = new Map<string, AufzeichnungZeile[]>();
-  for (const z of alle) {
-    const liste = nachEintrag.get(z.zeiteintrag_id) ?? [];
-    liste.push(z);
-    nachEintrag.set(z.zeiteintrag_id, liste);
-  }
+  const von = monatsBeginnInstant(eingabe.monat);
+  const bis = monatsBeginnInstant(naechsterMonat(eingabe.monat));
+
+  /**
+   * Dieselben drei Bedingungen wie in `zeiteintrag_monatsanteil` — sie sagen,
+   * was ein GUELTIGER Eintrag ist (offen, storniert, abgeloest zaehlen nicht),
+   * und das ist keine Monatsregel, sondern die Definition der Zeile. Die
+   * Monatsgrenzen dagegen kommen hier aus `berlinMonatsBeginn` und nicht aus
+   * der Sicht: ihre Ableitung ist genau das, was geprueft werden soll.
+   */
+  const eintraege = await kontext.abfrage<EintragZeile>(
+    `select z.id, z.beginn_zeitpunkt, z.ende_zeitpunkt, z.pause_minuten,
+            z.dauer_brutto_minuten
+       from zeiteintrag z
+      where z.anstellung_id = $1
+        and z.ende_zeitpunkt is not null
+        and z.storniert_am is null
+        and z.ersetzt_am   is null
+        and z.ende_zeitpunkt   > $2::timestamptz
+        and z.beginn_zeitpunkt < $3::timestamptz
+      order by z.beginn_zeitpunkt asc, z.id asc`,
+    [eingabe.anstellungId, von.toISOString(), bis.toISOString()],
+  );
 
   let brutto = 0;
   let netto = 0;
-  for (const teile of nachEintrag.values()) {
-    const erste = teile[0];
-    if (erste === undefined) continue;
+  for (const z of eintraege) {
+    const anteile = splitteNachMonat(z.beginn_zeitpunkt, z.ende_zeitpunkt).map((a) => ({
+      monat: monatsErster(a.jahr, a.monat),
+      bruttoMinuten: a.minuten,
+    }));
     const mitPause = verteilePauseAufAnteile(
-      teile.map((t) => ({
-        monat: tag(t.monat), bruttoMinuten: Number(t.anteil_brutto_minuten),
-      })),
-      Number(erste.dauer_brutto_minuten), Number(erste.pause_minuten),
+      anteile, Number(z.dauer_brutto_minuten), Number(z.pause_minuten),
     );
     for (const anteil of mitPause) {
       if (anteil.monat !== eingabe.monat) continue;

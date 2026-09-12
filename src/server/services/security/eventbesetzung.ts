@@ -259,8 +259,11 @@ export async function besetzeVeranstaltung(
          * weitere Anweisung darin scheitert mit „current transaction is
          * aborted". Die Schleife weiterlaufen zu lassen produzierte dann eine
          * Liste aus lauter Folgefehlern — jeder davon eine Aussage über eine
-         * Person, die nichts getan hat. Die drei Befunde oben entstehen alle
-         * VOR dem Schreiben und lassen die Transaktion unberührt.
+         * Person, die nichts getan hat. Die vier Befunde oben — Qualifikation,
+         * Arbeitszeit, Abmeldung, Doppelbesetzung — entstehen alle VOR dem
+         * Schreiben und lassen die Transaktion unberührt. Wer hier einen
+         * fünften einsammelt, muss dasselbe für ihn nachweisen; die Zahl steht
+         * mit, damit sie beim nächsten Zweig auffällt.
          */
         throw fehler;
       }
