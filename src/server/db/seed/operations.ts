@@ -89,7 +89,8 @@ const RAUMBUCH_AERZTEHAUS: readonly RaumVorgabe[] = [
 interface KundeVorgabe {
   readonly bereich: string;
   readonly firma: string;
-  readonly rechtsform: string;
+  /** `null` bei einer Behoerde: sie hat keine Rechtsform im Sinne des HGB. */
+  readonly rechtsform: string | null;
   readonly nummer: string;
   readonly name: string;
   readonly kontakt: readonly [string, string, string];
@@ -112,6 +113,28 @@ interface KundeVorgabe {
    * Repository waere ein Datenschutzproblem und keine Demodatei.
    */
   readonly anschrift: readonly [strasse: string, hausnummer: string, plz: string, ort: string];
+  /**
+   * **Der oeffentliche Auftraggeber — und warum es ihn in den Demodaten
+   * geben MUSS.**
+   *
+   * ROADMAP Phase 6 nennt als Abnahme „a KoSIT-valid XRechnung is produced
+   * for a public buyer", und SPEC §9 sagt, dass die Gruppe oeffentliche
+   * Auftraggeber ohne XRechnung gar nicht abrechnen kann. Bis hierher kannte
+   * der Seed nur Hausverwaltungen: der ganze FIN-11-Weg liess sich in den
+   * Demodaten nicht einmal ansehen, geschweige denn vorfuehren.
+   *
+   * `typ = 'behoerde'` zieht `kunde_behoerde_ist_oeffentlich` nach sich —
+   * die Datenbank verlangt dann `ist_oeffentlicher_auftraggeber`. Die
+   * Leitweg-ID ist eine erfundene Demokennung in der FORM der echten
+   * (`991-12345-67`: Grobadressierung, Feinadressierung, Pruefziffer); welche
+   * Kennung ein wirklicher Auftraggeber hat, ist O-22 und wird nicht geraten.
+   */
+  readonly behoerde?: {
+    readonly leitwegId: string;
+    /** BT-49 / BT-49-1. Bei einer Leitweg-ID ist das EAS-Schema 0204. */
+    readonly eadresse: string;
+    readonly eadresseSchema: string;
+  };
 }
 
 const KUNDEN: readonly KundeVorgabe[] = [
@@ -131,6 +154,20 @@ const KUNDEN: readonly KundeVorgabe[] = [
     nummer: 'K-30001', name: 'Charlottenburg Immobilien GmbH',
     kontakt: ['Jens', 'Petrow', 'j.petrow@chb-immo.example'],
     anschrift: ['Beispielstrasse', '48', '10707', 'Berlin'] },
+  /*
+   * Der oeffentliche Auftraggeber (FIN-11). Erfunden wie die uebrigen
+   * Demofirmen — ein echtes Bezirksamt mit einer echten Leitweg-ID in einem
+   * Repository waere eine Angabe, die jemand fuer bare Muenze nimmt.
+   */
+  { bereich: 'reinigung', firma: 'Bezirksamt Musterberg von Berlin', rechtsform: null,
+    nummer: 'K-10003', name: 'Bezirksamt Musterberg von Berlin',
+    kontakt: ['Katrin', 'Oswald', 'rechnungseingang@bezirksamt-musterberg.example'],
+    anschrift: ['Musterplatz', '1', '10178', 'Berlin'],
+    behoerde: {
+      leitwegId: '991-12345-67',
+      eadresse: '991-12345-67',
+      eadresseSchema: '0204',
+    } },
 ];
 
 interface ObjektVorgabe {
@@ -245,10 +282,17 @@ export async function seedOperations(
       const [neu] = await sql<{ id: string }[]>`
         insert into kunde (mandant_id, firma_id, kundennummer, typ, name, rechtsform,
                            strasse, hausnummer, plz, ort,
+                           ist_oeffentlicher_auftraggeber, xrechnung_pflicht, leitweg_id,
+                           elektronische_adresse, elektronische_adresse_schema,
                            rechtsgrundlage, rechtsgrundlage_quelle, rechtsgrundlage_erfasst_am,
                            status)
-        values (${mandant}, ${firma!.id}, ${k.nummer}, 'firma', ${k.name}, ${k.rechtsform},
+        values (${mandant}, ${firma!.id}, ${k.nummer},
+                ${k.behoerde === undefined ? 'firma' : 'behoerde'},
+                ${k.name}, ${k.rechtsform},
                 ${k.anschrift[0]}, ${k.anschrift[1]}, ${k.anschrift[2]}, ${k.anschrift[3]},
+                ${k.behoerde !== undefined}, ${k.behoerde !== undefined},
+                ${k.behoerde?.leitwegId ?? null},
+                ${k.behoerde?.eadresse ?? null}, ${k.behoerde?.eadresseSchema ?? null},
                 'bestandskunde', 'Rahmenvertrag (Demodaten)', now(), 'aktiv')
         returning id`;
       kundeId = neu!.id;
@@ -271,6 +315,26 @@ export async function seedOperations(
                ort = coalesce(ort, ${k.anschrift[3]})
          where id = ${kundeId}
            and (strasse is null or plz is null or ort is null)`;
+      /*
+       * Dieselbe Ueberlegung fuer die FIN-11-Felder: eine Datenbank aus der
+       * Zeit vor diesem Commit hat den Behoerdenkunden ohne Leitweg-ID, und
+       * ohne sie bleibt die XRechnung in den Demodaten unerreichbar. Wieder
+       * nur, WAS FEHLT — eine von Hand gesetzte Kennung bleibt stehen.
+       */
+      if (k.behoerde !== undefined) {
+        await sql`
+          update kunde
+             set typ = 'behoerde',
+                 ist_oeffentlicher_auftraggeber = true,
+                 xrechnung_pflicht = true,
+                 leitweg_id = coalesce(leitweg_id, ${k.behoerde.leitwegId}),
+                 elektronische_adresse =
+                   coalesce(elektronische_adresse, ${k.behoerde.eadresse}),
+                 elektronische_adresse_schema =
+                   coalesce(elektronische_adresse_schema, ${k.behoerde.eadresseSchema})
+           where id = ${kundeId}
+             and (leitweg_id is null or elektronische_adresse is null)`;
+      }
     }
     kundenIds.set(k.nummer, kundeId);
 

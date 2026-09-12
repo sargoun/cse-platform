@@ -51,6 +51,9 @@ jobs:
         env:
           KOSIT_JAR: ${{ github.workspace }}/.kosit/validator.jar
           KOSIT_SZENARIEN: ${{ github.workspace }}/.kosit/konfiguration/scenarios.xml
+          # Im Arbeitsbereich und nicht in /tmp: `upload-artifact` laedt sonst
+          # nichts hoch und sagt es nur in einer Warnung, die niemand liest.
+          KOSIT_AUSGABE: ${{ github.workspace }}/.kosit/ausgabe
         run: pnpm test:compliance
 
       # Die Prüfberichte bleiben liegen, auch wenn alles grün war: wer eine
@@ -60,6 +63,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kosit-berichte
-          path: /tmp/cse-xrechnung-*/berichte
+          path: .kosit/ausgabe
           if-no-files-found: ignore
           retention-days: 14

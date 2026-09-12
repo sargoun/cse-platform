@@ -73,7 +73,14 @@ export interface PruefbareSteuerzeile {
 }
 
 export interface XRechnungEingabe {
-  readonly nummer: string;
+  /**
+   * **Keine `nummer`.** Sie stand hier im ersten Entwurf und wurde von
+   * `fehlendePflichtfelder` nie gelesen — die Vorpruefung musste deshalb
+   * einen Wert erfinden, und erfunden wurde die Datensatzkennung. Ein Feld,
+   * das eine Schnittstelle verlangt und niemand benutzt, wird beim naechsten
+   * Aufrufer falsch gefuellt. Die Nummer braucht nur `baueUbl`, und dort
+   * kommt sie aus der Nutzlast.
+   */
   /**
    * BT-3 — auf einem ENTWURF `null`.
    *
@@ -247,10 +254,14 @@ function betrag(wert: Cent): Cent {
 
 export interface UblOptionen {
   /**
-   * Die Kennung des Verkaeufers als elektronische Adresse (BT-34) und ihr
-   * Schema (EAS-Codeliste). Steht in der Nutzlast; die Optionen tragen nur
-   * den Notnagel fuer den Fall, dass ein Mandant beides noch nicht gepflegt
-   * hat — und der Notnagel ist ein FEHLER, keine Vorgabe.
+   * Verlangt DIESER Kunde eine XRechnung (`xrechnung_pflicht` oder
+   * `ist_oeffentlicher_auftraggeber`)?
+   *
+   * **Es steuert den WORTLAUT, nicht die Strenge.** BR-DE-15 verlangt BT-10
+   * in jeder XRechnung, und die Pruefung ist in beiden Faellen dieselbe. Bei
+   * einem oeffentlichen Auftraggeber heisst das Feld aber Leitweg-ID, und die
+   * Meldung sagt das — sonst sucht jemand nach einer „Kaeuferreferenz", die
+   * in keiner Maske so heisst.
    */
   readonly leitwegPflicht: boolean;
 }

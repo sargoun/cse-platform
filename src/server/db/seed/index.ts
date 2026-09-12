@@ -166,7 +166,8 @@ async function main(): Promise<void> {
          strasse, plz, ort, land, telefon, email, farbe_token, module,
          module_gepflegt, sortierung,
          ust_id, handelsregister_gericht, handelsregister_nummer,
-         rechnung_kontakt_name)
+         rechnung_kontakt_name,
+         elektronische_adresse, elektronische_adresse_schema)
       values
         (${b.slug}, ${b.name}, ${b.firma}, ${b.rechtsform}, ${b.rechtseinheit},
          ${rechtseinheit},
@@ -192,7 +193,17 @@ async function main(): Promise<void> {
          -- als gesicherte Angabe (angaben_bestaetigt_am bleibt NULL). Ohne
          -- einen Wert entstuende zu keinem oeffentlichen Auftraggeber eine
          -- XRechnung, und die Abnahme der Phase 6 waere nicht pruefbar.
-         'Buchhaltung')  -- TODO(client, O-353): echte Kontaktstelle je Gesellschaft
+         'Buchhaltung',  -- TODO(client, O-353): echte Kontaktstelle je Gesellschaft
+         -- BT-34 und BT-34-1. Die USt-IdNr. unter EAS 9930 („deutsche
+         -- USt-IdNr.") ist die uebliche Adresse eines deutschen Rechnungs-
+         -- stellers — und sie steht hier als DEMOWERT, nicht als Ableitung:
+         -- unter welcher Adresse eine Gesellschaft elektronische Rechnungen
+         -- stellt, sagt die Gesellschaft. angaben_bestaetigt_am bleibt NULL,
+         -- und ohne Rechtseinheit gibt es keine USt-IdNr. und damit auch hier
+         -- nichts (der CHECK verlangt beide Haelften oder keine).
+         -- (Keine Backticks: dieser Kommentar steht IN einem Template-Literal.)
+         ${rechtseinheit ? `DE${String(100_000_000 + i)}` : null},
+         ${rechtseinheit ? '9930' : null})  -- TODO(client, O-353): echte E-Adresse je Gesellschaft
       -- ist_rechtseinheit MUSS mit: der CHECK verbindet beide Spalten, ein
       -- eigener Nummernkreis setzt eine Rechtseinheit voraus. Der Zweig setzte
       -- nur eigener_nummernkreis. Traf er eine Zeile, die von anderswo kam
@@ -211,6 +222,8 @@ async function main(): Promise<void> {
             handelsregister_gericht = excluded.handelsregister_gericht,
             handelsregister_nummer = excluded.handelsregister_nummer,
             rechnung_kontakt_name = excluded.rechnung_kontakt_name,
+            elektronische_adresse = excluded.elektronische_adresse,
+            elektronische_adresse_schema = excluded.elektronische_adresse_schema,
             -- Die Buchung gehoert zur Gesellschaft und nicht zum ersten Lauf:
             -- ohne diese Zeile blieben vier bereits angelegte Bereiche fuer
             -- immer bei '{}', und der Modulriegel griffe nirgends.

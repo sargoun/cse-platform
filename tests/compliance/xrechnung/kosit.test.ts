@@ -26,7 +26,7 @@
  * Fehlschlags; in CI ist `CI` gesetzt und die Ausnahme gilt nicht.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -57,7 +57,14 @@ describe('KoSIT — der Pruefer, gegen den die Empfaenger pruefen', () => {
   });
 
   it.runIf(bereit)('nimmt alle vier Muster an — Schema UND Schematron', () => {
-    const ziel = mkdtempSync(join(tmpdir(), 'cse-xrechnung-'));
+    /*
+     * `KOSIT_AUSGABE` setzt der CI-Auftrag auf einen Ordner IM Arbeitsbereich,
+     * damit er die Pruefberichte danach als Artefakt hochladen kann. Ohne die
+     * Angabe (lokal) ein Wegwerfordner: ein Entwicklungsrechner soll nach
+     * einem Testlauf nicht voller Berichte sein.
+     */
+    const ziel = process.env['KOSIT_AUSGABE'] ?? mkdtempSync(join(tmpdir(), 'cse-xrechnung-'));
+    mkdirSync(ziel, { recursive: true });
     const dateien = schreibeMuster(ziel);
     expect(dateien).toHaveLength(Object.keys(MUSTER).length);
 

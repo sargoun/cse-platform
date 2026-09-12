@@ -1043,8 +1043,24 @@ const KOPF_SQL = `
          k.ust_id as k_ust_id, k.steuernummer as k_steuernummer,
          -- FIN-11. Alles ab hier speist NUR die Regel xrechnung.pflichtfelder.
          r.rechnungsart_code, r.zahlungsmittel_code,
-         r.verkaeufer_eadresse, r.verkaeufer_eadresse_schema,
-         r.kaeufer_eadresse, r.kaeufer_eadresse_schema,
+         -- Der WIRKSAME Wert, nicht der gespeicherte. (Keine Backticks in
+         -- diesem Kommentar: er steht IN einem Template-Literal.)
+         --
+         -- Die vier Spalten auf rechnung sind beim Entwurf noch leer; gefuellt
+         -- werden sie erst beim Festschreiben, von fin.eadresse_einfrieren
+         -- (0120) — und diese Vorpruefung laeuft davor. Ohne coalesce meldete
+         -- sie BT-34 und BT-49 als fehlend und blockierte damit genau die
+         -- Rechnung, die eine Millisekunde spaeter beide Werte bekommt.
+         --
+         -- Derselbe Ausdruck wie im Trigger, mit Absicht: was hier gruen ist,
+         -- muss dort auch entstehen. Gehen die beiden auseinander, sagt die
+         -- Vorschau etwas anderes als der Beleg.
+         coalesce(r.verkaeufer_eadresse, m.elektronische_adresse) as verkaeufer_eadresse,
+         coalesce(r.verkaeufer_eadresse_schema, m.elektronische_adresse_schema)
+           as verkaeufer_eadresse_schema,
+         coalesce(r.kaeufer_eadresse, k.elektronische_adresse) as kaeufer_eadresse,
+         coalesce(r.kaeufer_eadresse_schema, k.elektronische_adresse_schema)
+           as kaeufer_eadresse_schema,
          m.rechnung_kontakt_name as m_kontakt_name,
          m.telefon as m_kontakt_telefon, m.email as m_kontakt_email,
          m.iban as m_iban,
@@ -1156,7 +1172,6 @@ export async function ladePruefEingabe(
   });
 
   const xrechnungEingabe: XRechnungEingabe = {
-    nummer: rechnungId,
     rechnungsartCode: kopf.rechnungsart_code,
     leistender: {
       name: kopf.m_name,

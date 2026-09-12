@@ -5853,3 +5853,64 @@ verbunden" — und verbietet einen vierten, der wie ein Bestehen aussieht.
 `pruefstand.ts` kennt genau diese drei, und sein Vorgabewert ist der
 zurückhaltendste. „In CI validiert" sagt ausdrücklich, dass die Aussage dem
 ERZEUGER gilt und nicht dieser einzelnen Rechnung.
+
+### D-394 · Vier Spalten, die niemand beschrieb — und eine Vorprüfung, die daran fast jede Rechnung gesperrt hätte
+
+PR 52.1 (FIN-11, K-12).
+
+`rechnung` trägt seit 0075 vier Spalten: `verkaeufer_eadresse`,
+`verkaeufer_eadresse_schema`, `kaeufer_eadresse`, `kaeufer_eadresse_schema`.
+Sie werden gelesen — von der kanonischen Nutzlast (BT-34, BT-49) und seit
+PR 52 von der §14-Vorprüfung. **Geschrieben wurden sie von nichts.** Kein
+Formular, keine Route, keine Funktion, kein Seed.
+
+Das blieb folgenlos, solange niemand eine XRechnung baute. Mit PR 52 wurde es
+zum Fehler mit zwei Gesichtern: der Erzeuger meldete auf JEDER Rechnung zwei
+fehlende Pflichtangaben, und die neue FIN-11-Regel hätte jede Festschreibung
+an einen öffentlichen Auftraggeber blockiert — mit zwei Feldern, die in keiner
+Maske stehen. **Ein Riegel, den niemand öffnen kann, ist kein Riegel, sondern
+eine Sackgasse.**
+
+**Zwei Dinge fehlten, nicht eines.** Auf der Käuferseite gab es die Quelle
+längst (`kunde.elektronische_adresse`, seit 0020); auf der Verkäuferseite gab
+es sie nicht. `0120` legt `mandant.elektronische_adresse` an — und lässt sie
+NULL. Welche Adresse eine Gesellschaft für elektronische Rechnungen benennt
+und unter welchem EAS-Schema, ist eine Auskunft des Mandanten; die USt-IdNr.
+unter EAS 9930 wäre ein plausibler Vorgabewert und trotzdem geraten. Ein
+`CHECK` verlangt beide Hälften oder keine: eine Adresse ohne Schema ist
+unlesbar, ein Schema ohne Adresse leer.
+
+**Eingefroren wird per Trigger, nicht in `fin.rechnung_nummer_ziehen`.** Die
+Funktion ist der eine Weg, auf dem heute festgeschrieben wird — aber nur
+heute. Ein Import oder eine spätere Route setzt `status` und ginge daran
+vorbei. Dieselbe Begründung wie bei `fin.reverse_charge_pruefen` (D-390): der
+Riegel gehört an die Tabelle. `coalesce` statt Überschreiben, weil ein Kunde
+für EINEN Auftrag eine andere Eingangsadresse nennen kann als im Stammsatz —
+und der Beleg ist dann der richtige Ort dafür.
+
+**Die Vorprüfung liest den WIRKSAMEN Wert.** Sie läuft vor dem Zug der Nummer,
+also vor dem Einfrieren; stur die Spalte gelesen meldete sie BT-34 und BT-49
+als fehlend und blockierte genau die Rechnung, die eine Millisekunde später
+beide Werte bekommt. Derselbe `coalesce`-Ausdruck wie im Trigger, mit Absicht:
+was die Vorschau grün nennt, muss der Beleg auch tragen.
+
+**Denselben Fehler gab es ein zweites Mal, und mein eigener Kommentar hatte
+davor gewarnt.** `zahlung.bankkonto` stand in `ladeRechnungVollstaendig` auf
+`null` mit dem Vermerk „kommt mit PR 49". PR 49 hat keine `bankkonto`-Tabelle
+gebracht, und `mandant.iban` gibt es seit 0001. Die Vorprüfung las `mandant.iban`
+und meldete BT-84 als vorhanden, der Erzeuger las die `null` und meldete es als
+fehlend: die Vorschau sagte grün, das Dokument entstand nicht. Genau die
+Divergenz, gegen die `XRechnungEingabe` geschrieben wurde — nur an einer
+Stelle, an der ich sie selbst nicht gesucht hatte. Gefunden hat sie der erste
+Isolationstest, der einen Beleg wirklich bis zum Dokument führte.
+
+**Und die Demodaten kannten keinen öffentlichen Auftraggeber.** ROADMAP Phase 6
+nennt als Abnahme „a KoSIT-valid XRechnung is produced for a public buyer";
+der Seed führte vier Hausverwaltungen. Der ganze FIN-11-Weg liess sich nicht
+einmal ansehen. Es gibt jetzt ein Bezirksamt — erfunden wie die übrigen
+Demofirmen, mit einer Leitweg-ID in der FORM der echten. Welche Kennung ein
+wirklicher Auftraggeber hat, bleibt O-22.
+
+**Die Abnahme ist damit vorführbar und nicht nur behauptet:** ein Beleg aus der
+Seed-Datenbank, festgeschrieben über den echten Weg, aus dem Snapshot gebaut,
+vom KoSIT-Prüfer angenommen — Schema und Schematron, ohne Beanstandung.

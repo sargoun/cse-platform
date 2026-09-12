@@ -205,7 +205,7 @@ export default async function XRechnungBlatt(
           </p>
           <h2 className="mb-s3 text-h3 text-text">Vorschau</h2>
           <pre
-            className="max-h-[32rem] overflow-auto rounded-lg border border-line bg-surface p-s5 text-xs text-text"
+            className="max-h-quelltext overflow-auto rounded-lg border border-line bg-surface p-s5 text-xs text-text"
             data-cse="xrechnung-vorschau"
           >
             {lage.xml}

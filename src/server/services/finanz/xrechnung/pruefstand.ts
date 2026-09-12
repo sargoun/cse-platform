@@ -25,8 +25,19 @@ import 'server-only';
  * und ruft nichts auf.
  */
 
-/** Die Fassung des Regelwerks, gegen die CI prüft. Eine Stelle, nicht zwei. */
-export const KOSIT_REGELWERK = 'XRechnung 3.0.2 / KoSIT validator-configuration' as const;
+/**
+ * **Hier steht bewusst KEINE Konstante mit der Regelwerksfassung.**
+ *
+ * Ein erster Entwurf trug `KOSIT_REGELWERK = 'XRechnung 3.0.2 …'` — und damit
+ * stünde dieselbe Angabe an zwei Stellen: hier und in
+ * `.github/workflows/compliance.yml`, wo der Prüfer und seine Konfiguration
+ * gepinnt werden. Zwei Stellen driften, und die Seite behauptete dann eine
+ * Fassung, gegen die niemand geprüft hat.
+ *
+ * Die Fassung kommt deshalb VON DEM, DER SIE KENNT: `CSE_XRECHNUNG_CI_GEPRUEFT`
+ * trägt sie als Text, gesetzt von dem Bau, der den Prüfer wirklich hat laufen
+ * lassen.
+ */
 
 export type PruefstandArt =
   | 'in_ci_validiert'

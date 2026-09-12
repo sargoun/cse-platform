@@ -351,6 +351,19 @@ Icon tile `40×40` `--r-md` on a `-soft` tint · `micro` uppercase label in
 `--text-muted` · value at `h2` · delta below in `--success` / `--danger` with
 arrow. Grid: 4 up desktop, 2 tablet, 1 mobile.
 
+### Source preview
+
+A scrolling panel for generated machine-readable text — today the XRechnung
+UBL (FIN-11), tomorrow the same for ZUGFeRD and the DATEV export. Card
+surface, `border-line`, `text-xs`, monospace inherited from `pre`, and
+`max-h-quelltext` (`32rem`) with `overflow-auto`.
+
+The height is a token, not a number in a page file. `32rem` shows roughly
+forty lines — enough to recognise the document and see that the totals are
+where they belong, short enough that the page still scrolls as a page. A
+preview that grows with its content pushes every control below it off the
+screen, and the one control that matters here is the download.
+
 ### Status pills
 
 `--r-full`, `4px 12px`, `xs` 500, `-soft` background, solid semantic text.

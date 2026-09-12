@@ -75,6 +75,10 @@ const config: Config = {
       // `form`: DESIGN §3 — Seiten, die nur ein Formular tragen (Anmeldung,
       // Einmalcode). 32rem Feld plus die --s6-Rinne beidseits.
       maxWidth: { content: '1280px', prose: '72ch', form: '608px' },
+      // `quelltext`: DESIGN §5 — die Hoehe eines rollenden Quelltextfeldes
+      // (XRechnung-Vorschau). Als Token und nicht als Einzelwert in der Seite:
+      // die naechste Vorschau bekaeme sonst eine leicht andere Hoehe.
+      maxHeight: { quelltext: '32rem' },
     },
   },
   plugins: [],

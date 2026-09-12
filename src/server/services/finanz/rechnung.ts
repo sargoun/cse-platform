@@ -799,6 +799,8 @@ interface KopfZeile {
   readonly m_kontakt_name: string | null;
   readonly m_kontakt_telefon: string | null;
   readonly m_kontakt_email: string | null;
+  readonly m_iban: string | null;
+  readonly m_bic: string | null;
   readonly m_steuernummer: string | null;
   readonly m_ust_id: string | null;
   readonly m_gericht: string | null;
@@ -871,6 +873,7 @@ const KOPF_SQL = `
          m.strasse as m_strasse, m.plz as m_plz, m.ort as m_ort, m.land as m_land,
          m.rechnung_kontakt_name as m_kontakt_name,
          m.telefon as m_kontakt_telefon, m.email as m_kontakt_email,
+         m.iban as m_iban, m.bic as m_bic,
          m.steuernummer as m_steuernummer, m.ust_id as m_ust_id,
          m.handelsregister_gericht as m_gericht, m.handelsregister_nummer as m_hrb,
          nullif(array_to_string(m.geschaeftsfuehrer, ', '), '') as m_geschaeftsfuehrer,
@@ -1164,8 +1167,27 @@ export async function ladeRechnungVollstaendig(
     },
     ueberweisungsbetragCent: cent(BigInt(kopf.ueberweisungsbetrag_cent)),
     zahlung: {
-      // `bankkonto` kommt mit PR 49 (BG-16).
-      bankkonto: null,
+      /**
+       * **BG-16, und die Angabe stand die ganze Zeit nebenan.**
+       *
+       * Hier stand `bankkonto: null` mit dem Vermerk „kommt mit PR 49". PR 49
+       * hat keine `bankkonto`-Tabelle gebracht, und `mandant.iban` gibt es
+       * seit 0001. Die Folge war ein Widerspruch mitten in PR 52: die
+       * §14-Vorpruefung las `mandant.iban` und meldete BT-84 als vorhanden,
+       * der Bauer las diese Zeile und meldete es als fehlend. Die Vorschau
+       * sagte gruen, das Dokument entstand nicht — genau die Divergenz, vor
+       * der `XRechnungEingabe` warnt.
+       *
+       * Bis es eine Tabelle mit mehreren Konten je Gesellschaft gibt, ist das
+       * EINE Konto das der Gesellschaft. `kontoinhaber` ist ihre Firmierung
+       * und keine eigene Angabe: ein abweichender Kontoinhaber waere eine
+       * Information, die es nirgends gibt, und geraten wird sie nicht.
+       */
+      bankkonto: kopf.m_iban === null ? null : {
+        iban: kopf.m_iban,
+        bic: kopf.m_bic,
+        kontoinhaber: kopf.m_name,
+      },
       zahlungsmittelCode: kopf.zahlungsmittel_code,
       zahlungsbedingungText: kopf.zahlungsbedingung_text,
       zahlungszielTage: kopf.zahlungsziel_tage,

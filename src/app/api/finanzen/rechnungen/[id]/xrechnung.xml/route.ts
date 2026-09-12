@@ -52,9 +52,20 @@ export async function GET(
          * eigener Pruefung hat all das einzeln richtig zu machen, und die
          * erste, die es vergisst, faellt niemandem auf.
          *
-         * `schreibend` fehlt: die Route liest. Ein `true` hier wuerde eine
-         * Kundensitzung (Ansicht `kunde`) aussperren, die ihre eigene
-         * Rechnung herunterladen darf.
+         * `schreibend` fehlt, weil die Route liest — sie erzeugt Text aus
+         * einem Snapshot und aendert nichts.
+         *
+         * **Und heute kommt hier NUR das interne Portal durch**, auch wenn
+         * der Katalog `finanzen.herunterladen` ebenso dem Kunden gibt
+         * (03-AUTH §2524). Der Grund liegt eine Ebene tiefer:
+         * `rechnung_snapshot` traegt seit 0077 eine RESTRIKTIVE Policy
+         * `p_intern_ceiling` mit `app.portal() = 'intern'`. Eine
+         * Kundensitzung kaeme also durch `authorize` und faende danach null
+         * Zeilen — Antwort 404. Das ist kein Fehler dieser Route und wird
+         * hier auch nicht heimlich umgangen: das Kundenportal (PR 57)
+         * braucht eine eigene, eng gefasste Policy auf den Snapshot seiner
+         * EIGENEN festgeschriebenen Belege, und die gehoert in denselben PR
+         * wie die Seite, die sie benutzt.
          */
         await authorize(
           {
