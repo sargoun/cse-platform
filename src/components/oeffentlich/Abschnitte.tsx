@@ -1,6 +1,7 @@
 import { Hero } from './Hero';
 import { MarkenKarte } from './MarkenKarte';
-import { motivFuerBereich, platzhalterBild } from '@/lib/placeholder-assets';
+import { motivFuerBereich, type PlatzhalterMotiv } from '@/lib/placeholder-assets';
+import { bildFuerMotiv } from '@/server/inhalt/bilder';
 import { faqAus, leistungenAus } from '@/server/services/inhalt/jsonld';
 import type { Abschnitt, Seite } from '@/server/services/inhalt/seite';
 import type { ShellBereich } from './OeffentlicheShell';
@@ -24,14 +25,27 @@ import { mitSprache, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
  * Angabe, die hier ohnehin vorliegt, und ein zusaetzliches Feld an `seite`
  * waere ein zweiter Ort, an dem dieselbe Zuordnung gepflegt werden muss.
  */
-function motivFuerPfad(pfad: string): Parameters<typeof platzhalterBild>[0] {
+function motivFuerPfad(pfad: string): PlatzhalterMotiv {
   const teil = pfad.replace(/^\/(?:en\/)?/u, '').split('/');
   return motivFuerBereich(teil[0] === 'unternehmen' ? teil[1] : undefined);
 }
 
-function bildVon(a: Abschnitt, motiv: Parameters<typeof platzhalterBild>[0] = 'gruppe') {
+/*
+ * **Drei Stufen, in dieser Reihenfolge.**
+ *
+ * 1. Das Medium, das jemand DIESEM Abschnitt zugeordnet hat (`medien`) — die
+ *    einzige Stufe, die etwas ueber diesen Abschnitt weiss.
+ * 2. Eine Datei in `public/bilder/<motiv>.*` — der schnelle Weg, solange der
+ *    Speicher nicht verbunden ist: Datei hinlegen, fertig.
+ * 3. Der Platzhalter, sichtbar gekennzeichnet.
+ *
+ * Die Reihenfolge ist die Aussage: je spezifischer die Zuordnung, desto eher
+ * gewinnt sie. Umgekehrt ueberschriebe eine allgemeine Bereichsdatei das
+ * Bild, das jemand fuer genau diesen Abschnitt ausgesucht hat.
+ */
+function bildVon(a: Abschnitt, motiv: PlatzhalterMotiv = 'gruppe') {
   return a.medium === null
-    ? platzhalterBild(motiv)
+    ? bildFuerMotiv(motiv)
     : { pfad: a.medium.pfad, alt: a.medium.alt, platzhalter: a.medium.platzhalter };
 }
 
@@ -119,7 +133,7 @@ export function Abschnitte(
                     titel={b.name}
                     anspruch={ansprueche[b.slug] ?? ''}
                     href={mitSprache(`/unternehmen/${b.slug}`, sprache)}
-                    bild={platzhalterBild(motivFuerBereich(b.bereich))}
+                    bild={bildFuerMotiv(motivFuerBereich(b.bereich))}
                   />
                 ))}
               </section>
