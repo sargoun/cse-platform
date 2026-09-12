@@ -58,3 +58,33 @@ export function alleJobs(db: Abfrage): readonly JobDefinition[] {
 export function vergissRegistrierung(): void {
   geschehen = false;
 }
+
+/**
+ * **Was hier NOCH NICHT steht, und warum — damit niemand es fuer erledigt
+ * haelt.**
+ *
+ * SPEC §14 nennt acht Waechter. Vier laufen (oben). Von den uebrigen vier ist
+ * einer vollstaendig gebaut und trotzdem nicht registriert:
+ *
+ *   `src/server/services/finanz/kettenlauf.ts` — der naechtliche
+ *   Hashketten-Pruefer (FIN-06, LEG-01). Der Dienst ist fertig und geprueft,
+ *   und 0101 hat `cse_job` die Leserechte auf `rechnung_snapshot` und
+ *   `rechnung_hash` nachgezogen, die 0077 ihm schon gewaehrt hatte.
+ *
+ * Es fehlt eine Sache, und sie ist keine Kleinigkeit: `pruefeKette` filtert
+ * ueber `app.aktiver_mandant()`, braucht also eine GEBUNDENE Sitzung. Ein
+ * Job hat keine — `JobKontext` reicht eine `mandantId` durch, aber niemand
+ * setzt daraus die Sitzungsvariablen, und `cse_job` ist nicht `cse_app`. Den
+ * Pruefer heute einzutragen hiesse, einen Lauf zu registrieren, der jede
+ * Nacht null Rechnungen prueft und „ok" meldet — schlimmer als kein Pruefer,
+ * weil eine gruene Meldung Vertrauen schafft, das sie nicht deckt.
+ *
+ * Der richtige Schritt ist ein Sitzungsbinder fuer `je_mandant`-Jobs; das ist
+ * eine eigene Runde mit eigenen Tests. Die drei weiteren Waechter (Schicht
+ * beendet ohne Zeiteintrag, morgige Schicht unbesetzt, Rechnung ueber 14 Tage
+ * faellig) haengen an Diensten, die es noch nicht gibt.
+ *
+ * // TODO(client, O-357): Sollen die Waechter-Meldungen aus SPEC §14 in den
+ * Posteingang, per Mail oder beides — und wer bekommt die Kettenmeldung,
+ * deren Empfaenger nicht die Person, sondern die Buchhaltung ist?
+ */
