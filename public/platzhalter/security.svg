@@ -8,10 +8,12 @@
     Erzeugt von scripts/motivtafeln.py — nicht von Hand aendern.
   -->
   <defs>
+    <!-- Der Tafel-Verlauf aus DESIGN §4.1b, nicht der UI-Flaechenverlauf aus
+         §1. Warum das zwei verschiedene sind, steht oben bei HIMMEL. -->
     <linearGradient id="grund" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1F1F24"/>
-      <stop offset="0.55" stop-color="#17171B"/>
-      <stop offset="1" stop-color="#101013"/>
+      <stop offset="0" stop-color="#33333C"/>
+      <stop offset="0.55" stop-color="#2C2C34"/>
+      <stop offset="1" stop-color="#0C0C10"/>
     </linearGradient>
     <radialGradient id="schein" cx="0.5" cy="0.22" r="0.78">
       <stop offset="0" stop-color="#2F6BFF" stop-opacity="0.16"/>
@@ -39,7 +41,7 @@
   <rect width="2560" height="1440" fill="url(#schein)"/>
 
   <!-- Nacht am Werkstor: Halle, Mastleuchte, Zaun, Schranke. -->
-  <g fill="#1C1C21">
+  <g fill="#4A4A56">
     <rect x="200" y="520" width="880" height="490"/>
     <path d="M 200 520 L 640 386 L 1080 520 Z"/>
     <rect x="1560" y="600" width="800" height="410"/>
@@ -53,7 +55,7 @@
   </defs>
   <rect x="0" y="470" width="2560" height="540" fill="url(#buehne470)"/>
   <rect x="0" y="1007" width="2560" height="3" fill="#2F6BFF" opacity="0.55"/>
-  <rect x="0" y="1010" width="2560" height="430" fill="#0B0B0E"/>
+  <rect x="0" y="1010" width="2560" height="430" fill="#0C0C10"/>
 
   <g fill="#2F6BFF" opacity="0.16">
     <rect x="280" y="640" width="66" height="118"/>
@@ -67,12 +69,12 @@
   <!-- Der Lichtkegel: zwei flache Stufen, kein Verlauf. -->
   <path d="M 1290 250 L 900 1010 L 1680 1010 Z" fill="#2F6BFF" opacity="0.13"/>
   <path d="M 1290 250 L 1076 1010 L 1504 1010 Z" fill="#2F6BFF" opacity="0.10"/>
-  <g fill="#0B0B0E">
+  <g fill="#14141A">
     <rect x="1278" y="250" width="24" height="760"/>
     <rect x="1238" y="226" width="104" height="28" rx="11"/>
   </g>
   <!-- Zaun: das Motiv, das den Bereich benennt. -->
-  <g stroke="#0B0B0E" stroke-width="5" opacity="0.95">
+  <g stroke="#14141A" stroke-width="5" opacity="0.95">
     <line x1="0" y1="1010" x2="38" y2="740"/>
     <line x1="0" y1="740" x2="38" y2="1010"/>
     <line x1="52" y1="1010" x2="90" y2="740"/>
@@ -174,7 +176,7 @@
     <line x1="2548" y1="1010" x2="2586" y2="740"/>
     <line x1="2548" y1="740" x2="2586" y2="1010"/>
   </g>
-  <g fill="#0B0B0E">
+  <g fill="#14141A">
     <rect x="0" y="722" width="2560" height="16"/>
     <rect x="0" y="1004" width="2560" height="20"/>
     <rect x="0" y="712" width="16" height="298"/>
@@ -186,24 +188,24 @@
     <rect x="2496" y="712" width="16" height="298"/>
   </g>
   <!-- Die Schranke, halb offen: eine Kontrolle, die stattfindet. -->
-  <g fill="#0B0B0E">
+  <g fill="#14141A">
     <rect x="1620" y="850" width="36" height="160"/>
     <rect x="1594" y="806" width="88" height="48" rx="10"/>
   </g>
   <g transform="rotate(-42 1638 818)">
-    <rect x="1638" y="806" width="470" height="22" rx="9" fill="#0B0B0E"/>
+    <rect x="1638" y="806" width="470" height="22" rx="9" fill="#14141A"/>
     <rect x="1656" y="806" width="46" height="22" fill="#2F6BFF" opacity="0.75"/>
     <rect x="1746" y="806" width="46" height="22" fill="#2F6BFF" opacity="0.75"/>
     <rect x="1836" y="806" width="46" height="22" fill="#2F6BFF" opacity="0.75"/>
     <rect x="1926" y="806" width="46" height="22" fill="#2F6BFF" opacity="0.75"/>
     <rect x="2016" y="806" width="46" height="22" fill="#2F6BFF" opacity="0.75"/>
   </g>
-  <g fill="#0B0B0E">
-    <circle cx="950" cy="702" r="25.2" fill="#0B0B0E"/>
-    <path d="M 904 737 L 996 737 L 1006 870 L 894 870 Z" fill="#0B0B0E"/>
-    <rect x="898" y="863" width="38" height="147" fill="#0B0B0E"/>
-    <rect x="964" y="863" width="38" height="147" fill="#0B0B0E"/>
-    <rect x="992" y="744" width="32" height="119" fill="#0B0B0E" transform="rotate(18 950 765)"/>
+  <g fill="#14141A">
+    <circle cx="950" cy="702" r="25.2" fill="#14141A"/>
+    <path d="M 904 737 L 996 737 L 1006 870 L 894 870 Z" fill="#14141A"/>
+    <rect x="898" y="863" width="38" height="147" fill="#14141A"/>
+    <rect x="964" y="863" width="38" height="147" fill="#14141A"/>
+    <rect x="992" y="744" width="32" height="119" fill="#14141A" transform="rotate(18 950 765)"/>
   </g>
   <rect width="2560" height="1440" fill="url(#overlay)"/>
 

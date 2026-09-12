@@ -8,10 +8,12 @@
     Erzeugt von scripts/motivtafeln.py — nicht von Hand aendern.
   -->
   <defs>
+    <!-- Der Tafel-Verlauf aus DESIGN §4.1b, nicht der UI-Flaechenverlauf aus
+         §1. Warum das zwei verschiedene sind, steht oben bei HIMMEL. -->
     <linearGradient id="grund" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1F1F24"/>
-      <stop offset="0.55" stop-color="#17171B"/>
-      <stop offset="1" stop-color="#101013"/>
+      <stop offset="0" stop-color="#33333C"/>
+      <stop offset="0.55" stop-color="#2C2C34"/>
+      <stop offset="1" stop-color="#0C0C10"/>
     </linearGradient>
     <radialGradient id="schein" cx="0.5" cy="0.22" r="0.78">
       <stop offset="0" stop-color="#E30613" stop-opacity="0.16"/>
@@ -47,7 +49,7 @@
   </defs>
   <rect x="0" y="400" width="2560" height="610" fill="url(#buehne400)"/>
   <rect x="0" y="1007" width="2560" height="3" fill="#E30613" opacity="0.55"/>
-  <rect x="0" y="1010" width="2560" height="430" fill="#0B0B0E"/>
+  <rect x="0" y="1010" width="2560" height="430" fill="#0C0C10"/>
 
   <!-- Eine Wand aus Lamellen, damit die Reihe VOR etwas steht — und -->
   <!-- zwar vor etwas Hellerem: sonst ist eine dunkle Silhouette auf -->

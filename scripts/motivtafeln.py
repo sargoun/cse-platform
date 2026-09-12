@@ -27,9 +27,26 @@ HUE = {
     'bau': '#F59E0B', 'operations': '#8B5CF6',
 }
 
-# Drei Tiefen. Je naeher, desto dunkler — das ist die ganze Raumwirkung,
-# und sie kommt ohne einen einzigen Verlauf auf einer Silhouette aus.
-FERN, MITTE, NAH = '#1C1C21', '#131318', '#0B0B0E'
+# Der Tafel-Leuchtdichteverlauf aus DESIGN §4.1b — NICHT der Flaechenverlauf
+# aus §1.
+#
+# **Warum es dafuer einen eigenen gibt.** Die erste Fassung nahm den
+# §1-Verlauf (`--surface` … `--surface-3`, oben bei #1F1F24) und war in der
+# Praxis unsichtbar. Der Pflicht-Overlay aus §4.4 deckt in der Mitte der Tafel
+# 55 Prozent und am Fuss 92 Prozent; ein Hintergrund bei Leuchtdichte 31 und
+# eine Silhouette bei 11 kamen damit fuenf Stufen voneinander entfernt auf dem
+# Schirm an. Die Zeichnung war da. Sehen konnte sie niemand — und eine Seite
+# voll davon las sich als Auftritt mit fehlenden Bildern, also genau als das,
+# was die leere Tafel verhindern sollte.
+#
+# Der Grund ist eine Verwechslung, kein Geschmacksstreit: der §1-Verlauf ist
+# fuer UI auf dem Seitenhintergrund gedacht, eine Motivtafel steht fuer ein
+# FOTO, und der Overlay ist auf fotografischen Umfang gerechnet. Ein Foto
+# traegt Mitteltoene um 90 bis 140; der §1-Verlauf verlaesst die 30er nie.
+#
+# Je naeher, desto dunkler bleibt: das ist die ganze Raumwirkung, und sie
+# kommt ohne einen einzigen Verlauf auf einer Silhouette aus.
+HIMMEL, FERN, MITTE, NAH, GRUND = '#33333C', '#4A4A56', '#2C2C34', '#14141A', '#0C0C10'
 
 
 def kopf(motiv, hue, alt):
@@ -43,10 +60,12 @@ def kopf(motiv, hue, alt):
     Erzeugt von scripts/motivtafeln.py — nicht von Hand aendern.
   -->
   <defs>
+    <!-- Der Tafel-Verlauf aus DESIGN §4.1b, nicht der UI-Flaechenverlauf aus
+         §1. Warum das zwei verschiedene sind, steht oben bei HIMMEL. -->
     <linearGradient id="grund" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="{FLAECHE3}"/>
-      <stop offset="0.55" stop-color="{FLAECHE2}"/>
-      <stop offset="1" stop-color="{FLAECHE}"/>
+      <stop offset="0" stop-color="{HIMMEL}"/>
+      <stop offset="0.55" stop-color="{MITTE}"/>
+      <stop offset="1" stop-color="{GRUND}"/>
     </linearGradient>
     <radialGradient id="schein" cx="0.5" cy="0.22" r="0.78">
       <stop offset="0" stop-color="{hue}" stop-opacity="0.16"/>
@@ -161,7 +180,7 @@ def buehne(hue, hoch=520):
   </defs>
   <rect x="0" y="{hoch}" width="{B}" height="{BODEN - hoch}" fill="url(#{kennung})"/>
   <rect x="0" y="{BODEN - 3}" width="{B}" height="3" fill="{hue}" opacity="0.55"/>
-  <rect x="0" y="{BODEN}" width="{B}" height="{H - BODEN}" fill="{NAH}"/>
+  <rect x="0" y="{BODEN}" width="{B}" height="{H - BODEN}" fill="{GRUND}"/>
 '''
 
 

@@ -8,10 +8,12 @@
     Erzeugt von scripts/motivtafeln.py — nicht von Hand aendern.
   -->
   <defs>
+    <!-- Der Tafel-Verlauf aus DESIGN §4.1b, nicht der UI-Flaechenverlauf aus
+         §1. Warum das zwei verschiedene sind, steht oben bei HIMMEL. -->
     <linearGradient id="grund" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1F1F24"/>
-      <stop offset="0.55" stop-color="#17171B"/>
-      <stop offset="1" stop-color="#101013"/>
+      <stop offset="0" stop-color="#33333C"/>
+      <stop offset="0.55" stop-color="#2C2C34"/>
+      <stop offset="1" stop-color="#0C0C10"/>
     </linearGradient>
     <radialGradient id="schein" cx="0.5" cy="0.22" r="0.78">
       <stop offset="0" stop-color="#E30613" stop-opacity="0.16"/>
@@ -41,9 +43,9 @@
   <!-- Ein Flur in der Flucht. Fluchtpunkt hoch genug, dass der Boden -->
   <!-- traegt und die Figur nicht im Overlay verschwindet. -->
   <rect x="0" y="0" width="2560" height="1440" fill="#17171B" opacity="0.0"/>
-  <path d="M 0 0 L 0 1440 L 900 980 L 900 440 Z" fill="#1C1C21"/>
-  <path d="M 2560 0 L 2560 1440 L 1660 980 L 1660 440 Z" fill="#1C1C21"/>
-  <rect x="900" y="440" width="760" height="540" fill="#131318"/>
+  <path d="M 0 0 L 0 1440 L 900 980 L 900 440 Z" fill="#4A4A56"/>
+  <path d="M 2560 0 L 2560 1440 L 1660 980 L 1660 440 Z" fill="#4A4A56"/>
+  <rect x="900" y="440" width="760" height="540" fill="#2C2C34"/>
   <rect x="900" y="432" width="760" height="10" fill="#E30613" opacity="0.85"/>
   <rect x="1020" y="520" width="520" height="300" fill="#E30613" opacity="0.13"/>
   <!-- Fensterband links: das Licht, das einen Flur ausmacht. -->
@@ -55,7 +57,7 @@
     <path d="M 744 400 L 864 450 L 864 960 L 744 1004 Z"/>
   </g>
   <!-- Boden: Fugenraster in der Flucht plus flache Spiegelbaender. -->
-  <path d="M 0 1440 L 900 980 L 1660 980 L 2560 1440 Z" fill="#0B0B0E"/>
+  <path d="M 0 1440 L 900 980 L 1660 980 L 2560 1440 Z" fill="#14141A"/>
   <g stroke="#26262C" stroke-width="3" opacity="0.45">
     <line x1="0" y1="1440" x2="900" y2="982"/>
     <line x1="256" y1="1440" x2="976" y2="982"/>
@@ -85,7 +87,7 @@
     <rect x="625" y="1370" width="1310" height="18" rx="5"/>
   </g>
   <!-- Vorn: eine Figur mit Reinigungswagen, gross genug zum Erkennen. -->
-  <g fill="#0B0B0E">
+  <g fill="#14141A">
     <rect x="1420" y="700" width="250" height="22" rx="9"/>
     <rect x="1426" y="720" width="16" height="250"/>
     <rect x="1648" y="720" width="16" height="250"/>
@@ -95,11 +97,11 @@
     <circle cx="1442" cy="994" r="24"/>
     <circle cx="1648" cy="994" r="24"/>
     <rect x="1582" y="520" width="13" height="184"/>
-    <circle cx="1180" cy="676" r="27.4" fill="#0B0B0E"/>
-    <path d="M 1131 714 L 1229 714 L 1241 858 L 1119 858 Z" fill="#0B0B0E"/>
-    <rect x="1123" y="850" width="42" height="160" fill="#0B0B0E"/>
-    <rect x="1195" y="850" width="42" height="160" fill="#0B0B0E"/>
-    <rect x="1226" y="721" width="34" height="129" fill="#0B0B0E" transform="rotate(18 1180 744)"/>
+    <circle cx="1180" cy="676" r="27.4" fill="#14141A"/>
+    <path d="M 1131 714 L 1229 714 L 1241 858 L 1119 858 Z" fill="#14141A"/>
+    <rect x="1123" y="850" width="42" height="160" fill="#14141A"/>
+    <rect x="1195" y="850" width="42" height="160" fill="#14141A"/>
+    <rect x="1226" y="721" width="34" height="129" fill="#14141A" transform="rotate(18 1180 744)"/>
   </g>
   <rect width="2560" height="1440" fill="url(#overlay)"/>
 

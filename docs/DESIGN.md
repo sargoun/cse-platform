@@ -207,6 +207,39 @@ the images right and the design carries itself.
      this way, and the day the client's photographs arrive, nothing in the
      code changes.
 
+   **1b. The panel has its own luminance ramp, and it is brighter than the UI
+   ramp.** The first set of motif panels was drawn in the surface ramp of §1
+   (`--surface` … `--surface-3`, topping out at `#1F1F24`) and was, in
+   practice, invisible: the mandatory overlay in §4.4 is 55 % opaque at the
+   middle of the panel and 92 % at the foot, so a backdrop at luminance 31 and
+   a silhouette at luminance 11 arrived on screen five levels apart. The
+   drawing was there. Nobody could see it, and a page of them read as a site
+   with the images missing — which is exactly what the empty panel was
+   supposed to avoid.
+
+   The cause is a category error, not a taste dispute. **The §1 ramp is for UI
+   chrome sitting ON the page background; a motif panel stands in for a
+   photograph, and the overlay is calibrated for photographic range.** A photo
+   carries mid-tones around luminance 90–140; the UI ramp never leaves the
+   30s. Reusing it under an overlay built for a photograph is what made the
+   panels vanish.
+
+   So the panel — and only the panel — uses this ramp. It never appears in UI
+   chrome, and `--bild-overlay` is untouched:
+
+   ```css
+   --tafel-himmel: #33333C;   /* backdrop behind everything */
+   --tafel-fern:   #4A4A56;   /* distant volumes, hazier and lighter */
+   --tafel-mitte:  #2C2C34;   /* mid-ground */
+   --tafel-nah:    #14141A;   /* near silhouettes — figures live here */
+   --tafel-grund:  #0C0C10;   /* foreground floor */
+   ```
+
+   Far is lighter than near, which is the whole depth effect and the reason no
+   silhouette needs a gradient on it. The ordering matters more than the exact
+   values: a figure must stay clearly darker than the band it stands in after
+   the overlay has been applied, not before.
+
    Which of the two a surface gets is a **size** decision, not a taste one:
    large surfaces (hero, brand card, company page) take the motif panel,
    because that is where emptiness reads as breakage. Small ones (object and
