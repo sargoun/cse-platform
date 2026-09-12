@@ -1804,3 +1804,64 @@ revoke delete, truncate on freistellungsbescheinigung from cse_app, cse_anon, cs
 
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0121)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- bankkonto (archiv): ACC-01, ACC-04, FIN-11, K-12. Die IBAN und der Kontoinhaber stehen im Snapshot jeder Rechnung, die dieses Konto genannt hat, und in der XRechnung (BT-84, BT-85). Das Konto zu loeschen liesse die Belege auf einen Empfaenger zeigen, den es nie gab — und der Bankimport (PR 61) ordnet einen Auszug ueber die IBAN zu. Ein geschlossenes Konto traegt `archiviert_am`; seine IBAN wird damit wieder verwendbar.
+create trigger trg_bankkonto_kein_hard_delete
+  before delete on bankkonto
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_bankkonto_kein_truncate
+  before truncate on bankkonto
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on bankkonto from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- kasse (archiv): FIN-14, ACC-06, GoBD. An der Kasse haengen Barzahlungen und spaeter das Kassenbuch mit fortgeschriebenem Bestand. Eine geloeschte Kasse nimmt den Bewegungen ihren Ort und macht die Kassensturzfaehigkeit unpruefbar. Aufgeloest wird sie ueber `archiviert_am`.
+create trigger trg_kasse_kein_hard_delete
+  before delete on kasse
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_kasse_kein_truncate
+  before truncate on kasse
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on kasse from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- zahlung (archiv): FIN-14, ACC-04, ACC-07, Invariante 8. Sie ist der Nachweis, dass Geld geflossen ist — und die Gegenprobe zu jedem ausgeglichenen Posten. Eine geloeschte Zahlung liesse eine bezahlte Forderung als bezahlt stehen, ohne dass irgendwo stuende, wodurch. Zurueckgenommen wird ueber `storniert_am`, und der Ausloeser gibt die Posten wieder frei.
+create trigger trg_zahlung_kein_hard_delete
+  before delete on zahlung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_zahlung_kein_truncate
+  before truncate on zahlung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on zahlung from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- offener_posten (archiv): ACC-07, FIN-15, FIN-17. Die Zeile traegt, was gemahnt wurde und wann — der Mahnlauf und die Altersliste lesen genau das. Sie zu loeschen entfernte eine Forderung aus jeder Auswertung, ohne dass ein Beleg sich aendert: die Rechnung stuende weiter im Ausgangsbuch, aber niemand erwartete noch Geld dafuer. Abgeschlossen wird ueber `ausgeglichen_am`.
+create trigger trg_offener_posten_kein_hard_delete
+  before delete on offener_posten
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_offener_posten_kein_truncate
+  before truncate on offener_posten
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on offener_posten from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- zahlung_zuordnung (append): FIN-14, ACC-04, ACC-07, §146 Abs. 4 AO. Jede Zeile ist eine Buchung: wieviel dieser Zahlung auf welchen Posten entfaellt, und warum (Skonto, Bauabzugsteuer, abgeschriebene Differenz). Sie zu loeschen aenderte den Stand eines Postens ohne Spur. Eine falsche Zuordnung wird zurueckgenommen, indem die ZAHLUNG storniert wird.
+create trigger trg_zahlung_zuordnung_kein_hard_delete
+  before delete on zahlung_zuordnung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_zahlung_zuordnung_kein_truncate
+  before truncate on zahlung_zuordnung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on zahlung_zuordnung from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- op_ausgleich (append): FIN-15, ACC-07, §14 UStG (Invariante 4). Der Ausgleich ist der Vorgang, der eine stornierte Rechnung und ihre Gutschrift gegeneinander schliesst, ohne eine Zahlung zu erfinden. Ihn zu loeschen oeffnete beide Posten wieder und liesse die Wache eine stornierte Rechnung anmahnen.
+create trigger trg_op_ausgleich_kein_hard_delete
+  before delete on op_ausgleich
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_op_ausgleich_kein_truncate
+  before truncate on op_ausgleich
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on op_ausgleich from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks

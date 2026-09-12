@@ -637,6 +637,28 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'finanzen', pfad: 'finanz/xrechnung/aus-snapshot', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/pruefstand', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/dienst', schreibend: false },
+  /**
+   * Zahlungen und offene Posten (PR 54.1, FIN-14).
+   *
+   * Der schreibende Teil traegt `zahlung.schreiben` und nicht
+   * `finanzen.schreiben`: eine Zahlung zu erfassen ist keine Handlung am
+   * Beleg. Wer Rechnungen schreiben darf, darf deshalb nicht schon deswegen
+   * Zahlungseingaenge buchen — und umgekehrt.
+   *
+   * `iban`, `skonto` und `skonto.platzhalter` rechnen nur; sie sehen keine
+   * Datenbank. `abgleich` LIEST und stempelt `neu_berechnet_am` — das
+   * Schreibrecht dafuer haelt `cse_job` als Spaltenrecht, nicht diese
+   * Registratur, weshalb er hier als lesend steht: kein Mensch schreibt
+   * ueber ihn.
+   */
+  { modul: 'zahlung', pfad: 'finanz/zahlung/iban', schreibend: false },
+  { modul: 'zahlung', pfad: 'finanz/zahlung/skonto', schreibend: false },
+  { modul: 'zahlung', pfad: 'finanz/zahlung/skonto.platzhalter', schreibend: false },
+  { modul: 'zahlung', pfad: 'finanz/zahlung/abgleich', schreibend: false },
+  {
+    modul: 'zahlung', pfad: 'finanz/zahlung/index',
+    schreibend: true, schreibRecht: 'zahlung.schreiben',
+  },
 ] as const;
 
 /**

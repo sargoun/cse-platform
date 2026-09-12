@@ -1318,6 +1318,72 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'Zeit davor weiter gilt.',
   },
   {
+    tabelle: 'bankkonto',
+    art: 'archiv',
+    migration: '0121',
+    grund:
+      'ACC-01, ACC-04, FIN-11, K-12. Die IBAN und der Kontoinhaber stehen im '
+      + 'Snapshot jeder Rechnung, die dieses Konto genannt hat, und in der '
+      + 'XRechnung (BT-84, BT-85). Das Konto zu loeschen liesse die Belege auf '
+      + 'einen Empfaenger zeigen, den es nie gab — und der Bankimport (PR 61) '
+      + 'ordnet einen Auszug ueber die IBAN zu. Ein geschlossenes Konto traegt '
+      + '`archiviert_am`; seine IBAN wird damit wieder verwendbar.',
+  },
+  {
+    tabelle: 'kasse',
+    art: 'archiv',
+    migration: '0121',
+    grund:
+      'FIN-14, ACC-06, GoBD. An der Kasse haengen Barzahlungen und spaeter das '
+      + 'Kassenbuch mit fortgeschriebenem Bestand. Eine geloeschte Kasse '
+      + 'nimmt den Bewegungen ihren Ort und macht die Kassensturzfaehigkeit '
+      + 'unpruefbar. Aufgeloest wird sie ueber `archiviert_am`.',
+  },
+  {
+    tabelle: 'zahlung',
+    art: 'archiv',
+    migration: '0121',
+    grund:
+      'FIN-14, ACC-04, ACC-07, Invariante 8. Sie ist der Nachweis, dass Geld '
+      + 'geflossen ist — und die Gegenprobe zu jedem ausgeglichenen Posten. '
+      + 'Eine geloeschte Zahlung liesse eine bezahlte Forderung als bezahlt '
+      + 'stehen, ohne dass irgendwo stuende, wodurch. Zurueckgenommen wird '
+      + 'ueber `storniert_am`, und der Ausloeser gibt die Posten wieder frei.',
+  },
+  {
+    tabelle: 'offener_posten',
+    art: 'archiv',
+    migration: '0121',
+    grund:
+      'ACC-07, FIN-15, FIN-17. Die Zeile traegt, was gemahnt wurde und wann — '
+      + 'der Mahnlauf und die Altersliste lesen genau das. Sie zu loeschen '
+      + 'entfernte eine Forderung aus jeder Auswertung, ohne dass ein Beleg '
+      + 'sich aendert: die Rechnung stuende weiter im Ausgangsbuch, aber '
+      + 'niemand erwartete noch Geld dafuer. Abgeschlossen wird ueber '
+      + '`ausgeglichen_am`.',
+  },
+  {
+    tabelle: 'zahlung_zuordnung',
+    art: 'append',
+    migration: '0121',
+    grund:
+      'FIN-14, ACC-04, ACC-07, §146 Abs. 4 AO. Jede Zeile ist eine Buchung: wieviel dieser '
+      + 'Zahlung auf welchen Posten entfaellt, und warum (Skonto, '
+      + 'Bauabzugsteuer, abgeschriebene Differenz). Sie zu loeschen aenderte '
+      + 'den Stand eines Postens ohne Spur. Eine falsche Zuordnung wird '
+      + 'zurueckgenommen, indem die ZAHLUNG storniert wird.',
+  },
+  {
+    tabelle: 'op_ausgleich',
+    art: 'append',
+    migration: '0121',
+    grund:
+      'FIN-15, ACC-07, §14 UStG (Invariante 4). Der Ausgleich ist der Vorgang, der eine '
+      + 'stornierte Rechnung und ihre Gutschrift gegeneinander schliesst, ohne '
+      + 'eine Zahlung zu erfinden. Ihn zu loeschen oeffnete beide Posten '
+      + 'wieder und liesse die Wache eine stornierte Rechnung anmahnen.',
+  },
+  {
     tabelle: 'schluessel_quittung',
     art: 'append',
     migration: '0079',

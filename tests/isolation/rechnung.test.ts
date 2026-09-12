@@ -408,6 +408,54 @@ describe('(4) eine festgeschriebene Rechnung ist unveränderlich — auf DATENBA
     ).rejects.toThrow(/unveraenderlich.*netto_gesamt_cent/su);
   });
 
+  /**
+   * **Die Ausnahme, die eine Ausnahme sein muss — und es bis 0122 nicht war.**
+   *
+   * `aufbewahrung_bis` steht in der Ausnahmeliste des Auslösers, weil der
+   * Aufbewahrungslauf die GoBD-Frist auf einem festgeschriebenen Beleg setzen
+   * muss. Die Ausnahme war tot: `ueberweisungsbetrag_cent` ist eine ERZEUGTE
+   * Spalte, und PostgreSQL berechnet erzeugte Spalten erst NACH den
+   * BEFORE-Auslösern — in `new` stand dort NULL, in `old` der Wert, und der
+   * `to_jsonb`-Vergleich schlug auf JEDER Änderung an, auch auf einer, die
+   * gar nichts ändert. Die Rechnung war damit nicht unveränderlich, sondern
+   * unerreichbar, und die Fehlermeldung nannte eine Spalte, die niemand
+   * angefasst hatte.
+   *
+   * Beide Richtungen stehen hier: die Frist geht durch, die Fälschung nicht.
+   * Eine Prüfung nur der ersten Hälfte ließe sich mit `return new` bestehen.
+   */
+  it('`aufbewahrung_bis` bleibt beweglich — die GoBD-Frist muss gesetzt werden können',
+    async () => {
+      /*
+       * Die Frist wird nicht getippt, sondern aufgelöst: `fin.setze_aufbewahrung`
+       * rechnet sie aus `rechnungsdatum` und der Regel zur Klasse. Ohne Regel
+       * bleibt sie NULL und die Löschsperre steht — fail-closed, so gewollt.
+       *
+       * Hier kommt die Regel dazu, und danach muss eine Berührung der Zeile
+       * die Frist eintragen. Genau das war bis 0122 unmöglich: der
+       * Änderungsschutz wies jede Änderung ab, weil die erzeugte Spalte in
+       * `new` NULL ist.
+       */
+      await sql.unsafe(
+        `insert into dokument_aufbewahrung (mandant_id, kategorie, jahre, loeschsperre,
+                                            ist_platzhalter, grundlage)
+         values ($1, 'rechnung_ausgang', 10, true, false, $2)`,
+        [f.reinigung, '§147 Abs. 3 AO, §14b Abs. 1 UStG — Testfixtur']);
+
+      await sql.unsafe(
+        `update rechnung set geaendert_am = now() where id = $1`, [rechnungId]);
+
+      const [z] = await sql.unsafe<{ bis: string | null }[]>(
+        `select aufbewahrung_bis::text as bis from rechnung where id = $1`, [rechnungId]);
+      expect(z!.bis).toBe(`${new Date().getUTCFullYear() + 10}-12-31`);
+    });
+
+  it('und die Meldung nennt die Spalte, die wirklich bewegt wurde', async () => {
+    await expect(sql.unsafe(
+      `update rechnung set fusstext = 'nachträglich' where id = $1`, [rechnungId]))
+      .rejects.toThrow(/unveraenderlich — fusstext wurde geaendert/u);
+  });
+
   it('auch `kopftext`, `kunde_id` und `rechnungsdatum` — jede Spalte, nicht eine Auswahl', async () => {
     for (const anweisung of [
       `update rechnung set kopftext = 'x' where status = 'festgeschrieben'`,
