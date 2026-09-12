@@ -42,6 +42,15 @@ const WURZEL = resolve(import.meta.dirname, '../..');
  * Eine eigene Datenbank loest beides: diese Datei stoert niemanden und wird
  * von niemandem gestoert. `test-db.sh` nimmt den Namen aus der DSN, also
  * kostet das eine Umgebungsvariable und keine Zeile Skript.
+ *
+ * **Und sie wird NEU gebaut, nicht bloss sichergestellt.** `neu` ist der
+ * zerstoerende Pfad, den auf `cse_test` niemand nehmen darf — hier gehoert
+ * die Datenbank aber dieser einen Datei, und sie MUSS neu sein: eine der
+ * Pruefungen unten bestaetigt die Nummernmaske (`ist_platzhalter = false`),
+ * und danach ist „der Kreis ist ein Platzhalter (O-134)" beim naechsten Lauf
+ * falsch. Mit `up` war diese Datei also beim ZWEITEN Lauf rot — ein Test, der
+ * seine eigene Vorbedingung zerstoert, und der Fehlschlag traegt den Namen
+ * einer offenen Frage statt den seiner Ursache.
  */
 const EIGEN_URL = DB_URL.replace(/\/[^/?]+(\?|$)/u, '/cse_seed$1');
 
@@ -79,7 +88,7 @@ async function alsApp<T>(
 }
 
 beforeAll(() => {
-  execFileSync('bash', [join(WURZEL, 'scripts/test-db.sh'), 'up'],
+  execFileSync('bash', [join(WURZEL, 'scripts/test-db.sh'), 'neu'],
     { cwd: WURZEL, encoding: 'utf8', env: { ...process.env, TEST_DATABASE_URL: EIGEN_URL } });
   execFileSync(join(WURZEL, 'node_modules/.bin/tsx'),
     [join(WURZEL, 'src/server/db/seed/index.ts')],
