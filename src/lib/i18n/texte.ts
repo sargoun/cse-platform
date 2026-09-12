@@ -17,6 +17,8 @@ import type { Sprache } from '../sprache.js';
 export interface ShellTexte {
   readonly hauptnavigation: string;
   readonly bereicheNav: string;
+  /** Der Fussbereich fuehrt dieselben Ziele — unter eigenem Namen (PUB-14). */
+  readonly gesellschaftenNav: string;
   readonly rechtlichesNav: string;
   readonly sprachwahl: string;
   readonly zurStartseite: string;
@@ -68,6 +70,7 @@ export const SHELL_TEXTE: Readonly<Record<Sprache, ShellTexte>> = {
   de: {
     hauptnavigation: 'Hauptnavigation',
     bereicheNav: 'Unsere Bereiche',
+    gesellschaftenNav: 'Gesellschaften der Gruppe',
     rechtlichesNav: 'Rechtliches',
     sprachwahl: 'Sprache',
     zurStartseite: 'Zur Startseite',
@@ -93,6 +96,7 @@ export const SHELL_TEXTE: Readonly<Record<Sprache, ShellTexte>> = {
   en: {
     hauptnavigation: 'Main navigation',
     bereicheNav: 'Our divisions',
+    gesellschaftenNav: 'Group companies',
     rechtlichesNav: 'Legal',
     sprachwahl: 'Language',
     zurStartseite: 'To the home page',

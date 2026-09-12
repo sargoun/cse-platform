@@ -1,4 +1,3 @@
-import { BereichsAvatar } from '@/components/ui/AreaBadge';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { shellTexte } from '@/lib/i18n/texte';
 import { EIGENNAME, SPRACHEN, mitSprache, type Sprache } from '@/lib/sprache';
@@ -314,18 +313,25 @@ export function OeffentlicheShell(
 
       <main className="flex-1">{children}</main>
 
-      {/* PUB-14: dieselbe runde Avatarreihe wie im Portal, oeffentliche Absicht. */}
+      {/*
+        * Die RUNDE Avatarreihe steht unter dem Hero (PUB-14, DESIGN §6) und
+        * nicht mehr hier — siehe `MarkenReihe`. Unten bleiben die vier
+        * Gesellschaften als Textlinks neben ihrer Anschrift: derselbe Weg,
+        * anderer Anlass, und mit eigener Beschriftung. Zwei `nav` mit
+        * demselben zugaenglichen Namen waeren ein mehrdeutiges Landmark und
+        * im strikten Modus ein Locator-Verstoss — das hat dieser Zweig beim
+        * Telefonmenue schon einmal gekostet.
+        */}
       <footer className="border-t border-line bg-surface px-s5 py-s6">
-        <nav aria-label={t.bereicheNav} className="flex flex-wrap gap-s5">
+        <nav aria-label={t.gesellschaftenNav} className="flex flex-wrap gap-s5">
           {bereiche.map((b) => (
             <a
               key={b.slug}
               href={mitSprache(`/unternehmen/${b.slug}`, sprache)}
-              data-cse="marken-avatar"
+              data-cse="fuss-gesellschaft"
               aria-current={b.slug === aktiv ? 'page' : undefined}
-              className="flex items-center gap-s2 text-sm text-text-muted hover:text-text"
+              className="flex min-h-11 items-center text-sm text-text-muted hover:text-text"
             >
-              <BereichsAvatar bereich={b.bereich} aktiv={b.slug === aktiv} />
               {b.name}
             </a>
           ))}

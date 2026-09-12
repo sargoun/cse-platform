@@ -97,8 +97,39 @@ test.describe('/ — die oeffentliche Startseite', () => {
     expect(marken).toBeGreaterThan(0);
   });
 
-  test('die Markenavatar-Reihe steht im Fussbereich (PUB-14)', async ({ page }) => {
+  /**
+   * **Der Test hiess „im Fussbereich" — und DESIGN §6 sagt „under the hero".**
+   *
+   * Code, Pruefung und Testname waren sich einig und lagen gemeinsam daneben:
+   * wieder eine Pruefung, die denselben Irrtum traegt wie der Code und deshalb
+   * gruen ist. Sie prueft jetzt die POSITION, nicht nur die Anzahl — genau die
+   * Aussage, die falsch war.
+   */
+  test('die Markenavatar-Reihe steht UNTER DEM HERO (PUB-14, DESIGN §6)',
+    async ({ page }) => {
+      await page.goto('/');
+      const reihe = page.locator('[data-cse="marken-reihe"]');
+      await expect(reihe).toBeVisible();
+      await expect(reihe.locator('[data-cse="marken-avatar"]')).toHaveCount(4);
+
+      const lagen = await page.evaluate(() => {
+        const oben = (w: string): number => {
+          const e = document.querySelector(w);
+          return e === null ? -1 : e.getBoundingClientRect().top + window.scrollY;
+        };
+        return { hero: oben('[data-cse="hero"]'), reihe: oben('[data-cse="marken-reihe"]'),
+          fuss: oben('footer') };
+      });
+      expect(lagen.hero, 'kein Hero auf der Startseite').toBeGreaterThanOrEqual(0);
+      expect(lagen.reihe).toBeGreaterThan(lagen.hero);
+      expect(lagen.reihe).toBeLessThan(lagen.fuss);
+    });
+
+  test('der Fussbereich fuehrt dieselben vier Ziele — als Textlinks', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('[data-cse="marken-avatar"]')).toHaveCount(4);
+    // Zwei `nav` mit demselben zugaenglichen Namen waeren ein mehrdeutiges
+    // Landmark; der Fussbereich traegt deshalb einen eigenen.
+    await expect(page.locator('footer [data-cse="fuss-gesellschaft"]')).toHaveCount(4);
+    await expect(page.locator('footer [data-cse="marken-avatar"]')).toHaveCount(0);
   });
 });
