@@ -51,7 +51,7 @@ test.describe('eine Gesellschaft sieht nur ihr eigenes Gewerk', () => {
 
   test('die Reinigungs-Leitung sieht ihr Revier und kein Wachbuch', async ({ page }) => {
     await alsKonto(page, KONTO.leitungReinigung);
-    expect((await page.goto('/portal/reinigung/reviere'))?.status()).toBe(200);
+    expect((await page.goto('/portal/reinigung/reinigung/reviere'))?.status()).toBe(200);
     expect((await page.goto('/portal/reinigung/security/wachbuch'))?.status()).toBe(404);
   });
 

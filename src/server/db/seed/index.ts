@@ -169,7 +169,15 @@ async function main(): Promise<void> {
          ${rechtseinheit},
          'Kurfürstendamm 21', '10719', 'Berlin', 'DE', -- TODO(client, O-353): echte Anschrift je Gesellschaft
          '+49 30 555 0100', ${`kontakt@${b.slug}.cse-gruppe.de`}, ${b.farbe}, -- TODO(client, O-353): echte Rufnummer
-         ${sql.array([...b.module])}, ${i},
+         -- Die Umwandlung nach text[] steht AUSGESCHRIEBEN da: eine leere
+         -- Liste (CSE Operations bucht kein Gewerk) kommt beim Treiber ohne
+         -- Elementtyp an und wird als text gesendet — "column module is of
+         -- type text[] but expression is of type text". Der Fehler trifft
+         -- genau die eine Zeile, die ihn am schwersten auffindbar macht.
+         -- (Keine Backticks in diesem Kommentar: er steht IN einem
+         -- Template-Literal, und ein Backtick beendet es. Dafuer gibt es die
+         -- Merge-Wache sql-backtick-im-kommentar — sie hat hier zugeschlagen.)
+         ${b.module}::text[], ${i},
          ${rechtseinheit ? `DE${String(100_000_000 + i)}` : null}, -- TODO(client, O-353): echte USt-IdNr.
          ${rechtseinheit ? 'Amtsgericht Charlottenburg' : null},
          ${rechtseinheit ? `HRB ${String(200_000 + i)}` : null})  -- TODO(client, O-353): echte HRB-Nummer

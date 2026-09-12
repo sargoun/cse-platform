@@ -207,6 +207,19 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
      * kann jeder. Ohne diese Zeile antwortete `/portal/bau/reinigung/reviere`
      * weiterhin 200, und das Menue haette die Luecke nur unsichtbar gemacht.
      * 404 und nicht 403: ein 403 bestaetigt, dass es die Seite gibt (AUT-06).
+     *
+     * Geprueft werden LESE- und SCHREIBRECHTE der Route, obwohl `pruefeZugang`
+     * nur die Leserechte fuer den Zugang heranzieht. Das ist eine Stufe
+     * strenger und mit Absicht: eine Seite, die man lesen darf und deren
+     * Schaltflaeche in ein nicht gebuchtes Gewerk schreibt, waere ein Knopf,
+     * der beim Druecken 404 gibt. Heute unterscheidet keine Route die beiden
+     * Seiten — nachgemessen ueber alle Manifestzeilen —, also kostet die
+     * Strenge nichts und faengt den Tag ab, an dem eine dazukommt.
+     *
+     * `some` und nicht `every`: mehrere Leserechte sind eine UND-Verknuepfung
+     * (`zugang.ts` sammelt jedes fehlende in `fehlend`), also genuegt ein
+     * ungebuchtes Modul, um die Seite unerreichbar zu machen. Dieselbe
+     * Semantik, nur eine Frage frueher.
      */
     const route = findeRoute(pfad);
     const bewachung = route?.bewachung;
