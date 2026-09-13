@@ -155,7 +155,23 @@ Die Suiten fassen die Demo-Datenbank nie an:
 ```bash
 pnpm db:test:up        # Isolationsdatenbank, setzt cse.fenster_schluessel selbst
 pnpm test              # Vitest, ohne Datenbank
-pnpm test:isolation    # RLS, Ausloeser, Rechte
+pnpm test:isolation    # RLS, Ausloeser, Rechte — vier Arbeiter, je eine Datenbank (D-424)
 pnpm e2e:db            # Datenbank fuer den Browser: verwerfen, migrieren, seeden, importieren
 pnpm test:e2e          # Playwright
+```
+
+Die Isolationssuite legt sich ihre Datenbanken selbst an, alle im Testcluster
+auf Port 55432: `cse_test_w1` … `cse_test_w4` fuer die vier Arbeiter,
+`cse_test_vorlage` und `cse_test_vorlage_inhalt` als geseedete Vorlagen, dazu
+die fuenf eigenen der Dateien, die den echten Seed pruefen (`cse_seed`,
+`cse_oeffentlich`, …). Die Vorlagen werden nur neu gebaut, wenn sich unter
+`src`, `drizzle` oder `scripts`, an `package.json`, `pnpm-lock.yaml` oder den
+Aufbauhelfern unter `tests/isolation/` etwas geaendert hat — und einmal am
+Tag, weil der Seed relativ zu heute plant. Sonst kostet der Aufbau eine
+Sekunde je Klon. Zwei Laeufe auf derselben `cse_test` zugleich gibt es nicht:
+der zweite wird abgewiesen, solange der erste die Sperre haelt. Faellt eine
+Datei nur in Gesellschaft anderer, hilft der alte, serielle Lauf:
+
+```bash
+CSE_ISOLATION_WORKER=1 pnpm test:isolation
 ```

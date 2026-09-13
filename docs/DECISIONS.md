@@ -6795,3 +6795,98 @@ und `portal-ausgang.spec.ts` prüft die Schiene der Gruppenleitung.
   Unterschied ausgäbe — zeigten keinen Unterschied und keinen Fehler. Die
   Meldung fiel mit dem Durchlauf zusammen, der das Fenster während des
   Ladens umgestellt hat. Bleibt als Beobachtung stehen, nicht als Befund.
+
+### D-424 · Die Isolationssuite läuft parallel — je Arbeiter eine Datenbank, Vorlagen statt fünf Seeds
+
+**Der Befund.** `pruefung` brauchte rund 30 Minuten, und 25 davon war die
+Isolationssuite: 69 Dateien, eine nach der anderen gegen EINE `cse_test`,
+und fünf davon (`seed`, `oeffentlich`, `lead`, `kennzahlen`, `rollen`)
+bauten sich je eine eigene Datenbank aus 108 Migrationen plus dem echten
+Seed — anderthalb Minuten je Datei, siebeneinhalb im Lauf. Build und Audit
+standen dahinter in derselben Reihe und warteten, ohne etwas von ihr zu
+brauchen.
+
+**Was sich NICHT ändert.** Kein Test, keine Zusicherung, keine Fixtur, keine
+Rolle: `cse_app` bleibt die Rolle, `FORCE` bleibt gesetzt, `seed()` setzt
+weiterhin vor jeder Datei zurück, und zwei Dateien teilen sich weiterhin nie
+eine Datenbank — das war der Grund für den seriellen Lauf, und er gilt
+unverändert. Was sich ändert, ist nur, WIE er eingehalten wird: bisher durch
+einen einzigen Arbeiter, jetzt durch getrennte Datenbanken.
+
+**Vier Züge.**
+
+1. **Je Arbeiter eine Datenbank.** `tests/isolation/global-setup.ts` klont
+   die migrierte `cse_test` in `cse_test_w1` … `cse_test_w4` (`create
+   database … template`, eine Sekunde je Klon), und `harness.ts` hängt
+   `VITEST_POOL_ID` an den Namen. Vier Forks, je Fork eine Datei zur Zeit;
+   innerhalb eines Arbeiters bleibt alles, wie es war. Höchstens vier: ein
+   GitHub-Runner hat vier Kerne, und Postgres will auch einen.
+   `CSE_ISOLATION_WORKER=1` ist der alte, serielle Lauf — für die Suche nach
+   einer Datei, die nur in Gesellschaft anderer fällt.
+
+2. **Vorlagen statt fünf Seeds.** Der Seed läuft einmal je Lauf, in
+   `cse_test_vorlage`; der Inhaltsimport darauf in `cse_test_vorlage_inhalt`.
+   `eigeneDatenbank(...).baueAuf()` klont die passende Vorlage, statt
+   `test-db.sh neu` und den Seed zu fahren. Der Klon IST die geseedete
+   Datenbank: was `seed.test.ts` über den Seed beweist, beweist es am Klon
+   genauso, und „der Kreis ist ein Platzhalter (O-134)" bleibt auch beim
+   zweiten Lauf wahr, weil jeder Lauf frisch klont. Die Vorlagen tragen einen
+   Fingerabdruck über `src`, `drizzle`, `scripts` und die Abhängigkeiten —
+   nicht nur über den Seed, denn der importiert die Dienste, die er vorführt.
+   Stimmt er, steht die Vorlage; sonst wird sie neu gebaut, und der Abdruck
+   kommt erst NACH dem Seed, damit eine halb gebaute Vorlage nie als fertig
+   gilt. In CI ist der Container frisch, dort wird immer gebaut.
+
+3. **Ein eigener Auftrag.** `isolation` läuft in `ci.yml` neben `pruefung`,
+   mit dem Dienst-Container, den `pruefung` nicht mehr braucht: der Build
+   rendert nichts aus der Datenbank, und `pool.ts` sagt das ausdrücklich. Die
+   Dauer der Prüfung ist damit die längere Hälfte, nicht die Summe.
+
+4. **`seed()` leert mit `DELETE`, nicht mit `TRUNCATE`.** Der erste
+   parallele Lauf zeigte, wo die Zeit wirklich steckt: nicht im Node-Prozess
+   (anderthalb Minuten CPU), sondern in Postgres. `truncate audit_log,
+   anstellung, person, mandant restart identity cascade` erreicht rund 150
+   Tabellen, und TRUNCATE gibt jeder davon und jedem Index eine neue Datei —
+   gemessen 0,9 bis 1,6 s je Aufruf, gleich ob die Tabellen voll sind oder
+   leer, und mit `fsync=off` immer noch 0,5 s. `seed()` läuft vor fast jedem
+   der 1266 Tests. Der Ersatz liest dieselbe Tabellenmenge aus dem Katalog —
+   rekursiv über genau die Fremdschlüssel, denen CASCADE folgt, plus
+   `auth.users` und `kern.anmeldeversuch` —, löscht nur dort, wo Zeilen
+   stehen, und setzt die Sequenzen dieser Tabellen zurück wie RESTART
+   IDENTITY: rund 0,1 s auf einer voll geseedeten Datenbank, dasselbe
+   Ergebnis. `session_replication_role = replica` bleibt aus demselben Grund
+   gesetzt wie zuvor: nur dort und nur bis zum Ende der Transaktion schweigen
+   die Wachen gegen Löschen (Invariante 8), die Fremdschlüssel und die
+   Audit-Auslöser. Was NICHT genommen wurde: `synchronous_commit = off` auf
+   den Klonen: an derselben Datei 7,5 s statt 6,5 s, ein Achtel — das ist keine
+   Dauerhaftigkeitseinstellung wert, die später jemand für die Ursache eines
+   Unterschieds hält.
+
+**Gemessen** — dieselben 1266 Tests in 69 Dateien. Lokal, vier Kerne, eine
+Datei seriell (`abrechnungsart`, 38 Tests): 61 s mit TRUNCATE, 7,5 s mit dem
+DELETE-Reset. Die ganze Suite mit vier Arbeitern: 15 min 20 s mit TRUNCATE,
+1 min 21 s mit dem DELETE-Reset — bei stehenden Vorlagen; ihr Bau kostet
+einmal je Lauf rund anderthalb Minuten, in CI also immer. Die Summe der
+Dateizeiten fiel von 59 auf 4,3 Minuten; die Suite war nie langsam, sie hat
+1266-mal Dateien angelegt. In CI vorher 25 Minuten für den Schritt in
+`pruefung`; nachher steht es im ersten Lauf dieses Zweigs.
+
+**Nachtrag aus der Durchsicht des PR** (Copilot, sechs Befunde, alle
+genommen): Eine Beratungssperre (`pg_advisory_lock`) auf der Basis hält für
+die DAUER des Laufs — die Sperre in `test-db.sh` deckt nur den Aufbau, und
+ein zweiter Lauf hätte dem ersten mit `drop … with (force)` die
+Arbeiterdatenbanken weggezogen; jetzt wird er abgewiesen, und die Sitzung
+endet mit dem Prozess, die Sperre mit ihr. Der Tag steht im Fingerabdruck
+der Vorlagen, weil der Seed relativ zu heute plant. Eine Basis, die
+Gesellschaften, Menschen oder Konten trägt (die alte, serielle Suite liess
+ihre Fixturen in `cse_test`), wird vor dem Bau der Vorlage mit `neu`
+neu gebaut. Der Basisname lässt Platz für `_vorlage_inhalt` unter den 63
+Zeichen. Und `psql` muss ausführbar sein, nicht bloss vorhanden.
+
+**Was es kostet.** Sechs Datenbanken statt einer im Testcluster (vier
+Arbeiter, zwei Vorlagen) plus die fünf eigenen — eine Wegwerfinstallation
+ohnehin. Und `psql` muss erreichbar sein: `parallel.ts` sucht es auf dem
+PATH und unter `/usr/lib/postgresql/*/bin`, wie `test-db.sh` es schon tat.
+Namen, die in ein Kommando wandern, prüft `pruefeBezeichner` vorher — sie
+kommen aus dem Repository, aber ein halbes Kommando im Server wäre der
+teurere Fehler.

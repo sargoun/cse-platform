@@ -31,12 +31,9 @@
  * niemanden und wird von niemandem gestört. `test-db.sh` nimmt den Namen aus
  * der DSN; das kostet eine Umgebungsvariable und keine Zeile Skript.
  */
-import { execFileSync } from 'node:child_process';
-import { join, resolve } from 'node:path';
 import postgres from 'postgres';
-import { DB_URL, type Sitzung } from './harness.js';
-
-const WURZEL = resolve(import.meta.dirname, '../..');
+import { BASIS_URL, DB_URL, type Sitzung } from './harness.js';
+import { datenbankName, kloneDatenbank, mitDatenbank, verwaltungsUrl, vorlagenNamen } from './parallel.js';
 
 export interface AufbauOptionen {
   /** Zusätzlich `scripts/content-import.ts` — für alles, was Seiteninhalt liest. */
@@ -58,7 +55,7 @@ export interface EigeneDatenbank {
  * Entscheidung und kein Versehen.
  */
 export function eigeneDatenbank(name: string): EigeneDatenbank {
-  const url = DB_URL.replace(/\/[^/?]+(\?|$)/u, `/${name}$1`);
+  const url = mitDatenbank(DB_URL, name);
   /*
    * Kein `sql.end()` irgendwo: der Pool lebt je Worker-PROZESS, und ein in
    * `afterAll` geschlossener Pool tötet jede Abfrage eines späteren Laufs
@@ -70,18 +67,18 @@ export function eigeneDatenbank(name: string): EigeneDatenbank {
   return {
     url,
     sql,
+    /**
+     * Ein KLON der geseedeten Vorlage (D-424) — dieselben Bytes, die frueher
+     * `test-db.sh neu` plus Seed hier erzeugten, nur in einer Sekunde statt
+     * anderthalb Minuten. Die Vorlage baut `global-setup.ts` einmal je Lauf;
+     * `inhalt: true` nimmt die Vorlage mit den Texten der oeffentlichen
+     * Seiten. Der Name der Vorlage haengt an der BASIS-Datenbank, nicht an der
+     * des Arbeiters: ein Arbeiter auf `cse_test_w2` klont aus `cse_test_vorlage`.
+     */
     baueAuf(optionen: AufbauOptionen = {}): void {
-      const umgebung = { ...process.env, DATABASE_URL: url, TEST_DATABASE_URL: url };
-      execFileSync('bash', [join(WURZEL, 'scripts/test-db.sh'), 'neu'],
-        { cwd: WURZEL, encoding: 'utf8', env: umgebung });
-      execFileSync(join(WURZEL, 'node_modules/.bin/tsx'),
-        [join(WURZEL, 'src/server/db/seed/index.ts')],
-        { cwd: WURZEL, encoding: 'utf8', env: umgebung });
-      if (optionen.inhalt === true) {
-        execFileSync(join(WURZEL, 'node_modules/.bin/tsx'),
-          [join(WURZEL, 'scripts/content-import.ts')],
-          { cwd: WURZEL, encoding: 'utf8', env: umgebung });
-      }
+      const vorlagen = vorlagenNamen(datenbankName(BASIS_URL));
+      kloneDatenbank(verwaltungsUrl(DB_URL), name,
+        optionen.inhalt === true ? vorlagen.inhalt : vorlagen.seed);
     },
     /** Dieselbe Bindung wie `harness.alsApp` — nur auf DIESER Datenbank. */
     async alsApp<T>(
