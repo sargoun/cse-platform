@@ -119,13 +119,19 @@ export function OeffentlicheShell(
           * (DESIGN §8). Als blosser `text-h3` war er 30px hoch.
           *
           * `min-w-0` (mit `truncate` am Span darin): die Kopfzeile ist eine
-          * Reihe ohne Umbruch, und rechts stehen „Anmelden" und die Sprachwahl
-          * mit fester Mindestbreite.
-          * Ohne diese beiden Klassen drueckt ein laengerer `gruppenname` — er
-          * kommt aus `plattform_einstellung`, nicht aus dem Quelltext — die
-          * Zeile ueber den Rand, und zwar auf JEDER oeffentlichen Seite. Das
-          * Kuerzel in der Sprachwahl wurde genau deswegen eingefuehrt; die
-          * Ursache lag daneben.
+          * Reihe ohne Umbruch, und ab `md` stehen rechts „Anmelden" und die
+          * Sprachwahl mit fester Mindestbreite. Ohne diese beiden Klassen
+          * drueckt ein laengerer `gruppenname` — er kommt aus
+          * `plattform_einstellung`, nicht aus dem Quelltext — die Zeile ueber
+          * den Rand, und zwar auf JEDER oeffentlichen Seite.
+          *
+          * **Die Kuerzung ist die Notbremse, nicht der Normalfall.** Sie hat
+          * einmal den Normalfall getragen: mit der Sprachwahl im Telefonkopf
+          * blieben dem Namen 118px von 146, und „CSE Gruppe" stand als
+          * „CSE Gr…" da. Seit D-415 steht auf dem Telefon nur noch der Name
+          * neben dem Menueknopf, und DESIGN §5 sagt zu: bei 360px und darueber
+          * wird nicht gekuerzt. Greift die Bremse doch, ist der Name in den
+          * Einstellungen zu lang — nicht die Zeile zu eng.
           */}
         <a
           href={mitSprache('/', sprache)}
@@ -267,6 +273,34 @@ export function OeffentlicheShell(
                   </a>
                 </li>
               )}
+              {/*
+                * **Die Sprachwahl auf dem Telefon — hier** (DESIGN §5).
+                *
+                * Zwei Punkte in der Liste, die schon offen ist, statt zweier
+                * Verweise in einer Zeile, die keinen Platz hat. Und hier steht
+                * der Eigenname ausgeschrieben: das Kuerzel „DE" gab es nur,
+                * weil im Kopf nichts anderes mehr hineinging.
+                *
+                * **Kein zweites `nav` und kein zweites `data-cse="sprachwahl"`.**
+                * Zwei gleich benannte Landmarken sind fuer einen Screenreader
+                * nicht unterscheidbar und fuer jeden Locator zwei Treffer —
+                * daran fielen schon einmal dreizehn Sprachpruefungen. Diese
+                * Punkte liegen IM Menue-`nav` und tragen eine eigene Kennung.
+                */}
+              {SPRACHEN.filter((s) => s !== sprache).map((s) => (
+                <li key={s} className="border-b border-line">
+                  <a
+                    href={mitSprache(pfad, s)}
+                    hrefLang={s}
+                    lang={s}
+                    data-sprache={s}
+                    data-cse="menue-sprache"
+                    className="flex min-h-11 items-center py-s3 text-base text-text-muted"
+                  >
+                    {EIGENNAME[s]}
+                  </a>
+                </li>
+              ))}
             </ul>
           </nav>
         </details>
@@ -329,10 +363,24 @@ export function OeffentlicheShell(
           * jemand die Auswahl bestätigt hat. Zwei Links tun genau das, wonach
           * sie aussehen, und `hreflang` sagt der Maschine, was sie sind.
           */}
+        {/*
+          * **`hidden md:flex` — auf dem Telefon steht die Sprachwahl im
+          * Blatt, nicht im Kopf** (DESIGN §5, D-415).
+          *
+          * Sie stand hier, sie kostete 96px einer 72px-Zeile, und was wich,
+          * war der Name: bei 360–414px rechnete der Auftrittsname 146px und
+          * bekam 118. Sichtbar war davon „CSE Gr…" — sauber gesetzt, mit
+          * Auslassungszeichen, auf JEDER oeffentlichen Seite.
+          *
+          * **Und die 375px-Pruefung blieb gruen, WEIL gekuerzt wurde.** Sie
+          * misst `scrollWidth > clientWidth`; `truncate` verhindert genau das.
+          * Die Zusage „kein waagerechtes Scrollen" war erfuellt, die Zeile
+          * darunter trotzdem falsch — deshalb prueft sie jetzt beides.
+          */}
         <nav
           aria-label={t.sprachwahl}
           data-cse="sprachwahl"
-          className="ml-s4 flex items-center gap-s2"
+          className="ml-s4 hidden items-center gap-s2 md:flex"
         >
           {SPRACHEN.map((s) => (
             <a

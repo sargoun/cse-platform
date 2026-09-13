@@ -108,6 +108,7 @@ gewechselt.
 | Meldung | Ursache | Behebung |
 |---|---|---|
 | `listen EADDRINUSE: address already in use :::3001` | Eine frueher gestartete Instanz haelt den Port. | PowerShell: `Get-NetTCPConnection -LocalPort 3001 -State Listen \| ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }` · bash: `kill $(lsof -ti tcp:3001)` |
+| Seite kommt **ohne Gestaltung** (Times New Roman, blaue unterstrichene Verweise, kein Menue) | Ein zweiter Next-Server hat `.next` ueberschrieben — siehe Abschnitt 5. | Alle laufenden Server beenden, dann `pnpm build` und `pnpm start` erneut. |
 | `unrecognized configuration parameter "cse.fenster_schluessel"` | Abschnitt 3. | Einstellung setzen, dann `pnpm db:seed` erneut. |
 | `/` antwortet mit 404 | `content:import` fehlt. | `pnpm content:import` |
 | `Ignored build scripts: esbuild@…` | pnpm fuehrt Installationsskripte nicht ungefragt aus. | Folgenlos fuer die Demo. |
@@ -116,7 +117,38 @@ gewechselt.
 
 ---
 
-## 5. Testdatenbanken — getrennt von der Demo
+## 5. Ein Server zur Zeit — sonst kommt die Seite ohne Gestaltung
+
+**Der Befund, wie er auf dem Telefon ankam:** die Startseite laedt, die Bilder
+sind da, der Text steht in Times New Roman, die Fusszeilenverweise sind blau
+und unterstrichen, das Menue tut nichts. Keine Fehlermeldung, nirgends.
+
+**Die Ursache ist eine Zeile, die jeder wegklickt.** Lief noch ein
+`pnpm dev` von vorhin (es meldet sich nur mit `EADDRINUSE`), und laeuft dann
+`pnpm build`, so schreibt der Bau **dasselbe Verzeichnis**, das der laufende
+Server gerade ausliefert: `.next`. Danach gibt es die Datei
+`.next/static/css/app/layout.css` nicht mehr, der Entwicklungsserver antwortet
+darauf mit `404`, und der Browser bekommt eine Seite ohne eine einzige Zeile
+CSS und ohne JavaScript. Die Bilder kommen weiter, denn die liegen in
+`public/` und nicht in `.next` — was den Eindruck vollendet, es sei „nur das
+Layout kaputt".
+
+**Die Gegenrichtung ist genauso still:** startet `pnpm dev`, waehrend
+`pnpm start` laeuft, raeumt es den Produktionsbau weg, und der laufende Server
+antwortet fortan mit *Could not find a production build*.
+
+**Seit D-414 faengt das ein Waechter ab.** `pnpm dev` und `pnpm build` fragen
+vorher auf `PORT`, 3000 und 3001 nach `/healthz`. Antwortet dort ein Server
+dieses Projekts, brechen sie ab und nennen den Befehl zum Beenden — fuer
+Windows und fuer bash. Wer einen Fehlalarm hat (auf 3000 antwortet ein fremdes
+Projekt), setzt `CSE_BAU_OHNE_WACHE=1`.
+
+Die Regel dahinter ist einfacher als ihre Begruendung: **erst beenden, dann
+bauen.**
+
+---
+
+## 6. Testdatenbanken — getrennt von der Demo
 
 Die Suiten fassen die Demo-Datenbank nie an:
 

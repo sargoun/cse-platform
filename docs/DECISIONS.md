@@ -6538,3 +6538,64 @@ mit 1, sobald ein Dokument nicht konform ist; `execFileSync` warf dann, bevor
 der Bericht geschrieben war. Rot war der Lauf, leer das Artefakt, und die
 verletzte Regel stand nirgends — genau im einzigen Fall, in dem sie jemand
 braucht.
+
+### D-414 · Ein Next-Server zur Zeit — der Bau bricht ab, statt `.next` unter einem laufenden Server auszutauschen
+
+**Der Befund kam als Foto von einem Telefon.** Die Startseite lud, die Bilder
+waren da, und alles andere war Times New Roman auf Weiß: blaue unterstrichene
+Verweise, Aufzählungspunkte im Fuß, „Impressum Datenschutz Barrierefreiheit"
+ohne Abstand aneinandergeklebt. Also eine Seite ganz ohne CSS.
+
+**Die Ursache ist ein Verzeichnis, das sich zwei Befehle teilen.** Auf dem
+Rechner lief noch ein `next dev` von vorhin — er hatte sich gemeldet, aber nur
+als `EADDRINUSE`, und das klickt jeder weg. Danach lief `pnpm build`. Beide
+schreiben `.next`. Nach dem Bau gab es `.next/static/css/app/layout.css` nicht
+mehr; der laufende Entwicklungsserver antwortete darauf mit 404, lieferte HTML
+aber weiter aus, und die Bilder kamen ebenfalls — die liegen in `public/`. Das
+Ergebnis ist eine Seite, die nach einem Gestaltungsfehler aussieht und keiner
+ist. Nachgestellt und gemessen: dieselbe Adresse vor dem Bau 200, danach 404.
+
+Die Gegenrichtung ist genauso still: ein `next dev`, das startet, während
+`next start` läuft, räumt den Produktionsbau weg — der laufende Server
+antwortet fortan „Could not find a production build".
+
+**Die strukturelle Lösung wäre `distDir` je nach `NODE_ENV` — sie fällt an
+`typedRoutes`.** Next schreibt `next-env.d.ts` samt Pfad auf das jeweilige
+Verzeichnis um, und `tsconfig.json` zieht `<distDir>/types` herein. Zwei
+Verzeichnisse hießen entweder zwei konkurrierende `routes.d.ts` (doppelte
+Deklarationen) oder ein `pnpm typecheck`, dessen Ergebnis davon abhängt,
+welcher Befehl zuletzt lief. Das ist der teurere Fehler.
+
+**Also ein Wächter.** `pnpm dev` und `pnpm build` fragen vorher auf `PORT`,
+3000 und 3001 nach `/healthz` — die einzige Route ohne Datenbank, Sitzung und
+Recht, und keine, die ein fremder Dienst zufällig nachbildet. Antwortet dort
+ein Server dieses Projekts, bricht der Befehl ab und nennt den Befehl zum
+Beenden für PowerShell und für bash. Notausgang `CSE_BAU_OHNE_WACHE=1`.
+Acht Prüfungen in `tests/kern/bau-wache.test.ts`, darunter der echte Fall und
+der Fehlalarm (ein fremder Dienst auf demselben Hafen bleibt unbehelligt).
+
+### D-415 · Auf dem Telefon trägt die Kopfzeile den Namen und den Menüknopf — sonst nichts
+
+Die Sprachwahl stand im Kopf, auch unter `md`. Sie kostete 96px einer Zeile,
+die 72px hoch und beim Telefon 375px breit ist, und was wich, war der
+Auftrittsname: gemessen 146px nötig, 118px zugeteilt bei 390px, 88px bei
+360px. Sichtbar war davon **„CSE Gr…"** — auf jeder öffentlichen Seite, auf
+jedem geprüften Telefonformat von 360px bis 414px.
+
+**Bemerkenswert ist, warum das keine Prüfung fand.** Es gab eine, genau für
+diese Zeile: „kein waagerechtes Scrollen bei 375px — auch mit der Sprachwahl
+im Kopf". Sie war grün, und sie war grün **weil** gekürzt wurde:
+`text-overflow: ellipsis` hält `scrollWidth` klein. Die Zusage war erfüllt und
+die Zeile trotzdem falsch. Eine Zusage, die eine andere verdeckt, braucht die
+zweite daneben — jetzt prüfen vier Fälle (360/375/390/414), dass der Name
+ungekürzt steht, und die Kürzung ist wieder das, was sie sein sollte: die
+Notbremse für einen zu langen Namen aus `plattform_einstellung`.
+
+DESIGN §5 sagt es nun ausdrücklich, mit derselben Begründung, die §6 schon für
+die Gesellschaftswahl gibt: auf dem Telefon ist neben dem Menüknopf kein Platz
+für ein zweites Bedienelement. Die Sprachwahl ist deshalb ein Punkt **im**
+Vollbildmenü — dort ausgeschrieben („Deutsch", „English") statt als Kürzel,
+denn das Kürzel gab es nur, weil im Kopf nichts anderes mehr hineinging. Kein
+zweites `nav` und kein zweites `data-cse="sprachwahl"`: zwei gleich benannte
+Landmarken sind für Screenreader nicht unterscheidbar und für jeden Locator
+zwei Treffer — daran fielen schon einmal dreizehn Sprachprüfungen.

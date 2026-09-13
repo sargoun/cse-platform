@@ -417,6 +417,16 @@ below in `--danger` at `xs`. Label above, always — never placeholder-as-label.
 `backdrop-filter: blur(12px)` once scrolled. Logo left, nav centre, red
 *Angebot anfragen* + ghost *Login* right. Mobile: full-screen overlay menu.
 
+**On a phone the header carries the wordmark and the menu button — nothing
+else.** The language switch goes into the overlay menu, for the same reason
+§6 gives for the company switcher: a 72px row has no width for a second
+control beside the menu button. It was in the header, it took 96px of it, and
+what gave way was the name: at every phone width from `360px` to `414px` the
+wordmark rendered as *CSE Gr…*. Nothing looked broken — `text-overflow` is
+tidy, and the 375px overflow test stayed green precisely BECAUSE the name was
+being cut. **The wordmark is never truncated at `360px` or wider**; that is the
+testable half of this rule.
+
 **Portal sidebar:** width `248px`, `--surface`. Active item: `--surface-2` bg +
 3px left bar in the **current area's identity hue**. Icons `18px`, label `sm`.
 Collapsible to `64px`. Mobile: bottom tab bar with the five main destinations.
