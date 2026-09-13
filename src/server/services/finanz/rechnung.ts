@@ -1390,7 +1390,7 @@ export async function finalisiere(
    *    **Er kann dabei nicht scheitern lassen, was schon gilt.** Fehlt die
    *    Kontenzuordnung (O-05), entsteht die Zeile mit `konto = NULL` und
    *    Pruefhinweis; das ist der Zustand, den `periode` beim Schliessen
-   *    verweigert (D-424). Ein Abschlagsabzug bleibt vorerst ungebucht und
+   *    verweigert (D-425). Ein Abschlagsabzug bleibt vorerst ungebucht und
    *    sagt das (O-05) — die Rechnung selbst ist davon unberuehrt.
    */
   await markiereQuellenAbgerechnet(db, rechnungId);

@@ -97,7 +97,7 @@ export default async function DatevStapel(
       /*
        * Ein Eintrag je BELEG, nicht je Zeile: eine Rechnung erzeugt vier bis
        * sechs Buchungszeilen und genau ein PDF. Ein Manifest, das das PDF
-       * sechsmal führt, behauptet sechs Belege (D-443).
+       * sechsmal führt, behauptet sechs Belege (D-444).
        */
       const manifest = await kontext.abfrage<ManifestRoh>(
         `select b.belegnummer, b.datei_sha256, b.typ::text as typ,

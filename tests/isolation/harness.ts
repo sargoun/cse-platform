@@ -6,9 +6,19 @@
  */
 import postgres from 'postgres';
 import { KATALOG } from '../../src/server/auth/katalog.generiert.js';
+import { workerUrl } from './parallel.js';
 
-export const DB_URL =
-  process.env['TEST_DATABASE_URL'] ?? 'postgres://postgres@localhost:55432/cse_test';
+/**
+ * Die Datenbank DIESES Arbeiters (D-424): `cse_test_w<VITEST_POOL_ID>`.
+ *
+ * Vitest gibt jedem Arbeiter eine Nummer, `global-setup.ts` hat fuer jede
+ * Nummer einen Klon der migrierten `cse_test` angelegt. Zwei Dateien in zwei
+ * Arbeitern sehen einander damit nie — was `fileParallelism: false` bisher
+ * dadurch erreichte, dass es nur einen Arbeiter gab.
+ */
+export const BASIS_URL = process.env['TEST_DATABASE_URL']
+  ?? 'postgres://postgres@localhost:55432/cse_test';
+export const DB_URL = workerUrl(BASIS_URL, process.env['VITEST_POOL_ID']);
 
 export type Scope = 'mandant' | 'gruppe' | 'person' | 'kunde';
 
@@ -95,8 +105,8 @@ export interface Fixtur {
 
 /**
  * Die fünf Systemrollen aus `0007` (AUT-01) — Schlüssel, Label, Geltungs-
- * bereich, Portal, 2FA-Pflicht. Sie stehen hier, weil `truncate … cascade`
- * sie mitnimmt und jeder Test sie wieder braucht.
+ * bereich, Portal, 2FA-Pflicht. Sie stehen hier, weil das Zuruecksetzen in
+ * `seed()` sie mitnimmt und jeder Test sie wieder braucht.
  */
 const STANDARDROLLEN: readonly (readonly [string, string, string, string, boolean])[] = [
   ['super_admin', 'Super-Administration', 'global', 'intern', true],
@@ -158,25 +168,88 @@ readonly (readonly [string, string, boolean, boolean, boolean, boolean, boolean]
  *
  * Seeding inside it also leaves `audit_log` empty at the start of every test.
  * Setup that audits itself makes "exactly one audit row" unassertable.
+ *
+ * **Geleert wird mit `DELETE`, nicht mit `TRUNCATE` — seit D-424.** Bis dahin
+ * stand hier `truncate audit_log, anstellung, person, mandant restart identity
+ * cascade` (plus `auth.users cascade` und `kern.anmeldeversuch`). Der Cascade
+ * erreicht rund 150 Tabellen, und TRUNCATE gibt JEDER davon und jedem ihrer
+ * Indexe eine neue Datei — gemessen eine Sekunde je Aufruf, ob die Tabellen
+ * voll sind oder leer. `seed()` laeuft vor fast jedem der 1266 Tests; das
+ * waren zwanzig Minuten Dateiverwaltung je Lauf. In einem Test sind fast alle
+ * dieser Tabellen leer, und eine leere Tabelle kostet als `exists` einen
+ * Bruchteil einer Millisekunde. Der Block unten liest dieselbe Menge aus dem
+ * Katalog — ueber genau die Fremdschluessel, denen auch CASCADE folgt —,
+ * loescht nur, wo Zeilen stehen, und setzt die Sequenzen dieser Tabellen
+ * zurueck wie RESTART IDENTITY: 0,1 s statt 1 s, mit demselben Ergebnis.
+ * `replica` bleibt dabei aus demselben Grund gesetzt wie oben: die Wachen
+ * gegen Loeschen (Invariante 8), die Fremdschluessel und die Audit-Ausloeser
+ * schweigen nur dort, und nur bis zum Ende dieser Transaktion.
  */
+
+/**
+ * Die Wurzeln des Zuruecksetzens — dieselben, die der TRUNCATE nannte.
+ *
+ * `cascade` erreichte ueber die FKs auf `mandant` auch `rolle`, `benutzer`,
+ * `benutzer_mandant`, `benutzer_sitzung` und `nummernkreis` — und damit die
+ * fuenf Systemrollen, die die Migration setzt. Sie werden in `seed()` wieder
+ * gesetzt: sie sind Stammdaten der Plattform, nicht Fixture-Daten, und ohne
+ * sie hat kein Konto eine Rolle. `kern.anmeldeversuch` haengt an keinem
+ * Mandanten und steht deshalb ausdruecklich hier: ohne diese Wurzel tragen
+ * sich Fehlversuche von Test zu Test weiter, bis eine Sperre in einem Test
+ * zuschlaegt, der sie nicht ausloest.
+ */
+const RESET_WURZELN = [
+  ['public', 'audit_log'], ['public', 'anstellung'], ['public', 'person'], ['public', 'mandant'],
+  ['auth', 'users'], ['kern', 'anmeldeversuch'],
+] as const;
+
+const LEEREN = `
+do $$
+declare t record; s record; voll boolean;
+begin
+  for t in
+    with recursive r(oid) as (
+      select c.oid from pg_class c join pg_namespace ns on ns.oid = c.relnamespace
+       where (ns.nspname, c.relname) in (${RESET_WURZELN.map(([ns, r]) => `('${ns}','${r}')`).join(',')})
+      union
+      select con.conrelid from pg_constraint con join r on con.confrelid = r.oid
+       where con.contype = 'f')
+    select ns.nspname, c.relname, c.oid
+      from r join pg_class c on c.oid = r.oid join pg_namespace ns on ns.oid = c.relnamespace
+     where c.relkind in ('r', 'p')
+  loop
+    execute format('select exists (select 1 from %I.%I)', t.nspname, t.relname) into voll;
+    if voll then
+      execute format('delete from %I.%I', t.nspname, t.relname);
+    end if;
+    -- RESTART IDENTITY: die Sequenzen, die Spalten dieser Tabelle gehoeren
+    -- (serial: deptype a, identity: deptype i) — und nur die, die je gezogen
+    -- wurden; eine unbenutzte steht schon am Anfang. Die Pruefung steht im
+    -- Rumpf und nicht in der Abfrage: der Planer darf pg_sequence_last_value
+    -- vor dem relkind-Filter auswerten, und auf der TOAST-Tabelle (auch
+    -- deptype i) wirft sie "is not a sequence".
+    for s in
+      select sq.oid, sq.relname, sn.nspname
+        from pg_depend d
+        join pg_class sq on sq.oid = d.objid and sq.relkind = 'S'
+        join pg_namespace sn on sn.oid = sq.relnamespace
+       where d.refobjid = t.oid and d.deptype in ('a', 'i')
+    loop
+      if pg_sequence_last_value(s.oid) is not null then
+        execute format('alter sequence %I.%I restart', s.nspname, s.relname);
+      end if;
+    end loop;
+  end loop;
+end $$`;
+
 export async function seed(): Promise<Fixtur> {
   return sql.begin(async (tx) => {
     await tx.unsafe(`set local session_replication_role = replica`);
-    // `cascade` erreicht über die FKs auf `mandant` auch `rolle`, `benutzer`,
-    // `benutzer_mandant`, `benutzer_sitzung` und `nummernkreis` — und damit
-    // die fünf Systemrollen, die die Migration setzt. Sie werden unten wieder
-    // gesetzt: sie sind Stammdaten der Plattform, nicht Fixture-Daten, und
-    // ohne sie hat kein Konto eine Rolle.
-    await tx.unsafe(`truncate audit_log, anstellung, person, mandant restart identity cascade`);
-    await tx.unsafe(`truncate auth.users cascade`);
-    // `kern.anmeldeversuch` hängt an keinem Mandanten — `cascade` erreicht es
-    // nicht, und ohne diese Zeile tragen sich Fehlversuche von Test zu Test
-    // weiter, bis eine Sperre in einem Test zuschlägt, der sie nicht auslöst.
-    await tx.unsafe(`truncate kern.anmeldeversuch`);
+    await tx.unsafe(LEEREN);
 
     /**
      * `dokument_aufbewahrung.mandant_id` zeigt auf `mandant`, also nimmt das
-     * `cascade` oben auch die PLATTFORM-Zeilen mit (`mandant_id IS NULL`).
+     * Zuruecksetzen oben auch die PLATTFORM-Zeilen mit (`mandant_id IS NULL`).
      * Ohne sie faende `app.aufbewahrung_regel` nichts, und jedes Dokument
      * landete mit offener Frist und gesetzter Loeschsperre — sicher, aber
      * nicht das, was die Tests pruefen wollen.
@@ -192,10 +265,10 @@ export async function seed(): Promise<Fixtur> {
     /**
      * Die beiden Personal-Kataloge aus `0073`/`0074`.
      *
-     * Sie kommen mit der MIGRATION und nicht aus dem Seed — und `truncate …
-     * cascade` oben nimmt sie trotzdem mit, weil beide über `mandant_id` an
-     * `mandant` hängen (auch die Zeilen mit `mandant_id IS NULL`: TRUNCATE
-     * leert die Tabelle, nicht nur die verweisenden Zeilen). Ohne diese
+     * Sie kommen mit der MIGRATION und nicht aus dem Seed — und das
+     * Zuruecksetzen oben nimmt sie trotzdem mit, weil beide über `mandant_id`
+     * an `mandant` hängen (auch die Zeilen mit `mandant_id IS NULL`: geleert
+     * wird die Tabelle, nicht nur die verweisenden Zeilen). Ohne diese
      * Schleife scheitert jeder Abwesenheitstest an einem Fremdschlüssel — und
      * zwar mit einer Meldung, die nach einem Fehler im Dienst aussieht.
      *
@@ -235,7 +308,7 @@ export async function seed(): Promise<Fixtur> {
      * Und die Plattform-Vorgaben (`mandant_id IS NULL`) aus §12.
      *
      * `rolle_berechtigung` hängt über `mandant_id` an `mandant` und wird vom
-     * `cascade` oben mitgeleert; die Rollen bekommen ausserdem neue ids. Ohne
+     * Zuruecksetzen oben mitgeleert; die Rollen bekommen ausserdem neue ids. Ohne
      * diese Schleife hält nach dem ersten `seed()` niemand mehr irgendein
      * Recht, und jeder Test danach prüft eine Plattform, in der nichts geht.
      */

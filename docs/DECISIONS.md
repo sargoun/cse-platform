@@ -6796,18 +6796,114 @@ und `portal-ausgang.spec.ts` prüft die Schiene der Gruppenleitung.
   Meldung fiel mit dem Durchlauf zusammen, der das Fenster während des
   Ladens umgestellt hat. Bleibt als Beobachtung stehen, nicht als Befund.
 
+### D-424 · Die Isolationssuite läuft parallel — je Arbeiter eine Datenbank, Vorlagen statt fünf Seeds
+
+**Der Befund.** `pruefung` brauchte rund 30 Minuten, und 25 davon war die
+Isolationssuite: 69 Dateien, eine nach der anderen gegen EINE `cse_test`,
+und fünf davon (`seed`, `oeffentlich`, `lead`, `kennzahlen`, `rollen`)
+bauten sich je eine eigene Datenbank aus 108 Migrationen plus dem echten
+Seed — anderthalb Minuten je Datei, siebeneinhalb im Lauf. Build und Audit
+standen dahinter in derselben Reihe und warteten, ohne etwas von ihr zu
+brauchen.
+
+**Was sich NICHT ändert.** Kein Test, keine Zusicherung, keine Fixtur, keine
+Rolle: `cse_app` bleibt die Rolle, `FORCE` bleibt gesetzt, `seed()` setzt
+weiterhin vor jeder Datei zurück, und zwei Dateien teilen sich weiterhin nie
+eine Datenbank — das war der Grund für den seriellen Lauf, und er gilt
+unverändert. Was sich ändert, ist nur, WIE er eingehalten wird: bisher durch
+einen einzigen Arbeiter, jetzt durch getrennte Datenbanken.
+
+**Vier Züge.**
+
+1. **Je Arbeiter eine Datenbank.** `tests/isolation/global-setup.ts` klont
+   die migrierte `cse_test` in `cse_test_w1` … `cse_test_w4` (`create
+   database … template`, eine Sekunde je Klon), und `harness.ts` hängt
+   `VITEST_POOL_ID` an den Namen. Vier Forks, je Fork eine Datei zur Zeit;
+   innerhalb eines Arbeiters bleibt alles, wie es war. Höchstens vier: ein
+   GitHub-Runner hat vier Kerne, und Postgres will auch einen.
+   `CSE_ISOLATION_WORKER=1` ist der alte, serielle Lauf — für die Suche nach
+   einer Datei, die nur in Gesellschaft anderer fällt.
+
+2. **Vorlagen statt fünf Seeds.** Der Seed läuft einmal je Lauf, in
+   `cse_test_vorlage`; der Inhaltsimport darauf in `cse_test_vorlage_inhalt`.
+   `eigeneDatenbank(...).baueAuf()` klont die passende Vorlage, statt
+   `test-db.sh neu` und den Seed zu fahren. Der Klon IST die geseedete
+   Datenbank: was `seed.test.ts` über den Seed beweist, beweist es am Klon
+   genauso, und „der Kreis ist ein Platzhalter (O-134)" bleibt auch beim
+   zweiten Lauf wahr, weil jeder Lauf frisch klont. Die Vorlagen tragen einen
+   Fingerabdruck über `src`, `drizzle`, `scripts` und die Abhängigkeiten —
+   nicht nur über den Seed, denn der importiert die Dienste, die er vorführt.
+   Stimmt er, steht die Vorlage; sonst wird sie neu gebaut, und der Abdruck
+   kommt erst NACH dem Seed, damit eine halb gebaute Vorlage nie als fertig
+   gilt. In CI ist der Container frisch, dort wird immer gebaut.
+
+3. **Ein eigener Auftrag.** `isolation` läuft in `ci.yml` neben `pruefung`,
+   mit dem Dienst-Container, den `pruefung` nicht mehr braucht: der Build
+   rendert nichts aus der Datenbank, und `pool.ts` sagt das ausdrücklich. Die
+   Dauer der Prüfung ist damit die längere Hälfte, nicht die Summe.
+
+4. **`seed()` leert mit `DELETE`, nicht mit `TRUNCATE`.** Der erste
+   parallele Lauf zeigte, wo die Zeit wirklich steckt: nicht im Node-Prozess
+   (anderthalb Minuten CPU), sondern in Postgres. `truncate audit_log,
+   anstellung, person, mandant restart identity cascade` erreicht rund 150
+   Tabellen, und TRUNCATE gibt jeder davon und jedem Index eine neue Datei —
+   gemessen 0,9 bis 1,6 s je Aufruf, gleich ob die Tabellen voll sind oder
+   leer, und mit `fsync=off` immer noch 0,5 s. `seed()` läuft vor fast jedem
+   der 1266 Tests. Der Ersatz liest dieselbe Tabellenmenge aus dem Katalog —
+   rekursiv über genau die Fremdschlüssel, denen CASCADE folgt, plus
+   `auth.users` und `kern.anmeldeversuch` —, löscht nur dort, wo Zeilen
+   stehen, und setzt die Sequenzen dieser Tabellen zurück wie RESTART
+   IDENTITY: rund 0,1 s auf einer voll geseedeten Datenbank, dasselbe
+   Ergebnis. `session_replication_role = replica` bleibt aus demselben Grund
+   gesetzt wie zuvor: nur dort und nur bis zum Ende der Transaktion schweigen
+   die Wachen gegen Löschen (Invariante 8), die Fremdschlüssel und die
+   Audit-Auslöser. Was NICHT genommen wurde: `synchronous_commit = off` auf
+   den Klonen: an derselben Datei 7,5 s statt 6,5 s, ein Achtel — das ist keine
+   Dauerhaftigkeitseinstellung wert, die später jemand für die Ursache eines
+   Unterschieds hält.
+
+**Gemessen** — dieselben 1266 Tests in 69 Dateien. Lokal, vier Kerne, eine
+Datei seriell (`abrechnungsart`, 38 Tests): 61 s mit TRUNCATE, 7,5 s mit dem
+DELETE-Reset. Die ganze Suite mit vier Arbeitern: 15 min 20 s mit TRUNCATE,
+1 min 21 s mit dem DELETE-Reset — bei stehenden Vorlagen; ihr Bau kostet
+einmal je Lauf rund anderthalb Minuten, in CI also immer. Die Summe der
+Dateizeiten fiel von 59 auf 4,3 Minuten; die Suite war nie langsam, sie hat
+1266-mal Dateien angelegt. In CI vorher 25 Minuten für den Schritt in
+`pruefung`; nachher steht es im ersten Lauf dieses Zweigs.
+
+**Nachtrag aus der Durchsicht des PR** (Copilot, sechs Befunde, alle
+genommen): Eine Beratungssperre (`pg_advisory_lock`) auf der Basis hält für
+die DAUER des Laufs — die Sperre in `test-db.sh` deckt nur den Aufbau, und
+ein zweiter Lauf hätte dem ersten mit `drop … with (force)` die
+Arbeiterdatenbanken weggezogen; jetzt wird er abgewiesen, und die Sitzung
+endet mit dem Prozess, die Sperre mit ihr. Der Tag steht im Fingerabdruck
+der Vorlagen, weil der Seed relativ zu heute plant. Eine Basis, die
+Gesellschaften, Menschen oder Konten trägt (die alte, serielle Suite liess
+ihre Fixturen in `cse_test`), wird vor dem Bau der Vorlage mit `neu`
+neu gebaut. Der Basisname lässt Platz für `_vorlage_inhalt` unter den 63
+Zeichen. Und `psql` muss ausführbar sein, nicht bloss vorhanden.
+
+**Was es kostet.** Sechs Datenbanken statt einer im Testcluster (vier
+Arbeiter, zwei Vorlagen) plus die fünf eigenen — eine Wegwerfinstallation
+ohnehin. Und `psql` muss erreichbar sein: `parallel.ts` sucht es auf dem
+PATH und unter `/usr/lib/postgresql/*/bin`, wie `test-db.sh` es schon tat.
+Namen, die in ein Kommando wandern, prüft `pruefeBezeichner` vorher — sie
+kommen aus dem Repository, aber ein halbes Kommando im Server wäre der
+teurere Fehler.
+
 ---
 
 ## Entschieden in Phase 6/7 — Finanzen, Buchhaltung, Agenten-Laufzeit
 
-**Diese Reihe beginnt bei D-424 und nicht bei D-416.** Zwei Zweige liefen
-gleichzeitig und vergaben beide ab D-416: die Durchsichtsrunde oben (D-416 bis
-D-423, zuerst nach `main` gebracht) und diese hier. Beim Zusammenfuehren hat
-die bereits veroeffentlichte Reihe ihre Nummern behalten; diese ist um acht
-verschoben worden, samt jeder Erwaehnung im Code. Wer eine alte Festschreibung
-mit „D-417" im Kommentar findet: sie meint heute D-425.
+**Diese Reihe beginnt bei D-425 und nicht bei D-416.** Drei Zweige liefen
+nebeneinander und vergaben jeder ab der naechsten freien Nummer: die
+Durchsichtsrunde (D-416 bis D-423), die Parallelisierung der Isolationssuite
+(D-424) und diese Reihe. Beim Zusammenfuehren haben die bereits
+veroeffentlichten Nummern gegolten; diese hier ist zweimal verschoben worden
+— erst um acht, dann um eins — samt jeder Erwaehnung im Code. Wer eine alte
+Festschreibung mit „D-417" im Kommentar findet: sie meint heute D-426.
 
-### D-424 · Eine fehlende Kontenzuordnung hält keine Rechnung auf — sie hält den Monatsabschluss auf
+### D-425 · Eine fehlende Kontenzuordnung hält keine Rechnung auf — sie hält den Monatsabschluss auf
 
 `05-FINANZEN.md` §9.3 sagt, der Auflöser `raises` bei mehrdeutiger Zuordnung;
 §9.2 sagt, die Buchung werde dann mit `konto = NULL` und `pruefhinweis`
@@ -6828,7 +6924,7 @@ schliessen, solange sie offen ist (`fin.periode_schliessen_pruefen`).
 Der Fehler ist damit an vier Stellen unübersehbar und an keiner still — und
 die Rechnung, die ihn ans Licht gebracht hat, ist trotzdem gültig entstanden.
 
-### D-425 · Ein Buchungssatz ist EINSEITIG — sonst bewacht der Ausgleichsausloeser nichts
+### D-426 · Ein Buchungssatz ist EINSEITIG — sonst bewacht der Ausgleichsausloeser nichts
 
 §9.2 verlangt beides: einen Ausloeser, der je `buchung_id` Soll gegen Haben
 prüft, **und** eine Zeile mit `konto` UND `gegenkonto` (die DATEV-Schreibweise,
@@ -6848,7 +6944,7 @@ schreibt. `bs_fest_nur_kontiert` verlangt entsprechend nur `konto`.
 Stelle noch die zweiseitige Zeile. Es folgt mit PR 60, wenn der Schreiber
 zeigt, wie die Paarung tatsächlich aussieht.
 
-### D-426 · Wer eine Rechnung festschreibt, wird dadurch nicht Buchhalter
+### D-427 · Wer eine Rechnung festschreibt, wird dadurch nicht Buchhalter
 
 Der Buchungssatz entsteht in derselben Transaktion wie die Festschreibung
 (§5.6 Schritt 6) — das ist richtig, denn ein Nachlauf hinterliesse
@@ -6876,7 +6972,7 @@ Vorzeichen lebt in `soll_haben`. Ohne die Weiche auf `bucheStorno` hätte jede
 Stornierung an einem Constraint gehangen, den niemand mit dem Storno in
 Verbindung gebracht hätte.
 
-### D-427 · Ein Hartstopp, der in derselben Transaktion steht wie die Ablehnung, hinterlässt keine Spur
+### D-428 · Ein Hartstopp, der in derselben Transaktion steht wie die Ablehnung, hinterlässt keine Spur
 
 AGT-05 verlangt zweierlei: das erschöpfte Monatsbudget lehnt den nächsten Lauf
 **ab**, und der Stopp ist **sichtbar** — Statuszeile plus Benachrichtigung.
@@ -6906,7 +7002,7 @@ Ohne diese Bedingung schriebe ein Nachtlauf mit hundert abgelehnten Aufgaben
 hundert gleiche Zeilen in den Posteingang — und ein Posteingang mit hundert
 gleichen Zeilen wird nicht gelesen, sondern geleert.
 
-### D-428 · Der Posteingang bleibt für `cse_app` zu — der Stopp bekommt einen eigenen, engen Schreiber
+### D-429 · Der Posteingang bleibt für `cse_app` zu — der Stopp bekommt einen eigenen, engen Schreiber
 
 `benachrichtigung` trägt seit 0007 kein `insert` für `cse_app`: Posteingänge
 füllen Systemläufe (`cse_job`), nicht die Sitzung eines Menschen. Der Hartstopp
@@ -6940,7 +7036,7 @@ security` heisst „keine Policy" nicht *alles*, sondern *nichts*. Ohne sie hät
 die Funktion das Spaltenrecht gehabt und null Zeilen gelesen: der Stopp wäre
 geschrieben und an niemanden gemeldet worden, lautlos und plausibel.
 
-### D-429 · Was ein Ausloeser als `cse_definer` liest, muss ihm auch gehören
+### D-430 · Was ein Ausloeser als `cse_definer` liest, muss ihm auch gehören
 
 `app.agent_kosten_fortschreiben` rechnet `agent_aufgabe.kosten_cent` als Summe
 über `agent_kosten` neu — über die Tabelle also, auf deren INSERT der Ausloeser
@@ -6954,7 +7050,7 @@ gewesen wäre: die Kostenbuchung ist der Weg, auf dem das Budget überhaupt
 wächst. Wäre sie stillschweigend gescheitert, hätte der Hartstopp nie
 ausgelöst.
 
-### D-430 · Die Löschsperren der Agenten kommen aus dem Register, nicht aus der Migration
+### D-431 · Die Löschsperren der Agenten kommen aus dem Register, nicht aus der Migration
 
 Fünf Tabellen (`agent_aufgabe`, `agent_schritt`, `agent_kosten`,
 `agent_budget`, `agent_reservierung`) stehen jetzt in `KEIN_HARD_DELETE` und
@@ -6977,7 +7073,7 @@ Die Gegenbeweis-Tabelle in `loeschsperre.test.ts` (eine, die es noch NICHT
 gibt) wandert von `buchungssatz` auf `datev_export`; das ist der Sinn dieser
 Prüfung, und sie hat funktioniert.
 
-### D-431 · Eine Benachrichtigungsart sieht aus wie ein Rechteschlüssel — die K-19-Prüfung braucht den Unterschied
+### D-432 · Eine Benachrichtigungsart sieht aus wie ein Rechteschlüssel — die K-19-Prüfung braucht den Unterschied
 
 `agent.budget_erschoepft` hat Zeichen für Zeichen die Form eines
 Rechteschlüssels (`<modul>.<etwas>`; die Tabelle erzwingt sie für
@@ -7000,7 +7096,7 @@ Kommentar der Datei: wer die Prüfung kennt, benennt sonst seine Arten um, statt
 den echten Fund zu suchen — und der echte Fund ist ein Tippfehler in einem
 Recht, also ein dauerhaft leerer Bildschirm.
 
-### D-432 · Die Nutzlast eines Schrittes bekommt ein eigenes Tor — sonst ist sie für niemanden lesbar
+### D-433 · Die Nutzlast eines Schrittes bekommt ein eigenes Tor — sonst ist sie für niemanden lesbar
 
 0128 haelt `agent_schritt.eingabe` und `.ausgabe` aus dem Spaltengrant fuer
 `cse_app` heraus (K-05), und das ist richtig: was ein Agent gelesen und was er
@@ -7023,7 +7119,7 @@ hundert Nutzlasten auf einmal auflegt, protokollierte hundert Zugriffe, von
 denen niemand einen gewollt hat — und ein Audit, in dem jeder Seitenaufruf
 hundert Zeilen erzeugt, ist keines mehr.
 
-### D-433 · `JSON.stringify` in einem `::jsonb`-Parameter — derselbe Fehler zum dritten Mal
+### D-434 · `JSON.stringify` in einem `::jsonb`-Parameter — derselbe Fehler zum dritten Mal
 
 `protokolliereSchritt` schrieb `JSON.stringify(eingabe)` in einen
 `$n::jsonb`-Parameter. Der Treiber serialisiert selbst; ihm zuvorzukommen
@@ -7034,7 +7130,7 @@ aus.
 
 Dieser Befund steht in diesem Baum bereits zweimal kommentiert
 (`services/arbzg/detektor.ts`, `services/bau/aufmass.ts`), und er ist trotzdem
-ein drittes Mal passiert. Aufgefallen ist er nur, weil das Nutzlast-Tor (D-432)
+ein drittes Mal passiert. Aufgefallen ist er nur, weil das Nutzlast-Tor (D-433)
 die Werte WIEDER AUSLIEST statt bloss zu pruefen, dass etwas dasteht — genau
 wie damals bei `bau-aufmass`. Ein Test, der einen Schreibvorgang nur zaehlt,
 haette ihn nicht gefunden; er faellt jetzt an einer eigenen Zusicherung
@@ -7043,7 +7139,7 @@ haette ihn nicht gefunden; er faellt jetzt an einer eigenen Zusicherung
 Betroffen waren drei Stellen in `laufzeit.ts` (`agent_aufgabe.eingabe`,
 `agent_aufgabe.ergebnis`, alle fuenf `jsonb`-Spalten von `agent_schritt`).
 
-### D-434 · Das Agenten-Zentrum sagt zuerst, dass kein Modell verbunden ist
+### D-435 · Das Agenten-Zentrum sagt zuerst, dass kein Modell verbunden ist
 
 Die Laufzeit steht — Aufgabe, Schritt, Kosten, Hartstopp, alles geprueft. Der
 Zugang zum Sprachmodell steht nicht: er verlangt EU-Verarbeitung mit
@@ -7066,7 +7162,7 @@ ausgeschaltet ist, ist nicht kaputt. Eine rote Pille schickte den Leser einen
 Fehler suchen, den es nicht gibt. Nichts im vorhandenen Vokabular deckte das
 ab — `Wartet` verspricht, dass gleich etwas passiert, und das tut es nicht.
 
-### D-435 · Fünfzehn Befunde aus der Durchsicht von PR #9 — und was sie gemeinsam haben
+### D-436 · Fünfzehn Befunde aus der Durchsicht von PR #9 — und was sie gemeinsam haben
 
 Copilot hat den gemergten PR #9 durchgesehen und fünfzehn Stellen benannt.
 Jede einzelne war echt. Und sie haben eine Form gemeinsam, die es wert ist,
@@ -7115,7 +7211,7 @@ jemand ihr im Ernstfall stellt. „Gibt es diese Zeile" ist nicht „gehört sie
 uns". „Ist die Zahlung nicht storniert" ist nicht „passt sie zu diesem
 Posten". „Ist die Freigabe genehmigt" ist nicht „genehmigt WOFÜR".
 
-### D-436 · Die Aufrechnung über die Seiten hinweg bleibt abgewiesen (O-182)
+### D-437 · Die Aufrechnung über die Seiten hinweg bleibt abgewiesen (O-182)
 
 Beim Schliessen des Gegenpartei-Lochs stand die Frage im Raum, ob ein Kunde,
 der zugleich Lieferant ist, seine Forderung gegen unsere Verbindlichkeit
@@ -7130,7 +7226,7 @@ Regel, die noch niemand entschieden hat, wird nicht erfunden (CLAUDE.md); und
 von den beiden Richtungen, in denen man sich irren kann, ist „zu wenig
 erlaubt" die, die sich mit einem Satz in einer Migration beheben lässt.
 
-### D-437 · `mahnstufe` trägt einen Mandanten — die Job-Policy bindet ihn
+### D-438 · `mahnstufe` trägt einen Mandanten — die Job-Policy bindet ihn
 
 Beim Nachziehen der `cse_job`-Rechte für den Mahnlauf stand in der ersten
 Fassung `using (true)` — mit der Begründung, die Stufen seien Referenzdaten
@@ -7147,7 +7243,7 @@ genau deshalb wäre sie geblieben. Die Policy bindet jetzt
 
 ## Entschieden in PR 59 — die Belegverknüpfung (ACC-03, DOC-04, § 147 AO)
 
-### D-438 · Eine Quelle plus die Herkunft — nicht fünf Parameter
+### D-439 · Eine Quelle plus die Herkunft — nicht fünf Parameter
 
 `buchungssatz` trägt fünf Quellspalten (`rechnung_id`, `eingangsrechnung_id`,
 `zahlung_id`, `ausgabe_id`, `kassenbewegung_id`) und zwei Riegel darüber:
@@ -7172,7 +7268,7 @@ gedroppt: zwei Überladungen mit einem Argument Unterschied sind die Sorte
 Doppelung, bei der ein Aufrufer die falsche erwischt und es niemandem
 auffällt.
 
-### D-439 · Das Rechnungs-PDF wird archiviert, obwohl es sich nachbauen lässt
+### D-440 · Das Rechnungs-PDF wird archiviert, obwohl es sich nachbauen lässt
 
 `zugferdZurRechnung` erzeugt das Dokument bei jedem Abruf neu, aus dem
 Snapshot (K-12), mit `festgeschriebenAm` als Erzeugungszeitpunkt. Es ist
@@ -7198,7 +7294,7 @@ Buchungszeilen in `buchungssatz_unvollstaendig` und
 Archivlauf blockiert damit den Export, statt eine lückenhafte Datei
 entstehen zu lassen.
 
-### D-440 · `beleg_id` ist die fünfte Ausnahme vom Änderungsschutz — und wird sofort wieder verschlossen
+### D-441 · `beleg_id` ist die fünfte Ausnahme vom Änderungsschutz — und wird sofort wieder verschlossen
 
 `fin.rechnung_unveraenderlich` (0076, zuletzt 0122) vergleicht die ganze
 Zeile über `to_jsonb` und nimmt vier bewegliche Spalten aus, darunter
@@ -7213,7 +7309,7 @@ Eine Ausnahme ist ein Loch, wenn nichts sie schliesst. `fin.rechnung_beleg_fest`
 steht deshalb direkt darunter: einmal gesetzt, ist der Zeiger fest. Ein
 Archiv, dessen Zeiger sich umbiegen lässt, ist keins.
 
-### D-441 · Der Löschschutz prüft den GRUND, nicht die Kategorie
+### D-442 · Der Löschschutz prüft den GRUND, nicht die Kategorie
 
 `kern.dokument_loeschsperre` (0009) weist das weiche Löschen ab, wenn
 `dokument.loeschsperre` steht — und die steht, weil die **Kategorie** es
@@ -7234,7 +7330,7 @@ Auslöser heisst `trg_dokument_buchung` und läuft damit alphabetisch **vor**
 Aufrufer liest: „eine Buchung beruft sich darauf" nennt den Grund,
 „Löschsperre steht" nennt nur den Zustand.
 
-### D-442 · `erzeugt` ist eine fünfte Belegherkunft, und `api` wäre eine falsche Angabe
+### D-443 · `erzeugt` ist eine fünfte Belegherkunft, und `api` wäre eine falsche Angabe
 
 `beleg_quelle` kannte `upload`, `email`, `scan`, `api` — alle vier
 beschreiben ein Dokument, das von **aussen** kam. Das Rechnungs-PDF kommt von
@@ -7251,7 +7347,7 @@ nächtliche Lauf hat ohnehin keinen angemeldeten. Die Alternative hätte
 bedeutet, dass auf demselben Beleg mal ein Name steht und mal keiner — je
 nachdem, wer zuerst hinsah.
 
-### D-443 · Ein Manifesteintrag je Datei, nicht je Buchungszeile
+### D-444 · Ein Manifesteintrag je Datei, nicht je Buchungszeile
 
 Eine Rechnung erzeugt vier bis sechs Buchungszeilen und genau ein PDF. Ein
 Exportmanifest, das das PDF sechsmal führt, behauptet sechs Belege — und die
@@ -7259,7 +7355,7 @@ Zahl unter „Belege im Zeitraum" wäre falsch, ohne dass es jemandem auffällt.
 Die Zeilen zeigen deshalb auf den Dateieintrag, und der zählt, wie viele
 sich auf ihn berufen.
 
-### D-444 · Die Belegroute leitet um, sie liefert nicht aus
+### D-445 · Die Belegroute leitet um, sie liefert nicht aus
 
 `GET /api/buchhaltung/buchungen/[id]/beleg` liest nie Bytes und reicht nie
 welche durch; sie stellt eine signierte Adresse aus und leitet dorthin um.
@@ -7277,7 +7373,7 @@ kaputtes Dokument.
 
 ## Entschieden in PR 60 — der DATEV-EXTF-Export (ACC-02) ⚑
 
-### D-445 · Das Format ist spezifikationsabgeleitet, und das steht auf jeder Zeile
+### D-446 · Das Format ist spezifikationsabgeleitet, und das steht auf jeder Zeile
 
 Die Feldreihenfolge des Buchungsstapels stammt aus der veröffentlichten
 DATEV-Formatbeschreibung — **nicht** aus einer Datei, die dieses Steuerbüro
@@ -7300,7 +7396,7 @@ Drei Vorkehrungen, damit die Lücke nicht zur Falle wird:
 
 Kommt das Muster, ist die Korrektur ein Eingriff an einer Stelle.
 
-### D-446 · Windows-1252 als eigene Tabelle, nicht als Abhängigkeit
+### D-447 · Windows-1252 als eigene Tabelle, nicht als Abhängigkeit
 
 Node kodiert nur UTF-8. `Buffer.from(s, 'latin1')` ist ISO-8859-1 und **nicht**
 dasselbe: die beiden unterscheiden sich in genau siebenundzwanzig Zeichen im
@@ -7320,7 +7416,7 @@ arabischen Namen scheitern zu lassen — und die Plattform führt solche Namen
 Buchhaltung, die sich nicht exportieren lässt, weil jemand `Çağ` heisst, wäre
 ein Fehler. (`Ç` gibt es übrigens, `ğ` nicht.)
 
-### D-447 · Der Schreiber liest keine Uhr
+### D-448 · Der Schreiber liest keine Uhr
 
 `erzeugtAm` kommt als Argument herein. Das ist die Voraussetzung dafür,
 dass derselbe Zeitraum zweimal exportiert identische Bytes ergibt (Abnahme 3)
@@ -7330,7 +7426,7 @@ unprüfbar.
 Die Serveruhr wird an genau EINER Stelle gelesen: in der HTTP-Route
 (Invariante 5).
 
-### D-448 · Die erzeugte Datei geht NICHT durch den Upload-Pfad
+### D-449 · Die erzeugte Datei geht NICHT durch den Upload-Pfad
 
 `ladeHoch` prüft Magic Bytes und entfernt Metadaten, weil dort Inhalt ankommt,
 den ein **Mensch** mitbringt: eine `.exe` mit der Endung `.pdf`, ein Foto mit
@@ -7348,7 +7444,7 @@ Signaturprüfung die Prüfung, dass der Inhalt wirklich Text ist — jedes Byte
 druckbar oder CR/LF/TAB. Ein Nullbyte kommt nicht durch, auch wenn jemand die
 Datei `text/csv` nennt.
 
-### D-449 · Die Stammdaten werden eingefroren, nicht verwiesen
+### D-450 · Die Stammdaten werden eingefroren, nicht verwiesen
 
 Eine Beraternummer ändert sich, wenn das Büro wechselt. Zeigte der Exportvorgang
 nur auf `datev_konfiguration`, sähe ein drei Jahre alter Export danach aus, als
@@ -7359,7 +7455,7 @@ trägt die alte. Dieselbe Überlegung wie beim Rechnungs-Snapshot (K-12).
 Aufrufer friert genau die Werte ein, gegen die geprüft wurde. Zwei getrennte
 Schritte — erst prüfen, dann lesen — liessen dazwischen eine Änderung zu.
 
-### D-450 · `text[] || text` ohne Cast — ein latenter Fehler aus 0126
+### D-451 · `text[] || text` ohne Cast — ein latenter Fehler aus 0126
 
 `fin.datev_konfiguration_vollstaendig` (0126) baute seine Liste fehlender Felder
 mit `v_fehlend := v_fehlend || 'Beraternummer';`. Postgres kann das auf zwei
@@ -7374,7 +7470,7 @@ der hilfreichen Liste einen Parserfehler — im einzigen Moment, in dem die
 Meldung gebraucht wird. Ein Test von PR 60 hat es zum ersten Mal ausgelöst.
 0133 ersetzt beide Funktionen mit `::text` an jeder Stelle.
 
-### D-451 · Es gibt keine Übertragung an DATEV, und die Oberfläche sagt es
+### D-452 · Es gibt keine Übertragung an DATEV, und die Oberfläche sagt es
 
 Für diesen Weg existiert keine offene Schnittstelle und es gibt keine
 Zugangsdaten. Ein Feld „Verbindungsstatus", das „bereit" zeigte, oder ein Knopf
@@ -7385,7 +7481,7 @@ ein Mensch übergibt sie, und dass es geschehen ist, vermerkt er selbst
 (`status = 'uebergeben'`). Der Statuswert heisst deshalb `uebergeben` und nicht
 `gesendet`.
 
-### D-452 · Der Knopf ist aus, wenn der Export verweigern würde
+### D-453 · Der Knopf ist aus, wenn der Export verweigern würde
 
 Die Vorschau steht **vor** dem Knopf: wer einen Monat wählt, sieht, wie viele
 Zeilen darin stehen und wie viele davon noch keinen Beleg haben, bevor er etwas

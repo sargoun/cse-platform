@@ -27,7 +27,7 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * lesen; `periode` und `buchungssatz` schreiben — und sie schreiben als
    * Folge einer Festschreibung, nicht als eigene Handlung. Ihr Schreibrecht
    * ist deshalb `finanzen.schreiben` und nicht `buchhaltung.schreiben`
-   * (D-426): wer eine Rechnung festschreibt, wird dadurch nicht Buchhalter.
+   * (D-427): wer eine Rechnung festschreibt, wird dadurch nicht Buchhalter.
    */
   { modul: 'buchhaltung', pfad: 'buchhaltung/kontenrahmen', schreibend: false },
   { modul: 'buchhaltung', pfad: 'buchhaltung/kontierung', schreibend: false },
@@ -44,7 +44,7 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * Der Archivlauf legt das Rechnungs-PDF ab und haengt es an die Buchung
    * (PR 59, ACC-03). `finanzen.schreiben` und nicht ein eigenes Recht: er
    * tut nichts, was die festschreibende Person nicht ohnehin ausgeloest hat
-   * — dieselbe Ueberlegung wie D-426 fuer den Buchungssatz selbst. Ein
+   * — dieselbe Ueberlegung wie D-427 fuer den Buchungssatz selbst. Ein
    * zweites Recht zu verlangen hiesse, dass eine Rechnung ohne ihren Beleg
    * bliebe, weil der naechtliche Lauf es nicht hat.
    */

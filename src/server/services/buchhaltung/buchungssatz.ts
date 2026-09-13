@@ -7,7 +7,7 @@ import { sicherePeriode } from './periode.js';
  * Der automatische Buchungssatz zur festgeschriebenen Ausgangsrechnung
  * (ACC-01, `05-FINANZEN.md` §9.2, §5.6 Schritt 6).
  *
- * **Die Zeilen sind EINSEITIG** (D-425): eine Zeile bewegt genau ein Konto,
+ * **Die Zeilen sind EINSEITIG** (D-426): eine Zeile bewegt genau ein Konto,
  * mit `soll_haben` als Vorzeichen. Nur so hat der Ausgleichsausloeser über
  * `buchung_id` eine Aussage; die DATEV-Paarung zu Konto/Gegenkonto macht der
  * EXTF-Schreiber (PR 60).

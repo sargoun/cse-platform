@@ -7,28 +7,6 @@ on:
 jobs:
   pruefung:
     runs-on: ubuntu-latest
-    # Postgres als DIENST-CONTAINER, nicht per `su` gestartet.
-    #
-    # Die Isolationssuite braucht einen echten Server (ein Mock beweist über
-    # RLS nichts). Ihn im Job selbst hochzufahren hiesse, als `postgres` zu
-    # arbeiten — auf einem Runner ist das eine Rechtefrage, die genau einmal
-    # falsch beantwortet wird. Der Dienst hier läuft schon, und
-    # `scripts/test-db.sh` erkennt das und legt nur noch die Datenbank an.
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          # Wegwerf-Datenbank in einem Wegwerf-Container, nur über localhost
-          # erreichbar. Ein Passwort hier wäre eines mehr, das in Logs landet.
-          POSTGRES_HOST_AUTH_METHOD: trust
-        ports:
-          - 55432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -63,12 +41,9 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
-      # The isolation suite proves RLS at the database level, as cse_app and
-      # never as the owner. It needs a real Postgres — a mock proves nothing.
-      - name: Isolation suite (RLS, FORCE, K-04, K-05, K-18, K-20)
-        run: |
-          pnpm db:test:up
-          pnpm test:isolation
+      # Die Isolationssuite laeuft als EIGENER Auftrag (`isolation`, unten):
+      # sie brauchte hier 25 der 30 Minuten, und Build und Audit warteten auf
+      # sie, ohne sie zu brauchen (D-424).
 
       - name: Build
         run: pnpm build
@@ -81,3 +56,50 @@ jobs:
       # SEC-A8: a known-vulnerable dependency fails the branch.
       - name: Audit
         run: pnpm audit --audit-level=high
+
+  # ---------------------------------------------------------------------------
+  # Die Isolationssuite — RLS am echten Postgres, als cse_app und nie als
+  # Eigentuemer. Ein Mock beweist nichts.
+  #
+  # **Ein eigener Auftrag, parallel zu `pruefung`** (D-424). Sie ist der
+  # laengste Schritt der Pruefung; hinter Lint und Typecheck eingereiht liess
+  # sie Build und Audit 25 Minuten warten, ohne dass die etwas von ihr
+  # brauchten. Nebeneinander entscheidet die laengere Haelfte — und die ist
+  # jetzt die Suite selbst, die ihre 69 Dateien auf vier Arbeiter mit je
+  # eigener Datenbank verteilt (`tests/isolation/global-setup.ts`).
+  #
+  # Postgres als DIENST-CONTAINER, nicht per `su` gestartet: ihn im Job
+  # hochzufahren hiesse, als `postgres` zu arbeiten — auf einem Runner ist das
+  # eine Rechtefrage, die genau einmal falsch beantwortet wird. Der Dienst
+  # laeuft schon, und `scripts/test-db.sh` erkennt das und legt nur noch die
+  # Datenbank an.
+  # ---------------------------------------------------------------------------
+  isolation:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          # Wegwerf-Datenbank in einem Wegwerf-Container, nur über localhost
+          # erreichbar. Ein Passwort hier wäre eines mehr, das in Logs landet.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Isolation suite (RLS, FORCE, K-04, K-05, K-18, K-20)
+        run: |
+          pnpm db:test:up
+          pnpm test:isolation

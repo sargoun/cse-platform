@@ -213,7 +213,7 @@ create table buchungssatz (
    * geliefert, unbrauchbar, spaet entdeckt.
    *
    * **Nur `konto`, nicht auch `gegenkonto` — und das weicht von §9.2 ab
-   * (D-425).** Die beiden Zusagen des Modells widersprechen einander: der
+   * (D-426).** Die beiden Zusagen des Modells widersprechen einander: der
    * Ausgleichsausloeser prueft Soll gegen Haben JE `buchung_id`, und das hat
    * nur Sinn, wenn eine Zeile EINE Kontenbewegung ist. Traege jede Zeile
    * Konto UND Gegenkonto (die DATEV-Schreibweise), waere sie in sich
@@ -525,7 +525,7 @@ create policy j_periode on periode for all to cse_job using (true) with check (t
 create policy j_buchungssatz on buchungssatz for all to cse_job using (true) with check (true);
 
 -- =========================================================================
--- 8. Zwei Tore statt eines neuen Rechts (D-426)
+-- 8. Zwei Tore statt eines neuen Rechts (D-427)
 -- =========================================================================
 
 /**

@@ -92,7 +92,7 @@ export async function sicherePeriode(
   if (tag !== null && tag !== 1) throw new PeriodeUnklarFehler(tag);
 
   /*
-   * **Ueber `app.periode_sichern` und nicht mit einem eigenen INSERT** (D-426).
+   * **Ueber `app.periode_sichern` und nicht mit einem eigenen INSERT** (D-427).
    * Der Monat entsteht INNERHALB der Festschreibung einer Rechnung; liefe der
    * INSERT als der Aufrufer, braeuchte jede Abrechnungskraft
    * `buchhaltung.schreiben`. Das Tor verlangt stattdessen das Recht zur

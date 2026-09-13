@@ -847,7 +847,7 @@ export const ROUTEN: readonly RouteEintrag[] = [
      * `dokument.lesen` allein keine Buchung.
      *
      * Die Route liefert keine Bytes; sie leitet auf eine signierte Adresse
-     * um, die nach fuenfzehn Minuten ablaeuft (D-444).
+     * um, die nach fuenfzehn Minuten ablaeuft (D-445).
      */
     pfad: 'api/buchhaltung/buchungen/[id]/beleg',
     recht: 'buchhaltung.lesen',
@@ -875,7 +875,7 @@ export const ROUTEN: readonly RouteEintrag[] = [
      * wer das Hauptbuch liest, bekommt damit nicht die Datei in die Hand, die
      * an das Steuerbuero geht — in ihr stehen saemtliche Buchungen eines
      * Monats. Weitergeleitet wird auf eine signierte, ablaufende Adresse
-     * (D-444).
+     * (D-445).
      */
     pfad: 'api/buchhaltung/datev/[id]/datei',
     recht: 'buchhaltung.exportieren',
