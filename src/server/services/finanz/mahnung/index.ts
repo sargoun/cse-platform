@@ -5,7 +5,7 @@ import { gate, nutzlastHash, type Freigabe, type Nutzlast, type Richtlinie }
 import type { Speicher } from '../../../storage/adapter.js';
 import { ladeHoch } from '../../dokument/upload.js';
 import { schreibeTextPdf } from '../../dokument/pdf.js';
-import { erteileFreigabe } from '../../freigabe.js';
+import { erteileFreigabe } from '../../freigabe/erteilen.js';
 import { cent, formatiereGeld, type Cent } from '../geld.js';
 
 /**

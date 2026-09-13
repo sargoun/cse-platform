@@ -2094,3 +2094,28 @@ revoke delete, truncate on umsatz_zuordnung from cse_app, cse_anon, cse_checkin,
 
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0136)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- freigabe_feld (append): APR-03, APR-07, K-13. Jede Zeile ist der NACHWEIS, woher ein extrahierter Wert stammt — Seite, Zelle, Zitat, Konfidenz. Sie zu loeschen naehme genau die Spur, auf die sich eine Freigabe beruft, und liesse die Entscheidung als Behauptung zurueck. Eine Korrektur ist eine NEUE freigabe mit ersetzt_durch_freigabe_id, nie ein Entfernen hier.
+create trigger trg_freigabe_feld_kein_hard_delete
+  before delete on freigabe_feld
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_freigabe_feld_kein_truncate
+  before truncate on freigabe_feld
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on freigabe_feld from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- freigabe_ansicht (append): APR-08, K-13, LEG-01. Sie bezeugt, dass ein Mensch die Freigabe geoeffnet hat, und ist die einzige Grundlage von pruefdauer_sek. Loeschbar waere sie genau das Werkzeug dessen, den APR-08 finden soll: wer zu schnell entscheidet, raeumte die Messung hinter sich weg, und die Auswertung meldete danach nur noch die Sorgfaeltigen.
+create trigger trg_freigabe_ansicht_kein_hard_delete
+  before delete on freigabe_ansicht
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_freigabe_ansicht_kein_truncate
+  before truncate on freigabe_ansicht
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on freigabe_ansicht from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks

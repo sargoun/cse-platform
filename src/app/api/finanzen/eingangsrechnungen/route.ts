@@ -12,7 +12,7 @@ import { withTenant, type SchreibKontext } from '@/server/kontext/index';
 import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter';
 import { ladeHoch } from '@/server/services/dokument/upload';
 import { GeldFehler, cent, parseGeld } from '@/server/services/finanz/geld';
-import { FreigabeFehler, erteileFreigabe } from '@/server/services/freigabe';
+import { FreigabeFehler, erteileFreigabe } from '@/server/services/freigabe/erteilen';
 import type { Bucket } from '@/server/storage/adapter';
 import {
   EingangsrechnungFehler, buche, erfasseEingangsrechnung, freigebe, inPruefung,

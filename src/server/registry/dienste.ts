@@ -765,8 +765,34 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * darf, darf damit noch keine Freigabe in die Kette schreiben.
    */
   {
-    modul: 'freigabe', pfad: 'freigabe',
+    modul: 'freigabe', pfad: 'freigabe/erteilen',
     schreibend: true, schreibRecht: 'freigabe.entscheiden',
+  },
+  /**
+   * **Der Posteingang (PR 62, APR-01/02/03/07) — und alles daran LIEST.**
+   *
+   * Das ist keine Nachlaessigkeit, sondern die tragende Eigenschaft dieser
+   * fuenf Dateien: der Diff, die Konfidenz, die Einstufung, die
+   * Zusammenfassung und die Kettenrechnung sind REINE Funktionen. Keine
+   * kennt eine Datenbank, keine eine Uhr, keine ein Modell.
+   *
+   * Gerade `kette.ts` gehoert hierher und nicht zu den Schreibern: sie
+   * RECHNET den Hash nach, sie schreibt ihn nicht. Geschrieben wird der
+   * Schnappschuss ausschliesslich in `app.freigabe_entscheiden` (0136), und
+   * das ist der Grund, warum ein Aufrufer sich keinen Hash aussuchen kann.
+   *
+   * Dass sie in der Gruppenansicht laufen duerfen, ist damit richtig: die
+   * Gruppe LIEST Freigaben (`gruppe.freigabe.lesen`), und ein Diff ohne
+   * Schreibpfad ist genau das, was sie dort braucht (Invariante 10).
+   */
+  { modul: 'freigabe', pfad: 'freigabe/diff', schreibend: false },
+  { modul: 'freigabe', pfad: 'freigabe/konfidenz', schreibend: false },
+  { modul: 'freigabe', pfad: 'freigabe/posteingang', schreibend: false },
+  { modul: 'freigabe', pfad: 'freigabe/zusammenfassung', schreibend: false },
+  { modul: 'freigabe', pfad: 'freigabe/kette', schreibend: false },
+  {
+    modul: 'freigabe', pfad: 'freigabe/vergleich-schluessel.platzhalter',
+    schreibend: false,
   },
   /**
    * Das Rechnungsausgangsbuch (PR 56, FIN-16). Es LIEST — und das ist keine

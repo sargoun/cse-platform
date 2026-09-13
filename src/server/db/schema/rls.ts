@@ -1506,6 +1506,29 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'wird — und liesse offen, ob eine Regel oder ein Mensch danebenlag.',
   },
   {
+    tabelle: 'freigabe_feld',
+    art: 'append',
+    migration: '0136',
+    grund:
+      'APR-03, APR-07, K-13. Jede Zeile ist der NACHWEIS, woher ein '
+      + 'extrahierter Wert stammt — Seite, Zelle, Zitat, Konfidenz. Sie zu '
+      + 'loeschen naehme genau die Spur, auf die sich eine Freigabe beruft, '
+      + 'und liesse die Entscheidung als Behauptung zurueck. Eine Korrektur '
+      + 'ist eine NEUE freigabe mit ersetzt_durch_freigabe_id, nie ein '
+      + 'Entfernen hier.',
+  },
+  {
+    tabelle: 'freigabe_ansicht',
+    art: 'append',
+    migration: '0136',
+    grund:
+      'APR-08, K-13, LEG-01. Sie bezeugt, dass ein Mensch die Freigabe '
+      + 'geoeffnet hat, und ist die einzige Grundlage von pruefdauer_sek. '
+      + 'Loeschbar waere sie genau das Werkzeug dessen, den APR-08 finden '
+      + 'soll: wer zu schnell entscheidet, raeumte die Messung hinter sich '
+      + 'weg, und die Auswertung meldete danach nur noch die Sorgfaeltigen.',
+  },
+  {
     tabelle: 'datev_export',
     art: 'archiv',
     migration: '0133',

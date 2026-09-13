@@ -1,6 +1,6 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
-import { berechneHash } from './finanz/hash-chain.js';
+import { berechneHash } from '../finanz/hash-chain.js';
 
 /**
  * Die Freigabe als Vorgang — K-13, APR-07 (`01-KERN.md` §6, PR 12).
