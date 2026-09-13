@@ -6,9 +6,19 @@
  */
 import postgres from 'postgres';
 import { KATALOG } from '../../src/server/auth/katalog.generiert.js';
+import { workerUrl } from './parallel.js';
 
-export const DB_URL =
-  process.env['TEST_DATABASE_URL'] ?? 'postgres://postgres@localhost:55432/cse_test';
+/**
+ * Die Datenbank DIESES Arbeiters (D-424): `cse_test_w<VITEST_POOL_ID>`.
+ *
+ * Vitest gibt jedem Arbeiter eine Nummer, `global-setup.ts` hat fuer jede
+ * Nummer einen Klon der migrierten `cse_test` angelegt. Zwei Dateien in zwei
+ * Arbeitern sehen einander damit nie — was `fileParallelism: false` bisher
+ * dadurch erreichte, dass es nur einen Arbeiter gab.
+ */
+export const BASIS_URL = process.env['TEST_DATABASE_URL']
+  ?? 'postgres://postgres@localhost:55432/cse_test';
+export const DB_URL = workerUrl(BASIS_URL, process.env['VITEST_POOL_ID']);
 
 export type Scope = 'mandant' | 'gruppe' | 'person' | 'kunde';
 

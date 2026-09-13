@@ -1,12 +1,21 @@
+import { availableParallelism } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
+import { anzahlWorker } from './tests/isolation/parallel.js';
 
 /**
- * The isolation suite talks to a REAL Postgres and seeds it, so the files run
- * one at a time. Parallel files would truncate each other's fixtures and the
- * failures would look like RLS defects, which is the worst possible false
- * signal for this particular suite.
+ * The isolation suite talks to a REAL Postgres and seeds it. Two files on ONE
+ * database would truncate each other's fixtures and the failures would look
+ * like RLS defects — the worst possible false signal for this suite. So files
+ * do not share a database: every worker gets its own clone of the migrated
+ * `cse_test` (`tests/isolation/global-setup.ts`, `harness.ts`), files inside a
+ * worker still run one after another, and `seed()` still resets before each
+ * file. Same tests, same rigour, four at a time instead of one (D-424).
+ *
+ * `CSE_ISOLATION_WORKER=1` gives the old serial run for debugging.
  */
+const WORKER = anzahlWorker(process.env, availableParallelism());
+
 export default defineConfig({
   /**
    * `server-only` wirft beim Import ausserhalb einer Server-Umgebung — das
@@ -33,7 +42,12 @@ export default defineConfig({
     environment: 'node',
     env: { TZ: 'UTC' },
     testTimeout: 60_000,
-    fileParallelism: false,
-    poolOptions: { forks: { singleFork: true } },
+    globalSetup: ['./tests/isolation/global-setup.ts'],
+    fileParallelism: WORKER > 1,
+    pool: 'forks',
+    maxWorkers: WORKER,
+    minWorkers: WORKER,
+    // Eine Datei je Fork zur Zeit; `isolate` (Vorgabe) laedt jede Datei frisch.
+    poolOptions: { forks: { singleFork: WORKER === 1 } },
   },
 });

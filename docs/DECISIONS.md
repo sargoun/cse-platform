@@ -6795,3 +6795,61 @@ und `portal-ausgang.spec.ts` prüft die Schiene der Gruppenleitung.
   Unterschied ausgäbe — zeigten keinen Unterschied und keinen Fehler. Die
   Meldung fiel mit dem Durchlauf zusammen, der das Fenster während des
   Ladens umgestellt hat. Bleibt als Beobachtung stehen, nicht als Befund.
+
+### D-424 · Die Isolationssuite läuft parallel — je Arbeiter eine Datenbank, Vorlagen statt fünf Seeds
+
+**Der Befund.** `pruefung` brauchte rund 30 Minuten, und 25 davon war die
+Isolationssuite: 71 Dateien, eine nach der anderen gegen EINE `cse_test`,
+und fünf davon (`seed`, `oeffentlich`, `lead`, `kennzahlen`, `rollen`)
+bauten sich je eine eigene Datenbank aus 108 Migrationen plus dem echten
+Seed — anderthalb Minuten je Datei, siebeneinhalb im Lauf. Build und Audit
+standen dahinter in derselben Reihe und warteten, ohne etwas von ihr zu
+brauchen.
+
+**Was sich NICHT ändert.** Kein Test, keine Zusicherung, keine Fixtur, keine
+Rolle: `cse_app` bleibt die Rolle, `FORCE` bleibt gesetzt, `seed()` setzt
+weiterhin vor jeder Datei zurück, und zwei Dateien teilen sich weiterhin nie
+eine Datenbank — das war der Grund für den seriellen Lauf, und er gilt
+unverändert. Was sich ändert, ist nur, WIE er eingehalten wird: bisher durch
+einen einzigen Arbeiter, jetzt durch getrennte Datenbanken.
+
+**Drei Züge.**
+
+1. **Je Arbeiter eine Datenbank.** `tests/isolation/global-setup.ts` klont
+   die migrierte `cse_test` in `cse_test_w1` … `cse_test_w4` (`create
+   database … template`, eine Sekunde je Klon), und `harness.ts` hängt
+   `VITEST_POOL_ID` an den Namen. Vier Forks, je Fork eine Datei zur Zeit;
+   innerhalb eines Arbeiters bleibt alles, wie es war. Höchstens vier: ein
+   GitHub-Runner hat vier Kerne, und Postgres will auch einen.
+   `CSE_ISOLATION_WORKER=1` ist der alte, serielle Lauf — für die Suche nach
+   einer Datei, die nur in Gesellschaft anderer fällt.
+
+2. **Vorlagen statt fünf Seeds.** Der Seed läuft einmal je Lauf, in
+   `cse_test_vorlage`; der Inhaltsimport darauf in `cse_test_vorlage_inhalt`.
+   `eigeneDatenbank(...).baueAuf()` klont die passende Vorlage, statt
+   `test-db.sh neu` und den Seed zu fahren. Der Klon IST die geseedete
+   Datenbank: was `seed.test.ts` über den Seed beweist, beweist es am Klon
+   genauso, und „der Kreis ist ein Platzhalter (O-134)" bleibt auch beim
+   zweiten Lauf wahr, weil jeder Lauf frisch klont. Die Vorlagen tragen einen
+   Fingerabdruck über `src`, `drizzle`, `scripts` und die Abhängigkeiten —
+   nicht nur über den Seed, denn der importiert die Dienste, die er vorführt.
+   Stimmt er, steht die Vorlage; sonst wird sie neu gebaut, und der Abdruck
+   kommt erst NACH dem Seed, damit eine halb gebaute Vorlage nie als fertig
+   gilt. In CI ist der Container frisch, dort wird immer gebaut.
+
+3. **Ein eigener Auftrag.** `isolation` läuft in `ci.yml` neben `pruefung`,
+   mit dem Dienst-Container, den `pruefung` nicht mehr braucht: der Build
+   rendert nichts aus der Datenbank, und `pool.ts` sagt das ausdrücklich. Die
+   Dauer der Prüfung ist damit die längere Hälfte, nicht die Summe.
+
+**Gemessen** — dieselben ⟨TESTS⟩ Tests in ⟨DATEIEN⟩ Dateien, lokal auf vier
+Kernen: seriell ⟨SERIELL⟩, parallel ⟨PARALLEL⟩. In CI vorher 25 Minuten für
+den Schritt; nachher steht es im ersten Lauf dieses Zweigs.
+
+**Was es kostet.** Sechs Datenbanken statt einer im Testcluster (vier
+Arbeiter, zwei Vorlagen) plus die fünf eigenen — eine Wegwerfinstallation
+ohnehin. Und `psql` muss erreichbar sein: `parallel.ts` sucht es auf dem
+PATH und unter `/usr/lib/postgresql/*/bin`, wie `test-db.sh` es schon tat.
+Namen, die in ein Kommando wandern, prüft `pruefeBezeichner` vorher — sie
+kommen aus dem Repository, aber ein halbes Kommando im Server wäre der
+teurere Fehler.

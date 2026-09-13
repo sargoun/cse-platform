@@ -24,8 +24,9 @@ export default defineConfig({
   },
   test: {
     include: ['tests/**/*.test.ts'],
-    // The isolation suite needs a live Postgres and its own sequential
-    // runner — `pnpm test:isolation`, vitest.isolation.config.ts. The
+    // The isolation suite needs a live Postgres and its own runner (four
+    // workers, one database each — D-424): `pnpm test:isolation`,
+    // vitest.isolation.config.ts. The
     // compliance suite needs Java and the downloaded KoSIT validator —
     // `pnpm test:compliance`, vitest.compliance.config.ts. Neither belongs in
     // the suite a developer runs on every save.
