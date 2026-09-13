@@ -8106,3 +8106,29 @@ Nicht gebaut, mit Grund: Einsätze und Zeiteinträge auf dem Blatt —
 `cse_app`-Lesepolicy, sie werden über Definer-Funktionen der Zeit- und
 Dienstplanseiten gelesen; das Blatt verweist dorthin, statt einen zweiten
 Leseweg zu erfinden.
+
+### D-479 · Die Finanzübersicht einer Gesellschaft — das Ziel des Tabs, das keine Seite hatte
+
+Die Leiste `intern_global` führt „Finanzen" auf `/portal/[mandant]/finanzen`;
+bis heute Nacht stand dort „wird noch gebaut" — für genau das Konto, das nach
+dem Wechsel aus der Gruppenansicht in eine Gesellschaft kommt (D-474). Jetzt
+steht dort die Übersicht (FIN-17, REP-01, DSH-04): Kacheln für Fakturiert
+(festgeschrieben, nach Rechnungsdatum, netto), Entwürfe, offene und
+überfällige Forderungen, zu prüfende Eingangsrechnungen, Eingang des Jahres,
+Mahnungen in Arbeit — und Karten zu den fünf gebauten Unterseiten, deren
+Rechte aus dem Manifest kommen (dasselbe Muster wie der Einstieg der
+Einstellungen, D-476).
+
+**Eine Kachel ohne Recht fehlt, sie zeigt keine Null.** `rechnung`,
+`offener_posten`, `eingangsrechnung` und `mahnung` stehen im Mandanten-Scope
+unter `t_mandant`-Policies mit je eigenem Recht (`finanzen.lesen`,
+`zahlung.lesen`, `eingang.lesen`, `mahnung.lesen`); ohne Recht gäbe die
+Datenbank null Zeilen, und eine 0 sähe aus wie „keine Forderung". Die Seite
+fragt `app.hat_recht` je Recht in einer Abfrage und lässt die Kachel weg —
+wie in der Gruppenansicht (D-475). Summen sind Datenbanksummen in Cent
+(Invariante 1); „Gewinn" steht nirgends, und die Seite sagt, warum.
+
+Der Seed legt keine Rechnungen an — die Browserfälle der Rechnungs- und
+Zahlungsmodule erzeugen ihre Belege selbst. Die Übersicht zeigt deshalb im
+Demonstrationsbestand Nullen mit Betrag („0,00 €"), keine Platzhalter:
+das ist der Stand dieser Gesellschaft, nicht der des Bauzustands.

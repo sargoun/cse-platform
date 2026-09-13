@@ -48,7 +48,7 @@ interface Identitaet {
 
 /** Basispunkte als Prozent — Anzeige, keine Steuerrechnung. */
 function prozent(bp: number): string {
-  return `${(bp / 100).toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} %`;
+  return `${(bp / 100).toLocaleString('de-DE')} %`;
 }
 
 export default async function Steuer(

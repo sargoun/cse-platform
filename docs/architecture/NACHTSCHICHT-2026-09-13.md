@@ -62,6 +62,8 @@ am Design arbeiten; Plan für alles Bisherige; Budget bis zum Morgen halten."
 
 | 02:00 | Browser `dokumente.spec` 4/4 und `einstellungen.spec` 5/5 (mit Steuer) — **9/9**; Commit `4ddeea3` gepusht. | Playwright auf frisch geseedeter `cse_test` |
 
+| 02:30 | **D-479**: Finanzübersicht `/portal/[mandant]/finanzen` — das Ziel des Tabs „Finanzen" der globalen Leiste (bisher Platzhalter): rechtegebundene Kacheln, Karten aus dem Manifest. | typecheck, eslint, Browser `finanzen-uebersicht.spec` (siehe unten) |
+
 Stand der Seitenkarte nach D-478 (`pnpm seitenkarte:stand`, 01:15 UTC):
 **218 von 432 Routen gebaut** (173 statisch + 45 dynamisch) — zu Beginn der
 Nacht 179. Phase 1: 14 von 25 (die Einstellungen), Phase 3: 16 von 30,

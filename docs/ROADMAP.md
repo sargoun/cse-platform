@@ -99,6 +99,8 @@ clone, and the architecture document is reviewed.
       caveat, users with 2FA state and own sessions, roles with the full
       permission matrix per company, modules, audit log; cards on the index
       come from the route manifest's rights
+- [x] **Finance overview per company** (D-479): the tab-bar target that had
+      no page; rights-gated tiles, cards from the route manifest
 - [x] **Documents list and detail, employment sheet** (D-478): the last
       sidebar entry without a page; no download claimed while storage is
       not connected; rights asked before hours account and absences
