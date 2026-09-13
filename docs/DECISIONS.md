@@ -6858,13 +6858,18 @@ einen einzigen Arbeiter, jetzt durch getrennte Datenbanken.
    gesetzt wie zuvor: nur dort und nur bis zum Ende der Transaktion schweigen
    die Wachen gegen Löschen (Invariante 8), die Fremdschlüssel und die
    Audit-Auslöser. Was NICHT genommen wurde: `synchronous_commit = off` auf
-   den Klonen — ⟨SYNC⟩.
+   den Klonen: an derselben Datei 7,5 s statt 6,5 s, ein Achtel — das ist keine
+   Dauerhaftigkeitseinstellung wert, die später jemand für die Ursache eines
+   Unterschieds hält.
 
 **Gemessen** — dieselben 1266 Tests in 69 Dateien. Lokal, vier Kerne, eine
-Datei seriell (`abrechnungsart`, 38 Tests): ⟨EINZEL⟩. Die ganze Suite mit
-vier Arbeitern: ⟨PAR1⟩ mit TRUNCATE, ⟨PAR2⟩ mit dem DELETE-Reset. In CI
-vorher 25 Minuten für den Schritt in `pruefung`; nachher steht es im ersten
-Lauf dieses Zweigs.
+Datei seriell (`abrechnungsart`, 38 Tests): 61 s mit TRUNCATE, 7,5 s mit dem
+DELETE-Reset. Die ganze Suite mit vier Arbeitern: 15 min 20 s mit TRUNCATE,
+1 min 21 s mit dem DELETE-Reset — bei stehenden Vorlagen; ihr Bau kostet
+einmal je Lauf rund anderthalb Minuten, in CI also immer. Die Summe der
+Dateizeiten fiel von 59 auf 4,3 Minuten; die Suite war nie langsam, sie hat
+1266-mal Dateien angelegt. In CI vorher 25 Minuten für den Schritt in
+`pruefung`; nachher steht es im ersten Lauf dieses Zweigs.
 
 **Was es kostet.** Sechs Datenbanken statt einer im Testcluster (vier
 Arbeiter, zwei Vorlagen) plus die fünf eigenen — eine Wegwerfinstallation
