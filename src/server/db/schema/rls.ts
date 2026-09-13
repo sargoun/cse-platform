@@ -1472,6 +1472,40 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + '`archiviert_am`.',
   },
   {
+    tabelle: 'kontoauszug',
+    art: 'archiv',
+    migration: '0135',
+    grund:
+      'ACC-04, ACC-06, LEG-01, GoBD. Der eingelesene Auszug ist der Nachweis, '
+      + 'WAS die Bank gemeldet hat — er traegt Anfangs- und Endsaldo und den '
+      + 'Pruefwert der Datei. Ihn zu loeschen liesse die Umsaetze auf einen '
+      + 'Auszug zeigen, den es nicht mehr gibt, und die Frage, woher eine '
+      + 'Zahlung kam, waere nicht mehr zu beantworten. Ein falscher Auszug '
+      + 'wird VERWORFEN und neu eingelesen; die Zeile bleibt.',
+  },
+  {
+    tabelle: 'kontoumsatz',
+    art: 'append',
+    migration: '0135',
+    grund:
+      'ACC-04, LEG-01, GoBD. Eine Auszugszeile verschwindet nicht — auch '
+      + 'dann nicht, wenn niemand sie zuordnen kann. Genau das ist die '
+      + 'Zusage: ein unzugeordneter Umsatz bleibt sichtbar, statt aus der '
+      + 'Ansicht zu fallen und den Saldo unerklaerlich zu machen. Wer ihn '
+      + 'fuer gegenstandslos haelt, setzt zustand = ohne_bezug MIT Grund.',
+  },
+  {
+    tabelle: 'umsatz_zuordnung',
+    art: 'append',
+    migration: '0135',
+    grund:
+      'ACC-04, LEG-01. Die Bruecke zwischen Auszugszeile und Zahlung ist '
+      + 'widerrufbar, nicht loeschbar: der Widerruf ist selbst die '
+      + 'Aufzeichnung, dass hier einmal eine andere Zuordnung stand. Sie zu '
+      + 'loeschen naehme genau die Spur, die nach einem Fehlgriff gebraucht '
+      + 'wird — und liesse offen, ob eine Regel oder ein Mensch danebenlag.',
+  },
+  {
     tabelle: 'datev_export',
     art: 'archiv',
     migration: '0133',

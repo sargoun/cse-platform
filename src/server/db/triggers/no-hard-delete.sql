@@ -2060,3 +2060,37 @@ revoke delete, truncate on datev_export from cse_app, cse_anon, cse_checkin, cse
 
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0135)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- kontoauszug (archiv): ACC-04, ACC-06, LEG-01, GoBD. Der eingelesene Auszug ist der Nachweis, WAS die Bank gemeldet hat — er traegt Anfangs- und Endsaldo und den Pruefwert der Datei. Ihn zu loeschen liesse die Umsaetze auf einen Auszug zeigen, den es nicht mehr gibt, und die Frage, woher eine Zahlung kam, waere nicht mehr zu beantworten. Ein falscher Auszug wird VERWORFEN und neu eingelesen; die Zeile bleibt.
+create trigger trg_kontoauszug_kein_hard_delete
+  before delete on kontoauszug
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_kontoauszug_kein_truncate
+  before truncate on kontoauszug
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on kontoauszug from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- kontoumsatz (append): ACC-04, LEG-01, GoBD. Eine Auszugszeile verschwindet nicht — auch dann nicht, wenn niemand sie zuordnen kann. Genau das ist die Zusage: ein unzugeordneter Umsatz bleibt sichtbar, statt aus der Ansicht zu fallen und den Saldo unerklaerlich zu machen. Wer ihn fuer gegenstandslos haelt, setzt zustand = ohne_bezug MIT Grund.
+create trigger trg_kontoumsatz_kein_hard_delete
+  before delete on kontoumsatz
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_kontoumsatz_kein_truncate
+  before truncate on kontoumsatz
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on kontoumsatz from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- umsatz_zuordnung (append): ACC-04, LEG-01. Die Bruecke zwischen Auszugszeile und Zahlung ist widerrufbar, nicht loeschbar: der Widerruf ist selbst die Aufzeichnung, dass hier einmal eine andere Zuordnung stand. Sie zu loeschen naehme genau die Spur, die nach einem Fehlgriff gebraucht wird — und liesse offen, ob eine Regel oder ein Mensch danebenlag.
+create trigger trg_umsatz_zuordnung_kein_hard_delete
+  before delete on umsatz_zuordnung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_umsatz_zuordnung_kein_truncate
+  before truncate on umsatz_zuordnung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on umsatz_zuordnung from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks

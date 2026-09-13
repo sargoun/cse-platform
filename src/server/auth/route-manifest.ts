@@ -880,6 +880,21 @@ export const ROUTEN: readonly RouteEintrag[] = [
     pfad: 'api/buchhaltung/datev/[id]/datei',
     recht: 'buchhaltung.exportieren',
   },
+  {
+    /**
+     * Einen CAMT.053-Kontoauszug einlesen (PR 61, ACC-04).
+     *
+     * `zahlung.schreiben` und nicht `buchhaltung.lesen`: der Import legt bei
+     * einem EINDEUTIGEN Treffer eine Zahlung an. Wer den Auszug nur ansehen
+     * will, kommt ueber die Portalseite mit `buchhaltung.lesen` — Lesen und
+     * Einlesen sind hier zwei verschiedene Handlungen.
+     *
+     * Die Route RUFT NICHTS AB. Es gibt kein PSD2, kein FinTS und keine
+     * Zugangsdaten; ein Mensch laedt die Datei hoch.
+     */
+    pfad: 'api/buchhaltung/bank',
+    recht: 'zahlung.schreiben',
+  },
 ] as const;
 
 /** Die Routen, die ein Recht verlangen. */

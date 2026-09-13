@@ -7493,3 +7493,130 @@ Das ersetzt keinen Riegel. Die Prüfungen sitzen in der Datenbank
 `datev_export`), und die HTTP-Route läuft in dieselben. Ein ausgegrauter Knopf
 ist eine Bitte; der Riegel ist die zweite Linie und die einzige, die zählt.
 
+
+---
+
+## Entschieden in PR 61 — CAMT.053 einlesen und abgleichen (ACC-04)
+
+### D-454 · Ein Umsatz ist keine Zahlung
+
+`kontoumsatz` ist die Behauptung der Bank, dass Geld geflossen ist. `zahlung`
+ist eine Buchung. Die beiden zu verschmelzen wäre die naheliegende
+Vereinfachung — eine Tabelle statt zwei — und hätte bedeutet, dass **jeder
+unzugeordnete Umsatz als Zahlung in der Buchhaltung steht**: die
+Bankgebühr, der Privatabbucher, die Rückbuchung.
+
+Die Zahlung entsteht deshalb erst bei der Zuordnung, und `umsatz_zuordnung`
+ist die Brücke. Sie ist widerrufbar; der Widerruf lässt beide Seiten stehen
+und nimmt nur die Verbindung zurück.
+
+### D-455 · Idempotent über den Prüfwert der DATEI, nicht über die Auszugsnummer
+
+Abnahme (1) verlangt: dieselbe Datei zweimal einlesen fügt nichts hinzu. Über
+`Stmt/Id` zu entdoppeln wäre einfacher gewesen und falsch: zwei Banken
+vergeben ihre Auszugsnummern unabhängig voneinander, und derselbe
+Zählerstand bei zwei Instituten wäre ein Duplikat, das keines ist.
+
+Der SHA-256 des Dateiinhalts trägt deshalb den eindeutigen Index. Der zweite
+Versuch ist **kein Fehler**, sondern ein Nichtereignis mit Meldung — wer
+unsicher ist, ob der Import durchlief, lädt die Datei eben noch einmal hoch.
+
+Die Prüfung steht **vor** dem Parsen: ist die Datei bekannt, wäre der Rest
+verschwendete Arbeit, und ein zweiter Abgleich könnte Zuordnungen
+vorschlagen, die es längst gibt.
+
+### D-456 · Die IBAN des Kunden wird GELERNT, nicht gepflegt
+
+ACC-04 nennt drei Merkmale: Betrag, Rechnungsnummer, IBAN. `kunde` trägt
+keine IBAN — und das ist richtig so: der Kunde zahlt an uns, wir brauchen
+seine Bankverbindung für nichts. Eine Spalte dafür anzulegen hiesse, ein
+Stammdatum zu pflegen, das niemand pflegt und das nach einem Jahr falsch ist.
+
+Als drittes Merkmal ist die IBAN trotzdem das stärkste, denn sie lässt sich
+nicht abtippen. Sie kommt deshalb aus der Vergangenheit: die IBAN, von der
+derselbe Kunde zuletzt über eine **bestätigte** Zuordnung gezahlt hat. Eine
+widerrufene zählt nicht — sie war der Fehlgriff, aus dem nicht gelernt werden
+soll.
+
+Beim ersten Mal gibt es keine. Dann bleibt der Treffer
+`eindeutig_ohne_iban`, und ein Mensch sieht ihn an. Die Regel wird mit jeder
+bestätigten Zahlung schärfer, statt von Anfang an mehr zu behaupten, als sie
+weiss.
+
+### D-457 · Ein Betrag allein ordnet nichts zu
+
+Der verführerische Fall: es gibt **einen** offenen Posten über 1190,00 €, also
+„muss" er es sein. Zwei Rechnungen über denselben Betrag im selben Monat sind
+aber der Normalfall — und die zweite käme dann auf die erste.
+
+Ein Betragstreffer ohne Rechnungsnummer im Verwendungszweck ist deshalb
+`mehrdeutig`, auch bei genau einem Kandidaten. Er geht in die Schlange, mit
+dem Kandidaten daneben und dem Satz, warum er dort liegt.
+
+Umgekehrt ebenso: stimmt die Nummer und weicht der Betrag ab (Teilzahlung,
+Abzug, Skonto), ist es **mehrdeutig** und nicht „kein Treffer" — den Umsatz
+als bezuglos abzulegen hiesse, ihn zu verlieren.
+
+### D-458 · Ein AUSGANG wird keiner Ausgangsrechnung zugeordnet
+
+Das klingt selbstverständlich und ist der Fehler, der bei einer Rückbuchung
+entsteht: Betrag, Verwendungszweck und IBAN passen dann **perfekt**, und die
+Rechnung gälte als ein zweites Mal bezahlt.
+
+Die Richtung ist deshalb die **erste** Prüfung des Abgleichs und nicht die
+letzte. Eine Vormerkung (`PDNG`) wird aus demselben Grund gar nicht erst
+abgeglichen: die Bank hat noch nicht gebucht, der Betrag kann sich ändern
+oder ganz entfallen.
+
+### D-459 · Ein Umsatz verschwindet nie aus der Ansicht
+
+Ein Umsatz ohne Bezug bleibt stehen — als `in_klaerung`, bis ein Mensch ihn
+auf `ohne_bezug` setzt, **und das verlangt einen Grund** (mindestens fünf
+Zeichen, wie `zz_differenz_begruendet` in 0121). Ohne diese Pflicht steht in
+der Auswertung „37 Umsätze ohne Bezug" und niemand weiss mehr, ob das
+Bankgebühren waren oder eine vergessene Rechnung.
+
+Und was die Bank gesagt hat, bleibt stehen: Betrag, Datum, Zweck und
+Gegenpartei sind unveränderlich. Beweglich ist nur, was der Mensch danach
+entscheidet.
+
+### D-460 · Der Auszug landet nie auf dem falschen Konto
+
+Nennt die Datei keine IBAN, wird **nichts** eingelesen. Das erste Bankkonto
+zu nehmen wäre die bequeme Antwort und verschöbe jeden Umsatz in die falsche
+Kasse — ein Fehler, der sich erst beim Saldenabgleich zeigt und dann jede
+Zeile betrifft.
+
+### D-461 · Kein XML-Paket — und `<!DOCTYPE` wird abgewiesen, nicht ignoriert
+
+Node bringt keinen DOM mit, und die verbreiteten XML-Pakete lösen Entitäten
+und externe Referenzen auf: genau die XXE-Lücke, die entsteht, sobald jemand
+einen Kontoauszug hochlädt, den er nicht selbst geschrieben hat.
+
+Der Leser hier kennt Elemente, Text, CDATA und die fünf vordefinierten
+Entitäten. Eine Datei, die eine DTD oder eine Entität deklariert, ist kein
+Kontoauszug; sie **still** zu lesen hiesse, die Absicht dahinter nicht zu
+bemerken.
+
+**Ein Fehler des ersten Wurfs, gefunden von einem Test:** CDATA wurde erst
+beim Entschlüsseln aufgelöst — also nachdem der Markenausdruck über den Text
+gelaufen war. Ein `<![CDATA[RE & 17 < 20]]>` enthält ein `<`, der Ausdruck
+sah darin den Anfang einer Marke, die Zeile zerfiel, und gemeldet wurde eine
+nicht geschlossene Marke, wo ein regelkonformer Verwendungszweck stand. CDATA
+wird jetzt **vor** dem Zerlegen aufgelöst und dabei escaped — sonst hätte ein
+`<Ntry>` innerhalb eines CDATA-Blocks einen Umsatz erfunden.
+
+### D-462 · `bigint` kommt als STRING aus dem Treiber — und die Typannotation log
+
+`postgres.js` liefert eine `bigint`-Spalte als JavaScript-String. Die
+Annotation `offenCent: bigint` auf der Zeile war deshalb eine Behauptung, die
+zur Laufzeit niemand einlöst: der Vergleich `"119000" === 119000n` ist immer
+falsch.
+
+Der Abgleich fand damit **nie** einen Treffer — kein Fehler, keine Meldung,
+nur eine Schlange, die sich nie leerte. Ein Isolationstest hat es gefunden;
+der Übersetzer konnte es nicht, weil er der Annotation glaubte.
+
+Die Umwandlung steht jetzt an der Grenze, mit einer eigenen Rohzeile, deren
+Feld `string` heisst. Das ist die Stelle, an der `BigInt()` stehen muss —
+nicht irgendwo später, wo jemand sie vergisst.

@@ -99,6 +99,15 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * Hauptbuch liest, erzeugt damit noch keine Datei, die das Haus verlaesst.
    * Der Katalog trennt die beiden seit 0008 genau dafuer.
    */
+  /**
+   * `buchhaltung/bank` — die eingelesenen Kontoauszuege (ACC-04).
+   *
+   * `buchhaltung.lesen` als Eintrittsrecht, wie die Policy auf
+   * `kontoauszug`: wer das Hauptbuch liest, sieht auch, was die Bank
+   * gemeldet hat. Das EINLESEN verlangt zusaetzlich `zahlung.schreiben` —
+   * es legt Zahlungen an —, und das prueft die Route, nicht der Menuepunkt.
+   */
+  { schluessel: 'bank', label: 'Bank', pfad: 'buchhaltung/bank', recht: 'buchhaltung.lesen', gruppe: false, icon: 'export' },
   { schluessel: 'datev', label: 'DATEV', pfad: 'buchhaltung/datev', recht: 'buchhaltung.exportieren', gruppe: false, icon: 'export' },
   { schluessel: 'dokumente', label: 'Dokumente', pfad: 'dokumente', recht: 'dokument.lesen', gruppe: true, icon: 'dokument' },
   /**

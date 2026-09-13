@@ -261,7 +261,17 @@ proven by test, not by inspection.
       blocks the export instead of producing a short file.
       **The creditor side now reaches the ledger too** — `buche()` writes the
       booking record it never wrote.
-- [ ] CAMT.053 import and reconciliation
+- [x] CAMT.053 import and reconciliation (PR 61) — **no bank connection and
+      none pretended**: no PSD2, no FinTS, no outgoing SEPA file. A human
+      uploads the statement. Idempotent over the file's SHA-256, not over the
+      statement number (D-455). A booking-entry line is **not** a payment
+      (D-454); the payment is created only on assignment, and the assignment
+      is revocable. Only an unambiguous hit — amount AND invoice number AND
+      the IBAN the customer last paid from — is assigned automatically; the
+      IBAN is **learned, not maintained** (D-456). An amount alone assigns
+      nothing even with a single candidate (D-457), an outgoing entry is never
+      matched to an outgoing invoice (D-458), and nothing ever disappears from
+      the queue (D-459).
 - [ ] Incoming-invoice OCR → extraction → proposal → approval
 - [ ] GoBD archive with retention and deletion lock
 - [ ] Open items, monthly figures, Z3 export, Verfahrensdokumentation

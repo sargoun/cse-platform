@@ -93,6 +93,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'zahlung', pfad: 'finanz/bank/camt', schreibend: false },
   { modul: 'zahlung', pfad: 'finanz/bank/abgleich', schreibend: false },
   /**
+   * Der Import verbindet beide: er liest, gleicht ab und legt bei einem
+   * EINDEUTIGEN Treffer die Zahlung an. `zahlung.schreiben`, denn genau das
+   * tut er — wer den Auszug nur ansieht, braucht es nicht (die Policy auf
+   * `kontoauszug` liest mit `buchhaltung.lesen`).
+   */
+  {
+    modul: 'zahlung', pfad: 'finanz/bank/import',
+    schreibend: true, schreibRecht: 'zahlung.schreiben',
+  },
+  /**
    * Die Kalkulation LIEST — sie schreibt nichts. Der Preis, den sie
    * ausrechnet, wird erst vom Angebot gespeichert, und das ist der Dienst,
    * der dann sein Schreibrecht nennt. Solange die Rechnung selbst nichts
