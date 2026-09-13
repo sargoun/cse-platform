@@ -18,7 +18,7 @@
  * und ein Unit-Test liest sie ohne Datenbank.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, readdirSync } from 'node:fs';
+import { accessSync, constants, existsSync, readdirSync, statSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 
 /** Mehr als vier lohnt nicht: ein GitHub-Runner hat vier Kerne, und Postgres will auch einen. */
@@ -78,6 +78,14 @@ export function vorlagenNamen(basisName: string): { seed: string; inhalt: string
 }
 
 /**
+ * Der laengste Anhang, den ein abgeleiteter Name bekommt (`_vorlage_inhalt`;
+ * `_w<n>` ist kuerzer). Die Basis muss so viel Platz unter den 63 Zeichen
+ * lassen, die Postgres einem Namen laesst — sonst kuerzt der Server still,
+ * und `cse_…_vorlage` und `cse_…_vorlage_inhalt` fielen zusammen.
+ */
+export const ANHANG_HOECHSTENS = '_vorlage_inhalt'.length;
+
+/**
  * Derselbe OFFENSICHTLICHE Testwert wie in `scripts/test-db.sh` (base64 von
  * `TEST-KEY-NICHT-FUER-PRODUKTION`, K-06). `tests/kern/isolation-parallel.test.ts`
  * prueft, dass beide Stellen denselben tragen.
@@ -91,10 +99,12 @@ export const FENSTER_SCHLUESSEL_TEST = 'VEVTVC1LRVktTklDSFQtRlVFUi1QUk9EVUtUSU9O
  * Repository. Trotzdem: ein Name mit Anfuehrungszeichen oder Leerzeichen
  * faellt hier mit seinem Namen, nicht als halbes Kommando im Server.
  */
-export function pruefeBezeichner(name: string): string {
-  if (!/^[a-z_][a-z0-9_]{0,62}$/u.test(name)) {
+export function pruefeBezeichner(name: string, anhang = 0): string {
+  const hoechstens = 63 - anhang;
+  if (!/^[a-z_][a-z0-9_]*$/u.test(name) || name.length > hoechstens) {
     throw new Error(
-      `Kein zulaessiger Datenbankname: „${name}" — a–z, 0–9 und _, hoechstens 63 Zeichen.`,
+      `Kein zulaessiger Datenbankname: „${name}" — a–z, 0–9 und _, hoechstens `
+      + `${String(hoechstens)} Zeichen${anhang > 0 ? ` (63 abzueglich ${String(anhang)} fuer die Anhaenge)` : ''}.`,
     );
   }
   return name;
@@ -112,18 +122,32 @@ export function psqlBefehl(
   umgebung: Readonly<Record<string, string | undefined>> = process.env,
 ): string {
   for (const verzeichnis of (umgebung['PATH'] ?? '').split(delimiter)) {
-    if (verzeichnis !== '' && existsSync(join(verzeichnis, 'psql'))) {
+    if (verzeichnis !== '' && ausfuehrbar(join(verzeichnis, 'psql'))) {
       return join(verzeichnis, 'psql');
     }
   }
   const wurzel = '/usr/lib/postgresql';
   const versionen = existsSync(wurzel)
     ? readdirSync(wurzel)
-      .filter((v) => existsSync(join(wurzel, v, 'bin/psql')))
+      .filter((v) => ausfuehrbar(join(wurzel, v, 'bin/psql')))
       .sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10))
     : [];
   const neueste = versionen.at(-1);
   return neueste === undefined ? 'psql' : join(wurzel, neueste, 'bin/psql');
+}
+
+/**
+ * Eine Datei, die sich AUSFUEHREN laesst — nicht bloss eine, die da ist.
+ * Ein `psql` ohne x-Bit auf dem PATH liefe sonst in `EACCES`, statt dass die
+ * Suche zum naechsten Eintrag weitergeht.
+ */
+function ausfuehrbar(pfad: string): boolean {
+  try {
+    accessSync(pfad, constants.X_OK);
+    return statSync(pfad).isFile();
+  } catch {
+    return false;
+  }
 }
 
 /**

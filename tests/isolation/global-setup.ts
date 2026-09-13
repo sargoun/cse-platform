@@ -1,8 +1,14 @@
 /**
  * Vor dem ersten Arbeiter — einmal je Lauf (D-424).
  *
+ *  0. Eine SPERRE je Basis fuer die Dauer des Laufs: ein zweiter Lauf auf
+ *     derselben `cse_test` wird abgewiesen, nicht geduldet — er wuerde dem
+ *     ersten die Arbeiterdatenbanken unter den Fuessen wegziehen.
  *  1. `scripts/test-db.sh up`: der Server steht, `cse_test` ist migriert und
- *     traegt den Fingerabdruck der Migrationen. Unveraendert.
+ *     traegt den Fingerabdruck der Migrationen. Ist die Basis nicht
+ *     jungfraeulich (die alte, serielle Suite liess ihre Fixturen darin), wird
+ *     sie mit `neu` neu gebaut: die Vorlage entsteht aus Migrationen plus Seed
+ *     und aus nichts sonst.
  *  2. Die Vorlage `cse_test_vorlage` — ein Klon von `cse_test` plus der ECHTE
  *     Seed — und `cse_test_vorlage_inhalt`, dieselbe plus die Texte der
  *     oeffentlichen Seiten. Beide tragen einen Fingerabdruck ueber alles,
@@ -21,9 +27,10 @@ import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { join, resolve } from 'node:path';
+import postgres from 'postgres';
 import {
-  anzahlWorker, datenbankName, kloneDatenbank, mitDatenbank, pruefeBezeichner, psql,
-  verwaltungsUrl, vorlagenNamen, workerUrl,
+  ANHANG_HOECHSTENS, anzahlWorker, datenbankName, kloneDatenbank, mitDatenbank,
+  pruefeBezeichner, psql, verwaltungsUrl, vorlagenNamen, workerUrl,
 } from './parallel.js';
 
 const WURZEL = resolve(import.meta.dirname, '../..');
@@ -60,9 +67,18 @@ function dateienUnter(pfad: string): string[] {
     .sort();
 }
 
-/** Der Fingerabdruck einer Vorlage: Pfade und Inhalte, keine Zeitstempel. */
-export function vorlagenAbdruck(): string {
+/**
+ * Der Fingerabdruck einer Vorlage: der Tag, dann Pfade und Inhalte.
+ *
+ * Der Tag, weil der Seed Einsaetze, Fristen und Abwesenheiten relativ zu
+ * HEUTE anlegt (`seed/index.ts`, `seed/operations.ts`): eine Vorlage von
+ * gestern traegt gestrige Zeilen, und `baueAuf()` haette dann nicht mehr
+ * dasselbe Ergebnis wie der frische Seed, den es ersetzt. Einmal am Tag neu
+ * zu bauen kostet anderthalb Minuten; Zeitstempel der Dateien zaehlen nicht.
+ */
+export function vorlagenAbdruck(tag: string = new Date().toISOString().slice(0, 10)): string {
   const h = createHash('sha256');
+  h.update(tag);
   for (const quelle of VORLAGEN_QUELLEN) {
     for (const datei of dateienUnter(quelle)) {
       h.update(datei.slice(WURZEL.length));
@@ -90,26 +106,74 @@ function tsx(skript: string, url: string): void {
   });
 }
 
-export default function aufbau(): void {
-  const basisName = pruefeBezeichner(datenbankName(BASIS_URL));
+function testDb(befehl: 'up' | 'neu'): void {
+  execFileSync('bash', [join(WURZEL, 'scripts/test-db.sh'), befehl], {
+    cwd: WURZEL, stdio: 'inherit',
+    env: { ...process.env, TEST_DATABASE_URL: BASIS_URL },
+  });
+}
+
+/**
+ * Die Sperre des Laufs — eine Beratungssperre (`pg_advisory_lock`) auf dem
+ * Server, gehalten von EINER Verbindung, die erst der Abbau schliesst.
+ *
+ * Die Sperre in `test-db.sh` deckt nur den Aufbau der Basis; was hier
+ * folgt — Verbindungen kappen, Vorlagen und Arbeiterdatenbanken mit `drop …
+ * with (force)` neu klonen — traefe einen zweiten Lauf mitten in seinen
+ * Tests. Eine Dateisperre nuetzte nichts: sie muesste den ganzen Lauf
+ * halten, und ein abgestuerzter Prozess liesse sie liegen. Die Sitzung
+ * dagegen endet mit dem Prozess, und mit ihr die Sperre.
+ */
+let sperre: postgres.Sql | null = null;
+
+async function sperren(verwaltung: string, basisName: string): Promise<void> {
+  sperre = postgres(verwaltung, { max: 1, onnotice: () => {} });
+  const [zeile] = await sperre<{ frei: boolean }[]>`
+    select pg_try_advisory_lock(hashtext(${`cse-isolation:${basisName}`})) as frei`;
+  if (zeile?.frei !== true) {
+    await sperre.end({ timeout: 5 });
+    sperre = null;
+    throw new Error(
+      `Ein anderer Lauf der Isolationssuite arbeitet gerade auf ${basisName} — zwei Laeufe `
+      + 'auf derselben Basis zoegen einander die Datenbanken weg. Warten, bis er fertig ist, '
+      + 'oder TEST_DATABASE_URL auf eine andere Basis zeigen lassen.',
+    );
+  }
+}
+
+export default async function aufbau(): Promise<() => Promise<void>> {
+  // Mit Platz fuer den laengsten Anhang: `cse_test` + `_vorlage_inhalt` muss
+  // unter den 63 Zeichen bleiben, die Postgres einem Namen laesst — sonst
+  // kuerzt der Server still, und zwei Namen fallen zusammen.
+  const basisName = pruefeBezeichner(datenbankName(BASIS_URL), ANHANG_HOECHSTENS);
   const verwaltung = verwaltungsUrl(BASIS_URL);
   const vorlagen = vorlagenNamen(basisName);
   const sage = (zeile: string): void => { process.stdout.write(`${zeile}\n`); };
 
   // 1. Server und migrierte Basis — wie bisher, mit demselben Fingerabdruck.
-  execFileSync('bash', [join(WURZEL, 'scripts/test-db.sh'), 'up'], {
-    cwd: WURZEL, stdio: 'inherit',
-    env: { ...process.env, TEST_DATABASE_URL: BASIS_URL },
-  });
+  testDb('up');
+  await sperren(verwaltung, basisName);
+
+  // Jungfraeulich heisst: keine Gesellschaft, kein Mensch, kein Konto. Eine
+  // Migration legt nichts davon an; die alte, serielle Suite liess genau das
+  // in `cse_test` zurueck, und `up` bewahrt es, weil der Migrationsstand
+  // stimmt. Eine Vorlage aus solcher Basis erbte fremde Zeilen.
+  const schmutzig = psql(BASIS_URL,
+    `select exists (select 1 from mandant) or exists (select 1 from person)
+         or exists (select 1 from auth.users)`);
+  if (schmutzig === 't') {
+    sage(`${basisName} traegt Zeilen, die keine Migration anlegt — wird neu gebaut.`);
+    testDb('neu');
+  }
 
   // `create database … template` verlangt, dass NIEMAND sonst an der Vorlage
-  // haengt. Was jetzt noch an `cse_test` haengt, ist ein abgebrochener Lauf
-  // oder ein Server, der auf die Testdatenbank zeigt — beides gehoert nicht
-  // in einen Testlauf, und `test-db.sh neu` kappt es genauso.
+  // haengt. Was jetzt noch an `cse_test` haengt, ist ein Server, der auf die
+  // Testdatenbank zeigt, oder eine offene Shell — beides gehoert nicht in
+  // einen Testlauf, und `test-db.sh neu` kappt es genauso.
   const gekappt = psql(verwaltung,
     `select count(pg_terminate_backend(pid)) from pg_stat_activity
       where datname = '${basisName}' and pid <> pg_backend_pid()`);
-  if (gekappt !== '0') sage(`${gekappt} offene Verbindung(en) zu ${basisName} gekappt — ein frueherer Lauf?`);
+  if (gekappt !== '0') sage(`${gekappt} offene Verbindung(en) zu ${basisName} gekappt.`);
 
   // 2. Die Vorlagen — nur, wenn sich etwas geaendert hat.
   const abdruck = vorlagenAbdruck();
@@ -138,4 +202,11 @@ export default function aufbau(): void {
     kloneDatenbank(verwaltung, datenbankName(workerUrl(BASIS_URL, String(i))), basisName);
   }
   sage(`${String(anzahl)} Arbeiter, je eine Datenbank ${basisName}_w1 … ${basisName}_w${String(anzahl)}.`);
+
+  // Der Abbau gibt die Sperre frei — und nichts sonst: die Datenbanken
+  // bleiben stehen, damit ein Fehlschlag sich noch ansehen laesst.
+  return async () => {
+    await sperre?.end({ timeout: 5 });
+    sperre = null;
+  };
 }

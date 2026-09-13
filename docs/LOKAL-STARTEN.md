@@ -165,9 +165,12 @@ auf Port 55432: `cse_test_w1` … `cse_test_w4` fuer die vier Arbeiter,
 `cse_test_vorlage` und `cse_test_vorlage_inhalt` als geseedete Vorlagen, dazu
 die fuenf eigenen der Dateien, die den echten Seed pruefen (`cse_seed`,
 `cse_oeffentlich`, …). Die Vorlagen werden nur neu gebaut, wenn sich unter
-`src`, `drizzle` oder `scripts` etwas geaendert hat — sonst kostet der
-Aufbau eine Sekunde je Klon. Faellt eine Datei nur in Gesellschaft anderer,
-hilft der alte, serielle Lauf:
+`src`, `drizzle` oder `scripts`, an `package.json`, `pnpm-lock.yaml` oder den
+Aufbauhelfern unter `tests/isolation/` etwas geaendert hat — und einmal am
+Tag, weil der Seed relativ zu heute plant. Sonst kostet der Aufbau eine
+Sekunde je Klon. Zwei Laeufe auf derselben `cse_test` zugleich gibt es nicht:
+der zweite wird abgewiesen, solange der erste die Sperre haelt. Faellt eine
+Datei nur in Gesellschaft anderer, hilft der alte, serielle Lauf:
 
 ```bash
 CSE_ISOLATION_WORKER=1 pnpm test:isolation

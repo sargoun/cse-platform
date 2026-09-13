@@ -6871,6 +6871,18 @@ Dateizeiten fiel von 59 auf 4,3 Minuten; die Suite war nie langsam, sie hat
 1266-mal Dateien angelegt. In CI vorher 25 Minuten für den Schritt in
 `pruefung`; nachher steht es im ersten Lauf dieses Zweigs.
 
+**Nachtrag aus der Durchsicht des PR** (Copilot, sechs Befunde, alle
+genommen): Eine Beratungssperre (`pg_advisory_lock`) auf der Basis hält für
+die DAUER des Laufs — die Sperre in `test-db.sh` deckt nur den Aufbau, und
+ein zweiter Lauf hätte dem ersten mit `drop … with (force)` die
+Arbeiterdatenbanken weggezogen; jetzt wird er abgewiesen, und die Sitzung
+endet mit dem Prozess, die Sperre mit ihr. Der Tag steht im Fingerabdruck
+der Vorlagen, weil der Seed relativ zu heute plant. Eine Basis, die
+Gesellschaften, Menschen oder Konten trägt (die alte, serielle Suite liess
+ihre Fixturen in `cse_test`), wird vor dem Bau der Vorlage mit `neu`
+neu gebaut. Der Basisname lässt Platz für `_vorlage_inhalt` unter den 63
+Zeichen. Und `psql` muss ausführbar sein, nicht bloss vorhanden.
+
 **Was es kostet.** Sechs Datenbanken statt einer im Testcluster (vier
 Arbeiter, zwei Vorlagen) plus die fünf eigenen — eine Wegwerfinstallation
 ohnehin. Und `psql` muss erreichbar sein: `parallel.ts` sucht es auf dem

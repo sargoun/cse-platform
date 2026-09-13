@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
-  FENSTER_SCHLUESSEL_TEST, HOECHSTENS_WORKER, anzahlWorker, datenbankName, mitDatenbank,
-  pruefeBezeichner, psqlBefehl, verwaltungsUrl, vorlagenNamen, workerUrl,
+  ANHANG_HOECHSTENS, FENSTER_SCHLUESSEL_TEST, HOECHSTENS_WORKER, anzahlWorker, datenbankName,
+  mitDatenbank, pruefeBezeichner, psqlBefehl, verwaltungsUrl, vorlagenNamen, workerUrl,
 } from '../../tests/isolation/parallel.js';
 import konfiguration from '../../vitest.isolation.config.js';
 
@@ -89,14 +89,29 @@ describe('die Klone haben pruefbare Namen und finden psql', () => {
     expect(() => pruefeBezeichner('Cse-Test')).toThrow();
   });
 
-  it('psql kommt vom PATH, wenn es dort liegt', () => {
-    const verzeichnis = mkdtempSync(join(tmpdir(), 'cse-psql-'));
-    writeFileSync(join(verzeichnis, 'psql'), '#!/bin/sh\n');
+  it('die Basis laesst Platz fuer den laengsten Anhang — sonst kuerzte Postgres still', () => {
+    const passt = 'a'.repeat(63 - ANHANG_HOECHSTENS);
+    expect(pruefeBezeichner(passt, ANHANG_HOECHSTENS)).toBe(passt);
+    expect(`${passt}_vorlage_inhalt`).toHaveLength(63);
+    expect(() => pruefeBezeichner(`${passt}b`, ANHANG_HOECHSTENS)).toThrow(/abzueglich/u);
+    // Ohne Anhang gilt die volle Laenge.
+    expect(pruefeBezeichner('a'.repeat(63))).toHaveLength(63);
+    expect(() => pruefeBezeichner('a'.repeat(64))).toThrow();
+  });
+
+  it('psql kommt vom PATH, wenn es dort AUSFUEHRBAR liegt', () => {
+    const ohneRecht = mkdtempSync(join(tmpdir(), 'cse-psql-ohne-'));
+    const mitRecht = mkdtempSync(join(tmpdir(), 'cse-psql-'));
+    writeFileSync(join(ohneRecht, 'psql'), '#!/bin/sh\n', { mode: 0o644 });
+    writeFileSync(join(mitRecht, 'psql'), '#!/bin/sh\n', { mode: 0o755 });
     try {
-      expect(psqlBefehl({ PATH: `/nirgends${delimiter}${verzeichnis}` }))
-        .toBe(join(verzeichnis, 'psql'));
+      // Der erste Eintrag hat kein x-Bit und wird uebersprungen — sonst
+      // endete der Aufruf spaeter in EACCES statt beim naechsten Kandidaten.
+      expect(psqlBefehl({ PATH: `/nirgends${delimiter}${ohneRecht}${delimiter}${mitRecht}` }))
+        .toBe(join(mitRecht, 'psql'));
     } finally {
-      rmSync(verzeichnis, { recursive: true, force: true });
+      rmSync(ohneRecht, { recursive: true, force: true });
+      rmSync(mitRecht, { recursive: true, force: true });
     }
   });
 
