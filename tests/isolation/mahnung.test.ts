@@ -28,7 +28,7 @@ import {
   KanalNichtVerbundenFehler, MahnungFehler, dokumentiereVersand, findeMahnung,
   gibFrei, mahnungNutzlast, verwirf,
 } from '../../src/server/services/finanz/mahnung/index.js';
-import { bestaetigeStufe, mahnstufen }
+import { StufenFehler, bestaetigeStufe, mahnstufen }
   from '../../src/server/services/finanz/mahnung/stufen.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import { LokalerSpeicher } from '../../src/server/storage/adapter.js';
@@ -753,6 +753,42 @@ describe('(6) Bestätigte Stufen lösen ab, sie überschreiben nicht', () => {
        values ($1, 2, 'Zweite Wahrheit', 30, false, '2026-10-01', 'system', 'job:test')`,
       [f.reinigung])).rejects.toThrow(/mahnstufe_kein_ueberlapp/);
   });
+
+  /**
+   * **Rückwärts geht keine Fassung** — und der Satz nennt den Tag, der geht.
+   *
+   * Ohne diese Prüfung schlüge die Ablösung fehl (die alte Fassung beginnt
+   * später und wird von der `update`-Bedingung nicht erfasst), der Einschub
+   * liefe in `mahnstufe_kein_ueberlapp`, und der Mensch am Bildschirm bekäme
+   * einen Datenbankfehler über eine Schranke, von der er nichts weiss.
+   */
+  it('eine Fassung, die nicht später beginnt, wird mit dem frühesten Tag abgewiesen',
+    async () => {
+      const [tage] = await sql.unsafe<{ heute: string }[]>(
+        `select app.berlin_heute()::text as heute`);
+      await sql.unsafe(
+        `insert into mahnstufe (mandant_id, stufe, bezeichnung, tage_nach_faelligkeit,
+                                ist_platzhalter, gueltig_ab, erstellt_von_art,
+                                erstellt_von_dienst)
+         values ($1, 4, 'Läuft seit heute', 14, true, $2::date, 'system', 'job:test')`,
+        [f.reinigung, tage!.heute]);
+
+      const fehler = await alsApp(sitzung(), async (tx) => bestaetigeStufe(kontextAus(tx), {
+        stufe: 4, bezeichnung: 'Rückwirkend', tageNachFaelligkeit: 14,
+        gebuehrCent: cent(500n), zinsberechnung: 'keine', gueltigAb: tage!.heute,
+      })).catch((e: unknown) => e);
+
+      expect(fehler).toBeInstanceOf(StufenFehler);
+      expect((fehler as StufenFehler).grund).toBe('ueberlappt');
+      expect((fehler as StufenFehler).message).toContain('frühestens');
+
+      /* Und nichts ist entstanden — auch die laufende Fassung steht unverändert. */
+      const zeilen = await alsApp(sitzung(), async (tx) => mahnstufen(kontextAus(tx)));
+      const vier = zeilen.filter((z) => z.stufe === 4);
+      expect(vier).toHaveLength(1);
+      expect(vier[0]!.istPlatzhalter).toBe(true);
+      expect(vier[0]!.gueltigBis).toBeNull();
+    });
 
   it('ein vertraglicher Zins ohne vereinbarten Satz wird abgelehnt', async () => {
     await expect(alsApp(sitzung(), async (tx) => bestaetigeStufe(kontextAus(tx), {

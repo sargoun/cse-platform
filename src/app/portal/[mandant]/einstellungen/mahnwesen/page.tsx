@@ -52,9 +52,26 @@ export default async function Mahnwesen(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
-  const stufen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
-    withTenant(tx, sitzung, async (kontext) => mahnstufen(kontext)))
-    ) as Awaited<ReturnType<typeof mahnstufen>>;
+  /**
+   * Die Stufen UND der früheste Tag, an dem eine neue Fassung beginnen kann.
+   *
+   * Er kommt aus der Datenbank, nicht aus `new Date()`: die Uhr des
+   * Node-Prozesses liest UTC und böte am 31.12. um 23:30 Berliner Zeit den
+   * falschen Tag an (K-11, Invariante 2).
+   */
+  const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+    withTenant(tx, sitzung, async (kontext) => ({
+      stufen: await mahnstufen(kontext),
+      tage: await kontext.abfrage<{ heute: string; morgen: string }>(
+        `select app.berlin_heute()::text as heute,
+                (app.berlin_heute() + 1)::text as morgen`),
+    }))) as Promise<{
+      stufen: Awaited<ReturnType<typeof mahnstufen>>;
+      tage: readonly { heute: string; morgen: string }[];
+    }>);
+  const stufen = daten.stufen;
+  const heute = daten.tage[0]?.heute ?? '';
+  const morgen = daten.tage[0]?.morgen ?? '';
 
   const feld = 'mt-s2 min-h-11 w-full rounded-md border border-line bg-surface-3 '
     + 'p-s3 text-sm text-text';
@@ -211,7 +228,16 @@ export default async function Mahnwesen(
           <label className="mt-s4 block text-sm text-text" htmlFor="gueltigAb">
             Gültig ab
           </label>
-          <input id="gueltigAb" name="gueltigAb" type="date" required className={feld} />
+          <input
+            id="gueltigAb" name="gueltigAb" type="date" required className={feld}
+            min={heute} defaultValue={morgen}
+          />
+          <p className="mt-s2 text-xs text-text-muted">
+            Vorgeschlagen ist der morgige Tag: solange für diese Stufe eine
+            Fassung läuft, beginnt die neue am Tag danach. Rückwirkend ginge
+            sie nicht — sie änderte die Grundlage bereits versendeter
+            Mahnungen.
+          </p>
 
           <p className="mt-s4 text-xs text-text-muted">
             Der Basiszinssatz nach § 247 BGB wird nicht hier gepflegt: er ist eine

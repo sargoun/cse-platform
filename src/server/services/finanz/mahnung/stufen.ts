@@ -68,6 +68,21 @@ function zuZeile(r: Roh): StufenZeile {
   };
 }
 
+/**
+ * Die beiden Schranken, die dieselbe Sache sagen — und beide werden gebraucht.
+ *
+ * `mahnstufe_stufe_uk` trifft zuerst, wenn der Tag EXAKT derselbe ist
+ * (`23505`); `mahnstufe_kein_ueberlapp` fängt jede andere Überschneidung
+ * (`23P01`). Nur eine von beiden zu übersetzen liesse den anderen Fall als
+ * Datenbankfehler bis auf den Bildschirm durch — und genau dieser Fall, zwei
+ * Fassungen am selben Tag, ist der häufigste Tippfehler.
+ */
+function istUeberlapp(fehler: unknown): boolean {
+  const f = fehler as { code?: unknown; constraint_name?: unknown };
+  return (f.code === '23P01' && f.constraint_name === 'mahnstufe_kein_ueberlapp')
+    || (f.code === '23505' && f.constraint_name === 'mahnstufe_stufe_uk');
+}
+
 export async function mahnstufen(
   kontext: SchreibKontext,
 ): Promise<readonly StufenZeile[]> {
@@ -119,6 +134,34 @@ export async function bestaetigeStufe(
     ? null
     : e.zinsMethode ?? 'act_365';
 
+  /**
+   * **Rückwärts gibt es keine Fassung.**
+   *
+   * Die laufende Fassung endet am Tag vor der neuen — das setzt voraus, dass
+   * die neue SPÄTER beginnt. Täte sie es nicht, liesse die Ablösung die alte
+   * offen, und `mahnstufe_kein_ueberlapp` wiese den Einschub ab: der Mensch
+   * am Bildschirm bekäme einen Datenbankfehler über eine Schranke, von der er
+   * nichts weiss, statt des einen Satzes, der ihm sagt, welches Datum geht.
+   *
+   * Und es ist nicht nur eine Meldung: eine Fassung rückwirkend einzuschieben
+   * hiesse, die Grundlage von Mahnungen zu ändern, die unter der alten
+   * hinausgegangen sind.
+   */
+  const [laufend] = await kontext.abfrage<{ gueltig_ab: string }>(
+    `select gueltig_ab::text as gueltig_ab
+       from mahnstufe
+      where stufe = $1 and gueltig_bis is null
+      order by gueltig_ab desc limit 1`, [e.stufe]);
+  if (laufend !== undefined && e.gueltigAb <= laufend.gueltig_ab) {
+    const fruehestens = new Date(`${laufend.gueltig_ab}T00:00:00Z`);
+    fruehestens.setUTCDate(fruehestens.getUTCDate() + 1);
+    throw new StufenFehler(
+      'ueberlappt',
+      `Für Stufe ${String(e.stufe)} gilt seit dem ${laufend.gueltig_ab} eine Fassung. `
+      + `Eine neue beginnt frühestens am ${fruehestens.toISOString().slice(0, 10)} — `
+      + 'rückwirkend ändert sie die Grundlage bereits versendeter Mahnungen.');
+  }
+
   await kontext.schreibe(
     `update mahnstufe
         set gueltig_bis = ($2::date - 1), geaendert_am = now(),
@@ -141,7 +184,17 @@ export async function bestaetigeStufe(
      returning id`,
     [e.stufe, e.bezeichnung.trim(), e.tageNachFaelligkeit, e.gebuehrCent.toString(),
      e.zinsberechnung, e.zinsAufschlagBp ?? null, methode, e.folgeaktion ?? 'keine',
-     e.gueltigAb]);
+     e.gueltigAb]).catch((fehler: unknown) => {
+      /* Die Schranke ist die Wahrheit; die Prüfung oben ist nur die freundliche
+         Vorstufe. Fällt trotzdem 23P01, wird daraus derselbe Satz und kein 500. */
+      if (istUeberlapp(fehler)) {
+        throw new StufenFehler(
+          'ueberlappt',
+          `Für Stufe ${String(e.stufe)} gilt am ${e.gueltigAb} bereits eine Fassung. `
+          + 'Zwei Fassungen derselben Stufe an einem Tag gibt es nicht.');
+      }
+      throw fehler;
+    });
   const neu = zeilen[0];
   if (neu === undefined) {
     throw new StufenFehler('ungueltig', 'Die Stufe wurde nicht angelegt.');

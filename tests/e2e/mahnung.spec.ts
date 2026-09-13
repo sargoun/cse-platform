@@ -164,23 +164,40 @@ test.describe('Mahnwesen (FIN-15)', () => {
     await page.getByLabel('Bezeichnung').fill('Zahlungserinnerung');
     await page.getByLabel('Mahngebühr in Euro').fill('5,00');
     await page.getByLabel('Verzugszins').selectOption('keine');
-    await page.getByLabel('Gültig ab').fill('2026-09-01');
+    /*
+     * Das Datum wird NICHT gesetzt: der Bildschirm schlägt den morgigen Tag
+     * vor, weil die Seed-Fassung seit heute läuft und eine neue frühestens
+     * am Tag danach beginnt. Ein hier eingetipptes Datum prüfte den Test und
+     * nicht den Bildschirm.
+     */
+    await expect(page.getByLabel('Gültig ab')).not.toHaveValue('');
     await page.getByRole('button', { name: 'Stufe bestätigen' }).click();
     await page.waitForLoadState('domcontentloaded');
 
     await expect(page.locator('[data-cse="stufen-hinweis"]')).toContainText('bestätigt');
-    /* Die abgelöste Fassung bleibt stehen — gelöscht wird nichts. */
-    await expect(page.getByRole('row').filter({ hasText: '(unbestätigt)' })).toHaveCount(1);
+    /* Die abgelöste Fassung bleibt stehen — gelöscht wird nichts. Genau EINE,
+       denn der Seed legt je Stufe eine an, und abgelöst wird nur Stufe 1. */
+    await expect(
+      page.getByRole('row').filter({ hasText: 'Zahlungserinnerung (unbestätigt)' }),
+    ).toHaveCount(1);
     await expect(page.getByRole('row').filter({ hasText: 'Zahlungserinnerung' }).first())
       .toContainText('5,00');
   });
 
+  /**
+   * §7.5: der Kunde sieht keine Mahnung — und erfährt auch nicht, dass es die
+   * Adresse gibt. Die K-04-Decke schickt ihn in SEIN Portal zurück, statt ihn
+   * auf einem 404 stehen zu lassen (AUT-06): ein 403 bestätigte die Existenz.
+   */
   test('der Kunde sieht keine Mahnung (§7.5)', async ({ page }) => {
-    await anmelden(page);
     await page.goto('/dev/anmelden');
     await alsKonto(page, KONTO.kunde);
-    const antwort = await page.goto(`/portal/${MANDANT}/finanzen/mahnungen`);
-    expect(antwort?.status()).toBeGreaterThanOrEqual(400);
+    await page.goto(`/portal/${MANDANT}/finanzen/mahnungen`);
+    await page.waitForLoadState('domcontentloaded');
+
+    expect(new URL(page.url()).pathname).toBe('/portal/kunde');
+    await expect(page.getByRole('heading', { level: 1, name: 'Mahnungen' })).toHaveCount(0);
+    await expect(page.getByText('Zahlungserinnerung')).toHaveCount(0);
   });
 
   test('axe findet auf dem Mahnbildschirm nichts', async ({ page }) => {

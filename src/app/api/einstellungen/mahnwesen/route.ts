@@ -90,14 +90,16 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           + 'schlägt sie ab jetzt vor — versendet wird weiterhin nichts ohne Freigabe.');
       }))) as NextResponse;
   } catch (fehler: unknown) {
-    if (fehler instanceof GeldFehler) {
-      return NextResponse.json(
-        { fehler: 'betrag_unlesbar', meldung: fehler.message }, { status: 422 });
-    }
-    if (fehler instanceof StufenFehler) {
-      return NextResponse.json(
-        { fehler: fehler.grund, meldung: fehler.message },
-        { status: fehler.grund === 'nicht_gefunden' ? 404 : 422 });
+    /**
+     * **Der Aufrufer ist ein Formular, also bekommt er eine SEITE zurück.**
+     *
+     * Eine JSON-Antwort mit 422 lässt den Browser eine Datei anzeigen, auf der
+     * `{"fehler":"ueberlappt"}` steht — der Mensch hat dann seine Eingabe
+     * verloren und weiss nicht, was er tun soll. Der Satz gehört dorthin, wo
+     * er ihn liest.
+     */
+    if (fehler instanceof GeldFehler || fehler instanceof StufenFehler) {
+      return zurueck(anfrage, fehler.message);
     }
     if (fehler instanceof NichtGefundenFehler) {
       return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
