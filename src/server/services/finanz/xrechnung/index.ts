@@ -228,7 +228,7 @@ export function bpAlsProzent(bp: number): string {
  * zweite zu schreiben hiesse, dass XRechnung und Snapshot bei derselben Menge
  * verschiedene Zahlen zeigen koennen — und eine davon waere falsch.
  */
-function mengeDurchreichen(menge: MilliMenge | null): string | null {
+export function mengeDurchreichen(menge: MilliMenge | null): string | null {
   return menge === null ? null : mengeNachPostgres(menge);
 }
 
@@ -244,7 +244,7 @@ function leer(wert: string | null | undefined): boolean {
  * ergaebe einen Nachlass, der die Summe ERHOEHT — BR-CO-13 faellt darueber,
  * und wer nur auf die Endsumme sieht, merkt es nicht.
  */
-function betrag(wert: Cent): Cent {
+export function betrag(wert: Cent): Cent {
   return wert < 0n ? cent(-wert) : wert;
 }
 
@@ -454,7 +454,7 @@ function pruefeAnschrift(
  * `LineExtensionAmount` — BR-24 abgewiesen — und ihre Summe passte nicht mehr
  * zu BT-106.
  */
-function abrechenbarePositionen<T extends { readonly art: string }>(
+export function abrechenbarePositionen<T extends { readonly art: string }>(
   r: { readonly positionen: readonly T[] },
 ): readonly T[] {
   return r.positionen.filter((p) => p.art === 'leistung');

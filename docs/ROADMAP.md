@@ -177,12 +177,18 @@ proven by test, not by inspection.
 
 ## Phase 6 · Finance — FIN-*
 
-- [ ] Five billing strategies behind one interface
-      → `// TODO(client): confirm the exact five`
-- [ ] `entwurf` → `festgeschrieben`; number at finalization only
-- [ ] Pre-flight validator blocking on any missing §14 UStG field
-- [ ] Hash chain + nightly verification job
-- [ ] Line-to-source traceability
+- [x] Five billing strategies behind one interface (`services/finanz/abrechnungsart/`:
+      Einheitspreis-Aufmass, Einzelabruf, Festpreis-Los, Pauschale, Stundenlohn —
+      **the exact five and their rounding stay open: O-04**)
+- [x] `entwurf` → `festgeschrieben`; number at finalization only (0075–0077:
+      `rechnung_entwurf_ohne_nummer`, counter under `SELECT … FOR UPDATE`)
+- [x] Pre-flight validator blocking on any missing §14 UStG field
+      (`services/finanz/ustg14.ts` + 0104; the screen names every missing field)
+- [x] Hash chain + nightly verification job (0077 `hash = SHA256(payload ‖ prev)`,
+      job `kette_pruefen` at 03:20 — it alerts, it never repairs)
+- [x] Line-to-source traceability (0107 `rechnungsposition_quelle`: every line
+      names its time entries, Aufmass rows or LV position — or says „von Hand"
+      with a reason)
 - [x] Abschlags- / Schlussrechnung with automatic deduction (PR 50; Sicherheits-
       einbehalt stays open — O-20)
 - [x] §13b UStG; §48 EStG with certificate validity at service date (PR 51;
