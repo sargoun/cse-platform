@@ -1,0 +1,140 @@
+name: Konformität
+
+# Die Prüfungen, die gegen FREMDE Werkzeuge laufen — nicht gegen meine
+# eigenen Zusagen (FIN-11, 01-ORDNERSTRUKTUR.md §11.2, §21).
+#
+# **Warum ein eigener Auftrag.** Der KoSIT-Prüfer ist ein Java-Werkzeug mit
+# einer eigenen Regelwerksfassung, die getrennt veröffentlicht wird. Ihn in
+# `pruefung` zu hängen hiesse, jeden Lauf an zwei Downloads zu binden, die mit
+# dem Rest der Prüfung nichts zu tun haben — und ein Ausfall von Maven Central
+# stoppte dann auch einen reinen Textfehler.
+#
+# **Er läuft trotzdem bei JEDEM Pull Request**, und er ist erforderlich: er
+# fällt trivial durch, solange keine Muster da sind, und genau deshalb kann
+# das erste Muster nicht ungeprüft hineinkommen.
+
+on:
+  push: { branches: [main] }
+  pull_request:
+
+jobs:
+  xrechnung:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+
+      - run: pnpm install --frozen-lockfile
+
+      # Der Prüfer und sein Regelwerk, beide auf eine FESTE Fassung gepinnt.
+      #
+      # Ohne Pin brächte eine neue Regelwerksfassung den Bau an einem
+      # beliebigen Dienstag zu Fall, ohne dass jemand etwas geändert hätte —
+      # und niemand wüsste, ob die neue Regel richtig ist oder unsere
+      # Rechnung. Mit Pin ist die Anhebung eine eigene Änderung mit einem
+      # eigenen Diff, so wie jede andere auch.
+      - name: KoSIT-Prüfer und XRechnung-Regelwerk holen
+        run: |
+          set -euo pipefail
+          mkdir -p .kosit
+          curl -sSL --retry 3 --retry-delay 5 -o .kosit/validator.jar \
+            https://repo1.maven.org/maven2/de/kosit/validationtool/1.5.0/validationtool-1.5.0-standalone.jar
+          curl -sSL --retry 3 --retry-delay 5 -o .kosit/konfiguration.zip \
+            https://github.com/itplr-kosit/validator-configuration-xrechnung/releases/download/release-2024-06-20/validator-configuration-xrechnung_3.0.2_2024-06-20.zip
+          unzip -q .kosit/konfiguration.zip -d .kosit/konfiguration
+
+      - name: XRechnung gegen KoSIT prüfen
+        env:
+          KOSIT_JAR: ${{ github.workspace }}/.kosit/validator.jar
+          KOSIT_SZENARIEN: ${{ github.workspace }}/.kosit/konfiguration/scenarios.xml
+          # Im Arbeitsbereich und nicht in /tmp: `upload-artifact` laedt sonst
+          # nichts hoch und sagt es nur in einer Warnung, die niemand liest.
+          KOSIT_AUSGABE: ${{ github.workspace }}/.kosit/ausgabe
+        # NUR der eigene Bereich, nicht `test:compliance`.
+        #
+        # Der Fehlschlag, gegen den das geschrieben ist: beide Auftraege
+        # riefen `pnpm test:compliance` auf, und das faehrt die GANZE
+        # Konfiguration. Der KoSIT-Auftrag fuehrte damit auch den
+        # veraPDF-Test aus — ohne `VERAPDF_CLI`, also rot —, obwohl seine
+        # eigene Pruefung gruen war. Ein Auftrag laeuft gegen das Werkzeug,
+        # das er selbst installiert hat, und gegen kein anderes.
+        run: pnpm test:compliance:xrechnung
+
+      # Die Prüfberichte bleiben liegen, auch wenn alles grün war: wer eine
+      # Regel nachlesen will, braucht sie nicht erst rot zu machen.
+      - name: Prüfberichte
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kosit-berichte
+          path: .kosit/ausgabe
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # veraPDF — die Referenzimplementierung der PDF/A-Norm (FIN-12).
+  #
+  # Eigener Auftrag aus demselben Grund wie beim KoSIT-Prüfer: er bringt ein
+  # eigenes Java-Werkzeug mit eigener Fassung mit, und sein Ausfall soll keinen
+  # Textfehler aufhalten. Auch er ist erforderlich — ein ZUGFeRD-PDF, dessen
+  # PDF/A-Konformität niemand geprüft hat, ist ein Archivbeleg auf Zuruf.
+  # ---------------------------------------------------------------------------
+  zugferd:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+
+      - run: pnpm install --frozen-lockfile
+
+      # Auf eine FESTE Fassung gepinnt, wie das XRechnung-Regelwerk: eine neue
+      # Prüferfassung soll den Bau nicht an einem beliebigen Dienstag umwerfen.
+      - name: veraPDF holen
+        run: |
+          mkdir -p .verapdf
+          curl -sSL --retry 3 --retry-delay 5 -o .verapdf/installer.zip \
+            https://software.verapdf.org/releases/1.26/verapdf-greenfield-1.26.2-installer.zip
+          unzip -q .verapdf/installer.zip -d .verapdf
+          cat > .verapdf/auto-install.xml <<'XML'
+          <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+          <AutomatedInstallation langpack="eng">
+            <com.izforge.izpack.panels.htmlhello.HTMLHelloPanel id="welcome"/>
+            <com.izforge.izpack.panels.target.TargetPanel id="install_dir">
+              <installpath>${{ github.workspace }}/.verapdf/verapdf</installpath>
+            </com.izforge.izpack.panels.target.TargetPanel>
+            <com.izforge.izpack.panels.packs.PacksPanel id="sdk_pack_select">
+              <pack index="0" name="veraPDF GUI" selected="true"/>
+              <pack index="1" name="veraPDF Mac and *nix Scripts" selected="true"/>
+              <pack index="3" name="veraPDF Corpus and Validation model" selected="true"/>
+              <pack index="4" name="veraPDF Documentation" selected="false"/>
+              <pack index="5" name="veraPDF Sample Plugins" selected="false"/>
+            </com.izforge.izpack.panels.packs.PacksPanel>
+            <com.izforge.izpack.panels.install.InstallPanel id="install"/>
+            <com.izforge.izpack.panels.finish.FinishPanel id="finish"/>
+          </AutomatedInstallation>
+          XML
+          java -jar .verapdf/verapdf-greenfield-*/verapdf-izpack-installer-*.jar \
+            .verapdf/auto-install.xml
+
+      - name: PDF/A-3B prüfen
+        env:
+          VERAPDF_CLI: ${{ github.workspace }}/.verapdf/verapdf/verapdf
+          VERAPDF_AUSGABE: ${{ github.workspace }}/.verapdf/ausgabe
+        # Dieselbe Trennung wie oben, aus demselben Grund: dieser Auftrag
+        # hat kein `KOSIT_JAR` und hat den KoSIT-Test nicht zu fahren.
+        run: pnpm test:compliance:zugferd
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verapdf-berichte
+          path: .verapdf/ausgabe
+          if-no-files-found: ignore

@@ -235,17 +235,67 @@ test.describe('(7) barrierefrei in beiden Sprachen', () => {
     });
   }
 
-  test('kein waagerechtes Scrollen bei 375px — auch mit der Sprachwahl im Kopf',
-    async ({ page }) => {
-      // Zwei zusätzliche Links im 72px-Kopf sind genau die Art Ergänzung, die
-      // eine Kopfzeile auf einem Telefon zum Überlaufen bringt.
-      await page.setViewportSize({ width: 375, height: 800 });
-      for (const pfad of ['/', '/en']) {
-        await page.goto(pfad);
-        const ueberlauf = await page.evaluate(
-          () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-        );
-        expect(ueberlauf, pfad).toBe(false);
-      }
+  test('kein waagerechtes Scrollen bei 375px', async ({ page }) => {
+    // Zwei zusätzliche Links im 72px-Kopf sind genau die Art Ergänzung, die
+    // eine Kopfzeile auf einem Telefon zum Überlaufen bringt.
+    await page.setViewportSize({ width: 375, height: 800 });
+    for (const pfad of ['/', '/en']) {
+      await page.goto(pfad);
+      const ueberlauf = await page.evaluate(
+        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      );
+      expect(ueberlauf, pfad).toBe(false);
+    }
+  });
+
+  /**
+   * **Der Auftrittsname wird auf dem Telefon nicht gekürzt** (DESIGN §5,
+   * D-415).
+   *
+   * Der Test darüber war grün, WEIL gekürzt wurde: `truncate` hält
+   * `scrollWidth` klein, und die Zusage „kein waagerechtes Scrollen" war
+   * damit erfüllt, während im Kopf „CSE Gr…" stand — auf jeder öffentlichen
+   * Seite, auf jedem Telefon zwischen 360px und 414px. Eine Zusage, die eine
+   * andere verdeckt, braucht die zweite daneben.
+   */
+  for (const breite of [360, 375, 390, 414]) {
+    test(`der Auftrittsname steht vollständig im Kopf (${String(breite)}px)`, async ({ page }) => {
+      await page.setViewportSize({ width: breite, height: 800 });
+      await page.goto('/');
+      const marke = page.locator('header a[aria-label] span').first();
+      const mass = await marke.evaluate((el) => ({
+        sichtbar: Math.round(el.getBoundingClientRect().width),
+        noetig: el.scrollWidth,
+        text: el.textContent ?? '',
+      }));
+      expect(mass.text.length, 'kein Auftrittsname im Kopf').toBeGreaterThan(0);
+      expect(
+        mass.noetig,
+        `„${mass.text}" ist bei ${String(breite)}px gekürzt: ${String(mass.noetig)}px `
+        + `nötig, ${String(mass.sichtbar)}px sichtbar`,
+      ).toBeLessThanOrEqual(mass.sichtbar);
     });
+  }
+
+  test('die Sprachwahl liegt auf dem Telefon im Menü und wechselt dort', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await page.goto('/');
+
+    // Im Kopf ist sie unter `md` nicht sichtbar — sie ist der Platz, den der
+    // Auftrittsname braucht.
+    await expect(page.locator('[data-cse="sprachwahl"]')).toBeHidden();
+
+    await page.locator('[data-cse="menue"] summary').click();
+    const nachEnglisch = page.locator('[data-cse="menue-sprache"][data-sprache="en"]');
+    await expect(nachEnglisch).toBeVisible();
+    await nachEnglisch.click();
+
+    await expect(page).toHaveURL(/\/en$/u);
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+
+    // Und zurück: auf der englischen Seite führt der Punkt nach Deutsch.
+    await page.locator('[data-cse="menue"] summary').click();
+    await page.locator('[data-cse="menue-sprache"][data-sprache="de"]').click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'de-DE');
+  });
 });

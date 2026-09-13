@@ -46,6 +46,17 @@
 export const QUERSCHNITT: ReadonlySet<string> = new Set([
   'bericht', 'crm', 'objekt', 'raum', 'dienstplan', 'zeit', 'personal',
   'angebot', 'auftrag', 'kalkulation', 'katalog', 'finanzen', 'dokument',
+  // `zahlung` (PR 54.1): Geld geht in JEDER Gesellschaft ein, unabhaengig
+  // vom Gewerk. Es an ein Gewerk zu binden hiesse, einer Gesellschaft ihre
+  // eigenen Forderungen zu verbergen, weil sie nicht reinigt.
+  // `eingang` (PR 54.3) aus demselben Grund: jede Gesellschaft bekommt
+  // Lieferantenrechnungen.
+  // `nummernkreis` (PR 56): das Ausgangsbuch prueft die Lueckenlosigkeit der
+  // Rechnungsnummern — jede Rechtseinheit hat einen Kreis, unabhaengig vom
+  // Gewerk.
+  // `mahnung` (PR 55): eine Forderung wird ueberfaellig, unabhaengig davon,
+  // wofuer sie entstand.
+  'zahlung', 'eingang', 'nummernkreis', 'mahnung',
   'qualitaet', 'nachweis', 'system', 'vergabe', 'agent', 'formular',
   'nachricht', 'versand', 'medien', 'abwesenheit', 'lead', 'kunde',
 ]);

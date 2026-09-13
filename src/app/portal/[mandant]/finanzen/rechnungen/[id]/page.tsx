@@ -8,6 +8,7 @@ import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { formatiereGeld, cent } from '@/server/services/finanz/geld';
 import { formatiereMenge, mengeAusPostgres } from '@/server/services/finanz/menge';
+import { ermittleSteuerfall } from '@/server/services/finanz/steuerfall';
 import { ladeQuellen, pruefeZeiterfassung, type Fin18Befund, type QuelleZeile }
   from '@/server/services/finanz/positionsquelle';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
@@ -50,6 +51,17 @@ interface Kopf {
   readonly rechnungsdatum: string | null;
   readonly leistung_von: string | null;
   readonly leistung_bis: string | null;
+  readonly abzug_brutto_cent: string;
+  readonly reverse_charge: boolean;
+  readonly reverse_charge_grundlage: string | null;
+  readonly steuerhinweis: string | null;
+  readonly bauabzugsteuer_pflichtig: boolean;
+  readonly bauabzugsteuer_satz_bp: number | null;
+  readonly einbehalt_bauabzugsteuer_cent: string;
+  readonly ueberweisungsbetrag_cent: string;
+  readonly freistellung_nummer: string | null;
+  readonly zahlbetrag_cent: string;
+  readonly auftrag_id: string | null;
   readonly zahlungsziel_tage: number | null;
   readonly faellig_am: string | null;
   readonly netto_gesamt_cent: string;
@@ -77,6 +89,22 @@ interface Pos {
 }
 
 interface Steuer {
+  readonly gruppe: string;
+  readonly satz_bp: number;
+  readonly netto_cent: string;
+  readonly steuer_cent: string;
+}
+
+/**
+ * Eine abgezogene Abschlagsrechnung, je Steuergruppe (FIN-08).
+ *
+ * Sie steht auf dem Beleg, weil der Kunde sonst einen Zahlbetrag sieht, den
+ * er aus dem Sichtbaren nicht nachrechnen kann — Positionen, Summen, und
+ * dazwischen eine Differenz ohne Erklaerung.
+ */
+interface Abzug {
+  readonly nummer: string;
+  readonly rechnungsdatum: string | null;
   readonly gruppe: string;
   readonly satz_bp: number;
   readonly netto_cent: string;
@@ -117,6 +145,11 @@ export default async function Rechnungsblatt(
                 to_char(r.leistung_bis, 'DD.MM.YYYY') as leistung_bis,
                 r.zahlungsziel_tage, to_char(r.faellig_am, 'DD.MM.YYYY') as faellig_am,
                 r.netto_gesamt_cent::text, r.steuer_gesamt_cent::text, r.brutto_cent::text,
+                r.abzug_brutto_cent::text, r.zahlbetrag_cent::text, r.auftrag_id,
+                r.reverse_charge, r.reverse_charge_grundlage::text as reverse_charge_grundlage,
+                r.steuerhinweis, r.bauabzugsteuer_pflichtig, r.bauabzugsteuer_satz_bp,
+                r.einbehalt_bauabzugsteuer_cent::text, r.ueberweisungsbetrag_cent::text,
+                fb.bescheinigung_nummer as freistellung_nummer,
                 r.kopftext, r.verworfen_grund,
                 h.hash, h.kette_position::text,
                 (select s.nummer from rechnung_beziehung b
@@ -129,6 +162,9 @@ export default async function Rechnungsblatt(
            join kunde k on k.mandant_id = r.mandant_id and k.id = r.kunde_id
            left join objekt o on o.mandant_id = r.mandant_id and o.id = r.objekt_id
            left join rechnung_hash h on h.rechnung_id = r.id
+           left join freistellungsbescheinigung fb
+                  on fb.mandant_id = r.mandant_id
+                 and fb.id = r.freistellungsbescheinigung_id
           where r.id = $1`, [id]))[0] ?? null,
       positionen: await kontext.abfrage<Pos>(
         `select p.id, p.position_nr, p.bezeichnung, p.menge::text, p.einheit,
@@ -138,6 +174,24 @@ export default async function Rechnungsblatt(
            join steuersatz_gruppe g on g.id = p.steuersatz_gruppe_id
            left join masseinheit e on e.id = p.masseinheit_id
           where p.rechnung_id = $1 order by p.position_nr`, [id]),
+      /**
+       * Die abgezogenen Abschlaege — nur die WIRKSAMEN. Eine unwirksam
+       * gewordene Zeile (die Schlussrechnung wurde storniert) bleibt in der
+       * Tabelle stehen (Invariante 8) und gehoert nicht mehr auf den Beleg.
+       */
+      abzuege: await kontext.abfrage<Abzug>(
+        `select a.nummer, to_char(a.rechnungsdatum, 'DD.MM.YYYY') as rechnungsdatum,
+                g.schluessel as gruppe,
+                (select rs.satz_bp from rechnung_steuer rs
+                  where rs.rechnung_id = b.abschlag_rechnung_id
+                    and rs.steuersatz_gruppe_id = b.steuersatz_gruppe_id) as satz_bp,
+                b.abzug_netto_cent::text as netto_cent,
+                b.abzug_steuer_cent::text as steuer_cent
+           from abschlagsrechnung_bezug b
+           join rechnung a on a.mandant_id = b.mandant_id and a.id = b.abschlag_rechnung_id
+           join steuersatz_gruppe g on g.id = b.steuersatz_gruppe_id
+          where b.schluss_rechnung_id = $1 and b.wirksam
+          order by a.rechnungsdatum, a.nummer, g.schluessel`, [id]),
       steuer: await kontext.abfrage<Steuer>(
         `select g.schluessel as gruppe, s.satz_bp, s.netto_cent::text, s.steuer_cent::text
            from rechnung_steuer s
@@ -159,6 +213,15 @@ export default async function Rechnungsblatt(
        * Pfades driften.
        */
       quellen: await ladeQuellen(kontext, id),
+      /**
+       * Der Steuerfall, NEU GERECHNET beim Anzeigen (FIN-09, FIN-10).
+       *
+       * Gespeichert sind die Folgen (`reverse_charge`, der Einbehalt); was
+       * NICHT gespeichert ist, ist der Hinweis, wenn Kopf und Positionen
+       * auseinandergehen — und genau der muss auf dem Bildschirm stehen,
+       * bevor jemand festschreibt.
+       */
+      steuerfall: await ermittleSteuerfall(kontext, id),
       /**
        * Die Leistungszeilen des Auftrags — die eine Herkunft, die sich hier
        * OHNE Zeiterfassung belegen laesst, und zugleich der Anker der
@@ -209,9 +272,11 @@ export default async function Rechnungsblatt(
       ))[0]?.darf) === true,
     }))) as Promise<{
       kopf: Kopf | null; positionen: readonly Pos[]; steuer: readonly Steuer[];
+      abzuege: readonly Abzug[];
       einheiten: readonly Einheit[]; gruppen: readonly Gruppe[];
       quellen: readonly QuelleZeile[]; leistungen: readonly Leistung[];
       fin18: Fin18Befund | null;
+      steuerfall: Awaited<ReturnType<typeof ermittleSteuerfall>>;
       darfStornieren: boolean;
     }>);
 
@@ -251,6 +316,38 @@ export default async function Rechnungsblatt(
         >
           §14-UStG-Prüfung ansehen
         </Link>
+        {/*
+          * Die XRechnung (PR 52). Auch sie auf einer eigenen Seite: sie zeigt
+          * das erzeugte UBL und den Pruefstand, und beides gehoert nicht in
+          * einen Editor. Der Verweis steht bei JEDEM Beleg und nicht nur bei
+          * einem oeffentlichen Auftraggeber — wer wissen will, ob eine
+          * Rechnung elektronisch zustellbar waere, findet die Antwort sonst
+          * nur, indem er sie verschickt.
+          */}
+        <Link
+          href={`/portal/${mandant}/finanzen/rechnungen/${k.id}/xrechnung`}
+          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+        >
+          XRechnung ansehen
+        </Link>
+        {/*
+          * ZUGFeRD (PR 53) — und der Verweis steht nur bei einem
+          * FESTGESCHRIEBENEN Beleg.
+          *
+          * Ein Entwurf hat keinen Schnappschuss (K-12); der Knopf gäbe eine
+          * 422-Antwort mit einer Liste, die auf dieser Seite ohnehin schon
+          * steht. Ein Knopf, der beim Drücken erklärt, warum er nicht geht,
+          * ist ein Knopf zu viel.
+          */}
+        {k.status === 'festgeschrieben' && (
+          <a
+            href={`/api/finanzen/rechnungen/${k.id}/zugferd.pdf`}
+            data-cse="zugferd-laden"
+            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+          >
+            ZUGFeRD-PDF laden
+          </a>
+        )}
       </nav>
 
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
@@ -446,6 +543,205 @@ export default async function Rechnungsblatt(
           </tr>
         </tbody>
       </table>
+
+      {/*
+        * **Die Abzugstabelle** (FIN-08, Abnahme 5).
+        *
+        * Sie steht auf dem Beleg, weil der Kunde sonst einen Zahlbetrag saehe,
+        * den er aus dem Sichtbaren nicht nachrechnen kann: Positionen, Summen,
+        * und dazwischen eine Differenz ohne Erklaerung. Sie steht je Beleg UND
+        * je Steuergruppe, weil §14 Abs. 4 Nr. 8 UStG die Umsatzsteuer je Satz
+        * verlangt und ein Abzug in einer einzigen Zahl sich darauf nicht
+        * abbilden liesse.
+        */}
+      {daten.abzuege.length > 0 && (
+        <>
+          <h2 className="mb-s3 text-h3 text-text">Abgezogene Abschlagsrechnungen</h2>
+          <table
+            data-cse="abzugstabelle"
+            className="mb-s5 w-full max-w-prose border-collapse text-sm"
+          >
+            <caption className="sr-only">
+              Bereits gestellte Abschläge, je Beleg und Steuersatz (FIN-08)
+            </caption>
+            <thead>
+              <tr className="border-b border-line-strong text-text-muted">
+                <th scope="col" className="py-s2 text-left font-normal">Beleg</th>
+                <th scope="col" className="py-s2 text-left font-normal">Steuersatz</th>
+                <th scope="col" className="py-s2 text-right font-normal">Netto</th>
+                <th scope="col" className="py-s2 text-right font-normal">Umsatzsteuer</th>
+              </tr>
+            </thead>
+            <tbody>
+              {daten.abzuege.map((a) => (
+                <tr key={`${a.nummer}-${a.gruppe}`} className="border-b border-line">
+                  <th scope="row" className="py-s2 text-left font-normal text-text">
+                    {a.nummer}
+                    {a.rechnungsdatum === null ? '' : ` vom ${a.rechnungsdatum}`}
+                  </th>
+                  <td className="py-s2 text-text-muted">
+                    {a.gruppe}
+                    {a.satz_bp === null ? '' : ` (${(a.satz_bp / 100).toFixed(2).replace('.', ',')} %)`}
+                  </td>
+                  <td className="cse-zahl py-s2 text-right text-text">
+                    −{formatiereGeld(cent(BigInt(a.netto_cent)))}
+                  </td>
+                  <td className="cse-zahl py-s2 text-right text-text">
+                    −{formatiereGeld(cent(BigInt(a.steuer_cent)))}
+                  </td>
+                </tr>
+              ))}
+              <tr>
+                <th scope="row" colSpan={2} className="py-s2 text-left text-text">
+                  Zahlbetrag
+                </th>
+                <td
+                  data-cse="zahlbetrag"
+                  className="cse-zahl py-s2 text-right font-semibold text-text"
+                  colSpan={2}
+                >
+                  {formatiereGeld(cent(BigInt(k.zahlbetrag_cent)))}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {/*
+        * **Der Steuerfall** (FIN-09, FIN-10).
+        *
+        * Er steht auf dem Bildschirm, weil beide Regeln Geld bewegen und
+        * beide an einem Datum haengen: §13b verlagert die Steuerschuld (der
+        * Beleg weist dann 0,00 € Umsatzsteuer aus und sagt warum), §48 behaelt
+        * 15 % der Gegenleistung ein. Wer die Rechnung freigibt, soll beides
+        * sehen — nicht erst der Steuerberater im naechsten Quartal.
+        */}
+      {(k.reverse_charge || k.bauabzugsteuer_pflichtig) && (
+        <section
+          data-cse="steuerfall"
+          className="mb-s5 max-w-prose rounded-md border border-line bg-surface p-s4"
+        >
+          <h2 className="mb-s3 text-h3 text-text">Steuerfall</h2>
+          {k.reverse_charge && (
+            <p data-cse="reverse-charge" className="mb-s3 text-sm text-text">
+              <strong className="text-text">§13b UStG:</strong>{' '}
+              {k.steuerhinweis ?? 'Steuerschuldnerschaft des Leistungsempfängers'}
+              {k.reverse_charge_grundlage === null ? '' : (
+                k.reverse_charge_grundlage === 'bau'
+                  ? ' (§13b Abs. 2 Nr. 4 — Bauleistung)'
+                  : ' (§13b Abs. 2 Nr. 8 — Gebäudereinigung)'
+              )}
+            </p>
+          )}
+          {k.bauabzugsteuer_pflichtig && (
+            <p data-cse="bauabzugsteuer" className="text-sm text-text">
+              <strong className="text-text">§48 EStG:</strong>{' '}
+              {k.bauabzugsteuer_satz_bp === null
+                ? ''
+                : `${(k.bauabzugsteuer_satz_bp / 100).toFixed(2).replace('.', ',')} % `}
+              Bauabzugsteuer einbehalten —{' '}
+              {formatiereGeld(cent(BigInt(k.einbehalt_bauabzugsteuer_cent)))}. An die
+              Gesellschaft überwiesen werden{' '}
+              {formatiereGeld(cent(BigInt(k.ueberweisungsbetrag_cent)))}.
+              {k.freistellung_nummer === null
+                ? ' Es liegt keine am Leistungsdatum gültige Freistellungsbescheinigung vor.'
+                : ` Freistellungsbescheinigung ${k.freistellung_nummer}.`}
+            </p>
+          )}
+          {!k.bauabzugsteuer_pflichtig && k.freistellung_nummer !== null && (
+            <p className="text-sm text-text-muted">
+              <strong className="text-text">§48 EStG:</strong> kein Einbehalt —
+              Freistellungsbescheinigung {k.freistellung_nummer} gilt am Leistungsdatum.
+            </p>
+          )}
+        </section>
+      )}
+
+      {daten.steuerfall.positionenHinweis !== null && (
+        <p
+          data-cse="steuerfall-hinweis"
+          className="mb-s5 max-w-prose rounded-md border border-warning bg-warning-soft p-s4 text-sm text-warning"
+        >
+          {daten.steuerfall.positionenHinweis}
+        </p>
+      )}
+
+      {/*
+        * **Den Steuerfall bestimmen** — nur am Entwurf. Der Mensch sagt, WAS
+        * geleistet wurde; ob daraus ein Reverse Charge folgt, entscheidet der
+        * hinterlegte §13b-Status am Leistungsdatum. Ein aus dem Gewerk der
+        * Gesellschaft abgeleiteter Reverse Charge waere genau der Fehler, den
+        * `01-ORDNERSTRUKTUR.md` §8.6 beim Namen nennt.
+        */}
+      {entwurf && (
+        <form
+          method="post"
+          action={`/api/rechnungen/steuerfall?mandant=${mandant}`}
+          className="mb-s5 max-w-prose rounded-md border border-line bg-surface p-s4"
+        >
+          <input type="hidden" name="rechnungId" value={k.id} />
+          <label htmlFor="steuerfall-grundlage" className="text-xs text-text-muted">
+            Art der Leistung (§13b Abs. 2 UStG)
+          </label>
+          <select
+            id="steuerfall-grundlage"
+            name="grundlage"
+            data-cse="steuerfall-grundlage"
+            defaultValue={k.reverse_charge_grundlage ?? ''}
+            className={feld}
+          >
+            <option value="">weder Bauleistung noch Gebäudereinigung</option>
+            <option value="bau">Bauleistung (§13b Abs. 2 Nr. 4)</option>
+            <option value="gebaeudereinigung">
+              Gebäudereinigungsleistung (§13b Abs. 2 Nr. 8)
+            </option>
+          </select>
+          <p className="mt-s3 text-sm text-text-muted">
+            Aus der Angabe folgt nicht automatisch eine Verlagerung: sie greift
+            nur, wenn für diesen Kunden am Leistungsdatum ein §13b-Status
+            hinterlegt ist. Ohne Nachweis wird die Umsatzsteuer ausgewiesen.
+          </p>
+          <button
+            type="submit"
+            data-cse="steuerfall-bestimmen"
+            className="mt-s4 min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-base text-text hover:bg-surface-2"
+          >
+            Steuerfall bestimmen
+          </button>
+        </form>
+      )}
+
+      {/*
+        * **Abschlaege abziehen** — nur an einem Entwurf, und nur bei einer
+        * Schlussrechnung mit Auftrag. Nach dem Festschreiben waere derselbe
+        * Knopf eine stille Aenderung an einem Beleg, den der Kunde schon hat
+        * (Invariante 4); ohne Auftrag gibt es keine Frage, welche Abschlaege
+        * gemeint sind, und geraten wird hier nichts.
+        */}
+      {entwurf && k.rechnungsart === 'schluss' && k.auftrag_id !== null && (
+        <form
+          method="post"
+          action={`/api/rechnungen/abschlaege?mandant=${mandant}`}
+          className="mb-s5 rounded-md border border-line bg-surface p-s4"
+        >
+          <input type="hidden" name="rechnungId" value={k.id} />
+          <p className="mb-s3 max-w-prose text-sm text-text-muted">
+            Zieht jeden festgeschriebenen Abschlag dieses Auftrags ab — je
+            Steuergruppe, in den Beträgen, die auf den Abschlagsrechnungen
+            stehen. Ohne diesen Schritt weist die Festschreibung den Beleg ab:
+            eine Schlussrechnung, die einen gestellten Abschlag nicht abzieht,
+            verlangt das Geld zweimal.
+          </p>
+          <button
+            type="submit"
+            data-cse="abschlaege-abziehen"
+            className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-base text-text hover:bg-surface-2"
+          >
+            Abschläge abziehen
+          </button>
+        </form>
+      )}
 
       {entwurf ? (
         <>

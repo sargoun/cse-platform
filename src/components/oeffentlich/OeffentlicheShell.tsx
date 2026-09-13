@@ -87,21 +87,51 @@ export function OeffentlicheShell(
     <div className="flex min-h-dvh flex-col bg-ink">
       <header
         data-cse="oeffentlicher-kopf"
-        className="sticky top-0 z-40 flex h-[72px] items-center gap-s5 border-b border-line
-                   bg-surface/80 px-s5 backdrop-blur"
+        className="sticky top-0 z-40 flex h-[72px] items-center gap-s5 px-s5"
       >
+        {/*
+          * **Der Unschaerfe-Grund liegt HIER und nicht auf dem `header`** —
+          * und das ist der Unterschied zwischen einem Menue, das aufgeht, und
+          * einem, das unter dem Bild verschwindet.
+          *
+          * `backdrop-filter` macht ein Element zum ENTHALTENDEN BLOCK fuer
+          * `position: fixed` in seinem Inneren (CSS Filter Effects §3, wie
+          * `transform` und `filter`). Stand `backdrop-blur` am `header`, dann
+          * rechnete das Vollbild-Blatt darunter — `fixed inset-x-0 top-[72px]
+          * bottom-0` — nicht gegen das Fenster, sondern gegen eine Leiste von
+          * 72px Hoehe: `top: 72px` und `bottom: 0` ergaben eine Hoehe von
+          * NULL. Sichtbar blieb ein Streifen von wenigen Pixeln, und weil der
+          * `z-index` des Blattes im Stapelkontext des Kopfes gefangen war, lag
+          * er ausserdem unter dem Heldenbild. Auf dem Telefon fuehrte damit
+          * kein Weg zu Unternehmen, Leistungen, Projekten oder Kontakt —
+          * dieselbe Luecke, die dieses Menue schliessen sollte.
+          *
+          * Die Unschaerfe bleibt (DESIGN §5 verlangt sie), sie sitzt nur eine
+          * Ebene tiefer. Der Kopf selbst traegt jetzt keinen Filter und damit
+          * keinen enthaltenden Block.
+          */}
+        <span
+          aria-hidden="true"
+          className="absolute inset-0 -z-10 border-b border-line bg-surface/80 backdrop-blur"
+        />
         {/*
           * `min-h-11`: der Auftrittsname ist ein Verweis, also ein Tippziel
           * (DESIGN §8). Als blosser `text-h3` war er 30px hoch.
           *
           * `min-w-0` (mit `truncate` am Span darin): die Kopfzeile ist eine
-          * Reihe ohne Umbruch, und rechts stehen „Anmelden" und die Sprachwahl
-          * mit fester Mindestbreite.
-          * Ohne diese beiden Klassen drueckt ein laengerer `gruppenname` — er
-          * kommt aus `plattform_einstellung`, nicht aus dem Quelltext — die
-          * Zeile ueber den Rand, und zwar auf JEDER oeffentlichen Seite. Das
-          * Kuerzel in der Sprachwahl wurde genau deswegen eingefuehrt; die
-          * Ursache lag daneben.
+          * Reihe ohne Umbruch, und ab `md` stehen rechts „Anmelden" und die
+          * Sprachwahl mit fester Mindestbreite. Ohne diese beiden Klassen
+          * drueckt ein laengerer `gruppenname` — er kommt aus
+          * `plattform_einstellung`, nicht aus dem Quelltext — die Zeile ueber
+          * den Rand, und zwar auf JEDER oeffentlichen Seite.
+          *
+          * **Die Kuerzung ist die Notbremse, nicht der Normalfall.** Sie hat
+          * einmal den Normalfall getragen: mit der Sprachwahl im Telefonkopf
+          * blieben dem Namen 118px von 146, und „CSE Gruppe" stand als
+          * „CSE Gr…" da. Seit D-415 steht auf dem Telefon nur noch der Name
+          * neben dem Menueknopf, und DESIGN §5 sagt zu: bei 360px und darueber
+          * wird nicht gekuerzt. Greift die Bremse doch, ist der Name in den
+          * Einstellungen zu lang — nicht die Zeile zu eng.
           */}
         <a
           href={mitSprache('/', sprache)}
@@ -124,7 +154,7 @@ export function OeffentlicheShell(
             <a
               key={schluessel}
               href={mitSprache(ziel, sprache)}
-              className="text-sm text-text-muted hover:text-text"
+              className="text-sm text-text-muted transition-colors duration-fast ease-brand hover:text-text"
             >
               {t.navigation[schluessel]}
             </a>
@@ -243,6 +273,34 @@ export function OeffentlicheShell(
                   </a>
                 </li>
               )}
+              {/*
+                * **Die Sprachwahl auf dem Telefon — hier** (DESIGN §5).
+                *
+                * Zwei Punkte in der Liste, die schon offen ist, statt zweier
+                * Verweise in einer Zeile, die keinen Platz hat. Und hier steht
+                * der Eigenname ausgeschrieben: das Kuerzel „DE" gab es nur,
+                * weil im Kopf nichts anderes mehr hineinging.
+                *
+                * **Kein zweites `nav` und kein zweites `data-cse="sprachwahl"`.**
+                * Zwei gleich benannte Landmarken sind fuer einen Screenreader
+                * nicht unterscheidbar und fuer jeden Locator zwei Treffer —
+                * daran fielen schon einmal dreizehn Sprachpruefungen. Diese
+                * Punkte liegen IM Menue-`nav` und tragen eine eigene Kennung.
+                */}
+              {SPRACHEN.filter((s) => s !== sprache).map((s) => (
+                <li key={s} className="border-b border-line">
+                  <a
+                    href={mitSprache(pfad, s)}
+                    hrefLang={s}
+                    lang={s}
+                    data-sprache={s}
+                    data-cse="menue-sprache"
+                    className="flex min-h-11 items-center py-s3 text-base text-text-muted"
+                  >
+                    {EIGENNAME[s]}
+                  </a>
+                </li>
+              ))}
             </ul>
           </nav>
         </details>
@@ -279,7 +337,8 @@ export function OeffentlicheShell(
           href={mitSprache('/angebot', sprache)}
           data-cse="angebot-anfragen"
           className="ml-auto hidden min-h-11 items-center rounded-sm bg-brand px-s4
-                     text-sm font-semibold text-white hover:bg-brand-hover md:ml-s4 md:flex"
+                     text-sm font-semibold text-white transition-colors duration-fast ease-brand
+                     hover:bg-brand-hover md:ml-s4 md:flex"
         >
           {t.angebotAnfragen}
         </a>
@@ -289,7 +348,8 @@ export function OeffentlicheShell(
             href={anmeldePfad}
             data-cse="anmelden"
             className="ml-s3 hidden min-h-11 items-center rounded-sm border border-line
-                       px-s4 text-sm text-text hover:bg-surface-2 md:flex"
+                       px-s4 text-sm text-text transition-colors duration-fast ease-brand
+                       hover:bg-surface-2 md:flex"
           >
             {t.anmelden}
           </a>
@@ -303,10 +363,24 @@ export function OeffentlicheShell(
           * jemand die Auswahl bestätigt hat. Zwei Links tun genau das, wonach
           * sie aussehen, und `hreflang` sagt der Maschine, was sie sind.
           */}
+        {/*
+          * **`hidden md:flex` — auf dem Telefon steht die Sprachwahl im
+          * Blatt, nicht im Kopf** (DESIGN §5, D-415).
+          *
+          * Sie stand hier, sie kostete 96px einer 72px-Zeile, und was wich,
+          * war der Name: bei 360–414px rechnete der Auftrittsname 146px und
+          * bekam 118. Sichtbar war davon „CSE Gr…" — sauber gesetzt, mit
+          * Auslassungszeichen, auf JEDER oeffentlichen Seite.
+          *
+          * **Und die 375px-Pruefung blieb gruen, WEIL gekuerzt wurde.** Sie
+          * misst `scrollWidth > clientWidth`; `truncate` verhindert genau das.
+          * Die Zusage „kein waagerechtes Scrollen" war erfuellt, die Zeile
+          * darunter trotzdem falsch — deshalb prueft sie jetzt beides.
+          */}
         <nav
           aria-label={t.sprachwahl}
           data-cse="sprachwahl"
-          className="ml-s4 flex items-center gap-s2"
+          className="ml-s4 hidden items-center gap-s2 md:flex"
         >
           {SPRACHEN.map((s) => (
             <a
@@ -366,7 +440,7 @@ export function OeffentlicheShell(
               href={mitSprache(`/unternehmen/${b.slug}`, sprache)}
               data-cse="fuss-gesellschaft"
               aria-current={b.slug === aktiv ? 'page' : undefined}
-              className="flex min-h-11 items-center text-sm text-text-muted hover:text-text"
+              className="flex min-h-11 items-center text-sm text-text-muted transition-colors duration-fast ease-brand hover:text-text"
             >
               {b.name}
             </a>
@@ -382,7 +456,7 @@ export function OeffentlicheShell(
             <a
               key={schluessel}
               href={mitSprache(ziel, sprache)}
-              className="text-xs text-text-muted hover:text-text"
+              className="text-xs text-text-muted transition-colors duration-fast ease-brand hover:text-text"
             >
               {t.rechtlich[schluessel]}
             </a>

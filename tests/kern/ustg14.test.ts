@@ -72,6 +72,22 @@ const BASIS: PruefEingabe = {
   kleinbetragGrenze: {
     grenzeBruttoCent: cent(25_000n), fundstelle: '§33 UStDV', istPlatzhalter: false,
   },
+  /** FIN-08: eine gewöhnliche Rechnung zieht nichts ab. */
+  offeneAbschlaege: [],
+  /*
+   * FIN-11 greift NUR, wenn der Kunde eine XRechnung verlangt — die Basis
+   * ist eine gewoehnliche Rechnung an eine Hausverwaltung, und die Regel
+   * kostet dort nichts. Ihre eigenen Faelle stehen weiter unten; dass die
+   * Liste hier NICHT leer ist, ist Absicht: sie darf ohne `pflicht` folgenlos
+   * bleiben, und genau das prueft einer der Faelle.
+   */
+  xrechnung: {
+    pflicht: false,
+    fehlend: [{
+      bt: 'BT-41', regel: 'BR-DE-6', feld: 'mandant.rechnung_kontakt_name',
+      text: 'Die Kontaktstelle der Gesellschaft fehlt.',
+    }],
+  },
 };
 
 interface Fall {
@@ -225,6 +241,38 @@ const FAELLE: readonly Fall[] = [
       positionen: [{ ...e.positionen[0]!, gruppeGueltigBis: '2026-08-15' }],
     }),
     text: /läuft vor dem Ende des Leistungszeitraums/u,
+  },
+  /**
+   * FIN-08 — die einzige Regel dieser Liste, die kein §14-Feld ist.
+   *
+   * Sie steht hier, weil der Bericht mit dem Snapshot eingefroren wird: „diese
+   * Schlussrechnung hat jeden Abschlag abgezogen" ist die Aussage, die eine
+   * Betriebsprüfung 2032 daraus liest. Und weil eine Schlussrechnung, die
+   * einen Abschlag vergisst, dasselbe Geld zweimal verlangt.
+   */
+  {
+    feld: 'abschlag.abzug',
+    angabe: 'Abzug der gestellten Abschläge (FIN-08, VOB/B §16 Abs. 3)',
+    stufe: 'fehler',
+    defekt: (e) => ({
+      ...e,
+      rechnungsart: 'schluss',
+      offeneAbschlaege: [{ nummer: 'RE-2026-00007', verrechnetVon: null }],
+    }),
+    text: /RE-2026-00007/u,
+  },
+  {
+    /**
+     * FIN-11, und der Fall dreht die Basis um: dort ist `pflicht: false` und
+     * die Liste trotzdem NICHT leer. Das ist kein Zufall — es prueft, dass
+     * die Regel ohne Pflicht folgenlos bleibt (der Test oben ueber den
+     * vollstaendigen Beleg faellt sonst) und MIT Pflicht sperrt.
+     */
+    feld: 'xrechnung.pflichtfelder',
+    angabe: 'XRechnung-Pflichtangaben bei einem öffentlichen Auftraggeber (FIN-11)',
+    stufe: 'fehler',
+    defekt: (e) => ({ ...e, xrechnung: { ...e.xrechnung, pflicht: true } }),
+    text: /BT-41, BR-DE-6 — zu pflegen unter mandant\.rechnung_kontakt_name/u,
   },
 ];
 

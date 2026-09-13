@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
+import { ZAHLUNGSMITTEL } from '@/server/services/finanz/zahlungsmittel';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
@@ -155,6 +156,34 @@ export default async function NeueRechnung(
           <p className="mt-s1 text-xs text-text-muted">
             Leer lassen: dann wird die Kundenkondition oder die Einstellung der
             Gesellschaft genommen. Es gibt keinen Vorgabewert (O-66).
+          </p>
+
+          {/*
+            * BT-81 (FIN-11) — und ohne dieses Feld war die XRechnung für einen
+            * öffentlichen Auftraggeber gar nicht erreichbar: die Vorprüfung
+            * verlangt die Angabe (BR-DE-1), und es gab keine Maske, die sie
+            * setzt. Gefunden hat das der erste Browsertest, der einen Beleg an
+            * das Bezirksamt führen wollte.
+            *
+            * Kein Vorgabewert, aus demselben Grund wie beim Zahlungsziel: ein
+            * stilles „SEPA-Überweisung" behauptete eine Zahlungsart, die
+            * niemand vereinbart hat — und sie stünde unveränderlich im Beleg.
+            */}
+          <label className="mt-s4 block text-sm text-text" htmlFor="zahlungsmittelCode">
+            Zahlungsart
+          </label>
+          <select id="zahlungsmittelCode" name="zahlungsmittelCode" className={feld}>
+            <option value="">— nicht angegeben —</option>
+            {ZAHLUNGSMITTEL.map((z) => (
+              <option key={z.code} value={z.code}>
+                {z.bezeichnung} ({z.code})
+              </option>
+            ))}
+          </select>
+          <p className="mt-s1 text-xs text-text-muted">
+            UNTDID 4461. Für einen Kunden mit XRechnungspflicht ist die Angabe
+            verpflichtend (BR-DE-1); ohne sie lässt sich der Beleg nicht
+            festschreiben.
           </p>
 
           <label className="mt-s4 block text-sm text-text" htmlFor="kopftext">

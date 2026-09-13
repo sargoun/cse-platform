@@ -84,6 +84,11 @@ export const MIGRATIONS_DATEIEN: Readonly<Record<string, string>> = {
   '0105': join(WURZEL, 'drizzle/0105_abrechnungsart.sql'),
   // Finanzen (PR 49). Der PR-Plan nennt 0071 — an `lv_position` vergeben.
   '0107': join(WURZEL, 'drizzle/0107_position_herkunft.sql'),
+  '0117': join(WURZEL, 'drizzle/0117_abschlag_bezug.sql'),
+  '0118': join(WURZEL, 'drizzle/0118_steuerfall.sql'),
+  '0121': join(WURZEL, 'drizzle/0121_zahlung.sql'),
+  '0123': join(WURZEL, 'drizzle/0123_kreditor.sql'),
+  '0125': join(WURZEL, 'drizzle/0125_mahnwesen.sql'),
 };
 export const BEGINN = '-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern';
 export const ENDE = '-- >>> Ende des generierten Blocks';

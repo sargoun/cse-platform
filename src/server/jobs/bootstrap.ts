@@ -23,6 +23,9 @@ import { registriereKonfliktDetektor } from './konflikteErkennen.js';
 import { registriereLeadSlaJob } from './lead-sla.js';
 import { registriereNachweisWarnungen } from './nachweisWarnungen.js';
 import { registriereKettenpruefer } from './kettenpruefer.js';
+import { registrierePostenabgleich } from './postenabgleich.js';
+import { registriereMahnlauf } from './mahnlauf.js';
+import { registriereBasiszinssatzWaechter } from './basiszinssatz.js';
 
 /*
  * Methodensyntax, nicht Eigenschaftssyntax — wie ueberall sonst im Baum
@@ -61,6 +64,9 @@ export function alleJobs(db: Abfrage): readonly JobDefinition[] {
     registriereLeadSlaJob(db);
     registriereNachweisWarnungen(db);
     registriereKettenpruefer(db);
+    registrierePostenabgleich(db);
+    registriereMahnlauf(db);
+    registriereBasiszinssatzWaechter(db);
     geschehen = true;
   }
   return jobs();

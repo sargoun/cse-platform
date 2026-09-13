@@ -702,6 +702,57 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Der Abzug der Abschlaege in einer Schlussrechnung (FIN-08).
+     *
+     * `finanzen.schreiben` und NICHT `finanzen.festschreiben`: er aendert
+     * einen Entwurf, vergibt keine Nummer und macht nichts unveraenderlich.
+     * Am Festschreibungsrecht haengend koennte die Buchhaltungskraft die
+     * Rechnung nicht vorbereiten, die eine andere dann festschreibt.
+     */
+    pfad: 'api/rechnungen/abschlaege',
+    recht: 'finanzen.schreiben',
+  },
+  {
+    /**
+     * §13b UStG und §48 EStG an einem Entwurf bestimmen (FIN-09, FIN-10).
+     *
+     * `finanzen.schreiben` wie der Abzug daneben: die Route aendert einen
+     * Entwurf. Was sie NICHT kann, ist einen Reverse Charge setzen, den die
+     * Nachweise nicht decken — das entscheidet `fin.reverse_charge_pruefen`
+     * in der Datenbank und nicht dieses Recht.
+     */
+    pfad: 'api/rechnungen/steuerfall',
+    recht: 'finanzen.schreiben',
+  },
+  {
+    /**
+     * Die XRechnung als Datei (FIN-11, PR 52).
+     *
+     * `finanzen.herunterladen` und NICHT `finanzen.lesen`: das ist dasselbe
+     * Recht wie fuer das PDF (03-AUTH §2524), und es traegt eine eigene
+     * Entscheidung — wer eine Rechnung am Bildschirm sehen darf, darf sie
+     * damit noch nicht als Datei aus dem Haus tragen. Der Kunde haelt es
+     * ebenfalls, fuer seine eigenen festgeschriebenen Belege.
+     *
+     * Die Route SCHREIBT nichts. Sie liest den Snapshot und erzeugt daraus
+     * Text; entsteht das Dokument nicht, antwortet sie 422 mit der Liste der
+     * fehlenden Felder und nie mit einer halben Datei.
+     */
+    pfad: 'api/finanzen/rechnungen/[id]/xrechnung.xml',
+    recht: 'finanzen.herunterladen',
+  },
+  {
+    /**
+     * Dieselbe Rechnung als ZUGFeRD (PR 53, FIN-12) — PDF/A-3 mit
+     * eingebetteter CII. Dasselbe Recht wie die XRechnung: es ist derselbe
+     * Beleg aus derselben Quelle, nur in dem Format, das ein gewerblicher
+     * Empfänger erwartet.
+     */
+    pfad: 'api/finanzen/rechnungen/[id]/zugferd.pdf',
+    recht: 'finanzen.herunterladen',
+  },
+  {
+    /**
      * Verwerfen ist ein ZUSTANDSWECHSEL, kein Loeschen (Invariante 8). Der
      * Entwurf bleibt mit Grund stehen — er ist der Satz, den eine
      * Betriebspruefung liest, wenn sie nach der fehlenden Nummer fragt.
@@ -729,6 +780,60 @@ export const ROUTEN: readonly RouteEintrag[] = [
      */
     pfad: 'api/rechnungen/pruefung',
     recht: 'finanzen.lesen',
+  },
+  {
+    /**
+     * Zahlungseingang erfassen und stornieren (PR 54.1, FIN-14, ACC-04).
+     *
+     * `zahlung.schreiben` und NICHT `finanzen.schreiben`: eine Zahlung zu
+     * erfassen ist keine Handlung am Beleg. Wer Rechnungen schreibt, darf
+     * deshalb nicht schon deswegen Geldeingaenge buchen — die Trennung ist
+     * die uebliche im Rechnungswesen, und der Katalog fuehrt beide Rechte
+     * getrennt.
+     */
+    pfad: 'api/finanzen/zahlungen',
+    recht: 'zahlung.schreiben',
+  },
+  {
+    /**
+     * Eingangsrechnungen erfassen und weiterschieben (PR 54.3, FIN-14,
+     * ACC-03, ACC-05).
+     *
+     * Hier steht `eingang.schreiben`, das SCHWAECHERE der beiden Rechte, die
+     * diese Adresse traegt: das Erfassen. Freigeben und Buchen pruefen im
+     * Handler zusaetzlich `eingang.freigeben` — wer erfasst, gibt nicht schon
+     * deswegen frei (Invariante 7). Das Manifest fuehrt das Eintrittsrecht;
+     * die engere Pruefung steht dort, wo sie greift, und ein Isolationstest
+     * haelt beide auseinander.
+     */
+    pfad: 'api/finanzen/eingangsrechnungen',
+    recht: 'eingang.schreiben',
+  },
+  {
+    /**
+     * Mahnungen: Entwuerfe anlegen, verwerfen, freigeben, Versand
+     * dokumentieren (PR 55, FIN-15).
+     *
+     * Hier steht `mahnung.schreiben`, das SCHWAECHERE der beiden Rechte
+     * dieser Adresse. Freigeben und Versenden pruefen im Handler zusaetzlich
+     * `mahnung.freigeben` — wer eine Mahnung vorbereitet, laesst sie nicht
+     * schon deswegen hinausgehen (Invariante 7). Ein Isolationstest haelt
+     * beide auseinander.
+     */
+    pfad: 'api/finanzen/mahnungen',
+    recht: 'mahnung.schreiben',
+  },
+  {
+    /**
+     * Eine Mahnstufe bestaetigen (PR 55, FIN-15, O-19).
+     *
+     * `mahnung.schreiben` und nicht `mahnung.freigeben`: hier wird die REGEL
+     * gesetzt, nicht ein Brief freigegeben. Die beiden auseinanderzuhalten
+     * ist der Kern von Invariante 7 — wer Stufen pflegt, laesst damit noch
+     * nichts hinausgehen.
+     */
+    pfad: 'api/einstellungen/mahnwesen',
+    recht: 'mahnung.schreiben',
   },
 ] as const;
 

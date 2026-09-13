@@ -596,10 +596,25 @@ describe('„kommt mit PR nn" bleibt wahr — sonst lügt ein eingefrorener Bele
   it('keine der Tabellen, deren Fehlen einen Eintrag begründet, gibt es schon', async () => {
     const genannt = NICHT_GEPRUEFT.flatMap((n) => n.solangeOhne ?? []);
 
-    // Gegenprobe gegen die leere Messung: vier Einträge nennen zusammen
-    // sieben Tabellen (1 + 2 + 2 + 2). Fällt das auf null, prüfte der Rest
-    // nichts — und wer einen Eintrag ergänzt, kommt hier vorbei.
-    expect(genannt).toHaveLength(7);
+    /*
+     * Gegenprobe gegen die leere Messung, und die Zahl erzaehlt die
+     * Geschichte dieser Wache:
+     *
+     *   sieben  — vier Eintraege (1 + 2 + 2 + 2), vor PR 50
+     *   sechs   — PR 50 brachte `abschlagsrechnung_bezug`; der ABZUG wird
+     *             geprueft, offen bleibt nur noch `abschlagsplan` (O-20)
+     *   vier    — PR 51 brachte `kunde_bauleistender_status` und
+     *             `freistellungsbescheinigung`. Beide Eintraege sagten
+     *             danach noch „Kommt mit PR 51". **Gefunden hat das diese
+     *             Pruefung, nicht ich** — und genau dafuer steht sie hier:
+     *             der Bericht wird mit dem Snapshot eingefroren, jede ab
+     *             dann festgeschriebene Rechnung haette dauerhaft behauptet,
+     *             §13b und §48 seien ungeprueft geblieben.
+     *
+     * Faellt die Zahl auf null, prueft der Rest nichts; wer einen Eintrag
+     * ergaenzt oder streicht, kommt hier vorbei.
+     */
+    expect(genannt).toHaveLength(4);
 
     const vorhanden = await sql.unsafe<{ table_name: string }[]>(
       `select table_name from information_schema.tables

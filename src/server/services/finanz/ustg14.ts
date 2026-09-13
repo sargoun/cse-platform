@@ -28,7 +28,15 @@
  * deutsche Feldliste, die ein Mensch lesen kann.
  */
 import { type Cent, cent } from './geld.js';
+import {
+  offeneAbschlaege as ladeOffeneAbschlaege, offeneAbschlaegeSatz,
+  type OffenerAbschlag,
+} from './abschlag/index.js';
 import { mengeAusPostgres, type MilliMenge } from './menge.js';
+import type { Anschrift } from './kanonisch.js';
+import {
+  fehlendePflichtfelder, type FehlendesFeld, type XRechnungEingabe,
+} from './xrechnung/index.js';
 
 /**
  * Der schmale Treiberausschnitt, den jeder Dienst hier benutzt.
@@ -168,6 +176,27 @@ export interface PruefGrenze {
   readonly istPlatzhalter: boolean;
 }
 
+/**
+ * Was die XRechnung zu dieser Rechnung sagt — VOR dem Festschreiben.
+ *
+ * **Warum das eine Regel der Vorpruefung ist und nicht erst des
+ * Herunterladens.** FIN-11 macht die XRechnung zum EINZIGEN Weg, einen
+ * oeffentlichen Auftraggeber abzurechnen. Faellt erst beim Herunterladen auf,
+ * dass BT-41 oder die Leitweg-ID fehlt, ist die Rechnung laengst
+ * festgeschrieben: unveraenderlich, mit gezogener Nummer, in der Kette. Der
+ * einzige Ausweg waere dann ein Storno und eine neue Rechnung — wegen einer
+ * fehlenden Telefonnummer.
+ *
+ * `pflicht` ist NICHT „der Kunde ist eine Behoerde". Es ist, was auf dem
+ * Kundenstamm steht: `xrechnung_pflicht` oder
+ * `ist_oeffentlicher_auftraggeber`. Beides pflegt ein Mensch; die Plattform
+ * leitet es nirgends her.
+ */
+export interface XRechnungLage {
+  readonly pflicht: boolean;
+  readonly fehlend: readonly FehlendesFeld[];
+}
+
 export interface PruefEingabe {
   readonly rechnungId: string;
   readonly mandantSlug: string;
@@ -190,6 +219,17 @@ export interface PruefEingabe {
   readonly steuerzeilen: readonly PruefSteuerzeile[];
   readonly kreis: PruefKreis;
   readonly kleinbetragGrenze: PruefGrenze | null;
+  /**
+   * Die Abschläge dieses Auftrags, die diese Rechnung NICHT abzieht (FIN-08).
+   *
+   * Leer bei allem, was keine Schlussrechnung ist — `offeneAbschlaege` kehrt
+   * dort in einer Abfrage wieder um. Sie steht in der EINGABE und nicht in
+   * der Regel, weil die Regeln rein sind: was die Datenbank weiss, bringt
+   * `ladePruefEingabe` mit.
+   */
+  readonly offeneAbschlaege: readonly OffenerAbschlag[];
+  /** Die XRechnung-Lage (FIN-11) — siehe `XRechnungLage`. */
+  readonly xrechnung: XRechnungLage;
 }
 
 // ---------------------------------------------------------------------------
@@ -664,6 +704,63 @@ export const REGELN: readonly Regel[] = [
         + 'Leistung gilt (LEG-05).');
     },
   },
+  /**
+   * **FIN-08 — eine Schlussrechnung zieht jeden gestellten Abschlag ab.**
+   *
+   * Kein §14-Feld, sondern eine kaufmaennische Vollstaendigkeit — und sie
+   * gehoert trotzdem hierher: der Bericht wird mit dem Snapshot eingefroren,
+   * und „diese Schlussrechnung hat jeden Abschlag abgezogen" ist genau die
+   * Aussage, die eine Betriebspruefung 2032 daraus lesen will.
+   *
+   * Eine Schlussrechnung, die einen Abschlag vergisst, verlangt dasselbe Geld
+   * zweimal. Das faellt beim Kunden auf, nicht bei uns — und auf einem Beleg,
+   * der dann schon unveraenderlich ist.
+   */
+  {
+    feld: 'abschlag.abzug',
+    regel: 'FIN-08, VOB/B §16 Abs. 3',
+    stufe: 'fehler',
+    kleinbetragEntfaellt: false,
+    link: beleg,
+    pruefe: (e) => {
+      const satz = offeneAbschlaegeSatz(e.offeneAbschlaege);
+      return satz === null ? leer : [satz];
+    },
+  },
+  /**
+   * **FIN-11 — und der Grund, warum diese Regel SPERRT.**
+   *
+   * 05-API-KARTE §D sagt es fuer die Leitweg-ID ausdruecklich: bei einem
+   * oeffentlichen Auftraggeber ist eine fehlende oder falsch geformte
+   * Leitweg-ID sperrend, „weil FIN-11 die XRechnung zum einzigen Weg macht,
+   * ihn ueberhaupt abzurechnen". Dasselbe gilt fuer die uebrigen
+   * Pflichtangaben derselben Norm: eine Rechnung, die der Empfaenger nicht
+   * annehmen KANN, ist keine gestellte Rechnung — sie ist eine gezogene
+   * Nummer, eine unveraenderliche Zeile in der Kette und ein Storno, der
+   * noch geschrieben werden muss.
+   *
+   * Die Liste kommt aus `xrechnung/index.ts` und wird hier NICHT zweitgeprueft
+   * (siehe `XRechnungEingabe` dort): eine zweite Fassung derselben Liste
+   * driftet, und zwar in der Richtung, in der die Vorschau „vollstaendig"
+   * sagt und der Bauer sich danach weigert.
+   *
+   * Bei jedem anderen Kunden greift sie GAR NICHT — auch nicht als Warnung.
+   * Eine Reinigungsrechnung an eine Hausverwaltung braucht kein BT-41, und
+   * eine Warnung, die auf jedem zweiten Beleg steht, liest nach zwei Wochen
+   * niemand mehr.
+   */
+  {
+    feld: 'xrechnung.pflichtfelder',
+    regel: 'FIN-11, EN 16931 / XRechnung 3.0',
+    stufe: 'fehler',
+    kleinbetragEntfaellt: false,
+    link: kunde,
+    pruefe: (e) => (e.xrechnung.pflicht
+      ? e.xrechnung.fehlend.map(
+        (f) => `${f.text} (${f.bt}, ${f.regel} — zu pflegen unter ${f.feld})`,
+      )
+      : leer),
+  },
 ];
 
 /**
@@ -678,17 +775,71 @@ export const NICHT_GEPRUEFT: readonly NichtGeprueft[] = [
   { regel: '§14 Abs. 4 Nr. 7 UStG (im Voraus vereinbarte Minderung)',
     grund: 'Ob eine Minderung VEREINBART wurde, steht in keiner Spalte — nur die '
       + 'gebuchte steht in rechnung_zuschlag (BG-20).' },
-  { regel: 'FIN-09, LEG-06 — §13b UStG',
-    grund: 'Kommt mit PR 51 (Steuerfall je Kunde, kunde_bauleistender_status).',
-    solangeOhne: ['kunde_bauleistender_status'] },
-  { regel: 'FIN-08 — Abzug der Abschlagsrechnungen auf der Schlussrechnung',
-    grund: 'Kommt mit PR 50 (abschlagsplan, abschlagsrechnung_bezug).',
-    solangeOhne: ['abschlagsplan', 'abschlagsrechnung_bezug'] },
-  { regel: 'FIN-10, LEG-06 — §48 EStG Bauabzugsteuer',
-    grund: 'Kommt mit PR 51 (freistellungsbescheinigung, bauabzugsteuer_freigrenze).',
-    solangeOhne: ['freistellungsbescheinigung', 'bauabzugsteuer_freigrenze'] },
-  { regel: 'FIN-11 — XRechnung-Pflichtfelder (Leitweg-ID, BT-130)',
-    grund: 'Kommt mit PR 52/53 (rechnung_dokument, rechnung_versand).',
+  /**
+   * **Seit PR 51 wird §13b geprueft — nur nicht HIER.** Der Riegel sitzt in
+   * der Datenbank: `fin.reverse_charge_pruefen` weist eine Rechnung mit
+   * verlagerter Steuerschuld ab, zu der am Leistungsdatum kein Nachweis
+   * vorliegt — und zwar auch an der Anwendung vorbei. Was dieser Bericht
+   * nicht leistet, ist die VORSCHAU darauf: der Trigger meldet sich beim
+   * Festschreiben, nicht beim Pruefen, und die Meldung ist ein
+   * Datenbankfehler und kein Befund mit Link.
+   *
+   * Die andere Richtung bleibt ganz offen und ist keine technische Frage:
+   * ob eine Rechnung, die Umsatzsteuer ausweist, OBWOHL ein Nachweis
+   * vorliegt, falsch ist, haengt daran, was tatsaechlich geleistet wurde —
+   * ein Mensch setzt die Leistungsart, und die Plattform leitet sie nicht ab
+   * (D-389).
+   */
+  { regel: 'FIN-09, LEG-06 — §13b UStG (Vorschau)',
+    grund: 'Der Riegel steht (fin.reverse_charge_pruefen, PR 51): ohne datierten '
+      + 'Nachweis entsteht keine Rechnung mit verlagerter Steuerschuld. Dieser '
+      + 'Bericht zeigt das aber nicht VORHER an, und ob eine ausgewiesene '
+      + 'Umsatzsteuer trotz vorliegendem Nachweis falsch ist, entscheidet die '
+      + 'tatsaechliche Leistung und kein Datensatz.' },
+  /**
+   * **Der Abzug selbst wird seit PR 50 geprueft** (Regel `abschlag.abzug`
+   * oben). Was offen bleibt, ist die Frage davor: ob die Abschlaege dem
+   * VEREINBARTEN Zahlungsplan folgen — nach VOB/B §16 Abs. 1 nach dem Wert
+   * der erbrachten Leistung, nach festem Plan, oder nach Baufortschritt. Ohne
+   * `abschlagsplan` gibt es keinen Soll-Stand, gegen den sich das pruefen
+   * liesse, und ohne O-20 keine Regel, nach der er entstuende.
+   */
+  { regel: 'FIN-08, OPS-05 — Abschlaege folgen dem vereinbarten Zahlungsplan',
+    grund: 'Der ABZUG wird geprueft (Regel abschlag.abzug). Der PLAN nicht: '
+      + 'abschlagsplan gibt es noch nicht, und nach welchen Bedingungen '
+      + 'Abschlaege gestellt werden, ist offen (O-20).',
+    solangeOhne: ['abschlagsplan'] },
+  /**
+   * **Der Einbehalt wird seit PR 51 gerechnet** (`estg48/abzug.ts`, gegen die
+   * Bescheinigung am Leistungsdatum). Was fehlt, ist die dritte der drei
+   * Auslagen des §48: die Bagatellgrenze. Ohne sie gibt es genau zwei
+   * Ausgaenge statt drei — Bescheinigung oder Einbehalt —, und der dritte
+   * (kein Einbehalt, weil die Gegenleistung des Jahres unter der Grenze
+   * bleibt) faellt ersatzlos weg. Zu viel einzubehalten ist rechtswidrig und
+   * die Gruppe haftet fuer das, was sie zu Unrecht einbehalten hat; deshalb
+   * steht hier ein Platzhalter mit `grenzeCent: null` und keine Zahl.
+   */
+  { regel: 'FIN-10, LEG-06 — §48 EStG Bagatellgrenze',
+    grund: 'Der Einbehalt wird gerechnet (PR 51). Die Bagatellgrenze nicht: '
+      + 'bauabzugsteuer_freigrenze gibt es nicht, und welche Grenze zu welchem '
+      + 'Stichtag gilt, ist offen (O-21).',
+    solangeOhne: ['bauabzugsteuer_freigrenze'] },
+  /**
+   * **Die Pflichtfelder werden seit PR 52 geprueft** (Regel
+   * `xrechnung.pflichtfelder` oben, und zwar SPERREND, wenn der Kunde eine
+   * XRechnung verlangt). Offen bleibt, was danach kommt: dass das erzeugte
+   * Dokument aufbewahrt wird und dass festgehalten ist, wann es auf welchem
+   * Weg eingeliefert wurde. Solange es `rechnung_dokument` und
+   * `rechnung_versand` nicht gibt, entsteht die XRechnung bei jedem Abruf neu
+   * aus dem Snapshot — inhaltlich dasselbe Dokument, aber ohne Beleg
+   * darueber, dass es je hinausgegangen ist.
+   */
+  { regel: 'FIN-11 — Aufbewahrung und Einlieferungsnachweis der XRechnung',
+    grund: 'Die Pflichtfelder werden geprueft (Regel xrechnung.pflichtfelder, PR 52). '
+      + 'Das erzeugte Dokument wird nicht aufbewahrt und der Einlieferungsweg '
+      + 'nicht protokolliert: rechnung_dokument und rechnung_versand gibt es '
+      + 'noch nicht (PR 53/54), und ueber welchen Weg eingeliefert wird, ist '
+      + 'offen (O-22).',
     solangeOhne: ['rechnung_dokument', 'rechnung_versand'] },
   /*
    * Diese beiden standen bis PR 49 auf „kommt noch" — und blieben stehen,
@@ -839,6 +990,19 @@ interface KopfZeile {
   readonly k_land: string | null;
   readonly k_ust_id: string | null;
   readonly k_steuernummer: string | null;
+  readonly rechnungsart_code: string | null;
+  readonly zahlungsmittel_code: string | null;
+  readonly verkaeufer_eadresse: string | null;
+  readonly verkaeufer_eadresse_schema: string | null;
+  readonly kaeufer_eadresse: string | null;
+  readonly kaeufer_eadresse_schema: string | null;
+  readonly m_kontakt_name: string | null;
+  readonly m_kontakt_telefon: string | null;
+  readonly m_kontakt_email: string | null;
+  readonly m_iban: string | null;
+  readonly k_leitweg_id: string | null;
+  readonly k_kaeufer_referenz: string | null;
+  readonly k_xrechnung_pflicht: boolean;
 }
 
 /**
@@ -876,7 +1040,32 @@ const KOPF_SQL = `
               then k.rechnung_ort else k.ort end as k_ort,
          case when k.rechnungsadresse_abweichend
               then coalesce(k.rechnung_land, k.land) else k.land end as k_land,
-         k.ust_id as k_ust_id, k.steuernummer as k_steuernummer
+         k.ust_id as k_ust_id, k.steuernummer as k_steuernummer,
+         -- FIN-11. Alles ab hier speist NUR die Regel xrechnung.pflichtfelder.
+         r.rechnungsart_code, r.zahlungsmittel_code,
+         -- Der WIRKSAME Wert, nicht der gespeicherte. (Keine Backticks in
+         -- diesem Kommentar: er steht IN einem Template-Literal.)
+         --
+         -- Die vier Spalten auf rechnung sind beim Entwurf noch leer; gefuellt
+         -- werden sie erst beim Festschreiben, von fin.eadresse_einfrieren
+         -- (0120) — und diese Vorpruefung laeuft davor. Ohne coalesce meldete
+         -- sie BT-34 und BT-49 als fehlend und blockierte damit genau die
+         -- Rechnung, die eine Millisekunde spaeter beide Werte bekommt.
+         --
+         -- Derselbe Ausdruck wie im Trigger, mit Absicht: was hier gruen ist,
+         -- muss dort auch entstehen. Gehen die beiden auseinander, sagt die
+         -- Vorschau etwas anderes als der Beleg.
+         coalesce(r.verkaeufer_eadresse, m.elektronische_adresse) as verkaeufer_eadresse,
+         coalesce(r.verkaeufer_eadresse_schema, m.elektronische_adresse_schema)
+           as verkaeufer_eadresse_schema,
+         coalesce(r.kaeufer_eadresse, k.elektronische_adresse) as kaeufer_eadresse,
+         coalesce(r.kaeufer_eadresse_schema, k.elektronische_adresse_schema)
+           as kaeufer_eadresse_schema,
+         m.rechnung_kontakt_name as m_kontakt_name,
+         m.telefon as m_kontakt_telefon, m.email as m_kontakt_email,
+         m.iban as m_iban,
+         k.leitweg_id as k_leitweg_id, k.kaeufer_referenz as k_kaeufer_referenz,
+         (k.xrechnung_pflicht or k.ist_oeffentlicher_auftraggeber) as k_xrechnung_pflicht
     from rechnung r
     join mandant m on m.id = r.mandant_id
     join kunde k on k.mandant_id = r.mandant_id and k.id = r.kunde_id
@@ -901,16 +1090,19 @@ export async function ladePruefEingabe(
   const positionen = await db.abfrage<{
     position_nr: number; positionsart: string; bezeichnung: string;
     menge: string | null; einheit: string | null; masseinheit_id: string | null;
+    unece_code: string | null; einzelpreis_cent: string | null;
     netto_cent: string | null; gruppe: string; kategorie: string;
     gueltig_bis: string | null;
   }>(
     `select p.position_nr, p.positionsart::text as positionsart, p.bezeichnung,
             p.menge::text as menge, p.einheit,
             p.masseinheit_id::text as masseinheit_id, p.netto_cent::text,
+            e.unece_code, p.einzelpreis_cent::text,
             g.schluessel as gruppe, p.kategorie::text as kategorie,
             to_char(g.gueltig_bis, 'YYYY-MM-DD') as gueltig_bis
        from rechnungsposition p
        join steuersatz_gruppe g on g.id = p.steuersatz_gruppe_id
+       left join masseinheit e on e.id = p.masseinheit_id
       where p.rechnung_id = $1
       order by p.position_nr`,
     [rechnungId],
@@ -919,9 +1111,11 @@ export async function ladePruefEingabe(
   const steuerzeilen = await db.abfrage<{
     gruppe: string; satz_bp: number; kategorie: string;
     netto_cent: string; steuer_cent: string; befreiungsgrund_text: string | null;
+    befreiungsgrund_code: string | null;
   }>(
     `select g.schluessel as gruppe, s.satz_bp, s.kategorie::text as kategorie,
-            s.netto_cent::text, s.steuer_cent::text, s.befreiungsgrund_text
+            s.netto_cent::text, s.steuer_cent::text, s.befreiungsgrund_text,
+            s.befreiungsgrund_code
        from rechnung_steuer s
        join steuersatz_gruppe g on g.id = s.steuersatz_gruppe_id
       where s.rechnung_id = $1 and (s.netto_cent <> 0 or s.steuer_cent <> 0)
@@ -964,6 +1158,61 @@ export async function ladePruefEingabe(
       limit 1`,
     [kopf.rechnungsdatum],
   );
+
+  /**
+   * FIN-11: dieselbe Liste wie beim Bauen des Dokuments, aus derselben
+   * Funktion — nur auf einem Entwurf, dem die Nummer und der Artcode noch
+   * fehlen. Der Aufwand ist eine Gestaltumwandlung und kein zweites
+   * Regelwerk; siehe `XRechnungEingabe`.
+   */
+  const anschrift = (
+    strasse: string | null, plz: string | null, ort: string | null, land: string | null,
+  ): Anschrift => ({
+    zeile: '', strasse, zusatz: null, plz, ort, land: land ?? '',
+  });
+
+  const xrechnungEingabe: XRechnungEingabe = {
+    rechnungsartCode: kopf.rechnungsart_code,
+    leistender: {
+      name: kopf.m_name,
+      anschrift: anschrift(kopf.m_strasse, kopf.m_plz, kopf.m_ort, kopf.m_land),
+      kontakt: {
+        name: kopf.m_kontakt_name,
+        telefon: kopf.m_kontakt_telefon,
+        email: kopf.m_kontakt_email,
+      },
+      steuernummer: kopf.m_steuernummer,
+      ustid: kopf.m_ust_id,
+      eadresse: kopf.verkaeufer_eadresse,
+      eadresseSchema: kopf.verkaeufer_eadresse_schema,
+    },
+    empfaenger: {
+      name: kopf.k_name ?? '',
+      anschrift: anschrift(kopf.k_strasse, kopf.k_plz, kopf.k_ort, kopf.k_land),
+      leitwegId: kopf.k_leitweg_id,
+      kaeuferReferenz: kopf.k_kaeufer_referenz,
+      eadresse: kopf.kaeufer_eadresse,
+      eadresseSchema: kopf.kaeufer_eadresse_schema,
+    },
+    zahlung: {
+      zahlungsmittelCode: kopf.zahlungsmittel_code,
+      bankkonto: kopf.m_iban === null ? null : { iban: kopf.m_iban },
+    },
+    steuerzeilen: steuerzeilen.map((z) => ({
+      steuersatzGruppe: z.gruppe,
+      kategorie: z.kategorie,
+      befreiungsgrundCode: z.befreiungsgrund_code,
+      befreiungsgrundText: z.befreiungsgrund_text,
+    })),
+    positionen: positionen.map((p) => ({
+      nr: p.position_nr,
+      art: p.positionsart,
+      einheit: p.einheit,
+      einheitCode: p.unece_code,
+      nettoCent: p.netto_cent === null ? null : cent(BigInt(p.netto_cent)),
+      einzelpreisCent: p.einzelpreis_cent === null ? null : cent(BigInt(p.einzelpreis_cent)),
+    })),
+  };
 
   const beteiligter = (
     name: string | null, strasse: string | null, plz: string | null, ort: string | null,
@@ -1020,6 +1269,16 @@ export async function ladePruefEingabe(
       grenzeBruttoCent: cent(BigInt(grenze.grenze_brutto_cent)),
       fundstelle: grenze.fundstelle,
       istPlatzhalter: grenze.ist_platzhalter,
+    },
+    /*
+     * FIN-08. Bei allem, was keine Schlussrechnung ist, kehrt die Abfrage in
+     * einer Anweisung mit einer leeren Liste zurueck — die Regel kostet dort
+     * nichts.
+     */
+    offeneAbschlaege: await ladeOffeneAbschlaege(db, rechnungId),
+    xrechnung: {
+      pflicht: kopf.k_xrechnung_pflicht,
+      fehlend: fehlendePflichtfelder(xrechnungEingabe, { leitwegPflicht: true }),
     },
   };
 }

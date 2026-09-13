@@ -75,11 +75,20 @@ for kandidat in /usr/lib/postgresql/*/bin; do
 done
 export PATH
 
+# `9>&-` ist kein Schmuck: die Aufbausperre weiter unten haengt an Dateikanal 9,
+# und `pg_ctl start` loest einen Server ab, der dauerhaft weiterlaeuft. Ohne das
+# Schliessen erbt dieser Server den Kanal — und damit die Sperre — auf Lebenszeit.
+#
+# Der Fehler zeigte sich nicht beim Anlegen, sondern beim naechsten Aufruf: der
+# erste `up` auf einem frischen Rechner startete den Server und lief durch, JEDER
+# folgende `up` wartete die vollen zehn Minuten auf eine Sperre, die ein Server
+# hielt, der gar nichts aufbaute, und starb dann an "Warte-Zeit abgelaufen". Eine
+# Sperre gegen gleichzeitige Aufbauten, die am Ende den Aufbau selbst verhindert.
 als_postgres() {
   if [ "$(id -u)" -eq 0 ]; then
-    su postgres -c "export PATH=\$PATH:$PGBIN; $1"
+    su postgres -c "export PATH=\$PATH:$PGBIN; $1" 9>&-
   else
-    sudo -n -u postgres bash -c "export PATH=\$PATH:$PGBIN; $1"
+    sudo -n -u postgres bash -c "export PATH=\$PATH:$PGBIN; $1" 9>&-
   fi
 }
 

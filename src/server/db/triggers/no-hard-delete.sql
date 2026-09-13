@@ -1763,3 +1763,191 @@ create trigger trg_rechnungsposition_quelle_audit
   for each row execute function kern.protokolliere_aenderung();
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0117)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- abschlagsrechnung_bezug (archiv): FIN-08, §14 Abs. 4 Nr. 8 UStG, LEG-01. Sie IST der Nachweis, welcher Abschlag auf welcher Schlussrechnung mit welchem Betrag je Steuergruppe abgezogen wurde. Sie zu loeschen liesse denselben Abschlag ein zweites Mal abziehbar erscheinen — und der Kunde zahlte zweimal oder gar nicht. Zurueckgenommen wird ueber `wirksam`: der Zustand aendert sich, die Zeile bleibt.
+create trigger trg_abschlagsrechnung_bezug_kein_hard_delete
+  before delete on abschlagsrechnung_bezug
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_abschlagsrechnung_bezug_kein_truncate
+  before truncate on abschlagsrechnung_bezug
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on abschlagsrechnung_bezug from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0118)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- kunde_bauleistender_status (archiv): FIN-09, LEG-06, §13b UStG. Sie ist der datierte Nachweis, auf den sich eine Verlagerung der Steuerschuld stuetzt — und der Zeitraum, in dem sie galt, ist die Begruendung jeder Rechnung aus dieser Zeit. Wer sie loescht, nimmt einer festgeschriebenen Rechnung nachtraeglich ihre Grundlage, und der Leistende schuldet die Steuer, ohne sie eingenommen zu haben (§13a UStG). Beendet wird ein Status durch `gilt_bis`, wie bei `kleinbetrag_grenze` — eine neue Lage ist eine neue Zeile.
+create trigger trg_kunde_bauleistender_status_kein_hard_delete
+  before delete on kunde_bauleistender_status
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_kunde_bauleistender_status_kein_truncate
+  before truncate on kunde_bauleistender_status
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on kunde_bauleistender_status from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- freistellungsbescheinigung (archiv): FIN-10, LEG-06, §48b EStG. Ohne sie haette einbehalten werden muessen; mit ihr durfte ausgezahlt werden. Sie ist damit der Beleg dafuer, dass die Gruppe ihrer Einbehaltungspflicht genuegt hat — und die Haftung nach §48a Abs. 3 EStG haengt genau daran. Ein Widerruf setzt `widerrufen_am`; die Bescheinigung bleibt stehen, weil sie fuer die Zeit davor weiter gilt.
+create trigger trg_freistellungsbescheinigung_kein_hard_delete
+  before delete on freistellungsbescheinigung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_freistellungsbescheinigung_kein_truncate
+  before truncate on freistellungsbescheinigung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on freistellungsbescheinigung from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0121)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- bankkonto (archiv): ACC-01, ACC-04, FIN-11, K-12. Die IBAN und der Kontoinhaber stehen im Snapshot jeder Rechnung, die dieses Konto genannt hat, und in der XRechnung (BT-84, BT-85). Das Konto zu loeschen liesse die Belege auf einen Empfaenger zeigen, den es nie gab — und der Bankimport (PR 61) ordnet einen Auszug ueber die IBAN zu. Ein geschlossenes Konto traegt `archiviert_am`; seine IBAN wird damit wieder verwendbar.
+create trigger trg_bankkonto_kein_hard_delete
+  before delete on bankkonto
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_bankkonto_kein_truncate
+  before truncate on bankkonto
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on bankkonto from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- kasse (archiv): FIN-14, ACC-06, GoBD. An der Kasse haengen Barzahlungen und spaeter das Kassenbuch mit fortgeschriebenem Bestand. Eine geloeschte Kasse nimmt den Bewegungen ihren Ort und macht die Kassensturzfaehigkeit unpruefbar. Aufgeloest wird sie ueber `archiviert_am`.
+create trigger trg_kasse_kein_hard_delete
+  before delete on kasse
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_kasse_kein_truncate
+  before truncate on kasse
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on kasse from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- zahlung (archiv): FIN-14, ACC-04, ACC-07, Invariante 8. Sie ist der Nachweis, dass Geld geflossen ist — und die Gegenprobe zu jedem ausgeglichenen Posten. Eine geloeschte Zahlung liesse eine bezahlte Forderung als bezahlt stehen, ohne dass irgendwo stuende, wodurch. Zurueckgenommen wird ueber `storniert_am`, und der Ausloeser gibt die Posten wieder frei.
+create trigger trg_zahlung_kein_hard_delete
+  before delete on zahlung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_zahlung_kein_truncate
+  before truncate on zahlung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on zahlung from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- offener_posten (archiv): ACC-07, FIN-15, FIN-17. Die Zeile traegt, was gemahnt wurde und wann — der Mahnlauf und die Altersliste lesen genau das. Sie zu loeschen entfernte eine Forderung aus jeder Auswertung, ohne dass ein Beleg sich aendert: die Rechnung stuende weiter im Ausgangsbuch, aber niemand erwartete noch Geld dafuer. Abgeschlossen wird ueber `ausgeglichen_am`.
+create trigger trg_offener_posten_kein_hard_delete
+  before delete on offener_posten
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_offener_posten_kein_truncate
+  before truncate on offener_posten
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on offener_posten from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- zahlung_zuordnung (append): FIN-14, ACC-04, ACC-07, §146 Abs. 4 AO. Jede Zeile ist eine Buchung: wieviel dieser Zahlung auf welchen Posten entfaellt, und warum (Skonto, Bauabzugsteuer, abgeschriebene Differenz). Sie zu loeschen aenderte den Stand eines Postens ohne Spur. Eine falsche Zuordnung wird zurueckgenommen, indem die ZAHLUNG storniert wird.
+create trigger trg_zahlung_zuordnung_kein_hard_delete
+  before delete on zahlung_zuordnung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_zahlung_zuordnung_kein_truncate
+  before truncate on zahlung_zuordnung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on zahlung_zuordnung from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- op_ausgleich (append): FIN-15, ACC-07, §14 UStG (Invariante 4). Der Ausgleich ist der Vorgang, der eine stornierte Rechnung und ihre Gutschrift gegeneinander schliesst, ohne eine Zahlung zu erfinden. Ihn zu loeschen oeffnete beide Posten wieder und liesse die Wache eine stornierte Rechnung anmahnen.
+create trigger trg_op_ausgleich_kein_hard_delete
+  before delete on op_ausgleich
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_op_ausgleich_kein_truncate
+  before truncate on op_ausgleich
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on op_ausgleich from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0123)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- lieferant (archiv): FIN-14, ACC-05, ACC-07, §147 AO. Am Lieferanten haengen Eingangsrechnungen mit zehnjaehriger Aufbewahrung und der §48-EStG-Nachweis, wem gegenueber einbehalten wurde. Ihn zu loeschen macht jede Buchung darauf unlesbar; Art. 17 DSGVO wird bei einer natuerlichen Person ueber `anonymisiert_am` erfuellt, aufgeloest wird ueber `archiviert_am`.
+create trigger trg_lieferant_kein_hard_delete
+  before delete on lieferant
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_lieferant_kein_truncate
+  before truncate on lieferant
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on lieferant from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- beleg (archiv): ACC-03, ACC-06, DOC-08, LEG-01, GoBD. Der Beleg IST der Nachweis zur Buchung — er nennt die Dokumentversion und ihren SHA-256. Ihn zu loeschen liesse eine Buchung ohne Beleg zurueck, und genau das ist der Mangel, den eine Betriebspruefung zuerst feststellt. Das Ausscheiden nach Fristablauf laeuft ueber `aufbewahrung_bis` und `loeschsperre`.
+create trigger trg_beleg_kein_hard_delete
+  before delete on beleg
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_beleg_kein_truncate
+  before truncate on beleg
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on beleg from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- eingangsrechnung (archiv): FIN-14, ACC-05, ACC-06, LEG-01, §14b UStG. Sie traegt den Vorsteuerabzug und den §48-EStG-Einbehalt. Eine geloeschte Eingangsrechnung nimmt der Voranmeldung ihre Grundlage, und die interne Belegnummer hinterliesse eine Luecke in einem lueckenlosen Kreis. Zurueckgewiesen wird ueber `abgelehnt` mit Grund.
+create trigger trg_eingangsrechnung_kein_hard_delete
+  before delete on eingangsrechnung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_eingangsrechnung_kein_truncate
+  before truncate on eingangsrechnung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on eingangsrechnung from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- eingangsrechnung_steuer (append): FIN-14, ACC-08, §15 UStG. Die Aufteilung nach Steuersaetzen IST der Vorsteuerabzug — ohne sie steht ein Bruttobetrag da, aus dem sich kein Satz mehr ableiten laesst. Sie zu loeschen aenderte die Voranmeldung ohne Spur.
+create trigger trg_eingangsrechnung_steuer_kein_hard_delete
+  before delete on eingangsrechnung_steuer
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_eingangsrechnung_steuer_kein_truncate
+  before truncate on eingangsrechnung_steuer
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on eingangsrechnung_steuer from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0125)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- mahnstufe (archiv): FIN-15, §288 BGB. Die Stufe traegt Gebuehr, Zinsart und Frist — also die Grundlage jedes Betrags, der je auf einer Mahnung stand. Sie zu loeschen nimmt einem versendeten Brief seine Herleitung. Abgeloest wird ueber `gueltig_bis`.
+create trigger trg_mahnstufe_kein_hard_delete
+  before delete on mahnstufe
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_mahnstufe_kein_truncate
+  before truncate on mahnstufe
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on mahnstufe from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- mahnung (archiv): FIN-15, ACC-07, §286 BGB, LEG-01. Sie IST die Mahnung — der Vorgang, an den der Verzug und damit der Zinsanspruch anknuepft. Ein geloeschter Brief laesst die naechste Stufe ohne Grundlage und den Zinsanspruch ohne Beleg. Nicht Versendetes wird ueber `verworfen` mit Grund beendet.
+create trigger trg_mahnung_kein_hard_delete
+  before delete on mahnung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_mahnung_kein_truncate
+  before truncate on mahnung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on mahnung from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- mahnung_position (append): FIN-15, §288 BGB. Die Zeile traegt, WIE der Zins hergeleitet wurde: Verzugsbeginn, angewandte Regel, Tageszaehlung, Tage und Satz. Sie zu loeschen laesst einen geforderten Betrag ohne Rechenweg zurueck — und genau danach fragt der Anwalt des Empfaengers.
+create trigger trg_mahnung_position_kein_hard_delete
+  before delete on mahnung_position
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_mahnung_position_kein_truncate
+  before truncate on mahnung_position
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on mahnung_position from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- mahnung_eskalation (archiv): FIN-15, APR-07, LEG-12. Eine Inkasso-Uebergabe oder ein Mahnbescheid beruehrt gegenueber einer natuerlichen Person Art. 22 DSGVO; die Zeile ist der Nachweis, WER sie freigegeben hat. Zurueckgenommen wird ueber `widerrufen_am`.
+create trigger trg_mahnung_eskalation_kein_hard_delete
+  before delete on mahnung_eskalation
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_mahnung_eskalation_kein_truncate
+  before truncate on mahnung_eskalation
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on mahnung_eskalation from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks

@@ -294,3 +294,132 @@ describe('kein Tabellenrecht ohne Policy (force RLS)', () => {
     expect(Number(z?.anzahl)).toBeGreaterThan(50);
   });
 });
+
+/**
+ * **Und dieselbe Frage von der anderen Seite: keine Policy ohne Recht.**
+ *
+ * Der Test darueber findet ein RECHT, dem die Policy fehlt — die Zeile kommt
+ * nie an. Dieser hier findet eine POLICY, der das Recht fehlt: sie steht in
+ * der Migration, sie liest sich wie eine Erlaubnis, und Postgres wertet sie
+ * nie aus, weil es die Reihenfolge umgekehrt prueft — erst das GRANT, dann
+ * die Policy.
+ *
+ * **Das ist kein erdachter Fall.** `0113` (PR 20) kam mit drei sorgfaeltig
+ * geschnittenen Policies fuer `cse_app` auf `mitarbeiter_zugang` und mit
+ * keinem einzigen Recht darauf. Die Tabelle war damit fuer die Anwendung
+ * unerreichbar, und nichts sagte es: die Migration lief durch, die Policies
+ * standen in `pg_policies`, und die Personalstelle haette beim ersten Versuch
+ * `permission denied` gesehen — an einem Bildschirm, den bis dahin niemand
+ * geoeffnet hatte.
+ *
+ * **Spalten zaehlen mit.** K-05 gewaehrt bewusst je Spalte;
+ * `information_schema.role_table_grants` kennt nur Tabellenrechte, und ein
+ * Test, der nur dort nachsieht, meldete jede spaltengenau berechtigte Tabelle
+ * als Luecke. Gefragt wird deshalb `has_any_column_privilege`, das beide
+ * Formen abdeckt.
+ */
+describe('keine Policy ohne Recht (die Gegenrichtung)', () => {
+  it('jede Policy fuer eine cse_-Rolle hat ein Recht FUER DIESE ANWEISUNG', async () => {
+    const tote = await sql.unsafe<{ rolle: string; tabelle: string; policy: string }[]>(`
+      with je_policy as (
+        -- Die OID und nicht der NAME: tabelle::regclass loest ueber den
+        -- Suchpfad auf und starb an der ersten Tabelle ausserhalb von
+        -- public mit "relation does not exist" -- ein Fehlschlag, der wie
+        -- eine fehlende Tabelle aussieht und keiner war.
+        select r.rolname as rolle, c.relname as tabelle, c.oid as tab_oid,
+               p.polname as policy,
+               case p.polcmd
+                 when 'r' then 'SELECT' when 'a' then 'INSERT'
+                 when 'w' then 'UPDATE' when 'd' then 'DELETE' end as recht
+          from pg_policy p
+          join pg_class c on c.oid = p.polrelid
+          join pg_roles r on r.oid = any(p.polroles)
+         where r.rolname like 'cse\\_%'
+           and r.rolname <> 'cse_definer'
+           -- '*' (ALL) deckt vier Anweisungen ab; welche davon gemeint ist,
+           -- steht nicht in der Policy. Solche Policies pruefen wir unten
+           -- gesondert auf IRGENDEIN Recht.
+           and p.polcmd <> '*'
+           -- NUR permissive Policies. Eine RESTRICTIVE erlaubt nichts, sie
+           -- verengt nur -- ihr fehlendes Recht macht sie nicht tot, sondern
+           -- doppelt zu. p_intern_eingang_delete auf formular_eingang ist
+           -- genau der Fall: die Policy verlangt portal = 'intern', und
+           -- geloescht wird dort ohnehin nicht, weil niemand das Recht hat.
+           -- Beides zusammen ist Absicht und kein Befund.
+           and p.polpermissive
+      )
+      select rolle, tabelle, policy from je_policy
+       where not case
+               -- has_any_column_privilege kennt DELETE nicht: DELETE gibt es
+               -- nur auf der Tabelle, nie auf einer Spalte. Der erste Entwurf
+               -- fragte es trotzdem und starb an "unrecognized privilege type".
+               when recht = 'DELETE'
+                 then has_table_privilege(rolle, tab_oid, 'DELETE')
+               else has_any_column_privilege(rolle, tab_oid, recht)
+             end
+       order by 1, 2, 3`);
+
+    expect(
+      tote.map((z) => `${z.policy} (${z.rolle} auf ${z.tabelle}) — Policy ohne Recht`),
+      'Postgres prueft erst das GRANT, dann die Policy. Eine Policy ohne Recht '
+      + 'wird nie ausgewertet: sie steht da und tut nichts.',
+    ).toEqual([]);
+  });
+
+  it('auch die ALL-Policies haben wenigstens irgendein Recht', async () => {
+    const tote = await sql.unsafe<{ rolle: string; tabelle: string; policy: string }[]>(`
+      select r.rolname as rolle, c.relname as tabelle, p.polname as policy
+        from pg_policy p
+        join pg_class c on c.oid = p.polrelid
+        join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
+        join pg_roles r on r.oid = any(p.polroles)
+       where r.rolname like 'cse\\_%' and r.rolname <> 'cse_definer' and p.polcmd = '*'
+         and not (has_any_column_privilege(r.rolname, c.oid, 'SELECT')
+               or has_any_column_privilege(r.rolname, c.oid, 'INSERT')
+               or has_any_column_privilege(r.rolname, c.oid, 'UPDATE')
+               or has_table_privilege(r.rolname, c.oid, 'DELETE'))
+       order by 1, 2, 3`);
+    expect(tote.map((z) => `${z.policy} (${z.rolle} auf ${z.tabelle})`)).toEqual([]);
+  });
+
+  /**
+   * **Die Ausnahme fuer RESTRICTIVE ist benannt, nicht offen.** Waere sie eine
+   * stille Bedingung, koennte jede kuenftige tote Policy dadurch
+   * durchrutschen, dass jemand sie restrictive schreibt. Diese Pruefung
+   * haelt fest, welche es GENAU sind — kaeme eine dazu, faellt sie, und
+   * jemand muss sie ansehen.
+   */
+  it('genau eine restrictive Policy steht ohne passendes Recht da', async () => {
+    const ohneRecht = await sql.unsafe<{ policy: string; tabelle: string }[]>(`
+      select p.polname as policy, c.relname as tabelle
+        from pg_policy p
+        join pg_class c on c.oid = p.polrelid
+        join pg_roles r on r.oid = any(p.polroles)
+       where r.rolname like 'cse\\_%' and r.rolname <> 'cse_definer'
+         and not p.polpermissive and p.polcmd <> '*'
+         and not case p.polcmd
+               when 'd' then has_table_privilege(r.rolname, c.oid, 'DELETE')
+               when 'r' then has_any_column_privilege(r.rolname, c.oid, 'SELECT')
+               when 'a' then has_any_column_privilege(r.rolname, c.oid, 'INSERT')
+               else has_any_column_privilege(r.rolname, c.oid, 'UPDATE')
+             end
+       order by 1`);
+    expect(ohneRecht.map((z) => `${z.policy} auf ${z.tabelle}`))
+      .toEqual(['p_intern_eingang_delete auf formular_eingang']);
+  });
+
+  /**
+   * Die Gegenprobe, damit die Pruefungen oben nicht auf einer leeren Menge
+   * gruen sind: es gibt ueberhaupt Policies fuer `cse_`-Rollen, und zwar viele.
+   */
+  it('und die Gegenprobe: der Ausdruck sieht ueberhaupt Policies', async () => {
+    const [z] = await sql.unsafe<{ anzahl: string }[]>(`
+      select count(*)::text as anzahl
+        from pg_policy p
+        join pg_class c on c.oid = p.polrelid
+        join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
+        join pg_roles r on r.oid = any(p.polroles)
+       where r.rolname like 'cse\\_%'`);
+    expect(Number(z?.anzahl)).toBeGreaterThan(50);
+  });
+});

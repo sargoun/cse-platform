@@ -1267,6 +1267,208 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'ausgemusterter Schluessel bekommt `archiviert_am` oder eine '
       + 'Vernichtungszeile.',
   },
+  /**
+   * **Diese drei standen nicht hier — und die Wache hat es gemeldet.**
+   *
+   * PR 50 und PR 51 haben ihre Tabellen angelegt UND die Sperre von Hand
+   * dazugeschrieben, statt sie hier einzutragen und erzeugen zu lassen. In
+   * der Datenbank war damit alles richtig; die REGISTRATUR war es nicht, und
+   * genau das ist der Fall, den `unveraenderbarkeit.test.ts` §(4) in beide
+   * Richtungen prueft: „no table carries the trigger without being
+   * registered — the registry cannot go stale". Eine Liste, die drei
+   * Finanztabellen unterschlaegt, liest sich fuer den naechsten Menschen so,
+   * als duerften sie geloescht werden.
+   */
+  {
+    tabelle: 'abschlagsrechnung_bezug',
+    art: 'archiv',
+    migration: '0117',
+    grund:
+      'FIN-08, §14 Abs. 4 Nr. 8 UStG, LEG-01. Sie IST der Nachweis, welcher '
+      + 'Abschlag auf welcher Schlussrechnung mit welchem Betrag je '
+      + 'Steuergruppe abgezogen wurde. Sie zu loeschen liesse denselben '
+      + 'Abschlag ein zweites Mal abziehbar erscheinen — und der Kunde zahlte '
+      + 'zweimal oder gar nicht. Zurueckgenommen wird ueber `wirksam`: der '
+      + 'Zustand aendert sich, die Zeile bleibt.',
+  },
+  {
+    tabelle: 'kunde_bauleistender_status',
+    art: 'archiv',
+    migration: '0118',
+    grund:
+      'FIN-09, LEG-06, §13b UStG. Sie ist der datierte Nachweis, auf den sich '
+      + 'eine Verlagerung der Steuerschuld stuetzt — und der Zeitraum, in dem '
+      + 'sie galt, ist die Begruendung jeder Rechnung aus dieser Zeit. Wer sie '
+      + 'loescht, nimmt einer festgeschriebenen Rechnung nachtraeglich ihre '
+      + 'Grundlage, und der Leistende schuldet die Steuer, ohne sie '
+      + 'eingenommen zu haben (§13a UStG). Beendet wird ein Status durch '
+      + '`gilt_bis`, wie bei `kleinbetrag_grenze` — eine neue Lage ist eine '
+      + 'neue Zeile.',
+  },
+  {
+    tabelle: 'freistellungsbescheinigung',
+    art: 'archiv',
+    migration: '0118',
+    grund:
+      'FIN-10, LEG-06, §48b EStG. Ohne sie haette einbehalten werden muessen; '
+      + 'mit ihr durfte ausgezahlt werden. Sie ist damit der Beleg dafuer, '
+      + 'dass die Gruppe ihrer Einbehaltungspflicht genuegt hat — und die '
+      + 'Haftung nach §48a Abs. 3 EStG haengt genau daran. Ein Widerruf setzt '
+      + '`widerrufen_am`; die Bescheinigung bleibt stehen, weil sie fuer die '
+      + 'Zeit davor weiter gilt.',
+  },
+  {
+    tabelle: 'bankkonto',
+    art: 'archiv',
+    migration: '0121',
+    grund:
+      'ACC-01, ACC-04, FIN-11, K-12. Die IBAN und der Kontoinhaber stehen im '
+      + 'Snapshot jeder Rechnung, die dieses Konto genannt hat, und in der '
+      + 'XRechnung (BT-84, BT-85). Das Konto zu loeschen liesse die Belege auf '
+      + 'einen Empfaenger zeigen, den es nie gab — und der Bankimport (PR 61) '
+      + 'ordnet einen Auszug ueber die IBAN zu. Ein geschlossenes Konto traegt '
+      + '`archiviert_am`; seine IBAN wird damit wieder verwendbar.',
+  },
+  {
+    tabelle: 'kasse',
+    art: 'archiv',
+    migration: '0121',
+    grund:
+      'FIN-14, ACC-06, GoBD. An der Kasse haengen Barzahlungen und spaeter das '
+      + 'Kassenbuch mit fortgeschriebenem Bestand. Eine geloeschte Kasse '
+      + 'nimmt den Bewegungen ihren Ort und macht die Kassensturzfaehigkeit '
+      + 'unpruefbar. Aufgeloest wird sie ueber `archiviert_am`.',
+  },
+  {
+    tabelle: 'zahlung',
+    art: 'archiv',
+    migration: '0121',
+    grund:
+      'FIN-14, ACC-04, ACC-07, Invariante 8. Sie ist der Nachweis, dass Geld '
+      + 'geflossen ist — und die Gegenprobe zu jedem ausgeglichenen Posten. '
+      + 'Eine geloeschte Zahlung liesse eine bezahlte Forderung als bezahlt '
+      + 'stehen, ohne dass irgendwo stuende, wodurch. Zurueckgenommen wird '
+      + 'ueber `storniert_am`, und der Ausloeser gibt die Posten wieder frei.',
+  },
+  {
+    tabelle: 'offener_posten',
+    art: 'archiv',
+    migration: '0121',
+    grund:
+      'ACC-07, FIN-15, FIN-17. Die Zeile traegt, was gemahnt wurde und wann — '
+      + 'der Mahnlauf und die Altersliste lesen genau das. Sie zu loeschen '
+      + 'entfernte eine Forderung aus jeder Auswertung, ohne dass ein Beleg '
+      + 'sich aendert: die Rechnung stuende weiter im Ausgangsbuch, aber '
+      + 'niemand erwartete noch Geld dafuer. Abgeschlossen wird ueber '
+      + '`ausgeglichen_am`.',
+  },
+  {
+    tabelle: 'zahlung_zuordnung',
+    art: 'append',
+    migration: '0121',
+    grund:
+      'FIN-14, ACC-04, ACC-07, §146 Abs. 4 AO. Jede Zeile ist eine Buchung: wieviel dieser '
+      + 'Zahlung auf welchen Posten entfaellt, und warum (Skonto, '
+      + 'Bauabzugsteuer, abgeschriebene Differenz). Sie zu loeschen aenderte '
+      + 'den Stand eines Postens ohne Spur. Eine falsche Zuordnung wird '
+      + 'zurueckgenommen, indem die ZAHLUNG storniert wird.',
+  },
+  {
+    tabelle: 'op_ausgleich',
+    art: 'append',
+    migration: '0121',
+    grund:
+      'FIN-15, ACC-07, §14 UStG (Invariante 4). Der Ausgleich ist der Vorgang, der eine '
+      + 'stornierte Rechnung und ihre Gutschrift gegeneinander schliesst, ohne '
+      + 'eine Zahlung zu erfinden. Ihn zu loeschen oeffnete beide Posten '
+      + 'wieder und liesse die Wache eine stornierte Rechnung anmahnen.',
+  },
+  {
+    tabelle: 'lieferant',
+    art: 'archiv',
+    migration: '0123',
+    grund:
+      'FIN-14, ACC-05, ACC-07, §147 AO. Am Lieferanten haengen Eingangs'
+      + 'rechnungen mit zehnjaehriger Aufbewahrung und der §48-EStG-Nachweis, '
+      + 'wem gegenueber einbehalten wurde. Ihn zu loeschen macht jede Buchung '
+      + 'darauf unlesbar; Art. 17 DSGVO wird bei einer natuerlichen Person '
+      + 'ueber `anonymisiert_am` erfuellt, aufgeloest wird ueber '
+      + '`archiviert_am`.',
+  },
+  {
+    tabelle: 'beleg',
+    art: 'archiv',
+    migration: '0123',
+    grund:
+      'ACC-03, ACC-06, DOC-08, LEG-01, GoBD. Der Beleg IST der Nachweis zur '
+      + 'Buchung — er nennt die Dokumentversion und ihren SHA-256. Ihn zu '
+      + 'loeschen liesse eine Buchung ohne Beleg zurueck, und genau das ist '
+      + 'der Mangel, den eine Betriebspruefung zuerst feststellt. Das '
+      + 'Ausscheiden nach Fristablauf laeuft ueber `aufbewahrung_bis` und '
+      + '`loeschsperre`.',
+  },
+  {
+    tabelle: 'eingangsrechnung',
+    art: 'archiv',
+    migration: '0123',
+    grund:
+      'FIN-14, ACC-05, ACC-06, LEG-01, §14b UStG. Sie traegt den '
+      + 'Vorsteuerabzug und den §48-EStG-Einbehalt. Eine geloeschte '
+      + 'Eingangsrechnung nimmt der Voranmeldung ihre Grundlage, und die '
+      + 'interne Belegnummer hinterliesse eine Luecke in einem lueckenlosen '
+      + 'Kreis. Zurueckgewiesen wird ueber `abgelehnt` mit Grund.',
+  },
+  {
+    tabelle: 'eingangsrechnung_steuer',
+    art: 'append',
+    migration: '0123',
+    grund:
+      'FIN-14, ACC-08, §15 UStG. Die Aufteilung nach Steuersaetzen IST der '
+      + 'Vorsteuerabzug — ohne sie steht ein Bruttobetrag da, aus dem sich '
+      + 'kein Satz mehr ableiten laesst. Sie zu loeschen aenderte die '
+      + 'Voranmeldung ohne Spur.',
+  },
+  {
+    tabelle: 'mahnstufe',
+    art: 'archiv',
+    migration: '0125',
+    grund:
+      'FIN-15, §288 BGB. Die Stufe traegt Gebuehr, Zinsart und Frist — also '
+      + 'die Grundlage jedes Betrags, der je auf einer Mahnung stand. Sie zu '
+      + 'loeschen nimmt einem versendeten Brief seine Herleitung. Abgeloest '
+      + 'wird ueber `gueltig_bis`.',
+  },
+  {
+    tabelle: 'mahnung',
+    art: 'archiv',
+    migration: '0125',
+    grund:
+      'FIN-15, ACC-07, §286 BGB, LEG-01. Sie IST die Mahnung — der Vorgang, '
+      + 'an den der Verzug und damit der Zinsanspruch anknuepft. Ein '
+      + 'geloeschter Brief laesst die naechste Stufe ohne Grundlage und den '
+      + 'Zinsanspruch ohne Beleg. Nicht Versendetes wird ueber `verworfen` '
+      + 'mit Grund beendet.',
+  },
+  {
+    tabelle: 'mahnung_position',
+    art: 'append',
+    migration: '0125',
+    grund:
+      'FIN-15, §288 BGB. Die Zeile traegt, WIE der Zins hergeleitet wurde: '
+      + 'Verzugsbeginn, angewandte Regel, Tageszaehlung, Tage und Satz. Sie '
+      + 'zu loeschen laesst einen geforderten Betrag ohne Rechenweg zurueck — '
+      + 'und genau danach fragt der Anwalt des Empfaengers.',
+  },
+  {
+    tabelle: 'mahnung_eskalation',
+    art: 'archiv',
+    migration: '0125',
+    grund:
+      'FIN-15, APR-07, LEG-12. Eine Inkasso-Uebergabe oder ein Mahnbescheid '
+      + 'beruehrt gegenueber einer natuerlichen Person Art. 22 DSGVO; die '
+      + 'Zeile ist der Nachweis, WER sie freigegeben hat. Zurueckgenommen '
+      + 'wird ueber `widerrufen_am`.',
+  },
   {
     tabelle: 'schluessel_quittung',
     art: 'append',

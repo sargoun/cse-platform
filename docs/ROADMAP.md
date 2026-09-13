@@ -30,14 +30,18 @@ Two facts that this sequence otherwise hides, both true at the time of
 Phase 5's hand-off (PR #5):
 
 1. **Phases 0 to 5 are built** — the three trade modules, scheduling, time,
-   hour accounts and the employee portal in four languages — **with one named
-   exception: there is no login.** PR 20 (employee access by phone and one-time
-   code) has not been built; sessions are issued by `/dev/anmelden`, which only
-   exists when `CSE_DEV_FLAECHEN` is on. Phase 1's "Supabase Auth; 2FA for
-   `super_admin` and `admin`" is therefore still open, and so is every promise
-   that rests on a real session. Whatever else is missing is named
-   individually, not by a blank box: `PHASE-5-STAND.md` §"Offen in dieser
-   Phase" and the open questions in `DECISIONS.md`.
+   hour accounts and the employee portal in four languages. The login was the
+   one named exception; **PR 20 has since closed half of it.** Employees sign
+   in for real at `/auth/mitarbeiter` with a phone number and a one-time code
+   (`0113`–`0115`, EMP-01), and `/dev/anmelden` no longer lists them.
+   **What is still open is the other half:** `/auth/login` — e-mail, password
+   and the second factor Phase 1 promises for `super_admin` and `admin`
+   (AUT-01, AUT-02) — is not built, so those roles and the customer login
+   still come from `/dev/anmelden`, which only exists when `CSE_DEV_FLAECHEN`
+   is on. That page is narrowed, not retired, and it goes when `/auth/login`
+   arrives (D-386). Whatever else is missing is named individually, not by a
+   blank box: `PHASE-5-STAND.md` §"Offen in dieser Phase" and the open
+   questions in `DECISIONS.md`.
 2. **Phase 6 has already begun**, against the "phases are sequential" rule at
    the top. PR 46 — invoice lifecycle, number assignment, hash chain, Storno —
    ships inside the Phase 5 branch (`0075`–`0077`,
@@ -173,18 +177,41 @@ proven by test, not by inspection.
 
 ## Phase 6 · Finance — FIN-*
 
-- [ ] Five billing strategies behind one interface
-      → `// TODO(client): confirm the exact five`
-- [ ] `entwurf` → `festgeschrieben`; number at finalization only
-- [ ] Pre-flight validator blocking on any missing §14 UStG field
-- [ ] Hash chain + nightly verification job
-- [ ] Line-to-source traceability
-- [ ] Abschlags- / Schlussrechnung with automatic deduction
-- [ ] §13b UStG; §48 EStG with certificate validity at service date
-- [ ] XRechnung with Leitweg-ID, KoSIT-validated in CI
-- [ ] ZUGFeRD 2.x PDF/A-3
-- [ ] Incoming invoices, expenses, payments, dunning
-- [ ] Rechnungsausgangsbuch
+- [x] Five billing strategies behind one interface (`services/finanz/abrechnungsart/`:
+      Einheitspreis-Aufmass, Einzelabruf, Festpreis-Los, Pauschale, Stundenlohn —
+      **the exact five and their rounding stay open: O-04**)
+- [x] `entwurf` → `festgeschrieben`; number at finalization only (0075–0077:
+      `rechnung_entwurf_ohne_nummer`, counter under `SELECT … FOR UPDATE`)
+- [x] Pre-flight validator blocking on any missing §14 UStG field
+      (`services/finanz/ustg14.ts` + 0104; the screen names every missing field)
+- [x] Hash chain + nightly verification job (0077 `hash = SHA256(payload ‖ prev)`,
+      job `kette_pruefen` at 03:20 — it alerts, it never repairs)
+- [x] Line-to-source traceability (0107 `rechnungsposition_quelle`: every line
+      names its time entries, Aufmass rows or LV position — or says „von Hand"
+      with a reason)
+- [x] Abschlags- / Schlussrechnung with automatic deduction (PR 50; Sicherheits-
+      einbehalt stays open — O-20)
+- [x] §13b UStG; §48 EStG with certificate validity at service date (PR 51;
+      the relevant date stays open — O-21, one injected parameter)
+- [x] XRechnung with Leitweg-ID, KoSIT-validated in CI (PR 52; the transmission
+      route per public client stays open — O-22)
+- [x] ZUGFeRD 2.x PDF/A-3 (PR 53: CII aus demselben Snapshot wie die
+      XRechnung, PDF/A-3 mit eingebetteter `factur-x.xml`, selbst erzeugtes
+      sRGB-Profil statt einer fremden Datei, veraPDF in CI)
+- [~] Incoming invoices, expenses, payments, dunning — **payments, open items,
+      incoming invoices and dunning done** (PR 54.1: `zahlung`,
+      `offener_posten`, `zahlung_zuordnung`, `op_ausgleich`, nightly
+      reconciliation; PR 54.3: `lieferant`, `beleg`, `eingangsrechnung`,
+      `eingangsrechnung_steuer`, the `kreditor` open item; PR 55: `mahnstufe`,
+      `mahnung`, `mahnung_position`, `basiszinssatz`, the nightly proposal run
+      and the release/send path through `agent/policy.ts`). Receipts and
+      expenses (`ausgabe`, cash book) still follow. **Levels, fees and interest
+      remain placeholders — O-19; the Basiszinssatz itself is maintained by
+      hand — O-358**
+- [x] Rechnungsausgangsbuch (PR 56: Sicht `rechnungsausgangsbuch` je Kreis mit
+      Kettenglied und Lückenkennzeichen, Abstimmung über zwei unabhängige
+      Wege). **Umsatz/Kosten/Ergebnis (FIN-17) fehlt noch** — die Periode
+      hängt an Soll- oder Ist-Versteuerung (O-05, D-404)
 
 **Acceptance:**
 - Deleting 1000 drafts leaves zero gaps in the sequence.

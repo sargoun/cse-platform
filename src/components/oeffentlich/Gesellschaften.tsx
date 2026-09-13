@@ -95,7 +95,8 @@ export function Gesellschaften({ bereiche, sprache }: {
 }) {
   const t = TEXT[sprache === 'en' ? 'en' : 'de'];
   return (
-    <section data-cse="gesellschaften" className="mx-auto max-w-content px-s5 py-s6">
+    <section data-cse="gesellschaften"
+      className="mx-auto max-w-content px-s5 py-s6 cse-auftritt cse-auftritt-2">
       <h2 className="mb-s5 text-h2 text-text">{t.ueberschrift}</h2>
       <div className="flex flex-col gap-s6">
         {bereiche.map((b) => {

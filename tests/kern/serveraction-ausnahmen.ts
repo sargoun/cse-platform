@@ -31,4 +31,27 @@ export const ANDERS_BEWACHT: readonly AndersBewacht[] = [
       + 'übernehmen; die echte Anmeldung wird derselbe Fall sein und gehört dann '
       + 'hierher, nicht in eine Ausnahme ohne Begründung.',
   },
+  {
+    datei: 'src/app/auth/mitarbeiter/page.tsx',
+    wache: 'codeAnfordern',
+    grund:
+      'Die echte Anmeldung (EMP-01, PR 20) — derselbe Fall wie die Dev-Anmeldung '
+      + 'darüber, und der Grund, aus dem diese Liste überhaupt existiert: wer einen '
+      + 'Code anfordert, ist noch niemand, und `authorize()` hätte keinen Akteur zu '
+      + 'prüfen. Bewacht wird sie durch `codeAnfordern`, und zwar nicht in dieser '
+      + 'Datei, sondern in `app.zugang_code_anfordern` (0114) dahinter: die Funktion '
+      + 'entscheidet still, ob es die Nummer gibt, und bremst bei drei offenen Codes '
+      + 'je Zugang. Eine Bremse in dieser Seite wäre eine, die der nächste Aufrufer '
+      + 'umgeht.',
+  },
+  {
+    datei: 'src/app/auth/mitarbeiter/code/page.tsx',
+    wache: 'codeEinloesen',
+    grund:
+      'Der zweite Schritt derselben Anmeldung. `codeEinloesen` führt auf '
+      + '`app.zugang_code_einloesen` (0114), das den Code im selben Aufruf prüft UND '
+      + 'verbraucht — mit `for update`, damit zwei gleichzeitige Einlösungen '
+      + 'serialisieren. Erst danach entsteht ein Akteur; vorher gibt es keinen, den '
+      + '`authorize()` prüfen könnte.',
+  },
 ];

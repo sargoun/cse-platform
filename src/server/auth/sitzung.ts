@@ -128,12 +128,48 @@ export interface DevAnmeldung {
  * statt fehlerhaft.
  */
 export async function beendeSitzung(tx: Transaktion, token: string): Promise<void> {
-  await tx.unsafe(
-    `update benutzer_sitzung
-        set beendet_am = now(), ende_grund = 'abmeldung'
-      where token_hash = $1 and beendet_am is null`,
-    [tokenHash(token)],
-  );
+  /**
+   * Ueber die Funktion aus `0115`, nicht mit einem eigenen UPDATE.
+   *
+   * Das direkte UPDATE stand hier und lief nur, solange die Anwendung als
+   * Eigentuemer verband. Unter `cse_app` greift `t_sitzung_eigene_schreiben`:
+   * `benutzer_id = app.aktueller_benutzer()`. Beim Abmelden ueber
+   * `/api/abmelden` ist aber genau kein Benutzer gebunden — der Aufrufer weist
+   * sich durch den BESITZ des Tokens aus. Die Anweisung traf dann null Zeilen,
+   * meldete keinen Fehler, und die Sitzung blieb offen: eine Abmeldung, die
+   * wie eine aussieht und keine ist.
+   */
+  await tx.unsafe(`select app.sitzung_beenden($1)`, [tokenHash(token)]);
+}
+
+/**
+ * Die Sitzung nach einer echten Anmeldung mit Telefon und Einmalcode (EMP-01).
+ *
+ * **Der Gegenentwurf zu `devSitzungAusstellen` unten** — und der Unterschied
+ * ist nicht die Herkunft der Person, sondern WER schreibt. Hier schreibt
+ * `app.mitarbeiter_sitzung_ausstellen` (0115) unter dem Eigentuemer, weil der
+ * Anmeldende noch niemand ist und die Policies auf `benutzer_sitzung` an
+ * `app.aktueller_benutzer()` haengen. Dort schreibt die Anwendung selbst, was
+ * nur auf einer Entwicklungsadresse als Eigentuemer funktioniert.
+ *
+ * `null` heisst: zu diesem Menschen gehoert kein benutzbares Konto. Der
+ * Aufrufer behandelt das wie einen falschen Code — ein eigener Satz dafuer
+ * waere die Auskunft „diese Person gibt es, sie darf nur nicht".
+ */
+export async function mitarbeiterSitzungAusstellen(
+  tx: Transaktion,
+  personId: string,
+  ip: string | null = null,
+  userAgent: string | null = null,
+): Promise<{ token: string; sitzungId: string } | null> {
+  const token = neuerToken();
+  const zeilen = (await tx.unsafe(
+    `select app.mitarbeiter_sitzung_ausstellen($1, $2, $3, $4) as sitzung_id`,
+    [personId, tokenHash(token), ip, userAgent],
+  )) as { sitzung_id: string | null }[];
+
+  const sitzungId = zeilen[0]?.sitzung_id ?? null;
+  return sitzungId === null ? null : { token, sitzungId };
 }
 
 export async function devSitzungAusstellen(

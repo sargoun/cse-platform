@@ -153,6 +153,17 @@ Shadow only on genuinely floating layers:
 
 Content max width `1280px`; long-form text max `72ch`.
 
+**Standalone form pages max `608px`** (`max-w-form`). These are the pages that
+carry nothing but a form and the sentences around it — sign-in, the one-time
+code, a single-purpose request. They are not content pages: at `1280px` a
+two-field form sits in the top-left corner of an empty screen, and at `72ch`
+the label and its input drift apart far enough that the eye loses the pairing.
+`608px` is `32rem` of field plus the page's own `--s6` gutter on both sides, so
+the form keeps one measure on a phone and on a desktop.
+
+Set as a theme token, never as a one-off: a width written into a page file is a
+width the next page gets slightly wrong.
+
 ---
 
 ## 4. Photography
@@ -340,6 +351,19 @@ Icon tile `40×40` `--r-md` on a `-soft` tint · `micro` uppercase label in
 `--text-muted` · value at `h2` · delta below in `--success` / `--danger` with
 arrow. Grid: 4 up desktop, 2 tablet, 1 mobile.
 
+### Source preview
+
+A scrolling panel for generated machine-readable text — today the XRechnung
+UBL (FIN-11), tomorrow the same for ZUGFeRD and the DATEV export. Card
+surface, `border-line`, `text-xs`, monospace inherited from `pre`, and
+`max-h-quelltext` (`32rem`) with `overflow-auto`.
+
+The height is a token, not a number in a page file. `32rem` shows roughly
+forty lines — enough to recognise the document and see that the totals are
+where they belong, short enough that the page still scrolls as a page. A
+preview that grows with its content pushes every control below it off the
+screen, and the one control that matters here is the download.
+
 ### Status pills
 
 `--r-full`, `4px 12px`, `xs` 500, `-soft` background, solid semantic text.
@@ -392,6 +416,16 @@ below in `--danger` at `xs`. Label above, always — never placeholder-as-label.
 **Public header:** height `72px`, `--ink` at `rgba(8,8,10,0.85)` with
 `backdrop-filter: blur(12px)` once scrolled. Logo left, nav centre, red
 *Angebot anfragen* + ghost *Login* right. Mobile: full-screen overlay menu.
+
+**On a phone the header carries the wordmark and the menu button — nothing
+else.** The language switch goes into the overlay menu, for the same reason
+§6 gives for the company switcher: a 72px row has no width for a second
+control beside the menu button. It was in the header, it took 96px of it, and
+what gave way was the name: at every phone width from `360px` to `414px` the
+wordmark rendered as *CSE Gr…*. Nothing looked broken — `text-overflow` is
+tidy, and the 375px overflow test stayed green precisely BECAUSE the name was
+being cut. **The wordmark is never truncated at `360px` or wider**; that is the
+testable half of this rule.
 
 **Portal sidebar:** width `248px`, `--surface`. Active item: `--surface-2` bg +
 3px left bar in the **current area's identity hue**. Icons `18px`, label `sm`.

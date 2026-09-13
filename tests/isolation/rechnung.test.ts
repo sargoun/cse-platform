@@ -408,6 +408,54 @@ describe('(4) eine festgeschriebene Rechnung ist unveränderlich — auf DATENBA
     ).rejects.toThrow(/unveraenderlich.*netto_gesamt_cent/su);
   });
 
+  /**
+   * **Die Ausnahme, die eine Ausnahme sein muss — und es bis 0122 nicht war.**
+   *
+   * `aufbewahrung_bis` steht in der Ausnahmeliste des Auslösers, weil der
+   * Aufbewahrungslauf die GoBD-Frist auf einem festgeschriebenen Beleg setzen
+   * muss. Die Ausnahme war tot: `ueberweisungsbetrag_cent` ist eine ERZEUGTE
+   * Spalte, und PostgreSQL berechnet erzeugte Spalten erst NACH den
+   * BEFORE-Auslösern — in `new` stand dort NULL, in `old` der Wert, und der
+   * `to_jsonb`-Vergleich schlug auf JEDER Änderung an, auch auf einer, die
+   * gar nichts ändert. Die Rechnung war damit nicht unveränderlich, sondern
+   * unerreichbar, und die Fehlermeldung nannte eine Spalte, die niemand
+   * angefasst hatte.
+   *
+   * Beide Richtungen stehen hier: die Frist geht durch, die Fälschung nicht.
+   * Eine Prüfung nur der ersten Hälfte ließe sich mit `return new` bestehen.
+   */
+  it('`aufbewahrung_bis` bleibt beweglich — die GoBD-Frist muss gesetzt werden können',
+    async () => {
+      /*
+       * Die Frist wird nicht getippt, sondern aufgelöst: `fin.setze_aufbewahrung`
+       * rechnet sie aus `rechnungsdatum` und der Regel zur Klasse. Ohne Regel
+       * bleibt sie NULL und die Löschsperre steht — fail-closed, so gewollt.
+       *
+       * Hier kommt die Regel dazu, und danach muss eine Berührung der Zeile
+       * die Frist eintragen. Genau das war bis 0122 unmöglich: der
+       * Änderungsschutz wies jede Änderung ab, weil die erzeugte Spalte in
+       * `new` NULL ist.
+       */
+      await sql.unsafe(
+        `insert into dokument_aufbewahrung (mandant_id, kategorie, jahre, loeschsperre,
+                                            ist_platzhalter, grundlage)
+         values ($1, 'rechnung_ausgang', 10, true, false, $2)`,
+        [f.reinigung, '§147 Abs. 3 AO, §14b Abs. 1 UStG — Testfixtur']);
+
+      await sql.unsafe(
+        `update rechnung set geaendert_am = now() where id = $1`, [rechnungId]);
+
+      const [z] = await sql.unsafe<{ bis: string | null }[]>(
+        `select aufbewahrung_bis::text as bis from rechnung where id = $1`, [rechnungId]);
+      expect(z!.bis).toBe(`${new Date().getUTCFullYear() + 10}-12-31`);
+    });
+
+  it('und die Meldung nennt die Spalte, die wirklich bewegt wurde', async () => {
+    await expect(sql.unsafe(
+      `update rechnung set fusstext = 'nachträglich' where id = $1`, [rechnungId]))
+      .rejects.toThrow(/unveraenderlich — fusstext wurde geaendert/u);
+  });
+
   it('auch `kopftext`, `kunde_id` und `rechnungsdatum` — jede Spalte, nicht eine Auswahl', async () => {
     for (const anweisung of [
       `update rechnung set kopftext = 'x' where status = 'festgeschrieben'`,
@@ -496,7 +544,7 @@ describe('(4) eine festgeschriebene Rechnung ist unveränderlich — auf DATENBA
     expect(policies).toEqual([]);
   });
 
-  it('genau sechs cse_definer-Policies in dieser Domäne, und keine siebte (§14)', async () => {
+  it('genau die aufgezählten cse_definer-Policies in dieser Domäne, und keine weitere', async () => {
     const policies = await sql.unsafe<{ tablename: string; policyname: string; cmd: string }[]>(
       `select tablename, policyname, cmd from pg_policies
         where 'cse_definer' = any(roles)
@@ -524,6 +572,35 @@ describe('(4) eine festgeschriebene Rechnung ist unveränderlich — auf DATENBA
        * schreiben.
        */
       'd_rp_pflichtfeld', 'd_rs_pflichtfeld',
+      /**
+       * **PR 50 (D-389): eine LESEpolicy dazu, und wieder keine schreibende.**
+       *
+       * `fin.abschlag_pruefen()` (0117) laeuft als `cse_definer` und muss
+       * wissen, ob der abzuziehende Abschlag storniert ist — die Antwort steht
+       * in `rechnung_beziehung`, und ohne Recht UND Policy laese die Funktion
+       * dort null Zeilen und liesse jeden Abzug eines stornierten Abschlags
+       * durch. Ein Riegel, der aussieht wie einer und keiner ist (D-388).
+       *
+       * `SELECT`, auf den aktiven Mandanten begrenzt, und ausdruecklich NICHT
+       * `using (true)`: eine zweite permissive Policy mit `true` haette sich
+       * mit `d_rechnung_lesen` ODER-verknuepft und deren Mandantenschnitt
+       * aufgehoben — eine Verbreiterung, die wie eine Ergaenzung aussieht.
+       */
+      'd_beziehung_storno_lesen',
+      /**
+       * **PR 54.3 und PR 55: vier Kreis-Policies dazu — und jede eng.**
+       *
+       * `nummernkreis` traegt jetzt drei Definer-Zieher: die Ausgangsrechnung
+       * (0077), die interne Belegnummer der Eingangsrechnung (0123) und die
+       * Mahnung (0125). Jeder liest und zieht NUR seinen eigenen Kreistyp.
+       *
+       * Das ist der Punkt dieser Liste: ein Definer, der jeden Kreis ziehen
+       * darf, zieht beim naechsten Programmfehler den falschen — und eine
+       * verbrauchte Rechnungsnummer nimmt niemand zurueck. Vier Zeilen mehr
+       * hier sind der Preis dafuer, dass die Enge sichtbar bleibt.
+       */
+      'd_eingangskreis_lesen', 'd_eingangskreis_ziehen',
+      'd_mahnkreis_lesen', 'd_mahnkreis_ziehen',
       // `nk_wachbuch_definer*` gehören 0070 und liegen auf demselben
       // `nummernkreis`; sie sind hier ausgeschlossen, weil sie `wachbuch`
       // betreffen — siehe die Filterzeile darunter.

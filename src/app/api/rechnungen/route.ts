@@ -181,6 +181,9 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           // Kein Vorgabewert (§4.2): fehlt die Eingabe, loest der Dienst auf,
           // und bleibt es NULL, weist die Festschreibung benannt ab.
           zahlungszielTage,
+          // BT-81. `zahlungsmittelCode` siebt selbst: was nicht in UNTDID 4461
+          // steht, kommt als null an und nicht als Freitext auf den Beleg.
+          zahlungsmittelCode: text('zahlungsmittelCode'),
           kopftext: text('kopftext'),
         });
         return `/${neu}`;

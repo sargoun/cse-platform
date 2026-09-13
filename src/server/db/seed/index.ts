@@ -21,6 +21,7 @@ import { seedQualifikationen } from './qualifikation.js';
 import { seedAuftrag } from './auftrag.js';
 import { seedZeit } from './zeit.js';
 import { seedKonten } from './konto.js';
+import { normalisiereTelefon } from '../../../lib/telefon.js';
 import { seedSecurity } from './security.js';
 import { seedWachbuch } from './wachbuch.js';
 import { seedReinigung } from './reinigung.js';
@@ -164,7 +165,10 @@ async function main(): Promise<void> {
         (slug, name, firma, rechtsform, ist_rechtseinheit, eigener_nummernkreis,
          strasse, plz, ort, land, telefon, email, farbe_token, module,
          module_gepflegt, sortierung,
-         ust_id, handelsregister_gericht, handelsregister_nummer)
+         ust_id, handelsregister_gericht, handelsregister_nummer,
+         rechnung_kontakt_name,
+         elektronische_adresse, elektronische_adresse_schema,
+         iban, bic, bank)
       values
         (${b.slug}, ${b.name}, ${b.firma}, ${b.rechtsform}, ${b.rechtseinheit},
          ${rechtseinheit},
@@ -184,7 +188,32 @@ async function main(): Promise<void> {
          true, ${i},
          ${rechtseinheit ? `DE${String(100_000_000 + i)}` : null}, -- TODO(client, O-353): echte USt-IdNr.
          ${rechtseinheit ? 'Amtsgericht Charlottenburg' : null},
-         ${rechtseinheit ? `HRB ${String(200_000 + i)}` : null})  -- TODO(client, O-353): echte HRB-Nummer
+         ${rechtseinheit ? `HRB ${String(200_000 + i)}` : null},  -- TODO(client, O-353): echte HRB-Nummer
+         -- BT-41, XRechnung BR-DE-6. Steht hier wie die Anschrift daneben:
+         -- eingetragen, damit das System arbeitet, und ausdruecklich NICHT
+         -- als gesicherte Angabe (angaben_bestaetigt_am bleibt NULL). Ohne
+         -- einen Wert entstuende zu keinem oeffentlichen Auftraggeber eine
+         -- XRechnung, und die Abnahme der Phase 6 waere nicht pruefbar.
+         'Buchhaltung',  -- TODO(client, O-353): echte Kontaktstelle je Gesellschaft
+         -- BT-34 und BT-34-1. Die USt-IdNr. unter EAS 9930 („deutsche
+         -- USt-IdNr.") ist die uebliche Adresse eines deutschen Rechnungs-
+         -- stellers — und sie steht hier als DEMOWERT, nicht als Ableitung:
+         -- unter welcher Adresse eine Gesellschaft elektronische Rechnungen
+         -- stellt, sagt die Gesellschaft. angaben_bestaetigt_am bleibt NULL,
+         -- und ohne Rechtseinheit gibt es keine USt-IdNr. und damit auch hier
+         -- nichts (der CHECK verlangt beide Haelften oder keine).
+         -- (Keine Backticks: dieser Kommentar steht IN einem Template-Literal.)
+         ${rechtseinheit ? `DE${String(100_000_000 + i)}` : null},
+         ${rechtseinheit ? '9930' : null},  -- TODO(client, O-353): echte E-Adresse je Gesellschaft
+         -- BT-84 und BG-17. Ohne Bankverbindung sperrt BR-DE-13 jede Rechnung
+         -- mit SEPA-Ueberweisung an einen oeffentlichen Auftraggeber — und
+         -- genau daran ist der erste Browsertest gescheitert, der einen Beleg
+         -- an das Bezirksamt fuehren wollte. Eine oeffentlich dokumentierte
+         -- TESTKENNUNG, keine Kontonummer: die echte Bankverbindung je
+         -- Gesellschaft gehoert dem Mandanten und in keine Quelldatei.
+         ${rechtseinheit ? 'DE02120300000000202051' : null},
+         ${rechtseinheit ? 'BYLADEM1001' : null},
+         ${rechtseinheit ? 'Testbank (Demodaten)' : null})  -- TODO(client, O-353): echte Bankverbindung
       -- ist_rechtseinheit MUSS mit: der CHECK verbindet beide Spalten, ein
       -- eigener Nummernkreis setzt eine Rechtseinheit voraus. Der Zweig setzte
       -- nur eigener_nummernkreis. Traf er eine Zeile, die von anderswo kam
@@ -202,6 +231,15 @@ async function main(): Promise<void> {
             ust_id = excluded.ust_id,
             handelsregister_gericht = excluded.handelsregister_gericht,
             handelsregister_nummer = excluded.handelsregister_nummer,
+            rechnung_kontakt_name = excluded.rechnung_kontakt_name,
+            elektronische_adresse = excluded.elektronische_adresse,
+            elektronische_adresse_schema = excluded.elektronische_adresse_schema,
+            -- Nur WAS FEHLT: wer eine echte Bankverbindung eingetragen hat,
+            -- behaelt sie. Ein Seed, der eine Kontonummer ueberschreibt, ist
+            -- ein Seed, den niemand mehr laufen laesst.
+            iban = coalesce(mandant.iban, excluded.iban),
+            bic  = coalesce(mandant.bic,  excluded.bic),
+            bank = coalesce(mandant.bank, excluded.bank),
             -- Die Buchung gehoert zur Gesellschaft und nicht zum ersten Lauf:
             -- ohne diese Zeile blieben vier bereits angelegte Bereiche fuer
             -- immer bei '{}', und der Modulriegel griffe nirgends.
@@ -693,9 +731,162 @@ async function main(): Promise<void> {
               'Auftraege', false, 'AU-{jahr}-{nr:5}',
               'jaehrlich', ${heute}, false, 'system', 'job:seed')
       on conflict do nothing`;
+
+    /**
+     * Die interne Belegnummer der EINGANGSrechnung — bestaetigt, lueckenlos.
+     *
+     * Sie ist keine Rechnungsnummer nach §14 UStG: sie nummeriert nicht
+     * unsere Ausgangsbelege, sondern unsere Ablage. Ihre Maske ist damit eine
+     * Hausentscheidung und nicht die offene Frage O-134. Lueckenlos ist sie
+     * trotzdem, weil GoBD eine fortlaufende Belegnummerierung verlangt — und
+     * deshalb zieht sie die Nummer erst beim BUCHEN (0123).
+     */
+    await sql`
+      insert into nummernkreis
+        (mandant_id, kreis_typ, jahr, bezeichnung, lueckenlos, format_maske,
+         zuruecksetzung, geoeffnet_am, ist_platzhalter, erstellt_von_art, erstellt_von_dienst)
+      values (${ids.get(b.slug)!}, 'eingangsrechnung_beleg', 2026,
+              'Eingangsbelege', true, 'EB-{jahr}-{nr:5}',
+              'jaehrlich', ${heute}, false, 'system', 'job:seed')
+      on conflict do nothing`;
+
+    /**
+     * Der Mahnungskreis — bestaetigt, lueckenlos, und beides mit Grund.
+     *
+     * Er ist keine Rechnungsnummer nach §14 UStG, also faellt er nicht unter
+     * O-134: die Maske ist eine Hausentscheidung. Lueckenlos ist er, weil er
+     * es ohnehin ist — die Nummer entsteht erst mit der FREIGABE (0125), ein
+     * verworfener Entwurf zieht keine, und damit kann die Folge keine Luecke
+     * haben. Ein Platzhalterkreis hier hiesse: keine Mahnung kann jemals
+     * freigegeben werden, ohne dass irgendwer eine Frage zu beantworten
+     * haette.
+     */
+    await sql`
+      insert into nummernkreis
+        (mandant_id, kreis_typ, jahr, bezeichnung, lueckenlos, format_maske,
+         zuruecksetzung, geoeffnet_am, ist_platzhalter, erstellt_von_art, erstellt_von_dienst)
+      values (${ids.get(b.slug)!}, 'mahnung', 2026,
+              'Mahnungen', true, 'MA-{jahr}-{nr:5}',
+              'jaehrlich', ${heute}, false, 'system', 'job:seed')
+      on conflict do nothing`;
+
+    /**
+     * Drei Mahnstufen als PLATZHALTER (O-19) — und deshalb mahnt der Lauf
+     * nichts.
+     *
+     * Fristen, Gebuehren und die Zinsart sind eine Entscheidung des
+     * Mandanten; sie hier zu erfinden hiesse, echten Kunden Betraege zu
+     * berechnen, die niemand beschlossen hat. Die Zeilen stehen trotzdem da,
+     * damit der Bildschirm die Sperre ZEIGT statt einer leeren Liste: der
+     * Lauf uebergeht jede Forderung mit „Mahnstufe … ist unbestaetigt".
+     */
+    for (const [stufe, bez, tage] of [
+      [1, 'Zahlungserinnerung (unbestätigt)', 14],
+      [2, 'Erste Mahnung (unbestätigt)', 28],
+      [3, 'Letzte Mahnung (unbestätigt)', 42],
+    ] as const) {
+      await sql`
+        insert into mahnstufe
+          (mandant_id, stufe, bezeichnung, tage_nach_faelligkeit, gebuehr_cent,
+           zinsberechnung, ist_platzhalter, gueltig_ab,
+           erstellt_von_art, erstellt_von_dienst)
+        values (${ids.get(b.slug)!}, ${stufe}, ${bez}, ${tage}, 0,
+                'keine', true, ${heute}, 'system', 'job:seed')
+        on conflict do nothing`;
+    }
   }
   process.stdout.write(
     '  Nummernkreise: Rechnung als PLATZHALTER (O-134); Nachweis, Angebot und Auftrag bestätigt\n',
+  );
+  /**
+   * **Kein Basiszinssatz im Seed, und das ist kein Vergessen.**
+   *
+   * Der Satz nach § 247 BGB ist eine echte Zahl der Deutschen Bundesbank, die
+   * halbjaehrlich wechselt. Einen plausiblen Wert einzutragen hiesse, eine
+   * Zinsforderung auf eine erfundene Grundlage zu stellen — und sie sieht
+   * dann genauso aus wie eine richtige. Ohne Zeile fordert jede Mahnung NULL
+   * Zins und sagt es (`lauf.ts`), und der Waechter `basiszinssatz_pruefen`
+   * meldet die Luecke am 15. Juni und am 15. Dezember.
+   */
+  process.stdout.write(
+    '  Mahnstufen: drei je Rechtseinheit, alle PLATZHALTER (O-19) — es wird nichts gemahnt\n'
+    + '  · Basiszinssatz (§ 247 BGB): NICHT gesetzt — eine echte Zahl der Bundesbank, '
+    + 'kein Demowert\n',
+  );
+
+  // -------------------------------------------------------------- Bankkonto
+  /**
+   * Ein Bankkonto je Rechtseinheit — AUS DER GESELLSCHAFT, nicht daneben.
+   *
+   * Die Kennungen stehen schon auf `mandant` (BT-84/BT-85, oben in diesem
+   * Seed). Sie hier ein zweites Mal zu tippen hiesse, zwei Wahrheiten ueber
+   * dieselbe Bankverbindung zu pflegen — und die eine, die auf der Rechnung
+   * landet, waere dann Zufall. Das Konto liest sie deshalb aus der Zeile,
+   * die es besitzt.
+   *
+   * `ist_standard`: eine neue Rechnung schlaegt dieses Konto vor. Ohne ein
+   * Standardkonto muesste jeder Fakturierende es einzeln waehlen, und wer es
+   * vergisst, stellt eine Rechnung ohne Zahlungsempfaenger — BR-DE-13 weist
+   * sie beim oeffentlichen Auftraggeber zurueck.
+   *
+   * `on conflict do nothing` ueber den Teilindex auf der IBAN: der Seed ist
+   * gegen seine eigene Ausgabe wiederholbar und ueberschreibt kein Konto,
+   * das jemand gepflegt hat.
+   */
+  for (const b of BEREICHE.filter((x) => x.rechtseinheit === true)) {
+    await sql`
+      insert into bankkonto
+        (mandant_id, bezeichnung, iban, bic, kontoinhaber, ist_standard,
+         erstellt_von_art, erstellt_von_dienst)
+      select m.id, 'Geschäftskonto', m.iban, m.bic, m.name, true,
+             'system', 'job:seed'
+        from mandant m
+       where m.id = ${ids.get(b.slug)!} and m.iban is not null
+      on conflict do nothing`;
+  }
+  process.stdout.write(
+    '  Bankkonten: je Rechtseinheit eines, aus der Gesellschaft gelesen (O-353)\n',
+  );
+
+  // -------------------------------------------------------------- Lieferant
+  /**
+   * Zwei Lieferanten je Rechtseinheit — Stammdaten, mehr nicht.
+   *
+   * **Warum KEINE Eingangsrechnung mitkommt.** Eine Eingangsrechnung braucht
+   * ihren Beleg, und ein Beleg zeigt auf eine Dokumentversion samt SHA-256
+   * (ACC-03). Der Seed legt nirgends `dokument`-Zeilen an, und aus gutem
+   * Grund: eine Zeile, die auf Bytes zeigt, die es im Speicher nicht gibt,
+   * ist ein Beleg, den niemand oeffnen kann — genau die Sorte Demodatum, die
+   * spaeter als Fehler gemeldet wird. Die Lieferanten dagegen sind echte
+   * Stammdaten, und ohne sie ist die Erfassungsmaske unbenutzbar.
+   *
+   * Die Bankverbindung bleibt NULL: eine erfundene IBAN eines erfundenen
+   * Lieferanten ist die Zeile, an der spaeter eine Zahlung haengt.
+   * TODO(client, O-183): Wer im Haus pflegt Lieferantenstammdaten, und wer
+   * darf eine Bankverbindung aendern?
+   */
+  const LIEFERANTEN: Readonly<Record<string, readonly string[]>> = {
+    reinigung: ['Hygiene Nord Handels GmbH', 'Papier & Spender Berlin e.K.'],
+    security:  ['Funktechnik Spandau GmbH', 'Dienstkleidung Meyer OHG'],
+    bau:       ['Baustoffe Lichtenberg GmbH', 'Gerüstbau Treptow GmbH & Co. KG'],
+  };
+  let lieferanten = 0;
+  for (const b of BEREICHE.filter((x) => x.rechtseinheit === true)) {
+    const namen = LIEFERANTEN[b.slug] ?? [];
+    for (const [i, name] of namen.entries()) {
+      await sql`
+        insert into lieferant
+          (mandant_id, lieferantennummer, name, plz, ort, status,
+           erstellt_von_art, erstellt_von_dienst)
+        values (${ids.get(b.slug)!}, ${`L-${String(70_001 + i)}`}, ${name},
+                '10115', 'Berlin', 'aktiv', 'system', 'job:seed')
+        on conflict do nothing`;
+      lieferanten += 1;
+    }
+  }
+  process.stdout.write(
+    `  ${lieferanten} Lieferanten (ohne Bankverbindung — O-183; keine `
+    + 'Eingangsrechnung, weil ein Beleg ohne Datei keiner ist)\n',
   );
 
   // ------------------------------------------------------ Agent-Richtlinien
@@ -893,6 +1084,55 @@ async function main(): Promise<void> {
     }
   }
   process.stdout.write(`  ${konten.length} Rollenkonten (admin, leitung, mitarbeiter, kunde)\n`);
+
+  /**
+   * **Die Telefonzugaenge — ohne die sich niemand anmelden kann** (EMP-01,
+   * PR 20).
+   *
+   * Sie haengen an `person`, nicht an `anstellung`: Fatima putzt vormittags
+   * fuer die CSE Dienstleistungen und bewacht abends fuer die SSE Security,
+   * und sie hat EIN Telefon. `mitarbeiter_zugang.person_id` ist darum UNIQUE
+   * (D-09, EMP-14) — haenge der Zugang an der Beschaeftigung, haette sie zwei
+   * fuer dieselbe Nummer, und die Frage „welchen nehme ich?" haette keine
+   * Antwort, die sie interessieren sollte.
+   *
+   * **Die Nummer wird normalisiert, nicht uebernommen.** `person.telefon`
+   * steht so da, wie ein Mensch sie schreibt (`+49 170 1000000`);
+   * `telefon_e164` verlangt `^\+[1-9][0-9]{6,14}$` und ist eindeutig. Ohne
+   * `normalisiereTelefon` schlaegt die Einfuegung am CHECK fehl — und der
+   * Seed muss dieselbe Regel benutzen wie die Anmeldung, sonst legt er
+   * Zugaenge an, die niemand findet.
+   *
+   * Wer keine brauchbare Nummer traegt, bekommt keinen Zugang und keine
+   * erfundene: eine ausgedachte Mobilnummer in Demodaten ist eine, die
+   * irgendwann jemand anwaehlt.
+   */
+  const zugangsPersonen = await sql<{ id: string; telefon: string | null }[]>`
+    select distinct p.id, p.telefon
+      from person p
+      join benutzer b on b.person_id = p.id
+     where p.geloescht_am is null and b.status = 'aktiv' and not b.ist_dienstkonto`;
+
+  let zugaenge = 0;
+  let ohneNummer = 0;
+  for (const p of zugangsPersonen) {
+    const e164 = p.telefon === null ? null : normalisiereTelefon(p.telefon);
+    if (e164 === null) { ohneNummer += 1; continue; }
+    /*
+     * `on conflict (person_id) do update` und nicht `do nothing`: der Seed ist
+     * wiederholbar, und wer die Nummer eines Demomenschen aendert, will sie
+     * beim naechsten Lauf geaendert sehen — nicht die alte behalten und sich
+     * wundern, warum die SMS an ein Telefon geht, das es nicht mehr gibt.
+     */
+    await sql`
+      insert into mitarbeiter_zugang (person_id, telefon_e164)
+      values (${p.id}, ${e164})
+      on conflict (person_id) do update set telefon_e164 = excluded.telefon_e164`;
+    zugaenge += 1;
+  }
+  process.stdout.write(
+    `  ${String(zugaenge)} Telefonzugaenge (EMP-01)`
+    + `${ohneNummer === 0 ? '' : `, ${String(ohneNummer)} ohne brauchbare Nummer`}\n`);
 
   /**
    * Phase 4 — CRM und Operations.

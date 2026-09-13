@@ -1,0 +1,261 @@
+/**
+ * Die Abnahme von PR 20: die Anmeldung mit Telefon und Einmalcode (EMP-01).
+ *
+ * **Im Browser, nicht am Dienst.** Die reinen Teile stehen in
+ * `tests/kern/mitarbeiter-anmeldung.test.ts`, die Rechte- und Riegelfragen in
+ * `tests/isolation/mitarbeiter-anmeldung.test.ts`. Was hier gemessen wird, ist
+ * die eine Sache, die keine der beiden zeigen kann: was ein Mensch vor dem
+ * Bildschirm SIEHT — und was ein Unbekannter aus dem Gesehenen ableiten kann.
+ */
+import AxeBuilder from '@axe-core/playwright';
+import { expect, test } from '@playwright/test';
+import postgres from 'postgres';
+
+const DSN = process.env['DATABASE_URL']
+  ?? process.env['TEST_DATABASE_URL']
+  ?? 'postgres://postgres@localhost:55432/cse_test';
+
+const sql = postgres(DSN, { max: 2, onnotice: () => {} });
+
+/** Die Nummer einer geseedeten Beschäftigten — gelesen, nicht getippt. */
+async function nummerVon(email: string): Promise<string> {
+  const [z] = await sql<{ telefon: string | null }[]>`
+    select p.telefon from benutzer b join person p on p.id = b.person_id
+     where b.email = ${email} limit 1`;
+  expect(z?.telefon ?? null, `kein Seed-Konto ${email} mit Nummer`).not.toBeNull();
+  return z!.telefon!;
+}
+
+/**
+ * (1) **Kein Kennwortfeld — auf keinem der beiden Schritte.**
+ *
+ * EMP-01 sagt „phone number + SMS code, no password". Ein verstecktes oder
+ * deaktiviertes Feld wäre trotzdem eines: Kennwortverwalter füllen es, Browser
+ * bieten es an, und irgendwann fragt jemand, welches Kennwort gemeint ist.
+ * Gezählt wird deshalb im DOM und nicht im Sichtbaren.
+ */
+test('die Anmeldung trägt kein einziges Kennwortfeld im DOM (EMP-01)', async ({ page }) => {
+  await page.goto('/auth/mitarbeiter');
+  expect(await page.locator('input[type="password"]').count()).toBe(0);
+
+  await page.fill('input[name="telefon"]', await nummerVon('fatima.yildiz@cse-gruppe.de'));
+  await page.locator('[data-cse="code-anfordern"]').click();
+  await page.waitForURL('**/auth/mitarbeiter/code');
+  expect(await page.locator('input[type="password"]').count()).toBe(0);
+
+  /*
+   * Und das Codefeld ist EINS, nicht sechs (04-SEITENKARTE §2548): sechs
+   * Einzelzeichen lesen sich mit einem Screenreader als sechs namenlose
+   * Eingaben, und Einfügen aus der SMS trifft dann nur das erste.
+   */
+  const code = page.locator('input[name="code"]');
+  await expect(code).toHaveCount(1);
+  await expect(code).toHaveAttribute('inputmode', 'numeric');
+  await expect(code).toHaveAttribute('autocomplete', 'one-time-code');
+});
+
+/**
+ * (2) **Eine unbekannte Nummer sieht aus wie eine bekannte.**
+ *
+ * Das ist AUT-06 (404 statt 403) eine Ebene früher: gäbe die Seite Auskunft,
+ * erführe jeder, der Nummern durchprobiert, WELCHE Menschen bei dieser Gruppe
+ * arbeiten. Verglichen werden Ziel und Text, nicht ein Gefühl.
+ */
+test('eine unbekannte Nummer ist von einer bekannten nicht zu unterscheiden', async ({ page }) => {
+  const bekannt = await nummerVon('fatima.yildiz@cse-gruppe.de');
+
+  await page.goto('/auth/mitarbeiter');
+  await page.fill('input[name="telefon"]', bekannt);
+  await page.locator('[data-cse="code-anfordern"]').click();
+  await page.waitForURL('**/auth/mitarbeiter/code');
+  const zielA = new URL(page.url()).pathname;
+  const textA = (await page.locator('main').innerText()).replace(/\d{6}/gu, 'CODE');
+
+  await page.context().clearCookies();
+  await page.goto('/auth/mitarbeiter');
+  await page.fill('input[name="telefon"]', '+49 170 9999999');
+  await page.locator('[data-cse="code-anfordern"]').click();
+  await page.waitForURL('**/auth/mitarbeiter/code');
+  const zielB = new URL(page.url()).pathname;
+  const textB = (await page.locator('main').innerText()).replace(/\d{6}/gu, 'CODE');
+
+  expect(zielB).toBe(zielA);
+  /*
+   * Der Entwicklungskasten steht nur da, wo ein Code ENTSTANDEN ist — auf den
+   * Entwicklungsflächen ist das der einzige Unterschied, und er existiert in
+   * einer Auslieferung nicht, weil es dort keinen Kasten gibt. Er wird deshalb
+   * vor dem Vergleich abgezogen, und der Rest muss Zeichen für Zeichen gleich
+   * sein.
+   */
+  const ohneKasten = (t: string): string =>
+    t.split('\n')
+      .map((z) => z.trim())
+      .filter((z) => z !== ''
+        && !z.includes('Entwicklungsfläche') && !z.includes('Der Code lautet'))
+      .join('\n');
+  /*
+   * Leerzeilen fallen mit weg, und das ist kein Bequemlichkeitsfilter: der
+   * Kasten hinterlaesst beim Herausschneiden genau eine, und ein Vergleich,
+   * der daran scheitert, misst die Formatierung statt der Auskunft.
+   */
+  expect(ohneKasten(textB)).toBe(ohneKasten(textA));
+});
+
+/**
+ * (3) **Ein falscher Code sagt nichts, woraus sich etwas ableiten ließe.**
+ *
+ * „Code falsch", „abgelaufen", „schon benutzt" und „Nummer unbekannt" sind
+ * vier Hinweise für den, der rät, und null Hilfe für den, der sich vertippt
+ * hat — der tippt einfach nochmal.
+ */
+test('ein falscher Code meldet genau dasselbe wie ein abgelaufener', async ({ page }) => {
+  const nummer = await nummerVon('fatima.yildiz@cse-gruppe.de');
+
+  await page.goto('/auth/mitarbeiter');
+  await page.fill('input[name="telefon"]', nummer);
+  await page.locator('[data-cse="code-anfordern"]').click();
+  await page.waitForURL('**/auth/mitarbeiter/code');
+
+  const echt = (await page.locator('[data-cse="dev-code-wert"]').innerText()).trim();
+  const falsch = echt === '000000' ? '000001' : '000000';
+
+  await page.fill('input[name="code"]', falsch);
+  await page.locator('[data-cse="code-einloesen"]').click();
+  await page.waitForURL('**/auth/mitarbeiter/code?fehler=1');
+  /*
+   * Die Meldung AM FELD, nicht `[role="alert"]` irgendwo. Der erste Treffer im
+   * DOM ist Next' Routen-Ansager — ein leerer Live-Bereich ganz oben, der bei
+   * einem frischen Seitenaufruf nichts enthaelt. Dagegen zu vergleichen hiess,
+   * zwei leere Zeichenketten gleich zu finden und das fuer eine Zusage zu
+   * halten.
+   */
+  const meldungFalsch = await page
+    .locator('form[data-cse="anmeldung-code"] [role="alert"]').innerText();
+  expect(meldungFalsch.trim().length).toBeGreaterThan(0);
+  expect(new URL(page.url()).pathname).toBe('/auth/mitarbeiter/code');
+
+  // Denselben Weg mit einem ABGELAUFENEN Code — dieselbe Meldung.
+  await sql`update mitarbeiter_einmalcode set gueltig_bis = now() - interval '1 minute'`;
+  await page.goto('/auth/mitarbeiter/code');
+  await page.fill('input[name="code"]', echt);
+  await page.locator('[data-cse="code-einloesen"]').click();
+  await page.waitForURL('**/auth/mitarbeiter/code?fehler=1');
+  const meldungAbgelaufen = await page
+    .locator('form[data-cse="anmeldung-code"] [role="alert"]').innerText();
+
+  expect(meldungAbgelaufen).toBe(meldungFalsch);
+});
+
+/**
+ * (4) **Der richtige Code führt ins Mitarbeiterportal — und gilt genau
+ * einmal.**
+ *
+ * Der zweite Teil ist der Wiedereinlöse-Angriff: stünde das Verbrauchen in
+ * der Anwendung statt in `app.zugang_code_einloesen`, gäbe es ein Fenster
+ * zwischen Prüfen und Verbrauchen, in dem derselbe Code zweimal gilt.
+ */
+test('der richtige Code meldet an, und ein zweites Mal nicht mehr', async ({ page }) => {
+  const nummer = await nummerVon('fatima.yildiz@cse-gruppe.de');
+
+  await page.goto('/auth/mitarbeiter');
+  await page.fill('input[name="telefon"]', nummer);
+  await page.locator('[data-cse="code-anfordern"]').click();
+  await page.waitForURL('**/auth/mitarbeiter/code');
+  const code = (await page.locator('[data-cse="dev-code-wert"]').innerText()).trim();
+
+  await page.fill('input[name="code"]', code);
+  await page.locator('[data-cse="code-einloesen"]').click();
+  await page.waitForURL('**/portal/mein');
+  await expect(page.locator('h1')).toBeVisible();
+
+  /*
+   * Abmelden und denselben Code erneut: er ist verbraucht. Der Weg dorthin
+   * geht wieder über die Nummer, weil die Codeseite ohne den kurzlebigen Keks
+   * zum ersten Schritt zurückschickt — auch das eine Zusage und kein Zufall.
+   */
+  await page.context().clearCookies();
+  await page.goto('/auth/mitarbeiter');
+  await page.fill('input[name="telefon"]', nummer);
+  await page.locator('[data-cse="code-anfordern"]').click();
+  await page.waitForURL('**/auth/mitarbeiter/code');
+
+  await page.fill('input[name="code"]', code);
+  await page.locator('[data-cse="code-einloesen"]').click();
+  await page.waitForURL('**/auth/mitarbeiter/code?fehler=1');
+  expect(new URL(page.url()).pathname).toBe('/auth/mitarbeiter/code');
+});
+
+/**
+ * Die Codeseite ohne offene Anmeldung ist kein halber Bildschirm, sondern der
+ * erste Schritt. Sonst gäbe es einen zweiten Weg in die Codeeingabe — und der
+ * zweite Weg ist der, den niemand prüft.
+ */
+test('die Codeseite ohne angefangene Anmeldung schickt zum ersten Schritt', async ({ page }) => {
+  await page.context().clearCookies();
+  await page.goto('/auth/mitarbeiter/code');
+  expect(new URL(page.url()).pathname).toBe('/auth/mitarbeiter');
+});
+
+/**
+ * BFSG gilt für dieses Angebot, und die Anmeldung ist die Seite, an der ein
+ * Zugänglichkeitsfehler den ganzen Rest unerreichbar macht.
+ */
+/**
+ * **Auf den Titel WARTEN, und ihn dabei gleich mitprüfen.**
+ *
+ * Dieser Fall war zeitweise rot mit `document-title` — und die Seite war nie
+ * schuld. Gemessen: unmittelbar nach `waitForURL` meldet der Browser
+ * `document.title === ''`, kurz darauf „Code eingeben — CSE Gruppe". Der
+ * zweite Schritt entsteht durch eine CLIENTSEITIGE Navigation (Server Action
+ * plus Weiterleitung); die Adresse wechselt, bevor Next die Metadaten
+ * angewandt hat. axe lief in genau dieses Fenster — mal gewann der eine, mal
+ * der andere, und ein Lauf, der von der Tagesform der Maschine abhängt,
+ * beweist nichts.
+ *
+ * Gewartet wird deshalb auf die Bedingung, von der die Prüfung abhängt — und
+ * die Wartezeile ist zugleich eine ZUSICHERUNG: sie nennt den erwarteten
+ * Titel. Das ist strenger als vorher, nicht lascher. Ein leeres `<title>`
+ * fiele hier ebenso wie ein falsches, nur nicht mehr zufällig.
+ */
+const TITEL = {
+  erst: /Anmeldung für Mitarbeitende/u,
+  dann: /Code eingeben/u,
+} as const;
+
+test('beide Anmeldeschritte sind ohne axe-Verstoss', async ({ page }) => {
+  for (const schritt of ['erst', 'dann'] as const) {
+    if (schritt === 'erst') {
+      await page.goto('/auth/mitarbeiter');
+    } else {
+      await page.fill('input[name="telefon"]', await nummerVon('amir.haddad@cse-gruppe.de'));
+      await page.locator('[data-cse="code-anfordern"]').click();
+      await page.waitForURL('**/auth/mitarbeiter/code');
+    }
+    await expect(page).toHaveTitle(TITEL[schritt]);
+
+    const ergebnis = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(
+      ergebnis.violations.map((v) => `${v.id}: ${v.help} (${String(v.nodes.length)}×)`),
+      schritt,
+    ).toEqual([]);
+  }
+});
+
+/**
+ * **Und die Abkürzung ist weg.** `/dev/anmelden` listet keine
+ * `mitarbeiter`-Konten mehr: gäbe es sie noch, liefe jede andere Prüfung an
+ * der echten Anmeldung vorbei, und ein Entwicklungsbau hätte zwei Eingänge in
+ * dasselbe Portal.
+ */
+test('die Dev-Anmeldung bietet keine Beschäftigten mehr an', async ({ page }) => {
+  await page.goto('/dev/anmelden');
+  await expect(page.locator('[data-cse="dev-anmelden"]').first()).toBeVisible();
+  expect(await page.locator('[data-cse="dev-anmelden"][data-rolle="mitarbeiter"]').count())
+    .toBe(0);
+  // Die Gegenprobe: die übrigen Rollen stehen sehr wohl noch da, sonst wäre
+  // diese Zusage auch auf einer leeren Seite erfüllt.
+  expect(await page.locator('[data-cse="dev-anmelden"][data-rolle="admin"]').count())
+    .toBeGreaterThan(0);
+});

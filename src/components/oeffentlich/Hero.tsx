@@ -40,7 +40,17 @@ export function Hero({
         className="object-cover"
       />
       <span aria-hidden="true" className="absolute inset-0" style={{ background: KARTEN_GRADIENT }} />
-      <div className="relative flex max-w-content flex-col gap-s3 p-s6">
+      {/*
+        * `mx-auto` und derselbe Seitenabstand wie die Abschnitte darunter.
+        *
+        * `max-w-content` ohne `mx-auto` heisst linksbuendig: auf 1440px begann
+        * die Ueberschrift bei 32px, die Karten darunter bei 104px — zwei
+        * Kanten auf einer Seite, und das Auge sieht es, ohne es benennen zu
+        * koennen. DESIGN §3 nennt die Breite (`1280px`); wo sie steht, sagt
+        * erst die Zentrierung.
+        */}
+      <div className="relative mx-auto flex w-full max-w-content flex-col gap-s3
+                      px-s5 py-s6 cse-auftritt">
         <h1 className="text-h1 text-white">
           {ueberschrift}
           {akzentWort !== null && akzentWort !== undefined && akzentWort !== '' && (

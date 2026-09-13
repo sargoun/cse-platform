@@ -573,6 +573,157 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'finanzen', pfad: 'finanz/abrechnungsart/index',
     schreibend: true, schreibRecht: 'finanzen.schreiben',
   },
+
+  /**
+   * PR 50 — der Abzug der Abschlaege in einer Schlussrechnung (FIN-08).
+   *
+   * `index` SCHREIBT (`schreibeVerrechnung` legt die Bezugszeilen an und setzt
+   * den Kopfbetrag), die beiden Bedingungsdateien nicht: `bedingungen` ist
+   * eine reine Rechnung ueber Basispunkte, `bedingungen.platzhalter` eine
+   * Konstante. Das engere Recht steht an der Datei, die es braucht — wie bei
+   * `finanz/rechnung`.
+   */
+  {
+    modul: 'finanzen', pfad: 'finanz/abschlag/index',
+    schreibend: true, schreibRecht: 'finanzen.schreiben',
+  },
+  { modul: 'finanzen', pfad: 'finanz/abschlag/bedingungen', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/abschlag/bedingungen.platzhalter', schreibend: false },
+
+  /**
+   * PR 51 — §13b UStG und §48 EStG (FIN-09, FIN-10).
+   *
+   * Beide SIND reine Entscheidungen: sie bekommen die Zeilen, die der Aufrufer
+   * schon gelesen hat, und geben eine Lage zurueck. Kein Schreibrecht, weil
+   * keine von ihnen schreibt — die Werte landen ueber `finanz/rechnung` auf
+   * dem Beleg, und dort haengt das Recht.
+   */
+  { modul: 'finanzen', pfad: 'finanz/steuer/nachweis', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/estg48/abzug', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/estg48/grenzen.platzhalter', schreibend: false },
+
+  /**
+   * Der Steuerfall SCHREIBT: er setzt `reverse_charge`, den Pflichthinweis und
+   * die §48-Felder am Entwurf. Was er NICHT kann, ist eine Verlagerung ohne
+   * Nachweis setzen — das entscheidet `fin.reverse_charge_pruefen` in der
+   * Datenbank.
+   */
+  {
+    modul: 'finanzen', pfad: 'finanz/steuerfall',
+    schreibend: true, schreibRecht: 'finanzen.schreiben',
+  },
+
+  /**
+   * PR 52 — die XRechnung (FIN-11).
+   *
+   * **Keiner dieser fuenf schreibt**, und das ist die ganze Aussage dieses
+   * Blocks: die XRechnung entsteht aus dem Snapshot, der laengst
+   * festgeschrieben ist (K-12). Ein Schreibrecht hier waere ein Hinweis
+   * darauf, dass irgendwo doch etwas am Beleg geaendert wird — und genau das
+   * darf nicht sein.
+   *
+   * `dienst` ist der einzige, der ueberhaupt an die Datenbank geht, und auch
+   * er nur lesend: eine Zeile aus `rechnung_snapshot`. Das Recht dafuer
+   * (`finanzen.herunterladen`) sitzt an der Route und an der Seite, weil es
+   * dort um die AUSGABE geht und nicht um die Berechnung.
+   */
+  /*
+   * Die UNTDID-4461-Teilmenge (BT-81). Eine Liste und zwei reine Funktionen —
+   * sie liest nichts und schreibt nichts.
+   */
+  { modul: 'finanzen', pfad: 'finanz/zahlungsmittel', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/xrechnung/index', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/xrechnung/xml', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/xrechnung/aus-snapshot', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/xrechnung/pruefstand', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/xrechnung/dienst', schreibend: false },
+  /**
+   * Zahlungen und offene Posten (PR 54.1, FIN-14).
+   *
+   * Der schreibende Teil traegt `zahlung.schreiben` und nicht
+   * `finanzen.schreiben`: eine Zahlung zu erfassen ist keine Handlung am
+   * Beleg. Wer Rechnungen schreiben darf, darf deshalb nicht schon deswegen
+   * Zahlungseingaenge buchen — und umgekehrt.
+   *
+   * `iban`, `skonto` und `skonto.platzhalter` rechnen nur; sie sehen keine
+   * Datenbank. `abgleich` LIEST und stempelt `neu_berechnet_am` — das
+   * Schreibrecht dafuer haelt `cse_job` als Spaltenrecht, nicht diese
+   * Registratur, weshalb er hier als lesend steht: kein Mensch schreibt
+   * ueber ihn.
+   */
+  { modul: 'zahlung', pfad: 'finanz/zahlung/iban', schreibend: false },
+  { modul: 'zahlung', pfad: 'finanz/zahlung/skonto', schreibend: false },
+  { modul: 'zahlung', pfad: 'finanz/zahlung/skonto.platzhalter', schreibend: false },
+  { modul: 'zahlung', pfad: 'finanz/zahlung/abgleich', schreibend: false },
+  {
+    modul: 'zahlung', pfad: 'finanz/zahlung/index',
+    schreibend: true, schreibRecht: 'zahlung.schreiben',
+  },
+  /**
+   * Die Kreditorenseite (PR 54.3, FIN-14). Modul `eingang` und nicht
+   * `finanzen`: eine Eingangsrechnung ist kein Beleg, den wir ausstellen —
+   * wer fakturiert, prueft deshalb nicht schon deswegen Lieferantenrechnungen.
+   * Das Freigeben traegt noch einmal ein eigenes Recht (`eingang.freigeben`),
+   * und es steht auf der Route, nicht hier: hier steht das ENGERE der beiden
+   * Schreibrechte dieser Datei.
+   */
+  {
+    modul: 'eingang', pfad: 'finanz/eingangsrechnung',
+    schreibend: true, schreibRecht: 'eingang.schreiben',
+  },
+  /**
+   * Die Freigabe als Vorgang (K-13, APR-07, PR 54.3).
+   *
+   * Modul `freigabe` und Schreibrecht `freigabe.entscheiden`: die
+   * Entscheidung IST die Handlung, und sie traegt ein eigenes Recht — nicht
+   * das der Domaene, die sie braucht. Wer eine Eingangsrechnung erfassen
+   * darf, darf damit noch keine Freigabe in die Kette schreiben.
+   */
+  {
+    modul: 'freigabe', pfad: 'freigabe',
+    schreibend: true, schreibRecht: 'freigabe.entscheiden',
+  },
+  /**
+   * Das Rechnungsausgangsbuch (PR 56, FIN-16). Es LIEST — und das ist keine
+   * Formalie: ein Buch, das beim Lesen etwas ablegt, ist kein Buch. Modul
+   * `nummernkreis`, weil es die Sicht auf den Kreis ist.
+   */
+  { modul: 'nummernkreis', pfad: 'finanz/ausgangsbuch', schreibend: false },
+  /**
+   * Das Mahnwesen (PR 55, FIN-15).
+   *
+   * `zins` und `stufen.platzhalter` rechnen nur — keine Datenbank. `lauf`
+   * SCHREIBT: er legt Entwuerfe an, und das traegt `mahnung.schreiben`.
+   * `index` schreibt ebenfalls, und sein engeres Recht (`mahnung.freigeben`
+   * fuer die Freigabe) steht auf der Route, nicht hier — hier steht das
+   * engere der beiden Schreibrechte dieser Datei.
+   */
+  { modul: 'mahnung', pfad: 'finanz/mahnung/zins', schreibend: false },
+  { modul: 'mahnung', pfad: 'finanz/mahnung/stufen.platzhalter', schreibend: false },
+  {
+    modul: 'mahnung', pfad: 'finanz/mahnung/lauf',
+    schreibend: true, schreibRecht: 'mahnung.schreiben',
+  },
+  {
+    modul: 'mahnung', pfad: 'finanz/mahnung/index',
+    schreibend: true, schreibRecht: 'mahnung.schreiben',
+  },
+  {
+    modul: 'mahnung', pfad: 'finanz/mahnung/stufen',
+    schreibend: true, schreibRecht: 'mahnung.schreiben',
+  },
+  /**
+   * ZUGFeRD (PR 53, FIN-12).
+   *
+   * Alle drei LESEN nur: `cii` setzt XML aus einem Schnappschuss zusammen,
+   * `icc` rechnet ein Farbprofil aus Konstanten, `pdfa3` setzt daraus ein
+   * Blatt. Keiner von ihnen sieht eine Datenbank — die Rechnung kommt fertig
+   * herein (K-12). Modul `finanzen`, weil es derselbe Beleg ist wie die
+   * XRechnung, nur in einem zweiten Format.
+   */
+  { modul: 'finanzen', pfad: 'finanz/zugferd/cii', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/zugferd/icc', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/zugferd/pdfa3', schreibend: false },
 ] as const;
 
 /**

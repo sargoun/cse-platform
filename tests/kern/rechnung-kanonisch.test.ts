@@ -25,7 +25,15 @@ function beispiel(): RechnungVollstaendig {
       id: '11111111-1111-1111-1111-111111111111',
       name: 'CSE Dienstleistungen GmbH',
       rechtsform: 'GmbH',
-      anschrift: 'Kurfürstendamm 21, 10719 Berlin, DE',
+      anschrift: {
+        zeile: 'Kurfürstendamm 21, 10719 Berlin, DE',
+        strasse: 'Kurfürstendamm 21',
+        zusatz: null,
+        plz: '10719',
+        ort: 'Berlin',
+        land: 'DE',
+      },
+      kontakt: { name: 'Buchhaltung', telefon: '+49 30 555 0100', email: 'rechnung@cse.de' },
       steuernummer: '30/123/45678',
       ustid: 'DE123456789',
       gericht: 'Amtsgericht Charlottenburg',
@@ -37,7 +45,14 @@ function beispiel(): RechnungVollstaendig {
     empfaenger: {
       id: '22222222-2222-2222-2222-222222222222',
       name: 'Bezirksamt Mitte',
-      anschrift: 'Karl-Marx-Allee 31, 10178 Berlin, DE',
+      anschrift: {
+        zeile: 'Karl-Marx-Allee 31, 10178 Berlin, DE',
+        strasse: 'Karl-Marx-Allee 31',
+        zusatz: null,
+        plz: '10178',
+        ort: 'Berlin',
+        land: 'DE',
+      },
       ustid: null,
       leitwegId: '991-12345-67',
       kaeuferReferenz: null,
@@ -315,7 +330,10 @@ describe('Der Goldene Vektor — die Bytes selbst', () => {
     const umgezogen = beispiel();
     const manipuliert = createHash('sha256').update(buildKanonischePayload({
       ...umgezogen,
-      leistender: { ...umgezogen.leistender, anschrift: 'Anderswo 1, 10000 Berlin, DE' },
+      leistender: {
+        ...umgezogen.leistender,
+        anschrift: { ...umgezogen.leistender.anschrift, zeile: 'Anderswo 1, 10000 Berlin, DE' },
+      },
     })).digest('hex');
     expect(manipuliert).not.toBe(original);
   });

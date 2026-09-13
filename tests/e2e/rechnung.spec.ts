@@ -22,6 +22,7 @@
  *    gesehen.
  */
 import { expect, test, type Page } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 import postgres from 'postgres';
 import { alsKonto, KONTO } from './hilfen/anmeldung';
 
@@ -361,5 +362,121 @@ test.describe('Unbestätigte Werte sind sichtbar (§1.11)', () => {
   test('und eine Position ohne BT-130 zeigt „offen" statt eines geratenen Codes', async ({ page }) => {
     await festgeschriebenerBeleg(page);
     await expect(page.getByRole('columnheader', { name: 'BT-130' })).toBeVisible();
+  });
+});
+
+test.describe('Die XRechnung im Browser (FIN-11)', () => {
+  /**
+   * **Der Beleg geht an das Bezirksamt** — den einzigen öffentlichen
+   * Auftraggeber der Demodaten (PR 52.1). Bei ihm ist die XRechnung keine
+   * Beigabe: ohne sie kann die Gruppe ihn gar nicht abrechnen (SPEC §9), und
+   * genau diesen Weg zeigt diese Prüfung.
+   */
+  async function belegAnDasBezirksamt(page: Page): Promise<void> {
+    await anmelden(page);
+    await page.goto(`/portal/${MANDANT}/finanzen/rechnungen/neu`);
+    await page.getByLabel('Kunde').selectOption({ label: 'Bezirksamt Musterberg von Berlin' });
+    await page.getByLabel('Leistung von').fill('2026-08-01');
+    await page.getByLabel('Leistung bis').fill('2026-08-31');
+    await page.getByLabel('Zahlungsziel (Tage)').fill('30');
+    // BT-81: bei einem öffentlichen Auftraggeber verlangt BR-DE-1 die Angabe.
+    await page.getByLabel('Zahlungsart').selectOption('58');
+    await page.getByRole('button', { name: 'Entwurf anlegen' }).click();
+
+    await page.getByLabel('Handelsübliche Bezeichnung').fill('Unterhaltsreinigung');
+    await page.getByLabel('Menge (Tausendstel)').fill('1000');
+    /*
+     * **Quadratmeter, nicht die Vorauswahl.** Die erste Einheit der Liste ist
+     * `einsatz`, und die hat keinen UN/ECE-Rec-20-Code — O-174 ist für sie
+     * offen, weil es für „Einsatz" keine normative Entsprechung gibt. Die
+     * Vorprüfung weist einen Beleg damit zu Recht ab (BT-130), und genau das
+     * hat diese Prüfung beim ersten Lauf getan. Die Lehre steht hier, nicht in
+     * einer stillen Änderung: wer für einen öffentlichen Auftraggeber
+     * abrechnet, braucht eine Einheit mit Code.
+     */
+    await page.getByLabel('Einheit').selectOption('m2');
+    await page.getByLabel('Einzelpreis (Cent)').fill('100000');
+    await page.getByLabel('Begründung, falls von Hand erfasst')
+      .fill('Einmalige Leistung ohne Auftragsbezug');
+    await page.getByRole('button', { name: 'Position hinzufügen' }).click();
+    await expect(page.getByText('Unterhaltsreinigung').first()).toBeVisible();
+
+    await page.getByRole('button', { name: 'Rechnung festschreiben' }).click();
+    await page.waitForLoadState('domcontentloaded');
+    const koerper = (await page.locator('body').innerText()).trim();
+    expect(
+      koerper.startsWith('{') ? koerper.slice(0, 400) : null,
+      'Festschreiben abgewiesen — der Grund steht im JSON daneben',
+    ).toBeNull();
+  }
+
+  test('die Seite zeigt einen Prüfstand und behauptet NIE, das Dokument sei gültig',
+    async ({ page }) => {
+      await belegAnDasBezirksamt(page);
+      await page.getByRole('link', { name: 'XRechnung ansehen' }).click();
+      await expect(page.getByRole('heading', { name: 'XRechnung (UBL, EN 16931)' }))
+        .toBeVisible();
+
+      const stand = page.locator('[data-cse="xrechnung-pruefstand"]');
+      await expect(stand).toBeVisible();
+      /*
+       * 04-SEITENKARTE §5.14.3 nennt genau drei Zustände und verbietet einen
+       * vierten, der wie ein Bestehen aussieht. „gültig" über DIESE Rechnung
+       * wäre genau der vierte — und eine erfundene Freigabe entdeckt der
+       * Empfänger, indem er die Rechnung ablehnt.
+       */
+      await expect(stand).not.toContainText(/\bgültig\b/u);
+      await expect(stand).toHaveAttribute(
+        'data-art', /^(in_ci_validiert|pruefung_ausstehend|pruefer_nicht_verbunden)$/u);
+    });
+
+  test('die Leitweg-ID steht auf der Seite und im Dokument (BT-10)', async ({ page }) => {
+    await belegAnDasBezirksamt(page);
+    await page.getByRole('link', { name: 'XRechnung ansehen' }).click();
+
+    await expect(page.locator('[data-cse="leitweg-id"]')).toHaveText('991-12345-67');
+    // Und im erzeugten UBL — ohne BT-10 weist das Portal des Auftraggebers ab.
+    await expect(page.locator('[data-cse="xrechnung-vorschau"]'))
+      .toContainText('<cbc:BuyerReference>991-12345-67</cbc:BuyerReference>');
+    // Es gibt KEINE Mängelliste: der Beleg ist vollständig.
+    await expect(page.locator('[data-cse="xrechnung-fehlend"]')).toHaveCount(0);
+  });
+
+  test('die Adresse liefert XML, nicht HTML — und als Datei', async ({ page }) => {
+    await belegAnDasBezirksamt(page);
+    const beleg = page.url();
+    const id = beleg.split('/').pop() ?? '';
+
+    const antwort = await page.request.get(`/api/finanzen/rechnungen/${id}/xrechnung.xml`);
+    expect(antwort.status()).toBe(200);
+    expect(antwort.headers()['content-type']).toContain('application/xml');
+    /*
+     * `attachment` und ein Dateiname aus der Rechnungsnummer: ohne den
+     * Kopfsatz zeigt der Browser das XML an, statt es zu speichern, und wer
+     * es an die Rechnungseingangsplattform weiterreichen will, hat nichts in
+     * der Hand.
+     */
+    expect(antwort.headers()['content-disposition']).toMatch(/attachment; filename="xrechnung-/u);
+    expect(await antwort.text()).toContain('urn:xeinkauf.de:kosit:xrechnung_3.0');
+  });
+
+  test('axe findet nichts auf der XRechnung-Seite', async ({ page }) => {
+    /*
+     * BFSG (LEG-07, DESIGN §9). Die Portalseiten laufen nicht durch die
+     * Sammelprüfung in `a11y.spec.ts` — die liest `OEFFENTLICHE_ROUTEN` —,
+     * also steht die Prüfung bei der Seite, die sie braucht. Der
+     * Vorschaukasten ist dabei der interessante Teil: ein `pre` mit tausend
+     * Zeilen XML ist genau die Art Element, an der Kontrast, Rollen und
+     * Tastaturerreichbarkeit auseinanderfallen.
+     */
+    await belegAnDasBezirksamt(page);
+    await page.getByRole('link', { name: 'XRechnung ansehen' }).click();
+    await expect(page.locator('[data-cse="xrechnung-vorschau"]')).toBeVisible();
+
+    const ergebnis = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(
+      ergebnis.violations.map((v) => `${v.id}: ${v.help} (${String(v.nodes.length)}×)`),
+    ).toEqual([]);
   });
 });

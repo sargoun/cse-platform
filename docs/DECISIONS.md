@@ -2983,6 +2983,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-188 | Who signs the Verfahrensdokumentation per entity, and at what interval is it reviewed? |
 | O-189 | Will any of the three entities ever invoice, or receive invoices, in a currency other than EUR? |
 | O-190 | Is the counter-signed Leistungsnachweis (CLN-04) kept as evidence behind a cleaning invoice line, in addition to the time entries? |
+| O-358 | Who maintains the §247 BGB Basiszinssatz — accounting per entity or the group centrally — and should the watchdog notify a named person instead of only failing the run? |
 
 **`02-datenmodell/06-RADAR-KI-INHALT.md`**
 
@@ -5455,3 +5456,1146 @@ Platzhalter waren erlaubt, solange einer markiert war, und die Zusicherung
 faellt am Tag des Erfolgs, wenn echte Bilder eintreffen. Sie prueft jetzt die
 Aussage selbst — so viele Marken wie Platzhalterbilder, und null Platzhalter
 erfuellen das richtig.
+
+---
+
+### D-384 · Die Anmeldung der Beschaeftigten liegt in der Datenbank, nicht in der Anwendung
+
+PR 20 schliesst die eine benannte Luecke der Phasen 0 bis 5: es gab keine
+Anmeldung. Sitzungen kamen aus `/dev/anmelden`, und das steht hinter
+`CSE_DEV_FLAECHEN`.
+
+**Drei Funktionen unter dem Eigentuemer, nicht drei Anweisungen in der
+Anwendung** (`0114`, `0115`). Wer sich anmeldet, ist noch niemand:
+`app.aktueller_benutzer()` ist NULL, `cse_app` sieht unter RLS nichts, und es
+gibt keinen Mandanten zu binden. Die Anmeldung ist damit der eine Weg, der VOR
+der Autorisierung liegt und trotzdem in die Datenbank greifen muss.
+
+Das ist keine Vorliebe, sondern zweimal nachgewiesen:
+
+- **`cse_app` hat auf `benutzer_sitzung` kein INSERT**, und die beiden
+  Policies darauf lauten `benutzer_id = app.aktueller_benutzer()`. Ein
+  direktes `insert` — so wie `devSitzungAusstellen` es tut — funktioniert nur,
+  solange die Anwendung als Eigentuemer verbindet. In einer Auslieferung, die
+  richtigerweise als `cse_app` laeuft, waere die Anmeldung tot gewesen: erst
+  dort, nicht hier.
+- **Die Abmeldung traf dasselbe.** `beendeSitzung` setzte `beendet_am` mit
+  einem eigenen UPDATE. Unter `cse_app` traf das null Zeilen und meldete
+  nichts — eine Abmeldung, die wie eine aussieht und keine ist. Sie laeuft
+  jetzt ueber `app.sitzung_beenden`, und der Besitz des Tokens ist der
+  Ausweis.
+
+Beide Befunde stehen als Test in `tests/isolation/mitarbeiter-anmeldung.test.ts`
+(„ein direktes INSERT als cse_app scheitert", „ein direktes UPDATE als cse_app
+beendet dagegen nichts"). Wer die Funktionen „vereinfacht", faellt dort.
+
+**`ansicht = 'person'` ist die Decke, nicht der Vorgabewert** (K-04).
+`app.sitzung_aufloesen` leitet das Portal aus der Ansicht ab; `person` ergibt
+`mitarbeiter`, unabhaengig von jeder weiteren Rolle des Kontos. Wer als
+Leitung gefuehrt wird und sich mit dem Telefon anmeldet, landet im
+Mitarbeiterportal — der leichte Weg (EMP-01, ein Faktor) kann den schweren
+(AUT-02, zwei Faktoren) nicht ersetzen. Das ist die sichere Richtung; ob sie
+die gewollte ist, ist **O-88**.
+
+**`aal1`, nicht `aal2`.** Der Einmalcode IST der erste Faktor, nicht der
+zweite. `devSitzungAusstellen` setzt `aal2`, damit Rechte mit `erfordert_2fa`
+auf den Entwicklungsflaechen nicht still leer bleiben; in der echten Anmeldung
+waere dieselbe Zeile eine Falschangabe.
+
+**Offen und als Platzhalter gefuehrt:** `auth.sitzung_stunden` = 12
+(`ist_vorlaeufig`), **O-79**. Zwoelf Stunden sind der Wert, den die
+Dev-Anmeldung seit PR 19 benutzt; er steht jetzt als Einstellung statt als
+Zahl im Code, damit die Antwort an einer Stelle landet. Fuer Reinigungskraefte
+und Wachleute ist die Frage eine andere als fuer die Buchhaltung: das Telefon
+liegt auf dem Objekt, und eine zwoelf Stunden gueltige Sitzung ueberlebt das
+Schichtende.
+
+---
+
+### D-385 · „Nicht verbunden" und „Code anzeigen" sind ZWEI Zusagen, nicht eine
+
+`codeAnfordern` gab den Klartextcode zurueck, wenn `!sms.verbunden`. Beide
+Dienste im Baum sind `verbunden = false` — der eine, weil O-82 offen ist, der
+andere, weil er auf der Entwicklungsflaeche absichtlich nichts sendet. Die
+Bedingung galt also fuer beide.
+
+**Was das in einer Auslieferung ohne Gateway bedeutet hätte:** jeder
+Unbekannte tippt die Mobilnummer einer Beschaeftigten ein und liest den Code
+daneben. Ein Einmalcode, den der Anfordernde sieht, ohne das Telefon zu haben,
+ist kein Faktor, sondern eine Tuer — und die Anmeldung, die PR 20 baut, waere
+schwaecher gewesen als gar keine, weil sie nach einer aussieht.
+
+`SmsDienst` traegt deshalb `zeigtCode` als EIGENE Zusage. Sie ist nur auf der
+Entwicklungsflaeche wahr; ein kuenftiger echter Anbieter setzt sie nie. Der
+Umkehrschluss aus `verbunden` ist damit ausgeschlossen, und
+`tests/kern/mitarbeiter-anmeldung.test.ts` prueft beide Faelle GETRENNT — samt
+eines dritten Dienstes, den es im Baum nicht gibt (verbunden UND anzeigend),
+damit die alte Regel den Test nicht gruen machen kann.
+
+Und die Folge fuer den Betrieb steht auf dem Bildschirm statt in einer Datei:
+ohne Gateway sagt `/auth/mitarbeiter` „nicht verbunden" und nennt O-82 — genau
+das, was 01-ORDNERSTRUKTUR §11.3 festhaelt. Die Zeiterfassung haengt trotzdem
+nicht daran: der planerseitige Check-in-Link (TIM-07) ist tokenisiert und
+braucht keine Anmeldung.
+
+---
+
+### D-386 · `/dev/anmelden` wird VERENGT, nicht abgeschafft
+
+Die ROADMAP sagt, PR 20 ersetze die Dev-Anmeldung. Woertlich genommen waere
+das falsch: PR 20 baut EMP-01, also den Zugang der Beschaeftigten.
+`/auth/login` mit E-Mail, Kennwort und zweitem Faktor ist Phase 1 (AUT-01,
+AUT-02) und nicht gebaut. Wer die Seite ganz entfernte, naehme `admin`,
+`leitung`, `super_admin` und dem Kundenzugang den einzigen Eingang, den sie
+haben.
+
+Die Seite listet deshalb seit PR 20 **keine `mitarbeiter`-Konten mehr**. Fuer
+den einen Weg, den PR 20 abdeckt, gibt es jetzt eine Anmeldung, und eine
+Abkuerzung daneben hiesse, dass jede Pruefung sie nimmt und die Anmeldung
+ungeprueft bleibt — und dass ein Entwicklungsbau zwei Eingaenge in dasselbe
+Portal hat.
+
+**Die Weiche sitzt im Anmeldehelfer der Browsersuite, nicht an den
+Aufrufstellen.** `alsKonto(page, email)` liest die Rolle des Kontos und nimmt
+fuer `mitarbeiter` den echten Weg. Fuenfzehn Aufrufstellen umzuschreiben waere
+moeglich gewesen — nur stehen mehrere davon in TABELLEN (`[pfad, konto]`), und
+eine Weiche, die man je Aufrufer trifft, trifft man irgendwo nicht.
+
+---
+
+### D-387 · Die vier Anmeldefunktionen gehoeren `cse_definer` — und das zieht mehr nach sich als eine Zeile
+
+`0114` und `0115` legen `SECURITY DEFINER`-Funktionen an und sagten nicht, wem
+sie gehoeren. Postgres gibt sie dann dem Konto, das die Migration ausfuehrt:
+`postgres`, Superuser mit `BYPASSRLS`. Eine Definer-Funktion laeuft mit den
+Rechten IHRES Eigentuemers — die vier liefen also an jeder Zeilensicherheit
+vorbei und mit vollem Zugriff auf jede Tabelle. Ausgerechnet die vier, die ein
+Unangemeldeter aufrufen darf.
+
+**Gefunden hat es die Sperrklinke aus D-300**, `tests/isolation/definer-eigentum.test.ts`,
+und zwar in CI, nicht im Betrieb. Sie ist genau dafuer da, dass die Altlast von
+95 Funktionen nicht waechst; sie hat funktioniert.
+
+**Das Umhaengen ist eine Zeile, die Folgen sind es nicht.** Ohne
+Superuser-Rechte stehen zwei Fragen offen, die vorher niemand stellen musste:
+welche Tabellen darf die Funktion anfassen, und welche Zeilen sieht sie dort.
+`0116` beantwortet beide — spaltengenau (K-05) und mit einer Policy je Tabelle
+und Anweisung. Drei Dinge fielen dabei auf, die alle erst zur Laufzeit
+gemeldet haetten:
+
+- **`app.plattform_einstellung`** wird aus `mitarbeiter_sitzung_ausstellen`
+  gerufen. Als `postgres` ging das ohne Recht; als `cse_definer` stirbt die
+  Anmeldung mit „permission denied for function plattform_einstellung".
+- **PUBLIC hielt EXECUTE auf allen vieren.** `create function` vergibt das,
+  ohne dass es jemand hinschreibt. Bei einer Funktion, die als `cse_definer`
+  laeuft, ist „jeder andere Aufrufer" genau die Menge, die es nicht geben darf.
+  `0093` hatte denselben Entzug fuer die damals vorhandenen Funktionen
+  gefahren; diese vier kamen danach.
+- **`using (true)` ist hier die richtige Verengung.** Eine Anmeldung MUSS eine
+  Nummer nachschlagen koennen, die sie noch nicht kennt; jede Bedingung auf
+  „eigene Zeilen" waere zirkulaer, es gibt ja noch keinen Handelnden. Die
+  Verengung liegt woanders und ist schaerfer: `cse_definer` ist `NOLOGIN`,
+  niemand ist Mitglied, und die Rolle laesst sich nur ueber genau diese vier
+  Funktionen betreten.
+
+---
+
+### D-388 · Es gibt jetzt beide Richtungen: kein Recht ohne Policy UND keine Policy ohne Recht
+
+`tests/isolation/spaltenrechte.test.ts` prueft seit 0100, dass kein
+Tabellenrecht ohne passende Policy dasteht — unter FORCE heisst „keine
+anwendbare Policy" *nichts*, und die Zeile kommt nie an.
+
+**Die Gegenrichtung fehlte, und sie hat sofort etwas gefunden.** `0113` (PR 20)
+kam mit drei sorgfaeltig geschnittenen Policies fuer `cse_app` auf
+`mitarbeiter_zugang` — und mit keinem einzigen Recht darauf. Postgres prueft
+in dieser Reihenfolge: erst das GRANT, dann die Policy. Eine Policy auf einer
+Tabelle, auf die die Rolle kein Recht hat, wird nie ausgewertet. Die Migration
+lief durch, die Policies standen in `pg_policies`, und die Personalstelle
+haette beim ersten Versuch `permission denied` gesehen — an einem Bildschirm,
+den bis dahin niemand geoeffnet hatte.
+
+Zwei Dinge, die der erste Entwurf falsch machte und die jetzt ausdruecklich
+dastehen:
+
+- **Spalten zaehlen mit.** K-05 gewaehrt bewusst je Spalte;
+  `information_schema.role_table_grants` kennt nur Tabellenrechte. Gefragt
+  wird deshalb `has_any_column_privilege` — und fuer DELETE
+  `has_table_privilege`, weil es DELETE auf einer Spalte gar nicht gibt.
+- **RESTRICTIVE zaehlt nicht mit.** Eine restriktive Policy erlaubt nichts,
+  sie verengt nur; ihr fehlendes Recht macht sie nicht tot, sondern doppelt
+  zu. `p_intern_eingang_delete` auf `formular_eingang` ist genau der Fall, und
+  eine eigene Pruefung haelt fest, dass es GENAU diese eine ist — kaeme eine
+  zweite dazu, muss jemand sie ansehen, statt dass sie durch eine stille
+  Bedingung rutscht.
+
+**Und ein dritter Befund aus demselben Nachmittag, der nichts mit Rechten zu
+tun hat:** `scripts/test-db.sh` haelt die Aufbausperre auf Dateikanal 9 und
+startete den Server innerhalb dieser Sperre. `pg_ctl start` loest einen Prozess
+ab, der den Kanal erbt — und die Sperre damit auf Lebenszeit haelt. Der erste
+`db:test:up` auf einem frischen Rechner lief durch, jeder folgende wartete zehn
+Minuten und starb an „Warte-Zeit abgelaufen", was aussieht wie ein haengender
+Postgres. `9>&-` schliesst den Kanal fuer den abgeloesten Prozess;
+`tests/kern/test-db-sperre.test.ts` faehrt den Wortlaut der Funktion aus dem
+Skript und prueft beide Richtungen — mit und ohne.
+
+---
+
+### D-389 · Der Abzug der Abschläge trägt die Beträge der Belege, er rechnet sie nicht nach
+
+PR 50 (FIN-08). Eine Schlussrechnung zieht die vorher gestellten Abschläge ab.
+Drei Entscheidungen stecken darin, und jede hat eine Gegenprobe im Test.
+
+**Je Steuergruppe, nie aus einer Bruttosumme.** §14 Abs. 4 Nr. 8 UStG verlangt
+die Umsatzsteuer je Satz, und die abgezogenen Abschläge müssen in derselben
+Aufteilung dastehen. Wer vom Brutto abzieht, hat einen Zahlbetrag, der stimmt,
+und eine Steueraufteilung, die es nicht tut — und die Voranmeldung zieht aus
+der falschen. Deshalb `abschlagsrechnung_bezug` mit
+`abzug_netto_cent`/`abzug_steuer_cent` je `steuersatz_gruppe_id` und nicht eine
+Zeile in `rechnung_beziehung`, die nur verweisen kann.
+
+**Summiert, nicht neu gerundet.** Jeder Abschlag hat seine Steuer beim
+Festschreiben schon auf ganze Cent gerundet und ist danach unveränderlich. Die
+Summe dreier einzeln gerundeter Beträge ist NICHT dasselbe wie der Satz auf die
+Gesamtsumme: `tests/kern/abschlag.test.ts` fährt den Fall (drei Abschläge,
+deren Steuer je genau auf der halben Stelle liegt) und prüft zuerst, dass die
+beiden Wege überhaupt auseinandergehen — ohne diesen Vortest bewiese die
+eigentliche Zusage nichts. Der Abzug folgt den Belegen. Der Kunde, der
+nachrechnet, hat sonst recht.
+
+**Ein stornierter Abschlag hält an, statt still zu verschwinden.** Es gibt
+keinen Zustand `storniert` auf `rechnung` — eine Stornierung ist ein eigener
+Beleg, der zurückverweist (Invariante 4, K-12). Ob die Schlussrechnung den
+Abschlag deshalb gar nicht, den Storno mit, oder einen Ersatz abzieht, ist eine
+kaufmännische Entscheidung. Die Plattform nennt die Nummer und hört auf; das
+ist die einzige Antwort, die nicht falsch sein kann.
+
+**Und die Festschreibung weist eine unvollständige Schlussrechnung ab**, vor
+der Nummernvergabe (Schritt 2a in `finalisiere`) — danach wäre die Warnung
+wertlos, weil der Zähler unwiderruflich weitergerückt ist. Die Meldung nennt
+die Nummern; „es fehlt etwas" ist keine Auskunft, mit der jemand arbeiten kann.
+
+**Offen: der Sicherheitseinbehalt (O-20).**
+`finanz/abschlag/bedingungen.platzhalter.ts` setzt `einbehalt: null`, und das
+ist die einzige Belegung, die dort stehen darf. Jeder Zahlenwert — auch der
+branchenübliche — wäre eine Vertragsklausel, die niemand vereinbart hat, auf
+einem Beleg, der nach dem Festschreiben unveränderlich ist. Die Richtung ist
+bewusst gewählt: ohne Entscheidung wird nichts einbehalten, der Kunde zahlt den
+vollen Betrag, und die Gruppe trägt das Risiko einer Nachverhandlung.
+Andersherum stünde auf einer Rechnung ein Abzug ohne Grundlage.
+
+---
+
+### D-390 · §13b und §48 werden aus Nachweisen gelesen, nicht aus dem Gewerk abgeleitet
+
+PR 51 (FIN-09, FIN-10, LEG-06).
+
+**Der Fehler, der hier nicht gemacht wird**, steht in `01-ORDNERSTRUKTUR.md`
+§8.6 beim Namen: „a reverse-charge invoice inferred from a trade code". Die
+REALTIME Service GmbH baut auch um, ohne dass jede Position eine Bauleistung
+nach §13b Abs. 2 Nr. 4 wäre; die CSE Dienstleistungen reinigt für Kunden, die
+selbst reinigen, und für solche, die es nicht tun. Aus dem Mandanten lässt sich
+der Steuerfall nicht ableiten. Die Art der Leistung steht deshalb auf dem BELEG
+(`rechnung.reverse_charge_grundlage`), gesetzt von einem Menschen; der Dienst
+beantwortet nur, was daraus folgt.
+
+**Zwei Tatbestände, nicht einer.** Nr. 4 verlagert bei Bauleistungen, Nr. 8 bei
+Gebäudereinigungsleistungen an einen Unternehmer, der selbst reinigt. In dieser
+Gruppe ist der zweite der häufigere. `kunde_bauleistender_status` trägt deshalb
+`leistungsart`, und ein `EXCLUDE` schliesst überlappende Zeiträume je Kunde und
+Art aus — zwei Antworten auf eine Frage, deren Auswahl die Sortierung träfe,
+sind so gar nicht erst speicherbar.
+
+**Der Status wird am Leistungsdatum gelesen, nicht heute.** Ein Kunde, der seit
+letztem Monat kein Bauleistender mehr ist, war es im August; eine Rechnung über
+August muss das tragen. Ein boolesches Kennzeichen auf `kunde` hätte jede
+historische Rechnung beim nächsten Statuswechsel rückwirkend umgedeutet — auf
+Belegen, die unveränderlich sind.
+
+**Der Riegel gegen §13b ohne Nachweis sitzt in der Datenbank**
+(`fin.reverse_charge_pruefen`, 0118), nicht nur im Dienst: ein Import, ein
+Skript oder eine spätere Route ginge sonst daran vorbei. Wer die Steuer zu
+Unrecht verlagert, weist keine Umsatzsteuer aus, der Empfänger schuldet sie
+nicht, und der Leistende schuldet sie trotzdem (§13a UStG), ohne sie eingenommen
+zu haben — Jahre später, auf einem Beleg, den niemand mehr ändert.
+
+**§48 EStG hat zwei teure Richtungen, und beide hängen an einem Datum.** Wer
+nicht einbehält, obwohl er müsste, haftet (§48a Abs. 3 EStG); wer einbehält,
+obwohl eine gültige Bescheinigung vorlag, zieht dem Kunden Geld ab, das ihm
+zusteht. Die Tests fahren deshalb die GRENZTAGE einzeln: eine Bescheinigung,
+die am Tag vor dem Stichtag endet, befreit nicht; eine, die am Stichtag endet,
+befreit. Dazwischen liegen bei 10.000 € genau 1.500 €.
+
+**Und §48b kennt zwei Formen.** Eine auftragsbezogene Bescheinigung befreit
+EINEN Auftrag; ohne `umfang` und `auftrag_id` nähme der Prüfer sie für jeden
+anderen mit an.
+
+**Offen (O-21), und sichtbar statt still entschieden.** Welcher Stichtag gilt —
+Leistungsende, Zahlung, oder geteilte Abrechnung —, ist nicht beantwortet. Bis
+dahin `leistung_bis`, als EIN injizierter Parameter
+(`estg48/grenzen.platzhalter.ts`: die Antwort ist ein Wert dort plus ein Test,
+kein Umbau). Endet die Gültigkeit einer Bescheinigung INNERHALB des
+Leistungszeitraums, trägt die Lage eine Warnung mit der Nummer und dem Datum —
+der Mensch, der unterschreibt, sieht den Fall. Die Bagatellgrenzen des §48
+Abs. 2 EStG bleiben unangewandt: ohne Grenze wird immer einbehalten, und das
+ist die Seite, die nicht haftet.
+
+### D-391 · Die Nutzlast bekommt eine zweite Gestalt, weil eine Anschrift kein Satz ist
+
+PR 52 (FIN-11, K-12, §5.3).
+
+`cse.rechnung.v1` trug jede Anschrift als EINE Zeile — `concat_ws(', ', strasse,
+concat_ws(' ', plz, ort), land)`, erzeugt in der Kopfabfrage. Für das PDF genügt
+das; ein Mensch liest die Zeile und erkennt die Adresse.
+
+**EN 16931 liest keine Zeilen.** Die Norm führt Straße, Ort, Postleitzahl und
+Ländercode als eigene Geschäftsanforderungen (BT-35, BT-37, BT-38, BT-40 für
+den Leistenden; BT-50, BT-52, BT-53, BT-55 für den Empfänger), und die
+XRechnung-CIUS macht drei davon zu harten Regeln (BR-DE-3 bis BR-DE-5). Aus
+einer Zeile ergeben sie sich nur durch Raten: ein Komma ist kein Feldtrenner,
+`"Berlin, DE"` und `"Berlin"` sind beide plausibel, und ein falscher Ländercode
+lässt die Rechnung beim Empfänger durchfallen — nachdem sie festgeschrieben und
+damit unveränderlich ist.
+
+**K-12 lässt genau einen Weg offen.** Der Snapshot IST das Dokument; die
+XRechnung liest ihn und nicht die Stammdaten. Also muss der Snapshot die Felder
+tragen. Die Alternative — beim Erzeugen doch frisch abfragen — hiesse, dass eine
+spätere Pflege des Kundenstamms ändert, was die XRechnung sagt, während die
+Kettenprüfung weiter „intakt" meldet: zwei Dokumente zu einer Rechnungsnummer,
+und das zweite beweist nichts.
+
+**Bestehende Glieder bleiben gültig, und zwar ohne Zutun.** Der Kettenlauf hasht
+`rechnung_snapshot.nutzlast_bytes`, wie sie gespeichert sind; er baut die
+Nutzlast nie neu. Eine v1-Zeile bleibt byte-gleich, verifiziert weiter und trägt
+ihre Gestalt in `schema_version` bei sich. Genau dafür gibt es das Feld.
+
+**Eine v1-Rechnung bekommt trotzdem keine XRechnung** (`SnapshotZuAltFehler`).
+Sie ist nicht verloren — sie ist nur nicht maschinenlesbar zustellbar, und der
+Weg dahin ist Storno und Neuausstellung. Das ist eine kaufmännische
+Entscheidung und keine, die ein Parser heimlich trifft.
+
+Mitgekommen ist der **Verkäuferkontakt** (BG-6): BR-DE-2 macht die Gruppe zur
+Pflicht, BR-DE-6 bis BR-DE-8 die drei Felder darin. Zwei standen längst auf
+`mandant` (`telefon`, `email`); das dritte, die Kontaktstelle (BT-41), gab es
+nicht. `0119` legt die Spalte an und lässt sie NULL: was der öffentliche
+Auftraggeber auf der Rechnung liest und wen er anruft, entscheidet die
+Gesellschaft. Ein `default 'Buchhaltung'` wäre in neun von zehn Fällen richtig
+und damit die teuerste Sorte Erfindung.
+
+### D-392 · Die XRechnung-Pflichtfelder sperren die Festschreibung, nicht den Download
+
+PR 52 (FIN-11, §14 UStG-Vorprüfung).
+
+Der naheliegende Ort für die Prüfung wäre das Erzeugen des Dokuments gewesen:
+wer herunterlädt, bekommt entweder eine XRechnung oder eine Fehlerliste. Das
+ist **zu spät**. Zum Zeitpunkt des Downloads ist die Rechnung festgeschrieben,
+trägt eine gezogene Nummer und hängt in der Hashkette; der einzige Weg zurück
+ist ein Storno und eine neue Rechnung — wegen einer fehlenden Telefonnummer.
+
+05-API-KARTE §D sagt es für die Leitweg-ID ausdrücklich: bei einem öffentlichen
+Auftraggeber ist sie sperrend, „weil FIN-11 die XRechnung zum einzigen Weg
+macht, ihn überhaupt abzurechnen". Dasselbe gilt für die übrigen
+Pflichtangaben derselben Norm. Die Regel `xrechnung.pflichtfelder` steht deshalb
+im §14-Bericht und blockiert die Festschreibung.
+
+**Sie greift nur, wenn der Kunde eine XRechnung verlangt** (`xrechnung_pflicht`
+oder `ist_oeffentlicher_auftraggeber`) — und dann als Fehler, nicht als Warnung.
+Eine Reinigungsrechnung an eine Hausverwaltung braucht kein BT-41; eine Warnung,
+die auf jedem zweiten Beleg steht, liest nach zwei Wochen niemand mehr.
+
+**Eine Liste, zwei Aufrufer.** `fehlendePflichtfelder` nimmt eine schmalere
+Gestalt als eine ganze Rechnung (`XRechnungEingabe`), und `RechnungVollstaendig`
+erfüllt sie von selbst. Die Vorprüfung baut sie aus ihrer eigenen Abfrage, weil
+ein Entwurf weder Nummer noch Kettenposition hat. Zwei getrennte Listen wären
+die teurere Lösung: sie driften auseinander, und zwar in der Richtung, in der
+die Vorschau „vollständig" sagt und der Erzeuger sich danach weigert.
+
+`BT-3` ist die eine Ausnahme: der Rechnungsart-Code entsteht erst beim Zug der
+Nummer. Ihn in der Vorprüfung zu verlangen hiesse, jeden Entwurf zu sperren.
+
+### D-393 · Der KoSIT-Prüfer läuft in CI — und hat sofort zwei Fehler gefunden, die keine Eigenprüfung findet
+
+PR 52 (FIN-11, SPEC §14, 01-ORDNERSTRUKTUR §11.2).
+
+Jede Zusage in `tests/kern/xrechnung.test.ts` stammt aus demselben Kopf wie der
+Erzeuger und teilt seine Irrtümer. Der KoSIT-Prüfer ist das Werkzeug, gegen das
+die Rechnungseingangsplattformen des Bundes und der Länder prüfen; er kennt die
+Regeln, an die ich nicht gedacht habe. Beim ersten Lauf gegen die vier Muster:
+
+1. **Die `CustomizationID` trug die Schreibweise der Fassung 2.x**
+   (`urn:xoev-de:kosit:standard:xrechnung_3.0`). Zur 3.0 hat die KoSIT den
+   Bezeichner auf `urn:xeinkauf.de:kosit:xrechnung_3.0` umgestellt. Das Dokument
+   war wohlgeformt, vollständig und inhaltlich richtig; der Prüfer meldete
+   `noScenarioMatched` und wies ALLE VIER ab, ohne einen einzigen inhaltlichen
+   Fehler zu nennen. Keine selbstgeschriebene Prüfung hätte das gefunden — sie
+   hätte dieselbe falsche Zeichenkette erwartet.
+2. **`PartyLegalEntity/RegistrationAddress` mit dem Registergericht.** Nach §35a
+   GmbHG gehört es auf jeden Geschäftsbrief; UBL-CR-185 schliesst das Element in
+   einem Rechnungsdokument aus. Der Prüfer nahm die Rechnung an und beanstandete
+   sie — ein Zustand, in dem niemand arbeiten will. Das Gericht steht weiter im
+   Snapshot und auf dem PDF.
+
+**Eigener Auftrag, nicht in `pruefung`.** Der Prüfer ist ein Java-Werkzeug mit
+einer getrennt veröffentlichten Regelwerksfassung. Ihn in den Hauptlauf zu
+hängen hiesse, jede Prüfung an zwei Downloads zu binden, die mit ihr nichts zu
+tun haben. Beide Fassungen sind **gepinnt**: ohne Pin brächte eine neue
+Regelwerksfassung den Bau an einem beliebigen Dienstag zu Fall, ohne dass jemand
+etwas geändert hätte, und niemand wüsste, ob die neue Regel richtig ist oder
+unsere Rechnung.
+
+**Der Lauf fällt, wenn der Prüfer fehlt — er überspringt nicht.** Ein
+übersprungener Konformitätstest ist ein grüner Lauf ohne Prüfung, und das ist
+genau die Freigabe, die 04-SEITENKARTE §5.14.3 verbietet. Nur lokal, ohne Java
+und ohne Prüfer, gibt es einen Hinweis statt eines Fehlschlags.
+
+**Und die Oberfläche behauptet weiterhin nichts.** §5.14.3 nennt drei Zustände —
+„In CI validiert" mit der Regelwerksfassung, „Prüfung ausstehend", „Prüfer nicht
+verbunden" — und verbietet einen vierten, der wie ein Bestehen aussieht.
+`pruefstand.ts` kennt genau diese drei, und sein Vorgabewert ist der
+zurückhaltendste. „In CI validiert" sagt ausdrücklich, dass die Aussage dem
+ERZEUGER gilt und nicht dieser einzelnen Rechnung.
+
+### D-394 · Vier Spalten, die niemand beschrieb — und eine Vorprüfung, die daran fast jede Rechnung gesperrt hätte
+
+PR 52.1 (FIN-11, K-12).
+
+`rechnung` trägt seit 0075 vier Spalten: `verkaeufer_eadresse`,
+`verkaeufer_eadresse_schema`, `kaeufer_eadresse`, `kaeufer_eadresse_schema`.
+Sie werden gelesen — von der kanonischen Nutzlast (BT-34, BT-49) und seit
+PR 52 von der §14-Vorprüfung. **Geschrieben wurden sie von nichts.** Kein
+Formular, keine Route, keine Funktion, kein Seed.
+
+Das blieb folgenlos, solange niemand eine XRechnung baute. Mit PR 52 wurde es
+zum Fehler mit zwei Gesichtern: der Erzeuger meldete auf JEDER Rechnung zwei
+fehlende Pflichtangaben, und die neue FIN-11-Regel hätte jede Festschreibung
+an einen öffentlichen Auftraggeber blockiert — mit zwei Feldern, die in keiner
+Maske stehen. **Ein Riegel, den niemand öffnen kann, ist kein Riegel, sondern
+eine Sackgasse.**
+
+**Zwei Dinge fehlten, nicht eines.** Auf der Käuferseite gab es die Quelle
+längst (`kunde.elektronische_adresse`, seit 0020); auf der Verkäuferseite gab
+es sie nicht. `0120` legt `mandant.elektronische_adresse` an — und lässt sie
+NULL. Welche Adresse eine Gesellschaft für elektronische Rechnungen benennt
+und unter welchem EAS-Schema, ist eine Auskunft des Mandanten; die USt-IdNr.
+unter EAS 9930 wäre ein plausibler Vorgabewert und trotzdem geraten. Ein
+`CHECK` verlangt beide Hälften oder keine: eine Adresse ohne Schema ist
+unlesbar, ein Schema ohne Adresse leer.
+
+**Eingefroren wird per Trigger, nicht in `fin.rechnung_nummer_ziehen`.** Die
+Funktion ist der eine Weg, auf dem heute festgeschrieben wird — aber nur
+heute. Ein Import oder eine spätere Route setzt `status` und ginge daran
+vorbei. Dieselbe Begründung wie bei `fin.reverse_charge_pruefen` (D-390): der
+Riegel gehört an die Tabelle. `coalesce` statt Überschreiben, weil ein Kunde
+für EINEN Auftrag eine andere Eingangsadresse nennen kann als im Stammsatz —
+und der Beleg ist dann der richtige Ort dafür.
+
+**Die Vorprüfung liest den WIRKSAMEN Wert.** Sie läuft vor dem Zug der Nummer,
+also vor dem Einfrieren; stur die Spalte gelesen meldete sie BT-34 und BT-49
+als fehlend und blockierte genau die Rechnung, die eine Millisekunde später
+beide Werte bekommt. Derselbe `coalesce`-Ausdruck wie im Trigger, mit Absicht:
+was die Vorschau grün nennt, muss der Beleg auch tragen.
+
+**Denselben Fehler gab es ein zweites Mal, und mein eigener Kommentar hatte
+davor gewarnt.** `zahlung.bankkonto` stand in `ladeRechnungVollstaendig` auf
+`null` mit dem Vermerk „kommt mit PR 49". PR 49 hat keine `bankkonto`-Tabelle
+gebracht, und `mandant.iban` gibt es seit 0001. Die Vorprüfung las `mandant.iban`
+und meldete BT-84 als vorhanden, der Erzeuger las die `null` und meldete es als
+fehlend: die Vorschau sagte grün, das Dokument entstand nicht. Genau die
+Divergenz, gegen die `XRechnungEingabe` geschrieben wurde — nur an einer
+Stelle, an der ich sie selbst nicht gesucht hatte. Gefunden hat sie der erste
+Isolationstest, der einen Beleg wirklich bis zum Dokument führte.
+
+**Und die Demodaten kannten keinen öffentlichen Auftraggeber.** ROADMAP Phase 6
+nennt als Abnahme „a KoSIT-valid XRechnung is produced for a public buyer";
+der Seed führte vier Hausverwaltungen. Der ganze FIN-11-Weg liess sich nicht
+einmal ansehen. Es gibt jetzt ein Bezirksamt — erfunden wie die übrigen
+Demofirmen, mit einer Leitweg-ID in der FORM der echten. Welche Kennung ein
+wirklicher Auftraggeber hat, bleibt O-22.
+
+**Die Abnahme ist damit vorführbar und nicht nur behauptet:** ein Beleg aus der
+Seed-Datenbank, festgeschrieben über den echten Weg, aus dem Snapshot gebaut,
+vom KoSIT-Prüfer angenommen — Schema und Schematron, ohne Beanstandung.
+
+### D-395 · BT-81 hatte kein Feld — und der erste Browsertest hat es gefunden
+
+PR 52.2 (FIN-11, §4.2).
+
+Die FIN-11-Regel aus PR 52 sperrt die Festschreibung an einen öffentlichen
+Auftraggeber, wenn eine Pflichtangabe fehlt. Richtig — aber **BT-81
+(Zahlungsart, UNTDID 4461) hatte keine Maske.** `rechnung.zahlungsmittel_code`
+gab es seit 0075; kein Formular setzte ihn. Eine Rechnung an das Bezirksamt
+liess sich damit über die Oberfläche gar nicht anlegen: die Vorprüfung nannte
+ein Feld, das niemand ausfüllen konnte.
+
+Gefunden hat das nicht ein Gedanke, sondern der erste Browsertest, der einen
+Beleg wirklich bis zum Dokument führen wollte. **Dieselbe Klasse Fehler wie
+D-394, nur eine Ebene höher:** ein Riegel ohne Schlüssel.
+
+Das Feld steht jetzt im Anlegen-Formular, **ohne Vorgabewert** — aus demselben
+Grund wie das Zahlungsziel (§4.2): ein stilles `58` behauptete eine
+SEPA-Überweisung, die niemand vereinbart hat, und stünde unveränderlich im
+Beleg. Die Liste in `services/finanz/zahlungsmittel.ts` ist die normative
+UNTDID-4461-Teilmenge und entscheidet nichts: welches Zahlungsmittel für einen
+Beleg gilt, setzt ein Mensch. `zahlungsmittelCode()` siebt, was nicht auf der
+Liste steht — ein Freitext käme sonst unverändert ins Dokument und fiele beim
+Prüfer über BR-CL-16, nach dem Versand.
+
+**Zwei weitere Lücken im selben Lauf**, beide Stammdaten, beide gleich
+behandelt: die Demogesellschaften hatten keine Bankverbindung (BT-84, ohne die
+BR-DE-13 jede SEPA-Rechnung sperrt) — jetzt eine öffentlich dokumentierte
+TESTkennung mit `TODO(client, O-353)`, nie eine echte Kontonummer in einer
+Quelldatei. Und die Vorauswahl der Mengeneinheit ist `einsatz`, die keinen
+UN/ECE-Rec-20-Code hat und auch keinen bekommen kann (O-174): der Beleg wird
+zu Recht abgewiesen, und der Test wählt jetzt Quadratmeter. Die Lehre steht im
+Test und nicht in einer stillen Änderung — wer für einen öffentlichen
+Auftraggeber abrechnet, braucht eine Einheit mit Code.
+
+**Und ein echter Barrierefreiheitsmangel, den ich selbst eingebaut hatte.**
+Der Vorschaukasten der XRechnung rollt; ohne `tabIndex` kommt eine Person ohne
+Maus an die Zeilen unterhalb der ersten vierzig nicht heran
+(`scrollable-region-focusable`, DESIGN §9, BFSG/LEG-07). Der axe-Fall, den ich
+zur Seite geschrieben hatte, hat ihn beim ersten Lauf gemeldet.
+
+**Ein flackernder Test, mit Ursache statt mit Wiederholung behoben.** Die
+axe-Prüfung der Anmeldung war zeitweise rot mit `document-title`. Gemessen:
+unmittelbar nach `waitForURL` meldet der Browser `document.title === ''`, kurz
+darauf den richtigen Titel — der zweite Schritt entsteht durch eine
+clientseitige Navigation, und die Adresse wechselt, bevor Next die Metadaten
+angewandt hat. axe lief in dieses Fenster. Die Prüfung wartet jetzt auf die
+Bedingung, von der sie abhängt, und die Wartezeile ist zugleich eine
+Zusicherung auf den erwarteten Titel: strenger als vorher, nicht lascher.
+
+### D-396 · Die Löschsperre gehört in die Registratur, nicht in die Migration
+
+PR 52.3 (Invariante 8, K-16, LEG-01).
+
+`src/server/db/schema/rls.ts` führt jede Tabelle, die
+`kern.verhindere_loeschung()` trägt, mit ihrer **Löschart** und ihrem
+**Grund**; `scripts/generate-triggers.ts` schreibt daraus den Block ans Ende
+der jeweiligen Migration. Die Liste ist damit kein Kommentar, sondern die
+Quelle — und sie ist das, was ein Prüfer liest, wenn er fragt, welche Daten
+dieses Hauses nicht gelöscht werden dürfen.
+
+**PR 50 und PR 51 haben daran vorbeigearbeitet.** `abschlagsrechnung_bezug`,
+`kunde_bauleistender_status` und `freistellungsbescheinigung` bekamen ihre
+Sperre von Hand in die Migration geschrieben. In der Datenbank war alles
+richtig; die Registratur nannte sie nicht. Der Unterschied ist nicht
+kosmetisch: eine Liste, die drei Finanztabellen unterschlägt, liest sich für
+den nächsten Menschen so, als dürfte man sie löschen — und die Löschart, die
+den Weg *heraus* beschreibt (`wirksam`, `gilt_bis`, `widerrufen_am`), stand
+nirgends.
+
+Gefunden hat es `unveraenderbarkeit.test.ts` §(4), und zwar in der Richtung,
+die man beim Schreiben einer Wache leicht vergisst: nicht „steht jede
+registrierte Tabelle auch in der Datenbank", sondern **„trägt eine Tabelle den
+Auslöser, ohne registriert zu sein"**. Nur diese Richtung fängt den Fall, in
+dem jemand die Sperre setzt und die Liste vergisst. Der Kommentar über der
+Wache sagt es wörtlich: „the registry cannot go stale in either direction."
+
+Alle drei sind `archiv`: die Zeile bleibt, ihr Zustand ändert sich. Der
+Präzedenzfall ist `kleinbetrag_grenze` und `steuersatz_gruppe` — eine
+ausgelaufene Gültigkeit bekommt ihr Enddatum, eine neue Lage ist eine neue
+Zeile.
+
+**Und der Fall war lange unsichtbar, weil ich ihn nie erreicht habe.** Die
+Isolationssuite läuft ~25 Minuten; ich hatte sie viermal vorzeitig
+abgebrochen, um an einem roten CI-Lauf oder an einer Migration zu arbeiten,
+und die betroffene Datei liegt in der zweiten Hälfte. Die Lehre ist nicht
+„öfter laufen lassen", sondern: **ein Lauf, der abgebrochen wird, hat nichts
+bewiesen** — und die drei grünen Teilläufe davor haben mich das Gegenteil
+glauben lassen.
+
+---
+
+### D-397 · Der offene Posten entsteht an der Tabelle, nicht in der Festschreibungsfunktion
+
+PR 54.1 (FIN-14, ACC-07, `05-FINANZEN.md` §7.3).
+
+Eine festgeschriebene Rechnung war bisher das Ende der Kette: Nummer, Hash,
+Fälligkeit — und danach wusste das System nicht, ob sie bezahlt wurde. Ohne
+offenen Posten gibt es keinen Mahnlauf (FIN-15), keine Wache „überfällig > 14
+Tage", keine Altersliste und kein Ausgangsbuch, das sich abstimmen lässt
+(FIN-16). 0121 bringt `zahlung`, `offener_posten`, `zahlung_zuordnung`,
+`op_ausgleich` und die beiden Stammtische `bankkonto` und `kasse`.
+
+**Wo der Posten entsteht, ist die eigentliche Entscheidung.** Der naheliegende
+Ort wäre `fin.rechnung_nummer_ziehen` — dort läuft heute jede Festschreibung
+durch. „Heute" ist das Problem: ein Import, ein Reparaturskript oder eine
+spätere Route setzt `status` und ginge daran vorbei. Die Rechnung stünde dann
+gestellt in den Büchern und in keiner Forderungsliste, und bemerkt würde es,
+wenn das Geld ausbleibt. Der Auslöser hängt deshalb an `rechnung`, mit
+derselben Begründung wie `fin.eadresse_einfrieren` (0120) und
+`fin.reverse_charge_pruefen` (D-390): **der Riegel gehört an die Tabelle.**
+
+Nachstellen lässt sich der zweite Weg heute nicht — 0077 lässt keine
+festgeschriebene Rechnung ohne Snapshot zu, und 0076 lässt den Status nur
+einmal wandern. Die Eigenschaft wird deshalb dort geprüft, wo sie steht: ein
+Isolationstest liest `pg_trigger` und verlangt, dass
+`fin.rechnung_nummer_ziehen` das Wort `offener_posten` NICHT enthält. Diese
+Prüfung schlägt an dem Tag an, an dem jemand den Auslöser in die Funktion
+zurückholt.
+
+**Kein Cent-Feld trägt ein Vorzeichen.** Die Richtung steht in
+`zahlung.richtung` und `offener_posten.art`. Ein Storno öffnet deshalb
+`debitor_guthaben` mit positivem Betrag und nicht `debitor` mit negativem:
+`offen_cent` ist `betrag_cent − bezahlt_cent`, und ein negativer Posten
+erreichte die Null nur über `bezahlt_cent < 0`, was `CHECK (bezahlt_cent >= 0)`
+verbietet. Er stünde für immer in der Altersliste.
+
+---
+
+### D-398 · Eine Überzahlung wird ein Guthaben — sie verschwindet nie
+
+PR 54.1 (FIN-14, ACC-07).
+
+Kommen 1.500,00 € auf eine Rechnung über 1.190,00 €, gibt es drei
+Möglichkeiten und zwei davon sind falsch: den Rest wegwerfen (der Kunde
+bekommt sein Geld nie zurück, und niemand sieht es) oder ihn auf die Rechnung
+buchen (der Posten wäre „mehr als bezahlt", und die Forderungsliste stimmt
+nicht mehr). Richtig ist die dritte: die Rechnung ist ausgeglichen, und
+310,00 € stehen als `debitor_guthaben` offen — eine Verbindlichkeit gegenüber
+dem Kunden.
+
+`fin.op_fortschreiben` weist jede Zuordnung ab, die `bezahlt_cent` über
+`betrag_cent` schöbe; nur eine ausdrückliche `differenz` mit Begründung darf
+abschließen, und auch die nur bis zur Höhe des Restes. Eine
+`ueberzahlung`-Zeile berührt `bezahlt_cent` gar nicht: sie ERZEUGT das
+Guthaben, sie gleicht es nicht aus.
+
+**Die Deckungsprüfung zählt nur, was von der Zahlung wirklich abgeht.** Die
+erste Fassung verlangte „Summe aller Zuordnungen ≤ Zahlungsbetrag" und machte
+damit den häufigsten Alltagsfall unbuchbar: 1.189,00 € kommen auf eine
+Rechnung über 1.190,00 €, der eine Euro wird abgeschrieben — Summe 1.190,00 €,
+Zahlung 1.189,00 €, abgewiesen. Vier der acht Arten bewegen kein Geld
+(`skonto`, `bauabzugsteuer_einbehalt`, `differenz`, `gebuehr`), und sie zählen
+seither nicht mit. Gefunden hat es der Test, nicht das Nachdenken.
+
+**Und der Skonto wird nach BRUTTO aufgeteilt, nicht nach Netto.** §17 UStG
+mindert das Entgelt je Steuersatzgruppe. Bei 1.000,00 € zu 19 % und 1.000,00 €
+nach §13b und 2 % Skonto sind das 23,80 € und 20,00 € — beide Nettos sinken um
+exakt 2 %. Nach Netto geteilt wären es 21,90 € und 21,90 €: die Summe stimmte,
+jede einzelne Zeile wäre falsch, und die Voranmeldung zöge daraus. **OB** ein
+Skonto gewährt wird, entscheidet niemand hier: `skonto.platzhalter.ts` hält die
+Toleranz auf 0, bis O-177 beantwortet ist, und jede Unterzahlung bleibt bis
+dahin ein offener Rest.
+
+---
+
+### D-399 · Eine erzeugte Spalte ist im BEFORE-Auslöser NULL — und hat den Änderungsschutz der Rechnung blockiert
+
+PR 54.1, Nebenbefund (Invariante 4, LEG-01, GoBD).
+
+`fin.rechnung_unveraenderlich` (0076) vergleicht `to_jsonb(old)` mit
+`to_jsonb(new)` und nimmt vier Spalten aus — darunter `aufbewahrung_bis`, weil
+der Aufbewahrungslauf die GoBD-Frist auf einem festgeschriebenen Beleg setzen
+muss.
+
+**Diese Ausnahme war tot.** `rechnung.ueberweisungsbetrag_cent` ist eine
+erzeugte Spalte, und PostgreSQL berechnet erzeugte Spalten erst NACH den
+BEFORE-Auslösern: in `new` steht dort NULL, in `old` der Wert. Die beiden
+Abbilder waren damit auf JEDER Änderung verschieden — auch auf einer, die gar
+nichts ändert. Nachgestellt:
+
+```
+update rechnung set aufbewahrung_bis = date '2036-12-31' where id = …;
+ERROR: Rechnung RE-00001: … unveraenderlich — ueberweisungsbetrag_cent wurde geaendert
+```
+
+Zwei Schäden, und der zweite ist der größere: der Aufbewahrungslauf kam an
+keine festgeschriebene Rechnung heran, und die Meldung nannte eine Spalte, die
+niemand angefasst hatte. Wer sie liest, sucht einen Schreibzugriff, den es
+nicht gibt.
+
+0122 nimmt erzeugte Spalten aus dem KATALOG heraus (`pg_attribute.attgenerated`)
+und nicht aus einer Liste. `0084` kennt dieselbe Falle und schreibt
+`- 'mannstunden'`; das ist dort richtig und hier zu wenig, weil 0076 den
+`to_jsonb`-Vergleich ausdrücklich damit begründet, dass eine später
+hinzukommende Spalte automatisch geschützt sein soll. Eine ausgeschriebene
+Ausnahmeliste wäre am Tag der nächsten erzeugten Spalte wieder falsch — und
+wieder still. Verloren geht dabei nichts: eine erzeugte Spalte ist eine
+Funktion ihrer Quellspalten, und die stehen im Vergleich.
+
+**Nebenbei aufgefallen und NICHT behoben:** `rechnung.aufbewahrung_klasse`
+steht auf `rechnung_ausgang`, und `dokument_aufbewahrung` kennt nur
+`rechnung`. Zu keiner Ausgangsrechnung gibt es also eine Regel, `aufbewahrung_bis`
+bleibt NULL und `loeschsperre` steht — fail-closed, wie §1.10 es will. Der
+Eintrag fehlt trotzdem sichtbar, statt sichtbar offen zu sein; das gehört in
+die Runde, die O-25 beantwortet, und nicht in diese.
+
+---
+
+### D-400 · Der nächtliche Abgleich rechnet die offenen Posten unabhängig nach — und repariert nie
+
+PR 54.1 (ACC-07, `05-FINANZEN.md` §7.3, §10).
+
+`offener_posten.bezahlt_cent` ist eine fortgeschriebene Zahl: die Auslöser
+erhöhen sie bei jeder Zuordnung und jedem Ausgleich. Das ist nötig — der
+Mahnlauf muss sich erinnern, was er gemahnt hat, und eine Altersliste muss
+nachträglich reproduzierbar sein. Es ist zugleich die Stelle, an der ein
+Rechenfehler still bleibt.
+
+Die Sicht `offener_posten_berechnet` rechnet dieselbe Zahl aus den Belegzeilen
+noch einmal, auf einem anderen Weg als der Auslöser. Der Job
+`offene_posten_abgleichen` hält beide gegeneinander und nennt die
+**Rechnungsnummer** — dieselbe Bauart wie der Kettenlauf (§5.7): zwei Wege zu
+derselben Zahl, mit Absicht.
+
+**Er repariert nicht, und das steht nicht in einer Zusage dieses Codes.**
+`cse_job` hält auf `offener_posten` genau ein Schreibrecht: `neu_berechnet_am`,
+den Stempel „geprüft am". `bezahlt_cent` ist für ihn unerreichbar, weil das
+Spaltenrecht es verbietet — ein Isolationstest weist beides nach.
+
+**Die Sabotage, die zunächst grün durchlief.** Nimmt man den
+`ueberzahlung`-Ausschluss aus der Sicht heraus, meldete der Lauf auf jedem
+Guthabenposten jede Nacht eine Abweichung. Fünf Sabotagen fielen auf ihren
+Test; diese eine nicht, weil keine Prüfung eine Überzahlung buchte. Eine
+Wache, die täglich dasselbe falsch meldet, wird abgeschaltet — und meldet dann
+auch das Richtige nicht mehr. Der fehlende Fall steht jetzt als eigener Test
+daneben. Die Lehre ist nicht „mehr Tests", sondern: **eine Sabotage, die
+niemanden weckt, prüft die Prüfung.**
+
+---
+
+### D-401 · Die interne Belegnummer der Eingangsrechnung entsteht beim BUCHEN, nicht bei der Freigabe
+
+PR 54.3 (FIN-14, ACC-06, GoBD; `05-FINANZEN.md` §8.2).
+
+Der Kreis `eingangsrechnung_beleg` ist lückenlos — GoBD verlangt eine
+fortlaufende Belegnummerierung. Zöge die FREIGABE die Nummer, verbrauchte eine
+freigegebene und danach abgelehnte Rechnung eine und liesse sie liegen: genau
+die Lücke, deren Unmöglichkeit §5.5 für die Ausgangsrechnung über mehrere
+Seiten beweist, im selben Dokument wieder eingeführt. Buchen ist der
+unumkehrbare Schritt, also wird dort gezogen — unter `SELECT … FOR UPDATE` auf
+der Kreiszeile, wie bei der Ausgangsrechnung.
+
+Die Übergangstabelle steht als **Auslöser**, nicht als Prosa, und `gebucht` ist
+ein Endzustand: korrigiert wird durch eine Gegenbuchung (PR 58), nie durch
+einen Zustandswechsel. Ein Weg zurück hiesse, dass die Finanzbuchhaltung und
+dieses System verschiedene Wahrheiten führen.
+
+**Die Vier-Augen-Freigabe ist Einstellung, kein `CHECK`.** Ein fest
+verdrahtetes `freigegeben_von <> erstellt_von` erfände eine
+Organisationsregel und sperrte in einem Rückbüro aus zwei Menschen jede
+Freigabe ohne Ausweg. `app.einstellung('eingang.vier_augen_ab_cent')` bleibt
+NULL, bis O-183 beantwortet ist — dann gilt sie, und der Dienst weist eine
+Selbstfreigabe darüber ab.
+
+---
+
+### D-402 · Drei Befunde, die erst der erste Testlauf gezeigt hat
+
+PR 54.3. Alle drei hätten im Betrieb geschwiegen, und zwei davon dauerhaft.
+
+**(a) Der Aufbewahrungsauslöser durfte seine eigene Regelabfrage nicht rufen.**
+`fin.aufbewahrung_aus_klasse` läuft als `cse_definer` und ruft
+`app.aufbewahrung_regel` (0009), deren `grant execute` nur an `cse_app` ging —
+weil bis dahin jeder Aufrufer unter `cse_app` lief. Ergebnis: „permission
+denied for function", und zwar so, dass NICHTS rot geworden wäre. Die GoBD-Frist
+wäre auf jedem Beleg NULL geblieben, die Löschsperre stünde, und niemand hätte
+einen Grund gehabt hinzusehen. Es ist derselbe Befund wie D-388, nur eine Ebene
+höher: nicht Recht und Policy auf einer TABELLE, sondern das Ausführungsrecht
+auf einer FUNKTION.
+
+**(b) `freigabe_status` heisst `genehmigt`, nicht `freigegeben`.** Der
+Übergangsauslöser verglich mit einem Wert, den das Enum nicht kennt; Postgres
+weist das ab, also wäre JEDE Freigabe gescheitert. Eine Zeichenkette gegen ein
+Enum zu vergleichen sieht in SQL richtig aus, bis sie läuft.
+
+**(c) Die Steuerzeilen brauchen ein UPDATE-Recht.** ACC-05 schlägt zuerst den
+Kopf vor und die Sätze danach; wer erfasst, korrigiert die Aufteilung, bis sie
+stimmt. Mit `insert`-only scheiterte das `on conflict do update` an „permission
+denied". Beweglich sind sie jetzt bis zum Buchen, danach nicht mehr — und das
+hält ein Auslöser, kein Rechteentzug: ein Recht kann nicht zwischen „vor" und
+„nach dem Buchen" unterscheiden.
+
+Die Lehre ist nicht „mehr Tests". Sie ist: **ein Riegel, der nie gelaufen ist,
+ist kein Riegel.** Alle drei Befunde lagen in Code, der beim Lesen richtig
+aussah.
+
+---
+
+### D-403 · Die Freigabe bekommt einen Dienst, weil eine abgeschriebene Hashkette nichts bezeugt
+
+PR 54.3 (K-13, APR-07).
+
+Die drei Schritte einer Freigabe — `freigabe`, Kettennummer über
+`app.freigabe_kette_ziehen`, `freigabe_snapshot` mit `berechneHash` — standen
+bisher an genau EINER Stelle ausgeschrieben: im Seed der Bau-Domäne. Die
+zweite Domäne, die eine Freigabe braucht, hätte sie abgeschrieben, und eine
+abgeschriebene Hashkette ist eine, die beim ersten Tippfehler nichts mehr
+bezeugt — `hash = nutzlast_hash` zu schreiben sieht gleich aus und ist keine
+Kette.
+
+`services/freigabe.ts` erteilt sie jetzt an einer Stelle. Die Freigabe friert
+ein, WORÜBER entschieden wurde — Lieferant, Nummer, Datum, Betrag —, damit
+eine nachträgliche Änderung sie nicht mehr deckt.
+
+**Der Abdruck ist getrennt von `agent/policy.ts::nutzlastHash`, und das ist
+Absicht.** Dort geht es um das Tor vor dem, was das Haus VERLÄSST (Invariante
+7), und die dortige `Aktion` ist genau diese geschlossene Menge. Die Freigabe
+einer Eingangsrechnung ist eine interne Kontrolle; sie in jene Liste zu
+schreiben hiesse, eine Buchhaltungsentscheidung als Aussendung zu führen — und
+beim nächsten Blick auf die Liste stünde eine Richtlinie „darf automatisch
+raus" über einer Rechnungsfreigabe.
+
+Die Freigabe verlangt im Portal ZWEI Rechte: `eingang.freigeben` für die
+Entscheidung über die Rechnung und `freigabe.entscheiden` für das Schreiben in
+die Kette. Zwei Handlungen, zwei Rechte — und eine Kette, in die jeder
+schreiben darf, bezeugt nichts.
+
+---
+
+### D-404 · Das Ausgangsbuch ist eine Lesart, keine Tabelle — und es rechnet zweimal
+
+PR 56 (FIN-16, REP-07, `05-FINANZEN.md` §10).
+
+Jede Zahl im Rechnungsausgangsbuch steht schon irgendwo: auf der Rechnung, im
+Snapshot, im Kettenglied. Sie ein zweites Mal zu speichern hiesse, eine zweite
+Wahrheit zu führen, die beim ersten Nachtrag von der ersten abweicht. Das Buch
+ist deshalb eine Sicht (`security_invoker`), und die Mandantenwand steht dort,
+wo sie ohnehin steht — in den Policies der drei Tabellen darunter.
+
+**Die Summe wird trotzdem zweimal gebildet.** `stimmeAb()` liest sie einmal
+aus der Sicht und einmal direkt aus `rechnung`, ohne die Joins auf Snapshot
+und Kette. Weichen beide ab, liegt der Fehler in der Sicht — und den findet
+sonst niemand, weil eine Sicht mit einem falschen Join plausible Zahlen zeigt.
+Dieselbe Bauart wie beim Kettenlauf und beim Postenabgleich: zwei Wege zu
+derselben Zahl, mit Absicht.
+
+**Der Kundenname kommt aus dem SNAPSHOT** (K-12). Wird ein Kunde umbenannt
+oder nach Art. 17 DSGVO anonymisiert, muss das Buch weiter zeigen, was auf dem
+Beleg stand. Ein Join auf den Stammsatz gäbe ein Buch, das sich rückwirkend
+ändert — und die Hashkette meldete weiter „intakt", weil die Rechnung selbst
+sich nicht bewegt hat. Genau dieser Fall steht als Prüfung daneben.
+
+**Wie eine Lücke überhaupt entstehen kann.** Nicht durch Löschen (Invariante
+8), nicht durch Verwerfen (0076 weist `festgeschrieben → verworfen` ab) — nur
+über den ZÄHLER. Wer `nummernkreis.naechste_nummer` vorstellt, überspringt eine
+Nummer, ohne dass sich ein Beleg bewegt. Dafür gibt es dieses Buch, und genau
+so wird es geprüft.
+
+**Zwei Prüfungen dieser Datei waren zunächst zu schwach — und beide fielen
+erst der Sabotage auf.**
+
+`expect(zeilen.every(z => !z.luecke)).toBe(true)` lief grün durch, als der
+`coalesce` aus der Sicht entfernt wurde: ohne ihn ist `luecke` auf der ersten
+Zeile jeder Gruppe NULL, und `!null` ist `true`. §10 warnt genau davor — „die
+Zusage hätte bestanden oder nicht bestanden, je nachdem wie ein Test sie prüft,
+und das ist von drei Ausgängen der schlechteste" — und die erste Fassung dieser
+Prüfung tat es trotzdem. Sie vergleicht jetzt gegen `[false, false, false]`.
+
+Die zweite zählte nur Zeilen und lief deshalb auch dann grün, als der Join auf
+den Nummernkreis zu einem LEFT JOIN wurde und Entwürfe im Buch auftauchten.
+Sie prüft jetzt die ZUSAGE: jede Zeile trägt eine Nummer und ein Kettenglied.
+
+Die Lehre steht schon in D-400 und gilt hier zum zweiten Mal: **eine Sabotage,
+die niemanden weckt, prüft die Prüfung.**
+
+**Was PR 56 NICHT bringt: FIN-17.** Umsatz, Kosten und Ergebnis je Periode
+hängen an der Frage, ob eine Gesellschaft nach vereinbarten Entgelten (Soll)
+oder nach vereinnahmten (Ist, §20 UStG) versteuert — das entscheidet, in
+welchem Monat ein Umsatz zählt. `mandant.versteuerungsart` gibt es nicht, und
+die Frage ist Teil von O-05. Eine Kennzahl, die sich still für Soll
+entscheidet, wäre eine erfundene steuerliche Regel in genau der Zahl, die die
+Geschäftsführung liest. Die Kennzahlen kommen, wenn die Frage beantwortet ist
+— zusammen mit `buchungssatz` (PR 58), der ohnehin ihre richtige Quelle ist.
+
+### D-405 · Das Mahnwesen schlägt vor; ein Mensch entscheidet, und erst danach läuft der Verzug
+
+FIN-15 verlangt Mahnungen mit Stufen, Gebühren und Zinsen. Was PR 55 dabei
+NICHT baut, ist der Automat: der Nachtlauf `mahnvorschlaege_erzeugen` legt
+**Entwürfe** an, und ein Entwurf geht nirgendwohin. Er trägt keine Nummer, er
+hat keinen Empfänger, er wartet.
+
+Die Kette ist bewusst dreiteilig:
+
+1. **Der Lauf** liest `faellige_forderung` und legt je Kunde und Stufe einen
+   Entwurf an — nur, wo eine **bestätigte** `mahnstufe` vorliegt. Wo keine
+   liegt, entsteht nichts und der Grund steht auf dem Bildschirm (O-19).
+2. **Die Freigabe** ist ein K-13-Vorgang mit Begründung. Erst sie kippt den
+   Zustand, und erst dabei zieht `fin.mahnung_uebergang` die Nummer unter
+   `FOR UPDATE`.
+3. **Der Versand** wird dokumentiert, nicht ausgelöst: es gibt keinen
+   Mailversand (O-116), also gehen Brief, Einschreiben und Bote — und
+   `e_mail`/`portal` werden abgewiesen statt nachgebaut. Erst danach schreibt
+   `mahnung_2_versand` `letzte_mahnstufe` und `letzte_mahnung_am` auf den
+   Posten fort.
+
+**§286 Abs. 1 BGB steht in Schritt 3, nicht in Schritt 1.** Der Verzug tritt
+durch die Mahnung ein, also trägt die erste keine Zinsen — auch dann nicht,
+wenn die Stufe welche vorsieht. Die Ausnahmen des Abs. 2 und 3 hängen an
+Vereinbarungen und am Zugang der Rechnung; beides ist offen und bleibt
+unangewandt. `zahlbar_bis = mahndatum` folgt §271 BGB: eine überfällige
+Forderung ist bereits fällig, und eine im Brief gewährte Frist ist ein
+Entgegenkommen, keine Rechtsfolge (O-19).
+
+**Was nicht geraten wird:** Fristen, Gebühren und Zinsart je Stufe (O-19), der
+Basiszinssatz selbst (D-409), und wer eine Eskalation freigibt (O-181). Der
+Seed legt drei Stufen als **Platzhalter** an — der Demobildschirm zeigt damit
+die Sperre statt einer leeren Liste.
+
+### D-406 · Ein Entwurf trägt keine Nummer — jetzt auch erzwungen
+
+`mahnung` hatte die Schranke „freigegeben ohne Nummer ist unmöglich" und die
+Gegenrichtung nicht. Damit war eine Nummer auf einem **Entwurf** erlaubt.
+Heute schreibt sie niemand; das ist genau die Sorte Zusage, die hält, bis sie
+jemand ändert.
+
+Der Befund kam aus einer Sabotage, die zunächst NICHT auffiel: der Auslöser
+`mahnung_1_uebergang` wurde so verbogen, dass er die Nummer schon beim Entwurf
+zieht — und der Test blieb grün, weil der Entwurf per `INSERT` entsteht und der
+Auslöser `BEFORE UPDATE` ist. Die zweite Sabotage — der Dienst schreibt eine
+Nummer direkt in den `INSERT` — zeigte die Lücke.
+
+`mahnung_entwurf_ohne_nummer` schliesst sie, wörtlich wie
+`rechnung_entwurf_ohne_nummer` in 0075: im Zustand `entwurf` sind `nummer`,
+`nummernkreis_id`, `freigegeben_am`, `freigegeben_von` und `freigabe_id` NULL.
+Der Grund ist derselbe: eine gezogene Nummer auf einem verworfenen Entwurf ist
+eine Lücke im Register, und die erklärt später niemand.
+
+### D-407 · `kunde.mahnsperre_bis` bleibt eine K-05-Spalte — die Sicht fragt ein Tor
+
+Die Sicht `faellige_forderung` muss sagen, warum eine überfällige Forderung
+nicht gemahnt wird; eine Mahnsperre beim Kunden ist einer dieser Gründe. Die
+Spalte gehört aber seit 0020 zum wirtschaftlichen Block, den `cse_app` NICHT
+lesen darf (0104 nennt das ausdrücklich kein Versehen) — und eine
+`security_invoker`-Sicht, die sie selbst liest, scheitert für jeden Aufrufer
+mit „permission denied for table kunde".
+
+Beide naheliegenden Auswege wären falsch gewesen: das Spaltenrecht zu erteilen
+öffnete Sperre und Datum jedem `crm.lesen`; `security_invoker` abzuschalten
+hängte die ganze Sicht an `cse_definer` und damit an der Mandantentrennung
+vorbei (§1.12).
+
+`app.kunde_mahnsperre_aktiv(kunde, mandant)` ist das engste, was die Frage
+beantwortet: **ein Wahrheitswert**, nie das Datum und nie der Grund; das Recht
+selbst geprüft, in derselben Dreiteilung wie überall (Nachtlauf `cse_job`,
+Gruppenansicht `gruppe.mahnung.lesen`, Mandantensicht `mahnung.lesen`); und
+eine Ausnahme statt eines stillen `false`, denn „nicht gesperrt" legte genau
+den gesperrten Posten zum Mahnen vor.
+
+### D-408 · Der Abdruck einer Freigabe ist der des TORS, sobald etwas hinausgeht
+
+`erteileFreigabe` (D-403) rechnete einen hauseigenen Abdruck über
+`{aktion, mandantId, inhalt}`. `agent/policy.ts::gate` vergleicht beim Versand
+gegen `nutzlastHash`, der zusätzlich `betragCent` kanonisiert. Eine mit dem
+einen erteilte Freigabe passt also nie zu dem, was das andere prüft — das Tor
+hätte **jede** Mahnung abgewiesen, mit der Begründung, die Nutzlast sei nach
+der Freigabe geändert worden. Sie war es nie.
+
+`FreigabeErteilen.abdruck` gibt ihn deshalb vor: wer etwas freigibt, das das
+Haus verlässt, übergibt `policy.nutzlastHash(nutzlast)`, und der Schnappschuss
+speichert Nutzlast und Abdruck zueinander passend. Für rein interne Kontrollen
+(eine gebuchte Eingangsrechnung) bleibt der hauseigene richtig; sie gehören
+nicht in die Aktionsliste des Tors.
+
+**Die Nutzlast enthält die Mahnungsnummer NICHT** — sie entsteht erst durch die
+Freigabe. Entschieden wird über Empfänger, Stufe, Positionen und Beträge; die
+Nummer kommt lückenlos aus dem Zähler und ist nichts, worüber ein Mensch
+befindet.
+
+### D-409 · Zwei Löcher, die erst der zweite Testlauf zeigte — und der Basiszinssatz, der nicht erfunden wird
+
+**(a) `cse_definer` durfte `freigabe` nicht lesen.** `fin.mahnung_uebergang`
+ist `SECURITY DEFINER` (K-01) und fragte „steht der Freigabesatz auf
+`genehmigt`?" — ohne Grant und ohne Policy. Jede Freigabe wäre mit „permission
+denied for table freigabe" gescheitert, und zwar erst im Betrieb.
+
+Die Reparatur ist nicht nur der Grant. `fin.eingangsrechnung_uebergang` (0123)
+stellte dieselbe Frage als gewöhnlicher Auslöser — also unter den Policies des
+AUFRUFERS, und `t_mandant` auf `freigabe` verlangt `versand.lesen`. Wem dieses
+fremde Recht fehlt, dem hätte die Datenbank „der Freigabesatz steht nicht auf
+genehmigt" gesagt: eine falsche Aussage über eine Zeile, die er nicht sehen
+darf. Heute halten beide Rollen zufällig beide Rechte; das ist keine Zusage.
+`app.freigabe_genehmigt(freigabe, mandant)` beantwortet die **strukturelle**
+Frage mit ja/nein, als Definer mit eigenem Spaltenrecht, und beide Auslöser
+rufen sie.
+
+**(b) Der Basiszinssatz wird nicht geseedet.** § 247 BGB ist eine echte Zahl
+der Deutschen Bundesbank, die halbjährlich wechselt. Ein plausibler Demowert
+stellte eine Zinsforderung auf eine erfundene Grundlage — und sähe aus wie
+eine richtige. Ohne Zeile fordert jede Mahnung NULL Zins und sagt es; der
+Wächter `basiszinssatz_pruefen` fällt am 15. Juni und am 15. Dezember aus,
+wenn die kommende Hälfte nicht gedeckt ist. Er holt den Satz nicht selbst: es
+gibt keine Bundesbank-Anbindung, und ein falsch geparster Satz erzeugte
+falsche Forderungen an echte Kunden. Wer ihn pflegt, ist O-358.
+
+### D-410 · O-19 bekommt einen Bildschirm — und drei Regeln, die vorher an der Sortierung hingen
+
+Eine offene Geschäftsregel braucht zwei Dinge: eine Sperre, damit niemand rät,
+und **einen Weg, sie zu beantworten**. Das zweite fehlte. Ohne
+`/portal/[mandant]/einstellungen/mahnwesen` liesse sich eine Mahnstufe nur per
+SQL bestätigen — und dann bestätigt sie niemand, und die Sperre wird
+irgendwann als Fehler gemeldet statt als Frage gelesen.
+
+Drei Entscheidungen stecken darin:
+
+**(a) Bestätigen heisst ablösen, nicht überschreiben.** Die neue Fassung gilt
+ab einem Tag, die alte endet am Tag davor und bleibt lesbar. Eine versendete
+Mahnung beruft sich auf die Stufe, wie sie GALT; ohne die alte Fassung liesse
+sich ein geforderter Betrag nicht mehr herleiten — und genau danach fragt der
+Anwalt des Empfängers (Invariante 8).
+
+**(b) Zwei gültige Fassungen derselben Stufe an einem Tag gibt es nicht.** Der
+Lauf sucht die Stufe zur nächsten Nummer und nimmt die erste, die er findet.
+Gäbe es zwei — die alte mit Gebühr 0, die neue mit 5,00 € —, hinge der
+geforderte Betrag an der Sortierung, und **beide Antworten sähen richtig aus**.
+`mahnstufe_kein_ueberlapp` (`EXCLUDE USING gist`, dieselbe Konstruktion wie
+`bzs_kein_ueberlapp`) macht den Zustand unmöglich, statt ihn zu erkennen.
+
+**(c) Der Verzug beginnt am Versandtag, nicht am Entwurfstag.** Zwischen Lauf
+und Freigabe können Tage liegen. `letzte_mahnung_am` nahm bisher das
+`mahndatum` — die nächste Stufe forderte damit Zinsen für Tage, an denen noch
+nichts hinausgegangen war, zu unseren Gunsten und ohne Grundlage. Der Auslöser
+nimmt jetzt den Berliner Kalendertag von `versendet_am`. §286 BGB knüpft
+genau genommen an den ZUGANG an, der noch später liegt; dass der Verzugsbeginn
+damit höchstens zu früh und nie zu spät steht, ist die konservative Seite
+dieser Näherung, und die genaue Regel ist Teil von O-19.
+
+Was der Bildschirm NICHT tut: den Basiszinssatz pflegen. Er gilt für alle
+Gesellschaften und ist eine Bekanntmachung der Bundesbank, keine
+Hausentscheidung (D-409, O-358).
+
+### D-411 · ZUGFeRD ist kein zweites Rechnungsformat, sondern dieselbe Rechnung zweimal
+
+FIN-11 und FIN-12 sehen wie zwei Aufgaben aus und sind eine. Die XRechnung
+(UBL) geht an öffentliche Auftraggeber; ZUGFeRD geht an gewerbliche Kunden,
+die eine PDF-Rechnung erwarten und sie automatisch einlesen wollen. EN 16931
+ist die gemeinsame Semantik, CII und UBL zwei Syntaxen dafür.
+
+**Beide lesen denselben Snapshot (K-12), und beide benutzen dieselbe
+Vorprüfung.** Was als XRechnung nicht entsteht, entsteht auch nicht als
+ZUGFeRD. Sonst wäre das eine Format die Hintertür für eine Rechnung, die das
+andere als unvollständig abgewiesen hat — an einem Beleg, der nach §14 UStG
+nicht mehr geändert werden darf.
+
+Die ROADMAP-Abnahme lautet „totals equal in both directions". Der Test liest
+die sieben Endsummen aus BEIDEN Dokumenten und vergleicht sie auf den Cent —
+nicht gegen die Eingabedaten, denn zwei Bauer, die dieselbe Zahl gleich falsch
+übernehmen, bestünden das.
+
+### D-412 · Das Farbprofil wird gerechnet, nicht mitgeliefert
+
+PDF/A-3 verlangt einen OutputIntent mit eingebettetem ICC-Profil — das Profil
+liegt also in JEDER Rechnung, die das Haus verlässt. Die verbreiteten fertigen
+sRGB-Profile stehen unter Lizenzen, die genau das mitregeln wollen: eines
+unter CC BY-SA, bei mehreren war kein Lizenztext auffindbar. Eine
+Share-Alike-Bedingung an einer Kundenrechnung ist eine Verpflichtung, die
+niemand eingehen wollte und die niemandem auffällt, bis sie jemandem auffällt.
+
+`icc.ts` erzeugt das Profil stattdessen aus den veröffentlichten Festlegungen
+(IEC 61966-2-1 für sRGB, ISO 15076-1 für das Dateiformat): D50-adaptierte
+Primärvalenzen, Bradford-Matrix, 1024 Stützstellen der sRGB-Kurve. Das
+Ergebnis ist reproduzierbar, prüfbar — `tests/kern/icc.test.ts` liest Kopf und
+Tagtabelle zurück — und gehört niemandem.
+
+**Die Schrift ist Noto Sans (OFL 1.1) und nicht Inter.** DESIGN §2 nennt Inter
+als Hausschrift; es gibt sie nur als Variable Font, und eine variable Schrift
+bettet in PDF/A eine Instanz ein, die niemand festgelegt hat. Für einen Beleg
+mit zehn Jahren Aufbewahrungspflicht ist eine statische Schrift die richtige
+Wahl, und der Bildschirm bleibt davon unberührt.
+
+**Und dasselbe PDF bei jedem Abruf.** `erzeugtAm` kommt aus dem
+Festschreibungsdatum, nicht aus der Uhr: zwei Abrufe desselben Belegs ergeben
+byte-gleich dieselbe Datei, und ihr SHA-256 taugt damit als Nachweis. Ein
+Dokument, das sich bei jedem Herunterladen ändert, beweist nichts (Invariante
+5, K-11).
+
+### D-413 · Ein Konformitätsauftrag fährt nur den Bereich, dessen Werkzeug er installiert hat
+
+`tests/compliance/` prüft gegen FREMDE Werkzeuge, und jedes bringt sein eigenes
+Java mit: KoSIT für die XRechnung, veraPDF für das ZUGFeRD-Archiv. Beide
+CI-Aufträge riefen `pnpm test:compliance` auf — und das fährt die GANZE
+Konfiguration. Der KoSIT-Auftrag fuhr damit auch den veraPDF-Test, ohne dessen
+`VERAPDF_CLI`, und umgekehrt. Beide Tests fallen bei fehlendem Werkzeug mit
+Absicht durch, statt sich zu überspringen (D-403), also standen zwei rote
+Aufträge da, deren eigene Prüfung grün war: der KoSIT-Prüfer hatte alle vier
+Muster angenommen, der veraPDF-Prüfer das erzeugte PDF als PDF/A-3B.
+
+Ab jetzt hat jeder Bereich ein eigenes Skript (`test:compliance:xrechnung`,
+`test:compliance:zugferd`), das auf sein Verzeichnis einschränkt, und jeder
+Auftrag ruft genau seines auf. `pnpm test:compliance` bleibt für den
+Entwicklungsrechner, wo beide Prüfer fehlen dürfen.
+
+**Und eine Wache hält es so.** `konformitaetsauftrag` (in `pnpm guards`)
+verlangt für jedes Verzeichnis unter `tests/compliance/` ein gleichnamiges
+Skript, das einschränkt, und einen Auftrag, der es aufruft; sie meldet den
+unbesehenen Aufruf `pnpm test:compliance` in einem Auftrag und auch ein Skript,
+dessen Bereich es nicht mehr gibt. Der nächste Bereich — Z3/GoBD in Phase 7 —
+bringt wieder ein eigenes Werkzeug mit; wer ihn anlegt und den Auftrag
+vergisst, bekäme sonst entweder einen Bereich, den niemand prüft, oder färbte
+zwei fremde Aufträge rot. Neun Sabotagefälle in `tests/kern/wachen.test.ts`
+zeigen die Wache je einmal feuern.
+
+**Nebenher: das Kennzeichen des echten Baums ist jetzt `pnpm-lock.yaml`.** Die
+Wachen erkannten ihn an `package.json` — und diese Wache LIEST `package.json`,
+also muss ein Wegwerf-Baum eine schreiben dürfen, ohne sich dadurch als echter
+Baum auszugeben und jede andere Wache an einem fehlenden `src/server/db`
+abstürzen zu lassen.
+
+**Und der veraPDF-Bericht überlebt jetzt den Fehlschlag.** Der Prüfer endet
+mit 1, sobald ein Dokument nicht konform ist; `execFileSync` warf dann, bevor
+der Bericht geschrieben war. Rot war der Lauf, leer das Artefakt, und die
+verletzte Regel stand nirgends — genau im einzigen Fall, in dem sie jemand
+braucht.
+
+### D-414 · Ein Next-Server zur Zeit — der Bau bricht ab, statt `.next` unter einem laufenden Server auszutauschen
+
+**Der Befund kam als Foto von einem Telefon.** Die Startseite lud, die Bilder
+waren da, und alles andere war Times New Roman auf Weiß: blaue unterstrichene
+Verweise, Aufzählungspunkte im Fuß, „Impressum Datenschutz Barrierefreiheit"
+ohne Abstand aneinandergeklebt. Also eine Seite ganz ohne CSS.
+
+**Die Ursache ist ein Verzeichnis, das sich zwei Befehle teilen.** Auf dem
+Rechner lief noch ein `next dev` von vorhin — er hatte sich gemeldet, aber nur
+als `EADDRINUSE`, und das klickt jeder weg. Danach lief `pnpm build`. Beide
+schreiben `.next`. Nach dem Bau gab es `.next/static/css/app/layout.css` nicht
+mehr; der laufende Entwicklungsserver antwortete darauf mit 404, lieferte HTML
+aber weiter aus, und die Bilder kamen ebenfalls — die liegen in `public/`. Das
+Ergebnis ist eine Seite, die nach einem Gestaltungsfehler aussieht und keiner
+ist. Nachgestellt und gemessen: dieselbe Adresse vor dem Bau 200, danach 404.
+
+Die Gegenrichtung ist genauso still: ein `next dev`, das startet, während
+`next start` läuft, räumt den Produktionsbau weg — der laufende Server
+antwortet fortan „Could not find a production build".
+
+**Die strukturelle Lösung wäre `distDir` je nach `NODE_ENV` — sie fällt an
+`typedRoutes`.** Next schreibt `next-env.d.ts` samt Pfad auf das jeweilige
+Verzeichnis um, und `tsconfig.json` zieht `<distDir>/types` herein. Zwei
+Verzeichnisse hießen entweder zwei konkurrierende `routes.d.ts` (doppelte
+Deklarationen) oder ein `pnpm typecheck`, dessen Ergebnis davon abhängt,
+welcher Befehl zuletzt lief. Das ist der teurere Fehler.
+
+**Also ein Wächter.** `pnpm dev` und `pnpm build` fragen vorher auf `PORT`,
+3000 und 3001 nach `/healthz` — die einzige Route ohne Datenbank, Sitzung und
+Recht, und keine, die ein fremder Dienst zufällig nachbildet. Antwortet dort
+ein Server dieses Projekts, bricht der Befehl ab und nennt den Befehl zum
+Beenden für PowerShell und für bash. Notausgang `CSE_BAU_OHNE_WACHE=1`.
+Acht Prüfungen in `tests/kern/bau-wache.test.ts`, darunter der echte Fall und
+der Fehlalarm (ein fremder Dienst auf demselben Hafen bleibt unbehelligt).
+
+### D-415 · Auf dem Telefon trägt die Kopfzeile den Namen und den Menüknopf — sonst nichts
+
+Die Sprachwahl stand im Kopf, auch unter `md`. Sie kostete 96px einer Zeile,
+die 72px hoch und beim Telefon 375px breit ist, und was wich, war der
+Auftrittsname: gemessen 146px nötig, 118px zugeteilt bei 390px, 88px bei
+360px. Sichtbar war davon **„CSE Gr…"** — auf jeder öffentlichen Seite, auf
+jedem geprüften Telefonformat von 360px bis 414px.
+
+**Bemerkenswert ist, warum das keine Prüfung fand.** Es gab eine, genau für
+diese Zeile: „kein waagerechtes Scrollen bei 375px — auch mit der Sprachwahl
+im Kopf". Sie war grün, und sie war grün **weil** gekürzt wurde:
+`text-overflow: ellipsis` hält `scrollWidth` klein. Die Zusage war erfüllt und
+die Zeile trotzdem falsch. Eine Zusage, die eine andere verdeckt, braucht die
+zweite daneben — jetzt prüfen vier Fälle (360/375/390/414), dass der Name
+ungekürzt steht, und die Kürzung ist wieder das, was sie sein sollte: die
+Notbremse für einen zu langen Namen aus `plattform_einstellung`.
+
+DESIGN §5 sagt es nun ausdrücklich, mit derselben Begründung, die §6 schon für
+die Gesellschaftswahl gibt: auf dem Telefon ist neben dem Menüknopf kein Platz
+für ein zweites Bedienelement. Die Sprachwahl ist deshalb ein Punkt **im**
+Vollbildmenü — dort ausgeschrieben („Deutsch", „English") statt als Kürzel,
+denn das Kürzel gab es nur, weil im Kopf nichts anderes mehr hineinging. Kein
+zweites `nav` und kein zweites `data-cse="sprachwahl"`: zwei gleich benannte
+Landmarken sind für Screenreader nicht unterscheidbar und für jeden Locator
+zwei Treffer — daran fielen schon einmal dreizehn Sprachprüfungen.
