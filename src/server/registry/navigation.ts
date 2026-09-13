@@ -78,6 +78,20 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * aktiven Mandanten (Invariante 10).
    */
   { schluessel: 'mahnungen', label: 'Mahnungen', pfad: 'finanzen/mahnungen', recht: 'mahnung.lesen', gruppe: true, icon: 'warnung' },
+  /**
+   * `buchhaltung/buchungen` — das Hauptbuch mit seinen Belegen (ACC-01,
+   * ACC-03).
+   *
+   * Eigenes Modulrecht `buchhaltung.lesen` und NICHT `finanzen.lesen`: wer
+   * Rechnungen schreibt, sieht damit nicht schon die Kontierung des Hauses.
+   * Die Trennung steht so im Rechtekatalog und ist der Grund, warum es zwei
+   * Rechte gibt.
+   *
+   * `gruppe: false`: eine Buchungszeile gehoert genau einer Gesellschaft, und
+   * eine Liste ueber alle vier waere keine Buchhaltung, sondern eine
+   * Vermischung — auch lesend.
+   */
+  { schluessel: 'buchungen', label: 'Buchungen', pfad: 'buchhaltung/buchungen', recht: 'buchhaltung.lesen', gruppe: false, icon: 'export' },
   { schluessel: 'dokumente', label: 'Dokumente', pfad: 'dokumente', recht: 'dokument.lesen', gruppe: true, icon: 'dokument' },
   /**
    * `agenten` — das Agenten-Zentrum (AGT-01, SPEC §22).

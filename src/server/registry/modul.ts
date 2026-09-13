@@ -56,7 +56,10 @@ export const QUERSCHNITT: ReadonlySet<string> = new Set([
   // Gewerk.
   // `mahnung` (PR 55): eine Forderung wird ueberfaellig, unabhaengig davon,
   // wofuer sie entstand.
-  'zahlung', 'eingang', 'nummernkreis', 'mahnung',
+  // `buchhaltung` (PR 59): jede Rechtseinheit fuehrt ein Hauptbuch und
+  // exportiert es an denselben Steuerberater. Ein Gewerk aendert daran
+  // nichts — es aendert nur, welche Konten haeufig vorkommen.
+  'zahlung', 'eingang', 'nummernkreis', 'mahnung', 'buchhaltung',
   'qualitaet', 'nachweis', 'system', 'vergabe', 'agent', 'formular',
   'nachricht', 'versand', 'medien', 'abwesenheit', 'lead', 'kunde',
 ]);

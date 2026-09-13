@@ -6935,3 +6935,133 @@ Ein `using (true)` hätte den Nachtlauf der einen Gesellschaft die
 Mahnkonditionen der anderen lesen lassen. Das ist keine grosse Lücke — und
 genau deshalb wäre sie geblieben. Die Policy bindet jetzt
 `app.aktiver_mandant()`, wie jede andere.
+
+---
+
+## Entschieden in PR 59 — die Belegverknüpfung (ACC-03, DOC-04, § 147 AO)
+
+### D-430 · Eine Quelle plus die Herkunft — nicht fünf Parameter
+
+`buchungssatz` trägt fünf Quellspalten (`rechnung_id`, `eingangsrechnung_id`,
+`zahlung_id`, `ausgabe_id`, `kassenbewegung_id`) und zwei Riegel darüber:
+`bs_genau_eine_herkunft` verlangt genau eine gefüllte, `bs_herkunft_passt`
+verlangt, dass es die zur Herkunft passende ist.
+
+`app.buchungssatz_schreiben` konnte nur `rechnung_id` füllen. Das ist beim
+Bau der Kreditorenseite aufgefallen — nicht als Denkfehler, sondern als
+fehlender Weg: jeder Aufrufer mit einer anderen Herkunft lief unweigerlich in
+den Riegel.
+
+Die naheliegende Antwort wäre ein Parameter je Spalte gewesen: vier weitere
+`uuid`-Argumente mit Vorgabe `null`. Sie ist die schlechtere. Ein Aufrufer
+füllt dann das falsche, die Signatur verbietet nichts, und der Riegel meldet
+es erst zur Laufzeit — mit dem Namen eines Constraints statt mit dem Grund.
+
+Stattdessen: **ein** `p_quelle`, und die Herkunft entscheidet die Spalte. Das
+sagt dasselbe, lässt den Widerspruch gar nicht erst zu und macht beide Riegel
+von der Funktion aus unverletzbar. Zwei Vorprüfungen im Rumpf nennen den
+Fehler dort, wo er gemacht wurde. Die alte sechzehnargumentige Fassung wurde
+gedroppt: zwei Überladungen mit einem Argument Unterschied sind die Sorte
+Doppelung, bei der ein Aufrufer die falsche erwischt und es niemandem
+auffällt.
+
+### D-431 · Das Rechnungs-PDF wird archiviert, obwohl es sich nachbauen lässt
+
+`zugferdZurRechnung` erzeugt das Dokument bei jedem Abruf neu, aus dem
+Snapshot (K-12), mit `festgeschriebenAm` als Erzeugungszeitpunkt. Es ist
+deterministisch: zwei Abrufe liefern dieselben Bytes. Die Frage war deshalb
+berechtigt, wozu es überhaupt abgelegt werden muss.
+
+§ 147 AO verlangt das Dokument, das **vorlag** — nicht eines, das sich
+herstellen lässt. Solange die Vorlage unverändert bleibt, ist der Unterschied
+unsichtbar; am Tag der nächsten Änderung an ihr ist er überall auf einmal
+sichtbar, rückwirkend, für jede Rechnung, und ohne Möglichkeit zu zeigen,
+welche Fassung der Kunde bekommen hat.
+
+**Nach dem Festschreiben, nicht darin.** Vorher gibt es keine Nummer und
+keinen Snapshot. Und in `finalisiere` liefe der Speicheraufruf innerhalb der
+Transaktion, die den Nummernzähler unter `SELECT … FOR UPDATE` hält — jede
+andere Rechnung derselben Gesellschaft wartete dann auf einen Objektspeicher,
+mit dem sie nichts zu tun hat. Deshalb ein eigener nächtlicher Lauf
+(`belegarchiv_ausgangsrechnung`, 03:50, nach Kettenprüfer und Postenabgleich).
+
+**Was er schuldig bleibt, bleibt laut.** Bis das PDF liegt, stehen die
+Buchungszeilen in `buchungssatz_unvollstaendig` und
+`app.export_sperre_pruefen` verweigert den Zeitraum. Ein ausgefallener
+Archivlauf blockiert damit den Export, statt eine lückenhafte Datei
+entstehen zu lassen.
+
+### D-432 · `beleg_id` ist die fünfte Ausnahme vom Änderungsschutz — und wird sofort wieder verschlossen
+
+`fin.rechnung_unveraenderlich` (0076, zuletzt 0122) vergleicht die ganze
+Zeile über `to_jsonb` und nimmt vier bewegliche Spalten aus, darunter
+`aufbewahrung_bis` (D-399). Der Archivlauf steht vor derselben Lage: er setzt
+`beleg_id` **nachdem** die Rechnung festgeschrieben ist.
+
+Ohne Ausnahme wäre der einzige Ausweg gewesen, den Beleg vor dem
+Festschreiben zu setzen — also ein Dokument abzulegen, das noch nicht das
+endgültige ist. Das wäre die schlechtere Antwort auf dieselbe Frage.
+
+Eine Ausnahme ist ein Loch, wenn nichts sie schliesst. `fin.rechnung_beleg_fest`
+steht deshalb direkt darunter: einmal gesetzt, ist der Zeiger fest. Ein
+Archiv, dessen Zeiger sich umbiegen lässt, ist keins.
+
+### D-433 · Der Löschschutz prüft den GRUND, nicht die Kategorie
+
+`kern.dokument_loeschsperre` (0009) weist das weiche Löschen ab, wenn
+`dokument.loeschsperre` steht — und die steht, weil die **Kategorie** es
+sagt. Für ein Rechnungs-PDF in `buchhaltung` ist das heute wahr, und deshalb
+fällt die Lücke nicht auf: der Grund ist die Kategorie, nicht die Buchung.
+
+Ein Dokument, das in einer freieren Kategorie hochgeladen und **später** als
+Beleg an eine Buchung gehängt wird, blieb löschbar. Genau das ist der
+Regelfall von ACC-05: jemand lädt eine Lieferantenrechnung hoch, sie wird zum
+Beleg, sie wird gebucht — der Grund, warum sie bleiben muss, entsteht nach
+dem Hochladen.
+
+`fin.dokument_haengt_an_buchung` prüft deshalb den Grund selbst: zeigt eine
+Buchungszeile über `beleg` auf dieses Dokument, bleibt es. Unabhängig von
+Kategorie und Frist, und ohne dass jemand daran gedacht haben muss. Der
+Auslöser heisst `trg_dokument_buchung` und läuft damit alphabetisch **vor**
+`trg_dokument_loeschsperre` — die Reihenfolge entscheidet, welchen Satz der
+Aufrufer liest: „eine Buchung beruft sich darauf" nennt den Grund,
+„Löschsperre steht" nennt nur den Zustand.
+
+### D-434 · `erzeugt` ist eine fünfte Belegherkunft, und `api` wäre eine falsche Angabe
+
+`beleg_quelle` kannte `upload`, `email`, `scan`, `api` — alle vier
+beschreiben ein Dokument, das von **aussen** kam. Das Rechnungs-PDF kommt von
+nirgendwo: die Plattform erzeugt es aus dem eigenen Snapshot.
+
+Es unter `api` zu führen wäre die bequeme Antwort gewesen. `api` heisst „eine
+fremde Stelle hat es geliefert", und genau das fragt eine Betriebsprüfung,
+wenn sie wissen will, wer ein Dokument erstellt hat. Eine Herkunftsangabe,
+die im Zweifel das Gegenteil sagt, ist schlimmer als keine.
+
+Aus demselben Grund trägt der Beleg `erstellt_von_art = 'system'` und nicht
+den auslösenden Benutzer: kein Mensch stellt dieses PDF her, und der
+nächtliche Lauf hat ohnehin keinen angemeldeten. Die Alternative hätte
+bedeutet, dass auf demselben Beleg mal ein Name steht und mal keiner — je
+nachdem, wer zuerst hinsah.
+
+### D-435 · Ein Manifesteintrag je Datei, nicht je Buchungszeile
+
+Eine Rechnung erzeugt vier bis sechs Buchungszeilen und genau ein PDF. Ein
+Exportmanifest, das das PDF sechsmal führt, behauptet sechs Belege — und die
+Zahl unter „Belege im Zeitraum" wäre falsch, ohne dass es jemandem auffällt.
+Die Zeilen zeigen deshalb auf den Dateieintrag, und der zählt, wie viele
+sich auf ihn berufen.
+
+### D-436 · Die Belegroute leitet um, sie liefert nicht aus
+
+`GET /api/buchhaltung/buchungen/[id]/beleg` liest nie Bytes und reicht nie
+welche durch; sie stellt eine signierte Adresse aus und leitet dorthin um.
+
+Der Unterschied ist nicht Bequemlichkeit. Würde sie den Inhalt durchreichen,
+wäre **sie** die Adresse, unter der das Dokument liegt — dauerhaft, ohne
+Ablauf, und jeder weitergegebene Link bliebe gültig, solange die Sitzung
+besteht. Die Signatur läuft nach `SIGNATUR_SEKUNDEN` (15 Minuten, DOC-03) ab.
+
+Ohne verbundenen Objektspeicher antwortet sie mit 409 und Klartext, nie mit
+einer erfundenen URL: ein Link, der ins Leere zeigt, sieht aus wie ein
+kaputtes Dokument.

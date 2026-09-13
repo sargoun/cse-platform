@@ -40,6 +40,23 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'buchhaltung', pfad: 'buchhaltung/buchungssatz',
     schreibend: true, schreibRecht: 'finanzen.schreiben',
   },
+  /**
+   * Der Archivlauf legt das Rechnungs-PDF ab und haengt es an die Buchung
+   * (PR 59, ACC-03). `finanzen.schreiben` und nicht ein eigenes Recht: er
+   * tut nichts, was die festschreibende Person nicht ohnehin ausgeloest hat
+   * — dieselbe Ueberlegung wie D-418 fuer den Buchungssatz selbst. Ein
+   * zweites Recht zu verlangen hiesse, dass eine Rechnung ohne ihren Beleg
+   * bliebe, weil der naechtliche Lauf es nicht hat.
+   */
+  {
+    modul: 'buchhaltung', pfad: 'buchhaltung/belegarchiv',
+    schreibend: true, schreibRecht: 'finanzen.schreiben',
+  },
+  /**
+   * Das Exportpaket LIEST — es paart Buchungszeilen mit ihren Dateien und
+   * legt nichts ab. Die Datei selbst schreibt PR 60.
+   */
+  { modul: 'buchhaltung', pfad: 'buchhaltung/exportpaket', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/geld', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/steuer/satz', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/hash-chain', schreibend: false },

@@ -240,7 +240,17 @@ proven by test, not by inspection.
       leer (O-05), Buchung ohne Zuordnung trägt `konto = NULL` + Prüfhinweis
 - [ ] **DATEV EXTF export — Windows-1252, comma decimal**
       → request a real sample from the tax advisor **before** building
-- [ ] **Belegverknüpfung** — document travels with the booking line
+- [x] **Belegverknüpfung** — document travels with the booking line (PR 59):
+      `app.buchungssatz_schreiben` takes the document and routes the source id
+      by `herkunft` (D-430); the outgoing invoice's ZUGFeRD PDF is archived
+      after finalisation by a nightly run (D-431), `rechnung.beleg_id` is
+      write-once (D-432), and a document a booking line refers to cannot be
+      deleted — for that reason, not because of its category (D-433).
+      `buchungssatz_unvollstaendig` lists what is missing and
+      `app.export_sperre_pruefen` refuses the period, so an incomplete month
+      blocks the export instead of producing a short file.
+      **The creditor side now reaches the ledger too** — `buche()` writes the
+      booking record it never wrote.
 - [ ] CAMT.053 import and reconciliation
 - [ ] Incoming-invoice OCR → extraction → proposal → approval
 - [ ] GoBD archive with retention and deletion lock

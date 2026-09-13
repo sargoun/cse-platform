@@ -26,6 +26,7 @@ import { registriereKettenpruefer } from './kettenpruefer.js';
 import { registrierePostenabgleich } from './postenabgleich.js';
 import { registriereMahnlauf } from './mahnlauf.js';
 import { registriereBasiszinssatzWaechter } from './basiszinssatz.js';
+import { registriereBelegarchiv } from './belegarchiv.js';
 
 /*
  * Methodensyntax, nicht Eigenschaftssyntax — wie ueberall sonst im Baum
@@ -67,6 +68,7 @@ export function alleJobs(db: Abfrage): readonly JobDefinition[] {
     registrierePostenabgleich(db);
     registriereMahnlauf(db);
     registriereBasiszinssatzWaechter(db);
+    registriereBelegarchiv(db);
     geschehen = true;
   }
   return jobs();

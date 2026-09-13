@@ -835,6 +835,23 @@ export const ROUTEN: readonly RouteEintrag[] = [
     pfad: 'api/einstellungen/mahnwesen',
     recht: 'mahnung.schreiben',
   },
+  {
+    /**
+     * Das archivierte Dokument zu einer Buchungszeile (PR 59, ACC-03,
+     * DOC-03, DOC-04).
+     *
+     * `buchhaltung.lesen` und nicht `dokument.lesen`: der Zugang laeuft ueber
+     * die BUCHUNG, nicht ueber die Dokumentenablage. Wer das Hauptbuch lesen
+     * darf, sieht die Belege, auf die es sich beruft — ohne dafuer Zugriff
+     * auf jedes Dokument des Hauses zu bekommen, und umgekehrt oeffnet
+     * `dokument.lesen` allein keine Buchung.
+     *
+     * Die Route liefert keine Bytes; sie leitet auf eine signierte Adresse
+     * um, die nach fuenfzehn Minuten ablaeuft (D-436).
+     */
+    pfad: 'api/buchhaltung/buchungen/[id]/beleg',
+    recht: 'buchhaltung.lesen',
+  },
 ] as const;
 
 /** Die Routen, die ein Recht verlangen. */
