@@ -17,5 +17,6 @@ export {
 } from './periode.js';
 export { kontiere, type Kontierung, type KontoFrage, type SchluesselTyp } from './kontierung.js';
 export {
-  BuchungFehler, bucheRechnung, bucheStorno, type BuchungErgebnis,
+  BuchungFehler, bucheEingangsrechnung, bucheRechnung, bucheStorno,
+  type BuchungErgebnis,
 } from './buchungssatz.js';

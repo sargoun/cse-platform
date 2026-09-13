@@ -1,4 +1,5 @@
 import 'server-only';
+import { bucheEingangsrechnung } from '../buchhaltung/buchungssatz.js';
 import { cent, type Cent } from './geld.js';
 
 /**
@@ -354,12 +355,26 @@ export async function freigebe(
 }
 
 /**
- * Buchen — der unumkehrbare Schritt. Die interne Belegnummer und der
- * Kreditorposten entstehen in der Datenbank (0123); hier steht nur der Anstoß
- * und die Übersetzung der Ablehnungen.
+ * Buchen — der unumkehrbare Schritt.
+ *
+ * Die interne Belegnummer und der Kreditorposten entstehen in der Datenbank
+ * (0123); der **Buchungssatz** entsteht hier, in derselben Transaktion.
+ *
+ * **Bis 0131 tat er das nicht.** Diese Funktion setzte den Status, die
+ * Datenbank eröffnete den Posten — und das Hauptbuch sah davon nichts. Die
+ * gesamte Kreditorenseite stand ausserhalb der Buchführung: ein DATEV-Export
+ * hätte nur Ausgangsrechnungen enthalten, und die Summe hätte mit keiner
+ * Bilanz übereingestimmt. Aufgefallen wäre es beim Steuerberater, einen Monat
+ * später, an einer Zahl, die niemand erklären kann.
+ *
+ * Dieselbe Reihenfolge wie auf der Ausgangsseite (§5.6 Schritt 6, D-418):
+ * erst der Zustand, dann die Buchung, beides in einer Transaktion. Ein
+ * Nachlauf hinterliesse gebuchte Rechnungen, die in keiner Buchhaltung
+ * stehen, und niemand merkt, wenn ein Nachlauf nicht mehr läuft.
  */
 export async function buche(db: Abfrage, id: string): Promise<void> {
   await setzeStatus(db, id, 'gebucht');
+  await bucheEingangsrechnung(db, id);
 }
 
 // ---------------------------------------------------------------------------

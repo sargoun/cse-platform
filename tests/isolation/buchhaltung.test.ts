@@ -451,3 +451,85 @@ describe('die Mandantentrennung gilt auch für Buchungen', () => {
     expect(sichtbar[0]?.n).toBe('0');
   });
 });
+
+/**
+ * PR 59 — die Herkunftsweiche im Schreiber (0131).
+ *
+ * `buchungssatz` traegt fuenf Quellspalten und zwei Riegel darueber.
+ * `app.buchungssatz_schreiben` bekommt EINE Quelle und die Herkunft und
+ * entscheidet die Spalte daraus; ein Aufrufer kann die beiden also nicht mehr
+ * in Widerspruch bringen. Diese Sektion prueft die Weiche selbst — nicht den
+ * Riegel dahinter, denn ein Riegel, der nie erreicht wird, ist kein Beweis.
+ */
+describe('(6) die Herkunft entscheidet die Quellspalte', () => {
+  interface QuellZeile {
+    readonly rechnung_id: string | null;
+    readonly eingangsrechnung_id: string | null;
+    readonly zahlung_id: string | null;
+  }
+
+  /**
+   * Schreibt eine Buchung direkt ueber den Schreiber, an jedem Dienst vorbei.
+   *
+   * **Zwei Zeilen, nicht eine.** Ueber `buchung_id` haengt ein
+   * zurueckgestellter Riegel: Soll muss beim Commit gleich Haben sein. Eine
+   * einzelne Zeile scheitert dort — und zwar an einer Pruefung, die mit der
+   * Herkunftsweiche nichts zu tun hat. Gegengeprueft wird die Sollzeile.
+   */
+  async function schreibe(herkunft: string, quelle: string | null): Promise<QuellZeile> {
+    return alsApp(sitzung(), async (tx) => {
+      const p = await sicherePeriode(alsDienst(tx), f.reinigung, '2026-08-15');
+      const buchung = crypto.randomUUID();
+      const ids: string[] = [];
+      for (const sh of ['soll', 'haben']) {
+        const [neu] = await tx.unsafe<{ id: string }[]>(
+          `select app.buchungssatz_schreiben($1, $2, '2026-08-15'::date, $3,
+                    1000::bigint, $4::soll_haben, '4400', null, null, null,
+                    'Weichenprobe', 'B-1', $5::buchung_herkunft, $6, null,
+                    'dienst:test') as id`,
+          [f.reinigung, buchung, p.id, sh, herkunft, quelle] as never[]);
+        ids.push(neu!.id);
+      }
+      const [z] = await tx.unsafe<QuellZeile[]>(
+        `select rechnung_id, eingangsrechnung_id, zahlung_id
+           from buchungssatz where id = $1`, [ids[0]!] as never[]);
+      return z!;
+    });
+  }
+
+  it('eine Zahlung landet in zahlung_id — nicht in rechnung_id', async () => {
+    const [zahlung] = await sql.unsafe<{ id: string }[]>(
+      `insert into zahlung (mandant_id, richtung, betrag_cent, zahlungsdatum,
+                            zahlungsmittel, erstellt_von)
+       values ($1, 'eingang', 1000, '2026-08-15', 'ueberweisung', $2) returning id`,
+      [f.reinigung, benutzer]);
+
+    const z = await schreibe('zahlung', zahlung!.id);
+    expect(z.zahlung_id).toBe(zahlung!.id);
+    expect(z.rechnung_id).toBeNull();
+    expect(z.eingangsrechnung_id).toBeNull();
+  });
+
+  it('eine manuelle Buchung traegt gar keine Quelle', async () => {
+    const z = await schreibe('manuell', null);
+    expect(z.rechnung_id).toBeNull();
+    expect(z.eingangsrechnung_id).toBeNull();
+    expect(z.zahlung_id).toBeNull();
+  });
+
+  /*
+   * Die zwei Widersprueche, die die alte Signatur zugelassen haette. Beide
+   * scheitern hier VOR dem Einfuegen, mit einem Satz, der auf den Aufruf zeigt
+   * — der Riegel der Tabelle haette nur seinen eigenen Namen genannt.
+   */
+  it('eine Herkunft ohne Quelle wird abgewiesen, und zwar benannt', async () => {
+    await expect(schreibe('eingangsrechnung', null))
+      .rejects.toThrow(/ohne Quelle/u);
+  });
+
+  it('und eine manuelle Buchung MIT Quelle ebenso', async () => {
+    const id = await festgeschrieben();
+    await expect(schreibe('manuell', id))
+      .rejects.toThrow(/keine Quelle/u);
+  });
+});

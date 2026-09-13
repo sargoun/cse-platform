@@ -441,3 +441,208 @@ export async function bucheStorno(
     grund: null,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Die Kreditorenseite (ACC-05)
+// ---------------------------------------------------------------------------
+
+interface EingangKopfRoh {
+  readonly id: string;
+  readonly mandant_id: string;
+  readonly status: string;
+  readonly interne_belegnummer: string | null;
+  readonly rechnungsdatum: string | null;
+  readonly lieferant_id: string | null;
+  readonly lieferant_name: string | null;
+  readonly beleg_id: string;
+  readonly netto_cent: string | null;
+  readonly steuer_cent: string | null;
+  readonly brutto_cent: string | null;
+}
+
+interface EingangSteuerRoh {
+  readonly steuersatz_gruppe_id: string;
+  readonly satz_bp: number;
+  readonly netto_cent: string;
+  readonly steuer_cent: string;
+}
+
+/**
+ * Der automatische Buchungssatz zur gebuchten Eingangsrechnung (ACC-05).
+ *
+ * **Die Spiegelung der Ausgangsseite, Zeile für Zeile:**
+ *
+ *   je Steuergruppe:  SOLL  Nettobetrag   (Aufwandskonto)
+ *   je Steuergruppe:  SOLL  Steuerbetrag  (Vorsteuerkonto, wenn > 0)
+ *     Kreditor       HABEN  Bruttobetrag
+ *
+ * **Ohne diese Funktion stand die Kreditorenseite ganz ausserhalb des
+ * Hauptbuchs.** `eingangsrechnung.buche()` setzte den Status und liess die
+ * Datenbank einen Kreditorposten eröffnen — einen Buchungssatz schrieb
+ * niemand. Ein DATEV-Export hätte damit nur Ausgangsrechnungen enthalten, und
+ * die Summe hätte mit keiner Bilanz übereingestimmt. Aufgefallen wäre es beim
+ * Steuerberater, im Folgemonat.
+ *
+ * **Der Beleg reist mit** (ACC-03, GoBD). `eingangsrechnung.beleg_id` ist
+ * Pflicht, also trägt jede Zeile dieser Buchung ihn — der Weg vom Konto zum
+ * Dokument ist damit eine Abfrage und keine Suche.
+ *
+ * **Und auch hier wird kein Konto geraten.** Fehlt die Zuordnung (O-05),
+ * entsteht die Zeile mit `konto = NULL` und Prüfhinweis; sie steht in der
+ * Arbeitsliste und hält den Monatsabschluss auf.
+ */
+export async function bucheEingangsrechnung(
+  db: Abfrage, eingangsrechnungId: string,
+): Promise<BuchungErgebnis> {
+  const [kopf] = await db.abfrage<EingangKopfRoh>(
+    `select er.id, er.mandant_id, er.status::text as status, er.interne_belegnummer,
+            er.rechnungsdatum::text as rechnungsdatum, er.lieferant_id,
+            l.name as lieferant_name, er.beleg_id,
+            er.netto_cent::text, er.steuer_cent::text, er.brutto_cent::text
+       from eingangsrechnung er
+       left join lieferant l on l.id = er.lieferant_id and l.mandant_id = er.mandant_id
+      where er.id = $1`,
+    [eingangsrechnungId]);
+
+  if (kopf === undefined) {
+    throw new BuchungFehler(
+      `Eingangsrechnung ${eingangsrechnungId} nicht gefunden`, 'nicht_gefunden');
+  }
+  if (kopf.status !== 'gebucht') {
+    throw new BuchungFehler(
+      `Eingangsrechnung ${eingangsrechnungId} ist ${kopf.status} — gebucht wird eine `
+      + 'gebuchte Rechnung.', 'kein_beleg');
+  }
+  if (kopf.rechnungsdatum === null || kopf.brutto_cent === null) {
+    throw new BuchungFehler(
+      `Eingangsrechnung ${eingangsrechnungId} hat kein Datum oder keinen Betrag — `
+      + 'ohne beides keine Periode und keine Zeile.', 'kein_beleg');
+  }
+
+  /* Zweimal buchen ist keine zweite Buchung, sondern eine doppelte. */
+  const [schon] = await db.abfrage<{ readonly buchung_id: string }>(
+    `select buchung_id from buchungssatz
+      where mandant_id = $1 and beleg_id = $2 and herkunft = 'eingangsrechnung'
+      limit 1`,
+    [kopf.mandant_id, kopf.beleg_id]);
+  if (schon !== undefined) {
+    return {
+      gebucht: false, buchungId: schon.buchung_id, zeilen: 0, offeneKontierungen: 0,
+      grund: 'schon_gebucht',
+    };
+  }
+
+  const datum = kopf.rechnungsdatum;
+  const periode = await sicherePeriode(db, kopf.mandant_id, datum);
+
+  const gruppen = await db.abfrage<EingangSteuerRoh>(
+    `select steuersatz_gruppe_id, satz_bp, netto_cent::text, steuer_cent::text
+       from eingangsrechnung_steuer
+      where mandant_id = $1 and eingangsrechnung_id = $2
+      order by satz_bp desc`,
+    [kopf.mandant_id, eingangsrechnungId]);
+
+  if (gruppen.length === 0) {
+    throw new BuchungFehler(
+      `Eingangsrechnung ${eingangsrechnungId} trägt keine Steuerzeile — ohne `
+      + 'Steueraufteilung lässt sich der Vorsteuerabzug nicht kontieren '
+      + '(§15 UStG).', 'kein_beleg');
+  }
+
+  const zeilen: Zeile[] = [];
+
+  /*
+   * 1. Der Aufwand je Steuergruppe.
+   *
+   * **Je Gruppe und nicht je Position** — anders als auf der Ausgangsseite,
+   * und das ist kein Versehen: eine Eingangsrechnung hat hier keine
+   * Positionszeilen mit Katalogbezug, aus denen sich ein Konto ableiten
+   * liesse. Die Aufwandskategorie steht am Beleg, sobald jemand sie setzt;
+   * bis dahin bleibt das Konto offen und die Zeile in der Arbeitsliste
+   * (O-05).
+   */
+  for (const g of gruppen) {
+    if (BigInt(g.netto_cent) === 0n) continue;
+    const aufwand = await kontiere(db, {
+      mandantId: kopf.mandant_id, typ: 'aufwand_kategorie', datum,
+      steuersatzGruppeId: g.steuersatz_gruppe_id,
+    });
+    zeilen.push({
+      konto: aufwand.konto,
+      gegenkonto: aufwand.gegenkonto,
+      buSchluessel: aufwand.buSchluessel,
+      sollHaben: 'soll',
+      betrag: cent(BigInt(g.netto_cent)),
+      steuersatzGruppeId: g.steuersatz_gruppe_id,
+      hinweis: aufwand.pruefhinweis,
+    });
+  }
+
+  /* 2. Die Vorsteuer je Gruppe — sie steht auf dem Beleg, nicht hier. */
+  for (const g of gruppen) {
+    if (BigInt(g.steuer_cent) === 0n) continue;
+    const vorsteuer = await kontiere(db, {
+      mandantId: kopf.mandant_id, typ: 'steuer_gruppe', datum,
+      steuersatzGruppeId: g.steuersatz_gruppe_id,
+    });
+    zeilen.push({
+      konto: vorsteuer.konto,
+      gegenkonto: vorsteuer.gegenkonto,
+      buSchluessel: vorsteuer.buSchluessel,
+      sollHaben: 'soll',
+      betrag: cent(BigInt(g.steuer_cent)),
+      steuersatzGruppeId: g.steuersatz_gruppe_id,
+      hinweis: vorsteuer.pruefhinweis,
+    });
+  }
+
+  /* 3. Der Kreditor — eine Zeile, der ganze Bruttobetrag. */
+  const kreditor = await kontiere(db, {
+    mandantId: kopf.mandant_id, typ: 'kreditor_lieferant', datum,
+    lieferantId: kopf.lieferant_id,
+  });
+  zeilen.push({
+    konto: kreditor.konto,
+    gegenkonto: kreditor.gegenkonto,
+    buSchluessel: null,
+    sollHaben: 'haben',
+    betrag: cent(BigInt(kopf.brutto_cent)),
+    steuersatzGruppeId: null,
+    hinweis: kreditor.pruefhinweis,
+  });
+
+  const soll = zeilen.filter((z) => z.sollHaben === 'soll').reduce((s, z) => s + z.betrag, 0n);
+  const haben = zeilen.filter((z) => z.sollHaben === 'haben').reduce((s, z) => s + z.betrag, 0n);
+  if (soll !== haben) {
+    throw new BuchungFehler(
+      `Eingangsrechnung ${kopf.interne_belegnummer ?? eingangsrechnungId}: Netto plus `
+      + `Steuer ergeben ${String(soll)} Cent, der Bruttobetrag ist ${String(haben)} Cent — `
+      + 'die Buchung ginge nicht auf.',
+      'kein_beleg');
+  }
+
+  const [neu] = await db.abfrage<{ readonly buchung_id: string }>(
+    'select gen_random_uuid() as buchung_id');
+  const buchungId = neu?.buchung_id ?? null;
+  if (buchungId === null) throw new BuchungFehler('Keine buchung_id erhalten', 'kein_beleg');
+
+  const text = `ER ${kopf.interne_belegnummer ?? ''} ${kopf.lieferant_name ?? ''}`.trim();
+  for (const z of zeilen) {
+    await db.abfrage(
+      `select app.buchungssatz_schreiben($1, $2, $3::date, $4, $5::bigint,
+                                         $6::soll_haben, $7, $8, $9, $10, $11, $12,
+                                         'eingangsrechnung'::buchung_herkunft, $13, $14,
+                                         'dienst:buchhaltung-eingangsrechnung', $15)`,
+      [kopf.mandant_id, buchungId, datum, periode.id, z.betrag.toString(), z.sollHaben,
+        z.konto, z.gegenkonto, z.buSchluessel, z.steuersatzGruppeId, text,
+        kopf.interne_belegnummer, eingangsrechnungId, z.hinweis, kopf.beleg_id]);
+  }
+
+  return {
+    gebucht: true,
+    buchungId,
+    zeilen: zeilen.length,
+    offeneKontierungen: zeilen.filter((z) => z.konto === null).length,
+    grund: null,
+  };
+}

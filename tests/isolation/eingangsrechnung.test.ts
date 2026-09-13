@@ -28,6 +28,7 @@ import {
   freigebe, inPruefung, legeBelegAn, lehneAb, pruefeDublette, setzeSteuerzeile,
   type Abfrage,
 } from '../../src/server/services/finanz/eingangsrechnung.js';
+import { bucheEingangsrechnung } from '../../src/server/services/buchhaltung/buchungssatz.js';
 
 let f: Fixtur;
 let benutzer: string;
@@ -489,6 +490,60 @@ describe('(6) Der Kreditorposten und die Mandantengrenze', () => {
      * andere Verbindlichkeit mit einem anderen Fälligkeitstag.
      */
     expect(op!.betrag).toBe('101150');
+  });
+
+  /**
+   * **Bis 0131 erreichte die Kreditorenseite das Hauptbuch überhaupt nicht.**
+   *
+   * `buche()` setzte den Status, die Datenbank eröffnete den Kreditorposten —
+   * und ein Buchungssatz entstand nie. Ein DATEV-Export hätte damit nur
+   * Ausgangsrechnungen enthalten; die Summe hätte mit keiner Bilanz
+   * übereingestimmt, und aufgefallen wäre es beim Steuerberater, einen Monat
+   * später, an einer Zahl, die niemand erklären kann.
+   */
+  it('das Buchen schreibt den Buchungssatz — Aufwand und Vorsteuer im Soll', async () => {
+    const id = await gebucht();
+
+    const zeilen = await sql.unsafe<{
+      soll_haben: string; umsatz_cent: string; beleg_id: string | null;
+      herkunft: string; buchung_id: string;
+    }[]>(
+      `select soll_haben::text, umsatz_cent::text, beleg_id, herkunft::text,
+              buchung_id::text
+         from buchungssatz where herkunft = 'eingangsrechnung'
+        order by soll_haben, umsatz_cent desc`);
+
+    expect(zeilen.length, 'Aufwand, Vorsteuer, Kreditor').toBe(3);
+
+    const soll = zeilen.filter((z) => z.soll_haben === 'soll')
+      .reduce((n, z) => n + BigInt(z.umsatz_cent), 0n);
+    const haben = zeilen.filter((z) => z.soll_haben === 'haben')
+      .reduce((n, z) => n + BigInt(z.umsatz_cent), 0n);
+    expect(soll, '100.000 Netto + 19.000 Vorsteuer').toBe(119_000n);
+    expect(haben, 'der Kreditor trägt das Brutto').toBe(119_000n);
+
+    // Eine Buchung, nicht drei.
+    expect(new Set(zeilen.map((z) => z.buchung_id)).size).toBe(1);
+
+    const [er] = await sql.unsafe<{ beleg_id: string }[]>(
+      `select beleg_id::text from eingangsrechnung where id = $1`, [id]);
+    for (const z of zeilen) {
+      expect(z.beleg_id, 'der Beleg reist mit jeder Zeile (ACC-03)').toBe(er!.beleg_id);
+    }
+  });
+
+  it('zweimal buchen ergibt keine zweite Buchung', async () => {
+    const id = await gebucht();
+    const ergebnis = await alsApp(sitzung(), async (tx) =>
+      bucheEingangsrechnung(alsDienst(tx), id));
+
+    expect(ergebnis.gebucht).toBe(false);
+    expect(ergebnis.grund).toBe('schon_gebucht');
+
+    const [n] = await sql.unsafe<{ n: string }[]>(
+      `select count(distinct buchung_id)::text as n from buchungssatz
+        where herkunft = 'eingangsrechnung'`);
+    expect(n?.n).toBe('1');
   });
 
   it('ein fremder Mandant sieht weder Lieferant noch Eingangsrechnung', async () => {
