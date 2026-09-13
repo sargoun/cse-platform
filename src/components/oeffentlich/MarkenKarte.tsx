@@ -53,7 +53,7 @@ export function MarkenKarte({
         alt={bild.alt}
         fill
         sizes="(max-width: 768px) 100vw, 25vw"
-        className="object-cover transition-transform duration-[400ms] group-hover:scale-[1.03]"
+        className="object-cover transition-transform duration-slow ease-brand group-hover:scale-[1.03]"
       />
       {/* PFLICHT (§4.4). Ohne ihn steht der Text auf dem, was das Foto gerade hergibt. */}
       <span
@@ -64,7 +64,17 @@ export function MarkenKarte({
       />
       <span className="relative flex flex-col gap-s1 p-s4">
         <span className="text-h3 text-white">{titel}</span>
-        <span className="text-sm text-white/80">{anspruch}</span>
+        {/*
+          * Zwei Zeilen, immer — auch wenn der Anspruch nur eine braucht.
+          *
+          * Die Karten richten ihren Text am UNTEREN Rand aus. Ein einzeiliger
+          * Anspruch schob den Titel deshalb eine Zeile tiefer als beim
+          * Nachbarn, und in einer Reihe von vier Karten standen die vier
+          * Namen auf drei verschiedenen Hoehen. Das liest sich als
+          * Unordnung, bevor man es benennen kann. `line-clamp-2` haelt die
+          * lange Variante ebenfalls bei zwei.
+          */}
+        <span className="line-clamp-2 min-h-[3em] text-sm text-white/80">{anspruch}</span>
         <span className="mt-s2 text-sm font-semibold text-brand">{t.mehrErfahren}</span>
       </span>
       {bild.platzhalter && (

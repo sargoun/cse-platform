@@ -141,6 +141,42 @@ body {
   }
 }
 
+/**
+ * §7 Motion: „Page sections: fade + `translateY(12px→0)`, once".
+ *
+ * **Der Befund:** die Bewegungstoken standen seit PR 0 in dieser Datei und im
+ * Tailwind-Thema — und NICHTS hat sie je benutzt. Jede Seite erschien
+ * schlagartig fertig; genau das meint „fühlt sich starr an". Ein Token, das
+ * nirgends ankommt, ist Dokumentation, keine Gestaltung.
+ *
+ * **Beim Laden, nicht beim Scrollen — und das ist eine Entscheidung.**
+ * `animation-timeline: view()` könnte den Auftritt an die Scrollposition
+ * hängen, aber wo es unterstützt wird und die Sicht nicht auflöst, bleibt der
+ * Abschnitt bei `from` stehen: unsichtbarer Inhalt auf einer Verkaufsseite.
+ * Eine Bewegung, die im Fehlerfall Text verschwinden lässt, ist den Gewinn
+ * nicht wert. Der Auftritt läuft deshalb einmal beim Laden und endet sichtbar.
+ *
+ * `--verzug` staffelt die Abschnitte um je 60ms; mehr als drei Stufen wirkt
+ * wie Warten statt wie Bewegung.
+ */
+@keyframes cse-auftritt {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.cse-auftritt {
+  animation: cse-auftritt var(--base) var(--ease) both;
+  animation-delay: var(--verzug, 0ms);
+}
+.cse-auftritt-2 { --verzug: 60ms; }
+.cse-auftritt-3 { --verzug: 120ms; }
+
+/*
+ * Bei `prefers-reduced-motion` bleibt die Deckkraft, der Versatz faellt weg —
+ * die Regel oben setzt `transform: none !important`, und `opacity` steht in
+ * ihrer Ausnahmeliste. Vestibulaere Stoerungen sind keine Vorliebe (§7).
+ */
+
 /* §5 Tables: numbers right-aligned with tabular figures. */
 .cse-zahl {
   font-variant-numeric: tabular-nums;
