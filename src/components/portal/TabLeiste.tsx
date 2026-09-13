@@ -40,6 +40,13 @@ export interface TabLeisteProps {
    */
   readonly navigationsRechte?: Readonly<Record<string, boolean>>;
   readonly gruppenansicht?: boolean;
+  /**
+   * Uebersetzte Beschriftungen je Tab-Schluessel (D-419).
+   *
+   * Das Register traegt deutsche Labels; das Mitarbeiterportal spricht vier
+   * Sprachen (EMP-12). Was hier fehlt, faellt auf das Register zurueck.
+   */
+  readonly beschriftungen?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -159,6 +166,7 @@ function MehrZelle({ wurzel, rechte, gruppenansicht }: {
 
 export function TabLeiste({
   ziele, aktiv, wurzel, label, sichtbar, navigationsRechte, gruppenansicht = false,
+  beschriftungen,
 }: TabLeisteProps) {
   const gezeigt = ziele.filter((z) => sichtbar?.[z.schluessel] !== false);
   return (
@@ -191,7 +199,7 @@ export function TabLeiste({
                           z.schluessel === aktiv ? 'text-text' : 'text-text-muted'}`}
           >
             <Icon name={z.icon} groesse="md" />
-            {z.label}
+            {beschriftungen?.[z.schluessel] ?? z.label}
           </a>
         );
       })}

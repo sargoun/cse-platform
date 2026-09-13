@@ -21,7 +21,62 @@ import type { Portal, Scope, Sitzung, Transaktion } from '../kontext/index.js';
  * Hex-Zeichen, also faellt ein versehentlich im Klartext geschriebener Token
  * schon an der Tabelle auf.
  */
-export const SITZUNG_COOKIE = 'cse_sitzung';
+/**
+ * Der Name des Sitzungskekses — `__Host-cse_sitzung` in der Auslieferung
+ * (03-AUTH §4.1), `cse_sitzung` in der Entwicklung.
+ *
+ * Der `__Host-`-Praefix ist mehr als ein Name: der Browser nimmt einen so
+ * benannten Keks nur mit `Secure`, `Path=/` und OHNE `Domain` an — und dann
+ * kann keine Unterdomaene einen gleichnamigen Keks unterschieben, den der
+ * Server fuer den eigenen hielte. `Secure` allein verhindert das nicht.
+ *
+ * In der Entwicklung faellt `Secure` weg (das Telefon im Heimnetz erreicht
+ * den Server ueber `http://192.168…`, D-414), und ohne `Secure` gibt es
+ * keinen `__Host-`-Keks — der Browser wuerde ihn verwerfen. Deshalb dort der
+ * schlichte Name. Umstellung: eine Auslieferung mit dem neuen Namen kennt die
+ * alten `cse_sitzung`-Kekse nicht mehr; wer eine Sitzung hatte, meldet sich
+ * einmal neu an. Die Abmeldung loescht den alten Namen mit (D-416).
+ */
+export const ALT_SITZUNG_COOKIE = 'cse_sitzung';
+
+export function sitzungsKeksName(
+  umgebung: { readonly NODE_ENV?: string | undefined } = process.env,
+): string {
+  return umgebung.NODE_ENV === 'production' ? '__Host-cse_sitzung' : ALT_SITZUNG_COOKIE;
+}
+
+export const SITZUNG_COOKIE = sitzungsKeksName();
+
+/** Zwoelf Stunden — so lange lebt die Zeile in `benutzer_sitzung` auch. */
+export const SITZUNG_MAX_ALTER_SEK = 12 * 60 * 60;
+
+/**
+ * Die Attribute des Sitzungskekses — an EINER Stelle.
+ *
+ * Sie standen dreimal: in der Entwicklungsanmeldung, in der Codeeingabe und
+ * in der Abmeldung, und nur die Codeeingabe setzte `secure`. Ein Keks ohne
+ * `secure` wird auch ueber `http://` mitgeschickt — auf einem Telefon im
+ * Baustellen-WLAN reicht dann ein Netz, das die erste Anfrage unverschluesselt
+ * abfaengt, und die Sitzung ist weg. `secure` haengt an `NODE_ENV`, weil
+ * `http://localhost` und das Telefon im selben Netz (D-414, `allowedDevOrigins`)
+ * sonst gar keinen Keks mehr bekaemen.
+ *
+ * `sameSite: 'lax'` bleibt: ein fremdes Formular schickt ihn nicht mit, und
+ * `ursprung.ts` steht als zweite Linie davor.
+ */
+export function sitzungsKeksOptionen(
+  umgebung: { readonly NODE_ENV?: string | undefined } = process.env,
+): {
+  httpOnly: true; sameSite: 'lax'; path: '/'; maxAge: number; secure: boolean;
+} {
+  return {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: SITZUNG_MAX_ALTER_SEK,
+    secure: umgebung.NODE_ENV === 'production',
+  };
+}
 
 export function tokenHash(token: string): string {
   return createHash('sha256').update(token, 'utf8').digest('hex');

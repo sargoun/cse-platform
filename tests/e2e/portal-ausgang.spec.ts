@@ -107,6 +107,71 @@ test.describe('(4) die Kopfzeile zeigt den Weg, nicht nur den Ort', () => {
   });
 });
 
+/**
+ * **Auf dem Telefon hat auch eine Leiste ohne „Mehr" einen Ausgang** (D-419).
+ *
+ * Die Sitzungsnavigation der Kopfzeile ist unter `sm` ausgeblendet; das
+ * interne Portal traegt sie im „Mehr"-Blatt, die Arbeiter-, Kunden- und
+ * Gruppenleiste haben keines. Eine Reinigungskraft hatte auf ihrem Telefon
+ * damit keine Abmeldung — gefunden von der Durchsicht zu PR 10.
+ */
+test.describe('(6) auf dem Telefon hat auch eine Leiste ohne „Mehr" einen Ausgang', () => {
+  test('/portal/mein bei 375px: das Sitzungsmenue traegt Bereich, Konto, Website und Abmelden',
+    async ({ page }) => {
+      await alsKonto(page, KONTO.fatima);
+      await page.setViewportSize({ width: 375, height: 812 });
+      await page.goto('/portal/mein');
+      await expect(page.locator('[data-cse="sitzungsnavigation"]')).toBeHidden();
+
+      const menue = page.locator('[data-cse="sitzungsmenue"]');
+      await expect(menue).toBeVisible();
+      await menue.locator('summary').click();
+      const blatt = menue.locator('[data-cse="sitzungsmenue-blatt"]');
+      await expect(blatt).toBeVisible();
+      for (const ziel of ['/auth/bereich', '/portal/konto', '/']) {
+        await expect(blatt.locator(`a[href="${ziel}"]`), `kein Weg zu ${ziel}`).toHaveCount(1);
+      }
+      await expect(blatt.locator('form[action="/api/abmelden"] button[type="submit"]'))
+        .toHaveCount(1);
+    });
+
+  test('das interne Portal hat es nicht doppelt — dort steht der Ausgang im Mehr-Blatt',
+    async ({ page }) => {
+      await alsKonto(page, KONTO.adminReinigung);
+      await page.setViewportSize({ width: 375, height: 812 });
+      await page.goto('/portal/reinigung');
+      await expect(page.locator('[data-cse="sitzungsmenue"]')).toHaveCount(0);
+      await expect(page.locator('[data-cse="mehr"] summary')).toBeVisible();
+    });
+});
+
+/**
+ * **Die Gruppenleitung hat auf `/portal/konto` ihre Leiste** (D-422).
+ *
+ * Die Seite liest ihre Rechte selbst und setzte `app.mandant_ids` nicht;
+ * im Gruppen-Scope war damit jedes Recht `false`, die Schiene leer.
+ */
+test.describe('(7) das Konto kennt den Gruppen-Scope und die Sprache der Person', () => {
+  test('die Gruppenleitung sieht auf /portal/konto ihre fuenf Ziele', async ({ page }) => {
+    await alsKonto(page, KONTO.gruppe);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/portal/konto');
+    const schiene = page.locator('[data-cse="seitennavigation"]');
+    await expect(schiene).toBeVisible();
+    await expect(schiene.locator('[data-cse="nav-punkt"]').first()).toBeVisible();
+  });
+
+  test('eine arabischsprachige Arbeiterin behaelt auf /portal/konto ihre Leiste', async ({ page }) => {
+    await alsKonto(page, KONTO.amir);
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto('/portal/konto');
+    // „Heute" auf Arabisch — nicht das deutsche Label des Registers.
+    await expect(page.locator('[data-cse="tableiste"] [data-tab="heute"]')).toContainText('اليوم');
+    await expect(page.locator('[data-cse="sitzungsmenue"] summary'))
+      .toHaveAttribute('aria-label', 'الجلسة');
+  });
+});
+
 test.describe('(5) das Mitarbeiterportal hat am Schreibtisch eine Navigation', () => {
   test('die Schiene traegt die Ziele der Leiste — und keine leere Spalte', async ({ page }) => {
     await alsKonto(page, KONTO.fatima);

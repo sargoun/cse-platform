@@ -82,7 +82,7 @@ export default async function MeinStundenkonto({
         </p>
       </div>
 
-      <nav aria-label={t.monat} className="mb-s5 flex gap-s4">
+      <nav aria-label={t.monat} className="mb-s5 flex flex-wrap gap-s4">
         <Link
           href={`/portal/mein/stundenkonto?monat=${verschiebe(jahr, monat, -1)}-01`}
           data-cse="monat-zurueck"

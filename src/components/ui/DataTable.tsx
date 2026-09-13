@@ -39,8 +39,20 @@ export function DataTable<Z>({
 }: DataTableProps<Z>) {
   return (
     <>
-      {/* ≥ md: the table. */}
-      <table className="hidden w-full border-collapse md:table" data-cse="tabelle">
+      {/*
+        * ≥ md: the table — in its OWN scroll container.
+        *
+        * A wide table (eight columns of invoices, a project list) is wider
+        * than a 572px `main` on a tablet with the sidebar open. Without this
+        * wrapper the table widened `main` and the whole page scrolled
+        * sideways, header row included — measured on 35 portal pages at
+        * 820px. The rule of §8 is about PHONES ("never a horizontal
+        * scrollbar on a data table on a phone"), and below `md` this table
+        * is not rendered at all; from `md` up the table itself scrolls,
+        * the page never does (D-420).
+        */}
+      <div className="hidden overflow-x-auto md:block">
+      <table className="w-full border-collapse" data-cse="tabelle">
         <caption className="sr-only">{beschriftung}</caption>
         <thead>
           <tr className="border-b border-line">
@@ -79,6 +91,7 @@ export function DataTable<Z>({
           ))}
         </tbody>
       </table>
+      </div>
 
       {/* < md: stacked cards. No horizontal scroll, ever. */}
       <ul className="flex list-none flex-col gap-s3 p-0 md:hidden" data-cse="stapel">

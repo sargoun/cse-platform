@@ -5,7 +5,8 @@ import { db } from '@/server/db/pool';
 import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { codeEinloesen } from '@/server/auth/mitarbeiter-anmeldung';
-import { SITZUNG_COOKIE, mitarbeiterSitzungAusstellen } from '@/server/auth/sitzung';
+import { SITZUNG_COOKIE, mitarbeiterSitzungAusstellen, sitzungsKeksOptionen }
+  from '@/server/auth/sitzung';
 import { ANMELDUNG_DEV_COOKIE, ANMELDUNG_TELEFON_COOKIE, herkunft } from '../anmeldung';
 
 /**
@@ -77,13 +78,7 @@ export default async function CodeEingabe({ searchParams }: Props) {
      */
     k.delete(ANMELDUNG_TELEFON_COOKIE);
     k.delete(ANMELDUNG_DEV_COOKIE);
-    k.set(SITZUNG_COOKIE, anmeldung.token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 12 * 60 * 60,
-      secure: process.env.NODE_ENV === 'production',
-    });
+    k.set(SITZUNG_COOKIE, anmeldung.token, sitzungsKeksOptionen());
 
     redirect('/portal/mein');
   }

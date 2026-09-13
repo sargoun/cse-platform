@@ -25,11 +25,26 @@ export interface KpiStatProps {
   /** Ein Name aus dem Satz (DESIGN §5) — oder eigenes JSX, wenn es sein muss. */
   readonly icon?: IconName | ReactNode;
   readonly delta?: { readonly richtung: 'auf' | 'ab'; readonly text: string };
+  /**
+   * Die Kachel ist ein Weg (DSH-04) — dann zeigt sie es wie jede
+   * interaktive Karte (DESIGN §5): Rand auf `--border-strong`, 2px hoch,
+   * 200ms. `group-hover`, weil der Verweis das Elternelement ist.
+   */
+  readonly interaktiv?: boolean;
 }
 
-export function KpiStat({ label, wert, ton = 'info', icon, delta }: KpiStatProps) {
+export function KpiStat({
+  label, wert, ton = 'info', icon, delta, interaktiv = false,
+}: KpiStatProps) {
   return (
-    <div className="rounded-lg border border-line bg-surface p-s5">
+    <div
+      className={[
+        'rounded-lg border border-line bg-surface p-s5',
+        interaktiv
+          ? 'transition duration-base ease-brand group-hover:-translate-y-0.5 group-hover:border-line-strong'
+          : '',
+      ].join(' ')}
+    >
       <div className={`mb-s4 flex h-10 w-10 items-center justify-center rounded-md ${TINT[ton]}`}>
         {typeof icon === 'string' ? <Icon name={icon as IconName} /> : (icon ?? <Icon name="info" />)}
       </div>

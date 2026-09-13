@@ -1,5 +1,6 @@
 import type { NextConfig } from 'next';
 import { weiterleitungenMitSprachen } from './src/lib/weiterleitungen';
+import { SICHERHEITSKOEPFE } from './src/lib/sicherheitskoepfe';
 
 const config: NextConfig = {
   reactStrictMode: true,
@@ -39,6 +40,16 @@ const config: NextConfig = {
       source: quelle, destination: ziel, permanent: true,
     })),
   ),
+
+  /**
+   * SEC-A7 — die Sicherheitskoepfe auf JEDER Antwort.
+   *
+   * Es gab keine: weder HSTS noch `X-Frame-Options` noch `nosniff`, obwohl
+   * SPEC §20 sie als SEC-A7 fuehrt und `ursprung.ts` sich auf HSTS beruft.
+   * Die Werte stehen in `src/lib/sicherheitskoepfe.ts`, damit ein Test sie
+   * lesen kann, ohne diese Konfiguration zu laden (D-416).
+   */
+  headers: () => Promise.resolve([{ source: '/(.*)', headers: [...SICHERHEITSKOEPFE] }]),
 
   /**
    * Das Telefon im selben WLAN darf den Entwicklungsserver aufrufen.

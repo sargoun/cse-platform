@@ -177,6 +177,41 @@ body {
  * ihrer Ausnahmeliste. Vestibulaere Stoerungen sind keine Vorliebe (§7).
  */
 
+/**
+ * §2 Mobile — „display → 36/40, h1 → 30/36, h2 → 24/30".
+ *
+ * **Der Befund:** `TYPO_MOBIL` stand seit PR 0 in `theme.ts`, und nichts hat es
+ * je angewendet. Ein Telefon bekam die Schreibtischgroesse: 40px-Ueberschrift
+ * auf 375px Breite, „Gebaeudereinigung" brach nicht um, und der Hero trug
+ * drei Zeilen Titel ueber dem Bild. Die Werte hier sind DIESELBEN wie in
+ * `TYPO_MOBIL` — `tests/design/tokens.test.ts` prueft das —, damit die
+ * PDF- und E-Mail-Renderer nicht eine andere Skala kennen als die Seite.
+ *
+ * `max-width: 767.98px` ist die Unterkante des `md`-Breakpoints (DESIGN §8):
+ * ab 768px gilt die Schreibtischskala, wie bei der Tabelle und der Tab-Leiste.
+ */
+@media (max-width: 767.98px) {
+  .text-display { font-size: 36px; line-height: 40px; }
+  .text-h1 { font-size: 30px; line-height: 36px; }
+  .text-h2 { font-size: 24px; line-height: 30px; }
+}
+
+/**
+ * Ueberschriften brechen, statt die Seite zu verbreitern.
+ *
+ * Deutsche Komposita — „Eingangsrechnungen", „Beschaeftigungen",
+ * „Monatsabschluss" — sind ein Wort und haben keine Trennstelle. Als
+ * 40px-Ueberschrift waren sie breiter als ein Telefon, und weil `main` bis
+ * D-420 nie schmaler wurde als sein Inhalt, lief die GANZE Seite seitwaerts
+ * (WCAG 1.4.10). `hyphens: auto` trennt nach den Regeln der `lang` am
+ * `<html>`; `overflow-wrap: anywhere` ist die Notbremse fuer Woerter, die
+ * auch der Silbentrenner nicht kennt.
+ */
+.text-display, .text-h1, .text-h2, .text-h3 {
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
 /* §5 Tables: numbers right-aligned with tabular figures. */
 .cse-zahl {
   font-variant-numeric: tabular-nums;

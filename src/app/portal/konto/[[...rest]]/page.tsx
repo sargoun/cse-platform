@@ -1,9 +1,13 @@
 import type postgres from 'postgres';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
-import { bindeAnfrage } from '@/server/kontext/index';
+import { bindeAnfrage, gruppenMandanten } from '@/server/kontext/index';
+import {
+  istPortalSprache, meinBeschriftungen, meinTexte, type PortalSprache,
+} from '@/lib/i18n/texte';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { NAVIGATION } from '@/server/registry/navigation';
+import { modulAktiv, type Modulbuchung } from '@/server/registry/modul';
 import { leisteFuer, tableiste } from '@/server/registry/tableiste';
 import { Unterseite } from '../../unterseite';
 import { AnmeldungNoetig } from '../../Anmeldung';
@@ -44,6 +48,8 @@ interface KontoBild {
   readonly bereiche: readonly { slug: string; name: string; ist_standard: boolean }[];
   readonly sichtbareTabs: Readonly<Record<string, boolean>>;
   readonly navigationsRechte: Readonly<Record<string, boolean>>;
+  /** Die Sprache der Person (EMP-12) — fuer die Leiste einer Arbeiterin (D-419). */
+  readonly sprache: PortalSprache | null;
 }
 
 async function leseKonto(sitzung: Parameters<typeof bindeAnfrage>[1]): Promise<KontoBild> {
@@ -53,11 +59,27 @@ async function leseKonto(sitzung: Parameters<typeof bindeAnfrage>[1]): Promise<K
      * darunter liest unter der RLS dieser Sitzung und nicht daneben.
      */
     await bindeAnfrage(tx, sitzung);
+    /*
+     * **Im Gruppen-Scope IST `app.mandant_ids` die sichtbare Menge** — genau
+     * wie in `portalZugang`, und aus demselben Grund: `app.sichtbare_mandanten()`
+     * liest diese Einstellung, und `app.hat_recht` prueft jedes `gruppe.*`-Recht
+     * ueber sie. Sie fehlte hier. Die Antwort war fuer jedes Recht `false`, die
+     * Gruppenleitung hatte auf ihrem Konto weder Leiste noch Schiene — gefunden
+     * vom Durchlauf, benannt von der Durchsicht (D-422).
+     */
+    if (sitzung.ansicht === 'gruppe') {
+      const mandanten = await gruppenMandanten(tx);
+      if (mandanten.length > 0) {
+        await tx.unsafe(`select set_config('app.mandant_ids', $1, true)`,
+          [mandanten.join(',')]);
+      }
+    }
     const [z] = (await tx.unsafe(
       `select b.name,
               b.email,
               case when p.id is null then null
                    else p.vorname || ' ' || p.nachname end as person,
+              p.sprache,
               r.schluessel as rolle,
               m.name       as aktiv,
               m.slug       as slug
@@ -71,7 +93,8 @@ async function leseKonto(sitzung: Parameters<typeof bindeAnfrage>[1]): Promise<K
         where b.id = $2`,
       [sitzung.aktiverMandantId, sitzung.benutzerId],
     )) as { name: string | null; email: string | null; person: string | null;
-            rolle: string | null; aktiv: string | null; slug: string | null }[];
+            sprache: string | null; rolle: string | null; aktiv: string | null;
+            slug: string | null }[];
 
     /*
      * `switcher_bereiche()` und nicht die RLS-Sicht auf `mandant`: im
@@ -109,15 +132,43 @@ async function leseKonto(sitzung: Parameters<typeof bindeAnfrage>[1]): Promise<K
     )) as { recht: string; ok: boolean }[];
     const gehalten = new Set(rechteZeilen.filter((r) => r.ok).map((r) => r.recht));
 
-    const sichtbareTabs: Record<string, boolean> = {};
-    for (const t of ziele) sichtbareTabs[t.schluessel] = t.recht === null || gehalten.has(t.recht);
-    const navigationsRechte: Record<string, boolean> = {};
-    for (const n of NAVIGATION) navigationsRechte[n.schluessel] = gehalten.has(n.recht);
+    /*
+     * **Recht UND Modul — wie in `portalZugang`, nicht nur das Recht.**
+     *
+     * Hier fehlte die zweite Frage, und die Folge war der einzige 404 im
+     * Portal, den ein Menue selbst erzeugte: `admin` haelt `bau.lesen`,
+     * `security.lesen` und `reinigung.lesen` in JEDEM Bereich, also zeigten
+     * Seitenleiste und „Mehr"-Blatt auf `/portal/konto` der Reinigung die
+     * Punkte Bau, Security, Dienstanweisungen und Schluessel — und jeder
+     * davon fiel auf 404, weil das Modul dort nicht gebucht ist (D-377).
+     * `portalZugang` bildet die Schnittmenge seit D-377; diese Seite liest
+     * ihre Karte selbst und muss es genauso tun.
+     */
+    const [mb] = sitzung.aktiverMandantId === null ? [] : (await tx.unsafe(
+      `select module, module_gepflegt from mandant where id = $1`,
+      [sitzung.aktiverMandantId],
+    )) as { module: readonly string[] | null; module_gepflegt: boolean }[];
+    const buchung: Modulbuchung = sitzung.ansicht === 'gruppe'
+      ? { module: [], gepflegt: false }
+      : { module: mb?.module ?? [], gepflegt: mb?.module_gepflegt === true };
+    const frei = (recht: string | null): boolean =>
+      recht === null || modulAktiv(buchung, recht);
 
+    const sichtbareTabs: Record<string, boolean> = {};
+    for (const t of ziele) {
+      sichtbareTabs[t.schluessel] = (t.recht === null || gehalten.has(t.recht)) && frei(t.recht);
+    }
+    const navigationsRechte: Record<string, boolean> = {};
+    for (const n of NAVIGATION) {
+      navigationsRechte[n.schluessel] = gehalten.has(n.recht) && frei(n.recht);
+    }
+
+    const rohSprache = z?.sprache ?? '';
     return {
       name: z?.name ?? null,
       email: z?.email ?? null,
       person: z?.person ?? null,
+      sprache: istPortalSprache(rohSprache) ? rohSprache : null,
       rolle: z?.rolle ?? null,
       aktiv: z?.aktiv ?? null,
       slug: z?.slug ?? null,
@@ -132,7 +183,10 @@ function Zeile({ was, wert }: { readonly was: string; readonly wert: string }) {
   return (
     <div className="grid grid-cols-[auto_1fr] gap-s4 border-b border-line py-s3">
       <dt className="w-32 text-sm text-text-muted">{was}</dt>
-      <dd className="m-0 text-base text-text">{wert}</dd>
+      {/* `min-w-0 break-words`: eine Anmeldung wie `kunde.demo@example.test`
+          hat keine Trennstelle und schob die Zeile bei 375px ueber den Rand —
+          dieselbe Ursache wie im Impressum (Gesellschaften.tsx). */}
+      <dd className="m-0 min-w-0 break-words text-base text-text">{wert}</dd>
     </div>
   );
 }
@@ -154,18 +208,27 @@ async function KontoWurzel() {
     : sitzung.portal === 'mitarbeiter' ? '/portal/mein'
     : sitzung.portal === 'kunde' ? '/portal/kunde'
     : k.slug === null ? '/auth/bereich' : `/portal/${k.slug}`;
+  /*
+   * Eine Arbeiterin kommt ueber „Konto" und „Profil" hierher — und fand
+   * Leiste, Spur und Kopfzeile wieder auf Deutsch, obwohl ihr Portal
+   * uebersetzt ist. Die Huelle folgt ihrer Sprache; der Inhalt der Seite
+   * bleibt deutsch, bis das Profil (`/portal/konto/profil`) gebaut ist (D-419).
+   */
+  const t = sitzung.portal === 'mitarbeiter' && k.sprache !== null
+    ? meinTexte(k.sprache) : null;
 
   return (
     <PortalRahmen
-      titel="Konto"
+      titel={t?.konto ?? 'Konto'}
       bereich={null}
       nurLesen={sitzung.ansicht === 'gruppe'}
       leiste={leisteFuer(sitzung.portal, sitzung.ansicht, k.rolle)}
       wurzel={wurzel}
       sichtbareTabs={k.sichtbareTabs}
       navigationsRechte={k.navigationsRechte}
+      {...(t === null ? {} : { beschriftungen: meinBeschriftungen(t) })}
     >
-      <h1 className="mb-s5 text-h1 text-text">Konto</h1>
+      <h1 className="mb-s5 text-h1 text-text">{t?.konto ?? 'Konto'}</h1>
 
       <dl data-cse="konto-angaben" className="m-0 max-w-[72ch]">
         <Zeile was="Name" wert={k.person ?? k.name ?? '—'} />

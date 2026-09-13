@@ -66,9 +66,18 @@ export function KachelRaster({ kacheln }: { readonly kacheln: readonly KachelAnz
            * Hover-Zustand (`--surface-2`, 150 ms); der Fokusring kommt aus
            * `globals.css` und wird hier absichtlich nicht wiederholt.
            */
-          className="block rounded-lg transition-colors duration-150 hover:bg-surface-2"
+          /*
+           * Der Hover sitzt an der KARTE, nicht am Verweis darum herum.
+           *
+           * Hier stand `hover:bg-surface-2` am `<a>` — und `KpiStat` traegt
+           * selbst `bg-surface`, also lag die Hover-Farbe UNTER der Karte und
+           * war nie zu sehen. DESIGN §5 (Cards): interaktive Karten heben den
+           * Rand auf `--border-strong` und ruecken 2px nach oben; genau das
+           * bekommt die Kachel ueber `interaktiv`.
+           */
+          className="group block rounded-lg"
         >
-          <KpiStat label={k.label} wert={String(k.wert)} ton={k.ton} icon={k.icon} />
+          <KpiStat label={k.label} wert={String(k.wert)} ton={k.ton} icon={k.icon} interaktiv />
         </a>
       ))}
     </div>

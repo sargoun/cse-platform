@@ -19,6 +19,7 @@ import type { Sprache } from '@/lib/sprache';
 const TEXT = {
   de: {
     ueberschrift: 'Die Gesellschaften der Gruppe',
+    anschrift: 'Anschrift',
     vertreten: 'Vertreten durch',
     register: 'Handelsregister',
     ustId: 'Umsatzsteuer-Identifikationsnummer',
@@ -36,6 +37,7 @@ const TEXT = {
   },
   en: {
     ueberschrift: 'The companies of the group',
+    anschrift: 'Address',
     vertreten: 'Represented by',
     register: 'Commercial register',
     ustId: 'VAT identification number',
@@ -132,7 +134,9 @@ export function Gesellschaften({ bereiche, sprache }: {
                 </p>
               )}
               <dl className="m-0">
-                <Angabe was="Anschrift" wert={anschrift} fehlt={t.fehlt} />
+                {/* Uebersetzt wie die uebrigen Zeilen — hier stand ein deutsches
+                    Literal, auch auf `/en/impressum`. */}
+                <Angabe was={t.anschrift} wert={anschrift} fehlt={t.fehlt} />
                 <Angabe
                   was={t.vertreten}
                   wert={b.geschaeftsfuehrer.length === 0

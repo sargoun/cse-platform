@@ -25,6 +25,8 @@ export interface NochNichtGebautProps {
   readonly sichtbareTabs?: Readonly<Record<string, boolean>>;
   /** Je Rechteschluessel der NAVIGATION — fuellt das Blatt hinter `Mehr`. */
   readonly navigationsRechte?: Readonly<Record<string, boolean>>;
+  /** Die Beschriftungen in der Sprache der Person — siehe `PortalRahmen` (D-419). */
+  readonly beschriftungen?: Readonly<Record<string, string>>;
   readonly aktiverTab?: string;
   /** Die Phase aus dem Manifest — sie sagt, WANN, statt nur "spaeter". */
   readonly phase: number | null;
@@ -33,6 +35,7 @@ export interface NochNichtGebautProps {
 
 export function NochNichtGebaut({
   titel, bereich, leiste, wurzel, sichtbareTabs, aktiverTab, phase, pfad, navigationsRechte,
+  beschriftungen,
 }: NochNichtGebautProps) {
   return (
     <PortalRahmen
@@ -44,10 +47,14 @@ export function NochNichtGebaut({
       {...(aktiverTab === undefined ? {} : { aktiverTab })}
       {...(sichtbareTabs === undefined ? {} : { sichtbareTabs })}
       {...(navigationsRechte === undefined ? {} : { navigationsRechte })}
+      {...(beschriftungen === undefined ? {} : { beschriftungen })}
     >
       <h1 className="mb-s4 text-h1 text-text">Dieses Modul wird noch gebaut</h1>
       <p data-cse="noch-nicht" className="max-w-[72ch] text-base text-text-muted">
-        <code className="text-text">{pfad}</code> steht in der Seitenkarte und
+        {/* `break-all`: ein Musterpfad wie `/portal/[mandant]/einstellungen/benutzer`
+            hat keine Trennstelle, und ohne Umbruch schob er bei 375px die ganze
+            Seite seitwaerts (WCAG 1.4.10). */}
+        <code className="break-all text-text">{pfad}</code> steht in der Seitenkarte und
         ist Ihnen freigegeben — die Seite dahinter entsteht
         {phase === null ? ' in einer späteren Phase' : ` in Phase ${phase}`}.
       </p>

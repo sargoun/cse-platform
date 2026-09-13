@@ -57,7 +57,7 @@ export function Feld({
   return (
     <div className="contents">
       <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">{label}</dt>
-      <dd className="m-0 text-base text-text">{children}</dd>
+      <dd className="m-0 min-w-0 break-words text-base text-text">{children}</dd>
     </div>
   );
 }
