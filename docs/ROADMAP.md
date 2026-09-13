@@ -99,6 +99,9 @@ clone, and the architecture document is reviewed.
       caveat, users with 2FA state and own sessions, roles with the full
       permission matrix per company, modules, audit log; cards on the index
       come from the route manifest's rights
+- [x] **Documents list and detail, employment sheet** (D-478): the last
+      sidebar entry without a page; no download claimed while storage is
+      not connected; rights asked before hours account and absences
 - [x] **Integrations and processor register, read-only** (D-477): every
       connection with its real state from the adapter that uses it; Art. 30
       register with region and an honest "no contract date on file"

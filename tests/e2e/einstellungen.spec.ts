@@ -95,6 +95,13 @@ test.describe('Einstellungen', () => {
     await expect(page.locator('[data-cse="integrationen"] [data-cse="tabelle"] [data-stand="dateiexport"]')).toHaveCount(1);
     await expect(page.locator('main form')).toHaveCount(0);
 
+    await page.goto('/portal/reinigung/einstellungen/steuer');
+    await expect(page.getByRole('heading', { name: 'Steuer', level: 1 })).toBeVisible();
+    // Fuenf Gruppen aus der Migration — der Regelsatz zuerst, kein Satz erfunden.
+    await expect(page.locator('[data-cse="steuersatzgruppen"] [data-cse="tabelle"] tbody tr')).toHaveCount(5);
+    await expect(page.locator('[data-cse="steuersatzgruppen"] [data-cse="tabelle"] tbody tr').first()).toContainText('19 %');
+    await expect(page.locator('[data-cse="steuer-unbestaetigt"]')).toBeVisible();
+
     await page.goto('/portal/reinigung/einstellungen/dpa');
     await expect(page.getByRole('heading', { name: 'Auftragsverarbeiter', level: 1 })).toBeVisible();
     // Drei Dienste, kein Vertragsdatum erfunden.

@@ -220,3 +220,58 @@ Regression. `scripts/e2e-db.sh` beschreibt diese Klasse im Kopf.
 Zuschlagsgruppe zur Identität einer Position?), O-197 (ab welcher Konfidenz
 ist ein Feld unsicher?), O-06 (personenbezogene APR-08-Auswertung,
 § 87 BetrVG), O-04/O-05 (die Vergleichsauflöser je Vorgangsart).
+
+---
+
+## 7. Stand nach der Nachtschicht 13./14.09. — nachsehen, nicht glauben
+
+Zweig `claude/pr58-kontenrahmen-buchungssatz`, vier Commits nach `9364bc9`:
+`aae527f` (PR 62 Rest), `7c98516` (Gruppenansicht, D-474/D-475, 0138),
+`99a901d` (Einstellungen, D-476/D-477) und der Commit dieses Abschnitts
+(Ablage, Beschäftigungsblatt, Steuer, D-478). Alles gepusht.
+
+**Prüfen, in dieser Reihenfolge — jede Zeile ist ein Befehl:**
+
+```bash
+pnpm typecheck && pnpm lint && pnpm test            # Kern: 90 Dateien, 1558 Fälle
+bash scripts/test-db.sh up && pnpm vitest run --config vitest.isolation.config.ts \
+  tests/isolation/gruppe-dienste.test.ts tests/isolation/auth.test.ts \
+  tests/isolation/freigabe-bildschirm.test.ts       # 5 + 20 + 9 Fälle
+pnpm e2e:db && pnpm exec playwright test \
+  tests/e2e/gruppe.spec.ts tests/e2e/agenten.spec.ts tests/e2e/freigaben.spec.ts \
+  tests/e2e/einstellungen.spec.ts tests/e2e/dokumente.spec.ts   # 18 + 5 + 4
+pnpm seitenkarte:stand                              # 218 von 432 Routen (vorher 179)
+```
+
+**Die dritte Falle** (zu den zweien in §4): `scripts/test-db.sh up` baut
+`cse_test` neu, sobald eine Migration dazukommt — der Abdruck in
+`cse.migrationen` stimmt dann nicht mehr. Nach 0138 stand die Datenbank leer,
+und `einstellungen.spec` meldete „kein Seed-Konto". Deshalb IMMER
+`pnpm e2e:db` vor `playwright test`, auch wenn eben noch alles geseedet war.
+
+**Was neu ist, in einem Satz je Entscheidung** — die Begründungen stehen in
+`docs/DECISIONS.md`:
+
+| Nr. | Was |
+|---|---|
+| D-472 | PR 62 Rest: Posteingang, Prüfansicht, drei Routen, Seed mit Vorschlägen; `fuerJsonb` gegen die Doppelkodierung von postgres.js |
+| D-473 | Echte Firmendaten von cse-dienstleistungen.de und select-security.de; „Select Security Event GmbH" ohne Bindestrich |
+| D-474 | Gruppensitzung auf Mandantsseite → Wechselblatt; `zurueck` mit Allowlist; **0138**: Portal aus der globalen Rolle |
+| D-475 | Gruppenansicht: 16 lesende Seiten, `gruppe/tor.tsx`, vier Dienste, Zelle ohne Recht = Strich |
+| D-476 | Einstellungen: Einstieg (Karten aus dem Manifest), Unternehmensdaten, Benutzer, Rollen/Matrix, Module, Protokoll; `mandantTor` |
+| D-477 | Integrationen aus den Adaptern; Auftragsverarbeiter nach Art. 30 ohne erfundenes Datum |
+| D-478 | Ablage (`/dokumente`, `[id]`), Beschäftigungsblatt, Steuer |
+
+**Offen geblieben, mit Nummer:** O-360 (Karte der Objekte — Kartendienst ist
+Auftragsverarbeiter), O-361 (Menüpunkt „Einstellungen" für die
+Administration). Nicht gebaut, mit Grund: `radar`, `kalender`, `berichte/*`
+in der Gruppe (Phase 8/9, Tabellen fehlen), Download in der Ablage (Speicher
+nicht verbunden), Einsätze/Zeiten auf dem Beschäftigungsblatt (keine
+`cse_app`-Lesepolicy, nur Definer), Art der Abwesenheit (Spaltenrecht,
+gesundheitsnah), öffentliche Unterseiten der Gesellschaften (das Profil
+zeigt Kontaktwege bereits; Unternehmensdaten stehen im Impressum).
+
+**Was als Nächstes ansteht, unverändert zu §6** — plus die Schreibflächen
+hinter den neuen Leseseiten: Benutzer einladen (AUT-01), Rollenmatrix
+bearbeiten (AUT-03, SEC-A3), Module buchen, Dokumente hochladen (DOC-06,
+sobald der Speicher verbunden ist).

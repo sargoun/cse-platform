@@ -8056,3 +8056,53 @@ einen liefert. Der DWD steht nicht im Verzeichnis: öffentliche Wetterdaten
 ohne Personenbezug sind keine Auftragsverarbeitung. Dienste, die noch nicht
 gewählt sind, stehen bei den Integrationen mit ihrer Frage und wandern
 hierher, sobald ein Vertrag vorliegt.
+
+### D-478 · Ablage, Beschäftigungsblatt, Steuer — lesend, und ehrlich über den Speicher
+
+**Dokumente** (`/portal/[mandant]/dokumente`, `/dokumente/[id]`) waren der
+letzte Punkt der Seitenleiste, der auf „wird noch gebaut" führte. Jetzt
+listet die Ablage, was `dokument` unter `t_mandant` (`dokument.lesen`) hergibt
+— Kategorie-Filter, Suche in Titel, Beschreibung und Schlagworten, Schlagwort
+als Filter, Sichtbarkeit für Kunde und Beschäftigte, Prüfstand der Datei
+(MIME aus den Bytes, EXIF, Löschsperre, Aufbewahrung). **Kein Download,
+solange der Speicher nicht verbunden ist**: die Datei wird nur über eine
+signierte, kurzlebige Adresse ausgegeben (DOC-03), und `SupabaseSpeicher`
+sagt, ob es eine geben kann. Beide Seiten schreiben das hin, statt einen
+Knopf zu zeigen, der ins Leere führt; der Seed legt keine Dokumente an, weil
+er keine Dateien hätte — der Leerzustand sagt, was kommt (DOC-06). Das
+Zugriffsprotokoll (SEC-A9) kommt mit der Ausgabe: es protokolliert Zugriffe,
+die es geben kann.
+
+**Beschäftigungsblatt** (`/personal/anstellungen/[id]`, D-09, EMP-04): die
+Vereinbarung dieser Gesellschaft mit einem Menschen — Personalnummer,
+Eintritt, Austritt, Modell, Wochenstunden — und was daraus wurde: die
+letzten sechs Monate des Stundenkontos und die Abwesenheiten der letzten
+zwölf Monate. Was am Menschen hängt (Nachweise, Sprache, Zugang), bleibt auf
+dem Personenblatt; der Stundensatz bleibt auf `entgelt` mit eigenem Recht
+(K-05). **Stundenkonto und Abwesenheiten fragen ihr Recht vorher**
+(`zeit.konto_lesen`, `zeit.abwesenheit_lesen`): ohne Recht gäbe die Policy
+null Zeilen, und null Zeilen sähen aus wie „kein Konto" — die Seite sagt
+stattdessen „kein Leserecht". Die Liste der Beschäftigungen verweist jetzt
+auf das Blatt; eine Beschäftigung einer anderen Gesellschaft ist unter
+diesem Bereich 404 (TEN-04), nicht 403.
+
+Die **Art** einer Abwesenheit fehlt auf dem Blatt mit Grund: `abwesenheitsart_id`
+gehört nicht zu den Spalten, die `cse_app` lesen darf (Spaltenrecht, 0137-Muster)
+— die Art ist gesundheitsnah (`ist_gesundheitsbezogen`) und bleibt dem
+Abwesenheitsmodul mit seinem eigenen Recht vorbehalten. Der erste Browserlauf
+hat genau das gemeldet („permission denied for table abwesenheit"); das Blatt
+zeigt Zeitraum, Halbtage und Status.
+
+**Steuer** (`/einstellungen/steuer`, LEG-05, FIN-09): die fünf
+Steuersatzgruppen aus der Migration (19 %, 7 %, §13b Bau, §13b
+Gebäudereinigung, §4 Nr. 12) mit EN-16931-Kategorie, Kennzeichen,
+Befreiungsgrund und Geltung — plattformweit, per Gesetz und Migration
+geändert, nicht per Klick — und die steuerliche Identität dieser Gesellschaft
+mit dem O-353-Vorbehalt. Kein Satz wird angezeigt, der nicht in der Tabelle
+steht.
+
+Nicht gebaut, mit Grund: Einsätze und Zeiteinträge auf dem Blatt —
+`einsatz_zuordnung` und `zeiteintrag` haben im Mandanten-Scope keine
+`cse_app`-Lesepolicy, sie werden über Definer-Funktionen der Zeit- und
+Dienstplanseiten gelesen; das Blatt verweist dorthin, statt einen zweiten
+Leseweg zu erfinden.

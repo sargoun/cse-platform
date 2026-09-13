@@ -36,6 +36,8 @@ const KARTEN: readonly Karte[] = [
     text: 'Die Rechtematrix: welche Rolle was darf, und wo diese Gesellschaft abweicht.' },
   { pfad: 'einstellungen/module', titel: 'Module', icon: 'einstellungen',
     text: 'Welche Gewerke diese Gesellschaft gebucht hat — und was deshalb sichtbar ist.' },
+  { pfad: 'einstellungen/steuer', titel: 'Steuer', icon: 'rechnung',
+    text: 'Steuersatzgruppen der Plattform und die steuerliche Identität dieser Gesellschaft.' },
   { pfad: 'einstellungen/abrechnungsarten', titel: 'Abrechnungsarten', icon: 'euro',
     text: 'Die fünf Arten und ihre Parameter — was davon noch unbestätigt ist.' },
   { pfad: 'einstellungen/mahnwesen', titel: 'Mahnwesen', icon: 'warnung',

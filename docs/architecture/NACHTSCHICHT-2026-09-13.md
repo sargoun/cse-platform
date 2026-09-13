@@ -56,9 +56,16 @@ am Design arbeiten; Plan für alles Bisherige; Budget bis zum Morgen halten."
 
 | 00:40 | Browser `einstellungen.spec` 5/5 (mit Integrationen und Auftragsverarbeitern). Lehre des Abends: `scripts/test-db.sh up` baut `cse_test` neu, sobald eine Migration dazukommt (Abdruck) — danach IMMER `pnpm e2e:db`, sonst „kein Seed-Konto". | Browser, Kern 1558, lint |
 
-Stand der Seitenkarte nach D-475 (`pnpm seitenkarte:stand`): **197 von 432
-Routen gebaut** (davon 37 dynamisch) — vorher 179. Phase 1: 6 + 0 gebaut von
-25, Phase 4: 22 + 9 von 55, Phase 5: 78 + 5 von 123, Phase 6: 18 + 1 von 42.
+| 01:10 | **D-478**: Ablage (`/dokumente`, `/dokumente/[id]`) — der letzte Seitenleistenpunkt ohne Seite — mit Filter, Suche, Schlagworten und dem ehrlichen „Speicher nicht verbunden"; Beschäftigungsblatt (`/personal/anstellungen/[id]`) mit Stundenkonto und Abwesenheiten, Rechte vorher gefragt. | typecheck, eslint, Browser `dokumente.spec` (siehe unten) |
+
+| 01:40 | Beschäftigungsblatt: `abwesenheitsart_id` ist Spaltenrecht (gesundheitsnah) — Art weggelassen, Zeitraum und Status bleiben. Steuer-Seite (`/einstellungen/steuer`) aus `steuersatz_gruppe`. Übergabe §7 geschrieben. | Browser `dokumente.spec` + `einstellungen.spec` (siehe unten) |
+
+Stand der Seitenkarte nach D-478 (`pnpm seitenkarte:stand`, 01:15 UTC):
+**218 von 432 Routen gebaut** (173 statisch + 45 dynamisch) — zu Beginn der
+Nacht 179. Phase 1: 14 von 25 (die Einstellungen), Phase 3: 16 von 30,
+Phase 4: 36 von 55, Phase 5: 83 von 123, Phase 6: 19 von 42, Phase 7: 12 von 29,
+Phase 8: 18 von 32. Was fehlt, ist überwiegend Schreibfläche (Formulare,
+Verwaltung) und Phase 9.
 
 ## Entscheidungen, die ich allein getroffen habe
 

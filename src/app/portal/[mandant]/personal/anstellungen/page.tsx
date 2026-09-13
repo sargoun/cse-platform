@@ -144,7 +144,13 @@ export default async function Anstellungsliste(
           zeilen={zeilen}
           schluessel={(z) => z.id}
           spalten={[
-            { schluessel: 'name', kopf: 'Person', zelle: (z) => z.name },
+            { schluessel: 'name', kopf: 'Person',
+              zelle: (z) => (
+                <Link href={`/portal/${mandant}/personal/anstellungen/${z.id}`}
+                      className="text-text underline-offset-2 hover:text-brand hover:underline">
+                  {z.name}
+                </Link>
+              ) },
             {
               schluessel: 'nummer',
               kopf: 'Personalnummer',
