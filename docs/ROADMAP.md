@@ -95,6 +95,13 @@ clone, and the architecture document is reviewed.
 - [x] **RLS enabled on every tenant table**; session sets the active mandant
 - [x] Supabase Auth; 2FA for `super_admin` and `admin`
 - [ ] Five roles with configurable permissions, editable in the UI
+- [x] **Settings screens, read-only** (D-476): company data with the O-353
+      caveat, users with 2FA state and own sessions, roles with the full
+      permission matrix per company, modules, audit log; cards on the index
+      come from the route manifest's rights
+- [x] **Integrations and processor register, read-only** (D-477): every
+      connection with its real state from the adapter that uses it; Art. 30
+      register with region and an honest "no contract date on file"
 - [x] **Mandant switcher per DESIGN §6** — avatar + ring, dropdown with live
       counters, group entry marked `NUR LESEN`, top hue bar, `⌘K` shortcut
 - [x] Group view route exists and is **read-only** at the service layer

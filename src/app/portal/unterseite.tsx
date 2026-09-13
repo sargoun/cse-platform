@@ -106,6 +106,44 @@ export async function slugTor(
   return { art: 'wechsel', aktuell: befund.aktuell, ziel: slug, zielName: null, zurueck: zugang.pfad };
 }
 
+/**
+ * Das Tor einer `/portal/[mandant]/…`-Seite in EINEM Aufruf: Sitzung, Recht,
+ * Slug — und die Antwort, wenn eines davon nicht passt.
+ *
+ * Das Muster stand in ueber hundert Seiten je viermal ausgeschrieben
+ * (`portalZugang`, `AnmeldungNoetig`, `slugTor`, `Wechselblatt`, `notFound`).
+ * Vier Zeilen sind kein Drama — bis eine Seite die dritte vergisst. Neue
+ * Seiten nehmen dieses Tor; die alten bleiben, wie sie sind.
+ */
+export type MandantTor =
+  | { readonly art: 'anmeldung' }
+  | { readonly art: 'wechsel'; readonly blatt: SlugWechsel; readonly slug: string }
+  | { readonly art: 'ok'; readonly zugang: PortalZugang; readonly mandantId: string };
+
+export async function mandantTor(pfad: string, slug: string): Promise<MandantTor> {
+  const zugang = await portalZugang(pfad);
+  if (zugang === null) return { art: 'anmeldung' };
+  const tor = await slugTor(zugang, slug);
+  if (tor.art === 'wechsel') return { art: 'wechsel', blatt: tor, slug };
+  // Nach `slugTor` ist der aktive Bereich der des Pfads; ohne aktiven Bereich
+  // (K-20) gibt es diese Seite nicht.
+  if (zugang.sitzung.aktiverMandantId === null) notFound();
+  return { art: 'ok', zugang, mandantId: zugang.sitzung.aktiverMandantId };
+}
+
+/** Die Antwort auf ein Mandantstor, das nicht `ok` sagt. */
+export function MandantAntwort({ tor }: { readonly tor: Exclude<MandantTor, { art: 'ok' }> }) {
+  if (tor.art === 'anmeldung') return <AnmeldungNoetig />;
+  return (
+    <Wechselblatt
+      aktuell={tor.blatt.aktuell}
+      zielTitel={tor.blatt.zielName ?? tor.slug}
+      zielSlug={tor.blatt.ziel}
+      zurueck={tor.blatt.zurueck}
+    />
+  );
+}
+
 export async function Unterseite({ pfad, wurzel, bereich }: UnterseiteProps) {
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;

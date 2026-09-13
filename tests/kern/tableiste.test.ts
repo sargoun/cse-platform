@@ -215,7 +215,6 @@ describe('jedes Ziel führt auf eine Route, die es in der Karte gibt', () => {
     'dokumente',     // Phase 4 hat die Ablage, die Uebersicht kommt mit PR 58
     // `bau` ist hier NICHT mehr aufgeführt: PR 43 hat die Seite gebaut, und
     // die Prüfung darunter hat genau das gemeldet.
-    'einstellungen', // Phase 8
   ];
 
   it('und jeder Navigationspunkt wird von einer ECHTEN Seite bedient — oder steht auf der Liste',

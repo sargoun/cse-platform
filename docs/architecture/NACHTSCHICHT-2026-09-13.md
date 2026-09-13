@@ -50,6 +50,12 @@ am Design arbeiten; Plan für alles Bisherige; Budget bis zum Morgen halten."
 
 | 23:20 | Zweiter Browserlauf nach 0138: `gruppe.spec` 6/6, `agenten.spec` 6/6, `freigaben.spec` 6/6 — **18/18**. | Playwright auf frisch geseedeter `cse_test` |
 
+| 23:50 | **D-476**: Einstellungen — Einstieg (Karten aus dem Manifest), Unternehmensdaten, Benutzer (+ Konto), Rollen (+ Matrix), Module, Protokoll; `mandantTor` als gemeinsames Tor neuer Mandantsseiten; O-361 (Menüpunkt). | typecheck, eslint, Browser `einstellungen.spec` (siehe unten) |
+
+| 00:20 | Browser `einstellungen.spec` 4/4 (nach Reseed — die Isolationssuite hatte `cse_test` leer hinterlassen; genau die Falle aus der Übergabe). **D-477**: Integrationen (Zustand aus den Adaptern) und Auftragsverarbeiter (Art. 30, kein erfundenes Datum). | Kern `integrationen`, Browser (fünfter Fall, siehe unten) |
+
+| 00:40 | Browser `einstellungen.spec` 5/5 (mit Integrationen und Auftragsverarbeitern). Lehre des Abends: `scripts/test-db.sh up` baut `cse_test` neu, sobald eine Migration dazukommt (Abdruck) — danach IMMER `pnpm e2e:db`, sonst „kein Seed-Konto". | Browser, Kern 1558, lint |
+
 Stand der Seitenkarte nach D-475 (`pnpm seitenkarte:stand`): **197 von 432
 Routen gebaut** (davon 37 dynamisch) — vorher 179. Phase 1: 6 + 0 gebaut von
 25, Phase 4: 22 + 9 von 55, Phase 5: 78 + 5 von 123, Phase 6: 18 + 1 von 42.

@@ -5159,6 +5159,7 @@ niemand ihn suchen.
 | O-353 | **Wie lauten Anschrift, Rufnummer, Handelsregister- und Umsatzsteuer-Identifikationsnummer der vier Gesellschaften wirklich?** Was heute in `mandant` steht, ist ERFUNDEN: `Kurfürstendamm 21`, `+49 30 555 0100`, `DE1000000xx`, `HRB 2000xx` — fortlaufend hochgezählt, nie erfragt. Weglassen geht nicht, `mandant_ustg14_vollstaendig` verlangt Anschrift und Steuernummer von jeder Gesellschaft mit eigenem Rechnungskreis (§ 14 UStG). Deshalb tragen die Zeilen seit 0097 `angaben_bestaetigt_am = NULL`, und das Impressum sagt es sichtbar VOR den Angaben: sie stammen aus dem Demonstrationsbestand und sind keine gültige Auskunft nach § 5 TMG. Mit der Antwort werden die Werte gesetzt und die Spalte gefüllt; die Prüfung, die den Hinweis erzwingt, gehört dann umgeschrieben — nicht der Hinweis entfernt. | LEG-01, § 5 TMG, § 14 UStG, `mandant`, D-19 |
 | O-354 | **An welche Adresse geht ein gescheiterter Nachtlauf, und ab welchem Rang wird jemand geweckt?** `runner.ts` verspricht „kein stiller Tod", und `ProtokollAlarm` löst das heute so ehrlich, wie es ohne verbundenen Kanal geht: eine `JOB-ALARM`-Zeile auf `stderr` (auf Vercel in den Funktionsprotokollen) plus `job_lauf.ergebnis = 'fehler'` in der Datenbank. Beides setzt voraus, dass jemand nachsieht. Was fehlt, ist der Weg nach draußen — Mailadresse, Dienst oder Nummer — und die Schwelle: der Dienstplangenerator, der zweimal scheitert, ist etwas anderes als der Lead-SLA-Job, der einmal aussetzt. | SPEC §14, `src/server/jobs/alarm.ts`, `job_lauf` |
 | O-360 | **Soll die Gruppenansicht der Objekte eine Karte zeigen — und mit welchem Kartendienst?** SEITENKARTE §6 schreibt „objects across areas, one map". Eine Karte braucht Kacheln von einem externen Dienst (OpenStreetMap-Anbieter, ein EU-Anbieter) oder selbst gehostete; jeder Aufruf gibt Objektkoordinaten und die IP der Nutzerin an den Anbieter — ein Auftragsverarbeiter, der in `docs/DECISIONS.md` mit DPA und EU-Region stehen muss (CLAUDE.md, Datenresidenz). Bis dahin listet `/portal/gruppe/objekte` Adressen ohne Karte (D-475). | OPS-01, SEITENKARTE §6, D-475 |
+| O-361 | **Soll die Administration einer Gesellschaft den Menüpunkt „Einstellungen“ sehen?** Das Manifest öffnet `/portal/[mandant]/einstellungen` unter `system.mandant_lesen` (Administration und Leitung halten es), `NAVIGATION` zeigt den Punkt nur unter `system.einstellung_lesen` (Super-Administration). Heute erreicht eine Administration die Einstellungen über die Adresse, nicht über das Menü. Entweder der Punkt folgt dem Manifest, oder das Manifest folgt dem Menü — beides ist eine Zeile, keine ohne Entscheidung (D-476). | AUT-03, AUT-06, `navigation.ts`, D-476 |
 | O-355 | **Wer trägt die Modulbuchung ein und pflegt `mandant.module_gepflegt`?** Seit 0103 ist die Frage nicht mehr, was eine leere Liste heisst — das Kennzeichen sagt es: `false` = nicht eingetragen, es wird nicht gefiltert (damit eine neu angelegte Gesellschaft nicht schwarz wird); `true` = die Liste gilt, leer heisst kein Gewerk. Offen bleibt der Vorgang: kommt die Buchung aus dem Vertrag, aus der Verwaltung oder setzt sie ein Super-Admin über `system.module_zuweisen` — und wer merkt, wenn sie fehlt? | `src/server/registry/modul.ts`, 0103, D-377 |
 | O-356 | **Bucht jede Gesellschaft genau ein Gewerk, oder gibt es Überschneidungen?** Der Seed setzt `reinigung → [reinigung]`, `security → [security]`, `bau → [bau]`, `operations → []` — abgeleitet aus den Gewerken, die in `CLAUDE.md` stehen. Praktisch plausibel wäre anderes: Bauendreinigung bei der REALTIME Service, Veranstaltungsreinigung bei der SSE Security. Bis zur Antwort sieht eine Gesellschaft nur ihr eigenes Gewerk; die Korrektur ist eine Zeile in `mandant.module` und kein Codeeingriff. | `mandant.module`, `src/server/db/seed/index.ts`, D-377 |
 | O-357 | **Wohin gehen die Wächter-Meldungen aus SPEC §14 — Posteingang, Mail oder beides — und wer bekommt die Kettenmeldung?** Die Ablaufwarnung (60/30/7) erreicht die Person selbst; das ist EMP-08 und unstrittig. „Hashkette gebrochen" dagegen hat keinen persönlichen Empfänger: es ist eine Meldung an die Buchhaltung oder die Geschäftsführung, und beide sind heute keine adressierbare Größe im Modell. Solange die Frage offen ist, wird der Kettenprüfer bewusst NICHT als Job registriert — ein Lauf, der jede Nacht „ok" meldet, ohne dass jemand die Meldung liest, schafft Vertrauen, das er nicht deckt. | SPEC §14, `src/server/jobs/bootstrap.ts`, `kettenlauf.ts`, NOT-01 |
@@ -7988,3 +7989,70 @@ Bereich und Slug je Eintrag, damit die Gruppenliste in den Bereich verweisen
 kann. Offen bleibt die Karte der Objekte (SEITENKARTE „one map"): ein
 Kartendienst ist ein externer Dienst mit Auftragsverarbeitung — nicht ohne
 Entscheidung der Auftraggeber (O-360).
+
+### D-476 · Einstellungen: sieben lesende Bildschirme, ein Tor für Mandantsseiten, und das Manifest entscheidet über die Karten
+
+**Was gebaut ist.** `/portal/[mandant]/einstellungen` (Einstieg),
+`mandant` (Unternehmensdaten), `benutzer` und `benutzer/[id]`, `rollen` und
+`rollen/[rolle]` (die Rechtematrix), `module`, `protokoll` — alle lesend, alle
+`NUR LESEN`. Die Schreibvorgänge (einladen, Rolle ändern, Matrix bearbeiten,
+Module buchen) tragen Zwei-Faktor-Pflicht und ein eigenes Recht; sie kommen
+mit der Benutzer- und Rollenverwaltung (Phase 1, AUT-01/AUT-03) und werden
+hier nicht simuliert.
+
+**Die Karten kommen aus dem Manifest.** Der Einstieg fragt für jede Karte die
+Leserechte ihrer Zielroute aus `routen.generiert.ts` und `app.hat_recht` gegen
+den aktiven Bereich (K-03) in einer Abfrage; eine Seite mit
+Zwei-Faktor-Pflicht erscheint nur einer `aal2`-Sitzung. Eine Karte, die auf
+404 führte, verriete die Existenz dessen, was sie nicht zeigen darf (AUT-06);
+eine zweite Rechteliste neben dem Manifest wäre beim nächsten Eintrag
+still falsch. `tests/e2e/einstellungen.spec.ts` öffnet jede gezeigte Karte
+und verlangt 200.
+
+**Ein Tor für neue Mandantsseiten.** `mandantTor(pfad, slug)` in
+`unterseite.tsx` bündelt `portalZugang`, `slugTor`, das Wechselblatt und den
+K-20-Fall (kein aktiver Bereich → 404). Die 113 bestehenden Seiten bleiben,
+wie sie sind — das Muster dort ist richtig, nur viermal ausgeschrieben.
+
+**Was die Seiten NICHT zeigen, mit Grund.** Sitzungen fremder Konten
+(`t_sitzung_eigene`: nur die eigenen — die Seite sagt es, statt eine leere
+Tabelle als „keine Sitzung" auszugeben); Vorher/Nachher im Protokoll
+(Spaltenrecht; der Export mit `system.audit_exportieren` ist der Weg);
+`mandant_einstellung` (keine `cse_app`-Policy — nur Definer und Job lesen
+sie). Die Unternehmensdaten sagen zuerst, ob sie bestätigt sind (O-353), und
+der Modulbildschirm sagt, dass ohne `module_gepflegt` gar nicht gefiltert
+wird (O-355).
+
+**Nicht geändert: der Menüpunkt.** `NAVIGATION` zeigt „Einstellungen" unter
+`system.einstellung_lesen` (nur Super-Administration), das Manifest öffnet
+den Einstieg unter `system.mandant_lesen` (auch Administration und Leitung).
+`tests/e2e/crm.spec.ts` schreibt das Fehlen des Punkts für die Leitung fest.
+Ob die Administration den Punkt sehen soll, ist eine Frage an die
+Auftraggeber (O-361) — bis dahin ist der Einstieg über die Adresse erreichbar
+und tut, was das Manifest erlaubt.
+
+### D-477 · Zwei Register statt zweier Behauptungen: Anbindungen und Auftragsverarbeiter
+
+**Integrationen** (`/portal/[mandant]/einstellungen/integrationen`) zeigt
+jede Anbindung mit ihrem wahren Zustand — und der kommt aus dem Adapter, der
+die Verbindung auch benutzt (`registry/integrationen.ts`): `SupabaseSpeicher`
+sagt, ob Adresse und Dienstschlüssel gesetzt sind, `wetterPort()`, ob der DWD
+eine Basisadresse hat, `smsDienst()`, ob es ein Gateway oder nur die
+Entwicklungsfläche gibt. Was keinen Adapter hat, ist `nicht verbunden` mit
+der offenen Frage, die es klärt (O-82 SMS, O-36 E-Mail, O-132 Karten, O-135
+OCR, O-123 n8n, O-26 Modellzugang). DATEV ist ein eigener Zustand,
+`Dateiexport`: keine Verbindung, mit Absicht (D-06). Verbunden wird über
+Umgebungsvariablen des Deployments, nie über ein Feld in der Oberfläche.
+`tests/kern/integrationen.test.ts` hält fest, dass ohne Variablen nichts als
+verbunden gilt.
+
+**Auftragsverarbeiter** (`/einstellungen/dpa`) ist das Verzeichnis nach
+Art. 30 DSGVO in lesbarer Form: die drei Dienste des Stacks (Supabase
+Frankfurt, Vercel EU, OpenAI EU-Verarbeitung) mit Zweck, Datenkategorien und
+Region aus CLAUDE.md und D-04. **Ein Vertragsdatum kennt das Register nicht**
+— `vertragAm` ist `null`, die Seite schreibt „nicht hinterlegt" in Warnfarbe,
+und der Test verbietet einen eingetragenen Wert, bis die Geschäftsführung
+einen liefert. Der DWD steht nicht im Verzeichnis: öffentliche Wetterdaten
+ohne Personenbezug sind keine Auftragsverarbeitung. Dienste, die noch nicht
+gewählt sind, stehen bei den Integrationen mit ihrer Frage und wandern
+hierher, sobald ein Vertrag vorliegt.
