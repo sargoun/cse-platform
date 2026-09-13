@@ -6799,7 +6799,7 @@ und `portal-ausgang.spec.ts` prüft die Schiene der Gruppenleitung.
 ### D-424 · Die Isolationssuite läuft parallel — je Arbeiter eine Datenbank, Vorlagen statt fünf Seeds
 
 **Der Befund.** `pruefung` brauchte rund 30 Minuten, und 25 davon war die
-Isolationssuite: 71 Dateien, eine nach der anderen gegen EINE `cse_test`,
+Isolationssuite: 69 Dateien, eine nach der anderen gegen EINE `cse_test`,
 und fünf davon (`seed`, `oeffentlich`, `lead`, `kennzahlen`, `rollen`)
 bauten sich je eine eigene Datenbank aus 108 Migrationen plus dem echten
 Seed — anderthalb Minuten je Datei, siebeneinhalb im Lauf. Build und Audit
@@ -6813,7 +6813,7 @@ eine Datenbank — das war der Grund für den seriellen Lauf, und er gilt
 unverändert. Was sich ändert, ist nur, WIE er eingehalten wird: bisher durch
 einen einzigen Arbeiter, jetzt durch getrennte Datenbanken.
 
-**Drei Züge.**
+**Vier Züge.**
 
 1. **Je Arbeiter eine Datenbank.** `tests/isolation/global-setup.ts` klont
    die migrierte `cse_test` in `cse_test_w1` … `cse_test_w4` (`create
@@ -6842,9 +6842,29 @@ einen einzigen Arbeiter, jetzt durch getrennte Datenbanken.
    rendert nichts aus der Datenbank, und `pool.ts` sagt das ausdrücklich. Die
    Dauer der Prüfung ist damit die längere Hälfte, nicht die Summe.
 
-**Gemessen** — dieselben ⟨TESTS⟩ Tests in ⟨DATEIEN⟩ Dateien, lokal auf vier
-Kernen: seriell ⟨SERIELL⟩, parallel ⟨PARALLEL⟩. In CI vorher 25 Minuten für
-den Schritt; nachher steht es im ersten Lauf dieses Zweigs.
+4. **`seed()` leert mit `DELETE`, nicht mit `TRUNCATE`.** Der erste
+   parallele Lauf zeigte, wo die Zeit wirklich steckt: nicht im Node-Prozess
+   (anderthalb Minuten CPU), sondern in Postgres. `truncate audit_log,
+   anstellung, person, mandant restart identity cascade` erreicht rund 150
+   Tabellen, und TRUNCATE gibt jeder davon und jedem Index eine neue Datei —
+   gemessen 0,9 bis 1,6 s je Aufruf, gleich ob die Tabellen voll sind oder
+   leer, und mit `fsync=off` immer noch 0,5 s. `seed()` läuft vor fast jedem
+   der 1266 Tests. Der Ersatz liest dieselbe Tabellenmenge aus dem Katalog —
+   rekursiv über genau die Fremdschlüssel, denen CASCADE folgt, plus
+   `auth.users` und `kern.anmeldeversuch` —, löscht nur dort, wo Zeilen
+   stehen, und setzt die Sequenzen dieser Tabellen zurück wie RESTART
+   IDENTITY: rund 0,1 s auf einer voll geseedeten Datenbank, dasselbe
+   Ergebnis. `session_replication_role = replica` bleibt aus demselben Grund
+   gesetzt wie zuvor: nur dort und nur bis zum Ende der Transaktion schweigen
+   die Wachen gegen Löschen (Invariante 8), die Fremdschlüssel und die
+   Audit-Auslöser. Was NICHT genommen wurde: `synchronous_commit = off` auf
+   den Klonen — ⟨SYNC⟩.
+
+**Gemessen** — dieselben 1266 Tests in 69 Dateien. Lokal, vier Kerne, eine
+Datei seriell (`abrechnungsart`, 38 Tests): ⟨EINZEL⟩. Die ganze Suite mit
+vier Arbeitern: ⟨PAR1⟩ mit TRUNCATE, ⟨PAR2⟩ mit dem DELETE-Reset. In CI
+vorher 25 Minuten für den Schritt in `pruefung`; nachher steht es im ersten
+Lauf dieses Zweigs.
 
 **Was es kostet.** Sechs Datenbanken statt einer im Testcluster (vier
 Arbeiter, zwei Vorlagen) plus die fünf eigenen — eine Wegwerfinstallation

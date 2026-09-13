@@ -65,7 +65,7 @@ jobs:
   # laengste Schritt der Pruefung; hinter Lint und Typecheck eingereiht liess
   # sie Build und Audit 25 Minuten warten, ohne dass die etwas von ihr
   # brauchten. Nebeneinander entscheidet die laengere Haelfte — und die ist
-  # jetzt die Suite selbst, die ihre 71 Dateien auf vier Arbeiter mit je
+  # jetzt die Suite selbst, die ihre 69 Dateien auf vier Arbeiter mit je
   # eigener Datenbank verteilt (`tests/isolation/global-setup.ts`).
   #
   # Postgres als DIENST-CONTAINER, nicht per `su` gestartet: ihn im Job

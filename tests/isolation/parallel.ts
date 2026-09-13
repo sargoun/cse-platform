@@ -1,7 +1,7 @@
 /**
  * Die Isolationssuite laeuft PARALLEL — je Arbeiter eine eigene Datenbank.
  *
- * **Warum.** 71 Dateien liefen eine nach der anderen gegen EINE `cse_test`,
+ * **Warum.** 69 Dateien liefen eine nach der anderen gegen EINE `cse_test`,
  * weil zwei Dateien auf derselben Datenbank einander die Fixturen
  * wegtruncaten wuerden und der Fehlschlag dann wie ein RLS-Defekt aussaehe.
  * Das war richtig — und kostete in CI 25 Minuten fuer einen Schritt, den
