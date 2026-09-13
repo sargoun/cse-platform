@@ -63,6 +63,16 @@ test.describe('Agenten-Zentrum', () => {
     await anmelden(page, KONTO.gruppe);
     await page.goto(`/portal/${MANDANT}/agenten/budget`);
 
+    /*
+     * D-474: die Gruppensitzung bekommt auf einer Mandantsseite das
+     * Wechselblatt — ein GET wechselt den Bereich nie (03-AUTH §4.5). Der
+     * Wechsel ist ein POST, und er fuehrt auf die Seite zurueck, die gemeint
+     * war. Vorher antwortete das Tor 404, weil es das Recht im Gruppen-Scope
+     * fragte, wo `verwalten` immer `false` ist (Invariante 10).
+     */
+    await expect(page.locator('[data-cse="wechsel-frage"]')).toContainText('Gruppenübersicht');
+    await page.locator('[data-cse="wechsel-knopf"]').click();
+    await expect(page).toHaveURL(new RegExp(`/portal/${MANDANT}/agenten/budget$`, 'u'));
     await expect(page.getByRole('heading', { name: 'KI-Budget', level: 1 })).toBeVisible();
     await expect(page.getByText('Platzhalter').first()).toBeVisible();
 
@@ -109,7 +119,16 @@ test.describe('Agenten-Zentrum', () => {
      * und keine Fehlermeldung, die die Existenz verrät — er bekommt 404.
      */
     await anmelden(page, KONTO.kunde);
-    const antwort = await page.goto(`/portal/${MANDANT}/agenten`);
-    expect(antwort?.status()).toBe(404);
+    await page.goto(`/portal/${MANDANT}/agenten`);
+    /*
+     * Die K-04-Decke (`zugang.ts`): ein Kundenkonto auf einer Mandantsseite
+     * landet in SEINEM Portal — nicht auf einem 404, das es ratlos
+     * zuruecklaesst. Ueber die Existenz der Seite sagt das nichts: jeder
+     * Mandantspfad fuehrt fuer dieses Konto denselben Weg, ob es die Seite
+     * gibt oder nicht. Hier stand `toBe(404)` — das beschrieb den Stand vor
+     * der Decke (HANDOVER-PR62 §5).
+     */
+    await expect(page).toHaveURL(/\/portal\/kunde$/u);
+    await expect(page.getByRole('heading', { name: 'Agenten', level: 1 })).toHaveCount(0);
   });
 });

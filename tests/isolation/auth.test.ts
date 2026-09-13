@@ -394,6 +394,33 @@ describe('(4) ein gefälschtes Cookie mit fremdem Bereich wird abgewiesen', () =
     expect((await aufloesen(t2))?.portal).toBe('intern');
   });
 
+  it('ohne Mitgliedschaft kommt das Portal aus der GLOBALEN Rolle — sonst fail-closed (0138, TEN-08)', async () => {
+    /*
+     * Eine Super-Administration bringt keine Zuweisungszeile mit (TEN-08);
+     * vor 0138 fiel ihre Mandantssitzung auf `mitarbeiter` und die K-04-Decke
+     * schickte sie ins Arbeiterportal — der Switcher bot jeden Bereich an,
+     * betreten liess sich keiner (D-474).
+     */
+    const chefin = await konto({ email: 'super@cse.test', rolle: 'super_admin', faktor: true });
+    const t = await sitzung(chefin, { mandant: f.reinigung, aal: 'aal2' });
+    expect((await aufloesen(t))?.portal).toBe('intern');
+
+    // Die Mitgliedschaft schlaegt die globale Rolle: sie ist die Aussage ueber DIESEN Bereich.
+    await mitgliedschaft(chefin, f.reinigung, 'mitarbeiter');
+    const t2 = await sitzung(chefin, { mandant: f.reinigung, aal: 'aal2' });
+    expect((await aufloesen(t2))?.portal).toBe('mitarbeiter');
+
+    // Weder Mitgliedschaft noch globale Rolle: das enge Portal bleibt. Die
+    // Sitzung entsteht mit Mitgliedschaft (der Trigger laesst sonst keine zu,
+    // TEN-04); entzogen wird danach — der Fall einer laufenden Sitzung, deren
+    // Zugang gerade beendet wurde.
+    const niemand = await konto({ email: 'niemand@cse.test' });
+    await mitgliedschaft(niemand, f.bau, 'leitung');
+    const t3 = await sitzung(niemand, { mandant: f.bau });
+    await sql.unsafe(`update benutzer_mandant set entzogen_am = now() where benutzer_id = $1`, [niemand]);
+    expect((await aufloesen(t3))?.portal).toBe('mitarbeiter');
+  });
+
   it('eine mandantenübergreifende Ansicht hat per Konstruktion keinen aktiven Mandanten', async () => {
     const b = await konto({ email: 'gruppe@cse.test' });
     await mitgliedschaft(b, f.reinigung, 'leitung');

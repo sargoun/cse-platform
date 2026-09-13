@@ -1,98 +1,137 @@
-import { notFound } from 'next/navigation';
-import type postgres from 'postgres';
-import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
-import { bindeAnfrage, withGroupScope } from '@/server/kontext/index';
-import { PortalRahmen } from '@/components/portal/PortalRahmen';
-import { Wechselblatt } from '@/components/portal/Wechselblatt';
-import { AnmeldungNoetig } from '../Anmeldung';
-import { portalZugang } from '../zugang';
+import { KpiStat } from '@/components/ui/KpiStat';
+import { DataTable } from '@/components/ui/DataTable';
+import { formatiereGeld, type Cent } from '@/server/services/finanz/geld';
+import { gruppenUebersicht, type BereichKennzahlen } from '@/server/services/gruppe/uebersicht';
+import {
+  BereichMarke, GruppenAntwort, GruppenRahmen, gruppenLesen, gruppenTor, KeinRecht,
+} from './tor';
 
 /**
- * `/portal/gruppe` — die Gruppenuebersicht, LESEND (TEN-05, Invariante 10).
+ * `/portal/gruppe` — die Gruppenuebersicht, LESEND (TEN-05, DSH-01, Invariante 10).
  *
- * `withGroupScope` gibt einen `LeseKontext` zurueck und keinen
- * `SchreibKontext`: ein Schreibversuch ist hier ein Compilerfehler und keine
- * Laufzeitentscheidung. Die zweite Linie steht trotzdem — K-03 kennt fuer
- * diesen Scope ueberhaupt keine Schreib-Policy.
+ * Eine Zeile je Gesellschaft, eine Summe ueber die Gruppe. Jede Zahl fuehrt zu
+ * der Liste, die sie zaehlt (DSH-04), und jede Liste ist eine Gruppenseite —
+ * gehandelt wird erst im Bereich, nach einem bewussten Wechsel (§4.5).
  *
- * **Ein GET betritt die Gruppenansicht nicht.** Diese Seite rief frueher
- * `withGroupScope`, gleichgueltig was in `benutzer_sitzung.ansicht` stand —
- * die Sitzung sagte `mandant`, die Seite las als Gruppe. Damit war die URL der
- * Ansichtszustand, der Wechsel stand in keiner Pruefspur, und §4.5 sagt dazu
- * in einem Satz: *"A GET never switches the tenant."* Traegt die Sitzung die
- * Gruppenansicht nicht, steht hier das Zwischenblatt mit POST-Knopf — oder
- * 404, wo die Tabelle in §4.5 404 sagt.
+ * **Ein Strich ist kein Nullwert.** Wo diese Sitzung das Recht eines
+ * Bereichs nicht haelt, steht `—` (D-475); eine 0 dort waere eine Aussage
+ * ueber die Gesellschaft, die niemand gemacht hat.
  */
 export const dynamic = 'force-dynamic';
 
-/** Was §4.5 fuer eine Sitzung ohne Gruppenansicht vorsieht. */
-interface Vorentscheid {
-  readonly darf: boolean;
-  readonly aktuellerName: string | null;
+const VERWEIS = 'text-text underline-offset-2 hover:text-brand hover:underline';
+
+function Zahl({ wert, ziel }: { readonly wert: number | null; readonly ziel: string }) {
+  if (wert === null) return <KeinRecht />;
+  return <a href={ziel} className={VERWEIS}>{wert}</a>;
 }
 
-async function vorentscheid(
-  sitzung: Parameters<typeof withGroupScope>[1],
-): Promise<Vorentscheid> {
-  return db().begin(async (tx: postgres.TransactionSql) => {
-    await bindeAnfrage(tx, sitzung);
-    const [z] = (await tx.unsafe(
-      `select app.darf_gruppenansicht() as darf,
-              (select m.name from mandant m where m.id = $1) as name`,
-      [sitzung.aktiverMandantId],
-    )) as { darf: boolean; name: string | null }[];
-    return { darf: z?.darf === true, aktuellerName: z?.name ?? null };
-  }) as Promise<Vorentscheid>;
+function Geld({ wert, ziel }: { readonly wert: Cent | null; readonly ziel: string }) {
+  if (wert === null) return <KeinRecht />;
+  return <a href={ziel} className={VERWEIS}>{formatiereGeld(wert)}</a>;
 }
 
 export default async function Gruppenuebersicht() {
-  const zugang = await portalZugang('/portal/gruppe');
-  if (zugang === null) return <AnmeldungNoetig />;
+  const tor = await gruppenTor('/portal/gruppe');
+  if (tor.art !== 'ok') return <GruppenAntwort tor={tor} />;
 
-  if (zugang.sitzung.ansicht !== 'gruppe') {
-    const { darf, aktuellerName } = await vorentscheid(zugang.sitzung);
-    // 404 und nicht 403: eine Absage, die sich von "gibt es nicht"
-    // unterscheidet, ist eine Auskunft ueber das, was es gibt (AUT-06).
-    if (!darf) notFound();
-    return (
-      <Wechselblatt
-        aktuell={aktuellerName}
-        zielTitel="Gruppenübersicht"
-        zielSlug={null}
-      />
-    );
-  }
-
-  const bereiche = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
-    withGroupScope(tx, zugang.sitzung, async (kontext) =>
-      kontext.abfrage<{ name: string; slug: string }>(
-        `select name, slug from mandant order by sortierung, slug`,
-      ))) as Promise<readonly { name: string; slug: string }[]>);
+  const { jahr, bereiche, summe } = await gruppenLesen(tor.zugang, (kontext) =>
+    gruppenUebersicht(kontext));
+  const n = bereiche.length;
+  const anteil = (k: number): string => (k === n ? '' : ` · ${String(k)} von ${String(n)} Bereichen`);
+  const liste = (pfad: string, b: BereichKennzahlen): string => `/portal/gruppe/${pfad}?bereich=${b.slug}`;
 
   return (
-    <PortalRahmen
-      titel="Gruppenübersicht"
-      bereich={null}
-      nurLesen
-      leiste={zugang.leiste}
-      wurzel="/portal/gruppe"
-      aktiverTab="uebersicht"
-      sichtbareTabs={zugang.sichtbareTabs}
-      navigationsRechte={zugang.navigationsRechte}
-    >
+    <GruppenRahmen zugang={tor.zugang} titel="Gruppenübersicht" aktiverTab="uebersicht">
       <h1 className="mb-s5 text-h1 text-text">Gruppenübersicht</h1>
-      <ul data-cse="gruppe-bereiche" className="flex flex-col gap-s3">
+
+      <div data-cse="gruppe-summen"
+           className="mb-s6 grid grid-cols-1 gap-s4 sm:grid-cols-2 xl:grid-cols-4">
+        <a href="/portal/gruppe/auftraege" className="group block rounded-lg">
+          <KpiStat label={`Aufträge aktiv${anteil(summe.bereiche.auftraege)}`}
+                   wert={String(summe.auftraegeAktiv)} ton="info" icon="auftrag" interaktiv />
+        </a>
+        <a href="/portal/gruppe/finanzen" className="group block rounded-lg">
+          <KpiStat label={`Fakturiert ${String(jahr)} netto${anteil(summe.bereiche.fakturiert)}`}
+                   wert={formatiereGeld(summe.fakturiertJahrCent)} ton="success" icon="euro" interaktiv />
+        </a>
+        <a href="/portal/gruppe/offene-posten" className="group block rounded-lg">
+          <KpiStat label={`Offene Forderungen${anteil(summe.bereiche.forderungen)}`}
+                   wert={formatiereGeld(summe.forderungenOffenCent)}
+                   ton={summe.forderungenOffenCent > 0n ? 'warning' : 'muted'} icon="rechnung" interaktiv />
+        </a>
+        <a href="/portal/gruppe/freigaben" className="group block rounded-lg">
+          <KpiStat label={`Wartende Freigaben${anteil(summe.bereiche.freigaben)}`}
+                   wert={String(summe.freigabenOffen)}
+                   ton={summe.freigabenOffen > 0 ? 'warning' : 'muted'} icon="freigabe" interaktiv />
+        </a>
+      </div>
+
+      <h2 className="mb-s3 text-h2 text-text">Je Gesellschaft</h2>
+      <div data-cse="gruppe-matrix">
+        <DataTable
+          beschriftung="Kennzahlen je Gesellschaft"
+          zeilen={bereiche}
+          schluessel={(b) => b.slug}
+          spalten={[
+            {
+              schluessel: 'bereich', kopf: 'Gesellschaft',
+              zelle: (b) => <BereichMarke slug={b.slug} name={b.name} />,
+            },
+            {
+              schluessel: 'auftraege', kopf: 'Aufträge aktiv', numerisch: true,
+              zelle: (b) => <Zahl wert={b.auftraegeAktiv} ziel={liste('auftraege', b)} />,
+            },
+            {
+              schluessel: 'angebote', kopf: 'Angebote offen', numerisch: true,
+              zelle: (b) => (b.angeboteOffen === null ? <KeinRecht /> : b.angeboteOffen),
+            },
+            {
+              schluessel: 'leads', kopf: 'Neue Anfragen', numerisch: true,
+              zelle: (b) => <Zahl wert={b.leadsNeu} ziel={liste('leads', b)} />,
+            },
+            {
+              schluessel: 'objekte', kopf: 'Objekte', numerisch: true,
+              zelle: (b) => <Zahl wert={b.objekte} ziel={liste('objekte', b)} />,
+            },
+            {
+              schluessel: 'beschaeftigte', kopf: 'Beschäftigte', numerisch: true,
+              zelle: (b) => <Zahl wert={b.beschaeftigte} ziel={liste('personen', b)} />,
+            },
+            {
+              schluessel: 'fakturiert', kopf: `Fakturiert ${String(jahr)}`, numerisch: true,
+              zelle: (b) => <Geld wert={b.fakturiertJahrCent} ziel={liste('rechnungen', b)} />,
+            },
+            {
+              schluessel: 'forderungen', kopf: 'Forderungen offen', numerisch: true,
+              zelle: (b) => <Geld wert={b.forderungenOffenCent} ziel={liste('offene-posten', b)} />,
+            },
+            {
+              schluessel: 'freigaben', kopf: 'Freigaben', numerisch: true,
+              zelle: (b) => <Zahl wert={b.freigabenOffen} ziel={liste('freigaben', b)} />,
+            },
+          ]}
+        />
+      </div>
+      <p className="mt-s4 max-w-[72ch] text-sm text-text-subtle">
+        Ein Strich heißt: kein Leserecht in diesem Bereich — keine Null. Fakturiert
+        zählt festgeschriebene Rechnungen nach Rechnungsdatum, netto. Jede Zahl führt
+        zur Liste dahinter; gehandelt wird im Bereich.
+      </p>
+
+      <h2 className="mb-s3 mt-s6 text-h2 text-text">Bereiche</h2>
+      <ul data-cse="gruppe-bereiche" className="grid grid-cols-1 gap-s3 sm:grid-cols-2">
         {bereiche.map((b) => (
-          <li key={b.slug} className="rounded-lg border border-line bg-surface p-s4">
-            <span className="text-base text-text">{b.name}</span>
+          <li key={b.slug}
+              className="flex items-center justify-between gap-s3 rounded-lg border border-line bg-surface p-s4">
+            <BereichMarke slug={b.slug} name={b.name} />
+            <a href={`/portal/${b.slug}`} data-cse="bereich-oeffnen"
+               className="min-h-11 rounded-md border border-line-strong px-s4 py-s3 text-sm text-text hover:bg-surface-2">
+              Bereich öffnen
+            </a>
           </li>
         ))}
       </ul>
-      <p className="mt-s6 text-sm text-text-subtle">
-        Kennzahlen über alle Gesellschaften erscheinen hier, sobald die Module
-        gemergt sind, die sie zählen. Eine Null wäre hier eine Aussage über die
-        Gruppe — und keine über den Bauzustand.
-      </p>
-    </PortalRahmen>
+    </GruppenRahmen>
   );
 }

@@ -42,8 +42,28 @@ am Design arbeiten; Plan für alles Bisherige; Budget bis zum Morgen halten."
 | 20:00 | PR 62 Rest: Dienste (`laden.ts`, `entscheiden.ts`, `diff-json.ts`), drei Routen, zwei Seiten, Seed mit vier Vorschlägen, Isolations- und Browsertests, D-472 | Kette: typecheck · Kern · e2e:db · `freigaben.spec` · Isolation |
 | 20:20 | Fund dabei: `postgres` kodiert einen JSON-**Text** für `::jsonb` ein zweites Mal — Objekte übergeben, nie Strings (`fuerJsonb`). Der Isolationstest §3 rechnet seither die gespeicherten Bytes nach. | Isolation §3 |
 | 20:30 | Echte Firmendaten von cse-dienstleistungen.de und select-security.de in Seed und Inhalt (Anschrift 201 statt 21, Rufnummern, E-Mail, zehn Leistungen je Haus, Leitsätze); Firma „Select Security Event GmbH" wie im Impressum; D-473 | Kern, Isolation `profil` |
+| 21:10 | PR 62 Rest committed und gepusht (`aae527f`). Zwei Funde beim Abschluss: `text(inet)` hängt `/32` an (Test liest `host()`); `freigabe` fehlte im Querschnitt, vier Dienste im Register, drei Routen im Manifest — alles nachgetragen. | 6/6 Browser, Isolation, 1547 Kern, lint, typecheck |
+| 21:40 | **D-474**: Gruppensitzung auf Mandantsseite → Wechselblatt statt 404; `zurueck` mit Allowlist (`rueckwegImBereich`), Redirect über `internesZiel`; 114 Seiten geben den Rückweg mit; beide roten Fälle in `agenten.spec` entschieden, keiner abgeschwächt. | `tests/kern/rueckweg.test.ts`, typecheck |
+| 22:30 | **D-475**: Gruppenansicht — Tor (`gruppe/tor.tsx`), vier Dienste (`services/gruppe/*`), 16 lesende Seiten (Übersicht, Aufträge, Kunden, Anfragen, Projekte, Objekte, Personen, Finanzen, Rechnungen, Offene Posten, Freigaben, Dokumente, Protokoll, Agenten, Dienstplan mit ArbZG über Gesellschaften, Auslastung). Zelle ohne Recht = Strich, nie Null. | Isolation `gruppe-dienste` 5/5, Kern `gruppe-finanzen`, 1555 Kern, lint, typecheck, Browser `gruppe.spec` (siehe unten) |
+
+| 23:00 | Browserlauf der Gruppenansicht: zwei Funde. (1) `projekt` gibt `cse_app` nur Spaltenrechte, die Geldspalte fehlt — die Gruppenliste zeigt keine Auftragssumme mehr. (2) Nach dem Wechsel landete die Super-Administration auf `/portal/mein`: `sitzung_aufloesen` kannte nur die Mitgliedschaftsrolle → **0138** nimmt die globale Rolle als zweite Quelle (TEN-08). | Isolation `auth` 20/20, Browser (zweiter Lauf, siehe unten) |
+
+| 23:20 | Zweiter Browserlauf nach 0138: `gruppe.spec` 6/6, `agenten.spec` 6/6, `freigaben.spec` 6/6 — **18/18**. | Playwright auf frisch geseedeter `cse_test` |
+
+Stand der Seitenkarte nach D-475 (`pnpm seitenkarte:stand`): **197 von 432
+Routen gebaut** (davon 37 dynamisch) — vorher 179. Phase 1: 6 + 0 gebaut von
+25, Phase 4: 22 + 9 von 55, Phase 5: 78 + 5 von 123, Phase 6: 18 + 1 von 42.
 
 ## Entscheidungen, die ich allein getroffen habe
 
-- **Gruppenadmin auf einer Mandantsseite:** siehe Abschnitt unten, sobald
-  entschieden.
+- **Gruppenadmin auf einer Mandantsseite (D-474):** das Wechselblatt, nicht
+  404 — ein GET wechselt nie, der POST führt auf die gemeinte Seite zurück.
+  Der Test prüft mehr als vorher, nicht weniger.
+- **Kunde auf einer Mandantsseite:** die K-04-Decke ist richtig und bleibt;
+  der Test beschrieb den alten Stand und prüft jetzt den dokumentierten.
+- **„Gewinn" in der Gruppenfinanzsicht (D-475):** nicht erfunden. Gezeigt wird
+  „Saldo aus Rechnungen" mit dem Satz, dass es keine GuV ist.
+- **Karte der Objekte:** nicht gebaut — ein Kartendienst ist ein
+  Auftragsverarbeiter (O-360). Adressen stehen in der Liste.
+- **Radar, Kalender, Berichte in der Gruppe:** bleiben ehrlich „noch nicht
+  gebaut" — die Tabellen darunter gibt es noch nicht (Phase 8/9).

@@ -193,6 +193,12 @@ angepasst, weil in einem davon eine echte Produktfrage steckt:
 | `wer das Recht nicht hält, sieht das Zentrum nicht (AUT-06)` | Der Kunde wird auf `/portal/kunde` **weitergeleitet** (200), der Test erwartet 404 | Das Verhalten ist richtig und ausdrücklich so gebaut (K-04-Decke, `zugang.ts`: „eine Arbeiterin … landet in ihrem Portal — nicht auf einem 404, das sie ratlos zurücklässt"). Es verrät nichts über die Existenz der Seite, erfüllt AUT-06 also dem Sinn nach. **Der Test beschreibt altes Verhalten.** |
 | `das Budget nennt seine Obergrenze` | Die Gruppen-Administration bekommt auf `/portal/reinigung/agenten/budget` 404 | `admin@cse-gruppe.de` hat **keine** Mitgliedschaft; `/dev/anmelden` setzt sie in die Gruppenansicht, und eine Mandantsseite antwortet dort 404 (Invariante 10). Der Test tut nicht, was sein eigener Kommentar sagt („Der Gruppenadmin wechselt dafür in die Gesellschaft"). **Offene Frage:** sollte ein Gruppenadmin auf einer Mandantsseite das Wechselblatt sehen (`slugTor` kann es), statt 404? Heute prüft `portalZugang` das Recht VOR dem Wechselangebot, also erscheint das Blatt nie. |
 
+**Stand 13.09. (Nachtschicht): beide Fälle sind entschieden und grün — D-474.**
+Die Gruppensitzung bekommt auf einer Mandantsseite das Wechselblatt (das Tor
+fragt `app.mandant_fuer_wechsel` VOR dem Recht) und landet nach dem POST auf
+der gemeinten Seite (`zurueck`, gegen `rueckwegImBereich` geprüft). Der
+Kunden-Fall prüft jetzt die K-04-Decke. Kein Test wurde abgeschwächt.
+
 Ausserdem fiel `tests/e2e/zahlung.spec.ts:155` im Gesamtlauf und ist
 **allein grün** (5/5) — eine Abhängigkeit von der Laufreihenfolge, keine
 Regression. `scripts/e2e-db.sh` beschreibt diese Klasse im Kopf.

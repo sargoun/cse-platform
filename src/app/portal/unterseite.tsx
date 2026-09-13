@@ -54,9 +54,32 @@ export interface UnterseiteProps {
  * Zwischenblatt, denn **ein GET wechselt den Mandanten nie**. Alles andere →
  * 404, nie 403.
  */
+export interface SlugWechsel {
+  readonly art: 'wechsel';
+  /** Was gerade aktiv ist, in Worten — `null` heisst: kein Bereich. */
+  readonly aktuell: string | null;
+  readonly ziel: string;
+  /** Der Name des Ziels, wo die Sitzung ihn lesen darf — sonst `null`. */
+  readonly zielName: string | null;
+  /** Die Adresse, die gemeint war: nach dem Wechsel geht es dorthin zurueck. */
+  readonly zurueck: string;
+}
+
 export async function slugTor(
   zugang: PortalZugang, slug: string,
-): Promise<{ art: 'ok' } | { art: 'wechsel'; aktuell: string | null; ziel: string }> {
+): Promise<{ art: 'ok' } | SlugWechsel> {
+  /**
+   * Die Gruppensitzung: das Tor hat den Bereich schon aufgeloest (D-474),
+   * und „aktuell" ist kein Bereich, sondern die Gruppenansicht. Das Blatt
+   * sagt das in Worten, denn `null` hiesse „ohne aktiven Bereich" — und das
+   * ist eine andere Lage (ein `intern`-Konto vor der Bereichswahl).
+   */
+  if (zugang.wechselZiel !== null && zugang.wechselZiel.slug === slug) {
+    return {
+      art: 'wechsel', aktuell: 'der Gruppenübersicht', ziel: slug,
+      zielName: zugang.wechselZiel.name, zurueck: zugang.pfad,
+    };
+  }
   /**
    * Der haeufige Fall kostet KEINE Abfrage.
    *
@@ -80,7 +103,7 @@ export async function slugTor(
   // Unbekannter Slug UND fremder Bereich geben hier dieselbe `null` zurueck —
   // die Funktion in der Datenbank unterscheidet sie absichtlich nicht (AUT-06).
   if (befund.zielId === null) notFound();
-  return { art: 'wechsel', aktuell: befund.aktuell, ziel: slug };
+  return { art: 'wechsel', aktuell: befund.aktuell, ziel: slug, zielName: null, zurueck: zugang.pfad };
 }
 
 export async function Unterseite({ pfad, wurzel, bereich }: UnterseiteProps) {
@@ -118,7 +141,7 @@ export async function MandantUnterseite({ segmente, mandant }: {
 
   const tor = await slugTor(zugang, mandant);
   if (tor.art === 'wechsel') {
-    return <Wechselblatt aktuell={tor.aktuell} zielTitel={mandant} zielSlug={tor.ziel} />;
+    return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
 
   const route = findeRoute(pfad);

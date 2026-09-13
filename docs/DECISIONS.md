@@ -5158,6 +5158,7 @@ niemand ihn suchen.
 | O-352 | **Wer hält in den drei Gesellschaften `nummernkreis.verwalten`, und wer führt den Jahreswechsel des Rechnungskreises aus?** Das Öffnen des Nachfolgekreises schliesst den Vorgänger (`geschlossen_am`), kopiert `letzter_hash` nach `genesis_hash` und trägt den Vorgänger ein (D-210, D-375) — ein Akt mit rechtlicher Wirkung, der bewusst nicht in der Festschreibung liegt: wer festschreibt, hält `verwalten` nicht. Bis zur Antwort gibt es den Vorgang nicht, und es kann ihn nicht geben, ohne eine Rolle zu erfinden, die ihn auslöst. Verwandt mit O-77 (wer darf stornieren) und O-134 (wie der Kreis überhaupt geschnitten wird). | FIN-03, LEG-01, O-77, O-134, `nummernkreis`, D-210 |
 | O-353 | **Wie lauten Anschrift, Rufnummer, Handelsregister- und Umsatzsteuer-Identifikationsnummer der vier Gesellschaften wirklich?** Was heute in `mandant` steht, ist ERFUNDEN: `Kurfürstendamm 21`, `+49 30 555 0100`, `DE1000000xx`, `HRB 2000xx` — fortlaufend hochgezählt, nie erfragt. Weglassen geht nicht, `mandant_ustg14_vollstaendig` verlangt Anschrift und Steuernummer von jeder Gesellschaft mit eigenem Rechnungskreis (§ 14 UStG). Deshalb tragen die Zeilen seit 0097 `angaben_bestaetigt_am = NULL`, und das Impressum sagt es sichtbar VOR den Angaben: sie stammen aus dem Demonstrationsbestand und sind keine gültige Auskunft nach § 5 TMG. Mit der Antwort werden die Werte gesetzt und die Spalte gefüllt; die Prüfung, die den Hinweis erzwingt, gehört dann umgeschrieben — nicht der Hinweis entfernt. | LEG-01, § 5 TMG, § 14 UStG, `mandant`, D-19 |
 | O-354 | **An welche Adresse geht ein gescheiterter Nachtlauf, und ab welchem Rang wird jemand geweckt?** `runner.ts` verspricht „kein stiller Tod", und `ProtokollAlarm` löst das heute so ehrlich, wie es ohne verbundenen Kanal geht: eine `JOB-ALARM`-Zeile auf `stderr` (auf Vercel in den Funktionsprotokollen) plus `job_lauf.ergebnis = 'fehler'` in der Datenbank. Beides setzt voraus, dass jemand nachsieht. Was fehlt, ist der Weg nach draußen — Mailadresse, Dienst oder Nummer — und die Schwelle: der Dienstplangenerator, der zweimal scheitert, ist etwas anderes als der Lead-SLA-Job, der einmal aussetzt. | SPEC §14, `src/server/jobs/alarm.ts`, `job_lauf` |
+| O-360 | **Soll die Gruppenansicht der Objekte eine Karte zeigen — und mit welchem Kartendienst?** SEITENKARTE §6 schreibt „objects across areas, one map". Eine Karte braucht Kacheln von einem externen Dienst (OpenStreetMap-Anbieter, ein EU-Anbieter) oder selbst gehostete; jeder Aufruf gibt Objektkoordinaten und die IP der Nutzerin an den Anbieter — ein Auftragsverarbeiter, der in `docs/DECISIONS.md` mit DPA und EU-Region stehen muss (CLAUDE.md, Datenresidenz). Bis dahin listet `/portal/gruppe/objekte` Adressen ohne Karte (D-475). | OPS-01, SEITENKARTE §6, D-475 |
 | O-355 | **Wer trägt die Modulbuchung ein und pflegt `mandant.module_gepflegt`?** Seit 0103 ist die Frage nicht mehr, was eine leere Liste heisst — das Kennzeichen sagt es: `false` = nicht eingetragen, es wird nicht gefiltert (damit eine neu angelegte Gesellschaft nicht schwarz wird); `true` = die Liste gilt, leer heisst kein Gewerk. Offen bleibt der Vorgang: kommt die Buchung aus dem Vertrag, aus der Verwaltung oder setzt sie ein Super-Admin über `system.module_zuweisen` — und wer merkt, wenn sie fehlt? | `src/server/registry/modul.ts`, 0103, D-377 |
 | O-356 | **Bucht jede Gesellschaft genau ein Gewerk, oder gibt es Überschneidungen?** Der Seed setzt `reinigung → [reinigung]`, `security → [security]`, `bau → [bau]`, `operations → []` — abgeleitet aus den Gewerken, die in `CLAUDE.md` stehen. Praktisch plausibel wäre anderes: Bauendreinigung bei der REALTIME Service, Veranstaltungsreinigung bei der SSE Security. Bis zur Antwort sieht eine Gesellschaft nur ihr eigenes Gewerk; die Korrektur ist eine Zeile in `mandant.module` und kein Codeeingriff. | `mandant.module`, `src/server/db/seed/index.ts`, D-377 |
 | O-357 | **Wohin gehen die Wächter-Meldungen aus SPEC §14 — Posteingang, Mail oder beides — und wer bekommt die Kettenmeldung?** Die Ablaufwarnung (60/30/7) erreicht die Person selbst; das ist EMP-08 und unstrittig. „Hashkette gebrochen" dagegen hat keinen persönlichen Empfänger: es ist eine Meldung an die Buchhaltung oder die Geschäftsführung, und beide sind heute keine adressierbare Größe im Modell. Solange die Frage offen ist, wird der Kettenprüfer bewusst NICHT als Job registriert — ein Lauf, der jede Nacht „ok" meldet, ohne dass jemand die Meldung liest, schafft Vertrauen, das er nicht deckt. | SPEC §14, `src/server/jobs/bootstrap.ts`, `kettenlauf.ts`, NOT-01 |
@@ -7866,3 +7867,124 @@ für sie bleibt alles Platzhalter. Die „Kunden"-Seite des CSE-Auftritts nennt
 drei Verweise (select-security.de, 3bi-gruppe.de, burgermeister.com) ohne
 Freigabe zur Nennung — nichts davon erscheint als Referenz (PRO-04 verlangt
 eine dokumentierte Freigabe).
+
+### D-474 · Eine Gruppensitzung auf einer Mandantsseite bekommt das Wechselblatt — und nach dem Wechsel die Seite, die sie meinte
+
+**Die Frage aus HANDOVER-PR62 §5.** `admin@cse-gruppe.de` — eine
+Super-Administration ohne Mitgliedschaft, per `/dev/anmelden` in der
+Gruppenansicht — tippte `/portal/reinigung/agenten/budget` und bekam 404.
+Der Test erwartete die Seite; sein eigener Kommentar sagte „der Gruppenadmin
+wechselt dafür in die Gesellschaft". Beides war zu wenig: ein GET darf den
+Bereich nicht wechseln (03-AUTH §4.5), und ein 404 für eine Seite, die nach
+einem Klick erlaubt ist, ist die falsche Auskunft.
+
+**Ursache.** `portalZugang` prüfte das Recht VOR dem Wechselangebot, und zwar
+im Gruppen-Scope — dort antwortet `app.hat_recht` auf jede Aktion ausser
+`lesen`/`exportieren` mit `false` (0008, Zeile (3), Invariante 10). Für
+`agent.budget_verwalten` also immer 404, egal wer fragt. `slugTor` hätte das
+Blatt zeigen können, kam aber nie an die Reihe.
+
+**Entscheidung.** In der Gruppenansicht fragt das Tor für eine
+`/portal/[mandant]/…`-Route zuerst `app.mandant_fuer_wechsel(slug)`. Antwortet
+die Funktion mit einem Bereich, gibt `portalZugang` ein `wechselZiel` zurück
+und prüft das Seitenrecht **nicht** — es ist erst im Bereich sinnvoll
+gestellt, und dort prüft es das Tor nach dem Wechsel neu, im richtigen Scope.
+`slugTor` macht daraus das Wechselblatt („Sie arbeiten gerade in der
+Gruppenübersicht. Zu … wechseln?"). Antwortet die Funktion `null`, läuft alles
+wie bisher: 404, nie 403 (AUT-06). Das Blatt verrät nichts, was der Switcher
+nicht ohnehin zeigt — `mandant_fuer_wechsel` kennt nur die Bereiche, die
+diese Anmeldung wechseln darf. Unbekannte Adressen bleiben 404: gefragt wird
+nur für Routen, die das Manifest kennt (`findeRoute`).
+
+**Und zurück auf die gemeinte Seite.** Das Wechselblatt trägt seit jetzt ein
+Feld `zurueck`; `POST /api/sitzung/mandant` führt nach dem Wechsel dorthin —
+aber nur, wenn der Pfad IM Ziel liegt (`rueckwegImBereich`: `/portal/<ziel>`
+oder darunter; kein absoluter Verweis, kein `//host`, kein `..`-Segment, das
+`new URL` still auflöste, kein anderer Bereich). Alles andere fällt still auf
+die Wurzel des Ziels zurück, wie bisher. Der Redirect läuft durch
+`internesZiel`, also über den erwarteten Ursprung, nicht über
+`nextUrl.origin` (hinter dem Proxy stünde dort `http`). Alle 114 Seiten mit
+`slugTor` geben `zurueck` mit; `tests/kern/rueckweg.test.ts` prüft die
+Allowlist.
+
+**Und ein drittes Loch, das erst der Browser zeigte (0138).** Nach dem
+Wechsel landete die Super-Administration auf `/portal/mein`:
+`app.sitzung_aufloesen` leitete das Portal einer Mandantssitzung allein aus
+`benutzer_mandant` ab und fiel ohne Zeile auf `mitarbeiter` zurück — für ein
+Konto, das laut TEN-08 keine Zuweisungszeile mitbringt, also immer. Der
+Switcher bot jeden Bereich an; betreten liess sich keiner. 0138 nimmt als
+zweite Quelle die globale Rolle (`benutzer.globale_rolle_id`, Portal
+`intern`); die Mitgliedschaft schlägt sie weiterhin, und ohne beides bleibt
+das fail-closed `mitarbeiter`. `tests/isolation/auth.test.ts` prüft alle drei
+Stufen.
+
+**Der zweite rote Fall** (`wer das Recht nicht hält, sieht das Zentrum nicht`)
+beschrieb den Stand vor der K-04-Decke: ein Kundenkonto auf einer
+Mandantsseite landet in seinem Portal, nicht auf 404 — und erfährt dabei
+nichts über die Existenz der Seite, weil jeder Mandantspfad für dieses Konto
+denselben Weg nimmt. Der Test prüft jetzt genau das. Kein Test wurde
+abgeschwächt: der Budget-Fall prüft mehr als vorher (Blatt, POST, Rückweg,
+Seite), der Kunden-Fall prüft das dokumentierte Verhalten statt eines alten.
+
+### D-475 · Die Gruppenansicht: sechzehn lesende Seiten, ein Tor, und ein Strich ist keine Null
+
+**Was gebaut ist.** `/portal/gruppe` (Kennzahlenmatrix je Gesellschaft plus
+vier Gruppensummen), `auftraege`, `kunden`, `leads`, `projekte`, `objekte`,
+`personen`, `finanzen`, `rechnungen`, `offene-posten`, `freigaben`,
+`dokumente`, `protokoll`, `agenten`, `dienstplan`, `auslastung` — alle Zeilen
+der Seitenkarte §6 bis Phase 8 ausser `radar` (keine `ausschreibung`-Tabelle,
+PR 6x) und die Phase-9-Zeilen (`kalender`, `berichte/*`). Die bleiben ehrlich
+„noch nicht gebaut".
+
+**Ein Tor für alle** (`gruppe/tor.tsx`): `gruppenTor` holt die Sitzung, fragt
+`portalZugang` und macht aus einer Sitzung ohne Gruppenansicht das
+Zwischenblatt oder 404 — die Logik stand vorher als `vorentscheid` allein in
+der Übersicht und wäre mit der zweiten Seite kopiert worden. `gruppenLesen`
+gibt einen `LeseKontext` zurück und nichts sonst: ein Schreibversuch auf einer
+Gruppenseite ist ein Compilerfehler, die Policy die zweite Linie. Der Rahmen
+trägt den neutralen Streifen und das `NUR LESEN`-Zeichen (DESIGN §6 Regel 3);
+im Inhalt gibt es kein Formular und keinen Knopf — mit einer Ausnahme: die
+Dokumentensuche ist ein GET-Formular, sie ändert nichts und ist Teil der
+Adresse. Der Bereichsfilter (DSH-02) ist ebenso Teil der Adresse
+(`?bereich=slug`), damit ein kopierter Link dieselbe Sicht zeigt.
+
+**Ein Strich ist keine Null.** Im Gruppen-Scope filtert die Policy je Zeile
+mit dem Recht des Bereichs (`app.rechte_mandanten('gruppe.auftrag.lesen')`).
+Wer das Recht in einer Gesellschaft nicht hält, bekäme von einer Zählung dort
+eine 0 — und die sähe aus wie „keine Aufträge". Die Dienste
+(`services/gruppe/*`) fragen deshalb VOR der Zählung `app.hat_recht(recht,
+mandant_id)` je Bereich in einer Abfrage und lassen die Zelle `null`, wo es
+fehlt; die Seite zeigt `—` mit Titel „Kein Leserecht in diesem Bereich".
+Summen gehen nur über Zellen mit Recht und sagen, über wie viele Bereiche
+(„3 von 4 Bereichen"). Ein Gruppensaldo aus einer Zahl und einem Strich ist
+`null`. `tests/isolation/gruppe-dienste.test.ts` belegt das gegen die echte
+Policy: eine Leitung mit Recht nur in der Reinigung sieht dort 2 Beschäftigte
+und im Bau einen Strich; ein Super-Admin sieht vier Zeilen ohne Strich.
+
+**Geld und Zeit.** Alle Beträge sind Summen aus der Datenbank, in Cent, als
+Text übertragen und als `bigint` weitergereicht (Invariante 1;
+`tests/kern/gruppe-finanzen.test.ts` rechnet mit 2^53+1). „Fakturiert" zählt
+festgeschriebene Rechnungen nach Rechnungsdatum, netto; „Eingang" freigegebene
+und gebuchte Eingangsrechnungen; „Saldo" ist die Differenz — **keine
+Gewinn-und-Verlust-Rechnung**, und die Seite schreibt das hin (Personal,
+Abschreibung, Abgrenzung, Steuern fehlen; Jahresabschluss ist Out of scope).
+Die Auslastung addiert `dauer_netto_minuten` der Zeiteinträge je Person über
+alle Gesellschaften (D-09) — vom Server gemessen, hier nur summiert
+(Invariante 5) — und der Gruppen-Dienstplan zeigt die ArbZG-Befunde aus
+`pruefeArbzg` über die Schichten aller Bereiche einer Person, mit dem Vermerk
+„erst zusammen sichtbar", wo ein Bereich allein ihn nicht sähe. Das Jahr
+kommt aus der Datenbankuhr, nicht aus `new Date()`.
+
+**Was die Gruppe NICHT sieht — mit Absicht.** Freigabe-Felder und
+Schnappschüsse (`d_freigabe_feld`: nur aktiver Mandant); Nachweise ohne
+`personal.nachweis_lesen`; Kunden- und Lieferantennamen ohne das jeweilige
+Gruppenrecht (der Posten erscheint, der Name als Strich); Dateien
+(`dokumente` listet Metadaten, die signierte Adresse gibt es nur im Bereich,
+DOC-03). Jeder Verweis in einen Bereich führt über das Wechselblatt (D-474).
+
+**Register.** Die vier Dienste stehen als `bericht` in `dienste.ts` —
+Berichte über mehrere Gesellschaften, lesend. `ladePosteingang` trägt seither
+Bereich und Slug je Eintrag, damit die Gruppenliste in den Bereich verweisen
+kann. Offen bleibt die Karte der Objekte (SEITENKARTE „one map"): ein
+Kartendienst ist ein externer Dienst mit Auftragsverarbeitung — nicht ohne
+Entscheidung der Auftraggeber (O-360).

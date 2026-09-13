@@ -804,6 +804,19 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * er ruft `app.freigabe_entscheiden` (0137), das Recht ist dasselbe wie
    * bei `erteilen`. `diff-json` und `json` sind reine Umformungen.
    */
+  /**
+   * Die Gruppenansicht (TEN-05, D-475) — vier Leser, kein Schreiber.
+   *
+   * Modul `bericht`, weil sie genau das sind: Berichte ueber mehrere
+   * Gesellschaften, gelesen im Gruppen-Scope, in dem keine Tabelle eine
+   * Schreib-Policy kennt (Invariante 10). Jede Zelle fragt VOR der Zaehlung
+   * das Recht des Bereichs, damit eine fehlende Berechtigung nie als Null
+   * erscheint.
+   */
+  { modul: 'bericht', pfad: 'gruppe/uebersicht', schreibend: false },
+  { modul: 'bericht', pfad: 'gruppe/finanzen', schreibend: false },
+  { modul: 'bericht', pfad: 'gruppe/offene-posten', schreibend: false },
+  { modul: 'bericht', pfad: 'gruppe/auslastung', schreibend: false },
   { modul: 'freigabe', pfad: 'freigabe/diff-json', schreibend: false },
   { modul: 'freigabe', pfad: 'freigabe/json', schreibend: false },
   { modul: 'freigabe', pfad: 'freigabe/laden', schreibend: false },

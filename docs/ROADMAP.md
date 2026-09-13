@@ -98,6 +98,14 @@ clone, and the architecture document is reviewed.
 - [x] **Mandant switcher per DESIGN §6** — avatar + ring, dropdown with live
       counters, group entry marked `NUR LESEN`, top hue bar, `⌘K` shortcut
 - [x] Group view route exists and is **read-only** at the service layer
+- [x] **Group view pages** (D-475): overview matrix per company with group
+      sums, and read-only lists for orders, customers, leads, projects,
+      objects, people (identity only, D-09), finance, invoices, open items,
+      approvals, documents, audit log, agents, roster with cross-entity ArbZG
+      findings, utilisation — every cell rights-gated per company (a dash is
+      not a zero); `radar`, `kalender`, `berichte/*` still pending (phases 8/9)
+- [x] **Group session on a company page gets the switch sheet** (D-474), and
+      the POST switch returns to the page that was meant (`zurueck`, allow-listed)
 - [ ] Every switch and auth event in `audit_log`
 
 **Acceptance:**

@@ -28,6 +28,14 @@ export type FreigabeStatus =
   | 'korrigiert' | 'automatisch_freigegeben';
 
 export interface PosteingangEintrag extends PosteingangZeile {
+  /**
+   * Der Bereich, dem der Vorgang gehoert. Im Mandanten-Scope immer der aktive;
+   * in der Gruppenansicht der Weg zur Entscheidung — dort wird nur gelesen,
+   * gehandelt wird im Bereich (Invariante 10, SEITENKARTE §6).
+   */
+  readonly mandantId: string;
+  readonly mandantSlug: string;
+  readonly mandantName: string;
   readonly titel: string;
   readonly zusammenfassung: string;
   readonly vorgangTyp: VorgangTyp;
@@ -41,6 +49,9 @@ export interface PosteingangEintrag extends PosteingangZeile {
 
 interface PosteingangRoh {
   readonly id: string;
+  readonly mandant_id: string;
+  readonly mandant_slug: string;
+  readonly mandant_name: string;
   readonly titel: string;
   readonly zusammenfassung: string;
   readonly vorgang_typ: string;
@@ -61,15 +72,20 @@ export async function ladePosteingang(
   kontext: LeseKontext, jetzt: Date,
 ): Promise<readonly PosteingangEintrag[]> {
   const roh = await kontext.abfrage<PosteingangRoh>(
-    `select f.id, f.titel, f.zusammenfassung, f.vorgang_typ::text as vorgang_typ,
+    `select f.id, f.mandant_id, m.slug as mandant_slug, m.name as mandant_name,
+            f.titel, f.zusammenfassung, f.vorgang_typ::text as vorgang_typ,
             f.aktion, f.risiko::text as risiko, f.frist, f.betrag_cent::text as betrag_cent,
             f.erstellt_am, f.unsichere_felder_anzahl, f.stapel_faehig
        from freigabe f
+       join mandant m on m.id = f.mandant_id
       where f.status = 'offen' and f.vorgang_typ is not null
       order by f.frist nulls last, f.risiko desc, f.erstellt_am
       limit 500`);
   const zeilen = roh.map((z) => ({
     id: z.id,
+    mandantId: z.mandant_id,
+    mandantSlug: z.mandant_slug,
+    mandantName: z.mandant_name,
     titel: z.titel,
     zusammenfassung: z.zusammenfassung,
     vorgangTyp: z.vorgang_typ as VorgangTyp,
