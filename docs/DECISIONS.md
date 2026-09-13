@@ -6858,3 +6858,80 @@ Ein leerer Bestand sieht dann auch leer aus — was er ist.
 ausgeschaltet ist, ist nicht kaputt. Eine rote Pille schickte den Leser einen
 Fehler suchen, den es nicht gibt. Nichts im vorhandenen Vokabular deckte das
 ab — `Wartet` verspricht, dass gleich etwas passiert, und das tut es nicht.
+
+### D-427 · Fünfzehn Befunde aus der Durchsicht von PR #9 — und was sie gemeinsam haben
+
+Copilot hat den gemergten PR #9 durchgesehen und fünfzehn Stellen benannt.
+Jede einzelne war echt. Und sie haben eine Form gemeinsam, die es wert ist,
+festgehalten zu werden: **es fehlte nirgends die Prüfung, sie griff eine
+Stelle zu kurz.**
+
+* Der SMS-Deckel zählte offene Codes — ohne die Zeile zu sperren. Zwei
+  gleichzeitige Anfragen sahen beide zwei und schrieben beide. Die
+  Einlösefunktion daneben sperrt seit jeher und sagt auch warum (0114); der
+  Anfragefunktion fehlte genau diese Zeile.
+* Zwei Nachweistabellen zeigten mit einem einspaltigen Fremdschlüssel auf
+  `dokument` — das prüft die Existenz, nicht die Gesellschaft. Ein
+  §13b-Nachweis liess sich aus einer fremden Gesellschaft anhängen.
+* `freistellungsbescheinigung.lieferant_id` wartete laut Kommentar auf
+  PR 54: „PR 54 setzt den Schlüssel". PR 54 legte `lieferant` an und setzte
+  ihn nicht. Ein Kommentar ist keine Zusage.
+* Der Zahlungsauslöser prüfte Storno und Summe — nicht die RICHTUNG gegen die
+  Postenart. Ein Geldeingang konnte eine Verbindlichkeit tilgen.
+* Die Gegenparteiprüfung beim Ausgleich stand unter `if
+  rechnung_beziehung_id is not null` — sie galt also nur beim Storno.
+* `app.freigabe_genehmigt` prüfte Mandant und Status, nicht die AKTION. Eine
+  Zustimmung zu einem Mahnbrief öffnete eine Zahlungsverpflichtung.
+* Dem nächtlichen Mahnlauf fehlten die Rechte für `mahnstufe`, `mahnung` und
+  `mahnung_position`. Er wäre **jede Nacht** gescheitert — und ein Fehler, der
+  eine NICHT-Handlung erzeugt, fällt niemandem auf.
+* Der Beleg einer Eingangsrechnung war nur „ein Beleg dieser Gesellschaft",
+  nicht „vom Typ Eingangsrechnung".
+* `legeBelegAn` schrieb Dokument, Version und Hash so hin, wie der Aufrufer
+  sie mitbrachte — eine Version aus einem anderen Dokument ging durch.
+* Der §48-Einbehalt war nicht idempotent: zweimal gebucht tilgte er einen
+  Rest, den niemand bezahlt hat.
+* Das XMP des ZUGFeRD-PDF setzte `leistender.name` roh ein. „Müller & Söhne"
+  machte die Metadaten nicht wohlgeformt, und veraPDF weist das ab.
+* Zwei Uploads überlebten den Rückroll ihrer Transaktion — eine
+  Eingangsrechnung und ein Mahnschreiben, beide mit Personendaten, beide
+  ohne Zeile, die auf sie zeigt.
+* Die IPv6-Prüfung akzeptierte `:::`. Aus einem manipulierten Kopf wurde ein
+  FEHLER der Anmeldung statt einer fehlenden Herkunft.
+* `2026-02-30` hat die richtige Form; `Date.UTC` schob es auf den 2. März.
+  Die Verzugstage standen dann auf einem anderen Zeitraum als dem
+  eingegebenen.
+
+**Was daraus folgt, ist keine neue Regel, sondern eine schärfere Lesart der
+alten:** eine Prüfung ist erst fertig, wenn sie die Frage beantwortet, die
+jemand ihr im Ernstfall stellt. „Gibt es diese Zeile" ist nicht „gehört sie
+uns". „Ist die Zahlung nicht storniert" ist nicht „passt sie zu diesem
+Posten". „Ist die Freigabe genehmigt" ist nicht „genehmigt WOFÜR".
+
+### D-428 · Die Aufrechnung über die Seiten hinweg bleibt abgewiesen (O-182)
+
+Beim Schliessen des Gegenpartei-Lochs stand die Frage im Raum, ob ein Kunde,
+der zugleich Lieferant ist, seine Forderung gegen unsere Verbindlichkeit
+verrechnen darf. Das ist §387 BGB, es ist ein realer Fall, und O-182 hat ihn
+nicht entschieden.
+
+`fin.ausgleich_gegenpartei_pruefen` verlangt deshalb **dieselbe Seite**
+(Debitorisches gegen Debitorisches, Kreditorisches gegen Kreditorisches) und
+**dieselbe Gegenpartei**. Die Verrechnung über die Seiten hinweg wird
+abgewiesen — mit einer Meldung, die O-182 nennt, nicht still erlaubt. Eine
+Regel, die noch niemand entschieden hat, wird nicht erfunden (CLAUDE.md); und
+von den beiden Richtungen, in denen man sich irren kann, ist „zu wenig
+erlaubt" die, die sich mit einem Satz in einer Migration beheben lässt.
+
+### D-429 · `mahnstufe` trägt einen Mandanten — die Job-Policy bindet ihn
+
+Beim Nachziehen der `cse_job`-Rechte für den Mahnlauf stand in der ersten
+Fassung `using (true)` — mit der Begründung, die Stufen seien Referenzdaten
+wie `basiszinssatz`. Der erste Testlauf hat das widerlegt: `mahnstufe` trägt
+`mandant_id`, und zwar zu Recht. Gebühr, Frist und Zinsart sind eine
+Entscheidung der Gesellschaft, keine Konstante des Rechts.
+
+Ein `using (true)` hätte den Nachtlauf der einen Gesellschaft die
+Mahnkonditionen der anderen lesen lassen. Das ist keine grosse Lücke — und
+genau deshalb wäre sie geblieben. Die Policy bindet jetzt
+`app.aktiver_mandant()`, wie jede andere.

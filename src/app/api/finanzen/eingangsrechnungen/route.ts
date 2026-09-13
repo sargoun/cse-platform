@@ -13,6 +13,7 @@ import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter
 import { ladeHoch } from '@/server/services/dokument/upload';
 import { GeldFehler, cent, parseGeld } from '@/server/services/finanz/geld';
 import { FreigabeFehler, erteileFreigabe } from '@/server/services/freigabe';
+import type { Bucket } from '@/server/storage/adapter';
 import {
   EingangsrechnungFehler, buche, erfasseEingangsrechnung, freigebe, inPruefung,
   legeBelegAn, lehneAb, pruefeDublette, setzeSteuerzeile,
@@ -60,6 +61,26 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   };
 
   const aktion = text('aktion') ?? 'erfassen';
+
+  /**
+   * **Was hochgeladen wurde, bevor die Transaktion stand.**
+   *
+   * `ladeHoch` schreibt in den Bucket, und der Bucket kennt kein Rollback.
+   * Scheitert danach irgendetwas — die Dokumentzeile, die Erfassung, die
+   * Steuerzeile —, rollt die Transaktion zurück und das Objekt bleibt: eine
+   * Datei mit Rechnungsdaten, auf die keine Zeile zeigt, die niemand findet
+   * und die deshalb auch niemand löscht.
+   *
+   * Deshalb wird der Schlüssel hier gemerkt und im `catch` entfernt. Dieselbe
+   * Vorrichtung wie beim Schichtfoto (`api/check-in/[token]/medien`), und aus
+   * demselben Grund.
+   */
+  /*
+   * Ein HALTER und keine einfache Bindung: TypeScript verengt eine `let`-
+   * Bindung, die nur innerhalb eines Rueckrufs zugewiesen wird, im `catch`
+   * auf `null` — die Aufraeumung waere dann als toter Code weggeprueft.
+   */
+  const waise: { wert: { bucket: Bucket; pfad: string } | null } = { wert: null };
 
   try {
     if (aktion !== 'erfassen') {
@@ -120,6 +141,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
                „als undefiniert behauptet". */
             ...(datei.type === '' ? {} : { behaupteterTyp: datei.type }),
           }, new SupabaseSpeicher(), Number(rechnungsdatum.slice(0, 4)));
+          waise.wert = { bucket: hoch.bucket, pfad: hoch.objektSchluessel };
 
           await kontext.schreibe(
             `insert into dokument (id, mandant_id, kategorie, titel, mime_typ,
@@ -164,9 +186,22 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           eingangsrechnungId: id, steuergruppe, nettoCent: netto, steuerCent: steuer,
         });
 
+        waise.wert = null;   // Ab hier trägt die Datenbank das Objekt.
         return zurueck(anfrage, `/${id}`);
       }))) as NextResponse;
   } catch (fehler) {
+    if (waise.wert !== null) {
+      try {
+        await new SupabaseSpeicher().entferne(waise.wert.bucket, waise.wert.pfad);
+      } catch {
+        /*
+         * Auch das Aufräumen kann scheitern — dann bleibt ein verwaistes
+         * Objekt. Verschwiegen wird es nicht: es steht in keiner Zeile, und
+         * genau danach sucht der Waisenlauf. Den ursprünglichen Fehler
+         * verdeckt es hier auf keinen Fall.
+         */
+      }
+    }
     return uebersetze(fehler, anfrage);
   }
 }

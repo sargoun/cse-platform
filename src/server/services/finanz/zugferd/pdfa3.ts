@@ -1,4 +1,5 @@
 import 'server-only';
+import { maskiere } from '../xrechnung/xml.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -117,7 +118,15 @@ function rechts(
  * Werkzeug es auch ohne PDF-Parser findet.
  */
 function xmp(r: RechnungVollstaendig, erzeugtAm: string): string {
-  const titel = `Rechnung ${r.nummer}`;
+  /*
+   * **Maskiert, bevor es in die Zeichenkette geht** — mit demselben Maskierer
+   * wie die XRechnung (`xrechnung/xml.ts`). Ein Firmenname wie
+   * „Müller & Söhne" oder eine Rechnungsnummer mit `<` machte den XMP-Block
+   * sonst nicht wohlgeformt: das PDF sieht heil aus, veraPDF weist es ab, und
+   * der Empfaenger bekommt eine Rechnung, die sein System nicht liest.
+   */
+  const titel = maskiere(`Rechnung ${r.nummer}`, 'xmp/dc:title');
+  const ersteller = maskiere(r.leistender.name, 'xmp/dc:creator');
   return `<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/">
  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
@@ -127,7 +136,7 @@ function xmp(r: RechnungVollstaendig, erzeugtAm: string): string {
   </rdf:Description>
   <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">
    <dc:title><rdf:Alt><rdf:li xml:lang="x-default">${titel}</rdf:li></rdf:Alt></dc:title>
-   <dc:creator><rdf:Seq><rdf:li>${r.leistender.name}</rdf:li></rdf:Seq></dc:creator>
+   <dc:creator><rdf:Seq><rdf:li>${ersteller}</rdf:li></rdf:Seq></dc:creator>
   </rdf:Description>
   <rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/">
    <xmp:CreateDate>${erzeugtAm}</xmp:CreateDate>

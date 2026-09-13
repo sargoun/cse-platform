@@ -40,13 +40,36 @@ function istSchaltjahr(jahr: number): boolean {
   return (jahr % 4 === 0 && jahr % 100 !== 0) || jahr % 400 === 0;
 }
 
-/** `YYYY-MM-DD` → Tage seit der Epoche, ohne Zeitzone und ohne Sommerzeit. */
+/**
+ * `YYYY-MM-DD` → Tage seit der Epoche, ohne Zeitzone und ohne Sommerzeit.
+ *
+ * **Die Form allein genuegt nicht.** `2026-02-30` hat die richtige Form, und
+ * `Date.UTC` normalisiert es klaglos auf den 2. Maerz. Aus einem unmoeglichen
+ * Datum wird so ein moegliches, und die Verzugstage stehen auf einem anderen
+ * Zeitraum als dem, den jemand eingegeben hat — ohne Fehler, ohne Meldung,
+ * und der Zinsbetrag auf der Mahnung ist um zwei Tage daneben.
+ *
+ * Deshalb der Rueckvergleich: was `Date.UTC` gebaut hat, muss Jahr, Monat und
+ * Tag der Eingabe tragen. Er kostet drei Vergleiche und faengt jeden
+ * 31. Februar, jeden 31. April und jeden 29. Februar eines Nicht-Schaltjahres.
+ */
 function alsTag(datum: string): number {
   if (!/^\d{4}-\d{2}-\d{2}$/u.test(datum)) {
     throw new ZinsFehler(`Kein Datum in der Form YYYY-MM-DD: ${JSON.stringify(datum)}`);
   }
-  const wert = Date.UTC(
-    Number(datum.slice(0, 4)), Number(datum.slice(5, 7)) - 1, Number(datum.slice(8, 10)));
+  const jahr = Number(datum.slice(0, 4));
+  const monat = Number(datum.slice(5, 7));
+  const tag = Number(datum.slice(8, 10));
+  const wert = Date.UTC(jahr, monat - 1, tag);
+  const gebaut = new Date(wert);
+  if (gebaut.getUTCFullYear() !== jahr
+      || gebaut.getUTCMonth() + 1 !== monat
+      || gebaut.getUTCDate() !== tag) {
+    throw new ZinsFehler(
+      `Diesen Tag gibt es nicht: ${JSON.stringify(datum)}. `
+      + 'Ein normalisiertes Datum verschoebe die Verzugstage still.',
+    );
+  }
   return Math.round(wert / 86_400_000);
 }
 

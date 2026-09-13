@@ -42,7 +42,9 @@ interface AgentKopf {
   readonly id: string;
   readonly kennung: string;
   readonly name: string;
-  readonly beschreibung: string | null;
+  readonly beschreibung: string;
+  /** Was er ausdruecklich NICHT tut — die Spalte, die es in 0128 gibt. */
+  readonly verbot_beschreibung: string;
   readonly ist_aktiv: boolean;
   readonly max_schritte: number | null;
 }
@@ -83,7 +85,8 @@ export default async function AgentDetail(
   const daten = await (db().begin(SCHNAPPSCHUSS,
     async (tx: postgres.TransactionSql) => withTenant(tx, sitzung, async (kontext) => {
       const [kopf] = await kontext.abfrage<AgentKopf>(
-        `select id, kennung::text as kennung, name, beschreibung, ist_aktiv, max_schritte
+        `select id, kennung::text as kennung, name, beschreibung, verbot_beschreibung,
+                ist_aktiv, max_schritte
            from agent where kennung = $1::agent_kennung`,
         [kennung]);
       if (kopf === undefined) return null;
@@ -104,20 +107,35 @@ export default async function AgentDetail(
        * darf, entscheidet die Gesellschaft, nicht das Werkzeug (Invariante 7).
        * Sie stehen hier trotzdem, weil sie die Frage beantworten, die auf
        * dieser Seite gestellt wird.
+       *
+       * **Das Recht wird GEFRAGT, nicht aus der leeren Menge geschlossen.**
+       * `t_richtlinie_lesen` verlangt `versand.lesen` — wer es nicht hat,
+       * bekommt null Zeilen, und null Zeilen heissen dann „ich darf nicht
+       * sehen" und nicht „es gibt keine". Ohne diese Unterscheidung stuende
+       * auf dem Bildschirm „nichts geht automatisch hinaus", waehrend
+       * vielleicht das Gegenteil eingestellt ist — die gefaehrlichere der
+       * beiden Falschaussagen.
        */
-      const richtlinien = await kontext.abfrage<Richtlinie>(
-        `select aktion::text as aktion, auto_erlaubt, begruendung
-           from agent_richtlinie order by aktion`);
+      const [darf] = await kontext.abfrage<{ ok: boolean }>(
+        `select app.hat_recht('versand.lesen', app.aktiver_mandant()) as ok`);
+      const darfRichtlinien = darf?.ok === true;
 
-      return { kopf, aufgaben, richtlinien };
+      const richtlinien = darfRichtlinien
+        ? await kontext.abfrage<Richtlinie>(
+          `select aktion::text as aktion, auto_erlaubt, begruendung
+             from agent_richtlinie order by aktion`)
+        : [];
+
+      return { kopf, aufgaben, richtlinien, darfRichtlinien };
     }))) as {
       kopf: AgentKopf;
       aufgaben: readonly AufgabeZeile[];
       richtlinien: readonly Richtlinie[];
+      darfRichtlinien: boolean;
     } | null;
 
   if (daten === null) notFound();
-  const { kopf, aufgaben, richtlinien } = daten;
+  const { kopf, aufgaben, richtlinien, darfRichtlinien } = daten;
 
   return (
     <PortalRahmen
@@ -135,9 +153,18 @@ export default async function AgentDetail(
         <StatusPill zustand={kopf.ist_aktiv ? 'Aktiv' : 'Inaktiv'} />
       </div>
 
-      {kopf.beschreibung === null ? null : (
-        <p className="mb-s5 max-w-prose text-sm text-text-muted">{kopf.beschreibung}</p>
-      )}
+      <p className="mb-s4 max-w-prose text-sm text-text-muted">{kopf.beschreibung}</p>
+
+      {/*
+        * **Was er NICHT tut, steht gleichrangig daneben.** Ein Agent ist so
+        * gefährlich wie die Menge dessen, was ihm niemand verboten hat; diese
+        * Zeile steht seit 0128 in der Tabelle (`verbot_beschreibung`) und
+        * gehört auf den Bildschirm, auf dem jemand über das Einschalten
+        * nachdenkt — nicht in eine Dokumentation, die er dabei nicht offen hat.
+        */}
+      <p className="mb-s5 max-w-prose rounded-lg border border-line bg-surface-2 p-s4 text-sm text-text">
+        <strong>Er tut ausdrücklich nicht:</strong> {kopf.verbot_beschreibung}
+      </p>
 
       <section className="mb-s6 rounded-lg border border-line bg-surface p-s5">
         <h2 className="text-h3 text-text">Grenzen</h2>
@@ -170,7 +197,13 @@ export default async function AgentDetail(
       </section>
 
       <h2 className="mb-s3 text-h2 text-text">Was hinausgehen darf</h2>
-      {richtlinien.length === 0 ? (
+      {!darfRichtlinien ? (
+        <p className="mb-s6 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
+          Die Versandrichtlinien sind hier nicht sichtbar — dafür braucht es
+          das Recht <code>versand.lesen</code>. Das heisst nicht, dass keine
+          hinterlegt sind.
+        </p>
+      ) : richtlinien.length === 0 ? (
         <p className="mb-s6 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Keine Richtlinie hinterlegt — also geht nichts automatisch hinaus.
         </p>

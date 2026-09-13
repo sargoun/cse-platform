@@ -385,6 +385,53 @@ describe('(3) Eine Überzahlung wird ein Guthaben, nie ein verschwundener Rest',
     })).rejects.toThrow(/Ueberzahlung wird als Guthaben/u);
   });
 
+  /**
+   * Der Befund aus der Durchsicht von PR #9: der Auslöser sperrte die Zahlung
+   * und prüfte, ob sie storniert ist — aber nie, ob ihre RICHTUNG zur ART des
+   * Postens passt. Ein Geldeingang konnte damit eine Verbindlichkeit tilgen.
+   * Die Bilanz ist dann auf beiden Seiten falsch, und auf dem Bildschirm
+   * steht ein bezahlter Posten (0130).
+   */
+  it('ein AUSGANG tilgt keine Forderung — die Richtung muss zur Postenart passen', async () => {
+    const id = await festgeschrieben();
+    const p = (await posten(id))!;   // `debitor`: der Kunde schuldet UNS.
+
+    await expect(alsApp(sitzung(), async (tx) => {
+      const d = alsDienst(tx);
+      const [z] = await tx.unsafe<{ id: string }[]>(
+        `insert into zahlung (mandant_id, richtung, betrag_cent, zahlungsdatum,
+                              zahlungsmittel, erstellt_von_art, erstellt_von)
+         values (app.aktiver_mandant(), 'ausgang', 119000, date '2026-09-10',
+                 'ueberweisung', 'mensch', app.aktueller_benutzer())
+         returning id`);
+      return ordneZu(d, {
+        zahlungId: z!.id, offenerPostenId: p.id, art: 'zahlung',
+        betragCent: cent(119_000n),
+      });
+    })).rejects.toThrow(/gehoert nicht auf einen Posten der Art/u);
+  });
+
+  it('und der EINGANG auf dieselbe Forderung geht — sonst prüfte der Fall nichts', async () => {
+    const id = await festgeschrieben();
+    const p = (await posten(id))!;
+
+    await alsApp(sitzung(), async (tx) => {
+      const d = alsDienst(tx);
+      const [z] = await tx.unsafe<{ id: string }[]>(
+        `insert into zahlung (mandant_id, richtung, betrag_cent, zahlungsdatum,
+                              zahlungsmittel, erstellt_von_art, erstellt_von)
+         values (app.aktiver_mandant(), 'eingang', 119000, date '2026-09-10',
+                 'ueberweisung', 'mensch', app.aktueller_benutzer())
+         returning id`);
+      return ordneZu(d, {
+        zahlungId: z!.id, offenerPostenId: p.id, art: 'zahlung',
+        betragCent: cent(119_000n),
+      });
+    });
+
+    expect((await posten(id))!.offenCent).toBe(0n);
+  });
+
   it('und die Zuordnungen einer Zahlung dürfen sie nicht übersteigen', async () => {
     const eins = await festgeschrieben();
     const zwei = await festgeschrieben();
@@ -463,6 +510,14 @@ describe('(4) Der §48-EStG-Einbehalt schliesst den Rest, ohne dass Geld kommt',
     const gebucht = await alsApp(sitzung(), async (tx) => bucheBauabzug(alsDienst(tx), id));
     expect(gebucht.betragCent).toBe(17_850n);
     expect(gebucht.offenCent).toBe(0n);
+
+    /*
+     * Der Befund aus der Durchsicht von PR #9: ein zweiter Aufruf buchte den
+     * vollen Einbehalt noch einmal. Auf der Rechnung steht EIN Betrag; die
+     * zweite Zeile tilgte einen Rest, den niemand bezahlt hat (0130).
+     */
+    await expect(alsApp(sitzung(), async (tx) => bucheBauabzug(alsDienst(tx), id)))
+      .rejects.toThrow(/bereits gebucht/u);
   });
 
   it('und auf einer Rechnung ohne Einbehalt wird nichts gebucht', async () => {
@@ -540,6 +595,33 @@ describe('(6) Posten gegen Posten, ohne eine Zahlung zu erfinden (§7.4)', () =>
     const alle = await alsApp(sitzung(), async (tx) =>
       offenePosten(alsDienst(tx), { nurOffene: false }));
     expect(alle.find((p) => p.id === e.guthabenPostenId)!.offenCent).toBe(0n);
+  });
+
+  /**
+   * Der Befund aus der Durchsicht von PR #9: die Gegenparteipruefung stand
+   * unter `if (rechnung_beziehung_id is not null)` — sie galt also nur beim
+   * Storno-Ausgleich. Der offene Weg konnte die Gutschrift des einen Kunden
+   * gegen die Forderung eines ANDEREN stellen. Das ist keine Verrechnung,
+   * das ist ein Griff in eine fremde Tasche; §387 BGB deckt es nicht, und
+   * O-182 hat es noch nicht entschieden (0130).
+   */
+  it('das Guthaben eines Kunden tilgt nicht die Forderung eines anderen', async () => {
+    const id = await festgeschrieben();
+    const e = await alsApp(sitzung(), async (tx) => verbucheZahlungseingang(alsDienst(tx), {
+      rechnungId: id, betragCent: cent(150_000n), zahlungsdatum: '2026-09-10',
+      zahlungsmittel: 'ueberweisung',
+    }));
+
+    // Dieselbe Vorrichtung wie sonst, nur fuer einen ZWEITEN Kunden.
+    const fremd = await legeKundeAn(f.reinigung);
+    const zwei = await entwurf(26_050n, undefined, fremd);
+    await alsApp(sitzung(), async (tx) => finalisiere(alsDienst(tx), zwei));
+    const p2 = (await posten(zwei))!;
+
+    await expect(alsApp(sitzung(), async (tx) => gleicheAus(alsDienst(tx), {
+      sollPostenId: p2.id, habenPostenId: e.guthabenPostenId!,
+      betragCent: cent(31_000n), grund: 'guthaben_verwendung',
+    }))).rejects.toThrow(/DERSELBEN Gegenpartei/u);
   });
 
   it('ein Ausgleich über mehr, als offen ist, wird abgewiesen', async () => {

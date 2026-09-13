@@ -39,7 +39,7 @@ interface AgentZeile {
   readonly id: string;
   readonly kennung: string;
   readonly name: string;
-  readonly beschreibung: string | null;
+  readonly beschreibung: string;
   readonly ist_aktiv: boolean;
   readonly aufgaben: string;
   readonly laufend: string;
@@ -87,7 +87,12 @@ export default async function AgentenZentrum(
                from agent_aufgabe a
               where a.agent_id = ag.id
            ) z on true
-          order by ag.sortierung, ag.name`);
+          -- Nach der ENUM-Ordnung, nicht alphabetisch: agent_kennung ist eine
+          -- geschlossene Menge in einer gewollten Reihenfolge (D-03). Nach
+          -- Namen sortiert stuende der Finanz-Assistent vor dem
+          -- CEO-Assistenten; vier feste Zeilen sollen jedes Mal gleich
+          -- aussehen.
+          order by ag.kennung`);
 
       const budget = await kontext.abfrage<BudgetZeile>(
         `select budget_cent::text, verbrauch_mikrocent::text,
@@ -155,9 +160,7 @@ export default async function AgentenZentrum(
               <StatusPill zustand={a.ist_aktiv ? 'Aktiv' : 'Inaktiv'} />
             </div>
 
-            {a.beschreibung === null ? null : (
-              <p className="mt-s2 text-sm text-text-muted">{a.beschreibung}</p>
-            )}
+            <p className="mt-s2 text-sm text-text-muted">{a.beschreibung}</p>
 
             <dl className="mt-s4 grid grid-cols-3 gap-s3 text-sm">
               <div>

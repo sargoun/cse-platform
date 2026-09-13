@@ -1,4 +1,5 @@
 import 'server-only';
+import { isIP } from 'node:net';
 import { CODE_GUELTIG_MINUTEN } from '@/server/auth/mitarbeiter-anmeldung';
 
 /**
@@ -44,15 +45,19 @@ export function anmeldeKeksOptionen(): {
  * Woher die Anfrage kommt — fuer die Spalte `ip` am Einmalcode.
  *
  * **Nur der ERSTE Eintrag aus `x-forwarded-for`, und auch der nur, wenn er
- * wie eine Adresse aussieht.** Der Kopf ist vom Aufrufer frei setzbar; wer
- * ihn mit einer Liste fuellt, fuellt sonst eine `inet`-Spalte mit Text, den
- * niemand mehr auswerten kann. Bei allem, was nicht passt: `null` — eine
- * fehlende Herkunft ist ehrlicher als eine erfundene.
+ * eine Adresse IST.** Der Kopf ist vom Aufrufer frei setzbar; wer ihn mit
+ * einer Liste fuellt, fuellt sonst eine `inet`-Spalte mit Text, den niemand
+ * mehr auswerten kann. Bei allem, was nicht passt: `null` — eine fehlende
+ * Herkunft ist ehrlicher als eine erfundene.
+ *
+ * **`isIP` aus `node:net` und nicht ein eigener Ausdruck.** Die Vorfassung
+ * pruefte IPv6 mit `/^[0-9a-fA-F:]{2,45}$/` — das trifft `:::` und `::::::`
+ * und ein Dutzend weiterer Zeichenketten, die keine Adresse sind. Sie kamen
+ * als „IP" zurueck und liefen in den `inet`-Parameter, wo Postgres sie
+ * abweist: aus einem manipulierten Kopf wird so ein FEHLER der Anmeldung
+ * statt einer fehlenden Herkunft. Genau das soll diese Funktion verhindern.
  */
 export async function herkunft(kopf: Headers): Promise<{ ip: string | null }> {
   const roh = (kopf.get('x-forwarded-for') ?? '').split(',')[0]?.trim() ?? '';
-  const istIpv4 = /^(?:(?:25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])$/u;
-  const istIpv6 = /^[0-9a-fA-F:]{2,45}$/u;
-  const ip = istIpv4.test(roh) || (roh.includes(':') && istIpv6.test(roh)) ? roh : null;
-  return Promise.resolve({ ip });
+  return Promise.resolve({ ip: isIP(roh) === 0 ? null : roh });
 }
