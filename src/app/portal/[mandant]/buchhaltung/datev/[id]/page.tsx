@@ -184,15 +184,20 @@ export default async function DatevStapel(
           ['Festschreibung', k.festschreibung ? 'ja' : 'nein'],
           ['Übergeben', k.uebergeben_am ?? '—'],
         ].map(([titel, wert]) => (
-          <div key={titel}>
+          /*
+           * `min-w-0 break-words` am Wert — D-420: in einem `auto/1fr`-Raster
+           * wird die Spalte sonst so breit wie ihr laengstes Wort, und eine
+           * Beraternummer neben einem Kontenrahmen reicht dafuer schon.
+           */
+          <div key={titel} className="min-w-0">
             <dt className="text-sm text-text-subtle">{titel}</dt>
-            <dd className="text-text">{wert}</dd>
+            <dd className="break-words text-text">{wert}</dd>
           </div>
         ))}
       </dl>
 
       {k.datei_sha256 === null ? null : (
-        <p className="mb-s7 font-mono text-xs text-text-subtle">
+        <p className="mb-s7 break-all font-mono text-xs text-text-subtle">
           SHA-256 der Datei: {k.datei_sha256}
         </p>
       )}

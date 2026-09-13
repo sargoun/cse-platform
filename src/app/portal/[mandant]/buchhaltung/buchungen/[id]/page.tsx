@@ -192,7 +192,9 @@ export default async function Buchung(
               Der Link gilt fünfzehn Minuten; danach wird er neu ausgestellt.
             </p>
             {kopf.datei_sha256 === null ? null : (
-              <p className="mt-s2 font-mono text-xs text-text-subtle">
+              /* D-420: 64 Zeichen ohne Trennstelle machten `main` breiter
+                 als das Fenster. */
+              <p className="mt-s2 break-all font-mono text-xs text-text-subtle">
                 SHA-256 {kopf.datei_sha256}
               </p>
             )}
