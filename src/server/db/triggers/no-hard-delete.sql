@@ -1951,3 +1951,96 @@ revoke delete, truncate on mahnung_eskalation from cse_app, cse_anon, cse_checki
 
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0126)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- konto_mapping (archiv): ACC-01. Eine geloeschte Kontenzuordnung macht jede Buchung, die auf ihr beruht, unerklaerlich: das Konto steht im buchungssatz, der Grund ist fort. Geschlossen wird mit gueltig_bis.
+create trigger trg_konto_mapping_kein_hard_delete
+  before delete on konto_mapping
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_konto_mapping_kein_truncate
+  before truncate on konto_mapping
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on konto_mapping from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0127)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- periode (archiv): ACC-08, LEG-01. Ein geloeschter Buchungsmonat nimmt die Festschreibung mit, die ihn abgeschlossen hat — und die Monatszahlen, die der Steuerberater bereits bekommen hat.
+create trigger trg_periode_kein_hard_delete
+  before delete on periode
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_periode_kein_truncate
+  before truncate on periode
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on periode from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- buchungssatz (archiv): ACC-01, ACC-06, GoBD. Die Buchungszeile IST der Nachweis. Korrigiert wird durch Gegenbuchung (storniert_durch_id), nie durch Loeschen.
+create trigger trg_buchungssatz_kein_hard_delete
+  before delete on buchungssatz
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_buchungssatz_kein_truncate
+  before truncate on buchungssatz
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on buchungssatz from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0128)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- agent_aufgabe (archiv): AGT-04. Was ein Agent getan hat, ist die Antwort auf die Frage, warum etwas im System steht. Eine geloeschte Aufgabe nimmt ihre Schritte mit — und damit die Begruendung eines Entwurfs, den ein Mensch freigegeben hat. Beendet wird mit status, nie durch Loeschen.
+create trigger trg_agent_aufgabe_kein_hard_delete
+  before delete on agent_aufgabe
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_agent_aufgabe_kein_truncate
+  before truncate on agent_aufgabe
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on agent_aufgabe from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- agent_schritt (append): AGT-04, LEG-09. Das Schrittprotokoll ist der Nachweis, WAS der Agent gelesen und WAS er einem Modell geschickt hat. Die einzige erlaubte Aenderung ist die Schwaerzung der Nutzlast nach Frist — sie leert Spalten und entfernt keine Zeile.
+create trigger trg_agent_schritt_kein_hard_delete
+  before delete on agent_schritt
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_agent_schritt_kein_truncate
+  before truncate on agent_schritt
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on agent_schritt from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- agent_kosten (append): AGT-05. Die Kostenzeilen SIND das Monatsbudget: der Verbrauch ist ihre Summe. Eine geloeschte Zeile senkt den Verbrauch und hebt damit ruecklaufend eine Obergrenze auf, die bereits gegriffen hat. Korrigiert wird durch eine zweite Zeile.
+create trigger trg_agent_kosten_kein_hard_delete
+  before delete on agent_kosten
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_agent_kosten_kein_truncate
+  before truncate on agent_kosten
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on agent_kosten from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- agent_budget (archiv): AGT-05. Die Budgetzeile traegt die Obergrenze UND den Nachweis, dass und wann gestoppt wurde (gestoppt_am). Sie zu loeschen loescht beides und laesst die Agenten im naechsten Aufruf weiterlaufen, als waere nichts gewesen.
+create trigger trg_agent_budget_kein_hard_delete
+  before delete on agent_budget
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_agent_budget_kein_truncate
+  before truncate on agent_budget
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on agent_budget from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- agent_reservierung (archiv): AGT-05. Eine Reservierung ist gebundenes Budget. Wird die Zeile geloescht statt freigegeben, bleibt der Zaehler in agent_budget gebunden und niemand kann mehr sehen, wofuer — geschlossen wird mit freigegeben_am und freigabe_grund.
+create trigger trg_agent_reservierung_kein_hard_delete
+  before delete on agent_reservierung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_agent_reservierung_kein_truncate
+  before truncate on agent_reservierung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on agent_reservierung from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks

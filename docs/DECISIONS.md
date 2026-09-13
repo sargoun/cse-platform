@@ -6668,3 +6668,127 @@ scheiterte an `umsatz_cent > 0` — DATEV kennt keinen negativen Umsatz, das
 Vorzeichen lebt in `soll_haben`. Ohne die Weiche auf `bucheStorno` hätte jede
 Stornierung an einem Constraint gehangen, den niemand mit dem Storno in
 Verbindung gebracht hätte.
+
+### D-419 · Ein Hartstopp, der in derselben Transaktion steht wie die Ablehnung, hinterlässt keine Spur
+
+AGT-05 verlangt zweierlei: das erschöpfte Monatsbudget lehnt den nächsten Lauf
+**ab**, und der Stopp ist **sichtbar** — Statuszeile plus Benachrichtigung.
+Beides in eine Transaktion zu schreiben, ist der naheliegende Weg und der
+falsche: die Ablehnung ist ein `throw`, der `throw` rollt die Transaktion
+zurück, und der Rückroll nimmt Status und Meldung mit. Das Ergebnis ist ein
+Budget, das jeden Lauf abweist und nirgends stehen hat, dass es das tut. Es
+sieht aus wie ein Ausfall des Agenten, nicht wie eine erreichte Obergrenze —
+also sucht man den Fehler im Code und findet ihn nicht.
+
+Deshalb drei getrennte Schritte und **zwei** Transaktionen
+(`reserviereMitHartstopp`):
+
+1. prüfen und reservieren — schlägt fehl, rollt zurück, schreibt nichts;
+2. **danach**, auf einer eigenen Transaktion, den Stopp schreiben und
+   committen;
+3. erst dann den Lauf ablehnen.
+
+`app.agent_budget_pruefen` wirft dafür grundsätzlich nicht: sie gibt ein
+**Urteil** zurück (`ok` / `gestoppt` / `budget_fehlt`) und sperrt dabei die
+Mandantszeile vor der Agentenzeile, damit zwei gleichzeitige Läufe sich nicht
+verklemmen und nicht beide „gerade noch" durchkommen.
+
+**Und der Stopp meldet EINMAL.** `app.agent_stopp_vermerken` schreibt die
+Benachrichtigungen nur, wenn der Status in genau diesem Aufruf umgesprungen ist.
+Ohne diese Bedingung schriebe ein Nachtlauf mit hundert abgelehnten Aufgaben
+hundert gleiche Zeilen in den Posteingang — und ein Posteingang mit hundert
+gleichen Zeilen wird nicht gelesen, sondern geleert.
+
+### D-420 · Der Posteingang bleibt für `cse_app` zu — der Stopp bekommt einen eigenen, engen Schreiber
+
+`benachrichtigung` trägt seit 0007 kein `insert` für `cse_app`: Posteingänge
+füllen Systemläufe (`cse_job`), nicht die Sitzung eines Menschen. Der Hartstopp
+fällt aber genau in einer Sitzung an — in der Anfrage, die gerade abgelehnt
+wird.
+
+Die beiden naheliegenden Auswege sind beide schlecht: `cse_app` ein `insert`
+auf den Posteingang aller geben (viel zu weit — jede Sitzung könnte jedem alles
+schreiben), oder den Stopp still lassen (AGT-05 verletzt). Der dritte Weg ist
+ein benannter, enger `SECURITY DEFINER`-Schreiber: `app.agent_stopp_vermerken`
+setzt den Status, leitet die Empfänger über `app.benutzer_mit_recht` ab und
+schreibt eine Zeile je Empfänger — Art festverdrahtet, Objekt die Budgetzeile,
+und nur beim erstmaligen Stopp.
+
+**Die Empfänger werden abgeleitet, nicht erfunden.** Wer
+`agent.budget_verwalten` für diesen Mandanten hält, ist die Person, die eine
+erschöpfte Obergrenze angeht; das folgt aus dem Rechtemodell und ist keine
+Annahme über die Organisation. `app.benutzer_mit_recht` beantwortet dafür eine
+andere Frage als `app.hat_recht`: nicht „darf DIESE Sitzung das jetzt" (samt
+Zweitfaktor und Gruppenansicht — Eigenschaften der Sitzung), sondern „wer ist
+zuständig" — eine Eigenschaft des Menschen. Ein Nachtlauf hat keine Sitzung.
+
+Null Empfänger ist dabei ein **Befund**, kein Fehler: gestoppt wird trotzdem,
+und die Funktion gibt die Zahl zurück, damit der Aufrufer sie melden kann.
+
+**Was das an Rechten kostet, steht in der Migration:** `cse_definer` bekommt
+`insert` auf `benachrichtigung` und spaltenscharfe `select`-Rechte auf
+`berechtigung`, `rolle_berechtigung`, `benutzer_mandant` und die eine fehlende
+Spalte `benutzer.globale_rolle_id` — je mit Policy, denn unter `force row level
+security` heisst „keine Policy" nicht *alles*, sondern *nichts*. Ohne sie hätte
+die Funktion das Spaltenrecht gehabt und null Zeilen gelesen: der Stopp wäre
+geschrieben und an niemanden gemeldet worden, lautlos und plausibel.
+
+### D-421 · Was ein Ausloeser als `cse_definer` liest, muss ihm auch gehören
+
+`app.agent_kosten_fortschreiben` rechnet `agent_aufgabe.kosten_cent` als Summe
+über `agent_kosten` neu — über die Tabelle also, auf deren INSERT der Ausloeser
+hängt. Ein Ausloeser, der als `cse_definer` läuft, erbt das Recht des
+Einfügenden **nicht**: ohne eigenen `grant select` scheitert jede Kostenbuchung
+mit „permission denied for table agent_kosten", und zwar NACH dem INSERT, im
+Ausloeser, wo niemand sie sucht.
+
+Das ist derselbe Befund wie D-388, an einer Stelle, an der er noch teurer
+gewesen wäre: die Kostenbuchung ist der Weg, auf dem das Budget überhaupt
+wächst. Wäre sie stillschweigend gescheitert, hätte der Hartstopp nie
+ausgelöst.
+
+### D-422 · Die Löschsperren der Agenten kommen aus dem Register, nicht aus der Migration
+
+Fünf Tabellen (`agent_aufgabe`, `agent_schritt`, `agent_kosten`,
+`agent_budget`, `agent_reservierung`) stehen jetzt in `KEIN_HARD_DELETE` und
+bekommen ihre Ausloeser aus `scripts/generate-triggers.ts`. Die erste Fassung
+schrieb sie von Hand mit eigenen Namen (`ak_nicht_loeschen`); die
+Isolationssuite prüft in beide Richtungen — jede registrierte Tabelle trägt
+`trg_<t>_kein_hard_delete`, und keine Tabelle trägt `kern.verhindere_loeschung`
+ohne Registerzeile — und hätte das gemeldet.
+
+**Dabei kam die gleiche Drift aus PR 58 mit ans Licht:** `konto_mapping`,
+`periode` und `buchungssatz` standen im Register, ihre Ausloeser aber von Hand
+in 0126/0127, `no-hard-delete.sql` war nicht neu erzeugt und die drei
+Migrationen fehlten in `MIGRATIONS_DATEIEN`. Vier rote Prüfungen, alle auf
+denselben Grund. Jetzt tragen 0126, 0127 und 0128 je ihren erzeugten Block
+zwischen den Sentinels, und die Grund-Regex kennt `ACC-\d\d` und `AGT-\d\d` als
+SPEC-Anker — dieselbe Fortsetzung der Liste wie `BAU` und `OPS` in den Phasen
+davor.
+
+Die Gegenbeweis-Tabelle in `loeschsperre.test.ts` (eine, die es noch NICHT
+gibt) wandert von `buchungssatz` auf `datev_export`; das ist der Sinn dieser
+Prüfung, und sie hat funktioniert.
+
+### D-423 · Eine Benachrichtigungsart sieht aus wie ein Rechteschlüssel — die K-19-Prüfung braucht den Unterschied
+
+`agent.budget_erschoepft` hat Zeichen für Zeichen die Form eines
+Rechteschlüssels (`<modul>.<etwas>`; die Tabelle erzwingt sie für
+Benachrichtigungen sogar per CHECK). `scripts/katalog/benutzung.ts` schneidet
+Registerkennungen deshalb heraus — in TypeScript an `schluessel:`, in SQL bislang
+an vier Stellen (Betriebs- und Plattformeinstellungen, Auditaktionen und deren
+Seeds). Die Benachrichtigungsart ist das **fünfte** Register derselben Form:
+sie steht als Literal in der `insert`-Anweisung von `app.agent_stopp_vermerken`.
+
+Zwei Änderungen statt einer Ausnahme:
+
+* in SQL schneidet der Scanner jetzt `insert into benachrichtigung … ;` heraus
+  (mit `\b`, damit `benachrichtigung_praeferenz` nicht mit verschwindet);
+* in TypeScript steht der Schlüssel **nur** als `schluessel:`-Eigenschaft der
+  Artdefinition, und die exportierte Konstante liest ihn von dort. Ein zweites
+  freies Literal daneben hätte die Prüfung wieder gemeldet.
+
+Der Grund, das sauber zu lösen statt die Art umzubenennen, steht schon im
+Kommentar der Datei: wer die Prüfung kennt, benennt sonst seine Arten um, statt
+den echten Fund zu suchen — und der echte Fund ist ein Tippfehler in einem
+Recht, also ein dauerhaft leerer Bildschirm.

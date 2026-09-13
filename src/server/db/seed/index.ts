@@ -926,6 +926,48 @@ async function main(): Promise<void> {
     }
   }
 
+  // --------------------------------------------------------- Agent-Budgets
+  /**
+   * Ein Monatsbudget je Rechtseinheit — **als klar markierter PLATZHALTER**.
+   *
+   * O-26 ist offen: wieviel Euro im Monat die KI kosten darf, entscheidet die
+   * Geschaeftsfuehrung, nicht diese Datei. Ohne irgendeine Zeile laeuft aber
+   * kein Agent (`budget_fehlt`), und dann zeigt das Agenten-Zentrum einen
+   * leeren Bildschirm, auf dem nichts zu sehen ist ausser einem Fehler — auch
+   * nicht, WIE die Obergrenze wirkt.
+   *
+   * Deshalb: 50,00 € je Gesellschaft und Monat, `ist_platzhalter = true`, und
+   * der Bildschirm schreibt genau das hin. Die Zahl ist bewusst klein — ein
+   * Platzhalter, der zu gross ist, faellt niemandem auf, bevor er kostet.
+   *
+   * `warnschwelle_prozent` bleibt NULL: AGT-05 nennt eine Obergrenze und einen
+   * Hartstopp, zur Warnschwelle sagt die Vorgabe nichts, und „80 %" waere eine
+   * still erfundene Finanzregel (O-195).
+   *
+   * TODO(client, O-26): Monatsbudget je Gesellschaft — und je Agent?
+   */
+  const JETZT_BERLIN = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit',
+  }).format(new Date());
+  const BUDGET_JAHR = Number(JETZT_BERLIN.slice(0, 4));
+  const BUDGET_MONAT = Number(JETZT_BERLIN.slice(5, 7));
+  const BUDGET_PLATZHALTER_CENT = 5_000n;
+
+  for (const b of BEREICHE) {
+    await sql`
+      insert into agent_budget
+        (mandant_id, geltungsbereich, jahr, monat, budget_cent, ist_platzhalter,
+         erstellt_von_art, erstellt_von_dienst)
+      values (${ids.get(b.slug)!}, 'mandant', ${BUDGET_JAHR}, ${BUDGET_MONAT},
+              ${BUDGET_PLATZHALTER_CENT.toString()}, true, 'system', 'job:seed')
+      on conflict do nothing`;
+  }
+  process.stdout.write(
+    `  KI-Budget: ${BEREICHE.length} Zeilen fuer ${String(BUDGET_MONAT).padStart(2, '0')}/`
+    + `${BUDGET_JAHR}, je 50,00 € — PLATZHALTER (O-26)\n`
+    + '  · keine Warnschwelle: die Vorgabe nennt keine (O-195)\n',
+  );
+
   // ------------------------------------------------ Ein Konto je Rolle (PR 19)
   /**
    * Vier Menschen, vier Rollen — damit die Rollenprobe echte Sitzungen hat.

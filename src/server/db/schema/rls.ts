@@ -65,6 +65,56 @@ export interface Loeschsperre {
  */
 export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
   {
+    tabelle: 'agent_aufgabe',
+    art: 'archiv',
+    migration: '0128',
+    grund:
+      'AGT-04. Was ein Agent getan hat, ist die Antwort auf die Frage, warum '
+      + 'etwas im System steht. Eine geloeschte Aufgabe nimmt ihre Schritte '
+      + 'mit — und damit die Begruendung eines Entwurfs, den ein Mensch '
+      + 'freigegeben hat. Beendet wird mit status, nie durch Loeschen.',
+  },
+  {
+    tabelle: 'agent_schritt',
+    art: 'append',
+    migration: '0128',
+    grund:
+      'AGT-04, LEG-09. Das Schrittprotokoll ist der Nachweis, WAS der Agent '
+      + 'gelesen und WAS er einem Modell geschickt hat. Die einzige erlaubte '
+      + 'Aenderung ist die Schwaerzung der Nutzlast nach Frist — sie leert '
+      + 'Spalten und entfernt keine Zeile.',
+  },
+  {
+    tabelle: 'agent_kosten',
+    art: 'append',
+    migration: '0128',
+    grund:
+      'AGT-05. Die Kostenzeilen SIND das Monatsbudget: der Verbrauch ist ihre '
+      + 'Summe. Eine geloeschte Zeile senkt den Verbrauch und hebt damit '
+      + 'ruecklaufend eine Obergrenze auf, die bereits gegriffen hat. '
+      + 'Korrigiert wird durch eine zweite Zeile.',
+  },
+  {
+    tabelle: 'agent_budget',
+    art: 'archiv',
+    migration: '0128',
+    grund:
+      'AGT-05. Die Budgetzeile traegt die Obergrenze UND den Nachweis, dass '
+      + 'und wann gestoppt wurde (gestoppt_am). Sie zu loeschen loescht beides '
+      + 'und laesst die Agenten im naechsten Aufruf weiterlaufen, als waere '
+      + 'nichts gewesen.',
+  },
+  {
+    tabelle: 'agent_reservierung',
+    art: 'archiv',
+    migration: '0128',
+    grund:
+      'AGT-05. Eine Reservierung ist gebundenes Budget. Wird die Zeile '
+      + 'geloescht statt freigegeben, bleibt der Zaehler in agent_budget '
+      + 'gebunden und niemand kann mehr sehen, wofuer — geschlossen wird mit '
+      + 'freigegeben_am und freigabe_grund.',
+  },
+  {
     tabelle: 'konto_mapping',
     art: 'archiv',
     migration: '0126',

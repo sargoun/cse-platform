@@ -124,13 +124,6 @@ create trigger periode_geaendert
   before update on periode
   for each row execute function kern.setze_geaendert_am();
 
-create trigger trg_periode_kein_hard_delete
-  before delete on periode
-  for each row execute function kern.verhindere_loeschung();
-create trigger trg_periode_kein_truncate
-  before truncate on periode
-  for each statement execute function kern.verhindere_loeschung();
-
 -- =========================================================================
 -- 3. `buchungssatz` — die Zeile (§9.2)
 -- =========================================================================
@@ -480,13 +473,6 @@ create trigger bs_aufbewahrung
   before insert or update on buchungssatz
   for each row execute function fin.aufbewahrung_aus_klasse('belegdatum');
 
-create trigger trg_buchungssatz_kein_hard_delete
-  before delete on buchungssatz
-  for each row execute function kern.verhindere_loeschung();
-create trigger trg_buchungssatz_kein_truncate
-  before truncate on buchungssatz
-  for each statement execute function kern.verhindere_loeschung();
-
 -- =========================================================================
 -- 7. RLS und Rechte (§1.1–§1.5, K-03, K-04, D-388)
 -- =========================================================================
@@ -676,3 +662,29 @@ grant execute on function app.buchungssatz_schreiben(uuid, uuid, date, uuid, big
                                                      text, text, text, uuid, text, text,
                                                      buchung_herkunft, uuid, text, text)
   to cse_app, cse_job;
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0127)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- periode (archiv): ACC-08, LEG-01. Ein geloeschter Buchungsmonat nimmt die Festschreibung mit, die ihn abgeschlossen hat — und die Monatszahlen, die der Steuerberater bereits bekommen hat.
+create trigger trg_periode_kein_hard_delete
+  before delete on periode
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_periode_kein_truncate
+  before truncate on periode
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on periode from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- buchungssatz (archiv): ACC-01, ACC-06, GoBD. Die Buchungszeile IST der Nachweis. Korrigiert wird durch Gegenbuchung (storniert_durch_id), nie durch Loeschen.
+create trigger trg_buchungssatz_kein_hard_delete
+  before delete on buchungssatz
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_buchungssatz_kein_truncate
+  before truncate on buchungssatz
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on buchungssatz from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+

@@ -356,20 +356,6 @@ create trigger konto_mapping_geaendert
   before update on konto_mapping
   for each row execute function kern.setze_geaendert_am();
 
-/**
- * **Keine Loeschung, auch nicht der Zuordnung** (Invariante 8).
- *
- * Eine geloeschte Zuordnung machte jede Buchung, die auf ihr beruht,
- * unerklaerlich: das Konto steht dann im `buchungssatz`, aber der Grund ist
- * fort. Geschlossen wird mit `gueltig_bis`.
- */
-create trigger trg_konto_mapping_kein_hard_delete
-  before delete on konto_mapping
-  for each row execute function kern.verhindere_loeschung();
-create trigger trg_konto_mapping_kein_truncate
-  before truncate on konto_mapping
-  for each statement execute function kern.verhindere_loeschung();
-
 -- =========================================================================
 -- 4. `app.konto_aufloesen` — die Vorrangregel, an EINER Stelle (§9.3)
 -- =========================================================================
@@ -611,3 +597,20 @@ grant select on konto_mapping, datev_konfiguration to cse_job;
 
 create policy j_km_lesen on konto_mapping for select to cse_job using (true);
 create policy j_dk_lesen on datev_konfiguration for select to cse_job using (true);
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0126)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- konto_mapping (archiv): ACC-01. Eine geloeschte Kontenzuordnung macht jede Buchung, die auf ihr beruht, unerklaerlich: das Konto steht im buchungssatz, der Grund ist fort. Geschlossen wird mit gueltig_bis.
+create trigger trg_konto_mapping_kein_hard_delete
+  before delete on konto_mapping
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_konto_mapping_kein_truncate
+  before truncate on konto_mapping
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on konto_mapping from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
