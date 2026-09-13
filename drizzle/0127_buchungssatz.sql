@@ -124,10 +124,10 @@ create trigger periode_geaendert
   before update on periode
   for each row execute function kern.setze_geaendert_am();
 
-create trigger periode_nicht_loeschen
+create trigger trg_periode_kein_hard_delete
   before delete on periode
   for each row execute function kern.verhindere_loeschung();
-create trigger periode_nicht_truncaten
+create trigger trg_periode_kein_truncate
   before truncate on periode
   for each statement execute function kern.verhindere_loeschung();
 
@@ -480,10 +480,10 @@ create trigger bs_aufbewahrung
   before insert or update on buchungssatz
   for each row execute function fin.aufbewahrung_aus_klasse('belegdatum');
 
-create trigger bs_nicht_loeschen
+create trigger trg_buchungssatz_kein_hard_delete
   before delete on buchungssatz
   for each row execute function kern.verhindere_loeschung();
-create trigger bs_nicht_truncaten
+create trigger trg_buchungssatz_kein_truncate
   before truncate on buchungssatz
   for each statement execute function kern.verhindere_loeschung();
 
@@ -657,6 +657,19 @@ create policy d_buchungssatz on buchungssatz for all to cse_definer using (true)
 revoke all on function app.periode_sichern(uuid, date) from public;
 revoke all on function app.buchungssatz_storniert(uuid, uuid, uuid) from public;
 revoke all on function app.buchen_erlaubt(uuid) from public;
+/**
+ * **Diese Zeile fehlte, und die K-08-Wache hat sie gefunden** — nicht ich.
+ * Eine `SECURITY DEFINER`-Funktion traegt das Standardrecht `EXECUTE` fuer
+ * PUBLIC, solange es niemand entzieht: jede Rolle der Datenbank haette
+ * Buchungszeilen schreiben koennen, am Rechtetor `app.buchen_erlaubt`
+ * vorbei? Nein — das Tor greift auch dann. Aber PUBLIC-Rechte auf einer
+ * Definer-Funktion sind genau die Flaeche, die K-08 ausschliesst, und
+ * eine Ausnahme fuer diese eine waere eine Ausnahme fuer die naechste.
+ */
+revoke all on function app.buchungssatz_schreiben(uuid, uuid, date, uuid, bigint,
+                                                  soll_haben, text, text, text, uuid,
+                                                  text, text, buchung_herkunft, uuid,
+                                                  text, text) from public;
 grant execute on function app.periode_sichern(uuid, date) to cse_app, cse_job;
 grant execute on function app.buchungssatz_storniert(uuid, uuid, uuid) to cse_app, cse_job;
 grant execute on function app.buchungssatz_schreiben(uuid, uuid, date, uuid, bigint, soll_haben,

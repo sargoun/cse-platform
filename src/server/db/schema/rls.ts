@@ -65,6 +65,32 @@ export interface Loeschsperre {
  */
 export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
   {
+    tabelle: 'konto_mapping',
+    art: 'archiv',
+    migration: '0126',
+    grund:
+      'ACC-01. Eine geloeschte Kontenzuordnung macht jede Buchung, die auf ihr '
+      + 'beruht, unerklaerlich: das Konto steht im buchungssatz, der Grund ist '
+      + 'fort. Geschlossen wird mit gueltig_bis.',
+  },
+  {
+    tabelle: 'periode',
+    art: 'archiv',
+    migration: '0127',
+    grund:
+      'ACC-08, LEG-01. Ein geloeschter Buchungsmonat nimmt die Festschreibung '
+      + 'mit, die ihn abgeschlossen hat — und die Monatszahlen, die der '
+      + 'Steuerberater bereits bekommen hat.',
+  },
+  {
+    tabelle: 'buchungssatz',
+    art: 'archiv',
+    migration: '0127',
+    grund:
+      'ACC-01, ACC-06, GoBD. Die Buchungszeile IST der Nachweis. Korrigiert '
+      + 'wird durch Gegenbuchung (storniert_durch_id), nie durch Loeschen.',
+  },
+  {
     tabelle: 'firma',
     art: 'archiv',
     migration: '0020',

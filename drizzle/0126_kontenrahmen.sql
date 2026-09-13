@@ -363,10 +363,10 @@ create trigger konto_mapping_geaendert
  * unerklaerlich: das Konto steht dann im `buchungssatz`, aber der Grund ist
  * fort. Geschlossen wird mit `gueltig_bis`.
  */
-create trigger konto_mapping_nicht_loeschen
+create trigger trg_konto_mapping_kein_hard_delete
   before delete on konto_mapping
   for each row execute function kern.verhindere_loeschung();
-create trigger konto_mapping_nicht_truncaten
+create trigger trg_konto_mapping_kein_truncate
   before truncate on konto_mapping
   for each statement execute function kern.verhindere_loeschung();
 
