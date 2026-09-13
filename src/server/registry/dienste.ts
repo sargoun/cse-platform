@@ -83,6 +83,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
   },
   { modul: 'finanzen', pfad: 'finanz/menge', schreibend: false },
   /**
+   * Der CAMT.053-Leser und der Abgleich sind REINE Funktionen (PR 61): XML
+   * herein, Zeilen hinaus; offene Posten herein, ein VORSCHLAG hinaus. Keine
+   * Datenbank, kein Schreibrecht — und genau deshalb laesst sich jede
+   * Zuordnungsregel ohne Fixtur pruefen. Was der Vorschlag wird, entscheidet
+   * der Dienst darueber; nur ein eindeutiger Treffer darf ohne Menschen
+   * gebucht werden (ACC-04).
+   */
+  { modul: 'zahlung', pfad: 'finanz/bank/camt', schreibend: false },
+  { modul: 'zahlung', pfad: 'finanz/bank/abgleich', schreibend: false },
+  /**
    * Die Kalkulation LIEST — sie schreibt nichts. Der Preis, den sie
    * ausrechnet, wird erst vom Angebot gespeichert, und das ist der Dienst,
    * der dann sein Schreibrecht nennt. Solange die Rechnung selbst nichts
