@@ -814,6 +814,31 @@ async function main(): Promise<void> {
     + 'kein Demowert\n',
   );
 
+  // --------------------------------------------------- DATEV-Stammdaten (PR 58)
+  /**
+   * **Eine Zeile je Gesellschaft, und jede fachliche Spalte NULL** (ACC-01,
+   * O-05).
+   *
+   * Die Zeile muss da sein, damit der Bildschirm die Sperre zeigt statt einer
+   * leeren Seite — und damit `app.konto_aufloesen` antworten kann „Kontenrahmen
+   * nicht festgelegt" statt „Zuordnung fehlt". Sie enthaelt aber nichts
+   * Erfundenes: Beraternummer, Mandantennummer, SKR03/04, Sachkontenlaenge und
+   * Versteuerungsart stehen beim Steuerberater. `konto_mapping` bleibt ganz
+   * leer — eine Zuordnung mit geratenem Konto waere schlimmer als keine.
+   */
+  for (const b of BEREICHE) {
+    await sql`
+      insert into datev_konfiguration
+        (mandant_id, ist_platzhalter, verbunden, erstellt_von_art, erstellt_von_dienst)
+      values (${ids.get(b.slug)!}, true, false, 'system', 'job:seed')
+      on conflict (mandant_id) do nothing`;
+  }
+  process.stdout.write(
+    '  DATEV: eine leere Konfiguration je Rechtseinheit, ist_platzhalter = true (O-05)\n'
+    + '  · Kontenzuordnung: KEINE Zeile — ein geratenes Erloeskonto faellt erst beim '
+    + 'Steuerberater auf\n',
+  );
+
   // -------------------------------------------------------------- Bankkonto
   /**
    * Ein Bankkonto je Rechtseinheit — AUS DER GESELLSCHAFT, nicht daneben.

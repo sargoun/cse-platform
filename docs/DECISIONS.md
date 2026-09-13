@@ -6599,3 +6599,72 @@ denn das Kürzel gab es nur, weil im Kopf nichts anderes mehr hineinging. Kein
 zweites `nav` und kein zweites `data-cse="sprachwahl"`: zwei gleich benannte
 Landmarken sind für Screenreader nicht unterscheidbar und für jeden Locator
 zwei Treffer — daran fielen schon einmal dreizehn Sprachprüfungen.
+
+### D-416 · Eine fehlende Kontenzuordnung hält keine Rechnung auf — sie hält den Monatsabschluss auf
+
+`05-FINANZEN.md` §9.3 sagt, der Auflöser `raises` bei mehrdeutiger Zuordnung;
+§9.2 sagt, die Buchung werde dann mit `konto = NULL` und `pruefhinweis`
+geschrieben. Beides zusammen geht nicht, und die Auflösung ist nicht
+Geschmackssache: der Auflöser läuft **innerhalb der Festschreibung einer
+Rechnung**. Eine Ausnahme dort risse einen Beleg mit, der nach §14 UStG
+bereits entstanden ist — wegen einer Konfigurationslücke, die mit der Rechnung
+nichts zu tun hat.
+
+Also: `app.konto_aufloesen` wirft nie. Sie liefert `konto = NULL` und einen
+Grund im Klartext — „Kontenrahmen nicht festgelegt (O-05)", „Kontenzuordnung
+fehlt (debitor_kunde)", „Kontierung mehrdeutig", „noch ein Platzhalter". Die
+Zeile entsteht, sie steht in der Arbeitsliste, sie lässt sich **nicht**
+festschreiben (`bs_fest_nur_kontiert`), sie kommt in **keinen** Export
+(`bs_export_idx` schliesst sie aus), und der Monat lässt sich **nicht**
+schliessen, solange sie offen ist (`fin.periode_schliessen_pruefen`).
+
+Der Fehler ist damit an vier Stellen unübersehbar und an keiner still — und
+die Rechnung, die ihn ans Licht gebracht hat, ist trotzdem gültig entstanden.
+
+### D-417 · Ein Buchungssatz ist EINSEITIG — sonst bewacht der Ausgleichsausloeser nichts
+
+§9.2 verlangt beides: einen Ausloeser, der je `buchung_id` Soll gegen Haben
+prüft, **und** eine Zeile mit `konto` UND `gegenkonto` (die DATEV-Schreibweise,
+in der jede Zeile für sich zwei Konten bewegt). Zusammen ergibt das eine Wache,
+die nie anschlagen kann: eine zweiseitige Zeile ist in sich ausgeglichen, also
+ist jede Summe trivial gleich.
+
+Diese Migration entscheidet sich für die **einseitige** Zeile: eine Zeile bewegt
+ein Konto, `soll_haben` trägt das Vorzeichen, und die Buchung geht über die
+`buchung_id` auf. Damit prüft der Ausloeser etwas — und er hat im ersten
+Testlauf prompt eine unausgeglichene Handbuchung abgewiesen. `gegenkonto` bleibt
+als Spalte (eine Zuordnung kann ein festes Gegenkonto mitbringen); die Paarung
+zur DATEV-Zeile macht der EXTF-Schreiber in PR 60, der ohnehin Feld für Feld
+schreibt. `bs_fest_nur_kontiert` verlangt entsprechend nur `konto`.
+
+**Der Preis, offen genannt:** das Datenmodell-Dokument beschreibt an dieser
+Stelle noch die zweiseitige Zeile. Es folgt mit PR 60, wenn der Schreiber
+zeigt, wie die Paarung tatsächlich aussieht.
+
+### D-418 · Wer eine Rechnung festschreibt, wird dadurch nicht Buchhalter
+
+Der Buchungssatz entsteht in derselben Transaktion wie die Festschreibung
+(§5.6 Schritt 6) — das ist richtig, denn ein Nachlauf hinterliesse
+festgeschriebene Rechnungen, die in keiner Buchhaltung stehen, und niemand
+merkt, wenn ein Nachlauf nicht mehr läuft.
+
+Nur: liefe der INSERT als der Aufrufer, bräuchte **jede Abrechnungskraft**
+`buchhaltung.schreiben`. Entweder man gibt das Recht (und damit Zugriff auf die
+gesamte Buchhaltung an Menschen, die Rechnungen schreiben), oder das
+Festschreiben scheitert plötzlich an „permission denied" — an einer Stelle, an
+der niemand ein Rechteproblem vermutet.
+
+Also drei enge Tore mit `SECURITY DEFINER` (`app.periode_sichern`,
+`app.buchungssatz_schreiben`, `app.buchungssatz_storniert`), die das Recht zur
+**Handlung** verlangen (`finanzen.schreiben` — oder `buchhaltung.schreiben` für
+den, der ohnehin bucht) und je genau eine Sache tun. Die Buchung ist keine
+Handlung des Menschen, sondern die Folge seiner Handlung; die Rechte folgen dem.
+Dieselbe Bauform wie `app.konto_aufloesen` (0126) und `app.kunde_mahnsperre_aktiv`
+(D-407).
+
+**Und ein Befund aus dem eigenen Testlauf:** `storniere()` schreibt eine
+Rechnung mit NEGATIVEN Beträgen fest. Der Buchungsdienst lief mit und
+scheiterte an `umsatz_cent > 0` — DATEV kennt keinen negativen Umsatz, das
+Vorzeichen lebt in `soll_haben`. Ohne die Weiche auf `bucheStorno` hätte jede
+Stornierung an einem Constraint gehangen, den niemand mit dem Storno in
+Verbindung gebracht hätte.

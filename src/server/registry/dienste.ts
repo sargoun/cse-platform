@@ -22,6 +22,24 @@ export interface DienstEintrag {
 }
 
 export const DIENSTE: readonly DienstEintrag[] = [
+  /**
+   * **Die Buchhaltung (PR 58, ACC-01).** `kontenrahmen` und `kontierung`
+   * lesen; `periode` und `buchungssatz` schreiben — und sie schreiben als
+   * Folge einer Festschreibung, nicht als eigene Handlung. Ihr Schreibrecht
+   * ist deshalb `finanzen.schreiben` und nicht `buchhaltung.schreiben`
+   * (D-418): wer eine Rechnung festschreibt, wird dadurch nicht Buchhalter.
+   */
+  { modul: 'buchhaltung', pfad: 'buchhaltung/kontenrahmen', schreibend: false },
+  { modul: 'buchhaltung', pfad: 'buchhaltung/kontierung', schreibend: false },
+  { modul: 'buchhaltung', pfad: 'buchhaltung/index', schreibend: false },
+  {
+    modul: 'buchhaltung', pfad: 'buchhaltung/periode',
+    schreibend: true, schreibRecht: 'finanzen.schreiben',
+  },
+  {
+    modul: 'buchhaltung', pfad: 'buchhaltung/buchungssatz',
+    schreibend: true, schreibRecht: 'finanzen.schreiben',
+  },
   { modul: 'finanzen', pfad: 'finanz/geld', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/steuer/satz', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/hash-chain', schreibend: false },

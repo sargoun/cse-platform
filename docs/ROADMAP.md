@@ -223,7 +223,8 @@ proven by test, not by inspection.
 
 ## Phase 7 · Accounting & DATEV architecture — ACC-*
 
-- [ ] SKR03/04 mapping; automatic booking records
+- [x] SKR03/04 mapping; automatic booking records — **PR 58**: `konto_mapping`
+      leer (O-05), Buchung ohne Zuordnung trägt `konto = NULL` + Prüfhinweis
 - [ ] **DATEV EXTF export — Windows-1252, comma decimal**
       → request a real sample from the tax advisor **before** building
 - [ ] **Belegverknüpfung** — document travels with the booking line
