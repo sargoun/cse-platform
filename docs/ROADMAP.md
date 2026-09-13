@@ -74,17 +74,30 @@ clone, and the architecture document is reviewed.
 
 ## Phase 1 · Tenancy, auth, permissions — TEN-*, AUT-*
 
-- [ ] `mandant` seeded with all four areas
-- [ ] `benutzer`, `rolle`, `berechtigung`, `benutzer_mandant`, `audit_log`
-- [ ] **`person` / `anstellung` split from the first migration (D-09)** — one
+> **Die Haken der Phasen 1 bis 5 sind am 13.09.2026 nachgezogen worden** — und
+> zwar EINZELN, gegen die Datenbank und die Pruefungen (72 Isolationsdateien,
+> 34 Browserdateien), nicht pauschal gegen die Erinnerung. Sie standen leer,
+> obwohl die Arbeit lag; eine Liste, die Gebautes als offen fuehrt, ist
+> genauso irrefuehrend wie eine, die Offenes als gebaut fuehrt.
+>
+> **Was sich nicht belegen liess, steht weiter offen** — namentlich die
+> Rechteverwaltung in der Oberflaeche (kein `rolle_berechtigung` in `src/app`),
+> die Inhaltsuebernahme von cse-dienstleistungen.de, der WCAG-2.1-AA-Audit als
+> Befund (die Pruefung laeuft, der Audit ist ein Dokument) und die
+> Lighthouse-Messung auf einem echten Geraet. Ein Haken, den niemand
+> nachrechnen kann, ist schlimmer als ein leeres Kaestchen.
+
+- [x] `mandant` seeded with all four areas
+- [x] `benutzer`, `rolle`, `berechtigung`, `benutzer_mandant`, `audit_log`
+- [x] **`person` / `anstellung` split from the first migration (D-09)** — one
       human, one employment per entity; certificates on the person, everything
       costed on the employment
-- [ ] **RLS enabled on every tenant table**; session sets the active mandant
-- [ ] Supabase Auth; 2FA for `super_admin` and `admin`
+- [x] **RLS enabled on every tenant table**; session sets the active mandant
+- [x] Supabase Auth; 2FA for `super_admin` and `admin`
 - [ ] Five roles with configurable permissions, editable in the UI
-- [ ] **Mandant switcher per DESIGN §6** — avatar + ring, dropdown with live
+- [x] **Mandant switcher per DESIGN §6** — avatar + ring, dropdown with live
       counters, group entry marked `NUR LESEN`, top hue bar, `⌘K` shortcut
-- [ ] Group view route exists and is **read-only** at the service layer
+- [x] Group view route exists and is **read-only** at the service layer
 - [ ] Every switch and auth event in `audit_log`
 
 **Acceptance:**
@@ -97,17 +110,17 @@ clone, and the architecture document is reviewed.
 
 ## Phase 2 · Public website & profiles — PUB-*, PRO-*, REQ-*
 
-- [ ] All pages per PUB-01, content from the database
-- [ ] Four profile pages with logo, cover, services, images, projects, posts
+- [x] All pages per PUB-01, content from the database
+- [x] Four profile pages with logo, cover, services, images, projects, posts
 - [ ] Content migrated from cse-dienstleistungen.de
-- [ ] Per-area offer request forms with real quoting fields
-- [ ] Submission creates a `lead` with SLA and owner; escalation job
-- [ ] UTM and referrer captured
-- [ ] JSON-LD, `llms.txt`, sitemap, robots
+- [x] Per-area offer request forms with real quoting fields
+- [x] Submission creates a `lead` with SLA and owner; escalation job
+- [x] UTM and referrer captured
+- [x] JSON-LD, `llms.txt`, sitemap, robots
 - [ ] **WCAG 2.1 AA audit passes**
 - [ ] Lighthouse: performance and accessibility green on mobile
-- [ ] Circular brand-avatar row under the hero (PUB-14)
-- [ ] All imagery marked as placeholder until the client supplies real photos
+- [x] Circular brand-avatar row under the hero (PUB-14)
+- [x] All imagery marked as placeholder until the client supplies real photos
 
 **Acceptance:** a form submission on a phone appears as an owned lead with a
 deadline inside the portal, with its source recorded.
@@ -116,11 +129,11 @@ deadline inside the portal, with its source recorded.
 
 ## Phase 3 · Portals & dashboards — DSH-*, EMP-*
 
-- [ ] Super Admin dashboard (DSH-01) with area filter
-- [ ] Admin, Leitung, Employee, Customer dashboards, each scoped
-- [ ] Every figure links through to its records
+- [x] Super Admin dashboard (DSH-01) with area filter
+- [x] Admin, Leitung, Employee, Customer dashboards, each scoped
+- [x] Every figure links through to its records
 - [ ] Customer portal: own projects, orders, offers, invoices, documents, messages
-- [ ] Employee portal shell (full hours features land in Phase 5)
+- [x] Employee portal shell (full hours features land in Phase 5)
 
 **Acceptance:** an employee account can reach nothing beyond its own data —
 proven by test, not by inspection.
@@ -129,15 +142,15 @@ proven by test, not by inspection.
 
 ## Phase 4 · CRM & operations — CRM-*, OPS-*
 
-- [ ] Companies, contacts, leads with score, status, owner, next action
-- [ ] **`rechtsgrundlage` on every contact; outbound blocked when `keine`**
-- [ ] Notes, communication history, follow-ups
-- [ ] Customers, objects, **Raumbuch** (rooms, m², floor types)
-- [ ] Floor-type catalogue with performance values
-- [ ] Excel/CSV Raumbuch import with preview before commit
-- [ ] Service catalogue, costing engine, offer PDF per entity
-- [ ] Offer → order conversion
-- [ ] New contract wizard (OPS-10)
+- [x] Companies, contacts, leads with score, status, owner, next action
+- [x] **`rechtsgrundlage` on every contact; outbound blocked when `keine`**
+- [x] Notes, communication history, follow-ups
+- [x] Customers, objects, **Raumbuch** (rooms, m², floor types)
+- [x] Floor-type catalogue with performance values
+- [x] Excel/CSV Raumbuch import with preview before commit
+- [x] Service catalogue, costing engine, offer PDF per entity
+- [x] Offer → order conversion
+- [x] New contract wizard (OPS-10)
 
 **Acceptance:** a cleaning offer can be priced from the Raumbuch
 (`Σ m² ÷ performance value × frequency`) without manual arithmetic.
@@ -148,20 +161,20 @@ proven by test, not by inspection.
 
 **Write the time tests first.** No scheduling UI before they pass.
 
-- [ ] `planungsserie` (RRULE), `einsatz`, generator filling eight weeks
-- [ ] Berlin holidays excluded
-- [ ] Dienstplan with parallel columns; conflict and ArbZG detection
-- [ ] **ArbZG aggregated per person across entities** (TIM-14)
-- [ ] **Hard block on expired certificates**, enforced in the service layer
-- [ ] Tokenised check-in link — no app, no login
-- [ ] Server-authoritative time; device time and deviation stored
-- [ ] Offline queue, photo/video capture, correction trail
-- [ ] Employee portal: hours per day/week/month, Stundenkonto, leave balance,
+- [x] `planungsserie` (RRULE), `einsatz`, generator filling eight weeks
+- [x] Berlin holidays excluded
+- [x] Dienstplan with parallel columns; conflict and ArbZG detection
+- [x] **ArbZG aggregated per person across entities** (TIM-14)
+- [x] **Hard block on expired certificates**, enforced in the service layer
+- [x] Tokenised check-in link — no app, no login
+- [x] Server-authoritative time; device time and deviation stored
+- [x] Offline queue, photo/video capture, correction trail
+- [x] Employee portal: hours per day/week/month, Stundenkonto, leave balance,
       monthly PDF, objection flow, certificates, requests, multilingual
-- [ ] Cleaning: Reviere, Turnus, Leistungsnachweis with signature snapshot
-- [ ] Security: Posten, §34a tracking, Bewacherregister, Wachbuch,
+- [x] Cleaning: Reviere, Turnus, Leistungsnachweis with signature snapshot
+- [x] Security: Posten, §34a tracking, Bewacherregister, Wachbuch,
       Dienstanweisung with acknowledgement, key receipts
-- [ ] Construction: LV, Aufmaß with Rechenansatz parser, Nachträge,
+- [x] Construction: LV, Aufmaß with Rechenansatz parser, Nachträge,
       Behinderungsanzeige, Bautagebuch with DWD weather
 
 **Acceptance:**
