@@ -330,6 +330,24 @@ export default async function Rechnungsblatt(
         >
           XRechnung ansehen
         </Link>
+        {/*
+          * ZUGFeRD (PR 53) — und der Verweis steht nur bei einem
+          * FESTGESCHRIEBENEN Beleg.
+          *
+          * Ein Entwurf hat keinen Schnappschuss (K-12); der Knopf gäbe eine
+          * 422-Antwort mit einer Liste, die auf dieser Seite ohnehin schon
+          * steht. Ein Knopf, der beim Drücken erklärt, warum er nicht geht,
+          * ist ein Knopf zu viel.
+          */}
+        {k.status === 'festgeschrieben' && (
+          <a
+            href={`/api/finanzen/rechnungen/${k.id}/zugferd.pdf`}
+            data-cse="zugferd-laden"
+            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+          >
+            ZUGFeRD-PDF laden
+          </a>
+        )}
       </nav>
 
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">

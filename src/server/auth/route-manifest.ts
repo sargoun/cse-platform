@@ -743,6 +743,16 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Dieselbe Rechnung als ZUGFeRD (PR 53, FIN-12) — PDF/A-3 mit
+     * eingebetteter CII. Dasselbe Recht wie die XRechnung: es ist derselbe
+     * Beleg aus derselben Quelle, nur in dem Format, das ein gewerblicher
+     * Empfänger erwartet.
+     */
+    pfad: 'api/finanzen/rechnungen/[id]/zugferd.pdf',
+    recht: 'finanzen.herunterladen',
+  },
+  {
+    /**
      * Verwerfen ist ein ZUSTANDSWECHSEL, kein Loeschen (Invariante 8). Der
      * Entwurf bleibt mit Grund stehen — er ist der Satz, den eine
      * Betriebspruefung liest, wenn sie nach der fehlenden Nummer fragt.

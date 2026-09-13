@@ -9,6 +9,7 @@ import 'server-only';
  * Fehler, den niemand sieht: die Seite zeigt die richtige Rechnung, die
  * Adresse liefert eine andere.
  */
+import { baueZugferdPdf } from '../zugferd/pdfa3.js';
 import { baueUbl, type UblOptionen } from './index.js';
 import { leseNutzlast } from './aus-snapshot.js';
 
@@ -74,6 +75,48 @@ export async function ublZurRechnung(
    */
   const optionen: UblOptionen = { leitwegPflicht: zeile.ist_pflicht };
   return { xml: baueUbl(rechnung, optionen), nummer: rechnung.nummer };
+}
+
+/**
+ * Dasselbe für ZUGFeRD: die Rechnung als PDF/A-3 mit eingebetteter CII
+ * (FIN-12, PR 53).
+ *
+ * **Aus demselben Snapshot wie die XRechnung** (K-12). Beide Formate lesen
+ * dieselben Bytes; sie können deshalb gar nicht auseinanderlaufen, auch wenn
+ * sich die Stammdaten längst geändert haben.
+ *
+ * `erzeugtAm` ist das FESTSCHREIBUNGSDATUM und nicht die Uhr: derselbe Beleg
+ * ergibt dadurch bei jedem Abruf byte-gleich dasselbe PDF (Invariante 5,
+ * K-11). Wer zweimal herunterlädt, bekommt zweimal dieselbe Datei — und ihr
+ * SHA-256 taugt als Nachweis.
+ */
+export async function zugferdZurRechnung(
+  db: Abfrage, rechnungId: string,
+): Promise<{ readonly pdf: Uint8Array; readonly nummer: string } | null> {
+  const [zeile] = await db.abfrage<SnapshotZeile>(
+    `select r.nummer, s.schema_version, s.nutzlast_bytes,
+            (k.xrechnung_pflicht or k.ist_oeffentlicher_auftraggeber) as ist_pflicht
+       from rechnung r
+       join kunde k on k.mandant_id = r.mandant_id and k.id = r.kunde_id
+       left join rechnung_snapshot s on s.rechnung_id = r.id
+      where r.id = $1`,
+    [rechnungId],
+  );
+  if (zeile === undefined) return null;
+  if (zeile.nutzlast_bytes === null || zeile.schema_version === null) {
+    throw new KeinSnapshotFehler(zeile.nummer);
+  }
+
+  const rechnung = leseNutzlast(zeile.nutzlast_bytes);
+  const pdf = await baueZugferdPdf(rechnung, {
+    erzeugtAm: new Date(rechnung.festgeschriebenAm),
+  });
+  return { pdf, nummer: rechnung.nummer };
+}
+
+/** Der Dateiname des PDF — dieselbe Regel wie beim XML-Dateinamen. */
+export function pdfDateiname(nummer: string): string {
+  return dateiname(nummer).replace(/\.xml$/u, '.pdf');
 }
 
 /**

@@ -712,6 +712,18 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'mahnung', pfad: 'finanz/mahnung/stufen',
     schreibend: true, schreibRecht: 'mahnung.schreiben',
   },
+  /**
+   * ZUGFeRD (PR 53, FIN-12).
+   *
+   * Alle drei LESEN nur: `cii` setzt XML aus einem Schnappschuss zusammen,
+   * `icc` rechnet ein Farbprofil aus Konstanten, `pdfa3` setzt daraus ein
+   * Blatt. Keiner von ihnen sieht eine Datenbank — die Rechnung kommt fertig
+   * herein (K-12). Modul `finanzen`, weil es derselbe Beleg ist wie die
+   * XRechnung, nur in einem zweiten Format.
+   */
+  { modul: 'finanzen', pfad: 'finanz/zugferd/cii', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/zugferd/icc', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/zugferd/pdfa3', schreibend: false },
 ] as const;
 
 /**

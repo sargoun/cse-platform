@@ -6455,3 +6455,48 @@ dieser Näherung, und die genaue Regel ist Teil von O-19.
 Was der Bildschirm NICHT tut: den Basiszinssatz pflegen. Er gilt für alle
 Gesellschaften und ist eine Bekanntmachung der Bundesbank, keine
 Hausentscheidung (D-409, O-358).
+
+### D-411 · ZUGFeRD ist kein zweites Rechnungsformat, sondern dieselbe Rechnung zweimal
+
+FIN-11 und FIN-12 sehen wie zwei Aufgaben aus und sind eine. Die XRechnung
+(UBL) geht an öffentliche Auftraggeber; ZUGFeRD geht an gewerbliche Kunden,
+die eine PDF-Rechnung erwarten und sie automatisch einlesen wollen. EN 16931
+ist die gemeinsame Semantik, CII und UBL zwei Syntaxen dafür.
+
+**Beide lesen denselben Snapshot (K-12), und beide benutzen dieselbe
+Vorprüfung.** Was als XRechnung nicht entsteht, entsteht auch nicht als
+ZUGFeRD. Sonst wäre das eine Format die Hintertür für eine Rechnung, die das
+andere als unvollständig abgewiesen hat — an einem Beleg, der nach §14 UStG
+nicht mehr geändert werden darf.
+
+Die ROADMAP-Abnahme lautet „totals equal in both directions". Der Test liest
+die sieben Endsummen aus BEIDEN Dokumenten und vergleicht sie auf den Cent —
+nicht gegen die Eingabedaten, denn zwei Bauer, die dieselbe Zahl gleich falsch
+übernehmen, bestünden das.
+
+### D-412 · Das Farbprofil wird gerechnet, nicht mitgeliefert
+
+PDF/A-3 verlangt einen OutputIntent mit eingebettetem ICC-Profil — das Profil
+liegt also in JEDER Rechnung, die das Haus verlässt. Die verbreiteten fertigen
+sRGB-Profile stehen unter Lizenzen, die genau das mitregeln wollen: eines
+unter CC BY-SA, bei mehreren war kein Lizenztext auffindbar. Eine
+Share-Alike-Bedingung an einer Kundenrechnung ist eine Verpflichtung, die
+niemand eingehen wollte und die niemandem auffällt, bis sie jemandem auffällt.
+
+`icc.ts` erzeugt das Profil stattdessen aus den veröffentlichten Festlegungen
+(IEC 61966-2-1 für sRGB, ISO 15076-1 für das Dateiformat): D50-adaptierte
+Primärvalenzen, Bradford-Matrix, 1024 Stützstellen der sRGB-Kurve. Das
+Ergebnis ist reproduzierbar, prüfbar — `tests/kern/icc.test.ts` liest Kopf und
+Tagtabelle zurück — und gehört niemandem.
+
+**Die Schrift ist Noto Sans (OFL 1.1) und nicht Inter.** DESIGN §2 nennt Inter
+als Hausschrift; es gibt sie nur als Variable Font, und eine variable Schrift
+bettet in PDF/A eine Instanz ein, die niemand festgelegt hat. Für einen Beleg
+mit zehn Jahren Aufbewahrungspflicht ist eine statische Schrift die richtige
+Wahl, und der Bildschirm bleibt davon unberührt.
+
+**Und dasselbe PDF bei jedem Abruf.** `erzeugtAm` kommt aus dem
+Festschreibungsdatum, nicht aus der Uhr: zwei Abrufe desselben Belegs ergeben
+byte-gleich dieselbe Datei, und ihr SHA-256 taugt damit als Nachweis. Ein
+Dokument, das sich bei jedem Herunterladen ändert, beweist nichts (Invariante
+5, K-11).

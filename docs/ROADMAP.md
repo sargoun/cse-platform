@@ -195,7 +195,9 @@ proven by test, not by inspection.
       the relevant date stays open — O-21, one injected parameter)
 - [x] XRechnung with Leitweg-ID, KoSIT-validated in CI (PR 52; the transmission
       route per public client stays open — O-22)
-- [ ] ZUGFeRD 2.x PDF/A-3
+- [x] ZUGFeRD 2.x PDF/A-3 (PR 53: CII aus demselben Snapshot wie die
+      XRechnung, PDF/A-3 mit eingebetteter `factur-x.xml`, selbst erzeugtes
+      sRGB-Profil statt einer fremden Datei, veraPDF in CI)
 - [~] Incoming invoices, expenses, payments, dunning — **payments, open items,
       incoming invoices and dunning done** (PR 54.1: `zahlung`,
       `offener_posten`, `zahlung_zuordnung`, `op_ausgleich`, nightly

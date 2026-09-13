@@ -105,6 +105,59 @@ test.describe('Rechnungsausgangsbuch (FIN-16)', () => {
     await expect(page.getByText('ohne — Entwurf')).toHaveCount(0);
   });
 
+  /**
+   * PR 53 — der ZUGFeRD-Knopf, und dass er eine echte Datei liefert.
+   *
+   * Der Bauer ist in `tests/kern/zugferd-pdf.test.ts` geprüft, die
+   * PDF/A-Konformität in CI durch veraPDF. Hier steht die eine Frage, die
+   * beide nicht beantworten: kommt man vom Bildschirm aus daran?
+   */
+  test('die festgeschriebene Rechnung lässt sich als ZUGFeRD-PDF laden',
+    async ({ page }) => {
+      await anmelden(page);
+      const nummer = await belegFestschreiben(page);
+
+      const knopf = page.locator('[data-cse="zugferd-laden"]');
+      await expect(knopf).toBeVisible();
+
+      const antwort = await page.request.get(
+        (await knopf.getAttribute('href')) ?? '');
+
+      /*
+       * **Zwei erlaubte Ausgänge, und beide sind ganz.**
+       *
+       * Die Demodaten sind nach §14 UStG nicht vollständig — der Seed sagt
+       * das selbst (O-134, O-01). Ein ZUGFeRD-PDF entsteht daraus nicht, und
+       * das ist richtig: es wäre ein Beleg, den der Empfänger ablehnt. Die
+       * Zusage dieser Route lautet deshalb nicht „immer ein PDF", sondern
+       * „ein vollständiges PDF oder eine benannte Liste dessen, was fehlt" —
+       * nie eine halbe Datei. Genau das prüft dieser Fall, in beide
+       * Richtungen.
+       */
+      if (antwort.status() === 200) {
+        expect(antwort.headers()['content-type']).toContain('application/pdf');
+        expect(antwort.headers()['content-disposition']).toContain(`${nummer}`);
+        const körper = await antwort.body();
+        expect(körper.subarray(0, 5).toString('latin1')).toBe('%PDF-');
+        /* Die eingebettete Rechnung — der Kern von ZUGFeRD. */
+        expect(körper.toString('latin1')).toContain('factur-x.xml');
+        return;
+      }
+
+      expect(antwort.status()).toBe(422);
+      expect(antwort.headers()['content-type']).toContain('application/json');
+      const bericht = await antwort.json() as
+        { fehler: string; fehlend?: readonly { bt: string; feld: string }[] };
+      expect(bericht.fehler).toBe('unvollstaendig');
+      expect(bericht.fehlend?.length ?? 0).toBeGreaterThan(0);
+      /* Jede Zeile nennt ihre BT-Nummer — die steht im Prüfbericht des
+         Empfängers, und ohne sie sucht jemand im falschen Feld. */
+      for (const f of bericht.fehlend ?? []) {
+        expect(f.bt).toMatch(/^B[TG]-\d+$/u);
+        expect(f.feld.length).toBeGreaterThan(0);
+      }
+    });
+
   test('axe findet auf dem Ausgangsbuch nichts', async ({ page }) => {
     await anmelden(page);
     await belegFestschreiben(page);

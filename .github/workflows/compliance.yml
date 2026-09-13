@@ -66,3 +66,65 @@ jobs:
           path: .kosit/ausgabe
           if-no-files-found: ignore
           retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # veraPDF — die Referenzimplementierung der PDF/A-Norm (FIN-12).
+  #
+  # Eigener Auftrag aus demselben Grund wie beim KoSIT-Prüfer: er bringt ein
+  # eigenes Java-Werkzeug mit eigener Fassung mit, und sein Ausfall soll keinen
+  # Textfehler aufhalten. Auch er ist erforderlich — ein ZUGFeRD-PDF, dessen
+  # PDF/A-Konformität niemand geprüft hat, ist ein Archivbeleg auf Zuruf.
+  # ---------------------------------------------------------------------------
+  zugferd:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+
+      - run: pnpm install --frozen-lockfile
+
+      # Auf eine FESTE Fassung gepinnt, wie das XRechnung-Regelwerk: eine neue
+      # Prüferfassung soll den Bau nicht an einem beliebigen Dienstag umwerfen.
+      - name: veraPDF holen
+        run: |
+          mkdir -p .verapdf
+          curl -sSL --retry 3 --retry-delay 5 -o .verapdf/installer.zip \
+            https://software.verapdf.org/releases/1.26/verapdf-greenfield-1.26.2-installer.zip
+          unzip -q .verapdf/installer.zip -d .verapdf
+          cat > .verapdf/auto-install.xml <<'XML'
+          <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+          <AutomatedInstallation langpack="eng">
+            <com.izforge.izpack.panels.htmlhello.HTMLHelloPanel id="welcome"/>
+            <com.izforge.izpack.panels.target.TargetPanel id="install_dir">
+              <installpath>${{ github.workspace }}/.verapdf/verapdf</installpath>
+            </com.izforge.izpack.panels.target.TargetPanel>
+            <com.izforge.izpack.panels.packs.PacksPanel id="sdk_pack_select">
+              <pack index="0" name="veraPDF GUI" selected="true"/>
+              <pack index="1" name="veraPDF Mac and *nix Scripts" selected="true"/>
+              <pack index="3" name="veraPDF Corpus and Validation model" selected="true"/>
+              <pack index="4" name="veraPDF Documentation" selected="false"/>
+              <pack index="5" name="veraPDF Sample Plugins" selected="false"/>
+            </com.izforge.izpack.panels.packs.PacksPanel>
+            <com.izforge.izpack.panels.install.InstallPanel id="install"/>
+            <com.izforge.izpack.panels.finish.FinishPanel id="finish"/>
+          </AutomatedInstallation>
+          XML
+          java -jar .verapdf/verapdf-greenfield-*/verapdf-izpack-installer-*.jar \
+            .verapdf/auto-install.xml
+
+      - name: PDF/A-3B prüfen
+        env:
+          VERAPDF_CLI: ${{ github.workspace }}/.verapdf/verapdf/verapdf
+          VERAPDF_AUSGABE: ${{ github.workspace }}/.verapdf/ausgabe
+        run: pnpm test:compliance
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verapdf-berichte
+          path: .verapdf/ausgabe
+          if-no-files-found: ignore
