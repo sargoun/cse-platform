@@ -251,9 +251,24 @@ Radar first — the agents operate on its output.
 - [ ] Platform registration tracking (RAD-09)
 - [ ] `pgvector` index over contracts, objects, offers, correspondence
 - [ ] Agent tools (AGT-02); `berechne_preis` is **pure code**
-- [ ] Policy gate from `agent_richtlinie`, editable in the UI
-- [ ] Per-step logging with tokens and cost; monthly budget hard stop
+- [x] Policy gate (`agent/policy.ts`) — the floor is code, not data: an offer,
+      a Nachtrag and a Behinderungsanzeige never go out automatically under
+      any `agent_richtlinie` row. The gate is exhaustive over the whole
+      configuration space in `tests/kern/gate.test.ts`.
+      **Still open:** editing the rules from the UI (AGT-03).
+- [x] Per-step logging with tokens and cost; monthly budget hard stop (PR 74)
+      — `agent_aufgabe`, `agent_schritt`, `agent_kosten` in micro-cents, the
+      one cent conversion (K-16(b)), and a hard stop that survives the
+      transaction it rejects in (D-419). The step payload is readable only
+      through `app.agent_nutzlast_lesen` with `agent.protokoll_lesen`, and
+      every read is audited (D-424).
+- [x] The Agent Centre reads it (PR 76): the four agents with their switch
+      state, every run with steps and cost, the monthly cap with consumption
+      and reserved amount, and the step chain per run.
+      **The screens say plainly that no model access is configured** — and
+      there is no start button until there is a provider (D-426).
 - [ ] Four agents: CEO Assistant, Acquisition, Back-office, Finance
+      — blocked on the model access above, not on the runtime.
 - [ ] Approval inbox with diff review, source attribution, confidence flags,
       batch approval, delayed release, undo, approval snapshots
 - [ ] Watchdog jobs (SPEC §14)
