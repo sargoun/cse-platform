@@ -53,11 +53,22 @@ describe('veraPDF — der Prüfer, gegen den die Archive prüfen', () => {
      * was wir selbst hineingeschrieben haben, statt gegen das, was wir
      * behaupten.
      */
-    const bericht = execFileSync(CLI, ['--format', 'xml', '--flavour', '3b', datei], {
-      encoding: 'utf8', stdio: 'pipe', timeout: 300_000,
-      /* veraPDF endet mit 1, sobald ein Dokument nicht konform ist — der
-         Bericht ist dann trotzdem da und nennt den Grund. */
-    });
+    let bericht: string;
+    try {
+      bericht = execFileSync(CLI, ['--format', 'xml', '--flavour', '3b', datei], {
+        encoding: 'utf8', stdio: 'pipe', timeout: 300_000,
+      });
+    } catch (fehler) {
+      /*
+       * veraPDF endet mit 1, sobald ein Dokument nicht konform ist — und
+       * genau dann braucht jemand den Bericht. Ohne diesen `catch` würde
+       * `execFileSync` werfen, bevor die Datei geschrieben ist: der Lauf wäre
+       * rot, das Artefakt leer, und die verletzte Regel stünde nirgends. Der
+       * Bericht liegt in `stdout` des Fehlers.
+       */
+      bericht = (fehler as { stdout?: string }).stdout ?? '';
+      if (bericht === '') throw fehler;
+    }
     writeFileSync(join(ziel, 'verapdf-bericht.xml'), bericht);
 
     expect(bericht, 'veraPDF hat das Dokument nicht als konform bewertet')

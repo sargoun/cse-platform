@@ -64,10 +64,16 @@ function dateien(verzeichnis: string, endungen: readonly string[]): string[] {
 
 /**
  * Ist das der ECHTE Baum? `wachen.test.ts` laesst die Wachen in einem
- * Wegwerf-Baum ohne `package.json` laufen; dort fehlen `drizzle/`,
- * `src/server/db` und `tests/` mit Absicht.
+ * Wegwerf-Baum laufen; dort fehlen `drizzle/`, `src/server/db` und `tests/`
+ * mit Absicht.
+ *
+ * **Das Kennzeichen ist die Sperrdatei und nicht `package.json`.** Eine Wache
+ * darf `package.json` LESEN (`konformitaetsauftrag` tut es), und dann muss ein
+ * Wegwerf-Baum eine schreiben duerfen, ohne dass er sich dadurch als echter
+ * Baum ausgibt und jede andere Wache an einem fehlenden `src/server/db`
+ * abstuerzen laesst. `pnpm-lock.yaml` legt niemand fuer ein Pruefstueck an.
  */
-const ECHTER_BAUM = existsSync(join(WURZEL, 'package.json'));
+const ECHTER_BAUM = existsSync(join(WURZEL, 'pnpm-lock.yaml'));
 
 /**
  * Wie `dateien`, aber im echten Baum muss etwas dabei herauskommen.
@@ -947,6 +953,107 @@ function wacheSvgWohlgeformt(): void {
   }
 }
 
+/**
+ * Jeder Konformitaetsbereich hat seinen EIGENEN CI-Auftrag und seinen eigenen
+ * Aufruf — und kein Auftrag faehrt `pnpm test:compliance` unbesehen.
+ *
+ * **Der Fehlschlag, gegen den das geschrieben ist.** `tests/compliance/`
+ * enthaelt Pruefungen gegen FREMDE Werkzeuge, und jedes Werkzeug installiert
+ * sich sein Auftrag selbst: KoSIT braucht `KOSIT_JAR`, veraPDF `VERAPDF_CLI`.
+ * Beide Auftraege riefen `pnpm test:compliance` auf, und das faehrt die ganze
+ * Konfiguration. Also fuhr der KoSIT-Auftrag auch den veraPDF-Test, ohne
+ * dessen Werkzeug — und die Tests sind mit Absicht so gebaut, dass ein
+ * fehlendes Werkzeug in CI ein Fehlschlag ist und kein Ueberspringen. Ergebnis:
+ * ein roter Auftrag, dessen eigene Pruefung gruen war, und das an einem Tag,
+ * an dem niemand an der XRechnung etwas geaendert hatte.
+ *
+ * **Warum eine Wache und nicht nur die Korrektur.** Der naechste Bereich
+ * (Z3/GoBD in Phase 7 zum Beispiel) bringt wieder ein eigenes Werkzeug mit.
+ * Wer ihn anlegt und den Auftrag vergisst, bekaeme entweder einen Bereich,
+ * den niemand prueft, oder faerbte zwei fremde Auftraege rot. Beides faellt
+ * hier auf, bevor es zusammengefuehrt wird.
+ */
+function wacheKonformitaetsauftrag(): void {
+  const wurzel = join(WURZEL, 'tests', 'compliance');
+  // Kein Konformitaetsbereich, nichts zu sagen — und die Wache laeuft auch im
+  // Wegwerf-Baum von `wachen.test.ts`, sobald der einen anlegt.
+  if (!existsSync(wurzel)) return;
+
+  const paket = join(WURZEL, 'package.json');
+  const ablauf = join(WURZEL, '.github', 'workflows', 'compliance.yml');
+  if (!existsSync(ablauf)) {
+    melde('konformitaetsauftrag', ablauf, 1,
+      'Es gibt `tests/compliance/`, aber keinen CI-Ablauf, der die Pruefungen faehrt.');
+    return;
+  }
+  if (!existsSync(paket)) {
+    melde('konformitaetsauftrag', paket, 1,
+      'Es gibt `tests/compliance/`, aber keine `package.json` mit den Skripten je Bereich.');
+    return;
+  }
+  const skripte = (JSON.parse(readFileSync(paket, 'utf8')) as {
+    scripts?: Record<string, string>;
+  }).scripts ?? {};
+  const ablaufText = readFileSync(ablauf, 'utf8');
+
+  /*
+   * Der unbesehene Aufruf ist der Fehler selbst — `pnpm test:compliance` ohne
+   * Bereich am Ende der Zeile. Die Wache liest zeilenweise, damit
+   * `test:compliance:zugferd` NICHT als Treffer zaehlt.
+   */
+  ablaufText.split('\n').forEach((zeile, i) => {
+    if (/pnpm\s+(run\s+)?test:compliance\s*$/u.test(zeile)) {
+      melde('konformitaetsauftrag', ablauf, i + 1,
+        'Dieser Auftrag faehrt ALLE Konformitaetspruefungen, auch die fremder '
+        + 'Bereiche, deren Werkzeug er nicht installiert hat. `pnpm '
+        + 'test:compliance:<bereich>` aufrufen.');
+    }
+  });
+
+  const bereiche = readdirSync(wurzel)
+    .filter((d) => statSync(join(wurzel, d)).isDirectory())
+    .filter((d) => dateien(join('tests', 'compliance', d), ['.test.ts']).length > 0);
+  if (bereiche.length === 0) {
+    throw new Error(
+      'Merge-Wachen: `tests/compliance/` enthaelt keinen Bereich mit Tests. '
+      + 'Eine Wache, die nichts liest, meldet "sauber".',
+    );
+  }
+
+  for (const bereich of bereiche) {
+    const name = `test:compliance:${bereich}`;
+    const skript = skripte[name];
+    if (skript === undefined) {
+      melde('konformitaetsauftrag', paket, 1,
+        `Bereich \`tests/compliance/${bereich}\` hat kein Skript \`${name}\`. `
+        + 'Ohne eigenes Skript kann sein CI-Auftrag nur alles fahren — auch fremde '
+        + 'Werkzeuge, die er nicht hat.');
+    } else if (!skript.includes(`tests/compliance/${bereich}`)) {
+      melde('konformitaetsauftrag', paket, 1,
+        `\`${name}\` schraenkt nicht auf \`tests/compliance/${bereich}\` ein und `
+        + 'faehrt damit auch fremde Bereiche.');
+    }
+    if (!ablaufText.includes(name)) {
+      melde('konformitaetsauftrag', ablauf, 1,
+        `Kein Auftrag ruft \`pnpm ${name}\` auf. Ein Konformitaetsbereich, den `
+        + 'CI nicht faehrt, ist eine Pruefung auf Zuruf (FIN-11, §5.14.3).');
+    }
+  }
+
+  /*
+   * Und die Gegenrichtung: ein Skript fuer einen Bereich, den es nicht mehr
+   * gibt, laesst einen CI-Auftrag gruen durchlaufen, ohne eine Datei zu lesen.
+   */
+  for (const name of Object.keys(skripte)) {
+    const bereich = /^test:compliance:(.+)$/u.exec(name)?.[1];
+    if (bereich !== undefined && !bereiche.includes(bereich)) {
+      melde('konformitaetsauftrag', paket, 1,
+        `\`${name}\` zeigt auf \`tests/compliance/${bereich}\` — das Verzeichnis `
+        + 'gibt es nicht (mehr). Der Auftrag laeuft gruen, ohne zu pruefen.');
+    }
+  }
+}
+
 async function main(): Promise<void> {
   wacheGeldSpalte();
   wacheZeitstempel();
@@ -961,6 +1068,7 @@ async function main(): Promise<void> {
   wacheValidator();
   wacheMigrationsnummer();
   wacheSvgWohlgeformt();
+  wacheKonformitaetsauftrag();
   await wacheKonfigAdressen();
 
   if (befunde.length > 0) {

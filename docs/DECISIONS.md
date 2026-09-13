@@ -6500,3 +6500,41 @@ Festschreibungsdatum, nicht aus der Uhr: zwei Abrufe desselben Belegs ergeben
 byte-gleich dieselbe Datei, und ihr SHA-256 taugt damit als Nachweis. Ein
 Dokument, das sich bei jedem Herunterladen ändert, beweist nichts (Invariante
 5, K-11).
+
+### D-413 · Ein Konformitätsauftrag fährt nur den Bereich, dessen Werkzeug er installiert hat
+
+`tests/compliance/` prüft gegen FREMDE Werkzeuge, und jedes bringt sein eigenes
+Java mit: KoSIT für die XRechnung, veraPDF für das ZUGFeRD-Archiv. Beide
+CI-Aufträge riefen `pnpm test:compliance` auf — und das fährt die GANZE
+Konfiguration. Der KoSIT-Auftrag fuhr damit auch den veraPDF-Test, ohne dessen
+`VERAPDF_CLI`, und umgekehrt. Beide Tests fallen bei fehlendem Werkzeug mit
+Absicht durch, statt sich zu überspringen (D-403), also standen zwei rote
+Aufträge da, deren eigene Prüfung grün war: der KoSIT-Prüfer hatte alle vier
+Muster angenommen, der veraPDF-Prüfer das erzeugte PDF als PDF/A-3B.
+
+Ab jetzt hat jeder Bereich ein eigenes Skript (`test:compliance:xrechnung`,
+`test:compliance:zugferd`), das auf sein Verzeichnis einschränkt, und jeder
+Auftrag ruft genau seines auf. `pnpm test:compliance` bleibt für den
+Entwicklungsrechner, wo beide Prüfer fehlen dürfen.
+
+**Und eine Wache hält es so.** `konformitaetsauftrag` (in `pnpm guards`)
+verlangt für jedes Verzeichnis unter `tests/compliance/` ein gleichnamiges
+Skript, das einschränkt, und einen Auftrag, der es aufruft; sie meldet den
+unbesehenen Aufruf `pnpm test:compliance` in einem Auftrag und auch ein Skript,
+dessen Bereich es nicht mehr gibt. Der nächste Bereich — Z3/GoBD in Phase 7 —
+bringt wieder ein eigenes Werkzeug mit; wer ihn anlegt und den Auftrag
+vergisst, bekäme sonst entweder einen Bereich, den niemand prüft, oder färbte
+zwei fremde Aufträge rot. Neun Sabotagefälle in `tests/kern/wachen.test.ts`
+zeigen die Wache je einmal feuern.
+
+**Nebenher: das Kennzeichen des echten Baums ist jetzt `pnpm-lock.yaml`.** Die
+Wachen erkannten ihn an `package.json` — und diese Wache LIEST `package.json`,
+also muss ein Wegwerf-Baum eine schreiben dürfen, ohne sich dadurch als echter
+Baum auszugeben und jede andere Wache an einem fehlenden `src/server/db`
+abstürzen zu lassen.
+
+**Und der veraPDF-Bericht überlebt jetzt den Fehlschlag.** Der Prüfer endet
+mit 1, sobald ein Dokument nicht konform ist; `execFileSync` warf dann, bevor
+der Bericht geschrieben war. Rot war der Lauf, leer das Artefakt, und die
+verletzte Regel stand nirgends — genau im einzigen Fall, in dem sie jemand
+braucht.

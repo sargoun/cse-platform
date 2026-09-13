@@ -54,7 +54,15 @@ jobs:
           # Im Arbeitsbereich und nicht in /tmp: `upload-artifact` laedt sonst
           # nichts hoch und sagt es nur in einer Warnung, die niemand liest.
           KOSIT_AUSGABE: ${{ github.workspace }}/.kosit/ausgabe
-        run: pnpm test:compliance
+        # NUR der eigene Bereich, nicht `test:compliance`.
+        #
+        # Der Fehlschlag, gegen den das geschrieben ist: beide Auftraege
+        # riefen `pnpm test:compliance` auf, und das faehrt die GANZE
+        # Konfiguration. Der KoSIT-Auftrag fuehrte damit auch den
+        # veraPDF-Test aus — ohne `VERAPDF_CLI`, also rot —, obwohl seine
+        # eigene Pruefung gruen war. Ein Auftrag laeuft gegen das Werkzeug,
+        # das er selbst installiert hat, und gegen kein anderes.
+        run: pnpm test:compliance:xrechnung
 
       # Die Prüfberichte bleiben liegen, auch wenn alles grün war: wer eine
       # Regel nachlesen will, braucht sie nicht erst rot zu machen.
@@ -120,7 +128,9 @@ jobs:
         env:
           VERAPDF_CLI: ${{ github.workspace }}/.verapdf/verapdf/verapdf
           VERAPDF_AUSGABE: ${{ github.workspace }}/.verapdf/ausgabe
-        run: pnpm test:compliance
+        # Dieselbe Trennung wie oben, aus demselben Grund: dieser Auftrag
+        # hat kein `KOSIT_JAR` und hat den KoSIT-Test nicht zu fahren.
+        run: pnpm test:compliance:zugferd
 
       - uses: actions/upload-artifact@v4
         if: always()

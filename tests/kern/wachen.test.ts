@@ -380,3 +380,122 @@ describe('(8) eine nicht wohlgeformte SVG faellt durch (D-376)', () => {
     expect(code).toBe(0);
   });
 });
+
+/**
+ * Die Wache `konformitaetsauftrag` — jeder Konformitaetsbereich hat seinen
+ * eigenen CI-Auftrag, und kein Auftrag faehrt die anderen mit.
+ *
+ * **Der echte Ausfall, gegen den sie geschrieben ist.** `compliance.yml` hat
+ * zwei Auftraege, jeder installiert sein eigenes Java-Werkzeug — KoSIT fuer
+ * die XRechnung, veraPDF fuer das ZUGFeRD-Archiv. Beide riefen aber
+ * `pnpm test:compliance` auf, und das faehrt die GANZE Konfiguration. Der
+ * KoSIT-Auftrag fuhr damit auch den veraPDF-Test, ohne `VERAPDF_CLI` — und
+ * die Konformitaetstests fallen in CI mit Absicht durch, statt sich zu
+ * ueberspringen. Rot war also der Auftrag, dessen eigene Pruefung gruen war.
+ *
+ * Jeder Fall hier setzt genau EINE Schraube falsch; ginge einer davon durch,
+ * kaeme derselbe Montag wieder.
+ */
+describe('(3h) ein Konformitaetsbereich ohne eigenen CI-Auftrag faellt', () => {
+  const TEST_DATEI = 'export {};\n';
+
+  /** Ein Baum mit `tests/compliance/zugferd`, dessen Verdrahtung stimmt. */
+  function baum(
+    aenderungen: { skripte?: Record<string, string>; ablauf?: string } = {},
+  ): Record<string, string> {
+    const skripte = aenderungen.skripte ?? {
+      'test:compliance:zugferd':
+        'vitest run --config vitest.compliance.config.ts tests/compliance/zugferd',
+    };
+    const ablauf = aenderungen.ablauf ?? 'jobs:\n  zugferd:\n'
+      + '    steps:\n      - run: pnpm test:compliance:zugferd\n';
+    return {
+      'tests/compliance/zugferd/verapdf.test.ts': TEST_DATEI,
+      'package.json': `${JSON.stringify({ name: 'pruefstueck', scripts: skripte }, null, 2)}\n`,
+      '.github/workflows/compliance.yml': ablauf,
+    };
+  }
+
+  it('die richtige Verdrahtung geht durch — sonst waere die Wache ein Fehlalarm', () => {
+    const { code, ausgabe } = guardsMit(baum());
+    expect(code).toBe(0);
+    expect(ausgabe).toContain('alle sauber');
+  });
+
+  it('DER echte Fehler: ein Auftrag ruft `pnpm test:compliance` unbesehen', () => {
+    const { code, ausgabe } = guardsMit(baum({
+      ablauf: 'jobs:\n  xrechnung:\n    steps:\n      - run: pnpm test:compliance\n'
+        + '  zugferd:\n    steps:\n      - run: pnpm test:compliance:zugferd\n',
+    }));
+    expect(code).toBe(1);
+    expect(ausgabe).toContain('konformitaetsauftrag');
+    expect(ausgabe).toContain('Dieser Auftrag faehrt ALLE Konformitaetspruefungen');
+  });
+
+  it('… auch als `pnpm run test:compliance`', () => {
+    const { code, ausgabe } = guardsMit(baum({
+      ablauf: 'jobs:\n  alles:\n    steps:\n      - run: pnpm run test:compliance\n',
+    }));
+    expect(code).toBe(1);
+    expect(ausgabe).toContain('Dieser Auftrag faehrt ALLE Konformitaetspruefungen');
+  });
+
+  it('ein neuer Bereich ohne eigenes Skript', () => {
+    const { code, ausgabe } = guardsMit(baum({ skripte: { test: 'vitest run' } }));
+    expect(code).toBe(1);
+    expect(ausgabe).toContain('hat kein Skript `test:compliance:zugferd`');
+  });
+
+  it('ein Skript, das nicht auf seinen Bereich einschraenkt', () => {
+    const { code, ausgabe } = guardsMit(baum({
+      skripte: { 'test:compliance:zugferd': 'vitest run --config vitest.compliance.config.ts' },
+    }));
+    expect(code).toBe(1);
+    expect(ausgabe).toContain('schraenkt nicht auf `tests/compliance/zugferd` ein');
+  });
+
+  it('ein Skript, das kein Auftrag aufruft — geprueft wird dann nichts', () => {
+    const { code, ausgabe } = guardsMit(baum({
+      ablauf: 'jobs:\n  zugferd:\n    steps:\n      - run: pnpm lint\n',
+    }));
+    expect(code).toBe(1);
+    expect(ausgabe).toContain('Kein Auftrag ruft `pnpm test:compliance:zugferd` auf');
+  });
+
+  it('ein Skript fuer einen Bereich, den es nicht mehr gibt', () => {
+    const { code, ausgabe } = guardsMit(baum({
+      skripte: {
+        'test:compliance:zugferd':
+          'vitest run --config vitest.compliance.config.ts tests/compliance/zugferd',
+        'test:compliance:gobd':
+          'vitest run --config vitest.compliance.config.ts tests/compliance/gobd',
+      },
+      ablauf: 'jobs:\n  zugferd:\n    steps:\n      - run: pnpm test:compliance:zugferd\n'
+        + '  gobd:\n    steps:\n      - run: pnpm test:compliance:gobd\n',
+    }));
+    expect(code).toBe(1);
+    expect(ausgabe).toContain('zeigt auf `tests/compliance/gobd`');
+  });
+
+  it('ein Bereich ohne CI-Ablauf ueberhaupt', () => {
+    const dateien = baum();
+    const ohne: Record<string, string> = {
+      'tests/compliance/zugferd/verapdf.test.ts': TEST_DATEI,
+      'package.json': dateien['package.json'] ?? '',
+    };
+    const { code, ausgabe } = guardsMit(ohne);
+    expect(code).toBe(1);
+    expect(ausgabe).toContain('keinen CI-Ablauf');
+  });
+
+  it('und die ECHTE Verdrahtung des Baums geht durch', () => {
+    const { code, ausgabe } = guardsMit({
+      'tests/compliance/xrechnung/kosit.test.ts': TEST_DATEI,
+      'tests/compliance/zugferd/verapdf.test.ts': TEST_DATEI,
+      'package.json': lies('package.json'),
+      '.github/workflows/compliance.yml': lies('.github/workflows/compliance.yml'),
+    });
+    expect(code).toBe(0);
+    expect(ausgabe).toContain('alle sauber');
+  });
+});
