@@ -167,7 +167,7 @@ grant select (id, mandant_id, typ, belegdatum) on beleg to cse_definer;
  * bisher fehlte: `eingang.freigeben` darf buchen.
  *
  * **Warum nicht `buchhaltung.schreiben`.** Wer eine Eingangsrechnung bucht,
- * ist die Person, die sie freigegeben hat — dieselbe Ueberlegung wie D-418
+ * ist die Person, die sie freigegeben hat — dieselbe Ueberlegung wie D-426
  * fuer die Ausgangsseite: die Buchung ist die FOLGE ihrer Handlung, nicht
  * eine eigene, und ein zweites Recht zu verlangen hiesse, jeder
  * Rechnungspruefung Zugriff auf die gesamte Buchhaltung zu geben.

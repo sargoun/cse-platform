@@ -2984,6 +2984,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-189 | Will any of the three entities ever invoice, or receive invoices, in a currency other than EUR? |
 | O-190 | Is the counter-signed Leistungsnachweis (CLN-04) kept as evidence behind a cleaning invoice line, in addition to the time entries? |
 | O-358 | Who maintains the §247 BGB Basiszinssatz — accounting per entity or the group centrally — and should the watchdog notify a named person instead of only failing the run? |
+| O-359 | SEC-A7 is only half delivered: HSTS, `nosniff`, `X-Frame-Options`, `frame-ancestors` and a `Permissions-Policy` are set (D-416), but a full `Content-Security-Policy` needs a per-request nonce through the middleware and every inline script the App Router emits. When is that work scheduled, and which external origins (SMS gateway callbacks, Supabase storage) must the policy allow? |
 
 **`02-datenmodell/06-RADAR-KI-INHALT.md`**
 
@@ -6600,7 +6601,213 @@ zweites `nav` und kein zweites `data-cse="sprachwahl"`: zwei gleich benannte
 Landmarken sind für Screenreader nicht unterscheidbar und für jeden Locator
 zwei Treffer — daran fielen schon einmal dreizehn Sprachprüfungen.
 
-### D-416 · Eine fehlende Kontenzuordnung hält keine Rechnung auf — sie hält den Monatsabschluss auf
+## Entschieden in der Durchsicht nach Phase 6 — Navigation, Telefon, Tablet, Sicherheit
+
+Eine Fehlerrunde, keine Phase: der gebaute Stand wurde als Browser
+durchlaufen — jede Rolle des Seeds, jede von ihr erreichbare Seite, bei 375,
+820 und 1440px, mit Konsole, Statuscode und `scrollWidth`. 643 Seitenaufrufe.
+Was dabei aufging, steht hier; was offen bleibt, unter „Open".
+
+### D-416 · SEC-A7 gibt es jetzt — und der Sitzungskeks hat einen Satz Attribute
+
+Es gab keinen einzigen Sicherheitskopf. SPEC §20 führt SEC-A7 (CSP, HSTS,
+X-Frame-Options), `ursprung.ts` beruft sich auf HSTS als zweite Linie, und
+`next.config.ts` kannte kein `headers()`. Jede Antwort ging ohne
+`Strict-Transport-Security`, ohne `nosniff`, einbettbar in jede fremde Seite.
+
+Jetzt trägt jede Antwort HSTS (zwei Jahre, Unterdomänen, `preload` — der
+Wert aus 03-AUTH §4.1 und 05-API-KARTE §B.14; die Eintragung in die
+Preload-Liste ist ein Schritt der Inbetriebnahme, nach O-08), `nosniff`,
+`X-Frame-Options: DENY` plus `frame-ancestors 'none'`,
+`Referrer-Policy: strict-origin-when-cross-origin` und die
+`Permissions-Policy` aus §B.14 (Kamera und Standort nur `self`, Mikrofon und
+Zahlung niemand). Die Werte stehen in `src/lib/sicherheitskoepfe.ts` ohne
+jede Abhängigkeit, damit die Konfiguration sie vor dem Bau laden kann; der
+Unit-Test liest die Konstante UND die Verdrahtung in `next.config.ts`, und
+`tests/e2e/headers.spec.ts` liest die echten Antworten — öffentliche Seite,
+Auth-Seite, Portalseite, Route-Handler, 404. **Keine vollständige CSP** — mit
+`'unsafe-inline'` sähe sie fertig aus und schützte nichts; ohne braucht sie
+eine Nonce-Kette durch die Middleware. Das ist O-359.
+
+Der Sitzungskeks wurde an drei Stellen gesetzt und nur an einer mit `secure`
+(Codeeingabe ja, Entwicklungsanmeldung und Abmeldung nein). Ein Keks ohne
+`secure` reist auch über `http://`. Jetzt gibt es `sitzungsKeksOptionen()` in
+`server/auth/sitzung.ts`, und alle drei Setzer — auch das Löschen — nehmen
+denselben Satz; `secure` hängt an `NODE_ENV`, weil `http://localhost` und das
+Telefon im Heimnetz (D-414) sonst keinen Keks bekämen. `POST /api/abmelden`
+prüft zusätzlich den Ursprung wie jeder andere schreibende Handler: es war der
+einzige ohne.
+
+**Der Name ist in der Auslieferung `__Host-cse_sitzung`**, wie 03-AUTH §4.1
+es festlegt — der Präfix lässt den Browser den Keks nur mit `Secure`,
+`Path=/` und ohne `Domain` annehmen, und dann kann keine Unterdomäne einen
+gleichnamigen unterschieben; `Secure` allein verhindert das nicht. In der
+Entwicklung bleibt es bei `cse_sitzung`: ohne `Secure` gibt es keinen
+`__Host-`-Keks, und `Secure` fällt dort aus dem Grund oben weg. Umstellung:
+die erste Auslieferung mit dem neuen Namen kennt alte `cse_sitzung`-Kekse
+nicht mehr, wer eine Sitzung hatte, meldet sich einmal neu an; die Abmeldung
+löscht den alten Namen mit.
+
+### D-417 · Die öffentliche Kopfzeile hat drei Stufen — die volle Zeile erst ab `xl`
+
+**Der Befund.** Die volle Zeile — Auftrittsname, vier Punkte,
+Gesellschaftswahl, roter Knopf, Anmelden, zwei Sprachen — braucht gemessen
+rund 1130px. Sie stand ab `md` (768px). Ergebnis auf JEDER öffentlichen Seite
+von 768 bis etwa 1090px: `scrollWidth` 1032 bei 768/820/1024px Fenster, der
+Auftrittsname auf **0px** geschrumpft (`min-w-0` + `truncate` taten genau,
+was sie sollen), „Angebot anfragen" zweizeilig, „Anmelden" angeschnitten, die
+Sprachwahl ausserhalb des Fensters. Jedes iPad hochkant und quer, jedes
+kleine Notebook. Die Prüfungen bei 375 und 1280px sahen davon nichts — sie
+prüften genau die zwei Breiten, die passten.
+
+**Die Regel.** Unter `lg`: Auftrittsname und Menüknopf, alles andere im
+Blatt (wie bisher am Telefon). `lg` bis `xl`: dazu die vier Punkte und der
+rote Knopf — rund 745px; Gesellschaften, Anmelden und Sprachwahl bleiben im
+Blatt, das dort schon alles trägt. Ab `xl` (1280px) die volle Zeile. Der
+Auftrittsname ist auf **keiner** Breite gekürzt; das war bisher nur für
+360–414px zugesichert (D-415) und gilt jetzt für jede Stufe. DESIGN §5 hat
+die Tabelle.
+
+Das Kürzel „DE/EN" in der Sprachwahl ist weg: es gab es nur, weil die Zeile
+einmal bei 375px voll war; ab `xl` steht der Eigenname, im Blatt stand er
+schon.
+
+### D-418 · Die Mobilskala aus DESIGN §2 wird angewendet — und der Hero steht auf `display`
+
+`TYPO_MOBIL` (display 36/40, h1 30/36, h2 24/30) stand seit PR 0 in
+`theme.ts`, und nichts las es. Ein Telefon bekam die 40px-Überschrift des
+Schreibtischs; „Angebot für Gebäudereinigung anfragen" brauchte dort drei
+Zeilen, und das Angebotsformular bekam deshalb schon einmal `hyphens: auto`
+als Einzelfall. Jetzt trägt `globals.css` die Skala als Media-Regel unter
+`md`, und `tests/design/tokens.test.ts` prüft, dass die Werte dort dieselben
+sind wie im Token — sonst kennt der PDF-Renderer eine andere Skala als die
+Seite.
+
+Der Hero benutzt `text-display`, wie §2 es für die Hero-Überschrift nennt
+(56/60, am Telefon 36/40); er stand auf `h1` und war damit am Schreibtisch
+eine Stufe zu klein und am Telefon eine zu gross.
+
+Ausserdem brechen `.text-display` bis `.text-h3` jetzt mit `hyphens: auto`
+und `overflow-wrap: anywhere`: deutsche Komposita („Eingangsrechnungen",
+„Beschäftigungen") sind ein Wort, und ein Wort, das breiter ist als das
+Fenster, verbreitert sonst die Seite (WCAG 1.4.10).
+
+### D-419 · Das Mitarbeiterportal ist auch in seiner Navigation übersetzt
+
+Die fünf Tabs kamen aus `registry/tableiste.ts` und standen nur auf Deutsch.
+Die arabische Oberfläche trug unten „Heute · Schichten · Stunden ·
+Nachrichten · Profil", die Spur oben las „‹ Heute ›", die Kopfzeile „Bereich
+wechseln · Konto · Website · Abmelden". Wer WEGEN der Übersetzung hier liest
+(EMP-12), fand die Navigation unübersetzt.
+
+`PortalRahmen` nimmt jetzt `beschriftungen` (je Tab-Schlüssel und unter
+`sitzung.*` für die Kopfzeile) und reicht sie an Leiste und Schiene durch;
+`MeinRahmen` füllt sie aus `MeinTexte`, das um `nachrichten`, `profil`,
+`bereichWechseln`, `konto`, `website`, `abmelden` gewachsen ist. Das interne
+Portal lässt die Angabe weg und bekommt die deutschen Labels des Registers.
+
+„Bereich wechseln" bleibt auch im Mitarbeiterportal stehen — der erste
+Entwurf dieser Runde nahm es dort heraus, und `portal-ausgang.spec.ts` hielt
+dagegen: ein Konto kann in einer Gesellschaft Beschäftigte und in einer
+anderen Leitung sein, und dann ist `/auth/bereich` der einzige Weg in das
+andere Portal (03-AUTH §4.4). Ein Ausgang, der einer Rolle fehlt, ist der
+Fehler, den diese Prüfung seit dreimal verhindert.
+
+**Drei Nachträge aus der Durchsicht des Pull Requests.** Erstens: die
+Sitzungsnavigation der Kopfzeile ist unter `sm` ausgeblendet, und die
+Arbeiter-, Kunden- und Gruppenleiste haben kein „Mehr"-Blatt — auf dem
+Telefon einer Reinigungskraft gab es damit weder Konto noch Website und vor
+allem **keine Abmeldung**; ein weitergegebenes Telefon blieb angemeldet.
+`PortalRahmen` trägt jetzt für Leisten ohne „Mehr" ein Sitzungsmenü hinter
+dem Personen-Symbol, nur unter `sm`. Zweitens: die Landmarken `Sitzung` und
+`Pfad` waren als `aria-label` deutsch geblieben — ein Screenreader las im
+arabischen Portal deutsche Navigationsnamen; sie kommen jetzt aus derselben
+Karte (`sitzung.label`, `pfad.label`). Drittens: die Karte wurde nur in
+`MeinRahmen` gefüllt, und eine Arbeiterin erreicht über „Konto" und „Profil"
+zwei Hüllen, die nicht dort durchgehen. `portalZugang` liest deshalb die
+Sprache der Person mit (`zugang.sprache`, nur im Mitarbeiterportal), und das
+Konto wie die noch nicht gebauten Ziele der Leiste bekommen dieselbe Karte
+aus `meinBeschriftungen()` — an einer Stelle, statt dreimal abgeschrieben.
+
+### D-420 · `main` ist nie breiter als das Fenster — was breiter ist, rollt für sich
+
+**Der Befund.** 63 Portalseiten liefen bei 375px seitwärts, 35 bei 820px,
+und in jeder war das erste überlaufende Element `main`. `main` ist ein
+Flex-Element, und ein Flex-Element hat `min-width: auto`: es wird nie
+schmaler als der breiteste Inhalt. Ein Wochenraster (984px), eine Tabelle ab
+`md`, ein Musterpfad ohne Trennstelle oder ein 40px-Wort machten damit das
+GANZE `main` breiter als das Fenster — mit ihm die Überschriftzeile, die
+Sprungleiste, jede Karte darin.
+
+**Die Regel.** `main` trägt `min-w-0`. Was wirklich breiter ist, rollt in
+seinem eigenen Behälter: `DataTable` ab `md` (unter `md` ist sie ohnehin ein
+Stapel — §8 bleibt unberührt), das Wochenraster (hatte den Behälter schon),
+der MiLoG-Monatsnachweis und die Abzugstabelle der Rechnung. Werte in
+`auto/1fr`-Rastern (Konto, Mitarbeiterkarten) tragen `min-w-0 break-words`
+wie seit D-415 das Impressum. Der Musterpfad auf „Dieses Modul wird noch
+gebaut" bricht mit `break-all`.
+
+### D-421 · Der Weg zur Anmeldung ist echt — auf der Website und vor dem Portal
+
+„Anmelden" auf der Website zeigte auf `/dev/anmelden` und stand deshalb in
+einem Produktionsbau gar nicht da; „Anmeldung erforderlich" vor jeder
+Portalseite sagte, die Anmeldung werde „gerade gebaut (PR 20)" — PR 20 war
+längst gemergt. Beides zeigt jetzt auf `/auth/mitarbeiter` (Mobilnummer und
+Einmalcode, EMP-01); die Entwicklungsanmeldung bleibt von dort und vom
+`/dev`-Streifen aus erreichbar, bis `/auth/login` (AUT-01) sie ablöst.
+
+### D-422 · Das Konto filtert seine Navigation nach Recht UND Modul — wie das Tor
+
+`/portal/konto` liest seine Karte für Leiste und „Mehr"-Blatt selbst und
+fragte nur `app.hat_recht`. `admin` und `leitung` halten `bau.lesen`,
+`security.lesen`, `reinigung.lesen` in jedem Bereich; im Konto der Reinigung
+standen deshalb Bau, Security, Dienstanweisungen und Schlüssel — und jeder
+Punkt fiel auf 404, weil das Modul dort nicht gebucht ist (D-377). Vier
+Menüpunkte auf 404, je Rolle und Gesellschaft, gefunden vom Durchlauf. Die
+Seite bildet jetzt dieselbe Schnittmenge wie `portalZugang`.
+
+**Und denselben Gruppen-Scope.** Im Gruppen-Scope IST `app.mandant_ids` die
+sichtbare Menge; `portalZugang` setzt sie vor jeder Rechtefrage, diese Seite
+tat es nicht. `app.sichtbare_mandanten()` war leer, jedes `gruppe.*`-Recht
+`false`, und die Gruppenleitung hatte auf ihrem Konto weder Leiste noch
+Schiene — im Durchlauf als `sidebar: false` protokolliert, benannt von der
+Durchsicht des Pull Requests. Jetzt wird die Einstellung wie im Tor gesetzt,
+und `portal-ausgang.spec.ts` prüft die Schiene der Gruppenleitung.
+
+### D-423 · Kleinere Befunde derselben Runde
+
+- **Kein App-Symbol.** `public/` trug weder `favicon.ico` noch ein Symbol;
+  jeder Aufruf holte ein 404, der Reiter blieb leer. `src/app/icon.svg` in
+  der Palette von §1, mit der Initiale, bis das Logo vorliegt (O-12).
+- **Hover, der nie zu sehen war.** `KachelRaster` legte `hover:bg-surface-2`
+  auf den Verweis UM die Kachel; die Kachel selbst trägt `bg-surface` und
+  deckte ihn. Jetzt hebt sich die Kachel wie jede interaktive Karte (§5).
+  Die Bereichsauswahl unter `/angebot` bekommt denselben Zustand.
+- **Das Angebotsformular sah anders aus als jedes Feld im Portal**
+  (`surface-2`, keine Mindesthöhe, `--danger-strong` als Textfarbe). Es nimmt
+  jetzt die Feldoptik von `FormField` und den `Button` der Komponente.
+- **„Anschrift"** stand als deutsches Literal auch auf `/en/impressum`.
+- **Nicht reproduzierbar:** sechs von rund 950 Aufrufen (vier im ersten
+  Durchlauf über 643 Seiten, zwei im Nachlauf über 309) meldeten React 418
+  (Hydration), jedes Mal auf anderen Seiten. 36 gezielte Wiederholungen —
+  zwölf gegen den Produktionsbau mit Vergleich von Server-HTML und
+  hydriertem DOM, 24 gegen den Entwicklungsserver, der den vollständigen
+  Unterschied ausgäbe — zeigten keinen Unterschied und keinen Fehler. Die
+  Meldung fiel mit dem Durchlauf zusammen, der das Fenster während des
+  Ladens umgestellt hat. Bleibt als Beobachtung stehen, nicht als Befund.
+
+---
+
+## Entschieden in Phase 6/7 — Finanzen, Buchhaltung, Agenten-Laufzeit
+
+**Diese Reihe beginnt bei D-424 und nicht bei D-416.** Zwei Zweige liefen
+gleichzeitig und vergaben beide ab D-416: die Durchsichtsrunde oben (D-416 bis
+D-423, zuerst nach `main` gebracht) und diese hier. Beim Zusammenfuehren hat
+die bereits veroeffentlichte Reihe ihre Nummern behalten; diese ist um acht
+verschoben worden, samt jeder Erwaehnung im Code. Wer eine alte Festschreibung
+mit „D-417" im Kommentar findet: sie meint heute D-425.
+
+### D-424 · Eine fehlende Kontenzuordnung hält keine Rechnung auf — sie hält den Monatsabschluss auf
 
 `05-FINANZEN.md` §9.3 sagt, der Auflöser `raises` bei mehrdeutiger Zuordnung;
 §9.2 sagt, die Buchung werde dann mit `konto = NULL` und `pruefhinweis`
@@ -6621,7 +6828,7 @@ schliessen, solange sie offen ist (`fin.periode_schliessen_pruefen`).
 Der Fehler ist damit an vier Stellen unübersehbar und an keiner still — und
 die Rechnung, die ihn ans Licht gebracht hat, ist trotzdem gültig entstanden.
 
-### D-417 · Ein Buchungssatz ist EINSEITIG — sonst bewacht der Ausgleichsausloeser nichts
+### D-425 · Ein Buchungssatz ist EINSEITIG — sonst bewacht der Ausgleichsausloeser nichts
 
 §9.2 verlangt beides: einen Ausloeser, der je `buchung_id` Soll gegen Haben
 prüft, **und** eine Zeile mit `konto` UND `gegenkonto` (die DATEV-Schreibweise,
@@ -6641,7 +6848,7 @@ schreibt. `bs_fest_nur_kontiert` verlangt entsprechend nur `konto`.
 Stelle noch die zweiseitige Zeile. Es folgt mit PR 60, wenn der Schreiber
 zeigt, wie die Paarung tatsächlich aussieht.
 
-### D-418 · Wer eine Rechnung festschreibt, wird dadurch nicht Buchhalter
+### D-426 · Wer eine Rechnung festschreibt, wird dadurch nicht Buchhalter
 
 Der Buchungssatz entsteht in derselben Transaktion wie die Festschreibung
 (§5.6 Schritt 6) — das ist richtig, denn ein Nachlauf hinterliesse
@@ -6669,7 +6876,7 @@ Vorzeichen lebt in `soll_haben`. Ohne die Weiche auf `bucheStorno` hätte jede
 Stornierung an einem Constraint gehangen, den niemand mit dem Storno in
 Verbindung gebracht hätte.
 
-### D-419 · Ein Hartstopp, der in derselben Transaktion steht wie die Ablehnung, hinterlässt keine Spur
+### D-427 · Ein Hartstopp, der in derselben Transaktion steht wie die Ablehnung, hinterlässt keine Spur
 
 AGT-05 verlangt zweierlei: das erschöpfte Monatsbudget lehnt den nächsten Lauf
 **ab**, und der Stopp ist **sichtbar** — Statuszeile plus Benachrichtigung.
@@ -6699,7 +6906,7 @@ Ohne diese Bedingung schriebe ein Nachtlauf mit hundert abgelehnten Aufgaben
 hundert gleiche Zeilen in den Posteingang — und ein Posteingang mit hundert
 gleichen Zeilen wird nicht gelesen, sondern geleert.
 
-### D-420 · Der Posteingang bleibt für `cse_app` zu — der Stopp bekommt einen eigenen, engen Schreiber
+### D-428 · Der Posteingang bleibt für `cse_app` zu — der Stopp bekommt einen eigenen, engen Schreiber
 
 `benachrichtigung` trägt seit 0007 kein `insert` für `cse_app`: Posteingänge
 füllen Systemläufe (`cse_job`), nicht die Sitzung eines Menschen. Der Hartstopp
@@ -6733,7 +6940,7 @@ security` heisst „keine Policy" nicht *alles*, sondern *nichts*. Ohne sie hät
 die Funktion das Spaltenrecht gehabt und null Zeilen gelesen: der Stopp wäre
 geschrieben und an niemanden gemeldet worden, lautlos und plausibel.
 
-### D-421 · Was ein Ausloeser als `cse_definer` liest, muss ihm auch gehören
+### D-429 · Was ein Ausloeser als `cse_definer` liest, muss ihm auch gehören
 
 `app.agent_kosten_fortschreiben` rechnet `agent_aufgabe.kosten_cent` als Summe
 über `agent_kosten` neu — über die Tabelle also, auf deren INSERT der Ausloeser
@@ -6747,7 +6954,7 @@ gewesen wäre: die Kostenbuchung ist der Weg, auf dem das Budget überhaupt
 wächst. Wäre sie stillschweigend gescheitert, hätte der Hartstopp nie
 ausgelöst.
 
-### D-422 · Die Löschsperren der Agenten kommen aus dem Register, nicht aus der Migration
+### D-430 · Die Löschsperren der Agenten kommen aus dem Register, nicht aus der Migration
 
 Fünf Tabellen (`agent_aufgabe`, `agent_schritt`, `agent_kosten`,
 `agent_budget`, `agent_reservierung`) stehen jetzt in `KEIN_HARD_DELETE` und
@@ -6770,7 +6977,7 @@ Die Gegenbeweis-Tabelle in `loeschsperre.test.ts` (eine, die es noch NICHT
 gibt) wandert von `buchungssatz` auf `datev_export`; das ist der Sinn dieser
 Prüfung, und sie hat funktioniert.
 
-### D-423 · Eine Benachrichtigungsart sieht aus wie ein Rechteschlüssel — die K-19-Prüfung braucht den Unterschied
+### D-431 · Eine Benachrichtigungsart sieht aus wie ein Rechteschlüssel — die K-19-Prüfung braucht den Unterschied
 
 `agent.budget_erschoepft` hat Zeichen für Zeichen die Form eines
 Rechteschlüssels (`<modul>.<etwas>`; die Tabelle erzwingt sie für
@@ -6793,7 +7000,7 @@ Kommentar der Datei: wer die Prüfung kennt, benennt sonst seine Arten um, statt
 den echten Fund zu suchen — und der echte Fund ist ein Tippfehler in einem
 Recht, also ein dauerhaft leerer Bildschirm.
 
-### D-424 · Die Nutzlast eines Schrittes bekommt ein eigenes Tor — sonst ist sie für niemanden lesbar
+### D-432 · Die Nutzlast eines Schrittes bekommt ein eigenes Tor — sonst ist sie für niemanden lesbar
 
 0128 haelt `agent_schritt.eingabe` und `.ausgabe` aus dem Spaltengrant fuer
 `cse_app` heraus (K-05), und das ist richtig: was ein Agent gelesen und was er
@@ -6816,7 +7023,7 @@ hundert Nutzlasten auf einmal auflegt, protokollierte hundert Zugriffe, von
 denen niemand einen gewollt hat — und ein Audit, in dem jeder Seitenaufruf
 hundert Zeilen erzeugt, ist keines mehr.
 
-### D-425 · `JSON.stringify` in einem `::jsonb`-Parameter — derselbe Fehler zum dritten Mal
+### D-433 · `JSON.stringify` in einem `::jsonb`-Parameter — derselbe Fehler zum dritten Mal
 
 `protokolliereSchritt` schrieb `JSON.stringify(eingabe)` in einen
 `$n::jsonb`-Parameter. Der Treiber serialisiert selbst; ihm zuvorzukommen
@@ -6827,7 +7034,7 @@ aus.
 
 Dieser Befund steht in diesem Baum bereits zweimal kommentiert
 (`services/arbzg/detektor.ts`, `services/bau/aufmass.ts`), und er ist trotzdem
-ein drittes Mal passiert. Aufgefallen ist er nur, weil das Nutzlast-Tor (D-424)
+ein drittes Mal passiert. Aufgefallen ist er nur, weil das Nutzlast-Tor (D-432)
 die Werte WIEDER AUSLIEST statt bloss zu pruefen, dass etwas dasteht — genau
 wie damals bei `bau-aufmass`. Ein Test, der einen Schreibvorgang nur zaehlt,
 haette ihn nicht gefunden; er faellt jetzt an einer eigenen Zusicherung
@@ -6836,7 +7043,7 @@ haette ihn nicht gefunden; er faellt jetzt an einer eigenen Zusicherung
 Betroffen waren drei Stellen in `laufzeit.ts` (`agent_aufgabe.eingabe`,
 `agent_aufgabe.ergebnis`, alle fuenf `jsonb`-Spalten von `agent_schritt`).
 
-### D-426 · Das Agenten-Zentrum sagt zuerst, dass kein Modell verbunden ist
+### D-434 · Das Agenten-Zentrum sagt zuerst, dass kein Modell verbunden ist
 
 Die Laufzeit steht — Aufgabe, Schritt, Kosten, Hartstopp, alles geprueft. Der
 Zugang zum Sprachmodell steht nicht: er verlangt EU-Verarbeitung mit
@@ -6859,7 +7066,7 @@ ausgeschaltet ist, ist nicht kaputt. Eine rote Pille schickte den Leser einen
 Fehler suchen, den es nicht gibt. Nichts im vorhandenen Vokabular deckte das
 ab — `Wartet` verspricht, dass gleich etwas passiert, und das tut es nicht.
 
-### D-427 · Fünfzehn Befunde aus der Durchsicht von PR #9 — und was sie gemeinsam haben
+### D-435 · Fünfzehn Befunde aus der Durchsicht von PR #9 — und was sie gemeinsam haben
 
 Copilot hat den gemergten PR #9 durchgesehen und fünfzehn Stellen benannt.
 Jede einzelne war echt. Und sie haben eine Form gemeinsam, die es wert ist,
@@ -6908,7 +7115,7 @@ jemand ihr im Ernstfall stellt. „Gibt es diese Zeile" ist nicht „gehört sie
 uns". „Ist die Zahlung nicht storniert" ist nicht „passt sie zu diesem
 Posten". „Ist die Freigabe genehmigt" ist nicht „genehmigt WOFÜR".
 
-### D-428 · Die Aufrechnung über die Seiten hinweg bleibt abgewiesen (O-182)
+### D-436 · Die Aufrechnung über die Seiten hinweg bleibt abgewiesen (O-182)
 
 Beim Schliessen des Gegenpartei-Lochs stand die Frage im Raum, ob ein Kunde,
 der zugleich Lieferant ist, seine Forderung gegen unsere Verbindlichkeit
@@ -6923,7 +7130,7 @@ Regel, die noch niemand entschieden hat, wird nicht erfunden (CLAUDE.md); und
 von den beiden Richtungen, in denen man sich irren kann, ist „zu wenig
 erlaubt" die, die sich mit einem Satz in einer Migration beheben lässt.
 
-### D-429 · `mahnstufe` trägt einen Mandanten — die Job-Policy bindet ihn
+### D-437 · `mahnstufe` trägt einen Mandanten — die Job-Policy bindet ihn
 
 Beim Nachziehen der `cse_job`-Rechte für den Mahnlauf stand in der ersten
 Fassung `using (true)` — mit der Begründung, die Stufen seien Referenzdaten
@@ -6940,7 +7147,7 @@ genau deshalb wäre sie geblieben. Die Policy bindet jetzt
 
 ## Entschieden in PR 59 — die Belegverknüpfung (ACC-03, DOC-04, § 147 AO)
 
-### D-430 · Eine Quelle plus die Herkunft — nicht fünf Parameter
+### D-438 · Eine Quelle plus die Herkunft — nicht fünf Parameter
 
 `buchungssatz` trägt fünf Quellspalten (`rechnung_id`, `eingangsrechnung_id`,
 `zahlung_id`, `ausgabe_id`, `kassenbewegung_id`) und zwei Riegel darüber:
@@ -6965,7 +7172,7 @@ gedroppt: zwei Überladungen mit einem Argument Unterschied sind die Sorte
 Doppelung, bei der ein Aufrufer die falsche erwischt und es niemandem
 auffällt.
 
-### D-431 · Das Rechnungs-PDF wird archiviert, obwohl es sich nachbauen lässt
+### D-439 · Das Rechnungs-PDF wird archiviert, obwohl es sich nachbauen lässt
 
 `zugferdZurRechnung` erzeugt das Dokument bei jedem Abruf neu, aus dem
 Snapshot (K-12), mit `festgeschriebenAm` als Erzeugungszeitpunkt. Es ist
@@ -6991,7 +7198,7 @@ Buchungszeilen in `buchungssatz_unvollstaendig` und
 Archivlauf blockiert damit den Export, statt eine lückenhafte Datei
 entstehen zu lassen.
 
-### D-432 · `beleg_id` ist die fünfte Ausnahme vom Änderungsschutz — und wird sofort wieder verschlossen
+### D-440 · `beleg_id` ist die fünfte Ausnahme vom Änderungsschutz — und wird sofort wieder verschlossen
 
 `fin.rechnung_unveraenderlich` (0076, zuletzt 0122) vergleicht die ganze
 Zeile über `to_jsonb` und nimmt vier bewegliche Spalten aus, darunter
@@ -7006,7 +7213,7 @@ Eine Ausnahme ist ein Loch, wenn nichts sie schliesst. `fin.rechnung_beleg_fest`
 steht deshalb direkt darunter: einmal gesetzt, ist der Zeiger fest. Ein
 Archiv, dessen Zeiger sich umbiegen lässt, ist keins.
 
-### D-433 · Der Löschschutz prüft den GRUND, nicht die Kategorie
+### D-441 · Der Löschschutz prüft den GRUND, nicht die Kategorie
 
 `kern.dokument_loeschsperre` (0009) weist das weiche Löschen ab, wenn
 `dokument.loeschsperre` steht — und die steht, weil die **Kategorie** es
@@ -7027,7 +7234,7 @@ Auslöser heisst `trg_dokument_buchung` und läuft damit alphabetisch **vor**
 Aufrufer liest: „eine Buchung beruft sich darauf" nennt den Grund,
 „Löschsperre steht" nennt nur den Zustand.
 
-### D-434 · `erzeugt` ist eine fünfte Belegherkunft, und `api` wäre eine falsche Angabe
+### D-442 · `erzeugt` ist eine fünfte Belegherkunft, und `api` wäre eine falsche Angabe
 
 `beleg_quelle` kannte `upload`, `email`, `scan`, `api` — alle vier
 beschreiben ein Dokument, das von **aussen** kam. Das Rechnungs-PDF kommt von
@@ -7044,7 +7251,7 @@ nächtliche Lauf hat ohnehin keinen angemeldeten. Die Alternative hätte
 bedeutet, dass auf demselben Beleg mal ein Name steht und mal keiner — je
 nachdem, wer zuerst hinsah.
 
-### D-435 · Ein Manifesteintrag je Datei, nicht je Buchungszeile
+### D-443 · Ein Manifesteintrag je Datei, nicht je Buchungszeile
 
 Eine Rechnung erzeugt vier bis sechs Buchungszeilen und genau ein PDF. Ein
 Exportmanifest, das das PDF sechsmal führt, behauptet sechs Belege — und die
@@ -7052,7 +7259,7 @@ Zahl unter „Belege im Zeitraum" wäre falsch, ohne dass es jemandem auffällt.
 Die Zeilen zeigen deshalb auf den Dateieintrag, und der zählt, wie viele
 sich auf ihn berufen.
 
-### D-436 · Die Belegroute leitet um, sie liefert nicht aus
+### D-444 · Die Belegroute leitet um, sie liefert nicht aus
 
 `GET /api/buchhaltung/buchungen/[id]/beleg` liest nie Bytes und reicht nie
 welche durch; sie stellt eine signierte Adresse aus und leitet dorthin um.
@@ -7070,7 +7277,7 @@ kaputtes Dokument.
 
 ## Entschieden in PR 60 — der DATEV-EXTF-Export (ACC-02) ⚑
 
-### D-437 · Das Format ist spezifikationsabgeleitet, und das steht auf jeder Zeile
+### D-445 · Das Format ist spezifikationsabgeleitet, und das steht auf jeder Zeile
 
 Die Feldreihenfolge des Buchungsstapels stammt aus der veröffentlichten
 DATEV-Formatbeschreibung — **nicht** aus einer Datei, die dieses Steuerbüro
@@ -7093,7 +7300,7 @@ Drei Vorkehrungen, damit die Lücke nicht zur Falle wird:
 
 Kommt das Muster, ist die Korrektur ein Eingriff an einer Stelle.
 
-### D-438 · Windows-1252 als eigene Tabelle, nicht als Abhängigkeit
+### D-446 · Windows-1252 als eigene Tabelle, nicht als Abhängigkeit
 
 Node kodiert nur UTF-8. `Buffer.from(s, 'latin1')` ist ISO-8859-1 und **nicht**
 dasselbe: die beiden unterscheiden sich in genau siebenundzwanzig Zeichen im
@@ -7113,7 +7320,7 @@ arabischen Namen scheitern zu lassen — und die Plattform führt solche Namen
 Buchhaltung, die sich nicht exportieren lässt, weil jemand `Çağ` heisst, wäre
 ein Fehler. (`Ç` gibt es übrigens, `ğ` nicht.)
 
-### D-439 · Der Schreiber liest keine Uhr
+### D-447 · Der Schreiber liest keine Uhr
 
 `erzeugtAm` kommt als Argument herein. Das ist die Voraussetzung dafür,
 dass derselbe Zeitraum zweimal exportiert identische Bytes ergibt (Abnahme 3)
@@ -7123,7 +7330,7 @@ unprüfbar.
 Die Serveruhr wird an genau EINER Stelle gelesen: in der HTTP-Route
 (Invariante 5).
 
-### D-440 · Die erzeugte Datei geht NICHT durch den Upload-Pfad
+### D-448 · Die erzeugte Datei geht NICHT durch den Upload-Pfad
 
 `ladeHoch` prüft Magic Bytes und entfernt Metadaten, weil dort Inhalt ankommt,
 den ein **Mensch** mitbringt: eine `.exe` mit der Endung `.pdf`, ein Foto mit
@@ -7141,7 +7348,7 @@ Signaturprüfung die Prüfung, dass der Inhalt wirklich Text ist — jedes Byte
 druckbar oder CR/LF/TAB. Ein Nullbyte kommt nicht durch, auch wenn jemand die
 Datei `text/csv` nennt.
 
-### D-441 · Die Stammdaten werden eingefroren, nicht verwiesen
+### D-449 · Die Stammdaten werden eingefroren, nicht verwiesen
 
 Eine Beraternummer ändert sich, wenn das Büro wechselt. Zeigte der Exportvorgang
 nur auf `datev_konfiguration`, sähe ein drei Jahre alter Export danach aus, als
@@ -7152,7 +7359,7 @@ trägt die alte. Dieselbe Überlegung wie beim Rechnungs-Snapshot (K-12).
 Aufrufer friert genau die Werte ein, gegen die geprüft wurde. Zwei getrennte
 Schritte — erst prüfen, dann lesen — liessen dazwischen eine Änderung zu.
 
-### D-442 · `text[] || text` ohne Cast — ein latenter Fehler aus 0126
+### D-450 · `text[] || text` ohne Cast — ein latenter Fehler aus 0126
 
 `fin.datev_konfiguration_vollstaendig` (0126) baute seine Liste fehlender Felder
 mit `v_fehlend := v_fehlend || 'Beraternummer';`. Postgres kann das auf zwei
@@ -7167,7 +7374,7 @@ der hilfreichen Liste einen Parserfehler — im einzigen Moment, in dem die
 Meldung gebraucht wird. Ein Test von PR 60 hat es zum ersten Mal ausgelöst.
 0133 ersetzt beide Funktionen mit `::text` an jeder Stelle.
 
-### D-443 · Es gibt keine Übertragung an DATEV, und die Oberfläche sagt es
+### D-451 · Es gibt keine Übertragung an DATEV, und die Oberfläche sagt es
 
 Für diesen Weg existiert keine offene Schnittstelle und es gibt keine
 Zugangsdaten. Ein Feld „Verbindungsstatus", das „bereit" zeigte, oder ein Knopf
@@ -7178,7 +7385,7 @@ ein Mensch übergibt sie, und dass es geschehen ist, vermerkt er selbst
 (`status = 'uebergeben'`). Der Statuswert heisst deshalb `uebergeben` und nicht
 `gesendet`.
 
-### D-444 · Der Knopf ist aus, wenn der Export verweigern würde
+### D-452 · Der Knopf ist aus, wenn der Export verweigern würde
 
 Die Vorschau steht **vor** dem Knopf: wer einen Monat wählt, sieht, wie viele
 Zeilen darin stehen und wie viele davon noch keinen Beleg haben, bevor er etwas
@@ -7189,3 +7396,4 @@ Das ersetzt keinen Riegel. Die Prüfungen sitzen in der Datenbank
 (`app.datev_stammdaten`, `app.export_sperre_pruefen`, die Policy auf
 `datev_export`), und die HTTP-Route läuft in dieselben. Ein ausgegrauter Knopf
 ist eine Bitte; der Riegel ist die zweite Linie und die einzige, die zählt.
+

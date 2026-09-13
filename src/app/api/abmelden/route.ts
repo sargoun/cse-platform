@@ -2,7 +2,10 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import type postgres from 'postgres';
 import { db } from '@/server/db/pool';
-import { SITZUNG_COOKIE, beendeSitzung } from '@/server/auth/sitzung';
+import {
+  ALT_SITZUNG_COOKIE, SITZUNG_COOKIE, beendeSitzung, sitzungsKeksOptionen,
+} from '@/server/auth/sitzung';
+import { istGleicherUrsprung } from '@/server/auth/ursprung';
 
 /**
  * `POST /api/abmelden` — die Sitzung beenden.
@@ -21,6 +24,18 @@ import { SITZUNG_COOKIE, beendeSitzung } from '@/server/auth/sitzung';
  * schliessen.
  */
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
+  /**
+   * Dasselbe Ursprungstor wie vor jedem anderen schreibenden Handler.
+   *
+   * Es fehlte hier als einzigem Sitzungs-Handler. `sameSite: 'lax'` haelt
+   * ein fremdes Formular zwar schon ab — aber eine Massnahme, die woanders
+   * greift, ersetzt die hiesige nicht (`ursprung.ts`): wer eine Sitzung
+   * beenden darf, ist die Anwendung selbst, nicht irgendeine Seite im Netz.
+   */
+  if (!istGleicherUrsprung(anfrage)) {
+    return NextResponse.json({ fehler: 'fremder_ursprung' }, { status: 403 });
+  }
+
   const keks = await cookies();
   const token = keks.get(SITZUNG_COOKIE)?.value ?? '';
 
@@ -31,6 +46,13 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
 
   const antwort = NextResponse.redirect(new URL('/', anfrage.nextUrl.origin), 303);
-  antwort.cookies.set(SITZUNG_COOKIE, '', { httpOnly: true, path: '/', maxAge: 0 });
+  // Dieselben Attribute wie beim Setzen, nur `maxAge: 0` — ein Keks wird nur
+  // geloescht, wenn Pfad und Flags zum gesetzten passen.
+  antwort.cookies.set(SITZUNG_COOKIE, '', { ...sitzungsKeksOptionen(), maxAge: 0 });
+  // Und den Keks aus der Zeit vor `__Host-` (D-416) — er wird nicht mehr
+  // gelesen, soll aber auch nicht liegen bleiben.
+  if (SITZUNG_COOKIE !== ALT_SITZUNG_COOKIE) {
+    antwort.cookies.set(ALT_SITZUNG_COOKIE, '', { httpOnly: true, path: '/', maxAge: 0 });
+  }
   return antwort;
 }

@@ -21,6 +21,7 @@ import {
   FARBEN_MARKE,
   FARBEN_SEMANTIK,
   RADIUS,
+  TYPO_MOBIL,
 } from '../../src/lib/design/theme.js';
 
 const WURZEL = resolve(import.meta.dirname, '../..');
@@ -303,4 +304,28 @@ describe('(9) the development surface is a 404 in production, not merely hidden'
   it('robots.txt disallows /dev/ as well — both, not either', () => {
     expect(AUSGESCHLOSSEN).toContain('/dev');
   });
+});
+
+/**
+ * §2 Mobile — die Skala wird auch ANGEWENDET (D-418).
+ *
+ * `TYPO_MOBIL` stand fuenf Phasen lang in `theme.ts`, und nichts las es: das
+ * Telefon bekam die 40px-Ueberschrift des Schreibtischs. Die Media-Regel in
+ * `globals.css` muss dieselben Werte tragen wie das Token — sonst kennt der
+ * PDF-Renderer eine andere Skala als die Seite.
+ */
+describe('(5) the §2 mobile type scale exists in globals.css with the TYPO_MOBIL values', () => {
+  const block = /@media \(max-width: 767\.98px\)\s*\{([\s\S]*?)\n\}/u.exec(CSS)?.[1] ?? '';
+
+  it('there is a mobile media block below the md breakpoint', () => {
+    expect(block).not.toBe('');
+  });
+
+  for (const [stufe, wert] of Object.entries(TYPO_MOBIL)) {
+    it(`.text-${stufe} → ${wert.size} / ${wert.line} on phones`, () => {
+      const regel = new RegExp(`\\.text-${stufe}\\s*\\{([^}]*)\\}`, 'u').exec(block)?.[1] ?? '';
+      expect(normal(regel)).toContain(`font-size:${wert.size}`);
+      expect(normal(regel)).toContain(`line-height:${wert.line}`);
+    });
+  }
 });

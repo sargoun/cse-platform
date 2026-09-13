@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import { headers } from 'next/headers';
 import { OeffentlicheShell } from '@/components/oeffentlich/OeffentlicheShell';
-import { devFlaechenAn } from '@/lib/dev-flaechen';
 import { KOPF_PFAD, KOPF_SPRACHE } from '@/lib/kopf';
 import { istSprache, VORGABE_SPRACHE } from '@/lib/sprache';
 import { bereicheLesen, einstellungLesen, oeffentlichLesen } from '@/server/inhalt/lesen';
@@ -55,13 +54,15 @@ export default async function OeffentlichesLayout({ children }: { children: Reac
       sprache={sprache}
       pfad={pfad}
       /*
-       * Solange die echte Anmeldung nicht gebaut ist (PR 20 — Telefon und
-       * Einmalcode), fuehrt der Punkt auf die Entwicklungsflaeche, und NUR
-       * wenn die eingeschaltet ist. In einem Produktionsbau ohne
-       * `CSE_DEV_FLAECHEN` steht er nicht da: ein Anmeldeknopf ohne Anmeldung
-       * waere die Sorte Fassade, die dieses Projekt nirgends baut.
+       * Die echte Anmeldung (PR 20): Mobilnummer und Einmalcode unter
+       * `/auth/mitarbeiter`. Bis D-421 zeigte der Punkt auf `/dev/anmelden`
+       * und stand in einem Produktionsbau deshalb GAR NICHT da — obwohl die
+       * Beschaeftigten laengst einen Eingang hatten. Die Website fuehrte damit
+       * nicht ins Portal; wer sich anmelden wollte, musste die Adresse kennen.
+       * Die Entwicklungsanmeldung bleibt erreichbar: von dieser Seite aus und
+       * ueber den Streifen jeder `/dev`-Flaeche.
        */
-      anmeldePfad={devFlaechenAn() ? '/dev/anmelden' : null}
+      anmeldePfad="/auth/mitarbeiter"
     >
       {children}
     </OeffentlicheShell>

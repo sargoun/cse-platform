@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/Button';
 import type { FormularFeld } from '@/lib/formular/schema';
 import { ANFRAGE_TEXTE } from '@/lib/i18n/texte';
 import { VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
@@ -45,7 +46,18 @@ function Feld({ f, fehler, t }: {
     'aria-invalid': fehler === undefined ? undefined : true,
     ...(beschrieben === '' ? {} : { 'aria-describedby': beschrieben }),
     ...(f.autocomplete === undefined ? {} : { autoComplete: f.autocomplete }),
-    className: 'w-full rounded-md border border-line bg-surface-2 p-s3 text-base text-text',
+    /*
+     * Dieselbe Feldoptik wie `FormField` (DESIGN §5 Forms): `--surface-3`,
+     * 44px Mindesthoehe, Rand auf `--red` im Fokus. Hier stand `bg-surface-2`
+     * mit `p-s3` und ohne Mindesthoehe — das einzige Formular, das ein Kunde
+     * je sieht, sah anders aus als jedes Feld im Portal.
+     */
+    className: 'min-h-11 w-full rounded-md border bg-surface-3 px-s4 py-s3 '
+      + 'text-base text-text transition-colors duration-fast ease-brand '
+      + 'placeholder:text-text-subtle '
+      // Der Rand sagt es auch: `--danger` am ungueltigen Feld (DESIGN §5
+      // Forms), nicht nur die Meldung darunter — wie in `FormField`.
+      + (fehler === undefined ? 'border-line focus:border-brand' : 'border-danger'),
   } as const;
 
   const beschriftung = (
@@ -78,7 +90,7 @@ function Feld({ f, fehler, t }: {
           <p id={hilfeId} className="text-xs text-text-subtle">{f.hilfetext}</p>
         )}
         {fehler !== undefined && (
-          <p id={fehlerId} className="text-xs text-danger-strong">{fehler}</p>
+          <p id={fehlerId} className="text-xs text-danger">{fehler}</p>
         )}
       </div>
     );
@@ -119,8 +131,10 @@ function Feld({ f, fehler, t }: {
       {f.hilfetext !== undefined && (
         <p id={hilfeId} className="text-xs text-text-subtle">{f.hilfetext}</p>
       )}
+      {/* `--danger` als TEXT (DESIGN §5 Forms) — `--danger-strong` ist die
+          Flaeche fuer weisse Schrift und als Text auf Dunkel zu dunkel (§1). */}
       {fehler !== undefined && (
-        <p id={fehlerId} className="text-xs text-danger-strong">{fehler}</p>
+        <p id={fehlerId} className="text-xs text-danger">{fehler}</p>
       )}
     </div>
   );
@@ -211,12 +225,10 @@ export function AnfrageFormular(
           <Feld key={f.schluessel} f={f} fehler={fehler?.[f.schluessel]} t={t} />
         ))}
 
-        <button
-          type="submit"
-          className="rounded-md bg-brand px-s5 py-s3 text-base font-medium text-white"
-        >
+        {/* Der eine Primaerknopf der Seite — aus der Komponente, nicht nachgebaut. */}
+        <Button type="submit" variante="primary" className="self-start">
           {t.absenden}
-        </button>
+        </Button>
       </form>
     </section>
   );

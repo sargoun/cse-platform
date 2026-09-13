@@ -18,7 +18,7 @@ import { RESERVIERUNG_MINUTEN_PLATZHALTER } from './limits.platzhalter.js';
  * committet, und lehnt den Lauf erst danach ab. Die frühere Fassung setzte
  * den Status und warf in derselben Transaktion — der Rollback nahm Status und
  * Benachrichtigung mit, und derselbe Aufruf lief für immer in denselben
- * Fehler, ohne dass irgendwo stand, dass gestoppt wurde (D-419).
+ * Fehler, ohne dass irgendwo stand, dass gestoppt wurde (D-427).
  *
  * **Reservieren, bevor es teuer wird.** Ein Lauf reserviert seinen
  * geschätzten Betrag als ZEILE mit Verfallszeit. Ein abgestürzter Lauf hält

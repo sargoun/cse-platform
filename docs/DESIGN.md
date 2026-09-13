@@ -426,6 +426,25 @@ below in `--danger` at `xs`. Label above, always — never placeholder-as-label.
 `backdrop-filter: blur(12px)` once scrolled. Logo left, nav centre, red
 *Angebot anfragen* + ghost *Login* right. Mobile: full-screen overlay menu.
 
+**The header has three tiers, and the full row starts at `xl`, not `md`.**
+Measured, the full row — wordmark, four links, company switcher, red button,
+sign-in, two language links — needs about **1130px**. Switched on at `md` it
+overflowed on every public page from 768px to roughly 1090px: the wordmark
+collapsed to 0px (`min-w-0` + `truncate`), the red button wrapped onto two
+lines and the language switch stood outside the window. Every tablet and
+every small laptop saw that, and neither the 375px nor the 1280px check did.
+
+| Width | In the 72px row | In the overlay menu |
+|---|---|---|
+| below `lg` (1024) | wordmark, menu button | everything |
+| `lg` – `xl` | wordmark, four links, red button, menu button (~745px) | companies, sign-in, language |
+| from `xl` (1280) | the full row | — |
+
+**The wordmark is never truncated at any width for the configured name**
+(„CSE Gruppe", 146px); `truncate` stays the emergency brake for an over-long
+name in `plattform_einstellung`, exactly as the paragraph below says. The
+testable rule below applies to every tier, not only to phones. **D-417.**
+
 **On a phone the header carries the wordmark and the menu button — nothing
 else.** The language switch goes into the overlay menu, for the same reason
 §6 gives for the company switcher: a 72px row has no width for a second

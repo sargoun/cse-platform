@@ -40,7 +40,7 @@ export function GesellschaftsWahl(
   const hier = bereiche.find((b) => b.slug === aktiv) ?? null;
 
   return (
-    <details data-cse="gesellschaftswahl" className="relative hidden md:block">
+    <details data-cse="gesellschaftswahl" className="relative hidden xl:block">
       <summary
         aria-label={beschriftung}
         className="flex min-h-11 cursor-pointer list-none items-center gap-s2 rounded-sm

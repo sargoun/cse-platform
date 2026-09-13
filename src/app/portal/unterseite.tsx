@@ -7,6 +7,7 @@ import { NochNichtGebaut } from '@/components/portal/NochNichtGebaut';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import { AnmeldungNoetig } from './Anmeldung';
 import { portalWurzel, portalZugang, type PortalZugang } from './zugang';
+import { meinBeschriftungen, meinTexte } from '@/lib/i18n/texte';
 import type { BereichSchluessel } from '@/lib/design/theme';
 
 /**
@@ -98,6 +99,10 @@ export async function Unterseite({ pfad, wurzel, bereich }: UnterseiteProps) {
       navigationsRechte={zugang.navigationsRechte}
       phase={route?.phase ?? null}
       pfad={route?.pfad ?? pfad}
+      /* Die Arbeiterleiste in der Sprache der Person — auch auf einem Ziel,
+         das es noch nicht gibt (D-419). */
+      {...(zugang.sprache === null
+        ? {} : { beschriftungen: meinBeschriftungen(meinTexte(zugang.sprache)) })}
     />
   );
 }

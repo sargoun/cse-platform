@@ -10,6 +10,7 @@ import { modulAktiv, type Modulbuchung } from '@/server/registry/modul';
 import { findeRoute } from '@/server/registry/routen';
 import { leisteFuer, tableiste, type LeistenSchluessel }
   from '@/server/registry/tableiste';
+import { istPortalSprache, type PortalSprache } from '@/lib/i18n/texte';
 import type { Sitzung } from '@/server/kontext/index';
 
 /**
@@ -66,6 +67,16 @@ export interface PortalZugang {
   readonly mandantSlug: string | null;
   /** Ist das Modul dieser Seite in dieser Gesellschaft gar nicht gebucht? */
   readonly modulGesperrt: boolean;
+  /**
+   * Die Sprache der Person (EMP-12) — nur im Mitarbeiterportal, sonst `null`.
+   *
+   * Fuer die Huellen, die NICHT durch `MeinRahmen` gehen und trotzdem von
+   * einer Arbeiterin erreicht werden: das Konto und die noch nicht gebauten
+   * Ziele ihrer Leiste (`/portal/konto/profil`, `/portal/mein/nachrichten`).
+   * Ohne diese Angabe fielen Leiste, Spur und Kopfzeile dort ins Deutsche
+   * zurueck (D-419).
+   */
+  readonly sprache: PortalSprache | null;
 }
 
 interface Befund {
@@ -76,6 +87,7 @@ interface Befund {
   readonly navigationsRechte: Readonly<Record<string, boolean>>;
   readonly mandantSlug: string | null;
   readonly modulGesperrt: boolean;
+  readonly sprache: PortalSprache | null;
 }
 
 /** Die Portalwurzel, unter der die Leiste ihre relativen Ziele aufloest. */
@@ -117,11 +129,22 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
     if (entscheidung.art !== 'erlaubt') {
       return {
         entscheidung, rolle: null, mandanten, sichtbareTabs: {}, navigationsRechte: {},
-        mandantSlug: null, modulGesperrt: false,
+        mandantSlug: null, modulGesperrt: false, sprache: null,
       } satisfies Befund;
     }
 
     const rolle = await rolleImMandanten(tx, sitzung);
+    /*
+     * Die Sprache der Person — in DERSELBEN gebundenen Transaktion, unter
+     * `t_person_lesen`: die eigene Zeile darf jede Sitzung lesen. Faellt die
+     * Abfrage leer aus, bleibt es bei Deutsch statt bei einem Fehler.
+     */
+    const [sp] = sitzung.portal === 'mitarbeiter' && sitzung.personId !== null
+      ? await abfrage<{ sprache: string | null }>(
+        `select sprache from person where id = $1`, [sitzung.personId])
+      : [];
+    const rohSprache = sp?.sprache ?? '';
+    const sprache = istPortalSprache(rohSprache) ? rohSprache : null;
     /**
      * Slug UND gebuchte Module in EINER Abfrage — sie stehen in derselben
      * Zeile, und eine zweite Rundreise fuer eine Spalte daneben waere eine
@@ -225,7 +248,7 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
       && [...bewachung.lesen, ...bewachung.schreiben].some((r) => !modulAktiv(buchung, r));
     return {
       entscheidung, rolle, mandanten, sichtbareTabs, navigationsRechte,
-      mandantSlug: m?.slug ?? null, modulGesperrt,
+      mandantSlug: m?.slug ?? null, modulGesperrt, sprache,
     } satisfies Befund;
   }) as Promise<Befund>);
 
@@ -281,6 +304,7 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
     navigationsRechte: befund.navigationsRechte,
     mandantSlug: befund.mandantSlug,
     modulGesperrt: befund.modulGesperrt,
+    sprache: befund.sprache,
   };
 }
 

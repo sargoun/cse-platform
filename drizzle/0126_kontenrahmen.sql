@@ -394,7 +394,7 @@ comment on type konto_treffer is
  * Hinweis erzeugen, die in der Arbeitsliste steht. Genau das tut diese
  * Funktion — und `periode` laesst sich nicht schliessen, solange eine solche
  * Zeile offen ist (0127). Der Fehler bleibt damit unuebersehbar, ohne die
- * Rechnung zu verlieren. (D-416)
+ * Rechnung zu verlieren. (D-424)
  *
  * **SECURITY DEFINER, und das ist kein Bequemlichkeitsgriff.** Wer bucht,
  * traegt `buchhaltung.schreiben`; die Zuordnung gehoert dem Modul

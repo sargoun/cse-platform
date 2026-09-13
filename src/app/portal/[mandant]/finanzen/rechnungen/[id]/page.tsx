@@ -557,6 +557,7 @@ export default async function Rechnungsblatt(
       {daten.abzuege.length > 0 && (
         <>
           <h2 className="mb-s3 text-h3 text-text">Abgezogene Abschlagsrechnungen</h2>
+          <div className="overflow-x-auto">
           <table
             data-cse="abzugstabelle"
             className="mb-s5 w-full max-w-prose border-collapse text-sm"
@@ -605,6 +606,7 @@ export default async function Rechnungsblatt(
               </tr>
             </tbody>
           </table>
+          </div>
         </>
       )}
 

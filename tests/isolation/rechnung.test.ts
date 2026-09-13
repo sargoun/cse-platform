@@ -605,7 +605,7 @@ describe('(4) eine festgeschriebene Rechnung ist unveränderlich — auf DATENBA
        * **PR 59 (0132/0134): zwei dazu — der Archivlauf setzt `beleg_id`.**
        *
        * `app.rechnung_beleg_setzen` haengt das archivierte Rechnungs-PDF an
-       * die Rechnung, NACHDEM sie festgeschrieben ist (D-431). Es braucht
+       * die Rechnung, NACHDEM sie festgeschrieben ist (D-439). Es braucht
        * dafuer Lese- und Schreibrecht auf genau eine Spalte — und die
        * dazugehoerigen Policies, sonst laese es null Zeilen und der Beleg
        * bliebe still aus (D-388).

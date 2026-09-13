@@ -14,7 +14,7 @@ import {
  * `GET /api/buchhaltung/datev/[id]/datei` — die archivierte EXTF-Datei
  * (ACC-02, DOC-03).
  *
- * Dieselbe Vorrichtung wie beim Buchungsbeleg (D-436): eine Weiterleitung auf
+ * Dieselbe Vorrichtung wie beim Buchungsbeleg (D-444): eine Weiterleitung auf
  * eine signierte, nach fünfzehn Minuten ablaufende Adresse, nie ein
  * Durchreichen der Bytes. Wäre diese Route die Adresse, bliebe jeder
  * weitergegebene Link gültig, solange die Sitzung besteht — und in dieser

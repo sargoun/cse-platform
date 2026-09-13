@@ -58,7 +58,7 @@ interface KontierungRoh {
  * Die Auflösung läuft innerhalb der Festschreibung einer Rechnung. Eine
  * fehlende Zuordnung darf den Beleg nicht verhindern — sie muss eine
  * Buchungszeile ohne Konto und mit Hinweis erzeugen, die in der Arbeitsliste
- * steht und den Monatsabschluss blockiert (D-416). Genau deshalb wirft weder
+ * steht und den Monatsabschluss blockiert (D-424). Genau deshalb wirft weder
  * die SQL-Funktion noch diese hier.
  */
 export async function kontiere(db: Abfrage, frage: KontoFrage): Promise<Kontierung> {

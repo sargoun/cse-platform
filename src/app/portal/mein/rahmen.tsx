@@ -5,7 +5,7 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withPersonScope, type LeseKontext } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import {
-  meinTexte, PORTAL_BCP47, PORTAL_RICHTUNG,
+  meinBeschriftungen, meinTexte, PORTAL_BCP47, PORTAL_RICHTUNG,
   type MeinTexte, type PortalSprache,
 } from '@/lib/i18n/texte';
 import {
@@ -120,7 +120,7 @@ export function MeinRahmen({
          * eine Ueberschrift aussah. Mit beidem liest sich die Zeile als Weg:
          * `‹ Heute › Schichten`.
          */
-        wurzelTitel="Heute"
+        wurzelTitel={basis.texte.heute}
         /**
          * Kein Bereich: eine Anmeldung, mehrere Gesellschaften. Der Streifen
          * oben ist neutral, und die Zugehoerigkeit steht an jeder ZEILE —
@@ -134,6 +134,8 @@ export function MeinRahmen({
         aktiverTab={aktiverTab}
         sichtbareTabs={basis.zugang.sichtbareTabs}
         navigationsRechte={basis.zugang.navigationsRechte}
+        /* Die Leiste und die Kopfzeile in der Sprache der Person (D-419). */
+        beschriftungen={meinBeschriftungen(basis.texte)}
       >
         {children}
       </PortalRahmen>

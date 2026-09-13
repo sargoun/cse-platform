@@ -367,7 +367,7 @@ export async function freigebe(
  * Bilanz übereingestimmt. Aufgefallen wäre es beim Steuerberater, einen Monat
  * später, an einer Zahl, die niemand erklären kann.
  *
- * Dieselbe Reihenfolge wie auf der Ausgangsseite (§5.6 Schritt 6, D-418):
+ * Dieselbe Reihenfolge wie auf der Ausgangsseite (§5.6 Schritt 6, D-426):
  * erst der Zustand, dann die Buchung, beides in einer Transaktion. Ein
  * Nachlauf hinterliesse gebuchte Rechnungen, die in keiner Buchhaltung
  * stehen, und niemand merkt, wenn ein Nachlauf nicht mehr läuft.

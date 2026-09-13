@@ -43,7 +43,9 @@ export async function Angebotsauswahl(
               href={mitSprache(angebotPfad(b.slug), sprache)}
               data-cse="angebot-bereich"
               data-bereich={b.slug}
-              className="flex items-center gap-s4 rounded-lg border border-line bg-surface p-s5"
+              className="flex min-h-11 items-center gap-s4 rounded-lg border border-line bg-surface p-s5
+                         transition duration-base ease-brand hover:-translate-y-0.5
+                         hover:border-line-strong"
             >
               <BereichsAvatar bereich={b.slug as BereichSchluessel} />
               <span className="flex flex-col">

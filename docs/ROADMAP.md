@@ -242,20 +242,20 @@ proven by test, not by inspection.
       format is **spec-derived, not client-derived**: the field order comes
       from the published DATEV description, not from a file this tax office
       has read in. Every export row carries `format_ungeprueft` and the
-      screens say so (D-437). Bytes are asserted as bytes: `ü` is 0xFC, no
+      screens say so (D-445). Bytes are asserted as bytes: `ü` is 0xFC, no
       BOM, CRLF, comma decimal, and amounts convert from integer cents by
-      string arithmetic — no `Number` anywhere (D-438). The writer reads no
-      clock, so the same period twice yields identical bytes (D-439). With
+      string arithmetic — no `Number` anywhere (D-446). The writer reads no
+      clock, so the same period twice yields identical bytes (D-447). With
       the O-05 master data empty or unconfirmed, **no file is produced** and
       the German sentence names every missing field.
       **Still open — this blocks the PHASE, not the PR:** request a real EXTF
       sample from the tax advisor and reconcile `SPALTEN` against it.
 - [x] **Belegverknüpfung** — document travels with the booking line (PR 59):
       `app.buchungssatz_schreiben` takes the document and routes the source id
-      by `herkunft` (D-430); the outgoing invoice's ZUGFeRD PDF is archived
-      after finalisation by a nightly run (D-431), `rechnung.beleg_id` is
-      write-once (D-432), and a document a booking line refers to cannot be
-      deleted — for that reason, not because of its category (D-433).
+      by `herkunft` (D-438); the outgoing invoice's ZUGFeRD PDF is archived
+      after finalisation by a nightly run (D-439), `rechnung.beleg_id` is
+      write-once (D-440), and a document a booking line refers to cannot be
+      deleted — for that reason, not because of its category (D-441).
       `buchungssatz_unvollstaendig` lists what is missing and
       `app.export_sperre_pruefen` refuses the period, so an incomplete month
       blocks the export instead of producing a short file.
@@ -292,14 +292,14 @@ Radar first — the agents operate on its output.
 - [x] Per-step logging with tokens and cost; monthly budget hard stop (PR 74)
       — `agent_aufgabe`, `agent_schritt`, `agent_kosten` in micro-cents, the
       one cent conversion (K-16(b)), and a hard stop that survives the
-      transaction it rejects in (D-419). The step payload is readable only
+      transaction it rejects in (D-427). The step payload is readable only
       through `app.agent_nutzlast_lesen` with `agent.protokoll_lesen`, and
-      every read is audited (D-424).
+      every read is audited (D-432).
 - [x] The Agent Centre reads it (PR 76): the four agents with their switch
       state, every run with steps and cost, the monthly cap with consumption
       and reserved amount, and the step chain per run.
       **The screens say plainly that no model access is configured** — and
-      there is no start button until there is a provider (D-426).
+      there is no start button until there is a provider (D-434).
 - [ ] Four agents: CEO Assistant, Acquisition, Back-office, Finance
       — blocked on the model access above, not on the runtime.
 - [ ] Approval inbox with diff review, source attribution, confidence flags,

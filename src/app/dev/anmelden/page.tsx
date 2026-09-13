@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import type postgres from 'postgres';
 import { devFlaechenAn } from '@/lib/dev-flaechen';
 import { db } from '@/server/db/pool';
-import { SITZUNG_COOKIE, devSitzungAusstellen } from '@/server/auth/sitzung';
+import { SITZUNG_COOKIE, devSitzungAusstellen, sitzungsKeksOptionen } from '@/server/auth/sitzung';
 
 /**
  * `/dev/anmelden` — eine Sitzung ausstellen, OHNE Anmeldung.
@@ -78,9 +78,8 @@ export default async function DevAnmeldung() {
           : ansicht === 'gruppe' ? 'gruppe' : 'mandant',
       )) as Promise<{ token: string }>);
 
-    (await cookies()).set(SITZUNG_COOKIE, token, {
-      httpOnly: true, sameSite: 'lax', path: '/', maxAge: 12 * 60 * 60,
-    });
+    // Dieselben Attribute wie die echte Anmeldung — vor allem `secure`.
+    (await cookies()).set(SITZUNG_COOKIE, token, sitzungsKeksOptionen());
 
     /**
      * **Und dann WEITER — dorthin, wo dieses Konto hingehoert.**
