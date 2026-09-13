@@ -52,9 +52,12 @@ function Feld({ f, fehler, t }: {
      * mit `p-s3` und ohne Mindesthoehe — das einzige Formular, das ein Kunde
      * je sieht, sah anders aus als jedes Feld im Portal.
      */
-    className: 'min-h-11 w-full rounded-md border border-line bg-surface-3 px-s4 py-s3 '
+    className: 'min-h-11 w-full rounded-md border bg-surface-3 px-s4 py-s3 '
       + 'text-base text-text transition-colors duration-fast ease-brand '
-      + 'placeholder:text-text-subtle focus:border-brand',
+      + 'placeholder:text-text-subtle '
+      // Der Rand sagt es auch: `--danger` am ungueltigen Feld (DESIGN §5
+      // Forms), nicht nur die Meldung darunter — wie in `FormField`.
+      + (fehler === undefined ? 'border-line focus:border-brand' : 'border-danger'),
   } as const;
 
   const beschriftung = (

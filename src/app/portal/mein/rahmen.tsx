@@ -5,7 +5,7 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withPersonScope, type LeseKontext } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import {
-  meinTexte, PORTAL_BCP47, PORTAL_RICHTUNG,
+  meinBeschriftungen, meinTexte, PORTAL_BCP47, PORTAL_RICHTUNG,
   type MeinTexte, type PortalSprache,
 } from '@/lib/i18n/texte';
 import {
@@ -134,22 +134,8 @@ export function MeinRahmen({
         aktiverTab={aktiverTab}
         sichtbareTabs={basis.zugang.sichtbareTabs}
         navigationsRechte={basis.zugang.navigationsRechte}
-        /*
-         * Die Leiste in der Sprache der Person (D-419). Die Schluessel sind
-         * die der `mitarbeiter`-Leiste in `registry/tableiste.ts`; `stunden`
-         * zeigt auf das Stundenkonto und heisst deshalb so.
-         */
-        beschriftungen={{
-          heute: basis.texte.heute,
-          schichten: basis.texte.schichten,
-          stunden: basis.texte.stundenkonto,
-          nachrichten: basis.texte.nachrichten,
-          profil: basis.texte.profil,
-          'sitzung.bereich': basis.texte.bereichWechseln,
-          'sitzung.konto': basis.texte.konto,
-          'sitzung.website': basis.texte.website,
-          'sitzung.abmelden': basis.texte.abmelden,
-        }}
+        /* Die Leiste und die Kopfzeile in der Sprache der Person (D-419). */
+        beschriftungen={meinBeschriftungen(basis.texte)}
       >
         {children}
       </PortalRahmen>

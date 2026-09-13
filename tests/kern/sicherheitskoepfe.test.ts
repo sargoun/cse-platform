@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { SICHERHEITSKOEPFE } from '../../src/lib/sicherheitskoepfe.js';
-import { sitzungsKeksOptionen, SITZUNG_MAX_ALTER_SEK } from '../../src/server/auth/sitzung.js';
+import {
+  ALT_SITZUNG_COOKIE, sitzungsKeksName, sitzungsKeksOptionen, SITZUNG_MAX_ALTER_SEK,
+} from '../../src/server/auth/sitzung.js';
+import konfiguration from '../../next.config.js';
 
 /**
  * SEC-A7 (D-416) und der Sitzungskeks (D-416).
@@ -14,9 +17,22 @@ describe('SEC-A7 — die Sicherheitskoepfe', () => {
   const kopf = (name: string): string =>
     SICHERHEITSKOEPFE.find((k) => k.key === name)?.value ?? '';
 
-  it('HSTS: ein Jahr, mit Unterdomaenen', () => {
-    expect(kopf('Strict-Transport-Security')).toMatch(/max-age=31536000/u);
-    expect(kopf('Strict-Transport-Security')).toContain('includeSubDomains');
+  it('HSTS: zwei Jahre, Unterdomaenen, preload — der Wert aus 03-AUTH §4.1 und 05-API-KARTE §B.14', () => {
+    expect(kopf('Strict-Transport-Security')).toBe('max-age=63072000; includeSubDomains; preload');
+  });
+
+  /**
+   * Die Konstante allein beweist nichts ueber die Auslieferung. Erst die
+   * Verdrahtung in `next.config.ts` haengt sie an jede Antwort — und genau
+   * die konnte bisher entfernt oder falsch gematcht werden, ohne dass hier
+   * etwas rot wurde (Befund der Durchsicht, PR 10). `tests/e2e/headers.spec.ts`
+   * prueft dazu die ECHTEN Antworten.
+   */
+  it('next.config.ts haengt GENAU diese Koepfe an jede Route', async () => {
+    const regeln = await konfiguration.headers!();
+    expect(regeln).toHaveLength(1);
+    expect(regeln[0]!.source).toBe('/(.*)');
+    expect(regeln[0]!.headers).toEqual(SICHERHEITSKOEPFE);
   });
 
   it('kein Einbetten in fremde Seiten — X-Frame-Options UND frame-ancestors', () => {
@@ -49,6 +65,14 @@ describe('der Sitzungskeks — ein Satz Attribute fuer alle drei Setzer', () => 
     expect(o.path).toBe('/');
     expect(o.maxAge).toBe(SITZUNG_MAX_ALTER_SEK);
     expect(SITZUNG_MAX_ALTER_SEK).toBe(12 * 60 * 60);
+  });
+
+  it('heisst in der Auslieferung `__Host-cse_sitzung` (03-AUTH §4.1) — und in der Entwicklung nicht', () => {
+    expect(sitzungsKeksName({ NODE_ENV: 'production' })).toBe('__Host-cse_sitzung');
+    // Ohne `Secure` gibt es keinen `__Host-`-Keks; das Telefon im Heimnetz
+    // (D-414) bekaeme sonst keinen.
+    expect(sitzungsKeksName({ NODE_ENV: 'development' })).toBe(ALT_SITZUNG_COOKIE);
+    expect(ALT_SITZUNG_COOKIE).toBe('cse_sitzung');
   });
 
   it('ist in der Auslieferung `secure` — und nur dort', () => {

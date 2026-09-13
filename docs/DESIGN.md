@@ -431,8 +431,10 @@ every small laptop saw that, and neither the 375px nor the 1280px check did.
 | `lg` – `xl` | wordmark, four links, red button, menu button (~745px) | companies, sign-in, language |
 | from `xl` (1280) | the full row | — |
 
-**The wordmark is never truncated at any width**; the testable rule of the
-paragraph below applies to every tier, not only to phones. **D-417.**
+**The wordmark is never truncated at any width for the configured name**
+(„CSE Gruppe", 146px); `truncate` stays the emergency brake for an over-long
+name in `plattform_einstellung`, exactly as the paragraph below says. The
+testable rule below applies to every tier, not only to phones. **D-417.**
 
 **On a phone the header carries the wordmark and the menu button — nothing
 else.** The language switch goes into the overlay menu, for the same reason

@@ -492,6 +492,9 @@ export interface MeinTexte {
   readonly konto: string;
   readonly website: string;
   readonly abmelden: string;
+  /** Die Landmarken der Kopfzeile — ein Screenreader liest sie vor. */
+  readonly sitzung: string;
+  readonly pfad: string;
 }
 
 export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
@@ -587,6 +590,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     konto: 'Konto',
     website: 'Website',
     abmelden: 'Abmelden',
+    sitzung: 'Sitzung',
+    pfad: 'Pfad',
   },
   en: {
     heute: 'Today',
@@ -679,6 +684,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     konto: 'Account',
     website: 'Website',
     abmelden: 'Sign out',
+    sitzung: 'Session',
+    pfad: 'Path',
   },
   ar: {
     heute: 'اليوم',
@@ -771,6 +778,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     konto: 'الحساب',
     website: 'الموقع',
     abmelden: 'تسجيل الخروج',
+    sitzung: 'الجلسة',
+    pfad: 'المسار',
   },
   tr: {
     heute: 'Bugün',
@@ -863,11 +872,39 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     konto: 'Hesap',
     website: 'Web sitesi',
     abmelden: 'Çıkış yap',
+    sitzung: 'Oturum',
+    pfad: 'Yol',
   },
 };
 
 export function meinTexte(sprache: PortalSprache): MeinTexte {
   return MEIN_TEXTE[sprache];
+}
+
+/**
+ * Die Beschriftungen der Portalhuelle in der Sprache der Person (D-419).
+ *
+ * Die Schluessel sind die der `mitarbeiter`-Leiste in `registry/tableiste.ts`
+ * (`stunden` zeigt auf das Stundenkonto und heisst deshalb so) und die
+ * `sitzung.*`/`pfad.*`-Schluessel der Kopfzeile in `PortalRahmen`. An EINER
+ * Stelle, weil drei Huellen sie brauchen — die Arbeiterseiten, das Konto und
+ * die noch nicht gebauten Ziele der Leiste — und eine Karte, die je Huelle
+ * abgeschrieben wird, in einer davon einen Schluessel vergisst.
+ */
+export function meinBeschriftungen(t: MeinTexte): Readonly<Record<string, string>> {
+  return {
+    heute: t.heute,
+    schichten: t.schichten,
+    stunden: t.stundenkonto,
+    nachrichten: t.nachrichten,
+    profil: t.profil,
+    'sitzung.label': t.sitzung,
+    'sitzung.bereich': t.bereichWechseln,
+    'sitzung.konto': t.konto,
+    'sitzung.website': t.website,
+    'sitzung.abmelden': t.abmelden,
+    'pfad.label': t.pfad,
+  };
 }
 
 /**

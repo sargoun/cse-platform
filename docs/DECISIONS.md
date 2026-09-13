@@ -6615,13 +6615,17 @@ X-Frame-Options), `ursprung.ts` beruft sich auf HSTS als zweite Linie, und
 `next.config.ts` kannte kein `headers()`. Jede Antwort ging ohne
 `Strict-Transport-Security`, ohne `nosniff`, einbettbar in jede fremde Seite.
 
-Jetzt trägt jede Antwort HSTS (ein Jahr, Unterdomänen), `nosniff`,
+Jetzt trägt jede Antwort HSTS (zwei Jahre, Unterdomänen, `preload` — der
+Wert aus 03-AUTH §4.1 und 05-API-KARTE §B.14; die Eintragung in die
+Preload-Liste ist ein Schritt der Inbetriebnahme, nach O-08), `nosniff`,
 `X-Frame-Options: DENY` plus `frame-ancestors 'none'`,
-`Referrer-Policy: strict-origin-when-cross-origin` und eine
-`Permissions-Policy` (Kamera und Standort nur `self`, Mikrofon niemand). Die
-Werte stehen in `src/lib/sicherheitskoepfe.ts` ohne jede Abhängigkeit, damit
-die Konfiguration sie vor dem Bau laden kann und ein Test sie liest
-(`tests/kern/sicherheitskoepfe.test.ts`). **Keine vollständige CSP** — mit
+`Referrer-Policy: strict-origin-when-cross-origin` und die
+`Permissions-Policy` aus §B.14 (Kamera und Standort nur `self`, Mikrofon und
+Zahlung niemand). Die Werte stehen in `src/lib/sicherheitskoepfe.ts` ohne
+jede Abhängigkeit, damit die Konfiguration sie vor dem Bau laden kann; der
+Unit-Test liest die Konstante UND die Verdrahtung in `next.config.ts`, und
+`tests/e2e/headers.spec.ts` liest die echten Antworten — öffentliche Seite,
+Auth-Seite, Portalseite, Route-Handler, 404. **Keine vollständige CSP** — mit
 `'unsafe-inline'` sähe sie fertig aus und schützte nichts; ohne braucht sie
 eine Nonce-Kette durch die Middleware. Das ist O-359.
 
@@ -6633,6 +6637,16 @@ denselben Satz; `secure` hängt an `NODE_ENV`, weil `http://localhost` und das
 Telefon im Heimnetz (D-414) sonst keinen Keks bekämen. `POST /api/abmelden`
 prüft zusätzlich den Ursprung wie jeder andere schreibende Handler: es war der
 einzige ohne.
+
+**Der Name ist in der Auslieferung `__Host-cse_sitzung`**, wie 03-AUTH §4.1
+es festlegt — der Präfix lässt den Browser den Keks nur mit `Secure`,
+`Path=/` und ohne `Domain` annehmen, und dann kann keine Unterdomäne einen
+gleichnamigen unterschieben; `Secure` allein verhindert das nicht. In der
+Entwicklung bleibt es bei `cse_sitzung`: ohne `Secure` gibt es keinen
+`__Host-`-Keks, und `Secure` fällt dort aus dem Grund oben weg. Umstellung:
+die erste Auslieferung mit dem neuen Namen kennt alte `cse_sitzung`-Kekse
+nicht mehr, wer eine Sitzung hatte, meldet sich einmal neu an; die Abmeldung
+löscht den alten Namen mit.
 
 ### D-417 · Die öffentliche Kopfzeile hat drei Stufen — die volle Zeile erst ab `xl`
 
@@ -6699,6 +6713,22 @@ anderen Leitung sein, und dann ist `/auth/bereich` der einzige Weg in das
 andere Portal (03-AUTH §4.4). Ein Ausgang, der einer Rolle fehlt, ist der
 Fehler, den diese Prüfung seit dreimal verhindert.
 
+**Drei Nachträge aus der Durchsicht des Pull Requests.** Erstens: die
+Sitzungsnavigation der Kopfzeile ist unter `sm` ausgeblendet, und die
+Arbeiter-, Kunden- und Gruppenleiste haben kein „Mehr"-Blatt — auf dem
+Telefon einer Reinigungskraft gab es damit weder Konto noch Website und vor
+allem **keine Abmeldung**; ein weitergegebenes Telefon blieb angemeldet.
+`PortalRahmen` trägt jetzt für Leisten ohne „Mehr" ein Sitzungsmenü hinter
+dem Personen-Symbol, nur unter `sm`. Zweitens: die Landmarken `Sitzung` und
+`Pfad` waren als `aria-label` deutsch geblieben — ein Screenreader las im
+arabischen Portal deutsche Navigationsnamen; sie kommen jetzt aus derselben
+Karte (`sitzung.label`, `pfad.label`). Drittens: die Karte wurde nur in
+`MeinRahmen` gefüllt, und eine Arbeiterin erreicht über „Konto" und „Profil"
+zwei Hüllen, die nicht dort durchgehen. `portalZugang` liest deshalb die
+Sprache der Person mit (`zugang.sprache`, nur im Mitarbeiterportal), und das
+Konto wie die noch nicht gebauten Ziele der Leiste bekommen dieselbe Karte
+aus `meinBeschriftungen()` — an einer Stelle, statt dreimal abgeschrieben.
+
 ### D-420 · `main` ist nie breiter als das Fenster — was breiter ist, rollt für sich
 
 **Der Befund.** 63 Portalseiten liefen bei 375px seitwärts, 35 bei 820px,
@@ -6736,6 +6766,14 @@ Punkt fiel auf 404, weil das Modul dort nicht gebucht ist (D-377). Vier
 Menüpunkte auf 404, je Rolle und Gesellschaft, gefunden vom Durchlauf. Die
 Seite bildet jetzt dieselbe Schnittmenge wie `portalZugang`.
 
+**Und denselben Gruppen-Scope.** Im Gruppen-Scope IST `app.mandant_ids` die
+sichtbare Menge; `portalZugang` setzt sie vor jeder Rechtefrage, diese Seite
+tat es nicht. `app.sichtbare_mandanten()` war leer, jedes `gruppe.*`-Recht
+`false`, und die Gruppenleitung hatte auf ihrem Konto weder Leiste noch
+Schiene — im Durchlauf als `sidebar: false` protokolliert, benannt von der
+Durchsicht des Pull Requests. Jetzt wird die Einstellung wie im Tor gesetzt,
+und `portal-ausgang.spec.ts` prüft die Schiene der Gruppenleitung.
+
 ### D-423 · Kleinere Befunde derselben Runde
 
 - **Kein App-Symbol.** `public/` trug weder `favicon.ico` noch ein Symbol;
@@ -6749,8 +6787,11 @@ Seite bildet jetzt dieselbe Schnittmenge wie `portalZugang`.
   (`surface-2`, keine Mindesthöhe, `--danger-strong` als Textfarbe). Es nimmt
   jetzt die Feldoptik von `FormField` und den `Button` der Komponente.
 - **„Anschrift"** stand als deutsches Literal auch auf `/en/impressum`.
-- **Nicht reproduzierbar:** vier von 643 Aufrufen meldeten React 418
-  (Hydration). Zwölf gezielte Wiederholungen mit Vergleich von Server-HTML
-  und hydriertem DOM zeigten keinen Unterschied und keinen Fehler; die
-  Meldung fiel mit dem Durchlauf zusammen, der das Fenster während des Ladens
-  umgestellt hat. Bleibt als Beobachtung stehen, nicht als Befund.
+- **Nicht reproduzierbar:** sechs von rund 950 Aufrufen (vier im ersten
+  Durchlauf über 643 Seiten, zwei im Nachlauf über 309) meldeten React 418
+  (Hydration), jedes Mal auf anderen Seiten. 36 gezielte Wiederholungen —
+  zwölf gegen den Produktionsbau mit Vergleich von Server-HTML und
+  hydriertem DOM, 24 gegen den Entwicklungsserver, der den vollständigen
+  Unterschied ausgäbe — zeigten keinen Unterschied und keinen Fehler. Die
+  Meldung fiel mit dem Durchlauf zusammen, der das Fenster während des
+  Ladens umgestellt hat. Bleibt als Beobachtung stehen, nicht als Befund.

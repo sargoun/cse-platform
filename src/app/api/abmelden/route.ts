@@ -2,7 +2,9 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import type postgres from 'postgres';
 import { db } from '@/server/db/pool';
-import { SITZUNG_COOKIE, beendeSitzung, sitzungsKeksOptionen } from '@/server/auth/sitzung';
+import {
+  ALT_SITZUNG_COOKIE, SITZUNG_COOKIE, beendeSitzung, sitzungsKeksOptionen,
+} from '@/server/auth/sitzung';
 import { istGleicherUrsprung } from '@/server/auth/ursprung';
 
 /**
@@ -47,5 +49,10 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   // Dieselben Attribute wie beim Setzen, nur `maxAge: 0` — ein Keks wird nur
   // geloescht, wenn Pfad und Flags zum gesetzten passen.
   antwort.cookies.set(SITZUNG_COOKIE, '', { ...sitzungsKeksOptionen(), maxAge: 0 });
+  // Und den Keks aus der Zeit vor `__Host-` (D-416) — er wird nicht mehr
+  // gelesen, soll aber auch nicht liegen bleiben.
+  if (SITZUNG_COOKIE !== ALT_SITZUNG_COOKIE) {
+    antwort.cookies.set(ALT_SITZUNG_COOKIE, '', { httpOnly: true, path: '/', maxAge: 0 });
+  }
   return antwort;
 }

@@ -135,8 +135,9 @@ export function OeffentlicheShell(
           * (DESIGN §8). Als blosser `text-h3` war er 30px hoch.
           *
           * `min-w-0` (mit `truncate` am Span darin): die Kopfzeile ist eine
-          * Reihe ohne Umbruch, und ab `md` stehen rechts „Anmelden" und die
-          * Sprachwahl mit fester Mindestbreite. Ohne diese beiden Klassen
+          * Reihe ohne Umbruch, und ab `lg` stehen rechts die Punkte und der rote
+          * Knopf, ab `xl` auch „Anmelden" und die Sprachwahl mit fester
+          * Mindestbreite (D-417). Ohne diese beiden Klassen
           * drueckt ein laengerer `gruppenname` — er kommt aus
           * `plattform_einstellung`, nicht aus dem Quelltext — die Zeile ueber
           * den Rand, und zwar auf JEDER oeffentlichen Seite.
@@ -194,7 +195,7 @@ export function OeffentlicheShell(
           * **Das Vollbild-Menue des Telefons** — DESIGN §5: „Mobile:
           * full-screen overlay menu".
           *
-          * Es gab keines. Die Hauptnavigation ist `hidden md:flex`, und
+          * Es gab keines. Die Hauptnavigation ist `hidden lg:flex`, und
           * darunter stand NICHTS: auf einem Telefon fuehrte vom oeffentlichen
           * Auftritt kein Weg zu Unternehmen, Leistungen, Projekten oder
           * Kontakt. Vier gebaute Seiten, kein Verweis — dasselbe Muster wie im
@@ -249,7 +250,7 @@ export function OeffentlicheShell(
                 * **Die vier Gesellschaften — auf dem Telefon HIER und nicht im
                 * Kopf** (DESIGN §6, D-381).
                 *
-                * Der Kopf ist 72px hoch und traegt unter `md` schon den
+                * Der Kopf ist 72px hoch und traegt unter `xl` schon den
                 * Menueknopf; ein zweites Klappelement daneben waere bei 375px
                 * kein Ziel mehr, das man trifft. Also eine Ebene tiefer, im
                 * Blatt, das ohnehin offen ist, wenn jemand navigiert.
@@ -334,16 +335,16 @@ export function OeffentlicheShell(
           * **Und trotzdem `lg:flex`** — am Telefon steht in der Kopfzeile
           * NICHTS ausser dem Namen und dem Menue. Hier standen einmal drei
           * Absaetze uebereinander, von denen einer erklaerte, warum dieser
-          * Knopf NICHT hinter `md:` liegt; er lag da bereits. Ein Kommentar,
+          * Knopf NICHT hinter `lg:` liegt; er lag da bereits. Ein Kommentar,
           * der das Gegenteil des Codes darunter behauptet, ist schlechter als
           * keiner.
           *
-          * Der Grund fuer `md:`: erst der Auftrittsname, dann „Anmelden",
+          * Der Grund fuer `lg:`: erst der Auftrittsname, dann „Anmelden",
           * dann der rote Knopf, das Menue und die Sprachwahl — bei 375px
           * schob das die Zeile ueber den Rand, und „kein waagerechtes
           * Scrollen bei 375px" fiel auf `/` wie auf `/en`. DESIGN §5 sagt es
           * auch: „Mobile: full-screen overlay menu." Nicht „dasselbe, nur
-          * enger", sondern: unter `md` gehoert alles in das Blatt — und das
+          * enger", sondern: unter `lg` gehoert alles in das Blatt — und das
           * Blatt fuehrt `/angebot` als ersten Punkt nach den vier Seiten.
           *
           * `min-h-11` sind 44px: DESIGN §8 nennt das Tap-Ziel nicht als

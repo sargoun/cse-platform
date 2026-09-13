@@ -1,4 +1,5 @@
 import { StatusPill } from '@/components/ui/StatusPill';
+import { Icon } from '@/components/ui/Icon';
 import { TabLeiste } from './TabLeiste';
 import { SeitenNavigation } from './SeitenNavigation';
 import { tableiste, type LeistenSchluessel } from '@/server/registry/tableiste';
@@ -63,6 +64,19 @@ export function PortalRahmen({
   const tabs = tableiste(leiste);
   const b = (schluessel: string, vorgabe: string): string =>
     beschriftungen?.[schluessel] ?? vorgabe;
+  /**
+   * **Auf dem Telefon braucht jede Leiste ohne `Mehr` einen eigenen Ausgang.**
+   *
+   * Die Sitzungsnavigation der Kopfzeile ist unter `sm` ausgeblendet, und das
+   * ist richtig — bei 375px hat die Zeile keinen Platz fuer vier Punkte. Das
+   * interne Portal traegt sie im „Mehr"-Blatt. Die Arbeiter-, die Kunden- und
+   * die Gruppenleiste haben KEIN `Mehr` (SEITENKARTE §11.2), und damit hatte
+   * eine Reinigungskraft auf ihrem Telefon weder Konto noch Website — und vor
+   * allem keine Abmeldung. Ein Telefon, das man weitergibt, blieb angemeldet.
+   * Deshalb hier ein Blatt hinter einem Personen-Symbol, nur unter `sm` und
+   * nur fuer Leisten ohne `Mehr` (D-419).
+   */
+  const ohneMehr = !tabs.ziele.some((z) => z.schluessel === 'mehr');
   return (
     <div className="flex min-h-dvh flex-col bg-ink">
       <div
@@ -114,7 +128,8 @@ export function PortalRahmen({
             {titel}
           </a>
         ) : (
-          <nav aria-label="Pfad" data-cse="spur" className="flex min-w-0 items-center gap-s2">
+          <nav aria-label={b('pfad.label', 'Pfad')} data-cse="spur"
+               className="flex min-w-0 items-center gap-s2">
             <a href={wurzel} data-cse="spur-zurueck"
                className="flex min-h-11 min-w-11 items-center gap-s1 text-sm text-text-muted
                           hover:text-text">
@@ -139,7 +154,7 @@ export function PortalRahmen({
           * dieselben drei Ziele.
           */}
         <nav
-          aria-label="Sitzung"
+          aria-label={b('sitzung.label', 'Sitzung')}
           data-cse="sitzungsnavigation"
           className="ms-auto hidden items-center gap-s4 sm:flex"
         >
@@ -173,6 +188,52 @@ export function PortalRahmen({
             </button>
           </form>
         </nav>
+
+        {ohneMehr && (
+          <details data-cse="sitzungsmenue" className="relative ms-auto sm:hidden">
+            {/* Ein Symbol allein traegt seinen Namen (DESIGN §5 Icons). */}
+            <summary
+              aria-label={b('sitzung.label', 'Sitzung')}
+              className="flex min-h-11 min-w-11 cursor-pointer list-none items-center
+                         justify-center rounded-md text-text-muted hover:bg-surface-2
+                         hover:text-text"
+            >
+              <Icon name="person" groesse="md" />
+            </summary>
+            {/* Dropdown nach DESIGN §6: `--surface-2`, `--r-lg`, `--shadow-pop`, 320px. */}
+            <nav
+              aria-label={b('sitzung.label', 'Sitzung')}
+              data-cse="sitzungsmenue-blatt"
+              className="absolute end-0 top-full z-50 mt-s1 w-[320px] rounded-lg border
+                         border-line bg-surface-2 p-s2 shadow-pop"
+            >
+              <ul className="m-0 list-none p-0">
+                {([
+                  ['/auth/bereich', b('sitzung.bereich', 'Bereich wechseln')],
+                  ['/portal/konto', b('sitzung.konto', 'Konto')],
+                  ['/', b('sitzung.website', 'Website')],
+                ] as const).map(([ziel, text]) => (
+                  <li key={ziel}>
+                    <a href={ziel} data-cse="sitzungsmenue-ziel"
+                       className="flex min-h-11 items-center rounded-md px-s2 text-sm text-text
+                                  hover:bg-surface-3">
+                      {text}
+                    </a>
+                  </li>
+                ))}
+                <li>
+                  <form method="post" action="/api/abmelden">
+                    <button type="submit" data-cse="sitzungsmenue-abmelden"
+                            className="flex min-h-11 w-full items-center rounded-md px-s2
+                                       text-start text-sm text-text hover:bg-surface-3">
+                      {b('sitzung.abmelden', 'Abmelden')}
+                    </button>
+                  </form>
+                </li>
+              </ul>
+            </nav>
+          </details>
+        )}
       </header>
 
       <div className="flex flex-1">
