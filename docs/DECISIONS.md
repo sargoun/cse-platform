@@ -7620,3 +7620,166 @@ der Übersetzer konnte es nicht, weil er der Annotation glaubte.
 Die Umwandlung steht jetzt an der Grenze, mit einer eigenen Rohzeile, deren
 Feld `string` heisst. Das ist die Stelle, an der `BigInt()` stehen muss —
 nicht irgendwo später, wo jemand sie vergisst.
+
+### D-463 · Der Diff läuft über die STRUKTUR, und ein Zuschlag gehört nicht in die Identität
+
+APR-02 verlangt „zeige, was sich geändert hat". Über gerenderten Text
+verglichen zeigt ein Diff Zeilenumbrüche als Änderung und eine verschobene
+Position als vier — die Preisänderung geht im Rauschen unter. `diffVergleich`
+arbeitet deshalb auf `Vergleichsmodell`, rechnet in `bigint`-Cent und bildet
+die Steuerdifferenz **je Satzgruppe**: ein Wechsel 19 % → 7 % erscheint als
+zwei Gruppen mit ihren Beträgen, nicht als Netto-Differenz null.
+
+Die Identität einer Position ist `objekt | katalog | einheit` — und **nicht**
+der Zuschlag. Steht er im Schlüssel, erscheint eine geänderte Zuschlagsgruppe
+als entfallene plus hinzugekommene Zeile; in diesem Add/Remove-Paar wird eine
+Preisänderung unsichtbar, weil der neue Betrag mit nichts verglichen wird.
+Ohne ihn erscheint dieselbe Änderung als GEÄNDERTE Position mit ihrem Delta.
+Solange **O-114** offen ist, gilt die sichtbare Variante;
+`ZUSAETZLICHE_SCHLUESSEL_MERKMALE` ist der eine Ort, an dem die Antwort des
+Kunden eintrifft.
+
+Zwei Zeilen mit derselben Identität sind ein **Fehler**, keine stille Summe:
+sie zu addieren sähe aus wie eine Mengenänderung, eine zu überschreiben liesse
+sie verschwinden. Beides verbirgt genau das, wofür es den Diff gibt.
+
+### D-464 · Die Zusammenfassung kommt aus einer Schablone, nie aus einem Modell
+
+Der eine Satz, den ein Mensch liest, ist die ganze Wirkung von APR-02. Eine
+Paraphrase eines Diffs kann falsch sein, und eine falsche Zusammenfassung hebt
+das Tor auf: der Mensch hat gelesen, was nicht dasteht, und freigegeben, was er
+nicht gesehen hat. Die vier Schablonen aus §14.5 stehen ausgeschrieben in
+`zusammenfassung.ts`, die Reihenfolge der Klauseln ist festgelegt — der Satz
+geht in `ansicht_modell` und damit in die Hashkette ein (K-13), und was
+gehasht wird, darf nicht von einer Kartenreihenfolge abhängen.
+
+Formatiert wird mit `formatiereGeld`. Es gibt **einen** Geldformatierer; eine
+zweite Fassung wäre die Stelle, an der geschütztes Leerzeichen,
+Tausenderpunkt oder Rundung still auseinanderlaufen und zwei Bildschirme
+denselben Betrag verschieden zeigen.
+
+### D-465 · Konfidenz wird abgeleitet, nicht erfragt — und „nichts geprüft" ist nicht „in Ordnung"
+
+Ein Modell, das seine eigene Sicherheit meldet, meldet sie selbstbewusst auch
+dort, wo es sich irrt. Jedes Signal in `konfidenz.ts` ist stattdessen eine
+Tatsache über die Daten: eine IBAN-Prüfsumme stimmt oder nicht, Netto plus USt
+geht je Gruppe auf oder nicht, ein Lieferant steht im Stamm oder nicht.
+
+Zwei Entscheidungen darin sind absichtlich unbequem:
+
+- Eine gerissene Prüfung setzt **hart auf 0**. Ein Mittelwert liesse vier
+  bestandene Prüfungen die eine überstimmen, auf die es ankommt.
+- Ohne OCR-Wert und ohne jede Prüfung ist die Konfidenz **0, nicht 1**. Ein
+  unvollständiger Extraktor soll nach „unsicher" irren, nicht nach „geprüft".
+
+Die Weitergabe (§5.5 Regel 7) färbt Abgeleitetes auf der **Segmentgrenze**:
+`/positionen/3` färbt `/positionen/3/betrag`, aber nicht `/positionen/30/…`.
+Ein nackter Präfixvergleich hätte dreissig Felder grundlos unsicher gemacht,
+und eine Warnung, die überall steht, liest niemand mehr.
+
+`KONFIDENZ_SCHWELLE` ist PLATZHALTER (**O-197**) und irrt nach streng: ein zu
+Unrecht markiertes Feld kostet einen Klick, ein zu Unrecht durchgewinktes eine
+falsche Freigabe.
+
+### D-466 · Elf Bestandteile in der Freigabekette — sechs bewiesen das Falsche
+
+Die alte Formel hashte Nutzlast, Art, Entscheider, Zeitpunkt, Kettennummer und
+Vorgänger. Das ist kein kleineres Stück derselben Kette, sondern eine Kette
+über etwas anderes: sie bezeugt die Nutzlast, aber nicht den Diff, nicht die
+Feldnachweise, nicht das Ansichtsmodell und nicht das Ergebnis des Tores —
+also **nichts darüber, was auf dem Schirm stand**, als jemand „Freigeben"
+drückte. Genau das sind APR-02 und APR-03, und genau das soll APR-07 belegen.
+
+Die Kanonisierung steht ausgeschrieben, weil zwei Implementierungen sie sonst
+verschieden raten: jeder Bestandteil ist ein kleingeschriebener Hex-Digest
+**oder die leere Zeichenkette** — nie das Wort `null` —, getrennt durch genau
+EIN `0x1F`. `entschieden_am` ist RFC 3339 UTC mit Millisekunden, `kette_nr`
+sind Dezimalziffern. `tests/isolation/freigabe-posteingang.test.ts` rechnet
+den in SQL geschriebenen Hash in TypeScript nach; ohne diesen Golden-Vector
+meldete der nächtliche Wächter irgendwann jede Nacht an jedem Glied einen
+Bruch, und der Erste, der das sieht, schaltet ihn ab.
+
+### D-467 · Kein zweiter Kanonisierer in SQL — die Anwendung liefert die BYTES
+
+Postgres sortiert `jsonb`-Schlüssel nach (Länge, Bytes), RFC 8785 nach
+UTF-16-Codeeinheiten. Für `{"b":1,"ab":2}` stimmen die beiden bereits nicht
+überein. Ein JCS-Kanonisierer in plpgsql wäre damit die zweite Fassung einer
+Sache, die es genau einmal geben darf.
+
+`app.freigabe_entscheiden` übernimmt darum die kanonischen **Bytes** und
+rechnet die Digests selbst — dieselbe Bauform wie
+`fin.rechnung_kette_schreiben` (0077), und aus demselben Grund: wer einen Hash
+mitschicken darf, kann ihn auch wählen. Geprüft wird zusätzlich, dass die
+Bytes zu DIESER Freigabe gehören (`nutzlast_hash = freigabe.payload_hash`);
+ohne das liesse sich die Nutzlast eines anderen Vorgangs einreichen, und der
+Schnappschuss bezeugte eine Entscheidung über etwas, das nie vorlag.
+
+### D-468 · Wer wartet, muss lesbar sein — statt blindem `not null`
+
+Die neuen Posteingangsspalten (`vorgang_typ`, `titel`, `zusammenfassung`,
+`vorschau_payload`, `payload_hash`) sind **nicht** durchgängig `not null`.
+Nicht aus Rücksicht auf vorhandene Zeilen: eine Freigabe, die ein Dienst in
+EINEM Schritt erteilt (`erteilen.ts` — Eingangsrechnung buchen, Mahnung
+freigeben), ist die Aufzeichnung einer bereits gefallenen Entscheidung, kein
+wartender Vorschlag. Sie hat keinen Diff und keine Vorschau, weil es nichts
+vorzulegen gab; ihr eine `agent_vorgang_typ` zuzuweisen hiesse, eine Abbildung
+zu **erfinden**, die niemand bestätigt hat.
+
+Was wirklich gilt, steht als `freigabe_offen_ist_vorzeigbar`: bei
+`status = 'offen'` müssen alle fünf stehen. „Ein Mensch soll das ansehen" und
+„es lässt sich ansehen" sind dieselbe Bedingung.
+
+### D-469 · Ein wartender Vorgang wird nur über den Definer entschieden
+
+Der erste Entwurf entzog `cse_app` schlicht das `insert` auf
+`freigabe_snapshot`. Das war zu grob und hat den Seed zerbrochen — und mit ihm
+den legitimen Direktschreiber aus D-468.
+
+`trg_freigabe_snapshot_nur_definer` trifft stattdessen genau den Fall, der zu
+schützen ist: ist die zugehörige `freigabe` noch `offen`, muss der Schreiber
+`cse_definer` sein. Damit hängen die vier Prüfungen, die aus einem Klick eine
+Prüfung machen, unumgehbar an jedem wartenden Vorgang: es gibt eine Ansicht,
+die Nutzlast ist die vorgelegte, die Kettennummer kommt unter `FOR UPDATE`,
+und `entschieden_von` ist nie NULL. `current_user` unterscheidet die beiden
+Fälle — `session_user` bleibt in einer Definer-Funktion `cse_app` und taugt
+dafür nicht.
+
+### D-470 · Ein Spaltenentzug wirkt nur, wenn daneben kein Tabellenrecht steht
+
+0136 schrieb `revoke select (pruefdauer_sek) on freigabe_snapshot from
+cse_app` — und bewirkte **nichts**. 0012 hatte `grant select on
+freigabe_snapshot to cse_app` gegeben; Postgres findet das tabellenweite Recht
+und lässt die Spalte durch. Der Isolationstest, der „permission denied"
+erwartete, bekam eine leere Ergebnismenge: die Spalte war die ganze Zeit
+lesbar.
+
+Ausgerechnet diese Spalte ist die, bei der es rechtlich zählt — sie misst, wie
+schnell ein namentlich bekannter Mensch freigibt (§ 87 Abs. 1 Nr. 6 BetrVG,
+**O-06**). „Eingeschränkt" darf nicht heissen „allen gegeben und in der
+Oberfläche gefiltert", und beinahe hiess es das.
+
+0137 nimmt das breite Recht weg und zählt die erlaubten Spalten auf. Lästig,
+und genau deshalb richtig: eine neue Spalte auf dieser Tabelle ist ab jetzt
+eine bewusste Entscheidung darüber, wer sie lesen darf.
+
+### D-471 · Unter FORCE RLS heisst „keine Policy" nicht *alles*, sondern *nichts*
+
+Jeder Aufruf von `app.freigabe_entscheiden` endete in „diese Person hat sie
+nie geöffnet (APR-08)" — obwohl die Zeile stand. `freigabe_ansicht` trägt
+`force row level security`, und die Policies aus 0136 gelten `to cse_app`. Für
+`cse_definer` gab es damit keine anwendbare Policy, also null Zeilen — **kein**
+„permission denied". Die Funktion las brav nichts und zog den einzigen Schluss,
+den sie ziehen konnte.
+
+Das ist D-388 mit umgekehrtem Vorzeichen: dort war eine Policy zu breit, hier
+fehlte sie ganz. Beide Male ist das Ergebnis still. 0137 legt die
+Definer-Policies an — **gebunden** an `app.aktiver_mandant()`, nicht
+`using (true)`, weil permissive Policies sich ODERN und eine ungebundene den
+Schnitt der gebundenen daneben aufhebt. Die eine Ausnahme ist
+`freigabe_kette`: dort wird der Mandant als Argument gezogen, und `cse_app`
+hat auf der Tabelle ohnehin keinen Grant.
+
+Dazu gehören die Grants, die sonst fehlen: die Rolle des Entscheiders wird
+**kopiert** (eine später nachgeschlagene Rolle wäre kein Beleg), und
+`app.freigabe_kette_ziehen` war nur `cse_app` gegeben — die Entscheidung
+scheiterte an der letzten Stelle vor dem Schreiben.

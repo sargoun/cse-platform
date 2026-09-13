@@ -885,17 +885,86 @@ create policy p_intern_ceiling on freigabe as restrictive for all to cse_app
 create policy t_snapshot_lesen on freigabe_snapshot for select to cse_app
   using (mandant_id = any (app.sichtbare_mandanten())
          and app.hat_recht('freigabe.lesen', mandant_id));
+/*
+ * Die Schreibpolicy wandert mit: `versand.freigeben` → `freigabe.entscheiden`.
+ * Sie bleibt bestehen, weil es einen legitimen Direktschreiber gibt — die in
+ * EINEM Schritt erteilte Freigabe (`erteilen.ts`, Seed). Der wartende Fall
+ * geht ueber `trg_freigabe_snapshot_nur_definer` nicht hier durch.
+ */
+create policy t_snapshot_schreiben on freigabe_snapshot for insert to cse_app
+  with check (mandant_id = app.aktiver_mandant() and not app.ist_readonly()
+              and app.hat_recht('freigabe.entscheiden', mandant_id));
+
 create policy p_intern_ceiling on freigabe_snapshot as restrictive for all to cse_app
   using (app.portal() = 'intern') with check (app.portal() = 'intern');
 
-/*
- * **Kein `insert` mehr fuer `cse_app` auf den Schnappschuss.** Er entsteht
- * ausschliesslich in `app.freigabe_entscheiden` — sonst liesse sich eine
- * Entscheidung an der Ansichtspruefung, der Nutzlastpruefung und der
- * Kettennummer vorbei schreiben, und die Kette bezeugte, was jemand
- * eingetippt hat.
+/**
+ * **Ein WARTENDER Vorgang wird nur ueber den Definer entschieden.**
+ *
+ * Der erste Entwurf hat `insert` auf `freigabe_snapshot` schlicht entzogen.
+ * Das war zu grob und hat etwas Funktionierendes zerbrochen: `erteilen.ts`
+ * (PR 54.3) und der Seed legen Freigabe UND Schnappschuss in einem Schritt
+ * an — eine Entscheidung, die bereits gefallen ist, aufgezeichnet. Dort gibt
+ * es keinen Posteingang, keine Ansicht und keine Wartezeit, und es soll auch
+ * keine geben.
+ *
+ * Was wirklich zu schuetzen ist, ist der ANDERE Fall: eine Freigabe, die auf
+ * einen Menschen wartet. Fuer sie haengen an `app.freigabe_entscheiden` die
+ * Pruefungen, die sie zu einer Pruefung machen — es gibt eine Ansicht, die
+ * Nutzlast ist die vorgelegte, die Kettennummer kommt unter `FOR UPDATE`, und
+ * `entschieden_von` ist nie NULL. Ein direkter `insert` daran vorbei liesse
+ * genau diese vier weg.
+ *
+ * `current_user` unterscheidet die beiden: in einer `security definer`
+ * -Funktion ist er `cse_definer`, ausserhalb `cse_app`. `session_user` bleibt
+ * in beiden Faellen `cse_app` und taugt deshalb NICHT.
  */
-revoke insert on freigabe_snapshot from cse_app;
+/**
+ * `art` aus `entscheidung`, wo der Schreiber nur die grobe Fassung kennt.
+ *
+ * `erteilen.ts` und der Seed schreiben eine Entscheidung, die bereits
+ * gefallen ist: genehmigt oder abgelehnt, mehr gibt es dort nicht. Die
+ * Verfeinerung — Korrektur, Widerruf, Fristablauf — entsteht erst im
+ * Posteingang, und `app.freigabe_entscheiden` setzt sie ausdruecklich.
+ *
+ * Die Ableitung steht als Trigger und nicht als `default`: ein `default`
+ * kann keine andere Spalte lesen. Und sie ueberschreibt nichts — wer `art`
+ * angibt, behaelt sie.
+ */
+create function kern.freigabe_snapshot_art_ableiten() returns trigger
+language plpgsql set search_path = pg_catalog, public as $$
+begin
+  if new.art is null then
+    new.art := case new.entscheidung
+      when 'genehmigt' then 'genehmigt'::freigabe_art
+      else 'abgelehnt'::freigabe_art end;
+  end if;
+  return new;
+end $$;
+
+create trigger trg_freigabe_snapshot_art_ableiten
+  before insert on freigabe_snapshot
+  for each row execute function kern.freigabe_snapshot_art_ableiten();
+
+create function kern.freigabe_snapshot_nur_definer() returns trigger
+language plpgsql set search_path = pg_catalog, public as $$
+begin
+  if current_user <> 'cse_definer'
+     and exists (select 1 from public.freigabe f
+                  where f.id = new.freigabe_id and f.status = 'offen') then
+    raise exception
+      'Freigabe %: ein wartender Vorgang wird ueber app.freigabe_entscheiden '
+      'entschieden, nicht durch einen direkten insert.', new.freigabe_id
+      using errcode = '42501',
+            hint = 'Sonst faellt die Ansichtspruefung (APR-08), die '
+                   'Nutzlastpruefung und die Kettennummer unter den Tisch.';
+  end if;
+  return new;
+end $$;
+
+create trigger trg_freigabe_snapshot_nur_definer
+  before insert on freigabe_snapshot
+  for each row execute function kern.freigabe_snapshot_nur_definer();
 
 do $$
 declare t text;

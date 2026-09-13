@@ -272,6 +272,22 @@ proven by test, not by inspection.
       nothing even with a single candidate (D-457), an outgoing entry is never
       matched to an outgoing invoice (D-458), and nothing ever disappears from
       the queue (D-459).
+- [x] Approval inbox: diff review, source attribution, confidence (PR 62,
+      APR-01/02/03/07) — the **service layer, the schema and the chain**; the
+      screens follow. The diff runs on the structured payload, never on
+      rendered text, and computes the VAT delta **per tax-rate group** (D-463).
+      Whether a surcharge belongs to a position's identity is **O-114** and
+      stays open; until it is answered a changed surcharge shows as a *changed*
+      position rather than an add/remove pair that would hide the price change.
+      The headline sentence comes from a template, never from a model (D-464) —
+      a wrong summary defeats the whole gate. Confidence is **derived, not
+      asked for**: a failed check hard-zeroes it, and "nothing checked" is 0,
+      not 1 (D-465); the threshold is a placeholder erring strict (**O-197**).
+      The chain covers **eleven** components, so what the approver saw is in
+      the hash and not only the payload (D-466), and there is **no second
+      canonicaliser in SQL** — the application hands over the bytes (D-467).
+      A waiting request can only be decided through `app.freigabe_entscheiden`
+      (D-469): no view row, no decision.
 - [ ] Incoming-invoice OCR → extraction → proposal → approval
 - [ ] GoBD archive with retention and deletion lock
 - [ ] Open items, monthly figures, Z3 export, Verfahrensdokumentation
