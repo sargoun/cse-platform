@@ -7065,3 +7065,127 @@ besteht. Die Signatur läuft nach `SIGNATUR_SEKUNDEN` (15 Minuten, DOC-03) ab.
 Ohne verbundenen Objektspeicher antwortet sie mit 409 und Klartext, nie mit
 einer erfundenen URL: ein Link, der ins Leere zeigt, sieht aus wie ein
 kaputtes Dokument.
+
+---
+
+## Entschieden in PR 60 — der DATEV-EXTF-Export (ACC-02) ⚑
+
+### D-437 · Das Format ist spezifikationsabgeleitet, und das steht auf jeder Zeile
+
+Die Feldreihenfolge des Buchungsstapels stammt aus der veröffentlichten
+DATEV-Formatbeschreibung — **nicht** aus einer Datei, die dieses Steuerbüro
+eingelesen hat. Die ROADMAP macht das zur Phasenbedingung: Phase 7 ist nicht
+fertig, bevor der Steuerberater eine echte EXTF-Datei ohne Nacharbeit
+akzeptiert.
+
+Drei Vorkehrungen, damit die Lücke nicht zur Falle wird:
+
+1. **`SPALTEN` ist die eine Wahrheit.** Die Kopfzeile der Datei *ist* diese
+   Liste, und jede Datenzeile wird gegen ihre Länge geprüft — Kopf und Zeilen
+   können nicht auseinanderlaufen. Ein Wert wird über seinen Spaltennamen
+   gesetzt, nie über einen Index; ein Tippfehler wirft, statt still ein Feld
+   leer zu lassen.
+2. **Die Fahne `format_ungeprueft` steht auf JEDER Exportzeile**, nicht in
+   einer globalen Einstellung. Wer in drei Jahren einen alten Stapel ansieht,
+   muss erkennen, ob er aus der Zeit vor der Musterdatei stammt; eine globale
+   Fahne sähe rückwirkend anders aus.
+3. **Die Oberfläche sagt es**, und ein Test hält fest, dass sie es sagt.
+
+Kommt das Muster, ist die Korrektur ein Eingriff an einer Stelle.
+
+### D-438 · Windows-1252 als eigene Tabelle, nicht als Abhängigkeit
+
+Node kodiert nur UTF-8. `Buffer.from(s, 'latin1')` ist ISO-8859-1 und **nicht**
+dasselbe: die beiden unterscheiden sich in genau siebenundzwanzig Zeichen im
+Bereich 0x80–0x9F, und darunter sind `€`, `„`, `"` und die Gedankenstriche —
+also genau die Zeichen, die in einem deutschen Buchungstext vorkommen. `latin1`
+bildet sie auf Steuerzeichen ab, und DATEV liest ein Kästchen, wo der Betrag in
+Euro stand.
+
+Eine Bibliothek für siebenundzwanzig Zeichen wäre eine Abhängigkeit mehr in
+einem Pfad, der eine Datei für eine Betriebsprüfung erzeugt. Die Tabelle steht
+im Repository, sie ist vollständig, und ein Test prüft jedes ihrer Zeichen.
+
+**Ein Zeichen ohne CP1252-Entsprechung wird zum Fragezeichen, nicht zum
+Fehler.** Die Alternative wäre gewesen, den Export an einem türkischen oder
+arabischen Namen scheitern zu lassen — und die Plattform führt solche Namen
+(SPEC §10). Eine Buchung mit einem Fragezeichen im Text ist unschön; eine
+Buchhaltung, die sich nicht exportieren lässt, weil jemand `Çağ` heisst, wäre
+ein Fehler. (`Ç` gibt es übrigens, `ğ` nicht.)
+
+### D-439 · Der Schreiber liest keine Uhr
+
+`erzeugtAm` kommt als Argument herein. Das ist die Voraussetzung dafür,
+dass derselbe Zeitraum zweimal exportiert identische Bytes ergibt (Abnahme 3)
+— ein `new Date()` im Schreiber machte das unmöglich, und die Zusage wäre
+unprüfbar.
+
+Die Serveruhr wird an genau EINER Stelle gelesen: in der HTTP-Route
+(Invariante 5).
+
+### D-440 · Die erzeugte Datei geht NICHT durch den Upload-Pfad
+
+`ladeHoch` prüft Magic Bytes und entfernt Metadaten, weil dort Inhalt ankommt,
+den ein **Mensch** mitbringt: eine `.exe` mit der Endung `.pdf`, ein Foto mit
+GPS-Koordinaten. Eine EXTF-Datei ist Text und hat gar keine Signatur;
+`pruefeUpload` weist sie deshalb ab — zu Recht, denn sie ist kein Upload.
+
+Die naheliegende Antwort wäre gewesen, `text/csv` in `ERLAUBTE_MIME`
+aufzunehmen und die Signaturprüfung für Textdateien zu überspringen. Das hätte
+den Upload-Riegel für **jede** Datei geöffnet, die sich als Text ausgibt — um
+eines Problems willen, das der Upload gar nicht hat.
+
+Stattdessen `dokument/erzeugt.ts`: dieselbe Grössengrenze, dieselbe
+Aufbewahrungsregel, ein geschlossener Typenkatalog, und statt der
+Signaturprüfung die Prüfung, dass der Inhalt wirklich Text ist — jedes Byte
+druckbar oder CR/LF/TAB. Ein Nullbyte kommt nicht durch, auch wenn jemand die
+Datei `text/csv` nennt.
+
+### D-441 · Die Stammdaten werden eingefroren, nicht verwiesen
+
+Eine Beraternummer ändert sich, wenn das Büro wechselt. Zeigte der Exportvorgang
+nur auf `datev_konfiguration`, sähe ein drei Jahre alter Export danach aus, als
+wäre er mit der neuen Nummer erzeugt worden — und die Datei beim Steuerberater
+trägt die alte. Dieselbe Überlegung wie beim Rechnungs-Snapshot (K-12).
+
+`app.datev_stammdaten` **gibt die Werte zurück**, statt sie nur zu prüfen: der
+Aufrufer friert genau die Werte ein, gegen die geprüft wurde. Zwei getrennte
+Schritte — erst prüfen, dann lesen — liessen dazwischen eine Änderung zu.
+
+### D-442 · `text[] || text` ohne Cast — ein latenter Fehler aus 0126
+
+`fin.datev_konfiguration_vollstaendig` (0126) baute seine Liste fehlender Felder
+mit `v_fehlend := v_fehlend || 'Beraternummer';`. Postgres kann das auf zwei
+Arten lesen — `anyarray || anyelement` und `anyarray || anyarray` — und
+entscheidet sich beim unqualifizierten Stringliteral für die zweite. Es
+versucht dann, `'Beraternummer'` als Array-Literal zu parsen, und wirft
+`malformed array literal`.
+
+**Warum es nie auffiel:** der Auslöser erreicht die Zeile nur, wenn jemand
+`ist_platzhalter` auf false setzt UND ein Feld fehlt. Genau dann bekam er statt
+der hilfreichen Liste einen Parserfehler — im einzigen Moment, in dem die
+Meldung gebraucht wird. Ein Test von PR 60 hat es zum ersten Mal ausgelöst.
+0133 ersetzt beide Funktionen mit `::text` an jeder Stelle.
+
+### D-443 · Es gibt keine Übertragung an DATEV, und die Oberfläche sagt es
+
+Für diesen Weg existiert keine offene Schnittstelle und es gibt keine
+Zugangsdaten. Ein Feld „Verbindungsstatus", das „bereit" zeigte, oder ein Knopf
+„an DATEV senden" wäre eine vorgetäuschte Integration.
+
+Was stattdessen dasteht, ist eine Aussage: die Plattform erzeugt eine Datei,
+ein Mensch übergibt sie, und dass es geschehen ist, vermerkt er selbst
+(`status = 'uebergeben'`). Der Statuswert heisst deshalb `uebergeben` und nicht
+`gesendet`.
+
+### D-444 · Der Knopf ist aus, wenn der Export verweigern würde
+
+Die Vorschau steht **vor** dem Knopf: wer einen Monat wählt, sieht, wie viele
+Zeilen darin stehen und wie viele davon noch keinen Beleg haben, bevor er etwas
+auslöst. Fehlen die O-05-Stammdaten, gibt es den Knopf gar nicht — nur den
+Satz, was fehlt.
+
+Das ersetzt keinen Riegel. Die Prüfungen sitzen in der Datenbank
+(`app.datev_stammdaten`, `app.export_sperre_pruefen`, die Policy auf
+`datev_export`), und die HTTP-Route läuft in dieselben. Ein ausgegrauter Knopf
+ist eine Bitte; der Riegel ist die zweite Linie und die einzige, die zählt.

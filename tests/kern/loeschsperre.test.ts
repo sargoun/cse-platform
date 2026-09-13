@@ -132,9 +132,11 @@ describe('the delete-lock registry is the single source (01-ORDNERSTRUKTUR §6.2
      * Der Gegenbeweis braucht eine Tabelle, die es NOCH NICHT gibt. Das war
      * `rechnung`, bis PR 46 sie angelegt hat, danach `buchungssatz`, bis
      * PR 58 ihn angelegt hat — genau das, was diese Prüfung bemerken soll.
-     * `datev_export` kommt mit FIN-17 (SPEC §20, die EXTF-Ausgabe) und tritt
-     * an ihre Stelle; wer sie anlegt, sucht sich die nächste.
+     * dann `datev_export`, bis PR 60 ihn angelegt hat. Jetzt ist es
+     * `ausschreibung` (PR 68, RAD-01): die Rohdaten einer Vergabebekanntmachung
+     * bleiben, also bekommt sie eine Sperre — aber erst, wenn es sie gibt.
+     * Wer sie anlegt, sucht sich die nächste.
      */
-    expect(jetzt).not.toContain('trg_datev_export_kein_hard_delete');
+    expect(jetzt).not.toContain('trg_ausschreibung_kein_hard_delete');
   });
 });

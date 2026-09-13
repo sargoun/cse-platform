@@ -2044,3 +2044,19 @@ revoke delete, truncate on agent_reservierung from cse_app, cse_anon, cse_checki
 
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0133)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- datev_export (archiv): ACC-02, ACC-06, LEG-01, GoBD. Der Exportvorgang bezeugt, WELCHE Zeilen mit welchen Summen und welchen Stammdaten das Haus verlassen haben. Ihn zu loeschen liesse die gestempelten Buchungszeilen auf einen Stapel zeigen, den es nicht mehr gibt — und die Frage, was der Steuerberater bekommen hat, waere nicht mehr zu beantworten. Ein falscher Stapel wird VERWORFEN und neu erzeugt; die Zeile bleibt.
+create trigger trg_datev_export_kein_hard_delete
+  before delete on datev_export
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_datev_export_kein_truncate
+  before truncate on datev_export
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on datev_export from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks

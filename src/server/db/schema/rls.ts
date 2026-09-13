@@ -1472,6 +1472,18 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + '`archiviert_am`.',
   },
   {
+    tabelle: 'datev_export',
+    art: 'archiv',
+    migration: '0133',
+    grund:
+      'ACC-02, ACC-06, LEG-01, GoBD. Der Exportvorgang bezeugt, WELCHE Zeilen '
+      + 'mit welchen Summen und welchen Stammdaten das Haus verlassen haben. '
+      + 'Ihn zu loeschen liesse die gestempelten Buchungszeilen auf einen '
+      + 'Stapel zeigen, den es nicht mehr gibt — und die Frage, was der '
+      + 'Steuerberater bekommen hat, waere nicht mehr zu beantworten. Ein '
+      + 'falscher Stapel wird VERWORFEN und neu erzeugt; die Zeile bleibt.',
+  },
+  {
     tabelle: 'beleg',
     art: 'archiv',
     migration: '0123',

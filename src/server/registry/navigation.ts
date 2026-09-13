@@ -92,6 +92,14 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * Vermischung — auch lesend.
    */
   { schluessel: 'buchungen', label: 'Buchungen', pfad: 'buchhaltung/buchungen', recht: 'buchhaltung.lesen', gruppe: false, icon: 'export' },
+  /**
+   * `buchhaltung/datev` — die erzeugten Buchungsstapel (ACC-02).
+   *
+   * `buchhaltung.exportieren` und nicht `buchhaltung.lesen`: wer das
+   * Hauptbuch liest, erzeugt damit noch keine Datei, die das Haus verlaesst.
+   * Der Katalog trennt die beiden seit 0008 genau dafuer.
+   */
+  { schluessel: 'datev', label: 'DATEV', pfad: 'buchhaltung/datev', recht: 'buchhaltung.exportieren', gruppe: false, icon: 'export' },
   { schluessel: 'dokumente', label: 'Dokumente', pfad: 'dokumente', recht: 'dokument.lesen', gruppe: true, icon: 'dokument' },
   /**
    * `agenten` — das Agenten-Zentrum (AGT-01, SPEC §22).

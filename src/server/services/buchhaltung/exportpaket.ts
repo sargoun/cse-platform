@@ -36,6 +36,8 @@ export interface PaketZeile {
   readonly umsatzCent: bigint;
   readonly buchungstext: string | null;
   readonly belegfeld1: string | null;
+  /** GoBD-Festschreibungskennzeichen — der EXTF-Schreiber trägt es weiter. */
+  readonly festgeschrieben: boolean;
   /** Der Pfad im Paket — `belege/<belegnummer>.pdf`. Nie NULL: die Sperre. */
   readonly dateiPfad: string;
   readonly sha256: string;
@@ -72,6 +74,7 @@ interface ZeileRoh {
   readonly umsatz_cent: string;
   readonly buchungstext: string | null;
   readonly belegfeld1: string | null;
+  readonly festgeschrieben: boolean;
   readonly beleg_id: string;
   readonly dokument_id: string;
   readonly bucket: string;
@@ -114,7 +117,7 @@ export async function exportPaket(
     `select bs.id as buchungssatz_id, bs.buchung_id,
             bs.belegdatum::text as belegdatum, bs.konto, bs.gegenkonto,
             bs.soll_haben::text as soll_haben, bs.umsatz_cent::text,
-            bs.buchungstext, bs.belegfeld1,
+            bs.buchungstext, bs.belegfeld1, bs.festgeschrieben,
             b.id as beleg_id, b.belegnummer, b.datei_sha256,
             d.id as dokument_id, d.bucket, d.objekt_schluessel, d.mime_typ,
             d.groesse_bytes::text
@@ -161,6 +164,7 @@ export async function exportPaket(
       umsatzCent: BigInt(z.umsatz_cent),
       buchungstext: z.buchungstext,
       belegfeld1: z.belegfeld1,
+      festgeschrieben: z.festgeschrieben,
       dateiPfad: pfad,
       sha256: z.datei_sha256,
     });

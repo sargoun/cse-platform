@@ -852,6 +852,34 @@ export const ROUTEN: readonly RouteEintrag[] = [
     pfad: 'api/buchhaltung/buchungen/[id]/beleg',
     recht: 'buchhaltung.lesen',
   },
+  {
+    /**
+     * Einen EXTF-Buchungsstapel erzeugen (PR 60, ACC-02).
+     *
+     * `buchhaltung.exportieren` und nicht `buchhaltung.lesen`: hier entsteht
+     * eine Datei, die das Haus verlaesst. Der Katalog trennt die beiden seit
+     * 0008 genau dafuer und bindet das Exportrecht an `super_admin` und
+     * `admin`.
+     *
+     * Die Route SENDET nichts — es gibt keinen DATEV-Endpunkt und keine
+     * Zugangsdaten. Sie erzeugt; ein Mensch uebergibt.
+     */
+    pfad: 'api/buchhaltung/datev',
+    recht: 'buchhaltung.exportieren',
+  },
+  {
+    /**
+     * Die archivierte EXTF-Datei (PR 60, ACC-02, DOC-03).
+     *
+     * Ebenfalls `buchhaltung.exportieren`, anders als beim einzelnen Beleg:
+     * wer das Hauptbuch liest, bekommt damit nicht die Datei in die Hand, die
+     * an das Steuerbuero geht — in ihr stehen saemtliche Buchungen eines
+     * Monats. Weitergeleitet wird auf eine signierte, ablaufende Adresse
+     * (D-436).
+     */
+    pfad: 'api/buchhaltung/datev/[id]/datei',
+    recht: 'buchhaltung.exportieren',
+  },
 ] as const;
 
 /** Die Routen, die ein Recht verlangen. */

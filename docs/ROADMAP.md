@@ -238,8 +238,18 @@ proven by test, not by inspection.
 
 - [x] SKR03/04 mapping; automatic booking records — **PR 58**: `konto_mapping`
       leer (O-05), Buchung ohne Zuordnung trägt `konto = NULL` + Prüfhinweis
-- [ ] **DATEV EXTF export — Windows-1252, comma decimal**
-      → request a real sample from the tax advisor **before** building
+- [x] **DATEV EXTF export — Windows-1252, comma decimal** (PR 60) — ⚑ the
+      format is **spec-derived, not client-derived**: the field order comes
+      from the published DATEV description, not from a file this tax office
+      has read in. Every export row carries `format_ungeprueft` and the
+      screens say so (D-437). Bytes are asserted as bytes: `ü` is 0xFC, no
+      BOM, CRLF, comma decimal, and amounts convert from integer cents by
+      string arithmetic — no `Number` anywhere (D-438). The writer reads no
+      clock, so the same period twice yields identical bytes (D-439). With
+      the O-05 master data empty or unconfirmed, **no file is produced** and
+      the German sentence names every missing field.
+      **Still open — this blocks the PHASE, not the PR:** request a real EXTF
+      sample from the tax advisor and reconcile `SPALTEN` against it.
 - [x] **Belegverknüpfung** — document travels with the booking line (PR 59):
       `app.buchungssatz_schreiben` takes the document and routes the source id
       by `herkunft` (D-430); the outgoing invoice's ZUGFeRD PDF is archived

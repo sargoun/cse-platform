@@ -57,6 +57,23 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * legt nichts ab. Die Datei selbst schreibt PR 60.
    */
   { modul: 'buchhaltung', pfad: 'buchhaltung/exportpaket', schreibend: false },
+  /**
+   * Der EXTF-Schreiber und seine Zeichenkodierung sind REINE Funktionen: sie
+   * bekommen Cent und Strings und geben Bytes zurueck. Kein Datenbankzugriff,
+   * kein Schreibrecht — und genau deshalb sind sie byteweise pruefbar.
+   */
+  { modul: 'buchhaltung', pfad: 'buchhaltung/datev/extf', schreibend: false },
+  { modul: 'buchhaltung', pfad: 'buchhaltung/datev/cp1252', schreibend: false },
+  /**
+   * Der Exportvorgang legt eine Zeile an und stempelt die Buchungszeilen.
+   * `buchhaltung.exportieren` und nicht `finanzen.schreiben`: hier entsteht
+   * eine Datei, die das Haus verlaesst — das ist eine andere Handlung als
+   * eine Rechnung festzuschreiben.
+   */
+  {
+    modul: 'buchhaltung', pfad: 'buchhaltung/datev/export',
+    schreibend: true, schreibRecht: 'buchhaltung.exportieren',
+  },
   { modul: 'finanzen', pfad: 'finanz/geld', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/steuer/satz', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/hash-chain', schreibend: false },
@@ -294,6 +311,19 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'dokument', pfad: 'dokument/kategorie', schreibend: false },
   {
     modul: 'dokument', pfad: 'dokument/upload',
+    schreibend: true, schreibRecht: 'dokument.schreiben',
+  },
+  /**
+   * Die Ablage fuer Dateien, die die PLATTFORM erzeugt (PR 60). Sie ist die
+   * SCHWESTER von `dokument/upload` und nicht sein Ersatz: der Upload prueft
+   * Magic Bytes und entfernt Metadaten, weil dort Inhalt ankommt, den ein
+   * Mensch mitbringt. Hier stammen die Bytes aus dieser Codebasis.
+   *
+   * `dokument.schreiben`, dieselbe Schranke wie beim Upload: wer keine
+   * Dokumente ablegen darf, legt auch keine erzeugten ab.
+   */
+  {
+    modul: 'dokument', pfad: 'dokument/erzeugt',
     schreibend: true, schreibRecht: 'dokument.schreiben',
   },
   { modul: 'referenz', pfad: 'inhalt/seite', schreibend: false },

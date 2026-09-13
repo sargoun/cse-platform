@@ -601,6 +601,24 @@ describe('(4) eine festgeschriebene Rechnung ist unveränderlich — auf DATENBA
        */
       'd_eingangskreis_lesen', 'd_eingangskreis_ziehen',
       'd_mahnkreis_lesen', 'd_mahnkreis_ziehen',
+      /**
+       * **PR 59 (0132/0134): zwei dazu — der Archivlauf setzt `beleg_id`.**
+       *
+       * `app.rechnung_beleg_setzen` haengt das archivierte Rechnungs-PDF an
+       * die Rechnung, NACHDEM sie festgeschrieben ist (D-431). Es braucht
+       * dafuer Lese- und Schreibrecht auf genau eine Spalte — und die
+       * dazugehoerigen Policies, sonst laese es null Zeilen und der Beleg
+       * bliebe still aus (D-388).
+       *
+       * **Beide sind auf `app.aktiver_mandant()` geschnitten, und das war
+       * beim ersten Versuch nicht so.** 0132 hat sie mit `using (true)`
+       * angelegt; diese Wache ist daran gefallen, und sie hatte recht.
+       * Permissive Policies werden ODER-verknuepft: eine zweite mit `true`
+       * daneben hebt den Mandantenschnitt von `d_rechnung_lesen` auf — fuer
+       * JEDEN Definer-Aufruf, nicht nur fuer den, der sie brauchte. 0134
+       * bindet beide nach.
+       */
+      'd_rechnung_beleg', 'd_rechnung_beleg_u',
       // `nk_wachbuch_definer*` gehören 0070 und liegen auf demselben
       // `nummernkreis`; sie sind hier ausgeschlossen, weil sie `wachbuch`
       // betreffen — siehe die Filterzeile darunter.
