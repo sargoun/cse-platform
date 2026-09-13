@@ -5,6 +5,42 @@ muss, bevor er die nächste Zeile schreibt.
 
 ---
 
+## 0. Zuerst: nachsehen, nicht glauben
+
+Dieses Dokument ist eine Behauptung. Bevor du darauf aufbaust, **prüfe sie** —
+das kostet etwa zehn Minuten und ist billiger als ein Tag auf einer falschen
+Voraussetzung.
+
+```bash
+pnpm typecheck && pnpm lint          # lint ruft `pnpm guards` mit auf
+pnpm test                            # erwartet: 86 Dateien, 1541 Fälle
+pnpm e2e:db && pnpm test:isolation   # erwartet: 76 Dateien, 1407 Fälle
+```
+
+**Die Reihenfolge ist nicht beliebig** — siehe §4, zweite Falle. Und wenn du
+danach die Browsersuite laufen lässt: `pnpm e2e:db` NOCHMAL, dann
+`pnpm test:e2e`. Die Isolationssuite hat die Datenbank inzwischen neu gebaut.
+
+Vier Stellen sind es wert, sie mit eigenen Augen zu lesen, weil an ihnen
+hängt, ob der Rest stimmt:
+
+| Datei | Wonach sehen |
+|---|---|
+| `drizzle/0136_freigabe_posteingang.sql` §7 | `app.freigabe_entscheiden` — nimmt sie einen Hash entgegen? (Sie darf nicht. Sie nimmt **Bytes**.) |
+| `drizzle/0137_…sql` §6 | Kommt `vorher_hash` aus `freigabe_snapshot` und **nicht** aus `freigabe_kette`? |
+| `src/server/services/freigabe/kette.ts` | Elf Bestandteile, ein `0x1F`, leere Zeichenkette statt `null` |
+| `tests/isolation/freigabe-posteingang.test.ts` §4 | Der Golden-Vector — rechnet er den SQL-Hash wirklich nach? |
+
+**Eine Gegenprobe, die sich lohnt** (Sabotagedisziplin): ändere in
+`kette.ts` ein Trennzeichen oder lass einen Bestandteil weg und lass §4 der
+Isolationssuite laufen. Fällt sie **nicht**, ist der Golden-Vector wertlos und
+das Wichtigste an PR 62 ungeprüft. Danach zurücknehmen.
+
+Wenn eine dieser Prüfungen etwas anderes sagt als dieses Dokument, **glaube
+der Prüfung** und schreib die Abweichung hierher.
+
+---
+
 ## 1. Wo der Zweig steht
 
 Zweig `claude/pr58-kontenrahmen-buchungssatz`, drei Commits über dem
