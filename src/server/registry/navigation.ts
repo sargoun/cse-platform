@@ -80,6 +80,17 @@ export const NAVIGATION: readonly NaviEintrag[] = [
   { schluessel: 'mahnungen', label: 'Mahnungen', pfad: 'finanzen/mahnungen', recht: 'mahnung.lesen', gruppe: true, icon: 'warnung' },
   { schluessel: 'dokumente', label: 'Dokumente', pfad: 'dokumente', recht: 'dokument.lesen', gruppe: true, icon: 'dokument' },
   /**
+   * `agenten` — das Agenten-Zentrum (AGT-01, SPEC §22).
+   *
+   * `gruppe: false`, obwohl die Seitenkarte `/portal/gruppe/agenten` fuehrt:
+   * die Gruppenseite ist eine ANDERE Seite mit einem anderen Recht
+   * (`gruppe.agent.lesen`) und einer Auswertung ueber Gesellschaften hinweg.
+   * Sie kommt, wenn sie gebaut ist; bis dahin zeigte der Punkt in der
+   * Gruppenansicht auf einen 404 — derselbe Befund wie damals bei
+   * `dienstplan`.
+   */
+  { schluessel: 'agenten', label: 'Agenten', pfad: 'agenten', recht: 'agent.lesen', gruppe: false, icon: 'ki' },
+  /**
    * `bau/projekte`, nicht `bau`: die Seitenkarte fuehrt zwar beides, aber die
    * Modulübersicht ist eine Phase-5-Seite ohne Inhalt, solange Nachträge,
    * Behinderungen und Bautagebuch fehlen (PR 44/45). Der Punkt zeigt deshalb

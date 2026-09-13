@@ -376,7 +376,16 @@ Fixed vocabulary:
 | Angebot · Offen · Wartet | warning |
 | Nur Lesen | warning |
 | Überfällig · Abgelehnt · Fehler | danger |
-| Abgeschlossen · Archiviert | muted on `--surface-3` |
+| Abgeschlossen · Archiviert · Inaktiv | muted on `--surface-3` |
+
+**`Inaktiv` is muted and not `danger`, and that distinction is the whole
+point.** An agent that is switched off is not broken and not overdue — it is
+simply not running, by someone's decision. A red pill would send whoever sees
+the agent centre looking for a fault; a grey one says "nothing is happening
+here, and that is the current setting". It is the resting state of a switch
+(`agent.ist_aktiv`), which is why it sits beside `Archiviert` rather than
+beside `Fehler`. Nothing else in the vocabulary covers it: `Wartet` promises
+that something will happen next, and it will not.
 
 **`Nur Lesen` is here because §6 already requires it** — the `Gruppenübersicht`
 row and the header both carry it as a warning pill. It was used there and

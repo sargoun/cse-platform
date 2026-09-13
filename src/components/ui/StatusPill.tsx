@@ -14,7 +14,9 @@ export type PillZustand =
   // stehend (DESIGN §5, verlangt von §6).
   | 'Nur Lesen'
   | 'Überfällig' | 'Abgelehnt' | 'Fehler'
-  | 'Abgeschlossen' | 'Archiviert';
+  | 'Abgeschlossen' | 'Archiviert'
+  // Der Ruhezustand eines Schalters, nicht ein Fehler (DESIGN §5).
+  | 'Inaktiv';
 
 const TON: Record<PillZustand, string> = {
   'In Arbeit': 'success', Aktiv: 'success', Bereit: 'success',
@@ -22,7 +24,7 @@ const TON: Record<PillZustand, string> = {
   Angebot: 'warning', Offen: 'warning', Wartet: 'warning',
   'Nur Lesen': 'warning',
   'Überfällig': 'danger', Abgelehnt: 'danger', Fehler: 'danger',
-  Abgeschlossen: 'muted', Archiviert: 'muted',
+  Abgeschlossen: 'muted', Archiviert: 'muted', Inaktiv: 'muted',
 };
 
 const KLASSEN: Record<string, string> = {

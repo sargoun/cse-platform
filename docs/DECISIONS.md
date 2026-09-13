@@ -6792,3 +6792,69 @@ Der Grund, das sauber zu lösen statt die Art umzubenennen, steht schon im
 Kommentar der Datei: wer die Prüfung kennt, benennt sonst seine Arten um, statt
 den echten Fund zu suchen — und der echte Fund ist ein Tippfehler in einem
 Recht, also ein dauerhaft leerer Bildschirm.
+
+### D-424 · Die Nutzlast eines Schrittes bekommt ein eigenes Tor — sonst ist sie für niemanden lesbar
+
+0128 haelt `agent_schritt.eingabe` und `.ausgabe` aus dem Spaltengrant fuer
+`cse_app` heraus (K-05), und das ist richtig: was ein Agent gelesen und was er
+einem Modell geschickt hat, traegt regelmaessig Personendaten, und `agent.lesen`
+ist das Recht, den LAUF zu sehen, nicht seinen Inhalt.
+
+Nur war die Nutzlast damit fuer **niemanden** lesbar — auch nicht fuer den, der
+`agent.protokoll_lesen` haelt. AGT-04 verlangt aber ein nachvollziehbares
+Protokoll, und ein Protokoll, dessen entscheidende Spalte niemand oeffnen kann,
+beantwortet die Frage „warum hat der Agent das getan" nicht.
+
+0129 liefert die zweite Haelfte: `app.agent_nutzlast_lesen`, dieselbe Bauform
+wie `app.audit_nutzlast_lesen` (0005) — Definer, Mandantspraedikat im Rumpf
+wiederholt, Recht geprueft, Zugriff im Audit (`agent.nutzlast_gelesen`,
+SEC-A9). Sie gibt bei fehlendem Recht **nichts** zurueck statt zu werfen: eine
+Ausnahme waere ein Kanal („Fehler" hiesse „es gibt diesen Schritt").
+
+**Die Seite holt sie je Schritt und nicht als Liste.** Eine Tabelle, die
+hundert Nutzlasten auf einmal auflegt, protokollierte hundert Zugriffe, von
+denen niemand einen gewollt hat — und ein Audit, in dem jeder Seitenaufruf
+hundert Zeilen erzeugt, ist keines mehr.
+
+### D-425 · `JSON.stringify` in einem `::jsonb`-Parameter — derselbe Fehler zum dritten Mal
+
+`protokolliereSchritt` schrieb `JSON.stringify(eingabe)` in einen
+`$n::jsonb`-Parameter. Der Treiber serialisiert selbst; ihm zuvorzukommen
+kodiert **zweimal**. In der Spalte stand danach eine JSON-ZEICHENKETTE:
+`jsonb_typeof(eingabe)` ist `string`, und `eingabe ->> 'dokumentId'` liefert
+NULL. Kein Fehler, keine Meldung — die Zeile steht da und sieht vollstaendig
+aus.
+
+Dieser Befund steht in diesem Baum bereits zweimal kommentiert
+(`services/arbzg/detektor.ts`, `services/bau/aufmass.ts`), und er ist trotzdem
+ein drittes Mal passiert. Aufgefallen ist er nur, weil das Nutzlast-Tor (D-424)
+die Werte WIEDER AUSLIEST statt bloss zu pruefen, dass etwas dasteht — genau
+wie damals bei `bau-aufmass`. Ein Test, der einen Schreibvorgang nur zaehlt,
+haette ihn nicht gefunden; er faellt jetzt an einer eigenen Zusicherung
+(`jsonb_typeof = 'object'`).
+
+Betroffen waren drei Stellen in `laufzeit.ts` (`agent_aufgabe.eingabe`,
+`agent_aufgabe.ergebnis`, alle fuenf `jsonb`-Spalten von `agent_schritt`).
+
+### D-426 · Das Agenten-Zentrum sagt zuerst, dass kein Modell verbunden ist
+
+Die Laufzeit steht — Aufgabe, Schritt, Kosten, Hartstopp, alles geprueft. Der
+Zugang zum Sprachmodell steht nicht: er verlangt EU-Verarbeitung mit
+Zero-Retention und einen Auftragsverarbeitungsvertrag, und beides ist eine
+Entscheidung des Mandanten, keine Zeile Code.
+
+Ein Zentrum, das vier Kacheln zeigt und das verschweigt, sieht fertig aus und
+ist es nicht — und der Startknopf, der eine Aufgabe anlegt, die niemand
+ausfuehrt, waere die vorgetaeuschte Funktion, die CLAUDE.md ausdruecklich
+verbietet. Die Uebersicht sagt es deshalb oben und in einem Satz, und es gibt
+keinen Startknopf, bis es einen Anbieter gibt.
+
+Was die Seiten **jetzt schon** zeigen, ist echt: die vier Agenten mit ihrem
+Schalterzustand, jeder Lauf mit Schritten und Kosten, das Monatsbudget mit
+Verbrauch, gebundenem Betrag und Stoppzeitpunkt, und je Lauf die Schrittkette.
+Ein leerer Bestand sieht dann auch leer aus — was er ist.
+
+**`Inaktiv` ist neu in DESIGN §5**, muted und nicht `danger`: ein Agent, der
+ausgeschaltet ist, ist nicht kaputt. Eine rote Pille schickte den Leser einen
+Fehler suchen, den es nicht gibt. Nichts im vorhandenen Vokabular deckte das
+ab — `Wartet` verspricht, dass gleich etwas passiert, und das tut es nicht.

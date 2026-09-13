@@ -462,6 +462,19 @@ end $$;
 
 alter function app.agent_reservierung_zaehler() owner to cse_definer;
 
+/**
+ * **PUBLIC haelt hier nichts** (K-08).
+ *
+ * `create function` gibt EXECUTE an PUBLIC, ohne dass es jemand hinschreibt —
+ * auch bei einer Ausloeserfunktion. Dass ein direkter Aufruf mit „can only be
+ * called as a trigger" endet, ist ein Zufall der Implementierung und keine
+ * Rechtegrenze; die Regel gilt fuer JEDE Definer-Funktion, sonst ist sie keine
+ * Regel, sondern eine Gewohnheit mit Ausnahmen. Ein Grant an eine benannte
+ * Rolle braucht es nicht: die Berechtigung eines Ausloesers wird beim
+ * `create trigger` geprueft, nicht bei jedem Feuern.
+ */
+revoke all on function app.agent_reservierung_zaehler() from public;
+
 create trigger trg_reservierung_zaehler
   after insert or update or delete on agent_reservierung
   for each row execute function app.agent_reservierung_zaehler();
@@ -546,6 +559,8 @@ begin
 end $$;
 
 alter function app.agent_kosten_fortschreiben() owner to cse_definer;
+-- K-08, wie oben: PUBLIC bekommt kein EXECUTE, auch nicht auf einen Ausloeser.
+revoke all on function app.agent_kosten_fortschreiben() from public;
 
 create trigger trg_budget_fortschreiben
   after insert on agent_kosten

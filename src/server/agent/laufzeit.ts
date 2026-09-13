@@ -148,7 +148,7 @@ export async function starteAufgabe(
              $9, case when $9::uuid is null then 'agent:laufzeit' else null end)
      returning id, agent_id, korrelation_id, status::text as status`,
     [mandantId, agent.id, auftrag.vorgangTyp, auftrag.titel,
-      JSON.stringify(auftrag.eingabe ?? {}), auftrag.bezugTyp ?? null,
+      auftrag.eingabe ?? {}, auftrag.bezugTyp ?? null,
       auftrag.bezugId ?? null, idem, auftrag.angefordertVon ?? null,
       auftrag.ausgeloestDurch ?? 'mensch', auftrag.promptVersion ?? null,
       auftrag.richtlinienVersion ?? null, auftrag.codeVersion ?? null]);
@@ -213,17 +213,31 @@ export async function protokolliereSchritt(
              now() - make_interval(secs => $14::integer / 1000.0), now(),
              (now() at time zone 'Europe/Berlin')::date + $22::integer)
      returning id`,
+    /**
+     * **Die Nutzlast als OBJEKT, nicht als ihr JSON-Text.**
+     *
+     * `JSON.stringify(...)` in einem `$n::jsonb`-Parameter schreibt eine
+     * JSON-ZEICHENKETTE in die Spalte: `jsonb_typeof(eingabe)` ist dann
+     * `string`, und `eingabe ->> 'dokumentId'` liefert NULL. Kein Fehler,
+     * keine Meldung — die Zeile steht da und sieht vollstaendig aus, und erst
+     * der Leser (0129) findet nichts. Der Treiber serialisiert selbst; ihm
+     * zuvorzukommen kodiert zweimal. Derselbe Befund wie in `arbzg/detektor.ts`
+     * und `bau/aufmass.ts`, wo er schon zweimal kommentiert steht.
+     *
+     * Der HASH nimmt weiterhin das Objekt (`hash()` serialisiert stabil) —
+     * er soll den Inhalt binden, nicht dessen Transportform.
+     */
     [mandantId, aufgabe.id, nummer, schritt.werkzeug ?? null, schritt.modell ?? null,
-      JSON.stringify(schritt.eingabe ?? null),
-      schritt.ausgabe === undefined ? null : JSON.stringify(schritt.ausgabe),
+      schritt.eingabe ?? null,
+      schritt.ausgabe ?? null,
       hash(schritt.eingabe),
       schritt.ausgabe === undefined ? null : hash(schritt.ausgabe),
       schritt.tokensEingabe ?? 0, schritt.tokensAusgabe ?? 0, schritt.tokensGedanken ?? 0,
       (schritt.kostenMikrocent ?? 0n).toString(), schritt.dauerMs,
       schritt.status ?? 'erfolg',
-      schritt.policyErgebnis === undefined ? null : JSON.stringify(schritt.policyErgebnis),
-      schritt.policySpur === undefined ? null : JSON.stringify(schritt.policySpur),
-      schritt.quellen === undefined ? null : JSON.stringify(schritt.quellen),
+      schritt.policyErgebnis ?? null,
+      schritt.policySpur ?? null,
+      schritt.quellen ?? null,
       schritt.injektionsverdacht ?? false, schritt.richtlinieId ?? null,
       schritt.freigabeId ?? null, NUTZLAST_FRIST_TAGE_PLATZHALTER]);
 
@@ -258,7 +272,7 @@ export async function beendeAufgabe(
                                     * 1000)::integer)
       where mandant_id = $1 and id = $2`,
     [mandantId, aufgabeId, abschluss.status,
-      abschluss.ergebnis === undefined ? null : JSON.stringify(abschluss.ergebnis),
+      abschluss.ergebnis ?? null,
       abschluss.fehlerText ?? null, abschluss.budgetStopp ?? false]);
 }
 
@@ -322,4 +336,82 @@ export async function monatsverbrauch(
       group by ag.name
       order by ag.name`);
   return zeilen.map((z) => ({ agent: z.agent, cent: mikrocentNachCent(BigInt(z.mikrocent)) }));
+}
+
+/** Ein Schritt, wie ihn das Protokoll zeigt — ohne Nutzlast (K-05). */
+export interface SchrittZeile {
+  readonly id: string;
+  readonly nummer: number;
+  readonly werkzeug: string | null;
+  readonly modell: string | null;
+  readonly status: SchrittStatus;
+  readonly tokensEingabe: number;
+  readonly tokensAusgabe: number;
+  readonly kostenCent: bigint;
+  readonly dauerMs: number;
+  readonly injektionsverdacht: boolean;
+  readonly nutzlastGeloescht: boolean;
+  readonly begonnenAm: string;
+}
+
+interface SchrittRoh {
+  readonly id: string;
+  readonly schritt_nr: number;
+  readonly werkzeug: string | null;
+  readonly modell: string | null;
+  readonly status: SchrittStatus;
+  readonly tokens_eingabe: number;
+  readonly tokens_ausgabe: number;
+  readonly kosten_mikrocent: string;
+  readonly dauer_ms: number;
+  readonly injektionsverdacht: boolean;
+  readonly nutzlast_geloescht: boolean;
+  readonly begonnen_am: string;
+}
+
+/**
+ * Die Schrittkette — je Aufgabe oder je Agent.
+ *
+ * **Die Kosten kommen hier in Cent an, umgerechnet mit derselben Funktion wie
+ * überall** (`mikrocentNachCent`, K-16(b)). Ein einzelner Schritt kostet
+ * regelmäßig weniger als einen Cent und steht dann mit `0,00 €` da — das ist
+ * richtig und nicht etwa ein Fehlbetrag: die Summe der Aufgabe steht im Kopf
+ * und ist aus den Mikrocent gebildet, nicht aus diesen gerundeten Zeilen.
+ *
+ * **Ohne `eingabe`/`ausgabe`.** Die beiden Spalten fehlen `cse_app` schon im
+ * Grant; wer sie sehen darf, holt sie einzeln über
+ * `app.agent_nutzlast_lesen` (0129), und dieser Zugriff steht im Audit.
+ */
+export async function schritte(
+  db: Abfrage, filter: { aufgabeId: string } | { agentId: string }, grenze = 200,
+): Promise<readonly SchrittZeile[]> {
+  const nachAufgabe = 'aufgabeId' in filter;
+  const zeilen = await db.abfrage<SchrittRoh>(
+    `select s.id, s.schritt_nr, s.werkzeug::text as werkzeug, s.modell,
+            s.status::text as status, s.tokens_eingabe, s.tokens_ausgabe,
+            s.kosten_mikrocent::text, s.dauer_ms, s.injektionsverdacht,
+            (s.nutzlast_geloescht_am is not null) as nutzlast_geloescht,
+            to_char(s.begonnen_am at time zone 'Europe/Berlin',
+                    'DD.MM.YYYY HH24:MI:SS') as begonnen_am
+       from agent_schritt s
+       join agent_aufgabe a on a.mandant_id = s.mandant_id and a.id = s.agent_aufgabe_id
+      where ${nachAufgabe ? 's.agent_aufgabe_id = $1' : 'a.agent_id = $1'}
+      order by s.begonnen_am desc, s.schritt_nr desc
+      limit $2`,
+    [nachAufgabe ? filter.aufgabeId : filter.agentId, grenze]);
+
+  return zeilen.map((z) => ({
+    id: z.id,
+    nummer: z.schritt_nr,
+    werkzeug: z.werkzeug,
+    modell: z.modell,
+    status: z.status,
+    tokensEingabe: z.tokens_eingabe,
+    tokensAusgabe: z.tokens_ausgabe,
+    kostenCent: mikrocentNachCent(BigInt(z.kosten_mikrocent)),
+    dauerMs: z.dauer_ms,
+    injektionsverdacht: z.injektionsverdacht,
+    nutzlastGeloescht: z.nutzlast_geloescht,
+    begonnenAm: z.begonnen_am,
+  }));
 }

@@ -404,6 +404,142 @@ describe('(3) die Kosten stimmen mit den Schritten überein', () => {
   });
 });
 
+describe('(5) die Nutzlast ist ein eigenes Tor (0129, SEC-A9)', () => {
+  /**
+   * `agent_schritt.eingabe` und `.ausgabe` fehlen `cse_app` schon im Grant
+   * (K-05). Lesbar sind sie ueber `app.agent_nutzlast_lesen` — mit
+   * `agent.protokoll_lesen`, und der Zugriff steht im Audit.
+   *
+   * Geprueft werden BEIDE Richtungen. Nur die erste zu pruefen hiesse zu
+   * zeigen, dass das Tor sich oeffnen laesst — nicht, dass es eines ist.
+   */
+  async function legeSchrittAn(): Promise<string> {
+    await schalteEin('finanzen');
+    await legeBudgetAn('mandant', 10_000);
+    return alsApp(sitzung(), async (tx) => {
+      const d = alsDienst(tx);
+      const a = await starteAufgabe(d, f.reinigung, {
+        agentKennung: 'finanzen', vorgangTyp: 'buchung_uebernehmen', titel: 'Beleg',
+      });
+      const s = await protokolliereSchritt(d, f.reinigung, a, {
+        werkzeug: 'lies_dokument', modell: 'pruefmodell',
+        eingabe: { dokumentId: 'geheim-4711' }, ausgabe: { betrag: '119,00' },
+        dauerMs: 300,
+      });
+      return s.schrittId;
+    });
+  }
+
+  it('cse_app kommt an die Spalten gar nicht erst heran (K-05)', async () => {
+    const schrittId = await legeSchrittAn();
+    await expect(alsApp(sitzung(), async (tx) => tx.unsafe(
+      `select eingabe from agent_schritt where id = $1`, [schrittId] as never[],
+    ))).rejects.toThrow(/permission denied/u);
+  });
+
+  it('die Nutzlast steht als OBJEKT in der Spalte, nicht als ihr JSON-Text', async () => {
+    const schrittId = await legeSchrittAn();
+
+    /*
+     * Der Befund, gegen den dieser Fall geschrieben ist: `JSON.stringify` in
+     * einem `$n::jsonb`-Parameter kodiert ein ZWEITES Mal. In der Spalte steht
+     * dann eine JSON-Zeichenkette, `jsonb_typeof` sagt `string`, und jeder
+     * spaetere Zugriff mit `->>` liefert NULL — ohne Fehler, ohne Meldung, und
+     * die Zeile sieht vollstaendig aus. Genau so stand es hier, bis die
+     * Pruefung des Nutzlast-Tors es aufdeckte.
+     */
+    const [z] = await sql.unsafe<{ typ: string; dokument: string | null }[]>(
+      `select jsonb_typeof(eingabe) as typ, eingabe ->> 'dokumentId' as dokument
+         from agent_schritt where id = $1`, [schrittId]);
+
+    expect(z?.typ, 'eine JSON-Zeichenkette ist kein Objekt').toBe('object');
+    expect(z?.dokument).toBe('geheim-4711');
+  });
+
+  it('mit dem Recht liefert das Tor die Nutzlast — und schreibt den Zugriff auf', async () => {
+    const schrittId = await legeSchrittAn();
+
+    /*
+     * Ausgepackt IN SQL (`->>`) und nicht im Treiber: `postgres.js` liefert
+     * `jsonb` aus einer Funktion mit Tabellenrueckgabe als Zeichenkette und
+     * aus einer Tabellenspalte als Objekt. Der Test soll das Tor pruefen und
+     * nicht diese Eigenheit; die Behauptung steht deshalb dort, wo sie in
+     * jedem Fall dasselbe heisst.
+     */
+    const [zeile] = await alsApp(sitzung(), async (tx) => tx.unsafe<{
+      dokument: string | null; betrag: string | null;
+    }[]>(
+      `select eingabe ->> 'dokumentId' as dokument, ausgabe ->> 'betrag' as betrag
+         from app.agent_nutzlast_lesen($1)`, [schrittId] as never[]));
+
+    expect(zeile?.dokument).toBe('geheim-4711');
+    expect(zeile?.betrag).toBe('119,00');
+
+    const [spur] = await sql.unsafe<{ n: string }[]>(
+      `select count(*)::text as n from audit_log
+        where aktion = 'agent.nutzlast_gelesen' and objekt_id = $1`, [schrittId]);
+    expect(spur?.n, 'wer eine Modelleingabe liest, hinterlaesst eine Spur (SEC-A9)')
+      .toBe('1');
+  });
+
+  it('ohne das Recht bleibt sie leer — und das Audit bleibt es auch', async () => {
+    const schrittId = await legeSchrittAn();
+
+    /**
+     * Ein Konto mit der Rolle `admin` IM Mandanten — nicht der `super_admin`
+     * mit entzogenem Recht.
+     *
+     * Der Entzug schien der kuerzere Weg und ist keiner: `kern` verbietet ihn
+     * („Der super_admin kann sich Rechte nicht entziehen"), und das zu Recht.
+     * `admin` ist ausserdem der ECHTE Fall — die Rolle haelt `agent.lesen`,
+     * aber nicht `agent.protokoll_lesen`: sie sieht, DASS ein Lauf war, und
+     * nicht, was er gelesen hat. Genau diese Trennung soll das Tor tragen.
+     *
+     * Und sie sieht den Mandanten. Ein Konto ohne Zugehoerigkeit bekaeme
+     * ebenfalls null Zeilen — aber wegen der Mandantsgrenze, nicht wegen des
+     * Rechts, und der Test bewiese dann etwas anderes, als er behauptet.
+     */
+    const [u] = await sql.unsafe<{ id: string }[]>(
+      `insert into auth.users (email) values ($1) returning id`,
+      [`admin-${zufall()}@cse.test`]);
+    await sql.unsafe(`insert into auth.mfa_factors (user_id) values ($1)`, [u!.id]);
+    await sql.unsafe(
+      `insert into benutzer (id, email, name, status)
+       values ($1, $2, 'Verwaltung', 'aktiv')`,
+      [u!.id, `admin-${zufall()}@cse.test`]);
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id)
+       values ($1, $2, (select id from rolle
+                         where schluessel = 'admin' and mandant_id is null))`,
+      [u!.id, f.reinigung]);
+
+    const ohneRecht = {
+      scope: 'mandant' as const, mandantId: f.reinigung, benutzerId: u!.id,
+      portal: 'intern' as const, readonly: false,
+    };
+
+    // Die Vorbedingung: dieses Konto DARF den Lauf sehen. Sonst prüfte der
+    // Fall die Mandantsgrenze und nicht das Tor.
+    const [darf] = await alsApp(ohneRecht, async (tx) => tx.unsafe<{
+      lesen: boolean; protokoll: boolean;
+    }[]>(
+      `select app.hat_recht('agent.lesen', app.aktiver_mandant()) as lesen,
+              app.hat_recht('agent.protokoll_lesen', app.aktiver_mandant()) as protokoll`));
+    expect(darf?.lesen, 'admin sieht den Lauf').toBe(true);
+    expect(darf?.protokoll, 'admin sieht die Nutzlast nicht').toBe(false);
+
+    const zeilen = await alsApp(ohneRecht, async (tx) => tx.unsafe(
+      `select eingabe from app.agent_nutzlast_lesen($1)`, [schrittId] as never[]));
+    expect(zeilen).toHaveLength(0);
+
+    const [spur] = await sql.unsafe<{ n: string }[]>(
+      `select count(*)::text as n from audit_log
+        where aktion = 'agent.nutzlast_gelesen' and objekt_id = $1`, [schrittId]);
+    expect(spur?.n, 'ein abgewiesener Zugriff ist kein Zugriff auf die Nutzlast')
+      .toBe('0');
+  });
+});
+
 describe('das Zentrum sieht, was lief', () => {
   it('listet die Aufgaben mit Agent, Status und Kosten', async () => {
     await schalteEin('backoffice');
