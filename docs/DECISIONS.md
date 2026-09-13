@@ -7783,3 +7783,86 @@ Dazu gehören die Grants, die sonst fehlen: die Rolle des Entscheiders wird
 **kopiert** (eine später nachgeschlagene Rolle wäre kein Beleg), und
 `app.freigabe_kette_ziehen` war nur `cse_app` gegeben — die Entscheidung
 scheiterte an der letzten Stelle vor dem Schreiben.
+
+### D-472 · Die zwei Bildschirme des Posteingangs — das Öffnen ist eine Handlung, der Knopf zeigt einen Riegel an
+
+**Was gebaut ist.** `/portal/[mandant]/freigaben` (die Liste, APR-01) und
+`/portal/[mandant]/freigaben/[id]` (die Prüfung, APR-02/03/07/08), dazu
+`GET /api/freigaben`, `GET /api/freigaben/[id]` und
+`POST /api/freigaben/[id]/entscheidung`. Dahinter zwei Dienste in
+`services/freigabe/`: `laden.ts` (`ladePosteingang`, `oeffneFreigabe`) und
+`entscheiden.ts` (`entscheideFreigabe`). Kein Bildschirm rechnet: die
+Ordnung kommt aus `sortierePosteingang`, die Kopfzeile ist die gespeicherte
+`zusammenfassung` (D-464), der Diff steht in der Zeile.
+
+**Das Öffnen vermerkt der DIENST, nicht die Seite.** `oeffneFreigabe` liest
+und schreibt in derselben Transaktion die `freigabe_ansicht`-Zeile, auf der
+APR-08 misst — deshalb liest die Prüfseite in einer schreibenden Transaktion.
+Ein zweiter Bildschirm (die API, später die mobile Sicht) kann den Vermerk
+nicht vergessen, weil er am Lesen hängt. Vermerkt wird nur, was noch wartet:
+das Nachlesen einer entschiedenen Freigabe ist keine Prüfung.
+
+**Die Sperre bei unsicheren Feldern liegt im Dienst.** Die Zahl führt die
+Datenbank (`trg_freigabe_felder_zaehlen`), `entscheideFreigabe` weist eine
+Genehmigung darüber hinweg ab, und der gesperrte Knopf ist nur die Anzeige
+davon — wer ihn im Browser entsperrt, trifft den Dienst. Ein Riegel in der
+Datenbank selbst wäre die dritte Linie und kommt mit PR 77, wenn der Stapel
+dieselbe Regel braucht.
+
+**Was in den Schnappschuss geht.** Nutzlast und Diff EXAKT wie in
+`freigabe` gespeichert — nicht neu erzeugt —, kanonisiert nach RFC 8785
+(`kanonisiere`); die Nachweiszeilen mit der Konfidenz als Zeichenkette der
+Datenbank; ein `ansicht_modell` (`freigabe-ansicht.v1`: Kopfzeile,
+Einstufung, die gezeigten Spalten) und ein `policy_ergebnis`
+(`freigabe-tor.v1`: verlangtes Recht, Einstufung, Stapelsperre). Der Diff
+reist als JSON mit Beträgen und Mengen als ganzen Zahlen (`diff-json.ts`):
+`kanonisiere` schreibt `bigint` und ganze `number` gleich, also hasht der
+Vorschlag über dieselben Bytes wie die Entscheidung — `payload_hash` in
+`freigabe` und `nutzlast_hash` im Schnappschuss stimmen über den
+jsonb-Umweg hinweg. `tests/isolation/freigabe-bildschirm.test.ts` rechnet
+jeden der fünf Digests über die GESPEICHERTEN Bytes nach.
+
+**`geoeffnet_am` im Rumpf ist ein 400** (T-36). Und `code_version` ist der
+Commit (`VERCEL_GIT_COMMIT_SHA`), sonst `entwicklung` — nie erfunden.
+
+**Der Seed legt vier wartende Vorschläge an und sagt, dass kein Agent sie
+erzeugt hat.** Jeder ist so gebaut, wie ein Agent ihn bauen müsste (Diff aus
+`diffVergleich`, Kopfzeile aus `zusammenfassung`, Einstufung aus
+`stufeRisikoEin`, Abdruck über `kanonisiere`), wiederholbar über
+`externe_ref`. `erforderliches_recht` bleibt darin leer: welches Recht die
+Handlung hinter einem Vorschlag verlangt, entscheidet der Vorschlagende (der
+Agent, PR 78–81), nicht ein Seed.
+
+### D-473 · Firmendaten aus den bestehenden Auftritten — übernommen, was dort steht, und nichts dazu
+
+Die Auftraggeberin hat es so gewollt: Anschrift, Kontakt und Leistungstexte
+sollen vom bestehenden Auftritt kommen (cse-dienstleistungen.de). Gelesen am
+13.09.2026, zusätzlich select-security.de, das der CSE-Auftritt selbst
+verlinkt.
+
+**Was übernommen ist.** CSE Dienstleistungen GmbH: Kurfürstendamm **201**
+(der Seed hatte 21 — erfunden), 10719 Berlin, +49 30 91203341,
+office@cse-dienstleistungen.de, die Website; die zehn Leistungen mit ihren
+Sätzen und der „Über uns"-Text, wörtlich (ein Tippfehler des Auftritts
+berichtigt). Select Security Event GmbH — **so schreibt das Impressum die
+Firma, ohne Bindestrich**; CLAUDE.md und der Seed hatten „Select-Security",
+das Impressum zählt —: dieselbe Anschrift, +49 30 80584400,
+office@select-security.de, der Leitsatz und die zehn Dienste als Namen. Der
+Auftritt beschreibt die Dienste nicht; die Kurzbeschreibungen im Seed sagen
+nur, was das Wort bedeutet, und behaupten keine Einzelheit.
+
+**Was NICHT übernommen ist, weil es nirgends steht.** Registergericht, HRB,
+USt-IdNr. und Steuernummer nennt keiner der beiden Auftritte (das Impressum
+von CSE ist unter der verlinkten Adresse nicht erreichbar, die
+Datenschutzerklärung nennt nur Name und Anschrift). Sie bleiben die
+erkennbar erfundenen Platzhalter, und `angaben_bestaetigt_am` bleibt NULL —
+der Auftritt sagt weiterhin sichtbar, dass diese Angaben nicht bestätigt sind
+(O-353). Die Datenschutzerklärung nennt als verantwortliche Person Cosette
+Weyer, das Impressum von Select Security dieselbe Person als Geschäftsführung
+(die englische Fassung eine andere) — ein Widerspruch, der nicht in eine
+Spalte gehört: `geschaeftsfuehrer` bleibt leer, bis der Mandant ihn nennt.
+REALTIME Service GmbH und CSE Operations haben keinen auffindbaren Auftritt;
+für sie bleibt alles Platzhalter. Die „Kunden"-Seite des CSE-Auftritts nennt
+drei Verweise (select-security.de, 3bi-gruppe.de, burgermeister.com) ohne
+Freigabe zur Nennung — nichts davon erscheint als Referenz (PRO-04 verlangt
+eine dokumentierte Freigabe).

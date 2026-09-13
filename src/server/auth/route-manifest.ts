@@ -895,6 +895,19 @@ export const ROUTEN: readonly RouteEintrag[] = [
     pfad: 'api/buchhaltung/bank',
     recht: 'zahlung.schreiben',
   },
+  /**
+   * Der Freigabe-Posteingang (PR 62 Rest, APR-01/02/03/07/08, D-472).
+   *
+   * Zwei Leser, ein Schreiber. Das Lesen der Pruefansicht VERMERKT das
+   * Oeffnen (eine anfuegende Zeile in `freigabe_ansicht`) — das ist Teil des
+   * Lesens, kein Schreibrecht: ohne den Vermerk gibt es keine Pruefdauer,
+   * und ohne Pruefdauer keine Entscheidung (APR-08). Die Entscheidung selbst
+   * traegt das Recht der Handlung, nicht das der Domaene, aus der der
+   * Vorschlag stammt.
+   */
+  { pfad: 'api/freigaben', recht: 'freigabe.lesen' },
+  { pfad: 'api/freigaben/[id]', recht: 'freigabe.lesen' },
+  { pfad: 'api/freigaben/[id]/entscheidung', recht: 'freigabe.entscheiden' },
 ] as const;
 
 /** Die Routen, die ein Recht verlangen. */

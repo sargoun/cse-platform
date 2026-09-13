@@ -39,6 +39,33 @@ das Wichtigste an PR 62 ungeprüft. Danach zurücknehmen.
 Wenn eine dieser Prüfungen etwas anderes sagt als dieses Dokument, **glaube
 der Prüfung** und schreib die Abweichung hierher.
 
+### 0.1 Ergebnis der Prüfung (nächste Sitzung, 13.09.2026)
+
+Alle drei Befehle sagen, was §0 behauptet: `typecheck`, `eslint` und die
+Wachen sauber; **86 Dateien, 1541 Fälle**; **76 Dateien, 1407 Fälle**. Die vier
+Stellen lesen sich wie beschrieben — `app.freigabe_entscheiden` nimmt Bytes,
+0137 §6 holt `vorher_hash` aus `freigabe_snapshot`, `kette.ts` hat elf
+Bestandteile und ein `0x1F`, und §4 rechnet den SQL-Hash in TypeScript nach.
+**Die Sabotage bissen beide:** mit `TRENNER = 0x1e` fielen genau §4 („der
+gespeicherte Hash ist der, den TypeScript berechnet") und §9 („drei
+Entscheidungen ergeben eine intakte Kette"), 39 andere Fälle blieben grün.
+Zurückgenommen.
+
+Zwei Abweichungen, beide klein:
+
+- **Den nächtlichen Wächter gibt es noch nicht.** `kette.ts` nennt
+  `jobs/watchdogs/freigabe-kette-verify.ts`; die Datei existiert nicht (PR 82).
+  Wer ihn schreibt, muss den gespeicherten Genesis-Vorgänger
+  (`vorheriger_hash = repeat('0', 64)` beim ersten Glied) auf die leere
+  Zeichenkette abbilden, bevor er `pruefeKette` ruft — sonst meldet der
+  erste Lauf am ersten Glied einen Bruch.
+- **Die zweite Falle in §4 gilt anders, seit D-424 gemergt ist.** Die
+  Isolationssuite läuft auf Klonen (`cse_test_w1…w4`) und baut `cse_test`
+  nur noch dann neu, wenn die Basis Zeilen trägt, die keine Migration anlegt
+  — und genau das tut `pnpm e2e:db`. Die Reihenfolge `pnpm e2e:db && pnpm
+  test:e2e` bleibt also Pflicht; der Grund ist jetzt der Neuaufbau der
+  Basis, nicht mehr das Truncate.
+
 ---
 
 ## 1. Wo der Zweig steht
@@ -63,6 +90,14 @@ Gebaut ist **die Maschine**: der Diff, die Konfidenz, die Einstufung, die
 Zusammenfassung, die Kette, das Schema und die Entscheidungsfunktion. Jede
 Zusage von APR-01, APR-02, APR-03 und APR-07 ist als Riegel in der Datenbank
 oder als reine, geprüfte Funktion vorhanden.
+
+> **Stand nach der nächsten Sitzung (13.09.2026):** die zwei Bildschirme und
+> die zwei Routen sind gebaut — `src/app/portal/[mandant]/freigaben/`,
+> `src/app/api/freigaben/`, Dienste `services/freigabe/laden.ts` und
+> `entscheiden.ts`, Codec `diff-json.ts`, Seed `seed/freigaben.ts`, Tests
+> `tests/isolation/freigabe-bildschirm.test.ts` und `tests/e2e/freigaben.spec.ts`.
+> Die Entscheidungen dazu stehen in D-472. Der Absatz darunter beschreibt den
+> Stand VOR dieser Sitzung.
 
 **Nicht gebaut sind die Bildschirme.** `/portal/[mandant]/freigaben` und
 `/portal/[mandant]/freigaben/[id]` gibt es nicht, ebenso wenig

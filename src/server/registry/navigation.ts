@@ -122,6 +122,14 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    */
   { schluessel: 'agenten', label: 'Agenten', pfad: 'agenten', recht: 'agent.lesen', gruppe: false, icon: 'ki' },
   /**
+   * `freigaben` — der Posteingang der Freigaben (APR-01, PR 62).
+   *
+   * `gruppe: false`: die Gruppenansicht bekommt ihren eigenen Posteingang
+   * (`/portal/gruppe/freigaben`, Phase 8), der in die Gesellschaft verweist —
+   * entschieden wird nur mit genau einem aktiven Mandanten (Invariante 10).
+   */
+  { schluessel: 'freigaben', label: 'Freigaben', pfad: 'freigaben', recht: 'freigabe.lesen', gruppe: false, icon: 'freigabe' },
+  /**
    * `bau/projekte`, nicht `bau`: die Seitenkarte fuehrt zwar beides, aber die
    * Modulübersicht ist eine Phase-5-Seite ohne Inhalt, solange Nachträge,
    * Behinderungen und Bautagebuch fehlen (PR 44/45). Der Punkt zeigt deshalb

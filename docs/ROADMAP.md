@@ -288,6 +288,11 @@ proven by test, not by inspection.
       canonicaliser in SQL** — the application hands over the bytes (D-467).
       A waiting request can only be decided through `app.freigabe_entscheiden`
       (D-469): no view row, no decision.
+      **The two screens and the two routes are built** (D-472): the inbox in
+      the service's order, the review with headline, diff, evidence and a
+      button that is the *display* of a service-side lock; opening writes the
+      view row through the service, never through the page. The seed carries
+      four waiting proposals and says no agent produced them.
 - [ ] Incoming-invoice OCR → extraction → proposal → approval
 - [ ] GoBD archive with retention and deletion lock
 - [ ] Open items, monthly figures, Z3 export, Verfahrensdokumentation

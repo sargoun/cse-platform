@@ -795,6 +795,23 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: false,
   },
   /**
+   * Die Bildschirme des Posteingangs (PR 62 Rest, D-472).
+   *
+   * `laden` liest Posteingang und Pruefansicht und VERMERKT das Oeffnen —
+   * eine anfuegende Zeile in `freigabe_ansicht`, kein Schreibrecht: der
+   * Vermerk ist Teil des Lesens (APR-08: die Pruefdauer misst der Server).
+   * `entscheiden` ist der einzige Schreiber, und er schreibt nicht selbst —
+   * er ruft `app.freigabe_entscheiden` (0137), das Recht ist dasselbe wie
+   * bei `erteilen`. `diff-json` und `json` sind reine Umformungen.
+   */
+  { modul: 'freigabe', pfad: 'freigabe/diff-json', schreibend: false },
+  { modul: 'freigabe', pfad: 'freigabe/json', schreibend: false },
+  { modul: 'freigabe', pfad: 'freigabe/laden', schreibend: false },
+  {
+    modul: 'freigabe', pfad: 'freigabe/entscheiden',
+    schreibend: true, schreibRecht: 'freigabe.entscheiden',
+  },
+  /**
    * Das Rechnungsausgangsbuch (PR 56, FIN-16). Es LIEST — und das ist keine
    * Formalie: ein Buch, das beim Lesen etwas ablegt, ist kein Buch. Modul
    * `nummernkreis`, weil es die Sicht auf den Kreis ist.

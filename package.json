@@ -26,6 +26,7 @@
     "katalog": "tsx scripts/katalog/extrahiere.ts && tsx scripts/katalog/seed-sql.ts",
     "katalog:check": "tsx scripts/katalog/extrahiere.ts --check && tsx scripts/katalog/seed-sql.ts --check",
     "seitenkarte": "tsx scripts/seitenkarte/extrahiere.ts",
+    "seitenkarte:stand": "tsx scripts/seitenkarte/stand.ts",
     "annahmen": "tsx scripts/annahmen.ts",
     "db:seed": "tsx src/server/db/seed/index.ts",
     "content:import": "tsx scripts/content-import.ts",

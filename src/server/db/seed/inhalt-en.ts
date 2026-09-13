@@ -232,15 +232,44 @@ export const SEITEN_EN: readonly SeitenInhalt[] = [
     beschreibung: `CSE Dienstleistungen GmbH — ${TRADE.reinigung.toLowerCase()} in Berlin.`,
     abschnitte: [
       { art: 'hero', ueberschrift: 'CSE Dienstleistung', text: TRADE.reinigung },
+      // Translated from the company's own site, cse-dienstleistungen.de (D-473).
+      {
+        art: 'text',
+        ueberschrift: 'Your strong service partner',
+        text:
+          'Our team is made up of motivated, trained staff who know exactly what '
+          + 'matters. We deliver every service we offer with the know-how it takes '
+          + 'and put particular weight on quality and thoroughness. Our services '
+          + 'range from A to Z — demolition work, construction helpers, caretaking '
+          + 'or the day-to-day maintenance cleaning of your property — and we '
+          + 'always adapt them to what our customers need.',
+      },
       {
         art: 'leistungen',
-        ueberschrift: 'What we clean',
+        ueberschrift: 'Our services',
         text: null,
         daten: {
           leistungen: [
-            service('Routine cleaning', 'Recurring, to a schedule of works.'),
-            service('Glass and frame cleaning', 'Inside and out.'),
-            service('Post-construction cleaning', 'After building work is finished.'),
+            service('Maintenance cleaning',
+              'Keep your property and offices in a consistently immaculate condition.'),
+            service('Deep cleaning',
+              'From removing dust and dirt of every kind, through machine deep cleaning, to special cleaning of surfaces.'),
+            service('Window cleaning',
+              'A thorough, high-quality clean that gives your windows the shine they deserve.'),
+            service('Office cleaning',
+              'High-quality office cleaning, including the care of corridors and carpets.'),
+            service('Stairwell cleaning',
+              'The stairwell is often the first impression of your building.'),
+            service('Construction cleaning',
+              'Makes sure all materials and waste are fully removed once the project is finished.'),
+            service('Demolition / dismantling',
+              'Selective dismantling (non-structural) of all fittings down to the shell.'),
+            service('Construction helpers',
+              'Helpers relieve the skilled trades on site and are hard to do without.'),
+            service('Caretaking',
+              'A caretaker takes on many tasks for owners and tenants, on schedule or on call.'),
+            service('Construction brokering',
+              'Access to a network of experienced construction firms and craftsmen.'),
           ],
           faq: [
             {
@@ -266,15 +295,32 @@ export const SEITEN_EN: readonly SeitenInhalt[] = [
     beschreibung: `SSE Security — ${TRADE.security.toLowerCase()} in Berlin.`,
     abschnitte: [
       { art: 'hero', ueberschrift: 'SSE Security', text: TRADE.security },
+      // Translated from the company's own site, select-security.de (D-473).
+      {
+        art: 'text',
+        ueberschrift: 'We keep Berlin safe',
+        text:
+          'Your partner for professional security solutions — reliable, discreet '
+          + 'and ready to deploy. Whether property protection, personal protection '
+          + 'or event security: we stand for uncompromising security in every '
+          + 'situation.',
+      },
       {
         art: 'leistungen',
         ueberschrift: 'Our services',
         text: null,
         daten: {
           leistungen: [
-            service('Premises protection', 'Guarding under § 34a GewO.'),
-            service('Event services', 'Admission, order and supervision.'),
-            service('Reception services', 'Reception and gate.'),
+            service('Premises protection', 'Guarding of buildings and installations (§ 34a GewO).'),
+            service('Construction-site guarding', 'Protection of sites, materials and equipment.'),
+            service('Fire watch', 'Fire safety watch during works and events.'),
+            service('Personal protection', 'Close protection for individuals.'),
+            service('Patrol and intervention', 'Patrol rounds and response to alarms.'),
+            service('Investigation and detective services', 'Investigations within the law.'),
+            service('Event security', 'Admission, order and supervision at events.'),
+            service('Hostess and reception service', 'Reception, gate and guest care.'),
+            service('Doorman service', 'Access control at the entrance.'),
+            service('Security technology', 'Technical security systems.'),
           ],
           faq: [
             {

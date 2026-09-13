@@ -106,7 +106,7 @@ describe('(3) der NAP-Block ist auf jeder Seite zeichengleich', () => {
     );
     const ld = localBusinessJsonLd(m as never, 'https://cse-gruppe.de/security');
     expect(ld['@type']).toBe('LocalBusiness');
-    expect(ld['name']).toBe('Select-Security Event GmbH');
+    expect(ld['name']).toBe('Select Security Event GmbH');
     expect((ld['address'] as Record<string, unknown>)['postalCode']).toBe('10719');
   });
 });

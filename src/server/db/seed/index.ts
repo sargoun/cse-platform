@@ -27,6 +27,7 @@ import { seedWachbuch } from './wachbuch.js';
 import { seedReinigung } from './reinigung.js';
 import { seedVertrieb } from './vertrieb.js';
 import { seedBau } from './bau.js';
+import { seedFreigaben } from './freigaben.js';
 
 const url = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 if (url === undefined || url === '') {
@@ -36,6 +37,22 @@ const sql = postgres(url, { max: 1, onnotice: () => {} });
 
 const heute = new Date().toISOString().slice(0, 10);
 
+/**
+ * Was der bestehende Auftritt einer Gesellschaft SELBST veroeffentlicht —
+ * Anschrift, Rufnummer, Adresse, Web (Stand 13.09.2026, siehe DECISIONS
+ * D-473). Nur das steht hier; Registergericht, HRB und USt-IdNr. nennt keiner
+ * der beiden Auftritte, also bleiben sie Platzhalter und
+ * `angaben_bestaetigt_am` bleibt NULL (O-353).
+ */
+interface Auftritt {
+  readonly strasse: string;
+  readonly plz: string;
+  readonly ort: string;
+  readonly telefon: string;
+  readonly email: string;
+  readonly web: string;
+}
+
 interface Bereich {
   readonly slug: string;
   readonly name: string;
@@ -43,6 +60,7 @@ interface Bereich {
   readonly rechtsform: string | null;
   readonly rechtseinheit: boolean | null;
   readonly farbe: string;
+  readonly auftritt?: Auftritt;
   /**
    * Die GEBUCHTEN Gewerkmodule (`mandant.module`, seit 0001 vorhanden und bis
    * jetzt leer).
@@ -71,10 +89,22 @@ interface Bereich {
 const BEREICHE: readonly Bereich[] = [
   { slug: 'reinigung', name: 'CSE Dienstleistung', firma: 'CSE Dienstleistungen GmbH',
     rechtsform: 'GmbH', rechtseinheit: true, farbe: 'reinigung',
-    module: ['reinigung'] },
-  { slug: 'security', name: 'SSE Security', firma: 'Select-Security Event GmbH',
+    module: ['reinigung'],
+    // cse-dienstleistungen.de, Kontakt und Datenschutzerklaerung.
+    auftritt: { strasse: 'Kurfürstendamm 201', plz: '10719', ort: 'Berlin',
+      telefon: '+49 30 91203341', email: 'office@cse-dienstleistungen.de',
+      web: 'https://www.cse-dienstleistungen.de' } },
+  /*
+   * `Select Security Event GmbH` — ohne Bindestrich, wie das Impressum von
+   * select-security.de die Firma schreibt. CLAUDE.md hatte `Select-Security
+   * Event GmbH`; das Impressum ist die Quelle, die zaehlt (D-473).
+   */
+  { slug: 'security', name: 'SSE Security', firma: 'Select Security Event GmbH',
     rechtsform: 'GmbH', rechtseinheit: true, farbe: 'security',
-    module: ['security'] },
+    module: ['security'],
+    auftritt: { strasse: 'Kurfürstendamm 201', plz: '10719', ort: 'Berlin',
+      telefon: '+49 30 80584400', email: 'office@select-security.de',
+      web: 'https://select-security.de' } },
   { slug: 'bau', name: 'REALTIME Service', firma: 'REALTIME Service GmbH',
     rechtsform: 'GmbH', rechtseinheit: true, farbe: 'bau',
     module: ['bau'] },
@@ -163,7 +193,7 @@ async function main(): Promise<void> {
     const [z] = await sql<{ id: string }[]>`
       insert into mandant
         (slug, name, firma, rechtsform, ist_rechtseinheit, eigener_nummernkreis,
-         strasse, plz, ort, land, telefon, email, farbe_token, module,
+         strasse, plz, ort, land, telefon, email, web, farbe_token, module,
          module_gepflegt, sortierung,
          ust_id, handelsregister_gericht, handelsregister_nummer,
          rechnung_kontakt_name,
@@ -172,8 +202,11 @@ async function main(): Promise<void> {
       values
         (${b.slug}, ${b.name}, ${b.firma}, ${b.rechtsform}, ${b.rechtseinheit},
          ${rechtseinheit},
-         'Kurfürstendamm 21', '10719', 'Berlin', 'DE', -- TODO(client, O-353): echte Anschrift je Gesellschaft
-         '+49 30 555 0100', ${`kontakt@${b.slug}.cse-gruppe.de`}, ${b.farbe}, -- TODO(client, O-353): echte Rufnummer
+         -- Anschrift und Rufnummer aus dem bestehenden Auftritt, wo es einen
+         -- gibt (D-473); sonst der alte, erkennbar erfundene Platzhalter.
+         ${b.auftritt?.strasse ?? 'Kurfürstendamm 21'}, ${b.auftritt?.plz ?? '10719'}, ${b.auftritt?.ort ?? 'Berlin'}, 'DE', -- TODO(client, O-353): Anschrift von REALTIME und Operations
+         ${b.auftritt?.telefon ?? '+49 30 555 0100'}, ${b.auftritt?.email ?? `kontakt@${b.slug}.cse-gruppe.de`}, -- TODO(client, O-353): Rufnummer von REALTIME und Operations
+         ${b.auftritt?.web ?? null}, ${b.farbe},
          -- Die Umwandlung nach text[] steht AUSGESCHRIEBEN da: eine leere
          -- Liste (CSE Operations bucht kein Gewerk) kommt beim Treiber ohne
          -- Elementtyp an und wird als text gesendet — "column module is of
@@ -1401,6 +1434,13 @@ async function main(): Promise<void> {
    * freigegeben ist. Ohne diesen Schritt fuehrte PR 37 eine Buchhaltung, die
    * nie gebucht hat.
    */
+  const frei = await seedFreigaben(sql, ids);
+  process.stdout.write(
+    frei.vorschlaege === 0
+      ? `  Freigabe-Posteingang: ${String(frei.vorhanden)} Vorschlaege bereits vorhanden, nichts nachgelegt\n`
+      : `  ${String(frei.vorschlaege)} wartende Vorschlaege im Freigabe-Posteingang mit `
+        + `${String(frei.felder)} Feldnachweisen (Demo — kein Agent hat sie erzeugt, PR 62)\n`,
+  );
   const konto = await seedKonten(sql, ids);
   process.stdout.write(
     `  ${String(konto.freigegeben)} Zeiteintraege freigegeben (Demo-Annahme), `

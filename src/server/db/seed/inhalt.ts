@@ -97,30 +97,38 @@ export const SEITEN: readonly SeitenInhalt[] = [
         'Was die vier Bereiche anbieten — und wofür Sie welche Anfrage stellen.' },
       {
         art: 'leistungen',
-        ueberschrift: 'Gebäudereinigung',
+        ueberschrift: 'Gebäudereinigung und Hausdienste',
         text: null,
+        // Die Leistungen, die CSE Dienstleistungen selbst nennt (D-473).
         daten: { leistungen: [
           leistung('Unterhaltsreinigung',
-            'Wiederkehrende Reinigung nach vereinbartem Leistungsverzeichnis.'),
-          leistung('Glas- und Rahmenreinigung',
-            'Fenster, Fassadenelemente und Rahmen, innen und aussen.'),
-          leistung('Bauendreinigung',
-            'Die Reinigung nach Abschluss der Bauarbeiten, vor der Übergabe.'),
-          leistung('Sonderreinigung',
-            'Einmalige Einsätze nach Absprache.'),
+            'Wiederkehrende Reinigung, damit Immobilie und Büroräume in einem stets makellosen Zustand bleiben.'),
+          leistung('Grundreinigung',
+            'Von der Entfernung staubiger Verunreinigungen über die maschinelle Grundreinigung bis zur Sonderreinigung von Oberflächen.'),
+          leistung('Fenster- und Büroreinigung',
+            'Fenster, Büros, Flure und Teppiche — hochwertig und gründlich.'),
+          leistung('Treppenhaus- und Baureinigung',
+            'Der erste Eindruck Ihres Gebäudes — und die Reinigung nach Abschluss eines Bauprojekts.'),
+          leistung('Abriss / Abbruch, Bauhelfer, Hausmeister',
+            'Selektiver Rückbau (nicht statisch), Unterstützung der Fachkräfte auf der Baustelle, Hausmeisterdienste termingerecht oder auf Abruf.'),
         ] },
       },
       {
         art: 'leistungen',
         ueberschrift: 'Sicherheits- und Objektschutzdienste',
         text: null,
+        // Die Dienste, die Select Security Event selbst nennt (D-473).
         daten: { leistungen: [
-          leistung('Objektschutz',
-            'Bewachung von Gebäuden und Anlagen nach § 34a GewO.'),
-          leistung('Veranstaltungsdienst',
-            'Einlass, Ordnung und Aufsicht bei Veranstaltungen.'),
-          leistung('Empfangsdienst',
-            'Besetzung von Empfang und Pforte.'),
+          leistung('Objektschutz und Baustellenbewachung',
+            'Bewachung von Gebäuden, Anlagen und Baustellen nach § 34a GewO.'),
+          leistung('Veranstaltungsschutz und Personenschutz',
+            'Einlass, Ordnung und Aufsicht bei Veranstaltungen; Begleitschutz für Personen.'),
+          leistung('Revier-, Interventions- und Brandwachdienste',
+            'Kontrollfahrten, Einsatz bei Alarm, Brandsicherheitswachen.'),
+          leistung('Empfangs- und Doorman-Service',
+            'Empfang, Pforte, Zutrittskontrolle am Eingang.'),
+          leistung('Ermittlungsdienste und Sicherheitstechnik',
+            'Ermittlungen im gesetzlichen Rahmen; technische Sicherungsanlagen.'),
         ] },
       },
       {
@@ -252,15 +260,51 @@ export const SEITEN: readonly SeitenInhalt[] = [
     beschreibung: `CSE Dienstleistungen GmbH — ${GEWERK.reinigung} in Berlin.`,
     abschnitte: [
       { art: 'hero', ueberschrift: 'CSE Dienstleistung', text: GEWERK.reinigung },
+      /*
+       * Die Saetze und die zehn Leistungen stehen so auf
+       * cse-dienstleistungen.de (Stand 13.09.2026, D-473) — uebernommen, nicht
+       * erfunden; ein Tippfehler des Auftritts („Dienstleistungspatner") ist
+       * berichtigt.
+       */
+      {
+        art: 'text',
+        ueberschrift: 'Wir sind Ihr starker Dienstleistungspartner',
+        text:
+          'Unser kompetentes Team besteht aus motivierten und geschulten '
+          + 'Mitarbeitern, die genau wissen, worauf es ankommt. Mit '
+          + 'dementsprechendem Know-how setzen wir jede von uns angebotene '
+          + 'Dienstleistung um und legen besonders viel Wert auf Qualität und '
+          + 'Gründlichkeit. Unsere Dienstleistungen sind von A bis Z breit '
+          + 'gefächert, wie z. B. Abrissarbeiten, Bauhelfer, Hausmeister oder die '
+          + 'alltägliche Unterhaltsreinigung Ihrer Immobilie. Natürlich passen wir '
+          + 'unsere Leistungen stets den Bedürfnissen und Wünschen unserer Kunden an.',
+      },
       {
         art: 'leistungen',
-        ueberschrift: 'Was wir reinigen',
+        ueberschrift: 'Unsere Leistungen',
         text: null,
         daten: {
           leistungen: [
-            leistung('Unterhaltsreinigung', 'Wiederkehrend, nach Leistungsverzeichnis.'),
-            leistung('Glas- und Rahmenreinigung', 'Innen und aussen.'),
-            leistung('Bauendreinigung', 'Nach Abschluss der Bauarbeiten.'),
+            leistung('Unterhaltsreinigung',
+              'Möchten Sie Ihre Immobilie und die Büroräume in einem stets makellosen Zustand halten?'),
+            leistung('Grundreinigung',
+              'Von der Entfernung staubiger Verunreinigungen aller Art über die maschinelle Grundreinigung bis hin zur Sonderreinigung von Oberflächen.'),
+            leistung('Fensterreinigung',
+              'Mit unserer hochwertigen und gründlichen Reinigung verleihen Sie Ihren Fenstern den Glanz und das strahlende Aussehen, das sie verdienen.'),
+            leistung('Büroreinigung',
+              'Qualitativ hochwertige Büroreinigung sowie die Pflege und Wartung von Fluren und Teppichen.'),
+            leistung('Treppenhausreinigung',
+              'Das Treppenhaus ist mitunter der erste Eindruck Ihres Gebäudes.'),
+            leistung('Baureinigung',
+              'Sie stellt sicher, dass alle Materialien und Abfälle nach Beendigung des Projektes vollständig entfernt werden.'),
+            leistung('Abriss / Abbruch',
+              'Selektiver Rückbau (Abriss/Abbruch, nicht statisch) sämtlicher Einbauten bis zur Herstellung des Rohbauzustandes.'),
+            leistung('Bauhelfer',
+              'Bauhelfer sind auf zahlreichen Baustellen nicht mehr wegzudenken, da sie die Fachkräfte vor Ort entlasten.'),
+            leistung('Hausmeister',
+              'Ein Hausmeister übernimmt zahlreiche Aufgaben, die er für Eigentümer und Mieter termingerecht oder auf Abruf erledigt.'),
+            leistung('Bauvermittlung',
+              'Mit unserer Vermittlung erhalten Sie Zugang zu einem Netzwerk erfahrener Bauunternehmen und Handwerker.'),
           ],
           faq: [
             {
@@ -286,15 +330,36 @@ export const SEITEN: readonly SeitenInhalt[] = [
     beschreibung: `SSE Security — ${GEWERK.security} in Berlin.`,
     abschnitte: [
       { art: 'hero', ueberschrift: 'SSE Security', text: GEWERK.security },
+      /*
+       * Leitsatz und die zehn Dienste stehen so auf select-security.de (Stand
+       * 13.09.2026, D-473). Der Auftritt beschreibt die Dienste nicht naeher;
+       * die Kurzbeschreibungen hier sagen nur, was das Wort bedeutet.
+       */
+      {
+        art: 'text',
+        ueberschrift: 'Wir sichern Berlin',
+        text:
+          'Ihr Partner für professionelle Sicherheitslösungen – zuverlässig, '
+          + 'diskret und einsatzbereit. Ob Objektschutz, Personenschutz oder '
+          + 'Veranstaltungssicherheit – wir stehen für kompromisslose Sicherheit '
+          + 'in jeder Situation.',
+      },
       {
         art: 'leistungen',
         ueberschrift: 'Unsere Dienste',
         text: null,
         daten: {
           leistungen: [
-            leistung('Objektschutz', 'Bewachung nach § 34a GewO.'),
-            leistung('Veranstaltungsdienst', 'Einlass, Ordnung und Aufsicht.'),
-            leistung('Empfangsdienst', 'Empfang und Pforte.'),
+            leistung('Objektschutz', 'Bewachung von Gebäuden und Anlagen (§ 34a GewO).'),
+            leistung('Baustellenbewachung', 'Schutz von Baustellen, Material und Gerät.'),
+            leistung('Brandwachen', 'Brandsicherheitswache bei Arbeiten und Veranstaltungen.'),
+            leistung('Personenschutz', 'Begleitschutz für Personen.'),
+            leistung('Revier- und Interventionsdienste', 'Kontrollfahrten und Einsatz bei Alarm.'),
+            leistung('Ermittlungs- und Detekteidienste', 'Ermittlungen im gesetzlichen Rahmen.'),
+            leistung('Veranstaltungsschutz', 'Einlass, Ordnung und Aufsicht bei Veranstaltungen.'),
+            leistung('Hostessen- und Empfangsservice', 'Empfang, Pforte und Gästebetreuung.'),
+            leistung('Doorman-Service', 'Zutrittskontrolle am Eingang.'),
+            leistung('Sicherheitstechnik', 'Technische Sicherungsanlagen.'),
           ],
           faq: [
             {

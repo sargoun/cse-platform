@@ -5,7 +5,7 @@ One digital platform for a Berlin group of four business areas:
 | Key | Entity | Trade |
 |---|---|---|
 | `reinigung` | CSE Dienstleistungen GmbH | Gebäudereinigung |
-| `security` | SSE Security (Select-Security Event GmbH) | Sicherheits- und Objektschutzdienste |
+| `security` | SSE Security (Select Security Event GmbH) | Sicherheits- und Objektschutzdienste |
 | `bau` | REALTIME Service GmbH | Hochbau, Ausbau, Rückbau |
 | `operations` | CSE Operations | Digital operations, AI, group management |
 

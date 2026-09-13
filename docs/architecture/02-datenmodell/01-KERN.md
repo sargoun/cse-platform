@@ -3915,7 +3915,7 @@ release's database; both must succeed.
 
 ### 14.2 Seed rows
 
-- **`mandant`** — four rows: `reinigung` (CSE Dienstleistungen GmbH), `security` (Select-Security
+- **`mandant`** — four rows: `reinigung` (CSE Dienstleistungen GmbH), `security` (Select Security
   Event GmbH, brand "SSE Security", D-11), `bau` (REALTIME Service GmbH), `operations` (CSE
   Operations). `ist_rechtseinheit` is **NULL for all four until confirmed**, and the admin UI marks
   it as unresolved; `eigener_nummernkreis = false` everywhere until then (O-01, TEN-02).
