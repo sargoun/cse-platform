@@ -477,6 +477,21 @@ export interface MeinTexte {
   readonly pruefsumme: string;
   readonly nurAufDeutsch: string;
   readonly vorNaechsterSchicht: string;
+
+  /**
+   * Die Leiste und die Kopfzeile des Portals (D-419).
+   *
+   * Die fuenf Tabs kamen aus `registry/tableiste.ts` und standen dort nur auf
+   * Deutsch — die arabische Oberflaeche trug unten „Heute · Schichten ·
+   * Stunden · Nachrichten · Profil", und die Spur oben las „‹ Heute ›". Wer
+   * WEGEN der Uebersetzung hier liest, fand die Navigation unuebersetzt.
+   */
+  readonly nachrichten: string;
+  readonly profil: string;
+  readonly bereichWechseln: string;
+  readonly konto: string;
+  readonly website: string;
+  readonly abmelden: string;
 }
 
 export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
@@ -566,6 +581,12 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     pruefsumme: 'Prüfsumme der Fassung',
     nurAufDeutsch: 'Dieser Text liegt nur auf Deutsch vor.',
     vorNaechsterSchicht: 'Vor Ihrer nächsten Schicht',
+    nachrichten: 'Nachrichten',
+    profil: 'Profil',
+    bereichWechseln: 'Bereich wechseln',
+    konto: 'Konto',
+    website: 'Website',
+    abmelden: 'Abmelden',
   },
   en: {
     heute: 'Today',
@@ -652,6 +673,12 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     pruefsumme: 'Version checksum',
     nurAufDeutsch: 'This text is available in German only.',
     vorNaechsterSchicht: 'Before your next shift',
+    nachrichten: 'Messages',
+    profil: 'Profile',
+    bereichWechseln: 'Switch area',
+    konto: 'Account',
+    website: 'Website',
+    abmelden: 'Sign out',
   },
   ar: {
     heute: 'اليوم',
@@ -738,6 +765,12 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     pruefsumme: 'بصمة النسخة',
     nurAufDeutsch: 'هذا النص متوفر باللغة الألمانية فقط.',
     vorNaechsterSchicht: 'قبل ورديتك القادمة',
+    nachrichten: 'الرسائل',
+    profil: 'الملف الشخصي',
+    bereichWechseln: 'تبديل القسم',
+    konto: 'الحساب',
+    website: 'الموقع',
+    abmelden: 'تسجيل الخروج',
   },
   tr: {
     heute: 'Bugün',
@@ -824,6 +857,12 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     pruefsumme: 'Sürüm sağlama değeri',
     nurAufDeutsch: 'Bu metin yalnızca Almanca olarak mevcuttur.',
     vorNaechsterSchicht: 'Bir sonraki vardiyanızdan önce',
+    nachrichten: 'Mesajlar',
+    profil: 'Profil',
+    bereichWechseln: 'Alan değiştir',
+    konto: 'Hesap',
+    website: 'Web sitesi',
+    abmelden: 'Çıkış yap',
   },
 };
 

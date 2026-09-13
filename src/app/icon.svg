@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!--
+    Das App-Symbol (Favicon), DESIGN §1: CSE-Rot auf Ink, eine Wortmarke.
+
+    Es gab keines — `public/` traegt weder `favicon.ico` noch ein Symbol,
+    also holte JEDER Seitenaufruf ein 404 und der Reiter blieb leer. Bis das
+    echte Logo vorliegt (O-12) steht hier die Initiale in der Palette von §1;
+    kein erfundenes Bildzeichen, das fertig aussaehe.
+  -->
+  <rect width="64" height="64" rx="14" fill="#08080A"/>
+  <rect x="0" y="0" width="64" height="4" fill="#E30613"/>
+  <text x="32" y="43" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="30" font-weight="700" fill="#FAFAFA">CSE</text>
+</svg>

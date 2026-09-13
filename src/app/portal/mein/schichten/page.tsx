@@ -77,7 +77,7 @@ export default async function MeineSchichten({
         Verlauf. Mit `ms`/`me` statt `ml`/`mr`, damit sie auf Arabisch
         mitspiegeln.
       */}
-      <nav aria-label={t.schichten} className="mb-s5 flex gap-s4">
+      <nav aria-label={t.schichten} className="mb-s5 flex flex-wrap gap-s4">
         <Link
           href={`/portal/mein/schichten?woche=${tagePlus(von, -7)}`}
           data-cse="woche-zurueck"

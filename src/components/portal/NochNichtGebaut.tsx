@@ -47,7 +47,10 @@ export function NochNichtGebaut({
     >
       <h1 className="mb-s4 text-h1 text-text">Dieses Modul wird noch gebaut</h1>
       <p data-cse="noch-nicht" className="max-w-[72ch] text-base text-text-muted">
-        <code className="text-text">{pfad}</code> steht in der Seitenkarte und
+        {/* `break-all`: ein Musterpfad wie `/portal/[mandant]/einstellungen/benutzer`
+            hat keine Trennstelle, und ohne Umbruch schob er bei 375px die ganze
+            Seite seitwaerts (WCAG 1.4.10). */}
+        <code className="break-all text-text">{pfad}</code> steht in der Seitenkarte und
         ist Ihnen freigegeben — die Seite dahinter entsteht
         {phase === null ? ' in einer späteren Phase' : ` in Phase ${phase}`}.
       </p>

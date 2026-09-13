@@ -23,6 +23,37 @@ import type { Portal, Scope, Sitzung, Transaktion } from '../kontext/index.js';
  */
 export const SITZUNG_COOKIE = 'cse_sitzung';
 
+/** Zwoelf Stunden — so lange lebt die Zeile in `benutzer_sitzung` auch. */
+export const SITZUNG_MAX_ALTER_SEK = 12 * 60 * 60;
+
+/**
+ * Die Attribute des Sitzungskekses — an EINER Stelle.
+ *
+ * Sie standen dreimal: in der Entwicklungsanmeldung, in der Codeeingabe und
+ * in der Abmeldung, und nur die Codeeingabe setzte `secure`. Ein Keks ohne
+ * `secure` wird auch ueber `http://` mitgeschickt — auf einem Telefon im
+ * Baustellen-WLAN reicht dann ein Netz, das die erste Anfrage unverschluesselt
+ * abfaengt, und die Sitzung ist weg. `secure` haengt an `NODE_ENV`, weil
+ * `http://localhost` und das Telefon im selben Netz (D-414, `allowedDevOrigins`)
+ * sonst gar keinen Keks mehr bekaemen.
+ *
+ * `sameSite: 'lax'` bleibt: ein fremdes Formular schickt ihn nicht mit, und
+ * `ursprung.ts` steht als zweite Linie davor.
+ */
+export function sitzungsKeksOptionen(
+  umgebung: { readonly NODE_ENV?: string | undefined } = process.env,
+): {
+  httpOnly: true; sameSite: 'lax'; path: '/'; maxAge: number; secure: boolean;
+} {
+  return {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: SITZUNG_MAX_ALTER_SEK,
+    secure: umgebung.NODE_ENV === 'production',
+  };
+}
+
 export function tokenHash(token: string): string {
   return createHash('sha256').update(token, 'utf8').digest('hex');
 }

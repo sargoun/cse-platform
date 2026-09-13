@@ -85,6 +85,22 @@ export function OeffentlicheShell(
   const t = shellTexte(sprache);
   return (
     <div className="flex min-h-dvh flex-col bg-ink">
+      {/*
+        * **Drei Stufen, nicht zwei** (DESIGN §5 Navigation, D-417).
+        *
+        * Die volle Zeile — Auftrittsname, vier Punkte, Gesellschaftswahl,
+        * roter Knopf, Anmelden, Sprachwahl — braucht rund 1130px. Sie stand
+        * ab `md` (768px), und gemessen hiess das: von 768 bis etwa 1090px lief
+        * JEDE oeffentliche Seite waagerecht ueber, der Auftrittsname schrumpfte
+        * auf 0px (`min-w-0` + `truncate`), der rote Knopf brach in zwei Zeilen
+        * und die Sprachwahl stand ausserhalb des Fensters — auf jedem Tablet
+        * und jedem kleinen Laptop. Die 375px- und 1280px-Pruefungen sahen
+        * davon nichts.
+        *
+        *  - unter `lg`: Auftrittsname und Menueknopf, alles andere im Blatt
+        *  - `lg` bis `xl`: dazu die vier Punkte und der rote Knopf (~745px)
+        *  - ab `xl` (1280px): die volle Zeile
+        */}
       <header
         data-cse="oeffentlicher-kopf"
         className="sticky top-0 z-40 flex h-[72px] items-center gap-s5 px-s5"
@@ -149,7 +165,7 @@ export function OeffentlicheShell(
             */}
           <span className="min-w-0 truncate">{gruppeName}</span>
         </a>
-        <nav aria-label={t.hauptnavigation} className="ml-auto hidden gap-s4 md:flex">
+        <nav aria-label={t.hauptnavigation} className="ml-auto hidden gap-s4 lg:flex">
           {HAUPT.map(([ziel, schluessel]) => (
             <a
               key={schluessel}
@@ -188,7 +204,7 @@ export function OeffentlicheShell(
           * JavaScript und ist damit auch dann da, wenn das Netz schlecht ist.
           * Derselbe Weg wie im Portal (`TabLeiste`), aus demselben Grund.
           */}
-        <details data-cse="menue" className="ml-auto md:hidden">
+        <details data-cse="menue" className="order-last ml-auto xl:hidden lg:ml-s3">
           <summary
             aria-label={t.menue}
             className="flex min-h-11 min-w-11 cursor-pointer list-none items-center
@@ -315,7 +331,7 @@ export function OeffentlicheShell(
           * die Adresse kennen. Derselbe Fehler wie die leere „Mehr"-Liste im
           * Portal, nur an der Stelle, an der er Geld kostet.
           *
-          * **Und trotzdem `md:flex`** — am Telefon steht in der Kopfzeile
+          * **Und trotzdem `lg:flex`** — am Telefon steht in der Kopfzeile
           * NICHTS ausser dem Namen und dem Menue. Hier standen einmal drei
           * Absaetze uebereinander, von denen einer erklaerte, warum dieser
           * Knopf NICHT hinter `md:` liegt; er lag da bereits. Ein Kommentar,
@@ -338,7 +354,7 @@ export function OeffentlicheShell(
           data-cse="angebot-anfragen"
           className="ml-auto hidden min-h-11 items-center rounded-sm bg-brand px-s4
                      text-sm font-semibold text-white transition-colors duration-fast ease-brand
-                     hover:bg-brand-hover md:ml-s4 md:flex"
+                     hover:bg-brand-hover lg:ml-s4 lg:flex"
         >
           {t.angebotAnfragen}
         </a>
@@ -349,7 +365,7 @@ export function OeffentlicheShell(
             data-cse="anmelden"
             className="ml-s3 hidden min-h-11 items-center rounded-sm border border-line
                        px-s4 text-sm text-text transition-colors duration-fast ease-brand
-                       hover:bg-surface-2 md:flex"
+                       hover:bg-surface-2 xl:flex"
           >
             {t.anmelden}
           </a>
@@ -364,8 +380,8 @@ export function OeffentlicheShell(
           * sie aussehen, und `hreflang` sagt der Maschine, was sie sind.
           */}
         {/*
-          * **`hidden md:flex` — auf dem Telefon steht die Sprachwahl im
-          * Blatt, nicht im Kopf** (DESIGN §5, D-415).
+          * **`hidden xl:flex` — unterhalb von `xl` steht die Sprachwahl im
+          * Blatt, nicht im Kopf** (DESIGN §5, D-415, D-417).
           *
           * Sie stand hier, sie kostete 96px einer 72px-Zeile, und was wich,
           * war der Name: bei 360–414px rechnete der Auftrittsname 146px und
@@ -380,7 +396,7 @@ export function OeffentlicheShell(
         <nav
           aria-label={t.sprachwahl}
           data-cse="sprachwahl"
-          className="ml-s4 hidden items-center gap-s2 md:flex"
+          className="ml-s4 hidden items-center gap-s2 xl:flex"
         >
           {SPRACHEN.map((s) => (
             <a
@@ -391,31 +407,18 @@ export function OeffentlicheShell(
               data-sprache={s}
               aria-current={s === sprache ? 'true' : undefined}
               aria-label={EIGENNAME[s]}
-              /*
-               * 44×44 (DESIGN §8) — und `min-w-11` ist hier nicht Zierde:
-               * unter `sm` steht im Verweis nur „DE", also ein Ziel von rund
-               * 36×30 px. Das ist die Groesse, die man mit dem Daumen zweimal
-               * verfehlt, und sie stand auf jeder oeffentlichen Seite genau
-               * auf dem Geraet, fuer das das Kuerzel eingefuehrt wurde.
-               */
+              /* 44×44 (DESIGN §8) — auch fuer ein Wort wie „Deutsch". */
               className={`flex min-h-11 min-w-11 items-center justify-center rounded-sm px-s2
                           text-sm ${
                 s === sprache ? 'text-text' : 'text-text-muted hover:text-text'}`}
             >
               {/*
-                * Auf dem Telefon das Kürzel, ab `sm` der Eigenname.
-                *
-                * Nicht Geschmack, sondern Arithmetik: bei 375px stehen im Kopf
-                * der Auftrittsname, „Anmelden" und zwei Sprachen nebeneinander,
-                * und „Deutsch English" ausgeschrieben schob die Zeile über den
-                * Rand — `documentElement.scrollWidth > clientWidth`, also
-                * waagerechtes Scrollen auf JEDER öffentlichen Seite. Der
-                * zugängliche Name bleibt der ausgeschriebene: `aria-label`
-                * gewinnt gegen den Textinhalt, und `hreflang`/`lang` stehen
-                * ohnehin daneben. Eine Maschine liest weiter „Deutsch".
+                * Immer der Eigenname: die Wahl steht nur noch ab `xl` in der
+                * Zeile (D-417), und dort ist Platz. Das Kuerzel „DE" gab es
+                * nur, weil die Zeile einmal bei 375px voll war — jetzt liegt
+                * sie dort im Blatt, ausgeschrieben.
                 */}
-              <span className="sm:hidden">{s.toUpperCase()}</span>
-              <span className="hidden sm:inline">{EIGENNAME[s]}</span>
+              {EIGENNAME[s]}
             </a>
           ))}
         </nav>

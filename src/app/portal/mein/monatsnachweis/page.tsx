@@ -144,6 +144,14 @@ export default async function Monatsnachweis({
                                          font-weight: 600; }
         .cse-blatt .zahl { text-align: right; font-variant-numeric: tabular-nums;
                            white-space: nowrap; }
+        /* Die Pruefsumme: 64 Zeichen ohne Trennstelle. Ohne diese Zeile war
+           sie auf dem Telefon breiter als das Blatt und die Seite lief
+           seitwaerts (D-420). */
+        .cse-blatt .bruch { overflow-wrap: anywhere; }
+        /* Auf dem BILDSCHIRM eines Telefons sind 20mm Rand je Seite 152px von
+           375 — das Blatt haette 223px Inhalt. Der Druck (DESIGN §11) behaelt
+           seine A4-Raender unten in der @media-print-Regel. */
+        @media (max-width: 767.98px) { .cse-blatt { padding: var(--s4); } }
         .cse-blatt .leise { color: ${FARBEN_DRUCK['druck-text-leise']};
                             font-size: ${MASSE_DRUCK['druck-meta-groesse']}; }
         .cse-blatt .kopflinie { border: 0; border-top: 3px solid ${FARBEN_MARKE.red};
@@ -192,13 +200,21 @@ export default async function Monatsnachweis({
             : 'gesperrt, aber noch nicht geprägt'}
       </p>
 
-      <table style={{ marginTop: MASSE_DRUCK['druck-block'] }}>
-        <caption className="leise" style={{ captionSide: 'bottom', textAlign: 'left' }}>
-          Beginn und Ende sind die tatsächlichen Zeitpunkte des Eintrags in
-          Europe/Berlin. Eine Schicht über die Monatsgrenze steht in beiden
-          Monatsblättern mit ihren wahren Zeiten; nur der Anteil ist
-          monatsabhängig.
-        </caption>
+      {/* Ein eigener Rollbehaelter: der MiLoG-Nachweis hat sieben Spalten und
+          ist auf einem Telefon breiter als das Fenster. Er ist ein amtliches
+          Blatt und wird nicht gestapelt — also rollt die Tabelle, nie die
+          Seite (D-420). */}
+      <div className="overflow-x-auto">
+      <table style={{ marginTop: MASSE_DRUCK['druck-block'] }} aria-describedby="nachweis-erklaerung">
+        {/*
+          * Die Beschriftung ist kurz; der erklaerende Satz steht als Absatz
+          * UNTER dem Rollbehaelter und ist ueber `aria-describedby` an die
+          * Tabelle gebunden. Als `<caption>` war er so breit wie die Tabelle
+          * (437px bei sieben Spalten) und wurde auf dem Telefon vom
+          * Rollbehaelter abgeschnitten — ein Satz, den man rollen musste,
+          * um ihn zu Ende zu lesen (D-420).
+          */}
+        <caption className="sr-only">Zeiten des Monats</caption>
         <thead>
           <tr>
             <th scope="col">Tag</th>
@@ -231,6 +247,13 @@ export default async function Monatsnachweis({
           </tr>
         </tfoot>
       </table>
+      </div>
+      <p id="nachweis-erklaerung" className="leise" style={{ marginTop: MASSE_DRUCK['druck-zelle-y'] }}>
+        Beginn und Ende sind die tatsächlichen Zeitpunkte des Eintrags in
+        Europe/Berlin. Eine Schicht über die Monatsgrenze steht in beiden
+        Monatsblättern mit ihren wahren Zeiten; nur der Anteil ist
+        monatsabhängig.
+      </p>
 
       {/* Die Gegenprobe steht AUF dem Blatt und nicht in einem Test. */}
       <p data-cse="konto-abgleich" style={{ marginTop: MASSE_DRUCK['druck-block'] }}>
@@ -246,7 +269,7 @@ export default async function Monatsnachweis({
         )}
       </p>
 
-      <p className="leise">Prüfsumme: {n.hash}</p>
+      <p className="leise bruch">Prüfsumme: {n.hash}</p>
 
       <footer className="fuss">
         Aufzeichnung nach § 17 Abs. 1 MiLoG. Zeitpunkte gespeichert in UTC,

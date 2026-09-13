@@ -51,7 +51,14 @@ export function Hero({
         */}
       <div className="relative mx-auto flex w-full max-w-content flex-col gap-s3
                       px-s5 py-s6 cse-auftritt">
-        <h1 className="text-h1 text-white">
+        {/*
+          * `text-display`, nicht `text-h1`: DESIGN §2 nennt die 56/60-Stufe
+          * ausdruecklich fuer die Hero-Ueberschrift, und auf dem Telefon faellt
+          * sie ueber die §2-Mobilskala auf 36/40 (globals.css). Mit `h1` stand
+          * der Hero am Schreibtisch eine Stufe zu klein und am Telefon eine zu
+          * gross.
+          */}
+        <h1 className="text-display text-white">
           {ueberschrift}
           {akzentWort !== null && akzentWort !== undefined && akzentWort !== '' && (
             <>

@@ -2984,6 +2984,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-189 | Will any of the three entities ever invoice, or receive invoices, in a currency other than EUR? |
 | O-190 | Is the counter-signed Leistungsnachweis (CLN-04) kept as evidence behind a cleaning invoice line, in addition to the time entries? |
 | O-358 | Who maintains the §247 BGB Basiszinssatz — accounting per entity or the group centrally — and should the watchdog notify a named person instead of only failing the run? |
+| O-359 | SEC-A7 is only half delivered: HSTS, `nosniff`, `X-Frame-Options`, `frame-ancestors` and a `Permissions-Policy` are set (D-416), but a full `Content-Security-Policy` needs a per-request nonce through the middleware and every inline script the App Router emits. When is that work scheduled, and which external origins (SMS gateway callbacks, Supabase storage) must the policy allow? |
 
 **`02-datenmodell/06-RADAR-KI-INHALT.md`**
 
@@ -6599,3 +6600,157 @@ denn das Kürzel gab es nur, weil im Kopf nichts anderes mehr hineinging. Kein
 zweites `nav` und kein zweites `data-cse="sprachwahl"`: zwei gleich benannte
 Landmarken sind für Screenreader nicht unterscheidbar und für jeden Locator
 zwei Treffer — daran fielen schon einmal dreizehn Sprachprüfungen.
+
+## Entschieden in der Durchsicht nach Phase 6 — Navigation, Telefon, Tablet, Sicherheit
+
+Eine Fehlerrunde, keine Phase: der gebaute Stand wurde als Browser
+durchlaufen — jede Rolle des Seeds, jede von ihr erreichbare Seite, bei 375,
+820 und 1440px, mit Konsole, Statuscode und `scrollWidth`. 643 Seitenaufrufe.
+Was dabei aufging, steht hier; was offen bleibt, unter „Open".
+
+### D-416 · SEC-A7 gibt es jetzt — und der Sitzungskeks hat einen Satz Attribute
+
+Es gab keinen einzigen Sicherheitskopf. SPEC §20 führt SEC-A7 (CSP, HSTS,
+X-Frame-Options), `ursprung.ts` beruft sich auf HSTS als zweite Linie, und
+`next.config.ts` kannte kein `headers()`. Jede Antwort ging ohne
+`Strict-Transport-Security`, ohne `nosniff`, einbettbar in jede fremde Seite.
+
+Jetzt trägt jede Antwort HSTS (ein Jahr, Unterdomänen), `nosniff`,
+`X-Frame-Options: DENY` plus `frame-ancestors 'none'`,
+`Referrer-Policy: strict-origin-when-cross-origin` und eine
+`Permissions-Policy` (Kamera und Standort nur `self`, Mikrofon niemand). Die
+Werte stehen in `src/lib/sicherheitskoepfe.ts` ohne jede Abhängigkeit, damit
+die Konfiguration sie vor dem Bau laden kann und ein Test sie liest
+(`tests/kern/sicherheitskoepfe.test.ts`). **Keine vollständige CSP** — mit
+`'unsafe-inline'` sähe sie fertig aus und schützte nichts; ohne braucht sie
+eine Nonce-Kette durch die Middleware. Das ist O-359.
+
+Der Sitzungskeks wurde an drei Stellen gesetzt und nur an einer mit `secure`
+(Codeeingabe ja, Entwicklungsanmeldung und Abmeldung nein). Ein Keks ohne
+`secure` reist auch über `http://`. Jetzt gibt es `sitzungsKeksOptionen()` in
+`server/auth/sitzung.ts`, und alle drei Setzer — auch das Löschen — nehmen
+denselben Satz; `secure` hängt an `NODE_ENV`, weil `http://localhost` und das
+Telefon im Heimnetz (D-414) sonst keinen Keks bekämen. `POST /api/abmelden`
+prüft zusätzlich den Ursprung wie jeder andere schreibende Handler: es war der
+einzige ohne.
+
+### D-417 · Die öffentliche Kopfzeile hat drei Stufen — die volle Zeile erst ab `xl`
+
+**Der Befund.** Die volle Zeile — Auftrittsname, vier Punkte,
+Gesellschaftswahl, roter Knopf, Anmelden, zwei Sprachen — braucht gemessen
+rund 1130px. Sie stand ab `md` (768px). Ergebnis auf JEDER öffentlichen Seite
+von 768 bis etwa 1090px: `scrollWidth` 1032 bei 768/820/1024px Fenster, der
+Auftrittsname auf **0px** geschrumpft (`min-w-0` + `truncate` taten genau,
+was sie sollen), „Angebot anfragen" zweizeilig, „Anmelden" angeschnitten, die
+Sprachwahl ausserhalb des Fensters. Jedes iPad hochkant und quer, jedes
+kleine Notebook. Die Prüfungen bei 375 und 1280px sahen davon nichts — sie
+prüften genau die zwei Breiten, die passten.
+
+**Die Regel.** Unter `lg`: Auftrittsname und Menüknopf, alles andere im
+Blatt (wie bisher am Telefon). `lg` bis `xl`: dazu die vier Punkte und der
+rote Knopf — rund 745px; Gesellschaften, Anmelden und Sprachwahl bleiben im
+Blatt, das dort schon alles trägt. Ab `xl` (1280px) die volle Zeile. Der
+Auftrittsname ist auf **keiner** Breite gekürzt; das war bisher nur für
+360–414px zugesichert (D-415) und gilt jetzt für jede Stufe. DESIGN §5 hat
+die Tabelle.
+
+Das Kürzel „DE/EN" in der Sprachwahl ist weg: es gab es nur, weil die Zeile
+einmal bei 375px voll war; ab `xl` steht der Eigenname, im Blatt stand er
+schon.
+
+### D-418 · Die Mobilskala aus DESIGN §2 wird angewendet — und der Hero steht auf `display`
+
+`TYPO_MOBIL` (display 36/40, h1 30/36, h2 24/30) stand seit PR 0 in
+`theme.ts`, und nichts las es. Ein Telefon bekam die 40px-Überschrift des
+Schreibtischs; „Angebot für Gebäudereinigung anfragen" brauchte dort drei
+Zeilen, und das Angebotsformular bekam deshalb schon einmal `hyphens: auto`
+als Einzelfall. Jetzt trägt `globals.css` die Skala als Media-Regel unter
+`md`, und `tests/design/tokens.test.ts` prüft, dass die Werte dort dieselben
+sind wie im Token — sonst kennt der PDF-Renderer eine andere Skala als die
+Seite.
+
+Der Hero benutzt `text-display`, wie §2 es für die Hero-Überschrift nennt
+(56/60, am Telefon 36/40); er stand auf `h1` und war damit am Schreibtisch
+eine Stufe zu klein und am Telefon eine zu gross.
+
+Ausserdem brechen `.text-display` bis `.text-h3` jetzt mit `hyphens: auto`
+und `overflow-wrap: anywhere`: deutsche Komposita („Eingangsrechnungen",
+„Beschäftigungen") sind ein Wort, und ein Wort, das breiter ist als das
+Fenster, verbreitert sonst die Seite (WCAG 1.4.10).
+
+### D-419 · Das Mitarbeiterportal ist auch in seiner Navigation übersetzt
+
+Die fünf Tabs kamen aus `registry/tableiste.ts` und standen nur auf Deutsch.
+Die arabische Oberfläche trug unten „Heute · Schichten · Stunden ·
+Nachrichten · Profil", die Spur oben las „‹ Heute ›", die Kopfzeile „Bereich
+wechseln · Konto · Website · Abmelden". Wer WEGEN der Übersetzung hier liest
+(EMP-12), fand die Navigation unübersetzt.
+
+`PortalRahmen` nimmt jetzt `beschriftungen` (je Tab-Schlüssel und unter
+`sitzung.*` für die Kopfzeile) und reicht sie an Leiste und Schiene durch;
+`MeinRahmen` füllt sie aus `MeinTexte`, das um `nachrichten`, `profil`,
+`bereichWechseln`, `konto`, `website`, `abmelden` gewachsen ist. Das interne
+Portal lässt die Angabe weg und bekommt die deutschen Labels des Registers.
+
+„Bereich wechseln" bleibt auch im Mitarbeiterportal stehen — der erste
+Entwurf dieser Runde nahm es dort heraus, und `portal-ausgang.spec.ts` hielt
+dagegen: ein Konto kann in einer Gesellschaft Beschäftigte und in einer
+anderen Leitung sein, und dann ist `/auth/bereich` der einzige Weg in das
+andere Portal (03-AUTH §4.4). Ein Ausgang, der einer Rolle fehlt, ist der
+Fehler, den diese Prüfung seit dreimal verhindert.
+
+### D-420 · `main` ist nie breiter als das Fenster — was breiter ist, rollt für sich
+
+**Der Befund.** 63 Portalseiten liefen bei 375px seitwärts, 35 bei 820px,
+und in jeder war das erste überlaufende Element `main`. `main` ist ein
+Flex-Element, und ein Flex-Element hat `min-width: auto`: es wird nie
+schmaler als der breiteste Inhalt. Ein Wochenraster (984px), eine Tabelle ab
+`md`, ein Musterpfad ohne Trennstelle oder ein 40px-Wort machten damit das
+GANZE `main` breiter als das Fenster — mit ihm die Überschriftzeile, die
+Sprungleiste, jede Karte darin.
+
+**Die Regel.** `main` trägt `min-w-0`. Was wirklich breiter ist, rollt in
+seinem eigenen Behälter: `DataTable` ab `md` (unter `md` ist sie ohnehin ein
+Stapel — §8 bleibt unberührt), das Wochenraster (hatte den Behälter schon),
+der MiLoG-Monatsnachweis und die Abzugstabelle der Rechnung. Werte in
+`auto/1fr`-Rastern (Konto, Mitarbeiterkarten) tragen `min-w-0 break-words`
+wie seit D-415 das Impressum. Der Musterpfad auf „Dieses Modul wird noch
+gebaut" bricht mit `break-all`.
+
+### D-421 · Der Weg zur Anmeldung ist echt — auf der Website und vor dem Portal
+
+„Anmelden" auf der Website zeigte auf `/dev/anmelden` und stand deshalb in
+einem Produktionsbau gar nicht da; „Anmeldung erforderlich" vor jeder
+Portalseite sagte, die Anmeldung werde „gerade gebaut (PR 20)" — PR 20 war
+längst gemergt. Beides zeigt jetzt auf `/auth/mitarbeiter` (Mobilnummer und
+Einmalcode, EMP-01); die Entwicklungsanmeldung bleibt von dort und vom
+`/dev`-Streifen aus erreichbar, bis `/auth/login` (AUT-01) sie ablöst.
+
+### D-422 · Das Konto filtert seine Navigation nach Recht UND Modul — wie das Tor
+
+`/portal/konto` liest seine Karte für Leiste und „Mehr"-Blatt selbst und
+fragte nur `app.hat_recht`. `admin` und `leitung` halten `bau.lesen`,
+`security.lesen`, `reinigung.lesen` in jedem Bereich; im Konto der Reinigung
+standen deshalb Bau, Security, Dienstanweisungen und Schlüssel — und jeder
+Punkt fiel auf 404, weil das Modul dort nicht gebucht ist (D-377). Vier
+Menüpunkte auf 404, je Rolle und Gesellschaft, gefunden vom Durchlauf. Die
+Seite bildet jetzt dieselbe Schnittmenge wie `portalZugang`.
+
+### D-423 · Kleinere Befunde derselben Runde
+
+- **Kein App-Symbol.** `public/` trug weder `favicon.ico` noch ein Symbol;
+  jeder Aufruf holte ein 404, der Reiter blieb leer. `src/app/icon.svg` in
+  der Palette von §1, mit der Initiale, bis das Logo vorliegt (O-12).
+- **Hover, der nie zu sehen war.** `KachelRaster` legte `hover:bg-surface-2`
+  auf den Verweis UM die Kachel; die Kachel selbst trägt `bg-surface` und
+  deckte ihn. Jetzt hebt sich die Kachel wie jede interaktive Karte (§5).
+  Die Bereichsauswahl unter `/angebot` bekommt denselben Zustand.
+- **Das Angebotsformular sah anders aus als jedes Feld im Portal**
+  (`surface-2`, keine Mindesthöhe, `--danger-strong` als Textfarbe). Es nimmt
+  jetzt die Feldoptik von `FormField` und den `Button` der Komponente.
+- **„Anschrift"** stand als deutsches Literal auch auf `/en/impressum`.
+- **Nicht reproduzierbar:** vier von 643 Aufrufen meldeten React 418
+  (Hydration). Zwölf gezielte Wiederholungen mit Vergleich von Server-HTML
+  und hydriertem DOM zeigten keinen Unterschied und keinen Fehler; die
+  Meldung fiel mit dem Durchlauf zusammen, der das Fenster während des Ladens
+  umgestellt hat. Bleibt als Beobachtung stehen, nicht als Befund.

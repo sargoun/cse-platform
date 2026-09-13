@@ -4,6 +4,7 @@ import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { bindeAnfrage } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { NAVIGATION } from '@/server/registry/navigation';
+import { modulAktiv, type Modulbuchung } from '@/server/registry/modul';
 import { leisteFuer, tableiste } from '@/server/registry/tableiste';
 import { Unterseite } from '../../unterseite';
 import { AnmeldungNoetig } from '../../Anmeldung';
@@ -109,10 +110,36 @@ async function leseKonto(sitzung: Parameters<typeof bindeAnfrage>[1]): Promise<K
     )) as { recht: string; ok: boolean }[];
     const gehalten = new Set(rechteZeilen.filter((r) => r.ok).map((r) => r.recht));
 
+    /*
+     * **Recht UND Modul — wie in `portalZugang`, nicht nur das Recht.**
+     *
+     * Hier fehlte die zweite Frage, und die Folge war der einzige 404 im
+     * Portal, den ein Menue selbst erzeugte: `admin` haelt `bau.lesen`,
+     * `security.lesen` und `reinigung.lesen` in JEDEM Bereich, also zeigten
+     * Seitenleiste und „Mehr"-Blatt auf `/portal/konto` der Reinigung die
+     * Punkte Bau, Security, Dienstanweisungen und Schluessel — und jeder
+     * davon fiel auf 404, weil das Modul dort nicht gebucht ist (D-377).
+     * `portalZugang` bildet die Schnittmenge seit D-377; diese Seite liest
+     * ihre Karte selbst und muss es genauso tun.
+     */
+    const [mb] = sitzung.aktiverMandantId === null ? [] : (await tx.unsafe(
+      `select module, module_gepflegt from mandant where id = $1`,
+      [sitzung.aktiverMandantId],
+    )) as { module: readonly string[] | null; module_gepflegt: boolean }[];
+    const buchung: Modulbuchung = sitzung.ansicht === 'gruppe'
+      ? { module: [], gepflegt: false }
+      : { module: mb?.module ?? [], gepflegt: mb?.module_gepflegt === true };
+    const frei = (recht: string | null): boolean =>
+      recht === null || modulAktiv(buchung, recht);
+
     const sichtbareTabs: Record<string, boolean> = {};
-    for (const t of ziele) sichtbareTabs[t.schluessel] = t.recht === null || gehalten.has(t.recht);
+    for (const t of ziele) {
+      sichtbareTabs[t.schluessel] = (t.recht === null || gehalten.has(t.recht)) && frei(t.recht);
+    }
     const navigationsRechte: Record<string, boolean> = {};
-    for (const n of NAVIGATION) navigationsRechte[n.schluessel] = gehalten.has(n.recht);
+    for (const n of NAVIGATION) {
+      navigationsRechte[n.schluessel] = gehalten.has(n.recht) && frei(n.recht);
+    }
 
     return {
       name: z?.name ?? null,
@@ -132,7 +159,10 @@ function Zeile({ was, wert }: { readonly was: string; readonly wert: string }) {
   return (
     <div className="grid grid-cols-[auto_1fr] gap-s4 border-b border-line py-s3">
       <dt className="w-32 text-sm text-text-muted">{was}</dt>
-      <dd className="m-0 text-base text-text">{wert}</dd>
+      {/* `min-w-0 break-words`: eine Anmeldung wie `kunde.demo@example.test`
+          hat keine Trennstelle und schob die Zeile bei 375px ueber den Rand —
+          dieselbe Ursache wie im Impressum (Gesellschaften.tsx). */}
+      <dd className="m-0 min-w-0 break-words text-base text-text">{wert}</dd>
     </div>
   );
 }

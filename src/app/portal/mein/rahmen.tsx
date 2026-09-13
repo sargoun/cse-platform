@@ -120,7 +120,7 @@ export function MeinRahmen({
          * eine Ueberschrift aussah. Mit beidem liest sich die Zeile als Weg:
          * `‹ Heute › Schichten`.
          */
-        wurzelTitel="Heute"
+        wurzelTitel={basis.texte.heute}
         /**
          * Kein Bereich: eine Anmeldung, mehrere Gesellschaften. Der Streifen
          * oben ist neutral, und die Zugehoerigkeit steht an jeder ZEILE —
@@ -134,6 +134,22 @@ export function MeinRahmen({
         aktiverTab={aktiverTab}
         sichtbareTabs={basis.zugang.sichtbareTabs}
         navigationsRechte={basis.zugang.navigationsRechte}
+        /*
+         * Die Leiste in der Sprache der Person (D-419). Die Schluessel sind
+         * die der `mitarbeiter`-Leiste in `registry/tableiste.ts`; `stunden`
+         * zeigt auf das Stundenkonto und heisst deshalb so.
+         */
+        beschriftungen={{
+          heute: basis.texte.heute,
+          schichten: basis.texte.schichten,
+          stunden: basis.texte.stundenkonto,
+          nachrichten: basis.texte.nachrichten,
+          profil: basis.texte.profil,
+          'sitzung.bereich': basis.texte.bereichWechseln,
+          'sitzung.konto': basis.texte.konto,
+          'sitzung.website': basis.texte.website,
+          'sitzung.abmelden': basis.texte.abmelden,
+        }}
       >
         {children}
       </PortalRahmen>

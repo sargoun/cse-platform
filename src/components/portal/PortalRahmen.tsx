@@ -45,14 +45,24 @@ export interface PortalRahmenProps {
    * unter `schluessel`, nicht unter `recht`.
    */
   readonly navigationsRechte?: Readonly<Record<string, boolean>>;
+  /**
+   * Uebersetzte Beschriftungen (D-419): je Tab-Schluessel fuer Leiste und
+   * Schiene, und unter `sitzung.*` fuer die Kopfzeile (`konto`, `website`,
+   * `abmelden`). Das Mitarbeiterportal spricht vier Sprachen (EMP-12); das
+   * interne Portal laesst die Angabe weg und bekommt die deutschen Labels des
+   * Registers.
+   */
+  readonly beschriftungen?: Readonly<Record<string, string>>;
   readonly children: React.ReactNode;
 }
 
 export function PortalRahmen({
   titel, wurzelTitel, bereich, nurLesen, leiste, wurzel, aktiverTab, sichtbareTabs,
-  navigationsRechte, children,
+  navigationsRechte, beschriftungen, children,
 }: PortalRahmenProps) {
   const tabs = tableiste(leiste);
+  const b = (schluessel: string, vorgabe: string): string =>
+    beschriftungen?.[schluessel] ?? vorgabe;
   return (
     <div className="flex min-h-dvh flex-col bg-ink">
       <div
@@ -133,17 +143,23 @@ export function PortalRahmen({
           data-cse="sitzungsnavigation"
           className="ms-auto hidden items-center gap-s4 sm:flex"
         >
+          {/*
+            * Auch im Mitarbeiterportal: ein Konto kann in einer Gesellschaft
+            * Beschaeftigte und in einer anderen Leitung sein, und dann ist die
+            * Bereichswahl der einzige Weg in das andere Portal (§4.4). Nur die
+            * Beschriftung folgt der Sprache der Person (D-419).
+            */}
           <a href="/auth/bereich"
              className="flex min-h-11 items-center text-sm text-text-muted hover:text-text">
-            Bereich wechseln
+            {b('sitzung.bereich', 'Bereich wechseln')}
           </a>
           <a href="/portal/konto"
              className="flex min-h-11 items-center text-sm text-text-muted hover:text-text">
-            Konto
+            {b('sitzung.konto', 'Konto')}
           </a>
           <a href="/"
              className="flex min-h-11 items-center text-sm text-text-muted hover:text-text">
-            Website
+            {b('sitzung.website', 'Website')}
           </a>
           {/*
             * Ein FORMULAR, kein Verweis: eine Abmeldung aendert Zustand, und
@@ -153,7 +169,7 @@ export function PortalRahmen({
             <button type="submit"
                     className="flex min-h-11 items-center text-sm text-text-muted
                                hover:text-text">
-              Abmelden
+              {b('sitzung.abmelden', 'Abmelden')}
             </button>
           </form>
         </nav>
@@ -227,10 +243,25 @@ export function PortalRahmen({
             : (sichtbareTabs === undefined ? {} : { sichtbar: sichtbareTabs }))}
           bereich={bereich}
           label={titel}
+          {...(beschriftungen === undefined ? {} : { beschriftungen })}
         />
         {/* `pb-20` unter `md`: die Tab-Leiste liegt fest am unteren Rand und
             verdeckte sonst die letzte Zeile jeder Liste. */}
-        <main className="flex-1 p-s5 pb-20 md:pb-s5">{children}</main>
+        {/*
+          * `min-w-0` — und das ist der Unterschied zwischen einer Seite, die
+          * passt, und einer, die auf jedem Telefon seitwaerts laeuft.
+          *
+          * `main` ist ein Flex-Element, und ein Flex-Element hat
+          * `min-width: auto`: es wird nie schmaler als der breiteste Inhalt.
+          * Ein Wochenraster, eine Tabelle oder ein 40px-Wort wie
+          * „Eingangsrechnungen" machten damit das GANZE `main` breiter als
+          * das Fenster — und mit ihm die Ueberschriftzeile, die Sprungleiste,
+          * jede Karte. Gemessen: 63 Portalseiten liefen bei 375px ueber,
+          * 35 bei 820px, mit genau dieser Kette. Mit `min-w-0` bleibt `main`
+          * so breit wie das Fenster; was wirklich breiter ist (das Raster,
+          * eine Tabelle ab `md`), rollt in seinem eigenen Behaelter (D-420).
+          */}
+        <main className="min-w-0 flex-1 p-s5 pb-20 md:pb-s5">{children}</main>
       </div>
 
       <TabLeiste
@@ -241,6 +272,7 @@ export function PortalRahmen({
         {...(navigationsRechte === undefined ? {} : { navigationsRechte })}
         gruppenansicht={leiste === 'gruppe'}
         label={titel}
+        {...(beschriftungen === undefined ? {} : { beschriftungen })}
       />
     </div>
   );

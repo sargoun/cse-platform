@@ -30,10 +30,12 @@ export interface SeitenNavigationProps {
    * Bereich zu behaupten, in dem man nicht ist.
    */
   readonly bereich?: BereichSchluessel | null;
+  /** Uebersetzte Beschriftungen je Schluessel — siehe `TabLeiste` (D-419). */
+  readonly beschriftungen?: Readonly<Record<string, string>>;
 }
 
 export function SeitenNavigation({
-  ziele, aktiv, wurzel, label, sichtbar, bereich = null,
+  ziele, aktiv, wurzel, label, sichtbar, bereich = null, beschriftungen,
 }: SeitenNavigationProps) {
   const gezeigt = ziele.filter((z) => sichtbar?.[z.schluessel] !== false);
   /*
@@ -84,7 +86,7 @@ export function SeitenNavigation({
                   : {})}
               >
                 <Icon name={z.icon} groesse="md" className="shrink-0" />
-                {z.label}
+                {beschriftungen?.[z.schluessel] ?? z.label}
               </a>
             </li>
           );
