@@ -401,9 +401,18 @@ const TRANSPORTE = [
  * spricht mit dem eigenen Supabase-Bucket, also mit der eigenen
  * Infrastruktur und nicht mit einem Empfaenger. Ein `nodemailer` dort waere
  * trotzdem ein Verstoss, und die Importpruefung faengt ihn weiterhin.
+ *
+ * `server/radar` aus demselben Grund, mit einem Unterschied, der ihn noch
+ * schmaler macht: dieser Adapter LIEST. Er holt oeffentliche
+ * Vergabebekanntmachungen (RAD-01, RAD-02) und schickt dabei nichts als eine
+ * Adresse — kein Empfaenger, kein Inhalt, keine Nachricht. Invariante 7
+ * handelt davon, dass nichts das System VERLAESST; der eine Ausgang dafuer
+ * bleibt `server/versand`. Damit das hier eine Zusage bleibt und keine
+ * Luecke, faellt unter diesen Pfad genau eine Datei: `radar/abruf.ts`.
  */
 const FETCH_ERLAUBT = [
   join('server', 'versand'), join('server', 'agent', 'policy'), join('server', 'storage'),
+  join('server', 'radar'),
 ];
 
 function wacheEinAusgang(): void {

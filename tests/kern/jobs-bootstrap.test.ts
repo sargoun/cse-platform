@@ -48,13 +48,13 @@ afterEach(() => {
 });
 
 describe('der Bootstrap verdrahtet ALLE Jobs', () => {
-  it('registriert die neun Jobs, die es gibt', () => {
+  it('registriert die zehn Jobs, die es gibt', () => {
     const schluessel = alleJobs(db).map((j) => j.schluessel).sort();
     expect(schluessel).toEqual([
       'basiszinssatz_pruefen', 'belegarchiv_ausgangsrechnung',
       'einsaetze_generieren', 'kette_pruefen',
       'konflikte_erkennen', 'lead_sla_eskalation', 'mahnvorschlaege_erzeugen',
-      'nachweis_warnungen', 'offene_posten_abgleichen',
+      'nachweis_warnungen', 'offene_posten_abgleichen', 'radar_einlesen',
     ]);
   });
 

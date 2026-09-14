@@ -5164,6 +5164,7 @@ niemand ihn suchen.
 | O-363 | **Welche Steuersatzgruppe trägt eine Eingangsrechnung mit 0 % und Kategorie AE (§ 13b UStG) — `ust_0_13b_bau` und `ust_0_13b_reinigung`?** Der Katalog (0075) führt beide; welche gilt, hängt vom Gewerk des LIEFERANTEN ab, nicht vom eigenen. Bis zur Antwort lässt der E-Rechnungs-Vorschlag das Feld unsicher, die Freigabe bleibt gesperrt, und ein Mensch wählt die Gruppe in der Erfassungsmaske (D-482). Dazu: Gibt es einen Vergleichsmaßstab für Eingangsrechnungen (die letzte Rechnung desselben Lieferanten, ein Bestellbezug), damit `stufeRisikoEin` sie nicht jede als erstmalig und damit `hoch` einstuft? | ACC-05, APR-02, D-482 |
 | O-364 | **Wird der Objektspeicher (Supabase Storage, Frankfurt) auf Bucket-Ebene unveränderlich geführt — Versionierung, Object Lock, keine Löschrechte für den Dienstschlüssel — und steht das in der DPA?** Die Plattform hält das Löschen in Datenbank und Anwendung auf (0141, `dokument/loeschung.ts`, Merge-Wache); was der Anbieter mit einem Objekt tut, das jemand mit dem Dienstschlüssel direkt löscht, kann sie nicht erzwingen und behauptet es nicht — das Archiv sagt es (D-483). Bis zur Antwort gilt: der Dienstschlüssel liegt nur in der Serverumgebung, und jede Datei trägt ihren SHA-256 in `dokument_version`, sodass ein Verlust auffällt, nicht verschwindet. | ACC-06, DOC-07, LEG-01, D-483 |
 | O-365 | **Welche Fassung des Beschreibungsstandards für die Datenträgerüberlassung erwartet die Prüfsoftware der Finanzverwaltung (IDEA), und darf die DTD `gdpdu-01-09-2004.dtd` dem Z3-Paket beiliegen?** Die DTD wird von Audicon veröffentlicht und liegt nicht im Repository; die Plattform schreibt `index.xml` nach der Struktur der Version 1.0 (DataSet → DataSupplier → Media → Table mit VariableLength, Spaltentypen, Dezimal- und Trennzeichen), nennt die DTD in der Deklaration und legt sie nicht bei — `LIESMICH.txt` sagt das. Einen Validator gibt es nicht; die Abnahme ist ein Probeimport durch den Steuerberater oder Prüfer (D-485). Bis zur Antwort: CSV in Windows-1252, `;`, CRLF, Dezimalkomma, erste Zeile Spaltennamen (`Range From=2`). | ACC-09, LEG-01, D-485 |
+| O-366 | **Welche Abfrage stellt der Betrieb an die beiden Radarquellen — welche Adresse, welcher Filter, welches Zeitfenster?** Beide Quellen sind öffentlich und brauchen keinen Schlüssel (oeffentlichevergabe.de liefert OCDS, TED Search v3 liefert JSON); ohne die Abfrage gibt es aber keinen Abruf, den die Plattform ehrlich stellen könnte — sie rät nicht, welche CPV-Gruppen und welche Region gemeint sind. Bis zur Antwort sind `RADAR_OEFFENTLICHEVERGABE_URL` und `RADAR_TED_URL` leer, und der Nachtlauf schreibt je Quelle eine Zeile `uebersprungen` mit genau diesem Satz (D-489). | RAD-01, RAD-02, D-489 |
 | O-355 | **Wer trägt die Modulbuchung ein und pflegt `mandant.module_gepflegt`?** Seit 0103 ist die Frage nicht mehr, was eine leere Liste heisst — das Kennzeichen sagt es: `false` = nicht eingetragen, es wird nicht gefiltert (damit eine neu angelegte Gesellschaft nicht schwarz wird); `true` = die Liste gilt, leer heisst kein Gewerk. Offen bleibt der Vorgang: kommt die Buchung aus dem Vertrag, aus der Verwaltung oder setzt sie ein Super-Admin über `system.module_zuweisen` — und wer merkt, wenn sie fehlt? | `src/server/registry/modul.ts`, 0103, D-377 |
 | O-356 | **Bucht jede Gesellschaft genau ein Gewerk, oder gibt es Überschneidungen?** Der Seed setzt `reinigung → [reinigung]`, `security → [security]`, `bau → [bau]`, `operations → []` — abgeleitet aus den Gewerken, die in `CLAUDE.md` stehen. Praktisch plausibel wäre anderes: Bauendreinigung bei der REALTIME Service, Veranstaltungsreinigung bei der SSE Security. Bis zur Antwort sieht eine Gesellschaft nur ihr eigenes Gewerk; die Korrektur ist eine Zeile in `mandant.module` und kein Codeeingriff. | `mandant.module`, `src/server/db/seed/index.ts`, D-377 |
 | O-357 | **Wohin gehen die Wächter-Meldungen aus SPEC §14 — Posteingang, Mail oder beides — und wer bekommt die Kettenmeldung?** Die Ablaufwarnung (60/30/7) erreicht die Person selbst; das ist EMP-08 und unstrittig. „Hashkette gebrochen" dagegen hat keinen persönlichen Empfänger: es ist eine Meldung an die Buchhaltung oder die Geschäftsführung, und beide sind heute keine adressierbare Größe im Modell. Solange die Frage offen ist, wird der Kettenprüfer bewusst NICHT als Job registriert — ein Lauf, der jede Nacht „ok" meldet, ohne dass jemand die Meldung liest, schafft Vertrauen, das er nicht deckt. | SPEC §14, `src/server/jobs/bootstrap.ts`, `kettenlauf.ts`, NOT-01 |
@@ -8620,3 +8621,61 @@ gar nicht.
 **Was bewusst NICHT passiert ist:** die erste Stufe bleibt stumm. Ob es eine
 Nummer gibt, sagt `/auth/mitarbeiter` weiterhin nicht (0114) — geändert hat
 sich nur, was jemand erfährt, der einen gültigen Code schon besaß.
+
+### D-489 · Der Vergaberadar, Teil 1: Quellen, Profile, Bewertung (PR 68)
+
+Phase 8 beginnt mit dem Radar, weil die Agenten auf seinem Ergebnis arbeiten.
+Was hier entsteht, ist die Hälfte, die **ohne jeden Anbieter funktioniert**:
+zwei öffentliche Quellen, ein Suchprofil je Bereich, eine Rangfolge, die Code
+rechnet. Der Rest von Phase 8 (Oberfläche, Vergabemappe, Agenten) folgt.
+
+**Vier Tabellen tragen keinen Mandanten.** `vergabeplattform`,
+`ausschreibung`, `ausschreibung_nuts` und `ausschreibung_rohdaten` sind
+öffentliche Tatsachen, keine Unterlagen einer GmbH. Trügen sie `mandant_id`,
+müsste `quell_id` je Mandant eindeutig sein, dieselbe Bekanntmachung stünde
+viermal im System, und RAD-03 wäre nicht mehr formulierbar: eine Korrektur
+müsste viermal greifen und könnte dreimal scheitern. Sie sind Referenzdaten
+mit einer Lesepolicy auf `radar.lesen`; geschrieben werden sie nur vom
+Einlesejob. Alles Mandantsspezifische — Registrierung, Profil, Bewertung,
+Vorgang — trägt RLS und die interne Decke.
+
+**Idempotenz ist ein Index, kein Vorsatz.** `unique (quelle, quell_id)` trägt
+RAD-03, und ob sich etwas geändert hat, entscheidet ein SHA-256 über die
+Rohantwort — nicht ein Feldvergleich, der bei jeder Umbenennung in der Quelle
+an allen Zeilen anschlüge. Dieselbe Antwort zweimal eingespielt schreibt
+nichts, auch keine zweite Rohdatenzeile; eine geänderte schreibt die Zeile
+und **behält die alte Rohantwort** daneben (Isolationstest).
+
+**Die Rangfolge rechnet Code (RAD-05), und das steht im Schema.**
+`bewertung.verfahren` ist per CHECK auf `deterministisch` festgenagelt: ein
+Modellpfad käme daran nicht vorbei, ohne dass jemand eine Migration schreibt
+und jemand sie liest. Sechs Regeln (CPV, Region, Stichwörter, Wert, Frist,
+Schwellenwert) ergeben Punkte, eine Aufschlüsselung je Regel und einen
+deutschen Satz, der aus der Aufschlüsselung entsteht. Die Funktion liest
+keine Uhr — der Zeitpunkt kommt als Parameter, sonst wäre `eingaben_hash` als
+Determinismusbeweis wertlos.
+
+**Die Falle, die den Radar beim ersten Nachschärfen getötet hätte.** Der
+Eindeutigkeitsschlüssel der Bewertung enthält `eingaben_hash`, und der
+Einfügefall ist `do nothing`. Ohne beides hätte das erste Bearbeiten eines
+Profils den Lauf an der ersten schon bewerteten Bekanntmachung sterben
+lassen: gleicher Schlüssel, Anhäng-Trigger verbietet `do update`. Jetzt ist
+eine unveränderte Eingabe ein Nichts und eine geänderte eine neue Zeile; die
+alte bleibt als Aufzeichnung (Isolationstest mit zwei Profilfassungen).
+
+**Was NICHT erfunden wurde.** Die Gewichte stehen in
+`services/radar/gewichte.platzhalter.ts` und sind O-15; ein Negativ-Stichwort
+zieht ab und schliesst nicht aus, solange O-191 offen ist (die sichere
+Richtung: ein Ausschluss verwirft still Chancen, die nie ein Mensch sieht);
+eine Fremdwährung wird **nicht umgerechnet** (O-47), das Wertkriterium bleibt
+unbewertet und sagt es; die CPV-Listen sind Platzhalter bis O-98; ein
+quellenübergreifendes Duplikat wird vorgeschlagen und erst nach menschlicher
+Bestätigung aus dem Lauf genommen (O-192). Neu: **O-366** — welche Abfrage
+stellt dieser Betrieb an die beiden Quellen (Adresse, Filter, Fenster)?
+
+**Nicht verbunden heisst nicht verbunden.** Beide Quellen sind öffentlich und
+brauchen keinen Schlüssel; was fehlt, ist die Adresse (`RADAR_*_URL`). Fehlt
+sie, schreibt der Nachtlauf eine Zeile mit `uebersprungen` und dem Satz, was
+fehlt — der Unterschied zwischen „heute war nichts ausgeschrieben" und „seit
+drei Wochen fragt niemand mehr nach". Eine Quelle, die ausfällt, nimmt die
+andere nicht mit; beides steht in `radar_ingest_lauf` (Isolationstest).

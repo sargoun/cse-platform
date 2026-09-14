@@ -29,6 +29,19 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * ist deshalb `finanzen.schreiben` und nicht `buchhaltung.schreiben`
    * (D-427): wer eine Rechnung festschreibt, wird dadurch nicht Buchhalter.
    */
+  /*
+   * Der Vergaberadar (RAD-01 … RAD-05, D-489). Alle fuenf sind lesend: die
+   * Bekanntmachungen schreibt der Nachtlauf als `cse_job`, und `bewertung`
+   * hat fuer `cse_app` gar kein Schreibrecht — eine Punktzahl von Hand waere
+   * das Ende von RAD-05.
+   */
+  { modul: 'radar', pfad: 'radar/bewertung', schreibend: false },
+  { modul: 'radar', pfad: 'radar/gewichte.platzhalter', schreibend: false },
+  { modul: 'radar', pfad: 'radar/import', schreibend: false },
+  { modul: 'radar', pfad: 'radar/lauf', schreibend: false },
+  { modul: 'radar', pfad: 'radar/ocds', schreibend: false },
+  { modul: 'radar', pfad: 'radar/quelle', schreibend: false },
+  { modul: 'radar', pfad: 'radar/ted', schreibend: false },
   { modul: 'buchhaltung', pfad: 'buchhaltung/kontenrahmen', schreibend: false },
   { modul: 'buchhaltung', pfad: 'buchhaltung/kontierung', schreibend: false },
   { modul: 'buchhaltung', pfad: 'buchhaltung/index', schreibend: false },
