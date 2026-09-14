@@ -162,6 +162,20 @@ case "${1:-up}" in
       sleep 2
     fi
 
+    # pgvector: `wissens_chunk` (AGT-06) traegt eine `vector`-Spalte, und ohne
+    # die Erweiterung scheitert Migration 0151 mit „type vector does not
+    # exist". In CI bringt sie das Bild `pgvector/pgvector:pg16` mit; lokal
+    # fehlt sie auf einem nackten Postgres — dann sagt dieses Skript, welches
+    # Paket fehlt, statt die Migration mit einer Meldung sterben zu lassen,
+    # die wie ein Schemafehler aussieht.
+    if ! psql "postgres://postgres@localhost:$PORT/postgres" -tAc \
+         "select 1 from pg_available_extensions where name = 'vector'" | grep -q 1; then
+      echo "pgvector fehlt. Ohne sie scheitert Migration 0151 (AGT-06)." >&2
+      echo "  Debian/Ubuntu: apt-get install -y postgresql-16-pgvector" >&2
+      echo "  Docker:        pgvector/pgvector:pg16 statt postgres:16" >&2
+      exit 1
+    fi
+
     # Ohne Migrationen gibt es nichts aufzubauen, und ein Fingerabdruck ueber
     # eine leere Menge waere ein stabiler Wert, der nichts bedeutet.
     ls drizzle/*.sql >/dev/null 2>&1 || {

@@ -425,7 +425,14 @@ Radar first — the agents operate on its output.
       can never be mistaken for a quiet day. A receipt table keyed on the
       deadline instant prevents the second notice for the same situation, and
       makes a *rescheduled* deadline a new one.
-- [ ] `pgvector` index over contracts, objects, offers, correspondence
+- [x] `pgvector` index over contracts, objects, offers, correspondence
+      (PR 74, D-496) — schema, page and rules; **deliberately empty** until an
+      embedding provider is confirmed, because an index of substitute vectors
+      returns plausible-looking hits whose ordering is chance and nobody
+      notices. `mandant_id` sits in the primary key and **there is no group
+      view on this table**: "show me similar clauses" would read across
+      companies as "show me the sister's contract". Confidential is the
+      default; a downgrade carries a name. CI runs `pgvector/pgvector:pg16`.
 - [x] Agent tools (AGT-02); `berechne_preis` is **pure code** (PR 73, D-495) —
       the contract, the handle vault, the value register and the nine-tool
       registry. **Two of the nine run without a model** because they create

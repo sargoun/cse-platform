@@ -19,7 +19,11 @@ jobs:
     # `scripts/test-db.sh` erkennt das und legt nur noch die Datenbank an.
     services:
       postgres:
-        image: postgres:16
+        # pgvector statt des nackten Postgres: `wissens_chunk` (AGT-06) traegt
+        # eine `vector`-Spalte, und ohne die Erweiterung scheitert Migration
+        # 0151. Das Bild IST postgres:16, nur mit der Erweiterung darin — kein
+        # anderer Server, keine andere Fassung (D-496).
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: postgres
           # Wegwerf-Datenbank in einem Wegwerf-Container, nur über localhost

@@ -9137,3 +9137,61 @@ Inhalt hängt an `agent.protokoll_lesen`, die Zeile an `agent.lesen`: dass ein
 Entwurf entstand, darf sehen, wer den Agenten sieht; was drinsteht, nicht.
 
 **Geprüft:** Kern 1691 (neu: `agent-werkzeuge` 19) · Isolation 1582 (neu 13).
+
+### D-496 · Der Wissensindex — und warum er mit Absicht leer bleibt (PR 74)
+
+AGT-06 verlangt einen `pgvector`-Index über Verträge, Objekte, Angebote und
+Korrespondenz. Er entsteht hier als Schema, als Seite und als Regelwerk — und
+er bleibt **leer**, bis ein Einbettungsanbieter bestätigt ist.
+
+**Das ist keine Verzögerung, sondern die Entscheidung.** Ein Index aus
+Nullvektoren oder aus lokal gewürfelten Ersatzwerten ist der schlimmste
+Platzhalter, den diese Plattform kennt: die Suche liefert Treffer, sie sehen
+plausibel aus, und dass ihre Reihenfolge Zufall ist, merkt niemand. Bei einem
+sichtbar „nicht verbundenen" Anbieter fragt jemand nach; bei einem Index, der
+Ergebnisse liefert, fragt niemand.
+
+**Die gefährlichste Tabelle des Systems.** Eine Ähnlichkeitssuche kennt von
+sich aus keine Gesellschaftsgrenze: `order by embedding <=> $1 limit 10` ohne
+Filter liefert den Vertrag der Schwestergesellschaft, weil er inhaltlich
+ähnlich ist. Deshalb steht `mandant_id` im **Primärschlüssel** (die Abweichung,
+die K-16(a) erlaubt und deren Fall die Konvention beim Namen nennt), in jeder
+Policy und in jeder Abfrage. Und deshalb gibt es hier **keine
+Gruppenansicht** — anders als bei jedem anderen Lesetisch dieser Plattform:
+„zeig mir ähnliche Klauseln" wäre gruppenweit „zeig mir den Vertrag der
+Schwester". Der Isolationstest stellt genau diese Abfrage aus einer fremden
+Gesellschaft und erwartet null Zeilen.
+
+**Vertraulich ist die Vorgabe, nicht das Ergebnis einer Prüfung.** Wer eine
+Passage für unbedenklich hält, stuft sie herab — mit Namen und Zeitpunkt, und
+ein CHECK besteht darauf. Die andere Richtung (alles normal, bis jemand
+widerspricht) verliert beim ersten vergessenen Widerspruch einen Vertrag an
+einen Agenten, der ihn zitieren darf.
+
+**Die Dimension ist Schema, keine Einstellung.** 1536 steht in der Spalte
+`vector(1536)` und in einem CHECK daneben. Ein Modellwechsel ist damit eine
+Migration plus vollständiger Neuaufbau — und genau so soll es sich anfühlen:
+zwei Vektoren aus verschiedenen Modellen im selben Index sind kein Index,
+sondern Zufall, und die Abstände zwischen ihnen bedeuten nichts.
+
+**Zwei Bedingungen, nicht eine.** `OPENAI_API_KEY` allein schaltet nichts
+frei: D-04 verlangt EU-Verarbeitung, und das ist eine Einstellung beim
+Anbieter plus eine Zeile im Auftragsverarbeitungsvertrag, keine
+Umgebungsvariable. Solange `OPENAI_REGION` nicht auf `eu` steht, bleibt der
+Index aus — hier stehen Verträge dreier deutscher Gesellschaften.
+
+**Kein Vektorindex auf einer leeren Tabelle.** `ivfflat` braucht Zeilen, um
+seine Listen zu trainieren; leer angelegt ist er ein Index auf null Clustern
+und muss nach dem ersten Aufbau ohnehin neu gebaut werden. Er gehört in den
+Schritt, in dem der erste echte Aufbau läuft, mit einer Listenzahl, die zur
+Zeilenzahl passt.
+
+**Infrastruktur: `pgvector/pgvector:pg16` statt `postgres:16`.** Dasselbe
+Postgres, nur mit der Erweiterung darin. Lokal prüft `scripts/test-db.sh`
+vorher, ob sie verfügbar ist, und nennt das fehlende Paket — statt Migration
+0151 an „type vector does not exist" sterben zu lassen, was wie ein
+Schemafehler aussieht und keiner ist.
+
+**Geprüft:** Isolation 1594 (neu: `wissensindex` 12), darunter die
+Ähnlichkeitssuche aus einer fremden Gesellschaft und die Gruppenansicht, die
+es hier nicht gibt.
