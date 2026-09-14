@@ -98,3 +98,28 @@ export function finde(schluessel: string): JobDefinition | undefined {
 export function leereRegister(): void {
   REGISTER.clear();
 }
+
+/**
+ * **Die Berliner Stunde als Wache, nicht als Zeitplan** (K-11,
+ * `05-API-KARTE.md` §548).
+ *
+ * `pg_cron` rechnet in UTC. Ein Lauf, der „um sieben in Berlin" gemeint ist
+ * und als `0 6 * * *` steht, läuft im Winter um sieben und im Sommer um acht —
+ * die Stunde wandert mit der Zeitumstellung, und zwar in die Richtung, die
+ * niemand bemerkt, weil die Meldung ja ankommt. Nur eben eine Stunde zu spät,
+ * ein halbes Jahr lang.
+ *
+ * Also: stündlich planen und hier fragen, ob in Berlin gerade die gemeinte
+ * Stunde ist. Die Frage beantwortet die DATENBANK, nicht der Node-Prozess —
+ * derselbe Grund wie überall sonst (Invariante 2): der Prozess kann in einer
+ * anderen Zone laufen, die Datenbank kennt nur eine.
+ */
+export async function istBerlinerStunde(
+  db: { unsafe(sql: string, werte?: readonly unknown[]): Promise<readonly unknown[]> },
+  stunde: number,
+): Promise<boolean> {
+  const zeilen = (await db.unsafe(
+    `select extract(hour from (now() at time zone 'Europe/Berlin'))::int as h`,
+  )) as readonly { h: number }[];
+  return zeilen[0]?.h === stunde;
+}

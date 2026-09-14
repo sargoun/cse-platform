@@ -75,4 +75,36 @@ export const FEHLER_TEXT: Readonly<Record<string, string>> = {
   recht_fehlt: 'Das für diese Handlung erforderliche Recht fehlt.',
   nicht_gefunden: 'Diese Freigabe existiert nicht oder ist nicht sichtbar.',
   abgewiesen: 'Die Datenbank hat die Entscheidung abgewiesen.',
+  /* Die beiden Wege aus `/api/freigaben/fenster` (APR-05, APR-06). */
+  grund: 'Ein Einspruch und eine Rücknahme brauchen einen Grund — mindestens fünf Zeichen. '
+    + 'In einem halben Jahr ist „warum wurde das gestoppt" eine echte Frage.',
+  fenster: 'Das Fenster ist inzwischen abgelaufen — zwischen dem Anzeigen des Knopfes und '
+    + 'seinem Drücken vergeht Zeit. Eine Korrektur ist jetzt eine NEUE Freigabe (§4.5).',
 };
+
+/**
+ * **Der Stand der AUSFÜHRUNG, nicht der der Entscheidung** (§4.8).
+ *
+ * `offen` heisst zweierlei, und der Unterschied ist für den Menschen der
+ * ganze Punkt: bei einer Vorgangsart MIT Handlung (heute genau eine, die
+ * Übernahme eines Eingangsrechnungs-Vorschlags) steht sie noch aus; bei allen
+ * anderen gibt es nichts auszuführen — die Genehmigung IST der Vorgang. Ein
+ * „steht aus", das nie weggeht, wäre eine Warnung, die niemand auflösen kann.
+ */
+export const AUSFUEHRUNG_LABEL: Readonly<Record<string, string>> = {
+  laeuft: 'Ausführung läuft',
+  ausgefuehrt: 'ausgeführt',
+  fehlgeschlagen: 'Ausführung fehlgeschlagen',
+  zurueckgenommen: 'Ausführung zurückgenommen',
+};
+
+/** Die eine Aktion, die heute einen Ausführer hat (`services/freigabe/ausfuehrung.ts`). */
+const MIT_HANDLUNG: readonly string[] = ['eingangsrechnung_uebernehmen'];
+
+export function ausfuehrungText(stand: string, aktion: string): string {
+  const fest = AUSFUEHRUNG_LABEL[stand];
+  if (fest !== undefined) return fest;
+  return MIT_HANDLUNG.includes(aktion)
+    ? 'Ausführung steht aus'
+    : 'ohne Handlung — der Vermerk ist die Freigabe';
+}

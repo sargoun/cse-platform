@@ -13,6 +13,9 @@ import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungFuer } from '../kennung';
+import {
+  WERKZEUG_REGISTER, fuerAgent, untergrenze, type AgentKennung,
+} from '@/server/agent/tools/register-werkzeuge';
 
 /**
  * `/portal/[mandant]/agenten/[agent]` — was dieser Agent tut, was er darf und
@@ -126,12 +129,24 @@ export default async function AgentDetail(
              from agent_richtlinie order by aktion`)
         : [];
 
-      return { kopf, aufgaben, richtlinien, darfRichtlinien };
+      /*
+       * Der Stand je Werkzeug kommt aus `agent_werkzeug` — welche Zeilen es
+       * GIBT, entscheidet das Register im Code (AGT-02, neun Namen). Eine
+       * fehlende Zeile heisst „nicht freigeschaltet", nicht „gibt es nicht".
+       */
+      const stand = await kontext.abfrage<{
+        werkzeug: string; ist_aktiv: boolean; erfordert_freigabe: boolean;
+      }>(
+        `select werkzeug::text as werkzeug, ist_aktiv, erfordert_freigabe
+           from agent_werkzeug where agent_id = $1::uuid`, [kopf.id]);
+
+      return { kopf, aufgaben, richtlinien, darfRichtlinien, stand };
     }))) as {
       kopf: AgentKopf;
       aufgaben: readonly AufgabeZeile[];
       richtlinien: readonly Richtlinie[];
       darfRichtlinien: boolean;
+      stand: readonly { werkzeug: string; ist_aktiv: boolean; erfordert_freigabe: boolean }[];
     } | null;
 
   if (daten === null) notFound();
@@ -195,6 +210,52 @@ export default async function AgentDetail(
           Ergebnisses, das aussieht, als wäre es fertig.
         </p>
       </section>
+
+      {/*
+        * **Die Werkzeuge — der Abschnitt, der die Frage vor dem Einschalten
+        * beantwortet.** Ein Agent ist genau so mächtig wie das, was er
+        * anfassen darf. Die Liste kommt aus dem Register (AGT-02, neun
+        * Namen), der Stand aus `agent_werkzeug`; eine fehlende Zeile heisst
+        * „nicht freigeschaltet", nicht „gibt es nicht".
+        */}
+      <h2 className="mb-s3 text-h2 text-text">Werkzeuge</h2>
+      <ul className="mb-s6 flex flex-col gap-s3" data-cse="agent-werkzeuge">
+        {fuerAgent(kopf.kennung as AgentKennung).map((w) => {
+          const zeile = daten.stand.find((z) => z.werkzeug === w.name);
+          const aktiv = zeile?.ist_aktiv === true;
+          return (
+            <li key={w.name} data-cse="agent-werkzeug" data-werkzeug={w.name}
+                data-aktiv={aktiv ? '1' : '0'}
+                className="rounded-lg border border-line bg-surface p-s4">
+              <div className="flex flex-wrap items-baseline justify-between gap-s2">
+                <span className="font-mono text-sm text-text">{w.name}</span>
+                <span className={`text-xs ${aktiv ? 'text-success' : 'text-text-muted'}`}>
+                  {aktiv ? 'freigeschaltet' : 'nicht freigeschaltet'}
+                  {w.ohneModell ? '' : ' · braucht Modellzugang'}
+                </span>
+              </div>
+              <p className="mt-s2 max-w-prose text-sm text-text">{w.zweck}</p>
+              <p className="mt-s2 max-w-prose text-sm text-text-muted">
+                <strong>Nicht:</strong> {w.abgrenzung}
+              </p>
+              <p className="mt-s2 text-xs text-text-subtle">
+                Nebenwirkung: {w.nebenwirkung} · Untergrenze der Richtlinie:{' '}
+                {untergrenze(w.nebenwirkung)}
+                {zeile?.erfordert_freigabe === true ? ' · in dieser Gesellschaft: Freigabe' : ''}
+              </p>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mb-s6 max-w-prose text-xs text-text-muted" data-cse="agent-werkzeuge-hinweis">
+        Zwei der neun rechnen ohne Modell:{' '}
+        <span className="font-mono">{WERKZEUG_REGISTER.berechne_preis.name}</span> ruft dieselbe
+        getestete Kalkulation wie die Angebotsseite (Invariante 6), und{' '}
+        <span className="font-mono">{WERKZEUG_REGISTER.suche_bestand.name}</span> beantwortet
+        Fragen aus einem geprüften Katalog. Die übrigen sieben brauchen einen Modellanbieter —
+        es ist keiner konfiguriert, und sie geben deshalb „kein Modellzugang" zurück, statt
+        etwas zu erfinden.
+      </p>
 
       <h2 className="mb-s3 text-h2 text-text">Was hinausgehen darf</h2>
       {!darfRichtlinien ? (

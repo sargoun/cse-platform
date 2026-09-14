@@ -51,6 +51,12 @@ interface Vorlage {
   readonly oberhalb: boolean | null;
   readonly aufgehoben?: boolean;
   readonly plattformHinweis?: string;
+  /**
+   * Die Unterlagen, die die Vergabestelle mit der Bekanntmachung nennt —
+   * **ohne Adresse**, wie die Bekanntmachung selbst (siehe oben): eine URL,
+   * die echt aussieht und ins Leere fuehrt, waere eine Behauptung.
+   */
+  readonly dokumente?: readonly { readonly bezeichnung: string; readonly gesperrt?: boolean }[];
 }
 
 const BEKANNTMACHUNGEN: readonly Vorlage[] = [
@@ -63,6 +69,11 @@ const BEKANNTMACHUNGEN: readonly Vorlage[] = [
     cpv: '90910000-9', cpvWeitere: ['90911200-8', '90919200-4'], nuts: ['DE300'],
     wertCent: 486_000_00n, waehrung: 'EUR', fristInTagen: 24,
     verfahrensart: 'Öffentliche Ausschreibung nach UVgO', oberhalb: false,
+    dokumente: [
+      { bezeichnung: 'Aufforderung zur Abgabe eines Angebots' },
+      { bezeichnung: 'Leistungsverzeichnis Lose 1 bis 3' },
+      { bezeichnung: 'Formblatt 124 — Eigenerklärung zur Eignung', gesperrt: true },
+    ],
   },
   {
     quellId: 'demo-2026-0002', quelle: 'oeffentlichevergabe',
@@ -165,6 +176,8 @@ export interface RadarSeedBefund {
   readonly profile: number;
   readonly bekanntmachungen: number;
   readonly bewertungen: number;
+  readonly mappenpositionen: number;
+  readonly empfaenger: number;
 }
 
 export async function seedRadar(
@@ -194,6 +207,12 @@ export async function seedRadar(
     for (const n of v.nuts) {
       await sql`insert into ausschreibung_nuts (ausschreibung_id, nuts_code)
                 values (${a.id}, ${n}) on conflict do nothing`;
+    }
+    for (const d of v.dokumente ?? []) {
+      await sql`insert into ausschreibung_dokument
+                  (ausschreibung_id, bezeichnung, zugriff_gesperrt)
+                values (${a.id}, ${d.bezeichnung}, ${d.gesperrt === true})
+                on conflict (ausschreibung_id, coalesce(quell_url, bezeichnung)) do nothing`;
     }
   }
 
@@ -231,7 +250,187 @@ export async function seedRadar(
     { unsafe: (a, w) => sql.unsafe(a, (w ?? []) as never[]) as Promise<readonly unknown[]> },
     { seit: new Date(0), jetzt: jetzt?.jetzt ?? new Date(0) });
 
+  const mappe = await seedVergabemappe(sql, mandanten);
+  const empfaenger = await seedEmpfaenger(sql, mandanten);
+
   return {
     profile, bekanntmachungen: BEKANNTMACHUNGEN.length, bewertungen: lauf.neueZeilen,
+    mappenpositionen: mappe, empfaenger,
   };
+}
+
+/**
+ * Eine Vergabemappe in Arbeit (RAD-07, D-07).
+ *
+ * **Warum ueberhaupt eine im Seed.** Eine leere Mappe zeigt nicht, wozu sie
+ * da ist: der Zaehler steht auf 0 von 0, der Unterschied zwischen „liegt vor"
+ * und „geprueft" ist unsichtbar, und die Frage, an der ein Angebot scheitert
+ * — was fehlt noch — hat keine Antwort zum Ansehen. Diese Mappe hat beides:
+ * Geprueftes und Offenes.
+ *
+ * **Und sie ist NICHT eingereicht.** Eine eingereichte Demomappe behauptete,
+ * die Plattform haette etwas abgegeben; sie gibt nichts ab (D-07). Der Weg
+ * dorthin bleibt der Knopf, den ein Mensch drueckt, nachdem er hochgeladen
+ * hat.
+ *
+ * **Die Positionen sind ECHTE Formblattnamen aus deutschen Verfahren**, aber
+ * sie sind keine Vorlage: welche Unterlagen eine Plattform bei welcher
+ * Verfahrensart verlangt, ist offen (O-194). Sie stehen hier als Demodaten,
+ * nicht als Katalog — die Anwendung legt von sich aus keine Position an.
+ */
+async function seedVergabemappe(
+  sql: postgres.Sql, mandanten: ReadonlyMap<string, string>,
+): Promise<number> {
+  const mandantId = mandanten.get('reinigung');
+  if (mandantId === undefined) return 0;
+
+  const [a] = await sql<{ id: string }[]>`
+    select id from ausschreibung where quell_id = 'demo-2026-0001'`;
+  const [pruefer] = await sql<{ id: string }[]>`
+    select id from benutzer where email = 'admin.reinigung@cse-gruppe.de'`;
+  if (a === undefined || pruefer === undefined) return 0;
+
+  /**
+   * **Die Sitzung wird gesetzt, nicht umgangen.** `geprueft_von` muss die
+   * angemeldete Person sein (`kern.unterschrift_ist_die_eigene`) — im Seed
+   * heisst das: den Benutzer als GUC setzen und den Trigger arbeiten lassen.
+   * Ihn fuer den Seed zu lockern hiesse, die Zusage genau dort aufzugeben, wo
+   * sie zum ersten Mal geprueft wird.
+   */
+  return sql.begin(async (tx) => {
+    await tx`select set_config('app.benutzer_id', ${pruefer.id}, true)`;
+
+    const [v] = await tx<{ id: string }[]>`
+      insert into ausschreibung_vorgang
+        (mandant_id, ausschreibung_id, status, frist_angebot_snapshot,
+         verantwortlich_benutzer_id, erstellt_von_art, erstellt_von)
+      select ${mandantId}, ${a.id}, 'geprueft'::ausschreibung_status, s.frist_angebot,
+             ${pruefer.id}, 'mensch', ${pruefer.id}
+        from ausschreibung s where s.id = ${a.id}
+      on conflict (mandant_id, ausschreibung_id) where geloescht_am is null do update
+        set status = 'geprueft'
+      returning id`;
+    if (v === undefined) return 0;
+
+    const [m] = await tx<{ id: string }[]>`
+      insert into vergabemappe
+        (mandant_id, ausschreibung_vorgang_id, status, luecken_hinweis,
+         erstellt_von_art, erstellt_von)
+      values (${mandantId}, ${v.id}, 'in_arbeit',
+              'Die Eigenerklärung zur Eignung liegt nur als Scan des Vorjahres vor — '
+              || 'Formblatt 124 muss neu unterschrieben werden.', 'mensch', ${pruefer.id})
+      on conflict (mandant_id, ausschreibung_vorgang_id) where geloescht_am is null do update
+        set status = 'in_arbeit'
+      returning id`;
+    if (m === undefined) return 0;
+
+    /* Jetzt erst der Stand: der Trigger verlangt die Mappe VOR `in_bearbeitung`. */
+    await tx`update ausschreibung_vorgang set status = 'in_bearbeitung',
+                    status_geaendert_am = now(), status_geaendert_von = ${pruefer.id}
+              where id = ${v.id}`;
+
+    const positionen: readonly {
+      bezeichnung: string; kategorie: string; pflicht: boolean;
+      stand: 'offen' | 'geprueft' | 'nicht_zutreffend'; hinweis?: string;
+    }[] = [
+      { bezeichnung: 'Angebotsschreiben (Formblatt 213)', kategorie: 'Formblatt',
+        pflicht: true, stand: 'geprueft' },
+      { bezeichnung: 'Preisblatt Lose 1 bis 3', kategorie: 'Preis',
+        pflicht: true, stand: 'geprueft' },
+      { bezeichnung: 'Formblatt 124 — Eigenerklärung zur Eignung', kategorie: 'Eignung',
+        pflicht: true, stand: 'offen' },
+      { bezeichnung: 'Unbedenklichkeitsbescheinigung Finanzamt', kategorie: 'Eignung',
+        pflicht: true, stand: 'offen' },
+      { bezeichnung: 'Verzeichnis der Nachunternehmerleistungen', kategorie: 'Eignung',
+        pflicht: false, stand: 'nicht_zutreffend',
+        hinweis: 'Alle Leistungen werden mit eigenem Personal erbracht.' },
+      { bezeichnung: 'Referenzen vergleichbarer Objekte', kategorie: 'Eignung',
+        pflicht: true, stand: 'geprueft' },
+    ];
+
+    /*
+     * **Erst leeren, dann fuellen.** `on conflict` geht hier nicht: der
+     * Eindeutigkeitsschluessel der Positionen ist `deferrable` (damit sich
+     * Zeilen innerhalb einer Transaktion umsortieren lassen), und Postgres
+     * nimmt einen aufgeschobenen Schluessel nicht als Schiedsrichter. Fuer
+     * einen Seed ist das ohnehin das ehrlichere Vorgehen: die Demomappe ist
+     * danach genau die hier beschriebene und keine Mischung aus zwei Laeufen.
+     */
+    await tx`delete from vergabemappe_position where vergabemappe_id = ${m.id}`;
+
+    let nummer = 0;
+    for (const p of positionen) {
+      nummer += 1;
+      /*
+       * `geprueft` verlangt eine beigelegte Datei — im Seed gibt es keine
+       * hochgeladenen Dokumente, also entsteht je geprueefter Zeile eine
+       * Dokumentzeile. Sie ist als Demo erkennbar: kein Speicherpfad, der auf
+       * eine Datei zeigt, die es nicht gibt.
+       */
+      let dokument: string | null = null;
+      if (p.stand === 'geprueft') {
+        const [d] = await tx<{ id: string }[]>`
+          insert into dokument
+            (mandant_id, kategorie, titel, objekt_schluessel, mime_typ, mime_verifiziert,
+             groesse_bytes, exif_entfernt, entstanden_am)
+          values (${mandantId}, 'vertrag', ${p.bezeichnung},
+                  ${`demo/vergabe/${String(nummer)}.pdf`}, 'application/pdf', true,
+                  1024, true, now())
+          returning id`;
+        dokument = d?.id ?? null;
+      }
+      await tx`
+        insert into vergabemappe_position
+          (mandant_id, vergabemappe_id, position, bezeichnung, kategorie, pflicht, status,
+           dokument_id, luecke_hinweis, geprueft_von, geprueft_am, erstellt_von_art, erstellt_von)
+        values (${mandantId}, ${m.id}, ${nummer}, ${p.bezeichnung}, ${p.kategorie},
+                ${p.pflicht}, ${p.stand}::mappe_position_status, ${dokument},
+                ${p.hinweis ?? null},
+                ${p.stand === 'geprueft' ? pruefer.id : null},
+                ${p.stand === 'geprueft' ? new Date() : null},
+                'mensch', ${pruefer.id})`;
+    }
+    return positionen.length;
+  }) as Promise<number>;
+}
+
+/**
+ * Die Empfänger einer Radarmeldung (RAD-08) — **ohne Punktschwelle**.
+ *
+ * **Warum eingetragen, aber ohne Zahl.** Der Fristenwächter (SPEC §14) läuft
+ * ohne jede Einstellung: fünf Tage stehen im SPEC. Die Trefferschwelle steht
+ * dort nicht, und sie zu raten hiesse, eine Entscheidung des Betriebs zu
+ * erfinden (O-15) — eine zu niedrige Zahl macht Lärm, eine zu hohe Stille,
+ * und beides fällt erst auf, wenn eine Vergabe verpasst ist.
+ *
+ * Der Seed legt deshalb genau die Lage an, die ein neuer Betrieb hat: die
+ * Einsatzleitung ist eingetragen, bekommt die Fristwarnungen, und die
+ * Profilseite sagt bei jedem Empfänger, dass ohne Schwelle keine
+ * Treffermeldung kommt. Eine gesetzte Demoschwelle sähe aus wie eine
+ * beantwortete Frage.
+ */
+async function seedEmpfaenger(
+  sql: postgres.Sql, mandanten: ReadonlyMap<string, string>,
+): Promise<number> {
+  const zuordnung: readonly [string, string][] = [
+    ['reinigung', 'admin.reinigung@cse-gruppe.de'],
+    ['bau', 'admin.bau@cse-gruppe.de'],
+    ['security', 'leitung.security@cse-gruppe.de'],
+  ];
+  let angelegt = 0;
+  for (const [bereich, email] of zuordnung) {
+    const mandantId = mandanten.get(bereich);
+    if (mandantId === undefined) continue;
+    const [u] = await sql<{ id: string }[]>`select id from benutzer where email = ${email}`;
+    if (u === undefined) continue;
+    const ergebnis = await sql<{ id: string }[]>`
+      insert into radar_profil_empfaenger (mandant_id, radar_profil_id, benutzer_id, ab_punkte)
+      select ${mandantId}, p.id, ${u.id}, null
+        from radar_profil p
+       where p.mandant_id = ${mandantId} and p.geloescht_am is null
+      on conflict (radar_profil_id, benutzer_id) do nothing
+      returning id`;
+    angelegt += ergebnis.length;
+  }
+  return angelegt;
 }

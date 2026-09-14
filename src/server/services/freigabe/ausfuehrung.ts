@@ -32,6 +32,25 @@ export class AusfuehrungAbgewiesen extends Error {
   }
 }
 
+/**
+ * **Hat diese Aktion überhaupt einen Ausführer?**
+ *
+ * Die Frage entscheidet, ob ein Einspruchsfenster (APR-05) armiert werden
+ * darf: ein Fenster VERSCHIEBT die Ausführung, und verschieben lässt sich nur,
+ * was jemand danach tut. Bei einer Aktion ohne Ausführer ist die Genehmigung
+ * selbst der Vorgang — dort ist das Fenster die ganze Wirkung, und der Lauf,
+ * der es schliesst, hat nichts nachzuholen.
+ *
+ * **Andersherum wäre es eine stille Lücke:** ein Fenster über einer Aktion MIT
+ * Ausführer liesse die Freigabe genehmigt und ungetan stehen, sobald die Frist
+ * abläuft — der Lauf führt bewusst nicht aus (er hätte weder Sitzung noch
+ * Rechte eines Menschen, §4.8). Diese Funktion macht daraus einen Riegel
+ * statt einer Verabredung.
+ */
+export function hatAusfuehrer(aktion: string): boolean {
+  return aktion === AKTION_UEBERNEHMEN;
+}
+
 export async function fuehreAus(
   kontext: SchreibKontext, freigabeId: string, aktion: string,
 ): Promise<Ausgefuehrt> {

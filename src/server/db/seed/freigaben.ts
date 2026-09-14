@@ -64,6 +64,18 @@ interface Vorschlag {
   readonly fristStunden: number | null;
   readonly felder: readonly Feld[];
   readonly lage: Omit<RisikoLage, 'vorgangTyp' | 'unsichereFelder' | 'diffLeer'>;
+  /**
+   * **Darf das in den Stapel** (APR-04)? Der Dienst, der die Freigabe erzeugt,
+   * entscheidet das — hier also der Seed. Ohne eine einzige stapelfähige Zeile
+   * bliebe die Stapelfreigabe in der Demo unsichtbar, und niemand sähe den
+   * Unterschied zwischen „Routine" und „einzeln ansehen".
+   *
+   * Der Zähltrigger aus `0136` setzt es selbst auf `false`, sobald ein Feld
+   * unsicher ist; die Behauptung hier kann sie also nicht aushebeln.
+   */
+  readonly stapelFaehig?: boolean;
+  /** Warum nicht — der Satz, der in der Liste neben der Zeile steht. */
+  readonly stapelSperre?: string;
 }
 
 interface Objekt { readonly id: string; readonly bezeichnung: string }
@@ -151,6 +163,7 @@ function vorschlaegeFuer(slug: string, objekte: readonly Objekt[]): readonly Vor
         betragCent: august.summeBruttoCent,
         fristStunden: 48,
         lage: { ...LAGE_RUHIG, betragCent: august.summeBruttoCent },
+        stapelSperre: 'Ein Feld ist unsicher — einzeln prüfen (APR-03).',
         felder: [
           {
             pfad: '/leistungszeitraum', bezeichnung: 'Leistungszeitraum',
@@ -185,6 +198,7 @@ function vorschlaegeFuer(slug: string, objekte: readonly Objekt[]): readonly Vor
         betragCent: null,
         fristStunden: 3,
         lage: LAGE_RUHIG,
+        stapelFaehig: true,
         felder: [],
       },
     ];
@@ -206,6 +220,7 @@ function vorschlaegeFuer(slug: string, objekte: readonly Objekt[]): readonly Vor
       betragCent: null,
       fristStunden: 6,
       lage: { ...LAGE_RUHIG, hatVergleich: false, neueGegenpartei: true },
+      stapelSperre: 'Erstkontakt mit einer neuen Gegenpartei — einzeln prüfen.',
       felder: [],
     }];
   }
@@ -222,6 +237,7 @@ function vorschlaegeFuer(slug: string, objekte: readonly Objekt[]): readonly Vor
       betragCent: null,
       fristStunden: null,
       lage: LAGE_RUHIG,
+      stapelFaehig: true,
       felder: [],
     }];
   }
@@ -275,16 +291,20 @@ export async function seedFreigaben(
           `insert into freigabe
              (mandant_id, aktion, status, vorgang_typ, titel, zusammenfassung, risiko,
               risiko_punkte, diff, vorschau_payload, payload_hash, betrag_cent, frist,
-              erstellt_von, externe_ref)
+              erstellt_von, externe_ref, stapel_faehig, stapel_sperre_grund)
            values ($1, $2, 'offen', $3::agent_vorgang_typ, $4, $5, $6::risiko_stufe, $7,
-                   $8::jsonb, $9::jsonb, $10, $11, $12::timestamptz, $13, $14)
+                   $8::jsonb, $9::jsonb, $10, $11, $12::timestamptz, $13, $14, $15, $16)
            returning id`,
           [mandantId, v.aktion, v.vorgangTyp, v.titel, v.zusammenfassung, urteil.risiko,
             risikoPunkte(urteil.risiko), fuerJsonb(diffJson), fuerJsonb(v.nutzlast),
             payloadHash, v.betragCent === null ? null : v.betragCent.toString(),
             v.fristStunden === null
               ? null : new Date(Date.now() + v.fristStunden * 3_600_000).toISOString(),
-            entscheider.id, v.externeRef]);
+            entscheider.id, v.externeRef,
+            /* `freigabe_stapel_ohne_sperrgrund`: stapelfähig UND Sperrgrund
+               schliessen einander aus — eine Zeile sagt entweder „Routine"
+               oder warum nicht. */
+            v.stapelFaehig === true, v.stapelFaehig === true ? null : (v.stapelSperre ?? null)]);
         if (neu === undefined) return;
         vorschlaege += 1;
         for (const f of v.felder) {

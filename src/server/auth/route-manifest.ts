@@ -1000,6 +1000,69 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Die Pruefliste der Vergabemappe (RAD-07): Position anlegen, Stand einer
+     * Position setzen, Stand der Mappe setzen — drei Handlungen, ein Recht.
+     */
+    pfad: 'api/vergabe/mappe',
+    recht: 'vergabe.schreiben',
+  },
+  {
+    /**
+     * Eine geforderte Unterlage beilegen. Dasselbe Recht wie die Pruefliste:
+     * eine Datei anzuhaengen ist Fuehren der Mappe, nicht Bezeugen einer
+     * Abgabe. Sie setzt `vorhanden`, nie `geprueft` (D-492).
+     */
+    pfad: 'api/vergabe/unterlage',
+    recht: 'vergabe.schreiben',
+  },
+  {
+    /**
+     * Festhalten, dass ein MENSCH eingereicht hat (D-07). Ein eigenes Recht,
+     * weil es eine andere Aussage ist als „ich habe ein Formular abgehakt":
+     * `vergabe.einreichung_erfassen` bezeugt eine Abgabe, die ausserhalb
+     * dieser Plattform stattgefunden hat.
+     */
+    pfad: 'api/vergabe/einreichung',
+    recht: 'vergabe.einreichung_erfassen',
+  },
+  {
+    /**
+     * Wie das Verfahren ausgegangen ist (REP-06). Dasselbe Recht wie die
+     * Einreichung: beides bezeugt, was ausserhalb dieser Plattform geschehen
+     * ist — die Abgabe und die Entscheidung der Vergabestelle.
+     */
+    pfad: 'api/vergabe/ausgang',
+    recht: 'vergabe.einreichung_erfassen',
+  },
+  {
+    /**
+     * Stapelfreigabe (APR-04) — `freigabe.stapel_entscheiden`, NICHT
+     * `freigabe.entscheiden`.
+     *
+     * Ein frueherer Entwurf hier stand auf „ein Stapel ist zehnmal dieselbe
+     * Handlung". Der Katalog sagt etwas anderes, und er hat recht: das Recht
+     * ist an `admin` und `leitung` BINDBAR, nicht gebunden. Wer einzeln
+     * entscheiden darf, darf damit nicht schon fuenfzig auf einmal — das ist
+     * der Unterschied zwischen einer Pruefung und einem Haeckchen bei „alle",
+     * und genau den soll APR-08 aufspueren.
+     */
+    pfad: 'api/freigaben/stapel',
+    recht: 'freigabe.stapel_entscheiden',
+  },
+  {
+    /**
+     * Einspruch (APR-05) und Ruecknahme (APR-06) — zwei eigene, bindbare
+     * Rechte. Beide holen eine GEFALLENE Entscheidung zurueck, und das ist
+     * eine andere Befugnis als sie zu treffen: die Route waehlt je nach
+     * `was` zwischen `freigabe.einspruch_erheben` und `freigabe.rueckgaengig`.
+     * Hier steht das schwaechere der beiden als Torpruefung; die Route und
+     * die Definer-Funktion pruefen das genaue.
+     */
+    pfad: 'api/freigaben/fenster',
+    recht: 'freigabe.einspruch_erheben',
+  },
+  {
+    /**
      * Der Anmeldecode aus der Hand der Einsatzleitung (EMP-01, O-82, D-487):
      * `personal.zugang_verwalten`, das Recht der Zugangsseite. Der Klartext
      * geht in einen kurzlebigen Keks, nie in die Adresse.

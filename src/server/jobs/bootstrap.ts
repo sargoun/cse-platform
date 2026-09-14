@@ -28,6 +28,12 @@ import { registriereMahnlauf } from './mahnlauf.js';
 import { registriereBasiszinssatzWaechter } from './basiszinssatz.js';
 import { registriereBelegarchiv } from './belegarchiv.js';
 import { registriereRadar } from './radar.js';
+import { registriereRadarWarnungen } from './radarWarnungen.js';
+import {
+  registriereMorgenUnbesetzt, registriereSchichtOhneZeiteintrag,
+} from './dienstplanWachen.js';
+import { registriereNachtragWache } from './nachtragWache.js';
+import { registriereFreigabeFenster } from './freigabeFenster.js';
 
 /*
  * Methodensyntax, nicht Eigenschaftssyntax — wie ueberall sonst im Baum
@@ -70,6 +76,11 @@ export function alleJobs(db: Abfrage): readonly JobDefinition[] {
     registriereMahnlauf(db);
     registriereBasiszinssatzWaechter(db);
     registriereBelegarchiv(db);
+    registriereRadarWarnungen(db);
+    registriereSchichtOhneZeiteintrag(db);
+    registriereMorgenUnbesetzt(db);
+    registriereNachtragWache(db);
+    registriereFreigabeFenster(db);
     registriereRadar(db);
     geschehen = true;
   }

@@ -402,6 +402,35 @@ async function main(): Promise<void> {
       on conflict (rolle_id, berechtigung_id, mandant_id) do nothing`;
   }
 
+  /**
+   * **Die vier bindbaren Freigaberechte — an `admin`, damit die Demo sie
+   * zeigt, und ausdrücklich, damit es niemand für selbstverständlich hält.**
+   *
+   * Der Katalog führt `freigabe.stapel_entscheiden`,
+   * `freigabe.einspruch_erheben`, `freigabe.rueckgaengig` und
+   * `freigabe.pruefdauer_lesen` als BINDBAR, nicht als gebunden: wer einzeln
+   * entscheiden darf, darf damit nicht schon fünfzig auf einmal, und wer
+   * entscheidet, darf deshalb noch keine Prüfdauern auswerten. Ohne diese
+   * Zeilen wären die vier Bildschirme im Seed leer — nicht kaputt, leer, und
+   * das sähe aus wie ein Fehler.
+   *
+   * // TODO(client) [O-367]: Wer soll diese vier Rechte tatsächlich halten —
+   * // Geschäftsführung, Bereichsleitung, Buchhaltung?
+   */
+  const FREIGABE_BINDBAR = [
+    'freigabe.stapel_entscheiden', 'freigabe.einspruch_erheben',
+    'freigabe.rueckgaengig', 'freigabe.pruefdauer_lesen',
+  ];
+  for (const schluessel of FREIGABE_BINDBAR) {
+    await sql`
+      insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+      select r.id, b.id, null, true
+        from rolle r, berechtigung b
+       where r.schluessel = 'admin' and r.mandant_id is null
+         and b.schluessel = ${schluessel}
+      on conflict (rolle_id, berechtigung_id, mandant_id) do nothing`;
+  }
+
   await sql`
     insert into benutzer (id, email, name, ist_dienstkonto, status)
     values (${rendererId}, 'renderer@cse-gruppe.de', 'Website-Renderer', true, 'aktiv')
@@ -962,6 +991,53 @@ async function main(): Promise<void> {
     }
   }
 
+  // -------------------------------------------------------- Agent-Werkzeuge
+  /**
+   * **Freigeschaltet wird genau, was ohne Modellzugang etwas kann** — und das
+   * sind zwei der neun: `berechne_preis` (ruft die getestete Kalkulation) und
+   * `suche_bestand` (beantwortet Fragen aus dem geprueften Katalog). Die
+   * uebrigen sieben stehen als Zeile da, aber auf `ist_aktiv = false`.
+   *
+   * Warum nicht alle neun an: ein freigeschaltetes Werkzeug, das bei jedem
+   * Aufruf „kein Modellzugang" zurueckgibt, sieht auf dem Bildschirm aus wie
+   * eine kaputte Einstellung. Aus wie „noch nicht verbunden" — und das ist es
+   * auch (D-435).
+   *
+   * `erfordert_freigabe` bleibt ueberall `true`. Das ist die Vorgabe, nicht
+   * die Feineinstellung: wer sie lockern will, tut es bewusst, je Werkzeug.
+   */
+  let werkzeuge = 0;
+  const OHNE_MODELL = new Set(['berechne_preis', 'suche_bestand']);
+  /*
+   * **Auch fuer die abgeschalteten vier.** `agent.ist_aktiv` ist `false`,
+   * solange es keinen Modellzugang gibt (D-435) — aber die Werkzeugzeilen
+   * gehoeren trotzdem angelegt: die Agentenseite zeigt sie, und ein leerer
+   * Abschnitt saehe aus, als gaebe es die Werkzeuge nicht.
+   */
+  const agenten = await sql<{ id: string; kennung: string }[]>`select id, kennung from agent`;
+  for (const b of BEREICHE) {
+    for (const a of agenten) {
+      for (const w of [
+        'lies_dokument', 'extrahiere_lv', 'suche_bestand', 'berechne_preis',
+        'pruefe_nachweise', 'pruefe_bilder', 'entwirf_text', 'sende_email',
+        'erstelle_vorgang',
+      ]) {
+        const ergebnis = await sql<{ id: string }[]>`
+          insert into agent_werkzeug
+            (mandant_id, agent_id, werkzeug, ist_aktiv, erfordert_freigabe, erstellt_von_art)
+          values (${ids.get(b.slug)!}, ${a.id}, ${w}::agent_werkzeug_name,
+                  ${OHNE_MODELL.has(w)}, true, 'system')
+          on conflict (mandant_id, agent_id, werkzeug) do nothing
+          returning id`;
+        werkzeuge += ergebnis.length;
+      }
+    }
+  }
+  process.stdout.write(
+    `  ${String(werkzeuge)} Werkzeugzeilen (AGT-02) — freigeschaltet sind die zwei, die ohne `
+    + 'Modell rechnen; die uebrigen sieben warten auf einen Anbieter (D-435)\n',
+  );
+
   // --------------------------------------------------------- Agent-Budgets
   /**
    * Ein Monatsbudget je Rechtseinheit — **als klar markierter PLATZHALTER**.
@@ -1447,7 +1523,11 @@ async function main(): Promise<void> {
   process.stdout.write(
     `  ${String(radar.bekanntmachungen)} Bekanntmachungen (Demo, ohne Quellenlink) und `
     + `${String(radar.profile)} Suchprofile — CPV-Listen sind Platzhalter (O-98), `
-    + `der Plattformkatalog bleibt leer (O-07); ${String(radar.bewertungen)} Bewertungen\n`,
+    + `der Plattformkatalog bleibt leer (O-07); ${String(radar.bewertungen)} Bewertungen; `
+    + `eine Vergabemappe in Arbeit mit ${String(radar.mappenpositionen)} Positionen `
+    + `(nicht eingereicht — die Plattform reicht nichts ein, D-07); `
+    + `${String(radar.empfaenger)} Benachrichtigungsempfaenger OHNE Punktschwelle — `
+    + `Fristwarnungen laufen, Treffermeldungen erst mit einer Schwelle (O-15)\n`,
   );
 
   const frei = await seedFreigaben(sql, ids);

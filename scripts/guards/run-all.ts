@@ -477,6 +477,9 @@ const ENTFERNEN_ERLAUBT = [
   join('server', 'services', 'finanz', 'bank', 'import.ts'),
   join('api', 'finanzen', 'eingangsrechnungen', 'route.ts'),
   join('api', 'check-in', '[token]', 'medien', 'route.ts'),
+  // Eine beigelegte Vergabeunterlage, deren Zeile in derselben Transaktion
+  // nicht entstand — dieselbe Ruecknahme wie beim Belegupload (PR 70).
+  join('api', 'vergabe', 'unterlage', 'route.ts'),
 ];
 
 function wacheSpeicherEntfernen(): void {

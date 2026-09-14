@@ -398,13 +398,59 @@ Radar first — the agents operate on its output.
       Bearbeitung and verworfen **with a mandatory reason**. There is no
       submit button anywhere in the module and the browser suite counts the
       word (D-07). **Notifications (RAD-08) still open** — they need the
-      threshold nobody has set (O-15).
+      threshold nobody has set (O-15). **Shipped in PR 71** (D-493): the
+      threshold stays unset, and that is now *visible* instead of silent.
 - [x] Platform registration tracking (RAD-09) (PR 69, D-490) — the warning
       is in the LIST, not only on the detail page, because a platform
       unlock takes days to weeks. The catalogue ships **empty** and the
       page says why (O-07): a made-up list would read as a checked state.
-- [ ] `pgvector` index over contracts, objects, offers, correspondence
-- [ ] Agent tools (AGT-02); `berechne_preis` is **pure code**
+- [x] Vergabemappe and the submission record (RAD-07 complete, PR 70, D-492) — the
+      checklist that can **count** what is missing, because a missing Formblatt
+      gets the bid excluded under § 57 VgV before anyone reads the price.
+      **"Attached" does not count as done**: the counter only rises on
+      `geprueft` or a *reasoned* non-applicability, because the commonest
+      exclusions are attached but wrong documents. D-07 now sits in the
+      database: `cse_app` has no write privilege on the submission columns at
+      all, the only path is `app.mappe_einreichung_erfassen`, and it takes the
+      human from the **session** and the instant from `now()`. The outcome
+      (`zuschlag` / `nicht_beruecksichtigt` / `verfahren_aufgehoben`) closes
+      REP-06's "found · screened · bid · won". The checklist ships **empty**
+      and the page says why (**O-194**).
+- [x] Deadline watchdog and RAD-08 notifications (PR 71, D-493) — **the first
+      of SPEC §14's eight watchdogs**, and the one that needs no setting: five
+      days are written in the SPEC, so it runs from day one, for an *untouched*
+      case only. RAD-08 is the opposite: its threshold is **O-15's to answer**,
+      so without a number nothing is sent — and the profile page says so per
+      recipient while the run reports `empfaenger_ohne_schwelle`, so "0 hits"
+      can never be mistaken for a quiet day. A receipt table keyed on the
+      deadline instant prevents the second notice for the same situation, and
+      makes a *rescheduled* deadline a new one.
+- [x] `pgvector` index over contracts, objects, offers, correspondence
+      (PR 74, D-496) — schema, page and rules; **deliberately empty** until an
+      embedding provider is confirmed, because an index of substitute vectors
+      returns plausible-looking hits whose ordering is chance and nobody
+      notices. `mandant_id` sits in the primary key and **there is no group
+      view on this table**: "show me similar clauses" would read across
+      companies as "show me the sister's contract". Confidential is the
+      default; a downgrade carries a name — and since D-498 the name comes
+      from the **session**, not from the writer: those two columns are
+      withheld from `cse_app` entirely. The table is `PARTITION BY LIST
+      (mandant_id)` with one ANN index per company, as the design document
+      specifies, because pgvector picks its `k` nearest neighbours *before*
+      the tenant filter applies — a shared index runs the candidate path over
+      other companies' contracts. Reading needs `wissen.lesen`, and a
+      confidential passage additionally `wissen.vertraulich_lesen`; the first
+      policy asked for `agent.lesen`, which every agent session holds. CI runs
+      `pgvector/pgvector:pg16`.
+- [x] Agent tools (AGT-02); `berechne_preis` is **pure code** (PR 73, D-495) —
+      the contract, the handle vault, the value register and the nine-tool
+      registry. **Two of the nine run without a model** because they create
+      nothing: `berechne_preis` calls the same tested `kalkuliere()` as the
+      offer page, `suche_bestand` answers from a reviewed catalogue and says
+      "not in the catalogue" rather than inventing a query (AGT-07). The other
+      seven return `kein_modellzugang` — a tool that produces "something"
+      without a model is worse than one that stays silent. Invariant 7 is now
+      a CHECK: `sende_email` cannot be un-gated, not even by direct UPDATE.
 - [x] Policy gate (`agent/policy.ts`) — the floor is code, not data: an offer,
       a Nachtrag and a Behinderungsanzeige never go out automatically under
       any `agent_richtlinie` row. The gate is exhaustive over the whole
@@ -423,9 +469,49 @@ Radar first — the agents operate on its output.
       there is no start button until there is a provider (D-435).
 - [ ] Four agents: CEO Assistant, Acquisition, Back-office, Finance
       — blocked on the model access above, not on the runtime.
-- [ ] Approval inbox with diff review, source attribution, confidence flags,
+- [x] Approval inbox with diff review, source attribution, confidence flags,
       batch approval, delayed release, undo, approval snapshots
-- [ ] Watchdog jobs (SPEC §14)
+      (PR 62/63, D-472; completed PR 75, D-497) — the batch is a **loop** over
+      the single decision, never a collective UPDATE: APR-07 wants the proof of
+      what lay before the human, and that differs per case, so fifty approvals
+      are fifty snapshots and fifty chain links. Flagged rows **drop out with
+      their reason** instead of killing the batch, and each row gets its own
+      `SAVEPOINT`, so one failing execution rolls back alone and stands open
+      again. Window **or** execution, never both: the objection window is armed
+      only for `risiko = 'niedrig'`, and the seven process types that `0136`
+      excludes get none — the list stays in that one CHECK, and
+      `app.freigabe_verzoegern` reports its "no" as `NULL` rather than tearing
+      the batch down. Undo reverses the **execution**, not the decision: the
+      snapshot stays what it was, and a reversal of the decision is a NEW
+      approval (§4.5). The two window lengths are placeholders (**O-108**).
+      Closing the holes this found: `0012` had granted `cse_app` UPDATE on the
+      whole table, so both window columns were writable **around** the definer
+      functions; and three rights the catalogue already defined
+      (`freigabe.stapel_entscheiden`, `freigabe.einspruch_erheben`,
+      `freigabe.rueckgaengig`) were **never checked** — every route asked only
+      for `freigabe.entscheiden`. A right that exists and is never checked is
+      worse than none: it looks like a bolt. Who should hold them is **O-367**.
+      APR-08 got the screen the page map had been promising: the distribution
+      of review durations **without a name**, because flagging one person's
+      consistently fast approvals is § 87 Abs. 1 Nr. 6 BetrVG territory and
+      waits on **O-06** — with the batch share shown separately, since a batch
+      is fast by construction and is not rubber-stamping. `/freigaben/laufend`
+      and `/freigaben/erledigt` were built too; `/freigaben/stapel`,
+      `/[id]/einspruch` and `/[id]/rueckgaengig` stay folded into the inbox and
+      the review page on purpose. **APR-06's window is armed for nothing**
+      (D-498, **O-368**): the whole path stands — window, deadline, its own
+      right, protocol, refusal after expiry — but the one action that executes
+      creates an incoming invoice, and no way back is built for it. A button
+      that only flips `ausfuehrung_status` and leaves the invoice standing is
+      the same faked success this platform refuses from a third-party service,
+      so the review page says so where the button would be.
+- [x] Watchdog jobs (SPEC §14) — **all eight** (PR 72, D-494). The three that
+      were missing all failed on the same thing: they must notify "the planner"
+      or "the site manager", and no such field exists. So `app.hat_recht` was
+      split — `app.hat_recht_fuer(user, key, tenant, …)` is the core, the old
+      function its shell, and `kern.traeger_des_rechts` the **inverse** on that
+      same core. One implementation, two entrances; a copied resolution would
+      drift and then notify people who cannot open the page they are linked to.
 
 **Acceptance:**
 - Real notices appear daily, separated by area, each showing why it scored.

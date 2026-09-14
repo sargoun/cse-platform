@@ -1,5 +1,6 @@
 import 'server-only';
 import type { SchreibKontext } from '../../kontext/index.js';
+import { legeMappeAn } from '../vergabe/mappe.js';
 
 /**
  * Der Vorgang einer Gesellschaft zu einer Bekanntmachung — RAD-07.
@@ -18,9 +19,9 @@ import type { SchreibKontext } from '../../kontext/index.js';
  */
 
 export class VorgangFehler extends Error {
-  readonly code: 'grund' | 'status' | 'unbekannt';
+  readonly code: 'grund' | 'status' | 'unbekannt' | 'mappe_recht';
   readonly status = 400;
-  constructor(code: 'grund' | 'status' | 'unbekannt', nachricht: string) {
+  constructor(code: 'grund' | 'status' | 'unbekannt' | 'mappe_recht', nachricht: string) {
     super(nachricht);
     this.code = code;
     this.name = 'VorgangFehler';
@@ -67,32 +68,60 @@ export async function setzeVorgangsstand(
    * hält fest, welche galt, als der Vorgang eröffnet wurde. Weichen beide
    * voneinander ab, ist das eine Änderungsbekanntmachung — und die soll
    * auffallen, nicht stillschweigend nachgezogen werden.
+   *
+   * **Der Stand wird hier NICHT gesetzt.** Das ist die zweite Anweisung, und
+   * der Grund steht darunter: `in_bearbeitung` setzt eine Vergabemappe voraus,
+   * die es vor dem Vorgang gar nicht geben kann (Fremdschlüssel). Erst die
+   * Zeile, dann die Mappe, dann der Stand.
    */
   const [zeile] = await kontext.schreibe<{ id: string; neu: boolean }>(
     `insert into ausschreibung_vorgang
-       (mandant_id, ausschreibung_id, radar_profil_id, bewertung_id, status, verworfen_grund,
-        frist_angebot_snapshot, status_geaendert_am, status_geaendert_von, erstellt_von_art, erstellt_von)
-     select $1::uuid, a.id, $3::uuid, $4::uuid, $5::ausschreibung_status, $6,
-            a.frist_angebot, now(), $7::uuid, 'mensch', $7::uuid
+       (mandant_id, ausschreibung_id, radar_profil_id, bewertung_id, status,
+        frist_angebot_snapshot, erstellt_von_art, erstellt_von)
+     select $1::uuid, a.id, $3::uuid, $4::uuid, 'neu'::ausschreibung_status,
+            a.frist_angebot, 'mensch', $5::uuid
        from ausschreibung a where a.id = $2::uuid
      on conflict (mandant_id, ausschreibung_id) where geloescht_am is null do update
-       set status = excluded.status,
-           verworfen_grund = case when excluded.status = 'verworfen'
-                                  then excluded.verworfen_grund else ausschreibung_vorgang.verworfen_grund end,
-           radar_profil_id = coalesce(excluded.radar_profil_id, ausschreibung_vorgang.radar_profil_id),
-           bewertung_id = coalesce(excluded.bewertung_id, ausschreibung_vorgang.bewertung_id),
-           status_geaendert_am = now(),
-           status_geaendert_von = excluded.status_geaendert_von,
-           geaendert_am = now(),
-           geaendert_von = excluded.status_geaendert_von
+       set radar_profil_id = coalesce(excluded.radar_profil_id, ausschreibung_vorgang.radar_profil_id),
+           bewertung_id = coalesce(excluded.bewertung_id, ausschreibung_vorgang.bewertung_id)
      returning id, (xmax = 0) as neu`,
     [kontext.aktiverMandantId, e.ausschreibungId, e.radarProfilId ?? null, e.bewertungId ?? null,
-      e.status, grund, kontext.benutzerId]);
+      kontext.benutzerId]);
 
   if (zeile === undefined) {
     throw new VorgangFehler('unbekannt',
       'Die Bekanntmachung wurde nicht gefunden, oder die Sitzung darf hier nicht schreiben.');
   }
+
+  /**
+   * **„In Bearbeitung" öffnet die Vergabemappe.** Die Seitenkarte §5.18 sagt
+   * es als Bedingung, die Datenbank erzwingt es (`app.vorgang_braucht_mappe`),
+   * und fachlich ist es dasselbe: in Bearbeitung ist eine Ausschreibung, wenn
+   * jemand anfängt, die geforderten Unterlagen zusammenzutragen. Ohne die
+   * Mappe wäre der Stand eine Behauptung ohne Ort.
+   *
+   * Das Anlegen braucht `vergabe.schreiben` — ein anderes Recht als das
+   * Statussetzen. Wer es nicht hat, bekommt hier einen Satz und nicht eine
+   * Policy-Verletzung ohne Erklärung.
+   */
+  if (e.status === 'in_bearbeitung') {
+    const [recht] = await kontext.abfrage<{ darf: boolean }>(
+      `select app.hat_recht('vergabe.schreiben', app.aktiver_mandant()) as darf`);
+    if (recht?.darf !== true) {
+      throw new VorgangFehler('mappe_recht',
+        '„In Bearbeitung" legt die Vergabemappe an — dafür fehlt das Recht vergabe.schreiben.');
+    }
+    await legeMappeAn(kontext, zeile.id);
+  }
+
+  await kontext.schreibe(
+    `update ausschreibung_vorgang
+        set status = $3::ausschreibung_status,
+            verworfen_grund = case when $3 = 'verworfen' then $4 else verworfen_grund end,
+            status_geaendert_am = now(), status_geaendert_von = $5::uuid,
+            geaendert_am = now(), geaendert_von = $5::uuid
+      where id = $1::uuid and mandant_id = $2::uuid`,
+    [zeile.id, kontext.aktiverMandantId, e.status, grund, kontext.benutzerId]);
 
   await kontext.schreibe(
     `select app.protokolliere('radar.stand_gesetzt', 'ausschreibung_vorgang', $1, null, $2::jsonb,

@@ -48,14 +48,33 @@ afterEach(() => {
 });
 
 describe('der Bootstrap verdrahtet ALLE Jobs', () => {
-  it('registriert die zehn Jobs, die es gibt', () => {
+  it('registriert die fuenfzehn Jobs, die es gibt', () => {
     const schluessel = alleJobs(db).map((j) => j.schluessel).sort();
     expect(schluessel).toEqual([
       'basiszinssatz_pruefen', 'belegarchiv_ausgangsrechnung',
-      'einsaetze_generieren', 'kette_pruefen',
+      'einsaetze_generieren', 'freigabe_fenster', 'kette_pruefen',
       'konflikte_erkennen', 'lead_sla_eskalation', 'mahnvorschlaege_erzeugen',
-      'nachweis_warnungen', 'offene_posten_abgleichen', 'radar_einlesen',
+      'morgen_unbesetzt', 'nachtrag_ueberfaellig', 'nachweis_warnungen',
+      'offene_posten_abgleichen', 'radar_einlesen', 'radar_warnungen',
+      'schicht_ohne_zeiteintrag',
     ]);
+  });
+
+  /**
+   * **Die acht Wachen aus SPEC §14 sind vollständig.** Die Liste steht dort
+   * als Tabelle; hier als Prüfsumme, damit eine gestrichene Wache auffällt.
+   * `mahnvorschlaege_erzeugen` ist „Invoice overdue > 14 days → propose
+   * dunning", `kette_pruefen` der nächtliche Hashkettenprüfer.
+   */
+  it('alle acht Waechter aus SPEC §14 sind verdrahtet', () => {
+    const schluessel = new Set(alleJobs(db).map((j) => j.schluessel));
+    for (const wache of [
+      'radar_warnungen', 'lead_sla_eskalation', 'schicht_ohne_zeiteintrag',
+      'morgen_unbesetzt', 'nachweis_warnungen', 'mahnvorschlaege_erzeugen',
+      'nachtrag_ueberfaellig', 'kette_pruefen',
+    ]) {
+      expect(schluessel.has(wache), `SPEC §14: ${wache} fehlt`).toBe(true);
+    }
   });
 
   /**

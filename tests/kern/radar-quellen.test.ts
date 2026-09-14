@@ -44,6 +44,23 @@ const OCDS = JSON.stringify({
         }],
         tenderPeriod: { endDate: '2026-10-15T12:00:00Z' },
         enquiryPeriod: { endDate: '2026-10-01T12:00:00Z' },
+        documents: [
+          {
+            id: 'd1', title: 'Leistungsverzeichnis Lose 1 bis 3',
+            url: 'https://oeffentlichevergabe.de/dok/lv.pdf',
+            format: 'application/pdf', language: 'de', datePublished: '2026-09-01T08:00:00Z',
+          },
+          {
+            id: 'd2', title: 'Formblatt 124 Eigenerklärung',
+            url: 'https://vergabemarktplatz.berlin.de/dok/124.pdf',
+            accessDetails: 'Der Abruf setzt eine Registrierung auf dem Vergabemarktplatz voraus.',
+          },
+          /* Dieselbe Adresse zweimal: eine Zeile, nicht zwei. */
+          { id: 'd3', title: 'Leistungsverzeichnis (Kopie)',
+            url: 'https://oeffentlichevergabe.de/dok/lv.pdf' },
+          /* Weder Titel noch Adresse — nichts, was man speichern koennte. */
+          { id: 'd4' },
+        ],
       },
     },
     /* Ohne Kennung: nicht speicherbar, also uebersprungen — und keine erfundene Kennung. */
@@ -56,6 +73,7 @@ const OCDS = JSON.stringify({
       tender: { title: 'Objektschutz Schulen', status: 'cancelled' },
     },
   ],
+
 });
 
 describe('OCDS lesen (RAD-01)', () => {
@@ -148,6 +166,32 @@ describe('OCDS lesen (RAD-01)', () => {
     expect(alsCent('0.500'), 'nachlaufende Nullen sind kein Verlust').toBe(50n);
     expect(() => alsCent(1e18)).toThrow(/centgenau/u);
   });
+
+  /**
+   * **Die Vergabeunterlagen sind die Herkunft der Pruefliste** (RAD-01). Was
+   * die Quelle nennt, wird uebernommen; was sie nicht nennt, wird nicht
+   * erfunden. Zwei Zeilen mit derselben Adresse sind EINE Unterlage, und eine
+   * Zeile ohne Titel und ohne Adresse ist keine.
+   */
+  it('liest die Vergabeunterlagen — ohne Dubletten, ohne Leerzeilen', () => {
+    const d = zeilen[0]!.dokumente;
+    expect(d).toHaveLength(2);
+    expect(d[0]!.bezeichnung).toBe('Leistungsverzeichnis Lose 1 bis 3');
+    expect(d[0]!.mimeTyp, 'OCDS `format` IST ein Medientyp — er wird nicht geraten')
+      .toBe('application/pdf');
+    expect(d[0]!.zugriffGesperrt).toBe(false);
+  });
+
+  /**
+   * `accessDetails` ist der unmittelbarste RAD-09-Beleg: wer nicht
+   * freigeschaltet ist, kommt an die Unterlage gar nicht heran — und eine
+   * Freischaltung dauert Tage bis Wochen.
+   */
+  it('erkennt an `accessDetails`, dass eine Anmeldung noetig ist', () => {
+    const d = zeilen[0]!.dokumente[1]!;
+    expect(d.bezeichnung).toContain('Formblatt 124');
+    expect(d.zugriffGesperrt).toBe(true);
+  });
 });
 
 const TED = JSON.stringify({
@@ -168,6 +212,8 @@ const TED = JSON.stringify({
       'deadline-receipt-tender': '2026-10-20T10:00:00Z',
       'procedure-type': { deu: 'Offenes Verfahren' },
       'form-type': 'competition',
+      'procurement-documents-url': 'https://ted.europa.eu/dok/00512345-2026.zip',
+      'document-restricted': 'restricted-document',
     },
     {
       'publication-number': '00512346-2026',
@@ -214,6 +260,19 @@ describe('TED lesen (RAD-02)', () => {
   it('erkennt eine Berichtigung', () => {
     expect(zeilen[0]!.istBerichtigung).toBe(false);
     expect(zeilen[1]!.istBerichtigung).toBe(true);
+  });
+
+  /**
+   * **TED nennt EINE Adresse, kein Verzeichnis** (eForms BT-15). Daraus wird
+   * genau eine Zeile; eine erfundene Aufzaehlung „Formblatt 1 bis 12" waere
+   * eine Pruefliste, die niemand geschrieben hat.
+   */
+  it('macht aus der Unterlagenadresse genau eine Zeile — und merkt sich die Sperre', () => {
+    expect(zeilen[0]!.dokumente).toHaveLength(1);
+    expect(zeilen[0]!.dokumente[0]!.quellUrl).toBe('https://ted.europa.eu/dok/00512345-2026.zip');
+    expect(zeilen[0]!.dokumente[0]!.zugriffGesperrt,
+      'BT-14 sagt „restricted" — genau der RAD-09-Fall').toBe(true);
+    expect(zeilen[1]!.dokumente, 'ohne Adresse keine Zeile').toHaveLength(0);
   });
 });
 

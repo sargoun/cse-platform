@@ -107,7 +107,20 @@ export default async function Bekanntmachung(
        */
       const [r] = await kontext.abfrage<{ darf: boolean }>(
         `select app.hat_recht('radar.status_setzen', app.aktiver_mandant()) as darf`);
+      /*
+       * Gibt es schon eine Vergabemappe? Wenn ja, fuehrt von hier ein Weg
+       * dorthin — sonst waere die Mappe eine Seite, die niemand findet.
+       */
+      const [mp] = await kontext.abfrage<{ id: string; status: string; offen: number }>(
+        `select m.id, m.status::text as status,
+                (m.pflichtpositionen_gesamt - m.pflichtpositionen_erledigt) as offen
+           from vergabemappe m
+           join ausschreibung_vorgang v
+             on v.id = m.ausschreibung_vorgang_id and v.mandant_id = m.mandant_id
+          where v.ausschreibung_id = $1::uuid and m.geloescht_am is null`, [id]);
       return {
+        mappe: mp === undefined ? null
+          : { id: mp.id, status: mp.status, offen: Number(mp.offen) },
         darfStatus: r?.darf === true,
         zeilen,
         detail: {
@@ -128,7 +141,10 @@ export default async function Bekanntmachung(
           aufschluesselung: b?.aufschluesselung ?? [],
         } satisfies Detail,
       };
-    })) as Promise<{ darfStatus: boolean; zeilen: readonly RadarZeile[]; detail: Detail } | null>);
+    })) as Promise<{
+      mappe: { id: string; status: string; offen: number } | null;
+      darfStatus: boolean; zeilen: readonly RadarZeile[]; detail: Detail;
+    } | null>);
 
   if (daten === null) notFound();
   const kopf = daten.zeilen[0];
@@ -165,7 +181,9 @@ export default async function Bekanntmachung(
         <Hinweis art="warnung" cse="radar-abgewiesen" className="mb-s5 max-w-prose">
           <strong>Nicht geändert.</strong> {abgewiesen === 'grund'
             ? 'Ein Verwerfen braucht einen Grund — RAD-07 verlangt ihn, und in einem halben Jahr erinnert sich niemand mehr ohne ihn.'
-            : 'Die Handlung wurde abgewiesen.'}
+            : abgewiesen === 'mappe_recht'
+              ? '„In Bearbeitung" legt die Vergabemappe an — dafür fehlt das Recht vergabe.schreiben.'
+              : 'Die Handlung wurde abgewiesen.'}
         </Hinweis>
       ) : null}
 
@@ -293,12 +311,31 @@ export default async function Bekanntmachung(
         </p>
       </section>
 
+      {daten.mappe !== null ? (
+        <section className="mb-s6 max-w-prose rounded-lg border border-line bg-surface p-s5"
+                 data-cse="radar-mappe">
+          <h2 className="mb-s2 text-h2 text-text">Vergabemappe</h2>
+          <p className="mb-s3 text-sm text-text-muted">
+            Stand: <strong>{daten.mappe.status}</strong>.{' '}
+            {daten.mappe.offen > 0
+              ? `${String(daten.mappe.offen)} Pflichtposition${daten.mappe.offen === 1 ? '' : 'en'} noch offen.`
+              : 'Alle Pflichtpositionen geprüft.'}
+          </p>
+          <Link href={`/portal/${mandant}/radar/${id}/mappe`}
+                className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2"
+                data-cse="radar-zur-mappe">
+            Zur Vergabemappe
+          </Link>
+        </section>
+      ) : null}
+
       {darfStatus ? (
         <section className="max-w-prose rounded-lg border border-line bg-surface p-s5">
           <h2 className="mb-s2 text-h2 text-text">Stand setzen</h2>
           <p className="mb-s3 text-sm text-text-muted">
             Aktuell: <strong>{kopf.vorgangStatus ?? 'neu'}</strong>. Verwerfen braucht einen Grund
-            (RAD-07). Einreichen geht nicht von hier — die Plattformen bieten dafür keine
+            (RAD-07). „In Bearbeitung" legt die Vergabemappe an — die Prüfliste der geforderten
+            Unterlagen. Einreichen geht nicht von hier — die Plattformen bieten dafür keine
             Schnittstelle an (D-07).
           </p>
           <form method="post" action="/api/radar/vorgang" data-cse="radar-status-formular"

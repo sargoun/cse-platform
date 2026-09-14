@@ -5165,6 +5165,8 @@ niemand ihn suchen.
 | O-364 | **Wird der Objektspeicher (Supabase Storage, Frankfurt) auf Bucket-Ebene unveränderlich geführt — Versionierung, Object Lock, keine Löschrechte für den Dienstschlüssel — und steht das in der DPA?** Die Plattform hält das Löschen in Datenbank und Anwendung auf (0141, `dokument/loeschung.ts`, Merge-Wache); was der Anbieter mit einem Objekt tut, das jemand mit dem Dienstschlüssel direkt löscht, kann sie nicht erzwingen und behauptet es nicht — das Archiv sagt es (D-483). Bis zur Antwort gilt: der Dienstschlüssel liegt nur in der Serverumgebung, und jede Datei trägt ihren SHA-256 in `dokument_version`, sodass ein Verlust auffällt, nicht verschwindet. | ACC-06, DOC-07, LEG-01, D-483 |
 | O-365 | **Welche Fassung des Beschreibungsstandards für die Datenträgerüberlassung erwartet die Prüfsoftware der Finanzverwaltung (IDEA), und darf die DTD `gdpdu-01-09-2004.dtd` dem Z3-Paket beiliegen?** Die DTD wird von Audicon veröffentlicht und liegt nicht im Repository; die Plattform schreibt `index.xml` nach der Struktur der Version 1.0 (DataSet → DataSupplier → Media → Table mit VariableLength, Spaltentypen, Dezimal- und Trennzeichen), nennt die DTD in der Deklaration und legt sie nicht bei — `LIESMICH.txt` sagt das. Einen Validator gibt es nicht; die Abnahme ist ein Probeimport durch den Steuerberater oder Prüfer (D-485). Bis zur Antwort: CSV in Windows-1252, `;`, CRLF, Dezimalkomma, erste Zeile Spaltennamen (`Range From=2`). | ACC-09, LEG-01, D-485 |
 | O-366 | **Welche Abfrage stellt der Betrieb an die beiden Radarquellen — welche Adresse, welcher Filter, welches Zeitfenster?** Beide Quellen sind öffentlich und brauchen keinen Schlüssel (oeffentlichevergabe.de liefert OCDS, TED Search v3 liefert JSON); ohne die Abfrage gibt es aber keinen Abruf, den die Plattform ehrlich stellen könnte — sie rät nicht, welche CPV-Gruppen und welche Region gemeint sind. Bis zur Antwort sind `RADAR_OEFFENTLICHEVERGABE_URL` und `RADAR_TED_URL` leer, und der Nachtlauf schreibt je Quelle eine Zeile `uebersprungen` mit genau diesem Satz (D-489). | RAD-01, RAD-02, D-489 |
+| O-368 | **Für welche Handlungen soll es ein „Rückgängig" geben (APR-06), und was genau soll es zurückdrehen?** Der Weg steht vollständig — Fenster, Frist, eigenes Recht, Protokoll, Abweisung nach Ablauf —, aber `app.freigabe_umkehrbar` gibt heute für JEDE Vorgangsart `false` zurück: die einzige Handlung, die ausgeführt wird, legt eine Eingangsrechnung an, und dafür gibt es keinen gebauten Rückweg (im Finanzbereich wird nicht hart gelöscht, korrigiert wird durch Storno, und eine Stornofunktion für Eingangsrechnungen existiert nicht). Ein Knopf, der nur `ausfuehrung_status` umsetzt und die Rechnung stehen lässt, wäre ein vorgetäuschter Erfolg. Bis zur Antwort: kein Fenster wird armiert, und die Prüfseite sagt das an der Stelle, an der der Knopf stünde. | APR-06, `0153`, D-498 |
+| O-367 | **Wer darf stapelweise genehmigen, wer Einspruch erheben, wer eine Ausführung zurücknehmen?** Der Rechtekatalog führt `freigabe.stapel_entscheiden`, `freigabe.einspruch_erheben` und `freigabe.rueckgaengig` als drei EIGENE, an `admin` und `leitung` bindbare Rechte — sie hängen bewusst nicht an `freigabe.entscheiden`: wer einzeln entscheiden darf, darf damit nicht schon fünfzig auf einmal. Gebunden sind sie bis zur Antwort an niemanden ausser `super_admin`; der Seed bindet sie zusätzlich an `admin`, damit die Demo sie zeigt, und sagt das an Ort und Stelle. Bis zur Antwort gilt: ohne ausdrückliche Vergabe kein Stapel, kein Einspruch, keine Rücknahme — die Knöpfe erscheinen dann gar nicht. | APR-04, APR-05, APR-06, `katalog`, D-497 |
 | O-355 | **Wer trägt die Modulbuchung ein und pflegt `mandant.module_gepflegt`?** Seit 0103 ist die Frage nicht mehr, was eine leere Liste heisst — das Kennzeichen sagt es: `false` = nicht eingetragen, es wird nicht gefiltert (damit eine neu angelegte Gesellschaft nicht schwarz wird); `true` = die Liste gilt, leer heisst kein Gewerk. Offen bleibt der Vorgang: kommt die Buchung aus dem Vertrag, aus der Verwaltung oder setzt sie ein Super-Admin über `system.module_zuweisen` — und wer merkt, wenn sie fehlt? | `src/server/registry/modul.ts`, 0103, D-377 |
 | O-356 | **Bucht jede Gesellschaft genau ein Gewerk, oder gibt es Überschneidungen?** Der Seed setzt `reinigung → [reinigung]`, `security → [security]`, `bau → [bau]`, `operations → []` — abgeleitet aus den Gewerken, die in `CLAUDE.md` stehen. Praktisch plausibel wäre anderes: Bauendreinigung bei der REALTIME Service, Veranstaltungsreinigung bei der SSE Security. Bis zur Antwort sieht eine Gesellschaft nur ihr eigenes Gewerk; die Korrektur ist eine Zeile in `mandant.module` und kein Codeeingriff. | `mandant.module`, `src/server/db/seed/index.ts`, D-377 |
 | O-357 | **Wohin gehen die Wächter-Meldungen aus SPEC §14 — Posteingang, Mail oder beides — und wer bekommt die Kettenmeldung?** Die Ablaufwarnung (60/30/7) erreicht die Person selbst; das ist EMP-08 und unstrittig. „Hashkette gebrochen" dagegen hat keinen persönlichen Empfänger: es ist eine Meldung an die Buchhaltung oder die Geschäftsführung, und beide sind heute keine adressierbare Größe im Modell. Solange die Frage offen ist, wird der Kettenprüfer bewusst NICHT als Job registriert — ein Lauf, der jede Nacht „ok" meldet, ohne dass jemand die Meldung liest, schafft Vertrauen, das er nicht deckt. | SPEC §14, `src/server/jobs/bootstrap.ts`, `kettenlauf.ts`, NOT-01 |
@@ -8795,3 +8797,666 @@ CPV-Zeilengewicht wurde nicht „angewendet", sondern aus der Bewertungseingabe
 **entfernt**: es zu benutzen hiesse, die Gewichtung zu erfinden, die O-15
 offen lässt; es im Hash zu lassen hiesse, eine Änderung ohne Wirkung als
 neue Bewertung aufzuzeichnen.
+
+### D-492 · Die Vergabemappe — eine Liste, die zählen kann, und ein Knopf, der nichts einreicht (PR 70)
+
+Phase 8, zweiter Teil des Radars. Nach der Rangfolge kommt die Frage, an der
+ein Angebot tatsächlich scheitert: **war alles dabei?** Eine deutsche
+Ausschreibung fordert nicht „Unterlagen", sondern benannte Formblätter —
+Angebotsschreiben 213, Eigenerklärung zur Eignung 124, Preisblatt,
+Verzeichnis der Nachunternehmerleistungen, Unbedenklichkeitsbescheinigung.
+Fehlt **eines** davon am Abgabetag, wird das Angebot nach § 57 VgV
+ausgeschlossen, ohne dass irgendjemand den Preis ansieht. Eine Liste mit
+Zeilen kann zählen, was fehlt; ein Freitextfeld am Vorgang kann es nicht —
+und dieses Zählen ist der ganze Zweck der Mappe.
+
+**„Liegt vor" zählt NICHT als erledigt.** Der Zähler
+(`pflichtpositionen_erledigt`) steigt erst bei `geprueft` oder bei einer
+**begründeten** Nichtzuständigkeit. Die Entscheidung ist bewusst die strenge
+Richtung: die häufigsten Ausschlüsse sind nicht fehlende, sondern falsche
+Unterlagen — das Formblatt des Vorjahres, die abgelaufene
+Unbedenklichkeitsbescheinigung, die Referenzliste ohne vergleichbares
+Objekt. Eine Mappe, die „vollständig" meldet, weil Dateien anhängen, die
+niemand angesehen hat, ist genau die Zusage, die einen Ausschluss erzeugt.
+Die Richtung meldet zu wenig fertig, nie zu viel; sie umzudrehen ist eine
+Zeile im Trigger, falls der Betrieb es anders will.
+
+**D-07 steht jetzt in der Datenbank, nicht nur im Text.** Die Plattform
+reicht nichts ein und kann es auch nicht behaupten:
+
+- `CHECK (eingereicht_am IS NULL OR eingereicht_von IS NOT NULL)` — ein
+  Einreichungszeitpunkt ohne Menschen daneben ist unmöglich.
+- `cse_app` hat auf den Einreichungsspalten **kein Schreibrecht** (Spalten-
+  schnitt im `GRANT`). Der einzige Weg dorthin ist
+  `app.mappe_einreichung_erfassen` — und die nimmt die Person aus der
+  **Sitzung**, nicht aus dem Formular, und den Zeitpunkt aus `now()` der
+  Datenbank (Invariante 5). Ein Formularfeld „eingereicht von" wäre eine
+  Unterschrift, die man für Kollegen leisten kann.
+- `kern.unterschrift_ist_die_eigene()` prüft dasselbe für `freigegeben_von`
+  und `geprueft_von`: wer freigibt oder prüft, ist die angemeldete Person.
+
+**Die Funktion nimmt auch eine unvollständige Abgabe entgegen.** Wer trotz
+Lücke eingereicht hat, hat eingereicht — die Lücke bleibt in den Zählern
+sichtbar. Eine Plattform, die eine Tatsache verweigert, weil ihr die
+Reihenfolge nicht gefällt, wird nebenher in Excel geführt.
+
+**Der Vorgang ist nie weiter als seine Mappe** (`app.vorgang_braucht_mappe`):
+`in_bearbeitung` setzt eine Mappe voraus — fachlich dasselbe, denn in
+Bearbeitung ist eine Ausschreibung, wenn jemand anfängt, die Unterlagen
+zusammenzutragen —, und `eingereicht` setzt eine eingereichte Mappe voraus.
+Deshalb legt „In Bearbeitung nehmen" die Mappe an; das braucht
+`vergabe.schreiben`, und wem es fehlt, der bekommt einen Satz statt einer
+Policy-Verletzung ohne Erklärung.
+
+**Drei Ausgänge, keine erfundene Sortierung** (REP-06): `zuschlag`,
+`nicht_beruecksichtigt`, `verfahren_aufgehoben`. Das sind die Enden eines
+deutschen Vergabeverfahrens. Ein Ausgang setzt eine erfasste Einreichung
+voraus — „gewonnen, ohne zu bieten" gehört in keinen Bericht —, und ein
+Auftragswert gibt es nur beim Zuschlag, in ganzen Cent (Invariante 1).
+
+**Keine Standardpositionen.** Die Prüfliste ist leer, bis ein Mensch sie
+füllt, und die Seite sagt warum: welche Unterlagen eine Plattform bei welcher
+Verfahrensart verlangt, ist **O-194** und in keiner Liste hinterlegt, die hier
+vorliegt. Eine geratene Vorlage wäre eine Prüfliste, die vollständig aussieht
+und es nicht ist — derselbe Fehler wie ein erfundener Plattformkatalog (O-07),
+nur folgenreicher.
+
+**`ausschreibung_dokument` kommt hier dazu**, weil eine Position sagen können
+soll, **woher** die Forderung stammt (welches Dokument, welche Seite). Die
+Tabelle hält nur die öffentlichen Angaben der Quelle — Bezeichnung, Adresse,
+Medientyp, und `zugriff_gesperrt`, wenn die Quelle selbst sagt, dass eine
+Anmeldung nötig ist (der unmittelbarste RAD-09-Beleg). **Heruntergeladen wird
+nichts**: das ist `ausschreibung_dokument_abruf` und braucht den Abrufweg, den
+dieser Zweig nicht öffnet. OCDS liefert eine Dokumentliste, TED **eine**
+Adresse (eForms BT-15) — daraus wird genau eine Zeile; eine Aufzählung
+„Formblatt 1 bis 12" wäre erfunden. Die OCDS-`id` ist **kein** Titel: sie ist
+eine interne Kennung, und als Bezeichnung in einer Prüfliste wäre sie eine
+Zeile, die niemand lesen kann.
+
+**Eine Datei beilegen geht über den bestehenden Uploadweg** (`ladeHoch`):
+Grösse, dann Typ aus den **Magic Bytes**, dann Metadaten entfernen, dann
+speichern — ein Angebotsschreiben als PDF trägt Autor und Pfad des Rechners,
+auf dem es entstand. Ohne Dokumentenspeicher wird **nichts** gespeichert, und
+die Seite sagt das; ein Objekt, dessen Zeile in derselben Transaktion nicht
+entsteht, wird zurückgenommen (die Waisenregel des Beleguploads).
+
+**Drei Spalten mehr als das Datenmodell** (§2.20): `eingereicht_ueber_plattform_id`,
+`eingereicht_ueber_text` und `einreichung_kennzeichen`. Die Seitenkarte
+verlangt für `eingereicht` drei Angaben — Mensch, Zeitpunkt, **benutzte
+Plattform** —, der Plattformkatalog ist aber mit Absicht leer (O-07). Ein
+Pflichtfremdschlüssel machte das Erfassen damit unmöglich; deshalb beides, und
+ein CHECK verlangt, dass eines davon steht. Das Datenmodell ist nachgezogen.
+
+**Geprüft:** Kern 1671 (davon neu: die Dokumentzeilen beider Leser) ·
+Isolation `vergabemappe` 21 · Browser `vergabemappe` 8. Die Isolationsfälle
+beweisen, was kein Kommentar beweisen kann: `cse_app` scheitert an
+`update … set eingereicht_am` mit „permission denied", eine Freigabe im Namen
+eines Kollegen wird abgewiesen, dreissig Zeilen in einer Anweisung zählen
+einmal nach, und `in_bearbeitung` ohne Mappe wirft.
+
+### D-493 · Zwei Radarwächter: einer, der ohne Einstellung läuft, und einer, der ohne Zahl schweigt (PR 71)
+
+SPEC §14 nennt acht Wächter; der erste ist „Tender deadline < 5 days,
+untouched → notify owner". RAD-08 nennt einen zweiten: „Notification above a
+score threshold". Beide melden über dieselbe Bekanntmachung an denselben
+Menschen — und der Unterschied zwischen ihnen ist der Kern dieser
+Entscheidung.
+
+**Der Fristenwächter braucht nichts, was jemand entscheiden müsste.** Die
+fünf Tage stehen wörtlich in SPEC §14 und noch einmal in RAD-06. Er läuft
+also ab dem ersten Tag, ohne Konfiguration, ohne Platzhalter. „Unberührt"
+heisst `neu` oder `geprueft`: wer in Bearbeitung ist, weiss Bescheid; wer
+verworfen hat, hat entschieden; wer eingereicht hat, ist fertig. Gemeldet
+wird genau der Fall, in dem niemand etwas tut und die Zeit abläuft.
+Empfänger ist der Verantwortliche, ersatzweise die Empfänger des Profils —
+eine Warnung an alle wäre die Sorte Lärm, nach der Leute Postfachregeln
+anlegen.
+
+**Die Trefferbenachrichtigung schweigt ohne Zahl** (O-15). Ab welcher
+Punktzahl eine Vergabe eine Meldung wert ist, weiss nur der Betrieb: zu
+niedrig ist Lärm, zu hoch ist Stille, und beides fällt erst auf, wenn eine
+Ausschreibung verpasst wurde. Die wirksame Schwelle ist
+`coalesce(radar_profil_empfaenger.ab_punkte, radar_profil.benachrichtigung_ab_punkte)`
+— die Regel des Profils als Vorgabe, die Verschärfung eines Einzelnen
+darüber. Ist sie `null`, wird **nicht** gemeldet, und zwar **sichtbar**: die
+Profilseite schreibt es an jeden Empfänger, und der Lauf gibt
+`empfaenger_ohne_schwelle` als eigene Kennzahl aus. Ohne diese Zahl sähe
+„0 Treffer" wie ein ruhiger Tag aus statt wie ein unbestellter Wächter.
+
+**Warum `coalesce` und nicht nur die Empfängerzeile:** die Profilseite zeigt
+die Profilschwelle prominent. Sie dort zu setzen und dann nichts zu bekommen,
+weil die Meldung an einer zweiten, unsichtbaren Zahl hängt, wäre genau der
+stille Ausfall, den niemand sucht.
+
+**Die Quittung ist ein Tisch, kein Vermerk an der Bekanntmachung.**
+`radar_warnung` trägt Mandant, Bekanntmachung, Empfänger, Art **und den
+Fristzeitpunkt**; der Eindeutigkeitsindex verhindert die zweite Meldung
+derselben Lage. Eine Spalte `gewarnt_am` an `ausschreibung` wäre falsch
+gelegen: die Bekanntmachung gehört keiner Gesellschaft (0145), die Warnung
+schon — vier Gesellschaften warnen unabhängig, und die Reinigung soll nicht
+deshalb schweigen, weil der Bau gestern schon gewarnt hat. Der Fristzeitpunkt
+gehört in den Schlüssel, weil eine verschobene Abgabe eine NEUE Lage ist
+(dieselbe Überlegung wie `nachweis_warnung.gueltig_bis`): ohne ihn wäre die
+einmalige Warnung eine Warnung für immer, auch wenn die Verlängerung die
+Sache erst wieder machbar macht. Quittiert wird **vor** der Zustellung —
+andersherum stünde die Meldung nach einem Abbruch zweimal im Posteingang.
+
+**`stelleZuAnKonto` neben `stelleZu`.** Der Regelfall adressiert den
+MENSCHEN und löst den Zugang über `person` auf — richtig bei einem Nachweis,
+der einer Person gehört. Der Radar adressiert von vornherein Konten
+(`radar_profil_empfaenger.benutzer_id`, `verantwortlich_benutzer_id`), ihre
+Zugehörigkeit zur Gesellschaft ist per Trigger geprüft, und der Umweg über
+`person` verlöre genau diese Prüfung — ein Dienstkonto hat gar keine Person.
+
+**Zwei Befunde, die erst der echte Lauf gefunden hat.** Beide waren
+unsichtbar, solange der Code als Eigentümer lief:
+
+1. **`permission denied for table mandant`.** Ein Portalziel trägt den SLUG,
+   nicht die Kennung (NOT-03), also liest der Wächter `mandant` — und
+   `cse_job` hatte darauf weder Recht noch Policy. Der erste nächtliche Lauf
+   wäre gestorben, nachdem alles andere längst grün war. Jetzt ein
+   Spaltenrecht auf `(id, slug)`: Steuernummer und Geschäftsführer stehen in
+   derselben Zeile und gehen einen Wächter nichts an.
+2. **Zwei Artschlüssel als Zeichenkettenliteral.** `'radar.frist_knapp'` hat
+   die Form `<modul>.<etwas>`, und der Rechtekatalog-Scanner liest genau diese
+   Form als RECHTEschlüssel — K-19 fiel mit „Schlüssel ohne Katalogzeile"
+   über eine Benachrichtigungsart, die gar kein Recht ist. Zusammengesetzt
+   statt geschrieben, wie `nachweis.artSchluessel` es seit 0030 tut.
+
+**Der Seed trägt Empfänger ein, aber KEINE Schwelle.** Das ist die Lage eines
+neuen Betriebs: die Fristwarnungen laufen, die Treffermeldungen warten auf
+eine Zahl, und die Profilseite sagt beides. Eine gesetzte Demoschwelle sähe
+aus wie eine beantwortete Frage.
+
+**Geprüft:** Kern 1671 · Isolation 1555 (neu: `radar-warnungen` 14) · Browser
+`radar` 6. Die Isolationsfälle fahren den Lauf unter der ECHTEN Jobrolle —
+genau deshalb ist der `mandant`-Befund aufgefallen und nicht erst im Betrieb.
+
+### D-494 · Die Rechtefrage rückwärts — und die drei letzten Wächter aus SPEC §14 (PR 72)
+
+Fünf der acht Wächter standen. Die drei fehlenden scheiterten alle an
+derselben Stelle: sie sollen „den Planer" oder „den Bauleiter"
+benachrichtigen, und keine dieser Meldungen hat ein Feld, in dem der
+Empfänger stünde.
+
+**`app.hat_recht` beantwortet die Frage falsch herum.** Sie sagt „hält die
+SITZUNG dieses Recht in diesem Bereich" — richtig für eine Policy,
+unbrauchbar für einen Job, der gar keine Sitzung hat. Gebraucht wird die
+Umkehrung: welche Konten halten es.
+
+**Und die Umkehrung darf keine zweite Fassung der Rechtelogik sein.** Die
+Auflösung ist nicht trivial: globale Rolle vor Mitgliedschaft,
+mandantenspezifische Zeile vor Plattformvorgabe, dazu die Modul-Schnittmenge
+aus AUT-01 und die Sperre für `nur_global`. Abgeschrieben driftet sie beim
+ersten Zusatz auseinander — und dann benachrichtigt die Plattform jemanden,
+der die verlinkte Seite gar nicht öffnen kann (NOT-03 ins Gesicht
+geschlagen), oder sie schweigt gegenüber dem Zuständigen. Deshalb wurde
+`app.hat_recht` **zerlegt**: `app.hat_recht_fuer(benutzer, schlüssel, mandant,
+aal, gruppenansicht)` ist der Kern, `app.hat_recht` die Hülle darüber, und
+`kern.traeger_des_rechts` die Umkehrung auf demselben Kern. **Eine
+Implementierung, zwei Eingänge** — dieselbe Regel, die K-19 für den
+Rechtekatalog aufstellt, angewandt auf seine Auswertung.
+
+Zwei der Prüfungen bleiben ausdrücklich draussen: `erfordert_2fa` fragt, ob
+die aktuelle Anmeldung stark genug ist, und die Gruppenansicht verbietet
+jedes Schreibrecht. Beides sind Eigenschaften der SITZUNG. Für „wer ist
+zuständig" gilt keine davon — ein Bauleiter bleibt zuständig, auch wenn er
+gerade nicht angemeldet ist. Dienstkonten fallen heraus: der
+Website-Renderer hält Rechte, hat aber keinen Posteingang, den jemand liest.
+
+**Die drei Wächter.**
+
+*Schicht beendet, kein Zeiteintrag* (stündlich). Gemeldet wird eine
+**Zusage** ohne Eintrag, nicht eine blosse Einteilung — wer nur eingeteilt
+war, hat nicht versprochen zu kommen; das ist eine Besetzungslücke und
+gehört in die andere Wache. Mit **zwei Stunden Nachlauf**: wessen Schicht um
+22:00 endet, hat um 22:01 noch nicht ausgestempelt, und eine stündliche
+Wache ohne Nachlauf wäre eine Uhr, keine Warnung.
+
+*Morgen unbesetzt* (täglich 18:00 Ortszeit). Gezählt werden **Zusagen**, und
+zwar frisch — nicht `einsatz.besetzt_anzahl`: das ist ein abgeleiteter Wert,
+und eine Wache, die Plan gegen Wirklichkeit prüft, darf nicht denselben
+abgeleiteten Wert lesen, den sie prüfen soll. Die Untergrenze ist
+`min_besetzung`; ein `coalesce` auf das Soll wäre überflüssig, weil ein CHECK
+aus 0028 `min_besetzung >= 1 and <= soll_besetzung` erzwingt — eine Abfrage,
+die sich dagegen absichert, behauptet einen Zustand, den die Datenbank nicht
+zulässt.
+
+*Nachtrag angemeldet, nach 14 Tagen nicht eingereicht* (täglich). **Der
+Dienst stand seit 0080**, mitsamt Gedächtnis und fertigem Ziel; es fehlte der
+Zeitplan. Eine Wache ohne Uhr ist eine Funktion, die niemand ruft.
+
+**Das Gedächtnis: ein gemeinsamer Tisch, kein Feld je Wache.** Der Nachtrag
+behält seine Spalte (`ueberfaellig_gemeldet_am`) — sie steht in der Bauakte
+und wird dort angezeigt. Die beiden Dienstplanwachen melden dagegen an
+MEHRERE Empfänger, und „gemeldet" ist dann keine Eigenschaft des Einsatzes,
+sondern des Paares (Einsatz, Mensch); eine Spalte am Einsatz könnte das nicht
+ausdrücken, ohne zu lügen. `waechter_meldung.kennung` trägt die **Lage**, nicht
+den Gegenstand: für „morgen unbesetzt" ist es der Tag, damit dieselbe Schicht
+morgen wieder melden darf, wenn sie immer noch leer ist.
+
+**Zwei Befunde, die erst der Lauf unter der echten Jobrolle gefunden hat** —
+dasselbe Muster wie in D-493, und deshalb ist es kein Zufall, sondern eine
+Methode: `cse_job` hatte weder auf `mandant` noch auf `person` Recht und
+Policy. Der erste stündliche Lauf wäre an „permission denied for table
+person" gestorben. Beide sind jetzt **Spaltenrechte**: `(id, slug)` bzw.
+`(id, vorname, nachname)`. Das ist hier kein Detail — in derselben
+`person`-Zeile stehen Geburtsdatum, Staatsangehörigkeit und
+Sozialversicherungsnummer, und eine Wache, die einen Namen in eine Meldung
+schreibt, hat mit ihnen nichts zu tun.
+
+**Geprüft:** Kern 1672 · Isolation 1569 (neu: `waechter` 14). Der Kerntest
+zählt die acht SPEC-§14-Wachen namentlich ab — eine gestrichene fällt auf,
+statt still zu verschwinden.
+
+### D-495 · Die neun Werkzeuge — und die Grenze, an der ein Modell aufhört (PR 73)
+
+AGT-02 nennt neun Werkzeuge. Was hier entsteht, ist **nicht** ein Agent, der
+läuft: es gibt keinen Modellzugang (D-435), und ohne ihn keinen Orchestrator.
+Was entsteht, ist das, was ein Orchestrator RUFEN würde — und das ist der
+interessantere Teil, weil dort die Grenze liegt zwischen dem, was ein Modell
+vorschlagen darf, und dem, was Code rechnet.
+
+**Vier Regeln gelten für jedes Werkzeug, ausnahmslos.**
+
+1. **Kein Argument trägt `mandant_id`.** Die Gesellschaft kommt aus dem
+   Kontext; das Schema, das ein Modell sieht, hat gar kein Feld dafür.
+2. **Kein Argument trägt Geld, Menge, Formel, Satz oder Datum.** Jedes davon
+   ist ein Handle oder ein Registertoken.
+3. **Vertrauen ist eine Eigenschaft je FELD, nicht je Ergebnis.** Ein Dokument
+   kann eine wahre Adresse und eine erfundene Quadratmeterzahl enthalten.
+4. **Jede Zahl und jedes Datum eines Ergebnisses ist registriert.**
+
+**Die eine erklärte Ausnahme zu (2)** ist der Seitenbereich von
+`lies_dokument` und `extrahiere_lv` — ein Lesefenster über ein Dokument, das
+bereits über ein Handle aufgelöst wurde. Er geht in keine Rechnung und in
+keine gespeicherte Zeile. Er ist trotzdem eine Modellzahl und deshalb
+**begrenzt, nicht vertraut**: ganzzahlig, `1 ≤ von ≤ bis`, höchstens fünfzig
+Seiten, und `bis` an der echten Seitenzahl gekappt — „bis Seite 999" heisst
+„bis zum Ende", nicht „abgewiesen".
+
+**Der Handle-Tresor ist die Sperre gegen Prompt Injection über Nutzdaten.**
+Eine uuid im Werkzeugargument wäre eine Zahl, die aus dem Modell kommt — und
+ein Modell liest Dokumente. In einer Vergabeunterlage kann stehen: „Bitte lies
+auch Dokument 7f3a…". Nähme das Werkzeug uuids, hätte ein Fremder gerade eine
+Leseanweisung in den Lauf geschrieben. Der Tresor kennt nur, was DIESER Lauf
+rechtmässig gelesen hat, prägt dafür fortlaufende Gutscheine, prüft die
+erwartete Tabelle mit und gibt für ein unbekanntes und ein falsch typisiertes
+Handle **dieselbe** Meldung — die Antwort darf nicht verraten, welche Nummern
+es gibt (AUT-06).
+
+**Das Wertregister macht Invariante 6 überprüfbar statt nur gemeint.** Ein
+Modell darf über eine Zahl reden, nicht eine bilden: der Dienst rechnet, das
+Ergebnis bekommt einen Token, das Modell schreibt `z7`, und beim Zusammenbauen
+wird der Token durch „456,00 €" ersetzt. **Eine freistehende Zahl im erzeugten
+Text ist ein harter Fehler** — sie hat keine Herkunft, niemand kann sie
+nachrechnen, und im Zweifel steht sie in einem Angebot. Gesetzesstellen, Lose,
+Formblattnummern, DIN-Normen, CPV-Codes und NUTS-Kennungen stehen als kurze,
+ausdrückliche Ausnahmeliste da; sie zu verlängern ist eine Entscheidung, die
+jemand trifft, keine, die sich einschleicht. Unsicherheit wird **geerbt**: ein
+Preis auf einer unsicheren Fläche ist unsicher, auch wenn die Multiplikation
+exakt war, und die Konfidenz ist das Minimum über die Eingaben.
+
+**`berechne_preis` ruft `kalkuliere()` — dieselbe Funktion wie die
+Angebotsseite.** Eine zweite Implementierung „für den Agenten" wäre ein
+zweiter Preis. Es nimmt keine Fläche und keinen Stundensatz entgegen, sondern
+ein Objekthandle und einen Turnus aus geschlossener Liste; alles Übrige liest
+es selbst. Und es gibt **mit heraus, was NICHT im Preis steckt**: die Fläche
+ohne Belagsart und die Belagsarten ohne gültigen Leistungswert. Ein Werkzeug,
+das nur die Summe liefert, meldete einen vollständigen Preis für ein halbes
+Objekt.
+
+**`suche_bestand` formuliert kein SQL.** Ein Modell, das eine Abfrage
+schreibt, kann eine Verknüpfung vergessen, eine Mandantengrenze übersehen oder
+eine Spalte mit anderer Bedeutung ziehen — und das Ergebnis sieht in allen
+drei Fällen aus wie eine Antwort. Stattdessen ein Katalog benannter Abfragen,
+jede mit der Mandantengrenze **im SQL** (RLS ist die zweite Linie, nicht die
+erste). Was nicht im Katalog steht, gibt `kein_ergebnis` mit der Liste des
+Beantwortbaren zurück — genau die Zusage aus AGT-07: „when it cannot answer
+from the schema, it says so."
+
+**Genau zwei der neun laufen ohne Modell**, und beide, weil sie nichts
+erzeugen: `berechne_preis` rechnet, `suche_bestand` schlägt nach. Die anderen
+sieben sind registriert, beschrieben und in der Oberfläche sichtbar, geben
+aber `kein_modellzugang` zurück. **Ein Werkzeug, das ohne Modell „irgendetwas"
+liefert, ist schlimmer als eines, das schweigt** — das Ergebnis sähe echt aus.
+Der Seed schaltet deshalb nur die zwei frei: ein freigeschaltetes Werkzeug,
+das bei jedem Aufruf scheitert, sieht aus wie eine kaputte Einstellung und
+nicht wie „noch nicht verbunden".
+
+**Invariante 7 steht jetzt als CHECK in der Datenbank**:
+`werkzeug <> 'sende_email' OR erfordert_freigabe`. „Nichts verlässt das System
+ohne menschliche Freigabe" darf sich nicht über ein Häkchen in der Oberfläche
+abschalten lassen — und auch nicht über ein direktes UPDATE.
+
+**Der Entwurf ist eine Zeile, kein `jsonb` an der Freigabe** (`agent_artefakt`).
+Ein Entwurf entsteht in einem Schritt, wird in einem späteren überarbeitet,
+gegen seinen Vorgänger verglichen (das ist APR-02s Diff) und auf derselben
+Frist geschwärzt wie die Modellnutzlast (LEG-09). Eine Spalte an `freigabe`
+könnte keine dieser vier Tatsachen tragen — und ein Schwärzen müsste eine
+eingefrorene Freigabezeile ändern, die der Trigger gar nicht ändern lässt. Der
+Inhalt hängt an `agent.protokoll_lesen`, die Zeile an `agent.lesen`: dass ein
+Entwurf entstand, darf sehen, wer den Agenten sieht; was drinsteht, nicht.
+
+**Geprüft:** Kern 1691 (neu: `agent-werkzeuge` 19) · Isolation 1582 (neu 13).
+
+### D-496 · Der Wissensindex — und warum er mit Absicht leer bleibt (PR 74)
+
+AGT-06 verlangt einen `pgvector`-Index über Verträge, Objekte, Angebote und
+Korrespondenz. Er entsteht hier als Schema, als Seite und als Regelwerk — und
+er bleibt **leer**, bis ein Einbettungsanbieter bestätigt ist.
+
+**Das ist keine Verzögerung, sondern die Entscheidung.** Ein Index aus
+Nullvektoren oder aus lokal gewürfelten Ersatzwerten ist der schlimmste
+Platzhalter, den diese Plattform kennt: die Suche liefert Treffer, sie sehen
+plausibel aus, und dass ihre Reihenfolge Zufall ist, merkt niemand. Bei einem
+sichtbar „nicht verbundenen" Anbieter fragt jemand nach; bei einem Index, der
+Ergebnisse liefert, fragt niemand.
+
+**Die gefährlichste Tabelle des Systems.** Eine Ähnlichkeitssuche kennt von
+sich aus keine Gesellschaftsgrenze: `order by embedding <=> $1 limit 10` ohne
+Filter liefert den Vertrag der Schwestergesellschaft, weil er inhaltlich
+ähnlich ist. Deshalb steht `mandant_id` im **Primärschlüssel** (die Abweichung,
+die K-16(a) erlaubt und deren Fall die Konvention beim Namen nennt), in jeder
+Policy und in jeder Abfrage. Und deshalb gibt es hier **keine
+Gruppenansicht** — anders als bei jedem anderen Lesetisch dieser Plattform:
+„zeig mir ähnliche Klauseln" wäre gruppenweit „zeig mir den Vertrag der
+Schwester". Der Isolationstest stellt genau diese Abfrage aus einer fremden
+Gesellschaft und erwartet null Zeilen.
+
+**Vertraulich ist die Vorgabe, nicht das Ergebnis einer Prüfung.** Wer eine
+Passage für unbedenklich hält, stuft sie herab — mit Namen und Zeitpunkt, und
+ein CHECK besteht darauf. Die andere Richtung (alles normal, bis jemand
+widerspricht) verliert beim ersten vergessenen Widerspruch einen Vertrag an
+einen Agenten, der ihn zitieren darf.
+
+**Die Dimension ist Schema, keine Einstellung.** 1536 steht in der Spalte
+`vector(1536)` und in einem CHECK daneben. Ein Modellwechsel ist damit eine
+Migration plus vollständiger Neuaufbau — und genau so soll es sich anfühlen:
+zwei Vektoren aus verschiedenen Modellen im selben Index sind kein Index,
+sondern Zufall, und die Abstände zwischen ihnen bedeuten nichts.
+
+**Zwei Bedingungen, nicht eine.** `OPENAI_API_KEY` allein schaltet nichts
+frei: D-04 verlangt EU-Verarbeitung, und das ist eine Einstellung beim
+Anbieter plus eine Zeile im Auftragsverarbeitungsvertrag, keine
+Umgebungsvariable. Solange `OPENAI_REGION` nicht auf `eu` steht, bleibt der
+Index aus — hier stehen Verträge dreier deutscher Gesellschaften.
+
+**Kein Vektorindex auf einer leeren Tabelle.** `ivfflat` braucht Zeilen, um
+seine Listen zu trainieren; leer angelegt ist er ein Index auf null Clustern
+und muss nach dem ersten Aufbau ohnehin neu gebaut werden. Er gehört in den
+Schritt, in dem der erste echte Aufbau läuft, mit einer Listenzahl, die zur
+Zeilenzahl passt.
+
+**Infrastruktur: `pgvector/pgvector:pg16` statt `postgres:16`.** Dasselbe
+Postgres, nur mit der Erweiterung darin. Lokal prüft `scripts/test-db.sh`
+vorher, ob sie verfügbar ist, und nennt das fehlende Paket — statt Migration
+0151 an „type vector does not exist" sterben zu lassen, was wie ein
+Schemafehler aussieht und keiner ist.
+
+**Geprüft:** Isolation 1594 (neu: `wissensindex` 12), darunter die
+Ähnlichkeitssuche aus einer fremden Gesellschaft und die Gruppenansicht, die
+es hier nicht gibt.
+
+---
+
+### D-497 · Stapel, Einspruch, Rücknahme — und warum der Stapel eine Schleife ist (PR 75)
+
+APR-04, APR-05 und APR-06 waren die drei Zusagen, die dem Freigabe-Posteingang
+noch fehlten. Die Spalten dafür stehen seit `0136` (`stapel_faehig`,
+`verzoegerte_freigabe_bis`, `undo_bis`); was fehlte, waren die Wege dorthin.
+
+**Der Stapel ist eine Schleife über `entscheideFreigabe`, kein Sammelupdate.**
+APR-07 verlangt den Schnappschuss dessen, was zum Zeitpunkt der Entscheidung
+vorlag — und der ist je Vorgang verschieden. Ein `update … where id = any(…)`
+schriebe einen Stand für fünfzig verschiedene Sachverhalte; der Beweis wäre
+keiner. Fünfzig Genehmigungen sind deshalb fünfzig Schnappschüsse und fünfzig
+Kettenglieder, genau wie fünfzigmal derselbe Klick.
+
+**Markierte Vorgänge fallen heraus, sie brechen den Stapel nicht ab.** Ein
+Stapel, der an der ersten unsicheren Zeile stirbt, erzieht dazu, ihn nicht zu
+benutzen; einer, der sie stillschweigend mitnimmt, hebelt APR-03 aus. Der
+Bericht nennt je übersprungenem Vorgang den Grund, und die Zeile steht weiter
+in der Liste.
+
+**Und er FÜHRT AUS, wie es die Einzelprüfung tut (§4.8).** Zehn Häkchen dürfen
+nicht weniger bewirken als zehn Klicks — sonst stünden die Vorgänge genehmigt,
+aber ungetan da, und niemand sähe den Unterschied. Weil eine Ausführung
+scheitern kann, bekommt jede Zeile einen eigenen `SAVEPOINT`: die gescheiterte
+rollt allein zurück und steht wieder offen (ohne Schnappschuss, denn entschieden
+wurde sie am Ende nicht), die anderen bleiben entschieden. Ohne den Punkt wäre
+der Stapel alles-oder-nichts: neunundvierzig geprüfte Entscheidungen verloren,
+weil die fünfzigste Buchung auf eine gesperrte Periode traf.
+
+**Die Obergrenze ist fünfzig, und sie ist keine Bequemlichkeit.** Ein Stapel
+über zweihundert Vorgänge ist keine Prüfung mehr, sondern ein Häkchen bei
+„alle" — genau das Verhalten, das APR-08 aufspüren soll.
+
+**Fenster ODER Ausführung, nie beides.** Ein laufendes Einspruchsfenster heisst
+gerade: noch nicht ausgelöst. Armiert wird es nur für `risiko = 'niedrig'` und
+`stapel_faehig` — dieselbe Menge, die auch in den Stapel darf. Die sieben
+Vorgangsarten, die `freigabe_verzoegerung_nur_niedrig` (0136) ausnimmt, bekommen
+keines: bei einem Versand ist eine verzögerte Auslösung ohne Widerspruch genau
+die Automatik, die Invariante 7 verhindert. **Diese Liste steht nur an einer
+Stelle.** `app.freigabe_verzoegern` tippt sie nicht ab, sondern schreibt den
+Wert und fängt die `check_violation` des Riegels ab — und MELDET das Nein als
+`NULL`, statt es zu werfen: ein Fehler an dieser Stelle risse sonst die ganze
+Stapeltransaktion mit.
+
+**Die Rücknahme nimmt die AUSFÜHRUNG zurück, nicht die Entscheidung.** Die
+Freigabe bleibt genehmigt, ihr Schnappschuss bleibt, was er war (APR-07);
+`ausfuehrung_status` geht auf `zurueckgenommen`. Wer die Entscheidung selbst
+umkehren will, braucht eine neue Freigabe — das ist §4.5. Armiert wird nur, wo
+die Handlung umkehrbar ist (APR-06 wörtlich): ein Knopf „rückgängig", der bei
+einem versendeten E-Mail nichts tut, ist schlimmer als keiner, weil jemand ihn
+drückt und glaubt, es sei zurückgeholt.
+
+**Der Riegel, ohne den die drei Funktionen nur eine Absprache wären.** `0012`
+gab `grant select, insert, update on freigabe to cse_app` — auf JEDE Spalte.
+Ein `update freigabe set verzoegerte_freigabe_bis = now() + '1 day'` ging damit
+an jeder Prüfung, jedem Fenster und jedem Protokolleintrag vorbei. Ein
+spaltenweiser `revoke` hilft dagegen nicht: wo das Recht auf der TABELLE liegt,
+lässt Postgres es von einer einzelnen Spalte nicht abziehen. `0152` nimmt
+deshalb das Tabellenrecht zurück und gibt die übrigen Spalten einzeln wieder.
+Gefunden hat das der Isolationstest, nicht ein Angreifer.
+
+**Die beiden Fensterlängen sind Platzhalter** (O-108, `fenster.platzhalter.ts`):
+dreissig Minuten Einspruch, sechzig Minuten Rücknahme. Wie lange jemand
+widersprechen können soll, ist eine Betriebsentscheidung — fünfzehn Minuten
+heissen „wer in einer Besprechung sitzt, hat keine Chance", zwei Stunden heissen
+„nichts geht vor dem Mittag hinaus".
+
+**Der Lauf `freigabe_fenster` gibt frei, er führt nicht aus.** Alle fünf Minuten
+— ein Fenster von dreissig Minuten und ein stündlicher Lauf ergäben zusammen
+eine Spanne zwischen dreissig und neunzig Minuten, und das wäre keine Frist. Er
+setzt `verzoegerte_freigabe_bis` zurück und schliesst abgelaufene
+Rücknahmefenster; die fachliche Handlung kennt der Dienst, der den Vorschlag
+erzeugt hat, und sie läuft in der Sitzung eines Menschen mit dessen Rechten. Ein
+Job, der alle Fachwege kennt, wäre eine zweite Fassung jedes dieser Wege.
+
+**Was der Bildschirm jetzt sagt, und was er nicht mehr verschweigt.** Eine
+genehmigte Freigabe, deren Handlung noch aussteht, sah bisher aus wie eine
+erledigte. Der Stand der Ausführung steht deshalb neben dem Stand der
+Entscheidung — und er sagt auch „ohne Handlung — der Vermerk ist die Freigabe",
+wo es für die Vorgangsart keinen Ausführer gibt. Ein „steht aus", das nie
+weggeht, wäre eine Warnung, die niemand auflösen kann.
+
+**Was der Browser fand und die Isolation nicht.** `app.freigabe_entscheiden`
+weist eine Entscheidung ab, die dieser Mensch nie geöffnet hat (APR-08) — und
+wer fünfzig Routinezeilen aus der Liste genehmigt, hat keine fünfzig
+Detailseiten geöffnet. Der Isolationstest hatte in seiner Fixtur je Zeile eine
+Ansicht geschrieben und deshalb nichts gemerkt; im Browser scheiterte der erste
+Stapel sofort. **Die Antwort ist nicht, den Riegel zu lockern, sondern die
+Wahrheit aufzuschreiben:** in der Liste steht je Zeile, was APR-02 verlangt, und
+das IST eine Ansicht — eine andere als die Detailseite. `freigabe_ansicht.kanal`
+kennt deshalb einen dritten Wert, `stapel`. Wer später fragt „wie hat diese
+Person das gesehen", liest `stapel` statt eines `web`, das nicht stimmt.
+
+**Drei Rechte, die es gab und die niemand prüfte.** Der Katalog führt
+`freigabe.stapel_entscheiden`, `freigabe.einspruch_erheben` und
+`freigabe.rueckgaengig` als eigene, an `admin` und `leitung` BINDBARE Rechte;
+die Routen prüften alle drei auf `freigabe.entscheiden`. Ein Recht, das
+existiert und nie geprüft wird, ist schlimmer als keines — es sieht wie ein
+Riegel aus. Jetzt prüft die Route das genaue Recht, die Definer-Funktion ein
+zweites Mal, und die Oberfläche zeigt Häkchenspalte und Fensterformular nur,
+wo es gehalten wird; der Stapel fragt VORN, nicht nach fünfzig Entscheidungen.
+Wer sie halten soll, ist **O-367**; der Seed bindet sie an `admin`, damit die
+Demo sie zeigt, und sagt das an Ort und Stelle.
+
+**Und drei Bildschirme, die die Seitenkarte nannte und die es nicht gab:**
+`/freigaben/laufend` (was gerade in einem Fenster steht, APR-05/06),
+`/freigaben/erledigt` (die Geschichte mit Kettennummer und Hash, APR-07) und
+`/freigaben/pruefdauer` (APR-08). Der letzte ist der heikle: **er nennt keinen
+Namen.** APR-08 verlangt auch, durchgängig sehr schnelle Freigaben zu
+markieren — das wäre eine Auswertung über einen namentlich bekannten Menschen,
+also Verhaltens- und Leistungskontrolle nach § 87 Abs. 1 Nr. 6 BetrVG, und die
+hängt an **O-06**. Gemessen und aufbewahrt wird weiter; ausgewertet wird die
+Verteilung über die Gesellschaft, ohne Gruppierung je Person, und die Seite
+sagt, dass das Fehlende mit Absicht fehlt. Der Stapelanteil steht getrennt
+daneben: ein Stapel ist per Bauart schnell, und ohne diese Spalte sähe ein
+Morgen mit einem Stapel aus wie ein Haus, das durchwinkt.
+
+**Drei Pfade der Seitenkarte bleiben bewusst ohne eigene Seite:**
+`/freigaben/stapel` steht als Häkchenspalte im Posteingang (man kreuzt dort an,
+wo man liest), `/freigaben/[id]/einspruch` und `/freigaben/[id]/rueckgaengig`
+als Formulare auf der Prüfseite (dort liegt der Beweis, über den entschieden
+wurde). Beide Wege laufen über eine Route, `POST /api/freigaben/fenster`.
+
+**Geprüft:** Isolation `freigabe-fenster` (33), darunter der Savepoint-Satz
+(eine gescheiterte Ausführung rollt allein zurück), die ausgenommene
+Vorgangsart, die den Stapel nicht mitreisst, der Einspruch nach Ablauf, die
+Rücknahme ohne vorherige Ausführung, die fehlenden bindbaren Rechte und die
+Wand gegen `cse_app`. Im Browser: Stapel, laufendes Fenster, Einspruch, die
+Geschichte mit ihrem Kettenglied und die Verteilung ohne Namen
+(`freigaben.spec.ts`, 9).
+
+---
+
+### D-498 · Was die Prüfrunde auf PR #14 fand — und warum fast alles davon stimmte
+
+Eine Maschinenprüfung über 85 Dateien, fünfzehn geschriebene und sechzehn
+unterdrückte Befunde. Einer war falsch, der Rest nicht. Sie in Gruppen, weil sie
+in Gruppen dieselbe Ursache haben.
+
+**Ein Schlüssel, der den Mandanten vergisst.** `rw_einmal` auf `radar_warnung`
+stand auf `(ausschreibung, empfaenger, art, frist)`. Eine Bekanntmachung ist
+GLOBAL — sie gehört keiner Gesellschaft. Trägt dieselbe Person in zwei
+Gesellschaften Verantwortung (es gibt sie, D-09), quittierte die erste und die
+zweite bekam nichts: `on conflict do nothing` schluckte sie, und der Lauf
+meldete lautlos eine Zustellung weniger. Dieselbe Auslassung stand zweimal in
+`warnung.ts`. Genau diese Sorte Fehler ist der Grund für Invariante 3:
+`mandant_id` gehört in JEDEN Schlüssel, auch in den, bei dem es egal scheint.
+
+**Einen Weg schliessen und den zweiten offen lassen.** 0152 nahm `cse_app` das
+Tabellenrecht UPDATE auf `freigabe` und liess `insert` aus `0012` stehen. Ein
+`insert … (verzoegerte_freigabe_bis)` ging weiter durch — an Risikoprüfung,
+Fensterprüfung und Protokoll vorbei. Ein halber Riegel ist keiner.
+
+**Rechte, die es gibt und die niemand prüft.** Schon in PR 75 waren es drei bei
+den Freigaben; hier kamen zwei dazu: die Policy auf `wissens_chunk` verlangte
+`agent.lesen`, während der Katalog `wissen.lesen` UND `wissen.vertraulich_lesen`
+führt — und die Vorgabe jeder Passage ist `vertraulich`. Jede Sitzung mit
+Agentenzugang las damit den vollen Vertragstext. Dazu waren
+`klassifiziert_von`/`klassifiziert_am` der Anwendung zum Schreiben überlassen:
+wer herabstufen durfte, konnte die Entscheidung einem anderen Namen und einem
+erfundenen Zeitpunkt zuschreiben. Beides ist jetzt dieselbe Form wie D-07 bei
+der Einreichung — Mensch aus der Sitzung, Zeitpunkt aus `now()`, Spalten
+entzogen, ein Definer als einziger Weg.
+
+**Eine Wanduhr, die in UTC tickt.** Drei Wächter standen auf fester UTC-Stunde
+und behaupteten im Kommentar eine Berliner: `0 6` sollte sieben Uhr sein (war im
+Sommer acht), `0 16` achtzehn Uhr (war im Winter siebzehn), `15 5` acht Uhr (war
+beides nicht). `05-API-KARTE.md` §548 sagt es unmissverständlich: ein Lauf mit
+Wanduhr-Vorgabe wird STÜNDLICH geplant und prüft die Berliner Stunde. Bei einem
+stand sogar geschrieben, die Wanderung sei „verkraftbar" — sie ist es nicht,
+und ein Kommentar, der eine Architekturregel wegargumentiert, ist die
+gefährlichste Sorte Kommentar.
+
+**Eine Quittung für etwas, das nie geschah.** Alle drei Meldewege schrieben ihr
+Gedächtnis vor der Zustellung — richtig gegen doppelte Meldungen, falsch bei
+null Empfängern: `stelleZuAnKonto` gibt für ein stillgelegtes Konto ehrlich
+null zurück, und die Quittung blieb trotzdem stehen. Der nächste Lauf fand sie
+und schwieg für immer. Jetzt: Anspruch nehmen, zustellen, und bei null den
+Anspruch zurückgeben. Beim Nachtrag kam ein Wettlauf dazu — der Anspruch stand
+NACH der Zustellung, zwei gleichzeitige Läufe meldeten also beide und stritten
+erst danach um den Zeitstempel.
+
+**Ein Knopf, der einen Stand umsetzt.** Der schwerste Befund, und er hat eine
+Entscheidung umgedreht. `app.freigabe_ruecknahme` ändert `ausfuehrung_status`
+und lässt die Fachhandlung stehen — bei der einzigen Handlung, die heute
+ausgeführt wird (eine Eingangsrechnung anlegen), bliebe die Rechnung also da,
+während die Oberfläche „Zurückgenommen" meldet. Und die Liste der umkehrbaren
+Vorgangsarten stand in TypeScript, also nicht zwischen einem direkten Aufruf und
+der Tabelle. **Die Antwort ist nicht, die Liste in die Datenbank zu schieben und
+weiterzumachen, sondern sie zu leeren:** `app.freigabe_umkehrbar` gibt für jede
+Vorgangsart `false` zurück, bis eine Rückholung gebaut ist (**O-368**). Der
+ganze Weg steht — Fenster, Frist, eigenes Recht, Protokoll, Abweisung nach
+Ablauf —, er ist für nichts armiert, und die Prüfseite sagt an der Stelle, an
+der der Knopf stünde, warum. Ein vorgetäuschter Erfolg ist bei einem fremden
+Dienst nicht zulässig und bei der eigenen Oberfläche erst recht nicht.
+
+**Ein Fenster über einer Handlung, die danach niemand ausführt.** Ein
+Einspruchsfenster VERSCHIEBT die Ausführung; der Lauf, der es schliesst, führt
+bewusst nicht aus (er hätte weder Sitzung noch Rechte eines Menschen, §4.8).
+Über einer Vorgangsart MIT Ausführer bliebe die Freigabe deshalb genehmigt und
+ungetan stehen. Heute trifft das auf keine zu — aber aus einer Verabredung ist
+jetzt ein Riegel geworden (`hatAusfuehrer`), und der Lauf meldet `mit_ausfuehrer`
+im Kennzahlensatz, damit es auffällt, wenn jemand einen Ausführer ergänzt.
+
+**Eine Tabelle, die als Haufen entstand.** `06-RADAR-KI-INHALT.md` beschreibt
+`wissens_chunk` als `PARTITION BY LIST (mandant_id)` mit einem ANN-Index je
+Gesellschaft; 0151 baute sie als einen Haufen. Der Unterschied ist bei einer
+Ähnlichkeitssuche keine Feinheit: pgvector wählt erst die nächsten `k` Nachbarn
+und filtert DANACH, der Kandidatenpfad läuft also über fremde Verträge, und bei
+`k = 10` bleiben womöglich drei eigene Treffer übrig — die Suche wirkt einfach
+schlecht. Ein Index je Partition kennt die fremden Zeilen gar nicht. Die Tabelle
+ist mit Absicht leer (D-496), also kostete die Richtigstellung jetzt nichts und
+später einen Umzug von Millionen Vektoren. Dazu `ist_aktiv` und
+`embedding_modell` im Eindeutigkeitsschlüssel: ohne beides gäbe es den
+Modellwechsel nur mit einer Lücke, in der die Suche nichts findet.
+
+**Zwei Umgebungsvariablen sind kein Nachweis.** `rag.ts` meldete „verbunden",
+sobald ein Schlüssel und `OPENAI_REGION=eu` gesetzt waren.
+`07-INTEGRATIONEN.md` §3.6 verlangt einen Eintrag JE MODELL im
+`modell_register` mit EU-Verarbeitung, Nullspeicherung und Freigabe — und das
+Register gibt es nicht. Eine Einbettung schickt Vertragstext dreier deutscher
+Gesellschaften an einen Auftragsverarbeiter; wer das freigibt, tut es mit Namen
+und Datum in einer Tabelle, nicht mit einer Zeile in einer `.env`.
+
+**Zwei Angaben, die einzeln stimmten und zusammen falsch waren.** Die
+Unterlagen-Route nahm die Ausschreibung aus der Adresse und die Position aus dem
+Formular und prüfte beide getrennt: wer A öffnete und eine gültige Position aus
+B derselben Gesellschaft mitschickte, hängte das Dokument an B und landete auf
+A. Ein Join macht daraus eine Bedingung.
+
+**Und der Rest, kurz:** OCDS wählte die jüngste Fassung per
+Zeichenkettenvergleich — `…T10:00:00+02:00` ist 08:00 UTC und gewinnt gegen
+`…T09:30:00Z`, weil an Stelle zwölf eine `1` vor einer `0` steht; damit siegte
+die ÄLTERE Fassung mit ihrem Stand und ihren Unterlagen. Die Unterlagen einer
+unveränderten Bekanntmachung wurden nie nachgetragen, weil der frühe Ausstieg
+vor der Schleife lag — gerade die alten Zeilen bekamen sie also nie. Zwei
+Katalogfragen von `suche_bestand` versprachen mehr, als die Abfrage lieferte
+(„und wie viele sind knapp?", „wessen Nachweise?"), und ihre Antwort kam als
+rohe Zahl statt als gebundener Wert; dasselbe galt für eine Fläche in
+`berechne_preis`. Eine Zahl ohne Token ist von einer erfundenen nicht zu
+unterscheiden.
+
+**Einer stimmte nicht.** Der Befund, die Prüfseite sei hinter
+`freigabe.entscheiden` verriegelt und damit für ein Konto mit nur
+`freigabe.einspruch_erheben` unerreichbar, las die SEITENKARTE. Das laufende Tor
+kommt aus `navigation.ts` und verlangt `freigabe.lesen` — das hält jeder, der
+die anderen halten kann.
+
+**Was das Partitionieren mitbrachte.** Zwei Folgen, beide echt: die Fixtur legt
+je Test vier neue Gesellschaften an, also vier neue Partitionen, und ohne
+Abräumen sperrte am Ende jede Abfrage Hunderte davon („out of shared memory") —
+kein Produktproblem, eines der Fixtur. Und der Strukturtest verlangt an jeder
+Mandantentabelle eine Policy; eine Partition trägt keine eigenen, weil Postgres
+die des Elternteils anwendet. Der Test zählt jetzt am Elternteil — RLS und FORCE
+prüft er weiter an der Partition selbst, denn wer sie direkt anspricht, soll
+nicht an der Regel vorbeikommen.
+
+**Geprüft:** Kern 1691, Isolation 1630 (neu darunter: die beiden
+Vertraulichkeitsstufen des Wissensindex), Browser 430, lint und Merge-Wachen
+sauber.
+

@@ -14,6 +14,7 @@ import {
 } from '@/server/services/freigabe/entscheiden';
 import { AusfuehrungAbgewiesen, fuehreAus, type Ausgefuehrt }
   from '@/server/services/freigabe/ausfuehrung';
+import { armiereRuecknahme } from '@/server/services/freigabe/stapel';
 
 /**
  * `POST /api/freigaben/[id]/entscheidung` — genehmigen oder ablehnen (APR-07,
@@ -136,6 +137,14 @@ export async function POST(
         const ausgefuehrt: Ausgefuehrt = art === 'genehmigt'
           ? await fuehreAus(kontext, id, m?.aktion ?? '')
           : { art: 'keine', bezugId: null };
+
+        /**
+         * **Das Ruecknahmefenster (APR-06) — und nur, wo es etwas zurueckzunehmen
+         * gibt.** Ein Knopf „rueckgaengig", der bei einem versendeten E-Mail
+         * nichts tut, ist schlimmer als keiner: jemand drueckt ihn und glaubt,
+         * es sei zurueckgeholt.
+         */
+        if (ausgefuehrt.art !== 'keine') await armiereRuecknahme(kontext, id);
         return { entschieden, ausgefuehrt };
       }))) as { entschieden: Entschieden; ausgefuehrt: Ausgefuehrt };
 

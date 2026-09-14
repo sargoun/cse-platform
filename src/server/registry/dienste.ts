@@ -43,6 +43,44 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'radar', pfad: 'radar/ocds', schreibend: false },
   { modul: 'radar', pfad: 'radar/quelle', schreibend: false },
   { modul: 'radar', pfad: 'radar/ted', schreibend: false },
+  /**
+   * **Die beiden Waechter (PR 71).** `benachrichtigung` definiert nur die zwei
+   * Arten; `warnung` schreibt die Quittung und stellt zu — und zwar als JOB,
+   * nicht als Handlung eines Menschen. Das Schreibrecht ist deshalb keines aus
+   * dem Katalog: `cse_job` traegt die Policy, `cse_app` hat auf
+   * `radar_warnung` nur Lesen.
+   */
+  { modul: 'radar', pfad: 'radar/benachrichtigung', schreibend: false },
+  { modul: 'radar', pfad: 'radar/warnung', schreibend: false },
+  /**
+   * **Die drei fehlenden Wachen aus SPEC §14 (PR 72).** Sie lesen und melden;
+   * geschrieben wird nur die Quittung, und die schreibt `cse_job` über seine
+   * Policy — kein Recht aus dem Katalog, weil hier kein Mensch handelt.
+   */
+  { modul: 'dienstplan', pfad: 'waechter/dienstplan', schreibend: false },
+  { modul: 'dienstplan', pfad: 'waechter/benachrichtigung', schreibend: false },
+  /**
+   * **Stapel, Einspruch, Ruecknahme (PR 75, APR-04…APR-06).** Alle drei
+   * entscheiden ueber eine Freigabe und tragen deshalb dasselbe Recht wie die
+   * Einzelentscheidung; `fenster.platzhalter` haelt nur die zwei offenen
+   * Zahlen aus O-108.
+   */
+  {
+    modul: 'freigabe', pfad: 'freigabe/stapel',
+    schreibend: true, schreibRecht: 'freigabe.entscheiden',
+  },
+  { modul: 'freigabe', pfad: 'freigabe/fenster.platzhalter', schreibend: false },
+  /**
+   * **Die Vergabemappe (PR 70, RAD-07, D-07).** `mappe` fuehrt die Pruefliste
+   * unter `vergabe.schreiben`; `einreichung` bezeugt die Abgabe und traegt
+   * deshalb ein eigenes Recht — wer Formblaetter abhakt, bezeugt damit nicht,
+   * dass jemand hochgeladen hat.
+   */
+  { modul: 'vergabe', pfad: 'vergabe/mappe', schreibend: true, schreibRecht: 'vergabe.schreiben' },
+  {
+    modul: 'vergabe', pfad: 'vergabe/einreichung',
+    schreibend: true, schreibRecht: 'vergabe.einreichung_erfassen',
+  },
   {
     modul: 'radar', pfad: 'radar/vorgang',
     schreibend: true, schreibRecht: 'radar.status_setzen',
@@ -859,6 +897,7 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'freigabe', pfad: 'freigabe/posteingang', schreibend: false },
   { modul: 'freigabe', pfad: 'freigabe/zusammenfassung', schreibend: false },
   { modul: 'freigabe', pfad: 'freigabe/kette', schreibend: false },
+  { modul: 'freigabe', pfad: 'freigabe/pruefdauer', schreibend: false },
   {
     modul: 'freigabe', pfad: 'freigabe/vergleich-schluessel.platzhalter',
     schreibend: false,

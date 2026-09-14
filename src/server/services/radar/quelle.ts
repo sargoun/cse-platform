@@ -72,6 +72,27 @@ export function alleQuellStaende(): readonly QuellStand[] {
  * `wertCent` ist ganzzahlig (Invariante 1): die Quellen liefern Dezimalzahlen,
  * und die Umrechnung passiert **einmal**, im Leser, mit Zeichenkettenarithmetik.
  */
+/**
+ * Ein mit der Bekanntmachung veroeffentlichtes Dokument — die **oeffentlichen
+ * Angaben**, nicht die Datei.
+ *
+ * Die Datei holt diese Plattform (noch) nicht: das waere ein Abrufweg mit
+ * Speicherung, Typpruefung und Mandantentrennung — `ausschreibung_dokument_abruf`,
+ * und der kommt mit ihm. Was hier steht, ist die Herkunftsangabe: welche
+ * Unterlage die Vergabestelle nennt und wo sie liegt. Genau daraus entsteht
+ * die Pruefliste der Vergabemappe.
+ */
+export interface RohDokument {
+  readonly bezeichnung: string;
+  readonly quellUrl: string | null;
+  readonly dateiname: string | null;
+  readonly mimeTyp: string | null;
+  readonly sprache: string | null;
+  readonly veroeffentlichtAm: Date | null;
+  /** Die Quelle sagt selbst, dass eine Anmeldung noetig ist (RAD-09). */
+  readonly zugriffGesperrt: boolean;
+}
+
 export interface RohBekanntmachung {
   readonly quelle: QuellSchluessel;
   readonly quellId: string;
@@ -107,6 +128,8 @@ export interface RohBekanntmachung {
   readonly istBerichtigung: boolean;
   /** Die Quelle sagt selbst, dass das Verfahren aufgehoben ist. */
   readonly aufgehoben: boolean;
+  /** Die Vergabeunterlagen, die die Quelle nennt (RAD-01). */
+  readonly dokumente: readonly RohDokument[];
 }
 
 export class QuelleFehler extends Error {

@@ -73,8 +73,10 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
      * Der fehlende Grund ist kein Serverfehler, sondern eine Auskunft: die
      * Seite zeigt sie als Satz und behaelt die Eingabe des Menschen im Blick.
      */
-    if (fehler instanceof VorgangFehler && fehler.code === 'grund') {
-      return NextResponse.redirect(internesZiel(`${seite}?fehler=grund`, seite, anfrage), 303);
+    if (fehler instanceof VorgangFehler
+        && (fehler.code === 'grund' || fehler.code === 'mappe_recht')) {
+      return NextResponse.redirect(
+        internesZiel(`${seite}?fehler=${fehler.code}`, seite, anfrage), 303);
     }
     const antwort = alsAntwort(fehler);
     if (antwort !== null) return antwort;

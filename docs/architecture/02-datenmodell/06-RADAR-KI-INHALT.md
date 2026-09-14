@@ -1388,7 +1388,7 @@ that a human performed the submission.
 | *S1, S2, S3, S4, S5* | | | | |
 | `ausschreibung_vorgang_id` | uuid | no | — | composite FK `(mandant_id, ausschreibung_vorgang_id)` |
 | `status` | vergabemappe_status | no | `'offen'` | `offen / in_arbeit / vollstaendig / freigegeben / eingereicht / verworfen` |
-| `pflichtpositionen_gesamt` · `pflichtpositionen_erledigt` | integer | no | `0` | maintained by `trg_mappe_zaehler` |
+| `pflichtpositionen_gesamt` · `pflichtpositionen_erledigt` | integer | no | `0` | maintained by `trg_mappe_zaehler`. **`erledigt` counts `geprueft` and `nicht_zutreffend` only — `vorhanden` does not** (D-492): the commonest exclusions are attached but *wrong* documents |
 | `luecken_hinweis` | text | yes | — | "what is missing" — the agent's actual contribution (D-07) |
 | `freigegeben_von` | uuid | yes | — | FK → `benutzer.id` |
 | `freigegeben_am` | timestamptz | yes | — | |
@@ -1397,6 +1397,9 @@ that a human performed the submission.
 | `eingereicht_von` | uuid | yes | — | FK → `benutzer.id` |
 | `eingereicht_am` | timestamptz | yes | — | set by a human, server clock |
 | `einreichung_beleg_dokument_id` | uuid | yes | — | composite FK — the platform's receipt |
+| `eingereicht_ueber_plattform_id` | uuid | yes | — | FK → `vergabeplattform.id` — the platform actually used |
+| `eingereicht_ueber_text` | text | yes | — | the same, in plain text, while the catalogue is empty (O-07) |
+| `einreichung_kennzeichen` | text | yes | — | the reference on the platform's receipt |
 
 - **Indexes:** `vm_uk UNIQUE (mandant_id, ausschreibung_vorgang_id) WHERE geloescht_am IS NULL`;
   `vm_status_idx (mandant_id, status)`. The deadline list joins `ausschreibung` (§2.14).
@@ -1404,8 +1407,22 @@ that a human performed the submission.
 - **Constraints/triggers:** **`CHECK (eingereicht_am IS NULL OR eingereicht_von IS NOT NULL)`** — D-07
   in the database: the platform never submits and never claims to have;
   `CHECK (status <> 'freigegeben' OR (freigegeben_von IS NOT NULL AND freigegeben_am IS NOT NULL))`;
-  `CHECK (status <> 'eingereicht' OR eingereicht_am IS NOT NULL)`.
+  `CHECK (status <> 'eingereicht' OR eingereicht_am IS NOT NULL)`;
+  `CHECK (eingereicht_am IS NULL OR eingereicht_ueber_plattform_id IS NOT NULL OR eingereicht_ueber_text IS NOT NULL)`;
+  `CHECK ((export_dokument_id IS NULL) = (exportiert_am IS NULL))`;
+  `trg_vm_freigabe_eigene` / `trg_vm_einreichung_eigene` — `kern.unterschrift_ist_die_eigene()`
+  refuses a release or a submission recorded in someone else's name.
+- **Column grant (D-492):** `cse_app` receives `INSERT`/`UPDATE` on the maintained columns only.
+  The four submission columns and the two counters are **withheld**: submission goes through
+  `app.mappe_einreichung_erfassen`, the counters through `trg_mappe_zaehler`. A stray
+  `UPDATE … SET eingereicht_am` fails on the privilege, not on an agreement.
 - **SPEC:** RAD-07, D-07, AGT-01.
+
+**The three submission columns the draft did not have** (D-492): the page map requires three
+facts for `eingereicht` — the human, the instant, and **the platform used** — but the platform
+catalogue ships empty by design (O-07), so a mandatory foreign key would make recording a
+submission impossible. Hence both a reference and a plain-text name, with a `CHECK` that one of
+them is present once submitted, plus the receipt's reference number.
 
 ### 2.21 vergabemappe_position
 
@@ -1431,7 +1448,10 @@ One line of the submission checklist — a required certificate, form or price s
   inside one transaction; `vmp_pflicht_idx (vergabemappe_id, status) WHERE pflicht`.
 - **RLS:** S5, module `vergabe`, `p_intern_ceiling`.
 - **Constraints/triggers:** `CHECK (status NOT IN ('vorhanden','geprueft') OR dokument_id IS NOT NULL)`;
-  `CHECK (status <> 'geprueft' OR geprueft_von IS NOT NULL)` — only a human checks.
+  `CHECK (status <> 'geprueft' OR (geprueft_von IS NOT NULL AND geprueft_am IS NOT NULL))` — only
+  a human checks, and `kern.unterschrift_ist_die_eigene()` requires that human to be the session;
+  `CHECK (status <> 'nicht_zutreffend' OR luecke_hinweis IS NOT NULL)` — "does not apply to us"
+  without a reason is a gap with a tick in front of it (D-492).
   No `ON DELETE CASCADE`: the parent carries S4 and `kern.verhindere_loeschung()`, so a cascade could
   never fire and only misleads (review, MINOR).
 - **SPEC:** RAD-07, D-07.

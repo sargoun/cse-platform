@@ -42,6 +42,8 @@ export interface PosteingangEintrag extends PosteingangZeile {
   readonly aktion: string;
   readonly unsichereFelder: number;
   readonly stapelFaehig: boolean;
+  /** Warum diese Zeile NICHT in den Stapel darf — der Satz steht in der Liste. */
+  readonly stapelSperreGrund: string | null;
   readonly dringlichkeit: Dringlichkeit;
   readonly dringlichkeitText: string;
   readonly sortSchluessel: string;
@@ -62,6 +64,7 @@ interface PosteingangRoh {
   readonly erstellt_am: Date;
   readonly unsichere_felder_anzahl: number;
   readonly stapel_faehig: boolean;
+  readonly stapel_sperre_grund: string | null;
 }
 
 /**
@@ -75,7 +78,7 @@ export async function ladePosteingang(
     `select f.id, f.mandant_id, m.slug as mandant_slug, m.name as mandant_name,
             f.titel, f.zusammenfassung, f.vorgang_typ::text as vorgang_typ,
             f.aktion, f.risiko::text as risiko, f.frist, f.betrag_cent::text as betrag_cent,
-            f.erstellt_am, f.unsichere_felder_anzahl, f.stapel_faehig
+            f.erstellt_am, f.unsichere_felder_anzahl, f.stapel_faehig, f.stapel_sperre_grund
        from freigabe f
        join mandant m on m.id = f.mandant_id
       where f.status = 'offen' and f.vorgang_typ is not null
@@ -96,6 +99,7 @@ export async function ladePosteingang(
     erstelltAm: z.erstellt_am,
     unsichereFelder: z.unsichere_felder_anzahl,
     stapelFaehig: z.stapel_faehig,
+    stapelSperreGrund: z.stapel_sperre_grund,
   }));
   return sortierePosteingang(zeilen, jetzt).map((z) => {
     const stufe = dringlichkeit(z.frist, jetzt);
@@ -115,6 +119,11 @@ export interface FreigabeKopf {
   readonly vorgangTyp: VorgangTyp | null;
   readonly aktion: string;
   readonly status: FreigabeStatus;
+  /** APR-05: läuft ein Einspruchsfenster, und bis wann? */
+  readonly verzoegertBis: Date | null;
+  /** APR-06: läuft ein Rücknahmefenster, und bis wann? */
+  readonly undoBis: Date | null;
+  readonly ausfuehrungStatus: string;
   readonly risiko: Risiko | null;
   readonly risikoPunkte: number | null;
   readonly frist: Date | null;
@@ -195,6 +204,9 @@ interface KopfRoh {
   readonly vorgang_typ: string | null;
   readonly aktion: string;
   readonly status: string;
+  readonly verzoegerte_freigabe_bis: Date | null;
+  readonly undo_bis: Date | null;
+  readonly ausfuehrung_status: string;
   readonly risiko: string | null;
   readonly risiko_punkte: number | null;
   readonly frist: Date | null;
@@ -254,7 +266,9 @@ export async function ladeFreigabe(
 ): Promise<FreigabeAnsicht | null> {
   const [k] = await kontext.abfrage<KopfRoh>(
     `select f.id, f.titel, f.zusammenfassung, f.vorgang_typ::text as vorgang_typ, f.aktion,
-            f.status::text as status, f.risiko::text as risiko, f.risiko_punkte, f.frist,
+            f.status::text as status, f.verzoegerte_freigabe_bis, f.undo_bis,
+            f.ausfuehrung_status::text as ausfuehrung_status,
+            f.risiko::text as risiko, f.risiko_punkte, f.frist,
             f.betrag_cent::text as betrag_cent, f.erstellt_am, f.unsichere_felder_anzahl,
             f.min_konfidenz::text as min_konfidenz, f.stapel_faehig, f.stapel_sperre_grund,
             f.erforderliches_recht, f.bezug_typ, f.bezug_id, f.richtlinie_id,
@@ -300,6 +314,9 @@ export async function ladeFreigabe(
     vorgangTyp: k.vorgang_typ as VorgangTyp | null,
     aktion: k.aktion,
     status: k.status as FreigabeStatus,
+    verzoegertBis: k.verzoegerte_freigabe_bis,
+    undoBis: k.undo_bis,
+    ausfuehrungStatus: k.ausfuehrung_status,
     risiko: k.risiko as Risiko | null,
     risikoPunkte: k.risiko_punkte,
     frist: k.frist,

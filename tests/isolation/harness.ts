@@ -248,6 +248,29 @@ export async function seed(): Promise<Fixtur> {
     await tx.unsafe(LEEREN);
 
     /**
+     * **Die Wissenspartitionen der entfernten Gesellschaften gehen mit.**
+     *
+     * Jede Fixtur legt vier NEUE Gesellschaften an, also vier neue Partitionen
+     * von `wissens_chunk` (0153). Ohne dieses Abräumen wüchse ihre Zahl über
+     * einen Lauf hinweg auf Hunderte — und weil jede Abfrage am Elternteil
+     * jede Partition sperrt, endete die Suite in „out of shared memory". Das
+     * ist kein Produktproblem (dort gibt es vier), sondern eines der Fixtur:
+     * sie erzeugt Gesellschaften im Minutentakt.
+     */
+    await tx.unsafe(`do $$
+      declare t record;
+      begin
+        for t in
+          select c.relname
+            from pg_class c
+            join pg_inherits i on i.inhrelid = c.oid
+           where i.inhparent = 'public.wissens_chunk'::regclass
+        loop
+          execute format('drop table public.%I', t.relname);
+        end loop;
+      end $$`);
+
+    /**
      * `dokument_aufbewahrung.mandant_id` zeigt auf `mandant`, also nimmt das
      * Zuruecksetzen oben auch die PLATTFORM-Zeilen mit (`mandant_id IS NULL`).
      * Ohne sie faende `app.aufbewahrung_regel` nichts, und jedes Dokument
@@ -356,6 +379,21 @@ export async function seed(): Promise<Fixtur> {
     const s = await mandant('security', 'SSE Security', 'Select Security Event GmbH');
     const b = await mandant('bau', 'REALTIME Service', 'REALTIME Service GmbH');
     const o = await mandant('operations', 'CSE Operations', 'CSE Operations');
+
+    /**
+     * **Was der Haken täte, wenn er dürfte.**
+     *
+     * `session_replication_role = replica` (oben) schaltet die
+     * Löschriegel ab — und damit auch `trg_mandant_domaene`, der in Produktion
+     * je Gesellschaft die Wissenspartition anlegt (TEN-08, `0153`). Ohne
+     * diesen Aufruf hätte die Fixtur vier Gesellschaften ohne Partition, und
+     * jeder Schreibversuch in `wissens_chunk` endete auf „no partition of
+     * relation found" — ein Fehler der FIXTUR, der wie ein Produktfehler
+     * aussieht. Also dasselbe von Hand, mit derselben Funktion.
+     */
+    for (const id of [r, s, b, o]) {
+      await tx.unsafe(`select app.mandant_domaene_einrichten($1::uuid)`, [id] as never[]);
+    }
 
     const fatima = await person('Fatima', 'Yildiz');
     const jonas = await person('Jonas', 'Berger');

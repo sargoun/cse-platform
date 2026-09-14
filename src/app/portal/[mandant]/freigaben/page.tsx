@@ -5,6 +5,10 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
+import { Button } from '@/components/ui/Button';
+import { EINSPRUCH_MINUTEN, FENSTER_OFFENE_FRAGE }
+  from '@/server/services/freigabe/fenster.platzhalter';
+import { Hinweis } from '@/components/ui/Hinweis';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { formatiereGeld } from '@/server/services/finanz/geld';
 import { ladePosteingang, type PosteingangEintrag } from '@/server/services/freigabe/laden';
@@ -32,9 +36,19 @@ import { RISIKO_LABEL, VORGANG_LABEL, zeitpunkt } from './darstellung';
 export const dynamic = 'force-dynamic';
 
 export default async function Freigaben(
-  { params }: { params: Promise<{ mandant: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant } = await params;
+  const suche = await searchParams;
+  const stapelZahl = typeof suche['stapel'] === 'string' ? Number(suche['stapel']) : null;
+  const uebersprungen = typeof suche['uebersprungen'] === 'string'
+    ? Number(suche['uebersprungen']) : null;
+  const verzoegert = typeof suche['verzoegert'] === 'string' ? Number(suche['verzoegert']) : null;
+  const ausgefuehrt = typeof suche['ausgefuehrt'] === 'string' ? Number(suche['ausgefuehrt']) : null;
+  const stapelFehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   const zugang = await portalZugang(`/portal/${mandant}/freigaben`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
@@ -45,11 +59,29 @@ export default async function Freigaben(
   if (sitzung.aktiverMandantId === null) notFound();
 
   const jetzt = new Date();
-  const eintraege = await (db().begin(SCHNAPPSCHUSS,
-    async (tx: postgres.TransactionSql) => withTenant(tx, sitzung, async (kontext) =>
-      ladePosteingang(kontext, jetzt)))) as readonly PosteingangEintrag[];
+  /**
+   * **Der Stapel ist eine eigene Befugnis** (Katalog:
+   * `freigabe.stapel_entscheiden`, an `admin` und `leitung` bindbar). Wer sie
+   * nicht hält, bekommt keine Häkchenspalte und keinen Knopf — statt eines
+   * Knopfes, der später mit 403 antwortet.
+   */
+  const { eintraege, darfStapel } = await (db().begin(SCHNAPPSCHUSS,
+    async (tx: postgres.TransactionSql) => withTenant(tx, sitzung, async (kontext) => {
+      const [recht] = await kontext.abfrage<{ hat: boolean }>(
+        `select app.hat_recht('freigabe.stapel_entscheiden', app.aktiver_mandant()) as hat`);
+      return {
+        eintraege: await ladePosteingang(kontext, jetzt),
+        darfStapel: recht?.hat === true,
+      };
+    }))) as { eintraege: readonly PosteingangEintrag[]; darfStapel: boolean };
 
   const unsicher = eintraege.filter((e) => e.unsichereFelder > 0).length;
+  /**
+   * **Was in den Stapel darf** (APR-04): stapelfähig UND ohne unsicheres Feld.
+   * Die zweite Bedingung ist APR-03: „uncertain fields highlighted" hiesse
+   * nichts, wenn ein Sammelklick sie mitnähme.
+   */
+  const stapelbar = eintraege.filter((e) => e.stapelFaehig && e.unsichereFelder === 0);
 
   return (
     <PortalRahmen
@@ -64,6 +96,28 @@ export default async function Freigaben(
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">Freigaben</h1>
+        {/*
+          * Zwei Nachbarseiten, weil sie andere Fragen beantworten: „was geht
+          * gleich hinaus" (APR-05/06) und „wie schnell wird hier entschieden"
+          * (APR-08). Beide lesen nur.
+          */}
+        <p className="flex flex-wrap gap-s3 text-sm">
+          <Link href={`/portal/${mandant}/freigaben/laufend`}
+                data-cse="zu-laufend"
+                className="text-text underline underline-offset-2">
+            Laufende Fenster
+          </Link>
+          <Link href={`/portal/${mandant}/freigaben/erledigt`}
+                data-cse="zu-erledigt"
+                className="text-text underline underline-offset-2">
+            Entschieden
+          </Link>
+          <Link href={`/portal/${mandant}/freigaben/pruefdauer`}
+                data-cse="zu-pruefdauer"
+                className="text-text underline underline-offset-2">
+            Prüfdauer
+          </Link>
+        </p>
         <p className="text-sm text-text-muted" data-cse="posteingang-zaehler" data-anzahl={String(eintraege.length)}>
           {eintraege.length === 0
             ? 'Nichts wartet.'
@@ -77,6 +131,44 @@ export default async function Freigaben(
         was gleich dringend ist, steht in der Reihenfolge seines Eintreffens.
       </p>
 
+      {stapelZahl !== null ? (
+        <Hinweis art="erfolg" cse="stapel-bericht" className="mb-s5 max-w-prose">
+          <strong>{stapelZahl} genehmigt.</strong>{' '}
+          {uebersprungen === null || uebersprungen === 0
+            ? 'Nichts übersprungen.'
+            : `${String(uebersprungen)} übersprungen — sie stehen weiter in der Liste und `
+              + 'wollen einzeln angesehen werden (APR-04).'}
+          {verzoegert !== null && verzoegert > 0 ? (
+            <>
+              {' '}
+              <span data-cse="stapel-verzoegert">
+                {verzoegert} davon mit laufendem Einspruchsfenster — bis es abläuft, ist
+                nichts ausgelöst (APR-05).
+              </span>
+            </>
+          ) : null}
+          {ausgefuehrt !== null && ausgefuehrt > 0 ? (
+            <>
+              {' '}
+              <span data-cse="stapel-ausgefuehrt">
+                {ausgefuehrt} Handlung(en) gleich ausgeführt.
+              </span>
+            </>
+          ) : null}
+        </Hinweis>
+      ) : null}
+      {stapelFehler !== null ? (
+        <Hinweis art="warnung" cse="stapel-fehler" className="mb-s5 max-w-prose">
+          <strong>Nichts genehmigt.</strong>{' '}
+          {stapelFehler === 'zu_gross'
+            ? 'Mehr als fünfzig auf einmal ist keine Prüfung mehr, sondern ein Häkchen bei „alle".'
+            : stapelFehler === 'kein_recht'
+              ? 'Stapelweise zu genehmigen ist eine eigene Befugnis („freigabe.stapel_entscheiden"), '
+                + 'und dieses Konto hält sie nicht. Einzeln entscheiden geht weiter.'
+              : 'Es war nichts ausgewählt.'}
+        </Hinweis>
+      ) : null}
+
       {eintraege.length === 0 ? (
         <p
           data-cse="posteingang-leer"
@@ -86,11 +178,32 @@ export default async function Freigaben(
           hier, sobald ein Agent oder ein Dienst sie vorlegt.
         </p>
       ) : (
+        <form method="post" action="/api/freigaben/stapel" data-cse="stapel-formular">
+        <input type="hidden" name="mandant" value={mandant} />
         <DataTable
           beschriftung="Wartende Freigaben, sortiert nach Frist und Risiko"
           zeilen={eintraege}
           schluessel={(z) => z.id}
           spalten={[
+            {
+              schluessel: 'stapel', kopf: 'Stapel',
+              zelle: (z) => (darfStapel && z.stapelFaehig && z.unsichereFelder === 0
+                ? (
+                  <input type="checkbox" name="freigabe" value={z.id}
+                         data-cse="stapel-auswahl" className="size-4 rounded border-line"
+                         aria-label={`${z.titel} in den Stapel aufnehmen`} />
+                )
+                : (
+                  <span className="text-xs text-text-subtle" data-cse="stapel-gesperrt">
+                    {!darfStapel
+                      ? 'einzeln'
+                      : (z.stapelSperreGrund
+                        ?? (z.unsichereFelder > 0
+                          ? 'Unsicheres Feld — einzeln prüfen (APR-03)'
+                          : 'Einzeln prüfen'))}
+                  </span>
+                )),
+            },
             {
               schluessel: 'frist', kopf: 'Frist',
               zelle: (z) => (
@@ -149,6 +262,32 @@ export default async function Freigaben(
             },
           ]}
         />
+        {!darfStapel ? (
+          <p className="mt-s4 max-w-prose text-sm text-text-muted" data-cse="stapel-kein-recht">
+            Stapelweise zu genehmigen ist eine eigene Befugnis
+            („freigabe.stapel_entscheiden"), und dieses Konto hält sie nicht.
+            Einzeln entscheiden geht weiter.
+          </p>
+        ) : stapelbar.length === 0 ? (
+          <p className="mt-s4 max-w-prose text-sm text-text-muted" data-cse="stapel-keiner">
+            Nichts davon ist Routine — jeder dieser Vorgänge will einzeln angesehen werden.
+          </p>
+        ) : (
+          <div className="mt-s4 flex flex-wrap items-center gap-s3">
+            <Button type="submit" variante="primary" data-cse="stapel-genehmigen">
+              Ausgewählte genehmigen
+            </Button>
+            <p className="max-w-prose text-xs text-text-subtle">
+              {stapelbar.length} von {eintraege.length} sind als Routine markiert.
+              Markierte Vorgänge und solche mit unsicheren Feldern lassen sich nicht ankreuzen
+              (APR-03, APR-04); jede Genehmigung bekommt trotzdem ihren eigenen Schnappschuss
+              (APR-07). Risikoarme Vorgänge bekommen danach ein Einspruchsfenster von{' '}
+              {String(EINSPRUCH_MINUTEN)} Minuten (APR-05, Platzhalter{' '}
+              {FENSTER_OFFENE_FRAGE}).
+            </p>
+          </div>
+        )}
+        </form>
       )}
     </PortalRahmen>
   );
