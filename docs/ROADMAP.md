@@ -426,7 +426,15 @@ Radar first — the agents operate on its output.
       deadline instant prevents the second notice for the same situation, and
       makes a *rescheduled* deadline a new one.
 - [ ] `pgvector` index over contracts, objects, offers, correspondence
-- [ ] Agent tools (AGT-02); `berechne_preis` is **pure code**
+- [x] Agent tools (AGT-02); `berechne_preis` is **pure code** (PR 73, D-495) —
+      the contract, the handle vault, the value register and the nine-tool
+      registry. **Two of the nine run without a model** because they create
+      nothing: `berechne_preis` calls the same tested `kalkuliere()` as the
+      offer page, `suche_bestand` answers from a reviewed catalogue and says
+      "not in the catalogue" rather than inventing a query (AGT-07). The other
+      seven return `kein_modellzugang` — a tool that produces "something"
+      without a model is worse than one that stays silent. Invariant 7 is now
+      a CHECK: `sende_email` cannot be un-gated, not even by direct UPDATE.
 - [x] Policy gate (`agent/policy.ts`) — the floor is code, not data: an offer,
       a Nachtrag and a Behinderungsanzeige never go out automatically under
       any `agent_richtlinie` row. The gate is exhaustive over the whole

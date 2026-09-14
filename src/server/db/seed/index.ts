@@ -962,6 +962,53 @@ async function main(): Promise<void> {
     }
   }
 
+  // -------------------------------------------------------- Agent-Werkzeuge
+  /**
+   * **Freigeschaltet wird genau, was ohne Modellzugang etwas kann** — und das
+   * sind zwei der neun: `berechne_preis` (ruft die getestete Kalkulation) und
+   * `suche_bestand` (beantwortet Fragen aus dem geprueften Katalog). Die
+   * uebrigen sieben stehen als Zeile da, aber auf `ist_aktiv = false`.
+   *
+   * Warum nicht alle neun an: ein freigeschaltetes Werkzeug, das bei jedem
+   * Aufruf „kein Modellzugang" zurueckgibt, sieht auf dem Bildschirm aus wie
+   * eine kaputte Einstellung. Aus wie „noch nicht verbunden" — und das ist es
+   * auch (D-435).
+   *
+   * `erfordert_freigabe` bleibt ueberall `true`. Das ist die Vorgabe, nicht
+   * die Feineinstellung: wer sie lockern will, tut es bewusst, je Werkzeug.
+   */
+  let werkzeuge = 0;
+  const OHNE_MODELL = new Set(['berechne_preis', 'suche_bestand']);
+  /*
+   * **Auch fuer die abgeschalteten vier.** `agent.ist_aktiv` ist `false`,
+   * solange es keinen Modellzugang gibt (D-435) — aber die Werkzeugzeilen
+   * gehoeren trotzdem angelegt: die Agentenseite zeigt sie, und ein leerer
+   * Abschnitt saehe aus, als gaebe es die Werkzeuge nicht.
+   */
+  const agenten = await sql<{ id: string; kennung: string }[]>`select id, kennung from agent`;
+  for (const b of BEREICHE) {
+    for (const a of agenten) {
+      for (const w of [
+        'lies_dokument', 'extrahiere_lv', 'suche_bestand', 'berechne_preis',
+        'pruefe_nachweise', 'pruefe_bilder', 'entwirf_text', 'sende_email',
+        'erstelle_vorgang',
+      ]) {
+        const ergebnis = await sql<{ id: string }[]>`
+          insert into agent_werkzeug
+            (mandant_id, agent_id, werkzeug, ist_aktiv, erfordert_freigabe, erstellt_von_art)
+          values (${ids.get(b.slug)!}, ${a.id}, ${w}::agent_werkzeug_name,
+                  ${OHNE_MODELL.has(w)}, true, 'system')
+          on conflict (mandant_id, agent_id, werkzeug) do nothing
+          returning id`;
+        werkzeuge += ergebnis.length;
+      }
+    }
+  }
+  process.stdout.write(
+    `  ${String(werkzeuge)} Werkzeugzeilen (AGT-02) — freigeschaltet sind die zwei, die ohne `
+    + 'Modell rechnen; die uebrigen sieben warten auf einen Anbieter (D-435)\n',
+  );
+
   // --------------------------------------------------------- Agent-Budgets
   /**
    * Ein Monatsbudget je Rechtseinheit — **als klar markierter PLATZHALTER**.

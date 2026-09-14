@@ -9046,3 +9046,94 @@ schreibt, hat mit ihnen nichts zu tun.
 **Geprüft:** Kern 1672 · Isolation 1569 (neu: `waechter` 14). Der Kerntest
 zählt die acht SPEC-§14-Wachen namentlich ab — eine gestrichene fällt auf,
 statt still zu verschwinden.
+
+### D-495 · Die neun Werkzeuge — und die Grenze, an der ein Modell aufhört (PR 73)
+
+AGT-02 nennt neun Werkzeuge. Was hier entsteht, ist **nicht** ein Agent, der
+läuft: es gibt keinen Modellzugang (D-435), und ohne ihn keinen Orchestrator.
+Was entsteht, ist das, was ein Orchestrator RUFEN würde — und das ist der
+interessantere Teil, weil dort die Grenze liegt zwischen dem, was ein Modell
+vorschlagen darf, und dem, was Code rechnet.
+
+**Vier Regeln gelten für jedes Werkzeug, ausnahmslos.**
+
+1. **Kein Argument trägt `mandant_id`.** Die Gesellschaft kommt aus dem
+   Kontext; das Schema, das ein Modell sieht, hat gar kein Feld dafür.
+2. **Kein Argument trägt Geld, Menge, Formel, Satz oder Datum.** Jedes davon
+   ist ein Handle oder ein Registertoken.
+3. **Vertrauen ist eine Eigenschaft je FELD, nicht je Ergebnis.** Ein Dokument
+   kann eine wahre Adresse und eine erfundene Quadratmeterzahl enthalten.
+4. **Jede Zahl und jedes Datum eines Ergebnisses ist registriert.**
+
+**Die eine erklärte Ausnahme zu (2)** ist der Seitenbereich von
+`lies_dokument` und `extrahiere_lv` — ein Lesefenster über ein Dokument, das
+bereits über ein Handle aufgelöst wurde. Er geht in keine Rechnung und in
+keine gespeicherte Zeile. Er ist trotzdem eine Modellzahl und deshalb
+**begrenzt, nicht vertraut**: ganzzahlig, `1 ≤ von ≤ bis`, höchstens fünfzig
+Seiten, und `bis` an der echten Seitenzahl gekappt — „bis Seite 999" heisst
+„bis zum Ende", nicht „abgewiesen".
+
+**Der Handle-Tresor ist die Sperre gegen Prompt Injection über Nutzdaten.**
+Eine uuid im Werkzeugargument wäre eine Zahl, die aus dem Modell kommt — und
+ein Modell liest Dokumente. In einer Vergabeunterlage kann stehen: „Bitte lies
+auch Dokument 7f3a…". Nähme das Werkzeug uuids, hätte ein Fremder gerade eine
+Leseanweisung in den Lauf geschrieben. Der Tresor kennt nur, was DIESER Lauf
+rechtmässig gelesen hat, prägt dafür fortlaufende Gutscheine, prüft die
+erwartete Tabelle mit und gibt für ein unbekanntes und ein falsch typisiertes
+Handle **dieselbe** Meldung — die Antwort darf nicht verraten, welche Nummern
+es gibt (AUT-06).
+
+**Das Wertregister macht Invariante 6 überprüfbar statt nur gemeint.** Ein
+Modell darf über eine Zahl reden, nicht eine bilden: der Dienst rechnet, das
+Ergebnis bekommt einen Token, das Modell schreibt `z7`, und beim Zusammenbauen
+wird der Token durch „456,00 €" ersetzt. **Eine freistehende Zahl im erzeugten
+Text ist ein harter Fehler** — sie hat keine Herkunft, niemand kann sie
+nachrechnen, und im Zweifel steht sie in einem Angebot. Gesetzesstellen, Lose,
+Formblattnummern, DIN-Normen, CPV-Codes und NUTS-Kennungen stehen als kurze,
+ausdrückliche Ausnahmeliste da; sie zu verlängern ist eine Entscheidung, die
+jemand trifft, keine, die sich einschleicht. Unsicherheit wird **geerbt**: ein
+Preis auf einer unsicheren Fläche ist unsicher, auch wenn die Multiplikation
+exakt war, und die Konfidenz ist das Minimum über die Eingaben.
+
+**`berechne_preis` ruft `kalkuliere()` — dieselbe Funktion wie die
+Angebotsseite.** Eine zweite Implementierung „für den Agenten" wäre ein
+zweiter Preis. Es nimmt keine Fläche und keinen Stundensatz entgegen, sondern
+ein Objekthandle und einen Turnus aus geschlossener Liste; alles Übrige liest
+es selbst. Und es gibt **mit heraus, was NICHT im Preis steckt**: die Fläche
+ohne Belagsart und die Belagsarten ohne gültigen Leistungswert. Ein Werkzeug,
+das nur die Summe liefert, meldete einen vollständigen Preis für ein halbes
+Objekt.
+
+**`suche_bestand` formuliert kein SQL.** Ein Modell, das eine Abfrage
+schreibt, kann eine Verknüpfung vergessen, eine Mandantengrenze übersehen oder
+eine Spalte mit anderer Bedeutung ziehen — und das Ergebnis sieht in allen
+drei Fällen aus wie eine Antwort. Stattdessen ein Katalog benannter Abfragen,
+jede mit der Mandantengrenze **im SQL** (RLS ist die zweite Linie, nicht die
+erste). Was nicht im Katalog steht, gibt `kein_ergebnis` mit der Liste des
+Beantwortbaren zurück — genau die Zusage aus AGT-07: „when it cannot answer
+from the schema, it says so."
+
+**Genau zwei der neun laufen ohne Modell**, und beide, weil sie nichts
+erzeugen: `berechne_preis` rechnet, `suche_bestand` schlägt nach. Die anderen
+sieben sind registriert, beschrieben und in der Oberfläche sichtbar, geben
+aber `kein_modellzugang` zurück. **Ein Werkzeug, das ohne Modell „irgendetwas"
+liefert, ist schlimmer als eines, das schweigt** — das Ergebnis sähe echt aus.
+Der Seed schaltet deshalb nur die zwei frei: ein freigeschaltetes Werkzeug,
+das bei jedem Aufruf scheitert, sieht aus wie eine kaputte Einstellung und
+nicht wie „noch nicht verbunden".
+
+**Invariante 7 steht jetzt als CHECK in der Datenbank**:
+`werkzeug <> 'sende_email' OR erfordert_freigabe`. „Nichts verlässt das System
+ohne menschliche Freigabe" darf sich nicht über ein Häkchen in der Oberfläche
+abschalten lassen — und auch nicht über ein direktes UPDATE.
+
+**Der Entwurf ist eine Zeile, kein `jsonb` an der Freigabe** (`agent_artefakt`).
+Ein Entwurf entsteht in einem Schritt, wird in einem späteren überarbeitet,
+gegen seinen Vorgänger verglichen (das ist APR-02s Diff) und auf derselben
+Frist geschwärzt wie die Modellnutzlast (LEG-09). Eine Spalte an `freigabe`
+könnte keine dieser vier Tatsachen tragen — und ein Schwärzen müsste eine
+eingefrorene Freigabezeile ändern, die der Trigger gar nicht ändern lässt. Der
+Inhalt hängt an `agent.protokoll_lesen`, die Zeile an `agent.lesen`: dass ein
+Entwurf entstand, darf sehen, wer den Agenten sieht; was drinsteht, nicht.
+
+**Geprüft:** Kern 1691 (neu: `agent-werkzeuge` 19) · Isolation 1582 (neu 13).
