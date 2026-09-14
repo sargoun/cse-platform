@@ -24,15 +24,35 @@ afterAll(async () => {
 
 describe('(5) every mandant_id table carries RLS, FORCE and a policy', () => {
   it('enumerates information_schema and finds no gap', async () => {
+    /**
+     * **Eine Partition zählt über ihren Elternteil** (seit `0153`,
+     * `wissens_chunk`).
+     *
+     * Postgres wendet die Policies der PARTITIONIERTEN Tabelle an, wenn über
+     * sie gefragt wird; eine Partition trägt keine eigenen und braucht auch
+     * keine — sie hat nicht einmal einen Grant für `cse_app`. Verlangt würde
+     * hier sonst eine Kopie jeder Policy je Gesellschaft, die beim ersten
+     * Nachschärfen auseinanderliefe.
+     *
+     * **RLS und FORCE bleiben trotzdem Pflicht, auch an der Partition** —
+     * dort prüft der Test weiter hart, denn wer die Partition direkt
+     * anspricht, soll nicht an der Regel vorbeikommen. Gezählt wird nur die
+     * POLICY am Elternteil.
+     */
     const tabellen = await sql.unsafe<
       { relname: string; rls: boolean; force: boolean; policies: string }[]
     >(`
       select c.relname, c.relrowsecurity as rls, c.relforcerowsecurity as force,
              (select count(*)::text from pg_policies p
-               where p.schemaname = 'public' and p.tablename = c.relname) as policies
+               where p.schemaname = 'public'
+                 and p.tablename = coalesce(
+                   (select pc.relname from pg_inherits i
+                      join pg_class pc on pc.oid = i.inhparent
+                     where i.inhrelid = c.oid),
+                   c.relname)) as policies
         from pg_class c
         join pg_namespace n on n.oid = c.relnamespace
-       where n.nspname = 'public' and c.relkind = 'r'
+       where n.nspname = 'public' and c.relkind in ('r', 'p')
          and exists (select 1 from information_schema.columns col
                       where col.table_schema = 'public'
                         and col.table_name = c.relname

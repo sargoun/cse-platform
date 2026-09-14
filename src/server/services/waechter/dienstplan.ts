@@ -192,7 +192,7 @@ export async function quittiere(
     readonly mandantId: string; readonly waechter: string; readonly objektTyp: string;
     readonly objektId: string; readonly empfaengerId: string; readonly kennung: string;
   },
-): Promise<boolean> {
+): Promise<string | null> {
   const zeilen = (await db.unsafe(
     `insert into waechter_meldung
        (mandant_id, waechter, objekt_typ, objekt_id, empfaenger_id, kennung)
@@ -201,5 +201,19 @@ export async function quittiere(
      returning id`,
     [m.mandantId, m.waechter, m.objektTyp, m.objektId, m.empfaengerId, m.kennung],
   )) as readonly { id: string }[];
-  return zeilen.length === 1;
+  return zeilen.length === 1 ? (zeilen[0] as { id: string }).id : null;
+}
+
+/**
+ * **Die Quittung wieder zurücknehmen, wenn nichts zugestellt wurde.**
+ *
+ * Der Anspruch (`quittiere`) muss VOR der Zustellung stehen, sonst melden zwei
+ * gleichzeitige Läufe dieselbe Lage zweimal. Bleibt die Zustellung dann aber
+ * bei null — ein stillgelegtes Konto, ein fehlendes Ziel —, wäre die Quittung
+ * ein Gedächtnis an etwas, das nie geschah: der nächste Lauf fände sie vor und
+ * schwiege für immer. Also: Anspruch nehmen, zustellen, und bei null den
+ * Anspruch zurückgeben.
+ */
+export async function gibQuittungZurueck(db: Abfrage, id: string): Promise<void> {
+  await db.unsafe(`delete from waechter_meldung where id = $1::uuid`, [id]);
 }

@@ -27,7 +27,7 @@ import {
   STAPEL_HOECHSTZAHL, StapelFehler, FensterFehler,
   armiereRuecknahme, entscheideStapel, erhebeEinspruch, nimmZurueck,
 } from '../../src/server/services/freigabe/stapel.js';
-import { EINSPRUCH_MINUTEN, RUECKNAHME_MINUTEN, istUmkehrbar }
+import { EINSPRUCH_MINUTEN, RUECKNAHME_MINUTEN }
   from '../../src/server/services/freigabe/fenster.platzhalter.js';
 
 let f: Fixtur;
@@ -471,29 +471,39 @@ describe('(4) die Rücknahme der AUSFÜHRUNG (APR-06)', () => {
     )).rejects.toThrow(/erst nach der Ausfuehrung/u);
   });
 
-  it('armiert wird nur, wo die Handlung umkehrbar ist', async () => {
-    expect(istUmkehrbar('monatsrechnung_entwurf')).toBe(true);
-    expect(istUmkehrbar('externer_versand')).toBe(false);
-
-    const umkehrbar = await legeFreigabeAn({ vorgangTyp: 'monatsrechnung_entwurf' });
-    const endgueltig = await legeFreigabeAn({ vorgangTyp: 'externer_versand', risiko: 'mittel' });
-    await alsDienst((k) => entscheideStapel(k, [umkehrbar, endgueltig], META));
-    await markiereAusgefuehrt(umkehrbar);
-    await markiereAusgefuehrt(endgueltig);
-
-    expect(await alsDienst((k) => armiereRuecknahme(k, umkehrbar, 'monatsrechnung_entwurf')))
-      .toBe(true);
-    expect(await alsDienst((k) => armiereRuecknahme(k, endgueltig, 'externer_versand')))
-      .toBe(false);
-    expect((await stand(umkehrbar)).undo_bis).not.toBeNull();
-    expect((await stand(endgueltig)).undo_bis).toBeNull();
+  /**
+   * **Der Satz, der heute zählt: es ist NICHTS umkehrbar** (O-368).
+   *
+   * Für die einzige Handlung, die ausgeführt wird, gibt es keinen gebauten
+   * Rückweg — im Finanzbereich wird nicht hart gelöscht, korrigiert wird durch
+   * Storno, und eine Stornofunktion für Eingangsrechnungen existiert nicht.
+   * Ein Fenster zu armieren hiesse, einen Knopf anzubieten, der einen Stand
+   * umsetzt und die Rechnung stehen lässt. Die Datenbank sagt deshalb für
+   * JEDE Vorgangsart „nein", und dieser Test hält das fest: wird eine
+   * Rückholung gebaut, schlägt er fehl und verlangt, dass jemand hinsieht.
+   */
+  it('armiert heute für nichts ein Fenster — und sagt es mit NULL, nicht mit einem Fehler', async () => {
+    for (const typ of ['monatsrechnung_entwurf', 'buchung_uebernehmen', 'externer_versand']) {
+      const id = await legeFreigabeAn({ vorgangTyp: typ, risiko: 'mittel' });
+      await alsDienst((k) => entscheideStapel(k, [id], META));
+      await markiereAusgefuehrt(id);
+      expect(await alsDienst((k) => armiereRuecknahme(k, id))).toBe(false);
+      expect((await stand(id)).undo_bis).toBeNull();
+    }
   });
 
-  it('innerhalb des Fensters dreht sie die Ausführung zurück, nicht die Entscheidung', async () => {
+  /**
+   * Der Gegenbeweis: der WEG steht. Sobald ein Fenster von Hand gesetzt ist —
+   * so, wie es `app.freigabe_ruecknahme_fenster` täte, wenn die Liste eine
+   * Vorgangsart nennt —, greift die Rücknahme und dreht die AUSFÜHRUNG
+   * zurück, nicht die Entscheidung.
+   */
+  it('mit gesetztem Fenster dreht sie die Ausführung zurück, nicht die Entscheidung', async () => {
     const id = await legeFreigabeAn();
     await alsDienst((k) => entscheideStapel(k, [id], META));
     await markiereAusgefuehrt(id);
-    await alsDienst((k) => armiereRuecknahme(k, id, 'monatsrechnung_entwurf'));
+    await sql.unsafe(
+      `update freigabe set undo_bis = now() + interval '1 hour' where id = $1`, [id]);
 
     await alsDienst((k) => nimmZurueck(k, id, 'Falscher Monat erwischt'));
     const s = await stand(id);
@@ -508,9 +518,8 @@ describe('(4) die Rücknahme der AUSFÜHRUNG (APR-06)', () => {
     const id = await legeFreigabeAn();
     await alsDienst((k) => entscheideStapel(k, [id], META));
     await markiereAusgefuehrt(id);
-    await alsDienst((k) => armiereRuecknahme(k, id, 'monatsrechnung_entwurf'));
-    await sql.unsafe(`update freigabe set undo_bis = now() - interval '1 second' where id = $1`,
-      [id]);
+    await sql.unsafe(
+      `update freigabe set undo_bis = now() - interval '1 second' where id = $1`, [id]);
     await expect(alsDienst((k) => nimmZurueck(k, id, 'Doch noch zurueck')))
       .rejects.toThrow(/abgelaufen|gab es nie/u);
     expect((await stand(id)).ausfuehrung_status).toBe('ausgefuehrt');
@@ -520,19 +529,15 @@ describe('(4) die Rücknahme der AUSFÜHRUNG (APR-06)', () => {
     const id = await legeFreigabeAn();
     await alsDienst((k) => entscheideStapel(k, [id], META));
     await markiereAusgefuehrt(id);
-    await alsDienst((k) => armiereRuecknahme(k, id, 'monatsrechnung_entwurf'));
+    await sql.unsafe(
+      `update freigabe set undo_bis = now() + interval '1 hour' where id = $1`, [id]);
     await expect(alsDienst((k) => nimmZurueck(k, id, '—')))
       .rejects.toThrow(/braucht einen Grund/u);
   });
 
   it('das Fenster ist so lang wie der Platzhalter sagt (O-108)', async () => {
-    const id = await legeFreigabeAn();
-    await alsDienst((k) => entscheideStapel(k, [id], META));
-    await markiereAusgefuehrt(id);
-    await alsDienst((k) => armiereRuecknahme(k, id, 'monatsrechnung_entwurf'));
-    const bis = (await stand(id)).undo_bis!;
-    expect(bis.getTime()).toBeGreaterThan(Date.now());
-    expect(bis.getTime()).toBeLessThanOrEqual(Date.now() + (RUECKNAHME_MINUTEN + 1) * 60_000);
+    expect(RUECKNAHME_MINUTEN).toBeGreaterThan(0);
+    expect(EINSPRUCH_MINUTEN).toBeGreaterThan(0);
   });
 });
 

@@ -67,7 +67,28 @@ export function einbettungsStand(): EinbettungsStand {
         + 'Gesellschaften; er wird erst aufgebaut, wenn die EU-Verarbeitung bestätigt ist (D-04).',
     };
   }
+  /**
+   * **Und die Region reicht auch nicht.**
+   *
+   * Hier stand `verbunden: true`, sobald ein Schlüssel und `OPENAI_REGION=eu`
+   * gesetzt waren. Zwei Umgebungsvariablen sind aber kein Nachweis: was
+   * `07-INTEGRATIONEN.md` §3.6 verlangt, ist ein Eintrag JE MODELL im
+   * `modell_register` mit EU-Verarbeitung, Nullspeicherung und Freigabe — und
+   * dieses Register gibt es noch nicht. Solange es fehlt, ist die ehrliche
+   * Antwort „nicht verbunden", nicht „verbunden, vermutlich".
+   *
+   * Der Unterschied ist nicht formal: eine Einbettung schickt Vertragstext
+   * dreier deutscher Gesellschaften an einen Auftragsverarbeiter. Wer das
+   * freigibt, tut es mit Namen und Datum in einer Tabelle, nicht mit einer
+   * Zeile in einer `.env`.
+   */
   return {
-    verbunden: true, modell: EINBETTUNG_MODELL, dimension: EINBETTUNG_DIMENSION, hinweis: null,
+    verbunden: false,
+    modell: EINBETTUNG_MODELL,
+    dimension: EINBETTUNG_DIMENSION,
+    hinweis: 'Schlüssel und Region stehen — aber das Modellregister (07-INTEGRATIONEN §3.6) '
+      + 'gibt es noch nicht. Ein Modell wird erst aufrufbar, wenn dort EU-Verarbeitung, '
+      + 'Nullspeicherung und Freigabe je Modell nachgewiesen sind; zwei Umgebungsvariablen '
+      + 'sind kein Nachweis (D-04, O-121).',
   };
 }

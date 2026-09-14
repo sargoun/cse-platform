@@ -1,5 +1,6 @@
 import { registriere, type JobDefinition } from './registry.js';
 import type { Abfrage } from '../benachrichtigung/ablage.js';
+import { hatAusfuehrer } from '../services/freigabe/ausfuehrung.js';
 
 /**
  * Der Lauf, der abgelaufene Einspruchsfenster auslöst (APR-05).
@@ -11,6 +12,18 @@ import type { Abfrage } from '../benachrichtigung/ablage.js';
  * der Sitzung eines Menschen mit seinen Rechten. Ein Job, der alle Fachwege
  * kennt, wäre eine zweite Fassung jedes dieser Wege — und er liefe mit einer
  * Rolle, die mehr darf als jeder Mensch.
+ *
+ * **Und deshalb bekommt eine Freigabe MIT Ausführer gar kein Fenster.** Sonst
+ * stünde sie nach Ablauf genehmigt und ungetan da, und niemand sähe den
+ * Unterschied: „Ausführung offen" sieht bei einer Vorgangsart ohne Handlung
+ * genauso aus. Den Riegel setzt `entscheideStapel` über `hatAusfuehrer` —
+ * hier zählt der Lauf nach, wie viele er freigegeben hat, und die Zahl gehört
+ * zu den Zeilen, die nichts mehr zu tun haben.
+ *
+ * **Die Gegenprobe steht im Kennzahlensatz.** `mit_ausfuehrer` muss null sein.
+ * Ist sie es einmal nicht, hat jemand einen Ausführer ergänzt, ohne den
+ * Riegel mitzudenken — und das soll im Laufprotokoll stehen, nicht in einem
+ * Vorgang, der ein halbes Jahr wartet.
  *
  * **Alle fünf Minuten.** Ein Einspruchsfenster von dreissig Minuten (O-108)
  * und ein Lauf einmal pro Stunde ergäben zusammen ein Fenster zwischen dreissig
@@ -36,7 +49,9 @@ export function registriereFreigabeFenster(db: Abfrage): JobDefinition {
             and verzoegerte_freigabe_bis <= now()
             and status = 'genehmigt'
             and ausfuehrung_status = 'offen'
-          returning id, mandant_id`)) as readonly { id: string; mandant_id: string }[];
+          returning id, mandant_id, aktion`,
+      )) as readonly { id: string; mandant_id: string; aktion: string }[];
+      const mitAusfuehrer = frei.filter((f) => hatAusfuehrer(f.aktion)).length;
 
       /**
        * **Abgelaufene Rücknahmefenster werden geschlossen, nicht vergessen.**
@@ -52,6 +67,7 @@ export function registriereFreigabeFenster(db: Abfrage): JobDefinition {
 
       return {
         freigegeben: frei.length,
+        mit_ausfuehrer: mitAusfuehrer,
         ruecknahmefenster_geschlossen: geschlossen.length,
       };
     },

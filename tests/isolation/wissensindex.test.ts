@@ -63,9 +63,32 @@ async function legeChunkAn(mandantId: string, teil: {
   return z!.id;
 }
 
+/**
+ * **Die beiden Leserechte sind BINDBAR, nicht gebunden** (Katalog).
+ *
+ * `wissen.lesen` und `wissen.vertraulich_lesen` hängen im Katalog an `admin`
+ * und `leitung` als bindbar — die Policy prüft sie seit `0153`, und vorher
+ * prüfte sie `agent.lesen`, womit jede Sitzung mit Agentenzugang den vollen
+ * Vertragstext bekam. Die Fixtur bindet sie ausdrücklich, damit der Test
+ * beweist, was er beweisen soll; der Gegentest unten nimmt eins davon weg.
+ */
+async function bindeWissensrechte(
+  mandantId: string, ...schluessel: readonly string[]
+): Promise<void> {
+  await sql.unsafe(
+    `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+     select r.id, b.id, $2, true
+       from rolle r, berechtigung b
+      where r.schluessel = 'admin' and r.mandant_id is null
+        and b.schluessel = any ($1::text[])
+     on conflict (rolle_id, berechtigung_id, mandant_id) do nothing`,
+    [[...schluessel], mandantId]);
+}
+
 beforeEach(async () => {
   f = await seed();
   benutzer = await legeKontoAn(f.reinigung);
+  await bindeWissensrechte(f.reinigung, 'wissen.lesen', 'wissen.vertraulich_lesen');
   await sql.unsafe(`delete from wissens_chunk`);
 });
 
@@ -175,6 +198,44 @@ describe('(3) Die Waende — hier besonders', () => {
       tx.unsafe(`select id from wissens_chunk order by embedding <=> $1::vector limit 10`,
         [vektor()]));
     expect(treffer).toHaveLength(1);
+  });
+
+  /**
+   * **Die zwei Rechte, die es gab und die vorher niemand prüfte.**
+   *
+   * Bis `0153` verlangte die Policy `agent.lesen` — ein Recht, das mit dem
+   * Agentenzugang kommt. Jede Sitzung, die einen Agenten öffnen durfte, las
+   * damit den vollen Vertragstext. Der Katalog kennt dafür zwei eigene
+   * Rechte, und die Vorgabe jeder Passage ist `vertraulich`: ohne
+   * `wissen.vertraulich_lesen` ist sie nicht da, und ohne `wissen.lesen` ist
+   * überhaupt nichts da.
+   */
+  it('ohne `wissen.lesen` ist der Index leer, auch mit Agentenzugang', async () => {
+    await legeChunkAn(f.security);
+    const konto = await legeKontoAn(f.security);
+    const treffer = await alsApp(sitzung(f.security, konto),
+      async (tx: postgres.TransactionSql) =>
+        tx.unsafe(`select id from wissens_chunk limit 10`));
+    expect(treffer).toHaveLength(0);
+  });
+
+  it('mit `wissen.lesen`, aber ohne `wissen.vertraulich_lesen` bleibt die Passage fort', async () => {
+    const konto = await legeKontoAn(f.bau);
+    await bindeWissensrechte(f.bau, 'wissen.lesen');
+    const id = await legeChunkAn(f.bau);
+
+    const verdeckt = await alsApp(sitzung(f.bau, konto), async (tx: postgres.TransactionSql) =>
+      tx.unsafe(`select id from wissens_chunk limit 10`));
+    expect(verdeckt, 'vertraulich ist die Vorgabe — und sie gilt').toHaveLength(0);
+
+    /* Dieselbe Passage, herabgestuft: jetzt liest sie auch ohne das zweite Recht. */
+    await alsRolle('cse_job', async (tx: postgres.TransactionSql) => tx.unsafe(
+      `update wissens_chunk set vertraulichkeit = 'normal',
+              klassifiziert_von = $2::uuid, klassifiziert_am = now()
+        where id = $1::uuid`, [id, benutzer]));
+    const sichtbar = await alsApp(sitzung(f.bau, konto), async (tx: postgres.TransactionSql) =>
+      tx.unsafe(`select id from wissens_chunk limit 10`));
+    expect(sichtbar).toHaveLength(1);
   });
 });
 

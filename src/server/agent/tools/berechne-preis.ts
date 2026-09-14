@@ -54,7 +54,7 @@ export interface PreisDaten {
   readonly istPlatzhalter: boolean;
   readonly offeneFragen: readonly string[];
   /** Fläche in Räumen ohne Belagsart — NICHT im Preis enthalten. */
-  readonly flaecheOhneBelagsartQm: string;
+  readonly flaecheOhneBelagsartToken: string;
   /** Belagsarten ohne gültigen Leistungswert — ihre Fläche fehlt im Preis. */
   readonly ohneGueltigenLeistungswert: readonly string[];
   readonly zeilen: readonly { readonly bezeichnung: string; readonly anteilToken: string }[];
@@ -165,6 +165,19 @@ export async function berechnePreis(
     wert: milliAlsText(stundenMilli), einheit: 'h',
   });
 
+  /**
+   * **Auch die Fläche ohne Belagsart ist eine MENGE.**
+   *
+   * Sie stand als freie Zahlenkette in den Daten, während alle anderen
+   * Mengen dieses Werkzeugs ihren Token tragen — und damit hätte ein Modell
+   * genau diesen einen Quadratmeterwert ohne Herkunft zitieren können. Der
+   * Vertrag kennt keine Ausnahme für „die Zahl ist ja nur ein Hinweis":
+   * eine Zahl ohne Token ist von einer erfundenen nicht zu unterscheiden.
+   */
+  const flaecheOffen = binde('menge', `${milliAlsText(k.flaecheOhneBelagsart)} m²`, {
+    wert: milliAlsText(k.flaecheOhneBelagsart), einheit: 'm²',
+  });
+
   const zeilen = k.zeilen.map((z) => ({
     bezeichnung: z.bezeichnung,
     anteilToken: binde('geld', formatiereGeld(z.lohnkosten), {
@@ -181,7 +194,7 @@ export async function berechnePreis(
       stundenToken: stunden.token,
       istPlatzhalter: k.istPlatzhalter,
       offeneFragen: k.offeneFragen,
-      flaecheOhneBelagsartQm: milliAlsText(k.flaecheOhneBelagsart),
+      flaecheOhneBelagsartToken: flaecheOffen.token,
       ohneGueltigenLeistungswert: k.ohneGueltigenLeistungswert,
       zeilen,
     },

@@ -1,11 +1,11 @@
-import { registriere, type JobDefinition } from './registry.js';
+import { istBerlinerStunde, registriere, type JobDefinition } from './registry.js';
 import { erzeuge } from '../benachrichtigung/registry.js';
 import { stelleZuAnKonto, type Abfrage } from '../benachrichtigung/ablage.js';
 import {
   ART_MORGEN_UNBESETZT, ART_SCHICHT_OHNE_ZEIT, registriereWaechterArten,
 } from '../services/waechter/benachrichtigung.js';
 import {
-  findeOffeneSchichten, findeUnbesetzteSchichten, planer, quittiere,
+  findeOffeneSchichten, findeUnbesetzteSchichten, gibQuittungZurueck, planer, quittiere,
 } from '../services/waechter/dienstplan.js';
 
 /**
@@ -43,11 +43,18 @@ async function melde(
     if (empfaenger.length === 0) { ohnePlaner += 1; continue; }
 
     for (const benutzerId of empfaenger) {
-      const neu = await quittiere(db, {
+      /*
+       * **Erst den Anspruch, dann die Zustellung — und den Anspruch zurueck,
+       * wenn nichts ankam.** Andersherum meldeten zwei gleichzeitige Laeufe
+       * dieselbe Lage zweimal; ohne die Rueckgabe bliebe ein stillgelegtes
+       * Konto fuer immer als „gemeldet" stehen, obwohl nie etwas zugestellt
+       * wurde.
+       */
+      const quittung = await quittiere(db, {
         mandantId: fall.mandantId, waechter, objektTyp,
         objektId: fall.objektId, empfaengerId: benutzerId, kennung: fall.kennung,
       });
-      if (!neu) continue;
+      if (quittung === null) continue;
 
       let benachrichtigung;
       try {
@@ -57,16 +64,21 @@ async function melde(
         });
       } catch {
         /* Kein Ziel (NOT-03) — gezaehlt, nicht verschwiegen, und nicht zugestellt. */
+        await gibQuittungZurueck(db, quittung);
         continue;
       }
       const e = await stelleZuAnKonto(db, [{
         benachrichtigung, benutzerId, objektTyp, objektId: fall.objektId,
       }]);
+      if (e.zugestellt === 0) { await gibQuittungZurueck(db, quittung); continue; }
       zugestellt += e.zugestellt;
     }
   }
   return { faellig: faelle.length, zugestellt, ohnePlaner };
 }
+
+/** SPEC §14: „daily 18:00" — Berliner Ortszeit, nicht UTC. */
+const ABENDSTUNDE_BERLIN = 18;
 
 export function registriereSchichtOhneZeiteintrag(db: Abfrage): JobDefinition {
   registriereWaechterArten();
@@ -100,17 +112,22 @@ export function registriereMorgenUnbesetzt(db: Abfrage): JobDefinition {
     schluessel: 'morgen_unbesetzt',
     bezeichnung: 'Morgen unbesetzte Schichten — dringende Meldung (SPEC §14)',
     /**
-     * SPEC §14 sagt „daily 18:00" — und meint Ortszeit. 16:00 UTC ist 18:00
-     * in Berlin, solange die Sommerzeit gilt; im Winter ist es 17:00. Die
-     * Stunde wandert also mit der Zeitumstellung um eine Stunde, und das ist
-     * hier verkraftbar: die Meldung muss den Abend vorher erreichen, nicht
-     * eine bestimmte Minute. Ein Zeitplan in Ortszeit gäbe es nur mit einem
-     * zweiten Scheduler — und der wäre eine zweite Wahrheit über die Zeit.
+     * **SPEC §14 sagt „daily 18:00", und das ist Ortszeit.**
+     *
+     * Hier stand `0 16 * * *` mit der Begründung, eine wandernde Stunde sei
+     * „verkraftbar". Sie ist es nicht, und die Architektur sagt das auch
+     * (`05-API-KARTE.md` §548): ein Lauf mit einer Wanduhr-Vorgabe wird
+     * STÜNDLICH geplant und prüft die Berliner Stunde. `0 16 UTC` traf im
+     * Sommer 18:00 und im Winter 17:00 — also ein halbes Jahr lang eine
+     * Stunde zu früh, und zwar unbemerkt, weil die Meldung ja ankam.
      */
-    zeitplan: '0 16 * * *',
+    zeitplan: '0 * * * *',
     bereich: 'uebergreifend',
     versuche: 2,
     ausfuehren: async () => {
+      if (!await istBerlinerStunde(db, ABENDSTUNDE_BERLIN)) {
+        return { uebersprungen: 'nicht die Abendstunde in Berlin' };
+      }
       const luecken = await findeUnbesetzteSchichten(db);
       const z = await melde(db, 'morgen_unbesetzt', luecken.map((l) => ({
         mandantId: l.mandantId, mandantSlug: l.mandantSlug,

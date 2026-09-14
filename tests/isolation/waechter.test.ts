@@ -291,8 +291,10 @@ describe('(4) Das Gedaechtnis', () => {
       mandantId: f.reinigung, waechter: 'morgen_unbesetzt', objektTyp: 'einsatz',
       objektId: e, empfaengerId: planerKonto, kennung: '2026-09-15',
     }));
-    expect(erst).toBe(true);
-    expect(zweit, 'die Quittung ist ein Index, keine Absprache').toBe(false);
+    /* `quittiere` gibt seit der Pruefrunde die KENNUNG der Quittung zurueck —
+       damit der Lauf sie zurueckgeben kann, wenn nichts zugestellt wurde. */
+    expect(erst).not.toBeNull();
+    expect(zweit, 'die Quittung ist ein Index, keine Absprache').toBeNull();
   });
 
   it('ein anderer TAG ist eine neue Lage und meldet erneut', async () => {
@@ -305,8 +307,8 @@ describe('(4) Das Gedaechtnis', () => {
       mandantId: f.reinigung, waechter: 'morgen_unbesetzt', objektTyp: 'einsatz',
       objektId: e, empfaengerId: planerKonto, kennung: '2026-09-16',
     }));
-    expect(erst).toBe(true);
-    expect(morgen, 'morgen immer noch unbesetzt ist eine neue Lage').toBe(true);
+    expect(erst).not.toBeNull();
+    expect(morgen, 'morgen immer noch unbesetzt ist eine neue Lage').not.toBeNull();
   });
 
   it('ein Empfaenger aus einer fremden Gesellschaft wird abgewiesen', async () => {

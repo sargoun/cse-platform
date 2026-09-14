@@ -5165,6 +5165,7 @@ niemand ihn suchen.
 | O-364 | **Wird der Objektspeicher (Supabase Storage, Frankfurt) auf Bucket-Ebene unveränderlich geführt — Versionierung, Object Lock, keine Löschrechte für den Dienstschlüssel — und steht das in der DPA?** Die Plattform hält das Löschen in Datenbank und Anwendung auf (0141, `dokument/loeschung.ts`, Merge-Wache); was der Anbieter mit einem Objekt tut, das jemand mit dem Dienstschlüssel direkt löscht, kann sie nicht erzwingen und behauptet es nicht — das Archiv sagt es (D-483). Bis zur Antwort gilt: der Dienstschlüssel liegt nur in der Serverumgebung, und jede Datei trägt ihren SHA-256 in `dokument_version`, sodass ein Verlust auffällt, nicht verschwindet. | ACC-06, DOC-07, LEG-01, D-483 |
 | O-365 | **Welche Fassung des Beschreibungsstandards für die Datenträgerüberlassung erwartet die Prüfsoftware der Finanzverwaltung (IDEA), und darf die DTD `gdpdu-01-09-2004.dtd` dem Z3-Paket beiliegen?** Die DTD wird von Audicon veröffentlicht und liegt nicht im Repository; die Plattform schreibt `index.xml` nach der Struktur der Version 1.0 (DataSet → DataSupplier → Media → Table mit VariableLength, Spaltentypen, Dezimal- und Trennzeichen), nennt die DTD in der Deklaration und legt sie nicht bei — `LIESMICH.txt` sagt das. Einen Validator gibt es nicht; die Abnahme ist ein Probeimport durch den Steuerberater oder Prüfer (D-485). Bis zur Antwort: CSV in Windows-1252, `;`, CRLF, Dezimalkomma, erste Zeile Spaltennamen (`Range From=2`). | ACC-09, LEG-01, D-485 |
 | O-366 | **Welche Abfrage stellt der Betrieb an die beiden Radarquellen — welche Adresse, welcher Filter, welches Zeitfenster?** Beide Quellen sind öffentlich und brauchen keinen Schlüssel (oeffentlichevergabe.de liefert OCDS, TED Search v3 liefert JSON); ohne die Abfrage gibt es aber keinen Abruf, den die Plattform ehrlich stellen könnte — sie rät nicht, welche CPV-Gruppen und welche Region gemeint sind. Bis zur Antwort sind `RADAR_OEFFENTLICHEVERGABE_URL` und `RADAR_TED_URL` leer, und der Nachtlauf schreibt je Quelle eine Zeile `uebersprungen` mit genau diesem Satz (D-489). | RAD-01, RAD-02, D-489 |
+| O-368 | **Für welche Handlungen soll es ein „Rückgängig" geben (APR-06), und was genau soll es zurückdrehen?** Der Weg steht vollständig — Fenster, Frist, eigenes Recht, Protokoll, Abweisung nach Ablauf —, aber `app.freigabe_umkehrbar` gibt heute für JEDE Vorgangsart `false` zurück: die einzige Handlung, die ausgeführt wird, legt eine Eingangsrechnung an, und dafür gibt es keinen gebauten Rückweg (im Finanzbereich wird nicht hart gelöscht, korrigiert wird durch Storno, und eine Stornofunktion für Eingangsrechnungen existiert nicht). Ein Knopf, der nur `ausfuehrung_status` umsetzt und die Rechnung stehen lässt, wäre ein vorgetäuschter Erfolg. Bis zur Antwort: kein Fenster wird armiert, und die Prüfseite sagt das an der Stelle, an der der Knopf stünde. | APR-06, `0153`, D-498 |
 | O-367 | **Wer darf stapelweise genehmigen, wer Einspruch erheben, wer eine Ausführung zurücknehmen?** Der Rechtekatalog führt `freigabe.stapel_entscheiden`, `freigabe.einspruch_erheben` und `freigabe.rueckgaengig` als drei EIGENE, an `admin` und `leitung` bindbare Rechte — sie hängen bewusst nicht an `freigabe.entscheiden`: wer einzeln entscheiden darf, darf damit nicht schon fünfzig auf einmal. Gebunden sind sie bis zur Antwort an niemanden ausser `super_admin`; der Seed bindet sie zusätzlich an `admin`, damit die Demo sie zeigt, und sagt das an Ort und Stelle. Bis zur Antwort gilt: ohne ausdrückliche Vergabe kein Stapel, kein Einspruch, keine Rücknahme — die Knöpfe erscheinen dann gar nicht. | APR-04, APR-05, APR-06, `katalog`, D-497 |
 | O-355 | **Wer trägt die Modulbuchung ein und pflegt `mandant.module_gepflegt`?** Seit 0103 ist die Frage nicht mehr, was eine leere Liste heisst — das Kennzeichen sagt es: `false` = nicht eingetragen, es wird nicht gefiltert (damit eine neu angelegte Gesellschaft nicht schwarz wird); `true` = die Liste gilt, leer heisst kein Gewerk. Offen bleibt der Vorgang: kommt die Buchung aus dem Vertrag, aus der Verwaltung oder setzt sie ein Super-Admin über `system.module_zuweisen` — und wer merkt, wenn sie fehlt? | `src/server/registry/modul.ts`, 0103, D-377 |
 | O-356 | **Bucht jede Gesellschaft genau ein Gewerk, oder gibt es Überschneidungen?** Der Seed setzt `reinigung → [reinigung]`, `security → [security]`, `bau → [bau]`, `operations → []` — abgeleitet aus den Gewerken, die in `CLAUDE.md` stehen. Praktisch plausibel wäre anderes: Bauendreinigung bei der REALTIME Service, Veranstaltungsreinigung bei der SSE Security. Bis zur Antwort sieht eine Gesellschaft nur ihr eigenes Gewerk; die Korrektur ist eine Zeile in `mandant.module` und kein Codeeingriff. | `mandant.module`, `src/server/db/seed/index.ts`, D-377 |
@@ -9328,3 +9329,134 @@ Rücknahme ohne vorherige Ausführung, die fehlenden bindbaren Rechte und die
 Wand gegen `cse_app`. Im Browser: Stapel, laufendes Fenster, Einspruch, die
 Geschichte mit ihrem Kettenglied und die Verteilung ohne Namen
 (`freigaben.spec.ts`, 9).
+
+---
+
+### D-498 · Was die Prüfrunde auf PR #14 fand — und warum fast alles davon stimmte
+
+Eine Maschinenprüfung über 85 Dateien, fünfzehn geschriebene und sechzehn
+unterdrückte Befunde. Einer war falsch, der Rest nicht. Sie in Gruppen, weil sie
+in Gruppen dieselbe Ursache haben.
+
+**Ein Schlüssel, der den Mandanten vergisst.** `rw_einmal` auf `radar_warnung`
+stand auf `(ausschreibung, empfaenger, art, frist)`. Eine Bekanntmachung ist
+GLOBAL — sie gehört keiner Gesellschaft. Trägt dieselbe Person in zwei
+Gesellschaften Verantwortung (es gibt sie, D-09), quittierte die erste und die
+zweite bekam nichts: `on conflict do nothing` schluckte sie, und der Lauf
+meldete lautlos eine Zustellung weniger. Dieselbe Auslassung stand zweimal in
+`warnung.ts`. Genau diese Sorte Fehler ist der Grund für Invariante 3:
+`mandant_id` gehört in JEDEN Schlüssel, auch in den, bei dem es egal scheint.
+
+**Einen Weg schliessen und den zweiten offen lassen.** 0152 nahm `cse_app` das
+Tabellenrecht UPDATE auf `freigabe` und liess `insert` aus `0012` stehen. Ein
+`insert … (verzoegerte_freigabe_bis)` ging weiter durch — an Risikoprüfung,
+Fensterprüfung und Protokoll vorbei. Ein halber Riegel ist keiner.
+
+**Rechte, die es gibt und die niemand prüft.** Schon in PR 75 waren es drei bei
+den Freigaben; hier kamen zwei dazu: die Policy auf `wissens_chunk` verlangte
+`agent.lesen`, während der Katalog `wissen.lesen` UND `wissen.vertraulich_lesen`
+führt — und die Vorgabe jeder Passage ist `vertraulich`. Jede Sitzung mit
+Agentenzugang las damit den vollen Vertragstext. Dazu waren
+`klassifiziert_von`/`klassifiziert_am` der Anwendung zum Schreiben überlassen:
+wer herabstufen durfte, konnte die Entscheidung einem anderen Namen und einem
+erfundenen Zeitpunkt zuschreiben. Beides ist jetzt dieselbe Form wie D-07 bei
+der Einreichung — Mensch aus der Sitzung, Zeitpunkt aus `now()`, Spalten
+entzogen, ein Definer als einziger Weg.
+
+**Eine Wanduhr, die in UTC tickt.** Drei Wächter standen auf fester UTC-Stunde
+und behaupteten im Kommentar eine Berliner: `0 6` sollte sieben Uhr sein (war im
+Sommer acht), `0 16` achtzehn Uhr (war im Winter siebzehn), `15 5` acht Uhr (war
+beides nicht). `05-API-KARTE.md` §548 sagt es unmissverständlich: ein Lauf mit
+Wanduhr-Vorgabe wird STÜNDLICH geplant und prüft die Berliner Stunde. Bei einem
+stand sogar geschrieben, die Wanderung sei „verkraftbar" — sie ist es nicht,
+und ein Kommentar, der eine Architekturregel wegargumentiert, ist die
+gefährlichste Sorte Kommentar.
+
+**Eine Quittung für etwas, das nie geschah.** Alle drei Meldewege schrieben ihr
+Gedächtnis vor der Zustellung — richtig gegen doppelte Meldungen, falsch bei
+null Empfängern: `stelleZuAnKonto` gibt für ein stillgelegtes Konto ehrlich
+null zurück, und die Quittung blieb trotzdem stehen. Der nächste Lauf fand sie
+und schwieg für immer. Jetzt: Anspruch nehmen, zustellen, und bei null den
+Anspruch zurückgeben. Beim Nachtrag kam ein Wettlauf dazu — der Anspruch stand
+NACH der Zustellung, zwei gleichzeitige Läufe meldeten also beide und stritten
+erst danach um den Zeitstempel.
+
+**Ein Knopf, der einen Stand umsetzt.** Der schwerste Befund, und er hat eine
+Entscheidung umgedreht. `app.freigabe_ruecknahme` ändert `ausfuehrung_status`
+und lässt die Fachhandlung stehen — bei der einzigen Handlung, die heute
+ausgeführt wird (eine Eingangsrechnung anlegen), bliebe die Rechnung also da,
+während die Oberfläche „Zurückgenommen" meldet. Und die Liste der umkehrbaren
+Vorgangsarten stand in TypeScript, also nicht zwischen einem direkten Aufruf und
+der Tabelle. **Die Antwort ist nicht, die Liste in die Datenbank zu schieben und
+weiterzumachen, sondern sie zu leeren:** `app.freigabe_umkehrbar` gibt für jede
+Vorgangsart `false` zurück, bis eine Rückholung gebaut ist (**O-368**). Der
+ganze Weg steht — Fenster, Frist, eigenes Recht, Protokoll, Abweisung nach
+Ablauf —, er ist für nichts armiert, und die Prüfseite sagt an der Stelle, an
+der der Knopf stünde, warum. Ein vorgetäuschter Erfolg ist bei einem fremden
+Dienst nicht zulässig und bei der eigenen Oberfläche erst recht nicht.
+
+**Ein Fenster über einer Handlung, die danach niemand ausführt.** Ein
+Einspruchsfenster VERSCHIEBT die Ausführung; der Lauf, der es schliesst, führt
+bewusst nicht aus (er hätte weder Sitzung noch Rechte eines Menschen, §4.8).
+Über einer Vorgangsart MIT Ausführer bliebe die Freigabe deshalb genehmigt und
+ungetan stehen. Heute trifft das auf keine zu — aber aus einer Verabredung ist
+jetzt ein Riegel geworden (`hatAusfuehrer`), und der Lauf meldet `mit_ausfuehrer`
+im Kennzahlensatz, damit es auffällt, wenn jemand einen Ausführer ergänzt.
+
+**Eine Tabelle, die als Haufen entstand.** `06-RADAR-KI-INHALT.md` beschreibt
+`wissens_chunk` als `PARTITION BY LIST (mandant_id)` mit einem ANN-Index je
+Gesellschaft; 0151 baute sie als einen Haufen. Der Unterschied ist bei einer
+Ähnlichkeitssuche keine Feinheit: pgvector wählt erst die nächsten `k` Nachbarn
+und filtert DANACH, der Kandidatenpfad läuft also über fremde Verträge, und bei
+`k = 10` bleiben womöglich drei eigene Treffer übrig — die Suche wirkt einfach
+schlecht. Ein Index je Partition kennt die fremden Zeilen gar nicht. Die Tabelle
+ist mit Absicht leer (D-496), also kostete die Richtigstellung jetzt nichts und
+später einen Umzug von Millionen Vektoren. Dazu `ist_aktiv` und
+`embedding_modell` im Eindeutigkeitsschlüssel: ohne beides gäbe es den
+Modellwechsel nur mit einer Lücke, in der die Suche nichts findet.
+
+**Zwei Umgebungsvariablen sind kein Nachweis.** `rag.ts` meldete „verbunden",
+sobald ein Schlüssel und `OPENAI_REGION=eu` gesetzt waren.
+`07-INTEGRATIONEN.md` §3.6 verlangt einen Eintrag JE MODELL im
+`modell_register` mit EU-Verarbeitung, Nullspeicherung und Freigabe — und das
+Register gibt es nicht. Eine Einbettung schickt Vertragstext dreier deutscher
+Gesellschaften an einen Auftragsverarbeiter; wer das freigibt, tut es mit Namen
+und Datum in einer Tabelle, nicht mit einer Zeile in einer `.env`.
+
+**Zwei Angaben, die einzeln stimmten und zusammen falsch waren.** Die
+Unterlagen-Route nahm die Ausschreibung aus der Adresse und die Position aus dem
+Formular und prüfte beide getrennt: wer A öffnete und eine gültige Position aus
+B derselben Gesellschaft mitschickte, hängte das Dokument an B und landete auf
+A. Ein Join macht daraus eine Bedingung.
+
+**Und der Rest, kurz:** OCDS wählte die jüngste Fassung per
+Zeichenkettenvergleich — `…T10:00:00+02:00` ist 08:00 UTC und gewinnt gegen
+`…T09:30:00Z`, weil an Stelle zwölf eine `1` vor einer `0` steht; damit siegte
+die ÄLTERE Fassung mit ihrem Stand und ihren Unterlagen. Die Unterlagen einer
+unveränderten Bekanntmachung wurden nie nachgetragen, weil der frühe Ausstieg
+vor der Schleife lag — gerade die alten Zeilen bekamen sie also nie. Zwei
+Katalogfragen von `suche_bestand` versprachen mehr, als die Abfrage lieferte
+(„und wie viele sind knapp?", „wessen Nachweise?"), und ihre Antwort kam als
+rohe Zahl statt als gebundener Wert; dasselbe galt für eine Fläche in
+`berechne_preis`. Eine Zahl ohne Token ist von einer erfundenen nicht zu
+unterscheiden.
+
+**Einer stimmte nicht.** Der Befund, die Prüfseite sei hinter
+`freigabe.entscheiden` verriegelt und damit für ein Konto mit nur
+`freigabe.einspruch_erheben` unerreichbar, las die SEITENKARTE. Das laufende Tor
+kommt aus `navigation.ts` und verlangt `freigabe.lesen` — das hält jeder, der
+die anderen halten kann.
+
+**Was das Partitionieren mitbrachte.** Zwei Folgen, beide echt: die Fixtur legt
+je Test vier neue Gesellschaften an, also vier neue Partitionen, und ohne
+Abräumen sperrte am Ende jede Abfrage Hunderte davon („out of shared memory") —
+kein Produktproblem, eines der Fixtur. Und der Strukturtest verlangt an jeder
+Mandantentabelle eine Policy; eine Partition trägt keine eigenen, weil Postgres
+die des Elternteils anwendet. Der Test zählt jetzt am Elternteil — RLS und FORCE
+prüft er weiter an der Partition selbst, denn wer sie direkt anspricht, soll
+nicht an der Regel vorbeikommen.
+
+**Geprüft:** Kern 1691, Isolation 1630 (neu darunter: die beiden
+Vertraulichkeitsstufen des Wissensindex), Browser 430, lint und Merge-Wachen
+sauber.
+

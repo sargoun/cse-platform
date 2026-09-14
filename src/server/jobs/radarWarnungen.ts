@@ -1,4 +1,4 @@
-import { registriere, type JobDefinition } from './registry.js';
+import { istBerlinerStunde, registriere, type JobDefinition } from './registry.js';
 import { stelleZuAnKonto, type Abfrage } from '../benachrichtigung/ablage.js';
 import { registriereRadarArten } from '../services/radar/benachrichtigung.js';
 import { pruefeWarnungen } from '../services/radar/warnung.js';
@@ -17,6 +17,9 @@ import { pruefeWarnungen } from '../services/radar/warnung.js';
  * prüfte dieselbe Bekanntmachung viermal und schriebe vier Quittungen, wo
  * eine Quittung je Empfänger gemeint ist.
  */
+/** Sieben Uhr Berliner Ortszeit — der Anfang eines Arbeitstages. */
+const WARNSTUNDE_BERLIN = 7;
+
 export function registriereRadarWarnungen(db: Abfrage): JobDefinition {
   /*
    * Die Arten werden beim Registrieren des Jobs bekannt gemacht, nicht im
@@ -28,10 +31,18 @@ export function registriereRadarWarnungen(db: Abfrage): JobDefinition {
   return registriere({
     schluessel: 'radar_warnungen',
     bezeichnung: 'Radar: knappe Abgabefristen und Treffer über der Schwelle (SPEC §14, RAD-08)',
-    zeitplan: '0 6 * * *',
+    /**
+     * **Stündlich, und die Berliner Stunde ist die Wache** (K-11). Ein festes
+     * `0 6 * * *` wäre im Winter sieben Uhr und im Sommer acht — die Stunde
+     * wanderte mit der Zeitumstellung. Sieben Uhr soll sieben Uhr sein.
+     */
+    zeitplan: '0 * * * *',
     bereich: 'uebergreifend',
     versuche: 2,
     ausfuehren: async () => {
+      if (!await istBerlinerStunde(db, WARNSTUNDE_BERLIN)) {
+        return { uebersprungen: 'nicht die Warnstunde in Berlin' };
+      }
       const bericht = await pruefeWarnungen(
         { unsafe: (a, w) => db.unsafe(a, (w ?? []) as never[]) as Promise<readonly unknown[]> },
         async (meldungen) => {

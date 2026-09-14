@@ -55,6 +55,43 @@ interface Zeile {
  * und „die Quelle liefert sie nicht mehr", und daran hängt, ob ein Vorgang
  * weiter auf eine Frist zählt, die es nicht mehr gibt.
  */
+/**
+ * Die Vergabeunterlagen einer Bekanntmachung — **ergänzt, nie entfernt**.
+ *
+ * Anders als bei NUTS: eine Unterlage, die die Quelle heute nicht mehr nennt,
+ * ist trotzdem einmal veröffentlicht worden — und eine Prüfliste kann darauf
+ * zeigen (`quelle_ausschreibung_dokument_id`). Sie zu löschen hiesse, die
+ * Herkunft einer Forderung zu kappen, weil eine Vergabestelle ihre Seite
+ * umgebaut hat.
+ *
+ * **Warum das eine eigene Funktion ist.** Sie lief nur im Zweig für neue und
+ * geänderte Bekanntmachungen. Eine byte-gleiche Bekanntmachung kehrt aber
+ * vorher zurück — und damit bekam jede Bekanntmachung, die vor dem Einlesen
+ * der Unterlagen importiert wurde, ihre Unterlagen nie: der Rohtext war
+ * unverändert, der frühe Ausstieg griff, und die Mappe blieb ohne Quelle.
+ * Genau die Zeilen, die eine Nachlese am nötigsten haben, waren die, die sie
+ * nie bekamen.
+ */
+async function schreibeDokumente(
+  db: SchreibAbfrage, ausschreibungId: string,
+  dokumente: RohBekanntmachung['dokumente'],
+): Promise<void> {
+  for (const d of dokumente) {
+    await db.unsafe(
+      `insert into ausschreibung_dokument
+         (ausschreibung_id, bezeichnung, quell_url, dateiname, mime_typ, sprache,
+          veroeffentlicht_am, zugriff_gesperrt)
+       values ($1::uuid, $2, $3, $4, $5, $6, $7::timestamptz, $8::boolean)
+       on conflict (ausschreibung_id, coalesce(quell_url, bezeichnung)) do update
+         set bezeichnung = excluded.bezeichnung,
+             mime_typ = coalesce(excluded.mime_typ, ausschreibung_dokument.mime_typ),
+             zugriff_gesperrt = excluded.zugriff_gesperrt,
+             geaendert_am = now()`,
+      [ausschreibungId, d.bezeichnung, d.quellUrl, d.dateiname, d.mimeTyp, d.sprache,
+        d.veroeffentlichtAm, d.zugriffGesperrt]);
+  }
+}
+
 async function schreibeEine(
   db: SchreibAbfrage, b: RohBekanntmachung, rohText: string, laufId: string | null,
 ): Promise<Zeile> {
@@ -120,6 +157,8 @@ async function schreibeEine(
     if (bestand === undefined) {
       throw new Error(`Bekanntmachung ${b.quelle}/${b.quellId} liess sich weder schreiben noch finden.`);
     }
+    /* Auch die unveraenderte bekommt ihre Unterlagen — siehe schreibeDokumente. */
+    await schreibeDokumente(db, bestand.id, b.dokumente);
     return { id: bestand.id, neu: false, geaendert: false };
   }
 
@@ -143,27 +182,7 @@ async function schreibeEine(
     `delete from ausschreibung_nuts where ausschreibung_id = $1::uuid and not (nuts_code = any ($2::text[]))`,
     [zeile.id, b.nutsCodes]);
 
-  /*
-   * **Die Vergabeunterlagen werden ergaenzt, nie entfernt.** Anders als bei
-   * NUTS: eine Unterlage, die die Quelle heute nicht mehr nennt, ist trotzdem
-   * einmal veroeffentlicht worden — und eine Pruefliste kann darauf zeigen
-   * (`quelle_ausschreibung_dokument_id`). Sie zu loeschen hiesse, die Herkunft
-   * einer Forderung zu kappen, weil eine Vergabestelle ihre Seite umgebaut hat.
-   */
-  for (const d of b.dokumente) {
-    await db.unsafe(
-      `insert into ausschreibung_dokument
-         (ausschreibung_id, bezeichnung, quell_url, dateiname, mime_typ, sprache,
-          veroeffentlicht_am, zugriff_gesperrt)
-       values ($1::uuid, $2, $3, $4, $5, $6, $7::timestamptz, $8::boolean)
-       on conflict (ausschreibung_id, coalesce(quell_url, bezeichnung)) do update
-         set bezeichnung = excluded.bezeichnung,
-             mime_typ = coalesce(excluded.mime_typ, ausschreibung_dokument.mime_typ),
-             zugriff_gesperrt = excluded.zugriff_gesperrt,
-             geaendert_am = now()`,
-      [zeile.id, d.bezeichnung, d.quellUrl, d.dateiname, d.mimeTyp, d.sprache,
-        d.veroeffentlichtAm, d.zugriffGesperrt]);
-  }
+  await schreibeDokumente(db, zeile.id, b.dokumente);
 
   return { id: zeile.id, neu: zeile.neu, geaendert: !zeile.neu };
 }

@@ -1,8 +1,8 @@
 import 'server-only';
 import type { SchreibKontext } from '../../kontext/index.js';
-import { AusfuehrungAbgewiesen, fuehreAus } from './ausfuehrung.js';
+import { AusfuehrungAbgewiesen, fuehreAus, hatAusfuehrer } from './ausfuehrung.js';
 import { FreigabeAbgewiesen, entscheideFreigabe } from './entscheiden.js';
-import { EINSPRUCH_MINUTEN, RUECKNAHME_MINUTEN, istUmkehrbar } from './fenster.platzhalter.js';
+import { EINSPRUCH_MINUTEN, RUECKNAHME_MINUTEN } from './fenster.platzhalter.js';
 
 /**
  * Stapelfreigabe, Einspruch und Rücknahme (APR-04, APR-05, APR-06).
@@ -176,8 +176,15 @@ export async function entscheideStapel(
        * Vorgangsarten sind von der verzögerten Auslösung ausgenommen (0136);
        * sie sind damit sofort gültig, wie jede Genehmigung vor APR-05 es war.
        */
+      /*
+       * **Und nur, wo es nichts auszuführen gibt.** Ein Fenster verschiebt die
+       * Ausführung; der Lauf, der es schliesst, führt bewusst nicht aus (er
+       * hätte weder Sitzung noch Rechte eines Menschen, §4.8). Über einer
+       * Aktion MIT Ausführer bliebe die Freigabe deshalb genehmigt und
+       * ungetan stehen — genau die stille Lücke, die niemand sucht.
+       */
       let fenster: Date | null = null;
-      if (z.risiko === 'niedrig') {
+      if (z.risiko === 'niedrig' && !hatAusfuehrer(z.aktion)) {
         const [bis] = await kontext.schreibe<{ bis: Date | null }>(
           `select app.freigabe_verzoegern($1::uuid, $2::integer) as bis`,
           [id, EINSPRUCH_MINUTEN]);
@@ -194,6 +201,14 @@ export async function entscheideStapel(
         verzoegert += 1;
       } else if ((await fuehreAus(kontext, id, z.aktion)).art !== 'keine') {
         ausgefuehrt += 1;
+        /*
+         * **Dasselbe wie im Einzelfall** (APR-06): was ausgeführt wurde,
+         * bekommt sein Rücknahmefenster — wo es eines gibt. Die Datenbank
+         * entscheidet das (`app.freigabe_umkehrbar`); heute ist die Antwort
+         * überall „nein" (O-368), und der Aufruf steht hier trotzdem, damit
+         * Stapel und Einzelfall nicht auseinanderlaufen, sobald sie „ja" sagt.
+         */
+        await armiereRuecknahme(kontext, id);
       }
       await kontext.schreibe(`release savepoint ${punkt}`);
     } catch (fehler) {
@@ -240,16 +255,18 @@ export async function nimmZurueck(
 /**
  * Armiert das Rücknahmefenster nach einer Ausführung — **nur wo umkehrbar**.
  *
- * Wo nicht, passiert nichts und die Seite zeigt kein Fenster. Ein Knopf
- * „rückgängig", der bei einem versendeten E-Mail nichts tut, ist schlimmer
- * als keiner: jemand drückt ihn und glaubt, es sei zurückgeholt.
+ * Was umkehrbar ist, entscheidet die Datenbank (`app.freigabe_umkehrbar`,
+ * `0153`) und nicht diese Datei: eine Liste in TypeScript stünde nicht
+ * zwischen einem direkten Aufruf und der Tabelle. `false` heisst: kein
+ * Fenster, und die Seite zeigt keinen Knopf. Heute ist das überall der Fall
+ * (O-368) — ein Knopf „rückgängig", der bei einer angelegten Rechnung nur
+ * einen Stand umsetzt, ist schlimmer als keiner.
  */
 export async function armiereRuecknahme(
-  kontext: SchreibKontext, freigabeId: string, vorgangTyp: string,
+  kontext: SchreibKontext, freigabeId: string,
 ): Promise<boolean> {
-  if (!istUmkehrbar(vorgangTyp)) return false;
-  await kontext.schreibe(
-    `select app.freigabe_ruecknahme_fenster($1::uuid, $2::integer)`,
+  const [z] = await kontext.schreibe<{ bis: Date | null }>(
+    `select app.freigabe_ruecknahme_fenster($1::uuid, $2::integer) as bis`,
     [freigabeId, RUECKNAHME_MINUTEN]);
-  return true;
+  return z?.bis != null;
 }

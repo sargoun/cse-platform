@@ -77,12 +77,27 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
 
+        /**
+         * **Die Ausschreibung aus der Anfrage wird GEPRUEFT, nicht nur
+         * weitergereicht.**
+         *
+         * Vorher stand sie nur im Rueckweg: wer die Adresse von Ausschreibung
+         * A oeffnete und eine gueltige Positionskennung aus Ausschreibung B
+         * derselben Gesellschaft mitschickte, haengte das Dokument an B und
+         * landete auf A. Beides war „erlaubt" — und zusammen falsch. Der Join
+         * ueber `ausschreibung_vorgang` macht die beiden Angaben zu EINER
+         * Bedingung.
+         */
         const [p] = await kontext.abfrage<{ id: string; bezeichnung: string; stand: string }>(
           `select p.id, p.bezeichnung, m.status::text as stand
              from vergabemappe_position p
              join vergabemappe m on m.id = p.vergabemappe_id
-            where p.id = $1::uuid and p.mandant_id = $2::uuid and m.geloescht_am is null`,
-          [position, kontext.aktiverMandantId]);
+             join ausschreibung_vorgang v on v.id = m.ausschreibung_vorgang_id
+                                         and v.mandant_id = m.mandant_id
+            where p.id = $1::uuid and p.mandant_id = $2::uuid
+              and v.ausschreibung_id = $3::uuid
+              and m.geloescht_am is null and v.geloescht_am is null`,
+          [position, kontext.aktiverMandantId, ausschreibung]);
         if (p === undefined) throw new Error('unbekannte_position');
         if (p.stand === 'eingereicht' || p.stand === 'verworfen') throw new Error('gesperrt');
 

@@ -432,7 +432,16 @@ Radar first — the agents operate on its output.
       notices. `mandant_id` sits in the primary key and **there is no group
       view on this table**: "show me similar clauses" would read across
       companies as "show me the sister's contract". Confidential is the
-      default; a downgrade carries a name. CI runs `pgvector/pgvector:pg16`.
+      default; a downgrade carries a name — and since D-498 the name comes
+      from the **session**, not from the writer: those two columns are
+      withheld from `cse_app` entirely. The table is `PARTITION BY LIST
+      (mandant_id)` with one ANN index per company, as the design document
+      specifies, because pgvector picks its `k` nearest neighbours *before*
+      the tenant filter applies — a shared index runs the candidate path over
+      other companies' contracts. Reading needs `wissen.lesen`, and a
+      confidential passage additionally `wissen.vertraulich_lesen`; the first
+      policy asked for `agent.lesen`, which every agent session holds. CI runs
+      `pgvector/pgvector:pg16`.
 - [x] Agent tools (AGT-02); `berechne_preis` is **pure code** (PR 73, D-495) —
       the contract, the handle vault, the value register and the nine-tool
       registry. **Two of the nine run without a model** because they create
@@ -489,7 +498,13 @@ Radar first — the agents operate on its output.
       is fast by construction and is not rubber-stamping. `/freigaben/laufend`
       and `/freigaben/erledigt` were built too; `/freigaben/stapel`,
       `/[id]/einspruch` and `/[id]/rueckgaengig` stay folded into the inbox and
-      the review page on purpose.
+      the review page on purpose. **APR-06's window is armed for nothing**
+      (D-498, **O-368**): the whole path stands — window, deadline, its own
+      right, protocol, refusal after expiry — but the one action that executes
+      creates an incoming invoice, and no way back is built for it. A button
+      that only flips `ausfuehrung_status` and leaves the invoice standing is
+      the same faked success this platform refuses from a third-party service,
+      so the review page says so where the button would be.
 - [x] Watchdog jobs (SPEC §14) — **all eight** (PR 72, D-494). The three that
       were missing all failed on the same thing: they must notify "the planner"
       or "the site manager", and no such field exists. So `app.hat_recht` was

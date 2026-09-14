@@ -144,11 +144,7 @@ export async function POST(
          * nichts tut, ist schlimmer als keiner: jemand drueckt ihn und glaubt,
          * es sei zurueckgeholt.
          */
-        if (ausgefuehrt.art !== 'keine') {
-          const [typ] = await kontext.abfrage<{ vorgang_typ: string }>(
-            `select vorgang_typ::text as vorgang_typ from freigabe where id = $1::uuid`, [id]);
-          await armiereRuecknahme(kontext, id, typ?.vorgang_typ ?? '');
-        }
+        if (ausgefuehrt.art !== 'keine') await armiereRuecknahme(kontext, id);
         return { entschieden, ausgefuehrt };
       }))) as { entschieden: Entschieden; ausgefuehrt: Ausgefuehrt };
 

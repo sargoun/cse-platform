@@ -9,6 +9,7 @@ import { StatusPill } from '@/components/ui/StatusPill';
 import { Button } from '@/components/ui/Button';
 import { formatiereGeld } from '@/server/services/finanz/geld';
 import { oeffneFreigabe, type FreigabeAnsicht } from '@/server/services/freigabe/laden';
+import { RUECKNAHME_OFFENE_FRAGE } from '@/server/services/freigabe/fenster.platzhalter';
 import { anzahlAenderungen } from '@/server/services/freigabe/diff';
 import { euroMitVorzeichen, OHNE_VERGLEICH } from '@/server/services/freigabe/zusammenfassung';
 import { mengeNachPostgres } from '@/server/services/finanz/menge';
@@ -514,6 +515,25 @@ export default async function Freigabe(
         * umkehrbar ist. Es nimmt die AUSFÜHRUNG zurück, nicht die
         * Entscheidung: der Schnappschuss bleibt, was er war (APR-07).
         */}
+      {/*
+        * **Wo der Knopf stünde, steht der Grund** (APR-06, O-368). Eine
+        * ausgeführte Handlung ohne laufendes Fenster sah vorher aus wie eine,
+        * bei der man das Fenster verpasst hat. Sie ist etwas anderes: für
+        * diese Handlung ist kein Rückweg gebaut, und ein Knopf, der nur den
+        * Stand umsetzt, wäre ein vorgetäuschter Erfolg.
+        */}
+      {f.status === 'genehmigt' && f.ausfuehrungStatus === 'ausgefuehrt' && f.undoBis === null ? (
+        <Kasten art="hinweis" cse="keine-ruecknahme" kinder={(
+          <>
+            <strong>Kein Rückgängig für diese Handlung.</strong>{' '}
+            Der Weg dafür steht — Fenster, Frist, eigenes Recht, Protokoll —, aber er ist
+            für nichts armiert: zurückzunehmen wäre die HANDLUNG, nicht der Stand, und
+            dafür gibt es hier keinen gebauten Rückweg. Eine Korrektur ist eine NEUE
+            Freigabe (§4.5). Offene Frage: {RUECKNAHME_OFFENE_FRAGE}.
+          </>
+        )}
+        />
+      ) : null}
       {darfRuecknahme && f.undoBis !== null && f.undoBis > new Date() ? (
         <section className="mb-s6 max-w-prose rounded-lg border border-line bg-surface p-s5"
                  data-cse="ruecknahme-fenster">

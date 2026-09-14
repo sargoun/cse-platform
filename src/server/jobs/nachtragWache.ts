@@ -1,4 +1,4 @@
-import { registriere, type JobDefinition } from './registry.js';
+import { istBerlinerStunde, registriere, type JobDefinition } from './registry.js';
 import { erzeuge } from '../benachrichtigung/registry.js';
 import { stelleZuAnKonto, type Abfrage } from '../benachrichtigung/ablage.js';
 import {
@@ -25,15 +25,26 @@ import {
  * Fehlt sie, wird das gezählt und nicht ersatzweise die halbe Gesellschaft
  * benachrichtigt.
  */
+/** Acht Uhr Berliner Ortszeit — die Bauleitung liest morgens. */
+const MELDESTUNDE_BERLIN = 8;
+
 export function registriereNachtragWache(db: Abfrage): JobDefinition {
   registriereWaechterArten();
   return registriere({
     schluessel: 'nachtrag_ueberfaellig',
     bezeichnung: 'Nachtrag angemeldet, nach 14 Tagen nicht eingereicht (SPEC §14, BAU-04)',
-    zeitplan: '15 5 * * *',
+    /**
+     * **Acht Uhr Berliner Ortszeit, also stündlich mit Stundenwache** (K-11,
+     * `05-API-KARTE.md` §548). `15 5 * * *` traf 06:15 im Winter und 07:15 im
+     * Sommer — beides nicht acht, und beides unbemerkt.
+     */
+    zeitplan: '0 * * * *',
     bereich: 'uebergreifend',
     versuche: 2,
     ausfuehren: async () => {
+      if (!await istBerlinerStunde(db, MELDESTUNDE_BERLIN)) {
+        return { uebersprungen: 'nicht die Meldestunde in Berlin' };
+      }
       const faellige = (await db.unsafe(
         `select n.id, n.nummer, n.titel, n.mandant_id, m.slug as mandant_slug,
                 p.bezeichnung as projekt, p.verantwortlich_benutzer_id,
@@ -78,29 +89,44 @@ export function registriereNachtragWache(db: Abfrage): JobDefinition {
         } catch {
           continue;   // Ohne Ziel keine Meldung (NOT-03).
         }
+        /**
+         * **Erst den Anspruch nehmen, dann zustellen, und ihn bei null wieder
+         * zurueckgeben.**
+         *
+         * Vorher stand das Gedaechtnis NACH der Zustellung, und beides war
+         * falsch: zwei gleichzeitige Laeufe waehlten dieselbe Zeile, stellten
+         * beide zu und stritten erst danach um das UPDATE — die Bedingung
+         * `is null` verhinderte die doppelte Meldung nicht, nur den doppelten
+         * Zeitstempel. Und eine Zustellung an ein stillgelegtes Konto (null
+         * Empfaenger) markierte die Zeile trotzdem als gemeldet, womit sie nie
+         * wieder drankam.
+         *
+         * Der Anspruch ist eine EINZELNE Anweisung mit `is null` — damit hat
+         * ihn genau ein Lauf. Bleibt die Zustellung bei null, wird er
+         * zurueckgegeben, und der naechste Lauf versucht es erneut.
+         */
+        const anspruch = (await db.unsafe(
+          `update nachtrag set ueberfaellig_gemeldet_am = now()
+            where id = $1::uuid and ueberfaellig_gemeldet_am is null
+           returning id`, [String(n['id'])])) as readonly { id: string }[];
+        if (anspruch.length === 0) continue;
+
         const e = await stelleZuAnKonto(db, [{
           benachrichtigung, benutzerId: empfaenger,
           objektTyp: 'nachtrag', objektId: String(n['id']),
         }]);
+        if (e.zugestellt === 0) {
+          await db.unsafe(
+            `update nachtrag set ueberfaellig_gemeldet_am = null where id = $1::uuid`,
+            [String(n['id'])]);
+          continue;
+        }
         zugestellt += e.zugestellt;
         gemeldet.push(String(n['id']));
       }
 
-      /**
-       * Das Gedächtnis wird NACH der Zustellung gesetzt — anders als bei den
-       * beiden anderen Wachen, und mit Absicht: hier ist es eine Spalte am
-       * Nachtrag, die in der Bauakte angezeigt wird. „Gemeldet am" soll dort
-       * stimmen, und die Bedingung steht zusätzlich im UPDATE, damit zwei
-       * gleichzeitige Läufe nicht beide melden.
-       */
-      let markiert = 0;
-      if (gemeldet.length > 0) {
-        const zeilen = (await db.unsafe(
-          `update nachtrag set ueberfaellig_gemeldet_am = now()
-            where id = any ($1::uuid[]) and ueberfaellig_gemeldet_am is null
-           returning id`, [gemeldet])) as readonly { id: string }[];
-        markiert = zeilen.length;
-      }
+      /* Markiert ist, was oben den Anspruch behalten hat — er steht schon. */
+      const markiert = gemeldet.length;
 
       return {
         ueberfaellig: faellige.length,

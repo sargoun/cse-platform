@@ -58,13 +58,21 @@ export default async function Wissen(
 
   const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) =>
+      /*
+       * **`where mandant_id = $1` steht hier, obwohl RLS es schon tut.**
+       * Invariante 3: die Policy ist die ZWEITE Linie, nie die einzige. Eine
+       * Aggregatabfrage ohne eigenen Filter zaehlt bei der kleinsten
+       * Regression in der Sitzungsbindung ueber alle Gesellschaften — und
+       * eine falsche Zahl faellt niemandem auf.
+       */
       kontext.abfrage<Record<string, unknown>>(
         `select quelle_typ::text as quelle, count(*)::int as chunks,
                 count(*) filter (where vertraulichkeit = 'vertraulich')::int as vertraulich,
                 min(eingebettet_am) as aeltester, max(eingebettet_am) as juengster
            from wissens_chunk
+          where mandant_id = $1::uuid and ist_aktiv
           group by quelle_typ
-          order by quelle_typ`),
+          order by quelle_typ`, [kontext.aktiverMandantId]),
     ))) as readonly Record<string, unknown>[];
 
   const nachQuelle = new Map<string, Stand>(zeilen.map((z) => [String(z['quelle']), {

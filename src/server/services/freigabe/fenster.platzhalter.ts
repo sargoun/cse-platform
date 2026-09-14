@@ -29,16 +29,16 @@ export const RUECKNAHME_MINUTEN = 60;
 export const FENSTER_OFFENE_FRAGE = 'O-108';
 
 /**
- * **Welche Ausführungen sich zurücknehmen lassen.**
+ * **Welche Ausführungen sich zurücknehmen lassen — steht in der DATENBANK.**
  *
- * APR-06 sagt „wherever the action is reversible", und das ist keine
- * Einstellung, sondern eine Eigenschaft der Handlung. Ein versendetes E-Mail
- * ist weg; eine angelegte Eingangsrechnung lässt sich stornieren. Die Liste
- * ist deshalb kurz und ausdrücklich — sie zu verlängern heisst zu behaupten,
- * etwas sei umkehrbar, und das ist eine Behauptung mit Folgen.
+ * Diese Liste stand hier, also in TypeScript, also nicht zwischen einem
+ * direkten Aufruf und der Tabelle: `select app.freigabe_ruecknahme_fenster(…)`
+ * armierte ein Fenster für einen versendeten E-Mail, und die Prüfung hier
+ * merkte nichts davon. Seit `0153` entscheidet `app.freigabe_umkehrbar` —
+ * eine Liste, zwei Eingänge wären zwei Listen.
+ *
+ * Und sie gibt heute für jede Vorgangsart `false` zurück: für die einzige
+ * Handlung, die ausgeführt wird, ist kein Rückweg gebaut (O-368). Der Weg
+ * steht, er ist für nichts armiert, und das sagt die Prüfseite auch.
  */
-export const UMKEHRBAR: readonly string[] = ['buchung_uebernehmen', 'monatsrechnung_entwurf'];
-
-export function istUmkehrbar(vorgangTyp: string): boolean {
-  return UMKEHRBAR.includes(vorgangTyp);
-}
+export const RUECKNAHME_OFFENE_FRAGE = 'O-368';

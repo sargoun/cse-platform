@@ -1,5 +1,6 @@
 import 'server-only';
 import type { Quelle, WerkzeugErgebnis } from './typen.js';
+import type { Wertregister } from './register.js';
 
 /**
  * `suche_bestand` — der Katalog, aus dem der CEO-Assistent antwortet
@@ -85,7 +86,7 @@ export const KATALOG: readonly KatalogEintrag[] = [
   },
   {
     id: 'offene_ausschreibungen',
-    frage: 'Wie viele Ausschreibungen laufen gerade, und wie viele sind knapp?',
+    frage: 'Wie viele Ausschreibungen laufen gerade?',
     sql: `select count(*)::int as antwort
             from ausschreibung a
             join ausschreibung_vorgang v
@@ -100,7 +101,7 @@ export const KATALOG: readonly KatalogEintrag[] = [
   },
   {
     id: 'nachweise_ablaufend',
-    frage: 'Wessen Nachweise laufen in den nächsten dreissig Tagen ab?',
+    frage: 'Wie viele Nachweise laufen in den nächsten dreissig Tagen ab?',
     sql: `select count(*)::int as antwort
             from nachweis n
            where n.erfasst_von_mandant_id = $1::uuid
@@ -119,9 +120,16 @@ export class BestandFehler extends Error {
 export interface BestandDaten {
   readonly abfrageId: string;
   readonly frage: string;
-  readonly antwort: number;
+  /**
+   * **Der Token, nicht die Zahl.** Der Vertrag dieses Werkzeugs verlangt, dass
+   * jede Zahl und jeder Zeitpunkt aus dem Wertregister kommt: ein Modell soll
+   * eine Zahl nur mit ihrer Herkunft wiederholen können, und eine rohe `12`
+   * im Antworttext liesse sich von einer erfundenen `12` nicht unterscheiden.
+   * Der Zahlenwert steht im gebundenen Wert daneben (`werte`).
+   */
+  readonly antwortToken: string;
+  readonly standToken: string;
   readonly einheit: string | null;
-  readonly stand: string;
 }
 
 /**
@@ -132,7 +140,7 @@ export interface BestandDaten {
  * beantworten" als eine Zahl, die entsteht, weil eine Zahl erwartet wurde.
  */
 export async function sucheBestand(
-  db: Abfrage, mandantId: string, abfrageId: string,
+  db: Abfrage, mandantId: string, abfrageId: string, register: Wertregister,
 ): Promise<WerkzeugErgebnis<BestandDaten>> {
   const start = performance.now();
   const eintrag = KATALOG.find((k) => k.id === abfrageId);
@@ -157,8 +165,14 @@ export async function sucheBestand(
     };
   }
 
-  const [stand] = await db.abfrage<{ jetzt: string }>(
-    `select to_char(now() at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI') as jetzt`);
+  /*
+   * Der Stand kommt aus der DATENBANK, nicht aus der Uhr des Prozesses
+   * (Invariante 5, R-11) — beides: die Anzeige in Berliner Ortszeit und der
+   * Zeitpunkt, den der gebundene Wert traegt.
+   */
+  const [stand] = await db.abfrage<{ jetzt: string; instant: string }>(
+    `select to_char(now() at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI') as jetzt,
+            to_char(now() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as instant`);
 
   const quelle: Quelle = {
     art: 'abfrage',
@@ -167,16 +181,31 @@ export async function sucheBestand(
     datensatzRefs: [],
   };
 
+  const antwort = register.binde({
+    art: 'menge',
+    wert: String(Number(z[eintrag.antwortSpalte])),
+    ...(eintrag.einheit === null ? {} : { einheit: eintrag.einheit }),
+    anzeige: `${String(Number(z[eintrag.antwortSpalte]))}${
+      eintrag.einheit === null ? '' : ` ${eintrag.einheit}`}`,
+    quelle,
+  });
+  const standWert = register.binde({
+    art: 'datum',
+    instant: stand?.instant ?? '',
+    anzeige: quelle.art === 'abfrage' ? quelle.stand : 'unbekannt',
+    quelle,
+  });
+
   return {
     ok: true,
     daten: {
       abfrageId: eintrag.id,
       frage: eintrag.frage,
-      antwort: Number(z[eintrag.antwortSpalte]),
+      antwortToken: antwort.token,
+      standToken: standWert.token,
       einheit: eintrag.einheit,
-      stand: quelle.art === 'abfrage' ? quelle.stand : '',
     },
-    werte: [],
+    werte: register.alle(),
     dauerMs: Math.round(performance.now() - start),
   };
 }

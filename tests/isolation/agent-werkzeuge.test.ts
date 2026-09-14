@@ -195,19 +195,30 @@ describe('(3) berechne_preis rechnet mit der getesteten Funktion', () => {
 describe('(4) suche_bestand antwortet aus dem Katalog — oder gar nicht', () => {
   it('beantwortet eine Katalogfrage gegen die echten Daten', async () => {
     const e = await alsApp(sitzung(), async (tx: postgres.TransactionSql) =>
-      sucheBestand(kontext(tx), f.reinigung, 'mitarbeiter_heute_im_einsatz'));
+      sucheBestand(kontext(tx), f.reinigung, 'mitarbeiter_heute_im_einsatz',
+        new Wertregister()));
     expect(e.ok).toBe(true);
     if (e.ok) {
-      expect(typeof e.daten.antwort).toBe('number');
       expect(e.daten.frage).toContain('arbeite');
-      expect(e.daten.stand, 'mit Stand, damit niemand eine alte Zahl weiterreicht')
+      /*
+       * **Die Zahl kommt als Token, nicht als Zahl** (AGT-02): der gebundene
+       * Wert traegt sie mit Herkunft, und der Antworttext des Modells kann
+       * sie nur ueber den Token zitieren. Eine rohe Zahl im Ergebnis liesse
+       * sich von einer erfundenen nicht unterscheiden.
+       */
+      const antwort = e.werte?.find((w) => w.token === e.daten.antwortToken);
+      expect(antwort, 'die Antwort steht im Wertregister').toBeDefined();
+      expect(Number(antwort!.wert)).not.toBeNaN();
+      const stand = e.werte?.find((w) => w.token === e.daten.standToken);
+      expect(stand?.anzeige, 'mit Stand, damit niemand eine alte Zahl weiterreicht')
         .toMatch(/\d{2}\.\d{2}\.\d{4}/u);
     }
   });
 
   it('eine Frage ausserhalb des Katalogs bekommt `kein_ergebnis`', async () => {
     const e = await alsApp(sitzung(), async (tx: postgres.TransactionSql) =>
-      sucheBestand(kontext(tx), f.reinigung, 'wie_hoch_ist_unsere_marge'));
+      sucheBestand(kontext(tx), f.reinigung, 'wie_hoch_ist_unsere_marge',
+        new Wertregister()));
     expect(e.ok).toBe(false);
     if (!e.ok) {
       expect(e.fehler.code).toBe('kein_ergebnis');

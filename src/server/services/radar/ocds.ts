@@ -159,7 +159,23 @@ export function liesOcds(text: string): LeseErgebnis {
    * Eindeutigkeitsindex ab — der Stand „aufgehoben" käme nie an. Gewinnt also
    * das jüngste Release je `ocid`.
    */
-  const neueste = new Map<string, { readonly r: OcdsRelease; readonly roh: unknown; readonly datum: string }>();
+  /**
+   * **Verglichen wird der ZEITPUNKT, nicht die Zeichenkette.**
+   *
+   * Vorher entschied `datum >= bisher.datum` auf den rohen ISO-Texten. OCDS
+   * lässt einen Versatz zu: `2026-03-01T10:00:00+02:00` ist 08:00 UTC,
+   * `2026-03-01T09:30:00Z` ist 09:30 UTC — die zweite Fassung ist die jüngere,
+   * der Zeichenkettenvergleich hält aber die erste für grösser, weil an
+   * Stelle zwölf eine `1` vor einer `0` steht. Damit gewann die ÄLTERE
+   * Fassung, und mit ihr ihr Stand und ihre Unterlagen: „aufgehoben" käme nie
+   * an. Millisekunden vergleichen sich richtig; `NaN` (unlesbares Datum)
+   * verliert gegen alles, behält aber den ersten Fund.
+   */
+  const alsMillis = (roh: string | undefined): number => {
+    const t = Date.parse((roh ?? '').trim());
+    return Number.isNaN(t) ? Number.NEGATIVE_INFINITY : t;
+  };
+  const neueste = new Map<string, { readonly r: OcdsRelease; readonly roh: unknown; readonly datum: number }>();
   let uebersprungen = 0;
   for (const roh of releases) {
     if (!istObjekt(roh)) { uebersprungen += 1; continue; }
@@ -172,7 +188,7 @@ export function liesOcds(text: string): LeseErgebnis {
       uebersprungen += 1;
       continue;
     }
-    const datum = r.date ?? '';
+    const datum = alsMillis(r.date);
     const bisher = neueste.get(quellId);
     if (bisher === undefined || datum >= bisher.datum) {
       neueste.set(quellId, { r, roh, datum });

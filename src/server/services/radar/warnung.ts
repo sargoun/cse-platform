@@ -89,9 +89,17 @@ const FRIST_SQL = `
           and e.radar_profil_id = l.radar_profil_id
           and e.mandant_id = l.mandant_id
    where coalesce(l.verantwortlich_benutzer_id, e.benutzer_id) is not null
+     /*
+      * **Die Bedingung w.mandant_id = l.mandant_id ist der Kern hier.**
+      * Eine Bekanntmachung ist global; die Quittung ist es nicht. Ohne diese
+      * Zeile unterdrueckte die Quittung der ERSTEN Gesellschaft die Meldung
+      * der zweiten — lautlos, und der Lauf meldete nur eine Zustellung
+      * weniger. Der Eindeutigkeitsindex traegt mandant_id seit 0153.
+      */
      and not exists (
        select 1 from radar_warnung w
-        where w.ausschreibung_id = l.ausschreibung_id
+        where w.mandant_id = l.mandant_id
+          and w.ausschreibung_id = l.ausschreibung_id
           and w.empfaenger_id = coalesce(l.verantwortlich_benutzer_id, e.benutzer_id)
           and w.art = 'frist_knapp'
           and coalesce(w.frist_angebot, 'epoch'::timestamptz)
@@ -149,9 +157,11 @@ const TREFFER_SQL = `
      and a.quell_status = 'aktiv'
      and (a.frist_angebot is null or a.frist_angebot > now())
      and p.ist_aktiv and p.geloescht_am is null
+     /* Wie oben: die Quittung gilt je Gesellschaft, nicht je Bekanntmachung. */
      and not exists (
        select 1 from radar_warnung w
-        where w.ausschreibung_id = k.ausschreibung_id
+        where w.mandant_id = k.mandant_id
+          and w.ausschreibung_id = k.ausschreibung_id
           and w.empfaenger_id = e.benutzer_id
           and w.art = 'treffer'
           and coalesce(w.frist_angebot, 'epoch'::timestamptz)
@@ -206,6 +216,13 @@ export interface WarnErgebnis extends WarnBericht {
  * dieselbe Meldung schon erzeugt, und diese hier fällt aus. Andersherum —
  * erst zustellen, dann quittieren — stünde die Meldung bei einem Abbruch
  * zweimal im Posteingang.
+ *
+ * **Und sie wird zurückgenommen, wenn nichts ankam.** `stelleZuAnKonto` gibt
+ * für ein stillgelegtes oder fehlendes Konto ehrlich null zurück; bliebe die
+ * Quittung dann stehen, wäre sie ein Gedächtnis an etwas, das nie geschah,
+ * und der nächste Lauf schwiege für immer. Also: Anspruch nehmen, zustellen,
+ * und bei null den Anspruch zurückgeben. Doppelte Meldung verhindert der
+ * Index, verlorene Meldung die Rückgabe.
  */
 export async function pruefeWarnungen(
   db: SchreibAbfrage,
@@ -270,6 +287,17 @@ export async function pruefeWarnungen(
   }
 
   const zugestellt = quittiert.length === 0 ? 0 : await zustellen(quittiert);
+  if (quittiert.length > 0 && zugestellt === 0) {
+    await db.unsafe(
+      `delete from radar_warnung
+        where (mandant_id, ausschreibung_id, empfaenger_id, art,
+               coalesce(frist_angebot, 'epoch'::timestamptz))
+              in (select * from unnest($1::uuid[], $2::uuid[], $3::uuid[],
+                                       $4::radar_warnung_art[], $5::timestamptz[]))`,
+      [quittiert.map((m) => m.mandantId), quittiert.map((m) => m.ausschreibungId),
+        quittiert.map((m) => m.empfaengerId), quittiert.map((m) => m.art),
+        quittiert.map((m) => m.fristAngebot ?? new Date(0))]);
+  }
 
   /**
    * **Wie viele Empfänger ohne Schwelle dastehen** — die Zahl, die O-15
