@@ -177,7 +177,15 @@ export async function bewerteLauf(
          returning id`,
         [p.mandant_id, b.id, p.id, REGEL_VERSION, e.profilVersion, e.punkte, e.skalaMax,
           e.ausgeschlossen, e.ausschlussGrund, e.wertKriterium,
-          JSON.stringify(e.aufschluesselung), e.begruendung, e.eingabenHash,
+          /*
+           * **Das Objekt, nicht sein JSON-Text** (D-467). `JSON.stringify` an
+           * einem `::jsonb`-Parameter kodiert postgres.js ein ZWEITES Mal:
+           * gespeichert stand dann eine JSON-Zeichenkette statt eines Feldes,
+           * `jsonb_typeof` sagte „string", und die Detailseite fiel über
+           * `aufschluesselung.map is not a function`. Der Browsertest hat es
+           * gefunden; der Isolationstest hält es fest.
+           */
+          e.aufschluesselung, e.begruendung, e.eingabenHash,
           Math.round(performance.now() - start)])) as { id: string }[];
       neueZeilen += zeilen.length;
     }

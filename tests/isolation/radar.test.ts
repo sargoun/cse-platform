@@ -192,11 +192,22 @@ describe('(2) Der Bewertungslauf (RAD-05)', () => {
     const zweit = await laufen();
     expect(zweit.neueZeilen, 'unveraenderte Eingaben schreiben nichts').toBe(0);
 
-    const [b] = await sql.unsafe<{ punkte: number; begruendung: string; verfahren: string }[]>(
-      `select punkte, begruendung, verfahren from bewertung`);
+    const [b] = await sql.unsafe<{
+      punkte: number; begruendung: string; verfahren: string; typ: string; zeilen: number;
+    }[]>(
+      `select punkte, begruendung, verfahren, jsonb_typeof(aufschluesselung) as typ,
+              jsonb_array_length(aufschluesselung) as zeilen from bewertung`);
     expect(b!.punkte).toBeGreaterThan(0);
     expect(b!.verfahren).toBe('deterministisch');
     expect(b!.begruendung, 'der Satz nennt das Profil').toContain('Unterhaltsreinigung Berlin');
+    /*
+     * **Ein Feld, keine Zeichenkette** (D-467). `JSON.stringify` an einem
+     * `::jsonb`-Parameter kodiert postgres.js ein zweites Mal; gespeichert
+     * steht dann „[{…}]" als TEXT, und jede Seite, die darüber läuft, fällt
+     * mit „map is not a function". Der Fall ist einmal passiert.
+     */
+    expect(b!.typ, 'aufschluesselung ist ein JSON-Feld').toBe('array');
+    expect(b!.zeilen, 'eine Zeile je Regel').toBeGreaterThanOrEqual(5);
   });
 
   /**

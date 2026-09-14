@@ -392,8 +392,17 @@ Radar first — the agents operate on its output.
       reviewed migration. Weights are placeholders (**O-15**), a negative
       keyword deducts rather than excludes until **O-191**, and a
       foreign-currency value is left unscored rather than converted (**O-47**).
-- [ ] Deadline countdown, notifications, status workflow
-- [ ] Platform registration tracking (RAD-09)
+- [x] Deadline countdown and status workflow (PR 69, D-490) — the countdown
+      is text in the danger tone under five days, not a pill with invented
+      vocabulary (DESIGN §5); the RAD-07 control records geprüft, in
+      Bearbeitung and verworfen **with a mandatory reason**. There is no
+      submit button anywhere in the module and the browser suite counts the
+      word (D-07). **Notifications (RAD-08) still open** — they need the
+      threshold nobody has set (O-15).
+- [x] Platform registration tracking (RAD-09) (PR 69, D-490) — the warning
+      is in the LIST, not only on the detail page, because a platform
+      unlock takes days to weeks. The catalogue ships **empty** and the
+      page says why (O-07): a made-up list would read as a checked state.
 - [ ] `pgvector` index over contracts, objects, offers, correspondence
 - [ ] Agent tools (AGT-02); `berechne_preis` is **pure code**
 - [x] Policy gate (`agent/policy.ts`) — the floor is code, not data: an offer,

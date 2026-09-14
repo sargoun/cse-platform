@@ -1,0 +1,335 @@
+import type postgres from 'postgres';
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
+import { withTenant } from '@/server/kontext/index';
+import { PortalRahmen } from '@/components/portal/PortalRahmen';
+import { Hinweis } from '@/components/ui/Hinweis';
+import { Button } from '@/components/ui/Button';
+import { cent, formatiereGeld } from '@/server/services/finanz/geld';
+import type { BereichSchluessel } from '@/lib/design/theme';
+import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { leseRadarZeile, type RadarZeile } from '../daten';
+
+/**
+ * `/portal/[mandant]/radar/[id]` — eine Bekanntmachung (RAD-03, RAD-05,
+ * RAD-06, RAD-07, RAD-09).
+ *
+ * **Die Punktzahl steht hier nicht allein.** Jede Regel, die getroffen oder
+ * nicht getroffen hat, steht mit ihrem Beitrag da — genau die
+ * Aufschlüsselung, die die Bewertung gerechnet hat. Eine Zahl ohne
+ * Begründung wäre eine Behauptung, und über eine Behauptung kann niemand
+ * streiten.
+ *
+ * **Die Rohantwort der Quelle ist abrufbar** (RAD-03). Bei einer Vergabe,
+ * die bestritten wird, ist „woher stammt dieses Feld" die erste Frage.
+ *
+ * **Es gibt keinen Knopf „einreichen"** (D-07). Was es gibt, ist der
+ * Statuswechsel: geprüft, verworfen mit Grund, in Bearbeitung.
+ */
+export const dynamic = 'force-dynamic';
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
+
+const BERLIN = new Intl.DateTimeFormat('de-DE', {
+  timeZone: 'Europe/Berlin', dateStyle: 'full', timeStyle: 'short',
+});
+
+const REGEL_NAME: Readonly<Record<string, string>> = {
+  cpv: 'Leistungsart (CPV)', region: 'Ort der Leistung', stichwort: 'Stichwörter',
+  wert: 'Auftragswert', frist: 'Restfrist', schwellenwert: 'Schwellenwert',
+};
+
+interface Aufschluesselung {
+  readonly regel: string;
+  readonly treffer: boolean;
+  readonly punkte: number;
+  readonly gewicht: number;
+  readonly text: string;
+}
+
+interface Detail {
+  readonly quelle: string;
+  readonly quellId: string;
+  readonly quellUrl: string | null;
+  readonly beschreibung: string | null;
+  readonly verfahrensart: string | null;
+  readonly veroeffentlicht: Date | null;
+  readonly fristFragen: Date | null;
+  readonly fristTeilnahme: Date | null;
+  readonly loseAnzahl: number | null;
+  readonly cpvWeitere: readonly string[];
+  readonly nuts: readonly string[];
+  readonly rohdaten: number;
+  readonly letzteRohantwort: Date | null;
+  readonly istBerichtigung: boolean;
+  readonly aufschluesselung: readonly Aufschluesselung[];
+}
+
+export default async function Bekanntmachung(
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
+) {
+  const { mandant, id } = await params;
+  if (!UUID.test(id)) notFound();
+  const tor = await mandantTor(`/portal/${mandant}/radar/${id}`, mandant);
+  if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
+  const { zugang } = tor;
+  const suche = await searchParams;
+  const vermerkt = typeof suche['vermerkt'] === 'string' ? suche['vermerkt'] : null;
+  const abgewiesen = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+
+  const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+    withTenant(tx, zugang.sitzung, async (kontext) => {
+      const zeilen = await leseRadarZeile(kontext, id);
+      const [d] = await kontext.abfrage<Record<string, unknown>>(
+        `select a.quelle::text as quelle, a.quell_id, a.quell_url, a.beschreibung,
+                a.verfahrensart_roh, a.veroeffentlicht_am, a.frist_fragen, a.frist_teilnahme,
+                a.lose_anzahl, a.cpv_weitere, a.ist_berichtigung,
+                coalesce((select array_agg(n.nuts_code order by n.nuts_code)
+                            from ausschreibung_nuts n where n.ausschreibung_id = a.id), '{}') as nuts,
+                (select count(*) from ausschreibung_rohdaten r
+                  where r.ausschreibung_id = a.id)::int as rohdaten,
+                (select max(r.abgerufen_am) from ausschreibung_rohdaten r
+                  where r.ausschreibung_id = a.id) as letzte_rohantwort
+           from ausschreibung a where a.id = $1::uuid`, [id]);
+      if (d === undefined) return null;
+      const [b] = await kontext.abfrage<{ aufschluesselung: Aufschluesselung[] }>(
+        `select aufschluesselung from bewertung
+          where ausschreibung_id = $1::uuid order by berechnet_am desc limit 1`, [id]);
+      /*
+       * Das Recht wird GEFRAGT, nicht geraten: `navigationsRechte` ist nach
+       * Navigationspunkten geschluesselt, nicht nach Berechtigungen. Die Route
+       * prueft ohnehin noch einmal — hier geht es darum, keinen Knopf zu
+       * zeigen, der nur zu einer Absage fuehrt.
+       */
+      const [r] = await kontext.abfrage<{ darf: boolean }>(
+        `select app.hat_recht('radar.status_setzen', app.aktiver_mandant()) as darf`);
+      return {
+        darfStatus: r?.darf === true,
+        zeilen,
+        detail: {
+          quelle: String(d['quelle']),
+          quellId: String(d['quell_id']),
+          quellUrl: (d['quell_url'] as string | null) ?? null,
+          beschreibung: (d['beschreibung'] as string | null) ?? null,
+          verfahrensart: (d['verfahrensart_roh'] as string | null) ?? null,
+          veroeffentlicht: (d['veroeffentlicht_am'] as Date | null) ?? null,
+          fristFragen: (d['frist_fragen'] as Date | null) ?? null,
+          fristTeilnahme: (d['frist_teilnahme'] as Date | null) ?? null,
+          loseAnzahl: (d['lose_anzahl'] as number | null) ?? null,
+          cpvWeitere: (d['cpv_weitere'] as string[] | null) ?? [],
+          nuts: (d['nuts'] as string[] | null) ?? [],
+          rohdaten: Number(d['rohdaten']),
+          letzteRohantwort: (d['letzte_rohantwort'] as Date | null) ?? null,
+          istBerichtigung: d['ist_berichtigung'] === true,
+          aufschluesselung: b?.aufschluesselung ?? [],
+        } satisfies Detail,
+      };
+    })) as Promise<{ darfStatus: boolean; zeilen: readonly RadarZeile[]; detail: Detail } | null>);
+
+  if (daten === null) notFound();
+  const kopf = daten.zeilen[0];
+  if (kopf === undefined) notFound();
+  const d = daten.detail;
+  const darfStatus = daten.darfStatus;
+
+  return (
+    <PortalRahmen
+      titel={kopf.titel}
+      wurzelTitel="Radar"
+      bereich={mandant as BereichSchluessel}
+      nurLesen={false}
+      leiste={zugang.leiste}
+      wurzel={`/portal/${mandant}`}
+      aktiverTab="mehr"
+      sichtbareTabs={zugang.sichtbareTabs}
+      navigationsRechte={zugang.navigationsRechte}
+    >
+      <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
+        <h1 className="text-h1 text-text">{kopf.titel}</h1>
+        <Link href={`/portal/${mandant}/radar`}
+              className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2">
+          Zur Liste
+        </Link>
+      </div>
+
+      {vermerkt !== null ? (
+        <Hinweis art="erfolg" cse="radar-vermerkt" className="mb-s5 max-w-prose">
+          <strong>Vermerkt.</strong> Der Stand dieser Bekanntmachung ist jetzt „{vermerkt}".
+        </Hinweis>
+      ) : null}
+      {abgewiesen !== null ? (
+        <Hinweis art="warnung" cse="radar-abgewiesen" className="mb-s5 max-w-prose">
+          <strong>Nicht geändert.</strong> {abgewiesen === 'grund'
+            ? 'Ein Verwerfen braucht einen Grund — RAD-07 verlangt ihn, und in einem halben Jahr erinnert sich niemand mehr ohne ihn.'
+            : 'Die Handlung wurde abgewiesen.'}
+        </Hinweis>
+      ) : null}
+
+      {kopf.quellStatus !== 'aktiv' ? (
+        <Hinweis art="warnung" cse="radar-quellstatus" className="mb-s5 max-w-prose">
+          <strong>{kopf.quellStatus === 'aufgehoben' ? 'Das Verfahren ist aufgehoben.' : 'Die Quelle liefert diese Bekanntmachung nicht mehr.'}</strong>{' '}
+          Die Frist zählt nicht weiter, und ein Angebot wäre vergeblich.
+        </Hinweis>
+      ) : null}
+      {d.istBerichtigung ? (
+        <Hinweis art="warnung" cse="radar-berichtigung" className="mb-s5 max-w-prose">
+          <strong>Änderungsbekanntmachung.</strong> Die Vergabestelle hat nachträglich geändert —
+          prüfen Sie Frist und Unterlagen gegen die Quelle.
+        </Hinweis>
+      ) : null}
+      {kopf.plattformName !== null && kopf.registrierung !== 'registriert' ? (
+        <Hinweis art="warnung" cse="radar-plattform-warnung" className="mb-s5 max-w-prose">
+          <strong>Auf {kopf.plattformName} ist diese Gesellschaft nicht freigeschaltet.</strong>{' '}
+          Stand: {kopf.registrierung ?? 'unbekannt'}. Eine Freischaltung dauert Tage bis Wochen —
+          ohne sie ist ein Angebot am Abgabetag nicht abzugeben (RAD-09).{' '}
+          <Link href={`/portal/${mandant}/radar/plattformen`} className="underline underline-offset-4">
+            Plattformen verwalten
+          </Link>.
+        </Hinweis>
+      ) : null}
+
+      <dl data-cse="radar-stammdaten"
+          className="mb-s6 grid max-w-prose grid-cols-1 gap-s2 text-sm sm:grid-cols-[12rem_1fr] sm:gap-x-s5">
+        <dt className="text-text-muted">Vergabestelle</dt>
+        <dd className="text-text">{kopf.vergabestelle ?? '—'}{kopf.ort === null ? '' : `, ${kopf.ort}`}</dd>
+        <dt className="text-text-muted">Quelle</dt>
+        <dd className="text-text">
+          {d.quelle} · <span className="font-mono text-xs">{d.quellId}</span>
+          {d.quellUrl === null ? null : (
+            <>
+              {' '}
+              <a href={d.quellUrl} target="_blank" rel="noreferrer noopener"
+                 className="underline underline-offset-4" data-cse="radar-quell-url">
+                zur Bekanntmachung
+              </a>
+            </>
+          )}
+        </dd>
+        <dt className="text-text-muted">Verfahrensart</dt>
+        <dd className="text-text">{d.verfahrensart ?? 'nicht genannt'}</dd>
+        <dt className="text-text-muted">CPV</dt>
+        <dd className="text-text">
+          {kopf.cpvHaupt ?? '—'}
+          {d.cpvWeitere.length === 0 ? '' : ` (auch ${d.cpvWeitere.join(', ')})`}
+        </dd>
+        <dt className="text-text-muted">Ort (NUTS)</dt>
+        <dd className="text-text">{d.nuts.length === 0 ? 'nicht genannt' : d.nuts.join(', ')}</dd>
+        <dt className="text-text-muted">Auftragswert</dt>
+        <dd className="text-text">
+          {kopf.wertCent === null
+            ? 'nicht genannt'
+            : kopf.wertKriterium === 'fremdwaehrung'
+              ? `${kopf.wertCent.toString()} ${kopf.waehrung ?? ''} — nicht umgerechnet (offene Frage O-47)`
+              : formatiereGeld(cent(kopf.wertCent))}
+        </dd>
+        <dt className="text-text-muted">Veröffentlicht</dt>
+        <dd className="text-text">{d.veroeffentlicht === null ? '—' : BERLIN.format(d.veroeffentlicht)}</dd>
+        <dt className="text-text-muted">Frist Angebot</dt>
+        <dd className="text-text" data-cse="radar-frist-angebot">
+          {kopf.fristAngebot === null ? 'nicht genannt' : BERLIN.format(kopf.fristAngebot)}
+          {kopf.restTage === null ? '' : kopf.restTage < 0 ? ' — abgelaufen' : ` — noch ${String(kopf.restTage)} Tage`}
+        </dd>
+        <dt className="text-text-muted">Frist Fragen</dt>
+        <dd className="text-text">{d.fristFragen === null ? '—' : BERLIN.format(d.fristFragen)}</dd>
+        <dt className="text-text-muted">Lose</dt>
+        <dd className="text-text">
+          {d.loseAnzahl === null ? 'nicht genannt' : String(d.loseAnzahl)}
+          {d.loseAnzahl !== null && d.loseAnzahl > 1
+            ? ' — ob Lose einzeln beworben werden, ist offen (O-193)' : ''}
+        </dd>
+      </dl>
+
+      {d.beschreibung === null ? null : (
+        <section className="mb-s6 max-w-prose">
+          <h2 className="mb-s2 text-h2 text-text">Aus der Bekanntmachung</h2>
+          <p className="whitespace-pre-line text-sm text-text-muted">{d.beschreibung}</p>
+        </section>
+      )}
+
+      <section className="mb-s6">
+        <h2 className="mb-s2 text-h2 text-text">Warum diese Punktzahl</h2>
+        <p className="mb-s3 max-w-prose text-sm text-text-muted">
+          {kopf.ausgeschlossen
+            ? 'Ausgeschlossen — die Regel steht unten.'
+            : `${String(kopf.punkte)} von ${String(kopf.skalaMax)} Punkten für das Profil „${kopf.profilName}".`}{' '}
+          Gerechnet hat das Code, kein Sprachmodell (RAD-05).
+          {kopf.istPlatzhalterProfil
+            ? ' Die Gewichte dieses Profils sind noch Platzhalter (offene Frage O-15).'
+            : ''}
+        </p>
+        <ul data-cse="radar-aufschluesselung" className="flex flex-col gap-s2">
+          {d.aufschluesselung.map((a) => (
+            <li key={a.regel} data-cse="radar-regel" data-regel={a.regel}
+                className="grid grid-cols-[10rem_1fr_4rem] items-baseline gap-s3 rounded-md border border-line bg-surface p-s3 text-sm">
+              <span className="text-text-muted">{REGEL_NAME[a.regel] ?? a.regel}</span>
+              <span className="text-text">{a.text}</span>
+              <span className={`text-right tabular-nums ${a.punkte > 0 ? 'text-success' : a.punkte < 0 ? 'text-danger' : 'text-text-subtle'}`}>
+                {a.punkte > 0 ? `+${String(a.punkte)}` : String(a.punkte)}
+              </span>
+            </li>
+          ))}
+        </ul>
+        {daten.zeilen.length > 1 ? (
+          <p className="mt-s3 text-xs text-text-subtle">
+            Diese Bekanntmachung wird gegen {String(daten.zeilen.length)} Profile bewertet:{' '}
+            {daten.zeilen.map((z) => `${z.profilName} (${String(z.punkte)})`).join(' · ')}.
+          </p>
+        ) : null}
+      </section>
+
+      <section className="mb-s6 max-w-prose">
+        <h2 className="mb-s2 text-h2 text-text">Herkunft</h2>
+        <p className="text-sm text-text-muted" data-cse="radar-rohdaten">
+          {d.rohdaten === 0
+            ? 'Keine Rohantwort gespeichert — diese Zeile wurde nicht über den Einlesejob angelegt.'
+            : `${String(d.rohdaten)} gespeicherte Antwort${d.rohdaten === 1 ? '' : 'en'} der Quelle, zuletzt ${
+              d.letzteRohantwort === null ? '—' : BERLIN.format(d.letzteRohantwort)}.`}
+          {' '}Die Antworten werden unverändert aufbewahrt: bei einer bestrittenen Vergabe ist
+          „woher stammt dieses Feld" die erste Frage (RAD-03).
+        </p>
+      </section>
+
+      {darfStatus ? (
+        <section className="max-w-prose rounded-lg border border-line bg-surface p-s5">
+          <h2 className="mb-s2 text-h2 text-text">Stand setzen</h2>
+          <p className="mb-s3 text-sm text-text-muted">
+            Aktuell: <strong>{kopf.vorgangStatus ?? 'neu'}</strong>. Verwerfen braucht einen Grund
+            (RAD-07). Einreichen geht nicht von hier — die Plattformen bieten dafür keine
+            Schnittstelle an (D-07).
+          </p>
+          <form method="post" action="/api/radar/vorgang" data-cse="radar-status-formular"
+                className="flex flex-col gap-s3">
+            <input type="hidden" name="mandant" value={mandant} />
+            <input type="hidden" name="ausschreibung" value={id} />
+            <input type="hidden" name="profil" value={kopf.profilId} />
+            <input type="hidden" name="bewertung" value={kopf.bewertungId} />
+            <label className="flex flex-col gap-s2 text-xs text-text-muted">
+              Grund (bei „verworfen" verpflichtend)
+              <input type="text" name="grund" maxLength={500}
+                     className="min-h-11 rounded-md border border-line bg-surface-3 px-s4 py-s3 text-base text-text" />
+            </label>
+            <div className="flex flex-wrap gap-s2">
+              <Button type="submit" name="status" value="geprueft" variante="secondary" data-cse="radar-geprueft">
+                Geprüft
+              </Button>
+              <Button type="submit" name="status" value="in_bearbeitung" variante="primary" data-cse="radar-in-bearbeitung">
+                In Bearbeitung
+              </Button>
+              <Button type="submit" name="status" value="verworfen" variante="danger" data-cse="radar-verworfen">
+                Verwerfen
+              </Button>
+            </div>
+          </form>
+        </section>
+      ) : (
+        <p className="max-w-prose text-xs text-text-muted">
+          Den Stand setzt, wer <span className="font-mono">radar.status_setzen</span> hält.
+        </p>
+      )}
+    </PortalRahmen>
+  );
+}

@@ -29,6 +29,7 @@ import { seedVertrieb } from './vertrieb.js';
 import { seedBau } from './bau.js';
 import { seedFreigaben } from './freigaben.js';
 import { seedEingang } from './eingang.js';
+import { seedRadar } from './radar.js';
 import { SupabaseSpeicher } from '../../storage/adapter.js';
 
 const url = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
@@ -1436,6 +1437,19 @@ async function main(): Promise<void> {
    * freigegeben ist. Ohne diesen Schritt fuehrte PR 37 eine Buchhaltung, die
    * nie gebucht hat.
    */
+  /**
+   * Der Vergaberadar (Phase 8, D-490). Die Bekanntmachungen sind DEMODATEN
+   * und tragen deshalb keine Quellenadresse: eine Adresse, die echt aussieht
+   * und ins Leere fuehrt, waere eine Behauptung. Bewertet wird gleich danach
+   * — sonst zeigt die Radarliste Bekanntmachungen ohne Punkte.
+   */
+  const radar = await seedRadar(sql, ids);
+  process.stdout.write(
+    `  ${String(radar.bekanntmachungen)} Bekanntmachungen (Demo, ohne Quellenlink) und `
+    + `${String(radar.profile)} Suchprofile — CPV-Listen sind Platzhalter (O-98), `
+    + `der Plattformkatalog bleibt leer (O-07); ${String(radar.bewertungen)} Bewertungen\n`,
+  );
+
   const frei = await seedFreigaben(sql, ids);
   process.stdout.write(
     frei.vorschlaege === 0

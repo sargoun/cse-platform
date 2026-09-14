@@ -42,6 +42,10 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'radar', pfad: 'radar/ocds', schreibend: false },
   { modul: 'radar', pfad: 'radar/quelle', schreibend: false },
   { modul: 'radar', pfad: 'radar/ted', schreibend: false },
+  {
+    modul: 'radar', pfad: 'radar/vorgang',
+    schreibend: true, schreibRecht: 'radar.status_setzen',
+  },
   { modul: 'buchhaltung', pfad: 'buchhaltung/kontenrahmen', schreibend: false },
   { modul: 'buchhaltung', pfad: 'buchhaltung/kontierung', schreibend: false },
   { modul: 'buchhaltung', pfad: 'buchhaltung/index', schreibend: false },

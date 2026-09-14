@@ -8679,3 +8679,58 @@ sie, schreibt der Nachtlauf eine Zeile mit `uebersprungen` und dem Satz, was
 fehlt — der Unterschied zwischen „heute war nichts ausgeschrieben" und „seit
 drei Wochen fragt niemand mehr nach". Eine Quelle, die ausfällt, nimmt die
 andere nicht mit; beides steht in `radar_ingest_lauf` (Isolationstest).
+
+### D-490 · Der Vergaberadar, Teil 2: die Oberfläche (PR 69)
+
+Die Hälfte aus D-489 rechnet; diese hier zeigt. Fünf Seiten, eine Route, ein
+Dienst — und drei Stellen, an denen die Oberfläche etwas sagt, statt es
+hübsch aussehen zu lassen.
+
+**Die Warnung steht in der LISTE, nicht im Detail (RAD-09).** Eine
+Bekanntmachung auf einer Plattform, auf der diese Gesellschaft nicht
+freigeschaltet ist, trägt die Warnung in der Zeile. Die Freischaltung dauert
+Tage bis Wochen; wer sie beim Öffnen der Bekanntmachung entdeckt, entdeckt
+sie am Abgabetag, und dann ist die Chance weg. Dieselbe Zahl steht als
+Kennzahl oben („ohne Freischaltung").
+
+**Die Restfrist ist Text, keine Pille.** DESIGN §5 gibt den Status-Pillen
+ein FESTES Vokabular; „noch 3 Tage" steht dort nicht. Eine Pille mit
+erfundenem Text wäre die Ausnahme, an der ein Vokabular zerfällt — also
+trägt die Zahl den Ton (unter fünf Tagen `danger`, RAD-06) und steht als
+Zahl daneben, nicht als Farbe allein (§9). Die Anzeige rundet ab: eine
+angebrochene Nacht ist kein Arbeitstag.
+
+**Die Punktzahl steht nie allein.** Das Detail rechnet sie auf: jede der
+sechs Regeln mit ihrem Beitrag und dem Satz, den der Code erzeugt hat. Eine
+Zahl ohne Begründung wäre eine Behauptung, und über eine Behauptung kann
+niemand streiten — bei einer Vergabe, die jemand verpasst hat, ist genau das
+die Frage.
+
+**Was die Oberfläche NICHT hat: einen Knopf „einreichen".** D-07 ist keine
+Lücke, die man später füllt: die deutschen Vergabeplattformen bieten keine
+Einreichungsschnittstelle, Konten hängen an natürlichen Personen, manche
+verlangen eine Signatur. Der Browsertest zählt deshalb die Vorkommen des
+Wortes auf der Radarliste und verlangt null. Was es gibt, ist der
+Statuswechsel (RAD-07): geprüft, in Bearbeitung, verworfen — **mit Grund**,
+den der Dienst erzwingt und die Seite erklärt, statt ihn stillschweigend
+hinzunehmen.
+
+**Zwei Fehler, die erst der Browser gefunden hat.** (1) `JSON.stringify` an
+einem `::jsonb`-Parameter kodiert postgres.js ein zweites Mal: gespeichert
+stand eine JSON-Zeichenkette statt eines Feldes (`jsonb_typeof` = `string`),
+und die Detailseite fiel über `aufschluesselung.map is not a function` — die
+Falle, die D-467 beschreibt, an einer neuen Stelle. Der Isolationstest prüft
+jetzt `jsonb_typeof` und die Zeilenzahl. (2) Eine Frist „in drei Tagen"
+zeigte Sekunden später „noch 2 Tage", weil die Anzeige abrundet; der Seed
+legt sechs Stunden Puffer drauf, und der Test hängt an der Sache statt an
+der Zahl.
+
+**Demodaten, die ehrlich sind.** Sieben Bekanntmachungen mit den Fällen, an
+denen eine Liste versagt (knappe Frist, Fremdwährung, aufgehobenes
+Verfahren, europäische Vergabe, eine ohne Treffer), drei Suchprofile mit den
+CPV-Codes aus SPEC §6 — alle als Platzhalter markiert, weil derselbe
+Abschnitt „verify against the official list" sagt (O-98). **Kein
+Quellenlink**: diese Zeilen sind keine Veröffentlichungen, und eine Adresse,
+die echt aussieht und ins Leere führt, wäre eine Behauptung. **Kein
+Plattformkatalog**: O-07 ist offen, und die Plattformseite sagt das, statt
+eine Liste zu zeigen, die wie ein geprüfter Stand aussieht.
