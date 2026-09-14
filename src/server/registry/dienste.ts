@@ -719,6 +719,10 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'finanzen', pfad: 'finanz/zahlungsmittel', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/index', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/xml', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/xml-lesen', schreibend: false },
+  /* PR 63 — E-Rechnung lesen (ACC-05): reine Extraktion, kein Modell, kein OCR (O-135). */
+  { modul: 'eingang', pfad: 'finanz/eingang/erechnung', schreibend: false },
+  { modul: 'eingang', pfad: 'finanz/eingang/pdf-anhang', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/aus-snapshot', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/pruefstand', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/dienst', schreibend: false },

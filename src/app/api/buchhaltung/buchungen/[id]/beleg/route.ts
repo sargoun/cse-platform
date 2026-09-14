@@ -1,5 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
+import { istUuid } from '@/lib/uuid';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { withTenant } from '@/server/kontext/index';
@@ -42,6 +43,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   const { id } = await params;
+  if (!istUuid(id)) return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
   const sitzung = await aktuelleSitzung();
   if (sitzung === null || sitzung.aktiverMandantId === null) {
     return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });

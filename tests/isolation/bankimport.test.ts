@@ -22,7 +22,7 @@ import {
   finalisiere, fuegePositionHinzu, legeEntwurfAn, vonHand, type Abfrage,
 } from '../../src/server/services/finanz/rechnung.js';
 import type { ArchivKontext } from '../../src/server/services/buchhaltung/belegarchiv.js';
-import { ImportFehler, importiereAuszug }
+import { ImportFehler, bestaetigeZuordnung, importiereAuszug, markiereOhneBezug }
   from '../../src/server/services/finanz/bank/import.js';
 
 let f: Fixtur;
@@ -220,6 +220,9 @@ function alsImport(tx: postgres.TransactionSql) {
   return alsDienst(tx);
 }
 
+/** Die Datei, wie sie hochgeladen wird: Bytes, nicht Text (Copilot-Befund PR 12). */
+const bytes = (xml: string): Uint8Array => new TextEncoder().encode(xml);
+
 // ---------------------------------------------------------------------------
 // (1) Derselbe Auszug zweimal
 // ---------------------------------------------------------------------------
@@ -231,12 +234,12 @@ describe('(1) der Import ist idempotent — ueber den Pruefwert der DATEI', () =
     const xml = auszug(eingang('1190.00', p.nummer));
 
     const erst = await alsApp(sitzung(), async (tx) =>
-      importiereAuszug(alsImport(tx), new LokalerSpeicher(), xml, JETZT));
+      importiereAuszug(alsImport(tx), new LokalerSpeicher(), bytes(xml), JETZT));
     expect(erst.neu).toBe(true);
     expect(erst.zeilen).toBe(1);
 
     const zweit = await alsApp(sitzung(), async (tx) =>
-      importiereAuszug(alsImport(tx), new LokalerSpeicher(), xml, JETZT));
+      importiereAuszug(alsImport(tx), new LokalerSpeicher(), bytes(xml), JETZT));
     expect(zweit.neu, 'die zweite Einlesung ist ein Nichtereignis').toBe(false);
     expect(zweit.auszugId).toBe(erst.auszugId);
 
@@ -256,10 +259,10 @@ describe('(1) der Import ist idempotent — ueber den Pruefwert der DATEI', () =
     await legeBankkontoAn(f.reinigung);
     const p = await offenerPosten();
     await alsApp(sitzung(), async (tx) => importiereAuszug(
-      alsImport(tx), new LokalerSpeicher(), auszug(eingang('1190.00', p.nummer)), JETZT));
+      alsImport(tx), new LokalerSpeicher(), bytes(auszug(eingang('1190.00', p.nummer))), JETZT));
     const zweit = await alsApp(sitzung(), async (tx) => importiereAuszug(
       alsImport(tx), new LokalerSpeicher(),
-      auszug(eingang('500.00', 'Sonstiges')), JETZT));
+      bytes(auszug(eingang('500.00', 'Sonstiges'))), JETZT));
     expect(zweit.neu).toBe(true);
   });
 });
@@ -279,7 +282,7 @@ describe('(2) ein mehrdeutiger Treffer wird NIE automatisch zugeordnet', () => {
     const p = await offenerPosten();
     const e = await alsApp(sitzung(), async (tx) => importiereAuszug(
       alsImport(tx), new LokalerSpeicher(),
-      auszug(eingang('1190.00', p.nummer)), JETZT));
+      bytes(auszug(eingang('1190.00', p.nummer))), JETZT));
 
     expect(e.automatischZugeordnet).toBe(0);
     expect(e.inKlaerung).toBe(1);
@@ -301,7 +304,7 @@ describe('(2) ein mehrdeutiger Treffer wird NIE automatisch zugeordnet', () => {
     await offenerPosten();
     await alsApp(sitzung(), async (tx) => importiereAuszug(
       alsImport(tx), new LokalerSpeicher(),
-      auszug(eingang('1190.00', 'Zahlung')), JETZT));
+      bytes(auszug(eingang('1190.00', 'Zahlung'))), JETZT));
 
     const [u] = await sql.unsafe<{ zustand: string; vorschlag_text: string }[]>(
       'select zustand, vorschlag_text from kontoumsatz');
@@ -313,10 +316,10 @@ describe('(2) ein mehrdeutiger Treffer wird NIE automatisch zugeordnet', () => {
     await legeBankkontoAn(f.reinigung);
     const p = await offenerPosten();
     await alsApp(sitzung(), async (tx) => importiereAuszug(
-      alsImport(tx), new LokalerSpeicher(), auszug(`
+      alsImport(tx), new LokalerSpeicher(), bytes(auszug(`
         <Ntry><Amt Ccy="EUR">1190.00</Amt><CdtDbtInd>CRDT</CdtDbtInd>
           <Sts>PDNG</Sts><BookgDt><Dt>2026-09-15</Dt></BookgDt>
-          <RmtInf><Ustrd>${p.nummer}</Ustrd></RmtInf></Ntry>`), JETZT));
+          <RmtInf><Ustrd>${p.nummer}</Ustrd></RmtInf></Ntry>`)), JETZT));
 
     const [u] = await sql.unsafe<{ gebucht: boolean; zustand: string;
                                    vorschlag_text: string }[]>(
@@ -337,7 +340,7 @@ describe('(3) der Betrag kommt als ganzer Cent in der Datenbank an', () => {
     await offenerPosten();
     await alsApp(sitzung(), async (tx) => importiereAuszug(
       alsImport(tx), new LokalerSpeicher(),
-      auszug(`${eingang('1190.00', 'A')}${eingang('0.01', 'B')}`), JETZT));
+      bytes(auszug(`${eingang('1190.00', 'A')}${eingang('0.01', 'B')}`)), JETZT));
 
     const zeilen = await sql.unsafe<{ betrag_cent: string }[]>(
       'select betrag_cent::text from kontoumsatz order by laufnummer');
@@ -347,9 +350,9 @@ describe('(3) der Betrag kommt als ganzer Cent in der Datenbank an', () => {
   it('ein Ausgang traegt seine Richtung in der Spalte, nicht im Vorzeichen', async () => {
     await legeBankkontoAn(f.reinigung);
     await alsApp(sitzung(), async (tx) => importiereAuszug(
-      alsImport(tx), new LokalerSpeicher(), auszug(`
+      alsImport(tx), new LokalerSpeicher(), bytes(auszug(`
         <Ntry><Amt Ccy="EUR">500.00</Amt><CdtDbtInd>DBIT</CdtDbtInd>
-          <Sts>BOOK</Sts><BookgDt><Dt>2026-09-15</Dt></BookgDt></Ntry>`), JETZT));
+          <Sts>BOOK</Sts><BookgDt><Dt>2026-09-15</Dt></BookgDt></Ntry>`)), JETZT));
 
     const [u] = await sql.unsafe<{ richtung: string; betrag_cent: string }[]>(
       'select richtung::text as richtung, betrag_cent::text from kontoumsatz');
@@ -367,7 +370,7 @@ describe('(4) nichts verschwindet, und ein Fehlgriff ist zuruecknehmbar', () => 
     await legeBankkontoAn(f.reinigung);
     await alsApp(sitzung(), async (tx) => importiereAuszug(
       alsImport(tx), new LokalerSpeicher(),
-      auszug(eingang('77.00', 'Bankgebuehr')), JETZT));
+      bytes(auszug(eingang('77.00', 'Bankgebuehr'))), JETZT));
 
     const [u] = await sql.unsafe<{ zustand: string; vorschlag_text: string }[]>(
       'select zustand, vorschlag_text from kontoumsatz');
@@ -379,7 +382,7 @@ describe('(4) nichts verschwindet, und ein Fehlgriff ist zuruecknehmbar', () => 
     await legeBankkontoAn(f.reinigung);
     await alsApp(sitzung(), async (tx) => importiereAuszug(
       alsImport(tx), new LokalerSpeicher(),
-      auszug(eingang('77.00', 'Bankgebuehr')), JETZT));
+      bytes(auszug(eingang('77.00', 'Bankgebuehr'))), JETZT));
     const [u] = await sql.unsafe<{ id: string }[]>('select id from kontoumsatz');
 
     await expect(sql.unsafe(
@@ -399,7 +402,7 @@ describe('(4) nichts verschwindet, und ein Fehlgriff ist zuruecknehmbar', () => 
     await legeBankkontoAn(f.reinigung);
     await alsApp(sitzung(), async (tx) => importiereAuszug(
       alsImport(tx), new LokalerSpeicher(),
-      auszug(eingang('77.00', 'Gebuehr')), JETZT));
+      bytes(auszug(eingang('77.00', 'Gebuehr'))), JETZT));
     const [u] = await sql.unsafe<{ id: string }[]>('select id from kontoumsatz');
 
     await expect(sql.unsafe(
@@ -411,7 +414,7 @@ describe('(4) nichts verschwindet, und ein Fehlgriff ist zuruecknehmbar', () => 
     await legeBankkontoAn(f.reinigung);
     const e = await alsApp(sitzung(), async (tx) => importiereAuszug(
       alsImport(tx), new LokalerSpeicher(),
-      auszug(eingang('77.00', 'Gebuehr')), JETZT));
+      bytes(auszug(eingang('77.00', 'Gebuehr'))), JETZT));
 
     await expect(sql.unsafe('delete from kontoumsatz')).rejects.toThrow();
     await expect(sql.unsafe('delete from kontoauszug where id = $1', [e.auszugId]))
@@ -428,7 +431,7 @@ describe('der Auszug gehoert zu genau einem Bankkonto', () => {
     const p = await offenerPosten();
     await expect(alsApp(sitzung(), async (tx) => importiereAuszug(
       alsImport(tx), new LokalerSpeicher(),
-      auszug(eingang('1190.00', p.nummer)), JETZT)))
+      bytes(auszug(eingang('1190.00', p.nummer))), JETZT)))
       .rejects.toThrow(ImportFehler);
 
     const [n] = await sql.unsafe<{ n: string }[]>(
@@ -441,7 +444,102 @@ describe('der Auszug gehoert zu genau einem Bankkonto', () => {
     const ohneIban = auszug(eingang('77.00', 'X'))
       .replace(`<Acct><Id><IBAN>${IBAN_HAUS}</IBAN></Id><Ccy>EUR</Ccy></Acct>`, '');
     await expect(alsApp(sitzung(), async (tx) => importiereAuszug(
-      alsImport(tx), new LokalerSpeicher(), ohneIban, JETZT)))
+      alsImport(tx), new LokalerSpeicher(), bytes(ohneIban), JETZT)))
       .rejects.toThrow(/nennt keine IBAN/u);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// (9) Die Klaerung — ein Mensch entscheidet, und der Auszug wird fertig
+//     (Copilot-Befund PR 12: `in_klaerung` hatte keinen Ausgang)
+// ---------------------------------------------------------------------------
+
+describe('(9) die Klaerung leert die Schlange', () => {
+  async function wartendeZeile(zweck: string): Promise<{ umsatzId: string; auszugId: string }> {
+    await legeBankkontoAn(f.reinigung);
+    /* Ein Eingang OHNE Rechnungsnummer im Zweck — kein Treffer, also Klaerung. */
+    const ergebnis = await alsApp(sitzung(), async (tx) => importiereAuszug(
+      alsImport(tx), new LokalerSpeicher(), bytes(auszug(eingang('1190.00', zweck))), JETZT));
+    expect(ergebnis.inKlaerung).toBe(1);
+    const [u] = await sql.unsafe<{ id: string; zustand: string }[]>(
+      'select id, zustand::text as zustand from kontoumsatz where kontoauszug_id = $1',
+      [ergebnis.auszugId]);
+    expect(u?.zustand).toBe('in_klaerung');
+    return { umsatzId: u!.id, auszugId: ergebnis.auszugId };
+  }
+
+  it('eine bestaetigte Zuordnung legt die Zahlung an — als Mensch — und schliesst den Auszug', async () => {
+    const p = await offenerPosten();
+    const { umsatzId, auszugId } = await wartendeZeile('Ueberweisung ohne Nummer');
+    const [posten] = await sql.unsafe<{ id: string }[]>(
+      'select id from offener_posten where rechnung_id = $1', [p.rechnungId]);
+
+    const k = await alsApp(sitzung(), async (tx) =>
+      bestaetigeZuordnung(alsImport(tx), umsatzId, posten!.id));
+    expect(k.auszugId).toBe(auszugId);
+    expect(k.auszugAbgeglichen, 'die einzige Zeile ist entschieden').toBe(true);
+
+    const [u] = await sql.unsafe<{ zustand: string; notiz: string | null }[]>(
+      'select zustand::text as zustand, klaerungsnotiz as notiz from kontoumsatz where id = $1',
+      [umsatzId]);
+    expect(u?.zustand).toBe('zugeordnet');
+    expect(u?.notiz).toMatch(new RegExp(p.nummer, 'u'));
+
+    const [z] = await sql.unsafe<{ art: string; von: string | null; betrag: string }[]>(
+      `select z.erstellt_von_art::text as art, z.erstellt_von::text as von, z.betrag_cent::text as betrag
+         from zahlung z
+         join umsatz_zuordnung uz on uz.zahlung_id = z.id
+        where uz.kontoumsatz_id = $1 and uz.automatisch = false`, [umsatzId]);
+    expect(z?.art, 'ein Mensch hat zugeordnet, kein Dienst').toBe('mensch');
+    expect(z?.von).toBe(benutzer);
+    expect(z?.betrag).toBe('119000');
+
+    const [op] = await sql.unsafe<{ offen: string }[]>(
+      'select offen_cent::text as offen from offener_posten where id = $1', [posten!.id]);
+    expect(op?.offen).toBe('0');
+
+    const [a] = await sql.unsafe<{ status: string }[]>(
+      'select status::text as status from kontoauszug where id = $1', [auszugId]);
+    expect(a?.status).toBe('abgeglichen');
+  });
+
+  it('„ohne Bezug" braucht einen Satz — und schliesst dann ebenfalls', async () => {
+    await offenerPosten();
+    const { umsatzId, auszugId } = await wartendeZeile('Gebuehr');
+
+    await expect(alsApp(sitzung(), async (tx) =>
+      markiereOhneBezug(alsImport(tx), umsatzId, 'kurz')))
+      .rejects.toThrow(ImportFehler);
+
+    const k = await alsApp(sitzung(), async (tx) =>
+      markiereOhneBezug(alsImport(tx), umsatzId, 'Kontofuehrungsgebuehr September'));
+    expect(k.auszugAbgeglichen).toBe(true);
+    const [u] = await sql.unsafe<{ zustand: string }[]>(
+      'select zustand::text as zustand from kontoumsatz where id = $1', [umsatzId]);
+    expect(u?.zustand).toBe('ohne_bezug');
+    const [a] = await sql.unsafe<{ status: string }[]>(
+      'select status::text as status from kontoauszug where id = $1', [auszugId]);
+    expect(a?.status).toBe('abgeglichen');
+  });
+
+  it('eine entschiedene Zeile wird nicht noch einmal entschieden', async () => {
+    await offenerPosten();
+    const { umsatzId } = await wartendeZeile('Zins');
+    await alsApp(sitzung(), async (tx) =>
+      markiereOhneBezug(alsImport(tx), umsatzId, 'Habenzins Quartal'));
+    await expect(alsApp(sitzung(), async (tx) =>
+      markiereOhneBezug(alsImport(tx), umsatzId, 'noch einmal, anders')))
+      .rejects.toThrow(/bereits entschieden/u);
+  });
+
+  it('eine Fremdwaehrung wird beim Einlesen abgewiesen — als Datei, nicht als Euro', async () => {
+    await legeBankkontoAn(f.reinigung);
+    const usd = auszug(eingang('1190.00', 'Sonstiges'))
+      .replace('<Amt Ccy="EUR">1190.00</Amt>', '<Amt Ccy="USD">1190.00</Amt>');
+    await expect(alsApp(sitzung(), async (tx) => importiereAuszug(
+      alsImport(tx), new LokalerSpeicher(), bytes(usd), JETZT)))
+      .rejects.toThrow(/USD/u);
+    const [n] = await sql.unsafe<{ n: string }[]>('select count(*)::text as n from kontoauszug');
+    expect(n?.n).toBe('0');
   });
 });

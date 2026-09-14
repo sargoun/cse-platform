@@ -39,22 +39,36 @@ interface Recht {
 }
 
 export default async function Rollenblatt(
-  { params }: { params: Promise<{ mandant: string; rolle: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; rolle: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, rolle } = await params;
   if (!SCHLUESSEL.test(rolle)) notFound();
+  /*
+   * `?eigene=1` waehlt die Rolle DIESER Gesellschaft, sonst die plattformweite.
+   * Beide duerfen denselben Schluessel tragen; ohne die Wahl war die
+   * plattformweite unerreichbar, sobald eine eigene daneben stand.
+   */
+  const eigene = (await searchParams)['eigene'] === '1';
   const tor = await mandantTor(`/portal/${mandant}/einstellungen/rollen/${rolle}`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang, mandantId } = tor;
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
-      const [kopf] = await kontext.abfrage<Kopf>(
-        `select r.schluessel, r.bezeichnung, r.beschreibung, r.portal, r.erfordert_2fa
+      /*
+       * ERST die eine Rollenzeile, DANN ihre Rechte — ueber `r.id`. Der Join
+       * ueber den Schluessel traf sonst zwei Zeilen (plattformweit und
+       * eigene) und verdoppelte jede Matrixzeile.
+       */
+      const [kopf] = await kontext.abfrage<Kopf & { readonly id: string }>(
+        `select r.id, r.schluessel, r.bezeichnung, r.beschreibung, r.portal, r.erfordert_2fa
            from rolle r
           where r.schluessel = $1 and r.archiviert_am is null
-            and (r.mandant_id is null or r.mandant_id = $2)
-          order by r.mandant_id nulls last limit 1`, [rolle, mandantId]);
+            and (case when $3::boolean then r.mandant_id = $2 else r.mandant_id is null end)
+          limit 1`, [rolle, mandantId, eigene]);
       if (kopf === undefined) return null;
       const rechte = await kontext.abfrage<Recht>(
         `select b.schluessel, b.modul, b.bezeichnung, b.aktion::text as aktion, b.risiko::text as risiko,
@@ -62,13 +76,13 @@ export default async function Rollenblatt(
                 coalesce(hier.gewaehrt, vorgabe.gewaehrt) as gewaehrt,
                 (hier.gewaehrt is not null) as abweichung
            from berechtigung b
-           join rolle r on r.schluessel = $1 and r.archiviert_am is null
-                       and (r.mandant_id is null or r.mandant_id = $2)
            left join rolle_berechtigung vorgabe
-                  on vorgabe.rolle_id = r.id and vorgabe.berechtigung_id = b.id and vorgabe.mandant_id is null
+                  on vorgabe.rolle_id = $1::uuid and vorgabe.berechtigung_id = b.id
+                 and vorgabe.mandant_id is null
            left join rolle_berechtigung hier
-                  on hier.rolle_id = r.id and hier.berechtigung_id = b.id and hier.mandant_id = $2
-          order by b.modul, b.sortierung, b.schluessel`, [rolle, mandantId]);
+                  on hier.rolle_id = $1::uuid and hier.berechtigung_id = b.id
+                 and hier.mandant_id = $2
+          order by b.modul, b.sortierung, b.schluessel`, [kopf.id, mandantId]);
       return { kopf, rechte };
     })) as Promise<{ kopf: Kopf; rechte: readonly Recht[] } | null>);
   if (daten === null) notFound();

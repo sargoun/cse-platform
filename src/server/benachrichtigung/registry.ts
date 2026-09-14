@@ -18,6 +18,15 @@ export type Kanal = 'app' | 'email';
 
 export interface BenachrichtigungsKontext {
   readonly mandantId: string;
+  /**
+   * Der Slug der Gesellschaft — das Segment `[mandant]` eines Portalpfads.
+   *
+   * `mandantId` ist die Kennung, und `slugTor()` vergleicht das Pfadsegment
+   * mit dem Slug: ein Ziel aus der Kennung fuehrte auf 404 (Copilot-Befund
+   * PR 12). Wer ein Ziel im Bereich baut, braucht den Slug; wer ihn nicht
+   * hat, liefert `null` — kein Ziel ist ehrlicher als ein totes.
+   */
+  readonly mandantSlug?: string | null;
   readonly objektTyp: string;
   readonly objektId: string;
   readonly daten: Record<string, unknown>;

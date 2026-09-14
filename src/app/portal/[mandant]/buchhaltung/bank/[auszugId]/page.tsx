@@ -1,6 +1,7 @@
 import type postgres from 'postgres';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { istUuid } from '@/lib/uuid';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
@@ -65,10 +66,28 @@ const ZUSTAND: Readonly<Record<string, 'Bereit' | 'Abgeschlossen' | 'Wartet' | '
   zugeordnet: 'Abgeschlossen', ohne_bezug: 'Archiviert',
 };
 
+interface PostenAuswahl {
+  readonly id: string;
+  readonly nummer: string;
+  readonly offen_cent: string;
+  readonly kunde: string | null;
+}
+
+const MELDUNG: Readonly<Record<string, string>> = {
+  zugeordnet: 'Der Umsatz ist zugeordnet; die Zahlung ist angelegt.',
+  ohne_bezug: 'Der Umsatz ist als „ohne Bezug" vermerkt.',
+};
+
 export default async function BankAuszug(
-  { params }: { params: Promise<{ mandant: string; auszugId: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; auszugId: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, auszugId } = await params;
+  const suche = await searchParams;
+  /* Ein Wort im Pfad ist ein 404, kein 500 — die Umwandlung nach uuid geschieht sonst in der Datenbank. */
+  if (!istUuid(auszugId)) notFound();
   const zugang = await portalZugang(
     `/portal/${mandant}/buchhaltung/bank/${auszugId}`);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -90,7 +109,9 @@ export default async function BankAuszug(
            join bankkonto b on b.id = a.bankkonto_id and b.mandant_id = a.mandant_id
           where a.id = $1`,
         [auszugId]);
-      if (kopf === undefined) return { kopf: null, umsaetze: [] as UmsatzRoh[] };
+      if (kopf === undefined) {
+        return { kopf: null, umsaetze: [] as UmsatzRoh[], posten: [] as PostenAuswahl[] };
+      }
 
       const umsaetze = await kontext.abfrage<UmsatzRoh>(
         `select u.id, u.laufnummer, u.richtung::text as richtung,
@@ -111,8 +132,22 @@ export default async function BankAuszug(
           order by u.laufnummer`,
         [auszugId]);
 
-      return { kopf, umsaetze };
-    }))) as { kopf: KopfRoh | null; umsaetze: readonly UmsatzRoh[] };
+      /*
+       * Die offenen Posten fuer die Klaerung — was ein Mensch einem
+       * wartenden Eingang zuordnen kann. Nur offene, nur mit Nummer: ein
+       * Entwurf ist keine Forderung.
+       */
+      const posten = await kontext.abfrage<PostenAuswahl>(
+        `select op.id, r.nummer, op.offen_cent::text, k.name as kunde
+           from offener_posten op
+           join rechnung r on r.id = op.rechnung_id and r.mandant_id = op.mandant_id
+           left join kunde k on k.id = r.kunde_id and k.mandant_id = r.mandant_id
+          where op.ausgeglichen_am is null and op.offen_cent > 0 and r.nummer is not null
+          order by r.nummer
+          limit 200`);
+      return { kopf, umsaetze, posten };
+    }))) as { kopf: KopfRoh | null; umsaetze: readonly UmsatzRoh[];
+      posten: readonly PostenAuswahl[] };
 
   if (daten.kopf === null) notFound();
   const k = daten.kopf;
@@ -122,13 +157,26 @@ export default async function BankAuszug(
    * Kein Rechnen im Sinne von Invariante 6 — zwei gespeicherte Cent-Beträge
    * zu addieren ist eine Kontrolle, keine Bildung einer neuen Zahl.
    */
-  const bewegung = daten.umsaetze.reduce(
+  /*
+   * Nur GEBUCHTE Zeilen: eine Vormerkung (`PDNG`) steht im Auszug, aber noch
+   * nicht im Schlusssaldo — mit ihr in der Summe meldete die Probe eine
+   * fehlende Zeile, die keine ist.
+   */
+  const bewegung = daten.umsaetze.filter((u) => u.gebucht).reduce(
     (s, u) => s + (u.richtung === 'eingang' ? BigInt(u.betrag_cent) : -BigInt(u.betrag_cent)),
     0n);
   const anfang = k.anfangssaldo_cent === null ? null : BigInt(k.anfangssaldo_cent);
   const ende = k.endsaldo_cent === null ? null : BigInt(k.endsaldo_cent);
   const stimmt = anfang !== null && ende !== null && anfang + bewegung === ende;
   const pruefbar = anfang !== null && ende !== null;
+
+  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const fehlerText = typeof suche['meldung'] === 'string' && fehler !== null ? suche['meldung'] : null;
+  const wartend = daten.umsaetze.filter((u) => u.zustand === 'offen' || u.zustand === 'in_klaerung');
+  const feld = 'min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 text-sm text-text';
+  const knopf = 'min-h-11 rounded-md bg-brand px-s4 text-sm font-semibold text-white hover:bg-brand-hover';
+  const knopfStill = 'min-h-11 rounded-md border border-line-strong px-s4 text-sm text-text hover:bg-surface-2';
 
   return (
     <PortalRahmen
@@ -151,6 +199,20 @@ export default async function BankAuszug(
           Zur Liste
         </Link>
       </div>
+
+      {meldung !== null && fehler === null ? (
+        <p role="status" data-cse="bank-meldung"
+           className="mb-s5 rounded-lg border border-success bg-success-soft p-s4 text-sm text-success">
+          {MELDUNG[meldung] ?? meldung}
+          {suche['abgeglichen'] === '1' ? ' Der Auszug ist damit vollständig abgeglichen.' : ''}
+        </p>
+      ) : null}
+      {fehler !== null ? (
+        <p role="alert" data-cse="bank-fehler"
+           className="mb-s5 rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning">
+          {fehlerText ?? 'Die Klärung wurde abgewiesen.'}
+        </p>
+      ) : null}
 
       <dl className="mb-s5 grid grid-cols-1 gap-s4 sm:grid-cols-3">
         {[
@@ -255,6 +317,91 @@ export default async function BankAuszug(
           ]}
         />
       )}
+
+      {/*
+        * **Die Klaerung — hier entscheidet ein Mensch** (ACC-04).
+        *
+        * Bis PR 12 (Copilot-Befund) gab es diesen Abschnitt nicht: was der
+        * Abgleich nicht eindeutig fand, blieb fuer immer „in Klaerung", und
+        * kein Auszug wurde je abgeglichen. Je wartender Zeile zwei Wege:
+        * einen offenen Posten bestaetigen oder den Umsatz als „ohne Bezug"
+        * vermerken — mit einem Satz, der spaeter allein steht.
+        */}
+      {wartend.length > 0 ? (
+        <section data-cse="bank-klaerung" className="mt-s7">
+          <h2 className="mb-s3 text-h2 text-text">Klärung</h2>
+          <p className="mb-s4 max-w-[72ch] text-sm text-text-muted">
+            {String(wartend.length)} Zeile(n) warten auf eine Entscheidung. Zugeordnet wird
+            der Betrag der Bank; gerechnet wird hier nichts.
+          </p>
+          <ul className="m-0 flex list-none flex-col gap-s4 p-0">
+            {wartend.map((z) => (
+              <li key={z.id} data-cse="klaerung-zeile" data-umsatz={z.id}
+                  className="rounded-lg border border-line bg-surface p-s5">
+                <div className="mb-s3 flex flex-wrap items-baseline justify-between gap-s3">
+                  <span className="text-sm text-text">
+                    Nr. {z.laufnummer} · {z.buchungsdatum} ·{' '}
+                    <strong>{z.richtung === 'eingang' ? '' : '− '}{formatiereGeld(cent(BigInt(z.betrag_cent)))}</strong>
+                    {z.gegenpartei === null ? '' : ` · ${z.gegenpartei}`}
+                  </span>
+                  <span className="text-xs text-warning">{z.vorschlag_text ?? 'Noch nicht abgeglichen'}</span>
+                </div>
+                <p className="mb-s4 text-sm text-text-muted">
+                  {z.verwendungszweck === '' ? '—' : z.verwendungszweck}
+                </p>
+                <div className="grid grid-cols-1 gap-s4 lg:grid-cols-2">
+                  {z.richtung === 'eingang' && z.gebucht ? (
+                    <form method="post" action="/api/buchhaltung/bank/umsatz"
+                          className="flex flex-col gap-s2 sm:flex-row sm:items-end">
+                      <input type="hidden" name="mandant" value={mandant} />
+                      <input type="hidden" name="auszugId" value={k.id} />
+                      <input type="hidden" name="umsatzId" value={z.id} />
+                      <input type="hidden" name="aktion" value="zuordnen" />
+                      <label className="flex min-w-0 flex-1 flex-col gap-s1 text-sm text-text">
+                        Offener Posten
+                        <select name="postenId" required className={feld} defaultValue="">
+                          <option value="" disabled>— wählen —</option>
+                          {daten.posten.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.nummer} · {formatiereGeld(cent(BigInt(p.offen_cent)))}
+                              {p.kunde === null ? '' : ` · ${p.kunde}`}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <button type="submit" data-cse="klaerung-zuordnen" className={knopf}
+                              disabled={daten.posten.length === 0}>
+                        Zuordnen
+                      </button>
+                    </form>
+                  ) : (
+                    <p className="text-sm text-text-subtle">
+                      {z.gebucht
+                        ? 'Ein Ausgang wird keiner Forderung zugeordnet.'
+                        : 'Eine Vormerkung wird erst zugeordnet, wenn die Bank gebucht hat.'}
+                    </p>
+                  )}
+                  <form method="post" action="/api/buchhaltung/bank/umsatz"
+                        className="flex flex-col gap-s2 sm:flex-row sm:items-end">
+                    <input type="hidden" name="mandant" value={mandant} />
+                    <input type="hidden" name="auszugId" value={k.id} />
+                    <input type="hidden" name="umsatzId" value={z.id} />
+                    <input type="hidden" name="aktion" value="ohne_bezug" />
+                    <label className="flex min-w-0 flex-1 flex-col gap-s1 text-sm text-text">
+                      Ohne Bezug — warum
+                      <input name="notiz" type="text" required minLength={5} className={feld}
+                             placeholder="z. B. Kontoführungsgebühr September" />
+                    </label>
+                    <button type="submit" data-cse="klaerung-ohne-bezug" className={knopfStill}>
+                      Ohne Bezug
+                    </button>
+                  </form>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {k.dokument_id === null ? (
         <p className="mt-s5 text-sm text-text-muted">

@@ -47,7 +47,7 @@ export default async function GruppenProtokoll({ searchParams }: { searchParams:
          left join agent ag on ag.id = a.agent_id
         where ($1::uuid is null and (a.mandant_id is null or a.mandant_id = any($2::uuid[])))
            or a.mandant_id = $1::uuid
-        order by a.id desc
+        order by a.erstellt_am desc, a.id desc
         limit 200`,
       [aktiv?.id ?? null, kontext.mandantIds],
     );

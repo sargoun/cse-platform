@@ -258,6 +258,42 @@ describe('(4) was kein Kontoauszug ist, wird abgewiesen', () => {
   });
 });
 
+describe('(6) Richtung und Währung werden gelesen, nicht angenommen (Copilot, PR 12)', () => {
+  it('ein Umsatz ohne CdtDbtInd ist kein Eingang — er wird abgewiesen', () => {
+    const ohne = EINGANG.replace('<CdtDbtInd>CRDT</CdtDbtInd>', '');
+    expect(() => leseCamt053(auszug(ohne))).toThrow(/Richtung/u);
+    const falsch = EINGANG.replace('<CdtDbtInd>CRDT</CdtDbtInd>', '<CdtDbtInd>XXXX</CdtDbtInd>');
+    expect(() => leseCamt053(auszug(falsch))).toThrow(CamtFehler);
+  });
+
+  it('ein Betrag in USD wird abgewiesen, nicht als Euro geführt', () => {
+    const usd = EINGANG.replace('<Amt Ccy="EUR">1190.00</Amt>', '<Amt Ccy="USD">1190.00</Amt>');
+    let fehler: unknown;
+    try { leseCamt053(auszug(usd)); } catch (e) { fehler = e; }
+    expect(fehler).toBeInstanceOf(CamtFehler);
+    expect((fehler as CamtFehler).grund).toBe('waehrung');
+    expect((fehler as CamtFehler).message).toMatch(/USD/u);
+  });
+
+  it('ein Konto in GBP wird abgewiesen — der ganze Auszug', () => {
+    const gbp = auszug(EINGANG).replace('<Ccy>EUR</Ccy>', '<Ccy>GBP</Ccy>');
+    expect(() => leseCamt053(gbp)).toThrow(/GBP/u);
+  });
+
+  it('ein Einzelumsatz in Fremdwährung innerhalb einer Sammelbuchung fällt ebenso', () => {
+    const detail = EINGANG.replace(
+      '<Refs><EndToEndId>RE-2026-00017</EndToEndId></Refs>',
+      '<Refs><EndToEndId>RE-2026-00017</EndToEndId></Refs><Amt Ccy="CHF">1190.00</Amt>');
+    expect(() => leseCamt053(auszug(detail))).toThrow(/CHF/u);
+  });
+
+  it('ohne Ccy-Attribut gilt EUR — die Kontowährung sagt es', () => {
+    const ohneCcy = EINGANG.replace('<Amt Ccy="EUR">1190.00</Amt>', '<Amt>1190.00</Amt>');
+    const a = leseCamt053(auszug(ohneCcy));
+    expect(a.umsaetze[0]?.waehrung).toBe('EUR');
+  });
+});
+
 describe('(5) Entitäten und CDATA im Verwendungszweck', () => {
   it('`&amp;` wird zu `&`, und zwar zuletzt', () => {
     const a = leseCamt053(auszug(`

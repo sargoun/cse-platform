@@ -48,9 +48,21 @@ export default async function Rollen(
     withTenant(tx, zugang.sitzung, (kontext) => kontext.abfrage<Zeile>(
       `select r.schluessel, r.bezeichnung, r.beschreibung, r.geltungsbereich::text as geltungsbereich,
               r.portal, r.erfordert_2fa, r.ist_system, (r.mandant_id is not null) as eigene,
-              (select count(*) from rolle_berechtigung rb
-                where rb.rolle_id = r.id and rb.gewaehrt
-                  and (rb.mandant_id is null or rb.mandant_id = $1))::int as rechte,
+              /*
+               * WIRKSAM heisst: die Abweichung dieser Gesellschaft schlaegt die
+               * Vorgabe — auch dann, wenn sie ein Recht ENTZIEHT. Ein Zaehler
+               * ueber alle gewaehrten Zeilen zaehlte ein hier verweigertes Recht
+               * mit, und die Zahl widersprach der Matrix darunter.
+               */
+              (select count(*)
+                 from berechtigung b
+                 left join rolle_berechtigung vorgabe
+                        on vorgabe.rolle_id = r.id and vorgabe.berechtigung_id = b.id
+                       and vorgabe.mandant_id is null
+                 left join rolle_berechtigung hier
+                        on hier.rolle_id = r.id and hier.berechtigung_id = b.id
+                       and hier.mandant_id = $1
+                where coalesce(hier.gewaehrt, vorgabe.gewaehrt) = true)::int as rechte,
               (select count(*) from rolle_berechtigung rb
                 where rb.rolle_id = r.id and rb.mandant_id = $1)::int as abweichungen,
               (select count(*) from benutzer_mandant bm
@@ -81,11 +93,12 @@ export default async function Rollen(
         <DataTable
           beschriftung="Rollen dieser Gesellschaft"
           zeilen={zeilen}
-          schluessel={(z) => z.schluessel}
+          /* Eine plattformweite und eine eigene Rolle duerfen denselben Schluessel tragen — die Zeile ist beides. */
+          schluessel={(z) => `${z.eigene ? 'eigene' : 'system'}:${z.schluessel}`}
           spalten={[
             { schluessel: 'rolle', kopf: 'Rolle',
               zelle: (z) => (
-                <Link href={`/portal/${mandant}/einstellungen/rollen/${z.schluessel}`}
+                <Link href={`/portal/${mandant}/einstellungen/rollen/${z.schluessel}${z.eigene ? '?eigene=1' : ''}`}
                       className="text-text underline-offset-2 hover:text-brand hover:underline">
                   {z.bezeichnung}
                 </Link>

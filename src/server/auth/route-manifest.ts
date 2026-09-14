@@ -882,6 +882,18 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Der Abruf einer Datei aus der Ablage (DOC-03, SEC-A6, D-478).
+     *
+     * `dokument.lesen` im aktiven Mandanten; die Route vermerkt den Abruf
+     * in `dokument_zugriff` und leitet auf eine signierte, ablaufende
+     * Adresse weiter. Ohne verbundenen Speicher antwortet sie 503 — es gibt
+     * dann keine Adresse, die sie ausgeben koennte.
+     */
+    pfad: 'api/dokumente/[id]/datei',
+    recht: 'dokument.lesen',
+  },
+  {
+    /**
      * Einen CAMT.053-Kontoauszug einlesen (PR 61, ACC-04).
      *
      * `zahlung.schreiben` und nicht `buchhaltung.lesen`: der Import legt bei
@@ -893,6 +905,15 @@ export const ROUTEN: readonly RouteEintrag[] = [
      * Zugangsdaten; ein Mensch laedt die Datei hoch.
      */
     pfad: 'api/buchhaltung/bank',
+    recht: 'zahlung.schreiben',
+  },
+  {
+    /**
+     * Die Klaerung eines Umsatzes: ein Mensch bestaetigt einen offenen
+     * Posten oder sagt „ohne Bezug" (ACC-04). Dasselbe Recht wie der Import,
+     * denn dieselbe Zahlung entsteht — nur mit einem Menschen als Akteur.
+     */
+    pfad: 'api/buchhaltung/bank/umsatz',
     recht: 'zahlung.schreiben',
   },
   /**

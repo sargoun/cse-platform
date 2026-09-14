@@ -115,7 +115,8 @@ export async function bucheRechnung(
             r.einbehalt_bauabzugsteuer_cent::text
        from rechnung r
        left join kunde k on k.id = r.kunde_id and k.mandant_id = r.mandant_id
-      where r.id = $1`,
+      where r.id = $1
+      for update of r`,
     [rechnungId]);
 
   if (kopf === undefined) {
@@ -132,6 +133,15 @@ export async function bucheRechnung(
       'kein_beleg');
   }
 
+  /*
+   * **Die Rechnung ist oben mit `for update` gesperrt, und DESHALB ist diese
+   * Vorabfrage verlaesslich.** Zwei gleichzeitige Aufrufe ueber denselben
+   * Beleg sahen sonst beide „noch nicht gebucht" und schrieben zwei
+   * Buchungssaetze — und weil eine Rechnung legitim mehrere Zeilen hat, gibt
+   * es keinen eindeutigen Index, der den zweiten Satz abwiese. Die Sperre
+   * auf der Quellzeile serialisiert die beiden: der zweite wartet, liest
+   * dann die Zeilen des ersten und tut nichts.
+   */
   const [schon] = await db.abfrage<{ readonly buchung_id: string }>(
     'select buchung_id from buchungssatz where mandant_id = $1 and rechnung_id = $2 limit 1',
     [kopf.mandant_id, rechnungId]);
@@ -370,7 +380,8 @@ export async function bucheStorno(
             r.einbehalt_bauabzugsteuer_cent::text
        from rechnung r
        left join kunde k on k.id = r.kunde_id and k.mandant_id = r.mandant_id
-      where r.id = $1`,
+      where r.id = $1
+      for update of r`,
     [stornoRechnungId]);
 
   if (kopf === undefined) {
@@ -501,7 +512,8 @@ export async function bucheEingangsrechnung(
             er.netto_cent::text, er.steuer_cent::text, er.brutto_cent::text
        from eingangsrechnung er
        left join lieferant l on l.id = er.lieferant_id and l.mandant_id = er.mandant_id
-      where er.id = $1`,
+      where er.id = $1
+      for update of er`,
     [eingangsrechnungId]);
 
   if (kopf === undefined) {

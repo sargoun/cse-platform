@@ -8,7 +8,7 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
 import { SupabaseSpeicher } from '@/server/storage/adapter';
-import { pruefeGroesse } from '@/server/storage/mime';
+import { MAX_BYTES, pruefeGroesse } from '@/server/storage/mime';
 import { CamtFehler } from '@/server/services/finanz/bank/camt';
 import { ImportFehler, importiereAuszug }
   from '@/server/services/finanz/bank/import';
@@ -48,6 +48,19 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       { status: 400 });
   }
 
+  /*
+   * **Die Groesse wird VOR dem Lesen geprueft.** `datei.size` steht fest,
+   * bevor ein Byte im Speicher liegt; `arrayBuffer()` erst danach zu rufen
+   * heisst, dass eine zu grosse Datei die Grenze erst erreicht, wenn sie
+   * vollstaendig alloziert ist — und die Kopie in die `Uint8Array` noch
+   * einmal so viel kostet. Die Byte-Pruefung bleibt fuer das, was
+   * angenommen wurde.
+   */
+  if (datei.size > MAX_BYTES) {
+    return NextResponse.json(
+      { fehler: 'zu_gross', text: 'Die Datei überschreitet die Grenze.' },
+      { status: 413 });
+  }
   const bytes = new Uint8Array(await datei.arrayBuffer());
   try {
     pruefeGroesse(bytes);
@@ -56,7 +69,6 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       { fehler: 'zu_gross', text: 'Die Datei überschreitet die Grenze.' },
       { status: 413 });
   }
-  const xml = new TextDecoder('utf-8').decode(bytes);
 
   try {
     const ergebnis = await db().begin(async (tx: postgres.TransactionSql) =>
@@ -74,7 +86,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           { recht: 'zahlung.schreiben', schreibend: true },
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
-        return importiereAuszug(kontext, new SupabaseSpeicher(), xml, new Date());
+        return importiereAuszug(kontext, new SupabaseSpeicher(), bytes, new Date());
       }));
 
     return NextResponse.json(ergebnis);

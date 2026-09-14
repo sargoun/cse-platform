@@ -122,9 +122,21 @@ export default async function Dokumentblatt(
             <Feld label="Aufbewahren bis" wert={d.aufbewahrung_bis ?? 'keine Frist hinterlegt'} />
             <Feld label="Löschsperre" wert={d.loeschsperre ? 'ja — kein Löschen möglich' : 'nein'} />
           </dl>
+          {speicher.verbunden ? (
+            <p className="mt-s4">
+              <a
+                href={`/api/dokumente/${d.id}/datei`}
+                data-cse="datei-abrufen"
+                className="inline-flex min-h-11 items-center rounded-md bg-brand px-s5 text-sm
+                           font-semibold text-white hover:bg-brand-hover"
+              >
+                Datei abrufen
+              </a>
+            </p>
+          ) : null}
           <p data-cse="download-hinweis" className="mt-s4 text-sm text-text-subtle">
             {speicher.verbunden
-              ? 'Die Datei wird über eine signierte Adresse ausgegeben (DOC-03); der Abruf steht mit dem Zugriffsprotokoll bereit.'
+              ? 'Der Abruf führt auf eine signierte Adresse, die nach 15 Minuten verfällt (DOC-03), und wird im Zugriffsprotokoll des Dokuments vermerkt.'
               : 'Der Dateispeicher ist nicht verbunden — es gibt keine Adresse, die ausgegeben werden könnte (Einstellungen › Integrationen).'}
           </p>
         </section>

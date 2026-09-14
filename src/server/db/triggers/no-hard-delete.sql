@@ -2119,3 +2119,19 @@ revoke delete, truncate on freigabe_ansicht from cse_app, cse_anon, cse_checkin,
 
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0139)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- dokument_zugriff (append): DOC-03, SEC-A6, Art. 15 DSGVO. Eine Zeile je Abruf einer Datei aus der Ablage. Sie ist die Antwort auf die Frage, wer eine Personalakte oder einen Beleg gesehen hat — loeschbar waere sie das Werkzeug dessen, der nicht gesehen werden will.
+create trigger trg_dokument_zugriff_kein_hard_delete
+  before delete on dokument_zugriff
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_dokument_zugriff_kein_truncate
+  before truncate on dokument_zugriff
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on dokument_zugriff from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks

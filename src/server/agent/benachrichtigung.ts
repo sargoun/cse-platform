@@ -42,7 +42,7 @@ const BUDGET_ERSCHOEPFT = {
       + 'erhöht wird oder der Monat wechselt. Manuelle Arbeit ist nicht '
       + 'betroffen.';
   },
-  ziel: (k) => (k.objektId === '' ? null : `/portal/${k.mandantId}/agenten/budget`),
+  ziel: (k) => (k.objektId === '' || !k.mandantSlug ? null : `/portal/${k.mandantSlug}/agenten/budget`),
   kanaeleVorgabe: ['app', 'email'],
   sammelbar: false,
 } as const satisfies ArtDefinition;

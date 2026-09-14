@@ -1,3 +1,6 @@
+import {
+  XmlLeseFehler, alle, leseXml as leseXmlRoh, tief, text, type Knoten,
+} from '../xml-lesen.js';
 /**
  * CAMT.053 einlesen (ACC-04, `05-FINANZEN.md` §7.4, PR 61).
  *
@@ -24,7 +27,7 @@
  */
 
 export class CamtFehler extends Error {
-  constructor(nachricht: string, readonly grund: 'kein_xml' | 'kein_auszug' | 'feld') {
+  constructor(nachricht: string, readonly grund: 'kein_xml' | 'kein_auszug' | 'feld' | 'waehrung') {
     super(nachricht);
     this.name = 'CamtFehler';
   }
@@ -33,18 +36,39 @@ export class CamtFehler extends Error {
 export type Richtung = 'eingang' | 'ausgang';
 
 /**
- * **Die Währung ist EUR, und das ist eine Entscheidung, keine Annahme.**
+ * **Die Währung ist EUR — und jede andere wird ABGEWIESEN, nicht umgedeutet.**
  *
- * Das `Ccy`-Attribut steht am Betrag, und dieser Leser wirft Attribute weg —
- * absichtlich, denn Attribute sind die Stelle, an der ein XML-Leser
- * kompliziert wird. `zahlung.waehrung` ist ohnehin auf EUR beschränkt (0121),
- * ein Auszug in anderer Währung liesse sich also gar nicht speichern.
+ * `zahlung.waehrung` ist auf EUR beschränkt (0121). Die erste Fassung dieses
+ * Lesers warf Attribute weg und schrieb jeden Betrag als Euro: ein Auszug in
+ * Dollar wäre Zeile für Zeile als Euro in die Buchhaltung gelangt und hätte
+ * über den Abgleich Rechnungen als bezahlt gesetzt. Jetzt liest der Leser das
+ * `Ccy`-Attribut an jedem Betrag und die Kontowährung, und ein anderer Wert
+ * als EUR ist ein benannter Fehler.
  *
- * TODO(client, O-05): Fremdwährung. Sobald sie ein Fall wird, braucht der
- * Leser Attribute UND `zahlung` eine zweite Spalte — beides zusammen, sonst
- * steht ein Dollarbetrag als Euro in der Buchhaltung.
+ * TODO(client, O-05): Fremdwährung. Sobald sie ein Fall wird, braucht
+ * `zahlung` eine zweite Spalte — beides zusammen, sonst steht ein
+ * Dollarbetrag als Euro in der Buchhaltung.
  */
 const WAEHRUNG = 'EUR' as const;
+
+function pruefeWaehrung(roh: string | null, wo: string): typeof WAEHRUNG {
+  if (roh === null || roh === WAEHRUNG) return WAEHRUNG;
+  throw new CamtFehler(
+    `${wo} in ${roh}: diese Plattform bucht nur EUR. Der Auszug wird nicht `
+    + 'eingelesen, statt einen Fremdwährungsbetrag als Euro zu führen (O-05).',
+    'waehrung');
+}
+
+/** `CRDT` ist ein Eingang, `DBIT` ein Ausgang — und ein dritter Wert ist keiner von beiden. */
+function richtungAus(roh: string | null): Richtung {
+  if (roh === 'CRDT') return 'eingang';
+  if (roh === 'DBIT') return 'ausgang';
+  throw new CamtFehler(
+    `Einem Umsatz fehlt seine Richtung <CdtDbtInd> (gelesen: ${roh ?? 'nichts'}). `
+    + 'Ohne sie wäre jeder Betrag ein Eingang — und ein Eingang wird Rechnungen '
+    + 'zugeordnet.',
+    'feld');
+}
 
 export interface CamtUmsatz {
   /** `EndToEndId`, `TxId` oder `NtryRef` — die Kennung, an der Doppelte hängen. */
@@ -77,128 +101,20 @@ export interface CamtAuszug {
 }
 
 // ---------------------------------------------------------------------------
-// Ein kleiner XML-Leser — genug für CAMT, und nichts darüber hinaus
+// Der XML-Leser — geteilt mit der E-Rechnung (`../xml-lesen.ts`)
 // ---------------------------------------------------------------------------
 
-interface Knoten {
-  readonly name: string;
-  readonly text: string;
-  readonly kinder: readonly Knoten[];
-}
-
 /**
- * **Warum kein XML-Paket.** Node bringt keinen DOM mit, und die verbreiteten
- * Pakete lösen Entitäten und externe Referenzen auf — genau das, womit eine
- * XXE-Lücke entsteht, wenn jemand einen Kontoauszug hochlädt, den er nicht
- * selbst geschrieben hat.
- *
- * Dieser Leser kennt Elemente, Text und die fünf vordefinierten Entitäten.
- * `<!DOCTYPE` und `<!ENTITY` weist er ab, statt sie zu ignorieren: eine Datei,
- * die eine Entität deklariert, ist kein Kontoauszug, und sie stillschweigend
- * zu lesen hiesse, die Absicht dahinter nicht zu bemerken.
+ * Derselbe Leser wie fuer UBL/CII, mit derselben XXE-Abwehr. Was er abweist,
+ * kommt hier als `CamtFehler` an — der Aufrufer dieser Datei kennt nur den.
  */
-export function leseXml(text: string): Knoten {
-  if (/<!DOCTYPE/iu.test(text) || /<!ENTITY/iu.test(text)) {
-    throw new CamtFehler(
-      'Die Datei deklariert eine DTD oder eine Entität. Ein Kontoauszug tut '
-      + 'das nicht; sie wird abgewiesen.',
-      'kein_xml');
+export function leseXml(inhalt: string): Knoten {
+  try {
+    return leseXmlRoh(inhalt);
+  } catch (fehler: unknown) {
+    if (fehler instanceof XmlLeseFehler) throw new CamtFehler(fehler.message, 'kein_xml');
+    throw fehler;
   }
-
-  /*
-   * **CDATA wird VOR dem Zerlegen aufgeloest, nicht danach.**
-   *
-   * Ein `<![CDATA[RE & 17 < 20]]>` enthaelt ein `<`, und der Markenausdruck
-   * unten sieht darin den Anfang einer Marke: die Zeile zerfaellt, und der
-   * Leser meldet eine nicht geschlossene Marke, wo ein voellig
-   * regelkonformer Verwendungszweck stand. Ein Test hat genau das gefunden.
-   *
-   * Der Inhalt wird dabei ESCAPED und nicht roh eingesetzt — sonst haette ein
-   * `<Ntry>` innerhalb eines CDATA-Blocks einen Umsatz erfunden.
-   */
-  const ohneProlog = text
-    .replace(/<\?[\s\S]*?\?>/gu, '')
-    .replace(/<!--[\s\S]*?-->/gu, '')
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gu,
-      (_, inhalt: string) => inhalt
-        .replace(/&/gu, '&amp;').replace(/</gu, '&lt;').replace(/>/gu, '&gt;'));
-
-  const marken = /<\s*([^!?\s/>]+)((?:"[^"]*"|'[^']*'|[^>"'])*?)(\/?)>|<\s*\/\s*([^\s>]+)\s*>/gu;
-  const stapel: { name: string; text: string; kinder: Knoten[] }[] = [];
-  let wurzel: Knoten | null = null;
-  let letzte = 0;
-  let treffer: RegExpExecArray | null;
-
-  const roh = (s: string): string => s
-    .replace(/&lt;/gu, '<').replace(/&gt;/gu, '>')
-    .replace(/&quot;/gu, '"').replace(/&apos;/gu, "'")
-    .replace(/&#(\d+);/gu, (_, n: string) => String.fromCodePoint(Number(n)))
-    /* `&amp;` ZULETZT — sonst würde `&amp;lt;` zu `<` statt zu `&lt;`. */
-    .replace(/&amp;/gu, '&');
-
-  while ((treffer = marken.exec(ohneProlog)) !== null) {
-    const zwischen = ohneProlog.slice(letzte, treffer.index);
-    letzte = marken.lastIndex;
-    const oben = stapel[stapel.length - 1];
-    if (oben !== undefined && zwischen.trim() !== '') oben.text += roh(zwischen);
-
-    const schliessend = treffer[4];
-    if (schliessend !== undefined) {
-      const fertig = stapel.pop();
-      if (fertig === undefined || fertig.name !== schliessend) {
-        throw new CamtFehler(
-          `Die Marke </${schliessend}> passt zu keiner offenen.`, 'kein_xml');
-      }
-      const knoten: Knoten = {
-        name: fertig.name, text: fertig.text.trim(), kinder: fertig.kinder,
-      };
-      const eltern = stapel[stapel.length - 1];
-      if (eltern === undefined) wurzel = knoten; else eltern.kinder.push(knoten);
-      continue;
-    }
-
-    /* Der Namensraum interessiert nicht — `urn:iso:std:…:camt.053` ist fix. */
-    const name = (treffer[1] ?? '').replace(/^[^:]+:/u, '');
-    if (treffer[3] === '/') {
-      const leer: Knoten = { name, text: '', kinder: [] };
-      const eltern = stapel[stapel.length - 1];
-      if (eltern === undefined) wurzel = leer; else eltern.kinder.push(leer);
-      continue;
-    }
-    stapel.push({ name, text: '', kinder: [] });
-  }
-
-  if (stapel.length > 0) {
-    throw new CamtFehler(
-      `Die Marke <${stapel[stapel.length - 1]!.name}> wurde nicht geschlossen.`,
-      'kein_xml');
-  }
-  if (wurzel === null) throw new CamtFehler('Die Datei enthält kein XML.', 'kein_xml');
-  return wurzel;
-}
-
-/** Das erste Kind mit diesem Namen, beliebig tief. */
-function tief(k: Knoten, name: string): Knoten | null {
-  for (const kind of k.kinder) {
-    if (kind.name === name) return kind;
-    const treffer = tief(kind, name);
-    if (treffer !== null) return treffer;
-  }
-  return null;
-}
-
-/** Alle Nachfahren mit diesem Namen, in Dokumentreihenfolge. */
-function alle(k: Knoten, name: string): Knoten[] {
-  const treffer: Knoten[] = [];
-  for (const kind of k.kinder) {
-    if (kind.name === name) treffer.push(kind);
-    treffer.push(...alle(kind, name));
-  }
-  return treffer;
-}
-
-function text(k: Knoten | null): string | null {
-  return k === null || k.text === '' ? null : k.text;
 }
 
 // ---------------------------------------------------------------------------
@@ -259,6 +175,7 @@ export function leseCamt053(xml: string): CamtAuszug {
   const konto = tief(stmt, 'Acct');
   const iban = konto === null ? null : text(tief(konto, 'IBAN'));
   const waehrung = konto === null ? null : text(tief(konto, 'Ccy'));
+  pruefeWaehrung(waehrung, 'Das Konto führt');
 
   const zeitraum = tief(stmt, 'FrToDt');
   const von = zeitraum === null ? null : datumAus(text(tief(zeitraum, 'FrDtTm')));
@@ -267,8 +184,10 @@ export function leseCamt053(xml: string): CamtAuszug {
   const saldo = (art: string): bigint | null => {
     for (const b of alle(stmt, 'Bal')) {
       if (text(tief(b, 'Cd')) !== art) continue;
-      const betrag = text(tief(b, 'Amt'));
+      const betragKnoten = tief(b, 'Amt');
+      const betrag = text(betragKnoten);
       if (betrag === null) continue;
+      pruefeWaehrung(betragKnoten?.attribute['Ccy'] ?? null, 'Ein Saldo steht');
       const cent = centAus(betrag);
       /* Ein Sollsaldo ist negativ — hier steht die Richtung im Vorzeichen. */
       return text(tief(b, 'CdtDbtInd')) === 'DBIT' ? -cent : cent;
@@ -306,8 +225,7 @@ export function leseCamt053(xml: string): CamtAuszug {
  */
 function leseEintrag(ntry: Knoten): CamtUmsatz[] {
   const gebucht = text(tief(ntry, 'Sts')) !== 'PDNG';
-  const richtung: Richtung = text(tief(ntry, 'CdtDbtInd')) === 'DBIT'
-    ? 'ausgang' : 'eingang';
+  const richtung = richtungAus(text(tief(ntry, 'CdtDbtInd')));
 
   const buchungsdatum = datumAus(text(tief(tief(ntry, 'BookgDt') ?? ntry, 'Dt')))
     ?? datumAus(text(tief(tief(ntry, 'BookgDt') ?? ntry, 'DtTm')));
@@ -322,7 +240,7 @@ function leseEintrag(ntry: Knoten): CamtUmsatz[] {
   if (betragKnoten === null) {
     throw new CamtFehler('Einem Umsatz fehlt sein Betrag <Amt>.', 'feld');
   }
-  const eintragWaehrung = WAEHRUNG;
+  const eintragWaehrung = pruefeWaehrung(betragKnoten.attribute['Ccy'] ?? null, 'Ein Umsatz steht');
   const ntryRef = text(tief(ntry, 'NtryRef'));
 
   const details = alle(ntry, 'TxDtls');
@@ -346,7 +264,7 @@ function leseEintrag(ntry: Knoten): CamtUmsatz[] {
     return {
       referenz: text(tief(d, 'EndToEndId')) ?? text(tief(d, 'TxId')) ?? ntryRef,
       betragCent: centAus(betrag?.text ?? betragKnoten.text),
-      waehrung: eintragWaehrung,
+      waehrung: pruefeWaehrung(betrag?.attribute['Ccy'] ?? null, 'Ein Einzelumsatz steht'),
       richtung,
       buchungsdatum,
       valuta,

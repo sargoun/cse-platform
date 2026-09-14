@@ -173,7 +173,17 @@ export interface SchrittProtokoll {
   readonly tokensAusgabe?: number;
   readonly tokensGedanken?: number;
   readonly kostenMikrocent?: bigint;
+  /**
+   * Was das Werkzeug selbst gemessen hat — die Latenz des Modellaufrufs.
+   * Informativ; die ZEITPUNKTE des Schritts setzt die Datenbank.
+   */
   readonly dauerMs: number;
+  /**
+   * Der Beginn des Schritts nach der SERVERUHR — aus `beginneSchritt()`,
+   * nie aus `Date.now()`. Fehlt er, tragen `begonnen_am` und `beendet_am`
+   * beide `now()`: ein Schritt ohne gemessenen Beginn behauptet keinen.
+   */
+  readonly begonnenAm?: string | null;
   readonly status?: SchrittStatus;
   readonly policyErgebnis?: unknown;
   readonly policySpur?: unknown;
@@ -190,6 +200,22 @@ export interface SchrittProtokoll {
  * Erreicht der Zähler `max_schritte`, wirft diese Funktion: der Laeufer soll
  * die Aufgabe dann beenden und vorlegen, nicht weiterdrehen.
  */
+/**
+ * Der Beginn eines Schritts nach der SERVERUHR (Invariante 5).
+ *
+ * Die erste Fassung rechnete `begonnen_am` aus `now() - dauerMs` — und
+ * `dauerMs` kam vom Aufrufer. Wer die Dauer angab, bestimmte damit den
+ * Zeitstempel, obwohl der Kopf dieser Datei sagt, dass Postgres ihn setzt.
+ * `clock_timestamp()` statt `now()`: `now()` ist der Beginn der
+ * TRANSAKTION, und ein Schritt beginnt nicht, wenn die Aufgabe beginnt.
+ */
+export async function beginneSchritt(db: Abfrage): Promise<string> {
+  const [z] = await db.abfrage<{ readonly jetzt: string }>(
+    'select clock_timestamp()::text as jetzt');
+  if (z === undefined) throw new Error('Die Serveruhr antwortet nicht.');
+  return z.jetzt;
+}
+
 export async function protokolliereSchritt(
   db: Abfrage, mandantId: string, aufgabe: Aufgabe, schritt: SchrittProtokoll,
 ): Promise<{ readonly schrittId: string; readonly nummer: number }> {
@@ -210,7 +236,8 @@ export async function protokolliereSchritt(
      values ($1, $2, $3, $4::agent_werkzeug_name, $5, $6::jsonb, $7::jsonb, $8, $9,
              $10, $11, $12, $13::bigint, $14::integer, $15::agent_schritt_status,
              $16::jsonb, $17::jsonb, $18::jsonb, $19, $20, $21,
-             now() - make_interval(secs => $14::integer / 1000.0), now(),
+             coalesce($23::timestamptz, clock_timestamp()),
+             greatest(coalesce($23::timestamptz, clock_timestamp()), clock_timestamp()),
              (now() at time zone 'Europe/Berlin')::date + $22::integer)
      returning id`,
     /**
@@ -239,7 +266,8 @@ export async function protokolliereSchritt(
       schritt.policySpur ?? null,
       schritt.quellen ?? null,
       schritt.injektionsverdacht ?? false, schritt.richtlinieId ?? null,
-      schritt.freigabeId ?? null, NUTZLAST_FRIST_TAGE_PLATZHALTER]);
+      schritt.freigabeId ?? null, NUTZLAST_FRIST_TAGE_PLATZHALTER,
+      schritt.begonnenAm ?? null]);
 
   if (zeile === undefined) throw new Error('Der Agentenschritt ließ sich nicht protokollieren.');
 

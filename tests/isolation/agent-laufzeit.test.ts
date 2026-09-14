@@ -27,7 +27,7 @@ import {
 } from '../../src/server/agent/budget.js';
 import {
   beendeAufgabe, letzteAufgaben, monatsverbrauch, protokolliereSchritt, starteAufgabe,
-  type Abfrage,
+  type Abfrage, beginneSchritt,
 } from '../../src/server/agent/laufzeit.js';
 
 let f: Fixtur;
@@ -138,10 +138,12 @@ describe('(1) jeder Schritt steht im Protokoll — und bleibt, wie er ist', () =
         agentKennung: 'akquise', vorgangTyp: 'anfrage_antwort_entwurf',
         titel: 'Anfrage beantworten', angefordertVon: benutzer,
       });
+      const begonnenAm = await beginneSchritt(d);
       await protokolliereSchritt(d, f.reinigung, aufgabe, {
         werkzeug: 'entwirf_text', modell: 'pruefmodell',
         eingabe: { anfrageId: 'abc' }, ausgabe: { entwurf: 'Text' },
         tokensEingabe: 1200, tokensAusgabe: 300, kostenMikrocent: 810n, dauerMs: 1234,
+        begonnenAm,
       });
       await beendeAufgabe(d, f.reinigung, aufgabe.id, { status: 'abgeschlossen' });
     });
@@ -149,9 +151,13 @@ describe('(1) jeder Schritt steht im Protokoll — und bleibt, wie er ist', () =
     const [s] = await sql.unsafe<{
       werkzeug: string; modell: string; tokens_eingabe: number;
       kosten_mikrocent: string; dauer_ms: number; eingabe_hash: string;
+      plausibel: boolean;
     }[]>(
       `select werkzeug::text as werkzeug, modell, tokens_eingabe,
-              kosten_mikrocent::text, dauer_ms, eingabe_hash from agent_schritt`);
+              kosten_mikrocent::text, dauer_ms, eingabe_hash,
+              (begonnen_am <= beendet_am and beendet_am - begonnen_am < interval '1 minute')
+                as plausibel
+         from agent_schritt`);
 
     expect(s?.werkzeug).toBe('entwirf_text');
     expect(s?.modell).toBe('pruefmodell');
@@ -159,6 +165,8 @@ describe('(1) jeder Schritt steht im Protokoll — und bleibt, wie er ist', () =
     expect(s?.kosten_mikrocent).toBe('810');
     expect(s?.dauer_ms).toBe(1234);
     expect(s?.eingabe_hash).toMatch(/^[0-9a-f]{64}$/u);
+    /* Die Zeitpunkte sind die des Servers — nicht `now() - dauer_ms` aus der Angabe des Aufrufers. */
+    expect(s?.plausibel).toBe(true);
   });
 
   it('ein protokollierter Schritt lässt sich nicht mehr ändern', async () => {

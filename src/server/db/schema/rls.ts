@@ -1529,6 +1529,16 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'weg, und die Auswertung meldete danach nur noch die Sorgfaeltigen.',
   },
   {
+    tabelle: 'dokument_zugriff',
+    art: 'append',
+    migration: '0139',
+    grund:
+      'DOC-03, SEC-A6, Art. 15 DSGVO. Eine Zeile je Abruf einer Datei aus der '
+      + 'Ablage. Sie ist die Antwort auf die Frage, wer eine Personalakte oder '
+      + 'einen Beleg gesehen hat — loeschbar waere sie das Werkzeug dessen, der '
+      + 'nicht gesehen werden will.',
+  },
+  {
     tabelle: 'datev_export',
     art: 'archiv',
     migration: '0133',

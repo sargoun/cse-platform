@@ -168,6 +168,7 @@ export default async function DatevNeu(
           </section>
 
           <form method="post" action="/api/buchhaltung/datev">
+            <input type="hidden" name="mandant" value={mandant} />
             <input type="hidden" name="von" value={von} />
             <input type="hidden" name="bis" value={bis} />
             <button

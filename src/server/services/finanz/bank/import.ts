@@ -33,7 +33,7 @@ export interface Abfrage {
 export class ImportFehler extends Error {
   constructor(
     nachricht: string,
-    readonly grund: 'kein_bankkonto' | 'falsches_konto' | 'leer',
+    readonly grund: 'kein_bankkonto' | 'falsches_konto' | 'leer' | 'klaerung',
   ) {
     super(nachricht);
     this.name = 'ImportFehler';
@@ -63,10 +63,20 @@ interface BankkontoRoh {
  * (Invariante 5).
  */
 export async function importiereAuszug(
-  db: Abfrage, speicher: Speicher, xml: string, jetzt: Date,
+  db: Abfrage, speicher: Speicher, datei: Uint8Array, jetzt: Date,
 ): Promise<ImportErgebnis> {
   const mandantId = db.aktiverMandantId;
-  const bytes = new TextEncoder().encode(xml);
+  /*
+   * **Gehasht und abgelegt werden die BYTES der Datei, nicht ihr Text.**
+   *
+   * Die erste Fassung nahm den dekodierten Text entgegen und kodierte ihn
+   * fuer Pruefwert und Archiv neu: eine Byte-Order-Mark oder eine ungueltige
+   * Sequenz verschwand dabei, zwei verschiedene Dateien konnten denselben
+   * Pruefwert tragen, und die Archivkopie war nicht mehr die Datei, die die
+   * Bank geliefert hat. Der Text entsteht hier nur zum Lesen.
+   */
+  const bytes = datei;
+  const xml = new TextDecoder('utf-8').decode(datei);
   const sha256 = createHash('sha256').update(bytes).digest('hex');
 
   /*
@@ -277,12 +287,23 @@ async function ordneZu(
   const posten = vorschlag.kandidaten[0];
   if (posten === undefined) return;
 
+  /*
+   * Der Akteur folgt dem Weg: der Abgleich beim Einlesen ist ein Dienst, die
+   * Bestaetigung aus der Klaerung ein Mensch — und `zahlung_akteur_stimmig`
+   * verlangt, dass beides zusammenpasst (ein Mensch traegt seine Kennung, ein
+   * Dienst seinen Namen).
+   */
+  const akteur = automatisch
+    ? { art: 'system', dienst: 'dienst:bankabgleich', benutzer: 'null' }
+    : { art: 'mensch', dienst: 'null', benutzer: 'app.aktueller_benutzer()' };
+
   const [zahlung] = await db.schreibe<{ id: string }>(
     `insert into zahlung
        (mandant_id, richtung, betrag_cent, zahlungsdatum, valuta, zahlungsmittel,
-        bankkonto_id, referenz, erstellt_von_art, erstellt_von_dienst)
+        bankkonto_id, referenz, erstellt_von_art, erstellt_von_dienst, erstellt_von)
      values ($1::uuid, 'eingang', $2::bigint, $3::date, $4::date,
-             'ueberweisung', $5::uuid, $6, 'system', 'dienst:bankabgleich')
+             'ueberweisung', $5::uuid, $6, '${akteur.art}'::akteur_art,
+             ${akteur.dienst === 'null' ? 'null' : `'${akteur.dienst}'`}, ${akteur.benutzer})
      returning id`,
     [db.aktiverMandantId, umsatz.betragCent.toString(), umsatz.buchungsdatum,
       umsatz.valuta, bankkontoId, umsatz.referenz]);
@@ -291,18 +312,183 @@ async function ordneZu(
   await db.schreibe(
     `insert into zahlung_zuordnung
        (mandant_id, zahlung_id, offener_posten_id, art, betrag_cent,
-        erstellt_von_art, erstellt_von_dienst)
+        erstellt_von_art, erstellt_von_dienst, erstellt_von)
      values ($1::uuid, $2::uuid, $3::uuid, 'zahlung', $4::bigint,
-             'system', 'dienst:bankabgleich')`,
+             '${akteur.art}'::akteur_art,
+             ${akteur.dienst === 'null' ? 'null' : `'${akteur.dienst}'`}, ${akteur.benutzer})`,
     [db.aktiverMandantId, zahlung.id, posten.id, umsatz.betragCent.toString()]);
 
   await db.schreibe(
     `insert into umsatz_zuordnung
        (mandant_id, kontoumsatz_id, zahlung_id, automatisch, begruendung,
-        erstellt_von_art, erstellt_von_dienst)
+        erstellt_von_art, erstellt_von_dienst, erstellt_von)
      values ($1::uuid, $2::uuid, $3::uuid, $4::boolean, $5,
-             'system', 'dienst:bankabgleich')`,
+             '${akteur.art}'::akteur_art,
+             ${akteur.dienst === 'null' ? 'null' : `'${akteur.dienst}'`}, ${akteur.benutzer})`,
     [db.aktiverMandantId, umsatzId, zahlung.id, automatisch, vorschlag.begruendung]);
+}
+
+// ---------------------------------------------------------------------------
+// Die Klaerung — ein Mensch entscheidet, was der Abgleich nicht konnte
+// ---------------------------------------------------------------------------
+
+/**
+ * Was die Klaerung zurueckgibt: die Zeile, ihren Auszug, und ob der Auszug
+ * damit fertig ist.
+ */
+export interface KlaerungErgebnis {
+  readonly umsatzId: string;
+  readonly auszugId: string;
+  /** `true`, wenn keine Zeile des Auszugs mehr offen oder in Klaerung ist. */
+  readonly auszugAbgeglichen: boolean;
+}
+
+interface OffenerUmsatzRoh {
+  readonly id: string;
+  readonly kontoauszug_id: string;
+  readonly bankkonto_id: string;
+  readonly richtung: string;
+  readonly betrag_cent: string;
+  readonly buchungsdatum: string;
+  readonly valuta: string | null;
+  readonly referenz: string | null;
+  readonly gebucht: boolean;
+  readonly zustand: string;
+}
+
+/**
+ * Die Zeile, ueber die entschieden wird — GESPERRT, damit zwei Menschen sie
+ * nicht gleichzeitig zwei Rechnungen zuordnen.
+ */
+async function ladeOffenenUmsatz(db: Abfrage, umsatzId: string): Promise<OffenerUmsatzRoh> {
+  const [u] = await db.abfrage<OffenerUmsatzRoh>(
+    `select u.id, u.kontoauszug_id, a.bankkonto_id, u.richtung::text as richtung,
+            u.betrag_cent::text, u.buchungsdatum::text, u.valuta::text, u.referenz,
+            u.gebucht, u.zustand::text as zustand
+       from kontoumsatz u
+       join kontoauszug a on a.id = u.kontoauszug_id and a.mandant_id = u.mandant_id
+      where u.id = $1::uuid
+      for update of u`,
+    [umsatzId]);
+  if (u === undefined) {
+    throw new ImportFehler('Diesen Umsatz gibt es nicht.', 'klaerung');
+  }
+  if (u.zustand !== 'offen' && u.zustand !== 'in_klaerung') {
+    throw new ImportFehler(
+      `Der Umsatz ist bereits entschieden (${u.zustand}). Eine Entscheidung wird `
+      + 'nicht ueberschrieben; eine falsche Zuordnung wird widerrufen.',
+      'klaerung');
+  }
+  return u;
+}
+
+/**
+ * **Ein Mensch bestaetigt eine Zuordnung** — der Weg, den der Abgleich beim
+ * Einlesen fuer alles Mehrdeutige offenlaesst (ACC-04).
+ *
+ * Bis hierher gab es ihn nicht: `in_klaerung` war ein Zustand ohne Ausgang,
+ * die Schlange konnte sich nie leeren und kein Auszug je `abgeglichen`
+ * werden. Die Seite versprach, dass ein Mensch entscheidet, und bot ihm
+ * nichts, womit.
+ *
+ * Nur ein GEBUCHTER Zahlungseingang wird einer Forderung zugeordnet; eine
+ * Vormerkung bleibt, was sie ist. Der Betrag der Zahlung ist der Betrag der
+ * Bank — hier wird nichts gerechnet, auch keine Teilzahlung erfunden.
+ */
+export async function bestaetigeZuordnung(
+  db: Abfrage, umsatzId: string, offenerPostenId: string,
+): Promise<KlaerungErgebnis> {
+  const u = await ladeOffenenUmsatz(db, umsatzId);
+  if (!u.gebucht) {
+    throw new ImportFehler(
+      'Eine Vormerkung (PDNG) wird nicht zugeordnet — die Bank hat noch nicht gebucht.',
+      'klaerung');
+  }
+  if (u.richtung !== 'eingang') {
+    throw new ImportFehler(
+      'Nur ein Zahlungseingang wird einer Forderung zugeordnet. Ein Ausgang ist '
+      + 'keine Kundenzahlung.',
+      'klaerung');
+  }
+  const [posten] = await db.abfrage<{
+    id: string; rechnung_id: string; nummer: string; offen_cent: string;
+  }>(
+    `select op.id, op.rechnung_id, r.nummer, op.offen_cent::text
+       from offener_posten op
+       join rechnung r on r.id = op.rechnung_id and r.mandant_id = op.mandant_id
+      where op.id = $1::uuid and op.ausgeglichen_am is null and op.offen_cent > 0`,
+    [offenerPostenId]);
+  if (posten === undefined) {
+    throw new ImportFehler(
+      'Dieser Posten ist nicht offen — er ist ausgeglichen oder gehoert nicht hierher.',
+      'klaerung');
+  }
+
+  await ordneZu(db, u.id, {
+    betragCent: BigInt(u.betrag_cent), buchungsdatum: u.buchungsdatum,
+    valuta: u.valuta, referenz: u.referenz,
+  }, {
+    art: 'eindeutig_ohne_iban',
+    kandidaten: [{
+      id: posten.id, rechnungId: posten.rechnung_id, nummer: posten.nummer,
+      offenCent: BigInt(posten.offen_cent), kundeIban: null,
+    }],
+    begruendung: `Von Hand zugeordnet zu ${posten.nummer}`,
+  }, u.bankkonto_id, false);
+
+  await db.schreibe(
+    `update kontoumsatz
+        set zustand = 'zugeordnet', klaerungsnotiz = $2,
+            geaendert_von_art = 'mensch', geaendert_von = app.aktueller_benutzer()
+      where id = $1::uuid`,
+    [u.id, `Von Hand zugeordnet zu ${posten.nummer}`]);
+
+  return {
+    umsatzId: u.id, auszugId: u.kontoauszug_id,
+    auszugAbgeglichen: await schliesseAuszugWennFertig(db, u.kontoauszug_id),
+  };
+}
+
+/**
+ * **Ein Mensch sagt: gehoert zu keiner Rechnung** — Gebuehr, Zins, Privat,
+ * Fehlueberweisung. Die Notiz ist Pflicht (0135 erzwingt fuenf Zeichen), weil
+ * ein Umsatz ohne Bezug und ohne Grund spaeter niemandem mehr etwas sagt.
+ */
+export async function markiereOhneBezug(
+  db: Abfrage, umsatzId: string, notiz: string,
+): Promise<KlaerungErgebnis> {
+  const text = notiz.trim();
+  if (text.length < 5) {
+    throw new ImportFehler(
+      'Ohne Begruendung bleibt der Umsatz in Klaerung — „ohne Bezug" braucht '
+      + 'einen Satz, der spaeter allein steht.',
+      'klaerung');
+  }
+  const u = await ladeOffenenUmsatz(db, umsatzId);
+  await db.schreibe(
+    `update kontoumsatz
+        set zustand = 'ohne_bezug', klaerungsnotiz = $2,
+            geaendert_von_art = 'mensch', geaendert_von = app.aktueller_benutzer()
+      where id = $1::uuid`,
+    [u.id, text]);
+  return {
+    umsatzId: u.id, auszugId: u.kontoauszug_id,
+    auszugAbgeglichen: await schliesseAuszugWennFertig(db, u.kontoauszug_id),
+  };
+}
+
+/** Der Auszug ist abgeglichen, wenn keine Zeile mehr wartet — und nur dann. */
+async function schliesseAuszugWennFertig(db: Abfrage, auszugId: string): Promise<boolean> {
+  const [rest] = await db.abfrage<{ offen: number }>(
+    `select count(*)::int as offen from kontoumsatz
+      where kontoauszug_id = $1::uuid and zustand in ('offen', 'in_klaerung')`,
+    [auszugId]);
+  if (rest === undefined || rest.offen > 0) return false;
+  await db.schreibe(
+    `update kontoauszug set status = 'abgeglichen'
+      where id = $1::uuid and status = 'eingelesen'`,
+    [auszugId]);
+  return true;
 }
 
 /** Die Datei ins Archiv — ohne verbundenen Speicher gibt es kein Dokument. */

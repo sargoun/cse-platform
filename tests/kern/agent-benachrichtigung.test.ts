@@ -31,14 +31,15 @@ describe('agent.budget_erschoepft', () => {
 
   it('führt auf die Budgetseite des Mandanten — nicht auf die Aufgabenliste', () => {
     const b = erzeuge(ART_BUDGET_ERSCHOEPFT, {
-      mandantId: MANDANT, objektTyp: 'agent_budget', objektId: BUDGET, daten: {},
+      mandantId: MANDANT, mandantSlug: 'reinigung', objektTyp: 'agent_budget', objektId: BUDGET, daten: {},
     });
-    expect(b.ziel).toBe(`/portal/${MANDANT}/agenten/budget`);
+    /* Der Slug, nicht die Kennung: `slugTor()` vergleicht das Pfadsegment mit dem Slug (Copilot, PR 12). */
+    expect(b.ziel).toBe('/portal/reinigung/agenten/budget');
   });
 
   it('nennt den Monat, wenn er bekannt ist', () => {
     const b = erzeuge(ART_BUDGET_ERSCHOEPFT, {
-      mandantId: MANDANT, objektTyp: 'agent_budget', objektId: BUDGET,
+      mandantId: MANDANT, mandantSlug: 'reinigung', objektTyp: 'agent_budget', objektId: BUDGET,
       daten: { monat: 'September 2026' },
     });
     expect(b.text).toContain('September 2026');
@@ -46,7 +47,7 @@ describe('agent.budget_erschoepft', () => {
 
   it('nennt ihn NICHT, wenn er unbekannt ist — statt eines leeren Klammerpaares', () => {
     const b = erzeuge(ART_BUDGET_ERSCHOEPFT, {
-      mandantId: MANDANT, objektTyp: 'agent_budget', objektId: BUDGET, daten: { monat: '' },
+      mandantId: MANDANT, mandantSlug: 'reinigung', objektTyp: 'agent_budget', objektId: BUDGET, daten: { monat: '' },
     });
     expect(b.text).not.toContain('()');
     expect(b.text).toContain('Monatsbudget');
@@ -54,7 +55,7 @@ describe('agent.budget_erschoepft', () => {
 
   it('sagt, dass die manuelle Arbeit weiterläuft', () => {
     const b = erzeuge(ART_BUDGET_ERSCHOEPFT, {
-      mandantId: MANDANT, objektTyp: 'agent_budget', objektId: BUDGET, daten: {},
+      mandantId: MANDANT, mandantSlug: 'reinigung', objektTyp: 'agent_budget', objektId: BUDGET, daten: {},
     });
     /*
      * Das ist der Satz, der einen Anruf spart. Ohne ihn liest die Empfaengerin

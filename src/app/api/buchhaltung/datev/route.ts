@@ -42,6 +42,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
 
   const daten = await anfrage.formData();
+  const slugRoh = daten.get('mandant');
+  const slug = typeof slugRoh === 'string' ? slugRoh.replace(/[^a-z0-9-]/gu, '') : '';
   const text = (feld: string): string | null => {
     const w = daten.get(feld);
     return typeof w === 'string' && w.trim() !== '' ? w.trim() : null;
@@ -80,6 +82,31 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           new Date(), sitzung.benutzerId);
       }));
 
+    /*
+     * **Ohne verbundenen Speicher kommt die DATEI zurueck, nicht ihre
+     * Beschreibung.** `erzeugeDatevExport` gibt die Bytes gerade fuer
+     * diesen Fall mit; die erste Fassung dieser Route liess sie fallen, und
+     * der Stapel war erzeugt, gestempelt — und fuer niemanden abrufbar
+     * (Copilot-Befund PR 12). Windows-1252 mit Komma, so liest DATEV sie.
+     */
+    if (ergebnis.dokumentId === null) {
+      return new NextResponse(Buffer.from(ergebnis.bytes), {
+        status: 200,
+        headers: {
+          'content-type': 'text/csv; charset=windows-1252',
+          'content-disposition': `attachment; filename="${ergebnis.dateiname}"`,
+          'x-cse-export-id': ergebnis.exportId,
+          'x-cse-sha256': ergebnis.sha256,
+          'cache-control': 'no-store',
+        },
+      });
+    }
+    /* Aus dem Formular der Seite (`mandant` gesetzt): auf den Stapel, nicht auf JSON. */
+    if (slug !== '') {
+      return NextResponse.redirect(
+        new URL(`/portal/${slug}/buchhaltung/datev/${ergebnis.exportId}`, anfrage.nextUrl.origin),
+        303);
+    }
     return NextResponse.json({
       exportId: ergebnis.exportId,
       zeilen: ergebnis.zeilen,

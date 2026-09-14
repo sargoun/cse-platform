@@ -51,7 +51,7 @@ export default async function Protokoll(
          left join benutzer b on b.id = a.akteur_id
          left join agent ag on ag.id = a.agent_id
         where a.mandant_id = $1
-        order by a.id desc
+        order by a.erstellt_am desc, a.id desc
         limit 200`, [mandantId]))) as Promise<readonly Zeile[]>);
 
   return (

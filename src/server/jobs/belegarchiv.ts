@@ -32,6 +32,12 @@ export interface ArchivlaufBefund {
   readonly abgelegt: number;
   readonly ohneSnapshot: number;
   readonly fehler: number;
+  /**
+   * Der Text des LETZTEN Fehlers — damit ein Lauf mit `fehler > 0` sagt,
+   * woran er scheiterte, statt nur zu zaehlen. Ein Zaehler allein sah bei
+   * „permission denied" wie ein ruhiger Lauf mit einer Ausnahme aus.
+   */
+  readonly letzterFehler: string | null;
 }
 
 export function registriereBelegarchiv(
@@ -84,6 +90,7 @@ export async function laufe(
   let abgelegt = 0;
   let ohneSnapshot = 0;
   let fehler = 0;
+  let letzterFehler: string | null = null;
 
   /*
    * **Eine Rechnung je Transaktion.** Ein Stapel in einer Transaktion waere
@@ -100,17 +107,18 @@ export async function laufe(
         { nurLesen: false });
       if (ergebnis.grund === 'archiviert') abgelegt += 1;
       else if (ergebnis.grund === 'kein_snapshot') ohneSnapshot += 1;
-    } catch {
+    } catch (grund: unknown) {
       /*
        * Eine gescheiterte Rechnung haelt die anderen nicht auf. Sie bleibt
        * offen, steht morgen wieder auf der Liste, und ihre Buchungszeilen
        * halten den Export solange gesperrt — sie verschwindet also nicht.
        */
       fehler += 1;
+      letzterFehler = grund instanceof Error ? grund.message : String(grund);
     }
   }
 
-  return { offen: ids.length, abgelegt, ohneSnapshot, fehler };
+  return { offen: ids.length, abgelegt, ohneSnapshot, fehler, letzterFehler };
 }
 
 /**

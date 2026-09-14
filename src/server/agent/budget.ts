@@ -109,8 +109,13 @@ export async function vermerkeStopp(
    * unsichtbar (RLS), meldet der Text ihn gar nicht — lieber ohne Monat als
    * mit dem falschen.
    */
-  const [zeitraum] = await db.abfrage<{ readonly jahr: number; readonly monat: number }>(
-    'select jahr, monat from agent_budget where mandant_id = $1 and id = $2',
+  const [zeitraum] = await db.abfrage<{
+    readonly jahr: number; readonly monat: number; readonly slug: string;
+  }>(
+    `select b.jahr, b.monat, m.slug
+       from agent_budget b
+       join mandant m on m.id = b.mandant_id
+      where b.mandant_id = $1 and b.id = $2`,
     [mandantId, budgetId]);
 
   const monat = zeitraum === undefined
@@ -119,7 +124,8 @@ export async function vermerkeStopp(
       + `${String(zeitraum.monat).padStart(2, '0')}-01`);
 
   const meldung = erzeuge(ART_BUDGET_ERSCHOEPFT, {
-    mandantId, objektTyp: 'agent_budget', objektId: budgetId, daten: { monat },
+    mandantId, mandantSlug: zeitraum?.slug ?? null,
+    objektTyp: 'agent_budget', objektId: budgetId, daten: { monat },
   });
 
   const [ergebnis] = await db.abfrage<{ readonly neu: boolean; readonly empfaenger: number }>(

@@ -1,6 +1,7 @@
 import type postgres from 'postgres';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { istUuid } from '@/lib/uuid';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
@@ -68,6 +69,8 @@ export default async function DatevStapel(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
   const { mandant, id } = await params;
+  /* Ein Wort im Pfad ist ein 404, kein 500 — die Umwandlung nach uuid geschieht sonst in der Datenbank. */
+  if (!istUuid(id)) notFound();
   const zugang = await portalZugang(`/portal/${mandant}/buchhaltung/datev/${id}`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
