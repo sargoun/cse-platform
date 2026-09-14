@@ -2135,3 +2135,19 @@ revoke delete, truncate on dokument_zugriff from cse_app, cse_anon, cse_checkin,
 
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0147)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- vergabemappe (soft): RAD-07, D-07, REP-06. Die Mappe ist der Beleg der Abgabe: Mensch, Zeitpunkt, Plattform, Kennzeichen. Sie zu loeschen nimmt dem Vorgang seinen Nachweis — und dem Bericht „gefunden · geprueft · geboten · gewonnen" seine Grundlage.
+create trigger trg_vergabemappe_kein_hard_delete
+  before delete on vergabemappe
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_vergabemappe_kein_truncate
+  before truncate on vergabemappe
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on vergabemappe from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks

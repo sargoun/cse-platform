@@ -1,6 +1,7 @@
 import 'server-only';
 import {
-  QuelleFehler, alsCent, alsZeitpunkt, type LeseErgebnis, type RohBekanntmachung,
+  QuelleFehler, alsCent, alsZeitpunkt,
+  type LeseErgebnis, type RohBekanntmachung, type RohDokument,
 } from './quelle.js';
 
 /**
@@ -82,6 +83,35 @@ function sprachKuerzel(roh: string | null): string {
   return karte[klein] ?? (klein.length >= 2 ? klein.slice(0, 2) : 'de');
 }
 
+/**
+ * **TED liefert keine Dokumentliste, sondern EINE Adresse.** eForms BT-15
+ * (`procurement-documents-url`) nennt den Ort, an dem die Vergabeunterlagen
+ * liegen — als Paket, nicht als Einzeldateien. Daraus wird genau eine Zeile:
+ * eine erfundene Aufzaehlung „Formblatt 1 bis 12" waere eine Pruefliste, die
+ * niemand geschrieben hat.
+ *
+ * BT-14 (`document-restricted`) sagt, ob der Zugang beschraenkt ist. Genau das
+ * ist der RAD-09-Fall: ohne Freischaltung kommt niemand an die Unterlagen, und
+ * die Freischaltung dauert Tage bis Wochen.
+ */
+function tedDokumente(
+  roh: Record<string, unknown>, feldSprache: string,
+): readonly RohDokument[] {
+  const url = tedText(roh['procurement-documents-url'] ?? roh['document-url'] ?? roh['URL_DOCUMENT']);
+  if (url === null) return [];
+  const beschraenkt = (tedText(roh['document-restricted'] ?? roh['document-restriction']) ?? '')
+    .toLowerCase();
+  return [{
+    bezeichnung: tedText(roh['document-title'], feldSprache) ?? 'Vergabeunterlagen',
+    quellUrl: url,
+    dateiname: null,
+    mimeTyp: null,
+    sprache: null,
+    veroeffentlichtAm: null,
+    zugriffGesperrt: beschraenkt.includes('restricted') || beschraenkt === 'true',
+  }];
+}
+
 export function liesTed(text: string): LeseErgebnis {
   let daten: unknown;
   try {
@@ -157,6 +187,7 @@ export function liesTed(text: string): LeseErgebnis {
       loseAnzahl: null,
       istBerichtigung: form.includes('corrigendum') || form.includes('change'),
       aufgehoben: form.includes('cancel'),
+      dokumente: tedDokumente(roh, feldSprache),
     });
   }
   return { zeilen, uebersprungen };

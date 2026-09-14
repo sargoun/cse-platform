@@ -136,8 +136,14 @@ describe('(2) a soft-deleted row leaves the finder and stays in the table', () =
      */
     expect(() => loeschPraedikat('tabelle_die_es_nicht_gibt'))
       .toThrow(/steht nicht in KEIN_HARD_DELETE/u);
-    // `dokument` kam mit PR 9 dazu — die Liste ist abgeleitet, nicht gepflegt.
-    expect(SOFT_DELETE).toEqual(['dokument', 'person', 'anstellung']);
+    /*
+     * `dokument` kam mit PR 9 dazu, `vergabemappe` mit PR 70 — die Liste ist
+     * ABGELEITET aus `KEIN_HARD_DELETE`, nicht gepflegt. Sie hier festzunageln
+     * ist die Sperrklinke: eine neue weiche Loeschung faellt auf, statt sich
+     * einzuschleichen. `vergabemappe` traegt S4, weil sie der Beleg einer
+     * Abgabe ist (D-492) — die Zeilen ihrer Pruefliste bewusst nicht.
+     */
+    expect(SOFT_DELETE).toEqual(['dokument', 'person', 'anstellung', 'vergabemappe']);
   });
 
   it('an injected alias is refused rather than pasted into SQL', () => {

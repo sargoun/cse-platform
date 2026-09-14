@@ -1635,6 +1635,23 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'nachtraeglich umschreiben laesst. Richtiggestellt wird durch eine '
       + 'Gegenquittung.',
   },
+  /**
+   * Die Vergabemappe (PR 70, RAD-07, D-07). Sie ist der Nachweis, dass ein
+   * MENSCH eingereicht hat — wer, wann, ueber welche Plattform, mit welchem
+   * Kennzeichen. Bei einer geruegten Vergabe ist genau das die Frage, und ein
+   * Angebot, dessen Mappe geloescht wurde, hat es nie gegeben. Die Zeilen der
+   * Pruefliste tragen die Sperre NICHT: eine versehentlich angelegte
+   * Prueflistenzeile ist ein Tippfehler, kein Geschaeftsvorfall.
+   */
+  {
+    tabelle: 'vergabemappe',
+    art: 'soft',
+    migration: '0147',
+    grund:
+      'RAD-07, D-07, REP-06. Die Mappe ist der Beleg der Abgabe: Mensch, Zeitpunkt, '
+      + 'Plattform, Kennzeichen. Sie zu loeschen nimmt dem Vorgang seinen Nachweis — '
+      + 'und dem Bericht „gefunden · geprueft · geboten · gewonnen" seine Grundlage.',
+  }
 ] as const;
 
 /**

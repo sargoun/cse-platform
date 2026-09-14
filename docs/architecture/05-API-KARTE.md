@@ -1109,6 +1109,24 @@ There is no public bucket and no permanent file URL anywhere (DOC-03, R-19). Pla
 | `GET/POST/PATCH /api/radar/plattformen` · `GET /api/radar/plattform-luecken` | Platform registrations with status and lead time; notices requiring an unregistered platform, ordered by deadline | sitzung | mandant | → rows | RAD-09 |
 | `POST /api/radar/vergabemappen` · `GET /[id]/vollstaendigkeit` · `GET /[id]/download` | Bid folder, completeness check naming every missing document, ZIP download. **A human uploads it** — there is no submission endpoint, by design | sitzung | mandant | → folder / gap list / ZIP | D-07, RAD-07 |
 
+**What was actually built** (PR 69, PR 70). The portal posts **forms**, not JSON, so the shipped
+surface is five same-origin form endpoints rather than the REST shapes sketched above; the reading
+side lives in the pages, which query under RLS directly. The contract they keep is the one that
+matters: one right per endpoint, and no submission path.
+
+| Shipped | Right | Does |
+|---|---|---|
+| `POST /api/radar/vorgang` | `radar.status_setzen` | `geprueft` · `in_bearbeitung` (opens the Vergabemappe) · `verworfen` (reason required) |
+| `POST /api/vergabe/mappe` | `vergabe.schreiben` | add a checklist line, set a line's state, set the folder's state |
+| `POST /api/vergabe/unterlage` | `vergabe.schreiben` | attach a required document — sets `vorhanden`, **never** `geprueft` (D-492) |
+| `POST /api/vergabe/einreichung` | `vergabe.einreichung_erfassen` | record that a **human** submitted: person from the session, instant from the database |
+| `POST /api/vergabe/ausgang` | `vergabe.einreichung_erfassen` | `zuschlag` / `nicht_beruecksichtigt` / `verfahren_aufgehoben` with date and, for an award, the value in cents |
+
+**There is no submission endpoint and there will not be one** (D-07). `app.mappe_einreichung_erfassen`
+is the only write path to the four submission columns — `cse_app` holds no privilege on them at all
+— and it reads the human from the session, so neither a forged form field nor an agent can claim a
+submission happened.
+
 **Status values are stored snake_case without diacritics** (review MINOR): `neu · geprueft · verworfen · in_bearbeitung · eingereicht`. The accented forms of RAD-07 (`geprüft`, `in Bearbeitung`) are UI labels only; otherwise the `?status=` query parameter and the enum disagree and one of the two silently never matches.
 
 RAD-05: scoring is a pure function of profile and notice; no model participates in ranking, and the reason string is generated from the same rules that produced the score, so it can never disagree with it. `// TODO(client, O-15): Welcher Score löst eine Benachrichtigung aus (RAD-08), und mit welchem Gewicht gehen CPV-Treffer, NUTS-Treffer, Auftragswert und Schlüsselwörter ein? Die Platzhaltergewichte sind als solche gekennzeichnet.` CPV codes are configuration seeded from the profile, never hard-coded: `// TODO(client, O-98): Die im SPEC §6 genannten CPV-Codes sind Startpunkte und müssen gegen die amtliche Liste geprüft werden (K-17), bevor sie ein Profil scharf schalten.`

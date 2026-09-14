@@ -143,6 +143,28 @@ async function schreibeEine(
     `delete from ausschreibung_nuts where ausschreibung_id = $1::uuid and not (nuts_code = any ($2::text[]))`,
     [zeile.id, b.nutsCodes]);
 
+  /*
+   * **Die Vergabeunterlagen werden ergaenzt, nie entfernt.** Anders als bei
+   * NUTS: eine Unterlage, die die Quelle heute nicht mehr nennt, ist trotzdem
+   * einmal veroeffentlicht worden — und eine Pruefliste kann darauf zeigen
+   * (`quelle_ausschreibung_dokument_id`). Sie zu loeschen hiesse, die Herkunft
+   * einer Forderung zu kappen, weil eine Vergabestelle ihre Seite umgebaut hat.
+   */
+  for (const d of b.dokumente) {
+    await db.unsafe(
+      `insert into ausschreibung_dokument
+         (ausschreibung_id, bezeichnung, quell_url, dateiname, mime_typ, sprache,
+          veroeffentlicht_am, zugriff_gesperrt)
+       values ($1::uuid, $2, $3, $4, $5, $6, $7::timestamptz, $8::boolean)
+       on conflict (ausschreibung_id, coalesce(quell_url, bezeichnung)) do update
+         set bezeichnung = excluded.bezeichnung,
+             mime_typ = coalesce(excluded.mime_typ, ausschreibung_dokument.mime_typ),
+             zugriff_gesperrt = excluded.zugriff_gesperrt,
+             geaendert_am = now()`,
+      [zeile.id, d.bezeichnung, d.quellUrl, d.dateiname, d.mimeTyp, d.sprache,
+        d.veroeffentlichtAm, d.zugriffGesperrt]);
+  }
+
   return { id: zeile.id, neu: zeile.neu, geaendert: !zeile.neu };
 }
 

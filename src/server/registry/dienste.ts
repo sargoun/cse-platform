@@ -43,6 +43,17 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'radar', pfad: 'radar/ocds', schreibend: false },
   { modul: 'radar', pfad: 'radar/quelle', schreibend: false },
   { modul: 'radar', pfad: 'radar/ted', schreibend: false },
+  /**
+   * **Die Vergabemappe (PR 70, RAD-07, D-07).** `mappe` fuehrt die Pruefliste
+   * unter `vergabe.schreiben`; `einreichung` bezeugt die Abgabe und traegt
+   * deshalb ein eigenes Recht — wer Formblaetter abhakt, bezeugt damit nicht,
+   * dass jemand hochgeladen hat.
+   */
+  { modul: 'vergabe', pfad: 'vergabe/mappe', schreibend: true, schreibRecht: 'vergabe.schreiben' },
+  {
+    modul: 'vergabe', pfad: 'vergabe/einreichung',
+    schreibend: true, schreibRecht: 'vergabe.einreichung_erfassen',
+  },
   {
     modul: 'radar', pfad: 'radar/vorgang',
     schreibend: true, schreibRecht: 'radar.status_setzen',

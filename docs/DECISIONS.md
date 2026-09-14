@@ -8795,3 +8795,99 @@ CPV-Zeilengewicht wurde nicht „angewendet", sondern aus der Bewertungseingabe
 **entfernt**: es zu benutzen hiesse, die Gewichtung zu erfinden, die O-15
 offen lässt; es im Hash zu lassen hiesse, eine Änderung ohne Wirkung als
 neue Bewertung aufzuzeichnen.
+
+### D-492 · Die Vergabemappe — eine Liste, die zählen kann, und ein Knopf, der nichts einreicht (PR 70)
+
+Phase 8, zweiter Teil des Radars. Nach der Rangfolge kommt die Frage, an der
+ein Angebot tatsächlich scheitert: **war alles dabei?** Eine deutsche
+Ausschreibung fordert nicht „Unterlagen", sondern benannte Formblätter —
+Angebotsschreiben 213, Eigenerklärung zur Eignung 124, Preisblatt,
+Verzeichnis der Nachunternehmerleistungen, Unbedenklichkeitsbescheinigung.
+Fehlt **eines** davon am Abgabetag, wird das Angebot nach § 57 VgV
+ausgeschlossen, ohne dass irgendjemand den Preis ansieht. Eine Liste mit
+Zeilen kann zählen, was fehlt; ein Freitextfeld am Vorgang kann es nicht —
+und dieses Zählen ist der ganze Zweck der Mappe.
+
+**„Liegt vor" zählt NICHT als erledigt.** Der Zähler
+(`pflichtpositionen_erledigt`) steigt erst bei `geprueft` oder bei einer
+**begründeten** Nichtzuständigkeit. Die Entscheidung ist bewusst die strenge
+Richtung: die häufigsten Ausschlüsse sind nicht fehlende, sondern falsche
+Unterlagen — das Formblatt des Vorjahres, die abgelaufene
+Unbedenklichkeitsbescheinigung, die Referenzliste ohne vergleichbares
+Objekt. Eine Mappe, die „vollständig" meldet, weil Dateien anhängen, die
+niemand angesehen hat, ist genau die Zusage, die einen Ausschluss erzeugt.
+Die Richtung meldet zu wenig fertig, nie zu viel; sie umzudrehen ist eine
+Zeile im Trigger, falls der Betrieb es anders will.
+
+**D-07 steht jetzt in der Datenbank, nicht nur im Text.** Die Plattform
+reicht nichts ein und kann es auch nicht behaupten:
+
+- `CHECK (eingereicht_am IS NULL OR eingereicht_von IS NOT NULL)` — ein
+  Einreichungszeitpunkt ohne Menschen daneben ist unmöglich.
+- `cse_app` hat auf den Einreichungsspalten **kein Schreibrecht** (Spalten-
+  schnitt im `GRANT`). Der einzige Weg dorthin ist
+  `app.mappe_einreichung_erfassen` — und die nimmt die Person aus der
+  **Sitzung**, nicht aus dem Formular, und den Zeitpunkt aus `now()` der
+  Datenbank (Invariante 5). Ein Formularfeld „eingereicht von" wäre eine
+  Unterschrift, die man für Kollegen leisten kann.
+- `kern.unterschrift_ist_die_eigene()` prüft dasselbe für `freigegeben_von`
+  und `geprueft_von`: wer freigibt oder prüft, ist die angemeldete Person.
+
+**Die Funktion nimmt auch eine unvollständige Abgabe entgegen.** Wer trotz
+Lücke eingereicht hat, hat eingereicht — die Lücke bleibt in den Zählern
+sichtbar. Eine Plattform, die eine Tatsache verweigert, weil ihr die
+Reihenfolge nicht gefällt, wird nebenher in Excel geführt.
+
+**Der Vorgang ist nie weiter als seine Mappe** (`app.vorgang_braucht_mappe`):
+`in_bearbeitung` setzt eine Mappe voraus — fachlich dasselbe, denn in
+Bearbeitung ist eine Ausschreibung, wenn jemand anfängt, die Unterlagen
+zusammenzutragen —, und `eingereicht` setzt eine eingereichte Mappe voraus.
+Deshalb legt „In Bearbeitung nehmen" die Mappe an; das braucht
+`vergabe.schreiben`, und wem es fehlt, der bekommt einen Satz statt einer
+Policy-Verletzung ohne Erklärung.
+
+**Drei Ausgänge, keine erfundene Sortierung** (REP-06): `zuschlag`,
+`nicht_beruecksichtigt`, `verfahren_aufgehoben`. Das sind die Enden eines
+deutschen Vergabeverfahrens. Ein Ausgang setzt eine erfasste Einreichung
+voraus — „gewonnen, ohne zu bieten" gehört in keinen Bericht —, und ein
+Auftragswert gibt es nur beim Zuschlag, in ganzen Cent (Invariante 1).
+
+**Keine Standardpositionen.** Die Prüfliste ist leer, bis ein Mensch sie
+füllt, und die Seite sagt warum: welche Unterlagen eine Plattform bei welcher
+Verfahrensart verlangt, ist **O-194** und in keiner Liste hinterlegt, die hier
+vorliegt. Eine geratene Vorlage wäre eine Prüfliste, die vollständig aussieht
+und es nicht ist — derselbe Fehler wie ein erfundener Plattformkatalog (O-07),
+nur folgenreicher.
+
+**`ausschreibung_dokument` kommt hier dazu**, weil eine Position sagen können
+soll, **woher** die Forderung stammt (welches Dokument, welche Seite). Die
+Tabelle hält nur die öffentlichen Angaben der Quelle — Bezeichnung, Adresse,
+Medientyp, und `zugriff_gesperrt`, wenn die Quelle selbst sagt, dass eine
+Anmeldung nötig ist (der unmittelbarste RAD-09-Beleg). **Heruntergeladen wird
+nichts**: das ist `ausschreibung_dokument_abruf` und braucht den Abrufweg, den
+dieser Zweig nicht öffnet. OCDS liefert eine Dokumentliste, TED **eine**
+Adresse (eForms BT-15) — daraus wird genau eine Zeile; eine Aufzählung
+„Formblatt 1 bis 12" wäre erfunden. Die OCDS-`id` ist **kein** Titel: sie ist
+eine interne Kennung, und als Bezeichnung in einer Prüfliste wäre sie eine
+Zeile, die niemand lesen kann.
+
+**Eine Datei beilegen geht über den bestehenden Uploadweg** (`ladeHoch`):
+Grösse, dann Typ aus den **Magic Bytes**, dann Metadaten entfernen, dann
+speichern — ein Angebotsschreiben als PDF trägt Autor und Pfad des Rechners,
+auf dem es entstand. Ohne Dokumentenspeicher wird **nichts** gespeichert, und
+die Seite sagt das; ein Objekt, dessen Zeile in derselben Transaktion nicht
+entsteht, wird zurückgenommen (die Waisenregel des Beleguploads).
+
+**Drei Spalten mehr als das Datenmodell** (§2.20): `eingereicht_ueber_plattform_id`,
+`eingereicht_ueber_text` und `einreichung_kennzeichen`. Die Seitenkarte
+verlangt für `eingereicht` drei Angaben — Mensch, Zeitpunkt, **benutzte
+Plattform** —, der Plattformkatalog ist aber mit Absicht leer (O-07). Ein
+Pflichtfremdschlüssel machte das Erfassen damit unmöglich; deshalb beides, und
+ein CHECK verlangt, dass eines davon steht. Das Datenmodell ist nachgezogen.
+
+**Geprüft:** Kern 1671 (davon neu: die Dokumentzeilen beider Leser) ·
+Isolation `vergabemappe` 21 · Browser `vergabemappe` 8. Die Isolationsfälle
+beweisen, was kein Kommentar beweisen kann: `cse_app` scheitert an
+`update … set eingereicht_am` mit „permission denied", eine Freigabe im Namen
+eines Kollegen wird abgewiesen, dreissig Zeilen in einer Anweisung zählen
+einmal nach, und `in_bearbeitung` ohne Mappe wirft.

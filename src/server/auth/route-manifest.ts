@@ -1000,6 +1000,42 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Die Pruefliste der Vergabemappe (RAD-07): Position anlegen, Stand einer
+     * Position setzen, Stand der Mappe setzen — drei Handlungen, ein Recht.
+     */
+    pfad: 'api/vergabe/mappe',
+    recht: 'vergabe.schreiben',
+  },
+  {
+    /**
+     * Eine geforderte Unterlage beilegen. Dasselbe Recht wie die Pruefliste:
+     * eine Datei anzuhaengen ist Fuehren der Mappe, nicht Bezeugen einer
+     * Abgabe. Sie setzt `vorhanden`, nie `geprueft` (D-492).
+     */
+    pfad: 'api/vergabe/unterlage',
+    recht: 'vergabe.schreiben',
+  },
+  {
+    /**
+     * Festhalten, dass ein MENSCH eingereicht hat (D-07). Ein eigenes Recht,
+     * weil es eine andere Aussage ist als „ich habe ein Formular abgehakt":
+     * `vergabe.einreichung_erfassen` bezeugt eine Abgabe, die ausserhalb
+     * dieser Plattform stattgefunden hat.
+     */
+    pfad: 'api/vergabe/einreichung',
+    recht: 'vergabe.einreichung_erfassen',
+  },
+  {
+    /**
+     * Wie das Verfahren ausgegangen ist (REP-06). Dasselbe Recht wie die
+     * Einreichung: beides bezeugt, was ausserhalb dieser Plattform geschehen
+     * ist — die Abgabe und die Entscheidung der Vergabestelle.
+     */
+    pfad: 'api/vergabe/ausgang',
+    recht: 'vergabe.einreichung_erfassen',
+  },
+  {
+    /**
      * Der Anmeldecode aus der Hand der Einsatzleitung (EMP-01, O-82, D-487):
      * `personal.zugang_verwalten`, das Recht der Zugangsseite. Der Klartext
      * geht in einen kurzlebigen Keks, nie in die Adresse.

@@ -403,6 +403,18 @@ Radar first — the agents operate on its output.
       is in the LIST, not only on the detail page, because a platform
       unlock takes days to weeks. The catalogue ships **empty** and the
       page says why (O-07): a made-up list would read as a checked state.
+- [x] Vergabemappe and the submission record (RAD-07 complete, PR 70, D-492) — the
+      checklist that can **count** what is missing, because a missing Formblatt
+      gets the bid excluded under § 57 VgV before anyone reads the price.
+      **"Attached" does not count as done**: the counter only rises on
+      `geprueft` or a *reasoned* non-applicability, because the commonest
+      exclusions are attached but wrong documents. D-07 now sits in the
+      database: `cse_app` has no write privilege on the submission columns at
+      all, the only path is `app.mappe_einreichung_erfassen`, and it takes the
+      human from the **session** and the instant from `now()`. The outcome
+      (`zuschlag` / `nicht_beruecksichtigt` / `verfahren_aufgehoben`) closes
+      REP-06's "found · screened · bid · won". The checklist ships **empty**
+      and the page says why (**O-194**).
 - [ ] `pgvector` index over contracts, objects, offers, correspondence
 - [ ] Agent tools (AGT-02); `berechne_preis` is **pure code**
 - [x] Policy gate (`agent/policy.ts`) — the floor is code, not data: an offer,

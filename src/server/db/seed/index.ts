@@ -1447,7 +1447,9 @@ async function main(): Promise<void> {
   process.stdout.write(
     `  ${String(radar.bekanntmachungen)} Bekanntmachungen (Demo, ohne Quellenlink) und `
     + `${String(radar.profile)} Suchprofile — CPV-Listen sind Platzhalter (O-98), `
-    + `der Plattformkatalog bleibt leer (O-07); ${String(radar.bewertungen)} Bewertungen\n`,
+    + `der Plattformkatalog bleibt leer (O-07); ${String(radar.bewertungen)} Bewertungen; `
+    + `eine Vergabemappe in Arbeit mit ${String(radar.mappenpositionen)} Positionen `
+    + `(nicht eingereicht — die Plattform reicht nichts ein, D-07)\n`,
   );
 
   const frei = await seedFreigaben(sql, ids);

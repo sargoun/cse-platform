@@ -1,6 +1,7 @@
 import 'server-only';
 import {
-  QuelleFehler, alsCent, alsZeitpunkt, type LeseErgebnis, type RohBekanntmachung,
+  QuelleFehler, alsCent, alsZeitpunkt,
+  type LeseErgebnis, type RohBekanntmachung, type RohDokument,
 } from './quelle.js';
 
 /**
@@ -22,6 +23,18 @@ import {
  */
 
 interface OcdsWert { readonly amount?: string | number; readonly currency?: string }
+
+interface OcdsDokument {
+  readonly id?: string;
+  readonly title?: string;
+  readonly description?: string;
+  readonly url?: string;
+  readonly documentType?: string;
+  readonly format?: string;
+  readonly language?: string;
+  readonly datePublished?: string;
+  readonly accessDetails?: string;
+}
 
 interface OcdsRelease {
   readonly ocid?: string;
@@ -48,7 +61,9 @@ interface OcdsRelease {
     readonly enquiryPeriod?: { readonly endDate?: string };
     readonly participationFees?: unknown;
     readonly submissionMethodDetails?: string;
+    readonly documents?: readonly OcdsDokument[];
   };
+  readonly documents?: readonly OcdsDokument[];
   readonly buyer?: { readonly name?: string };
   readonly parties?: readonly {
     readonly roles?: readonly string[];
@@ -56,6 +71,47 @@ interface OcdsRelease {
     readonly address?: { readonly locality?: string; readonly postalCode?: string; readonly region?: string };
   }[];
   readonly links?: { readonly self?: string };
+}
+
+/**
+ * **`accessDetails` ist der RAD-09-Hinweis, kein Fliesstext zum Wegwerfen.**
+ * Steht dort, dass eine Registrierung oder Anmeldung noetig ist, dann ist die
+ * Unterlage ohne Freischaltung nicht zu bekommen — und eine Freischaltung
+ * dauert Tage bis Wochen. Erkannt werden deutsche und englische Formen; wird
+ * nichts erkannt, gilt das Dokument als frei zugaenglich (die vorsichtige
+ * Richtung waere hier die falsche: sie faerbte jede Bekanntmachung rot).
+ */
+const GESPERRT = /\b(registrier|anmeld|login|log-in|account|zugangsdaten|kostenpflichtig)/iu;
+
+function alsDokumente(roh: readonly OcdsDokument[] | undefined): readonly RohDokument[] {
+  const raus: RohDokument[] = [];
+  const gesehen = new Set<string>();
+  for (const d of roh ?? []) {
+    const url = d.url?.trim() ?? null;
+    /*
+     * **`id` ist KEIN Titel.** In OCDS ist er eine interne Kennung („d4",
+     * ein Hash) — als Bezeichnung in einer Pruefliste waere er eine Zeile,
+     * die niemand lesen kann. Ohne Titel gilt die Adresse; ohne beides ist
+     * die Zeile nichts, was man speichern koennte.
+     */
+    const bezeichnung = (d.title ?? d.description ?? d.documentType ?? '').trim();
+    if (bezeichnung === '' && url === null) continue;
+    const schluessel = url ?? bezeichnung;
+    if (gesehen.has(schluessel)) continue;
+    gesehen.add(schluessel);
+    const zugang = `${d.accessDetails ?? ''} ${d.description ?? ''}`;
+    raus.push({
+      bezeichnung: bezeichnung === '' ? (url ?? 'Unterlage') : bezeichnung,
+      quellUrl: url,
+      dateiname: null,
+      /* `format` ist in OCDS bereits ein Medientyp — er wird NICHT geraten. */
+      mimeTyp: d.format?.trim() ?? null,
+      sprache: d.language?.slice(0, 2).toLowerCase() ?? null,
+      veroeffentlichtAm: alsZeitpunkt(d.datePublished),
+      zugriffGesperrt: GESPERRT.test(zugang),
+    });
+  }
+  return raus;
 }
 
 function istObjekt(x: unknown): x is Record<string, unknown> {
@@ -191,6 +247,7 @@ export function liesOcds(text: string): LeseErgebnis {
       istBerichtigung: tags.includes('tenderamendment') || tags.includes('tenderupdate'),
       aufgehoben: (r.tender?.status ?? '').toLowerCase() === 'cancelled'
         || tags.includes('tendercancellation'),
+      dokumente: alsDokumente([...(r.tender?.documents ?? []), ...(r.documents ?? [])]),
     });
   }
   return { zeilen, uebersprungen };
