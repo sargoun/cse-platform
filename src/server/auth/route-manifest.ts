@@ -1036,6 +1036,33 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Stapelfreigabe (APR-04) — `freigabe.stapel_entscheiden`, NICHT
+     * `freigabe.entscheiden`.
+     *
+     * Ein frueherer Entwurf hier stand auf „ein Stapel ist zehnmal dieselbe
+     * Handlung". Der Katalog sagt etwas anderes, und er hat recht: das Recht
+     * ist an `admin` und `leitung` BINDBAR, nicht gebunden. Wer einzeln
+     * entscheiden darf, darf damit nicht schon fuenfzig auf einmal — das ist
+     * der Unterschied zwischen einer Pruefung und einem Haeckchen bei „alle",
+     * und genau den soll APR-08 aufspueren.
+     */
+    pfad: 'api/freigaben/stapel',
+    recht: 'freigabe.stapel_entscheiden',
+  },
+  {
+    /**
+     * Einspruch (APR-05) und Ruecknahme (APR-06) — zwei eigene, bindbare
+     * Rechte. Beide holen eine GEFALLENE Entscheidung zurueck, und das ist
+     * eine andere Befugnis als sie zu treffen: die Route waehlt je nach
+     * `was` zwischen `freigabe.einspruch_erheben` und `freigabe.rueckgaengig`.
+     * Hier steht das schwaechere der beiden als Torpruefung; die Route und
+     * die Definer-Funktion pruefen das genaue.
+     */
+    pfad: 'api/freigaben/fenster',
+    recht: 'freigabe.einspruch_erheben',
+  },
+  {
+    /**
      * Der Anmeldecode aus der Hand der Einsatzleitung (EMP-01, O-82, D-487):
      * `personal.zugang_verwalten`, das Recht der Zugangsseite. Der Klartext
      * geht in einen kurzlebigen Keks, nie in die Adresse.

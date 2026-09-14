@@ -460,8 +460,36 @@ Radar first — the agents operate on its output.
       there is no start button until there is a provider (D-435).
 - [ ] Four agents: CEO Assistant, Acquisition, Back-office, Finance
       — blocked on the model access above, not on the runtime.
-- [ ] Approval inbox with diff review, source attribution, confidence flags,
+- [x] Approval inbox with diff review, source attribution, confidence flags,
       batch approval, delayed release, undo, approval snapshots
+      (PR 62/63, D-472; completed PR 75, D-497) — the batch is a **loop** over
+      the single decision, never a collective UPDATE: APR-07 wants the proof of
+      what lay before the human, and that differs per case, so fifty approvals
+      are fifty snapshots and fifty chain links. Flagged rows **drop out with
+      their reason** instead of killing the batch, and each row gets its own
+      `SAVEPOINT`, so one failing execution rolls back alone and stands open
+      again. Window **or** execution, never both: the objection window is armed
+      only for `risiko = 'niedrig'`, and the seven process types that `0136`
+      excludes get none — the list stays in that one CHECK, and
+      `app.freigabe_verzoegern` reports its "no" as `NULL` rather than tearing
+      the batch down. Undo reverses the **execution**, not the decision: the
+      snapshot stays what it was, and a reversal of the decision is a NEW
+      approval (§4.5). The two window lengths are placeholders (**O-108**).
+      Closing the holes this found: `0012` had granted `cse_app` UPDATE on the
+      whole table, so both window columns were writable **around** the definer
+      functions; and three rights the catalogue already defined
+      (`freigabe.stapel_entscheiden`, `freigabe.einspruch_erheben`,
+      `freigabe.rueckgaengig`) were **never checked** — every route asked only
+      for `freigabe.entscheiden`. A right that exists and is never checked is
+      worse than none: it looks like a bolt. Who should hold them is **O-367**.
+      APR-08 got the screen the page map had been promising: the distribution
+      of review durations **without a name**, because flagging one person's
+      consistently fast approvals is § 87 Abs. 1 Nr. 6 BetrVG territory and
+      waits on **O-06** — with the batch share shown separately, since a batch
+      is fast by construction and is not rubber-stamping. `/freigaben/laufend`
+      and `/freigaben/erledigt` were built too; `/freigaben/stapel`,
+      `/[id]/einspruch` and `/[id]/rueckgaengig` stay folded into the inbox and
+      the review page on purpose.
 - [x] Watchdog jobs (SPEC §14) — **all eight** (PR 72, D-494). The three that
       were missing all failed on the same thing: they must notify "the planner"
       or "the site manager", and no such field exists. So `app.hat_recht` was

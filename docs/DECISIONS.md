@@ -5165,6 +5165,7 @@ niemand ihn suchen.
 | O-364 | **Wird der Objektspeicher (Supabase Storage, Frankfurt) auf Bucket-Ebene unveränderlich geführt — Versionierung, Object Lock, keine Löschrechte für den Dienstschlüssel — und steht das in der DPA?** Die Plattform hält das Löschen in Datenbank und Anwendung auf (0141, `dokument/loeschung.ts`, Merge-Wache); was der Anbieter mit einem Objekt tut, das jemand mit dem Dienstschlüssel direkt löscht, kann sie nicht erzwingen und behauptet es nicht — das Archiv sagt es (D-483). Bis zur Antwort gilt: der Dienstschlüssel liegt nur in der Serverumgebung, und jede Datei trägt ihren SHA-256 in `dokument_version`, sodass ein Verlust auffällt, nicht verschwindet. | ACC-06, DOC-07, LEG-01, D-483 |
 | O-365 | **Welche Fassung des Beschreibungsstandards für die Datenträgerüberlassung erwartet die Prüfsoftware der Finanzverwaltung (IDEA), und darf die DTD `gdpdu-01-09-2004.dtd` dem Z3-Paket beiliegen?** Die DTD wird von Audicon veröffentlicht und liegt nicht im Repository; die Plattform schreibt `index.xml` nach der Struktur der Version 1.0 (DataSet → DataSupplier → Media → Table mit VariableLength, Spaltentypen, Dezimal- und Trennzeichen), nennt die DTD in der Deklaration und legt sie nicht bei — `LIESMICH.txt` sagt das. Einen Validator gibt es nicht; die Abnahme ist ein Probeimport durch den Steuerberater oder Prüfer (D-485). Bis zur Antwort: CSV in Windows-1252, `;`, CRLF, Dezimalkomma, erste Zeile Spaltennamen (`Range From=2`). | ACC-09, LEG-01, D-485 |
 | O-366 | **Welche Abfrage stellt der Betrieb an die beiden Radarquellen — welche Adresse, welcher Filter, welches Zeitfenster?** Beide Quellen sind öffentlich und brauchen keinen Schlüssel (oeffentlichevergabe.de liefert OCDS, TED Search v3 liefert JSON); ohne die Abfrage gibt es aber keinen Abruf, den die Plattform ehrlich stellen könnte — sie rät nicht, welche CPV-Gruppen und welche Region gemeint sind. Bis zur Antwort sind `RADAR_OEFFENTLICHEVERGABE_URL` und `RADAR_TED_URL` leer, und der Nachtlauf schreibt je Quelle eine Zeile `uebersprungen` mit genau diesem Satz (D-489). | RAD-01, RAD-02, D-489 |
+| O-367 | **Wer darf stapelweise genehmigen, wer Einspruch erheben, wer eine Ausführung zurücknehmen?** Der Rechtekatalog führt `freigabe.stapel_entscheiden`, `freigabe.einspruch_erheben` und `freigabe.rueckgaengig` als drei EIGENE, an `admin` und `leitung` bindbare Rechte — sie hängen bewusst nicht an `freigabe.entscheiden`: wer einzeln entscheiden darf, darf damit nicht schon fünfzig auf einmal. Gebunden sind sie bis zur Antwort an niemanden ausser `super_admin`; der Seed bindet sie zusätzlich an `admin`, damit die Demo sie zeigt, und sagt das an Ort und Stelle. Bis zur Antwort gilt: ohne ausdrückliche Vergabe kein Stapel, kein Einspruch, keine Rücknahme — die Knöpfe erscheinen dann gar nicht. | APR-04, APR-05, APR-06, `katalog`, D-497 |
 | O-355 | **Wer trägt die Modulbuchung ein und pflegt `mandant.module_gepflegt`?** Seit 0103 ist die Frage nicht mehr, was eine leere Liste heisst — das Kennzeichen sagt es: `false` = nicht eingetragen, es wird nicht gefiltert (damit eine neu angelegte Gesellschaft nicht schwarz wird); `true` = die Liste gilt, leer heisst kein Gewerk. Offen bleibt der Vorgang: kommt die Buchung aus dem Vertrag, aus der Verwaltung oder setzt sie ein Super-Admin über `system.module_zuweisen` — und wer merkt, wenn sie fehlt? | `src/server/registry/modul.ts`, 0103, D-377 |
 | O-356 | **Bucht jede Gesellschaft genau ein Gewerk, oder gibt es Überschneidungen?** Der Seed setzt `reinigung → [reinigung]`, `security → [security]`, `bau → [bau]`, `operations → []` — abgeleitet aus den Gewerken, die in `CLAUDE.md` stehen. Praktisch plausibel wäre anderes: Bauendreinigung bei der REALTIME Service, Veranstaltungsreinigung bei der SSE Security. Bis zur Antwort sieht eine Gesellschaft nur ihr eigenes Gewerk; die Korrektur ist eine Zeile in `mandant.module` und kein Codeeingriff. | `mandant.module`, `src/server/db/seed/index.ts`, D-377 |
 | O-357 | **Wohin gehen die Wächter-Meldungen aus SPEC §14 — Posteingang, Mail oder beides — und wer bekommt die Kettenmeldung?** Die Ablaufwarnung (60/30/7) erreicht die Person selbst; das ist EMP-08 und unstrittig. „Hashkette gebrochen" dagegen hat keinen persönlichen Empfänger: es ist eine Meldung an die Buchhaltung oder die Geschäftsführung, und beide sind heute keine adressierbare Größe im Modell. Solange die Frage offen ist, wird der Kettenprüfer bewusst NICHT als Job registriert — ein Lauf, der jede Nacht „ok" meldet, ohne dass jemand die Meldung liest, schafft Vertrauen, das er nicht deckt. | SPEC §14, `src/server/jobs/bootstrap.ts`, `kettenlauf.ts`, NOT-01 |
@@ -9195,3 +9196,135 @@ Schemafehler aussieht und keiner ist.
 **Geprüft:** Isolation 1594 (neu: `wissensindex` 12), darunter die
 Ähnlichkeitssuche aus einer fremden Gesellschaft und die Gruppenansicht, die
 es hier nicht gibt.
+
+---
+
+### D-497 · Stapel, Einspruch, Rücknahme — und warum der Stapel eine Schleife ist (PR 75)
+
+APR-04, APR-05 und APR-06 waren die drei Zusagen, die dem Freigabe-Posteingang
+noch fehlten. Die Spalten dafür stehen seit `0136` (`stapel_faehig`,
+`verzoegerte_freigabe_bis`, `undo_bis`); was fehlte, waren die Wege dorthin.
+
+**Der Stapel ist eine Schleife über `entscheideFreigabe`, kein Sammelupdate.**
+APR-07 verlangt den Schnappschuss dessen, was zum Zeitpunkt der Entscheidung
+vorlag — und der ist je Vorgang verschieden. Ein `update … where id = any(…)`
+schriebe einen Stand für fünfzig verschiedene Sachverhalte; der Beweis wäre
+keiner. Fünfzig Genehmigungen sind deshalb fünfzig Schnappschüsse und fünfzig
+Kettenglieder, genau wie fünfzigmal derselbe Klick.
+
+**Markierte Vorgänge fallen heraus, sie brechen den Stapel nicht ab.** Ein
+Stapel, der an der ersten unsicheren Zeile stirbt, erzieht dazu, ihn nicht zu
+benutzen; einer, der sie stillschweigend mitnimmt, hebelt APR-03 aus. Der
+Bericht nennt je übersprungenem Vorgang den Grund, und die Zeile steht weiter
+in der Liste.
+
+**Und er FÜHRT AUS, wie es die Einzelprüfung tut (§4.8).** Zehn Häkchen dürfen
+nicht weniger bewirken als zehn Klicks — sonst stünden die Vorgänge genehmigt,
+aber ungetan da, und niemand sähe den Unterschied. Weil eine Ausführung
+scheitern kann, bekommt jede Zeile einen eigenen `SAVEPOINT`: die gescheiterte
+rollt allein zurück und steht wieder offen (ohne Schnappschuss, denn entschieden
+wurde sie am Ende nicht), die anderen bleiben entschieden. Ohne den Punkt wäre
+der Stapel alles-oder-nichts: neunundvierzig geprüfte Entscheidungen verloren,
+weil die fünfzigste Buchung auf eine gesperrte Periode traf.
+
+**Die Obergrenze ist fünfzig, und sie ist keine Bequemlichkeit.** Ein Stapel
+über zweihundert Vorgänge ist keine Prüfung mehr, sondern ein Häkchen bei
+„alle" — genau das Verhalten, das APR-08 aufspüren soll.
+
+**Fenster ODER Ausführung, nie beides.** Ein laufendes Einspruchsfenster heisst
+gerade: noch nicht ausgelöst. Armiert wird es nur für `risiko = 'niedrig'` und
+`stapel_faehig` — dieselbe Menge, die auch in den Stapel darf. Die sieben
+Vorgangsarten, die `freigabe_verzoegerung_nur_niedrig` (0136) ausnimmt, bekommen
+keines: bei einem Versand ist eine verzögerte Auslösung ohne Widerspruch genau
+die Automatik, die Invariante 7 verhindert. **Diese Liste steht nur an einer
+Stelle.** `app.freigabe_verzoegern` tippt sie nicht ab, sondern schreibt den
+Wert und fängt die `check_violation` des Riegels ab — und MELDET das Nein als
+`NULL`, statt es zu werfen: ein Fehler an dieser Stelle risse sonst die ganze
+Stapeltransaktion mit.
+
+**Die Rücknahme nimmt die AUSFÜHRUNG zurück, nicht die Entscheidung.** Die
+Freigabe bleibt genehmigt, ihr Schnappschuss bleibt, was er war (APR-07);
+`ausfuehrung_status` geht auf `zurueckgenommen`. Wer die Entscheidung selbst
+umkehren will, braucht eine neue Freigabe — das ist §4.5. Armiert wird nur, wo
+die Handlung umkehrbar ist (APR-06 wörtlich): ein Knopf „rückgängig", der bei
+einem versendeten E-Mail nichts tut, ist schlimmer als keiner, weil jemand ihn
+drückt und glaubt, es sei zurückgeholt.
+
+**Der Riegel, ohne den die drei Funktionen nur eine Absprache wären.** `0012`
+gab `grant select, insert, update on freigabe to cse_app` — auf JEDE Spalte.
+Ein `update freigabe set verzoegerte_freigabe_bis = now() + '1 day'` ging damit
+an jeder Prüfung, jedem Fenster und jedem Protokolleintrag vorbei. Ein
+spaltenweiser `revoke` hilft dagegen nicht: wo das Recht auf der TABELLE liegt,
+lässt Postgres es von einer einzelnen Spalte nicht abziehen. `0152` nimmt
+deshalb das Tabellenrecht zurück und gibt die übrigen Spalten einzeln wieder.
+Gefunden hat das der Isolationstest, nicht ein Angreifer.
+
+**Die beiden Fensterlängen sind Platzhalter** (O-108, `fenster.platzhalter.ts`):
+dreissig Minuten Einspruch, sechzig Minuten Rücknahme. Wie lange jemand
+widersprechen können soll, ist eine Betriebsentscheidung — fünfzehn Minuten
+heissen „wer in einer Besprechung sitzt, hat keine Chance", zwei Stunden heissen
+„nichts geht vor dem Mittag hinaus".
+
+**Der Lauf `freigabe_fenster` gibt frei, er führt nicht aus.** Alle fünf Minuten
+— ein Fenster von dreissig Minuten und ein stündlicher Lauf ergäben zusammen
+eine Spanne zwischen dreissig und neunzig Minuten, und das wäre keine Frist. Er
+setzt `verzoegerte_freigabe_bis` zurück und schliesst abgelaufene
+Rücknahmefenster; die fachliche Handlung kennt der Dienst, der den Vorschlag
+erzeugt hat, und sie läuft in der Sitzung eines Menschen mit dessen Rechten. Ein
+Job, der alle Fachwege kennt, wäre eine zweite Fassung jedes dieser Wege.
+
+**Was der Bildschirm jetzt sagt, und was er nicht mehr verschweigt.** Eine
+genehmigte Freigabe, deren Handlung noch aussteht, sah bisher aus wie eine
+erledigte. Der Stand der Ausführung steht deshalb neben dem Stand der
+Entscheidung — und er sagt auch „ohne Handlung — der Vermerk ist die Freigabe",
+wo es für die Vorgangsart keinen Ausführer gibt. Ein „steht aus", das nie
+weggeht, wäre eine Warnung, die niemand auflösen kann.
+
+**Was der Browser fand und die Isolation nicht.** `app.freigabe_entscheiden`
+weist eine Entscheidung ab, die dieser Mensch nie geöffnet hat (APR-08) — und
+wer fünfzig Routinezeilen aus der Liste genehmigt, hat keine fünfzig
+Detailseiten geöffnet. Der Isolationstest hatte in seiner Fixtur je Zeile eine
+Ansicht geschrieben und deshalb nichts gemerkt; im Browser scheiterte der erste
+Stapel sofort. **Die Antwort ist nicht, den Riegel zu lockern, sondern die
+Wahrheit aufzuschreiben:** in der Liste steht je Zeile, was APR-02 verlangt, und
+das IST eine Ansicht — eine andere als die Detailseite. `freigabe_ansicht.kanal`
+kennt deshalb einen dritten Wert, `stapel`. Wer später fragt „wie hat diese
+Person das gesehen", liest `stapel` statt eines `web`, das nicht stimmt.
+
+**Drei Rechte, die es gab und die niemand prüfte.** Der Katalog führt
+`freigabe.stapel_entscheiden`, `freigabe.einspruch_erheben` und
+`freigabe.rueckgaengig` als eigene, an `admin` und `leitung` BINDBARE Rechte;
+die Routen prüften alle drei auf `freigabe.entscheiden`. Ein Recht, das
+existiert und nie geprüft wird, ist schlimmer als keines — es sieht wie ein
+Riegel aus. Jetzt prüft die Route das genaue Recht, die Definer-Funktion ein
+zweites Mal, und die Oberfläche zeigt Häkchenspalte und Fensterformular nur,
+wo es gehalten wird; der Stapel fragt VORN, nicht nach fünfzig Entscheidungen.
+Wer sie halten soll, ist **O-367**; der Seed bindet sie an `admin`, damit die
+Demo sie zeigt, und sagt das an Ort und Stelle.
+
+**Und drei Bildschirme, die die Seitenkarte nannte und die es nicht gab:**
+`/freigaben/laufend` (was gerade in einem Fenster steht, APR-05/06),
+`/freigaben/erledigt` (die Geschichte mit Kettennummer und Hash, APR-07) und
+`/freigaben/pruefdauer` (APR-08). Der letzte ist der heikle: **er nennt keinen
+Namen.** APR-08 verlangt auch, durchgängig sehr schnelle Freigaben zu
+markieren — das wäre eine Auswertung über einen namentlich bekannten Menschen,
+also Verhaltens- und Leistungskontrolle nach § 87 Abs. 1 Nr. 6 BetrVG, und die
+hängt an **O-06**. Gemessen und aufbewahrt wird weiter; ausgewertet wird die
+Verteilung über die Gesellschaft, ohne Gruppierung je Person, und die Seite
+sagt, dass das Fehlende mit Absicht fehlt. Der Stapelanteil steht getrennt
+daneben: ein Stapel ist per Bauart schnell, und ohne diese Spalte sähe ein
+Morgen mit einem Stapel aus wie ein Haus, das durchwinkt.
+
+**Drei Pfade der Seitenkarte bleiben bewusst ohne eigene Seite:**
+`/freigaben/stapel` steht als Häkchenspalte im Posteingang (man kreuzt dort an,
+wo man liest), `/freigaben/[id]/einspruch` und `/freigaben/[id]/rueckgaengig`
+als Formulare auf der Prüfseite (dort liegt der Beweis, über den entschieden
+wurde). Beide Wege laufen über eine Route, `POST /api/freigaben/fenster`.
+
+**Geprüft:** Isolation `freigabe-fenster` (33), darunter der Savepoint-Satz
+(eine gescheiterte Ausführung rollt allein zurück), die ausgenommene
+Vorgangsart, die den Stapel nicht mitreisst, der Einspruch nach Ablauf, die
+Rücknahme ohne vorherige Ausführung, die fehlenden bindbaren Rechte und die
+Wand gegen `cse_app`. Im Browser: Stapel, laufendes Fenster, Einspruch, die
+Geschichte mit ihrem Kettenglied und die Verteilung ohne Namen
+(`freigaben.spec.ts`, 9).

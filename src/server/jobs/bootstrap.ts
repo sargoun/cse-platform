@@ -33,6 +33,7 @@ import {
   registriereMorgenUnbesetzt, registriereSchichtOhneZeiteintrag,
 } from './dienstplanWachen.js';
 import { registriereNachtragWache } from './nachtragWache.js';
+import { registriereFreigabeFenster } from './freigabeFenster.js';
 
 /*
  * Methodensyntax, nicht Eigenschaftssyntax — wie ueberall sonst im Baum
@@ -79,6 +80,7 @@ export function alleJobs(db: Abfrage): readonly JobDefinition[] {
     registriereSchichtOhneZeiteintrag(db);
     registriereMorgenUnbesetzt(db);
     registriereNachtragWache(db);
+    registriereFreigabeFenster(db);
     registriereRadar(db);
     geschehen = true;
   }

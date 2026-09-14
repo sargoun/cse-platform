@@ -18,7 +18,8 @@ import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import {
-  FEHLER_TEXT, RISIKO_LABEL, STATUS_LABEL, STATUS_PILL, VORGANG_LABEL, zeitpunkt,
+  FEHLER_TEXT, RISIKO_LABEL, STATUS_LABEL, STATUS_PILL, VORGANG_LABEL,
+  ausfuehrungText, zeitpunkt,
 } from '../darstellung';
 
 /**
@@ -42,6 +43,11 @@ import {
  * Zusammenfassung aus der Vorlage (D-464). Die Seite formatiert.
  */
 export const dynamic = 'force-dynamic';
+
+/** Fensterfristen werden in Berliner Ortszeit angezeigt (Invariante 2, K-11). */
+const ZEIT = new Intl.DateTimeFormat('de-DE', {
+  timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short',
+});
 
 /**
  * `[id]` faengt auch `/freigaben/stapel` oder `/freigaben/erledigt` — Routen
@@ -89,9 +95,25 @@ export default async function Freigabe(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
-  const ansicht = await (db().begin(
-    async (tx: postgres.TransactionSql) => withTenant(tx, sitzung, async (kontext) =>
-      oeffneFreigabe(kontext, id, 'web')))) as FreigabeAnsicht | null;
+  /**
+   * **Einspruch und Rücknahme sind zwei eigene, bindbare Befugnisse**
+   * (Katalog: `freigabe.einspruch_erheben`, `freigabe.rueckgaengig`). Wer sie
+   * nicht hält, sieht das Fenster nicht — ein Formular anzuzeigen, das mit
+   * 403 antwortet, ist keine Auskunft, sondern eine Einladung.
+   */
+  const { ansicht, darfEinspruch, darfRuecknahme } = await (db().begin(
+    async (tx: postgres.TransactionSql) => withTenant(tx, sitzung, async (kontext) => {
+      const [rechte] = await kontext.abfrage<{ einspruch: boolean; ruecknahme: boolean }>(
+        `select app.hat_recht('freigabe.einspruch_erheben', app.aktiver_mandant()) as einspruch,
+                app.hat_recht('freigabe.rueckgaengig', app.aktiver_mandant()) as ruecknahme`);
+      return {
+        ansicht: await oeffneFreigabe(kontext, id, 'web'),
+        darfEinspruch: rechte?.einspruch === true,
+        darfRuecknahme: rechte?.ruecknahme === true,
+      };
+    }))) as {
+      ansicht: FreigabeAnsicht | null; darfEinspruch: boolean; darfRuecknahme: boolean;
+    };
   if (ansicht === null) notFound();
 
   const f = ansicht.freigabe;
@@ -101,6 +123,8 @@ export default async function Freigabe(
   const fehlerMeldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
   const entschieden = typeof suche['entschieden'] === 'string' ? suche['entschieden'] : null;
   const vorschlag = typeof suche['vorschlag'] === 'string' ? suche['vorschlag'] : null;
+  /** Was das Fensterformular vermerkt hat (APR-05, APR-06). */
+  const vermerkt = typeof suche['vermerkt'] === 'string' ? suche['vermerkt'] : null;
   /* PR 63: ein Vorschlag aus einer E-Rechnung — mit den zwei Wegen, die er hat. */
   const istERechnung = f.aktion === 'eingangsrechnung_uebernehmen';
   const uebernommen = istERechnung && f.bezugTyp === 'eingangsrechnung' && f.bezugId !== null
@@ -128,6 +152,20 @@ export default async function Freigabe(
           <p className="mt-s2 flex flex-wrap items-center gap-s3 text-sm text-text-muted">
             <StatusPill zustand={STATUS_PILL[f.status]} />
             <span data-cse="freigabe-status" data-status={f.status}>{STATUS_LABEL[f.status]}</span>
+            {/*
+              * **Entscheidung und Handlung sind zweierlei** (§4.8). Eine
+              * genehmigte Freigabe, deren Handlung noch aussteht, sah bisher
+              * aus wie eine erledigte — der Stand der AUSFÜHRUNG stand
+              * nirgends. Er steht hier, und er sagt auch „nichts zu tun",
+              * wenn es für diese Vorgangsart keine Handlung gibt: eine
+              * Genehmigung, die nur ein Vermerk ist, soll nicht so aussehen,
+              * als warte sie auf etwas.
+              */}
+            {f.status === 'genehmigt' ? (
+              <span data-cse="ausfuehrung-stand" data-stand={f.ausfuehrungStatus}>
+                {ausfuehrungText(f.ausfuehrungStatus, f.aktion)}
+              </span>
+            ) : null}
           </p>
         </div>
         <Link
@@ -163,6 +201,27 @@ export default async function Freigabe(
                 </Link>.
               </>
             ) : null}
+          </>
+        )}
+        />
+      ) : null}
+      {/*
+        * **Ein Einspruch und eine Rücknahme sind Ereignisse, keine
+        * Korrekturen** — sie bekommen deshalb ihre eigene Rückmeldung und
+        * nicht die der Entscheidung. Wer widersprochen hat, soll lesen, was
+        * jetzt gilt, nicht, was vorher galt.
+        */}
+      {vermerkt !== null ? (
+        <Kasten art="erfolg" cse="fenster-vermerkt" kinder={(
+          <>
+            <strong>
+              {vermerkt === 'einspruch' ? 'Einspruch vermerkt.' : 'Zurückgenommen.'}
+            </strong>{' '}
+            {vermerkt === 'einspruch'
+              ? 'Die Genehmigung ist widerrufen; ausgelöst wurde nichts (APR-05). '
+                + 'Eine erneute Entscheidung ist eine NEUE Freigabe (§4.5).'
+              : 'Die Ausführung ist zurückgenommen — die Entscheidung und ihr '
+                + 'Schnappschuss bleiben, was sie waren (APR-06, APR-07).'}
           </>
         )}
         />
@@ -416,6 +475,71 @@ export default async function Freigabe(
           </p>
         )}
       </details>
+
+      {/*
+        * **Das Einspruchsfenster (APR-05).** Die Entscheidung ist gefallen, die
+        * Ausführung noch nicht — und bis zum Ablauf kann jemand widersprechen.
+        * Nach Ablauf steht der Knopf nicht mehr da: ein Knopf, den die
+        * Datenbank abweisen würde, hätte gar nicht erst dastehen dürfen.
+        */}
+      {darfEinspruch && f.verzoegertBis !== null && f.verzoegertBis > new Date() ? (
+        <section className="mb-s6 max-w-prose rounded-lg border border-line bg-surface p-s5"
+                 data-cse="einspruch-fenster">
+          <h2 className="mb-s2 text-h2 text-text">Einspruchsfenster läuft</h2>
+          <p className="mb-s3 text-sm text-text-muted">
+            Genehmigt, aber noch nicht ausgelöst — bis{' '}
+            <strong>{ZEIT.format(f.verzoegertBis)}</strong> kann jemand widersprechen (APR-05).
+            Danach läuft die Ausführung an; das Fenster ist ein Platzhalter (O-108).
+          </p>
+          <form method="post" action="/api/freigaben/fenster" className="flex flex-col gap-s3">
+            <input type="hidden" name="mandant" value={mandant} />
+            <input type="hidden" name="freigabe" value={id} />
+            <input type="hidden" name="was" value="einspruch" />
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              Grund des Einspruchs
+              <input type="text" name="grund" required minLength={5} maxLength={500}
+                     className={feld} />
+            </label>
+            <div>
+              <Button type="submit" variante="danger" data-cse="einspruch-erheben">
+                Einspruch erheben
+              </Button>
+            </div>
+          </form>
+        </section>
+      ) : null}
+
+      {/*
+        * **Das Rücknahmefenster (APR-06)** — nur dort, wo die Handlung
+        * umkehrbar ist. Es nimmt die AUSFÜHRUNG zurück, nicht die
+        * Entscheidung: der Schnappschuss bleibt, was er war (APR-07).
+        */}
+      {darfRuecknahme && f.undoBis !== null && f.undoBis > new Date() ? (
+        <section className="mb-s6 max-w-prose rounded-lg border border-line bg-surface p-s5"
+                 data-cse="ruecknahme-fenster">
+          <h2 className="mb-s2 text-h2 text-text">Rücknahme möglich</h2>
+          <p className="mb-s3 text-sm text-text-muted">
+            Ausgeführt — bis <strong>{ZEIT.format(f.undoBis)}</strong> lässt sich das
+            zurücknehmen (APR-06). Zurückgenommen wird die Ausführung, nicht die Entscheidung:
+            der Schnappschuss bleibt, was er war.
+          </p>
+          <form method="post" action="/api/freigaben/fenster" className="flex flex-col gap-s3">
+            <input type="hidden" name="mandant" value={mandant} />
+            <input type="hidden" name="freigabe" value={id} />
+            <input type="hidden" name="was" value="ruecknahme" />
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              Grund der Rücknahme
+              <input type="text" name="grund" required minLength={5} maxLength={500}
+                     className={feld} />
+            </label>
+            <div>
+              <Button type="submit" variante="danger" data-cse="ruecknahme-ausloesen">
+                Rückgängig machen
+              </Button>
+            </div>
+          </form>
+        </section>
+      ) : null}
 
       {offen ? (
         <section aria-labelledby="entscheidung-titel" className="mb-s7">

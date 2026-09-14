@@ -402,6 +402,35 @@ async function main(): Promise<void> {
       on conflict (rolle_id, berechtigung_id, mandant_id) do nothing`;
   }
 
+  /**
+   * **Die vier bindbaren Freigaberechte — an `admin`, damit die Demo sie
+   * zeigt, und ausdrücklich, damit es niemand für selbstverständlich hält.**
+   *
+   * Der Katalog führt `freigabe.stapel_entscheiden`,
+   * `freigabe.einspruch_erheben`, `freigabe.rueckgaengig` und
+   * `freigabe.pruefdauer_lesen` als BINDBAR, nicht als gebunden: wer einzeln
+   * entscheiden darf, darf damit nicht schon fünfzig auf einmal, und wer
+   * entscheidet, darf deshalb noch keine Prüfdauern auswerten. Ohne diese
+   * Zeilen wären die vier Bildschirme im Seed leer — nicht kaputt, leer, und
+   * das sähe aus wie ein Fehler.
+   *
+   * // TODO(client) [O-367]: Wer soll diese vier Rechte tatsächlich halten —
+   * // Geschäftsführung, Bereichsleitung, Buchhaltung?
+   */
+  const FREIGABE_BINDBAR = [
+    'freigabe.stapel_entscheiden', 'freigabe.einspruch_erheben',
+    'freigabe.rueckgaengig', 'freigabe.pruefdauer_lesen',
+  ];
+  for (const schluessel of FREIGABE_BINDBAR) {
+    await sql`
+      insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+      select r.id, b.id, null, true
+        from rolle r, berechtigung b
+       where r.schluessel = 'admin' and r.mandant_id is null
+         and b.schluessel = ${schluessel}
+      on conflict (rolle_id, berechtigung_id, mandant_id) do nothing`;
+  }
+
   await sql`
     insert into benutzer (id, email, name, ist_dienstkonto, status)
     values (${rendererId}, 'renderer@cse-gruppe.de', 'Website-Renderer', true, 'aktiv')
