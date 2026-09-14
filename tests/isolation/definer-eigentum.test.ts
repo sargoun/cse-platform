@@ -49,7 +49,10 @@ const ALTLAST: readonly string[] = [
   'app.einstellung', 'app.einstellung', 'app.fenster_schluessel',
   'app.firma_aufloesen', 'app.firma_kandidaten', 'app.formular_eingang_zaehlen',
   'app.formular_zustaendigkeit', 'app.freigabe_kette_ziehen', 'app.hat_recht',
-  'app.hat_zweiten_faktor', 'app.ist_eingesetzt_auf_objekt', 'app.ist_eingesetzt_auf_projekt',
+  // `app.hat_zweiten_faktor` stand hier und gehoert seit 0155 `cse_definer`:
+  // sie liest jetzt auch `kern.zweiter_faktor`, und dafuer braucht sie ein
+  // Eigentum mit genau diesem Recht statt dem der Migrationsrolle.
+  'app.ist_eingesetzt_auf_objekt', 'app.ist_eingesetzt_auf_projekt',
   'app.ist_mitglied', 'app.ist_super_admin', 'app.lead_posteingang',
   'app.leistungswerte_lesen', 'app.lv_preis_lesen', 'app.mandant_fuer_wechsel',
   'app.objekt_notiz_lesen', 'app.offline_ablehnen', 'app.offline_eingang_zuordnen',

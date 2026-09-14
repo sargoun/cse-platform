@@ -93,7 +93,13 @@ clone, and the architecture document is reviewed.
       human, one employment per entity; certificates on the person, everything
       costed on the employment
 - [x] **RLS enabled on every tenant table**; session sets the active mandant
-- [x] Supabase Auth; 2FA for `super_admin` and `admin`
+- [x] Supabase Auth; 2FA for `super_admin` and `admin` — **the whole `/auth`
+      path is built** (PR 77): e-mail + password, TOTP enrolment with a QR code
+      computed in-repo, TOTP challenge, recovery codes, forgot-password,
+      new-password, invitation, no-access, logout, callback. Supabase Auth
+      stays the chosen provider; until a project is on file (O-501) the
+      platform verifies the password itself (`kern.zugangsdaten`, bcrypt) and
+      the login screen says so (D-501, D-502)
 - [ ] Five roles with configurable permissions, editable in the UI
 - [x] **Settings screens, read-only** (D-476): company data with the O-353
       caveat, users with 2FA state and own sessions, roles with the full

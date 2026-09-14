@@ -54,15 +54,15 @@ export default async function OeffentlichesLayout({ children }: { children: Reac
       sprache={sprache}
       pfad={pfad}
       /*
-       * Die echte Anmeldung (PR 20): Mobilnummer und Einmalcode unter
-       * `/auth/mitarbeiter`. Bis D-421 zeigte der Punkt auf `/dev/anmelden`
-       * und stand in einem Produktionsbau deshalb GAR NICHT da — obwohl die
-       * Beschaeftigten laengst einen Eingang hatten. Die Website fuehrte damit
-       * nicht ins Portal; wer sich anmelden wollte, musste die Adresse kennen.
-       * Die Entwicklungsanmeldung bleibt erreichbar: von dieser Seite aus und
-       * ueber den Streifen jeder `/dev`-Flaeche.
+       * `/auth/login` — E-Mail und Kennwort (AUT-01), seit PR 77.
+       *
+       * Der Punkt zeigte auf `/auth/mitarbeiter`, weil das der einzige echte
+       * Eingang war; fuer Verwaltung, Leitung und Kunden fuehrte der Knopf
+       * „Login" damit auf ein Formular, das nach einer Mobilnummer fragt.
+       * `/auth/login` verweist jetzt umgekehrt auf den Mitarbeiterweg, und
+       * die Entwicklungsanmeldung bleibt von dort aus erreichbar.
        */
-      anmeldePfad="/auth/mitarbeiter"
+      anmeldePfad="/auth/login"
     >
       {children}
     </OeffentlicheShell>

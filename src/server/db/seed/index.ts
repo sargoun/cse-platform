@@ -30,6 +30,8 @@ import { seedBau } from './bau.js';
 import { seedFreigaben } from './freigaben.js';
 import { seedEingang } from './eingang.js';
 import { seedRadar } from './radar.js';
+import { DEMO_KENNWORT, seedZugangsdaten } from './zugang.js';
+import { devFlaechenAn } from '../../../lib/dev-flaechen.js';
 import { SupabaseSpeicher } from '../../storage/adapter.js';
 
 const url = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
@@ -1558,6 +1560,20 @@ async function main(): Promise<void> {
     `  ${String(konto.freigegeben)} Zeiteintraege freigegeben (Demo-Annahme), `
     + `${String(konto.konten)} Stundenkonten, ${String(konto.buchungen)} Buchungen `
     + `ueber ${String(konto.minuten)} Minuten (Sollzeit bleibt offen: O-18)\n`,
+  );
+
+  /**
+   * Zum Schluss: die Demokennwörter (D-501). Nach allen Konten, weil sie
+   * jedes anfassen — auch die, die weiter oben erst entstanden sind.
+   */
+  const zugang = await seedZugangsdaten(sql, devFlaechenAn());
+  process.stdout.write(
+    zugang.uebersprungen
+      ? '  Demokennwörter: KEINE — ohne CSE_DEV_FLAECHEN legt der Seed keines an. '
+        + 'Die Konten kommen über eine Einladung zu ihrem eigenen (AUT-04).\n'
+      : `  ${String(zugang.gesetzt)} Demokennwörter gesetzt, ${String(zugang.vorhanden)} `
+        + `bereits vorhanden (unverändert). Anmeldung: /auth/login, Kennwort `
+        + `„${DEMO_KENNWORT}" — Mitarbeiterkonten ausgenommen (EMP-01: kein Kennwort).\n`,
   );
 
   process.stdout.write('\nSeed fertig.\n');

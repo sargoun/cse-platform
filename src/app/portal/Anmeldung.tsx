@@ -13,9 +13,12 @@ import { devFlaechenAn } from '@/lib/dev-flaechen';
  * Wer aus einem gespeicherten Portallink hierher kam, las also, es gebe keine
  * Anmeldung, und hatte keinen Verweis — eine Sackgasse mit veraltetem Text.
  *
- * Die uebrigen Rollen (Verwaltung, Leitung, Kunden) bekommen ihren Eingang mit
- * `/auth/login` (AUT-01, AUT-02); bis dahin steht ihr Weg NUR auf den
- * Entwicklungsflaechen, und dort steht er auch.
+ * **Beide Eingaenge stehen jetzt hier.** `/auth/mitarbeiter` fuer Beschaeftigte
+ * (Mobilnummer und Einmalcode, EMP-01), `/auth/login` fuer Verwaltung, Leitung
+ * und Kunden (E-Mail, Kennwort, zweiter Faktor — AUT-01, AUT-02). Bis PR 77 gab
+ * es den zweiten nicht, und dieser Absatz sagte, er werde noch gebaut; wer
+ * aus einem gespeicherten Portallink als Verwaltung hierher kam, las also,
+ * dass es fuer ihn keinen Weg gebe.
  */
 export function AnmeldungNoetig({ keksAbgelehnt = false }: { readonly keksAbgelehnt?: boolean } = {}) {
   return (
@@ -44,24 +47,39 @@ export function AnmeldungNoetig({ keksAbgelehnt = false }: { readonly keksAbgele
         </p>
       )}
       <p className="text-base text-text-muted">
-        Diese Seite gehört zum Portal. Beschäftigte melden sich mit ihrer
-        Mobilnummer und einem Einmalcode an — ein Kennwort brauchen sie nicht.
+        Diese Seite gehört zum Portal. Wählen Sie den Eingang, der zu Ihrem
+        Zugang gehört.
+      </p>
+      <p>
+        <a
+          href="/auth/login"
+          data-cse="anmeldung-login"
+          className="inline-flex min-h-11 items-center rounded-md bg-brand px-s5 text-base
+                     font-semibold text-white transition-colors duration-fast ease-brand
+                     hover:bg-brand-hover"
+        >
+          Anmelden mit E-Mail und Kennwort
+        </a>
+      </p>
+      <p className="text-sm text-text-subtle">
+        Verwaltung, Leitung, Buchhaltung und Kundenzugänge. Rollen mit Zugriff
+        auf Lohn-, Zeit- und Finanzdaten zeigen zusätzlich einen zweiten Faktor
+        vor (AUT-02).
       </p>
       <p>
         <a
           href="/auth/mitarbeiter"
           data-cse="anmeldung-mitarbeiter"
-          className="inline-flex min-h-11 items-center rounded-md bg-brand px-s5 text-base
-                     font-semibold text-white transition-colors duration-fast ease-brand
-                     hover:bg-brand-hover"
+          className="inline-flex min-h-11 items-center rounded-md border border-line px-s5
+                     text-base font-semibold text-text transition-colors duration-fast
+                     ease-brand hover:border-line-strong"
         >
           Anmelden für Mitarbeitende
         </a>
       </p>
       <p className="text-sm text-text-subtle">
-        Verwaltung, Leitung und Kunden: die Anmeldung mit E-Mail, Kennwort und
-        zweiter Stufe ist noch nicht gebaut (AUT-01). Bis dahin gibt es hier
-        kein Formular, das so aussähe, als würde es etwas tun.
+        Beschäftigte im Einsatz melden sich mit ihrer Mobilnummer und einem
+        Einmalcode an — ein Kennwort brauchen sie nicht.
       </p>
       {devFlaechenAn() && (
         <p className="text-base text-text">

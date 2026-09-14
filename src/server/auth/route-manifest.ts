@@ -39,6 +39,25 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + 'veröffentlichten Seiten. Hinter einer Anmeldung wäre die Datei sinnlos.',
   },
   {
+    pfad: 'auth/abmelden',
+    recht: null,
+    grund:
+      'AUT-01, SPEC §3. Derselbe Vorgang wie `api/abmelden` darunter und aus demselben '
+      + 'Grund offen: er beendet die EIGENE Sitzung, und der Aufrufer weist sie durch '
+      + 'den Besitz des Tokens aus — ein Recht zu verlangen hiesse, eine Abmeldung an '
+      + 'eine Berechtigung zu binden, die gerade entzogen worden sein kann. Geschützt '
+      + 'durch die Methode (nur POST, kein GET-Export) und durch das Ursprungstor.',
+  },
+  {
+    pfad: 'auth/callback',
+    recht: null,
+    grund:
+      'AUT-01. Die Rückleitung des Identitätsanbieters — sie findet VOR jeder Sitzung '
+      + 'statt, ein Recht hätte niemanden zu prüfen. Solange kein Supabase-Projekt '
+      + 'hinterlegt ist (O-501), stellt sie nichts aus: sie leitet zur Anmeldung zurück '
+      + 'bzw. antwortet 501, statt so zu tun, als wäre ein Anbieter da.',
+  },
+  {
     pfad: 'api/abmelden',
     recht: null,
     grund:

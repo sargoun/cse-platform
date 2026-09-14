@@ -5170,6 +5170,8 @@ niemand ihn suchen.
 | O-355 | **Wer trägt die Modulbuchung ein und pflegt `mandant.module_gepflegt`?** Seit 0103 ist die Frage nicht mehr, was eine leere Liste heisst — das Kennzeichen sagt es: `false` = nicht eingetragen, es wird nicht gefiltert (damit eine neu angelegte Gesellschaft nicht schwarz wird); `true` = die Liste gilt, leer heisst kein Gewerk. Offen bleibt der Vorgang: kommt die Buchung aus dem Vertrag, aus der Verwaltung oder setzt sie ein Super-Admin über `system.module_zuweisen` — und wer merkt, wenn sie fehlt? | `src/server/registry/modul.ts`, 0103, D-377 |
 | O-356 | **Bucht jede Gesellschaft genau ein Gewerk, oder gibt es Überschneidungen?** Der Seed setzt `reinigung → [reinigung]`, `security → [security]`, `bau → [bau]`, `operations → []` — abgeleitet aus den Gewerken, die in `CLAUDE.md` stehen. Praktisch plausibel wäre anderes: Bauendreinigung bei der REALTIME Service, Veranstaltungsreinigung bei der SSE Security. Bis zur Antwort sieht eine Gesellschaft nur ihr eigenes Gewerk; die Korrektur ist eine Zeile in `mandant.module` und kein Codeeingriff. | `mandant.module`, `src/server/db/seed/index.ts`, D-377 |
 | O-357 | **Wohin gehen die Wächter-Meldungen aus SPEC §14 — Posteingang, Mail oder beides — und wer bekommt die Kettenmeldung?** Die Ablaufwarnung (60/30/7) erreicht die Person selbst; das ist EMP-08 und unstrittig. „Hashkette gebrochen" dagegen hat keinen persönlichen Empfänger: es ist eine Meldung an die Buchhaltung oder die Geschäftsführung, und beide sind heute keine adressierbare Größe im Modell. Solange die Frage offen ist, wird der Kettenprüfer bewusst NICHT als Job registriert — ein Lauf, der jede Nacht „ok" meldet, ohne dass jemand die Meldung liest, schafft Vertrauen, das er nicht deckt. | SPEC §14, `src/server/jobs/bootstrap.ts`, `kettenlauf.ts`, NOT-01 |
+| O-500 | **Wie lange gilt ein Einladungs- und ein Zurücksetzungslink, wie viele Wiederherstellungscodes werden ausgegeben, und gilt eine Mindestlänge über zwölf Zeichen hinaus?** Die SPEC nennt keine Zahl. `plattform_einstellung` führt vier vorläufige Werte (168 h, 2 h, 10 Codes, 12 Zeichen); sie sind als `ist_vorlaeufig = true` markiert und über eine Zeile änderbar, ohne Code. Die Auswahl folgt gängiger Praxis, nicht einer Entscheidung: ein Einladungslink überlebt ein Wochenende, ein Zurücksetzungslink nicht. | AUT-01, AUT-04, `0155`, D-502 |
+| O-501 | **Welches Supabase-Projekt in der EU-Region (Frankfurt), welcher Auftragsverarbeitungsvertrag — und soll die Anmeldung über ein Firmenverzeichnis (SAML/OIDC) laufen?** Dieselbe Frage trägt den Postausgang: welcher in der EU gehostete Mailanbieter, welche Absenderadresse je Gesellschaft, laufen DKIM und DMARC über die bestehenden Domains? Ohne beides gibt es keinen Zurücksetzungs- und keinen Einladungslink, der ankommt. Bis zur Antwort prüft die Plattform das Kennwort selbst (`kern.zugangsdaten`, bcrypt), `/auth/callback` antwortet `501` statt eine Sitzung auszustellen, und `/auth/passwort-vergessen` sagt „nicht verbunden" statt „gesendet" (D-501, D-503). | AUT-01, AUT-04, NOT-02, `0155`, D-501 |
 
 ### Vier Befunde, die ausserhalb dieser Datei liegen
 
@@ -9548,3 +9550,127 @@ kam — das ist der einzige Grund, warum die Kennzeichnung überhaupt nötig ist
 erfunden wird, die Idempotenz, und das Register als Tor in beide Richtungen.
 Im Browser `agent-lauf.spec.ts` (3): der Knopf, der Vorschlag, der Posteingang.
 
+
+
+---
+
+### D-500 · Der QR-Code wird gerechnet, nicht geladen
+
+Der zweite Faktor braucht ein Bild, das eine Authenticator-App scannen kann.
+Die drei naheliegenden Wege sind alle schlechter als zweihundert Zeilen:
+
+- **Ein Dienst wie `api.qrserver.com`** trägt das TOTP-Geheimnis in der
+  Adresszeile zu einem fremden Server. Das ist kein Auftragsverarbeiter, den
+  man in `registry/auftragsverarbeiter.ts` eintragen möchte — es ist der
+  zweite Faktor selbst.
+- **Ein npm-Paket** ist eine weitere Lieferkette für einen Algorithmus, der
+  sich seit 2006 nicht geändert hat (ISO/IEC 18004).
+- **Kein QR-Code, nur der Schlüssel zum Abtippen** heisst praktisch: der
+  zweite Faktor wird nicht eingerichtet.
+
+`src/lib/qr.ts` rechnet ihn also selbst — Bytemodus, Fehlerkorrektur M,
+Versionen 1 bis 10 (bis 213 Zeichen), Ausgabe als SVG-Pfad ohne jeden externen
+Verweis.
+
+**Wie er geprüft wird, ohne Kamera.** `tests/kern/qr.test.ts` liest den Code
+auf dem umgekehrten Weg zurück: die Formatbits kommen aus der Matrix und
+werden gegen die veröffentlichte Tabelle aus ISO/IEC 18004 geprüft (eine
+externe Quelle, kein Selbstvergleich); die Datenmodule werden demaskiert,
+entschachtelt, und dann wird das **Reed-Solomon-Syndrom** gerechnet — eine
+andere Rechnung als die Erzeugung, sodass ein Fehler in den EC-Codewörtern
+auffällt. Genau so kam der teuerste Fehler dieser Datei heraus: die
+Versionsinformation (ab Version 7) wurde erst nach den Daten gesetzt und
+überschrieb achtzehn Datenmodule. Jeder Code ab 122 Zeichen war beschädigt,
+und angesehen hätte man es ihm nicht.
+
+### D-501 · Kennwort und zweiter Faktor liegen in `kern`, und der Anbieter steht in der Zeile
+
+Supabase Auth bleibt gesetzt (CLAUDE.md, Stack). Gesetzt ist aber der Anbieter,
+nicht der Zeitpunkt: solange kein Projekt hinterlegt ist, gab es für
+Verwaltung, Leitung, Buchhaltung und Kunden **keinen** Weg ins Portal ausser
+`/dev/anmelden` — eine Seite, die eine Sitzung ohne jede Prüfung ausstellt und
+hinter `CSE_DEV_FLAECHEN` steht. Zehn Routen unter `/auth` existierten nur als
+Zeile in der Spezifikation, und jede Prüfung nahm die Abkürzung, womit die
+Anmeldung selbst ungeprüft blieb.
+
+`0155` legt die Speicher an, die eine Anmeldung prüfbar machen:
+
+| Tabelle | Inhalt |
+|---|---|
+| `kern.zugangsdaten` | ein bcrypt-Hash je Konto, dazu `anbieter` |
+| `kern.zweiter_faktor` | das TOTP-Geheimnis, bestätigt oder nicht |
+| `kern.wiederherstellungscode` | SHA-256 der Codes, einmal einlösbar |
+| `kern.kennwort_token` | Einladung und Zurücksetzung, eine Tabelle |
+
+**Warum `kern` und nicht `public`.** Ein Kennwort-Hash ist der eine Wert, den
+die Anwendung nie braucht: er wird verglichen, nicht gelesen. In `public` läge
+er unter RLS — also hinter einer Policy, die jemand später weiten kann. In
+`kern` liegt er hinter gar keinem Tabellenrecht: `cse_app` hat auf dem Schema
+`usage` und auf diesen Tabellen kein `select`. Der einzige Weg führt durch
+`security definer`-Funktionen, und `app.kennwort_anmelden` vergleicht den Hash
+**in der Datenbank** (`crypt`) und antwortet mit ja oder nein. Das TOTP-Geheimnis
+ist die begründete Ausnahme: RFC 6238 rechnet HMAC-SHA1, und das tut Node — aber
+nur für das eigene, bereits gebundene Konto (`app.aktueller_benutzer()`).
+
+**`anbieter` in der Zeile, wie bei `modell_register` (D-499).** `'demo'` heisst:
+hier geprüft. `'supabase'` heisst: `auth.users` gewinnt, und diese Tabelle hält
+für dieses Konto kein Geheimnis (ein CHECK erzwingt das). Der Wechsel ist eine
+Zeile je Konto, kein Umbau — und der Anmeldebildschirm sagt, welcher der beiden
+gerade gilt, statt es zu verschweigen.
+
+### D-502 · Der zweite Faktor ist eine Eigenschaft der Sitzung, das Enrolment eine des Kontos
+
+`app.hat_recht` gattert `erfordert_2fa`-Rechte an `app.aal() = 'aal2'` — das
+stand seit `0008` und hatte keinen Weg, jemals wahr zu werden: nur
+`devSitzungAusstellen` setzte `aal2`, und zwar pauschal.
+
+Jetzt gilt: `app.kennwort_anmelden` stellt **immer** `aal1` aus, auch für ein
+Konto ohne 2FA-Pflicht — `aal2` bedeutet „in DIESER Anmeldung vorgezeigt", und
+vorgezeigt wurde bei der ersten Stufe nichts. Der einzige Weg nach `aal2` ist
+`app.sitzung_faktor_bestaetigt`, und die hebt **genau die eine Sitzung**, in der
+der Faktor vorgezeigt wurde, nicht alle offenen desselben Kontos.
+
+Drei Folgen, die zusammengehören:
+
+1. **Wiedereinspielung ist ausgeschlossen.** `zweiter_faktor.letzter_schritt`
+   hält den verbrauchten Zeitschritt; `app.faktor_schritt_verbrauchen`
+   aktualisiert ihn nur, wenn der neue grösser ist. Wer einen Code im selben
+   30-Sekunden-Fenster abfängt, kommt damit nicht durch, und das Rennen zweier
+   gleichzeitiger Versuche entscheidet die Datenbank, nicht die Anwendung.
+2. **Ein unbestätigter Faktor zählt nicht.** Ein abgebrochenes Einrichten
+   sperrte sonst das Konto aus: `hat_zweiten_faktor` sagte ja, und den Code
+   kannte niemand.
+3. **Die Uhr kommt aus der Datenbank.** Geht die Uhr des Anwendungsservers eine
+   Minute vor, ist jeder Code falsch — und der Fehler sieht aus wie ein
+   falscher Code.
+
+### D-503 · Der Postausgang ist ein Anschluss, kein Versprechen
+
+`server/versand/email.ts` folgt genau `server/auth/sms.ts`: `verbunden` und
+`zeigtInhalt` sind **zwei** Zusagen, nicht eine. Der Entwicklungsdienst zeigt
+den Zurücksetzungslink auf dem Bildschirm dessen, der ihn angefordert hat — auf
+einer Entwicklungsfläche richtig, in einer Auslieferung ohne Anbieter eine
+offene Tür: wer eine fremde Adresse eintippt, läse sonst deren Link. Genau
+dieser Unterschied hatte beim SMS-Dienst schon einmal gereicht, um die ganze
+Anmeldung wertlos zu machen.
+
+`/auth/passwort-vergessen` antwortet deshalb immer gleich („wenn es zu dieser
+Adresse ein Konto gibt …") und sagt daneben, dass kein Postausgang verbunden
+ist — statt „Wir haben Ihnen eine E-Mail geschickt", was die Verwaltung in den
+Spam-Ordner schickt statt ins Portal.
+
+### D-504 · Ein Rückweg aus einer Abfrage wird geprüft, nicht nur angeschaut
+
+`?weiter=…` führt nach der Anmeldung zurück auf die ursprünglich gewünschte
+Seite. `startsWith('/')` genügt dafür **nicht**: `//boese.example` beginnt mit
+einem Schrägstrich und ist trotzdem eine fremde Adresse — der Browser liest
+zwei führende Schrägstriche als „gleiches Protokoll, anderer Host". Ein
+Anmeldeformular, das danach dorthin weiterleitet, ist eine offene Weiterleitung
+und die klassische Zutat einer Phishing-Kette: der Link führt zur echten
+Anmeldung und erst danach woandershin.
+
+`sichererRueckweg` weist ab: alles ohne führenden Schrägstrich, `//…`, `/\…`
+(manche Browser lesen den Rückstrich wie einen Schrägstrich) und alles mit
+Steuerzeichen. Die Umdeutung nach `Route` (Next.js `typedRoutes`) steht
+unmittelbar dahinter an **einer** Stelle — nicht als verstreutes `as` in fünf
+Seiten, von denen eine das Prüfen vergisst.
