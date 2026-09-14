@@ -277,6 +277,25 @@ export async function seed(): Promise<Fixtur> {
      * landete mit offener Frist und gesetzter Loeschsperre — sicher, aber
      * nicht das, was die Tests pruefen wollen.
      */
+    /**
+     * **Das Modellregister gehört zu den Nachschlagezeilen, die wiederkommen
+     * müssen** (0154).
+     *
+     * `modell_register.geprueft_von` zeigt auf `benutzer`, also nimmt das
+     * Zurücksetzen oben die Tabelle mit — und ohne ihre Zeilen ist KEINE
+     * Fähigkeit aufrufbar: `app.modell_fuer` gibt NULL, jeder Agentenlauf
+     * endet auf `RESIDENCY_BLOCKED`, und das sähe aus wie ein Produktfehler.
+     * Wiederhergestellt wird genau der Demobetrieb, den die Migration einträgt.
+     */
+    await tx.unsafe(
+      `insert into modell_register
+         (anbieter, modell, faehigkeit, eu_verarbeitung, zero_retention, freigegeben,
+          geprueft_am, bemerkung)
+       select 'demo', 'demo:hausintern-v1', f, true, true, true, now(),
+              'Demobetrieb (Fixtur): laeuft im eigenen Prozess, kein Anbieter.'
+         from unnest(enum_range(null::ki_faehigkeit)) as f
+       on conflict (modell, faehigkeit) do nothing`);
+
     for (const [kategorie, jahre, sperre, grundlage, platzhalter] of AUFBEWAHRUNG_VORGABE) {
       await tx.unsafe(
         `insert into dokument_aufbewahrung (mandant_id, kategorie, jahre, loeschsperre,

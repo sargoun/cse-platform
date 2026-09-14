@@ -467,8 +467,20 @@ Radar first — the agents operate on its output.
       and reserved amount, and the step chain per run.
       **The screens say plainly that no model access is configured** — and
       there is no start button until there is a provider (D-435).
-- [ ] Four agents: CEO Assistant, Acquisition, Back-office, Finance
-      — blocked on the model access above, not on the runtime.
+- [x] Four agents: CEO Assistant, Acquisition, Back-office, Finance
+      (PR 76, D-499) — **they run.** `modell_register` (§3.6) is now the only
+      place a model becomes callable (`eu_verarbeitung AND zero_retention AND
+      freigegeben`, all defaulting to false), callers ask for a **capability**
+      and never a model, and the in-house `demo:hausintern-v1` carries those
+      three flags **truthfully**: it runs in-process — no network, no
+      processor, nothing stored outside this database. It is not a language
+      model and does not pretend to be one: it formulates from templates and
+      already-computed facts, deterministically, and a test asserts that
+      **every digit in a draft appeared in the facts first** — the same bolt
+      that will catch an invented number once a real provider replaces it.
+      The run ends in a **draft in the approval inbox**, never in an action
+      (invariant 7). Swapping in a real provider is one registry row and a key;
+      `app.modell_fuer` orders a real provider ahead of the demo.
 - [x] Approval inbox with diff review, source attribution, confidence flags,
       batch approval, delayed release, undo, approval snapshots
       (PR 62/63, D-472; completed PR 75, D-497) — the batch is a **loop** over

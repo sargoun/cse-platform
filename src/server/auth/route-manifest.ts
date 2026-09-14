@@ -1036,6 +1036,15 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Ein Agentenlauf (AGT-01). `agent.aufgabe_starten` und nicht ein
+     * Senderecht: der Lauf legt VOR — am Ende steht ein Vorschlag im
+     * Posteingang, und was daraus wird, entscheidet ein Mensch (Invariante 7).
+     */
+    pfad: 'api/agenten/lauf',
+    recht: 'agent.aufgabe_starten',
+  },
+  {
+    /**
      * Stapelfreigabe (APR-04) — `freigabe.stapel_entscheiden`, NICHT
      * `freigabe.entscheiden`.
      *

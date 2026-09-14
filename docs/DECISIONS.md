@@ -9460,3 +9460,91 @@ nicht an der Regel vorbeikommen.
 Vertraulichkeitsstufen des Wissensindex), Browser 430, lint und Merge-Wachen
 sauber.
 
+---
+
+### D-499 · Der Demobetrieb — die Plattform sichtbar machen, ohne etwas vorzutäuschen
+
+**Der Auftrag, und warum ich ihn zu lange nicht ausgeführt habe.** Der Kunde
+verlangt seit Phase 1 dasselbe: Platzhalter einsetzen, damit die Plattform
+VOLLSTÄNDIG zu sehen ist, und später auf das Echte umstellen. Ich habe das
+wiederholt mit „no fake integrations" abgelehnt und dabei zwei Dinge
+verwechselt, die nichts miteinander zu tun haben:
+
+- Eine Oberfläche, die einen erfolgreichen fremden Aufruf VORTÄUSCHT — ein
+  „Gesendet", hinter dem nichts steht. Das bleibt verboten.
+- Ein Betrieb mit hausinternen, GEKENNZEICHNETEN Werten, damit die Kette läuft
+  und man sie ansehen kann. Das ist normale Technik, und sein Fehlen hatte
+  einen Preis, den ich nicht benannt habe: **die Kette vom Auftrag bis zum
+  Vorschlag war nie durchlaufen worden.** Gebaut war alles ringsum —
+  Werkzeugvertrag, Wertregister, Policy-Tor, Schrittprotokoll, Budgetdeckel —
+  und ob es zusammenhängt, wusste niemand. Eine Plattform, die man nicht laufen
+  sehen kann, lässt sich auch nicht beurteilen.
+
+**Was jetzt steht.** `modell_register` (0154, `07-INTEGRATIONEN.md` §3.6) ist
+die einzige Stelle, an der ein Modell aufrufbar wird:
+`aufrufbar := eu_verarbeitung AND zero_retention AND freigegeben`, alle drei
+mit Vorgabe `false`. Der Aufrufer fragt nie ein Modell, sondern eine
+**Fähigkeit** (§8) — wer `gpt-4o` schreibt, hat die Residenzfrage umgangen,
+bevor sie gestellt wurde.
+
+**Und der Demobetrieb trägt die drei Flaggen mit Recht.** `demo:hausintern-v1`
+läuft im eigenen Prozess: kein Netzverkehr, kein Auftragsverarbeiter, keine
+Speicherung ausserhalb dieser Datenbank. EU-Verarbeitung und Nullspeicherung
+sind hier keine Behauptung über einen Anbieter, sondern Tatsachen über den
+Betrieb. Das Residenztor ist erfüllt, nicht umgangen — und genau deshalb
+brauchte es keine Ausnahme im Tor, die später jemand übersieht.
+
+**Er ist kein Sprachmodell, und das ist der Punkt.** Er formuliert aus Vorlagen
+und aus Tatsachen, die vorher gerechnet wurden: deterministisch, wiederholbar,
+ohne einen erfundenen Wert. Damit tut er genau das, was ein echtes Modell an
+dieser Stelle auch dürfte (Invariante 6: die KI rechnet nie) — und ein Test
+hält es fest: **jede Ziffernfolge im Entwurf muss vorher in den Tatsachen
+gestanden haben.** Dieser Test überlebt den Tausch auf einen echten Anbieter;
+er ist dann genau der Riegel, der eine erfundene Zahl fängt, bevor sie auf
+einer Rechnung steht.
+
+**Die Einbettung sagt, dass sie keine ist.** Der Demovektor ist ein Hash des
+Textes, normiert auf Länge 1 — verschieden für verschiedene Texte, ohne jede
+Ähnlichkeitsbedeutung. Der Index lässt sich damit bauen, füllen, anzeigen und
+ausräumen, der ganze Weg ist prüfbar, und die Ähnlichkeitssuche liefert
+SICHTBAR Unsinn statt plausiblen. Ein Zufallsvektor sähe genauso aus und wäre
+gefährlicher: seine Treffer wirkten brauchbar.
+
+**Der echte Adapter liegt in `server/versand`,** und die Merge-Wache hat darauf
+bestanden. Der Radar-Adapter darf woanders stehen, weil er LIEST — eine
+Adresse hinaus, kein Empfänger, kein Inhalt. Ein Modellaufruf ist das
+Gegenteil: er schickt Vertragstext, Beträge und Namen an einen
+Auftragsverarbeiter. Also gehört er dorthin, wo die Bytes das Haus verlassen.
+Er prüft drei Tore selbst (Schlüssel, `OPENAI_DATA_RESIDENCY=eu`, ausdrücklicher
+EU-Endpunkt) und kennt keine stille Ausweichroute: kein Rückfall auf eine
+andere Region, kein stiller Modellwechsel, keine Warteschlange.
+
+**Der Orchestrator ist kurz und langweilig, weil er die Stelle ist, an der ein
+Modell auf echte Daten trifft.** Drei Regeln: die Werkzeuge rechnen und das
+Modell formuliert; am Ende steht ein ENTWURF im Freigabe-Posteingang und nie
+eine Handlung; jeder Schritt steht mit Modell, Tokens, Kosten und Dauer im
+Protokoll.
+
+**„Kein Modell" ist ein Ergebnis, keine Ausnahme** — und das ist kein
+Stilfrage. Eine Ausnahme risse die Transaktion des Aufrufers mit und damit die
+gerade angelegte Aufgabenzeile: der Lauf wäre gescheitert UND unsichtbar, im
+Agentenzentrum stünde nichts. So bleibt die Zeile stehen, trägt
+`fehlgeschlagen` und den Satz, und der Bildschirm sagt „KI-Funktion nicht
+verfügbar" (§8).
+
+**Die vier Agenten sind eingeschaltet** (D-435 ist damit beantwortet, nicht
+aufgehoben): es gibt jetzt ein Modell, also ist der Grund für `ist_aktiv =
+false` entfallen. Eingeschaltet heisst weiterhin nicht „läuft von selbst" — ein
+Lauf entsteht auf Knopfdruck, endet mit einem Vorschlag, und die Entscheidung
+trifft ein Mensch.
+
+**Der Tausch auf einen echten Anbieter ist eine Registerzeile und ein
+Schlüssel.** `app.modell_fuer` ordnet einen echten Anbieter vor den
+Demobetrieb; nichts im Code muss sich ändern. Und weil jeder Schritt sein
+Modell trägt, lässt sich hinterher sagen, welcher Entwurf aus welcher Quelle
+kam — das ist der einzige Grund, warum die Kennzeichnung überhaupt nötig ist.
+
+**Geprüft:** Isolation `agent-lauf` (11) — darunter der Satz, dass keine Zahl
+erfunden wird, die Idempotenz, und das Register als Tor in beide Richtungen.
+Im Browser `agent-lauf.spec.ts` (3): der Knopf, der Vorschlag, der Posteingang.
+
