@@ -96,12 +96,14 @@ export async function legeERechnungAb(
     `insert into dokument (id, mandant_id, kategorie, titel, mime_typ,
                            mime_verifiziert, groesse_bytes, bucket,
                            objekt_schluessel, exif_entfernt, aufbewahrung_bis,
-                           loeschsperre, erstellt_von)
-     values ($1, $2, 'buchhaltung', $3, $4, true, $5, $6, $7, $8, $9::date, $10,
+                           loeschsperre, entstanden_am, erstellt_von)
+     values ($1, $2, 'buchhaltung', $3, $4, true, $5, $6, $7, $8, $9::date, $10, $11::date,
              app.aktueller_benutzer())`,
     [hoch.dokumentId, kontext.aktiverMandantId, `E-Rechnung ${nummer}`, hoch.mimeTyp,
       hoch.groesseBytes, hoch.bucket, hoch.objektSchluessel, hoch.exifEntfernt,
-      hoch.aufbewahrungBis, hoch.loeschsperre]);
+      hoch.aufbewahrungBis, hoch.loeschsperre,
+      /* Entstehungstag (§ 147 Abs. 4 AO): das Rechnungsdatum; ohne eines setzt der Ausloeser den Tag der Ablage. */
+      e.extrakt.nutzlast.rechnungsdatum]);
   const versionId = randomUUID();
   await kontext.schreibe(
     `insert into dokument_version (id, mandant_id, dokument_id, version,

@@ -5162,6 +5162,7 @@ niemand ihn suchen.
 | O-361 | **Soll die Administration einer Gesellschaft den Menüpunkt „Einstellungen“ sehen?** Das Manifest öffnet `/portal/[mandant]/einstellungen` unter `system.mandant_lesen` (Administration und Leitung halten es), `NAVIGATION` zeigt den Punkt nur unter `system.einstellung_lesen` (Super-Administration). Heute erreicht eine Administration die Einstellungen über die Adresse, nicht über das Menü. Entweder der Punkt folgt dem Manifest, oder das Manifest folgt dem Menü — beides ist eine Zeile, keine ohne Entscheidung (D-476). | AUT-03, AUT-06, `navigation.ts`, D-476 |
 | O-362 | **Welche Gesellschaft ist Verantwortliche nach Art. 4 Nr. 7 DSGVO für den Gruppenauftritt und die Portale — die CSE Dienstleistungen GmbH wie beim bisherigen Auftritt (cse-dienstleistungen.de/privacy nennt sie mit Cosette Weyer als Ansprechpartnerin)?** Gibt es einen Datenschutzbeauftragten, und welche Löschfristen gelten für Anfragen (der Auftritt nennt eine Prüfung alle zwei Jahre)? Die Datenschutzerklärung der Plattform nennt bis zur Antwort die CSE Dienstleistungen GmbH und die Auftragsverarbeiter aus `registry/auftragsverarbeiter.ts` (D-481). | LEG-09, PUB-13, D-481 |
 | O-363 | **Welche Steuersatzgruppe trägt eine Eingangsrechnung mit 0 % und Kategorie AE (§ 13b UStG) — `ust_0_13b_bau` und `ust_0_13b_reinigung`?** Der Katalog (0075) führt beide; welche gilt, hängt vom Gewerk des LIEFERANTEN ab, nicht vom eigenen. Bis zur Antwort lässt der E-Rechnungs-Vorschlag das Feld unsicher, die Freigabe bleibt gesperrt, und ein Mensch wählt die Gruppe in der Erfassungsmaske (D-482). Dazu: Gibt es einen Vergleichsmaßstab für Eingangsrechnungen (die letzte Rechnung desselben Lieferanten, ein Bestellbezug), damit `stufeRisikoEin` sie nicht jede als erstmalig und damit `hoch` einstuft? | ACC-05, APR-02, D-482 |
+| O-364 | **Wird der Objektspeicher (Supabase Storage, Frankfurt) auf Bucket-Ebene unveränderlich geführt — Versionierung, Object Lock, keine Löschrechte für den Dienstschlüssel — und steht das in der DPA?** Die Plattform hält das Löschen in Datenbank und Anwendung auf (0141, `dokument/loeschung.ts`, Merge-Wache); was der Anbieter mit einem Objekt tut, das jemand mit dem Dienstschlüssel direkt löscht, kann sie nicht erzwingen und behauptet es nicht — das Archiv sagt es (D-483). Bis zur Antwort gilt: der Dienstschlüssel liegt nur in der Serverumgebung, und jede Datei trägt ihren SHA-256 in `dokument_version`, sodass ein Verlust auffällt, nicht verschwindet. | ACC-06, DOC-07, LEG-01, D-483 |
 | O-355 | **Wer trägt die Modulbuchung ein und pflegt `mandant.module_gepflegt`?** Seit 0103 ist die Frage nicht mehr, was eine leere Liste heisst — das Kennzeichen sagt es: `false` = nicht eingetragen, es wird nicht gefiltert (damit eine neu angelegte Gesellschaft nicht schwarz wird); `true` = die Liste gilt, leer heisst kein Gewerk. Offen bleibt der Vorgang: kommt die Buchung aus dem Vertrag, aus der Verwaltung oder setzt sie ein Super-Admin über `system.module_zuweisen` — und wer merkt, wenn sie fehlt? | `src/server/registry/modul.ts`, 0103, D-377 |
 | O-356 | **Bucht jede Gesellschaft genau ein Gewerk, oder gibt es Überschneidungen?** Der Seed setzt `reinigung → [reinigung]`, `security → [security]`, `bau → [bau]`, `operations → []` — abgeleitet aus den Gewerken, die in `CLAUDE.md` stehen. Praktisch plausibel wäre anderes: Bauendreinigung bei der REALTIME Service, Veranstaltungsreinigung bei der SSE Security. Bis zur Antwort sieht eine Gesellschaft nur ihr eigenes Gewerk; die Korrektur ist eine Zeile in `mandant.module` und kein Codeeingriff. | `mandant.module`, `src/server/db/seed/index.ts`, D-377 |
 | O-357 | **Wohin gehen die Wächter-Meldungen aus SPEC §14 — Posteingang, Mail oder beides — und wer bekommt die Kettenmeldung?** Die Ablaufwarnung (60/30/7) erreicht die Person selbst; das ist EMP-08 und unstrittig. „Hashkette gebrochen" dagegen hat keinen persönlichen Empfänger: es ist eine Meldung an die Buchhaltung oder die Geschäftsführung, und beide sind heute keine adressierbare Größe im Modell. Solange die Frage offen ist, wird der Kettenprüfer bewusst NICHT als Job registriert — ein Lauf, der jede Nacht „ok" meldet, ohne dass jemand die Meldung liest, schafft Vertrauen, das er nicht deckt. | SPEC §14, `src/server/jobs/bootstrap.ts`, `kettenlauf.ts`, NOT-01 |
@@ -8288,3 +8289,76 @@ eindeutig zugeordnet, wählt die Maske keinen vor — sie fragt.
 (O-363), die zweite §13b-Gruppe (O-363), Rechnungen in anderer Währung als
 EUR (der Extraktor liest die Währung, der Dienst übernimmt nur EUR — ein
 Fremdwährungsbeleg bleibt ein unsicheres Feld).
+
+### D-483 · GoBD-Archiv: Fristbeginn nach dem Gesetz, Regeln je Gesellschaft, ein Löschweg, ein Prüfbündel (PR 64)
+
+**Der Fristbeginn ist das Kalenderjahr des Entstehens — nicht das
+Wirtschaftsjahr, nicht der Tag der Ablage.** § 147 Abs. 4 AO und § 257
+Abs. 5 HGB beginnen die Aufbewahrungsfrist „mit dem Schluss des
+Kalenderjahrs", in dem der Buchungsbeleg entstanden, der Handelsbrief
+empfangen oder abgesandt, die Buchung gemacht worden ist. Der PR-Plan (08,
+PR 64) sprach vom „fiscal-year end"; das Gesetz ist präziser, und das
+Gesetz gilt. `dokument.entstanden_am` (0141) trägt diesen Tag — das
+Rechnungsdatum für das archivierte PDF, das Rechnungsdatum der
+E-Rechnung, der Auszugstag des Kontoauszugs, sonst der Berliner Tag der
+Ablage — und `app.aufbewahrung_ende` rechnet die Frist daraus, immutable,
+ohne Uhr. Vorher rechnete der Auslöser mit dem Jahr des Einfügens: ein
+Dezemberbeleg, im Januar abgelegt, bekam ein Jahr mehr. In die sichere
+Richtung, aber falsch, und eine Prüfung fragt nach der richtigen Zahl. Das
+Wirtschaftsjahr (`datev_konfiguration.wj_beginn_*`, O-05) bestimmt den
+JAHRGANG eines Prüfbündels — welche Belege zusammengehören — und sonst
+nichts.
+
+**Der Entstehungstag ist eine Tatsache, die Frist wird nie kürzer.**
+Beides hält der Auslöser: `entstanden_am` ändert sich nicht,
+`aufbewahrung_bis` wird später oder bleibt, nie früher, nie wieder offen.
+Eine geänderte Regel gilt für Dokumente, die danach entstehen; was liegt,
+behält seine Frist.
+
+**Regeln je Gesellschaft, mit gesetzlicher Untergrenze.**
+`dokument_aufbewahrung` war je Gesellschaft gedacht und für niemanden
+schreibbar. Jetzt setzt `dokument.aufbewahrung_verwalten` die Zeile der
+Gesellschaft (`/dokumente/aufbewahrung`, Dienst `dokument/aufbewahrung.ts`,
+Spur im Protokoll) — nie die Plattformzeile, nie unter die Untergrenze,
+die im Dienst UND im Auslöser `kern.aufbewahrung_untergrenze` steht: zehn
+Jahre für Rechnungen, Buchungsbelege und Buchhaltungsunterlagen (§ 147
+Abs. 3 AO, § 257 Abs. 4 HGB, § 14b UStG), sechs für Handelsbriefe
+(Verträge, Angebote, Kundenkorrespondenz); die Löschsperre der
+Finanzkategorien lässt sich nicht abwählen. Länger ist erlaubt, kürzer
+nicht. `mitarbeiter`, `projekt`, `unternehmen` haben keine eine Zahl (O-25)
+und bleiben ohne Untergrenze, dort hält der Platzhalter die Sperre.
+
+**Ein Löschweg, und eine Wache hält ihn.** `dokument/loeschung.ts` ist die
+einzige Stelle, an der ein Dokument samt Datei verschwindet: erst die
+Zeile (weiches Löschen — die Datenbank weist gesperrte und bebuchte
+Dokumente ab), dann das Objekt; scheitert das Entfernen, rollt die Zeile
+mit zurück. `Speicher.entferne` darf sonst nur die Waise zurücknehmen — ein
+Objekt, das gerade hochgeladen wurde und dessen Zeile nicht entstand — und
+die Merge-Wache `speicher-entfernen-nur-ueber-loeschung` führt diese
+Stellen namentlich. Belegt in `tests/isolation/gobd-archiv.test.ts`: kein
+`DELETE` als `cse_app`, keines als `cse_job`, der Auslöser weist den
+Eigentümer ab, `TRUNCATE` ebenso, das weiche Löschen ebenso, und der eine
+Löschweg lässt das Objekt liegen. Was die Plattform nicht erzwingen kann —
+die Unveränderlichkeit des Buckets beim Anbieter — behauptet sie nicht
+(O-364).
+
+**Das Prüfbündel** (`/dokumente/buendel`, `buchhaltung/pruefbuendel.ts`)
+ist zuerst ein MANIFEST: jede festgeschriebene Rechnung des Jahrgangs, ob
+sie Beleg und Buchungszeilen trägt, die Abstimmung des Ausgangsbuchs, jede
+Datei mit SHA-256 — kanonisches JSON ohne Uhr, mit eigenem Hash;
+derselbe Jahrgang ergibt denselben Hash. Das ZIP (`archiv/zip.ts`: STORE,
+Nullzeitstempel, Byte-Reihenfolge — eigener Code, damit zwei Läufe
+dieselben Bytes ergeben) gibt es nur mit verbundenem Belegspeicher und
+ohne Exportsperre; jede Datei wird beim Packen gegen ihren Hash
+geprüft, und eine, die ihn nicht mehr trägt, verhindert das Bündel. Die
+Sperre wird GEFRAGT (`app.export_unvollstaendig`), nicht ausgelöst — in
+einer Transaktion wäre nach dem Raise nichts mehr lesbar. Jeder Abruf steht
+im Protokoll. Nichts im Bündel berechnet Steuern oder Löhne, und das steht
+im Manifest (D-06).
+
+**Das Archiv** (`/buchhaltung/archiv`) zeigt Rechnungen, Belege und
+Buchhaltungsunterlagen mit Entstehungstag, Fristende, Sperre und SHA-256,
+die Zahl der festgeschriebenen Rechnungen ohne Archivlauf, und die Zusage
+in einem Satz, der sagt, warum sie eine Eigenschaft ist. Ein Hinweiskasten
+ist seit dieser Runde ein Bauteil (`ui/Hinweis.tsx`, DESIGN §5 „Notices")
+statt einer Funktion in einer Seitendatei.

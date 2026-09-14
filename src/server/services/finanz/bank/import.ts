@@ -516,12 +516,14 @@ async function legeAb(
       `insert into dokument (id, mandant_id, kategorie, titel, mime_typ,
                              mime_verifiziert, groesse_bytes, bucket,
                              objekt_schluessel, exif_entfernt, aufbewahrung_bis,
-                             loeschsperre, erstellt_von)
+                             loeschsperre, entstanden_am, erstellt_von)
        values ($1::uuid, $2::uuid, 'buchhaltung', $3, $4, true, $5::bigint, $6,
-               $7, false, $8::date, $9, app.aktueller_benutzer())`,
+               $7, false, $8::date, $9, $10::date, app.aktueller_benutzer())`,
       [hoch.dokumentId, db.aktiverMandantId, titel, hoch.mimeTyp,
         String(hoch.groesseBytes), hoch.bucket, hoch.objektSchluessel,
-        hoch.aufbewahrungBis, hoch.loeschsperre]);
+        hoch.aufbewahrungBis, hoch.loeschsperre,
+        /* Entstehungstag (§ 147 Abs. 4 AO): der Auszugstag; ohne einen der Tag der Ablage. */
+        auszug.bis ?? auszug.von ?? null]);
     await db.schreibe(
       `insert into dokument_version (mandant_id, dokument_id, version, objekt_schluessel,
                                      sha256, groesse_bytes, mime_typ, erstellt_von)

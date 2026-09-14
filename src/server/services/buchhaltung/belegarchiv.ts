@@ -181,12 +181,14 @@ export async function archiviereRechnungsbeleg(
       `insert into dokument (id, mandant_id, kategorie, titel, mime_typ,
                              mime_verifiziert, groesse_bytes, bucket,
                              objekt_schluessel, exif_entfernt, aufbewahrung_bis,
-                             loeschsperre, kunde_id, erstellt_von)
+                             loeschsperre, kunde_id, entstanden_am, erstellt_von)
        values ($1::uuid, $2::uuid, 'buchhaltung', $3, $4, true, $5::bigint, $6,
-               $7, $8, $9::date, $10, $11::uuid, app.aktueller_benutzer())`,
+               $7, $8, $9::date, $10, $11::uuid, $12::date, app.aktueller_benutzer())`,
       [hoch.dokumentId, kontext.aktiverMandantId, titel, hoch.mimeTyp,
        String(hoch.groesseBytes), hoch.bucket, hoch.objektSchluessel,
-       hoch.exifEntfernt, hoch.aufbewahrungBis, hoch.loeschsperre, kopf.kunde_id]);
+       hoch.exifEntfernt, hoch.aufbewahrungBis, hoch.loeschsperre, kopf.kunde_id,
+       /* Der Entstehungstag im Sinne von § 147 Abs. 4 AO: das Rechnungsdatum (D-483). */
+       kopf.rechnungsdatum]);
 
     await kontext.schreibe(
       `insert into dokument_version (mandant_id, dokument_id, version, objekt_schluessel,

@@ -731,6 +731,18 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'eingang', pfad: 'finanz/eingang/ablage',
     schreibend: true, schreibRecht: 'eingang.schreiben',
   },
+  /* PR 64 — GoBD-Archiv: Buendel, Wirtschaftsjahr, Aufbewahrung, der eine Loeschweg. */
+  { modul: 'dokument', pfad: 'archiv/zip', schreibend: false },
+  { modul: 'buchhaltung', pfad: 'buchhaltung/wirtschaftsjahr', schreibend: false },
+  { modul: 'dokument', pfad: 'buchhaltung/pruefbuendel', schreibend: false },
+  {
+    modul: 'dokument', pfad: 'dokument/aufbewahrung',
+    schreibend: true, schreibRecht: 'dokument.aufbewahrung_verwalten',
+  },
+  {
+    modul: 'dokument', pfad: 'dokument/loeschung',
+    schreibend: true, schreibRecht: 'dokument.archivieren',
+  },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/aus-snapshot', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/pruefstand', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/dienst', schreibend: false },

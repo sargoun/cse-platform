@@ -332,7 +332,16 @@ proven by test, not by inspection.
       **No OCR:** a scanned PDF without embedded XML is not read — the
       provider is open (O-135) and the screen says so; manual entry with the
       proposal's values (`?von=`) remains.
-- [ ] GoBD archive with retention and deletion lock
+- [x] GoBD archive with retention and deletion lock (PR 64, D-483) — the
+      retention clock starts at the end of the **calendar** year the document
+      arose in (§ 147 Abs. 4 AO; the plan said "fiscal-year end", the law is
+      more precise), stored as `entstanden_am`, never shortened; retention
+      rules per entity with legal floors (10 years finance, 6 years
+      commercial letters) enforced in the service and in the trigger; one
+      deletion path in code, guarded by a merge guard, proven against
+      `cse_app`, `cse_job`, the owner and TRUNCATE; an audit bundle per fiscal
+      year with a canonical manifest and a reproducible STORE zip. Bucket-level
+      immutability at the provider stays open (O-364).
 - [ ] Open items, monthly figures, Z3 export, Verfahrensdokumentation
 - [ ] Year-end package; payroll time export
 

@@ -67,6 +67,8 @@ const KARTEN: readonly Karte[] = [
     text: 'Stufen, Gebühren, Vorschläge — versendet wird nichts ohne Freigabe.' },
   { pfad: 'finanzen/ausgangsbuch', titel: 'Rechnungsausgangsbuch', icon: 'export',
     text: 'Je Nummernkreis, lückenlos, mit dem Stand der Hash-Kette.' },
+  { pfad: 'buchhaltung/archiv', titel: 'GoBD-Archiv', icon: 'schloss',
+    text: 'Rechnungen und Belege, zehn Jahre, nicht löschbar — mit Aufbewahrungsregeln und Prüfbündel.' },
 ];
 
 export default async function Finanzuebersicht(

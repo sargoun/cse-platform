@@ -916,6 +916,24 @@ export const ROUTEN: readonly RouteEintrag[] = [
     pfad: 'api/buchhaltung/bank/umsatz',
     recht: 'zahlung.schreiben',
   },
+  {
+    /**
+     * Eine Aufbewahrungsregel dieser Gesellschaft setzen (DOC-07, PR 64,
+     * D-483). Nie unter die gesetzliche Untergrenze — der Dienst sagt es,
+     * der Ausloeser haelt es.
+     */
+    pfad: 'api/dokumente/aufbewahrung',
+    recht: 'dokument.aufbewahrung_verwalten',
+  },
+  {
+    /**
+     * Das Pruefbuendel eines Wirtschaftsjahrs abrufen (DOC-08, PR 64):
+     * Manifest immer, ZIP nur mit verbundenem Speicher und ohne Sperre.
+     * Jeder Abruf steht im Protokoll — ein Buendel verlaesst das Haus.
+     */
+    pfad: 'api/dokumente/buendel',
+    recht: 'dokument.buendel_exportieren',
+  },
   /**
    * Der Freigabe-Posteingang (PR 62 Rest, APR-01/02/03/07/08, D-472).
    *

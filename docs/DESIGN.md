@@ -461,6 +461,17 @@ Input: `--surface-3` bg, `1px solid --border`, `--r-md`, `12px 14px`, min
 height `44px`. Focus: border `--red` + ring. Error: border `--danger`, message
 below in `--danger` at `xs`. Label above, always — never placeholder-as-label.
 
+### Notices
+
+A notice is one sentence with weight, in a frame: `--r-lg`, `1px` border,
+`--s5` padding, `sm` type. Three kinds, three semantic tones (§1):
+`hinweis` on `--surface` with `--border`, `warnung` on `--warning-soft` with
+`--warning`, `erfolg` on `--success-soft` with `--success`. There is no
+`danger` notice: an error belongs at the field (Forms) or in a status pill.
+The first words carry the meaning in bold, so the colour never carries it
+alone (§9). Component: `components/ui/Hinweis.tsx`; every notice carries a
+`data-cse` anchor.
+
 ### Navigation
 
 **Public header:** height `72px`, `--ink` at `rgba(8,8,10,0.85)` with
