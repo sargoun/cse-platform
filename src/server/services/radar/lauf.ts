@@ -58,7 +58,6 @@ interface CpvZeile {
   radar_profil_id: string;
   cpv_code: string;
   praefix_laenge: number;
-  gewichtung: number;
   wirkung: Wirkung;
 }
 
@@ -94,7 +93,7 @@ export async function bewerteLauf(
   }
 
   const cpv = (await db.unsafe(
-    `select radar_profil_id, cpv_code, praefix_laenge, gewichtung, wirkung
+    `select radar_profil_id, cpv_code, praefix_laenge, wirkung
        from radar_profil_cpv order by radar_profil_id, cpv_code`)) as CpvZeile[];
 
   /**
@@ -122,9 +121,10 @@ export async function bewerteLauf(
   for (const p of profile) {
     const profil: BewertungsProfil = {
       id: p.id, version: p.version, name: p.name,
+      /* `gewichtung` bleibt ungenutzt, bis O-15 sagt, was sie bedeuten soll —
+         und damit auch aus dem `eingaben_hash` heraus (siehe `ProfilCpv`). */
       cpv: cpv.filter((c) => c.radar_profil_id === p.id).map((c) => ({
-        cpvCode: c.cpv_code, praefixLaenge: c.praefix_laenge,
-        gewichtung: c.gewichtung, wirkung: c.wirkung,
+        cpvCode: c.cpv_code, praefixLaenge: c.praefix_laenge, wirkung: c.wirkung,
       })),
       nutsPraefixe: p.nuts_praefixe ?? [],
       positivKeywords: p.positiv_keywords ?? [],

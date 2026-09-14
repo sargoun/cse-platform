@@ -408,11 +408,12 @@ const TRANSPORTE = [
  * Adresse — kein Empfaenger, kein Inhalt, keine Nachricht. Invariante 7
  * handelt davon, dass nichts das System VERLAESST; der eine Ausgang dafuer
  * bleibt `server/versand`. Damit das hier eine Zusage bleibt und keine
- * Luecke, faellt unter diesen Pfad genau eine Datei: `radar/abruf.ts`.
+ * Luecke, steht hier genau EINE Datei — nicht ihr Verzeichnis: ein spaeterer
+ * Parser daneben soll nicht mitgeerbt bekommen, was fuer den Adapter gilt.
  */
 const FETCH_ERLAUBT = [
   join('server', 'versand'), join('server', 'agent', 'policy'), join('server', 'storage'),
-  join('server', 'radar'),
+  join('server', 'radar', 'abruf.ts'),
 ];
 
 function wacheEinAusgang(): void {

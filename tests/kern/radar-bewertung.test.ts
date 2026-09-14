@@ -18,7 +18,7 @@ const JETZT = new Date('2026-09-14T10:00:00Z');
 function profil(teil: Partial<BewertungsProfil> = {}): BewertungsProfil {
   return {
     id: 'profil-1', version: 1, name: 'Unterhaltsreinigung Berlin',
-    cpv: [{ cpvCode: '90910000', praefixLaenge: 8, gewichtung: 100, wirkung: 'positiv' }],
+    cpv: [{ cpvCode: '90910000', praefixLaenge: 8, wirkung: 'positiv' }],
     nutsPraefixe: ['DE3'],
     positivKeywords: ['Unterhaltsreinigung'],
     negativKeywords: [],
@@ -68,15 +68,15 @@ describe('die Bewertung ist deterministisch (RAD-05)', () => {
   it('die Reihenfolge von CPV-Zeilen, Stichwörtern und NUTS-Codes ändert den Hash nicht', () => {
     const p1 = profil({
       cpv: [
-        { cpvCode: '90910000', praefixLaenge: 8, gewichtung: 100, wirkung: 'positiv' },
-        { cpvCode: '90911200', praefixLaenge: 8, gewichtung: 80, wirkung: 'positiv' },
+        { cpvCode: '90910000', praefixLaenge: 8, wirkung: 'positiv' },
+        { cpvCode: '90911200', praefixLaenge: 8, wirkung: 'positiv' },
       ],
       positivKeywords: ['Unterhaltsreinigung', 'Glasreinigung'],
     });
     const p2 = profil({
       cpv: [
-        { cpvCode: '90911200', praefixLaenge: 8, gewichtung: 80, wirkung: 'positiv' },
-        { cpvCode: '90910000', praefixLaenge: 8, gewichtung: 100, wirkung: 'positiv' },
+        { cpvCode: '90911200', praefixLaenge: 8, wirkung: 'positiv' },
+        { cpvCode: '90910000', praefixLaenge: 8, wirkung: 'positiv' },
       ],
       positivKeywords: ['Glasreinigung', 'Unterhaltsreinigung'],
     });
@@ -104,7 +104,7 @@ describe('die sechs Kriterien (RAD-04, RAD-05)', () => {
     const e = bewerte(
       bekanntmachung({ cpvHaupt: '45210000-2', titel: 'Neubau', beschreibung: null, nutsCodes: [] }),
       profil({
-        cpv: [{ cpvCode: '45000000', praefixLaenge: 2, gewichtung: 100, wirkung: 'positiv' }],
+        cpv: [{ cpvCode: '45000000', praefixLaenge: 2, wirkung: 'positiv' }],
         nutsPraefixe: [], positivKeywords: [],
       }),
       JETZT,
@@ -199,7 +199,7 @@ describe('Ausschluss ist eine Entscheidung des Profils, nie des Codes', () => {
   it('ein CPV-Code mit Wirkung „ausschluss" schliesst aus und nennt sich', () => {
     const e = bewerte(
       bekanntmachung({ cpvHaupt: '45210000' }),
-      profil({ cpv: [{ cpvCode: '45210000', praefixLaenge: 8, gewichtung: 100, wirkung: 'ausschluss' }] }),
+      profil({ cpv: [{ cpvCode: '45210000', praefixLaenge: 8, wirkung: 'ausschluss' }] }),
       JETZT);
     expect(e.ausgeschlossen).toBe(true);
     expect(e.punkte).toBe(0);

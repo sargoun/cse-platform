@@ -9,8 +9,9 @@
 -- Vergabeplattformen bieten keine Einreichungsschnittstelle an, Konten
 -- hängen an natürlichen Personen, manche verlangen eine Signatur).
 --
--- **Vier Tabellen tragen KEINEN Mandanten** — `vergabeplattform`,
--- `ausschreibung`, `ausschreibung_nuts`, `ausschreibung_rohdaten`. Eine
+-- **Fuenf Tabellen tragen KEINEN Mandanten** — `vergabeplattform`,
+-- `ausschreibung`, `ausschreibung_nuts`, `ausschreibung_rohdaten` und
+-- `radar_ingest_lauf` (ein Einlesevorgang gehoert keiner Gesellschaft). Eine
 -- Bekanntmachung auf oeffentlichevergabe.de gehört keiner GmbH. Trüge sie
 -- `mandant_id`, müsste `quell_id` je Mandant eindeutig sein, dieselbe
 -- Bekanntmachung stünde viermal im System, und RAD-03 („idempotente

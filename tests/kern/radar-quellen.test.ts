@@ -59,10 +59,18 @@ const OCDS = JSON.stringify({
 });
 
 describe('OCDS lesen (RAD-01)', () => {
-  const zeilen = liesOcds(OCDS);
+  const ergebnis = liesOcds(OCDS);
+  const zeilen = ergebnis.zeilen;
 
-  it('liest die Bekanntmachungen, die eine Kennung haben — und erfindet keine', () => {
+  it('liest die Bekanntmachungen, die eine Kennung haben — und zaehlt, was es nicht konnte', () => {
     expect(zeilen).toHaveLength(2);
+    /*
+     * Die Zeile ohne `ocid` ist nicht speicherbar, und eine Kennung zu
+     * erfinden waere schlimmer. Sie verschwindet aber nicht still: der Lauf
+     * zaehlt sie, faellt damit auf `teilweise` und raeumt an diesem Tag nicht
+     * auf — was er nicht gelesen hat, soll nicht wie verschwunden aussehen.
+     */
+    expect(ergebnis.uebersprungen).toBe(1);
     expect(zeilen.map((z) => z.quellId))
       .toEqual(['ocds-pyfmrp-DE-2026-0001', 'ocds-pyfmrp-DE-2026-0002']);
   });
@@ -92,7 +100,6 @@ describe('OCDS lesen (RAD-01)', () => {
     expect(zeilen[0]!.waehrung).toBe('EUR');
     expect(alsCent('1234567.89')).toBe(123_456_789n);
     expect(alsCent('0.1')).toBe(10n);
-    expect(alsCent('0.005')).toBe(0n);
     expect(alsCent(null)).toBeNull();
   });
 
@@ -112,6 +119,34 @@ describe('OCDS lesen (RAD-01)', () => {
   it('ein unlesbares Datum ist ein Fehler, kein Heute', () => {
     expect(() => alsZeitpunkt('gestern')).toThrow(QuelleFehler);
     expect(alsZeitpunkt(null)).toBeNull();
+  });
+
+  /**
+   * **Eine Uhrzeit ohne Zone haengt am Server.** `new Date('2026-10-01T12:00:00')`
+   * liest JavaScript in der Zeitzone des Prozesses: dieselbe Antwort ergaebe in
+   * Frankfurt und in Dublin zwei verschiedene Zeitpunkte — und der Fristzaehler
+   * je nach Maschine einen anderen Stand.
+   */
+  it('ein Zeitpunkt ohne Zone wird abgewiesen, ein Datum ist keine Frist', () => {
+    expect(() => alsZeitpunkt('2026-10-01T12:00:00')).toThrow(/Zeitzone/u);
+    expect(alsZeitpunkt('2026-10-01T12:00:00Z')?.toISOString()).toBe('2026-10-01T12:00:00.000Z');
+    expect(alsZeitpunkt('2026-10-01T14:00:00+02:00')?.toISOString()).toBe('2026-10-01T12:00:00.000Z');
+    /* Ein reines Datum ist fuer eine Veroeffentlichung brauchbar … */
+    expect(alsZeitpunkt('2026-10-01')?.toISOString()).toBe('2026-10-01T00:00:00.000Z');
+    /* … und fuer eine FRIST nicht: Mitternacht verkuerzte den Zaehler um einen Tag. */
+    expect(() => alsZeitpunkt('2026-10-01', { frist: true })).toThrow(/Uhrzeit/u);
+  });
+
+  /**
+   * **Eine dritte Nachkommastelle wird nicht weggeschnitten.** `0.005` still
+   * zu `0` zu machen, veraendert den Auftragswert; der CAMT-Leser derselben
+   * Plattform weist denselben Fall ab, und zwei Geldparser duerfen sich hier
+   * nicht widersprechen.
+   */
+  it('ein Betrag, der in Cent nicht darstellbar ist, wird abgewiesen', () => {
+    expect(() => alsCent('0.005')).toThrow(/Nachkommastellen/u);
+    expect(alsCent('0.500'), 'nachlaufende Nullen sind kein Verlust').toBe(50n);
+    expect(() => alsCent(1e18)).toThrow(/centgenau/u);
   });
 });
 
@@ -146,7 +181,7 @@ const TED = JSON.stringify({
 });
 
 describe('TED lesen (RAD-02)', () => {
-  const zeilen = liesTed(TED);
+  const zeilen = liesTed(TED).zeilen;
 
   it('entpackt Zeichenkette, Liste und Sprachkarte — und macht nie [object Object] daraus', () => {
     expect(tedText('schlicht')).toBe('schlicht');

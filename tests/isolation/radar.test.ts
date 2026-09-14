@@ -32,6 +32,24 @@ const zufall = (): string => Math.random().toString(36).slice(2, 10);
  * eine Administration der Sicherheit sieht in der Reinigung nichts — richtig
  * so, aber als Testvoraussetzung falsch.
  */
+/**
+ * Eine Gruppen-Administration: globale Rolle `super_admin`, keine
+ * Mitgliedschaft. Genau sie sieht `/portal/gruppe/radar` — und genau sie hält
+ * `gruppe.radar.lesen`, das einer Mandants-Administration erst zugebunden
+ * werden müsste (Katalog: `bindbar`, nicht `gebunden`).
+ */
+async function legeGruppenAdminAn(): Promise<string> {
+  const [u] = await sql.unsafe<{ id: string }[]>(
+    `insert into auth.users (email) values ($1) returning id`, [`gruppe-${zufall()}@cse.test`]);
+  await sql.unsafe(`insert into auth.mfa_factors (user_id) values ($1)`, [u!.id]);
+  await sql.unsafe(
+    `insert into benutzer (id, email, name, status, globale_rolle_id)
+     values ($1, $2, 'Gruppenleitung', 'aktiv',
+             (select id from rolle where schluessel = 'super_admin' and mandant_id is null))`,
+    [u!.id, `gruppe-${zufall()}@cse.test`]);
+  return u!.id;
+}
+
 async function legeAdministrationAn(mandantId: string): Promise<string> {
   const [u] = await sql.unsafe<{ id: string }[]>(
     `insert into auth.users (email) values ($1) returning id`, [`admin-${zufall()}@cse.test`]);
@@ -86,7 +104,7 @@ function ocdsText(teil: {
 }
 
 async function einlesen(text: string): Promise<{ neu: number; geaendert: number; unveraendert: number }> {
-  const zeilen = liesOcds(text).map((b) => ({ bekanntmachung: b, rohText: text }));
+  const zeilen = liesOcds(text).zeilen.map((b) => ({ bekanntmachung: b, rohText: b.rohJson }));
   const e = await alsRolle('cse_job', async (tx) => leseEin(
     { unsafe: (a, w) => tx.unsafe(a, (w ?? []) as never[]) as Promise<readonly unknown[]> }, zeilen));
   return { neu: e.neu, geaendert: e.geaendert, unveraendert: e.unveraendert };
@@ -165,7 +183,8 @@ describe('(1) Einlesen ist idempotent (RAD-03)', () => {
     /* Der Lauf von morgen hat diese Bekanntmachung nicht mehr gesehen. */
     const anzahl = await alsRolle('cse_job', async (tx) => markiereVerschwundene(
       { unsafe: (a, w) => tx.unsafe(a, (w ?? []) as never[]) as Promise<readonly unknown[]> },
-      'oeffentlichevergabe', new Date(Date.now() + 60_000)));
+      'oeffentlichevergabe', new Date(Date.now() + 60_000),
+      { vorlaufErfolgreich: true, vollstaendig: true }));
     expect(anzahl).toBe(1);
     const [z] = await sql.unsafe<{ status: string }[]>(
       `select quell_status as status from ausschreibung where quell_id = 'DE-2026-3'`);
@@ -385,5 +404,78 @@ describe('(4) Der Nachtlauf (RAD-01, RAD-02)', () => {
       `select status, fehler_text from radar_ingest_lauf where quelle = 'oeffentlichevergabe'`);
     expect(lauf!.status, 'ein Ausfall ist ein Fehler, kein leerer Tag').toBe('fehler');
     expect(lauf!.fehler_text).toContain('503');
+  });
+});
+
+/**
+ * (5) **Was die Prüfrunde gefunden hat** (D-491).
+ *
+ * Vier Zusagen standen im Kommentar, aber nicht im Schema. Hier stehen sie
+ * als Ablauf — denn eine Zusage, die niemand prüft, ist eine Behauptung.
+ */
+describe('(5) die Wände, die erst die Pruefrunde gezogen hat', () => {
+  it('ein Empfaenger aus einer FREMDEN Gesellschaft wird abgewiesen', async () => {
+    const profil = await legeProfilAn(f.reinigung);
+    const fremder = await legeAdministrationAn(f.security);
+
+    await expect(sql.unsafe(
+      `insert into radar_profil_empfaenger (mandant_id, radar_profil_id, benutzer_id)
+       values ($1, $2, $3)`, [f.reinigung, profil, fremder]))
+      .rejects.toSatisfy((e: unknown) => e instanceof Error && /Gesellschaft/u.test(e.message));
+
+    /* Das eigene Konto geht — die Wand trennt, sie sperrt nicht. */
+    await sql.unsafe(
+      `insert into radar_profil_empfaenger (mandant_id, radar_profil_id, benutzer_id)
+       values ($1, $2, $3)`, [f.reinigung, profil, benutzer]);
+    const [zahl] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from radar_profil_empfaenger`);
+    expect(zahl!.n).toBe(1);
+  });
+
+  it('eine Aenderung am Empfaenger zaehlt die Profilfassung hoch', async () => {
+    const profil = await legeProfilAn(f.reinigung);
+    await sql.unsafe(
+      `insert into radar_profil_empfaenger (mandant_id, radar_profil_id, benutzer_id, ab_punkte)
+       values ($1, $2, $3, 50)`, [f.reinigung, profil, benutzer]);
+    const [nachInsert] = await sql.unsafe<{ v: number }[]>(
+      `select version as v from radar_profil where id = $1`, [profil]);
+
+    await sql.unsafe(
+      `update radar_profil_empfaenger set ab_punkte = 70 where radar_profil_id = $1`, [profil]);
+    const [nachUpdate] = await sql.unsafe<{ v: number }[]>(
+      `select version as v from radar_profil where id = $1`, [profil]);
+    expect(nachUpdate!.v, 'eine geaenderte Schwelle ist eine geaenderte Eingabe')
+      .toBe(nachInsert!.v + 1);
+  });
+
+  it('eine Bewertung gehoert zu DIESER Bekanntmachung, nicht nur zu diesem Mandanten', async () => {
+    await legeProfilAn(f.reinigung);
+    await einlesen(ocdsText({ ocid: 'DE-2026-40', titel: 'Unterhaltsreinigung A' }));
+    await einlesen(ocdsText({ ocid: 'DE-2026-41', titel: 'Unterhaltsreinigung B' }));
+    await laufen();
+    const [a, b] = await sql.unsafe<{ id: string }[]>(
+      `select id from ausschreibung order by quell_id`);
+    const [bewertungVonB] = await sql.unsafe<{ id: string }[]>(
+      `select id from bewertung where ausschreibung_id = $1`, [b!.id]);
+
+    /* Der Vorgang zu A darf die Bewertung von B nicht tragen. */
+    await expect(sql.unsafe(
+      `insert into ausschreibung_vorgang (mandant_id, ausschreibung_id, bewertung_id, status)
+       values ($1, $2, $3, 'geprueft')`, [f.reinigung, a!.id, bewertungVonB!.id]))
+      .rejects.toSatisfy((e: unknown) => e instanceof Error && /av_bewertung_fk|foreign key/iu.test(e.message));
+  });
+
+  it('die Gruppenansicht liest die oeffentlichen Bekanntmachungen — ohne aktiven Mandanten', async () => {
+    await einlesen(ocdsText({ ocid: 'DE-2026-42', titel: 'Unterhaltsreinigung Gruppe' }));
+    const gruppenAdmin = await legeGruppenAdminAn();
+    /* Kein `mandantId` — das IST die Gruppenansicht (D-474). */
+    const gruppe = {
+      scope: 'gruppe' as const, mandantIds: [f.reinigung, f.security],
+      benutzerId: gruppenAdmin, portal: 'intern' as const, readonly: true,
+    };
+    const zeilen = await alsApp(gruppe, async (tx: postgres.TransactionSql) =>
+      tx.unsafe(`select count(*)::int as n from ausschreibung`)) as { n: number }[];
+    expect(zeilen[0]!.n, 'ohne diese Policy saehe /portal/gruppe/radar null Bekanntmachungen')
+      .toBeGreaterThan(0);
   });
 });

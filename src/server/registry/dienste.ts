@@ -30,7 +30,8 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * (D-427): wer eine Rechnung festschreibt, wird dadurch nicht Buchhalter.
    */
   /*
-   * Der Vergaberadar (RAD-01 … RAD-05, D-489). Alle fuenf sind lesend: die
+   * Der Vergaberadar (RAD-01 … RAD-07, D-489, D-490). Lesend bis auf
+   * `radar/vorgang`, das den Stand setzt (RAD-07): die
    * Bekanntmachungen schreibt der Nachtlauf als `cse_job`, und `bewertung`
    * hat fuer `cse_app` gar kein Schreibrecht — eine Punktzahl von Hand waere
    * das Ende von RAD-05.

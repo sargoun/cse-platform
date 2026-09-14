@@ -8734,3 +8734,64 @@ Quellenlink**: diese Zeilen sind keine Veröffentlichungen, und eine Adresse,
 die echt aussieht und ins Leere führt, wäre eine Behauptung. **Kein
 Plattformkatalog**: O-07 ist offen, und die Plattformseite sagt das, statt
 eine Liste zu zeigen, die wie ein geprüfter Stand aussieht.
+
+### D-491 · Die Prüfrunde auf PR 13 — siebzehn Befunde, ein Muster
+
+Copilot hat auf dem Radar-PR siebzehn Stellen markiert. Bemerkenswert ist
+nicht die Zahl, sondern dass fast alle **dasselbe Muster** haben: eine
+Zusage stand im Kommentar, aber nicht im Code. Genau diese Sorte Fehler
+sucht später niemand — die Dokumentation sagt ja, es könne nicht passieren.
+
+**Der teuerste Befund: der `catch`, der nichts fing.** `leseEin` fängt einen
+Fehler je Zeile und zählt weiter. Nur läuft der ganze Stapel in EINER
+Transaktion: nach dem ersten SQL-Fehler ist sie abgebrochen, jede weitere
+Anweisung scheitert, und am Ende rollt alles zurück — auch die
+neunundneunzig Zeilen, die in Ordnung waren. Der Lauf hätte „ein Satz
+übersprungen" gemeldet und nichts gespeichert. Jetzt bekommt jede Zeile
+einen `savepoint`: sie scheitert für sich, der Rest steht.
+
+**Der gefährlichste: „erst nach zwei Läufen".** `markiereVerschwundene`
+prüfte ein Alter (`zuletzt_gesehen_am < now() - 2 Tage`) und nannte das
+„zwei aufeinanderfolgende Läufe". War die Quelle eine Woche weg und lieferte
+dann eine halbe Seite, hätte der erste erfolgreiche Lauf ihren ganzen
+Bestand für verschwunden erklärt — der Ausfall, den die Regel verhindern
+soll. Jetzt weist der Aufrufer nach, dass der vorige Lauf DERSELBEN Quelle
+erfolgreich war, und ein unvollständiger Lauf räumt gar nicht auf.
+
+**Der stillste: die Rohantwort der ganzen Seite an jeder Zeile.** Damit
+änderte sich der Hash jeder Bekanntmachung, sobald irgendeine andere sich
+änderte: hundert „Änderungen", wo eine war, und hundert Kopien derselben
+Seite in `ausschreibung_rohdaten`. Jede Zeile trägt jetzt ihr eigenes
+Release (`rohJson`).
+
+**Vier Zusagen, die das Schema nicht hielt** (Migration 0146): drei
+Fremdschlüssel auf `benutzer` ohne Mitgliedschaftsprüfung — `radar_profil_empfaenger`
+behauptete in seinem Kommentar sogar, ein fremder Empfänger sei unmöglich;
+`ausschreibung_vorgang.bewertung_id` war an den Mandanten gebunden, nicht an
+dieselbe Bekanntmachung (der Vorgang zu A konnte die Punkte von B tragen);
+der Empfängertisch zählte die Profilfassung nicht beim Ändern von
+`ab_punkte`; und die Gruppenansicht hätte null Bekanntmachungen gesehen,
+weil jede Lesepolicy einen aktiven Mandanten verlangte — den es dort mit
+Absicht nicht gibt (D-474).
+
+**Drei Stellen, an denen ein Wert still falsch wurde:** eine dritte
+Nachkommastelle wurde abgeschnitten (`0.005` → `0`), während der CAMT-Leser
+derselben Plattform denselben Fall abweist; ein Zeitpunkt ohne Zone wurde in
+der Zeitzone des Prozesses gelesen, sodass dieselbe Antwort je Server eine
+andere Frist ergab; und ein reines Datum als Frist hiesse Mitternacht — ein
+Tag weniger im Countdown, und in einem Vergabeverfahren ist ein Tag der
+Unterschied zwischen Angebot und Ausschluss. Alle drei werfen jetzt.
+
+**Zwei Zuordnungen, die zufällig richtig aussahen:** der TED-Titel wurde mit
+dem gekürzten Sprachschlüssel gesucht (`fr` statt `fra`) und landete deshalb
+auf Englisch, obwohl die Zeile `fr` sagt; und die OCDS-Hauptklassifikation
+wurde ohne Schemaprüfung als CPV genommen — eine achtstellige Warennummer
+aus einem anderen System wäre in der Bewertung gelandet.
+
+**Was NICHT geändert wurde, mit Grund:** `ts_konfiguration` fehlt im Insert,
+weil ein Trigger sie aus `sprache` setzt (0145) — geprüft an der
+französischen Bekanntmachung im Seed, die `french` trägt. Und das
+CPV-Zeilengewicht wurde nicht „angewendet", sondern aus der Bewertungseingabe
+**entfernt**: es zu benutzen hiesse, die Gewichtung zu erfinden, die O-15
+offen lässt; es im Hash zu lassen hiesse, eine Änderung ohne Wirkung als
+neue Bewertung aufzuzeichnen.

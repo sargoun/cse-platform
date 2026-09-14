@@ -1,6 +1,6 @@
 import 'server-only';
 import {
-  QuelleFehler, alsCent, alsZeitpunkt, type RohBekanntmachung,
+  QuelleFehler, alsCent, alsZeitpunkt, type LeseErgebnis, type RohBekanntmachung,
 } from './quelle.js';
 
 /**
@@ -82,7 +82,7 @@ function sprachKuerzel(roh: string | null): string {
   return karte[klein] ?? (klein.length >= 2 ? klein.slice(0, 2) : 'de');
 }
 
-export function liesTed(text: string): readonly RohBekanntmachung[] {
+export function liesTed(text: string): LeseErgebnis {
   let daten: unknown;
   try {
     daten = JSON.parse(text);
@@ -96,12 +96,22 @@ export function liesTed(text: string): readonly RohBekanntmachung[] {
   }
 
   const zeilen: RohBekanntmachung[] = [];
+  let uebersprungen = 0;
   for (const roh of notices) {
-    if (!istObjekt(roh)) continue;
+    if (!istObjekt(roh)) { uebersprungen += 1; continue; }
     const quellId = tedText(roh['publication-number'] ?? roh['ND'] ?? roh['noticeId']);
-    const sprache = sprachKuerzel(tedText(roh['notice-language'] ?? roh['LG']));
-    const titel = tedText(roh['notice-title'] ?? roh['TI'], sprache === 'de' ? 'deu' : 'eng');
-    if (quellId === null || titel === null) continue;
+    /*
+     * **Der ROHE Sprachschluessel waehlt das Feld, nicht das gekuerzte.** TED
+     * schluesselt seine Sprachkarten dreistellig (`fra`), gespeichert wird
+     * zweistellig (`fr`). Wer mit dem gekuerzten sucht, findet nie den
+     * franzoesischen Titel und nimmt den englischen — obwohl `sprache` dann
+     * `fr` sagt und die Volltextsuche franzoesisch stemmt.
+     */
+    const sprachRoh = tedText(roh['notice-language'] ?? roh['LG']);
+    const sprache = sprachKuerzel(sprachRoh);
+    const feldSprache = sprachRoh === null ? 'deu' : sprachRoh.toLowerCase();
+    const titel = tedText(roh['notice-title'] ?? roh['TI'], feldSprache);
+    if (quellId === null || titel === null) { uebersprungen += 1; continue; }
 
     const cpvAlle = tedListe(roh['classification-cpv'] ?? roh['PC'])
       .map((c) => c.trim()).filter((c) => CPV.test(c));
@@ -116,17 +126,17 @@ export function liesTed(text: string): readonly RohBekanntmachung[] {
 
     const wertRoh = tedText(roh['total-value'] ?? roh['estimated-value'] ?? roh['value']);
     const waehrung = tedText(roh['total-value-currency'] ?? roh['currency']);
-    const art = tedText(roh['procedure-type'] ?? roh['PR'], sprache === 'de' ? 'deu' : 'eng');
+    const art = tedText(roh['procedure-type'] ?? roh['PR'], feldSprache);
     const form = (tedText(roh['form-type'] ?? roh['TD']) ?? '').toLowerCase();
 
     zeilen.push({
       quelle: 'ted',
       quellId,
+      rohJson: JSON.stringify(roh),
       quellUrl: tedText(roh['links'] ?? roh['url'])
         ?? `https://ted.europa.eu/udl?uri=TED:NOTICE:${quellId}:TEXT:DE:HTML`,
       titel,
-      beschreibung: tedText(roh['description-procurement'] ?? roh['notice-description'],
-        sprache === 'de' ? 'deu' : 'eng'),
+      beschreibung: tedText(roh['description-procurement'] ?? roh['notice-description'], feldSprache),
       sprache,
       vergabestelleName: tedText(roh['buyer-name'] ?? roh['AU']),
       vergabestelleOrt: tedText(roh['buyer-city'] ?? roh['TW']),
@@ -140,13 +150,14 @@ export function liesTed(text: string): readonly RohBekanntmachung[] {
       wertCent: alsCent(wertRoh),
       waehrung: waehrung?.toUpperCase() ?? null,
       veroeffentlichtAm: alsZeitpunkt(tedText(roh['publication-date'] ?? roh['PD'])),
-      fristTeilnahme: alsZeitpunkt(tedText(roh['deadline-receipt-request'])),
-      fristAngebot: alsZeitpunkt(tedText(roh['deadline-receipt-tender'] ?? roh['DT'])),
+      /* Fristen nur mit Uhrzeit und Zone — ein reines Datum verkuerzte den Zaehler. */
+      fristTeilnahme: alsZeitpunkt(tedText(roh['deadline-receipt-request']), { frist: true }),
+      fristAngebot: alsZeitpunkt(tedText(roh['deadline-receipt-tender'] ?? roh['DT']), { frist: true }),
       fristFragen: null,
       loseAnzahl: null,
       istBerichtigung: form.includes('corrigendum') || form.includes('change'),
       aufgehoben: form.includes('cancel'),
     });
   }
-  return zeilen;
+  return { zeilen, uebersprungen };
 }

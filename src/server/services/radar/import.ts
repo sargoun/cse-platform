@@ -161,20 +161,32 @@ export async function leseEin(
   let uebersprungen = 0;
   const ids: string[] = [];
 
-  for (const eintrag of zeilen) {
+  for (const [nummer, eintrag] of zeilen.entries()) {
+    /**
+     * **Ein Sicherungspunkt je Zeile — sonst ist der `catch` eine Lüge.**
+     *
+     * Der ganze Stapel läuft in EINER Transaktion. Nach dem ersten
+     * SQL-Fehler ist sie abgebrochen: jede weitere Anweisung scheitert mit
+     * „current transaction is aborted", und am Ende rollt alles zurück —
+     * auch die neunundneunzig Zeilen, die in Ordnung waren. Der `catch`
+     * zählte dann brav mit und meldete einen Erfolg, den es nicht gab.
+     *
+     * `savepoint` macht aus jeder Zeile eine Untertransaktion: sie scheitert
+     * für sich, der Rest steht. Das ist der Unterschied zwischen „eine
+     * Bekanntmachung trug ein kaputtes Feld" und „heute kam nichts an".
+     */
+    const punkt = `radar_${String(nummer)}`;
+    await db.unsafe(`savepoint ${punkt}`);
     try {
       const z = await schreibeEine(db, eintrag.bekanntmachung, eintrag.rohText, laufId);
+      await db.unsafe(`release savepoint ${punkt}`);
       ids.push(z.id);
       if (z.neu) neu += 1;
       else if (z.geaendert) geaendert += 1;
       else unveraendert += 1;
     } catch {
-      /*
-       * Eine kaputte Zeile darf den Lauf nicht beenden: an einem Tag mit
-       * zweihundert Bekanntmachungen wären sonst hundertneunundneunzig
-       * verloren, weil eine ein Feld falsch trug. Gezählt wird sie trotzdem —
-       * der Lauf steht danach auf `teilweise`, nicht auf `erfolg`.
-       */
+      await db.unsafe(`rollback to savepoint ${punkt}`);
+      await db.unsafe(`release savepoint ${punkt}`);
       uebersprungen += 1;
     }
   }
@@ -185,13 +197,19 @@ export async function leseEin(
 /**
  * Was die Quelle in ihrem Fenster nicht mehr liefert, hört auf zu zählen.
  *
- * **Erst nach zwei Läufen.** Ein einzelner Ausfall der Quelle würde sonst
- * den ganzen Bestand für verschwunden erklären. Zwei aufeinanderfolgende
- * Läufe ohne Wiedersehen sind ein Befund, einer ist ein Schluckauf.
+ * **Erst nach zwei aufeinanderfolgenden ERFOLGREICHEN Läufen derselben
+ * Quelle.** Der Aufrufer weist das nach (`vorlaufErfolgreich`) — eine
+ * Altersgrenze allein tut es nicht: war die Quelle eine Woche weg und
+ * liefert dann eine leere Seite, wäre nach Alter ihr ganzer Bestand
+ * „verschwunden", also genau der Ausfall, den diese Regel verhindern soll.
+ * Und ein Lauf, der Zeilen übersprungen hat, räumt gar nicht auf: was er
+ * nicht lesen konnte, sieht sonst aus wie nicht mehr da.
  */
 export async function markiereVerschwundene(
   db: SchreibAbfrage, quelle: string, seit: Date,
+  bedingungen: { readonly vorlaufErfolgreich: boolean; readonly vollstaendig: boolean },
 ): Promise<number> {
+  if (!bedingungen.vorlaufErfolgreich || !bedingungen.vollstaendig) return 0;
   const zeilen = (await db.unsafe(
     `update ausschreibung set quell_status = 'verschwunden', geaendert_am = now()
       where quelle = $1::ausschreibung_quelle

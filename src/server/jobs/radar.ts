@@ -5,7 +5,7 @@ import { liesOcds } from '../services/radar/ocds.js';
 import { liesTed } from '../services/radar/ted.js';
 import { leseEin, markiereVerschwundene, type SchreibAbfrage } from '../services/radar/import.js';
 import { bewerteLauf } from '../services/radar/lauf.js';
-import { netzAbruf } from '../radar/abruf.js';
+import { netzAbruf, type Abrufer } from '../radar/abruf.js';
 
 /**
  * Der nächtliche Radarlauf: einlesen, bewerten, aufräumen (RAD-01 … RAD-05).
@@ -21,12 +21,22 @@ import { netzAbruf } from '../radar/abruf.js';
  * ausgeschrieben" und „seit drei Wochen fragt niemand mehr nach" — und der
  * zweite Fall fällt nur auf, wenn er in `radar_ingest_lauf` steht.
  *
+ * **Eine Quelle, die ausfällt, färbt den Lauf rot.** Sie nimmt die andere
+ * nicht mit — national und europäisch sind zwei Dienste —, aber am Ende wirft
+ * der Lauf: sonst stünde in `job_lauf` ein grüner Eintrag, während seit Tagen
+ * keine Bekanntmachung mehr ankommt.
+ *
  * **Der Abruf steht in einer einzigen Funktion.** Sie ist einspritzbar, damit
  * der Test den Lauf ohne Netz fahren kann — und damit es genau eine Stelle
  * gibt, an der eine Antwort entsteht.
  */
 
-import type { Abrufer } from '../radar/abruf.js';
+export class RadarQuellenFehler extends Error {
+  constructor(letzter: string) {
+    super(`Radar: eine Quelle war nicht erreichbar — ${letzter}`);
+    this.name = 'RadarQuellenFehler';
+  }
+}
 
 export interface RadarBefund {
   readonly quellen: number;
@@ -58,7 +68,18 @@ export function registriereRadar(
     zeitplan: '20 4 * * *',
     bereich: 'uebergreifend',
     versuche: 1,
-    ausfuehren: async (): Promise<Record<string, unknown>> => ({ ...await laufe(sql, abrufer) }),
+    ausfuehren: async (kontext): Promise<Record<string, unknown>> => {
+      const befund = await laufe(sql, abrufer, null, kontext.laufId);
+      /*
+       * **Erst zaehlen, dann werfen.** Die Zahlen stehen in
+       * `radar_ingest_lauf` und die Bewertung ist gelaufen; was danach fehlt,
+       * ist die Farbe des Job-Laufs. Ein gruener Lauf ueber einer toten Quelle
+       * ist die stille Variante — und die faellt erst auf, wenn jemand eine
+       * Vergabe verpasst hat.
+       */
+      if (befund.letzterFehler !== null) throw new RadarQuellenFehler(befund.letzterFehler);
+      return { ...befund };
+    },
   });
 }
 
@@ -72,6 +93,7 @@ export function registriereRadar(
  */
 export async function laufe(
   sql: JobVerbindung, abrufer: Abrufer, jetztOderNull: Date | null = null,
+  jobLaufId: string | null = null,
 ): Promise<RadarBefund> {
   const jetzt = jetztOderNull ?? await alsJob(sql, async (db) => {
     const zeilen = (await db.unsafe(`select now() as jetzt`)) as { jetzt: Date }[];
@@ -81,13 +103,15 @@ export async function laufe(
   let gelesen = 0;
   let neu = 0;
   let geaendert = 0;
-  let verschwunden = 0;
+  let verschwundenGesamt = 0;
   let letzterFehler: string | null = null;
 
   for (const quelle of QUELLEN) {
     const stand = quellStand(quelle);
+    /* Der Stand VOR diesem Lauf — danach steht die eigene Zeile schon da. */
+    const vorlaufErfolgreich = await letzterLaufErfolgreich(sql, quelle);
     const laufId = await beginneLauf(sql, quelle, stand.verbunden ? 'laeuft' : 'uebersprungen',
-      stand.verbunden ? null : stand.hinweis);
+      stand.verbunden ? null : stand.hinweis, jobLaufId);
     if (!stand.verbunden || stand.basisUrl === null) {
       uebersprungen += 1;
       continue;
@@ -95,32 +119,45 @@ export async function laufe(
 
     try {
       const text = await abrufer(quelle, stand.basisUrl);
-      const zeilen = (quelle === 'ted' ? liesTed(text) : liesOcds(text))
-        .map((b) => ({ bekanntmachung: b, rohText: text }));
+      const gelesenes = quelle === 'ted' ? liesTed(text) : liesOcds(text);
+      /* Jede Zeile traegt IHRE Rohantwort — nicht die der ganzen Seite. */
+      const eintraege = gelesenes.zeilen.map((b) => ({ bekanntmachung: b, rohText: b.rohJson }));
 
-      const ergebnis = await alsJob(sql, async (db) => leseEin(db, zeilen, laufId));
-      gelesen += ergebnis.gelesen;
+      const ergebnis = await alsJob(sql, async (db) => leseEin(db, eintraege, laufId));
+      gelesen += ergebnis.gelesen + gelesenes.uebersprungen;
       neu += ergebnis.neu;
       geaendert += ergebnis.geaendert;
 
       /*
-       * Erst nach ZWEI Läufen ohne Wiedersehen (Datenmodell §2.9): ein
-       * einzelner Ausfall der Quelle erklärte sonst den ganzen Bestand für
-       * verschwunden — und jeder offene Vorgang bekäme eine Warnung, die
-       * nichts bedeutet.
+       * **Aufgeraeumt wird nur nach einem VOLLSTAENDIGEN Lauf und nur, wenn
+       * der vorige Lauf derselben Quelle auch erfolgreich war** (Datenmodell
+       * §2.9). Eine Altersgrenze allein taeuscht: war die Quelle eine Woche
+       * weg und liefert dann eine halbe Seite, erklaerte sie ihren ganzen
+       * Bestand fuer verschwunden — genau der Ausfall, den die Regel
+       * verhindern soll.
        */
+      const unvollstaendig = ergebnis.uebersprungen > 0 || gelesenes.uebersprungen > 0;
       const grenze = new Date(jetzt.getTime() - 2 * 86_400_000);
-      verschwunden += await alsJob(sql, async (db) => markiereVerschwundene(db, quelle, grenze));
+      const verschwunden = await alsJob(sql, async (db) => markiereVerschwundene(
+        db, quelle, grenze, { vorlaufErfolgreich, vollstaendig: !unvollstaendig }));
+      verschwundenGesamt += verschwunden;
 
-      await beendeLauf(sql, laufId, ergebnis.uebersprungen > 0 ? 'teilweise' : 'erfolg', {
-        gelesen: ergebnis.gelesen, neu: ergebnis.neu, geaendert: ergebnis.geaendert,
-        unveraendert: ergebnis.unveraendert, verschwunden,
-      }, null);
+      await beendeLauf(sql, laufId, unvollstaendig ? 'teilweise' : 'erfolg', {
+        gelesen: ergebnis.gelesen + gelesenes.uebersprungen,
+        neu: ergebnis.neu, geaendert: ergebnis.geaendert,
+        unveraendert: ergebnis.unveraendert,
+        /* Je Quelle die EIGENE Zahl — die Summe steht im Befund, nicht in der Zeile. */
+        verschwunden,
+      }, unvollstaendig
+        ? `${String(gelesenes.uebersprungen)} Saetze ohne Kennung oder Titel, `
+          + `${String(ergebnis.uebersprungen)} beim Schreiben abgewiesen`
+        : null);
     } catch (grund: unknown) {
       /*
        * Eine Quelle, die ausfällt, nimmt die andere nicht mit: national und
        * europäisch sind zwei Dienste, und ein Ausfall von TED darf nicht die
-       * Ausschreibungen des Bezirksamts verschlucken.
+       * Ausschreibungen des Bezirksamts verschlucken. Rot wird der Job
+       * trotzdem — am Ende, wenn beide Quellen ihre Zeile haben.
        */
       letzterFehler = grund instanceof Error ? grund.message : String(grund);
       await beendeLauf(sql, laufId, 'fehler', {}, letzterFehler);
@@ -133,7 +170,8 @@ export async function laufe(
   }));
 
   return {
-    quellen: QUELLEN.length, uebersprungen, gelesen, neu, geaendert, verschwunden,
+    quellen: QUELLEN.length, uebersprungen, gelesen, neu, geaendert,
+    verschwunden: verschwundenGesamt,
     bewertungen: bewertung.bewertungen, neueBewertungen: bewertung.neueZeilen, letzterFehler,
   };
 }
@@ -150,15 +188,35 @@ async function alsJob<T>(sql: JobVerbindung, fn: (db: SchreibAbfrage) => Promise
   }) as Promise<T>;
 }
 
+/**
+ * War der letzte ABGESCHLOSSENE Lauf dieser Quelle erfolgreich?
+ *
+ * Die Antwort entscheidet, ob heute aufgeraeumt werden darf — „zwei
+ * aufeinanderfolgende erfolgreiche Laeufe" heisst genau das und nicht „alt
+ * genug".
+ */
+async function letzterLaufErfolgreich(
+  sql: JobVerbindung, quelle: QuellSchluessel,
+): Promise<boolean> {
+  return alsJob(sql, async (db) => {
+    const zeilen = (await db.unsafe(
+      `select status::text as status from radar_ingest_lauf
+        where quelle = $1::ausschreibung_quelle and beendet_am is not null
+        order by beendet_am desc limit 1`, [quelle])) as { status: string }[];
+    return zeilen[0]?.status === 'erfolg';
+  });
+}
+
 async function beginneLauf(
   sql: JobVerbindung, quelle: QuellSchluessel, status: string, hinweis: string | null,
+  jobLaufId: string | null,
 ): Promise<string> {
   return alsJob(sql, async (db) => {
     const zeilen = (await db.unsafe(
-      `insert into radar_ingest_lauf (quelle, status, fehler_text, beendet_am)
-       values ($1::ausschreibung_quelle, $2::radar_lauf_status, $3,
+      `insert into radar_ingest_lauf (quelle, status, fehler_text, job_lauf_id, beendet_am)
+       values ($1::ausschreibung_quelle, $2::radar_lauf_status, $3, $4::uuid,
                case when $2 = 'laeuft' then null else now() end)
-       returning id`, [quelle, status, hinweis])) as { id: string }[];
+       returning id`, [quelle, status, hinweis, jobLaufId])) as { id: string }[];
     return zeilen[0]?.id ?? '';
   });
 }

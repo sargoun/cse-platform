@@ -1,6 +1,6 @@
 import 'server-only';
 import {
-  QuelleFehler, alsCent, alsZeitpunkt, type RohBekanntmachung,
+  QuelleFehler, alsCent, alsZeitpunkt, type LeseErgebnis, type RohBekanntmachung,
 } from './quelle.js';
 
 /**
@@ -82,7 +82,7 @@ function alsCpv(roh: unknown): string | null {
  * trägt dieselbe und ist deshalb dieselbe Bekanntmachung, nicht eine zweite
  * (RAD-03).
  */
-export function liesOcds(text: string): readonly RohBekanntmachung[] {
+export function liesOcds(text: string): LeseErgebnis {
   let daten: unknown;
   try {
     daten = JSON.parse(text);
@@ -95,17 +95,38 @@ export function liesOcds(text: string): readonly RohBekanntmachung[] {
     throw new QuelleFehler('format', 'Dem OCDS-Paket fehlt "releases".');
   }
 
-  const zeilen: RohBekanntmachung[] = [];
+  /**
+   * **Mehrere Releases zu derselben `ocid` sind der Normalfall**, nicht die
+   * Ausnahme: die ursprüngliche Bekanntmachung, dann die Änderung, dann die
+   * Aufhebung. Sie tragen dieselbe Kennung und sind DIESELBE Vergabe. Wer sie
+   * einzeln weiterreicht, importiert die erste, und die zweite prallt am
+   * Eindeutigkeitsindex ab — der Stand „aufgehoben" käme nie an. Gewinnt also
+   * das jüngste Release je `ocid`.
+   */
+  const neueste = new Map<string, { readonly r: OcdsRelease; readonly roh: unknown; readonly datum: string }>();
+  let uebersprungen = 0;
   for (const roh of releases) {
-    if (!istObjekt(roh)) continue;
+    if (!istObjekt(roh)) { uebersprungen += 1; continue; }
     const r = roh as unknown as OcdsRelease;
     const quellId = (r.ocid ?? r.id ?? '').trim();
     const titel = (r.tender?.title ?? '').trim();
     if (quellId === '' || titel === '') {
       /* Ohne Kennung oder Titel ist die Zeile nicht speicherbar — und stillschweigend
          eine zu erfinden, wäre schlimmer als sie zu überspringen. Der Lauf zählt sie. */
+      uebersprungen += 1;
       continue;
     }
+    const datum = r.date ?? '';
+    const bisher = neueste.get(quellId);
+    if (bisher === undefined || datum >= bisher.datum) {
+      neueste.set(quellId, { r, roh, datum });
+    }
+  }
+
+  const zeilen: RohBekanntmachung[] = [];
+  for (const [quellId, eintrag] of neueste) {
+    const r = eintrag.r;
+    const titel = (r.tender?.title ?? '').trim();
 
     const beschaffer = r.parties?.find((p) => (p.roles ?? []).includes('buyer'));
     const adresse = beschaffer?.address;
@@ -128,7 +149,13 @@ export function liesOcds(text: string): readonly RohBekanntmachung[] {
       const c = alsCpv(i.classification?.id);
       if (c !== null) weitere.add(c);
     }
-    const haupt = alsCpv(r.tender?.classification?.id);
+    /*
+     * Das Schema wird geprüft wie bei den Nebenklassifikationen: ein anderes
+     * System mit acht Ziffern (etwa eine nationale Warennummer) landete sonst
+     * als CPV in der Bewertung und träfe dort zufällig ein Profil.
+     */
+    const hauptSchema = (r.tender?.classification?.scheme ?? 'CPV').toUpperCase();
+    const haupt = hauptSchema.startsWith('CPV') ? alsCpv(r.tender?.classification?.id) : null;
     if (haupt !== null) weitere.delete(haupt);
 
     const wert = r.tender?.value ?? r.tender?.minValue;
@@ -137,6 +164,7 @@ export function liesOcds(text: string): readonly RohBekanntmachung[] {
     zeilen.push({
       quelle: 'oeffentlichevergabe',
       quellId,
+      rohJson: JSON.stringify(eintrag.roh),
       quellUrl: r.links?.self ?? null,
       titel,
       beschreibung: r.tender?.description?.trim() ?? null,
@@ -155,8 +183,9 @@ export function liesOcds(text: string): readonly RohBekanntmachung[] {
       waehrung: wert?.currency?.trim().toUpperCase() ?? null,
       veroeffentlichtAm: alsZeitpunkt(r.date),
       fristTeilnahme: null,
-      fristAngebot: alsZeitpunkt(r.tender?.tenderPeriod?.endDate),
-      fristFragen: alsZeitpunkt(r.tender?.enquiryPeriod?.endDate),
+      /* Fristen nur mit Uhrzeit und Zone: ein reines Datum verkürzte den Zähler. */
+      fristAngebot: alsZeitpunkt(r.tender?.tenderPeriod?.endDate, { frist: true }),
+      fristFragen: alsZeitpunkt(r.tender?.enquiryPeriod?.endDate, { frist: true }),
       loseAnzahl: r.tender?.numberOfLots
         ?? (Array.isArray(r.tender?.lots) ? r.tender.lots.length : null),
       istBerichtigung: tags.includes('tenderamendment') || tags.includes('tenderupdate'),
@@ -164,5 +193,5 @@ export function liesOcds(text: string): readonly RohBekanntmachung[] {
         || tags.includes('tendercancellation'),
     });
   }
-  return zeilen;
+  return { zeilen, uebersprungen };
 }
