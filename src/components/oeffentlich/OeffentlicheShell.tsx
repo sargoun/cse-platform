@@ -1,6 +1,7 @@
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { shellTexte } from '@/lib/i18n/texte';
 import { GesellschaftsWahl } from './GesellschaftsWahl';
+import { Logo, Marke } from '@/components/marke/Marke';
 import { EIGENNAME, SPRACHEN, mitSprache, type Sprache } from '@/lib/sprache';
 
 /**
@@ -83,6 +84,8 @@ export function OeffentlicheShell(
   OeffentlicheShellProps,
 ) {
   const t = shellTexte(sprache);
+  /* Das Jahr der Serveruhr — eine Fusszeile ist kein Zeiteintrag (Invariante 5 gilt Diensten). */
+  const jahr = new Date().getFullYear();
   return (
     <div className="flex min-h-dvh flex-col bg-ink">
       {/*
@@ -153,8 +156,10 @@ export function OeffentlicheShell(
         <a
           href={mitSprache('/', sprache)}
           aria-label={t.zurStartseite}
-          className="flex min-h-11 min-w-0 items-center text-h3 text-text"
+          data-cse="kopf-logo"
+          className="flex min-h-11 min-w-0 items-center gap-s2 text-h3 text-text"
         >
+          <Marke art="gruppe" groesse="md" />
           {/*
             * `truncate` gehoert an das SPAN, nicht an das `a`.
             *
@@ -436,47 +441,90 @@ export function OeffentlicheShell(
         * im strikten Modus ein Locator-Verstoss — das hat dieser Zweig beim
         * Telefonmenue schon einmal gekostet.
         */}
-      <footer className="border-t border-line bg-surface px-s5 py-s6">
-        <nav aria-label={t.gesellschaftenNav} className="flex flex-wrap gap-s5">
-          {bereiche.map((b) => (
-            <a
-              key={b.slug}
-              href={mitSprache(`/unternehmen/${b.slug}`, sprache)}
-              data-cse="fuss-gesellschaft"
-              aria-current={b.slug === aktiv ? 'page' : undefined}
-              className="flex min-h-11 items-center text-sm text-text-muted transition-colors duration-fast ease-brand hover:text-text"
-            >
-              {b.name}
-            </a>
-          ))}
-        </nav>
-        {/* Vier Gesellschaften, vier Anschriften — jede aus ihrer `mandant`-Zeile. */}
-        <ul data-cse="nap" className="mt-s5 flex flex-col gap-s2 text-xs text-text-subtle">
-          {bereiche.map((b) => <li key={b.slug}>{b.nap}</li>)}
-        </ul>
+      <footer data-cse="oeffentlicher-fuss" className="border-t border-line bg-surface">
+        <div className="mx-auto max-w-content px-s5 py-s7">
+          {/*
+            * Drei Spalten ab `md`: die Marke mit ihrem Satz, die vier
+            * Gesellschaften mit ihren Anschriften, das Rechtliche. Darunter
+            * die Zeile mit Jahr und Hinweis. Vorher standen vier Anschriften
+            * als lose Zeilen am linken Rand — kein Bild, keine Ordnung.
+            *
+            * Die NAP-Liste bleibt EINE Liste mit vier reinen Zeilen
+            * (`[data-cse="nap"] li`): `seo.spec.ts` liest sie zeichengleich
+            * gegen `llms.txt`, deshalb steht der Verweis auf die Gesellschaft
+            * in einer eigenen Liste daneben und nicht in derselben Zeile.
+            */}
+          <div className="grid grid-cols-1 gap-s6 md:grid-cols-[1.4fr_1.6fr_auto] md:gap-s7">
+            <div className="min-w-0">
+              <Logo art="gruppe" name={gruppeName} groesse="lg" href={mitSprache('/', sprache)} />
+              <p className="mt-s3 max-w-[38ch] text-sm leading-relaxed text-text-muted">{t.leitsatz}</p>
+            </div>
 
-        <nav aria-label={t.rechtlichesNav} className="mt-s5 flex flex-wrap gap-s4">
-          {RECHTLICH.map(([ziel, schluessel]) => (
-            <a
-              key={schluessel}
-              href={mitSprache(ziel, sprache)}
-              className="text-xs text-text-muted transition-colors duration-fast ease-brand hover:text-text"
-            >
-              {t.rechtlich[schluessel]}
-            </a>
-          ))}
-        </nav>
+            <div className="min-w-0">
+              <h2 className="mb-s3 text-micro uppercase tracking-[0.08em] text-text-subtle">
+                {t.gesellschaftenNav}
+              </h2>
+              <nav aria-label={t.gesellschaftenNav}>
+                <ul className="m-0 grid list-none grid-cols-1 gap-x-s5 gap-y-s1 p-0 sm:grid-cols-2">
+                  {bereiche.map((b) => (
+                    <li key={b.slug}>
+                      <a
+                        href={mitSprache(`/unternehmen/${b.slug}`, sprache)}
+                        data-cse="fuss-gesellschaft"
+                        aria-current={b.slug === aktiv ? 'page' : undefined}
+                        className="flex min-h-11 items-center gap-s2 text-sm text-text-muted transition-colors duration-fast ease-brand hover:text-text"
+                      >
+                        <Marke art={b.bereich} groesse="sm" />
+                        <span className="truncate">{b.name}</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+              <h3 className="mb-s2 mt-s4 text-micro uppercase tracking-[0.08em] text-text-subtle">
+                {t.anschriften}
+              </h3>
+              {/* Vier Gesellschaften, vier Anschriften — jede aus ihrer `mandant`-Zeile. */}
+              <ul data-cse="nap" className="m-0 flex list-none flex-col gap-s1 p-0 text-xs leading-relaxed text-text-subtle">
+                {bereiche.map((b) => <li key={b.slug}>{b.nap}</li>)}
+              </ul>
+            </div>
 
-        {/*
-          * §5 TMG und DSGVO Art. 13 verlangen die Pflichtangaben auf Deutsch.
-          * Die englische Fassung ist eine Lesehilfe — und sagt das, statt es
-          * offenzulassen.
-          */}
-        {t.rechtsverbindlichHinweis !== '' && (
-          <p data-cse="rechtshinweis" className="mt-s4 text-xs text-text-subtle">
-            {t.rechtsverbindlichHinweis}
-          </p>
-        )}
+            <div className="min-w-0">
+              <h2 className="mb-s3 text-micro uppercase tracking-[0.08em] text-text-subtle">
+                {t.rechtlichesNav}
+              </h2>
+              <nav aria-label={t.rechtlichesNav}>
+                <ul className="m-0 flex list-none flex-col gap-s1 p-0">
+                  {RECHTLICH.map(([ziel, schluessel]) => (
+                    <li key={schluessel}>
+                      <a
+                        href={mitSprache(ziel, sprache)}
+                        className="flex min-h-11 items-center text-sm text-text-muted transition-colors duration-fast ease-brand hover:text-text"
+                      >
+                        {t.rechtlich[schluessel]}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            </div>
+          </div>
+
+          <div className="mt-s6 flex flex-col gap-s2 border-t border-line pt-s4 text-xs text-text-subtle sm:flex-row sm:items-baseline sm:justify-between">
+            <p className="m-0">© {jahr} {gruppeName}. {t.alleRechte}</p>
+            {/*
+              * §5 TMG und DSGVO Art. 13 verlangen die Pflichtangaben auf Deutsch.
+              * Die englische Fassung ist eine Lesehilfe — und sagt das, statt es
+              * offenzulassen.
+              */}
+            {t.rechtsverbindlichHinweis !== '' && (
+              <p data-cse="rechtshinweis" className="m-0 max-w-[60ch]">
+                {t.rechtsverbindlichHinweis}
+              </p>
+            )}
+          </div>
+        </div>
       </footer>
     </div>
   );

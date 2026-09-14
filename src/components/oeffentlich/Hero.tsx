@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import { Marke, type MarkeArt } from '@/components/marke/Marke';
 import { KARTEN_GRADIENT } from './MarkenKarte';
 import { shellTexte } from '@/lib/i18n/texte';
 import { VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
@@ -19,10 +20,21 @@ export interface HeroProps {
   readonly bild: { readonly pfad: string; readonly alt: string; readonly platzhalter: boolean };
   /** Dieselbe Begruendung wie bei `MarkenKarte`: das Schild erscheint auch auf `/en`. */
   readonly sprache?: Sprache;
+  /**
+   * Die Zeile ueber der Ueberschrift — Zeichen und Name der Gesellschaft
+   * oder der Gruppe. Fehlt sie, steht die Ueberschrift allein (Unterseiten).
+   */
+  readonly marke?: { readonly art: MarkeArt; readonly name: string } | null;
+  /**
+   * Die Handlungen unter dem Text: der rote Knopf und ein Ghost-Verweis
+   * (DESIGN §5 Buttons). Nur die Startseite und die Gesellschaftsseiten
+   * tragen sie — ein Impressum ruft zu nichts auf.
+   */
+  readonly aufrufe?: readonly { readonly href: string; readonly text: string; readonly primaer: boolean }[];
 }
 
 export function Hero({
-  ueberschrift, akzentWort, text, bild, sprache = VORGABE_SPRACHE,
+  ueberschrift, akzentWort, text, bild, sprache = VORGABE_SPRACHE, marke = null, aufrufe = [],
 }: HeroProps) {
   const t = shellTexte(sprache);
   return (
@@ -58,6 +70,12 @@ export function Hero({
           * der Hero am Schreibtisch eine Stufe zu klein und am Telefon eine zu
           * gross.
           */}
+        {marke !== null && (
+          <p data-cse="hero-marke" className="m-0 flex items-center gap-s2 text-sm font-semibold text-white/85">
+            <Marke art={marke.art} groesse="md" />
+            <span>{marke.name}</span>
+          </p>
+        )}
         <h1 className="text-display text-white">
           {ueberschrift}
           {akzentWort !== null && akzentWort !== undefined && akzentWort !== '' && (
@@ -68,7 +86,22 @@ export function Hero({
           )}
         </h1>
         {text !== null && text !== undefined && text !== '' && (
-          <p className="max-w-prose text-base text-white/85">{text}</p>
+          <p className="max-w-prose text-lg text-white/85">{text}</p>
+        )}
+        {aufrufe.length > 0 && (
+          <div data-cse="hero-aufrufe" className="mt-s3 flex flex-wrap gap-s3">
+            {aufrufe.map((a) => (
+              <a
+                key={a.href}
+                href={a.href}
+                className={a.primaer
+                  ? 'inline-flex min-h-11 items-center rounded-sm bg-brand px-s5 text-sm font-semibold text-white transition-colors duration-fast ease-brand hover:bg-brand-hover'
+                  : 'inline-flex min-h-11 items-center rounded-sm border border-white/40 px-s5 text-sm font-semibold text-white transition-colors duration-fast ease-brand hover:bg-white/10'}
+              >
+                {a.text}
+              </a>
+            ))}
+          </div>
         )}
       </div>
       {bild.platzhalter && (

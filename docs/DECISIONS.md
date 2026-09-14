@@ -5160,6 +5160,7 @@ niemand ihn suchen.
 | O-354 | **An welche Adresse geht ein gescheiterter Nachtlauf, und ab welchem Rang wird jemand geweckt?** `runner.ts` verspricht „kein stiller Tod", und `ProtokollAlarm` löst das heute so ehrlich, wie es ohne verbundenen Kanal geht: eine `JOB-ALARM`-Zeile auf `stderr` (auf Vercel in den Funktionsprotokollen) plus `job_lauf.ergebnis = 'fehler'` in der Datenbank. Beides setzt voraus, dass jemand nachsieht. Was fehlt, ist der Weg nach draußen — Mailadresse, Dienst oder Nummer — und die Schwelle: der Dienstplangenerator, der zweimal scheitert, ist etwas anderes als der Lead-SLA-Job, der einmal aussetzt. | SPEC §14, `src/server/jobs/alarm.ts`, `job_lauf` |
 | O-360 | **Soll die Gruppenansicht der Objekte eine Karte zeigen — und mit welchem Kartendienst?** SEITENKARTE §6 schreibt „objects across areas, one map". Eine Karte braucht Kacheln von einem externen Dienst (OpenStreetMap-Anbieter, ein EU-Anbieter) oder selbst gehostete; jeder Aufruf gibt Objektkoordinaten und die IP der Nutzerin an den Anbieter — ein Auftragsverarbeiter, der in `docs/DECISIONS.md` mit DPA und EU-Region stehen muss (CLAUDE.md, Datenresidenz). Bis dahin listet `/portal/gruppe/objekte` Adressen ohne Karte (D-475). | OPS-01, SEITENKARTE §6, D-475 |
 | O-361 | **Soll die Administration einer Gesellschaft den Menüpunkt „Einstellungen“ sehen?** Das Manifest öffnet `/portal/[mandant]/einstellungen` unter `system.mandant_lesen` (Administration und Leitung halten es), `NAVIGATION` zeigt den Punkt nur unter `system.einstellung_lesen` (Super-Administration). Heute erreicht eine Administration die Einstellungen über die Adresse, nicht über das Menü. Entweder der Punkt folgt dem Manifest, oder das Manifest folgt dem Menü — beides ist eine Zeile, keine ohne Entscheidung (D-476). | AUT-03, AUT-06, `navigation.ts`, D-476 |
+| O-362 | **Welche Gesellschaft ist Verantwortliche nach Art. 4 Nr. 7 DSGVO für den Gruppenauftritt und die Portale — die CSE Dienstleistungen GmbH wie beim bisherigen Auftritt (cse-dienstleistungen.de/privacy nennt sie mit Cosette Weyer als Ansprechpartnerin)?** Gibt es einen Datenschutzbeauftragten, und welche Löschfristen gelten für Anfragen (der Auftritt nennt eine Prüfung alle zwei Jahre)? Die Datenschutzerklärung der Plattform nennt bis zur Antwort die CSE Dienstleistungen GmbH und die Auftragsverarbeiter aus `registry/auftragsverarbeiter.ts` (D-481). | LEG-09, PUB-13, D-481 |
 | O-355 | **Wer trägt die Modulbuchung ein und pflegt `mandant.module_gepflegt`?** Seit 0103 ist die Frage nicht mehr, was eine leere Liste heisst — das Kennzeichen sagt es: `false` = nicht eingetragen, es wird nicht gefiltert (damit eine neu angelegte Gesellschaft nicht schwarz wird); `true` = die Liste gilt, leer heisst kein Gewerk. Offen bleibt der Vorgang: kommt die Buchung aus dem Vertrag, aus der Verwaltung oder setzt sie ein Super-Admin über `system.module_zuweisen` — und wer merkt, wenn sie fehlt? | `src/server/registry/modul.ts`, 0103, D-377 |
 | O-356 | **Bucht jede Gesellschaft genau ein Gewerk, oder gibt es Überschneidungen?** Der Seed setzt `reinigung → [reinigung]`, `security → [security]`, `bau → [bau]`, `operations → []` — abgeleitet aus den Gewerken, die in `CLAUDE.md` stehen. Praktisch plausibel wäre anderes: Bauendreinigung bei der REALTIME Service, Veranstaltungsreinigung bei der SSE Security. Bis zur Antwort sieht eine Gesellschaft nur ihr eigenes Gewerk; die Korrektur ist eine Zeile in `mandant.module` und kein Codeeingriff. | `mandant.module`, `src/server/db/seed/index.ts`, D-377 |
 | O-357 | **Wohin gehen die Wächter-Meldungen aus SPEC §14 — Posteingang, Mail oder beides — und wer bekommt die Kettenmeldung?** Die Ablaufwarnung (60/30/7) erreicht die Person selbst; das ist EMP-08 und unstrittig. „Hashkette gebrochen" dagegen hat keinen persönlichen Empfänger: es ist eine Meldung an die Buchhaltung oder die Geschäftsführung, und beide sind heute keine adressierbare Größe im Modell. Solange die Frage offen ist, wird der Kettenprüfer bewusst NICHT als Job registriert — ein Lauf, der jede Nacht „ok" meldet, ohne dass jemand die Meldung liest, schafft Vertrauen, das er nicht deckt. | SPEC §14, `src/server/jobs/bootstrap.ts`, `kettenlauf.ts`, NOT-01 |
@@ -8132,3 +8133,71 @@ Der Seed legt keine Rechnungen an — die Browserfälle der Rechnungs- und
 Zahlungsmodule erzeugen ihre Belege selbst. Die Übersicht zeigt deshalb im
 Demonstrationsbestand Nullen mit Betrag („0,00 €"), keine Platzhalter:
 das ist der Stand dieser Gesellschaft, nicht der des Bauzustands.
+
+### D-480 · Copilot-Runde auf PR 12 — acht Befunde, keiner „Flake", jeder mit Test
+
+Der Bot hat den Zweig gelesen, und was er fand, stimmte. Migration **0139**
+trägt drei davon: (1) `d_buchungssatz` und `d_periode` aus 0127 blieben
+`using (true)` neben dem Schnitt aus 0134 — permissive Policies sind
+ODER-verknüpft, der Schnitt galt für `cse_definer` nirgends. Jetzt schneiden
+beide auf `app.aktiver_mandant()`; der Löschriegel
+`fin.dokument_haengt_an_buchung`, der auch ohne Sitzung sehen muss, bindet
+für seine eine Abfrage `app.riegel_mandant` (die zu löschende Zeile), und
+nur ohne Sitzung greift dieser Zweig. (2) Der Archivlauf lief als `cse_job`
+gegen Tabellen ohne Recht — `dokument`, `dokument_version`, `beleg` — und
+`app.buchen_erlaubt` erkannte die Jobsitzung an `session_user`, das nach
+`set local role` die Pool-Rolle bleibt; jetzt Spaltenrechte je Weg und die
+Erkennung an `current_setting('role')`. `tests/isolation/belegarchiv-job.test.ts`
+läuft den Weg als Job. (3) `dokument_zugriff` — die Spur eines Dateiabrufs,
+die das Dokumentblatt versprach und die es nicht gab; die Route
+`GET /api/dokumente/[id]/datei` schreibt sie VOR der signierten Adresse.
+
+Im Code: CAMT liest Richtung und Währung, statt sie anzunehmen (`CdtDbtInd`
+außer `CRDT`/`DBIT` ist ein Fehler, ein `Ccy` außer EUR ebenso — O-05);
+der Leser liest dafür Attribute und ist nach `finanz/xml-lesen.ts`
+gezogen, weil die E-Rechnung (PR 63) denselben braucht. Der Bankimport
+hasht und archiviert die BYTES der Datei, nicht einen neu kodierten Text;
+die Route prüft `datei.size` vor `arrayBuffer()`. `bucheRechnung`,
+`bucheStorno` und `bucheEingangsrechnung` sperren die Quellzeile mit
+`for update`, bevor der Doppelbuchungsriegel liest. Die Klärung hat einen
+Ausgang: `bestaetigeZuordnung` und `markiereOhneBezug`
+(`POST /api/buchhaltung/bank/umsatz`, `zahlung.schreiben`), der Mensch als
+Akteur, und der Auszug wird `abgeglichen`, wenn keine Zeile mehr wartet. Die
+Saldoprobe zählt nur gebuchte Zeilen. Fünf Routen und Seiten prüfen die
+UUID vor der Abfrage (`lib/uuid.ts`); zwei Protokolle sortieren nach
+`erstellt_am`; die Rollenliste zählt WIRKSAME Rechte, das Rollenblatt löst
+GENAU EINE Rollenzeile auf (`?eigene=1`); der DATEV-Stapel kommt ohne
+Speicher als Datei zurück und aus dem Formular auf seine Seite; ein
+Benachrichtigungsziel wird aus dem Slug gebaut, nie aus der Kennung; ein
+Agentenschritt trägt Serverzeit (`beginneSchritt`, `clock_timestamp()`),
+nicht `now() - dauerMs` aus der Angabe des Aufrufers.
+
+### D-481 · Marken, Fußbereich, Datenschutzerklärung — was der Auftritt zeigt
+
+**Vorläufige Bildzeichen.** Die Logodateien liegen nicht vor (O-12). Bis
+dahin trägt jede Gesellschaft ein geometrisches Zeichen in ihrer
+Identitätsfarbe auf demselben Kachelraster, die Gruppe die vier Farben auf
+Ink — dokumentiert in DESIGN §1 „Marks and logos", gebaut in
+`components/marke/Marke.tsx`, verwendet im Kopf und Fuß des Auftritts, im
+Portalkopf (statt des unterstrichenen Namens), auf den Markenkarten, im
+Impressum, in der Gesellschaftswahl und als Favicon. Nur Tokens; nichts
+gestreckt; der Name kommt aus der Datenbank.
+
+**Der Fußbereich ist eine Komposition**: Marke und Leitsatz, die vier
+Gesellschaften mit Zeichen und Anschriften, das Rechtliche, darunter Jahr
+und Rechtshinweis — im selben `max-w-content` wie der Inhalt. Die
+NAP-Zeilen bleiben zeichengleich (`seo.spec` liest sie gegen `llms.txt`).
+
+**Die Datenschutzerklärung** folgt der des bestehenden Auftritts
+(cse-dienstleistungen.de/privacy, D-473) — übernommen, wo sie für diese
+Plattform stimmt; ersetzt, wo nicht: kein Google Analytics (PUB-13), die
+beiden Auftragsverarbeiter aus dem Verzeichnis statt eines namenlosen
+Hosters, ein Abschnitt für die Portale (§ 26 BDSG, § 17 MiLoG), keine
+erfundene Speicherdauer. Verantwortliche und Fristen bleiben zu bestätigen
+(O-362). Die englische Fassung ist eine Lesehilfe und sagt das (D-84).
+
+**Sechs Glyphen** (`reinigung`, `security`, `qualitaet`, `eingang`, `buch`,
+`bank`): kein Navigationspunkt trägt mehr das Bild eines anderen. Der Held
+der Startseite und der Gesellschaftsseiten trägt die Marke und zwei
+Aufrufe (roter Knopf, Ghost-Verweis) — eine Startseite, die zu nichts
+führte, war keine.

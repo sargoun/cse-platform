@@ -204,26 +204,140 @@ export const SEITEN_EN: readonly SeitenInhalt[] = [
   },
   {
     pfad: '/datenschutz',
-    beschreibung: 'Privacy notice under the GDPR.',
+    beschreibung: 'Privacy notice under Art. 13 GDPR — website, portals and core business.',
+    // A convenience translation of the German notice; the German version is binding (D-84).
     abschnitte: [
-      { art: 'hero', ueberschrift: 'Privacy', text: null },
+      { art: 'hero', ueberschrift: 'Privacy', text:
+        'Privacy notice under Art. 13 GDPR for this website and the group portals. '
+        + 'Version: September 2026. The German version is the legally binding one.' },
+      {
+        art: 'text',
+        ueberschrift: 'Who is responsible for processing',
+        text:
+          'The controller is CSE Dienstleistungen GmbH, Kurfürstendamm 201, 10719 '
+          + 'Berlin, Germany, phone +49 30 91203341, office@cse-dienstleistungen.de. '
+          + 'Your contact for data-protection matters is Cosette Weyer. This notice '
+          + 'covers the joint presence of the four group companies; the details of '
+          + 'each company are in the legal notice.',
+      },
+      {
+        art: 'text',
+        ueberschrift: 'Personal data — what that means',
+        text:
+          'With this notice we explain the nature, scope and purpose of the '
+          + 'processing of personal data. Personal data is any data that relates '
+          + 'to you personally, for example your name, address, e-mail address or '
+          + 'usage behaviour.',
+      },
+      {
+        art: 'text',
+        ueberschrift: 'Processing in the course of our core business',
+        text:
+          'We process the personal data you provide within our contractual and '
+          + 'pre-contractual relationship: name and address, e-mail address and '
+          + 'phone number, contract data and payment data. Processing is limited to '
+          + 'what is needed to answer your enquiry or to perform the contract. Data '
+          + 'is passed to third parties only where the service, our bookkeeping or '
+          + 'a legal obligation requires it. The legal basis is Art. 6(1)(b) GDPR; '
+          + 'otherwise Art. 6(1)(c) or (f) GDPR. Data is deleted once it is no '
+          + 'longer needed; statutory retention periods (§ 147 AO, § 257 HGB) '
+          + 'remain unaffected.',
+      },
+      {
+        art: 'text',
+        ueberschrift: 'Hosting and processors',
+        text:
+          'The website and the portals are served by Vercel (server functions in '
+          + 'an EU region); database, sign-in and file storage run on Supabase in '
+          + 'Frankfurt (EU). Both process data on our behalf under Art. 28 GDPR. '
+          + 'When you open a page, the host processes what your browser sends: IP '
+          + 'address, date and time, status, transferred volume, browser and '
+          + 'operating system, the referring page and the pages you open — needed '
+          + 'to deliver the site and to keep it stable and secure (Art. 6(1)(f) '
+          + 'GDPR). These access data are kept only as long as operation and '
+          + 'security require. No data is transferred to third countries.',
+      },
       {
         art: 'text',
         ueberschrift: 'No third parties on this site',
         text:
           'This website loads no fonts, no analytics and no maps from external '
-          + 'servers. That is why there is no cookie banner either: there is '
-          + 'nothing to consent to.',
+          + 'servers and sets no analytics or advertising cookies. That is why '
+          + 'there is no cookie banner: there is nothing to consent to. After '
+          + 'signing in to a portal the application sets one strictly necessary '
+          + 'session cookie (§ 25(2) no. 2 TTDSG); it ends when you sign out.',
       },
       {
         art: 'text',
-        ueberschrift: 'When you submit a form',
+        ueberschrift: 'When you contact us or submit a form',
         text:
-          'We store what you entered, together with the date and time of receipt '
-          + 'and a non-reversible check value derived from your IP address, to '
-          + 'prevent abuse. The IP address itself is not stored. The legal basis '
-          + 'is Art. 6(1)(b) and (f) GDPR — handling your enquiry. The German '
-          + 'version of this notice is the legally binding one.',
+          'If you contact us by e-mail, phone, post or through our forms, the '
+          + 'data you provide is stored and processed to handle your request. For '
+          + 'a form we store what you entered, the date and time of receipt and a '
+          + 'non-reversible check value derived from your IP address to prevent '
+          + 'abuse; the IP address itself is not stored. The legal basis is Art. '
+          + '6(1)(a) GDPR for a form, Art. 6(1)(b) within a contractual '
+          + 'relationship, otherwise our legitimate interest in answering you '
+          + 'properly (Art. 6(1)(f)). Data is deleted when it is no longer needed; '
+          + 'we review this every two years. You may withdraw consent at any time.',
+      },
+      {
+        art: 'text',
+        ueberschrift: 'Customer and employee portals',
+        text:
+          'In the portals we process what the cooperation requires: sign-in data '
+          + 'and session, for customers their orders, service records and '
+          + 'invoices, for employees their employment data, rosters, time records '
+          + 'and certificates. The legal basis is Art. 6(1)(b) GDPR, § 26 BDSG for '
+          + 'employees, and Art. 6(1)(c) GDPR where the law demands a record (for '
+          + 'example § 17 MiLoG for working hours). Retention follows the statutory '
+          + 'periods; afterwards data is deleted or blocked.',
+      },
+      {
+        art: 'text',
+        ueberschrift: 'Your rights under the GDPR',
+        text:
+          'You may at any time exercise the following rights against the '
+          + 'controller named above: access (Art. 15), rectification (Art. 16), '
+          + 'erasure (Art. 17) unless we must keep the data to meet a legal '
+          + 'obligation or to establish, exercise or defend legal claims, '
+          + 'restriction of processing (Art. 18), notification (Art. 19), data '
+          + 'portability (Art. 20), and the right to lodge a complaint with a '
+          + 'supervisory authority (Art. 77). Consent once given may be withdrawn '
+          + 'at any time (Art. 7(3)); processing carried out before the withdrawal '
+          + 'remains lawful.',
+      },
+      {
+        art: 'text',
+        ueberschrift: 'Right to object',
+        text:
+          'You have the right to object at any time, on grounds relating to your '
+          + 'particular situation, to processing based on a balancing of interests '
+          + '(Art. 6(1)(f) GDPR). We will then stop processing your data unless we '
+          + 'can demonstrate compelling legitimate grounds that override your '
+          + 'interests and rights. You may object to processing for advertising '
+          + 'purposes at any time without giving reasons. Please send your '
+          + 'objection to the contact address above.',
+      },
+      {
+        art: 'text',
+        ueberschrift: 'Security measures',
+        text:
+          'We take technical and organisational measures in line with the state '
+          + 'of the art to protect your data against accidental or deliberate '
+          + 'manipulation, partial or complete loss, destruction and unauthorised '
+          + 'access. Every service that runs this platform is pinned to EU '
+          + 'regions; files are kept in private storage and released only through '
+          + 'time-limited, signed addresses.',
+      },
+      {
+        art: 'text',
+        ueberschrift: 'Currency of this notice',
+        text:
+          'This privacy notice is current as of September 2026. Changes in law or '
+          + 'in the platform may require an update; the current version is always '
+          + 'published here. The German version of this notice is the legally '
+          + 'binding one.',
       },
     ],
   },

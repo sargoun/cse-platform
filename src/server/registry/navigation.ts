@@ -61,13 +61,13 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * Modul `eingang`: wer fakturiert, prueft nicht schon deswegen
    * Lieferantenrechnungen.
    */
-  { schluessel: 'eingangsrechnungen', label: 'Eingangsrechnungen', pfad: 'finanzen/eingangsrechnungen', recht: 'eingang.lesen', gruppe: true, icon: 'rechnung' },
+  { schluessel: 'eingangsrechnungen', label: 'Eingangsrechnungen', pfad: 'finanzen/eingangsrechnungen', recht: 'eingang.lesen', gruppe: true, icon: 'eingang' },
   /**
    * `finanzen/ausgangsbuch` — die Folge der ausgestellten Rechnungen (FIN-16).
    * Recht `nummernkreis.lesen` und nicht `finanzen.lesen`: das Buch ist die
    * Sicht auf den KREIS, und wer es liest, prueft die Lueckenlosigkeit.
    */
-  { schluessel: 'ausgangsbuch', label: 'Ausgangsbuch', pfad: 'finanzen/ausgangsbuch', recht: 'nummernkreis.lesen', gruppe: true, icon: 'export' },
+  { schluessel: 'ausgangsbuch', label: 'Ausgangsbuch', pfad: 'finanzen/ausgangsbuch', recht: 'nummernkreis.lesen', gruppe: true, icon: 'buch' },
   /**
    * `finanzen/mahnungen` — die Mahnungen (FIN-15). Eigenes Recht
    * `mahnung.lesen`: eine Mahnung ist eine Aussage ueber die Zahlungsmoral
@@ -91,7 +91,7 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * eine Liste ueber alle vier waere keine Buchhaltung, sondern eine
    * Vermischung — auch lesend.
    */
-  { schluessel: 'buchungen', label: 'Buchungen', pfad: 'buchhaltung/buchungen', recht: 'buchhaltung.lesen', gruppe: false, icon: 'export' },
+  { schluessel: 'buchungen', label: 'Buchungen', pfad: 'buchhaltung/buchungen', recht: 'buchhaltung.lesen', gruppe: false, icon: 'buch' },
   /**
    * `buchhaltung/datev` — die erzeugten Buchungsstapel (ACC-02).
    *
@@ -107,7 +107,7 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * gemeldet hat. Das EINLESEN verlangt zusaetzlich `zahlung.schreiben` —
    * es legt Zahlungen an —, und das prueft die Route, nicht der Menuepunkt.
    */
-  { schluessel: 'bank', label: 'Bank', pfad: 'buchhaltung/bank', recht: 'buchhaltung.lesen', gruppe: false, icon: 'export' },
+  { schluessel: 'bank', label: 'Bank', pfad: 'buchhaltung/bank', recht: 'buchhaltung.lesen', gruppe: false, icon: 'bank' },
   { schluessel: 'datev', label: 'DATEV', pfad: 'buchhaltung/datev', recht: 'buchhaltung.exportieren', gruppe: false, icon: 'export' },
   { schluessel: 'dokumente', label: 'Dokumente', pfad: 'dokumente', recht: 'dokument.lesen', gruppe: true, icon: 'dokument' },
   /**
@@ -149,7 +149,7 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * Gruppenlesepfad (§1.7): eine Gruppenleitung liest keine
    * Vorkommnismeldungen einer anderen Gesellschaft.
    */
-  { schluessel: 'security', label: 'Security', pfad: 'security/posten', recht: 'security.lesen', gruppe: false, icon: 'schloss' },
+  { schluessel: 'security', label: 'Security', pfad: 'security/posten', recht: 'security.lesen', gruppe: false, icon: 'security' },
   /**
    * `reinigung/reviere`, nicht `reinigung`: die Modulübersicht steht zwar in
    * der Seitenkarte, hat aber erst mit dem Turnus-Gesundheitsblatt einen
@@ -161,14 +161,14 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * zuerst DESIGN.md zu ändern. Ein Revier IST eine Zone in einem Gebäude,
    * also ist das Gebäude das nächstliegende Bild.
    */
-  { schluessel: 'reinigung', label: 'Reinigung', pfad: 'reinigung/reviere', recht: 'reinigung.lesen', gruppe: true, icon: 'objekt' },
+  { schluessel: 'reinigung', label: 'Reinigung', pfad: 'reinigung/reviere', recht: 'reinigung.lesen', gruppe: true, icon: 'reinigung' },
   /**
    * Qualität steht NEBEN den Gewerken, nicht darin: eine Beanstandung über
    * einen Wachmann ist dieselbe Zeile wie eine über eine Reinigungsrunde
    * (04-SEITENKARTE.md §5.6). `warnung` als Icon, weil der Punkt im Alltag
    * genau dafür angeklickt wird — die offenen Fälle.
    */
-  { schluessel: 'qualitaet', label: 'Qualität', pfad: 'qualitaet/reklamationen', recht: 'qualitaet.lesen', gruppe: true, icon: 'warnung' },
+  { schluessel: 'qualitaet', label: 'Qualität', pfad: 'qualitaet/reklamationen', recht: 'qualitaet.lesen', gruppe: true, icon: 'qualitaet' },
   /**
    * PR 42 — die beiden Security-Register bekommen eigene Punkte.
    *

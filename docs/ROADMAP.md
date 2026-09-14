@@ -101,6 +101,13 @@ clone, and the architecture document is reviewed.
       come from the route manifest's rights
 - [x] **Finance overview per company** (D-479): the tab-bar target that had
       no page; rights-gated tiles, cards from the route manifest
+- [x] **Copilot round on PR 12** (D-480): definer policies cut per tenant
+      (0139), archive job writes as `cse_job`, `dokument_zugriff`, CAMT reads
+      direction and currency, byte-exact statement hashing, booking lock,
+      bank clearing with a human as actor, UUID guards, effective role rights.
+- [x] **Marks, footer, privacy notice** (D-481): provisional marks per company
+      and for the group, a composed footer, the privacy notice from the live
+      site adapted to this platform, six navigation glyphs, hero calls.
 - [x] **Documents list and detail, employment sheet** (D-478): the last
       sidebar entry without a page; no download claimed while storage is
       not connected; rights asked before hours account and absences

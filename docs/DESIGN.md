@@ -65,6 +65,42 @@ Reason: with a single red across four entities, a user working in three of them
 cannot tell at a glance which one they are in — and that is exactly the mistake
 that puts an invoice in the wrong GmbH.
 
+### Marks and logos
+
+The official logo files have not been delivered (`// TODO(client)`: **O-12**).
+Until they arrive every company carries a **provisional mark** built from the
+tokens above, so that the header, the footer, the company cards, the switcher
+and the favicon all show the same sign — and so that a replacement keeps the
+sizes and the clear space.
+
+| Mark | Tile | Glyph |
+|---|---|---|
+| `gruppe` | `--ink` | four dots in the four area hues — four companies, one house |
+| `reinigung` | `--area-reinigung` | an arc wiping a surface clean, one highlight |
+| `security` | `--area-security` | a shield with a check |
+| `bau` | `--area-bau` | two building volumes on a baseline |
+| `operations` | `--area-operations` | four nodes, one net |
+
+**Geometry.** A `24×24` tile with radius `6` (25 %), the glyph drawn like the
+icons (§5): stroke `2`, round caps and joins, `--white`, no fill. The mark is
+never stretched, never recoloured, never placed on a background of its own hue.
+
+| Size token | px | Where |
+|---|---|---|
+| `marke-sm` | 24 | portal header, switcher rows, table cells |
+| `marke-md` | 32 | public header, company cards |
+| `marke-lg` | 40 | footer, company profile hero |
+| `marke-xl` | 56 | favicon source, print letterhead |
+
+**Lockup.** Mark and name side by side, gap `s2`, the name in Inter
+semibold at `base` (`h3` from `lg`, `h2` at `xl`), `tracking-tight`. The name
+comes from `mandant.name` or `plattform_einstellung`, never from the component.
+Clear space around the lockup is at least the tile's radius. On a phone header
+the name may collapse to `sr-only` while the mark stays.
+
+Component: `src/components/marke/Marke.tsx` (`Marke`, `Logo`). The favicon
+`src/app/icon.svg` is the `gruppe` mark.
+
 ### Semantic
 
 ```css
@@ -343,7 +379,12 @@ rechnung · dokument · einstellungen · freigabe · wachbuch · aufmass ·
 ausschreibung · ki · heute · kalender · uhr · standort · telefon · mail ·
 suche · filter · plus · export · import · pfeil-rechts · pfeil-runter ·
 chevron-rechts · menue · schliessen · schloss · auge · stift · papierkorb ·
-warnung · ok · fehler · info · gruppe · person · euro`
+warnung · ok · fehler · info · gruppe · person · euro · reinigung · security ·
+qualitaet · eingang · buch · bank`
+
+**No two navigation items share a glyph.** A sidebar is scanned by shape;
+four items on the same export arrow read as one item. `reinigung`,
+`security`, `qualitaet`, `eingang`, `buch` and `bank` exist for that reason.
 
 ### KPI stat card
 
