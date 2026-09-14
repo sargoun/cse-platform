@@ -183,6 +183,10 @@ export interface ProfilZeile {
   readonly schwelle: number | null;
   readonly cpv: readonly { readonly code: string; readonly laenge: number; readonly wirkung: string }[];
   readonly bewertungen: number;
+  /** Wer benachrichtigt wird — und ab welcher Punktzahl WIRKLICH (RAD-08). */
+  readonly empfaenger: readonly {
+    readonly name: string; readonly abPunkte: number | null;
+  }[];
 }
 
 export async function leseProfile(kontext: LeseKontext): Promise<readonly ProfilZeile[]> {
@@ -194,7 +198,15 @@ export async function leseProfile(kontext: LeseKontext): Promise<readonly Profil
             coalesce(json_agg(json_build_object('code', c.cpv_code, 'laenge', c.praefix_laenge,
                                                 'wirkung', c.wirkung)
                               order by c.cpv_code) filter (where c.id is not null), '[]') as cpv,
-            (select count(*) from bewertung b where b.radar_profil_id = p.id)::int as bewertungen
+            (select count(*) from bewertung b where b.radar_profil_id = p.id)::int as bewertungen,
+            coalesce((select json_agg(json_build_object(
+                        'name', u.name,
+                        /* Die WIRKSAME Schwelle: die des Empfaengers, sonst die des Profils. */
+                        'abPunkte', coalesce(e.ab_punkte, p.benachrichtigung_ab_punkte))
+                      order by u.name)
+                        from radar_profil_empfaenger e
+                        join benutzer u on u.id = e.benutzer_id
+                       where e.radar_profil_id = p.id), '[]') as empfaenger
        from radar_profil p
        left join radar_profil_cpv c on c.radar_profil_id = p.id
       where p.geloescht_am is null
@@ -218,6 +230,8 @@ export async function leseProfile(kontext: LeseKontext): Promise<readonly Profil
       code: c.code, laenge: c.laenge, wirkung: c.wirkung,
     })),
     bewertungen: Number(z['bewertungen']),
+    empfaenger: (z['empfaenger'] as { name: string; abPunkte: number | null }[] | null ?? [])
+      .map((e) => ({ name: e.name, abPunkte: e.abPunkte })),
   }));
 }
 

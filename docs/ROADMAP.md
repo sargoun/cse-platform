@@ -398,7 +398,8 @@ Radar first — the agents operate on its output.
       Bearbeitung and verworfen **with a mandatory reason**. There is no
       submit button anywhere in the module and the browser suite counts the
       word (D-07). **Notifications (RAD-08) still open** — they need the
-      threshold nobody has set (O-15).
+      threshold nobody has set (O-15). **Shipped in PR 71** (D-493): the
+      threshold stays unset, and that is now *visible* instead of silent.
 - [x] Platform registration tracking (RAD-09) (PR 69, D-490) — the warning
       is in the LIST, not only on the detail page, because a platform
       unlock takes days to weeks. The catalogue ships **empty** and the
@@ -415,6 +416,15 @@ Radar first — the agents operate on its output.
       (`zuschlag` / `nicht_beruecksichtigt` / `verfahren_aufgehoben`) closes
       REP-06's "found · screened · bid · won". The checklist ships **empty**
       and the page says why (**O-194**).
+- [x] Deadline watchdog and RAD-08 notifications (PR 71, D-493) — **the first
+      of SPEC §14's eight watchdogs**, and the one that needs no setting: five
+      days are written in the SPEC, so it runs from day one, for an *untouched*
+      case only. RAD-08 is the opposite: its threshold is **O-15's to answer**,
+      so without a number nothing is sent — and the profile page says so per
+      recipient while the run reports `empfaenger_ohne_schwelle`, so "0 hits"
+      can never be mistaken for a quiet day. A receipt table keyed on the
+      deadline instant prevents the second notice for the same situation, and
+      makes a *rescheduled* deadline a new one.
 - [ ] `pgvector` index over contracts, objects, offers, correspondence
 - [ ] Agent tools (AGT-02); `berechne_preis` is **pure code**
 - [x] Policy gate (`agent/policy.ts`) — the floor is code, not data: an offer,

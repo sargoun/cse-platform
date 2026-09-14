@@ -127,10 +127,29 @@ export default async function Profile(
                       p.wertMaxCent === null ? '' : `bis ${formatiereGeld(cent(p.wertMaxCent))}`}`}
                 </dd>
                 <dt className="text-text-muted">Benachrichtigung</dt>
-                <dd className="text-text">
-                  {p.schwelle === null
-                    ? 'keine Schwelle gesetzt (O-15)'
-                    : `ab ${String(p.schwelle)} von ${String(p.skalaMax)} Punkten`}
+                <dd className="text-text" data-cse="radar-profil-benachrichtigung">
+                  {p.empfaenger.length === 0 ? (
+                    <span className="text-text-muted">
+                      Niemand eingetragen — RAD-08 meldet für dieses Profil nichts.
+                      {p.schwelle === null ? '' : ` Die Profilschwelle ${String(p.schwelle)} wirkt erst mit einem Empfänger.`}
+                    </span>
+                  ) : (
+                    <>
+                      {p.empfaenger.map((e) => (
+                        <span key={e.name} className="block" data-cse="radar-empfaenger"
+                              data-schwelle={e.abPunkte ?? ''}>
+                          {e.name} —{' '}
+                          {e.abPunkte === null
+                            ? 'ohne Schwelle, bekommt keine Treffermeldung (O-15)'
+                            : `ab ${String(e.abPunkte)} von ${String(p.skalaMax)} Punkten`}
+                        </span>
+                      ))}
+                    </>
+                  )}
+                  <span className="mt-s2 block text-xs text-text-subtle">
+                    Die knappe Abgabefrist meldet der Wächter ohne Schwelle: fünf Tage stehen in
+                    SPEC §14 und RAD-06, die sind nicht einzustellen.
+                  </span>
                 </dd>
                 <dt className="text-text-muted">Fassung</dt>
                 <dd className="text-text tabular-nums" data-cse="radar-profil-version">

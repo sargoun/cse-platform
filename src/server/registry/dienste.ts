@@ -44,6 +44,15 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'radar', pfad: 'radar/quelle', schreibend: false },
   { modul: 'radar', pfad: 'radar/ted', schreibend: false },
   /**
+   * **Die beiden Waechter (PR 71).** `benachrichtigung` definiert nur die zwei
+   * Arten; `warnung` schreibt die Quittung und stellt zu — und zwar als JOB,
+   * nicht als Handlung eines Menschen. Das Schreibrecht ist deshalb keines aus
+   * dem Katalog: `cse_job` traegt die Policy, `cse_app` hat auf
+   * `radar_warnung` nur Lesen.
+   */
+  { modul: 'radar', pfad: 'radar/benachrichtigung', schreibend: false },
+  { modul: 'radar', pfad: 'radar/warnung', schreibend: false },
+  /**
    * **Die Vergabemappe (PR 70, RAD-07, D-07).** `mappe` fuehrt die Pruefliste
    * unter `vergabe.schreiben`; `einreichung` bezeugt die Abgabe und traegt
    * deshalb ein eigenes Recht — wer Formblaetter abhakt, bezeugt damit nicht,

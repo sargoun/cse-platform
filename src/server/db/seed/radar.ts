@@ -177,6 +177,7 @@ export interface RadarSeedBefund {
   readonly bekanntmachungen: number;
   readonly bewertungen: number;
   readonly mappenpositionen: number;
+  readonly empfaenger: number;
 }
 
 export async function seedRadar(
@@ -250,10 +251,11 @@ export async function seedRadar(
     { seit: new Date(0), jetzt: jetzt?.jetzt ?? new Date(0) });
 
   const mappe = await seedVergabemappe(sql, mandanten);
+  const empfaenger = await seedEmpfaenger(sql, mandanten);
 
   return {
     profile, bekanntmachungen: BEKANNTMACHUNGEN.length, bewertungen: lauf.neueZeilen,
-    mappenpositionen: mappe,
+    mappenpositionen: mappe, empfaenger,
   };
 }
 
@@ -390,4 +392,45 @@ async function seedVergabemappe(
     }
     return positionen.length;
   }) as Promise<number>;
+}
+
+/**
+ * Die Empfänger einer Radarmeldung (RAD-08) — **ohne Punktschwelle**.
+ *
+ * **Warum eingetragen, aber ohne Zahl.** Der Fristenwächter (SPEC §14) läuft
+ * ohne jede Einstellung: fünf Tage stehen im SPEC. Die Trefferschwelle steht
+ * dort nicht, und sie zu raten hiesse, eine Entscheidung des Betriebs zu
+ * erfinden (O-15) — eine zu niedrige Zahl macht Lärm, eine zu hohe Stille,
+ * und beides fällt erst auf, wenn eine Vergabe verpasst ist.
+ *
+ * Der Seed legt deshalb genau die Lage an, die ein neuer Betrieb hat: die
+ * Einsatzleitung ist eingetragen, bekommt die Fristwarnungen, und die
+ * Profilseite sagt bei jedem Empfänger, dass ohne Schwelle keine
+ * Treffermeldung kommt. Eine gesetzte Demoschwelle sähe aus wie eine
+ * beantwortete Frage.
+ */
+async function seedEmpfaenger(
+  sql: postgres.Sql, mandanten: ReadonlyMap<string, string>,
+): Promise<number> {
+  const zuordnung: readonly [string, string][] = [
+    ['reinigung', 'admin.reinigung@cse-gruppe.de'],
+    ['bau', 'admin.bau@cse-gruppe.de'],
+    ['security', 'leitung.security@cse-gruppe.de'],
+  ];
+  let angelegt = 0;
+  for (const [bereich, email] of zuordnung) {
+    const mandantId = mandanten.get(bereich);
+    if (mandantId === undefined) continue;
+    const [u] = await sql<{ id: string }[]>`select id from benutzer where email = ${email}`;
+    if (u === undefined) continue;
+    const ergebnis = await sql<{ id: string }[]>`
+      insert into radar_profil_empfaenger (mandant_id, radar_profil_id, benutzer_id, ab_punkte)
+      select ${mandantId}, p.id, ${u.id}, null
+        from radar_profil p
+       where p.mandant_id = ${mandantId} and p.geloescht_am is null
+      on conflict (radar_profil_id, benutzer_id) do nothing
+      returning id`;
+    angelegt += ergebnis.length;
+  }
+  return angelegt;
 }

@@ -1449,7 +1449,9 @@ async function main(): Promise<void> {
     + `${String(radar.profile)} Suchprofile — CPV-Listen sind Platzhalter (O-98), `
     + `der Plattformkatalog bleibt leer (O-07); ${String(radar.bewertungen)} Bewertungen; `
     + `eine Vergabemappe in Arbeit mit ${String(radar.mappenpositionen)} Positionen `
-    + `(nicht eingereicht — die Plattform reicht nichts ein, D-07)\n`,
+    + `(nicht eingereicht — die Plattform reicht nichts ein, D-07); `
+    + `${String(radar.empfaenger)} Benachrichtigungsempfaenger OHNE Punktschwelle — `
+    + `Fristwarnungen laufen, Treffermeldungen erst mit einer Schwelle (O-15)\n`,
   );
 
   const frei = await seedFreigaben(sql, ids);

@@ -115,3 +115,52 @@ export async function stelleZu(
 
   return { zugestellt, ohneEmpfaenger };
 }
+
+/**
+ * Zustellung an ein KONTO statt an einen Menschen.
+ *
+ * **Warum es beides gibt.** `stelleZu` löst den Zugang aus der Person auf —
+ * richtig überall dort, wo die Meldung dem MENSCHEN gilt (sein Nachweis, sein
+ * Dienstplan), und deshalb der Regelfall. Der Radar adressiert dagegen von
+ * vornherein Konten: `radar_profil_empfaenger.benutzer_id` und
+ * `ausschreibung_vorgang.verantwortlich_benutzer_id` sind Zugänge, ihre
+ * Zugehörigkeit zur Gesellschaft ist per Trigger geprüft (0146, 0148), und
+ * ein Umweg über `person` verlöre genau diese Prüfung — ein Dienstkonto hat
+ * gar keine Person.
+ *
+ * Ein deaktiviertes Konto bekommt nichts und steht im Bericht: eine Meldung
+ * in einen stillgelegten Posteingang ist eine Meldung an niemanden.
+ */
+export async function stelleZuAnKonto(
+  db: Abfrage,
+  auftraege: readonly {
+    readonly benachrichtigung: ErzeugteBenachrichtigung;
+    readonly benutzerId: string;
+    readonly objektTyp: string;
+    readonly objektId: string | null;
+  }[],
+): Promise<{ readonly zugestellt: number; readonly ohneKonto: number }> {
+  let zugestellt = 0;
+  let ohneKonto = 0;
+
+  for (const auftrag of auftraege) {
+    const konten = (await db.unsafe(
+      `select id from benutzer
+        where id = $1::uuid and status = 'aktiv' and deaktiviert_am is null`,
+      [auftrag.benutzerId],
+    )) as readonly { id: string }[];
+    if (konten.length === 0) { ohneKonto += 1; continue; }
+
+    const b = auftrag.benachrichtigung;
+    await db.unsafe(
+      `insert into benachrichtigung
+         (mandant_id, empfaenger_id, art, titel, text, ziel, objekt_typ, objekt_id, sammelbar)
+       values ($1::uuid,$2::uuid,$3,$4,$5,$6,$7,$8,$9)`,
+      [b.mandantId, auftrag.benutzerId, b.art, b.titel, b.text, b.ziel,
+        auftrag.objektTyp, auftrag.objektId, b.sammelbar],
+    );
+    zugestellt += 1;
+  }
+
+  return { zugestellt, ohneKonto };
+}

@@ -8891,3 +8891,81 @@ beweisen, was kein Kommentar beweisen kann: `cse_app` scheitert an
 `update … set eingereicht_am` mit „permission denied", eine Freigabe im Namen
 eines Kollegen wird abgewiesen, dreissig Zeilen in einer Anweisung zählen
 einmal nach, und `in_bearbeitung` ohne Mappe wirft.
+
+### D-493 · Zwei Radarwächter: einer, der ohne Einstellung läuft, und einer, der ohne Zahl schweigt (PR 71)
+
+SPEC §14 nennt acht Wächter; der erste ist „Tender deadline < 5 days,
+untouched → notify owner". RAD-08 nennt einen zweiten: „Notification above a
+score threshold". Beide melden über dieselbe Bekanntmachung an denselben
+Menschen — und der Unterschied zwischen ihnen ist der Kern dieser
+Entscheidung.
+
+**Der Fristenwächter braucht nichts, was jemand entscheiden müsste.** Die
+fünf Tage stehen wörtlich in SPEC §14 und noch einmal in RAD-06. Er läuft
+also ab dem ersten Tag, ohne Konfiguration, ohne Platzhalter. „Unberührt"
+heisst `neu` oder `geprueft`: wer in Bearbeitung ist, weiss Bescheid; wer
+verworfen hat, hat entschieden; wer eingereicht hat, ist fertig. Gemeldet
+wird genau der Fall, in dem niemand etwas tut und die Zeit abläuft.
+Empfänger ist der Verantwortliche, ersatzweise die Empfänger des Profils —
+eine Warnung an alle wäre die Sorte Lärm, nach der Leute Postfachregeln
+anlegen.
+
+**Die Trefferbenachrichtigung schweigt ohne Zahl** (O-15). Ab welcher
+Punktzahl eine Vergabe eine Meldung wert ist, weiss nur der Betrieb: zu
+niedrig ist Lärm, zu hoch ist Stille, und beides fällt erst auf, wenn eine
+Ausschreibung verpasst wurde. Die wirksame Schwelle ist
+`coalesce(radar_profil_empfaenger.ab_punkte, radar_profil.benachrichtigung_ab_punkte)`
+— die Regel des Profils als Vorgabe, die Verschärfung eines Einzelnen
+darüber. Ist sie `null`, wird **nicht** gemeldet, und zwar **sichtbar**: die
+Profilseite schreibt es an jeden Empfänger, und der Lauf gibt
+`empfaenger_ohne_schwelle` als eigene Kennzahl aus. Ohne diese Zahl sähe
+„0 Treffer" wie ein ruhiger Tag aus statt wie ein unbestellter Wächter.
+
+**Warum `coalesce` und nicht nur die Empfängerzeile:** die Profilseite zeigt
+die Profilschwelle prominent. Sie dort zu setzen und dann nichts zu bekommen,
+weil die Meldung an einer zweiten, unsichtbaren Zahl hängt, wäre genau der
+stille Ausfall, den niemand sucht.
+
+**Die Quittung ist ein Tisch, kein Vermerk an der Bekanntmachung.**
+`radar_warnung` trägt Mandant, Bekanntmachung, Empfänger, Art **und den
+Fristzeitpunkt**; der Eindeutigkeitsindex verhindert die zweite Meldung
+derselben Lage. Eine Spalte `gewarnt_am` an `ausschreibung` wäre falsch
+gelegen: die Bekanntmachung gehört keiner Gesellschaft (0145), die Warnung
+schon — vier Gesellschaften warnen unabhängig, und die Reinigung soll nicht
+deshalb schweigen, weil der Bau gestern schon gewarnt hat. Der Fristzeitpunkt
+gehört in den Schlüssel, weil eine verschobene Abgabe eine NEUE Lage ist
+(dieselbe Überlegung wie `nachweis_warnung.gueltig_bis`): ohne ihn wäre die
+einmalige Warnung eine Warnung für immer, auch wenn die Verlängerung die
+Sache erst wieder machbar macht. Quittiert wird **vor** der Zustellung —
+andersherum stünde die Meldung nach einem Abbruch zweimal im Posteingang.
+
+**`stelleZuAnKonto` neben `stelleZu`.** Der Regelfall adressiert den
+MENSCHEN und löst den Zugang über `person` auf — richtig bei einem Nachweis,
+der einer Person gehört. Der Radar adressiert von vornherein Konten
+(`radar_profil_empfaenger.benutzer_id`, `verantwortlich_benutzer_id`), ihre
+Zugehörigkeit zur Gesellschaft ist per Trigger geprüft, und der Umweg über
+`person` verlöre genau diese Prüfung — ein Dienstkonto hat gar keine Person.
+
+**Zwei Befunde, die erst der echte Lauf gefunden hat.** Beide waren
+unsichtbar, solange der Code als Eigentümer lief:
+
+1. **`permission denied for table mandant`.** Ein Portalziel trägt den SLUG,
+   nicht die Kennung (NOT-03), also liest der Wächter `mandant` — und
+   `cse_job` hatte darauf weder Recht noch Policy. Der erste nächtliche Lauf
+   wäre gestorben, nachdem alles andere längst grün war. Jetzt ein
+   Spaltenrecht auf `(id, slug)`: Steuernummer und Geschäftsführer stehen in
+   derselben Zeile und gehen einen Wächter nichts an.
+2. **Zwei Artschlüssel als Zeichenkettenliteral.** `'radar.frist_knapp'` hat
+   die Form `<modul>.<etwas>`, und der Rechtekatalog-Scanner liest genau diese
+   Form als RECHTEschlüssel — K-19 fiel mit „Schlüssel ohne Katalogzeile"
+   über eine Benachrichtigungsart, die gar kein Recht ist. Zusammengesetzt
+   statt geschrieben, wie `nachweis.artSchluessel` es seit 0030 tut.
+
+**Der Seed trägt Empfänger ein, aber KEINE Schwelle.** Das ist die Lage eines
+neuen Betriebs: die Fristwarnungen laufen, die Treffermeldungen warten auf
+eine Zahl, und die Profilseite sagt beides. Eine gesetzte Demoschwelle sähe
+aus wie eine beantwortete Frage.
+
+**Geprüft:** Kern 1671 · Isolation 1555 (neu: `radar-warnungen` 14) · Browser
+`radar` 6. Die Isolationsfälle fahren den Lauf unter der ECHTEN Jobrolle —
+genau deshalb ist der `mandant`-Befund aufgefallen und nicht erst im Betrieb.

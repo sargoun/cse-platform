@@ -109,6 +109,20 @@ test.describe('Vergaberadar (Phase 8)', () => {
     await expect(page.locator('[data-cse="radar-profil"]').first()).toContainText('Unterhaltsreinigung Berlin');
     await expect(page.locator('[data-cse="radar-profil-version"]').first()).toContainText('Bewertungen');
 
+    /*
+     * **RAD-08 sagt, dass es NICHT meldet** (O-15). Der Seed traegt die
+     * Einsatzleitung als Empfaengerin ein, aber ohne Punktschwelle — genau
+     * die Lage eines neuen Betriebs. Eine Seite, die das verschweigt, laesst
+     * jemanden auf Meldungen warten, die nie kommen.
+     */
+    const empfaenger = page.locator('[data-cse="radar-empfaenger"]').first();
+    await expect(empfaenger).toBeVisible();
+    expect(await empfaenger.getAttribute('data-schwelle'),
+      'ohne Schwelle steht dort nichts').toBe('');
+    await expect(empfaenger).toContainText('keine Treffermeldung');
+    await expect(page.locator('[data-cse="radar-profil-benachrichtigung"]').first(),
+      'die Fristwarnung braucht keine Einstellung').toContainText('fünf Tage');
+
     expect((await page.goto('/portal/reinigung/radar/plattformen'))?.status()).toBe(200);
     /* Der Katalog ist leer — mit Absicht, und die Seite sagt warum (O-07). */
     await expect(page.locator('[data-cse="plattform-leer"]')).toContainText('O-07');
