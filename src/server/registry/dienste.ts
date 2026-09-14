@@ -742,6 +742,9 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'buchhaltung.festschreiben',
   },
   { modul: 'dokument', pfad: 'buchhaltung/pruefbuendel', schreibend: false },
+  /* PR 66 — Z3-Datentraegerueberlassung und Verfahrensdokumentation. */
+  { modul: 'buchhaltung', pfad: 'buchhaltung/z3', schreibend: false },
+  { modul: 'buchhaltung', pfad: 'buchhaltung/verfahrensdokumentation', schreibend: false },
   {
     modul: 'dokument', pfad: 'dokument/aufbewahrung',
     schreibend: true, schreibRecht: 'dokument.aufbewahrung_verwalten',

@@ -348,7 +348,16 @@ proven by test, not by inspection.
       year with drill-through on every figure, group = sum of entities
       (asserted), period lock with frozen figures and a one-way close;
       bookkeeping overview and a read-only chart-of-accounts screen.
-- [ ] Z3 export, Verfahrensdokumentation
+- [x] Z3 export and Verfahrensdokumentation (PR 66, D-485) — Z3 as a
+      handover, not a release: fourteen CSV tables per fiscal year with
+      `index.xml` after the Beschreibungsstandard, checksums and a
+      reproducible STORE zip; incomplete booking lines are counted, not
+      hidden; no IBAN, no creditor/debtor numbers (K-05); the DTD is not
+      bundled (O-365). The Verfahrensdokumentation is generated from the
+      live configuration (17 sections, each with its source, canonical hash,
+      Markdown/PDF/JSON); the schema state comes from the migration journal
+      via `app.migrationsstand()` (0142) and says "not readable" where no
+      journal exists.
 - [ ] Year-end package; payroll time export
 
 **Acceptance:** the tax advisor accepts a real EXTF file without rework.
@@ -421,7 +430,9 @@ Radar first — the agents operate on its output.
 - [ ] Load and mobile testing on real devices
 - [ ] DSGVO pack: processing register, DPAs, deletion concept, employee notice
       for geolocation
-- [ ] Verfahrensdokumentation generated from live configuration
+- [x] Verfahrensdokumentation generated from live configuration (PR 66,
+      D-485) — re-read before go-live: every open point in its section 5
+      must be closed or accepted
 - [ ] Training material; handover
 
 ---

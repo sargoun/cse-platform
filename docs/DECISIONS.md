@@ -5163,6 +5163,7 @@ niemand ihn suchen.
 | O-362 | **Welche Gesellschaft ist Verantwortliche nach Art. 4 Nr. 7 DSGVO für den Gruppenauftritt und die Portale — die CSE Dienstleistungen GmbH wie beim bisherigen Auftritt (cse-dienstleistungen.de/privacy nennt sie mit Cosette Weyer als Ansprechpartnerin)?** Gibt es einen Datenschutzbeauftragten, und welche Löschfristen gelten für Anfragen (der Auftritt nennt eine Prüfung alle zwei Jahre)? Die Datenschutzerklärung der Plattform nennt bis zur Antwort die CSE Dienstleistungen GmbH und die Auftragsverarbeiter aus `registry/auftragsverarbeiter.ts` (D-481). | LEG-09, PUB-13, D-481 |
 | O-363 | **Welche Steuersatzgruppe trägt eine Eingangsrechnung mit 0 % und Kategorie AE (§ 13b UStG) — `ust_0_13b_bau` und `ust_0_13b_reinigung`?** Der Katalog (0075) führt beide; welche gilt, hängt vom Gewerk des LIEFERANTEN ab, nicht vom eigenen. Bis zur Antwort lässt der E-Rechnungs-Vorschlag das Feld unsicher, die Freigabe bleibt gesperrt, und ein Mensch wählt die Gruppe in der Erfassungsmaske (D-482). Dazu: Gibt es einen Vergleichsmaßstab für Eingangsrechnungen (die letzte Rechnung desselben Lieferanten, ein Bestellbezug), damit `stufeRisikoEin` sie nicht jede als erstmalig und damit `hoch` einstuft? | ACC-05, APR-02, D-482 |
 | O-364 | **Wird der Objektspeicher (Supabase Storage, Frankfurt) auf Bucket-Ebene unveränderlich geführt — Versionierung, Object Lock, keine Löschrechte für den Dienstschlüssel — und steht das in der DPA?** Die Plattform hält das Löschen in Datenbank und Anwendung auf (0141, `dokument/loeschung.ts`, Merge-Wache); was der Anbieter mit einem Objekt tut, das jemand mit dem Dienstschlüssel direkt löscht, kann sie nicht erzwingen und behauptet es nicht — das Archiv sagt es (D-483). Bis zur Antwort gilt: der Dienstschlüssel liegt nur in der Serverumgebung, und jede Datei trägt ihren SHA-256 in `dokument_version`, sodass ein Verlust auffällt, nicht verschwindet. | ACC-06, DOC-07, LEG-01, D-483 |
+| O-365 | **Welche Fassung des Beschreibungsstandards für die Datenträgerüberlassung erwartet die Prüfsoftware der Finanzverwaltung (IDEA), und darf die DTD `gdpdu-01-09-2004.dtd` dem Z3-Paket beiliegen?** Die DTD wird von Audicon veröffentlicht und liegt nicht im Repository; die Plattform schreibt `index.xml` nach der Struktur der Version 1.0 (DataSet → DataSupplier → Media → Table mit VariableLength, Spaltentypen, Dezimal- und Trennzeichen), nennt die DTD in der Deklaration und legt sie nicht bei — `LIESMICH.txt` sagt das. Einen Validator gibt es nicht; die Abnahme ist ein Probeimport durch den Steuerberater oder Prüfer (D-485). Bis zur Antwort: CSV in Windows-1252, `;`, CRLF, Dezimalkomma, erste Zeile Spaltennamen (`Range From=2`). | ACC-09, LEG-01, D-485 |
 | O-355 | **Wer trägt die Modulbuchung ein und pflegt `mandant.module_gepflegt`?** Seit 0103 ist die Frage nicht mehr, was eine leere Liste heisst — das Kennzeichen sagt es: `false` = nicht eingetragen, es wird nicht gefiltert (damit eine neu angelegte Gesellschaft nicht schwarz wird); `true` = die Liste gilt, leer heisst kein Gewerk. Offen bleibt der Vorgang: kommt die Buchung aus dem Vertrag, aus der Verwaltung oder setzt sie ein Super-Admin über `system.module_zuweisen` — und wer merkt, wenn sie fehlt? | `src/server/registry/modul.ts`, 0103, D-377 |
 | O-356 | **Bucht jede Gesellschaft genau ein Gewerk, oder gibt es Überschneidungen?** Der Seed setzt `reinigung → [reinigung]`, `security → [security]`, `bau → [bau]`, `operations → []` — abgeleitet aus den Gewerken, die in `CLAUDE.md` stehen. Praktisch plausibel wäre anderes: Bauendreinigung bei der REALTIME Service, Veranstaltungsreinigung bei der SSE Security. Bis zur Antwort sieht eine Gesellschaft nur ihr eigenes Gewerk; die Korrektur ist eine Zeile in `mandant.module` und kein Codeeingriff. | `mandant.module`, `src/server/db/seed/index.ts`, D-377 |
 | O-357 | **Wohin gehen die Wächter-Meldungen aus SPEC §14 — Posteingang, Mail oder beides — und wer bekommt die Kettenmeldung?** Die Ablaufwarnung (60/30/7) erreicht die Person selbst; das ist EMP-08 und unstrittig. „Hashkette gebrochen" dagegen hat keinen persönlichen Empfänger: es ist eine Meldung an die Buchhaltung oder die Geschäftsführung, und beide sind heute keine adressierbare Größe im Modell. Solange die Frage offen ist, wird der Kettenprüfer bewusst NICHT als Job registriert — ein Lauf, der jede Nacht „ok" meldet, ohne dass jemand die Meldung liest, schafft Vertrauen, das er nicht deckt. | SPEC §14, `src/server/jobs/bootstrap.ts`, `kettenlauf.ts`, NOT-01 |
@@ -8413,3 +8414,69 @@ ist keine gesetzliche Vorgabe und wird nicht erfunden.
 **Kontenrahmen lesend.** `/buchhaltung/konten` zeigt Kontenrahmen, Sach-
 kontenlänge, Wirtschaftsjahr und jede Zuordnung mit Platzhalterstand — und
 keinen Editor: welche Zuordnung gilt, bestätigt der Steuerberater (O-05).
+
+### D-485 · Z3-Datenträgerüberlassung und Verfahrensdokumentation aus der lebenden Konfiguration (PR 66)
+
+**Z3 ist eine Überlassung, keine Freigabe.** § 147 Abs. 6 AO gibt der
+Finanzverwaltung drei Zugriffsarten; Z3 ist die Überlassung der Daten auf
+einem Datenträger, maschinell auswertbar, mit Strukturbeschreibung. Das
+Paket eines Wirtschaftsjahrs (`buchhaltung/z3.ts`) zeigt deshalb den Stand,
+wie er ist — auch Buchungszeilen ohne Konto oder Beleg stehen im Journal,
+und `LIESMICH.txt` nennt ihre Zahl aus `app.export_unvollstaendig`. Die
+Exportsperre gilt für den DATEV-Stapel und das Prüfbündel (dort wird
+etwas übergeben, das als vollständig gilt); eine Überlassung, die
+Lücken verschweigt, wäre die falsche Höflichkeit. Vierzehn Tabellen: Journal
+(Grundbuch) mit Beleg und dessen SHA-256, Ausgangsrechnungen mit Positionen
+und Kettenglied, Eingangsrechnungen (abgelehnte als solche gekennzeichnet),
+Zahlungen und Zuordnungen, offene Posten, Belege, Kunden, Lieferanten,
+Kontenzuordnung, Steuersätze, Nummernkreise, Perioden. Dazu `index.xml`
+nach dem Beschreibungsstandard (Version 1.0, Schlüsselspalten zuerst, in
+CSV-Reihenfolge — ein Kern-Test hält beides gegeneinander),
+`pruefsummen.txt` im Format von `sha256sum -c`, und ein STORE-ZIP ohne Uhr
+(`archiv/zip.ts`): derselbe Jahrgang ergibt denselben Hash, und der steht
+bei jedem Abruf im Protokoll (`buchhaltung.z3_abgerufen`). CSV in
+Windows-1252 wie der DATEV-Export, Dezimalkomma, `;`, CRLF; ersetzte
+Zeichen werden gezählt. Was fehlt, fehlt mit Absicht: IBAN und
+Kreditoren-/Debitorennummern sind `cse_app` entzogen (K-05) — der Test
+verlangt, dass `lieferanten.csv` keine IBAN-Spalte trägt —, und Personal-
+und Zeitdaten sind kein Teil der Buchführung. Die DTD liegt nicht bei
+(O-365). Das Recht ist `buchhaltung.exportieren`, wie beim DATEV-Stapel.
+
+**Die Verfahrensdokumentation wird erzeugt, nicht geschrieben.** GoBD
+Rz. 151 ff. verlangen eine Dokumentation, die zu jeder Fassung passt, die
+im Aufbewahrungszeitraum lief; ein von Hand gepflegtes Dokument veraltet
+mit der ersten Migration. `buchhaltung/verfahrensdokumentation.ts` liest
+beim Abruf: Gesellschaft, Fassung (Commit aus der Umgebung, sonst
+„nicht bekannt (lokal)“ — nie erfunden), Schemastand, Nummernkreise,
+Kontenzuordnung mit Platzhalterstand, Zählungen der Rechnungen, Eingangs-
+rechnungen, Buchungszeilen, Perioden, Dokumente und Kettenglieder,
+Aufbewahrungsregeln, Rollen mit Mitgliedern und ihren finanzrelevanten
+Rechten, das Protokoll, die Jobs mit Zeitplan (aus dem Register, wie das
+Bootstrap sie registriert) und die Auftragsverarbeiter — und beschreibt die
+Verfahren, die der Code durchsetzt, in Worten. Siebzehn Abschnitte in den
+vier Teilen der GoBD (allgemeine Beschreibung, Anwender-, technische
+System-, Betriebsdokumentation) plus „Offene Punkte“; jeder Abschnitt
+trägt seine Quelle (`datenbank`, `auslieferung`, `verfahren`). Die
+Struktur ist kanonisches JSON ohne Uhr mit SHA-256 — ein anderer Hash
+heißt: die Konfiguration hat sich geändert (Test: ein neuer Nummernkreis
+ändert Inhalt und Hash); der Abrufzeitpunkt steht daneben. Markdown, PDF
+(`dokument/pdf.ts`) und JSON tragen denselben Hash im Kopf. Recht:
+`buchhaltung_konfiguration.lesen`; jeder Abruf im Protokoll.
+
+**Der Schemastand kommt aus dem Journal, nicht aus dem Dateisystem.**
+`__drizzle_migrations` gehört dem Migrator; `cse_app` liest es nicht. 0142
+`app.migrationsstand()` (Definer, unter demselben Recht wie die Seite) gibt
+Name und Zeitpunkt jeder angewendeten Migration zurück — und eine leere
+Menge, wo kein Journal geführt wird: die Isolationsdatenbank spielt die
+Dateien per `psql` ein. Dann sagt die Dokumentation „nicht ablesbar“ und
+führt es als offenen Punkt; sie liest keinen Stand aus `drizzle/` nach, den
+die Datenbank nicht bestätigt. Der Isolationstest legt das Journal an und
+prüft beide Wege; wem das Recht fehlt, dem verweigert die Datenbank den
+Stand.
+
+**Was die Dokumentation offen nennt, ist offen.** O-05 (Wirtschaftsjahr,
+Kontenrahmen, Zuordnungen als Platzhalter), fehlende Vertragsdaten der
+Auftragsverarbeiter, O-364, O-365, der ausstehende Wiederherstellungstest,
+und das Beweisbündel des Protokolls (`/einstellungen/protokoll/export`),
+das noch nicht gebaut ist — sie stehen in Abschnitt 5 und nicht als
+Häkchen.

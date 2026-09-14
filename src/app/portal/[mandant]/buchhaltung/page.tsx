@@ -47,6 +47,10 @@ const KARTEN: readonly Karte[] = [
     text: 'Buchungsstapel im EXTF-Format — Dateiexport, keine vorgetäuschte Verbindung.' },
   { pfad: 'buchhaltung/archiv', titel: 'GoBD-Archiv', icon: 'dokument',
     text: 'Rechnungen und Belege, zehn Jahre, nicht löschbar — mit Prüfbündel je Jahrgang.' },
+  { pfad: 'buchhaltung/z3-export', titel: 'Z3-Export (Betriebsprüfung)', icon: 'export',
+    text: 'Datenträgerüberlassung nach § 147 Abs. 6 AO — Journal, Rechnungen, Belege und Stammdaten mit Strukturbeschreibung.' },
+  { pfad: 'buchhaltung/verfahrensdokumentation', titel: 'Verfahrensdokumentation', icon: 'buch',
+    text: 'GoBD-Verfahrensdokumentation aus der lebenden Konfiguration — jeder Abschnitt mit seiner Quelle, jeder Platzhalter benannt.' },
 ];
 
 interface Zahlen {

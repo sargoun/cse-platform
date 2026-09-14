@@ -52,8 +52,13 @@ export default async function Perioden(
       const [heute] = await kontext.abfrage<{ tag: string }>(`select app.berlin_heute()::text as tag`);
       const tag = heute?.tag ?? '2026-01-01';
       const jahr = gewaehlt ?? wirtschaftsjahrVon(tag, wj);
-      return { z: await monatszahlen(kontext, jahr, wj), heute: tag };
-    })) as Promise<{ z: Monatszahlen; heute: string }>);
+      /* Je Monat die Zeilen ohne Konto: die Datenbank weist das Schliessen damit ab (O-05). */
+      const ohne = await kontext.abfrage<{ monat: string; n: number }>(
+        `select to_char(belegdatum, 'YYYY-MM') as monat, count(*)::int as n
+           from buchungssatz where konto is null group by 1`);
+      return { z: await monatszahlen(kontext, jahr, wj), heute: tag,
+        ohneKonto: new Map(ohne.map((o) => [o.monat, o.n])) as ReadonlyMap<string, number> };
+    })) as Promise<{ z: Monatszahlen; heute: string; ohneKonto: ReadonlyMap<string, number> }>);
   const z = daten.z;
 
   const basis = `/portal/${mandant}/buchhaltung/perioden`;
@@ -102,6 +107,7 @@ export default async function Perioden(
           const vorbei = m.bis < daten.heute;
           return (
             <li key={m.monat} data-cse="periode" data-monat={m.monat} data-status={status ?? 'keine'}
+                data-ohne-konto={String(daten.ohneKonto.get(m.monat) ?? 0)}
                 className="grid grid-cols-1 items-center gap-s3 rounded-lg border border-line bg-surface p-s4 md:grid-cols-[10rem_1fr_auto]">
               <div>
                 <div className="text-base font-semibold text-text">{m.label}</div>

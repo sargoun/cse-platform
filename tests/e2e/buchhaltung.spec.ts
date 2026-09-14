@@ -79,15 +79,26 @@ test.describe('Buchhaltung (PR 65)', () => {
     await expect(page.getByRole('heading', { name: /^Periodenschloss/u, level: 1 })).toBeVisible();
     await expect(page.locator('[data-cse="periode"]')).toHaveCount(12);
 
-    // Der laufende Monat: endgueltig gar nicht; vorlaeufig weist die Datenbank ab,
-    // weil der Seed Buchungszeilen ohne Konto traegt (O-05) — und der Satz steht da.
+    // Der laufende Monat: endgueltig gar nicht. Ob er vorlaeufig schliesst, entscheidet
+    // die Datenbank: traegt er Zeilen ohne Konto (andere Browserlaeufe hinterlassen sie,
+    // O-05), weist sie ab — und der Satz steht da; ohne solche Zeilen schliesst er, und
+    // wird hier wieder geoeffnet. Der Seed allein legt keine Buchungszeilen an (O-134).
     const heute = new Date().toISOString().slice(0, 7);
-    const laufend = page.locator(`[data-cse="periode"][data-monat="${heute}"]`);
-    await expect(laufend.getByRole('button', { name: 'Schließen', exact: true })).toBeDisabled();
-    await laufend.getByRole('button', { name: 'Vorläufig schließen' }).click();
-    await expect(page).toHaveURL(/fehler=datenbank/u);
-    await expect(page.locator('[data-cse="periode-abgewiesen"]')).toContainText('ohne Konto');
-    await expect(page.locator(`[data-cse="periode"][data-monat="${heute}"]`)).toHaveAttribute('data-status', 'offen');
+    const laufend = () => page.locator(`[data-cse="periode"][data-monat="${heute}"]`);
+    await expect(laufend().getByRole('button', { name: 'Schließen', exact: true })).toBeDisabled();
+    const ohneKonto = Number(await laufend().getAttribute('data-ohne-konto'));
+    await laufend().getByRole('button', { name: 'Vorläufig schließen' }).click();
+    if (ohneKonto > 0) {
+      await expect(page).toHaveURL(/fehler=datenbank/u);
+      await expect(page.locator('[data-cse="periode-abgewiesen"]')).toContainText('ohne Konto');
+      await expect(laufend()).toHaveAttribute('data-status', 'offen');
+    } else {
+      await expect(page).toHaveURL(/geschlossen=/u);
+      await expect(laufend()).toHaveAttribute('data-status', 'vorlaeufig_geschlossen');
+      await laufend().getByRole('button', { name: 'Wieder öffnen' }).click();
+      await expect(page.locator('[data-cse="periode-vermerkt"]')).toContainText('wieder geöffnet');
+      await expect(laufend()).toHaveAttribute('data-status', 'offen');
+    }
 
     // Ein vergangener Monat ohne Zeilen: vorlaeufig, wieder offen, dann endgueltig.
     const januar = `${heute.slice(0, 4)}-01`;

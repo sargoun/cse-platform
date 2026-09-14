@@ -943,6 +943,25 @@ export const ROUTEN: readonly RouteEintrag[] = [
     pfad: 'api/buchhaltung/perioden',
     recht: 'buchhaltung.festschreiben',
   },
+  {
+    /**
+     * Die Datentraegerueberlassung Z3 (ACC-09, § 147 Abs. 6 AO, PR 66):
+     * das Paket eines Wirtschaftsjahrs zum Herunterladen — unter
+     * `buchhaltung.exportieren`, wie der DATEV-Export: Daten verlassen das
+     * Haus, und jeder Abruf steht im Protokoll.
+     */
+    pfad: 'api/buchhaltung/z3-export',
+    recht: 'buchhaltung.exportieren',
+  },
+  {
+    /**
+     * Die Verfahrensdokumentation (ACC-10, PR 66) als Markdown, PDF oder
+     * JSON — unter `buchhaltung_konfiguration.lesen`, dem Recht der Seite:
+     * sie beschreibt die Konfiguration, sie aendert sie nicht.
+     */
+    pfad: 'api/buchhaltung/verfahrensdokumentation',
+    recht: 'buchhaltung_konfiguration.lesen',
+  },
   /**
    * Der Freigabe-Posteingang (PR 62 Rest, APR-01/02/03/07/08, D-472).
    *
