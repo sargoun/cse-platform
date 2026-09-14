@@ -36,6 +36,16 @@ const ASCII = (s: string): number[] => [...s].map((c) => c.charCodeAt(0));
  */
 const SIGNATUREN: readonly Signatur[] = [
   { mime: 'application/pdf', bytes: ASCII('%PDF-') },
+  /*
+   * XML — die E-Rechnung (XRechnung als UBL/CII, ZUGFeRD-Anhang) ist seit
+   * 2025 im B2B-Geschaeft die Rechnung selbst (§ 14 UStG, ACC-05). Erkannt am
+   * Prolog, mit oder ohne Byte-Order-Mark; ein XML ohne Prolog beginnt mit
+   * seiner Wurzel und wird ueber `zusatz` angenommen, wenn die erste Marke
+   * eine der bekannten Wurzeln ist.
+   */
+  { mime: 'application/xml', bytes: ASCII('<?xml') },
+  { mime: 'application/xml', bytes: [0xef, 0xbb, 0xbf, ...ASCII('<?xml')] },
+  { mime: 'application/xml', bytes: ASCII('<'), zusatz: (d) => istERechnungWurzel(d) },
   { mime: 'image/jpeg', bytes: [0xff, 0xd8, 0xff] },
   { mime: 'image/png', bytes: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] },
   { mime: 'image/gif', bytes: ASCII('GIF8') },
@@ -79,6 +89,14 @@ const SIGNATUREN: readonly Signatur[] = [
  */
 const HEIC_MARKEN = ['heic', 'heix', 'heim', 'hevc', 'hevx', 'mif1', 'msf1'];
 
+const ERECHNUNG_WURZELN = ['Invoice', 'CreditNote', 'CrossIndustryInvoice'];
+
+function istERechnungWurzel(daten: Uint8Array): boolean {
+  const kopf = String.fromCharCode(...daten.slice(0, 256));
+  const marke = /^\s*<(?:[A-Za-z0-9_]+:)?([A-Za-z]+)[\s>]/u.exec(kopf)?.[1];
+  return marke !== undefined && ERECHNUNG_WURZELN.includes(marke);
+}
+
 function istHeicMarke(daten: Uint8Array): boolean {
   if (daten.length < 12) return false;
   const marke = String.fromCharCode(daten[8]!, daten[9]!, daten[10]!, daten[11]!);
@@ -109,7 +127,8 @@ export function erkenneMime(daten: Uint8Array): string | null {
 
 /** Was in einer Kategorie überhaupt hochgeladen werden darf. */
 export const ERLAUBTE_MIME: readonly string[] = [
-  'application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/tiff',
+  'application/pdf', 'application/xml',
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/tiff',
   // image/heic steht bewusst NICHT hier — siehe exif.ts und O-346.
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

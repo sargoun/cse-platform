@@ -9,7 +9,8 @@
  */
 import { registriereArt, type ArtDefinition } from '../../benachrichtigung/registry.js';
 
-const ziel = (mandant: string, leadId: string): string => `/portal/${mandant}/crm/leads/${leadId}`;
+const ziel = (slug: string | null | undefined, leadId: string): string | null =>
+  (slug ? `/portal/${slug}/crm/leads/${leadId}` : null);
 
 export function registriereLeadArten(): readonly ArtDefinition[] {
   return [
@@ -20,7 +21,7 @@ export function registriereLeadArten(): readonly ArtDefinition[] {
         + (k.daten['slaFrist'] === null || k.daten['slaFrist'] === undefined
           ? ' Für dieses Formular ist keine Reaktionszeit hinterlegt.'
           : ` Zu beantworten bis ${String(k.daten['slaFrist'])}.`),
-      ziel: (k) => (k.objektId === '' ? null : ziel(k.mandantId, k.objektId)),
+      ziel: (k) => (k.objektId === '' ? null : ziel(k.mandantSlug, k.objektId)),
       kanaeleVorgabe: ['app', 'email'],
       sammelbar: true,
     }),
@@ -29,7 +30,7 @@ export function registriereLeadArten(): readonly ArtDefinition[] {
       titel: (k) => `Reaktionszeit überschritten: ${String(k.daten['leadnummer'] ?? '')}`,
       text: (k) => `Die zugesagte Reaktionszeit ist abgelaufen, ohne dass eine `
         + `Antwort erfasst wurde. Stufe ${String(k.daten['stufe'] ?? 1)}.`,
-      ziel: (k) => (k.objektId === '' ? null : ziel(k.mandantId, k.objektId)),
+      ziel: (k) => (k.objektId === '' ? null : ziel(k.mandantSlug, k.objektId)),
       kanaeleVorgabe: ['app', 'email'],
       // Nie sammeln: am nächsten Morgen gelesen heisst nach der Frist gelesen.
       sammelbar: false,

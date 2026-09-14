@@ -55,7 +55,7 @@ describe('llms.txt: EINE Schreibweise je Anschrift, und kein erfundenes Dach', (
     { slug: 'reinigung', mandant: NAP, kurzbeschreibung: 'Gebäudereinigung' },
     {
       slug: 'security',
-      mandant: { ...NAP, firma: 'Select-Security Event GmbH' },
+      mandant: { ...NAP, firma: 'Select Security Event GmbH' },
       kurzbeschreibung: null,
     },
   ];

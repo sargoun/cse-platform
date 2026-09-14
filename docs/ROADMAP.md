@@ -74,17 +74,57 @@ clone, and the architecture document is reviewed.
 
 ## Phase 1 · Tenancy, auth, permissions — TEN-*, AUT-*
 
-- [ ] `mandant` seeded with all four areas
-- [ ] `benutzer`, `rolle`, `berechtigung`, `benutzer_mandant`, `audit_log`
-- [ ] **`person` / `anstellung` split from the first migration (D-09)** — one
+> **Die Haken der Phasen 1 bis 5 sind am 13.09.2026 nachgezogen worden** — und
+> zwar EINZELN, gegen die Datenbank und die Pruefungen (72 Isolationsdateien,
+> 34 Browserdateien), nicht pauschal gegen die Erinnerung. Sie standen leer,
+> obwohl die Arbeit lag; eine Liste, die Gebautes als offen fuehrt, ist
+> genauso irrefuehrend wie eine, die Offenes als gebaut fuehrt.
+>
+> **Was sich nicht belegen liess, steht weiter offen** — namentlich die
+> Rechteverwaltung in der Oberflaeche (kein `rolle_berechtigung` in `src/app`),
+> die Inhaltsuebernahme von cse-dienstleistungen.de, der WCAG-2.1-AA-Audit als
+> Befund (die Pruefung laeuft, der Audit ist ein Dokument) und die
+> Lighthouse-Messung auf einem echten Geraet. Ein Haken, den niemand
+> nachrechnen kann, ist schlimmer als ein leeres Kaestchen.
+
+- [x] `mandant` seeded with all four areas
+- [x] `benutzer`, `rolle`, `berechtigung`, `benutzer_mandant`, `audit_log`
+- [x] **`person` / `anstellung` split from the first migration (D-09)** — one
       human, one employment per entity; certificates on the person, everything
       costed on the employment
-- [ ] **RLS enabled on every tenant table**; session sets the active mandant
-- [ ] Supabase Auth; 2FA for `super_admin` and `admin`
+- [x] **RLS enabled on every tenant table**; session sets the active mandant
+- [x] Supabase Auth; 2FA for `super_admin` and `admin`
 - [ ] Five roles with configurable permissions, editable in the UI
-- [ ] **Mandant switcher per DESIGN §6** — avatar + ring, dropdown with live
+- [x] **Settings screens, read-only** (D-476): company data with the O-353
+      caveat, users with 2FA state and own sessions, roles with the full
+      permission matrix per company, modules, audit log; cards on the index
+      come from the route manifest's rights
+- [x] **Finance overview per company** (D-479): the tab-bar target that had
+      no page; rights-gated tiles, cards from the route manifest
+- [x] **Copilot round on PR 12** (D-480): definer policies cut per tenant
+      (0139), archive job writes as `cse_job`, `dokument_zugriff`, CAMT reads
+      direction and currency, byte-exact statement hashing, booking lock,
+      bank clearing with a human as actor, UUID guards, effective role rights.
+- [x] **Marks, footer, privacy notice** (D-481): provisional marks per company
+      and for the group, a composed footer, the privacy notice from the live
+      site adapted to this platform, six navigation glyphs, hero calls.
+- [x] **Documents list and detail, employment sheet** (D-478): the last
+      sidebar entry without a page; no download claimed while storage is
+      not connected; rights asked before hours account and absences
+- [x] **Integrations and processor register, read-only** (D-477): every
+      connection with its real state from the adapter that uses it; Art. 30
+      register with region and an honest "no contract date on file"
+- [x] **Mandant switcher per DESIGN §6** — avatar + ring, dropdown with live
       counters, group entry marked `NUR LESEN`, top hue bar, `⌘K` shortcut
-- [ ] Group view route exists and is **read-only** at the service layer
+- [x] Group view route exists and is **read-only** at the service layer
+- [x] **Group view pages** (D-475): overview matrix per company with group
+      sums, and read-only lists for orders, customers, leads, projects,
+      objects, people (identity only, D-09), finance, invoices, open items,
+      approvals, documents, audit log, agents, roster with cross-entity ArbZG
+      findings, utilisation — every cell rights-gated per company (a dash is
+      not a zero); `radar`, `kalender`, `berichte/*` still pending (phases 8/9)
+- [x] **Group session on a company page gets the switch sheet** (D-474), and
+      the POST switch returns to the page that was meant (`zurueck`, allow-listed)
 - [ ] Every switch and auth event in `audit_log`
 
 **Acceptance:**
@@ -97,17 +137,17 @@ clone, and the architecture document is reviewed.
 
 ## Phase 2 · Public website & profiles — PUB-*, PRO-*, REQ-*
 
-- [ ] All pages per PUB-01, content from the database
-- [ ] Four profile pages with logo, cover, services, images, projects, posts
+- [x] All pages per PUB-01, content from the database
+- [x] Four profile pages with logo, cover, services, images, projects, posts
 - [ ] Content migrated from cse-dienstleistungen.de
-- [ ] Per-area offer request forms with real quoting fields
-- [ ] Submission creates a `lead` with SLA and owner; escalation job
-- [ ] UTM and referrer captured
-- [ ] JSON-LD, `llms.txt`, sitemap, robots
+- [x] Per-area offer request forms with real quoting fields
+- [x] Submission creates a `lead` with SLA and owner; escalation job
+- [x] UTM and referrer captured
+- [x] JSON-LD, `llms.txt`, sitemap, robots
 - [ ] **WCAG 2.1 AA audit passes**
 - [ ] Lighthouse: performance and accessibility green on mobile
-- [ ] Circular brand-avatar row under the hero (PUB-14)
-- [ ] All imagery marked as placeholder until the client supplies real photos
+- [x] Circular brand-avatar row under the hero (PUB-14)
+- [x] All imagery marked as placeholder until the client supplies real photos
 
 **Acceptance:** a form submission on a phone appears as an owned lead with a
 deadline inside the portal, with its source recorded.
@@ -116,11 +156,11 @@ deadline inside the portal, with its source recorded.
 
 ## Phase 3 · Portals & dashboards — DSH-*, EMP-*
 
-- [ ] Super Admin dashboard (DSH-01) with area filter
-- [ ] Admin, Leitung, Employee, Customer dashboards, each scoped
-- [ ] Every figure links through to its records
+- [x] Super Admin dashboard (DSH-01) with area filter
+- [x] Admin, Leitung, Employee, Customer dashboards, each scoped
+- [x] Every figure links through to its records
 - [ ] Customer portal: own projects, orders, offers, invoices, documents, messages
-- [ ] Employee portal shell (full hours features land in Phase 5)
+- [x] Employee portal shell (full hours features land in Phase 5)
 
 **Acceptance:** an employee account can reach nothing beyond its own data —
 proven by test, not by inspection.
@@ -129,15 +169,15 @@ proven by test, not by inspection.
 
 ## Phase 4 · CRM & operations — CRM-*, OPS-*
 
-- [ ] Companies, contacts, leads with score, status, owner, next action
-- [ ] **`rechtsgrundlage` on every contact; outbound blocked when `keine`**
-- [ ] Notes, communication history, follow-ups
-- [ ] Customers, objects, **Raumbuch** (rooms, m², floor types)
-- [ ] Floor-type catalogue with performance values
-- [ ] Excel/CSV Raumbuch import with preview before commit
-- [ ] Service catalogue, costing engine, offer PDF per entity
-- [ ] Offer → order conversion
-- [ ] New contract wizard (OPS-10)
+- [x] Companies, contacts, leads with score, status, owner, next action
+- [x] **`rechtsgrundlage` on every contact; outbound blocked when `keine`**
+- [x] Notes, communication history, follow-ups
+- [x] Customers, objects, **Raumbuch** (rooms, m², floor types)
+- [x] Floor-type catalogue with performance values
+- [x] Excel/CSV Raumbuch import with preview before commit
+- [x] Service catalogue, costing engine, offer PDF per entity
+- [x] Offer → order conversion
+- [x] New contract wizard (OPS-10)
 
 **Acceptance:** a cleaning offer can be priced from the Raumbuch
 (`Σ m² ÷ performance value × frequency`) without manual arithmetic.
@@ -148,20 +188,20 @@ proven by test, not by inspection.
 
 **Write the time tests first.** No scheduling UI before they pass.
 
-- [ ] `planungsserie` (RRULE), `einsatz`, generator filling eight weeks
-- [ ] Berlin holidays excluded
-- [ ] Dienstplan with parallel columns; conflict and ArbZG detection
-- [ ] **ArbZG aggregated per person across entities** (TIM-14)
-- [ ] **Hard block on expired certificates**, enforced in the service layer
-- [ ] Tokenised check-in link — no app, no login
-- [ ] Server-authoritative time; device time and deviation stored
-- [ ] Offline queue, photo/video capture, correction trail
-- [ ] Employee portal: hours per day/week/month, Stundenkonto, leave balance,
+- [x] `planungsserie` (RRULE), `einsatz`, generator filling eight weeks
+- [x] Berlin holidays excluded
+- [x] Dienstplan with parallel columns; conflict and ArbZG detection
+- [x] **ArbZG aggregated per person across entities** (TIM-14)
+- [x] **Hard block on expired certificates**, enforced in the service layer
+- [x] Tokenised check-in link — no app, no login
+- [x] Server-authoritative time; device time and deviation stored
+- [x] Offline queue, photo/video capture, correction trail
+- [x] Employee portal: hours per day/week/month, Stundenkonto, leave balance,
       monthly PDF, objection flow, certificates, requests, multilingual
-- [ ] Cleaning: Reviere, Turnus, Leistungsnachweis with signature snapshot
-- [ ] Security: Posten, §34a tracking, Bewacherregister, Wachbuch,
+- [x] Cleaning: Reviere, Turnus, Leistungsnachweis with signature snapshot
+- [x] Security: Posten, §34a tracking, Bewacherregister, Wachbuch,
       Dienstanweisung with acknowledgement, key receipts
-- [ ] Construction: LV, Aufmaß with Rechenansatz parser, Nachträge,
+- [x] Construction: LV, Aufmaß with Rechenansatz parser, Nachträge,
       Behinderungsanzeige, Bautagebuch with DWD weather
 
 **Acceptance:**
@@ -223,15 +263,109 @@ proven by test, not by inspection.
 
 ## Phase 7 · Accounting & DATEV architecture — ACC-*
 
-- [ ] SKR03/04 mapping; automatic booking records
-- [ ] **DATEV EXTF export — Windows-1252, comma decimal**
-      → request a real sample from the tax advisor **before** building
-- [ ] **Belegverknüpfung** — document travels with the booking line
-- [ ] CAMT.053 import and reconciliation
-- [ ] Incoming-invoice OCR → extraction → proposal → approval
-- [ ] GoBD archive with retention and deletion lock
-- [ ] Open items, monthly figures, Z3 export, Verfahrensdokumentation
-- [ ] Year-end package; payroll time export
+- [x] SKR03/04 mapping; automatic booking records — **PR 58**: `konto_mapping`
+      leer (O-05), Buchung ohne Zuordnung trägt `konto = NULL` + Prüfhinweis
+- [x] **DATEV EXTF export — Windows-1252, comma decimal** (PR 60) — ⚑ the
+      format is **spec-derived, not client-derived**: the field order comes
+      from the published DATEV description, not from a file this tax office
+      has read in. Every export row carries `format_ungeprueft` and the
+      screens say so (D-446). Bytes are asserted as bytes: `ü` is 0xFC, no
+      BOM, CRLF, comma decimal, and amounts convert from integer cents by
+      string arithmetic — no `Number` anywhere (D-447). The writer reads no
+      clock, so the same period twice yields identical bytes (D-448). With
+      the O-05 master data empty or unconfirmed, **no file is produced** and
+      the German sentence names every missing field.
+      **Still open — this blocks the PHASE, not the PR:** request a real EXTF
+      sample from the tax advisor and reconcile `SPALTEN` against it.
+- [x] **Belegverknüpfung** — document travels with the booking line (PR 59):
+      `app.buchungssatz_schreiben` takes the document and routes the source id
+      by `herkunft` (D-439); the outgoing invoice's ZUGFeRD PDF is archived
+      after finalisation by a nightly run (D-440), `rechnung.beleg_id` is
+      write-once (D-441), and a document a booking line refers to cannot be
+      deleted — for that reason, not because of its category (D-442).
+      `buchungssatz_unvollstaendig` lists what is missing and
+      `app.export_sperre_pruefen` refuses the period, so an incomplete month
+      blocks the export instead of producing a short file.
+      **The creditor side now reaches the ledger too** — `buche()` writes the
+      booking record it never wrote.
+- [x] CAMT.053 import and reconciliation (PR 61) — **no bank connection and
+      none pretended**: no PSD2, no FinTS, no outgoing SEPA file. A human
+      uploads the statement. Idempotent over the file's SHA-256, not over the
+      statement number (D-455). A booking-entry line is **not** a payment
+      (D-454); the payment is created only on assignment, and the assignment
+      is revocable. Only an unambiguous hit — amount AND invoice number AND
+      the IBAN the customer last paid from — is assigned automatically; the
+      IBAN is **learned, not maintained** (D-456). An amount alone assigns
+      nothing even with a single candidate (D-457), an outgoing entry is never
+      matched to an outgoing invoice (D-458), and nothing ever disappears from
+      the queue (D-459).
+- [x] Approval inbox: diff review, source attribution, confidence (PR 62,
+      APR-01/02/03/07) — the **service layer, the schema and the chain**; the
+      screens follow. The diff runs on the structured payload, never on
+      rendered text, and computes the VAT delta **per tax-rate group** (D-463).
+      Whether a surcharge belongs to a position's identity is **O-114** and
+      stays open; until it is answered a changed surcharge shows as a *changed*
+      position rather than an add/remove pair that would hide the price change.
+      The headline sentence comes from a template, never from a model (D-464) —
+      a wrong summary defeats the whole gate. Confidence is **derived, not
+      asked for**: a failed check hard-zeroes it, and "nothing checked" is 0,
+      not 1 (D-465); the threshold is a placeholder erring strict (**O-197**).
+      The chain covers **eleven** components, so what the approver saw is in
+      the hash and not only the payload (D-466), and there is **no second
+      canonicaliser in SQL** — the application hands over the bytes (D-467).
+      A waiting request can only be decided through `app.freigabe_entscheiden`
+      (D-469): no view row, no decision.
+      **The two screens and the two routes are built** (D-472): the inbox in
+      the service's order, the review with headline, diff, evidence and a
+      button that is the *display* of a service-side lock; opening writes the
+      view row through the service, never through the page. The seed carries
+      four waiting proposals and says no agent produced them.
+- [x] Incoming-invoice **e-invoice** → extraction → proposal → approval (PR 63,
+      D-482) — UBL 2.1, CII and the ZUGFeRD attachment of a PDF are read
+      deterministically (own XML reader, no DTD/entities), every number names
+      its element and is re-checked against the file; the proposal is an
+      approval with per-field sources; supplier matched by VAT id → IBAN →
+      name (two hits are none), tax line matched to the catalogue; an unsure
+      field locks approval in the service. **Approving executes** the takeover
+      in the same transaction (a failed takeover rolls the decision back); the
+      incoming invoice starts at `eingegangen`, the creditor path stays.
+      **No OCR:** a scanned PDF without embedded XML is not read — the
+      provider is open (O-135) and the screen says so; manual entry with the
+      proposal's values (`?von=`) remains.
+- [x] GoBD archive with retention and deletion lock (PR 64, D-483) — the
+      retention clock starts at the end of the **calendar** year the document
+      arose in (§ 147 Abs. 4 AO; the plan said "fiscal-year end", the law is
+      more precise), stored as `entstanden_am`, never shortened; retention
+      rules per entity with legal floors (10 years finance, 6 years
+      commercial letters) enforced in the service and in the trigger; one
+      deletion path in code, guarded by a merge guard, proven against
+      `cse_app`, `cse_job`, the owner and TRUNCATE; an audit bundle per fiscal
+      year with a canonical manifest and a reproducible STORE zip. Bucket-level
+      immutability at the provider stays open (O-364).
+- [x] Open items and monthly figures (PR 65, D-484) — ageing in calendar
+      days (asserted across both DST changes), reconciliation against the
+      source tables, monthly figures **BWA-artig** from documents per fiscal
+      year with drill-through on every figure, group = sum of entities
+      (asserted), period lock with frozen figures and a one-way close;
+      bookkeeping overview and a read-only chart-of-accounts screen.
+- [x] Z3 export and Verfahrensdokumentation (PR 66, D-485) — Z3 as a
+      handover, not a release: fourteen CSV tables per fiscal year with
+      `index.xml` after the Beschreibungsstandard, checksums and a
+      reproducible STORE zip; incomplete booking lines are counted, not
+      hidden; no IBAN, no creditor/debtor numbers (K-05); the DTD is not
+      bundled (O-365). The Verfahrensdokumentation is generated from the
+      live configuration (17 sections, each with its source, canonical hash,
+      Markdown/PDF/JSON); the schema state comes from the migration journal
+      via `app.migrationsstand()` (0142) and says "not readable" where no
+      journal exists.
+- [x] Year-end package and payroll time export (PR 67, D-486) — one ZIP
+      per fiscal year for the tax advisor (data tables, monthly figures,
+      open items, invoice journal, DATEV batches with files where storage is
+      connected, audit bundle with documents, Verfahrensdokumentation) that
+      names every gap; a monthly payroll export (accounts, absences with type
+      via a guarded definer function, every time entry from the MiLoG record)
+      behind a format interface whose generic CSV is a marked placeholder
+      (O-27, O-139). Neither computes wages or taxes (D-06).
 
 **Acceptance:** the tax advisor accepts a real EXTF file without rework.
 Until that happens, this phase is not done.
@@ -250,9 +384,24 @@ Radar first — the agents operate on its output.
 - [ ] Platform registration tracking (RAD-09)
 - [ ] `pgvector` index over contracts, objects, offers, correspondence
 - [ ] Agent tools (AGT-02); `berechne_preis` is **pure code**
-- [ ] Policy gate from `agent_richtlinie`, editable in the UI
-- [ ] Per-step logging with tokens and cost; monthly budget hard stop
+- [x] Policy gate (`agent/policy.ts`) — the floor is code, not data: an offer,
+      a Nachtrag and a Behinderungsanzeige never go out automatically under
+      any `agent_richtlinie` row. The gate is exhaustive over the whole
+      configuration space in `tests/kern/gate.test.ts`.
+      **Still open:** editing the rules from the UI (AGT-03).
+- [x] Per-step logging with tokens and cost; monthly budget hard stop (PR 74)
+      — `agent_aufgabe`, `agent_schritt`, `agent_kosten` in micro-cents, the
+      one cent conversion (K-16(b)), and a hard stop that survives the
+      transaction it rejects in (D-428). The step payload is readable only
+      through `app.agent_nutzlast_lesen` with `agent.protokoll_lesen`, and
+      every read is audited (D-433).
+- [x] The Agent Centre reads it (PR 76): the four agents with their switch
+      state, every run with steps and cost, the monthly cap with consumption
+      and reserved amount, and the step chain per run.
+      **The screens say plainly that no model access is configured** — and
+      there is no start button until there is a provider (D-435).
 - [ ] Four agents: CEO Assistant, Acquisition, Back-office, Finance
+      — blocked on the model access above, not on the runtime.
 - [ ] Approval inbox with diff review, source attribution, confidence flags,
       batch approval, delayed release, undo, approval snapshots
 - [ ] Watchdog jobs (SPEC §14)
@@ -288,7 +437,9 @@ Radar first — the agents operate on its output.
 - [ ] Load and mobile testing on real devices
 - [ ] DSGVO pack: processing register, DPAs, deletion concept, employee notice
       for geolocation
-- [ ] Verfahrensdokumentation generated from live configuration
+- [x] Verfahrensdokumentation generated from live configuration (PR 66,
+      D-485) — re-read before go-live: every open point in its section 5
+      must be closed or accepted
 - [ ] Training material; handover
 
 ---

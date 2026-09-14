@@ -115,17 +115,26 @@ describe('ein Snapshot ist unveraenderlich (K-13)', () => {
       .rejects.toThrow(/Hard delete|gesperrt/u);
   });
 
+  /**
+   * **Mit Entscheider**, seit 0136 — sonst greift `fs_entscheider_ausser_bei_frist`
+   * (Invariante 7) zuerst, und dieser Fall pruefte nicht mehr, was er meint.
+   * Der Gegenstand hier ist die Eindeutigkeit der KETTENNUMMER; dass eine
+   * Entscheidung einen Menschen braucht, steht in §6 als eigener Fall.
+   */
   it('zwei Snapshots mit derselben Kettennummer sind nicht speicherbar', async () => {
     const { freigabe } = await freigabeMitSnapshot();
+    const [b] = await sql.unsafe<{ id: string }[]>(
+      `select entschieden_von as id from freigabe_snapshot
+        where freigabe_id = $1 limit 1`, [freigabe]);
     await expect(
       sql.unsafe(
         `insert into freigabe_snapshot
            (mandant_id, freigabe_id, kette_nr, nutzlast, nutzlast_hash, vorheriger_hash,
-            hash, entscheidung)
-         values ($1,$2,1,'{}'::jsonb,$3,$3,$3,'genehmigt')`,
-        [f.reinigung, freigabe, 'c'.repeat(64)],
+            hash, entscheidung, entschieden_von)
+         values ($1,$2,1,'{}'::jsonb,$3,$3,$3,'genehmigt',$4)`,
+        [f.reinigung, freigabe, 'c'.repeat(64), b!.id],
       ),
-    ).rejects.toThrow(/freigabe_snapshot_kette_uk|duplicate/iu);
+    ).rejects.toThrow(/freigabe_snapshot_kette_uk|fs_erst_uk|duplicate/iu);
   });
 });
 

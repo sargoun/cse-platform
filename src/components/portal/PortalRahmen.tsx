@@ -1,5 +1,6 @@
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Icon } from '@/components/ui/Icon';
+import { Marke } from '@/components/marke/Marke';
 import { TabLeiste } from './TabLeiste';
 import { SeitenNavigation } from './SeitenNavigation';
 import { tableiste, type LeistenSchluessel } from '@/server/registry/tableiste';
@@ -123,16 +124,25 @@ export function PortalRahmen({
           * `/portal/mein/**` fielen daran, jeder mit genau diesem einen Knoten.
           */}
         {wurzelTitel === undefined || wurzelTitel === titel ? (
-          <a href={wurzel}
-             className="flex min-h-11 min-w-11 items-center text-h3 text-text hover:underline">
-            {titel}
+          /*
+           * Das Logo der Gesellschaft als Weg zur Uebersicht — Zeichen und
+           * Name (DESIGN §1 Lockup), ohne den Unterstrich, der aus einem
+           * Firmennamen einen Textlink machte. Der Hover ist die Flaeche.
+           */
+          <a href={wurzel} data-cse="portal-logo"
+             className="-ms-s2 flex min-h-11 min-w-11 items-center gap-s2 rounded-md px-s2
+                        text-h3 text-text transition-colors duration-fast ease-brand
+                        hover:bg-surface-2">
+            {bereich === null ? <Marke art="gruppe" groesse="sm" /> : <Marke art={bereich} groesse="sm" />}
+            <span className="truncate">{titel}</span>
           </a>
         ) : (
           <nav aria-label={b('pfad.label', 'Pfad')} data-cse="spur"
                className="flex min-w-0 items-center gap-s2">
             <a href={wurzel} data-cse="spur-zurueck"
-               className="flex min-h-11 min-w-11 items-center gap-s1 text-sm text-text-muted
-                          hover:text-text">
+               className="flex min-h-11 min-w-11 items-center gap-s2 text-sm text-text-muted
+                          transition-colors duration-fast ease-brand hover:text-text">
+              {bereich === null ? <Marke art="gruppe" groesse="sm" /> : <Marke art={bereich} groesse="sm" />}
               <span aria-hidden="true">‹</span>
               {wurzelTitel}
             </a>

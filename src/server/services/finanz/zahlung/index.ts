@@ -454,6 +454,29 @@ export async function bucheBauabzug(
       'Diese Rechnung weist keinen Bauabzugsteuer-Einbehalt aus.', 'abgewiesen');
   }
 
+  /**
+   * **Einmal, nicht je Klick.**
+   *
+   * Auf der Rechnung steht EIN Einbehaltsbetrag. Zweimal gebucht — zwei
+   * Klicks, ein Wiederholungsversuch nach einer Zeitüberschreitung — tilgte
+   * die zweite Zeile einen Rest, den niemand bezahlt hat, und die Forderung
+   * gälte als ausgeglichen.
+   *
+   * Die eigentliche Sperre ist der Teilindex `zz_bauabzug_je_posten` (0130):
+   * zwei gleichzeitige Aufrufe finden hier beide nichts, und genau dann muss
+   * die Datenbank den zweiten auflaufen lassen. Diese Abfrage ist für die
+   * MELDUNG da — „schon gebucht" statt eines Indexfehlers, den niemand liest.
+   */
+  const [schon] = await db.abfrage<{ n: string }>(
+    `select count(*)::text as n from zahlung_zuordnung
+      where offener_posten_id = $1::uuid and art = 'bauabzugsteuer_einbehalt'`,
+    [kopf.posten_id]);
+  if (schon !== undefined && schon.n !== '0') {
+    throw new ZahlungFehler(
+      'Der Einbehalt nach §48 EStG ist für diese Rechnung bereits gebucht. '
+      + 'Eine Rechnung weist genau einen aus.', 'abgewiesen');
+  }
+
   await ordneZu(db, {
     zahlungId: null,
     offenerPostenId: kopf.posten_id,

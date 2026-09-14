@@ -7,6 +7,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  codeEinloesen,
+  nurZiffern,
   codeAnfordern, codeHash, neuerCode, normalisiereTelefon,
 } from '../../src/server/auth/mitarbeiter-anmeldung.js';
 import {
@@ -140,6 +142,27 @@ describe('der Code wird nur gezeigt, wo er gezeigt werden darf', () => {
     ).toBeNull();
   });
 
+  /**
+   * **Ohne Zustellung entsteht kein Code** (D-487). Ein Code, den niemand
+   * erhaelt, ist nicht harmlos: 0114 loest nur den JUENGSTEN ein, und der
+   * ungestellte Code verdraengte den, den die Einsatzleitung ausgestellt hat
+   * — die Anmeldung am Handy scheiterte genau daran. Der nicht verbundene
+   * Dienst fragt die Datenbank deshalb gar nicht erst; der Entwicklungsdienst
+   * (er zeigt den Code) tut es weiterhin.
+   */
+  it('nicht verbundener Dienst: die Datenbank wird nicht gefragt — kein Code, der niemanden erreicht', async () => {
+    let aufrufe = 0;
+    const zaehlend = {
+      unsafe: (): Promise<readonly unknown[]> => { aufrufe += 1; return Promise.resolve([{ ok: true }]); },
+    };
+    const ohne = await codeAnfordern(zaehlend, '0170 1234567', new NichtVerbundenerSmsDienst());
+    expect(ohne.angenommen, 'nach aussen dieselbe Antwort').toBe(true);
+    expect(aufrufe, 'ohne Gateway kein Code — er verdraengte den ausgestellten (0114: nur der juengste gilt)').toBe(0);
+
+    await codeAnfordern(zaehlend, '0170 1234567', new EntwicklungsSmsDienst());
+    expect(aufrufe, 'der Entwicklungsdienst zeigt den Code und legt ihn deshalb an').toBe(1);
+  });
+
   it('Entwicklungsdienst: Klartextcode, sechsstellig', async () => {
     const ergebnis = await codeAnfordern(
       abfrageJa, '0170 1234567', new EntwicklungsSmsDienst(),
@@ -188,5 +211,48 @@ describe('der Code wird nur gezeigt, wo er gezeigt werden darf', () => {
     );
     expect(ergebnis.angenommen, 'nach aussen immer dieselbe Antwort').toBe(true);
     expect(ergebnis.codeFuerEntwicklung).toBeNull();
+  });
+});
+
+/**
+ * **Der Code, wie er wirklich ankommt** (D-488).
+ *
+ * Der Nutzer hat es am Telefon so beschrieben: „Ich tippe den Code ein, und
+ * es passiert nichts." Ein `pattern="[0-9]{6}"` im Formular blockiert das
+ * Absenden ohne sichtbare Meldung, sobald ein Leerzeichen mitkommt — und es
+ * kommt mit, wenn jemand den Code vom Bildschirm der Einsatzleitung
+ * markiert und einfuegt. Die Ziffern sind der Code; alles andere ist
+ * Formatierung, und die faellt hier weg, statt die Seite anhalten zu lassen.
+ */
+describe('der eingefuegte Code traegt Formatierung — die Ziffern tragen die Bedeutung', () => {
+  it('nurZiffern laesst genau die Ziffern stehen', () => {
+    expect(nurZiffern(' 12 34 56 ')).toBe('123456');
+    expect(nurZiffern('123-456')).toBe('123456');
+    expect(nurZiffern('Code: 123456.')).toBe('123456');
+    expect(nurZiffern('\u202f123\u00a0456')).toBe('123456');
+  });
+
+  it('ein eingefuegter Code mit Leerzeichen wird eingeloest — mit dem Hash der Ziffern', async () => {
+    const gefragt: unknown[][] = [];
+    const tx = {
+      unsafe: (_a: string, w?: readonly unknown[]): Promise<readonly unknown[]> => {
+        gefragt.push([...(w ?? [])]);
+        return Promise.resolve([{ person_id: 'person-1' }]);
+      },
+    };
+    const person = await codeEinloesen(tx, '0170 1234567', ' 12 34 56 ');
+    expect(person).toBe('person-1');
+    expect(gefragt[0]?.[1], 'die Datenbank sieht den Hash der sechs Ziffern').toBe(codeHash('123456'));
+  });
+
+  it('zu wenige oder zu viele Ziffern: die Datenbank wird gar nicht gefragt', async () => {
+    let aufrufe = 0;
+    const tx = {
+      unsafe: (): Promise<readonly unknown[]> => { aufrufe += 1; return Promise.resolve([{ person_id: 'x' }]); },
+    };
+    expect(await codeEinloesen(tx, '0170 1234567', '12345')).toBeNull();
+    expect(await codeEinloesen(tx, '0170 1234567', '1234567')).toBeNull();
+    expect(await codeEinloesen(tx, '0170 1234567', '')).toBeNull();
+    expect(aufrufe).toBe(0);
   });
 });

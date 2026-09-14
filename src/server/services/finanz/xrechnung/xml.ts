@@ -29,6 +29,13 @@ export class XmlFehler extends Error {
 }
 
 /**
+ * **Exportiert, weil es einen zweiten XML-Erzeuger gibt.** Der XMP-Block im
+ * ZUGFeRD-PDF (`zugferd/pdfa3.ts`) baut sein XML als Zeichenkette und setzte
+ * `leistender.name` roh hinein — ein Firmenname wie „Müller & Söhne" machte
+ * die Metadaten damit nicht wohlgeformt, und ein PDF/A-3, dessen XMP nicht
+ * parst, faellt bei veraPDF durch. Zwei Maskierer waeren zwei Auslegungen von
+ * „gueltiges XML"; es gibt nur diesen.
+ *
  * Die fuenf Ersetzungen, und `>` ist keine Bequemlichkeit: die Folge `]]>`
  * beendet einen CDATA-Abschnitt und ist auch ausserhalb eines solchen
  * verboten.
@@ -36,7 +43,7 @@ export class XmlFehler extends Error {
  * `\r` wird zu `&#13;`, weil ein Parser rohe Wagenruecklaeufe beim Einlesen
  * zu `\n` normalisiert — der Text kaeme anders zurueck, als er hineinging.
  */
-function maskiere(wert: string, pfad: string): string {
+export function maskiere(wert: string, pfad: string): string {
   let aus = '';
   for (const zeichen of wert.normalize('NFC')) {
     const code = zeichen.codePointAt(0) ?? 0;

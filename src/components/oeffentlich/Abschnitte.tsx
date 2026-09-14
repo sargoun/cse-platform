@@ -1,4 +1,6 @@
 import { Hero } from './Hero';
+import type { MarkeArt } from '@/components/marke/Marke';
+import { shellTexte } from '@/lib/i18n/texte';
 import { MarkenKarte } from './MarkenKarte';
 import { motivFuerBereich, type PlatzhalterMotiv } from '@/lib/placeholder-assets';
 import { bildFuerMotiv } from '@/server/inhalt/bilder';
@@ -88,6 +90,28 @@ function Leistungen({ a }: { readonly a: Abschnitt }) {
   );
 }
 
+/** Auf `/` das Gruppenzeichen, auf `/unternehmen/[slug]` das der Gesellschaft — sonst keines. */
+function heldenMarke(
+  pfad: string, bereiche: readonly ShellBereich[], gruppeName: string,
+): { readonly art: MarkeArt; readonly name: string } | null {
+  const ohne = pfad.replace(/^\/en(?=\/|$)/u, '') || '/';
+  if (ohne === '/') return gruppeName === '' ? null : { art: 'gruppe', name: gruppeName };
+  const slug = /^\/unternehmen\/([a-z-]+)$/u.exec(ohne)?.[1];
+  const b = slug === undefined ? undefined : bereiche.find((x) => x.slug === slug);
+  return b === undefined ? null : { art: b.bereich, name: b.name };
+}
+
+/** Der rote Knopf und der Ghost-Verweis — nur dort, wo eine Seite zu etwas fuehrt. */
+function heldenAufrufe(pfad: string, sprache: Sprache) {
+  const t = shellTexte(sprache);
+  const ohne = pfad.replace(/^\/en(?=\/|$)/u, '') || '/';
+  if (ohne !== '/' && !/^\/unternehmen\/[a-z-]+$/u.test(ohne)) return [];
+  return [
+    { href: mitSprache('/angebot', sprache), text: t.angebotAnfragen, primaer: true },
+    { href: mitSprache('/leistungen', sprache), text: t.navigation.leistungen, primaer: false },
+  ];
+}
+
 export interface AbschnitteProps {
   /**
    * Die Sprache der Seite — sie entscheidet, wohin die Markenkarten führen.
@@ -99,6 +123,8 @@ export interface AbschnitteProps {
   readonly sprache?: Sprache;
   readonly seite: Seite;
   readonly bereiche: readonly ShellBereich[];
+  /** Der Auftrittsname der Gruppe — fuer die Marke ueber der Ueberschrift der Startseite. */
+  readonly gruppeName?: string;
   /** Kurztexte je Bereich fuer die Markenkarten der Startseite. */
   readonly ansprueche: Readonly<Record<string, string>>;
   /*
@@ -111,7 +137,7 @@ export interface AbschnitteProps {
 }
 
 export function Abschnitte(
-  { seite, bereiche, ansprueche, sprache = VORGABE_SPRACHE }: AbschnitteProps,
+  { seite, bereiche, ansprueche, sprache = VORGABE_SPRACHE, gruppeName = '' }: AbschnitteProps,
 ) {
   return (
     <>
@@ -136,6 +162,8 @@ export function Abschnitte(
                 text={a.text}
                 bild={bildVon(a, motivFuerPfad(seite.pfad))}
                 sprache={sprache}
+                marke={heldenMarke(seite.pfad, bereiche, gruppeName)}
+                aufrufe={heldenAufrufe(seite.pfad, sprache)}
               />
             );
           case 'markenkarten':

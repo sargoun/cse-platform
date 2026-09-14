@@ -7,7 +7,7 @@ import { pruefeZugang, rechtepruefer, PORTAL_START } from '@/server/auth/zugang'
 import { bindeAnfrage, gruppenMandanten, rolleImMandanten } from '@/server/kontext/index';
 import { NAVIGATION } from '@/server/registry/navigation';
 import { modulAktiv, type Modulbuchung } from '@/server/registry/modul';
-import { findeRoute } from '@/server/registry/routen';
+import { familie, findeRoute } from '@/server/registry/routen';
 import { leisteFuer, tableiste, type LeistenSchluessel }
   from '@/server/registry/tableiste';
 import { istPortalSprache, type PortalSprache } from '@/lib/i18n/texte';
@@ -77,6 +77,24 @@ export interface PortalZugang {
    * zurueck (D-419).
    */
   readonly sprache: PortalSprache | null;
+  /** Die Adresse, fuer die dieses Tor gefragt wurde — der Rueckweg nach einem Wechsel. */
+  readonly pfad: string;
+  /**
+   * Eine Gruppensitzung auf einer Mandantsseite: der Bereich, in den sie
+   * wechseln KOENNTE (D-474) — oder `null`, wenn das hier keine Frage ist.
+   *
+   * Steht er, hat das Tor das Recht der Seite NICHT geprueft: in der
+   * Gruppenansicht antwortet `app.hat_recht` auf alles ausser Lesen mit
+   * `false` (0008, Invariante 10), und die Frage „darf ich diese Seite
+   * sehen" ist erst im Bereich sinnvoll gestellt. `slugTor` macht daraus das
+   * Wechselblatt; die Seite selbst rendert nichts von ihrem Inhalt.
+   */
+  readonly wechselZiel: WechselZiel | null;
+}
+
+export interface WechselZiel {
+  readonly slug: string;
+  readonly name: string;
 }
 
 interface Befund {
@@ -88,6 +106,19 @@ interface Befund {
   readonly mandantSlug: string | null;
   readonly modulGesperrt: boolean;
   readonly sprache: PortalSprache | null;
+  readonly wechselZiel: WechselZiel | null;
+}
+
+/**
+ * Der Slug einer `/portal/[mandant]/…`-Adresse — oder `null` fuer jede andere
+ * Familie. Gefragt wird die ROUTE aus dem Manifest, nicht die rohe Adresse:
+ * `/portal/gruppe/auftraege` beginnt auch mit `/portal/`.
+ */
+function mandantSlugAus(pfad: string): string | null {
+  const route = findeRoute(pfad);
+  if (route === undefined || familie(route.pfad) !== 'mandant') return null;
+  const teile = pfad.split('?')[0]?.split('/').filter((t) => t !== '') ?? [];
+  return teile[0] === 'portal' && teile[1] !== undefined ? teile[1] : null;
 }
 
 /** Die Portalwurzel, unter der die Leiste ihre relativen Ziele aufloest. */
@@ -124,12 +155,48 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
         [mandanten.join(',')]);
     }
 
+    /**
+     * **Eine Gruppensitzung auf einer Mandantsseite bekommt das Wechselblatt
+     * — bevor irgendein Recht gefragt wird (D-474).**
+     *
+     * Vorher lief hier `pruefeZugang`, und das fragte `app.hat_recht` im
+     * Gruppen-Scope. Dort antwortet die Funktion auf jede Aktion ausser
+     * `lesen` und `exportieren` mit `false` (0008, Invariante 10) — richtig
+     * fuer die Gruppenansicht, aber die Person wollte gar nicht in der
+     * Gruppenansicht handeln: sie hat die Adresse eines Bereichs getippt oder
+     * aus einem Chat kopiert. Die Antwort war 404 fuer eine Seite, die sie
+     * nach einem Klick haette sehen duerfen.
+     *
+     * Das Blatt verraet nichts, was der Switcher nicht ohnehin zeigt:
+     * `app.mandant_fuer_wechsel` antwortet nur fuer Bereiche, die diese
+     * Anmeldung wechseln darf, und fuer alles andere `null` — dann geht es
+     * unten weiter, und das Tor antwortet wie bisher (404, nie 403). Ob die
+     * SEITE im Bereich sichtbar ist, entscheidet das Tor erst nach dem
+     * Wechsel, im richtigen Scope — ein GET wechselt ihn nicht (§4.5).
+     */
+    const zielSlug = sitzung.ansicht === 'gruppe' ? mandantSlugAus(pfad) : null;
+    if (zielSlug !== null) {
+      const [z] = await abfrage<{ id: string | null; name: string | null }>(
+        `select z.id, m.name
+           from app.mandant_fuer_wechsel($1) as z(id)
+           left join mandant m on m.id = z.id`,
+        [zielSlug],
+      );
+      if (z?.id !== null && z?.id !== undefined) {
+        return {
+          entscheidung: { art: 'erlaubt' }, rolle: null, mandanten, sichtbareTabs: {},
+          navigationsRechte: {}, mandantSlug: null, modulGesperrt: false, sprache: null,
+          wechselZiel: { slug: zielSlug, name: z.name ?? zielSlug },
+        } satisfies Befund;
+      }
+    }
+
     const pruefer = rechtepruefer(abfrage);
     const entscheidung = await pruefeZugang(pfad, sitzung, pruefer);
     if (entscheidung.art !== 'erlaubt') {
       return {
         entscheidung, rolle: null, mandanten, sichtbareTabs: {}, navigationsRechte: {},
-        mandantSlug: null, modulGesperrt: false, sprache: null,
+        mandantSlug: null, modulGesperrt: false, sprache: null, wechselZiel: null,
       } satisfies Befund;
     }
 
@@ -248,7 +315,7 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
       && [...bewachung.lesen, ...bewachung.schreiben].some((r) => !modulAktiv(buchung, r));
     return {
       entscheidung, rolle, mandanten, sichtbareTabs, navigationsRechte,
-      mandantSlug: m?.slug ?? null, modulGesperrt, sprache,
+      mandantSlug: m?.slug ?? null, modulGesperrt, sprache, wechselZiel: null,
     } satisfies Befund;
   }) as Promise<Befund>);
 
@@ -305,6 +372,8 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
     mandantSlug: befund.mandantSlug,
     modulGesperrt: befund.modulGesperrt,
     sprache: befund.sprache,
+    pfad,
+    wechselZiel: befund.wechselZiel,
   };
 }
 

@@ -78,3 +78,29 @@ export async function wechsleMandant(
   );
   return { art: 'gewechselt', ziel };
 }
+
+/**
+ * Der Rueckweg nach dem Wechsel — nur, wenn er IM Ziel liegt.
+ *
+ * `zurueck` kommt aus dem Formular des Wechselblatts, also vom Aufrufer.
+ * Angenommen wird ein Pfad, der mit `/portal/<ziel>` beginnt, nichts sonst:
+ * kein absoluter Verweis (der die Basis ignorierte), kein `//host`, kein
+ * `..`-Segment (das `new URL` still aufloeste — `/portal/reinigung/../mein`
+ * ist `/portal/mein`), kein Backslash, kein anderer Bereich. Wer nach dem
+ * Wechsel in die Reinigung auf einer Bau-Seite landete, haette den Wechsel
+ * nicht gelesen, den er bestaetigt hat.
+ *
+ * `null` heisst: Standardziel, die Wurzel des Bereichs. Kein Fehler — ein
+ * praeparierter Wert soll dem Angreifer nichts sagen (dieselbe Haltung wie
+ * `internesZiel`).
+ */
+const RUECKWEG = /^\/portal\/([a-z0-9-]+)(?:\/[A-Za-z0-9._~-]+)*(?:\?[A-Za-z0-9=&._~%-]*)?$/u;
+
+export function rueckwegImBereich(zurueck: unknown, ziel: Wechselziel): string | null {
+  if (typeof zurueck !== 'string' || zurueck === '' || zurueck.length > 512) return null;
+  const treffer = RUECKWEG.exec(zurueck);
+  if (treffer === null) return null;
+  if (zurueck.split('?')[0]!.split('/').some((segment) => /^\.+$/u.test(segment))) return null;
+  const erwartet = ziel.art === 'gruppe' ? 'gruppe' : ziel.slug;
+  return treffer[1] === erwartet ? zurueck : null;
+}

@@ -48,7 +48,7 @@ export default async function Personenblatt(
 
   const tor = await slugTor(zugang, mandant);
   if (tor.art === 'wechsel') {
-    return <Wechselblatt aktuell={tor.aktuell} zielTitel={mandant} zielSlug={tor.ziel} />;
+    return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
@@ -110,6 +110,13 @@ export default async function Personenblatt(
           className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
         >
           Nachweisregister
+        </Link>
+        <Link
+          href={`/portal/${mandant}/personal/personen/${id}/zugang`}
+          data-cse="person-zugang"
+          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+        >
+          Zugang und Anmeldecode
         </Link>
       </nav>
 

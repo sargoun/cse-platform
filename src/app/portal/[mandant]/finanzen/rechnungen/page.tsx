@@ -58,14 +58,21 @@ interface Zeile {
 }
 
 export default async function Rechnungsliste(
-  { params }: { params: Promise<{ mandant: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant } = await params;
+  /* Der Monat aus den Monatszahlen (DSH-04): `?monat=YYYY-MM` filtert nach Rechnungsdatum. */
+  const suche = await searchParams;
+  const monatRoh = typeof suche['monat'] === 'string' ? suche['monat'] : null;
+  const monat = monatRoh !== null && /^\d{4}-\d{2}$/u.test(monatRoh) ? monatRoh : null;
   const zugang = await portalZugang(`/portal/${mandant}/finanzen/rechnungen`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
   if (tor.art === 'wechsel') {
-    return <Wechselblatt aktuell={tor.aktuell} zielTitel={mandant} zielSlug={tor.ziel} />;
+    return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
@@ -88,8 +95,9 @@ export default async function Rechnungsliste(
                 limit 1) as storniert_durch
          from rechnung r
          join kunde k on k.mandant_id = r.mandant_id and k.id = r.kunde_id
+        where ($1::text is null or to_char(r.rechnungsdatum, 'YYYY-MM') = $1)
         order by r.nummer_laufend desc nulls first, r.erstellt_am desc`,
-    ))) as Promise<readonly Zeile[]>);
+      [monat]))) as Promise<readonly Zeile[]>);
 
   return (
     <PortalRahmen
@@ -104,6 +112,12 @@ export default async function Rechnungsliste(
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">Rechnungen</h1>
+        {monat === null ? null : (
+          <p data-cse="monat-filter" className="text-sm text-text-muted">
+            Rechnungsdatum im Monat <strong>{monat.slice(5, 7)}/{monat.slice(0, 4)}</strong>{' '}
+            <Link href={`/portal/${mandant}/finanzen/rechnungen`} className="underline underline-offset-2">alle zeigen</Link>
+          </p>
+        )}
         <Link
           href={`/portal/${mandant}/finanzen/rechnungen/neu`}
           className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"

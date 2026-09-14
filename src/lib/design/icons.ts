@@ -28,6 +28,17 @@ export const ICON_PFADE = {
   // fuer den, der sie scannt, ein Punkt.
   crm: 'M3 5h18v14H3zM8.5 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM5.5 16.5a3.2 3.2 0 0 1 6 0M14.5 10h4M14.5 13.5h3',
   objekt: 'M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6M9 12h.01M15 12h.01',
+  // Sechs Punkte trugen das Bild eines anderen: Reinigung das Haus der
+  // Objekte, Security das Schloss der Schluessel, Qualitaet das Dreieck der
+  // Mahnungen, Eingangsrechnungen das Blatt der Rechnungen, und Ausgangsbuch,
+  // Buchungen, Bank und DATEV alle den Export-Pfeil. Wer die Leiste scannt,
+  // scannt Bilder — vier gleiche sind ein Punkt.
+  reinigung: 'M4 20l4-4M8 16l3 3-4 4M9 15l6-6M15 9l2-2M17.5 4.5v3M16 6h3M12 12l3 3',
+  security: 'M12 3.5l6.5 2.6v5.4c0 4.3-2.8 7.4-6.5 9.5-3.7-2.1-6.5-5.2-6.5-9.5V6.1zM9.3 12.2l1.9 1.9 3.6-3.8',
+  qualitaet: 'M12 3l2.2 2.2 3.1-.4.4 3.1L20 12l-2.3 2.1-.4 3.1-3.1-.4L12 21l-2.2-2.2-3.1.4-.4-3.1L4 12l2.3-2.1.4-3.1 3.1.4zM9.3 12.2l1.9 1.9 3.6-3.8',
+  eingang: 'M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8zM14 3v5h5M12 11v6M9.5 14.5 12 17l2.5-2.5',
+  buch: 'M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 19a2 2 0 0 1 2-2h13M8 7h7M8 10.5h7',
+  bank: 'M3 10l9-6 9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18',
   dienstplan: 'M3 5h18v16H3zM3 10h18M8 3v4M16 3v4M8 14h2M8 17h2M14 14h2M14 17h2',
   zeit: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3.5 2',
   personal: 'M8 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1M16.5 11.5a3 3 0 1 0 0-6M18 14.2a5 5 0 0 1 4 4.8V20',

@@ -39,7 +39,7 @@ Compliance is not a later phase.
 `// TODO(client)`: Is **CSE Operations** a GmbH or an internal department?
 A legal entity needs its own invoice circle; a department does not.
 
-**Resolved:** the security brand is **SSE Security** — Select-Security Event
+**Resolved:** the security brand is **SSE Security** — Select Security Event
 GmbH — with its own logo and identity, not a CSE sub-brand. Confirmed by the
 client's design mockups. It keeps its own tax number and invoice circle.
 

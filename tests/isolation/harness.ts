@@ -353,7 +353,7 @@ export async function seed(): Promise<Fixtur> {
     // Sequential, not Promise.all: one transaction is one connection, and
     // concurrent statements on it interleave into a single pipeline anyway.
     const r = await mandant('reinigung', 'CSE Dienstleistung', 'CSE Dienstleistungen GmbH');
-    const s = await mandant('security', 'SSE Security', 'Select-Security Event GmbH');
+    const s = await mandant('security', 'SSE Security', 'Select Security Event GmbH');
     const b = await mandant('bau', 'REALTIME Service', 'REALTIME Service GmbH');
     const o = await mandant('operations', 'CSE Operations', 'CSE Operations');
 

@@ -22,6 +22,58 @@ export interface DienstEintrag {
 }
 
 export const DIENSTE: readonly DienstEintrag[] = [
+  /**
+   * **Die Buchhaltung (PR 58, ACC-01).** `kontenrahmen` und `kontierung`
+   * lesen; `periode` und `buchungssatz` schreiben — und sie schreiben als
+   * Folge einer Festschreibung, nicht als eigene Handlung. Ihr Schreibrecht
+   * ist deshalb `finanzen.schreiben` und nicht `buchhaltung.schreiben`
+   * (D-427): wer eine Rechnung festschreibt, wird dadurch nicht Buchhalter.
+   */
+  { modul: 'buchhaltung', pfad: 'buchhaltung/kontenrahmen', schreibend: false },
+  { modul: 'buchhaltung', pfad: 'buchhaltung/kontierung', schreibend: false },
+  { modul: 'buchhaltung', pfad: 'buchhaltung/index', schreibend: false },
+  {
+    modul: 'buchhaltung', pfad: 'buchhaltung/periode',
+    schreibend: true, schreibRecht: 'finanzen.schreiben',
+  },
+  {
+    modul: 'buchhaltung', pfad: 'buchhaltung/buchungssatz',
+    schreibend: true, schreibRecht: 'finanzen.schreiben',
+  },
+  /**
+   * Der Archivlauf legt das Rechnungs-PDF ab und haengt es an die Buchung
+   * (PR 59, ACC-03). `finanzen.schreiben` und nicht ein eigenes Recht: er
+   * tut nichts, was die festschreibende Person nicht ohnehin ausgeloest hat
+   * — dieselbe Ueberlegung wie D-427 fuer den Buchungssatz selbst. Ein
+   * zweites Recht zu verlangen hiesse, dass eine Rechnung ohne ihren Beleg
+   * bliebe, weil der naechtliche Lauf es nicht hat.
+   */
+  {
+    modul: 'buchhaltung', pfad: 'buchhaltung/belegarchiv',
+    schreibend: true, schreibRecht: 'finanzen.schreiben',
+  },
+  /**
+   * Das Exportpaket LIEST — es paart Buchungszeilen mit ihren Dateien und
+   * legt nichts ab. Die Datei selbst schreibt PR 60.
+   */
+  { modul: 'buchhaltung', pfad: 'buchhaltung/exportpaket', schreibend: false },
+  /**
+   * Der EXTF-Schreiber und seine Zeichenkodierung sind REINE Funktionen: sie
+   * bekommen Cent und Strings und geben Bytes zurueck. Kein Datenbankzugriff,
+   * kein Schreibrecht — und genau deshalb sind sie byteweise pruefbar.
+   */
+  { modul: 'buchhaltung', pfad: 'buchhaltung/datev/extf', schreibend: false },
+  { modul: 'buchhaltung', pfad: 'buchhaltung/datev/cp1252', schreibend: false },
+  /**
+   * Der Exportvorgang legt eine Zeile an und stempelt die Buchungszeilen.
+   * `buchhaltung.exportieren` und nicht `finanzen.schreiben`: hier entsteht
+   * eine Datei, die das Haus verlaesst — das ist eine andere Handlung als
+   * eine Rechnung festzuschreiben.
+   */
+  {
+    modul: 'buchhaltung', pfad: 'buchhaltung/datev/export',
+    schreibend: true, schreibRecht: 'buchhaltung.exportieren',
+  },
   { modul: 'finanzen', pfad: 'finanz/geld', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/steuer/satz', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/hash-chain', schreibend: false },
@@ -30,6 +82,26 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'nummernkreis.ziehen',
   },
   { modul: 'finanzen', pfad: 'finanz/menge', schreibend: false },
+  /**
+   * Der CAMT.053-Leser und der Abgleich sind REINE Funktionen (PR 61): XML
+   * herein, Zeilen hinaus; offene Posten herein, ein VORSCHLAG hinaus. Keine
+   * Datenbank, kein Schreibrecht — und genau deshalb laesst sich jede
+   * Zuordnungsregel ohne Fixtur pruefen. Was der Vorschlag wird, entscheidet
+   * der Dienst darueber; nur ein eindeutiger Treffer darf ohne Menschen
+   * gebucht werden (ACC-04).
+   */
+  { modul: 'zahlung', pfad: 'finanz/bank/camt', schreibend: false },
+  { modul: 'zahlung', pfad: 'finanz/bank/abgleich', schreibend: false },
+  /**
+   * Der Import verbindet beide: er liest, gleicht ab und legt bei einem
+   * EINDEUTIGEN Treffer die Zahlung an. `zahlung.schreiben`, denn genau das
+   * tut er — wer den Auszug nur ansieht, braucht es nicht (die Policy auf
+   * `kontoauszug` liest mit `buchhaltung.lesen`).
+   */
+  {
+    modul: 'zahlung', pfad: 'finanz/bank/import',
+    schreibend: true, schreibRecht: 'zahlung.schreiben',
+  },
   /**
    * Die Kalkulation LIEST — sie schreibt nichts. Der Preis, den sie
    * ausrechnet, wird erst vom Angebot gespeichert, und das ist der Dienst,
@@ -259,6 +331,19 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'dokument', pfad: 'dokument/kategorie', schreibend: false },
   {
     modul: 'dokument', pfad: 'dokument/upload',
+    schreibend: true, schreibRecht: 'dokument.schreiben',
+  },
+  /**
+   * Die Ablage fuer Dateien, die die PLATTFORM erzeugt (PR 60). Sie ist die
+   * SCHWESTER von `dokument/upload` und nicht sein Ersatz: der Upload prueft
+   * Magic Bytes und entfernt Metadaten, weil dort Inhalt ankommt, den ein
+   * Mensch mitbringt. Hier stammen die Bytes aus dieser Codebasis.
+   *
+   * `dokument.schreiben`, dieselbe Schranke wie beim Upload: wer keine
+   * Dokumente ablegen darf, legt auch keine erzeugten ab.
+   */
+  {
+    modul: 'dokument', pfad: 'dokument/erzeugt',
     schreibend: true, schreibRecht: 'dokument.schreiben',
   },
   { modul: 'referenz', pfad: 'inhalt/seite', schreibend: false },
@@ -634,6 +719,52 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'finanzen', pfad: 'finanz/zahlungsmittel', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/index', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/xml', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/xml-lesen', schreibend: false },
+  /* PR 63 — E-Rechnung lesen (ACC-05): reine Extraktion, kein Modell, kein OCR (O-135). */
+  { modul: 'eingang', pfad: 'finanz/eingang/erechnung', schreibend: false },
+  { modul: 'eingang', pfad: 'finanz/eingang/pdf-anhang', schreibend: false },
+  {
+    modul: 'eingang', pfad: 'finanz/eingang/vorschlag',
+    schreibend: true, schreibRecht: 'eingang.schreiben',
+  },
+  {
+    modul: 'eingang', pfad: 'finanz/eingang/ablage',
+    schreibend: true, schreibRecht: 'eingang.schreiben',
+  },
+  /* PR 64 — GoBD-Archiv: Buendel, Wirtschaftsjahr, Aufbewahrung, der eine Loeschweg. */
+  { modul: 'dokument', pfad: 'archiv/zip', schreibend: false },
+  { modul: 'buchhaltung', pfad: 'buchhaltung/wirtschaftsjahr', schreibend: false },
+  /* PR 65 — Offene Posten, Monatszahlen, Periodenschloss. */
+  { modul: 'buchhaltung', pfad: 'buchhaltung/offene-posten', schreibend: false },
+  { modul: 'buchhaltung', pfad: 'buchhaltung/monatszahlen', schreibend: false },
+  {
+    modul: 'buchhaltung', pfad: 'buchhaltung/periodenschluss',
+    schreibend: true, schreibRecht: 'buchhaltung.festschreiben',
+  },
+  { modul: 'dokument', pfad: 'buchhaltung/pruefbuendel', schreibend: false },
+  /* PR 66 — Z3-Datentraegerueberlassung und Verfahrensdokumentation. */
+  { modul: 'buchhaltung', pfad: 'buchhaltung/z3', schreibend: false },
+  { modul: 'buchhaltung', pfad: 'buchhaltung/verfahrensdokumentation', schreibend: false },
+  /* PR 67 — Jahrespaket und Lohnexport. */
+  { modul: 'buchhaltung', pfad: 'buchhaltung/jahrespaket', schreibend: false },
+  { modul: 'zeit', pfad: 'zeit/lohnexport', schreibend: false },
+  /* D-487 — Serien anlegen; Anmeldecode durch die Einsatzleitung. */
+  {
+    modul: 'dienstplan', pfad: 'dienstplan/serie',
+    schreibend: true, schreibRecht: 'dienstplan.schreiben',
+  },
+  {
+    modul: 'personal', pfad: 'personal/zugangscode',
+    schreibend: true, schreibRecht: 'personal.zugang_verwalten',
+  },
+  {
+    modul: 'dokument', pfad: 'dokument/aufbewahrung',
+    schreibend: true, schreibRecht: 'dokument.aufbewahrung_verwalten',
+  },
+  {
+    modul: 'dokument', pfad: 'dokument/loeschung',
+    schreibend: true, schreibRecht: 'dokument.archivieren',
+  },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/aus-snapshot', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/pruefstand', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/dienst', schreibend: false },
@@ -680,7 +811,68 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * darf, darf damit noch keine Freigabe in die Kette schreiben.
    */
   {
-    modul: 'freigabe', pfad: 'freigabe',
+    modul: 'freigabe', pfad: 'freigabe/erteilen',
+    schreibend: true, schreibRecht: 'freigabe.entscheiden',
+  },
+  /**
+   * **Der Posteingang (PR 62, APR-01/02/03/07) — und alles daran LIEST.**
+   *
+   * Das ist keine Nachlaessigkeit, sondern die tragende Eigenschaft dieser
+   * fuenf Dateien: der Diff, die Konfidenz, die Einstufung, die
+   * Zusammenfassung und die Kettenrechnung sind REINE Funktionen. Keine
+   * kennt eine Datenbank, keine eine Uhr, keine ein Modell.
+   *
+   * Gerade `kette.ts` gehoert hierher und nicht zu den Schreibern: sie
+   * RECHNET den Hash nach, sie schreibt ihn nicht. Geschrieben wird der
+   * Schnappschuss ausschliesslich in `app.freigabe_entscheiden` (0136), und
+   * das ist der Grund, warum ein Aufrufer sich keinen Hash aussuchen kann.
+   *
+   * Dass sie in der Gruppenansicht laufen duerfen, ist damit richtig: die
+   * Gruppe LIEST Freigaben (`gruppe.freigabe.lesen`), und ein Diff ohne
+   * Schreibpfad ist genau das, was sie dort braucht (Invariante 10).
+   */
+  {
+    /* Die Handlung nach der Genehmigung (§4.8) — laeuft in der Transaktion der Entscheidung. */
+    modul: 'freigabe', pfad: 'freigabe/ausfuehrung',
+    schreibend: true, schreibRecht: 'freigabe.entscheiden',
+  },
+  { modul: 'freigabe', pfad: 'freigabe/diff', schreibend: false },
+  { modul: 'freigabe', pfad: 'freigabe/konfidenz', schreibend: false },
+  { modul: 'freigabe', pfad: 'freigabe/posteingang', schreibend: false },
+  { modul: 'freigabe', pfad: 'freigabe/zusammenfassung', schreibend: false },
+  { modul: 'freigabe', pfad: 'freigabe/kette', schreibend: false },
+  {
+    modul: 'freigabe', pfad: 'freigabe/vergleich-schluessel.platzhalter',
+    schreibend: false,
+  },
+  /**
+   * Die Bildschirme des Posteingangs (PR 62 Rest, D-472).
+   *
+   * `laden` liest Posteingang und Pruefansicht und VERMERKT das Oeffnen —
+   * eine anfuegende Zeile in `freigabe_ansicht`, kein Schreibrecht: der
+   * Vermerk ist Teil des Lesens (APR-08: die Pruefdauer misst der Server).
+   * `entscheiden` ist der einzige Schreiber, und er schreibt nicht selbst —
+   * er ruft `app.freigabe_entscheiden` (0137), das Recht ist dasselbe wie
+   * bei `erteilen`. `diff-json` und `json` sind reine Umformungen.
+   */
+  /**
+   * Die Gruppenansicht (TEN-05, D-475) — vier Leser, kein Schreiber.
+   *
+   * Modul `bericht`, weil sie genau das sind: Berichte ueber mehrere
+   * Gesellschaften, gelesen im Gruppen-Scope, in dem keine Tabelle eine
+   * Schreib-Policy kennt (Invariante 10). Jede Zelle fragt VOR der Zaehlung
+   * das Recht des Bereichs, damit eine fehlende Berechtigung nie als Null
+   * erscheint.
+   */
+  { modul: 'bericht', pfad: 'gruppe/uebersicht', schreibend: false },
+  { modul: 'bericht', pfad: 'gruppe/finanzen', schreibend: false },
+  { modul: 'bericht', pfad: 'gruppe/offene-posten', schreibend: false },
+  { modul: 'bericht', pfad: 'gruppe/auslastung', schreibend: false },
+  { modul: 'freigabe', pfad: 'freigabe/diff-json', schreibend: false },
+  { modul: 'freigabe', pfad: 'freigabe/json', schreibend: false },
+  { modul: 'freigabe', pfad: 'freigabe/laden', schreibend: false },
+  {
+    modul: 'freigabe', pfad: 'freigabe/entscheiden',
     schreibend: true, schreibRecht: 'freigabe.entscheiden',
   },
   /**

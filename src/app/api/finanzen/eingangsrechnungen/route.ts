@@ -12,11 +12,18 @@ import { withTenant, type SchreibKontext } from '@/server/kontext/index';
 import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter';
 import { ladeHoch } from '@/server/services/dokument/upload';
 import { GeldFehler, cent, parseGeld } from '@/server/services/finanz/geld';
-import { FreigabeFehler, erteileFreigabe } from '@/server/services/freigabe';
+import { FreigabeFehler, erteileFreigabe } from '@/server/services/freigabe/erteilen';
+import type { Bucket } from '@/server/storage/adapter';
 import {
   EingangsrechnungFehler, buche, erfasseEingangsrechnung, freigebe, inPruefung,
   legeBelegAn, lehneAb, pruefeDublette, setzeSteuerzeile,
 } from '@/server/services/finanz/eingangsrechnung';
+import { ERechnungFehler, extrahiereERechnung }
+  from '@/server/services/finanz/eingang/erechnung';
+import { eingebetteteERechnung } from '@/server/services/finanz/eingang/pdf-anhang';
+import { legeERechnungAb } from '@/server/services/finanz/eingang/ablage';
+import { VorschlagFehler }
+  from '@/server/services/finanz/eingang/vorschlag';
 
 /**
  * `POST /api/finanzen/eingangsrechnungen` — erfassen und weiterschieben
@@ -61,7 +68,30 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
 
   const aktion = text('aktion') ?? 'erfassen';
 
+  /**
+   * **Was hochgeladen wurde, bevor die Transaktion stand.**
+   *
+   * `ladeHoch` schreibt in den Bucket, und der Bucket kennt kein Rollback.
+   * Scheitert danach irgendetwas — die Dokumentzeile, die Erfassung, die
+   * Steuerzeile —, rollt die Transaktion zurück und das Objekt bleibt: eine
+   * Datei mit Rechnungsdaten, auf die keine Zeile zeigt, die niemand findet
+   * und die deshalb auch niemand löscht.
+   *
+   * Deshalb wird der Schlüssel hier gemerkt und im `catch` entfernt. Dieselbe
+   * Vorrichtung wie beim Schichtfoto (`api/check-in/[token]/medien`), und aus
+   * demselben Grund.
+   */
+  /*
+   * Ein HALTER und keine einfache Bindung: TypeScript verengt eine `let`-
+   * Bindung, die nur innerhalb eines Rueckrufs zugewiesen wird, im `catch`
+   * auf `null` — die Aufraeumung waere dann als toter Code weggeprueft.
+   */
+  const waise: { wert: { bucket: Bucket; pfad: string } | null } = { wert: null };
+
   try {
+    if (aktion === 'erechnung') {
+      return await liesERechnung(anfrage, sitzung, daten, waise);
+    }
     if (aktion !== 'erfassen') {
       return await schiebeWeiter(anfrage, sitzung, aktion, text);
     }
@@ -120,18 +150,19 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
                „als undefiniert behauptet". */
             ...(datei.type === '' ? {} : { behaupteterTyp: datei.type }),
           }, new SupabaseSpeicher(), Number(rechnungsdatum.slice(0, 4)));
+          waise.wert = { bucket: hoch.bucket, pfad: hoch.objektSchluessel };
 
           await kontext.schreibe(
             `insert into dokument (id, mandant_id, kategorie, titel, mime_typ,
                                    mime_verifiziert, groesse_bytes, bucket,
                                    objekt_schluessel, exif_entfernt, aufbewahrung_bis,
-                                   loeschsperre, erstellt_von)
+                                   loeschsperre, entstanden_am, erstellt_von)
              values ($1, $2, 'buchhaltung', $3, $4, true, $5, $6, $7, $8, $9::date, $10,
-                     app.aktueller_benutzer())`,
+                     $11::date, app.aktueller_benutzer())`,
             [hoch.dokumentId, kontext.aktiverMandantId,
              `Eingangsrechnung ${rechnungsnummer}`, hoch.mimeTyp, hoch.groesseBytes,
              hoch.bucket, hoch.objektSchluessel, hoch.exifEntfernt,
-             hoch.aufbewahrungBis, hoch.loeschsperre]);
+             hoch.aufbewahrungBis, hoch.loeschsperre, rechnungsdatum]);
           const versionId = randomUUID();
           await kontext.schreibe(
             `insert into dokument_version (id, mandant_id, dokument_id, version,
@@ -164,11 +195,105 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           eingangsrechnungId: id, steuergruppe, nettoCent: netto, steuerCent: steuer,
         });
 
+        waise.wert = null;   // Ab hier trägt die Datenbank das Objekt.
         return zurueck(anfrage, `/${id}`);
       }))) as NextResponse;
   } catch (fehler) {
+    if (waise.wert !== null) {
+      try {
+        await new SupabaseSpeicher().entferne(waise.wert.bucket, waise.wert.pfad);
+      } catch {
+        /*
+         * Auch das Aufräumen kann scheitern — dann bleibt ein verwaistes
+         * Objekt. Verschwiegen wird es nicht: es steht in keiner Zeile, und
+         * genau danach sucht der Waisenlauf. Den ursprünglichen Fehler
+         * verdeckt es hier auf keinen Fall.
+         */
+      }
+    }
     return uebersetze(fehler, anfrage);
   }
+}
+
+/**
+ * **Der E-Rechnungs-Weg** (ACC-05, PR 63): XML (XRechnung als UBL oder CII)
+ * oder ein PDF mit eingebetteter `factur-x.xml` (ZUGFeRD). Die Datei wird
+ * abgelegt wie jeder Beleg — Dokument, Version, Beleg —, und daraus entsteht
+ * KEINE Eingangsrechnung, sondern ein Vorschlag im Freigabe-Posteingang, mit
+ * jedem Feld, seiner Quelle und seiner Konfidenz. Erst die Genehmigung
+ * schreibt die Rechnung (Invariante 7).
+ *
+ * **Kein OCR.** Ein PDF ohne eingebettete XML wird nicht gespeichert und
+ * nicht geraten; die Antwort sagt, dass die Belegerkennung fuer Scans keinen
+ * Anbieter hat (O-135) und die Rechnung von Hand zu erfassen ist.
+ */
+async function liesERechnung(
+  anfrage: NextRequest,
+  sitzung: NonNullable<Awaited<ReturnType<typeof aktuelleSitzung>>>,
+  daten: FormData,
+  waise: { wert: { bucket: Bucket; pfad: string } | null },
+): Promise<NextResponse> {
+  const datei = daten.get('datei');
+  if (!(datei instanceof File) || datei.size === 0) {
+    return zurueck(anfrage, '/neu',
+      { fehler: 'ohne_beleg', meldung: 'Bitte eine E-Rechnung (XML oder ZUGFeRD-PDF) wählen.' });
+  }
+  const bytes = new Uint8Array(await datei.arrayBuffer());
+  const istPdf = bytes.length > 4 && bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46;
+
+  let xml: string;
+  let dateiname = datei.name;
+  if (istPdf) {
+    const anhang = await eingebetteteERechnung(bytes);
+    if (anhang === null) {
+      return zurueck(anfrage, '/neu', {
+        fehler: 'keine_erechnung',
+        meldung: 'Das PDF trägt keine eingebettete E-Rechnung (factur-x.xml). Die '
+          + 'Belegerkennung für gescannte Rechnungen hat noch keinen Anbieter (O-135) — '
+          + 'bitte unten von Hand erfassen; das PDF lässt sich dort als Beleg hochladen.',
+      });
+    }
+    xml = anhang.xml;
+    dateiname = `${datei.name} › ${anhang.dateiname}`;
+  } else {
+    xml = new TextDecoder('utf-8').decode(bytes);
+  }
+
+  /* Erst lesen, dann speichern: was keine E-Rechnung ist, hinterlaesst kein Objekt. */
+  let extrakt;
+  try {
+    extrakt = extrahiereERechnung(xml);
+  } catch (fehler: unknown) {
+    if (fehler instanceof ERechnungFehler) {
+      return zurueck(anfrage, '/neu', { fehler: 'keine_erechnung', meldung: fehler.message });
+    }
+    throw fehler;
+  }
+  return await (db().begin(async (tx: postgres.TransactionSql) =>
+    withTenant(tx, sitzung, async (kontext: SchreibKontext) => {
+      await authorize(
+        sitzung, { recht: 'eingang.schreiben', schreibend: true },
+        rechtepruefer(kontext.abfrage.bind(kontext)),
+      );
+      const abgelegt = await legeERechnungAb(kontext, new SupabaseSpeicher(), {
+        dateiname: datei.name,
+        bytes,
+        ...(datei.type === '' || datei.type === 'text/xml' ? {} : { behaupteterTyp: datei.type }),
+        xml,
+        quelleAnzeige: dateiname,
+        extrakt,
+        entstehungsJahr:
+          Number((extrakt.nutzlast.rechnungsdatum ?? '').slice(0, 4)) || new Date().getUTCFullYear(),
+        nachAblage: (ort) => { waise.wert = { bucket: ort.bucket, pfad: ort.pfad }; },
+      });
+      const vorschlag = abgelegt.vorschlag;
+      waise.wert = null;
+
+      const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
+      const ziel = new URL(`/portal/${slug}/freigaben/${vorschlag.freigabeId}`, anfrage.nextUrl.origin);
+      ziel.searchParams.set('vorschlag', vorschlag.neu ? 'neu' : 'vorhanden');
+      return NextResponse.redirect(ziel, 303);
+    }))) as NextResponse;
 }
 
 /** Die vier Zustandswechsel. Welcher erlaubt ist, entscheidet die Datenbank. */
@@ -276,6 +401,9 @@ function uebersetze(fehler: unknown, anfrage: NextRequest): NextResponse {
   }
   if (fehler instanceof FreigabeFehler) {
     return NextResponse.json({ fehler: 'freigabe', meldung: fehler.message }, { status: 409 });
+  }
+  if (fehler instanceof VorschlagFehler) {
+    return zurueck(anfrage, '/neu', { fehler: 'vorschlag', meldung: fehler.message });
   }
   if (fehler instanceof EingangsrechnungFehler) {
     return NextResponse.json({ fehler: fehler.grund, meldung: fehler.message },

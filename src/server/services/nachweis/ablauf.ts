@@ -69,6 +69,7 @@ interface Kandidat {
   bezeichnung: string;
   blockiert_einsatz: boolean;
   erfasst_von_mandant_id: string;
+  mandant_slug: string | null;
 }
 
 const alsTag = (wert: string | Date): string =>
@@ -95,9 +96,10 @@ export async function meldeAblaufwarnungen(
    */
   const kandidaten = (await db.unsafe(
     `select n.id, n.person_id, n.gueltig_bis, q.warnung_tage, q.bezeichnung,
-            q.blockiert_einsatz, n.erfasst_von_mandant_id
+            q.blockiert_einsatz, n.erfasst_von_mandant_id, m.slug as mandant_slug
        from nachweis n
        join qualifikation q on q.id = n.qualifikation_id
+       left join mandant m on m.id = n.erfasst_von_mandant_id
       where n.status = 'gueltig'
         and n.widerrufen_am is null
         and n.gueltig_bis is not null
@@ -147,6 +149,7 @@ export async function meldeAblaufwarnungen(
              * hiesse, einen zu erfinden.
              */
             mandantId: k.erfasst_von_mandant_id,
+            mandantSlug: k.mandant_slug,
             objektTyp: 'nachweis',
             objektId: k.id,
             daten: {

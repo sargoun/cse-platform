@@ -835,6 +835,181 @@ export const ROUTEN: readonly RouteEintrag[] = [
     pfad: 'api/einstellungen/mahnwesen',
     recht: 'mahnung.schreiben',
   },
+  {
+    /**
+     * Das archivierte Dokument zu einer Buchungszeile (PR 59, ACC-03,
+     * DOC-03, DOC-04).
+     *
+     * `buchhaltung.lesen` und nicht `dokument.lesen`: der Zugang laeuft ueber
+     * die BUCHUNG, nicht ueber die Dokumentenablage. Wer das Hauptbuch lesen
+     * darf, sieht die Belege, auf die es sich beruft — ohne dafuer Zugriff
+     * auf jedes Dokument des Hauses zu bekommen, und umgekehrt oeffnet
+     * `dokument.lesen` allein keine Buchung.
+     *
+     * Die Route liefert keine Bytes; sie leitet auf eine signierte Adresse
+     * um, die nach fuenfzehn Minuten ablaeuft (D-445).
+     */
+    pfad: 'api/buchhaltung/buchungen/[id]/beleg',
+    recht: 'buchhaltung.lesen',
+  },
+  {
+    /**
+     * Einen EXTF-Buchungsstapel erzeugen (PR 60, ACC-02).
+     *
+     * `buchhaltung.exportieren` und nicht `buchhaltung.lesen`: hier entsteht
+     * eine Datei, die das Haus verlaesst. Der Katalog trennt die beiden seit
+     * 0008 genau dafuer und bindet das Exportrecht an `super_admin` und
+     * `admin`.
+     *
+     * Die Route SENDET nichts — es gibt keinen DATEV-Endpunkt und keine
+     * Zugangsdaten. Sie erzeugt; ein Mensch uebergibt.
+     */
+    pfad: 'api/buchhaltung/datev',
+    recht: 'buchhaltung.exportieren',
+  },
+  {
+    /**
+     * Die archivierte EXTF-Datei (PR 60, ACC-02, DOC-03).
+     *
+     * Ebenfalls `buchhaltung.exportieren`, anders als beim einzelnen Beleg:
+     * wer das Hauptbuch liest, bekommt damit nicht die Datei in die Hand, die
+     * an das Steuerbuero geht — in ihr stehen saemtliche Buchungen eines
+     * Monats. Weitergeleitet wird auf eine signierte, ablaufende Adresse
+     * (D-445).
+     */
+    pfad: 'api/buchhaltung/datev/[id]/datei',
+    recht: 'buchhaltung.exportieren',
+  },
+  {
+    /**
+     * Der Abruf einer Datei aus der Ablage (DOC-03, SEC-A6, D-478).
+     *
+     * `dokument.lesen` im aktiven Mandanten; die Route vermerkt den Abruf
+     * in `dokument_zugriff` und leitet auf eine signierte, ablaufende
+     * Adresse weiter. Ohne verbundenen Speicher antwortet sie 503 — es gibt
+     * dann keine Adresse, die sie ausgeben koennte.
+     */
+    pfad: 'api/dokumente/[id]/datei',
+    recht: 'dokument.lesen',
+  },
+  {
+    /**
+     * Einen CAMT.053-Kontoauszug einlesen (PR 61, ACC-04).
+     *
+     * `zahlung.schreiben` und nicht `buchhaltung.lesen`: der Import legt bei
+     * einem EINDEUTIGEN Treffer eine Zahlung an. Wer den Auszug nur ansehen
+     * will, kommt ueber die Portalseite mit `buchhaltung.lesen` — Lesen und
+     * Einlesen sind hier zwei verschiedene Handlungen.
+     *
+     * Die Route RUFT NICHTS AB. Es gibt kein PSD2, kein FinTS und keine
+     * Zugangsdaten; ein Mensch laedt die Datei hoch.
+     */
+    pfad: 'api/buchhaltung/bank',
+    recht: 'zahlung.schreiben',
+  },
+  {
+    /**
+     * Die Klaerung eines Umsatzes: ein Mensch bestaetigt einen offenen
+     * Posten oder sagt „ohne Bezug" (ACC-04). Dasselbe Recht wie der Import,
+     * denn dieselbe Zahlung entsteht — nur mit einem Menschen als Akteur.
+     */
+    pfad: 'api/buchhaltung/bank/umsatz',
+    recht: 'zahlung.schreiben',
+  },
+  {
+    /**
+     * Eine Aufbewahrungsregel dieser Gesellschaft setzen (DOC-07, PR 64,
+     * D-483). Nie unter die gesetzliche Untergrenze — der Dienst sagt es,
+     * der Ausloeser haelt es.
+     */
+    pfad: 'api/dokumente/aufbewahrung',
+    recht: 'dokument.aufbewahrung_verwalten',
+  },
+  {
+    /**
+     * Das Pruefbuendel eines Wirtschaftsjahrs abrufen (DOC-08, PR 64):
+     * Manifest immer, ZIP nur mit verbundenem Speicher und ohne Sperre.
+     * Jeder Abruf steht im Protokoll — ein Buendel verlaesst das Haus.
+     */
+    pfad: 'api/dokumente/buendel',
+    recht: 'dokument.buendel_exportieren',
+  },
+  {
+    /**
+     * Das Periodenschloss (ACC-01, PR 65): vorlaeufig schliessen, schliessen,
+     * wieder oeffnen — unter `buchhaltung.festschreiben`, dem Recht, das auch
+     * in einen vorlaeufig geschlossenen Monat noch buchen darf.
+     */
+    pfad: 'api/buchhaltung/perioden',
+    recht: 'buchhaltung.festschreiben',
+  },
+  {
+    /**
+     * Die Datentraegerueberlassung Z3 (ACC-09, § 147 Abs. 6 AO, PR 66):
+     * das Paket eines Wirtschaftsjahrs zum Herunterladen — unter
+     * `buchhaltung.exportieren`, wie der DATEV-Export: Daten verlassen das
+     * Haus, und jeder Abruf steht im Protokoll.
+     */
+    pfad: 'api/buchhaltung/z3-export',
+    recht: 'buchhaltung.exportieren',
+  },
+  {
+    /**
+     * Die Verfahrensdokumentation (ACC-10, PR 66) als Markdown, PDF oder
+     * JSON — unter `buchhaltung_konfiguration.lesen`, dem Recht der Seite:
+     * sie beschreibt die Konfiguration, sie aendert sie nicht.
+     */
+    pfad: 'api/buchhaltung/verfahrensdokumentation',
+    recht: 'buchhaltung_konfiguration.lesen',
+  },
+  {
+    /**
+     * Das Jahrespaket fuer den Steuerberater (ACC-11, PR 67): ein ZIP je
+     * Wirtschaftsjahr, unter `buchhaltung.exportieren` wie der DATEV-Stapel.
+     * Jeder Abruf steht im Protokoll.
+     */
+    pfad: 'api/buchhaltung/jahrespaket',
+    recht: 'buchhaltung.exportieren',
+  },
+  {
+    /**
+     * Der Lohnexport (ACC-12, PR 67): Zeitdaten eines Monats fuer das
+     * Lohnsystem — personenbezogen, deshalb `zeit.exportieren` und nicht
+     * `buchhaltung.exportieren`; das Format ist ein Platzhalter (O-27).
+     */
+    pfad: 'api/buchhaltung/lohnexport',
+    recht: 'zeit.exportieren',
+  },
+  {
+    /**
+     * Eine Serie anlegen und sofort planen (TIM-01, TIM-02, D-487) — unter
+     * `dienstplan.schreiben`, wie das Besetzen einer Schicht.
+     */
+    pfad: 'api/dienstplan/serien',
+    recht: 'dienstplan.schreiben',
+  },
+  {
+    /**
+     * Der Anmeldecode aus der Hand der Einsatzleitung (EMP-01, O-82, D-487):
+     * `personal.zugang_verwalten`, das Recht der Zugangsseite. Der Klartext
+     * geht in einen kurzlebigen Keks, nie in die Adresse.
+     */
+    pfad: 'api/personal/zugang-code',
+    recht: 'personal.zugang_verwalten',
+  },
+  /**
+   * Der Freigabe-Posteingang (PR 62 Rest, APR-01/02/03/07/08, D-472).
+   *
+   * Zwei Leser, ein Schreiber. Das Lesen der Pruefansicht VERMERKT das
+   * Oeffnen (eine anfuegende Zeile in `freigabe_ansicht`) — das ist Teil des
+   * Lesens, kein Schreibrecht: ohne den Vermerk gibt es keine Pruefdauer,
+   * und ohne Pruefdauer keine Entscheidung (APR-08). Die Entscheidung selbst
+   * traegt das Recht der Handlung, nicht das der Domaene, aus der der
+   * Vorschlag stammt.
+   */
+  { pfad: 'api/freigaben', recht: 'freigabe.lesen' },
+  { pfad: 'api/freigaben/[id]', recht: 'freigabe.lesen' },
+  { pfad: 'api/freigaben/[id]/entscheidung', recht: 'freigabe.entscheiden' },
 ] as const;
 
 /** Die Routen, die ein Recht verlangen. */

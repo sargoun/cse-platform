@@ -1,9 +1,11 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { istGleicherUrsprung } from '@/server/auth/ursprung';
+import { internesZiel, istGleicherUrsprung } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
-import { wechsleMandant, type Wechsel, type Wechselziel } from '@/server/auth/switch-mandant';
+import {
+  rueckwegImBereich, wechsleMandant, type Wechsel, type Wechselziel,
+} from '@/server/auth/switch-mandant';
 
 /**
  * `POST /api/sitzung/mandant` — der einzige Schreiber des aktiven Bereichs
@@ -23,19 +25,35 @@ import { wechsleMandant, type Wechsel, type Wechselziel } from '@/server/auth/sw
  */
 export const dynamic = 'force-dynamic';
 
-async function zielAus(anfrage: NextRequest): Promise<Wechselziel | null> {
+interface Anliegen {
+  readonly ziel: Wechselziel | null;
+  /** Roh, wie geschickt — geprueft wird erst gegen das Ziel (`rueckwegImBereich`). */
+  readonly zurueck: unknown;
+}
+
+async function zielAus(anfrage: NextRequest): Promise<Anliegen> {
   const typ = anfrage.headers.get('content-type') ?? '';
   if (typ.includes('application/json')) {
-    const koerper = (await anfrage.json()) as { mandantSlug?: unknown; gruppe?: unknown };
-    if (koerper.gruppe === true) return { art: 'gruppe' };
-    return typeof koerper.mandantSlug === 'string' && koerper.mandantSlug !== ''
-      ? { art: 'mandant', slug: koerper.mandantSlug }
-      : null;
+    const koerper = (await anfrage.json()) as {
+      mandantSlug?: unknown; gruppe?: unknown; zurueck?: unknown;
+    };
+    const zurueck = koerper.zurueck;
+    if (koerper.gruppe === true) return { ziel: { art: 'gruppe' }, zurueck };
+    return {
+      ziel: typeof koerper.mandantSlug === 'string' && koerper.mandantSlug !== ''
+        ? { art: 'mandant', slug: koerper.mandantSlug }
+        : null,
+      zurueck,
+    };
   }
   const daten = await anfrage.formData();
-  if (daten.get('gruppe') === 'true') return { art: 'gruppe' };
+  const zurueck = daten.get('zurueck');
+  if (daten.get('gruppe') === 'true') return { ziel: { art: 'gruppe' }, zurueck };
   const slug = daten.get('mandantSlug');
-  return typeof slug === 'string' && slug !== '' ? { art: 'mandant', slug } : null;
+  return {
+    ziel: typeof slug === 'string' && slug !== '' ? { art: 'mandant', slug } : null,
+    zurueck,
+  };
 }
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
@@ -48,7 +66,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
   }
 
-  const ziel = await zielAus(anfrage);
+  const { ziel, zurueck } = await zielAus(anfrage);
   // Ein fehlendes Ziel ist eine kaputte Anfrage und keine fehlende Berechtigung.
   if (ziel === null) return NextResponse.json({ fehler: 'kein_ziel' }, { status: 400 });
 
@@ -65,12 +83,19 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ fehler: 'unbekannt' }, { status: 404 });
   }
 
-  const pfad = ziel.art === 'gruppe' ? '/portal/gruppe' : `/portal/${ziel.slug}`;
+  /**
+   * Zurueck auf die Seite, die gemeint war (D-474) — wenn sie im Ziel liegt.
+   * Sonst die Wurzel des Ziels, wie bisher. Der Rueckweg ist nach dem Wechsel
+   * eine Mandantsseite in einer Mandantssitzung: das Tor dort prueft das
+   * Recht neu, im richtigen Scope.
+   */
+  const standard = ziel.art === 'gruppe' ? '/portal/gruppe' : `/portal/${ziel.slug}`;
+  const pfad = rueckwegImBereich(zurueck, ziel) ?? standard;
   const jsonGewuenscht = (anfrage.headers.get('content-type') ?? '')
     .includes('application/json');
   if (jsonGewuenscht) return NextResponse.json({ ziel: pfad }, { status: 200 });
 
   // 303: die Antwort auf ein POST wird per GET geholt — sonst fragt der
   // Browser beim Zurueckgehen, ob er den Wechsel wiederholen soll.
-  return NextResponse.redirect(new URL(pfad, anfrage.nextUrl.origin), 303);
+  return NextResponse.redirect(internesZiel(pfad, standard, anfrage), 303);
 }

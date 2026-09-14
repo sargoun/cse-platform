@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import { Marke } from '@/components/marke/Marke';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { shellTexte } from '@/lib/i18n/texte';
 import { VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
@@ -63,6 +64,7 @@ export function MarkenKarte({
         style={{ background: KARTEN_GRADIENT }}
       />
       <span className="relative flex flex-col gap-s1 p-s4">
+        <Marke art={bereich} groesse="md" className="mb-s2" />
         <span className="text-h3 text-white">{titel}</span>
         {/*
           * Zwei Zeilen, immer — auch wenn der Anspruch nur eine braucht.

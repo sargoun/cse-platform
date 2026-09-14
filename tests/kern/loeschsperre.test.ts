@@ -73,11 +73,13 @@ describe('the delete-lock registry is the single source (01-ORDNERSTRUKTUR §6.2
         // die von Phase 5 — Dienstplan, Zeiterfassung und die beiden
         // Gewerkemodule; `BAU-\d\d` setzt sie ins dritte fort (SPEC §7,
         // BAU-01 bis BAU-08: Leistungsverzeichnis, Aufmass, Nachtrag,
-        // Behinderung, Bautagebuch, Wetter). Die Liste bleibt eine Liste von
-        // SPEC-Ankern; sie waechst mit den Phasen, statt sich zu „irgendein
-        // Grund" zu oeffnen.
+        // Behinderung, Bautagebuch, Wetter). `ACC-\d\d` ist der Anker der
+        // Buchhaltung (SPEC §20: Kontenrahmen, Buchungssatz, Periode) und
+        // `AGT-\d\d` der der Agenten (SPEC §22: Aufgabe, Schritt, Kosten,
+        // Budget). Die Liste bleibt eine Liste von SPEC-Ankern; sie waechst
+        // mit den Phasen, statt sich zu „irgendein Grund" zu oeffnen.
         .toMatch(
-          /LEG-\d\d|SEC-A9|DSGVO|MiLoG|D-09|APR-\d\d|DOC-\d\d|FIN-\d\d|AUT-\d\d|REQ-\d\d|REP-\d\d|CRM-\d\d|OPS-\d\d|TIM-\d\d|CLN-\d\d|SEC-\d\d|EMP-\d\d|BAU-\d\d|§/u,
+          /LEG-\d\d|SEC-A9|DSGVO|MiLoG|D-09|APR-\d\d|DOC-\d\d|FIN-\d\d|AUT-\d\d|REQ-\d\d|REP-\d\d|CRM-\d\d|OPS-\d\d|TIM-\d\d|CLN-\d\d|SEC-\d\d|EMP-\d\d|BAU-\d\d|ACC-\d\d|AGT-\d\d|§/u,
         );
       expect(l.grund.length, l.tabelle).toBeGreaterThan(60);
     }
@@ -128,10 +130,13 @@ describe('the delete-lock registry is the single source (01-ORDNERSTRUKTUR §6.2
     expect(jetzt).toContain('trg_anstellung_kein_hard_delete');
     /**
      * Der Gegenbeweis braucht eine Tabelle, die es NOCH NICHT gibt. Das war
-     * `rechnung`, bis PR 46 sie angelegt hat — genau das, was diese Prüfung
-     * bemerken soll. `buchungssatz` kommt mit Phase 7 und tritt an ihre
-     * Stelle; wer es anlegt, sucht sich die nächste.
+     * `rechnung`, bis PR 46 sie angelegt hat, danach `buchungssatz`, bis
+     * PR 58 ihn angelegt hat — genau das, was diese Prüfung bemerken soll.
+     * dann `datev_export`, bis PR 60 ihn angelegt hat. Jetzt ist es
+     * `ausschreibung` (PR 68, RAD-01): die Rohdaten einer Vergabebekanntmachung
+     * bleiben, also bekommt sie eine Sperre — aber erst, wenn es sie gibt.
+     * Wer sie anlegt, sucht sich die nächste.
      */
-    expect(jetzt).not.toContain('trg_buchungssatz_kein_hard_delete');
+    expect(jetzt).not.toContain('trg_ausschreibung_kein_hard_delete');
   });
 });

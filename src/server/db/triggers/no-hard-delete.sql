@@ -1951,3 +1951,187 @@ revoke delete, truncate on mahnung_eskalation from cse_app, cse_anon, cse_checki
 
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0126)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- konto_mapping (archiv): ACC-01. Eine geloeschte Kontenzuordnung macht jede Buchung, die auf ihr beruht, unerklaerlich: das Konto steht im buchungssatz, der Grund ist fort. Geschlossen wird mit gueltig_bis.
+create trigger trg_konto_mapping_kein_hard_delete
+  before delete on konto_mapping
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_konto_mapping_kein_truncate
+  before truncate on konto_mapping
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on konto_mapping from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0127)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- periode (archiv): ACC-08, LEG-01. Ein geloeschter Buchungsmonat nimmt die Festschreibung mit, die ihn abgeschlossen hat — und die Monatszahlen, die der Steuerberater bereits bekommen hat.
+create trigger trg_periode_kein_hard_delete
+  before delete on periode
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_periode_kein_truncate
+  before truncate on periode
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on periode from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- buchungssatz (archiv): ACC-01, ACC-06, GoBD. Die Buchungszeile IST der Nachweis. Korrigiert wird durch Gegenbuchung (storniert_durch_id), nie durch Loeschen.
+create trigger trg_buchungssatz_kein_hard_delete
+  before delete on buchungssatz
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_buchungssatz_kein_truncate
+  before truncate on buchungssatz
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on buchungssatz from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0128)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- agent_aufgabe (archiv): AGT-04. Was ein Agent getan hat, ist die Antwort auf die Frage, warum etwas im System steht. Eine geloeschte Aufgabe nimmt ihre Schritte mit — und damit die Begruendung eines Entwurfs, den ein Mensch freigegeben hat. Beendet wird mit status, nie durch Loeschen.
+create trigger trg_agent_aufgabe_kein_hard_delete
+  before delete on agent_aufgabe
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_agent_aufgabe_kein_truncate
+  before truncate on agent_aufgabe
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on agent_aufgabe from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- agent_schritt (append): AGT-04, LEG-09. Das Schrittprotokoll ist der Nachweis, WAS der Agent gelesen und WAS er einem Modell geschickt hat. Die einzige erlaubte Aenderung ist die Schwaerzung der Nutzlast nach Frist — sie leert Spalten und entfernt keine Zeile.
+create trigger trg_agent_schritt_kein_hard_delete
+  before delete on agent_schritt
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_agent_schritt_kein_truncate
+  before truncate on agent_schritt
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on agent_schritt from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- agent_kosten (append): AGT-05. Die Kostenzeilen SIND das Monatsbudget: der Verbrauch ist ihre Summe. Eine geloeschte Zeile senkt den Verbrauch und hebt damit ruecklaufend eine Obergrenze auf, die bereits gegriffen hat. Korrigiert wird durch eine zweite Zeile.
+create trigger trg_agent_kosten_kein_hard_delete
+  before delete on agent_kosten
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_agent_kosten_kein_truncate
+  before truncate on agent_kosten
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on agent_kosten from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- agent_budget (archiv): AGT-05. Die Budgetzeile traegt die Obergrenze UND den Nachweis, dass und wann gestoppt wurde (gestoppt_am). Sie zu loeschen loescht beides und laesst die Agenten im naechsten Aufruf weiterlaufen, als waere nichts gewesen.
+create trigger trg_agent_budget_kein_hard_delete
+  before delete on agent_budget
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_agent_budget_kein_truncate
+  before truncate on agent_budget
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on agent_budget from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- agent_reservierung (archiv): AGT-05. Eine Reservierung ist gebundenes Budget. Wird die Zeile geloescht statt freigegeben, bleibt der Zaehler in agent_budget gebunden und niemand kann mehr sehen, wofuer — geschlossen wird mit freigegeben_am und freigabe_grund.
+create trigger trg_agent_reservierung_kein_hard_delete
+  before delete on agent_reservierung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_agent_reservierung_kein_truncate
+  before truncate on agent_reservierung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on agent_reservierung from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0133)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- datev_export (archiv): ACC-02, ACC-06, LEG-01, GoBD. Der Exportvorgang bezeugt, WELCHE Zeilen mit welchen Summen und welchen Stammdaten das Haus verlassen haben. Ihn zu loeschen liesse die gestempelten Buchungszeilen auf einen Stapel zeigen, den es nicht mehr gibt — und die Frage, was der Steuerberater bekommen hat, waere nicht mehr zu beantworten. Ein falscher Stapel wird VERWORFEN und neu erzeugt; die Zeile bleibt.
+create trigger trg_datev_export_kein_hard_delete
+  before delete on datev_export
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_datev_export_kein_truncate
+  before truncate on datev_export
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on datev_export from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0135)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- kontoauszug (archiv): ACC-04, ACC-06, LEG-01, GoBD. Der eingelesene Auszug ist der Nachweis, WAS die Bank gemeldet hat — er traegt Anfangs- und Endsaldo und den Pruefwert der Datei. Ihn zu loeschen liesse die Umsaetze auf einen Auszug zeigen, den es nicht mehr gibt, und die Frage, woher eine Zahlung kam, waere nicht mehr zu beantworten. Ein falscher Auszug wird VERWORFEN und neu eingelesen; die Zeile bleibt.
+create trigger trg_kontoauszug_kein_hard_delete
+  before delete on kontoauszug
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_kontoauszug_kein_truncate
+  before truncate on kontoauszug
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on kontoauszug from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- kontoumsatz (append): ACC-04, LEG-01, GoBD. Eine Auszugszeile verschwindet nicht — auch dann nicht, wenn niemand sie zuordnen kann. Genau das ist die Zusage: ein unzugeordneter Umsatz bleibt sichtbar, statt aus der Ansicht zu fallen und den Saldo unerklaerlich zu machen. Wer ihn fuer gegenstandslos haelt, setzt zustand = ohne_bezug MIT Grund.
+create trigger trg_kontoumsatz_kein_hard_delete
+  before delete on kontoumsatz
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_kontoumsatz_kein_truncate
+  before truncate on kontoumsatz
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on kontoumsatz from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- umsatz_zuordnung (append): ACC-04, LEG-01. Die Bruecke zwischen Auszugszeile und Zahlung ist widerrufbar, nicht loeschbar: der Widerruf ist selbst die Aufzeichnung, dass hier einmal eine andere Zuordnung stand. Sie zu loeschen naehme genau die Spur, die nach einem Fehlgriff gebraucht wird — und liesse offen, ob eine Regel oder ein Mensch danebenlag.
+create trigger trg_umsatz_zuordnung_kein_hard_delete
+  before delete on umsatz_zuordnung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_umsatz_zuordnung_kein_truncate
+  before truncate on umsatz_zuordnung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on umsatz_zuordnung from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0136)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- freigabe_feld (append): APR-03, APR-07, K-13. Jede Zeile ist der NACHWEIS, woher ein extrahierter Wert stammt — Seite, Zelle, Zitat, Konfidenz. Sie zu loeschen naehme genau die Spur, auf die sich eine Freigabe beruft, und liesse die Entscheidung als Behauptung zurueck. Eine Korrektur ist eine NEUE freigabe mit ersetzt_durch_freigabe_id, nie ein Entfernen hier.
+create trigger trg_freigabe_feld_kein_hard_delete
+  before delete on freigabe_feld
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_freigabe_feld_kein_truncate
+  before truncate on freigabe_feld
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on freigabe_feld from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- freigabe_ansicht (append): APR-08, K-13, LEG-01. Sie bezeugt, dass ein Mensch die Freigabe geoeffnet hat, und ist die einzige Grundlage von pruefdauer_sek. Loeschbar waere sie genau das Werkzeug dessen, den APR-08 finden soll: wer zu schnell entscheidet, raeumte die Messung hinter sich weg, und die Auswertung meldete danach nur noch die Sorgfaeltigen.
+create trigger trg_freigabe_ansicht_kein_hard_delete
+  before delete on freigabe_ansicht
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_freigabe_ansicht_kein_truncate
+  before truncate on freigabe_ansicht
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on freigabe_ansicht from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0139)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- dokument_zugriff (append): DOC-03, SEC-A6, Art. 15 DSGVO. Eine Zeile je Abruf einer Datei aus der Ablage. Sie ist die Antwort auf die Frage, wer eine Personalakte oder einen Beleg gesehen hat — loeschbar waere sie das Werkzeug dessen, der nicht gesehen werden will.
+create trigger trg_dokument_zugriff_kein_hard_delete
+  before delete on dokument_zugriff
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_dokument_zugriff_kein_truncate
+  before truncate on dokument_zugriff
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on dokument_zugriff from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks

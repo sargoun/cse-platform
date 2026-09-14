@@ -1,4 +1,6 @@
 import type { BereichZeile } from '@/server/inhalt/lesen';
+import { Marke } from '@/components/marke/Marke';
+import { FARBEN_BEREICH, type BereichSchluessel } from '@/lib/design/theme';
 import type { Sprache } from '@/lib/sprache';
 
 /**
@@ -87,6 +89,11 @@ function Angabe({ was, wert, fehlt }: {
   );
 }
 
+/** Der Slug ist der Bereichsschluessel — wenn er einer ist (DESIGN §1). */
+function markeFuer(slug: string): BereichSchluessel | null {
+  return Object.prototype.hasOwnProperty.call(FARBEN_BEREICH, slug) ? (slug as BereichSchluessel) : null;
+}
+
 function leer(wert: string | null | undefined): string | null {
   return wert === null || wert === undefined || wert.trim() === '' ? null : wert;
 }
@@ -111,7 +118,8 @@ export function Gesellschaften({ bereiche, sprache }: {
             : `${b.strasse}, ${b.plz ?? ''} ${b.ort}, ${b.land}`.replace(/\s+/gu, ' ');
           return (
             <div key={b.id} data-cse="gesellschaft" data-slug={b.slug}>
-              <h3 className="mb-s2 text-h3 text-text">
+              <h3 className="mb-s2 flex items-center gap-s2 text-h3 text-text">
+                {markeFuer(b.slug) === null ? null : <Marke art={markeFuer(b.slug)!} groesse="sm" />}
                 {b.firma}
                 {leer(b.rechtsform) !== null && !b.firma.includes(b.rechtsform!)
                   ? ` (${b.rechtsform!})` : ''}

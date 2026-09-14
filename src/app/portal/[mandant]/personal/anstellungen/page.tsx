@@ -58,7 +58,7 @@ export default async function Anstellungsliste(
 
   const tor = await slugTor(zugang, mandant);
   if (tor.art === 'wechsel') {
-    return <Wechselblatt aktuell={tor.aktuell} zielTitel={mandant} zielSlug={tor.ziel} />;
+    return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
@@ -144,7 +144,13 @@ export default async function Anstellungsliste(
           zeilen={zeilen}
           schluessel={(z) => z.id}
           spalten={[
-            { schluessel: 'name', kopf: 'Person', zelle: (z) => z.name },
+            { schluessel: 'name', kopf: 'Person',
+              zelle: (z) => (
+                <Link href={`/portal/${mandant}/personal/anstellungen/${z.id}`}
+                      className="text-text underline-offset-2 hover:text-brand hover:underline">
+                  {z.name}
+                </Link>
+              ) },
             {
               schluessel: 'nummer',
               kopf: 'Personalnummer',

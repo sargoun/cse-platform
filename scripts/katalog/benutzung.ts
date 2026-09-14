@@ -144,7 +144,24 @@ function ohneSqlRegister(inhalt: string): string {
     .replace(/\bapp\.plattform_einstellung\s*\([^)]*\)/gu, 'app.plattform_einstellung(_)')
     .replace(
       /\binsert\s+into\s+(?:public\.)?plattform_einstellung(?:[^';]|'(?:[^']|'')*')*;/giu,
-      'insert into plattform_einstellung _;');
+      'insert into plattform_einstellung _;')
+    /**
+     * (5) Das FUENFTE Register: die Benachrichtigungsarten.
+     *
+     * `benachrichtigung.art` traegt `<modul>.<ereignis>` — die Tabelle
+     * erzwingt die Form per CHECK, und sie ist Zeichen fuer Zeichen die eines
+     * Rechteschluessels. In TypeScript stehen die Arten unter `schluessel:`
+     * und werden oben geschnitten; in SQL stehen sie als Literal in der
+     * `insert`-Anweisung eines Definer-Schreibers
+     * (`app.agent_stopp_vermerken`, 0128).
+     *
+     * `benachrichtigung\b` und nicht `benachrichtigung`: sonst verschluckt
+     * dasselbe Muster `benachrichtigung_praeferenz` gleich mit — eine andere
+     * Tabelle, deren Inhalt hier niemand ausblenden wollte.
+     */
+    .replace(
+      /\binsert\s+into\s+(?:public\.)?benachrichtigung\b(?:[^';]|'(?:[^']|'')*')*;/giu,
+      'insert into benachrichtigung _;');
 }
 
 /** Schneidet den erzeugten Katalogblock heraus — er ist die Liste, nicht ihre Benutzung. */

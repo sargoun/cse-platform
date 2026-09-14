@@ -18,7 +18,7 @@ const BASIS = 'https://beispiel.test';
 /** Die vier Bereiche, mit der Anschrift, die der Seed setzt. */
 const BEREICHE: readonly BereichsQuelle[] = [
   ['reinigung', 'CSE Dienstleistungen GmbH'],
-  ['security', 'Select-Security Event GmbH'],
+  ['security', 'Select Security Event GmbH'],
   ['bau', 'REALTIME Service GmbH'],
   ['operations', 'CSE Operations'],
 ].map(([slug, firma]) => ({

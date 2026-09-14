@@ -5,7 +5,7 @@ import { gate, nutzlastHash, type Freigabe, type Nutzlast, type Richtlinie }
 import type { Speicher } from '../../../storage/adapter.js';
 import { ladeHoch } from '../../dokument/upload.js';
 import { schreibeTextPdf } from '../../dokument/pdf.js';
-import { erteileFreigabe } from '../../freigabe.js';
+import { erteileFreigabe } from '../../freigabe/erteilen.js';
 import { cent, formatiereGeld, type Cent } from '../geld.js';
 
 /**
@@ -424,51 +424,82 @@ export async function dokumentiereVersand(
     speicher, jahr.jahr);
 
   /**
-   * Zwei Zeilen, weil das Schema sie so fuehrt (0009): `dokument` traegt
-   * Titel, Kategorie und Aufbewahrung, `dokument_version` die Fassung mit
-   * ihrem SHA-256. Der Digest ist hier kein Beiwerk — der Brief ist das
-   * Beweisstueck fuer den Verzugsbeginn, und ohne Pruefsumme laesst sich
-   * spaeter nicht zeigen, dass die abgelegte Datei noch dieselbe ist.
+   * **Ab hier liegt ein Brief im Bucket, den die Transaktion nicht mehr
+   * zurücknehmen kann.**
+   *
+   * Vier Schreibvorgänge folgen — `dokument`, `dokument_version`, der
+   * Zustandswechsel der Mahnung und die Versandzeile. Scheitert einer davon
+   * (der Zustand hat sich geändert, ein Auslöser weist ab), rollt alles
+   * zurück und dieses PDF bleibt: ein Mahnschreiben mit Name, Betrag und
+   * Zahlungsfrist eines Kunden, auf das keine Zeile zeigt. Es ist unauffindbar
+   * und deshalb auch nicht löschbar — genau die Sorte Datenbestand, die eine
+   * Auskunft nach Art. 15 DSGVO nicht beantworten kann.
+   *
+   * Der Rest der Funktion läuft deshalb in einem `try`, und das `catch`
+   * entfernt das Objekt, bevor es den Fehler weiterreicht. Dieselbe
+   * Vorrichtung wie beim Schichtfoto (`api/check-in/[token]/medien`).
    */
-  await kontext.schreibe(
-    `insert into dokument (id, mandant_id, kategorie, titel, mime_typ,
-                           mime_verifiziert, groesse_bytes, bucket,
-                           objekt_schluessel, exif_entfernt, aufbewahrung_bis,
-                           loeschsperre, kunde_id, erstellt_von)
-     values ($1::uuid, $2::uuid, 'buchhaltung', $3, $4, true, $5::bigint, $6,
-             $7, $8, $9::date, $10, $11::uuid, app.aktueller_benutzer())`,
-    [hoch.dokumentId, kontext.aktiverMandantId,
-     `Mahnung ${vorgang.kopf.nummer ?? ''} (${vorgang.kopf.kundeName})`,
-     hoch.mimeTyp, String(hoch.groesseBytes), hoch.bucket, hoch.objektSchluessel,
-     hoch.exifEntfernt, hoch.aufbewahrungBis, hoch.loeschsperre,
-     vorgang.kopf.kundeId]);
-  await kontext.schreibe(
-    `insert into dokument_version (mandant_id, dokument_id, version, objekt_schluessel,
-                                   sha256, groesse_bytes, mime_typ, erstellt_von)
-     values ($1::uuid, $2::uuid, 1, $3, $4, $5::bigint, $6, app.aktueller_benutzer())`,
-    [kontext.aktiverMandantId, hoch.dokumentId, hoch.objektSchluessel,
-     hoch.sha256, String(hoch.groesseBytes), hoch.mimeTyp]);
+  try {
 
-  const [nachher] = await kontext.schreibe<{ versendet_am: string }>(
-    `update mahnung
-        set status = 'versendet', versendet_am = now(), dokument_id = $2::uuid,
-            geaendert_am = now(), geaendert_von_art = 'mensch',
-            geaendert_von = app.aktueller_benutzer()
-      where id = $1::uuid and status = 'freigegeben'
-      returning versendet_am::text as versendet_am`,
-    [eingabe.id, hoch.dokumentId]);
-  if (nachher === undefined) {
-    throw new MahnungFehler(
-      'nicht_freigegeben', 'Der Zustand hat sich zwischenzeitlich geändert.');
+    /**
+     * Zwei Zeilen, weil das Schema sie so fuehrt (0009): `dokument` traegt
+     * Titel, Kategorie und Aufbewahrung, `dokument_version` die Fassung mit
+     * ihrem SHA-256. Der Digest ist hier kein Beiwerk — der Brief ist das
+     * Beweisstueck fuer den Verzugsbeginn, und ohne Pruefsumme laesst sich
+     * spaeter nicht zeigen, dass die abgelegte Datei noch dieselbe ist.
+     */
+    await kontext.schreibe(
+      `insert into dokument (id, mandant_id, kategorie, titel, mime_typ,
+                             mime_verifiziert, groesse_bytes, bucket,
+                             objekt_schluessel, exif_entfernt, aufbewahrung_bis,
+                             loeschsperre, kunde_id, erstellt_von)
+       values ($1::uuid, $2::uuid, 'buchhaltung', $3, $4, true, $5::bigint, $6,
+               $7, $8, $9::date, $10, $11::uuid, app.aktueller_benutzer())`,
+      [hoch.dokumentId, kontext.aktiverMandantId,
+       `Mahnung ${vorgang.kopf.nummer ?? ''} (${vorgang.kopf.kundeName})`,
+       hoch.mimeTyp, String(hoch.groesseBytes), hoch.bucket, hoch.objektSchluessel,
+       hoch.exifEntfernt, hoch.aufbewahrungBis, hoch.loeschsperre,
+       vorgang.kopf.kundeId]);
+    await kontext.schreibe(
+      `insert into dokument_version (mandant_id, dokument_id, version, objekt_schluessel,
+                                     sha256, groesse_bytes, mime_typ, erstellt_von)
+       values ($1::uuid, $2::uuid, 1, $3, $4, $5::bigint, $6, app.aktueller_benutzer())`,
+      [kontext.aktiverMandantId, hoch.dokumentId, hoch.objektSchluessel,
+       hoch.sha256, String(hoch.groesseBytes), hoch.mimeTyp]);
+
+    const [nachher] = await kontext.schreibe<{ versendet_am: string }>(
+      `update mahnung
+          set status = 'versendet', versendet_am = now(), dokument_id = $2::uuid,
+              geaendert_am = now(), geaendert_von_art = 'mensch',
+              geaendert_von = app.aktueller_benutzer()
+        where id = $1::uuid and status = 'freigegeben'
+        returning versendet_am::text as versendet_am`,
+      [eingabe.id, hoch.dokumentId]);
+    if (nachher === undefined) {
+      throw new MahnungFehler(
+        'nicht_freigegeben', 'Der Zustand hat sich zwischenzeitlich geändert.');
+    }
+
+    /** Der einzige Ausgang trägt seine Freigabe (0012, `versand`). */
+    await kontext.schreibe(
+      `insert into versand (mandant_id, freigabe_id, aktion, kanal, empfaenger,
+                            nutzlast_hash, gesendet_am, ergebnis)
+       values ($1::uuid, $2::uuid, 'mahnung_senden', $3, $4, $5, now(), 'dokumentiert')`,
+      [kontext.aktiverMandantId, freigabe?.id ?? null, eingabe.versandart,
+       eingabe.empfaenger, nutzlastHash(nutzlast)]);
+
+      return { dokumentId: hoch.dokumentId, versendetAm: nachher.versendet_am };
+  } catch (fehler) {
+    try {
+      await speicher.entferne(hoch.bucket, hoch.objektSchluessel);
+    } catch {
+      /*
+       * Auch das Aufräumen kann scheitern. Dann bleibt ein verwaistes Objekt —
+       * und es bleibt AUFFINDBAR: es steht in keiner `dokument`-Zeile, und
+       * genau daran erkennt es der Waisenlauf. Den ursprünglichen Fehler
+       * verdeckt dieser zweite auf keinen Fall.
+       */
+    }
+    throw fehler;
   }
-
-  /** Der einzige Ausgang trägt seine Freigabe (0012, `versand`). */
-  await kontext.schreibe(
-    `insert into versand (mandant_id, freigabe_id, aktion, kanal, empfaenger,
-                          nutzlast_hash, gesendet_am, ergebnis)
-     values ($1::uuid, $2::uuid, 'mahnung_senden', $3, $4, $5, now(), 'dokumentiert')`,
-    [kontext.aktiverMandantId, freigabe?.id ?? null, eingabe.versandart,
-     eingabe.empfaenger, nutzlastHash(nutzlast)]);
-
-  return { dokumentId: hoch.dokumentId, versendetAm: nachher.versendet_am };
 }

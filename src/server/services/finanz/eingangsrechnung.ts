@@ -1,4 +1,5 @@
 import 'server-only';
+import { bucheEingangsrechnung } from '../buchhaltung/buchungssatz.js';
 import { cent, type Cent } from './geld.js';
 
 /**
@@ -138,19 +139,46 @@ export interface BelegAnlegen {
   readonly betragBruttoCent?: Cent | null;
 }
 
+/**
+ * **Dokument, Version und Hash werden GELESEN, nicht geglaubt.**
+ *
+ * Die Vorfassung schrieb alle drei Werte so hin, wie der Aufrufer sie
+ * mitbrachte, und prüfte jeden einzeln über seinen Fremdschlüssel. Damit ging
+ * eine Kombination durch, die keine ist: eine Version, die zu einem ANDEREN
+ * Dokument gehört, mit einem Hash, den niemand nachgerechnet hat. Ein Beleg
+ * ist der Nachweis, welche Datei zu welchem Zeitpunkt vorlag (ACC-03, K-13) —
+ * zeigt sein Prüfwert auf eine fremde Version, ist die Kette gerissen, und
+ * zwar unsichtbar.
+ *
+ * Deshalb `insert … select` aus `dokument_version`: die Zeile kommt nur
+ * zustande, wenn Dokument, Version, Mandant und Hash **zusammengehören**, und
+ * die drei Spalten stammen dann aus der Version selbst. Passt etwas nicht,
+ * liefert das `select` null Zeilen und der Aufrufer bekommt einen Fehler —
+ * statt eines Belegs, der auf das Falsche zeigt.
+ */
 export async function legeBelegAn(db: Abfrage, e: BelegAnlegen): Promise<string> {
   const [zeile] = await db.abfrage<{ id: string }>(
     `insert into beleg (mandant_id, belegnummer, typ, quelle, dokument_id,
                         dokument_version_id, datei_sha256, seiten, belegdatum,
                         betrag_brutto_cent, erstellt_von_art, erstellt_von)
-     values (app.aktiver_mandant(), $1, $2::beleg_typ, $3::beleg_quelle, $4::uuid,
-             $5::uuid, $6, $7, $8::date, $9::bigint, 'mensch', app.aktueller_benutzer())
+     select app.aktiver_mandant(), $1, $2::beleg_typ, $3::beleg_quelle,
+            v.dokument_id, v.id, v.sha256, $7, $8::date, $9::bigint,
+            'mensch', app.aktueller_benutzer()
+       from dokument_version v
+      where v.id = $5::uuid
+        and v.mandant_id = app.aktiver_mandant()
+        and v.dokument_id = $4::uuid
+        and v.sha256 = $6
      returning id`,
     [e.belegnummer ?? null, e.typ, e.quelle, e.dokumentId, e.dokumentVersionId,
      e.dateiSha256, e.seiten ?? null, e.belegdatum ?? null,
      e.betragBruttoCent?.toString() ?? null]);
   if (zeile === undefined) {
-    throw new EingangsrechnungFehler('Der Beleg wurde nicht angelegt.', 'abgewiesen');
+    throw new EingangsrechnungFehler(
+      'Dokument, Version und Prüfwert gehören nicht zusammen — es entsteht kein Beleg. '
+      + 'Entweder gibt es die Version nicht, oder sie gehört zu einem anderen Dokument, '
+      + 'oder ihr SHA-256 ist ein anderer.',
+      'abgewiesen');
   }
   return zeile.id;
 }
@@ -327,12 +355,26 @@ export async function freigebe(
 }
 
 /**
- * Buchen — der unumkehrbare Schritt. Die interne Belegnummer und der
- * Kreditorposten entstehen in der Datenbank (0123); hier steht nur der Anstoß
- * und die Übersetzung der Ablehnungen.
+ * Buchen — der unumkehrbare Schritt.
+ *
+ * Die interne Belegnummer und der Kreditorposten entstehen in der Datenbank
+ * (0123); der **Buchungssatz** entsteht hier, in derselben Transaktion.
+ *
+ * **Bis 0131 tat er das nicht.** Diese Funktion setzte den Status, die
+ * Datenbank eröffnete den Posten — und das Hauptbuch sah davon nichts. Die
+ * gesamte Kreditorenseite stand ausserhalb der Buchführung: ein DATEV-Export
+ * hätte nur Ausgangsrechnungen enthalten, und die Summe hätte mit keiner
+ * Bilanz übereingestimmt. Aufgefallen wäre es beim Steuerberater, einen Monat
+ * später, an einer Zahl, die niemand erklären kann.
+ *
+ * Dieselbe Reihenfolge wie auf der Ausgangsseite (§5.6 Schritt 6, D-427):
+ * erst der Zustand, dann die Buchung, beides in einer Transaktion. Ein
+ * Nachlauf hinterliesse gebuchte Rechnungen, die in keiner Buchhaltung
+ * stehen, und niemand merkt, wenn ein Nachlauf nicht mehr läuft.
  */
 export async function buche(db: Abfrage, id: string): Promise<void> {
   await setzeStatus(db, id, 'gebucht');
+  await bucheEingangsrechnung(db, id);
 }
 
 // ---------------------------------------------------------------------------

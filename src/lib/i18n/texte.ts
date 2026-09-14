@@ -64,6 +64,12 @@ export interface ShellTexte {
    * und das gehoert dazugeschrieben, statt es offenzulassen.
    */
   readonly rechtsverbindlichHinweis: string;
+  /** Der eine Satz unter dem Logo im Fussbereich — was die Gruppe ist. */
+  readonly leitsatz: string;
+  /** „Alle Rechte vorbehalten." hinter dem Jahr. */
+  readonly alleRechte: string;
+  /** Beschriftung der Spalte mit Anschriften. */
+  readonly anschriften: string;
 }
 
 export const SHELL_TEXTE: Readonly<Record<Sprache, ShellTexte>> = {
@@ -92,6 +98,9 @@ export const SHELL_TEXTE: Readonly<Record<Sprache, ShellTexte>> = {
       barrierefreiheit: 'Barrierefreiheit',
     },
     rechtsverbindlichHinweis: '',
+    leitsatz: 'Gebäudereinigung, Sicherheitsdienste und Bau — vier Gesellschaften, ein Standort in Berlin.',
+    alleRechte: 'Alle Rechte vorbehalten.',
+    anschriften: 'Anschriften',
   },
   en: {
     hauptnavigation: 'Main navigation',
@@ -121,6 +130,9 @@ export const SHELL_TEXTE: Readonly<Record<Sprache, ShellTexte>> = {
       'The German version of the legal notice and the privacy policy is the '
       + 'legally binding one (§ 5 TMG, GDPR Art. 13). This translation is '
       + 'provided for convenience.',
+    leitsatz: 'Cleaning, security and construction — four companies, one base in Berlin.',
+    alleRechte: 'All rights reserved.',
+    anschriften: 'Addresses',
   },
 };
 

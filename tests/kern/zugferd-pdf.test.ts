@@ -84,6 +84,30 @@ describe('(3) Es weist sich als PDF/A-3 mit Factur-X aus', () => {
     expect(xmp).toContain('pdfaExtension:schemas');
   });
 
+  /**
+   * Der Befund aus der Durchsicht von PR #9: `leistender.name` ging roh in
+   * den XMP-Text. Ein Firmenname wie „Müller & Söhne" — eine voellig normale
+   * deutsche Firmierung — machte die Metadaten damit nicht wohlgeformt. Das
+   * PDF sieht heil aus, veraPDF weist es ab, und der Empfänger bekommt eine
+   * Rechnung, die sein System nicht einliest.
+   */
+  it('ein `&` im Firmennamen bleibt XML — er wird maskiert, nicht eingesetzt', async () => {
+    const r = beispielRechnung();
+    const bytes = await baueZugferdPdf({
+      ...r,
+      leistender: { ...r.leistender, name: 'Müller & Söhne <GmbH>' },
+    }, { erzeugtAm: ERZEUGT });
+
+    const gelesen = await PDFDocument.load(bytes);
+    const strom = gelesen.catalog.lookup(PDFName.of('Metadata'));
+    const xmp = Buffer.from((strom as PDFRawStream).contents).toString('utf8');
+
+    expect(xmp).toContain('Müller &amp; Söhne &lt;GmbH&gt;');
+    // Und das rohe Zeichen steht NICHT darin — sonst waere es nur zusaetzlich
+    // maskiert worden.
+    expect(xmp).not.toContain('Müller & Söhne');
+  });
+
   it('ein OutputIntent mit eingebettetem sRGB-Profil hängt am Katalog', async () => {
     const gelesen = await PDFDocument.load(await pdf());
     const intents = gelesen.catalog.lookup(PDFName.of('OutputIntents'));

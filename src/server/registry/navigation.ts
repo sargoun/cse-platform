@@ -61,13 +61,13 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * Modul `eingang`: wer fakturiert, prueft nicht schon deswegen
    * Lieferantenrechnungen.
    */
-  { schluessel: 'eingangsrechnungen', label: 'Eingangsrechnungen', pfad: 'finanzen/eingangsrechnungen', recht: 'eingang.lesen', gruppe: true, icon: 'rechnung' },
+  { schluessel: 'eingangsrechnungen', label: 'Eingangsrechnungen', pfad: 'finanzen/eingangsrechnungen', recht: 'eingang.lesen', gruppe: true, icon: 'eingang' },
   /**
    * `finanzen/ausgangsbuch` — die Folge der ausgestellten Rechnungen (FIN-16).
    * Recht `nummernkreis.lesen` und nicht `finanzen.lesen`: das Buch ist die
    * Sicht auf den KREIS, und wer es liest, prueft die Lueckenlosigkeit.
    */
-  { schluessel: 'ausgangsbuch', label: 'Ausgangsbuch', pfad: 'finanzen/ausgangsbuch', recht: 'nummernkreis.lesen', gruppe: true, icon: 'export' },
+  { schluessel: 'ausgangsbuch', label: 'Ausgangsbuch', pfad: 'finanzen/ausgangsbuch', recht: 'nummernkreis.lesen', gruppe: true, icon: 'buch' },
   /**
    * `finanzen/mahnungen` — die Mahnungen (FIN-15). Eigenes Recht
    * `mahnung.lesen`: eine Mahnung ist eine Aussage ueber die Zahlungsmoral
@@ -78,7 +78,57 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * aktiven Mandanten (Invariante 10).
    */
   { schluessel: 'mahnungen', label: 'Mahnungen', pfad: 'finanzen/mahnungen', recht: 'mahnung.lesen', gruppe: true, icon: 'warnung' },
+  /**
+   * `buchhaltung/buchungen` — das Hauptbuch mit seinen Belegen (ACC-01,
+   * ACC-03).
+   *
+   * Eigenes Modulrecht `buchhaltung.lesen` und NICHT `finanzen.lesen`: wer
+   * Rechnungen schreibt, sieht damit nicht schon die Kontierung des Hauses.
+   * Die Trennung steht so im Rechtekatalog und ist der Grund, warum es zwei
+   * Rechte gibt.
+   *
+   * `gruppe: false`: eine Buchungszeile gehoert genau einer Gesellschaft, und
+   * eine Liste ueber alle vier waere keine Buchhaltung, sondern eine
+   * Vermischung — auch lesend.
+   */
+  { schluessel: 'buchungen', label: 'Buchungen', pfad: 'buchhaltung/buchungen', recht: 'buchhaltung.lesen', gruppe: false, icon: 'buch' },
+  /**
+   * `buchhaltung/datev` — die erzeugten Buchungsstapel (ACC-02).
+   *
+   * `buchhaltung.exportieren` und nicht `buchhaltung.lesen`: wer das
+   * Hauptbuch liest, erzeugt damit noch keine Datei, die das Haus verlaesst.
+   * Der Katalog trennt die beiden seit 0008 genau dafuer.
+   */
+  /**
+   * `buchhaltung/bank` — die eingelesenen Kontoauszuege (ACC-04).
+   *
+   * `buchhaltung.lesen` als Eintrittsrecht, wie die Policy auf
+   * `kontoauszug`: wer das Hauptbuch liest, sieht auch, was die Bank
+   * gemeldet hat. Das EINLESEN verlangt zusaetzlich `zahlung.schreiben` —
+   * es legt Zahlungen an —, und das prueft die Route, nicht der Menuepunkt.
+   */
+  { schluessel: 'bank', label: 'Bank', pfad: 'buchhaltung/bank', recht: 'buchhaltung.lesen', gruppe: false, icon: 'bank' },
+  { schluessel: 'datev', label: 'DATEV', pfad: 'buchhaltung/datev', recht: 'buchhaltung.exportieren', gruppe: false, icon: 'export' },
   { schluessel: 'dokumente', label: 'Dokumente', pfad: 'dokumente', recht: 'dokument.lesen', gruppe: true, icon: 'dokument' },
+  /**
+   * `agenten` — das Agenten-Zentrum (AGT-01, SPEC §22).
+   *
+   * `gruppe: false`, obwohl die Seitenkarte `/portal/gruppe/agenten` fuehrt:
+   * die Gruppenseite ist eine ANDERE Seite mit einem anderen Recht
+   * (`gruppe.agent.lesen`) und einer Auswertung ueber Gesellschaften hinweg.
+   * Sie kommt, wenn sie gebaut ist; bis dahin zeigte der Punkt in der
+   * Gruppenansicht auf einen 404 — derselbe Befund wie damals bei
+   * `dienstplan`.
+   */
+  { schluessel: 'agenten', label: 'Agenten', pfad: 'agenten', recht: 'agent.lesen', gruppe: false, icon: 'ki' },
+  /**
+   * `freigaben` — der Posteingang der Freigaben (APR-01, PR 62).
+   *
+   * `gruppe: false`: die Gruppenansicht bekommt ihren eigenen Posteingang
+   * (`/portal/gruppe/freigaben`, Phase 8), der in die Gesellschaft verweist —
+   * entschieden wird nur mit genau einem aktiven Mandanten (Invariante 10).
+   */
+  { schluessel: 'freigaben', label: 'Freigaben', pfad: 'freigaben', recht: 'freigabe.lesen', gruppe: false, icon: 'freigabe' },
   /**
    * `bau/projekte`, nicht `bau`: die Seitenkarte fuehrt zwar beides, aber die
    * Modulübersicht ist eine Phase-5-Seite ohne Inhalt, solange Nachträge,
@@ -99,7 +149,7 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * Gruppenlesepfad (§1.7): eine Gruppenleitung liest keine
    * Vorkommnismeldungen einer anderen Gesellschaft.
    */
-  { schluessel: 'security', label: 'Security', pfad: 'security/posten', recht: 'security.lesen', gruppe: false, icon: 'schloss' },
+  { schluessel: 'security', label: 'Security', pfad: 'security/posten', recht: 'security.lesen', gruppe: false, icon: 'security' },
   /**
    * `reinigung/reviere`, nicht `reinigung`: die Modulübersicht steht zwar in
    * der Seitenkarte, hat aber erst mit dem Turnus-Gesundheitsblatt einen
@@ -111,14 +161,14 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * zuerst DESIGN.md zu ändern. Ein Revier IST eine Zone in einem Gebäude,
    * also ist das Gebäude das nächstliegende Bild.
    */
-  { schluessel: 'reinigung', label: 'Reinigung', pfad: 'reinigung/reviere', recht: 'reinigung.lesen', gruppe: true, icon: 'objekt' },
+  { schluessel: 'reinigung', label: 'Reinigung', pfad: 'reinigung/reviere', recht: 'reinigung.lesen', gruppe: true, icon: 'reinigung' },
   /**
    * Qualität steht NEBEN den Gewerken, nicht darin: eine Beanstandung über
    * einen Wachmann ist dieselbe Zeile wie eine über eine Reinigungsrunde
    * (04-SEITENKARTE.md §5.6). `warnung` als Icon, weil der Punkt im Alltag
    * genau dafür angeklickt wird — die offenen Fälle.
    */
-  { schluessel: 'qualitaet', label: 'Qualität', pfad: 'qualitaet/reklamationen', recht: 'qualitaet.lesen', gruppe: true, icon: 'warnung' },
+  { schluessel: 'qualitaet', label: 'Qualität', pfad: 'qualitaet/reklamationen', recht: 'qualitaet.lesen', gruppe: true, icon: 'qualitaet' },
   /**
    * PR 42 — die beiden Security-Register bekommen eigene Punkte.
    *

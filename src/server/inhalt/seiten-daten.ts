@@ -38,6 +38,8 @@ export interface SeitenDaten {
   readonly bereiche: readonly BereichZeile[];
   readonly basis: string;
   readonly jsonLd: readonly Record<string, unknown>[];
+  /** Der Auftrittsname aus `plattform_einstellung` — fuer die Marke im Helden der Startseite. */
+  readonly gruppeName: string;
 }
 
 /**
@@ -101,7 +103,10 @@ export async function seitenDaten(
     if (faq !== null) jsonLd.push(faq);
   }
 
-  return { seite, bereiche, basis, jsonLd };
+  return {
+    seite, bereiche, basis, jsonLd,
+    gruppeName: typeof gruppeName === 'string' ? gruppeName : '',
+  };
 }
 
 /** Die Kurztexte der Markenkarten — aus `unternehmensprofil`, sonst leer. */

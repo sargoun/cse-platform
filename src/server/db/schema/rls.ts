@@ -65,6 +65,82 @@ export interface Loeschsperre {
  */
 export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
   {
+    tabelle: 'agent_aufgabe',
+    art: 'archiv',
+    migration: '0128',
+    grund:
+      'AGT-04. Was ein Agent getan hat, ist die Antwort auf die Frage, warum '
+      + 'etwas im System steht. Eine geloeschte Aufgabe nimmt ihre Schritte '
+      + 'mit — und damit die Begruendung eines Entwurfs, den ein Mensch '
+      + 'freigegeben hat. Beendet wird mit status, nie durch Loeschen.',
+  },
+  {
+    tabelle: 'agent_schritt',
+    art: 'append',
+    migration: '0128',
+    grund:
+      'AGT-04, LEG-09. Das Schrittprotokoll ist der Nachweis, WAS der Agent '
+      + 'gelesen und WAS er einem Modell geschickt hat. Die einzige erlaubte '
+      + 'Aenderung ist die Schwaerzung der Nutzlast nach Frist — sie leert '
+      + 'Spalten und entfernt keine Zeile.',
+  },
+  {
+    tabelle: 'agent_kosten',
+    art: 'append',
+    migration: '0128',
+    grund:
+      'AGT-05. Die Kostenzeilen SIND das Monatsbudget: der Verbrauch ist ihre '
+      + 'Summe. Eine geloeschte Zeile senkt den Verbrauch und hebt damit '
+      + 'ruecklaufend eine Obergrenze auf, die bereits gegriffen hat. '
+      + 'Korrigiert wird durch eine zweite Zeile.',
+  },
+  {
+    tabelle: 'agent_budget',
+    art: 'archiv',
+    migration: '0128',
+    grund:
+      'AGT-05. Die Budgetzeile traegt die Obergrenze UND den Nachweis, dass '
+      + 'und wann gestoppt wurde (gestoppt_am). Sie zu loeschen loescht beides '
+      + 'und laesst die Agenten im naechsten Aufruf weiterlaufen, als waere '
+      + 'nichts gewesen.',
+  },
+  {
+    tabelle: 'agent_reservierung',
+    art: 'archiv',
+    migration: '0128',
+    grund:
+      'AGT-05. Eine Reservierung ist gebundenes Budget. Wird die Zeile '
+      + 'geloescht statt freigegeben, bleibt der Zaehler in agent_budget '
+      + 'gebunden und niemand kann mehr sehen, wofuer — geschlossen wird mit '
+      + 'freigegeben_am und freigabe_grund.',
+  },
+  {
+    tabelle: 'konto_mapping',
+    art: 'archiv',
+    migration: '0126',
+    grund:
+      'ACC-01. Eine geloeschte Kontenzuordnung macht jede Buchung, die auf ihr '
+      + 'beruht, unerklaerlich: das Konto steht im buchungssatz, der Grund ist '
+      + 'fort. Geschlossen wird mit gueltig_bis.',
+  },
+  {
+    tabelle: 'periode',
+    art: 'archiv',
+    migration: '0127',
+    grund:
+      'ACC-08, LEG-01. Ein geloeschter Buchungsmonat nimmt die Festschreibung '
+      + 'mit, die ihn abgeschlossen hat — und die Monatszahlen, die der '
+      + 'Steuerberater bereits bekommen hat.',
+  },
+  {
+    tabelle: 'buchungssatz',
+    art: 'archiv',
+    migration: '0127',
+    grund:
+      'ACC-01, ACC-06, GoBD. Die Buchungszeile IST der Nachweis. Korrigiert '
+      + 'wird durch Gegenbuchung (storniert_durch_id), nie durch Loeschen.',
+  },
+  {
     tabelle: 'firma',
     art: 'archiv',
     migration: '0020',
@@ -1394,6 +1470,85 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'darauf unlesbar; Art. 17 DSGVO wird bei einer natuerlichen Person '
       + 'ueber `anonymisiert_am` erfuellt, aufgeloest wird ueber '
       + '`archiviert_am`.',
+  },
+  {
+    tabelle: 'kontoauszug',
+    art: 'archiv',
+    migration: '0135',
+    grund:
+      'ACC-04, ACC-06, LEG-01, GoBD. Der eingelesene Auszug ist der Nachweis, '
+      + 'WAS die Bank gemeldet hat — er traegt Anfangs- und Endsaldo und den '
+      + 'Pruefwert der Datei. Ihn zu loeschen liesse die Umsaetze auf einen '
+      + 'Auszug zeigen, den es nicht mehr gibt, und die Frage, woher eine '
+      + 'Zahlung kam, waere nicht mehr zu beantworten. Ein falscher Auszug '
+      + 'wird VERWORFEN und neu eingelesen; die Zeile bleibt.',
+  },
+  {
+    tabelle: 'kontoumsatz',
+    art: 'append',
+    migration: '0135',
+    grund:
+      'ACC-04, LEG-01, GoBD. Eine Auszugszeile verschwindet nicht — auch '
+      + 'dann nicht, wenn niemand sie zuordnen kann. Genau das ist die '
+      + 'Zusage: ein unzugeordneter Umsatz bleibt sichtbar, statt aus der '
+      + 'Ansicht zu fallen und den Saldo unerklaerlich zu machen. Wer ihn '
+      + 'fuer gegenstandslos haelt, setzt zustand = ohne_bezug MIT Grund.',
+  },
+  {
+    tabelle: 'umsatz_zuordnung',
+    art: 'append',
+    migration: '0135',
+    grund:
+      'ACC-04, LEG-01. Die Bruecke zwischen Auszugszeile und Zahlung ist '
+      + 'widerrufbar, nicht loeschbar: der Widerruf ist selbst die '
+      + 'Aufzeichnung, dass hier einmal eine andere Zuordnung stand. Sie zu '
+      + 'loeschen naehme genau die Spur, die nach einem Fehlgriff gebraucht '
+      + 'wird — und liesse offen, ob eine Regel oder ein Mensch danebenlag.',
+  },
+  {
+    tabelle: 'freigabe_feld',
+    art: 'append',
+    migration: '0136',
+    grund:
+      'APR-03, APR-07, K-13. Jede Zeile ist der NACHWEIS, woher ein '
+      + 'extrahierter Wert stammt — Seite, Zelle, Zitat, Konfidenz. Sie zu '
+      + 'loeschen naehme genau die Spur, auf die sich eine Freigabe beruft, '
+      + 'und liesse die Entscheidung als Behauptung zurueck. Eine Korrektur '
+      + 'ist eine NEUE freigabe mit ersetzt_durch_freigabe_id, nie ein '
+      + 'Entfernen hier.',
+  },
+  {
+    tabelle: 'freigabe_ansicht',
+    art: 'append',
+    migration: '0136',
+    grund:
+      'APR-08, K-13, LEG-01. Sie bezeugt, dass ein Mensch die Freigabe '
+      + 'geoeffnet hat, und ist die einzige Grundlage von pruefdauer_sek. '
+      + 'Loeschbar waere sie genau das Werkzeug dessen, den APR-08 finden '
+      + 'soll: wer zu schnell entscheidet, raeumte die Messung hinter sich '
+      + 'weg, und die Auswertung meldete danach nur noch die Sorgfaeltigen.',
+  },
+  {
+    tabelle: 'dokument_zugriff',
+    art: 'append',
+    migration: '0139',
+    grund:
+      'DOC-03, SEC-A6, Art. 15 DSGVO. Eine Zeile je Abruf einer Datei aus der '
+      + 'Ablage. Sie ist die Antwort auf die Frage, wer eine Personalakte oder '
+      + 'einen Beleg gesehen hat — loeschbar waere sie das Werkzeug dessen, der '
+      + 'nicht gesehen werden will.',
+  },
+  {
+    tabelle: 'datev_export',
+    art: 'archiv',
+    migration: '0133',
+    grund:
+      'ACC-02, ACC-06, LEG-01, GoBD. Der Exportvorgang bezeugt, WELCHE Zeilen '
+      + 'mit welchen Summen und welchen Stammdaten das Haus verlassen haben. '
+      + 'Ihn zu loeschen liesse die gestempelten Buchungszeilen auf einen '
+      + 'Stapel zeigen, den es nicht mehr gibt — und die Frage, was der '
+      + 'Steuerberater bekommen hat, waere nicht mehr zu beantworten. Ein '
+      + 'falscher Stapel wird VERWORFEN und neu erzeugt; die Zeile bleibt.',
   },
   {
     tabelle: 'beleg',

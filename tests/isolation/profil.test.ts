@@ -106,7 +106,7 @@ describe('(1) alle vier Profile tragen ihre eigene Identität', () => {
       `select firma, name from mandant where slug = 'security'`,
     );
     // D-11: SSE Security ist eine eigene Marke, kein Zusatz zu CSE.
-    expect(m!.firma).toBe('Select-Security Event GmbH');
+    expect(m!.firma).toBe('Select Security Event GmbH');
     expect(m!.name).toBe('SSE Security');
     expect(m!.name.startsWith('CSE')).toBe(false);
   });

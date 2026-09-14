@@ -27,6 +27,9 @@ import { seedWachbuch } from './wachbuch.js';
 import { seedReinigung } from './reinigung.js';
 import { seedVertrieb } from './vertrieb.js';
 import { seedBau } from './bau.js';
+import { seedFreigaben } from './freigaben.js';
+import { seedEingang } from './eingang.js';
+import { SupabaseSpeicher } from '../../storage/adapter.js';
 
 const url = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 if (url === undefined || url === '') {
@@ -36,6 +39,22 @@ const sql = postgres(url, { max: 1, onnotice: () => {} });
 
 const heute = new Date().toISOString().slice(0, 10);
 
+/**
+ * Was der bestehende Auftritt einer Gesellschaft SELBST veroeffentlicht —
+ * Anschrift, Rufnummer, Adresse, Web (Stand 13.09.2026, siehe DECISIONS
+ * D-473). Nur das steht hier; Registergericht, HRB und USt-IdNr. nennt keiner
+ * der beiden Auftritte, also bleiben sie Platzhalter und
+ * `angaben_bestaetigt_am` bleibt NULL (O-353).
+ */
+interface Auftritt {
+  readonly strasse: string;
+  readonly plz: string;
+  readonly ort: string;
+  readonly telefon: string;
+  readonly email: string;
+  readonly web: string;
+}
+
 interface Bereich {
   readonly slug: string;
   readonly name: string;
@@ -43,6 +62,7 @@ interface Bereich {
   readonly rechtsform: string | null;
   readonly rechtseinheit: boolean | null;
   readonly farbe: string;
+  readonly auftritt?: Auftritt;
   /**
    * Die GEBUCHTEN Gewerkmodule (`mandant.module`, seit 0001 vorhanden und bis
    * jetzt leer).
@@ -71,10 +91,22 @@ interface Bereich {
 const BEREICHE: readonly Bereich[] = [
   { slug: 'reinigung', name: 'CSE Dienstleistung', firma: 'CSE Dienstleistungen GmbH',
     rechtsform: 'GmbH', rechtseinheit: true, farbe: 'reinigung',
-    module: ['reinigung'] },
-  { slug: 'security', name: 'SSE Security', firma: 'Select-Security Event GmbH',
+    module: ['reinigung'],
+    // cse-dienstleistungen.de, Kontakt und Datenschutzerklaerung.
+    auftritt: { strasse: 'Kurfürstendamm 201', plz: '10719', ort: 'Berlin',
+      telefon: '+49 30 91203341', email: 'office@cse-dienstleistungen.de',
+      web: 'https://www.cse-dienstleistungen.de' } },
+  /*
+   * `Select Security Event GmbH` — ohne Bindestrich, wie das Impressum von
+   * select-security.de die Firma schreibt. CLAUDE.md hatte `Select-Security
+   * Event GmbH`; das Impressum ist die Quelle, die zaehlt (D-473).
+   */
+  { slug: 'security', name: 'SSE Security', firma: 'Select Security Event GmbH',
     rechtsform: 'GmbH', rechtseinheit: true, farbe: 'security',
-    module: ['security'] },
+    module: ['security'],
+    auftritt: { strasse: 'Kurfürstendamm 201', plz: '10719', ort: 'Berlin',
+      telefon: '+49 30 80584400', email: 'office@select-security.de',
+      web: 'https://select-security.de' } },
   { slug: 'bau', name: 'REALTIME Service', firma: 'REALTIME Service GmbH',
     rechtsform: 'GmbH', rechtseinheit: true, farbe: 'bau',
     module: ['bau'] },
@@ -163,7 +195,7 @@ async function main(): Promise<void> {
     const [z] = await sql<{ id: string }[]>`
       insert into mandant
         (slug, name, firma, rechtsform, ist_rechtseinheit, eigener_nummernkreis,
-         strasse, plz, ort, land, telefon, email, farbe_token, module,
+         strasse, plz, ort, land, telefon, email, web, farbe_token, module,
          module_gepflegt, sortierung,
          ust_id, handelsregister_gericht, handelsregister_nummer,
          rechnung_kontakt_name,
@@ -172,8 +204,11 @@ async function main(): Promise<void> {
       values
         (${b.slug}, ${b.name}, ${b.firma}, ${b.rechtsform}, ${b.rechtseinheit},
          ${rechtseinheit},
-         'Kurfürstendamm 21', '10719', 'Berlin', 'DE', -- TODO(client, O-353): echte Anschrift je Gesellschaft
-         '+49 30 555 0100', ${`kontakt@${b.slug}.cse-gruppe.de`}, ${b.farbe}, -- TODO(client, O-353): echte Rufnummer
+         -- Anschrift und Rufnummer aus dem bestehenden Auftritt, wo es einen
+         -- gibt (D-473); sonst der alte, erkennbar erfundene Platzhalter.
+         ${b.auftritt?.strasse ?? 'Kurfürstendamm 21'}, ${b.auftritt?.plz ?? '10719'}, ${b.auftritt?.ort ?? 'Berlin'}, 'DE', -- TODO(client, O-353): Anschrift von REALTIME und Operations
+         ${b.auftritt?.telefon ?? '+49 30 555 0100'}, ${b.auftritt?.email ?? `kontakt@${b.slug}.cse-gruppe.de`}, -- TODO(client, O-353): Rufnummer von REALTIME und Operations
+         ${b.auftritt?.web ?? null}, ${b.farbe},
          -- Die Umwandlung nach text[] steht AUSGESCHRIEBEN da: eine leere
          -- Liste (CSE Operations bucht kein Gewerk) kommt beim Treiber ohne
          -- Elementtyp an und wird als text gesendet — "column module is of
@@ -814,6 +849,31 @@ async function main(): Promise<void> {
     + 'kein Demowert\n',
   );
 
+  // --------------------------------------------------- DATEV-Stammdaten (PR 58)
+  /**
+   * **Eine Zeile je Gesellschaft, und jede fachliche Spalte NULL** (ACC-01,
+   * O-05).
+   *
+   * Die Zeile muss da sein, damit der Bildschirm die Sperre zeigt statt einer
+   * leeren Seite — und damit `app.konto_aufloesen` antworten kann „Kontenrahmen
+   * nicht festgelegt" statt „Zuordnung fehlt". Sie enthaelt aber nichts
+   * Erfundenes: Beraternummer, Mandantennummer, SKR03/04, Sachkontenlaenge und
+   * Versteuerungsart stehen beim Steuerberater. `konto_mapping` bleibt ganz
+   * leer — eine Zuordnung mit geratenem Konto waere schlimmer als keine.
+   */
+  for (const b of BEREICHE) {
+    await sql`
+      insert into datev_konfiguration
+        (mandant_id, ist_platzhalter, verbunden, erstellt_von_art, erstellt_von_dienst)
+      values (${ids.get(b.slug)!}, true, false, 'system', 'job:seed')
+      on conflict (mandant_id) do nothing`;
+  }
+  process.stdout.write(
+    '  DATEV: eine leere Konfiguration je Rechtseinheit, ist_platzhalter = true (O-05)\n'
+    + '  · Kontenzuordnung: KEINE Zeile — ein geratenes Erloeskonto faellt erst beim '
+    + 'Steuerberater auf\n',
+  );
+
   // -------------------------------------------------------------- Bankkonto
   /**
    * Ein Bankkonto je Rechtseinheit — AUS DER GESELLSCHAFT, nicht daneben.
@@ -900,6 +960,48 @@ async function main(): Promise<void> {
         on conflict do nothing`;
     }
   }
+
+  // --------------------------------------------------------- Agent-Budgets
+  /**
+   * Ein Monatsbudget je Rechtseinheit — **als klar markierter PLATZHALTER**.
+   *
+   * O-26 ist offen: wieviel Euro im Monat die KI kosten darf, entscheidet die
+   * Geschaeftsfuehrung, nicht diese Datei. Ohne irgendeine Zeile laeuft aber
+   * kein Agent (`budget_fehlt`), und dann zeigt das Agenten-Zentrum einen
+   * leeren Bildschirm, auf dem nichts zu sehen ist ausser einem Fehler — auch
+   * nicht, WIE die Obergrenze wirkt.
+   *
+   * Deshalb: 50,00 € je Gesellschaft und Monat, `ist_platzhalter = true`, und
+   * der Bildschirm schreibt genau das hin. Die Zahl ist bewusst klein — ein
+   * Platzhalter, der zu gross ist, faellt niemandem auf, bevor er kostet.
+   *
+   * `warnschwelle_prozent` bleibt NULL: AGT-05 nennt eine Obergrenze und einen
+   * Hartstopp, zur Warnschwelle sagt die Vorgabe nichts, und „80 %" waere eine
+   * still erfundene Finanzregel (O-195).
+   *
+   * TODO(client, O-26): Monatsbudget je Gesellschaft — und je Agent?
+   */
+  const JETZT_BERLIN = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit',
+  }).format(new Date());
+  const BUDGET_JAHR = Number(JETZT_BERLIN.slice(0, 4));
+  const BUDGET_MONAT = Number(JETZT_BERLIN.slice(5, 7));
+  const BUDGET_PLATZHALTER_CENT = 5_000n;
+
+  for (const b of BEREICHE) {
+    await sql`
+      insert into agent_budget
+        (mandant_id, geltungsbereich, jahr, monat, budget_cent, ist_platzhalter,
+         erstellt_von_art, erstellt_von_dienst)
+      values (${ids.get(b.slug)!}, 'mandant', ${BUDGET_JAHR}, ${BUDGET_MONAT},
+              ${BUDGET_PLATZHALTER_CENT.toString()}, true, 'system', 'job:seed')
+      on conflict do nothing`;
+  }
+  process.stdout.write(
+    `  KI-Budget: ${BEREICHE.length} Zeilen fuer ${String(BUDGET_MONAT).padStart(2, '0')}/`
+    + `${BUDGET_JAHR}, je 50,00 € — PLATZHALTER (O-26)\n`
+    + '  · keine Warnschwelle: die Vorgabe nennt keine (O-195)\n',
+  );
 
   // ------------------------------------------------ Ein Konto je Rolle (PR 19)
   /**
@@ -1334,6 +1436,29 @@ async function main(): Promise<void> {
    * freigegeben ist. Ohne diesen Schritt fuehrte PR 37 eine Buchhaltung, die
    * nie gebucht hat.
    */
+  const frei = await seedFreigaben(sql, ids);
+  process.stdout.write(
+    frei.vorschlaege === 0
+      ? `  Freigabe-Posteingang: ${String(frei.vorhanden)} Vorschlaege bereits vorhanden, nichts nachgelegt\n`
+      : `  ${String(frei.vorschlaege)} wartende Vorschlaege im Freigabe-Posteingang mit `
+        + `${String(frei.felder)} Feldnachweisen (Demo — kein Agent hat sie erzeugt, PR 62)\n`,
+  );
+  /**
+   * Eine E-Rechnung im Posteingang (PR 63) — nur, wenn der Objektspeicher
+   * verbunden ist; sonst sagt der Seed das und legt nichts an (ACC-03).
+   */
+  const speicher = new SupabaseSpeicher();
+  const eingang = await seedEingang(sql, ids, speicher.verbunden ? speicher : null);
+  process.stdout.write(
+    eingang.status === 'angelegt'
+      ? `  E-Rechnung im Freigabe-Posteingang: 1 Vorschlag (UBL, ${String(eingang.unsichereFelder)} unsichere Felder) — PR 63\n`
+      : eingang.status === 'vorhanden'
+        ? '  E-Rechnung im Freigabe-Posteingang: bereits vorhanden, nichts nachgelegt\n'
+        : eingang.status === 'kein_konto'
+          ? '  E-Rechnung im Freigabe-Posteingang: KEIN Vorschlag — kein Administrations- oder Leitungskonto der Reinigung\n'
+          : '  E-Rechnung im Freigabe-Posteingang: KEIN Vorschlag — Belegspeicher nicht verbunden '
+            + '(SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY), und ein Beleg ohne Datei ist keiner (ACC-03)\n',
+  );
   const konto = await seedKonten(sql, ids);
   process.stdout.write(
     `  ${String(konto.freigegeben)} Zeiteintraege freigegeben (Demo-Annahme), `

@@ -99,8 +99,15 @@ function abdruckVon(verwaltung: string, name: string): string {
                        limit 1), '')`);
 }
 
+/**
+ * Mit dem `server-only`-Hook: der Seed durchlaeuft die Dienste des Portals
+ * (`seed/eingang.ts` → `finanz/eingang/ablage.ts`), und die tragen den Marker
+ * — zu Recht. Derselbe Aufruf wie `pnpm db:seed`.
+ */
 function tsx(skript: string, url: string): void {
-  execFileSync(join(WURZEL, 'node_modules/.bin/tsx'), [join(WURZEL, skript)], {
+  execFileSync(join(WURZEL, 'node_modules/.bin/tsx'), [
+    '--import', join(WURZEL, 'scripts/hooks/server-only.mjs'), join(WURZEL, skript),
+  ], {
     cwd: WURZEL, stdio: 'inherit',
     env: { ...process.env, DATABASE_URL: url, TEST_DATABASE_URL: url },
   });

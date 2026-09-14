@@ -89,6 +89,14 @@ export const MIGRATIONS_DATEIEN: Readonly<Record<string, string>> = {
   '0121': join(WURZEL, 'drizzle/0121_zahlung.sql'),
   '0123': join(WURZEL, 'drizzle/0123_kreditor.sql'),
   '0125': join(WURZEL, 'drizzle/0125_mahnwesen.sql'),
+  // Buchhaltung (PR 58) und die Agenten-Laufzeit (PR 74).
+  '0126': join(WURZEL, 'drizzle/0126_kontenrahmen.sql'),
+  '0127': join(WURZEL, 'drizzle/0127_buchungssatz.sql'),
+  '0128': join(WURZEL, 'drizzle/0128_agent_laufzeit.sql'),
+  '0133': join(WURZEL, 'drizzle/0133_datev_export.sql'),
+  '0135': join(WURZEL, 'drizzle/0135_kontoauszug.sql'),
+  '0136': join(WURZEL, 'drizzle/0136_freigabe_posteingang.sql'),
+  '0139': join(WURZEL, 'drizzle/0139_definer_schnitt_und_archivlauf.sql'),
 };
 export const BEGINN = '-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern';
 export const ENDE = '-- >>> Ende des generierten Blocks';

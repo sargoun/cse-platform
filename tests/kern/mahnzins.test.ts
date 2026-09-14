@@ -129,6 +129,34 @@ describe('(3) §288 BGB steht im Gesetz — ob er angewandt wird, nicht', () => 
  * nicht auf die laufende — sonst meldet er zwei Wochen zu spaet, naemlich
  * dann, wenn schon gemahnt wird.
  */
+describe('Ein Datum, das es nicht gibt, wird ABGEWIESEN — nicht normalisiert', () => {
+  /**
+   * Der Befund aus der Durchsicht von PR #9: die Formpruefung
+   * `/^\d{4}-\d{2}-\d{2}$/` laesst `2026-02-30` durch, und `Date.UTC`
+   * verschiebt es klaglos auf den 2. Maerz. Die Verzugstage stuenden dann auf
+   * einem anderen Zeitraum als dem eingegebenen — zwei Tage mehr Zins, ohne
+   * Fehler und ohne Meldung, auf einem Brief, der eine Forderung beziffert.
+   */
+  it('der 30. Februar ist kein Tag', () => {
+    expect(() => verzugstage('2026-02-30', '2026-03-31')).toThrow(ZinsFehler);
+  });
+
+  it('der 29. Februar auch nicht — ausser im Schaltjahr', () => {
+    expect(() => verzugstage('2026-02-29', '2026-03-31')).toThrow(ZinsFehler);
+    // 2028 ist eines: derselbe Tag geht durch.
+    expect(verzugstage('2028-02-29', '2028-03-01')).toBe(1);
+  });
+
+  it('der 31. April und der 32. eines jeden Monats ebenso', () => {
+    expect(() => verzugstage('2026-04-31', '2026-05-31')).toThrow(ZinsFehler);
+    expect(() => verzugstage('2026-01-32', '2026-02-01')).toThrow(ZinsFehler);
+  });
+
+  it('und der Monat 13 kommt nicht als Januar des Folgejahres durch', () => {
+    expect(() => verzugstage('2026-13-01', '2027-01-31')).toThrow(ZinsFehler);
+  });
+});
+
 describe('naechsteHaelfte', () => {
   it('der 15. Juni sieht auf den 1. Juli desselben Jahres', () => {
     expect(naechsteHaelfte('2026-06-15')).toBe('2026-07-01');

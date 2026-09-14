@@ -446,6 +446,43 @@ function wacheEinAusgang(): void {
   }
 }
 
+/**
+ * Guard 14 — der Speicher vergisst nur ueber EINEN Weg (DOC-07, ACC-06, D-483).
+ *
+ * `Speicher.entferne` loescht ein Objekt im Bucket. Erlaubt ist das genau
+ * zweimal: in `dokument/loeschung.ts` — nach dem weichen Loeschen der Zeile,
+ * das die Datenbank fuer gesperrte und fuer bebuchte Dokumente abweist —
+ * und als Ruecknahme einer WAISE: ein Objekt, das gerade hochgeladen wurde
+ * und dessen Zeile in derselben Transaktion nicht entstand. Jeder andere
+ * Aufruf ist ein Loeschweg am Archiv vorbei, und genau den soll es nicht
+ * geben — auch nicht unter Zeitdruck, auch nicht „nur fuer Bilder".
+ */
+const ENTFERNEN_ERLAUBT = [
+  join('server', 'storage', 'adapter.ts'),
+  join('server', 'services', 'dokument', 'loeschung.ts'),
+  // Waisen-Ruecknahmen nach gescheitertem Insert:
+  join('server', 'services', 'buchhaltung', 'datev', 'export.ts'),
+  join('server', 'services', 'buchhaltung', 'belegarchiv.ts'),
+  join('server', 'services', 'finanz', 'mahnung', 'index.ts'),
+  join('server', 'services', 'finanz', 'bank', 'import.ts'),
+  join('api', 'finanzen', 'eingangsrechnungen', 'route.ts'),
+  join('api', 'check-in', '[token]', 'medien', 'route.ts'),
+];
+
+function wacheSpeicherEntfernen(): void {
+  for (const datei of mussLesen('src', ['.ts', '.tsx'])) {
+    if (ENTFERNEN_ERLAUBT.some((e) => datei.includes(e))) continue;
+    readFileSync(datei, 'utf8').split('\n').forEach((zeile, i) => {
+      const roh = zeile.trimStart();
+      if (roh.startsWith('//') || roh.startsWith('*') || roh.startsWith('/*')) return;
+      if (/\.entferne\s*\(/u.test(zeile)) {
+        melde('speicher-entfernen-nur-ueber-loeschung', datei, i + 1,
+          'Speicher.entferne ausserhalb von dokument/loeschung.ts — ein Loeschweg am Archiv vorbei (DOC-07).');
+      }
+    });
+  }
+}
+
 /** Guard 5 — the database region is pinned, and a test can read it (D-04). */
 function wacheEuRegion(): void {
   const pfad = join(WURZEL, 'supabase/config.toml');
@@ -1063,6 +1100,7 @@ async function main(): Promise<void> {
   wacheBacktickImSql();
   wacheEuRegion();
   wacheEinAusgang();
+  wacheSpeicherEntfernen();
   wacheTailwindFarben();
   wacheAnzeigeZeitzone();
   wacheValidator();

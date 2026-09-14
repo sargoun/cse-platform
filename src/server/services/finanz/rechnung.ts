@@ -26,6 +26,7 @@
  * `steuer/satz.ts`, je Steuergruppe und nie aus einer Bruttosumme
  * (Invariante 1); Betraege sind `bigint` Cent.
  */
+import { bucheRechnung } from '../buchhaltung/buchungssatz.js';
 import { addiere, cent, negiere, type Cent } from './geld.js';
 import { mengeAusPostgres, mengeNachPostgres, milliMenge, type MilliMenge } from './menge.js';
 import { berechneSteuer, type SteuerZeile } from './steuer/satz.js';
@@ -1380,11 +1381,20 @@ export async function finalisiere(
    *    zwar der partielle Unique-Index — aber an einer Stelle, an der niemand
    *    nach der Ursache sucht.
    *
-   *    `offener_posten`, `buchungssatz` und `periode` gehoeren ebenfalls
-   *    hierher und kommen mit PR 50 bis PR 53. Der Schritt steht als Kommentar
-   *    und nicht als stille Auslassung.
+   *    `offener_posten` entsteht ueber den Ausloeser aus 0121, und der
+   *    **Buchungssatz entsteht hier** (PR 58, ACC-01): in DERSELBEN
+   *    Transaktion, weil ein Nachlauf festgeschriebene Rechnungen
+   *    hinterliesse, die in keiner Buchhaltung stehen — und weil niemand
+   *    merkt, dass ein Nachlauf nicht mehr laeuft.
+   *
+   *    **Er kann dabei nicht scheitern lassen, was schon gilt.** Fehlt die
+   *    Kontenzuordnung (O-05), entsteht die Zeile mit `konto = NULL` und
+   *    Pruefhinweis; das ist der Zustand, den `periode` beim Schliessen
+   *    verweigert (D-425). Ein Abschlagsabzug bleibt vorerst ungebucht und
+   *    sagt das (O-05) — die Rechnung selbst ist davon unberuehrt.
    */
   await markiereQuellenAbgerechnet(db, rechnungId);
+  await bucheRechnung(db, rechnungId);
 
   return {
     nummer: kopf.nummer,

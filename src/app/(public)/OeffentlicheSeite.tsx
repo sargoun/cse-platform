@@ -30,6 +30,7 @@ export async function OeffentlicheSeite(
         bereiche={shellBereiche(daten.bereiche)}
         ansprueche={ansprueche(daten.bereiche)}
         sprache={sprache}
+        gruppeName={daten.gruppeName}
       />
       {/*
         * Das Impressum bekommt die Pflichtangaben aus `mandant` angehaengt.

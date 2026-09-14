@@ -7,6 +7,7 @@ import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { withTenant } from '@/server/kontext/index';
 import { legePostenAn } from '@/server/services/security/posten';
+import { legePlanungsserieAn } from '@/server/services/dienstplan/serie';
 import { alsAntwort } from '../antwort';
 
 /**
@@ -60,7 +61,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           { recht: 'security.schreiben', schreibend: true },
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
-        return legePostenAn(kontext, {
+        const postenId = await legePostenAn(kontext, {
           objektId,
           bezeichnung,
           kurzzeichen: text(daten, 'kurzzeichen'),
@@ -74,6 +75,17 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           gueltigAb,
           gueltigBis: text(daten, 'gueltig_bis'),
         });
+        /*
+         * Ein Posten mit Dienstzeiten ist ein Bedarf; ohne Serie plant ihn
+         * niemand (D-487). Die Serie entsteht hier, die Schichten sofort —
+         * unter demselben Schreibrecht, in derselben Transaktion.
+         */
+        if (text(daten, 'rrule') !== null) {
+          await legePlanungsserieAn(kontext, {
+            quelle: 'posten', traegerId: postenId, feiertageUeberspringen: false,
+          });
+        }
+        return postenId;
       })) as Promise<string>);
   } catch (fehler) {
     const antwort = alsAntwort(fehler);

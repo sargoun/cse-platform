@@ -17,10 +17,32 @@ import { devFlaechenAn } from '@/lib/dev-flaechen';
  * `/auth/login` (AUT-01, AUT-02); bis dahin steht ihr Weg NUR auf den
  * Entwicklungsflaechen, und dort steht er auch.
  */
-export function AnmeldungNoetig() {
+export function AnmeldungNoetig({ keksAbgelehnt = false }: { readonly keksAbgelehnt?: boolean } = {}) {
   return (
     <main className="mx-auto flex w-full max-w-form flex-col gap-s4 p-s6">
       <h1 className="text-h1 text-text">Anmeldung erforderlich</h1>
+      {/*
+        * **Der eine Fall, der sonst wie ein Fehlschlag aussieht** (D-488).
+        *
+        * Wer gerade den richtigen Code eingegeben hat und TROTZDEM hier
+        * landet, hat sich angemeldet — sein Browser hat den Sitzungskeks nur
+        * nicht angenommen. Ueber `http://` lehnt jeder Browser einen
+        * `__Host-`-Keks ab (er verlangt eine sichere Verbindung), und am
+        * Telefon im WLAN ist genau das die uebliche Adresse. Ohne diesen Satz
+        * probiert die Mitarbeiterin denselben Weg noch dreimal.
+        */}
+      {keksAbgelehnt && (
+        <p
+          data-cse="keks-abgelehnt"
+          className="rounded-md border border-warning bg-warning-soft p-s4 text-sm text-warning"
+        >
+          <strong>Die Anmeldung hat geklappt — der Browser hat die Sitzung nicht behalten.</strong>{' '}
+          Das passiert über eine unverschlüsselte Adresse: der Sitzungskeks verlangt{' '}
+          <span className="font-mono">https://</span>. Rufen Sie die Plattform über ihre
+          https-Adresse auf und melden Sie sich erneut an. Sind Cookies im Browser abgeschaltet,
+          schalten Sie sie für diese Adresse ein.
+        </p>
+      )}
       <p className="text-base text-text-muted">
         Diese Seite gehört zum Portal. Beschäftigte melden sich mit ihrer
         Mobilnummer und einem Einmalcode an — ein Kennwort brauchen sie nicht.

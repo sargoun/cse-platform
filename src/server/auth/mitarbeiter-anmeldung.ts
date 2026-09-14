@@ -75,6 +75,18 @@ export async function codeAnfordern(
   const telefon = normalisiereTelefon(rohesTelefon);
   if (telefon === null) return { angenommen: false, codeFuerEntwicklung: null };
 
+  /**
+   * **Ohne Zustellung kein Code.** Ein Dienst, der weder sendet noch zeigt
+   * (O-82 offen, keine Entwicklungsflaeche), legte einen Code an, den
+   * niemand je erhaelt — und der den Code VERDRAENGTE, den die
+   * Einsatzleitung ausgestellt hat: 0114 loest nur den juengsten ein. Genau
+   * so scheiterte die Anmeldung am Handy (D-487): Code ausgestellt, die
+   * Mitarbeiterin tippt „Code anfordern", und der ausgestellte gilt nicht
+   * mehr. Der Tipp fuehrt jetzt nur zur Codeeingabe; die Bremse (drei offene
+   * Codes) bleibt frei, und nach aussen bleibt die Antwort dieselbe.
+   */
+  if (!sms.verbunden && !sms.zeigtCode) return { angenommen: true, codeFuerEntwicklung: null };
+
   const code = neuerCode();
   const zeilen = (await tx.unsafe(
     `select app.zugang_code_anfordern($1, $2, now() + ($3 || ' minutes')::interval, $4) as ok`,
@@ -110,13 +122,28 @@ export async function codeAnfordern(
  * unbekannt" sind vier Hinweise fuer den, der raet, und null Hilfe fuer den,
  * der sich vertippt hat — der tippt einfach nochmal.
  */
+/**
+ * Der getippte oder eingefuegte Code, auf seine Ziffern reduziert.
+ *
+ * **Warum nicht einfach `^[0-9]{6}$` verlangen.** Wer den Code auf dem
+ * Bildschirm der Einsatzleitung markiert und einfuegt, bringt Leerzeichen
+ * mit; manche Tastatur setzt ein schmales Leerzeichen zwischen Dreiergruppen,
+ * und ein `pattern` im Formular blockiert das ohne sichtbare Meldung — die
+ * Seite tut dann gar nichts, und genau so hat der Nutzer es beschrieben
+ * (D-488). Die Ziffern sind der Code; alles andere ist Formatierung.
+ */
+export function nurZiffern(eingabe: string): string {
+  return eingabe.replace(/[^0-9]/gu, '');
+}
+
 export async function codeEinloesen(
   tx: Abfrage,
   rohesTelefon: string,
-  code: string,
+  rohEingabe: string,
 ): Promise<string | null> {
   const telefon = normalisiereTelefon(rohesTelefon);
   if (telefon === null) return null;
+  const code = nurZiffern(rohEingabe);
   if (!/^[0-9]{6}$/u.test(code)) return null;
 
   const zeilen = (await tx.unsafe(

@@ -80,7 +80,7 @@ test.describe('(4) robots.txt, sitemap.xml und llms.txt liefern aus', () => {
 
     const text = await antwort.text();
     for (const firma of [
-      'CSE Dienstleistungen GmbH', 'Select-Security Event GmbH',
+      'CSE Dienstleistungen GmbH', 'Select Security Event GmbH',
       'REALTIME Service GmbH', 'CSE Operations',
     ]) {
       expect(text, `${firma} fehlt in llms.txt`).toContain(firma);

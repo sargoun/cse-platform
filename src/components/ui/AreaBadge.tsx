@@ -1,4 +1,5 @@
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { Marke } from '@/components/marke/Marke';
 
 /**
  * DESIGN §1 / §9 — the business-area identity.
@@ -51,19 +52,20 @@ export function BereichsAvatar({
   readonly bereich: BereichSchluessel;
   readonly aktiv?: boolean;
 }) {
+  /*
+   * Das Zeichen der Gesellschaft (DESIGN §1 Marks) statt einer Initiale im
+   * Kreis — dasselbe Bild wie im Kopf, im Fuss und auf der Karte. Der
+   * Rahmen sagt weiterhin, wo man IST (§6 Regel 4).
+   */
   return (
     <span
       aria-hidden="true"
       data-bereich={bereich}
       data-cse="bereichs-avatar"
-      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full
-                 bg-surface-3 text-xs font-semibold text-text"
-      style={{
-        boxShadow: `0 0 0 2px var(--area-${bereich})`,
-        ...(aktiv ? { outline: '2px solid var(--red)', outlineOffset: '2px' } : {}),
-      }}
+      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
+      style={aktiv ? { outline: '2px solid var(--red)', outlineOffset: '2px', borderRadius: '6px' } : {}}
     >
-      {NAME[bereich].slice(0, 1)}
+      <Marke art={bereich} groesse="md" />
     </span>
   );
 }
