@@ -37,6 +37,30 @@ interface Auswahl { readonly id: string; readonly name: string }
 interface BelegAuswahl { readonly id: string; readonly bezeichnung: string }
 interface GruppeAuswahl { readonly schluessel: string; readonly bezeichnung: string }
 
+/** Die Vorbelegung aus einem Vorschlag (`?von=<freigabe>`) — Zeichenketten fuer Felder, nie Zahlen. */
+interface Vorbelegung {
+  readonly freigabeId: string;
+  readonly titel: string;
+  readonly lieferantId: string;
+  readonly rechnungsnummer: string;
+  readonly rechnungsdatum: string;
+  readonly leistungsdatum: string;
+  readonly faelligAm: string;
+  readonly netto: string;
+  readonly steuer: string;
+  readonly steuergruppe: string;
+  readonly belegId: string;
+}
+
+/** `119000` → `1190,00` — die Form, die `parseGeld` liest; keine Tausenderpunkte. */
+function euroFeld(c: unknown): string {
+  if (typeof c !== 'number' || !Number.isSafeInteger(c)) return '';
+  const abs = Math.abs(c);
+  return `${c < 0 ? '-' : ''}${String(Math.trunc(abs / 100))},${String(abs % 100).padStart(2, '0')}`;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+
 export default async function NeueEingangsrechnung(
   { params, searchParams }: {
     params: Promise<{ mandant: string }>;
@@ -54,8 +78,41 @@ export default async function NeueEingangsrechnung(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  const vonRoh = typeof suche['von'] === 'string' && UUID.test(suche['von']) ? suche['von'] : null;
+
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => ({
+      /*
+       * Die Vorbelegung aus einem E-Rechnungs-Vorschlag (PR 63): die Werte der
+       * Nutzlast als Zeichenketten in die Felder — der Mensch prueft, aendert,
+       * erfasst. Der Beleg des Vorschlags wird uebernommen, damit die Datei
+       * nicht zweimal abgelegt wird. Ohne `freigabe.lesen` gibt es keine Zeile
+       * und damit keine Vorbelegung; die Maske bleibt leer und sagt nichts Falsches.
+       */
+      vorbelegung: vonRoh === null ? null : (await kontext.abfrage<{
+        id: string; titel: string | null; p: Record<string, unknown> | null;
+      }>(
+        `select id, titel, vorschau_payload as p from freigabe
+          where id = $1::uuid and aktion = 'eingangsrechnung_uebernehmen'`, [vonRoh]))
+        .map((z): Vorbelegung | null => {
+          const p = z.p ?? {};
+          const zeilen = Array.isArray(p['steuerzeilen']) ? (p['steuerzeilen'] as Record<string, unknown>[]) : [];
+          const erste = zeilen[0] ?? {};
+          return {
+            freigabeId: z.id,
+            titel: z.titel ?? 'Vorschlag',
+            lieferantId: typeof p['lieferantId'] === 'string' ? p['lieferantId'] : '',
+            rechnungsnummer: typeof p['rechnungsnummer'] === 'string' ? p['rechnungsnummer'] : '',
+            rechnungsdatum: typeof p['rechnungsdatum'] === 'string' ? p['rechnungsdatum'] : '',
+            leistungsdatum: typeof p['leistungBis'] === 'string' ? p['leistungBis']
+              : typeof p['leistungVon'] === 'string' ? p['leistungVon'] : '',
+            faelligAm: typeof p['faelligAm'] === 'string' ? p['faelligAm'] : '',
+            netto: euroFeld(p['nettoCent']),
+            steuer: euroFeld(p['steuerCent']),
+            steuergruppe: typeof erste['steuergruppe'] === 'string' ? erste['steuergruppe'] : '',
+            belegId: typeof p['belegId'] === 'string' ? p['belegId'] : '',
+          };
+        })[0] ?? null,
       lieferanten: await kontext.abfrage<Auswahl>(
         `select id, name from lieferant where archiviert_am is null order by name`),
       /*
@@ -77,9 +134,11 @@ export default async function NeueEingangsrechnung(
         `select schluessel, bezeichnung from steuersatz_gruppe
           where gueltig_bis is null order by satz_bp desc, schluessel`),
     }))) as Promise<{
+      vorbelegung: Vorbelegung | null;
       lieferanten: readonly Auswahl[]; belege: readonly BelegAuswahl[];
       gruppen: readonly GruppeAuswahl[];
     }>);
+  const v = daten.vorbelegung;
 
   const hinweis = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
@@ -108,6 +167,52 @@ export default async function NeueEingangsrechnung(
       </nav>
 
       <h1 className="mb-s5 text-h1 text-text">Eingangsrechnung erfassen</h1>
+
+      {/*
+        * **Der E-Rechnungs-Weg zuerst** (ACC-05, PR 63): XRechnung (XML) oder
+        * ZUGFeRD (PDF mit factur-x.xml). Daraus wird KEINE Rechnung, sondern
+        * ein Vorschlag im Freigabe-Posteingang — mit jedem Feld, seiner
+        * Quelle und seiner Pruefung. Ein gescanntes PDF ohne XML bleibt beim
+        * Formular darunter: die Belegerkennung hat keinen Anbieter (O-135),
+        * und die Maske sagt das, statt zu raten.
+        */}
+      <form
+        method="post"
+        action={`/api/finanzen/eingangsrechnungen?mandant=${mandant}`}
+        encType="multipart/form-data"
+        data-cse="erechnung-formular"
+        className="mb-s6 max-w-prose rounded-lg border border-line bg-surface-2 p-s5"
+      >
+        <input type="hidden" name="aktion" value="erechnung" />
+        <h2 className="text-h3 text-text">E-Rechnung einlesen</h2>
+        <p className="mt-s2 text-sm text-text-muted">
+          XRechnung (XML) oder ZUGFeRD (PDF mit eingebetteter Rechnung). Die Werte
+          gehen als Vorschlag in die Freigaben — mit Quelle und Prüfung je Feld; erst
+          die Freigabe erzeugt die Eingangsrechnung. Gescannte PDF ohne Datensatz werden
+          nicht erkannt (kein OCR-Anbieter, O-135) — dafür das Formular darunter.
+        </p>
+        <label className="mt-s3 block text-sm text-text" htmlFor="erechnung">
+          Datei (XML oder PDF)
+        </label>
+        <input
+          id="erechnung" name="datei" type="file" required
+          accept=".xml,application/xml,text/xml,application/pdf" className={feld}
+        />
+        <button
+          type="submit" data-cse="erechnung-einlesen"
+          className="mt-s4 min-h-11 rounded-md bg-brand px-s5 py-s3 text-base font-semibold text-white hover:bg-brand-hover"
+        >
+          Einlesen und vorschlagen
+        </button>
+      </form>
+
+      {v !== null ? (
+        <p data-cse="vorbelegung-hinweis"
+           className="mb-s5 max-w-prose rounded-lg border border-line bg-surface p-s4 text-sm text-text-muted">
+          Vorbelegt aus dem Vorschlag <strong className="text-text">{v.titel}</strong>. Prüfen,
+          anpassen, erfassen — der Beleg des Vorschlags wird übernommen.
+        </p>
+      ) : null}
 
       {hinweis === null ? null : (
         <p
@@ -145,8 +250,11 @@ export default async function NeueEingangsrechnung(
           <label className="mt-s4 block text-sm text-text" htmlFor="belegId">
             … oder einen bereits abgelegten Beleg wählen
           </label>
-          <select id="belegId" name="belegId" className={feld}>
+          <select id="belegId" name="belegId" className={feld} defaultValue={v?.belegId ?? ''}>
             <option value="">— keiner —</option>
+            {v !== null && v.belegId !== '' && !daten.belege.some((b) => b.id === v.belegId) ? (
+              <option value={v.belegId}>Beleg des Vorschlags</option>
+            ) : null}
             {daten.belege.map((b) => (
               <option key={b.id} value={b.id}>{b.bezeichnung}</option>
             ))}
@@ -160,7 +268,13 @@ export default async function NeueEingangsrechnung(
         <hr className="my-s5 border-line" />
 
         <label className="block text-sm text-text" htmlFor="lieferantId">Lieferant</label>
-        <select id="lieferantId" name="lieferantId" required className={feld}>
+        <select id="lieferantId" name="lieferantId" required className={feld}
+                defaultValue={v?.lieferantId ?? ''}>
+          {/* Ein Vorschlag OHNE Zuordnung waehlt keinen Lieferanten vor: die Maske
+              behauptet nicht den ersten der Liste, sie fragt. */}
+          {v !== null && v.lieferantId === '' ? (
+            <option value="">Bitte wählen — im Stamm nicht eindeutig gefunden</option>
+          ) : null}
           {daten.lieferanten.map((l) => (
             <option key={l.id} value={l.id}>{l.name}</option>
           ))}
@@ -172,26 +286,28 @@ export default async function NeueEingangsrechnung(
               Rechnungsnummer des Lieferanten
             </label>
             <input id="rechnungsnummer" name="rechnungsnummer" type="text" required
-              className={feld} />
+              defaultValue={v?.rechnungsnummer ?? ''} className={feld} />
           </div>
           <div>
             <label className="block text-sm text-text" htmlFor="rechnungsdatum">
               Rechnungsdatum
             </label>
             <input id="rechnungsdatum" name="rechnungsdatum" type="date" required
-              className={feld} />
+              defaultValue={v?.rechnungsdatum ?? ''} className={feld} />
           </div>
           <div>
             <label className="block text-sm text-text" htmlFor="leistungsdatum">
               Leistungsdatum
             </label>
-            <input id="leistungsdatum" name="leistungsdatum" type="date" className={feld} />
+            <input id="leistungsdatum" name="leistungsdatum" type="date"
+              defaultValue={v?.leistungsdatum ?? ''} className={feld} />
           </div>
           <div>
             <label className="block text-sm text-text" htmlFor="faelligAm">
               Fällig am
             </label>
-            <input id="faelligAm" name="faelligAm" type="date" className={feld} />
+            <input id="faelligAm" name="faelligAm" type="date"
+              defaultValue={v?.faelligAm ?? ''} className={feld} />
           </div>
         </div>
 
@@ -199,14 +315,14 @@ export default async function NeueEingangsrechnung(
           <div>
             <label className="block text-sm text-text" htmlFor="netto">Netto in Euro</label>
             <input id="netto" name="netto" type="text" inputMode="decimal" required
-              placeholder="1000,00" className={feld} />
+              placeholder="1000,00" defaultValue={v?.netto ?? ''} className={feld} />
           </div>
           <div>
             <label className="block text-sm text-text" htmlFor="steuer">
               Umsatzsteuer in Euro
             </label>
             <input id="steuer" name="steuer" type="text" inputMode="decimal" required
-              placeholder="190,00" className={feld} />
+              placeholder="190,00" defaultValue={v?.steuer ?? ''} className={feld} />
           </div>
           <div>
             <label className="block text-sm text-text" htmlFor="steuergruppe">Steuersatz</label>
@@ -217,7 +333,8 @@ export default async function NeueEingangsrechnung(
               * und eine Maske, die sie zu „§13b" zusammenzieht, liesse den
               * Erfassenden den falschen wählen.
               */}
-            <select id="steuergruppe" name="steuergruppe" required className={feld}>
+            <select id="steuergruppe" name="steuergruppe" required className={feld}
+                    defaultValue={v?.steuergruppe ?? ''}>
               {daten.gruppen.map((g) => (
                 <option key={g.schluessel} value={g.schluessel}>{g.bezeichnung}</option>
               ))}

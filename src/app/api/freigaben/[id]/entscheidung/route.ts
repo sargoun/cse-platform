@@ -12,6 +12,8 @@ import { withTenant } from '@/server/kontext/index';
 import {
   entscheideFreigabe, FreigabeAbgewiesen, type Entschieden, type EntscheidungsArt,
 } from '@/server/services/freigabe/entscheiden';
+import { AusfuehrungAbgewiesen, fuehreAus, type Ausgefuehrt }
+  from '@/server/services/freigabe/ausfuehrung';
 
 /**
  * `POST /api/freigaben/[id]/entscheidung` — genehmigen oder ablehnen (APR-07,
@@ -112,10 +114,12 @@ export async function POST(
       async (tx: postgres.TransactionSql) => withTenant(tx, sitzung, async (kontext) => {
         await authorize(sitzung, { recht: 'freigabe.entscheiden', schreibend: true },
           rechtepruefer(kontext.abfrage.bind(kontext)));
-        const [m] = await kontext.abfrage<{ slug: string }>(
-          `select slug from mandant where id = $1`, [kontext.aktiverMandantId]);
+        const [m] = await kontext.abfrage<{ slug: string; aktion: string }>(
+          `select m.slug, f.aktion from mandant m
+             join freigabe f on f.mandant_id = m.id
+            where m.id = $1 and f.id = $2::uuid`, [kontext.aktiverMandantId, id]);
         slug = m?.slug ?? '';
-        return entscheideFreigabe(kontext, {
+        const entschieden = await entscheideFreigabe(kontext, {
           freigabeId: id,
           art,
           begruendung: eingabe.begruendung,
@@ -123,18 +127,42 @@ export async function POST(
           userAgent: anfrage.headers.get('user-agent'),
           codeVersion: codeVersion(),
         });
-      }))) as Entschieden;
+        /*
+         * **Die Handlung folgt der Genehmigung — hier, in derselben
+         * Transaktion** (§4.8). Was der Vorschlag angekuendigt hat, geschieht
+         * jetzt; scheitert es, rollt die Entscheidung mit zurueck, und der
+         * Vorschlag steht wieder offen.
+         */
+        const ausgefuehrt: Ausgefuehrt = art === 'genehmigt'
+          ? await fuehreAus(kontext, id, m?.aktion ?? '')
+          : { art: 'keine', bezugId: null };
+        return { entschieden, ausgefuehrt };
+      }))) as { entschieden: Entschieden; ausgefuehrt: Ausgefuehrt };
 
     if (eingabe.json) {
       return NextResponse.json({
-        snapshot_id: ergebnis.snapshotId,
-        kette_nr: ergebnis.ketteNr.toString(),
-        hash: ergebnis.hash,
+        snapshot_id: ergebnis.entschieden.snapshotId,
+        kette_nr: ergebnis.entschieden.ketteNr.toString(),
+        hash: ergebnis.entschieden.hash,
+        ausgefuehrt: ergebnis.ausgefuehrt.art,
+        bezug_id: ergebnis.ausgefuehrt.bezugId,
       });
     }
-    return NextResponse.redirect(
-      new URL(`/portal/${slug}/freigaben/${id}?entschieden=${art}`, anfrage.nextUrl.origin), 303);
+    const ziel = new URL(`/portal/${slug}/freigaben/${id}`, anfrage.nextUrl.origin);
+    ziel.searchParams.set('entschieden', art);
+    if (ergebnis.ausgefuehrt.art !== 'keine') ziel.searchParams.set('ausgefuehrt', ergebnis.ausgefuehrt.art);
+    return NextResponse.redirect(ziel, 303);
   } catch (fehler: unknown) {
+    if (fehler instanceof AusfuehrungAbgewiesen) {
+      if (eingabe.json) {
+        return NextResponse.json(
+          { fehler: 'ausfuehrung', grund: fehler.grund, meldung: fehler.message }, { status: 409 });
+      }
+      const ziel = new URL(`/portal/${slug}/freigaben/${id}`, anfrage.nextUrl.origin);
+      ziel.searchParams.set('fehler', 'ausfuehrung');
+      ziel.searchParams.set('meldung', fehler.message);
+      return NextResponse.redirect(ziel, 303);
+    }
     if (fehler instanceof FreigabeAbgewiesen) {
       if (eingabe.json) {
         return NextResponse.json(

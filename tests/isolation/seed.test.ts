@@ -192,7 +192,8 @@ describe('der Seed laeuft ZWEIMAL — sonst ist er keiner', () => {
    */
   it('ein zweiter Lauf auf derselben Datenbank gelingt', () => {
     const ergebnis = execFileSync(join(WURZEL, 'node_modules/.bin/tsx'),
-      [join(WURZEL, 'src/server/db/seed/index.ts')],
+      ['--import', join(WURZEL, 'scripts/hooks/server-only.mjs'),
+        join(WURZEL, 'src/server/db/seed/index.ts')],
       { cwd: WURZEL, encoding: 'utf8', env: { ...process.env, DATABASE_URL: EIGEN_URL } });
     expect(ergebnis).toContain('Seed fertig.');
   }, 240_000);

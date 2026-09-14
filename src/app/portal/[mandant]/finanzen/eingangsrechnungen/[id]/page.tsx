@@ -61,6 +61,18 @@ interface SteuerZeile {
   readonly steuer_cent: string;
 }
 
+/** Ein extrahiertes Feld des Vorschlags, aus dem diese Rechnung entstand (PR 63, APR-03). */
+interface HerkunftFeld {
+  readonly id: string;
+  readonly freigabe_id: string;
+  readonly bezeichnung: string;
+  readonly wert_nachher: string | null;
+  readonly konfidenz: string | null;
+  readonly unsicher: boolean;
+  readonly quelle_zelle: string | null;
+  readonly quelle_zitat: string | null;
+}
+
 export default async function EingangsrechnungDetail(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
@@ -97,7 +109,21 @@ export default async function EingangsrechnungDetail(
            join steuersatz_gruppe g on g.id = s.steuersatz_gruppe_id
           where s.eingangsrechnung_id = $1::uuid
           order by s.satz_bp desc`, [id]),
-    }))) as Promise<{ kopf: Kopf | null; steuer: readonly SteuerZeile[] }>);
+      /*
+       * Die Herkunft: wurde diese Rechnung aus einem E-Rechnungs-Vorschlag
+       * uebernommen, stehen hier seine Felder mit Quelle und Konfidenz
+       * (SEITENKARTE: „extracted fields with source and confidence").
+       */
+      herkunft: await kontext.abfrage<HerkunftFeld>(
+        `select ff.id, ff.freigabe_id, ff.bezeichnung, ff.wert_nachher, ff.konfidenz::text as konfidenz,
+                ff.unsicher, ff.quelle_zelle, ff.quelle_zitat
+           from freigabe f
+           join freigabe_feld ff on ff.freigabe_id = f.id and ff.mandant_id = f.mandant_id
+          where f.bezug_typ = 'eingangsrechnung' and f.bezug_id = $1::uuid
+            and f.aktion = 'eingangsrechnung_uebernehmen'
+          order by ff.feld_pfad`, [id]),
+    }))) as Promise<{ kopf: Kopf | null; steuer: readonly SteuerZeile[];
+      herkunft: readonly HerkunftFeld[] }>);
 
   if (daten.kopf === null) notFound();
   const kopf = daten.kopf;
@@ -207,6 +233,41 @@ export default async function EingangsrechnungDetail(
           />
         )}
       </section>
+
+      {daten.herkunft.length > 0 ? (
+        <section aria-labelledby="herkunft-titel" className="mb-s7" data-cse="herkunft-erechnung">
+          <h2 id="herkunft-titel" className="mb-s3 text-h2 text-text">
+            Aus einer E-Rechnung übernommen
+          </h2>
+          <p className="mb-s4 max-w-prose text-sm text-text-muted">
+            Jeder Wert nennt das Element der Datei, aus dem er stammt, und die Prüfung,
+            die er bestanden hat. Entschieden wurde in{' '}
+            <Link href={`/portal/${mandant}/freigaben/${daten.herkunft[0]!.freigabe_id}`}
+                  className="underline underline-offset-2">
+              der Freigabe
+            </Link>.
+          </p>
+          <DataTable
+            beschriftung="Extrahierte Felder mit Quelle und Konfidenz"
+            zeilen={daten.herkunft}
+            schluessel={(h) => h.id}
+            spalten={[
+              { schluessel: 'feld', kopf: 'Feld', zelle: (h) => h.bezeichnung },
+              { schluessel: 'wert', kopf: 'Wert',
+                zelle: (h) => h.wert_nachher ?? <span className="text-text-subtle">—</span> },
+              { schluessel: 'konfidenz', kopf: 'Konfidenz', numerisch: true,
+                zelle: (h) => h.konfidenz ?? '—' },
+              { schluessel: 'quelle', kopf: 'Quelle',
+                zelle: (h) => (
+                  <span className="flex min-w-0 flex-col text-xs text-text-muted">
+                    <span className="break-all font-mono">{h.quelle_zelle ?? '—'}</span>
+                    {h.quelle_zitat === null ? null : <q className="text-text">{h.quelle_zitat}</q>}
+                  </span>
+                ) },
+            ]}
+          />
+        </section>
+      ) : null}
 
       <section aria-labelledby="weg-titel">
         <h2 id="weg-titel" className="mb-s3 text-h2 text-text">Der nächste Schritt</h2>

@@ -320,7 +320,18 @@ proven by test, not by inspection.
       button that is the *display* of a service-side lock; opening writes the
       view row through the service, never through the page. The seed carries
       four waiting proposals and says no agent produced them.
-- [ ] Incoming-invoice OCR → extraction → proposal → approval
+- [x] Incoming-invoice **e-invoice** → extraction → proposal → approval (PR 63,
+      D-482) — UBL 2.1, CII and the ZUGFeRD attachment of a PDF are read
+      deterministically (own XML reader, no DTD/entities), every number names
+      its element and is re-checked against the file; the proposal is an
+      approval with per-field sources; supplier matched by VAT id → IBAN →
+      name (two hits are none), tax line matched to the catalogue; an unsure
+      field locks approval in the service. **Approving executes** the takeover
+      in the same transaction (a failed takeover rolls the decision back); the
+      incoming invoice starts at `eingegangen`, the creditor path stays.
+      **No OCR:** a scanned PDF without embedded XML is not read — the
+      provider is open (O-135) and the screen says so; manual entry with the
+      proposal's values (`?von=`) remains.
 - [ ] GoBD archive with retention and deletion lock
 - [ ] Open items, monthly figures, Z3 export, Verfahrensdokumentation
 - [ ] Year-end package; payroll time export

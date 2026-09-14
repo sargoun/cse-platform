@@ -28,6 +28,8 @@ import { seedReinigung } from './reinigung.js';
 import { seedVertrieb } from './vertrieb.js';
 import { seedBau } from './bau.js';
 import { seedFreigaben } from './freigaben.js';
+import { seedEingang } from './eingang.js';
+import { SupabaseSpeicher } from '../../storage/adapter.js';
 
 const url = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 if (url === undefined || url === '') {
@@ -1440,6 +1442,22 @@ async function main(): Promise<void> {
       ? `  Freigabe-Posteingang: ${String(frei.vorhanden)} Vorschlaege bereits vorhanden, nichts nachgelegt\n`
       : `  ${String(frei.vorschlaege)} wartende Vorschlaege im Freigabe-Posteingang mit `
         + `${String(frei.felder)} Feldnachweisen (Demo — kein Agent hat sie erzeugt, PR 62)\n`,
+  );
+  /**
+   * Eine E-Rechnung im Posteingang (PR 63) — nur, wenn der Objektspeicher
+   * verbunden ist; sonst sagt der Seed das und legt nichts an (ACC-03).
+   */
+  const speicher = new SupabaseSpeicher();
+  const eingang = await seedEingang(sql, ids, speicher.verbunden ? speicher : null);
+  process.stdout.write(
+    eingang.status === 'angelegt'
+      ? `  E-Rechnung im Freigabe-Posteingang: 1 Vorschlag (UBL, ${String(eingang.unsichereFelder)} unsichere Felder) — PR 63\n`
+      : eingang.status === 'vorhanden'
+        ? '  E-Rechnung im Freigabe-Posteingang: bereits vorhanden, nichts nachgelegt\n'
+        : eingang.status === 'kein_konto'
+          ? '  E-Rechnung im Freigabe-Posteingang: KEIN Vorschlag — kein Administrations- oder Leitungskonto der Reinigung\n'
+          : '  E-Rechnung im Freigabe-Posteingang: KEIN Vorschlag — Belegspeicher nicht verbunden '
+            + '(SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY), und ein Beleg ohne Datei ist keiner (ACC-03)\n',
   );
   const konto = await seedKonten(sql, ids);
   process.stdout.write(

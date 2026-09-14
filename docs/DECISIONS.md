@@ -5161,6 +5161,7 @@ niemand ihn suchen.
 | O-360 | **Soll die Gruppenansicht der Objekte eine Karte zeigen — und mit welchem Kartendienst?** SEITENKARTE §6 schreibt „objects across areas, one map". Eine Karte braucht Kacheln von einem externen Dienst (OpenStreetMap-Anbieter, ein EU-Anbieter) oder selbst gehostete; jeder Aufruf gibt Objektkoordinaten und die IP der Nutzerin an den Anbieter — ein Auftragsverarbeiter, der in `docs/DECISIONS.md` mit DPA und EU-Region stehen muss (CLAUDE.md, Datenresidenz). Bis dahin listet `/portal/gruppe/objekte` Adressen ohne Karte (D-475). | OPS-01, SEITENKARTE §6, D-475 |
 | O-361 | **Soll die Administration einer Gesellschaft den Menüpunkt „Einstellungen“ sehen?** Das Manifest öffnet `/portal/[mandant]/einstellungen` unter `system.mandant_lesen` (Administration und Leitung halten es), `NAVIGATION` zeigt den Punkt nur unter `system.einstellung_lesen` (Super-Administration). Heute erreicht eine Administration die Einstellungen über die Adresse, nicht über das Menü. Entweder der Punkt folgt dem Manifest, oder das Manifest folgt dem Menü — beides ist eine Zeile, keine ohne Entscheidung (D-476). | AUT-03, AUT-06, `navigation.ts`, D-476 |
 | O-362 | **Welche Gesellschaft ist Verantwortliche nach Art. 4 Nr. 7 DSGVO für den Gruppenauftritt und die Portale — die CSE Dienstleistungen GmbH wie beim bisherigen Auftritt (cse-dienstleistungen.de/privacy nennt sie mit Cosette Weyer als Ansprechpartnerin)?** Gibt es einen Datenschutzbeauftragten, und welche Löschfristen gelten für Anfragen (der Auftritt nennt eine Prüfung alle zwei Jahre)? Die Datenschutzerklärung der Plattform nennt bis zur Antwort die CSE Dienstleistungen GmbH und die Auftragsverarbeiter aus `registry/auftragsverarbeiter.ts` (D-481). | LEG-09, PUB-13, D-481 |
+| O-363 | **Welche Steuersatzgruppe trägt eine Eingangsrechnung mit 0 % und Kategorie AE (§ 13b UStG) — `ust_0_13b_bau` und `ust_0_13b_reinigung`?** Der Katalog (0075) führt beide; welche gilt, hängt vom Gewerk des LIEFERANTEN ab, nicht vom eigenen. Bis zur Antwort lässt der E-Rechnungs-Vorschlag das Feld unsicher, die Freigabe bleibt gesperrt, und ein Mensch wählt die Gruppe in der Erfassungsmaske (D-482). Dazu: Gibt es einen Vergleichsmaßstab für Eingangsrechnungen (die letzte Rechnung desselben Lieferanten, ein Bestellbezug), damit `stufeRisikoEin` sie nicht jede als erstmalig und damit `hoch` einstuft? | ACC-05, APR-02, D-482 |
 | O-355 | **Wer trägt die Modulbuchung ein und pflegt `mandant.module_gepflegt`?** Seit 0103 ist die Frage nicht mehr, was eine leere Liste heisst — das Kennzeichen sagt es: `false` = nicht eingetragen, es wird nicht gefiltert (damit eine neu angelegte Gesellschaft nicht schwarz wird); `true` = die Liste gilt, leer heisst kein Gewerk. Offen bleibt der Vorgang: kommt die Buchung aus dem Vertrag, aus der Verwaltung oder setzt sie ein Super-Admin über `system.module_zuweisen` — und wer merkt, wenn sie fehlt? | `src/server/registry/modul.ts`, 0103, D-377 |
 | O-356 | **Bucht jede Gesellschaft genau ein Gewerk, oder gibt es Überschneidungen?** Der Seed setzt `reinigung → [reinigung]`, `security → [security]`, `bau → [bau]`, `operations → []` — abgeleitet aus den Gewerken, die in `CLAUDE.md` stehen. Praktisch plausibel wäre anderes: Bauendreinigung bei der REALTIME Service, Veranstaltungsreinigung bei der SSE Security. Bis zur Antwort sieht eine Gesellschaft nur ihr eigenes Gewerk; die Korrektur ist eine Zeile in `mandant.module` und kein Codeeingriff. | `mandant.module`, `src/server/db/seed/index.ts`, D-377 |
 | O-357 | **Wohin gehen die Wächter-Meldungen aus SPEC §14 — Posteingang, Mail oder beides — und wer bekommt die Kettenmeldung?** Die Ablaufwarnung (60/30/7) erreicht die Person selbst; das ist EMP-08 und unstrittig. „Hashkette gebrochen" dagegen hat keinen persönlichen Empfänger: es ist eine Meldung an die Buchhaltung oder die Geschäftsführung, und beide sind heute keine adressierbare Größe im Modell. Solange die Frage offen ist, wird der Kettenprüfer bewusst NICHT als Job registriert — ein Lauf, der jede Nacht „ok" meldet, ohne dass jemand die Meldung liest, schafft Vertrauen, das er nicht deckt. | SPEC §14, `src/server/jobs/bootstrap.ts`, `kettenlauf.ts`, NOT-01 |
@@ -8201,3 +8202,89 @@ erfundene Speicherdauer. Verantwortliche und Fristen bleiben zu bestätigen
 der Startseite und der Gesellschaftsseiten trägt die Marke und zwei
 Aufrufe (roter Knopf, Ghost-Verweis) — eine Startseite, die zu nichts
 führte, war keine.
+
+### D-482 · E-Rechnung → Vorschlag → Freigabe → Übernahme — der Weg ohne OCR (PR 63)
+
+**Gelesen wird, was der Aussteller strukturiert mitgibt.** XRechnung (UBL
+2.1), CII (EN 16931, ZUGFeRD/Factur-X) und der ZUGFeRD-Anhang eines PDF
+(`factur-x.xml`) — mit dem eigenen XML-Leser (`finanz/xml-lesen.ts`: kein
+DTD, keine Entities, CDATA ist Text), deterministisch, ohne Modell. Jede Zahl
+kommt aus einem benannten Element und wird gegen die Datei selbst
+nachgerechnet (Netto + Steuer = Brutto, je Steuerzeile, Kopfsummen); eine
+Probe, die nicht aufgeht, setzt die Konfidenz auf 0 (D-465). **Kein OCR:**
+ein PDF ohne eingebettete XML ist hier kein Ergebnis, die Maske sagt es und
+verweist auf die Erfassung von Hand — der Anbieter für gescannte Belege ist
+nicht bestimmt (O-135), und dieser PR erfindet keinen.
+
+**Der Vorschlag ist eine Freigabe** (`vorgang_typ = buchung_uebernehmen`,
+Aktion `eingangsrechnung_uebernehmen`, Recht `eingang.freigeben`) — mit
+Feldern, deren Quelle Tabelle `xml`, Elementpfad und Zitat nennt (APR-03).
+Der Dienst hält das Gelesene an den Stamm: der Lieferant über USt-IdNr.,
+dann Name — **zwei Treffer sind keiner**; die Rechnung gegen die
+Dublettenprüfung; jede Steuerzeile gegen den Katalog. Was den Stamm nicht
+findet, ist ein unsicheres Feld, und ein unsicheres Feld sperrt die
+Genehmigung im Dienst, nicht erst im Knopf (APR-03).
+
+**Die IBAN wird geprüft, nie gelesen** (0140). Die echte Rechnung mit der
+falschen Bankverbindung ist der häufigste Angriff auf eine
+Kreditorenbuchhaltung; der Vorschlag muss das Feld also gegen den Stamm
+halten. Aber `lieferant.iban` fehlt im Spaltenrecht der Sitzung (K-05, 0123),
+und wer Vorschläge anlegt, zahlt nicht — er soll die Bankverbindung nicht
+sehen. Deshalb kein Suchen über die IBAN, sondern ein Tor
+`app.lieferant_iban_stimmt(lieferant, iban)`, das nur ja/nein/nicht-prüfbar
+zurückgibt (kein Recht und kein Eintrag sind dieselbe Antwort) und jede
+Prüfung im `audit_log` festhält. Weicht sie ab, ist das Feld unsicher und die
+Freigabe gesperrt; fehlt im Stamm eine Bankverbindung (O-183, heute der
+Normalfall), sagt das Feld „nicht vergleichbar" und bleibt sicher — die
+Zahlung hat ihr eigenes Tor. Das Risiko ist `hoch`,
+immer: `stufeRisikoEin` kennt für eine Eingangsrechnung keinen Vergleich
+(O-363), und ohne Vergleich ist ein Vorschlag erstmalig — Geld, das das Haus
+verlässt, steht oben. Wiederholbar über `externe_ref = erechnung:<sha256>`
+der Bytes: dieselbe Datei zweimal ist derselbe Vorschlag, und die Prüfung
+steht VOR dem Upload, damit kein zweites Dokument und kein zweiter Beleg
+entsteht.
+
+**Genehmigt heißt übernommen — in derselben Transaktion.** Die Entscheidung
+(`entscheideFreigabe`) und die Handlung (`freigabe/ausfuehrung.ts` →
+`uebernehmeEingangsVorschlag`) laufen in EINEM `begin`: scheitert die
+Übernahme, rollt die Entscheidung mit zurück, und der Vorschlag steht wieder
+offen — kein `fehlgeschlagen`, das jemand nachts findet. Die Freigabe trägt
+danach `ausfuehrung_status = ausgefuehrt` und `bezug_typ = eingangsrechnung`;
+die Rechnung trägt ihre Herkunft (Felder der Freigabe) auf ihrer Seite.
+Wer entscheiden darf, aber nicht erfassen (`eingang.schreiben` fehlt einer
+eigenen Rolle), bekommt keine halbe Übernahme und keinen Datenbankfehler:
+der Dienst prüft das Recht vor dem Schreiben, nennt es, und die Entscheidung
+rollt mit zurück.
+**Die Übernahme ist nicht die Buchungsfreigabe:** die Eingangsrechnung
+beginnt bei `eingegangen`, und der Kreditorenweg — Prüfung, Freigabe mit
+Grund (K-13), Buchung mit Belegnummer — bleibt, wie er ist. Wer eine Datei
+einliest, hat damit nichts bezahlt und nichts gebucht (Invariante 7).
+
+**Geld in der Nutzlast.** Im Speicher sind die Beträge `Cent` (Invariante 1);
+in der `jsonb`-Spalte stehen sie als ganze Zahlen — `alsKanonischerWert`
+übersetzt hin, `nutzlastAus` prüft die Form und übersetzt zurück; ein
+`number` lebt nur an dieser einen Grenze. Der `payload_hash` läuft über
+dieselben kanonischen Bytes, die der Definer bei der Entscheidung nachrechnet
+(D-467).
+
+**Eine Ablage, drei Aufrufer** (`finanz/eingang/ablage.ts`): Datei →
+Dokument → Version → Beleg → Vorschlag, in dieser Reihenfolge — für die
+Hochladeroute, den Seed und die Vorrichtung der Browsersuite. Ohne
+verbundenen Objektspeicher wirft der Adapter, bevor eine Zeile entsteht: die
+Route sagt „nicht verbunden, NICHTS gespeichert", der Seed legt nichts an und
+sagt warum (ein Beleg ohne Datei ist keiner, ACC-03), und die Browsersuite
+baut sich ihre Vorrichtung mit dem Testspeicher durch dieselben Dienste —
+und sagt das in der Datei (`tests/e2e/hilfen/erechnung-vorrichtung.ts`).
+Dafür läuft der Seed mit `scripts/hooks/server-only.mjs`: ein Prozess ohne
+React ist trotzdem ein Serverprozess, und die Dienste, die er durchlaufen
+soll, tragen den Marker zu Recht.
+
+**Der Weg von Hand bleibt.** Aus jedem Vorschlag führt `?von=<freigabe>` in
+die Erfassungsmaske, vorbelegt mit den Werten der Nutzlast und dem Beleg des
+Vorschlags (die Datei wird nicht zweimal abgelegt). Ist der Lieferant nicht
+eindeutig zugeordnet, wählt die Maske keinen vor — sie fragt.
+
+**Was nicht drin ist:** OCR (O-135), ein Vergleichsmaßstab je Lieferant
+(O-363), die zweite §13b-Gruppe (O-363), Rechnungen in anderer Währung als
+EUR (der Extraktor liest die Währung, der Dienst übernimmt nur EUR — ein
+Fremdwährungsbeleg bleibt ein unsicheres Feld).

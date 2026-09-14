@@ -723,6 +723,14 @@ export const DIENSTE: readonly DienstEintrag[] = [
   /* PR 63 — E-Rechnung lesen (ACC-05): reine Extraktion, kein Modell, kein OCR (O-135). */
   { modul: 'eingang', pfad: 'finanz/eingang/erechnung', schreibend: false },
   { modul: 'eingang', pfad: 'finanz/eingang/pdf-anhang', schreibend: false },
+  {
+    modul: 'eingang', pfad: 'finanz/eingang/vorschlag',
+    schreibend: true, schreibRecht: 'eingang.schreiben',
+  },
+  {
+    modul: 'eingang', pfad: 'finanz/eingang/ablage',
+    schreibend: true, schreibRecht: 'eingang.schreiben',
+  },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/aus-snapshot', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/pruefstand', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/dienst', schreibend: false },
@@ -789,6 +797,11 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * Gruppe LIEST Freigaben (`gruppe.freigabe.lesen`), und ein Diff ohne
    * Schreibpfad ist genau das, was sie dort braucht (Invariante 10).
    */
+  {
+    /* Die Handlung nach der Genehmigung (§4.8) — laeuft in der Transaktion der Entscheidung. */
+    modul: 'freigabe', pfad: 'freigabe/ausfuehrung',
+    schreibend: true, schreibRecht: 'freigabe.entscheiden',
+  },
   { modul: 'freigabe', pfad: 'freigabe/diff', schreibend: false },
   { modul: 'freigabe', pfad: 'freigabe/konfidenz', schreibend: false },
   { modul: 'freigabe', pfad: 'freigabe/posteingang', schreibend: false },

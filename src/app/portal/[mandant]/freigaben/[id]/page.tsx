@@ -98,7 +98,13 @@ export default async function Freigabe(
   const offen = f.status === 'offen';
   const gesperrt = f.unsichereFelder > 0;
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const fehlerMeldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
   const entschieden = typeof suche['entschieden'] === 'string' ? suche['entschieden'] : null;
+  const vorschlag = typeof suche['vorschlag'] === 'string' ? suche['vorschlag'] : null;
+  /* PR 63: ein Vorschlag aus einer E-Rechnung — mit den zwei Wegen, die er hat. */
+  const istERechnung = f.aktion === 'eingangsrechnung_uebernehmen';
+  const uebernommen = istERechnung && f.bezugTyp === 'eingangsrechnung' && f.bezugId !== null
+    ? f.bezugId : null;
   const titel = f.titel ?? 'Freigabe';
   const diff = ansicht.diff;
   const aenderungen = diff === null ? 0 : anzahlAenderungen(diff);
@@ -132,12 +138,31 @@ export default async function Freigabe(
         </Link>
       </div>
 
+      {vorschlag !== null ? (
+        <Kasten art="hinweis" cse="vorschlag-angelegt" kinder={(
+          <>
+            <strong>{vorschlag === 'neu' ? 'Vorschlag angelegt.' : 'Diese Datei hatte schon einen Vorschlag.'}</strong>{' '}
+            Die E-Rechnung ist gelesen; jedes Feld steht unten mit seiner Quelle und seiner
+            Prüfung. Erst die Freigabe erzeugt die Eingangsrechnung.
+          </>
+        )}
+        />
+      ) : null}
       {entschieden !== null && ansicht.schnappschuss !== null ? (
         <Kasten art="erfolg" cse="entscheidung-vermerkt" kinder={(
           <>
             <strong>{entschieden === 'genehmigt' ? 'Freigegeben.' : 'Abgelehnt.'}</strong>
             {' '}Kettenglied Nr. {ansicht.schnappschuss.ketteNr.toString()} ist geschrieben und
             unveränderlich.
+            {uebernommen !== null ? (
+              <>
+                {' '}Die Eingangsrechnung ist angelegt:{' '}
+                <Link href={`/portal/${mandant}/finanzen/eingangsrechnungen/${uebernommen}`}
+                      data-cse="zur-eingangsrechnung" className="underline underline-offset-2">
+                  zur Eingangsrechnung
+                </Link>.
+              </>
+            ) : null}
           </>
         )}
         />
@@ -146,7 +171,38 @@ export default async function Freigabe(
         <Kasten art="warnung" cse="entscheidung-abgewiesen" kinder={(
           <>
             <strong>Nicht entschieden.</strong>{' '}
-            {FEHLER_TEXT[fehler] ?? 'Die Entscheidung wurde abgewiesen.'}
+            {fehler === 'ausfuehrung' && fehlerMeldung !== null
+              ? fehlerMeldung
+              : (FEHLER_TEXT[fehler] ?? 'Die Entscheidung wurde abgewiesen.')}
+          </>
+        )}
+        />
+      ) : null}
+      {istERechnung && offen ? (
+        <Kasten art="hinweis" cse="erechnung-wege" kinder={(
+          <>
+            <strong>Aus einer E-Rechnung gelesen.</strong>{' '}
+            Freigeben übernimmt genau diese Werte als Eingangsrechnung.
+            {gesperrt
+              ? ' Da Felder unsicher sind, ist die Freigabe gesperrt — die Werte lassen sich '
+                + 'von Hand prüfen und erfassen:'
+              : ' Wer lieber selbst erfasst, findet die Werte vorbelegt:'}{' '}
+            <Link href={`/portal/${mandant}/finanzen/eingangsrechnungen/neu?von=${id}`}
+                  data-cse="manuell-erfassen" className="underline underline-offset-2">
+              manuell erfassen
+            </Link>.
+          </>
+        )}
+        />
+      ) : null}
+      {istERechnung && uebernommen !== null && entschieden === null ? (
+        <Kasten art="hinweis" cse="erechnung-uebernommen" kinder={(
+          <>
+            <strong>Übernommen.</strong>{' '}
+            <Link href={`/portal/${mandant}/finanzen/eingangsrechnungen/${uebernommen}`}
+                  data-cse="zur-eingangsrechnung" className="underline underline-offset-2">
+              Zur Eingangsrechnung
+            </Link>.
           </>
         )}
         />

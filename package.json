@@ -28,7 +28,7 @@
     "seitenkarte": "tsx scripts/seitenkarte/extrahiere.ts",
     "seitenkarte:stand": "tsx scripts/seitenkarte/stand.ts",
     "annahmen": "tsx scripts/annahmen.ts",
-    "db:seed": "tsx src/server/db/seed/index.ts",
+    "db:seed": "tsx --import ./scripts/hooks/server-only.mjs src/server/db/seed/index.ts",
     "content:import": "tsx scripts/content-import.ts",
     "test:isolation": "vitest run --config vitest.isolation.config.ts",
     "test:compliance": "vitest run --config vitest.compliance.config.ts",
