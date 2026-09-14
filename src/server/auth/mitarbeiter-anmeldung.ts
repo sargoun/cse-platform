@@ -75,6 +75,18 @@ export async function codeAnfordern(
   const telefon = normalisiereTelefon(rohesTelefon);
   if (telefon === null) return { angenommen: false, codeFuerEntwicklung: null };
 
+  /**
+   * **Ohne Zustellung kein Code.** Ein Dienst, der weder sendet noch zeigt
+   * (O-82 offen, keine Entwicklungsflaeche), legte einen Code an, den
+   * niemand je erhaelt — und der den Code VERDRAENGTE, den die
+   * Einsatzleitung ausgestellt hat: 0114 loest nur den juengsten ein. Genau
+   * so scheiterte die Anmeldung am Handy (D-487): Code ausgestellt, die
+   * Mitarbeiterin tippt „Code anfordern", und der ausgestellte gilt nicht
+   * mehr. Der Tipp fuehrt jetzt nur zur Codeeingabe; die Bremse (drei offene
+   * Codes) bleibt frei, und nach aussen bleibt die Antwort dieselbe.
+   */
+  if (!sms.verbunden && !sms.zeigtCode) return { angenommen: true, codeFuerEntwicklung: null };
+
   const code = neuerCode();
   const zeilen = (await tx.unsafe(
     `select app.zugang_code_anfordern($1, $2, now() + ($3 || ' minutes')::interval, $4) as ok`,

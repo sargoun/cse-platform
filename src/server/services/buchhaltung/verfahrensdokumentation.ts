@@ -550,13 +550,19 @@ function markdownZelle(text: string): string {
   return text.replace(/\|/gu, '\\|').replace(/\r?\n/gu, ' ');
 }
 
-/** Die Dokumentation als Markdown — mit Kopf, Teilen, Abschnitten und Tabellen. */
-export function alsMarkdown(d: Verfahrensdokumentation): string {
+/**
+ * Die Dokumentation als Markdown — mit Kopf, Teilen, Abschnitten und Tabellen.
+ *
+ * `ohneAbrufzeit`: fuer ein reproduzierbares Paket (Jahrespaket, ACC-11) —
+ * dann steht kein Zeitpunkt im Text, und derselbe Stand ergibt dieselben Bytes.
+ */
+export function alsMarkdown(d: Verfahrensdokumentation, optionen: { readonly ohneAbrufzeit?: boolean } = {}): string {
   const zeilen: string[] = [
     `# Verfahrensdokumentation — ${d.firma}`,
     '',
     `Erzeugt aus der lebenden Konfiguration der CSE-Plattform (GoBD Rz. 151 ff., ACC-10). `
-    + `Abgerufen am ${d.abgerufenAm} (Europe/Berlin). SHA-256 der Struktur: \`${d.sha256}\` — er deckt Konfiguration `
+    + `${optionen.ohneAbrufzeit === true ? '' : `Abgerufen am ${d.abgerufenAm} (Europe/Berlin). `}`
+    + `SHA-256 der Struktur: \`${d.sha256}\` — er deckt Konfiguration `
     + 'und Verfahren; Bestandszahlen („Bestand beim Abruf“) und Abrufzeit stehen daneben, nicht darin.',
     '',
     `Fassung: Commit ${d.auslieferung.commit ?? 'nicht bekannt (lokal)'} · Schemastand: `

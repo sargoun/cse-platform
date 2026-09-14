@@ -44,9 +44,17 @@ interface SerienZeile {
 }
 
 export default async function Serienliste(
-  { params }: { params: Promise<{ mandant: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant } = await params;
+  const suche = await searchParams;
+  const angelegt = typeof suche['angelegt'] === 'string' ? suche['angelegt'] : null;
+  const erzeugt = typeof suche['erzeugt'] === 'string' ? Number(suche['erzeugt']) : null;
+  const bestandSchon = suche['bestand'] === '1';
+  const uebersprungen = typeof suche['uebersprungen'] === 'string' ? suche['uebersprungen'] : null;
   const pfad = `/portal/${mandant}/dienstplan/serien`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -65,25 +73,30 @@ export default async function Serienliste(
        * waeren sonst hunderteins Abfragen, und die Liste waere genau dann
        * langsam, wenn sie sich lohnt.
        */
-      `select ps.id, t.bezeichnung, o.bezeichnung as objekt, r.bezeichnung as revier,
-              t.rrule,
-              to_char(t.dtstart_lokal, 'HH24:MI')            as beginn_lokal,
-              t.dauer_minuten,
-              t.feiertagsregel::text                         as feiertagsregel,
-              to_char(t.gueltig_ab, 'YYYY-MM-DD')            as gueltig_ab,
-              to_char(t.gueltig_bis, 'YYYY-MM-DD')           as gueltig_bis,
+      /* Turnus-Serien (Reinigung) und Posten-Serien (Sicherheit) in einer Liste (D-487). */
+      `select ps.id, coalesce(t.bezeichnung, p.bezeichnung) as bezeichnung,
+              o.bezeichnung as objekt, r.bezeichnung as revier,
+              coalesce(t.rrule, p.abdeckung_rrule)                        as rrule,
+              to_char(coalesce(t.dtstart_lokal, p.dtstart_lokal), 'HH24:MI') as beginn_lokal,
+              coalesce(t.dauer_minuten, p.dauer_minuten, 0)::int           as dauer_minuten,
+              coalesce(t.feiertagsregel::text,
+                       case when ps.feiertage_ueberspringen then 'ausfall' else 'unveraendert' end)
+                                                                          as feiertagsregel,
+              to_char(coalesce(t.gueltig_ab, p.gueltig_ab), 'YYYY-MM-DD')   as gueltig_ab,
+              to_char(coalesce(t.gueltig_bis, p.gueltig_bis), 'YYYY-MM-DD') as gueltig_bis,
               to_char(ps.generiert_bis, 'YYYY-MM-DD')        as generiert_bis,
               (ps.archiviert_am is not null)                 as archiviert,
               coalesce(e.anzahl, 0)::int                     as einsaetze
          from planungsserie ps
-         join turnus t on t.mandant_id = ps.mandant_id and t.id = ps.turnus_id
-         join revier r on r.mandant_id = t.mandant_id and r.id = t.revier_id
-         join objekt o on o.mandant_id = r.mandant_id and o.id = r.objekt_id
+         left join turnus t on t.mandant_id = ps.mandant_id and t.id = ps.turnus_id
+         left join posten p on p.mandant_id = ps.mandant_id and p.id = ps.posten_id
+         left join revier r on r.mandant_id = t.mandant_id and r.id = t.revier_id
+         join objekt o on o.mandant_id = ps.mandant_id and o.id = coalesce(r.objekt_id, p.objekt_id)
          left join lateral (
                 select count(*) as anzahl from einsatz e
                  where e.planungsserie_id = ps.id and e.storniert_am is null
               ) e on true
-        order by ps.archiviert_am nulls first, o.bezeichnung, t.bezeichnung`,
+        order by ps.archiviert_am nulls first, o.bezeichnung, coalesce(t.bezeichnung, p.bezeichnung)`,
     ))) as Promise<readonly SerienZeile[]>);
 
   return (
@@ -99,13 +112,30 @@ export default async function Serienliste(
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">Serien</h1>
-        <Link
-          href={`/portal/${mandant}/dienstplan/woche`}
-          className="rounded-md border border-line px-s3 py-s1 text-sm text-text-muted hover:border-line-strong hover:text-text"
-        >
-          Zum Dienstplan
-        </Link>
+        <div className="flex flex-wrap gap-s2">
+          <Link
+            href={`/portal/${mandant}/dienstplan/serien/neu`}
+            data-cse="serie-neu"
+            className="inline-flex min-h-11 items-center rounded-md bg-brand px-s4 text-sm font-semibold text-white hover:bg-brand-hover"
+          >
+            Neue Serie
+          </Link>
+          <Link
+            href={`/portal/${mandant}/dienstplan/woche`}
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted hover:border-line-strong hover:text-text"
+          >
+            Zum Dienstplan
+          </Link>
+        </div>
       </div>
+
+      {angelegt !== null ? (
+        <p data-cse="serie-angelegt" className="mb-s5 max-w-prose rounded-lg border border-success bg-success-soft p-s5 text-sm text-success">
+          <strong>{bestandSchon ? 'Serie bestand schon — der Generator lief.' : 'Serie angelegt.'}</strong>{' '}
+          {erzeugt === null || Number.isNaN(erzeugt) ? '' : `${String(erzeugt)} Schicht(en) erzeugt.`}
+          {uebersprungen !== null ? ` Übersprungen: ${uebersprungen}.` : ''}
+        </p>
+      ) : null}
 
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         Eine Serie beschreibt, wann eine Leistung wiederkehrt. Der nächtliche
@@ -116,7 +146,7 @@ export default async function Serienliste(
 
       {zeilen.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-          Noch keine Serie angelegt. Ohne Serie entstehen Schichten nur von Hand.
+          Noch keine Serie angelegt. Ohne Serie entstehen keine Schichten — legen Sie eine an.
         </p>
       ) : (
         <DataTable

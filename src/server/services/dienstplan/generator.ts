@@ -315,9 +315,22 @@ async function schreibeSerienstand(
  * festgeschrieben wurde (§8.5) — eine spaetere Stammdatenpflege soll die
  * Historie nicht umdatieren.
  */
+export interface LaufOptionen {
+  /**
+   * `true`: als Anwendungsrolle in der aktiven Gesellschaft — ueber
+   * `app.planungsbedarf_eigen` (0143, `dienstplan.schreiben`), wenn eine
+   * Administration eine Serie anlegt und die Schichten sofort will. Der
+   * Nachtlauf (`cse_job`) laesst es weg und liest `app.planungsbedarf`.
+   */
+  readonly eigen?: boolean;
+}
+
 export async function ladeSerien(
-  db: Abfrage, mandantId: string, von: string, bis: string,
+  db: Abfrage, mandantId: string, von: string, bis: string, optionen: LaufOptionen = {},
 ): Promise<readonly SerienZeile[]> {
+  const quelle = optionen.eigen === true
+    ? 'app.planungsbedarf_eigen($2::date, $3::date) b'
+    : 'app.planungsbedarf($1, $2::date, $3::date) b';
   const zeilen = (await db.unsafe(
     `select b.planungsserie_id, b.quelle::text as quelle, b.carrier_id,
             b.objekt_id, b.revier_id, b.posten_id, b.veranstaltung_id,
@@ -332,8 +345,8 @@ export async function ladeSerien(
             ps.mandant_id, ps.horizont_tage, ps.feiertag_bundesland,
             ps.feiertage_ueberspringen, ps.turnus_id,
             o.kunde_id
-       from app.planungsbedarf($1, $2::date, $3::date) b
-       join planungsserie ps on ps.id = b.planungsserie_id
+       from ${quelle}
+       join planungsserie ps on ps.id = b.planungsserie_id and ps.mandant_id = $1
        join objekt o         on o.mandant_id = ps.mandant_id and o.id = b.objekt_id
       order by b.planungsserie_id`,
     [mandantId, von, bis],
@@ -401,7 +414,7 @@ export async function ladeAusnahmen(
 
 /** Ein ganzer Lauf fuer einen Mandanten — alle faelligen Serien. */
 export async function generiereEinsaetze(
-  db: Abfrage, mandantId: string, lage: Lauflage,
+  db: Abfrage, mandantId: string, lage: Lauflage, optionen: LaufOptionen = {},
 ): Promise<readonly SerienBericht[]> {
   // Das Fenster der SUCHE ist der groesste Horizont; jede Serie schneidet sich
   // daraus ihr eigenes. Ein Fenster je Serie waere eine Abfrage je Serie.
@@ -411,7 +424,7 @@ export async function generiereEinsaetze(
   )) as { tage: number }[];
   const bis = horizontEnde(lage.heute, Number(g?.tage ?? 56));
 
-  const serien = await ladeSerien(db, mandantId, lage.heute, bis);
+  const serien = await ladeSerien(db, mandantId, lage.heute, bis, optionen);
   const berichte: SerienBericht[] = [];
   for (const serie of serien) {
     if (serie.kundeId === null) {

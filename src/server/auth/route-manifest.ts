@@ -962,6 +962,41 @@ export const ROUTEN: readonly RouteEintrag[] = [
     pfad: 'api/buchhaltung/verfahrensdokumentation',
     recht: 'buchhaltung_konfiguration.lesen',
   },
+  {
+    /**
+     * Das Jahrespaket fuer den Steuerberater (ACC-11, PR 67): ein ZIP je
+     * Wirtschaftsjahr, unter `buchhaltung.exportieren` wie der DATEV-Stapel.
+     * Jeder Abruf steht im Protokoll.
+     */
+    pfad: 'api/buchhaltung/jahrespaket',
+    recht: 'buchhaltung.exportieren',
+  },
+  {
+    /**
+     * Der Lohnexport (ACC-12, PR 67): Zeitdaten eines Monats fuer das
+     * Lohnsystem — personenbezogen, deshalb `zeit.exportieren` und nicht
+     * `buchhaltung.exportieren`; das Format ist ein Platzhalter (O-27).
+     */
+    pfad: 'api/buchhaltung/lohnexport',
+    recht: 'zeit.exportieren',
+  },
+  {
+    /**
+     * Eine Serie anlegen und sofort planen (TIM-01, TIM-02, D-487) — unter
+     * `dienstplan.schreiben`, wie das Besetzen einer Schicht.
+     */
+    pfad: 'api/dienstplan/serien',
+    recht: 'dienstplan.schreiben',
+  },
+  {
+    /**
+     * Der Anmeldecode aus der Hand der Einsatzleitung (EMP-01, O-82, D-487):
+     * `personal.zugang_verwalten`, das Recht der Zugangsseite. Der Klartext
+     * geht in einen kurzlebigen Keks, nie in die Adresse.
+     */
+    pfad: 'api/personal/zugang-code',
+    recht: 'personal.zugang_verwalten',
+  },
   /**
    * Der Freigabe-Posteingang (PR 62 Rest, APR-01/02/03/07/08, D-472).
    *

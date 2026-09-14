@@ -140,6 +140,27 @@ describe('der Code wird nur gezeigt, wo er gezeigt werden darf', () => {
     ).toBeNull();
   });
 
+  /**
+   * **Ohne Zustellung entsteht kein Code** (D-487). Ein Code, den niemand
+   * erhaelt, ist nicht harmlos: 0114 loest nur den JUENGSTEN ein, und der
+   * ungestellte Code verdraengte den, den die Einsatzleitung ausgestellt hat
+   * — die Anmeldung am Handy scheiterte genau daran. Der nicht verbundene
+   * Dienst fragt die Datenbank deshalb gar nicht erst; der Entwicklungsdienst
+   * (er zeigt den Code) tut es weiterhin.
+   */
+  it('nicht verbundener Dienst: die Datenbank wird nicht gefragt — kein Code, der niemanden erreicht', async () => {
+    let aufrufe = 0;
+    const zaehlend = {
+      unsafe: (): Promise<readonly unknown[]> => { aufrufe += 1; return Promise.resolve([{ ok: true }]); },
+    };
+    const ohne = await codeAnfordern(zaehlend, '0170 1234567', new NichtVerbundenerSmsDienst());
+    expect(ohne.angenommen, 'nach aussen dieselbe Antwort').toBe(true);
+    expect(aufrufe, 'ohne Gateway kein Code — er verdraengte den ausgestellten (0114: nur der juengste gilt)').toBe(0);
+
+    await codeAnfordern(zaehlend, '0170 1234567', new EntwicklungsSmsDienst());
+    expect(aufrufe, 'der Entwicklungsdienst zeigt den Code und legt ihn deshalb an').toBe(1);
+  });
+
   it('Entwicklungsdienst: Klartextcode, sechsstellig', async () => {
     const ergebnis = await codeAnfordern(
       abfrageJa, '0170 1234567', new EntwicklungsSmsDienst(),

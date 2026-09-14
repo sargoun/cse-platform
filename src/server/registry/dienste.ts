@@ -745,6 +745,18 @@ export const DIENSTE: readonly DienstEintrag[] = [
   /* PR 66 — Z3-Datentraegerueberlassung und Verfahrensdokumentation. */
   { modul: 'buchhaltung', pfad: 'buchhaltung/z3', schreibend: false },
   { modul: 'buchhaltung', pfad: 'buchhaltung/verfahrensdokumentation', schreibend: false },
+  /* PR 67 — Jahrespaket und Lohnexport. */
+  { modul: 'buchhaltung', pfad: 'buchhaltung/jahrespaket', schreibend: false },
+  { modul: 'zeit', pfad: 'zeit/lohnexport', schreibend: false },
+  /* D-487 — Serien anlegen; Anmeldecode durch die Einsatzleitung. */
+  {
+    modul: 'dienstplan', pfad: 'dienstplan/serie',
+    schreibend: true, schreibRecht: 'dienstplan.schreiben',
+  },
+  {
+    modul: 'personal', pfad: 'personal/zugangscode',
+    schreibend: true, schreibRecht: 'personal.zugang_verwalten',
+  },
   {
     modul: 'dokument', pfad: 'dokument/aufbewahrung',
     schreibend: true, schreibRecht: 'dokument.aufbewahrung_verwalten',

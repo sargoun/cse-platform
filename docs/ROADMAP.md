@@ -358,7 +358,14 @@ proven by test, not by inspection.
       Markdown/PDF/JSON); the schema state comes from the migration journal
       via `app.migrationsstand()` (0142) and says "not readable" where no
       journal exists.
-- [ ] Year-end package; payroll time export
+- [x] Year-end package and payroll time export (PR 67, D-486) — one ZIP
+      per fiscal year for the tax advisor (data tables, monthly figures,
+      open items, invoice journal, DATEV batches with files where storage is
+      connected, audit bundle with documents, Verfahrensdokumentation) that
+      names every gap; a monthly payroll export (accounts, absences with type
+      via a guarded definer function, every time entry from the MiLoG record)
+      behind a format interface whose generic CSV is a marked placeholder
+      (O-27, O-139). Neither computes wages or taxes (D-06).
 
 **Acceptance:** the tax advisor accepts a real EXTF file without rework.
 Until that happens, this phase is not done.

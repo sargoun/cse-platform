@@ -111,6 +111,13 @@ export default async function Personenblatt(
         >
           Nachweisregister
         </Link>
+        <Link
+          href={`/portal/${mandant}/personal/personen/${id}/zugang`}
+          data-cse="person-zugang"
+          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+        >
+          Zugang und Anmeldecode
+        </Link>
       </nav>
 
       <h2 className="mb-s3 text-h3 text-text">

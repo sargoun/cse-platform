@@ -718,7 +718,7 @@ export function indexXml(a: IndexAngaben): string {
     + '  </Media>\n</DataSet>\n';
 }
 
-interface MandantRoh {
+export interface MandantRoh {
   readonly firma: string;
   readonly rechtsform: string | null;
   readonly ort: string | null;
@@ -790,8 +790,26 @@ function zaehleErsetzt(text: string): number {
   return n;
 }
 
-/** Baut das Paket eines Wirtschaftsjahrs — vollstaendig im Speicher, ohne Objektspeicher. */
-export async function erstelleZ3Paket(db: Z3Kontext, jahr: number): Promise<Z3Paket> {
+export interface Z3Tabellenlauf {
+  readonly wirtschaftsjahr: Wirtschaftsjahr;
+  readonly von: string;
+  readonly bis: string;
+  readonly bezeichnung: string;
+  readonly mandant: MandantRoh;
+  readonly tabellen: readonly Z3Tabelle[];
+  readonly beschrieben: readonly { readonly spez: TabellenSpezifikation; readonly zeilen: number }[];
+  readonly eintraege: readonly { readonly pfad: string; readonly bytes: Uint8Array }[];
+  readonly unvollstaendig: number;
+  readonly ersetzteZeichen: number;
+}
+
+/**
+ * Die Tabellen eines Wirtschaftsjahrs als CSV-Eintraege — der Teil, den das
+ * Z3-Paket und das Jahrespaket (ACC-11) gemeinsam haben. Wer die Tabellen
+ * braucht, ruft das hier; das Paket legt Index, LIESMICH und Pruefsummen
+ * darum.
+ */
+export async function baueZ3Tabellen(db: Z3Kontext, jahr: number): Promise<Z3Tabellenlauf> {
   const wj = await liesWirtschaftsjahr(db);
   const { von, bis, bezeichnung } = wirtschaftsjahrZeitraum(jahr, wj);
   const mandantId = db.aktiverMandantId;
@@ -827,6 +845,17 @@ export async function erstelleZ3Paket(db: Z3Kontext, jahr: number): Promise<Z3Pa
       sha256: sha256(bytes), groesseBytes: bytes.byteLength });
     beschrieben.push({ spez, zeilen: zeilen.length });
   }
+  return { wirtschaftsjahr: wj, von, bis, bezeichnung, mandant: m, tabellen, beschrieben,
+    eintraege, unvollstaendig, ersetzteZeichen };
+}
+
+/** Baut das Paket eines Wirtschaftsjahrs — vollstaendig im Speicher, ohne Objektspeicher. */
+export async function erstelleZ3Paket(db: Z3Kontext, jahr: number): Promise<Z3Paket> {
+  const lauf = await baueZ3Tabellen(db, jahr);
+  const { wirtschaftsjahr: wj, von, bis, bezeichnung, mandant: m, tabellen, beschrieben,
+    unvollstaendig, ersetzteZeichen } = lauf;
+  const mandantId = db.aktiverMandantId;
+  const eintraege = [...lauf.eintraege];
 
   const index = new TextEncoder().encode(indexXml({
     firma: m.firma, ort: m.ort ?? '', bezeichnung, von, bis, tabellen: beschrieben,

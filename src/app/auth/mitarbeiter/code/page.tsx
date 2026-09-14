@@ -1,10 +1,12 @@
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type postgres from 'postgres';
+import { devFlaechenAn } from '@/lib/dev-flaechen';
 import { db } from '@/server/db/pool';
 import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { codeEinloesen } from '@/server/auth/mitarbeiter-anmeldung';
+import { smsDienst } from '@/server/auth/sms';
 import { SITZUNG_COOKIE, mitarbeiterSitzungAusstellen, sitzungsKeksOptionen }
   from '@/server/auth/sitzung';
 import { ANMELDUNG_DEV_COOKIE, ANMELDUNG_TELEFON_COOKIE, herkunft } from '../anmeldung';
@@ -44,6 +46,13 @@ export default async function CodeEingabe({ searchParams }: Props) {
 
   const devCode = keks.get(ANMELDUNG_DEV_COOKIE)?.value ?? null;
   const gescheitert = (await searchParams)['fehler'] === '1';
+  /**
+   * Weder Versand noch Anzeige (O-82 offen, keine Entwicklungsflaeche): dann
+   * wurde im ersten Schritt KEIN Code angelegt (D-487), und „wir haben einen
+   * Code geschickt" waere eine Luege. Der Code kommt von der Einsatzleitung.
+   */
+  const sms = smsDienst(devFlaechenAn());
+  const ohneZustellung = !sms.verbunden && !sms.zeigtCode;
 
   async function einloesen(daten: FormData): Promise<void> {
     'use server';
@@ -86,9 +95,12 @@ export default async function CodeEingabe({ searchParams }: Props) {
   return (
     <main className="mx-auto flex w-full max-w-form flex-col gap-s5 p-s6">
       <h1 className="text-h1 text-text">Code eingeben</h1>
-      <p className="max-w-[60ch] text-base text-text-muted">
-        Falls Ihre Nummer hinterlegt ist, haben wir einen sechsstelligen Code
-        geschickt. Er gilt zehn Minuten.
+      <p className="max-w-[60ch] text-base text-text-muted" data-cse="code-hinweis">
+        {ohneZustellung
+          ? 'Es wurde keine SMS versendet — es ist kein Gateway verbunden (O-82). Geben Sie den '
+            + 'sechsstelligen Code ein, den Ihnen Ihre Einsatzleitung genannt hat. Er gilt zehn Minuten.'
+          : 'Falls Ihre Nummer hinterlegt ist, haben wir einen sechsstelligen Code geschickt. '
+            + 'Er gilt zehn Minuten.'}
       </p>
 
       {devCode !== null && (
@@ -112,7 +124,10 @@ export default async function CodeEingabe({ searchParams }: Props) {
           maxLength={6}
           required
           {...(gescheitert
-            ? { fehler: 'Der Code stimmt nicht, ist abgelaufen oder wurde schon benutzt. Fordern Sie einen neuen an.' }
+            ? { fehler: 'Der Code stimmt nicht, ist abgelaufen oder wurde schon benutzt. '
+                + (ohneZustellung
+                  ? 'Lassen Sie sich von Ihrer Einsatzleitung einen neuen ausstellen.'
+                  : 'Fordern Sie einen neuen an.') }
             : {})}
         />
         <Button type="submit" variante="primary" data-cse="code-einloesen">

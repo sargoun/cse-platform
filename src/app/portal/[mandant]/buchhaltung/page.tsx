@@ -51,6 +51,10 @@ const KARTEN: readonly Karte[] = [
     text: 'Datenträgerüberlassung nach § 147 Abs. 6 AO — Journal, Rechnungen, Belege und Stammdaten mit Strukturbeschreibung.' },
   { pfad: 'buchhaltung/verfahrensdokumentation', titel: 'Verfahrensdokumentation', icon: 'buch',
     text: 'GoBD-Verfahrensdokumentation aus der lebenden Konfiguration — jeder Abschnitt mit seiner Quelle, jeder Platzhalter benannt.' },
+  { pfad: 'buchhaltung/jahrespaket', titel: 'Jahrespaket', icon: 'export',
+    text: 'Ein ZIP je Wirtschaftsjahr für den Steuerberater — Tabellen, Monatszahlen, offene Posten, DATEV-Stapel, Prüfbündel, Dokumentation.' },
+  { pfad: 'buchhaltung/lohnexport', titel: 'Lohnexport', icon: 'zeit',
+    text: 'Zeitdaten eines Monats für das Lohnsystem — Stundenkonten, Abwesenheiten, jeder Zeiteintrag; das Format ist ein Platzhalter (O-27).' },
 ];
 
 interface Zahlen {

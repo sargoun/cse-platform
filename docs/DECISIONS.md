@@ -2865,7 +2865,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-24 | Handelsregister data, USt-IdNr. and bank details per entity | 26, 47 |
 | O-25 | Retention period and legal basis per document category, beyond the GoBD ten years; and how long applicant documents are kept after a rejection | 9, 85 |
 | O-26 | Monthly AI budget per entity and per agent | 74 |
-| O-27 | Payroll export target system and format, per entity | 67 |
+| O-27 | Payroll export target system and format, per entity — PR 67 built the export behind `LohnexportFormat` with a generic CSV marked as placeholder; the target system decides the real format (D-486) | 67 |
 | O-28 | Which application mailbox is monitored, and who owns it | 85 |
 | O-29 | Reklamation and Qualitätsprüfung: trigger, scale, pass threshold, and consequence | 40 |
 
@@ -8480,3 +8480,91 @@ Auftragsverarbeiter, O-364, O-365, der ausstehende Wiederherstellungstest,
 und das Beweisbündel des Protokolls (`/einstellungen/protokoll/export`),
 das noch nicht gebaut ist — sie stehen in Abschnitt 5 und nicht als
 Häkchen.
+
+### D-486 · Jahrespaket und Lohnexport — Übergaben, keine Abrechnungen (PR 67)
+
+**Das Jahrespaket ist eine Übergabe an den Steuerberater, kein Abschluss.**
+Ein ZIP je Wirtschaftsjahr (`buchhaltung/jahrespaket.ts`), das
+zusammenlegt, was schon an acht Stellen vorliegt: die vierzehn Datentabellen
+des Z3-Exports (`daten/`), Monatszahlen BWA-artig, offene Posten zum
+Stichtag mit Altersstruktur, das Rechnungsausgangsbuch je Kreis, die
+erzeugten DATEV-Stapel des Jahres (Liste immer, EXTF-Dateien mit
+verbundenem Speicher, Hash gegen `datev_export.datei_sha256` geprüft), das
+Prüfbündel-Manifest mit den archivierten Belegen (mit Speicher, ohne Sperre)
+und die Verfahrensdokumentation ohne Abrufzeit. `LIESMICH.txt` sagt, was
+fehlt und warum: Speicher nicht verbunden, Sperre, Zeilen ohne Stapel,
+unvollständige Zeilen, Platzhalter (O-05). Es erzeugt keinen DATEV-Stapel
+nebenbei — ein Stapel ist ein registrierter Vorgang mit Stempel auf jeder
+Zeile, den ein Mensch unter Buchhaltung → DATEV auslöst; das Paket zählt die
+Zeilen ohne Stapel und nennt sie. Reproduzierbar (STORE-ZIP, keine Uhr),
+Prüfsummen für jede Datei; Manifestlauf für die Seite ohne Dateiabruf.
+Recht `buchhaltung.exportieren`, jeder Abruf im Protokoll.
+
+**Der Lohnexport liefert Zeit, kein Entgelt.** Je Monat und Beschäftigung
+(`zeit/lohnexport.ts`): das Stundenkonto (Soll, Ist, Korrektur, Saldo,
+Urlaubs- und Kranktage, Bewegungen je Art), die Abwesenheiten mit Art,
+bezahlt/unbezahlt und Lohnart, und jeder Zeiteintrag mit seinem
+Monatsanteil aus demselben `leseNachweis`, das den MiLoG-Nachweis erzeugt
+(gesperrter Monat: das geprägte Artefakt mit Hash). Was die Plattform nicht
+weiß, steht als „unklar" oder leer und wird gezählt (O-139) — nicht geraten.
+Zuschläge, Entgelt und Sozialversicherung rechnet das Lohnsystem aus
+`zeiten.csv` (D-06, O-37). Das Format ist ein Platzhalter hinter
+`LohnexportFormat` (generisches CSV, UTF-8, Dezimalstunden ganzzahlig
+gerundet neben den Minuten), bis das Lohnsystem feststeht (O-27); die Seite
+sagt „nicht abgestimmt, nicht verbunden". Personalnummer und Name gehen mit,
+sonst nichts über den Menschen (K-05). Recht `zeit.exportieren`; jeder Abruf
+im Protokoll. Ein Stempeln der Zeiteinträge als „abgerechnet" kommt erst
+mit dem Rücklauf aus dem Lohnsystem — nicht vorher erfunden.
+
+### D-487 · Nutzerbefund am Handy: kein Code ohne SMS, keine Schichten ohne Serie
+
+**Die Anmeldung der Mitarbeitenden war am Handy nicht kaputt — sie war ohne
+SMS-Gateway unerreichbar.** Der Ablauf (Nummer → Code → Portal) läuft auf
+390 px (Browsertest); aber ohne Gateway (O-82) kommt kein Code an, und
+außerhalb der Entwicklungsfläche wird keiner angezeigt. Die Plattform
+täuscht keinen Versand vor. Stattdessen bekommt die Einsatzleitung den Weg,
+den es im Betrieb ohnehin gibt: `/personal/personen/[id]/zugang`
+(`personal.zugang_verwalten`) stellt denselben Einmalcode aus, den die SMS
+trüge — über `app.zugang_code_ausstellen` (0143), dieselbe Funktion, dieselbe
+Bremse (drei offene Codes), dieselbe Frist (zehn Minuten), nur für
+Beschäftigte der aktiven Gesellschaft; die Nummer verlässt die Datenbank
+nicht (zurück kommen die letzten drei Ziffern). Der Klartext geht in einen
+kurzlebigen Keks, nie in die Adresse; gespeichert ist nur der Hash; jede
+Ausstellung steht im Protokoll ohne den Code. Die Anmeldeseite nennt den
+Weg. Für Vorschauen ohne Gateway: `CSE_DEV_FLAECHEN=1` zeigt den Code auf
+der Codeseite (Entwicklungsfläche) — für den Betrieb bleibt O-82 offen.
+
+**Der Browsertest fand den zweiten Fehler:** die Mitarbeiterin tippt nach der
+Ausstellung „Code anfordern" — und ohne Gateway entstand dabei ein Code, den
+niemand zustellt, der aber den ausgestellten VERDRÄNGTE, weil 0114 mit
+Absicht nur den jüngsten Code einlöst. Der ausgestellte Code galt nicht
+mehr. Jetzt legt ein Dienst, der weder sendet noch zeigt, gar keinen Code an
+(`codeAnfordern`, Kern-Test): der Tipp führt nur zur Codeeingabe, die Bremse
+bleibt frei, und beide Seiten sagen, dass keine SMS kam und der Code von der
+Einsatzleitung stammt. Die Regel „nur der jüngste gilt" bleibt — auf der
+Entwicklungsfläche gilt deshalb der angezeigte Code, und der ausgestellte
+muss nach dem Tipp entstehen (der Browsertest nimmt diese Reihenfolge).
+
+**Schichten entstanden nur aus dem Seed.** Turnus, Posten, Planungsserie und
+Generator gab es; aber keine Oberfläche legte eine `planungsserie` an, und
+ein Posten mit Dienstzeiten blieb ohne Schichten. Neu:
+`/dienstplan/serien/neu` (`dienstplan.schreiben`) — Reinigung: Revier,
+Leistung, Wochentage, Beginn, Dauer, Geltung, Feiertagsregel → Turnus + Serie
++ Schichten SOFORT; Sicherheit: die Serie zu einem Posten mit Dienstzeiten,
+und ein Posten mit Regel bekommt seine Serie beim Anlegen unter
+`/security/posten/neu` gleich mit. Die Regel wird aus Wochentagen gebaut
+und vom Parser des Generators gelesen (`wochenRegel`, Kern-Test); ein
+zweiter Aufruf legt keine zweite Serie an. Damit der Generator in der
+Transaktion der Administration läuft, liest er über
+`app.planungsbedarf_eigen` (0143): nur die aktive Gesellschaft, nur unter
+`dienstplan.schreiben` — `app.planungsbedarf` bleibt der Jobrolle. Bau und
+Operations bekommen die Absage, nicht ein leeres Formular. Die Serienliste
+zeigt Turnus- und Posten-Serien. Besetzen war schon da
+(`/dienstplan/einsatz/[id]`); jetzt gibt es etwas zu besetzen.
+
+**Die Abwesenheitsart ist `cse_app` entzogen — der Lohnexport bekommt sie
+kontrolliert.** 0073 verweigert der Anwendungsrolle die Spalte
+`abwesenheitsart_id` (gesundheitsnah). Das Lohnbüro braucht die Art.
+`app.lohnexport_abwesenheiten` (0143) liefert sie nur unter
+`zeit.exportieren` und nur für die aktive Gesellschaft; wem das Recht fehlt,
+dem verweigert die Datenbank den Export (Isolationstest).

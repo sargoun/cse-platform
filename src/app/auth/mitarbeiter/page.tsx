@@ -51,6 +51,8 @@ export default async function MitarbeiterAnmeldung() {
    * SMS-Anbieter haengt.
    */
   const sms = smsDienst(devFlaechenAn());
+  /** Weder Versand noch Anzeige: der Code kommt von der Einsatzleitung (D-487). */
+  const ohneZustellung = !sms.verbunden && !sms.zeigtCode;
 
   async function anfordern(daten: FormData): Promise<void> {
     'use server';
@@ -82,8 +84,11 @@ export default async function MitarbeiterAnmeldung() {
     <main className="mx-auto flex w-full max-w-form flex-col gap-s5 p-s6">
       <h1 className="text-h1 text-text">Anmeldung für Mitarbeitende</h1>
       <p className="max-w-[60ch] text-base text-text-muted">
-        Geben Sie Ihre Mobilnummer ein. Sie erhalten einen sechsstelligen Code
-        per SMS. Ein Kennwort brauchen Sie nicht.
+        {ohneZustellung
+          ? 'Geben Sie Ihre Mobilnummer ein und danach den sechsstelligen Code, den Ihnen Ihre '
+            + 'Einsatzleitung nennt. Ein Kennwort brauchen Sie nicht.'
+          : 'Geben Sie Ihre Mobilnummer ein. Sie erhalten einen sechsstelligen Code per SMS. '
+            + 'Ein Kennwort brauchen Sie nicht.'}
       </p>
 
       {!sms.verbunden && (
@@ -97,8 +102,9 @@ export default async function MitarbeiterAnmeldung() {
           Monatsbetrag gilt ein harter Stopp).{' '}
           {sms.zeigtCode
             ? 'Auf dieser Entwicklungsfläche wird der Code stattdessen sichtbar angezeigt.'
-            : 'Bis dahin kommt hier keine SMS an. Die Zeiterfassung läuft weiter über '
-              + 'den Check-in-Link Ihrer Einsatzleitung, der ohne Anmeldung funktioniert.'}
+            : 'Bis dahin kommt hier keine SMS an. Ihre Einsatzleitung stellt Ihnen den Code im Portal aus '
+              + '(Personal → Person → Zugang) und nennt ihn Ihnen; er gilt zehn Minuten. Die Zeiterfassung '
+              + 'läuft daneben über den Check-in-Link, der ohne Anmeldung funktioniert.'}
         </p>
       )}
 
@@ -114,14 +120,15 @@ export default async function MitarbeiterAnmeldung() {
           hinweis="Deutsche Nummern mit 0 beginnend; ausländische mit + und Ländervorwahl."
         />
         <Button type="submit" variante="primary" data-cse="code-anfordern">
-          Code anfordern
+          {ohneZustellung ? 'Weiter zur Codeeingabe' : 'Code anfordern'}
         </Button>
       </form>
 
       <p className="max-w-[60ch] text-sm text-text-subtle">
-        Ihre Nummer wird ausschliesslich zur Anmeldung verwendet. Wenn sie
-        hinterlegt ist, kommt gleich ein Code — ob sie es ist, sagt diese Seite
-        bewusst nicht.
+        Ihre Nummer wird ausschliesslich zur Anmeldung verwendet.{' '}
+        {ohneZustellung
+          ? 'Ob sie hinterlegt ist, sagt diese Seite bewusst nicht.'
+          : 'Wenn sie hinterlegt ist, kommt gleich ein Code — ob sie es ist, sagt diese Seite bewusst nicht.'}
       </p>
     </main>
   );
