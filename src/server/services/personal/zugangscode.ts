@@ -1,5 +1,5 @@
 import 'server-only';
-import type { SchreibKontext } from '../../kontext/index.js';
+import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { CODE_GUELTIG_MINUTEN, codeHash, neuerCode } from '../../auth/mitarbeiter-anmeldung.js';
 
 /**
@@ -42,4 +42,45 @@ export async function stelleZugangscodeAus(
   const grund = (['keine_anstellung', 'kein_zugang', 'gesperrt', 'bremse'] as const)
     .find((g) => g === z.grund) ?? 'kein_zugang';
   return { ok: false, grund, telefonMaskiert: z.telefon_maskiert };
+}
+
+/**
+ * Der Zugangsstand einer Person — damit „es passiert nichts" einen Namen
+ * bekommt (D-488).
+ *
+ * Drei Zustaende fuehren am Telefon zum selben Bild, und keiner stand
+ * irgendwo: kein Zugang (keine Nummer), kein benutzbares Konto (der Code
+ * wird eingeloest, die Sitzung bleibt aus — 0115), drei offene Codes (die
+ * Bremse haelt). Die Einsatzleitung liest sie jetzt ab, statt zu raten.
+ */
+export interface Zugangsstand {
+  readonly hatAnstellung: boolean;
+  readonly hatZugang: boolean;
+  readonly gesperrt: boolean;
+  readonly telefonMaskiert: string | null;
+  /** Ein Konto, mit dem die Anmeldung auch wirklich durchkommt (0115). */
+  readonly hatKonto: boolean;
+  readonly offeneCodes: number;
+  readonly letzteAnmeldung: Date | null;
+}
+
+export async function leseZugangsstand(
+  kontext: LeseKontext, personId: string,
+): Promise<Zugangsstand> {
+  const [z] = await kontext.abfrage<{
+    hat_anstellung: boolean; hat_zugang: boolean; gesperrt: boolean;
+    telefon_maskiert: string | null; hat_konto: boolean; offene_codes: number;
+    letzte_anmeldung: Date | null;
+  }>(`select hat_anstellung, hat_zugang, gesperrt, telefon_maskiert, hat_konto,
+             offene_codes, letzte_anmeldung
+        from app.zugang_stand($1::uuid)`, [personId]);
+  return {
+    hatAnstellung: z?.hat_anstellung ?? false,
+    hatZugang: z?.hat_zugang ?? false,
+    gesperrt: z?.gesperrt ?? false,
+    telefonMaskiert: z?.telefon_maskiert ?? null,
+    hatKonto: z?.hat_konto ?? false,
+    offeneCodes: z?.offene_codes ?? 0,
+    letzteAnmeldung: z?.letzte_anmeldung ?? null,
+  };
 }

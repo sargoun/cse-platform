@@ -27,6 +27,32 @@ async function nummerVon(email: string): Promise<string> {
 }
 
 /**
+ * **Die Bremse ist Absicht — im Betrieb, nicht im Lauf** (0130, D-488).
+ *
+ * Drei offene Codes je Zugang, und diese Datei fordert sieben an. Bricht ein
+ * Fall vorzeitig ab, stehen seine Codes noch zehn Minuten offen, und der
+ * naechste Fall bekommt keinen mehr — dann faellt eine Kette von Tests, die
+ * mit der geprueften Sache nichts zu tun hat. Was offen ist, gilt deshalb vor
+ * jeder Anforderung als verbraucht; gemessen wird weiter am echten Zugang.
+ */
+async function bremseLoesenFuerFeld(seite: {
+  inputValue(auswahl: string): Promise<string>;
+}): Promise<void> {
+  await bremseLoesen(await seite.inputValue('input[name="telefon"]'));
+}
+
+async function bremseLoesen(telefon: string): Promise<void> {
+  const ziffern = telefon.replace(/[^0-9+]/gu, '');
+  await sql`
+    update mitarbeiter_einmalcode set verbraucht_am = now()
+     where verbraucht_am is null
+       and zugang_id in (
+         select z.id from mitarbeiter_zugang z
+          where replace(z.telefon_e164, ' ', '') = ${ziffern}
+             or right(replace(z.telefon_e164, ' ', ''), 9) = right(${ziffern}, 9))`;
+}
+
+/**
  * (1) **Kein Kennwortfeld — auf keinem der beiden Schritte.**
  *
  * EMP-01 sagt „phone number + SMS code, no password". Ein verstecktes oder
@@ -39,6 +65,7 @@ test('die Anmeldung trägt kein einziges Kennwortfeld im DOM (EMP-01)', async ({
   expect(await page.locator('input[type="password"]').count()).toBe(0);
 
   await page.fill('input[name="telefon"]', await nummerVon('fatima.yildiz@cse-gruppe.de'));
+  await bremseLoesenFuerFeld(page);
   await page.locator('[data-cse="code-anfordern"]').click();
   await page.waitForURL('**/auth/mitarbeiter/code');
   expect(await page.locator('input[type="password"]').count()).toBe(0);
@@ -66,6 +93,7 @@ test('eine unbekannte Nummer ist von einer bekannten nicht zu unterscheiden', as
 
   await page.goto('/auth/mitarbeiter');
   await page.fill('input[name="telefon"]', bekannt);
+  await bremseLoesenFuerFeld(page);
   await page.locator('[data-cse="code-anfordern"]').click();
   await page.waitForURL('**/auth/mitarbeiter/code');
   const zielA = new URL(page.url()).pathname;
@@ -74,6 +102,7 @@ test('eine unbekannte Nummer ist von einer bekannten nicht zu unterscheiden', as
   await page.context().clearCookies();
   await page.goto('/auth/mitarbeiter');
   await page.fill('input[name="telefon"]', '+49 170 9999999');
+  await bremseLoesenFuerFeld(page);
   await page.locator('[data-cse="code-anfordern"]').click();
   await page.waitForURL('**/auth/mitarbeiter/code');
   const zielB = new URL(page.url()).pathname;
@@ -113,6 +142,7 @@ test('ein falscher Code meldet genau dasselbe wie ein abgelaufener', async ({ pa
 
   await page.goto('/auth/mitarbeiter');
   await page.fill('input[name="telefon"]', nummer);
+  await bremseLoesenFuerFeld(page);
   await page.locator('[data-cse="code-anfordern"]').click();
   await page.waitForURL('**/auth/mitarbeiter/code');
 
@@ -121,7 +151,7 @@ test('ein falscher Code meldet genau dasselbe wie ein abgelaufener', async ({ pa
 
   await page.fill('input[name="code"]', falsch);
   await page.locator('[data-cse="code-einloesen"]').click();
-  await page.waitForURL('**/auth/mitarbeiter/code?fehler=1');
+  await page.waitForURL(/code\?fehler=code/u);
   /*
    * Die Meldung AM FELD, nicht `[role="alert"]` irgendwo. Der erste Treffer im
    * DOM ist Next' Routen-Ansager — ein leerer Live-Bereich ganz oben, der bei
@@ -139,7 +169,7 @@ test('ein falscher Code meldet genau dasselbe wie ein abgelaufener', async ({ pa
   await page.goto('/auth/mitarbeiter/code');
   await page.fill('input[name="code"]', echt);
   await page.locator('[data-cse="code-einloesen"]').click();
-  await page.waitForURL('**/auth/mitarbeiter/code?fehler=1');
+  await page.waitForURL(/code\?fehler=code/u);
   const meldungAbgelaufen = await page
     .locator('form[data-cse="anmeldung-code"] [role="alert"]').innerText();
 
@@ -159,13 +189,14 @@ test('der richtige Code meldet an, und ein zweites Mal nicht mehr', async ({ pag
 
   await page.goto('/auth/mitarbeiter');
   await page.fill('input[name="telefon"]', nummer);
+  await bremseLoesenFuerFeld(page);
   await page.locator('[data-cse="code-anfordern"]').click();
   await page.waitForURL('**/auth/mitarbeiter/code');
   const code = (await page.locator('[data-cse="dev-code-wert"]').innerText()).trim();
 
   await page.fill('input[name="code"]', code);
   await page.locator('[data-cse="code-einloesen"]').click();
-  await page.waitForURL('**/portal/mein');
+  await page.waitForURL(/\/portal\/mein/u);
   await expect(page.locator('h1')).toBeVisible();
 
   /*
@@ -176,12 +207,13 @@ test('der richtige Code meldet an, und ein zweites Mal nicht mehr', async ({ pag
   await page.context().clearCookies();
   await page.goto('/auth/mitarbeiter');
   await page.fill('input[name="telefon"]', nummer);
+  await bremseLoesenFuerFeld(page);
   await page.locator('[data-cse="code-anfordern"]').click();
   await page.waitForURL('**/auth/mitarbeiter/code');
 
   await page.fill('input[name="code"]', code);
   await page.locator('[data-cse="code-einloesen"]').click();
-  await page.waitForURL('**/auth/mitarbeiter/code?fehler=1');
+  await page.waitForURL(/code\?fehler=code/u);
   expect(new URL(page.url()).pathname).toBe('/auth/mitarbeiter/code');
 });
 
@@ -228,7 +260,8 @@ test('beide Anmeldeschritte sind ohne axe-Verstoss', async ({ page }) => {
       await page.goto('/auth/mitarbeiter');
     } else {
       await page.fill('input[name="telefon"]', await nummerVon('amir.haddad@cse-gruppe.de'));
-      await page.locator('[data-cse="code-anfordern"]').click();
+      await bremseLoesenFuerFeld(page);
+  await page.locator('[data-cse="code-anfordern"]').click();
       await page.waitForURL('**/auth/mitarbeiter/code');
     }
     await expect(page).toHaveTitle(TITEL[schritt]);

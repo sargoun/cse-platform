@@ -5,6 +5,7 @@ import { devFlaechenAn } from '@/lib/dev-flaechen';
 import { db } from '@/server/db/pool';
 import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
+import { Hinweis } from '@/components/ui/Hinweis';
 import { codeEinloesen } from '@/server/auth/mitarbeiter-anmeldung';
 import { smsDienst } from '@/server/auth/sms';
 import { SITZUNG_COOKIE, mitarbeiterSitzungAusstellen, sitzungsKeksOptionen }
@@ -45,7 +46,24 @@ export default async function CodeEingabe({ searchParams }: Props) {
   if (telefon === '') redirect('/auth/mitarbeiter');
 
   const devCode = keks.get(ANMELDUNG_DEV_COOKIE)?.value ?? null;
-  const gescheitert = (await searchParams)['fehler'] === '1';
+  /**
+   * **Zwei Fehlschlaege, zwei Saetze** (D-488).
+   *
+   * `code` ist der alte, absichtlich unbestimmte Fall: falsch, abgelaufen,
+   * schon benutzt, Nummer unbekannt — vier Auskuenfte fuer den, der raet,
+   * und null Hilfe fuer den, der sich vertippt hat.
+   *
+   * `konto` ist der andere, und er war bisher derselbe Satz: der Code war
+   * RICHTIG, `app.zugang_code_einloesen` hat ihn eingeloest und verbraucht —
+   * aber zu diesem Menschen gehoert kein benutzbares Konto (0115), und die
+   * Sitzung bleibt aus. Wer das liest, hat den Code bereits gehabt; hier
+   * verraet der eigene Satz also nichts, was der Leser nicht schon wusste.
+   * Ihn zu verschweigen hat dagegen genau einen Effekt: die Mitarbeiterin
+   * fordert einen neuen Code an, tippt wieder, scheitert wieder — bis die
+   * Bremse haelt.
+   */
+  const fehlerRoh = (await searchParams)['fehler'];
+  const fehler = fehlerRoh === 'konto' ? 'konto' : fehlerRoh === undefined ? null : 'code';
   /**
    * Weder Versand noch Anzeige (O-82 offen, keine Entwicklungsflaeche): dann
    * wurde im ersten Schritt KEIN Code angelegt (D-487), und „wir haben einen
@@ -74,11 +92,16 @@ export default async function CodeEingabe({ searchParams }: Props) {
      */
     const anmeldung = await (db().begin(async (tx: postgres.TransactionSql) => {
       const personId = await codeEinloesen(tx, nummer, code);
-      if (personId === null) return null;
-      return mitarbeiterSitzungAusstellen(tx, personId, ip, agent);
-    }) as Promise<{ token: string; sitzungId: string } | null>);
+      if (personId === null) return { art: 'code' as const };
+      const sitzung = await mitarbeiterSitzungAusstellen(tx, personId, ip, agent);
+      /* Der Code war richtig — nur das Konto fehlt. Siehe oben, warum das ein
+         eigener Satz ist und kein Orakel. */
+      return sitzung === null ? { art: 'konto' as const } : { art: 'ok' as const, sitzung };
+    }) as Promise<
+      { art: 'ok'; sitzung: { token: string; sitzungId: string } } | { art: 'code' } | { art: 'konto' }
+    >);
 
-    if (anmeldung === null) redirect('/auth/mitarbeiter/code?fehler=1');
+    if (anmeldung.art !== 'ok') redirect(`/auth/mitarbeiter/code?fehler=${anmeldung.art}`);
 
     /*
      * Die Anmeldekekse verschwinden, sobald sie nichts mehr halten: eine
@@ -87,9 +110,15 @@ export default async function CodeEingabe({ searchParams }: Props) {
      */
     k.delete(ANMELDUNG_TELEFON_COOKIE);
     k.delete(ANMELDUNG_DEV_COOKIE);
-    k.set(SITZUNG_COOKIE, anmeldung.token, sitzungsKeksOptionen());
+    k.set(SITZUNG_COOKIE, anmeldung.sitzung.token, sitzungsKeksOptionen());
 
-    redirect('/portal/mein');
+    /*
+     * `angemeldet=1` ist kein Schmuck: kommt der Browser hier ohne Sitzung an,
+     * hat er den Keks nicht angenommen — ueber `http://` lehnt er einen
+     * `__Host-`-Keks ab —, und das Portal kann es SAGEN, statt nur „Anmeldung
+     * erforderlich" zu zeigen (D-488).
+     */
+    redirect('/portal/mein?angemeldet=1');
   }
 
   return (
@@ -102,6 +131,23 @@ export default async function CodeEingabe({ searchParams }: Props) {
           : 'Falls Ihre Nummer hinterlegt ist, haben wir einen sechsstelligen Code geschickt. '
             + 'Er gilt zehn Minuten.'}
       </p>
+
+      {fehler !== null && (
+        <Hinweis art="warnung" cse="code-fehler" className="max-w-[60ch]">
+          {fehler === 'konto' ? (
+            <>
+              <strong>Der Code war richtig — das Konto fehlt.</strong> Zu dieser Mobilnummer gehört
+              noch kein aktiver Portalzugang, deshalb kommt die Anmeldung nicht durch. Ein neuer Code
+              ändert daran nichts; Ihre Einsatzleitung lässt das Konto anlegen oder entsperren.
+            </>
+          ) : (
+            <>
+              <strong>Die Anmeldung hat nicht geklappt.</strong> Der Code stimmt nicht, ist abgelaufen
+              oder wurde schon benutzt. Ein Code gilt zehn Minuten und genau einmal.
+            </>
+          )}
+        </Hinweis>
+      )}
 
       {devCode !== null && (
         <p
@@ -120,14 +166,20 @@ export default async function CodeEingabe({ searchParams }: Props) {
           type="text"
           inputMode="numeric"
           autoComplete="one-time-code"
-          pattern="[0-9]{6}"
-          maxLength={6}
+          /*
+           * **Kein `pattern`, und `maxLength` grosszuegig.** Ein eingefuegter
+           * Code bringt Leerzeichen mit; `pattern="[0-9]{6}"` haette das
+           * Absenden stumm blockiert — kein Fehler, keine Bewegung, die Seite
+           * bleibt stehen. Der Server nimmt die Ziffern (`nurZiffern`) und
+           * sagt, was er davon haelt (D-488).
+           */
+          maxLength={20}
           required
-          {...(gescheitert
-            ? { fehler: 'Der Code stimmt nicht, ist abgelaufen oder wurde schon benutzt. '
-                + (ohneZustellung
-                  ? 'Lassen Sie sich von Ihrer Einsatzleitung einen neuen ausstellen.'
-                  : 'Fordern Sie einen neuen an.') }
+          hinweis="Sechs Ziffern. Leerzeichen dürfen mitkommen."
+          {...(fehler === 'code'
+            ? { fehler: ohneZustellung
+                ? 'Lassen Sie sich von Ihrer Einsatzleitung einen neuen Code ausstellen.'
+                : 'Fordern Sie einen neuen Code an.' }
             : {})}
         />
         <Button type="submit" variante="primary" data-cse="code-einloesen">

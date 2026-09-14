@@ -8568,3 +8568,55 @@ kontrolliert.** 0073 verweigert der Anwendungsrolle die Spalte
 `app.lohnexport_abwesenheiten` (0143) liefert sie nur unter
 `zeit.exportieren` und nur für die aktive Gesellschaft; wem das Recht fehlt,
 dem verweigert die Datenbank den Export (Isolationstest).
+
+### D-488 · „Ich tippe den Code ein, und es passiert nichts" — drei Ursachen, ein Bild
+
+Der Nutzer meldete nach D-487 dasselbe Bild erneut: Code eingeben, Seite
+bleibt stehen. Nachgestellt ergab das **drei verschiedene Ursachen, die
+am Telefon gleich aussehen** — und keine davon war irgendwo abzulesen.
+
+**(1) Das Formular blockierte stumm.** Das Codefeld trug
+`pattern="[0-9]{6}"` und `maxLength={6}`. Wer den Code vom Bildschirm der
+Einsatzleitung markiert und einfügt, bringt Leerzeichen mit; manche Tastatur
+setzt ein schmales Leerzeichen zwischen die Dreiergruppen. Die
+Browserprüfung lehnt das Absenden dann ab — ohne Meldung, ohne Bewegung,
+ohne Zeile im Protokoll. Aus Sicht der Mitarbeiterin passiert nichts.
+Jetzt gilt: **die Ziffern sind der Code, alles andere ist Formatierung.**
+`nurZiffern` reduziert die Eingabe serverseitig, das Feld trägt kein
+`pattern` mehr und erlaubt Leerzeichen (Kern-Test mit `' 12 34 56 '`,
+Browsertest fügt den Code mit Leerzeichen ein).
+
+**(2) Der Code war richtig — das Konto fehlte.** `app.zugang_code_einloesen`
+(0114) löst den Code ein und verbraucht ihn; `app.mitarbeiter_sitzung_ausstellen`
+(0115) gibt danach `null`, wenn zu diesem Menschen kein aktives, nicht
+gesperrtes, kein Dienstkonto gehört. Die Seite sagte „falscher Code" — die
+Mitarbeiterin fordert einen neuen an, scheitert wieder, und nach drei
+offenen Codes hält die Bremse. Jetzt ist das ein **eigener Satz**
+(`?fehler=konto`): der Code war richtig, das Konto fehlt, ein neuer Code
+ändert daran nichts. Das ist kein Orakel — wer diesen Satz liest, hatte
+einen gültigen Code in der Hand und weiß bereits, dass es die Nummer gibt.
+Verschwiegen hat der Satz genau einen Effekt: verbrannte Codes.
+
+**(3) Der Browser nahm den Sitzungskeks nicht an.** In Produktion heißt der
+Keks `__Host-cse_sitzung` (0007/D-421) — dieser Präfix verlangt eine sichere
+Verbindung. Über `http://` (die übliche Adresse eines Testgeräts im WLAN)
+lehnt jeder Browser ihn ab: die Anmeldung war erfolgreich, das Portal sieht
+trotzdem keine Sitzung und zeigte nur „Anmeldung erforderlich". Die
+Codeseite hängt jetzt `?angemeldet=1` an die Weiterleitung; steht das dort
+und fehlt die Sitzung, sagt das Portal **warum** und nennt `https://`.
+
+**Und die Einsatzleitung rät nicht mehr.** `app.zugang_stand` (0144, nur
+unter `personal.zugang_verwalten`, nur für Beschäftigte der aktiven
+Gesellschaft) beantwortet in einer Auskunft: Zugang vorhanden? gesperrt?
+**Konto aktiv?** wie viele der drei Codes sind offen? wann war die letzte
+Anmeldung? Die Nummer verlässt die Datenbank nicht (letzte drei Ziffern).
+Die Zugangsseite zeigt diese Zeilen, nennt das Hindernis in einem Satz mit
+dem nächsten Schritt und sperrt den Knopf, wo ein Code nichts bringt
+(kein Zugang, gesperrt, Bremse). Dafür kam **ein** Spaltenrecht dazu:
+`select (letzter_login_am)` für `cse_definer` — dieselbe Rolle schreibt die
+Spalte seit 0116 bei jeder Anmeldung; `cse_app` liest die Tabelle weiterhin
+gar nicht.
+
+**Was bewusst NICHT passiert ist:** die erste Stufe bleibt stumm. Ob es eine
+Nummer gibt, sagt `/auth/mitarbeiter` weiterhin nicht (0114) — geändert hat
+sich nur, was jemand erfährt, der einen gültigen Code schon besaß.

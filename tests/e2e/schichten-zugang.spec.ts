@@ -62,9 +62,15 @@ test.describe('Anmeldung und Schichten (D-487)', () => {
     await page.waitForURL('**/auth/mitarbeiter/code');
     const code = (await page.locator('[data-cse="dev-code-wert"]').innerText()).trim();
     expect(code).toMatch(/^[0-9]{6}$/u);
-    await page.fill('input[name="code"]', code);
+    /*
+     * **So kommt der Code wirklich an** (D-488): wer ihn vom Bildschirm
+     * markiert und einfuegt, bringt Leerzeichen mit. Ein `pattern` im
+     * Formular haette hier stumm blockiert — die Seite bliebe stehen, ohne
+     * ein Wort. Genau das hat der Nutzer beschrieben.
+     */
+    await page.fill('input[name="code"]', ` ${code.slice(0, 3)} ${code.slice(3)} `);
     await page.locator('[data-cse="code-einloesen"]').click();
-    await page.waitForURL('**/portal/mein');
+    await page.waitForURL(/\/portal\/mein/u);
     await expect(page.locator('h1')).toBeVisible();
     // Kein waagerechtes Scrollen auf dem Handy.
     const breite = await page.evaluate(() => document.documentElement.scrollWidth);
@@ -110,7 +116,7 @@ test.describe('Anmeldung und Schichten (D-487)', () => {
     // Die Mitarbeiterin kommt mit genau diesem Code hinein — nicht mit dem angezeigten.
     await seite.fill('input[name="code"]', code);
     await seite.locator('[data-cse="code-einloesen"]').click();
-    await seite.waitForURL('**/portal/mein');
+    await seite.waitForURL(/\/portal\/mein/u);
     await expect(seite.locator('h1')).toBeVisible();
     await handy.close();
 
@@ -120,6 +126,39 @@ test.describe('Anmeldung und Schichten (D-487)', () => {
        order by erstellt_am desc limit 1`;
     expect(eintrag?.nachher['weg']).toBe('einsatzleitung');
     expect(JSON.stringify(eintrag?.nachher)).not.toContain(code);
+  });
+
+  test('ein falscher Code sagt es sichtbar — die Seite bleibt nicht stumm', async ({ page }) => {
+    await page.setViewportSize(HANDY);
+    const fatima = await person(KONTO.fatima);
+    await bremseLoesen(fatima.id);
+    await page.goto('/auth/mitarbeiter');
+    await page.fill('input[name="telefon"]', fatima.telefon);
+    await page.locator('[data-cse="code-anfordern"]').click();
+    await page.waitForURL('**/auth/mitarbeiter/code');
+
+    await page.fill('input[name="code"]', '000000');
+    await page.locator('[data-cse="code-einloesen"]').click();
+    await page.waitForURL(/fehler=code/u);
+    // Der Kasten steht OBEN, nicht als Kleingedrucktes unter dem Feld: am
+    // Telefon ist das der Unterschied zwischen „es passiert nichts" und einer Auskunft.
+    const kasten = page.locator('[data-cse="code-fehler"]');
+    await expect(kasten).toBeVisible();
+    await expect(kasten).toContainText('nicht geklappt');
+    await expect(kasten).toBeInViewport();
+  });
+
+  test('die Zugangsseite zeigt, woran eine Anmeldung haengt: Konto, offene Codes, letzte Anmeldung', async ({ page }) => {
+    const fatima = await person(KONTO.fatima);
+    await anmelden(page, KONTO.adminReinigung);
+    await page.goto(`/portal/reinigung/personal/personen/${fatima.id}/zugang`);
+    await expect(page.locator('[data-cse="zugang-vorhanden"]')).toContainText('eingerichtet');
+    await expect(page.locator('[data-cse="zugang-konto"]')).toContainText('aktiv');
+    await expect(page.locator('[data-cse="zugang-offene-codes"]')).toContainText('von 3');
+    await expect(page.locator('[data-cse="zugang-letzte-anmeldung"]')).not.toBeEmpty();
+    // Nichts steht im Weg — also kein Hindernis-Kasten, und der Knopf traegt.
+    await expect(page.locator('[data-cse="zugang-hindernis"]')).toHaveCount(0);
+    await expect(page.locator('[data-cse="zugang-code-ausstellen"]')).toBeEnabled();
   });
 
   test('ohne personal.zugang_verwalten gibt es die Zugangsseite nicht', async ({ page }) => {

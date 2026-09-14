@@ -20,7 +20,8 @@ import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import {
   SerieEingabeFehlt, legePlanungsserieAn, legeTurnusSerieAn,
 } from '../../src/server/services/dienstplan/serie.js';
-import { stelleZugangscodeAus } from '../../src/server/services/personal/zugangscode.js';
+import { leseZugangsstand, stelleZugangscodeAus } from '../../src/server/services/personal/zugangscode.js';
+import { mitarbeiterSitzungAusstellen } from '../../src/server/auth/sitzung.js';
 import { codeEinloesen } from '../../src/server/auth/mitarbeiter-anmeldung.js';
 import { erstelleLohnexport } from '../../src/server/services/zeit/lohnexport.js';
 
@@ -242,6 +243,69 @@ describe('(2) der Anmeldecode aus der Hand der Einsatzleitung', () => {
     const admin = await legeAdministrationAn(f.reinigung);
     await entziehe('admin', 'personal.zugang_verwalten', f.reinigung);
     await expect(alsApp(sitzung(undefined, admin), (tx) => stelleZugangscodeAus(kontextAus(tx, undefined, admin), f.jonas)))
+      .rejects.toSatisfy((e: unknown) => e instanceof Error && /zugang_verwalten|privilege/u.test(e.message));
+  });
+});
+
+/**
+ * **Der Befund, der den Vormittag gekostet hat** (D-488).
+ *
+ * „Ich tippe den Code ein, und es passiert nichts." Drei Zustaende sehen am
+ * Telefon gleich aus, und keiner stand irgendwo: kein Zugang, kein
+ * benutzbares Konto, drei offene Codes. Der schlimmste ist der mittlere: der
+ * Code ist RICHTIG, wird eingeloest und verbraucht — und die Sitzung bleibt
+ * aus (0115). Hier steht er als Ablauf, nicht als Behauptung.
+ */
+describe('(2b) der Zugangsstand sagt, woran die Anmeldung haengt', () => {
+  const TELEFON = '+491701239876';
+
+  it('richtiger Code, kein benutzbares Konto: eingeloest, aber keine Sitzung — und der Stand sagt es vorher', async () => {
+    /* Ein Mensch mit Beschaeftigung und Zugang, aber ohne Benutzerkonto. */
+    const [p] = await sql.unsafe<{ id: string }[]>(
+      `insert into person (vorname, nachname, telefon)
+       values ('Ohne', 'Konto', '+49 170 1239876') returning id`);
+    await sql.unsafe(
+      `insert into anstellung (mandant_id, person_id, personalnummer, eintritt, status)
+       values ($1, $2, $3, current_date - 30, 'aktiv')`,
+      [f.reinigung, p!.id, `PN-${zufall()}`]);
+    await sql.unsafe(
+      `insert into mitarbeiter_zugang (person_id, telefon_e164) values ($1, $2)`, [p!.id, TELEFON]);
+
+    const vorher = await alsApp(sitzung(), (tx) => leseZugangsstand(kontextAus(tx), p!.id));
+    expect(vorher.hatAnstellung).toBe(true);
+    expect(vorher.hatZugang).toBe(true);
+    expect(vorher.hatKonto, 'genau das ist das Hindernis').toBe(false);
+    expect(vorher.telefonMaskiert).toBe('…876');
+    expect(vorher.offeneCodes).toBe(0);
+    expect(vorher.letzteAnmeldung).toBeNull();
+
+    const a = await alsApp(sitzung(), (tx) => stelleZugangscodeAus(kontextAus(tx), p!.id));
+    expect(a.ok).toBe(true);
+    if (!a.ok) return;
+    const offen = await alsApp(sitzung(), (tx) => leseZugangsstand(kontextAus(tx), p!.id));
+    expect(offen.offeneCodes, 'die Bremse zaehlt sichtbar mit').toBe(1);
+
+    /* Der Code stimmt — die Sitzung kommt trotzdem nicht. */
+    const ergebnis = await sql.begin(async (tx) => {
+      const personId = await codeEinloesen(tx, TELEFON, a.code);
+      return personId === null ? null : mitarbeiterSitzungAusstellen(tx, personId, null, null);
+    });
+    expect(ergebnis, 'kein benutzbares Konto (0115) — genau dieser Fall hiess bisher „falscher Code"')
+      .toBeNull();
+  });
+
+  it('ein Mensch ohne Zugang: der Stand sagt es, statt einen Code anzubieten', async () => {
+    const stand = await alsApp(sitzung(), (tx) => leseZugangsstand(kontextAus(tx), f.jonas));
+    expect(stand.hatAnstellung).toBe(true);
+    expect(stand.hatZugang).toBe(false);
+    expect(stand.telefonMaskiert).toBeNull();
+  });
+
+  it('ohne das Recht gibt es den Stand nicht', async () => {
+    const admin = await legeAdministrationAn(f.reinigung);
+    await entziehe('admin', 'personal.zugang_verwalten', f.reinigung);
+    await expect(alsApp(sitzung(undefined, admin),
+      (tx) => leseZugangsstand(kontextAus(tx, undefined, admin), f.jonas)))
       .rejects.toSatisfy((e: unknown) => e instanceof Error && /zugang_verwalten|privilege/u.test(e.message));
   });
 });

@@ -43,7 +43,9 @@ interface Daten {
   readonly nachweise: EigeneNachweislage;
 }
 
-export default async function MeinPortal() {
+export default async function MeinPortal(
+  { searchParams }: { readonly searchParams?: Promise<Record<string, string | string[] | undefined>> },
+) {
   /**
    * „Heute" kommt aus der DATENBANK und nicht aus `new Date()`: zwischen
    * Mitternacht und 02:00 Berliner Zeit ist der UTC-Tag noch der gestrige,
@@ -58,7 +60,13 @@ export default async function MeinPortal() {
     stunden: await leseStundenFenster(kontext, { heute, wochenBeginn, monatsBeginn }),
     nachweise: await leseEigeneNachweise(kontext, heute, basis.sprache),
   }));
-  if (ergebnis.art === 'anmeldung') return <AnmeldungNoetig />;
+  /*
+   * `angemeldet=1` setzt die Codeseite nach einer erfolgreichen Anmeldung.
+   * Steht es hier UND es gibt keine Sitzung, hat der Browser den Keks
+   * abgelehnt — ein anderer Fall als „nicht angemeldet" (D-488).
+   */
+  const kam = searchParams === undefined ? {} : await searchParams;
+  if (ergebnis.art === 'anmeldung') return <AnmeldungNoetig keksAbgelehnt={kam['angemeldet'] === '1'} />;
 
   const { basis, daten } = ergebnis;
   const t = basis.texte;

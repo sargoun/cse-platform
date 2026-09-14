@@ -7,6 +7,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  codeEinloesen,
+  nurZiffern,
   codeAnfordern, codeHash, neuerCode, normalisiereTelefon,
 } from '../../src/server/auth/mitarbeiter-anmeldung.js';
 import {
@@ -209,5 +211,48 @@ describe('der Code wird nur gezeigt, wo er gezeigt werden darf', () => {
     );
     expect(ergebnis.angenommen, 'nach aussen immer dieselbe Antwort').toBe(true);
     expect(ergebnis.codeFuerEntwicklung).toBeNull();
+  });
+});
+
+/**
+ * **Der Code, wie er wirklich ankommt** (D-488).
+ *
+ * Der Nutzer hat es am Telefon so beschrieben: „Ich tippe den Code ein, und
+ * es passiert nichts." Ein `pattern="[0-9]{6}"` im Formular blockiert das
+ * Absenden ohne sichtbare Meldung, sobald ein Leerzeichen mitkommt — und es
+ * kommt mit, wenn jemand den Code vom Bildschirm der Einsatzleitung
+ * markiert und einfuegt. Die Ziffern sind der Code; alles andere ist
+ * Formatierung, und die faellt hier weg, statt die Seite anhalten zu lassen.
+ */
+describe('der eingefuegte Code traegt Formatierung — die Ziffern tragen die Bedeutung', () => {
+  it('nurZiffern laesst genau die Ziffern stehen', () => {
+    expect(nurZiffern(' 12 34 56 ')).toBe('123456');
+    expect(nurZiffern('123-456')).toBe('123456');
+    expect(nurZiffern('Code: 123456.')).toBe('123456');
+    expect(nurZiffern('\u202f123\u00a0456')).toBe('123456');
+  });
+
+  it('ein eingefuegter Code mit Leerzeichen wird eingeloest — mit dem Hash der Ziffern', async () => {
+    const gefragt: unknown[][] = [];
+    const tx = {
+      unsafe: (_a: string, w?: readonly unknown[]): Promise<readonly unknown[]> => {
+        gefragt.push([...(w ?? [])]);
+        return Promise.resolve([{ person_id: 'person-1' }]);
+      },
+    };
+    const person = await codeEinloesen(tx, '0170 1234567', ' 12 34 56 ');
+    expect(person).toBe('person-1');
+    expect(gefragt[0]?.[1], 'die Datenbank sieht den Hash der sechs Ziffern').toBe(codeHash('123456'));
+  });
+
+  it('zu wenige oder zu viele Ziffern: die Datenbank wird gar nicht gefragt', async () => {
+    let aufrufe = 0;
+    const tx = {
+      unsafe: (): Promise<readonly unknown[]> => { aufrufe += 1; return Promise.resolve([{ person_id: 'x' }]); },
+    };
+    expect(await codeEinloesen(tx, '0170 1234567', '12345')).toBeNull();
+    expect(await codeEinloesen(tx, '0170 1234567', '1234567')).toBeNull();
+    expect(await codeEinloesen(tx, '0170 1234567', '')).toBeNull();
+    expect(aufrufe).toBe(0);
   });
 });
