@@ -342,7 +342,13 @@ proven by test, not by inspection.
       `cse_app`, `cse_job`, the owner and TRUNCATE; an audit bundle per fiscal
       year with a canonical manifest and a reproducible STORE zip. Bucket-level
       immutability at the provider stays open (O-364).
-- [ ] Open items, monthly figures, Z3 export, Verfahrensdokumentation
+- [x] Open items and monthly figures (PR 65, D-484) — ageing in calendar
+      days (asserted across both DST changes), reconciliation against the
+      source tables, monthly figures **BWA-artig** from documents per fiscal
+      year with drill-through on every figure, group = sum of entities
+      (asserted), period lock with frozen figures and a one-way close;
+      bookkeeping overview and a read-only chart-of-accounts screen.
+- [ ] Z3 export, Verfahrensdokumentation
 - [ ] Year-end package; payroll time export
 
 **Acceptance:** the tax advisor accepts a real EXTF file without rework.

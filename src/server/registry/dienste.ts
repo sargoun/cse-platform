@@ -734,6 +734,13 @@ export const DIENSTE: readonly DienstEintrag[] = [
   /* PR 64 — GoBD-Archiv: Buendel, Wirtschaftsjahr, Aufbewahrung, der eine Loeschweg. */
   { modul: 'dokument', pfad: 'archiv/zip', schreibend: false },
   { modul: 'buchhaltung', pfad: 'buchhaltung/wirtschaftsjahr', schreibend: false },
+  /* PR 65 — Offene Posten, Monatszahlen, Periodenschloss. */
+  { modul: 'buchhaltung', pfad: 'buchhaltung/offene-posten', schreibend: false },
+  { modul: 'buchhaltung', pfad: 'buchhaltung/monatszahlen', schreibend: false },
+  {
+    modul: 'buchhaltung', pfad: 'buchhaltung/periodenschluss',
+    schreibend: true, schreibRecht: 'buchhaltung.festschreiben',
+  },
   { modul: 'dokument', pfad: 'buchhaltung/pruefbuendel', schreibend: false },
   {
     modul: 'dokument', pfad: 'dokument/aufbewahrung',

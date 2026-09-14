@@ -934,6 +934,15 @@ export const ROUTEN: readonly RouteEintrag[] = [
     pfad: 'api/dokumente/buendel',
     recht: 'dokument.buendel_exportieren',
   },
+  {
+    /**
+     * Das Periodenschloss (ACC-01, PR 65): vorlaeufig schliessen, schliessen,
+     * wieder oeffnen — unter `buchhaltung.festschreiben`, dem Recht, das auch
+     * in einen vorlaeufig geschlossenen Monat noch buchen darf.
+     */
+    pfad: 'api/buchhaltung/perioden',
+    recht: 'buchhaltung.festschreiben',
+  },
   /**
    * Der Freigabe-Posteingang (PR 62 Rest, APR-01/02/03/07/08, D-472).
    *

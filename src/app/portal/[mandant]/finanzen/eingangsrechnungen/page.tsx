@@ -45,10 +45,25 @@ const ZUSTAND: Readonly<Record<string, string>> = {
   abgelehnt: 'abgelehnt',
 };
 
+/** `DD.MM.YYYY` oder `YYYY-MM-DD` → `YYYY-MM`; die Zeile traegt das Datum in der Anzeigeform. */
+function monatVon(datum: string | null): string | null {
+  if (datum === null) return null;
+  if (/^\d{4}-\d{2}-\d{2}/u.test(datum)) return datum.slice(0, 7);
+  if (/^\d{2}\.\d{2}\.\d{4}$/u.test(datum)) return `${datum.slice(6, 10)}-${datum.slice(3, 5)}`;
+  return null;
+}
+
 export default async function Eingangsrechnungen(
-  { params }: { params: Promise<{ mandant: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant } = await params;
+  /* Der Monat aus den Monatszahlen (DSH-04): `?monat=YYYY-MM` filtert nach Rechnungsdatum. */
+  const suche = await searchParams;
+  const monatRoh = typeof suche['monat'] === 'string' ? suche['monat'] : null;
+  const monat = monatRoh !== null && /^\d{4}-\d{2}$/u.test(monatRoh) ? monatRoh : null;
   const zugang = await portalZugang(`/portal/${mandant}/finanzen/eingangsrechnungen`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
@@ -58,9 +73,10 @@ export default async function Eingangsrechnungen(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
-  const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+  const alle = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) =>
       eingangsrechnungen(kontext))) as ReturnType<typeof eingangsrechnungen>);
+  const zeilen = monat === null ? alle : alle.filter((z) => monatVon(z.rechnungsdatum) === monat);
 
   return (
     <PortalRahmen
@@ -75,6 +91,12 @@ export default async function Eingangsrechnungen(
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">Eingangsrechnungen</h1>
+        {monat === null ? null : (
+          <p data-cse="monat-filter" className="text-sm text-text-muted">
+            Rechnungsdatum im Monat <strong>{monat.slice(5, 7)}/{monat.slice(0, 4)}</strong>{' '}
+            <Link href={`/portal/${mandant}/finanzen/eingangsrechnungen`} className="underline underline-offset-2">alle zeigen</Link>
+          </p>
+        )}
         <Link
           href={`/portal/${mandant}/finanzen/eingangsrechnungen/neu`}
           className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"

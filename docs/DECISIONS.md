@@ -8362,3 +8362,54 @@ die Zahl der festgeschriebenen Rechnungen ohne Archivlauf, und die Zusage
 in einem Satz, der sagt, warum sie eine Eigenschaft ist. Ein Hinweiskasten
 ist seit dieser Runde ein Bauteil (`ui/Hinweis.tsx`, DESIGN §5 „Notices")
 statt einer Funktion in einer Seitendatei.
+
+### D-484 · Offene Posten, Monatszahlen, Periodenschloss — Kalendertage, Belege, eine Richtung (PR 65)
+
+**Das Alter eines Postens ist eine Differenz von Kalendertagen.** `stichtag −
+faellig_am`, beides `date`, beides der Berliner Kalender (K-11) — kein
+Zeitpunkt, keine Zone. Ein Posten, der am 27. März fällig war, ist am 26.
+April 30 Tage alt, obwohl die Uhr dazwischen umgestellt wurde; der Test hält
+das für den März und den Oktober fest. Fünf Klassen — nicht fällig, 0–30,
+31–60, 61–90, über 90 — und ihre Summe IST der offene Betrag; kein Posten
+liegt zwischen zwei Klassen. Guthaben stehen daneben, nicht dazwischen.
+
+**Die Abstimmung ist ein zweiter Weg.** `offen_cent` ist eine erzeugte
+Spalte, `bezahlt_cent` schreiben die Auslöser. Abgestimmt wird gegen die
+Quellen: festgeschriebene Rechnungen (Zahlbetrag) minus nicht stornierte
+Zuordnungen; Kreditoren gegen den eröffneten Betrag minus Zuordnungen.
+Weicht es ab, sagt der Bildschirm die beiden Zahlen — kein Häkchen, das
+nichts geprüft hat.
+
+**Monatszahlen sind BWA-artig — und heißen so, nie „BWA".** Erlöse sind die
+festgeschriebenen Ausgangsrechnungen nach Rechnungsdatum (netto, Stornos mit
+Vorzeichen), Aufwand die freigegebenen und gebuchten Eingangsrechnungen
+(netto), Ergebnis die Differenz — dieselbe Lesart wie die Gruppensicht
+(D-475), weshalb die Gruppe die Summe der Gesellschaften ist und nichts
+anderes (Test). Personal, Abschreibung, Abgrenzung, Steuern fehlen, und die
+Seite sagt es; die Betriebswirtschaftliche Auswertung erstellt der
+Steuerberater aus dem DATEV-Export. Ein Kern-Test verbietet das Wort „BWA"
+ohne „-artig" in Bildschirmen und Diensten. Die Monate laufen je
+Wirtschaftsjahr aus `datev_konfiguration` (O-05, Platzhalter markiert).
+Jede Zahl führt auf die Liste des Monats (`?monat=YYYY-MM` auf Rechnungen
+und Eingangsrechnungen, DSH-04).
+
+**Das Periodenschloss hat eine Richtung.** offen → vorläufig geschlossen →
+geschlossen. Vorläufig ist die Arbeitsphase: wer festschreiben darf, bucht
+noch hinein (`fin.periode_gesperrt`), sonst niemand; vorläufig lässt sich
+wieder öffnen. Geschlossen ist endgültig — keine Buchung mehr, kein
+Wiederöffnen, korrigiert wird im offenen Monat durch Gegenbuchung (GoBD,
+Festschreibung). Ein laufender Monat wird nicht endgültig geschlossen: sein
+letzter Tag liegt vor dem Berliner Heute, sonst schriebe man Zahlen fest, zu
+denen noch Belege kommen. Beim endgültigen Schließen werden die
+Monatszahlen eingefroren (`periode.umsatz_erloes_cent`, `aufwand_cent`,
+`ergebnis_cent`, ACC-08) — mit derselben Rechnung wie die Seite, damit sie
+später sagen kann: ein Beleg mit altem Datum kam nach dem Schließen dazu.
+Das steht dann als Abweichung in der Zeile, nicht geglättet. Was die
+Datenbank beim Schließen abweist (Zeilen ohne Konto, Buchungen ohne
+Ausgleich, `fin.periode_schliessen_pruefen`), kommt als Satz auf die Seite.
+Jede Handlung steht im Protokoll. Ein Reihenfolgezwang (erst der Vormonat)
+ist keine gesetzliche Vorgabe und wird nicht erfunden.
+
+**Kontenrahmen lesend.** `/buchhaltung/konten` zeigt Kontenrahmen, Sach-
+kontenlänge, Wirtschaftsjahr und jede Zuordnung mit Platzhalterstand — und
+keinen Editor: welche Zuordnung gilt, bestätigt der Steuerberater (O-05).

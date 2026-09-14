@@ -124,6 +124,27 @@ export default async function GruppenFinanzen({ searchParams }: { searchParams: 
                    zeilen={daten.eingangJeMonat} schluessel={(z) => String(z.monat)}
                    spalten={monatsSpalten} />
       </div>
+
+      <h2 className="mb-s3 mt-s6 text-h2 text-text">Ergebnis je Monat (BWA-artig)</h2>
+      <div data-cse="finanzen-monate-ergebnis">
+        <DataTable
+          beschriftung={`Ergebnis ${String(jahr)} je Monat — Erlöse minus Aufwand, Summe der Gesellschaften`}
+          zeilen={daten.fakturiertJeMonat.map((z, i) => ({
+            monat: z.monat, label: z.label,
+            erloese: z.summe, aufwand: daten.eingangJeMonat[i]?.summe ?? (0n as Cent),
+          }))}
+          schluessel={(z) => String(z.monat)}
+          spalten={[
+            { schluessel: 'monat', kopf: 'Monat', zelle: (z) => z.label },
+            { schluessel: 'erloese', kopf: 'Erlöse netto', numerisch: true, zelle: (z) => formatiereGeld(z.erloese) },
+            { schluessel: 'aufwand', kopf: 'Aufwand netto', numerisch: true, zelle: (z) => formatiereGeld(z.aufwand) },
+            { schluessel: 'ergebnis', kopf: 'Ergebnis', numerisch: true,
+              zelle: (z) => <strong data-cse="gruppe-monat-ergebnis" data-monat={String(z.monat)}
+                                    data-cent={(z.erloese - z.aufwand).toString()}><Betrag wert={(z.erloese - z.aufwand) as Cent} /></strong> },
+          ]}
+        />
+      </div>
+      <GruppenHinweis text="BWA-artig, keine Betriebswirtschaftliche Auswertung: Erlöse und Aufwand aus den Belegen nach Rechnungsdatum, je Gesellschaft dieselbe Rechnung wie unter Buchhaltung › Monatszahlen; die Gruppe ist die Summe der Gesellschaften." />
     </GruppenRahmen>
   );
 }

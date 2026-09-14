@@ -55,8 +55,9 @@ export async function GET(anfrage: NextRequest): Promise<NextResponse> {
         await kontext.schreibe(
           `select app.protokolliere('dokument.buendel_abgerufen', 'pruefbuendel', $1, null,
                                     $2::jsonb, app.aktiver_mandant())`,
-          [String(jahr), JSON.stringify({ format, manifestSha256: b.manifestSha256,
-            dateien: b.paket?.dateien.length ?? 0, sperre: b.sperre !== null })]);
+          /* Ein Objekt, kein JSON-Text: der Treiber kodiert einen Text ein zweites Mal (D-467). */
+          [String(jahr), { format, manifestSha256: b.manifestSha256,
+            dateien: b.paket?.dateien.length ?? 0, sperre: b.sperre !== null }]);
         return { buendel: b, bytes: aus };
       }))) as { buendel: Pruefbuendel; bytes: Uint8Array };
 
