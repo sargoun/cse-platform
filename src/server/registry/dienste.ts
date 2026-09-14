@@ -53,6 +53,13 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'radar', pfad: 'radar/benachrichtigung', schreibend: false },
   { modul: 'radar', pfad: 'radar/warnung', schreibend: false },
   /**
+   * **Die drei fehlenden Wachen aus SPEC §14 (PR 72).** Sie lesen und melden;
+   * geschrieben wird nur die Quittung, und die schreibt `cse_job` über seine
+   * Policy — kein Recht aus dem Katalog, weil hier kein Mensch handelt.
+   */
+  { modul: 'dienstplan', pfad: 'waechter/dienstplan', schreibend: false },
+  { modul: 'dienstplan', pfad: 'waechter/benachrichtigung', schreibend: false },
+  /**
    * **Die Vergabemappe (PR 70, RAD-07, D-07).** `mappe` fuehrt die Pruefliste
    * unter `vergabe.schreiben`; `einreichung` bezeugt die Abgabe und traegt
    * deshalb ein eigenes Recht — wer Formblaetter abhakt, bezeugt damit nicht,

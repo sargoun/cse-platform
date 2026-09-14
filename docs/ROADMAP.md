@@ -447,7 +447,13 @@ Radar first — the agents operate on its output.
       — blocked on the model access above, not on the runtime.
 - [ ] Approval inbox with diff review, source attribution, confidence flags,
       batch approval, delayed release, undo, approval snapshots
-- [ ] Watchdog jobs (SPEC §14)
+- [x] Watchdog jobs (SPEC §14) — **all eight** (PR 72, D-494). The three that
+      were missing all failed on the same thing: they must notify "the planner"
+      or "the site manager", and no such field exists. So `app.hat_recht` was
+      split — `app.hat_recht_fuer(user, key, tenant, …)` is the core, the old
+      function its shell, and `kern.traeger_des_rechts` the **inverse** on that
+      same core. One implementation, two entrances; a copied resolution would
+      drift and then notify people who cannot open the page they are linked to.
 
 **Acceptance:**
 - Real notices appear daily, separated by area, each showing why it scored.

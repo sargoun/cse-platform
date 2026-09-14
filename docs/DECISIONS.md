@@ -8969,3 +8969,80 @@ aus wie eine beantwortete Frage.
 **Geprüft:** Kern 1671 · Isolation 1555 (neu: `radar-warnungen` 14) · Browser
 `radar` 6. Die Isolationsfälle fahren den Lauf unter der ECHTEN Jobrolle —
 genau deshalb ist der `mandant`-Befund aufgefallen und nicht erst im Betrieb.
+
+### D-494 · Die Rechtefrage rückwärts — und die drei letzten Wächter aus SPEC §14 (PR 72)
+
+Fünf der acht Wächter standen. Die drei fehlenden scheiterten alle an
+derselben Stelle: sie sollen „den Planer" oder „den Bauleiter"
+benachrichtigen, und keine dieser Meldungen hat ein Feld, in dem der
+Empfänger stünde.
+
+**`app.hat_recht` beantwortet die Frage falsch herum.** Sie sagt „hält die
+SITZUNG dieses Recht in diesem Bereich" — richtig für eine Policy,
+unbrauchbar für einen Job, der gar keine Sitzung hat. Gebraucht wird die
+Umkehrung: welche Konten halten es.
+
+**Und die Umkehrung darf keine zweite Fassung der Rechtelogik sein.** Die
+Auflösung ist nicht trivial: globale Rolle vor Mitgliedschaft,
+mandantenspezifische Zeile vor Plattformvorgabe, dazu die Modul-Schnittmenge
+aus AUT-01 und die Sperre für `nur_global`. Abgeschrieben driftet sie beim
+ersten Zusatz auseinander — und dann benachrichtigt die Plattform jemanden,
+der die verlinkte Seite gar nicht öffnen kann (NOT-03 ins Gesicht
+geschlagen), oder sie schweigt gegenüber dem Zuständigen. Deshalb wurde
+`app.hat_recht` **zerlegt**: `app.hat_recht_fuer(benutzer, schlüssel, mandant,
+aal, gruppenansicht)` ist der Kern, `app.hat_recht` die Hülle darüber, und
+`kern.traeger_des_rechts` die Umkehrung auf demselben Kern. **Eine
+Implementierung, zwei Eingänge** — dieselbe Regel, die K-19 für den
+Rechtekatalog aufstellt, angewandt auf seine Auswertung.
+
+Zwei der Prüfungen bleiben ausdrücklich draussen: `erfordert_2fa` fragt, ob
+die aktuelle Anmeldung stark genug ist, und die Gruppenansicht verbietet
+jedes Schreibrecht. Beides sind Eigenschaften der SITZUNG. Für „wer ist
+zuständig" gilt keine davon — ein Bauleiter bleibt zuständig, auch wenn er
+gerade nicht angemeldet ist. Dienstkonten fallen heraus: der
+Website-Renderer hält Rechte, hat aber keinen Posteingang, den jemand liest.
+
+**Die drei Wächter.**
+
+*Schicht beendet, kein Zeiteintrag* (stündlich). Gemeldet wird eine
+**Zusage** ohne Eintrag, nicht eine blosse Einteilung — wer nur eingeteilt
+war, hat nicht versprochen zu kommen; das ist eine Besetzungslücke und
+gehört in die andere Wache. Mit **zwei Stunden Nachlauf**: wessen Schicht um
+22:00 endet, hat um 22:01 noch nicht ausgestempelt, und eine stündliche
+Wache ohne Nachlauf wäre eine Uhr, keine Warnung.
+
+*Morgen unbesetzt* (täglich 18:00 Ortszeit). Gezählt werden **Zusagen**, und
+zwar frisch — nicht `einsatz.besetzt_anzahl`: das ist ein abgeleiteter Wert,
+und eine Wache, die Plan gegen Wirklichkeit prüft, darf nicht denselben
+abgeleiteten Wert lesen, den sie prüfen soll. Die Untergrenze ist
+`min_besetzung`; ein `coalesce` auf das Soll wäre überflüssig, weil ein CHECK
+aus 0028 `min_besetzung >= 1 and <= soll_besetzung` erzwingt — eine Abfrage,
+die sich dagegen absichert, behauptet einen Zustand, den die Datenbank nicht
+zulässt.
+
+*Nachtrag angemeldet, nach 14 Tagen nicht eingereicht* (täglich). **Der
+Dienst stand seit 0080**, mitsamt Gedächtnis und fertigem Ziel; es fehlte der
+Zeitplan. Eine Wache ohne Uhr ist eine Funktion, die niemand ruft.
+
+**Das Gedächtnis: ein gemeinsamer Tisch, kein Feld je Wache.** Der Nachtrag
+behält seine Spalte (`ueberfaellig_gemeldet_am`) — sie steht in der Bauakte
+und wird dort angezeigt. Die beiden Dienstplanwachen melden dagegen an
+MEHRERE Empfänger, und „gemeldet" ist dann keine Eigenschaft des Einsatzes,
+sondern des Paares (Einsatz, Mensch); eine Spalte am Einsatz könnte das nicht
+ausdrücken, ohne zu lügen. `waechter_meldung.kennung` trägt die **Lage**, nicht
+den Gegenstand: für „morgen unbesetzt" ist es der Tag, damit dieselbe Schicht
+morgen wieder melden darf, wenn sie immer noch leer ist.
+
+**Zwei Befunde, die erst der Lauf unter der echten Jobrolle gefunden hat** —
+dasselbe Muster wie in D-493, und deshalb ist es kein Zufall, sondern eine
+Methode: `cse_job` hatte weder auf `mandant` noch auf `person` Recht und
+Policy. Der erste stündliche Lauf wäre an „permission denied for table
+person" gestorben. Beide sind jetzt **Spaltenrechte**: `(id, slug)` bzw.
+`(id, vorname, nachname)`. Das ist hier kein Detail — in derselben
+`person`-Zeile stehen Geburtsdatum, Staatsangehörigkeit und
+Sozialversicherungsnummer, und eine Wache, die einen Namen in eine Meldung
+schreibt, hat mit ihnen nichts zu tun.
+
+**Geprüft:** Kern 1672 · Isolation 1569 (neu: `waechter` 14). Der Kerntest
+zählt die acht SPEC-§14-Wachen namentlich ab — eine gestrichene fällt auf,
+statt still zu verschwinden.
