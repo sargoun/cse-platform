@@ -261,7 +261,7 @@ test('beide Anmeldeschritte sind ohne axe-Verstoss', async ({ page }) => {
     } else {
       await page.fill('input[name="telefon"]', await nummerVon('amir.haddad@cse-gruppe.de'));
       await bremseLoesenFuerFeld(page);
-  await page.locator('[data-cse="code-anfordern"]').click();
+      await page.locator('[data-cse="code-anfordern"]').click();
       await page.waitForURL('**/auth/mitarbeiter/code');
     }
     await expect(page).toHaveTitle(TITEL[schritt]);

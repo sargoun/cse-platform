@@ -990,6 +990,16 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Den Stand einer Bekanntmachung setzen (RAD-07, D-490). Drei Staende —
+     * geprueft, in Bearbeitung, verworfen mit Grund. **Einreichen steht hier
+     * nicht**: die Vergabeplattformen bieten dafuer keine Schnittstelle an
+     * (D-07), und eine Route, die so hiesse, waere eine Behauptung.
+     */
+    pfad: 'api/radar/vorgang',
+    recht: 'radar.status_setzen',
+  },
+  {
+    /**
      * Der Anmeldecode aus der Hand der Einsatzleitung (EMP-01, O-82, D-487):
      * `personal.zugang_verwalten`, das Recht der Zugangsseite. Der Klartext
      * geht in einen kurzlebigen Keks, nie in die Adresse.

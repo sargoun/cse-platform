@@ -378,10 +378,31 @@ Until that happens, this phase is not done.
 
 Radar first — the agents operate on its output.
 
-- [ ] Ingest oeffentlichevergabe.de (OCDS) and TED v3; idempotent, raw retained
-- [ ] `radar_profil` per area; deterministic scoring with reason strings
-- [ ] Deadline countdown, notifications, status workflow
-- [ ] Platform registration tracking (RAD-09)
+- [x] Ingest oeffentlichevergabe.de (OCDS) and TED v3; idempotent, raw retained
+      (PR 68, D-489) — the readers take TEXT, not the network, so a field
+      mapping is proved in the kern suite and not at night; idempotency is
+      carried by `unique (quelle, quell_id)` plus a SHA-256 over the raw
+      payload. **Neither source is connected**: both are public and need no
+      key, but the query this business wants is **O-366**, and until it is
+      answered the nightly run writes `uebersprungen` with the reason.
+- [x] `radar_profil` per area; deterministic scoring with reason strings
+      (PR 68, D-489) — six rules, an itemised breakdown and a German sentence
+      built from it; `bewertung.verfahren` is CHECK-pinned to
+      `deterministisch`, so no model path can write a score without a
+      reviewed migration. Weights are placeholders (**O-15**), a negative
+      keyword deducts rather than excludes until **O-191**, and a
+      foreign-currency value is left unscored rather than converted (**O-47**).
+- [x] Deadline countdown and status workflow (PR 69, D-490) — the countdown
+      is text in the danger tone under five days, not a pill with invented
+      vocabulary (DESIGN §5); the RAD-07 control records geprüft, in
+      Bearbeitung and verworfen **with a mandatory reason**. There is no
+      submit button anywhere in the module and the browser suite counts the
+      word (D-07). **Notifications (RAD-08) still open** — they need the
+      threshold nobody has set (O-15).
+- [x] Platform registration tracking (RAD-09) (PR 69, D-490) — the warning
+      is in the LIST, not only on the detail page, because a platform
+      unlock takes days to weeks. The catalogue ships **empty** and the
+      page says why (O-07): a made-up list would read as a checked state.
 - [ ] `pgvector` index over contracts, objects, offers, correspondence
 - [ ] Agent tools (AGT-02); `berechne_preis` is **pure code**
 - [x] Policy gate (`agent/policy.ts`) — the floor is code, not data: an offer,
