@@ -116,6 +116,61 @@ test.describe('die Anmeldung mit Kennwort', () => {
       await expect(page.locator('input[name="kennwort"]')).toHaveCount(0);
     });
 
+  /**
+   * **Der ganze Weg, einmal durchlaufen (AUT-06).** Bis hierher prüfte diese
+   * Datei nur die beiden Enden: dass die Seite nichts verrät, und dass ein
+   * ungültiger Token abgewiesen wird. Dazwischen lag der eigentliche Weg --
+   * anfordern, dem Link folgen, ein neues Kennwort setzen, sich damit
+   * anmelden -- und der war nie gegangen worden. Genau dort stand der Link
+   * relativ im Mailtext (D-532), ohne dass ein Lauf das bemerkte.
+   *
+   * Der Hash wird vorher gesichert und hinterher zurückgeschrieben: dieselbe
+   * Leitung meldet sich in anderen Fällen mit dem Seed-Kennwort an, und ein
+   * Test, der die Welt verändert zurückslässt, macht den nächsten rot.
+   */
+  test('anfordern, Link folgen, neues Kennwort -- und der Link gilt nur einmal',
+    async ({ page }) => {
+      const email = await demoKonto('leitung');
+      const [vorher] = await sql<{ h: string }[]>`
+        select z.kennwort_hash as h from kern.zugangsdaten z
+          join benutzer b on b.id = z.benutzer_id where b.email = ${email}`;
+      expect(vorher?.h ?? null).not.toBeNull();
+      const NEU = 'ganz-neues-kennwort-2026';
+
+      try {
+        await page.goto('/auth/passwort-vergessen');
+        await page.fill('input[name="email"]', email);
+        await page.click('[data-cse="link-anfordern"]');
+
+        // Auf der Entwicklungsfläche steht der Link statt im Postfach hier.
+        const link = page.locator('[data-cse="dev-link"] a');
+        await expect(link).toBeVisible();
+        const ziel = await link.getAttribute('href');
+        expect(ziel).toMatch(/^\/auth\/passwort-neu\?token=/u);
+
+        await link.click();
+        await page.fill('input[name="kennwort"]', NEU);
+        await page.fill('input[name="kennwort2"]', NEU);
+        await page.click('[data-cse="kennwort-setzen"]');
+        await expect(page).toHaveURL(/gesetzt=1/u);
+
+        // **Nur einmal**: derselbe Link ein zweites Mal ist kein Formular.
+        await page.goto(ziel!);
+        await expect(page.locator('h1')).toContainText(/gilt nicht mehr/u);
+
+        // Und das neue Kennwort trägt wirklich.
+        await bremseLoesen();
+        await page.goto('/auth/login');
+        await page.fill('input[name="email"]', email);
+        await page.fill('input[name="kennwort"]', NEU);
+        await page.click('[data-cse="anmelden"]');
+        await expect(page).toHaveURL(/\/portal/u);
+      } finally {
+        await sql`update kern.zugangsdaten z set kennwort_hash = ${vorher!.h}
+                    from benutzer b where b.id = z.benutzer_id and b.email = ${email}`;
+      }
+    });
+
   test('ohne Sitzung führt der zweite Faktor zurück zur Anmeldung', async ({ page }) => {
     await page.goto('/auth/zwei-faktor/pruefen');
     await expect(page).toHaveURL(/\/auth\/login/u);
