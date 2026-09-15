@@ -692,3 +692,41 @@ export async function ladeNachweis(
       readonly gegenprobe: { readonly bruttoMinuten: number; readonly nettoMinuten: number };
     }>;
 }
+
+/**
+ * Darf DIESE Sitzung DIESEN Zeiteintrag korrigieren (TIM-11, EMP-07)?
+ *
+ * Zwei Fragen in einem Zugriff, weil beide Antworten zusammen gehören:
+ *
+ *  - `recht` — hält die Sitzung `zeit.korrigieren` in dieser Gesellschaft?
+ *    Ein Knopf, der auf 404 führt, verrät die Existenz dessen, was er nicht
+ *    zeigen darf (AUT-06).
+ *  - `eigener` — ist das der eigene Zeiteintrag? Gefragt über
+ *    `benutzer.person_id`, genau wie `kern.korrektur_nicht_selbst` (0036): ein
+ *    Mensch mit zwei Beschäftigungen hat EINEN Login, und die Frage ist, wessen
+ *    Zeitdatensatz das ist — nicht, mit welchem Konto jemand angemeldet war.
+ *    Die Sitzung trägt zwar eine `personId`, aber im internen Portal ist sie
+ *    nicht immer belegt; die Datenbank ist hier die Quelle.
+ *
+ * Getrennt gefragt wäre es ein zweiter Rundgang für eine Auskunft, die nur
+ * zusammen etwas aussagt: das Recht ohne die Selbstprüfung zeigt ein Formular,
+ * das die Datenbank sicher abweist.
+ */
+export interface Korrekturbefugnis {
+  readonly recht: boolean;
+  readonly eigener: boolean;
+}
+
+export async function darfKorrigieren(
+  sitzung: Sitzung, personId: string,
+): Promise<Korrekturbefugnis> {
+  const [zeile] = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+    withTenant(tx, sitzung, (kontext) => kontext.abfrage<Korrekturbefugnis>(
+      `select app.hat_recht('zeit.korrigieren', app.aktiver_mandant()) as recht,
+              exists (select 1 from benutzer b
+                       where b.id = app.aktueller_benutzer()
+                         and b.person_id = $1::uuid)                  as eigener`,
+      [personId],
+    ))) as Promise<readonly Korrekturbefugnis[]>);
+  return zeile ?? { recht: false, eigener: false };
+}

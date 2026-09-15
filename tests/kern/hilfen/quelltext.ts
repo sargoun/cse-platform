@@ -37,6 +37,29 @@
  * er kennt genau die vier Zustaende, um die es hier geht.
  */
 export function ohneKommentare(quelle: string): string {
+  return durchlauf(quelle, false);
+}
+
+/**
+ * Dasselbe, aber mit dem INHALT der Zeichenketten.
+ *
+ * **Wofür.** Eine Prüfung, die fragt „postet dieses Formular auf
+ * `/api/zeit/korrektur`", sucht nach genau dem Text — und der steht in einem
+ * JSX-Attribut, also in einer Zeichenkette. `ohneKommentare` wirft ihn weg;
+ * die rohe Datei dagegen enthält denselben Pfad im Kopfkommentar, das
+ * ERKLÄRT, wohin gepostet wird. Beide Fassungen antworten falsch: die eine
+ * findet nie etwas, die andere immer.
+ *
+ * Deshalb derselbe Zustandsautomat mit einem Schalter. Was hier zurückkommt,
+ * ist Code samt Texten und ohne jeden Kommentar — und eine Prüfung darauf
+ * lässt sich nicht dadurch grün machen, dass jemand das Gesuchte in einen
+ * Kommentar schreibt.
+ */
+export function ohneKommentareMitTexten(quelle: string): string {
+  return durchlauf(quelle, true);
+}
+
+function durchlauf(quelle: string, textBehalten: boolean): string {
   let aus = '';
   let i = 0;
   const n = quelle.length;
@@ -61,7 +84,7 @@ export function ohneKommentare(quelle: string): string {
        * `a =` wird: eine Pruefung, die auf eine Zuweisung sieht, braucht die
        * rechte Seite als Zeichen, nur nicht als Inhalt.
        */
-      aus += c + c;
+      const start = i;
       i += 1;
       while (i < n) {
         const z = quelle[i]!;
@@ -72,6 +95,7 @@ export function ohneKommentare(quelle: string): string {
         if (z === '\n' && c !== '`') break;
         i += 1;
       }
+      aus += textBehalten ? quelle.slice(start, i) : c + c;
       continue;
     }
     aus += c;

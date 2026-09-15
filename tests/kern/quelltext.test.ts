@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ohneKommentare, ohnePsKommentare } from './hilfen/quelltext.js';
+import { ohneKommentare, ohneKommentareMitTexten, ohnePsKommentare } from './hilfen/quelltext.js';
 
 /**
  * Der Kommentarentferner, gegen den Fall, der ihn blind machte.
@@ -74,6 +74,34 @@ describe('ohneKommentare — Code bleibt, Kommentar und Inhalt gehen', () => {
   it('ein nicht geschlossener Blockkommentar frisst den Rest — und sagt es nicht anders', () => {
     // Das ist richtig so: solcher Text ist kein gültiges TypeScript.
     expect(ohneKommentare('/* offen\nauthorize();').trim()).toBe('');
+  });
+});
+
+describe('ohneKommentareMitTexten — Code samt Texten, ohne jeden Kommentar', () => {
+  it('behält den Inhalt der Zeichenketten', () => {
+    // Das Gesuchte einer Verdrahtungspruefung IST eine Zeichenkette:
+    // `action="/api/zeit/korrektur"` steht in keinem Bezeichner.
+    const rein = ohneKommentareMitTexten('const a = "/api/zeit/korrektur";');
+    expect(rein).toContain('/api/zeit/korrektur');
+  });
+
+  it('wirft den Kommentar trotzdem weg — sonst genügte ein Satz darüber', () => {
+    const rein = ohneKommentareMitTexten(
+      '/* postet auf /api/zeit/korrektur */\nconst a = "/api/andere";');
+    expect(rein).not.toContain('/api/zeit/korrektur');
+    expect(rein).toContain('/api/andere');
+  });
+
+  it('und hat dieselbe Reihenfolge-Immunität wie die strenge Fassung', () => {
+    // `'x//y'` darf den Rest der Zeile nicht fressen (siehe oben).
+    const rein = ohneKommentareMitTexten(`const marke = 'x//y'; authorize();`);
+    expect(rein).toContain('authorize');
+    expect(rein).toContain('x//y');
+  });
+
+  it('ein Backtick-Text über mehrere Zeilen bleibt ganz', () => {
+    const rein = ohneKommentareMitTexten('const q = `select 1\n  from zeiteintrag`;');
+    expect(rein).toContain('from zeiteintrag');
   });
 });
 

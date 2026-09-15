@@ -341,6 +341,29 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Der dritte Vorgang: die Korrektur selbst (TIM-11, LEG-01, SEC-A9).
+     *
+     * **Der Befund, der diese Route gebracht hat.** `korrigiereZeiteintrag`
+     * war gebaut und geprueft und hatte KEINEN Aufrufer — keine Route, keine
+     * Seite. Damit endete der Einwandsweg im Nichts: eine Mitarbeiterin meldet
+     * eine Abweichung (EMP-07), die Planung erkennt sie an, und der
+     * Zeiteintrag blieb, wie er war. Die Entscheidungsroute daneben sagt das
+     * selbst („Anerkennen schreibt hier keine Korrektur") — nur gab es die
+     * Korrektur nirgends. Ein anerkannter Einwand, der die Aufzeichnung nicht
+     * aendert, ist im Lohnstreit eine Zusage ohne Folge.
+     *
+     * `zeit.korrigieren` und nicht `zeit.schreiben`: wer Zeiten erfasst,
+     * aendert damit noch keine bestehende Aufzeichnung — dieselbe Trennung,
+     * die `zeit.einwand_entscheiden` vom Erfassen trennt. Melden, entscheiden,
+     * korrigieren sind drei Vorgaenge mit drei Rechten, und die Datenbank
+     * prueft darueber hinaus, dass der Handelnde nicht der Betroffene ist
+     * (`zk_nicht_selbst`, 0036).
+     */
+    pfad: 'api/zeit/korrektur',
+    recht: 'zeit.korrigieren',
+  },
+  {
+    /**
      * TIM-05, TIM-06, SEC-04, LEG-03, LEG-04 — der einzige Schreibweg auf
      * `einsatz_zuordnung`. `dienstplan.schreiben` ist das Recht des Planers;
      * die beiden Tore, die der Dienst durchläuft, prüfen nicht die

@@ -11367,3 +11367,61 @@ in de/en/ar/tr übersetzt ist; ein deutscher Posteingang darin wäre genau die
 halbe Übersetzung, die D-419 schon einmal abgeräumt hat. Der Leersatz sagt
 dabei, was Leere BEDEUTET — „nichts Offenes, nicht: etwas fehlt" —, statt
 einen leeren Bildschirm zu zeigen, der sich wie ein Fehler liest.
+
+### D-559 · Der anerkannte Einwand, der zu nichts führte
+
+`korrigiereZeiteintrag` (TIM-11) war gebaut, geprüft und hatte **keinen
+einzigen Aufrufer** — keine Route, keine Seite. Damit endete der Einwandsweg
+im Nichts: eine Mitarbeiterin meldet eine Abweichung (EMP-07), die Planung
+erkennt sie an, und der Zeiteintrag blieb, wie er war. Die Entscheidungsroute
+sagt das seit ihrem ersten Tag selbst — „Anerkennen schreibt hier keine
+Korrektur" —, nur gab es die Korrektur nirgends.
+
+**Das ist die teuerste Sorte Lücke, weil sie nirgends rot wird.** Jeder Test
+über den Dienst war grün, denn der Dienst funktioniert: Kette, Spur,
+`zk_nicht_selbst`, gesperrter Monat — alles in `tests/isolation/`. Was fehlte,
+war die Frage, ob ihn jemand aufruft. Sie steht jetzt in
+`tests/kern/zeit-korrektur-weg.test.ts` und geht in jedem Lauf mit.
+
+**Drei Vorgänge, drei Rechte.** `zeit.korrigieren` und nicht `zeit.schreiben`:
+wer Zeiten erfasst, ändert damit noch keine bestehende Aufzeichnung —
+dieselbe Trennung, die `zeit.einwand_entscheiden` vom Erfassen trennt. Melden,
+entscheiden, korrigieren.
+
+**Die Route heisst `api/zeit/korrektur`, nicht `api/zeiten/…`.** Die
+EMP-07-Wache in `tests/kern/mitarbeiter.test.ts` weist jede Adresse ab, die
+einen Zeiteintrag im Pfad nennt. Eine Ausnahme in der Wache wäre der Anfang
+ihres Endes; ein Name, der nicht in ihr Muster fällt, ist es nicht — dieselbe
+Überlegung wie bei `api/checkin-marken` (D-557).
+
+**`zk_nicht_selbst` meldet `42501`, nicht `23514`.** Der Auslöser aus 0036
+wirft `insufficient_privilege`, nicht `check_violation`. Beides in einen Topf
+zu werfen hiesse, dem eigenen Zeiteintrag die Meldung „gesperrter Monat ohne
+Gegenbuchung" zu geben — eine Diagnose, die auf die falsche Fährte führt.
+Unterschieden wird am `detail`, das der Auslöser selbst mit „EMP-07" beginnen
+lässt; 42501 ist schliesslich auch, was Postgres bei einem fehlenden
+Tabellenrecht sagt, und das ist kein „das ist Ihr eigener Eintrag".
+
+**Der Link steht nur, wenn er trägt.** Vier Bedingungen: das Recht (sonst
+antwortet die Seite mit 404, und ein Knopf dorthin verriete ihre Existenz —
+AUT-06); nicht der eigene Eintrag; nicht laufend (der wird bearbeitet, nicht
+korrigiert); nicht abgelöst (die Kette gabelt nicht). Wer die Adresse trotzdem
+tippt, steht nicht vor einem 404, sondern vor einer Begründung — die Seite
+nennt jeden dieser Gründe in Worten.
+
+**Die Felder sind leer, wie bei der Nacherfassung.** Was aufgezeichnet wurde
+und was die Person behauptet, steht daneben zum Lesen. Vorbelegt wäre die
+Übernahme einer Behauptung ein Klick, und die entstehende Fassung trüge
+`planer_entscheidung`, ohne dass jemand entschieden hätte.
+
+**Das Ziel nach dem Absenden ist die NEUE Fassung.** Die alte trägt jetzt
+`ersetzt_am` und zeigt „Diese Fassung ist nicht mehr die aktuelle"; wer gerade
+korrigiert hat, dorthin zurückzuschicken hiesse, ihn auf einem überholten
+Blatt abzusetzen. Beim Storno ist es derselbe Eintrag — dort gibt es keine
+neue Fassung, nur einen stornierten Datensatz, und genau der soll zu sehen
+sein.
+
+**Und ein abgewiesenes Formular landet nicht als JSON auf einer weissen
+Seite.** Jeder Schlüssel, den die Route zurückschickt, hat auf der Seite einen
+Satz; ein Test hält beide Listen aneinander. Wer hier arbeitet, ist Planerin
+und nicht Entwicklerin.
