@@ -80,5 +80,29 @@ comment on function app.checkin_widerrufen(uuid, text) is
   'Widerruft eine noch nicht eingeloeste Check-in-Marke; prueft '
   'zeit.checkin_verwalten im Mandanten der Marke (TIM-07).';
 
+/**
+ * **`owner to cse_definer` — K-01, und diese Zeile hat gefehlt.**
+ *
+ * Eine `security definer`-Funktion laeuft mit den Rechten IHRES EIGENTUEMERS.
+ * Ohne diese Zeile gehoert sie dem Konto, das die Migration ausfuehrt — und
+ * das ist `postgres`, Superuser mit `BYPASSRLS`. Die Funktion liefe damit an
+ * jeder Policy vorbei, und die sorgfaeltig geschriebene `ct_definer` auf
+ * `checkin_token` waere eine zweite Verteidigungslinie, die es nicht gibt.
+ *
+ * `tests/isolation/definer-eigentum.test.ts` ist die Sperrklinke dafuer und
+ * hat genau das gefangen: die Altlast aus D-300 darf nicht wachsen.
+ *
+ * **Und das Eigentum TRAEGT** — geprueft, nicht angenommen. `cse_definer` hat
+ * `select, insert, update` auf `checkin_token` (0035:493) und die Policy
+ * `ct_definer` (0035:475); `app.hat_recht` und `app.protokolliere` sind ihm
+ * ausdruecklich gewaehrt (0077:313, 0155:822). Auf `audit_log` hat es KEIN
+ * `insert` — und braucht auch keines: `app.protokolliere` ist selbst ein
+ * Definer und schreibt mit seinen eigenen Rechten. Die Funktionspruefung
+ * unten in `tests/isolation/checkin-widerruf.test.ts` faehrt den ganzen Weg
+ * einmal durch, damit „gehoert cse_definer" nicht heisst „liest still null
+ * Zeilen" (D-300).
+ */
+alter function app.checkin_widerrufen(uuid, text) owner to cse_definer;
+
 revoke execute on function app.checkin_widerrufen(uuid, text) from public;
 grant execute on function app.checkin_widerrufen(uuid, text) to cse_app;

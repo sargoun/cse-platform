@@ -11179,3 +11179,39 @@ geht. `tests/kern/quelltext.test.ts` hält zehn Fälle fest, den Befund zuerst.
 machte daraus `unvollstaendig` 409 statt `unlesbarer_rumpf` 400), und
 `/dev/anmelden` bot gesperrte Zugänge als Demonummern an — beides Sackgassen,
 die wie ein Fehler aussehen.
+
+### D-554 · Die Sperrklinke hat gehalten — und zwar gegen mich
+
+CI wurde rot auf `fa445d4`, und der Befund war einer aus der eigenen Suite:
+`tests/isolation/definer-eigentum.test.ts` (K-01) fiel über die frisch
+angelegte `app.checkin_widerrufen`. Ihr fehlte
+`alter function … owner to cse_definer`.
+
+**Was das bedeutet hätte.** Eine `SECURITY DEFINER`-Funktion läuft mit den
+Rechten ihres EIGENTÜMERS. Ohne die Zeile gehört sie dem Konto, das die
+Migration ausführt — `postgres`, Superuser mit `BYPASSRLS`. Die Funktion wäre
+also **an jeder Policy vorbeigelaufen**, und die sorgfältig geschriebene
+`ct_definer` auf `checkin_token` wäre eine zweite Verteidigungslinie gewesen,
+die es nicht gibt. Genau die Altlast aus D-300, um einen Eintrag gewachsen —
+in einem Commit, der ansonsten grün war.
+
+Die Sperrklinke ist deshalb keine Formalie: sie hat einen Fehler gefangen, der
+nirgendwo kaputtgeht, den kein Typ und kein Lint sieht, und der genau so lange
+gut funktioniert, bis eine vergessene `where`-Klausel nicht an einer Policy
+scheitert, sondern liest, was sie greifen kann.
+
+**Und die andere Hälfte, die derselbe Testkopf ausdrücklich verlangt.** Nach
+einem Eigentumswechsel „liest die Funktion stillschweigend null Zeilen und
+schreibt einen falschen Wert ohne Fehlermeldung", wenn `cse_definer` ein
+Tabellenrecht oder eine Policy fehlt. Eine Prüfung, die nur das Eigentum misst,
+wäre grün über einer Funktion, die nichts mehr tut.
+
+`tests/isolation/checkin-widerruf.test.ts` fährt den Weg deshalb einmal ganz
+durch — Marke ausgeben, widerrufen, nachsehen — und hält fünf weitere Sätze
+fest: der Vorgang steht im Protokoll (`app.protokolliere` schreibt als eigener
+Definer, `cse_definer` braucht dafür kein `insert` auf `audit_log`), ein
+zweiter Widerruf tut nichts und ist trotzdem kein Fehler, der Grund des ersten
+bleibt stehen, ein Widerruf ohne Grund wird abgewiesen, eine Marke, die es
+nicht gibt, antwortet `false` statt eines Orakels (AUT-06) — und **das Recht
+wird im Mandanten der MARKE geprüft**: eine Planerin der Reinigung kann die
+Marke der Security nicht widerrufen, obwohl ihre Sitzung schreibt.
