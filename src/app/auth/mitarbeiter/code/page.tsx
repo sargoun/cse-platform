@@ -43,7 +43,7 @@ export default async function CodeEingabe({ searchParams }: Props) {
    * Diese Seite mit einer Nummer aus der URL zu fuettern, waere ein zweiter
    * Weg zum selben Ziel — und der zweite Weg ist der, den niemand prueft.
    */
-  if (telefon === '') redirect('/auth/mitarbeiter');
+  if (telefon === '') redirect('/auth/mitarbeiter?fehler=abgelaufen');
 
   const devCode = keks.get(ANMELDUNG_DEV_COOKIE)?.value ?? null;
   /**
@@ -76,7 +76,24 @@ export default async function CodeEingabe({ searchParams }: Props) {
     'use server';
     const k = await cookies();
     const nummer = k.get(ANMELDUNG_TELEFON_COOKIE)?.value ?? '';
-    if (nummer === '') redirect('/auth/mitarbeiter');
+    /*
+     * **Ein Rueckwurf ohne ein Wort ist der schlimmste Fehlschlag, den diese
+     * Seite haben kann.**
+     *
+     * Hier stand `redirect('/auth/mitarbeiter')` — ohne Grund, ohne Meldung.
+     * Der Mensch tippt die Nummer, bekommt den Code, tippt den Code, drueckt
+     * „Anmelden" — und steht wieder am Anfang. Kein Fehlerkasten, kein Satz,
+     * nichts, woraus sich schliessen liesse, was zu tun waere. Genau so hat es
+     * ein Nutzer berichtet, und genau so verhielt es sich: der Keks mit der
+     * Nummer war nie im Browser angekommen (siehe `anmeldeKeksOptionen`),
+     * also war `nummer` leer, und diese Zeile warf ihn stumm zurueck.
+     *
+     * Der Grund geht jetzt mit. Er ist bewusst UNSPEZIFISCH („abgelaufen"):
+     * warum der Keks fehlt, weiss der Server nicht — abgelaufen, geloescht,
+     * vom Browser verworfen, ein zweites Fenster. Was der Mensch braucht, ist
+     * nicht die Ursache, sondern der naechste Schritt.
+     */
+    if (nummer === '') redirect('/auth/mitarbeiter?fehler=abgelaufen');
 
     const code = String(daten.get('code') ?? '').replace(/\s/gu, '');
     const { ip } = await herkunft(await headers());

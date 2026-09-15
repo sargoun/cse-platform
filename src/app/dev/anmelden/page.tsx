@@ -59,9 +59,53 @@ async function konten(): Promise<readonly Konto[]> {
   )) as Promise<readonly Konto[]>;
 }
 
+/**
+ * Die Telefonnummern der Demo-Beschäftigten — **damit man den echten Weg auch
+ * gehen kann.**
+ *
+ * **Der Befund, der das nötig machte.** Der Absatz oben sagt seit PR 20:
+ * „Beschäftigte melden sich unter /auth/mitarbeiter mit Telefonnummer und
+ * Einmalcode an". Welche Nummern es gibt, stand nirgends — nicht hier, nicht
+ * in `LOKAL-STARTEN.md`, nirgends auf einem Bildschirm. Wer die Demo ansieht,
+ * kommt damit an der Mitarbeiteranmeldung nicht vorbei: er kann sie nicht
+ * einmal falsch bedienen, weil er keine Eingabe hat.
+ *
+ * Ein Konto ohne Eingang ist ein Konto, das es für den Betrachter nicht gibt.
+ * Die Nummern sind Demodaten und diese Seite ist im Deployment ein 404 — es
+ * gibt keinen Grund, sie zu verschweigen, und einen guten, sie zu zeigen.
+ *
+ * **Und es bleibt der ECHTE Weg.** Hier steht kein Knopf, der anmeldet: der
+ * wäre die zweite Tür, die PR 20 absichtlich zugemacht hat. Hier steht nur,
+ * was man eintippen kann.
+ */
+interface Beschaeftigt {
+  id: string;
+  name: string;
+  telefon: string | null;
+  mandant: string | null;
+}
+
+async function beschaeftigte(): Promise<readonly Beschaeftigt[]> {
+  return db().begin(async (tx: postgres.TransactionSql) => tx.unsafe(
+    `select b.id, b.name, p.telefon, m.name as mandant
+       from benutzer b
+       join person p on p.id = b.person_id
+       left join benutzer_mandant bm
+              on bm.benutzer_id = b.id and bm.entzogen_am is null and bm.ist_standard
+       left join rolle r on r.id = bm.rolle_id
+       left join mandant m on m.id = bm.mandant_id
+      where b.status = 'aktiv' and not b.ist_dienstkonto and b.deaktiviert_am is null
+        and coalesce((select gr.schluessel from rolle gr where gr.id = b.globale_rolle_id),
+                     r.schluessel) = 'mitarbeiter'
+        and p.telefon is not null
+      order by b.name`,
+  )) as Promise<readonly Beschaeftigt[]>;
+}
+
 export default async function DevAnmeldung() {
   if (!devFlaechenAn()) notFound();
   const liste = await konten();
+  const kraefte = await beschaeftigte();
 
   async function anmelden(daten: FormData): Promise<void> {
     'use server';
@@ -118,6 +162,34 @@ export default async function DevAnmeldung() {
         Rollen bleibt diese Seite, bis <code>/auth/login</code> mit Kennwort
         und zweitem Faktor gebaut ist (Phase 1, AUT-01/AUT-02).
       </p>
+
+      {kraefte.length > 0 && (
+        <section data-cse="dev-telefonnummern"
+                 className="rounded-lg border border-line bg-surface p-s5">
+          <h2 className="mb-s2 text-h3 text-text">Beschäftigte: Nummern zum Ausprobieren</h2>
+          <p className="mb-s4 max-w-[72ch] text-sm text-text-muted">
+            Diese Nummern gehören den Demo-Beschäftigten. Auf{' '}
+            <a className="underline" href="/auth/mitarbeiter">/auth/mitarbeiter</a>{' '}
+            eintippen — der Code steht danach auf dem Bildschirm, weil kein
+            SMS-Gateway verbunden ist (O-82). Deutsche Schreibweise mit führender
+            Null geht genauso: <code>0170 1000000</code>.
+          </p>
+          <ul className="flex flex-col gap-s2">
+            {kraefte.map((k) => (
+              <li key={k.id} data-cse="dev-telefon"
+                  className="flex flex-wrap items-baseline justify-between gap-s3 border-b border-line py-s2 last:border-0">
+                <span className="text-sm text-text">{k.name}</span>
+                <span className="flex items-baseline gap-s3">
+                  <span className="text-xs text-text-subtle">{k.mandant ?? '—'}</span>
+                  <code data-cse="dev-telefon-nummer" className="text-sm text-text">
+                    {k.telefon}
+                  </code>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <ul className="flex flex-col gap-s3">
         {liste.map((k) => (

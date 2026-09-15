@@ -10723,3 +10723,88 @@ es fehlt der Auslöser.
 `job_lauf` trägt kein `mandant_id` (0010), also steht diese Abfrage bewusst
 ausserhalb von `withTenant`: ein Nachtlauf läuft einmal und schreibt sein
 Ergebnis je Mandant daneben.
+
+### D-541 · `process.env.X` im Quelltext ist keine Abfrage, sondern eine Konstante
+
+Ein Nutzer konnte sich am Telefon nicht anmelden: Nummer eintippen, Code
+bekommen, Code eintippen — und zurück auf der Nummernseite, **ohne ein Wort**.
+Reproduziert, A/B belegt, Ursache im gebauten Bündel gelesen.
+
+`anmeldeKeksOptionen` schrieb
+
+```ts
+secure: process.env.NODE_ENV === 'production'
+```
+
+Webpacks DefinePlugin behandelt `process.env.X` im Quelltext nicht als Zugriff,
+sondern als Konstante: es ersetzt den ganzen Ausdruck beim **Bauen** durch sein
+Ergebnis. Im Bündel stand danach `secure:!0` — `true`, einbetoniert, durch keine
+Umgebungsvariable mehr erreichbar. Direkt daneben, im selben Bündel, der
+Sitzungskeks: `secure:"production"===a.NODE_ENV`. Der las über einen
+**Parameter**, und einen Feldzugriff auf eine Variable ersetzt DefinePlugin
+nicht. Drei Zeichen Unterschied, und nur eine der beiden Keksfabriken war
+überhaupt reparierbar.
+
+**Was daraus wurde.** `docs/LOKAL-STARTEN.md` sagt jedem: `pnpm build`,
+`pnpm start`. `next start` setzt `NODE_ENV=production`. Das Telefon erreicht den
+Rechner über `http://192.168.0.193`, und einen `Secure`-Keks verwirft dort jeder
+Browser vollständig (RFC 6265bis §5.5). Beide Anmeldekekse waren weg, bevor der
+Code eingetippt werden konnte.
+
+**Warum die Codeseite trotzdem erschien — mit sichtbarem Code.** Das war der
+Teil, der die Diagnose zweimal in die Irre führte, und er ist kein Widerspruch:
+Next.js rendert das Ziel einer `redirect()` aus einer Server Action in
+**derselben Antwort** und reicht die eben gesetzten Kekse dabei serverintern
+weiter (`action-handler.js`, `getForwardedHeaders`). `Secure` ist eine
+Browserregel und greift auf diesem Weg nicht. Der Server sah also Kekse, die der
+Browser nie gespeichert hatte. Erst der nächste Schritt war ein eigener Request
+— und der kam leer an.
+
+**Die Entscheidung hängt jetzt an `devFlaechenAn`, nicht an `NODE_ENV`.** Der
+Kommentar in `sitzung.ts` beschrieb seit D-414 genau die richtige Absicht („in
+der Entwicklung fällt `Secure` weg, das Telefon im Heimnetz erreicht den Server
+über http://192.168…"); die Bedingung darunter setzte sie nur nicht um, weil
+eine Vorführung ein PRODUKTIONSBAU ist. `devFlaechenAn` ist die Frage, die
+dieses Projekt ohnehin stellt, wenn es um „Vorführfläche oder Ernstfall" geht:
+sie zeigt den SMS-Code, sie öffnet `/dev/anmelden`, sie legt die Demodaten an.
+Ohne die Flagge ändert sich **nichts**: `Secure`, `__Host-`, wie bisher — im
+Browser nachgestellt und bestätigt.
+
+Name und Flagge kommen aus **einer** Antwort (`keksSicher`): ein
+`__Host-`-Keks ohne `Secure` wird ebenso verworfen wie ein `Secure`-Keks über
+`http://`. Zwei getrennte Entscheidungen wären zwei Gelegenheiten, sie
+auseinanderlaufen zu lassen.
+
+**Und die Prüfung, die den Fehler gefunden hätte, gab es nicht.** Jede denkbare
+Unit-Prüfung wäre auch vorher grün gewesen — im Test ersetzt niemand
+`process.env`. Die Browsersuite konnte es ebenfalls nicht sehen: sie läuft über
+`localhost`, und Loopback ist für Browser ein sicherer Kontext, der `Secure`
+akzeptiert. Der Fehler lebte ausschliesslich in der Kombination
+*Produktionsbau × unverschlüsselter Nicht-Loopback-Ursprung* — und genau die
+kommt in keiner Suite vor. `tests/kern/keks-sicherheit.test.ts` prüft deshalb
+den **Quelltext**: keine Keksfabrik darf `process.env.X` direkt lesen. Beim
+Schreiben dieser Prüfung fand sie sofort zwei weitere Stellen.
+
+### D-542 · Ein Rückwurf ohne Grund ist der schlimmste Fehlschlag
+
+Dieselbe Untersuchung förderte den zweiten Teil zutage, und der ist unabhängig
+von der Ursache oben. `code/page.tsx` warf bei fehlendem Keks mit
+`redirect('/auth/mitarbeiter')` zurück — ohne Parameter, ohne Meldung. Jede
+Ursache, die den Keks kostet (abgelaufen, privater Modus, gesperrte Cookies,
+zweites Fenster), sah für den Menschen identisch aus: **die Seite tut nichts**.
+
+Der Grund geht jetzt mit (`?fehler=abgelaufen`), und die Nummernseite sagt einen
+Satz. Er ist bewusst unspezifisch: warum der Keks fehlt, weiss der Server nicht.
+Was der Mensch braucht, ist nicht die Ursache, sondern der nächste Schritt.
+
+Dazu zwei Bildschirme, die Tatsachen aussprechen statt sie vorauszusetzen:
+
+- Läuft die Installation ohne `Secure` (Vorführfläche), **steht das auf der
+  Anmeldeseite**. Eine Entscheidung dieser Tragweite gehört nicht allein in eine
+  Umgebungsvariable, die niemand liest.
+- `/dev/anmelden` sagte seit PR 20 „Beschäftigte melden sich mit Telefonnummer
+  und Einmalcode an" — und nannte **keine einzige Nummer**. Sie standen nirgends
+  auf einem Bildschirm. Wer die Demo ansieht, konnte die Mitarbeiteranmeldung
+  damit nicht einmal falsch bedienen; er hatte keine Eingabe. Die Nummern der
+  Demo-Beschäftigten stehen jetzt dort — ohne Anmeldeknopf, denn der wäre die
+  zweite Tür, die PR 20 absichtlich zugemacht hat.

@@ -10,6 +10,7 @@ import { join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ROUTEN } from '../../src/server/auth/route-manifest.js';
 import { ANDERS_BEWACHT } from './serveraction-ausnahmen.js';
+import { ohneKommentare } from './hilfen/quelltext.js';
 
 const WURZEL = resolve(import.meta.dirname, '../..');
 
@@ -52,29 +53,13 @@ function pfadVon(datei: string): string {
 
 const AUFRUF = /\bauthorize\s*\(/u;
 
-/**
- * **Kommentare und Zeichenketten zaehlen nicht als Aufruf.**
- *
- * Diese Pruefung liest Quelltext, nicht einen Syntaxbaum — das ist eine
- * bewusste Entscheidung (ein Parser waere ein zweiter Compiler mit eigenen
- * Fehlern), und sie hat genau eine Schwaeche: das Wort `authorize(` in einem
- * Kommentar oder in einer Zeichenkette liest sich wie ein Aufruf. Eine Route,
- * die „// hier fehlt noch authorize()" schreibt, waere damit BEWACHT gemeldet
- * — die Pruefung haette in genau dem Fall versagt, fuer den es sie gibt.
- *
- * Beides herauszuschneiden ist billig und deckt die ganze Klasse ab. Was
- * bleibt, ist die zweite, harmlosere Grenze: ein Aufruf in einem Zweig, der
- * nie laeuft. Dagegen steht die Gegenprobe unten, nicht diese Zeile.
+/*
+ * Kommentare und Zeichenketten zaehlen nicht als Aufruf: eine Route, die
+ * „// hier fehlt noch authorize()" schreibt, waere sonst BEWACHT gemeldet —
+ * die Pruefung haette in genau dem Fall versagt, fuer den es sie gibt. Das
+ * Ausschneiden steht in `hilfen/quelltext.ts`, weil `keks-sicherheit.test.ts`
+ * dieselbe Schwaeche hat und zwei Fassungen davon auseinanderlaufen.
  */
-function ohneKommentare(quelle: string): string {
-  return quelle
-    .replace(/\/\*[\s\S]*?\*\//gu, ' ')
-    .replace(/(^|[^:])\/\/[^\n]*/gu, '$1 ')
-    .replace(/'(?:[^'\\\n]|\\.)*'/gu, "''")
-    .replace(/"(?:[^"\\\n]|\\.)*"/gu, '""')
-    .replace(/`(?:[^`\\]|\\.)*`/gu, '``');
-}
-
 function ruftAuf(datei: string): boolean {
   return AUFRUF.test(ohneKommentare(readFileSync(datei, 'utf8')));
 }
