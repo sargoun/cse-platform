@@ -124,6 +124,35 @@ export function anbindungen(): readonly Anbindung[] {
       offen: null,
     },
     {
+      /*
+       * **Der Ausloeser der Nachtlaeufe — die Anbindung, die niemand als eine
+       * gesehen hat.**
+       *
+       * Sechzehn Jobs tragen einen Zeitplan, es gibt einen Runner, ein
+       * Laufprotokoll und eine bewachte Route. Was fehlte, war das, was ruft:
+       * kein Cron-Eintrag, nirgends. Jede Datei einzeln gebaut und geprueft;
+       * zusammen lief kein einziger Waechter — und weil ein nicht gelaufener
+       * Job keine Fehlermeldung erzeugt, faellt das erst auf, wenn jemand die
+       * Zahlen vermisst.
+       *
+       * `JOB_TOKEN` ist hier die ehrliche Auskunft: ohne das Geheimnis
+       * antwortet `/api/jobs/[schluessel]` mit 503, also kann kein Ausloeser
+       * angeschlossen sein. Ist es gesetzt, ist der Weg offen — ob draussen
+       * wirklich ein Cron-Eintrag steht, sagt `docs/JOB-AUSLOESER.sql` und die
+       * Laufliste darunter, nicht diese Zeile.
+       */
+      schluessel: 'job_ausloeser', name: 'Nachtlauf-Auslöser (Supabase cron)',
+      zweck: 'Die 16 Wächter aus SPEC §14 starten — Fristen, Dienstplan, Mahnlauf, Kette',
+      stand: (process.env['JOB_TOKEN'] ?? '') === '' ? 'nicht_verbunden' : 'verbunden',
+      hinweis: (process.env['JOB_TOKEN'] ?? '') === ''
+        ? 'Ohne JOB_TOKEN antwortet /api/jobs/[schlüssel] mit 503 — kein Auslöser kann '
+          + 'angeschlossen sein, und kein Wächter läuft. Der Plan dafür wird aus dem '
+          + 'Job-Register erzeugt: `pnpm jobs:plan` → docs/JOB-AUSLOESER.sql.'
+        : 'JOB_TOKEN ist gesetzt; die Auslöseroute nimmt Läufe an. Ob draussen wirklich '
+          + 'ein Cron-Eintrag steht, zeigt die Laufliste — nicht diese Zeile.',
+      offen: null,
+    },
+    {
       schluessel: 'n8n', name: 'n8n',
       zweck: 'Externe Verknüpfungen, nur als Klebstoff (CLAUDE.md, Stack)',
       stand: 'nicht_verbunden',

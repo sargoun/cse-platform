@@ -10667,3 +10667,59 @@ und er wird gegen `^[a-z0-9-]{1,64}$` geprüft, bevor daraus ein Verweis wird.
 `[...rest]`, die Platzhalterseite für die noch nicht gebauten Bildschirme — sie
 sagt hin, dass es diesen Bildschirm noch nicht gibt, und das ist die richtige
 Auskunft. Der 404 des Portals fällt eine Ebene höher, beim Slug.
+
+### D-540 · Sechzehn Wächter mit einem Zeitplan — und nichts, das sie ruft
+
+`bootstrap.ts` trägt die Lücke, die einmal davor lag: es gab ein Register, einen
+Runner, ein Laufprotokoll und vier Jobdefinitionen und keine Stelle, die sie
+registriert. Diese hier liegt eine Ebene weiter draussen und sieht genauso aus.
+Sechzehn Jobs tragen einen Zeitplan, `/api/jobs/[schluessel]` ist gebaut und
+bewacht, `job_lauf` steht bereit — und es gibt keinen Cron-Eintrag, kein
+`vercel.json`, keinen n8n-Ablauf. Jede Datei einzeln gebaut und geprüft;
+zusammen läuft kein einziger Wächter.
+
+**Das ist die teuerste Sorte Lücke, weil sie nirgends rot wird.** Ein Test, der
+einen Job ausführt, beweist, dass der Job funktioniert. Ein Job, der nie läuft,
+erzeugt keine Fehlermeldung — er erzeugt nur nichts, und das fällt erst auf,
+wenn jemand eine Frist verpasst hat.
+
+**Der Plan wird ERZEUGT, nicht gepflegt.** Ein Zeitplan, der im Code steht und
+ein zweites Mal in einer Cron-Tabelle, sind zwei Wahrheiten; eine davon ändert
+jemand. `src/server/jobs/zeitplan.ts` baut aus `JobDefinition.zeitplan` die
+`cron.schedule`-Anweisungen, `pnpm jobs:plan` schreibt sie nach
+`docs/JOB-AUSLOESER.sql`, und `tests/kern/job-zeitplan.test.ts` besteht darauf,
+dass jeder registrierte Job dort vorkommt, genau einmal, mit seinem eigenen
+Zeitplan — und dass die eingecheckte Datei aktuell ist.
+
+**Supabase cron, nicht Vercel cron.** Vercel ruft mit GET und ohne eigene
+Kopfzeilen; die Auslöseroute verlangt POST **und** das Geheimnis in
+`x-job-token`. Eine Route, die ohne Geheimnis funktionieren müsste, wäre ein
+Schalter für jeden, der die URL kennt — deshalb antwortet sie ohne `JOB_TOKEN`
+mit 503 statt ersatzweise offen zu laufen. `pg_net` kann POST mit Kopfzeilen,
+also macht es das; so steht es auch im Stack.
+
+**Das Geheimnis steht nicht im Plan.** Der erzeugte Text liest
+`current_setting('cse.job_token')` — eine Datenbankeinstellung wie
+`cse.fenster_schluessel` (D-302). Ein Token in einer eingecheckten Datei ist ein
+Token in der Versionsgeschichte, und dort bleibt es auch nach dem Wechsel.
+
+**Und die eingecheckte Fassung trägt keinen plausiblen Host**, sondern
+`https://basis-einsetzen.invalid`. Eine erzeugte Datei mit einem echt
+aussehenden Hostnamen darin wird irgendwann in eine Produktionskonsole
+eingefügt; dann steht dort ein Eintrag, der jede Nacht eine fremde Adresse ruft
+— mit dem Geheimnis im Kopf. `.invalid` ist nach RFC 2606 reserviert und löst
+nirgends auf: ein versehentliches Einfügen scheitert sofort und laut statt still
+und falsch. Wer den Plan einspielt, erzeugt ihn mit
+`CSE_KANONISCHE_BASIS=… pnpm jobs:plan`.
+
+**Sichtbar ist es unter Einstellungen · Integrationen**, weil der Auslöser eine
+Anbindung ist und dort schon jede andere ihren wahren Zustand nennt. Die Liste
+stellt jeden Wächter neben seinen letzten Lauf: der Zeitplan sagt, wann etwas
+laufen **soll**, `job_lauf` sagt, wann es gelaufen **ist**. Die beiden
+auseinanderlaufen zu lassen war der Fehler; sie nebeneinander zu zeigen ist die
+Behebung. Ist noch keiner gelaufen, steht der Grund hin — kein Fehler im Code,
+es fehlt der Auslöser.
+
+`job_lauf` trägt kein `mandant_id` (0010), also steht diese Abfrage bewusst
+ausserhalb von `withTenant`: ein Nachtlauf läuft einmal und schreibt sein
+Ergebnis je Mandant daneben.
