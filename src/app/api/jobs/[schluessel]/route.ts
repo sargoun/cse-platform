@@ -103,12 +103,29 @@ export async function POST(
    * Der Versatz kommt aus der Datenbank, nicht aus der Laufzeit des Servers:
    * `Europe/Berlin` ist die Anzeigezeit dieser Plattform (Invariante 2), und
    * die Sommerzeit verschiebt ihn zweimal im Jahr.
+   *
+   * **Beide Wanduhren, nicht eine Wanduhr und ein Zeitpunkt.** Hier stand
+   * `(now() at time zone 'Europe/Berlin') - now()`: links ein
+   * `timestamp`, rechts ein `timestamptz`. Postgres castet den linken dann
+   * ueber die SITZUNGSZEITZONE zurueck — und die ist nicht ueberall UTC.
+   * Steht sie auf `Europe/Berlin`, ergibt derselbe Ausdruck **0** statt 120,
+   * und der Tagesschluessel eines Nachtlaufs traegt das UTC-Datum statt des
+   * Berliner. Nachgemessen: unter `set time zone 'Europe/Berlin'` liefert die
+   * alte Fassung 0, diese 120 — in beiden Sitzungszeitzonen.
+   *
+   * **Und EIN Zeitpunkt fuer alles.** `jetzt` kommt jetzt mit heraus, statt
+   * dass die Route daneben `new Date()` liest. Zwei Uhren sind zwei Wahrheiten:
+   * eine Anfrage ueber eine Minutengrenze oder ein kleiner Versatz zwischen
+   * Anwendung und Datenbank berechnete sonst das vorige Fenster, waehrend
+   * Auswahl und gemeldeter `tag` das laufende meinen — bei `social_plan` faellt
+   * ein faelliger Beitrag damit aus seinem Fenster.
    */
   const [zeit] = (await sql.unsafe(
-    `select (now() at time zone 'Europe/Berlin')::date::text as tag,
+    `select now() as jetzt,
+            (now() at time zone 'Europe/Berlin')::date::text as tag,
             (extract(epoch from (now() at time zone 'Europe/Berlin')
-                                - now()) / 60)::int as versatz`,
-  )) as unknown as readonly { tag: string; versatz: number }[];
+                                - (now() at time zone 'UTC')) / 60)::int as versatz`,
+  )) as unknown as readonly { jetzt: Date; tag: string; versatz: number }[];
 
   /**
    * Bei `je_mandant`: ALLE aktiven Gesellschaften, und zwar aus der
@@ -122,7 +139,7 @@ export async function POST(
 
   const ergebnis = await fuehreAus(job, new PostgresProtokoll(sql), new ProtokollAlarm(), {
     idempotenzSchluessel: idempotenzSchluessel(
-      job.schluessel, job.zeitplan, new Date(), zeit!.versatz),
+      job.schluessel, job.zeitplan, new Date(zeit!.jetzt), zeit!.versatz),
     mandanten,
   });
 

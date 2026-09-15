@@ -70,9 +70,24 @@ export default async function SocialCenter(
 
   const zahl = (status: string): number =>
     daten.beitraege.filter((b) => b.status === status).length;
+  /*
+   * **Nach dem AUGENBLICK sortieren, nicht nach seiner Schreibweise.**
+   *
+   * Hier stand `String(a.geplantFuer).localeCompare(...)`. Die Spalte ist
+   * `timestamptz`, und postgres.js gibt daraus ein `Date` — `String(date)`
+   * ergibt „Mon Jun 15 2026 …". Verglichen wurde damit ein Wochentagsname:
+   * „Fri" vor „Mon" vor „Sat". Die Liste „Demnaechst" stand in einer
+   * Reihenfolge, die zufaellig aussah und es auch war.
+   */
+  const augenblick = (wert: unknown): number => {
+    const d = wert instanceof Date ? wert : new Date(String(wert));
+    const t = d.getTime();
+    // Unlesbares nach hinten, statt die Sortierung mit NaN zu vergiften.
+    return Number.isNaN(t) ? Number.POSITIVE_INFINITY : t;
+  };
   const geplant = daten.beitraege
     .filter((b) => b.status === 'geplant' && b.geplantFuer !== null)
-    .sort((a, b) => String(a.geplantFuer).localeCompare(String(b.geplantFuer)));
+    .sort((a, b) => augenblick(a.geplantFuer) - augenblick(b.geplantFuer));
   const verbundene = daten.kanaele.filter((k) => k.verbunden).length;
 
   return (

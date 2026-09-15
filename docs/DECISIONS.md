@@ -11082,3 +11082,100 @@ tippt. Die reservierten Wurzeln stehen jetzt ausdrücklich daneben.
 Seiten selbst. Solange sie fehlen, steht die Sprachwahl aus EMP-12 für niemanden
 zur Verfügung — `person.sprache` ist im ganzen Portal nirgends änderbar,
 obwohl de/en/ar/tr vollständig übersetzt sind.
+
+### D-550 · Die Fehlerseite stürzte selbst ab
+
+Aus der Durchsicht, und der schwerste Einzelbefund darin: `app/error.tsx`
+destrukturierte `{ fehler, reset }`. Next.js reicht die Ausnahme aber als
+`error` herein — `fehler` war `undefined`, und die erste Zeile, die
+`fehler.digest` liest, warf erneut.
+
+**Die Fehlerseite hat also nie jemand gesehen.** Jeder Serverfehler endete auf
+der nackten Ersatzseite des Rahmenwerks: ohne den Satz, ohne die Kennung, ohne
+den Knopf — und ohne dass irgendwo etwas rot wurde. Genau die Sorte Fehler, die
+im Betrieb niemand meldet: wer sie erlebt, hat ohnehin schon einen Fehler und
+hält den zweiten für den ersten.
+
+Umbenannt wird nur an der Naht zum Rahmenwerk (`{ error: fehler }`); die übrige
+Datei bleibt deutsch (K-Domänensprache), und der Grund steht daneben.
+
+**Und der Satz auf dem Bildschirm stimmte auch nicht.** „Der Vorgang wurde
+abgebrochen, bevor etwas gespeichert wurde" kann diese Seite nicht wissen: eine
+Fehlergrenze fängt auch einen Fehler NACH einem festgeschriebenen Schritt, und
+sie gilt für die ganze Anwendung. Wer den Satz liest und daraufhin noch einmal
+absendet, löst den Vorgang womöglich ein zweites Mal aus — bei einer Rechnung
+oder einem Zeiteintrag ist das teurer als die Unsicherheit. Die Seite sagt
+jetzt, was sie weiss: bitte nachsehen, bevor Sie wiederholen.
+
+### D-551 · Vier stille Abweichungen, die alle in UTC richtig aussahen
+
+Dieselbe Durchsicht, vier Befunde mit derselben Bauart: in der Entwicklung
+stimmt es, in der Auslieferung nicht — und nichts wird rot.
+
+**1. Der Berliner Versatz hing an der Sitzungszeitzone.** Die Auslöseroute
+bildete ihn als `(now() at time zone 'Europe/Berlin') - now()` — links ein
+`timestamp`, rechts ein `timestamptz`. Postgres castet den linken Wert über die
+**Sitzungszeitzone** zurück. Unter UTC kommt 120 heraus und alles sieht richtig
+aus; unter `set time zone 'Europe/Berlin'` kommt **0** heraus, und der
+Tagesschlüssel eines Nachtlaufs trägt das UTC-Datum statt des Berliner.
+Nachgemessen und als `tests/isolation/job-berliner-versatz.test.ts`
+festgehalten — samt der alten Fassung, damit der Unterschied belegt ist und
+nicht behauptet.
+
+**2. Zwei Uhren für einen Lauf.** Der `tag` kam aus der Datenbank, der
+Idempotenzschlüssel aus `new Date()` der Anwendung. Eine Anfrage über eine
+Minutengrenze oder ein kleiner Versatz zwischen beiden berechnete das vorige
+Fenster, während Auswahl und gemeldeter `tag` das laufende meinen. `jetzt`
+kommt jetzt aus derselben Abfrage.
+
+**3. Die Integrationsseite las `job_lauf` ohne gebundene Sitzung.** `job_lauf`
+steht unter FORCE RLS, und `t_job_lauf_lesen` verlangt
+`app.hat_recht('system.betrieb_lesen', app.aktiver_mandant())`. Ohne Sitzung ist
+der aktive Mandant NULL, das Recht antwortet `false`, die Abfrage liefert null
+Zeilen — und die Seite meldete **„noch nie gelaufen" für jeden Wächter**. In CI
+und im Seed fiel es nicht auf, weil dort `postgres` mit `BYPASSRLS` verbindet:
+dieselbe Altlast wie D-378, nur auf einem Bildschirm statt in einem Lauf.
+
+**4. „Demnächst" sortierte nach dem Wochentagsnamen.** `String(geplantFuer)`
+auf einem `Date` ergibt „Mon Jun 15 2026 …"; verglichen wurde damit „Fri" vor
+„Mon" vor „Sat". Sortiert wird jetzt über den Augenblick.
+
+### D-552 · Was der Kunde nicht freigegeben hat, geht nicht hinaus
+
+`quellenFuerBeitrag` bot nur Referenzen an, die nicht gelöscht sind **und** die
+der Kunde freigegeben hat. Das war die ANZEIGE. `legeBeitragAn` nahm dagegen
+jede Kennung, die als UUID durchging.
+
+Der Unterschied ist kein Schönheitsfehler: eine untergeschobene `referenz_id`
+hängt eine Kundenreferenz an den Beitrag, die der Kunde gerade **nicht**
+freigegeben hat — und der Beitrag geht danach auf die eigene Gesellschaftsseite
+und in die verbundenen Kanäle. **Die Freigabe des Kunden ist eine
+Einwilligung**; sie am Formular zu prüfen und am Server nicht heisst, sie gar
+nicht zu prüfen.
+
+Beide Quellen werden jetzt im Dienst gegengeprüft, mit denselben Bedingungen
+wie die Auswahlliste. `tests/isolation/social.test.ts` (11) hält drei Fälle
+fest: die nicht freigegebene wird abgewiesen, die freigegebene geht durch
+(sonst prüfte der Test nur, dass nichts geht), und eine freigegebene der
+ANDEREN Gesellschaft fällt schon an der RLS.
+
+### D-553 · Ein Kommentarentferner, der eine Sicherheitsprüfung blind machte
+
+`ohneKommentare` entfernte erst Kommentare, dann Zeichenketten. In
+`const marke = 'x//y'; await authorize(...)` schlug die `//`-Regel INNERHALB
+der Zeichenkette zu und frass den Rest der Zeile — samt `authorize`.
+`routen.test.ts` sucht genau diesen Aufruf, um zu belegen, dass eine Route
+bewacht ist: sie hätte die Zeile nicht mehr gesehen. **Eine Prüfung, die eine
+Zeile nicht sieht, meldet keinen Verstoss — sie meldet gar nichts.**
+
+Die umgekehrte Reihenfolge hat denselben Fehler spiegelbildlich (ein
+Anführungszeichen in einem Kommentar), deshalb ist die Antwort kein Tausch,
+sondern ein Durchgang von links nach rechts: ein Zustandsautomat, der an jeder
+Stelle weiss, ob er in Code, Kommentar oder Zeichenkette steht. Kein Parser —
+er kennt weder Ausdrücke noch Blöcke —, aber genau die vier Zustände, um die es
+geht. `tests/kern/quelltext.test.ts` hält zehn Fälle fest, den Befund zuerst.
+
+**Nebenbei mitgenommen:** kaputtes JSON blieb kaputtes JSON (`.catch(() => ({}))`
+machte daraus `unvollstaendig` 409 statt `unlesbarer_rumpf` 400), und
+`/dev/anmelden` bot gesperrte Zugänge als Demonummern an — beides Sackgassen,
+die wie ein Fehler aussehen.

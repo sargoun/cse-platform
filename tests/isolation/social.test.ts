@@ -22,7 +22,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import type postgres from 'postgres';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import {
-  legeVor, setzeKanaele, veroeffentliche,
+  legeBeitragAn as dienstLegeBeitragAn, legeVor, setzeKanaele, veroeffentliche,
 } from '../../src/server/services/social/dienst.js';
 import { entscheideFreigabe } from '../../src/server/services/freigabe/entscheiden.js';
 import { vermerkeAnsicht } from '../../src/server/services/freigabe/laden.js';
@@ -624,5 +624,80 @@ describe('(10) Kanäle ändern und Vorlegen sind derselbe Spalt', () => {
           (await tx.unsafe(q, w as never[])) as readonly R[],
       }, beitragId, [kanal]),
     )).rejects.toThrow(/nur am Entwurf/u);
+  });
+});
+
+describe('(11) Was der Kunde nicht freigegeben hat, geht nicht hinaus', () => {
+  /**
+   * **Der Befund.** `quellenFuerBeitrag` bietet nur Referenzen an, die nicht
+   * gelöscht sind UND die der Kunde freigegeben hat. Das ist die ANZEIGE. Der
+   * Server nahm dagegen jede Kennung, die als UUID durchging: ein
+   * untergeschobenes `referenz_id` hängte eine Kundenreferenz an den Beitrag,
+   * die der Kunde gerade NICHT freigegeben hat — und der Beitrag geht danach
+   * auf die eigene Seite und in die verbundenen Kanäle.
+   *
+   * Die Freigabe des Kunden ist eine Einwilligung. Sie am Formular zu prüfen
+   * und am Server nicht heisst, sie gar nicht zu prüfen.
+   */
+  async function legeReferenzAn(mandantId: string, freigegeben: boolean): Promise<string> {
+    const [r] = await sql.unsafe<{ id: string }[]>(
+      `insert into referenz (mandant_id, titel, kunde_name, freigegeben_vom_kunden,
+                             freigabe_am)
+       values ($1::uuid, $2, 'Bezirksamt Mitte', $3,
+               case when $3 then now() else null end)
+       returning id`,
+      [mandantId, `Referenz ${zufall()}`, freigegeben]);
+    return r!.id;
+  }
+
+  function schreibend(tx: postgres.TransactionSql, konto: string, mandantId: string) {
+    return {
+      scope: 'mandant' as const, portal: 'intern' as const, benutzerId: konto,
+      aktiverMandantId: mandantId, mandantIds: [mandantId],
+      abfrage: async <R,>(q: string, w: readonly unknown[] = []) =>
+        (await tx.unsafe(q, w as never[])) as readonly R[],
+      schreibe: async <R,>(q: string, w: readonly unknown[] = []) =>
+        (await tx.unsafe(q, w as never[])) as readonly R[],
+    };
+  }
+
+  it('eine NICHT freigegebene Referenz lässt sich nicht anhängen', async () => {
+    const konto = await legeKontoAn(f.reinigung);
+    const referenzId = await legeReferenzAn(f.reinigung, false);
+    await expect(alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: konto, portal: 'intern',
+        readonly: false },
+      async (tx) => dienstLegeBeitragAn(schreibend(tx, konto, f.reinigung), {
+        titel: `Probe ${zufall()}`, text: 'Text', art: 'beitrag',
+        projektId: null, referenzId, kanalIds: [],
+      }),
+    )).rejects.toThrow(/nicht freigegeben/u);
+  });
+
+  it('eine freigegebene schon — sonst prüfte der Test nur, dass nichts geht', async () => {
+    const konto = await legeKontoAn(f.reinigung);
+    const referenzId = await legeReferenzAn(f.reinigung, true);
+    const id = await alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: konto, portal: 'intern',
+        readonly: false },
+      async (tx) => dienstLegeBeitragAn(schreibend(tx, konto, f.reinigung), {
+        titel: `Probe ${zufall()}`, text: 'Text', art: 'beitrag',
+        projektId: null, referenzId, kanalIds: [],
+      }));
+    expect(id).toMatch(/^[0-9a-f-]{36}$/u);
+  });
+
+  it('und eine Referenz der ANDEREN Gesellschaft auch nicht — die RLS sieht sie nicht', async () => {
+    const konto = await legeKontoAn(f.reinigung);
+    /* Freigegeben, aber bei der Security: aus der Reinigung heraus unsichtbar. */
+    const fremd = await legeReferenzAn(f.security, true);
+    await expect(alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: konto, portal: 'intern',
+        readonly: false },
+      async (tx) => dienstLegeBeitragAn(schreibend(tx, konto, f.reinigung), {
+        titel: `Probe ${zufall()}`, text: 'Text', art: 'beitrag',
+        projektId: null, referenzId: fremd, kanalIds: [],
+      }),
+    )).rejects.toThrow(/gelöscht oder vom Kunden nicht freigegeben/u);
   });
 });

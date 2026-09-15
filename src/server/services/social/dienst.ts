@@ -145,6 +145,48 @@ export interface NeuerBeitrag {
 export async function legeBeitragAn(
   kontext: SchreibKontext, neu: NeuerBeitrag,
 ): Promise<string> {
+  /*
+   * **Die Quelle wird NOCH EINMAL geprueft — hier, nicht nur im Formular.**
+   *
+   * `quellenFuerBeitrag` filtert die Auswahlliste: Referenzen nur, wenn sie
+   * nicht geloescht sind UND der Kunde sie freigegeben hat; Projekte nur, wenn
+   * sie nicht abgelegt sind. Das ist die ANZEIGE. Der Server nahm dagegen jede
+   * Kennung, die als UUID durchging.
+   *
+   * Der Unterschied ist kein Schoenheitsfehler: eine untergeschobene
+   * `referenz_id` haengt an den Beitrag eine Kundenreferenz, die der Kunde
+   * gerade NICHT freigegeben hat — und der Beitrag geht danach auf die eigene
+   * Seite und in die verbundenen Kanaele. Die Freigabe des Kunden ist eine
+   * Einwilligung; sie am Formular zu pruefen und am Server nicht heisst, sie
+   * gar nicht zu pruefen.
+   *
+   * Die Bedingungen stehen deshalb WOERTLICH so wie in `quellenFuerBeitrag`.
+   * Gelesen wird unter der Mandantensitzung, also faellt eine fremde Kennung
+   * schon an der RLS — und eine eigene, aber nicht freigegebene hier.
+   */
+  if (neu.referenzId !== null) {
+    const [r] = await kontext.abfrage<{ id: string }>(
+      `select id from referenz
+        where id = $1::uuid and geloescht_am is null and freigegeben_vom_kunden`,
+      [neu.referenzId]);
+    if (r === undefined) {
+      throw new SocialFehler(
+        'Diese Referenz lässt sich nicht anhängen: Sie ist gelöscht oder vom Kunden '
+        + 'nicht freigegeben. Was ein Kunde nicht freigegeben hat, geht nicht hinaus.',
+        'quelle_unzulaessig');
+    }
+  }
+  if (neu.projektId !== null) {
+    const [p] = await kontext.abfrage<{ id: string }>(
+      `select id from projekt where id = $1::uuid and archiviert_am is null`,
+      [neu.projektId]);
+    if (p === undefined) {
+      throw new SocialFehler(
+        'Dieses Projekt lässt sich nicht anhängen: Es gibt es hier nicht oder es ist '
+        + 'abgelegt.', 'quelle_unzulaessig');
+    }
+  }
+
   const [z] = await kontext.schreibe<{ id: string }>(
     `insert into beitrag (mandant_id, titel, text, art, projekt_id, referenz_id, erstellt_von)
      values ($1::uuid, $2, $3, $4::beitrag_art, $5::uuid, $6::uuid, $7::uuid)

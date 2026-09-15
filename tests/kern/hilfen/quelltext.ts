@@ -13,15 +13,71 @@
  * kleine, ehrliche Fassung: Kommentare und Zeichenketten fallen weg, alles
  * andere bleibt stehen. Was danach übrig ist, ist Code.
  */
+/**
+ * **Ein Durchgang von links nach rechts — keine Kette von Ersetzungen.**
+ *
+ * Vorher fielen erst die Kommentare, dann die Zeichenketten. Das ist die
+ * falsche Reihenfolge, und zwar auf eine Weise, die eine SICHERHEITSPRUEFUNG
+ * blind macht: in
+ *
+ *     const marke = 'x//y'; await authorize(...);
+ *
+ * schlaegt die `//`-Regel INNERHALB der Zeichenkette zu und frisst den Rest
+ * der Zeile — samt `authorize`. `routen.test.ts` haelt die Route danach fuer
+ * unbewacht oder, schlimmer, findet den Aufruf nicht und meldet nichts, weil
+ * die Zeile gar nicht mehr da ist.
+ *
+ * Die umgekehrte Reihenfolge hat denselben Fehler spiegelbildlich: ein
+ * Anfuehrungszeichen in einem Kommentar (`// der Kunde's Name`) liesse die
+ * Zeichenkettenregel ueber den halben Rest der Datei laufen.
+ *
+ * Beides verschwindet mit einem einzigen Zustandsautomaten: an jeder Stelle
+ * weiss er, ob er in Code, in einem Kommentar oder in einer Zeichenkette
+ * steht. Das ist kein Parser — er kennt weder Ausdruecke noch Bloecke —, aber
+ * er kennt genau die vier Zustaende, um die es hier geht.
+ */
 export function ohneKommentare(quelle: string): string {
-  return quelle
-    .replace(/\/\*[\s\S]*?\*\//gu, ' ')
-    // `[^:]` davor: sonst frisst die Regel `https://…` mitten in einer Zeile
-    // und mit ihr den Rest der Zeile.
-    .replace(/(^|[^:])\/\/[^\n]*/gu, '$1 ')
-    .replace(/'(?:[^'\\\n]|\\.)*'/gu, "''")
-    .replace(/"(?:[^"\\\n]|\\.)*"/gu, '""')
-    .replace(/`(?:[^`\\]|\\.)*`/gu, '``');
+  let aus = '';
+  let i = 0;
+  const n = quelle.length;
+  while (i < n) {
+    const c = quelle[i]!;
+    const d = quelle[i + 1];
+    if (c === '/' && d === '*') {
+      const ende = quelle.indexOf('*/', i + 2);
+      aus += ' ';
+      i = ende === -1 ? n : ende + 2;
+      continue;
+    }
+    if (c === '/' && d === '/') {
+      const ende = quelle.indexOf('\n', i);
+      aus += ' ';
+      i = ende === -1 ? n : ende;
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`') {
+      /*
+       * Die leere Huelle bleibt stehen (`''`), damit aus `a = 'x'` nicht
+       * `a =` wird: eine Pruefung, die auf eine Zuweisung sieht, braucht die
+       * rechte Seite als Zeichen, nur nicht als Inhalt.
+       */
+      aus += c + c;
+      i += 1;
+      while (i < n) {
+        const z = quelle[i]!;
+        if (z === '\\') { i += 2; continue; }
+        if (z === c) { i += 1; break; }
+        // Eine einfache oder doppelte Quote endet spaetestens am Zeilenende;
+        // ein Backtick darf ueber Zeilen gehen.
+        if (z === '\n' && c !== '`') break;
+        i += 1;
+      }
+      continue;
+    }
+    aus += c;
+    i += 1;
+  }
+  return aus;
 }
 
 /**

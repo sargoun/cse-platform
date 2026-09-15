@@ -95,7 +95,12 @@ async function beschaeftigte(): Promise<readonly Beschaeftigt[]> {
        -- landet auf der Codeseite ohne Code. Eine Liste, die solche Nummern
        -- anbietet, ist schlimmer als keine Liste -- sie schickt jemanden in
        -- eine Sackgasse, die wie ein Fehler aussieht.
-       join mitarbeiter_zugang z on z.person_id = p.id
+       -- UND nicht gesperrt: app.zugang_code_anfordern weist einen gesperrten
+       -- Zugang ab, ohne es zu sagen (AUT-06). Eine Nummer, die hier steht und
+       -- dort still scheitert, ist genau die Sackgasse, die der Kommentar
+       -- darueber vermeiden will. (Keine Backticks in diesem Kommentar: er
+       -- steht in einem Template-Literal und wuerde es schliessen.)
+       join mitarbeiter_zugang z on z.person_id = p.id and z.gesperrt_am is null
        left join benutzer_mandant bm
               on bm.benutzer_id = b.id and bm.entzogen_am is null and bm.ist_standard
        left join rolle r on r.id = bm.rolle_id

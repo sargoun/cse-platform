@@ -7,6 +7,7 @@ import { anbindungen, STAND_TEXT, type Anbindungsstand } from '@/server/registry
 import { alleJobs } from '@/server/jobs/bootstrap';
 import { planzeilen } from '@/server/jobs/zeitplan';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
+import { bindeAnfrage } from '@/server/kontext/index';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 
@@ -55,14 +56,29 @@ export default async function Integrationen(
    *
    * `job_lauf` traegt KEIN `mandant_id` (0010) — die Laeufe sind
    * plattformweit, und das ist richtig: ein Nachtlauf laeuft einmal und
-   * schreibt sein Ergebnis je Mandant daneben. Die Abfrage steht deshalb
-   * ausserhalb von `withTenant`.
+   * schreibt sein Ergebnis je Mandant daneben. Es gibt hier also nichts nach
+   * Mandant zu filtern.
+   *
+   * **Gebunden wird die Sitzung trotzdem, und das war der Fehler.** Die
+   * Abfrage lief ueber die rohe Verbindung. `job_lauf` steht unter FORCE RLS,
+   * und `t_job_lauf_lesen` (0010:72) verlangt
+   * `app.hat_recht('system.betrieb_lesen', app.aktiver_mandant())` — ohne
+   * gebundene Sitzung ist der aktive Mandant NULL, das Recht antwortet
+   * `false`, und die Abfrage liefert NULL ZEILEN. Die Seite meldete dann
+   * „noch nie gelaufen" fuer JEDEN Waechter, ohne einen Fehler zu zeigen.
+   *
+   * In CI und im Seed fiel das nicht auf: dort steht `postgres` in
+   * `DATABASE_URL`, ein Superuser mit `BYPASSRLS`. Dieselbe Altlast wie in
+   * D-378, nur auf einem Bildschirm statt in einem Lauf — und mit derselben
+   * Wirkung: eine gruene Auskunft ueber nichts.
    */
-  const laeufe = await (db().begin(SCHNAPPSCHUSS, (tx: postgres.TransactionSql) =>
-    tx.unsafe(
+  const laeufe = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) => {
+    await bindeAnfrage(tx, zugang.sitzung);
+    return tx.unsafe(
       `select distinct on (job) job, gestartet_am, ergebnis::text as ergebnis
          from job_lauf order by job, gestartet_am desc`,
-    )) as Promise<readonly { job: string; gestartet_am: Date; ergebnis: string | null }[]>);
+    );
+  }) as Promise<readonly { job: string; gestartet_am: Date; ergebnis: string | null }[]>);
   const letzter = new Map(laeufe.map((l) => [l.job, l]));
   const plan = planzeilen(alleJobs(db()));
   const nieGelaufen = plan.filter((p) => !letzter.has(p.schluessel)).length;
