@@ -11757,3 +11757,26 @@ ungeprüfter Knopf auffällt. Eine Super-Administration hält jedes Recht und
 hätte keinen einzigen dieser Fälle gezeigt. Die Ausnahmeliste im Test ist
 leer, und sie soll es bleiben: wer dort etwas einträgt, schreibt daneben,
 warum der Verweis trotzdem gezeigt wird.
+
+### D-568 · Sechs gebaute Seiten, zu denen kein Weg führte
+
+`mein/zeiten`, `mein/urlaub`, `mein/antraege`, `mein/nachweise`,
+`mein/dienstanweisungen` und `mein/monatsnachweis` sind gebaut, in vier
+Sprachen übersetzt und geprüft — und waren von **nirgends** erreichbar. Die
+Arbeiterleiste trägt fünf Ziele (SEITENKARTE §11.2), und mehr gehört dort auch
+nicht hin: sie ist für den Einsatz gemacht, nicht für die Verwaltung. Nur gab
+es daneben keinen zweiten Weg.
+
+**Für den Menschen davor ist eine Seite ohne Weg dorthin dasselbe wie keine
+Seite.** Der Unterschied zeigt sich nur in der Abdeckungszahl.
+
+**`mein/zeiten` ist der teuerste der sechs.** Dort liegt der Einwandsweg aus
+EMP-07 — die einzige Stelle, an der eine Kraft einer Aufzeichnung
+widersprechen kann. Ein Widerspruchsrecht ohne Weg dorthin ist keines, und es
+steht in derselben Reihe wie D-559: die Korrektur war gebaut und hatte keinen
+Aufrufer, der Einwand hatte einen Bildschirm ohne Verweis.
+
+Die sechs stehen jetzt unter „Weiteres" auf `/portal/mein` — in der Sprache
+der Person, mit `min-h-11` je Zeile (DESIGN §8: diese Liste wird auf einem
+Telefon mit Handschuhen bedient). Der Browsertest öffnet jede einzelne und
+prüft, dass keine „wird noch gebaut" sagt.

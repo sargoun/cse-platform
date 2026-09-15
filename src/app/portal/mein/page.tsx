@@ -183,6 +183,45 @@ export default async function MeinPortal(
           })}
         </ul>
       </section>
+
+      {/*
+        * **Sechs gebaute Seiten, zu denen kein Weg führte.**
+        *
+        * Die Arbeiterleiste trägt fünf Ziele (SEITENKARTE §11.2), und mehr
+        * gehört dort auch nicht hin: sie ist für den Einsatz gemacht, nicht
+        * für die Verwaltung. Nur waren `mein/zeiten`, `urlaub`, `antraege`,
+        * `nachweise`, `dienstanweisungen` und `monatsnachweis` damit von
+        * NIRGENDS erreichbar — gebaut, übersetzt, geprüft und für den
+        * Menschen davor dasselbe wie nicht vorhanden. `mein/zeiten` trägt
+        * dabei den Einwandsweg aus EMP-07: die einzige Stelle, an der eine
+        * Kraft einer Aufzeichnung widersprechen kann.
+        *
+        * `min-h-11` je Zeile: DESIGN §8 verlangt 44×44 px, und diese Liste
+        * wird auf einem Telefon mit Handschuhen bedient.
+        */}
+      <section className="mt-s6 flex flex-col gap-s3">
+        <h2 className="m-0 text-h3 text-text">{t.weiteres}</h2>
+        <ul data-cse="mein-weiteres" className="m-0 flex list-none flex-col p-0">
+          {([
+            ['/portal/mein/zeiten', t.zeiten],
+            ['/portal/mein/urlaub', t.urlaub],
+            ['/portal/mein/antraege', t.antraege],
+            ['/portal/mein/nachweise', t.nachweise],
+            ['/portal/mein/dienstanweisungen', t.dienstanweisungen],
+            ['/portal/mein/monatsnachweis', t.monatsnachweis],
+          ] as const).map(([ziel, text]) => (
+            <li key={ziel} className="border-b border-line last:border-b-0">
+              <Link
+                href={ziel}
+                data-cse="mein-weiteres-ziel"
+                className="flex min-h-11 items-center py-s2 text-base text-text"
+              >
+                {text}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
     </MeinRahmen>
   );
 }

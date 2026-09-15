@@ -401,6 +401,8 @@ export interface MeinTexte {
   readonly nachweise: string;
   readonly monatsnachweis: string;
   readonly abwesenheit: string;
+  /** Die Ueberschrift ueber den Zielen, die nicht in die Leiste passen. */
+  readonly weiteres: string;
 
   readonly laufendeSchicht: string;
   readonly naechsteSchicht: string;
@@ -525,6 +527,7 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     nachweise: 'Nachweise',
     monatsnachweis: 'Monatsnachweis',
     abwesenheit: 'Abwesenheit',
+    weiteres: 'Weiteres',
     laufendeSchicht: 'Laufende Schicht',
     naechsteSchicht: 'Nächste Schicht',
     keineSchicht: 'Für Sie ist derzeit keine Schicht eingeteilt.',
@@ -624,6 +627,7 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     nachweise: 'Certificates',
     monatsnachweis: 'Monthly statement',
     abwesenheit: 'Absence',
+    weiteres: 'More',
     laufendeSchicht: 'Current shift',
     naechsteSchicht: 'Next shift',
     keineSchicht: 'You are not scheduled for a shift at the moment.',
@@ -722,6 +726,7 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     nachweise: 'الشهادات',
     monatsnachweis: 'كشف الساعات الشهري',
     abwesenheit: 'الغياب',
+    weiteres: 'المزيد',
     laufendeSchicht: 'المناوبة الجارية',
     naechsteSchicht: 'المناوبة القادمة',
     keineSchicht: 'لا توجد مناوبة مجدولة لك حالياً.',
@@ -820,6 +825,7 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     nachweise: 'Belgeler',
     monatsnachweis: 'Aylık saat belgesi',
     abwesenheit: 'Devamsızlık',
+    weiteres: 'Diğer',
     laufendeSchicht: 'Devam eden vardiya',
     naechsteSchicht: 'Sonraki vardiya',
     keineSchicht: 'Şu anda size atanmış bir vardiya yok.',

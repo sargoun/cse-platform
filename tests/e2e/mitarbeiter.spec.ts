@@ -638,6 +638,51 @@ test.describe('(6) Arabisch: `dir="rtl"` und null axe-Verstöße', () => {
 
 // ---------------------------------------------------------------------------
 
+test.describe('(8) sechs gebaute Seiten, zu denen kein Weg führte', () => {
+  /**
+   * **Der Befund.** Die Arbeiterleiste trägt fünf Ziele — und `mein/zeiten`,
+   * `urlaub`, `antraege`, `nachweise`, `dienstanweisungen` und
+   * `monatsnachweis` waren damit von NIRGENDS erreichbar. Gebaut, übersetzt,
+   * geprüft, und für den Menschen davor dasselbe wie nicht vorhanden.
+   *
+   * `mein/zeiten` ist dabei der teuerste der sechs: dort liegt der
+   * Einwandsweg aus EMP-07 — die einzige Stelle, an der eine Kraft einer
+   * Aufzeichnung widersprechen kann. Ein Widerspruchsrecht ohne Weg dorthin
+   * ist keines.
+   */
+  const ZIELE = [
+    '/portal/mein/zeiten', '/portal/mein/urlaub', '/portal/mein/antraege',
+    '/portal/mein/nachweise', '/portal/mein/dienstanweisungen',
+    '/portal/mein/monatsnachweis',
+  ];
+
+  test('jedes davon steht auf „Heute" und öffnet wirklich', async ({ page }) => {
+    await alsKonto(page, KONTO.fatima);
+    await page.goto('/portal/mein');
+
+    const liste = page.locator('[data-cse="mein-weiteres"] [data-cse="mein-weiteres-ziel"]');
+    await expect(liste).toHaveCount(ZIELE.length);
+
+    const gezeigt = await liste.evaluateAll((els) => els.map((e) => e.getAttribute('href')));
+    expect([...gezeigt].sort()).toEqual([...ZIELE].sort());
+
+    for (const ziel of ZIELE) {
+      await page.goto(ziel);
+      await expect(page.locator('h1').first(), ziel).not.toContainText(/gibt es hier nicht/u);
+      await expect(page.locator('h1').first(), ziel).not.toContainText(/wird noch gebaut/u);
+    }
+  });
+
+  test('und jede Zeile ist ein Tippziel nach DESIGN §8', async ({ page }) => {
+    await alsKonto(page, KONTO.fatima);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/portal/mein');
+    const kaesten = await page.locator('[data-cse="mein-weiteres-ziel"]')
+      .evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
+    for (const h of kaesten) expect(h).toBeGreaterThanOrEqual(44);
+  });
+});
+
 test.describe('(7) „Nur Lesen" ist eine Aussage über die SITZUNG', () => {
   /**
    * **Der Befund, der diese Prüfung nötig machte — ein Nutzerbericht.**
