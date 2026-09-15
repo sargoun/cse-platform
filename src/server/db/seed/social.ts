@@ -1,4 +1,5 @@
 import type postgres from 'postgres';
+import { jcsDigest } from '../../services/freigabe/kette.js';
 import { PLATTFORMEN, PLATTFORM_NAME } from '../../services/social/port.js';
 
 /**
@@ -217,6 +218,18 @@ async function legeAn(
         join benutzer_mandant bm on bm.benutzer_id = b.id and bm.mandant_id = ${mandantId}
        where bm.entzogen_am is null
        order by b.email limit 1`;
+    /*
+     * **Eine Nutzlast, ein Abdruck -- aus DERSELBEN Variablen.**
+     *
+     * Vorher stand in der Spalte `{ titel, text }` und im Abdruck der Hash von
+     * `titel` allein: der Demo-Vorschlag liess sich im Posteingang gar nicht
+     * entscheiden, die Datenbank wies ihn als veraenderte Nutzlast ab. Zwei
+     * Ausdruecke fuer dieselbe Sache laufen auseinander; einer kann es nicht.
+     *
+     * `jcsDigest` ist dieselbe kanonische Form (RFC 8785), die
+     * `app.freigabe_entscheiden` beim Vergleich bildet.
+     */
+    const nutzlast = { titel: a.titel, text: a.text };
     const [f] = await sql<{ id: string }[]>`
       insert into freigabe (mandant_id, aktion, status, vorgang_typ, titel, zusammenfassung,
                             risiko, vorschau_payload, payload_hash,
@@ -226,8 +239,7 @@ async function legeAn(
               'beitrag_veroeffentlichen', ${`Beitrag: ${a.titel}`},
               ${`Der Beitrag „${a.titel}" soll auf die eigene Gesellschaftsseite gehen.`},
               'mittel'::risiko_stufe,
-              ${sql.json({ titel: a.titel, text: a.text })},
-              encode(sha256(convert_to(${a.titel}::text, 'UTF8')), 'hex'),
+              ${sql.json(nutzlast)}, ${jcsDigest(nutzlast)},
               ${offen ? null : mensch?.id ?? null},
               ${offen ? null : sql`now() - interval '5 days'`}, 'beitrag')
       returning id`;

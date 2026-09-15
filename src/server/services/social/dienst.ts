@@ -1,6 +1,6 @@
 import 'server-only';
-import { createHash } from 'node:crypto';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
+import { jcsDigest } from '../freigabe/kette.js';
 import { plattformKanal } from '../../versand/social-plattform.js';
 import {
   type BeitragAuftrag, KanalNichtVerbundenFehler, PLATTFORM_NAME, type Plattform,
@@ -234,7 +234,24 @@ export async function legeVor(kontext: SchreibKontext, id: string): Promise<stri
     art: b.art,
     kanaele: kanaele.map((k) => k.plattform),
   };
-  const abdruck = createHash('sha256').update(JSON.stringify(nutzlast), 'utf8').digest('hex');
+  /*
+   * **Der Abdruck MUSS kanonisch sein (RFC 8785)** -- `JSON.stringify` genuegt
+   * nicht.
+   *
+   * `app.freigabe_entscheiden` (0136) bildet den Digest beim Entscheiden aus
+   * `kanonisiere(vorschau)` und vergleicht ihn mit dieser Spalte.
+   * Kanonisierung sortiert Objektschluessel; die Einfuegereihenfolge von
+   * `JSON.stringify` tut das nicht. Beide Byte-Folgen sind verschieden, und
+   * die Datenbank weist JEDE Entscheidung mit
+   * "die eingereichte Nutzlast ist nicht die vorgelegte" ab -- also jede
+   * Social-Freigabe, ausnahmslos.
+   *
+   * Kein Test hatte den Weg gegangen; gefunden hat es die Browsersuite, weil
+   * der Freigabe-Posteingang seit dem Seed einen Social-Vorschlag enthaelt.
+   * `jcsDigest` ist dieselbe Funktion, die die Kette benutzt -- eine zweite
+   * Fassung waere genau der Fehler noch einmal.
+   */
+  const abdruck = jcsDigest(nutzlast);
 
   const [f] = await kontext.schreibe<{ id: string }>(
     `insert into freigabe

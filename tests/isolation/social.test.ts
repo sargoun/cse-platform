@@ -21,6 +21,9 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import type postgres from 'postgres';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
+import { legeVor } from '../../src/server/services/social/dienst.js';
+import { entscheideFreigabe } from '../../src/server/services/freigabe/entscheiden.js';
+import { vermerkeAnsicht } from '../../src/server/services/freigabe/laden.js';
 
 let f: Fixtur;
 const zufall = (): string => Math.random().toString(36).slice(2, 10);
@@ -259,7 +262,86 @@ describe('(4) Die Entscheidung zieht den Beitrag nach — in BEIDE Richtungen', 
   });
 });
 
-describe('(5) Kein hartes Löschen', () => {
+/**
+ * **Der Weg, der zweimal an einem Abdruck gescheitert ist.**
+ *
+ * `app.freigabe_entscheiden` bildet den Digest der eingereichten Nutzlast
+ * KANONISCH (RFC 8785) und vergleicht ihn mit `payload_hash`. Wer beim
+ * Vorlegen `JSON.stringify` nimmt, schreibt eine andere Byte-Folge — und jede
+ * Entscheidung wird mit „die eingereichte Nutzlast ist nicht die vorgelegte"
+ * abgewiesen. Der Knopf ist da, der Vorschlag liegt vor, und er lässt sich
+ * nicht entscheiden.
+ *
+ * Kein Test war diesen Weg gegangen; gefunden hat es die Browsersuite. Dieser
+ * Fall geht ihn — durch die ECHTEN Dienste, nicht an ihnen vorbei.
+ */
+describe('(5) Vorlegen und Entscheiden gehen wirklich zusammen', () => {
+  it('ein vorgelegter Beitrag lässt sich im Posteingang genehmigen', async () => {
+    const konto = await legeKontoAn(f.reinigung, 'admin');
+    const titel = `Ganzer Weg ${zufall()}`;
+    const { beitragId } = await legeBeitragAn(f.reinigung, titel, 'entwurf');
+
+    /*
+     * **`readonly: false` ist Pflicht, nicht Kosmetik.** Die Fixtur bindet
+     * die Sitzung sonst schreibgeschuetzt (`app.readonly = 'on'`), und JEDE
+     * `with check`-Policy mit `not app.ist_readonly()` weist ab -- mit
+     * derselben Meldung, die auch ein fehlendes Recht erzeugt. Beim ersten
+     * Lauf sah das nach dem Rechteproblem aus, das die Durchsicht vermutet
+     * hatte; es war die Fixtur.
+     */
+    const sitzung = {
+      scope: 'mandant' as const, mandantId: f.reinigung,
+      benutzerId: konto, portal: 'intern' as const, readonly: false,
+    };
+
+    /* Vorlegen ueber den echten Dienst — der bildet den Abdruck. */
+    const freigabeId = await alsApp(sitzung, async (tx) => legeVor({
+      scope: 'mandant', portal: 'intern', benutzerId: konto,
+      aktiverMandantId: f.reinigung, mandantIds: [f.reinigung],
+      abfrage: async <R,>(q: string, w: readonly unknown[] = []) =>
+        (await tx.unsafe(q, w as never[])) as readonly R[],
+      schreibe: async <R,>(q: string, w: readonly unknown[] = []) =>
+        (await tx.unsafe(q, w as never[])) as readonly R[],
+    }, beitragId));
+
+    /*
+     * **Erst ansehen, dann entscheiden** (APR-08). `app.freigabe_entscheiden`
+     * weist eine Entscheidung ab, die niemand geoeffnet hat -- die Pruefdauer
+     * misst der Server aus `freigabe_ansicht`, und ohne Vermerk gibt es keine.
+     * Im Portal schreibt ihn die Detailseite beim Laden; hier steht derselbe
+     * Dienst.
+     */
+    await alsApp(sitzung, async (tx) => vermerkeAnsicht({
+      scope: 'mandant', portal: 'intern', benutzerId: konto,
+      aktiverMandantId: f.reinigung, mandantIds: [f.reinigung],
+      abfrage: async <R,>(q: string, w: readonly unknown[] = []) =>
+        (await tx.unsafe(q, w as never[])) as readonly R[],
+      schreibe: async <R,>(q: string, w: readonly unknown[] = []) =>
+        (await tx.unsafe(q, w as never[])) as readonly R[],
+    }, freigabeId, 'web'));
+
+    /* Und entscheiden ueber den echten Dienst — der vergleicht den Abdruck. */
+    const entschieden = await alsApp(sitzung, async (tx) => entscheideFreigabe({
+      scope: 'mandant', portal: 'intern', benutzerId: konto,
+      aktiverMandantId: f.reinigung, mandantIds: [f.reinigung],
+      abfrage: async <R,>(q: string, w: readonly unknown[] = []) =>
+        (await tx.unsafe(q, w as never[])) as readonly R[],
+      schreibe: async <R,>(q: string, w: readonly unknown[] = []) =>
+        (await tx.unsafe(q, w as never[])) as readonly R[],
+    }, {
+      freigabeId, art: 'genehmigt', begruendung: null,
+      ip: null, userAgent: null, codeVersion: 'test',
+    }));
+
+    expect(entschieden.hash).toMatch(/^[0-9a-f]{64}$/u);
+
+    const [b] = await sql.unsafe<{ status: string }[]>(
+      `select status::text as status from beitrag where id = $1::uuid`, [beitragId]);
+    expect(b?.status).toBe('freigegeben');
+  });
+});
+
+describe('(6) Kein hartes Löschen', () => {
   it('`beitrag` ist für cse_app nicht löschbar', async () => {
     const konto = await legeKontoAn(f.reinigung);
     const { beitragId } = await legeBeitragAn(f.reinigung, `Bleibt ${zufall()}`, 'entwurf');

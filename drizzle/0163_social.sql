@@ -454,6 +454,23 @@ comment on function app.beitrag_folgt_freigabe() is
 
 alter function app.beitrag_folgt_freigabe() owner to cse_definer;
 
+/**
+ * **Eine Triggerfunktion ruft niemand von Hand — also darf es auch niemand.**
+ *
+ * Ohne diese Zeile stuende sie mit PUBLIC-EXECUTE da wie jede frisch angelegte
+ * Funktion. Bei einer SECURITY-DEFINER-Funktion heisst das: jeder Aufrufer
+ * koennte sie mit den Rechten von `cse_definer` ausfuehren. Hier waere der
+ * Schaden begrenzt (sie erwartet einen Triggerkontext und faellt sonst auf die
+ * Nase), aber die Regel ist die Regel, und `definer-eigentum.test.ts` zaehlt
+ * mit: es gibt GENAU EINE `app`-Funktion ohne eigene Zuteilung, und das ist
+ * `app.sichtbare_mandanten()`. Eine zweite laesst die Pruefung fallen -- und
+ * genau dafuer steht sie da.
+ *
+ * Der Trigger selbst braucht kein EXECUTE: Postgres ruft die Funktion als
+ * Eigentuemer der Tabelle auf, nicht als der Rolle, die das UPDATE macht.
+ */
+revoke all on function app.beitrag_folgt_freigabe() from public;
+
 grant select, update on public.beitrag to cse_definer;
 create policy d_beitrag_folgt on beitrag for select to cse_definer using (true);
 create policy d_beitrag_nachzug on beitrag as permissive for update to cse_definer
