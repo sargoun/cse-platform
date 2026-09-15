@@ -5171,6 +5171,7 @@ niemand ihn suchen.
 | O-356 | **Bucht jede Gesellschaft genau ein Gewerk, oder gibt es Überschneidungen?** Der Seed setzt `reinigung → [reinigung]`, `security → [security]`, `bau → [bau]`, `operations → []` — abgeleitet aus den Gewerken, die in `CLAUDE.md` stehen. Praktisch plausibel wäre anderes: Bauendreinigung bei der REALTIME Service, Veranstaltungsreinigung bei der SSE Security. Bis zur Antwort sieht eine Gesellschaft nur ihr eigenes Gewerk; die Korrektur ist eine Zeile in `mandant.module` und kein Codeeingriff. | `mandant.module`, `src/server/db/seed/index.ts`, D-377 |
 | O-357 | **Wohin gehen die Wächter-Meldungen aus SPEC §14 — Posteingang, Mail oder beides — und wer bekommt die Kettenmeldung?** Die Ablaufwarnung (60/30/7) erreicht die Person selbst; das ist EMP-08 und unstrittig. „Hashkette gebrochen" dagegen hat keinen persönlichen Empfänger: es ist eine Meldung an die Buchhaltung oder die Geschäftsführung, und beide sind heute keine adressierbare Größe im Modell. Solange die Frage offen ist, wird der Kettenprüfer bewusst NICHT als Job registriert — ein Lauf, der jede Nacht „ok" meldet, ohne dass jemand die Meldung liest, schafft Vertrauen, das er nicht deckt. | SPEC §14, `src/server/jobs/bootstrap.ts`, `kettenlauf.ts`, NOT-01 |
 | O-369 | **Darf jemand eine Freigabe ERBITTEN, ohne sie erteilen zu dürfen?** Die Schreibpolicy auf `freigabe` (`t_mandant`, 0136) verlangt `freigabe.entscheiden` — sie unterscheidet nicht zwischen „eine Freigabe anlegen“ und „eine Freigabe entscheiden“. Heute fällt das nirgends auf: jede Rolle mit `social.schreiben` trägt auch `freigabe.entscheiden` (0008), und dasselbe gilt für die übrigen Vorleger. Es fällt in dem Moment auf, in dem jemand es RICHTIG machen will: eine schmale Marketing- oder Sachbearbeiterrolle, die vorlegt und nichts entscheidet, ist genau das, wofür Invariante 7 da ist — und sie scheitert dann an der Policy, mit einer Meldung, die nach einem fehlenden Fachrecht aussieht. Die Policy einfach zu weiten ist keine Antwort: sie gilt für JEDE Freigabe dieser Plattform, und wer eine offene Freigabe anlegen darf, kann den Posteingang füllen. Bis zur Entscheidung hält `tests/isolation/social-job.test.ts` die Kopplung fest — sie wird rot, sobald eine Rolle `social.schreiben` ohne `freigabe.entscheiden` bekommt, und nicht erst im Betrieb. | APR-01, Invariante 7, `0136`, `0008`, `services/social/dienst.ts: legeVor` |
+| O-372 | **Soll die Gruppenansicht eine lesende Social-Übersicht über alle vier Gesellschaften bekommen?** Die Daten lassen es zu: die Policies in `0163` geben `gruppe.social.lesen` frei, und ein Beitrag trägt seinen Mandanten. Die Seitenkarte führt in §6 aber keine `/portal/gruppe/social`, und eine Route zu erfinden hiesse, eine Seite zu bauen, die niemand bestellt hat. Bis zur Antwort steht social nicht in `GRUPPEN_NAVIGATION` — vorher stand es dort mit dem Mandantenpfad und führte auf 404 (D-561). | SOC-01, TEN-05, `0163`, `registry/navigation.ts`, D-561 |
 | O-500 | **Wie lange gilt ein Einladungs- und ein Zurücksetzungslink, wie viele Wiederherstellungscodes werden ausgegeben, und gilt eine Mindestlänge über zwölf Zeichen hinaus?** Die SPEC nennt keine Zahl. `plattform_einstellung` führt vier vorläufige Werte (168 h, 2 h, 10 Codes, 12 Zeichen); sie sind als `ist_vorlaeufig = true` markiert und über eine Zeile änderbar, ohne Code. Die Auswahl folgt gängiger Praxis, nicht einer Entscheidung: ein Einladungslink überlebt ein Wochenende, ein Zurücksetzungslink nicht. | AUT-01, AUT-04, `0155`, D-502 |
 | O-501 | **Welches Supabase-Projekt in der EU-Region (Frankfurt), welcher Auftragsverarbeitungsvertrag — und soll die Anmeldung über ein Firmenverzeichnis (SAML/OIDC) laufen?** Dieselbe Frage trägt den Postausgang: welcher in der EU gehostete Mailanbieter, welche Absenderadresse je Gesellschaft, laufen DKIM und DMARC über die bestehenden Domains? Ohne beides gibt es keinen Zurücksetzungs- und keinen Einladungslink, der ankommt. Bis zur Antwort prüft die Plattform das Kennwort selbst (`kern.zugangsdaten`, bcrypt), `/auth/callback` antwortet `501` statt eine Sitzung auszustellen, und `/auth/passwort-vergessen` sagt „nicht verbunden" statt „gesendet" (D-501, D-503). | AUT-01, AUT-04, NOT-02, `0155`, D-501 |
 | O-510 | **Warum zeigt die Seite hinter einer 303-Umleitung den alten Stand?** Nach dem Widerruf eines Kalenderzugangs steht die widerrufene Zeile auf der Umleitungsseite noch in der Liste. Festgestellt ist: die Datenbank ist zu diesem Zeitpunkt richtig (`widerrufen_am` gesetzt), der Feed antwortet sofort mit 404, und ein normaler Aufruf derselben Adresse zeigt die Liste richtig — es ist eine veraltete ANZEIGE und kein offener Zugang. Ausgeschlossen sind: fehlendes `force-dynamic` (steht), eine nicht abgeschlossene Transaktion (die 404-Antwort beweist das Gegenteil), `revalidatePath` auf dem Ziel und `cache-control: no-store` auf der Umleitung (beide eingebaut, beide ohne Wirkung). Bis zur Antwort sagt die Bestätigung auf der Seite ausdrücklich, dass eine noch sichtbare Zeile veraltet ist. Der Browsertest prüft den Stand deshalb nach einem frischen Aufruf — und die Wirkung des Widerrufs sofort. | CAL-03, `api/kalender-feed/widerrufen`, D-516 |
@@ -11454,3 +11455,44 @@ erfüllt dieses Muster. Die **Adresse** stimmte, die Seite dahinter fehlte:
 eine Prüfung, die ein 404 für einen Erfolg hält, ist keine. Die beiden neuen
 Fälle in `tests/e2e/anmeldung-kennwort.spec.ts` sehen deshalb auf den INHALT —
 und sie fallen um, sobald man die Wegweiserseite entfernt.
+
+### D-561 · Die Gruppenansicht ist keine gefilterte Mandantensicht
+
+`GRUPPEN_NAVIGATION` war `NAVIGATION.filter((n) => n.gruppe)` — die
+MANDANTEN-Module mit ihren Mandantenpfaden, ausgegeben unter `/portal/gruppe`.
+**Von vierzehn so entstandenen Zielen führten elf auf 404:**
+`dienstplan/woche`, `zeiten`, `personal/anstellungen`, `angebote`,
+`finanzen/rechnungen`, `bau/projekte`, `reinigung/reviere`,
+`qualitaet/reklamationen`, `social`, `finanzen/zahlungen`,
+`finanzen/mahnungen`. §6 der Seitenkarte führt dort `dienstplan`,
+`auslastung`, `personen`, `rechnungen`, `projekte` — andere Namen für
+verwandte Sachen, und das ist kein Zufall: **eine Gruppenseite fasst vier
+Gesellschaften zusammen und ist deshalb eine andere Seite, nicht dieselbe mit
+mehr Zeilen.**
+
+Und die Rechte waren die falschen dazu: die Gruppenrouten verlangen
+`gruppe.objekt.lesen` und Geschwister (0004/0009), nicht `objekt.lesen`.
+`PortalRahmen` hatte das für die Sidebar bereits abgeräumt; diese Liste war
+die letzte Stelle, an der die alte Ableitung weiterlebte — sichtbar in
+`/dev/portal` und im `Mehr`-Blatt, sobald eine Gruppenleiste je eines
+bekäme.
+
+**Gefunden hat es eine Copilot-Anmerkung zu `social`** — einem einzigen
+Eintrag. Die Zeile stimmte; die Ursache lag eine Ebene tiefer, und zehn
+weitere Punkte hatten sie auch. Eine Anmerkung, die nur an ihrer Zeile
+abgearbeitet wird, lässt so etwas stehen.
+
+**Das Flag `gruppe` ist weg.** Ein Bool, das aus einer Mandantenliste eine
+Gruppenliste machen sollte, hat genau eine Wirkung: es lässt das Ergebnis
+richtig aussehen. Die Gruppenziele stehen jetzt ausdrücklich da, jedes mit
+seinem `gruppe.*`-Recht, und `tests/kern/gruppen-navigation.test.ts` hält für
+jedes fest: Registereintrag, `page.tsx`, Gruppenrecht aus dem Katalog, und
+dasselbe Recht wie die Route dahinter. `radar` und `kalender` stehen im
+Register und haben noch keine Seite; sie fehlen deshalb in der Liste, statt
+schon einmal verlinkt zu werden.
+
+**`navigationsRechte` fragt die Gruppenrechte jetzt mit.** Sie wurden nie
+gefragt — in der Gruppenansicht war der Wert für jeden Gruppenpunkt
+`undefined`, also `!== true`, also unsichtbar. Heute trägt keine Gruppenleiste
+ein `Mehr`-Blatt, das danach fragt; sobald eines dazukäme, wäre es leer
+gewesen, und niemand hätte gesehen warum.
