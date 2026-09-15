@@ -240,12 +240,37 @@ describe('(4) das Register ist das Tor (§8, 0154)', () => {
     }
   });
 
-  it('der Stand nennt je Fähigkeit, worauf sie läuft — und dass es der Demobetrieb ist', async () => {
+  /**
+   * **Der Stand nennt je Fähigkeit, worauf sie läuft — und wo nichts läuft.**
+   *
+   * Diese Prüfung erwartete für ALLE SIEBEN den Demobetrieb, und sie war grün:
+   * die Testfixtur trug ihn für jede `ki_faehigkeit` als freigegeben ein.
+   * `0159_agent_lauf_wahrheit.sql` nimmt genau das zurück — `DemoModell`
+   * implementiert `entwurf_text` und `embedding` und sonst nichts, und eine
+   * gemeldete Fähigkeit ohne Port ist schlimmer als eine fehlende. Die Fixtur
+   * war damit BREITER als die Produktion und deckte die Lücke zu, die 0159
+   * sichtbar machen wollte.
+   *
+   * Jetzt prüft sie beides: die zwei, die es gibt, und die fünf, die ehrlich
+   * `null` melden. Ein `null` heisst hier „abgeschaltet" und ist die richtige
+   * Antwort — `fordereModell` wirft daraufhin, statt einen Port zu bauen, der
+   * die Fähigkeit nicht hat.
+   */
+  it('der Stand nennt je Fähigkeit, worauf sie läuft — und wo nichts läuft', async () => {
     const stand = await alsDienst((k) => modellStand(k));
     expect(stand).toHaveLength(7);
-    for (const s of stand) {
+
+    const laufen = stand.filter((s) => s.modell !== null);
+    expect(laufen.map((s) => s.faehigkeit).sort())
+      .toEqual(['embedding', 'entwurf_text']);
+    for (const s of laufen) {
       expect(s.modell).toBe(DEMO_MODELL);
       expect(s.demo, 'der Demobetrieb sagt, dass er einer ist').toBe(true);
+    }
+
+    for (const s of stand.filter((x) => x.modell === null)) {
+      expect(s.anbieter, `${s.faehigkeit}: kein Modell, also kein Anbieter`).toBeNull();
+      expect(s.demo, `${s.faehigkeit}: nichts läuft, auch nicht der Demobetrieb`).toBe(false);
     }
   });
 
