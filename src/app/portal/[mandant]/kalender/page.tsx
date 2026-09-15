@@ -12,6 +12,7 @@ import {
 import {
   ankerAus, ansichtAus, fensterFuer, monatsGitter, teile, type Ansicht,
 } from '@/server/services/kalender/fenster';
+import { nachTagen, type Tageszeile } from '@/server/services/kalender/tagesraster';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { MandantAntwort, mandantTor } from '../../unterseite';
 import { QuellenPill, quellenWort } from './QuellenPill';
@@ -56,45 +57,21 @@ function uhrzeit(iso: string): string {
   }).format(new Date(iso));
 }
 
-/** Der Berliner Kalendertag eines Zeitpunkts — nie `toISOString()` (Invariante 2). */
-function berlinerTag(iso: string): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Europe/Berlin',
-  }).format(new Date(iso));
-}
-
-/**
- * Eine Zeile je Tag, an dem sie LÄUFT — nicht nur an ihrem Beginn.
- *
- * Eine Nachtschicht von 22:00 bis 06:00 gehört in beide Tage, sonst
- * verschwindet sie aus dem Tag, an dem sie endet (Invariante 2: Schichten
- * kreuzen Mitternacht). Ein mehrtägiger Termin ebenso.
- */
-function nachTagen(
-  zeilen: readonly KalenderZeile[],
-): ReadonlyMap<string, readonly KalenderZeile[]> {
-  const karte = new Map<string, KalenderZeile[]>();
-  for (const z of zeilen) {
-    const von = berlinerTag(z.beginn);
-    const bis = berlinerTag(z.ende);
-    let tag = von;
-    for (let i = 0; i < 366 && tag <= bis; i += 1) {
-      (karte.get(tag) ?? karte.set(tag, []).get(tag)!).push(z);
-      const d = new Date(`${tag}T12:00:00Z`);
-      d.setUTCDate(d.getUTCDate() + 1);
-      tag = d.toISOString().slice(0, 10);
-    }
-  }
-  return karte;
-}
-
-function Eintrag({ zeile, kurz }: { readonly zeile: KalenderZeile; readonly kurz?: boolean }) {
+function Eintrag({ eintrag, kurz }: {
+  readonly eintrag: Tageszeile; readonly kurz?: boolean;
+}) {
+  const { zeile, beginnt } = eintrag;
   const inhalt = (
     <>
       <QuellenPill quelle={zeile.quelle} />
       {!zeile.ganztaegig && (
+        /*
+         * Die Uhrzeit steht nur an dem Tag, an dem sie gilt. Eine Schicht von
+         * 22:00 bis 06:00 stand im Folgetag mit „22:00" da — und zwar ganz
+         * oben, vor allem, was an diesem Morgen wirklich um sieben beginnt.
+         */
         <span className="shrink-0 text-xs tabular-nums text-text-muted">
-          {uhrzeit(zeile.beginn)}
+          {beginnt ? uhrzeit(zeile.beginn) : `seit ${uhrzeit(zeile.beginn)}`}
         </span>
       )}
       <span className={`min-w-0 truncate text-sm
@@ -139,11 +116,17 @@ export default async function Kalender({ params, searchParams }: {
       return {
         heute: uhr!.tag,
         fenster: f,
+        /*
+         * Geholt wird, was das GITTER zeigt (`abfrageVon`/`abfrageBis`), nicht
+         * nur der Monat: die Zellen der Nachbarmonate sind sonst immer leer.
+         * Die Agenda filtert danach wieder auf `von`/`bis` — sie beschriftet
+         * einen Zeitraum, und der ist der Monat.
+         */
         zeilen: await kalenderZeilen(kontext, {
-          zeitraum: { von: f.von, bis: f.bis, bezeichnung: f.bezeichnung },
+          zeitraum: { von: f.abfrageVon, bis: f.abfrageBis, bezeichnung: f.bezeichnung },
           nurBenutzerId: nurEigene ? zugang.sitzung.benutzerId : null,
           nurQuellen,
-        }, mandant),
+        }),
       };
     }))) as {
     zeilen: readonly KalenderZeile[];
@@ -243,9 +226,22 @@ export default async function Kalender({ params, searchParams }: {
         </Link>
         {QUELLEN.map((q) => {
           const aktiv = nurQuellen !== null && nurQuellen.includes(q);
+          /*
+           * **Die Pille SCHALTET UM.** `quellenAus` liest eine Komma-Liste —
+           * die Adresse konnte also immer mehrere Herkuenfte tragen, nur die
+           * Oberflaeche konnte keine bauen: jeder Klick ersetzte die ganze
+           * Auswahl, und eine aktive Pille war ein Knopf ohne Wirkung. Wer
+           * die letzte abwaehlt, landet wieder bei „Alles".
+           */
+          const danach = aktiv
+            ? (nurQuellen ?? []).filter((x) => x !== q)
+            : [...(nurQuellen ?? []), q];
           return (
-            <Link key={q} href={alsRoute(adresse({ quellen: q }))} data-cse={`filter-${q}`}
+            <Link key={q} href={alsRoute(adresse({
+              quellen: danach.length === 0 ? null : danach.join(','),
+            }))} data-cse={`filter-${q}`}
                   aria-current={aktiv ? 'page' : undefined}
+                  aria-label={`${quellenWort(q)}${aktiv ? ' — abwählen' : ''}`}
                   className={`inline-flex min-h-11 items-center rounded-full px-s4 text-sm
                               ${aktiv ? 'bg-text text-ink' : 'bg-surface-3 text-text-muted'}`}>
               {quellenWort(q)}
@@ -295,10 +291,17 @@ export default async function Kalender({ params, searchParams }: {
                                         : ausserhalb ? 'text-text-subtle' : 'text-text-muted'}`}>
                       {teile(tag).tagImMonat}
                     </span>
+                    {/*
+                      * Der heutige Tag stand nur in der Farbe — ein Rahmen und
+                      * ein gefülltes Plättchen (WCAG 1.4.1: Farbe ist nie das
+                      * einzige Mittel). Die Agenda sagt es daneben ausdrücklich;
+                      * im Gitter steht dasselbe Wort, nur für das Vorlesen.
+                      */}
+                    {istHeute && <span className="sr-only">heute</span>}
                   </div>
                   <div className="flex flex-col gap-[2px]">
                     {eintraege.slice(0, 3).map((e) => (
-                      <Eintrag key={`${e.quelle}-${e.id}`} zeile={e} kurz />
+                      <Eintrag key={`${e.zeile.quelle}-${e.zeile.id}`} eintrag={e} kurz />
                     ))}
                     {eintraege.length > 3 && (
                       <Link href={alsRoute(adresse({ ansicht: 'tag', tag }))}
@@ -329,19 +332,43 @@ export default async function Kalender({ params, searchParams }: {
               </h2>
               <div className="flex flex-col gap-s1 border-s border-line ps-s3">
                 {(proTag.get(tag) ?? []).map((e) => (
-                  <Eintrag key={`${e.quelle}-${e.id}`} zeile={e} />
+                  <Eintrag key={`${e.zeile.quelle}-${e.zeile.id}`} eintrag={e} />
                 ))}
               </div>
             </section>
           ))}
-        {proTag.size === 0 && (
-          <Hinweis art="hinweis" cse="kalender-leer" className="max-w-prose">
-            In diesem Zeitraum liegt nichts — weder ein Termin noch eine Schicht noch eine
-            Frist. Was hier fehlt, fehlt in seiner Quelle: Schichten stehen im Dienstplan,
-            Fristen an ihrem Vorgang.
-          </Hinweis>
-        )}
       </div>
+
+      {proTag.size === 0 && (
+        /*
+         * **Zwei Sätze, weil es zwei Zustände sind.** „Hier liegt nichts" ist
+         * eine Aussage über den Zeitraum; sie ist falsch, sobald ein Filter
+         * gesetzt ist. Wer sie trotzdem liest, sucht den Fehler in der
+         * Quelle statt in der eigenen Auswahl — und findet ihn nie.
+         */
+        <Hinweis art="hinweis" cse="kalender-leer" className="max-w-prose">
+          {nurQuellen === null && !nurEigene ? (
+            <>
+              In diesem Zeitraum liegt nichts — weder ein Termin noch eine Schicht noch
+              eine Frist. Was hier fehlt, fehlt in seiner Quelle: Schichten stehen im
+              Dienstplan, Fristen an ihrem Vorgang.
+            </>
+          ) : (
+            <>
+              Mit dieser Auswahl liegt hier nichts. Gefiltert ist
+              {nurQuellen === null ? '' : ` nach ${nurQuellen.map(quellenWort).join(', ')}`}
+              {nurQuellen !== null && nurEigene ? ' und' : ''}
+              {nurEigene ? ' auf die eigenen Einträge' : ''}
+              {' — '}
+              <Link href={alsRoute(adresse({ quellen: null, eigene: false }))}
+                    data-cse="kalender-leer-alles"
+                    className="underline underline-offset-2">
+                ohne Filter ansehen
+              </Link>.
+            </>
+          )}
+        </Hinweis>
+      )}
     </PortalRahmen>
   );
 }

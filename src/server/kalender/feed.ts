@@ -95,22 +95,65 @@ export async function widerrufeFeed(db: Schreiber, id: string): Promise<boolean>
   return zeilen.length === 1;
 }
 
+/** Ein Bereich, den dieser Zugang trägt — mit dem Portal aus seiner ROLLE. */
+export interface FeedBereich {
+  readonly mandantId: string;
+  readonly slug: string;
+  readonly portal: 'intern' | 'mitarbeiter' | 'kunde';
+}
+
+export interface FeedZugang {
+  readonly benutzerId: string;
+  /** `null` bei einem Konto ohne Personenakte — dann gibt es keinen Personen-Scope. */
+  readonly personId: string | null;
+  readonly bereiche: readonly FeedBereich[];
+}
+
+const PORTALE = new Set(['intern', 'mitarbeiter', 'kunde']);
+
 /**
  * Löst einen Token auf — die einzige Stelle, an der das geschieht.
  *
- * Gibt die Benutzer-ID zurück oder `null`. Die Termine liest der Aufrufer
- * danach in einer Sitzung, die er für genau diesen Menschen bindet: ein
- * Definer, der gleich die Termine mitgäbe, wäre ein zweiter Lesepfad neben
- * RLS — und der erste, der bei einer Policy-Änderung vergessen wird.
+ * Gibt zurück, WER liest und WAS er trägt, nie Termine: die liest der
+ * Aufrufer danach in einer Sitzung, die er für genau diesen Menschen bindet.
+ * Ein Definer, der gleich die Termine mitgäbe, wäre ein zweiter Lesepfad
+ * neben RLS — und der erste, der bei einer Policy-Änderung vergessen wird.
+ *
+ * **Das Portal kommt mit, und es ist das echte** (0161). Vorher erfand die
+ * Route `intern` für jeden Tokenträger; damit fiel `p_ma_decke` — die
+ * restriktive Decke, die einem Arbeiter nur seine eigenen Schichten lässt —
+ * auf der einzigen Route ohne Sitzung weg.
  */
-export async function loeseTokenAuf(db: Leser, token: string): Promise<string | null> {
+export async function loeseTokenAuf(db: Leser, token: string): Promise<FeedZugang | null> {
   /*
    * Ein Token, der gar nicht die Form hat, geht nicht in die Abfrage: er
    * kann keine Zeile treffen, und ihn trotzdem zu suchen hiesse, jedem
    * Versuch eine Datenbankrunde zu schenken.
    */
   if (!/^[A-Za-z0-9_-]{16,128}$/u.test(token)) return null;
-  const [zeile] = await db.abfrage<{ benutzer: string | null }>(
-    `select app.kalender_feed_aufloesen($1) as benutzer`, [tokenHash(token)]);
-  return zeile?.benutzer ?? null;
+  const zeilen = await db.abfrage<{
+    benutzer_id: string; person_id: string | null;
+    mandant_id: string | null; slug: string | null; portal: string | null;
+  }>(`select benutzer_id::text as benutzer_id, person_id::text as person_id,
+             mandant_id::text as mandant_id, slug, portal
+        from app.kalender_feed_aufloesen($1)`, [tokenHash(token)]);
+  const erste = zeilen[0];
+  if (erste === undefined) return null;
+
+  return {
+    benutzerId: erste.benutzer_id,
+    personId: erste.person_id,
+    /*
+     * Ein unbekannter Portalwert wird verworfen und nicht gecastet —
+     * dieselbe geschlossene Menge wie in `sitzungAufloesen`. Fail closed:
+     * lieber ein Bereich weniger als eine Decke, die niemand definiert hat.
+     */
+    bereiche: zeilen
+      .filter((z) => z.mandant_id !== null && z.slug !== null
+                     && z.portal !== null && PORTALE.has(z.portal))
+      .map((z) => ({
+        mandantId: z.mandant_id!, slug: z.slug!,
+        portal: z.portal as FeedBereich['portal'],
+      })),
+  };
 }

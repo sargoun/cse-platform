@@ -164,3 +164,42 @@ describe('Was aus der Adresse kommt, ist geprüft', () => {
     expect(ansichtAus(undefined)).toBe('monat');
   });
 });
+
+/**
+ * **Was gezeigt wird und was geholt wird, ist nicht dasselbe** (CAL-01).
+ *
+ * Das Monatsgitter zeichnet volle Wochen und damit die Randtage der
+ * Nachbarmonate. Geholt wurde aber der 1. bis zum Letzten — jene Zellen waren
+ * IMMER leer, egal was in ihnen stand. Eine Zelle, die aussieht wie ein Tag
+ * ohne Termine, und eine ohne Daten sind für den Leser dasselbe Bild.
+ */
+describe('Der Abfragebereich eines Fensters', () => {
+  it('deckt im Monat das ganze Gitter ab, nicht nur den Monat', () => {
+    /* Oktober 2026 beginnt an einem Donnerstag — Mo 28.09. ist die erste Zelle. */
+    const f = fensterFuer('monat', '2026-10-15');
+    expect(f.von).toBe('2026-10-01');
+    expect(f.bis).toBe('2026-10-31');
+
+    const gitter = monatsGitter('2026-10-15');
+    expect(f.abfrageVon).toBe(gitter[0]!.tag);
+    expect(f.abfrageBis).toBe(gitter[gitter.length - 1]!.tag);
+    expect(f.abfrageVon <= f.von, 'der Rand liegt vor dem Monat').toBe(true);
+    expect(f.abfrageBis >= f.bis, 'und dahinter').toBe(true);
+    /* Genau die Zellen, die das Gitter zeichnet — keine mehr, keine weniger. */
+    expect(f.abfrageVon).toBe('2026-09-28');
+  });
+
+  it('ist in Tag und Woche derselbe wie der Zeitraum', () => {
+    const tag = fensterFuer('tag', '2026-10-15');
+    expect([tag.abfrageVon, tag.abfrageBis]).toEqual([tag.von, tag.bis]);
+    const woche = fensterFuer('woche', '2026-10-15');
+    expect([woche.abfrageVon, woche.abfrageBis]).toEqual([woche.von, woche.bis]);
+  });
+
+  it('ein Monat, der genau an einem Montag beginnt, braucht keinen Rand davor', () => {
+    /* Juni 2026 beginnt an einem Montag. */
+    const f = fensterFuer('monat', '2026-06-10');
+    expect(f.von).toBe('2026-06-01');
+    expect(f.abfrageVon).toBe('2026-06-01');
+  });
+});

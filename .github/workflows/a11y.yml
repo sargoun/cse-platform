@@ -55,6 +55,9 @@ jobs:
           pnpm content:import
         env:
           DATABASE_URL: postgres://postgres@localhost:55432/cse_test
+          # Demodaten nur mit ausdruecklicher Flagge — derselbe Schalter wie in
+          # scripts/e2e-db.sh und playwright.config.ts.
+          CSE_DEV_FLAECHEN: '1'
 
       # axe auf JEDER öffentlichen Route, plus Tastaturbedienung und die
       # Maschinenflächen. Playwright baut und startet den Server selbst.

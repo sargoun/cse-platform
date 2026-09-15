@@ -10128,3 +10128,159 @@ Datenbank war richtig, der Feed antwortete sofort mit 404, nur die Seite hinter
 der Umleitung zeigte die Zeile noch. Keine Abfrage und kein Isolationstest
 hätte das gefunden — es steht in keinem SQL. Gefunden hat es der Browsertest,
 und zwar genau der Schritt, der nach dem Klick nachsieht statt zu glauben.
+
+### D-517 · Die Kalenderrunde: acht Befunde, die der Kalender nur deshalb hatte, weil er neu ist
+
+Eine gegnerische Durchsicht über die gesamte Kalenderarbeit (CAL-01…CAL-03,
+Migration 0160) fand acht Dinge, die alle dieselbe Form haben: sie sehen im
+Normalfall richtig aus und werden im Randfall falsch. Sie stehen hier
+zusammen, weil man sie zusammen lernt.
+
+**1. Der Feed erfand seine Sitzung.** `portal: 'intern'`, `personId: null`,
+`ansicht: 'mandant'` — für jeden Tokenträger, auf der EINZIGEN Route ohne
+Sitzung. `p_ma_decke` auf `einsatz` ist restriktiv und lautet „Portal ist
+nicht `mitarbeiter` ODER die Schicht gehört dieser Person". Ein erfundenes
+`intern` macht die linke Seite wahr und hebt die Decke; ein `personId: null`
+macht die rechte unerfüllbar. Beides zusammen hiess: für die Verwaltung lief
+der Feed durch eine gehobene Decke, und für die Arbeiter — die, für die er
+gebaut wurde — war er leer, weil `mitarbeiter` das Recht `dienstplan.lesen`
+nicht hält und `t_person` ohne Person nicht greift. `0161` gibt die
+Auflösung zurück, was der Mensch wirklich ist: Person, und je Bereich das
+Portal aus seiner ROLLE. Das Portal bestimmt dann den Scope (`intern` →
+`mandant` je Bereich, sonst `person` bzw. `kunde` einmal), und doppelte
+Zeilen fängt die UID ab.
+
+**2. Der Token überlebte seinen Menschen.** Die einzige
+Lebendigkeitsbedingung war `widerrufen_am is null`. Ein deaktiviertes,
+gesperrtes oder zum Dienstkonto gemachtes Konto behielt einen funktionierenden
+Kalender — eine Sitzung ohne Ablauf. `app.kalender_feed_aufloesen` prüft jetzt
+dieselben fünf Bedingungen wie `app.sitzung_aufloesen` und dieselbe
+Mitgliedschaft wie `app.switcher_mandanten()` (mit `gueltig_ab`/`gueltig_bis`
+und `mandant.archiviert_am`, die vorher fehlten).
+
+**3. `::date` auf einem `timestamptz` rechnet in UTC.** Nichts setzt
+`TimeZone`; `'2026-10-25 00:30+02'::timestamptz::date` ist der **24.**
+Oktober. `freigabe.frist`, `ausschreibung.frist_angebot` und
+`lead.sla_frist_am` sind alle `timestamptz`: eine Frist zwischen Mitternacht
+und zwei Uhr fiel in den Vortag, während die Seite sie berlinerisch zeichnete.
+Genau der Fehler, vor dem der `FENSTER`-Kommentar hundert Zeilen weiter oben
+warnt — im selben Modul, in derselben Datei. Es gibt jetzt ein
+`BERLINER_TAG()`, und keine Abfrage castet mehr direkt.
+
+**4. `'\;'` ist kein maskiertes Semikolon.** In JavaScript verschwindet ein
+Backslash vor einem Zeichen ohne Sonderbedeutung beim Einlesen des Literals.
+Die Maskierung nach RFC 5545 §3.3.11 war für Semikolons ein no-op — und der
+Test daneben benutzte dasselbe Literal als Erwartung, verglich den Fehler also
+mit sich selbst. **Ein Test, der die Erwartung aus derselben Quelle bezieht wie
+der Code, prüft nichts.** Die neue Fassung zählt die Zeichen einzeln auf.
+
+**5. `METHOD:PUBLISH` bewirkte das Gegenteil des Beabsichtigten.** Es stand da,
+damit Outlook nicht nach einer Zusage fragt; tatsächlich macht `METHOD` aus
+der Datei ein iTIP-Objekt (RFC 5546), für das `ORGANIZER` in jedem VEVENT
+Pflicht ist (§3.2.1) — und eine Schicht hat einen Dienstplan, keinen
+Einladenden. Dazu verlangt RFC 5545 §8.1 dieselbe Methode in der Kopfzeile,
+die die Route nie trug. Ein Abonnement braucht kein `METHOD`. Ausserdem
+verlangt §3.4 mindestens eine Komponente: der leere Kalender — ein völlig
+normaler Zustand — war eine Datei aus lauter Kopfzeilen. Es geht jetzt immer
+eine `VTIMEZONE` für Europe/Berlin mit, die ohnehin wahr ist.
+
+**6. Das exklusive Ende, dreimal falsch abgeleitet.** Für ein DTEND wurden 24
+Stunden auf einen INSTANT addiert; in der Nacht zur Winterzeit hat der Berliner
+Tag 25 und es kam derselbe Tag heraus — ein ganztägiger Termin ohne Dauer, den
+kein Kalenderprogramm zeichnet. Im Tagesraster galt `ende` als INKLUSIV:
+ganztägige Einträge standen einen Tag zu lang, und eine Schicht 22:00–00:00
+stand in einem Folgetag, an dem sie keine Sekunde läuft. Auf der Detailseite
+zeigte ein mehrtägiger ganztägiger Termin überhaupt kein Ende. **Ein Datum
+kennt keine Sommerzeit — also wird auf dem Datum gerechnet**, und das
+exklusive Ende wird einmal, an einer Stelle, um eine Millisekunde
+zurückgenommen.
+
+**7. Das Monatsgitter zeigte Zellen, für die nie jemand gefragt hatte.** Es
+zeichnet volle Wochen und damit die Randtage der Nachbarmonate; geholt wurde
+der 1. bis zum Letzten. Jene Zellen waren IMMER leer, egal was in ihnen stand
+— und eine Zelle, die aussieht wie ein Tag ohne Termine, ist von einer ohne
+Daten nicht zu unterscheiden. `Fenster` trägt jetzt zusätzlich
+`abfrageVon`/`abfrageBis`: was BESCHRIFTET wird und was GEHOLT wird, ist nicht
+dasselbe.
+
+**8. Der Slug stand als Zeichenkette in sechs Abfragen.** Er kam aus der
+Anfrage, landete unmaskiert in SQL und war ausserdem EIN Slug für alle Zeilen
+— im persönlichen Kalender eines Menschen, der in zwei Gesellschaften
+arbeitet, zeigte die Hälfte der Wege auf die falsche. Der Weg kommt jetzt aus
+`mandant_id` der ZEILE.
+
+**Dazu drei kleinere, gleicher Art.** Die Herkunftspillen ERSETZTEN die
+Auswahl, statt umzuschalten — `quellen=a,b` war in der Adresse immer möglich,
+nur die Oberfläche konnte es nicht bauen, und eine aktive Pille war ein Knopf
+ohne Wirkung. `LAST-MODIFIED` kam aus `erstellt_am`, obwohl alle fünf Tabellen
+`geaendert_am` führen: eine verschobene Schicht meldete einen
+Änderungszeitpunkt, der sich nie ändert. Und der Titel einer Anfrage war NULL,
+sobald `lead.firma_name` NULL ist — was `lead_hat_namen` ausdrücklich erlaubt,
+sobald ein Kunde verknüpft ist.
+
+**Projektende und Vergabefrist bleiben aus dem persönlichen Kalender heraus**,
+und das ist Absicht: keine der beiden Zeilen hat einen Menschen, dem sie
+gehört. Freigabe und Anfrage haben einen Zuständigen und filtern danach.
+
+### D-518 · Demodaten sind Daten — und zwei von ihnen waren falsch
+
+**Jede Rechnungsposition war um den Faktor tausend zu klein.** `milliMenge()`
+nimmt TAUSENDSTEL (K-16: `numeric(12,3)`); die Seedtabelle schrieb ganze
+Stück. `menge: 160n` ging als **0,160 Stunden** in die Rechnung — und zwei der
+drei Rechnungen je Gesellschaft werden sofort festgeschrieben, also standen
+die falschen Beträge unveränderlich in einer lückenlosen Nummernfolge
+(Invariante 4). Das Feld heisst jetzt `mengeMilli`: **eine Menge ohne Einheit
+im Namen ist eine Zahl, die irgendjemand später deutet.**
+
+**Und der Demoschalter war fail-open.** `devFlaechenAn()` liest „alles ausser
+einem Produktionsbau ist eine Entwicklungsfläche" — richtig für eine Seite,
+die niemand ausliefert, falsch für einen Seed, der festgeschriebene Rechnungen
+anlegt. Ein Lauf gegen die echte Datenbank mit ungesetztem `NODE_ENV`, wie in
+jeder Konsole, hätte DEMO-Nummern in den echten Kreis gebrannt — unumkehrbar
+(Invariante 4 und 8). Demodaten verlangen jetzt die ausdrückliche Flagge
+`CSE_DEV_FLAECHEN=1`; `scripts/e2e-db.sh` und der a11y-Lauf setzen sie.
+
+**Die Stunden der Berichtsdemo fielen alle auf denselben Wochentag.**
+`tageHer = woche * 7 + i` ergibt für einen Menschen vier Abstände mit
+demselben Rest mod 7. Fiel der auf ein Wochenende, verwarf der Werktagsfilter
+alle vier auf einmal, und je nach Wochentag des Seedlaufs bekamen zwei von
+drei Menschen null Zeiteinträge — was die Null-Prüfung des Aufrufers dann
+festschrieb. Ein Wochenendtag wird jetzt auf den Freitag davor gezogen statt
+verworfen: **ein Stundenbericht mit leeren Zeilen sieht aus wie ein Fehler im
+Bericht, nicht wie einer im Seed.**
+
+### D-519 · Ein Stellvertreter sagt nichts über seine Gruppe
+
+Fünf Module melden ihre Benachrichtigungsarten bündelweise an und müssen das
+mehrfach können (der Jobbootstrap läuft im Test mehrfach; seit NOT-02 zählt
+die Einstellungsseite alle Arten auf, indem sie sie anmeldet). Alle fünf
+prüften dafür EINE Art und schlossen auf die übrigen. Beide Zweige dieses
+Schlusses gehen schief, sobald ein Bündel einmal unvollständig ankommt: der
+Vorhanden-Zweig lässt die fehlende Art still aus (sie ist dann nie
+registriert, und `erzeuge` wirft erst, wenn sie jemand auslöst — nachts, im
+Wächter), der Fehlt-Zweig meldet die Gruppe neu an und wirft über der
+vorhandenen Schwester. `sicherRegistriert` prüft je Schlüssel und kennt beide
+Fälle nicht. `registriereArt` bleibt streng: zwei DEFINITIONEN derselben Art
+sind weiterhin ein Fehler.
+
+### D-520 · Das Vorzeichen, das unter einem Prozent verschwand
+
+`Math.trunc(-50 / 100)` ist die negative Null, und `String(-0)` ist `"0"`. Aus
+−0,50 % wurde 0,50 % — genau in der Spanne, in der das Vorzeichen die Aussage
+trägt und der Betrag sie nicht verrät: eine Marge knapp unter null las sich
+als eine knapp darüber. Das benachbarte `stunden()` hatte das Muster längst
+richtig (getrenntes Vorzeichen, `Math.abs`). Bei der Gelegenheit tragen Geld,
+Stunden und Prozent dasselbe Minuszeichen: `formatiereGeld` bekommt seines von
+`Intl` und das ist ASCII, `stunden()` setzte U+2212 — und beide stehen in
+derselben Berichtszeile.
+
+### D-521 · Der Agentenlauf leitete auf den Bereich aus dem Formularrumpf um
+
+Der Lauf war an `app.aktiver_mandant()` gebunden (Invariante 3), die 303 folgte
+aber einem versteckten Feld. Wer den Bereich in einem zweiten Reiter gewechselt
+hatte, schickte den alten Slug ab: der Vorschlag entstand richtig, die
+Umleitung führte auf die Agentenseite der anderen Gesellschaft, und dort stand
+er nicht — ein Lauf, der aussah, als habe er nichts erzeugt. Der Slug kommt
+jetzt aus derselben Quelle wie die Bindung, und das versteckte Feld ist weg:
+**ein Feld, das der Server nicht liest, sieht im Quelltext aus wie eine
+Stellschraube und ist keine.**

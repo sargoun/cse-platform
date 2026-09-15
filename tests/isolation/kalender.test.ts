@@ -81,9 +81,9 @@ describe('(1) die Mandantengrenze gilt auch für Termine', () => {
 
     const z = await fenster();
     const inReinigung = await alsBereich(f.reinigung, wR,
-      (k) => kalenderZeilen(k, { zeitraum: z }, 'reinigung'));
+      (k) => kalenderZeilen(k, { zeitraum: z }));
     const imBau = await alsBereich(f.bau, wB,
-      (k) => kalenderZeilen(k, { zeitraum: z }, 'bau'));
+      (k) => kalenderZeilen(k, { zeitraum: z }));
 
     expect(inReinigung.map((e) => e.titel)).toContain('Objektbegehung Mitte');
     expect(imBau.map((e) => e.titel)).not.toContain('Objektbegehung Mitte');
@@ -102,7 +102,7 @@ describe('(1) die Mandantengrenze gilt auch für Termine', () => {
 
     const z = await fenster();
     const titel = (await alsBereich(f.reinigung, mensch,
-      (k) => kalenderZeilen(k, { zeitraum: z, nurQuellen: ['termin'] }, 'reinigung')))
+      (k) => kalenderZeilen(k, { zeitraum: z, nurQuellen: ['termin'] })))
       .map((e) => e.titel);
 
     expect(titel, 'als Teilnehmer geladen').toContain('Einweisung');
@@ -142,7 +142,7 @@ describe('(2) der Kalender liest die Quelle, er kopiert sie nicht', () => {
 
     const z = await fenster();
     const vorher = (await alsBereich(f.reinigung, wer,
-      (kk) => kalenderZeilen(kk, { zeitraum: z, nurQuellen: ['einsatz'] }, 'reinigung')))
+      (kk) => kalenderZeilen(kk, { zeitraum: z, nurQuellen: ['einsatz'] })))
       .find((x) => x.id === e!.id);
     expect(vorher, 'die Schicht steht im Kalender').toBeDefined();
     const alt = vorher!.beginn;
@@ -157,7 +157,7 @@ describe('(2) der Kalender liest die Quelle, er kopiert sie nicht', () => {
         where id = $1::uuid`, [e!.id]);
 
     const nachher = (await alsBereich(f.reinigung, wer,
-      (kk) => kalenderZeilen(kk, { zeitraum: z, nurQuellen: ['einsatz'] }, 'reinigung')))
+      (kk) => kalenderZeilen(kk, { zeitraum: z, nurQuellen: ['einsatz'] })))
       .find((x) => x.id === e!.id);
     expect(nachher!.beginn, 'dieselbe Zeile, also dieselbe Wahrheit').not.toBe(alt);
   });
@@ -170,11 +170,11 @@ describe('(3) die Filter der Seite (CAL-02)', () => {
 
     const z = await fenster();
     const nurTermine = await alsBereich(f.reinigung, wer,
-      (k) => kalenderZeilen(k, { zeitraum: z, nurQuellen: ['termin'] }, 'reinigung'));
+      (k) => kalenderZeilen(k, { zeitraum: z, nurQuellen: ['termin'] }));
     expect(nurTermine.every((e) => e.quelle === 'termin')).toBe(true);
 
     const nurSchichten = await alsBereich(f.reinigung, wer,
-      (k) => kalenderZeilen(k, { zeitraum: z, nurQuellen: ['einsatz'] }, 'reinigung'));
+      (k) => kalenderZeilen(k, { zeitraum: z, nurQuellen: ['einsatz'] }));
     expect(nurSchichten.every((e) => e.quelle === 'einsatz')).toBe(true);
   });
 
@@ -186,7 +186,7 @@ describe('(3) die Filter der Seite (CAL-02)', () => {
 
     const z = await fenster();
     const seine = await alsBereich(f.reinigung, chef,
-      (k) => kalenderZeilen(k, { zeitraum: z, nurBenutzerId: chef }, 'reinigung'));
+      (k) => kalenderZeilen(k, { zeitraum: z, nurBenutzerId: chef }));
     expect(seine.map((e) => e.titel)).toContain('Nur Chef');
     expect(seine.map((e) => e.titel)).not.toContain('Nur andere');
   });
@@ -201,7 +201,7 @@ describe('(3) die Filter der Seite (CAL-02)', () => {
     await legeTerminAn(f.reinigung, wer, 'Mit Weg');
     const z = await fenster();
     const zeilen = await alsBereich(f.reinigung, wer,
-      (k) => kalenderZeilen(k, { zeitraum: z }, 'reinigung'));
+      (k) => kalenderZeilen(k, { zeitraum: z }));
     for (const e of zeilen) {
       expect(e.weg, e.titel).not.toBeNull();
       expect(e.weg!.startsWith('/portal/reinigung/')).toBe(true);
@@ -219,9 +219,82 @@ describe('(4) eine Absage verschwindet nicht, sie ist abgesagt', () => {
 
     const z = await fenster();
     const zeile = (await alsBereich(f.reinigung, wer,
-      (k) => kalenderZeilen(k, { zeitraum: z, nurQuellen: ['termin'] }, 'reinigung')))
+      (k) => kalenderZeilen(k, { zeitraum: z, nurQuellen: ['termin'] })))
       .find((e) => e.id === id);
     expect(zeile, 'wer ihn im Kalender hat, bekommt ihn sonst nie los').toBeDefined();
     expect(zeile!.abgesagt).toBe(true);
+  });
+});
+
+/**
+ * **(5) Die Nacht zwischen Mitternacht und zwei Uhr** (Invariante 2).
+ *
+ * `freigabe.frist`, `ausschreibung.frist_angebot` und `lead.sla_frist_am` sind
+ * `timestamptz`. Ein `::date` darauf rechnet in der Zeitzone der
+ * DATENBANKSITZUNG — und die ist UTC: weder `db/pool.ts` noch eine Migration
+ * setzt `TimeZone`. Eine Frist am 25. Oktober um 00:30 Berliner Zeit hat das
+ * UTC-Datum 2026-10-24: sie fiel in den Vortag und wurde vom Fenster eines
+ * Tages früher gefangen, während die Seite sie berlinerisch am 25. zeichnete.
+ */
+describe('(5) eine Frist kurz nach Mitternacht gehört dem Berliner Tag', () => {
+  async function legeFreigabeAn(mandantId: string, frist: string): Promise<string> {
+    const [z] = await sql.unsafe<{ id: string }[]>(
+      `insert into freigabe (mandant_id, aktion, titel, status, frist)
+       values ($1::uuid, 'pruefen', 'Frist um halb eins', 'offen', $2::timestamptz)
+       returning id`, [mandantId, frist]);
+    return z!.id;
+  }
+
+  it('00:30 Berliner Zeit steht am Berliner Tag, nicht am UTC-Vortag', async () => {
+    const wer = await legeKontoAn(f.reinigung, 'admin');
+    /*
+     * Ein Tag im Fenster, dessen Berliner und UTC-Datum auseinanderfallen —
+     * gerechnet aus dem heutigen Berliner Tag, damit der Test nicht an einem
+     * festen Datum hängt.
+     */
+    const [t] = await sql.unsafe<{ tag: string; instant: string }[]>(
+      `select (app.berlin_heute() + 3)::text as tag,
+              (((app.berlin_heute() + 3)::timestamp + interval '30 minutes')
+                at time zone 'Europe/Berlin')::text as instant`);
+    const id = await legeFreigabeAn(f.reinigung, t!.instant);
+
+    /* Ein Fenster, das GENAU diesen einen Berliner Tag umfasst. */
+    const zeilen = await alsBereich(f.reinigung, wer, (k) => kalenderZeilen(k, {
+      zeitraum: { von: t!.tag, bis: t!.tag, bezeichnung: 'ein Tag' },
+      nurQuellen: ['freigabe'],
+    }));
+    expect(zeilen.map((e) => e.id), 'der Berliner Tag findet sie').toContain(id);
+
+    /* Und der Vortag, auf dem sie als UTC-Datum gestanden hätte, findet sie nicht. */
+    const [v] = await sql.unsafe<{ tag: string }[]>(
+      `select (app.berlin_heute() + 2)::text as tag`);
+    const vortag = await alsBereich(f.reinigung, wer, (k) => kalenderZeilen(k, {
+      zeitraum: { von: v!.tag, bis: v!.tag, bezeichnung: 'Vortag' },
+      nurQuellen: ['freigabe'],
+    }));
+    expect(vortag.map((e) => e.id), 'und der Vortag nicht').not.toContain(id);
+  });
+});
+
+/**
+ * **(6) Der Weg trägt den Slug der ZEILE.**
+ *
+ * Er kam vorher als Zeichenkette aus der Anfrage und stand unmaskiert in sechs
+ * Abfragen — ein Wert aus einer Anfrage in einer SQL-Zeichenkette, und
+ * ausserdem EIN Slug für alle Zeilen. Im persönlichen Kalender eines
+ * Menschen, der in zwei Gesellschaften arbeitet, stammen die Zeilen aus
+ * beiden, und die Hälfte der Wege zeigte auf die falsche.
+ */
+describe('(6) der Weg kommt aus der Zeile, nicht aus einem Textbaustein', () => {
+  it('jede Zeile führt in die Gesellschaft, in der sie steht', async () => {
+    const wB = await legeKontoAn(f.bau, 'admin');
+    await legeTerminAn(f.bau, wB, 'Bauanlauf');
+    const z = await fenster();
+    const zeilen = await alsBereich(f.bau, wB,
+      (k) => kalenderZeilen(k, { zeitraum: z, nurQuellen: ['termin'] }));
+    expect(zeilen.length).toBeGreaterThan(0);
+    for (const e of zeilen) {
+      expect(e.weg, e.titel).toMatch(/^\/portal\/bau\//u);
+    }
   });
 });

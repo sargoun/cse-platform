@@ -1006,6 +1006,7 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'kalender', pfad: 'kalender/eintraege', schreibend: false },
   { modul: 'kalender', pfad: 'kalender/ical', schreibend: false },
   { modul: 'kalender', pfad: 'kalender/fenster', schreibend: false },
+  { modul: 'kalender', pfad: 'kalender/tagesraster', schreibend: false },
   /*
    * **Der Feed-Zugang steht NICHT hier, und das ist kein Vergessen.**
    *

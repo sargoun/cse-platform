@@ -136,7 +136,17 @@ async function legeZeitenAn(
   let angelegt = 0;
   for (const [i, a] of anstellungen.entries()) {
     for (const woche of [1, 2, 3, 4]) {
-      const tageHer = woche * 7 + i;
+      /*
+       * **Der Versatz darf nicht durch sieben teilbar bleiben.** `woche * 7 + i`
+       * ergab fuer einen Menschen vier Abstaende, die alle denselben Rest mod 7
+       * haben -- also viermal denselben WOCHENTAG. Faellt der auf einen Samstag
+       * oder Sonntag, verwarf der Werktagsfilter unten alle vier auf einmal,
+       * und je nachdem, an welchem Tag der Seed lief, bekamen zwei von drei
+       * Menschen null Zeiteintraege. Die Null-Pruefung des Aufrufers schrieb
+       * das dann fest. Mit `+ woche` verteilt sich derselbe Mensch ueber vier
+       * verschiedene Wochentage.
+       */
+      const tageHer = woche * 7 + i + woche;
       const ergebnis = await sql`
         insert into zeiteintrag
           (mandant_id, anstellung_id, person_id, beginn_zeitpunkt, ende_zeitpunkt,
@@ -150,11 +160,20 @@ async function legeZeitenAn(
                -- Eine Nacherfassung braucht die behaupteten Zeiten (0034):
                -- wer sie nachtraegt, behauptet etwas, und das steht daneben.
                true, b.beginn, b.beginn + interval '8 hours 30 minutes'
-          from (select ((app.berlin_heute() - ${tageHer}::int)::timestamp
+          from (select ((app.berlin_heute() - ${tageHer}::int
+                          -- Samstag (6) minus 1, Sonntag (7) minus 2 = Freitag.
+                          - greatest(extract(isodow from
+                              app.berlin_heute() - ${tageHer}::int)::int - 5, 0))::timestamp
                         + interval '7 hours') at time zone 'Europe/Berlin' as beginn) b
          -- Werktags: ein Bautrupp arbeitet nicht am Sonntag, und ein Bericht,
          -- der das behauptet, faellt jedem Bauleiter sofort auf.
-         where extract(isodow from app.berlin_heute() - ${tageHer}::int) <= 5`;
+         --
+         -- VERSCHOBEN, nicht verworfen: ein Wochenendtag wird auf den Freitag
+         -- davor gezogen. Wer ihn wegwirft, laesst je nach Wochentag des
+         -- Seedlaufs Menschen ganz ohne Stunden zurueck -- und ein
+         -- Stundenbericht mit leeren Zeilen sieht aus wie ein Fehler im
+         -- Bericht, nicht wie einer im Seed.
+         where true`;
       angelegt += ergebnis.count;
     }
   }

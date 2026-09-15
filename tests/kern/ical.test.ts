@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  alsDatum, alsIcal, alsUtc, falte, maskiere,
+  alsDatum, alsIcal, alsUtc, datumPlusTag, falte, maskiere,
 } from '../../src/server/services/kalender/ical.js';
 
 /**
@@ -55,9 +55,29 @@ describe('Zeilenfaltung (RFC 5545 §3.1)', () => {
 describe('Maskierung (§3.3.11)', () => {
   it('Backslash zuerst — sonst maskiert man die eigene Maskierung', () => {
     expect(maskiere('a\\b')).toBe('a\\\\b');
-    expect(maskiere('Hof; Haus, Halle')).toBe('Hof\; Haus\\, Halle');
     expect(maskiere('zwei\nZeilen')).toBe('zwei\\nZeilen');
     expect(maskiere('zwei\r\nZeilen')).toBe('zwei\\nZeilen');
+  });
+
+  /**
+   * **Der Test, der den Fehler nicht finden konnte.**
+   *
+   * Die alte Erwartung war `'Hof\; Haus'` — dasselbe Literal, das im
+   * Quelltext der Funktion stand, und `'\;'` ist in JavaScript ein blankes
+   * Semikolon. Der Test verglich den Fehler mit sich selbst und war grün.
+   * Deshalb steht hier kein Literal mehr, sondern die Zeichen einzeln: vor
+   * jedem Semikolon MUSS ein Backslash stehen.
+   */
+  it('vor jedem Semikolon steht wirklich ein Backslash', () => {
+    const roh = 'Hof; Haus, Halle';
+    const maskiert = maskiere(roh);
+    expect(maskiert.split('')).toEqual([
+      'H', 'o', 'f', String.fromCharCode(92), ';', ' ',
+      'H', 'a', 'u', 's', String.fromCharCode(92), ',', ' ',
+      'H', 'a', 'l', 'l', 'e',
+    ]);
+    /* Und keines steht nackt da — das ist der Fehler in einem Ausdruck. */
+    expect(/(^|[^\\]);/u.test(maskiert)).toBe(false);
   });
 
   it('ein Doppelpunkt bleibt — er trennt nur den Feldnamen', () => {
@@ -97,8 +117,13 @@ describe('Der Kalender', () => {
     expect(ics.endsWith('END:VCALENDAR\r\n')).toBe(true);
     expect(ics).toContain('VERSION:2.0');
     expect(ics).toContain('PRODID:');
-    // METHOD:PUBLISH — sonst fragt Outlook nach einer Zusage.
-    expect(ics).toContain('METHOD:PUBLISH');
+    /*
+     * **Kein METHOD.** Es machte die Datei zu einem iTIP-Objekt (RFC 5546),
+     * und dort ist ORGANIZER in jedem VEVENT Pflicht -- keiner unserer
+     * Termine hat einen. Ausserdem muesste die Kopfzeile dieselbe Methode
+     * tragen (RFC 5545 §8.1), was sie nie tat. Ein Abonnement braucht keines.
+     */
+    expect(ics).not.toContain('METHOD:');
     expect(ics).toContain('DTSTART:20260915T080000Z');
     expect(ics).toContain('DTEND:20260915T090000Z');
     expect(ics).toContain('STATUS:CONFIRMED');
@@ -146,15 +171,70 @@ describe('Der Kalender', () => {
     const ics = alsIcal({ name: 'K', jetzt: JETZT }, [{
       ...grund, titel: 'Begehung; Haus 3, 2. OG', ort: 'Kurfürstendamm 21, Berlin',
     }]);
-    expect(ics).toContain('SUMMARY:Begehung\; Haus 3\\, 2. OG');
-    expect(ics).toContain('LOCATION:Kurfürstendamm 21\\, Berlin');
+    const bs = String.fromCharCode(92);
+    expect(ics).toContain(`SUMMARY:Begehung${bs}; Haus 3${bs}, 2. OG`);
+    expect(ics).toContain(`LOCATION:Kurfürstendamm 21${bs}, Berlin`);
   });
 
+  /**
+   * **Ein leerer Kalender ist ein normaler Zustand — und muss trotzdem
+   * gültig sein.** RFC 5545 §3.4 verlangt mindestens eine Komponente; eine
+   * Datei aus lauter Kopfzeilen weisen strenge Leser ab. Die VTIMEZONE ist
+   * eine, ist hier wahr und geht immer mit.
+   */
   it('ein leerer Kalender ist gültig, nicht kaputt', () => {
     const ics = alsIcal({ name: 'K', jetzt: JETZT }, []);
     expect(ics).toContain('BEGIN:VCALENDAR');
     expect(ics).toContain('END:VCALENDAR');
     expect(ics).not.toContain('BEGIN:VEVENT');
+    expect(ics, 'mindestens eine Komponente (§3.4)').toContain('BEGIN:VTIMEZONE');
+    expect(ics).toContain('TZID:Europe/Berlin');
+    expect(ics).toContain('END:VTIMEZONE');
+  });
+
+  /**
+   * **Die zwei Nächte, in denen der Berliner Tag nicht 24 Stunden hat.**
+   *
+   * Das exklusive DTEND entstand vorher, indem auf den End-INSTANT 24 Stunden
+   * addiert und das Ergebnis in Berlin formatiert wurde. In der Nacht zur
+   * Winterzeit (25. Oktober, 25 Stunden) kam derselbe Tag heraus — ein
+   * ganztägiger Termin ohne Dauer, den kein Kalenderprogramm zeichnet. In der
+   * Nacht zur Sommerzeit (29. März, 23 Stunden) wäre es der übernächste Tag
+   * geworden. Beide sind Fristen: `beginn` und `ende` tragen denselben
+   * Zeitpunkt, weil eine Frist ein Tag ist und keine Spanne.
+   */
+  it('ein ganztägiger Termin in den DST-Nächten endet genau einen Tag später', () => {
+    /* 25.10.2026, 00:00 Berliner Zeit — noch Sommerzeit (+02:00). */
+    const winter = alsIcal({ name: 'K', jetzt: JETZT }, [{
+      ...grund, ganztaegig: true,
+      beginn: new Date('2026-10-24T22:00:00Z'), ende: new Date('2026-10-24T22:00:00Z'),
+    }]);
+    expect(winter).toContain('DTSTART;VALUE=DATE:20261025');
+    expect(winter, 'der Tag danach, nicht derselbe').toContain('DTEND;VALUE=DATE:20261026');
+
+    /* 29.03.2026, 00:00 Berliner Zeit — noch Winterzeit (+01:00). */
+    const sommer = alsIcal({ name: 'K', jetzt: JETZT }, [{
+      ...grund, ganztaegig: true,
+      beginn: new Date('2026-03-28T23:00:00Z'), ende: new Date('2026-03-28T23:00:00Z'),
+    }]);
+    expect(sommer).toContain('DTSTART;VALUE=DATE:20260329');
+    expect(sommer, 'der Tag danach, nicht der übernächste')
+      .toContain('DTEND;VALUE=DATE:20260330');
+
+    /* Und der Regelfall dazwischen bleibt, was er war. */
+    const normal = alsIcal({ name: 'K', jetzt: JETZT }, [{
+      ...grund, ganztaegig: true,
+      beginn: new Date('2026-06-14T22:00:00Z'), ende: new Date('2026-06-14T22:00:00Z'),
+    }]);
+    expect(normal).toContain('DTSTART;VALUE=DATE:20260615');
+    expect(normal).toContain('DTEND;VALUE=DATE:20260616');
+  });
+
+  it('der Monats- und Jahreswechsel eines ganztägigen Endes stimmt', () => {
+    expect(datumPlusTag('20261231')).toBe('20270101');
+    expect(datumPlusTag('20260228')).toBe('20260301');
+    expect(datumPlusTag('20240228')).toBe('20240229');
+    expect(datumPlusTag('20260930')).toBe('20261001');
   });
 
   /**

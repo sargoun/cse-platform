@@ -19,6 +19,18 @@ export interface Fenster {
   readonly anker: string;
   readonly von: string;
   readonly bis: string;
+  /**
+   * Was GEHOLT werden muss — meist dasselbe wie `von`/`bis`, im Monat mehr.
+   *
+   * Das Monatsgitter zeichnet volle Wochen und damit die letzten Tage des
+   * Vormonats und die ersten des Folgemonats. Geholt wurde aber der 1. bis
+   * zum Letzten: diese Zellen waren IMMER leer, egal was in ihnen stand —
+   * eine Zelle, die aussieht wie ein Tag ohne Termine und einer ohne Daten
+   * ist. Die Beschriftung des Zeitraums bleibt `von`/`bis`; gefragt wird
+   * nach `abfrageVon`/`abfrageBis`.
+   */
+  readonly abfrageVon: string;
+  readonly abfrageBis: string;
   readonly bezeichnung: string;
   /** Die Adresse des vorigen und des nächsten Fensters — als Anker. */
   readonly vorher: string;
@@ -87,6 +99,7 @@ export function fensterFuer(ansicht: Ansicht, anker: string): Fenster {
   if (ansicht === 'tag') {
     return {
       ansicht, anker, von: anker, bis: anker,
+      abfrageVon: anker, abfrageBis: anker,
       bezeichnung: `${String(tagImMonat)}. ${MONATE[monat - 1]!} ${String(jahr)}`,
       vorher: plusTage(anker, -1), nachher: plusTage(anker, 1),
     };
@@ -108,6 +121,7 @@ export function fensterFuer(ansicht: Ansicht, anker: string): Fenster {
       : `${String(a.tagImMonat)}. ${MONATE[a.monat - 1]!}`;
     return {
       ansicht, anker, von, bis,
+      abfrageVon: von, abfrageBis: bis,
       bezeichnung: `${links} – ${String(b.tagImMonat)}. ${MONATE[b.monat - 1]!} `
         + `${String(b.jahr)}`,
       vorher: plusTage(von, -7), nachher: plusTage(von, 7),
@@ -117,8 +131,12 @@ export function fensterFuer(ansicht: Ansicht, anker: string): Fenster {
   const von = `${String(jahr).padStart(4, '0')}-${z2(monat)}-01`;
   const bis = `${String(jahr).padStart(4, '0')}-${z2(monat)}-`
     + `${z2(letzterTagDesMonats(jahr, monat))}`;
+  const gitter = monatsGitter(anker);
   return {
     ansicht, anker, von, bis,
+    /* Die Raender des Gitters, nicht die des Monats — siehe `abfrageVon`. */
+    abfrageVon: gitter[0]?.tag ?? von,
+    abfrageBis: gitter[gitter.length - 1]?.tag ?? bis,
     bezeichnung: `${MONATE[monat - 1]!} ${String(jahr)}`,
     vorher: plusTage(von, -1), nachher: plusTage(bis, 1),
   };

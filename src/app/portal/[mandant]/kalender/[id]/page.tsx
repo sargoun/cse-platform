@@ -60,7 +60,19 @@ function spanne(z: Zeile): string {
   });
   const von = new Date(z.beginn);
   const bis = new Date(z.ende);
-  if (z.ganztaegig) return `${tag.format(von)} · ganztägig`;
+  if (z.ganztaegig) {
+    /*
+     * **Das Ende ist der Tag DANACH** (Migration 0160, wie in iCal). Ein
+     * ganztaegiger Termin vom 12. bis 14. hat `ende` am 15.: eine Sekunde
+     * abziehen macht daraus wieder den letzten Tag, an dem er faellt. Vorher
+     * stand hier nur der Beginn -- ein dreitaegiger Termin sah aus wie ein
+     * eintaegiger, und zwar ohne jeden Hinweis darauf.
+     */
+    const letzter = new Date(bis.getTime() - 1);
+    return tag.format(von) === tag.format(letzter)
+      ? `${tag.format(von)} · ganztägig`
+      : `${tag.format(von)} – ${tag.format(letzter)} · ganztägig`;
+  }
   const gleicherTag = tag.format(von) === tag.format(bis);
   return gleicherTag
     ? `${tag.format(von)}, ${zeit.format(von)} – ${zeit.format(bis)} Uhr`
@@ -72,7 +84,14 @@ export default async function Termin({ params }: {
   params: Promise<{ mandant: string; id: string }>;
 }) {
   const { mandant, id } = await params;
-  const tor = await mandantTor(`/portal/${mandant}/kalender/[id]`, mandant);
+  /*
+   * Der KONKRETE Pfad, nicht das Routenmuster -- wie auf jeder anderen
+   * Detailseite (`angebote/[id]` und die uebrigen). `zugang.pfad` wird zum
+   * `zurueck` des Wechselblatts, und `rueckwegImBereich` weist einen Pfad mit
+   * eckigen Klammern ab: der Rueckweg fiel still weg, und wer die Gesellschaft
+   * wechselte, landete auf der Uebersicht statt wieder hier.
+   */
+  const tor = await mandantTor(`/portal/${mandant}/kalender/${id}`, mandant);
   if (tor.art === 'anmeldung') return <AnmeldungNoetig />;
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;

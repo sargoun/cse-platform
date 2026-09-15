@@ -45,11 +45,21 @@ export function falte(zeile: string): string {
  * Maskierung nach §3.3.11: Backslash, Semikolon, Komma und Zeilenumbruch.
  * Die Reihenfolge ist wichtig — der Backslash zuerst, sonst maskiert man die
  * eigenen Maskierungen ein zweites Mal.
+ *
+ * **Jedes Ersatzmuster braucht einen doppelten Backslash.** `'\;'` (ein
+ * Backslash im Quelltext) ist in
+ * JavaScript kein maskiertes Semikolon, sondern ein blankes: der Backslash vor
+ * einem Zeichen ohne Sonderbedeutung verschwindet beim Einlesen des Literals.
+ * Die Zeile sah aus wie eine Maskierung und war keine — und weil der
+ * danebenstehende Test dasselbe Literal benutzte, konnte er das nie finden.
+ * Ein unmaskiertes Semikolon in einem TEXT-Wert trennt für den Leser den
+ * Parameterteil ab: aus einem Titel „Objektschutz; Nachtdienst" wurde ein
+ * SUMMARY mit einem Parameter, den es nicht gibt.
  */
 export function maskiere(wert: string): string {
   return wert
     .replace(/\\/gu, '\\\\')
-    .replace(/;/gu, '\;')
+    .replace(/;/gu, '\\;')
     .replace(/,/gu, '\\,')
     .replace(/\r\n|\r|\n/gu, '\\n');
 }
@@ -76,6 +86,27 @@ export function alsDatum(zeitpunkt: Date): string {
     timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(zeitpunkt);
   return teile.replace(/-/gu, '');
+}
+
+/**
+ * Der Tag NACH einem `YYYYMMDD` — auf dem Datum gerechnet, nicht auf einem
+ * Instant.
+ *
+ * **Warum nicht einfach 24 Stunden addieren.** Das exklusive DTEND eines
+ * eintägigen Termins entstand vorher so: 24 Stunden auf den End-Instant, dann
+ * in Berlin formatieren. In der Nacht zur Winterzeit hat der Berliner Tag 25
+ * Stunden — aus dem 25. Oktober wurde wieder der 25. Oktober, also ein
+ * ganztägiger Termin ohne Dauer, den kein Kalenderprogramm zeichnet. In der
+ * Nacht zur Sommerzeit hätte derselbe Fehler zwei Tage ergeben. Ein Datum
+ * kennt keine Sommerzeit; deshalb wird hier auf dem Datum gerechnet.
+ */
+export function datumPlusTag(jjjjmmtt: string): string {
+  const jahr = Number(jjjjmmtt.slice(0, 4));
+  const monat = Number(jjjjmmtt.slice(4, 6));
+  const tag = Number(jjjjmmtt.slice(6, 8));
+  const d = new Date(Date.UTC(jahr, monat - 1, tag + 1));
+  const z = (n: number, b = 2): string => String(n).padStart(b, '0');
+  return `${z(d.getUTCFullYear(), 4)}${z(d.getUTCMonth() + 1)}${z(d.getUTCDate())}`;
 }
 
 export interface Termin {
@@ -107,12 +138,17 @@ function eintrag(t: Termin, jetzt: Date): readonly string[] {
      * ein eintaegiger Termin am 15. hat DTEND 16. Ohne diesen Tag zeigen
      * Kalenderprogramme einen Termin ohne Dauer -- oder gar keinen.
      */
-    const endeTag = new Date(t.ende.getTime());
-    if (alsDatum(endeTag) === alsDatum(t.beginn)) {
-      endeTag.setUTCDate(endeTag.getUTCDate() + 1);
-    }
-    zeilen.push(`DTSTART;VALUE=DATE:${alsDatum(t.beginn)}`);
-    zeilen.push(`DTEND;VALUE=DATE:${alsDatum(endeTag)}`);
+    const beginnTag = alsDatum(t.beginn);
+    const endeTag = alsDatum(t.ende);
+    zeilen.push(`DTSTART;VALUE=DATE:${beginnTag}`);
+    /*
+     * `kalender_eintrag.ende` IST bei ganztaegigen Zeilen schon das exklusive
+     * Ende (Migration 0160) -- dann steht es hier unveraendert. Die Fristen
+     * aus den anderen fuenf Quellen tragen denselben Zeitpunkt zweimal; fuer
+     * sie wird der Folgetag auf dem DATUM gerechnet.
+     */
+    zeilen.push(`DTEND;VALUE=DATE:${
+      endeTag === beginnTag ? datumPlusTag(beginnTag) : endeTag}`);
   } else {
     zeilen.push(`DTSTART:${alsUtc(t.beginn)}`);
     zeilen.push(`DTEND:${alsUtc(t.ende)}`);
@@ -139,12 +175,54 @@ function eintrag(t: Termin, jetzt: Date): readonly string[] {
 }
 
 /**
+ * Die Zonendefinition — **und der Grund, warum sie immer mitgeht**.
+ *
+ * RFC 5545 §3.4 verlangt in einem VCALENDAR mindestens EINE Komponente
+ * (`component = 1*(eventc / todoc / … / timezonec / …)`). Ein Kalender ohne
+ * Termine ist aber ein voellig normaler Zustand — ein neuer Zugang, ein
+ * Zeitraum ohne Eintraege —, und eine Datei aus lauter Kopfzeilen weisen
+ * strenge Leser als fehlerhaft ab. Eine VTIMEZONE ist eine Komponente, ist
+ * hier ohnehin wahr und macht die Datei in jedem Fall gueltig.
+ *
+ * Die Regeln sind die der EU seit 1996 und stehen fest im Text: sie gelten
+ * ohne Enddatum weiter, und ein Kalenderprogramm rechnet mit ihnen selbst.
+ * Wuerde die Union die Umstellung abschaffen, gehoerte hier ein neues
+ * `TZNAME`-Paar mit `RDATE` hin — keine Zeile, die sich von selbst aendert.
+ */
+const ZONE: readonly string[] = [
+  'BEGIN:VTIMEZONE',
+  'TZID:Europe/Berlin',
+  'BEGIN:STANDARD',
+  'DTSTART:19701025T030000',
+  'RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU',
+  'TZOFFSETFROM:+0200',
+  'TZOFFSETTO:+0100',
+  'TZNAME:CET',
+  'END:STANDARD',
+  'BEGIN:DAYLIGHT',
+  'DTSTART:19700329T020000',
+  'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU',
+  'TZOFFSETFROM:+0100',
+  'TZOFFSETTO:+0200',
+  'TZNAME:CEST',
+  'END:DAYLIGHT',
+  'END:VTIMEZONE',
+];
+
+/**
  * Der ganze Kalender als Text — mit CRLF, wie RFC 5545 es verlangt.
  *
  * `PRODID` nennt die erzeugende Anwendung; ohne ihn weisen manche
- * Kalenderprogramme die Datei ab. `METHOD:PUBLISH` sagt, dass es ein
- * Abonnement ist und keine Einladung, auf die jemand antworten soll — ohne
- * ihn fragt Outlook nach einer Zusage zu Terminen, die niemand zugesagt hat.
+ * Kalenderprogramme die Datei ab.
+ *
+ * **Kein `METHOD`.** Es stand hier, damit Outlook nicht nach einer Zusage
+ * fragt — und bewirkt das Gegenteil: `METHOD` macht aus der Datei ein
+ * iTIP-Objekt (RFC 5546), und fuer ein solches ist `ORGANIZER` in jedem
+ * VEVENT Pflicht (§3.2.1). Keiner unserer Termine hat einen — eine Schicht
+ * hat einen Dienstplan, keinen Einladenden. Ausserdem verlangt §8.1, dass die
+ * Kopfzeile dieselbe Methode traegt (`text/calendar; method=PUBLISH`), was die
+ * Route nicht tat. Ein ABONNEMENT braucht kein METHOD: der Leser holt die
+ * Datei, er hat keine Einladung bekommen.
  */
 export function alsIcal(kopf: KalenderKopf, termine: readonly Termin[]): string {
   const zeilen = [
@@ -152,9 +230,9 @@ export function alsIcal(kopf: KalenderKopf, termine: readonly Termin[]): string 
     'VERSION:2.0',
     'PRODID:-//CSE Gruppe//Plattform//DE',
     'CALSCALE:GREGORIAN',
-    'METHOD:PUBLISH',
     `X-WR-CALNAME:${maskiere(kopf.name)}`,
     'X-WR-TIMEZONE:Europe/Berlin',
+    ...ZONE,
     ...termine.flatMap((t) => eintrag(t, kopf.jetzt)),
     'END:VCALENDAR',
   ];

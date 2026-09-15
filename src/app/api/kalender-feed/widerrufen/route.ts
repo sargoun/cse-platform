@@ -40,12 +40,24 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
   }
 
-  await (db().begin(async (tx: postgres.TransactionSql) => {
+  /*
+   * **Das Ergebnis wird gelesen.** `widerrufeFeed` sagt, ob wirklich eine
+   * Zeile umgelegt wurde -- die Policy laesst nur die eigenen durch, und die
+   * Bedingung `widerrufen_am is null` faengt den zweiten Klick. Wurde nichts
+   * umgelegt, war der Zugang entweder schon widerrufen oder gehoert jemand
+   * anderem; die Seite behauptete danach trotzdem, die Adresse sei jetzt
+   * tot. Das ist der eine Satz, auf den sich jemand verlaesst.
+   */
+  const widerrufen = await (db().begin(async (tx: postgres.TransactionSql) => {
     await bindePersoenlich(tx, sitzung);
     const abfrage = async <T,>(a: string, w?: readonly unknown[]): Promise<readonly T[]> =>
       (await tx.unsafe(a, (w ?? []) as never[])) as unknown as readonly T[];
     return widerrufeFeed({ abfrage, schreibe: abfrage }, id);
-  }));
+  })) as boolean;
+
+  if (!widerrufen) {
+    return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
+  }
 
   /*
    * **Ohne das zeigt die Seite nach dem Umleiten den alten Stand.**

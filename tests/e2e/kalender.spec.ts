@@ -88,6 +88,57 @@ test.describe('Kalender', () => {
     }
   });
 
+  /**
+   * **Die Pille SCHALTET UM — in beide Richtungen.**
+   *
+   * `quellen=a,b` war in der Adresse immer möglich (`quellenAus` liest eine
+   * Komma-Liste), nur die Oberfläche konnte keine bauen: jeder Klick ersetzte
+   * die ganze Auswahl, und eine aktive Pille war ein Knopf, der nichts tat.
+   */
+  test('zwei Herkünfte lassen sich gleichzeitig wählen und wieder abwählen',
+    async ({ page }) => {
+      await anmelden(page);
+      await page.goto(`/portal/${MANDANT}/kalender?ansicht=monat`);
+
+      await page.locator('[data-cse="filter-termin"]').click();
+      await expect(page).toHaveURL(/quellen=termin/u);
+
+      await page.locator('[data-cse="filter-einsatz"]').click();
+      await expect(page, 'die zweite kommt DAZU').toHaveURL(/quellen=termin%2Ceinsatz/u);
+      await expect(page.locator('[data-cse="filter-termin"]'))
+        .toHaveAttribute('aria-current', 'page');
+      await expect(page.locator('[data-cse="filter-einsatz"]'))
+        .toHaveAttribute('aria-current', 'page');
+
+      /* Ein Klick auf die aktive nimmt genau sie wieder heraus. */
+      await page.locator('[data-cse="filter-termin"]').click();
+      await expect(page).toHaveURL(/quellen=einsatz/u);
+      await expect(page).not.toHaveURL(/termin/u);
+
+      /* Und die letzte abzuwählen führt zurück zu „Alles". */
+      await page.locator('[data-cse="filter-einsatz"]').click();
+      await expect(page).not.toHaveURL(/quellen=/u);
+      await expect(page.locator('[data-cse="filter-alle"]'))
+        .toHaveAttribute('aria-current', 'page');
+    });
+
+  /**
+   * **Der Leerzustand sagt, WARUM es leer ist.** „Hier liegt nichts" ist eine
+   * Aussage über den Zeitraum und falsch, sobald ein Filter gesetzt ist — wer
+   * sie trotzdem liest, sucht den Fehler in der Quelle statt in der eigenen
+   * Auswahl.
+   */
+  test('ein leerer Zeitraum mit Filter nennt den Filter', async ({ page }) => {
+    await anmelden(page);
+    /* Ein Jahr voraus liegt nichts, und die Herkunft ist ausdrücklich gewählt. */
+    await page.goto(`/portal/${MANDANT}/kalender?ansicht=monat&tag=2029-07-15&quellen=vergabe`);
+    const hinweis = page.locator('[data-cse="kalender-leer"]');
+    await expect(hinweis).toBeVisible();
+    await expect(hinweis).toContainText('Mit dieser Auswahl');
+    await page.locator('[data-cse="kalender-leer-alles"]').click();
+    await expect(page).not.toHaveURL(/quellen=/u);
+  });
+
   test('ein Termin führt zu seiner Seite', async ({ page }) => {
     await anmelden(page);
     await page.goto(`/portal/${MANDANT}/kalender?quellen=termin`);
@@ -144,6 +195,14 @@ test.describe('Der iCal-Zugang (CAL-03)', () => {
     expect(ics.startsWith('BEGIN:VCALENDAR')).toBe(true);
     expect(ics).toContain('END:VCALENDAR');
     expect(ics).toContain('\r\n');
+    /*
+     * **Die Datei ist auch leer gueltig** (RFC 5545 §3.4: mindestens eine
+     * Komponente) — und sie traegt kein METHOD, also darf auch die Kopfzeile
+     * keine Methode nennen (§8.1). Beides ging vorher auseinander.
+     */
+    expect(ics, 'mindestens eine Komponente').toContain('BEGIN:VTIMEZONE');
+    expect(ics).not.toContain('METHOD:');
+    expect(antwort.headers()['content-type']).not.toContain('method=');
 
     // Neu geladen ist die Adresse weg: gespeichert ist nur ihre Prüfsumme.
     await page.goto('/portal/konto/kalender-feed');

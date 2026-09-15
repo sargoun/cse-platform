@@ -52,10 +52,21 @@ const LEER: RechnungsErgebnis = {
   festgeschrieben: 0, entwuerfe: 0, nummern: [], uebersprungen: true, grund: null,
 };
 
-/** Eine Position, wie sie eine Unterhaltsreinigung oder ein Objektschutz trägt. */
+/**
+ * Eine Position, wie sie eine Unterhaltsreinigung oder ein Objektschutz
+ * trägt.
+ *
+ * **`mengeMilli` heißt, was es heißt: TAUSENDSTEL** (K-16). Die Spalte ist
+ * `numeric(12,3)`, und `milliMenge()` nimmt genau diese Einheit. Das Feld
+ * hieß vorher `menge` und trug ganze Stück: `menge: 160n` ging als 0,160
+ * Stunden in die Rechnung, und weil zwei der drei Rechnungen sofort
+ * festgeschrieben werden, standen die falschen Beträge unveränderlich in
+ * einer lückenlosen Nummernfolge. Der Name trägt die Einheit jetzt mit —
+ * eine Menge ohne Einheit ist eine Zahl, die irgendjemand später deutet.
+ */
 interface Posten {
   readonly bezeichnung: string;
-  readonly menge: bigint;
+  readonly mengeMilli: bigint;
   readonly einheit: string;
   readonly einzelpreisCent: bigint;
 }
@@ -63,21 +74,21 @@ interface Posten {
 const POSTEN: Readonly<Record<string, readonly Posten[]>> = {
   reinigung: [
     { bezeichnung: 'Unterhaltsreinigung Bürogeschoss, monatlich',
-      menge: 1n, einheit: 'psch', einzelpreisCent: 189_000n },
+      mengeMilli: 1_000n, einheit: 'psch', einzelpreisCent: 189_000n },
     { bezeichnung: 'Glasreinigung innen, Fensterflügel',
-      menge: 48n, einheit: 'stk', einzelpreisCent: 420n },
+      mengeMilli: 48_000n, einheit: 'stk', einzelpreisCent: 420n },
   ],
   security: [
     { bezeichnung: 'Objektschutz, Nachtdienst 22:00–06:00',
-      menge: 160n, einheit: 'h', einzelpreisCent: 2_890n },
+      mengeMilli: 160_000n, einheit: 'h', einzelpreisCent: 2_890n },
     { bezeichnung: 'Schliessdienst, Wochenende',
-      menge: 8n, einheit: 'h', einzelpreisCent: 3_150n },
+      mengeMilli: 8_000n, einheit: 'h', einzelpreisCent: 3_150n },
   ],
   bau: [
     { bezeichnung: 'Rückbau Trockenbauwände, Abschlagsrechnung',
-      menge: 1n, einheit: 'psch', einzelpreisCent: 1_240_000n },
+      mengeMilli: 1_000n, einheit: 'psch', einzelpreisCent: 1_240_000n },
     { bezeichnung: 'Entsorgung Bauschutt, Container 7 m³',
-      menge: 3n, einheit: 'stk', einzelpreisCent: 38_500n },
+      mengeMilli: 3_000n, einheit: 'stk', einzelpreisCent: 38_500n },
   ],
 };
 
@@ -168,7 +179,7 @@ export async function seedRechnungen(
           await fuegePositionHinzu(db, {
             rechnungId: id,
             bezeichnung: p.bezeichnung,
-            menge: milliMenge(p.menge * (lauf === 1 ? 2n : 1n)),
+            menge: milliMenge(p.mengeMilli * (lauf === 1 ? 2n : 1n)),
             einheit: p.einheit,
             einzelpreisCent: cent(p.einzelpreisCent),
             steuergruppe: 'ust_19',

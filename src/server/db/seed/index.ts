@@ -53,8 +53,18 @@ const heute = new Date().toISOString().slice(0, 10);
  * ÜBERBRÜCKEN; in der Produktion bleibt die Frage offen und die Zeile aus.
  * Die Überbrückung ist nie unsichtbar — sie steht im Datensatz selbst
  * (`DEMO-` in der Rechnungsnummer, `anbieter = 'demo'` im Modellregister).
+ *
+ * **Sie verlangt die Flagge, und `devFlaechenAn()` allein reicht nicht.**
+ * Jene Funktion ist für SEITEN gebaut und liest „allles außer einem
+ * Produktionsbau ist eine Entwicklungsfläche" — richtig für eine Seite, die
+ * niemand ausliefert, falsch für diesen Seed. Er legt festgeschriebene
+ * Rechnungen an: unveränderliche Zeilen in einer lückenlosen Nummernfolge,
+ * die kein späterer Lauf mehr entfernen kann (Invariante 4 und 8). Ein Seed,
+ * versehentlich gegen die echte Datenbank gestartet — `NODE_ENV` ungesetzt,
+ * wie in jeder Konsole — hätte DEMO-Nummern in den echten Kreis gebrannt.
+ * Deshalb hier die ausdrückliche Flagge: wer Demodaten will, sagt es.
  */
-const demodaten = devFlaechenAn();
+const demodaten = process.env['CSE_DEV_FLAECHEN'] === '1' && devFlaechenAn();
 
 /**
  * Was der bestehende Auftritt einer Gesellschaft SELBST veroeffentlicht —
