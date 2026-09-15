@@ -5172,6 +5172,7 @@ niemand ihn suchen.
 | O-357 | **Wohin gehen die Wächter-Meldungen aus SPEC §14 — Posteingang, Mail oder beides — und wer bekommt die Kettenmeldung?** Die Ablaufwarnung (60/30/7) erreicht die Person selbst; das ist EMP-08 und unstrittig. „Hashkette gebrochen" dagegen hat keinen persönlichen Empfänger: es ist eine Meldung an die Buchhaltung oder die Geschäftsführung, und beide sind heute keine adressierbare Größe im Modell. Solange die Frage offen ist, wird der Kettenprüfer bewusst NICHT als Job registriert — ein Lauf, der jede Nacht „ok" meldet, ohne dass jemand die Meldung liest, schafft Vertrauen, das er nicht deckt. | SPEC §14, `src/server/jobs/bootstrap.ts`, `kettenlauf.ts`, NOT-01 |
 | O-500 | **Wie lange gilt ein Einladungs- und ein Zurücksetzungslink, wie viele Wiederherstellungscodes werden ausgegeben, und gilt eine Mindestlänge über zwölf Zeichen hinaus?** Die SPEC nennt keine Zahl. `plattform_einstellung` führt vier vorläufige Werte (168 h, 2 h, 10 Codes, 12 Zeichen); sie sind als `ist_vorlaeufig = true` markiert und über eine Zeile änderbar, ohne Code. Die Auswahl folgt gängiger Praxis, nicht einer Entscheidung: ein Einladungslink überlebt ein Wochenende, ein Zurücksetzungslink nicht. | AUT-01, AUT-04, `0155`, D-502 |
 | O-501 | **Welches Supabase-Projekt in der EU-Region (Frankfurt), welcher Auftragsverarbeitungsvertrag — und soll die Anmeldung über ein Firmenverzeichnis (SAML/OIDC) laufen?** Dieselbe Frage trägt den Postausgang: welcher in der EU gehostete Mailanbieter, welche Absenderadresse je Gesellschaft, laufen DKIM und DMARC über die bestehenden Domains? Ohne beides gibt es keinen Zurücksetzungs- und keinen Einladungslink, der ankommt. Bis zur Antwort prüft die Plattform das Kennwort selbst (`kern.zugangsdaten`, bcrypt), `/auth/callback` antwortet `501` statt eine Sitzung auszustellen, und `/auth/passwort-vergessen` sagt „nicht verbunden" statt „gesendet" (D-501, D-503). | AUT-01, AUT-04, NOT-02, `0155`, D-501 |
+| O-502 | **Welche Kostenarten gehören in die Projektmarge (REP-05)?** Heute: Lohn (freigegebene Zeiteinträge zum internen Stundensatz aus `anstellung.stundensatz_intern`) plus Fremdleistung (Eingangsrechnungen mit Projektbezug). Nicht enthalten: Material ohne Rechnungsbezug, Gerätestunden und ein Gemeinkostensatz — und ob es einen geben soll, ist die eigentliche Frage: ein Zuschlag je Gesellschaft, ein Satz je Gewerk, oder gar keiner (dann ist die Zahl ein Deckungsbeitrag und keine Marge, und sollte so heissen). Bis zur Antwort nennt die Seite die Zahl „Kosten (Näherung)" und sagt unter der Tabelle, was fehlt — eine Marge, die so tut, als wäre sie die Nachkalkulation, wird in ein Angebot übernommen. | REP-05, `bericht/kennzahlen.ts`, D-506 |
 
 ### Vier Befunde, die ausserhalb dieser Datei liegen
 
@@ -9747,3 +9748,138 @@ führt zu ihrem Datensatz) wäre ungeprüft geblieben: `erzeuge()` scheitert, we
 das Ziel nicht auflösbar ist. Ablaufwarnungen ohne Zugang zur Person werden
 GEZÄHLT und gesagt, nicht verschluckt (D-09 — die meisten Beschäftigten haben
 heute kein Konto).
+
+
+### D-506 · Sechs Berichte, eine Zeitachse, ein Ausgang
+
+SPEC §5.23 nennt sieben Punkte (REP-01…REP-07). Sechs davon sind Auswertungen,
+der siebte ist der Ausgang — und genau der ist der Grund, warum sie sich einen
+Rahmen teilen.
+
+**Eine Zeitachse für alle.** Alle sechs beantworten dieselbe Vorfrage (welches
+Jahr, welche Körnung), und sechsmal ausgeschrieben wäre das sechsmal die
+Gelegenheit, sie anders zu lesen. Eine Umsatzzahl für „dieses Jahr" neben einer
+Auftragszahl für „letzte 365 Tage" widerspricht sich auf einem Bildschirm, ohne
+dass es jemand bemerkt. `BerichtsSeite` stellt die Frage einmal; die Berichte
+bekommen den Zeitraum gereicht.
+
+**Das laufende Jahr kommt aus der Datenbank** (`app.berlin_heute()`,
+Invariante 5). Die Uhr des Anwendungsservers entschiede sonst, welches Jahr ein
+Bericht zeigt — und am 1. Januar um 00:30 Berliner Zeit wäre das das falsche.
+
+**Gerechnet wird in `server/services/bericht`, nie in einer Seite** (CLAUDE.md).
+Eine Seite, die selbst summiert, ist eine Zahl ohne Test; `tests/kern` prüft die
+Zeitraumarithmetik und die Formatierung, `tests/isolation` die Abfragen gegen
+echte Zeilen mit RLS.
+
+**Drei Statusfallen, die stumm gewesen wären.** `rechnung_status` führt
+`entwurf`, `festgeschrieben` und **`verworfen`**: ein `<> 'entwurf'` hätte
+verworfene Rechnungen als Umsatz gezählt. `eingangsrechnung_status` kennt gar
+keinen Entwurf — dort heissen die Werte `eingegangen`, `in_pruefung`,
+`freigegeben`, `gebucht`, `abgelehnt`, und Aufwand zählt ab `freigegeben`:
+eingegangen und in Prüfung sind Behauptungen des Lieferanten, abgelehnt ist
+eine, der widersprochen wurde. `projekt`-Kosten folgen derselben Grenze.
+
+**Quoten sind Basispunkte, keine Fliesskommazahlen** (K-16). `2500` ist
+25,00 %; `prozent()` formatiert, gerechnet wird ganzzahlig. Dieselbe Regel wie
+beim Geld, aus demselben Grund.
+
+**Die Abschlussquote misst eine Kohorte.** Zähler und Nenner sind Anfragen, die
+im selben Abschnitt *entstanden* sind. „Gewonnene im Zeitraum / offene im
+Zeitraum" misst dagegen, wie schnell aufgeräumt wird — und die Zahl steigt,
+wenn niemand neue Anfragen bekommt.
+
+**Auslastung ohne Soll ist `null`, nicht 0 %.** Ein Aushilfsvertrag ohne
+Wochenstunden ist kein Mensch, der nicht arbeitet, und in derselben Spalte wäre
+eine echte Null von einer fehlenden nicht zu unterscheiden. Das Soll selbst ist
+eine grobe Rechnung (Wochenstunden × Kalendertage ÷ 7, ohne Urlaub, Krankheit
+und Feiertage), und die Seite sagt es — „Mehrarbeit" ist hier eine Differenz
+und kein arbeitsrechtlicher Anspruch.
+
+**REP-07 ist ein eigenes Recht.** `bericht.exportieren` steht neben
+`bericht.lesen`, an `admin` gebunden und an `leitung` bindbar: wer eine Zahl
+ansehen darf, darf sie nicht schon aus dem Haus tragen. Eine CSV-Datei verlässt
+das Portal und damit jede Zugriffskontrolle darin. Ohne das Recht erscheint
+kein Knopf — nicht einer, der später 403 antwortet.
+
+**CSV heisst UTF-8 mit BOM, Semikolon, CRLF.** Ohne BOM liest Excel unter
+Windows die Datei als Windows-1252 und macht aus „Gebäude" ein „GebÃ¤ude";
+Semikolon statt Komma, weil deutsche Zahlen ein Dezimalkomma tragen. Jede
+Geldspalte bringt ihre Cent-Spalte mit (R-12): die eine liest ein Mensch, die
+andere rechnet eine Maschine weiter, und niemand muss raten, welches Zeichen
+der Tausenderpunkt war.
+
+**Die Gruppenansicht beantwortet eine andere Frage** und bekommt deshalb
+eigene Abfragen (`bericht/gruppe.ts`). Im Bereich lautet sie „wie viel", in der
+Gruppe „wer trägt wie viel bei" — eine Summe ohne Aufteilung ist die eine Zahl,
+die niemanden handeln lässt. Dort gibt es keinen CSV-Ausgang:
+`bericht.exportieren` ist ein Recht am BEREICH, und ein Bereichsrecht in der
+Gruppenansicht zu prüfen hiesse, sich einen Bereich auszusuchen. Die
+Stundenauswertung nennt dort ausserdem nur Köpfe und keine Namen — die
+namentliche Auswertung gehört dorthin, wo das Arbeitsverhältnis besteht
+(D-09, K-05).
+
+### D-507 · Vier stille Leerstellen in einem Bericht — und warum jede stumm war
+
+Die Berichte (REP-01…REP-07) brachten vier Fehler ans Licht, die **keinen
+Fehler erzeugten**. Sie stehen hier zusammen, weil sie eine Familie sind: alle
+vier antworten mit einer plausiblen Zahl oder einer leeren Liste, und keine
+davon sieht im Bildschirm anders aus als die Wahrheit.
+
+**1 · `sum(bigint)` ist `numeric` — und `numeric / 60` ist keine ganzzahlige
+Division.** `app.projekt_lohnkosten` multiplizierte Minuten mit dem
+Stundensatz, addierte `+30` und teilte durch 60, um kaufmännisch zu runden.
+Das Ergebnis war trotzdem falsch: `sum()` liefert `numeric`, die Division
+lieferte `2125.5`, und der Cast nach `bigint` rundete ein zweites Mal — 2126
+statt 2125 Cent bei zweimal 25 Minuten zu 25,50 €/h. **Der Cast gehört nach
+innen**, vor die Division. Ein Cent, und er wächst mit jeder Zeile
+(Invariante 1).
+
+**2 · Ein `grant` ohne `policy` ist bei `force row level security` kein
+Zugriff.** `app.projekt_kennzahlen` läuft als `cse_definer` und las `projekt`
+und `eingangsrechnung` — beide mit Grant, beide ohne Policy für diese Rolle.
+Postgres wirft dafür keinen Fehler, sondern gibt **null Zeilen** zurück: der
+Bericht zeigte „keine Projekte im Zeitraum", und das las sich wie eine Aussage
+über Projekte. Dieselbe Klasse wie das stille `update` aus D-503.
+
+**3 · `authorize` auf einer ungebundenen Transaktion sagt immer Nein.**
+`/api/berichte/[bericht]/csv` prüfte das Exportrecht, bevor `withTenant` band.
+`app.hat_recht` fragt `app.aktueller_benutzer()`, und der steht erst nach der
+Bindung — also war jedes Recht `false` und die Route antwortete 404, während
+die Seite daneben den Knopf zeigte, weil SIE gebunden geprüft hatte. Die
+Rechtefrage steht ab jetzt **innerhalb** der Bindung, wie in jeder anderen
+Route.
+
+**4 · K-05 gilt auch eine Ebene höher.** Die Gruppenfassung von REP-05 las
+`projekt.auftragssumme_netto_cent` direkt; `cse_app` hat auf dieser Spalte kein
+`select` (D-92), und Postgres weist die **ganze Anweisung** ab. Die Seite
+antwortete mit einem Serverfehler. `app.projekt_kennzahlen_gruppe` (0158) löst
+es wie 0157 für den Bereich, nur je Gesellschaft und über
+`gruppe.kalkulation.lesen` — je Gesellschaft geprüft, nicht einmal für alle.
+
+**Was die vier verbindet:** In der Entwicklung verbindet der Eigentümer der
+Datenbank, und dort laufen alle vier. Gefunden hat sie erst der Test, der
+gegen echte Rollen und echte Rechte lief. Ein Bericht ohne einen solchen Test
+ist eine Zahl ohne Zeugen.
+
+### D-508 · Gruppenrechte sind eigene Rechte, keine Summe der Bereichsrollen
+
+Die Gruppen-Policies lesen `gruppe.finanzen.lesen`, nicht `finanzen.lesen` —
+ein eigener Schlüssel, den nur `super_admin` trägt, und den `app.hat_recht`
+**je Gesellschaft** beantwortet (`app.rechte_mandanten`). Wer in einem Bereich
+Administration ist, sieht in der Gruppenansicht deshalb nichts, auch nicht
+seinen eigenen Bereich.
+
+Das ist keine Härte, sondern der Zweck: wer die Gruppe lesen darf, ist eine
+eigene Entscheidung. Die Fixtur der Berichtstests hatte zuerst einen
+Bereichsadmin in die Gruppenansicht gesetzt und dort Nullen gemessen — der
+Test hätte eine offene Gruppenansicht nicht bemerkt. Er trägt jetzt beide
+Fälle: die Gruppenleitung sieht die Aufteilung, der Bereichsadmin keine
+einzige Zahl.
+
+**`super_admin` hängt an `benutzer.globale_rolle_id`** und nicht an
+`benutzer_mandant` (TEN-08): die Rolle hat `geltungsbereich = 'global'`, und
+die Mitgliedschaftstabelle nimmt nur Mandantenrollen an. Sie gilt damit ohne
+Zuweisungszeile in jedem Bereich — begrenzt bleibt die Sicht trotzdem, weil
+`rechte_mandanten` mit `app.sichtbare_mandanten()` schneidet, und die sind die
+Mandanten der Sitzung.

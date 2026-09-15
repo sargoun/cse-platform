@@ -545,8 +545,15 @@ Radar first — the agents operate on its output.
 - [ ] External channels behind an interface, marked "not connected"
 - [ ] Recruiting: job ad drafting, inbound applications, CV parsing, ranking
       with visible criteria, interview scheduling, DSGVO purge
-- [ ] Reports: revenue, expenses, profit, orders, leads, conversion,
-      **channel attribution**, employees, projects, tender pipeline
+- [x] **Reports** (REP-01…REP-07, D-506…D-508): revenue, orders and leads,
+      **channel attribution**, hours, projects, tender pipeline — six per
+      company under `/portal/[mandant]/berichte`, the same six split per
+      company under `/portal/gruppe/berichte` (read-only, Invariant 10), year
+      and granularity as links so a report is shareable, and CSV behind its
+      own right `bericht.exportieren` (REP-07). Money stays integer cents;
+      the protected columns (`anstellung.stundensatz_intern`,
+      `projekt.auftragssumme_netto_cent`) are read only as an aggregate,
+      through `app.projekt_kennzahlen` / `…_gruppe`
 - [x] **Notifications and preferences** (NOT-01…NOT-03, D-505): the personal
       inbox at `/portal/[mandant]/benachrichtigungen` with a bell in every
       portal header, per-kind channel preferences at

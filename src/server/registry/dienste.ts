@@ -973,6 +973,24 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'finanzen', pfad: 'finanz/zugferd/cii', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/zugferd/icc', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/zugferd/pdfa3', schreibend: false },
+  /**
+   * **Die Berichte (PR 79, REP-01…REP-07) — alle vier lesend, ausnahmslos.**
+   *
+   * Ein Bericht, der schreibt, ist kein Bericht. Das ist hier keine
+   * Selbstverständlichkeit, sondern die Bedingung dafür, dass die
+   * Gruppenfassung überhaupt existieren darf (Invariante 10): sie läuft ohne
+   * aktiven Mandanten, und `gruppenansicht.test.ts` liest genau dieses
+   * Register, um zu prüfen, dass dort kein Schreibpfad steht.
+   *
+   * `zeitraum` und `ausgabe` sehen nie eine Datenbank — Datumsarithmetik und
+   * CSV-Maskierung; sie stehen trotzdem hier, weil der Gegentest jeden Dienst
+   * verlangt und eine Ausnahmeliste die Stelle wäre, an der der fünfte
+   * vergessen wird.
+   */
+  { modul: 'bericht', pfad: 'bericht/zeitraum', schreibend: false },
+  { modul: 'bericht', pfad: 'bericht/ausgabe', schreibend: false },
+  { modul: 'bericht', pfad: 'bericht/kennzahlen', schreibend: false },
+  { modul: 'bericht', pfad: 'bericht/gruppe', schreibend: false },
 ] as const;
 
 /**

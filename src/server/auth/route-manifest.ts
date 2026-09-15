@@ -39,6 +39,16 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + 'veröffentlichten Seiten. Hinter einer Anmeldung wäre die Datei sinnlos.',
   },
   {
+    pfad: 'api/berichte/[bericht]/csv',
+    recht: 'bericht.exportieren',
+    grund:
+      'REP-07. Ein EIGENES Recht neben `bericht.lesen`: wer eine Zahl ansehen darf, darf '
+      + 'sie nicht schon aus dem Haus tragen. Eine CSV-Datei verlässt das Portal und damit '
+      + 'jede Zugriffskontrolle darin — sie liegt danach in einem Downloads-Ordner, einem '
+      + 'Mailanhang, einem geteilten Laufwerk. Der Bereich kommt aus der SITZUNG; '
+      + '`?mandant=` steht nur für den Dateinamen in der Adresse (Invariante 3).',
+  },
+  {
     pfad: 'api/benachrichtigungen/[id]/oeffnen',
     recht: null,
     grund:
