@@ -11277,3 +11277,59 @@ EMP-07 verbietet, dass irgendein Weg einen Zeiteintrag ÄNDERT. Diese Route
 entsteht. Die Wache ist absichtlich stumpf — und ein Pfad, der sie umgeht,
 wäre eine Ausnahme IN der Wache. Der ehrlichere Weg ist ein Name, der sagt,
 was verwaltet wird.
+
+### D-557 · EMP-12 war gebaut und für niemanden erreichbar
+
+`src/lib/i18n/texte.ts` übersetzt das Arbeiterportal vollständig in vier
+Sprachen — de, en, ar, tr, samt `dir="rtl"` und der richtigen Zahlen- und
+Datumsform. Die Sprache kommt aus `person.sprache`. Und sie liess sich
+**nirgends ändern**: keine Seite, keine Route, kein Recht, kein Schreibweg.
+Wer nicht die Sprache sprach, die in seiner Zeile stand, konnte nichts daran
+tun. In der ROADMAP ist EMP-12 abgehakt.
+
+`/portal/konto/profil` (der fünfte Tab jedes Arbeitertelefons, D-549) und
+`POST /api/konto/sprache` schliessen das.
+
+**Die Spaltenliste im Recht ist der eigentliche Inhalt dieser Entscheidung.**
+`person` trägt `telefon`, und diese Nummer **ist** der Anmeldeweg einer
+Mitarbeiterin (`app.zugang_code_anfordern`, EMP-01). Ein tabellenweites
+`grant update` liesse jede angemeldete Person ihre eigene Nummer ändern — und
+damit den Einmalcode auf ein beliebiges Telefon umleiten. Aus „ich stelle
+meine Sprache auf Arabisch" würde eine Kontoübernahme, in derselben Zeile.
+`0165` gewährt deshalb genau eine Spalte, nach der Vorlage, die `benutzer`
+seit 0007 trägt.
+
+Ein `grant update` gefolgt von `revoke update (telefon)` funktioniert in
+PostgreSQL **nicht** — das Tabellenrecht deckt weiter jede Spalte und der
+Entzug ändert stillschweigend nichts. Dieselbe Falle wie beim Lohnsatz
+(K-05): die Spalte muss von vornherein draussen bleiben.
+`tests/isolation/person-sprache.test.ts` fährt beide Richtungen: die Sprache
+geht durch, `telefon` und `vorname` werden abgewiesen.
+
+**Zwei Befunde nebenbei, beide von der Isolationsprüfung gefunden.** Der
+Dienst schrieb zunächst `geaendert_am = now()` mit — überflüssig (ein Auslöser
+setzt es) und dazu ein `permission denied for table person`: PostgreSQL prüft
+JEDE Spalte der `set`-Liste gegen das Recht, und eine davon fehlte. Und die
+Sprache wird in **einer** Spalte gesetzt, nicht in beiden: hat das Konto eine
+Person, gewinnt `person.sprache` (§3.2), sonst ist `benutzer.sprache` die
+einzige Quelle. Beide zu schreiben hiesse, einen Wert zu pflegen, den niemand
+liest — und beim nächsten Lesefehler stünde die falsche Quelle im Verdacht.
+
+**Wo der Dienst liegt, ist ebenfalls eine Entscheidung.** Nicht unter
+`services/`: das Dienstregister verlangt dort von jedem schreibenden Dienst
+ein Modulrecht aus dem Katalog, und zu Recht — ein Dienst dort ist eine
+Modul*operation*. Die eigene Sprache ist keine (K-19: einen Schlüssel
+erfinden, den man jeder Rolle bindet, prüft nichts). Das Haus hat für diesen
+Fall schon einen Ort: `server/benachrichtigung/posteingang.ts` schreibt
+ebenfalls, trägt ebenfalls kein Modulrecht, ist ebenfalls an
+`app.aktueller_benutzer()` gebunden — und liegt ebenfalls neben `services/`.
+`server/konto/sprache.ts` folgt dem, statt eine Ausnahme **in** die Wache zu
+schreiben.
+
+**Auf dem Bildschirm steht jede Sprache in IHRER Sprache** — „العربية", nicht
+„Arabisch". Wer die Oberfläche gerade nicht lesen kann, sucht das Wort, das er
+kennt; eine übersetzte Sprachliste ist genau für den unbrauchbar, der sie
+braucht. Und es sind Radioknöpfe, keine zugeklappte Auswahlliste: vier
+Einträge passen auf jeden Bildschirm, und eine Liste, die man erst öffnen
+muss, verlangt das Lesen der Oberfläche, um an die Sprache zu kommen, die man
+lesen kann.

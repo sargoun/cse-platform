@@ -62,7 +62,6 @@ const NOCH_OFFEN: Readonly<Record<string, string>> = {
    * ist, laesst die Suite fehlschlagen; er kann also nicht liegen bleiben.
    */
   '/portal/mein/nachrichten': 'Phase 3 abgehakt, Seite fehlt — wird gebaut (EMP-11, NOT-03)',
-  '/portal/konto/profil': 'Phase 1 abgehakt, Seite fehlt — wird gebaut (EMP-12: Sprachwahl)',
 };
 
 /** Die Wurzel, unter der eine Leiste hängt — `[mandant]` als Musterwert. */

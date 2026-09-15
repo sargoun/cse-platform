@@ -282,6 +282,24 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + 'Zeiteintrag bleibt, bis die Planung entschieden hat.',
   },
   {
+    pfad: 'api/konto/sprache',
+    recht: null,
+    grund:
+      'EMP-12. Die eigene Portalsprache — de/en/ar/tr sind vollstaendig uebersetzt, und bis '
+      + 'zu dieser Route liess sich die Sprache NIRGENDS aendern: keine Seite, keine Route, '
+      + 'kein Recht. Der Rechtekatalog fuehrt dafuer keinen Schluessel, und §12.4 markiert '
+      + 'den Zugriff auf das eigene Konto als Selbstzugriff (`S`); einen Schluessel zu '
+      + 'erfinden, den man anschliessend JEDER Rolle bindet, pruefte nichts und behauptete '
+      + 'zu pruefen (K-19) — dieselbe Begruendung wie bei `api/zeit/einwand`. Offen ist die '
+      + 'Route deshalb nur im Sinne von "kein Modulrecht". Bewacht wird sie dreifach: durch '
+      + 'die Sitzung und den Ursprungsvergleich; durch `t_person_selbstpflege` bzw. '
+      + '`t_benutzer_selbstpflege`, die ausschliesslich die eigene Zeile zulassen (die '
+      + 'Kennung kommt aus `app.aktuelle_person()`, nie aus der Anfrage, K-02); und durch '
+      + 'das SPALTENRECHT aus 0165 — geaendert werden darf `sprache`, sonst nichts. '
+      + '`person.telefon` daneben ist der Anmeldeweg (EMP-01): ein tabellenweites '
+      + 'Schreibrecht machte aus dieser Route eine Kontouebernahme.',
+  },
+  {
     /**
      * TIM-07 — die AUSGABE der Check-in-Marke, und ihr Widerruf.
      *
