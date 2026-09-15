@@ -547,7 +547,12 @@ Radar first — the agents operate on its output.
       with visible criteria, interview scheduling, DSGVO purge
 - [ ] Reports: revenue, expenses, profit, orders, leads, conversion,
       **channel attribution**, employees, projects, tender pipeline
-- [ ] Notifications and preferences
+- [x] **Notifications and preferences** (NOT-01…NOT-03, D-505): the personal
+      inbox at `/portal/[mandant]/benachrichtigungen` with a bell in every
+      portal header, per-kind channel preferences at
+      `/portal/konto/benachrichtigungen`, every entry linking to its own
+      record, read-stamped rather than deleted. E-mail stays a declared
+      channel and says "not connected" until O-501 is answered
 - [ ] Central calendar with iCal feed
 
 ---

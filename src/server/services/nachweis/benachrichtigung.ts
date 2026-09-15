@@ -17,7 +17,7 @@
  * Seitenkarte genau EMP-08/SEC-02/SEC-03 — die Seite, auf der der Mensch seine
  * eigenen Zertifikate mit persoenlicher Ablaufwarnung sieht.
  */
-import { registriereArt, type ArtDefinition } from '../../benachrichtigung/registry.js';
+import { findeArt, registriereArt, type ArtDefinition } from '../../benachrichtigung/registry.js';
 
 /**
  * Die drei Stufen, die SPEC §14 woertlich nennt.
@@ -70,9 +70,20 @@ function stufenArt(stufe: Warnstufe): ArtDefinition {
   });
 }
 
-/** Registriert die drei Arten. Idempotent ist sie NICHT — `registriereArt`
- *  wirft bei einer doppelten Registrierung, und das ist richtig so: zwei
- *  Definitionen einer Art sind zwei Texte fuer dieselbe Meldung. */
+/**
+ * Registriert die drei Stufen — idempotent, wie Radar und Waechter (D-493).
+ *
+ * Dass `registriereArt` bei einer doppelten Registrierung wirft, bleibt
+ * richtig: zwei Definitionen einer Art sind zwei Texte fuer dieselbe Meldung.
+ * Der zweite Aufruf DIESER Funktion ist aber keine zweite Definition, sondern
+ * ein zweiter Aufruf desselben Moduls — der Jobbootstrap laeuft im Test
+ * mehrfach, und seit NOT-02 meldet `benachrichtigung/bootstrap.ts` alle Arten
+ * an, um sie auf der Einstellungsseite aufzaehlen zu koennen.
+ */
 export function registriereNachweisArten(): readonly ArtDefinition[] {
+  const vorhanden = WARNSTUFEN.map((s) => findeArt(artSchluessel(s)));
+  if (vorhanden.every((a) => a !== undefined)) {
+    return vorhanden.filter((a): a is ArtDefinition => a !== undefined);
+  }
   return WARNSTUFEN.map(stufenArt);
 }

@@ -1,6 +1,7 @@
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Icon } from '@/components/ui/Icon';
 import { Marke } from '@/components/marke/Marke';
+import { Glocke } from './Glocke';
 import { TabLeiste } from './TabLeiste';
 import { SeitenNavigation } from './SeitenNavigation';
 import { tableiste, type LeistenSchluessel } from '@/server/registry/tableiste';
@@ -163,10 +164,25 @@ export function PortalRahmen({
           * gebracht hat. Das Telefon hat sein Blatt, und dort stehen
           * dieselben drei Ziele.
           */}
+        {/*
+          * **Die Glocke steht VOR der Sitzungsnavigation und auch am Telefon.**
+          *
+          * Sie ist kein Sitzungspunkt („Bereich wechseln", „Konto",
+          * „Abmelden"), sondern ein Posteingang — und der einzige Weg zu einer
+          * Meldung, die sonst niemand sieht. Deshalb bleibt sie unter `sm`
+          * sichtbar, wo die uebrige Navigation ins „Mehr"-Blatt wandert: sie
+          * ist EIN Symbol von 44px, und dafuer ist bei 375px Platz.
+          *
+          * Sie rendert sich selbst zu `null`, wo es keinen Bereich gibt —
+          * in der Gruppenansicht faehrt kein Pfad dorthin.
+          */}
+        <span className="ms-auto flex items-center">
+          <Glocke wurzel={wurzel} />
+        </span>
         <nav
           aria-label={b('sitzung.label', 'Sitzung')}
           data-cse="sitzungsnavigation"
-          className="ms-auto hidden items-center gap-s4 sm:flex"
+          className="hidden items-center gap-s4 sm:flex"
         >
           {/*
             * Auch im Mitarbeiterportal: ein Konto kann in einer Gesellschaft

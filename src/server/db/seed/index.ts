@@ -31,6 +31,7 @@ import { seedFreigaben } from './freigaben.js';
 import { seedEingang } from './eingang.js';
 import { seedRadar } from './radar.js';
 import { DEMO_KENNWORT, seedZugangsdaten } from './zugang.js';
+import { seedBenachrichtigungen } from './benachrichtigung.js';
 import { devFlaechenAn } from '../../../lib/dev-flaechen.js';
 import { SupabaseSpeicher } from '../../storage/adapter.js';
 
@@ -1560,6 +1561,16 @@ async function main(): Promise<void> {
     `  ${String(konto.freigegeben)} Zeiteintraege freigegeben (Demo-Annahme), `
     + `${String(konto.konten)} Stundenkonten, ${String(konto.buchungen)} Buchungen `
     + `ueber ${String(konto.minuten)} Minuten (Sollzeit bleibt offen: O-18)\n`,
+  );
+
+  const post = await seedBenachrichtigungen(sql);
+  process.stdout.write(
+    `  Posteingang: ${String(post.angelegt)} Benachrichtigungen angelegt, `
+    + `${String(post.vorhanden)} bereits vorhanden`
+    + (post.ohneKonto === 0 ? '' : `, ${String(post.ohneKonto)} ohne Konto`)
+    + (post.ohneEmpfaenger === 0
+      ? '' : `, ${String(post.ohneEmpfaenger)} Ablaufwarnungen ohne Zugang zur Person (D-09)`)
+    + ' — über erzeuge(), meldeAblaufwarnungen() und die Zustellung, NOT-01/NOT-03\n',
   );
 
   /**

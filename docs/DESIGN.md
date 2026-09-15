@@ -377,10 +377,15 @@ culture's metaphor, and they cannot take `currentColor`.
 `uebersicht · crm · objekt · dienstplan · zeit · personal · angebot · auftrag ·
 rechnung · dokument · einstellungen · freigabe · wachbuch · aufmass ·
 ausschreibung · ki · heute · kalender · uhr · standort · telefon · mail ·
-suche · filter · plus · export · import · pfeil-rechts · pfeil-runter ·
+glocke · suche · filter · plus · export · import · pfeil-rechts · pfeil-runter ·
 chevron-rechts · menue · schliessen · schloss · auge · stift · papierkorb ·
 warnung · ok · fehler · info · gruppe · person · euro · reinigung · security ·
 qualitaet · eingang · buch · bank`
+
+`glocke` is the notification inbox (NOT-01) and **not** `mail`: the two sit in
+the same header and mean different things — `mail` is a message a person
+wrote, `glocke` is what the system noticed. Two items on the same envelope
+read as one item, which is the rule right below.
 
 **No two navigation items share a glyph.** A sidebar is scanned by shape;
 four items on the same export arrow read as one item. `reinigung`,

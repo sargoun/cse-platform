@@ -9674,3 +9674,76 @@ Anmeldung und erst danach woandershin.
 Steuerzeichen. Die Umdeutung nach `Route` (Next.js `typedRoutes`) steht
 unmittelbar dahinter an **einer** Stelle — nicht als verstreutes `as` in fünf
 Seiten, von denen eine das Prüfen vergisst.
+
+
+### D-505 · Der Posteingang war gebaut und unerreichbar
+
+Wächter, Lead-SLA, Ablaufwarnungen, Radartreffer und der Agentenbudgetdeckel
+schreiben seit mehreren PRs in `benachrichtigung`. Gelesen hat sie niemand: es
+gab keinen Bildschirm. Eine Warnung, die niemanden erreicht, ist keine Warnung
+— und `benachrichtigung_praeferenz` (NOT-02) war nie beschrieben worden, in
+keiner Zeile Code.
+
+Drei Sachen, die dabei herauskamen und **still** gescheitert wären:
+
+1. **`cse_app` fehlte `delete` auf `benachrichtigung_praeferenz`** (`0156`).
+   `0011` gab `select, insert, update`, und `t_praeferenz_eigene` ist `for
+   all` — nur das Tabellenrecht fehlte, und Postgres prüft das GRANT zuerst.
+   In der Tabelle stehen nur die ABWEICHUNGEN von `kanaeleVorgabe`; wer eine
+   Einstellung auf die Vorgabe zurückstellt, muss seine Zeile loswerden.
+   Sonst stünde dort eine Abweichung, die keine ist — und sie bliebe stehen,
+   wenn die Vorgabe sich ändert.
+
+2. **`bindeAnfrage` bindet `app.readonly = 'on'`.** Jede `with check`-Bedingung
+   im Haus trägt `not app.ist_readonly()`; ein Schreibvorgang dahinter fällt
+   in die RLS statt in eine Prüfung („new row violates row-level security
+   policy" — richtig, und an der falschen Stelle erklärt). `withTenant` wäre
+   die übliche Antwort, verlangt aber genau EINEN aktiven Mandanten
+   (Invariante 10). Posteingang und Einstellung gehören dem KONTO und keinem
+   Bereich: sie gelten auch in der Gruppenansicht. Also `bindePersoenlich` —
+   schreibend, ohne Mandantenliste, eingegrenzt durch
+   `t_benachrichtigung_lesen_setzen` und `t_praeferenz_eigene`.
+
+3. **Drei von fünf Registrierungsfunktionen waren nicht idempotent.** Der
+   Einstellungsbildschirm muss ALLE Arten aufzählen können, auch die, deren
+   Modul in dieser Anfrage nie läuft — sonst listet er die, die zufällig schon
+   importiert wurden, und ein Kanal, den man nicht abschalten kann, weil seine
+   Art im Formular fehlt, ist dasselbe wie keine Einstellung.
+   `benachrichtigung/bootstrap.ts` meldet sie alle an; `registriereArt` wirft
+   weiterhin bei einer zweiten DEFINITION, aber ein zweiter Aufruf desselben
+   Moduls gibt jetzt das Vorhandene zurück (D-493, jetzt überall).
+
+**Der Klick ist beides: ansehen und gelesen.** Ein zweiter Knopf „als gelesen
+markieren" wäre eine Handlung, die niemand ausführt, und der Posteingang bliebe
+für immer voll. `POST /api/benachrichtigungen/[id]/oeffnen` stempelt und leitet
+weiter — POST, weil ein GET von einem Vorauslader ausgelöst wird, und das Ziel
+kommt aus der ZEILE, nicht aus dem Rumpf: ein Feld dafür wäre eine offene
+Weiterleitung mit einer echten Anmeldung davor (D-504).
+
+**Gestempelt, nicht gelöscht.** Der Posteingang ist das Protokoll dessen, was
+jemandem mitgeteilt wurde; „ich habe nichts bekommen" liesse sich sonst weder
+bestätigen noch widerlegen. Aus demselben Grund lässt sich der Kanal `app`
+nicht abwählen — `praeferenz_app_bleibt` erzwingt es, und das Kästchen ist
+deshalb gar nicht erst da.
+
+**Die Glocke ist eine eigene Komponente und kein Prop.** `PortalRahmen` wird
+von über hundert Seiten aufgerufen; ein weiteres Prop hätte hundert Dateien
+angefasst, und die hundertunderste hätte es vergessen — eine Glocke, die auf
+manchen Seiten fehlt, ist schlimmer als keine, weil man sich an ihr Fehlen
+gewöhnt. Sie kostet eine indizierte Zählung je Seite
+(`benachrichtigung_posteingang_idx` ist genau diese Abfrage); ein
+Zwischenspeicher wäre eine zweite Wahrheit, die zeigt, was gestern galt.
+
+**`glocke` ist ein neues Icon und bewusst nicht `mail`** (DESIGN §5). Beide
+stehen in derselben Kopfzeile und meinen Verschiedenes: `mail` ist eine
+Nachricht, die ein Mensch geschrieben hat, `glocke` ist, was das System bemerkt
+hat. Zwei Punkte auf demselben Umschlag lesen sich als einer.
+
+**Der Seed legt die Demozeilen auf dem ECHTEN Weg an** — `erzeuge()` aus dem
+Register, `meldeAblaufwarnungen()` aus dem EMP-08-Dienst, `stelleZu()` in die
+Tabelle. Ein direktes `insert` mit erfundenem Titel hätte einen Bildschirm
+geprüft, den kein Wächter je so geschrieben hätte, und NOT-03 (jede Meldung
+führt zu ihrem Datensatz) wäre ungeprüft geblieben: `erzeuge()` scheitert, wenn
+das Ziel nicht auflösbar ist. Ablaufwarnungen ohne Zugang zur Person werden
+GEZÄHLT und gesagt, nicht verschluckt (D-09 — die meisten Beschäftigten haben
+heute kein Konto).

@@ -39,6 +39,34 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + 'veröffentlichten Seiten. Hinter einer Anmeldung wäre die Datei sinnlos.',
   },
   {
+    pfad: 'api/benachrichtigungen/[id]/oeffnen',
+    recht: null,
+    grund:
+      'NOT-01, NOT-03. Der Posteingang ist PERSÖNLICH: `t_benachrichtigung_lesen_setzen` '
+      + 'bindet jede Zeile an `empfaenger_id = app.aktueller_benutzer()`. Ein Recht davor '
+      + 'hiesse, dass jemand eine Mitteilung bekommen kann, die er nicht ansehen darf. '
+      + 'Geschützt ist der Weg stattdessen durch die Methode (nur POST — ein GET, das '
+      + 'stempelt, leert den Posteingang von allein), durch das Ursprungstor und dadurch, '
+      + 'dass das ZIEL aus der Zeile kommt und nicht aus dem Rumpf: ein Feld dafür wäre '
+      + 'eine offene Weiterleitung (D-504). Eine fremde Zeile trifft null Zeilen und '
+      + 'antwortet 404 wie jede fremde Zeile (AUT-06).',
+  },
+  {
+    pfad: 'api/benachrichtigungen/gelesen',
+    recht: null,
+    grund:
+      'NOT-01, dieselbe Begründung wie darüber: persönlicher Posteingang, POST, '
+      + 'Ursprungstor, geprüfter Rückweg (D-504).',
+  },
+  {
+    pfad: 'api/benachrichtigungen/praeferenz',
+    recht: null,
+    grund:
+      'NOT-02. Es sind die EIGENEN Einstellungen; `t_praeferenz_eigene` bindet sie an '
+      + '`app.aktueller_benutzer()`. Die Arten kommen aus dem Register und nicht aus dem '
+      + 'Rumpf — sonst liesse sich eine Zeile für eine Art schreiben, die es nicht gibt.',
+  },
+  {
     pfad: 'auth/abmelden',
     recht: null,
     grund:
