@@ -236,3 +236,51 @@ describe('Der Planlauf läuft als JOB — nicht als Portalsitzung', () => {
     expect(job.zeitplan).toBe('*/5 * * * *');
   });
 });
+
+/**
+ * **Wer vorlegen darf, muss heute auch entscheiden dürfen — und das ist ein
+ * Zustand, kein Entwurf.**
+ *
+ * `legeVor` legt eine OFFENE Freigabe an. Die Schreibpolicy auf `freigabe`
+ * (`t_mandant`, 0136) verlangt dafür `freigabe.entscheiden` — sie
+ * unterscheidet nicht zwischen „eine Freigabe erbitten" und „eine Freigabe
+ * erteilen". Heute fällt das nicht auf: `social.schreiben` und
+ * `freigabe.entscheiden` liegen bei denselben drei Rollen (`super_admin`,
+ * `admin`, `leitung`, 0008).
+ *
+ * **Es fällt in dem Moment auf, in dem jemand es richtig machen will.** Eine
+ * schmale Marketingrolle, die Beiträge schreibt und vorlegt, aber nichts
+ * entscheidet, ist genau das, wofür Invariante 7 und das Vier-Augen-Prinzip
+ * da sind — und sie scheitert dann an der Policy, mit einer Meldung, die nach
+ * einem fehlenden `social`-Recht aussieht.
+ *
+ * Diese Prüfung hält die Kopplung fest, statt sie zu verschweigen. Sie wird
+ * rot, sobald eine Rolle `social.schreiben` ohne `freigabe.entscheiden`
+ * bekommt — dann ist die Frage aus O-369 zu beantworten und nicht vorher.
+ * Die Policy hier zu weiten wäre der falsche Weg: sie gilt für JEDE Freigabe
+ * dieser Plattform, nicht nur für die von Social.
+ */
+describe('Vorlegen und Entscheiden hängen heute am selben Recht (O-369)', () => {
+  it('jede Rolle mit `social.schreiben` trägt auch `freigabe.entscheiden`', async () => {
+    const offen = await sql.unsafe<{ rolle: string }[]>(
+      `select distinct r.schluessel as rolle
+         from rolle r
+         join rolle_berechtigung rb on rb.rolle_id = r.id and rb.gewaehrt
+         join berechtigung b on b.id = rb.berechtigung_id
+        where b.schluessel = 'social.schreiben'
+          and not exists (
+            select 1 from rolle_berechtigung rb2
+              join berechtigung b2 on b2.id = rb2.berechtigung_id
+             where rb2.rolle_id = r.id and rb2.gewaehrt
+               and rb2.mandant_id is not distinct from rb.mandant_id
+               and b2.schluessel = 'freigabe.entscheiden')
+        order by 1`);
+    expect(
+      offen.map((z) => z.rolle),
+      'Diese Rolle kann einen Beitrag schreiben, aber nicht vorlegen: `legeVor` '
+      + 'legt eine offene Freigabe an, und `t_mandant` auf `freigabe` verlangt '
+      + '`freigabe.entscheiden`. Siehe O-369 — die Policy zu weiten gilt für JEDE '
+      + 'Freigabe, nicht nur für Social.',
+    ).toEqual([]);
+  });
+});

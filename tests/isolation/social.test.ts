@@ -21,7 +21,9 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import type postgres from 'postgres';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
-import { legeVor, veroeffentliche } from '../../src/server/services/social/dienst.js';
+import {
+  legeVor, setzeKanaele, veroeffentliche,
+} from '../../src/server/services/social/dienst.js';
 import { entscheideFreigabe } from '../../src/server/services/freigabe/entscheiden.js';
 import { vermerkeAnsicht } from '../../src/server/services/freigabe/laden.js';
 
@@ -545,5 +547,82 @@ describe('(9) Zwei Klicks, ein Ausgang', () => {
         benutzerId: konto,
       }, beitragId, null),
     )).rejects.toThrow(/freigegeben oder geplant/u);
+  });
+});
+
+describe('(10) Kanäle ändern und Vorlegen sind derselbe Spalt', () => {
+  /**
+   * **Warum `schreibeWennNoch` hier nicht reicht.**
+   *
+   * Der Rest des Dienstes riegelt den Spalt zwischen Lesen und Schreiben mit
+   * der Bedingung IM `update` ab. `setzeKanaele` kann das nicht: geschrieben
+   * wird `beitrag_kanal`, und der Stand, gegen den geprüft wird, steht in
+   * `beitrag`. Zwei Anfragen lesen beide „entwurf"; die eine legt vor, die
+   * andere hängt danach einen Kanal an — und der ginge an einen
+   * Empfängerkreis, den niemand geprüft hat (SOC-08). Genau das, was der Satz
+   * über der Funktion verbietet.
+   *
+   * Deshalb sperrt sie die Beitragszeile (`for update`). Diese Probe hält die
+   * Sperre fest, statt ihr zu glauben: Transaktion A hält sie, B will
+   * vorlegen und **wartet** — bis das Anweisungszeitlimit zuschlägt. Ohne die
+   * Sperre käme B sofort durch, und der Fall wäre grün, ohne etwas zu zeigen.
+   */
+  it('`setzeKanaele` sperrt die Beitragszeile — ein gleichzeitiges Vorlegen wartet',
+    async () => {
+      const konto = await legeKontoAn(f.reinigung);
+      const { beitragId } = await legeBeitragAn(f.reinigung, `Sperre ${zufall()}`, 'entwurf');
+      const kanal = await legeKanalAn(f.reinigung, 'instagram');
+      const sitzung = {
+        scope: 'mandant' as const, mandantId: f.reinigung, benutzerId: konto,
+        portal: 'intern' as const, readonly: false,
+      };
+      const kontext = (tx: postgres.TransactionSql) => ({
+        scope: 'mandant' as const, portal: 'intern' as const, benutzerId: konto,
+        aktiverMandantId: f.reinigung, mandantIds: [f.reinigung],
+        abfrage: async <R,>(q: string, w: readonly unknown[] = []) =>
+          (await tx.unsafe(q, w as never[])) as readonly R[],
+        schreibe: async <R,>(q: string, w: readonly unknown[] = []) =>
+          (await tx.unsafe(q, w as never[])) as readonly R[],
+      });
+
+      let loslassen = (): void => {};
+      const angehalten = new Promise<void>((r) => { loslassen = r; });
+      const haelt = alsApp(sitzung, async (tx) => {
+        await setzeKanaele(kontext(tx), beitragId, [kanal]);
+        await angehalten;
+      });
+      /* Kurz warten, bis A die Sperre wirklich hält. */
+      await new Promise((r) => { setTimeout(r, 250); });
+
+      const wartet = alsApp(sitzung, async (tx) => {
+        await tx.unsafe(`set local statement_timeout = '600ms'`);
+        return legeVor(kontext(tx), beitragId);
+      });
+      await expect(wartet).rejects.toThrow(/timeout|abgebrochen|canceling/iu);
+
+      loslassen();
+      await haelt;
+
+      /* Und danach geht es: die Sperre hält auf, sie sperrt nicht aus. */
+      const freigabeId = await alsApp(sitzung, async (tx) => legeVor(kontext(tx), beitragId));
+      expect(freigabeId).toMatch(/^[0-9a-f-]{36}$/u);
+    });
+
+  it('und nach dem Vorlegen ändert niemand mehr die Kanäle', async () => {
+    const konto = await legeKontoAn(f.reinigung);
+    const { beitragId } = await legeBeitragAn(f.reinigung, `Zu spät ${zufall()}`, 'vorgelegt');
+    const kanal = await legeKanalAn(f.reinigung, 'linkedin');
+    await expect(alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: konto, portal: 'intern',
+        readonly: false },
+      async (tx) => setzeKanaele({
+        scope: 'mandant', portal: 'intern', benutzerId: konto,
+        aktiverMandantId: f.reinigung, mandantIds: [f.reinigung],
+        abfrage: async <R,>(q: string, w: readonly unknown[] = []) =>
+          (await tx.unsafe(q, w as never[])) as readonly R[],
+        schreibe: async <R,>(q: string, w: readonly unknown[] = []) =>
+          (await tx.unsafe(q, w as never[])) as readonly R[],
+      }, beitragId, [kanal]),
+    )).rejects.toThrow(/nur am Entwurf/u);
   });
 });

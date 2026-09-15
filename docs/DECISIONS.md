@@ -5170,6 +5170,7 @@ niemand ihn suchen.
 | O-355 | **Wer trägt die Modulbuchung ein und pflegt `mandant.module_gepflegt`?** Seit 0103 ist die Frage nicht mehr, was eine leere Liste heisst — das Kennzeichen sagt es: `false` = nicht eingetragen, es wird nicht gefiltert (damit eine neu angelegte Gesellschaft nicht schwarz wird); `true` = die Liste gilt, leer heisst kein Gewerk. Offen bleibt der Vorgang: kommt die Buchung aus dem Vertrag, aus der Verwaltung oder setzt sie ein Super-Admin über `system.module_zuweisen` — und wer merkt, wenn sie fehlt? | `src/server/registry/modul.ts`, 0103, D-377 |
 | O-356 | **Bucht jede Gesellschaft genau ein Gewerk, oder gibt es Überschneidungen?** Der Seed setzt `reinigung → [reinigung]`, `security → [security]`, `bau → [bau]`, `operations → []` — abgeleitet aus den Gewerken, die in `CLAUDE.md` stehen. Praktisch plausibel wäre anderes: Bauendreinigung bei der REALTIME Service, Veranstaltungsreinigung bei der SSE Security. Bis zur Antwort sieht eine Gesellschaft nur ihr eigenes Gewerk; die Korrektur ist eine Zeile in `mandant.module` und kein Codeeingriff. | `mandant.module`, `src/server/db/seed/index.ts`, D-377 |
 | O-357 | **Wohin gehen die Wächter-Meldungen aus SPEC §14 — Posteingang, Mail oder beides — und wer bekommt die Kettenmeldung?** Die Ablaufwarnung (60/30/7) erreicht die Person selbst; das ist EMP-08 und unstrittig. „Hashkette gebrochen" dagegen hat keinen persönlichen Empfänger: es ist eine Meldung an die Buchhaltung oder die Geschäftsführung, und beide sind heute keine adressierbare Größe im Modell. Solange die Frage offen ist, wird der Kettenprüfer bewusst NICHT als Job registriert — ein Lauf, der jede Nacht „ok" meldet, ohne dass jemand die Meldung liest, schafft Vertrauen, das er nicht deckt. | SPEC §14, `src/server/jobs/bootstrap.ts`, `kettenlauf.ts`, NOT-01 |
+| O-369 | **Darf jemand eine Freigabe ERBITTEN, ohne sie erteilen zu dürfen?** Die Schreibpolicy auf `freigabe` (`t_mandant`, 0136) verlangt `freigabe.entscheiden` — sie unterscheidet nicht zwischen „eine Freigabe anlegen“ und „eine Freigabe entscheiden“. Heute fällt das nirgends auf: jede Rolle mit `social.schreiben` trägt auch `freigabe.entscheiden` (0008), und dasselbe gilt für die übrigen Vorleger. Es fällt in dem Moment auf, in dem jemand es RICHTIG machen will: eine schmale Marketing- oder Sachbearbeiterrolle, die vorlegt und nichts entscheidet, ist genau das, wofür Invariante 7 da ist — und sie scheitert dann an der Policy, mit einer Meldung, die nach einem fehlenden Fachrecht aussieht. Die Policy einfach zu weiten ist keine Antwort: sie gilt für JEDE Freigabe dieser Plattform, und wer eine offene Freigabe anlegen darf, kann den Posteingang füllen. Bis zur Entscheidung hält `tests/isolation/social-job.test.ts` die Kopplung fest — sie wird rot, sobald eine Rolle `social.schreiben` ohne `freigabe.entscheiden` bekommt, und nicht erst im Betrieb. | APR-01, Invariante 7, `0136`, `0008`, `services/social/dienst.ts: legeVor` |
 | O-500 | **Wie lange gilt ein Einladungs- und ein Zurücksetzungslink, wie viele Wiederherstellungscodes werden ausgegeben, und gilt eine Mindestlänge über zwölf Zeichen hinaus?** Die SPEC nennt keine Zahl. `plattform_einstellung` führt vier vorläufige Werte (168 h, 2 h, 10 Codes, 12 Zeichen); sie sind als `ist_vorlaeufig = true` markiert und über eine Zeile änderbar, ohne Code. Die Auswahl folgt gängiger Praxis, nicht einer Entscheidung: ein Einladungslink überlebt ein Wochenende, ein Zurücksetzungslink nicht. | AUT-01, AUT-04, `0155`, D-502 |
 | O-501 | **Welches Supabase-Projekt in der EU-Region (Frankfurt), welcher Auftragsverarbeitungsvertrag — und soll die Anmeldung über ein Firmenverzeichnis (SAML/OIDC) laufen?** Dieselbe Frage trägt den Postausgang: welcher in der EU gehostete Mailanbieter, welche Absenderadresse je Gesellschaft, laufen DKIM und DMARC über die bestehenden Domains? Ohne beides gibt es keinen Zurücksetzungs- und keinen Einladungslink, der ankommt. Bis zur Antwort prüft die Plattform das Kennwort selbst (`kern.zugangsdaten`, bcrypt), `/auth/callback` antwortet `501` statt eine Sitzung auszustellen, und `/auth/passwort-vergessen` sagt „nicht verbunden" statt „gesendet" (D-501, D-503). | AUT-01, AUT-04, NOT-02, `0155`, D-501 |
 | O-510 | **Warum zeigt die Seite hinter einer 303-Umleitung den alten Stand?** Nach dem Widerruf eines Kalenderzugangs steht die widerrufene Zeile auf der Umleitungsseite noch in der Liste. Festgestellt ist: die Datenbank ist zu diesem Zeitpunkt richtig (`widerrufen_am` gesetzt), der Feed antwortet sofort mit 404, und ein normaler Aufruf derselben Adresse zeigt die Liste richtig — es ist eine veraltete ANZEIGE und kein offener Zugang. Ausgeschlossen sind: fehlendes `force-dynamic` (steht), eine nicht abgeschlossene Transaktion (die 404-Antwort beweist das Gegenteil), `revalidatePath` auf dem Ziel und `cache-control: no-store` auf der Umleitung (beide eingebaut, beide ohne Wirkung). Bis zur Antwort sagt die Bestätigung auf der Seite ausdrücklich, dass eine noch sichtbare Zeile veraltet ist. Der Browsertest prüft den Stand deshalb nach einem frischen Aufruf — und die Wirkung des Widerrufs sofort. | CAL-03, `api/kalender-feed/widerrufen`, D-516 |
@@ -10973,3 +10974,44 @@ Rolle weiterhin nicht. Sie umzustellen heisst, für jeden einzeln Rechte und
 Policies nachzuziehen und jeden einzeln gegen die enge Rolle zu fahren — eine
 eigene Runde mit eigenen Tests. D-378 bleibt offen; dieser Eintrag zieht nur
 einen Namen von der Liste.
+
+### D-547 · Der eine Spalt, den die Bedingung im `update` nicht schliesst
+
+Der Social-Dienst riegelt den Abstand zwischen Lesen und Schreiben seit der
+letzten Runde mit `schreibeWennNoch` ab: die Bedingung steht IM `update`, und
+wer verliert, bekennt es. `setzeKanaele` konnte das als einzige nicht —
+geschrieben wird `beitrag_kanal`, und der Stand, gegen den geprüft wird, steht
+in `beitrag`.
+
+Der Ausfall dahinter ist genau der, den der Satz über der Funktion verbietet:
+zwei Anfragen lesen beide „entwurf", die eine legt vor, die andere hängt danach
+einen Kanal an — und **der ginge an einen Empfängerkreis, den niemand geprüft
+hat** (SOC-08). Nichts wäre rot dabei; beide Schreibvorgänge gelingen.
+
+Die Zeile wird jetzt gesperrt (`select … for update`), dieselbe Sperre, mit der
+der Nummernkreis seine Lücken verhindert (Invariante 4). Wer gleichzeitig
+vorlegt, wartet auf sie und prüft seinen Stand danach noch einmal; wer danach
+kommt, liest `vorgelegt` und wird abgewiesen. Das setzt eine Transaktion voraus
+— `fuehreSocialAus` hält eine —, und das steht im Dienst und nicht nur im
+Aufrufer.
+
+`tests/isolation/social.test.ts` (10) hält die Sperre fest, statt ihr zu
+glauben: eine Transaktion hält sie, eine zweite will vorlegen und **wartet**,
+bis das Anweisungszeitlimit zuschlägt. Ohne `for update` kommt die zweite
+sofort durch — die Prüfung wurde dagegen gefahren und ist dann rot.
+
+**Und die beiden Befunde derselben Runde, die keine waren.** Ein doppeltes
+Vorlegen hinterlässt keine verwaiste Freigabe: `fuehreSocialAus` führt den
+ganzen Schritt in EINER Transaktion aus, die Abweisung durch `schreibeWennNoch`
+rollt den `freigabe`-Eintrag mit zurück. Und `veroeffentliche` verschluckt
+keinen Adapterfehler: er landet als `fehlgeschlagen` samt Meldung an der
+Kanalzeile, steht mit Stapel im Fehlerprotokoll und **wird auf der
+Beitragsseite angezeigt**. Der Beitrag steht dabei zu Recht auf
+`veroeffentlicht` — auf der eigenen Gesellschaftsseite ist er es.
+
+Was daran wirklich fehlte, war der LAUF: dort klickt niemand, und
+`kanaele_fehlgeschlagen: 1` im Laufprotokoll sagt nicht, welcher Beitrag auf
+welcher Plattform nicht ankam. Gescheiterte Kanäle werden deshalb benannt und
+nicht gezählt — sie stehen als Sätze in `abgewiesen`, neben den abgewiesenen
+Beiträgen. Ein nicht verbundener Kanal bleibt eine Zahl: der ist ein bekannter
+Zustand (O-10) und steht bei jedem Beitrag gleich da.

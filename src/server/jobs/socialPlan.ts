@@ -101,8 +101,24 @@ export function registriereSocialPlan(db: JobVerbindung): JobDefinition {
           hinaus += 1;
           liegenGeblieben += ergebnis.kanaele
             .filter((k) => k.ergebnis === 'nicht_verbunden').length;
-          gescheitert += ergebnis.kanaele
-            .filter((k) => k.ergebnis === 'fehlgeschlagen').length;
+          /*
+           * **Ein gescheiterter Kanal wird BENANNT, nicht gezaehlt.**
+           *
+           * Am Knopf sieht ihn ein Mensch: die Beitragsseite zeigt je Kanal
+           * das Ergebnis und die Meldung. Im Lauf sieht ihn niemand — hier
+           * stand nur eine Zahl, und „kanaele_fehlgeschlagen: 1" im
+           * Laufprotokoll sagt nicht, welcher Beitrag auf welcher Plattform
+           * nicht ankam. Wer das nachts liest, muesste erst suchen; wer es
+           * nicht liest, erfaehrt es nie.
+           *
+           * Ein nicht verbundener Kanal bleibt eine Zahl: der ist ein
+           * bekannter Zustand (O-10) und steht bei jedem Beitrag gleich da.
+           */
+          const schlecht = ergebnis.kanaele.filter((k) => k.ergebnis === 'fehlgeschlagen');
+          gescheitert += schlecht.length;
+          for (const k of schlecht) {
+            gruende.push(`${z.id}: Kanal ${k.plattform} fehlgeschlagen — ${k.meldung ?? 'ohne Meldung'}`);
+          }
         } catch (fehler: unknown) {
           /*
            * **Ein abgewiesener Beitrag nimmt die uebrigen nicht mit.** Ein
@@ -120,6 +136,10 @@ export function registriereSocialPlan(db: JobVerbindung): JobDefinition {
         veroeffentlicht: hinaus,
         kanaele_nicht_verbunden: liegenGeblieben,
         kanaele_fehlgeschlagen: gescheitert,
+        /*
+         * Abgewiesene Beitraege UND gescheiterte Kanaele — beides sind Saetze
+         * und keine Zahlen, weil beides jemanden zu einer Stelle fuehren muss.
+         */
         abgewiesen: gruende,
       };
     },

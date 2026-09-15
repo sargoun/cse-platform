@@ -175,6 +175,37 @@ export async function setzeKanaele(
       + 'Kanal an einen Empfängerkreis, den niemand geprüft hat (SOC-08).',
       'nicht_bearbeitbar');
   }
+  /*
+   * **Und jetzt noch einmal, diesmal mit Sperre.**
+   *
+   * Der Rest dieser Datei riegelt den Spalt zwischen Lesen und Schreiben mit
+   * `schreibeWennNoch` ab — der Bedingung IM `update`. Hier geht das nicht:
+   * geschrieben wird `beitrag_kanal`, und der Stand, gegen den geprueft wird,
+   * steht in `beitrag`. Zwei Anfragen, die gleichzeitig ankommen, laesen
+   * beide `entwurf`; die eine legt vor, die andere haengt danach einen Kanal
+   * an — und der ginge an einen Empfaengerkreis, den niemand geprueft hat.
+   * Genau das, was der Satz ueber dieser Funktion verbietet.
+   *
+   * `for update` sperrt die Beitragszeile fuer die Dauer dieser Transaktion.
+   * Wer gleichzeitig vorlegt, wartet auf sie und prueft seinen Stand danach
+   * noch einmal (`schreibeWennNoch`); wer danach hierherkommt, liest
+   * `vorgelegt` und wird abgewiesen. Dieselbe Sperre, mit der der
+   * Nummernkreis seine Luecken verhindert (Invariante 4).
+   *
+   * **Das setzt eine Transaktion voraus** — `fuehreSocialAus` haelt eine
+   * (`db().begin(...)`), und ohne sie waere die Sperre mit der Anweisung
+   * wieder weg. Deshalb steht es hier und nicht nur im Aufrufer.
+   */
+  const [gesperrt] = await kontext.abfrage<{ status: BeitragStatus }>(
+    `select status from beitrag where id = $1::uuid for update`, [beitragId]);
+  if (gesperrt === undefined || !darfBearbeiten(gesperrt.status)) {
+    throw new SocialFehler(
+      'Der Beitrag wurde inzwischen vorgelegt — Kanäle lassen sich nur am Entwurf '
+      + 'ändern. Nach der Freigabe ginge ein neuer Kanal an einen Empfängerkreis, '
+      + 'den niemand geprüft hat (SOC-08).',
+      'gleichzeitig');
+  }
+
   const eindeutig = [...new Set(kanalIds)];
   await kontext.schreibe(
     `delete from beitrag_kanal
@@ -285,6 +316,24 @@ export async function legeVor(kontext: SchreibKontext, id: string): Promise<stri
    */
   const abdruck = jcsDigest(nutzlast);
 
+  /*
+   * **Wer hier schreibt, braucht heute `freigabe.entscheiden`** — und das ist
+   * ein Zustand, keine Absicht.
+   *
+   * Die Schreibpolicy auf `freigabe` (`t_mandant`, 0136) unterscheidet nicht
+   * zwischen „eine Freigabe anlegen" und „eine Freigabe entscheiden". Heute
+   * faellt das nicht auf: `social.schreiben` und `freigabe.entscheiden` liegen
+   * bei denselben drei Rollen. Es faellt auf, sobald jemand eine schmale
+   * Marketingrolle anlegt, die vorlegt und nichts entscheidet — also genau
+   * das, wofuer Invariante 7 da ist.
+   *
+   * `tests/isolation/social-job.test.ts` haelt die Kopplung fest, damit sie
+   * beim Festschreiben rot wird und nicht im Betrieb.
+   *
+   * // TODO(client, O-369): Darf jemand eine Freigabe ERBITTEN, ohne sie
+   * erteilen zu duerfen? Die Policy hier zu weiten gilt fuer JEDE Freigabe
+   * dieser Plattform — das ist keine Social-Entscheidung.
+   */
   const [f] = await kontext.schreibe<{ id: string }>(
     `insert into freigabe
        (mandant_id, aktion, status, vorgang_typ, titel, zusammenfassung, risiko,
