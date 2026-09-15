@@ -11496,3 +11496,55 @@ gefragt — in der Gruppenansicht war der Wert für jeden Gruppenpunkt
 `undefined`, also `!== true`, also unsichtbar. Heute trägt keine Gruppenleiste
 ein `Mehr`-Blatt, das danach fragt; sobald eines dazukäme, wäre es leer
 gewesen, und niemand hätte gesehen warum.
+
+### D-562 · Das Ursprungstor verglich, wo der Server liegt — nicht, was der Browser angesprochen hat
+
+Gemeldet aus dem Betrieb, mit Bildschirmfoto: am Telefon unter
+`http://192.168.0.193` angemeldet, Sprache auf Arabisch gestellt, gespeichert —
+und auf dem Bildschirm stand `{"fehler":"fremder_ursprung"}`.
+
+`erwarteterUrsprung` baute den erwarteten Ursprung aus `anfrage.nextUrl.host`,
+und die Docstring darüber sagte: „den leitet Next.js aus dem `Host`-Kopf ab."
+**Das tut Next.js nicht.** `NextRequest.nextUrl` trägt die Adresse, unter der
+der SERVER läuft — `localhost:3000` —, unabhängig davon, welchen `Host` der
+Browser geschickt hat.
+
+**Am laufenden Server nachgemessen, nicht hergeleitet:** mit
+`Host: 192.168.0.193` und `Origin: http://192.168.0.193` kam 403; mit demselben
+`Host` und `Origin: http://localhost:3000` ging dieselbe Anfrage durch. Damit
+war bewiesen, welche der beiden Adressen verglichen wurde.
+
+**Die Reichweite war die ganze Plattform.** `istGleicherUrsprung` steht in
+**77 Routen** — jeder schreibende Weg. Wer die Plattform unter einer anderen
+Adresse aufrief als der, unter der der Server gestartet wurde, konnte lesen und
+nie schreiben: über die LAN-Adresse am Telefon, hinter einem Reverse-Proxy,
+unter der späteren Produktionsdomain. Und weil das Tor dabei korrekt 403
+meldete, sah es aus wie eine Sicherheitsfunktion, die ihre Arbeit tut.
+
+**Warum die Anmeldung trotzdem ging** — und das ist der Grund, warum es so
+lange unentdeckt blieb: `/auth/login` ist eine Server Action. Next.js prüft
+dort selbst, und zwar gegen den `Host`-Kopf. Wer sich anmeldete, kam durch;
+wer danach etwas speichern wollte, nicht.
+
+**Warum der `Host`-Kopf hier trägt, obwohl er fälschbar ist.** CSRF setzt den
+Browser des Opfers voraus: der setzt `Host` aus der Adresse, die das Opfer
+besucht hat, und `Origin` aus der Seite, die das Formular schickt. Sie gehen
+genau dann auseinander, wenn es ein Angriff ist. Wer beide Köpfe selbst
+schreibt, hat kein fremdes Sitzungskeks und greift damit niemanden an — er
+redet mit dem Server über sein eigenes Konto. Es ist dieselbe Prüfung, die
+Next.js für Server Actions führt und die Django und Rails führen.
+`x-forwarded-host` bleibt ungelesen: den schickt kein Browser je selbst.
+
+**`CSE_VERTRAUTE_URSPRUENGE`** nennt zusätzliche erlaubte Ursprünge,
+kommagetrennt — für einen Proxy, der `Host` auf seinen eigenen Namen
+umschreibt. Leer ist die Vorgabe. Was dort steht, hat ein Mensch
+hingeschrieben; nichts davon kommt aus der Anfrage.
+
+**Und der eigentliche Befund liegt im Test.** `tests/kern/ursprung.test.ts`
+baute sein `nextUrl` AUS DER ANGEFRAGTEN ADRESSE — also eine Welt, in der
+`nextUrl.host` immer das ist, was der Browser angesprochen hat, und in der
+dieser Fehler nicht existieren kann. Elf Fälle, alle grün, alle über eine
+Wirklichkeit, die es nicht gibt. Die Hilfsfunktion nimmt die beiden jetzt
+getrennt (`url` = was der Browser schickte, `serverUnter` = wo der Server
+läuft), und mit der alten Fassung von `wirt()` fallen sechs Fälle um — darunter
+drei, die vorher grün waren.
