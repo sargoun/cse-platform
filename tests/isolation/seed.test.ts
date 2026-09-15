@@ -137,13 +137,42 @@ describe('nach dem Seed ist die Plattform benutzbar', () => {
     expect(gezogen.formatiert).toBe(erwartet);
   });
 
-  it('eine RECHNUNG dagegen nicht — der Kreis ist ein Platzhalter (O-134)', async () => {
-    // Genau das ist die Antwort auf eine offene Frage, kein Mangel: eine
-    // vergebene Rechnungsnummer nimmt man nicht zurueck.
-    const [k] = await sql<{ ist_platzhalter: boolean }[]>`
-      select ist_platzhalter from nummernkreis
+  /**
+   * **Eine RECHNUNGSNUMMER ist nie stillschweigend erfunden** (O-134).
+   *
+   * Die Frage, wie die Maske lautet und ob die Folge am 1. Januar neu
+   * beginnt, hat niemand beantwortet — und eine vergebene Rechnungsnummer
+   * nimmt man nicht zurueck. Der Seed hat dafuer zwei Antworten, und der Test
+   * verlangt genau eine davon:
+   *
+   *  · **Produktion:** der Kreis ist ein Platzhalter und vergibt gar nichts.
+   *  · **Vorfuehrung:** der Kreis vergibt, aber jede Nummer beginnt mit
+   *    `DEMO-`. Die Ueberbrueckung steht damit in jedem einzelnen Datensatz
+   *    und nicht in einem Kommentar (D-514).
+   *
+   * Was es NICHT geben darf, ist die dritte Fassung: ein bestaetigter Kreis
+   * mit einer geratenen Maske, der Nummern vergibt, die aussehen wie echte.
+   * Faellt dieser Test, ist genau die entstanden.
+   */
+  it('eine RECHNUNGSNUMMER ist entweder gesperrt oder sichtbar DEMO (O-134)', async () => {
+    const [k] = await sql<{ ist_platzhalter: boolean; maske: string }[]>`
+      select ist_platzhalter, format_maske as maske from nummernkreis
        where kreis_typ = 'ausgangsrechnung' and mandant_id = ${await mandant('reinigung')}`;
-    expect(k!.ist_platzhalter).toBe(true);
+    expect(k, 'der Seed legt den Rechnungskreis an').toBeDefined();
+
+    if (k!.ist_platzhalter) {
+      expect(k!.maske, 'ein Platzhalter vergibt ohnehin nichts').toContain('{nr:');
+      return;
+    }
+    expect(k!.maske,
+      'ein bestaetigter Kreis ohne Antwort auf O-134 muss sich als DEMO ausweisen')
+      .toMatch(/^DEMO-/u);
+
+    // Und die Rechnungen, die es gibt, tragen es wirklich.
+    const nummern = await sql<{ nummer: string }[]>`
+      select nummer from rechnung
+       where mandant_id = ${await mandant('reinigung')} and nummer is not null`;
+    for (const n of nummern) expect(n.nummer).toMatch(/^DEMO-/u);
   });
 
   it('und sobald jemand die Maske bestätigt, geht es — der Seed-Pfad steht offen', async () => {

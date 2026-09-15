@@ -29,6 +29,8 @@ import { seedVertrieb } from './vertrieb.js';
 import { seedBau } from './bau.js';
 import { seedFreigaben } from './freigaben.js';
 import { seedEingang } from './eingang.js';
+import { seedRechnungen } from './rechnung.js';
+import { seedBerichtsdaten } from './berichtsdaten.js';
 import { seedRadar } from './radar.js';
 import { DEMO_KENNWORT, seedZugangsdaten } from './zugang.js';
 import { seedBenachrichtigungen } from './benachrichtigung.js';
@@ -42,6 +44,17 @@ if (url === undefined || url === '') {
 const sql = postgres(url, { max: 1, onnotice: () => {} });
 
 const heute = new Date().toISOString().slice(0, 10);
+
+/**
+ * **Läuft dieser Seed für eine Vorführung oder für den Betrieb?**
+ *
+ * Dieselbe Weiche wie bei den Demokennwörtern (D-501): auf
+ * Entwicklungsflächen entstehen Zeilen, die eine offene Frage sichtbar
+ * ÜBERBRÜCKEN; in der Produktion bleibt die Frage offen und die Zeile aus.
+ * Die Überbrückung ist nie unsichtbar — sie steht im Datensatz selbst
+ * (`DEMO-` in der Rechnungsnummer, `anbieter = 'demo'` im Modellregister).
+ */
+const demodaten = devFlaechenAn();
 
 /**
  * Was der bestehende Auftritt einer Gesellschaft SELBST veroeffentlicht —
@@ -752,15 +765,60 @@ async function main(): Promise<void> {
    * Maske saehe fertig aus und vergaebe Nummern, die spaeter falsch sind —
    * und eine vergebene Rechnungsnummer nimmt man nicht zurueck.
    */
+  /**
+   * **Auf Entwicklungsflächen ein DEMO-Kreis statt des Platzhalters.**
+   *
+   * `nummernkreis_offen_key` lässt je Gesellschaft genau EINEN offenen
+   * Rechnungskreis zu — beide nebeneinander geht nicht, es ist also eine
+   * Entscheidung und keine Ergänzung. Sie fällt hier so:
+   *
+   *  · **Produktion:** der Platzhalter, wie bisher. Er vergibt keine Nummer,
+   *    bis O-134 beantwortet ist, und das bleibt richtig: eine vergebene
+   *    Rechnungsnummer nimmt man nicht zurück.
+   *  · **Entwicklung und Vorführung:** ein bestätigter Kreis mit der Maske
+   *    `DEMO-{jahr}-{nr:5}`.
+   *
+   * **Die Maske trägt das Wort.** Jede so entstandene Rechnung heisst
+   * `DEMO-2026-00001` — die Demo-Eigenschaft steht damit in jeder einzelnen
+   * Nummer und nicht in einem Kommentar, den beim Durchsehen niemand liest.
+   * Das ist dieselbe Regel wie beim Demomodell (`anbieter = 'demo'`, D-499):
+   * ein Platzhalter, den man am Datensatz erkennt, ist einer; ein Platzhalter,
+   * den man nur an der Dokumentation erkennt, ist eine Falle.
+   *
+   * Der Tausch ist eine Zeile: Maske bestätigen, Kreis schliessen, Nachfolger
+   * eröffnen — derselbe Weg, den jeder Jahreswechsel nimmt.
+   *
+   * TODO(client, O-134): Rechnungsnummern-Maske je Gesellschaft bestätigen.
+   */
   for (const b of BEREICHE.filter((x) => x.rechtseinheit === true)) {
     await sql`
       insert into nummernkreis
         (mandant_id, kreis_typ, jahr, bezeichnung, lueckenlos, format_maske,
          zuruecksetzung, geoeffnet_am, ist_platzhalter, erstellt_von_art, erstellt_von_dienst)
       values (${ids.get(b.slug)!}, 'ausgangsrechnung', 2026,
-              'Ausgangsrechnungen (unbestätigt)', true, 'RE-{jahr}-{nr:5}',
-              null, ${heute}, true, 'system', 'job:seed')
-      on conflict do nothing`;
+              ${demodaten
+                ? 'Ausgangsrechnungen (DEMO — Maske unbestätigt, O-134)'
+                : 'Ausgangsrechnungen (unbestätigt)'},
+              true,
+              ${demodaten ? 'DEMO-{jahr}-{nr:5}' : 'RE-{jahr}-{nr:5}'},
+              ${demodaten ? 'jaehrlich' : null}, ${heute},
+              ${!demodaten}, 'system', 'job:seed')
+      on conflict (mandant_id, kreis_typ, kontext_id, jahr) do update
+        set bezeichnung   = excluded.bezeichnung,
+            format_maske  = excluded.format_maske,
+            zuruecksetzung = excluded.zuruecksetzung,
+            ist_platzhalter = excluded.ist_platzhalter,
+            geaendert_am  = now()
+        /*
+         * **Nur, solange der Kreis nichts vergeben hat.** Ein zweiter Seed
+         * auf einen Bestand, in dem schon Rechnungen stehen, darf die Maske
+         * nicht mehr anfassen: die vergebenen Nummern tragen die alte, und
+         * eine Folge aus zwei Masken ist keine lückenlose Folge mehr (§14
+         * UStG, Invariante 4). Ohne diese Bedingung wäre der Seed ein Weg,
+         * eine festgeschriebene Nummernfolge nachträglich umzubenennen.
+         */
+        where nummernkreis.naechste_nummer = 1
+          and nummernkreis.geschlossen_am is null`;
 
     // Leistungsnachweise sind kein § 14 UStG-Dokument; ihre Maske ist
     // betrieblich und darf bestaetigt sein.
@@ -1587,8 +1645,43 @@ async function main(): Promise<void> {
         + `„${DEMO_KENNWORT}" — Mitarbeiterkonten ausgenommen (EMP-01: kein Kennwort).\n`,
   );
 
+  /**
+   * Die Lücken der Berichte — Anfragen und Vergabevorgänge dort, wo eine
+   * Gesellschaft sonst eine Null zeigte.
+   */
+  const berichtsdaten = await seedBerichtsdaten(sql, ids, demodaten);
+  if (!berichtsdaten.uebersprungen) {
+    process.stdout.write(
+      `  Berichtslücken: ${String(berichtsdaten.leads)} Anfragen, `
+      + `${String(berichtsdaten.vorgaenge)} Vergabevorgänge und `
+      + `${String(berichtsdaten.zeiten)} freigegebene Zeiten — damit jede Gesellschaft `
+      + 'in jedem der sechs Berichte eine Zeile hat\n');
+  }
+
+  /**
+   * Zuletzt die Ausgangsrechnungen — nach Kunden, Konten und Nummernkreisen,
+   * weil sie alle drei brauchen.
+   */
+  const rechnungen = await seedRechnungen(sql, ids, demodaten);
+  process.stdout.write(
+    rechnungen.uebersprungen
+      ? `  Ausgangsrechnungen: KEINE — ${rechnungen.grund ?? 'übersprungen'}\n`
+      : `  ${String(rechnungen.festgeschrieben)} festgeschriebene Rechnungen `
+        + `(${rechnungen.nummern.join(', ')}) und ${String(rechnungen.entwuerfe)} Entwürfe `
+        + 'ohne Nummer — über legeEntwurfAn → fuegePositionHinzu → finalisiere, '
+        + 'als cse_app mit gebundener Sitzung\n');
+
   process.stdout.write('\nSeed fertig.\n');
-  process.stdout.write('OFFEN, bevor eine Rechnung entstehen kann:\n');
+  if (demodaten) {
+    process.stdout.write(
+      'DEMOBETRIEB — was hier eine offene Frage überbrückt, steht IM DATENSATZ:\n'
+      + '  • Rechnungsnummern beginnen mit DEMO- (O-134 unbeantwortet, die Maske ist '
+      + 'geraten)\n'
+      + '  • das KI-Modell trägt anbieter = \'demo\' (D-499)\n'
+      + '  • das Monatsbudget ist ein Platzhalter (O-26)\n'
+      + 'Ohne CSE_DEV_FLAECHEN entsteht nichts davon.\n');
+  }
+  process.stdout.write('OFFEN, unabhängig vom Demobetrieb:\n');
   process.stdout.write('  • O-134 — Rechnungsnummern-Maske je Gesellschaft bestätigen\n');
   process.stdout.write('  • O-01  — ist CSE Operations eine GmbH oder eine Abteilung?\n');
   await sql.end();

@@ -10023,3 +10023,55 @@ antwortet das Register, der Demobetrieb gilt als verbunden — **und die Seite
 sagt dazu, dass die REIHENFOLGE seiner Treffer nicht die eines echten
 Einbettungsmodells ist.** Wer dort sucht, sieht Treffer und muss wissen, woher
 sie kommen.
+
+### D-514 · Demodaten, die man am Datensatz erkennt — nicht an der Dokumentation
+
+Die Plattform war vollständig gebaut und beim Ansehen halb leer: kein Umsatz,
+keine offenen Posten, kein Glied in der Hashkette, eine Gruppenauswertung, die
+nichts aufteilt. Der Grund war richtig — `nummernkreis.ist_platzhalter`
+vergibt keine Nummer, solange O-134 offen ist, und eine vergebene
+Rechnungsnummer nimmt man nicht zurück. Nur: wer die Plattform zum ersten Mal
+sieht, unterscheidet „diese Frage ist offen" nicht von „das ist nicht gebaut".
+
+**Die Regel, nach der das aufgelöst wird**, ist dieselbe wie beim Demomodell
+(`anbieter = 'demo'`, D-499): **eine Überbrückung steht im Datensatz, nicht im
+Kommentar.**
+
+Auf Entwicklungsflächen trägt der Rechnungskreis die Maske
+`DEMO-{jahr}-{nr:5}`. Jede so entstandene Rechnung heisst `DEMO-2026-00001` —
+niemand kann sie für eine echte halten, und niemand muss dafür die
+Dokumentation gelesen haben. In der Produktion bleibt der Platzhalter, und
+ohne `CSE_DEV_FLAECHEN` entsteht keine einzige dieser Zeilen.
+
+Drei Dinge machen das tragfähig statt bequem:
+
+1. **`nummernkreis_offen_key` lässt je Gesellschaft genau EINEN offenen
+   Rechnungskreis zu.** Beide nebeneinander geht nicht — es ist also eine
+   Entscheidung und keine Ergänzung, und sie fällt sichtbar an einer Stelle.
+2. **Die Maske wird nur angefasst, solange der Kreis nichts vergeben hat**
+   (`naechste_nummer = 1`). Ohne diese Bedingung wäre ein zweiter Seed ein Weg,
+   eine festgeschriebene Nummernfolge nachträglich umzubenennen — und eine
+   Folge aus zwei Masken ist keine lückenlose mehr (§14 UStG, Invariante 4).
+3. **Die Rechnungen entstehen über den DIENST**, nicht per `insert`:
+   `legeEntwurfAn` → `fuegePositionHinzu` → `finalisiere`, als `cse_app` mit
+   gebundener Sitzung. Acht Spalten von Hand zu setzen hiesse, genau den Weg
+   zu umgehen, den das Portal später nimmt — und die Hashkette, die Prüfung
+   nach §14 UStG und FIN-18 gleich mit.
+
+Ein Entwurf bleibt je Gesellschaft stehen: ein Bestand, in dem alles
+festgeschrieben ist, zeigt den einen Zustand nicht, der die Invariante trägt —
+den ohne Nummer.
+
+**Die Berichtslücken daneben** (`seed/berichtsdaten.ts`): Anfragen für Security
+und Bau, ein Vergabevorgang je Gesellschaft, freigegebene Zeiten für den Bau.
+Eine Null ist nicht falsch, sie ist nur nicht von „diese Abfrage ist kaputt"
+zu unterscheiden. Projekte bleiben beim Bau: `projekt.art` kennt
+`hochbau | ausbau | rueckbau`, und einer Reinigungsfirma ein Hochbauprojekt zu
+geben hiesse, die Fachsprache zu verlassen, damit eine Tabelle voller aussieht.
+CSE Operations bleibt ohne Rechnungen und ohne Schichten — es ist keine
+Rechtseinheit (O-01), und das ist eine Aussage und kein Loch.
+
+**Und die Browsertests prüfen jetzt die Form statt des Präfixes.** Drei Specs
+lasen `/^RE-\d{4}-\d{5}$/` — damit prüften sie die Seed-Einstellung und nicht
+die Rechnung. Der Kreis bestimmt das Präfix; geprüft wird, was jede Maske
+erzeugt.
