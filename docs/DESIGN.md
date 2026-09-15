@@ -532,6 +532,56 @@ The first words carry the meaning in bold, so the colour never carries it
 alone (§9). Component: `components/ui/Hinweis.tsx`; every notice carries a
 `data-cse` anchor.
 
+### Status pages — 404 and error
+
+Two pages the platform had none of, while 232 call sites led to them. Next.js
+answers a missing `not-found.tsx` with its own English default: black on white,
+Inter nowhere, no way back. That page is the one a visitor sees at the moment
+they are already lost.
+
+Both share **one component**, `components/ui/Zustandsseite.tsx`, because they
+differ only in what they say — a layout written twice drifts two ways. It is a centred column, `max-w-form` (§3), vertically centred in the
+viewport with `--s9` of section padding:
+
+| Slot | Type (§2) | Colour (§1) |
+|---|---|---|
+| eyebrow — the code (`404`, `500`) | `micro`, uppercase | `--text-subtle` |
+| headline — what happened, in German | `h1` | `--text` |
+| explanation — one or two sentences | `base`, max `72ch` | `--text-muted` |
+| actions — at most two | Buttons (§5) | primary + ghost |
+
+**Rules, and each one is a decision, not a preference:**
+
+1. **Say what happened, never what the visitor did wrong.** „Diese Seite gibt
+   es nicht" — not „Ungültige Anfrage". The portal answers a missing *right*
+   with the same 404 as a missing *page* (AUT-06), so this text must be true
+   for both and must not hint which it was.
+2. **Always a way onward.** A status page with no link is a dead end. Primary
+   goes to the surface the visitor is on (public: `/`, portal:
+   `/portal/[mandant]`); ghost goes back.
+3. **No error detail on screen.** A stack trace, an SQL fragment, a table name
+   — those go to the log. `error.tsx` shows the `digest`, and only that: it is
+   the string that connects this screen to that log line.
+4. **No illustration, no number set in `display`.** A 404 drawn large is a joke
+   at the reader's expense; this is a working tool.
+5. **There is no `loading.tsx`, and that is a hard rule.** A `loading.tsx`
+   wraps its segment in a Suspense boundary, so the shell goes out **before the
+   page has decided anything** — with status `200`. At the root that silently
+   turns every `404` in the application into a `200`, including the one AUT-06
+   depends on: a request for another company's data would answer *found*. It
+   was written, it looked harmless, and it broke every status code in the app
+   until a browser check caught it. The same applies to any segment whose pages
+   can call `notFound()` — which is all of them. A slow screen shows its own
+   skeleton inside the page, where the status code is already settled.
+
+**These pages do not carry the portal frame, and that is a constraint, not a
+preference.** Next.js passes `not-found.tsx` no params, so a tenant-scoped page
+cannot know which company it is in; and the loader that would tell it
+(`mandantTor`) calls `notFound()` itself, which on a not-found page is a render
+loop on the one screen that must never fail. Instead the page reads the request
+path from the middleware header and offers the portal root as its primary
+action, so the navigation is one click away rather than gone.
+
 ### Navigation
 
 **Public header:** height `72px`, `--ink` at `rgba(8,8,10,0.85)` with

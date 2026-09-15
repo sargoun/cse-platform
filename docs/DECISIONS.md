@@ -10620,3 +10620,50 @@ der Server ermittelt und der Bildschirm verschweigt, ist die Zahl, die beim
 nächsten Umbau versehentlich wieder hingeschrieben wird. Und der Bildschirm
 trennt die beiden Bedeutungen von „—": „nicht sichtbar" heißt, es gibt sie und
 du darfst sie nicht sehen; „—" heißt, es gibt sie noch nicht.
+
+### D-539 · Eine Ladeseite an der Wurzel macht aus jedem 404 eine 200
+
+232 Aufrufe von `notFound()` führten auf Next.js' eigene Vorgabe: schwarz auf
+weiss, englisch, ohne Inter, ohne einen Weg zurück. Das ist die Seite, die
+jemand genau in dem Moment sieht, in dem er ohnehin verloren ist. Es gibt jetzt
+eine `not-found.tsx` und eine `error.tsx` an der Wurzel von `src/app` — an der
+Wurzel, weil Next.js die nächste oberhalb der Fallstelle sucht und eine Datei in
+`(public)` den Pfad `/auth/…` nicht abdeckt.
+
+**Und eine `loading.tsx`, die wieder weg musste.** Sie sah aus wie die dritte
+Seite derselben Familie und war eine Falle: eine `loading.tsx` hüllt ihr Segment
+in eine Suspense-Grenze, also geht die Hülle hinaus, **bevor die Seite
+irgendetwas entschieden hat** — mit Status `200`. An der Wurzel heisst das: jeder
+`404` der ganzen Anwendung wurde zu einer `200`, auch der, an dem AUT-06 hängt.
+Die Anfrage nach den Daten einer fremden Gesellschaft antwortete *gefunden*.
+
+Gefunden hat es die Browserprüfung, die ich für die neuen Seiten geschrieben
+hatte — `expect(antwort?.status()).toBe(404)` schlug fehl und meldete `200`. Ohne
+diese eine Zeile wäre die Regression gemergt worden und hätte wie ein
+Gestaltungsdetail ausgesehen.
+
+Deshalb gibt es im ganzen `src/app` keine `loading.tsx`, und `tests/kern/
+zustandsseiten.test.ts` sucht rekursiv danach. Nicht nur an der Wurzel: jedes
+Segment dieser Anwendung kann `notFound()` rufen, also hat jedes dasselbe
+Problem. Ein langsamer Bildschirm zeigt sein Gerüst **in** der Seite, wo der
+Statuscode schon feststeht.
+
+**Was die 404-Seite sagen darf.** AUT-06 beantwortet ein fehlendes RECHT mit
+demselben 404 wie eine fehlende SEITE — sonst wäre der Statuscode ein Orakel.
+Der Text muss also für beides stimmen und darf keines verraten: „Diese Seite
+gibt es hier nicht." ist wahr, wenn die Seite fehlt, und wahr, wenn sie jemand
+anderem gehört. Eine Browserprüfung stellt beide Fälle nebeneinander und
+vergleicht, was auf dem Bildschirm steht.
+
+**Kein Portalrahmen auf diesen Seiten**, und auch das ist eine Grenze und keine
+Bequemlichkeit: `not-found.tsx` bekommt in Next.js keine `params`, weiss also
+nicht, in welcher Gesellschaft sie steht — und der Lader, der es wüsste
+(`mandantTor`), ruft selbst `notFound()`. Auf einer Nichtgefunden-Seite wäre das
+eine Render-Schleife auf genau dem Bildschirm, der nie scheitern darf. Der Weg
+zurück kommt deshalb aus dem Pfad, den die Middleware in einen Kopf schreibt,
+und er wird gegen `^[a-z0-9-]{1,64}$` geprüft, bevor daraus ein Verweis wird.
+
+**`/portal/[mandant]/…` mit unbekanntem Unterpfad bleibt 200.** Dort liegt
+`[...rest]`, die Platzhalterseite für die noch nicht gebauten Bildschirme — sie
+sagt hin, dass es diesen Bildschirm noch nicht gibt, und das ist die richtige
+Auskunft. Der 404 des Portals fällt eine Ebene höher, beim Slug.
