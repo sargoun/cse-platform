@@ -10469,3 +10469,30 @@ einen Hafen nennt. Wer einen nennt, hat sich entschieden; danach noch 3000
 abzufragen heisst, ihm nicht zu glauben, und meldet einen Server, den er gar
 nicht gemeint hat. Eine Gegenprobe hält den Rateweg fest, damit er nicht
 stillschweigend verschwindet.
+
+### D-532 · Ein Link in einer E-Mail ist kein Pfad
+
+Die Zurücksetzungsmail (AUT-06) trug den Link relativ: `/auth/passwort-neu?token=…`.
+Im Browser ist das eine Adresse, in einem Postfach ein Wort — der Weg war
+vollständig gebaut, geprüft und unbenutzbar, und zwar genau in dem Moment, in
+dem O-501 beantwortet und ein Postausgang angeschlossen wird. Auf der
+Entwicklungsfläche fiel es nicht auf, weil der Link daneben auf dem Bildschirm
+steht.
+
+Die Basis kommt von `kanonischeBasis` (`CSE_KANONISCHE_BASIS`, sonst der Host
+DIESER Anfrage) — dieselbe Quelle wie für `sitemap.xml` und jeden JSON-LD-`@id`,
+damit es nicht zwei Wahrheiten über den eigenen Host gibt.
+
+**Ohne Host geht keine Nachricht raus, statt einer Fehlerseite.**
+`kanonischeBasis` wirft lieber, als zu raten — für eine Sitemap richtig. Hier
+wäre die Folge eine 500er-Seite genau dann, wenn eine Mail herausgeht: ein
+sichtbarer Unterschied zwischen „Adresse bekannt" und „Adresse unbekannt", und
+damit das Aufzählwerkzeug, das diese Seite seit D-501 vermeidet. Also wird der
+`KeinHostFehler` gefangen, der Versand unterbleibt, und die Antwort bleibt
+dieselbe.
+
+**Der Text steht jetzt in `kennwortResetMail`, nicht in der Seite.** Eine
+Server-Action ist von einem Unit-Test nicht lesbar; deshalb konnte ein falscher
+Link dort monatelang stehen. Die reine Funktion prüft `tests/kern/kennwort-mail.test.ts`
+auf die absolute Form, auf den doppelten Schrägstrich und auf die Kodierung des
+Tokens — ein Token mit `+` oder `&` käme sonst anders an, als er vergeben wurde.

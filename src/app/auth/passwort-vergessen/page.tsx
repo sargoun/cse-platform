@@ -5,7 +5,10 @@ import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { devFlaechenAn } from '@/lib/dev-flaechen';
-import { legeKennwortTokenAn, resetGebremst } from '@/server/auth/kennwort-anmeldung';
+import { KeinHostFehler, kanonischeBasis } from '@/lib/domains';
+import {
+  kennwortResetMail, legeKennwortTokenAn, resetGebremst,
+} from '@/server/auth/kennwort-anmeldung';
 import { db } from '@/server/db/pool';
 import { EmailNichtVerbundenFehler, emailDienst } from '@/server/versand/email';
 import { AuthSchale } from '../AuthSchale';
@@ -39,7 +42,8 @@ export default async function PasswortVergessen({ searchParams }: {
   async function anfordern(daten: FormData): Promise<void> {
     'use server';
     const email = String(daten.get('email') ?? '').trim();
-    const { ip } = await herkunft(await headers());
+    const kopf = await headers();
+    const { ip } = await herkunft(kopf);
 
     /*
      * **Gebremst wird VOR dem Anlegen** (AUT-07, 0162). Ohne Bremse war
@@ -73,19 +77,34 @@ export default async function PasswortVergessen({ searchParams }: {
      * Bestaetigungsseite sagt danach ausdruecklich, dass kein Postausgang
      * hinterlegt ist; sie behauptet nicht, eine Mail sei unterwegs.
      */
+    /*
+     * **Der Link muss ABSOLUT sein**, und der Text steht deshalb in
+     * `kennwortResetMail` — eine reine Funktion, die ein Test lesen kann. Ein
+     * `/auth/passwort-neu?token=…` ist im Browser ein Pfad und in einer E-Mail
+     * ein Text, den niemand anklicken kann: das Postfach weiss nicht, zu
+     * welchem Haus er gehoert.
+     *
+     * **Ein fehlender Host bricht den Weg NICHT ab.** `kanonischeBasis` wirft
+     * lieber, als zu raten (`KeinHostFehler`) — richtig fuer eine Sitemap, hier
+     * aber waere die Folge eine Fehlerseite genau dann, wenn eine Mail
+     * herausgeht, und damit ein sichtbarer Unterschied zwischen „Adresse
+     * bekannt“ und „Adresse unbekannt“. Ohne Basis geht also keine Nachricht
+     * raus, die Antwort bleibt dieselbe, und die Bestaetigungsseite sagt
+     * ohnehin, dass kein Postausgang hinterlegt ist.
+     */
     const dienst = emailDienst(devFlaechenAn());
+    let basis: string | null = null;
     try {
-      await dienst.sende({
-        an: email,
-        betreff: 'Kennwort zurücksetzen — CSE Gruppe',
-        text: 'Sie haben ein neues Kennwort angefordert. Der Link gilt zwei Stunden '
-          + 'und nur einmal:\n\n'
-          + `/auth/passwort-neu?token=${token}\n\n`
-          + 'Wenn Sie das nicht waren, können Sie diese Nachricht ignorieren — '
-          + 'Ihr bisheriges Kennwort gilt weiter.',
-      });
+      basis = kanonischeBasis(kopf.get('host'));
     } catch (fehler) {
-      if (!(fehler instanceof EmailNichtVerbundenFehler)) throw fehler;
+      if (!(fehler instanceof KeinHostFehler)) throw fehler;
+    }
+    if (basis !== null) {
+      try {
+        await dienst.sende({ an: email, ...kennwortResetMail(basis, token) });
+      } catch (fehler) {
+        if (!(fehler instanceof EmailNichtVerbundenFehler)) throw fehler;
+      }
     }
 
     /**

@@ -338,6 +338,35 @@ export async function legeKennwortTokenAn(
   return token;
 }
 
+/**
+ * Der Text der Zuruecksetzungsmail — als reine Funktion, damit ihn ein Test
+ * lesen kann.
+ *
+ * **Der Link muss ABSOLUT sein.** `/auth/passwort-neu?token=…` ist im Browser
+ * ein Pfad und in einem Postfach ein Text, den niemand anklicken kann: das
+ * Postfach weiss nicht, zu welchem Haus der Pfad gehoert. Die Basis kommt von
+ * `kanonischeBasis` — `CSE_KANONISCHE_BASIS`, sonst der Host DIESER Anfrage;
+ * geraten wird nichts (`KeinHostFehler`).
+ *
+ * **Und der Token wird kodiert.** `neuerToken()` liefert heute Base64url und
+ * damit nichts Heikles; ein Token, der spaeter ein `+` oder `&` traegt, waere
+ * ohne `encodeURIComponent` beim Anklicken ein anderer als der vergebene —
+ * und der Mensch saehe „Link ungueltig" bei einem gueltigen Link.
+ */
+export function kennwortResetMail(basis: string, token: string): {
+  readonly betreff: string; readonly text: string;
+} {
+  const link = `${basis.replace(/\/+$/u, '')}/auth/passwort-neu`
+    + `?token=${encodeURIComponent(token)}`;
+  return {
+    betreff: 'Kennwort zur\u00fccksetzen \u2014 CSE Gruppe',
+    text: 'Sie haben ein neues Kennwort angefordert. Der Link gilt zwei Stunden '
+      + `und nur einmal:\n\n${link}\n\n`
+      + 'Wenn Sie das nicht waren, k\u00f6nnen Sie diese Nachricht ignorieren \u2014 '
+      + 'Ihr bisheriges Kennwort gilt weiter.',
+  };
+}
+
 export interface TokenInhalt {
   readonly benutzerId: string;
   readonly name: string;
