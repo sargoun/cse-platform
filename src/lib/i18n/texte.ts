@@ -499,6 +499,11 @@ export interface MeinTexte {
    * WEGEN der Uebersetzung hier liest, fand die Navigation unuebersetzt.
    */
   readonly nachrichten: string;
+  /** Der Posteingang der Person (EMP-11, NOT-03) — der vierte Tab. */
+  readonly keineNachrichten: string;
+  readonly ungelesen: string;
+  readonly gelesen: string;
+  readonly oeffnen: string;
   readonly profil: string;
   readonly bereichWechseln: string;
   readonly konto: string;
@@ -597,6 +602,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     nurAufDeutsch: 'Dieser Text liegt nur auf Deutsch vor.',
     vorNaechsterSchicht: 'Vor Ihrer nächsten Schicht',
     nachrichten: 'Nachrichten',
+    keineNachrichten: 'Keine Nachrichten. Das heisst: nichts Offenes — nicht, dass etwas fehlt.',
+    ungelesen: 'ungelesen',
+    gelesen: 'gelesen',
+    oeffnen: 'Öffnen',
     profil: 'Profil',
     bereichWechseln: 'Bereich wechseln',
     konto: 'Konto',
@@ -691,6 +700,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     nurAufDeutsch: 'This text is available in German only.',
     vorNaechsterSchicht: 'Before your next shift',
     nachrichten: 'Messages',
+    keineNachrichten: 'No messages. That means nothing is pending — not that something is missing.',
+    ungelesen: 'unread',
+    gelesen: 'read',
+    oeffnen: 'Open',
     profil: 'Profile',
     bereichWechseln: 'Switch area',
     konto: 'Account',
@@ -785,6 +798,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     nurAufDeutsch: 'هذا النص متوفر باللغة الألمانية فقط.',
     vorNaechsterSchicht: 'قبل ورديتك القادمة',
     nachrichten: 'الرسائل',
+    keineNachrichten: 'لا توجد رسائل. يعني ما في شي معلّق — مش إنّو في شي ناقص.',
+    ungelesen: 'غير مقروءة',
+    gelesen: 'مقروءة',
+    oeffnen: 'فتح',
     profil: 'الملف الشخصي',
     bereichWechseln: 'تبديل القسم',
     konto: 'الحساب',
@@ -879,6 +896,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     nurAufDeutsch: 'Bu metin yalnızca Almanca olarak mevcuttur.',
     vorNaechsterSchicht: 'Bir sonraki vardiyanızdan önce',
     nachrichten: 'Mesajlar',
+    keineNachrichten: 'Mesaj yok. Bu, bekleyen bir şey olmadığı anlamına gelir - eksik bir şey olduğu değil.',
+    ungelesen: 'okunmamış',
+    gelesen: 'okunmuş',
+    oeffnen: 'Aç',
     profil: 'Profil',
     bereichWechseln: 'Alan değiştir',
     konto: 'Hesap',

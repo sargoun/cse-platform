@@ -11333,3 +11333,37 @@ braucht. Und es sind Radioknöpfe, keine zugeklappte Auswahlliste: vier
 Einträge passen auf jeden Bildschirm, und eine Liste, die man erst öffnen
 muss, verlangt das Lesen der Oberfläche, um an die Sprache zu kommen, die man
 lesen kann.
+
+### D-558 · Der letzte tote Tab — und die Warnung, die ihren Empfänger nie erreichte
+
+`/portal/mein/nachrichten` war das vierte von fünf Zielen der Arbeiterleiste
+und führte auf „Dieses Modul wird noch gebaut — Phase 3". Phase 3 ist
+abgehakt. Damit ist der Befund aus D-549 abgetragen: **kein Ziel einer
+Tab-Leiste zeigt mehr auf die Platzhalterseite**, und die Ausnahmeliste in
+`tests/kern/tableiste-ziele.test.ts` enthält nur noch, was ein offenes
+ROADMAP-Kästchen deckt.
+
+**Die Meldungen gab es die ganze Zeit.** Wächter, Ablaufwarnungen (EMP-08) und
+Fristwarnungen schreiben seit mehreren PRs in `benachrichtigung`; der interne
+Posteingang zeigt sie. Nur die Kraft, an die eine Ablaufwarnung sich
+*richtet*, hatte keinen Bildschirm dafür. **Eine Warnung, die ihren Empfänger
+nicht erreicht, ist keine** — und sie sah im internen Posteingang aus wie
+zugestellt.
+
+**Dieselbe Abfrage, nicht eine zweite.** `ladePosteingang` gilt in beiden
+Scopes ohne eine Zeile Sonderbehandlung: `t_benachrichtigung_eigene` bindet
+jede Zeile an `empfaenger_id = app.aktueller_benutzer()`, und
+`app.sichtbare_mandanten()` ist im Personen-Scope genau die Menge der eigenen
+lebenden Beschäftigungen (0004). Eine zweite Fassung derselben Frage driftet,
+und zwei Posteingänge mit verschiedenen Zahlen machen beide unglaubwürdig
+(dieselbe Regel wie bei der Live-Ansicht, DSH-04).
+
+**Die Gesellschaft steht an jeder Zeile.** Ein Mensch, zwei Beschäftigungen
+(D-09, EMP-14): ohne sie sähe dieselbe Meldung zweimal gleich aus, und der
+Link führte in einen Bereich, den man beim Lesen nicht erkannt hat.
+
+**Vier Sprachen, nicht eine.** Die Seite ist der vierte Tab eines Portals, das
+in de/en/ar/tr übersetzt ist; ein deutscher Posteingang darin wäre genau die
+halbe Übersetzung, die D-419 schon einmal abgeräumt hat. Der Leersatz sagt
+dabei, was Leere BEDEUTET — „nichts Offenes, nicht: etwas fehlt" —, statt
+einen leeren Bildschirm zu zeigen, der sich wie ein Fehler liest.

@@ -52,16 +52,13 @@ const NOCH_OFFEN: Readonly<Record<string, string>> = {
      steht als eigene Zeile noch aus. */
   '/portal/gruppe/radar': 'Gruppensicht des Radars — eigene Zeile, noch nicht gebaut',
   /*
-   * **Diese zwei sind KEINE Absicht, sondern die offene Baustelle.**
-   *
-   * Sie sind der Befund, der diese Datei ausgeloest hat: zwei von fuenf Zielen
-   * des Arbeiterportals, beide aus einer Phase, die die ROADMAP abhakt. Sie
-   * stehen hier, damit die Pruefung heute nicht rot ist, waehrend sie gebaut
-   * werden — und die dritte Pruefung unten wirft sie in dem Moment hinaus, in
-   * dem die Seite existiert. Ein Eintrag, der ueberlebt, nachdem die Seite da
-   * ist, laesst die Suite fehlschlagen; er kann also nicht liegen bleiben.
+   * **Hier standen einmal zwei weitere** — `/portal/mein/nachrichten` und
+   * `/portal/konto/profil`, die beiden Ziele des Arbeiterportals, die den
+   * Befund ausgeloest haben. Beide sind gebaut, und die dritte Pruefung unten
+   * hat ihr Verschwinden erzwungen: ein Eintrag, der ueberlebt, nachdem die
+   * Seite da ist, laesst die Suite fehlschlagen. Genau so soll diese Liste
+   * schrumpfen.
    */
-  '/portal/mein/nachrichten': 'Phase 3 abgehakt, Seite fehlt — wird gebaut (EMP-11, NOT-03)',
 };
 
 /** Die Wurzel, unter der eine Leiste hängt — `[mandant]` als Musterwert. */
