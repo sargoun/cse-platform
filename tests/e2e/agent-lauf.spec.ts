@@ -113,6 +113,38 @@ test.describe('Agentenlauf (AGT-01)', () => {
     });
 
   /**
+   * **Die Umleitung folgt der Sitzung, nicht dem Rumpf** (Invariante 3).
+   *
+   * Das Formular trug den Slug bis hierher als verstecktes Feld mit, und nur
+   * er bestimmte, wohin die 303 zeigte — der Lauf selbst lief gegen den
+   * aktiven Bereich der Sitzung. Wer in einem zweiten Reiter gewechselt
+   * hatte, schickte den alten Slug ab: der Vorschlag entstand richtig, die
+   * Umleitung fuehrte auf die Agentenseite der anderen Gesellschaft, und dort
+   * stand er nicht. Ein Lauf, der aussah, als habe er nichts erzeugt.
+   *
+   * Hier wird der Rumpf absichtlich gefaelscht — `security` statt `reinigung`,
+   * dazu ein Slug, den es gar nicht gibt.
+   */
+  test('ein fremder Bereich im Rumpf verschiebt die Umleitung nicht', async ({ page }) => {
+    await anmelden(page, KONTO.adminReinigung);
+    await page.goto(`/portal/${MANDANT}/agenten/backoffice`);
+    const schluessel = await page.locator('input[name="schluessel"]').inputValue();
+
+    for (const fremd of ['security', 'gibt-es-nicht']) {
+      const antwort = await page.request.post('/api/agenten/lauf', {
+        form: { mandant: fremd, agent: 'backoffice', schluessel: `${schluessel}-${fremd}` },
+        headers: { origin: new URL(page.url()).origin },
+        maxRedirects: 0,
+      });
+      expect(antwort.status(), await antwort.text()).toBe(303);
+      const ziel = antwort.headers()['location'] ?? '';
+      expect(ziel, 'die Umleitung nennt den Bereich der Sitzung')
+        .toContain(`/portal/${MANDANT}/agenten/backoffice`);
+      expect(ziel, 'und nicht den aus dem Rumpf').not.toContain(`/portal/${fremd}/`);
+    }
+  });
+
+  /**
    * Die Aufgabe steht danach in der Liste des Agenten — mit dem Stand, der
    * sagt, dass sie auf einen Menschen wartet und nicht fertig ist.
    */

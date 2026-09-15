@@ -7,7 +7,7 @@
  * in einer Tageszusammenfassung landet, wird am naechsten Morgen gelesen, also
  * nach der Frist.
  */
-import { findeArt, registriereArt, type ArtDefinition } from '../../benachrichtigung/registry.js';
+import { sicherRegistriert, type ArtDefinition } from '../../benachrichtigung/registry.js';
 
 const ziel = (slug: string | null | undefined, leadId: string): string | null =>
   (slug ? `/portal/${slug}/crm/leads/${leadId}` : null);
@@ -31,19 +31,13 @@ export const ART_LEAD_SLA = `${MODUL}.lead_sla_ueberschritten`;
 /**
  * Idempotent, wie bei den Radar- und Waechterarten (D-493).
  *
- * Der Jobbootstrap laeuft im Test mehrfach, und seit dem Einstellungsbildschirm
- * (NOT-02) meldet ausserdem `benachrichtigung/bootstrap.ts` alle Arten an, um
- * sie aufzaehlen zu koennen. Ein `registriereArt`, das beim zweiten Aufruf
- * wirft, machte daraus einen Fehler bei jedem zweiten Seitenaufruf.
+ * `sicherRegistriert` prueft JE SCHLUESSEL. Die frueheren Fassungen fragten
+ * nur die erste Art und schlossen auf die zweite — blieb die zweite einmal
+ * aus, war sie nie wieder registriert, und die SLA-Meldung fiel still aus.
  */
 export function registriereLeadArten(): readonly ArtDefinition[] {
-  const da = findeArt(ART_NEUER_LEAD);
-  if (da !== undefined) {
-    const zweite = findeArt(ART_LEAD_SLA);
-    return zweite === undefined ? [da] : [da, zweite];
-  }
-  return [
-    registriereArt({
+  return sicherRegistriert([
+    ({
       schluessel: ART_NEUER_LEAD,
       titel: (k) => `Neue Anfrage: ${String(k.daten['betreff'] ?? 'ohne Betreff')}`,
       text: (k) => `${String(k.daten['firma'] ?? 'Unbekannt')} hat eine Anfrage gesendet.`
@@ -54,7 +48,7 @@ export function registriereLeadArten(): readonly ArtDefinition[] {
       kanaeleVorgabe: ['app', 'email'],
       sammelbar: true,
     }),
-    registriereArt({
+    ({
       schluessel: ART_LEAD_SLA,
       titel: (k) => `Reaktionszeit überschritten: ${String(k.daten['leadnummer'] ?? '')}`,
       text: (k) => `Die zugesagte Reaktionszeit ist abgelaufen, ohne dass eine `
@@ -64,5 +58,5 @@ export function registriereLeadArten(): readonly ArtDefinition[] {
       // Nie sammeln: am nächsten Morgen gelesen heisst nach der Frist gelesen.
       sammelbar: false,
     }),
-  ];
+  ]);
 }

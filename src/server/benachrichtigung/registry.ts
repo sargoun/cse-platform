@@ -71,6 +71,37 @@ export function registriereArt(art: ArtDefinition): ArtDefinition {
   return art;
 }
 
+/**
+ * Registriert eine Gruppe von Arten — **je Schluessel, nicht ueber einen
+ * Stellvertreter**.
+ *
+ * Die Module registrieren ihre Arten buendelweise und muessen das mehrfach
+ * koennen: der Jobbootstrap laeuft im Test mehrfach, und seit NOT-02 meldet
+ * `benachrichtigung/bootstrap.ts` alle Arten an, um sie auf der
+ * Einstellungsseite aufzaehlen zu koennen. Die naheliegende Abkuerzung war,
+ * EINE Art zu pruefen und aus ihr auf die uebrigen zu schliessen. Das haelt
+ * nur, solange die Gruppe immer vollstaendig ankommt — und sie kommt nicht
+ * vollstaendig an, sobald ein Aufruf mittendrin abbricht oder ein Modul eine
+ * Art spaeter dazunimmt:
+ *
+ *  - Beim Stellvertreter-vorhanden-Zweig faellt die fehlende Art still unter
+ *    den Tisch. Sie ist dann nie registriert, und `erzeuge` wirft erst, wenn
+ *    sie jemand ausloest — nachts, im Waechter, ohne Zuschauer.
+ *  - Beim Stellvertreter-fehlt-Zweig wird die Gruppe komplett neu angemeldet,
+ *    und `registriereArt` wirft ueber der bereits vorhandenen Schwester. Aus
+ *    einer halb registrierten Gruppe wird ein Fehler bei jedem Seitenaufruf.
+ *
+ * Je Schluessel zu pruefen kostet einen Map-Zugriff und kennt beide Faelle
+ * nicht. `registriereArt` bleibt streng — zwei DEFINITIONEN derselben Art
+ * sind weiterhin ein Fehler; hier wird dieselbe Definition nur nicht zweimal
+ * angemeldet (D-493).
+ */
+export function sicherRegistriert(
+  definitionen: readonly ArtDefinition[],
+): readonly ArtDefinition[] {
+  return definitionen.map((d) => findeArt(d.schluessel) ?? registriereArt(d));
+}
+
 export function arten(): readonly ArtDefinition[] { return [...ARTEN.values()]; }
 export function findeArt(schluessel: string): ArtDefinition | undefined {
   return ARTEN.get(schluessel);

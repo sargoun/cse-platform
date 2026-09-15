@@ -71,20 +71,39 @@ export function geldText(c: Cent | null): string {
   return c === null ? '' : formatiereGeld(c);
 }
 
-/** Basispunkte als Prozent mit zwei Stellen — `2500` wird „25,00 %". */
+/**
+ * Basispunkte als Prozent mit zwei Stellen — `2500` wird „25,00 %".
+ *
+ * **Das Vorzeichen steht getrennt, nicht im ganzzahligen Teil.** Zwischen
+ * −1 und −99 Basispunkten ist `Math.trunc(bp / 100)` die negative Null,
+ * und `String(-0)` ist `"0"` — aus −0,50 % wurde 0,50 %, aus einer Marge
+ * von einem halben Prozent UNTER null eine von einem halben Prozent darueber.
+ * Genau die Spanne, in der das Vorzeichen die Aussage traegt und der Betrag
+ * sie nicht verraet. Dieselbe Trennung wie in `stunden()` darunter.
+ */
 export function prozent(bp: number | null): string {
   if (bp === null) return '';
-  const ganz = Math.trunc(bp / 100);
-  const rest = Math.abs(bp % 100);
-  return `${String(ganz)},${String(rest).padStart(2, '0')} %`;
+  const negativ = bp < 0;
+  const abs = Math.abs(bp);
+  const ganz = Math.trunc(abs / 100);
+  const rest = abs % 100;
+  return `${negativ ? '-' : ''}${String(ganz)},${String(rest).padStart(2, '0')} %`;
 }
 
-/** Minuten als Stunden mit zwei Stellen — nie als Fliesskomma gerechnet. */
+/**
+ * Minuten als Stunden mit zwei Stellen — nie als Fliesskomma gerechnet.
+ *
+ * Das Minus ist der ASCII-Bindestrich und nicht das typografische U+2212:
+ * `formatiereGeld` bekommt seines von `Intl` und das ist ASCII. In einer
+ * Berichtszeile stehen Geld, Stunden und Prozent nebeneinander, und zwei
+ * verschiedene Minuszeichen in einer Zeile liest ein Mensch als Unterschied,
+ * wo keiner ist. Wer nach dem Zeichen filtert, findet sonst die halbe Spalte.
+ */
 export function stunden(minuten: number | null): string {
   if (minuten === null) return '';
   const negativ = minuten < 0;
   const abs = Math.abs(minuten);
   const std = Math.trunc(abs / 60);
   const min = abs % 60;
-  return `${negativ ? '−' : ''}${String(std)}:${String(min).padStart(2, '0')} h`;
+  return `${negativ ? '-' : ''}${String(std)}:${String(min).padStart(2, '0')} h`;
 }

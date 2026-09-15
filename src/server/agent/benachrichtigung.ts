@@ -15,7 +15,7 @@
  * eine Meldung, an deren Ende etwas zu TUN ist: das Budget erhoehen oder den
  * Stopp bestaetigen. Die Liste der abgelehnten Laeufe zeigt nur die Folge.
  */
-import { findeArt, registriereArt, type ArtDefinition } from '../benachrichtigung/registry.js';
+import { sicherRegistriert, type ArtDefinition } from '../benachrichtigung/registry.js';
 
 /**
  * Die Definition steht VOR der Registrierung, und der Schluessel wird aus ihr
@@ -51,6 +51,5 @@ export const ART_BUDGET_ERSCHOEPFT: string = BUDGET_ERSCHOEPFT.schluessel;
 
 /** Idempotent, wie die uebrigen Module (D-493) — siehe `benachrichtigung/bootstrap.ts`. */
 export function registriereAgentArten(): readonly ArtDefinition[] {
-  const da = findeArt(ART_BUDGET_ERSCHOEPFT);
-  return da === undefined ? [registriereArt(BUDGET_ERSCHOEPFT)] : [da];
+  return sicherRegistriert([BUDGET_ERSCHOEPFT]);
 }

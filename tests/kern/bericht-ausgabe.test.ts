@@ -3,7 +3,7 @@ import {
   abschnitte, ganzesJahr, jahrAus, letzterTag,
 } from '../../src/server/services/bericht/zeitraum.js';
 import {
-  alsCsv, csvFeld, dateiname, prozent, stunden,
+  alsCsv, csvFeld, dateiname, geldText, prozent, stunden,
 } from '../../src/server/services/bericht/ausgabe.js';
 import { kalendertage, verzug } from '../../src/server/services/bericht/kennzahlen.js';
 import { cent } from '../../src/server/services/finanz/geld.js';
@@ -159,13 +159,40 @@ describe('Formatierung', () => {
     expect(prozent(null)).toBe('');
   });
 
+  /*
+   * Der Fall, in dem das Vorzeichen verlorenging: unter 100 Basispunkten ist
+   * der ganzzahlige Teil die negative Null, und `String(-0)` ist `"0"`. Eine
+   * Marge von −0,50 % stand als 0,50 % im Bericht — ein halbes Prozent im
+   * Minus, gelesen als ein halbes Prozent im Plus, ohne dass die Zahl
+   * daneben widersprochen haette.
+   */
+  it('behaelt das Vorzeichen unter einem Prozent', () => {
+    expect(prozent(-50)).toBe('-0,50 %');
+    expect(prozent(-1)).toBe('-0,01 %');
+    expect(prozent(-99)).toBe('-0,99 %');
+    expect(prozent(-100)).toBe('-1,00 %');
+    expect(prozent(50)).toBe('0,50 %');
+  });
+
   it('Minuten werden zu Stunden — ohne Fliesskomma', () => {
     expect(stunden(90)).toBe('1:30 h');
     expect(stunden(60)).toBe('1:00 h');
     expect(stunden(5)).toBe('0:05 h');
     expect(stunden(0)).toBe('0:00 h');
-    expect(stunden(-75)).toBe('−1:15 h');
+    expect(stunden(-75)).toBe('-1:15 h');
     expect(stunden(null)).toBe('');
+  });
+
+  /*
+   * Ein Minuszeichen je Bericht, nicht zwei. `formatiereGeld` bekommt seines
+   * von `Intl` — ASCII — und Geld, Stunden und Prozent stehen in einer Zeile
+   * nebeneinander.
+   */
+  it('Geld, Stunden und Prozent tragen dasselbe Minuszeichen', () => {
+    const zeichen = new Set([
+      geldText(cent(-1999n))[0], stunden(-75)[0], prozent(-1250)[0],
+    ]);
+    expect(zeichen).toEqual(new Set(['-']));
   });
 
   it('der Dateiname trägt keine Pfadtrenner und keine Umlaute', () => {

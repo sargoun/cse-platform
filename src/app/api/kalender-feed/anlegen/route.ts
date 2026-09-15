@@ -52,11 +52,11 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
    * **Ohne das zeigt die Seite nach dem Umleiten den alten Stand.**
    *
    * Der Browser folgt der 303 auf dieselbe Route, und Next liefert dafuer den
-   * zwischengespeicherten Router-Eintrag: die widerrufene Zeile stand danach
-   * noch in der Liste, und wer sie sah, klickte ein zweites Mal oder hielt
-   * den Widerruf fuer gescheitert. Die Datenbank war die ganze Zeit richtig --
-   * ein Fehler, den nur ein Browsertest findet, weil er in keiner Abfrage
-   * steht.
+   * zwischengespeicherten Router-Eintrag: der gerade angelegte Zugang fehlte
+   * danach in der Liste, und wer ihn nicht sah, legte einen zweiten an --
+   * also eine zweite gueltige Adresse auf denselben Kalender. Die Datenbank
+   * war die ganze Zeit richtig; ein Fehler, den nur ein Browsertest findet,
+   * weil er in keiner Abfrage steht.
    */
   revalidatePath(ZIEL);
 
@@ -65,8 +65,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   /*
    * **Die Umleitung selbst darf nicht zwischengespeichert werden.**
    * Ohne diese Zeile lieferte der Browser fuer das Ziel einen alten Stand:
-   * die gerade widerrufene Zeile stand noch in der Liste, und wer sie sah,
-   * klickte ein zweites Mal. Die Datenbank war die ganze Zeit richtig.
+   * der neue Zugang fehlte in der Liste, und wer ihn nicht sah, legte einen
+   * zweiten an. Die Datenbank war die ganze Zeit richtig.
    */
   antwort.headers.set('cache-control', 'no-store');
   return antwort;

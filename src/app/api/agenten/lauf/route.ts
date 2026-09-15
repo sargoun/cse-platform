@@ -5,6 +5,7 @@ import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
+import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
 import { fuehreLaufAus, type AgentKennung } from '@/server/agent/orchestrator';
 import { ENTWURF_AUFTRAEGE, fuelleTatsachen } from '@/server/agent/auftraege';
@@ -23,6 +24,11 @@ import { alsAntwort } from '../../sicherheit/antwort';
  * steht in `server/agent/auftraege.ts`: Vorlage, Vorgangsart und die Frage,
  * woher die Tatsachen kommen. Ein Rumpf, der eine beliebige Vorlage mitgäbe,
  * wäre ein Weg, das Modell an den Diensten vorbei zu füttern.
+ *
+ * **Und der Bereich kommt aus der Sitzung, nicht aus dem Rumpf.** Der Lauf
+ * ist ohnehin an `app.aktiver_mandant()` gebunden (Invariante 3); seit der
+ * Slug fuer die Umleitung aus derselben Quelle kommt, koennen Lauf und Ziel
+ * nicht mehr auseinanderlaufen.
  *
  * **Ein Doppelklick legt keinen zweiten Vorschlag vor.** Das Formular bringt
  * einen Schlüssel mit, der Lauf trägt ihn als `idempotenzSchluessel`, und
@@ -48,9 +54,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
 
   const daten = await anfrage.formData();
-  const mandant = (String(daten.get('mandant') ?? '')).replace(/[^a-z0-9-]/gu, '');
   const agent = String(daten.get('agent') ?? '') as AgentKennung;
-  const seite = `/portal/${mandant}/agenten/${agent}`;
 
   const auftrag = ENTWURF_AUFTRAEGE[agent];
   if (auftrag === undefined) {
@@ -80,7 +84,22 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       withTenant(tx, sitzung, async (kontext) => {
         await authorize(sitzung, { recht: 'agent.aufgabe_starten', schreibend: true },
           rechtepruefer(kontext.abfrage.bind(kontext)));
-        return fuehreLaufAus(kontext, {
+        /*
+         * **Der Slug kommt aus der Sitzung, nicht aus dem Rumpf** (Invariante 3,
+         * dieselbe Stelle wie `?mandant=` beim Berichtsexport).
+         *
+         * Das Formular trug ihn bisher als verstecktes Feld mit, und nur er
+         * bestimmte, wohin die 303 zeigte — waehrend der Lauf selbst gegen
+         * `sitzung.aktiverMandantId` gebunden lief. Wer den Bereich in einem
+         * zweiten Reiter gewechselt hatte, schickte den alten Slug ab: der
+         * Lauf entstand richtig in der aktiven Gesellschaft, die Umleitung
+         * fuehrte aber auf die Agentenseite der anderen — und dort steht der
+         * Vorschlag nicht. Er sah aus wie ein Lauf, der nichts erzeugt hat.
+         */
+        const [bereich] = await kontext.abfrage<{ slug: string }>(
+          `select m.slug from mandant m where m.id = app.aktiver_mandant()`);
+        if (bereich === undefined) throw new NichtGefundenFehler('Bereich ohne Slug');
+        const lauf = await fuehreLaufAus(kontext, {
           ...auftrag,
           agent,
           // Die Tatsachen kommen aus DIESER Gesellschaft, durch RLS begrenzt.
@@ -90,17 +109,20 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           angefordertVon: sitzung.benutzerId,
           codeVersion: codeVersion(),
         });
-      }))) as Awaited<ReturnType<typeof fuehreLaufAus>>;
+        return { lauf, slug: bereich.slug };
+      }))) as { lauf: Awaited<ReturnType<typeof fuehreLaufAus>>; slug: string };
 
     /*
      * Drei Ausgänge, drei Sätze — und der gestörte ist einer davon, kein
      * Absturz: „kein Modell freigegeben" ist ein Betriebszustand (§8).
      */
-    const ziel = ergebnis.gestoert !== null
-      ? `${seite}?lauf=gestoert&code=${encodeURIComponent(ergebnis.gestoert.code)}`
-      : ergebnis.bestand
+    const { lauf } = ergebnis;
+    const seite = `/portal/${ergebnis.slug}/agenten/${agent}`;
+    const ziel = lauf.gestoert !== null
+      ? `${seite}?lauf=gestoert&code=${encodeURIComponent(lauf.gestoert.code)}`
+      : lauf.bestand
         ? `${seite}?lauf=bestand`
-        : `${seite}?lauf=vorgelegt&freigabe=${String(ergebnis.freigabeId)}`;
+        : `${seite}?lauf=vorgelegt&freigabe=${String(lauf.freigabeId)}`;
     return NextResponse.redirect(internesZiel(ziel, seite, anfrage), 303);
   } catch (fehler) {
     const antwort = alsAntwort(fehler);

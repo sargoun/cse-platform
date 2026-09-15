@@ -1,5 +1,5 @@
 import 'server-only';
-import { findeArt, registriereArt, type ArtDefinition } from '../../benachrichtigung/registry.js';
+import { sicherRegistriert, type ArtDefinition } from '../../benachrichtigung/registry.js';
 
 /**
  * Die zwei Radarmeldungen (SPEC §14, RAD-08, NOT-01, NOT-03).
@@ -45,7 +45,7 @@ function radarZiel(mandantSlug: string | null | undefined, id: string): string |
 }
 
 function frist(): ArtDefinition {
-  return registriereArt({
+  return ({
     schluessel: ART_FRIST,
     titel: (k) => {
       const tage = Number(k.daten['restTage'] ?? 0);
@@ -68,7 +68,7 @@ function frist(): ArtDefinition {
 }
 
 function treffer(): ArtDefinition {
-  return registriereArt({
+  return ({
     schluessel: ART_TREFFER,
     titel: (k) =>
       `${String(k.daten['punkte'] ?? '?')} Punkte: ${String(k.daten['titel'] ?? 'Ausschreibung')}`,
@@ -95,12 +95,10 @@ function treffer(): ArtDefinition {
  * sondern von einem zweiten Aufruf DESSELBEN Moduls — der Jobbootstrap läuft
  * im Test mehrfach, und ein Wächter, der beim zweiten Start stirbt, fiele
  * erst in der zweiten Nacht auf. Vorhandene Art heisst: diese hier, schon da.
+ *
+ * `sicherRegistriert` prüft je Schlüssel und nicht über einen Stellvertreter:
+ * aus „die erste ist da" folgt nicht, dass die zweite es ist.
  */
 export function registriereRadarArten(): readonly ArtDefinition[] {
-  const da = findeArt(ART_FRIST);
-  if (da !== undefined) {
-    const zweite = findeArt(ART_TREFFER);
-    return zweite === undefined ? [da] : [da, zweite];
-  }
-  return [frist(), treffer()];
+  return sicherRegistriert([frist(), treffer()]);
 }

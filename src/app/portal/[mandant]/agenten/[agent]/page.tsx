@@ -310,7 +310,13 @@ export default async function AgentDetail(
           </p>
         ) : (
           <form method="post" action="/api/agenten/lauf" className="mt-s4">
-            <input type="hidden" name="mandant" value={mandant} />
+            {/*
+              * Kein verstecktes `mandant`-Feld: die Route nimmt den Bereich aus
+              * der Sitzung (Invariante 3). Ein Feld, das der Server nicht
+              * liest, sieht im Quelltext aus wie eine Stellschraube und ist
+              * keine — und wer es aendert, glaubt danach, er habe etwas
+              * bewirkt.
+              */}
             <input type="hidden" name="agent" value={kopf.kennung} />
             {/*
               * **Der Schlüssel gegen den zweiten Vorschlag.** Er entsteht
