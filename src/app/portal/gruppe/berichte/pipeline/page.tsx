@@ -5,6 +5,7 @@ import { pipelineJeBereich, type PipelineJeBereich }
   from '@/server/services/bericht/gruppe';
 import { BereichMarke } from '../../tor';
 import { GruppenBerichtsSeite } from '../rahmen';
+import { nurLesbar } from '../Zelle';
 
 /** `/portal/gruppe/berichte/pipeline` — REP-06 je Gesellschaft. */
 export const dynamic = 'force-dynamic';
@@ -31,17 +32,17 @@ export default async function Pipeline({ searchParams }: {
               { schluessel: 'bereich', kopf: 'Gesellschaft',
                 zelle: (z) => <BereichMarke slug={z.slug} name={z.name} /> },
               { schluessel: 'gefunden', kopf: 'Gefunden', numerisch: true,
-                zelle: (z) => z.gefunden },
+                zelle: (z) => nurLesbar(z, z.gefunden) },
               { schluessel: 'eingereicht', kopf: 'Eingereicht', numerisch: true,
-                zelle: (z) => z.eingereicht },
+                zelle: (z) => nurLesbar(z, z.eingereicht) },
               { schluessel: 'zuschlag', kopf: 'Zuschlag', numerisch: true,
-                zelle: (z) => z.zuschlag },
+                zelle: (z) => nurLesbar(z, z.zuschlag) },
               { schluessel: 'quote', kopf: 'Trefferquote', numerisch: true,
-                zelle: (z) => (z.eingereicht === 0
+                zelle: (z) => nurLesbar(z, (z.eingereicht === 0
                   ? <span className="text-text-subtle">—</span>
-                  : prozent(Math.round((z.zuschlag * 10000) / z.eingereicht))) },
+                  : prozent(Math.round((z.zuschlag * 10000) / z.eingereicht)))) },
               { schluessel: 'wert', kopf: 'Zuschlagswert', numerisch: true,
-                zelle: (z) => formatiereGeld(z.zuschlagswertCent) },
+                zelle: (z) => nurLesbar(z, formatiereGeld(z.zuschlagswertCent)) },
             ]}
           />
         );

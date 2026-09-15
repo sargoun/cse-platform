@@ -4,6 +4,7 @@ import { attributionJeBereich, type AttributionJeBereich }
   from '@/server/services/bericht/gruppe';
 import { LeereListe, BereichMarke } from '../../tor';
 import { GruppenBerichtsSeite } from '../rahmen';
+import { nurLesbar } from '../Zelle';
 
 /**
  * `/portal/gruppe/berichte/attribution` — REP-03 je Gesellschaft UND Kanal.
@@ -35,12 +36,12 @@ export default async function Attribution({ searchParams }: {
               { schluessel: 'bereich', kopf: 'Gesellschaft',
                 zelle: (z) => <BereichMarke slug={z.slug} name={z.name} /> },
               { schluessel: 'kanal', kopf: 'Kanal', zelle: (z) => z.kanal },
-              { schluessel: 'leads', kopf: 'Anfragen', numerisch: true, zelle: (z) => z.leads },
+              { schluessel: 'leads', kopf: 'Anfragen', numerisch: true, zelle: (z) => nurLesbar(z, z.leads) },
               { schluessel: 'auftraege', kopf: 'Aufträge', numerisch: true,
-                zelle: (z) => z.auftraege },
+                zelle: (z) => nurLesbar(z, z.auftraege) },
               { schluessel: 'quote', kopf: 'Quote', numerisch: true,
-                zelle: (z) => prozent(z.leads === 0
-                  ? 0 : Math.round((z.auftraege * 10000) / z.leads)) },
+                zelle: (z) => nurLesbar(z, prozent(z.leads === 0
+                  ? 0 : Math.round((z.auftraege * 10000) / z.leads))) },
             ]}
           />
         );

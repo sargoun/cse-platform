@@ -99,7 +99,43 @@ export function registriereArt(art: ArtDefinition): ArtDefinition {
 export function sicherRegistriert(
   definitionen: readonly ArtDefinition[],
 ): readonly ArtDefinition[] {
-  return definitionen.map((d) => findeArt(d.schluessel) ?? registriereArt(d));
+  return definitionen.map((d) => {
+    const da = findeArt(d.schluessel);
+    if (da === undefined) return registriereArt(d);
+    if (!gleicheDefinition(da, d)) {
+      throw new ArtFehler(
+        `Art ${d.schluessel} ist mit einer ANDEREN Definition registriert. `
+        + 'Zwei Module, die sich denselben Schluessel teilen, haengen sonst von der '
+        + 'Reihenfolge des Bootstraps ab: derselbe Posteingangseintrag traegt mal den '
+        + 'einen, mal den anderen Text.',
+      );
+    }
+    return da;
+  });
+}
+
+/**
+ * Sind das dieselbe Art oder zwei?
+ *
+ * **Eine Art ist nicht nur ihr Schluessel.** `sicherRegistriert` darf einen
+ * zweiten Aufruf DESSELBEN Moduls durchwinken, aber nicht ein zweites Modul,
+ * das denselben Schluessel mit anderem Text, anderem Ziel oder anderen
+ * Kanaelen belegt — sonst haengt am Ende von der Reihenfolge des Bootstraps
+ * ab, was jemand im Posteingang liest.
+ *
+ * Verglichen wird auch der QUELLTEXT der drei Funktionen. Zwei Closures sind
+ * nie `===`, weil jeder Aufruf neue erzeugt; ihr Text ist aber bei demselben
+ * Modul derselbe und bei zwei Modulen praktisch nie. Das ist keine
+ * Gleichheit im mathematischen Sinn und soll es nicht sein: es ist die
+ * Pruefung, die den Fall faengt, um den es geht.
+ */
+function gleicheDefinition(a: ArtDefinition, b: ArtDefinition): boolean {
+  return a.sammelbar === b.sammelbar
+    && a.kanaeleVorgabe.length === b.kanaeleVorgabe.length
+    && a.kanaeleVorgabe.every((k, i) => k === b.kanaeleVorgabe[i])
+    && String(a.titel) === String(b.titel)
+    && String(a.text) === String(b.text)
+    && String(a.ziel) === String(b.ziel);
 }
 
 export function arten(): readonly ArtDefinition[] { return [...ARTEN.values()]; }

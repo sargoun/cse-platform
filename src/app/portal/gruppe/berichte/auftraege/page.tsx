@@ -5,6 +5,7 @@ import { auftraegeJeBereich, type AuftraegeJeBereich }
   from '@/server/services/bericht/gruppe';
 import { BereichMarke } from '../../tor';
 import { GruppenBerichtsSeite } from '../rahmen';
+import { nurLesbar } from '../Zelle';
 
 /** `/portal/gruppe/berichte/auftraege` — REP-02 je Gesellschaft. */
 export const dynamic = 'force-dynamic';
@@ -28,15 +29,15 @@ export default async function Auftraege({ searchParams }: {
             spalten={[
               { schluessel: 'bereich', kopf: 'Gesellschaft',
                 zelle: (z) => <BereichMarke slug={z.slug} name={z.name} /> },
-              { schluessel: 'leads', kopf: 'Anfragen', numerisch: true, zelle: (z) => z.leads },
+              { schluessel: 'leads', kopf: 'Anfragen', numerisch: true, zelle: (z) => nurLesbar(z, z.leads) },
               { schluessel: 'gewonnen', kopf: 'Gewonnen', numerisch: true,
-                zelle: (z) => z.gewonnen },
+                zelle: (z) => nurLesbar(z, z.gewonnen) },
               { schluessel: 'quote', kopf: 'Quote', numerisch: true,
-                zelle: (z) => prozent(z.quoteBp) },
+                zelle: (z) => nurLesbar(z, prozent(z.quoteBp)) },
               { schluessel: 'auftraege', kopf: 'Aufträge', numerisch: true,
-                zelle: (z) => z.auftraege },
+                zelle: (z) => nurLesbar(z, z.auftraege) },
               { schluessel: 'wert', kopf: 'Auftragswert netto', numerisch: true,
-                zelle: (z) => formatiereGeld(z.auftragswertCent) },
+                zelle: (z) => nurLesbar(z, formatiereGeld(z.auftragswertCent)) },
             ]}
           />
         );

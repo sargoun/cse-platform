@@ -67,7 +67,7 @@ export default async function AgentenZentrum(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
-  const { agenten, budget } = await (db().begin(SCHNAPPSCHUSS,
+  const { agenten, budget, modell } = await (db().begin(SCHNAPPSCHUSS,
     async (tx: postgres.TransactionSql) => withTenant(tx, sitzung, async (kontext) => {
       /*
        * Die Zahlen je Agent kommen aus EINER Abfrage mit seitlichem Verbund.
@@ -102,10 +102,29 @@ export default async function AgentenZentrum(
             and jahr  = extract(year  from (now() at time zone 'Europe/Berlin'))::integer
             and monat = extract(month from (now() at time zone 'Europe/Berlin'))::integer`);
 
-      return { agenten, budget: budget[0] ?? null };
-    }))) as { agenten: readonly AgentZeile[]; budget: BudgetZeile | null };
+      /*
+       * **Derselbe Blick wie auf der Detailseite.** Diese Seite behauptete
+       * unbedingt „Kein Modellzugang eingerichtet" -- ein Satz aus der Zeit
+       * vor dem Modellregister (0154). Seit der Demobetrieb eingetragen ist,
+       * zeigt die Detailseite einen Startknopf, und die Uebersicht darueber
+       * sagte das Gegenteil. Zwei Bildschirme, zwei Wahrheiten: wer den
+       * Knopf drueckt, glaubt der Uebersicht danach nichts mehr.
+       */
+      const [m] = await kontext.abfrage<{ modell: string | null; anbieter: string | null }>(
+        `select app.modell_fuer('entwurf_text') as modell,
+                (select r.anbieter from modell_register r
+                  where r.modell = app.modell_fuer('entwurf_text')
+                  limit 1) as anbieter`);
+
+      return { agenten, budget: budget[0] ?? null, modell: m ?? null };
+    }))) as {
+    agenten: readonly AgentZeile[]; budget: BudgetZeile | null;
+    modell: { modell: string | null; anbieter: string | null } | null;
+  };
 
   const budgetFehlt = budget === null || budget.budget_cent === null;
+  const modellName = modell?.modell ?? null;
+  const istDemo = modell?.anbieter === 'demo';
 
   return (
     <PortalRahmen
@@ -129,21 +148,36 @@ export default async function AgentenZentrum(
       </div>
 
       {/*
-        * Der ehrliche Zustand, ganz oben und nicht im Kleingedruckten: solange
-        * kein Modellzugang eingerichtet ist, führt kein Weg von hier zu einem
-        * laufenden Agenten. Wer das erst nach dem dritten Klick erfährt, hat
-        * dreimal etwas gesucht, was es nicht gibt.
+        * Der ehrliche Zustand, ganz oben und nicht im Kleingedruckten — und
+        * zwar der WIRKLICHE: er kommt aus `app.modell_fuer`, derselben
+        * Quelle, aus der die Detailseite ihren Startknopf ableitet.
         */}
-      <section className="mb-s5 rounded-lg border border-warning bg-warning-soft p-s5">
-        <h2 className="text-h3 text-text">Kein Modellzugang eingerichtet</h2>
-        <p className="mt-s2 text-sm text-text-muted">
-          Die Laufzeit steht: Aufgaben, Schritte, Kosten und der harte
-          Budgetstopp sind gebaut und geprüft. Es fehlt der Zugang zum
-          Sprachmodell — EU-Verarbeitung mit Zero-Retention und ein
-          Auftragsverarbeitungsvertrag. Bis der eingerichtet ist, startet
-          niemand einen Lauf, und diese Seite zeigt, was bereits gelaufen ist.
-        </p>
-      </section>
+      {modellName === null ? (
+        <section className="mb-s5 rounded-lg border border-warning bg-warning-soft p-s5"
+                 data-cse="agenten-kein-modell">
+          <h2 className="text-h3 text-text">Kein Modellzugang eingerichtet</h2>
+          <p className="mt-s2 text-sm text-text-muted">
+            Die Laufzeit steht: Aufgaben, Schritte, Kosten und der harte
+            Budgetstopp sind gebaut und geprüft. Es fehlt der Zugang zum
+            Sprachmodell — EU-Verarbeitung mit Zero-Retention und ein
+            Auftragsverarbeitungsvertrag. Bis der eingerichtet ist, startet
+            niemand einen Lauf, und diese Seite zeigt, was bereits gelaufen ist.
+          </p>
+        </section>
+      ) : istDemo ? (
+        <section className="mb-s5 rounded-lg border border-line bg-surface-2 p-s5"
+                 data-cse="agenten-demobetrieb">
+          <h2 className="text-h3 text-text">Demobetrieb — kein Anbieter, kein Netzverkehr</h2>
+          <p className="mt-s2 text-sm text-text-muted">
+            Freigegeben ist <code className="text-text">{modellName}</code>: er läuft im
+            eigenen Prozess, formuliert aus Vorlagen und gerechneten Werten und erfindet
+            keine Zahl. Damit ist die ganze Kette begehbar — Lauf, Schritte, Kosten,
+            Freigabe. Ein echter Anbieter ersetzt ihn, sobald einer im Modellregister
+            freigegeben ist; EU-Verarbeitung mit Zero-Retention und ein
+            Auftragsverarbeitungsvertrag bleiben die Bedingung dafür.
+          </p>
+        </section>
+      ) : null}
 
       <ul className="grid grid-cols-1 gap-s4 sm:grid-cols-2">
         {agenten.map((a) => (

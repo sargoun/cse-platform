@@ -49,6 +49,17 @@ export interface TextAuftrag {
   readonly tatsachen: Readonly<Record<string, string>>;
   /** Sprache der Ausgabe — die Plattform schreibt Deutsch, solange nichts anderes steht. */
   readonly sprache?: 'de' | 'en';
+  /**
+   * **Die Obergrenze der Ausgabe in Token — und sie ist keine Höflichkeit.**
+   *
+   * Der Orchestrator RESERVIERT vor dem Aufruf einen Betrag aus dem
+   * Monatsbudget und verbucht danach das Gemessene. Ohne Deckel konnte die
+   * Antwort groesser ausfallen als die Reservierung: der harte Stopp haette
+   * dann NACH der Ueberschreitung gegriffen, also zu spaet. Ein Adapter, der
+   * diese Zahl ignoriert, bricht die Zusage des Budgets — deshalb steht sie
+   * im Vertrag und nicht in einem Kommentar.
+   */
+  readonly maxTokenAusgabe?: number;
 }
 
 export interface TextErgebnis {

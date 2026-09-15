@@ -4,6 +4,7 @@ import { projekteJeBereich, type ProjekteJeBereich }
   from '@/server/services/bericht/gruppe';
 import { BereichMarke } from '../../tor';
 import { GruppenBerichtsSeite } from '../rahmen';
+import { nurLesbar } from '../Zelle';
 
 /** `/portal/gruppe/berichte/projekte` — REP-05 je Gesellschaft. */
 export const dynamic = 'force-dynamic';
@@ -29,15 +30,15 @@ export default async function Projekte({ searchParams }: {
               { schluessel: 'bereich', kopf: 'Gesellschaft',
                 zelle: (z) => <BereichMarke slug={z.slug} name={z.name} /> },
               { schluessel: 'laufend', kopf: 'Laufend', numerisch: true,
-                zelle: (z) => z.laufend },
+                zelle: (z) => nurLesbar(z, z.laufend) },
               { schluessel: 'fertig', kopf: 'Abgeschlossen', numerisch: true,
-                zelle: (z) => z.abgeschlossen },
+                zelle: (z) => nurLesbar(z, z.abgeschlossen) },
               { schluessel: 'spaet', kopf: 'Davon verspätet', numerisch: true,
-                zelle: (z) => (z.verspaetet === 0
+                zelle: (z) => nurLesbar(z, (z.verspaetet === 0
                   ? <span className="text-text-subtle">0</span>
-                  : <span className="text-warning">{z.verspaetet}</span>) },
+                  : <span className="text-warning">{z.verspaetet}</span>)) },
               { schluessel: 'summe', kopf: 'Auftragssumme', numerisch: true,
-                zelle: (z) => formatiereGeld(z.auftragssummeCent) },
+                zelle: (z) => nurLesbar(z, formatiereGeld(z.auftragssummeCent)) },
             ]}
           />
         );

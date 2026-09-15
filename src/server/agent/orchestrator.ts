@@ -201,9 +201,28 @@ export async function fuehreLaufAus(
 
   /* — Schritt 1: formulieren. Die Tatsachen sind schon gerechnet. — */
   const begonnen = await beginneSchritt(db);
+  /*
+   * **Die Uhr laeuft HIER, nicht nur im Adapter.** Ein `ModellFehler` traegt
+   * keine Dauer -- und im Fehlerfall wurde `dauerMs: 0` protokolliert, obwohl
+   * genau dort die Zeit interessiert: eine Zeitueberschreitung nach 30
+   * Sekunden stand im Protokoll als ein Schritt, der keine Zeit brauchte
+   * (AGT-05 verlangt die GEMESSENE Dauer je Schritt).
+   */
+  const uhrStart = performance.now();
+  const gemessen = (): number => Math.round(performance.now() - uhrStart);
   let entwurf;
   try {
-    entwurf = await port.entwerfe({ vorlage: auftrag.vorlage, tatsachen: auftrag.tatsachen });
+    entwurf = await port.entwerfe({
+      vorlage: auftrag.vorlage,
+      tatsachen: auftrag.tatsachen,
+      /*
+       * Der Deckel ist die Haelfte der Reservierung -- dieselbe Zahl, die
+       * oben als Ausgabeanteil geschaetzt wurde. Damit kann die Antwort die
+       * Reservierung nicht ueberschreiten, und der harte Stopp greift VOR
+       * der Ueberschreitung statt danach.
+       */
+      maxTokenAusgabe: SCHAETZUNG_TOKEN,
+    });
   } catch (fehler) {
     /*
      * **Ein Anbieterfehler ist ein sichtbarer Lauf, kein verschwundener.**
@@ -221,7 +240,7 @@ export async function fuehreLaufAus(
       modell: entwurfModell(port),
       eingabe: { vorlage: auftrag.vorlage, tatsachen: auftrag.tatsachen },
       ausgabe: { fehler: fehler.code, nachricht: fehler.message },
-      dauerMs: 0,
+      dauerMs: gemessen(),
       begonnenAm: begonnen,
       status: 'fehler',
     });
@@ -276,6 +295,31 @@ export async function fuehreLaufAus(
    */
   const herkunft = pruefeZahlenherkunft(entwurf.text, auftrag.tatsachen, auftrag.vorlage);
   if (!herkunft.sauber) {
+    /*
+     * **Auch der ABGEWIESENE Entwurf wird ein Artefakt.**
+     *
+     * Er stand vorher nur in der Nutzlast des Schritts. Genau dieser Text ist
+     * aber der interessanteste, den ein Lauf produziert: er zeigt, WIE ein
+     * Modell eine Zahl erfindet. Ohne Artefaktzeile laesst er sich nicht
+     * gegen den naechsten Versuch diffen und faellt aus der Aufbewahrung
+     * heraus, die fuer jeden anderen Entwurf gilt (LEG-09). Dass er
+     * verworfen wurde, steht in der Art `textentwurf_abgewiesen`.
+     */
+    const abgewiesen = {
+      entwurf: entwurf.text,
+      erfundene_zahlen: herkunft.erfunden.join(', '),
+      ...auftrag.tatsachen,
+    };
+    const [h] = await kontext.schreibe<{ hash: string }>(
+      `select encode(digest($1::bytea, 'sha256'), 'hex') as hash`,
+      [Buffer.from(kanonisiere(abgewiesen as never))]);
+    await kontext.schreibe(
+      `select app.agent_artefakt_anlegen(
+                $1::uuid, $2::uuid, 'textentwurf'::artefakt_art, $3, $4::jsonb, $5, $6::integer
+              ) as id`,
+      [aufgabe.id, schrittId, `${auftrag.vorlage}:abgewiesen`, abgewiesen,
+        h?.hash ?? '', NUTZLAST_FRIST_TAGE_PLATZHALTER]);
+
     return await scheitern(kontext, aufgabe.id, 'ZAHL_ERFUNDEN',
       `Der Entwurf enthält Zahlen, die in keiner Tatsache stehen: ${herkunft.erfunden.join(', ')}. `
       + 'Das Modell rechnet nicht und erfindet nichts (Invariante 6) — der Vorschlag wird '

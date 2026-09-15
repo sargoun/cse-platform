@@ -1,13 +1,15 @@
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type postgres from 'postgres';
 import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { devFlaechenAn } from '@/lib/dev-flaechen';
-import { legeKennwortTokenAn } from '@/server/auth/kennwort-anmeldung';
+import { legeKennwortTokenAn, resetGebremst } from '@/server/auth/kennwort-anmeldung';
 import { db } from '@/server/db/pool';
 import { emailDienst } from '@/server/versand/email';
 import { AuthSchale } from '../AuthSchale';
+import { herkunft } from '../mitarbeiter/anmeldung';
 
 /**
  * `/auth/passwort-vergessen` — Link anfordern.
@@ -37,8 +39,26 @@ export default async function PasswortVergessen({ searchParams }: {
   async function anfordern(daten: FormData): Promise<void> {
     'use server';
     const email = String(daten.get('email') ?? '').trim();
-    const token = await (db().begin(async (tx: postgres.TransactionSql) =>
-      legeKennwortTokenAn(tx, email, 'zuruecksetzen')) as Promise<string>);
+    const { ip } = await herkunft(await headers());
+
+    /*
+     * **Gebremst wird VOR dem Anlegen** (AUT-07, 0162). Ohne Bremse war
+     * dieser oeffentliche Knopf zweierlei: jede Anforderung entwertete den
+     * Link, den der Mensch gerade bekommen hat, und sobald ein E-Mail-Weg
+     * angeschlossen ist, waere er ein Versandhebel auf eine fremde Adresse.
+     *
+     * Die Antwort bleibt dieselbe. „Gebremst" und „Adresse unbekannt" und
+     * „Link unterwegs" sehen von aussen gleich aus — sonst waere die Bremse
+     * das Werkzeug, mit dem man Konten aufzaehlt.
+     */
+    const token = await (db().begin(async (tx: postgres.TransactionSql) => (
+      await resetGebremst(tx, email, ip) ? null
+        : await legeKennwortTokenAn(tx, email, 'zuruecksetzen')
+    )) as Promise<string | null>);
+
+    if (token === null) {
+      redirect('/auth/passwort-vergessen?gesendet=1');
+    }
 
     /**
      * Auf der Entwicklungsflaeche wird der Link angezeigt statt verschickt —

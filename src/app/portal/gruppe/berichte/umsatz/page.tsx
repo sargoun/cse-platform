@@ -4,6 +4,7 @@ import { umsatzJeBereich, type UmsatzJeBereich }
   from '@/server/services/bericht/gruppe';
 import { BereichMarke } from '../../tor';
 import { GruppenBerichtsSeite } from '../rahmen';
+import { nurLesbar } from '../Zelle';
 
 /** `/portal/gruppe/berichte/umsatz` — REP-01 über alle Gesellschaften. */
 export const dynamic = 'force-dynamic';
@@ -37,17 +38,17 @@ export default async function Umsatz({ searchParams }: {
                 { schluessel: 'bereich', kopf: 'Gesellschaft',
                   zelle: (z) => <BereichMarke slug={z.slug} name={z.name} /> },
                 { schluessel: 'erloese', kopf: 'Erlöse', numerisch: true,
-                  zelle: (z) => formatiereGeld(z.erloeseCent) },
+                  zelle: (z) => nurLesbar(z, formatiereGeld(z.erloeseCent)) },
                 { schluessel: 'rechnungen', kopf: 'Rechnungen', numerisch: true,
-                  zelle: (z) => z.rechnungen },
+                  zelle: (z) => nurLesbar(z, z.rechnungen) },
                 { schluessel: 'aufwand', kopf: 'Aufwand', numerisch: true,
-                  zelle: (z) => formatiereGeld(z.aufwandCent) },
+                  zelle: (z) => nurLesbar(z, formatiereGeld(z.aufwandCent)) },
                 { schluessel: 'ergebnis', kopf: 'Ergebnis', numerisch: true,
-                  zelle: (z) => (
+                  zelle: (z) => nurLesbar(z, (
                     <span className={z.ergebnisCent < 0n ? 'text-danger' : 'text-text'}>
                       {formatiereGeld(z.ergebnisCent)}
                     </span>
-                  ) },
+                  )) },
               ]}
             />
             <p data-cse="gruppen-summe"

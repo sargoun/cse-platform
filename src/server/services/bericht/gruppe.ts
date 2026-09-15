@@ -22,7 +22,62 @@ export interface BereichsZeile {
   readonly mandantId: string;
   readonly slug: string;
   readonly name: string;
+  /**
+   * **Darf dieser Mensch die Zahlen DIESER Gesellschaft lesen?**
+   *
+   * Im Gruppen-Scope filtert die Policy je Zeile mit dem Recht des Bereichs.
+   * Wer `gruppe.finanzen.lesen` in einer Gesellschaft nicht haelt, bekommt von
+   * `sum(...)` dort NULL und von `count(*)` eine 0 -- und `coalesce(...,0)`
+   * machte daraus eine Zeile, die aussieht wie „eine Gesellschaft ohne
+   * Umsatz". Das ist die schlimmere Art von Fehler: sie sieht nicht aus wie
+   * einer. Die Uebersicht (`gruppe/uebersicht.ts`) fragt das Recht deshalb VOR
+   * der Zaehlung; die Berichte tun es jetzt auch, und die Seite zeigt einen
+   * Strich statt einer Null.
+   */
+  readonly lesbar: boolean;
 }
+
+/**
+ * Welche Bereiche welches Recht tragen — eine Abfrage fuer alle.
+ *
+ * Dieselbe Frage wie `rechteJeBereich` in `gruppe/uebersicht.ts`, hier aber
+ * gegen ein blankes `Abfrage` statt gegen einen `LeseKontext`: die
+ * Berichtsdienste bekommen absichtlich nur das Abfragen gereicht.
+ */
+async function bereicheMitRechten(
+  db: Abfrage, rechte: readonly string[],
+): Promise<ReadonlySet<string>> {
+  const zeilen = await db.abfrage<{ mandant_id: string; alle: boolean }>(
+    `select m.id as mandant_id,
+            bool_and(app.hat_recht(r.recht, m.id)) as alle
+       from mandant m cross join unnest($1::text[]) as r(recht)
+      group by m.id`,
+    [rechte],
+  );
+  return new Set(zeilen.filter((z) => z.alle).map((z) => z.mandant_id));
+}
+
+/**
+ * Die Rechte, die jeder der sechs Gruppenberichte verlangt — genau die, mit
+ * denen die Policies der gelesenen Tabellen filtern.
+ *
+ * **Wo ein Bericht aus zwei Tabellen liest, stehen beide da, und es gilt
+ * UND.** Eine Umsatzzeile aus Erloesen, die dieser Mensch sehen darf, und
+ * einem Aufwand, den er nicht sehen darf, waere ein Ergebnis, das zu hoch ist
+ * — und nichts an der Zeile sagte das.
+ *
+ * `lead` filtert im Gruppen-Scope mit `crm.lesen` je Bereich (nicht mit einem
+ * `gruppe.`-Recht): `t_lead_lesen` prueft `sichtbare_mandanten()` und dann das
+ * Recht am Bereich der Zeile.
+ */
+export const GRUPPENBERICHT_RECHTE = {
+  umsatz: ['gruppe.finanzen.lesen', 'gruppe.eingang.lesen'],
+  auftraege: ['gruppe.auftrag.lesen', 'crm.lesen'],
+  stunden: ['gruppe.zeit.lesen'],
+  projekte: ['gruppe.kalkulation.lesen'],
+  pipeline: ['gruppe.radar.lesen'],
+  attribution: ['crm.lesen', 'gruppe.auftrag.lesen'],
+} as const satisfies Record<string, readonly string[]>;
 
 export interface UmsatzJeBereich extends BereichsZeile {
   readonly erloeseCent: Cent;
@@ -37,6 +92,7 @@ const geld = (roh: unknown): Cent =>
 export async function umsatzJeBereich(
   db: Abfrage, z: Zeitraum,
 ): Promise<readonly UmsatzJeBereich[]> {
+  const darf = await bereicheMitRechten(db, GRUPPENBERICHT_RECHTE.umsatz);
   const zeilen = await db.abfrage<{
     mandant_id: string; slug: string; name: string;
     erloese: string; rechnungen: string; aufwand: string;
@@ -60,6 +116,7 @@ export async function umsatzJeBereich(
     const aufwand = geld(r.aufwand);
     return {
       mandantId: r.mandant_id, slug: r.slug, name: r.name,
+      lesbar: darf.has(r.mandant_id),
       erloeseCent: erloese, aufwandCent: aufwand,
       ergebnisCent: cent(erloese - aufwand),
       rechnungen: Number(r.rechnungen),
@@ -78,6 +135,7 @@ export interface AuftraegeJeBereich extends BereichsZeile {
 export async function auftraegeJeBereich(
   db: Abfrage, z: Zeitraum,
 ): Promise<readonly AuftraegeJeBereich[]> {
+  const darf = await bereicheMitRechten(db, GRUPPENBERICHT_RECHTE.auftraege);
   const zeilen = await db.abfrage<{
     mandant_id: string; slug: string; name: string;
     leads: string; gewonnen: string; auftraege: string; wert: string;
@@ -108,6 +166,7 @@ export async function auftraegeJeBereich(
     const gewonnen = Number(r.gewonnen);
     return {
       mandantId: r.mandant_id, slug: r.slug, name: r.name,
+      lesbar: darf.has(r.mandant_id),
       leads, gewonnen,
       auftraege: Number(r.auftraege),
       auftragswertCent: geld(r.wert),
@@ -124,6 +183,7 @@ export interface StundenJeBereich extends BereichsZeile {
 export async function stundenJeBereich(
   db: Abfrage, z: Zeitraum,
 ): Promise<readonly StundenJeBereich[]> {
+  const darf = await bereicheMitRechten(db, GRUPPENBERICHT_RECHTE.stunden);
   const zeilen = await db.abfrage<{
     mandant_id: string; slug: string; name: string; personen: string; minuten: string;
   }>(
@@ -144,6 +204,7 @@ export async function stundenJeBereich(
   );
   return zeilen.map((r) => ({
     mandantId: r.mandant_id, slug: r.slug, name: r.name,
+    lesbar: darf.has(r.mandant_id),
     personen: Number(r.personen), istMinuten: Number(r.minuten),
   }));
 }
@@ -158,6 +219,7 @@ export interface ProjekteJeBereich extends BereichsZeile {
 export async function projekteJeBereich(
   db: Abfrage, z: Zeitraum,
 ): Promise<readonly ProjekteJeBereich[]> {
+  const darf = await bereicheMitRechten(db, GRUPPENBERICHT_RECHTE.projekte);
   const zeilen = await db.abfrage<{
     mandant_id: string; slug: string; name: string;
     laufend: string; abgeschlossen: string; verspaetet: string; summe: string;
@@ -183,6 +245,7 @@ export async function projekteJeBereich(
   );
   return zeilen.map((r) => ({
     mandantId: r.mandant_id, slug: r.slug, name: r.name,
+    lesbar: darf.has(r.mandant_id),
     laufend: Number(r.laufend),
     abgeschlossen: Number(r.abgeschlossen),
     verspaetet: Number(r.verspaetet),
@@ -200,6 +263,7 @@ export interface PipelineJeBereich extends BereichsZeile {
 export async function pipelineJeBereich(
   db: Abfrage, z: Zeitraum,
 ): Promise<readonly PipelineJeBereich[]> {
+  const darf = await bereicheMitRechten(db, GRUPPENBERICHT_RECHTE.pipeline);
   const zeilen = await db.abfrage<{
     mandant_id: string; slug: string; name: string;
     gefunden: string; eingereicht: string; zuschlag: string; wert: string;
@@ -222,6 +286,7 @@ export async function pipelineJeBereich(
   );
   return zeilen.map((r) => ({
     mandantId: r.mandant_id, slug: r.slug, name: r.name,
+    lesbar: darf.has(r.mandant_id),
     gefunden: Number(r.gefunden),
     eingereicht: Number(r.eingereicht),
     zuschlag: Number(r.zuschlag),
@@ -245,6 +310,7 @@ export interface AttributionJeBereich extends BereichsZeile {
 export async function attributionJeBereich(
   db: Abfrage, z: Zeitraum,
 ): Promise<readonly AttributionJeBereich[]> {
+  const darf = await bereicheMitRechten(db, GRUPPENBERICHT_RECHTE.attribution);
   const zeilen = await db.abfrage<{
     mandant_id: string; slug: string; name: string;
     kanal: string; leads: string; auftraege: string;
@@ -274,6 +340,7 @@ export async function attributionJeBereich(
   );
   return zeilen.map((r) => ({
     mandantId: r.mandant_id, slug: r.slug, name: r.name,
+    lesbar: darf.has(r.mandant_id),
     kanal: r.kanal, leads: Number(r.leads), auftraege: Number(r.auftraege),
   }));
 }

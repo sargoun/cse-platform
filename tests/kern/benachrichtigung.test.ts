@@ -191,6 +191,31 @@ describe('(6) eine halb registrierte Gruppe wird vervollstaendigt, nicht verdopp
     expect(dritt[0]).toBe(erst[0]);
   });
 
+  /**
+   * **Ein Schluessel, zwei Definitionen — das bleibt ein Fehler**, auch
+   * durch `sicherRegistriert` hindurch. Sonst haengt vom Bootstrap ab, ob
+   * jemand den Text des einen oder des anderen Moduls liest, und der
+   * Unterschied faellt erst auf, wenn die Meldung schon zugestellt ist.
+   */
+  it('zwei Module mit demselben Schluessel scheitern statt sich zu ueberdecken', () => {
+    sicherRegistriert([art({ schluessel: 'crm.neuer_lead' })]);
+
+    expect(() => sicherRegistriert([art({
+      schluessel: 'crm.neuer_lead', titel: () => 'ein ganz anderer Titel',
+    })])).toThrow(/ANDEREN Definition/u);
+
+    expect(() => sicherRegistriert([art({
+      schluessel: 'crm.neuer_lead', sammelbar: false,
+    })])).toThrow(ArtFehler);
+
+    expect(() => sicherRegistriert([art({
+      schluessel: 'crm.neuer_lead', kanaeleVorgabe: ['app'],
+    })])).toThrow(ArtFehler);
+
+    /* Dieselbe Definition ein zweites Mal bleibt still. */
+    expect(() => sicherRegistriert([art({ schluessel: 'crm.neuer_lead' })])).not.toThrow();
+  });
+
   it('eine doppelte Anmeldung von Hand bleibt ein Fehler', () => {
     sicherRegistriert(gruppe());
     // `sicherRegistriert` ist die Ausnahme fuer dasselbe Buendel, kein

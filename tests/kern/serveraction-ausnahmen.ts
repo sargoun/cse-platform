@@ -85,6 +85,19 @@ export const ANDERS_BEWACHT: readonly AndersBewacht[] = [
       + 'Link zweimal gilt.',
   },
   {
+    datei: 'src/app/auth/kennwort-wechseln/page.tsx',
+    wache: 'aendereKennwort',
+    grund:
+      'AUT-07. Der ERZWUNGENE Wechsel. Die Sitzung steht, aber `authorize()` frägt '
+      + 'nach einem RECHT — und ein Mensch, der sein eigenes Kennwort ändert, braucht '
+      + 'keines: er braucht das alte. Genau das prüft die Wache. '
+      + '`app.kennwort_aendern` vergleicht es gegen den gespeicherten Hash, hängt an '
+      + '`app.aktueller_benutzer()` (also an dieser Sitzung), setzt das neue, löscht '
+      + '`muss_wechseln` und beendet ALLE Sitzungen des Kontos. Ein Recht dafür zu '
+      + 'verlangen hiesse, dass ein Konto ohne Rechte sein Kennwort nicht wechseln '
+      + 'dürfte — und genau solche Konten sind es, die es müssen.',
+  },
+  {
     datei: 'src/app/auth/zwei-faktor/pruefen/page.tsx',
     wache: 'pruefeFaktor',
     grund:

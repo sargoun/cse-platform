@@ -6,7 +6,7 @@ import { FormField } from '@/components/ui/FormField';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { devFlaechenAn } from '@/lib/dev-flaechen';
 import {
-  anbieter, meldeAnMitKennwort, sichererRueckweg, wegNachAnmeldung,
+  anbieter, anbieterEingerichtet, meldeAnMitKennwort, sichererRueckweg, wegNachAnmeldung,
 } from '@/server/auth/kennwort-anmeldung';
 import { SITZUNG_COOKIE, sitzungsKeksOptionen } from '@/server/auth/sitzung';
 import { db } from '@/server/db/pool';
@@ -48,6 +48,7 @@ export default async function Login({ searchParams }: {
   const ziel = sichererRueckweg(p['weiter']);
   const abgemeldet = p['abgemeldet'] === '1';
   const anbieterJetzt = anbieter();
+  const eingerichtet = anbieterEingerichtet();
 
   async function anmelden(daten: FormData): Promise<void> {
     'use server';
@@ -112,10 +113,22 @@ export default async function Login({ searchParams }: {
       {anbieterJetzt === 'demo' && (
         <Hinweis art="warnung" cse="anbieter-demo">
           <strong>Identitätsanbieter: nicht verbunden.</strong>{' '}
-          Supabase Auth ist gesetzt, aber kein Projekt hinterlegt (offene Frage O-501: welches
-          EU-Projekt, welcher Auftragsverarbeitungsvertrag). Bis dahin prüft die Plattform das
-          Kennwort selbst — als bcrypt-Hash in der eigenen Datenbank, mit denselben Sperren
-          (AUT-07) und demselben zweiten Faktor. Umgestellt wird je Konto, nicht durch einen Umbau.
+          {eingerichtet ? (
+            <>
+              Zugangsdaten für Supabase sind hinterlegt, aber der Weg ist nicht gebaut:
+              <code> /auth/callback</code> tauscht keinen Code gegen eine Sitzung, solange
+              O-501 offen ist. Angemeldet wird deshalb weiterhin hausintern — die
+              Umgebungsvariablen allein ändern daran nichts.
+            </>
+          ) : (
+            <>
+              Supabase Auth ist gesetzt, aber kein Projekt hinterlegt (offene Frage O-501:
+              welches EU-Projekt, welcher Auftragsverarbeitungsvertrag).
+            </>
+          )}{' '}
+          Bis dahin prüft die Plattform das Kennwort selbst — als bcrypt-Hash in der eigenen
+          Datenbank, mit denselben Sperren (AUT-07) und demselben zweiten Faktor. Umgestellt
+          wird je Konto, nicht durch einen Umbau.
         </Hinweis>
       )}
 

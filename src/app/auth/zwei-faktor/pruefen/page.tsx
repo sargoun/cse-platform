@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import {
-  alsRoute, hebeAufAal2, pruefeFaktor, sichererRueckweg,
+  alsRoute, faktorGebremst, hebeAufAal2, pruefeFaktor, sichererRueckweg,
 } from '@/server/auth/kennwort-anmeldung';
 import { SITZUNG_COOKIE } from '@/server/auth/sitzung';
 import { bindeAnfrage } from '@/server/kontext';
@@ -32,6 +32,8 @@ export default async function FaktorPruefen({ searchParams }: {
 }) {
   const p = await searchParams;
   const falsch = p['fehler'] === 'code';
+  const gebremst = p['fehler'] === 'gebremst';
+  const wechsel = p['wechsel'] === '1';
   const ziel = sichererRueckweg(p['weiter']);
 
   const sitzung = await aktuelleSitzung();
@@ -48,16 +50,36 @@ export default async function FaktorPruefen({ searchParams }: {
     const aktuell = await aktuelleSitzung();
     if (aktuell === null) redirect('/auth/login');
 
-    const ok = await (db().begin(async (tx: postgres.TransactionSql) => {
+    /*
+     * **Auch die zweite Stufe wird gebremst** (AUT-02, 0162).
+     *
+     * Ein falscher Code gab vorher nur `false` zurueck: kein Zaehler, keine
+     * Sperre. Wer eine `aal1`-Sitzung in die Hand bekommt, durfte damit
+     * unbegrenzt raten -- und sechs Ziffern sind keine Huerde, wenn jeder
+     * Versuch kostenlos ist und alle dreissig Sekunden ein neues Fenster
+     * aufgeht. Gebremst wird der WEG, nicht das Konto: der Ratende hat die
+     * Sitzung schon, ein gesperrtes Konto naehme ihm nichts und dem Menschen
+     * alles.
+     */
+    const stand = await (db().begin(async (tx: postgres.TransactionSql) => {
       await bindeAnfrage(tx, aktuell);
       const stimmt = await pruefeFaktor(tx, code, true);
-      return stimmt ? hebeAufAal2(tx, token) : false;
-    }) as Promise<boolean>);
+      const gebremst = await faktorGebremst(tx, aktuell.benutzerId, stimmt);
+      if (gebremst) return 'gebremst' as const;
+      if (!stimmt) return 'falsch' as const;
+      return await hebeAufAal2(tx, token) ? 'ok' as const : 'falsch' as const;
+    }) as Promise<'ok' | 'falsch' | 'gebremst'>);
 
-    if (!ok) {
+    if (stand !== 'ok') {
       const ab = weiter === '' ? '' : `&weiter=${encodeURIComponent(weiter)}`;
-      redirect(`/auth/zwei-faktor/pruefen?fehler=code${ab}`);
+      redirect(`/auth/zwei-faktor/pruefen?fehler=${stand === 'gebremst' ? 'gebremst' : 'code'}${ab}`);
     }
+    /*
+     * **Die Pflicht zum Kennwortwechsel ueberlebt die zweite Stufe.** Sie
+     * kommt als `?wechsel=1` mit (siehe `wegNachAnmeldung`); ohne diese Zeile
+     * fuehrte der Erfolgsweg ins Portal und die Pflicht war vergessen.
+     */
+    if (wechsel) redirect('/auth/kennwort-wechseln');
     redirect(alsRoute(sichererRueckweg(weiter) ?? '/portal'));
   }
 
@@ -82,6 +104,14 @@ export default async function FaktorPruefen({ searchParams }: {
         <AuthFehler cse="faktor-fehler">
           Der Code stimmt nicht oder er ist abgelaufen. Ein Code gilt dreissig Sekunden
           und nur ein einziges Mal.
+        </AuthFehler>
+      )}
+
+      {gebremst && (
+        <AuthFehler cse="faktor-gebremst">
+          Zu viele Fehlversuche. Dieser Weg ist für kurze Zeit gesperrt — auch ein
+          richtiger Code wird jetzt abgewiesen. Warten Sie einige Minuten, oder melden
+          Sie sich mit einem Wiederherstellungscode an.
         </AuthFehler>
       )}
 

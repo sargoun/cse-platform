@@ -29,10 +29,38 @@ export type Anbieter = 'demo' | 'supabase';
  * sein Zustand steht auf dem Bildschirm, und nichts tut so, als sei es
  * angeschlossen.
  */
-export function anbieter(): Anbieter {
+export function anbieterEingerichtet(): boolean {
   const url = process.env['SUPABASE_URL'] ?? '';
   const schluessel = process.env['SUPABASE_SERVICE_ROLE_KEY'] ?? '';
-  return url !== '' && schluessel !== '' ? 'supabase' : 'demo';
+  return url !== '' && schluessel !== '';
+}
+
+/**
+ * **Zwei Zustaende hinter dem Wort „verbunden".**
+ *
+ * `anbieterEingerichtet()` sagt, ob ZUGANGSDATEN da sind.
+ * `anbieterWegGebaut()` sagt, ob der Weg EXISTIERT — und er existiert nicht:
+ * `/auth/callback` tauscht keinen Code gegen eine Sitzung, weil O-501 offen
+ * ist (welches EU-Projekt, welcher Auftragsverarbeitungsvertrag, welche
+ * Anmeldewege).
+ *
+ * Vorher wurden beide verwechselt: sobald die zwei Umgebungsvariablen
+ * gesetzt waren, meldete `anbieter()` `supabase`, die Anmeldeseite liess ihre
+ * Warnung weg — und die Anmeldung lief trotzdem ueber den hausinternen
+ * bcrypt-Weg, waehrend `/auth/callback` mit 501 antwortete. Eine Oberflaeche,
+ * die „verbunden" sagt, wo nichts angeschlossen ist, ist genau das, was
+ * CLAUDE.md unter „Keine falschen Anschluesse" verbietet.
+ */
+export function anbieterWegGebaut(): boolean {
+  return false; // TODO(client): O-501 — erst mit dem Codetausch auf true.
+}
+
+/**
+ * Der Anbieter, der WIRKLICH anmeldet. Solange der Weg nicht gebaut ist, ist
+ * das der hausinterne — unabhaengig davon, was in der Umgebung steht.
+ */
+export function anbieter(): Anbieter {
+  return anbieterEingerichtet() && anbieterWegGebaut() ? 'supabase' : 'demo';
 }
 
 export type AnmeldeErgebnis = 'ok' | 'falsch' | 'gesperrt' | 'gebremst' | 'fremd';
@@ -126,9 +154,24 @@ export function sichererRueckweg(roh: unknown): string | null {
  * denen eine das Pruefen vergisst.
  */
 export function wegNachAnmeldung(a: Anmeldung, ziel: string | null): Route {
-  if (a.brauchtFaktor && !a.faktorVorhanden) return '/auth/zwei-faktor/einrichten';
-  if (a.brauchtFaktor) return '/auth/zwei-faktor/pruefen';
-  if (a.mussWechseln) return '/auth/passwort-neu?wechsel=1';
+  /*
+   * **Der erzwungene Wechsel ueberlebt die zweite Stufe.**
+   *
+   * Er zeigte auf `/auth/passwort-neu?wechsel=1` — eine Seite, die einen
+   * Einladungs- oder Zuruecksetzungstoken liest. Ohne Token zeichnete sie die
+   * Seite „Link abgelaufen": der Mensch stand vor einer Sackgasse, und wer
+   * 2FA fuehrte, ging vorher durch den Faktor und landete danach auf
+   * `/portal` — die Pflicht war vergessen. Jetzt gibt es einen eigenen,
+   * SITZUNGSGEBUNDENEN Weg (`/auth/kennwort-wechseln`), und die zweite Stufe
+   * traegt das `?wechsel=1` mit, damit ihr Erfolgsweg dorthin fuehrt statt
+   * ins Portal.
+   */
+  const wechselAnhang = a.mussWechseln ? '?wechsel=1' : '';
+  if (a.brauchtFaktor && !a.faktorVorhanden) {
+    return alsRoute(`/auth/zwei-faktor/einrichten${wechselAnhang}`);
+  }
+  if (a.brauchtFaktor) return alsRoute(`/auth/zwei-faktor/pruefen${wechselAnhang}`);
+  if (a.mussWechseln) return '/auth/kennwort-wechseln';
   return alsRoute(sichererRueckweg(ziel) ?? '/portal');
 }
 
@@ -144,6 +187,24 @@ export function alsRoute(pfad: string): Route {
 export interface FaktorEinrichtung {
   readonly geheimnis: string;
   readonly adresse: string;
+}
+
+/**
+ * Einen Versuch am zweiten Faktor zaehlen — und sagen, ob der Weg gerade
+ * gebremst ist (AUT-02, 0162).
+ *
+ * Aufgerufen wird sie VOR der Pruefung: ist sie `true`, wird auch ein
+ * richtiger Code abgewiesen. Gebremst wird der WEG, nicht das Konto — wer
+ * raet, hat die Sitzung schon, und ein gesperrtes Konto naehme ihm nichts und
+ * dem Menschen alles.
+ */
+export async function faktorGebremst(
+  tx: Transaktion, benutzerId: string, erfolg: boolean,
+): Promise<boolean> {
+  const zeilen = (await tx.unsafe(
+    `select app.faktor_versuch($1::uuid, $2) as gebremst`, [benutzerId, erfolg],
+  )) as readonly { gebremst: boolean }[];
+  return zeilen[0]?.gebremst ?? false;
 }
 
 /** Ein neues Geheimnis anlegen und die `otpauth://`-Adresse dazu bilden. */
@@ -248,6 +309,23 @@ export async function offeneWiederherstellungscodes(tx: Transaktion): Promise<nu
 // ---------------------------------------------------------------------------
 
 export type Zweck = 'zuruecksetzen' | 'einladung';
+
+/**
+ * Ist die Zuruecksetzung fuer diese Adresse oder diese Herkunft gerade
+ * gebremst? (AUT-07, 0162)
+ *
+ * Die Bremse SPERRT nichts — die Bremse der Anmeldung tut das, und auf einem
+ * oeffentlichen Weg ohne Kennwort waere sie eine Einladung, ein fremdes Konto
+ * durch blosses Anfordern auszusperren.
+ */
+export async function resetGebremst(
+  tx: Transaktion, email: string, ip: string | null,
+): Promise<boolean> {
+  const zeilen = (await tx.unsafe(
+    `select app.kennwort_reset_gebremst($1, $2::inet) as gebremst`, [email, ip],
+  )) as readonly { gebremst: boolean }[];
+  return zeilen[0]?.gebremst ?? false;
+}
 
 /** Immer `true` — ob es die Adresse gibt, sagt dieser Weg bewusst nicht. */
 export async function legeKennwortTokenAn(

@@ -4,6 +4,7 @@ import { stundenJeBereich, type StundenJeBereich }
   from '@/server/services/bericht/gruppe';
 import { BereichMarke } from '../../tor';
 import { GruppenBerichtsSeite } from '../rahmen';
+import { nurLesbar } from '../Zelle';
 
 /**
  * `/portal/gruppe/berichte/mitarbeiter` — REP-04 je Gesellschaft.
@@ -39,9 +40,9 @@ export default async function Mitarbeiter({ searchParams }: {
                 { schluessel: 'bereich', kopf: 'Gesellschaft',
                   zelle: (z) => <BereichMarke slug={z.slug} name={z.name} /> },
                 { schluessel: 'personen', kopf: 'Köpfe', numerisch: true,
-                  zelle: (z) => z.personen },
+                  zelle: (z) => nurLesbar(z, z.personen) },
                 { schluessel: 'stunden', kopf: 'Freigegebene Stunden', numerisch: true,
-                  zelle: (z) => stunden(z.istMinuten) },
+                  zelle: (z) => nurLesbar(z, stunden(z.istMinuten)) },
               ]}
             />
             <p data-cse="gruppen-summe" className="mt-s4 text-sm text-text">

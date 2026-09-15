@@ -247,11 +247,33 @@ function zahl(w: unknown): number {
   return typeof w === 'number' && Number.isFinite(w) && w >= 0 ? Math.round(w) : 0;
 }
 
+/**
+ * Der Verbrauch — **und ein fehlender ist ein Fehler, keine Null**.
+ *
+ * Der Orchestrator verbucht `agent_kosten` aus genau diesen Zahlen und gibt
+ * die Reservierung danach frei. Wer eine fehlende oder unsinnige
+ * `usage`-Angabe auf 0 abbildet, macht aus einer bezahlten Antwort eine
+ * kostenlose: die Reservierung faellt weg, der echte Betrag steht nirgends,
+ * und das Monatsbudget stimmt ab da nicht mehr. Fail closed — lieber ein
+ * sichtbar gescheiterter Lauf als eine stille Luecke im Kostenbuch (AGT-05).
+ */
 function verbrauchAus(daten: Record<string, unknown>): {
   eingabe: number; ausgabe: number;
 } {
-  const u = istObjekt(daten['usage']) ? daten['usage'] : {};
-  return { eingabe: zahl(u['prompt_tokens']), ausgabe: zahl(u['completion_tokens']) };
+  const u = daten['usage'];
+  if (!istObjekt(u)) {
+    throw new ModellFehler('INVALID_RESPONSE',
+      'Die Antwort trug keine usage-Angabe. Ohne sie sind die Kosten dieses Laufs '
+      + 'unbekannt, und ein Lauf mit unbekannten Kosten wird nicht verbucht.');
+  }
+  const eingabe = zahl(u['prompt_tokens']);
+  const ausgabe = zahl(u['completion_tokens']);
+  if (eingabe === 0 && ausgabe === 0) {
+    throw new ModellFehler('INVALID_RESPONSE',
+      'Die usage-Angabe nannte weder Eingabe- noch Ausgabetoken. Eine Antwort mit Text '
+      + 'und ohne Verbrauch gibt es nicht.');
+  }
+  return { eingabe, ausgabe };
 }
 
 export class OpenAiModell implements ModellPort {
@@ -280,6 +302,13 @@ export class OpenAiModell implements ModellPort {
         },
       ],
       temperature: 0.2,
+      /*
+       * **Der Deckel aus der Reservierung** (siehe `TextAuftrag`). Ohne ihn
+       * konnte eine grosse Antwort mehr kosten als reserviert, und der harte
+       * Budgetstopp griff erst nach der Ueberschreitung.
+       */
+      ...(auftrag.maxTokenAusgabe === undefined
+        ? {} : { max_tokens: auftrag.maxTokenAusgabe }),
     });
 
     /*

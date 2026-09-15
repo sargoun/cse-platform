@@ -92,6 +92,23 @@ export function einbettungsStand(register: RegisterAntwort): EinbettungsStand {
     };
   }
 
+  /*
+   * **Ein eingetragener Anbieter ist noch kein gebauter.** `modell/auswahl.ts`
+   * loest genau zwei auf: `demo` und `openai`. Stuende `azure` im Register,
+   * meldete diese Seite „verbunden" und der naechste `fordereModell`-Aufruf
+   * faende keinen Adapter -- eine Zusage, die erst beim Ausfuehren zerbricht.
+   */
+  if (!ADAPTER_VORHANDEN.has(register.anbieter)) {
+    return {
+      verbunden: false,
+      modell: register.modell,
+      dimension: EINBETTUNG_DIMENSION,
+      hinweis: `Im Register steht der Anbieter „${register.anbieter}", für den es `
+        + 'keinen Adapter gibt. Gebaut sind bisher der Demobetrieb und OpenAI; bis ein '
+        + 'Adapter dazukommt, lässt sich mit dieser Zeile nichts einbetten.',
+    };
+  }
+
   return {
     verbunden: true,
     modell: register.modell,
@@ -99,3 +116,11 @@ export function einbettungsStand(register: RegisterAntwort): EinbettungsStand {
     hinweis: null,
   };
 }
+
+/**
+ * Die Anbieter, fuer die ein Adapter EXISTIERT — dieselbe Menge, die
+ * `server/agent/modell/auswahl.ts` aufloest. Sie steht hier als eigene
+ * Konstante und nicht als Import, damit dieser Zustandsbericht nicht den
+ * Modell-Port laedt; dass beide zusammenpassen, prueft ein Test.
+ */
+export const ADAPTER_VORHANDEN: ReadonlySet<string> = new Set(['demo', 'openai']);
