@@ -1,5 +1,5 @@
 import { registriere, type JobDefinition } from './registry.js';
-import type { Abfrage } from '../benachrichtigung/ablage.js';
+import { alsJobRolle, alsJobSitzung, type JobVerbindung } from './sitzung.js';
 import {
   SocialFehler, type SchreibZugriff, veroeffentliche,
 } from '../services/social/dienst.js';
@@ -28,7 +28,7 @@ import {
  * Planung, sondern eine Spanne — dieselbe Überlegung wie beim
  * Einspruchsfenster.
  */
-export function registriereSocialPlan(db: Abfrage): JobDefinition {
+export function registriereSocialPlan(db: JobVerbindung): JobDefinition {
   return registriere({
     schluessel: 'social_plan',
     bezeichnung: 'Geplante Beiträge veröffentlichen (SOC-03)',
@@ -36,24 +36,24 @@ export function registriereSocialPlan(db: Abfrage): JobDefinition {
     bereich: 'uebergreifend',
     versuche: 2,
     ausfuehren: async () => {
-      const faellig = (await db.unsafe(
-        `select id from beitrag
+      /*
+       * **Gefunden wird als `cse_job`, gearbeitet je Mandant.**
+       *
+       * Vorher lief beides ueber die rohe Verbindung. Das ging in CI und im
+       * Seed gut, weil dort `postgres` in `DATABASE_URL` steht — ein
+       * Superuser mit `BYPASSRLS`. In einer Auslieferung mit der
+       * Anwendungsrolle haette derselbe Lauf NULL Zeilen gefunden und brav
+       * `faellig: 0` gemeldet, jede Nacht, ohne ein einziges rotes Zeichen.
+       * Die `j_*`-Policies aus 0163 stehen genau fuer diesen Fall bereit
+       * (`to cse_job`, `using (true)`) — sie mussten nur benutzt werden.
+       */
+      const faellig = await alsJobRolle(db, (jd) => jd.abfrage<{
+        id: string; mandant_id: string;
+      }>(
+        `select id, mandant_id from beitrag
           where status = 'geplant' and geplant_fuer is not null and geplant_fuer <= now()
           order by geplant_fuer
-          limit 50`)) as readonly { id: string }[];
-
-      /*
-       * Der Lauf hat keine Sitzung. `benutzerId: null` sagt das so: eine
-       * Aenderung ohne Menschen dahinter traegt keinen Namen, und einen
-       * erfundenen einzutragen waere schlimmer als keiner.
-       */
-      const zugriff: SchreibZugriff = {
-        abfrage: async <T,>(sql: string, werte: readonly unknown[] = []) =>
-          (await db.unsafe(sql, werte as never[])) as readonly T[],
-        schreibe: async <T,>(sql: string, werte: readonly unknown[] = []) =>
-          (await db.unsafe(sql, werte as never[])) as readonly T[],
-        benutzerId: null,
-      };
+          limit 50`));
 
       let hinaus = 0;
       let liegenGeblieben = 0;
@@ -71,7 +71,33 @@ export function registriereSocialPlan(db: Abfrage): JobDefinition {
           const adresse = basis === null || basis === ''
             ? null
             : `${basis.replace(/\/+$/u, '')}/beitrag/${z.id}`;
-          const ergebnis = await veroeffentliche(zugriff, z.id, adresse);
+          /*
+           * **Je Beitrag eine Sitzung mit SEINEM Mandanten.**
+           *
+           * Der Riegel aus 0163 fragt beim Veroeffentlichen
+           * `app.freigabe_genehmigt` — einen Definer, dessen Policy auf
+           * `freigabe` den aktiven Mandanten verlangt. Ohne ihn saehe er null
+           * Zeilen und der Riegel schloesse: der Lauf koennte nie
+           * veroeffentlichen, und zwar aus einem Grund, der wie „keine
+           * Freigabe" aussaehe.
+           *
+           * `nurLesen: false`, weil dieser Lauf schreibt — und das steht
+           * hier, wie es `BinderOptionen` verlangt: er setzt den Beitrag auf
+           * `veroeffentlicht` und traegt je Kanal das Ergebnis ein.
+           */
+          const ergebnis = await alsJobSitzung(db, z.mandant_id, async (jd) => {
+            /*
+             * Der Lauf hat keine Sitzung. `benutzerId: null` sagt das so:
+             * eine Aenderung ohne Menschen dahinter traegt keinen Namen, und
+             * einen erfundenen einzutragen waere schlimmer als keiner.
+             */
+            const zugriff: SchreibZugriff = {
+              abfrage: jd.abfrage.bind(jd),
+              schreibe: jd.abfrage.bind(jd),
+              benutzerId: null,
+            };
+            return veroeffentliche(zugriff, z.id, adresse);
+          }, { nurLesen: false });
           hinaus += 1;
           liegenGeblieben += ergebnis.kanaele
             .filter((k) => k.ergebnis === 'nicht_verbunden').length;

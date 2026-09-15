@@ -3,7 +3,9 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { alleJobs, vergissRegistrierung } from '../../src/server/jobs/bootstrap.js';
 import { leereRegister } from '../../src/server/jobs/registry.js';
-import { cronPlanSql, planzeilen } from '../../src/server/jobs/zeitplan.js';
+import {
+  cronPlanSql, fensterMinuten, idempotenzSchluessel, planzeilen,
+} from '../../src/server/jobs/zeitplan.js';
 
 /**
  * Der Auslöseplan — **dass er jeden Job trifft, und dass er nichts erfindet**.
@@ -85,5 +87,127 @@ describe('Der Auslöseplan der Nachtläufe (SPEC §14)', () => {
     const erwartet = cronPlanSql(jobs(), { basis: 'https://basis-einsetzen.invalid' });
     expect(datei, 'veraltet — `pnpm jobs:plan` erneut laufen lassen').toBe(erwartet);
     expect(datei).toContain('.invalid/api/jobs/');
+  });
+});
+
+/**
+ * **Das Fenster, in dem ein Lauf derselbe Lauf ist** — und warum es davon
+ * nicht nur eines geben darf.
+ *
+ * Der Schluessel war `<job>:<Berliner Datum>` fuer jeden Job. Fuer einen
+ * Nachtlauf ist das genau richtig. Fuer `social_plan`, der alle fuenf Minuten
+ * laeuft, war es toedlich: nach dem ersten Lauf eines Tages fand jeder weitere
+ * seinen Schluessel schon vergeben und wurde uebersprungen. Ein Beitrag auf
+ * 14:00 ginge bis zum naechsten Morgen nicht hinaus — und der Lauf meldete
+ * „uebersprungen", also nicht einmal einen Fehler.
+ *
+ * Diese Tests halten beides fest: dass ein haeufiger Lauf haeufig laeuft, und
+ * dass der taegliche dabei bleibt, was er war.
+ */
+describe('Das Idempotenzfenster folgt dem Zeitplan (SPEC §14)', () => {
+  it('liest aus dem Cron, wie oft ein Lauf laeuft', () => {
+    expect(fensterMinuten('0 3 * * *'), 'naechtlich').toBe(1440);
+    expect(fensterMinuten('*/5 * * * *'), 'alle fuenf Minuten').toBe(5);
+    expect(fensterMinuten('* * * * *'), 'jede Minute').toBe(1);
+    expect(fensterMinuten('0 * * * *'), 'stuendlich').toBe(60);
+    expect(fensterMinuten('0 */4 * * *'), 'alle vier Stunden').toBe(240);
+  });
+
+  it('eine Stundenliste ist lesbar genug — feste Minute heisst hoechstens stuendlich', () => {
+    /*
+     * `0 8-18 * * 1-5` trifft elfmal am Tag, immer zur vollen Stunde. 60 ist
+     * das richtige Fenster: zwei Laeufe liegen nie enger beieinander.
+     */
+    expect(fensterMinuten('0 8-18 * * 1-5')).toBe(60);
+    expect(fensterMinuten('30 6,18 * * *')).toBe(60);
+    expect(fensterMinuten('0 6 15 6,12 *'), 'zweimal im Jahr, aber nie zweimal am Tag')
+      .toBe(1440);
+    expect(fensterMinuten('*/90 * * * *'), 'trifft nur Minute 0').toBe(60);
+    expect(fensterMinuten('0 */30 * * *')).toBe(1440);
+  });
+
+  it('was sie nicht lesen kann, raet sie nicht — sie wirft', () => {
+    /*
+     * **Der Grund steht im Befund.** Eine Minutenliste heisst mehrmals je
+     * Stunde; stillschweigend „taeglich" daraus zu machen waere derselbe
+     * Ausfall, den dieses Fenster gerade behoben hat — nur eine Ebene tiefer
+     * versteckt. Der Test darunter ruft `fensterMinuten` fuer jeden
+     * registrierten Job auf: ein unlesbarer Zeitplan wird damit beim
+     * Festschreiben rot und nicht im Betrieb still.
+     */
+    for (const unlesbar of ['', '0', '15,45 * * * *', '0-30 * * * *', '*/0 * * * *']) {
+      expect(() => fensterMinuten(unlesbar), JSON.stringify(unlesbar)).toThrow();
+    }
+  });
+
+  it('DER Befund: zwoelf Ausloeser einer Stunde ergeben zwoelf Laeufe, nicht einen', () => {
+    /*
+     * Mit dem Tagesschluessel war diese Menge einelementig — und `social_plan`
+     * damit nach seinem ersten Lauf bis Mitternacht stillgelegt.
+     */
+    const beginn = Date.parse('2026-06-15T12:00:00Z');
+    const schluessel = new Set(
+      Array.from({ length: 12 }, (_, i) =>
+        idempotenzSchluessel('social_plan', '*/5 * * * *',
+          new Date(beginn + i * 5 * 60_000), 120)));
+    expect(schluessel.size).toBe(12);
+  });
+
+  it('zwei Ausloeser IM selben Fenster bleiben ein Lauf', () => {
+    const a = idempotenzSchluessel('social_plan', '*/5 * * * *',
+      new Date('2026-06-15T12:00:10Z'), 120);
+    const b = idempotenzSchluessel('social_plan', '*/5 * * * *',
+      new Date('2026-06-15T12:04:59Z'), 120);
+    expect(a).toBe(b);
+    expect(idempotenzSchluessel('social_plan', '*/5 * * * *',
+      new Date('2026-06-15T12:05:00Z'), 120)).not.toBe(a);
+  });
+
+  it('der Nachtlauf traegt das BERLINER Datum — dasselbe, das die Route meldet', () => {
+    /*
+     * Hier stand einmal der zurueckgerechnete UTC-Augenblick: der Lauf vom
+     * 15. Juni um 03:30 Berliner Zeit hiess `mahnlauf:2026-06-14`, weil
+     * Berliner Mitternacht im Sommer um 22:00 UTC des Vortags liegt. Der
+     * Schluessel widersprach damit dem `tag` derselben Antwort.
+     */
+    expect(idempotenzSchluessel('mahnlauf', '0 3 * * *',
+      new Date('2026-06-15T01:30:00Z'), 120)).toBe('mahnlauf:2026-06-15');
+    expect(idempotenzSchluessel('mahnlauf', '0 3 * * *',
+      new Date('2026-01-15T02:30:00Z'), 60)).toBe('mahnlauf:2026-01-15');
+    /* Und kurz vor Berliner Mitternacht noch derselbe Tag. */
+    expect(idempotenzSchluessel('mahnlauf', '0 3 * * *',
+      new Date('2026-06-15T21:59:00Z'), 120)).toBe('mahnlauf:2026-06-15');
+    expect(idempotenzSchluessel('mahnlauf', '0 3 * * *',
+      new Date('2026-06-15T22:01:00Z'), 120)).toBe('mahnlauf:2026-06-16');
+  });
+
+  it('in der Nacht der Rueckstellung ist 02:05 zweimal — und das sind zwei Laeufe', () => {
+    /*
+     * 25.10.2026: um 03:00 MESZ geht die Uhr auf 02:00 MEZ zurueck. Die
+     * Wanduhr zeigt 02:05 zweimal, eine volle Stunde auseinander. Ein
+     * Schluessel aus der Wanduhr wuerde den zweiten Lauf als Wiederholung
+     * ueberspringen — samt allem, was in dieser Stunde faellig wird.
+     */
+    const erst = idempotenzSchluessel('social_plan', '*/5 * * * *',
+      new Date('2026-10-25T00:05:00Z'), 120);
+    const zweit = idempotenzSchluessel('social_plan', '*/5 * * * *',
+      new Date('2026-10-25T01:05:00Z'), 60);
+    expect(erst).not.toBe(zweit);
+  });
+
+  it('jeder registrierte Job bekommt daraus einen brauchbaren Schluessel', () => {
+    /*
+     * Kein Job darf einen Schluessel bekommen, der seltener wechselt als er
+     * selbst laeuft — sonst laeuft er nicht.
+     */
+    for (const j of jobs()) {
+      const fenster = fensterMinuten(j.zeitplan);
+      const a = idempotenzSchluessel(j.schluessel, j.zeitplan,
+        new Date('2026-06-15T12:00:00Z'), 120);
+      const b = idempotenzSchluessel(j.schluessel, j.zeitplan,
+        new Date(Date.parse('2026-06-15T12:00:00Z') + fenster * 60_000), 120);
+      expect(a, j.schluessel).toMatch(new RegExp(`^${j.schluessel}:`, 'u'));
+      expect(b, `${j.schluessel} wechselt nach seinem Fenster`).not.toBe(a);
+    }
   });
 });

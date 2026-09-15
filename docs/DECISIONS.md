@@ -10880,3 +10880,96 @@ Laufzeitwirkung (`pruefeZugang` erreicht diesen Zweig nur mit vorhandener
 Sitzung, und die Seite ruft es gar nicht). Sie zu ändern hiesse, die
 Quellspezifikation anzufassen, aus der das Register erzeugt wird — das gehört
 in einen eigenen Durchgang und nicht in eine Fehlerbehebung.
+
+---
+
+### D-545 · Ein Idempotenzfenster für alle war eines zu wenig
+
+`/api/jobs/[schluessel]` bildete den Schlüssel eines Laufs als
+`<job>:<Berliner Datum>` — für jeden Job denselben. Für die fünfzehn
+Nachtläufe ist das genau richtig: zwei Auslöser derselben Nacht ergeben einen
+Lauf, kein zweites Mahnwesen.
+
+Für `social_plan` war es tödlich. Der Lauf trägt einen Zeitplan mit
+Fünf-Minuten-Schritt; nach dem **ersten** Lauf eines Tages fand jeder weitere
+seinen Schlüssel schon vergeben und wurde übersprungen. Ein Beitrag, auf 14:00
+gelegt, wäre bis zum nächsten Morgen nicht hinausgegangen — und der Lauf hätte
+„übersprungen" gemeldet, also nicht einmal einen Fehler. Genau die Sorte
+Ausfall, die dieses Register sonst verhindert.
+
+Das Fenster kommt jetzt aus dem **Zeitplan** und nicht aus einer zweiten
+Angabe daneben (`zeitplan.ts: fensterMinuten`): es gibt eine Quelle dafür, wie
+oft ein Lauf läuft, und das ist sein Cron. Gelesen werden Minute und Stunde;
+Tag, Monat und Wochentag können ein Fenster nur noch seltener machen, nie
+häufiger.
+
+**Und was sie nicht lesen kann, rät sie nicht, sondern wirft.** Eine
+Minutenliste (`15,45 * * * *`) heisst zweimal je Stunde, dreissig Minuten
+auseinander; stillschweigend „täglich" daraus zu machen wäre derselbe Ausfall,
+nur eine Ebene tiefer versteckt. `tests/kern/job-zeitplan.test.ts` ruft
+`fensterMinuten` für **jeden** registrierten Job auf — ein unlesbarer Zeitplan
+wird damit beim Festschreiben rot und nicht im Betrieb still.
+
+Zwei Feinheiten, beide geprüft:
+
+* **Der Tagesschlüssel trägt das Berliner Kalenderdatum**, dasselbe, das die
+  Route als `tag` zurückgibt. Beim Bauen stand hier kurz der zurückgerechnete
+  UTC-Augenblick — und Berliner Mitternacht liegt im Sommer um 22:00 UTC des
+  Vortags. Der Nachtlauf vom 15. Juni hiess damit `mahnlauf:2026-06-14`: ein
+  Schlüssel, der dem `tag` derselben Antwort widerspricht. Das ist keine
+  Kosmetik, sondern die stille Abweichung, an der ein Protokoll sein Vertrauen
+  verliert.
+* **Unterhalb eines Tages zählt der echte UTC-Augenblick**, nicht die Wanduhr.
+  In der Nacht der Rückstellung gibt es 02:05 Berliner Zeit zweimal; ein
+  Schlüssel aus der Wanduhr wäre für beide derselbe, und der zweite Lauf — eine
+  volle Stunde später — würde als Wiederholung übersprungen (Invariante 2).
+
+### D-546 · Der erste Lauf, der die Altlast aus D-378 abträgt
+
+D-378 hielt fest, dass ausser dem Kettenprüfer **kein** Job `set local role
+cse_job` bindet: sie laufen unter der Rolle aus `DATABASE_URL`, und die ist in
+CI und im Seed `postgres`, also Superuser mit `BYPASSRLS`. Jede Policy und
+jedes Spaltenrecht, das seit 0012 für `cse_job` geschrieben wurde, lief damit
+ungeprüft mit.
+
+`social_plan` war der nächste Lauf, der in diese Falle gegangen wäre — und er
+zeigt sie besonders deutlich, weil er **zwei verschiedene** Bindungen braucht:
+
+1. **Finden geht über Gesellschaftsgrenzen hinweg.** Ein `uebergreifend`-Lauf
+   sucht, was fällig ist, und das steht in vier Mandanten. Dafür ist
+   `alsJobRolle` da: `set local role cse_job` ohne Mandant, damit die
+   `j_*`-Policies aus 0163 greifen (`to cse_job`, `using (true)`). Sie standen
+   seit dem Schema bereit — sie mussten nur benutzt werden.
+2. **Arbeiten geht je Beitrag mit SEINEM Mandanten.** Der Riegel aus 0163
+   fragt beim Veröffentlichen `app.freigabe_genehmigt`, einen Definer, dessen
+   Policy auf `freigabe` (`d_freigabe_lesen`, 0123)
+   `mandant_id = app.aktiver_mandant()` verlangt. Ohne gebundenen Mandanten
+   sähe er null Zeilen und der Riegel schlösse — **richtig herum, aber zur
+   falschen Zeit**: der Beitrag *hat* eine genehmigte Freigabe, es fehlt nur
+   der Blick darauf. Der Lauf könnte nie veröffentlichen, und zwar aus einem
+   Grund, der wie „keine Freigabe" aussähe.
+
+Dass die Bindung **trägt** und nicht bloss danebensteht, hält
+`tests/isolation/social-job.test.ts` fest — nach dem Muster von
+`kette-job.test.ts`, und aus demselben Grund: die bestehenden Social-Prüfungen
+laufen als `cse_app` aus einer Portalsitzung, und auf diesem Weg war der Job
+nie gelaufen.
+
+Zwei der acht Fälle sind die eigentlichen:
+
+* **Ohne Bindung schliesst der Riegel** (Fall 5) — derselbe Beitrag, dieselbe
+  genehmigte Freigabe, nur ohne Mandant: die Veröffentlichung wird abgewiesen.
+  Damit ist der Unterschied zwischen „gebunden" und „nicht gebunden"
+  *unterscheidbar*, und nicht bloss behauptet.
+* **Jede Anweisung des Laufs läuft unter `cse_job`** (Fall 7). Die übrigen
+  Fälle wären auch grün geblieben, als der Lauf noch über die rohe Verbindung
+  suchte — weil die Testverbindung Superuser ist. Sie prüfen, **dass** er
+  findet, nicht **unter welcher Rolle**. Genau diese Lücke hat die Altlast so
+  lange getragen. Ein Horcher liest die Rolle deshalb am Ende jeder Transaktion
+  des Laufs, wo `set local role` noch gilt.
+
+Was das **nicht** ist: die Erledigung von D-378. Dreizehn Läufe binden ihre
+Rolle weiterhin nicht. Sie umzustellen heisst, für jeden einzeln Rechte und
+Policies nachzuziehen und jeden einzeln gegen die enge Rolle zu fahren — eine
+eigene Runde mit eigenen Tests. D-378 bleibt offen; dieser Eintrag zieht nur
+einen Namen von der Liste.

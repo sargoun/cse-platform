@@ -98,3 +98,35 @@ export async function alsJobSitzung<T>(
     });
   });
 }
+
+/**
+ * Dieselbe Bindung OHNE Mandanten — fuer einen `uebergreifend`-Lauf.
+ *
+ * **Wofuer das gebraucht wird.** Ein Lauf ueber alle Gesellschaften muss erst
+ * einmal FINDEN, was faellig ist, und das geht ueber Mandantengrenzen hinweg.
+ * Die `j_*`-Policies sind genau dafuer da: sie gelten `to cse_job` mit
+ * `using (true)`, waehrend die `t_*`-Policies der Anwendung an
+ * `app.aktiver_mandant()` haengen.
+ *
+ * **Und warum das NICHT reicht, um danach zu schreiben.** Wer einen Beitrag
+ * veroeffentlicht, loest den Riegel aus 0163 aus, und der fragt
+ * `app.freigabe_genehmigt` — einen Definer, dessen Policy auf `freigabe`
+ * `mandant_id = app.aktiver_mandant()` verlangt. Ohne gebundenen Mandanten
+ * sieht er null Zeilen und der Riegel schliesst (richtig herum, aber zur
+ * falschen Zeit). Gearbeitet wird deshalb je Beitrag in `alsJobSitzung` mit
+ * SEINEM Mandanten; diese Funktion hier findet nur, was zu tun ist.
+ */
+export async function alsJobRolle<T>(
+  sql: JobVerbindung,
+  fn: (db: JobAbfrage) => Promise<T>,
+): Promise<T> {
+  return sql.begin(async (tx) => {
+    await tx.unsafe(`set local role cse_job`);
+    await tx.unsafe(`select set_config('app.akteur_typ', 'system', true)`);
+    await tx.unsafe(`select set_config('app.readonly', 'on', true)`);
+    return fn({
+      abfrage: async <R,>(anweisung: string, werte: readonly unknown[] = []) =>
+        (await tx.unsafe(anweisung, werte)) as readonly R[],
+    });
+  });
+}

@@ -106,3 +106,128 @@ export function cronPlanSql(
 
   return `${kopf}${zeilen.join('\n\n')}\n`;
 }
+
+/**
+ * **Wie lange gilt EIN Lauf als derselbe Lauf?**
+ *
+ * `/api/jobs/[schluessel]` bildet den Idempotenzschluessel aus
+ * `<job>:<Berliner Datum>` — und das ist fuer einen Nachtlauf genau richtig:
+ * zwei Ausloeser derselben Nacht ergeben einen Lauf, kein zweites Mahnwesen.
+ *
+ * **Fuer einen Lauf alle fuenf Minuten ist es toedlich.** `social_plan` traegt
+ * einen Zeitplan mit `Stern-Schraegstrich-5` in der Minute: nach dem ERSTEN
+ * Lauf eines Tages faende jeder weitere seinen
+ * Schluessel schon vergeben und wuerde uebersprungen. Ein Beitrag, der auf
+ * 14:00 gelegt ist, ginge dann bis zum naechsten Morgen nicht hinaus — und der
+ * Lauf meldete brav „uebersprungen", also nicht einmal einen Fehler. Genau die
+ * Sorte Ausfall, die dieses Register sonst verhindert.
+ *
+ * Das Fenster kommt deshalb aus dem ZEITPLAN und nicht aus einer zweiten
+ * Angabe daneben: es gibt eine Quelle dafuer, wie oft ein Lauf laeuft, und
+ * das ist sein Cron.
+ *
+ * Gelesen werden nur die beiden Felder, die ueber „oefter als taeglich"
+ * entscheiden: Minute und Stunde. Der Rest — Tag, Monat, Wochentag — kann ein
+ * Fenster nur noch SELTENER machen, nie haeufiger, und ein zu kleines Fenster
+ * laesst hoechstens einen doppelten Ausloeser durch; ein zu grosses legt einen
+ * Lauf still. Deshalb wird nach unten gerundet.
+ *
+ * **Und was sie nicht lesen kann, raet sie nicht, sondern wirft.** Eine
+ * Minutenliste (`15,45 * * * *`) heisst zweimal je Stunde, dreissig Minuten
+ * auseinander; stillschweigend „taeglich" daraus zu machen waere genau der
+ * Ausfall, den diese Funktion verhindern soll — nur eine Ebene tiefer
+ * versteckt. `tests/kern/job-zeitplan.test.ts` ruft sie fuer JEDEN
+ * registrierten Job auf, ein unlesbarer Zeitplan wird also beim Festschreiben
+ * rot und nicht im Betrieb still.
+ */
+export function fensterMinuten(zeitplan: string): number {
+  const [minute, stunde] = zeitplan.trim().split(/\s+/u);
+  if (minute === undefined || stunde === undefined) {
+    throw new Error(
+      `„${zeitplan}" ist kein Zeitplan. Ohne Minute und Stunde laesst sich nicht `
+      + 'sagen, wie oft ein Lauf laeuft — und geraten wird das hier nicht.');
+  }
+
+  if (minute === '*') return 1;
+  const jedeNMinuten = /^\*\/([0-9]+)$/u.exec(minute);
+  if (jedeNMinuten !== null) {
+    const n = Number(jedeNMinuten[1]);
+    // `*/60` und groesser trifft in jeder Stunde nur die Minute 0.
+    if (n > 0 && n < 60) return n;
+    if (n >= 60) return 60;
+    throw new Error(`„${zeitplan}": „${minute}" ist kein Minutenschritt.`);
+  }
+  if (!/^[0-9]{1,2}$/u.test(minute) || Number(minute) > 59) {
+    throw new Error(
+      `„${zeitplan}": „${minute}" ist keine feste Minute und kein Schritt. `
+      + 'Eine Liste oder Spanne kann mehrmals je Stunde treffen; welches Fenster '
+      + 'dann gilt, steht hier nicht — statt es zu raten, bleibt der Zeitplan '
+      + 'ungelesen.');
+  }
+
+  /*
+   * Feste Minute: zwei Laeufe liegen damit mindestens eine Stunde
+   * auseinander. 60 ist deshalb IMMER sicher; was die Stunde hergibt, macht
+   * das Fenster nur noch groesser — und ein groesseres Fenster faengt mehr
+   * doppelte Ausloeser ab. Eine Stundenliste (`8-18`, `6,18`) faellt deshalb
+   * auf 60 und nicht auf einen Fehler: sie ist lesbar genug fuer die einzige
+   * Frage, die hier gestellt wird.
+   */
+  if (stunde === '*') return 60;
+  const jedeNStunden = /^\*\/([0-9]+)$/u.exec(stunde);
+  if (jedeNStunden !== null) {
+    const n = Number(jedeNStunden[1]);
+    return n > 0 && n < 24 ? n * 60 : 1440;
+  }
+  if (/^[0-9]{1,2}$/u.test(stunde) && Number(stunde) <= 23) return 1440;
+  return 60;
+}
+
+/**
+ * Der Idempotenzschluessel eines Laufs — auf sein Fenster abgerundet.
+ *
+ * `jetzt` wird hereingereicht und nicht gelesen: ein Schluessel, der von der
+ * Uhr der Funktion abhaengt, laesst sich ueber die Zeitgrenze nicht pruefen
+ * (dieselbe Ueberlegung wie bei `planFehler`, Invariante 5).
+ *
+ * Gerechnet wird in BERLINER Minuten seit der Epoche, damit der taegliche
+ * Fall („ein Lauf je Kalendertag") derselbe bleibt wie vorher: der
+ * Tagesschluessel eines Laufs um 03:00 Berliner Zeit ist derselbe, ob im
+ * Sommer oder im Winter.
+ */
+export function idempotenzSchluessel(
+  schluessel: string, zeitplan: string, jetzt: Date, versatzMinuten: number,
+): string {
+  const fenster = fensterMinuten(zeitplan);
+  const berlinMinuten = Math.floor(jetzt.getTime() / 60_000) + versatzMinuten;
+  const eimer = Math.floor(berlinMinuten / fenster) * fenster;
+  if (fenster >= 1440) {
+    /*
+     * Taeglich: derselbe Schluessel wie bisher — das BERLINER Kalenderdatum,
+     * dasselbe, das die Route als `tag` zurueckgibt.
+     *
+     * Formatiert wird deshalb `eimer` SELBST und nicht der zurueckgerechnete
+     * Zeitpunkt: `eimer` traegt Berliner Minuten, also die Wanduhr, und
+     * `toISOString` liest sie als solche. Hier stand einmal
+     * `eimer - versatzMinuten` — der echte UTC-Augenblick des Berliner
+     * Mitternachtsbeginns, und der liegt im Sommer am 14. um 22:00, wenn der
+     * Berliner Tag der 15. ist. Der Nachtlauf vom 15. hiess dann
+     * `mahnlauf:2026-06-14`: ein Schluessel, der dem `tag` derselben Antwort
+     * widerspricht — genau die Sorte stiller Abweichung, an der ein Protokoll
+     * sein Vertrauen verliert.
+     */
+    const tag = new Date(eimer * 60_000);
+    return `${schluessel}:${tag.toISOString().slice(0, 10)}`;
+  }
+  /*
+   * Unterhalb eines Tages: der echte UTC-Augenblick des Fensterbeginns.
+   *
+   * **Und zwar absichtlich nicht die Wanduhr.** In der Nacht der Rueckstellung
+   * gibt es 02:05 Berliner Zeit ZWEIMAL. Ein Schluessel aus der Wanduhr waere
+   * fuer beide derselbe, und der zweite Lauf — eine volle Stunde spaeter —
+   * wuerde als Wiederholung uebersprungen. Ein Beitrag, der in dieser Stunde
+   * faellig ist, bliebe liegen, und der Lauf meldete „uebersprungen".
+   */
+  const zeit = new Date((eimer - versatzMinuten) * 60_000);
+  return `${schluessel}:${zeit.toISOString().slice(0, 16)}Z`;
+}
