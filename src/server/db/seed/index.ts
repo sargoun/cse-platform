@@ -30,6 +30,7 @@ import { seedBau } from './bau.js';
 import { seedFreigaben } from './freigaben.js';
 import { seedEingang } from './eingang.js';
 import { seedRechnungen } from './rechnung.js';
+import { seedSocial } from './social.js';
 import { seedBerichtsdaten } from './berichtsdaten.js';
 import { seedRadar } from './radar.js';
 import { DEMO_KENNWORT, seedZugangsdaten } from './zugang.js';
@@ -1668,6 +1669,19 @@ async function main(): Promise<void> {
       + `${String(berichtsdaten.termine)} Termine — damit jede Gesellschaft in jedem der `
       + 'sechs Berichte und im Kalender eine Zeile hat\n');
   }
+
+  /**
+   * Das Social Media Center: die Kanäle IMMER (sie sind Struktur, kein
+   * Demodatum), die Beiträge nur auf der Vorführfläche — sie landen auf einer
+   * öffentlichen Gesellschaftsseite.
+   */
+  const social = await seedSocial(sql, ids, demodaten);
+  process.stdout.write(
+    `  Social: ${String(social.kanaele)} Kanäle (alle NICHT verbunden, O-10)`
+    + (social.uebersprungen
+      ? ' — keine Beiträge ohne CSE_DEV_FLAECHEN\n'
+      : `, ${String(social.beitraege)} Beiträge in vier Zuständen und `
+        + `${String(social.referenzen)} freigegebene Referenzen (SOC-04)\n`));
 
   /**
    * Zuletzt die Ausgangsrechnungen — nach Kunden, Konten und Nummernkreisen,

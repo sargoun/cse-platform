@@ -19,6 +19,30 @@ import {
  * lässt sich nicht gegen die Umstellungsnacht prüfen.
  */
 
+/**
+ * **Der schmale Zugriff, den auch ein Lauf hat.**
+ *
+ * `veroeffentliche` wird von zwei Seiten gerufen: von einem Menschen, der
+ * „Jetzt veröffentlichen" drückt, und vom Lauf, der einen geplanten Beitrag
+ * zu seiner Zeit hinausgibt (SOC-03). Der Lauf hat keine Sitzung und keinen
+ * Mandanten im Kontext — er hat eine Verbindung.
+ *
+ * Deshalb verlangt der Weg nach draussen NICHT `SchreibKontext`, sondern nur
+ * das, was er wirklich benutzt. Die Alternative wäre eine zweite Fassung des
+ * Veröffentlichens im Lauf gewesen — zwei Wege nach draussen, und der eine
+ * würde beim nächsten Umbau vergessen. `SchreibKontext` erfüllt diesen Vertrag
+ * ohnehin; der Aufrufer merkt nichts davon.
+ */
+export interface LeseZugriff {
+  abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
+}
+
+export interface SchreibZugriff extends LeseZugriff {
+  schreibe<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
+  /** `null` im Lauf — dort hat keine Änderung einen Menschen dahinter. */
+  readonly benutzerId: string | null;
+}
+
 export class SocialFehler extends Error {
   constructor(nachricht: string, readonly grund: string) {
     super(nachricht);
@@ -80,7 +104,7 @@ export async function listeBeitraege(
 }
 
 export async function ladeBeitrag(
-  kontext: LeseKontext, id: string,
+  kontext: LeseZugriff, id: string,
 ): Promise<BeitragZeile | null> {
   const [z] = await kontext.abfrage<BeitragZeile>(
     `select ${FELDER} from beitrag b where b.id = $1::uuid`, [id]);
@@ -96,7 +120,7 @@ export async function listeKanaele(kontext: LeseKontext): Promise<readonly Kanal
 }
 
 export async function kanaeleZuBeitrag(
-  kontext: LeseKontext, beitragId: string,
+  kontext: LeseZugriff, beitragId: string,
 ): Promise<readonly BeitragKanalZeile[]> {
   return kontext.abfrage<BeitragKanalZeile>(
     `select bk.kanal_id as "kanalId", k.plattform::text as plattform,
@@ -326,7 +350,7 @@ export interface Veroeffentlichung {
  * steht und bei Instagram liegen blieb, sagt genau das.
  */
 export async function veroeffentliche(
-  kontext: SchreibKontext, id: string, adresse: string | null,
+  kontext: SchreibZugriff, id: string, adresse: string | null,
 ): Promise<Veroeffentlichung> {
   const b = await ladeBeitrag(kontext, id);
   if (b === null) throw new SocialFehler('Diesen Beitrag gibt es nicht.', 'unbekannt');
@@ -393,4 +417,130 @@ export async function oeffentlicheBeitraege(
       order by b.veroeffentlicht_am desc
       limit $2::int`,
     [mandantId, grenze]);
+}
+
+export interface Quelle {
+  readonly id: string;
+  readonly titel: string;
+  readonly hinweis: string | null;
+}
+
+export interface Quellen {
+  readonly projekte: readonly Quelle[];
+  readonly referenzen: readonly Quelle[];
+}
+
+/**
+ * **Woraus ein Beitrag entstehen darf** (SOC-04, PRO-05).
+ *
+ * Projekte dieser Gesellschaft, und Referenzen — aber nur die mit einer
+ * Kundenfreigabe. Die Bedingung steht hier UND in der Policy von `referenz`
+ * (0015): ein Kundenname auf einer Website ohne dessen Zustimmung ist kein
+ * Anzeigefehler, sondern ein Problem, das man durch Löschen nicht ungeschehen
+ * macht. Wer keine freigegebene Referenz hat, bekommt hier eine leere Liste
+ * und einen Satz dazu — nicht die Auswahl aller Referenzen mit einem Haken,
+ * den jemand später wegklickt.
+ */
+export async function quellenFuerBeitrag(kontext: LeseKontext): Promise<Quellen> {
+  const projekte = await kontext.abfrage<Quelle>(
+    /*
+     * `bezeichnung`, nicht `name` -- und `archiviert_am`, nicht
+     * `geloescht_am`: die Spalte heisst hier so, weil ein Projekt nicht
+     * geloescht, sondern abgelegt wird. Kein `auftragssumme_netto_cent` in
+     * der Auswahl: die Spalte ist geschuetzt und wird nur als Aggregat
+     * gelesen (K-05) -- ein Beitragsentwurf braucht sie ohnehin nicht.
+     */
+    `select p.id, p.nummer || ' · ' || p.bezeichnung as titel,
+            p.status::text as hinweis
+       from projekt p
+      where p.archiviert_am is null
+      order by coalesce(p.geaendert_am, p.erstellt_am) desc
+      limit 50`);
+  const referenzen = await kontext.abfrage<Quelle>(
+    `select r.id, r.titel, r.kunde_name as hinweis
+       from referenz r
+      where r.geloescht_am is null and r.freigegeben_vom_kunden
+      order by r.sortierung, r.titel
+      limit 50`);
+  return { projekte, referenzen };
+}
+
+export interface KanalBilanz {
+  readonly plattform: Plattform;
+  readonly verbunden: boolean;
+  readonly veroeffentlicht: number;
+  readonly nichtVerbunden: number;
+  readonly fehlgeschlagen: number;
+  readonly offen: number;
+}
+
+export interface SocialStatistik {
+  readonly jeStatus: Readonly<Record<string, number>>;
+  readonly jeKanal: readonly KanalBilanz[];
+  readonly aufWebsite: number;
+  /** Median der Stunden von „vorgelegt" bis zur Entscheidung — oder null. */
+  readonly pruefdauerStunden: number | null;
+}
+
+/**
+ * Was diese Plattform über ihre eigenen Beiträge WEISS (SOC-01).
+ *
+ * **Reichweite und Interaktionen stehen bewusst nicht dabei.** Die kennt nur
+ * die Plattform, auf der ein Beitrag steht, und solange kein Kanal verbunden
+ * ist (O-10), gibt es sie nicht. Eine Zahl dafür zu zeigen — und sei es eine
+ * Null — liest sich wie eine Messung; „nicht verbunden" ist die Wahrheit.
+ *
+ * Was hier steht, ist deshalb das Eigene: wie viel wartet, wie viel ging
+ * hinaus, wo es liegen blieb, und wie lange eine Freigabe im Schnitt braucht.
+ */
+export async function statistik(kontext: LeseKontext): Promise<SocialStatistik> {
+  const stand = await kontext.abfrage<{ status: string; anzahl: string }>(
+    `select status::text as status, count(*)::text as anzahl from beitrag group by status`);
+  const jeStatus: Record<string, number> = {};
+  for (const z of stand) jeStatus[z.status] = Number(z.anzahl);
+
+  const kanaele = await kontext.abfrage<{
+    plattform: Plattform; verbunden: boolean;
+    veroeffentlicht: string; nichtVerbunden: string; fehlgeschlagen: string; offen: string;
+  }>(
+    `select k.plattform::text as plattform, k.verbunden,
+            count(*) filter (where bk.ergebnis = 'veroeffentlicht')::text as veroeffentlicht,
+            count(*) filter (where bk.ergebnis = 'nicht_verbunden')::text as "nichtVerbunden",
+            count(*) filter (where bk.ergebnis = 'fehlgeschlagen')::text as fehlgeschlagen,
+            count(*) filter (where bk.ergebnis = 'offen')::text as offen
+       from social_kanal k
+       left join beitrag_kanal bk on bk.mandant_id = k.mandant_id and bk.kanal_id = k.id
+      group by k.plattform, k.verbunden, k.sortierung
+      order by k.sortierung, k.plattform`);
+
+  const [dauer] = await kontext.abfrage<{ stunden: number | null }>(
+    /*
+     * Der Median, nicht das Mittel: eine einzige Freigabe, die ueber den
+     * Urlaub liegen blieb, zoege ein Mittel um Tage hoch und behauptete
+     * damit einen Zustand, den es nie gab.
+     */
+    `select percentile_cont(0.5) within group (
+              order by extract(epoch from (f.freigegeben_am - f.erstellt_am)) / 3600.0
+            ) as stunden
+       from freigabe f
+       join beitrag b on b.freigabe_id = f.id
+      where f.freigegeben_am is not null`);
+
+  const [website] = await kontext.abfrage<{ anzahl: string }>(
+    `select count(*)::text as anzahl from beitrag
+      where status = 'veroeffentlicht' and zurueckgezogen_am is null`);
+
+  return {
+    jeStatus,
+    jeKanal: kanaele.map((k) => ({
+      plattform: k.plattform,
+      verbunden: k.verbunden,
+      veroeffentlicht: Number(k.veroeffentlicht),
+      nichtVerbunden: Number(k.nichtVerbunden),
+      fehlgeschlagen: Number(k.fehlgeschlagen),
+      offen: Number(k.offen),
+    })),
+    aufWebsite: Number(website?.anzahl ?? '0'),
+    pruefdauerStunden: dauer?.stunden ?? null,
+  };
 }
