@@ -85,17 +85,31 @@ export default async function Verfahrensdoku({ params }: { params: Promise<{ man
         <dt className="text-text-muted">Abgerufen</dt>
         <dd className="text-text">{d.abgerufenAm} (Europe/Berlin)</dd>
         <dt className="text-text-muted">Fassung</dt>
-        <dd className="text-text" data-cse="vd-fassung">
+        <dd className="min-w-0 break-words text-text" data-cse="vd-fassung">
           Commit {d.auslieferung.commit ?? 'nicht bekannt (lokal)'} · Umgebung {d.auslieferung.umgebung ?? 'lokal'}
         </dd>
         <dt className="text-text-muted">Schemastand</dt>
-        <dd className="text-text" data-cse="vd-schemastand">
+        <dd className="min-w-0 break-words text-text" data-cse="vd-schemastand">
           {d.schemastand === null
             ? 'nicht ablesbar — diese Datenbank führt kein Migrationsjournal'
             : `${d.schemastand.migration} (${d.schemastand.angewendetAm}), ${String(d.migrationen)} Migrationen`}
         </dd>
         <dt className="text-text-muted">SHA-256 der Struktur (Konfiguration und Verfahren)</dt>
-        <dd className="font-mono text-xs text-text" data-cse="vd-sha256">{d.sha256}</dd>
+        {/*
+          * `break-all`, und zwar hier und nicht `break-words`.
+          *
+          * Gemessen am Telefon: diese Seite lief 133px ueber den rechten Rand,
+          * und zwar OHNE dass ein einziger Kasten hinausragte — ein
+          * SHA-256 ist ein Wort aus 64 Zeichen ohne Trennstelle, der Kasten
+          * blieb brav in der Spalte, und die Schrift lief darueber hinaus.
+          * `break-words` haette nichts geholfen: es bricht zwischen Woertern,
+          * und hier gibt es nur eines. `break-all` darf mitten im Wort
+          * trennen, was bei einem Hash genau richtig ist — er wird gelesen,
+          * nicht gesprochen.
+          */}
+        <dd className="min-w-0 break-all font-mono text-xs text-text" data-cse="vd-sha256">
+          {d.sha256}
+        </dd>
       </dl>
 
       <div data-cse="vd-abrufe" className="mb-s6 flex flex-wrap items-center gap-s3">

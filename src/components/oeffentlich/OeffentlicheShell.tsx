@@ -109,8 +109,15 @@ export function OeffentlicheShell(
         /* Klebt oben: der obere Inset gehoert an ihn, nicht an den Inhalt
            darunter (DESIGN §8). `sicher-seiten` haelt ihn im Querformat von
            der Rundung weg. */
-        className="sicher-oben sicher-seiten sticky top-0 z-40 flex h-[72px]
-                   items-center gap-s5 px-s5"
+        /*
+         * `box-content`: `sicher-oben` traegt den oberen Inset als Rahmen, und
+         * ein Rahmen liegt bei `border-box` INNERHALB der 72px — im
+         * installierten Modus waere die Leiste dann 72px hoch geblieben und
+         * ihr Inhalt auf 25px zusammengedrueckt. Mit `content-box` sind die
+         * 72px die Zeile, und der Inset kommt darueber.
+         */
+        className="sicher-oben sicher-seiten sticky top-0 z-40 box-content flex
+                   h-[72px] items-center gap-s5 px-s5"
       >
         {/*
           * **Der Unschaerfe-Grund liegt HIER und nicht auf dem `header`** —

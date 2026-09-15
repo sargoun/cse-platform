@@ -5172,6 +5172,9 @@ niemand ihn suchen.
 | O-357 | **Wohin gehen die Wächter-Meldungen aus SPEC §14 — Posteingang, Mail oder beides — und wer bekommt die Kettenmeldung?** Die Ablaufwarnung (60/30/7) erreicht die Person selbst; das ist EMP-08 und unstrittig. „Hashkette gebrochen" dagegen hat keinen persönlichen Empfänger: es ist eine Meldung an die Buchhaltung oder die Geschäftsführung, und beide sind heute keine adressierbare Größe im Modell. Solange die Frage offen ist, wird der Kettenprüfer bewusst NICHT als Job registriert — ein Lauf, der jede Nacht „ok" meldet, ohne dass jemand die Meldung liest, schafft Vertrauen, das er nicht deckt. | SPEC §14, `src/server/jobs/bootstrap.ts`, `kettenlauf.ts`, NOT-01 |
 | O-369 | **Darf jemand eine Freigabe ERBITTEN, ohne sie erteilen zu dürfen?** Die Schreibpolicy auf `freigabe` (`t_mandant`, 0136) verlangt `freigabe.entscheiden` — sie unterscheidet nicht zwischen „eine Freigabe anlegen“ und „eine Freigabe entscheiden“. Heute fällt das nirgends auf: jede Rolle mit `social.schreiben` trägt auch `freigabe.entscheiden` (0008), und dasselbe gilt für die übrigen Vorleger. Es fällt in dem Moment auf, in dem jemand es RICHTIG machen will: eine schmale Marketing- oder Sachbearbeiterrolle, die vorlegt und nichts entscheidet, ist genau das, wofür Invariante 7 da ist — und sie scheitert dann an der Policy, mit einer Meldung, die nach einem fehlenden Fachrecht aussieht. Die Policy einfach zu weiten ist keine Antwort: sie gilt für JEDE Freigabe dieser Plattform, und wer eine offene Freigabe anlegen darf, kann den Posteingang füllen. Bis zur Entscheidung hält `tests/isolation/social-job.test.ts` die Kopplung fest — sie wird rot, sobald eine Rolle `social.schreiben` ohne `freigabe.entscheiden` bekommt, und nicht erst im Betrieb. | APR-01, Invariante 7, `0136`, `0008`, `services/social/dienst.ts: legeVor` |
 | O-372 | **Soll die Gruppenansicht eine lesende Social-Übersicht über alle vier Gesellschaften bekommen?** Die Daten lassen es zu: die Policies in `0163` geben `gruppe.social.lesen` frei, und ein Beitrag trägt seinen Mandanten. Die Seitenkarte führt in §6 aber keine `/portal/gruppe/social`, und eine Route zu erfinden hiesse, eine Seite zu bauen, die niemand bestellt hat. Bis zur Antwort steht social nicht in `GRUPPEN_NAVIGATION` — vorher stand es dort mit dem Mandantenpfad und führte auf 404 (D-561). | SOC-01, TEN-05, `0163`, `registry/navigation.ts`, D-561 |
+| O-373 | **Wie lange bleiben Bewerberdaten?** Die Plattform setzt die Uhr beim Eingang (`bewerbung.aufbewahrung_bis`) und der Nachtlauf räumt danach ab — nur die ZAHL gehört dem Mandanten. Die übliche Praxis orientiert sich an § 15 Abs. 4 AGG (zwei Monate zur Geltendmachung) plus der dreimonatigen Klagefrist, woraus in der Literatur meist sechs Monate ab Absage werden; das ist eine überwiegende PRAXIS, keine Vorschrift. Hinterlegt sind 180 Tage als `plattform_einstellung` mit `ist_vorlaeufig = true`, änderbar ohne Code. Offen ist ausserdem, ob die Frist ab EINGANG oder ab ABSAGE läuft — heute ab Eingang, weil eine Bewerbung ohne Entscheidung sonst nie abliefe. | REC-07, LEG-11, `0166`, D-569 |
+| O-374 | **Welche Jobbörse wird wirklich beauftragt — und mit welchem Vertrag?** Die Bundesagentur für Arbeit hat eine echte Arbeitgeber-Schnittstelle, setzt aber eine Betriebsnummer und eine freigeschaltete Kennung voraus. Indeed und StepStone stehen in CLAUDE.md unter „Out of scope" — verboten ist dort das SCRAPEN; eine Anzeige über eine offizielle Arbeitgeber-API wäre etwas anderes, nur gibt es dafür weder Vertrag noch Zugang. Bis zur Antwort sind alle vier Ziele sichtbar und dauerhaft `nicht_verbunden`, mit dem Grund an der Zeile: eine Liste, in der ein Ziel einfach fehlt, liest sich wie „geht nicht", und die Frage ist „noch nicht beauftragt". | REC-09, D-02, `versand/stellenboerse.ts`, D-569 |
+| O-375 | **Wohin gehen Bewerbungsunterlagen?** Das Karriereformular nimmt heute keine Datei an: der Belegspeicher ist nicht verbunden (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY), und ein Feld, das eine Datei annimmt und sie nirgends ablegt, ist schlimmer als keines — der Mensch glaubt, sie sei angekommen. Offen ist damit auch, wie lange ein Lebenslauf im Speicher bleibt und ob er beim Löschen der Bewerbung mitgeht (er muss). | REC-03, REC-04, REC-07, `karriere/Formular.tsx`, D-569 |
 | O-500 | **Wie lange gilt ein Einladungs- und ein Zurücksetzungslink, wie viele Wiederherstellungscodes werden ausgegeben, und gilt eine Mindestlänge über zwölf Zeichen hinaus?** Die SPEC nennt keine Zahl. `plattform_einstellung` führt vier vorläufige Werte (168 h, 2 h, 10 Codes, 12 Zeichen); sie sind als `ist_vorlaeufig = true` markiert und über eine Zeile änderbar, ohne Code. Die Auswahl folgt gängiger Praxis, nicht einer Entscheidung: ein Einladungslink überlebt ein Wochenende, ein Zurücksetzungslink nicht. | AUT-01, AUT-04, `0155`, D-502 |
 | O-501 | **Welches Supabase-Projekt in der EU-Region (Frankfurt), welcher Auftragsverarbeitungsvertrag — und soll die Anmeldung über ein Firmenverzeichnis (SAML/OIDC) laufen?** Dieselbe Frage trägt den Postausgang: welcher in der EU gehostete Mailanbieter, welche Absenderadresse je Gesellschaft, laufen DKIM und DMARC über die bestehenden Domains? Ohne beides gibt es keinen Zurücksetzungs- und keinen Einladungslink, der ankommt. Bis zur Antwort prüft die Plattform das Kennwort selbst (`kern.zugangsdaten`, bcrypt), `/auth/callback` antwortet `501` statt eine Sitzung auszustellen, und `/auth/passwort-vergessen` sagt „nicht verbunden" statt „gesendet" (D-501, D-503). | AUT-01, AUT-04, NOT-02, `0155`, D-501 |
 | O-510 | **Warum zeigt die Seite hinter einer 303-Umleitung den alten Stand?** Nach dem Widerruf eines Kalenderzugangs steht die widerrufene Zeile auf der Umleitungsseite noch in der Liste. Festgestellt ist: die Datenbank ist zu diesem Zeitpunkt richtig (`widerrufen_am` gesetzt), der Feed antwortet sofort mit 404, und ein normaler Aufruf derselben Adresse zeigt die Liste richtig — es ist eine veraltete ANZEIGE und kein offener Zugang. Ausgeschlossen sind: fehlendes `force-dynamic` (steht), eine nicht abgeschlossene Transaktion (die 404-Antwort beweist das Gegenteil), `revalidatePath` auf dem Ziel und `cache-control: no-store` auf der Umleitung (beide eingebaut, beide ohne Wirkung). Bis zur Antwort sagt die Bestätigung auf der Seite ausdrücklich, dass eine noch sichtbare Zeile veraltet ist. Der Browsertest prüft den Stand deshalb nach einem frischen Aufruf — und die Wirkung des Widerrufs sofort. | CAL-03, `api/kalender-feed/widerrufen`, D-516 |
@@ -11780,3 +11783,89 @@ Die sechs stehen jetzt unter „Weiteres" auf `/portal/mein` — in der Sprache
 der Person, mit `min-h-11` je Zeile (DESIGN §8: diese Liste wird auf einem
 Telefon mit Handschuhen bedient). Der Browsertest öffnet jede einzelne und
 prüft, dass keine „wird noch gebaut" sagt.
+
+### D-569 · Die eine Zeile, die jeder Seite ihre Ränder nahm
+
+**Gemeldet mit einem Bildschirmfoto**, nicht von einem Test: die Kacheln klebten
+am Fensterrand. Nicht auf einer Seite — auf **jeder** Seite des Portals, in
+jeder Breite, seit D-565 die Safe-area-Regeln aus DESIGN §8 einführte.
+
+```css
+.sicher-seiten {
+  padding-left:  env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+```
+
+`<main className="ueber-tableiste sicher-seiten flex-1 p-s5">`. Beide Klassen
+erklären `padding-left`. Beide sind Utilities, also gleich spezifisch. Und
+`globals.css` wird **nach** Tailwinds erzeugten Klassen geladen — die spätere
+gewinnt. Am Schreibtisch, wo jeder Inset `0px` ist, hiess das buchstäblich
+`padding-left: 0px`. Dieselbe Zeile traf die Kopfzeile (`px-s3`), die
+Arbeiterschirme und die öffentliche Leiste.
+
+**Warum nichts rot wurde, und das ist der eigentliche Befund.** Es war keine
+Regel verletzt. `eslint` sieht kein CSS. `typecheck` sieht Klassennamen, keine
+Kaskade. Die Vertragsprüfung `tests/design/sichere-flaeche.test.ts` prüfte, ob
+die Zeilen *dastehen* — sie standen da. Und der Browserlauf prüfte **Wege**:
+welcher Verweis wohin führt, ob eine Seite 200 antwortet, ob ein Knopf
+existiert. Kein einziger Test hat je gefragt, **wie breit etwas ist**. Eine
+Suite kann vollständig grün sein und trotzdem nichts über das Bild sagen.
+
+**Die Behebung ist nicht der andere Wert, sondern die andere Eigenschaft.** Der
+Inset ist jetzt ein durchsichtiger RAHMEN: bei `box-sizing: border-box`
+(Tailwinds Vorgabe auf allem) wächst er nach innen wie eine Polsterung, der
+Hintergrund liegt weiter darunter (`background-clip: border-box` — die Fläche
+der Leiste reicht bis an die Kante, ihre Beschriftung nicht), und er **addiert**
+sich zu der Polsterung, die das Element schon trägt. Physische Langformen,
+nicht `border-inline-start`: `safe-area-inset-left` ist die physische linke
+Seite des Geräts und dreht sich nicht, die Arbeiterschirme laufen auf Arabisch
+unter `dir="rtl"` (SPEC §10).
+
+Daraus die Regel, die in DESIGN §8 steht: **eine Utility in `globals.css`
+erklärt nie eine Eigenschaft, die eine Tailwind-Utility am selben Element auch
+erklärt.** Wo sich beide träfen, nimmt die eigene Regel eine andere
+Eigenschaft.
+
+**Und die Prüfung, die gefehlt hat: `tests/e2e/abmessungen.spec.ts`.** Sie fragt
+den Browser nach dem, was am Ende wirklich gerechnet wurde —
+`getComputedStyle` und `getBoundingClientRect` — für **jede Seite der
+Seitenkarte**, in jeder der drei Gesellschaften, mit dem Konto, dem die jeweilige
+Fläche gehört: 467 Seiten bei 390px und 467 bei 1440px, dazu ein Querschnitt bei
+768 und 1024.
+
+Sie hat auf dem ersten Lauf drei weitere Befunde gebracht, die niemand gemeldet
+hatte, alle am Telefon:
+
+| Wo | Was | Ursache |
+|---|---|---|
+| `buchhaltung/jahrespaket`, `gruppe/protokoll` | 3px und 14px Überbreite | `DataTable`, Kartenstapel: ein Rasterfeld hat `min-width: auto`, die `1fr`-Spalte konnte nicht unter die Breite eines Dateinamens schrumpfen → `min-w-0 break-words` |
+| `buchhaltung/verfahrensdokumentation` | 133px Überbreite, **ohne dass ein Kasten hinausragte** | ein SHA-256 ist ein Wort aus 64 Zeichen ohne Trennstelle: der Kasten blieb in der Spalte, die Schrift lief darüber hinaus → `break-all` |
+
+Der zweite Fall hat auch die Prüfung verbessert: eine Diagnose über
+`getBoundingClientRect` findet Kästen und sieht überlaufende **Schrift** nicht.
+`abmessungen.spec.ts` meldet seither beides getrennt — Kasten und Schrift.
+
+**Zwei Oberflächen, zwei Regeln.** Die Portalspalte ist ein Kasten mit einer
+Rinne (`p-s5`), und dass sie dasteht, ist der Befund. Die öffentliche Seite ist
+das Gegenteil: Bänder, die absichtlich bis an den Rand laufen (DESIGN §7). Dort
+prüft dieselbe Datei, was der Mensch sieht — **kein Text berührt den Rand**. Ein
+Farbband darf es, eine Zeile nicht.
+
+**Zwei Fehlschläge der Prüfung selbst sind hier festgehalten**, weil beide eine
+Lehre tragen:
+
+1. Der erste Selektor las `[data-cse="tableiste"] a, … button` und meldete eine
+   Zelle mit `0px` Höhe. Es war kein Produktfehler: im geschlossenen
+   `Mehr`-Blatt stehen die Punkte des ganzen Portals, `display: none`. Die
+   **Zelle** ist `[data-cse="tab"]`.
+2. Der Lauf mass auf demselben Stand einmal 71 und einmal 24 Seiten. Die Liste
+   enthielt `/auth/abmelden` — die Prüfung meldete sich mitten im Durchgang
+   selbst ab. Danach kam dasselbe Rennen über eine ausstehende clientseitige
+   Weiterleitung der Check-in-Seiten zurück, zweimal an anderer Stelle.
+   Beendet hat es erst ein **eigener Browserkontext je Gruppe** — und das ist
+   ausserdem näher an der Wahrheit: ein Mensch meldet sich nicht in derselben
+   Sitzung nacheinander als sieben verschiedene Leute an.
+
+| Betrifft | DESIGN §8, D-565, `globals.css`, `PortalShell`, `OeffentlicheShell`, `DataTable`, `abmessungen.spec.ts` |
+|---|---|

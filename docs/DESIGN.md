@@ -742,20 +742,48 @@ Two things are needed together, and one without the other does nothing:
 1. `viewport-fit=cover` in the viewport meta. **Without it iOS reports every
    `env(safe-area-inset-*)` as `0px`**, so padding written against those
    variables silently does nothing.
-2. Padding against `env(safe-area-inset-*)` on everything that touches an edge.
+2. The inset carried by a **transparent border** on everything that touches an
+   edge — never by padding. The reason is below, and it is not a detail.
 
 | Where | Rule |
 |---|---|
-| Bottom tab bar | `padding-bottom: env(safe-area-inset-bottom)` **plus** the `44px` cell height — the inset is added to the bar, never taken out of the tap target |
-| Content above the tab bar | bottom padding `= 44px + 8px + inset`; the bar is `fixed` and covers whatever sits under it |
+| Bottom tab bar | the bottom inset is added **below** the `44px` cell, never taken out of the tap target |
+| Content above the tab bar | clears `44px + 8px + inset` **in addition to** its own padding; the bar is `fixed` and covers whatever sits under it |
 | The `Mehr` sheet | ends at the top edge of the bar, so its `bottom` is `44px + inset` |
-| Every fixed left/right edge | `padding-left/right: env(safe-area-inset-left/right)` — zero in portrait, non-zero in landscape on a notched phone |
-| Fixed headers | `padding-top: env(safe-area-inset-top)` — zero in a browser tab, non-zero in standalone mode |
+| Every fixed left/right edge | the left/right inset — zero in portrait, non-zero in landscape on a notched phone |
+| Fixed headers | the top inset — zero in a browser tab, non-zero in standalone mode |
 
 The utilities live in `globals.css` as `.sicher-unten`, `.sicher-seiten`,
 `.sicher-oben` and `.ueber-tableiste`, because `env()` is not a Tailwind value
 and a hand-written `pb-[calc(...)]` in twelve files is twelve chances to write
 a different number.
+
+**Why a transparent border and not padding.** It was padding once, and it cost
+every page in the portal its margins. `globals.css` is loaded *after* Tailwind's
+generated utilities, so `.sicher-seiten` and `p-s5` are two declarations of the
+same property at the same specificity — and the later one wins. On a desktop,
+where every inset is `0px`, `.sicher-seiten` therefore meant
+`padding-left: 0px`: the cards sat flush against the window edge on every single
+page, on every screen size, and nothing in lint, typecheck or the test suite
+said a word, because no rule was broken — two correct rules simply met.
+
+A transparent border cannot have that fight. With `box-sizing: border-box`
+(Tailwind's default on every element) it grows the box inward exactly like
+padding, the background still paints under it (`background-clip: border-box` is
+the default, so the bar's surface reaches the physical edge while its labels do
+not), and it **composes** with whatever padding the element already carries
+instead of replacing it.
+
+Written as **physical** longhands — `border-left-width`, not
+`border-inline-start-width`. `safe-area-inset-left` is the physical left of the
+device and does not flip; the worker screens run in Arabic under `dir="rtl"`
+(SPEC §10), and a logical property there would put the notch inset on the wrong
+side of the screen.
+
+> **The rule this leaves behind:** a utility in `globals.css` never declares a
+> property that a Tailwind utility on the same element also declares. Where the
+> two would meet — padding, margin, colour — the custom rule takes a different
+> property. `tests/design/sichere-flaeche.test.ts` holds this.
 
 **`44px` stays `44px`.** The inset is space the system takes, not space the
 button gives up: a bar that shrinks its cells to fit the indicator fails the

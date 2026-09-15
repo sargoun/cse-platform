@@ -72,7 +72,7 @@ export function PortalShell({
 
       <div className="flex flex-1">
         <Sidebar punkte={punkte} basis={basis} aktiv={aktiverPunkt} />
-        <main className="ueber-tableiste sicher-seiten flex-1 p-s5">{children}</main>
+        <main className="ueber-tableiste sicher-seiten min-w-0 flex-1 p-s5">{children}</main>
       </div>
     </div>
   );

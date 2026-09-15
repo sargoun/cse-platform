@@ -269,28 +269,75 @@ body {
  * schweigend nichts.
  */
 @layer utilities {
+  /*
+   * **Der Inset ist ein durchsichtiger RAHMEN, keine Polsterung** — und das
+   * ist der ganze Unterschied zwischen dieser Datei und dem Tag, an dem sie
+   * jede Seite des Portals ihre Raender gekostet hat.
+   *
+   * Hier stand `padding-left: env(...)`. Diese Datei wird NACH Tailwinds
+   * erzeugten Klassen geladen; `.sicher-seiten` und `p-s5` sind damit zwei
+   * Deklarationen derselben Eigenschaft mit derselben Spezifitaet, und die
+   * spaetere gewinnt. Am Schreibtisch, wo jeder Inset `0px` ist, hiess das
+   * `padding-left: 0px`: die Kacheln klebten am Fensterrand — auf jeder
+   * Seite, in jeder Breite. Kein Linter, kein Typecheck, kein Test sagte ein
+   * Wort, denn es war keine Regel verletzt; es trafen sich zwei richtige.
+   *
+   * Ein Rahmen kann diesen Streit nicht haben. Mit `box-sizing: border-box`
+   * (Tailwinds Vorgabe auf allem) waechst er nach innen wie eine Polsterung,
+   * der Hintergrund liegt weiter darunter (`background-clip: border-box` —
+   * die Flaeche der Leiste reicht bis an die Kante, ihre Beschriftung nicht),
+   * und er ADDIERT sich zu der Polsterung, die das Element schon traegt,
+   * statt sie zu ersetzen.
+   *
+   * PHYSISCHE Langformen, nicht `border-inline-start`: `safe-area-inset-left`
+   * ist die physische linke Seite des Geraets und dreht sich nicht. Die
+   * Arbeiterschirme laufen auf Arabisch unter `dir="rtl"` (SPEC §10) — eine
+   * logische Eigenschaft legte den Notch-Inset dort auf die falsche Seite.
+   *
+   * `solid` und `transparent` stehen ausgeschrieben da: ohne Stil rechnet
+   * jede Breite zu null, und ohne Farbe erbt der Rahmen `border-color` des
+   * Elements — bei der Kopfzeile waere das eine sichtbare Linie geworden.
+   */
+
   /* Der Balken waechst um den Inset — die 44px-Zelle bleibt 44px. */
-  .sicher-unten { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .sicher-unten {
+    border-bottom-width: env(safe-area-inset-bottom, 0px);
+    border-bottom-style: solid;
+    border-bottom-color: transparent;
+  }
   /* Quer am Telefon mit Notch ungleich null, im Hochformat null. */
   .sicher-seiten {
-    padding-left: env(safe-area-inset-left, 0px);
-    padding-right: env(safe-area-inset-right, 0px);
+    border-left-width: env(safe-area-inset-left, 0px);
+    border-left-style: solid;
+    border-left-color: transparent;
+    border-right-width: env(safe-area-inset-right, 0px);
+    border-right-style: solid;
+    border-right-color: transparent;
   }
   /* Im Browsertab null, im installierten Modus die Statusleiste. */
-  .sicher-oben { padding-top: env(safe-area-inset-top, 0px); }
+  .sicher-oben {
+    border-top-width: env(safe-area-inset-top, 0px);
+    border-top-style: solid;
+    border-top-color: transparent;
+  }
   /*
    * Platz UNTER dem Inhalt fuer die feste Leiste: 44px Zelle + 8px Luft +
-   * Inset. Ohne ihn verdeckt die Leiste die letzte Zeile jeder Liste.
+   * Inset, ZUSAETZLICH zur eigenen Polsterung der Spalte. Ohne ihn verdeckt
+   * die Leiste die letzte Zeile jeder Liste.
    *
    * **Der Umbruch steht HIER und nicht als `md:pb-s5` am Element.** Beide
    * waeren Utilities mit derselben Spezifitaet, und dann entscheidet die
    * Reihenfolge im Stylesheet: diese Datei steht hinter Tailwinds erzeugten
-   * Klassen, also haette sie auch am Schreibtisch gewonnen — 52px Polsterung
+   * Klassen, also haette sie auch am Schreibtisch gewonnen — 52px Platz
    * unter einer Leiste, die dort gar nicht existiert (`md:hidden`).
    */
-  .ueber-tableiste { padding-bottom: calc(52px + env(safe-area-inset-bottom, 0px)); }
+  .ueber-tableiste {
+    border-bottom-width: calc(52px + env(safe-area-inset-bottom, 0px));
+    border-bottom-style: solid;
+    border-bottom-color: transparent;
+  }
   @media (min-width: 768px) {
-    .ueber-tableiste { padding-bottom: var(--s5); }
+    .ueber-tableiste { border-bottom-width: 0px; }
   }
   /* Das `Mehr`-Blatt endet an der Oberkante der Leiste, nicht am Rand. */
   .ueber-leiste-oberkante { bottom: calc(44px + env(safe-area-inset-bottom, 0px)); }
