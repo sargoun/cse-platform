@@ -23,3 +23,24 @@ export function ohneKommentare(quelle: string): string {
     .replace(/"(?:[^"\\\n]|\\.)*"/gu, '""')
     .replace(/`(?:[^`\\]|\\.)*`/gu, '``');
 }
+
+/**
+ * Dasselbe für PowerShell — `<# … #>` und `# …`.
+ *
+ * **Warum es das braucht.** Eine Prüfung über `scripts/windows-start.ps1`
+ * suchte `pnpm build` und fand es zuerst im Kopfkommentar, das ERKLÄRT, warum
+ * `pnpm build` beim zweiten Anlauf abbrach. Genau die Falle, die
+ * `ohneKommentare` oben für TypeScript schon abräumt — und beim ersten Mal
+ * fällt man in beide getrennt hinein.
+ *
+ * Zeichenketten bleiben hier stehen: in einem Skript sind die Befehle selbst
+ * oft in Anführungszeichen (`Write-Host "pnpm build"`), und sie wegzuwerfen
+ * nähme der Prüfung mehr, als sie gewinnt.
+ */
+export function ohnePsKommentare(quelle: string): string {
+  return quelle
+    .replace(/<#[\s\S]*?#>/gu, ' ')
+    // `#` in `$env:X#…` gibt es nicht, aber ein `#` mitten in einer
+    // Zeichenkette schon — deshalb nur am Zeilenanfang oder nach Leerraum.
+    .replace(/(^|\s)#[^\n]*/gu, '$1 ');
+}

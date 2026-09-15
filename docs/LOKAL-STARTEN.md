@@ -10,7 +10,35 @@ Voraussetzungen: Node ≥ 22, `pnpm`, Docker.
 
 ## 1. Der kurze Weg
 
-Windows (PowerShell):
+**Windows: ein Befehl.**
+
+```powershell
+.\scripts\windows-start.ps1
+```
+
+Er macht alles, was unten steht — und drei Dinge, die eine Befehlsliste nicht
+kann:
+
+- **Er beendet einen laufenden Server ZUERST.** Der haeufigste Fehlschlag beim
+  zweiten Anlauf: auf 3001 haengt noch ein Server von vorhin, `pnpm build`
+  bricht ab, und die uebrigen Befehle laufen trotzdem weiter, weil PowerShell
+  bei einem Fehler nicht stehenbleibt. Am Ende stehen drei Meldungen, von denen
+  nur die erste zaehlt. Vorher wird geprueft, ob der Server auf dem Hafen
+  ueberhaupt UNSERER ist (`/healthz`) — ein fremdes Programm wird nicht
+  abgeschossen.
+- **Er bleibt bei jedem Fehlschlag stehen** und nennt den Schritt.
+- **Er setzt die Datenbank frisch auf.** Sonst laeuft der Seed ueber vorhandene
+  Daten, legt (richtigerweise) nichts nach und meldet ueberall `0` — was sich
+  wie ein kaputter Seed liest und keiner ist. Wer eigene Eingaben behalten
+  will: `-DatenBehalten`.
+
+Schalter: `-Port 3002` · `-DatenBehalten` · `-OhneBau`.
+
+Am Ende nennt er die Adresse fuer das Telefon und die Konten zum Anmelden.
+
+---
+
+Derselbe Weg von Hand, Windows (PowerShell):
 
 ```powershell
 $env:DATABASE_URL   = "postgres://postgres@localhost:5433/postgres"
