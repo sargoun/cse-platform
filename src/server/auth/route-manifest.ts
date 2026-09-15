@@ -49,6 +49,39 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + '`?mandant=` steht nur für den Dateinamen in der Adresse (Invariante 3).',
   },
   {
+    pfad: 'api/kalender/[token]',
+    recht: null,
+    grund:
+      'CAL-03. Die einzige Route ohne Sitzung, die Mandantendaten herausgibt — und deshalb '
+      + 'die mit der längsten Begründung. Ein Kalenderprogramm KANN sich nicht anmelden: '
+      + 'es führt keinen zweiten Faktor und verhandelt kein Ablaufdatum. Der Token ersetzt '
+      + 'die Anmeldung, NICHT die Rechte: er sagt, WER liest, und danach entscheiden '
+      + 'dieselben Policies wie im Portal, was dieser Mensch sieht — die Route bindet eine '
+      + 'Sitzung für ihn und stellt dieselbe Abfrage wie die Seite. Gespeichert ist der '
+      + 'SHA-256 des Tokens, nie der Token; er gilt nur lesend, nur für die eigenen '
+      + 'Einträge, und ein Widerruf wirkt beim nächsten Abruf. Ein falscher Token ist 404 '
+      + 'und nicht 401: ein 401 lüde zum zweiten Versuch ein.',
+  },
+  {
+    pfad: 'api/kalender-feed/anlegen',
+    recht: null,
+    grund:
+      'CAL-03. Ein Recht davor hiesse, dass jemand seinen EIGENEN Kalender nicht abonnieren '
+      + 'darf — und es gäbe keinen Schlüssel, der das ausdrückt. `t_feed_eigene` bindet jede '
+      + 'Zeile an `app.aktueller_benutzer()`; geschützt ist der Weg durch die Methode (nur '
+      + 'POST) und das Ursprungstor. Der Token steht genau einmal in der Antwort und danach '
+      + 'nirgends mehr.',
+  },
+  {
+    pfad: 'api/kalender-feed/widerrufen',
+    recht: null,
+    grund:
+      'CAL-03, dieselbe Begründung wie beim Anlegen: ein eigener Zugang, an '
+      + '`app.aktueller_benutzer()` gebunden. Ein fremder Zugang antwortet wie ein nicht '
+      + 'vorhandener — die Policy lässt das `update` gar nicht greifen, und die Route sagt '
+      + 'nicht, ob es die Zeile gibt (AUT-06).',
+  },
+  {
     pfad: 'api/benachrichtigungen/[id]/oeffnen',
     recht: null,
     grund:

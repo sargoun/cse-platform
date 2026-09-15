@@ -21,6 +21,9 @@ import type postgres from 'postgres';
  *    Bekanntmachungen im Radar und genau einen Vorgang dazu.
  *  · **Freigegebene Zeiten** für den Bau (REP-04) — die Reinigung und die
  *    Security haben ihre aus dem Zeitseed, der Bau hatte keine einzige.
+ *  · **Termine** je Gesellschaft (CAL-01) — der Kalender zeigt Schichten und
+ *    Fristen aus ihrer Quelle, aber das, was er SELBST besitzt, besass er in
+ *    keinem Bereich.
  *
  * **Was hier NICHT steht, und warum.** Projekte bleiben beim Bau: `projekt`
  * trägt `art` aus `hochbau | ausbau | rueckbau`, und einer Reinigungsfirma ein
@@ -39,7 +42,74 @@ export interface BerichtsdatenErgebnis {
   readonly leads: number;
   readonly vorgaenge: number;
   readonly zeiten: number;
+  readonly termine: number;
   readonly uebersprungen: boolean;
+}
+
+/**
+ * Termine je Gesellschaft (CAL-01).
+ *
+ * **Relativ zu HEUTE, nicht auf feste Daten.** Ein Seed mit „15.09.2026" zeigt
+ * im Oktober einen leeren Kalender, und wer ihn dann ansieht, hält den
+ * Kalender für kaputt statt den Seed für alt. Gestreut über die Woche davor
+ * und die zwei danach — so sieht jede Ansicht (Monat, Woche, Tag) etwas.
+ */
+const TERMINE: Readonly<Record<string, readonly {
+  art: string; titel: string; ort: string; tage: number; stunde: number; dauer: number;
+  ganztaegig?: boolean;
+}[]>> = {
+  reinigung: [
+    { art: 'kundentermin', titel: 'Objektbegehung mit dem Bezirksamt',
+      ort: 'Karl-Marx-Allee 31, Berlin', tage: 2, stunde: 10, dauer: 2 },
+    { art: 'besprechung', titel: 'Objektleitungsrunde',
+      ort: 'Kurfürstendamm 21, Berlin', tage: -3, stunde: 9, dauer: 1 },
+    { art: 'wiedervorlage', titel: 'Angebot Unterhaltsreinigung nachfassen',
+      ort: '', tage: 5, stunde: 8, dauer: 1 },
+  ],
+  security: [
+    { art: 'kundentermin', titel: 'Sicherheitskonzept Rechenzentrum besprechen',
+      ort: 'Rudower Chaussee, Berlin-Adlershof', tage: 1, stunde: 14, dauer: 2 },
+    { art: 'besprechung', titel: 'Schichtübergabe-Runde',
+      ort: 'Wachzentrale', tage: -1, stunde: 7, dauer: 1 },
+    { art: 'sonstiges', titel: 'Bewachungsverordnung: Unterrichtungsnachweise prüfen',
+      ort: '', tage: 9, stunde: 0, dauer: 24, ganztaegig: true },
+  ],
+  bau: [
+    { art: 'kundentermin', titel: 'Baustellenbegehung Rückbau Mitte',
+      ort: 'Mitte, Berlin', tage: 3, stunde: 7, dauer: 3 },
+    { art: 'besprechung', titel: 'Nachtragsbesprechung mit der Bauleitung',
+      ort: 'Büro', tage: -2, stunde: 13, dauer: 2 },
+    { art: 'bewerbungsgespraech', titel: 'Gespräch: Polier (m/w/d)',
+      ort: 'Büro', tage: 6, stunde: 11, dauer: 1 },
+  ],
+  operations: [
+    { art: 'besprechung', titel: 'Gruppenrunde: Zahlen des Monats',
+      ort: 'Kurfürstendamm 21, Berlin', tage: 4, stunde: 10, dauer: 2 },
+  ],
+};
+
+async function legeTermineAn(
+  sql: Sql, mandantId: string, besitzer: string, slug: string,
+): Promise<number> {
+  const [vorhanden] = await sql<{ anzahl: string }[]>`
+    select count(*)::text as anzahl from kalender_eintrag where mandant_id = ${mandantId}`;
+  if (vorhanden!.anzahl !== '0') return 0;
+
+  let angelegt = 0;
+  for (const t of TERMINE[slug] ?? []) {
+    const ergebnis = await sql`
+      insert into kalender_eintrag
+        (mandant_id, art, titel, ort, beginn, ende, ganztaegig, besitzer_benutzer_id,
+         erstellt_von)
+      select ${mandantId}, ${t.art}::kalender_art, ${t.titel}, ${t.ort},
+             b.start, b.start + make_interval(hours => ${t.dauer}::int),
+             ${t.ganztaegig ?? false}, ${besitzer}, ${besitzer}
+        from (select ((app.berlin_heute() + ${t.tage}::int)::timestamp
+                      + make_interval(hours => ${t.stunde}::int))
+                     at time zone 'Europe/Berlin' as start) b`;
+    angelegt += ergebnis.count;
+  }
+  return angelegt;
 }
 
 /**
@@ -132,11 +202,48 @@ const ANFRAGEN: Readonly<Record<string, {
 export async function seedBerichtsdaten(
   sql: Sql, ids: ReadonlyMap<string, string>, demodaten: boolean,
 ): Promise<BerichtsdatenErgebnis> {
-  if (!demodaten) return { leads: 0, vorgaenge: 0, zeiten: 0, uebersprungen: true };
+  if (!demodaten) {
+    return { leads: 0, vorgaenge: 0, zeiten: 0, termine: 0, uebersprungen: true };
+  }
 
   let leads = 0;
   let vorgaenge = 0;
   let zeiten = 0;
+  let termine = 0;
+
+  /*
+   * Termine fuer ALLE vier — auch fuer Operations, das keine Rechtseinheit
+   * ist und trotzdem einen Kalender fuehrt. Eine Gruppenrunde ist ein Termin,
+   * auch wenn niemand dafuer eine Rechnung schreibt.
+   */
+  for (const slug of ['reinigung', 'security', 'bau', 'operations']) {
+    const mandantId = ids.get(slug);
+    if (mandantId === undefined) continue;
+    /*
+     * **Und wenn niemand Mitglied ist, führt es die Gruppenleitung.**
+     *
+     * CSE Operations hat keine Bereichsrollen: dort arbeitet niemand im Sinne
+     * einer Mitgliedschaft, und trotzdem findet dort die Gruppenrunde statt.
+     * Ohne diesen Rückfall bliebe der eine Bereich ohne Kalender, der ihn am
+     * ehesten braucht — und im Gruppenkalender fehlte er ganz.
+     * `super_admin` ist eine GLOBALE Rolle (TEN-08), hängt also an
+     * `benutzer.globale_rolle_id` und nicht an `benutzer_mandant`.
+     */
+    const [wer] = await sql<{ id: string }[]>`
+      select b.id from benutzer b
+       join benutzer_mandant bm on bm.benutzer_id = b.id and bm.mandant_id = ${mandantId}
+       join rolle r on r.id = bm.rolle_id
+      where r.schluessel in ('admin', 'leitung') and b.status = 'aktiv'
+        and bm.entzogen_am is null
+      order by (r.schluessel = 'leitung') desc, b.email limit 1`;
+    const [global] = wer !== undefined ? [wer] : await sql<{ id: string }[]>`
+      select b.id from benutzer b
+       join rolle r on r.id = b.globale_rolle_id
+      where r.schluessel = 'super_admin' and b.status = 'aktiv'
+      order by b.email limit 1`;
+    if (global === undefined) continue;
+    termine += await legeTermineAn(sql, mandantId, global.id, slug);
+  }
 
   for (const [slug, anfragen] of Object.entries(ANFRAGEN)) {
     const mandantId = ids.get(slug);
@@ -229,5 +336,5 @@ export async function seedBerichtsdaten(
     }
   }
 
-  return { leads, vorgaenge, zeiten, uebersprungen: false };
+  return { leads, vorgaenge, zeiten, termine, uebersprungen: false };
 }

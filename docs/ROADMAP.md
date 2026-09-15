@@ -563,7 +563,16 @@ Radar first — the agents operate on its output.
       `/portal/konto/benachrichtigungen`, every entry linking to its own
       record, read-stamped rather than deleted. E-mail stays a declared
       channel and says "not connected" until O-501 is answered
-- [ ] Central calendar with iCal feed
+- [x] **Central calendar with iCal feed** (CAL-01…CAL-03, D-515, D-516):
+      month, week and day under `/portal/[mandant]/kalender`, filters by
+      source and by person, an appointment page, and a read-only iCal
+      subscription at `/portal/konto/kalender-feed`. The calendar **gathers**
+      — meetings it owns, shifts, project dates and tender, approval and lead
+      deadlines read from their own tables, so a shift moved in the roster is
+      moved here without anyone touching the calendar. Below `768px` the grid
+      becomes an agenda (DESIGN §5). The feed stores the SHA-256 of its token,
+      shows the address once, and a revocation takes effect on the next
+      request
 
 ---
 

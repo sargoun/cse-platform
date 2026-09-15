@@ -1654,8 +1654,9 @@ async function main(): Promise<void> {
     process.stdout.write(
       `  Berichtslücken: ${String(berichtsdaten.leads)} Anfragen, `
       + `${String(berichtsdaten.vorgaenge)} Vergabevorgänge und `
-      + `${String(berichtsdaten.zeiten)} freigegebene Zeiten — damit jede Gesellschaft `
-      + 'in jedem der sechs Berichte eine Zeile hat\n');
+      + `${String(berichtsdaten.zeiten)} freigegebene Zeiten und `
+      + `${String(berichtsdaten.termine)} Termine — damit jede Gesellschaft in jedem der `
+      + 'sechs Berichte und im Kalender eine Zeile hat\n');
   }
 
   /**

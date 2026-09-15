@@ -5172,6 +5172,7 @@ niemand ihn suchen.
 | O-357 | **Wohin gehen die Wächter-Meldungen aus SPEC §14 — Posteingang, Mail oder beides — und wer bekommt die Kettenmeldung?** Die Ablaufwarnung (60/30/7) erreicht die Person selbst; das ist EMP-08 und unstrittig. „Hashkette gebrochen" dagegen hat keinen persönlichen Empfänger: es ist eine Meldung an die Buchhaltung oder die Geschäftsführung, und beide sind heute keine adressierbare Größe im Modell. Solange die Frage offen ist, wird der Kettenprüfer bewusst NICHT als Job registriert — ein Lauf, der jede Nacht „ok" meldet, ohne dass jemand die Meldung liest, schafft Vertrauen, das er nicht deckt. | SPEC §14, `src/server/jobs/bootstrap.ts`, `kettenlauf.ts`, NOT-01 |
 | O-500 | **Wie lange gilt ein Einladungs- und ein Zurücksetzungslink, wie viele Wiederherstellungscodes werden ausgegeben, und gilt eine Mindestlänge über zwölf Zeichen hinaus?** Die SPEC nennt keine Zahl. `plattform_einstellung` führt vier vorläufige Werte (168 h, 2 h, 10 Codes, 12 Zeichen); sie sind als `ist_vorlaeufig = true` markiert und über eine Zeile änderbar, ohne Code. Die Auswahl folgt gängiger Praxis, nicht einer Entscheidung: ein Einladungslink überlebt ein Wochenende, ein Zurücksetzungslink nicht. | AUT-01, AUT-04, `0155`, D-502 |
 | O-501 | **Welches Supabase-Projekt in der EU-Region (Frankfurt), welcher Auftragsverarbeitungsvertrag — und soll die Anmeldung über ein Firmenverzeichnis (SAML/OIDC) laufen?** Dieselbe Frage trägt den Postausgang: welcher in der EU gehostete Mailanbieter, welche Absenderadresse je Gesellschaft, laufen DKIM und DMARC über die bestehenden Domains? Ohne beides gibt es keinen Zurücksetzungs- und keinen Einladungslink, der ankommt. Bis zur Antwort prüft die Plattform das Kennwort selbst (`kern.zugangsdaten`, bcrypt), `/auth/callback` antwortet `501` statt eine Sitzung auszustellen, und `/auth/passwort-vergessen` sagt „nicht verbunden" statt „gesendet" (D-501, D-503). | AUT-01, AUT-04, NOT-02, `0155`, D-501 |
+| O-510 | **Warum zeigt die Seite hinter einer 303-Umleitung den alten Stand?** Nach dem Widerruf eines Kalenderzugangs steht die widerrufene Zeile auf der Umleitungsseite noch in der Liste. Festgestellt ist: die Datenbank ist zu diesem Zeitpunkt richtig (`widerrufen_am` gesetzt), der Feed antwortet sofort mit 404, und ein normaler Aufruf derselben Adresse zeigt die Liste richtig — es ist eine veraltete ANZEIGE und kein offener Zugang. Ausgeschlossen sind: fehlendes `force-dynamic` (steht), eine nicht abgeschlossene Transaktion (die 404-Antwort beweist das Gegenteil), `revalidatePath` auf dem Ziel und `cache-control: no-store` auf der Umleitung (beide eingebaut, beide ohne Wirkung). Bis zur Antwort sagt die Bestätigung auf der Seite ausdrücklich, dass eine noch sichtbare Zeile veraltet ist. Der Browsertest prüft den Stand deshalb nach einem frischen Aufruf — und die Wirkung des Widerrufs sofort. | CAL-03, `api/kalender-feed/widerrufen`, D-516 |
 | O-509 | **Welche KI-Endpunkte deckt der Auftragsverarbeitungsvertrag ab?** Der Adapter zerlegt `OPENAI_BASE_URL` und lässt nur `https` und einen Wirt aus einer Liste durch; in der Liste steht heute `eu.api.openai.com`, der Endpunkt, den OpenAI für EU-Datenresidenz nennt. Ob der AV-Vertrag des Kunden genau diesen abdeckt, ob er weitere abdeckt (Azure OpenAI in einer EU-Region hat je Ressource einen eigenen Wirt) und ob Nullspeicherung vertraglich zugesagt ist, weiss der Kunde — nicht diese Datei. Bis zur Antwort kommt jeder andere Wirt als `RESIDENCY_BLOCKED` zurück; ergänzen lässt sich die Liste über `OPENAI_EU_HOSTS`, und diese Variable zu setzen ist eine Entscheidung, die in die Verfahrensdokumentation gehört. | D-04, §8, `versand/modell-openai.ts`, D-509 |
 | O-502 | **Welche Kostenarten gehören in die Projektmarge (REP-05)?** Heute: Lohn (freigegebene Zeiteinträge zum internen Stundensatz aus `anstellung.stundensatz_intern`) plus Fremdleistung (Eingangsrechnungen mit Projektbezug). Nicht enthalten: Material ohne Rechnungsbezug, Gerätestunden und ein Gemeinkostensatz — und ob es einen geben soll, ist die eigentliche Frage: ein Zuschlag je Gesellschaft, ein Satz je Gewerk, oder gar keiner (dann ist die Zahl ein Deckungsbeitrag und keine Marge, und sollte so heissen). Bis zur Antwort nennt die Seite die Zahl „Kosten (Näherung)" und sagt unter der Tabelle, was fehlt — eine Marge, die so tut, als wäre sie die Nachkalkulation, wird in ein Angebot übernommen. | REP-05, `bericht/kennzahlen.ts`, D-506 |
 
@@ -10075,3 +10076,55 @@ Rechtseinheit (O-01), und das ist eine Aussage und kein Loch.
 lasen `/^RE-\d{4}-\d{5}$/` — damit prüften sie die Seed-Einstellung und nicht
 die Rechnung. Der Kreis bestimmt das Präfix; geprüft wird, was jede Maske
 erzeugt.
+
+
+### D-515 · Der Kalender sammelt, und die Bildschirme dazu
+
+Die Bildschirme zu `0160`: Monat, Woche, Tag, die Herkunftsfilter, die
+Terminseite und der iCal-Zugang.
+
+**Alles steht in der Adresse** — Ansicht, Anker, Filter. Ein Kalender ist
+etwas, das man verschickt („sieh dir den 30. an"); ein Zustand im Kopf der
+Seite wäre nicht teilbar, und der Zurück-Knopf täte das Falsche.
+
+**Unter `768px` gibt es kein Gitter** (DESIGN §5, §8). Sieben Spalten auf
+einem Telefon sind 50 Pixel breit und zeigen nichts. Der Monat wird dort zur
+Agenda: ein Tag je Zeile, Tage ohne Einträge weggelassen. Das ist die eine
+Stelle, an der die mobile Fassung nicht die umgestellte Schreibtischfassung
+ist, sondern eine andere Antwort auf dieselbe Frage.
+
+**Sechs Quellen, drei Töne, keine neue Farbe.** Ein Kalender mit sechs
+Farbtönen ist Dekoration: niemand lernt, welcher Ton „Vergabefrist" bedeutet,
+und der eine, der zählt — heute —, geht zwischen fünf anderen unter. Die drei
+Töne beantworten die drei Fragen, die eine Kalenderzeile stellt: jemand hat es
+geplant, es ist der Regelbetrieb, oder es läuft ab.
+
+**Eine Zeile steht an jedem Tag, an dem sie LÄUFT.** Eine Nachtschicht von
+22:00 bis 06:00 gehört in beide Tage; nur an ihrem Beginn eingetragen
+verschwindet sie aus dem Tag, an dem sie endet (Invariante 2).
+
+**Eine Schicht hat hier keine Detailseite.** Sie gehört dem Dienstplan, und
+ihr Eintrag verlinkt dorthin. Zwei Detailseiten für dieselbe Schicht wären
+zwei Orte, an denen jemand sie zu ändern versucht — und nur einer wäre der
+richtige.
+
+### D-516 · Zwei Befunde des Browsertests, die keine Abfrage gefunden hätte
+
+**Der Heute-Marker fiel durch die Kontrastprüfung.** Der erste Entwurf von
+DESIGN §5 „Calendar" schrieb `--ink` auf `--brand` für die Tageszahl. Gemessen
+sind das **4.09:1** — unter den 4.5:1, die AA für 13px verlangt (§9, BFSG).
+`--text` auf demselben Rot ist **4.89:1**. Es ist derselbe Fall, den DESIGN für
+den Gefahrenknopf schon gelöst hat: eine solide Markenfläche will einen hellen
+Vordergrund, und der Token, der sich auf Dunkel gut liest, ist nicht der, der
+sich auf dem Markenrot gut liest.
+
+Bemerkenswert ist die Reihenfolge: die Regel stand zuerst in DESIGN.md (wie
+`CLAUDE.md` es verlangt), war falsch, und der Test fand es, bevor jemand den
+Bildschirm gesehen hat. Das ist das Argument dafür, die Regel zuerst zu
+schreiben — nicht dagegen.
+
+**Und der Widerruf sah aus, als hätte er nicht gewirkt.** Siehe O-510: die
+Datenbank war richtig, der Feed antwortete sofort mit 404, nur die Seite hinter
+der Umleitung zeigte die Zeile noch. Keine Abfrage und kein Isolationstest
+hätte das gefunden — es steht in keinem SQL. Gefunden hat es der Browsertest,
+und zwar genau der Schritt, der nach dem Klick nachsieht statt zu glauben.

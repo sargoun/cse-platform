@@ -1005,6 +1005,23 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   { modul: 'kalender', pfad: 'kalender/eintraege', schreibend: false },
   { modul: 'kalender', pfad: 'kalender/ical', schreibend: false },
+  { modul: 'kalender', pfad: 'kalender/fenster', schreibend: false },
+  /*
+   * **Der Feed-Zugang steht NICHT hier, und das ist kein Vergessen.**
+   *
+   * Er schreibt (`kalender_feed` anlegen und widerrufen), aber er gehoert dem
+   * MENSCHEN und keiner Gesellschaft: `t_feed_eigene` bindet ihn an
+   * `app.aktueller_benutzer()`, er laeuft ueber `bindePersoenlich`, und es
+   * gibt keinen Rechteschluessel dafuer — ein Recht davor hiesse, dass jemand
+   * seinen eigenen Kalender nicht abonnieren darf.
+   *
+   * Genau dafuer gibt es die Grenze dieses Verzeichnisses: was einem Menschen
+   * gehoert, liegt neben `server/benachrichtigung/posteingang.ts` unter
+   * `server/kalender/`, nicht unter `server/services/`. Der Gegentest liest
+   * `services/`, und die Zusage, die er traegt — jeder schreibende Dienst
+   * nennt sein Recht —, gilt fuer Mandantenlogik. Sie hier aufzuweichen
+   * hiesse, sie ueberall aufzuweichen.
+   */
 ] as const;
 
 /**
