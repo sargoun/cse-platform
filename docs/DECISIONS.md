@@ -11047,3 +11047,38 @@ jemand sie braucht.
 `tests/e2e/mitarbeiter.spec.ts` (7) hält beide Richtungen fest: die
 Mitarbeiterin sieht das Schild auf denselben zwei Seiten NICHT mehr, und die
 Gruppenansicht sieht es auf `/portal/gruppe/radar` weiterhin.
+
+### D-549 · Eine Tab-Leiste, die ins Leere zeigt, ist eine kaputte App
+
+Derselbe Nutzerbericht wie D-548, eine Ebene tiefer. Nachgezählt: **zwei von
+fünf** Zielen der Arbeiterleiste führen auf „Dieses Modul wird noch gebaut" —
+`Nachrichten` (`/portal/mein/nachrichten`, Phase 3) und `Profil`
+(`/portal/konto/profil`, Phase 1). Beide Phasen sind in der ROADMAP abgehakt.
+In der Gruppenleiste ein drittes (`Radar`, Phase 8).
+
+Unter 768 px **ist** diese Leiste die ganze Navigation (SEITENKARTE §11.2).
+Ein Fünftel davon, das zuverlässig auf eine Bauzustandsseite führt, ist für
+die Reinigungskraft im Treppenhaus keine halbe App — es ist eine kaputte.
+
+**Warum es nirgends rot wurde.** Die Leisten sind von Hand gepflegt
+(`tableiste.ts`), das Seitenverzeichnis wächst getrennt davon, und keine
+Prüfung verband beides. Jede Datei für sich richtig, zusammen ein totes Ziel —
+dieselbe Sorte Lücke wie beim Job-Register (D-540), nur eine Ebene weiter vorn,
+wo sie jeder Nutzer sieht und niemand meldet, weil sie aussieht wie Absicht.
+
+`tests/kern/tableiste-ziele.test.ts` verbindet die beiden Quellen: jedes Ziel
+steht im Manifest UND hat eine eigene `page.tsx` — ein Auffang zählt
+ausdrücklich nicht. Die Ausnahmeliste nennt je Eintrag das offene Kästchen, das
+ihn deckt, und **rostet nicht**: eine zweite Prüfung lässt die Suite
+fehlschlagen, sobald ein Eintrag gebaut ist und trotzdem noch dasteht.
+
+**Und die Glocke.** Ihr Wächter prüfte `^/portal/[a-z0-9-]+$` — eine FORM, und
+eine Form kann nicht wissen, welcher Name ein Mandant ist. `mein`, `konto`,
+`kunde` und `gruppe` kamen durch, also zeigte das Symbol im Arbeiterportal auf
+`/portal/mein/benachrichtigungen`: ein echtes 404 für jede Kraft, die darauf
+tippt. Die reservierten Wurzeln stehen jetzt ausdrücklich daneben.
+
+**Was damit NICHT erledigt ist** und in derselben Runde folgt: die beiden
+Seiten selbst. Solange sie fehlen, steht die Sprachwahl aus EMP-12 für niemanden
+zur Verfügung — `person.sprache` ist im ganzen Portal nirgends änderbar,
+obwohl de/en/ar/tr vollständig übersetzt sind.
