@@ -21,7 +21,8 @@
  */
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur, type Sitzung } from './harness.js';
-import { gibCheckinAus, widerrufeCheckin } from '../../src/server/services/zeit/checkin.js';
+import { gibCheckinAus, listeCheckinZeilen, widerrufeCheckin }
+  from '../../src/server/services/zeit/checkin.js';
 
 let f: Fixtur;
 const zufall = (): string => Math.random().toString(36).slice(2, 10);
@@ -104,6 +105,63 @@ async function markeZu(zuordnung: string): Promise<{ id: string; widerrufen: Dat
 
 beforeEach(async () => { f = await seed(); });
 afterAll(async () => { await schliessen(); });
+
+describe('Die Liste der Marken — die Abfrage, die nie jemand ausgefuehrt hat', () => {
+  /**
+   * **Der Befund.** `listeCheckinZeilen` hatte KEINEN Aufrufer in den
+   * Pruefungen — nur die Seite. Ihre Abfrage las `o.name`; die Spalte heisst
+   * seit `0021` `bezeichnung`, und `o.name` gab es nie. Die Seite antwortete
+   * deshalb 500, und gefunden hat es erst ein Rundgang durch alle Adressen.
+   *
+   * Ein Tippfehler in einem Spaltennamen ist kein Denkfehler — er ist der
+   * billigste Fehler, den es gibt, und genau deshalb steht er hier: eine
+   * Abfrage, die nie laeuft, ist keine gepruefte Abfrage. Der Fall unten holt
+   * wirklich Zeilen, statt nur `nicht zu werfen`.
+   */
+  it('liefert Person, Objekt und die neueste Marke je Einteilung', async () => {
+    const zuordnung = await zuordnungMit(f.reinigung, f.fatimaReinigung, f.fatima);
+    const sitzung = await planerin(f.reinigung);
+    await alsApp(sitzung, async (tx) =>
+      gibCheckinAus(kontext(tx, sitzung), zuordnung, 'checkin'));
+
+    const zeilen = await alsApp(sitzung, async (tx) =>
+      listeCheckinZeilen(kontext(tx, sitzung), {}));
+
+    const meine = zeilen.filter((z) => z.zuordnungId === zuordnung);
+    expect(meine, 'die Einteilung fehlt in der Liste').toHaveLength(1);
+    const z = meine[0]!;
+    expect(z.person).toMatch(/\S/u);
+    // Die Spalte, an der es lag: ohne sie faellt die Abfrage, nicht der Wert.
+    expect(z.objekt).toMatch(/\S/u);
+    expect(z.tokenId).not.toBeNull();
+    expect(z.zweck).toBe('checkin');
+    expect(z.widerrufenAm).toBeNull();
+  });
+
+  it('und ein Widerruf steht danach an derselben Zeile', async () => {
+    const zuordnung = await zuordnungMit(f.reinigung, f.fatimaReinigung, f.fatima);
+    const sitzung = await planerin(f.reinigung);
+    await alsApp(sitzung, async (tx) =>
+      gibCheckinAus(kontext(tx, sitzung), zuordnung, 'checkin'));
+    const { id: markeId } = await markeZu(zuordnung);
+    await alsApp(sitzung, async (tx) =>
+      widerrufeCheckin(kontext(tx, sitzung), markeId, 'Schicht abgesagt'));
+
+    const zeilen = await alsApp(sitzung, async (tx) =>
+      listeCheckinZeilen(kontext(tx, sitzung), {}));
+    const z = zeilen.find((r) => r.zuordnungId === zuordnung);
+    expect(z?.widerrufenAm).not.toBeNull();
+    expect(z?.widerrufGrund).toBe('Schicht abgesagt');
+  });
+
+  it('eine fremde Gesellschaft steht nicht darin — die RLS sieht sie nicht', async () => {
+    const fremd = await zuordnungMit(f.security, f.fatimaSecurity, f.fatima);
+    const sitzung = await planerin(f.reinigung);
+    const zeilen = await alsApp(sitzung, async (tx) =>
+      listeCheckinZeilen(kontext(tx, sitzung), {}));
+    expect(zeilen.some((z) => z.zuordnungId === fremd)).toBe(false);
+  });
+});
 
 describe('Eine Marke widerrufen — der ganze Weg, nicht nur das Eigentum', () => {
   it('ausgeben, widerrufen, und die Zeile trägt Zeitpunkt UND Grund', async () => {

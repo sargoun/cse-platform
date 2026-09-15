@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../../unterseite';
 import { leseMappe, lesePlattformwahl, type MappenBlick } from '../daten';
+import { kennungOder404 } from '../../../../../kennung';
 
 /**
  * `/portal/[mandant]/radar/[id]/mappe/einreichung` — festhalten, dass ein
@@ -51,6 +52,7 @@ export default async function Einreichung(
   },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   if (!UUID.test(id)) notFound();
   const tor = await mandantTor(`/portal/${mandant}/radar/${id}/mappe/einreichung`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;

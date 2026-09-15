@@ -8,6 +8,7 @@ import { SupabaseSpeicher } from '@/server/storage/adapter';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { formatiereBytes, KATEGORIE } from '../darstellung';
+import { kennungOder404 } from '../../../kennung';
 
 /**
  * `/portal/[mandant]/dokumente/[id]` — die Metadaten eines Dokuments
@@ -59,6 +60,7 @@ export default async function Dokumentblatt(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   if (!UUID.test(id)) notFound();
   const tor = await mandantTor(`/portal/${mandant}/dokumente/${id}`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;

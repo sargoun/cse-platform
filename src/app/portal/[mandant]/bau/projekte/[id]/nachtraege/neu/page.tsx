@@ -13,6 +13,7 @@ import { portalZugang } from '../../../../../../zugang';
 import { slugTor } from '../../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../../../kennung';
 
 /**
  * `/portal/[mandant]/bau/projekte/[id]/nachtraege/neu` — einen Nachtrag
@@ -51,6 +52,7 @@ export default async function NachtragAnmelden(
   },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const {
     titel = '', quelle = '', auftrag_leistung: auftragLeistung = '',
     aufmass_zeile: aufmassZeile = '',

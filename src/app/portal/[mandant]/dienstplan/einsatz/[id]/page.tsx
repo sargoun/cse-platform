@@ -16,6 +16,7 @@ import { beschriftung } from '../../daten';
 import { Button } from '@/components/ui/Button';
 import { pruefeEinteilung, type Vorschau } from '@/server/services/dienstplan/einteilung';
 import type { ArbzgBefund } from '@/server/services/zeit/arbzg';
+import { kennungOder404 } from '../../../../kennung';
 
 /**
  * `/portal/[mandant]/dienstplan/einsatz/[id]` — die einzelne Schicht.
@@ -80,6 +81,7 @@ export default async function Einsatzblatt({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const pfad = `/portal/${mandant}/dienstplan/einsatz/${id}`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;

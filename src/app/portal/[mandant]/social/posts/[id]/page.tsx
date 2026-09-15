@@ -19,6 +19,7 @@ import {
   naechsterStatus,
 } from '@/server/services/social/weg';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
+import { kennungOder404 } from '../../../../kennung';
 
 /**
  * `/portal/[mandant]/social/posts/[id]` — der Beitrag und sein Stand
@@ -69,6 +70,7 @@ export default async function Beitrag(
   },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   if (!UUID.test(id)) notFound();
   const tor = await mandantTor(`/portal/${mandant}/social/posts/[id]`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;

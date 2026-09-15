@@ -12,6 +12,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mitLesekontext } from '../../../daten';
 import { bereiteUnterschriftVor } from '@/server/services/reinigung/leistungsnachweis';
 import type { SchnappschussPosition } from '@/server/services/reinigung/schnappschuss';
+import { kennungOder404 } from '../../../../../kennung';
 
 /**
  * `/portal/[mandant]/reinigung/leistungsnachweise/[id]/unterschrift` — der
@@ -49,6 +50,7 @@ export default async function Unterschriftsblatt({
   params: Promise<{ mandant: string; id: string }>;
 }) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const zugang = await portalZugang(
     `/portal/${mandant}/reinigung/leistungsnachweise/[id]/unterschrift`,
   );

@@ -12,6 +12,7 @@ import { portalZugang } from '../../../../../zugang';
 import { slugTor } from '../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../../kennung';
 
 /**
  * `/portal/[mandant]/objekte/[id]/raumbuch/import` — hochladen und VORSCHAU
@@ -59,6 +60,7 @@ export default async function RaumbuchImport(
   },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const suche = await searchParams;
   const importId = typeof suche['import'] === 'string' ? suche['import'] : null;
 

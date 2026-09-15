@@ -10,6 +10,7 @@ import { portalZugang } from '../../../../../zugang';
 import { slugTor } from '../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../../kennung';
 
 /**
  * `/portal/[mandant]/security/veranstaltungen/[id]/besetzung` — das Brett der
@@ -57,6 +58,7 @@ export default async function Besetzungsbrett(
   },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const suche = await searchParams;
   const pfad = `/portal/${mandant}/security/veranstaltungen/${id}/besetzung`;
   const zugang = await portalZugang(pfad);

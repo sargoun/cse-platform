@@ -8,6 +8,7 @@ import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { MandantAntwort, mandantTor } from '../../../unterseite';
+import { kennungOder404 } from '../../../kennung';
 
 /**
  * `/portal/[mandant]/kalender/[id]` — ein Termin (CAL-01).
@@ -84,6 +85,7 @@ export default async function Termin({ params }: {
   params: Promise<{ mandant: string; id: string }>;
 }) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   /*
    * Der KONKRETE Pfad, nicht das Routenmuster -- wie auf jeder anderen
    * Detailseite (`angebote/[id]` und die uebrigen). `zugang.pfad` wird zum

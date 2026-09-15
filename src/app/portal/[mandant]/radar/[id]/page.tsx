@@ -10,6 +10,7 @@ import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { leseRadarZeile, type RadarZeile } from '../daten';
+import { kennungOder404 } from '../../../kennung';
 
 /**
  * `/portal/[mandant]/radar/[id]` — eine Bekanntmachung (RAD-03, RAD-05,
@@ -73,6 +74,7 @@ export default async function Bekanntmachung(
   },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   if (!UUID.test(id)) notFound();
   const tor = await mandantTor(`/portal/${mandant}/radar/${id}`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;

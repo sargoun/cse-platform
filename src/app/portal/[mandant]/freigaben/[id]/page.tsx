@@ -18,6 +18,7 @@ import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../kennung';
 import {
   FEHLER_TEXT, RISIKO_LABEL, STATUS_LABEL, STATUS_PILL, VORGANG_LABEL,
   ausfuehrungText, zeitpunkt,
@@ -85,6 +86,7 @@ export default async function Freigabe(
   },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   if (!UUID.test(id)) notFound();
   const suche = await searchParams;
   const zugang = await portalZugang(`/portal/${mandant}/freigaben/${id}`);

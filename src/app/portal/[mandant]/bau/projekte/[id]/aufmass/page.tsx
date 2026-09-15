@@ -14,6 +14,7 @@ import { portalZugang } from '../../../../../zugang';
 import { slugTor } from '../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../../kennung';
 
 /**
  * `/portal/[mandant]/bau/projekte/[id]/aufmass` — die Blaetter eines Projekts
@@ -30,6 +31,7 @@ export default async function AufmassListe(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const pfad = `/portal/${mandant}/bau/projekte/${id}/aufmass`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;

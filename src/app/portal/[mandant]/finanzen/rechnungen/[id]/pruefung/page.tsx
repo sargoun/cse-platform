@@ -11,6 +11,7 @@ import { portalZugang } from '../../../../../zugang';
 import { slugTor } from '../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../../kennung';
 
 /**
  * `/portal/[mandant]/finanzen/rechnungen/[id]/pruefung` — der
@@ -98,6 +99,7 @@ export default async function Pruefblatt(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const zugang = await portalZugang(
     `/portal/${mandant}/finanzen/rechnungen/${id}/pruefung`);
   if (zugang === null) return <AnmeldungNoetig />;

@@ -11,6 +11,7 @@ import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../kennung';
 
 /**
  * `/portal/[mandant]/objekte/[id]` — die Objektuebersicht (OPS-01, OPS-11).
@@ -65,6 +66,7 @@ export default async function ObjektDetail(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const pfad = `/portal/${mandant}/objekte/${id}`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;

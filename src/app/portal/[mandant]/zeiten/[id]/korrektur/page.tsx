@@ -9,6 +9,7 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { stundenAusMinuten } from '@/lib/datum/stunden';
 import { darfKorrigieren, ladeZeiteintrag } from '../../daten';
+import { kennungOder404 } from '../../../../kennung';
 
 /**
  * `/portal/[mandant]/zeiten/[id]/korrektur` — wer korrigiert, wann und
@@ -91,6 +92,7 @@ export default async function Korrekturblatt({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const pfad = `/portal/${mandant}/zeiten/${id}/korrektur`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;

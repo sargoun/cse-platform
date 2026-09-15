@@ -16,6 +16,7 @@ import { stundenMinutenText } from '@/lib/datum/stunden';
 import { berlinAnzeige } from '@/server/services/zeit/dauer';
 import { leseBewegungen, type Bewegung } from '@/server/services/zeit/stundenkonto';
 import { leseJahr, leseKontoZeile, type JahresMonat, type KontoZeile } from '../daten';
+import { kennungOder404 } from '../../../../kennung';
 
 /**
  * `/portal/[mandant]/personal/stundenkonten/[anstellungId]` — ein Konto, seine
@@ -63,6 +64,7 @@ export default async function Kontoblatt({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { mandant, anstellungId } = await params;
+  kennungOder404(anstellungId);
   const pfad = `/portal/${mandant}/personal/stundenkonten/${anstellungId}`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;

@@ -9,6 +9,7 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { stundenAusMinuten } from '@/lib/datum/stunden';
 import { darfKorrigieren, ladeZeiteintrag, type SpurZeile } from '../daten';
+import { kennungOder404 } from '../../../kennung';
 
 /**
  * `/portal/[mandant]/zeiten/[id]` — ein Zeiteintrag, vollständig (TIM-08,
@@ -85,6 +86,7 @@ export default async function Zeiteintragsblatt(
   },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const pfad = `/portal/${mandant}/zeiten/${id}`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;

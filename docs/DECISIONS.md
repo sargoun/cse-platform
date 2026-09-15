@@ -11548,3 +11548,62 @@ Wirklichkeit, die es nicht gibt. Die Hilfsfunktion nimmt die beiden jetzt
 getrennt (`url` = was der Browser schickte, `serverUnter` = wo der Server
 läuft), und mit der alten Fassung von `wirt()` fallen sechs Fälle um — darunter
 drei, die vorher grün waren.
+
+### D-563 · Sieben Adressen antworteten 500 — gefunden erst, als jemand sie alle geöffnet hat
+
+Der Nutzer klickte auf der Gruppenübersicht „Bereich öffnen" und bekam „Diese
+Seite gibt es hier nicht." Daraus wurde ein Rundgang durch **jede**
+Portaladresse als Super-Administration — und der fand mehr als den einen Klick.
+
+**Befund 1 — der Knopf selbst.** In `/portal/[mandant]/page.tsx` stand
+`if (sitzung.aktiverMandantId === null) notFound()` **vor** `slugTor`. In der
+Gruppenansicht ist der aktive Bereich immer null (K-20); jede Gruppensitzung
+fiel damit auf 404, bevor das Wechselblatt kam. Eine Zeile zu früh — dieselbe
+Lehre wie bei den nummerierten Auslösern in `0036`: **die Reihenfolge IST die
+Regel.** `tests/kern/mandanten-tor.test.ts` prüft sie jetzt über alle 165
+Mandantsseiten, nicht über die eine, die es erwischt hat.
+
+**Befund 2 — 44 Seiten, die eine Kennung ungeprüft weiterreichen.** Die
+Seitenkarte führt `…/crm/leads/neu`, `…/crm/kunden/neu`, `…/angebote/neu`,
+`…/objekte/neu`, `…/reinigung/reviere/neu`; gebaut ist keine. Next.js greift
+deshalb die Nachbarroute `[id]` und reicht `"neu"` unverändert in ein
+`$1::uuid` — Postgres antwortet `invalid input syntax for type uuid`, die
+Anwendung mit **500**. Nachgezählt trugen 44 von 65 dynamischen Seiten diese
+Lücke, und es war nie nur `neu`: jeder Tippfehler in einer Adresse, jeder alte
+Verweis, jede Kennung aus einer anderen Datenbank ergab dort einen
+Serverfehler.
+
+**Ein 500 ist die schlechteste aller Antworten.** Er sagt „mein Fehler", wo
+„gibt es nicht" die Wahrheit ist, und er füllt das Fehlerprotokoll mit Zeilen,
+die keine Fehler sind — bis der eine echte darin untergeht. `kennungOder404`
+steht jetzt in jeder dieser Seiten, direkt hinter `await params`: was einmal in
+eine Abfrage gelangt ist, ist zu spät geprüft. Sechs Platzhalterseiten fangen
+die im Manifest geführten `/neu`-Adressen ab, damit dort „wird noch gebaut"
+steht und nicht „gibt es nicht" — die zweitbeste Antwort wird zur besten.
+
+**Befund 3 — `/zeiten/checkin-links`, zwei Fehler in einer Abfrage.** Die
+Seite, die in derselben Sitzung entstand, antwortete ebenfalls 500:
+
+- `o.name` — die Spalte heisst seit `0021` `bezeichnung`, und `o.name` gab es
+  nie.
+- `select ct.*` im Lateral — der Stern zieht `token_hash` mit, und genau die
+  Spalte ist aus dem Grant ausgespart (`0035`). Postgres meldet darauf
+  `permission denied for table checkin_token`: eine Meldung, die nach einer
+  fehlenden Policy klingt und ein SPALTENrecht meint.
+
+Beide Male dieselbe Ursache dahinter: **`listeCheckinZeilen` hatte keinen
+einzigen Aufrufer in den Prüfungen.** Eine Abfrage, die nie läuft, ist keine
+geprüfte Abfrage — derselbe Befund wie bei `korrigiereZeiteintrag` (D-559),
+zwei Stunden später und in meinem eigenen Code. Drei Isolationsfälle holen
+jetzt wirklich Zeilen.
+
+**Was der Rundgang sonst ergab** — 94 echte Seiten, 55 ehrliche Platzhalter,
+**0 Serverfehler**. Die 21 Adressen mit 404 sind die Gewerkemodule, die diese
+Gesellschaft nicht gebucht hat (D-377): für sie gibt es die Seite wirklich
+nicht, und das ist die richtige Antwort.
+
+**Die Lehre über den einzelnen Fehlern.** Alle drei Befunde lagen auf Wegen,
+die jede Prüfung für gedeckt hielt: die Seite war gebaut, der Dienst getestet,
+die Route im Manifest. Was fehlte, war jemand, der sie **öffnet**. Ein Rundgang
+durch alle Adressen kostet drei Minuten und hat gefunden, was zwei Suiten mit
+zusammen 3900 Fällen nicht gesehen haben.

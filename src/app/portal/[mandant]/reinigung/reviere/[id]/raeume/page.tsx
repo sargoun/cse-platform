@@ -9,6 +9,7 @@ import { slugTor } from '../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { findeRevier, ladeObjektRaeume, mitLesekontext } from '../../../daten';
+import { kennungOder404 } from '../../../../../kennung';
 
 /**
  * `/portal/[mandant]/reinigung/reviere/[id]/raeume` — Räume zuordnen und die
@@ -34,6 +35,7 @@ export default async function RaeumeZuordnen({
   params: Promise<{ mandant: string; id: string }>;
 }) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const zugang = await portalZugang(`/portal/${mandant}/reinigung/reviere/[id]/raeume`);
   if (zugang === null) return <AnmeldungNoetig />;
 

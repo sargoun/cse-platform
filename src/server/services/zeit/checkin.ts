@@ -285,7 +285,12 @@ export async function listeCheckinZeilen(
   return kontext.abfrage<CheckinZeile>(
     `select ez.id                       as "zuordnungId",
             trim(p.vorname || ' ' || p.nachname) as person,
-            o.name                      as objekt,
+            -- bezeichnung, NICHT name: so heisst die Spalte seit 0021, und
+            -- o.name gab es nie. Die Seite antwortete damit 500 -- gefunden
+            -- erst beim Rundgang durch alle Adressen, weil keine Pruefung
+            -- diese Abfrage je ausgefuehrt hat (D-563). Und keine Backticks
+            -- in diesem Text: er steht IN einem Template-Literal.
+            o.bezeichnung               as objekt,
             ez.beginn_zeitpunkt         as beginn,
             ez.ende_zeitpunkt           as ende,
             t.id                        as "tokenId",
@@ -301,7 +306,15 @@ export async function listeCheckinZeilen(
        join einsatz e on e.mandant_id = ez.mandant_id and e.id = ez.einsatz_id
        left join objekt o on o.id = e.objekt_id
        left join lateral (
-         select ct.* from checkin_token ct
+         -- Die Spalten NAMENTLICH, nie ct.*: der Stern zieht token_hash mit,
+         -- und genau die Spalte ist aus dem Grant ausgespart (0035). Postgres
+         -- antwortet darauf mit "permission denied for table checkin_token" --
+         -- einer Meldung, die nach einer fehlenden Policy klingt und in
+         -- Wahrheit ein Spaltenrecht meint. Die Seite gab damit 500.
+         select ct.id, ct.zweck, ct.erstellt_am, ct.ausgabe_kanal,
+                ct.eingeloest_am, ct.widerrufen_am, ct.widerruf_grund,
+                ct.gueltig_bis
+           from checkin_token ct
           where ct.einsatz_zuordnung_id = ez.id
           order by ct.erstellt_am desc
           limit 1

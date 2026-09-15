@@ -17,6 +17,7 @@ import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../kennung';
 
 /**
  * `/portal/[mandant]/objekte/[id]/raumbuch` — OPS-02 und das
@@ -67,6 +68,7 @@ export default async function Raumbuch(
   },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const suche = await searchParams;
   const gewuenscht = typeof suche['turnus'] === 'string' ? suche['turnus'] : '1_pro_monat';
   // Ein unbekannter Turnus aus der Adresszeile bekommt keinen Ersatzwert und

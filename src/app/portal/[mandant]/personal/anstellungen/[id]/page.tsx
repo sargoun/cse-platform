@@ -10,6 +10,7 @@ import { MONATSNAMEN } from '@/lib/datum/kalendertag';
 import { stundenMinutenText } from '@/lib/datum/stunden';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
+import { kennungOder404 } from '../../../../kennung';
 
 /**
  * `/portal/[mandant]/personal/anstellungen/[id]` — eine Beschaeftigung in
@@ -86,6 +87,7 @@ export default async function Anstellungsblatt(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   if (!UUID.test(id)) notFound();
   const tor = await mandantTor(`/portal/${mandant}/personal/anstellungen/${id}`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;

@@ -13,6 +13,7 @@ import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../kennung';
 
 /**
  * `/portal/[mandant]/buchhaltung/datev/[id]` — ein Stapel, seine Datei und
@@ -69,6 +70,7 @@ export default async function DatevStapel(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   /* Ein Wort im Pfad ist ein 404, kein 500 — die Umwandlung nach uuid geschieht sonst in der Datenbank. */
   if (!istUuid(id)) notFound();
   const zugang = await portalZugang(`/portal/${mandant}/buchhaltung/datev/${id}`);

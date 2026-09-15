@@ -19,6 +19,7 @@ import { portalZugang } from '../../../../../../zugang';
 import { slugTor } from '../../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../../../kennung';
 
 /**
  * `/portal/[mandant]/bau/projekte/[id]/behinderungen/[bid]` — die Anzeige mit
@@ -46,6 +47,8 @@ export default async function BehinderungDetail(
   },
 ) {
   const { mandant, id, bid } = await params;
+  kennungOder404(id);
+  kennungOder404(bid);
   const pfad = `/portal/${mandant}/bau/projekte/${id}/behinderungen/${bid}`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;

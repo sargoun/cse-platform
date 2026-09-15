@@ -10,6 +10,7 @@ import { withTenant } from '@/server/kontext/index';
 import { type BeitragZeile, ladeBeitrag } from '@/server/services/social/dienst';
 import { STATUS_TEXT, naechsterStatus } from '@/server/services/social/weg';
 import { mandantTor, MandantAntwort } from '../../../../../unterseite';
+import { kennungOder404 } from '../../../../../kennung';
 
 /**
  * `/portal/[mandant]/social/posts/[id]/planung` — einen freigegebenen Beitrag
@@ -51,6 +52,7 @@ export default async function Planung(
   },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   if (!UUID.test(id)) notFound();
   const tor = await mandantTor(`/portal/${mandant}/social/posts/[id]/planung`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;

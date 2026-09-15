@@ -24,6 +24,7 @@ import { portalZugang } from '../../../../../../zugang';
 import { slugTor } from '../../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../../../kennung';
 
 /**
  * `/portal/[mandant]/bau/projekte/[id]/bautagebuch/[datum]` — der Bautag
@@ -74,6 +75,7 @@ export default async function Bautag(
   { params }: { params: Promise<{ mandant: string; id: string; datum: string }> },
 ) {
   const { mandant, id, datum } = await params;
+  kennungOder404(id);
   if (!istKalendertag(datum)) notFound();
 
   const pfad = `/portal/${mandant}/bau/projekte/${id}/bautagebuch/${datum}`;

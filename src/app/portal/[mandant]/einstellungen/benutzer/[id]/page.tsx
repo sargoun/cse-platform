@@ -6,6 +6,7 @@ import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
+import { kennungOder404 } from '../../../../kennung';
 
 /**
  * `/portal/[mandant]/einstellungen/benutzer/[id]` — ein Konto in dieser
@@ -73,6 +74,7 @@ export default async function Benutzerblatt(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   if (!UUID.test(id)) notFound();
   const tor = await mandantTor(`/portal/${mandant}/einstellungen/benutzer/${id}`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
