@@ -88,6 +88,32 @@ export async function bindeAnfrage(tx: Transaktion, sitzung: Sitzung): Promise<v
 }
 
 /**
+ * Dieselbe Bindung, aber SCHREIBEND — fuer das, was einem Menschen gehoert
+ * und keiner Gesellschaft.
+ *
+ * **Warum es das getrennt gibt.** `bindeAnfrage` setzt `app.readonly = 'on'`,
+ * und jede `with check`-Bedingung im Haus traegt `not app.ist_readonly()`. Ein
+ * Schreibvorgang dahinter faellt deshalb in die RLS statt in eine Pruefung:
+ * „new row violates row-level security policy" — richtig, und an der falschen
+ * Stelle erklaert.
+ *
+ * `withTenant` waere die uebliche Antwort, verlangt aber genau EINEN aktiven
+ * Mandanten (Invariante 10, `SchreibKontext.aktiverMandantId: string`). Der
+ * Posteingang und die Benachrichtigungseinstellung gehoeren aber dem KONTO
+ * und nicht einem Bereich: sie stehen auch in der Gruppenansicht, in der es
+ * keinen aktiven Mandanten gibt. Eingegrenzt sind sie trotzdem, nur woanders —
+ * `t_benachrichtigung_lesen_setzen` und `t_praeferenz_eigene` binden jede
+ * Zeile an `app.aktueller_benutzer()`.
+ *
+ * `app.mandant_ids` bleibt leer: was hier geschrieben wird, gehoert keinem
+ * Bereich, und eine Liste, die nicht gebraucht wird, waere eine, die jemand
+ * spaeter benutzt.
+ */
+export async function bindePersoenlich(tx: Transaktion, sitzung: Sitzung): Promise<void> {
+  await bindeSitzung(tx, sitzung, false, []);
+}
+
+/**
  * Die Bereiche, die im Gruppen-Scope offenstehen — aus der Datenbank.
  *
  * `app.switcher_mandanten()` und NICHT `select id from mandant`: die zweite

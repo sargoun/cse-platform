@@ -38,7 +38,7 @@ test.describe('Freigabe-Posteingang', () => {
 
     // Der Hinweis hat drei Stunden Frist, die Monatsrechnung zwei Tage.
     const erste = page.locator('table tbody tr').first();
-    await expect(erste).toContainText('Leistungsnachweis');
+    await expect(erste).toContainText('Leistungsnachweis Bürohaus');
     await expect(erste).toContainText('Unter 4 Stunden');
   });
 
@@ -85,7 +85,14 @@ test.describe('Freigabe-Posteingang', () => {
     await anmelden(page, KONTO.adminReinigung);
     await page.goto(`/portal/${MANDANT}/freigaben`);
     const vorher = Number(await page.locator('[data-cse="posteingang-zaehler"]').getAttribute('data-anzahl'));
-    await page.getByRole('link', { name: /Leistungsnachweis/u }).click();
+    /*
+     * **Der Titel genau, nicht ein Wortteil.** Seit die Agenten laufen (PR 76)
+     * steht im selben Posteingang auch „Hinweis: offene Leistungsnachweise" —
+     * ein Vorschlag, den ein Lauf vorgelegt hat. Ein Suchmuster auf
+     * „Leistungsnachweis" trifft dann zwei Zeilen, und der Test bricht an
+     * seiner eigenen Ungenauigkeit ab, nicht an einem Fehler.
+     */
+    await page.getByRole('link', { name: /^Leistungsnachweis Bürohaus/u }).click();
 
     await expect(page.locator('[data-cse="freigeben"]')).toBeEnabled();
     await page.locator('[data-cse="freigeben"]').click();
@@ -95,7 +102,7 @@ test.describe('Freigabe-Posteingang', () => {
     await page.goto(`/portal/${MANDANT}/freigaben`);
     const nachher = Number(await page.locator('[data-cse="posteingang-zaehler"]').getAttribute('data-anzahl'));
     expect(nachher).toBe(vorher - 1);
-    await expect(page.getByRole('link', { name: /Leistungsnachweis/u })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: /^Leistungsnachweis Bürohaus/u })).toHaveCount(0);
   });
 
   test('geoeffnet_am im Rumpf ist ein 400 — die Prüfdauer misst der Server (T-36)', async ({ page }) => {

@@ -93,7 +93,13 @@ clone, and the architecture document is reviewed.
       human, one employment per entity; certificates on the person, everything
       costed on the employment
 - [x] **RLS enabled on every tenant table**; session sets the active mandant
-- [x] Supabase Auth; 2FA for `super_admin` and `admin`
+- [x] Supabase Auth; 2FA for `super_admin` and `admin` — **the whole `/auth`
+      path is built** (PR 77): e-mail + password, TOTP enrolment with a QR code
+      computed in-repo, TOTP challenge, recovery codes, forgot-password,
+      new-password, invitation, no-access, logout, callback. Supabase Auth
+      stays the chosen provider; until a project is on file (O-501) the
+      platform verifies the password itself (`kern.zugangsdaten`, bcrypt) and
+      the login screen says so (D-501, D-502)
 - [ ] Five roles with configurable permissions, editable in the UI
 - [x] **Settings screens, read-only** (D-476): company data with the O-353
       caveat, users with 2FA state and own sessions, roles with the full
@@ -467,8 +473,23 @@ Radar first — the agents operate on its output.
       and reserved amount, and the step chain per run.
       **The screens say plainly that no model access is configured** — and
       there is no start button until there is a provider (D-435).
-- [ ] Four agents: CEO Assistant, Acquisition, Back-office, Finance
-      — blocked on the model access above, not on the runtime.
+- [x] Four agents: CEO Assistant, Acquisition, Back-office, Finance
+      (PR 76, D-499) — **they run.** `modell_register` (§3.6) is now the only
+      place a model becomes callable (`eu_verarbeitung AND zero_retention AND
+      freigegeben`, all defaulting to false), callers ask for a **capability**
+      and never a model, and the in-house `demo:hausintern-v1` carries those
+      three flags **truthfully**: it runs in-process — no network, no
+      processor, nothing stored outside this database. It is not a language
+      model and does not pretend to be one: it formulates from templates and
+      already-computed facts, deterministically. **Every digit in a draft must
+      have appeared in the facts first** — and that is checked at RUNTIME
+      (`agent/zahlenherkunft.ts`), before the approval row is written, not only
+      by a test against the demo. A test against the demo would have proved
+      nothing about a real provider: it could have invented a deadline or a
+      quantity and still produced an approvable draft (D-510).
+      The run ends in a **draft in the approval inbox**, never in an action
+      (invariant 7). Swapping in a real provider is one registry row and a key;
+      `app.modell_fuer` orders a real provider ahead of the demo.
 - [x] Approval inbox with diff review, source attribution, confidence flags,
       batch approval, delayed release, undo, approval snapshots
       (PR 62/63, D-472; completed PR 75, D-497) — the batch is a **loop** over
@@ -527,10 +548,31 @@ Radar first — the agents operate on its output.
 - [ ] External channels behind an interface, marked "not connected"
 - [ ] Recruiting: job ad drafting, inbound applications, CV parsing, ranking
       with visible criteria, interview scheduling, DSGVO purge
-- [ ] Reports: revenue, expenses, profit, orders, leads, conversion,
-      **channel attribution**, employees, projects, tender pipeline
-- [ ] Notifications and preferences
-- [ ] Central calendar with iCal feed
+- [x] **Reports** (REP-01…REP-07, D-506…D-508): revenue, orders and leads,
+      **channel attribution**, hours, projects, tender pipeline — six per
+      company under `/portal/[mandant]/berichte`, the same six split per
+      company under `/portal/gruppe/berichte` (read-only, Invariant 10), year
+      and granularity as links so a report is shareable, and CSV behind its
+      own right `bericht.exportieren` (REP-07). Money stays integer cents;
+      the protected columns (`anstellung.stundensatz_intern`,
+      `projekt.auftragssumme_netto_cent`) are read only as an aggregate,
+      through `app.projekt_kennzahlen` / `…_gruppe`
+- [x] **Notifications and preferences** (NOT-01…NOT-03, D-505): the personal
+      inbox at `/portal/[mandant]/benachrichtigungen` with a bell in every
+      portal header, per-kind channel preferences at
+      `/portal/konto/benachrichtigungen`, every entry linking to its own
+      record, read-stamped rather than deleted. E-mail stays a declared
+      channel and says "not connected" until O-501 is answered
+- [x] **Central calendar with iCal feed** (CAL-01…CAL-03, D-515, D-516):
+      month, week and day under `/portal/[mandant]/kalender`, filters by
+      source and by person, an appointment page, and a read-only iCal
+      subscription at `/portal/konto/kalender-feed`. The calendar **gathers**
+      — meetings it owns, shifts, project dates and tender, approval and lead
+      deadlines read from their own tables, so a shift moved in the roster is
+      moved here without anyone touching the calendar. Below `768px` the grid
+      becomes an agenda (DESIGN §5). The feed stores the SHA-256 of its token,
+      shows the address once, and a revocation takes effect on the next
+      request
 
 ---
 

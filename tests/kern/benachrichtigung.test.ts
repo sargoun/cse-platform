@@ -8,7 +8,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   ArtFehler, ZielFehler, arten, erzeuge, findeArt, leereArten, registriereArt,
-  teileFuerZusammenfassung, type ArtDefinition, type BenachrichtigungsKontext,
+  sicherRegistriert, teileFuerZusammenfassung,
+  type ArtDefinition, type BenachrichtigungsKontext,
 } from '../../src/server/benachrichtigung/registry.js';
 
 const KONTEXT: BenachrichtigungsKontext = {
@@ -134,5 +135,94 @@ describe('(5) eine Freigabeanfrage geht nie in eine Zusammenfassung', () => {
     // Sie laesst sich beim Erzeugen nicht uebersteuern — es gibt keinen Weg,
     // eine Freigabe doch noch in die Sammlung zu schieben.
     expect(erzeuge('freigabe.angefordert', KONTEXT).sammelbar).toBe(false);
+  });
+});
+
+/**
+ * (6) Eine halb registrierte Gruppe — der Fall, den die Stellvertreterpruefung
+ * nicht kannte.
+ *
+ * Jedes Modul meldet seine Arten buendelweise an und muss das mehrfach
+ * koennen: der Jobbootstrap laeuft im Test mehrfach, und die
+ * Einstellungsseite (NOT-02) zaehlt alle Arten auf, indem sie sie anmeldet.
+ * Die frueheren Fassungen fragten EINE Art und schlossen auf die Gruppe. Beide
+ * Zweige dieses Schlusses gehen schief, sobald die Gruppe einmal unvollstaendig
+ * ist — und keiner der beiden faellt beim Anmelden auf.
+ */
+describe('(6) eine halb registrierte Gruppe wird vervollstaendigt, nicht verdoppelt', () => {
+  const gruppe = (): readonly ArtDefinition[] => [
+    art({ schluessel: 'crm.neuer_lead' }),
+    art({ schluessel: 'crm.lead_sla_ueberschritten', sammelbar: false }),
+    art({ schluessel: 'crm.lead_verloren' }),
+  ];
+
+  it('meldet nur die fehlenden an und wirft nicht ueber den vorhandenen', () => {
+    /* Der Abbruch mittendrin: die erste ist da, die beiden anderen nicht. */
+    registriereArt(art({ schluessel: 'crm.neuer_lead' }));
+
+    const ergebnis = sicherRegistriert(gruppe());
+
+    expect(ergebnis.map((a) => a.schluessel)).toEqual([
+      'crm.neuer_lead', 'crm.lead_sla_ueberschritten', 'crm.lead_verloren',
+    ]);
+    /*
+     * Und alle drei sind danach ERREICHBAR. Der alte Stellvertreter-Zweig gab
+     * die vorhandene zurueck und liess die beiden fehlenden aus: `erzeuge`
+     * warf dann erst, wenn sie jemand ausloeste — nachts, im Waechter.
+     */
+    for (const s of ['crm.neuer_lead', 'crm.lead_sla_ueberschritten', 'crm.lead_verloren']) {
+      expect(findeArt(s), s).toBeDefined();
+      expect(erzeuge(s, KONTEXT).art).toBe(s);
+    }
+  });
+
+  it('bleibt bei jedem weiteren Aufruf still — und definiert nichts neu', () => {
+    const erst = sicherRegistriert(gruppe());
+    const zweit = sicherRegistriert(gruppe());
+    const dritt = sicherRegistriert(gruppe());
+
+    expect(arten()).toHaveLength(3);
+    /*
+     * Dieselben Objekte, nicht nur dieselben Schluessel: die zweite
+     * Registrierung hat die erste Definition nicht ersetzt. Zwei Definitionen
+     * derselben Art waeren zwei Texte fuer dieselbe Meldung.
+     */
+    expect(zweit).toEqual(erst);
+    expect(dritt[0]).toBe(erst[0]);
+  });
+
+  /**
+   * **Ein Schluessel, zwei Definitionen — das bleibt ein Fehler**, auch
+   * durch `sicherRegistriert` hindurch. Sonst haengt vom Bootstrap ab, ob
+   * jemand den Text des einen oder des anderen Moduls liest, und der
+   * Unterschied faellt erst auf, wenn die Meldung schon zugestellt ist.
+   */
+  it('zwei Module mit demselben Schluessel scheitern statt sich zu ueberdecken', () => {
+    sicherRegistriert([art({ schluessel: 'crm.neuer_lead' })]);
+
+    expect(() => sicherRegistriert([art({
+      schluessel: 'crm.neuer_lead', titel: () => 'ein ganz anderer Titel',
+    })])).toThrow(/ANDEREN Definition/u);
+
+    expect(() => sicherRegistriert([art({
+      schluessel: 'crm.neuer_lead', sammelbar: false,
+    })])).toThrow(ArtFehler);
+
+    expect(() => sicherRegistriert([art({
+      schluessel: 'crm.neuer_lead', kanaeleVorgabe: ['app'],
+    })])).toThrow(ArtFehler);
+
+    /* Dieselbe Definition ein zweites Mal bleibt still. */
+    expect(() => sicherRegistriert([art({ schluessel: 'crm.neuer_lead' })])).not.toThrow();
+  });
+
+  it('eine doppelte Anmeldung von Hand bleibt ein Fehler', () => {
+    sicherRegistriert(gruppe());
+    // `sicherRegistriert` ist die Ausnahme fuer dasselbe Buendel, kein
+    // Freibrief: wer eine ZWEITE Definition anmeldet, bekommt weiter einen
+    // Fehler.
+    expect(() => registriereArt(art({
+      schluessel: 'crm.neuer_lead', titel: () => 'ein anderer Text',
+    }))).toThrow(ArtFehler);
   });
 });

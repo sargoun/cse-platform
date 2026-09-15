@@ -92,7 +92,15 @@ async function festgeschriebenerBeleg(page: Page): Promise<string> {
     'Festschreiben abgewiesen — der Grund steht im JSON daneben',
   ).toBeNull();
 
-  const nummer = await page.getByText(/^RE-\d{4}-\d{5}$/u).first().innerText();
+  /*
+   * **Der Kreis bestimmt das Praefix, nicht dieser Test.** Der Seed legt in
+   * der Produktion einen Platzhalterkreis an (O-134) und auf der
+   * Vorfuehrflaeche einen mit der Maske `DEMO-{jahr}-{nr:5}` (D-514). Ein
+   * fest verdrahtetes `RE-` prueft damit die Seed-Einstellung und nicht die
+   * Rechnung. Geprueft wird die FORM, die jede Maske erzeugt: ein Praefix,
+   * das Jahr, die laufende Nummer.
+   */
+  const nummer = await page.getByText(/^[A-Z]+-\d{4}-\d{5}$/u).first().innerText();
   return nummer.trim();
 }
 

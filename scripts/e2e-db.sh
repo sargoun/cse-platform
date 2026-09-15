@@ -59,7 +59,11 @@ echo "▸ Migrationen"
 DATABASE_URL="$DSN" TEST_DATABASE_URL="$DSN" pnpm db:migrate
 
 echo "▸ Seed"
-DATABASE_URL="$DSN" TEST_DATABASE_URL="$DSN" pnpm db:seed
+# CSE_DEV_FLAECHEN=1: der Seed legt Demodaten (DEMO-Rechnungskreis,
+# Berichtszeilen) nur mit ausdruecklicher Flagge an -- die Browsertests
+# pruefen genau diese Zeilen, und playwright.config.ts setzt dieselbe
+# Flagge fuer den Server.
+CSE_DEV_FLAECHEN=1 DATABASE_URL="$DSN" TEST_DATABASE_URL="$DSN" pnpm db:seed
 
 echo "▸ Inhalt der oeffentlichen Seiten"
 DATABASE_URL="$DSN" TEST_DATABASE_URL="$DSN" pnpm content:import

@@ -64,6 +64,14 @@ export const ICON_PFADE = {
   standort: 'M12 21c0 0 7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11zM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
   telefon: 'M4 5a2 2 0 0 1 2-2h2l2 4-2 2a12 12 0 0 0 6 6l2-2 4 2v2a2 2 0 0 1-2 2A16 16 0 0 1 4 5z',
   mail: 'M3 5h18v14H3zM3 6l9 7 9-7',
+  /*
+   * Der Posteingang der Plattform (NOT-01) — und bewusst KEIN Briefumschlag.
+   * `mail` steht daneben in derselben Kopfzeile und meint etwas anderes: eine
+   * Nachricht, die ein MENSCH geschrieben hat. Zwei Punkte auf demselben
+   * Umschlag lesen sich als einer (DESIGN §5, „No two navigation items share
+   * a glyph").
+   */
+  glocke: 'M12 3a5.5 5.5 0 0 0-5.5 5.5c0 4-1.5 5.5-2 6.5h15c-.5-1-2-2.5-2-6.5A5.5 5.5 0 0 0 12 3zM10 18.5a2 2 0 0 0 4 0',
 
   // --- Werkzeuge ----------------------------------------------------------
   suche: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM16 16l5 5',

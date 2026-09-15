@@ -71,6 +71,73 @@ export function registriereArt(art: ArtDefinition): ArtDefinition {
   return art;
 }
 
+/**
+ * Registriert eine Gruppe von Arten — **je Schluessel, nicht ueber einen
+ * Stellvertreter**.
+ *
+ * Die Module registrieren ihre Arten buendelweise und muessen das mehrfach
+ * koennen: der Jobbootstrap laeuft im Test mehrfach, und seit NOT-02 meldet
+ * `benachrichtigung/bootstrap.ts` alle Arten an, um sie auf der
+ * Einstellungsseite aufzaehlen zu koennen. Die naheliegende Abkuerzung war,
+ * EINE Art zu pruefen und aus ihr auf die uebrigen zu schliessen. Das haelt
+ * nur, solange die Gruppe immer vollstaendig ankommt — und sie kommt nicht
+ * vollstaendig an, sobald ein Aufruf mittendrin abbricht oder ein Modul eine
+ * Art spaeter dazunimmt:
+ *
+ *  - Beim Stellvertreter-vorhanden-Zweig faellt die fehlende Art still unter
+ *    den Tisch. Sie ist dann nie registriert, und `erzeuge` wirft erst, wenn
+ *    sie jemand ausloest — nachts, im Waechter, ohne Zuschauer.
+ *  - Beim Stellvertreter-fehlt-Zweig wird die Gruppe komplett neu angemeldet,
+ *    und `registriereArt` wirft ueber der bereits vorhandenen Schwester. Aus
+ *    einer halb registrierten Gruppe wird ein Fehler bei jedem Seitenaufruf.
+ *
+ * Je Schluessel zu pruefen kostet einen Map-Zugriff und kennt beide Faelle
+ * nicht. `registriereArt` bleibt streng — zwei DEFINITIONEN derselben Art
+ * sind weiterhin ein Fehler; hier wird dieselbe Definition nur nicht zweimal
+ * angemeldet (D-493).
+ */
+export function sicherRegistriert(
+  definitionen: readonly ArtDefinition[],
+): readonly ArtDefinition[] {
+  return definitionen.map((d) => {
+    const da = findeArt(d.schluessel);
+    if (da === undefined) return registriereArt(d);
+    if (!gleicheDefinition(da, d)) {
+      throw new ArtFehler(
+        `Art ${d.schluessel} ist mit einer ANDEREN Definition registriert. `
+        + 'Zwei Module, die sich denselben Schluessel teilen, haengen sonst von der '
+        + 'Reihenfolge des Bootstraps ab: derselbe Posteingangseintrag traegt mal den '
+        + 'einen, mal den anderen Text.',
+      );
+    }
+    return da;
+  });
+}
+
+/**
+ * Sind das dieselbe Art oder zwei?
+ *
+ * **Eine Art ist nicht nur ihr Schluessel.** `sicherRegistriert` darf einen
+ * zweiten Aufruf DESSELBEN Moduls durchwinken, aber nicht ein zweites Modul,
+ * das denselben Schluessel mit anderem Text, anderem Ziel oder anderen
+ * Kanaelen belegt — sonst haengt am Ende von der Reihenfolge des Bootstraps
+ * ab, was jemand im Posteingang liest.
+ *
+ * Verglichen wird auch der QUELLTEXT der drei Funktionen. Zwei Closures sind
+ * nie `===`, weil jeder Aufruf neue erzeugt; ihr Text ist aber bei demselben
+ * Modul derselbe und bei zwei Modulen praktisch nie. Das ist keine
+ * Gleichheit im mathematischen Sinn und soll es nicht sein: es ist die
+ * Pruefung, die den Fall faengt, um den es geht.
+ */
+function gleicheDefinition(a: ArtDefinition, b: ArtDefinition): boolean {
+  return a.sammelbar === b.sammelbar
+    && a.kanaeleVorgabe.length === b.kanaeleVorgabe.length
+    && a.kanaeleVorgabe.every((k, i) => k === b.kanaeleVorgabe[i])
+    && String(a.titel) === String(b.titel)
+    && String(a.text) === String(b.text)
+    && String(a.ziel) === String(b.ziel);
+}
+
 export function arten(): readonly ArtDefinition[] { return [...ARTEN.values()]; }
 export function findeArt(schluessel: string): ArtDefinition | undefined {
   return ARTEN.get(schluessel);

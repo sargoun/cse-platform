@@ -30,65 +30,97 @@ export interface EinbettungsStand {
   readonly hinweis: string | null;
 }
 
+/** Was das Register zu `embedding` sagt — Modell und Anbieter, oder nichts. */
+export interface RegisterAntwort {
+  readonly modell: string | null;
+  readonly anbieter: string | null;
+}
+
 /**
- * Ist ein Einbettungsanbieter konfiguriert?
+ * Ist ein Einbettungsanbieter freigegeben?
  *
- * **Ohne Schlüssel wird NICHTS indiziert**, und die Seite sagt es. Ein Index
- * aus Nullvektoren oder aus einem lokal gewürfelten Ersatz wäre die
+ * **Die Antwort kommt aus dem Register, nicht aus der Umgebung.**
+ *
+ * Diese Funktion las früher `OPENAI_API_KEY` und `OPENAI_REGION` und endete
+ * in jedem Fall mit „nicht verbunden — das Modellregister gibt es noch
+ * nicht". Seit `0154` gibt es das Register, und der Satz war damit unwahr:
+ * die Seite meldete „kein Anbieter", während `app.modell_fuer('embedding')`
+ * einen nannte. Ein Bildschirm, der eine Fähigkeit als fehlend meldet, die
+ * vorhanden ist, ist derselbe Fehler wie umgekehrt — er kostet nur anders.
+ *
+ * Zwei Umgebungsvariablen waren nie der Nachweis, den D-04 verlangt: wer
+ * Vertragstext dreier deutscher Gesellschaften an einen Auftragsverarbeiter
+ * gibt, tut das mit Namen und Datum in einer Tabelle. Genau diese Tabelle
+ * antwortet jetzt.
+ *
+ * **Ohne freigegebenes Modell wird NICHTS indiziert**, und die Seite sagt es.
+ * Ein Index aus Nullvektoren oder aus einem lokal gewürfelten Ersatz wäre die
  * gefährlichste Art von Platzhalter: die Suche liefert Treffer, sie sehen
  * plausibel aus, und niemand merkt, dass die Reihenfolge Zufall ist.
  */
-export function einbettungsStand(): EinbettungsStand {
-  const schluessel = (process.env['OPENAI_API_KEY'] ?? '').trim();
-  if (schluessel === '') {
+export function einbettungsStand(register: RegisterAntwort): EinbettungsStand {
+  if (register.modell === null || register.anbieter === null) {
     return {
       verbunden: false,
       modell: EINBETTUNG_MODELL,
       dimension: EINBETTUNG_DIMENSION,
-      hinweis: 'OPENAI_API_KEY ist nicht gesetzt. Ohne Einbettungsanbieter wird nichts '
-        + 'indiziert — ein Index aus Ersatzvektoren lieferte Treffer, deren Reihenfolge '
-        + 'Zufall wäre, und das fiele niemandem auf.',
+      hinweis: 'Für „embedding" ist im Modellregister nichts freigegeben. Ein Modell wird '
+        + 'erst aufrufbar, wenn dort EU-Verarbeitung, Nullspeicherung und Freigabe je Modell '
+        + 'nachgewiesen sind — zwei Umgebungsvariablen sind kein Nachweis (D-04, §8).',
     };
   }
+
   /**
-   * **Der Schlüssel allein reicht nicht.** D-04 verlangt EU-Verarbeitung und
-   * Nullspeicherung, wo sie angeboten wird; das ist eine Einstellung beim
-   * Anbieter und eine Zeile im Auftragsverarbeitungsvertrag, nicht eine
-   * Umgebungsvariable. Solange sie nicht bestätigt ist, bleibt der Index aus.
+   * **Der Demobetrieb ist verbunden und sagt, dass er es ist.**
+   *
+   * Er läuft im eigenen Prozess, schickt nichts hinaus und würfelt seinen
+   * Vektor deterministisch aus dem Text. Das reicht, um den Index zu bauen
+   * und die Oberfläche vollständig zu zeigen; es reicht NICHT, um Ähnlichkeit
+   * zu messen. Deshalb steht der Satz auf der Seite und nicht in einer
+   * Fussnote: wer hier sucht, sieht Treffer, und er muss wissen, woher ihre
+   * Reihenfolge kommt.
    */
-  const region = (process.env['OPENAI_REGION'] ?? '').trim().toLowerCase();
-  if (region !== 'eu') {
+  if (register.anbieter === 'demo') {
+    return {
+      verbunden: true,
+      modell: register.modell,
+      dimension: EINBETTUNG_DIMENSION,
+      hinweis: 'Demobetrieb: der Vektor entsteht im eigenen Prozess, kein Anbieter, kein '
+        + 'Netzverkehr. Der Index lässt sich damit aufbauen und die Suche vorführen — die '
+        + 'REIHENFOLGE der Treffer ist aber nicht die eines echten Einbettungsmodells. '
+        + 'Ein freigegebener Anbieter schlägt diese Zeile, sobald er im Register steht.',
+    };
+  }
+
+  /*
+   * **Ein eingetragener Anbieter ist noch kein gebauter.** `modell/auswahl.ts`
+   * loest genau zwei auf: `demo` und `openai`. Stuende `azure` im Register,
+   * meldete diese Seite „verbunden" und der naechste `fordereModell`-Aufruf
+   * faende keinen Adapter -- eine Zusage, die erst beim Ausfuehren zerbricht.
+   */
+  if (!ADAPTER_VORHANDEN.has(register.anbieter)) {
     return {
       verbunden: false,
-      modell: EINBETTUNG_MODELL,
+      modell: register.modell,
       dimension: EINBETTUNG_DIMENSION,
-      hinweis: 'Ein Schlüssel liegt vor, aber OPENAI_REGION ist nicht auf „eu" gesetzt. '
-        + 'Der Index enthält Verträge, Objekte, Angebote und Korrespondenz dreier deutscher '
-        + 'Gesellschaften; er wird erst aufgebaut, wenn die EU-Verarbeitung bestätigt ist (D-04).',
+      hinweis: `Im Register steht der Anbieter „${register.anbieter}", für den es `
+        + 'keinen Adapter gibt. Gebaut sind bisher der Demobetrieb und OpenAI; bis ein '
+        + 'Adapter dazukommt, lässt sich mit dieser Zeile nichts einbetten.',
     };
   }
-  /**
-   * **Und die Region reicht auch nicht.**
-   *
-   * Hier stand `verbunden: true`, sobald ein Schlüssel und `OPENAI_REGION=eu`
-   * gesetzt waren. Zwei Umgebungsvariablen sind aber kein Nachweis: was
-   * `07-INTEGRATIONEN.md` §3.6 verlangt, ist ein Eintrag JE MODELL im
-   * `modell_register` mit EU-Verarbeitung, Nullspeicherung und Freigabe — und
-   * dieses Register gibt es noch nicht. Solange es fehlt, ist die ehrliche
-   * Antwort „nicht verbunden", nicht „verbunden, vermutlich".
-   *
-   * Der Unterschied ist nicht formal: eine Einbettung schickt Vertragstext
-   * dreier deutscher Gesellschaften an einen Auftragsverarbeiter. Wer das
-   * freigibt, tut es mit Namen und Datum in einer Tabelle, nicht mit einer
-   * Zeile in einer `.env`.
-   */
+
   return {
-    verbunden: false,
-    modell: EINBETTUNG_MODELL,
+    verbunden: true,
+    modell: register.modell,
     dimension: EINBETTUNG_DIMENSION,
-    hinweis: 'Schlüssel und Region stehen — aber das Modellregister (07-INTEGRATIONEN §3.6) '
-      + 'gibt es noch nicht. Ein Modell wird erst aufrufbar, wenn dort EU-Verarbeitung, '
-      + 'Nullspeicherung und Freigabe je Modell nachgewiesen sind; zwei Umgebungsvariablen '
-      + 'sind kein Nachweis (D-04, O-121).',
+    hinweis: null,
   };
 }
+
+/**
+ * Die Anbieter, fuer die ein Adapter EXISTIERT — dieselbe Menge, die
+ * `server/agent/modell/auswahl.ts` aufloest. Sie steht hier als eigene
+ * Konstante und nicht als Import, damit dieser Zustandsbericht nicht den
+ * Modell-Port laedt; dass beide zusammenpassen, prueft ein Test.
+ */
+export const ADAPTER_VORHANDEN: ReadonlySet<string> = new Set(['demo', 'openai']);

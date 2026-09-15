@@ -1,11 +1,5 @@
-import { NextResponse, type NextRequest } from 'next/server';
-import { cookies } from 'next/headers';
-import type postgres from 'postgres';
-import { db } from '@/server/db/pool';
-import {
-  ALT_SITZUNG_COOKIE, SITZUNG_COOKIE, beendeSitzung, sitzungsKeksOptionen,
-} from '@/server/auth/sitzung';
-import { istGleicherUrsprung } from '@/server/auth/ursprung';
+import type { NextRequest, NextResponse } from 'next/server';
+import { meldeAb } from '@/server/auth/abmelden';
 
 /**
  * `POST /api/abmelden` — die Sitzung beenden.
@@ -23,36 +17,17 @@ import { istGleicherUrsprung } from '@/server/auth/ursprung';
  * nicht durch eine Mitgliedschaft, und genau diese eine Zeile darf er
  * schliessen.
  */
+
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   /**
-   * Dasselbe Ursprungstor wie vor jedem anderen schreibenden Handler.
+   * **Die Arbeit steht in `server/auth/abmelden.ts`**, seit `/auth/abmelden`
+   * dieselbe leisten muss (SPEC §3). Zwei Kopien hiessen, dass eine von beiden
+   * irgendwann die Zeile offen laesst, waehrend der Browser den Keks vergisst
+   * — und niemand saehe es.
    *
-   * Es fehlte hier als einzigem Sitzungs-Handler. `sameSite: 'lax'` haelt
-   * ein fremdes Formular zwar schon ab — aber eine Massnahme, die woanders
-   * greift, ersetzt die hiesige nicht (`ursprung.ts`): wer eine Sitzung
-   * beenden darf, ist die Anwendung selbst, nicht irgendeine Seite im Netz.
+   * Das Ziel bleibt die Website: auf diese Adresse zeigen die Formulare der
+   * oeffentlichen Seiten, und wer von dort abmeldet, will nicht auf einem
+   * Anmeldeformular landen.
    */
-  if (!istGleicherUrsprung(anfrage)) {
-    return NextResponse.json({ fehler: 'fremder_ursprung' }, { status: 403 });
-  }
-
-  const keks = await cookies();
-  const token = keks.get(SITZUNG_COOKIE)?.value ?? '';
-
-  if (token !== '') {
-    await db().begin(async (tx: postgres.TransactionSql) => {
-      await beendeSitzung(tx, token);
-    });
-  }
-
-  const antwort = NextResponse.redirect(new URL('/', anfrage.nextUrl.origin), 303);
-  // Dieselben Attribute wie beim Setzen, nur `maxAge: 0` — ein Keks wird nur
-  // geloescht, wenn Pfad und Flags zum gesetzten passen.
-  antwort.cookies.set(SITZUNG_COOKIE, '', { ...sitzungsKeksOptionen(), maxAge: 0 });
-  // Und den Keks aus der Zeit vor `__Host-` (D-416) — er wird nicht mehr
-  // gelesen, soll aber auch nicht liegen bleiben.
-  if (SITZUNG_COOKIE !== ALT_SITZUNG_COOKIE) {
-    antwort.cookies.set(ALT_SITZUNG_COOKIE, '', { httpOnly: true, path: '/', maxAge: 0 });
-  }
-  return antwort;
+  return meldeAb(anfrage, '/');
 }

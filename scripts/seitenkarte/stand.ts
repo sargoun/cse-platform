@@ -30,7 +30,16 @@ function lauf(dir: string, teile: string[]): void {
       if (e.startsWith('[...')) { lauf(voll, [...teile, '[...]']); continue; }
       if (e.startsWith('[')) { lauf(voll, [...teile, '[*]']); continue; }
       lauf(voll, [...teile, e]);
-    } else if (e === 'page.tsx') {
+    } else if (e === 'page.tsx' || e === 'route.ts') {
+      /**
+       * **`route.ts` zaehlt genauso.** Die Karte fuehrt Adressen, nicht
+       * Dateinamen — und einige davon SIND Route Handler und keine Seiten:
+       * `/auth/abmelden` ist ausdruecklich „route handler, POST only",
+       * `/auth/callback` ebenso, dazu `/sitemap.xml` und `/robots.txt`. Sie
+       * standen als „ohne Seite" in der Bilanz, obwohl sie gebaut waren, und
+       * eine Bilanz, die gebaute Adressen als fehlend fuehrt, taugt nicht als
+       * Bilanz.
+       */
       const letzte = teile.at(-1);
       const art = letzte === '[...]' ? 'fang' : letzte === '[[...]]' ? 'fang_optional' : 'seite';
       muster.push({ teile: art === 'seite' ? teile : teile.slice(0, -1), art });

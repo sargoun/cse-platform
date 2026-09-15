@@ -1,5 +1,5 @@
 import 'server-only';
-import { findeArt, registriereArt, type ArtDefinition } from '../../benachrichtigung/registry.js';
+import { sicherRegistriert, type ArtDefinition } from '../../benachrichtigung/registry.js';
 
 /**
  * Die drei Meldungen der fehlenden SPEC-§14-Wachen (NOT-01, NOT-02, NOT-03).
@@ -34,7 +34,7 @@ function ziel(slug: unknown, pfad: string): string | null {
  * Nachtrag, der seit vierzehn Tagen offen ist, hat schon genug gewartet.
  */
 function schichtOhneZeit(): ArtDefinition {
-  return registriereArt({
+  return ({
     schluessel: ART_SCHICHT_OHNE_ZEIT,
     titel: (k) => `Kein Zeiteintrag: ${String(k.daten['person'] ?? 'unbekannt')}, `
       + `${String(k.daten['ende'] ?? '')}`,
@@ -54,7 +54,7 @@ function schichtOhneZeit(): ArtDefinition {
 }
 
 function morgenUnbesetzt(): ArtDefinition {
-  return registriereArt({
+  return ({
     schluessel: ART_MORGEN_UNBESETZT,
     titel: (k) => `Morgen unbesetzt: ${String(k.daten['objekt'] ?? 'Einsatz')}, `
       + `${String(k.daten['beginn'] ?? '')}`,
@@ -71,7 +71,7 @@ function morgenUnbesetzt(): ArtDefinition {
 }
 
 function nachtragOffen(): ArtDefinition {
-  return registriereArt({
+  return ({
     schluessel: ART_NACHTRAG_OFFEN,
     titel: (k) => `Nachtrag ${String(k.daten['nummer'] ?? '')} seit `
       + `${String(k.daten['tage'] ?? '?')} Tagen angemeldet`,
@@ -89,12 +89,13 @@ function nachtragOffen(): ArtDefinition {
   });
 }
 
-/** Idempotent, wie bei den Radararten (D-493): der Bootstrap läuft im Test mehrfach. */
+/**
+ * Idempotent, wie bei den Radararten (D-493): der Bootstrap läuft im Test
+ * mehrfach — und `sicherRegistriert` prüft je Schlüssel. Die frühere
+ * Fassung fragte nur die erste Art; fehlte danach eine der beiden anderen,
+ * blieb sie für immer unangemeldet, und der Wächter meldete nachts eine
+ * Lücke, die niemand je zu sehen bekam.
+ */
 export function registriereWaechterArten(): readonly ArtDefinition[] {
-  if (findeArt(ART_SCHICHT_OHNE_ZEIT) !== undefined) {
-    return [ART_SCHICHT_OHNE_ZEIT, ART_MORGEN_UNBESETZT, ART_NACHTRAG_OFFEN]
-      .map((s) => findeArt(s))
-      .filter((a): a is ArtDefinition => a !== undefined);
-  }
-  return [schichtOhneZeit(), morgenUnbesetzt(), nachtragOffen()];
+  return sicherRegistriert([schichtOhneZeit(), morgenUnbesetzt(), nachtragOffen()]);
 }

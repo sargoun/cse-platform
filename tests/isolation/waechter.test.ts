@@ -73,8 +73,8 @@ async function legeEinsatzAn(teil: {
     ? await sql.unsafe<{ id: string }[]>(
       `insert into einsatz
          (mandant_id, quelle, quell_schluessel, plan_datum, beginn_zeitpunkt, ende_zeitpunkt,
-          zeitzone, beginn_lokal, ende_lokal, objekt_id, soll_besetzung, min_besetzung, status,
-          erstellt_von_art)
+          zeitzone, beginn_lokal, ende_lokal, endet_am_folgetag,
+          objekt_id, soll_besetzung, min_besetzung, status, erstellt_von_art)
        select $1, 'manuell', $2,
               (now() at time zone 'Europe/Berlin')::date,
               now() + ($3 || ' hours')::interval,
@@ -82,6 +82,20 @@ async function legeEinsatzAn(teil: {
               'Europe/Berlin',
               (now() + ($3 || ' hours')::interval) at time zone 'Europe/Berlin',
               (now() + ($4 || ' hours')::interval) at time zone 'Europe/Berlin',
+              -- endet_am_folgetag, gerechnet. beginn_lokal und ende_lokal
+              -- sind time-Spalten, und einsatz_folgetag verlangt
+              -- endet_am_folgetag ODER ende_lokal > beginn_lokal. Eine
+              -- Schicht "vor drei Stunden begonnen, vor einer beendet" liegt
+              -- normalerweise in einem Berliner Tag -- zwischen Mitternacht
+              -- und drei Uhr aber nicht: Beginn 23:14, Ende 01:14, und als
+              -- Uhrzeiten gelesen ist das Ende FRUEHER. Der Einsatz wurde
+              -- abgewiesen, und zwar nur in diesen drei Stunden: ein Test,
+              -- der nachts faellt und morgens nicht. Das ist keine Schwaeche
+              -- der Bedingung, sondern ihr Zweck (Invariante 2: Schichten
+              -- kreuzen Mitternacht). Die Fixtur benennt den Fall, statt ihn
+              -- zu meiden.
+              ((now() + ($4 || ' hours')::interval) at time zone 'Europe/Berlin')::date
+                > ((now() + ($3 || ' hours')::interval) at time zone 'Europe/Berlin')::date,
               $5, $6::int, $7::int, 'geplant', 'system'
        returning id`,
       [teil.mandantId, `w-${zufall()}`, String(teil.beginnStunden), String(teil.endeStunden),
@@ -89,8 +103,8 @@ async function legeEinsatzAn(teil: {
     : await sql.unsafe<{ id: string }[]>(
       `insert into einsatz
          (mandant_id, quelle, quell_schluessel, plan_datum, beginn_zeitpunkt, ende_zeitpunkt,
-          zeitzone, beginn_lokal, ende_lokal, objekt_id, soll_besetzung, min_besetzung, status,
-          erstellt_von_art)
+          zeitzone, beginn_lokal, ende_lokal, endet_am_folgetag,
+          objekt_id, soll_besetzung, min_besetzung, status, erstellt_von_art)
        select $1, 'manuell', $2,
               app.berlin_heute() + $3::int,
               ((app.berlin_heute() + $3::int)::timestamp + ($4 || ' hours')::interval)
@@ -100,6 +114,9 @@ async function legeEinsatzAn(teil: {
               'Europe/Berlin',
               (app.berlin_heute() + $3::int)::timestamp + ($4 || ' hours')::interval,
               (app.berlin_heute() + $3::int)::timestamp + ($5 || ' hours')::interval,
+              -- Dieselbe Rechnung wie oben, hier aus den Stundenzahlen: ein
+              -- Fenster 22:00–06:00 endet am Folgetag.
+              $5::int >= 24 or ($5::int % 24) < ($4::int % 24),
               $6, $7::int, $8::int, 'geplant', 'system'
        returning id`,
       [teil.mandantId, `w-${zufall()}`, String(teil.tagOffset), String(teil.beginnStunden),

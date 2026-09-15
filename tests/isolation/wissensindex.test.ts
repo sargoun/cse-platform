@@ -239,26 +239,55 @@ describe('(3) Die Waende — hier besonders', () => {
   });
 });
 
-describe('(4) Ohne Anbieter wird nichts indiziert', () => {
-  it('der Stand sagt, was fehlt — und indiziert nicht ersatzweise', () => {
-    const vorher = process.env['OPENAI_API_KEY'];
-    delete process.env['OPENAI_API_KEY'];
-    const stand = einbettungsStand();
+describe('(4) Ohne freigegebenes Modell wird nichts indiziert', () => {
+  /**
+   * **Die Antwort kommt aus dem Register, nicht aus der Umgebung.**
+   *
+   * Vorher las `einbettungsStand()` `OPENAI_API_KEY` und `OPENAI_REGION` und
+   * endete in JEDEM Fall bei „nicht verbunden — das Modellregister gibt es
+   * noch nicht". Seit 0154 gibt es das Register, und der Satz war damit
+   * unwahr: die Seite meldete „kein Anbieter", während
+   * `app.modell_fuer('embedding')` einen nannte.
+   */
+  it('kein Eintrag heisst nicht verbunden — und sagt, was fehlt', () => {
+    const stand = einbettungsStand({ modell: null, anbieter: null });
     expect(stand.verbunden).toBe(false);
-    expect(stand.hinweis).toContain('OPENAI_API_KEY');
-    if (vorher !== undefined) process.env['OPENAI_API_KEY'] = vorher;
+    expect(stand.hinweis).toContain('Modellregister');
+    expect(stand.dimension).toBe(EINBETTUNG_DIMENSION);
   });
 
-  it('ein Schluessel ohne bestaetigte EU-Verarbeitung reicht nicht (D-04)', () => {
-    const vorherSchluessel = process.env['OPENAI_API_KEY'];
-    const vorherRegion = process.env['OPENAI_REGION'];
-    process.env['OPENAI_API_KEY'] = 'sk-test';
-    delete process.env['OPENAI_REGION'];
-    const stand = einbettungsStand();
-    expect(stand.verbunden, 'Vertraege dreier deutscher Gesellschaften').toBe(false);
-    expect(stand.hinweis).toContain('EU');
-    if (vorherSchluessel === undefined) delete process.env['OPENAI_API_KEY'];
-    else process.env['OPENAI_API_KEY'] = vorherSchluessel;
-    if (vorherRegion !== undefined) process.env['OPENAI_REGION'] = vorherRegion;
+  /**
+   * Der Demobetrieb ist verbunden — und die Seite sagt dazu, was er ist.
+   * Ein Index, dessen Reihenfolge nicht die eines echten Einbettungsmodells
+   * ist, liefert trotzdem Treffer; wer sucht, muss wissen, woher sie kommen.
+   */
+  it('der Demobetrieb ist verbunden und benennt sich als solcher', () => {
+    const stand = einbettungsStand({ modell: 'demo:hausintern-v1', anbieter: 'demo' });
+    expect(stand.verbunden).toBe(true);
+    expect(stand.modell).toBe('demo:hausintern-v1');
+    expect(stand.hinweis).toContain('Demobetrieb');
+    expect(stand.hinweis, 'die Einschränkung steht auf der Seite').toContain('REIHENFOLGE');
+  });
+
+  it('ein echter Anbieter ist verbunden, ohne Einschränkung', () => {
+    const stand = einbettungsStand({ modell: 'text-embedding-3-small', anbieter: 'openai' });
+    expect(stand.verbunden).toBe(true);
+    expect(stand.hinweis).toBeNull();
+  });
+
+  /**
+   * **Die Gegenprobe zum Register selbst**: dieselbe Konjunktion wie in §8.
+   * Eine Zeile, der eine der drei Flaggen fehlt, taucht in `modell_fuer` nicht
+   * auf — und dann ist der Stand „nicht verbunden", nicht „vermutlich".
+   */
+  it('das Register gibt für `embedding` nur Freigegebenes heraus', async () => {
+    const [z] = await sql.unsafe<{ modell: string | null }[]>(
+      `select app.modell_fuer('embedding'::ki_faehigkeit) as modell`);
+    const [alle] = await sql.unsafe<{ anzahl: string }[]>(
+      `select count(*)::text as anzahl from modell_register
+        where faehigkeit = 'embedding'
+          and eu_verarbeitung and zero_retention and freigegeben`);
+    if (alle!.anzahl === '0') expect(z!.modell).toBeNull();
+    else expect(z!.modell).not.toBeNull();
   });
 });

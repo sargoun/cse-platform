@@ -5170,6 +5170,11 @@ niemand ihn suchen.
 | O-355 | **Wer trägt die Modulbuchung ein und pflegt `mandant.module_gepflegt`?** Seit 0103 ist die Frage nicht mehr, was eine leere Liste heisst — das Kennzeichen sagt es: `false` = nicht eingetragen, es wird nicht gefiltert (damit eine neu angelegte Gesellschaft nicht schwarz wird); `true` = die Liste gilt, leer heisst kein Gewerk. Offen bleibt der Vorgang: kommt die Buchung aus dem Vertrag, aus der Verwaltung oder setzt sie ein Super-Admin über `system.module_zuweisen` — und wer merkt, wenn sie fehlt? | `src/server/registry/modul.ts`, 0103, D-377 |
 | O-356 | **Bucht jede Gesellschaft genau ein Gewerk, oder gibt es Überschneidungen?** Der Seed setzt `reinigung → [reinigung]`, `security → [security]`, `bau → [bau]`, `operations → []` — abgeleitet aus den Gewerken, die in `CLAUDE.md` stehen. Praktisch plausibel wäre anderes: Bauendreinigung bei der REALTIME Service, Veranstaltungsreinigung bei der SSE Security. Bis zur Antwort sieht eine Gesellschaft nur ihr eigenes Gewerk; die Korrektur ist eine Zeile in `mandant.module` und kein Codeeingriff. | `mandant.module`, `src/server/db/seed/index.ts`, D-377 |
 | O-357 | **Wohin gehen die Wächter-Meldungen aus SPEC §14 — Posteingang, Mail oder beides — und wer bekommt die Kettenmeldung?** Die Ablaufwarnung (60/30/7) erreicht die Person selbst; das ist EMP-08 und unstrittig. „Hashkette gebrochen" dagegen hat keinen persönlichen Empfänger: es ist eine Meldung an die Buchhaltung oder die Geschäftsführung, und beide sind heute keine adressierbare Größe im Modell. Solange die Frage offen ist, wird der Kettenprüfer bewusst NICHT als Job registriert — ein Lauf, der jede Nacht „ok" meldet, ohne dass jemand die Meldung liest, schafft Vertrauen, das er nicht deckt. | SPEC §14, `src/server/jobs/bootstrap.ts`, `kettenlauf.ts`, NOT-01 |
+| O-500 | **Wie lange gilt ein Einladungs- und ein Zurücksetzungslink, wie viele Wiederherstellungscodes werden ausgegeben, und gilt eine Mindestlänge über zwölf Zeichen hinaus?** Die SPEC nennt keine Zahl. `plattform_einstellung` führt vier vorläufige Werte (168 h, 2 h, 10 Codes, 12 Zeichen); sie sind als `ist_vorlaeufig = true` markiert und über eine Zeile änderbar, ohne Code. Die Auswahl folgt gängiger Praxis, nicht einer Entscheidung: ein Einladungslink überlebt ein Wochenende, ein Zurücksetzungslink nicht. | AUT-01, AUT-04, `0155`, D-502 |
+| O-501 | **Welches Supabase-Projekt in der EU-Region (Frankfurt), welcher Auftragsverarbeitungsvertrag — und soll die Anmeldung über ein Firmenverzeichnis (SAML/OIDC) laufen?** Dieselbe Frage trägt den Postausgang: welcher in der EU gehostete Mailanbieter, welche Absenderadresse je Gesellschaft, laufen DKIM und DMARC über die bestehenden Domains? Ohne beides gibt es keinen Zurücksetzungs- und keinen Einladungslink, der ankommt. Bis zur Antwort prüft die Plattform das Kennwort selbst (`kern.zugangsdaten`, bcrypt), `/auth/callback` antwortet `501` statt eine Sitzung auszustellen, und `/auth/passwort-vergessen` sagt „nicht verbunden" statt „gesendet" (D-501, D-503). | AUT-01, AUT-04, NOT-02, `0155`, D-501 |
+| O-510 | **Warum zeigt die Seite hinter einer 303-Umleitung den alten Stand?** Nach dem Widerruf eines Kalenderzugangs steht die widerrufene Zeile auf der Umleitungsseite noch in der Liste. Festgestellt ist: die Datenbank ist zu diesem Zeitpunkt richtig (`widerrufen_am` gesetzt), der Feed antwortet sofort mit 404, und ein normaler Aufruf derselben Adresse zeigt die Liste richtig — es ist eine veraltete ANZEIGE und kein offener Zugang. Ausgeschlossen sind: fehlendes `force-dynamic` (steht), eine nicht abgeschlossene Transaktion (die 404-Antwort beweist das Gegenteil), `revalidatePath` auf dem Ziel und `cache-control: no-store` auf der Umleitung (beide eingebaut, beide ohne Wirkung). Bis zur Antwort sagt die Bestätigung auf der Seite ausdrücklich, dass eine noch sichtbare Zeile veraltet ist. Der Browsertest prüft den Stand deshalb nach einem frischen Aufruf — und die Wirkung des Widerrufs sofort. | CAL-03, `api/kalender-feed/widerrufen`, D-516 |
+| O-509 | **Welche KI-Endpunkte deckt der Auftragsverarbeitungsvertrag ab?** Der Adapter zerlegt `OPENAI_BASE_URL` und lässt nur `https` und einen Wirt aus einer Liste durch; in der Liste steht heute `eu.api.openai.com`, der Endpunkt, den OpenAI für EU-Datenresidenz nennt. Ob der AV-Vertrag des Kunden genau diesen abdeckt, ob er weitere abdeckt (Azure OpenAI in einer EU-Region hat je Ressource einen eigenen Wirt) und ob Nullspeicherung vertraglich zugesagt ist, weiss der Kunde — nicht diese Datei. Bis zur Antwort kommt jeder andere Wirt als `RESIDENCY_BLOCKED` zurück; ergänzen lässt sich die Liste über `OPENAI_EU_HOSTS`, und diese Variable zu setzen ist eine Entscheidung, die in die Verfahrensdokumentation gehört. | D-04, §8, `versand/modell-openai.ts`, D-509 |
+| O-502 | **Welche Kostenarten gehören in die Projektmarge (REP-05)?** Heute: Lohn (freigegebene Zeiteinträge zum internen Stundensatz aus `anstellung.stundensatz_intern`) plus Fremdleistung (Eingangsrechnungen mit Projektbezug). Nicht enthalten: Material ohne Rechnungsbezug, Gerätestunden und ein Gemeinkostensatz — und ob es einen geben soll, ist die eigentliche Frage: ein Zuschlag je Gesellschaft, ein Satz je Gewerk, oder gar keiner (dann ist die Zahl ein Deckungsbeitrag und keine Marge, und sollte so heissen). Bis zur Antwort nennt die Seite die Zahl „Kosten (Näherung)" und sagt unter der Tabelle, was fehlt — eine Marge, die so tut, als wäre sie die Nachkalkulation, wird in ein Angebot übernommen. | REP-05, `bericht/kennzahlen.ts`, D-506 |
 
 ### Vier Befunde, die ausserhalb dieser Datei liegen
 
@@ -9460,3 +9465,1034 @@ nicht an der Regel vorbeikommen.
 Vertraulichkeitsstufen des Wissensindex), Browser 430, lint und Merge-Wachen
 sauber.
 
+---
+
+### D-499 · Der Demobetrieb — die Plattform sichtbar machen, ohne etwas vorzutäuschen
+
+**Der Auftrag, und warum ich ihn zu lange nicht ausgeführt habe.** Der Kunde
+verlangt seit Phase 1 dasselbe: Platzhalter einsetzen, damit die Plattform
+VOLLSTÄNDIG zu sehen ist, und später auf das Echte umstellen. Ich habe das
+wiederholt mit „no fake integrations" abgelehnt und dabei zwei Dinge
+verwechselt, die nichts miteinander zu tun haben:
+
+- Eine Oberfläche, die einen erfolgreichen fremden Aufruf VORTÄUSCHT — ein
+  „Gesendet", hinter dem nichts steht. Das bleibt verboten.
+- Ein Betrieb mit hausinternen, GEKENNZEICHNETEN Werten, damit die Kette läuft
+  und man sie ansehen kann. Das ist normale Technik, und sein Fehlen hatte
+  einen Preis, den ich nicht benannt habe: **die Kette vom Auftrag bis zum
+  Vorschlag war nie durchlaufen worden.** Gebaut war alles ringsum —
+  Werkzeugvertrag, Wertregister, Policy-Tor, Schrittprotokoll, Budgetdeckel —
+  und ob es zusammenhängt, wusste niemand. Eine Plattform, die man nicht laufen
+  sehen kann, lässt sich auch nicht beurteilen.
+
+**Was jetzt steht.** `modell_register` (0154, `07-INTEGRATIONEN.md` §3.6) ist
+die einzige Stelle, an der ein Modell aufrufbar wird:
+`aufrufbar := eu_verarbeitung AND zero_retention AND freigegeben`, alle drei
+mit Vorgabe `false`. Der Aufrufer fragt nie ein Modell, sondern eine
+**Fähigkeit** (§8) — wer `gpt-4o` schreibt, hat die Residenzfrage umgangen,
+bevor sie gestellt wurde.
+
+**Und der Demobetrieb trägt die drei Flaggen mit Recht.** `demo:hausintern-v1`
+läuft im eigenen Prozess: kein Netzverkehr, kein Auftragsverarbeiter, keine
+Speicherung ausserhalb dieser Datenbank. EU-Verarbeitung und Nullspeicherung
+sind hier keine Behauptung über einen Anbieter, sondern Tatsachen über den
+Betrieb. Das Residenztor ist erfüllt, nicht umgangen — und genau deshalb
+brauchte es keine Ausnahme im Tor, die später jemand übersieht.
+
+**Er ist kein Sprachmodell, und das ist der Punkt.** Er formuliert aus Vorlagen
+und aus Tatsachen, die vorher gerechnet wurden: deterministisch, wiederholbar,
+ohne einen erfundenen Wert. Damit tut er genau das, was ein echtes Modell an
+dieser Stelle auch dürfte (Invariante 6: die KI rechnet nie) — und ein Test
+hält es fest: **jede Ziffernfolge im Entwurf muss vorher in den Tatsachen
+gestanden haben.** Dieser Test überlebt den Tausch auf einen echten Anbieter;
+er ist dann genau der Riegel, der eine erfundene Zahl fängt, bevor sie auf
+einer Rechnung steht.
+
+**Die Einbettung sagt, dass sie keine ist.** Der Demovektor ist ein Hash des
+Textes, normiert auf Länge 1 — verschieden für verschiedene Texte, ohne jede
+Ähnlichkeitsbedeutung. Der Index lässt sich damit bauen, füllen, anzeigen und
+ausräumen, der ganze Weg ist prüfbar, und die Ähnlichkeitssuche liefert
+SICHTBAR Unsinn statt plausiblen. Ein Zufallsvektor sähe genauso aus und wäre
+gefährlicher: seine Treffer wirkten brauchbar.
+
+**Der echte Adapter liegt in `server/versand`,** und die Merge-Wache hat darauf
+bestanden. Der Radar-Adapter darf woanders stehen, weil er LIEST — eine
+Adresse hinaus, kein Empfänger, kein Inhalt. Ein Modellaufruf ist das
+Gegenteil: er schickt Vertragstext, Beträge und Namen an einen
+Auftragsverarbeiter. Also gehört er dorthin, wo die Bytes das Haus verlassen.
+Er prüft drei Tore selbst (Schlüssel, `OPENAI_DATA_RESIDENCY=eu`, ausdrücklicher
+EU-Endpunkt) und kennt keine stille Ausweichroute: kein Rückfall auf eine
+andere Region, kein stiller Modellwechsel, keine Warteschlange.
+
+**Der Orchestrator ist kurz und langweilig, weil er die Stelle ist, an der ein
+Modell auf echte Daten trifft.** Drei Regeln: die Werkzeuge rechnen und das
+Modell formuliert; am Ende steht ein ENTWURF im Freigabe-Posteingang und nie
+eine Handlung; jeder Schritt steht mit Modell, Tokens, Kosten und Dauer im
+Protokoll.
+
+**„Kein Modell" ist ein Ergebnis, keine Ausnahme** — und das ist kein
+Stilfrage. Eine Ausnahme risse die Transaktion des Aufrufers mit und damit die
+gerade angelegte Aufgabenzeile: der Lauf wäre gescheitert UND unsichtbar, im
+Agentenzentrum stünde nichts. So bleibt die Zeile stehen, trägt
+`fehlgeschlagen` und den Satz, und der Bildschirm sagt „KI-Funktion nicht
+verfügbar" (§8).
+
+**Die vier Agenten sind eingeschaltet** (D-435 ist damit beantwortet, nicht
+aufgehoben): es gibt jetzt ein Modell, also ist der Grund für `ist_aktiv =
+false` entfallen. Eingeschaltet heisst weiterhin nicht „läuft von selbst" — ein
+Lauf entsteht auf Knopfdruck, endet mit einem Vorschlag, und die Entscheidung
+trifft ein Mensch.
+
+**Der Tausch auf einen echten Anbieter ist eine Registerzeile und ein
+Schlüssel.** `app.modell_fuer` ordnet einen echten Anbieter vor den
+Demobetrieb; nichts im Code muss sich ändern. Und weil jeder Schritt sein
+Modell trägt, lässt sich hinterher sagen, welcher Entwurf aus welcher Quelle
+kam — das ist der einzige Grund, warum die Kennzeichnung überhaupt nötig ist.
+
+**Geprüft:** Isolation `agent-lauf` (11) — darunter der Satz, dass keine Zahl
+erfunden wird, die Idempotenz, und das Register als Tor in beide Richtungen.
+Im Browser `agent-lauf.spec.ts` (3): der Knopf, der Vorschlag, der Posteingang.
+
+
+
+---
+
+### D-500 · Der QR-Code wird gerechnet, nicht geladen
+
+Der zweite Faktor braucht ein Bild, das eine Authenticator-App scannen kann.
+Die drei naheliegenden Wege sind alle schlechter als zweihundert Zeilen:
+
+- **Ein Dienst wie `api.qrserver.com`** trägt das TOTP-Geheimnis in der
+  Adresszeile zu einem fremden Server. Das ist kein Auftragsverarbeiter, den
+  man in `registry/auftragsverarbeiter.ts` eintragen möchte — es ist der
+  zweite Faktor selbst.
+- **Ein npm-Paket** ist eine weitere Lieferkette für einen Algorithmus, der
+  sich seit 2006 nicht geändert hat (ISO/IEC 18004).
+- **Kein QR-Code, nur der Schlüssel zum Abtippen** heisst praktisch: der
+  zweite Faktor wird nicht eingerichtet.
+
+`src/lib/qr.ts` rechnet ihn also selbst — Bytemodus, Fehlerkorrektur M,
+Versionen 1 bis 10 (bis 213 Zeichen), Ausgabe als SVG-Pfad ohne jeden externen
+Verweis.
+
+**Wie er geprüft wird, ohne Kamera.** `tests/kern/qr.test.ts` liest den Code
+auf dem umgekehrten Weg zurück: die Formatbits kommen aus der Matrix und
+werden gegen die veröffentlichte Tabelle aus ISO/IEC 18004 geprüft (eine
+externe Quelle, kein Selbstvergleich); die Datenmodule werden demaskiert,
+entschachtelt, und dann wird das **Reed-Solomon-Syndrom** gerechnet — eine
+andere Rechnung als die Erzeugung, sodass ein Fehler in den EC-Codewörtern
+auffällt. Genau so kam der teuerste Fehler dieser Datei heraus: die
+Versionsinformation (ab Version 7) wurde erst nach den Daten gesetzt und
+überschrieb achtzehn Datenmodule. Jeder Code ab 122 Zeichen war beschädigt,
+und angesehen hätte man es ihm nicht.
+
+### D-501 · Kennwort und zweiter Faktor liegen in `kern`, und der Anbieter steht in der Zeile
+
+Supabase Auth bleibt gesetzt (CLAUDE.md, Stack). Gesetzt ist aber der Anbieter,
+nicht der Zeitpunkt: solange kein Projekt hinterlegt ist, gab es für
+Verwaltung, Leitung, Buchhaltung und Kunden **keinen** Weg ins Portal ausser
+`/dev/anmelden` — eine Seite, die eine Sitzung ohne jede Prüfung ausstellt und
+hinter `CSE_DEV_FLAECHEN` steht. Zehn Routen unter `/auth` existierten nur als
+Zeile in der Spezifikation, und jede Prüfung nahm die Abkürzung, womit die
+Anmeldung selbst ungeprüft blieb.
+
+`0155` legt die Speicher an, die eine Anmeldung prüfbar machen:
+
+| Tabelle | Inhalt |
+|---|---|
+| `kern.zugangsdaten` | ein bcrypt-Hash je Konto, dazu `anbieter` |
+| `kern.zweiter_faktor` | das TOTP-Geheimnis, bestätigt oder nicht |
+| `kern.wiederherstellungscode` | SHA-256 der Codes, einmal einlösbar |
+| `kern.kennwort_token` | Einladung und Zurücksetzung, eine Tabelle |
+
+**Warum `kern` und nicht `public`.** Ein Kennwort-Hash ist der eine Wert, den
+die Anwendung nie braucht: er wird verglichen, nicht gelesen. In `public` läge
+er unter RLS — also hinter einer Policy, die jemand später weiten kann. In
+`kern` liegt er hinter gar keinem Tabellenrecht: `cse_app` hat auf dem Schema
+`usage` und auf diesen Tabellen kein `select`. Der einzige Weg führt durch
+`security definer`-Funktionen, und `app.kennwort_anmelden` vergleicht den Hash
+**in der Datenbank** (`crypt`) und antwortet mit ja oder nein. Das TOTP-Geheimnis
+ist die begründete Ausnahme: RFC 6238 rechnet HMAC-SHA1, und das tut Node — aber
+nur für das eigene, bereits gebundene Konto (`app.aktueller_benutzer()`).
+
+**`anbieter` in der Zeile, wie bei `modell_register` (D-499).** `'demo'` heisst:
+hier geprüft. `'supabase'` heisst: `auth.users` gewinnt, und diese Tabelle hält
+für dieses Konto kein Geheimnis (ein CHECK erzwingt das). Der Wechsel ist eine
+Zeile je Konto, kein Umbau — und der Anmeldebildschirm sagt, welcher der beiden
+gerade gilt, statt es zu verschweigen.
+
+### D-502 · Der zweite Faktor ist eine Eigenschaft der Sitzung, das Enrolment eine des Kontos
+
+`app.hat_recht` gattert `erfordert_2fa`-Rechte an `app.aal() = 'aal2'` — das
+stand seit `0008` und hatte keinen Weg, jemals wahr zu werden: nur
+`devSitzungAusstellen` setzte `aal2`, und zwar pauschal.
+
+Jetzt gilt: `app.kennwort_anmelden` stellt **immer** `aal1` aus, auch für ein
+Konto ohne 2FA-Pflicht — `aal2` bedeutet „in DIESER Anmeldung vorgezeigt", und
+vorgezeigt wurde bei der ersten Stufe nichts. Der einzige Weg nach `aal2` ist
+`app.sitzung_faktor_bestaetigt`, und die hebt **genau die eine Sitzung**, in der
+der Faktor vorgezeigt wurde, nicht alle offenen desselben Kontos.
+
+Drei Folgen, die zusammengehören:
+
+1. **Wiedereinspielung ist ausgeschlossen.** `zweiter_faktor.letzter_schritt`
+   hält den verbrauchten Zeitschritt; `app.faktor_schritt_verbrauchen`
+   aktualisiert ihn nur, wenn der neue grösser ist. Wer einen Code im selben
+   30-Sekunden-Fenster abfängt, kommt damit nicht durch, und das Rennen zweier
+   gleichzeitiger Versuche entscheidet die Datenbank, nicht die Anwendung.
+2. **Ein unbestätigter Faktor zählt nicht.** Ein abgebrochenes Einrichten
+   sperrte sonst das Konto aus: `hat_zweiten_faktor` sagte ja, und den Code
+   kannte niemand.
+3. **Die Uhr kommt aus der Datenbank.** Geht die Uhr des Anwendungsservers eine
+   Minute vor, ist jeder Code falsch — und der Fehler sieht aus wie ein
+   falscher Code.
+
+### D-503 · Der Postausgang ist ein Anschluss, kein Versprechen
+
+`server/versand/email.ts` folgt genau `server/auth/sms.ts`: `verbunden` und
+`zeigtInhalt` sind **zwei** Zusagen, nicht eine. Der Entwicklungsdienst zeigt
+den Zurücksetzungslink auf dem Bildschirm dessen, der ihn angefordert hat — auf
+einer Entwicklungsfläche richtig, in einer Auslieferung ohne Anbieter eine
+offene Tür: wer eine fremde Adresse eintippt, läse sonst deren Link. Genau
+dieser Unterschied hatte beim SMS-Dienst schon einmal gereicht, um die ganze
+Anmeldung wertlos zu machen.
+
+`/auth/passwort-vergessen` antwortet deshalb immer gleich („wenn es zu dieser
+Adresse ein Konto gibt …") und sagt daneben, dass kein Postausgang verbunden
+ist — statt „Wir haben Ihnen eine E-Mail geschickt", was die Verwaltung in den
+Spam-Ordner schickt statt ins Portal.
+
+### D-504 · Ein Rückweg aus einer Abfrage wird geprüft, nicht nur angeschaut
+
+`?weiter=…` führt nach der Anmeldung zurück auf die ursprünglich gewünschte
+Seite. `startsWith('/')` genügt dafür **nicht**: `//boese.example` beginnt mit
+einem Schrägstrich und ist trotzdem eine fremde Adresse — der Browser liest
+zwei führende Schrägstriche als „gleiches Protokoll, anderer Host". Ein
+Anmeldeformular, das danach dorthin weiterleitet, ist eine offene Weiterleitung
+und die klassische Zutat einer Phishing-Kette: der Link führt zur echten
+Anmeldung und erst danach woandershin.
+
+`sichererRueckweg` weist ab: alles ohne führenden Schrägstrich, `//…`, `/\…`
+(manche Browser lesen den Rückstrich wie einen Schrägstrich) und alles mit
+Steuerzeichen. Die Umdeutung nach `Route` (Next.js `typedRoutes`) steht
+unmittelbar dahinter an **einer** Stelle — nicht als verstreutes `as` in fünf
+Seiten, von denen eine das Prüfen vergisst.
+
+
+### D-505 · Der Posteingang war gebaut und unerreichbar
+
+Wächter, Lead-SLA, Ablaufwarnungen, Radartreffer und der Agentenbudgetdeckel
+schreiben seit mehreren PRs in `benachrichtigung`. Gelesen hat sie niemand: es
+gab keinen Bildschirm. Eine Warnung, die niemanden erreicht, ist keine Warnung
+— und `benachrichtigung_praeferenz` (NOT-02) war nie beschrieben worden, in
+keiner Zeile Code.
+
+Drei Sachen, die dabei herauskamen und **still** gescheitert wären:
+
+1. **`cse_app` fehlte `delete` auf `benachrichtigung_praeferenz`** (`0156`).
+   `0011` gab `select, insert, update`, und `t_praeferenz_eigene` ist `for
+   all` — nur das Tabellenrecht fehlte, und Postgres prüft das GRANT zuerst.
+   In der Tabelle stehen nur die ABWEICHUNGEN von `kanaeleVorgabe`; wer eine
+   Einstellung auf die Vorgabe zurückstellt, muss seine Zeile loswerden.
+   Sonst stünde dort eine Abweichung, die keine ist — und sie bliebe stehen,
+   wenn die Vorgabe sich ändert.
+
+2. **`bindeAnfrage` bindet `app.readonly = 'on'`.** Jede `with check`-Bedingung
+   im Haus trägt `not app.ist_readonly()`; ein Schreibvorgang dahinter fällt
+   in die RLS statt in eine Prüfung („new row violates row-level security
+   policy" — richtig, und an der falschen Stelle erklärt). `withTenant` wäre
+   die übliche Antwort, verlangt aber genau EINEN aktiven Mandanten
+   (Invariante 10). Posteingang und Einstellung gehören dem KONTO und keinem
+   Bereich: sie gelten auch in der Gruppenansicht. Also `bindePersoenlich` —
+   schreibend, ohne Mandantenliste, eingegrenzt durch
+   `t_benachrichtigung_lesen_setzen` und `t_praeferenz_eigene`.
+
+3. **Drei von fünf Registrierungsfunktionen waren nicht idempotent.** Der
+   Einstellungsbildschirm muss ALLE Arten aufzählen können, auch die, deren
+   Modul in dieser Anfrage nie läuft — sonst listet er die, die zufällig schon
+   importiert wurden, und ein Kanal, den man nicht abschalten kann, weil seine
+   Art im Formular fehlt, ist dasselbe wie keine Einstellung.
+   `benachrichtigung/bootstrap.ts` meldet sie alle an; `registriereArt` wirft
+   weiterhin bei einer zweiten DEFINITION, aber ein zweiter Aufruf desselben
+   Moduls gibt jetzt das Vorhandene zurück (D-493, jetzt überall).
+
+**Der Klick ist beides: ansehen und gelesen.** Ein zweiter Knopf „als gelesen
+markieren" wäre eine Handlung, die niemand ausführt, und der Posteingang bliebe
+für immer voll. `POST /api/benachrichtigungen/[id]/oeffnen` stempelt und leitet
+weiter — POST, weil ein GET von einem Vorauslader ausgelöst wird, und das Ziel
+kommt aus der ZEILE, nicht aus dem Rumpf: ein Feld dafür wäre eine offene
+Weiterleitung mit einer echten Anmeldung davor (D-504).
+
+**Gestempelt, nicht gelöscht.** Der Posteingang ist das Protokoll dessen, was
+jemandem mitgeteilt wurde; „ich habe nichts bekommen" liesse sich sonst weder
+bestätigen noch widerlegen. Aus demselben Grund lässt sich der Kanal `app`
+nicht abwählen — `praeferenz_app_bleibt` erzwingt es, und das Kästchen ist
+deshalb gar nicht erst da.
+
+**Die Glocke ist eine eigene Komponente und kein Prop.** `PortalRahmen` wird
+von über hundert Seiten aufgerufen; ein weiteres Prop hätte hundert Dateien
+angefasst, und die hundertunderste hätte es vergessen — eine Glocke, die auf
+manchen Seiten fehlt, ist schlimmer als keine, weil man sich an ihr Fehlen
+gewöhnt. Sie kostet eine indizierte Zählung je Seite
+(`benachrichtigung_posteingang_idx` ist genau diese Abfrage); ein
+Zwischenspeicher wäre eine zweite Wahrheit, die zeigt, was gestern galt.
+
+**`glocke` ist ein neues Icon und bewusst nicht `mail`** (DESIGN §5). Beide
+stehen in derselben Kopfzeile und meinen Verschiedenes: `mail` ist eine
+Nachricht, die ein Mensch geschrieben hat, `glocke` ist, was das System bemerkt
+hat. Zwei Punkte auf demselben Umschlag lesen sich als einer.
+
+**Der Seed legt die Demozeilen auf dem ECHTEN Weg an** — `erzeuge()` aus dem
+Register, `meldeAblaufwarnungen()` aus dem EMP-08-Dienst, `stelleZu()` in die
+Tabelle. Ein direktes `insert` mit erfundenem Titel hätte einen Bildschirm
+geprüft, den kein Wächter je so geschrieben hätte, und NOT-03 (jede Meldung
+führt zu ihrem Datensatz) wäre ungeprüft geblieben: `erzeuge()` scheitert, wenn
+das Ziel nicht auflösbar ist. Ablaufwarnungen ohne Zugang zur Person werden
+GEZÄHLT und gesagt, nicht verschluckt (D-09 — die meisten Beschäftigten haben
+heute kein Konto).
+
+
+### D-506 · Sechs Berichte, eine Zeitachse, ein Ausgang
+
+SPEC §5.23 nennt sieben Punkte (REP-01…REP-07). Sechs davon sind Auswertungen,
+der siebte ist der Ausgang — und genau der ist der Grund, warum sie sich einen
+Rahmen teilen.
+
+**Eine Zeitachse für alle.** Alle sechs beantworten dieselbe Vorfrage (welches
+Jahr, welche Körnung), und sechsmal ausgeschrieben wäre das sechsmal die
+Gelegenheit, sie anders zu lesen. Eine Umsatzzahl für „dieses Jahr" neben einer
+Auftragszahl für „letzte 365 Tage" widerspricht sich auf einem Bildschirm, ohne
+dass es jemand bemerkt. `BerichtsSeite` stellt die Frage einmal; die Berichte
+bekommen den Zeitraum gereicht.
+
+**Das laufende Jahr kommt aus der Datenbank** (`app.berlin_heute()`,
+Invariante 5). Die Uhr des Anwendungsservers entschiede sonst, welches Jahr ein
+Bericht zeigt — und am 1. Januar um 00:30 Berliner Zeit wäre das das falsche.
+
+**Gerechnet wird in `server/services/bericht`, nie in einer Seite** (CLAUDE.md).
+Eine Seite, die selbst summiert, ist eine Zahl ohne Test; `tests/kern` prüft die
+Zeitraumarithmetik und die Formatierung, `tests/isolation` die Abfragen gegen
+echte Zeilen mit RLS.
+
+**Drei Statusfallen, die stumm gewesen wären.** `rechnung_status` führt
+`entwurf`, `festgeschrieben` und **`verworfen`**: ein `<> 'entwurf'` hätte
+verworfene Rechnungen als Umsatz gezählt. `eingangsrechnung_status` kennt gar
+keinen Entwurf — dort heissen die Werte `eingegangen`, `in_pruefung`,
+`freigegeben`, `gebucht`, `abgelehnt`, und Aufwand zählt ab `freigegeben`:
+eingegangen und in Prüfung sind Behauptungen des Lieferanten, abgelehnt ist
+eine, der widersprochen wurde. `projekt`-Kosten folgen derselben Grenze.
+
+**Quoten sind Basispunkte, keine Fliesskommazahlen** (K-16). `2500` ist
+25,00 %; `prozent()` formatiert, gerechnet wird ganzzahlig. Dieselbe Regel wie
+beim Geld, aus demselben Grund.
+
+**Die Abschlussquote misst eine Kohorte.** Zähler und Nenner sind Anfragen, die
+im selben Abschnitt *entstanden* sind. „Gewonnene im Zeitraum / offene im
+Zeitraum" misst dagegen, wie schnell aufgeräumt wird — und die Zahl steigt,
+wenn niemand neue Anfragen bekommt.
+
+**Auslastung ohne Soll ist `null`, nicht 0 %.** Ein Aushilfsvertrag ohne
+Wochenstunden ist kein Mensch, der nicht arbeitet, und in derselben Spalte wäre
+eine echte Null von einer fehlenden nicht zu unterscheiden. Das Soll selbst ist
+eine grobe Rechnung (Wochenstunden × Kalendertage ÷ 7, ohne Urlaub, Krankheit
+und Feiertage), und die Seite sagt es — „Mehrarbeit" ist hier eine Differenz
+und kein arbeitsrechtlicher Anspruch.
+
+**REP-07 ist ein eigenes Recht.** `bericht.exportieren` steht neben
+`bericht.lesen`, an `admin` gebunden und an `leitung` bindbar: wer eine Zahl
+ansehen darf, darf sie nicht schon aus dem Haus tragen. Eine CSV-Datei verlässt
+das Portal und damit jede Zugriffskontrolle darin. Ohne das Recht erscheint
+kein Knopf — nicht einer, der später 403 antwortet.
+
+**CSV heisst UTF-8 mit BOM, Semikolon, CRLF.** Ohne BOM liest Excel unter
+Windows die Datei als Windows-1252 und macht aus „Gebäude" ein „GebÃ¤ude";
+Semikolon statt Komma, weil deutsche Zahlen ein Dezimalkomma tragen. Jede
+Geldspalte bringt ihre Cent-Spalte mit (R-12): die eine liest ein Mensch, die
+andere rechnet eine Maschine weiter, und niemand muss raten, welches Zeichen
+der Tausenderpunkt war.
+
+**Die Gruppenansicht beantwortet eine andere Frage** und bekommt deshalb
+eigene Abfragen (`bericht/gruppe.ts`). Im Bereich lautet sie „wie viel", in der
+Gruppe „wer trägt wie viel bei" — eine Summe ohne Aufteilung ist die eine Zahl,
+die niemanden handeln lässt. Dort gibt es keinen CSV-Ausgang:
+`bericht.exportieren` ist ein Recht am BEREICH, und ein Bereichsrecht in der
+Gruppenansicht zu prüfen hiesse, sich einen Bereich auszusuchen. Die
+Stundenauswertung nennt dort ausserdem nur Köpfe und keine Namen — die
+namentliche Auswertung gehört dorthin, wo das Arbeitsverhältnis besteht
+(D-09, K-05).
+
+### D-507 · Vier stille Leerstellen in einem Bericht — und warum jede stumm war
+
+Die Berichte (REP-01…REP-07) brachten vier Fehler ans Licht, die **keinen
+Fehler erzeugten**. Sie stehen hier zusammen, weil sie eine Familie sind: alle
+vier antworten mit einer plausiblen Zahl oder einer leeren Liste, und keine
+davon sieht im Bildschirm anders aus als die Wahrheit.
+
+**1 · `sum(bigint)` ist `numeric` — und `numeric / 60` ist keine ganzzahlige
+Division.** `app.projekt_lohnkosten` multiplizierte Minuten mit dem
+Stundensatz, addierte `+30` und teilte durch 60, um kaufmännisch zu runden.
+Das Ergebnis war trotzdem falsch: `sum()` liefert `numeric`, die Division
+lieferte `2125.5`, und der Cast nach `bigint` rundete ein zweites Mal — 2126
+statt 2125 Cent bei zweimal 25 Minuten zu 25,50 €/h. **Der Cast gehört nach
+innen**, vor die Division. Ein Cent, und er wächst mit jeder Zeile
+(Invariante 1).
+
+**2 · Ein `grant` ohne `policy` ist bei `force row level security` kein
+Zugriff.** `app.projekt_kennzahlen` läuft als `cse_definer` und las `projekt`
+und `eingangsrechnung` — beide mit Grant, beide ohne Policy für diese Rolle.
+Postgres wirft dafür keinen Fehler, sondern gibt **null Zeilen** zurück: der
+Bericht zeigte „keine Projekte im Zeitraum", und das las sich wie eine Aussage
+über Projekte. Dieselbe Klasse wie das stille `update` aus D-503.
+
+**3 · `authorize` auf einer ungebundenen Transaktion sagt immer Nein.**
+`/api/berichte/[bericht]/csv` prüfte das Exportrecht, bevor `withTenant` band.
+`app.hat_recht` fragt `app.aktueller_benutzer()`, und der steht erst nach der
+Bindung — also war jedes Recht `false` und die Route antwortete 404, während
+die Seite daneben den Knopf zeigte, weil SIE gebunden geprüft hatte. Die
+Rechtefrage steht ab jetzt **innerhalb** der Bindung, wie in jeder anderen
+Route.
+
+**4 · K-05 gilt auch eine Ebene höher.** Die Gruppenfassung von REP-05 las
+`projekt.auftragssumme_netto_cent` direkt; `cse_app` hat auf dieser Spalte kein
+`select` (D-92), und Postgres weist die **ganze Anweisung** ab. Die Seite
+antwortete mit einem Serverfehler. `app.projekt_kennzahlen_gruppe` (0158) löst
+es wie 0157 für den Bereich, nur je Gesellschaft und über
+`gruppe.kalkulation.lesen` — je Gesellschaft geprüft, nicht einmal für alle.
+
+**Was die vier verbindet:** In der Entwicklung verbindet der Eigentümer der
+Datenbank, und dort laufen alle vier. Gefunden hat sie erst der Test, der
+gegen echte Rollen und echte Rechte lief. Ein Bericht ohne einen solchen Test
+ist eine Zahl ohne Zeugen.
+
+### D-508 · Gruppenrechte sind eigene Rechte, keine Summe der Bereichsrollen
+
+Die Gruppen-Policies lesen `gruppe.finanzen.lesen`, nicht `finanzen.lesen` —
+ein eigener Schlüssel, den nur `super_admin` trägt, und den `app.hat_recht`
+**je Gesellschaft** beantwortet (`app.rechte_mandanten`). Wer in einem Bereich
+Administration ist, sieht in der Gruppenansicht deshalb nichts, auch nicht
+seinen eigenen Bereich.
+
+Das ist keine Härte, sondern der Zweck: wer die Gruppe lesen darf, ist eine
+eigene Entscheidung. Die Fixtur der Berichtstests hatte zuerst einen
+Bereichsadmin in die Gruppenansicht gesetzt und dort Nullen gemessen — der
+Test hätte eine offene Gruppenansicht nicht bemerkt. Er trägt jetzt beide
+Fälle: die Gruppenleitung sieht die Aufteilung, der Bereichsadmin keine
+einzige Zahl.
+
+**`super_admin` hängt an `benutzer.globale_rolle_id`** und nicht an
+`benutzer_mandant` (TEN-08): die Rolle hat `geltungsbereich = 'global'`, und
+die Mitgliedschaftstabelle nimmt nur Mandantenrollen an. Sie gilt damit ohne
+Zuweisungszeile in jedem Bereich — begrenzt bleibt die Sicht trotzdem, weil
+`rechte_mandanten` mit `app.sichtbare_mandanten()` schneidet, und die sind die
+Mandanten der Sitzung.
+
+### D-509 · Ein Adapter, der „EU" sagt, muss EU prüfen — nicht behaupten
+
+`modell-openai.ts` trug vier Zusagen im Kommentar und prüfte drei davon nicht.
+
+**`OPENAI_BASE_URL` wird zerlegt, nicht auf „nicht leer" geprüft.** Vorher kam
+jeder nichtleere String durch: `http://irgendwo` hätte Vertragstext im
+Klartext an einen beliebigen Wirt geschickt, während die Registerzeile
+weiterhin EU-Verarbeitung und Nullspeicherung bezeugte. Jetzt: `https`, ein
+Wirt aus einer Liste (heute `eu.api.openai.com`, erweiterbar über
+`OPENAI_EU_HOSTS`), keine Zugangsdaten in der Adresse, kein Query. Alles
+andere ist `RESIDENCY_BLOCKED`. Welche Endpunkte der AV-Vertrag des Kunden
+abdeckt, ist O-509 — bis zur Antwort ist die Liste kurz und die Antwort
+„nein".
+
+**Ein Riegel für Abnahmeumgebungen.** `CSE_KI_MODELL=nicht_verbunden` —
+dieselbe Schreibweise wie beim XRechnung-Prüfstand — gewinnt gegen Schlüssel
+und Registerzeile. Eine Umgebung mit echten Zugangsdaten hätte sonst wirklich
+hinausgerufen, und niemand hätte das beabsichtigt.
+
+**Die Antwort wird gelesen, nicht gecastet.** `await antwort.json()` warf bei
+einem HTML-Fehlerblatt einen `SyntaxError` am `ModellFehler`-Vertrag vorbei,
+und `daten as ChatAntwort` verschob eine falsche Form bis zum nächsten
+Feldzugriff. Beides endet jetzt als `INVALID_RESPONSE`.
+
+**Ein Wiederholungsversuch für 429 und 5xx, keiner für 401/403/4xx.** Ein
+abgewiesener Schlüssel wird beim zweiten Mal nicht angenommen; ein
+gedrosselter Anbieter schon. Zwei Versuche und nicht fünf, weil ein Mensch
+auf diese Antwort wartet.
+
+**Und die Anbieteridentität kommt aus dem Register.** `auswahl.ts` leitete
+nach Namenspräfix: alles ohne `demo:` ging an den OpenAI-Adapter. Eine
+freigegebene Zeile eines dritten Anbieters wäre damit an OpenAIs Endpunkt
+gegangen, mit OpenAIs Schlüssel, unter OpenAIs Vertrag. Jetzt liest dieselbe
+Abfrage Modell UND Anbieter, und ein unbekannter Anbieter ist
+`RESIDENCY_BLOCKED` statt „nimm halt OpenAI".
+
+### D-510 · Der Orchestrator hielt fünf Zusagen nicht, und keine fiel auf
+
+**Reserviert wurde nicht, gebucht wurde null.** `agent_budget`,
+`agent_reservierung`, `agent_kosten` und `app.agent_budget_pruefen` waren
+gebaut (AGT-05) — der Orchestrator rief keines davon. Jeder Lauf meldete
+0,00 €, und der harte Monatsstopp konnte nicht greifen: ein registrierter
+Anbieter hätte eine Monatsgrenze in einer Nacht überschreiten können, während
+der Kostenbildschirm bis zur Rechnung des Anbieters null zeigte. Jetzt:
+Preis lesen → reservieren → aufrufen → mit dem GEMESSENEN Preis buchen.
+**Ohne Preiszeile läuft nichts** — ein Lauf, dessen Kosten niemand kennt,
+wird nicht gestartet.
+
+**Das Risiko stand fest auf `niedrig`.** `stufeRisikoEin` (§14.4) urteilt aus
+Tatsachen und gibt einem nach aussen gerichteten Vorgang mindestens `mittel`;
+ein erstmaliger Vorgang ohne Vergleich ist nach §14.5 `hoch`. Der
+Orchestrator umging beides mit einer Konstanten. Jetzt rechnet der Code, und
+die Gründe stehen in der Nutzlast — „auch noch" ist eine andere Auskunft als
+„deshalb".
+
+**Die Aktion stand fest auf `interner_hinweis`**, auch für einen
+Antwortentwurf an eine anfragende Stelle. `aktion` und `vorgang_typ` sind
+zwei Felder, weil Posteingang und Ausführung sie getrennt lesen: die Aktion
+sagt, was geschähe, wenn jemand genehmigt.
+
+**Ein Anbieterfehler liess den Lauf verschwinden.** Gefangen wurde nur die
+Modellwahl; eine Zeitüberschreitung riss die Transaktion mit und mit ihr die
+Aufgabenzeile. Im Agentenzentrum stand nichts, und niemand konnte sehen,
+dass es einen Versuch gab. Jetzt wird der Schritt als `fehler` protokolliert,
+die Reservierung freigegeben und die Aufgabe sichtbar abgelegt.
+
+**Der Entwurf war kein Artefakt.** Er stand im Schritt und in der Freigabe;
+beide tragen ihre Löschfrist, die Aufbewahrung war also nie offen — die
+ZEILE fehlte, an der eine zweite Fassung hängt und gegen die ein Diff läuft.
+`cse_app` darf `agent_artefakt` nicht schreiben, deshalb der enge Definer
+`app.agent_artefakt_anlegen` (0159).
+
+**Und Invariante 6 galt nur im Test.** Dass keine Zahl erfunden wird, prüfte
+ein Test gegen den Demobetrieb — über einen echten Anbieter beweist das
+nichts. `agent/zahlenherkunft.ts` prüft es jetzt VOR dem Einfügen der
+Freigabe: jede Ziffernfolge im Entwurf muss in den Tatsachen vorkommen, ohne
+Toleranz und ohne Ausnahme für „kleine" Zahlen. Die Wache ist absichtlich
+stumpf — sie prüft Herkunft, nicht Bedeutung —, und ihre Grenze steht
+ausgeschrieben in `tests/kern/agent-zahlenherkunft.test.ts`, damit niemand
+sie später für einen Fehler hält und sie „verbessert", bis sie rät.
+
+### D-511 · Ein Doppelklick war ein zweiter Vorschlag
+
+`/api/agenten/lauf` gab `starteAufgabe` keinen Idempotenzschlüssel, also
+übersprang die Funktion ihre Eindeutigkeitsprüfung: jeder zweite Klick, jedes
+„Formular erneut senden" und jede doppelte Zustellung legten eine weitere
+Aufgabe und eine weitere offene Freigabe an. Ein Mensch hätte dieselbe Sache
+zweimal entschieden — oder einmal genehmigt und den Zwilling übersehen.
+
+**Der Schlüssel kommt aus dem FORMULAR**, gesetzt einmal beim Zeichnen der
+Seite. Hätte die Route ihn erfunden — aus der Uhr, aus einer Zufallszahl —,
+wäre jeder Klick wieder neu und die Idempotenz bestünde nur im Kommentar. Wer
+die Seite neu lädt, bekommt einen neuen Schlüssel: ein zweiter Lauf, den
+jemand WILL, ist nach wie vor einer.
+
+### D-512 · Die Tatsachen kamen aus der Datei, nicht aus der Gesellschaft
+
+`auftraege.ts` trug feste Prosa: jede der vier Gesellschaften bekam denselben
+Lagebericht, und `stand: 'heute'` war ein Wort und kein Datum. Ein Vorschlag,
+der für die Reinigung und für den Bau gleich lautet, sagt über beide nichts —
+und schlimmer: er sieht aus, als hätte jemand nachgesehen.
+
+`fuelleTatsachen()` zählt jetzt gegen die Tabellen des aktiven Mandanten,
+durch RLS begrenzt: offene Freigaben und unbesetzte Schichten für morgen, die
+jüngste Anfrage mit Firma und Eingangsdatum, Leistungsnachweise ohne
+Unterschrift, überfällige Forderungen und fällige Eingangsrechnungen. Das
+Datum kommt von `app.berlin_heute()`, nie aus `new Date()`.
+
+Und die Fachsprache bleibt genau: gezählt wird der ZUSTAND
+(`leistungsnachweis.status in ('entwurf','vorgelegt')`), nicht eine
+Unterschriftsspalte — die gibt es nicht, und eine zu erfinden hiesse, die
+Domäne zu verlassen.
+
+### D-513 · Das Register behauptete mehr, als der Code hielt — dreimal
+
+**Die Werkzeugfreischaltung schaltete auch das Verbotene frei.** `0154` setzte
+`agent_werkzeug.ist_aktiv = true` über den ganzen Bestand. Damit standen
+Paare auf `aktiv`, die `WERKZEUG_REGISTER` nicht kennt: `sende_email` für CEO,
+Akquise und Finanzen, `berechne_preis` für CEO und Backoffice. Niemand hätte
+es bemerkt, solange der Orchestrator nur formuliert — und beim ersten Agenten,
+der ein Werkzeug aufruft, wäre „darf er das?" mit „die Tabelle sagt ja"
+beantwortet worden. `0159` nimmt genau das zurück.
+
+**Der Demobetrieb meldete sieben Fähigkeiten und kann zwei.** `DemoModell`
+implementiert `entwerfe` und `bette`; eingetragen war es für jede
+`ki_faehigkeit`. „Nicht verfügbar" ist ein Betriebszustand, den §8 vorsieht;
+„verfügbar, aber kann es nicht" ist keiner. Die überzähligen Zeilen stehen
+jetzt auf `freigegeben = false` — die Spur bleibt, der Aufruf nicht.
+
+**Und der Wissensindex las die Umgebung statt des Registers.**
+`einbettungsStand()` prüfte `OPENAI_API_KEY` und `OPENAI_REGION` und endete in
+jedem Fall bei „nicht verbunden — das Modellregister gibt es noch nicht".
+Seit `0154` gibt es das Register, und der Satz war unwahr: die Seite meldete
+„kein Anbieter", während `app.modell_fuer('embedding')` einen nannte. Jetzt
+antwortet das Register, der Demobetrieb gilt als verbunden — **und die Seite
+sagt dazu, dass die REIHENFOLGE seiner Treffer nicht die eines echten
+Einbettungsmodells ist.** Wer dort sucht, sieht Treffer und muss wissen, woher
+sie kommen.
+
+### D-514 · Demodaten, die man am Datensatz erkennt — nicht an der Dokumentation
+
+Die Plattform war vollständig gebaut und beim Ansehen halb leer: kein Umsatz,
+keine offenen Posten, kein Glied in der Hashkette, eine Gruppenauswertung, die
+nichts aufteilt. Der Grund war richtig — `nummernkreis.ist_platzhalter`
+vergibt keine Nummer, solange O-134 offen ist, und eine vergebene
+Rechnungsnummer nimmt man nicht zurück. Nur: wer die Plattform zum ersten Mal
+sieht, unterscheidet „diese Frage ist offen" nicht von „das ist nicht gebaut".
+
+**Die Regel, nach der das aufgelöst wird**, ist dieselbe wie beim Demomodell
+(`anbieter = 'demo'`, D-499): **eine Überbrückung steht im Datensatz, nicht im
+Kommentar.**
+
+Auf Entwicklungsflächen trägt der Rechnungskreis die Maske
+`DEMO-{jahr}-{nr:5}`. Jede so entstandene Rechnung heisst `DEMO-2026-00001` —
+niemand kann sie für eine echte halten, und niemand muss dafür die
+Dokumentation gelesen haben. In der Produktion bleibt der Platzhalter, und
+ohne `CSE_DEV_FLAECHEN` entsteht keine einzige dieser Zeilen.
+
+Drei Dinge machen das tragfähig statt bequem:
+
+1. **`nummernkreis_offen_key` lässt je Gesellschaft genau EINEN offenen
+   Rechnungskreis zu.** Beide nebeneinander geht nicht — es ist also eine
+   Entscheidung und keine Ergänzung, und sie fällt sichtbar an einer Stelle.
+2. **Die Maske wird nur angefasst, solange der Kreis nichts vergeben hat**
+   (`naechste_nummer = 1`). Ohne diese Bedingung wäre ein zweiter Seed ein Weg,
+   eine festgeschriebene Nummernfolge nachträglich umzubenennen — und eine
+   Folge aus zwei Masken ist keine lückenlose mehr (§14 UStG, Invariante 4).
+3. **Die Rechnungen entstehen über den DIENST**, nicht per `insert`:
+   `legeEntwurfAn` → `fuegePositionHinzu` → `finalisiere`, als `cse_app` mit
+   gebundener Sitzung. Acht Spalten von Hand zu setzen hiesse, genau den Weg
+   zu umgehen, den das Portal später nimmt — und die Hashkette, die Prüfung
+   nach §14 UStG und FIN-18 gleich mit.
+
+Ein Entwurf bleibt je Gesellschaft stehen: ein Bestand, in dem alles
+festgeschrieben ist, zeigt den einen Zustand nicht, der die Invariante trägt —
+den ohne Nummer.
+
+**Die Berichtslücken daneben** (`seed/berichtsdaten.ts`): Anfragen für Security
+und Bau, ein Vergabevorgang je Gesellschaft, freigegebene Zeiten für den Bau.
+Eine Null ist nicht falsch, sie ist nur nicht von „diese Abfrage ist kaputt"
+zu unterscheiden. Projekte bleiben beim Bau: `projekt.art` kennt
+`hochbau | ausbau | rueckbau`, und einer Reinigungsfirma ein Hochbauprojekt zu
+geben hiesse, die Fachsprache zu verlassen, damit eine Tabelle voller aussieht.
+CSE Operations bleibt ohne Rechnungen und ohne Schichten — es ist keine
+Rechtseinheit (O-01), und das ist eine Aussage und kein Loch.
+
+**Und die Browsertests prüfen jetzt die Form statt des Präfixes.** Drei Specs
+lasen `/^RE-\d{4}-\d{5}$/` — damit prüften sie die Seed-Einstellung und nicht
+die Rechnung. Der Kreis bestimmt das Präfix; geprüft wird, was jede Maske
+erzeugt.
+
+
+### D-515 · Der Kalender sammelt, und die Bildschirme dazu
+
+Die Bildschirme zu `0160`: Monat, Woche, Tag, die Herkunftsfilter, die
+Terminseite und der iCal-Zugang.
+
+**Alles steht in der Adresse** — Ansicht, Anker, Filter. Ein Kalender ist
+etwas, das man verschickt („sieh dir den 30. an"); ein Zustand im Kopf der
+Seite wäre nicht teilbar, und der Zurück-Knopf täte das Falsche.
+
+**Unter `768px` gibt es kein Gitter** (DESIGN §5, §8). Sieben Spalten auf
+einem Telefon sind 50 Pixel breit und zeigen nichts. Der Monat wird dort zur
+Agenda: ein Tag je Zeile, Tage ohne Einträge weggelassen. Das ist die eine
+Stelle, an der die mobile Fassung nicht die umgestellte Schreibtischfassung
+ist, sondern eine andere Antwort auf dieselbe Frage.
+
+**Sechs Quellen, drei Töne, keine neue Farbe.** Ein Kalender mit sechs
+Farbtönen ist Dekoration: niemand lernt, welcher Ton „Vergabefrist" bedeutet,
+und der eine, der zählt — heute —, geht zwischen fünf anderen unter. Die drei
+Töne beantworten die drei Fragen, die eine Kalenderzeile stellt: jemand hat es
+geplant, es ist der Regelbetrieb, oder es läuft ab.
+
+**Eine Zeile steht an jedem Tag, an dem sie LÄUFT.** Eine Nachtschicht von
+22:00 bis 06:00 gehört in beide Tage; nur an ihrem Beginn eingetragen
+verschwindet sie aus dem Tag, an dem sie endet (Invariante 2).
+
+**Eine Schicht hat hier keine Detailseite.** Sie gehört dem Dienstplan, und
+ihr Eintrag verlinkt dorthin. Zwei Detailseiten für dieselbe Schicht wären
+zwei Orte, an denen jemand sie zu ändern versucht — und nur einer wäre der
+richtige.
+
+### D-516 · Zwei Befunde des Browsertests, die keine Abfrage gefunden hätte
+
+**Der Heute-Marker fiel durch die Kontrastprüfung.** Der erste Entwurf von
+DESIGN §5 „Calendar" schrieb `--ink` auf `--brand` für die Tageszahl. Gemessen
+sind das **4.09:1** — unter den 4.5:1, die AA für 13px verlangt (§9, BFSG).
+`--text` auf demselben Rot ist **4.89:1**. Es ist derselbe Fall, den DESIGN für
+den Gefahrenknopf schon gelöst hat: eine solide Markenfläche will einen hellen
+Vordergrund, und der Token, der sich auf Dunkel gut liest, ist nicht der, der
+sich auf dem Markenrot gut liest.
+
+Bemerkenswert ist die Reihenfolge: die Regel stand zuerst in DESIGN.md (wie
+`CLAUDE.md` es verlangt), war falsch, und der Test fand es, bevor jemand den
+Bildschirm gesehen hat. Das ist das Argument dafür, die Regel zuerst zu
+schreiben — nicht dagegen.
+
+**Und der Widerruf sah aus, als hätte er nicht gewirkt.** Siehe O-510: die
+Datenbank war richtig, der Feed antwortete sofort mit 404, nur die Seite hinter
+der Umleitung zeigte die Zeile noch. Keine Abfrage und kein Isolationstest
+hätte das gefunden — es steht in keinem SQL. Gefunden hat es der Browsertest,
+und zwar genau der Schritt, der nach dem Klick nachsieht statt zu glauben.
+
+### D-517 · Die Kalenderrunde: acht Befunde, die der Kalender nur deshalb hatte, weil er neu ist
+
+Eine gegnerische Durchsicht über die gesamte Kalenderarbeit (CAL-01…CAL-03,
+Migration 0160) fand acht Dinge, die alle dieselbe Form haben: sie sehen im
+Normalfall richtig aus und werden im Randfall falsch. Sie stehen hier
+zusammen, weil man sie zusammen lernt.
+
+**1. Der Feed erfand seine Sitzung.** `portal: 'intern'`, `personId: null`,
+`ansicht: 'mandant'` — für jeden Tokenträger, auf der EINZIGEN Route ohne
+Sitzung. `p_ma_decke` auf `einsatz` ist restriktiv und lautet „Portal ist
+nicht `mitarbeiter` ODER die Schicht gehört dieser Person". Ein erfundenes
+`intern` macht die linke Seite wahr und hebt die Decke; ein `personId: null`
+macht die rechte unerfüllbar. Beides zusammen hiess: für die Verwaltung lief
+der Feed durch eine gehobene Decke, und für die Arbeiter — die, für die er
+gebaut wurde — war er leer, weil `mitarbeiter` das Recht `dienstplan.lesen`
+nicht hält und `t_person` ohne Person nicht greift. `0161` gibt die
+Auflösung zurück, was der Mensch wirklich ist: Person, und je Bereich das
+Portal aus seiner ROLLE. Das Portal bestimmt dann den Scope (`intern` →
+`mandant` je Bereich, sonst `person` bzw. `kunde` einmal), und doppelte
+Zeilen fängt die UID ab.
+
+**2. Der Token überlebte seinen Menschen.** Die einzige
+Lebendigkeitsbedingung war `widerrufen_am is null`. Ein deaktiviertes,
+gesperrtes oder zum Dienstkonto gemachtes Konto behielt einen funktionierenden
+Kalender — eine Sitzung ohne Ablauf. `app.kalender_feed_aufloesen` prüft jetzt
+dieselben fünf Bedingungen wie `app.sitzung_aufloesen` und dieselbe
+Mitgliedschaft wie `app.switcher_mandanten()` (mit `gueltig_ab`/`gueltig_bis`
+und `mandant.archiviert_am`, die vorher fehlten).
+
+**3. `::date` auf einem `timestamptz` rechnet in UTC.** Nichts setzt
+`TimeZone`; `'2026-10-25 00:30+02'::timestamptz::date` ist der **24.**
+Oktober. `freigabe.frist`, `ausschreibung.frist_angebot` und
+`lead.sla_frist_am` sind alle `timestamptz`: eine Frist zwischen Mitternacht
+und zwei Uhr fiel in den Vortag, während die Seite sie berlinerisch zeichnete.
+Genau der Fehler, vor dem der `FENSTER`-Kommentar hundert Zeilen weiter oben
+warnt — im selben Modul, in derselben Datei. Es gibt jetzt ein
+`BERLINER_TAG()`, und keine Abfrage castet mehr direkt.
+
+**4. `'\;'` ist kein maskiertes Semikolon.** In JavaScript verschwindet ein
+Backslash vor einem Zeichen ohne Sonderbedeutung beim Einlesen des Literals.
+Die Maskierung nach RFC 5545 §3.3.11 war für Semikolons ein no-op — und der
+Test daneben benutzte dasselbe Literal als Erwartung, verglich den Fehler also
+mit sich selbst. **Ein Test, der die Erwartung aus derselben Quelle bezieht wie
+der Code, prüft nichts.** Die neue Fassung zählt die Zeichen einzeln auf.
+
+**5. `METHOD:PUBLISH` bewirkte das Gegenteil des Beabsichtigten.** Es stand da,
+damit Outlook nicht nach einer Zusage fragt; tatsächlich macht `METHOD` aus
+der Datei ein iTIP-Objekt (RFC 5546), für das `ORGANIZER` in jedem VEVENT
+Pflicht ist (§3.2.1) — und eine Schicht hat einen Dienstplan, keinen
+Einladenden. Dazu verlangt RFC 5545 §8.1 dieselbe Methode in der Kopfzeile,
+die die Route nie trug. Ein Abonnement braucht kein `METHOD`. Ausserdem
+verlangt §3.4 mindestens eine Komponente: der leere Kalender — ein völlig
+normaler Zustand — war eine Datei aus lauter Kopfzeilen. Es geht jetzt immer
+eine `VTIMEZONE` für Europe/Berlin mit, die ohnehin wahr ist.
+
+**6. Das exklusive Ende, dreimal falsch abgeleitet.** Für ein DTEND wurden 24
+Stunden auf einen INSTANT addiert; in der Nacht zur Winterzeit hat der Berliner
+Tag 25 und es kam derselbe Tag heraus — ein ganztägiger Termin ohne Dauer, den
+kein Kalenderprogramm zeichnet. Im Tagesraster galt `ende` als INKLUSIV:
+ganztägige Einträge standen einen Tag zu lang, und eine Schicht 22:00–00:00
+stand in einem Folgetag, an dem sie keine Sekunde läuft. Auf der Detailseite
+zeigte ein mehrtägiger ganztägiger Termin überhaupt kein Ende. **Ein Datum
+kennt keine Sommerzeit — also wird auf dem Datum gerechnet**, und das
+exklusive Ende wird einmal, an einer Stelle, um eine Millisekunde
+zurückgenommen.
+
+**7. Das Monatsgitter zeigte Zellen, für die nie jemand gefragt hatte.** Es
+zeichnet volle Wochen und damit die Randtage der Nachbarmonate; geholt wurde
+der 1. bis zum Letzten. Jene Zellen waren IMMER leer, egal was in ihnen stand
+— und eine Zelle, die aussieht wie ein Tag ohne Termine, ist von einer ohne
+Daten nicht zu unterscheiden. `Fenster` trägt jetzt zusätzlich
+`abfrageVon`/`abfrageBis`: was BESCHRIFTET wird und was GEHOLT wird, ist nicht
+dasselbe.
+
+**8. Der Slug stand als Zeichenkette in sechs Abfragen.** Er kam aus der
+Anfrage, landete unmaskiert in SQL und war ausserdem EIN Slug für alle Zeilen
+— im persönlichen Kalender eines Menschen, der in zwei Gesellschaften
+arbeitet, zeigte die Hälfte der Wege auf die falsche. Der Weg kommt jetzt aus
+`mandant_id` der ZEILE.
+
+**Dazu drei kleinere, gleicher Art.** Die Herkunftspillen ERSETZTEN die
+Auswahl, statt umzuschalten — `quellen=a,b` war in der Adresse immer möglich,
+nur die Oberfläche konnte es nicht bauen, und eine aktive Pille war ein Knopf
+ohne Wirkung. `LAST-MODIFIED` kam aus `erstellt_am`, obwohl alle fünf Tabellen
+`geaendert_am` führen: eine verschobene Schicht meldete einen
+Änderungszeitpunkt, der sich nie ändert. Und der Titel einer Anfrage war NULL,
+sobald `lead.firma_name` NULL ist — was `lead_hat_namen` ausdrücklich erlaubt,
+sobald ein Kunde verknüpft ist.
+
+**Projektende und Vergabefrist bleiben aus dem persönlichen Kalender heraus**,
+und das ist Absicht: keine der beiden Zeilen hat einen Menschen, dem sie
+gehört. Freigabe und Anfrage haben einen Zuständigen und filtern danach.
+
+### D-518 · Demodaten sind Daten — und zwei von ihnen waren falsch
+
+**Jede Rechnungsposition war um den Faktor tausend zu klein.** `milliMenge()`
+nimmt TAUSENDSTEL (K-16: `numeric(12,3)`); die Seedtabelle schrieb ganze
+Stück. `menge: 160n` ging als **0,160 Stunden** in die Rechnung — und zwei der
+drei Rechnungen je Gesellschaft werden sofort festgeschrieben, also standen
+die falschen Beträge unveränderlich in einer lückenlosen Nummernfolge
+(Invariante 4). Das Feld heisst jetzt `mengeMilli`: **eine Menge ohne Einheit
+im Namen ist eine Zahl, die irgendjemand später deutet.**
+
+**Und der Demoschalter war fail-open.** `devFlaechenAn()` liest „alles ausser
+einem Produktionsbau ist eine Entwicklungsfläche" — richtig für eine Seite,
+die niemand ausliefert, falsch für einen Seed, der festgeschriebene Rechnungen
+anlegt. Ein Lauf gegen die echte Datenbank mit ungesetztem `NODE_ENV`, wie in
+jeder Konsole, hätte DEMO-Nummern in den echten Kreis gebrannt — unumkehrbar
+(Invariante 4 und 8). Demodaten verlangen jetzt die ausdrückliche Flagge
+`CSE_DEV_FLAECHEN=1`; `scripts/e2e-db.sh` und der a11y-Lauf setzen sie.
+
+**Die Stunden der Berichtsdemo fielen alle auf denselben Wochentag.**
+`tageHer = woche * 7 + i` ergibt für einen Menschen vier Abstände mit
+demselben Rest mod 7. Fiel der auf ein Wochenende, verwarf der Werktagsfilter
+alle vier auf einmal, und je nach Wochentag des Seedlaufs bekamen zwei von
+drei Menschen null Zeiteinträge — was die Null-Prüfung des Aufrufers dann
+festschrieb. Ein Wochenendtag wird jetzt auf den Freitag davor gezogen statt
+verworfen: **ein Stundenbericht mit leeren Zeilen sieht aus wie ein Fehler im
+Bericht, nicht wie einer im Seed.**
+
+### D-519 · Ein Stellvertreter sagt nichts über seine Gruppe
+
+Fünf Module melden ihre Benachrichtigungsarten bündelweise an und müssen das
+mehrfach können (der Jobbootstrap läuft im Test mehrfach; seit NOT-02 zählt
+die Einstellungsseite alle Arten auf, indem sie sie anmeldet). Alle fünf
+prüften dafür EINE Art und schlossen auf die übrigen. Beide Zweige dieses
+Schlusses gehen schief, sobald ein Bündel einmal unvollständig ankommt: der
+Vorhanden-Zweig lässt die fehlende Art still aus (sie ist dann nie
+registriert, und `erzeuge` wirft erst, wenn sie jemand auslöst — nachts, im
+Wächter), der Fehlt-Zweig meldet die Gruppe neu an und wirft über der
+vorhandenen Schwester. `sicherRegistriert` prüft je Schlüssel und kennt beide
+Fälle nicht. `registriereArt` bleibt streng: zwei DEFINITIONEN derselben Art
+sind weiterhin ein Fehler.
+
+### D-520 · Das Vorzeichen, das unter einem Prozent verschwand
+
+`Math.trunc(-50 / 100)` ist die negative Null, und `String(-0)` ist `"0"`. Aus
+−0,50 % wurde 0,50 % — genau in der Spanne, in der das Vorzeichen die Aussage
+trägt und der Betrag sie nicht verrät: eine Marge knapp unter null las sich
+als eine knapp darüber. Das benachbarte `stunden()` hatte das Muster längst
+richtig (getrenntes Vorzeichen, `Math.abs`). Bei der Gelegenheit tragen Geld,
+Stunden und Prozent dasselbe Minuszeichen: `formatiereGeld` bekommt seines von
+`Intl` und das ist ASCII, `stunden()` setzte U+2212 — und beide stehen in
+derselben Berichtszeile.
+
+### D-521 · Der Agentenlauf leitete auf den Bereich aus dem Formularrumpf um
+
+Der Lauf war an `app.aktiver_mandant()` gebunden (Invariante 3), die 303 folgte
+aber einem versteckten Feld. Wer den Bereich in einem zweiten Reiter gewechselt
+hatte, schickte den alten Slug ab: der Vorschlag entstand richtig, die
+Umleitung führte auf die Agentenseite der anderen Gesellschaft, und dort stand
+er nicht — ein Lauf, der aussah, als habe er nichts erzeugt. Der Slug kommt
+jetzt aus derselben Quelle wie die Bindung, und das versteckte Feld ist weg:
+**ein Feld, das der Server nicht liest, sieht im Quelltext aus wie eine
+Stellschraube und ist keine.**
+
+### D-522 · Eine Marge, die nichts misst — und ein Lohn, der doppelt zählt
+
+**`app.projekt_kennzahlen` verglich Zeiträume, die nicht zueinander gehören.**
+Es schnitt den LOHN auf `p_von`/`p_bis`, summierte Rechnungen und
+Eingangsrechnungen aber über die ganze Laufzeit — und die Auftragssumme in
+derselben Zeile ist ohnehin die Laufzeit, weil sich eine Auftragssumme nicht
+auf ein Jahr schneiden lässt. Die Marge verglich damit Erlöse aus vier Jahren
+mit Lohn aus einem. Beide Auflösungen wären denkbar gewesen; die Auftragssumme
+entscheidet, welche: **der Zeitraum wählt die PROJEKTE, die Beträge gehören dem
+Projekt** — und genau das sagt die Seite auch („Gezeigt werden Projekte, deren
+Laufzeit den Zeitraum berührt"). `app.projekt_lohnkosten` nimmt dafür NULL als
+„ohne Grenze".
+
+**Und der Lohn traf eine Anstellung zu viel.** `zeiteintrag.anstellung_id` ist
+`not null` — der Eintrag weiss, unter welcher Anstellung er entstand. Gesucht
+wurde sie trotzdem über Person und Gesellschaft. Wer in derselben Gesellschaft
+zwei Anstellungen hat, ging doppelt in die Lohnkosten ein, zusätzlich zum
+falschen Stundensatz. Invariante 9 erlaubt zwei Anstellungen ausdrücklich; eine
+Abfrage, die davon nichts weiss, rechnet still falsch.
+
+### D-523 · Zwei Wege ohne Bremse, und einer, der ins Leere führte
+
+**Der zweite Faktor war die schwächere von zwei Stufen.** Die erste bremst seit
+0155 (`app.versuch_protokollieren`); der Faktor gab bei einem falschen Code nur
+`false` zurück. Wer eine `aal1`-Sitzung in die Hand bekommt — gestohlenes
+Cookie, offener Rechner — durfte unbegrenzt raten, und sechs Ziffern sind keine
+Hürde, wenn jeder Versuch kostenlos ist und alle dreissig Sekunden ein neues
+Fenster aufgeht.
+
+**Gebremst wird der WEG, nicht das Konto.** Das ist der Unterschied zur ersten
+Stufe, und er hat einen Grund: dort rät jemand ohne Ausweis, hier hat er die
+Sitzung schon. Ein gesperrtes Konto nähme ihm nichts und dem Menschen alles.
+Dasselbe Argument, aus der anderen Richtung, gilt für die
+Kennwort-Zurücksetzung: dort wäre die vorhandene Bremse eine **Waffe** — ein
+öffentlicher Knopf, mit dem sich jedes fremde Konto durch blosses Anfordern
+aussperren liesse. Beide neuen Bremsen zählen und sperren nichts.
+
+**Und der erzwungene Kennwortwechsel führte in eine Sackgasse.**
+`muss_wechseln` zeigte auf `/auth/passwort-neu?wechsel=1` — eine Seite, die
+einen Token aus der Adresse liest und ohne ihn „Link abgelaufen" zeichnet. Wer
+zusätzlich 2FA führte, ging durch den Faktor und landete auf `/portal`: die
+Pflicht war vergessen. `/auth/kennwort-wechseln` ist der sitzungsgebundene Weg,
+mit dem ALTEN Kennwort als Ausweis — und die zweite Stufe trägt die Pflicht als
+`?wechsel=1` mit.
+
+**Nachtrag, und die eigentliche Lehre.** Beide Bremsen gehören `cse_definer`
+(K-08), und diese Rolle hatte auf `kern.anmeldeversuch` weder Zuteilung noch
+Policy — die ältere Schwester `app.versuch_protokollieren` gehört historisch
+dem Tabelleneigentümer und kam deshalb ohne aus. Unter FORCE RLS ist ein
+`grant` ohne `policy` keine Erlaubnis, sondern null Zeilen; hier fehlte sogar
+die Zuteilung, und der Aufruf endete mit `permission denied`. **Kein Test rief
+die Funktionen AUF** — sie standen in der Migration, die Migration lief, und
+alles war grün. Gefunden hat es der Browserlauf in CI. Die Prüfungen in
+`tests/isolation/anmeldung-kennwort.test.ts` (9) rufen sie jetzt auf: eine
+Definer-Funktion, die niemand aufruft, ist nicht geprüft, sondern nur
+vorhanden.
+
+### D-524 · Eine Null hiess zweierlei
+
+In den sechs Gruppenberichten machte `coalesce(…, 0)` aus „dieser Mensch darf
+die Zahlen dieser Gesellschaft nicht lesen" eine Zeile mit `0,00 €`. Das ist
+nicht eine Lücke in der Anzeige, sondern eine **falsche Aussage über ein
+anderes Unternehmen** — und sie sieht nicht aus wie ein Fehler, was sie
+schlimmer macht als einen Absturz.
+
+Die Gruppenübersicht (`gruppe/uebersicht.ts`) macht es seit jeher richtig: Recht
+vor der Zählung, sonst `null`, und die Seite zeigt einen Strich. Die Berichte
+folgen dem jetzt. **Wo ein Bericht aus zwei Tabellen liest, gilt UND** — eine
+Umsatzzeile aus Erlösen, die jemand sehen darf, und einem Aufwand, den er nicht
+sehen darf, wäre ein Ergebnis, das zu hoch ist, und nichts an der Zeile sagte
+das.
+
+### D-525 · Drei Zusagen ohne Deckung
+
+**Der Wissensindex meldete jeden eingetragenen Anbieter als verbunden**, obwohl
+`modell/auswahl.ts` genau zwei auflöst. Stünde `azure` im Register, sagte die
+Seite „verbunden" und der nächste Aufruf fände keinen Adapter. Ein Test hält
+beide Listen jetzt zusammen — er liest die `if (anbieter === …)`-Zweige aus dem
+Quelltext, weil die der wahre Inhalt sind.
+
+**Die Anmeldeseite verschwieg ihre Warnung, sobald zwei Umgebungsvariablen
+gesetzt waren** — während weiter hausintern angemeldet wurde und
+`/auth/callback` mit 501 antwortete. Zwei Zustände steckten in einem Wort:
+`anbieterEingerichtet()` sagt jetzt, ob Zugangsdaten da sind,
+`anbieterWegGebaut()`, ob der Weg existiert. Er existiert nicht, solange O-501
+offen ist, und die Seite sagt genau das.
+
+**Und `sicherRegistriert` liess zwei Module denselben Benachrichtigungsschlüssel
+mit verschiedenen Texten teilen**, obwohl der Kommentar daneben das Gegenteil
+versprach. Verglichen wird jetzt auch der Quelltext der drei Funktionen: zwei
+Closures sind nie `===`, ihr Text ist bei demselben Modul aber derselbe und bei
+zwei Modulen praktisch nie. Keine Gleichheit im mathematischen Sinn — die
+Prüfung, die den Fall fängt, um den es geht.
+
+### D-526 · Zwei Bildschirme, zwei Wahrheiten
+
+Das Agentenzentrum zeigte unbedingt „Kein Modellzugang eingerichtet" — ein Satz
+aus der Zeit vor dem Modellregister (0154). Seit der Demobetrieb eingetragen
+ist, hat die Detailseite daneben einen Startknopf, und die Übersicht darüber
+sagte das Gegenteil. **Wer den Knopf drückt, glaubt der Übersicht danach
+nichts mehr.** Der Banner kommt jetzt aus `app.modell_fuer` — derselben Quelle,
+aus der die Detailseite ihren Knopf ableitet — und der Browsertest, der die
+alte Behauptung festschrieb, prüft jetzt, dass beide dasselbe sagen.
+
+Ein fest verdrahteter Zustandssatz ist eine Behauptung mit Verfallsdatum, und
+niemand merkt sich, sie zu widerrufen. Er gehört an die Quelle gebunden, auch
+wenn das im Augenblick des Schreibens wie Umstand aussieht.
+
+### D-527 · Der Entwurf, der `{zusammenfassung}` sagte
+
+Jede der sieben Vorlagen in `modell/demo.ts` trägt den Platzhalter
+`{zusammenfassung}` — und `fuelleTatsachen` lieferte den Schlüssel für keinen
+der vier Agenten. `fuelle()` lässt einen Platzhalter ohne Tatsache absichtlich
+STEHEN (eine sichtbare Lücke ist besser als eine stille Null), also stand in
+jedem Demoentwurf wörtlich `{zusammenfassung}`.
+
+**Der Knopf lief, der Vorschlag lag im Posteingang, und er war unfertig.** Das
+ist die Art Fehler, die eine Vorführung wertlos macht: sie steht genau dort,
+wo jemand hinsieht. Alle vier Agenten setzen den Schlüssel jetzt aus den
+Zahlen, die darunter einzeln stehen — die Zahlenherkunft (Invariante 6) bleibt
+damit geschlossen, weil jede Ziffer schon in den Tatsachen steht.
+
+Geprüft wird **gegen das Muster, nicht gegen eine Liste bekannter Schlüssel**:
+`tests/isolation/agent-lauf.test.ts` (9) lässt alle vier Agenten laufen und
+weist jeden Entwurf ab, in dem noch `{…}` steht. Eine neue Vorlage mit einem
+neuen Platzhalter fällt damit beim ersten Lauf auf. Dazu die Gegenprobe: fehlt
+ein Schlüssel, MUSS der Platzhalter sichtbar bleiben — sonst hätte der Test
+eine Funktion abgesegnet, die Lücken stillschweigend leert, und das wäre die
+schlechtere Antwort.
+
+### D-528 · Eine CSV-Datei wird in Excel geöffnet, und Excel rechnet
+
+Ein Projektname `=HYPERLINK("http://…";"Rechnung")`, eine UTM-Kampagne `+cmd`,
+ein Kundenname `@SUM(…)` — alles Werte, die jemand von aussen über ein
+Webformular in die Datenbank schreiben kann — wurden beim Öffnen des Exports
+AUSGEFÜHRT statt gezeigt. `csvFeld` maskierte nach RFC 4180, und RFC 4180 kennt
+keine Formeln; die beiden Programme, die diese Datei öffnen, schon.
+
+Ein führendes `'` ist die von beiden verstandene Marke für „das ist Text", und
+in der Zelle sieht man davon nichts. **Die Entscheidung trifft die SPALTE, nicht
+der Wert:** `wert` ist Text aus der Datenbank und wird geschützt, die
+Cent-Spalte und die Kopfzeile entstehen in dieser Datei und gehen roh durch —
+ein `'-1999` in der Cent-Spalte rechnete in keiner Tabelle mehr, und genau
+dafür steht sie da.
+
+**Und der Z3-Export (`buchhaltung/z3.ts`) bekommt das NICHT** — er hat sein
+eigenes `csvFeld`, und das ist Absicht, kein vergessener Ort. Eine Z3-Datei
+wird nicht in Excel geöffnet, sondern von der Prüfsoftware nach dem
+Beschreibungsstandard aus `INDEX.XML` eingelesen: dort steht je Spalte, was sie
+enthält. Ein Hochkomma, das dem Prüfer einen anderen Feldinhalt zeigt als den
+gebuchten, wäre ein Mangel im STEUEREXPORT — und der wiegt schwerer als ein
+Tabellenrisiko auf einem Weg, den dieses Format nicht geht. Wer die beiden
+Exporte für denselben Fall hält, macht aus einem geprüften Datensatz einen
+veränderten.
+
+### D-529 · Eine Summe ist kein anderer Bildschirm
+
+D-524 liess die Zellen einer nicht lesbaren Gesellschaft einen Strich zeigen —
+die Gesamtzeile darunter zählte sie weiter mit. Wer eines der beiden Rechte
+hält und das andere nicht, holte sich die verborgene Zahl durch eine
+Subtraktion zurück. **Eine Aggregation erbt die Rechte ihrer Zeilen**; sie ist
+kein anderer Bildschirm, nur eine kürzere Schreibweise desselben.
+
+### D-530 · Zählen und Schreiben sind EINE Entscheidung
+
+Beide neuen Bremsen (D-523) lasen erst den Stand und schrieben danach. Ohne
+Serialisierung lesen zwei gleichzeitige Anforderungen denselben Stand, beide
+finden sich unter der Grenze, und beide kommen durch — die Bremse bremst genau
+den, der langsam klickt, und niemanden sonst. `pg_advisory_xact_lock` je
+normalisiertem Schlüssel schliesst das: zwei verschiedene Adressen behindern
+sich nicht, und die Sperre fällt mit der Transaktion.
+
+### D-531 · Ein Test, der vom Rechner abhängt, prüft den Rechner
+
+`bau-wache.test.ts` wurde rot, sobald die Browsersuite parallel lief: der
+Wächter probierte neben dem gesetzten `PORT` auch 3000/3001, fand dort deren
+Server, meldete das richtig — und der Test las es als Fehlalarm.
+
+Die Regel dahinter war falsch, nicht nur der Test: **ein gesetztes `PORT` gilt
+allein.** Die Nachbarhäfen sind der Rateweg für den Normalfall, in dem niemand
+einen Hafen nennt. Wer einen nennt, hat sich entschieden; danach noch 3000
+abzufragen heisst, ihm nicht zu glauben, und meldet einen Server, den er gar
+nicht gemeint hat. Eine Gegenprobe hält den Rateweg fest, damit er nicht
+stillschweigend verschwindet.
+
+### D-532 · Ein Link in einer E-Mail ist kein Pfad
+
+Die Zurücksetzungsmail (AUT-06) trug den Link relativ: `/auth/passwort-neu?token=…`.
+Im Browser ist das eine Adresse, in einem Postfach ein Wort — der Weg war
+vollständig gebaut, geprüft und unbenutzbar, und zwar genau in dem Moment, in
+dem O-501 beantwortet und ein Postausgang angeschlossen wird. Auf der
+Entwicklungsfläche fiel es nicht auf, weil der Link daneben auf dem Bildschirm
+steht.
+
+Die Basis kommt von `kanonischeBasis` (`CSE_KANONISCHE_BASIS`, sonst der Host
+DIESER Anfrage) — dieselbe Quelle wie für `sitemap.xml` und jeden JSON-LD-`@id`,
+damit es nicht zwei Wahrheiten über den eigenen Host gibt.
+
+**Ohne Host geht keine Nachricht raus, statt einer Fehlerseite.**
+`kanonischeBasis` wirft lieber, als zu raten — für eine Sitemap richtig. Hier
+wäre die Folge eine 500er-Seite genau dann, wenn eine Mail herausgeht: ein
+sichtbarer Unterschied zwischen „Adresse bekannt" und „Adresse unbekannt", und
+damit das Aufzählwerkzeug, das diese Seite seit D-501 vermeidet. Also wird der
+`KeinHostFehler` gefangen, der Versand unterbleibt, und die Antwort bleibt
+dieselbe.
+
+**Der Text steht jetzt in `kennwortResetMail`, nicht in der Seite.** Eine
+Server-Action ist von einem Unit-Test nicht lesbar; deshalb konnte ein falscher
+Link dort monatelang stehen. Die reine Funktion prüft `tests/kern/kennwort-mail.test.ts`
+auf die absolute Form, auf den doppelten Schrägstrich und auf die Kodierung des
+Tokens — ein Token mit `+` oder `&` käme sonst anders an, als er vergeben wurde.

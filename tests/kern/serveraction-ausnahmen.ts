@@ -54,4 +54,77 @@ export const ANDERS_BEWACHT: readonly AndersBewacht[] = [
       + 'serialisieren. Erst danach entsteht ein Akteur; vorher gibt es keinen, den '
       + '`authorize()` prüfen könnte.',
   },
+  {
+    datei: 'src/app/auth/login/page.tsx',
+    wache: 'meldeAnMitKennwort',
+    grund:
+      'AUT-01, derselbe Fall wie die drei darüber: wer ein Kennwort eingibt, ist noch '
+      + 'niemand. Bewacht wird die Aktion durch `meldeAnMitKennwort` und die Funktion '
+      + 'dahinter — `app.kennwort_anmelden` (0155) bremst ZUERST '
+      + '(`app.versuch_protokollieren`, AUT-07), vergleicht den bcrypt-Hash in der '
+      + 'Datenbank und stellt die Sitzung in derselben Anweisung aus. Eine Bremse in '
+      + 'dieser Seite wäre eine, die der nächste Aufrufer umgeht.',
+  },
+  {
+    datei: 'src/app/auth/passwort-vergessen/page.tsx',
+    wache: 'legeKennwortTokenAn',
+    grund:
+      'AUT-01. Wer sein Kennwort vergessen hat, ist per Definition nicht angemeldet. '
+      + '`app.kennwort_token_anlegen` (0155) antwortet IMMER gleich — ob es zu der '
+      + 'Adresse ein Konto gibt, steht weder auf dem Bildschirm noch in der Laufzeit — '
+      + 'und lässt ältere offene Token desselben Zwecks verfallen.',
+  },
+  {
+    datei: 'src/app/auth/passwort-neu/page.tsx',
+    wache: 'loeseKennwortTokenEin',
+    grund:
+      'AUT-01, AUT-04. Der Ausweis ist der Token aus der Mail, nicht eine Sitzung — bei '
+      + 'einer Einladung gibt es noch gar kein aktives Konto. '
+      + '`app.kennwort_token_einloesen` prüft, verbraucht und setzt in EINER Anweisung '
+      + 'mit `for update`; zwei getrennte Schritte liessen ein Fenster, in dem derselbe '
+      + 'Link zweimal gilt.',
+  },
+  {
+    datei: 'src/app/auth/kennwort-wechseln/page.tsx',
+    wache: 'aendereKennwort',
+    grund:
+      'AUT-07. Der ERZWUNGENE Wechsel. Die Sitzung steht, aber `authorize()` frägt '
+      + 'nach einem RECHT — und ein Mensch, der sein eigenes Kennwort ändert, braucht '
+      + 'keines: er braucht das alte. Genau das prüft die Wache. '
+      + '`app.kennwort_aendern` vergleicht es gegen den gespeicherten Hash, hängt an '
+      + '`app.aktueller_benutzer()` (also an dieser Sitzung), setzt das neue, löscht '
+      + '`muss_wechseln` und beendet ALLE Sitzungen des Kontos. Ein Recht dafür zu '
+      + 'verlangen hiesse, dass ein Konto ohne Rechte sein Kennwort nicht wechseln '
+      + 'dürfte — und genau solche Konten sind es, die es müssen.',
+  },
+  {
+    datei: 'src/app/auth/zwei-faktor/pruefen/page.tsx',
+    wache: 'pruefeFaktor',
+    grund:
+      'AUT-02. Die Sitzung steht bereits — sie ist aber `aal1`, und genau das prüft '
+      + '`authorize()` NICHT: es fragt nach einem Recht, und hier geht es um die Stufe '
+      + 'der Anmeldung selbst. `pruefeFaktor` liest das Geheimnis über '
+      + '`app.faktor_geheimnis`, das an `app.aktueller_benutzer()` hängt (also an genau '
+      + 'dieser Sitzung), und `app.faktor_schritt_verbrauchen` macht jeden Code '
+      + 'einmalig. Die Anhebung auf aal2 gilt nur der Sitzung, deren Token vorliegt.',
+  },
+  {
+    datei: 'src/app/auth/zwei-faktor/wiederherstellung/page.tsx',
+    wache: 'loeseWiederherstellungscodeEin',
+    grund:
+      'AUT-02, derselbe Schritt mit dem anderen Beweis. '
+      + '`app.wiederherstellungscode_einloesen` prüft gegen die Codes DES GEBUNDENEN '
+      + 'Kontos (`app.aktueller_benutzer()`) und streicht den Code in derselben '
+      + 'Anweisung — ein zweites Einlösen trifft null Zeilen.',
+  },
+  {
+    datei: 'src/app/auth/zwei-faktor/einrichten/page.tsx',
+    wache: 'bestaetigeFaktorMitToken',
+    grund:
+      'AUT-02, AUT-04. Zwei Ausweise: im Regelfall die gebundene Sitzung (aal1, '
+      + '`app.faktor_*` hängen an `app.aktueller_benutzer()`), bei einer Einladung der '
+      + 'Token — ein eingeladenes Konto ist noch nicht `aktiv` und hat deshalb keine '
+      + 'Sitzung. `app.token_faktor_bestaetigen` prüft den Token, bestätigt den Faktor, '
+      + 'aktiviert das Konto und verbraucht den Token zusammen oder gar nicht.',
+  },
 ];

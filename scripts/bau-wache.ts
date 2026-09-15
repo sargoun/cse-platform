@@ -29,11 +29,23 @@
  * fremdes Projekt antwortet. Wer ihn setzt, weiss warum.
  */
 
-/** Die Haefen, auf denen dieses Projekt laeuft: `pnpm dev` und die Nachbarn. */
+/**
+ * Die Haefen, auf denen dieses Projekt laeuft: `pnpm dev` und die Nachbarn.
+ *
+ * **Ein gesetztes `PORT` gilt ALLEIN.** Die Nachbarn 3000/3001 sind der
+ * Rateweg fuer den Normalfall, in dem niemand einen Hafen nennt. Wer einen
+ * nennt, hat sich entschieden -- danach auch noch 3000 abzufragen heisst, ihm
+ * nicht zu glauben, und meldet einen Server, den er gar nicht gemeint hat
+ * (ein zweites Projekt, ein Browsertestlauf auf demselben Rechner). Der
+ * Waechter soll den EIGENEN Bau schuetzen, nicht ueber fremde Haefen urteilen.
+ */
 function haefen(): number[] {
-  const roh = [process.env['PORT'], '3000', '3001'];
+  const gesetzt = Number.parseInt(process.env['PORT'] ?? '', 10);
+  const roh = Number.isInteger(gesetzt) && gesetzt > 0 && gesetzt < 65_536
+    ? [String(gesetzt)]
+    : ['3000', '3001'];
   const zahlen = roh
-    .map((h) => Number.parseInt(h ?? '', 10))
+    .map((h) => Number.parseInt(h, 10))
     .filter((h) => Number.isInteger(h) && h > 0 && h < 65_536);
   return [...new Set(zahlen)];
 }

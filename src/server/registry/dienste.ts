@@ -973,6 +973,56 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'finanzen', pfad: 'finanz/zugferd/cii', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/zugferd/icc', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/zugferd/pdfa3', schreibend: false },
+  /**
+   * **Die Berichte (PR 79, REP-01…REP-07) — alle vier lesend, ausnahmslos.**
+   *
+   * Ein Bericht, der schreibt, ist kein Bericht. Das ist hier keine
+   * Selbstverständlichkeit, sondern die Bedingung dafür, dass die
+   * Gruppenfassung überhaupt existieren darf (Invariante 10): sie läuft ohne
+   * aktiven Mandanten, und `gruppenansicht.test.ts` liest genau dieses
+   * Register, um zu prüfen, dass dort kein Schreibpfad steht.
+   *
+   * `zeitraum` und `ausgabe` sehen nie eine Datenbank — Datumsarithmetik und
+   * CSV-Maskierung; sie stehen trotzdem hier, weil der Gegentest jeden Dienst
+   * verlangt und eine Ausnahmeliste die Stelle wäre, an der der fünfte
+   * vergessen wird.
+   */
+  { modul: 'bericht', pfad: 'bericht/zeitraum', schreibend: false },
+  { modul: 'bericht', pfad: 'bericht/ausgabe', schreibend: false },
+  { modul: 'bericht', pfad: 'bericht/kennzahlen', schreibend: false },
+  { modul: 'bericht', pfad: 'bericht/gruppe', schreibend: false },
+  /**
+   * **Der Kalender (CAL-01…CAL-03) — beide lesend.**
+   *
+   * `eintraege` SAMMELT aus sechs Quellen und schreibt in keine; `ical`
+   * formatiert und sieht nie eine Datenbank. Dass hier kein Schreibpfad
+   * steht, ist die Bedingung dafuer, dass `/portal/gruppe/kalender` ueberhaupt
+   * existieren darf (Invariante 10) — `gruppenansicht.test.ts` liest genau
+   * dieses Register.
+   *
+   * Ein Termin wird ueber die Seite geschrieben, nicht ueber einen Dienst;
+   * kommt das, traegt es sein eigenes `schreibRecht` (`kalender.schreiben`).
+   */
+  { modul: 'kalender', pfad: 'kalender/eintraege', schreibend: false },
+  { modul: 'kalender', pfad: 'kalender/ical', schreibend: false },
+  { modul: 'kalender', pfad: 'kalender/fenster', schreibend: false },
+  { modul: 'kalender', pfad: 'kalender/tagesraster', schreibend: false },
+  /*
+   * **Der Feed-Zugang steht NICHT hier, und das ist kein Vergessen.**
+   *
+   * Er schreibt (`kalender_feed` anlegen und widerrufen), aber er gehoert dem
+   * MENSCHEN und keiner Gesellschaft: `t_feed_eigene` bindet ihn an
+   * `app.aktueller_benutzer()`, er laeuft ueber `bindePersoenlich`, und es
+   * gibt keinen Rechteschluessel dafuer — ein Recht davor hiesse, dass jemand
+   * seinen eigenen Kalender nicht abonnieren darf.
+   *
+   * Genau dafuer gibt es die Grenze dieses Verzeichnisses: was einem Menschen
+   * gehoert, liegt neben `server/benachrichtigung/posteingang.ts` unter
+   * `server/kalender/`, nicht unter `server/services/`. Der Gegentest liest
+   * `services/`, und die Zusage, die er traegt — jeder schreibende Dienst
+   * nennt sein Recht —, gilt fuer Mandantenlogik. Sie hier aufzuweichen
+   * hiesse, sie ueberall aufzuweichen.
+   */
 ] as const;
 
 /**

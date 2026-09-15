@@ -377,10 +377,15 @@ culture's metaphor, and they cannot take `currentColor`.
 `uebersicht · crm · objekt · dienstplan · zeit · personal · angebot · auftrag ·
 rechnung · dokument · einstellungen · freigabe · wachbuch · aufmass ·
 ausschreibung · ki · heute · kalender · uhr · standort · telefon · mail ·
-suche · filter · plus · export · import · pfeil-rechts · pfeil-runter ·
+glocke · suche · filter · plus · export · import · pfeil-rechts · pfeil-runter ·
 chevron-rechts · menue · schliessen · schloss · auge · stift · papierkorb ·
 warnung · ok · fehler · info · gruppe · person · euro · reinigung · security ·
 qualitaet · eingang · buch · bank`
+
+`glocke` is the notification inbox (NOT-01) and **not** `mail`: the two sit in
+the same header and mean different things — `mail` is a message a person
+wrote, `glocke` is what the system noticed. Two items on the same envelope
+read as one item, which is the rule right below.
 
 **No two navigation items share a glyph.** A sidebar is scanned by shape;
 four items on the same export arrow read as one item. `reinigung`,
@@ -435,6 +440,53 @@ reads §6. A pill the switcher must show and the type system cannot express is
 either an invented label at the call site or a missing screen; both are worse
 than one more row here. It is a *mode*, not a record state — the only one — and
 that is why it stands alone.
+
+### Calendar (CAL-01, CAL-02)
+
+**No new colours.** A calendar with six colours for six sources is decoration:
+nobody learns which shade means "tender deadline", and the one that matters —
+today — competes with five others. Sources are named by a pill from the status
+vocabulary above, and the vocabulary already fits, because the question a
+calendar entry answers is always one of three:
+
+| Source | Pill | Why |
+|---|---|---|
+| Termin (meeting, customer, follow-up, interview) | info | someone planned it |
+| Einsatz (shift from the roster) | muted on `--surface-3` | it is the resting state of the week |
+| Frist (project, tender, approval, lead) | warning | it runs out |
+| Abgesagt | danger | struck through, and it stays visible |
+
+**Today is the only emphasis.** `2px solid --brand` on the day cell, and the
+day number in **`--text` on `--brand`**. Nothing else in the grid gets a
+border.
+
+**Why `--text` and not `--ink` on that one chip.** `--ink` on `--brand` is
+**4.09:1** — measured by axe on the built page, and below AA for the 13px day
+number (§9, BFSG). `--text` (`#FAFAFA`) on the same red is **4.89:1** and
+clears it. This is the same case DESIGN already resolves for the danger
+button: a solid brand *surface* wants a light foreground, and the token that
+reads well *as text on dark* is not the one that reads well *on the brand
+red*. The first draft of this section specified `--ink`, and the
+accessibility test caught it before anyone saw the screen — which is the
+argument for having the test, not against writing the section first.
+
+**Month grid.** Seven columns, `min-height: 120px` per cell, `1px solid
+--border` between cells, `--surface` behind, `--surface-2` behind days outside
+the shown month. At most three entries per cell, then `+n weitere` as a link
+to that day — a cell that grows with its content turns one busy Tuesday into a
+month that needs scrolling in both directions.
+
+**Below `768px` there is no grid.** Seven columns on a phone are 50px wide and
+show nothing; the month view becomes the *agenda*: one day per row, days
+without entries omitted, the date sticky at the top of its group. This is the
+one place where the mobile layout is not the desktop layout rearranged — it is
+a different answer to the same question, and §8's "never a horizontal
+scrollbar" is why.
+
+**Week and day** are the agenda with a narrower window, not a time-grid with
+hour rows. An hour grid is only worth its complexity when entries overlap and
+their overlap matters; here a shift and a deadline on the same day do not
+compete for a slot.
 
 ### Filter pills
 

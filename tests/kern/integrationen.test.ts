@@ -4,6 +4,7 @@
  * wird vorgetaeuscht": ohne Umgebungsvariablen ist nichts verbunden, jede
  * Luecke nennt ihren Grund, und kein Vertragsdatum ist erfunden.
  */
+import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { anbindungen, STAND_TEXT } from '../../src/server/registry/integrationen.js';
 import { AUFTRAGSVERARBEITER } from '../../src/server/registry/auftragsverarbeiter.js';
@@ -52,5 +53,29 @@ describe('AUFTRAGSVERARBEITER', () => {
       expect(v.vertragAm).toBeNull();
       expect(v.grundlage).toContain('D-04');
     }
+  });
+});
+
+/**
+ * **Zwei Listen derselben Sache laufen auseinander — also prüft sie ein Test.**
+ *
+ * `config/rag.ts` sagt der Wissensseite, ob eingebettet werden kann;
+ * `agent/modell/auswahl.ts` baut den Adapter. Stünde in der einen Liste ein
+ * Anbieter, den die andere nicht kennt, meldete die Seite „verbunden" und der
+ * nächste Aufruf fände keinen Adapter — eine Zusage, die erst beim Ausführen
+ * zerbricht.
+ */
+describe('Anbieter mit Adapter', () => {
+  it('rag.ts und auswahl.ts kennen dieselben', async () => {
+    const [{ ADAPTER_VORHANDEN }, quelle] = await Promise.all([
+      import('../../src/server/config/rag.js'),
+      readFile(
+        new URL('../../src/server/agent/modell/auswahl.ts', import.meta.url), 'utf8'),
+    ]);
+    /* Die `if (anbieter === 'x')`-Zweige in `baue()` sind die Wahrheit. */
+    const gebaut = new Set(
+      [...quelle.matchAll(/anbieter === '([a-z0-9_]+)'/gu)].map((m) => m[1]!));
+    expect(gebaut.size, 'baue() hat Zweige').toBeGreaterThan(0);
+    expect([...ADAPTER_VORHANDEN].sort()).toEqual([...gebaut].sort());
   });
 });

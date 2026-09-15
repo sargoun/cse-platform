@@ -39,6 +39,96 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + 'veröffentlichten Seiten. Hinter einer Anmeldung wäre die Datei sinnlos.',
   },
   {
+    pfad: 'api/berichte/[bericht]/csv',
+    recht: 'bericht.exportieren',
+    grund:
+      'REP-07. Ein EIGENES Recht neben `bericht.lesen`: wer eine Zahl ansehen darf, darf '
+      + 'sie nicht schon aus dem Haus tragen. Eine CSV-Datei verlässt das Portal und damit '
+      + 'jede Zugriffskontrolle darin — sie liegt danach in einem Downloads-Ordner, einem '
+      + 'Mailanhang, einem geteilten Laufwerk. Der Bereich kommt aus der SITZUNG; '
+      + '`?mandant=` steht nur für den Dateinamen in der Adresse (Invariante 3).',
+  },
+  {
+    pfad: 'api/kalender/[token]',
+    recht: null,
+    grund:
+      'CAL-03. Die einzige Route ohne Sitzung, die Mandantendaten herausgibt — und deshalb '
+      + 'die mit der längsten Begründung. Ein Kalenderprogramm KANN sich nicht anmelden: '
+      + 'es führt keinen zweiten Faktor und verhandelt kein Ablaufdatum. Der Token ersetzt '
+      + 'die Anmeldung, NICHT die Rechte: er sagt, WER liest, und danach entscheiden '
+      + 'dieselben Policies wie im Portal, was dieser Mensch sieht — die Route bindet eine '
+      + 'Sitzung für ihn und stellt dieselbe Abfrage wie die Seite. Gespeichert ist der '
+      + 'SHA-256 des Tokens, nie der Token; er gilt nur lesend, nur für die eigenen '
+      + 'Einträge, und ein Widerruf wirkt beim nächsten Abruf. Ein falscher Token ist 404 '
+      + 'und nicht 401: ein 401 lüde zum zweiten Versuch ein.',
+  },
+  {
+    pfad: 'api/kalender-feed/anlegen',
+    recht: null,
+    grund:
+      'CAL-03. Ein Recht davor hiesse, dass jemand seinen EIGENEN Kalender nicht abonnieren '
+      + 'darf — und es gäbe keinen Schlüssel, der das ausdrückt. `t_feed_eigene` bindet jede '
+      + 'Zeile an `app.aktueller_benutzer()`; geschützt ist der Weg durch die Methode (nur '
+      + 'POST) und das Ursprungstor. Der Token steht genau einmal in der Antwort und danach '
+      + 'nirgends mehr.',
+  },
+  {
+    pfad: 'api/kalender-feed/widerrufen',
+    recht: null,
+    grund:
+      'CAL-03, dieselbe Begründung wie beim Anlegen: ein eigener Zugang, an '
+      + '`app.aktueller_benutzer()` gebunden. Ein fremder Zugang antwortet wie ein nicht '
+      + 'vorhandener — die Policy lässt das `update` gar nicht greifen, und die Route sagt '
+      + 'nicht, ob es die Zeile gibt (AUT-06).',
+  },
+  {
+    pfad: 'api/benachrichtigungen/[id]/oeffnen',
+    recht: null,
+    grund:
+      'NOT-01, NOT-03. Der Posteingang ist PERSÖNLICH: `t_benachrichtigung_lesen_setzen` '
+      + 'bindet jede Zeile an `empfaenger_id = app.aktueller_benutzer()`. Ein Recht davor '
+      + 'hiesse, dass jemand eine Mitteilung bekommen kann, die er nicht ansehen darf. '
+      + 'Geschützt ist der Weg stattdessen durch die Methode (nur POST — ein GET, das '
+      + 'stempelt, leert den Posteingang von allein), durch das Ursprungstor und dadurch, '
+      + 'dass das ZIEL aus der Zeile kommt und nicht aus dem Rumpf: ein Feld dafür wäre '
+      + 'eine offene Weiterleitung (D-504). Eine fremde Zeile trifft null Zeilen und '
+      + 'antwortet 404 wie jede fremde Zeile (AUT-06).',
+  },
+  {
+    pfad: 'api/benachrichtigungen/gelesen',
+    recht: null,
+    grund:
+      'NOT-01, dieselbe Begründung wie darüber: persönlicher Posteingang, POST, '
+      + 'Ursprungstor, geprüfter Rückweg (D-504).',
+  },
+  {
+    pfad: 'api/benachrichtigungen/praeferenz',
+    recht: null,
+    grund:
+      'NOT-02. Es sind die EIGENEN Einstellungen; `t_praeferenz_eigene` bindet sie an '
+      + '`app.aktueller_benutzer()`. Die Arten kommen aus dem Register und nicht aus dem '
+      + 'Rumpf — sonst liesse sich eine Zeile für eine Art schreiben, die es nicht gibt.',
+  },
+  {
+    pfad: 'auth/abmelden',
+    recht: null,
+    grund:
+      'AUT-01, SPEC §3. Derselbe Vorgang wie `api/abmelden` darunter und aus demselben '
+      + 'Grund offen: er beendet die EIGENE Sitzung, und der Aufrufer weist sie durch '
+      + 'den Besitz des Tokens aus — ein Recht zu verlangen hiesse, eine Abmeldung an '
+      + 'eine Berechtigung zu binden, die gerade entzogen worden sein kann. Geschützt '
+      + 'durch die Methode (nur POST, kein GET-Export) und durch das Ursprungstor.',
+  },
+  {
+    pfad: 'auth/callback',
+    recht: null,
+    grund:
+      'AUT-01. Die Rückleitung des Identitätsanbieters — sie findet VOR jeder Sitzung '
+      + 'statt, ein Recht hätte niemanden zu prüfen. Solange kein Supabase-Projekt '
+      + 'hinterlegt ist (O-501), stellt sie nichts aus: sie leitet zur Anmeldung zurück '
+      + 'bzw. antwortet 501, statt so zu tun, als wäre ein Anbieter da.',
+  },
+  {
     pfad: 'api/abmelden',
     recht: null,
     grund:
@@ -1033,6 +1123,15 @@ export const ROUTEN: readonly RouteEintrag[] = [
      */
     pfad: 'api/vergabe/ausgang',
     recht: 'vergabe.einreichung_erfassen',
+  },
+  {
+    /**
+     * Ein Agentenlauf (AGT-01). `agent.aufgabe_starten` und nicht ein
+     * Senderecht: der Lauf legt VOR — am Ende steht ein Vorschlag im
+     * Posteingang, und was daraus wird, entscheidet ein Mensch (Invariante 7).
+     */
+    pfad: 'api/agenten/lauf',
+    recht: 'agent.aufgabe_starten',
   },
   {
     /**
