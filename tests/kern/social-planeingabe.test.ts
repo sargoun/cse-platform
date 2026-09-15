@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planEingabe } from '../../src/app/api/social/beitraege/[id]/planung/route.js';
+import { planEingabe } from '../../src/server/services/social/planeingabe.js';
 
 /**
  * Was ein `datetime-local`-Feld schickt, und was daraus werden muss.

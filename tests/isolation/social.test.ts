@@ -1,0 +1,272 @@
+/**
+ * Das Social Media Center gegen echte Rechte und echte Policies
+ * (SOC-01…SOC-08).
+ *
+ * **Die Sätze, die diese Datei beweist:**
+ *
+ *  1. Ein Beitrag der einen Gesellschaft erscheint nicht in der anderen.
+ *  2. Ohne `social.lesen` ist das Center leer — leer, nicht fehlerhaft.
+ *  3. **Ein VERÖFFENTLICHTER Beitrag ist öffentlich lesbar, ohne Sitzung.**
+ *     Genau daran hing die Entscheidung, die K-04-Decke nur aufs Schreiben zu
+ *     legen: eine Lesedecke auf `intern` hätte die Gesellschaftsseite
+ *     schweigend geleert, weil `app.portal()` ohne Sitzung auf den
+ *     fail-closed-Wert `mitarbeiter` fällt.
+ *  4. Ein ENTWURF ist es nicht — und ein zurückgezogener auch nicht mehr.
+ *  5. Ohne Sitzung lässt sich nichts schreiben (die Schreibdecke greift).
+ *  6. Die Entscheidung im Freigabe-Posteingang zieht den Beitrag nach —
+ *     **in beide Richtungen**, auch bei einer Ablehnung, die kein Ausführer
+ *     je sieht.
+ *  7. `beitrag` kennt kein `delete` (Invariante 8, sinngemäß).
+ */
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import type postgres from 'postgres';
+import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
+
+let f: Fixtur;
+const zufall = (): string => Math.random().toString(36).slice(2, 10);
+
+async function legeKontoAn(mandantId: string, rolle = 'leitung'): Promise<string> {
+  const email = `soc-${zufall()}@cse.test`;
+  const [u] = await sql.unsafe<{ id: string }[]>(
+    `insert into auth.users (email) values ($1) returning id`, [email]);
+  await sql.unsafe(
+    `insert into benutzer (id, email, name, status) values ($1, $2, 'Leitung', 'aktiv')`,
+    [u!.id, email]);
+  await sql.unsafe(
+    `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, ist_standard)
+     values ($1, $2, (select id from rolle where schluessel = $3 and mandant_id is null), true)`,
+    [u!.id, mandantId, rolle]);
+  return u!.id;
+}
+
+async function legeKanalAn(mandantId: string, plattform = 'instagram'): Promise<string> {
+  const [k] = await sql.unsafe<{ id: string }[]>(
+    `insert into social_kanal (mandant_id, plattform, anzeigename, verbunden)
+     values ($1::uuid, $2::social_plattform, $3, false)
+     on conflict (mandant_id, plattform) do update set anzeigename = excluded.anzeigename
+     returning id`,
+    [mandantId, plattform, `Kanal ${plattform}`]);
+  return k!.id;
+}
+
+/** Ein Beitrag samt Freigabe, so wie der Dienst ihn anlegen würde. */
+async function legeBeitragAn(
+  mandantId: string, titel: string, status: string,
+  freigabeStatus: string | null = null,
+): Promise<{ beitragId: string; freigabeId: string | null }> {
+  let freigabeId: string | null = null;
+  if (freigabeStatus !== null) {
+    /*
+     * **Eine genehmigte Freigabe braucht einen Menschen** -- das ist der
+     * CHECK `freigabe_genehmigt_hat_menschen` aus 0012, und er ist Invariante
+     * 7 in der Datenbank. Die Fixtur legt nicht in jeder Gesellschaft ein
+     * Konto an, also legt der Helfer eines an, statt `null` zu schicken.
+     */
+    const [vorhanden] = await sql.unsafe<{ id: string }[]>(
+      `select benutzer_id as id from benutzer_mandant
+        where mandant_id = $1::uuid and entzogen_am is null limit 1`, [mandantId]);
+    const mensch = vorhanden ?? { id: await legeKontoAn(mandantId) };
+    const [fr] = await sql.unsafe<{ id: string }[]>(
+      `insert into freigabe (mandant_id, aktion, status, vorgang_typ, titel,
+                             zusammenfassung, risiko, vorschau_payload, payload_hash,
+                             freigegeben_von, freigegeben_am, bezug_typ)
+       values ($1::uuid, 'social_veroeffentlichen', $2::freigabe_status,
+               'beitrag_veroeffentlichen', $3, 'Probe', 'mittel'::risiko_stufe,
+               '{}'::jsonb, encode(sha256(convert_to($3::text, 'UTF8')), 'hex'),
+               case when $2 = 'genehmigt' then $4::uuid else null end,
+               case when $2 = 'genehmigt' then now() else null end, 'beitrag')
+       returning id`,
+      [mandantId, freigabeStatus, titel, mensch.id]);
+    freigabeId = fr!.id;
+  }
+  const [b] = await sql.unsafe<{ id: string }[]>(
+    `insert into beitrag (mandant_id, titel, text, status, freigabe_id,
+                          veroeffentlicht_am)
+     values ($1::uuid, $2, 'Text', $3::beitrag_status, $4::uuid,
+             case when $3 = 'veroeffentlicht' then now() else null end)
+     returning id`,
+    [mandantId, titel, status, freigabeId]);
+  return { beitragId: b!.id, freigabeId };
+}
+
+/** Ohne jede Sitzung — genau so liest die öffentliche Gesellschaftsseite. */
+async function ohneSitzung<T>(
+  fn: (tx: postgres.TransactionSql) => Promise<T>,
+): Promise<T> {
+  return sql.begin(async (tx) => {
+    await tx.unsafe(`set local role cse_app`);
+    return fn(tx);
+  }) as Promise<T>;
+}
+
+beforeEach(async () => { f = await seed(); });
+afterAll(schliessen);
+
+describe('(1) Mandantentrennung', () => {
+  it('ein Beitrag der Reinigung erscheint nicht bei der Security', async () => {
+    const konto = await legeKontoAn(f.security);
+    await legeBeitragAn(f.reinigung, `Nur Reinigung ${zufall()}`, 'entwurf');
+
+    const zeilen = await alsApp(
+      { scope: 'mandant', mandantId: f.security, benutzerId: konto, portal: 'intern' },
+      (tx) => tx.unsafe(`select id, titel from beitrag`));
+    expect(zeilen).toHaveLength(0);
+  });
+
+  it('ein Kanal der einen Gesellschaft ist in der anderen nicht sichtbar', async () => {
+    const konto = await legeKontoAn(f.bau);
+    await legeKanalAn(f.reinigung, 'linkedin');
+
+    const zeilen = await alsApp(
+      { scope: 'mandant', mandantId: f.bau, benutzerId: konto, portal: 'intern' },
+      (tx) => tx.unsafe(`select id from social_kanal`));
+    expect(zeilen).toHaveLength(0);
+  });
+});
+
+describe('(2) Rechte', () => {
+  it('ohne social.lesen ist das Center leer, nicht fehlerhaft', async () => {
+    /* `mitarbeiter` hält weder social.lesen noch social.schreiben. */
+    const konto = await legeKontoAn(f.reinigung, 'mitarbeiter');
+    await legeBeitragAn(f.reinigung, `Entwurf ${zufall()}`, 'entwurf');
+
+    const zeilen = await alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: konto, portal: 'mitarbeiter' },
+      (tx) => tx.unsafe(`select id from beitrag where status = 'entwurf'`));
+    expect(zeilen).toHaveLength(0);
+  });
+
+  it('die Leitung sieht die Beiträge ihrer Gesellschaft', async () => {
+    const konto = await legeKontoAn(f.reinigung);
+    const titel = `Sichtbar ${zufall()}`;
+    await legeBeitragAn(f.reinigung, titel, 'entwurf');
+
+    const zeilen = await alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: konto, portal: 'intern' },
+      (tx) => tx.unsafe<{ titel: string }[]>(`select titel from beitrag`));
+    expect(zeilen.map((z) => z.titel)).toContain(titel);
+  });
+});
+
+describe('(3) Die öffentliche Seite — und warum die Decke nur fürs Schreiben gilt', () => {
+  it('ein veröffentlichter Beitrag ist OHNE SITZUNG lesbar', async () => {
+    const titel = `Draussen ${zufall()}`;
+    await legeBeitragAn(f.reinigung, titel, 'veroeffentlicht', 'genehmigt');
+
+    const zeilen = await ohneSitzung((tx) =>
+      tx.unsafe<{ titel: string }[]>(`select titel from beitrag`));
+    expect(zeilen.map((z) => z.titel)).toContain(titel);
+  });
+
+  it('und app.portal() ist dabei `mitarbeiter` — die Lesedecke hätte geleert', async () => {
+    /*
+     * Die Gegenprobe zur Entscheidung in 0163: ohne Sitzung faellt
+     * `app.portal()` auf den fail-closed-Wert. Eine restriktive Lesedecke
+     * auf 'intern' waere damit null Zeilen gewesen, schweigend.
+     */
+    const [z] = await ohneSitzung((tx) =>
+      tx.unsafe<{ portal: string }[]>(`select app.portal() as portal`));
+    expect(z?.portal).toBe('mitarbeiter');
+  });
+
+  it('ein Entwurf ist NICHT öffentlich', async () => {
+    const titel = `Geheim ${zufall()}`;
+    await legeBeitragAn(f.reinigung, titel, 'entwurf');
+
+    const zeilen = await ohneSitzung((tx) =>
+      tx.unsafe<{ titel: string }[]>(`select titel from beitrag`));
+    expect(zeilen.map((z) => z.titel)).not.toContain(titel);
+  });
+
+  it('ein zurückgezogener auch nicht mehr — obwohl er draussen WAR', async () => {
+    const titel = `Zurueck ${zufall()}`;
+    const { beitragId } = await legeBeitragAn(f.reinigung, titel, 'veroeffentlicht', 'genehmigt');
+    await sql.unsafe(
+      `update beitrag set status = 'zurueckgezogen', zurueckgezogen_am = now(),
+                          zurueckgezogen_grund = 'Probe'
+        where id = $1::uuid`, [beitragId]);
+
+    const zeilen = await ohneSitzung((tx) =>
+      tx.unsafe<{ titel: string; am: Date | null }[]>(
+        `select titel from beitrag`));
+    expect(zeilen.map((z) => z.titel)).not.toContain(titel);
+
+    /* Aber `veroeffentlicht_am` bleibt stehen: er WAR draussen (Invariante 8). */
+    const [zeile] = await sql.unsafe<{ am: Date | null }[]>(
+      `select veroeffentlicht_am as am from beitrag where id = $1::uuid`, [beitragId]);
+    expect(zeile?.am).not.toBeNull();
+  });
+
+  it('ohne Sitzung lässt sich NICHTS schreiben — die Schreibdecke greift', async () => {
+    await expect(ohneSitzung((tx) => tx.unsafe(
+      `insert into beitrag (mandant_id, titel, text) values ($1::uuid, 'Fremd', 'X')`,
+      [f.reinigung]))).rejects.toThrow();
+  });
+
+  it('und das Ergebnisblatt je Kanal bleibt drinnen', async () => {
+    const kanal = await legeKanalAn(f.reinigung, 'facebook');
+    const { beitragId } = await legeBeitragAn(
+      f.reinigung, `Mit Kanal ${zufall()}`, 'veroeffentlicht', 'genehmigt');
+    await sql.unsafe(
+      `insert into beitrag_kanal (mandant_id, beitrag_id, kanal_id, ergebnis, meldung)
+       values ($1::uuid, $2::uuid, $3::uuid, 'nicht_verbunden', 'kein Zugang')`,
+      [f.reinigung, beitragId, kanal]);
+
+    const zeilen = await ohneSitzung((tx) => tx.unsafe(`select id from beitrag_kanal`));
+    expect(zeilen).toHaveLength(0);
+  });
+});
+
+describe('(4) Die Entscheidung zieht den Beitrag nach — in BEIDE Richtungen', () => {
+  it('eine Genehmigung macht aus „vorgelegt" „freigegeben"', async () => {
+    const { beitragId, freigabeId } = await legeBeitragAn(
+      f.reinigung, `Wird genehmigt ${zufall()}`, 'vorgelegt', 'offen');
+    const [mensch] = await sql.unsafe<{ id: string }[]>(
+      `select benutzer_id as id from benutzer_mandant
+        where mandant_id = $1::uuid and entzogen_am is null limit 1`, [f.reinigung]);
+
+    await sql.unsafe(
+      `update freigabe set status = 'genehmigt', freigegeben_von = $2::uuid,
+                           freigegeben_am = now()
+        where id = $1::uuid`, [freigabeId, mensch?.id ?? null]);
+
+    const [b] = await sql.unsafe<{ status: string }[]>(
+      `select status::text as status from beitrag where id = $1::uuid`, [beitragId]);
+    expect(b?.status).toBe('freigegeben');
+  });
+
+  it('**und eine Ablehnung macht daraus „abgelehnt"** — kein Ausführer sieht sie', async () => {
+    const { beitragId, freigabeId } = await legeBeitragAn(
+      f.reinigung, `Wird abgelehnt ${zufall()}`, 'vorgelegt', 'offen');
+
+    await sql.unsafe(`update freigabe set status = 'abgelehnt' where id = $1::uuid`,
+      [freigabeId]);
+
+    const [b] = await sql.unsafe<{ status: string }[]>(
+      `select status::text as status from beitrag where id = $1::uuid`, [beitragId]);
+    expect(b?.status).toBe('abgelehnt');
+  });
+
+  it('ein Beitrag, der nicht mehr vorgelegt ist, wird NICHT mitgezogen', async () => {
+    const { beitragId, freigabeId } = await legeBeitragAn(
+      f.reinigung, `Schon draussen ${zufall()}`, 'veroeffentlicht', 'genehmigt');
+    await sql.unsafe(`update freigabe set status = 'abgelehnt' where id = $1::uuid`,
+      [freigabeId]);
+
+    const [b] = await sql.unsafe<{ status: string }[]>(
+      `select status::text as status from beitrag where id = $1::uuid`, [beitragId]);
+    expect(b?.status).toBe('veroeffentlicht');
+  });
+});
+
+describe('(5) Kein hartes Löschen', () => {
+  it('`beitrag` ist für cse_app nicht löschbar', async () => {
+    const konto = await legeKontoAn(f.reinigung);
+    const { beitragId } = await legeBeitragAn(f.reinigung, `Bleibt ${zufall()}`, 'entwurf');
+
+    await expect(alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: konto, portal: 'intern' },
+      (tx) => tx.unsafe(`delete from beitrag where id = $1::uuid`, [beitragId]),
+    )).rejects.toThrow(/permission denied/iu);
+  });
+});

@@ -1,6 +1,6 @@
 import { type NextRequest, type NextResponse } from 'next/server';
 import { SocialFehler, plane } from '@/server/services/social/dienst';
-import { berlinInstant, istKalendertag } from '@/server/services/zeit/dauer';
+import { planEingabe } from '@/server/services/social/planeingabe';
 import { fuehreSocialAus, UUID } from '../../../gemeinsam';
 
 /**
@@ -21,38 +21,6 @@ import { fuehreSocialAus, UUID } from '../../../gemeinsam';
  * Eine zweite Fassung hier wäre eine zweite Wahrheit über dieselbe Zeitzone.
  */
 export const dynamic = 'force-dynamic';
-
-export interface EingabeFehler { readonly grund: string; readonly satz: string }
-
-/** `2026-04-01T09:00` (Berliner Ortszeit) als Instant — oder der Grund. */
-export function planEingabe(wert: string): Date | EingabeFehler {
-  const treffer = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/u.exec(wert.trim());
-  if (treffer === null) {
-    return {
-      grund: 'zeitpunkt_unlesbar',
-      satz: 'Der Zeitpunkt ist keiner. Erwartet werden Datum und Uhrzeit in Berliner Zeit.',
-    };
-  }
-  const [, j, mo, t, st, mi] = treffer;
-  const jahr = Number(j);
-  const monat = Number(mo);
-  const tag = Number(t);
-  const stunde = Number(st);
-  const minute = Number(mi);
-  /*
-   * **Die Form zu pruefen genuegt nicht.** `2026-02-30` hat sie, und
-   * `Date.UTC` rutscht stillschweigend auf den 2. Maerz weiter -- der Beitrag
-   * ginge an einem Tag hinaus, den niemand gewaehlt hat. Dieselbe Pruefung
-   * wie in `berlinTagesZeitpunkt`.
-   */
-  if (!istKalendertag(jahr, monat, tag)) {
-    return { grund: 'kein_kalendertag', satz: `Diesen Tag gibt es nicht: ${wert.trim()}.` };
-  }
-  if (stunde > 23 || minute > 59) {
-    return { grund: 'keine_uhrzeit', satz: `Diese Uhrzeit gibt es nicht: ${wert.trim()}.` };
-  }
-  return berlinInstant(jahr, monat, tag, stunde, minute);
-}
 
 export async function POST(
   anfrage: NextRequest, { params }: { params: Promise<{ id: string }> },

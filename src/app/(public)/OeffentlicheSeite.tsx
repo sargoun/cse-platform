@@ -3,7 +3,10 @@ import { Abschnitte } from '@/components/oeffentlich/Abschnitte';
 import { JsonLd } from '@/components/oeffentlich/JsonLd';
 import { Gesellschaften } from '@/components/oeffentlich/Gesellschaften';
 import { Kontaktwege } from '@/components/oeffentlich/Kontaktwege';
+import { Beitraege } from '@/components/oeffentlich/Beitraege';
 import { ansprueche, seitenDaten } from '@/server/inhalt/seiten-daten';
+import { oeffentlichLesen } from '@/server/inhalt/lesen';
+import { oeffentlicheBeitraege } from '@/server/services/social/dienst';
 import { VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 import { shellBereiche } from './lade-shell';
 
@@ -21,6 +24,21 @@ export async function OeffentlicheSeite(
   const daten = await seitenDaten(pfad, sprache);
   // Eine Seite im Entwurf ist fuer den Besucher nicht vorhanden — nicht leer.
   if (daten === null) notFound();
+
+  /*
+   * Ist das die Profilseite EINER Gesellschaft? Der Ausdruck stand bisher
+   * inline im JSX und wurde dort einmal gebraucht; jetzt braucht ihn auch
+   * der Beitragsabschnitt, und zweimal dieselbe Regel liefe irgendwann
+   * auseinander.
+   */
+  const slug = /^\/(?:en\/)?unternehmen\/([a-z-]+)$/u.exec(pfad)?.[1];
+  const treffer = slug === undefined
+    ? [] : daten.bereiche.filter((b) => b.slug === slug);
+  const bereich = treffer.length === 1 ? treffer[0]! : null;
+
+  const beitraege = bereich === null
+    ? []
+    : await oeffentlichLesen((kontext) => oeffentlicheBeitraege(kontext, bereich.id));
 
   return (
     <>
@@ -71,14 +89,23 @@ export async function OeffentlicheSeite(
         * Gezeigt wird GENAU DIESE Gesellschaft, nicht alle vier: wer auf der
         * Seite von SSE Security steht, will SSE Security anrufen.
         */}
-      {(() => {
-        const slug = /^\/(?:en\/)?unternehmen\/([a-z-]+)$/u.exec(pfad)?.[1];
-        const eine = slug === undefined
-          ? [] : daten.bereiche.filter((b) => b.slug === slug);
-        return eine.length === 1
-          ? <Kontaktwege bereiche={eine} sprache={sprache} />
-          : null;
-      })()}
+      {bereich === null ? null : <Kontaktwege bereiche={[bereich]} sprache={sprache} />}
+
+      {/*
+        * **Die veroeffentlichten Beitraege dieser Gesellschaft** (SOC-05).
+        *
+        * Sie stehen NACH den Kontaktwegen: wer auf einer Profilseite liest,
+        * sucht zuerst, was die Gesellschaft tut und wie man sie erreicht --
+        * das Aktuelle ist der Grund wiederzukommen, nicht der Grund zu
+        * bleiben.
+        *
+        * Gelesen wird im OEFFENTLICHEN Kontext, ohne Sitzung: die Policy
+        * `t_beitrag_oeffentlich` laesst genau die veroeffentlichten und nicht
+        * zurueckgezogenen durch. Der Dienst filtert dieselbe Bedingung noch
+        * einmal -- nicht aus Misstrauen gegen die Policy, sondern damit der
+        * Aufrufer sie beim Lesen sieht.
+        */}
+      {bereich === null ? null : <Beitraege beitraege={beitraege} sprache={sprache} />}
     </>
   );
 }

@@ -1018,6 +1018,7 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   { modul: 'social', pfad: 'social/weg', schreibend: false },
   { modul: 'social', pfad: 'social/port', schreibend: false },
+  { modul: 'social', pfad: 'social/planeingabe', schreibend: false },
   { modul: 'social', pfad: 'social/dienst', schreibend: true, schreibRecht: 'social.schreiben' },
   /*
    * **Der Feed-Zugang steht NICHT hier, und das ist kein Vergessen.**

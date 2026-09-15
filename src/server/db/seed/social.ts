@@ -227,7 +227,7 @@ async function legeAn(
               ${`Der Beitrag „${a.titel}" soll auf die eigene Gesellschaftsseite gehen.`},
               'mittel'::risiko_stufe,
               ${sql.json({ titel: a.titel, text: a.text })},
-              encode(sha256(${a.titel}::bytea), 'hex'),
+              encode(sha256(convert_to(${a.titel}::text, 'UTF8')), 'hex'),
               ${offen ? null : mensch?.id ?? null},
               ${offen ? null : sql`now() - interval '5 days'`}, 'beitrag')
       returning id`;
