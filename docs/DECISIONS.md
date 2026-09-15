@@ -11425,3 +11425,32 @@ sein.
 Seite.** Jeder Schlüssel, den die Route zurückschickt, hat auf der Seite einen
 Satz; ein Test hält beide Listen aneinander. Wer hier arbeitet, ist Planerin
 und nicht Entwicklerin.
+
+### D-560 · `/portal` war die erste Seite nach der Anmeldung — und es gab sie nicht
+
+Gemeldet aus dem Betrieb, mit Bildschirmfoto: Anmeldung mit einem
+`leitung`-Konto, und die erste Seite danach war **„Diese Seite gibt es hier
+nicht."** `wegNachAnmeldung` fällt ohne Rückweg auf `/portal` zurück, und
+`/portal` stand in keinem Manifest — also 404.
+
+**Sieben Stellen zeigen dorthin**, und keine davon war falsch:
+`wegNachAnmeldung`, beide Stufen des zweiten Faktors, die
+Wiederherstellungscodes, zwei Benachrichtigungsrouten und die Angebotsroute
+schreiben alle `?? '/portal'` als letzten Ausweg. Sie einzeln zu reparieren
+hiesse, dieselbe Fallunterscheidung siebenmal zu führen und beim achten
+Aufrufer wieder zu vergessen. **Eine Adresse, die überall als Rückfallziel
+steht, muss selbst wissen, wohin sie gehört.** `/portal` ist deshalb jetzt ein
+Wegweiser: Mitarbeiterportal, Kundenportal, Gruppenansicht oder — für ein
+`intern`-Konto — der aktive Bereich, und ohne einen die Bereichswahl (§4.4).
+
+**Warum kein Manifesteintrag.** Die Seite zeigt nichts. Sie liest die Sitzung
+und leitet weiter; es gibt kein Recht zu prüfen, weil es nichts zu sehen gibt.
+Ein Eintrag mit einem Leserecht machte aus einem Wegweiser eine Sache, die man
+„lesen darf".
+
+**Warum der Test es nicht gefunden hat — der eigentliche Befund.** Die
+Anmeldeprüfungen fragen seit jeher `toHaveURL(/\/portal/)`, und `/portal`
+erfüllt dieses Muster. Die **Adresse** stimmte, die Seite dahinter fehlte:
+eine Prüfung, die ein 404 für einen Erfolg hält, ist keine. Die beiden neuen
+Fälle in `tests/e2e/anmeldung-kennwort.spec.ts` sehen deshalb auf den INHALT —
+und sie fallen um, sobald man die Wegweiserseite entfernt.
