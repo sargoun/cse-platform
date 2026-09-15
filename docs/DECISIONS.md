@@ -11015,3 +11015,35 @@ welcher Plattform nicht ankam. Gescheiterte Kanäle werden deshalb benannt und
 nicht gezählt — sie stehen als Sätze in `abgewiesen`, neben den abgewiesenen
 Beiträgen. Ein nicht verbundener Kanal bleibt eine Zahl: der ist ein bekannter
 Zustand (O-10) und steht bei jedem Beitrag gleich da.
+
+### D-548 · Ein Bauzustand ist keine Rechteauskunft
+
+**Der Befund kam von einem Nutzer**, und er kam als Frage: „warum kann der
+Mitarbeiter seine Arbeitsstunden nicht erfassen?" Dazu zwei Bildschirmfotos
+vom Telefon — `/portal/mein/nachrichten` und `/portal/konto/profil`, beide mit
+„Dieses Modul wird noch gebaut", und beide mit dem orangen Schild **Nur Lesen**
+in der Kopfzeile.
+
+Er hat das Schild richtig gelesen. Es stand nur falsch da.
+
+„Nur Lesen" ist in dieser Plattform die Aussage über eine **Sitzung**: die
+Gruppenansicht schreibt nicht (Invariante 10). `NochNichtGebaut` setzte
+`nurLesen` jedoch fest auf wahr — auf JEDER nicht gebauten Seite, für jede
+Rolle. Aus einem Bauzustand wurde damit eine Rechteauskunft, und zwar eine
+falsche: eine Mitarbeiterin, deren Sitzung sehr wohl schreiben darf
+(`mein/rahmen.tsx` übergibt `nurLesen={false}`), las auf zwei von fünf Zielen
+ihrer eigenen Leiste, dass sie es nicht darf.
+
+Der Wert kommt jetzt aus der Sitzung (`zugang.sitzung.ansicht === 'gruppe'`).
+In der Gruppenansicht steht das Schild weiterhin, auch auf einer nicht gebauten
+Seite — dort stimmt es.
+
+**Die allgemeine Regel, zum zweiten Mal in dieser Datei** (siehe D-544): ein
+Bildschirm, der eine Ursache nennt, muss sie von der Stelle lesen, die sie
+erzeugt. Ein fest verdrahteter Zustand in einer Anzeigekomponente ist keine
+Auskunft, sondern eine Behauptung — und die wird genau dann falsch, wenn
+jemand sie braucht.
+
+`tests/e2e/mitarbeiter.spec.ts` (7) hält beide Richtungen fest: die
+Mitarbeiterin sieht das Schild auf denselben zwei Seiten NICHT mehr, und die
+Gruppenansicht sieht es auf `/portal/gruppe/radar` weiterhin.

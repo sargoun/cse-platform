@@ -635,3 +635,59 @@ test.describe('(6) Arabisch: `dir="rtl"` und null axe-Verstöße', () => {
   });
   }
 });
+
+// ---------------------------------------------------------------------------
+
+test.describe('(7) „Nur Lesen" ist eine Aussage über die SITZUNG', () => {
+  /**
+   * **Der Befund, der diese Prüfung nötig machte — ein Nutzerbericht.**
+   *
+   * Ein Nutzer öffnete am Telefon als Mitarbeiter zwei Ziele der unteren
+   * Leiste, las dort „Dieses Modul wird noch gebaut" — und daneben, in der
+   * Kopfzeile, das orange Schild **Nur Lesen**. Er schloss daraus, dass das
+   * Mitarbeiterkonto schreibgeschützt sei, und fragte, warum sein Mitarbeiter
+   * keine Stunden erfassen könne.
+   *
+   * Er hat das Schild richtig gelesen; es stand nur falsch da.
+   * `NochNichtGebaut` setzte `nurLesen` fest auf wahr — und „Nur Lesen" ist in
+   * dieser Plattform die Aussage über eine SITZUNG: die Gruppenansicht
+   * schreibt nicht (Invariante 10). Aus einem Bauzustand wurde eine
+   * Rechteauskunft, und zwar eine falsche.
+   *
+   * Die Regel, die hier festgehalten wird: **das Schild folgt der Sitzung,
+   * nicht dem Bauzustand.** In der Gruppenansicht steht es auch auf einer
+   * nicht gebauten Seite — dort stimmt es.
+   */
+  test('eine Mitarbeiterin sieht es NICHT — auch nicht auf einer nicht gebauten Seite',
+    async ({ page }) => {
+      await alsFatima(page);
+
+      /* Zwei Ziele der unteren Leiste, beide noch nicht gebaut — genau die,
+         die der Nutzer geöffnet hat. */
+      for (const pfad of ['/portal/mein/nachrichten', '/portal/konto/profil']) {
+        const antwort = await page.goto(pfad);
+        expect(antwort?.status(), pfad).toBe(200);
+        // Die Seite sagt, dass sie noch entsteht — das ist richtig so.
+        await expect(page.locator('[data-cse="noch-nicht"]'), pfad).toBeVisible();
+        // Und sie sagt NICHT, dass dieses Konto nichts darf.
+        await expect(page.locator('[data-cse="header-nur-lesen"]'), pfad).toHaveCount(0);
+      }
+    });
+
+  test('in der Gruppenansicht steht es weiterhin — dort stimmt es (Invariante 10)',
+    async ({ page }) => {
+      await alsKonto(page, KONTO.gruppe);
+      /* Die Gruppenansicht betreten — ein GET wechselt den Mandanten nie. */
+      await page.goto('/portal/gruppe');
+      /*
+       * `/portal/gruppe/radar` steht im Manifest (Phase 8), ist noch nicht
+       * gebaut — und steht trotzdem in der Tab-Leiste der Gruppe. Eine echte
+       * Adresse also, keine erfundene: die Prüfung läuft wirklich durch die
+       * Platzhalterseite und nicht durch ein 404.
+       */
+      const antwort = await page.goto('/portal/gruppe/radar');
+      expect(antwort?.status()).toBe(200);
+      await expect(page.locator('[data-cse="noch-nicht"]')).toBeVisible();
+      await expect(page.locator('[data-cse="header-nur-lesen"]')).toBeVisible();
+    });
+});
