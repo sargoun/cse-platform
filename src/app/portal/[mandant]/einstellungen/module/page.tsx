@@ -51,7 +51,7 @@ export default async function Module(
       bereich={mandant as BereichSchluessel}
       nurLesen
       leiste={zugang.leiste}
-      wurzel={`/portal/${mandant}/einstellungen`}
+      wurzel={`/portal/${mandant}`}
       aktiverTab="mehr"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}

@@ -145,7 +145,7 @@ export default async function Anstellungsblatt(
       bereich={mandant as BereichSchluessel}
       nurLesen
       leiste={zugang.leiste}
-      wurzel={`/portal/${mandant}/personal/anstellungen`}
+      wurzel={`/portal/${mandant}`}
       aktiverTab="mehr"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}

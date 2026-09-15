@@ -11677,3 +11677,45 @@ lassen. `tests/design/sichere-flaeche.test.ts` prüft deshalb den VERTRAG: dass
 die Zeilen im Stylesheet stehen, dass jede einen `0px`-Ersatzwert trägt (ohne
 ihn fällt in einem alten Browser die ganze Deklaration weg, samt der 52px), und
 dass die Bauteile sie benutzen.
+
+### D-566 · Elf Seiten, deren ganze Navigation ins Nichts führte
+
+Ein Rundgang über **alle fünf Rollen**, der jeder Verweis folgt wie ein Mensch
+— nicht über die Routenliste, sondern über die Seiten selbst — fand **97
+verschiedene Ziele, die auf 404 führten.** Fast alle hatten eine Ursache.
+
+`wurzel` ist die PORTALWURZEL: `SeitenNavigation` und die Tab-Leiste lösen
+jeden Menüpunkt dagegen auf (`tabZiel`). Elf Seiten reichten aber den
+ABSCHNITT durch, in dem sie stehen:
+
+```
+wurzel={`/portal/${mandant}/einstellungen`}       // statt /portal/${mandant}
+wurzel={`/portal/${mandant}/dokumente`}
+wurzel={`/portal/${mandant}/personal/anstellungen`}
+```
+
+Auf `/portal/reinigung/dokumente/<id>` zeigte das Menü damit auf
+`/portal/reinigung/dokumente/crm`, `…/dokumente/zeiten`,
+`…/dokumente/finanzen/rechnungen` — **jeder Punkt der Seitenleiste, für jede
+Rolle, die eine hat.** Betroffen waren die Einstellungen samt aller
+Unterseiten, die Dokumentendetails, die Anstellungsdetails und das
+Agentenprotokoll.
+
+**Warum das monatelang niemand sah.** Die Seite selbst sieht richtig aus. Der
+Fehler steht in der NAVIGATION daneben, und wer dort arbeitet, drückt den
+Zurück-Knopf und hält es für einen verirrten Klick. Kein Test hat es gefunden,
+weil jeder Test die Adresse ansteuert, die er prüfen will — keiner klickt sich
+durch das Menü einer Detailseite.
+
+`tests/kern/portal-wurzel.test.ts` prüft jetzt jede `.tsx` unter
+`src/app/portal`: ein `wurzel` mit einem Segment hinter der Portalwurzel ist
+rot. Gegengeprüft — mit der alten Fassung fallen genau elf Fälle um.
+
+**Und ein Befund, der keiner war.** Derselbe Rundgang meldete React-Fehler
+`#418` (Hydration) auf drei Seiten. Nachgestellt mit `networkidle` und einer
+Sekunde Ruhe: alle vier betroffenen Adressen sind sauber. Die Meldung kam vom
+RUNDGANG selbst — er wartete nur auf `domcontentloaded` und navigierte
+mitten in der Hydration weiter. Die drei Seiten waren auch je Rolle
+verschieden, was ein echter Markup-Fehler nicht ist. Nichts zu reparieren;
+festgehalten, damit die nächste Messung mit demselben Werkzeug nicht dieselbe
+Stunde kostet.

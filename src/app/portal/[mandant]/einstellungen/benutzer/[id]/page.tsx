@@ -129,7 +129,7 @@ export default async function Benutzerblatt(
       bereich={mandant as BereichSchluessel}
       nurLesen
       leiste={zugang.leiste}
-      wurzel={`/portal/${mandant}/einstellungen/benutzer`}
+      wurzel={`/portal/${mandant}`}
       aktiverTab="mehr"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}

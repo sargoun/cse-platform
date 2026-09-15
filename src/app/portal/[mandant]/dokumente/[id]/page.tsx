@@ -90,7 +90,7 @@ export default async function Dokumentblatt(
       bereich={mandant as BereichSchluessel}
       nurLesen
       leiste={zugang.leiste}
-      wurzel={`/portal/${mandant}/dokumente`}
+      wurzel={`/portal/${mandant}`}
       aktiverTab="mehr"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
