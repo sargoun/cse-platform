@@ -991,6 +991,20 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'bericht', pfad: 'bericht/ausgabe', schreibend: false },
   { modul: 'bericht', pfad: 'bericht/kennzahlen', schreibend: false },
   { modul: 'bericht', pfad: 'bericht/gruppe', schreibend: false },
+  /**
+   * **Der Kalender (CAL-01…CAL-03) — beide lesend.**
+   *
+   * `eintraege` SAMMELT aus sechs Quellen und schreibt in keine; `ical`
+   * formatiert und sieht nie eine Datenbank. Dass hier kein Schreibpfad
+   * steht, ist die Bedingung dafuer, dass `/portal/gruppe/kalender` ueberhaupt
+   * existieren darf (Invariante 10) — `gruppenansicht.test.ts` liest genau
+   * dieses Register.
+   *
+   * Ein Termin wird ueber die Seite geschrieben, nicht ueber einen Dienst;
+   * kommt das, traegt es sein eigenes `schreibRecht` (`kalender.schreiben`).
+   */
+  { modul: 'kalender', pfad: 'kalender/eintraege', schreibend: false },
+  { modul: 'kalender', pfad: 'kalender/ical', schreibend: false },
 ] as const;
 
 /**
