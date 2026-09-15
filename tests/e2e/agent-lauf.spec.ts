@@ -56,6 +56,63 @@ test.describe('Agentenlauf (AGT-01)', () => {
   });
 
   /**
+   * **Zweimal absenden ist EIN Vorschlag** — die Zusage, die vorher nur im
+   * Text stand.
+   *
+   * Die Route bekam keinen Idempotenzschlüssel, also übersprang
+   * `starteAufgabe` seine Eindeutigkeitsprüfung, und jede Wiederholung legte
+   * eine zweite Aufgabe UND eine zweite offene Freigabe an. Ein Mensch hätte
+   * dieselbe Sache zweimal entschieden — oder, schlimmer, einmal genehmigt
+   * und die Zwillingszeile übersehen.
+   *
+   * Geprüft wird die ECHTE Wiederholung: dasselbe Formular, zweimal
+   * abgeschickt. Ein zweiter Klick auf denselben Knopf, ein „Formular erneut
+   * senden" nach einem Neuladen, eine doppelte Zustellung — alle drei tragen
+   * denselben Schlüssel, und genau den schickt dieser Test zweimal.
+   */
+  test('dasselbe Formular zweimal abgeschickt legt einen Vorschlag vor, nicht zwei',
+    async ({ page }) => {
+      await anmelden(page, KONTO.adminReinigung);
+      await page.goto(`/portal/${MANDANT}/agenten/backoffice`);
+
+      const schluessel = await page.locator('input[name="schluessel"]').inputValue();
+      expect(schluessel, 'das Formular bringt einen Schlüssel mit').not.toBe('');
+
+      const senden = async () => page.request.post('/api/agenten/lauf', {
+        form: { mandant: MANDANT, agent: 'backoffice', schluessel },
+        headers: { origin: new URL(page.url()).origin },
+        maxRedirects: 0,
+      });
+
+      /*
+       * Gezählt wird der ZUWACHS, nicht der Bestand: die Spezifikation teilt
+       * sich eine Datenbank, und frühere Läufe haben denselben Titel. „Genau
+       * eine Zeile" wäre eine Aussage über die Reihenfolge der Tests.
+       */
+      const zeilen = page.locator('table tbody tr')
+        .filter({ hasText: 'Hinweis: offene Leistungsnachweise' });
+      const vorher = await zeilen.count();
+
+      const erst = await senden();
+      expect(erst.status(), await erst.text()).toBe(303);
+      expect(erst.headers()['location']).toContain('lauf=vorgelegt');
+
+      const zweit = await senden();
+      expect(zweit.status()).toBe(303);
+      // `bestand` heisst: die Aufgabe gab es schon, es entstand nichts Neues.
+      expect(zweit.headers()['location'],
+        'der zweite Versuch legt nichts an').toContain('lauf=bestand');
+
+      /*
+       * Und in der Aufgabenliste des Agenten steht genau EINE Zeile mit
+       * diesem Titel — nicht zwei. Vorher waren es zwei, und beide warteten
+       * auf eine Entscheidung.
+       */
+      await page.goto(`/portal/${MANDANT}/agenten/backoffice`);
+      await expect(zeilen, 'zwei Absendungen, eine Aufgabe').toHaveCount(vorher + 1);
+    });
+
+  /**
    * Die Aufgabe steht danach in der Liste des Agenten — mit dem Stand, der
    * sagt, dass sie auf einen Menschen wartet und nicht fertig ist.
    */

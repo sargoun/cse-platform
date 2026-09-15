@@ -481,9 +481,12 @@ Radar first — the agents operate on its output.
       three flags **truthfully**: it runs in-process — no network, no
       processor, nothing stored outside this database. It is not a language
       model and does not pretend to be one: it formulates from templates and
-      already-computed facts, deterministically, and a test asserts that
-      **every digit in a draft appeared in the facts first** — the same bolt
-      that will catch an invented number once a real provider replaces it.
+      already-computed facts, deterministically. **Every digit in a draft must
+      have appeared in the facts first** — and that is checked at RUNTIME
+      (`agent/zahlenherkunft.ts`), before the approval row is written, not only
+      by a test against the demo. A test against the demo would have proved
+      nothing about a real provider: it could have invented a deadline or a
+      quantity and still produced an approvable draft (D-510).
       The run ends in a **draft in the approval inbox**, never in an action
       (invariant 7). Swapping in a real provider is one registry row and a key;
       `app.modell_fuer` orders a real provider ahead of the demo.

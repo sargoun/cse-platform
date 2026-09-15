@@ -5172,6 +5172,7 @@ niemand ihn suchen.
 | O-357 | **Wohin gehen die Wächter-Meldungen aus SPEC §14 — Posteingang, Mail oder beides — und wer bekommt die Kettenmeldung?** Die Ablaufwarnung (60/30/7) erreicht die Person selbst; das ist EMP-08 und unstrittig. „Hashkette gebrochen" dagegen hat keinen persönlichen Empfänger: es ist eine Meldung an die Buchhaltung oder die Geschäftsführung, und beide sind heute keine adressierbare Größe im Modell. Solange die Frage offen ist, wird der Kettenprüfer bewusst NICHT als Job registriert — ein Lauf, der jede Nacht „ok" meldet, ohne dass jemand die Meldung liest, schafft Vertrauen, das er nicht deckt. | SPEC §14, `src/server/jobs/bootstrap.ts`, `kettenlauf.ts`, NOT-01 |
 | O-500 | **Wie lange gilt ein Einladungs- und ein Zurücksetzungslink, wie viele Wiederherstellungscodes werden ausgegeben, und gilt eine Mindestlänge über zwölf Zeichen hinaus?** Die SPEC nennt keine Zahl. `plattform_einstellung` führt vier vorläufige Werte (168 h, 2 h, 10 Codes, 12 Zeichen); sie sind als `ist_vorlaeufig = true` markiert und über eine Zeile änderbar, ohne Code. Die Auswahl folgt gängiger Praxis, nicht einer Entscheidung: ein Einladungslink überlebt ein Wochenende, ein Zurücksetzungslink nicht. | AUT-01, AUT-04, `0155`, D-502 |
 | O-501 | **Welches Supabase-Projekt in der EU-Region (Frankfurt), welcher Auftragsverarbeitungsvertrag — und soll die Anmeldung über ein Firmenverzeichnis (SAML/OIDC) laufen?** Dieselbe Frage trägt den Postausgang: welcher in der EU gehostete Mailanbieter, welche Absenderadresse je Gesellschaft, laufen DKIM und DMARC über die bestehenden Domains? Ohne beides gibt es keinen Zurücksetzungs- und keinen Einladungslink, der ankommt. Bis zur Antwort prüft die Plattform das Kennwort selbst (`kern.zugangsdaten`, bcrypt), `/auth/callback` antwortet `501` statt eine Sitzung auszustellen, und `/auth/passwort-vergessen` sagt „nicht verbunden" statt „gesendet" (D-501, D-503). | AUT-01, AUT-04, NOT-02, `0155`, D-501 |
+| O-509 | **Welche KI-Endpunkte deckt der Auftragsverarbeitungsvertrag ab?** Der Adapter zerlegt `OPENAI_BASE_URL` und lässt nur `https` und einen Wirt aus einer Liste durch; in der Liste steht heute `eu.api.openai.com`, der Endpunkt, den OpenAI für EU-Datenresidenz nennt. Ob der AV-Vertrag des Kunden genau diesen abdeckt, ob er weitere abdeckt (Azure OpenAI in einer EU-Region hat je Ressource einen eigenen Wirt) und ob Nullspeicherung vertraglich zugesagt ist, weiss der Kunde — nicht diese Datei. Bis zur Antwort kommt jeder andere Wirt als `RESIDENCY_BLOCKED` zurück; ergänzen lässt sich die Liste über `OPENAI_EU_HOSTS`, und diese Variable zu setzen ist eine Entscheidung, die in die Verfahrensdokumentation gehört. | D-04, §8, `versand/modell-openai.ts`, D-509 |
 | O-502 | **Welche Kostenarten gehören in die Projektmarge (REP-05)?** Heute: Lohn (freigegebene Zeiteinträge zum internen Stundensatz aus `anstellung.stundensatz_intern`) plus Fremdleistung (Eingangsrechnungen mit Projektbezug). Nicht enthalten: Material ohne Rechnungsbezug, Gerätestunden und ein Gemeinkostensatz — und ob es einen geben soll, ist die eigentliche Frage: ein Zuschlag je Gesellschaft, ein Satz je Gewerk, oder gar keiner (dann ist die Zahl ein Deckungsbeitrag und keine Marge, und sollte so heissen). Bis zur Antwort nennt die Seite die Zahl „Kosten (Näherung)" und sagt unter der Tabelle, was fehlt — eine Marge, die so tut, als wäre sie die Nachkalkulation, wird in ein Angebot übernommen. | REP-05, `bericht/kennzahlen.ts`, D-506 |
 
 ### Vier Befunde, die ausserhalb dieser Datei liegen
@@ -9883,3 +9884,142 @@ die Mitgliedschaftstabelle nimmt nur Mandantenrollen an. Sie gilt damit ohne
 Zuweisungszeile in jedem Bereich — begrenzt bleibt die Sicht trotzdem, weil
 `rechte_mandanten` mit `app.sichtbare_mandanten()` schneidet, und die sind die
 Mandanten der Sitzung.
+
+### D-509 · Ein Adapter, der „EU" sagt, muss EU prüfen — nicht behaupten
+
+`modell-openai.ts` trug vier Zusagen im Kommentar und prüfte drei davon nicht.
+
+**`OPENAI_BASE_URL` wird zerlegt, nicht auf „nicht leer" geprüft.** Vorher kam
+jeder nichtleere String durch: `http://irgendwo` hätte Vertragstext im
+Klartext an einen beliebigen Wirt geschickt, während die Registerzeile
+weiterhin EU-Verarbeitung und Nullspeicherung bezeugte. Jetzt: `https`, ein
+Wirt aus einer Liste (heute `eu.api.openai.com`, erweiterbar über
+`OPENAI_EU_HOSTS`), keine Zugangsdaten in der Adresse, kein Query. Alles
+andere ist `RESIDENCY_BLOCKED`. Welche Endpunkte der AV-Vertrag des Kunden
+abdeckt, ist O-509 — bis zur Antwort ist die Liste kurz und die Antwort
+„nein".
+
+**Ein Riegel für Abnahmeumgebungen.** `CSE_KI_MODELL=nicht_verbunden` —
+dieselbe Schreibweise wie beim XRechnung-Prüfstand — gewinnt gegen Schlüssel
+und Registerzeile. Eine Umgebung mit echten Zugangsdaten hätte sonst wirklich
+hinausgerufen, und niemand hätte das beabsichtigt.
+
+**Die Antwort wird gelesen, nicht gecastet.** `await antwort.json()` warf bei
+einem HTML-Fehlerblatt einen `SyntaxError` am `ModellFehler`-Vertrag vorbei,
+und `daten as ChatAntwort` verschob eine falsche Form bis zum nächsten
+Feldzugriff. Beides endet jetzt als `INVALID_RESPONSE`.
+
+**Ein Wiederholungsversuch für 429 und 5xx, keiner für 401/403/4xx.** Ein
+abgewiesener Schlüssel wird beim zweiten Mal nicht angenommen; ein
+gedrosselter Anbieter schon. Zwei Versuche und nicht fünf, weil ein Mensch
+auf diese Antwort wartet.
+
+**Und die Anbieteridentität kommt aus dem Register.** `auswahl.ts` leitete
+nach Namenspräfix: alles ohne `demo:` ging an den OpenAI-Adapter. Eine
+freigegebene Zeile eines dritten Anbieters wäre damit an OpenAIs Endpunkt
+gegangen, mit OpenAIs Schlüssel, unter OpenAIs Vertrag. Jetzt liest dieselbe
+Abfrage Modell UND Anbieter, und ein unbekannter Anbieter ist
+`RESIDENCY_BLOCKED` statt „nimm halt OpenAI".
+
+### D-510 · Der Orchestrator hielt fünf Zusagen nicht, und keine fiel auf
+
+**Reserviert wurde nicht, gebucht wurde null.** `agent_budget`,
+`agent_reservierung`, `agent_kosten` und `app.agent_budget_pruefen` waren
+gebaut (AGT-05) — der Orchestrator rief keines davon. Jeder Lauf meldete
+0,00 €, und der harte Monatsstopp konnte nicht greifen: ein registrierter
+Anbieter hätte eine Monatsgrenze in einer Nacht überschreiten können, während
+der Kostenbildschirm bis zur Rechnung des Anbieters null zeigte. Jetzt:
+Preis lesen → reservieren → aufrufen → mit dem GEMESSENEN Preis buchen.
+**Ohne Preiszeile läuft nichts** — ein Lauf, dessen Kosten niemand kennt,
+wird nicht gestartet.
+
+**Das Risiko stand fest auf `niedrig`.** `stufeRisikoEin` (§14.4) urteilt aus
+Tatsachen und gibt einem nach aussen gerichteten Vorgang mindestens `mittel`;
+ein erstmaliger Vorgang ohne Vergleich ist nach §14.5 `hoch`. Der
+Orchestrator umging beides mit einer Konstanten. Jetzt rechnet der Code, und
+die Gründe stehen in der Nutzlast — „auch noch" ist eine andere Auskunft als
+„deshalb".
+
+**Die Aktion stand fest auf `interner_hinweis`**, auch für einen
+Antwortentwurf an eine anfragende Stelle. `aktion` und `vorgang_typ` sind
+zwei Felder, weil Posteingang und Ausführung sie getrennt lesen: die Aktion
+sagt, was geschähe, wenn jemand genehmigt.
+
+**Ein Anbieterfehler liess den Lauf verschwinden.** Gefangen wurde nur die
+Modellwahl; eine Zeitüberschreitung riss die Transaktion mit und mit ihr die
+Aufgabenzeile. Im Agentenzentrum stand nichts, und niemand konnte sehen,
+dass es einen Versuch gab. Jetzt wird der Schritt als `fehler` protokolliert,
+die Reservierung freigegeben und die Aufgabe sichtbar abgelegt.
+
+**Der Entwurf war kein Artefakt.** Er stand im Schritt und in der Freigabe;
+beide tragen ihre Löschfrist, die Aufbewahrung war also nie offen — die
+ZEILE fehlte, an der eine zweite Fassung hängt und gegen die ein Diff läuft.
+`cse_app` darf `agent_artefakt` nicht schreiben, deshalb der enge Definer
+`app.agent_artefakt_anlegen` (0159).
+
+**Und Invariante 6 galt nur im Test.** Dass keine Zahl erfunden wird, prüfte
+ein Test gegen den Demobetrieb — über einen echten Anbieter beweist das
+nichts. `agent/zahlenherkunft.ts` prüft es jetzt VOR dem Einfügen der
+Freigabe: jede Ziffernfolge im Entwurf muss in den Tatsachen vorkommen, ohne
+Toleranz und ohne Ausnahme für „kleine" Zahlen. Die Wache ist absichtlich
+stumpf — sie prüft Herkunft, nicht Bedeutung —, und ihre Grenze steht
+ausgeschrieben in `tests/kern/agent-zahlenherkunft.test.ts`, damit niemand
+sie später für einen Fehler hält und sie „verbessert", bis sie rät.
+
+### D-511 · Ein Doppelklick war ein zweiter Vorschlag
+
+`/api/agenten/lauf` gab `starteAufgabe` keinen Idempotenzschlüssel, also
+übersprang die Funktion ihre Eindeutigkeitsprüfung: jeder zweite Klick, jedes
+„Formular erneut senden" und jede doppelte Zustellung legten eine weitere
+Aufgabe und eine weitere offene Freigabe an. Ein Mensch hätte dieselbe Sache
+zweimal entschieden — oder einmal genehmigt und den Zwilling übersehen.
+
+**Der Schlüssel kommt aus dem FORMULAR**, gesetzt einmal beim Zeichnen der
+Seite. Hätte die Route ihn erfunden — aus der Uhr, aus einer Zufallszahl —,
+wäre jeder Klick wieder neu und die Idempotenz bestünde nur im Kommentar. Wer
+die Seite neu lädt, bekommt einen neuen Schlüssel: ein zweiter Lauf, den
+jemand WILL, ist nach wie vor einer.
+
+### D-512 · Die Tatsachen kamen aus der Datei, nicht aus der Gesellschaft
+
+`auftraege.ts` trug feste Prosa: jede der vier Gesellschaften bekam denselben
+Lagebericht, und `stand: 'heute'` war ein Wort und kein Datum. Ein Vorschlag,
+der für die Reinigung und für den Bau gleich lautet, sagt über beide nichts —
+und schlimmer: er sieht aus, als hätte jemand nachgesehen.
+
+`fuelleTatsachen()` zählt jetzt gegen die Tabellen des aktiven Mandanten,
+durch RLS begrenzt: offene Freigaben und unbesetzte Schichten für morgen, die
+jüngste Anfrage mit Firma und Eingangsdatum, Leistungsnachweise ohne
+Unterschrift, überfällige Forderungen und fällige Eingangsrechnungen. Das
+Datum kommt von `app.berlin_heute()`, nie aus `new Date()`.
+
+Und die Fachsprache bleibt genau: gezählt wird der ZUSTAND
+(`leistungsnachweis.status in ('entwurf','vorgelegt')`), nicht eine
+Unterschriftsspalte — die gibt es nicht, und eine zu erfinden hiesse, die
+Domäne zu verlassen.
+
+### D-513 · Das Register behauptete mehr, als der Code hielt — dreimal
+
+**Die Werkzeugfreischaltung schaltete auch das Verbotene frei.** `0154` setzte
+`agent_werkzeug.ist_aktiv = true` über den ganzen Bestand. Damit standen
+Paare auf `aktiv`, die `WERKZEUG_REGISTER` nicht kennt: `sende_email` für CEO,
+Akquise und Finanzen, `berechne_preis` für CEO und Backoffice. Niemand hätte
+es bemerkt, solange der Orchestrator nur formuliert — und beim ersten Agenten,
+der ein Werkzeug aufruft, wäre „darf er das?" mit „die Tabelle sagt ja"
+beantwortet worden. `0159` nimmt genau das zurück.
+
+**Der Demobetrieb meldete sieben Fähigkeiten und kann zwei.** `DemoModell`
+implementiert `entwerfe` und `bette`; eingetragen war es für jede
+`ki_faehigkeit`. „Nicht verfügbar" ist ein Betriebszustand, den §8 vorsieht;
+„verfügbar, aber kann es nicht" ist keiner. Die überzähligen Zeilen stehen
+jetzt auf `freigegeben = false` — die Spur bleibt, der Aufruf nicht.
+
+**Und der Wissensindex las die Umgebung statt des Registers.**
+`einbettungsStand()` prüfte `OPENAI_API_KEY` und `OPENAI_REGION` und endete in
+jedem Fall bei „nicht verbunden — das Modellregister gibt es noch nicht".
+Seit `0154` gibt es das Register, und der Satz war unwahr: die Seite meldete
+„kein Anbieter", während `app.modell_fuer('embedding')` einen nannte. Jetzt
+antwortet das Register, der Demobetrieb gilt als verbunden — **und die Seite
+sagt dazu, dass die REIHENFOLGE seiner Treffer nicht die eines echten
+Einbettungsmodells ist.** Wer dort sucht, sieht Treffer und muss wissen, woher
+sie kommen.

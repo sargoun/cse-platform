@@ -69,9 +69,32 @@ async function schalteAgentEin(kennung: string): Promise<void> {
     [kennung]);
 }
 
+/**
+ * **Ein Monatsbudget, sonst läuft nichts** (AGT-05, O-26).
+ *
+ * Das ist keine Umständlichkeit der Fixtur, sondern die Zusage: der
+ * Orchestrator reserviert VOR dem Modellaufruf, und ohne Budgetzeile bekommt
+ * er `budget_fehlt` und legt nichts vor. Vor dieser Runde reservierte er gar
+ * nicht — ein Anbieter hätte eine Monatsgrenze in einer Nacht überschreiten
+ * können, und jeder Lauf meldete Kosten von null.
+ */
+async function legeBudgetAn(mandantId: string, cent = 5_000n): Promise<void> {
+  await sql.unsafe(
+    `insert into agent_budget
+       (mandant_id, geltungsbereich, jahr, monat, budget_cent, ist_platzhalter,
+        erstellt_von_art, erstellt_von_dienst)
+     values ($1::uuid, 'mandant',
+             extract(year  from (now() at time zone 'Europe/Berlin'))::integer,
+             extract(month from (now() at time zone 'Europe/Berlin'))::integer,
+             $2::bigint, true, 'system', 'job:test')
+     on conflict do nothing`,
+    [mandantId, cent.toString()]);
+}
+
 const AUFTRAG = {
   agent: 'backoffice' as const,
-  vorgangTyp: 'interner_hinweis',
+  vorgangTyp: 'interner_hinweis' as const,
+  aktion: 'interner_hinweis',
   titel: 'Leistungsnachweis seit neun Tagen ohne Unterschrift',
   vorlage: 'interner_hinweis',
   tatsachen: {
@@ -86,6 +109,7 @@ beforeEach(async () => {
   f = await seed();
   benutzer = await legeAdministrationAn(f.reinigung);
   await schalteAgentEin('backoffice');
+  await legeBudgetAn(f.reinigung);
 });
 
 afterAll(schliessen);
@@ -94,6 +118,7 @@ describe('(1) der Lauf legt vor, er versendet nicht (Invariante 7)', () => {
   it('aus einem Auftrag wird ein Entwurf und eine offene Freigabe', async () => {
     const e = await alsDienst((k) => fuehreLaufAus(k, AUFTRAG));
 
+    expect(e.gestoert, 'der Lauf muss durchlaufen').toBeNull();
     expect(e.bestand).toBe(false);
     expect(e.modell).toBe(DEMO_MODELL);
     expect(e.freigabeId).not.toBeNull();
@@ -229,6 +254,132 @@ describe('(4) das Register ist das Tor (§8, 0154)', () => {
   });
 });
 
+describe('(6) das Budget ist ein HARTER Stopp (AGT-05)', () => {
+  /**
+   * **Reserviert wird vor dem Aufruf, nicht nach der Rechnung.**
+   *
+   * Vorher rief der Orchestrator das Modell und protokollierte den Schritt
+   * ohne Kosten — `kosten_mikrocent` blieb bei seinem Vorgabewert null. Ein
+   * registrierter Anbieter hätte damit jede Monatsgrenze überschreiten
+   * können, und der Kostenbildschirm hätte bis zur Rechnung des Anbieters
+   * 0,00 € gezeigt. Beides prüft diese Gruppe.
+   */
+  it('ohne Budgetzeile legt der Lauf nichts vor', async () => {
+    // Kein `delete`: `agent_budget` ist loeschgeschuetzt (Invariante 8).
+    // Die Zeile ins Vorjahr zu schieben ist dasselbe Ergebnis und derselbe
+    // Weg, den ein Monatswechsel im Betrieb nimmt.
+    await sql.unsafe(
+      `update agent_budget set jahr = jahr - 1 where mandant_id = $1::uuid`, [f.reinigung]);
+    const e = await alsDienst((k) => fuehreLaufAus(k, AUFTRAG));
+    expect(e.gestoert?.code).toBe('BUDGET');
+    expect(e.freigabeId).toBeNull();
+
+    // Und der Versuch ist SICHTBAR — nicht spurlos zurückgerollt.
+    const [a] = await sql.unsafe<{ status: string; fehler_text: string | null }[]>(
+      `select status::text as status, fehler_text from agent_aufgabe where id = $1::uuid`,
+      [e.aufgabeId]);
+    expect(a!.status).toBe('fehlgeschlagen');
+    expect(a!.fehler_text?.toLowerCase()).toContain('budget');
+  });
+
+  it('der Lauf reserviert, bucht und lässt keine offene Reservierung zurück', async () => {
+    const e = await alsDienst((k) => fuehreLaufAus(k, AUFTRAG));
+    expect(e.gestoert).toBeNull();
+
+    const [r] = await sql.unsafe<{ offen: string; gesamt: string }[]>(
+      `select count(*) filter (where freigegeben_am is null)::text as offen,
+              count(*)::text as gesamt
+         from agent_reservierung where agent_aufgabe_id = $1::uuid`, [e.aufgabeId]);
+    expect(r!.gesamt, 'es wurde reserviert').toBe('1');
+
+    const [k] = await sql.unsafe<{ anzahl: string; modell: string | null }[]>(
+      `select count(*)::text as anzahl, max(modell) as modell
+         from agent_kosten where agent_aufgabe_id = $1::uuid`, [e.aufgabeId]);
+    expect(k!.anzahl, 'und gebucht').toBe('1');
+    expect(k!.modell).toBe(DEMO_MODELL);
+  });
+
+  /**
+   * **Der Demobetrieb kostet null — und das ist eine gemessene Null.**
+   *
+   * Die Preiszeile für `demo:hausintern-v1` steht auf 0; der Lauf rechnet sie
+   * aus und schreibt sie hin. Der Unterschied zu vorher ist nicht die Zahl,
+   * sondern dass sie aus einer Preisliste kommt: ein echter Anbieter ohne
+   * Preiszeile läuft nicht, statt still mit null verbucht zu werden.
+   */
+  it('ohne Preiszeile läuft ein Modell gar nicht', async () => {
+    /*
+     * Die Zeile wird nicht geloescht, sondern in die Zukunft geschoben: der
+     * Seed der Isolationssuite setzt `agent_preisliste` nicht zurueck, und ein
+     * Loeschen hier fehlte allen folgenden Tests. Danach wieder zurueck --
+     * ein Test, der den Bestand veraendert zurueck laesst, macht den
+     * naechsten zu seinem Opfer.
+     */
+    await sql.unsafe(
+      `update agent_preisliste set gueltig_ab = app.berlin_heute() + 30 where modell = $1`,
+      [DEMO_MODELL]);
+    try {
+      const e = await alsDienst((k) => fuehreLaufAus(k, AUFTRAG));
+      expect(e.gestoert?.code).toBe('PREIS_FEHLT');
+      expect(e.freigabeId).toBeNull();
+    } finally {
+      await sql.unsafe(
+        `update agent_preisliste set gueltig_ab = app.berlin_heute() - 1 where modell = $1`,
+        [DEMO_MODELL]);
+    }
+  });
+});
+
+describe('(7) das Risiko rechnet der Code, nicht der Orchestrator (§14.4)', () => {
+  it('ein erstmaliger Vorschlag ist `hoch`, nicht fest `niedrig`', async () => {
+    const e = await alsDienst((k) => fuehreLaufAus(k, AUFTRAG));
+    expect(e.gestoert, JSON.stringify(e.gestoert)).toBeNull();
+    const [fr] = await sql.unsafe<{
+      risiko: string; aktion: string; punkte: number; gruende: unknown;
+    }[]>(
+      `select risiko::text as risiko, aktion, risiko_punkte as punkte,
+              vorschau_payload -> 'risiko_gruende' as gruende
+         from freigabe where id = $1::uuid`, [e.freigabeId]);
+    /*
+     * §14.5: ohne Vergleichbares ist ein Vorgang erstmalig, und erstmalig
+     * heisst volle Pruefung. Fest `niedrig` waere die eine Einstufung, die
+     * niemand mehr hinterfragt.
+     */
+    expect(fr!.risiko).toBe('hoch');
+    expect(fr!.punkte).toBeGreaterThan(0);
+    expect(JSON.stringify(fr!.gruende)).toContain('Erstmalig');
+  });
+
+  it('die Aktion kommt aus dem Auftrag, nicht aus einer Konstante', async () => {
+    const e = await alsDienst((k) => fuehreLaufAus(k, {
+      ...AUFTRAG, aktion: 'anfrage_antwort_entwurf', vorgangTyp: 'anfrage_antwort_entwurf',
+    }));
+    expect(e.gestoert, JSON.stringify(e.gestoert)).toBeNull();
+    const [fr] = await sql.unsafe<{ aktion: string; vorgang: string }[]>(
+      `select aktion, vorgang_typ::text as vorgang from freigabe where id = $1::uuid`,
+      [e.freigabeId]);
+    expect(fr!.aktion).toBe('anfrage_antwort_entwurf');
+    expect(fr!.vorgang).toBe('anfrage_antwort_entwurf');
+  });
+});
+
+describe('(8) der Entwurf wird ein Artefakt (AGT-01, LEG-09)', () => {
+  it('eine Zeile, am Schritt, mit Löschfrist', async () => {
+    const e = await alsDienst((k) => fuehreLaufAus(k, AUFTRAG));
+    const [a] = await sql.unsafe<{
+      art: string; status: string; schritt: string | null; frist: string | null;
+    }[]>(
+      `select art::text as art, status::text as status,
+              agent_schritt_id as schritt, nutzlast_loeschfrist_am::text as frist
+         from agent_artefakt where agent_aufgabe_id = $1::uuid`, [e.aufgabeId]);
+    expect(a, 'der Entwurf steht als Artefakt in der Akte').toBeDefined();
+    expect(a!.art).toBe('textentwurf');
+    expect(a!.status).toBe('entwurf');
+    expect(a!.schritt, 'und haengt an dem Schritt, der ihn erzeugt hat').not.toBeNull();
+    expect(a!.frist, 'ohne Frist wuerde nie geschwaerzt (LEG-09)').not.toBeNull();
+  });
+});
+
 describe('(5) ein echter Programmfehler bleibt laut', () => {
   /**
    * Der Gegenbeweis zur Zeile darüber: NUR die Residenz- und Anschlussgründe
@@ -237,7 +388,11 @@ describe('(5) ein echter Programmfehler bleibt laut', () => {
    * genau die Fehler, die jemand sehen muss.
    */
   it('eine unbekannte Vorgangsart wirft, statt still ein Ergebnis zu liefern', async () => {
-    await expect(alsDienst((k) => fuehreLaufAus(k, { ...AUFTRAG, vorgangTyp: 'gibt_es_nicht' })))
-      .rejects.toThrow();
+    // Der Cast ist der Punkt: `VorgangTyp` schliesst diesen Wert aus, und der
+    // Test prueft, was die DATENBANK tut, wenn er trotzdem ankommt -- etwa aus
+    // einer aelteren Zeile oder einem Aufrufer ohne Typen.
+    await expect(alsDienst((k) => fuehreLaufAus(k, {
+      ...AUFTRAG, vorgangTyp: 'gibt_es_nicht' as unknown as typeof AUFTRAG.vorgangTyp,
+    }))).rejects.toThrow();
   });
 });

@@ -1,5 +1,6 @@
 import type postgres from 'postgres';
 import Link from 'next/link';
+import { randomUUID } from 'node:crypto';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -83,6 +84,12 @@ export default async function AgentDetail(
   const laufCode = typeof suche['code'] === 'string' ? suche['code'] : null;
   const kennung = kennungFuer(agent);
   if (kennung === undefined) notFound();
+  /*
+   * Einmal je Aufruf dieser Seite — die Seite ist `force-dynamic`, also ist
+   * jeder Aufruf ein neuer Schlüssel und jede Wiederholung DESSELBEN Aufrufs
+   * derselbe. Genau das unterscheidet „noch einmal" von „aus Versehen zweimal".
+   */
+  const laufSchluessel = randomUUID();
 
   const zugang = await portalZugang(`/portal/${mandant}/agenten/[agent]`);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -305,6 +312,16 @@ export default async function AgentDetail(
           <form method="post" action="/api/agenten/lauf" className="mt-s4">
             <input type="hidden" name="mandant" value={mandant} />
             <input type="hidden" name="agent" value={kopf.kennung} />
+            {/*
+              * **Der Schlüssel gegen den zweiten Vorschlag.** Er entsteht
+              * einmal je Aufruf DIESER Seite; ein Doppelklick, ein „Formular
+              * erneut senden" und eine wiederholte Zustellung schicken
+              * denselben Wert, und `starteAufgabe` findet die vorhandene
+              * Aufgabe statt eine zweite anzulegen. Wer die Seite neu lädt,
+              * bekommt einen neuen Schlüssel — ein zweiter Lauf, den jemand
+              * WILL, ist nach wie vor einer.
+              */}
+            <input type="hidden" name="schluessel" value={laufSchluessel} />
             <Button type="submit" variante="primary" data-cse="agent-starten">
               Lauf starten und vorlegen
             </Button>

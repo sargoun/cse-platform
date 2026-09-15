@@ -54,26 +54,45 @@ export default async function Wissen(
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
 
-  const stand = einbettungsStand();
-
-  const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
-    withTenant(tx, zugang.sitzung, async (kontext) =>
-      /*
-       * **`where mandant_id = $1` steht hier, obwohl RLS es schon tut.**
-       * Invariante 3: die Policy ist die ZWEITE Linie, nie die einzige. Eine
-       * Aggregatabfrage ohne eigenen Filter zaehlt bei der kleinsten
-       * Regression in der Sitzungsbindung ueber alle Gesellschaften — und
-       * eine falsche Zahl faellt niemandem auf.
-       */
-      kontext.abfrage<Record<string, unknown>>(
-        `select quelle_typ::text as quelle, count(*)::int as chunks,
-                count(*) filter (where vertraulichkeit = 'vertraulich')::int as vertraulich,
-                min(eingebettet_am) as aeltester, max(eingebettet_am) as juengster
-           from wissens_chunk
-          where mandant_id = $1::uuid and ist_aktiv
-          group by quelle_typ
-          order by quelle_typ`, [kontext.aktiverMandantId]),
-    ))) as readonly Record<string, unknown>[];
+  const { stand, zeilen } = await (db().begin(SCHNAPPSCHUSS,
+    async (tx: postgres.TransactionSql) =>
+      withTenant(tx, zugang.sitzung, async (kontext) => {
+        /*
+         * Der Stand kommt aus dem REGISTER (0154), nicht aus zwei
+         * Umgebungsvariablen: wer Vertragstext an einen Auftragsverarbeiter
+         * gibt, ist eine Zeile mit Namen und Datum (D-04).
+         */
+        const [reg] = await kontext.abfrage<{ modell: string | null; anbieter: string | null }>(
+          `with m as (select app.modell_fuer('embedding'::ki_faehigkeit) as modell)
+           select m.modell,
+                  (select r.anbieter from modell_register r
+                    where r.modell = m.modell and r.faehigkeit = 'embedding'
+                    limit 1) as anbieter
+             from m`);
+        return {
+          stand: einbettungsStand({
+            modell: reg?.modell ?? null, anbieter: reg?.anbieter ?? null,
+          }),
+          /*
+           * **`where mandant_id = $1` steht hier, obwohl RLS es schon tut.**
+           * Invariante 3: die Policy ist die ZWEITE Linie, nie die einzige.
+           * Eine Aggregatabfrage ohne eigenen Filter zaehlt bei der kleinsten
+           * Regression in der Sitzungsbindung ueber alle Gesellschaften — und
+           * eine falsche Zahl faellt niemandem auf.
+           */
+          zeilen: await kontext.abfrage<Record<string, unknown>>(
+            `select quelle_typ::text as quelle, count(*)::int as chunks,
+                    count(*) filter (where vertraulichkeit = 'vertraulich')::int as vertraulich,
+                    min(eingebettet_am) as aeltester, max(eingebettet_am) as juengster
+               from wissens_chunk
+              where mandant_id = $1::uuid and ist_aktiv
+              group by quelle_typ
+              order by quelle_typ`, [kontext.aktiverMandantId]),
+        };
+      }))) as {
+    stand: ReturnType<typeof einbettungsStand>;
+    zeilen: readonly Record<string, unknown>[];
+  };
 
   const nachQuelle = new Map<string, Stand>(zeilen.map((z) => [String(z['quelle']), {
     quelle: String(z['quelle']),

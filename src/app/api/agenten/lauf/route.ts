@@ -7,7 +7,7 @@ import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { withTenant } from '@/server/kontext/index';
 import { fuehreLaufAus, type AgentKennung } from '@/server/agent/orchestrator';
-import { ENTWURF_AUFTRAEGE } from '@/server/agent/auftraege';
+import { ENTWURF_AUFTRAEGE, fuelleTatsachen } from '@/server/agent/auftraege';
 import { alsAntwort } from '../../sicherheit/antwort';
 
 /**
@@ -23,6 +23,14 @@ import { alsAntwort } from '../../sicherheit/antwort';
  * steht in `server/agent/auftraege.ts`: Vorlage, Vorgangsart und die Frage,
  * woher die Tatsachen kommen. Ein Rumpf, der eine beliebige Vorlage mitgäbe,
  * wäre ein Weg, das Modell an den Diensten vorbei zu füttern.
+ *
+ * **Ein Doppelklick legt keinen zweiten Vorschlag vor.** Das Formular bringt
+ * einen Schlüssel mit, der Lauf trägt ihn als `idempotenzSchluessel`, und
+ * `starteAufgabe` findet die vorhandene Aufgabe statt eine zweite anzulegen.
+ * Ohne ihn war die Zusage der Oberfläche unwahr: jede Wiederholung — ein
+ * zweiter Klick, ein Neuladen der Bestätigung, eine wiederholte Zustellung —
+ * erzeugte eine weitere Aufgabe und eine weitere offene Freigabe, und
+ * jemand hätte dieselbe Sache zweimal entschieden.
  */
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +57,24 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ fehler: 'unbekannter_agent' }, { status: 400 });
   }
 
+  /*
+   * **Der Schlüssel kommt aus dem Formular, nicht von hier.** Das Formular
+   * setzt ihn einmal beim Zeichnen der Seite; jede Wiederholung DESSELBEN
+   * Absendens trägt denselben Wert. Würde die Route ihn erfinden — aus der
+   * Uhr, aus einer Zufallszahl —, wäre jeder Klick wieder neu, und die
+   * Idempotenz bestünde nur im Kommentar.
+   *
+   * Er wird beschnitten und auf ein enges Alphabet gebracht: er geht als
+   * Wert in eine Spalte mit Eindeutigkeitsbedingung, und ein Schlüssel von
+   * beliebiger Länge aus beliebigen Zeichen ist eine Eingabe, die jemand
+   * sendet.
+   */
+  const schluessel = String(daten.get('schluessel') ?? '')
+    .replace(/[^A-Za-z0-9_-]/gu, '').slice(0, 64);
+  if (schluessel === '') {
+    return NextResponse.json({ fehler: 'kein_schluessel' }, { status: 400 });
+  }
+
   try {
     const ergebnis = await (db().begin(async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzung, async (kontext) => {
@@ -57,6 +83,10 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         return fuehreLaufAus(kontext, {
           ...auftrag,
           agent,
+          // Die Tatsachen kommen aus DIESER Gesellschaft, durch RLS begrenzt.
+          tatsachen: await fuelleTatsachen(
+            { abfrage: kontext.abfrage.bind(kontext) }, agent),
+          idempotenzSchluessel: `${agent}:${schluessel}`,
           angefordertVon: sitzung.benutzerId,
           codeVersion: codeVersion(),
         });
