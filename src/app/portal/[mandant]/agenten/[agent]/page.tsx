@@ -16,6 +16,7 @@ import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungFuer } from '../kennung';
+import { haeltRechte } from '../../../rechte';
 import {
   WERKZEUG_REGISTER, fuerAgent, untergrenze, type AgentKennung,
 } from '@/server/agent/tools/register-werkzeuge';
@@ -98,6 +99,10 @@ export default async function AgentDetail(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
+
+  /* AUT-06: ein Knopf, dessen Ziel diese Sitzung nicht oeffnen darf,
+     verraet die Existenz dessen, was er nicht zeigen darf. */
+  const darf = await haeltRechte(sitzung, 'agent.budget_verwalten', 'agent.protokoll_lesen');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const daten = await (db().begin(SCHNAPPSCHUSS,
@@ -349,12 +354,14 @@ export default async function AgentDetail(
           <div>
             <dt className="text-text-subtle">Monatsbudget</dt>
             <dd className="text-text">
-              <Link
-                href={`/portal/${mandant}/agenten/budget`}
-                className="underline-offset-2 hover:text-brand hover:underline"
-              >
-                siehe Budget
-              </Link>
+              {darf['agent.budget_verwalten'] === true ? (
+                <Link
+                  href={`/portal/${mandant}/agenten/budget`}
+                  className="underline-offset-2 hover:text-brand hover:underline"
+                >
+                  siehe Budget
+                </Link>
+              ) : 'siehe Budget — dafür fehlt Ihnen das Recht'}
             </dd>
           </div>
         </dl>
@@ -448,12 +455,14 @@ export default async function AgentDetail(
 
       <div className="mb-s3 flex flex-wrap items-baseline justify-between gap-s3">
         <h2 className="text-h2 text-text">Läufe</h2>
-        <Link
-          href={`/portal/${mandant}/agenten/${agent}/protokoll`}
-          className="text-sm text-text underline-offset-2 hover:text-brand hover:underline"
-        >
-          Schrittprotokoll
-        </Link>
+        {darf['agent.protokoll_lesen'] === true && (
+          <Link
+            href={`/portal/${mandant}/agenten/${agent}/protokoll`}
+            className="text-sm text-text underline-offset-2 hover:text-brand hover:underline"
+          >
+            Schrittprotokoll
+          </Link>
+        )}
       </div>
 
       {aufgaben.length === 0 ? (

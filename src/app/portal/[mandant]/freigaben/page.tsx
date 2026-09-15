@@ -18,6 +18,7 @@ import { slugTor } from '../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { RISIKO_LABEL, VORGANG_LABEL, zeitpunkt } from './darstellung';
+import { haeltRechte } from '../../rechte';
 
 /**
  * `/portal/[mandant]/freigaben` — der eine Posteingang (APR-01,
@@ -56,6 +57,10 @@ export default async function Freigaben(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
+
+  /* AUT-06: ein Knopf, dessen Ziel diese Sitzung nicht oeffnen darf,
+     verraet die Existenz dessen, was er nicht zeigen darf. */
+  const darf = await haeltRechte(sitzung, 'freigabe.pruefdauer_lesen');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const jetzt = new Date();
@@ -112,11 +117,13 @@ export default async function Freigaben(
                 className="text-text underline underline-offset-2">
             Entschieden
           </Link>
-          <Link href={`/portal/${mandant}/freigaben/pruefdauer`}
-                data-cse="zu-pruefdauer"
-                className="text-text underline underline-offset-2">
-            Prüfdauer
-          </Link>
+          {darf['freigabe.pruefdauer_lesen'] === true && (
+            <Link href={`/portal/${mandant}/freigaben/pruefdauer`}
+                  data-cse="zu-pruefdauer"
+                  className="text-text underline underline-offset-2">
+              Prüfdauer
+            </Link>
+          )}
         </p>
         <p className="text-sm text-text-muted" data-cse="posteingang-zaehler" data-anzahl={String(eintraege.length)}>
           {eintraege.length === 0

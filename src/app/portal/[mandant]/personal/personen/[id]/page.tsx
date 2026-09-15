@@ -13,6 +13,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { berlinHeute } from '@/server/db/heute';
 import { nachweislage, type Nachweislage } from '@/server/services/nachweis/uebersicht';
 import { kennungOder404 } from '../../../../kennung';
+import { haeltRechte } from '../../../../rechte';
 import {
   leseAnstellungen, lesePerson, spracheText,
   type AnstellungZeile, type PersonZeile,
@@ -53,6 +54,10 @@ export default async function Personenblatt(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
+
+  /* AUT-06: ein Knopf, dessen Ziel diese Sitzung nicht oeffnen darf,
+     verraet die Existenz dessen, was er nicht zeigen darf. */
+  const darf = await haeltRechte(sitzung, 'personal.zugang_verwalten');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const heute = await berlinHeute();
@@ -113,13 +118,15 @@ export default async function Personenblatt(
         >
           Nachweisregister
         </Link>
-        <Link
-          href={`/portal/${mandant}/personal/personen/${id}/zugang`}
-          data-cse="person-zugang"
-          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-        >
-          Zugang und Anmeldecode
-        </Link>
+        {darf['personal.zugang_verwalten'] === true && (
+          <Link
+            href={`/portal/${mandant}/personal/personen/${id}/zugang`}
+            data-cse="person-zugang"
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Zugang und Anmeldecode
+          </Link>
+        )}
       </nav>
 
       <h2 className="mb-s3 text-h3 text-text">

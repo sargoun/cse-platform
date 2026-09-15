@@ -11719,3 +11719,41 @@ mitten in der Hydration weiter. Die drei Seiten waren auch je Rolle
 verschieden, was ein echter Markup-Fehler nicht ist. Nichts zu reparieren;
 festgehalten, damit die nächste Messung mit demselben Werkzeug nicht dieselbe
 Stunde kostet.
+
+### D-567 · Sieben Knöpfe, die auf eine Seite zeigten, die man nicht sehen darf
+
+Derselbe Rundgang wie D-566 fand die zweite Sorte: Verweise, deren Ziel die
+Sitzung **nicht öffnen darf**. Eine `leitung` sah sie alle und bekam hinter
+jedem ein 404:
+
+| Knopf | Recht der Seite |
+|---|---|
+| „Budget" (Agentenliste, Agentendetail) | `agent.budget_verwalten` |
+| „Schrittprotokoll" (Agentendetail) | `agent.protokoll_lesen` |
+| „MiLoG" (Zeitenliste) und „MiLoG-Nachweise" (Lohnexport) | `zeit.exportieren` |
+| „Neuer Entwurf" (Rechnungsliste) | `finanzen.schreiben` |
+| „Prüfdauer" (Freigabe-Posteingang) | `freigabe.pruefdauer_lesen` |
+| „Zugang und Anmeldecode" (Personenblatt) | `personal.zugang_verwalten` |
+
+**Dass die Seite dahinter richtig sperrt, macht den Knopf davor nicht
+richtig.** AUT-06 verlangt, dass nicht einmal die Existenz sichtbar wird; ein
+Knopf, der auf 404 führt, sagt genau das Gegenteil — und er sagt es jedem, der
+das Recht nicht hält, also gerade denen, vor denen die Regel schützt.
+
+**`haeltRechte` fragt alle Schlüssel einer Seite in EINER Abfrage** und immer
+mit dem aktiven Mandanten (K-03): sechs Seiten mit je eigenem
+`select app.hat_recht(...)` wären sechs Stellen, an denen jemand den Mandanten
+vergisst.
+
+**Und die eigentliche Lehre steht im Werkzeug, nicht in den sieben Zeilen.**
+Gefunden hat beides — D-566 und D-567 — eine Prüfung, die durch das Portal
+geht **wie ein Mensch**: sie steuert keine Adressliste an, sondern folgt den
+Verweisen, die auf den Seiten wirklich stehen. Jede bestehende Prüfung ruft die
+Adresse auf, die sie prüfen will; keine drückt den Knopf daneben.
+
+`tests/e2e/verweise.spec.ts` bleibt deshalb da: 150 Seiten als `leitung` —
+die Rolle, die viel hält und nicht alles, also genau die Lage, in der ein
+ungeprüfter Knopf auffällt. Eine Super-Administration hält jedes Recht und
+hätte keinen einzigen dieser Fälle gezeigt. Die Ausnahmeliste im Test ist
+leer, und sie soll es bleiben: wer dort etwas einträgt, schreibt daneben,
+warum der Verweis trotzdem gezeigt wird.

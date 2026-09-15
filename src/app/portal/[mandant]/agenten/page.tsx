@@ -12,6 +12,7 @@ import { slugTor } from '../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { slugFuer } from './kennung';
+import { haeltRechte } from '../../rechte';
 
 /**
  * `/portal/[mandant]/agenten` — die vier Agenten und ihr Zustand
@@ -65,6 +66,10 @@ export default async function AgentenZentrum(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
+
+  /* AUT-06: ein Knopf, dessen Ziel diese Sitzung nicht oeffnen darf,
+     verraet die Existenz dessen, was er nicht zeigen darf. */
+  const darf = await haeltRechte(sitzung, 'agent.budget_verwalten');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const { agenten, budget, modell } = await (db().begin(SCHNAPPSCHUSS,
@@ -149,12 +154,14 @@ export default async function AgentenZentrum(
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">Agenten</h1>
-        <Link
-          href={`/portal/${mandant}/agenten/budget`}
-          className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
-        >
-          Budget
-        </Link>
+        {darf['agent.budget_verwalten'] === true && (
+          <Link
+            href={`/portal/${mandant}/agenten/budget`}
+            className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
+          >
+            Budget
+          </Link>
+        )}
       </div>
 
       {/*
