@@ -10496,3 +10496,127 @@ Server-Action ist von einem Unit-Test nicht lesbar; deshalb konnte ein falscher
 Link dort monatelang stehen. Die reine Funktion prüft `tests/kern/kennwort-mail.test.ts`
 auf die absolute Form, auf den doppelten Schrägstrich und auf die Kodierung des
 Tokens — ein Token mit `+` oder `&` käme sonst anders an, als er vergeben wurde.
+
+### D-533 · Ein Zeiger auf eine Freigabe ist keine Freigabe
+
+`beitrag_freigegeben_hat_freigabe` verlangte `freigabe_id is not null`. Eine
+OFFENE Freigabe erfüllte das genauso wie eine ABGELEHNTE — und eine Zustimmung
+zu einem Mahnbrief genauso wie eine zu diesem Beitrag. Invariante 7 stand damit
+in der Datenbank als Verabredung: „es liegt ein Vorgang vor" statt „ein Mensch
+hat zugestimmt". Vier Wege führten daran vorbei, und jeder endete damit, dass
+etwas Unbestätigtes auf einer öffentlichen Gesellschaftsseite steht.
+
+Eine `check`-Bedingung kann das nicht schließen: sie darf keine andere Tabelle
+lesen. Also ein Auslöser — und er liest die Freigabe **nicht selbst**, sondern
+fragt `app.freigabe_genehmigt(id, mandant, aktion)` aus 0123/0130. Das ist
+dieselbe strukturelle Ja/Nein-Frage, die schon der Kreditor und die Mahnung
+stellen, mit dem engen Spaltenrecht, das K-01 dafür vorsieht. Ein eigenes
+`select … from freigabe` wäre ein zweiter Weg zu derselben Auskunft gewesen —
+mit einem breiteren Recht und einer zweiten Policy, die auseinanderlaufen kann.
+
+**Die Aktion geht mit, und das ist der halbe Punkt.** Ohne das dritte Argument
+öffnete eine Zustimmung zu einem Mahnbrief einen Beitrag auf Instagram: gleiche
+Kennung, gleicher Mandant, gleicher Status, völlig andere Entscheidung. 0130 §6
+hatte genau diese Lücke für die Finanzseite geschlossen; Social hätte sie neu
+aufgemacht.
+
+**Der Riegel schließt, wenn er nicht nachsehen kann.** `app.freigabe_genehmigt`
+antwortet unter der Policy `mandant_id = app.aktiver_mandant()`. Eine Verbindung
+ohne gesetzten Mandanten sieht null Zeilen — und fällt damit in den Riegel statt
+daran vorbei. Der Seed und die Isolationsfixtur setzen deshalb dieselben beiden
+GUCs, die `withTenant` setzt, statt den Riegel zu lockern.
+
+### D-534 · Zwischen Lesen und Schreiben passiert der zweite Klick
+
+Jede Handlung im Social-Dienst las erst den Stand, prüfte ihn gegen `weg.ts` und
+schrieb dann `where id = $1`. Zwei gleichzeitige Anfragen lesen beide denselben
+Stand, finden beide den Weg erlaubt und schreiben beide. Das ist kein
+theoretischer Fall: die Knöpfe sind gewöhnliche Formulare, und ein langsamer
+Bildschirm lädt zum zweiten Klick ein.
+
+Beim Vorlegen entstehen dabei zwei Freigaben zu einem Beitrag. Beim
+Veröffentlichen ist es schwerer: das `update` stand am ENDE, also riefen **beide**
+Läufe vorher jeden Adapter. Was doppelt geschieht, ist nicht der Schreibvorgang —
+es ist die Aussendung, und einen zweiten Beitrag auf LinkedIn nimmt kein `update`
+zurück.
+
+Deshalb zwei Änderungen, nicht eine:
+
+1. Jedes `update` trägt den gelesenen Stand als Bedingung (`and status = …`).
+   Null betroffene Zeilen heißt: als mein Schreiben ankam, war der Beitrag
+   woanders — und das ist ein 409 mit einem Satz, kein stiller Erfolg.
+2. Beim Veröffentlichen steht dieses `update` **vor** dem ersten Gang nach
+   draußen. Wer die Bedingung nicht mehr erfüllt, fällt heraus, bevor ein Kanal
+   gefragt wurde.
+
+Der Status ist ab diesem Punkt ehrlich: auf der eigenen Gesellschaftsseite
+*steht* der Beitrag dann, und die fremden Kanäle tragen ihr Ergebnis einzeln
+daneben (SOC-07).
+
+### D-535 · Gelöscht wird nur, was nie hinausging
+
+`beitrag_kanal` hatte `delete` in der Zuteilung, und der Kommentar daneben sagte,
+der Dienst lasse es nur bei `ergebnis = 'offen'` zu. In der Datenbank stand davon
+nichts. Eine Zusicherung, die nur in der Dienstschicht lebt, ist bei einem
+`delete` daneben weg — und mit ihr die Auskunft, wo wann was draußen stand.
+Invariante 3 gilt hier wie überall: RLS ist nie die einzige Linie, aber auch nie
+die fehlende. Eine restriktive Löschpolicy auf `ergebnis = 'offen'` holt sie nach.
+
+Einen Kanal aus einem Entwurf herauszunehmen bleibt damit eine Korrektur am Plan.
+Ein `veroeffentlicht`, `nicht_verbunden` oder `fehlgeschlagen` ist ein Ereignis
+und bleibt stehen.
+
+### D-536 · Ein fehlendes Recht ist kein Programmfehler
+
+`fuehreSocialAus` fing `SocialFehler` und nichts sonst. Die Würfe von `authorize`
+liefen daran vorbei und endeten als **500** — und 500 sagt „hier ist etwas", wo
+AUT-06 nichts sagen will. Der Fall fällt beim Bauen nicht auf, weil er nur
+eintritt, wenn jemand **ohne** das Recht die Route ruft; im grünen Pfad wirft
+niemand.
+
+Die Übersetzung steht jetzt in `server/auth/antwort.ts` — eine Stelle, die sich
+auch das Bautagebuch teilt. Zwei Abschriften davon weichen irgendwann in einem
+Statuscode voneinander ab, und ein abweichender Statuscode ist ein Orakel.
+
+**Und die Prüfung, die das hätte finden sollen, fand es nicht:** `routen.test.ts`
+zählte `authorize(` im Kommentar als Aufruf. Eine Route mit
+`// hier fehlt noch authorize()` galt als bewacht — die Prüfung hätte in genau
+dem Fall versagt, für den es sie gibt. Kommentare und Zeichenketten fallen jetzt
+vorher weg, mit vier Gegenproben, die das belegen.
+
+### D-537 · Demodaten dürfen nichts behaupten, was rechtlich zählt
+
+Die Referenz im Seed trug `freigegeben_vom_kunden = true` neben einem Beleg, der
+sagte, die schriftliche Freigabe liege NICHT vor. Zwei Sätze über denselben
+Vorgang, die einander widersprechen — und PRO-05 hängt an genau diesem Feld:
+ein Kundenname auf einer Website ohne Zustimmung ist ein Problem, das Löschen
+nicht ungeschehen macht.
+
+Aufgelöst wird das **nicht**, indem das Feld auf `false` fällt (dann ist SOC-04
+eine leere Liste und die Oberfläche sieht unfertig aus, obwohl sie es nicht ist),
+sondern indem der ganze Datensatz als das auftritt, was er ist: ein erfundener
+Kunde mit einer erfundenen Freigabe. Der Kundenname trägt `(Demokunde)`, der
+Beleg beginnt mit `DEMODATEN:` — beides greifbar, wenn der erste echte Kunde
+eingetragen wird. Dieselbe Regel wie bei `DEMO-` in der Rechnungsnummer (D-499):
+**was eine offene Frage überbrückt, steht im Datensatz, nicht in einer Notiz.**
+
+Dazu, aus derselben Runde: der Seed verband keinen Beitrag mit einem Kanal.
+„Wohin er geht" war auf jedem Bildschirm leer und die Kanalbilanz überall null —
+also sagte „liegen geblieben: 0" einen Erfolg, den es nie gab. Die Beiträge
+tragen ihre Kanäle jetzt, mit `nicht_verbunden` als einzig möglichem Ergebnis
+(O-10) und nie mit einem erfundenen.
+
+### D-538 · Die Prüfdauer ist eine Aussage über einen Menschen
+
+Die Social-Statistik zeigte den Median „vorgelegt bis entschieden" jedem mit
+`social.schreiben`. Dieselbe Zahl trägt unter `/freigaben/pruefdauer` ein eigenes
+Recht (`freigabe.pruefdauer_lesen`, an `super_admin` gebunden) — weil „wie
+schnell entscheidet diese Person" keine Betriebskennzahl ist, sondern eine
+Leistungsaussage über einen Menschen, und weil die Durchwink-Erkennung daneben
+steht.
+
+Sie wird jetzt nur **berechnet**, wenn sie gezeigt werden darf. Eine Zahl, die
+der Server ermittelt und der Bildschirm verschweigt, ist die Zahl, die beim
+nächsten Umbau versehentlich wieder hingeschrieben wird. Und der Bildschirm
+trennt die beiden Bedeutungen von „—": „nicht sichtbar" heißt, es gibt sie und
+du darfst sie nicht sehen; „—" heißt, es gibt sie noch nicht.
