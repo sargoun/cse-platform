@@ -251,3 +251,47 @@ body {
   direction: ltr;
   unicode-bidi: isolate;
 }
+
+
+/**
+ * DESIGN §8 „Safe area" — die Flaeche, die das Geraet fuer sich nimmt.
+ *
+ * Gemeldet vom echten Telefon: die Tab-Leiste klebte am unteren Bildschirmrand,
+ * ihre Beschriftungen einen Millimeter ueber dem Home-Indikator. Ein Tipp dort
+ * geht an die Systemgeste, und Text dort schneidet die Rundung ab.
+ *
+ * **`env()` ist kein Tailwind-Wert**, und `pb-[calc(...)]` in zwoelf Dateien
+ * sind zwoelf Gelegenheiten, eine andere Zahl zu schreiben. Deshalb stehen die
+ * vier Regeln hier, einmal.
+ *
+ * Und sie wirken NUR mit `viewport-fit=cover` (siehe `app/layout.tsx`): ohne
+ * das meldet iOS jeden Inset als `0px`, und jede Polsterung dagegen tut
+ * schweigend nichts.
+ */
+@layer utilities {
+  /* Der Balken waechst um den Inset — die 44px-Zelle bleibt 44px. */
+  .sicher-unten { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  /* Quer am Telefon mit Notch ungleich null, im Hochformat null. */
+  .sicher-seiten {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+  /* Im Browsertab null, im installierten Modus die Statusleiste. */
+  .sicher-oben { padding-top: env(safe-area-inset-top, 0px); }
+  /*
+   * Platz UNTER dem Inhalt fuer die feste Leiste: 44px Zelle + 8px Luft +
+   * Inset. Ohne ihn verdeckt die Leiste die letzte Zeile jeder Liste.
+   *
+   * **Der Umbruch steht HIER und nicht als `md:pb-s5` am Element.** Beide
+   * waeren Utilities mit derselben Spezifitaet, und dann entscheidet die
+   * Reihenfolge im Stylesheet: diese Datei steht hinter Tailwinds erzeugten
+   * Klassen, also haette sie auch am Schreibtisch gewonnen — 52px Polsterung
+   * unter einer Leiste, die dort gar nicht existiert (`md:hidden`).
+   */
+  .ueber-tableiste { padding-bottom: calc(52px + env(safe-area-inset-bottom, 0px)); }
+  @media (min-width: 768px) {
+    .ueber-tableiste { padding-bottom: var(--s5); }
+  }
+  /* Das `Mehr`-Blatt endet an der Oberkante der Leiste, nicht am Rand. */
+  .ueber-leiste-oberkante { bottom: calc(44px + env(safe-area-inset-bottom, 0px)); }
+}

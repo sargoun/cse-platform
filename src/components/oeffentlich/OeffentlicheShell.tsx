@@ -106,7 +106,11 @@ export function OeffentlicheShell(
         */}
       <header
         data-cse="oeffentlicher-kopf"
-        className="sticky top-0 z-40 flex h-[72px] items-center gap-s5 px-s5"
+        /* Klebt oben: der obere Inset gehoert an ihn, nicht an den Inhalt
+           darunter (DESIGN §8). `sicher-seiten` haelt ihn im Querformat von
+           der Rundung weg. */
+        className="sicher-oben sicher-seiten sticky top-0 z-40 flex h-[72px]
+                   items-center gap-s5 px-s5"
       >
         {/*
           * **Der Unschaerfe-Grund liegt HIER und nicht auf dem `header`** —

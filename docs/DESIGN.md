@@ -729,6 +729,38 @@ Mobile-first. Rules that are not negotiable:
 - The employee check-in screen is **phone-only in practice**: one screen, one
   primary button, no scrolling, usable with gloves on and one hand
 
+### Safe area — the phone is not a rectangle
+
+Reported from a real device: the bottom tab bar sat flush against the screen
+edge, its labels a millimetre above the home indicator. On a phone with rounded
+corners, a notch or a home indicator, part of the viewport is **not reachable**
+— a tap there is swallowed by the system gesture, and text there is cut by the
+curve.
+
+Two things are needed together, and one without the other does nothing:
+
+1. `viewport-fit=cover` in the viewport meta. **Without it iOS reports every
+   `env(safe-area-inset-*)` as `0px`**, so padding written against those
+   variables silently does nothing.
+2. Padding against `env(safe-area-inset-*)` on everything that touches an edge.
+
+| Where | Rule |
+|---|---|
+| Bottom tab bar | `padding-bottom: env(safe-area-inset-bottom)` **plus** the `44px` cell height — the inset is added to the bar, never taken out of the tap target |
+| Content above the tab bar | bottom padding `= 44px + 8px + inset`; the bar is `fixed` and covers whatever sits under it |
+| The `Mehr` sheet | ends at the top edge of the bar, so its `bottom` is `44px + inset` |
+| Every fixed left/right edge | `padding-left/right: env(safe-area-inset-left/right)` — zero in portrait, non-zero in landscape on a notched phone |
+| Fixed headers | `padding-top: env(safe-area-inset-top)` — zero in a browser tab, non-zero in standalone mode |
+
+The utilities live in `globals.css` as `.sicher-unten`, `.sicher-seiten`,
+`.sicher-oben` and `.ueber-tableiste`, because `env()` is not a Tailwind value
+and a hand-written `pb-[calc(...)]` in twelve files is twelve chances to write
+a different number.
+
+**`44px` stays `44px`.** The inset is space the system takes, not space the
+button gives up: a bar that shrinks its cells to fit the indicator fails the
+tap-target rule above on exactly the devices that need it most.
+
 ---
 
 ## 9. Accessibility — BFSG applies

@@ -11630,3 +11630,50 @@ Antwort hängt am Scope. Gefragt wird deshalb die Liste, die zur Sitzung gehört
 
 Zwei Namensräume in einer Karte zusammenzuführen ist immer eine stille
 Entscheidung darüber, wer gewinnt — und der Gewinner steht nirgends.
+
+### D-565 · Das Telefon ist kein Rechteck
+
+Gemeldet vom echten Gerät, mit Bildschirmfoto: die Tab-Leiste klebte am
+unteren Bildschirmrand, ihre Beschriftungen einen Millimeter über dem
+Home-Indikator. Auf einem Telefon mit runden Ecken, Notch oder Home-Indikator
+ist ein Teil des Sichtfensters **nicht erreichbar** — ein Tipp dort geht an die
+Systemgeste, und Text dort schneidet die Rundung ab.
+
+**Es fehlten beide Hälften, und eine ohne die andere tut nichts.**
+
+1. `viewport-fit=cover` gab es im ganzen Baum nicht. Ohne diese Angabe meldet
+   iOS **jeden** `env(safe-area-inset-*)` als `0px` — eine Polsterung dagegen
+   rechnet dann mit null und sieht aus wie ein vergessener Abstand statt wie
+   eine fehlende Zeile im Layout.
+2. `env(safe-area-inset-*)` kam im ganzen Baum nicht vor. Nachgezählt: null
+   Treffer über `src/` und die Tailwind-Konfiguration.
+
+**Die Regeln stehen in `globals.css`, nicht an den Elementen.** `env()` ist
+kein Tailwind-Wert, und ein handgeschriebenes `pb-[calc(…)]` in zwölf Dateien
+sind zwölf Gelegenheiten, eine andere Zahl zu schreiben. Vier Klassen:
+`sicher-unten`, `sicher-oben`, `sicher-seiten`, `ueber-tableiste` — plus
+`ueber-leiste-oberkante` für das `Mehr`-Blatt.
+
+**`44px` bleibt `44px`.** Der Inset ist Platz, den das System nimmt, nicht
+Platz, den der Knopf hergibt. Eine Leiste, die ihre Zellen schrumpft, um den
+Indikator unterzubringen, verfehlt DESIGN §8 auf genau den Geräten, die die
+Regel brauchen. Der Balken wächst, die Zelle nicht.
+
+**Der Umbruch bei `md` gehört INS Stylesheet.** `md:pb-s5` am Element hätte
+dieselbe Spezifität wie `.ueber-tableiste`, und diese Datei steht hinter
+Tailwinds erzeugten Utilities — sie hätte auch am Schreibtisch gewonnen, also
+52px Leere unter jeder Seite, unter einer Leiste, die dort `md:hidden` ist.
+
+**Und ein Nachzug, den dieselbe Änderung ausgelöst hat:** das `Mehr`-Blatt
+endete bei `bottom-11` = 44px, der Höhe der Zelle. Seit die Leiste um den Inset
+wächst, verdeckte das Blatt auf jedem Telefon mit Home-Indikator wieder genau
+den Knopf, der es zumacht — `<details>` schliesst ohne JavaScript nur über sein
+eigenes `<summary>`. `ueber-leiste-oberkante` rechnet beides zusammen.
+
+**Warum ein Browsertest das nicht prüfen kann.** Headless Chromium meldet jeden
+Inset als `0px`; es gibt keine Notch zu melden. Ein Lauf wäre grün, egal ob die
+Regeln dastehen — genau die Sorte grüner Lauf, die diesen Fehler hat entstehen
+lassen. `tests/design/sichere-flaeche.test.ts` prüft deshalb den VERTRAG: dass
+die Zeilen im Stylesheet stehen, dass jede einen `0px`-Ersatzwert trägt (ohne
+ihn fällt in einem alten Browser die ganze Deklaration weg, samt der 52px), und
+dass die Bauteile sie benutzen.
