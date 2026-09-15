@@ -22,10 +22,13 @@ Remove-Item -Recurse -Force .next, node_modules\.cache -ErrorAction SilentlyCont
 
 pnpm install
 
-# Frische Datenbank
+# Frische Datenbank — `pgvector/pgvector:pg16`, NICHT `postgres:16`.
+# Es ist dasselbe Postgres 16, nur mit der Erweiterung `vector` darin. Der
+# Wissensindex (0151) braucht sie; ohne sie bricht `db:migrate` ab und die
+# Datenbank bleibt halb migriert.
 docker rm -f cse-db
 docker run -d --name cse-db -e POSTGRES_USER=postgres -e POSTGRES_HOST_AUTH_METHOD=trust `
-  -p 5433:5432 postgres:16
+  -p 5433:5432 pgvector/pgvector:pg16
 Start-Sleep -Seconds 6
 
 # K-06-Schluessel — siehe Abschnitt 3. OHNE DIESE ZEILE bleibt der Seed unvollstaendig.
@@ -51,7 +54,7 @@ pnpm install
 
 docker rm -f cse-db 2>/dev/null || true
 docker run -d --name cse-db -e POSTGRES_USER=postgres -e POSTGRES_HOST_AUTH_METHOD=trust \
-  -p 5433:5432 postgres:16
+  -p 5433:5432 pgvector/pgvector:pg16
 sleep 6
 
 docker exec cse-db psql -U postgres -c \
