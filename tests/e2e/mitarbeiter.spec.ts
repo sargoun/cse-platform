@@ -662,9 +662,21 @@ test.describe('(7) „Nur Lesen" ist eine Aussage über die SITZUNG', () => {
     async ({ page }) => {
       await alsFatima(page);
 
-      /* Zwei Ziele der unteren Leiste, beide noch nicht gebaut — genau die,
-         die der Nutzer geöffnet hat. */
-      for (const pfad of ['/portal/mein/nachrichten', '/portal/konto/profil']) {
+      /*
+       * **Hier standen einmal die zwei Ziele der Leiste**, die der Nutzer
+       * geöffnet hatte — `/portal/mein/nachrichten` und
+       * `/portal/konto/profil`. Beide sind inzwischen gebaut (D-557, D-558),
+       * und damit hätte diese Prüfung ihren Fall verloren: sie braucht eine
+       * Seite, die WIRKLICH noch nicht existiert, sonst misst sie das Schild
+       * auf einer fertigen Seite und wäre grün, ohne etwas zu zeigen.
+       *
+       * `/portal/mein/dokumente` (Phase 3) und `/portal/mein/objekte`
+       * (Phase 5) sind im Manifest geführt, für diese Rolle freigegeben und
+       * noch nicht gebaut — der Auffang antwortet dort mit der
+       * Bauzustandsseite. Fallen auch sie, fällt diese Prüfung auf und
+       * verlangt eine neue Adresse; das ist gewollt.
+       */
+      for (const pfad of ['/portal/mein/dokumente', '/portal/mein/objekte']) {
         const antwort = await page.goto(pfad);
         expect(antwort?.status(), pfad).toBe(200);
         // Die Seite sagt, dass sie noch entsteht — das ist richtig so.
@@ -672,6 +684,27 @@ test.describe('(7) „Nur Lesen" ist eine Aussage über die SITZUNG', () => {
         // Und sie sagt NICHT, dass dieses Konto nichts darf.
         await expect(page.locator('[data-cse="header-nur-lesen"]'), pfad).toHaveCount(0);
       }
+    });
+
+  test('und die beiden Ziele, die den Befund ausgelöst haben, sind jetzt echte Seiten',
+    async ({ page }) => {
+      /*
+       * Die Gegenrichtung zum Befund aus D-549: der vierte und der fünfte Tab
+       * führten auf „Dieses Modul wird noch gebaut". Sie tun es nicht mehr —
+       * und diese Prüfung fällt, falls jemand sie wieder wegnimmt.
+       */
+      await alsFatima(page);
+
+      const nachrichten = await page.goto('/portal/mein/nachrichten');
+      expect(nachrichten?.status()).toBe(200);
+      await expect(page.locator('[data-cse="noch-nicht"]')).toHaveCount(0);
+
+      const profil = await page.goto('/portal/konto/profil');
+      expect(profil?.status()).toBe(200);
+      await expect(page.locator('[data-cse="noch-nicht"]')).toHaveCount(0);
+      // Die Sprachwahl ist der Grund, aus dem es diese Seite gibt (EMP-12).
+      await expect(page.locator('[data-cse="sprache-formular"]')).toBeVisible();
+      await expect(page.locator('[data-cse="sprache-wahl"]')).toHaveCount(4);
     });
 
   test('in der Gruppenansicht steht es weiterhin — dort stimmt es (Invariante 10)',
