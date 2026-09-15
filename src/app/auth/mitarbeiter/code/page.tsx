@@ -10,7 +10,9 @@ import { codeEinloesen } from '@/server/auth/mitarbeiter-anmeldung';
 import { smsDienst } from '@/server/auth/sms';
 import { SITZUNG_COOKIE, mitarbeiterSitzungAusstellen, sitzungsKeksOptionen }
   from '@/server/auth/sitzung';
-import { ANMELDUNG_DEV_COOKIE, ANMELDUNG_TELEFON_COOKIE, herkunft } from '../anmeldung';
+import {
+  ANMELDUNG_DEV_COOKIE, ANMELDUNG_TELEFON_COOKIE, anmeldeKeksOptionen, herkunft,
+} from '../anmeldung';
 
 /**
  * `/auth/mitarbeiter/code` — der zweite Schritt (EMP-01, PR 20).
@@ -124,9 +126,21 @@ export default async function CodeEingabe({ searchParams }: Props) {
      * Die Anmeldekekse verschwinden, sobald sie nichts mehr halten: eine
      * Telefonnummer, die nach der Anmeldung im Browser liegen bleibt, ist
      * gespeichert, ohne dass sie noch etwas tut.
+     *
+     * **Mit dem PFAD, unter dem sie gesetzt wurden.** Hier stand
+     * `k.delete(NAME)` ohne Pfad — und ein Keks auf `Path=/auth/mitarbeiter`
+     * wird davon NICHT getroffen: der Browser loescht nur, was in Name, Pfad
+     * und Domaene uebereinstimmt. Beide blieben also liegen, und der
+     * Entwicklungskeks traegt den Einmalcode im KLARTEXT. Zehn Minuten lang,
+     * nach einer Anmeldung, die ihn nicht mehr braucht.
+     *
+     * `maxAge: 0` mit denselben Optionen statt `delete`: so ist der
+     * Loeschkeks in jedem Attribut die Kopie des gesetzten, und es gibt keine
+     * zweite Stelle, an der jemand den Pfad nachziehen muesste.
      */
-    k.delete(ANMELDUNG_TELEFON_COOKIE);
-    k.delete(ANMELDUNG_DEV_COOKIE);
+    const weg = { ...anmeldeKeksOptionen(), maxAge: 0 };
+    k.set(ANMELDUNG_TELEFON_COOKIE, '', weg);
+    k.set(ANMELDUNG_DEV_COOKIE, '', weg);
     k.set(SITZUNG_COOKIE, anmeldung.sitzung.token, sitzungsKeksOptionen());
 
     /*

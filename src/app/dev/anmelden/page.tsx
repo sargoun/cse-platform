@@ -90,6 +90,12 @@ async function beschaeftigte(): Promise<readonly Beschaeftigt[]> {
     `select b.id, b.name, p.telefon, m.name as mandant
        from benutzer b
        join person p on p.id = b.person_id
+       -- Nur Nummern, die auch wirklich hindurchfuehren. Drei der elf
+       -- Demopersonen mit Telefonnummer haben keinen Zugang: ihre Nummer
+       -- landet auf der Codeseite ohne Code. Eine Liste, die solche Nummern
+       -- anbietet, ist schlimmer als keine Liste -- sie schickt jemanden in
+       -- eine Sackgasse, die wie ein Fehler aussieht.
+       join mitarbeiter_zugang z on z.person_id = p.id
        left join benutzer_mandant bm
               on bm.benutzer_id = b.id and bm.entzogen_am is null and bm.ist_standard
        left join rolle r on r.id = bm.rolle_id

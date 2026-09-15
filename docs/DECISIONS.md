@@ -10808,3 +10808,52 @@ Dazu zwei Bildschirme, die Tatsachen aussprechen statt sie vorauszusetzen:
   damit nicht einmal falsch bedienen; er hatte keine Eingabe. Die Nummern der
   Demo-Beschäftigten stehen jetzt dort — ohne Anmeldeknopf, denn der wäre die
   zweite Tür, die PR 20 absichtlich zugemacht hat.
+
+### D-543 · Drei Nummern, die nirgendwohin führen — und die Prüfung, die es nicht merkte
+
+Die Untersuchung zu D-541 förderte drei weitere Dinge zutage, die mit der
+Ursache nichts zu tun haben und denselben Menschen genauso aufgehalten hätten.
+
+**Drei von elf Demonummern führen ins Leere.** Von elf Seed-Personen mit
+Telefonnummer haben drei keinen `mitarbeiter_zugang`: Berger, Kowalski, Mensah.
+Ihre Nummer landet auf der Codeseite ohne Code, ohne Fehlermeldung und ohne
+jeden Hinweis, dass hier nichts mehr kommt — das ist die Zusage aus D-487 („ob
+es die Nummer gibt, sagt diese Seite bewusst nicht"), und sie ist richtig. Eine
+LISTE, die solche Nummern anbietet, wäre es nicht: sie schickt jemanden in eine
+Sackgasse, die wie ein Fehler aussieht. Die Liste auf `/dev/anmelden` verlangt
+deshalb den Zugang mit (`join mitarbeiter_zugang`) und zeigt nur, was auch
+hindurchführt.
+
+**Die Anmeldekekse wurden nie gelöscht.** `cookies().delete(NAME)` lief ohne
+Pfad, gesetzt wurden sie aber auf `Path=/auth/mitarbeiter` — und der Browser
+löscht nur, was in Name, Pfad und Domäne übereinstimmt. Beide blieben liegen,
+und der Entwicklungskeks trägt den Einmalcode im KLARTEXT: zehn Minuten lang,
+nach einer Anmeldung, die ihn nicht mehr braucht. Sie werden jetzt mit
+`{ ...anmeldeKeksOptionen(), maxAge: 0 }` überschrieben — so ist der Löschkeks
+in jedem Attribut die Kopie des gesetzten, und niemand muss an einer zweiten
+Stelle den Pfad nachziehen.
+
+**Und der Grund, warum nichts davon rot wurde.** Der Mitarbeiterweg wird von
+drei Spezifikationsdateien ausschliesslich über `alsMitarbeiter()` betreten, und
+die Hilfe endete mit `waitForLoadState('networkidle')` — sie gab zurück, sobald
+das Netz ruhig war, **auch wenn die Anmeldung auf der Nummernseite geendet
+war**. Der Abnahmefall daneben prüfte `expect(page.locator('h1')).toBeVisible()`:
+auch „Anmeldung erforderlich" hat eine Überschrift. Keine einzige Prüfung im
+ganzen Haus sicherte zu, dass nach einer Anmeldung ein Sitzungskeks im Browser
+liegt.
+
+Vier Zusicherungen schliessen das:
+
+1. `alsMitarbeiter()` wartet auf `/portal/mein` **und** verlangt den
+   Sitzungskeks. Eine Hilfe ohne Nachbedingung macht aus „die Anmeldung ist
+   kaputt" ein „irgendein späterer Bildschirm ist leer" — und danach sucht man
+   an der falschen Stelle.
+2. Der Abnahmefall nagelt den TEXT fest: `toHaveText('Heute')`.
+3. Ein neuer Fall tippt die Schreibweise, die ein Mensch wirklich tippt —
+   `0170 1000000` statt `+49 170 1000000`. Jede Prüfung vorher las die Nummer
+   aus der Datenbank und gab sie wörtlich ins Feld; die nationale Form kam nie
+   vor, obwohl sie im Betrieb die einzige ist.
+4. Ein Fall schaut auf den `Set-Cookie`-KOPF statt auf den Bildschirm. Das ist
+   der einzige Weg, der von D-541 hätte rot werden können: die Suite läuft über
+   `localhost`, und Loopback ist für Browser ein sicherer Kontext, der
+   `Secure`-Kekse annimmt. Der Kopf verrät die Attribute unabhängig vom Host.

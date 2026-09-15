@@ -90,7 +90,30 @@ export async function alsMitarbeiter(page: Page, telefon: string | null): Promis
   const code = await page.locator('[data-cse="dev-code-wert"]').innerText();
   await page.fill('input[name="code"]', code.trim());
   await page.locator('[data-cse="code-einloesen"]').click();
-  await page.waitForLoadState('networkidle');
+
+  /*
+   * **Die Nachbedingung, die hier gefehlt hat.**
+   *
+   * Vorher endete diese Hilfe mit `waitForLoadState('networkidle')` — sie gab
+   * zurueck, sobald das Netz ruhig war, AUCH wenn die Anmeldung auf der
+   * Nummernseite geendet war. Drei Spezifikationsdateien betreten den
+   * Mitarbeiterweg ausschliesslich hier; eine Hilfe ohne Nachbedingung macht
+   * aus „die Anmeldung ist kaputt" ein „irgendein spaeterer Bildschirm ist
+   * leer", und danach sucht man an der falschen Stelle.
+   *
+   * Zwei Zusicherungen, weil sie zwei verschiedene Dinge pruefen:
+   *  - die Adresse sagt, dass der Weg durchgegangen ist;
+   *  - der SITZUNGSKEKS sagt, dass der Browser ihn auch behalten hat. Genau
+   *    das unterschied „angemeldet" von „sieht aus wie angemeldet", als ein
+   *    einkompiliertes `Secure` den Keks verwarf (D-541) — und keine einzige
+   *    Pruefung im Haus hat es bemerkt.
+   */
+  await page.waitForURL(/\/portal\/mein/u);
+  const kekse = await page.context().cookies();
+  expect(
+    kekse.some((k) => k.name.endsWith('cse_sitzung')),
+    'kein Sitzungskeks nach der Anmeldung — der Browser hat ihn nicht behalten',
+  ).toBe(true);
 }
 
 /**
