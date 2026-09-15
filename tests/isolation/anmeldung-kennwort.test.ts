@@ -496,3 +496,74 @@ describe('(9) der Rückweg aus der Abfrage wird geprüft (D-504)', () => {
     expect(wegNachAnmeldung(ohne, '/portal/reinigung')).toBe('/portal/reinigung');
   });
 });
+
+/**
+ * **(9) Die zwei neuen Bremsen — und der Fehler, den nur ein echter Aufruf fand.**
+ *
+ * Beide Funktionen gehören `cse_definer` (K-08), und diese Rolle hatte auf
+ * `kern.anmeldeversuch` weder Zuteilung noch Policy. Unter FORCE RLS ist ein
+ * `grant` ohne `policy` keine Erlaubnis, sondern null Zeilen — hier war nicht
+ * einmal die Zuteilung da, und der Aufruf endete mit
+ * `permission denied for table anmeldeversuch`. Kein Test rief die Funktionen
+ * AUF, also fiel es erst im Browserlauf auf. Diese Prüfungen rufen sie auf.
+ */
+describe('(9) Bremse für Zurücksetzung und zweiten Faktor (AUT-07, AUT-02)', () => {
+  const reset = async (email: string, ip = '10.0.0.9'): Promise<boolean> =>
+    ohneSitzung(async (tx) => {
+      const z = (await tx.unsafe(
+        `select app.kennwort_reset_gebremst($1, $2::inet) as gebremst`, [email, ip],
+      )) as readonly { gebremst: boolean }[];
+      return z[0]!.gebremst;
+    });
+
+  const faktor = async (benutzerId: string, erfolg: boolean): Promise<boolean> =>
+    ohneSitzung(async (tx) => {
+      const z = (await tx.unsafe(
+        `select app.faktor_versuch($1::uuid, $2) as gebremst`, [benutzerId, erfolg],
+      )) as readonly { gebremst: boolean }[];
+      return z[0]!.gebremst;
+    });
+
+  it('die Zurücksetzung bremst nach drei Anforderungen je Adresse', async () => {
+    const email = `bremse-${zufall()}@cse.test`;
+    expect(await reset(email), 'die erste geht durch').toBe(false);
+    expect(await reset(email)).toBe(false);
+    expect(await reset(email)).toBe(false);
+    expect(await reset(email), 'die vierte nicht mehr').toBe(true);
+
+    /* Eine ANDERE Adresse ist davon unberührt — gezählt wird je Kennung. */
+    expect(await reset(`frei-${zufall()}@cse.test`, '10.0.0.10')).toBe(false);
+  });
+
+  /**
+   * **Und sie sperrt kein Konto.** Die Bremse der Anmeldung tut das; auf einem
+   * öffentlichen Weg ohne Kennwort wäre dasselbe eine Einladung, ein fremdes
+   * Konto durch blosses Anfordern auszusperren.
+   */
+  it('die Zurücksetzung sperrt kein Konto', async () => {
+    const konto = await legeKontoAn();
+    for (let i = 0; i < 6; i += 1) await reset(konto.email);
+
+    const [b] = await sql.unsafe<{ status: string; gesperrt_bis: string | null }[]>(
+      `select status::text as status, gesperrt_bis::text from benutzer where id = $1::uuid`,
+      [konto.id]);
+    expect(b!.status, 'das Konto bleibt aktiv').toBe('aktiv');
+    expect(b!.gesperrt_bis).toBeNull();
+
+    /* Und die Anmeldung damit auch — sie ist ein anderer Weg. */
+    expect((await anmelden(konto.email, KENNWORT, '10.0.0.11')).ergebnis).toBe('ok');
+  });
+
+  it('der zweite Faktor bremst nach acht Fehlversuchen — und dann auch den richtigen', async () => {
+    const konto = await legeKontoAn();
+    for (let i = 0; i < 8; i += 1) {
+      expect(await faktor(konto.id, false), `Versuch ${String(i + 1)}`).toBe(false);
+    }
+    /* Der neunte trifft die Bremse — auch mit `erfolg = true`. */
+    expect(await faktor(konto.id, true), 'auch ein richtiger Code wird abgewiesen').toBe(true);
+
+    /* Ein anderes Konto rät unabhängig davon. */
+    const anderes = await legeKontoAn();
+    expect(await faktor(anderes.id, false)).toBe(false);
+  });
+});

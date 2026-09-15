@@ -10284,3 +10284,111 @@ er nicht — ein Lauf, der aussah, als habe er nichts erzeugt. Der Slug kommt
 jetzt aus derselben Quelle wie die Bindung, und das versteckte Feld ist weg:
 **ein Feld, das der Server nicht liest, sieht im Quelltext aus wie eine
 Stellschraube und ist keine.**
+
+### D-522 · Eine Marge, die nichts misst — und ein Lohn, der doppelt zählt
+
+**`app.projekt_kennzahlen` verglich Zeiträume, die nicht zueinander gehören.**
+Es schnitt den LOHN auf `p_von`/`p_bis`, summierte Rechnungen und
+Eingangsrechnungen aber über die ganze Laufzeit — und die Auftragssumme in
+derselben Zeile ist ohnehin die Laufzeit, weil sich eine Auftragssumme nicht
+auf ein Jahr schneiden lässt. Die Marge verglich damit Erlöse aus vier Jahren
+mit Lohn aus einem. Beide Auflösungen wären denkbar gewesen; die Auftragssumme
+entscheidet, welche: **der Zeitraum wählt die PROJEKTE, die Beträge gehören dem
+Projekt** — und genau das sagt die Seite auch („Gezeigt werden Projekte, deren
+Laufzeit den Zeitraum berührt"). `app.projekt_lohnkosten` nimmt dafür NULL als
+„ohne Grenze".
+
+**Und der Lohn traf eine Anstellung zu viel.** `zeiteintrag.anstellung_id` ist
+`not null` — der Eintrag weiss, unter welcher Anstellung er entstand. Gesucht
+wurde sie trotzdem über Person und Gesellschaft. Wer in derselben Gesellschaft
+zwei Anstellungen hat, ging doppelt in die Lohnkosten ein, zusätzlich zum
+falschen Stundensatz. Invariante 9 erlaubt zwei Anstellungen ausdrücklich; eine
+Abfrage, die davon nichts weiss, rechnet still falsch.
+
+### D-523 · Zwei Wege ohne Bremse, und einer, der ins Leere führte
+
+**Der zweite Faktor war die schwächere von zwei Stufen.** Die erste bremst seit
+0155 (`app.versuch_protokollieren`); der Faktor gab bei einem falschen Code nur
+`false` zurück. Wer eine `aal1`-Sitzung in die Hand bekommt — gestohlenes
+Cookie, offener Rechner — durfte unbegrenzt raten, und sechs Ziffern sind keine
+Hürde, wenn jeder Versuch kostenlos ist und alle dreissig Sekunden ein neues
+Fenster aufgeht.
+
+**Gebremst wird der WEG, nicht das Konto.** Das ist der Unterschied zur ersten
+Stufe, und er hat einen Grund: dort rät jemand ohne Ausweis, hier hat er die
+Sitzung schon. Ein gesperrtes Konto nähme ihm nichts und dem Menschen alles.
+Dasselbe Argument, aus der anderen Richtung, gilt für die
+Kennwort-Zurücksetzung: dort wäre die vorhandene Bremse eine **Waffe** — ein
+öffentlicher Knopf, mit dem sich jedes fremde Konto durch blosses Anfordern
+aussperren liesse. Beide neuen Bremsen zählen und sperren nichts.
+
+**Und der erzwungene Kennwortwechsel führte in eine Sackgasse.**
+`muss_wechseln` zeigte auf `/auth/passwort-neu?wechsel=1` — eine Seite, die
+einen Token aus der Adresse liest und ohne ihn „Link abgelaufen" zeichnet. Wer
+zusätzlich 2FA führte, ging durch den Faktor und landete auf `/portal`: die
+Pflicht war vergessen. `/auth/kennwort-wechseln` ist der sitzungsgebundene Weg,
+mit dem ALTEN Kennwort als Ausweis — und die zweite Stufe trägt die Pflicht als
+`?wechsel=1` mit.
+
+**Nachtrag, und die eigentliche Lehre.** Beide Bremsen gehören `cse_definer`
+(K-08), und diese Rolle hatte auf `kern.anmeldeversuch` weder Zuteilung noch
+Policy — die ältere Schwester `app.versuch_protokollieren` gehört historisch
+dem Tabelleneigentümer und kam deshalb ohne aus. Unter FORCE RLS ist ein
+`grant` ohne `policy` keine Erlaubnis, sondern null Zeilen; hier fehlte sogar
+die Zuteilung, und der Aufruf endete mit `permission denied`. **Kein Test rief
+die Funktionen AUF** — sie standen in der Migration, die Migration lief, und
+alles war grün. Gefunden hat es der Browserlauf in CI. Die Prüfungen in
+`tests/isolation/anmeldung-kennwort.test.ts` (9) rufen sie jetzt auf: eine
+Definer-Funktion, die niemand aufruft, ist nicht geprüft, sondern nur
+vorhanden.
+
+### D-524 · Eine Null hiess zweierlei
+
+In den sechs Gruppenberichten machte `coalesce(…, 0)` aus „dieser Mensch darf
+die Zahlen dieser Gesellschaft nicht lesen" eine Zeile mit `0,00 €`. Das ist
+nicht eine Lücke in der Anzeige, sondern eine **falsche Aussage über ein
+anderes Unternehmen** — und sie sieht nicht aus wie ein Fehler, was sie
+schlimmer macht als einen Absturz.
+
+Die Gruppenübersicht (`gruppe/uebersicht.ts`) macht es seit jeher richtig: Recht
+vor der Zählung, sonst `null`, und die Seite zeigt einen Strich. Die Berichte
+folgen dem jetzt. **Wo ein Bericht aus zwei Tabellen liest, gilt UND** — eine
+Umsatzzeile aus Erlösen, die jemand sehen darf, und einem Aufwand, den er nicht
+sehen darf, wäre ein Ergebnis, das zu hoch ist, und nichts an der Zeile sagte
+das.
+
+### D-525 · Drei Zusagen ohne Deckung
+
+**Der Wissensindex meldete jeden eingetragenen Anbieter als verbunden**, obwohl
+`modell/auswahl.ts` genau zwei auflöst. Stünde `azure` im Register, sagte die
+Seite „verbunden" und der nächste Aufruf fände keinen Adapter. Ein Test hält
+beide Listen jetzt zusammen — er liest die `if (anbieter === …)`-Zweige aus dem
+Quelltext, weil die der wahre Inhalt sind.
+
+**Die Anmeldeseite verschwieg ihre Warnung, sobald zwei Umgebungsvariablen
+gesetzt waren** — während weiter hausintern angemeldet wurde und
+`/auth/callback` mit 501 antwortete. Zwei Zustände steckten in einem Wort:
+`anbieterEingerichtet()` sagt jetzt, ob Zugangsdaten da sind,
+`anbieterWegGebaut()`, ob der Weg existiert. Er existiert nicht, solange O-501
+offen ist, und die Seite sagt genau das.
+
+**Und `sicherRegistriert` liess zwei Module denselben Benachrichtigungsschlüssel
+mit verschiedenen Texten teilen**, obwohl der Kommentar daneben das Gegenteil
+versprach. Verglichen wird jetzt auch der Quelltext der drei Funktionen: zwei
+Closures sind nie `===`, ihr Text ist bei demselben Modul aber derselbe und bei
+zwei Modulen praktisch nie. Keine Gleichheit im mathematischen Sinn — die
+Prüfung, die den Fall fängt, um den es geht.
+
+### D-526 · Zwei Bildschirme, zwei Wahrheiten
+
+Das Agentenzentrum zeigte unbedingt „Kein Modellzugang eingerichtet" — ein Satz
+aus der Zeit vor dem Modellregister (0154). Seit der Demobetrieb eingetragen
+ist, hat die Detailseite daneben einen Startknopf, und die Übersicht darüber
+sagte das Gegenteil. **Wer den Knopf drückt, glaubt der Übersicht danach
+nichts mehr.** Der Banner kommt jetzt aus `app.modell_fuer` — derselben Quelle,
+aus der die Detailseite ihren Knopf ableitet — und der Browsertest, der die
+alte Behauptung festschrieb, prüft jetzt, dass beide dasselbe sagen.
+
+Ein fest verdrahteter Zustandssatz ist eine Behauptung mit Verfallsdatum, und
+niemand merkt sich, sie zu widerrufen. Er gehört an die Quelle gebunden, auch
+wenn das im Augenblick des Schreibens wie Umstand aussieht.

@@ -379,3 +379,21 @@ insert into plattform_einstellung (schluessel, wert, beschreibung, ist_vorlaeufi
 values ('auth.max_faktor_versuche', '8',
         'Fehlversuche am zweiten Faktor je Benutzer im Anmeldefenster (AUT-02).', true)
 on conflict (schluessel) do nothing;
+
+/**
+ * **Und die beiden Bremsen brauchen Zugang zu ihrer eigenen Tabelle.**
+ *
+ * `app.versuch_protokollieren` gehoert historisch dem Tabelleneigentuemer und
+ * kam deshalb ohne Zuteilung aus. Die beiden neuen gehoeren `cse_definer`
+ * (K-08: ein Definer gehoert der engen Rolle, nicht dem Eigentuemer) -- und
+ * diese Rolle hatte auf `kern.anmeldeversuch` nichts. Der Fehler zeigte sich
+ * nicht in einer Abfrage, sondern erst im Browserlauf:
+ * `permission denied for table anmeldeversuch`.
+ *
+ * Unter FORCE RLS reicht die Zuteilung nicht: ein `grant` ohne `policy` ist
+ * keine Erlaubnis, sondern null Zeilen -- schweigend. Also beides.
+ */
+grant select, insert on kern.anmeldeversuch to cse_definer;
+create policy d_versuche_lesen on kern.anmeldeversuch for select to cse_definer using (true);
+create policy d_versuche_schreiben on kern.anmeldeversuch for insert to cse_definer
+  with check (true);

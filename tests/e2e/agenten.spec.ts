@@ -25,7 +25,17 @@ async function anmelden(page: Page, konto: string): Promise<void> {
 }
 
 test.describe('Agenten-Zentrum', () => {
-  test('zeigt die vier Agenten — und dass kein Modell verbunden ist', async ({ page }) => {
+  /**
+   * **Die Übersicht sagt denselben Zustand wie die Detailseite.**
+   *
+   * Sie behauptete unbedingt „Kein Modellzugang eingerichtet" — ein Satz aus
+   * der Zeit vor dem Modellregister (0154). Seit der Demobetrieb eingetragen
+   * ist, zeigt die Detailseite daneben einen Startknopf, und die Übersicht
+   * darüber sagte das Gegenteil. Zwei Bildschirme, zwei Wahrheiten: wer den
+   * Knopf drückt, glaubt der Übersicht danach nichts mehr. Dieser Test prüft
+   * jetzt, dass beide aus derselben Quelle sprechen.
+   */
+  test('zeigt die vier Agenten — und welches Modell wirklich gilt', async ({ page }) => {
     await anmelden(page, KONTO.adminReinigung);
     await page.goto(`/portal/${MANDANT}/agenten`);
 
@@ -38,17 +48,25 @@ test.describe('Agenten-Zentrum', () => {
     }
 
     /*
-     * Der Satz, der den Unterschied zwischen „gebaut" und „einsatzbereit"
-     * ausspricht. Er steht oben, nicht im Kleingedruckten: wer ihn erst nach
-     * dem dritten Klick liest, hat dreimal etwas gesucht, was es nicht gibt.
+     * Der Demobetrieb ist eingetragen, also sagt die Seite das — und sagt
+     * dazu, was er ist: eigener Prozess, kein Anbieter, kein Netzverkehr.
+     * Der Satz „kein Modellzugang" darf hier NICHT stehen, solange einer da
+     * ist.
      */
-    await expect(
-      page.getByRole('heading', { name: 'Kein Modellzugang eingerichtet' }),
-    ).toBeVisible();
+    const banner = page.locator('[data-cse="agenten-demobetrieb"]');
+    await expect(banner).toBeVisible();
+    await expect(banner).toContainText('demo:hausintern-v1');
+    await expect(banner).toContainText('kein Anbieter, kein Netzverkehr');
+    await expect(page.locator('[data-cse="agenten-kein-modell"]')).toHaveCount(0);
 
-    // Und kein Weg, trotzdem einen Lauf zu starten.
-    await expect(page.getByRole('button', { name: /starten/iu })).toHaveCount(0);
-    await expect(page.getByRole('link', { name: /lauf starten/iu })).toHaveCount(0);
+    /*
+     * Und die Detailseite daneben zeigt denselben Zustand — mit dem Knopf,
+     * dessen Fehlen die Übersicht vorher behauptete.
+     */
+    await page.getByRole('link', { name: 'Rueckbuero-Assistent' }).click();
+    await expect(page.locator('[data-cse="agent-modell"]'))
+      .toContainText('demo:hausintern-v1');
+    await expect(page.locator('[data-cse="agent-starten"]')).toBeVisible();
   });
 
   test('das Budget nennt seine Obergrenze — und dass sie ein Platzhalter ist', async ({ page }) => {
