@@ -10430,6 +10430,16 @@ Cent-Spalte und die Kopfzeile entstehen in dieser Datei und gehen roh durch —
 ein `'-1999` in der Cent-Spalte rechnete in keiner Tabelle mehr, und genau
 dafür steht sie da.
 
+**Und der Z3-Export (`buchhaltung/z3.ts`) bekommt das NICHT** — er hat sein
+eigenes `csvFeld`, und das ist Absicht, kein vergessener Ort. Eine Z3-Datei
+wird nicht in Excel geöffnet, sondern von der Prüfsoftware nach dem
+Beschreibungsstandard aus `INDEX.XML` eingelesen: dort steht je Spalte, was sie
+enthält. Ein Hochkomma, das dem Prüfer einen anderen Feldinhalt zeigt als den
+gebuchten, wäre ein Mangel im STEUEREXPORT — und der wiegt schwerer als ein
+Tabellenrisiko auf einem Weg, den dieses Format nicht geht. Wer die beiden
+Exporte für denselben Fall hält, macht aus einem geprüften Datensatz einen
+veränderten.
+
 ### D-529 · Eine Summe ist kein anderer Bildschirm
 
 D-524 liess die Zellen einer nicht lesbaren Gesellschaft einen Strich zeigen —
