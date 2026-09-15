@@ -59,7 +59,13 @@ comment on type beitrag_art is
 /**
  * **Der Weg, und nur dieser Weg** (SOC-03).
  *
- * `entwurf` → `vorgelegt` → `freigegeben` → `geplant` → `veroeffentlicht`.
+ * `entwurf` → `vorgelegt` → `freigegeben` → (`geplant`) → `veroeffentlicht`.
+ *
+ * **`geplant` ist eine Klammer, keine Station.** Ein freigegebener Beitrag
+ * geht auch sofort hinaus — „Jetzt veroeffentlichen" ist ein eigener Schritt
+ * in `weg.ts`, und er war es von Anfang an. Hier stand die Kette ohne
+ * Klammer, und wer nur diesen Kommentar las, hielt das Planen fuer Pflicht:
+ * zwei Beschreibungen desselben Wegs, von denen eine falsch war.
  *
  * `abgelehnt` und `zurueckgezogen` sind Enden, keine Zwischenschritte: aus
  * einem abgelehnten Beitrag wird kein veroeffentlichter, ohne dass jemand ihn

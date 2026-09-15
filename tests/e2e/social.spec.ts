@@ -40,8 +40,25 @@ test.describe('Social Media Center', () => {
   });
 
   test('(3) alle fünf Kanäle sagen „nicht verbunden" — mit Grund', async ({ page }) => {
-    await anmelden(page, KONTO.adminReinigung);
+    /*
+     * **Hier steht `gruppe` und nicht `adminReinigung` — das ist die Aussage,
+     * nicht die Bequemlichkeit.**
+     *
+     * `social.kanal_verbinden` ist im Katalog an `super_admin` GEBUNDEN und an
+     * `admin` nur BINDBAR: ein Plattformkonto zu verbinden heisst, fremde
+     * Zugangsdaten im Namen einer Gesellschaft zu hinterlegen, und das ist
+     * keine gewoehnliche Verwaltungsaufgabe. Die Pruefung lief vorher als
+     * `admin` und bekam 404 — richtig so (AUT-06), aber sie las sich wie ein
+     * fehlender Bildschirm. Wer das Recht an `admin` binden will, tut das im
+     * Rechteblatt; der Seed erfindet diese Entscheidung nicht.
+     *
+     * Die Gruppensitzung bekommt auf einer Mandantsseite das Wechselblatt
+     * (D-474): ein GET wechselt den Bereich nie, der Wechsel ist ein POST.
+     */
+    await anmelden(page, KONTO.gruppe);
     await page.goto(`/portal/${MANDANT}/social/kanaele`);
+    await page.locator('[data-cse="wechsel-knopf"]').click();
+    await expect(page).toHaveURL(new RegExp(`/portal/${MANDANT}/social/kanaele$`, 'u'));
 
     const kanaele = page.locator('[data-cse="kanal"]');
     await expect(kanaele).toHaveCount(5);
@@ -107,12 +124,29 @@ test.describe('Social Media Center', () => {
       await expect(page.locator('[data-cse="oeffentliche-beitraege"]')).toContainText(titel);
     });
 
+  /** Der Entwurf, den `seed/social.ts` für `reinigung` als ersten anlegt. */
+  const SEED_ENTWURF = 'Grundreinigung nach Umbau — in zwei Nächten fertig';
+
   test('(4) ein Entwurf steht NICHT auf der öffentlichen Seite', async ({ page }) => {
     await page.goto(`/unternehmen/${MANDANT}`);
     const abschnitt = page.locator('[data-cse="oeffentliche-beitraege"]');
     await expect(abschnitt).toBeVisible();
-    // Der Seed legt je Gesellschaft genau einen veröffentlichten an.
-    await expect(page.locator('[data-cse="oeffentlicher-beitrag"]')).toHaveCount(1);
+
+    /*
+     * **Die Zusicherung ist die Abwesenheit, nicht die Anzahl.**
+     *
+     * Hier stand `toHaveCount(1)` — „der Seed legt je Gesellschaft genau einen
+     * veroeffentlichten an". Das stimmte nur, solange Pruefung (2) scheiterte,
+     * bevor sie veroeffentlichte; seit sie durchlaeuft, stehen zwei da und die
+     * Zahl schlaegt fehl, obwohl nichts kaputt ist. Eine Pruefung, die von der
+     * Reihenfolge anderer Pruefungen abhaengt, misst die Reihenfolge.
+     *
+     * Was SOC-05 zusichert, ist: ein Entwurf ist nicht oeffentlich. Genau das
+     * steht jetzt hier — und dass ueberhaupt etwas Veroeffentlichtes da ist,
+     * damit die Abwesenheit nicht daran liegt, dass der Abschnitt leer ist.
+     */
+    await expect(page.locator('[data-cse="oeffentlicher-beitrag"]').first()).toBeVisible();
+    await expect(abschnitt).not.toContainText(SEED_ENTWURF);
   });
 
   test.describe('Barrierefreiheit (BFSG)', () => {

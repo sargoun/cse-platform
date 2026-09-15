@@ -53,6 +53,33 @@ function pfadVon(datei: string): string {
 const AUFRUF = /\bauthorize\s*\(/u;
 
 /**
+ * **Kommentare und Zeichenketten zaehlen nicht als Aufruf.**
+ *
+ * Diese Pruefung liest Quelltext, nicht einen Syntaxbaum — das ist eine
+ * bewusste Entscheidung (ein Parser waere ein zweiter Compiler mit eigenen
+ * Fehlern), und sie hat genau eine Schwaeche: das Wort `authorize(` in einem
+ * Kommentar oder in einer Zeichenkette liest sich wie ein Aufruf. Eine Route,
+ * die „// hier fehlt noch authorize()" schreibt, waere damit BEWACHT gemeldet
+ * — die Pruefung haette in genau dem Fall versagt, fuer den es sie gibt.
+ *
+ * Beides herauszuschneiden ist billig und deckt die ganze Klasse ab. Was
+ * bleibt, ist die zweite, harmlosere Grenze: ein Aufruf in einem Zweig, der
+ * nie laeuft. Dagegen steht die Gegenprobe unten, nicht diese Zeile.
+ */
+function ohneKommentare(quelle: string): string {
+  return quelle
+    .replace(/\/\*[\s\S]*?\*\//gu, ' ')
+    .replace(/(^|[^:])\/\/[^\n]*/gu, '$1 ')
+    .replace(/'(?:[^'\\\n]|\\.)*'/gu, "''")
+    .replace(/"(?:[^"\\\n]|\\.)*"/gu, '""')
+    .replace(/`(?:[^`\\]|\\.)*`/gu, '``');
+}
+
+function ruftAuf(datei: string): boolean {
+  return AUFRUF.test(ohneKommentare(readFileSync(datei, 'utf8')));
+}
+
+/**
  * Ruft diese Datei `authorize` — selbst oder in einem Modul, das sie
  * relativ importiert?
  *
@@ -60,15 +87,15 @@ const AUFRUF = /\bauthorize\s*\(/u;
  * irgendwann irgendwo ein `authorize` und nennt die Route bewacht.
  */
 function rueftAuthorize(datei: string): boolean {
+  if (ruftAuf(datei)) return true;
   const quelle = readFileSync(datei, 'utf8');
-  if (AUFRUF.test(quelle)) return true;
   const ordner = resolve(datei, '..');
   for (const treffer of quelle.matchAll(/from\s+'(\.[^']*)'/gu)) {
     const ziel = resolve(ordner, treffer[1] ?? '');
     for (const endung of ['.ts', '.tsx', '/index.ts', '/index.tsx']) {
       const kandidat = `${ziel}${endung}`;
       try {
-        if (AUFRUF.test(readFileSync(kandidat, 'utf8'))) return true;
+        if (ruftAuf(kandidat)) return true;
       } catch { /* kein solcher Nachbar — der naechste Kandidat. */ }
     }
   }
@@ -183,5 +210,42 @@ describe('(5) jede Route ist im Manifest, und jede im Manifest existiert', () =>
       expect(ausnahme.grund.length, `${rel}: Ausnahme ohne Begründung`)
         .toBeGreaterThan(80);
     }
+  });
+});
+
+describe('(5b) die Prüfung selbst — was sie NICHT als Aufruf gelten lässt', () => {
+  /**
+   * **Die Gegenprobe zur Prüfung.** Ohne sie wüsste niemand, ob
+   * `rueftAuthorize` wirklich prüft oder nur meistens wahr sagt. Die drei
+   * Fälle hier sind die, in denen ein Quelltextscan bisher „bewacht" sagte,
+   * obwohl nichts bewacht war.
+   */
+  it('ein `authorize(` im Kommentar ist kein Aufruf', () => {
+    expect(AUFRUF.test(ohneKommentare('// TODO: hier fehlt noch authorize()'))).toBe(false);
+    expect(AUFRUF.test(ohneKommentare('/* frueher stand hier authorize(x) */'))).toBe(false);
+  });
+
+  it('ein `authorize(` in einer Zeichenkette auch nicht', () => {
+    expect(AUFRUF.test(ohneKommentare("const hinweis = 'ruf authorize(sitzung)';")))
+      .toBe(false);
+    expect(AUFRUF.test(ohneKommentare('const t = `authorize(${x})`;'))).toBe(false);
+  });
+
+  it('ein echter Aufruf bleibt einer — auch neben Kommentaren', () => {
+    expect(AUFRUF.test(ohneKommentare(
+      '/* Kommentar */\nawait authorize(sitzung, { recht: "x" }, p); // fertig',
+    ))).toBe(true);
+  });
+
+  it('und ein `https://` im Text reisst nicht den Rest der Zeile weg', () => {
+    /*
+     * Die naive Regel `//.*` frisst alles ab dem ersten Doppelstrich — also
+     * auch `'https://…'` mitten in einer Zeile, und mit ihr ein `authorize(`
+     * dahinter. Die Regel hier verlangt deshalb, dass VOR dem `//` kein
+     * Doppelpunkt steht.
+     */
+    expect(AUFRUF.test(ohneKommentare(
+      'const u = "https://x"; await authorize(s, r, p);',
+    ))).toBe(true);
   });
 });

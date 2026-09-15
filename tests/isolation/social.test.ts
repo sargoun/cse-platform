@@ -21,7 +21,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import type postgres from 'postgres';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
-import { legeVor } from '../../src/server/services/social/dienst.js';
+import { legeVor, veroeffentliche } from '../../src/server/services/social/dienst.js';
 import { entscheideFreigabe } from '../../src/server/services/freigabe/entscheiden.js';
 import { vermerkeAnsicht } from '../../src/server/services/freigabe/laden.js';
 
@@ -486,5 +486,64 @@ describe('(8) Das Ergebnisblatt: geloescht wird nur, was nie hinausging', () => 
       `select count(*)::text as n from beitrag_kanal where beitrag_id = $1::uuid`,
       [beitragId]);
     expect(uebrig?.n).toBe('1');
+  });
+});
+
+describe('(9) Zwei Klicks, ein Ausgang', () => {
+  /**
+   * **Der Spalt zwischen Lesen und Schreiben.**
+   *
+   * `veroeffentliche` las den Stand, fragte jeden Kanal und setzte DANACH den
+   * Status. Zwei gleichzeitige Aufrufe — ein doppelter Klick genuegt — lasen
+   * beide „freigegeben" und riefen beide jeden Adapter. Der Datenbankschreib-
+   * vorgang doppelt zu tun waere harmlos; die AUSSENDUNG doppelt zu tun ist
+   * es nicht, und ein zweiter Beitrag auf LinkedIn nimmt kein `update`
+   * zurueck.
+   *
+   * Diese Probe laesst beide Aufrufe wirklich gleichzeitig laufen. Genau
+   * einer darf durchkommen.
+   */
+  it('nur EINE von zwei gleichzeitigen Veröffentlichungen kommt durch', async () => {
+    const konto = await legeKontoAn(f.reinigung);
+    const { beitragId } = await legeBeitragAn(
+      f.reinigung, `Doppelklick ${zufall()}`, 'freigegeben', 'genehmigt');
+    await legeKanalAn(f.reinigung, 'facebook');
+
+    const sitzung = {
+      scope: 'mandant' as const, mandantId: f.reinigung, benutzerId: konto,
+      portal: 'intern' as const, readonly: false,
+    };
+    const lauf = (): Promise<unknown> => alsApp(sitzung, async (tx) => veroeffentliche({
+      abfrage: async <R,>(q: string, w: readonly unknown[] = []) =>
+        (await tx.unsafe(q, w as never[])) as readonly R[],
+      schreibe: async <R,>(q: string, w: readonly unknown[] = []) =>
+        (await tx.unsafe(q, w as never[])) as readonly R[],
+      benutzerId: konto,
+    }, beitragId, null));
+
+    const ergebnisse = await Promise.allSettled([lauf(), lauf()]);
+    const durch = ergebnisse.filter((e) => e.status === 'fulfilled');
+    const abgewiesen = ergebnisse.filter((e) => e.status === 'rejected');
+
+    expect(durch).toHaveLength(1);
+    expect(abgewiesen).toHaveLength(1);
+  });
+
+  it('und ein zweiter Versuch danach sagt, warum — statt still nichts zu tun', async () => {
+    const konto = await legeKontoAn(f.reinigung);
+    const { beitragId } = await legeBeitragAn(
+      f.reinigung, `Schon draussen ${zufall()}`, 'veroeffentlicht', 'genehmigt');
+
+    await expect(alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: konto, portal: 'intern',
+        readonly: false },
+      async (tx) => veroeffentliche({
+        abfrage: async <R,>(q: string, w: readonly unknown[] = []) =>
+          (await tx.unsafe(q, w as never[])) as readonly R[],
+        schreibe: async <R,>(q: string, w: readonly unknown[] = []) =>
+          (await tx.unsafe(q, w as never[])) as readonly R[],
+        benutzerId: konto,
+      }, beitragId, null),
+    )).rejects.toThrow(/freigegeben oder geplant/u);
   });
 });

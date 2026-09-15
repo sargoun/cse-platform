@@ -218,6 +218,38 @@ export async function bearbeiteBeitrag(
  * und die Freigabe fällt dabei weg. Das ist derselbe Mechanismus wie im
  * Ausgangs-Gate (`agent/policy.ts`), nur eine Ebene früher.
  */
+/**
+ * **Zwischen Lesen und Schreiben liegt ein Spalt** — und in ihm passiert der
+ * zweite Klick.
+ *
+ * Jede Handlung hier las erst den Stand (`ladeBeitrag`), prueft ihn gegen
+ * `weg.ts` und schrieb dann `where id = $1`. Zwei Anfragen, die gleichzeitig
+ * ankommen — ein doppelter Klick auf „Jetzt veroeffentlichen" reicht —, lesen
+ * BEIDE `freigegeben`, finden beide den Weg erlaubt und schreiben beide. Beim
+ * Vorlegen entstehen so zwei Freigaben zu einem Beitrag; beim Veroeffentlichen
+ * zwei Ausgaenge nach draussen. Das ist kein theoretischer Fall: die Knoepfe
+ * sind gewoehnliche Formulare, und ein langsamer Bildschirm laedt zum zweiten
+ * Klick ein.
+ *
+ * Der Riegel ist die Bedingung IM `update`: geschrieben wird nur, solange der
+ * Stand noch der ist, gegen den geprueft wurde. Wer verliert, bekommt keinen
+ * stillen Erfolg, sondern denselben Satz wie beim falschen Zustand — denn
+ * genau das ist es: als sein Schreiben ankam, war der Beitrag woanders.
+ */
+async function schreibeWennNoch(
+  kontext: SchreibZugriff, id: string, stand: BeitragStatus,
+  satz: string, werte: readonly unknown[],
+): Promise<void> {
+  const zeilen = await kontext.schreibe<{ id: string }>(
+    `${satz} and status = $${String(werte.length + 1)}::beitrag_status returning id`,
+    [...werte, stand]);
+  if (zeilen.length === 0) {
+    throw new SocialFehler(
+      'Der Beitrag hat sich inzwischen geändert — jemand anderes war schneller. '
+      + 'Bitte die Seite neu laden und noch einmal ansehen.', 'gleichzeitig');
+  }
+}
+
 export async function legeVor(kontext: SchreibKontext, id: string): Promise<string> {
   const b = await ladeBeitrag(kontext, id);
   if (b === null) throw new SocialFehler('Diesen Beitrag gibt es nicht.', 'unbekannt');
@@ -268,7 +300,7 @@ export async function legeVor(kontext: SchreibKontext, id: string): Promise<stri
     throw new SocialFehler('Die Freigabe wurde nicht angelegt.', 'kein_schreibrecht');
   }
 
-  await kontext.schreibe(
+  await schreibeWennNoch(kontext, id, b.status,
     `update beitrag set status = $2::beitrag_status, freigabe_id = $3::uuid,
                         geaendert_von = $4::uuid
       where id = $1::uuid`,
@@ -312,12 +344,12 @@ export async function schrittGehen(
      * Entwurf mit einer alten Freigabe daran waere genau der Weg, auf dem
      * ungeprueftes hinausgeht.
      */
-    await kontext.schreibe(
+    await schreibeWennNoch(kontext, id, b.status,
       `update beitrag set status = 'entwurf', freigabe_id = null, geaendert_von = $2::uuid
         where id = $1::uuid`, [id, kontext.benutzerId]);
     return;
   }
-  await kontext.schreibe(
+  await schreibeWennNoch(kontext, id, b.status,
     `update beitrag
         set status = $2::beitrag_status,
             geplant_fuer = case when $2 = 'freigegeben' then null else geplant_fuer end,
@@ -337,7 +369,7 @@ export async function plane(
   if (b === null) throw new SocialFehler('Diesen Beitrag gibt es nicht.', 'unbekannt');
   const fehler = planFehler(b.status, geplantFuer, jetzt);
   if (fehler !== null) throw new SocialFehler(PLAN_FEHLER_TEXT[fehler], fehler);
-  await kontext.schreibe(
+  await schreibeWennNoch(kontext, id, b.status,
     `update beitrag set status = 'geplant', geplant_fuer = $2::timestamptz,
                         geaendert_von = $3::uuid
       where id = $1::uuid`,
@@ -377,6 +409,26 @@ export async function veroeffentliche(
       'falscher_status');
   }
 
+  /*
+   * **Der Stand wird ZUERST genommen, vor dem ersten Gang nach draussen.**
+   *
+   * Vorher stand dieses `update` am Ende: zwei gleichzeitige Anfragen (ein
+   * doppelter Klick genuegt) lasen beide „freigegeben", riefen beide jeden
+   * Adapter und setzten danach beide denselben Status. Was dabei doppelt
+   * geschieht, ist nicht der Datenbankschreibvorgang — es ist die AUSSENDUNG.
+   * Ein zweiter Beitrag auf LinkedIn nimmt kein `update` zurueck.
+   *
+   * Wer die Bedingung nicht mehr erfuellt, faellt hier heraus, bevor
+   * irgendein Kanal gefragt wurde. Und der Status ist ab diesem Punkt
+   * ehrlich: auf der eigenen Gesellschaftsseite STEHT der Beitrag jetzt — die
+   * fremden Kanaele tragen ihr Ergebnis einzeln daneben.
+   */
+  await schreibeWennNoch(kontext, id, b.status,
+    `update beitrag set status = 'veroeffentlicht', veroeffentlicht_am = now(),
+                        geaendert_von = $2::uuid
+      where id = $1::uuid`,
+    [id, kontext.benutzerId]);
+
   const auftrag: BeitragAuftrag = {
     beitragId: b.id, titel: b.titel, text: b.text, adresse,
   };
@@ -402,8 +454,25 @@ export async function veroeffentliche(
        * ihm nichts zu tun. Nur die Meldung aendert sich.
        */
       const verbunden = fehler instanceof KanalNichtVerbundenFehler;
-      const meldung = fehler instanceof Error ? fehler.message : String(fehler);
       const ergebnis = verbunden ? 'nicht_verbunden' as const : 'fehlgeschlagen' as const;
+      /*
+       * **Ein unerwarteter Fehler wird NICHT zur Meldung eingedampft.**
+       *
+       * `fehler.message` allein verschweigt den Stapel — und bei einem
+       * Programmfehler (ein `undefined`, ein Tippfehler im Adapter) steht dann
+       * auf dem Bildschirm „Cannot read properties of undefined", waehrend im
+       * Protokoll nichts steht, was jemanden zur Zeile fuehrt. Ein
+       * `KanalNichtVerbunden` ist ein bekannter Zustand und gehoert nicht ins
+       * Fehlerprotokoll; alles andere gehoert genau dorthin.
+       */
+      if (!verbunden) {
+        console.error('[social] Kanal %s fuer Beitrag %s fehlgeschlagen',
+          z.plattform, id, fehler);
+      }
+      const meldung = verbunden && fehler instanceof Error
+        ? fehler.message
+        : `Unerwarteter Fehler beim Kanal ${PLATTFORM_NAME[z.plattform]}: `
+          + `${fehler instanceof Error ? fehler.message : String(fehler)}`;
       await kontext.schreibe(
         `update beitrag_kanal
             set ergebnis = $3::kanal_ergebnis, meldung = $4, versuche = versuche + 1
@@ -412,12 +481,6 @@ export async function veroeffentliche(
       ergebnisse.push({ plattform: z.plattform, ergebnis, meldung });
     }
   }
-
-  await kontext.schreibe(
-    `update beitrag set status = 'veroeffentlicht', veroeffentlicht_am = now(),
-                        geaendert_von = $2::uuid
-      where id = $1::uuid`,
-    [id, kontext.benutzerId]);
 
   return { beitragId: id, aufWebsite: true, kanaele: ergebnisse };
 }
