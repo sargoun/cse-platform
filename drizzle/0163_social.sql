@@ -384,6 +384,25 @@ create policy p_beitrag_kanal_decke on beitrag_kanal as restrictive for all to c
   using      (app.portal() = 'intern')
   with check (app.portal() = 'intern');
 
+/**
+ * **Geloescht wird nur, was nie hinausging.**
+ *
+ * Der Kommentar bei den Zuteilungen sagte, der Dienst lasse das Loeschen nur
+ * bei `ergebnis = 'offen'` zu — und genau das stand nirgends in der Datenbank.
+ * Damit war die Zusicherung eine Verabredung: ein `delete` an der
+ * Dienstschicht vorbei loeschte auch die Zeile eines Kanals, auf dem wirklich
+ * etwas veroeffentlicht wurde, und die Auskunft „wo stand das wann" waere
+ * hinterher schlicht weg. Invariante 3 verlangt die zweite Linie hier ebenso
+ * wie ueberall sonst: RLS ist nie die einzige, aber auch nie die fehlende.
+ *
+ * `offen` heisst: es wurde noch nichts versucht. Ein Kanal aus einem Entwurf
+ * herauszunehmen bleibt damit eine Korrektur am Plan; ein `veroeffentlicht`,
+ * `nicht_verbunden` oder `fehlgeschlagen` ist ein Ereignis und bleibt stehen.
+ */
+create policy p_beitrag_kanal_kein_loeschen on beitrag_kanal
+  as restrictive for delete to cse_app
+  using (ergebnis = 'offen');
+
 create policy j_beitrag_kanal on beitrag_kanal for all to cse_job using (true) with check (true);
 
 /**
@@ -405,6 +424,59 @@ grant select, insert, update, delete on beitrag_kanal to cse_app;
 grant select, insert, update, delete on beitrag_kanal to cse_job;
 grant select, insert, update on social_kanal to cse_app;
 grant select, insert, update on social_kanal to cse_job;
+
+
+/* ── Der Riegel: freigegeben heisst GENEHMIGT ───────────────────────────── */
+
+/**
+ * **`freigabe_id is not null` ist kein Riegel, sondern ein Zeiger.**
+ *
+ * `beitrag_freigegeben_hat_freigabe` verlangte eine Freigabe — irgendeine.
+ * Eine OFFENE erfuellte die Bedingung genauso wie eine ABGELEHNTE, und damit
+ * liess sich ein Beitrag auf `freigegeben` setzen, waehrend die Entscheidung
+ * darueber noch im Posteingang lag oder bereits verneint war. Invariante 7
+ * sagt nicht „es liegt ein Vorgang vor", sie sagt: ein Mensch hat zugestimmt.
+ *
+ * Eine `check`-Bedingung kann das nicht: sie darf keine andere Tabelle lesen.
+ * Ein Ausloeser also — und er liest die Freigabe NICHT selbst, sondern fragt
+ * `app.freigabe_genehmigt` (0123, dreiargumentig seit 0130). Die Frage ist
+ * dieselbe, die schon der Kreditor und die Mahnung stellen, und sie ist
+ * strukturell: ja/nein zu einer Kennung, die der Aufrufer ohnehin in der Hand
+ * hat. Ein eigenes `select … from freigabe` waere hier ein zweiter Weg zu
+ * derselben Auskunft — mit einem breiteren Spaltenrecht als K-01 zulaesst.
+ *
+ * **Die AKTION geht mit** (0130 §6). Ohne sie oeffnete eine Zustimmung zu
+ * einem Mahnbrief einen Beitrag auf Instagram: dieselbe Kennung, derselbe
+ * Mandant, derselbe Status — und eine voellig andere Entscheidung.
+ */
+--  Was diese Freigabe genehmigt haben muss, damit ein Beitrag hinausgeht.
+--  Derselbe Wert, den `legeVor` (services/social/dienst.ts) einsetzt.
+
+create function app.beitrag_braucht_genehmigung() returns trigger
+language plpgsql security definer set search_path = pg_catalog, public, app as $$
+begin
+  if new.status not in ('freigegeben', 'geplant', 'veroeffentlicht') then
+    return new;
+  end if;
+  if new.freigabe_id is null
+     or not app.freigabe_genehmigt(new.freigabe_id, new.mandant_id,
+                                   'social_veroeffentlichen') then
+    raise exception using
+      errcode = 'check_violation',
+      message = 'Ein Beitrag wird freigegeben, geplant oder veroeffentlicht nur mit '
+              || 'einer GENEHMIGTEN Freigabe (Invariante 7, SOC-08).',
+      detail  = format('Beitrag %s, Freigabe %s.', new.id,
+                       coalesce(new.freigabe_id::text, 'keine'));
+  end if;
+  return new;
+end;
+$$;
+alter function app.beitrag_braucht_genehmigung() owner to cse_definer;
+revoke all on function app.beitrag_braucht_genehmigung() from public;
+
+create trigger beitrag_braucht_genehmigung
+  before insert or update of status, freigabe_id on beitrag
+  for each row execute function app.beitrag_braucht_genehmigung();
 
 
 /* ── Die Entscheidung zieht den Beitrag nach ────────────────────────────── */

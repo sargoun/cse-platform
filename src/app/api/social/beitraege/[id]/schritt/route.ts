@@ -26,17 +26,32 @@ const RECHT: Readonly<Record<string, string>> = {
   zuruecknehmen: 'social.planen',
 };
 
+/**
+ * **`planen` steht mit Absicht NICHT in dieser Tabelle.**
+ *
+ * Planen heisst, einen Zeitpunkt zu setzen, und ein Schritt ohne Zeitpunkt ist
+ * keine Planung. Er hat deshalb eine eigene Route
+ * (`/api/social/beitraege/[id]/planung`), die den Zeitpunkt entgegennimmt und
+ * gegen die Serveruhr prueft (Invariante 5). Hier abgewiesen zu werden ist
+ * die richtige Antwort — nicht eine Luecke.
+ */
+
+/** Der strengste Fall: was hier nicht steht, verlangt das schaerfere Recht. */
+const STRENGSTES = 'social.planen';
+
 export async function POST(
   anfrage: NextRequest, { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   const { id } = await params;
-  const roh = await anfrage.clone().formData().catch(() => null);
-  const ausFormular = roh?.get('schritt');
-  const schritt = typeof ausFormular === 'string' ? ausFormular : null;
-  const recht = schritt === null ? 'social.planen' : RECHT[schritt] ?? 'social.planen';
 
   return fuehreSocialAus(anfrage, {
-    recht,
+    /*
+     * Der Rumpf wird vom Geruest EINMAL gelesen — in beiden Formaten. Hier
+     * stand vorher ein zweites Auslesen aus `formData()`, das einen
+     * JSON-Aufrufer nicht sah und ihn deshalb am strengsten Recht scheitern
+     * liess, auch wenn sein Schritt das mildere verlangte.
+     */
+    recht: (rumpf) => RECHT[rumpf.felder['schritt'] ?? ''] ?? STRENGSTES,
     handle: async (kontext, rumpf) => {
       if (!UUID.test(id)) throw new SocialFehler('Diesen Beitrag gibt es nicht.', 'unbekannt');
       const gewaehlt = rumpf.felder['schritt'] ?? '';

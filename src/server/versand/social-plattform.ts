@@ -72,9 +72,21 @@ export class NichtVerbundenePlattform implements SocialKanalPort {
 
   constructor(readonly plattform: Plattform, umgebung: Umgebung = process.env) {
     const fehlt = fehlendeSchluessel(plattform, umgebung);
-    this.hinweis = `${PLATTFORM_NAME[plattform]}: nicht verbunden — `
-      + `es fehlen ${fehlt.join(' und ')}. Ohne App-Registrierung und `
-      + 'Auftragsverarbeitungsvertrag geht kein Beitrag hinaus (O-10).';
+    /*
+     * **Der Satz muss auch stimmen, wenn NICHTS fehlt.**
+     *
+     * Er lautete unbedingt „es fehlen ${fehlt}." — und bei vollstaendigen
+     * Schluesseln stand dort „es fehlen ." Wer das liest, sucht nach einem
+     * Schluessel, der nicht fehlt, und findet den wirklichen Grund nicht: es
+     * gibt schlicht noch keinen sendenden Adapter. Das ist eine andere
+     * Auskunft, und sie gehoert hingeschrieben.
+     */
+    const grund = fehlt.length === 0
+      ? 'die Zugangsdaten liegen vor, aber es gibt noch keinen sendenden Adapter'
+      : `es fehlen ${fehlt.join(' und ')}`;
+    this.hinweis = `${PLATTFORM_NAME[plattform]}: nicht verbunden — ${grund}. `
+      + 'Ohne App-Registrierung und Auftragsverarbeitungsvertrag geht kein '
+      + 'Beitrag hinaus (O-10).';
   }
 
   veroeffentliche(auftrag: BeitragAuftrag): Promise<Veroeffentlicht> {

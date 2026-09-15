@@ -16,6 +16,7 @@ import {
 import { PLATTFORM_NAME, type Plattform } from '@/server/services/social/port';
 import {
   SCHRITT_TEXT, STATUS_TEXT, type Schritt, darfBearbeiten, moeglicheSchritte,
+  naechsterStatus,
 } from '@/server/services/social/weg';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 
@@ -79,17 +80,51 @@ export default async function Beitrag(
       beitrag: await ladeBeitrag(kontext, id),
       kanaele: await kanaeleZuBeitrag(kontext, id),
       alle: await listeKanaele(kontext),
+      /*
+       * **Darf dieser Mensch die Planungsseite ueberhaupt oeffnen?**
+       *
+       * Sie ist mit `social.planen` bewacht (Routenregister). Wer nur
+       * `social.schreiben` haelt — eine `leitung` etwa —, sah hier einen Link
+       * mit einem 404 dahinter. AUT-06 verlangt das Gegenteil: ein Verweis auf
+       * etwas, das dieser Mensch nicht sehen darf, verraet, dass es das gibt.
+       */
+      darfPlanen: (await kontext.abfrage<{ ja: boolean }>(
+        `select app.hat_recht('social.planen', app.aktiver_mandant()) as ja`)
+      )[0]?.ja ?? false,
     }))) as Promise<{
       beitrag: BeitragZeile | null;
       kanaele: readonly BeitragKanalZeile[];
       alle: readonly KanalZeile[];
+      darfPlanen: boolean;
     }>);
 
   const b = daten.beitrag;
   if (b === null) notFound();
 
+  /*
+   * **Drei Schritte fallen hier heraus, jeder aus einem eigenen Grund.**
+   *
+   * `freigeben` und `ablehnen` fallen im Freigabe-Posteingang — dort wird die
+   * Entscheidung protokolliert und verkettet (APR-02, K-13). Ein zweiter Knopf
+   * dafuer waere ein zweiter Weg zur selben Entscheidung, und der eine ohne
+   * Kette.
+   *
+   * `planen` braucht einen ZEITPUNKT. Als blosser Knopf ohne Feld schickte er
+   * `schritt=planen` an eine Route, die den Schritt nicht kennt — ein Knopf,
+   * der jedes Mal einen Fehler erzeugt, sieht aus wie eine kaputte Funktion
+   * und war keine. Der Weg dorthin ist die Planungsseite darunter.
+   */
+  const OHNE: readonly Schritt[] = ['freigeben', 'ablehnen', 'planen'];
   const schritte = moeglicheSchritte(b.status)
-    .filter((s): s is Schritt => s !== 'freigeben' && s !== 'ablehnen');
+    .filter((s): s is Schritt => !OHNE.includes(s));
+  /*
+   * Der Weg zur Planung steht offen, wenn der Zustand ihn kennt UND der
+   * Mensch das Recht dazu haelt — nicht, weil der Zustand zufaellig
+   * `freigegeben` heisst. `naechsterStatus` fragt dieselbe Tabelle, aus der
+   * der Dienst antwortet; eine zweite Abschrift der Bedingung waere die
+   * Stelle, an der beide auseinanderlaufen.
+   */
+  const planbar = naechsterStatus(b.status, 'planen') !== null && daten.darfPlanen;
   const gewaehlt = new Set(daten.kanaele.map((k) => k.kanalId));
   const bearbeitbar = darfBearbeiten(b.status);
 
@@ -233,7 +268,7 @@ export default async function Beitrag(
 
       <section data-cse="beitrag-schritte">
         <h2 className="mb-s3 text-h2 text-text">Nächster Schritt</h2>
-        {schritte.length === 0 ? (
+        {schritte.length === 0 && !planbar ? (
           <p className="max-w-prose text-sm text-text-muted">
             Von hier führt kein Schritt weiter. Wer denselben Text noch einmal will, legt
             einen neuen Beitrag an — und der geht seinen eigenen Weg durch die Freigabe.
@@ -254,7 +289,7 @@ export default async function Beitrag(
                 </Button>
               </form>
             ))}
-            {b.status === 'freigegeben' ? (
+            {planbar ? (
               <Link href={`/portal/${mandant}/social/posts/${id}/planung`}
                     data-cse="zur-planung"
                     className="inline-flex min-h-11 w-fit items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2">

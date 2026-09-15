@@ -46,9 +46,17 @@ export default async function Statistik(
       statistik(kontext))) as Promise<SocialStatistik>);
 
   const liegenGeblieben = s.jeKanal.reduce((n, k) => n + k.nichtVerbunden, 0);
-  const dauer = s.pruefdauerStunden === null
-    ? '—'
-    : `${s.pruefdauerStunden.toFixed(1).replace('.', ',')} h`;
+  /*
+   * Drei Zustaende, drei Zeichen — „—" fuer beides waere die Luege in der
+   * Mitte: „verdeckt" heisst, dass es die Zahl gibt und dieser Mensch sie
+   * nicht sehen darf (`freigabe.pruefdauer_lesen`), „noch keine" heisst, dass
+   * es sie nicht gibt.
+   */
+  const dauer = s.pruefdauerVerdeckt
+    ? 'nicht sichtbar'
+    : s.pruefdauerStunden === null
+      ? '—'
+      : `${s.pruefdauerStunden.toFixed(1).replace('.', ',')} h`;
 
   return (
     <PortalRahmen
@@ -76,6 +84,15 @@ export default async function Statistik(
         <KpiStat label="Liegen geblieben" wert={String(liegenGeblieben)} />
         <KpiStat label="Prüfdauer (Median)" wert={dauer} />
       </div>
+
+      {s.pruefdauerVerdeckt ? (
+        <Hinweis art="hinweis" cse="statistik-pruefdauer-verdeckt" className="mb-s5 max-w-prose">
+          <strong>Die Prüfdauer steht hier nicht.</strong> Wie schnell jemand entscheidet,
+          ist eine Aussage über einen Menschen und trägt deshalb ein eigenes Recht
+          (<code>freigabe.pruefdauer_lesen</code>). Wer es hält, findet die Verteilung —
+          mit den Hinweisen auf Durchwinken — unter „Freigaben · Prüfdauer" (APR-08).
+        </Hinweis>
+      ) : null}
 
       <Hinweis art="hinweis" cse="statistik-keine-reichweite" className="mb-s5 max-w-prose">
         <strong>Reichweite und Interaktionen stehen hier nicht.</strong> Sie kommen von der

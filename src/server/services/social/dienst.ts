@@ -497,6 +497,16 @@ export interface SocialStatistik {
   readonly aufWebsite: number;
   /** Median der Stunden von „vorgelegt" bis zur Entscheidung — oder null. */
   readonly pruefdauerStunden: number | null;
+  /**
+   * **`null` hat zwei Bedeutungen, und der Bildschirm muss sie trennen.**
+   *
+   * Entweder es wurde noch nie etwas entschieden — oder dieser Mensch darf die
+   * Zahl nicht sehen. „Wie schnell entscheidet jemand" ist eine Aussage ueber
+   * eine PERSON und traegt deshalb ein eigenes Recht
+   * (`freigabe.pruefdauer_lesen`, gebunden an `super_admin`); die Seite
+   * `/freigaben/pruefdauer` haelt sich daran, diese hier tat es nicht.
+   */
+  readonly pruefdauerVerdeckt: boolean;
 }
 
 /**
@@ -530,18 +540,30 @@ export async function statistik(kontext: LeseKontext): Promise<SocialStatistik> 
       group by k.plattform, k.verbunden, k.sortierung
       order by k.sortierung, k.plattform`);
 
-  const [dauer] = await kontext.abfrage<{ stunden: number | null }>(
-    /*
-     * Der Median, nicht das Mittel: eine einzige Freigabe, die ueber den
-     * Urlaub liegen blieb, zoege ein Mittel um Tage hoch und behauptete
-     * damit einen Zustand, den es nie gab.
-     */
-    `select percentile_cont(0.5) within group (
-              order by extract(epoch from (f.freigegeben_am - f.erstellt_am)) / 3600.0
-            ) as stunden
-       from freigabe f
-       join beitrag b on b.freigabe_id = f.id
-      where f.freigegeben_am is not null`);
+  /*
+   * Die Pruefdauer wird nur BERECHNET, wenn sie auch gezeigt werden darf —
+   * nicht berechnet und dann verworfen. Eine Zahl, die der Server ermittelt
+   * und der Bildschirm verschweigt, ist eine Zahl, die beim naechsten Umbau
+   * jemand versehentlich wieder hinschreibt.
+   */
+  const [recht] = await kontext.abfrage<{ ja: boolean }>(
+    `select app.hat_recht('freigabe.pruefdauer_lesen', app.aktiver_mandant()) as ja`);
+  const darfPruefdauer = recht?.ja ?? false;
+
+  const [dauer] = darfPruefdauer
+    ? await kontext.abfrage<{ stunden: number | null }>(
+      /*
+       * Der Median, nicht das Mittel: eine einzige Freigabe, die ueber den
+       * Urlaub liegen blieb, zoege ein Mittel um Tage hoch und behauptete
+       * damit einen Zustand, den es nie gab.
+       */
+      `select percentile_cont(0.5) within group (
+                order by extract(epoch from (f.freigegeben_am - f.erstellt_am)) / 3600.0
+              ) as stunden
+         from freigabe f
+         join beitrag b on b.freigabe_id = f.id
+        where f.freigegeben_am is not null`)
+    : [];
 
   const [website] = await kontext.abfrage<{ anzahl: string }>(
     `select count(*)::text as anzahl from beitrag
@@ -559,5 +581,6 @@ export async function statistik(kontext: LeseKontext): Promise<SocialStatistik> 
     })),
     aufWebsite: Number(website?.anzahl ?? '0'),
     pruefdauerStunden: dauer?.stunden ?? null,
+    pruefdauerVerdeckt: !darfPruefdauer,
   };
 }

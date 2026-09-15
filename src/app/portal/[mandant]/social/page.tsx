@@ -48,8 +48,24 @@ export default async function SocialCenter(
     withTenant(tx, zugang.sitzung, async (kontext) => ({
       beitraege: await listeBeitraege(kontext),
       kanaele: await listeKanaele(kontext),
+      /*
+       * **Darf dieser Mensch die Kanalseite ueberhaupt oeffnen?**
+       *
+       * Sie ist mit `social.kanal_verbinden` bewacht (Seitenkarte), und das
+       * Recht ist nur an `super_admin` GEBUNDEN -- an `admin` bloss bindbar.
+       * Eine `leitung` mit `social.schreiben` sah hier also einen Link, der
+       * hinter sich einen 404 hatte. Das ist genau der Fall, den das
+       * Navigationsregister verhindert (AUT-06): ein Menuepunkt, der auf
+       * einen 404 fuehrt, verraet die Existenz dessen, was er nicht zeigen
+       * darf. `navigationsRechte` hilft hier nicht -- es kennt nur die
+       * Rechte der Sidebar-Eintraege, und `social.kanal_verbinden` ist keiner.
+       */
+      darfKanaele: (await kontext.abfrage<{ ja: boolean }>(
+        `select app.hat_recht('social.kanal_verbinden', app.aktiver_mandant()) as ja`)
+      )[0]?.ja ?? false,
     }))) as Promise<{
       beitraege: readonly BeitragZeile[]; kanaele: readonly KanalZeile[];
+      darfKanaele: boolean;
     }>);
 
   const zahl = (status: string): number =>
@@ -80,9 +96,12 @@ export default async function SocialCenter(
           <Link href={`/portal/${mandant}/social/posts`} className={KNOPF} data-cse="social-posts">
             Alle Beiträge
           </Link>
-          <Link href={`/portal/${mandant}/social/kanaele`} className={KNOPF} data-cse="social-kanaele">
-            Kanäle
-          </Link>
+          {daten.darfKanaele ? (
+            <Link href={`/portal/${mandant}/social/kanaele`} className={KNOPF}
+                  data-cse="social-kanaele">
+              Kanäle
+            </Link>
+          ) : null}
           <Link href={`/portal/${mandant}/social/statistik`} className={KNOPF} data-cse="social-statistik">
             Statistik
           </Link>
@@ -100,10 +119,16 @@ export default async function SocialCenter(
         <Hinweis art="warnung" cse="social-kein-kanal" className="mb-s5 max-w-prose">
           <strong>Kein fremder Kanal ist verbunden.</strong> Ein Beitrag erscheint damit auf
           der eigenen Gesellschaftsseite — und nirgendwo sonst. Das ist kein Fehler, sondern
-          der Stand: welche Plattformkonten es gibt und wem sie gehören, ist offen (O-10).{' '}
-          <Link href={`/portal/${mandant}/social/kanaele`} className="underline underline-offset-4">
-            Kanäle ansehen
-          </Link>.
+          der Stand: welche Plattformkonten es gibt und wem sie gehören, ist offen (O-10).
+          {daten.darfKanaele ? (
+            <>
+              {' '}
+              <Link href={`/portal/${mandant}/social/kanaele`}
+                    className="underline underline-offset-4">
+                Kanäle ansehen
+              </Link>.
+            </>
+          ) : null}
         </Hinweis>
       ) : null}
 

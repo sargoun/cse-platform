@@ -1,6 +1,7 @@
 import type postgres from 'postgres';
 import { jcsDigest } from '../../services/freigabe/kette.js';
-import { PLATTFORMEN, PLATTFORM_NAME } from '../../services/social/port.js';
+import { PLATTFORMEN, PLATTFORM_NAME, type Plattform } from '../../services/social/port.js';
+import { NichtVerbundenePlattform } from '../../versand/social-plattform.js';
 
 /**
  * Das Social Media Center für die Vorführung (SOC-01…SOC-08).
@@ -109,16 +110,38 @@ const TEXTE: Readonly<Record<string, readonly { titel: string; text: string; art
   ],
 };
 
+/**
+ * **Der Beleg sagt, was der Datensatz IST.**
+ *
+ * Hier stand `freigegeben_vom_kunden = true` neben einem Beleg, der sagte, die
+ * schriftliche Freigabe liege NICHT vor — zwei Saetze ueber denselben Vorgang,
+ * die einander widersprechen. PRO-05 haengt genau an diesem Feld: ein
+ * Kundenname auf einer Website ohne Zustimmung ist ein Problem, das Loeschen
+ * nicht ungeschehen macht.
+ *
+ * Aufgeloest wird der Widerspruch nicht, indem das Feld auf `false` faellt
+ * (dann ist SOC-04 eine leere Liste und die Oberflaeche sieht unfertig aus),
+ * sondern indem der ganze Datensatz als das auftritt, was er ist: **ein
+ * erfundener Kunde mit einer erfundenen Freigabe.** Der Kundenname traegt das
+ * im Namen, der Beleg im Text — und beides ist greifbar, wenn der erste echte
+ * Kunde eingetragen wird.
+ */
+const DEMO_BELEG = 'DEMODATEN: erfundener Kunde, erfundene Freigabe. Vor dem '
+  + 'Echtbetrieb ersetzen — eine echte Referenz braucht eine schriftliche '
+  + 'Zustimmung mit Datum (PRO-05).';
+
 /** Eine freigegebene Referenz je Gesellschaft — sonst ist SOC-04 eine leere Liste. */
 const REFERENZEN: Readonly<Record<string, { titel: string; kunde: string; text: string }>> = {
   reinigung: { titel: 'Bürohaus Berlin-Mitte — Unterhaltsreinigung',
-    kunde: 'Verwaltung Berlin-Mitte',
+    kunde: 'Verwaltung Berlin-Mitte (Demokunde)',
     text: 'Tägliche Unterhaltsreinigung auf vier Etagen, seit drei Jahren.' },
-  security: { titel: 'Messewoche — Objektschutz', kunde: 'Messeveranstalter Berlin',
+  security: { titel: 'Messewoche — Objektschutz',
+    kunde: 'Messeveranstalter Berlin (Demokunde)',
     text: 'Zugangskontrolle und Streifengang über fünf Tage in drei Schichten.' },
-  bau: { titel: 'Dachgeschossausbau Berliner Straße', kunde: 'Hausverwaltung Berliner Straße',
+  bau: { titel: 'Dachgeschossausbau Berliner Straße',
+    kunde: 'Hausverwaltung Berliner Straße (Demokunde)',
     text: 'Ausbau des Dachgeschosses zu zwei Wohneinheiten, im laufenden Betrieb.' },
-  operations: { titel: 'Digitale Betriebsplattform', kunde: 'CSE Gruppe',
+  operations: { titel: 'Digitale Betriebsplattform', kunde: 'CSE Gruppe (Demokunde)',
     text: 'Eine Plattform für vier Gesellschaften, getrennte Mandanten, eine Gruppensicht.' },
 };
 
@@ -156,8 +179,7 @@ export async function seedSocial(
                               freigegeben_vom_kunden, freigabe_am, freigabe_beleg,
                               status, sortierung)
         select ${mandantId}, ${r.titel}, ${r.kunde}, ${r.text},
-               true, now() - interval '30 days',
-               'Demodatensatz — schriftliche Freigabe liegt NICHT vor (CSE_DEV_FLAECHEN)',
+               true, now() - interval '30 days', ${DEMO_BELEG},
                'veroeffentlicht'::seite_status, 0
          where not exists (select 1 from referenz x
                             where x.mandant_id = ${mandantId} and x.titel = ${r.titel})
@@ -203,6 +225,33 @@ interface Anlage {
   readonly veroeffentlicht: boolean;
 }
 
+/**
+ * **Der Seed setzt denselben Mandantenkontext wie `withTenant`.**
+ *
+ * Seit 0163 haengt vor `beitrag` ein Riegel: „freigegeben", „geplant" und
+ * „veroeffentlicht" verlangen eine GENEHMIGTE Freigabe fuer
+ * `social_veroeffentlichen`, und der Ausloeser fragt das ueber
+ * `app.freigabe_genehmigt` — einen Definer, dessen Policy auf `freigabe`
+ * `mandant_id = app.aktiver_mandant()` verlangt. Der Seed laeuft als
+ * Eigentuemer und umgeht RLS fuer die EIGENEN Anweisungen; der Definer darin
+ * tut das nicht. Ohne diese beiden GUCs saehe er null Zeilen und der Riegel
+ * schloesse — richtig herum, aber mitten im Seed.
+ *
+ * `set_config(..., true)` ist transaktionslokal: die Einstellung verlaesst
+ * diese eine Transaktion nicht und kann keiner spaeteren Anweisung auf
+ * derselben Verbindung einen fremden Mandanten unterschieben.
+ */
+async function imMandanten<T>(
+  sql: postgres.Sql, mandantId: string,
+  fn: (tx: postgres.TransactionSql) => Promise<T>,
+): Promise<T> {
+  return sql.begin(async (tx) => {
+    await tx`select set_config('app.scope', 'mandant', true),
+                    set_config('app.mandant_id', ${mandantId}, true)`;
+    return fn(tx);
+  }) as Promise<T>;
+}
+
 async function legeAn(
   sql: postgres.Sql, mandantId: string, a: Anlage,
 ): Promise<number> {
@@ -246,12 +295,52 @@ async function legeAn(
     freigabeId = f?.id ?? null;
   }
 
-  await sql`
+  const [b] = await imMandanten(sql, mandantId, (tx) => tx<{ id: string }[]>`
     insert into beitrag (mandant_id, titel, text, art, status, freigabe_id,
                          geplant_fuer, veroeffentlicht_am)
     values (${mandantId}, ${a.titel}, ${a.text}, ${a.art}::beitrag_art,
             ${a.status}::beitrag_status, ${freigabeId},
-            ${a.geplantFuer === null ? null : sql`now() + interval '3 days'`},
-            ${a.veroeffentlicht ? sql`now() - interval '4 days'` : null})`;
+            ${a.geplantFuer === null ? null : tx`now() + interval '3 days'`},
+            ${a.veroeffentlicht ? tx`now() - interval '4 days'` : null})
+    returning id`);
+  if (b !== undefined) await verknuepfeKanaele(sql, mandantId, b.id, a);
   return 1;
+}
+
+/**
+ * **Wohin der Beitrag sollte — und was daraus wurde.**
+ *
+ * Ohne diese Zeilen ist „Wohin er geht" auf JEDEM Beitragsbildschirm leer, die
+ * Kanalbilanz der Statistik steht ueberall auf null, und der Satz „liegen
+ * geblieben: 0" behauptet einen Erfolg, den es nie gab. Der Seed legte die
+ * fuenf Kanaele an und verband keinen einzigen Beitrag damit.
+ *
+ * **Das Ergebnis wird nicht erfunden.** Kein Kanal ist verbunden (O-10), also
+ * ist das einzig moegliche Ergebnis `nicht_verbunden` — mit genau der Meldung,
+ * die der Adapter erzeugt haette. Ein `veroeffentlicht` hier waere der
+ * vorgetaeuschte externe Aufruf, den CLAUDE.md verbietet: der Bildschirm sagte
+ * dann, ein Beitrag stehe auf Instagram, und dort stuende nichts.
+ *
+ * Nur ein Beitrag, der wirklich hinausging (`veroeffentlicht`), traegt diesen
+ * Versuch; ein Entwurf hat noch nichts versucht, also steht sein Kanal auf
+ * `offen`.
+ */
+async function verknuepfeKanaele(
+  sql: postgres.Sql, mandantId: string, beitragId: string, a: Anlage,
+): Promise<void> {
+  const kanaele = await sql<{ id: string; plattform: Plattform }[]>`
+    select id, plattform::text as plattform from social_kanal
+     where mandant_id = ${mandantId} order by sortierung limit 2`;
+
+  for (const k of kanaele) {
+    const versucht = a.veroeffentlicht;
+    await sql`
+      insert into beitrag_kanal (mandant_id, beitrag_id, kanal_id, ergebnis,
+                                 meldung, versuche)
+      values (${mandantId}, ${beitragId}, ${k.id},
+              ${versucht ? 'nicht_verbunden' : 'offen'}::kanal_ergebnis,
+              ${versucht ? new NichtVerbundenePlattform(k.plattform, {}).hinweis : null},
+              ${versucht ? 1 : 0})
+      on conflict (mandant_id, beitrag_id, kanal_id) do nothing`;
+  }
 }
