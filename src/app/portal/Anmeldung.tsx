@@ -1,4 +1,5 @@
 import { devFlaechenAn } from '@/lib/dev-flaechen';
+import { keksSicher } from '@/server/auth/sitzung';
 
 /**
  * Was eine Portalseite ohne Sitzung zeigt.
@@ -21,6 +22,11 @@ import { devFlaechenAn } from '@/lib/dev-flaechen';
  * dass es fuer ihn keinen Weg gebe.
  */
 export function AnmeldungNoetig({ keksAbgelehnt = false }: { readonly keksAbgelehnt?: boolean } = {}) {
+  /*
+   * Aus DERSELBEN Quelle wie der Keks selbst — nicht aus einer Annahme
+   * darueber, was in der Auslieferung wohl gilt.
+   */
+  const sicher = keksSicher();
   return (
     <main className="mx-auto flex w-full max-w-form flex-col gap-s4 p-s6">
       <h1 className="text-h1 text-text">Anmeldung erforderlich</h1>
@@ -40,10 +46,34 @@ export function AnmeldungNoetig({ keksAbgelehnt = false }: { readonly keksAbgele
           className="rounded-md border border-warning bg-warning-soft p-s4 text-sm text-warning"
         >
           <strong>Die Anmeldung hat geklappt — der Browser hat die Sitzung nicht behalten.</strong>{' '}
-          Das passiert über eine unverschlüsselte Adresse: der Sitzungskeks verlangt{' '}
-          <span className="font-mono">https://</span>. Rufen Sie die Plattform über ihre
-          https-Adresse auf und melden Sie sich erneut an. Sind Cookies im Browser abgeschaltet,
-          schalten Sie sie für diese Adresse ein.
+          {/*
+            * **Der Satz muss zu den Keksen passen, die diese Installation
+            * wirklich setzt.**
+            *
+            * Hier stand unbedingt „der Sitzungskeks verlangt https://". Das
+            * stimmt, solange er `Secure` traegt — und seit D-541 haengt das
+            * an `keksSicher()` und nicht mehr an `NODE_ENV`. Auf einer
+            * Vorfuehrflaeche traegt er es NICHT, und dann schickt dieser Satz
+            * jemanden auf die Suche nach einer https-Adresse, die es gar
+            * nicht gibt, waehrend die wirkliche Ursache eine ganz andere ist.
+            * Eine falsche Fehlerdiagnose kostet mehr Zeit als gar keine.
+            */}
+          {sicher ? (
+            <>
+              Das passiert über eine unverschlüsselte Adresse: der Sitzungskeks verlangt{' '}
+              <span className="font-mono">https://</span>. Rufen Sie die Plattform über ihre
+              https-Adresse auf und melden Sie sich erneut an. Sind Cookies im Browser
+              abgeschaltet, schalten Sie sie für diese Adresse ein.
+            </>
+          ) : (
+            <>
+              Diese Installation setzt den Sitzungskeks ohne{' '}
+              <span className="font-mono">Secure</span>, an der Adresse liegt es also
+              nicht. Bleibt: Cookies sind für diese Adresse abgeschaltet, oder das Fenster
+              ist ein privates. Schalten Sie Cookies ein oder öffnen Sie ein gewöhnliches
+              Fenster und melden Sie sich erneut an.
+            </>
+          )}
         </p>
       )}
       <p className="text-base text-text-muted">

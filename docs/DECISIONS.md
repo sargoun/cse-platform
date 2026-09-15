@@ -10857,3 +10857,26 @@ Vier Zusicherungen schliessen das:
    der einzige Weg, der von D-541 hätte rot werden können: die Suite läuft über
    `localhost`, und Loopback ist für Browser ein sicherer Kontext, der
    `Secure`-Kekse annimmt. Der Kopf verrät die Attribute unabhängig vom Host.
+
+### D-544 · Eine falsche Fehlerdiagnose kostet mehr Zeit als gar keine
+
+Der Warnkasten aus D-488 sagte unbedingt: „der Sitzungskeks verlangt
+`https://`". Das stimmte, solange `Secure` an `NODE_ENV` hing. Seit D-541 hängt
+es an `keksSicher()` — und auf einer Vorführfläche trägt der Keks es **nicht**.
+Dort schickte der Satz jemanden auf die Suche nach einer https-Adresse, die es
+gar nicht gibt, während die wirkliche Ursache (Cookies gesperrt, privates
+Fenster) unerwähnt blieb.
+
+Der Text kommt jetzt aus derselben Quelle wie der Keks selbst. Das ist die
+allgemeine Regel hinter dem Einzelfall: **ein Bildschirm, der eine Ursache
+nennt, muss sie von der Stelle lesen, die sie erzeugt** — nicht von einer
+Annahme darüber, was in der Auslieferung wohl gilt. Sonst wird aus einer
+Hilfestellung eine Fehlleitung, und zwar genau dann, wenn jemand sie braucht.
+
+**Offen, bewusst nicht geändert:** das Routenregister führt
+`/auth/mitarbeiter/code` als `bewachung: sitzung`. Die Seite hat keine Sitzung,
+sondern einen kurzlebigen Keks. Die Angabe ist ungenau, hat hier aber keine
+Laufzeitwirkung (`pruefeZugang` erreicht diesen Zweig nur mit vorhandener
+Sitzung, und die Seite ruft es gar nicht). Sie zu ändern hiesse, die
+Quellspezifikation anzufassen, aus der das Register erzeugt wird — das gehört
+in einen eigenen Durchgang und nicht in eine Fehlerbehebung.
