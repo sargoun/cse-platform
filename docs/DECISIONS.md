@@ -11607,3 +11607,26 @@ die jede Prüfung für gedeckt hielt: die Seite war gebaut, der Dienst getestet,
 die Route im Manifest. Was fehlte, war jemand, der sie **öffnet**. Ein Rundgang
 durch alle Adressen kostet drei Minuten und hat gefunden, was zwei Suiten mit
 zusammen 3900 Fällen nicht gesehen haben.
+
+
+### D-564 · Zwei Register, dieselben Schlüssel — und der Nachtrag zu D-561
+
+`navigationsRechte` wurde mit `[...NAVIGATION, ...GRUPPEN_NAVIGATION]`
+gefüllt. Beide Register benutzen dieselben Schlüssel — `objekte`, `auftraege`,
+`rechnungen`, `dokumente`, `dienstplan`, `freigaben`, `agenten`, `berichte` —
+mit **verschiedenen Rechten**: `objekt.lesen` gegen `gruppe.objekt.lesen`. Der
+zweite Durchlauf überschrieb damit den ersten, und eine `leitung` im Mandanten
+verlor jeden Punkt, dessen GRUPPEN-Recht sie nicht hält: das `Mehr`-Blatt am
+Telefon war um acht Ziele ärmer.
+
+Gefunden hat es `crm.spec.ts` — ein Fall, der genau nach einem dieser Punkte
+sucht, und der seit D-561 zweimal rot war, bevor die Meldung gelesen wurde.
+
+**Die Lehre.** D-561 hat richtig erkannt, dass die Gruppenansicht eigene Ziele
+braucht, und daraus den falschen Schluss gezogen, dass beide Listen in dieselbe
+Karte gehören. Eine Sitzung ist entweder im Gruppen-Scope oder nicht; die Karte
+beantwortet **eine** Frage („darf diese Sitzung diesen Punkt sehen"), und die
+Antwort hängt am Scope. Gefragt wird deshalb die Liste, die zur Sitzung gehört.
+
+Zwei Namensräume in einer Karte zusammenzuführen ist immer eine stille
+Entscheidung darüber, wer gewinnt — und der Gewinner steht nirgends.

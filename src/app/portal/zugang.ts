@@ -292,8 +292,24 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
      * er nicht zeigen darf. Gemerkt haette man es nie, denn ein sichtbarer
      * Punkt zu viel sieht aus wie ein vollstaendiges Menue.
      */
+    /**
+     * **Die Liste haengt am SCOPE, und beide zusammenzuwerfen war ein
+     * Fehler.**
+     *
+     * Hier stand `[...NAVIGATION, ...GRUPPEN_NAVIGATION]`. Beide Register
+     * benutzen dieselben Schluessel — `objekte`, `auftraege`, `rechnungen`,
+     * `dokumente`, `dienstplan`, `freigaben`, `agenten`, `berichte` — mit
+     * VERSCHIEDENEN Rechten: `objekt.lesen` gegen `gruppe.objekt.lesen`. Der
+     * zweite Durchlauf ueberschrieb damit den ersten, und eine `leitung` im
+     * Mandanten verlor jeden Punkt, dessen Gruppenrecht sie nicht haelt — das
+     * `Mehr`-Blatt am Telefon war um acht Ziele aermer. Gefunden hat es
+     * `crm.spec.ts`, das genau diesen Punkt sucht.
+     *
+     * Eine Sitzung ist entweder im Gruppen-Scope oder nicht. Gefragt wird
+     * deshalb die Liste, die zu ihr gehoert — und nicht beide in eine Karte.
+     */
     const navigationsRechte: Record<string, boolean> = {};
-    for (const n of [...NAVIGATION, ...GRUPPEN_NAVIGATION]) {
+    for (const n of sitzung.ansicht === 'gruppe' ? GRUPPEN_NAVIGATION : NAVIGATION) {
       navigationsRechte[n.schluessel] = gehalten.has(n.recht) && frei(n.recht);
     }
 
