@@ -50,6 +50,31 @@ function pfadVon(datei: string): string {
   return relative(join(WURZEL, 'src/app'), datei).replace(/\/route\.tsx?$/u, '');
 }
 
+const AUFRUF = /\bauthorize\s*\(/u;
+
+/**
+ * Ruft diese Datei `authorize` — selbst oder in einem Modul, das sie
+ * relativ importiert?
+ *
+ * Genau EINE Ebene tief. Zwei wären eine Suche, und eine Suche findet
+ * irgendwann irgendwo ein `authorize` und nennt die Route bewacht.
+ */
+function rueftAuthorize(datei: string): boolean {
+  const quelle = readFileSync(datei, 'utf8');
+  if (AUFRUF.test(quelle)) return true;
+  const ordner = resolve(datei, '..');
+  for (const treffer of quelle.matchAll(/from\s+'(\.[^']*)'/gu)) {
+    const ziel = resolve(ordner, treffer[1] ?? '');
+    for (const endung of ['.ts', '.tsx', '/index.ts', '/index.tsx']) {
+      const kandidat = `${ziel}${endung}`;
+      try {
+        if (AUFRUF.test(readFileSync(kandidat, 'utf8'))) return true;
+      } catch { /* kein solcher Nachbar — der naechste Kandidat. */ }
+    }
+  }
+  return false;
+}
+
 describe('(5) jede Route ist im Manifest, und jede im Manifest existiert', () => {
   const dateien = routenDateien(APP);
 
@@ -83,11 +108,43 @@ describe('(5) jede Route ist im Manifest, und jede im Manifest existiert', () =>
   it('eine geschützte Route ruft `authorize` auch wirklich auf', () => {
     // Das Manifest sagt, welches Recht gilt; diese Prüfung sagt, dass der
     // Handler es benutzt. Ein Eintrag ohne Aufruf wäre eine Behauptung.
+    //
+    // **Ein Gerüst zählt mit — aber nur, wenn es wirklich prüft.** Vier
+    // Routen desselben Moduls teilen sich Ursprungsprüfung, Sitzung,
+    // `authorize` und Transaktion; vier Kopien davon wären vier Stellen, an
+    // denen beim nächsten Umbau eine fehlt. Deshalb folgt die Prüfung den
+    // RELATIVEN Importen der Route eine Ebene tief und akzeptiert den Aufruf
+    // dort. Das ist strenger als eine Ausnahmeliste: eine Liste glaubt der
+    // Begründung, das hier liest den Code.
     for (const r of ROUTEN) {
       if (r.recht === null) continue;
       const datei = dateien.find((d) => pfadVon(d) === r.pfad);
       expect(datei, r.pfad).toBeDefined();
-      expect(readFileSync(datei!, 'utf8'), r.pfad).toMatch(/\bauthorize\s*\(/u);
+      expect(rueftAuthorize(datei!), `${r.pfad}: weder die Route noch ein von ihr `
+        + 'importiertes Gerüst ruft authorize()').toBe(true);
+    }
+  });
+
+  /**
+   * **Die Gegenprobe zur Lockerung darueber.**
+   *
+   * Eine Pruefung, die Importen folgt, ist nur so viel wert wie ihr Nein.
+   * Ohne diesen Fall koennte `rueftAuthorize` schlicht `true` zurueckgeben
+   * und beide Tests waeren gruen — und keine Route mehr bewacht.
+   *
+   * Genommen werden die OFFENEN Routen: sie tragen `recht: null`, rufen
+   * `authorize` bewusst nicht, und keine von ihnen darf durch einen
+   * Nachbarn hineinrutschen.
+   */
+  it('und sie sagt auch Nein — eine offene Route gilt nicht als bewacht', () => {
+    const offene = ROUTEN.filter((r) => r.recht === null)
+      .map((r) => dateien.find((d) => pfadVon(d) === r.pfad))
+      .filter((d): d is string => d !== undefined);
+    expect(offene.length, 'ohne offene Route prueft dieser Fall nichts')
+      .toBeGreaterThan(0);
+    for (const datei of offene) {
+      expect(rueftAuthorize(datei), `${pfadVon(datei)} traegt recht: null und `
+        + 'darf nicht als bewacht gelten').toBe(false);
     }
   });
 

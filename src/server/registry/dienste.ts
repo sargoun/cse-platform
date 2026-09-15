@@ -1007,6 +1007,18 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'kalender', pfad: 'kalender/ical', schreibend: false },
   { modul: 'kalender', pfad: 'kalender/fenster', schreibend: false },
   { modul: 'kalender', pfad: 'kalender/tagesraster', schreibend: false },
+  /**
+   * **Das Social Media Center (SOC-01…SOC-08) — einer schreibt, zwei nicht.**
+   *
+   * `weg` ist die Zustandsregel ohne jeden Zugriff, `port` der Vertrag mit
+   * den fremden Plattformen. `dienst` legt an, legt vor, plant und
+   * veroeffentlicht — und traegt deshalb `social.schreiben`. Damit ist
+   * `/portal/gruppe/social` lesend moeglich und schreibend nicht
+   * (Invariante 10); `gruppenansicht.test.ts` liest genau dieses Register.
+   */
+  { modul: 'social', pfad: 'social/weg', schreibend: false },
+  { modul: 'social', pfad: 'social/port', schreibend: false },
+  { modul: 'social', pfad: 'social/dienst', schreibend: true, schreibRecht: 'social.schreiben' },
   /*
    * **Der Feed-Zugang steht NICHT hier, und das ist kein Vergessen.**
    *

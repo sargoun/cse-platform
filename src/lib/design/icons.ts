@@ -39,6 +39,17 @@ export const ICON_PFADE = {
   eingang: 'M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8zM14 3v5h5M12 11v6M9.5 14.5 12 17l2.5-2.5',
   buch: 'M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 19a2 2 0 0 1 2-2h13M8 7h7M8 10.5h7',
   bank: 'M3 10l9-6 9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18',
+  /**
+   * SOC-01 — ein Knotengraph: ein Punkt, der sich auf zwei verzweigt.
+   *
+   * Bewusst weder `export` noch `mail`. `export` ist eine Datei, die zu
+   * einer Maschine geht; `mail` ist EINE Nachricht an EINEN Empfaenger;
+   * `social` ist derselbe Text an mehrere Oeffentlichkeiten zugleich —
+   * und genau das ist der Grund, warum er eine eigene Freigabe braucht.
+   * Ein Plattformlogo kommt nie in Frage: fremde Marke, kein
+   * `currentColor`, und es behauptete eine Verbindung, die es nicht gibt.
+   */
+  social: 'M7 12a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM22 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM22 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM6.9 10.8l10.3-3.6M6.9 13.2l10.3 3.6',
   dienstplan: 'M3 5h18v16H3zM3 10h18M8 3v4M16 3v4M8 14h2M8 17h2M14 14h2M14 17h2',
   zeit: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3.5 2',
   personal: 'M8 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1M16.5 11.5a3 3 0 1 0 0-6M18 14.2a5 5 0 0 1 4 4.8V20',

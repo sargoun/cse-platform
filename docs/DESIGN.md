@@ -380,12 +380,20 @@ ausschreibung · ki · heute · kalender · uhr · standort · telefon · mail �
 glocke · suche · filter · plus · export · import · pfeil-rechts · pfeil-runter ·
 chevron-rechts · menue · schliessen · schloss · auge · stift · papierkorb ·
 warnung · ok · fehler · info · gruppe · person · euro · reinigung · security ·
-qualitaet · eingang · buch · bank`
+qualitaet · eingang · buch · bank · social`
 
 `glocke` is the notification inbox (NOT-01) and **not** `mail`: the two sit in
 the same header and mean different things — `mail` is a message a person
 wrote, `glocke` is what the system noticed. Two items on the same envelope
 read as one item, which is the rule right below.
+
+`social` (SOC-01) is a **node graph** — one point branching to two — and
+deliberately neither `export` nor `mail`. `export` is a file leaving for a
+machine; `mail` is one message to one named recipient; `social` is the same
+text going to several audiences at once, which is exactly what makes it worth
+its own approval step. No platform logo is ever used: a Meta or LinkedIn mark
+is someone else's trademark, it cannot take `currentColor`, and it would claim
+a connection the platform does not have (SOC-07).
 
 **No two navigation items share a glyph.** A sidebar is scanned by shape;
 four items on the same export arrow read as one item. `reinigung`,

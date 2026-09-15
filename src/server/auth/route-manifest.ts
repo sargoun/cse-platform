@@ -1182,6 +1182,30 @@ export const ROUTEN: readonly RouteEintrag[] = [
   { pfad: 'api/freigaben', recht: 'freigabe.lesen' },
   { pfad: 'api/freigaben/[id]', recht: 'freigabe.lesen' },
   { pfad: 'api/freigaben/[id]/entscheidung', recht: 'freigabe.entscheiden' },
+  /**
+   * Das Social Media Center (PR 78, SOC-01…SOC-08).
+   *
+   * **Vier Routen, zwei Rechte — und die Grenze liegt nicht beim Aufwand,
+   * sondern bei der Oeffentlichkeit.** Anlegen und Bearbeiten aendern einen
+   * Entwurf, den ausser der Redaktion niemand sieht: `social.schreiben`.
+   * Planen und Veroeffentlichen bringen denselben Text nach draussen, wo
+   * ihn niemand zurueckholt: `social.planen`. Wer schreiben darf, darf
+   * damit nicht schon senden — dieselbe Trennung wie zwischen Entscheiden
+   * und Stapel-Entscheiden darueber.
+   *
+   * `schritt` traegt beides: die Route waehlt je Schritt und prueft das
+   * genaue Recht selbst. Hier steht das SCHWAECHERE als Torpruefung; ein
+   * Vorlegen soll nicht am Planungsrecht scheitern.
+   *
+   * Freigeben und Ablehnen stehen NICHT hier: sie fallen im
+   * Freigabe-Posteingang (`freigabe.entscheiden`), und der Beitrag folgt
+   * seiner Freigabe ueber den Trigger aus `0163`. Ein zweiter Weg zur
+   * selben Entscheidung waere einer zu viel (SOC-08).
+   */
+  { pfad: 'api/social/beitraege', recht: 'social.schreiben' },
+  { pfad: 'api/social/beitraege/[id]', recht: 'social.schreiben' },
+  { pfad: 'api/social/beitraege/[id]/schritt', recht: 'social.schreiben' },
+  { pfad: 'api/social/beitraege/[id]/planung', recht: 'social.planen' },
 ] as const;
 
 /** Die Routen, die ein Recht verlangen. */

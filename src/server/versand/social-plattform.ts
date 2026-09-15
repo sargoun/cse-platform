@@ -15,10 +15,10 @@ import {
  * echten Anbieters genau einmal umsonst grün.
  *
  * **Was hier NICHT steht.** Kein `fetch` mit einer erratenen Adresse, keine
- * Warteschlange, kein Wiederholen. Solange O-502 offen ist, gibt es keinen
- * Anbieter, keine App-Registrierung und keinen Auftragsverarbeitungsvertrag —
- * und ein Adapter, der so tut, als gaebe es sie, ist genau die Simulation, die
- * SOC-07 verbietet.
+ * Warteschlange, kein Wiederholen. Solange O-10 offen ist, gibt es kein Konto,
+ * keine App-Registrierung und keinen Auftragsverarbeitungsvertrag — und ein
+ * Adapter, der so tut, als gaebe es sie, ist genau die Simulation, die SOC-07
+ * verbietet.
  */
 
 /**
@@ -74,7 +74,7 @@ export class NichtVerbundenePlattform implements SocialKanalPort {
     const fehlt = fehlendeSchluessel(plattform, umgebung);
     this.hinweis = `${PLATTFORM_NAME[plattform]}: nicht verbunden — `
       + `es fehlen ${fehlt.join(' und ')}. Ohne App-Registrierung und `
-      + 'Auftragsverarbeitungsvertrag geht kein Beitrag hinaus (O-502).';
+      + 'Auftragsverarbeitungsvertrag geht kein Beitrag hinaus (O-10).';
   }
 
   veroeffentliche(auftrag: BeitragAuftrag): Promise<Veroeffentlicht> {
@@ -89,8 +89,8 @@ export class NichtVerbundenePlattform implements SocialKanalPort {
  * Heute immer `NichtVerbundenePlattform` — und die Verzweigung steht trotzdem
  * schon hier, weil sie die Stelle ist, an die der erste echte Adapter kommt.
  *
- * // TODO(client): O-502 — welche Plattformkonten gehoeren welcher
- * // Gesellschaft, wer ist dort Administrator, und liegt fuer jede ein
+ * // TODO(client): O-10 — welche Plattformkonten gehoeren welcher
+ * // Gesellschaft, wer ist dort Administrator, und liegt fuer jedes ein
  * // Auftragsverarbeitungsvertrag vor? Ohne Antwort bleibt jeder Kanal
  * // unverbunden; ein geratenes Konto veroeffentlichte im Namen der falschen
  * // Firma.

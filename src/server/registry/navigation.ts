@@ -130,6 +130,22 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    */
   { schluessel: 'freigaben', label: 'Freigaben', pfad: 'freigaben', recht: 'freigabe.lesen', gruppe: false, icon: 'freigabe' },
   /**
+   * `social` — das Social Media Center (SOC-01, PR 78).
+   *
+   * **Das Recht ist `social.schreiben` und nicht `social.lesen`** — und das
+   * ist kein Versehen: die Seitenkarte bewacht `/portal/[mandant]/social`
+   * genau damit (`routen.generiert.ts`). Stuende hier das Leserecht, saehe
+   * ein Konto, das nur lesen darf, den Punkt und bekaeme dahinter einen
+   * 403 — derselbe Befund wie damals bei `dienstplan`, nur an der
+   * Rechte- statt an der Pfadseite. Heute halten dieselben drei Rollen
+   * beide Rechte; die Gleichheit ist eine Konfiguration und keine Regel,
+   * und darauf soll die Sidebar sich nicht verlassen.
+   *
+   * `gruppe: true`: die Gruppenansicht LIEST mit (`gruppe.social.lesen`),
+   * schreibt aber nie — die Policies in 0163 halten das fest.
+   */
+  { schluessel: 'social', label: 'Social Media', pfad: 'social', recht: 'social.schreiben', gruppe: true, icon: 'social' },
+  /**
    * `bau/projekte`, nicht `bau`: die Seitenkarte fuehrt zwar beides, aber die
    * Modulübersicht ist eine Phase-5-Seite ohne Inhalt, solange Nachträge,
    * Behinderungen und Bautagebuch fehlen (PR 44/45). Der Punkt zeigt deshalb
