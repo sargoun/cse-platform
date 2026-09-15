@@ -69,6 +69,63 @@ Danach: <http://localhost:3001> (oeffentliche Website) und
 
 ---
 
+## 1a. Wer sich wie anmeldet
+
+**Verwaltung, Leitung, Kunde — `/auth/login`**, Kennwort fuer alle:
+`demo-cse-2026`.
+
+| E-Mail | Rolle | sieht |
+|---|---|---|
+| `admin@cse-gruppe.de` | super_admin | Gruppensicht und alle vier Gesellschaften |
+| `leitung.reinigung@cse-gruppe.de` | leitung | CSE Dienstleistungen |
+| `leitung.bau@cse-gruppe.de` | leitung | REALTIME Service |
+| `leitung.security@cse-gruppe.de` | leitung | SSE Security |
+| `admin.reinigung@cse-gruppe.de` | admin | Verwaltung der Reinigung |
+| `kunde.demo@example.test` | kunde | Kundenportal |
+
+Die `admin`- und `super_admin`-Konten laufen in den zweiten Faktor (2FA ist fuer
+sie Pflicht). **Der kuerzeste Weg hinein ist deshalb `leitung.*`.**
+
+**Beschaeftigte — `/auth/mitarbeiter`, Mobilnummer und Einmalcode, KEIN
+Kennwort** (EMP-01). Die Nummern der Demopersonen stehen auf
+<http://localhost:3001/dev/anmelden>; ohne SMS-Gateway (O-82) erscheint der Code
+dort auf dem Bildschirm, wo sonst die SMS ankaeme.
+
+| Nummer | Mensch | besonders |
+|---|---|---|
+| `0170 1000000` | Fatima Yildiz | ein Mensch, ZWEI Gesellschaften (D-09) |
+| `0170 1000002` | Amir Haddad | dieselbe Oberflaeche auf Arabisch (EMP-12) |
+
+Die nationale Schreibweise mit fuehrender Null ist die richtige — sie wird auf
+E.164 normalisiert, bevor verglichen wird. Der Rest der Seed-Personen hat
+absichtlich keinen Portalzugang; ihre Nummern fuehren auf die Codeseite und
+dort nicht weiter (D-543).
+
+---
+
+## 1b. `CSE_DEV_FLAECHEN=1` ist nicht optional — sonst kommt das Telefon nicht rein
+
+Die Flagge steht oben in derselben Zeile wie `DATABASE_URL`, und sie entscheidet
+mehr, als ihr Name sagt:
+
+- sie legt die **Demodaten** an (ohne sie bleibt der Seed bei der Struktur),
+- sie zeigt den **Einmalcode auf dem Bildschirm**, solange kein SMS-Gateway
+  verbunden ist,
+- sie oeffnet **`/dev/anmelden`**,
+- und seit D-541 entscheidet sie, ob die Anmeldekekse **`Secure`** tragen.
+
+Der letzte Punkt ist der, an dem eine Anmeldung am Telefon frueher unmoeglich
+war. `pnpm start` setzt `NODE_ENV=production`; das Telefon erreicht den Rechner
+aber ueber `http://192.168.x.x`, und einen `Secure`-Keks verwirft dort **jeder**
+Browser (RFC 6265bis §5.5). Ohne die Flagge kommt man auf einem Telefon im
+eigenen Netz also nicht hinein — nicht weil etwas kaputt ist, sondern weil die
+Verbindung unverschluesselt ist. Die Anmeldeseite sagt das inzwischen auch hin.
+
+**Produktiv gilt das Gegenteil:** dort steht die Flagge NICHT, die Kekse tragen
+`Secure` und den `__Host-`-Namen, und die Plattform gehoert hinter HTTPS.
+
+---
+
 ## 2. Die Reihenfolge ist kein Zufall
 
 | Schritt | Warum er nicht verschoben werden darf |
