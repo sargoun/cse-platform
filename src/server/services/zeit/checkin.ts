@@ -15,7 +15,7 @@
  * gerechnet — sonst gaebe es zwei Zahlen fuer eine Tatsache.
  */
 import { createHash } from 'node:crypto';
-import type { SchreibKontext } from '../../kontext/index.js';
+import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { withCheckin } from '../../kontext/checkin.js';
 import type { Transaktion } from '../../kontext/index.js';
 
@@ -235,4 +235,97 @@ export async function gibCheckinAus(
     throw new Error('app.checkin_ausgeben hat keine Marke geliefert.');
   }
   return marke;
+}
+
+/**
+ * **Wer eine Marke hat, wer sie benutzt hat — und wer keine hat.**
+ *
+ * Die Zeile ist die EINTEILUNG, nicht die Marke. Das ist der Unterschied, auf
+ * den es ankommt: der Planer fragt „wer kommt morgen an den Hackeschen Markt
+ * und kann dort stempeln", nicht „welche Marken existieren". Eine Liste der
+ * Marken beantwortet die zweite Frage und verschweigt die erste — und genau
+ * die Einteilung OHNE Marke ist die, bei der jemand vor der Tuer steht und
+ * nicht einchecken kann.
+ *
+ * `linksAussen` (`left join`) deshalb, und nicht `join`.
+ */
+export interface CheckinZeile {
+  readonly zuordnungId: string;
+  readonly person: string;
+  readonly objekt: string | null;
+  readonly beginn: Date;
+  readonly ende: Date;
+  /** `null` heisst: fuer diese Einteilung gibt es keine lebende Marke. */
+  readonly tokenId: string | null;
+  readonly zweck: TokenZweck | null;
+  readonly ausgegebenAm: Date | null;
+  readonly ausgabeKanal: string | null;
+  readonly eingeloestAm: Date | null;
+  readonly widerrufenAm: Date | null;
+  readonly widerrufGrund: string | null;
+  readonly gueltigBis: Date | null;
+}
+
+export interface CheckinFenster {
+  /** Wie viele Tage nach vorn — der Planer plant die Woche, nicht das Jahr. */
+  readonly tage?: number;
+}
+
+/**
+ * Die Einteilungen des Fensters mit ihrer JEWEILS JUENGSTEN Marke.
+ *
+ * `distinct on` statt `max()`: gebraucht wird die ganze Zeile der juengsten
+ * Marke (Zweck, Kanal, Einloesung, Widerruf), nicht ihr Zeitpunkt. Eine
+ * Unterabfrage je Spalte waere dieselbe Antwort in fuenf Abfragen.
+ */
+export async function listeCheckinZeilen(
+  kontext: LeseKontext, fenster: CheckinFenster = {},
+): Promise<readonly CheckinZeile[]> {
+  const tage = fenster.tage ?? 7;
+  return kontext.abfrage<CheckinZeile>(
+    `select ez.id                       as "zuordnungId",
+            trim(p.vorname || ' ' || p.nachname) as person,
+            o.name                      as objekt,
+            ez.beginn_zeitpunkt         as beginn,
+            ez.ende_zeitpunkt           as ende,
+            t.id                        as "tokenId",
+            t.zweck::text               as zweck,
+            t.erstellt_am               as "ausgegebenAm",
+            t.ausgabe_kanal             as "ausgabeKanal",
+            t.eingeloest_am             as "eingeloestAm",
+            t.widerrufen_am             as "widerrufenAm",
+            t.widerruf_grund            as "widerrufGrund",
+            t.gueltig_bis               as "gueltigBis"
+       from einsatz_zuordnung ez
+       join person p on p.id = ez.person_id
+       join einsatz e on e.mandant_id = ez.mandant_id and e.id = ez.einsatz_id
+       left join objekt o on o.id = e.objekt_id
+       left join lateral (
+         select ct.* from checkin_token ct
+          where ct.einsatz_zuordnung_id = ez.id
+          order by ct.erstellt_am desc
+          limit 1
+       ) t on true
+      where ez.entfernt_am is null
+        and ez.ende_zeitpunkt   >= now() - interval '1 day'
+        and ez.beginn_zeitpunkt <= now() + ($1 || ' days')::interval
+      order by ez.beginn_zeitpunkt, person
+      limit 200`,
+    [String(tage)]);
+}
+
+/**
+ * Widerruft eine Marke, die noch nicht eingeloest ist.
+ *
+ * `false` heisst „nichts getan" und ist KEIN Fehler: die Marke gibt es nicht,
+ * sie ist schon eingeloest oder schon widerrufen. Ein Orakel daraus zu machen
+ * waere dieselbe Auskunft, die AUT-06 verbietet — der Bildschirm sagt danach
+ * ohnehin, was jetzt gilt, weil er neu laedt.
+ */
+export async function widerrufeCheckin(
+  kontext: SchreibKontext, tokenId: string, grund: string,
+): Promise<boolean> {
+  const [z] = await kontext.schreibe<{ ok: boolean }>(
+    `select app.checkin_widerrufen($1::uuid, $2) as ok`, [tokenId, grund]);
+  return z?.ok === true;
 }
