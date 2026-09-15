@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Die CSE-Plattform auf einem Windows-Rechner starten — ein Befehl.
+  Die CSE-Plattform auf einem Windows-Rechner starten -- ein Befehl.
 
 .DESCRIPTION
   Der Grund fuer diese Datei ist ein Protokoll: die Anleitung war eine Liste von
@@ -8,13 +8,13 @@
   was eine Liste nicht auffangen kann.
 
    - Ein Server von vorhin hielt Hafen 3001. `pnpm build` brach ab (der
-     Waechter sagte sogar, was zu tun ist) — und die uebrigen Befehle liefen
+     Waechter sagte sogar, was zu tun ist) -- und die uebrigen Befehle liefen
      WEITER, weil PowerShell bei einem Fehler nicht stehenbleibt. Am Ende stand
      `EADDRINUSE`, und der Mensch davor hatte drei Fehlermeldungen, von denen
      nur die erste zaehlte.
    - Beim zweiten Anlauf lief der Seed gegen eine Datenbank, die schon Daten
      hatte. Er ist idempotent, also legte er nichts nach und meldete ueberall
-     `0` — „0 Werkzeugzeilen", „0 Einteilungen", „Social: 0 Kanaele". Das las
+     `0` -- "0 Werkzeugzeilen", "0 Einteilungen", "Social: 0 Kanaele". Das las
      sich wie ein kaputter Seed und war ein gesunder.
 
   Dieses Skript macht beides unmoeglich: es beendet einen laufenden Server
@@ -26,7 +26,7 @@
 
 .PARAMETER DatenBehalten
   Die Datenbank NICHT neu aufsetzen. Dann laeuft der Seed ueber die
-  vorhandenen Daten und meldet ueberall `0` — das ist richtig so, sieht aber
+  vorhandenen Daten und meldet ueberall `0` -- das ist richtig so, sieht aber
   aus wie ein Fehlschlag. Nur benutzen, wenn eigene Eingaben erhalten bleiben
   sollen.
 
@@ -45,14 +45,14 @@ param(
 )
 
 # `Stop` gilt nur fuer PowerShell-Fehler. Externe Programme (pnpm, docker)
-# melden ueber den Rueckgabewert, und den fragt niemand von selbst — deshalb
+# melden ueber den Rueckgabewert, und den fragt niemand von selbst -- deshalb
 # unten `Schritt`.
 $ErrorActionPreference = 'Stop'
 
 $DatenbankUrl = 'postgres://postgres@localhost:5433/postgres'
 $Behaelter    = 'cse-db'
 # Base64 von `TEST-KEY-NICHT-FUER-PRODUKTION`. Gehoert in keine echte
-# Installation — siehe docs/LOKAL-STARTEN.md, Abschnitt 3.
+# Installation -- siehe docs/LOKAL-STARTEN.md, Abschnitt 3.
 $FensterKey   = 'VEVTVC1LRVktTklDSFQtRlVFUi1QUk9EVUtUSU9O'
 
 function Titel($text) {
@@ -69,7 +69,7 @@ function Hinweis($text) { Write-Host "    $text" -ForegroundColor DarkGray }
 function Schritt($beschreibung, [scriptblock] $block) {
   Titel $beschreibung
   # Zuruecksetzen, BEVOR der Block laeuft. `$LASTEXITCODE` haelt den Wert des
-  # letzten NATIVEN Befehls — endet ein Block auf einem Cmdlet, stuende hier
+  # letzten NATIVEN Befehls -- endet ein Block auf einem Cmdlet, stuende hier
   # sonst der Rueckgabewert von irgendwoher, und das Skript braeche an einer
   # Stelle ab, an der nichts schiefging.
   $global:LASTEXITCODE = 0
@@ -82,7 +82,7 @@ function Schritt($beschreibung, [scriptblock] $block) {
   }
 }
 
-# ── Vorbedingungen ────────────────────────────────────────────────────────
+# -- Vorbedingungen --------------------------------------------------------
 foreach ($werkzeug in @('pnpm', 'docker')) {
   if (-not (Get-Command $werkzeug -ErrorAction SilentlyContinue)) {
     Write-Host "  '$werkzeug' ist nicht installiert oder nicht im PATH." -ForegroundColor Red
@@ -99,7 +99,7 @@ Hinweis "DATABASE_URL     = $env:DATABASE_URL"
 Hinweis "CSE_DEV_FLAECHEN = $env:CSE_DEV_FLAECHEN  (Demodaten, Code auf dem Bildschirm, Kekse ohne Secure)"
 Hinweis "PORT             = $env:PORT"
 
-# ── Einen laufenden Server ZUERST beenden ─────────────────────────────────
+# -- Einen laufenden Server ZUERST beenden ---------------------------------
 # Das ist der Schritt, dessen Fehlen das Protokoll oben erzeugt hat.
 Titel "Laeuft schon etwas auf Hafen $Port ?"
 $belegt = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
@@ -116,12 +116,12 @@ if ($belegt) {
     Write-Host ''
     Write-Host "  Auf Hafen $Port antwortet etwas, das NICHT diese Plattform ist." -ForegroundColor Red
     Write-Host "  Es wird nichts beendet, was nicht uns gehoert." -ForegroundColor Red
-    Write-Host "  Entweder das fremde Programm schliessen — oder einen anderen Hafen nehmen:" -ForegroundColor Red
+    Write-Host "  Entweder das fremde Programm schliessen -- oder einen anderen Hafen nehmen:" -ForegroundColor Red
     Write-Host "      .\scripts\windows-start.ps1 -Port 3002" -ForegroundColor Red
     exit 1
   }
 
-  Hinweis 'Ja — ein Server dieses Projekts. Er wird beendet.'
+  Hinweis 'Ja -- ein Server dieses Projekts. Er wird beendet.'
   $belegt | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object {
     Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue
   }
@@ -131,21 +131,21 @@ if ($belegt) {
   Hinweis 'nein, der Hafen ist frei.'
 }
 
-# ── Alten Bau verwerfen ───────────────────────────────────────────────────
+# -- Alten Bau verwerfen ---------------------------------------------------
 Titel 'Alten Bau und Cache verwerfen'
 Remove-Item -Recurse -Force '.next', 'node_modules\.cache' -ErrorAction SilentlyContinue
 Hinweis 'Ein alter Bau haelt geloeschte Routen fest und beantwortet sie weiter.'
 
 Schritt 'Abhaengigkeiten' { pnpm install }
 
-# ── Datenbank ─────────────────────────────────────────────────────────────
+# -- Datenbank -------------------------------------------------------------
 if ($DatenBehalten) {
   Titel 'Datenbank bleibt stehen (-DatenBehalten)'
   Hinweis 'Der Seed legt dann nichts nach und meldet ueberall 0. Das ist richtig,'
   Hinweis 'sieht aber aus wie ein Fehlschlag.'
 } else {
   Titel 'Datenbank frisch aufsetzen'
-  Hinweis 'pgvector/pgvector:pg16 — dasselbe Postgres 16 MIT der Erweiterung `vector`.'
+  Hinweis 'pgvector/pgvector:pg16 -- dasselbe Postgres 16 MIT der Erweiterung `vector`.'
   Hinweis 'Der Wissensindex (0151) braucht sie; mit `postgres:16` bricht db:migrate ab.'
   docker rm -f $Behaelter 2>$null | Out-Null
   docker run -d --name $Behaelter -e POSTGRES_USER=postgres -e POSTGRES_HOST_AUTH_METHOD=trust -p 5433:5432 pgvector/pgvector:pg16 | Out-Null
@@ -154,7 +154,7 @@ if ($DatenBehalten) {
     exit 1
   }
 
-  Hinweis 'warte auf die Datenbank …'
+  Hinweis 'warte auf die Datenbank ...'
   $bereit = $false
   foreach ($versuch in 1..30) {
     Start-Sleep -Seconds 1
@@ -167,7 +167,7 @@ if ($DatenBehalten) {
   }
   Hinweis 'bereit.'
 
-  # MUSS vor dem Seed gesetzt sein: `alter database … set` wirkt erst fuer NEUE
+  # MUSS vor dem Seed gesetzt sein: `alter database ... set` wirkt erst fuer NEUE
   # Verbindungen. Danach gesetzt, kommt der Schluessel fuer diesen Seed zu
   # spaet, und der Besetzungslauf endet mit 0 Einteilungen.
   Schritt 'ArbZG-Fensterschluessel (K-06)' {
@@ -186,13 +186,13 @@ if ($OhneBau) {
 
 Schritt 'Bauen' { pnpm build }
 
-# ── Wo man hineinkommt ────────────────────────────────────────────────────
+# -- Wo man hineinkommt ----------------------------------------------------
 $lan = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
         Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } |
         Select-Object -First 1 -ExpandProperty IPAddress)
 
 Write-Host ''
-Write-Host '  ────────────────────────────────────────────────────────────' -ForegroundColor Green
+Write-Host '  ------------------------------------------------------------' -ForegroundColor Green
 Write-Host '   Bereit.' -ForegroundColor Green
 Write-Host ''
 Write-Host "   Am Rechner   http://localhost:$Port"
@@ -204,8 +204,8 @@ Write-Host '   Beschaeftigte /auth/mitarbeiter   0170 1000000  (Fatima Yildiz)'
 Write-Host '                               Der Code steht danach auf dem Bildschirm.'
 Write-Host '   Alle Rollen  /dev/anmelden  ein Klick, kein Kennwort'
 Write-Host ''
-Write-Host '   Die admin-Konten laufen in den zweiten Faktor — leitung.* ist kuerzer.'
-Write-Host '  ────────────────────────────────────────────────────────────' -ForegroundColor Green
+Write-Host '   Die admin-Konten laufen in den zweiten Faktor -- leitung.* ist kuerzer.'
+Write-Host '  ------------------------------------------------------------' -ForegroundColor Green
 Write-Host ''
 Write-Host '   Zum Beenden: Strg+C' -ForegroundColor DarkGray
 Write-Host ''

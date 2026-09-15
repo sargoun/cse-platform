@@ -283,6 +283,33 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * TIM-07 — die AUSGABE der Check-in-Marke, und ihr Widerruf.
+     *
+     * **Die Haelfte, die gefehlt hat.** Das Einloesen ist seit 0035 komplett;
+     * die Ausgabe hatte genau einen Aufrufer, den Seed. Ohne diese Route kommt
+     * im Betrieb niemand an einen Check-in-Link — und TIM-07 ist der EINZIGE
+     * Weg, auf dem eine Mitarbeiterin ihre Zeit selbst erfasst (EMP-07
+     * verbietet ihr, den Eintrag zu schreiben).
+     *
+     * **Ein Recht fuer beides.** Wer eine Marke ausstellen darf, darf sie auch
+     * zuruecknehmen; eine zweite Berechtigung dafuer waere eine, die niemand
+     * vergibt, und dann stuende der Widerruf still. Die Datenbank prueft
+     * dasselbe Recht ein zweites Mal — und zwar im Mandanten der MARKE, nicht
+     * im aktiven der Sitzung (0164).
+     *
+     * **Der Name sagt `marken`, nicht `zeiten`** — und das ist kein Zufall:
+     * `tests/kern/mitarbeiter.test.ts` laesst unter `api/zeit…` keine Route
+     * zu, weil EMP-07 verbietet, dass irgendein Weg einen Zeiteintrag
+     * AENDERT. Diese Route aendert keinen; sie gibt die Marke aus, aus der
+     * beim Einloesen ein neuer entsteht. Die Wache ist absichtlich stumpf,
+     * und ein Pfad, der sie umgeht, waere eine Ausnahme in der Wache — der
+     * ehrlichere Weg ist ein Name, der sagt, was verwaltet wird.
+     */
+    pfad: 'api/checkin-marken',
+    recht: 'zeit.checkin_verwalten',
+  },
+  {
+    /**
      * Die Entscheidung ueber einen fremden Einwand (EMP-07).
      *
      * `zeit.einwand_entscheiden` und nicht `zeit.schreiben`: wer Zeiten

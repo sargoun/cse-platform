@@ -71,6 +71,43 @@ describe('Das Windows-Startskript', () => {
    */
   const skript = ohnePsKommentare(roh);
 
+  /**
+   * **Reines ASCII — und das ist keine Stilfrage, sondern die Bedingung dafür,
+   * dass die Datei überhaupt läuft.**
+   *
+   * Ein Nutzer bekam beim Start drei Parserfehler, der erste davon auf der
+   * LETZTEN Zeile („Die Zeichenfolge hat kein Abschlusszeichen: '"). Die Datei
+   * war syntaktisch einwandfrei — nur nicht in der Kodierung, in der Windows
+   * PowerShell 5.1 sie liest: ohne BOM nimmt es **ANSI (Windows-1252)**, nicht
+   * UTF-8.
+   *
+   * Ein Geviertstrich `—` ist in UTF-8 `E2 80 94`. Als Windows-1252 gelesen
+   * werden daraus drei Zeichen, und das letzte (`0x94`) ist U+201D — ein
+   * typografisches Anführungszeichen. **PowerShell erkennt die typografischen
+   * Anführungszeichen als Anführungszeichen.** Jeder Gedankenstrich im Skript
+   * öffnete damit eine Zeichenkette, die nie geschlossen wurde; der Parser
+   * meldete das Ende der Datei, und der Mensch davor suchte auf der falschen
+   * Zeile.
+   *
+   * Ein BOM täte es auch. ASCII ist die stärkere Zusicherung: es überlebt
+   * jeden Editor, jedes Entpacken und jedes Kopieren durch ein Fenster, das
+   * die Kodierung nicht kennt.
+   */
+  it('ist reines ASCII — sonst liest Windows PowerShell 5.1 es als ANSI', () => {
+    const fremd = [...roh]
+      .map((z, i) => ({ z, i }))
+      .filter(({ z }) => z.codePointAt(0)! > 127)
+      .slice(0, 10)
+      .map(({ z, i }) => `${z} (U+${z.codePointAt(0)!.toString(16).toUpperCase()}) an ${String(i)}`);
+    expect(
+      fremd,
+      'Ohne BOM liest Windows PowerShell 5.1 die Datei als Windows-1252. Ein '
+      + '`—` wird dabei zu `â€”`, und das Schluss-Byte ist ein typografisches '
+      + 'Anführungszeichen, das PowerShell als Anführungszeichen erkennt — die '
+      + 'Datei lässt sich dann nicht mehr parsen.',
+    ).toEqual([]);
+  });
+
   it('die Anleitung nennt es als kurzen Weg', () => {
     expect(anleitung).toContain('windows-start.ps1');
   });

@@ -11215,3 +11215,65 @@ bleibt stehen, ein Widerruf ohne Grund wird abgewiesen, eine Marke, die es
 nicht gibt, antwortet `false` statt eines Orakels (AUT-06) — und **das Recht
 wird im Mandanten der MARKE geprüft**: eine Planerin der Reinigung kann die
 Marke der Security nicht widerrufen, obwohl ihre Sitzung schreibt.
+
+### D-555 · Das Startskript war kein PowerShell mehr, bevor es lief
+
+Nutzerbericht: `windows-start.ps1` brach mit drei Parserfehlern ab, der erste
+auf der **letzten** Zeile — „Die Zeichenfolge hat kein Abschlusszeichen: '".
+Die Datei war syntaktisch einwandfrei. Sie war nur nicht in der Kodierung, in
+der Windows PowerShell 5.1 sie liest: **ohne BOM nimmt es ANSI
+(Windows-1252), nicht UTF-8.**
+
+Ein Geviertstrich `—` ist in UTF-8 `E2 80 94`. Als Windows-1252 gelesen werden
+daraus drei Zeichen, und das letzte (`0x94`) ist U+201D — ein typografisches
+Anführungszeichen. **PowerShell erkennt die typografischen Anführungszeichen
+als Anführungszeichen.** Jeder Gedankenstrich im Skript öffnete damit eine
+Zeichenkette, die nie geschlossen wurde; der Parser lief bis zum Dateiende und
+meldete dort, und der Mensch davor suchte auf der falschen Zeile.
+
+Betroffen waren zwanzig Zeilen: Gedankenstriche, deutsche Anführungszeichen,
+die Kastenzeichnung des Schlussrahmens und ein Auslassungszeichen.
+
+**Die Datei ist jetzt reines ASCII.** Ein BOM täte es auch; ASCII ist die
+stärkere Zusicherung, weil es jeden Editor, jedes Entpacken und jedes Kopieren
+durch ein Fenster überlebt, das die Kodierung nicht kennt.
+`tests/kern/lokal-starten.test.ts` hält es fest — mit der Begründung daneben,
+damit die nächste Person nicht denkt, es sei Geschmack.
+
+**Die allgemeine Regel:** eine Datei, die auf einer FREMDEN Plattform
+ausgeführt wird, darf sich nicht darauf verlassen, dass diese Plattform sie so
+liest, wie wir sie geschrieben haben. Dasselbe gilt für Zeilenenden und für
+jede Datei, die ein Windows-Werkzeug interpretiert.
+
+### D-556 · Die Ausgabefläche der Check-in-Marken — TIM-07 ist wieder begehbar
+
+Die Seite `/portal/[mandant]/zeiten/checkin-links` und die Route
+`POST /api/checkin-marken` schliessen die Lücke aus D-554: das Einlösen war
+seit 0035 komplett, die AUSGABE hatte genau einen Aufrufer — den Seed. Im
+Betrieb kam damit niemand an einen Check-in-Link, und TIM-07 ist der einzige
+Weg, auf dem eine Mitarbeiterin ihre Zeit selbst erfasst.
+
+Drei Entscheidungen, die die Form bestimmen:
+
+**Die Zeile ist die EINTEILUNG, nicht die Marke.** Der Planer fragt „wer kommt
+morgen an den Hackeschen Markt und kann dort stempeln", nicht „welche Marken
+existieren". Eine Liste der Marken beantwortet die zweite Frage und
+verschweigt die erste — und genau die Einteilung OHNE Marke ist die, bei der
+jemand vor der Tür steht und nicht einchecken kann. Sie trägt deshalb die
+Warnfarbe und den Knopf.
+
+**Das Geheimnis geht nicht durch die Adresszeile.** `app.checkin_ausgeben`
+gibt die Marke genau einmal im Klartext zurück; gespeichert wird nur ihr
+SHA-256. Sie in die Weiterleitung zu hängen hiesse: im Verlauf, im `Referer`
+und im Zugriffsprotokoll jedes Vermittlers dazwischen. Für eine Telefonnummer
+wurde derselbe Weg schon abgelehnt (D-542); eine Zugangsmarke ist mehr als
+das. Sie reist in einem kurzlebigen `httpOnly`-Keks, den die Seite liest und
+im selben Zug löscht.
+
+**Der Pfad heisst `api/checkin-marken` und nicht `api/zeiten/…`.**
+`tests/kern/mitarbeiter.test.ts` lässt unter `api/zeit…` keine Route zu, weil
+EMP-07 verbietet, dass irgendein Weg einen Zeiteintrag ÄNDERT. Diese Route
+ändert keinen; sie gibt die Marke aus, aus der beim Einlösen ein neuer
+entsteht. Die Wache ist absichtlich stumpf — und ein Pfad, der sie umgeht,
+wäre eine Ausnahme IN der Wache. Der ehrlichere Weg ist ein Name, der sagt,
+was verwaltet wird.
