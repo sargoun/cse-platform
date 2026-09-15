@@ -149,6 +149,60 @@ describe('CSV (REP-07)', () => {
   });
 });
 
+/**
+ * **Eine CSV-Datei wird in Excel geoeffnet, und Excel rechnet.**
+ *
+ * Ein Projektname `=HYPERLINK("http://…";"Rechnung")`, eine UTM-Kampagne
+ * `+cmd`, ein Kundenname `@SUM(…)` — alles Werte, die jemand von aussen in die
+ * Datenbank schreiben kann — werden beim Oeffnen AUSGEFUEHRT statt gezeigt.
+ * RFC 4180 kennt keine Formeln; die beiden Programme, die diese Datei oeffnen,
+ * schon.
+ */
+describe('Formeln in einer Tabelle sind keine Daten', () => {
+  const felder = (zeile: string): string[] => zeile.split(';');
+
+  it('ein Textfeld, das wie eine Formel beginnt, bekommt ein Hochkomma', () => {
+    for (const boese of ['=1+1', '+1', '-1+1', '@SUM(A1)', '\t=1+1']) {
+      expect(csvFeld(boese), boese).toBe(`'${boese}`);
+    }
+  });
+
+  it('harmloser Text bleibt unberuehrt', () => {
+    for (const gut of ['Reinigung Mitte', 'A-Z', '2026-09-15', 'Stra\u00dfe 1']) {
+      expect(csvFeld(gut), gut).toBe(gut);
+    }
+  });
+
+  it('die Maskierung nach RFC 4180 gilt weiter — und beides zusammen', () => {
+    expect(csvFeld('=A1;B2')).toBe(`"'=A1;B2"`);
+    expect(csvFeld('mit "Anf\u00fchrung"')).toBe('"mit ""Anf\u00fchrung"""');
+  });
+
+  /**
+   * **Die Cent-Spalte ist der Rechenweg** — sie darf kein Hochkomma bekommen,
+   * sonst rechnet mit ihr keine Tabelle mehr. Sie entsteht in dieser Datei und
+   * nicht in der Datenbank, also ist sie auch keine Eingabe von aussen.
+   */
+  it('die Cent-Spalte bleibt eine Zahl, auch negativ', () => {
+    const csv = alsCsv(
+      [{ kopf: 'Ergebnis', wert: () => '-19,99 \u20ac', cent: () => cent(-1999n) }],
+      [{}],
+    );
+    const zeile = csv.split('\r\n')[1] ?? '';
+    expect(felder(zeile)[1], 'die Cent-Spalte rechnet weiter').toBe('-1999');
+    expect(felder(zeile)[0], 'die Anzeigespalte ist Text').toBe("'-19,99 \u20ac");
+  });
+
+  it('ein Projektname aus der Datenbank kann die Datei nicht uebernehmen', () => {
+    const csv = alsCsv(
+      [{ kopf: 'Projekt', wert: (z: { n: string }) => z.n }],
+      [{ n: '=HYPERLINK("http://x";"Rechnung")' }],
+    );
+    expect(csv).toContain(`"'=HYPERLINK(""http://x"";""Rechnung"")"`);
+    expect(csv).not.toMatch(/(^|;)=HYPERLINK/mu);
+  });
+});
+
 describe('Formatierung', () => {
   it('Basispunkte werden zu Prozent mit zwei Stellen', () => {
     expect(prozent(2500)).toBe('25,00 %');

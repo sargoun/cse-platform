@@ -21,7 +21,16 @@ export default async function Umsatz({ searchParams }: {
         Jahresabschluss.</>}
       kinder={async (kontext, jahr) => {
         const zeilen = await umsatzJeBereich(kontext, jahr);
-        const summe = zeilen.reduce(
+        /*
+         * **Summiert wird nur, was dieser Mensch sehen darf.**
+         *
+         * Die Zellen zeigen fuer eine Gesellschaft ohne Recht einen Strich --
+         * die Summe darunter zaehlte sie trotzdem mit. Wer eines der beiden
+         * Rechte haelt und das andere nicht, holte sich die verborgene Zahl
+         * durch eine Subtraktion zurueck. Eine Summe ist kein anderer
+         * Bildschirm als die Zeilen darueber.
+         */
+        const summe = zeilen.filter((z) => z.lesbar).reduce(
           (s, z) => ({
             erloese: cent(s.erloese + z.erloeseCent),
             aufwand: cent(s.aufwand + z.aufwandCent),

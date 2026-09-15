@@ -287,12 +287,28 @@ export async function seed(): Promise<Fixtur> {
      * endet auf `RESIDENCY_BLOCKED`, und das sähe aus wie ein Produktfehler.
      * Wiederhergestellt wird genau der Demobetrieb, den die Migration einträgt.
      */
+    /*
+     * **Die Fixtur bildet die PRODUKTION ab, nicht einen Wunschzustand.**
+     *
+     * Sie trug den Demobetrieb fuer JEDE `ki_faehigkeit` als freigegeben ein.
+     * `0159_agent_lauf_wahrheit.sql` nimmt genau das zurueck: `DemoModell`
+     * implementiert `entwurf_text` und `embedding` und sonst nichts, und eine
+     * gemeldete Faehigkeit ohne Port ist schlimmer als eine fehlende. Eine
+     * Fixtur, die breiter ist als die Migration, laesst die Isolationstests
+     * einen Zustand pruefen, den es nirgends gibt -- und deckt dabei genau
+     * die Luecke zu, die 0159 sichtbar machen wollte. Die uebrigen Zeilen
+     * entstehen trotzdem (die Migration legt sie an), aber gesperrt.
+     */
     await tx.unsafe(
       `insert into modell_register
          (anbieter, modell, faehigkeit, eu_verarbeitung, zero_retention, freigegeben,
           geprueft_am, bemerkung)
-       select 'demo', 'demo:hausintern-v1', f, true, true, true, now(),
-              'Demobetrieb (Fixtur): laeuft im eigenen Prozess, kein Anbieter.'
+       select 'demo', 'demo:hausintern-v1', f, true, true,
+              f in ('entwurf_text', 'embedding'), now(),
+              case when f in ('entwurf_text', 'embedding')
+                then 'Demobetrieb (Fixtur): laeuft im eigenen Prozess, kein Anbieter.'
+                else 'Demobetrieb (Fixtur): gesperrt wie in 0159 -- DemoModell '
+                     || 'implementiert diese Faehigkeit nicht.' end
          from unnest(enum_range(null::ki_faehigkeit)) as f
        on conflict (modell, faehigkeit) do nothing`);
 

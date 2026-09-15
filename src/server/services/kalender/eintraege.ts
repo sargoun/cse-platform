@@ -72,6 +72,17 @@ const zeigt = (lage: Lage, q: Quelle): boolean =>
  * filterte, verglich ein UTC-Datum mit einem Berliner und verlöre jede Nacht
  * zwischen Mitternacht und zwei Uhr (Invariante 2).
  */
+/**
+ * **Beide Grenzen sind exklusiv gedacht — also ist der Vergleich streng.**
+ *
+ * `ende` ist im ganzen Kalender der erste Augenblick DANACH: bei einer
+ * ganztaegigen Zeile der Tag nach dem letzten (Migration 0160, wie in iCal),
+ * bei einer Schicht die Mitternacht, in der sie keine Sekunde mehr laeuft.
+ * Mit `ende >= FENSTER` fiel eine Zeile, die genau zum Fensterbeginn endet,
+ * noch hinein -- eine Ueberlappung von null Laenge. Auf der Seite verschwand
+ * sie danach wieder (das Tagesraster zieht eine Millisekunde ab), im iCal-Feed
+ * aber nicht: dort stand eine Schicht von gestern in der Datei von heute.
+ */
 const FENSTER = `
   ($1 || ' 00:00')::timestamp at time zone 'Europe/Berlin'`;
 const FENSTER_ENDE = `
@@ -120,7 +131,7 @@ export async function kalenderZeilen(
               coalesce(k.geaendert_am, k.erstellt_am)::text as geaendert,
               ${WEG('k', '/kalender/')} || k.id::text as weg
          from kalender_eintrag k
-        where k.beginn < ${FENSTER_ENDE} and k.ende >= ${FENSTER}
+        where k.beginn < ${FENSTER_ENDE} and k.ende > ${FENSTER}
           and ($3::uuid is null
                or k.besitzer_benutzer_id = $3::uuid
                or $3::uuid = any (k.teilnehmer))`, w);
@@ -151,7 +162,7 @@ export async function kalenderZeilen(
                 on z.einsatz_id = e.id and z.status in ('geplant', 'zugesagt')
          left join anstellung a on a.id = z.anstellung_id
          left join benutzer b on b.person_id = a.person_id
-        where e.beginn_zeitpunkt < ${FENSTER_ENDE} and e.ende_zeitpunkt >= ${FENSTER}
+        where e.beginn_zeitpunkt < ${FENSTER_ENDE} and e.ende_zeitpunkt > ${FENSTER}
           and ($3::uuid is null or b.id = $3::uuid)
         order by e.id, e.beginn_zeitpunkt`, w);
     alle.push(...zeilen);

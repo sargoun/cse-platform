@@ -110,10 +110,24 @@ export async function fuelleTatsachen(
                   and (select count(*) from einsatz_zuordnung z
                         where z.einsatz_id = e.id and z.status in ('geplant','zugesagt'))
                       < e.min_besetzung)::text as schichten`);
+    const freigaben = z?.freigaben ?? '0';
+    const schichten = z?.schichten ?? '0';
     return {
       stand,
-      offene_freigaben: z?.freigaben ?? '0',
-      unbesetzte_schichten_morgen: z?.schichten ?? '0',
+      offene_freigaben: freigaben,
+      unbesetzte_schichten_morgen: schichten,
+      /*
+       * **`zusammenfassung` ist PFLICHT** -- jede Vorlage in
+       * `modell/demo.ts` traegt den Platzhalter, und `fuelle()` laesst einen
+       * Platzhalter ohne Tatsache absichtlich STEHEN (besser eine sichtbare
+       * Luecke als eine stille Null). Ohne diesen Schluessel stand in jedem
+       * Demoentwurf woertlich „{zusammenfassung}" -- der Knopf lief, der
+       * Vorschlag lag vor, und er war unfertig. Der Satz ist aus denselben
+       * Zahlen gebaut, die darunter einzeln stehen: die Zahlenherkunft
+       * (Invariante 6) bleibt damit geschlossen.
+       */
+      zusammenfassung: `Es warten ${freigaben} Freigaben auf eine Entscheidung, `
+        + `und für morgen sind ${schichten} Schichten unterbesetzt.`,
       empfehlung: 'Zuerst die offenen Freigaben ansehen, dann den Dienstplan für morgen.',
     };
   }
@@ -130,12 +144,16 @@ export async function fuelleTatsachen(
          from lead l
         order by l.erstellt_am desc
         limit 1`);
+    const betreff = z?.betreff ?? 'die eingegangene Anfrage';
+    const offene = z?.offen ?? '0';
     return {
       stand,
       empfaenger: z?.firma ?? 'die anfragende Stelle',
       datum: z?.eingang ?? stand,
-      betreff: z?.betreff ?? 'die eingegangene Anfrage',
-      offene_anfragen: z?.offen ?? '0',
+      betreff,
+      offene_anfragen: offene,
+      zusammenfassung: `Ihr Anliegen „${betreff}" ist bei uns aufgenommen; `
+        + `derzeit bearbeiten wir ${offene} Anfragen.`,
       offen: 'die Angabe zur Personenzahl',
     };
   }
@@ -153,10 +171,14 @@ export async function fuelleTatsachen(
                 where status in ('entwurf','vorgelegt') and storniert_am is null)::text as offen,
               (select count(*) from leistungsnachweis
                 where storniert_am is null)::text as gesamt`);
+    const ohne = z?.offen ?? '0';
+    const gesamt = z?.gesamt ?? '0';
     return {
       stand,
-      ohne_unterschrift: z?.offen ?? '0',
-      nachweise_gesamt: z?.gesamt ?? '0',
+      ohne_unterschrift: ohne,
+      nachweise_gesamt: gesamt,
+      zusammenfassung: `${ohne} von ${gesamt} Leistungsnachweisen sind noch nicht `
+        + 'unterschrieben.',
       empfehlung: 'Objektleitung erinnert den Kunden schriftlich.',
     };
   }
@@ -177,10 +199,14 @@ export async function fuelleTatsachen(
               where status in ('freigegeben','gebucht')
                 and faellig_am is not null
                 and faellig_am <= app.berlin_heute())::text as faellig`);
+  const forderungen = z?.offen ?? '0';
+  const eingang = z?.faellig ?? '0';
   return {
     stand,
-    ueberfaellige_forderungen: z?.offen ?? '0',
-    faellige_eingangsrechnungen: z?.faellig ?? '0',
+    ueberfaellige_forderungen: forderungen,
+    faellige_eingangsrechnungen: eingang,
+    zusammenfassung: `${forderungen} Forderungen sind überfällig, und `
+      + `${eingang} Eingangsrechnungen sind fällig.`,
     empfehlung: 'Fällige Posten vor dem Monatsende ansehen.',
   };
 }

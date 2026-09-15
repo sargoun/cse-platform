@@ -30,18 +30,47 @@ export interface Spalte<Z> {
 
 const BOM = '﻿';
 
-/** Ein Feld nach RFC 4180 — und `\r\n` als Zeilenende, wie die Norm sagt. */
-export function csvFeld(wert: string | number | null): string {
+/**
+ * Zeichen, mit denen eine Tabellenkalkulation eine FORMEL beginnt.
+ *
+ * `@` ist das älteste (Lotus, und Excel kennt es bis heute), `=` das
+ * offensichtliche; `+` und `-` beginnen ebenfalls einen Ausdruck. Tabulator
+ * und Wagenrücklauf stehen dabei, weil manche Leser sie vor der Prüfung
+ * abschneiden und dann doch auf eines der vier treffen.
+ */
+const FORMELSTART = /^[=+\-@\t\r]/u;
+
+/**
+ * Ein Feld nach RFC 4180 — und `\r\n` als Zeilenende, wie die Norm sagt.
+ *
+ * **Und ein Textfeld, das wie eine Formel beginnt, bekommt ein `'` davor.**
+ * RFC 4180 kennt keine Formeln; Excel und LibreOffice schon. Ein Projektname
+ * `=HYPERLINK(...)`, eine UTM-Kampagne `+cmd`, ein Kundenname `@…` — alles
+ * Werte, die jemand von aussen in die Datenbank schreiben kann — werden beim
+ * Öffnen der Datei ausgeführt, nicht gezeigt. Das Hochkomma ist die von
+ * beiden Programmen verstandene Marke für „das ist Text"; es steht in der
+ * Zelle nicht mit drin.
+ *
+ * **Zahlen bleiben Zahlen.** Die Cent-Spalte und die Kopfzeile gehen `roh`
+ * durch: beide entstehen in dieser Datei, und ein `'-1999` in der Cent-Spalte
+ * rechnete in keiner Tabelle mehr. Eine formatierte Zahl wie `-19,99 €` oder
+ * `-12,50 %` bekommt das Hochkomma dagegen schon — sie ist ohnehin Text, und
+ * in der Zelle sieht man davon nichts. Wer mit den Beträgen rechnen will,
+ * nimmt die Cent-Spalte; genau dafuer steht sie da.
+ */
+export function csvFeld(wert: string | number | null, roh = false): string {
   if (wert === null) return '';
-  const text = typeof wert === 'number' ? String(wert) : wert;
+  if (typeof wert === 'number') return String(wert);
+  const text = roh || !FORMELSTART.test(wert) ? wert : `'${wert}`;
   return /[";\r\n]/u.test(text) ? `"${text.replace(/"/gu, '""')}"` : text;
 }
 
 export function alsCsv<Z>(spalten: readonly Spalte<Z>[], zeilen: readonly Z[]): string {
   const koepfe: string[] = [];
   for (const s of spalten) {
-    koepfe.push(csvFeld(s.kopf));
-    if (s.cent !== undefined) koepfe.push(csvFeld(`${s.kopf} (Cent)`));
+    /* Die Kopfzeile steht in dieser Datei, nicht in der Datenbank. */
+    koepfe.push(csvFeld(s.kopf, true));
+    if (s.cent !== undefined) koepfe.push(csvFeld(`${s.kopf} (Cent)`, true));
   }
 
   const ausgabe = [koepfe.join(';')];
@@ -51,7 +80,12 @@ export function alsCsv<Z>(spalten: readonly Spalte<Z>[], zeilen: readonly Z[]): 
       felder.push(csvFeld(s.wert(z)));
       if (s.cent !== undefined) {
         const c = s.cent(z);
-        felder.push(csvFeld(c === null ? null : String(c)));
+        /*
+         * Die Cent-Spalte ist eine ganze Zahl aus dieser Datei, kein Text aus
+         * der Datenbank -- sie geht `roh` durch, damit ein negativer Betrag
+         * nicht als `'-1999` in der Tabelle landet und dort nicht mehr rechnet.
+         */
+        felder.push(c === null ? '' : csvFeld(String(c), true));
       }
     }
     ausgabe.push(felder.join(';'));

@@ -109,12 +109,32 @@ describe('der Waechter vor dev und build', () => {
 
   it('laesst den Bau durch, wenn kein Server antwortet', async () => {
     /*
-     * `PORT` auf einen Hafen, auf dem nichts laeuft — und die Vorgabehaefen
-     * 3000/3001 sind auf einem Prüfrechner ebenfalls still. Faende der
-     * Waechter hier etwas, waere er ein Fehlalarm.
+     * `PORT` auf einen Hafen, auf dem nichts laeuft. **Und der gesetzte Hafen
+     * gilt allein** — 3000/3001 werden dann NICHT zusaetzlich gefragt.
+     *
+     * Vorher taten sie es, und der Test hing damit daran, dass auf dem
+     * Prüfrechner gerade kein Server auf 3000 antwortet. Er wurde rot,
+     * sobald die Browsersuite parallel lief: der Waechter fand deren Server,
+     * meldete richtig, und der Test las es als Fehlalarm. Ein Test, der von
+     * einem fremden Hafen abhaengt, prueft nicht den Waechter, sondern den
+     * Rechner.
      */
     const { code } = await wacheMit({ PORT: '59999' });
     expect(code).toBe(0);
+  });
+
+  /**
+   * Die Gegenprobe zur Regel darueber: OHNE `PORT` bleiben die Nachbarn der
+   * Rateweg — sonst schuetzte der Waechter im Normalfall gar nichts.
+   */
+  it('ohne PORT bleiben 3000 und 3001 der Rateweg', async () => {
+    const hafen = await starteServer('{"status":"ok","build_id":"lokal"}');
+    /* Der Testserver laeuft auf einem zufaelligen Hafen; mit PORT findet ihn
+       der Waechter, ohne PORT sucht er woanders. */
+    const mit = await wacheMit({ PORT: String(hafen) });
+    expect(mit.code, 'mit PORT gefunden').toBe(1);
+    expect(mit.ausgabe).toContain(String(hafen));
+    expect(mit.ausgabe).not.toContain('3001');
   });
 
   it('der Notausgang laesst durch — und nur er', async () => {

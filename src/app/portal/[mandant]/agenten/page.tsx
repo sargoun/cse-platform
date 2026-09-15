@@ -111,9 +111,19 @@ export default async function AgentenZentrum(
        * Knopf drueckt, glaubt der Uebersicht danach nichts mehr.
        */
       const [m] = await kontext.abfrage<{ modell: string | null; anbieter: string | null }>(
+        /*
+         * Der Anbieter wird AUF DIESELBE FAEHIGKEIT eingegrenzt wie das
+         * Modell. Ein Modell kann fuer mehrere Faehigkeiten eingetragen sein,
+         * und ohne die Bedingung traf die Unterabfrage irgendeine dieser
+         * Zeilen -- die Uebersicht haette den Textlauf als Demobetrieb
+         * beschriftet, obwohl die Zeile fuer `entwurf_text` einen echten
+         * Anbieter nennt. Die Detailseite filtert laengst so; zwei Fassungen
+         * derselben Frage laufen sonst auseinander.
+         */
         `select app.modell_fuer('entwurf_text') as modell,
                 (select r.anbieter from modell_register r
                   where r.modell = app.modell_fuer('entwurf_text')
+                    and r.faehigkeit = 'entwurf_text'
                   limit 1) as anbieter`);
 
       return { agenten, budget: budget[0] ?? null, modell: m ?? null };

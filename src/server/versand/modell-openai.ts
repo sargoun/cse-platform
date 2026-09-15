@@ -2,6 +2,7 @@ import 'server-only';
 import {
   ModellFehler, type EinbettungErgebnis, type ModellPort, type TextAuftrag, type TextErgebnis,
 } from '../agent/modell/port.js';
+import { EINBETTUNG_DIMENSION } from '../config/rag.js';
 
 /**
  * Der echte Anbieter — **gebaut, nicht verbunden**.
@@ -239,15 +240,6 @@ async function ruf(
 }
 
 /**
- * **Der Verbrauch wird gelesen, nicht geglaubt.** Fehlt er oder steht dort
- * etwas anderes als eine nichtnegative Zahl, ist die Antwort `0` und nicht
- * `NaN` — eine Kostenzeile mit `NaN` fällt erst im Monatsbericht auf.
- */
-function zahl(w: unknown): number {
-  return typeof w === 'number' && Number.isFinite(w) && w >= 0 ? Math.round(w) : 0;
-}
-
-/**
  * Der Verbrauch — **und ein fehlender ist ein Fehler, keine Null**.
  *
  * Der Orchestrator verbucht `agent_kosten` aus genau diesen Zahlen und gibt
@@ -257,23 +249,40 @@ function zahl(w: unknown): number {
  * und das Monatsbudget stimmt ab da nicht mehr. Fail closed — lieber ein
  * sichtbar gescheiterter Lauf als eine stille Luecke im Kostenbuch (AGT-05).
  */
-function verbrauchAus(daten: Record<string, unknown>): {
-  eingabe: number; ausgabe: number;
-} {
+function pflichtZahl(u: Record<string, unknown>, feld: string): number {
+  const roh = u[feld];
+  if (typeof roh !== 'number' || !Number.isFinite(roh) || roh < 0) {
+    throw new ModellFehler('INVALID_RESPONSE',
+      `Die usage-Angabe nannte kein brauchbares „${feld}". Ohne sie sind die Kosten `
+      + 'dieses Laufs unbekannt, und ein Lauf mit unbekannten Kosten wird nicht '
+      + 'verbucht.');
+  }
+  return Math.round(roh);
+}
+
+/**
+ * Der Verbrauch — **je Antwortart, und ein fehlendes Feld ist ein Fehler**.
+ *
+ * `prompt_tokens` verlangt jede Antwort. `completion_tokens` verlangt nur der
+ * TEXT-Weg: eine Einbettung erzeugt keine Ausgabetoken, und dort ist die Null
+ * die Wahrheit. Die erste Fassung pruefte, ob BEIDE null sind -- eine Antwort
+ * mit gueltigen Eingabetoken und fehlenden Ausgabetoken kam damit durch und
+ * wurde zu billig verbucht. Genau die Haelfte, die bei einem langen Entwurf
+ * den grossen Teil der Rechnung ausmacht.
+ */
+function verbrauchAus(
+  daten: Record<string, unknown>, art: 'text' | 'einbettung',
+): { eingabe: number; ausgabe: number } {
   const u = daten['usage'];
   if (!istObjekt(u)) {
     throw new ModellFehler('INVALID_RESPONSE',
       'Die Antwort trug keine usage-Angabe. Ohne sie sind die Kosten dieses Laufs '
       + 'unbekannt, und ein Lauf mit unbekannten Kosten wird nicht verbucht.');
   }
-  const eingabe = zahl(u['prompt_tokens']);
-  const ausgabe = zahl(u['completion_tokens']);
-  if (eingabe === 0 && ausgabe === 0) {
-    throw new ModellFehler('INVALID_RESPONSE',
-      'Die usage-Angabe nannte weder Eingabe- noch Ausgabetoken. Eine Antwort mit Text '
-      + 'und ohne Verbrauch gibt es nicht.');
-  }
-  return { eingabe, ausgabe };
+  return {
+    eingabe: pflichtZahl(u, 'prompt_tokens'),
+    ausgabe: art === 'text' ? pflichtZahl(u, 'completion_tokens') : 0,
+  };
 }
 
 export class OpenAiModell implements ModellPort {
@@ -328,7 +337,7 @@ export class OpenAiModell implements ModellPort {
     if (text === '') {
       throw new ModellFehler('INVALID_RESPONSE', 'Die Antwort enthielt keinen Text.');
     }
-    const v = verbrauchAus(daten);
+    const v = verbrauchAus(daten, 'text');
     return {
       text,
       verbrauch: {
@@ -358,11 +367,25 @@ export class OpenAiModell implements ModellPort {
     if (vektor === null) {
       throw new ModellFehler('INVALID_RESPONSE', 'Die Antwort enthielt keinen Vektor.');
     }
+    /*
+     * **Die Laenge wird HIER geprueft, nicht beim Einfuegen.** Die Spalte ist
+     * `vector(1536)` mit einem passenden `embedding_dim`-CHECK; ein Anbieter
+     * mit einer anderen Dimension kaeme sonst als Datenbankfehler heraus --
+     * mitten im Auffrischungslauf, mit einer Meldung ueber eine Spalte statt
+     * ueber das Modell. Ein Vertragsbruch des Anbieters gehoert am Rand
+     * gemeldet, wo der Vertrag steht.
+     */
+    if (vektor.length !== EINBETTUNG_DIMENSION) {
+      throw new ModellFehler('INVALID_RESPONSE',
+        `Der Vektor hat ${String(vektor.length)} Stellen; der Index erwartet `
+        + `${String(EINBETTUNG_DIMENSION)}. Ein Modell mit anderer Dimension braucht `
+        + 'einen eigenen Index, keine stillschweigende Umdeutung.');
+    }
     return {
       vektor,
       verbrauch: {
         modell: this.modell,
-        tokensEingabe: verbrauchAus(daten).eingabe,
+        tokensEingabe: verbrauchAus(daten, 'einbettung').eingabe,
         tokensAusgabe: 0,
         dauerMs,
       },

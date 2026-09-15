@@ -286,6 +286,17 @@ declare
   v_ip       int;
   v_bremst   boolean;
 begin
+  /*
+   * **Zaehlen und Schreiben muessen EINE Entscheidung sein.**
+   *
+   * Ohne Sperre lesen zwei gleichzeitige Anforderungen denselben Stand,
+   * beide finden sich unter der Grenze, und beide kommen durch -- die Bremse
+   * bremst genau den, der langsam klickt. Der Rat gilt je normalisiertem
+   * Schluessel, nicht global: zwei verschiedene Adressen behindern sich
+   * nicht. Die Sperre faellt mit der Transaktion.
+   */
+  perform pg_advisory_xact_lock(hashtext('kennwort_reset:' || v_hash));
+
   select count(*) into v_kenn from kern.anmeldeversuch a
    where a.kennung_hash = v_hash and a.art = 'kennwort_reset' and a.erstellt_am >= v_seit;
   select count(*) into v_ip from kern.anmeldeversuch a
@@ -354,6 +365,11 @@ declare
   v_seit    timestamptz := now() - make_interval(mins => v_fenster);
   v_fehl    int;
 begin
+  -- Dieselbe Serialisierung wie bei der Zuruecksetzung: ohne sie raten
+  -- gleichzeitige Versuche an der Bremse vorbei, und genau das ist der
+  -- Angriff, gegen den sie steht.
+  perform pg_advisory_xact_lock(hashtext('faktor:' || v_hash));
+
   select count(*) into v_fehl from kern.anmeldeversuch a
    where a.kennung_hash = v_hash and a.art = 'faktor' and not a.erfolg
      and a.erstellt_am >= v_seit;

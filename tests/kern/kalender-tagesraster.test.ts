@@ -125,3 +125,48 @@ describe('nachTagen', () => {
       .toEqual(['2026-03-27', '2026-03-28', '2026-03-29', '2026-03-30']);
   });
 });
+
+/**
+ * **Ein sehr langer Eintrag darf nicht verschwinden.**
+ *
+ * Die Datenbank verlangt nur `ende > beginn`; ein mehrjähriger Termin ist
+ * damit zulässig. Der Lauf begann vorher an SEINEM Anfang und brach nach 400
+ * Schritten ab — lag das gezeigte Fenster weiter entfernt, waren alle
+ * erzeugten Tage davor, und der Eintrag stand nirgends. Mit dem Fenster
+ * beginnt die Ausdehnung an dessen Rand.
+ */
+describe('nachTagen mit Fenster', () => {
+  const lang = zeile({
+    quelle: 'termin', titel: 'Rahmenvertrag', ganztaegig: true,
+    beginn: '2024-01-01T23:00:00.000Z',   // 02.01.2024 Berlin
+    ende: '2027-01-01T23:00:00.000Z',     // 02.01.2027 Berlin, exklusiv
+  });
+
+  it('erscheint in einem Fenster, das weit nach seinem Beginn liegt', () => {
+    const m = nachTagen([lang], { von: '2026-09-01', bis: '2026-09-30' });
+    expect(tage(m)[0]).toBe('2026-09-01');
+    expect(tage(m).at(-1)).toBe('2026-09-30');
+    expect(m.size, 'genau die dreissig Tage des Fensters').toBe(30);
+  });
+
+  it('ohne Fenster beginnt er an seinem eigenen Anfang', () => {
+    const m = nachTagen([lang]);
+    expect(tage(m)[0]).toBe('2024-01-02');
+  });
+
+  it('ein Eintrag ganz ausserhalb des Fensters erzeugt keinen Tag', () => {
+    const m = nachTagen([zeile({
+      beginn: '2026-01-05T08:00:00.000Z', ende: '2026-01-05T10:00:00.000Z',
+    })], { von: '2026-09-01', bis: '2026-09-30' });
+    expect(m.size).toBe(0);
+  });
+
+  it('ein Eintrag, der in das Fenster hineinragt, wird an dessen Rand beschnitten', () => {
+    const m = nachTagen([zeile({
+      ganztaegig: true,
+      beginn: '2026-08-29T22:00:00.000Z',  // 30.08.
+      ende: '2026-09-02T22:00:00.000Z',    // 03.09., exklusiv
+    })], { von: '2026-09-01', bis: '2026-09-30' });
+    expect(tage(m)).toEqual(['2026-09-01', '2026-09-02']);
+  });
+});

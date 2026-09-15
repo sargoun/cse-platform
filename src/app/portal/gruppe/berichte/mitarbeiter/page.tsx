@@ -29,7 +29,10 @@ export default async function Mitarbeiter({ searchParams }: {
         Bereich — sie gehört dorthin, wo das Arbeitsverhältnis besteht (D-09, K-05).</>}
       kinder={async (kontext, jahr) => {
         const zeilen = await stundenJeBereich(kontext, jahr);
-        const gesamt = zeilen.reduce((s, z) => s + z.istMinuten, 0);
+        /* Nur die lesbaren Zeilen -- sonst steht die verborgene Zahl in der
+           Summe und laesst sich durch Subtraktion zurueckholen. */
+        const gesamt = zeilen.filter((z) => z.lesbar)
+          .reduce((s, z) => s + z.istMinuten, 0);
         return (
           <>
             <DataTable<StundenJeBereich>

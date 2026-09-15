@@ -134,7 +134,11 @@ export default async function Kalender({ params, searchParams }: {
     heute: string;
   };
 
-  const proTag = nachTagen(zeilen);
+  /*
+   * Das Raster bekommt das Fenster, das geholt wurde -- damit ein sehr langer
+   * Eintrag an seinem Rand beginnt und nicht an seinem eigenen Anfang.
+   */
+  const proTag = nachTagen(zeilen, { von: fenster.abfrageVon, bis: fenster.abfrageBis });
   const wurzel = `/portal/${mandant}/kalender`;
   const adresse = (aenderung: {
     tag?: string; ansicht?: Ansicht; quellen?: string | null; eigene?: boolean;

@@ -7,7 +7,7 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { devFlaechenAn } from '@/lib/dev-flaechen';
 import { legeKennwortTokenAn, resetGebremst } from '@/server/auth/kennwort-anmeldung';
 import { db } from '@/server/db/pool';
-import { emailDienst } from '@/server/versand/email';
+import { EmailNichtVerbundenFehler, emailDienst } from '@/server/versand/email';
 import { AuthSchale } from '../AuthSchale';
 import { herkunft } from '../mitarbeiter/anmeldung';
 
@@ -58,6 +58,34 @@ export default async function PasswortVergessen({ searchParams }: {
 
     if (token === null) {
       redirect('/auth/passwort-vergessen?gesendet=1');
+    }
+
+    /*
+     * **Der Postausgang wird WIRKLICH gefragt.** Bisher entstand der Token und
+     * niemand bat den Dienst, ihn zu verschicken -- auf der
+     * Entwicklungsflaeche fiel das nicht auf, weil der Link daneben steht, und
+     * in einem Bau ohne Anbieter auch nicht, weil dort ohnehin nichts ankommt.
+     * Gebaut war damit alles ausser der Zeile, auf die es ankommt: ein
+     * angeschlossener Anbieter haette hier nie etwas zu tun bekommen.
+     *
+     * `EmailNichtVerbundenFehler` ist der ERWARTETE Zustand, solange O-501
+     * offen ist -- er wird gefangen, nicht durchgereicht. Die
+     * Bestaetigungsseite sagt danach ausdruecklich, dass kein Postausgang
+     * hinterlegt ist; sie behauptet nicht, eine Mail sei unterwegs.
+     */
+    const dienst = emailDienst(devFlaechenAn());
+    try {
+      await dienst.sende({
+        an: email,
+        betreff: 'Kennwort zurücksetzen — CSE Gruppe',
+        text: 'Sie haben ein neues Kennwort angefordert. Der Link gilt zwei Stunden '
+          + 'und nur einmal:\n\n'
+          + `/auth/passwort-neu?token=${token}\n\n`
+          + 'Wenn Sie das nicht waren, können Sie diese Nachricht ignorieren — '
+          + 'Ihr bisheriges Kennwort gilt weiter.',
+      });
+    } catch (fehler) {
+      if (!(fehler instanceof EmailNichtVerbundenFehler)) throw fehler;
     }
 
     /**

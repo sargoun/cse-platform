@@ -23,9 +23,10 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import type postgres from 'postgres';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
-import { fuehreLaufAus } from '../../src/server/agent/orchestrator.js';
+import { fuehreLaufAus, type AgentKennung } from '../../src/server/agent/orchestrator.js';
 import { DEMO_MODELL } from '../../src/server/agent/modell/demo.js';
 import { modellStand } from '../../src/server/agent/modell/auswahl.js';
+import { ENTWURF_AUFTRAEGE, fuelleTatsachen } from '../../src/server/agent/auftraege.js';
 
 let f: Fixtur;
 let benutzer: string;
@@ -395,4 +396,61 @@ describe('(5) ein echter Programmfehler bleibt laut', () => {
       ...AUFTRAG, vorgangTyp: 'gibt_es_nicht' as unknown as typeof AUFTRAG.vorgangTyp,
     }))).rejects.toThrow();
   });
+});
+
+/**
+ * **(9) Kein Entwurf trägt einen offenen Platzhalter.**
+ *
+ * `fuelle()` in `modell/demo.ts` lässt einen `{schluessel}` ohne Tatsache
+ * absichtlich STEHEN — eine sichtbare Lücke ist besser als eine stille Null.
+ * Genau deshalb muss der Lauf sie schliessen: jede der sieben Vorlagen trägt
+ * `{zusammenfassung}`, und `fuelleTatsachen` lieferte den Schlüssel für keinen
+ * der vier Agenten. In jedem Demoentwurf stand damit wörtlich
+ * `{zusammenfassung}`: der Knopf lief, der Vorschlag lag im Posteingang, und
+ * er war unfertig — die eine Art von Fehler, die eine Vorführung wertlos
+ * macht, weil sie genau dort steht, wo jemand hinsieht.
+ *
+ * Geprüft wird über ALLE vier Agenten und gegen das Muster selbst, nicht gegen
+ * eine Liste bekannter Schlüssel: eine neue Vorlage mit einem neuen
+ * Platzhalter fällt damit beim ersten Lauf auf.
+ */
+describe('(9) der Demoentwurf ist fertig, nicht halb', () => {
+  it('kein Lauf eines der vier Agenten lässt einen Platzhalter stehen', async () => {
+    for (const agent of ['ceo_assistent', 'akquise', 'backoffice', 'finanzen']) {
+      await schalteAgentEin(agent);
+      const auftrag = ENTWURF_AUFTRAEGE[agent];
+      expect(auftrag, agent).toBeDefined();
+
+      const e = await alsDienst(async (k) => fuehreLaufAus(k, {
+        ...auftrag!,
+        agent: agent as AgentKennung,
+        tatsachen: await fuelleTatsachen({ abfrage: k.abfrage.bind(k) }, agent),
+        idempotenzSchluessel: `platzhalter:${agent}:${Math.random().toString(36).slice(2)}`,
+        codeVersion: 'vitest',
+      }));
+
+      expect(e.gestoert, `${agent}: der Lauf muss durchlaufen`).toBeNull();
+      expect(e.entwurf, `${agent}: kein offener Platzhalter`).not.toMatch(/\{[a-z_]+\}/u);
+      /* Und er ist mehr als die Vorlage ohne Inhalt. */
+      expect(e.entwurf!.length, agent).toBeGreaterThan(80);
+    }
+  });
+
+  /**
+   * Die Gegenprobe: FEHLT der Schlüssel, bleibt der Platzhalter wirklich
+   * stehen. Ohne sie prüfte der Test oben womöglich eine Funktion, die
+   * Platzhalter stillschweigend leert — und das wäre die schlechtere Antwort.
+   */
+  it('und eine fehlende Tatsache bliebe sichtbar — sie wird nicht stillschweigend geleert',
+    async () => {
+      await schalteAgentEin('backoffice');
+      const e = await alsDienst((k) => fuehreLaufAus(k, {
+        ...ENTWURF_AUFTRAEGE['backoffice']!,
+        agent: 'backoffice' as const,
+        tatsachen: { stand: '01.01.2026' },
+        idempotenzSchluessel: `luecke:${Math.random().toString(36).slice(2)}`,
+        codeVersion: 'vitest',
+      }));
+      expect(e.entwurf).toContain('{zusammenfassung}');
+    });
 });

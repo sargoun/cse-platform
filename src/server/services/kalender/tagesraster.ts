@@ -33,8 +33,25 @@ export interface Tageszeile {
   readonly beginnt: boolean;
 }
 
+/**
+ * Das Fenster, das der Aufrufer gefragt hat — als Berliner Kalendertage.
+ *
+ * **Ohne es war die Ausdehnung still begrenzt.** Der Lauf begann am ERSTEN
+ * Tag des Eintrags und brach nach 400 Schritten ab; die Datenbank verlangt
+ * aber nur `ende > beginn`, und ein mehrjaehriger Eintrag ist damit zulaessig.
+ * Ein solcher verschwand komplett, sobald das gezeigte Fenster mehr als 400
+ * Tage nach seinem Beginn lag — die Schleife war vorher am Anschlag, und alle
+ * erzeugten Tage lagen vor dem Fenster. Mit dem Fenster beginnt die Ausdehnung
+ * an seinem Rand, und die Schranke ist die Fensterbreite: keine stille
+ * Kuerzung mehr, und die Schleife bleibt endlich.
+ */
+export interface Rasterfenster {
+  readonly von: string;
+  readonly bis: string;
+}
+
 export function nachTagen(
-  zeilen: readonly KalenderZeile[],
+  zeilen: readonly KalenderZeile[], fenster?: Rasterfenster,
 ): ReadonlyMap<string, readonly Tageszeile[]> {
   const karte = new Map<string, Tageszeile[]>();
   for (const z of zeilen) {
@@ -52,8 +69,20 @@ export function nachTagen(
     const letzterTag = endeMs > new Date(z.beginn).getTime()
       ? berlinerTag(new Date(endeMs - 1).toISOString())
       : ersterTag;
-    let tag = ersterTag;
-    for (let i = 0; i < 400 && tag <= letzterTag; i += 1) {
+
+    /*
+     * Beschnitten auf das gefragte Fenster: ein Eintrag, der zehn Jahre
+     * laeuft, erzeugt hier nicht zehn Jahre Tage, sondern die des Fensters --
+     * und er FAELLT nicht heraus, weil der Anfang mitwandert.
+     */
+    const von = fenster === undefined || ersterTag > fenster.von ? ersterTag : fenster.von;
+    const bis = fenster === undefined || letzterTag < fenster.bis ? letzterTag : fenster.bis;
+    if (von > bis) continue;
+
+    let tag = von;
+    /* Die Schranke ist grosszuegig, aber endlich: sie faengt eine kaputte
+       Zeile ab, ohne einen gueltigen Eintrag zu beschneiden. */
+    for (let i = 0; i < 2_000 && tag <= bis; i += 1) {
       (karte.get(tag) ?? karte.set(tag, []).get(tag)!)
         .push({ zeile: z, beginnt: tag === ersterTag });
       const d = new Date(`${tag}T12:00:00Z`);

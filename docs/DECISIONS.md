@@ -10392,3 +10392,70 @@ alte Behauptung festschrieb, prüft jetzt, dass beide dasselbe sagen.
 Ein fest verdrahteter Zustandssatz ist eine Behauptung mit Verfallsdatum, und
 niemand merkt sich, sie zu widerrufen. Er gehört an die Quelle gebunden, auch
 wenn das im Augenblick des Schreibens wie Umstand aussieht.
+
+### D-527 · Der Entwurf, der `{zusammenfassung}` sagte
+
+Jede der sieben Vorlagen in `modell/demo.ts` trägt den Platzhalter
+`{zusammenfassung}` — und `fuelleTatsachen` lieferte den Schlüssel für keinen
+der vier Agenten. `fuelle()` lässt einen Platzhalter ohne Tatsache absichtlich
+STEHEN (eine sichtbare Lücke ist besser als eine stille Null), also stand in
+jedem Demoentwurf wörtlich `{zusammenfassung}`.
+
+**Der Knopf lief, der Vorschlag lag im Posteingang, und er war unfertig.** Das
+ist die Art Fehler, die eine Vorführung wertlos macht: sie steht genau dort,
+wo jemand hinsieht. Alle vier Agenten setzen den Schlüssel jetzt aus den
+Zahlen, die darunter einzeln stehen — die Zahlenherkunft (Invariante 6) bleibt
+damit geschlossen, weil jede Ziffer schon in den Tatsachen steht.
+
+Geprüft wird **gegen das Muster, nicht gegen eine Liste bekannter Schlüssel**:
+`tests/isolation/agent-lauf.test.ts` (9) lässt alle vier Agenten laufen und
+weist jeden Entwurf ab, in dem noch `{…}` steht. Eine neue Vorlage mit einem
+neuen Platzhalter fällt damit beim ersten Lauf auf. Dazu die Gegenprobe: fehlt
+ein Schlüssel, MUSS der Platzhalter sichtbar bleiben — sonst hätte der Test
+eine Funktion abgesegnet, die Lücken stillschweigend leert, und das wäre die
+schlechtere Antwort.
+
+### D-528 · Eine CSV-Datei wird in Excel geöffnet, und Excel rechnet
+
+Ein Projektname `=HYPERLINK("http://…";"Rechnung")`, eine UTM-Kampagne `+cmd`,
+ein Kundenname `@SUM(…)` — alles Werte, die jemand von aussen über ein
+Webformular in die Datenbank schreiben kann — wurden beim Öffnen des Exports
+AUSGEFÜHRT statt gezeigt. `csvFeld` maskierte nach RFC 4180, und RFC 4180 kennt
+keine Formeln; die beiden Programme, die diese Datei öffnen, schon.
+
+Ein führendes `'` ist die von beiden verstandene Marke für „das ist Text", und
+in der Zelle sieht man davon nichts. **Die Entscheidung trifft die SPALTE, nicht
+der Wert:** `wert` ist Text aus der Datenbank und wird geschützt, die
+Cent-Spalte und die Kopfzeile entstehen in dieser Datei und gehen roh durch —
+ein `'-1999` in der Cent-Spalte rechnete in keiner Tabelle mehr, und genau
+dafür steht sie da.
+
+### D-529 · Eine Summe ist kein anderer Bildschirm
+
+D-524 liess die Zellen einer nicht lesbaren Gesellschaft einen Strich zeigen —
+die Gesamtzeile darunter zählte sie weiter mit. Wer eines der beiden Rechte
+hält und das andere nicht, holte sich die verborgene Zahl durch eine
+Subtraktion zurück. **Eine Aggregation erbt die Rechte ihrer Zeilen**; sie ist
+kein anderer Bildschirm, nur eine kürzere Schreibweise desselben.
+
+### D-530 · Zählen und Schreiben sind EINE Entscheidung
+
+Beide neuen Bremsen (D-523) lasen erst den Stand und schrieben danach. Ohne
+Serialisierung lesen zwei gleichzeitige Anforderungen denselben Stand, beide
+finden sich unter der Grenze, und beide kommen durch — die Bremse bremst genau
+den, der langsam klickt, und niemanden sonst. `pg_advisory_xact_lock` je
+normalisiertem Schlüssel schliesst das: zwei verschiedene Adressen behindern
+sich nicht, und die Sperre fällt mit der Transaktion.
+
+### D-531 · Ein Test, der vom Rechner abhängt, prüft den Rechner
+
+`bau-wache.test.ts` wurde rot, sobald die Browsersuite parallel lief: der
+Wächter probierte neben dem gesetzten `PORT` auch 3000/3001, fand dort deren
+Server, meldete das richtig — und der Test las es als Fehlalarm.
+
+Die Regel dahinter war falsch, nicht nur der Test: **ein gesetztes `PORT` gilt
+allein.** Die Nachbarhäfen sind der Rateweg für den Normalfall, in dem niemand
+einen Hafen nennt. Wer einen nennt, hat sich entschieden; danach noch 3000
+abzufragen heisst, ihm nicht zu glauben, und meldet einen Server, den er gar
+nicht gemeint hat. Eine Gegenprobe hält den Rateweg fest, damit er nicht
+stillschweigend verschwindet.
