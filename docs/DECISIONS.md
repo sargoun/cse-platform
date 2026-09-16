@@ -11970,3 +11970,44 @@ umgestellt; die Ziele waren durchweg interne Pfade, die beiden mit einem
 
 | Betrifft | D-562, `server/auth/ursprung.ts`, `scripts/guards/run-all.ts`, 27 Routen |
 |---|---|
+
+### D-572 · Der Kanal, der nie wieder versucht wurde
+
+Die Copilot-Runde auf PR 16 hat eine Lücke gefunden, und sie war echt: ein
+`beitrag_kanal` mit `ergebnis = 'fehlgeschlagen'` wurde **nie wieder
+versucht**. Der Planlauf holt nur `geplant`e Beiträge, der Beitrag ist danach
+`veroeffentlicht`, und im ganzen Baum gab es keine Stelle — weder Knopf noch
+Lauf —, die ihn wiederholt. Nachgesehen, nicht vermutet.
+
+**Die vorgeschlagene Reparatur war die falsche.** Sie lautete: den echten
+Adapterfehler weiterwerfen, damit der Beitrag `geplant` bleibt und der Lauf es
+erneut versucht. Das hiesse, die eigene Gesellschaftsseite von Instagram
+abhängig zu machen — und die eigene Seite ist kein Kanal (D-560): dort STEHT
+der Beitrag, sobald `status = 'veroeffentlicht'`, weil die öffentliche Policy
+ihn dann zeigt. Einen veröffentlichten Beitrag wegen eines fremden Kanals
+zurückzuhalten wäre eine Falschaussage in die andere Richtung.
+
+**Die richtige Form ist ein eigener Schritt.** `erneut_senden` führt auf
+DENSELBEN Zustand — als einziger Schritt des Weges, und deshalb steht das in
+`social-weg.test.ts` ausdrücklich als Ausnahme von „jeder Übergang landet
+woanders". Er wiederholt genau die `fehlgeschlagen`en Kanäle, fasst
+`veroeffentlicht_am` nicht an und lässt `nicht_verbunden` in Ruhe: das ist kein
+Fehlschlag, sondern ein bekannter Zustand (O-10), und ein Knopf, der ihn jede
+Woche neu versucht, erzeugt Rauschen statt Ergebnis.
+
+**`social.planen`, nicht `social.schreiben`.** Der Schritt schickt etwas nach
+draussen, an dieselben Plattformen wie „Jetzt veröffentlichen". Wer Texte
+schreibt, entscheidet damit nicht, wann sie hinausgehen.
+
+Der Knopf erscheint nur, wenn es etwas zu wiederholen GIBT und die Sitzung das
+Recht hält — ein Knopf, der jedes Mal „kein Kanal ist fehlgeschlagen"
+antwortet, sieht aus wie eine kaputte Funktion (AUT-06).
+
+**Warum es trotzdem erst jetzt kommt.** Heute kann `fehlgeschlagen` praktisch
+nur aus einem Programmfehler entstehen: alle fünf Plattformen sind absichtlich
+unverbunden und liefern `nicht_verbunden`. Die Wirkung im Betrieb war null —
+aber eine Lücke, die man kennt und stehen lässt, ist eine Lücke, die beim
+ersten echten Adapter zuschlägt.
+
+| Betrifft | SOC-03, SOC-07, O-10, `weg.ts`, `dienst.ts: sendeErneut`, D-560 |
+|---|---|

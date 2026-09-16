@@ -1,6 +1,6 @@
 import { type NextRequest, type NextResponse } from 'next/server';
 import {
-  SocialFehler, legeVor, schrittGehen, veroeffentliche,
+  SocialFehler, legeVor, schrittGehen, sendeErneut, veroeffentliche,
 } from '@/server/services/social/dienst';
 import { kanonischeBasis, KeinHostFehler } from '@/lib/domains';
 import type { Schritt } from '@/server/services/social/weg';
@@ -24,6 +24,14 @@ const RECHT: Readonly<Record<string, string>> = {
   planung_aufheben: 'social.planen',
   veroeffentlichen: 'social.planen',
   zuruecknehmen: 'social.planen',
+  /*
+   * **`erneut_senden` verlangt `social.planen`, nicht `social.schreiben`.**
+   *
+   * Es schickt etwas nach DRAUSSEN — an dieselben fremden Plattformen wie
+   * „Jetzt veröffentlichen", und aus demselben Grund gehört es zum schärferen
+   * Recht. Wer Texte schreibt, entscheidet damit nicht, wann sie hinausgehen.
+   */
+  erneut_senden: 'social.planen',
 };
 
 /**
@@ -64,7 +72,7 @@ export async function POST(
         await legeVor(kontext, id);
         return id;
       }
-      if (gewaehlt === 'veroeffentlichen') {
+      if (gewaehlt === 'veroeffentlichen' || gewaehlt === 'erneut_senden') {
         /*
          * Die Adresse des Beitrags auf der eigenen Seite -- jede Plattform
          * will einen Link, und ein relativer waere dort dasselbe Nichts wie
@@ -77,7 +85,8 @@ export async function POST(
         } catch (fehler) {
           if (!(fehler instanceof KeinHostFehler)) throw fehler;
         }
-        await veroeffentliche(kontext, id, adresse);
+        if (gewaehlt === 'erneut_senden') await sendeErneut(kontext, id, adresse);
+        else await veroeffentliche(kontext, id, adresse);
         return id;
       }
       await schrittGehen(kontext, id, gewaehlt as Schritt, rumpf.felder['grund'] ?? null);

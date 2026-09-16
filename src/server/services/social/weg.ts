@@ -14,7 +14,8 @@ export type BeitragStatus =
 
 export type Schritt =
   | 'vorlegen' | 'freigeben' | 'ablehnen' | 'ueberarbeiten'
-  | 'planen' | 'planung_aufheben' | 'veroeffentlichen' | 'zuruecknehmen';
+  | 'planen' | 'planung_aufheben' | 'veroeffentlichen' | 'zuruecknehmen'
+  | 'erneut_senden';
 
 /**
  * **Was aus welchem Zustand werden darf.**
@@ -40,7 +41,24 @@ const UEBERGAENGE: Readonly<Record<BeitragStatus, Readonly<Partial<Record<Schrit
     planung_aufheben: 'freigegeben', veroeffentlichen: 'veroeffentlicht',
     zuruecknehmen: 'zurueckgezogen',
   },
-  veroeffentlicht: { zuruecknehmen: 'zurueckgezogen' },
+  /**
+   * **`erneut_senden` führt auf DENSELBEN Zustand, und das ist der Punkt.**
+   *
+   * Ein Kanal, der `fehlgeschlagen` ist, wurde nie wieder versucht: der
+   * Planlauf holt nur `geplant`e Beiträge, und dieser hier ist
+   * `veroeffentlicht`. Gemeldet hat das die Copilot-Runde auf PR 16, und der
+   * Befund stimmte — nur die vorgeschlagene Reparatur nicht: „den Beitrag
+   * geplant lassen" hiesse, die eigene Gesellschaftsseite von Instagram
+   * abhängig zu machen. Die eigene Seite IST kein Kanal; dort steht der
+   * Beitrag, sobald `status = 'veroeffentlicht'`.
+   *
+   * Der Wiederholungsweg ist deshalb ein eigener Schritt, der den Zustand
+   * NICHT ändert und `veroeffentlicht_am` nicht anfasst — er wiederholt genau
+   * die fehlgeschlagenen Kanäle. Ein `nicht_verbunden` wird dabei nicht
+   * wiederholt: das ist kein Fehlschlag, sondern ein bekannter Zustand (O-10),
+   * und ein Knopf, der ihn jede Woche neu versucht, erzeugt nur Rauschen.
+   */
+  veroeffentlicht: { zuruecknehmen: 'zurueckgezogen', erneut_senden: 'veroeffentlicht' },
   zurueckgezogen: {},
 };
 
@@ -105,6 +123,7 @@ export const SCHRITT_TEXT: Readonly<Record<Schritt, string>> = {
   planen: 'Planen',
   planung_aufheben: 'Planung aufheben',
   veroeffentlichen: 'Jetzt veröffentlichen',
+  erneut_senden: 'Fehlgeschlagene Kanäle erneut senden',
   zuruecknehmen: 'Zurücknehmen',
 };
 

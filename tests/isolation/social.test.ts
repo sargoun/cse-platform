@@ -20,9 +20,9 @@
  */
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import type postgres from 'postgres';
-import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
+import { alsApp, alsRolle, schliessen, seed, sql, type Fixtur } from './harness.js';
 import {
-  legeBeitragAn as dienstLegeBeitragAn, legeVor, setzeKanaele, veroeffentliche,
+  legeBeitragAn as dienstLegeBeitragAn, legeVor, sendeErneut, setzeKanaele, veroeffentliche,
 } from '../../src/server/services/social/dienst.js';
 import { entscheideFreigabe } from '../../src/server/services/freigabe/entscheiden.js';
 import { vermerkeAnsicht } from '../../src/server/services/freigabe/laden.js';
@@ -699,5 +699,96 @@ describe('(11) Was der Kunde nicht freigegeben hat, geht nicht hinaus', () => {
         projektId: null, referenzId: fremd, kanalIds: [],
       }),
     )).rejects.toThrow(/gelöscht oder vom Kunden nicht freigegeben/u);
+  });
+});
+
+/**
+ * **Der Wiederholungsweg für fehlgeschlagene Kanäle** (SOC-07, Copilot-Befund
+ * auf PR 16).
+ *
+ * Der Befund stimmte: ein Kanal mit `ergebnis = 'fehlgeschlagen'` wurde nie
+ * wieder versucht. Der Planlauf holt nur `geplant`e Beiträge, und der Beitrag
+ * ist danach `veroeffentlicht` — es gab keine Stelle im Baum, die ihn
+ * wiederholt.
+ *
+ * Was hier festgehalten wird, ist genauso wichtig wie das, was passiert: der
+ * Beitrag bleibt `veroeffentlicht`, `veroeffentlicht_am` bleibt stehen, und
+ * ein `nicht_verbunden`er Kanal wird NICHT mitgenommen. Die eigene
+ * Gesellschaftsseite ist kein Kanal; sie hängt nicht an Instagram.
+ */
+describe('erneut senden (SOC-07)', () => {
+  it('ohne fehlgeschlagenen Kanal gibt es nichts zu tun — und das ist kein Fehler', async () => {
+    const konto = await legeKontoAn(f.reinigung);
+    /* `genehmigt`: ohne Freigabe laesst der Riegel aus 0163 den Status gar nicht zu. */
+    const { beitragId: id } = await legeBeitragAn(
+      f.reinigung, `Erneut ${zufall()}`, 'veroeffentlicht', 'genehmigt');
+    await imMandanten(f.reinigung, (tx) => tx.unsafe(
+      `update beitrag set veroeffentlicht_am = now() where id = $1::uuid`, [id]));
+
+    await expect(alsApp(
+      {
+        scope: 'mandant', mandantId: f.reinigung, benutzerId: konto,
+        readonly: false, portal: 'intern',
+      },
+      async (tx) => {
+        const abfrage = async <R,>(sql: string, werte: readonly unknown[] = []) =>
+          (await tx.unsafe(sql, werte as never[])) as unknown as readonly R[];
+        return sendeErneut(
+          { abfrage, schreibe: abfrage, benutzerId: konto }, id, null);
+      },
+    )).rejects.toMatchObject({ grund: 'nichts_zu_tun' });
+  });
+
+  it('ein fehlgeschlagener Kanal wird wiederholt, ein nicht verbundener nicht', async () => {
+    const konto = await legeKontoAn(f.reinigung);
+    const { beitragId: id } = await legeBeitragAn(
+      f.reinigung, `Erneut ${zufall()}`, 'veroeffentlicht', 'genehmigt');
+    const kanalA = await legeKanalAn(f.reinigung, 'instagram');
+    const kanalB = await legeKanalAn(f.reinigung, 'linkedin');
+    await imMandanten(f.reinigung, async (tx) => {
+      await tx.unsafe(
+        `update beitrag set veroeffentlicht_am = now() where id = $1::uuid`, [id]);
+      await tx.unsafe(
+        `insert into beitrag_kanal (mandant_id, beitrag_id, kanal_id, ergebnis, meldung)
+         values ($1::uuid, $2::uuid, $3::uuid, 'fehlgeschlagen', 'Testfehler'),
+                ($1::uuid, $2::uuid, $4::uuid, 'nicht_verbunden', 'kein Konto')`,
+        [f.reinigung, id, kanalA, kanalB]);
+    });
+
+    const [vorher] = (await alsRolle('', (tx) => tx.unsafe(
+      `select veroeffentlicht_am from beitrag where id = $1::uuid`,
+      [id]))) as unknown as { veroeffentlicht_am: Date }[];
+
+    await alsApp(
+      {
+        scope: 'mandant', mandantId: f.reinigung, benutzerId: konto,
+        readonly: false, portal: 'intern',
+      },
+      async (tx) => {
+        const abfrage = async <R,>(sql: string, werte: readonly unknown[] = []) =>
+          (await tx.unsafe(sql, werte as never[])) as unknown as readonly R[];
+        return sendeErneut({ abfrage, schreibe: abfrage, benutzerId: konto }, id, null);
+      },
+    );
+
+    const zeilen = (await alsRolle('', (tx) => tx.unsafe(
+      `select kanal_id, ergebnis::text as ergebnis, versuche from beitrag_kanal
+        where beitrag_id = $1::uuid`, [id]))) as unknown as {
+        kanal_id: string; ergebnis: string; versuche: number;
+      }[];
+    const a = zeilen.find((z) => z.kanal_id === kanalA);
+    const b = zeilen.find((z) => z.kanal_id === kanalB);
+    /* Wiederholt — und wieder nicht verbunden, weil keine Plattform es ist. */
+    expect(Number(a!.versuche)).toBeGreaterThanOrEqual(1);
+    expect(a!.ergebnis).toBe('nicht_verbunden');
+    /* Der bekannte Zustand wurde NICHT angefasst. */
+    expect(Number(b!.versuche)).toBe(0);
+
+    const [nachher] = (await alsRolle('', (tx) => tx.unsafe(
+      `select veroeffentlicht_am, status::text as status from beitrag where id = $1::uuid`,
+      [id]))) as unknown as { veroeffentlicht_am: Date; status: string }[];
+    expect(nachher!.status).toBe('veroeffentlicht');
+    expect(new Date(nachher!.veroeffentlicht_am).getTime())
+      .toBe(new Date(vorher!.veroeffentlicht_am).getTime());
   });
 });

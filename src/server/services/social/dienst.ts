@@ -478,56 +478,20 @@ export interface Veroeffentlichung {
 }
 
 /**
- * **Veröffentlichen — und was dabei ehrlich bleiben muss** (SOC-05, SOC-07).
+ * Sendet an die uebergebenen Kanaele und schreibt je Kanal das Ergebnis.
  *
- * Die eigene Gesellschaftsseite bekommt den Beitrag IMMER: `status =
- * 'veroeffentlicht'` ist dort die ganze Handlung, die öffentliche Policy tut
- * den Rest. Deshalb steht `aufWebsite: true` im Ergebnis und nicht als Frage.
- *
- * Jeder fremde Kanal wird EINZELN gefragt, und sein Ergebnis steht einzeln da.
- * Ein nicht verbundener Kanal ist `nicht_verbunden` — nie `veroeffentlicht`,
- * nie stillschweigend übersprungen. Ein Beitrag, der auf der eigenen Seite
- * steht und bei Instagram liegen blieb, sagt genau das.
+ * Herausgezogen, weil `veroeffentliche` und `sendeErneut` denselben Weg nach
+ * draussen gehen muessen. Zwei Abschriften waeren zwei Wege, und der eine
+ * bliebe beim naechsten Umbau zurueck — mit dem Unterschied, dass niemand ihn
+ * drueckt und deshalb niemand merkt, dass er anders geworden ist.
  */
-export async function veroeffentliche(
-  kontext: SchreibZugriff, id: string, adresse: string | null,
-): Promise<Veroeffentlichung> {
-  const b = await ladeBeitrag(kontext, id);
-  if (b === null) throw new SocialFehler('Diesen Beitrag gibt es nicht.', 'unbekannt');
-  if (naechsterStatus(b.status, 'veroeffentlichen') === null) {
-    throw new SocialFehler(
-      'Veröffentlicht wird, was freigegeben oder geplant ist — nichts sonst (SOC-08).',
-      'falscher_status');
-  }
-
-  /*
-   * **Der Stand wird ZUERST genommen, vor dem ersten Gang nach draussen.**
-   *
-   * Vorher stand dieses `update` am Ende: zwei gleichzeitige Anfragen (ein
-   * doppelter Klick genuegt) lasen beide „freigegeben", riefen beide jeden
-   * Adapter und setzten danach beide denselben Status. Was dabei doppelt
-   * geschieht, ist nicht der Datenbankschreibvorgang — es ist die AUSSENDUNG.
-   * Ein zweiter Beitrag auf LinkedIn nimmt kein `update` zurueck.
-   *
-   * Wer die Bedingung nicht mehr erfuellt, faellt hier heraus, bevor
-   * irgendein Kanal gefragt wurde. Und der Status ist ab diesem Punkt
-   * ehrlich: auf der eigenen Gesellschaftsseite STEHT der Beitrag jetzt — die
-   * fremden Kanaele tragen ihr Ergebnis einzeln daneben.
-   */
-  await schreibeWennNoch(kontext, id, b.status,
-    `update beitrag set status = 'veroeffentlicht', veroeffentlicht_am = now(),
-                        geaendert_von = $2::uuid
-      where id = $1::uuid`,
-    [id, kontext.benutzerId]);
-
-  const auftrag: BeitragAuftrag = {
-    beitragId: b.id, titel: b.titel, text: b.text, adresse,
-  };
-  const zeilen = await kanaeleZuBeitrag(kontext, id);
+async function sendeKanaele(
+  kontext: SchreibZugriff, id: string, auftrag: BeitragAuftrag,
+  zeilen: readonly BeitragKanalZeile[],
+): Promise<Veroeffentlichung['kanaele'][number][]> {
   const ergebnisse: Veroeffentlichung['kanaele'][number][] = [];
 
   for (const z of zeilen) {
-    if (z.ergebnis === 'veroeffentlicht') continue;
     const kanal = plattformKanal(z.plattform);
     try {
       const { externeRef } = await kanal.veroeffentliche(auftrag);
@@ -572,7 +536,99 @@ export async function veroeffentliche(
       ergebnisse.push({ plattform: z.plattform, ergebnis, meldung });
     }
   }
+  return ergebnisse;
+}
 
+/**
+ * **Veröffentlichen — und was dabei ehrlich bleiben muss** (SOC-05, SOC-07).
+ *
+ * Die eigene Gesellschaftsseite bekommt den Beitrag IMMER: `status =
+ * 'veroeffentlicht'` ist dort die ganze Handlung, die öffentliche Policy tut
+ * den Rest. Deshalb steht `aufWebsite: true` im Ergebnis und nicht als Frage.
+ *
+ * Jeder fremde Kanal wird EINZELN gefragt, und sein Ergebnis steht einzeln da.
+ * Ein nicht verbundener Kanal ist `nicht_verbunden` — nie `veroeffentlicht`,
+ * nie stillschweigend übersprungen. Ein Beitrag, der auf der eigenen Seite
+ * steht und bei Instagram liegen blieb, sagt genau das.
+ */
+export async function veroeffentliche(
+  kontext: SchreibZugriff, id: string, adresse: string | null,
+): Promise<Veroeffentlichung> {
+  const b = await ladeBeitrag(kontext, id);
+  if (b === null) throw new SocialFehler('Diesen Beitrag gibt es nicht.', 'unbekannt');
+  if (naechsterStatus(b.status, 'veroeffentlichen') === null) {
+    throw new SocialFehler(
+      'Veröffentlicht wird, was freigegeben oder geplant ist — nichts sonst (SOC-08).',
+      'falscher_status');
+  }
+
+  /*
+   * **Der Stand wird ZUERST genommen, vor dem ersten Gang nach draussen.**
+   *
+   * Vorher stand dieses `update` am Ende: zwei gleichzeitige Anfragen (ein
+   * doppelter Klick genuegt) lasen beide „freigegeben", riefen beide jeden
+   * Adapter und setzten danach beide denselben Status. Was dabei doppelt
+   * geschieht, ist nicht der Datenbankschreibvorgang — es ist die AUSSENDUNG.
+   * Ein zweiter Beitrag auf LinkedIn nimmt kein `update` zurueck.
+   *
+   * Wer die Bedingung nicht mehr erfuellt, faellt hier heraus, bevor
+   * irgendein Kanal gefragt wurde. Und der Status ist ab diesem Punkt
+   * ehrlich: auf der eigenen Gesellschaftsseite STEHT der Beitrag jetzt — die
+   * fremden Kanaele tragen ihr Ergebnis einzeln daneben.
+   */
+  await schreibeWennNoch(kontext, id, b.status,
+    `update beitrag set status = 'veroeffentlicht', veroeffentlicht_am = now(),
+                        geaendert_von = $2::uuid
+      where id = $1::uuid`,
+    [id, kontext.benutzerId]);
+
+  const zeilen = await kanaeleZuBeitrag(kontext, id);
+  const ergebnisse = await sendeKanaele(
+    kontext, id,
+    { beitragId: b.id, titel: b.titel, text: b.text, adresse },
+    zeilen.filter((z) => z.ergebnis !== 'veroeffentlicht'));
+
+  return { beitragId: id, aufWebsite: true, kanaele: ergebnisse };
+}
+
+/**
+ * **Fehlgeschlagene Kanaele erneut senden** (SOC-07, Copilot-Befund auf PR 16).
+ *
+ * Der Befund stimmte: ein Kanal mit `ergebnis = 'fehlgeschlagen'` wurde nie
+ * wieder versucht. Der Planlauf holt nur `geplant`e Beitraege, und der Beitrag
+ * ist danach `veroeffentlicht` — im ganzen Baum gab es keine Stelle, die ihn
+ * wiederholt.
+ *
+ * **Der Status bleibt, und `veroeffentlicht_am` bleibt.** Die eigene
+ * Gesellschaftsseite ist kein Kanal: dort STEHT der Beitrag, seit der Status
+ * es sagt. Ihn wegen Instagram zurueckzuhalten hiesse, die eigene Seite von
+ * einer fremden Plattform abhaengig zu machen.
+ *
+ * **`nicht_verbunden` wird NICHT wiederholt.** Das ist kein Fehlschlag,
+ * sondern ein bekannter Zustand (O-10) — ein Knopf, der ihn jede Woche neu
+ * versucht, erzeugt Rauschen und kein Ergebnis.
+ */
+export async function sendeErneut(
+  kontext: SchreibZugriff, id: string, adresse: string | null,
+): Promise<Veroeffentlichung> {
+  const b = await ladeBeitrag(kontext, id);
+  if (b === null) throw new SocialFehler('Diesen Beitrag gibt es nicht.', 'unbekannt');
+  if (naechsterStatus(b.status, 'erneut_senden') === null) {
+    throw new SocialFehler(
+      'Erneut gesendet wird nur, was veröffentlicht ist.', 'falscher_status');
+  }
+
+  const offen = (await kanaeleZuBeitrag(kontext, id))
+    .filter((z) => z.ergebnis === 'fehlgeschlagen');
+  if (offen.length === 0) {
+    throw new SocialFehler(
+      'Kein Kanal ist fehlgeschlagen. Ein nicht verbundener Kanal ist kein '
+      + 'Fehlschlag, sondern ein bekannter Zustand (O-10) — ihn zu wiederholen '
+      + 'änderte nichts.', 'nichts_zu_tun');
+  }
+
+  const ergebnisse = await sendeKanaele(
+    kontext, id, { beitragId: b.id, titel: b.titel, text: b.text, adresse }, offen);
   return { beitragId: id, aufWebsite: true, kanaele: ergebnisse };
 }
 

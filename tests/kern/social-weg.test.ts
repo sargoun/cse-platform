@@ -38,7 +38,24 @@ describe('der Weg eines Beitrags', () => {
 
   it('(3) ein veröffentlichter Beitrag wird nicht wieder Entwurf', () => {
     expect(naechsterStatus('veroeffentlicht', 'ueberarbeiten')).toBeNull();
-    expect(moeglicheSchritte('veroeffentlicht')).toEqual(['zuruecknehmen']);
+    expect(moeglicheSchritte('veroeffentlicht'))
+      .toEqual(['zuruecknehmen', 'erneut_senden']);
+  });
+
+  /**
+   * **`erneut_senden` führt auf DENSELBEN Zustand, und das ist der Punkt.**
+   *
+   * Ein fehlgeschlagener Kanal wurde nie wieder versucht (Copilot-Befund auf
+   * PR 16). Die Reparatur ist NICHT, den Beitrag geplant zu lassen: die eigene
+   * Gesellschaftsseite ist kein Kanal, dort steht er, sobald der Status es
+   * sagt. Ihn wegen Instagram zurückzuhalten hiesse, die eigene Seite von
+   * einer fremden Plattform abhängig zu machen.
+   */
+  it('`erneut_senden` ändert den Zustand nicht — und gibt es nur dort', () => {
+    expect(naechsterStatus('veroeffentlicht', 'erneut_senden')).toBe('veroeffentlicht');
+    for (const s of ALLE.filter((x) => x !== 'veroeffentlicht')) {
+      expect(naechsterStatus(s, 'erneut_senden'), s).toBeNull();
+    }
   });
 
   it('(4) zurückgezogen ist ein Ende', () => {
@@ -58,7 +75,17 @@ describe('der Weg eines Beitrags', () => {
       for (const schritt of moeglicheSchritte(s)) {
         const n = naechsterStatus(s, schritt);
         expect(ALLE).toContain(n);
-        expect(n).not.toBe(s);
+        /*
+         * **`erneut_senden` ist die eine Ausnahme, und sie ist keine
+         * Aufweichung.** Jeder andere Schritt ist ein ÜBERGANG und muss
+         * deshalb woanders landen — ein Schritt, der nichts ändert, wäre
+         * sonst ein Knopf ohne Wirkung. Dieser hier ist eine WIEDERHOLUNG:
+         * er schickt die fehlgeschlagenen Kanäle noch einmal und lässt den
+         * Beitrag, wo er ist. Der Zustand darf sich dabei nicht ändern —
+         * `veroeffentlicht_am` bliebe sonst nicht, was es sagt.
+         */
+        if (schritt === 'erneut_senden') expect(n).toBe(s);
+        else expect(n).not.toBe(s);
       }
     }
   });

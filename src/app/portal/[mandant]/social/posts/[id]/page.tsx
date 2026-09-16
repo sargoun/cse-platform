@@ -117,8 +117,22 @@ export default async function Beitrag(
    * und war keine. Der Weg dorthin ist die Planungsseite darunter.
    */
   const OHNE: readonly Schritt[] = ['freigeben', 'ablehnen', 'planen'];
+  /*
+   * **`erneut_senden` erscheint nur, wenn es etwas zu wiederholen GIBT** — und
+   * nur für den, der es darf.
+   *
+   * Ein nicht verbundener Kanal ist kein Fehlschlag, sondern ein bekannter
+   * Zustand (O-10); ihn zu wiederholen änderte nichts, und ein Knopf, der
+   * jedes Mal „kein Kanal ist fehlgeschlagen" antwortet, sieht aus wie eine
+   * kaputte Funktion. Dasselbe gilt für das Recht: der Schritt geht nach
+   * DRAUSSEN und verlangt deshalb `social.planen`, wie „Jetzt
+   * veröffentlichen" — ein Knopf davor, dessen Route abweist, ist ein
+   * Fehlerbericht mit Verzögerung (AUT-06).
+   */
+  const hatFehlgeschlagene = daten.kanaele.some((k) => k.ergebnis === 'fehlgeschlagen');
   const schritte = moeglicheSchritte(b.status)
-    .filter((s): s is Schritt => !OHNE.includes(s));
+    .filter((s): s is Schritt => !OHNE.includes(s))
+    .filter((s) => s !== 'erneut_senden' || (hatFehlgeschlagene && daten.darfPlanen));
   /*
    * Der Weg zur Planung steht offen, wenn der Zustand ihn kennt UND der
    * Mensch das Recht dazu haelt — nicht, weil der Zustand zufaellig
