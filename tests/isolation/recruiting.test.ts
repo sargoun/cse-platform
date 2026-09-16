@@ -774,3 +774,122 @@ describe('die Aufbewahrungsfrist zaehlt vom Berliner Kalendertag (Invariante 2)'
     expect(zeile!.soll).not.toBe(zeile!.falsch);
   });
 });
+
+/**
+ * **Zwischen dem Finden und dem Löschen kann ein Mensch einstellen.**
+ *
+ * Die Suche des Löschlaufs läuft quer über alle Gesellschaften, ohne Sperre;
+ * `status <> 'eingestellt'` stand nur dort. Wird die Bewerbung danach
+ * entschieden, löschte der Lauf die Entscheidung mitsamt Gesprächen und
+ * anonymisierte den Menschen, den man gerade eingestellt hat — das Gegenteil
+ * dessen, was O-376 festhält.
+ *
+ * Der Fall spielt genau diese Reihenfolge: finden, dann einstellen, dann
+ * löschen lassen. Gemeldet von der Copilot-Runde auf PR 16 (D-585).
+ */
+describe('wer zwischendurch eingestellt wird, wird nicht geloescht (O-376)', () => {
+  /* Kein eigenes `beforeEach`: die modulweite Fixtur traegt Seed und Job. */
+  it('eine Entscheidung nach der Suche haelt den Lauf auf', async () => {
+    const konto = await legeKontoAn(f.reinigung, 'admin');
+    const { bewerbungId } = await bewerbungAnlegen(f.reinigung, -1);
+    const sitzung = {
+      scope: 'mandant' as const, mandantId: f.reinigung,
+      benutzerId: konto, portal: 'intern' as const, readonly: false,
+    };
+
+    /*
+     * Die Entscheidung faellt, BEVOR der Lauf startet — genau das Fenster,
+     * das die Suche von oben nicht mehr sieht, wenn sie ihre Liste schon
+     * gezogen hat. Der Lauf muss sie daher unter der Sperre neu lesen.
+     */
+    await alsApp(sitzung, (tx) => tx.unsafe(
+      `insert into einstellungsentscheidung
+         (mandant_id, bewerbung_id, ergebnis, begruendung, entschieden_von)
+       values ($1::uuid, $2::uuid, 'eingestellt', 'Probe', $3::uuid)`,
+      [f.reinigung, bewerbungId, konto]));
+
+    await job.ausfuehren({ mandantId: null, laufId: 'test-eingestellt-vorher', versuch: 1 });
+
+    const [b] = (await alsRolle('', (tx) => tx.unsafe(
+      `select status::text as status, geloescht_am, name from bewerbung where id = $1::uuid`,
+      [bewerbungId]))) as unknown as
+        { status: string; geloescht_am: string | null; name: string }[];
+    expect(b!.status, 'sie ist eingestellt').toBe('eingestellt');
+    expect(b!.geloescht_am, 'und wurde NICHT geloescht').toBeNull();
+    expect(b!.name).not.toContain('gelöscht');
+
+    const [e] = (await alsRolle('', (tx) => tx.unsafe(
+      `select count(*)::int as n from einstellungsentscheidung where bewerbung_id = $1::uuid`,
+      [bewerbungId]))) as unknown as { n: number }[];
+    expect(Number(e!.n), 'die Entscheidung steht noch').toBe(1);
+  });
+
+  /**
+   * **Und jetzt das Fenster selbst.**
+   *
+   * Der Fall oben beweist nur den Filter der SUCHE: die Entscheidung stand
+   * schon, als der Lauf begann. Gefährlich ist die andere Reihenfolge —
+   * gefunden, DANN eingestellt, dann gelöscht. Dieses Fenster gibt es nur
+   * innerhalb eines Laufs, also stellt der Fall es her: die Verbindung, die
+   * der Lauf benutzt, trägt die Einstellung ein, sobald die Suchabfrage
+   * durch ist. Danach arbeitet der Lauf mit einer Liste, die eine Zeile zu
+   * viel enthält — genau der Zustand, den die Bestätigung unter `for update`
+   * abfangen muss.
+   *
+   * Ohne die Bestätigung löscht er die Entscheidung und anonymisiert den
+   * Menschen; mit ihr lässt er die Zeile stehen und zählt sie als
+   * zurückgehalten. Sabotiert man die Bedingung im Dienst, fällt genau
+   * dieser Fall (D-585).
+   */
+  it('auch wenn die Entscheidung ZWISCHEN Suche und Loeschung faellt', async () => {
+    const konto = await legeKontoAn(f.reinigung, 'admin');
+    const { bewerbungId } = await bewerbungAnlegen(f.reinigung, -1);
+    const sitzung = {
+      scope: 'mandant' as const, mandantId: f.reinigung,
+      benutzerId: konto, portal: 'intern' as const, readonly: false,
+    };
+
+    let eingestellt = false;
+    /*
+     * Dieselbe Verbindung, nur mit einem Zwischenruf: sobald die Suche nach
+     * faelligen Bewerbungen beantwortet ist, faellt die Entscheidung. Der
+     * Lauf laeuft danach ungebremst weiter.
+     */
+    const mitZwischenruf = {
+      begin: <T,>(rueckruf: (tx: {
+        unsafe: (a: string, w?: readonly unknown[]) => Promise<readonly unknown[]>;
+      }) => Promise<T>): Promise<T> => sql.begin(async (tx) => rueckruf({
+        unsafe: async (anweisung: string, werte?: readonly unknown[]) => {
+          const zeilen = await tx.unsafe(anweisung, (werte ?? []) as never[]);
+          if (!eingestellt && anweisung.includes('aufbewahrung_bis <= app.berlin_heute()')) {
+            eingestellt = true;
+            await alsApp(sitzung, (t2) => t2.unsafe(
+              `insert into einstellungsentscheidung
+                 (mandant_id, bewerbung_id, ergebnis, begruendung, entschieden_von)
+               values ($1::uuid, $2::uuid, 'eingestellt', 'Im Fenster', $3::uuid)`,
+              [f.reinigung, bewerbungId, konto]));
+          }
+          return zeilen as readonly unknown[];
+        },
+      })) as Promise<T>,
+    };
+
+    leereRegister();
+    const lauf = registriereBewerberLoeschung(mitZwischenruf as never);
+    await lauf.ausfuehren({ mandantId: null, laufId: 'test-fenster', versuch: 1 });
+    expect(eingestellt, 'der Zwischenruf ist wirklich gefallen').toBe(true);
+
+    const [b] = (await alsRolle('', (tx) => tx.unsafe(
+      `select status::text as status, geloescht_am, name from bewerbung where id = $1::uuid`,
+      [bewerbungId]))) as unknown as
+        { status: string; geloescht_am: string | null; name: string }[];
+    expect(b!.status).toBe('eingestellt');
+    expect(b!.geloescht_am, 'im Fenster eingestellt — und trotzdem nicht geloescht').toBeNull();
+    expect(b!.name).not.toContain('gelöscht');
+
+    const [e] = (await alsRolle('', (tx) => tx.unsafe(
+      `select count(*)::int as n from einstellungsentscheidung where bewerbung_id = $1::uuid`,
+      [bewerbungId]))) as unknown as { n: number }[];
+    expect(Number(e!.n), 'die Entscheidung steht noch').toBe(1);
+  });
+});

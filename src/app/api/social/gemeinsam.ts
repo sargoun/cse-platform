@@ -130,9 +130,15 @@ export async function fuehreSocialAus(
             HEIMWEG, anfrage),
           303);
       }
+      /*
+       * `kein_recht` ist 403 und nicht 409: es ist kein Konflikt im Zustand,
+       * sondern eine fehlende Erlaubnis (D-585). Ein 409 hiesse „versuch es
+       * gleich noch einmal", und das waere jedes Mal falsch.
+       */
+      const status = fehler.grund === 'unbekannt' ? 404
+        : fehler.grund === 'kein_recht' ? 403 : 409;
       return NextResponse.json(
-        { fehler: fehler.grund, meldung: fehler.message },
-        { status: fehler.grund === 'unbekannt' ? 404 : 409 });
+        { fehler: fehler.grund, meldung: fehler.message }, { status });
     }
     const autorisierung = autorisierungsAntwort(fehler);
     if (autorisierung !== null) return autorisierung;

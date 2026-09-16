@@ -98,8 +98,18 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
          */
         if (was === 'position_entfernen') {
           const position = text(daten, 'position') ?? '';
-          if (!UUID.test(position)) throw new MappeFehler('nicht_gefunden', 'Position unbekannt.');
-          await entfernePosition(kontext, position);
+          /*
+           * **Die Mappe gehoert in den Befehl, nicht nur in die Umleitung.**
+           * Ohne sie suchte der Dienst die Position allein ueber ihre Kennung
+           * im Mandanten — wer eine fremde Kennung kennt, loeschte aus einem
+           * anderen Vorgang. Sie kommt aus demselben Feld wie bei
+           * `position_neu` und `mappenstand` (D-585).
+           */
+          const mappe = text(daten, 'mappe') ?? '';
+          if (!UUID.test(position) || !UUID.test(mappe)) {
+            throw new MappeFehler('nicht_gefunden', 'Position unbekannt.');
+          }
+          await entfernePosition(kontext, { mappeId: mappe, positionId: position });
           return;
         }
 

@@ -44,9 +44,19 @@ async function mandantFuer(
   return db().begin(async (tx: postgres.TransactionSql) =>
     withOeffentlich(tx, async (kontext) => {
       if (stelleId !== null) {
+        /*
+         * **Auch hier die archivierte Gesellschaft ausschliessen.** Die
+         * Liste und das Stellenblatt tun es (`karriere/daten.ts`); täte es
+         * diese Auflösung nicht, nähme die Plattform noch Bewerbungen für
+         * eine Gesellschaft entgegen, die es nicht mehr gibt — und die
+         * Daten lägen in einem Mandanten, den niemand mehr öffnet.
+         * Gemeldet von der Copilot-Runde auf PR 16 (D-585).
+         */
         const [z] = await kontext.abfrage<{ mandant_id: string }>(
-          `select mandant_id from stelle
-            where id = $1::uuid and status = 'veroeffentlicht' and geschlossen_am is null`,
+          `select s.mandant_id from stelle s
+             join mandant m on m.id = s.mandant_id and m.archiviert_am is null
+            where s.id = $1::uuid and s.status = 'veroeffentlicht'
+              and s.geschlossen_am is null`,
           [stelleId]);
         return z?.mandant_id ?? null;
       }

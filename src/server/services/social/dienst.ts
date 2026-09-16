@@ -328,6 +328,32 @@ async function schreibeWennNoch(
     `${satz} and status = $${String(werte.length + 1)}::beitrag_status returning id`,
     [...werte, stand]);
   if (zeilen.length === 0) {
+    /**
+     * **Null Zeilen hat ZWEI Ursachen, und sie verlangen zwei Sätze.**
+     *
+     * Entweder der Beitrag steht nicht mehr im erwarteten Zustand — dann war
+     * jemand schneller. Oder die Schreibpolicy hat abgewiesen: `beitrag`
+     * kennt genau eine Schreibpolicy, und die verlangt `social.schreiben`,
+     * während die Planungs- und Versandschritte an `social.planen` hängen
+     * (`RECHT` in der Schritt-Route). Beides sind eigene Rechte, je
+     * Gesellschaft einzeln widerrufbar.
+     *
+     * Wer planen darf und nicht schreiben, bekam deshalb „jemand anderes war
+     * schneller" — eine Erklärung, die in die Irre führt: er lädt neu, sieht
+     * denselben Zustand und versucht es wieder. Die Grundmatrix (`0008`)
+     * vergibt beide Rechte zusammen, ein Mandanten-Override kann sie trennen.
+     * Gemeldet von der Copilot-Runde auf PR 16 (D-585).
+     *
+     * Die Rückfrage kostet eine Abfrage — aber nur auf dem Fehlerweg, und sie
+     * liest mit derselben Lesepolicy, die den Beitrag ohnehin sichtbar macht.
+     */
+    const [noch] = await kontext.abfrage<{ status: string }>(
+      `select status::text as status from beitrag where id = $1::uuid`, [id]);
+    if (noch !== undefined && noch.status === stand) {
+      throw new SocialFehler(
+        'Dieser Schritt verlangt zusätzlich das Recht, Beiträge zu bearbeiten '
+        + '(social.schreiben). Der Beitrag steht unverändert da.', 'kein_recht');
+    }
     throw new SocialFehler(
       'Der Beitrag hat sich inzwischen geändert — jemand anderes war schneller. '
       + 'Bitte die Seite neu laden und noch einmal ansehen.', 'gleichzeitig');

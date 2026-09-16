@@ -86,8 +86,31 @@ export default async function Veroeffentlichung(
                 Status dieser Stelle:{' '}
                 {s.status === 'veroeffentlicht'
                   ? `veröffentlicht seit ${s.veroeffentlichtAm === null ? '—' : berlinZeit(s.veroeffentlichtAm)}`
-                  : 'noch nicht veröffentlicht — sie braucht zuerst eine Freigabe (Invariante 7)'}
+                  : s.status === 'freigegeben'
+                    ? 'freigegeben — sie darf hinaus, steht aber noch nicht auf der Karriereseite'
+                    : 'noch nicht freigegeben — sie braucht zuerst eine Freigabe (Invariante 7)'}
               </p>
+              {/*
+                * **Der Knopf, der gefehlt hat.** Die Freigabe bringt die
+                * Anzeige auf `freigegeben`; `/karriere` zeigt nur
+                * `veroeffentlicht`. Ohne diesen Schritt blieb jede im Portal
+                * angelegte Stelle für immer unsichtbar (D-585). Veröffentlicht
+                * wird von einem Menschen, nicht im Augenblick der Genehmigung
+                * — dieselbe Entscheidung wie bei Social (D-556).
+                */}
+              {s.status === 'freigegeben' && s.geschlossenAm === null && (
+                <form method="post"
+                      action={`/api/recruiting/stellen/${id}/veroeffentlichen`}
+                      className="mt-s4">
+                  <input type="hidden" name="mandant" value={mandant} />
+                  <input type="hidden" name="boerse" value="karriereseite" />
+                  <input type="hidden" name="zurueck"
+                         value={`/portal/${mandant}/recruiting/stellen/${id}/veroeffentlichung`} />
+                  <Button type="submit" variante="primary" data-cse="karriereseite-veroeffentlichen">
+                    Auf der Karriereseite veröffentlichen
+                  </Button>
+                </form>
+              )}
             </div>
 
             <h2 className="mb-s3 text-h3 text-text">Jobbörsen</h2>

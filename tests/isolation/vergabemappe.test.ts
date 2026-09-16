@@ -217,7 +217,7 @@ describe('(2) Eine Pruefzeile laesst sich zuruecknehmen — bis zur Einreichung'
     await alsDienst(async (k) => {
       const [p] = await k.abfrage<{ id: string }>(
         `select id from vergabemappe_position where vergabemappe_id=$1 and position=2`, [mappe]);
-      await entfernePosition(k, p!.id);
+      await entfernePosition(k, { mappeId: mappe, positionId: p!.id });
     });
 
     const [nachher] = await sql.unsafe<{ g: number; n: number }[]>(
@@ -251,8 +251,9 @@ describe('(2) Eine Pruefzeile laesst sich zuruecknehmen — bis zur Einreichung'
     const [p] = await sql.unsafe<{ id: string }[]>(
       `select id from vergabemappe_position where vergabemappe_id=$1`, [mappe]);
 
-    await expect(alsDienst(async (k) => { await entfernePosition(k, p!.id); }))
-      .rejects.toThrow(MappeFehler);
+    await expect(alsDienst(async (k) => {
+      await entfernePosition(k, { mappeId: mappe, positionId: p!.id });
+    })).rejects.toThrow(MappeFehler);
 
     const [danach] = await sql.unsafe<{ n: number }[]>(
       `select count(*) n from vergabemappe_position where vergabemappe_id=$1`, [mappe]);
@@ -274,7 +275,8 @@ describe('(2) Eine Pruefzeile laesst sich zuruecknehmen — bis zur Einreichung'
       `select id from vergabemappe_position where vergabemappe_id=$1`, [mappe]);
 
     await expect(alsDienst(
-      async (k) => { await entfernePosition(k, p!.id); }, f.security, fremder,
+      async (k) => { await entfernePosition(k, { mappeId: mappe, positionId: p!.id }); },
+      f.security, fremder,
     )).rejects.toThrow(MappeFehler);
 
     const [danach] = await sql.unsafe<{ n: number }[]>(
@@ -539,5 +541,54 @@ describe('(5) Die Waende', () => {
     await expect(alsRolle('cse_job', async (tx: postgres.TransactionSql) => tx.unsafe(
       `update vergabemappe set status = 'verworfen' where id = $1`, [mappe])))
       .rejects.toThrow(/permission denied|Berechtigung/iu);
+  });
+});
+
+/**
+ * **Eine Position gehört zu IHRER Mappe — auch beim Löschen.**
+ *
+ * `entfernePosition` suchte die Zeile allein über ihre Kennung und den
+ * Mandanten. Wer `vergabe.schreiben` hält und die Kennung einer Position aus
+ * einem anderen Vorgang kennt, löschte sie von der Seite einer fremden Mappe
+ * aus; das versteckte Feld im Formular entschied nur über die Umleitung. Der
+ * Befehl verlangt die Mappe jetzt.
+ *
+ * Gemeldet von der Copilot-Runde auf PR 16 (D-585).
+ */
+describe('eine Position laesst sich nicht aus einer FREMDEN Mappe entfernen', () => {
+  /*
+   * Kein eigenes `beforeEach`: die Sitzung, die `alsDienst` bindet, steht in
+   * `sitzung()` und liest die MODULWEITE Fixtur. Ein lokales `f` daneben
+   * hiesse, mit dem Konto des einen Seeds in die Daten eines anderen zu
+   * greifen — RLS sieht dann nichts, und der Fall waere aus dem falschen
+   * Grund gruen.
+   */
+  it('dieselbe Gesellschaft, zwei Mappen — die Kennung allein genuegt nicht', async () => {
+    const a = await legeVorgangAn(f.reinigung);
+    const b = await legeVorgangAn(f.reinigung);
+    const mappeA = await legeMappeDirektAn(f.reinigung, a.vorgang);
+    const mappeB = await legeMappeDirektAn(f.reinigung, b.vorgang);
+    await sql.unsafe(
+      `insert into vergabemappe_position (mandant_id, vergabemappe_id, position, bezeichnung)
+       values ($1,$2,1,'Eigenerklaerung A')`, [f.reinigung, mappeA]);
+    const [p] = await sql.unsafe<{ id: string }[]>(
+      `select id from vergabemappe_position where vergabemappe_id=$1`, [mappeA]);
+
+    /* Die Position gehoert zu A, genannt wird B — das ist kein Treffer. */
+    await expect(alsDienst(async (k) => {
+      await entfernePosition(k, { mappeId: mappeB, positionId: p!.id });
+    })).rejects.toThrow(MappeFehler);
+
+    const [danach] = await sql.unsafe<{ n: number }[]>(
+      `select count(*) n from vergabemappe_position where vergabemappe_id=$1`, [mappeA]);
+    expect(Number(danach!.n), 'die Zeile der anderen Mappe steht noch').toBe(1);
+
+    /* Und mit der richtigen Mappe geht es — sonst prueft der Fall nur ein Verbot. */
+    await alsDienst(async (k) => {
+      await entfernePosition(k, { mappeId: mappeA, positionId: p!.id });
+    });
+    const [weg] = await sql.unsafe<{ n: number }[]>(
+      `select count(*) n from vergabemappe_position where vergabemappe_id=$1`, [mappeA]);
+    expect(Number(weg!.n)).toBe(0);
   });
 });

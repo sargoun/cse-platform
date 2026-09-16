@@ -341,6 +341,60 @@ export async function nimmBewerbungAn(
  * Fehlt die Zeile, ist das ein Fehler und keine Vorgabe: eine Bewerbung ohne
  * Uhr bliebe für immer liegen, und genau das verbietet REC-07.
  */
+/**
+ * **Die eigene Karriereseite ist kein Kanal — aber jemand muss den Schalter
+ * umlegen.**
+ *
+ * `freigabe_zieht_stelle_nach` (0167) bringt eine genehmigte Anzeige auf
+ * `freigegeben` und setzt `veroeffentlicht_am` ausdrücklich NICHT: freigegeben
+ * heisst „darf hinaus", nicht „ist draussen". `/karriere` zeigt dagegen nur
+ * `status = 'veroeffentlicht'`.
+ *
+ * Dazwischen fehlte der Weg. Eine Anzeige, die im Portal angelegt, vorgelegt
+ * und genehmigt wurde, blieb damit für IMMER unsichtbar — REC-02 und REC-03
+ * waren gebaut und liefen ins Leere. Gemeldet hat das die Copilot-Runde auf
+ * PR 16; gefunden hätte es jeder, der den Weg einmal ganz gegangen wäre.
+ *
+ * **Warum das ein eigener Schritt ist und nicht am Trigger hängt.** Dieselbe
+ * Entscheidung wie bei Social (D-556): die eigene Seite IST das Haus, kein
+ * fremder Kanal — aber wann eine Anzeige dort erscheint, sagt ein Mensch und
+ * nicht der Augenblick einer Genehmigung. Die Freigabe erlaubt, der Mensch
+ * veröffentlicht. Der Riegel aus 0167 prüft beim `update` noch einmal, dass
+ * eine passende Genehmigung dahintersteht (Invariante 7).
+ */
+export async function veroeffentlicheAufKarriereseite(
+  kontext: SchreibKontext, id: string,
+): Promise<void> {
+  await kontext.abfrage(
+    `select id from stelle where id = $1::uuid and mandant_id = app.aktiver_mandant()
+      for update`, [id]);
+  const s = await ladeStelle(kontext, id);
+  if (s === null) throw new RecruitingFehler('Diese Stelle gibt es nicht.', 'unbekannt', 404);
+  if (s.geschlossenAm !== null) {
+    throw new RecruitingFehler(
+      'Diese Stelle ist geschlossen. Eine beendete Suche geht nicht wieder auf.',
+      'geschlossen', 409);
+  }
+  if (s.status === 'veroeffentlicht') {
+    throw new RecruitingFehler(
+      'Diese Anzeige steht bereits auf der Karriereseite.', 'falscher_status', 409);
+  }
+  if (s.status !== 'freigegeben') {
+    throw new RecruitingFehler(
+      'Veröffentlicht wird, was freigegeben ist. Ein Entwurf geht zuerst durch die '
+      + 'Freigabe (Invariante 7).', 'nicht_freigegeben', 409);
+  }
+  await kontext.schreibe(
+    `update stelle
+        set status = 'veroeffentlicht',
+            veroeffentlicht_am = now(),
+            geaendert_von = $2::uuid,
+            geaendert_am = now()
+      where id = $1::uuid and mandant_id = app.aktiver_mandant()
+        and status = 'freigegeben' and geschlossen_am is null`,
+    [id, kontext.benutzerId]);
+}
+
 export async function aufbewahrungTage(kontext: LeseKontext): Promise<number> {
   /*
    * `app.plattform_einstellung(...)` und nicht `select … from

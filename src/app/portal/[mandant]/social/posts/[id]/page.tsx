@@ -83,6 +83,13 @@ const FEHLER: Readonly<Record<string, string>> = {
     + 'laden Sie die Seite neu.',
   gleichzeitig: 'Jemand anderes war einen Augenblick schneller. Der Beitrag steht '
     + 'jetzt anders da als beim Öffnen dieser Seite; laden Sie sie neu.',
+  /*
+   * Bis D-585 bekam dieser Fall den Satz von `gleichzeitig` — und der schickte
+   * den Menschen zum Neuladen, wo ihm ein RECHT fehlt. Neu laden zeigt
+   * denselben Zustand, er versucht es wieder, und nichts erklärt ihm, warum.
+   */
+  kein_recht: 'Dieser Schritt verlangt zusätzlich das Recht, Beiträge zu bearbeiten '
+    + '(social.schreiben). Am Beitrag hat sich nichts geändert.',
   grund_fehlt: 'Ein Rückzug ohne Grund ist keine Auskunft — er steht im Protokoll, '
     + 'und jemand wird danach fragen.',
   nicht_bearbeitbar: 'Bearbeitet wird nur der Entwurf. Nach dem Vorlegen bindet die '

@@ -98,6 +98,43 @@ export function registriereBewerberLoeschung(db: JobVerbindung): JobDefinition {
          * der ist genau der, den man im Streit vorlegen müsste.
          */
         const n = await alsJobSitzung(db, mandantId, async (jd) => {
+          /**
+           * **Zwischen dem Finden und dem Löschen liegt eine Lücke — und in
+           * ihr kann ein Mensch einstellen.**
+           *
+           * Die Suche oben läuft quer über alle Gesellschaften, ohne Sperre.
+           * Wird eine Bewerbung danach entschieden (`einstellungsentscheidung`
+           * → Trigger setzt `status = 'eingestellt'`), löschte dieser Lauf
+           * die Entscheidung mitsamt Gesprächen und anonymisierte den
+           * Menschen, den man gerade eingestellt hat. `status <>
+           * 'eingestellt'` stand nur in der SUCHE; die Löschung selbst hatte
+           * keine Bedingung mehr.
+           *
+           * Deshalb wird hier neu gelesen — unter `for update`, in derselben
+           * Transaktion wie die Löschung. Wer die Sperre haelt, entscheidet:
+           * eine Einstellung, die vorher committet hat, faellt aus der Menge;
+           * eine, die noch laeuft, wartet, bis geloescht ist. Beides ist
+           * eindeutig, und nichts dazwischen wird still vernichtet.
+           *
+           * Gemeldet von der Copilot-Runde auf PR 16 (D-585).
+           */
+          const bestaetigt = e.zuLoeschen.length === 0 ? [] : (await jd.abfrage<{ id: string }>(
+            `select id from bewerbung
+              where id = any($1::uuid[])
+                and geloescht_am is null
+                and status <> 'eingestellt'
+                and loeschsperre is null
+                and aufbewahrung_bis <= app.berlin_heute()
+              order by id
+                for update`, [e.zuLoeschen])).map((z) => z.id);
+          /*
+           * Was zwischen Suche und Sperre verschwunden ist, zaehlt wie eine
+           * Sperre: zurueckgehalten, nicht geloescht — und es steht im
+           * Protokoll, damit die Zahl auf `/recruiting/datenschutz` erklaerbar
+           * bleibt.
+           */
+          e.gesperrt += e.zuLoeschen.length - bestaetigt.length;
+          e.zuLoeschen = bestaetigt;
           if (e.zuLoeschen.length > 0) {
             /*
              * **Die Nutzlast wird gelöscht, die Bewerbung anonymisiert.**
@@ -138,7 +175,8 @@ export function registriereBewerberLoeschung(db: JobVerbindung): JobDefinition {
                       telefon = null,
                       nachricht = null,
                       geaendert_am = now()
-                where id = any($1::uuid[])`,
+                where id = any($1::uuid[])
+                  and status <> 'eingestellt'`,
               [e.zuLoeschen]);
           }
           await jd.abfrage(

@@ -34,7 +34,7 @@ export async function offeneStellen(): Promise<readonly OffeneStelle[]> {
   return oeffentlichLesen((kontext) => kontext.abfrage<OffeneStelle>(
     `select ${FELDER}
        from stelle s
-       join mandant m on m.id = s.mandant_id
+       join mandant m on m.id = s.mandant_id and m.archiviert_am is null
       where s.status = 'veroeffentlicht' and s.geschlossen_am is null
       order by s.veroeffentlicht_am desc
       limit 50`));
@@ -59,7 +59,7 @@ export async function offeneStelle(id: string): Promise<OffeneStelle | null> {
   const zeilen = await oeffentlichLesen((kontext) => kontext.abfrage<OffeneStelle>(
     `select ${FELDER}
        from stelle s
-       join mandant m on m.id = s.mandant_id
+       join mandant m on m.id = s.mandant_id and m.archiviert_am is null
       where s.id = $1::uuid
         and s.status = 'veroeffentlicht' and s.geschlossen_am is null`,
     [id]));

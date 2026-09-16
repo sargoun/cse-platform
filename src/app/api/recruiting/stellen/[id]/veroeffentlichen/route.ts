@@ -1,6 +1,6 @@
 import { type NextRequest, type NextResponse } from 'next/server';
 import {
-  ladeStelle, vermerkeVeroeffentlichung, RecruitingFehler,
+  ladeStelle, vermerkeVeroeffentlichung, veroeffentlicheAufKarriereseite, RecruitingFehler,
 } from '@/server/services/recruiting/dienst';
 import {
   BOERSEN, BoerseNichtVerbundenFehler, boersenPort, type Boerse,
@@ -42,6 +42,27 @@ export async function POST(
         throw new RecruitingFehler('Diese Stelle gibt es nicht.', 'nicht_gefunden', 404);
       }
       const roh = (rumpf.felder['boerse'] ?? '').trim();
+      /**
+       * **Die eigene Karriereseite ist kein Kanal — und braucht trotzdem
+       * einen Knopf.**
+       *
+       * Der Trigger aus 0167 bringt eine genehmigte Anzeige auf
+       * `freigegeben` und setzt `veroeffentlicht_am` ausdrücklich nicht;
+       * `/karriere` zeigt nur `veroeffentlicht`. Dazwischen fehlte der Weg,
+       * also erschien KEINE im Portal angelegte Stelle je öffentlich —
+       * REC-02 und REC-03 waren gebaut und liefen ins Leere. Gemeldet von der
+       * Copilot-Runde auf PR 16 (D-585).
+       *
+       * Sie steht hier und nicht in `BOERSEN`, weil sie keine Börse IST: kein
+       * Port, kein Vertrag, keine externe Kennung, kein Vermerk in
+       * `stelle_veroeffentlichung`. Der Schritt ändert den Zustand der
+       * Anzeige, mehr nicht — und derselbe Riegel (Invariante 7) prüft beim
+       * `update` noch einmal die Genehmigung.
+       */
+      if (roh === 'karriereseite') {
+        await veroeffentlicheAufKarriereseite(kontext, id);
+        return 'karriereseite';
+      }
       if (!(BOERSEN as readonly string[]).includes(roh)) {
         throw new RecruitingFehler(
           'Dieses Ziel kennt die Plattform nicht.', 'unbekanntes_ziel', 400);

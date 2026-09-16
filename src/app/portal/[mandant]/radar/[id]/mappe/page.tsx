@@ -356,6 +356,7 @@ export default async function Vergabemappe(
                           <input type="hidden" name="mandant" value={mandant} />
                           <input type="hidden" name="ausschreibung" value={id} />
                           <input type="hidden" name="was" value="position_entfernen" />
+                          <input type="hidden" name="mappe" value={m.mappeId} />
                           <input type="hidden" name="position" value={p.id} />
                           <Button type="submit" variante="danger"
                                   data-cse="position-entfernen"

@@ -12854,3 +12854,76 @@ englische Fassung mehr (D-583).
 
 | Betrifft | Invariante 2, D-580, D-582, D-583, O-512, `recruiting/marken.ts`, `api/rumpf.ts`, `docs/architecture/01-ORDNERSTRUKTUR.md` |
 |---|---|
+
+### D-585 · Die siebte Runde — ein Löschlauf im Rennen, eine Prüfliste ohne Wand, und eine Stelle, die nie hinauskam
+
+**1. Der Löschlauf löschte, was ein Mensch gerade eingestellt hatte.** Die
+Suche läuft quer über alle Gesellschaften, ohne Sperre; `status <>
+'eingestellt'` stand NUR dort. Fällt die Einstellungsentscheidung zwischen
+dieser Suche und der löschenden Transaktion, nahm der Lauf die Bewerbung
+trotzdem mit: Gespräche weg, Bewertungen weg, **die Entscheidung selbst
+weg** (REC-08 verlangt genau sie), der Mensch anonymisiert. Die `update`-
+Anweisung trug keine Bedingung mehr.
+
+Jetzt liest die Löschtransaktion die Kennungen neu — unter `for update`, mit
+demselben Prädikat. Wer die Sperre hält, entscheidet: eine Einstellung, die
+vorher committet hat, fällt aus der Menge; eine, die noch läuft, wartet.
+Was dabei herausfällt, zählt als zurückgehalten und steht im Protokoll.
+
+**Der Fall dazu stellt das Fenster wirklich her.** Ein erster Versuch legte
+die Entscheidung vor dem Lauf an — der prüfte dann nur den Filter der Suche
+und blieb grün, auch als der Riegel entfernt war. Der zweite Fall gibt dem
+Lauf eine Verbindung mit einem Zwischenruf: sobald die Suchabfrage
+beantwortet ist, fällt die Entscheidung. Ohne den Riegel ist die Bewerbung
+danach gelöscht, mit ihm steht sie. **Ein Fall, der auch ohne die Sicherung
+grün ist, prüft die Sicherung nicht.**
+
+**2. Eine Prüflistenzeile liess sich aus einer FREMDEN Mappe löschen.**
+`entfernePosition` suchte die Zeile über ihre Kennung und den Mandanten. Wer
+`vergabe.schreiben` hält und eine Kennung aus einem anderen Vorgang kennt,
+löschte sie von der Seite einer beliebigen Mappe aus; das versteckte Feld im
+Formular entschied nur über die Umleitung. Der Aufrufer nennt die Mappe
+jetzt, und der Befehl verlangt sie.
+
+**Und die Bedingung war eine Momentaufnahme.** Sie stand als `exists` im
+`delete` — ohne Sperre, während die Einreichung
+(`app.mappe_einreichung_erfassen`) `for update` auf dieselbe Zeile nimmt.
+Zwei Vorgänge mit verschiedenen Serialisierungspunkten sind gar keiner: eine
+eingereichte Mappe konnte eine fehlende Zeile bekommen, und eine eingereichte
+Mappe IST der Beleg dessen, was hinausgegangen ist. Dieselbe Sperre, derselbe
+Punkt — wer zuerst kommt, gewinnt.
+
+**3. Keine im Portal angelegte Stelle kam je auf die Karriereseite.** Der
+Trigger aus 0167 bringt eine genehmigte Anzeige auf `freigegeben` und setzt
+`veroeffentlicht_am` ausdrücklich nicht. `/karriere` zeigt nur
+`veroeffentlicht`. **Dazwischen fehlte der Weg** — REC-02 und REC-03 waren
+gebaut, durchgetestet und liefen ins Leere; nur die Demodaten setzten den
+Zustand von Hand, weshalb der Bildschirm gefüllt aussah.
+
+`veroeffentlicheAufKarriereseite` ist dieser Schritt, und er gehört einem
+Menschen: die Freigabe erlaubt, der Mensch veröffentlicht — dieselbe
+Entscheidung wie bei Social (D-556, die eigene Seite ist kein Kanal). Der
+Knopf steht auf der Veröffentlichungsseite, direkt unter dem Satz, der bis
+heute behauptete, eine freigegebene Stelle stehe „sofort" unter `/karriere`.
+
+**4. Drei kleinere aus derselben Runde.**
+
+| Befund | Behoben |
+|---|---|
+| `/karriere` listete Stellen ARCHIVIERTER Gesellschaften, und die Bewerbungsannahme nahm sie an | `archiviert_am is null` in Liste, Detail und Mandantenauflösung |
+| Ein Schritt mit `social.planen`, aber ohne `social.schreiben`, lief in die RLS und bekam „jemand anderes war schneller" | Null Zeilen werden nachgefragt: steht die Zeile unverändert, ist es ein RECHT und keine Gleichzeitigkeit — `kein_recht`, 403, eigener Satz |
+
+Der Rechtefall ist mit der Grundmatrix (`0008`) nicht erreichbar:
+`social.planen` hält nur, wer auch `social.schreiben` hält. Erreichbar wird er
+durch einen Mandanten-Override — und dann führte die alte Meldung den
+Menschen in eine Schleife aus Neuladen und Wiederversuchen.
+
+**5. Was NICHT übernommen wurde, und warum.** Die Runde meldete, die Sitemap
+lasse `/karriere` aus, weil es nicht in `OEFFENTLICHE_ROUTEN` stehe. Die
+Sitemap kommt aber aus der Datenbank (`seite`-Zeilen, PUB-10) — sie meldet,
+welche Seiten es GIBT. `/karriere` fehlt ihr aus einem anderen Grund, und ob
+im Code gebaute Routen hineingehören, ist eine Frage an den Auftraggeber:
+**O-512**.
+
+| Betrifft | REC-02, REC-03, REC-07, REC-08, O-376, O-512, RAD-07, D-556, D-583, `jobs/bewerberLoeschung.ts`, `services/vergabe/mappe.ts`, `services/recruiting/dienst.ts` |
+|---|---|
