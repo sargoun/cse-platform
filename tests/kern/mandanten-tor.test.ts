@@ -73,23 +73,36 @@ describe('jede Mandantsseite hat überhaupt ein Slug-Tor', () => {
    * sähe Reinigungszahlen unter der Überschrift der Security.
    */
   const OHNE_EIGENES_TOR: readonly string[] = [
-    // Reicht an `MandantUnterseite` weiter, die das Tor selbst führt.
-    '[...rest]/page.tsx',
-    // Reichen an `BerichtsSeite` (`berichte/rahmen.tsx`) weiter — dort steht `mandantTor`.
-    'berichte/attribution/page.tsx', 'berichte/auftraege/page.tsx',
-    'berichte/mitarbeiter/page.tsx', 'berichte/pipeline/page.tsx',
-    'berichte/projekte/page.tsx', 'berichte/umsatz/page.tsx',
-    // Eine reine Weiterleitung auf die Agentenseite — sie prüft dort.
-    'agenten/[agent]/aufgaben/page.tsx',
-    /*
-     * Die sechs Platzhalter, die Next.js sonst der Nachbarroute `[id]`
-     * überlässt — dort würde `neu` zu `$1::uuid` und die Seite zu einem 500
-     * (D-563). Sie reichen an `MandantUnterseite` weiter, die das Tor führt.
-     */
-    'crm/leads/neu/page.tsx', 'crm/kunden/neu/page.tsx', 'angebote/neu/page.tsx',
-    'objekte/neu/page.tsx', 'reinigung/reviere/neu/page.tsx',
-    'finanzen/mahnungen/vorschlaege/page.tsx',
-  ];
+  '[...rest]/page.tsx',
+  'agenten/[agent]/aufgaben/page.tsx',
+  'angebote/neu/page.tsx',
+  'berichte/attribution/page.tsx',
+  'berichte/auftraege/page.tsx',
+  'berichte/mitarbeiter/page.tsx',
+  'berichte/pipeline/page.tsx',
+  'berichte/projekte/page.tsx',
+  'berichte/umsatz/page.tsx',
+  'crm/kunden/neu/page.tsx',
+  'crm/leads/neu/page.tsx',
+  'finanzen/mahnungen/vorschlaege/page.tsx',
+  'objekte/neu/page.tsx',
+  'recruiting/bedarf/page.tsx',
+  'recruiting/bewerbungen/[id]/page.tsx',
+  'recruiting/bewerbungen/page.tsx',
+  'recruiting/datenschutz/page.tsx',
+  'recruiting/gespraeche/[id]/page.tsx',
+  'recruiting/gespraeche/page.tsx',
+  'recruiting/kandidaten/[id]/bewertung/page.tsx',
+  'recruiting/kandidaten/[id]/entscheidung/page.tsx',
+  'recruiting/kandidaten/[id]/page.tsx',
+  'recruiting/kandidaten/page.tsx',
+  'recruiting/page.tsx',
+  'recruiting/stellen/[id]/page.tsx',
+  'recruiting/stellen/[id]/veroeffentlichung/page.tsx',
+  'recruiting/stellen/neu/page.tsx',
+  'recruiting/stellen/page.tsx',
+  'reinigung/reviere/neu/page.tsx',
+];
 
   it('und wo nicht, reicht sie an eine Hülle weiter, die eines hat', () => {
     const ohne = ALLE
@@ -107,7 +120,7 @@ describe('jede Mandantsseite hat überhaupt ein Slug-Tor', () => {
      * inzwischen selbst rendert, waere sie ungeschuetzt und die Liste
      * behauptete das Gegenteil.
      */
-    const huellen = ['MandantUnterseite', 'BerichtsSeite', 'redirect'];
+    const huellen = ['MandantUnterseite', 'BerichtsSeite', 'RecruitingSeite', 'redirect'];
     for (const rel of OHNE_EIGENES_TOR) {
       const quelle = ohneKommentareMitTexten(readFileSync(join(WURZEL, rel), 'utf8'));
       expect(huellen.some((h) => quelle.includes(h)), rel).toBe(true);

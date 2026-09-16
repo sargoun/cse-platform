@@ -1,7 +1,7 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
-import { istGleicherUrsprung } from '@/server/auth/ursprung';
+import { istGleicherUrsprung, erwarteterUrsprung } from '@/server/auth/ursprung';
 import { bindePersoenlich } from '@/server/kontext/index';
 import { db } from '@/server/db/pool';
 import { oeffne } from '@/server/benachrichtigung/posteingang';
@@ -54,5 +54,5 @@ export async function POST(
 
   // Relativ und aus der Zeile: `new URL(ziel, origin)` kann damit nie auf
   // einen fremden Wirt zeigen, weil `ziel` per CHECK mit `/` beginnt.
-  return NextResponse.redirect(new URL(ziel, anfrage.nextUrl.origin), 303);
+  return NextResponse.redirect(new URL(ziel, erwarteterUrsprung(anfrage)), 303);
 }

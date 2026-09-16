@@ -363,6 +363,21 @@ export const ROUTEN: readonly RouteEintrag[] = [
     recht: 'zeit.korrigieren',
   },
   {
+    pfad: 'api/karriere/bewerbung',
+    recht: null,
+    grund:
+      'REC-03. Der oeffentliche Bewerbungsweg — wie `api/anfrage` bewusst ohne Konto, '
+      + 'weil sich jemand ohne Konto bewirbt. Was ihn schuetzt, sind nicht Rechte des '
+      + 'Aufrufers: Honigtopf, Ratenlimit ueber den IP-Hash, Validierung, und ein '
+      + 'Prinzipal (`withEingang`), der schreiben und NICHT lesen kann — wer sich '
+      + 'bewirbt, sieht damit keine fremde Bewerbung. Der Mandant kommt nie aus dem '
+      + 'Formular: bei einer Stellenbewerbung wird er aus der STELLE aufgeloest, und '
+      + 'zwar ueber die oeffentliche Sicht, die nur veroeffentlichte Stellen durchlaesst '
+      + '(K-02). Ohne das koennte ein praeparierter POST eine Bewerbung in eine fremde '
+      + 'Gesellschaft schreiben oder sich auf einen Entwurf bewerben, den niemand '
+      + 'ausgeschrieben hat.',
+  },
+  {
     /**
      * TIM-05, TIM-06, SEC-04, LEG-03, LEG-04 — der einzige Schreibweg auf
      * `einsatz_zuordnung`. `dienstplan.schreiben` ist das Recht des Planers;
@@ -1274,6 +1289,30 @@ export const ROUTEN: readonly RouteEintrag[] = [
   { pfad: 'api/social/beitraege/[id]', recht: 'social.schreiben' },
   { pfad: 'api/social/beitraege/[id]/schritt', recht: 'social.schreiben' },
   { pfad: 'api/social/beitraege/[id]/planung', recht: 'social.planen' },
+  /**
+   * Recruiting (REC-02, REC-05, REC-08, REC-09) — vier schreibende Routen,
+   * vier verschiedene Rechte. Die Trennung ist der Inhalt: eine Stelle
+   * ausschreiben, sie hinausgeben, eine Bewerbung bewerten und über einen
+   * Menschen entscheiden sind vier Vorgänge, und wer den einen darf, darf
+   * dadurch nicht die anderen.
+   *
+   * `…/entscheidung` trägt zusätzlich einen Riegel, den kein Recht ersetzt:
+   * der Auslöser `kern.entscheidung_ist_menschlich` (0166) weist jede Zeile
+   * ab, deren Akteur kein Mensch ist (Art. 22 DSGVO).
+   */
+  { pfad: 'api/recruiting/stellen', recht: 'recruiting.stelle_schreiben' },
+  {
+    pfad: 'api/recruiting/stellen/[id]/veroeffentlichen',
+    recht: 'recruiting.stelle_veroeffentlichen',
+  },
+  {
+    pfad: 'api/recruiting/bewerbungen/[id]/bewertung',
+    recht: 'recruiting.bewerbung_bewerten',
+  },
+  {
+    pfad: 'api/recruiting/bewerbungen/[id]/entscheidung',
+    recht: 'recruiting.entscheiden',
+  },
 ] as const;
 
 /** Die Routen, die ein Recht verlangen. */

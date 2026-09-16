@@ -1104,6 +1104,38 @@ function wacheKonformitaetsauftrag(): void {
   }
 }
 
+/**
+ * Guard — **kein interner Redirect gegen `nextUrl.origin`.**
+ *
+ * `NextRequest.nextUrl` trägt die Adresse, unter der der SERVER die Anfrage
+ * angenommen hat, nicht die, die im Browser steht. Hinter einem Proxy, einem
+ * Tunnel oder einem anderen Port ist das eine andere — und ein `303` dorthin
+ * schickt den Menschen nach dem Absenden eines Formulars auf einen Wirt, den
+ * er nie aufgerufen hat. Beendet der Proxy TLS, steht dort ausserdem `http`,
+ * und der Rückweg aus dem Portal ist ein Downgrade.
+ *
+ * Gefunden wurde das zweimal von Hand: einmal als `{"fehler":
+ * "fremder_ursprung"}` beim Sprachwechsel (D-562), einmal als 404 nach jedem
+ * Formular. Beim zweiten Mal steckte dieselbe Zeile in 27 Dateien.
+ *
+ * Richtig ist `erwarteterUrsprung(anfrage)` — es liest den `Host`-Kopf und
+ * fällt erst danach auf `nextUrl` zurück — oder `internesZiel(...)`, das
+ * zusätzlich prüft, dass ein mitgegebener Rückweg derselbe Ursprung ist.
+ * `server/auth/ursprung.ts` ist die eine Stelle, an der `nextUrl` stehen darf.
+ */
+function wacheInternerUrsprung(): void {
+  for (const datei of mussLesen('src', ['.ts', '.tsx'])) {
+    if (datei.replace(/\\/gu, '/').endsWith('src/server/auth/ursprung.ts')) continue;
+    ohneKommentare(readFileSync(datei, 'utf8'))
+      .split('\n')
+      .forEach((zeile, i) => {
+        if (/\bnextUrl\s*\.\s*(?:origin|host)\b/u.test(zeile)) {
+          melde('interner-ursprung', datei, i + 1, zeile.trim());
+        }
+      });
+  }
+}
+
 async function main(): Promise<void> {
   wacheGeldSpalte();
   wacheZeitstempel();
@@ -1120,6 +1152,7 @@ async function main(): Promise<void> {
   wacheMigrationsnummer();
   wacheSvgWohlgeformt();
   wacheKonformitaetsauftrag();
+  wacheInternerUrsprung();
   await wacheKonfigAdressen();
 
   if (befunde.length > 0) {

@@ -1,6 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { istGleicherUrsprung } from '@/server/auth/ursprung';
+import { istGleicherUrsprung, erwarteterUrsprung } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
@@ -116,7 +116,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
 
     const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
     return NextResponse.redirect(
-      new URL(`/portal/${slug}/crm/leads/${leadId}`, anfrage.nextUrl.origin), 303);
+      new URL(`/portal/${slug}/crm/leads/${leadId}`, erwarteterUrsprung(anfrage)), 303);
   } catch (fehler) {
     if (fehler instanceof NichtAngemeldetFehler) {
       return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });

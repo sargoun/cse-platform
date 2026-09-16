@@ -72,6 +72,12 @@ export const QUERSCHNITT: ReadonlySet<string> = new Set([
   // wird, nicht. An ein Gewerk gebunden waere das Modul bei CSE Operations
   // abgeschaltet, und genau dort liegt die Gruppenkommunikation.
   'social',
+  // `recruiting` (PR 79, REC-01): jede der vier Gesellschaften stellt Menschen
+  // ein, und sie stellt ihre eigenen ein — eine Bewerbung gehoert dem
+  // Mandanten, bei dem sie eingeht (Invariante 3). WEN eine Gesellschaft
+  // sucht, haengt am Gewerk; DASS sie sucht, nicht. An ein Gewerk gebunden
+  // haette CSE Operations kein Recruiting, obwohl dort die Verwaltung sitzt.
+  'recruiting',
 ]);
 
 /** Der Modulname eines Rechteschluessels — dieselbe Regel wie 0008. */

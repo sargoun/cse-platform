@@ -3,11 +3,12 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { autorisierungsAntwort } from '@/server/auth/antwort';
-import { istGleicherUrsprung } from '@/server/auth/ursprung';
+import { istGleicherUrsprung, erwarteterUrsprung } from '@/server/auth/ursprung';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { db } from '@/server/db/pool';
 import { type SchreibKontext, withTenant } from '@/server/kontext/index';
 import { SocialFehler } from '@/server/services/social/dienst';
+import { liesRumpf as liesRumpfIntern, type Rumpf } from '../rumpf';
 
 /**
  * Das Gerüst der vier schreibenden Social-Routen.
@@ -28,50 +29,13 @@ import { SocialFehler } from '@/server/services/social/dienst';
  * nicht in jeder Route neu und irgendwann anders geschrieben wird.
  */
 
-export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
-
-export interface Rumpf {
-  readonly felder: Readonly<Record<string, string>>;
-  readonly alle: (name: string) => readonly string[];
-  readonly json: boolean;
-}
-
-export async function liesRumpf(anfrage: NextRequest): Promise<Rumpf> {
-  const typ = anfrage.headers.get('content-type') ?? '';
-  if (typ.includes('application/json')) {
-    /*
-     * **Kaputtes JSON bleibt kaputtes JSON.** Hier stand
-     * `.catch(() => ({}))` — daraus wurde ein leeres Formular, und der Aufrufer
-     * bekam `unvollstaendig` (409) statt `unlesbarer_rumpf` (400). Wer eine
-     * Schnittstelle anspricht, kann dann nicht unterscheiden, ob seine Syntax
-     * kaputt war oder ein Feld fehlte — und sucht das Feld.
-     * `fuehreSocialAus` faengt den Wurf bereits ab und antwortet 400.
-     */
-    const roh = (await anfrage.json()) as Record<string, unknown>;
-    const felder: Record<string, string> = {};
-    for (const [k, v] of Object.entries(roh)) {
-      if (typeof v === 'string') felder[k] = v;
-    }
-    return {
-      felder,
-      alle: (name) => {
-        const w = roh[name];
-        return Array.isArray(w) ? w.filter((x): x is string => typeof x === 'string') : [];
-      },
-      json: true,
-    };
-  }
-  const daten = await anfrage.formData();
-  const felder: Record<string, string> = {};
-  for (const [k, v] of daten.entries()) {
-    if (typeof v === 'string' && !(k in felder)) felder[k] = v;
-  }
-  return {
-    felder,
-    alle: (name) => daten.getAll(name).filter((x): x is string => typeof x === 'string'),
-    json: false,
-  };
-}
+/*
+ * `UUID`, `Rumpf` und `liesRumpf` stehen jetzt in `api/rumpf.ts`: sie sind an
+ * Social nicht gebunden, und Recruiting brauchte dieselbe Weiche. Hier wird
+ * weiter re-exportiert, damit die vier Social-Routen ihren Import behalten —
+ * ein Umzug soll keine Datei anfassen, die sich sonst nicht ändert.
+ */
+export { UUID, liesRumpf, type Rumpf } from '../rumpf';
 
 export interface Lauf {
   /**
@@ -102,7 +66,7 @@ export async function fuehreSocialAus(
   if (sitzung === null || sitzung.aktiverMandantId === null) {
     return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
   }
-  const rumpf = await liesRumpf(anfrage).catch(() => null);
+  const rumpf = await liesRumpfIntern(anfrage).catch(() => null);
   if (rumpf === null) {
     return NextResponse.json({ fehler: 'unlesbarer_rumpf' }, { status: 400 });
   }
@@ -121,7 +85,7 @@ export async function fuehreSocialAus(
 
     if (rumpf.json) return NextResponse.json({ ergebnis }, { status: 200 });
     return NextResponse.redirect(
-      new URL(lauf.ziel(slug, ergebnis), anfrage.nextUrl.origin), 303);
+      new URL(lauf.ziel(slug, ergebnis), erwarteterUrsprung(anfrage)), 303);
   } catch (fehler: unknown) {
     if (fehler instanceof SocialFehler) {
       return NextResponse.json(

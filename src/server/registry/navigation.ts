@@ -152,6 +152,28 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    */
   { schluessel: 'social', label: 'Social Media', pfad: 'social', recht: 'social.schreiben', icon: 'social' },
   /**
+   * `recruiting` — Stellen, Bewerbungen, Kandidaten (REC-01 … REC-09, PR 79).
+   *
+   * **Das Recht ist `recruiting.bewerbung_lesen`**, das schmalste der sieben:
+   * die Uebersicht zeigt offene Stellen und eingegangene Bewerbungen, und wer
+   * Bewerbungen lesen darf, soll dorthin finden. Die Unterseiten tragen ihr
+   * eigenes Recht (`stelle_schreiben`, `bewerbung_bewerten`, `entscheiden`,
+   * `daten_loeschen`), und die Sprungzeile in `recruiting/rahmen.tsx` zeigt nur,
+   * was diese Sitzung oeffnen darf — ein Menuepunkt auf einen 404 verraet die
+   * Existenz dessen, was er nicht zeigen darf (AUT-06, D-567).
+   *
+   * Das Icon ist `person` und nicht `personal`: `personal` ist die
+   * Belegschaft, `recruiting` sind die, die es noch nicht sind. Ein eigenes
+   * Bild gaebe der geschlossene Satz aus DESIGN §5 nicht her, und eines zu
+   * zeichnen hiesse zuerst DESIGN.md zu aendern.
+   *
+   * **Nicht in `GRUPPEN_NAVIGATION`**, obwohl `gruppe.recruiting.lesen` im
+   * Katalog steht: die Seitenkarte fuehrt in §6 keine
+   * `/portal/gruppe/recruiting`, und ein Punkt auf eine Seite, die es nicht
+   * gibt, ist genau der Fehler aus D-561.
+   */
+  { schluessel: 'recruiting', label: 'Recruiting', pfad: 'recruiting', recht: 'recruiting.bewerbung_lesen', icon: 'person' },
+  /**
    * `bau/projekte`, nicht `bau`: die Seitenkarte fuehrt zwar beides, aber die
    * Modulübersicht ist eine Phase-5-Seite ohne Inhalt, solange Nachträge,
    * Behinderungen und Bautagebuch fehlen (PR 44/45). Der Punkt zeigt deshalb

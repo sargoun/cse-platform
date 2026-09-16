@@ -75,7 +75,6 @@ test('kein gezeigter Verweis führt auf 404 oder 500 — als `leitung`', async (
     }
   }
 
-  // eslint-disable-next-line no-console
   console.log(`[verweise] ${gesehen.size} Seiten besucht, ${kaputt.length} kaputt`);
   expect(gesehen.size, 'die Stichprobe ist geschrumpft — das Portal ist kleiner '
     + 'geworden oder ein Verweis fehlt').toBeGreaterThan(60);

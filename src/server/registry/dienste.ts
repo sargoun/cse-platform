@@ -1020,6 +1020,32 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'social', pfad: 'social/port', schreibend: false },
   { modul: 'social', pfad: 'social/planeingabe', schreibend: false },
   { modul: 'social', pfad: 'social/dienst', schreibend: true, schreibRecht: 'social.schreiben' },
+  /**
+   * **Recruiting (REC-01 … REC-09, PR 79).** `rangfolge` ist reiner Code ohne
+   * jeden Zugriff — Punktzahl und Reihenfolge rechnet eine geprüfte Funktion
+   * und nicht das Modell (Invariante 6). `dienst` legt Stellen an, nimmt
+   * Bewerbungen entgegen, bewertet und entscheidet.
+   *
+   * **Das Register nennt EIN Schreibrecht, der Dienst kennt drei.** Was hier
+   * steht, ist die Frage, die der Gruppentest stellt: gibt es in der
+   * Gruppenansicht ein Recht, unter dem dieser Dienst schreiben dürfte? Für
+   * `recruiting/dienst` ist das `recruiting.stelle_schreiben` — mandantenweit
+   * und in `gruppe` nicht gebunden. Die übrigen Schreibwege tragen ihr
+   * eigenes Recht an ihrer eigenen Stelle: `bewerte` verlangt
+   * `recruiting.bewerbung_bewerten`, `entscheide` verlangt
+   * `recruiting.entscheiden` (REC-06: eine Einstellungsentscheidung ist etwas
+   * anderes als eine Punktzahl), und `nimmBewerbungAn` verlangt GAR KEIN
+   * Recht — es ist der Weg des öffentlichen Formulars, und ein Bewerber hat
+   * keine Sitzung (REC-03).
+   *
+   * Damit ist `/portal/gruppe` lesend möglich und schreibend nicht
+   * (Invariante 10) — auch wenn es dort heute keine Recruiting-Seite gibt.
+   */
+  { modul: 'recruiting', pfad: 'recruiting/rangfolge', schreibend: false },
+  {
+    modul: 'recruiting', pfad: 'recruiting/dienst', schreibend: true,
+    schreibRecht: 'recruiting.stelle_schreiben',
+  },
   /*
    * **Der Feed-Zugang steht NICHT hier, und das ist kein Vergessen.**
    *

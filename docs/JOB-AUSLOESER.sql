@@ -30,6 +30,18 @@ select cron.schedule('cse_belegarchiv_ausgangsrechnung', '50 3 * * *', $cse$
   );
 $cse$);
 
+-- Bewerberdaten nach Ablauf der Aufbewahrung löschen (REC-07) (uebergreifend)
+select cron.unschedule('cse_bewerber_loeschung')
+  where exists (select 1 from cron.job where jobname = 'cse_bewerber_loeschung');
+select cron.schedule('cse_bewerber_loeschung', '0 4 * * *', $cse$
+  select net.http_post(
+    url     := 'https://basis-einsetzen.invalid/api/jobs/bewerber_loeschung',
+    headers := jsonb_build_object('content-type', 'application/json',
+                                  'x-job-token', current_setting('cse.job_token')),
+    body    := '{}'::jsonb
+  );
+$cse$);
+
 -- Dienstplan aus den Serien materialisieren (acht Wochen) (je_mandant)
 select cron.unschedule('cse_einsaetze_generieren')
   where exists (select 1 from cron.job where jobname = 'cse_einsaetze_generieren');

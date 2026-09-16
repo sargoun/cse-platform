@@ -1,7 +1,7 @@
 import type postgres from 'postgres';
 import { isIP } from 'node:net';
 import { NextResponse, type NextRequest } from 'next/server';
-import { istGleicherUrsprung } from '@/server/auth/ursprung';
+import { istGleicherUrsprung, erwarteterUrsprung } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
@@ -157,7 +157,7 @@ export async function POST(
         bezug_id: ergebnis.ausgefuehrt.bezugId,
       });
     }
-    const ziel = new URL(`/portal/${slug}/freigaben/${id}`, anfrage.nextUrl.origin);
+    const ziel = new URL(`/portal/${slug}/freigaben/${id}`, erwarteterUrsprung(anfrage));
     ziel.searchParams.set('entschieden', art);
     if (ergebnis.ausgefuehrt.art !== 'keine') ziel.searchParams.set('ausgefuehrt', ergebnis.ausgefuehrt.art);
     return NextResponse.redirect(ziel, 303);
@@ -167,7 +167,7 @@ export async function POST(
         return NextResponse.json(
           { fehler: 'ausfuehrung', grund: fehler.grund, meldung: fehler.message }, { status: 409 });
       }
-      const ziel = new URL(`/portal/${slug}/freigaben/${id}`, anfrage.nextUrl.origin);
+      const ziel = new URL(`/portal/${slug}/freigaben/${id}`, erwarteterUrsprung(anfrage));
       ziel.searchParams.set('fehler', 'ausfuehrung');
       ziel.searchParams.set('meldung', fehler.message);
       return NextResponse.redirect(ziel, 303);
@@ -179,7 +179,7 @@ export async function POST(
           { status: 409 });
       }
       return NextResponse.redirect(
-        new URL(`/portal/${slug}/freigaben/${id}?fehler=${fehler.grund}`, anfrage.nextUrl.origin),
+        new URL(`/portal/${slug}/freigaben/${id}?fehler=${fehler.grund}`, erwarteterUrsprung(anfrage)),
         303);
     }
     if (fehler instanceof NichtAngemeldetFehler) {

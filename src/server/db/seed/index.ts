@@ -31,6 +31,7 @@ import { seedFreigaben } from './freigaben.js';
 import { seedEingang } from './eingang.js';
 import { seedRechnungen } from './rechnung.js';
 import { seedSocial } from './social.js';
+import { seedRecruiting } from './recruiting.js';
 import { seedBerichtsdaten } from './berichtsdaten.js';
 import { seedRadar } from './radar.js';
 import { DEMO_KENNWORT, seedZugangsdaten } from './zugang.js';
@@ -1682,6 +1683,19 @@ async function main(): Promise<void> {
       ? ' — keine Beiträge ohne CSE_DEV_FLAECHEN\n'
       : `, ${String(social.beitraege)} Beiträge in vier Zuständen und `
         + `${String(social.referenzen)} freigegebene Referenzen (SOC-04)\n`));
+
+  /**
+   * Recruiting NACH den Freigaben: eine veröffentlichte Stelle hängt an einer
+   * genehmigten Freigabe (`stelle_freigegeben_hat_freigabe`, 0166), und die
+   * Demo umgeht den Riegel nicht — sie erfüllt ihn.
+   */
+  const recruiting = await seedRecruiting(sql, ids, demodaten);
+  process.stdout.write(recruiting.uebersprungen
+    ? '  Recruiting: keine Demodaten ohne CSE_DEV_FLAECHEN\n'
+    : `  Recruiting: ${String(recruiting.stellen)} Stellen, `
+      + `${String(recruiting.bewerbungen)} Bewerbungen `
+      + `(eine je Stelle abgelaufen und eine gesperrt — REC-07), `
+      + `${String(recruiting.bewertungen)} Bewertungskriterien\n`);
 
   /**
    * Zuletzt die Ausgangsrechnungen — nach Kunden, Konten und Nummernkreisen,
