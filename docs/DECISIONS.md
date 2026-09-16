@@ -12307,3 +12307,66 @@ in D-575, bevor der CI-Lauf gelesen wurde.
 
 | Betrifft | D-562, D-573, D-575, REC-08, REC-09, SOC-07, Art. 22 DSGVO, `0168` |
 |---|---|
+
+### D-577 · Die Prüfliste, die man nur füllen und nie berichtigen konnte
+
+**Kontext.** Nach der Verdrahtungswache für API-Routen (D-575) lag die Frage
+eine Ebene tiefer nahe: dieselbe Lücke gibt es auch bei DIENSTEN. Der Baum
+wurde entsprechend gelesen — jede exportierte Funktion unter
+`server/services/` gegen jeden Aufruf ausserhalb ihrer eigenen Datei.
+
+161 Treffer, und die allermeisten sind kein Befund: eine Hilfsfunktion, die
+ihr Test einzeln prüft, ist absichtlich exportiert und kein toter Weg. Nach
+Abzug dieser Gruppe blieben sieben Funktionen ohne jeden Aufrufer UND ohne
+Test. Fünf davon halten stand:
+
+- `listeAktuellImEinsatz` / `zaehleAktuellImEinsatz` sind Abschriften —
+  `/zeiten/live` liest `zeiteintrag_offen` selbst.
+- `setzeAnspruch` (Urlaubsanspruch) hat keine Oberfläche, weil die Regel
+  dahinter offen ist (**O-18**). Eine Maske zu bauen, die eine Zahl setzt,
+  über die niemand entschieden hat, wäre genau der Fehler, den O-18 verhindert.
+- `oeffentlicheStellen` und `ladeRaeume` sind Abschriften vorhandener Leser.
+
+**Der Befund.** `entfernePosition` (`services/vergabe/mappe.ts`) stand
+vollständig da, mit eigenem Fehlerfall und einem Kommentar, der seinen Zweck
+benennt: *„eine versehentlich angelegte Prüflistenzeile ist kein
+Geschäftsvorfall, sondern ein Tippfehler."* `POST /api/vergabe/mappe` kannte
+drei Handlungen — Position anlegen, Positionsstand setzen, Mappenstand setzen.
+Das Entfernen war keine davon, und keine andere Stelle im Baum rief die
+Funktion.
+
+Die Vergabemappe war damit eine Liste, die nur wächst. Der Ausweg „gilt nicht"
+existiert und nimmt die Zeile auch aus dem Pflichtzähler
+(`app.mappe_zaehler_nachfuehren` zählt `geprueft` und `nicht_zutreffend` als
+erledigt) — er verlangt aber eine **Begründung**, und für einen Tippfehler
+gibt es keine. Wer sich vertippte, trug den Tippfehler bis zur Einreichung mit
+sich und begründete ihn unterwegs.
+
+**Behoben.** Der Schritt `position_entfernen` an derselben Adresse, mit
+demselben Recht (`vergabe.schreiben`): wer die Liste führt, führt sie in beide
+Richtungen. Der Knopf steht an der **Zeile**, nicht in einem Auswahlfeld
+darunter — die beiden Formulare unter der Tabelle dürfen auswählen, weil ein
+falsch gesetzter Stand sich wieder setzen lässt; ein falsch gelöschter
+Eintrag nicht. Der Name der Zeile steht im `aria-label`, weil „Entfernen" in
+jeder Zeile gleich heisst (DESIGN §9).
+
+**Und eine Grenze, die vorher niemand brauchte.** `entfernePosition` prüfte den
+Stand der Mappe nicht — solange niemand die Funktion rief, fiel das nicht auf.
+Mit einem Knopf davor fällt es auf: eine **eingereichte** Mappe IST die Aussage
+darüber, was hinausgegangen ist, und eine Zeile daraus zu löschen hiesse, das
+Angebot nachträglich anders aussehen zu lassen, als es war. Vorher ist die
+Liste ein Arbeitsblatt, nachher ein Beleg.
+
+Die Bedingung steht **im `delete`**, nicht davor: ein `select` auf den Stand
+und ein `delete` danach sind zwei Aussagen mit einem Fenster dazwischen, in das
+die Einreichung genau hineinpasst — dann wäre die Zeile weg und die Mappe
+eingereicht. Null Zeilen heisst jetzt „gibt es nicht ODER ist zu", und beides
+führt zu demselben Satz (AUT-06).
+
+Drei Isolationsfälle: die Zeile verschwindet und der Zähler folgt, die
+eingereichte Mappe weist ab, die fremde Gesellschaft entfernt nichts.
+Gegengeprüft mit einer Sabotage — ohne `and m.status <> 'eingereicht'` wird
+der zweite Fall rot, der Riegel trägt den Test also wirklich.
+
+| Betrifft | D-563, D-574, D-575, O-18, RAD-07, D-07, `0147`, `services/vergabe/mappe.ts` |
+|---|---|

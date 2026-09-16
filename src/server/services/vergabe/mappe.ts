@@ -157,17 +157,38 @@ export async function setzePositionsstand(
   }
 }
 
-/** Entfernt eine Zeile. Kein weicher Löschstand: eine versehentlich angelegte
- *  Prüflistenzeile ist kein Geschäftsvorfall, sondern ein Tippfehler. */
+/**
+ * Entfernt eine Zeile. Kein weicher Löschstand: eine versehentlich angelegte
+ * Prüflistenzeile ist kein Geschäftsvorfall, sondern ein Tippfehler.
+ *
+ * **Bis zur Einreichung, und keinen Schritt weiter.** Eine eingereichte Mappe
+ * IST die Aussage darüber, was hinausgegangen ist; eine Zeile daraus zu
+ * löschen hiesse, das Angebot nachträglich anders aussehen zu lassen, als es
+ * war. Vorher ist die Liste ein Arbeitsblatt, nachher ein Beleg.
+ *
+ * **Die Bedingung steht im `delete`, nicht davor.** Ein `select` auf den Stand
+ * und ein `delete` danach sind zwei Aussagen mit einem Fenster dazwischen, in
+ * das die Einreichung genau hineinpasst — dann wäre die Zeile weg und die
+ * Mappe eingereicht. So entscheidet PostgreSQL: null Zeilen heisst, dass es
+ * sie nicht gibt ODER dass die Mappe zu ist, und beides führt hier zu
+ * demselben Satz (AUT-06 — die Antwort verrät nicht, welcher der beiden Fälle
+ * zutrifft).
+ */
 export async function entfernePosition(
   kontext: SchreibKontext, positionId: string,
 ): Promise<void> {
   const zeilen = await kontext.schreibe<{ id: string }>(
-    `delete from vergabemappe_position
-      where id = $2::uuid and mandant_id = $1::uuid returning id`,
+    `delete from vergabemappe_position p
+      where p.id = $2::uuid and p.mandant_id = $1::uuid
+        and exists (
+          select 1 from vergabemappe m
+           where m.id = p.vergabemappe_id and m.mandant_id = p.mandant_id
+             and m.geloescht_am is null and m.status <> 'eingereicht')
+      returning p.id`,
     [kontext.aktiverMandantId, positionId]);
   if (zeilen.length === 0) {
-    throw new MappeFehler('nicht_gefunden', 'Die Position wurde nicht gefunden.');
+    throw new MappeFehler('nicht_gefunden',
+      'Die Position wurde nicht gefunden, oder die Mappe ist bereits eingereicht.');
   }
 }
 

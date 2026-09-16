@@ -268,7 +268,15 @@ export default async function Vergabemappe(
                   <th className="py-s2 pr-s3 font-normal">Unterlage</th>
                   <th className="py-s2 pr-s3 font-normal">Pflicht</th>
                   <th className="py-s2 pr-s3 font-normal">Stand</th>
-                  <th className="py-s2 font-normal">Herkunft</th>
+                  <th className="py-s2 pr-s3 font-normal">Herkunft</th>
+                  {/*
+                    * Die Spalte erscheint nur, wenn es in ihr etwas zu tun
+                    * gibt. Eine leere Spalte mit Überschrift sagt „hier
+                    * fehlt etwas" — dabei ist die Liste nur zu.
+                    */}
+                  {darfSchreiben && !gesperrt ? (
+                    <th className="py-s2 font-normal"><span className="sr-only">Zeile entfernen</span></th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody>
@@ -296,10 +304,42 @@ export default async function Vergabemappe(
                         </span>
                       )}
                     </td>
-                    <td className="py-s3 text-xs text-text-subtle">
+                    <td className="py-s3 pr-s3 text-xs text-text-subtle">
                       {p.quelleDokument === null ? '—' : p.quelleDokument}
                       {p.quelleSeite === null ? '' : `, S. ${String(p.quelleSeite)}`}
                     </td>
+                    {/*
+                      * **Entfernen steht an der ZEILE, nicht in einem
+                      * Auswahlfeld darunter.**
+                      *
+                      * Die beiden Formulare unter der Tabelle wählen ihre
+                      * Position aus einer Liste — beim Setzen eines Standes
+                      * geht das, weil ein falsch gesetzter Stand sich wieder
+                      * setzen lässt. Beim Löschen geht es nicht: wer sich im
+                      * Auswahlfeld vergreift, löscht die falsche Zeile und
+                      * merkt es nicht. Hier ist die Zeile, die verschwindet,
+                      * dieselbe, auf die geklickt wird.
+                      *
+                      * Der Name steht im `aria-label`, weil „Entfernen" in
+                      * jeder Zeile gleich heisst und ein Screenreader die
+                      * Knöpfe sonst nicht unterscheiden kann (DESIGN §9).
+                      */}
+                    {darfSchreiben && !gesperrt ? (
+                      <td className="py-s3">
+                        <form method="post" action="/api/vergabe/mappe"
+                              data-cse="mappe-position-entfernen">
+                          <input type="hidden" name="mandant" value={mandant} />
+                          <input type="hidden" name="ausschreibung" value={id} />
+                          <input type="hidden" name="was" value="position_entfernen" />
+                          <input type="hidden" name="position" value={p.id} />
+                          <Button type="submit" variante="danger"
+                                  data-cse="position-entfernen"
+                                  aria-label={`Position ${String(p.position)} „${p.bezeichnung}" entfernen`}>
+                            Entfernen
+                          </Button>
+                        </form>
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>
