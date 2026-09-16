@@ -13,6 +13,7 @@ import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/finanzen/eingangsrechnungen/[id]` — der Beleg und sein
@@ -87,6 +88,15 @@ export default async function EingangsrechnungDetail(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /*
+   * `/freigaben/[id]` verlangt laut Manifest `freigabe.entscheiden`; diese
+   * Seite oeffnet mit `eingang.lesen`. Wer den Beleg lesen darf, darf nicht
+   * zwangslaeufig die Freigabe dahinter oeffnen — der Verweis fuehrte dann auf
+   * 404 und verriete, was er nicht zeigen darf (AUT-06, Copilot-Runde auf
+   * PR 16 / D-581). Ohne das Recht entfaellt der ganze Satz.
+   */
+  const darf = await haeltRechte(sitzung, 'freigabe.entscheiden');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => ({
@@ -243,11 +253,16 @@ export default async function EingangsrechnungDetail(
           </h2>
           <p className="mb-s4 max-w-prose text-sm text-text-muted">
             Jeder Wert nennt das Element der Datei, aus dem er stammt, und die Prüfung,
-            die er bestanden hat. Entschieden wurde in{' '}
-            <Link href={`/portal/${mandant}/freigaben/${daten.herkunft[0]!.freigabe_id}`}
-                  className="underline underline-offset-2">
-              der Freigabe
-            </Link>.
+            die er bestanden hat.
+            {darf['freigabe.entscheiden'] === true ? (
+              <>
+                {' '}Entschieden wurde in{' '}
+                <Link href={`/portal/${mandant}/freigaben/${daten.herkunft[0]!.freigabe_id}`}
+                      className="underline underline-offset-2">
+                  der Freigabe
+                </Link>.
+              </>
+            ) : null}
           </p>
           <DataTable
             beschriftung="Extrahierte Felder mit Quelle und Konfidenz"

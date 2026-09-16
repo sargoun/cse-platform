@@ -17,6 +17,7 @@ import { berlinAnzeige } from '@/server/services/zeit/dauer';
 import { leseBewegungen, type Bewegung } from '@/server/services/zeit/stundenkonto';
 import { leseJahr, leseKontoZeile, type JahresMonat, type KontoZeile } from '../daten';
 import { kennungOder404 } from '../../../../kennung';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/personal/stundenkonten/[anstellungId]` — ein Konto, seine
@@ -75,6 +76,12 @@ export default async function Kontoblatt({
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /* AUT-06: der Zeiteintrag `/zeiten/[id]` verlangt laut Manifest `zeit.lesen`;
+     dieses Konto öffnet mit `zeit.konto_lesen` allein. Ohne das Recht führte
+     die Quelle einer Buchung auf 404 und verriet, was sie nicht zeigen darf
+     (Copilot-Runde auf PR 16 / D-581). */
+  const darf = await haeltRechte(sitzung, 'zeit.lesen');
 
   const frage = await searchParams;
   const heute = await berlinHeute();
@@ -283,7 +290,9 @@ export default async function Kontoblatt({
               {
                 schluessel: 'quelle',
                 kopf: 'Quelle',
-                zelle: (b) => (b.zeiteintragId === null
+                // Ohne `zeit.lesen` steht die Quelle als Text da, wie bei einer
+                // Buchung ohne Zeiteintrag (AUT-06, s. o.).
+                zelle: (b) => (b.zeiteintragId === null || darf['zeit.lesen'] !== true
                   ? (QUELLE_TEXT[b.quelle] ?? b.quelle)
                   : (
                     <Link

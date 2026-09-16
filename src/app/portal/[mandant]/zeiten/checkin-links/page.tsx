@@ -17,6 +17,7 @@ import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import { MARKE_GUELTIG_MINUTEN } from '@/lib/checkin-marke';
 import { KOPF_CHECKIN_MARKE } from '@/lib/kopf';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/zeiten/checkin-links` — die Ausgabe der Check-in-Marken
@@ -98,6 +99,7 @@ export default async function CheckinLinks(
     );
   }
   const { sitzung } = zugang;
+  const darf = await haeltRechte(sitzung, 'zeit.lesen');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -187,22 +189,29 @@ export default async function CheckinLinks(
         </Hinweis>
       )}
 
-      <nav aria-label="Weiter im Zeitbereich" className="mb-s4 flex flex-wrap gap-s2">
-        <a
-          href={`/portal/${mandant}/zeiten/live`}
-          className="inline-flex min-h-11 items-center gap-s2 rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-        >
-          <Icon name="zeit" groesse="sm" />
-          Aktuell im Einsatz
-        </a>
-        <a
-          href={`/portal/${mandant}/zeiten`}
-          className="inline-flex min-h-11 items-center gap-s2 rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-        >
-          <Icon name="zeit" groesse="sm" />
-          Alle Zeiten der Woche
-        </a>
-      </nav>
+      {/*
+        * `/zeiten` und `/zeiten/live` verlangen `zeit.lesen` (Manifest); diese Seite
+        * nur `zeit.checkin_verwalten`. Eine Leiste mit zwei Wegen auf 404 verriete,
+        * was sie nicht zeigen darf (AUT-06; D-581) — ohne das Recht fehlt sie ganz.
+        */}
+      {darf['zeit.lesen'] === true && (
+        <nav aria-label="Weiter im Zeitbereich" className="mb-s4 flex flex-wrap gap-s2">
+          <a
+            href={`/portal/${mandant}/zeiten/live`}
+            className="inline-flex min-h-11 items-center gap-s2 rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            <Icon name="zeit" groesse="sm" />
+            Aktuell im Einsatz
+          </a>
+          <a
+            href={`/portal/${mandant}/zeiten`}
+            className="inline-flex min-h-11 items-center gap-s2 rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            <Icon name="zeit" groesse="sm" />
+            Alle Zeiten der Woche
+          </a>
+        </nav>
+      )}
 
       {zeilen.length === 0 ? (
         <p data-cse="keine-einteilungen"

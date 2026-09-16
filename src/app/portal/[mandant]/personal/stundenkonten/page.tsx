@@ -9,6 +9,7 @@ import { KpiStat } from '@/components/ui/KpiStat';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { berlinHeute } from '@/server/db/heute';
@@ -62,6 +63,12 @@ export default async function Stundenkonten({
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /* AUT-06: „Beschäftigungen" verlangt laut Manifest `personal.lesen`,
+     „Monatsabschluss" `zeit.konto_abschliessen`; diese Liste öffnet mit
+     `zeit.konto_lesen` allein. Ohne das Recht führte der Knopf auf 404 und
+     verriet, was er nicht zeigen darf (Copilot-Runde auf PR 16 / D-581). */
+  const darf = await haeltRechte(sitzung, 'personal.lesen', 'zeit.konto_abschliessen');
+
   const frage = await searchParams;
   const roh = typeof frage['monat'] === 'string' ? frage['monat'] : null;
   const monat = roh !== null && /^\d{4}-\d{2}(-\d{2})?$/u.test(roh)
@@ -97,18 +104,22 @@ export default async function Stundenkonten({
         <Sprung mandant={mandant} ziel={monatVerschieben(monat, -1)} text="← Vormonat" />
         <Sprung mandant={mandant} ziel={monatsErster(await berlinHeute())} text="Aktueller Monat" />
         <Sprung mandant={mandant} ziel={monatVerschieben(monat, 1)} text="Folgemonat →" />
-        <Link
-          href={`/portal/${mandant}/personal/anstellungen`}
-          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-        >
-          Beschäftigungen
-        </Link>
-        <Link
-          href={`/portal/${mandant}/personal/stundenkonten/abschluss?monat=${monat}`}
-          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-        >
-          Monatsabschluss
-        </Link>
+        {darf['personal.lesen'] === true && (
+          <Link
+            href={`/portal/${mandant}/personal/anstellungen`}
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Beschäftigungen
+          </Link>
+        )}
+        {darf['zeit.konto_abschliessen'] === true && (
+          <Link
+            href={`/portal/${mandant}/personal/stundenkonten/abschluss?monat=${monat}`}
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Monatsabschluss
+          </Link>
+        )}
       </nav>
 
       <div className="mb-s5 grid grid-cols-1 gap-s4 sm:grid-cols-2 xl:grid-cols-4">

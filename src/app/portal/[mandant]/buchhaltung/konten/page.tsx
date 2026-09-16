@@ -9,6 +9,7 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { RAHMEN_NAME, type Kontenrahmen } from '@/server/services/buchhaltung/kontenrahmen';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/buchhaltung/konten` — Kontenrahmen und Zuordnungen
@@ -57,6 +58,16 @@ export default async function Konten({ params }: { params: Promise<{ mandant: st
   const tor = await mandantTor(`/portal/${mandant}/buchhaltung/konten`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+
+  /*
+   * `/buchhaltung/buchungen` verlangt laut Manifest `buchhaltung.lesen`; diese
+   * Seite oeffnet mit `buchhaltung_konfiguration.verwalten`. Wer die
+   * Zuordnungen verwalten darf, darf nicht zwangslaeufig das Journal lesen —
+   * die Zahl fuehrte dann auf 404 und verriete, was sie nicht zeigen darf
+   * (AUT-06, Copilot-Runde auf PR 16 / D-581). Ohne das Recht steht die
+   * Zahl ohne Verweis.
+   */
+  const darf = await haeltRechte(zugang.sitzung, 'buchhaltung.lesen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
@@ -126,9 +137,11 @@ export default async function Konten({ params }: { params: Promise<{ mandant: st
         <li className="rounded-lg border border-line bg-surface p-s5">
           <div className="text-micro uppercase tracking-[0.08em] text-text-muted">Buchungszeilen ohne Konto</div>
           <div className="mt-s1 text-h2 text-text">
-            <Link href={`/portal/${mandant}/buchhaltung/buchungen`} className="underline-offset-2 hover:text-brand hover:underline">
-              {String(daten.ohneKonto)}
-            </Link>
+            {darf['buchhaltung.lesen'] === true ? (
+              <Link href={`/portal/${mandant}/buchhaltung/buchungen`} className="underline-offset-2 hover:text-brand hover:underline">
+                {String(daten.ohneKonto)}
+              </Link>
+            ) : String(daten.ohneKonto)}
           </div>
         </li>
       </ul>

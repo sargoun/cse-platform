@@ -20,6 +20,7 @@ import {
 } from '@/server/services/social/weg';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { kennungOder404 } from '../../../../kennung';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/social/posts/[id]` — der Beitrag und sein Stand
@@ -108,6 +109,14 @@ export default async function Beitrag(
   const tor = await mandantTor(`/portal/${mandant}/social/posts/[id]`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+  /*
+   * `/freigaben/[id]` verlangt `freigabe.entscheiden` (Manifest); diese Seite
+   * öffnet mit `social.lesen`. Wer vorlegt, aber nicht entscheidet, sah „Zur
+   * Freigabe" mit einem 404 dahinter (AUT-06). Der Hinweis, DASS der Beitrag
+   * im Posteingang liegt, bleibt für alle; nur der Weg hängt am Recht.
+   * Gemeldet von der Copilot-Runde auf PR 16.
+   */
+  const darf = await haeltRechte(zugang.sitzung, 'freigabe.entscheiden');
   const suche = await searchParams;
   const abgewiesen = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   /**
@@ -221,11 +230,16 @@ export default async function Beitrag(
       {b.status === 'vorgelegt' && b.freigabeId !== null ? (
         <Hinweis art="hinweis" cse="beitrag-wartet" className="mb-s5 max-w-prose">
           <strong>Er liegt im Freigabe-Posteingang.</strong> Entschieden wird dort, nicht
-          hier — die Entscheidung wird protokolliert und verkettet (APR-02).{' '}
-          <Link href={`/portal/${mandant}/freigaben/${b.freigabeId}`}
-                className="underline underline-offset-4" data-cse="zur-freigabe">
-            Zur Freigabe
-          </Link>.
+          hier — die Entscheidung wird protokolliert und verkettet (APR-02).
+          {darf['freigabe.entscheiden'] === true && (
+            <>
+              {' '}
+              <Link href={`/portal/${mandant}/freigaben/${b.freigabeId}`}
+                    className="underline underline-offset-4" data-cse="zur-freigabe">
+                Zur Freigabe
+              </Link>.
+            </>
+          )}
         </Hinweis>
       ) : null}
 

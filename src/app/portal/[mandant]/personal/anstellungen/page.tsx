@@ -8,6 +8,7 @@ import { DataTable } from '@/components/ui/DataTable';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 
@@ -63,6 +64,15 @@ export default async function Anstellungsliste(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /* AUT-06: „Abwesenheiten" verlangt laut Manifest `zeit.abwesenheit_lesen`,
+     „Anträge" `zeit.antrag_entscheiden`, „Stundenkonten" `zeit.konto_lesen`,
+     „Nachweise" `personal.nachweis_lesen`; diese Liste öffnet mit
+     `personal.lesen` allein. Ohne das Recht führte der Knopf auf 404 und
+     verriet, was er nicht zeigen darf (Copilot-Runde auf PR 16 / D-581). */
+  const darf = await haeltRechte(
+    sitzung, 'zeit.abwesenheit_lesen', 'zeit.antrag_entscheiden',
+    'zeit.konto_lesen', 'personal.nachweis_lesen');
+
   const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => kontext.abfrage<Zeile>(
       /**
@@ -106,30 +116,38 @@ export default async function Anstellungsliste(
       </div>
 
       <nav className="mb-s5 flex flex-wrap gap-s2">
-        <Link
-          href={`/portal/${mandant}/personal/abwesenheiten`}
-          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-        >
-          Abwesenheiten
-        </Link>
-        <Link
-          href={`/portal/${mandant}/personal/antraege`}
-          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-        >
-          Anträge
-        </Link>
-        <Link
-          href={`/portal/${mandant}/personal/stundenkonten`}
-          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-        >
-          Stundenkonten
-        </Link>
-        <Link
-          href={`/portal/${mandant}/personal/nachweise`}
-          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-        >
-          Nachweise
-        </Link>
+        {darf['zeit.abwesenheit_lesen'] === true && (
+          <Link
+            href={`/portal/${mandant}/personal/abwesenheiten`}
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Abwesenheiten
+          </Link>
+        )}
+        {darf['zeit.antrag_entscheiden'] === true && (
+          <Link
+            href={`/portal/${mandant}/personal/antraege`}
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Anträge
+          </Link>
+        )}
+        {darf['zeit.konto_lesen'] === true && (
+          <Link
+            href={`/portal/${mandant}/personal/stundenkonten`}
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Stundenkonten
+          </Link>
+        )}
+        {darf['personal.nachweis_lesen'] === true && (
+          <Link
+            href={`/portal/${mandant}/personal/nachweise`}
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Nachweise
+          </Link>
+        )}
       </nav>
 
       {zeilen.length === 0 ? (
@@ -178,23 +196,29 @@ export default async function Anstellungsliste(
             {
               schluessel: 'status',
               kopf: 'Status',
-              zelle: (z) => (
-                <span className="flex flex-wrap items-center gap-s2 text-sm">
-                  <span className={z.status === 'aktiv' ? 'text-text' : 'text-text-muted'}>
-                    {STATUS_TEXT[z.status] ?? z.status}
+              zelle: (z) => {
+                const offen = z.abwesend_offen === 1
+                  ? '1 offene Abwesenheit'
+                  : `${String(z.abwesend_offen)} offene Abwesenheiten`;
+                return (
+                  <span className="flex flex-wrap items-center gap-s2 text-sm">
+                    <span className={z.status === 'aktiv' ? 'text-text' : 'text-text-muted'}>
+                      {STATUS_TEXT[z.status] ?? z.status}
+                    </span>
+                    {/* Der Hinweis bleibt, nur der Weg hängt am Recht (AUT-06, s. o.). */}
+                    {z.abwesend_offen > 0 && (darf['zeit.abwesenheit_lesen'] === true
+                      ? (
+                        <Link
+                          href={`/portal/${mandant}/personal/abwesenheiten`}
+                          className="text-warning underline"
+                        >
+                          {offen}
+                        </Link>
+                      )
+                      : <span className="text-warning">{offen}</span>)}
                   </span>
-                  {z.abwesend_offen > 0 && (
-                    <Link
-                      href={`/portal/${mandant}/personal/abwesenheiten`}
-                      className="text-warning underline"
-                    >
-                      {z.abwesend_offen === 1
-                        ? '1 offene Abwesenheit'
-                        : `${String(z.abwesend_offen)} offene Abwesenheiten`}
-                    </Link>
-                  )}
-                </span>
-              ),
+                );
+              },
             },
           ]}
         />

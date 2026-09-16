@@ -10,6 +10,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { stundenAusMinuten } from '@/lib/datum/stunden';
 import { darfKorrigieren, ladeZeiteintrag } from '../../daten';
 import { kennungOder404 } from '../../../../kennung';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/zeiten/[id]/korrektur` — wer korrigiert, wann und
@@ -104,6 +105,13 @@ export default async function Korrekturblatt({
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /* AUT-06: der Zeiteintrag `…/zeiten/[id]` verlangt laut Manifest `zeit.lesen`,
+     dieses Blatt nur `zeit.korrigieren` — wer nur das zweite hält, sah
+     „Zum Zeiteintrag", „Abbrechen" und „Zur aktuellen Fassung" und bekam
+     dahinter ein 404. Ein Verweis auf 404 verraet, was er nicht zeigen darf
+     (Copilot-Runde auf PR 16 / D-581). */
+  const darf = await haeltRechte(sitzung, 'zeit.lesen');
+
   const e = await ladeZeiteintrag(sitzung, id);
   if (e === null) notFound();
 
@@ -139,12 +147,14 @@ export default async function Korrekturblatt({
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">Korrektur</h1>
-        <Link
-          href={`/portal/${mandant}/zeiten/${id}`}
-          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-        >
-          Zum Zeiteintrag
-        </Link>
+        {darf['zeit.lesen'] === true && (
+          <Link
+            href={`/portal/${mandant}/zeiten/${id}`}
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Zum Zeiteintrag
+          </Link>
+        )}
       </div>
 
       <p className="mb-s5 max-w-prose rounded-lg border border-line bg-surface p-s4 text-sm text-text-muted">
@@ -208,11 +218,14 @@ export default async function Korrekturblatt({
             <>
               Diese Fassung ist nicht mehr die aktuelle. Korrigiert wird immer die
               gültige Fassung — sonst gäbe es zwei „aktuelle" Wahrheiten über dieselbe
-              Schicht, und jede Stundenauswertung zählte doppelt.{' '}
-              {e.ersetztDurchId !== null && (
-                <Link href={`/portal/${mandant}/zeiten/${e.ersetztDurchId}`} className="underline">
-                  Zur aktuellen Fassung
-                </Link>
+              Schicht, und jede Stundenauswertung zählte doppelt.
+              {e.ersetztDurchId !== null && darf['zeit.lesen'] === true && (
+                <>
+                  {' '}
+                  <Link href={`/portal/${mandant}/zeiten/${e.ersetztDurchId}`} className="underline">
+                    Zur aktuellen Fassung
+                  </Link>
+                </>
               )}
             </>
           ) : sperre === 'laufend' ? (
@@ -311,12 +324,14 @@ export default async function Korrekturblatt({
 
           <div className="flex flex-wrap gap-s3">
             <Button type="submit" variante="primary">Korrektur schreiben</Button>
-            <Link
-              href={`/portal/${mandant}/zeiten/${id}`}
-              className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-            >
-              Abbrechen
-            </Link>
+            {darf['zeit.lesen'] === true && (
+              <Link
+                href={`/portal/${mandant}/zeiten/${id}`}
+                className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+              >
+                Abbrechen
+              </Link>
+            )}
           </div>
         </form>
       )}

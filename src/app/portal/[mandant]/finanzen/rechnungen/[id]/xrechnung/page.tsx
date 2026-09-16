@@ -18,6 +18,7 @@ import { slugTor } from '../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../../kennung';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/finanzen/rechnungen/[id]/xrechnung` — Vorschau und
@@ -88,6 +89,15 @@ export default async function XRechnungBlatt(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /*
+   * `/finanzen/rechnungen/[id]` verlangt laut Manifest `finanzen.lesen`; diese
+   * Seite oeffnet mit `finanzen.herunterladen`. Wer die XRechnung ziehen darf,
+   * darf nicht zwangslaeufig den Beleg oeffnen — der Zurueck-Verweis fuehrte
+   * dann auf 404 und verriete, was er nicht zeigen darf (AUT-06,
+   * Copilot-Runde auf PR 16 / D-581).
+   */
+  const darf = await haeltRechte(sitzung, 'finanzen.lesen');
+
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
       const [kopf] = await kontext.abfrage<Kopf>(
@@ -135,14 +145,16 @@ export default async function XRechnungBlatt(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label="Zurück" className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/finanzen/rechnungen/${id}`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← {k.nummer ?? 'Entwurf ohne Nummer'}
-        </Link>
-      </nav>
+      {darf['finanzen.lesen'] === true ? (
+        <nav aria-label="Zurück" className="mb-s3">
+          <Link
+            href={`/portal/${mandant}/finanzen/rechnungen/${id}`}
+            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+          >
+            ← {k.nummer ?? 'Entwurf ohne Nummer'}
+          </Link>
+        </nav>
+      ) : null}
 
       <h1 className="mb-s3 text-h1 text-text">XRechnung (UBL, EN 16931)</h1>
 

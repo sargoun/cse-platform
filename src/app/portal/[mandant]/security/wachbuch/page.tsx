@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import {
@@ -52,6 +53,7 @@ export default async function Wachbuch(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
+  const darf = await haeltRechte(sitzung, 'wachbuch.schreiben');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const einzeln = (feld: string): string | null => {
@@ -106,9 +108,18 @@ export default async function Wachbuch(
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">Wachbuch</h1>
-        <Link href={`/portal/${mandant}/security/wachbuch/neu`} className="no-underline">
-          <Button variante="primary">Eintrag schreiben</Button>
-        </Link>
+        {/*
+          * Der neue Eintrag dahinter öffnet mit `wachbuch.schreiben` (Manifest);
+          * diese Seite mit `wachbuch.lesen`. Wer das Buch lesen darf, darf nicht
+          * zwangsläufig hineinschreiben — ohne das Schreibrecht führte der Knopf
+          * auf 404 und verriete, was er nicht zeigen darf (AUT-06; Copilot-Runde
+          * auf PR 16 / D-581).
+          */}
+        {darf['wachbuch.schreiben'] === true && (
+          <Link href={`/portal/${mandant}/security/wachbuch/neu`} className="no-underline">
+            <Button variante="primary">Eintrag schreiben</Button>
+          </Link>
+        )}
       </div>
 
       <nav aria-label="Filter" className="mb-s5 flex flex-wrap items-center gap-s2">

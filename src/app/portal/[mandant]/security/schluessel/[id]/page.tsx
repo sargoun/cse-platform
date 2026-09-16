@@ -17,6 +17,7 @@ import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
 import { kennungOder404 } from '../../../../kennung';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/security/schluessel/[id]` — der aktuelle Halter und die
@@ -53,6 +54,7 @@ export default async function Schluessel(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
+  const darf = await haeltRechte(sitzung, 'schluessel.schreiben');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const { schluessel, quittungen, befund } = await (db().begin(
@@ -137,14 +139,23 @@ export default async function Schluessel(
         )}
       </dl>
 
-      <p className="mb-s6">
-        <Link
-          href={`/portal/${mandant}/security/schluessel/${id}/quittung`}
-          className="no-underline"
-        >
-          <Button variante="primary">Quittung schreiben</Button>
-        </Link>
-      </p>
+      {/*
+        * Die Quittung dahinter öffnet mit `schluessel.schreiben` (Manifest);
+        * diese Seite mit `schluessel.lesen`. Wer das Journal lesen darf, darf
+        * nicht zwangsläufig quittieren — ohne das Schreibrecht führte der Knopf
+        * auf 404 und verriete, was er nicht zeigen darf (AUT-06; Copilot-Runde
+        * auf PR 16 / D-581).
+        */}
+      {darf['schluessel.schreiben'] === true && (
+        <p className="mb-s6">
+          <Link
+            href={`/portal/${mandant}/security/schluessel/${id}/quittung`}
+            className="no-underline"
+          >
+            <Button variante="primary">Quittung schreiben</Button>
+          </Link>
+        </p>
+      )}
 
       <h2 className="mb-s2 text-h2 text-text">Journal</h2>
       <p className="mb-s4 text-sm text-text-muted" data-cse="abzugsbefund">

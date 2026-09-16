@@ -15,6 +15,7 @@ import { berlinHeute } from '@/server/db/heute';
 import { monatsErster, monatVerschieben, monatsName } from '@/lib/datum/kalendertag';
 import { stundenMinutenText } from '@/lib/datum/stunden';
 import { leseMonatsliste, type KontoZeile } from '../daten';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/personal/stundenkonten/abschluss` — einen Monat schliessen
@@ -52,6 +53,7 @@ export default async function Monatsabschluss({
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
+  const darf = await haeltRechte(sitzung, 'zeit.konto_lesen');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const frage = await searchParams;
@@ -98,12 +100,19 @@ export default async function Monatsabschluss({
       <nav aria-label="Monat wechseln" className="mb-s5 flex flex-wrap items-center gap-s2">
         <Sprung mandant={mandant} ziel={monatVerschieben(monat, -1)} text="← Vormonat" />
         <Sprung mandant={mandant} ziel={monatVerschieben(monat, 1)} text="Folgemonat →" />
-        <Link
-          href={`/portal/${mandant}/personal/stundenkonten?monat=${monat}`}
-          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-        >
-          Zu den Konten
-        </Link>
+        {/*
+          * `/personal/stundenkonten` oeffnet mit `zeit.konto_lesen` (Manifest); diese Seite mit `zeit.konto_abschliessen`.
+          * Ohne das Recht fuehrte der Verweis auf 404 und verriet damit, was er
+          * nicht zeigen darf (AUT-06; D-581).
+          */}
+        {darf['zeit.konto_lesen'] === true && (
+          <Link
+            href={`/portal/${mandant}/personal/stundenkonten?monat=${monat}`}
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Zu den Konten
+          </Link>
+        )}
       </nav>
 
       {geschlossen !== null && (
@@ -162,14 +171,14 @@ export default async function Monatsabschluss({
             {
               schluessel: 'name',
               kopf: 'Beschäftigung',
-              zelle: (z) => (
+              zelle: (z) => darf['zeit.konto_lesen'] === true ? (
                 <Link
                   href={`/portal/${mandant}/personal/stundenkonten/${z.anstellungId}?monat=${monat}`}
                   className="text-text underline decoration-line underline-offset-4 hover:decoration-current"
                 >
                   {z.name}
                 </Link>
-              ),
+              ) : z.name,
             },
             {
               schluessel: 'ist',

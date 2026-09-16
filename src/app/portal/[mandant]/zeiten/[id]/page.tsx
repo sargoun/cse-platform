@@ -10,6 +10,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { stundenAusMinuten } from '@/lib/datum/stunden';
 import { darfKorrigieren, ladeZeiteintrag, type SpurZeile } from '../daten';
 import { kennungOder404 } from '../../../kennung';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/zeiten/[id]` — ein Zeiteintrag, vollständig (TIM-08,
@@ -97,6 +98,12 @@ export default async function Zeiteintragsblatt(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /* AUT-06: die Schicht `…/dienstplan/einsatz/[id]` verlangt laut Manifest
+     `dienstplan.lesen`, dieses Blatt nur `zeit.lesen` — wer nur das zweite
+     hält, sah „Zur geplanten Schicht" und bekam dahinter ein 404. Ein Verweis
+     auf 404 verraet, was er nicht zeigen darf (Copilot-Runde auf PR 16 / D-581). */
+  const darf = await haeltRechte(sitzung, 'dienstplan.lesen');
 
   /**
    * Keine Zeile heisst 404 und nie 403: ein 403 bestätigte, dass es den
@@ -226,7 +233,7 @@ export default async function Zeiteintragsblatt(
           <Feld label="Fassung" wert={`Version ${String(e.version)}`} zahl />
         </dl>
 
-        {e.einsatzId !== null && (
+        {e.einsatzId !== null && darf['dienstplan.lesen'] === true && (
           <p className="m-0 mt-s4 text-sm">
             <Link
               href={`/portal/${mandant}/dienstplan/einsatz/${e.einsatzId}`}

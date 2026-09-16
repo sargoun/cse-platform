@@ -12,6 +12,7 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { ladeLaufende, type LaufendeZeile } from '@/server/services/freigabe/pruefdauer';
 import { RISIKO_LABEL } from '../darstellung';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/freigaben/laufend` — was gleich hinausgeht (APR-05,
@@ -53,6 +54,7 @@ export default async function Laufend(
     );
   }
   const { sitzung } = zugang;
+  const darf = await haeltRechte(sitzung, 'freigabe.entscheiden');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const jetzt = new Date();
@@ -104,12 +106,18 @@ export default async function Laufend(
           spalten={[
             {
               schluessel: 'titel', kopf: 'Vorgang',
-              zelle: (z) => (
+              /*
+               * Die Pruefseite `/freigaben/[id]` verlangt `freigabe.entscheiden`
+               * (Manifest); diese Liste nur `freigabe.lesen`. Wer liest und nicht
+               * entscheidet, sah je Zeile einen Verweis mit 404 dahinter (AUT-06;
+               * D-581) — jetzt den Titel als Text.
+               */
+              zelle: (z) => darf['freigabe.entscheiden'] === true ? (
                 <Link href={`/portal/${mandant}/freigaben/${z.id}`}
                       className="text-sm text-text underline underline-offset-2">
                   {z.titel ?? 'ohne Titel'}
                 </Link>
-              ),
+              ) : (z.titel ?? 'ohne Titel'),
             },
             {
               schluessel: 'art', kopf: 'Fenster',

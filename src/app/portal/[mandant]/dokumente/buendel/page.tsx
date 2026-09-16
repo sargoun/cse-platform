@@ -13,6 +13,7 @@ import { erstellePruefbuendel, type Pruefbuendel } from '@/server/services/buchh
 import { liesWirtschaftsjahr, wirtschaftsjahrVon } from '@/server/services/buchhaltung/wirtschaftsjahr';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/dokumente/buendel` — das Pruefbuendel eines Jahrgangs
@@ -41,6 +42,13 @@ export default async function Buendel(
   const tor = await mandantTor(`/portal/${mandant}/dokumente/buendel`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+
+  /* AUT-06: `…/buchhaltung/archiv` verlangt laut Manifest `buchhaltung.lesen`,
+     `…/finanzen/ausgangsbuch` `nummernkreis.lesen`, `…/finanzen/rechnungen/[id]`
+     `finanzen.lesen` — diese Seite verlangt keins davon. Wer das Buendel zieht,
+     ohne die Ziele oeffnen zu duerfen, bekam hinter jedem Verweis ein 404; ein
+     Verweis auf 404 verraet, was er nicht zeigen darf (Copilot-Runde auf PR 16 / D-581). */
+  const darf = await haeltRechte(zugang.sitzung, 'buchhaltung.lesen', 'nummernkreis.lesen', 'finanzen.lesen');
   const suche = await searchParams;
   const jahrRoh = typeof suche['jahr'] === 'string' ? suche['jahr'] : null;
   const gewaehlt = jahrRoh !== null && /^\d{4}$/u.test(jahrRoh) ? Number(jahrRoh) : null;
@@ -80,7 +88,9 @@ export default async function Buendel(
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">Prüfbündel {b.bezeichnung}</h1>
-        <Link href={`/portal/${mandant}/buchhaltung/archiv`} className={knopf}>Zum GoBD-Archiv</Link>
+        {darf['buchhaltung.lesen'] === true ? (
+          <Link href={`/portal/${mandant}/buchhaltung/archiv`} className={knopf}>Zum GoBD-Archiv</Link>
+        ) : null}
       </div>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         Jede festgeschriebene Rechnung des Wirtschaftsjahrs {b.bezeichnung} ({deutschesDatum(b.von)} bis{' '}
@@ -120,7 +130,9 @@ export default async function Buendel(
             `${k.nummernkreis}: ${String(k.anzahl)} Nummern ${String(k.ersteNummer)}–${String(k.letzteNummer)}`
             + `${k.luecken.length > 0 ? `, ${String(k.luecken.length)} Lücke(n)` : ', lückenlos'}`
             + `${k.ohneKettenglied > 0 ? `, ${String(k.ohneKettenglied)} ohne Kettenglied` : ''}`).join(' · ')}
-        {' '}<Link href={`/portal/${mandant}/finanzen/ausgangsbuch?jahr=${String(b.jahr)}`} className="underline underline-offset-2">Zum Ausgangsbuch</Link>.
+        {darf['nummernkreis.lesen'] === true ? (
+          <>{' '}<Link href={`/portal/${mandant}/finanzen/ausgangsbuch?jahr=${String(b.jahr)}`} className="underline underline-offset-2">Zum Ausgangsbuch</Link>.</>
+        ) : null}
       </Hinweis>
 
       <div data-cse="buendel-abrufe" className="mb-s6 flex flex-wrap items-center gap-s3">
@@ -152,12 +164,12 @@ export default async function Buendel(
           schluessel={(r) => r.rechnungId}
           spalten={[
             { schluessel: 'nummer', kopf: 'Nummer',
-              zelle: (r) => (
+              zelle: (r) => (darf['finanzen.lesen'] === true ? (
                 <Link href={`/portal/${mandant}/finanzen/rechnungen/${r.rechnungId}`}
                       className="text-text underline-offset-2 hover:text-brand hover:underline">
                   {r.nummer ?? '—'}
                 </Link>
-              ) },
+              ) : (r.nummer ?? '—')) },
             { schluessel: 'datum', kopf: 'Datum', zelle: (r) => deutschesDatum(r.rechnungsdatum) },
             { schluessel: 'brutto', kopf: 'Brutto', numerisch: true, zelle: (r) => formatiereGeld(cent(r.bruttoCent)) },
             { schluessel: 'art', kopf: 'Art', zelle: (r) => (r.storniert ? 'Storno' : 'Rechnung') },

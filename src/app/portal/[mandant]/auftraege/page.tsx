@@ -12,6 +12,7 @@ import { portalZugang } from '../../zugang';
 import { slugTor } from '../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { haeltRechte } from '../../rechte';
 
 /** `/portal/[mandant]/auftraege` — was diese Gesellschaft ausfuehrt (OPS-05). */
 export const dynamic = 'force-dynamic';
@@ -47,6 +48,14 @@ export default async function Auftragsliste(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /*
+   * `/auftraege/neu` verlangt laut Manifest `auftrag.schreiben`; diese
+   * Liste oeffnet mit `auftrag.lesen`. Wer lesen darf, darf nicht
+   * zwangslaeufig anlegen — der Knopf fuehrte dann auf 404 und verriet,
+   * was er nicht zeigen darf (AUT-06, Copilot-Runde auf PR 16 / D-581).
+   */
+  const darf = await haeltRechte(sitzung, 'auftrag.schreiben');
+
   const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => kontext.abfrage<Zeile>(
       `select a.id, a.auftragsnummer, a.bezeichnung, k.name as kunde,
@@ -74,13 +83,15 @@ export default async function Auftragsliste(
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">Aufträge</h1>
-        <Link
-          href={`/portal/${mandant}/auftraege/neu`}
-          data-cse="auftrag-neu"
-          className="inline-flex min-h-11 items-center rounded-md bg-brand px-s5 text-sm text-white hover:bg-brand-hover"
-        >
-          Neuer Auftrag
-        </Link>
+        {darf['auftrag.schreiben'] === true && (
+          <Link
+            href={`/portal/${mandant}/auftraege/neu`}
+            data-cse="auftrag-neu"
+            className="inline-flex min-h-11 items-center rounded-md bg-brand px-s5 text-sm text-white hover:bg-brand-hover"
+          >
+            Neuer Auftrag
+          </Link>
+        )}
       </div>
 
       {zeilen.length === 0 ? (

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { berlinHeute } from '@/server/db/heute';
@@ -58,6 +59,14 @@ export default async function Abwesenheitsliste({
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /* AUT-06: „Anträge" verlangt laut Manifest `zeit.antrag_entscheiden`,
+     „Stundenkonten" `zeit.konto_lesen`, „Nachweise" `personal.nachweis_lesen`;
+     diese Liste öffnet mit `zeit.abwesenheit_lesen` allein. Ohne das Recht
+     führte der Knopf auf 404 und verriet, was er nicht zeigen darf
+     (Copilot-Runde auf PR 16 / D-581). */
+  const darf = await haeltRechte(
+    sitzung, 'zeit.antrag_entscheiden', 'zeit.konto_lesen', 'personal.nachweis_lesen');
+
   const frage = await searchParams;
   const heute = await berlinHeute();
   const roh = typeof frage['woche'] === 'string' ? frage['woche'] : null;
@@ -103,27 +112,33 @@ export default async function Abwesenheitsliste({
         <Sprung mandant={mandant} ziel={tagePlus(von, -28)} text="← Früher" />
         <Sprung mandant={mandant} ziel={heute} text="Um heute" />
         <Sprung mandant={mandant} ziel={tagePlus(von, 28)} text="Später →" />
-        <Link
-          href={`/portal/${mandant}/personal/antraege`}
-          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-        >
-          Anträge
-          {offeneAntraege > 0 && (
-            <span className="ml-s2 text-warning">{offeneAntraege}</span>
-          )}
-        </Link>
-        <Link
-          href={`/portal/${mandant}/personal/stundenkonten`}
-          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-        >
-          Stundenkonten
-        </Link>
-        <Link
-          href={`/portal/${mandant}/personal/nachweise`}
-          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-        >
-          Nachweise
-        </Link>
+        {darf['zeit.antrag_entscheiden'] === true && (
+          <Link
+            href={`/portal/${mandant}/personal/antraege`}
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Anträge
+            {offeneAntraege > 0 && (
+              <span className="ml-s2 text-warning">{offeneAntraege}</span>
+            )}
+          </Link>
+        )}
+        {darf['zeit.konto_lesen'] === true && (
+          <Link
+            href={`/portal/${mandant}/personal/stundenkonten`}
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Stundenkonten
+          </Link>
+        )}
+        {darf['personal.nachweis_lesen'] === true && (
+          <Link
+            href={`/portal/${mandant}/personal/nachweise`}
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Nachweise
+          </Link>
+        )}
       </nav>
 
       {zeilen.length === 0 ? (

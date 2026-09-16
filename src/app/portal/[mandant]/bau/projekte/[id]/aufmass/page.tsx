@@ -15,6 +15,7 @@ import { slugTor } from '../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../../kennung';
+import { haeltRechte } from '../../../../../rechte';
 
 /**
  * `/portal/[mandant]/bau/projekte/[id]/aufmass` — die Blaetter eines Projekts
@@ -42,6 +43,12 @@ export default async function AufmassListe(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /* AUT-06: `…/aufmass/neu` verlangt laut Manifest `bau.aufmass_erfassen`,
+     diese Liste nur `bau.lesen` — eine `kunde` sah den Knopf und bekam
+     dahinter ein 404. Ein Verweis auf 404 verraet, was er nicht zeigen darf
+     (Copilot-Runde auf PR 16 / D-581). */
+  const darf = await haeltRechte(sitzung, 'bau.aufmass_erfassen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -73,12 +80,14 @@ export default async function AufmassListe(
             {daten.projekt.nummer} · {daten.projekt.bezeichnung}
           </p>
         </div>
-        <Link
-          href={`/portal/${mandant}/bau/projekte/${id}/aufmass/neu`}
-          className="rounded-md bg-brand px-s5 py-s3 text-sm font-semibold text-white hover:bg-brand-hover"
-        >
-          Aufmaß aufnehmen
-        </Link>
+        {darf['bau.aufmass_erfassen'] === true && (
+          <Link
+            href={`/portal/${mandant}/bau/projekte/${id}/aufmass/neu`}
+            className="rounded-md bg-brand px-s5 py-s3 text-sm font-semibold text-white hover:bg-brand-hover"
+          >
+            Aufmaß aufnehmen
+          </Link>
+        )}
       </div>
 
       {daten.blaetter.length === 0 ? (

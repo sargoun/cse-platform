@@ -9,6 +9,7 @@ import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/buchhaltung/datev/neu` — Zeitraum wählen, Stapel
@@ -48,6 +49,15 @@ export default async function DatevNeu(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /*
+   * `/buchhaltung/buchungen` verlangt laut Manifest `buchhaltung.lesen`; diese
+   * Seite oeffnet mit `buchhaltung.exportieren`. Wer exportieren darf, darf
+   * nicht zwangslaeufig das Journal lesen — der Verweis fuehrte dann auf 404
+   * und verriete, was er nicht zeigen darf (AUT-06, Copilot-Runde auf PR 16 /
+   * D-581). Der Satz davor bleibt stehen; nur der Verweis faellt.
+   */
+  const darf = await haeltRechte(sitzung, 'buchhaltung.lesen');
 
   const ISO = /^\d{4}-\d{2}-\d{2}$/u;
   const feldWert = (name: string): string | null => {
@@ -146,13 +156,17 @@ export default async function DatevNeu(
                   <strong className="text-text">{String(offen)}</strong> davon
                   ohne archivierten Beleg oder ohne Konto. Solange eine davon
                   offen ist, entsteht keine Datei — auch keine teilweise.
-                  {' '}
-                  <Link
-                    href={`/portal/${mandant}/buchhaltung/buchungen?offen=1`}
-                    className="underline underline-offset-2"
-                  >
-                    Die Liste ansehen
-                  </Link>
+                  {darf['buchhaltung.lesen'] === true && (
+                    <>
+                      {' '}
+                      <Link
+                        href={`/portal/${mandant}/buchhaltung/buchungen?offen=1`}
+                        className="underline underline-offset-2"
+                      >
+                        Die Liste ansehen
+                      </Link>
+                    </>
+                  )}
                 </li>
               ) : null}
               {erneut > 0 ? (

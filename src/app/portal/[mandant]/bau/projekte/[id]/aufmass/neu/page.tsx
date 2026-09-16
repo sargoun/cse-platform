@@ -16,6 +16,7 @@ import { slugTor } from '../../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../../../kennung';
+import { haeltRechte } from '../../../../../../rechte';
 
 /**
  * `/portal/[mandant]/bau/projekte/[id]/aufmass/neu` — ein Aufmass aufnehmen
@@ -57,6 +58,13 @@ export default async function AufmassAufnehmen(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /* AUT-06: die Blattliste `…/aufmass` verlangt laut Manifest `bau.lesen`,
+     dieses Blatt nur `bau.aufmass_erfassen` — eine Kraft vor Ort haelt das
+     eine und nicht das andere, und „Abbrechen" fuehrte sie auf ein 404. Ein
+     Verweis auf 404 verraet, was er nicht zeigen darf (Copilot-Runde auf
+     PR 16 / D-581). */
+  const darf = await haeltRechte(sitzung, 'bau.lesen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -274,12 +282,14 @@ export default async function AufmassAufnehmen(
 
         <div className="mt-s5 flex flex-wrap items-center gap-s3">
           <Button type="submit" variante="primary">Aufmaß speichern</Button>
-          <Link
-            href={`/portal/${mandant}/bau/projekte/${id}/aufmass`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            Abbrechen
-          </Link>
+          {darf['bau.lesen'] === true && (
+            <Link
+              href={`/portal/${mandant}/bau/projekte/${id}/aufmass`}
+              className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+            >
+              Abbrechen
+            </Link>
+          )}
         </div>
       </form>
     </PortalRahmen>

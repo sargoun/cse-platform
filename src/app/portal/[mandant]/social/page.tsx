@@ -63,9 +63,18 @@ export default async function SocialCenter(
       darfKanaele: (await kontext.abfrage<{ ja: boolean }>(
         `select app.hat_recht('social.kanal_verbinden', app.aktiver_mandant()) as ja`)
       )[0]?.ja ?? false,
+      /*
+       * Dasselbe für `social.schreiben`: `/social/posts/neu` verlangt es
+       * (Manifest), diese Übersicht nur `social.lesen`. Wer liest und nicht
+       * schreibt, sah zwei Wege zu „Neuer Beitrag" — beide mit 404 dahinter.
+       * Gemeldet von der Copilot-Runde auf PR 16.
+       */
+      darfSchreiben: (await kontext.abfrage<{ ja: boolean }>(
+        `select app.hat_recht('social.schreiben', app.aktiver_mandant()) as ja`)
+      )[0]?.ja ?? false,
     }))) as Promise<{
       beitraege: readonly BeitragZeile[]; kanaele: readonly KanalZeile[];
-      darfKanaele: boolean;
+      darfKanaele: boolean; darfSchreiben: boolean;
     }>);
 
   const zahl = (status: string): number =>
@@ -105,9 +114,11 @@ export default async function SocialCenter(
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">Social Media Center</h1>
         <nav aria-label="Social Media" className="flex flex-wrap gap-s2">
-          <Link href={`/portal/${mandant}/social/posts/neu`} className={KNOPF} data-cse="social-neu">
-            Neuer Beitrag
-          </Link>
+          {daten.darfSchreiben ? (
+            <Link href={`/portal/${mandant}/social/posts/neu`} className={KNOPF} data-cse="social-neu">
+              Neuer Beitrag
+            </Link>
+          ) : null}
           <Link href={`/portal/${mandant}/social/posts`} className={KNOPF} data-cse="social-posts">
             Alle Beiträge
           </Link>
@@ -180,9 +191,14 @@ export default async function SocialCenter(
         <h2 className="mb-s3 text-h2 text-text">Zuletzt geändert</h2>
         {daten.beitraege.length === 0 ? (
           <Hinweis art="hinweis" cse="social-leer" className="max-w-prose">
-            Noch kein Beitrag. <Link href={`/portal/${mandant}/social/posts/neu`}
-              className="underline underline-offset-4">Einen Entwurf anlegen</Link> — er geht
-            von dort durch Prüfung und Freigabe, nicht direkt hinaus.
+            Noch kein Beitrag.
+            {daten.darfSchreiben ? (
+              <>
+                {' '}<Link href={`/portal/${mandant}/social/posts/neu`}
+                  className="underline underline-offset-4">Einen Entwurf anlegen</Link> — er geht
+                von dort durch Prüfung und Freigabe, nicht direkt hinaus.
+              </>
+            ) : null}
           </Hinweis>
         ) : (
           <ul data-cse="social-letzte" className="flex flex-col gap-s2">

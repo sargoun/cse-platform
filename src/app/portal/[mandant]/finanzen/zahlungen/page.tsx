@@ -14,6 +14,7 @@ import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/finanzen/zahlungen` — was offen ist, und was eingegangen
@@ -65,6 +66,15 @@ export default async function Zahlungen(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /*
+   * `/finanzen/rechnungen/[id]` verlangt laut Manifest `finanzen.lesen`; diese
+   * Seite oeffnet mit `zahlung.lesen`. Wer Zahlungen erfassen darf, darf nicht
+   * zwangslaeufig den Beleg oeffnen — der Verweis fuehrte dann auf 404 und
+   * verriete, was er nicht zeigen darf (AUT-06, Copilot-Runde auf PR 16 /
+   * D-581). Ohne das Recht steht die Nummer als blosser Text.
+   */
+  const darf = await haeltRechte(sitzung, 'finanzen.lesen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => ({
@@ -134,14 +144,15 @@ export default async function Zahlungen(
               {
                 schluessel: 'nummer',
                 kopf: 'Rechnung',
-                zelle: (p) => (p.rechnungId === null ? '—' : (
-                  <Link
-                    href={`/portal/${mandant}/finanzen/rechnungen/${p.rechnungId}`}
-                    className="text-text underline-offset-2 hover:text-brand hover:underline"
-                  >
-                    {p.rechnungsnummer ?? '—'}
-                  </Link>
-                )),
+                zelle: (p) => (p.rechnungId === null ? '—'
+                  : darf['finanzen.lesen'] !== true ? (p.rechnungsnummer ?? '—') : (
+                    <Link
+                      href={`/portal/${mandant}/finanzen/rechnungen/${p.rechnungId}`}
+                      className="text-text underline-offset-2 hover:text-brand hover:underline"
+                    >
+                      {p.rechnungsnummer ?? '—'}
+                    </Link>
+                  )),
               },
               { schluessel: 'kunde', kopf: 'Kunde', zelle: (p) => p.kundeName ?? '—' },
               {

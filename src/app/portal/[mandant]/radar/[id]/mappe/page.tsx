@@ -115,16 +115,34 @@ export default async function Vergabemappe(
     withTenant(tx, zugang.sitzung, async (kontext) => {
       const mappe = await leseMappe(kontext, id);
       if (mappe === null) return null;
-      const [r] = await kontext.abfrage<{ schreiben: boolean; einreichen: boolean }>(
+      /*
+       * `/radar/[id]` verlangt `radar.lesen`, `/radar/plattformen` verlangt
+       * `radar.plattform_verwalten` (Manifest); diese Seite öffnet mit
+       * `vergabe.schreiben` allein. Ein Verweis, der auf 404 führt, verrät,
+       * was er nicht zeigen darf (AUT-06). Gemeldet von der Copilot-Runde auf
+       * PR 16 / D-581.
+       */
+      const [r] = await kontext.abfrage<{
+        schreiben: boolean; einreichen: boolean; radar: boolean; plattformen: boolean;
+      }>(
         `select app.hat_recht('vergabe.schreiben', app.aktiver_mandant()) as schreiben,
-                app.hat_recht('vergabe.einreichung_erfassen', app.aktiver_mandant()) as einreichen`);
-      return { mappe, darfSchreiben: r?.schreiben === true, darfEinreichen: r?.einreichen === true };
+                app.hat_recht('vergabe.einreichung_erfassen', app.aktiver_mandant()) as einreichen,
+                app.hat_recht('radar.lesen', app.aktiver_mandant()) as radar,
+                app.hat_recht('radar.plattform_verwalten', app.aktiver_mandant()) as plattformen`);
+      return {
+        mappe,
+        darfSchreiben: r?.schreiben === true,
+        darfEinreichen: r?.einreichen === true,
+        darfRadar: r?.radar === true,
+        darfPlattformen: r?.plattformen === true,
+      };
     })) as Promise<{
       mappe: MappenBlick; darfSchreiben: boolean; darfEinreichen: boolean;
+      darfRadar: boolean; darfPlattformen: boolean;
     } | null>);
 
   if (daten === null) notFound();
-  const { mappe: m, darfSchreiben, darfEinreichen } = daten;
+  const { mappe: m, darfSchreiben, darfEinreichen, darfRadar, darfPlattformen } = daten;
   const offenePflicht = m.pflichtGesamt - m.pflichtErledigt;
   const gesperrt = m.status === 'eingereicht' || m.status === 'verworfen';
 
@@ -145,10 +163,12 @@ export default async function Vergabemappe(
           <h1 className="text-h1 text-text">Vergabemappe</h1>
           <p className="mt-s2 max-w-prose text-sm text-text-muted">{m.titel}</p>
         </div>
-        <Link href={`/portal/${mandant}/radar/${id}`}
-              className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2">
-          Zur Bekanntmachung
-        </Link>
+        {darfRadar ? (
+          <Link href={`/portal/${mandant}/radar/${id}`}
+                className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2">
+            Zur Bekanntmachung
+          </Link>
+        ) : null}
       </div>
 
       {vermerkt !== null ? (
@@ -193,10 +213,15 @@ export default async function Vergabemappe(
         <Hinweis art="warnung" cse="mappe-plattform" className="mb-s5 max-w-prose">
           <strong>Auf {m.plattformName} ist diese Gesellschaft nicht freigeschaltet.</strong>{' '}
           Eine vollständige Mappe nützt nichts, wenn niemand sie hochladen kann — die
-          Freischaltung dauert Tage bis Wochen (RAD-09).{' '}
-          <Link href={`/portal/${mandant}/radar/plattformen`} className="underline underline-offset-4">
-            Plattformen verwalten
-          </Link>.
+          Freischaltung dauert Tage bis Wochen (RAD-09).
+          {darfPlattformen ? (
+            <>
+              {' '}
+              <Link href={`/portal/${mandant}/radar/plattformen`} className="underline underline-offset-4">
+                Plattformen verwalten
+              </Link>.
+            </>
+          ) : null}
         </Hinweis>
       ) : null}
 

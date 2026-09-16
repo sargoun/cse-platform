@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { ladeBewerbung, leseBewertung } from '@/server/services/recruiting/dienst';
 import { punktzahlZehntel, punkteText } from '@/server/services/recruiting/rangfolge';
+import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../../kennung';
 import { RecruitingSeite, leseImMandanten } from '../../../rahmen';
 import { FELD, KNOPF } from '../../../felder';
@@ -45,6 +46,14 @@ export default async function Entscheidung(
       unterpfad={`kandidaten/${id}/entscheidung`}
       titel="Entscheidung"
       kinder={async (zugang) => {
+        /*
+         * `/recruiting/bewerbungen/[id]` verlangt laut Manifest
+         * `recruiting.bewerbung_lesen`; diese Seite nur `recruiting.entscheiden`.
+         * Wer entscheiden darf, aber nicht lesen, bekam hinter „Zur Bewerbung"
+         * einen 404 — und ein Verweis auf 404 verrät, was er nicht zeigen
+         * darf (AUT-06, Copilot-Runde auf PR 16 / D-581).
+         */
+        const darf = await haeltRechte(zugang.sitzung, 'recruiting.bewerbung_lesen');
         const d = await leseImMandanten(zugang, async (kontext) => ({
           b: await ladeBewerbung(kontext, id),
           kriterien: await leseBewertung(kontext, id),
@@ -57,9 +66,11 @@ export default async function Entscheidung(
           <>
             <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
               <h1 className="m-0 text-h1 text-text">Entscheidung</h1>
-              <Link href={`/portal/${mandant}/recruiting/bewerbungen/${id}`} className={KNOPF}>
-                Zur Bewerbung
-              </Link>
+              {darf['recruiting.bewerbung_lesen'] === true && (
+                <Link href={`/portal/${mandant}/recruiting/bewerbungen/${id}`} className={KNOPF}>
+                  Zur Bewerbung
+                </Link>
+              )}
             </div>
             <p className="mb-s5 text-sm text-text-muted">
               {b.name} · {b.stelleTitel ?? 'Initiativbewerbung'}

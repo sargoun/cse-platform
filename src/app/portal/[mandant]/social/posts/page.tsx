@@ -9,6 +9,7 @@ import { withTenant } from '@/server/kontext/index';
 import { type BeitragZeile, listeBeitraege } from '@/server/services/social/dienst';
 import { type BeitragStatus, STATUS_TEXT } from '@/server/services/social/weg';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/social/posts` — Entwurf · In Prüfung · Freigegeben ·
@@ -46,6 +47,13 @@ export default async function Beitraege(
   const tor = await mandantTor(`/portal/${mandant}/social/posts`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+  /*
+   * `/social/posts/neu` verlangt `social.schreiben` zusätzlich (Manifest);
+   * diese Liste öffnet mit `social.lesen`. Ein Knopf, der auf 404 führt,
+   * verrät, was er nicht zeigen darf (AUT-06). Gemeldet von der
+   * Copilot-Runde auf PR 16.
+   */
+  const darf = await haeltRechte(zugang.sitzung, 'social.schreiben');
 
   const suche = await searchParams;
   const roh = suche['status'];
@@ -111,10 +119,12 @@ export default async function Beitraege(
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">Beiträge</h1>
-        <Link href={`/portal/${mandant}/social/posts/neu`} className={knopf(false)}
-              data-cse="beitrag-neu">
-          Neuer Beitrag
-        </Link>
+        {darf['social.schreiben'] === true && (
+          <Link href={`/portal/${mandant}/social/posts/neu`} className={knopf(false)}
+                data-cse="beitrag-neu">
+            Neuer Beitrag
+          </Link>
+        )}
       </div>
 
       <nav aria-label="Nach Stand filtern" className="mb-s5 flex flex-wrap gap-s2">

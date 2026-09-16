@@ -66,7 +66,7 @@ export default async function Bewerbungsblatt(
       kinder={async (zugang) => {
         const darf = await haeltRechte(
           zugang.sitzung, 'recruiting.bewerbung_bewerten', 'recruiting.entscheiden',
-          'kalender.schreiben');
+          'kalender.schreiben', 'recruiting.stelle_lesen');
         const d = await leseImMandanten(zugang, async (kontext) => ({
           b: await ladeBewerbung(kontext, id),
           kriterien: await leseBewertung(kontext, id),
@@ -110,13 +110,25 @@ export default async function Bewerbungsblatt(
               <dd className="m-0 min-w-0 break-words text-text">
                 {b.stelleId === null || b.stelleTitel === null ? (
                   'Initiativbewerbung'
-                ) : (
+                ) : darf['recruiting.stelle_lesen'] === true ? (
                   <Link
                     href={`/portal/${mandant}/recruiting/stellen/${b.stelleId}`}
                     className="text-text underline decoration-line underline-offset-4 hover:decoration-current"
                   >
                     {b.stelleTitel}
                   </Link>
+                ) : (
+                  /*
+                   * **Der Titel bleibt, der Weg nicht.** Diese Seite öffnet
+                   * mit `recruiting.bewerbung_lesen`, die Stelle dahinter mit
+                   * `recruiting.stelle_lesen` (Manifest) — zwei Rechte, die
+                   * je Mandant getrennt entzogen werden können. Wer das
+                   * zweite nicht hält, sah hier einen Verweis, der auf 404
+                   * führte und damit die Existenz dessen verriet, was er
+                   * nicht zeigen darf (AUT-06). Gemeldet von der
+                   * Copilot-Runde auf PR 16.
+                   */
+                  b.stelleTitel
                 )}
               </dd>
               <dt className="text-text-muted">E-Mail</dt>

@@ -7,6 +7,7 @@ import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { SupabaseSpeicher } from '@/server/storage/adapter';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
 import { formatiereBytes, KATEGORIE } from '../darstellung';
 import { kennungOder404 } from '../../../kennung';
 
@@ -66,6 +67,13 @@ export default async function Dokumentblatt(
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
 
+  /* AUT-06: `…/crm/kunden/[id]` verlangt laut Manifest `crm.lesen`,
+     `…/objekte/[id]` verlangt `objekt.lesen` — diese Seite verlangt keins
+     von beiden. Wer das Dokument lesen, aber Kunde oder Objekt nicht oeffnen
+     darf, bekam hinter dem Bezug ein 404; ein Verweis auf 404 verraet, was er
+     nicht zeigen darf. Der Name bleibt als Text (Copilot-Runde auf PR 16 / D-581). */
+  const darf = await haeltRechte(zugang.sitzung, 'crm.lesen', 'objekt.lesen');
+
   const [d] = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, (kontext) => kontext.abfrage<Dokument>(
       `select d.id, d.titel, d.beschreibung, d.kategorie::text as kategorie,
@@ -103,10 +111,10 @@ export default async function Dokumentblatt(
           <h2 className="mb-s4 text-h3 text-text">Einordnung</h2>
           <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-s5 gap-y-s3">
             <Feld label="Kategorie" wert={KATEGORIE[d.kategorie] ?? d.kategorie} />
-            <Feld label="Kunde" wert={d.kunde === null || d.kunde_id === null ? '—' : (
-              <Link href={`/portal/${mandant}/crm/kunden/${d.kunde_id}`} className="underline-offset-2 hover:underline">{d.kunde}</Link>)} />
-            <Feld label="Objekt" wert={d.objekt === null || d.objekt_id === null ? '—' : (
-              <Link href={`/portal/${mandant}/objekte/${d.objekt_id}`} className="underline-offset-2 hover:underline">{d.objekt}</Link>)} />
+            <Feld label="Kunde" wert={d.kunde === null || d.kunde_id === null ? '—' : darf['crm.lesen'] === true ? (
+              <Link href={`/portal/${mandant}/crm/kunden/${d.kunde_id}`} className="underline-offset-2 hover:underline">{d.kunde}</Link>) : d.kunde} />
+            <Feld label="Objekt" wert={d.objekt === null || d.objekt_id === null ? '—' : darf['objekt.lesen'] === true ? (
+              <Link href={`/portal/${mandant}/objekte/${d.objekt_id}`} className="underline-offset-2 hover:underline">{d.objekt}</Link>) : d.objekt} />
             <Feld label="Schlagworte" wert={d.tags === null || d.tags.length === 0 ? '—' : d.tags.join(', ')} />
             <Feld label="Sichtbar für" wert={[d.sichtbar_fuer_kunde ? 'Kunde' : null, d.sichtbar_fuer_mitarbeiter ? 'Beschäftigte' : null]
               .filter((t) => t !== null).join(', ') || 'nur intern'} />

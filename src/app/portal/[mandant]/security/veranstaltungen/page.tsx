@@ -8,6 +8,7 @@ import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import {
@@ -37,6 +38,7 @@ export default async function Veranstaltungen(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
+  const darf = await haeltRechte(sitzung, 'dienstplan.schreiben');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const heute = await berlinHeute();
@@ -80,13 +82,24 @@ export default async function Veranstaltungen(
                 className="mb-s3 rounded-lg border border-line bg-surface p-s4"
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-s3">
-                  <Link
-                    href={`/portal/${mandant}/security/veranstaltungen/${v.id}/besetzung`}
-                    className="text-base text-text underline-offset-2
-                               hover:text-brand hover:underline"
-                  >
-                    {v.bezeichnung}
-                  </Link>
+                  {/*
+                    * Das Besetzungsbrett dahinter verlangt laut Manifest
+                    * `dienstplan.schreiben`; diese Liste nur `security.lesen`.
+                    * Ohne das Schreibrecht führte der Zeilentitel auf 404 und
+                    * verriete, was er nicht zeigen darf (AUT-06; Copilot-Runde
+                    * auf PR 16 / D-581) — dann steht die Bezeichnung als Text.
+                    */}
+                  {darf['dienstplan.schreiben'] === true ? (
+                    <Link
+                      href={`/portal/${mandant}/security/veranstaltungen/${v.id}/besetzung`}
+                      className="text-base text-text underline-offset-2
+                                 hover:text-brand hover:underline"
+                    >
+                      {v.bezeichnung}
+                    </Link>
+                  ) : (
+                    <span className="text-base text-text">{v.bezeichnung}</span>
+                  )}
                   <span className="text-sm tabular-nums text-text-muted">
                     {v.beginnLokal} – {v.endeLokal}
                   </span>

@@ -13,6 +13,7 @@ import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/finanzen/ausgangsbuch` — die Folge der ausgestellten
@@ -54,6 +55,15 @@ export default async function Ausgangsbuch(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /*
+   * `/finanzen/rechnungen/[id]` verlangt laut Manifest `finanzen.lesen`; diese
+   * Seite oeffnet mit `nummernkreis.lesen`. Wer das Buch abstimmen darf, darf
+   * nicht zwangslaeufig den Beleg oeffnen — der Verweis fuehrte dann auf 404
+   * und verriete, was er nicht zeigen darf (AUT-06, Copilot-Runde auf PR 16 /
+   * D-581). Ohne das Recht steht die Nummer als blosser Text.
+   */
+  const darf = await haeltRechte(sitzung, 'finanzen.lesen');
 
   const jahrRoh = typeof suche['jahr'] === 'string' ? suche['jahr'] : null;
   const jahr = jahrRoh !== null && /^\d{4}$/u.test(jahrRoh) ? Number(jahrRoh) : null;
@@ -142,14 +152,14 @@ export default async function Ausgangsbuch(
             {
               schluessel: 'nummer',
               kopf: 'Nummer',
-              zelle: (z) => (
+              zelle: (z) => (darf['finanzen.lesen'] !== true ? z.nummer : (
                 <Link
                   href={`/portal/${mandant}/finanzen/rechnungen/${z.rechnungId}`}
                   className="text-text underline-offset-2 hover:text-brand hover:underline"
                 >
                   {z.nummer}
                 </Link>
-              ),
+              )),
             },
             { schluessel: 'datum', kopf: 'Datum', zelle: (z) => z.rechnungsdatum },
             {

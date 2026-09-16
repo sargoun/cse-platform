@@ -12,6 +12,7 @@ import {
 } from '@/server/services/buchhaltung/verfahrensdokumentation';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/buchhaltung/verfahrensdokumentation` — die
@@ -50,6 +51,15 @@ export default async function Verfahrensdoku({ params }: { params: Promise<{ man
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
 
+  /*
+   * `/buchhaltung` verlangt laut Manifest `buchhaltung.lesen`; diese Seite
+   * oeffnet mit `buchhaltung_konfiguration.lesen`. Wer die Dokumentation
+   * lesen darf, darf nicht zwangslaeufig die Buchhaltung oeffnen — der Knopf
+   * fuehrte dann auf 404 und verriete, was er nicht zeigen darf (AUT-06,
+   * Copilot-Runde auf PR 16 / D-581).
+   */
+  const darf = await haeltRechte(zugang.sitzung, 'buchhaltung.lesen');
+
   const jobs = alleJobs(db());
   const d = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, (kontext) =>
@@ -72,7 +82,9 @@ export default async function Verfahrensdoku({ params }: { params: Promise<{ man
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">Verfahrensdokumentation</h1>
-        <Link href={`/portal/${mandant}/buchhaltung`} className={knopf}>Zur Buchhaltung</Link>
+        {darf['buchhaltung.lesen'] === true && (
+          <Link href={`/portal/${mandant}/buchhaltung`} className={knopf}>Zur Buchhaltung</Link>
+        )}
       </div>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         Erzeugt aus der lebenden Konfiguration der {d.firma} (GoBD Rz. 151 ff.): Gesellschaft, Fassung und

@@ -74,7 +74,24 @@ export default async function Stellenblatt(
          * D-567: ein Menüpunkt, der auf 404 führt, ist schlechter als keiner,
          * weil er die Existenz dessen verrät, was er nicht zeigen darf.
          */
-        const darf = await haeltRechte(zugang.sitzung, 'recruiting.stelle_veroeffentlichen');
+        /*
+         * `freigabe.entscheiden` dazu: `/freigaben/[id]` verlangt es
+         * (Manifest, Zeile `freigaben/[id]`), diese Seite nur die
+         * Stellenrechte. Wer vorlegen darf, aber nicht entscheiden, bekam
+         * einen Verweis „Zur Freigabe" mit einem 404 dahinter — und ein
+         * Verweis, der auf 404 führt, verrät, was er nicht zeigen darf
+         * (AUT-06). Der Hinweis bleibt; nur der Weg hängt am Recht.
+         */
+        /*
+         * `recruiting.bewerbung_lesen` dazu: `/recruiting/kandidaten/[id]`
+         * verlangt es (Manifest), diese Seite nur `stelle_lesen`. Wer die
+         * Stelle sehen darf, aber keine Bewerbung, bekam hinter jedem Namen
+         * der Rangliste einen 404 — ein Verweis auf 404 verrät, was er nicht
+         * zeigen darf (AUT-06, Copilot-Runde auf PR 16 / D-581).
+         */
+        const darf = await haeltRechte(
+          zugang.sitzung, 'recruiting.stelle_veroeffentlichen', 'freigabe.entscheiden',
+          'recruiting.bewerbung_lesen');
         const d = await leseImMandanten(zugang, async (kontext) => ({
           stelle: await ladeStelle(kontext, id),
           bewerber: await rangliste(kontext, id),
@@ -122,11 +139,16 @@ export default async function Stellenblatt(
               <Hinweis art="hinweis" cse="stelle-wartet" className="mb-s5 max-w-prose">
                 <strong>Sie liegt im Freigabe-Posteingang.</strong> Entschieden wird
                 dort, nicht hier — und erst danach darf sie hinausgehen
-                (Invariante 7).{' '}
-                <Link href={`/portal/${mandant}/freigaben/${s.freigabeId}`}
-                      className="underline underline-offset-4" data-cse="zur-stellenfreigabe">
-                  Zur Freigabe
-                </Link>.
+                (Invariante 7).
+                {darf['freigabe.entscheiden'] === true && (
+                  <>
+                    {' '}
+                    <Link href={`/portal/${mandant}/freigaben/${s.freigabeId}`}
+                          className="underline underline-offset-4" data-cse="zur-stellenfreigabe">
+                      Zur Freigabe
+                    </Link>.
+                  </>
+                )}
               </Hinweis>
             )}
 
@@ -246,14 +268,15 @@ export default async function Stellenblatt(
                   {
                     schluessel: 'name',
                     kopf: 'Name',
-                    zelle: (z) => (
+                    // Ohne `recruiting.bewerbung_lesen` der blosse Name, kein Verweis (AUT-06).
+                    zelle: (z) => (darf['recruiting.bewerbung_lesen'] === true ? (
                       <Link
                         href={`/portal/${mandant}/recruiting/kandidaten/${z.eintrag.id}`}
                         className="text-text underline decoration-line underline-offset-4 hover:decoration-current"
                       >
                         {z.eintrag.name}
                       </Link>
-                    ),
+                    ) : z.eintrag.name),
                   },
                   {
                     schluessel: 'punkte',

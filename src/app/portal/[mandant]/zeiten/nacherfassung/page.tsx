@@ -11,6 +11,7 @@ import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { berlinAnzeige } from '@/server/services/zeit/dauer';
+import { haeltRechte } from '@/app/portal/rechte';
 import { ABLEHNUNG_GRUENDE, offeneAnsprueche, type OfflineWartend }
   from '@/server/services/zeit/offline';
 
@@ -95,6 +96,7 @@ export default async function Nacherfassung({
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
+  const darf = await haeltRechte(sitzung, 'zeit.lesen');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const frage = await searchParams;
@@ -132,20 +134,27 @@ export default async function Nacherfassung({
         </p>
       </div>
 
-      <nav className="mb-s5 flex flex-wrap gap-s2">
-        <Link
-          href={`/portal/${mandant}/zeiten`}
-          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-        >
-          Zeiten
-        </Link>
-        <Link
-          href={`/portal/${mandant}/zeiten/korrekturen`}
-          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-        >
-          Korrekturbuch
-        </Link>
-      </nav>
+      {/*
+        * `/zeiten` und `/zeiten/korrekturen` verlangen `zeit.lesen` (Manifest); diese
+        * Seite nur ihr Nacherfassungsrecht. Ohne das Recht fehlt die Leiste ganz
+        * (AUT-06; D-581).
+        */}
+      {darf['zeit.lesen'] === true && (
+        <nav className="mb-s5 flex flex-wrap gap-s2">
+          <Link
+            href={`/portal/${mandant}/zeiten`}
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Zeiten
+          </Link>
+          <Link
+            href={`/portal/${mandant}/zeiten/korrekturen`}
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Korrekturbuch
+          </Link>
+        </nav>
+      )}
 
       {erledigt !== null && (
         <p

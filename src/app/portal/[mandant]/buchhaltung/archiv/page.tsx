@@ -55,6 +55,8 @@ interface Kennzahlen {
 interface Rechte {
   readonly aufbewahrung: boolean;
   readonly buendel: boolean;
+  readonly lesen: boolean;
+  readonly ausgangsbuch: boolean;
 }
 
 function deutschesDatum(iso: string | null): string {
@@ -103,12 +105,22 @@ export default async function Archiv(
       const jahre = await kontext.abfrage<{ jahr: number }>(
         `select distinct extract(year from d.entstanden_am)::int as jahr
            from dokument d where ${FILTER} order by 1 desc`, [FINANZ_KATEGORIEN]);
+      /*
+       * Zwei Rechte mehr in derselben Frage: `/dokumente/[id]` verlangt laut
+       * Manifest `dokument.lesen`, `/finanzen/ausgangsbuch` `nummernkreis.lesen`;
+       * diese Seite oeffnet mit `buchhaltung.lesen`. Ein Verweis dorthin fuehrte
+       * sonst auf 404 und verriete, was er nicht zeigen darf (AUT-06,
+       * Copilot-Runde auf PR 16 / D-581).
+       */
       const [r] = await kontext.abfrage<Rechte>(
         `select app.hat_recht('dokument.aufbewahrung_verwalten', $1::uuid) as aufbewahrung,
-                app.hat_recht('dokument.buendel_exportieren', $1::uuid) as buendel`, [mandantId]);
+                app.hat_recht('dokument.buendel_exportieren', $1::uuid) as buendel,
+                app.hat_recht('dokument.lesen', $1::uuid) as lesen,
+                app.hat_recht('nummernkreis.lesen', $1::uuid) as ausgangsbuch`, [mandantId]);
       const offeneLaeufe = (await offeneArchivierungen(kontext)).length;
       return { zeilen, k: k ?? { gesamt: 0, gesperrt: 0, offen: 0, fruehestes_ende: null },
-        jahre: jahre.map((j) => j.jahr), rechte: r ?? { aufbewahrung: false, buendel: false },
+        jahre: jahre.map((j) => j.jahr),
+        rechte: r ?? { aufbewahrung: false, buendel: false, lesen: false, ausgangsbuch: false },
         offeneLaeufe };
     })) as Promise<{
       zeilen: readonly Zeile[]; k: Kennzahlen; jahre: readonly number[]; rechte: Rechte;
@@ -183,10 +195,13 @@ export default async function Archiv(
             Prüfbündel je Jahrgang
           </Link>
         ) : null}
-        <Link href={`/portal/${mandant}/finanzen/ausgangsbuch`}
-              className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2">
-          Rechnungsausgangsbuch
-        </Link>
+        {/* `nummernkreis.lesen` — sonst ein Knopf auf 404 (AUT-06). */}
+        {daten.rechte.ausgangsbuch ? (
+          <Link href={`/portal/${mandant}/finanzen/ausgangsbuch`}
+                className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2">
+            Rechnungsausgangsbuch
+          </Link>
+        ) : null}
       </nav>
 
       <form method="get" action={basis} data-cse="archiv-filter" className="mb-s5 flex flex-wrap items-center gap-s3">
@@ -212,13 +227,14 @@ export default async function Archiv(
           zeilen={daten.zeilen}
           schluessel={(z) => z.id}
           spalten={[
+            /* `dokument.lesen` — ohne das Recht steht der Titel ohne Verweis (AUT-06). */
             { schluessel: 'titel', kopf: 'Dokument',
-              zelle: (z) => (
+              zelle: (z) => (daten.rechte.lesen ? (
                 <Link href={`/portal/${mandant}/dokumente/${z.id}`}
                       className="text-text underline-offset-2 hover:text-brand hover:underline">
                   {z.titel}
                 </Link>
-              ) },
+              ) : z.titel) },
             { schluessel: 'kategorie', kopf: 'Kategorie', zelle: (z) => KATEGORIE[z.kategorie] ?? z.kategorie },
             { schluessel: 'entstanden', kopf: 'Entstanden', zelle: (z) => deutschesDatum(z.entstanden) },
             { schluessel: 'frist', kopf: 'Aufbewahrung bis',

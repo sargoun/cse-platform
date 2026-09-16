@@ -15,6 +15,7 @@ import { schritte, type SchrittZeile } from '@/server/agent/laufzeit';
 import { kennungFuer } from '../../../kennung';
 import { Schrittkette } from '../../../Schrittkette';
 import { kennungOder404 } from '../../../../../kennung';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/agenten/[agent]/aufgaben/[id]` — ein Lauf, von vorne bis
@@ -86,6 +87,7 @@ export default async function Lauf(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
+  const darf = await haeltRechte(sitzung, 'agent.budget_verwalten');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const daten = await (db().begin(SCHNAPPSCHUSS,
@@ -177,13 +179,20 @@ export default async function Lauf(
           <h2 className="text-h3 text-text">Vom Budget gestoppt</h2>
           <p className="mt-s2 text-sm text-text-muted">
             Dieser Lauf endete, weil das Monatsbudget erreicht war — nicht,
-            weil die Aufgabe fertig war.{' '}
-            <Link
-              href={`/portal/${mandant}/agenten/budget`}
-              className="underline underline-offset-2 hover:text-brand"
-            >
-              Budget ansehen
-            </Link>
+            weil die Aufgabe fertig war.
+            {/* `/agenten/budget` verlangt `agent.budget_verwalten` (Manifest) — ohne
+              * das Recht fuehrte „Budget ansehen" auf 404 (AUT-06; D-581). */}
+            {darf['agent.budget_verwalten'] === true && (
+              <>
+                {' '}
+                <Link
+                  href={`/portal/${mandant}/agenten/budget`}
+                  className="underline underline-offset-2 hover:text-brand"
+                >
+                  Budget ansehen
+                </Link>
+              </>
+            )}
           </p>
         </section>
       ) : null}

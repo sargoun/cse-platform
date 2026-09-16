@@ -8,6 +8,7 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { WOCHENTAGE } from '@/lib/datum/rrule';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/dienstplan/serien/neu` — eine Serie anlegen, und die
@@ -37,6 +38,13 @@ export default async function SerieNeu({ params }: { params: Promise<{ mandant: 
   const tor = await mandantTor(`/portal/${mandant}/dienstplan/serien/neu`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+
+  /* AUT-06: `…/security/posten/neu` verlangt laut Manifest `security.lesen`,
+     diese Seite nur `dienstplan.lesen` — wer hier plante, ohne die Posten
+     oeffnen zu duerfen, bekam hinter „Sicherheit → Posten → Neu" ein 404.
+     Ein Verweis auf 404 verraet, was er nicht zeigen darf (Copilot-Runde auf
+     PR 16 / D-581). */
+  const darf = await haeltRechte(zugang.sitzung, 'security.lesen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
@@ -188,11 +196,20 @@ export default async function SerieNeu({ params }: { params: Promise<{ mandant: 
               </Button>
             </div>
           </form>
-          <Hinweis art="hinweis" cse="serie-posten-hinweis" className="max-w-prose">
-            Ein neuer Posten mit Dienstzeiten (Regel, Beginn, Dauer, Besetzung) entsteht unter{' '}
-            <Link href={`/portal/${mandant}/security/posten/neu`} className="underline underline-offset-2">Sicherheit → Posten → Neu</Link>;
-            mit Dienstzeiten bekommt er seine Serie und seine Schichten dort sofort.
-          </Hinweis>
+          {/*
+            AUT-06: der Kasten ist ein Satz um den Verweis herum — ohne ihn
+            bleibt kein grammatischer Rest („entsteht unter …; … dort sofort").
+            Darum steht der ganze Kasten unter dem Recht des Ziels, statt einen
+            Satzstumpf oder einen ausgegrauten Verweis zu zeigen
+            (Copilot-Runde auf PR 16 / D-581).
+          */}
+          {darf['security.lesen'] === true && (
+            <Hinweis art="hinweis" cse="serie-posten-hinweis" className="max-w-prose">
+              Ein neuer Posten mit Dienstzeiten (Regel, Beginn, Dauer, Besetzung) entsteht unter{' '}
+              <Link href={`/portal/${mandant}/security/posten/neu`} className="underline underline-offset-2">Sicherheit → Posten → Neu</Link>;
+              mit Dienstzeiten bekommt er seine Serie und seine Schichten dort sofort.
+            </Hinweis>
+          )}
         </div>
       ) : null}
 

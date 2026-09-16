@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { DataTable } from '@/components/ui/DataTable';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { bedarf } from '@/server/services/recruiting/dienst';
+import { haeltRechte } from '@/app/portal/rechte';
 import { RecruitingSeite, leseImMandanten } from '../rahmen';
 import { KNOPF } from '../felder';
 
@@ -38,6 +39,14 @@ export default async function Bedarf(
       unterpfad="bedarf"
       titel="Bedarf"
       kinder={async (zugang) => {
+        /*
+         * `/objekte/[id]` verlangt laut Manifest `objekt.lesen`; diese Seite
+         * nur `recruiting.bewerbung_lesen` und `dienstplan.lesen`. Wer den
+         * Bedarf sehen darf, aber kein Objekt, bekam hinter dem Objektnamen
+         * einen 404 — und ein Verweis auf 404 verrät, was er nicht zeigen
+         * darf (AUT-06, Copilot-Runde auf PR 16 / D-581).
+         */
+        const darf = await haeltRechte(zugang.sitzung, 'objekt.lesen');
         const zeilen = await leseImMandanten(zugang, (k) => bedarf(k, gewaehlt));
         const gesamt = zeilen.reduce((s, z) => s + z.fehlendeZusagen, 0);
 
@@ -80,14 +89,19 @@ export default async function Bedarf(
                     {
                       schluessel: 'objekt',
                       kopf: 'Objekt',
-                      zelle: (z) => (z.objektId === null ? 'ohne Objekt' : (
-                        <Link
-                          href={`/portal/${mandant}/objekte/${z.objektId}`}
-                          className="text-text underline decoration-line underline-offset-4 hover:decoration-current"
-                        >
-                          {z.objektName ?? z.objektId}
-                        </Link>
-                      )),
+                      zelle: (z) => {
+                        if (z.objektId === null) return 'ohne Objekt';
+                        // Ohne `objekt.lesen` der blosse Name, kein Verweis (AUT-06).
+                        if (darf['objekt.lesen'] !== true) return z.objektName ?? z.objektId;
+                        return (
+                          <Link
+                            href={`/portal/${mandant}/objekte/${z.objektId}`}
+                            className="text-text underline decoration-line underline-offset-4 hover:decoration-current"
+                          >
+                            {z.objektName ?? z.objektId}
+                          </Link>
+                        );
+                      },
                     },
                     {
                       schluessel: 'schichten',

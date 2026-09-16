@@ -11,6 +11,7 @@ import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { haeltRechte } from '@/app/portal/rechte';
 import { mitLesekontext } from '../../daten';
 import {
   findeNachweis, ladePositionen, ladeSignaturen,
@@ -130,6 +131,13 @@ export default async function NachweisBlatt({
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /* AUT-06: die Unterschrift `…/leistungsnachweise/[id]/unterschrift` verlangt
+     laut Manifest `nachweis.schreiben`, dieses Blatt nur `nachweis.lesen` — wer
+     nur lesen darf, sah den Knopf „Unterschreiben lassen" und bekam dahinter
+     ein 404. Ein Verweis auf 404 verraet, was er nicht zeigen darf
+     (Copilot-Runde auf PR 16 / D-581). */
+  const darf = await haeltRechte(sitzung, 'nachweis.schreiben');
+
   const { kopf, positionen, signaturen } = await mitLesekontext(sitzung, async (k) => ({
     kopf: await findeNachweis(k, id),
     positionen: await ladePositionen(k, id),
@@ -211,12 +219,14 @@ export default async function NachweisBlatt({
             Der Nachweis liegt beim Kunden
             {kopf.vorgelegtAmLokal === null ? '' : ` seit ${kopf.vorgelegtAmLokal}`}.
           </p>
-          <Link
-            href={`/portal/${mandant}/reinigung/leistungsnachweise/${id}/unterschrift`}
-            className="inline-flex min-h-11 items-center rounded-md bg-brand px-s5 font-semibold text-white hover:bg-brand-hover"
-          >
-            Unterschreiben lassen
-          </Link>
+          {darf['nachweis.schreiben'] === true && (
+            <Link
+              href={`/portal/${mandant}/reinigung/leistungsnachweise/${id}/unterschrift`}
+              className="inline-flex min-h-11 items-center rounded-md bg-brand px-s5 font-semibold text-white hover:bg-brand-hover"
+            >
+              Unterschreiben lassen
+            </Link>
+          )}
         </form>
       )}
 

@@ -3,6 +3,7 @@ import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { listeStellen, type StelleStatus } from '@/server/services/recruiting/dienst';
 import { RecruitingSeite, leseImMandanten } from '../rahmen';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/recruiting/stellen` — die Ausschreibungen (REC-02).
@@ -40,17 +41,28 @@ export default async function Stellen(
       titel="Stellen"
       kinder={async (zugang) => {
         const stellen = await leseImMandanten(zugang, listeStellen);
+        /*
+         * `/stellen/neu` verlangt `recruiting.stelle_schreiben` zusätzlich
+         * (Manifest); diese Liste öffnet schon mit `stelle_lesen`. Eine
+         * Personalsachbearbeitung, die liest und nicht schreibt, sah hier
+         * „Neue Stelle" — mit einem 404 dahinter. Ein Knopf, der auf 404
+         * führt, verrät, was er nicht zeigen darf (AUT-06). Gemeldet von
+         * der Copilot-Runde auf PR 16.
+         */
+        const darf = await haeltRechte(zugang.sitzung, 'recruiting.stelle_schreiben');
         return (
           <>
             <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
               <h1 className="m-0 text-h1 text-text">Stellen</h1>
-              <Link
-                href={`/portal/${mandant}/recruiting/stellen/neu`}
-                data-cse="stelle-neu"
-                className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-              >
-                Neue Stelle
-              </Link>
+              {darf['recruiting.stelle_schreiben'] === true && (
+                <Link
+                  href={`/portal/${mandant}/recruiting/stellen/neu`}
+                  data-cse="stelle-neu"
+                  className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+                >
+                  Neue Stelle
+                </Link>
+              )}
             </div>
 
             {stellen.length === 0 ? (

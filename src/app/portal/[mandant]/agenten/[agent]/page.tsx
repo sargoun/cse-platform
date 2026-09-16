@@ -102,7 +102,9 @@ export default async function AgentDetail(
 
   /* AUT-06: ein Knopf, dessen Ziel diese Sitzung nicht oeffnen darf,
      verraet die Existenz dessen, was er nicht zeigen darf. */
-  const darf = await haeltRechte(sitzung, 'agent.budget_verwalten', 'agent.protokoll_lesen');
+  const darf = await haeltRechte(
+    sitzung, 'agent.budget_verwalten', 'agent.protokoll_lesen', 'freigabe.lesen',
+  );
   if (sitzung.aktiverMandantId === null) notFound();
 
   const daten = await (db().begin(SCHNAPPSCHUSS,
@@ -233,12 +235,24 @@ export default async function AgentDetail(
               <>
                 <strong>Vorschlag liegt vor.</strong>{' '}
                 Der Entwurf steht im Freigabe-Posteingang und wartet auf eine Entscheidung —
-                versendet wurde nichts.{' '}
-                <Link href={`/portal/${mandant}/freigaben`}
-                      data-cse="zum-posteingang"
-                      className="underline underline-offset-2">
-                  zum Posteingang
-                </Link>
+                versendet wurde nichts.
+                {/*
+                  * `/freigaben` verlangt laut Manifest `freigabe.lesen`; diese
+                  * Seite verlangt nur `agent.lesen`. Wer einen Lauf starten
+                  * darf, darf den Posteingang nicht zwangslaeufig oeffnen —
+                  * der Verweis fuehrte dann auf 404 und verriet, was er nicht
+                  * zeigen darf (AUT-06, Copilot-Runde auf PR 16 / D-581).
+                  */}
+                {darf['freigabe.lesen'] === true && (
+                  <>
+                    {' '}
+                    <Link href={`/portal/${mandant}/freigaben`}
+                          data-cse="zum-posteingang"
+                          className="underline underline-offset-2">
+                      zum Posteingang
+                    </Link>
+                  </>
+                )}
               </>
           ) : lauf === 'bestand' ? (
               <>

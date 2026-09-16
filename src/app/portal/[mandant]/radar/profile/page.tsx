@@ -13,6 +13,7 @@ import { REGEL_VERSION } from '@/server/services/radar/bewertung';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { leseProfile, type ProfilZeile } from '../daten';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/radar/profile` — die Suchprofile (RAD-04, RAD-05).
@@ -40,6 +41,7 @@ export default async function Profile(
   const tor = await mandantTor(`/portal/${mandant}/radar/profile`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+  const darf = await haeltRechte(zugang.sitzung, 'radar.lesen');
 
   const profile = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, (kontext) => leseProfile(kontext))) as Promise<readonly ProfilZeile[]>);
@@ -58,10 +60,17 @@ export default async function Profile(
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">Suchprofile</h1>
-        <Link href={`/portal/${mandant}/radar`}
-              className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2">
-          Zum Radar
-        </Link>
+        {/*
+          * `/radar` oeffnet mit `radar.lesen` (Manifest); diese Seite mit `radar.profil_schreiben`.
+          * Ohne das Recht fuehrte der Verweis auf 404 und verriet damit, was er
+          * nicht zeigen darf (AUT-06; D-581).
+          */}
+        {darf['radar.lesen'] === true && (
+          <Link href={`/portal/${mandant}/radar`}
+                className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2">
+            Zum Radar
+          </Link>
+        )}
       </div>
 
       <p className="mb-s5 max-w-prose text-sm text-text-muted">

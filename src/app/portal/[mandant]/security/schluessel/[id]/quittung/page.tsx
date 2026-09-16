@@ -16,6 +16,7 @@ import { AnmeldungNoetig } from '../../../../../Anmeldung';
 import { portalZugang } from '../../../../../zugang';
 import { slugTor } from '../../../../../unterseite';
 import { kennungOder404 } from '../../../../../kennung';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/security/schluessel/[id]/quittung` — die Übergabe mit
@@ -68,6 +69,7 @@ export default async function Quittung(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
+  const darf = await haeltRechte(sitzung, 'schluessel.lesen');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const { schluessel, quittungen, anstellungen, kunden } = await (db().begin(
@@ -121,12 +123,21 @@ export default async function Quittung(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <Link
-        href={`/portal/${mandant}/security/schluessel/${id}`}
-        className="mb-s4 inline-block min-h-11 text-sm text-text underline"
-      >
-        ← {schluessel.bezeichnung}
-      </Link>
+      {/*
+        * Das Schlüsselblatt dahinter verlangt laut Manifest `schluessel.lesen`;
+        * diese Seite nur `schluessel.schreiben`. Wer quittieren darf, darf das
+        * Journal nicht zwangsläufig lesen — der Rückverweis führte dann auf 404
+        * und verriete, was er nicht zeigen darf (AUT-06; Copilot-Runde auf
+        * PR 16 / D-581).
+        */}
+      {darf['schluessel.lesen'] === true && (
+        <Link
+          href={`/portal/${mandant}/security/schluessel/${id}`}
+          className="mb-s4 inline-block min-h-11 text-sm text-text underline"
+        >
+          ← {schluessel.bezeichnung}
+        </Link>
+      )}
 
       <h1 className="mb-s2 text-h1 text-text">Schlüsselquittung</h1>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">

@@ -5179,6 +5179,7 @@ niemand ihn suchen.
 | O-500 | **Wie lange gilt ein Einladungs- und ein Zurücksetzungslink, wie viele Wiederherstellungscodes werden ausgegeben, und gilt eine Mindestlänge über zwölf Zeichen hinaus?** Die SPEC nennt keine Zahl. `plattform_einstellung` führt vier vorläufige Werte (168 h, 2 h, 10 Codes, 12 Zeichen); sie sind als `ist_vorlaeufig = true` markiert und über eine Zeile änderbar, ohne Code. Die Auswahl folgt gängiger Praxis, nicht einer Entscheidung: ein Einladungslink überlebt ein Wochenende, ein Zurücksetzungslink nicht. | AUT-01, AUT-04, `0155`, D-502 |
 | O-501 | **Welches Supabase-Projekt in der EU-Region (Frankfurt), welcher Auftragsverarbeitungsvertrag — und soll die Anmeldung über ein Firmenverzeichnis (SAML/OIDC) laufen?** Dieselbe Frage trägt den Postausgang: welcher in der EU gehostete Mailanbieter, welche Absenderadresse je Gesellschaft, laufen DKIM und DMARC über die bestehenden Domains? Ohne beides gibt es keinen Zurücksetzungs- und keinen Einladungslink, der ankommt. Bis zur Antwort prüft die Plattform das Kennwort selbst (`kern.zugangsdaten`, bcrypt), `/auth/callback` antwortet `501` statt eine Sitzung auszustellen, und `/auth/passwort-vergessen` sagt „nicht verbunden" statt „gesendet" (D-501, D-503). | AUT-01, AUT-04, NOT-02, `0155`, D-501 |
 | O-510 | **Warum zeigt die Seite hinter einer 303-Umleitung den alten Stand?** Nach dem Widerruf eines Kalenderzugangs steht die widerrufene Zeile auf der Umleitungsseite noch in der Liste. Festgestellt ist: die Datenbank ist zu diesem Zeitpunkt richtig (`widerrufen_am` gesetzt), der Feed antwortet sofort mit 404, und ein normaler Aufruf derselben Adresse zeigt die Liste richtig — es ist eine veraltete ANZEIGE und kein offener Zugang. Ausgeschlossen sind: fehlendes `force-dynamic` (steht), eine nicht abgeschlossene Transaktion (die 404-Antwort beweist das Gegenteil), `revalidatePath` auf dem Ziel und `cache-control: no-store` auf der Umleitung (beide eingebaut, beide ohne Wirkung). Bis zur Antwort sagt die Bestätigung auf der Seite ausdrücklich, dass eine noch sichtbare Zeile veraltet ist. Der Browsertest prüft den Stand deshalb nach einem frischen Aufruf — und die Wirkung des Widerrufs sofort. | CAL-03, `api/kalender-feed/widerrufen`, D-516 |
+| O-511 | **Soll der Versand an fremde Plattformen einen Ausgangskorb mit Idempotenzschlüssel bekommen, bevor der erste Kanal verbunden wird?** `sendeKanaele` (`services/social/dienst.ts`) ruft den Adapter INNERHALB der Geschäftstransaktion und schreibt `beitrag_kanal` danach. Bricht die Transaktion nach dem Adapter, aber vor dem Commit ab (Prozessende, ein späterer Kanal wirft), steht der Beitrag draussen, die Zeile sieht aber unversandt aus — und der nächste Versuch schickt ihn noch einmal. `BeitragAuftrag` kennt keinen Idempotenzschlüssel, den eine Plattform prüfen könnte. Gemeldet hat das die Copilot-Runde auf PR 16. **Heute ohne Wirkung:** alle fünf Plattformen sind absichtlich unverbunden (O-10) und antworten `nicht_verbunden`, einem terminalen Zustand ohne Nebenwirkung. Die richtige Form ist ein Ausgangskorb (`beitrag_versand` mit `idempotenz_schluessel`, Zustellung ausserhalb der Geschäftstransaktion, Abgleich danach) — das ist ein eigener Schritt mit Schema, Lauf und Tests, keine Zeile in `sendeKanaele`. Er gehört zu dem Zeitpunkt, an dem O-10 beantwortet ist und der erste Adapter echt wird; vorher wäre er ein Korb ohne Empfänger. | SOC-07, O-10, D-572, `services/social/dienst.ts` |
 | O-509 | **Welche KI-Endpunkte deckt der Auftragsverarbeitungsvertrag ab?** Der Adapter zerlegt `OPENAI_BASE_URL` und lässt nur `https` und einen Wirt aus einer Liste durch; in der Liste steht heute `eu.api.openai.com`, der Endpunkt, den OpenAI für EU-Datenresidenz nennt. Ob der AV-Vertrag des Kunden genau diesen abdeckt, ob er weitere abdeckt (Azure OpenAI in einer EU-Region hat je Ressource einen eigenen Wirt) und ob Nullspeicherung vertraglich zugesagt ist, weiss der Kunde — nicht diese Datei. Bis zur Antwort kommt jeder andere Wirt als `RESIDENCY_BLOCKED` zurück; ergänzen lässt sich die Liste über `OPENAI_EU_HOSTS`, und diese Variable zu setzen ist eine Entscheidung, die in die Verfahrensdokumentation gehört. | D-04, §8, `versand/modell-openai.ts`, D-509 |
 | O-502 | **Welche Kostenarten gehören in die Projektmarge (REP-05)?** Heute: Lohn (freigegebene Zeiteinträge zum internen Stundensatz aus `anstellung.stundensatz_intern`) plus Fremdleistung (Eingangsrechnungen mit Projektbezug). Nicht enthalten: Material ohne Rechnungsbezug, Gerätestunden und ein Gemeinkostensatz — und ob es einen geben soll, ist die eigentliche Frage: ein Zuschlag je Gesellschaft, ein Satz je Gewerk, oder gar keiner (dann ist die Zahl ein Deckungsbeitrag und keine Marge, und sollte so heissen). Bis zur Antwort nennt die Seite die Zahl „Kosten (Näherung)" und sagt unter der Tabelle, was fehlt — eine Marge, die so tut, als wäre sie die Nachkalkulation, wird in ein Angebot übernommen. | REP-05, `bericht/kennzahlen.ts`, D-506 |
 
@@ -12569,4 +12570,76 @@ kennt sie nicht → offen). Der positive Klick auf Einstellungen beweist es am
 Bildschirm.
 
 | Betrifft | a7e6764, D-573, D-574, AUT-06, SEITENKARTE §11.2, `0008`, `crm.spec.ts` |
+|---|---|
+
+### D-581 · 102 Verweise, die auf 404 führten — und die Prüfung, die es hätte sein müssen
+
+**Kontext.** D-567 fand sechs Knöpfe, hinter denen eine `leitung` ein 404
+bekam, und brachte `haeltRechte`. Die Copilot-Runden auf PR 16 fanden
+sechs weitere in Social und Recruiting („Neuer Beitrag", „Neue Stelle",
+zweimal „Zur Freigabe", …). Zweimal dieselbe Klasse, zweimal durch Hinsehen
+gefunden — also wurde diesmal gemessen statt gesucht: jeder
+`href={`/portal/${mandant}/…`}` in jeder `page.tsx` des Mandantenportals,
+das Ziel im Routenmanifest nachgeschlagen, seine Leserechte
+(`leserechte()`) gegen die Leserechte der Seite gehalten. **Ergebnis: 102
+Stellen in 73 Dateien**, in denen ein Ziel ein Recht verlangt, das die Seite
+weder verlangt noch prüft. Mit den zwölf davor: 114.
+
+Die Verteilung sagt, wo die Grenzen zwischen Ämtern liegen: `personal` (22),
+`buchhaltung` (15), `freigaben` (8), `security` (7). Die meistgefehlten Rechte
+waren `buchhaltung.lesen`, `finanzen.lesen` und `personal.nachweis_lesen` —
+Querverweise aus einem Amt ins andere („Zur Buchung", „Rechnung öffnen",
+„Nachweise der Person"), die für die Administration selbstverständlich sind
+und für eine Objektleitung ein 404 mit Beschriftung.
+
+**Warum das kein kosmetischer Befund ist.** Ein Verweis, der auf 404 führt,
+verrät die Existenz dessen, was er nicht zeigen darf (AUT-06). Die Seite
+dahinter sperrt richtig — der Knopf davor ist trotzdem falsch, und ein
+ausgegrauter Knopf wäre es genauso: er verrät dasselbe, nur höflicher.
+
+**Behoben, gleichförmig:** Jede Seite fragt `haeltRechte(sitzung, …)` einmal
+für alle Rechte, die ihre Verweise brauchen; der Verweis steht nur, wenn das
+Recht da ist. Wo der Verweis der Titel einer Zeile war („Rechnung R-2026-…",
+„Max Mustermann"), bleibt der Titel als Text stehen und verliert nur den
+Link — die Zeile trägt ihre Information weiterhin, sie führt nur nirgends
+hin, wo man nicht hindarf. Nichts wird ausgegraut, nichts deaktiviert.
+
+**Und die Prüfung, die es hätte sein müssen:** `tests/kern/verweis-rechte.test.ts`.
+Sie macht dieselbe Messung dauerhaft — für alle drei Portale (`[mandant]`,
+`gruppe`, `mein`): jedes Leserecht eines Verweisziels ist Leserecht der Seite
+oder steht im Quelltext als Wächter (`darf['recht']`, `hat_recht('recht'`,
+`haeltRechte(… 'recht'`). Kommentare werden vorher entfernt — ein Absatz, der
+das Recht erklärt, ist kein Wächter. Sie prüft, ob der Wächter da IST, nicht
+ob er RICHTIG steht; das bleibt Sache der Browserläufe.
+
+Drei Dinge hat die Messung selbst erst lernen müssen, jedes ein Befund, der
+keiner war:
+
+1. **`[mandant]` ist ein Wort, kein Platzhalter.** Liess man es alles
+   schlucken, wurde `/portal/mein/zeiten/[x]` an
+   `/portal/[mandant]/zeiten/[id]` (`zeit.lesen`) gemessen statt an der
+   eigenen Zeile (`selbst`).
+2. **Erst die genaue Zeile, dann die Form.** `/freigaben/[id]` steht im
+   Manifest vor `/freigaben/erledigt`, `[id]` schluckt `erledigt` — und die
+   Seite `erledigt` wurde an `freigabe.entscheiden` gemessen statt an
+   `freigabe.lesen`. Dasselbe bei `stellen/neu` neben `stellen/[id]`.
+3. **Unter den Formen gewinnt die wörtlichste.** `/objekte/[x]/raumbuch/import`
+   passt auf `…/raumbuch/import` UND auf `…/raumbuch/[raumId]`; die erste
+   Zeile zu nehmen hiess, den Import an der Raumansicht zu messen.
+
+Nach diesen drei Korrekturen fielen die Befunde in `buendel`, `milog`,
+`raumbuch/import` und den Rückwegen der Freigaben weg — zu Recht, denn dort
+stand jeweils bereits das richtige Recht. Gruppen- und Mitarbeiterportal
+waren sauber, ohne eine einzige Änderung: die Gruppensicht liest mit eigenen
+Rechten, das Mitarbeiterportal mit `selbst`.
+
+**Eine Ausnahme, mit Grund.** `zeiten/[id]` verweist auf `…/korrektur` ohne
+`zeit.korrigieren` im Quelltext; der Wächter ist `darfKorrigieren()` in
+`zeiten/daten.ts`, der das Recht per `app.hat_recht` prüft UND den eigenen
+Eintrag ausschliesst (EMP-07) — strenger als der Rechtevergleich, für die
+Messung aber unsichtbar. Die Ausnahmeliste ist leer der Sollzustand; jeder
+Eintrag steht mit Satz, und ein Fall sichert zu, dass die Seite dazu
+existiert.
+
+| Betrifft | AUT-06, D-567, D-573, D-578, EMP-07, `app/portal/rechte.ts`, `registry/routen.ts`, `tests/kern/verweis-rechte.test.ts`, 86 Seiten unter `app/portal/[mandant]` |
 |---|---|

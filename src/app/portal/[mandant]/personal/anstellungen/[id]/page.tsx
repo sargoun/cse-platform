@@ -106,9 +106,13 @@ export default async function Anstellungsblatt(
            from anstellung a join person p on p.id = a.person_id
           where a.id = $1 and a.geloescht_am is null`, [id]);
       if (kopf === undefined) return null;
-      const [rechte] = await kontext.abfrage<{ konto: boolean; abwesenheit: boolean }>(
+      // `dienstplan` bewacht unten den Verweis „Dienstplan" (AUT-06); die
+      // beiden anderen entscheiden, ob Konto und Abwesenheiten gelesen werden —
+      // und über `null` auch, ob ihre Verweise stehen.
+      const [rechte] = await kontext.abfrage<{ konto: boolean; abwesenheit: boolean; dienstplan: boolean }>(
         `select app.hat_recht('zeit.konto_lesen', $1::uuid) as konto,
-                app.hat_recht('zeit.abwesenheit_lesen', $1::uuid) as abwesenheit`, [mandantId]);
+                app.hat_recht('zeit.abwesenheit_lesen', $1::uuid) as abwesenheit,
+                app.hat_recht('dienstplan.lesen', $1::uuid) as dienstplan`, [mandantId]);
       const konten = rechte?.konto === true ? await kontext.abfrage<Konto>(
         `select k.id, k.jahr, k.monat, k.soll_minuten as "sollMinuten", k.ist_minuten as "istMinuten",
                 k.saldo_minuten as "saldoMinuten", k.urlaub_tage::text as urlaub, k.krank_tage::text as krank,
@@ -130,12 +134,13 @@ export default async function Anstellungsblatt(
             and ab.bis >= (now() at time zone 'Europe/Berlin')::date - 365
           order by ab.von desc
           limit 20`, [id]) : null;
-      return { kopf, konten, abwesenheiten };
+      return { kopf, konten, abwesenheiten, darfDienstplan: rechte?.dienstplan === true };
     })) as Promise<{
       kopf: Kopf; konten: readonly Konto[] | null; abwesenheiten: readonly Abwesenheit[] | null;
+      darfDienstplan: boolean;
     } | null>);
   if (daten === null) notFound();
-  const { kopf, konten, abwesenheiten } = daten;
+  const { kopf, konten, abwesenheiten, darfDienstplan } = daten;
   const verweis = 'inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text';
 
   return (
@@ -159,9 +164,27 @@ export default async function Anstellungsblatt(
       </div>
       <nav className="mb-s5 flex flex-wrap gap-s2">
         <Link href={`/portal/${mandant}/personal/personen/${kopf.person_id}`} className={verweis}>Personenblatt</Link>
-        <Link href={`/portal/${mandant}/personal/stundenkonten/${kopf.id}`} className={verweis}>Stundenkonto</Link>
-        <Link href={`/portal/${mandant}/personal/abwesenheiten`} className={verweis}>Abwesenheiten</Link>
-        <Link href={`/portal/${mandant}/dienstplan/woche`} className={verweis}>Dienstplan</Link>
+        {/*
+          * „Stundenkonto" verlangt `zeit.konto_lesen`, „Abwesenheiten"
+          * `zeit.abwesenheit_lesen` — dieselben Rechte, die oben entscheiden, ob
+          * die Abschnitte gelesen werden. `null` heisst „kein Recht", und dann
+          * steht auch der Verweis nicht (AUT-06).
+          */}
+        {konten !== null && (
+          <Link href={`/portal/${mandant}/personal/stundenkonten/${kopf.id}`} className={verweis}>Stundenkonto</Link>
+        )}
+        {abwesenheiten !== null && (
+          <Link href={`/portal/${mandant}/personal/abwesenheiten`} className={verweis}>Abwesenheiten</Link>
+        )}
+        {/*
+          * `/dienstplan/woche` verlangt laut Manifest `dienstplan.lesen`; dieses
+          * Blatt öffnet mit `personal.lesen` allein. Ohne das Recht führte der
+          * Knopf auf 404 und verriet, was er nicht zeigen darf (AUT-06,
+          * Copilot-Runde auf PR 16 / D-581).
+          */}
+        {darfDienstplan && (
+          <Link href={`/portal/${mandant}/dienstplan/woche`} className={verweis}>Dienstplan</Link>
+        )}
       </nav>
 
       <section className="mb-s6 rounded-lg border border-line bg-surface p-s5">

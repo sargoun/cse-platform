@@ -9,6 +9,7 @@ import { KpiStat } from '@/components/ui/KpiStat';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { berlinHeute } from '@/server/db/heute';
@@ -82,6 +83,13 @@ export default async function Nachweisregister({
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /* AUT-06: „Beschäftigungen" verlangt laut Manifest `personal.lesen`, das
+     Nachweisblatt `…/nachweise/[id]` `personal.nachweis_verwalten`; dieses
+     Register öffnet mit `personal.nachweis_lesen` allein. Ohne das Recht
+     führte der Verweis auf 404 und verriet, was er nicht zeigen darf
+     (Copilot-Runde auf PR 16 / D-581). */
+  const darf = await haeltRechte(sitzung, 'personal.lesen', 'personal.nachweis_verwalten');
+
   const frage = await searchParams;
   const filter = typeof frage['lage'] === 'string' ? frage['lage'] : null;
   const heute = await berlinHeute();
@@ -123,12 +131,14 @@ export default async function Nachweisregister({
         <Filter mandant={mandant} wert="abgelaufen" aktiv={filter} text="Abgelaufen" />
         <Filter mandant={mandant} wert="kritisch" aktiv={filter} text="Läuft bald ab" />
         <Filter mandant={mandant} wert="warnung" aktiv={filter} text="Vorwarnfenster" />
-        <Link
-          href={`/portal/${mandant}/personal/anstellungen`}
-          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-        >
-          Beschäftigungen
-        </Link>
+        {darf['personal.lesen'] === true && (
+          <Link
+            href={`/portal/${mandant}/personal/anstellungen`}
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Beschäftigungen
+          </Link>
+        )}
       </nav>
 
       <div className="mb-s5 grid grid-cols-1 gap-s4 sm:grid-cols-2 xl:grid-cols-4">
@@ -188,14 +198,18 @@ export default async function Nachweisregister({
             {
               schluessel: 'person',
               kopf: 'Person',
-              zelle: (m) => (
-                <Link
-                  href={`/portal/${mandant}/personal/nachweise/${m.zeile.nachweisId}`}
-                  className="text-text underline decoration-line underline-offset-4 hover:decoration-current"
-                >
-                  {m.zeile.name}
-                </Link>
-              ),
+              // Ohne `personal.nachweis_verwalten` bleibt der Name — nur der Weg
+              // zum Blatt fällt weg (AUT-06, s. o.).
+              zelle: (m) => (darf['personal.nachweis_verwalten'] === true
+                ? (
+                  <Link
+                    href={`/portal/${mandant}/personal/nachweise/${m.zeile.nachweisId}`}
+                    className="text-text underline decoration-line underline-offset-4 hover:decoration-current"
+                  >
+                    {m.zeile.name}
+                  </Link>
+                )
+                : <span className="text-text">{m.zeile.name}</span>),
             },
             {
               schluessel: 'qualifikation',

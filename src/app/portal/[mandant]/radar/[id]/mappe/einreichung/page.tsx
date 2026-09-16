@@ -8,6 +8,7 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { Button } from '@/components/ui/Button';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
 import { leseMappe, lesePlattformwahl, type MappenBlick } from '../daten';
 import { kennungOder404 } from '../../../../../kennung';
 
@@ -74,6 +75,14 @@ export default async function Einreichung(
   const { mappe: m, plattformen } = daten;
   const offen = m.pflichtGesamt - m.pflichtErledigt;
 
+  /*
+   * `/radar/[id]/mappe` verlangt `vergabe.schreiben` (Manifest); diese Seite
+   * öffnet mit `vergabe.einreichung_erfassen` allein. Ein Verweis, der auf 404
+   * führt, verrät, was er nicht zeigen darf (AUT-06). Gemeldet von der
+   * Copilot-Runde auf PR 16 / D-581.
+   */
+  const darf = await haeltRechte(zugang.sitzung, 'vergabe.schreiben');
+
   return (
     <PortalRahmen
       titel="Einreichung erfassen"
@@ -91,10 +100,12 @@ export default async function Einreichung(
           <h1 className="text-h1 text-text">Einreichung erfassen</h1>
           <p className="mt-s2 max-w-prose text-sm text-text-muted">{m.titel}</p>
         </div>
-        <Link href={`/portal/${mandant}/radar/${id}/mappe`}
-              className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2">
-          Zur Mappe
-        </Link>
+        {darf['vergabe.schreiben'] === true ? (
+          <Link href={`/portal/${mandant}/radar/${id}/mappe`}
+                className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2">
+            Zur Mappe
+          </Link>
+        ) : null}
       </div>
 
       {fehler !== null ? (

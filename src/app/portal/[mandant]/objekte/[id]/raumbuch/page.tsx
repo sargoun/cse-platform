@@ -14,6 +14,7 @@ import { PLATZHALTER_FREQUENZ, PLATZHALTER_TARIF, PLATZHALTER_TURNUSSE }
   from '@/server/services/kalkulation/tarif';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
+import { haeltRechte } from '@/app/portal/rechte';
 import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
@@ -87,6 +88,7 @@ export default async function Raumbuch(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
   const mandantId = sitzung.aktiverMandantId;
+  const darf = await haeltRechte(sitzung, 'objekt_import.schreiben');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -147,13 +149,21 @@ export default async function Raumbuch(
       </nav>
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">Raumbuch</h1>
-        <Link
-          href={`/portal/${mandant}/objekte/${id}/raumbuch/import`}
-          data-cse="zum-import"
-          className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-sm text-text hover:bg-surface-2"
-        >
-          Aus Datei importieren
-        </Link>
+        {/*
+          * Der Import dahinter öffnet mit `objekt_import.schreiben` (Manifest);
+          * diese Seite mit `objekt.lesen`. Zwei Rechte aus zwei Modulen — ohne
+          * das erste führte „Aus Datei importieren" auf 404 und verriet damit,
+          * was es nicht zeigen darf (AUT-06; Copilot-Runde auf PR 16 / D-581).
+          */}
+        {darf['objekt_import.schreiben'] === true && (
+          <Link
+            href={`/portal/${mandant}/objekte/${id}/raumbuch/import`}
+            data-cse="zum-import"
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-sm text-text hover:bg-surface-2"
+          >
+            Aus Datei importieren
+          </Link>
+        )}
       </div>
 
       {raeume.length === 0 ? (

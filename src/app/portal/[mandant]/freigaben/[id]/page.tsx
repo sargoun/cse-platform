@@ -140,8 +140,15 @@ export default async function Freigabe(
    * gefunden vom erweiterten Verweiselauf (D-575), der jedem gezeigten Link
    * bis zum Ende folgt.
    */
-  const darf = await haeltRechte(sitzung, 'eingang.lesen');
+  const darf = await haeltRechte(sitzung, 'eingang.lesen', 'freigabe.lesen');
   const darfErfassen = darf['eingang.lesen'] === true;
+  /**
+   * **„Zum Posteingang" nur mit `freigabe.lesen`** (AUT-06). Der Posteingang
+   * `/freigaben` verlangt es laut Manifest; diese Prüfseite öffnet mit
+   * `freigabe.entscheiden`. Ohne das Recht führte der Knopf auf 404 und
+   * verriet, was er nicht zeigen darf (Copilot-Runde auf PR 16 / D-581).
+   */
+  const darfPosteingang = darf['freigabe.lesen'] === true;
   const uebernommen = istERechnung && f.bezugTyp === 'eingangsrechnung' && f.bezugId !== null
     ? f.bezugId : null;
   const titel = f.titel ?? 'Freigabe';
@@ -183,12 +190,14 @@ export default async function Freigabe(
             ) : null}
           </p>
         </div>
-        <Link
-          href={`/portal/${mandant}/freigaben`}
-          className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
-        >
-          Zum Posteingang
-        </Link>
+        {darfPosteingang && (
+          <Link
+            href={`/portal/${mandant}/freigaben`}
+            className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
+          >
+            Zum Posteingang
+          </Link>
+        )}
       </div>
 
       {vorschlag !== null ? (

@@ -9,6 +9,7 @@ import {
   EINBETTUNG_DIMENSION, EINBETTUNG_MODELL, WISSENSQUELLEN, einbettungsStand,
 } from '@/server/config/rag';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/agenten/wissen` — was im Index steht und wie frisch es
@@ -53,6 +54,7 @@ export default async function Wissen(
   const tor = await mandantTor(`/portal/${mandant}/agenten/wissen`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+  const darf = await haeltRechte(zugang.sitzung, 'agent.lesen');
 
   const { stand, zeilen } = await (db().begin(SCHNAPPSCHUSS,
     async (tx: postgres.TransactionSql) =>
@@ -117,10 +119,17 @@ export default async function Wissen(
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">Wissensindex</h1>
-        <Link href={`/portal/${mandant}/agenten`}
-              className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2">
-          Zum Agentenzentrum
-        </Link>
+        {/*
+          * `/agenten` oeffnet mit `agent.lesen` (Manifest); diese Seite mit `wissen.lesen`.
+          * Ohne das Recht fuehrte der Verweis auf 404 und verriet damit, was er
+          * nicht zeigen darf (AUT-06; D-581).
+          */}
+        {darf['agent.lesen'] === true && (
+          <Link href={`/portal/${mandant}/agenten`}
+                className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2">
+            Zum Agentenzentrum
+          </Link>
+        )}
       </div>
 
       {!stand.verbunden ? (

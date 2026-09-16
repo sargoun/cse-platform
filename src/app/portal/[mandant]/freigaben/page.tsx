@@ -59,8 +59,11 @@ export default async function Freigaben(
   const { sitzung } = zugang;
 
   /* AUT-06: ein Knopf, dessen Ziel diese Sitzung nicht oeffnen darf,
-     verraet die Existenz dessen, was er nicht zeigen darf. */
-  const darf = await haeltRechte(sitzung, 'freigabe.pruefdauer_lesen');
+     verraet die Existenz dessen, was er nicht zeigen darf.
+     Dazu `freigabe.entscheiden`: die Pruefseite `/freigaben/[id]` verlangt es
+     laut Manifest, dieser Posteingang nur `freigabe.lesen` — der Titel jeder
+     Zeile fuehrte sonst auf 404 (Copilot-Runde auf PR 16 / D-581). */
+  const darf = await haeltRechte(sitzung, 'freigabe.pruefdauer_lesen', 'freigabe.entscheiden');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const jetzt = new Date();
@@ -226,12 +229,14 @@ export default async function Freigaben(
               schluessel: 'vorgang', kopf: 'Vorgang',
               zelle: (z) => (
                 <span className="flex min-w-0 flex-col gap-s1">
-                  <Link
-                    href={`/portal/${mandant}/freigaben/${z.id}`}
-                    className="text-text underline-offset-2 hover:text-brand hover:underline"
-                  >
-                    {z.titel}
-                  </Link>
+                  {darf['freigabe.entscheiden'] === true ? (
+                    <Link
+                      href={`/portal/${mandant}/freigaben/${z.id}`}
+                      className="text-text underline-offset-2 hover:text-brand hover:underline"
+                    >
+                      {z.titel}
+                    </Link>
+                  ) : z.titel}
                   <span className="text-xs text-text-muted">{z.zusammenfassung}</span>
                 </span>
               ),
