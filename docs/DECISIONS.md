@@ -12517,3 +12517,56 @@ Fehlerhülle nicht, und beim zweiten Laden ist er weg.
 
 | Betrifft | TIM-09, D-541, D-563, D-575, D-578, `middleware.ts`, `lib/kopf.ts` |
 |---|---|
+
+### D-580 · Fünf rote CI-Läufe für einen Kommentar, der still falsch geworden war
+
+**Kontext.** `barrierefreiheit` fiel auf fünf Commits hintereinander
+(`a7e6764` … `0ccf5ab`), während jede andere Prüfung grün war. Das Log der
+Aktion zeigte nur das Abräumen des Containers; erst 900 Zeilen tiefer stand
+der eine Fall: `crm.spec.ts:124 › ein Modul ohne Recht steht NICHT im Blatt`,
+`Expected 0, Received 1`, dreimal.
+
+**Die Ursache war a7e6764 — und a7e6764 war richtig.** Der Menüpunkt
+„Einstellungen" wanderte von `system.einstellung_lesen` (hält nur die
+Super-Administration) auf `system.mandant_lesen`, das Recht, mit dem die Seite
+dahinter tatsächlich öffnet. Damit sah die Leitung den Bereich zum ersten
+Mal — und der Fall, der als `leitung.bau` nachsah, ob `einstellungen` im
+„Mehr"-Blatt FEHLT, bekam eine 1.
+
+Der Fall stand auf einem Satz im Kommentar: *„`leitung` hält
+`system.einstellung_lesen` nicht."* Der Satz war wahr und ist es noch; nur
+prüft der Menüpunkt dieses Recht seit a7e6764 nicht mehr. Eine Annahme, die
+niemand mehr fragt, wird still falsch — und ein `toHaveCount(0)` auf einem
+Punkt, der zu Recht da ist, sieht aus wie ein kaputtes Blatt.
+
+**Warum der örtliche Lauf grün war.** Der Browserlauf `e2e-k14` war GESTARTET,
+bevor a7e6764 gebaut war; Playwright fährt `next start` auf dem `.next`, das
+da liegt. 522 grün gegen einen Stand, der die Änderung nicht enthielt. Ein
+grüner Lauf beweist nur etwas über den Bau, den er gesehen hat.
+
+**Behoben, in drei Teilen:**
+
+1. **Die Voraussetzung wird gefragt, nicht behauptet.** `rolleHaelt()` liest
+   die lebende Rechtetabelle (`benutzer → benutzer_mandant →
+   rolle_berechtigung → berechtigung`), und der Fall sichert VORHER zu:
+   `leitung` hält `buchhaltung.lesen` nicht, `system.mandant_lesen` schon.
+   Kippt die Matrix, fällt er mit „Voraussetzung gefallen" und nicht mit einer
+   Zahl, die man erst deuten muss.
+2. **Der fehlende Punkt ist jetzt `buchungen`** (`buchhaltung.lesen`,
+   `registry/navigation.ts:92`). Nach 0008 hält `leitung` es nicht — die
+   Buchhaltung ist ein anderes Amt als die Leitung eines Gewerks. Nachgesehen
+   in der Datenbank, nicht im Kommentar: `buchhaltung.lesen | f`,
+   `system.mandant_lesen | t`.
+3. **Und die andere Hälfte von AUT-06 steht daneben.** Der Fall sichert jetzt
+   auch zu, dass `einstellungen` DA ist und sich öffnen lässt (`h1 =
+   Einstellungen`). Ein Blatt, das einen erlaubten Punkt verschweigt, ist
+   derselbe Fehler von der anderen Seite — und genau dieser Fall hatte ihn
+   fünf Läufe lang als richtig festgehalten.
+
+Die Sichtbarkeit im Blatt hängt allein am Recht: `modulAktiv` lässt
+`buchhaltung` und `system` durch (kein Gewerk gebunden, `GEWERK_FUER_MODUL`
+kennt sie nicht → offen). Der positive Klick auf Einstellungen beweist es am
+Bildschirm.
+
+| Betrifft | a7e6764, D-573, D-574, AUT-06, SEITENKARTE §11.2, `0008`, `crm.spec.ts` |
+|---|---|
