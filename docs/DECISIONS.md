@@ -13299,6 +13299,20 @@ Seitenaufruf, der eine Protokollzeile schreibt, wäre die einzige seiner Art,
 und das Prüfprotokoll füllte sich mit Aufrufen statt mit Vorgängen (SEC-A9
 fragt, wer was GEÄNDERT hat). Berichtigt wurde die Zusage, nicht die Regel.
 
+**Und der Browserfall zu (6) hat sofort etwas gefunden — an mir.** Sein erster
+Entwurf lief als Administration der Reinigung und bekam auf beiden
+Datenschutzseiten 404. Das war kein Fehler der Seiten: `system.einstellung_lesen`
+ist in der Grundmatrix (`0008`) an `super_admin` gebunden und für `admin` und
+`leitung` nur *bindbar* — je Gesellschaft erteilbar, nicht vorgegeben. Die
+Annahme war falsch, nicht der Code.
+
+Der Fall prüft jetzt BEIDE Seiten derselben Grenze, und das ist der Gewinn:
+dieselbe Person sieht die Betriebsansicht (sie hält `system.betrieb_lesen`) und
+die beiden Datenschutzdokumente nicht. Aus einer Zeile in der Rechtematrix wird
+damit eine gemessene Tatsache — und genau dafür ist ein Browserlauf da. Die
+Super-Administration erreicht die Seiten über das Wechselblatt, denselben Weg,
+den `einstellungen.spec.ts` für die Rollenmatrix geht (D-474).
+
 **Die Lehre über die sieben hinaus.** Eine Prüfzusammenfassung ist kein Anhang
 zur Kommentarliste. Was dort unter „suppressed" steht, ist nicht erledigt,
 sondern ungelesen — und in dieser Runde lag dort der grössere Teil.

@@ -29,6 +29,28 @@ async function anmelden(page: Page, konto: string = KONTO.adminReinigung): Promi
   await alsKonto(page, konto);
 }
 
+/**
+ * **Die beiden Datenschutzdokumente verlangen `system.einstellung_lesen`, und
+ * das haelt in der Grundmatrix nur die Super-Administration** (`0008`; fuer
+ * `admin` und `leitung` ist es `bindbar`, also je Gesellschaft erteilbar).
+ *
+ * Die Super-Administration hat keine Mitgliedschaft in einer Gesellschaft und
+ * landet auf einer Mandantsadresse deshalb zuerst auf dem Wechselblatt — nicht
+ * auf 404, denn nach einem Klick darf sie die Seite sehen (D-474). Derselbe
+ * Weg wie in `einstellungen.spec.ts` fuer die Rollenmatrix.
+ *
+ * **Der erste Entwurf dieser Datei lief als `adminReinigung` und bekam 404.**
+ * Das war kein Fehler der Seiten, sondern der Annahme: die Administration
+ * einer Gesellschaft haelt dieses Recht nicht. Genau dafuer ist ein
+ * Browserlauf da.
+ */
+async function alsSuperAdmin(page: Page, ziel: string): Promise<void> {
+  await anmelden(page, KONTO.gruppe);
+  await page.goto(ziel);
+  await page.locator('[data-cse="wechsel-knopf"]').click();
+  await expect(page).toHaveURL(new RegExp(`${ziel}$`, 'u'));
+}
+
 /** Der Abruf hinter einem Knopf — samt der Prüfung, dass er einer ist. */
 async function abrufen(page: Page, anker: string) {
   const href = await page.locator(`[data-cse="${anker}"]`).getAttribute('href');
@@ -38,8 +60,7 @@ async function abrufen(page: Page, anker: string) {
 
 test.describe('Die erzeugten Datenschutzdokumente und die Betriebsansicht', () => {
   test('Verarbeitungsverzeichnis: Seite, Markdown und JSON tragen denselben Abdruck', async ({ page }) => {
-    await anmelden(page);
-    expect((await page.goto(VV))?.status()).toBe(200);
+    await alsSuperAdmin(page, VV);
     await expect(page.getByRole('heading', { name: /Verarbeitungsverzeichnis/u, level: 1 }))
       .toBeVisible();
     await expect(page.locator('[data-cse="vv-abschnitt"]').first()).toBeVisible();
@@ -71,8 +92,7 @@ test.describe('Die erzeugten Datenschutzdokumente und die Betriebsansicht', () =
   });
 
   test('Löschkonzept: dasselbe, und die Sperren nennen ihren Grund', async ({ page }) => {
-    await anmelden(page);
-    expect((await page.goto(LK))?.status()).toBe(200);
+    await alsSuperAdmin(page, LK);
     await expect(page.getByRole('heading', { name: 'Löschkonzept', level: 1 })).toBeVisible();
 
     const sha = (await page.locator('[data-cse="lk-sha256"]').textContent())?.trim();
@@ -99,7 +119,8 @@ test.describe('Die erzeugten Datenschutzdokumente und die Betriebsansicht', () =
   });
 
   test('Betrieb: jeder geplante Lauf steht da, und der Auslöser wird benannt', async ({ page }) => {
-    await anmelden(page);
+    /* `system.betrieb_lesen` haelt die Administration — hier braucht es kein Wechselblatt. */
+    await anmelden(page, KONTO.adminReinigung);
     expect((await page.goto(BETRIEB))?.status()).toBe(200);
     await expect(page.getByRole('heading', { name: 'Betrieb', level: 1 })).toBeVisible();
 
@@ -111,7 +132,25 @@ test.describe('Die erzeugten Datenschutzdokumente und die Betriebsansicht', () =
     expect(await zeilen.count()).toBeGreaterThan(10);
   });
 
-  test('ohne das Recht gibt es die drei Seiten nicht — auch für die Leitung', async ({ page }) => {
+  /**
+   * **Zwei verschiedene Rechte, zwei verschiedene Grenzen — und beide liegen
+   * dort, wo die Seitenkarte sie hinlegt.**
+   *
+   * Die Betriebsansicht haengt an `system.betrieb_lesen`, das die
+   * Administration haelt; die beiden Datenschutzdokumente an
+   * `system.einstellung_lesen`, das sie nicht haelt. Dass dieselbe Person das
+   * eine sieht und das andere nicht, ist kein Widerspruch, sondern die
+   * Rechtematrix — und ohne diesen Fall waere es eine Behauptung.
+   */
+  test('die Administration sieht den Betrieb, die Datenschutzdokumente nicht', async ({ page }) => {
+    await anmelden(page, KONTO.adminReinigung);
+    expect((await page.goto(BETRIEB))?.status()).toBe(200);
+    await expect(page.getByRole('heading', { name: 'Betrieb', level: 1 })).toBeVisible();
+    expect((await page.goto(VV))?.status()).toBe(404);
+    expect((await page.goto(LK))?.status()).toBe(404);
+  });
+
+  test('ohne beide Rechte gibt es die drei Seiten nicht — auch für die Leitung', async ({ page }) => {
     await anmelden(page, KONTO.leitungReinigung);
     expect((await page.goto(VV))?.status()).toBe(404);
     expect((await page.goto(LK))?.status()).toBe(404);
