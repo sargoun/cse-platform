@@ -12161,3 +12161,83 @@ an der Zeile.
 
 | Betrifft | REC-02, REC-06, REC-07, REC-09, Invariante 7, `0167`, O-376, D-563, D-567, AUT-06 |
 |---|---|
+
+---
+
+### D-575 · Vier Fähigkeiten, die niemand erreichen konnte — und ein 500, den nie jemand gesehen hat
+
+**Kontext.** Nach den zwei Copilot-Runden war die Frage nicht mehr „ist jede
+Datei richtig", sondern **„hängen sie zusammen"**. Geprüft wurde deshalb nicht
+der Code, sondern die VERDRAHTUNG: welche API-Route ruft niemand, welche Seite
+erreicht kein Verweis, welchen Dienst benutzt keine Oberfläche. Das ist derselbe
+Blick, der D-563 (sechzehn Wächter ohne Auslöser) und D-574 (Dienst ohne Knopf)
+gefunden hat — und er fand fünf weitere.
+
+**1 · Jede Laufansicht eines Agenten antwortete mit 500.**
+`/portal/[mandant]/agenten/[agent]/aufgaben/[id]` las `a.ausloeser` — das ist
+der TYPNAME (`create type ausloeser as enum`, 0128); die SPALTE heisst
+`ausgeloest_durch`. PostgreSQL antwortete `column a.ausloeser does not exist`,
+und zwar **für jede Rolle, in jeder Gesellschaft, seit es die Seite gibt.**
+
+Bemerkenswert ist nicht der Tippfehler, sondern **warum er überlebt hat**: kein
+einziger Browserlauf hat diese Seite je geöffnet. Sie stand in der Seitenkarte,
+war bewacht, hatte Rechte, Marken und einen sorgfältigen Kopfkommentar — und
+niemand ist je auf sie geklickt. `agenten.spec.ts` öffnet sie jetzt.
+
+**2 · `verweise.spec.ts` prüfte einen Menschen von fünf, und 150 Seiten von 600.**
+Der Lauf ging als `leitung` durch `reinigung` und brach nach 150 Seiten ab.
+Beides war eine Stichprobe, die sich als Zusicherung las: Gruppenansicht,
+Mitarbeiterportal und Kundenzugang — drei ganze Oberflächen — sah er nie, und
+die Grenze schnitt dort ab, wo die Seiten selten werden und ein Fehler am
+längsten überlebt. Jetzt fünf Läufe **bis die Schlange leer ist**, jeder mit
+eigenem Browserkontext, je Routenform drei Vertreter (gesucht wird ein totes
+ZIEL, und das hängt an der Route, nicht an der Zeile). Die Obergrenze darüber
+ist ein Ausreisser-Riegel, der die Prüfung FALLEN lässt, statt still weniger zu
+prüfen.
+
+Abdeckung danach: **607 Seitenaufrufe über 5 Rollen** statt 150 über eine —
+leitung 197, admin 216, Gruppe 89, Mitarbeiterin 61, Kundin 44. Beim ersten Lauf
+fielen zehn tote Ziele heraus.
+
+**3 · Zwei Verweise ohne ihr Recht** (AUT-06, wie D-567). Die
+Recruiting-Übersicht zeigte jedem „Was wann fällig wird" → `/recruiting/datenschutz`
+(braucht `recruiting.daten_loeschen`, das eine `leitung` nicht hält); der
+Freigabe-Bildschirm zeigte „manuell erfassen" →
+`/finanzen/eingangsrechnungen/neu` (braucht `eingang.lesen`). Beide 404 für die
+Rolle, die sie am ehesten anklickt.
+
+**4 · Das „lebende Feld" des Aufmaßformulars gab es nie.**
+`POST /api/bau/aufmasse/vorschau` stand seit BAU-02 im Baum, vollständig
+gebaut und bewacht, mit einem Kommentar, der genau dieses Feld beschreibt: „der
+Polier tippt `3 × (4,20 × 2,75)` und sieht daneben `30,87 m²`". Gerufen hat die
+Route **niemand**. Das Formular versprach im eigenen Absatz „die Menge rechnet
+der Server" — sehen konnte man das erst nach dem Absenden. `Rechenvorschau.tsx`
+zeigt das Ergebnis jetzt beim Tippen, **gerechnet vom Server**: ein zweiter
+Parser im Browser wäre der, den niemand prüft.
+
+**5 · TIM-10 war gebaut und unerreichbar.**
+`POST /api/check-in/[token]/medien` — Magic-Bytes-Prüfung, EXIF-Entfernung,
+privater Bucket, Rücknahme des Objekts bei gescheiterter Zeile — und die
+Stempelfläche hatte keinen Aufnahmeknopf. `Schichtfoto.tsx` sitzt jetzt unter
+der Bestätigung, sekundär (die Fläche behält EINEN Hauptknopf, DESIGN §8) und
+mit der Zusage auf dem Bildschirm: die Route meldet `exif_entfernt: true`, und
+genau das steht da.
+
+**6 · Und der Weg aus D-574 hatte einen zweiten Klick zu viel.**
+`stelle.status` bleibt `entwurf`, bis jemand entscheidet — „Zur Freigabe
+vorlegen" stand deshalb nach dem Vorlegen weiter da, und ein zweiter Klick legte
+eine ZWEITE Freigabe an. Zwei Bitten um dieselbe Anzeige im Posteingang, und wer
+die erste entscheidet, lässt die zweite als Zombie stehen. Der Knopf weicht
+jetzt einem Verweis auf die laufende Freigabe, und `legeStelleVor` weist eine
+zweite Bitte mit 409 ab — **der Riegel im Dienst, nicht nur am Knopf.**
+
+**Was bleibt: `tests/kern/api-verdrahtung.test.ts`.** Jede API-Route wird
+irgendwo ausserhalb von `src/app/api` genannt, oder sie steht mit einem GRUND in
+einer Ausnahmeliste — und ein zweiter Test hält fest, dass jede Ausnahme eine
+Route betrifft, die es wirklich gibt. **Kommentare zählen dabei nicht als
+Aufrufer:** die erste Fassung blieb grün, nachdem die Komponente entfernt war,
+weil der Absatz daneben die Adresse trug. Genau dieser Zustand — beschrieben,
+nicht verdrahtet — ist der, den die Wache finden soll.
+
+| Betrifft | BAU-02, TIM-10, DOC-06, AGT-01, AGT-04, REC-02, AUT-06, D-563, D-567, D-574 |
+|---|---|

@@ -36,6 +36,8 @@ const FEHLER: Readonly<Record<string, string>> = {
   gleichzeitig: 'Jemand anderes war einen Augenblick schneller. Bitte die Seite neu laden.',
   kein_schreibrecht: 'Die Freigabe wurde nicht angelegt. Fehlt Ihnen das Recht dazu, '
     + 'sagt es Ihnen die Person, die Ihre Rolle vergeben hat.',
+  schon_vorgelegt: 'Diese Anzeige liegt schon im Freigabe-Posteingang. Zwei Bitten '
+    + 'um dieselbe Entscheidung sind eine zu viel.',
   unbekannt: 'Diese Stelle gibt es nicht.',
 };
 
@@ -116,7 +118,19 @@ export default async function Stellenblatt(
               * `recruiting.stelle_veroeffentlichen` verlangt. Zwei Wege zu
               * derselben Entscheidung wären einer zu viel.
               */}
-            {s.status === 'entwurf' && (
+            {s.status === 'entwurf' && s.freigabeId !== null && (
+              <Hinweis art="hinweis" cse="stelle-wartet" className="mb-s5 max-w-prose">
+                <strong>Sie liegt im Freigabe-Posteingang.</strong> Entschieden wird
+                dort, nicht hier — und erst danach darf sie hinausgehen
+                (Invariante 7).{' '}
+                <Link href={`/portal/${mandant}/freigaben/${s.freigabeId}`}
+                      className="underline underline-offset-4" data-cse="zur-stellenfreigabe">
+                  Zur Freigabe
+                </Link>.
+              </Hinweis>
+            )}
+
+            {s.status === 'entwurf' && s.freigabeId === null && (
               <form method="post" action={`/api/recruiting/stellen/${id}/freigabe`}
                     className="mb-s5 flex max-w-prose flex-wrap items-center gap-s3">
                 <input type="hidden" name="zurueck"

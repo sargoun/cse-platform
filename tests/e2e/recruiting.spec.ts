@@ -217,7 +217,18 @@ test('eine Stelle legt sich zur Freigabe vor und liegt danach im Posteingang', a
   await page.locator('[name="beschreibung"]').fill(
     'Führung eines Reinigungsteams in Berlin-Mitte, Früh- und Spätschicht.');
   await page.locator('[name="anforderungen"]').fill('Führerschein\nDeutsch B2');
-  await page.locator('button[type="submit"]').first().click();
+  /*
+   * **`[data-cse="stelle-anlegen"]` und nicht `button[type="submit"]`.first().**
+   *
+   * Der erste Absendeknopf im Portalbaum ist „Abmelden" — er sitzt im Kopf,
+   * vor dem Inhalt, und sein Formular zeigt auf `/api/abmelden`. Die erste
+   * Fassung dieses Tests traf ihn, meldete sich ab und wartete danach auf eine
+   * Adresse, die sie als abgemeldeter Besucher nie sehen konnte. Der
+   * Fehlschlag las sich wie „die Stelle wurde nicht angelegt"; in Wahrheit war
+   * die Sitzung weg. Dieselbe Falle wie in `abmessungen.spec.ts` (D-569) und
+   * in `verweise.spec.ts` (D-575), nur über einen Knopf statt einen Link.
+   */
+  await page.locator('[data-cse="stelle-anlegen"]').click();
   await page.waitForURL(/\/recruiting\/stellen\/[0-9a-f-]{36}/u);
 
   /* Entwurf: der Knopf steht da, der Veröffentlichungsweg noch nicht offen. */

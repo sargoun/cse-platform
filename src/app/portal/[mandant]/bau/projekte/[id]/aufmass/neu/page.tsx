@@ -1,6 +1,7 @@
 import type postgres from 'postgres';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Rechenvorschau } from '@/components/bau/Rechenvorschau';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { berlinHeute } from '@/server/db/heute';
@@ -222,15 +223,21 @@ export default async function AufmassAufnehmen(
                 placeholder="Bezeichnung"
                 className="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text"
               />
-              <input
+              {/*
+                * **Das lebende Feld** (BAU-02).
+                *
+                * `POST /api/bau/aufmasse/vorschau` stand seit BAU-02 im Baum,
+                * mit einem Kommentar, der genau dieses Feld beschreibt — und
+                * im ganzen Quelltext rief die Route niemand. Der Satz über
+                * diesem Block versprach „die Menge rechnet der Server", und
+                * sehen konnte man das erst nach dem Absenden. Jetzt steht das
+                * Ergebnis daneben, und zwar GERECHNET VOM SERVER: ein zweiter
+                * Parser im Browser wäre der, den niemand prüft.
+                */}
+              <Rechenvorschau
                 name={`zeile_rechenansatz_${String(n)}`}
-                placeholder="3 × (4,20 × 2,75)"
-                className="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 font-mono text-sm text-text"
-              />
-              <input
-                name={`zeile_einheit_${String(n)}`}
-                placeholder="m²"
-                className="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text"
+                einheitName={`zeile_einheit_${String(n)}`}
+                cse={`zeile-rechenansatz-${String(n)}`}
               />
               <select
                 name={`zeile_lv_${String(n)}`}

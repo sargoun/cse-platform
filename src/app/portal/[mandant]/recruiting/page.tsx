@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { KachelRaster } from '@/components/portal/KachelRaster';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { listeStellen, listeBewerbungen, aufbewahrungTage } from '@/server/services/recruiting/dienst';
+import { haeltRechte } from '../../rechte';
 import { RecruitingSeite, leseImMandanten } from './rahmen';
 
 /**
@@ -25,6 +26,7 @@ export default async function Uebersicht(
       unterpfad=""
       titel="Recruiting"
       kinder={async (zugang) => {
+        const darf = await haeltRechte(zugang.sitzung, 'recruiting.daten_loeschen');
         const d = await leseImMandanten(zugang, async (kontext) => ({
           stellen: await listeStellen(kontext),
           bewerbungen: await listeBewerbungen(kontext),
@@ -87,13 +89,27 @@ export default async function Uebersicht(
               <strong>Aufbewahrung: {String(d.tage)} Tage ab Eingang.</strong>{' '}
               Danach löscht der Nachtlauf die Bewerbung endgültig (REC-07).
               Die Zahl ist ein <strong>Platzhalter</strong> und steht als O-373
-              offen — sie ist über eine Zeile änderbar, ohne Code.{' '}
-              <Link
-                href={`/portal/${mandant}/recruiting/datenschutz`}
-                className="underline decoration-line underline-offset-4 hover:decoration-current"
-              >
-                Was wann fällig wird
-              </Link>
+              offen — sie ist über eine Zeile änderbar, ohne Code.
+              {/*
+                * **Der Verweis nur mit `recruiting.daten_loeschen`** (AUT-06).
+                *
+                * `/recruiting/datenschutz` verlangt genau dieses Recht; eine
+                * `leitung` hält es nicht (0008). Der Link stand trotzdem da
+                * und führte für sie auf 404 — derselbe Befund wie D-567, und
+                * gefunden vom erweiterten Verweiselauf (D-575), der jedem
+                * gezeigten Link folgt statt einer Adressliste.
+                */}
+              {darf['recruiting.daten_loeschen'] === true && (
+                <>
+                  {' '}
+                  <Link
+                    href={`/portal/${mandant}/recruiting/datenschutz`}
+                    className="underline decoration-line underline-offset-4 hover:decoration-current"
+                  >
+                    Was wann fällig wird
+                  </Link>
+                </>
+              )}
             </Hinweis>
           </>
         );

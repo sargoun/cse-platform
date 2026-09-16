@@ -41,12 +41,27 @@ const PILLE: Readonly<Record<string, PillZustand>> = {
   wartet_freigabe: 'In Prüfung',
 };
 
+/**
+ * Die vier Auslöser aus `ausloeser` (0128) — als Satz, nicht als Schlüssel.
+ *
+ * `agent` heisst: ein anderer Agent hat ihn angestossen. Das gehört auf den
+ * Bildschirm und nicht in eine Fussnote: eine Kette aus Agenten ist etwas
+ * anderes als ein Lauf, den ein Mensch wollte (AGT-04).
+ */
+const AUSLOESER: Readonly<Record<string, string>> = {
+  mensch: 'einen Menschen',
+  zeitplan: 'den Zeitplan',
+  ereignis: 'ein Ereignis',
+  agent: 'einen anderen Agenten',
+};
+
 interface Kopf {
   readonly id: string;
   readonly titel: string;
   readonly vorgang: string;
   readonly status: string;
   readonly ausloeser: string;
+  readonly ausgeloest_von: string | null;
   readonly schritte_anzahl: number;
   readonly kosten_cent: string;
   readonly budget_stopp: boolean;
@@ -86,8 +101,30 @@ export default async function Lauf(
       const darfProtokoll = recht?.ok === true;
 
       const [kopf] = await kontext.abfrage<Kopf>(
+        /*
+         * **`a.ausgeloest_durch`, nicht `a.ausloeser`.**
+         *
+         * `ausloeser` ist der TYP (`create type ausloeser as enum`, 0128), die
+         * SPALTE heisst `ausgeloest_durch`. PostgreSQL antwortete
+         * `column a.ausloeser does not exist`, und JEDE Laufansicht dieser
+         * Plattform endete mit 500 — für jede Rolle, in jeder Gesellschaft,
+         * seit es die Seite gibt.
+         *
+         * **Gefunden hat es keine Prüfung, sondern ein Rundgang.** Kein
+         * einziger Browserlauf öffnete `/agenten/[agent]/aufgaben/[id]`; die
+         * Seite stand in der Karte, war bewacht, hatte Rechte und Marken — und
+         * niemand ist je auf sie geklickt. Erst der erweiterte Verweiselauf
+         * (D-575), der jedem gezeigten Link bis zum Ende folgt, lief hinein.
+         * `tests/e2e/agenten.spec.ts` öffnet sie jetzt.
+         *
+         * `angefordert_von` steht daneben: „ausgelöst durch einen Menschen"
+         * ohne den Namen ist die halbe Auskunft, und bei einem Lauf, den ein
+         * Zeitplan startete, ist die Spalte leer — das sagt die Seite dann so.
+         */
         `select a.id, a.titel, a.vorgang_typ::text as vorgang, a.status::text as status,
-                a.ausloeser::text as ausloeser, a.schritte_anzahl, a.kosten_cent::text,
+                a.ausgeloest_durch::text as ausloeser, a.schritte_anzahl,
+                a.kosten_cent::text as kosten_cent,
+                b.name as ausgeloest_von,
                 a.budget_stopp, a.fehler_text, ag.name as agent_name,
                 to_char(a.erstellt_am at time zone 'Europe/Berlin',
                         'DD.MM.YYYY HH24:MI') as erstellt_am,
@@ -95,7 +132,8 @@ export default async function Lauf(
                         'DD.MM.YYYY HH24:MI') as beendet_am
            from agent_aufgabe a
            join agent ag on ag.id = a.agent_id
-          where a.id = $1 and ag.kennung = $2::agent_kennung`,
+           left join benutzer b on b.id = a.angefordert_von
+          where a.id = $1::uuid and ag.kennung = $2::agent_kennung`,
         [id, kennung]);
       if (kopf === undefined) return null;
 
@@ -164,7 +202,11 @@ export default async function Lauf(
         </div>
         <div>
           <dt className="text-text-subtle">Ausgelöst durch</dt>
-          <dd className="text-text">{kopf.ausloeser}</dd>
+          <dd className="text-text" data-cse="lauf-ausloeser">
+            {AUSLOESER[kopf.ausloeser] ?? kopf.ausloeser}
+            {kopf.ausgeloest_von === null
+              ? '' : ` · ${kopf.ausgeloest_von}`}
+          </dd>
         </div>
         <div>
           <dt className="text-text-subtle">Schritte</dt>

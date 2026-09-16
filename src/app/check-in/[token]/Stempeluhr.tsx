@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { lies, sende, stelleAn } from './warteschlange';
+import { Schichtfoto } from './Schichtfoto';
 
 /**
  * Die Stempelflaeche (TIM-07, TIM-08, DESIGN §8).
@@ -177,6 +178,16 @@ export function Stempeluhr({ token }: { readonly token: string }) {
         <p className="text-sm text-text-subtle">
           Erfasst mit der Uhr des Servers, angezeigt in Berliner Zeit.
         </p>
+        {/*
+          * **Das Foto steht HIER und nirgendwo sonst** (TIM-10, DOC-06).
+          *
+          * Erst nach dem Stempeln, unter der Bestaetigung, und sekundaer: die
+          * Stempelflaeche hat genau EINEN Hauptknopf (DESIGN §8), und wer um
+          * 05:55 mit Handschuhen davorsteht, soll nicht zwischen zwei gleich
+          * grossen waehlen. Vorher gab es die Aufnahme gar nicht — die Route
+          * `…/medien` war gebaut, geprueft und ohne Aufrufer.
+          */}
+        <Schichtfoto token={token} />
       </div>
     );
   }

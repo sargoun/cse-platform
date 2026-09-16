@@ -56,6 +56,14 @@ export interface StelleZeile {
   readonly einsatzort: string | null;
   readonly wochenstunden: string | null;
   readonly status: StelleStatus;
+  /**
+   * Die Freigabe, die an dieser Anzeige haengt — `null`, solange keine erbeten
+   * ist. Die Oberflaeche braucht sie, um den Knopf „Zur Freigabe vorlegen" zu
+   * verbergen, sobald eine Bitte offen ist: ein zweiter Klick legte sonst eine
+   * ZWEITE Freigabe an, und im Posteingang stuenden zwei Bitten um dieselbe
+   * Anzeige.
+   */
+  readonly freigabeId: string | null;
   readonly entwurfVonArt: 'mensch' | 'agent' | 'system';
   readonly bewerbungsfrist: string | null;
   readonly veroeffentlichtAm: Date | null;
@@ -67,6 +75,7 @@ const STELLE_FELDER = `
   s.id, s.titel, s.beschreibung, s.anforderungen, s.einsatzort,
   s.wochenstunden::text                   as wochenstunden,
   s.status::text                          as status,
+  s.freigabe_id                           as "freigabeId",
   s.entwurf_von_art::text                 as "entwurfVonArt",
   s.bewerbungsfrist::text                 as bewerbungsfrist,
   s.veroeffentlicht_am                    as "veroeffentlichtAm",
@@ -178,6 +187,21 @@ export async function legeStelleVor(
       'Vorgelegt wird ein Entwurf. Was schon freigegeben oder veröffentlicht ist, '
       + 'geht nicht noch einmal durch dieselbe Entscheidung.',
       'falscher_status', 409);
+  }
+  /**
+   * **Eine Bitte je Anzeige** — und der Riegel steht HIER, nicht nur am Knopf.
+   *
+   * `stelle.status` bleibt `entwurf`, bis jemand entscheidet (der Nachzug
+   * hängt an `freigabe_zieht_stelle_nach`, 0167). Ein zweiter Klick auf
+   * „Vorlegen" fand die Anzeige deshalb weiter im Entwurf und legte eine
+   * ZWEITE Freigabe an: zwei Bitten um dieselbe Anzeige im Posteingang, und
+   * wer die erste entscheidet, lässt die zweite als Zombie stehen. Gefunden
+   * beim Nachspielen des Weges im Browser, nicht in einer Prüfung.
+   */
+  if (s.freigabeId !== null) {
+    throw new RecruitingFehler(
+      'Diese Anzeige liegt schon im Freigabe-Posteingang. Zwei Bitten um dieselbe '
+      + 'Entscheidung sind eine zu viel.', 'schon_vorgelegt', 409);
   }
 
   const nutzlast = {
