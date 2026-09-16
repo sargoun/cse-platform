@@ -242,7 +242,30 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    */
   { schluessel: 'dienstanweisungen', label: 'Dienstanweisungen', pfad: 'security/dienstanweisungen', recht: 'dienstanweisung.lesen', icon: 'dokument' },
   { schluessel: 'schluessel', label: 'Schlüssel', pfad: 'security/schluessel', recht: 'schluessel.lesen', icon: 'schloss' },
-  { schluessel: 'einstellungen', label: 'Einstellungen', pfad: 'einstellungen', recht: 'system.einstellung_lesen', icon: 'einstellungen' },
+  /**
+   * **`system.mandant_lesen` und nicht `system.einstellung_lesen`.**
+   *
+   * Der Punkt stand auf `system.einstellung_lesen` — einem Recht, das nach
+   * `0008` NUR die Super-Administration hält. Die Seite dahinter öffnet aber
+   * mit `system.mandant_lesen` (Seitenkarte §5.24), und das halten auch
+   * `admin` und `leitung`. Ergebnis: **eine Administration sah den Menüpunkt
+   * „Einstellungen" nie** — nicht 404, nicht leer, sondern gar nicht —,
+   * während der Bildschirm für sie offen stand und ihre Karten (Benutzer,
+   * Unternehmensdaten, Protokoll, Module …) für sie gefüllt gewesen wären.
+   * Der ganze Einstellungsbereich war für die Rolle unerreichbar, die ihn am
+   * häufigsten braucht.
+   *
+   * **Und die Karten darunter bleiben einzeln bewacht.** Die Seite fragt je
+   * Karte die Leserechte ihrer Route (`findeRoute`) und zeigt nur, was diese
+   * Sitzung öffnen darf — `einstellungen/integrationen` etwa verlangt
+   * weiterhin `system.einstellung_lesen`. Das Tor steht also nicht weiter
+   * offen; es steht nur nicht mehr vor der falschen Tür.
+   *
+   * Gefunden hat das `tests/kern/navigation-rechte.test.ts`, als es alle
+   * Menüpunkte gegen das Manifest hielt — derselbe Vergleich, der bei Social
+   * (D-573) und Recruiting (D-574) je einen Befund brachte.
+   */
+  { schluessel: 'einstellungen', label: 'Einstellungen', pfad: 'einstellungen', recht: 'system.mandant_lesen', icon: 'einstellungen' },
 ] as const;
 
 /** Die Punkte, die in der Gruppenansicht überhaupt erscheinen dürfen. */
