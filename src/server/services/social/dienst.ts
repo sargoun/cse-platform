@@ -277,7 +277,18 @@ export async function bearbeiteBeitrag(
       + 'wer ihn danach ändert, hat keine Freigabe mehr für das, was hinausgeht.',
       'nicht_bearbeitbar');
   }
-  await kontext.schreibe(
+  /*
+   * **`schreibeWennNoch` und nicht ein nacktes `update`.**
+   *
+   * Der Status wurde oben gelesen, geschrieben wurde hier — und dazwischen
+   * liegt der Spalt. Legt jemand in diesem Augenblick vor, entsteht die
+   * Freigabe mit dem Abdruck des ALTEN Textes, und gleich danach ueberschreibt
+   * dieses `update` den Text: was spaeter hinausgeht, hat nie jemand
+   * freigegeben (SOC-08). Die Bedingung `status = 'entwurf'` steht deshalb IM
+   * `update`; wer sie verliert, bekommt `gleichzeitig` und nicht stillschweigend
+   * Erfolg. Gemeldet hat das die Copilot-Runde auf PR 16.
+   */
+  await schreibeWennNoch(kontext, id, b.status,
     `update beitrag set titel = $2, text = $3, art = $4::beitrag_art, geaendert_von = $5::uuid
       where id = $1::uuid`,
     [id, felder.titel.trim(), felder.text.trim(), felder.art, kontext.benutzerId]);
@@ -324,6 +335,23 @@ async function schreibeWennNoch(
 }
 
 export async function legeVor(kontext: SchreibKontext, id: string): Promise<string> {
+  /*
+   * **Erst sperren, dann den Abdruck nehmen.**
+   *
+   * Der Abdruck bindet die Entscheidung an genau diesen Text. Er entsteht
+   * unten aus `b.titel` und `b.text` — und zwischen diesem Lesen und dem
+   * `update` weiter unten lag ein Spalt, in den eine gleichzeitige Bearbeitung
+   * passte: die Freigabe traegt dann den Abdruck des alten Textes, und beim
+   * Entscheiden vergleicht `app.freigabe_entscheiden` ihn mit dem neuen. Das
+   * faellt nicht durch — es faellt AUF, und zwar dem Menschen im Posteingang,
+   * mit „die eingereichte Nutzlast ist nicht die vorgelegte". Eine Freigabe,
+   * die niemand mehr entscheiden kann, ist ein Beitrag, der feststeckt.
+   *
+   * `for update` haelt die Zeile fuer die Dauer der Transaktion. Dieselbe
+   * Sperre wie in `setzeKanaele`, und aus demselben Grund; `fuehreSocialAus`
+   * haelt die Transaktion.
+   */
+  await kontext.abfrage(`select id from beitrag where id = $1::uuid for update`, [id]);
   const b = await ladeBeitrag(kontext, id);
   if (b === null) throw new SocialFehler('Diesen Beitrag gibt es nicht.', 'unbekannt');
   const ziel = naechsterStatus(b.status, 'vorlegen');
@@ -570,6 +598,36 @@ async function sendeKanaele(
 }
 
 /**
+ * **Die Adresse, unter der der Beitrag WIRKLICH steht** (SOC-05).
+ *
+ * Hier stand an zwei Stellen `${basis}/beitrag/${id}` — eine Route, die es im
+ * ganzen Baum nicht gibt. Gemeldet hat das die Copilot-Runde auf PR 16, und
+ * der Befund wog schwerer, als er aussah: dieser Link geht an FREMDE
+ * Plattformen. Ein toter Link im eigenen Portal ärgert; ein toter Link unter
+ * einem Instagram-Beitrag steht dort, bis ihn jemand von Hand entfernt.
+ *
+ * Die eigene Gesellschaftsseite ist der Ort: `/unternehmen/<slug>` zeigt die
+ * veröffentlichten Beiträge dieser Gesellschaft (`oeffentlicheBeitraege`), und
+ * der Anker springt auf den einen. Die Adresse entsteht deshalb HIER, im
+ * Dienst, der den Mandanten kennt — nicht zweimal daneben, in einer Route und
+ * in einem Nachtlauf, die beide raten müssten.
+ *
+ * `null` heisst „kein absoluter Link möglich" und ist kein Fehler: die eigene
+ * Seite braucht keinen (D-532), und ein geratener Wirt wäre schlimmer als
+ * keiner.
+ */
+async function beitragsadresse(
+  kontext: SchreibZugriff, id: string, basis: string | null,
+): Promise<string | null> {
+  if (basis === null || basis === '') return null;
+  const [m] = await kontext.abfrage<{ slug: string }>(
+    `select m.slug from beitrag b join mandant m on m.id = b.mandant_id
+      where b.id = $1::uuid`, [id]);
+  if (m === undefined) return null;
+  return `${basis.replace(/\/+$/u, '')}/unternehmen/${m.slug}#beitrag-${id}`;
+}
+
+/**
  * **Veröffentlichen — und was dabei ehrlich bleiben muss** (SOC-05, SOC-07).
  *
  * Die eigene Gesellschaftsseite bekommt den Beitrag IMMER: `status =
@@ -582,7 +640,7 @@ async function sendeKanaele(
  * steht und bei Instagram liegen blieb, sagt genau das.
  */
 export async function veroeffentliche(
-  kontext: SchreibZugriff, id: string, adresse: string | null,
+  kontext: SchreibZugriff, id: string, basis: string | null,
 ): Promise<Veroeffentlichung> {
   const b = await ladeBeitrag(kontext, id);
   if (b === null) throw new SocialFehler('Diesen Beitrag gibt es nicht.', 'unbekannt');
@@ -612,6 +670,7 @@ export async function veroeffentliche(
       where id = $1::uuid`,
     [id, kontext.benutzerId]);
 
+  const adresse = await beitragsadresse(kontext, id, basis);
   const zeilen = await kanaeleZuBeitrag(kontext, id);
   const ergebnisse = await sendeKanaele(
     kontext, id,
@@ -639,7 +698,7 @@ export async function veroeffentliche(
  * versucht, erzeugt Rauschen und kein Ergebnis.
  */
 export async function sendeErneut(
-  kontext: SchreibZugriff, id: string, adresse: string | null,
+  kontext: SchreibZugriff, id: string, basis: string | null,
 ): Promise<Veroeffentlichung> {
   const b = await ladeBeitrag(kontext, id);
   if (b === null) throw new SocialFehler('Diesen Beitrag gibt es nicht.', 'unbekannt');
@@ -657,6 +716,7 @@ export async function sendeErneut(
       + 'änderte nichts.', 'nichts_zu_tun');
   }
 
+  const adresse = await beitragsadresse(kontext, id, basis);
   const ergebnisse = await sendeKanaele(
     kontext, id, { beitragId: b.id, titel: b.titel, text: b.text, adresse }, offen);
   return { beitragId: id, aufWebsite: true, kanaele: ergebnisse };

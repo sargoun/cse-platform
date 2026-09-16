@@ -34,9 +34,25 @@ export default async function Veroeffentlichung(
   const { mandant, id } = await params;
   kennungOder404(id);
   return (
+    /*
+     * **`unterpfad` ist hier die eigene Seite, nicht „stellen".**
+     *
+     * `RecruitingSeite` baut daraus den Pfad, gegen den `mandantTor` das
+     * Routenmanifest fragt. Mit `"stellen"` wurde diese Seite mit dem
+     * MILDEREN Recht `recruiting.stelle_schreiben` geöffnet, obwohl das
+     * Manifest für `…/[id]/veroeffentlichung` ausdrücklich
+     * `recruiting.stelle_veroeffentlichen` verlangt: wer schreiben, aber
+     * nicht veröffentlichen darf, sah die Börsenliste und die Versandformulare
+     * und lief erst beim POST in ein 404. Gemeldet hat das die Copilot-Runde
+     * auf PR 16.
+     *
+     * Die Sprungzeile bleibt dieselbe — sie wird aus `SPRUNGZIELE` gebaut und
+     * nicht aus `unterpfad`; nur die Hervorhebung des aktiven Punktes entfällt
+     * hier, und das ist richtig: diese Seite IST kein Punkt der Zeile.
+     */
     <RecruitingSeite
       mandant={mandant}
-      unterpfad="stellen"
+      unterpfad={`stellen/${id}/veroeffentlichung`}
       titel="Veröffentlichung"
       kinder={async (zugang) => {
         const d = await leseImMandanten(zugang, async (kontext) => ({

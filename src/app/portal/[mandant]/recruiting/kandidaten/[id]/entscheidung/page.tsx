@@ -42,7 +42,7 @@ export default async function Entscheidung(
   return (
     <RecruitingSeite
       mandant={mandant}
-      unterpfad="kandidaten"
+      unterpfad={`kandidaten/${id}/entscheidung`}
       titel="Entscheidung"
       kinder={async (zugang) => {
         const d = await leseImMandanten(zugang, async (kontext) => ({

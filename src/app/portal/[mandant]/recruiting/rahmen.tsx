@@ -6,6 +6,7 @@ import { withTenant } from '@/server/kontext/index';
 import type { LeseKontext } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { leserechte, routeMitPfad } from '@/server/registry/routen';
 import { MandantAntwort, mandantTor } from '../../unterseite';
 import { haeltRechte } from '../../rechte';
 import type { PortalZugang } from '../../zugang';
@@ -32,16 +33,48 @@ export interface RecruitingSeiteProps {
   readonly kinder: (zugang: PortalZugang) => Promise<ReactNode>;
 }
 
-const SPRUENGE: readonly { readonly pfad: string; readonly text: string;
-  readonly recht: string }[] = [
-  { pfad: '', text: 'Übersicht', recht: 'recruiting.bewerbung_lesen' },
-  { pfad: 'bedarf', text: 'Bedarf', recht: 'recruiting.bewerbung_lesen' },
-  { pfad: 'stellen', text: 'Stellen', recht: 'recruiting.stelle_schreiben' },
-  { pfad: 'bewerbungen', text: 'Bewerbungen', recht: 'recruiting.bewerbung_lesen' },
-  { pfad: 'kandidaten', text: 'Kandidaten', recht: 'recruiting.bewerbung_lesen' },
-  { pfad: 'gespraeche', text: 'Gespräche', recht: 'recruiting.bewerbung_lesen' },
-  { pfad: 'datenschutz', text: 'Datenschutz', recht: 'recruiting.daten_loeschen' },
+/**
+ * Die Sprungzeile — **mit den Rechten aus dem ROUTENMANIFEST, nicht mit
+ * abgeschriebenen.**
+ *
+ * Hier stand je Sprung EIN handgesetzter Schlüssel. Zwei davon waren zu
+ * milde: `/recruiting/bedarf` verlangt zusätzlich `dienstplan.lesen` (es liest
+ * unbesetzte Schichten), `/recruiting/gespraeche` zusätzlich
+ * `kalender.schreiben` (es legt Termine). Wer das eine Recht hielt und das
+ * andere nicht, sah den Knopf und bekam dahinter 404 — genau der Fall, gegen
+ * den diese Zeile gebaut ist (AUT-06, D-567). Gemeldet hat es die
+ * Copilot-Runde auf PR 16.
+ *
+ * Eine dritte Kopie wäre dieselbe Wette noch einmal. `leserechte()` liest
+ * deshalb die Bedingung DORT, wo die Route sie auch wirklich prüft; ein
+ * zusätzliches Recht am Manifest wandert damit von selbst in diese Zeile.
+ */
+const SPRUNGZIELE: readonly { readonly pfad: string; readonly text: string }[] = [
+  { pfad: '', text: 'Übersicht' },
+  { pfad: 'bedarf', text: 'Bedarf' },
+  { pfad: 'stellen', text: 'Stellen' },
+  { pfad: 'bewerbungen', text: 'Bewerbungen' },
+  { pfad: 'kandidaten', text: 'Kandidaten' },
+  { pfad: 'gespraeche', text: 'Gespräche' },
+  { pfad: 'datenschutz', text: 'Datenschutz' },
 ];
+
+/**
+ * Ein Sprung ohne Eintrag im Manifest bekommt eine LEERE Rechteliste und
+ * verschwindet damit aus der Zeile — nicht „offen für alle".
+ *
+ * Das ist die sichere Richtung: ein Tippfehler im Pfad kostet einen Knopf,
+ * kein Recht. Dass es den Eintrag geben MUSS, hält
+ * `tests/kern/recruiting-spruenge.test.ts` fest; dort fällt der Tippfehler
+ * auf, und nicht erst dem Menschen, dem der Knopf fehlt.
+ */
+function rechteZu(unterpfad: string): readonly string[] {
+  const r = routeMitPfad(
+    `/portal/[mandant]/recruiting${unterpfad === '' ? '' : `/${unterpfad}`}`);
+  return r === undefined ? [] : leserechte(r);
+}
+
+const SPRUENGE = SPRUNGZIELE.map((z) => ({ ...z, rechte: rechteZu(z.pfad) }));
 
 export async function RecruitingSeite(
   { mandant, unterpfad, titel, kinder }: RecruitingSeiteProps,
@@ -53,7 +86,7 @@ export async function RecruitingSeite(
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
 
-  const darf = await haeltRechte(zugang.sitzung, ...SPRUENGE.map((s) => s.recht));
+  const darf = await haeltRechte(zugang.sitzung, ...SPRUENGE.flatMap((s) => s.rechte));
   const inhalt = await kinder(zugang);
 
   return (
@@ -69,8 +102,17 @@ export async function RecruitingSeite(
     >
       <nav aria-label="Recruiting" data-cse="recruiting-spruenge"
            className="mb-s5 flex flex-wrap gap-s2">
-        {SPRUENGE.filter((s) => darf[s.recht] === true).map((s) => {
-          const aktiv = s.pfad === unterpfad;
+        {SPRUENGE.filter((s) => s.rechte.length > 0
+          && s.rechte.every((r) => darf[r] === true)).map((s) => {
+          /*
+           * **Die Unterseite hebt ihren Zweig hervor.** `unterpfad` ist seit
+           * der Rechtekorrektur der VOLLE Pfad (`stellen/<id>/…`), damit das
+           * Tor gegen die richtige Manifestzeile prueft; die Zeile darueber
+           * zeigt trotzdem weiter „Stellen" als aktiv, weil ein Mensch dort
+           * steht.
+           */
+          const aktiv = s.pfad === unterpfad
+            || (s.pfad !== '' && unterpfad.startsWith(`${s.pfad}/`));
           return (
             <Link
               key={s.pfad}

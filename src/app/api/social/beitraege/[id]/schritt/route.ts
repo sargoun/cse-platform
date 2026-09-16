@@ -74,19 +74,26 @@ export async function POST(
       }
       if (gewaehlt === 'veroeffentlichen' || gewaehlt === 'erneut_senden') {
         /*
-         * Die Adresse des Beitrags auf der eigenen Seite -- jede Plattform
-         * will einen Link, und ein relativer waere dort dasselbe Nichts wie
-         * in einer E-Mail (D-532). Fehlt der Host, geht der Beitrag trotzdem
-         * hinaus: die eigene Seite braucht keinen absoluten Link.
+         * Nur die BASIS — den Pfad darunter baut der Dienst.
+         *
+         * Hier stand `${basis}/beitrag/${id}`, und diese Route gibt es nicht;
+         * derselbe tote Link stand ein zweites Mal im Nachtlauf. Er geht an
+         * fremde Plattformen, und dort bleibt er stehen. Jetzt kennt genau
+         * eine Stelle die Adresse: `beitragsadresse()` im Dienst, der den
+         * Mandanten und damit seine Gesellschaftsseite kennt.
+         *
+         * Fehlt der Wirt, geht der Beitrag trotzdem hinaus: die eigene Seite
+         * braucht keinen absoluten Link (D-532), und ein geratener waere
+         * schlimmer als keiner.
          */
-        let adresse: string | null = null;
+        let basis: string | null = null;
         try {
-          adresse = `${kanonischeBasis(anfrage.headers.get('host'))}/beitrag/${id}`;
+          basis = kanonischeBasis(anfrage.headers.get('host'));
         } catch (fehler) {
           if (!(fehler instanceof KeinHostFehler)) throw fehler;
         }
-        if (gewaehlt === 'erneut_senden') await sendeErneut(kontext, id, adresse);
-        else await veroeffentliche(kontext, id, adresse);
+        if (gewaehlt === 'erneut_senden') await sendeErneut(kontext, id, basis);
+        else await veroeffentliche(kontext, id, basis);
         return id;
       }
       await schrittGehen(kontext, id, gewaehlt as Schritt, rumpf.felder['grund'] ?? null);

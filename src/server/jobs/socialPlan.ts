@@ -68,9 +68,6 @@ export function registriereSocialPlan(db: JobVerbindung): JobDefinition {
            * `CSE_KANONISCHE_BASIS` ist die einzige Quelle, die er hat (O-08).
            */
           const basis = process.env['CSE_KANONISCHE_BASIS'] ?? null;
-          const adresse = basis === null || basis === ''
-            ? null
-            : `${basis.replace(/\/+$/u, '')}/beitrag/${z.id}`;
           /*
            * **Je Beitrag eine Sitzung mit SEINEM Mandanten.**
            *
@@ -96,7 +93,7 @@ export function registriereSocialPlan(db: JobVerbindung): JobDefinition {
               schreibe: jd.abfrage.bind(jd),
               benutzerId: null,
             };
-            return veroeffentliche(zugriff, z.id, adresse);
+            return veroeffentliche(zugriff, z.id, basis);
           }, { nurLesen: false });
           hinaus += 1;
           liegenGeblieben += ergebnis.kanaele

@@ -30,7 +30,7 @@ export default async function NeueStelle(
   return (
     <RecruitingSeite
       mandant={mandant}
-      unterpfad="stellen"
+      unterpfad="stellen/neu"
       titel="Neue Stelle"
       kinder={async () => (
         <>

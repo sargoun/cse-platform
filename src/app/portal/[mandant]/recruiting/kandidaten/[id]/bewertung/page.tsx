@@ -43,7 +43,7 @@ export default async function Bewertung(
   return (
     <RecruitingSeite
       mandant={mandant}
-      unterpfad="kandidaten"
+      unterpfad={`kandidaten/${id}/bewertung`}
       titel="Bewertung"
       kinder={async (zugang) => {
         const d = await leseImMandanten(zugang, async (kontext) => {

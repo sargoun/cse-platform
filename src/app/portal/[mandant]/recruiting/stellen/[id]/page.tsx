@@ -43,7 +43,7 @@ export default async function Stellenblatt(
   return (
     <RecruitingSeite
       mandant={mandant}
-      unterpfad="stellen"
+      unterpfad={`stellen/${id}`}
       titel="Stelle"
       kinder={async (zugang) => {
         /*

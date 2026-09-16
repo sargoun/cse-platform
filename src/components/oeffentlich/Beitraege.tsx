@@ -53,10 +53,21 @@ export function Beitraege({ beitraege, sprache }: BeitraegeProps) {
     <section data-cse="oeffentliche-beitraege" className="border-t border-line">
       <div className="mx-auto max-w-5xl px-s5 py-s7">
         <h2 className="mb-s5 text-h2 text-text">{t.titel}</h2>
+        {/*
+          * **Die `id` je Beitrag ist der Anker, auf den fremde Plattformen
+          * zeigen.**
+          *
+          * `beitragsadresse()` im Social-Dienst baut
+          * `/unternehmen/<slug>#beitrag-<id>`. Ohne sie landete der Link zwar
+          * auf der richtigen Seite, aber irgendwo darauf — und bei sechs
+          * Beiträgen nebeneinander ist „irgendwo" nicht der gemeinte.
+          * `scroll-mt-s7` hält den Kopfbereich frei, damit der Anker nicht
+          * unter der Leiste landet.
+          */}
         <ul className="grid grid-cols-1 gap-s4 md:grid-cols-2">
           {beitraege.map((b) => (
-            <li key={b.id} data-cse="oeffentlicher-beitrag"
-                className="flex flex-col gap-s2 rounded-lg border border-line bg-surface p-s5">
+            <li key={b.id} id={`beitrag-${b.id}`} data-cse="oeffentlicher-beitrag"
+                className="flex scroll-mt-s7 flex-col gap-s2 rounded-lg border border-line bg-surface p-s5">
               <span className="text-micro uppercase text-text-subtle">
                 {t.art[b.art] ?? t.art['beitrag']}
                 {b.veroeffentlichtAm === null

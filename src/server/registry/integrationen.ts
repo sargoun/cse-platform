@@ -19,6 +19,20 @@ import { wetterPort } from '../versand/dwd.js';
  */
 export type Anbindungsstand =
   | 'verbunden'
+  /**
+   * **Eingerichtet, aber nie bestätigt.**
+   *
+   * Der Nachtlauf-Auslöser brachte diesen Zustand: `JOB_TOKEN` beweist, dass
+   * die TÜR offen ist — nicht, dass jemand angeklopft hat. Der Cron-Eintrag
+   * steht in Supabase, nicht in diesem Prozess, und genau das war die Lücke,
+   * die D-563 aufgedeckt hat: sechzehn Wächter mit Zeitplan, und niemand, der
+   * sie rief. Ein Bildschirm, der das „verbunden" nennt, wiederholte den
+   * Fehler als Auskunft. Gemeldet hat es die Copilot-Runde auf PR 16.
+   *
+   * Bestätigt wird durch AKTIVITÄT, und die steht in der Laufliste
+   * (`/portal/[mandant]/einstellungen/jobs`) — nicht hier.
+   */
+  | 'unbestaetigt'
   | 'nicht_verbunden'
   | 'entwicklung'
   | 'dateiexport'
@@ -153,13 +167,25 @@ export function anbindungen(): readonly Anbindung[] {
        * darunter — die zählt sie, statt sie zu behaupten.
        */
       zweck: 'Die Wächter aus SPEC §14 starten — Fristen, Dienstplan, Mahnlauf, Kette',
-      stand: (process.env['JOB_TOKEN'] ?? '') === '' ? 'nicht_verbunden' : 'verbunden',
+      /*
+       * **`unbestaetigt` und nicht `verbunden`.**
+       *
+       * Hier stand `verbunden`, sobald `JOB_TOKEN` gesetzt war. Das Geheimnis
+       * beweist aber nur, dass die Route Läufe ANNIMMT — nicht, dass jemand
+       * sie ruft. Mit gesetztem Schlüssel und nicht eingespieltem
+       * `docs/JOB-AUSLOESER.sql` — genau der stille Ausfall, den D-563 fand —
+       * zählte dieser Bildschirm den Auslöser als gesund, während kein
+       * einziger Wächter lief. Einrichtung und Betrieb sind zwei Zustände,
+       * und dieser Bildschirm kennt nur den ersten.
+       */
+      stand: (process.env['JOB_TOKEN'] ?? '') === '' ? 'nicht_verbunden' : 'unbestaetigt',
       hinweis: (process.env['JOB_TOKEN'] ?? '') === ''
         ? 'Ohne JOB_TOKEN antwortet /api/jobs/[schlüssel] mit 503 — kein Auslöser kann '
           + 'angeschlossen sein, und kein Wächter läuft. Der Plan dafür wird aus dem '
           + 'Job-Register erzeugt: `pnpm jobs:plan` → docs/JOB-AUSLOESER.sql.'
-        : 'JOB_TOKEN ist gesetzt; die Auslöseroute nimmt Läufe an. Ob draussen wirklich '
-          + 'ein Cron-Eintrag steht, zeigt die Laufliste — nicht diese Zeile.',
+        : 'JOB_TOKEN ist gesetzt, die Auslöseroute nimmt Läufe an — mehr weiss dieser '
+          + 'Bildschirm nicht. Ob draussen ein Cron-Eintrag steht und wirklich ruft, '
+          + 'beantwortet allein die Laufliste unter Einstellungen › Jobs.',
       offen: null,
     },
     {
@@ -174,6 +200,7 @@ export function anbindungen(): readonly Anbindung[] {
 
 export const STAND_TEXT: Readonly<Record<Anbindungsstand, string>> = {
   verbunden: 'verbunden',
+  unbestaetigt: 'eingerichtet, nicht bestätigt',
   nicht_verbunden: 'nicht verbunden',
   entwicklung: 'Entwicklungsfläche',
   dateiexport: 'Dateiexport',

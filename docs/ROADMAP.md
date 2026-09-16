@@ -31,9 +31,10 @@ Counted from this file, phase by phase:
 | 9 · Social, recruiting, reporting | 3 | 3 | recruiting is the open one |
 | 10 · Hardening & launch | 1 | 8 | |
 
-**Phases 4 to 8 are closed.** Phase 9 carries Social, notifications and the six
-reports; **recruiting (REC-01…REC-09) and `/karriere/*` are the piece still
-missing.** Phase 10 has barely begun.
+**Phases 4 to 9 are closed.** Phase 9 carried Social, recruiting,
+notifications, the calendar and the six reports; every box in it is ticked
+against the database and the suites, not against memory. Phase 10 has barely
+begun.
 
 **What a tick does NOT mean.** A ticked box means the feature is built, tested
 and reachable — not that every screen behind it exists. A walk through every
@@ -557,10 +558,30 @@ Radar first — the agents operate on its output.
 
 ## Phase 9 · Social, recruiting, reporting — SOC-*, REC-*, REP-*, NOT-*
 
-- [ ] Social Media Center: drafts, approval, scheduling, publish to CSE profiles
-- [ ] External channels behind an interface, marked "not connected"
-- [ ] Recruiting: job ad drafting, inbound applications, CV parsing, ranking
-      with visible criteria, interview scheduling, DSGVO purge
+- [x] **Social Media Center** (SOC-01…SOC-08, D-556…D-560, D-572, D-573): the
+      four profiles from one place, `entwurf → vorgelegt → freigegeben →
+      geplant → veroeffentlicht` with the decision falling in the approval
+      inbox and never on the post page (SOC-08 — two ways to one decision
+      would be one too many), the nightly `social_plan` run under `cse_job`,
+      and `erneut_senden` for channels that failed. Content pulls from
+      released references only (PRO-05). **Publishing to the company page on
+      the CSE site works immediately** — it is not a channel, the post stands
+      there the moment `status = 'veroeffentlicht'`
+- [x] **External channels behind an interface, marked "not connected"**
+      (SOC-06, SOC-07, O-10): Instagram, Facebook, LinkedIn, TikTok and
+      YouTube implement one `SocialKanal` port; none is connected, each says
+      so in the interface, and a per-channel result sheet records what came
+      back. Nothing simulates a successful external call
+- [x] **Recruiting** (REC-01…REC-09, D-570, D-573): staffing requirement from
+      unstaffed shifts, job ad drafting, inbound applications over
+      `/karriere/*` and the initiative form, the parsed candidate record,
+      the ranked shortlist **computed in TypeScript with its criteria on
+      screen** (REC-05/REC-08 — the model never ranks), interviews with
+      prepared questions on the calendar, the hiring decision bound to the
+      human who writes it (`kern.entscheidung_ist_menschlich`, REC-08,
+      DSGVO Art. 22), and the nightly `bewerber_loeschung` purge against
+      `aufbewahrung_bis` with `loeschsperre` honoured (REC-07). Job boards
+      are built as a port and are not connected (REC-09)
 - [x] **Reports** (REP-01…REP-07, D-506…D-508): revenue, orders and leads,
       **channel attribution**, hours, projects, tender pipeline — six per
       company under `/portal/[mandant]/berichte`, the same six split per

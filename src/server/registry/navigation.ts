@@ -130,14 +130,22 @@ export const NAVIGATION: readonly NaviEintrag[] = [
   /**
    * `social` — das Social Media Center (SOC-01, PR 78).
    *
-   * **Das Recht ist `social.schreiben` und nicht `social.lesen`** — und das
-   * ist kein Versehen: die Seitenkarte bewacht `/portal/[mandant]/social`
-   * genau damit (`routen.generiert.ts`). Stuende hier das Leserecht, saehe
-   * ein Konto, das nur lesen darf, den Punkt und bekaeme dahinter einen
-   * 403 — derselbe Befund wie damals bei `dienstplan`, nur an der
-   * Rechte- statt an der Pfadseite. Heute halten dieselben drei Rollen
-   * beide Rechte; die Gleichheit ist eine Konfiguration und keine Regel,
-   * und darauf soll die Sidebar sich nicht verlassen.
+   * **Das Recht ist `social.lesen` — und das war es nicht immer.**
+   *
+   * Hier und in der Seitenkarte stand `social.schreiben`, mit der Begruendung,
+   * beide muessten uebereinstimmen. Sie stimmten ueberein — nur mit der
+   * falschen Seite: die SELECT-Policies in `0163` (`beitrag`, `social_kanal`,
+   * `beitrag_kanal`) verlangen `social.lesen`. Ein Konto mit `schreiben` und
+   * ohne `lesen` kam damit durch das Tor und sah ueberall leere Listen; ein
+   * Konto mit `lesen` und ohne `schreiben` bekam 404 auf einen Bildschirm,
+   * den es lesen darf. Heute halten `super_admin`, `admin` und `leitung`
+   * beide Rechte, die Wirkung war also null — aber sie sind je Gesellschaft
+   * einzeln entziehbar, und dann faellt es auf. Gemeldet hat es die
+   * Copilot-Runde auf PR 16, mehrfach.
+   *
+   * Das Schreiben bleibt getrennt bewacht: `/social/posts/neu` verlangt
+   * `lesen` UND `schreiben`, `/planung` `lesen` UND `planen`, `/kanaele`
+   * `lesen` UND `kanal_verbinden`.
    *
    * **Hier stand einmal `gruppe: true`** mit der Begruendung, die
    * Gruppenansicht lese mit (`gruppe.social.lesen`). Die Policies in 0163
@@ -150,7 +158,7 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * Social-Uebersicht ueber alle vier Gesellschaften bekommen? Die Daten
    * lassen es zu; die Seitenkarte fuehrt sie in §6 nicht.
    */
-  { schluessel: 'social', label: 'Social Media', pfad: 'social', recht: 'social.schreiben', icon: 'social' },
+  { schluessel: 'social', label: 'Social Media', pfad: 'social', recht: 'social.lesen', icon: 'social' },
   /**
    * `recruiting` — Stellen, Bewerbungen, Kandidaten (REC-01 … REC-09, PR 79).
    *

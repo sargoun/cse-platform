@@ -29,6 +29,12 @@ const BERLIN = new Intl.DateTimeFormat('de-DE', {
 
 const PILLE: Readonly<Record<Anbindungsstand, PillZustand>> = {
   verbunden: 'Aktiv',
+  /*
+   * „Wartet" und nicht „Aktiv": eingerichtet ist nicht gelaufen. Die Marke
+   * kommt aus der geschlossenen Menge in DESIGN §5 — eine neue waere hier
+   * erfunden, und das verbietet dieselbe Regel, die sie geschlossen haelt.
+   */
+  unbestaetigt: 'Wartet',
   nicht_verbunden: 'Inaktiv',
   entwicklung: 'Entwurf',
   dateiexport: 'Bereit',

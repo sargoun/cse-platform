@@ -40,7 +40,22 @@ export async function offeneStellen(): Promise<readonly OffeneStelle[]> {
       limit 50`));
 }
 
+/**
+ * Die Form einer Kennung — **geprüft, bevor sie in ein `::uuid` geht.**
+ *
+ * `/karriere/not-a-uuid` reichte das Segment ungeprüft an `$1::uuid` weiter;
+ * PostgreSQL antwortete `invalid input syntax for type uuid`, die Anwendung
+ * mit **500** und dem Bildschirm „Da ist etwas schiefgegangen". Nach aussen
+ * ist eine unlesbare Kennung aber dasselbe wie eine, die es nicht gibt
+ * (AUT-06) — und 500 sagt „mein Fehler", wo 404 die Wahrheit ist. Dieselbe
+ * Lehre wie `portal/kennung.ts`, nur für die öffentliche Seite; die Prüfung
+ * steht HIER und nicht in den zwei Seiten darüber, weil `generateMetadata`
+ * eine dritte Aufrufstelle ist und genau die man vergisst.
+ */
+const IST_KENNUNG = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+
 export async function offeneStelle(id: string): Promise<OffeneStelle | null> {
+  if (!IST_KENNUNG.test(id)) return null;
   const zeilen = await oeffentlichLesen((kontext) => kontext.abfrage<OffeneStelle>(
     `select ${FELDER}
        from stelle s

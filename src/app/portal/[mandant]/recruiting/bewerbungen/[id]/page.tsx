@@ -38,7 +38,7 @@ export default async function Bewerbungsblatt(
   return (
     <RecruitingSeite
       mandant={mandant}
-      unterpfad="bewerbungen"
+      unterpfad={`bewerbungen/${id}`}
       titel="Bewerbung"
       kinder={async (zugang) => {
         const darf = await haeltRechte(

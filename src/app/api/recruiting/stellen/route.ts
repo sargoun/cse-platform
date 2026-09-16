@@ -1,5 +1,6 @@
 import { type NextRequest, type NextResponse } from 'next/server';
 import { legeStelleAn, RecruitingFehler } from '@/server/services/recruiting/dienst';
+import { istKalendertag } from '@/server/services/zeit/dauer';
 import { fuehreRecruitingAus } from '../gemeinsam';
 
 /**
@@ -29,7 +30,25 @@ export const dynamic = 'force-dynamic';
  * da, und die Zahl wird unten zusätzlich verglichen.
  */
 const STUNDEN = /^(?:(?:[1-9]|[1-5][0-9])(?:[.,][05])?|60)$/u;
-const DATUM = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/u;
+
+/**
+ * **Die Form eines Datums ist nicht sein Vorhandensein.**
+ *
+ * Hier stand nur `/^\d{4}-\d{2}-\d{2}$/`. `2026-02-30` hat diese Form —
+ * PostgreSQL hat den Tag nicht, weist `$7::date` ab, und aus einem
+ * Formularfehler wurde ein **500**. Geprüft wird deshalb der KALENDER, mit
+ * derselben Funktion, die auch die Zeiterfassung fragt (`zeit/dauer.ts`,
+ * gegen beide Umstellungsnächte geprüft) — eine zweite Fassung hier wäre eine
+ * zweite Wahrheit über denselben Kalender.
+ */
+function frist(roh: string): { jahr: number; monat: number; tag: number } | null {
+  const t = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(roh);
+  if (t === null) return null;
+  const jahr = Number(t[1]);
+  const monat = Number(t[2]);
+  const tag = Number(t[3]);
+  return istKalendertag(jahr, monat, tag) ? { jahr, monat, tag } : null;
+}
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   return fuehreRecruitingAus(anfrage, {
@@ -58,8 +77,10 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           'unbrauchbare_stunden', 400);
       }
       const fristRoh = (rumpf.felder['bewerbungsfrist'] ?? '').trim();
-      if (fristRoh !== '' && !DATUM.test(fristRoh)) {
-        throw new RecruitingFehler('Die Bewerbungsfrist ist kein Datum.', 'unbrauchbare_frist', 400);
+      if (fristRoh !== '' && frist(fristRoh) === null) {
+        throw new RecruitingFehler(
+          'Die Bewerbungsfrist ist kein Tag, den der Kalender kennt.',
+          'unbrauchbare_frist', 400);
       }
       const einsatzort = (rumpf.felder['einsatzort'] ?? '').trim();
 

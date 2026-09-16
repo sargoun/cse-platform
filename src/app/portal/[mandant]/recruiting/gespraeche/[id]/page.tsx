@@ -26,7 +26,7 @@ export default async function Gespraechsblatt(
   return (
     <RecruitingSeite
       mandant={mandant}
-      unterpfad="gespraeche"
+      unterpfad={`gespraeche/${id}`}
       titel="Gespräch"
       kinder={async (zugang) => {
         const g = await leseImMandanten(zugang, (k) => ladeGespraech(k, id));

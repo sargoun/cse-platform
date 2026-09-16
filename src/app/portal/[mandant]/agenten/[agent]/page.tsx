@@ -351,19 +351,31 @@ export default async function AgentDetail(
                 : String(kopf.max_schritte)}
             </dd>
           </div>
-          <div>
-            <dt className="text-text-subtle">Monatsbudget</dt>
-            <dd className="text-text">
-              {darf['agent.budget_verwalten'] === true ? (
+          {/*
+            * **Ohne das Recht steht die ZEILE nicht da** — nicht nur der Link
+            * fehlt.
+            *
+            * Hier stand „siehe Budget — dafür fehlt Ihnen das Recht". Der
+            * Satz nannte das geschützte Ziel beim Namen und erklärte
+            * obendrein, welches Recht dahintersteht: er verriet genau das,
+            * was er verbergen sollte (AUT-06). Ein Bildschirm, der eine Tür
+            * zeigt und dazusagt, dass man den Schlüssel nicht hat, hat die
+            * Tür trotzdem gezeigt. Gemeldet hat das die Copilot-Runde auf
+            * PR 16.
+            */}
+          {darf['agent.budget_verwalten'] !== true ? null : (
+            <div>
+              <dt className="text-text-subtle">Monatsbudget</dt>
+              <dd className="text-text">
                 <Link
                   href={`/portal/${mandant}/agenten/budget`}
                   className="underline-offset-2 hover:text-brand hover:underline"
                 >
                   siehe Budget
                 </Link>
-              ) : 'siehe Budget — dafür fehlt Ihnen das Recht'}
-            </dd>
-          </div>
+              </dd>
+            </div>
+          )}
         </dl>
         <p className="mt-s3 text-xs text-text-subtle">
           Erreicht ein Lauf die Schrittgrenze, endet die Aufgabe als
