@@ -52,6 +52,32 @@ begin
       detail  = format('Stelle %s, Freigabe %s.', new.id,
                        coalesce(new.freigabe_id::text, 'keine'));
   end if;
+  /*
+   * **Und sie muss zu DIESER Stelle gehoeren.**
+   *
+   * Die Pruefung darueber sagt: genehmigt, dieser Mandant, diese Aktion. Sie
+   * sagt NICHT, fuer welche Stelle. `stelle.freigabe_id` ist eine
+   * beschreibbare Spalte -- wer zwei Anzeigen fuehrt und fuer die eine eine
+   * Genehmigung hat, konnte dieselbe Kennung an die andere haengen und sie
+   * damit veroeffentlichen. Die Genehmigung gilt aber einem TEXT, nicht einer
+   * Gattung: genau dafuer schreibt `legeStelleVor` den Nutzlast-Hash mit.
+   * Gemeldet hat das die Copilot-Runde auf PR 16 -- derselbe Befund wie der
+   * erste, eine Ebene tiefer.
+   *
+   * `legeStelleVor` setzt `bezug_typ = 'stelle'` und `bezug_id` seit jeher;
+   * gefehlt hat nur, sie zu lesen.
+   */
+  if not exists (
+    select 1 from public.freigabe f
+     where f.id = new.freigabe_id
+       and f.mandant_id = new.mandant_id
+       and f.bezug_typ = 'stelle'
+       and f.bezug_id  = new.id) then
+    raise exception using
+      errcode = 'check_violation',
+      message = 'Diese Freigabe gehoert zu einer anderen Stelle (Invariante 7, REC-02).',
+      detail  = format('Stelle %s, Freigabe %s.', new.id, new.freigabe_id);
+  end if;
   return new;
 end;
 $$;
@@ -60,6 +86,18 @@ comment on function app.stelle_braucht_genehmigung() is
   'REC-02, Invariante 7. Die check-Bedingung aus 0166 pruefte nur, DASS eine '
   'Freigabe-Kennung dasteht — nicht, dass sie genehmigt ist und zu dieser '
   'Aktion gehoert.';
+
+/**
+ * **Spaltenrechte, sonst liest der Definer ins Leere.**
+ *
+ * `cse_definer` hat auf `freigabe` bisher `select (id, mandant_id, status)`
+ * (0123) und `(aktion)` (0130) -- `bezug_typ`/`bezug_id` waren nicht dabei.
+ * Ohne diese Zeile scheitert der Ausloeser oben an der Berechtigung, und zwar
+ * bei JEDER Freigabe: die Pruefung wuerde nicht milder, sie ginge gar nicht.
+ * Recht UND Policy, wie immer (D-388) -- `d_freigabe_lesen` aus 0123 gilt fuer
+ * die Zeile und bleibt unveraendert.
+ */
+grant select (bezug_typ, bezug_id) on freigabe to cse_definer;
 
 alter function app.stelle_braucht_genehmigung() owner to cse_definer;
 revoke all on function app.stelle_braucht_genehmigung() from public;

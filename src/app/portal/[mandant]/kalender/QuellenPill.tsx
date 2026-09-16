@@ -19,6 +19,13 @@ import type { Quelle } from '@/server/services/kalender/eintraege';
 const TON: Record<Quelle, { klassen: string; wort: string }> = {
   termin:   { klassen: 'bg-info-soft text-info',        wort: 'Termin' },
   einsatz:  { klassen: 'bg-surface-3 text-text-muted',  wort: 'Schicht' },
+  /*
+   * Derselbe Ton wie `termin`, und das folgt der Regel darueber statt sie zu
+   * umgehen: ein Gespraech ist etwas, das jemand GEPLANT hat, kein
+   * Regelbetrieb und keine Frist. Ein siebter Farbton waere genau die
+   * Dekoration, gegen die §5 argumentiert.
+   */
+  gespraech: { klassen: 'bg-info-soft text-info',      wort: 'Gespräch' },
   projekt:  { klassen: 'bg-warning-soft text-warning',  wort: 'Projektende' },
   vergabe:  { klassen: 'bg-warning-soft text-warning',  wort: 'Vergabefrist' },
   freigabe: { klassen: 'bg-warning-soft text-warning',  wort: 'Freigabefrist' },

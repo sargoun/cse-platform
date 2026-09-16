@@ -657,6 +657,32 @@ export async function planeGespraech(
   kontext: SchreibKontext, bewerbungId: string, termin: Date,
   dauerMinuten: number, ort: string | null, fragen: readonly string[],
 ): Promise<string> {
+  /*
+   * **Erst nachsehen, ob es die Bewerbung GIBT.**
+   *
+   * Eine UUID-Prüfung an der Route beweist die Form, nicht die Sache. Zwei
+   * Fälle fielen darunter durch (Copilot-Runde auf PR 16):
+   *
+   *  - Eine gültig geformte, aber unbekannte Kennung lief in den
+   *    zusammengesetzten Fremdschlüssel und kam als **500** heraus — ein
+   *    Serverfehler für eine Eingabe, die schlicht falsch ist.
+   *  - Eine **gelöschte** Bewerbung (`geloescht_am`, REC-07) erfüllt den
+   *    Fremdschlüssel weiterhin. Sie hätte einen Termin bekommen, den keine
+   *    Liste je zeigt — eine Einladung an jemanden, dessen Daten das Haus
+   *    gerade anonymisiert hat.
+   *
+   * Gelesen wird unter dem aktiven Mandanten; eine fremde Bewerbung ist
+   * damit `null` und nicht „verboten" (AUT-06).
+   */
+  const [vorhanden] = await kontext.abfrage<{ id: string }>(
+    `select id from bewerbung
+      where id = $1::uuid and mandant_id = app.aktiver_mandant()
+        and geloescht_am is null`,
+    [bewerbungId]);
+  if (vorhanden === undefined) {
+    throw new RecruitingFehler('Diese Bewerbung gibt es nicht.', 'unbekannt', 404);
+  }
+
   const [z] = await kontext.schreibe<{ id: string }>(
     `insert into gespraech
        (mandant_id, bewerbung_id, termin, dauer_minuten, ort, fragen, erstellt_von)

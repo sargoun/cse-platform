@@ -171,22 +171,9 @@ export async function seedRecruiting(
       select benutzer_id as id from benutzer_mandant
        where mandant_id = ${mandantId} and entzogen_am is null
        order by erstellt_am limit 1`;
-    const [freigabe] = mensch === undefined ? [] : await sql<{ id: string }[]>`
-      insert into freigabe
-        (mandant_id, aktion, status, vorgang_typ, titel, zusammenfassung, risiko,
-         vorschau_payload, payload_hash, freigegeben_von, freigegeben_am,
-         bezug_typ, erforderliches_recht)
-      values (${mandantId}, 'stelle_veroeffentlichen', 'genehmigt',
-              'stellenanzeige_entwurf', 'Stellenanzeige (Demo)',
-              'Freigabe der ersten Anzeige dieser Gesellschaft.',
-              'mittel'::risiko_stufe, ${sql.json({ demo: true })},
-              encode(sha256(convert_to('stelle-demo', 'UTF8')), 'hex'),
-              ${mensch.id}, now() - interval '22 days', 'stelle',
-              'recruiting.stelle_veroeffentlichen')
-      returning id`;
 
     for (const [i, v] of vorlagen.entries()) {
-      const veroeffentlicht = i === 0 && freigabe !== undefined;
+      const veroeffentlicht = i === 0 && mensch !== undefined;
         /*
        * **Mit Mandantenkontext** — sonst schliesst der Riegel aus 0167
        * mitten im Seed.
@@ -202,18 +189,54 @@ export async function seedRecruiting(
       const [s] = await sql.begin(async (tx) => {
         await tx`select set_config('app.scope', 'mandant', true),
                         set_config('app.mandant_id', ${mandantId}, true)`;
-        return tx<{ id: string }[]>`
+        /*
+         * **Erst der Entwurf, dann die Freigabe DAZU, dann die Anzeige.**
+         *
+         * Die Freigabe entstand frueher VOR der Schleife und damit vor jeder
+         * Stelle — sie konnte deshalb kein `bezug_id` tragen, und der Seed
+         * haengte dieselbe Zustimmung an die erste Anzeige jeder
+         * Gesellschaft. Seit der Auslöser auch fragt, zu WELCHER Stelle die
+         * Freigabe gehoert, geht das nicht mehr: `bezug_id` ist Pflicht, und
+         * eine Kennung gibt es erst, wenn die Zeile steht.
+         *
+         * Das ist auch der echte Weg. Niemand genehmigt eine Anzeige, die es
+         * noch nicht gibt; `legeStelleVor` legt die Freigabe zu einem
+         * vorhandenen Entwurf an. Die Demo bildet jetzt dieselbe Reihenfolge
+         * ab, statt ein Ergebnis hinzuschreiben, das so nie zustande kaeme.
+         */
+        const [angelegt] = await tx<{ id: string }[]>`
         insert into stelle
           (mandant_id, titel, beschreibung, anforderungen, einsatzort, wochenstunden,
-           status, freigabe_id, veroeffentlicht_am, bewerbungsfrist, entwurf_von_art)
+           status, bewerbungsfrist, entwurf_von_art)
         values (${mandantId}, ${v.titel}, ${v.beschreibung}, ${[...v.anforderungen]},
-                ${v.einsatzort}, ${v.wochenstunden},
-                ${veroeffentlicht ? 'veroeffentlicht' : 'entwurf'}::stelle_status,
-                ${veroeffentlicht ? freigabe.id : null},
-                ${veroeffentlicht ? tx`now() - interval '21 days'` : null},
+                ${v.einsatzort}, ${v.wochenstunden}, 'entwurf'::stelle_status,
                 ${veroeffentlicht ? tx`(app.berlin_heute() + 30)` : null},
                 ${i === 1 ? 'agent' : 'mensch'}::akteur_art)
         returning id`;
+        if (angelegt === undefined || !veroeffentlicht) return [angelegt];
+
+        const [f] = await tx<{ id: string }[]>`
+          insert into freigabe
+            (mandant_id, aktion, status, vorgang_typ, titel, zusammenfassung, risiko,
+             vorschau_payload, payload_hash, freigegeben_von, freigegeben_am,
+             bezug_typ, bezug_id, erforderliches_recht)
+          values (${mandantId}, 'stelle_veroeffentlichen', 'genehmigt',
+                  'stellenanzeige_entwurf', ${`Stellenanzeige: ${v.titel}`},
+                  'Freigabe der ersten Anzeige dieser Gesellschaft.',
+                  'mittel'::risiko_stufe, ${sql.json({ demo: true })},
+                  encode(sha256(convert_to('stelle-demo', 'UTF8')), 'hex'),
+                  ${mensch.id}, now() - interval '22 days', 'stelle',
+                  ${angelegt.id}, 'recruiting.stelle_veroeffentlichen')
+          returning id`;
+        if (f === undefined) return [angelegt];
+
+        await tx`
+          update stelle
+             set status = 'veroeffentlicht'::stelle_status,
+                 freigabe_id = ${f.id},
+                 veroeffentlicht_am = now() - interval '21 days'
+           where id = ${angelegt.id} and mandant_id = ${mandantId}`;
+        return [angelegt];
       }) as unknown as { id: string }[];
       if (s === undefined) continue;
       stellen += 1;

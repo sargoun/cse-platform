@@ -12370,3 +12370,92 @@ der zweite Fall rot, der Riegel trägt den Test also wirklich.
 
 | Betrifft | D-563, D-574, D-575, O-18, RAD-07, D-07, `0147`, `services/vergabe/mappe.ts` |
 |---|---|
+
+### D-578 · Vier Befunde der vierten Copilot-Runde — ein Tor am falschen Ort, eine Zustimmung ohne Adressat, ein 500 und eine Zusage ohne Deckung
+
+**Kontext.** Die vierte Runde auf PR 16 meldete drei Stellen und legte neun
+weitere als „suppressed" bei. Drei der drei betrafen Code, der in **derselben
+Runde** entstanden war, in der die vorigen Befunde behoben wurden — ein
+nützlicher Hinweis darauf, dass eine Reparatur ihre eigene Prüfung braucht.
+
+---
+
+**1 · Ein Tor am Bildschirm ist kein Tor** (`api/recruiting/gespraeche`).
+
+Die Route bewachte `recruiting.bewerbung_lesen` und verliess sich für
+`kalender.schreiben` auf einen Kommentar, den ich selbst geschrieben hatte:
+das zweite Recht bewache die SEITE, geprüft von `mandantTor`, bevor jemand das
+Formular sieht.
+
+Das ist falsch herum gedacht. **Eine Anfrage an die Adresse geht nicht durch
+die Seite.** `mandantTor` läuft dabei nie; wer gleichen Ursprungs POSTet — ein
+zweiter Tab genügt — legt den Termin an, ohne den Kalender beschreiben zu
+dürfen. `t_gespraech_schreiben` (0166) prüft dasselbe eine Ebene tiefer nicht
+nach, weil auch sie nur `recruiting.bewerbung_lesen` kennt.
+
+Sichtbarkeit und Erlaubnis sind zwei Fragen. Die Seite beantwortet die erste
+(AUT-06: kein Knopf, den man nicht drücken darf), die Route die zweite — und
+die zweite ist die, an der es hängt. `Lauf` trägt jetzt `weitereRechte`, und
+`authorize` läuft je Recht.
+
+**2 · Eine Zustimmung gilt einem TEXT, nicht einer Gattung** (`0167`).
+
+Der Riegel aus der vorigen Runde prüfte Ausgang, Mandant und Aktion — und
+damit hätte eine echte, genehmigte `stelle_veroeffentlichen`-Freigabe der
+EINEN Anzeige die ANDERE geöffnet: `stelle.freigabe_id` ist eine beschreibbare
+Spalte, und wer zwei Anzeigen führt, hängt die Kennung um. Wer eine Hilfskraft
+genehmigt bekommen hat, hätte darunter eine Leitungsstelle veröffentlicht.
+
+Derselbe Befund wie der erste, eine Ebene tiefer — und genau dafür schreibt
+`legeStelleVor` den Nutzlast-Hash mit. Der Auslöser fragt jetzt zusätzlich nach
+`bezug_typ = 'stelle'` und `bezug_id = new.id`. Dazu gehört
+`grant select (bezug_typ, bezug_id) on freigabe to cse_definer`: ohne die
+Spaltenrechte scheiterte er an der Berechtigung, und zwar bei JEDER Freigabe —
+die Prüfung wäre nicht milder geworden, sie wäre gar nicht gelaufen.
+
+**Der Seed war der erste, der daran scheiterte**, und zwar zu Recht: er legte
+die Freigabe VOR der Schleife an, also vor jeder Stelle, und konnte deshalb
+kein `bezug_id` tragen. Er geht jetzt die echte Reihenfolge — Entwurf,
+Freigabe dazu, dann heben. Niemand genehmigt eine Anzeige, die es noch nicht
+gibt.
+
+**3 · Eine UUID-Prüfung beweist die Form, nicht die Sache** (`planeGespraech`).
+
+Eine gültig geformte, unbekannte Kennung lief in den zusammengesetzten
+Fremdschlüssel und kam als **500** heraus. Eine **gelöschte** Bewerbung
+(`geloescht_am`, REC-07) erfüllt den Fremdschlüssel weiterhin und hätte einen
+Termin bekommen, den keine Liste je zeigt — eine Einladung an jemanden, dessen
+Daten das Haus gerade anonymisiert hat. Gelesen wird jetzt vorher, unter dem
+aktiven Mandanten; eine fremde Bewerbung ist damit „gibt es nicht" und nicht
+„verboten" (AUT-06).
+
+**4 · Eine Zusage ohne Deckung** (Kalender).
+
+Das Bewerbungsblatt meldete nach dem Anlegen: „Er erscheint in der
+Gesprächsliste und im Kalender dieser Gesellschaft." Der erste Halbsatz
+stimmte. Der zweite nicht: der Kalender liest `kalender_eintrag`, `einsatz`,
+`projekt`, `ausschreibung_vorgang`, `freigabe` und `lead` — `gespraech` stand
+nicht darunter.
+
+Zwei Wege standen offen: den Satz streichen, oder ihn wahr machen. Es ist der
+zweite geworden, weil CAL-01 einen ZENTRALEN Kalender verlangt und ein
+Vorstellungstermin genau das ist, was jemand dort sucht. Eine Kopie in
+`kalender_eintrag` wäre die schlechtere Hälfte gewesen: zwei Zeilen für einen
+Termin laufen beim ersten Verschieben auseinander. Gelesen wird, wo die Sache
+steht — wie bei `einsatz` und `projekt` auch.
+
+Die Wand ist dabei die Policy und nicht die Datei: `t_gespraech_lesen` (0166)
+verlangt `recruiting.bewerbung_lesen`. Ein Kalender, der „Gespräch mit Frau X"
+zeigt, verriete sonst eine Bewerbung an jeden, der Termine sehen darf. Kein
+siebter Farbton: die Pille trägt den Ton von `termin`, weil ein Gespräch etwas
+ist, das jemand GEPLANT hat — DESIGN §5 nennt genau diese drei Fragen.
+
+---
+
+**Gegengeprüft.** Beide Riegel mit einer Sabotage: ohne `f.bezug_id = new.id`
+wird der Fall „Freigabe einer anderen Stelle" rot, ohne
+`and m.status <> 'eingereicht'` (D-577) der Fall der eingereichten Mappe. Ein
+Test, der ohne die Sache durchgeht, die er prüft, ist schlechter als keiner.
+
+| Betrifft | D-573, D-574, D-575, D-577, CAL-01, REC-06, REC-07, Invariante 7, AUT-06, `0166`, `0167` |
+|---|---|

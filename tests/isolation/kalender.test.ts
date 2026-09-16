@@ -163,6 +163,96 @@ describe('(2) der Kalender liest die Quelle, er kopiert sie nicht', () => {
   });
 });
 
+/**
+ * **Das Bewerbungsgespräch steht im Kalender — die Zusage hatte keine
+ * Deckung** (CAL-01, REC-06, D-578).
+ *
+ * Das Bewerbungsblatt meldete nach dem Anlegen: „Er erscheint in der
+ * Gesprächsliste und im Kalender dieser Gesellschaft." Der erste Halbsatz
+ * stimmte. Der zweite war falsch: der Kalender las `kalender_eintrag`,
+ * `einsatz`, `projekt`, `ausschreibung_vorgang`, `freigabe` und `lead` —
+ * `gespraech` stand nicht darunter, und keine Prüfung hat je danach gesehen.
+ * Gemeldet hat es die Copilot-Runde auf PR 16.
+ *
+ * Dieser Fall geht denselben Weg wie die Zusage: Gespräch anlegen, Kalender
+ * lesen, Zeile finden.
+ */
+describe('(2b) ein Bewerbungsgespraech steht im Kalender (CAL-01, REC-06)', () => {
+  async function legeGespraechAn(
+    mandantId: string, wer: string, name: string, inTagen = 2,
+  ): Promise<string> {
+    const [st] = await sql.unsafe<{ id: string }[]>(
+      `insert into stelle (mandant_id, titel, beschreibung, einsatzort, wochenstunden,
+                           status, entwurf_von_art)
+       values ($1::uuid, 'Reinigungskraft', 'Beschreibung', 'Berlin', 30,
+               'entwurf'::stelle_status, 'mensch'::akteur_art)
+       returning id`, [mandantId]);
+    const [bw] = await sql.unsafe<{ id: string }[]>(
+      `insert into bewerbung (mandant_id, stelle_id, quelle, status, name, email,
+                              eingegangen_am, aufbewahrung_bis)
+       values ($1::uuid, $2::uuid, 'karriereseite'::bewerbung_quelle,
+               'eingegangen'::bewerbung_status, $3, 'probe@example.org',
+               now(), app.berlin_heute() + 180)
+       returning id`, [mandantId, st!.id, name]);
+    const [g] = await sql.unsafe<{ id: string }[]>(
+      `insert into gespraech (mandant_id, bewerbung_id, termin, dauer_minuten,
+                              ort, erstellt_von)
+       values ($1::uuid, $2::uuid, now() + ($3::int * interval '1 day'), 45,
+               'Büro Neukölln', $4::uuid)
+       returning id`, [mandantId, bw!.id, inTagen, wer]);
+    return g!.id;
+  }
+
+  it('der Termin erscheint, mit Namen, Ort und einem Weg zur Bewerbung', async () => {
+    const wer = await legeKontoAn(f.reinigung, 'admin');
+    const gespraechId = await legeGespraechAn(f.reinigung, wer, 'Fatima Nasser');
+
+    const z = await fenster();
+    const zeilen = await alsBereich(f.reinigung, wer,
+      (k) => kalenderZeilen(k, { zeitraum: z }));
+    const zeile = zeilen.find((e) => e.id === gespraechId);
+
+    expect(zeile, 'das Gespraech fehlte im Kalender — genau der Befund').toBeDefined();
+    expect(zeile!.quelle).toBe('gespraech');
+    expect(zeile!.titel, 'der Name steht dran, sonst ist es ein Balken').toContain('Fatima');
+    expect(zeile!.ort).toBe('Büro Neukölln');
+    expect(zeile!.weg, 'von der Zeile zur Bewerbung').toContain('/recruiting/bewerbungen/');
+    expect(zeile!.abgesagt).toBe(false);
+  });
+
+  /**
+   * **Die Wand ist die Policy, nicht diese Datei.** `t_gespraech_lesen` (0166)
+   * verlangt `recruiting.bewerbung_lesen`. Ein Kalender, der „Gespräch mit
+   * Frau X" zeigt, verriete sonst eine Bewerbung an jeden, der Termine sehen
+   * darf.
+   */
+  it('eine fremde Gesellschaft sieht das Gespraech nicht', async () => {
+    const wer = await legeKontoAn(f.reinigung, 'admin');
+    const gespraechId = await legeGespraechAn(f.reinigung, wer, 'Fatima Nasser');
+    const fremd = await legeKontoAn(f.bau, 'admin');
+
+    const z = await fenster();
+    const zeilen = await alsBereich(f.bau, fremd, (k) => kalenderZeilen(k, { zeitraum: z }));
+    expect(zeilen.find((e) => e.id === gespraechId)).toBeUndefined();
+  });
+
+  it('ein abgesagtes Gespraech steht als abgesagt da, nicht als geloescht', async () => {
+    const wer = await legeKontoAn(f.reinigung, 'admin');
+    const gespraechId = await legeGespraechAn(f.reinigung, wer, 'Fatima Nasser');
+    await sql.unsafe(
+      `update gespraech set status = 'abgesagt'::gespraech_status where id = $1::uuid`,
+      [gespraechId]);
+
+    const z = await fenster();
+    const zeilen = await alsBereich(f.reinigung, wer,
+      (k) => kalenderZeilen(k, { zeitraum: z }));
+    const zeile = zeilen.find((e) => e.id === gespraechId);
+    expect(zeile, 'es verschwindet nicht — wer hinsieht, soll die Absage sehen')
+      .toBeDefined();
+    expect(zeile!.abgesagt).toBe(true);
+  });
+});
+
 describe('(3) die Filter der Seite (CAL-02)', () => {
   it('nach Herkunft gefiltert bleibt nur die gewählte', async () => {
     const wer = await legeKontoAn(f.reinigung, 'admin');

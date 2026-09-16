@@ -30,15 +30,23 @@ const DAUER_MAX = 240;
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   return fuehreRecruitingAus(anfrage, {
     /*
-     * **`kalender.schreiben` steht NICHT hier, sondern an der Seite.**
+     * **BEIDE Rechte, und beide hier.**
      *
-     * `fuehreRecruitingAus` prüft genau EIN Recht; die Route bewacht die
-     * Handlung, und das ist das Anlegen eines Gesprächs zu einer Bewerbung.
-     * Das zweite Recht des Bildschirms (`kalender.schreiben`, Routenmanifest)
-     * entscheidet, wer die Gesprächsliste überhaupt öffnet — geprüft von
-     * `mandantTor`, bevor jemand das Formular sieht.
+     * Hier stand nur `recruiting.bewerbung_lesen`, mit der Begründung, das
+     * zweite Recht des Bildschirms (`kalender.schreiben`, Routenmanifest)
+     * bewache die Seite. Das war falsch herum gedacht: eine Anfrage an diese
+     * Adresse geht nicht durch die Seite. `mandantTor` läuft nie, und wer
+     * gleichen Ursprungs POSTet — ein zweiter Tab genügt — legt den Termin
+     * an, ohne den Kalender beschreiben zu dürfen. Die Policy
+     * `t_gespraech_schreiben` (0166) prüft dasselbe eine Ebene tiefer nicht
+     * nach. Gemeldet hat das die Copilot-Runde auf PR 16.
+     *
+     * Ein Gespräch IST ein Kalendertermin (es steht seit dieser Runde auch im
+     * Kalender, `services/kalender/eintraege.ts`). Wer Termine dieser
+     * Gesellschaft nicht setzen darf, setzt auch diesen nicht.
      */
     recht: 'recruiting.bewerbung_lesen',
+    weitereRechte: ['kalender.schreiben'],
     handle: async (kontext, rumpf) => {
       const bewerbungId = rumpf.felder['bewerbung'] ?? '';
       if (!UUID.test(bewerbungId)) {

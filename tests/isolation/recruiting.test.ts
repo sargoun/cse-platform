@@ -25,6 +25,8 @@ import { alsApp, alsRolle, schliessen, seed, sql, type Fixtur } from './harness.
 import { alsJobRolle, alsJobSitzung } from '../../src/server/jobs/sitzung.js';
 import { registriereBewerberLoeschung } from '../../src/server/jobs/bewerberLoeschung.js';
 import { leereRegister, type JobDefinition } from '../../src/server/jobs/registry.js';
+import { planeGespraech, RecruitingFehler } from '../../src/server/services/recruiting/dienst.js';
+import type { SchreibKontext } from '../../src/server/kontext/index.js';
 
 let f: Fixtur;
 let job: JobDefinition;
@@ -81,6 +83,73 @@ async function bewerbungAnlegen(
     return { stelleId: s!.id, bewerbungId: b!.id };
   });
 }
+
+/**
+ * **Ein Gespräch braucht eine Bewerbung, die es GIBT** (REC-06, REC-07,
+ * D-578).
+ *
+ * `planeGespraech` prüfte nur die FORM der Kennung, an der Route. Zwei Fälle
+ * fielen darunter durch, gemeldet von der Copilot-Runde auf PR 16:
+ *
+ *  - Eine gültig geformte, unbekannte Kennung lief in den zusammengesetzten
+ *    Fremdschlüssel und kam als **500** heraus — ein Serverfehler für eine
+ *    Eingabe, die schlicht falsch ist.
+ *  - Eine **gelöschte** Bewerbung erfüllt den Fremdschlüssel weiter. Sie hätte
+ *    einen Termin bekommen, den keine Liste zeigt — eine Einladung an
+ *    jemanden, dessen Daten gerade anonymisiert wurden.
+ */
+describe('ein Gespraech braucht eine vorhandene Bewerbung (REC-06)', () => {
+  function schreibkontext(
+    tx: postgres.TransactionSql, mandantId: string, benutzerId: string,
+  ): SchreibKontext {
+    const abfrage = async <T>(a: string, w?: readonly unknown[]): Promise<readonly T[]> =>
+      (await tx.unsafe(a, (w ?? []) as never[])) as unknown as readonly T[];
+    return {
+      scope: 'mandant', portal: 'intern', benutzerId,
+      aktiverMandantId: mandantId, mandantIds: [mandantId],
+      abfrage, schreibe: abfrage,
+    };
+  }
+
+  async function alsMensch<T>(
+    mandantId: string, fn: (k: SchreibKontext) => Promise<T>,
+  ): Promise<T> {
+    const wer = await legeKontoAn(mandantId);
+    return alsApp(
+      { scope: 'mandant', mandantId, benutzerId: wer, portal: 'intern', readonly: false },
+      async (tx: postgres.TransactionSql) => fn(schreibkontext(tx, mandantId, wer)),
+    ) as Promise<T>;
+  }
+
+  const MORGEN = (): Date => new Date(Date.now() + 86_400_000);
+
+  it('eine unbekannte Kennung ist ein 404, kein Serverfehler', async () => {
+    await expect(alsMensch(f.reinigung, (k) => planeGespraech(
+      k, '00000000-0000-4000-8000-000000000000', MORGEN(), 45, null, [])))
+      .rejects.toThrow(RecruitingFehler);
+  });
+
+  it('eine GELOESCHTE Bewerbung bekommt keinen Termin mehr', async () => {
+    const { bewerbungId } = await bewerbungAnlegen(f.reinigung, 30);
+    await sql.unsafe(
+      `update bewerbung set geloescht_am = now() where id = $1::uuid`, [bewerbungId]);
+
+    await expect(alsMensch(f.reinigung, (k) => planeGespraech(
+      k, bewerbungId, MORGEN(), 45, null, []))).rejects.toThrow(RecruitingFehler);
+
+    const [z] = (await sql.unsafe(
+      `select count(*)::int as n from gespraech where bewerbung_id = $1::uuid`,
+      [bewerbungId])) as unknown as { n: number }[];
+    expect(z!.n, 'kein Termin zu einer geloeschten Bewerbung').toBe(0);
+  });
+
+  it('und eine vorhandene bekommt ihn', async () => {
+    const { bewerbungId } = await bewerbungAnlegen(f.reinigung, 30);
+    const id = await alsMensch(f.reinigung, (k) => planeGespraech(
+      k, bewerbungId, MORGEN(), 45, 'Büro Neukölln', ['Warum wir?']));
+    expect(id).toMatch(/^[0-9a-f-]{36}$/u);
+  });
+});
 
 describe('eine Entscheidung verlangt einen Menschen (REC-08, Art. 22 DSGVO)', () => {
   /*
@@ -369,29 +438,37 @@ describe('eine Stelle wird nicht ohne GENEHMIGUNG freigegeben (REC-02, 0167)', (
     }) as Promise<T>;
   }
 
+  /**
+   * `bezugId` ist die Stelle, der die Freigabe GILT.
+   *
+   * Sie fehlte hier zuerst, und der Riegel liess die Freigabe trotzdem
+   * durch — das war der zweite Befund derselben Runde: geprueft wurden
+   * Ausgang, Mandant und Aktion, nicht aber, WOFUER die Zustimmung gilt.
+   */
   async function freigabeAnlegen(
-    mandantId: string, status: string, aktion = 'stelle_veroeffentlichen',
+    mandantId: string, status: string, bezugId: string,
+    aktion = 'stelle_veroeffentlichen',
   ): Promise<string> {
     const mensch = await legeKontoAn(mandantId);
     const [fr] = (await sql.unsafe(
       `insert into freigabe (mandant_id, aktion, status, vorgang_typ, titel,
                              zusammenfassung, risiko, vorschau_payload, payload_hash,
-                             freigegeben_von, freigegeben_am, bezug_typ,
+                             freigegeben_von, freigegeben_am, bezug_typ, bezug_id,
                              erforderliches_recht)
        values ($1::uuid, $2, $3::freigabe_status, 'stellenanzeige_entwurf', 'Probe',
                'Probe', 'mittel'::risiko_stufe, '{}'::jsonb,
                encode(sha256(convert_to('probe', 'UTF8')), 'hex'),
                case when $3 = 'genehmigt' then $4::uuid else null end,
-               case when $3 = 'genehmigt' then now() else null end, 'stelle',
+               case when $3 = 'genehmigt' then now() else null end, 'stelle', $5::uuid,
                'recruiting.stelle_veroeffentlichen')
        returning id`,
-      [mandantId, aktion, status, mensch])) as unknown as { id: string }[];
+      [mandantId, aktion, status, mensch, bezugId])) as unknown as { id: string }[];
     return fr!.id;
   }
 
   it('mit einer OFFENEN Freigabe wird sie abgewiesen', async () => {
     const { stelleId } = await bewerbungAnlegen(f.reinigung, 30);
-    const freigabeId = await freigabeAnlegen(f.reinigung, 'offen');
+    const freigabeId = await freigabeAnlegen(f.reinigung, 'offen', stelleId);
     await expect(alsRolle('', (tx) => tx.unsafe(
       `update stelle set status = 'freigegeben', freigabe_id = $2::uuid
         where id = $1::uuid`, [stelleId, freigabeId])))
@@ -400,7 +477,7 @@ describe('eine Stelle wird nicht ohne GENEHMIGUNG freigegeben (REC-02, 0167)', (
 
   it('mit einer ABGELEHNTEN ebenso', async () => {
     const { stelleId } = await bewerbungAnlegen(f.reinigung, 30);
-    const freigabeId = await freigabeAnlegen(f.reinigung, 'abgelehnt');
+    const freigabeId = await freigabeAnlegen(f.reinigung, 'abgelehnt', stelleId);
     await expect(alsRolle('', (tx) => tx.unsafe(
       `update stelle set status = 'freigegeben', freigabe_id = $2::uuid
         where id = $1::uuid`, [stelleId, freigabeId])))
@@ -415,11 +492,36 @@ describe('eine Stelle wird nicht ohne GENEHMIGUNG freigegeben (REC-02, 0167)', (
   it('eine GENEHMIGTE Freigabe fuer etwas anderes traegt sie auch nicht', async () => {
     const { stelleId } = await bewerbungAnlegen(f.reinigung, 30);
     const freigabeId = await freigabeAnlegen(
-      f.reinigung, 'genehmigt', 'social_veroeffentlichen');
+      f.reinigung, 'genehmigt', stelleId, 'social_veroeffentlichen');
     await expect(alsRolle('', (tx) => tx.unsafe(
       `update stelle set status = 'freigegeben', freigabe_id = $2::uuid
         where id = $1::uuid`, [stelleId, freigabeId])))
       .rejects.toThrow(/GENEHMIGTEN Freigabe/u);
+  });
+
+  /**
+   * **Die Zustimmung gilt EINEM TEXT, nicht einer Gattung.**
+   *
+   * Der Riegel prüfte Ausgang, Mandant und Aktion — und damit hätte eine
+   * echte, genehmigte `stelle_veroeffentlichen`-Freigabe der EINEN Anzeige
+   * die ANDERE geöffnet: `stelle.freigabe_id` ist eine beschreibbare Spalte,
+   * und wer zwei Anzeigen führt, hängt die Kennung um. Wer eine Hilfskraft
+   * genehmigt bekommen hat, hätte damit eine Leitungsstelle veröffentlicht,
+   * unter derselben Zustimmung.
+   *
+   * Genau dafür schreibt `legeStelleVor` den Nutzlast-Hash mit. Gemeldet hat
+   * es die Copilot-Runde auf PR 16 — derselbe Befund wie der erste, eine
+   * Ebene tiefer.
+   */
+  it('eine genehmigte Freigabe einer ANDEREN Stelle traegt sie nicht', async () => {
+    const eine = await bewerbungAnlegen(f.reinigung, 30);
+    const andere = await bewerbungAnlegen(f.reinigung, 30);
+    /* Echt, genehmigt, richtiger Mandant, richtige Aktion — nur fuer die andere. */
+    const fremde = await freigabeAnlegen(f.reinigung, 'genehmigt', andere.stelleId);
+    await expect(imMandanten(f.reinigung, (tx) => tx.unsafe(
+      `update stelle set status = 'freigegeben', freigabe_id = $2::uuid
+        where id = $1::uuid`, [eine.stelleId, fremde])))
+      .rejects.toThrow(/anderen Stelle/u);
   });
 
   it('und ganz ohne Freigabe erst recht nicht', async () => {
@@ -431,7 +533,7 @@ describe('eine Stelle wird nicht ohne GENEHMIGUNG freigegeben (REC-02, 0167)', (
 
   it('mit einer GENEHMIGTEN Freigabe fuer DIESE Aktion geht sie durch', async () => {
     const { stelleId } = await bewerbungAnlegen(f.reinigung, 30);
-    const freigabeId = await freigabeAnlegen(f.reinigung, 'genehmigt');
+    const freigabeId = await freigabeAnlegen(f.reinigung, 'genehmigt', stelleId);
     await imMandanten(f.reinigung, (tx) => tx.unsafe(
       `update stelle set status = 'freigegeben', freigabe_id = $2::uuid
         where id = $1::uuid`, [stelleId, freigabeId]));
@@ -451,7 +553,7 @@ describe('eine Stelle wird nicht ohne GENEHMIGUNG freigegeben (REC-02, 0167)', (
    */
   it('die Entscheidung zieht die Stelle nach — genehmigt wird freigegeben', async () => {
     const { stelleId } = await bewerbungAnlegen(f.reinigung, 30);
-    const freigabeId = await freigabeAnlegen(f.reinigung, 'offen');
+    const freigabeId = await freigabeAnlegen(f.reinigung, 'offen', stelleId);
     const mensch = await legeKontoAn(f.reinigung);
     await alsRolle('', (tx) => tx.unsafe(
       `update stelle set freigabe_id = $2::uuid where id = $1::uuid`,
@@ -468,7 +570,7 @@ describe('eine Stelle wird nicht ohne GENEHMIGUNG freigegeben (REC-02, 0167)', (
 
   it('und eine ABLEHNUNG holt sie in den Entwurf zurueck, ohne Kennung', async () => {
     const { stelleId } = await bewerbungAnlegen(f.reinigung, 30);
-    const freigabeId = await freigabeAnlegen(f.reinigung, 'offen');
+    const freigabeId = await freigabeAnlegen(f.reinigung, 'offen', stelleId);
     await alsRolle('', (tx) => tx.unsafe(
       `update stelle set freigabe_id = $2::uuid where id = $1::uuid`,
       [stelleId, freigabeId]));

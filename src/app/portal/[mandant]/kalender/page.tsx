@@ -20,9 +20,9 @@ import { QuellenPill, quellenWort } from './QuellenPill';
 /**
  * `/portal/[mandant]/kalender` — der zentrale Kalender (CAL-01, CAL-02).
  *
- * **Er zeigt sechs Quellen und besitzt eine.** Termine stehen in
- * `kalender_eintrag`; Schichten, Projektenden, Vergabe-, Freigabe- und
- * Anfragefristen liest der Dienst dort, wo sie leben. Eine im Dienstplan
+ * **Er zeigt sieben Quellen und besitzt eine.** Termine stehen in
+ * `kalender_eintrag`; Schichten, Bewerbungsgespräche, Projektenden, Vergabe-,
+ * Freigabe- und Anfragefristen liest der Dienst dort, wo sie leben. Eine im Dienstplan
  * verschobene Schicht ist deshalb hier verschoben, ohne dass jemand den
  * Kalender angefasst hätte — und es gibt keine zweite Wahrheit darüber, wann
  * jemand arbeitet.
@@ -39,7 +39,7 @@ import { QuellenPill, quellenWort } from './QuellenPill';
 export const dynamic = 'force-dynamic';
 
 const QUELLEN: readonly Quelle[] = [
-  'termin', 'einsatz', 'projekt', 'vergabe', 'freigabe', 'lead',
+  'termin', 'einsatz', 'gespraech', 'projekt', 'vergabe', 'freigabe', 'lead',
 ];
 
 const WOCHENTAGE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'] as const;

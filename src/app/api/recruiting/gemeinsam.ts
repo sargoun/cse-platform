@@ -58,6 +58,22 @@ export interface HandlerErgebnis {
 
 export interface Lauf {
   readonly recht: string;
+  /**
+   * Weitere Rechte, die DIESELBE Handlung verlangt.
+   *
+   * **Ein Tor am Bildschirm ist kein Tor.** `POST /api/recruiting/gespraeche`
+   * bewachte `recruiting.bewerbung_lesen` und verliess sich fuer
+   * `kalender.schreiben` darauf, dass die Seite das Formular sonst nicht
+   * zeigt. Eine Anfrage an die Route geht aber gar nicht durch die Seite:
+   * `mandantTor` laeuft nie, und wer gleichen Ursprungs POSTet, legt den
+   * Termin ohne das zweite Recht an. Gemeldet hat das die Copilot-Runde auf
+   * PR 16.
+   *
+   * Sichtbarkeit und Erlaubnis sind zwei Fragen. Die Seite beantwortet die
+   * erste (AUT-06: kein Knopf, den man nicht druecken darf), die Route die
+   * zweite — und die zweite ist die, an der es haengt.
+   */
+  readonly weitereRechte?: readonly string[];
   readonly handle: (
     kontext: SchreibKontext, rumpf: Rumpf,
   ) => Promise<string | HandlerErgebnis>;
@@ -91,8 +107,11 @@ export async function fuehreRecruitingAus(
   try {
     const { ergebnis, slug } = await (db().begin(
       async (tx: postgres.TransactionSql) => withTenant(tx, sitzung, async (kontext) => {
-        await authorize(sitzung, { recht: lauf.recht, schreibend: true },
-          rechtepruefer(kontext.abfrage.bind(kontext)));
+        const pruefer = rechtepruefer(kontext.abfrage.bind(kontext));
+        await authorize(sitzung, { recht: lauf.recht, schreibend: true }, pruefer);
+        for (const weiteres of lauf.weitereRechte ?? []) {
+          await authorize(sitzung, { recht: weiteres, schreibend: true }, pruefer);
+        }
         const [m] = await kontext.abfrage<{ slug: string }>(
           `select m.slug from mandant m where m.id = app.aktiver_mandant()`);
         const e = await lauf.handle(kontext, rumpf);
