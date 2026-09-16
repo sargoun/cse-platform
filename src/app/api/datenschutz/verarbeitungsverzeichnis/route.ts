@@ -1,6 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { db } from '@/server/db/pool';
+import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
@@ -22,8 +22,18 @@ import {
  * wäre eine dritte Kopie, die ab dem Abruf veraltet — genau das Problem,
  * gegen das diese Seite gebaut ist.
  *
- * **Jeder Abruf steht im Protokoll**, wie bei ACC-10: wer das Verzeichnis
+ * **Jeder DOWNLOAD steht im Protokoll**, wie bei ACC-10: wer das Verzeichnis
  * seines Mandanten gezogen hat, ist selbst eine Auskunft.
+ *
+ * **Der Seitenaufruf nicht — und das ist die Regel des Hauses, keine Lücke.**
+ * Hier stand „jeder Abruf"; die Seite daneben protokolliert aber nichts, und
+ * keine einzige Portalseite dieses Baums tut es. Protokolliert wird, was ein
+ * Artefakt erzeugt: eine Datei, die das System verlässt und danach ein eigenes
+ * Leben führt. Ein Seitenaufruf, der eine Protokollzeile schreibt, wäre die
+ * einzige seiner Art, und das Prüfprotokoll füllte sich mit Aufrufen statt mit
+ * Vorgängen — SEC-A9 fragt, wer WAS GEÄNDERT hat. Gemeldet hat die Abweichung
+ * zwischen Zusage und Code die Copilot-Runde auf PR 17; berichtigt wurde die
+ * Zusage, nicht die Regel.
  */
 export const dynamic = 'force-dynamic';
 
@@ -44,7 +54,20 @@ export async function GET(anfrage: NextRequest): Promise<NextResponse> {
   const format = formatRoh as Format;
 
   try {
-    const v = await (db().begin(async (tx: postgres.TransactionSql) =>
+    /*
+     * **Derselbe Schnappschuss wie die Seite.** Der Abruf liest nacheinander
+     * `mandant`, die Aufbewahrungsregeln und eine Plattformeinstellung; unter
+     * `read committed` sieht jede dieser Lesungen den Stand ihres eigenen
+     * Augenblicks. Aendert jemand dazwischen eine Regel, entstuende EIN
+     * Dokument aus ZWEI Staenden — und die Pruefsumme darunter bezeugte es als
+     * einen. Genau der Fehler, den D-589 im Hash behoben hat, eine Ebene
+     * tiefer. Gemeldet von der Copilot-Runde auf PR 17.
+     *
+     * `repeatable read` erlaubt die Protokollzeile weiterhin: die Transaktion
+     * liest nicht nur, sie schreibt einen Eintrag — das ist kein Widerspruch,
+     * `repeatable read` friert die LESESICHT ein, nicht das Schreiben.
+     */
+    const v = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzung, async (kontext) => {
         /*
          * Dasselbe Recht wie die Seite (`routen.generiert.ts`): wer die

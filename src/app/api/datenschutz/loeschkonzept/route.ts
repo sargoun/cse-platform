@@ -1,6 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { db } from '@/server/db/pool';
+import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
@@ -18,8 +18,8 @@ import {
  * Löschkonzept zum Mitnehmen (LEG-09, Phase 10).
  *
  * Dieselbe Form wie das Verarbeitungsverzeichnis daneben, und aus denselben
- * Gründen: kein PDF (es wird fortgeschrieben, nicht archiviert), jeder Abruf
- * im Protokoll. Es beschreibt Löschungen und führt keine aus.
+ * Gründen: kein PDF (es wird fortgeschrieben, nicht archiviert), jeder
+ * DOWNLOAD im Protokoll. Es beschreibt Löschungen und führt keine aus.
  */
 export const dynamic = 'force-dynamic';
 
@@ -41,7 +41,20 @@ export async function GET(anfrage: NextRequest): Promise<NextResponse> {
 
   try {
     const jobs = alleJobs(pool());
-    const v = await (db().begin(async (tx: postgres.TransactionSql) =>
+    /*
+     * **Derselbe Schnappschuss wie die Seite.** Der Abruf liest nacheinander
+     * `mandant`, die Aufbewahrungsregeln und eine Plattformeinstellung; unter
+     * `read committed` sieht jede dieser Lesungen den Stand ihres eigenen
+     * Augenblicks. Aendert jemand dazwischen eine Regel, entstuende EIN
+     * Dokument aus ZWEI Staenden — und die Pruefsumme darunter bezeugte es als
+     * einen. Genau der Fehler, den D-589 im Hash behoben hat, eine Ebene
+     * tiefer. Gemeldet von der Copilot-Runde auf PR 17.
+     *
+     * `repeatable read` erlaubt die Protokollzeile weiterhin: die Transaktion
+     * liest nicht nur, sie schreibt einen Eintrag — das ist kein Widerspruch,
+     * `repeatable read` friert die LESESICHT ein, nicht das Schreiben.
+     */
+    const v = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzung, async (kontext) => {
         /*
          * Dasselbe Recht wie die Seite (`routen.generiert.ts`) und wie das

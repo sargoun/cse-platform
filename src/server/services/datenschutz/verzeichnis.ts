@@ -127,9 +127,20 @@ export function fristText(
       return `${String(regel.jahre)} Jahre (Klasse „${k}", ${regel.grundlage}${platzhalter})`;
     }
     case 'einstellung':
+      /*
+       * **Plattformweit, und das steht jetzt dran.** `app.plattform_einstellung`
+       * kennt keinen Mandanten — jede Gesellschaft bekommt dieselbe Zahl. Der
+       * Satz sagte „für diese Gesellschaft" und behauptete damit eine
+       * Konfiguration, die gar nicht gelesen wurde; O-373 hält ausdrücklich
+       * fest, dass die Zahl dem Mandanten GEHÖREN soll. Bis dahin ist sie eine
+       * Vorgabe der Plattform, und ein Verzeichnis, das eine Vorgabe als
+       * Entscheidung der Gesellschaft ausgibt, ist an genau der Stelle falsch,
+       * an der eine Aufsicht nachfragt. Gemeldet von der Copilot-Runde auf PR 17.
+       */
       return tageBewerbung === null
-        ? `Aus „${v.fristQuelle.schluessel}" — für diese Gesellschaft nicht gesetzt (O-373)`
-        : `${String(tageBewerbung)} Tage ab Eingang (${v.fristQuelle.schluessel}, O-373)`;
+        ? `Aus „${v.fristQuelle.schluessel}" — plattformweit nicht gesetzt (O-373)`
+        : `${String(tageBewerbung)} Tage ab Eingang — plattformweite Vorgabe `
+          + `(${v.fristQuelle.schluessel}), noch nicht je Gesellschaft entschieden (O-373)`;
     case 'offen':
     default:
       return `Noch nicht entschieden — ${v.fristQuelle.frage}`;
@@ -317,8 +328,24 @@ export async function erstelleVerarbeitungsverzeichnis(
           ['Mandantentrennung',
             'Jede Tabelle trägt `mandant_id` mit aktivierter RLS; der aktive Mandant '
             + 'kommt aus der Serversitzung, nie aus der Adresse (Invariante 3)'],
+          /*
+           * **Hier stand eine Zusage, die der Code nicht haelt.** „Verwaltende
+           * Rollen erreichen ihre Bereiche nur mit AAL2" — dieses Verzeichnis
+           * selbst ist mit `aal2: false` eingetragen, und `system.
+           * einstellung_lesen` verlangt keinen zweiten Faktor. Eine AAL1-Sitzung
+           * mit diesem Recht bekommt das Dokument. Eine falsche Angabe unter
+           * Art. 32 ist schlimmer als eine fehlende: sie steht vor einer
+           * Aufsicht und ist nachpruefbar. Gemeldet von der Copilot-Runde auf
+           * PR 17; genannt wird jetzt, was DREI Routen und eine Funktion
+           * wirklich erzwingen.
+           */
           ['Zweiter Faktor',
-            'Verwaltende Rollen erreichen ihre Bereiche nur mit AAL2 (AUT-02)'],
+            'Ein Konto mit verwaltender Rolle muss ihn hinterlegt haben; die '
+            + 'Anmeldung meldet die Pflicht und die Sitzung bleibt sonst '
+            + 'unvollständig (AUT-02). Super-Admin-Rechte gelten ausschliesslich '
+            + 'in einer AAL2-Sitzung, und Rollenmatrix wie Modulbuchung verlangen '
+            + 'AAL2 an der Route (K-15). Andere verwaltende Bildschirme — dieses '
+            + 'Verzeichnis eingeschlossen — stehen einer AAL1-Sitzung offen'],
           ['Private Ablage',
             'Dateien liegen in privaten Buckets; Zugriff nur über signierte, '
             + 'befristete Adressen (SEC-A6, DOC-03)'],

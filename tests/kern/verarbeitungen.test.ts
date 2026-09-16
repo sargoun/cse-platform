@@ -23,7 +23,9 @@ import {
   VERARBEITUNGEN, BETROFFENE_LABEL, verarbeitung,
 } from '../../src/server/registry/verarbeitungen.js';
 import { AUFTRAGSVERARBEITER } from '../../src/server/registry/auftragsverarbeiter.js';
-import { QUERSCHNITT, GEWERK_FUER_MODUL } from '../../src/server/registry/modul.js';
+import {
+  QUERSCHNITT, GEWERK_FUER_MODUL, modulAktiv,
+} from '../../src/server/registry/modul.js';
 import { KATEGORIEN } from '../../src/server/services/dokument/kategorie.js';
 
 const ENTSCHEIDUNGEN = readFileSync(
@@ -113,6 +115,64 @@ describe('das Register der Verarbeitungstätigkeiten (Art. 30, LEG-09)', () => {
       .not.toMatch(/^\s*(readonly\s+)?rechtsgrundlage\w*\s*[?:]/imu);
     expect(ohneKommentare, 'ein Verweis auf Art. 6 als Angabe der Tätigkeit')
       .not.toMatch(/(readonly\s+)?art6|artikel6/iu);
+  });
+
+  /**
+   * **`gesetz` heisst: ein Gesetz sagt es, und zwar dieses hier.**
+   *
+   * `V-09` trug `art: 'gesetz'` mit dem Text „Unveränderlich; Löschung nur über
+   * das Löschkonzept". Das nennt kein Gesetz und keine Frist — es beschreibt,
+   * WIE gelöscht wird, nicht WANN. `fristText` behandelt `gesetz` aber als
+   * entschieden und traegt die Zeile nicht unter „Offen" ein; das Verzeichnis
+   * gab eine unentschiedene Aufbewahrung als geklärt aus. Genau das, wogegen
+   * sein Abschnitt 8 geschrieben ist.
+   *
+   * Eine Fundstelle ist deshalb Pflicht. Wer keine hat, hat `offen` — das ist
+   * keine Schwäche des Verzeichnisses, sondern seine Zusage.
+   */
+  it('eine gesetzliche Frist nennt ihre Fundstelle — sonst ist sie keine', () => {
+    const ohne = VERARBEITUNGEN
+      .filter((v) => v.fristQuelle.art === 'gesetz')
+      .filter((v) => !/§|Art\.\s*\d/u.test((v.fristQuelle as { readonly text: string }).text))
+      .map((v) => v.nummer);
+    expect(ohne, 'eine Frist ohne Paragraf ist nicht gesetzlich, sondern unentschieden')
+      .toEqual([]);
+  });
+
+  /**
+   * **Der Modulfilter ist heute wirkungslos — und das darf nicht stillschweigend
+   * so bleiben.** Alle zwölf Tätigkeiten haengen an Querschnittsmodulen oder an
+   * einem, das keiner Gewerkstabelle zugeordnet ist; `modulAktiv` antwortet fuer
+   * beide `true`. Ein Integrationsfall, der zaehlt, wie viele Tätigkeiten
+   * herauskommen, prueft die Filterung also gar nicht — er waere gruen, ob sie
+   * laeuft oder nicht. Gemeldet von der Copilot-Runde auf PR 17.
+   *
+   * Dieser Fall ist die Stolperdrahtleitung: kommt eine gewerkgebundene
+   * Tätigkeit dazu, wird er rot und verlangt einen echten Fall gegen die
+   * Datenbank.
+   */
+  it('keine Tätigkeit haengt heute an einem Gewerk — sonst braucht es einen echten Fall', () => {
+    const ohneBuchung = { module: [] as readonly string[], gepflegt: true };
+    const gefiltert = VERARBEITUNGEN
+      .filter((v) => !modulAktiv(ohneBuchung, `${v.modul}.lesen`))
+      .map((v) => `${v.nummer} (${v.modul})`);
+    expect(gefiltert,
+      'diese Taetigkeit wird gefiltert — `verarbeitungsverzeichnis.test.ts` braucht dafuer '
+      + 'einen Fall, der eine Gesellschaft OHNE dieses Gewerk prueft').toEqual([]);
+  });
+
+  /**
+   * **Und der Filter selbst greift — an einem Modul, das wirklich an einem
+   * Gewerk haengt.** Ohne diesen Gegenbeweis koennte `modulAktiv` schlicht immer
+   * `true` liefern und der Fall darueber bliebe trotzdem gruen.
+   */
+  it('ein gewerkgebundenes Modul faellt ohne die Buchung heraus', () => {
+    const [gewerkModul] = Object.keys(GEWERK_FUER_MODUL);
+    expect(gewerkModul, 'ohne eine Gewerkzuordnung prueft der Fall darueber nichts')
+      .toBeDefined();
+    expect(modulAktiv({ module: [], gepflegt: true }, `${gewerkModul!}.lesen`)).toBe(false);
+    expect(modulAktiv({ module: [GEWERK_FUER_MODUL[gewerkModul!]!], gepflegt: true },
+      `${gewerkModul!}.lesen`)).toBe(true);
   });
 
   it('`verarbeitung()` findet über die Nummer und sagt sonst nichts', () => {

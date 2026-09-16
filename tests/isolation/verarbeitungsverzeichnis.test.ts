@@ -89,14 +89,27 @@ describe('das Verzeichnis beschreibt die Gesellschaft, in der es abgerufen wird'
    * **Was nicht gebucht ist, steht nicht drin.** Die Gewerke entscheiden, und
    * `modulAktiv` beantwortet die Frage hier genauso wie in der Navigation.
    */
-  it('eine Gesellschaft ohne Gewerk führt keine Gewerkstätigkeit auf', async () => {
+  /**
+   * **Dieser Fall prüft die Buchung, NICHT die Filterung** — und der Kommentar
+   * sagte einmal das Gegenteil.
+   *
+   * Er behauptete, die volle Zahl sei „zugleich die Gegenprobe". Sie ist keine:
+   * alle zwölf Tätigkeiten hängen an Querschnittsmodulen oder an einem ohne
+   * Gewerkzuordnung, und `modulAktiv` antwortet für beide `true`. Die Zahl
+   * stimmt also, ob gefiltert wird oder nicht — grün ohne Aussage, genau die
+   * Sorte Prüfung, vor der D-580 warnt. Gemeldet von der Copilot-Runde auf PR 17.
+   *
+   * Bewiesen wird hier nur, dass eine leer gebuchte Gesellschaft ihre
+   * Querschnittstätigkeiten behält. Dass die Filterung wirkt, prüft
+   * `verarbeitungen.test.ts` an einem wirklich gewerkgebundenen Modul; und der
+   * Stolperdraht dort wird rot, sobald eine gewerkgebundene Tätigkeit dazukommt
+   * — dann gehört hierher ein Fall gegen eine Gesellschaft ohne dieses Gewerk.
+   */
+  it('eine leer gebuchte Gesellschaft behält ihre Querschnittstätigkeiten', async () => {
+    await sql.unsafe(
+      `update mandant set module = '{}', module_gepflegt = true where id = $1`, [f.reinigung]);
     const v = await alsApp(sitzung(), (tx) =>
       erstelleVerarbeitungsverzeichnis(kontextAus(tx), JETZT));
-    /*
-     * Alle zwölf Tätigkeiten hängen heute an Querschnittsmodulen — das ist
-     * der Sollzustand und zugleich die Gegenprobe: käme eine gewerkgebundene
-     * dazu, ohne dass dieser Fall sie sieht, wäre die Filterung tot.
-     */
     expect(v.taetigkeiten.length).toBe(VERARBEITUNGEN.length);
     expect(v.taetigkeiten.map((t) => t.nummer)).toContain('V-01');
   });

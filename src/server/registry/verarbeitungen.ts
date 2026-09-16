@@ -237,7 +237,17 @@ export const VERARBEITUNGEN: readonly Verarbeitung[] = [
       'Fotos, wo sie zum Eintrag gehören',
     ],
     besondereKategorien: null,
-    fristQuelle: { art: 'gesetz', text: 'Unveränderlich; Löschung nur über das Löschkonzept' },
+    /*
+     * **Hier stand `gesetz`, und es war keines.** „Unveränderlich; Löschung nur
+     * über das Löschkonzept" nennt kein Gesetz und keine Frist — es beschreibt,
+     * WIE gelöscht wird, nicht WANN. `fristText` behandelt `gesetz` aber als
+     * entschieden und traegt die Zeile nicht unter „Offen" ein. Das Verzeichnis
+     * gab damit eine unentschiedene Aufbewahrung als geklärt aus — genau das,
+     * wogegen sein Abschnitt 8 geschrieben ist. Gemeldet von der Copilot-Runde
+     * auf PR 17; `verarbeitungen.test.ts` verlangt jetzt bei `gesetz` eine
+     * Fundstelle, damit es nicht wiederkommt.
+     */
+    fristQuelle: { art: 'offen', frage: 'O-514' },
     empfaenger: ['supabase', 'vercel'],
     spec: ['SEC-05', 'CLN-04', 'BAU-05', 'LEG-01'],
   },
