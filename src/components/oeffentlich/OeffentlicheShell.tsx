@@ -3,6 +3,7 @@ import { shellTexte } from '@/lib/i18n/texte';
 import { GesellschaftsWahl } from './GesellschaftsWahl';
 import { Logo, Marke } from '@/components/marke/Marke';
 import { EIGENNAME, SPRACHEN, mitSprache, type Sprache } from '@/lib/sprache';
+import { berlinKalendertag } from '@/server/services/zeit/dauer';
 
 /**
  * Die oeffentliche Shell — Kopf 72px, Fussbereich, Markenavatar-Reihe (PUB-14).
@@ -84,8 +85,18 @@ export function OeffentlicheShell(
   OeffentlicheShellProps,
 ) {
   const t = shellTexte(sprache);
-  /* Das Jahr der Serveruhr — eine Fusszeile ist kein Zeiteintrag (Invariante 5 gilt Diensten). */
-  const jahr = new Date().getFullYear();
+  /*
+   * **Das Jahr in BERLINER Zeit, nicht in der des Servers** (Invariante 2).
+   *
+   * Hier stand `new Date().getFullYear()` mit dem Vermerk „eine Fusszeile ist
+   * kein Zeiteintrag". Das stimmt — und trotzdem war es falsch: der Server
+   * läuft in UTC, und zwischen 00:00 und 01:00 Berliner Zeit am Neujahrstag
+   * ist dort noch der 31. Dezember. Eine Stunde im Jahr stünde im Impressum
+   * das alte Jahr. Eine Stunde ist wenig; ein Copyright-Vermerk mit dem
+   * falschen Jahr ist trotzdem eine falsche Angabe, und die Regel lautet
+   * „angezeigt wird Europe/Berlin" ohne Ausnahme für Kleinigkeiten.
+   */
+  const jahr = Number(berlinKalendertag(new Date()).slice(0, 4));
   return (
     <div className="flex min-h-dvh flex-col bg-ink">
       {/*
