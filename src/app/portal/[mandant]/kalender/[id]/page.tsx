@@ -8,7 +8,6 @@ import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { MandantAntwort, mandantTor } from '../../../unterseite';
-import { kennungOder404 } from '../../../kennung';
 
 /**
  * `/portal/[mandant]/kalender/[id]` — ein Termin (CAL-01).
@@ -85,7 +84,21 @@ export default async function Termin({ params }: {
   params: Promise<{ mandant: string; id: string }>;
 }) {
   const { mandant, id } = await params;
-  kennungOder404(id);
+  /*
+   * **Hier steht mit Absicht KEIN `kennungOder404`.**
+   *
+   * Es stand hier, und es hat eine Zusage dieser Seite gebrochen: „ein
+   * fremder oder erfundener Termin ist eine Auskunft, kein Fehler". Eine
+   * Kennung, die gar keine UUID ist, ist von aussen nicht davon zu
+   * unterscheiden, dass der Termin einer anderen Gesellschaft gehört — und
+   * genau diese Ununterscheidbarkeit ist AUT-06. Ein 404 daraus zu machen
+   * hiesse, zwei Fälle verschieden zu beantworten, die gleich aussehen
+   * müssen.
+   *
+   * Vor dem Datenbankfehler schützt diese Seite selbst: die Abfrage unten
+   * läuft nur bei gültiger Kennung und antwortet sonst `null` — womit der
+   * Hinweis „Diesen Termin gibt es nicht" erscheint, der hier hingehört.
+   */
   /*
    * Der KONKRETE Pfad, nicht das Routenmuster -- wie auf jeder anderen
    * Detailseite (`angebote/[id]` und die uebrigen). `zugang.pfad` wird zum

@@ -137,6 +137,60 @@ describe('eine Entscheidung verlangt einen Menschen (REC-08, Art. 22 DSGVO)', ()
   });
 });
 
+describe('der öffentliche Eingang schreibt und liest nicht (REC-03)', () => {
+  /**
+   * **Der Befund, den dieser Fall festhält.** `nimmBewerbungAn` schrieb
+   * `insert … returning id`. Die Einfügung ist erlaubt
+   * (`t_bewerbung_eingang`), das LESEN der zurückgegebenen Zeile nicht — der
+   * Eingangsprinzipal hat kein `recruiting.bewerbung_lesen`, und das ist
+   * Absicht: wer ein Formular abschickt, darf nicht daraufhin die
+   * Bewerbungen der anderen lesen.
+   *
+   * Postgres meldet das als `new row violates row-level security policy` —
+   * eine Meldung, die auf die Einfügung zeigt und das Lesen meint. Jede
+   * Bewerbung über die Karriereseite endete damit in einem 500, und die
+   * Meldung schickte die Suche in die falsche Richtung.
+   *
+   * Die Kennung entsteht deshalb in der Anwendung, wie bei der
+   * Formularannahme (0015).
+   */
+  it('einfügen ja, zurückgeben nein — die Kennung kommt aus der Anwendung', async () => {
+    const eingang = await legeKontoAn(f.reinigung, 'mitarbeiter');
+    const id = '11111111-2222-3333-4444-555555555555';
+
+    await alsApp(
+      {
+        scope: 'mandant', mandantId: f.reinigung, benutzerId: eingang,
+        readonly: false, portal: 'intern',
+      },
+      (tx) => tx.unsafe(
+        `insert into bewerbung (id, mandant_id, quelle, name, email, aufbewahrung_bis)
+         values ($1::uuid, $2::uuid, 'initiativ', 'Probe',
+                 'probe@example.test', (app.berlin_heute() + 180))`,
+        [id, f.reinigung]));
+
+    /* Angekommen ist sie — nachgesehen als Eigentümer, nicht als Eingang. */
+    const da = await alsRolle('', (tx) => tx.unsafe(
+      `select id from bewerbung where id = $1::uuid`, [id]));
+    expect(da).toHaveLength(1);
+  });
+
+  it('und `returning` schlägt fehl — genau das war der Befund', async () => {
+    const eingang = await legeKontoAn(f.reinigung, 'mitarbeiter');
+    await expect(alsApp(
+      {
+        scope: 'mandant', mandantId: f.reinigung, benutzerId: eingang,
+        readonly: false, portal: 'intern',
+      },
+      (tx) => tx.unsafe(
+        `insert into bewerbung (mandant_id, quelle, name, email, aufbewahrung_bis)
+         values ($1::uuid, 'initiativ', 'Probe', 'probe2@example.test',
+                 (app.berlin_heute() + 180))
+         returning id`,
+        [f.reinigung]))).rejects.toMatchObject({ code: '42501' });
+  });
+});
+
 describe('die Mandantenwand trägt auch für Bewerbungen (Invariante 3)', () => {
   it('die Nachbargesellschaft sieht die Bewerbung nicht', async () => {
     await bewerbungAnlegen(f.reinigung, 30);

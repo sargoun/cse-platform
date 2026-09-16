@@ -11869,3 +11869,104 @@ Lehre tragen:
 
 | Betrifft | DESIGN §8, D-565, `globals.css`, `PortalShell`, `OeffentlicheShell`, `DataTable`, `abmessungen.spec.ts` |
 |---|---|
+
+### D-570 · Recruiting — und vier Befunde, die erst der Browser fand
+
+Phase 9, REC-01…REC-09: Stellen, Bewerbungen, Kandidaten mit Rangfolge,
+Gespräche, Löschfristen, Karriereseite. Schema `0166`, 15 Portalseiten, fünf
+öffentliche Seiten, vier schreibende Routen, ein Nachtlauf.
+
+**Die Punktzahl rechnet eine reine Funktion.** `rangfolge.ts` arbeitet in
+ganzzahligen Zehnteln, rundet kaufmännisch und gibt bei Gleichstand denselben
+Rang (1, 2, 2, 4). Ein gewichtetes Mittel in Gleitkomma kann bei gleichen
+Eingaben verschiedene Ergebnisse liefern, und an dieser Zahl hängt eine
+Reihenfolge von Menschen. Die Rangliste läuft deshalb auch in TypeScript und
+nicht als `sum(…)` in einer Abfrage, die niemand einzeln testen kann.
+
+**Keine Jobbörse ist verbunden, und jede sagt warum** (O-374). Ein Versuch wird
+vermerkt und schlägt fehl; es gibt keinen Demo-Erfolg (D-02, R-17).
+
+**Die Aufbewahrungsfrist ist ein Platzhalter** (O-373), 180 Tage, als
+`plattform_einstellung` mit `ist_vorlaeufig`. Der Nachtlauf löscht die Nutzlast
+und anonymisiert die Bewerbung; eine Löschsperre hält und wird gezählt.
+
+#### Die vier Befunde
+
+**1. `app.akteur_typ` als Riegel — ein Zaun, den man durch Weglassen übersteigt.**
+Der Auslöser für REC-08 fragte `akteur_typ <> 'mensch'`. Gefunden hat das
+`unveraenderbarkeit.test.ts`, dessen Regel lautet: keine Funktion, die eine
+Policy aufruft, nennt `app.akteur_typ` — die GUC setzt der Aufrufer selbst, sie
+dient dem PROTOKOLL und nichts sonst. Ein Weg, der sie einfach nicht auf
+`agent` setzt, wäre durchgekommen, ohne den Riegel zu berühren. Geprüft wird
+jetzt, was die Datenbank wirklich weiss: `entschieden_von` muss der angemeldete
+Benutzer sein — keine Entscheidung im Namen eines anderen, kein Eintrag ohne
+Sitzung. Art. 22 DSGVO ruht damit auf dem Recht, dieser Zeile und Invariante 7,
+und auf keiner Zeichenkette in einer Sitzungsvariablen.
+
+**2. Der Nachtlauf hätte jede Nacht abgebrochen.** `cse_job` hatte kein Recht
+auf `bewerbung_bewertung`, `kandidat`, `gespraech` und
+`einstellungsentscheidung` — `permission denied`. Ausserdem war das Anonymisieren
+der Bewerbung allein keine Löschung: eine Bewertungsbegründung ist ein Satz
+ÜBER einen Menschen. Beides fand die Isolationssuite beim ersten Lauf.
+
+**3. Die Stellenliste zeigte fremde Gesellschaften.** `t_stelle_oeffentlich`
+gibt jede veröffentlichte Stelle frei, ohne Mandantenbedingung — richtig für
+die Karriereseite, und Policies sind permissiv und **ODERn sich**. Damit stand
+in `/portal/reinigung/recruiting/stellen` die veröffentlichte Stelle jeder
+Gesellschaft. Kein Geheimnis war offen (eine veröffentlichte Stelle ist
+öffentlich), die Liste war falsch — und der erste Klick darauf führte in einen
+Fremdmandanten, wo der nächste Schreibvorgang am Fremdschlüssel zerbrach. Jede
+Abfrage dieses Moduls nennt ihren Mandanten jetzt selbst. Das ist Invariante 3,
+wörtlich: *RLS ist die zweite Verteidigungslinie, nie die einzige.*
+
+**4. `insert … returning` auf dem öffentlichen Eingang.** Die Einfügung ist
+erlaubt, das Lesen der zurückgegebenen Zeile nicht — der Eingangsprinzipal hat
+mit Absicht kein `recruiting.bewerbung_lesen`. Postgres meldet das als
+`new row violates row-level security policy`: eine Meldung, die auf die
+Einfügung zeigt und das Lesen meint. **Jede Bewerbung über die Karriereseite
+endete in einem 500.** Die Kennung entsteht jetzt in der Anwendung, wie bei der
+Formularannahme (0015).
+
+Dazu ein fünfter, kleinerer: der Veröffentlichungsversuch schrieb seinen
+Vermerk und **warf** danach — die Transaktion rollte zurück, und der Versuch,
+den morgen jemand sucht, hatte nie stattgefunden, während der Kommentar
+daneben das Gegenteil behauptete. Ein Handler gibt seinen Misserfolg jetzt
+zurück, statt ihn zu werfen; die 409 bildet das Gerüst danach.
+
+**Was diese fünf verbindet:** keiner war im Quelltext zu sehen, und keiner
+hätte ein Typ- oder Lint-Werkzeug erreicht. Drei fand die Isolationssuite an
+echtem Postgres, zwei der Browserlauf beim ersten Klick auf die erste Zeile
+einer Liste.
+
+| Betrifft | REC-01…REC-09, LEG-11, LEG-12, Art. 22 DSGVO, `0166`, O-373, O-374, O-375, D-02, R-17 |
+|---|---|
+
+### D-571 · 27 Umleitungen gegen die Adresse des Servers
+
+`NextRequest.nextUrl` trägt die Adresse, unter der der SERVER die Anfrage
+angenommen hat — nicht die, die im Browser steht. D-562 hat das für die
+CSRF-Schranke behoben; dieselbe Zeile stand noch in **27 weiteren Dateien**,
+diesmal als Ziel einer Umleitung:
+
+```ts
+NextResponse.redirect(new URL(`/portal/${slug}/…`, anfrage.nextUrl.origin), 303)
+```
+
+Hinter einem Proxy, einem Tunnel oder unter einer anderen Adresse schickt das
+den Menschen nach dem Absenden eines Formulars auf einen Wirt, den er nie
+aufgerufen hat. Beendet der Proxy TLS, steht dort ausserdem `http` — der
+Rückweg aus dem Portal wäre ein Downgrade.
+
+Betroffen war jede Rechnungsroute, die Buchhaltung, die Freigaben, der Lead,
+die Kalkulation, der Auftrag, die Abrechnung, das Mahnwesen, der
+Raumbuch-Import und die Abmeldung. Alle auf `erwarteterUrsprung(anfrage)`
+umgestellt; die Ziele waren durchweg interne Pfade, die beiden mit einem
+`zurueck` aus dem Formular laufen ohnehin schon durch `sichererRueckweg`.
+
+**Eine Merge-Wache hält es fest** (`interner-ursprung`, sabotagegeprüft):
+`nextUrl.origin` und `nextUrl.host` stehen ab jetzt nur noch in
+`server/auth/ursprung.ts`. Wer sie anderswo braucht, braucht in Wahrheit
+`erwarteterUrsprung` oder `internesZiel`.
+
+| Betrifft | D-562, `server/auth/ursprung.ts`, `scripts/guards/run-all.ts`, 27 Routen |
+|---|---|

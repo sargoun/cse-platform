@@ -5,7 +5,7 @@ import {
 import {
   BOERSEN, BoerseNichtVerbundenFehler, boersenPort, type Boerse,
 } from '@/server/versand/stellenboerse';
-import { fuehreRecruitingAus } from '../../../gemeinsam';
+import { fuehreRecruitingAus, type HandlerErgebnis } from '../../../gemeinsam';
 import { UUID } from '../../../../rumpf';
 
 /**
@@ -21,9 +21,9 @@ import { UUID } from '../../../../rumpf';
  * dieser Route.** Wer morgen fragt „warum steht die Stelle nicht bei der
  * Bundesagentur", findet hier die Antwort mit Zeitpunkt, statt sie zu erraten.
  * Deshalb ist der Fehler des Ports hier kein Abbruch: er wird gefangen,
- * festgehalten und DANN als 409 beantwortet — und weil beides in derselben
- * Transaktion läuft, gibt es keinen Zustand, in dem der Versuch stattfand und
- * der Vermerk fehlt.
+ * festgehalten und als ERGEBNIS zurückgegeben — nicht geworfen. Ein Wurf
+ * risse den Vermerk mit, denn die Transaktion rollte zurück; die Antwort 409
+ * bildet das Gerüst danach, wenn geschrieben ist.
  *
  * // TODO(client): O-374 — welche Jobbörse wird beauftragt, mit welchem
  * // Vertrag, und liegt für die Bundesagentur eine freigeschaltete
@@ -78,7 +78,18 @@ export async function POST(
         if (!(fehler instanceof BoerseNichtVerbundenFehler)) throw fehler;
         await vermerkeVeroeffentlichung(
           kontext, id, boerse, 'nicht_verbunden', fehler.message);
-        throw new RecruitingFehler(fehler.message, 'kanal_nicht_verbunden', 409);
+        /*
+         * **Zurückgeben, nicht werfen.** Ein Wurf hier risse den Vermerk mit:
+         * die Transaktion rollte zurück, und der Versuch, den morgen jemand
+         * sucht, hätte nie stattgefunden. Die erste Fassung tat genau das,
+         * während ihr eigener Kommentar das Gegenteil behauptete — gefunden
+         * hat es der Browserlauf mit einem 500.
+         */
+        const ergebnis: HandlerErgebnis = {
+          ergebnis: boerse,
+          fehler: { grund: 'kanal_nicht_verbunden', meldung: fehler.message, status: 409 },
+        };
+        return ergebnis;
       }
     },
     ziel: (slug) => `/portal/${slug}/recruiting/stellen/${id}/veroeffentlichung?gesendet=1`,

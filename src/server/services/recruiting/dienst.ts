@@ -8,6 +8,24 @@
  * Entscheidung auf einen benannten Menschen, und `veroeffentlichung.ts` führt
  * `nicht_verbunden` als ZUSTAND.
  */
+/**
+ * **Jede Abfrage nennt ihren Mandanten selbst** — auch dort, wo eine
+ * RLS-Policy es ohnehin täte.
+ *
+ * Das ist CLAUDE.md, Invariante 3: „RLS ist die zweite Verteidigungslinie, nie
+ * die einzige und nie abwesend." Der Grund dafür steht in dieser Datei als
+ * Befund: `t_stelle_oeffentlich` gibt jede VERÖFFENTLICHTE Stelle frei — ohne
+ * Mandantenbedingung, weil eine veröffentlichte Stelle auf der Karriereseite
+ * ohnehin öffentlich ist. Policies sind permissiv und ODERn sich: damit stand
+ * in `/portal/reinigung/recruiting/stellen` die veröffentlichte Stelle JEDER
+ * Gesellschaft. Kein Geheimnis war offen — die Liste war schlicht falsch, und
+ * der erste Klick darauf führte in einen Fremdmandanten, wo der nächste
+ * Schreibvorgang am Fremdschlüssel zerbrach.
+ *
+ * Gefunden hat das `tests/e2e/recruiting.spec.ts` mit einem Klick auf die
+ * erste Zeile der Liste.
+ */
+import { randomUUID } from 'node:crypto';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { rangfolge, type Kriterium, type Rangzeile } from './rangfolge.js';
 
@@ -57,14 +75,17 @@ const STELLE_FELDER = `
 
 export async function listeStellen(kontext: LeseKontext): Promise<readonly StelleZeile[]> {
   return kontext.abfrage<StelleZeile>(
-    `select ${STELLE_FELDER} from stelle s order by s.erstellt_am desc limit 200`);
+    `select ${STELLE_FELDER} from stelle s
+       where s.mandant_id = app.aktiver_mandant()
+       order by s.erstellt_am desc limit 200`);
 }
 
 export async function ladeStelle(
   kontext: LeseKontext, id: string,
 ): Promise<StelleZeile | null> {
   const [z] = await kontext.abfrage<StelleZeile>(
-    `select ${STELLE_FELDER} from stelle s where s.id = $1::uuid`, [id]);
+    `select ${STELLE_FELDER} from stelle s
+      where s.id = $1::uuid and s.mandant_id = app.aktiver_mandant()`, [id]);
   return z ?? null;
 }
 
@@ -147,21 +168,33 @@ export async function nimmBewerbungAn(
       'Name und eine lesbare E-Mail-Adresse sind Pflicht.', 'unvollstaendig', 400);
   }
   const tage = await aufbewahrungTage(kontext);
-  const [z] = await kontext.schreibe<{ id: string }>(
+  /*
+   * **Die Kennung entsteht hier und kommt nicht aus `returning`** — dieselbe
+   * Form wie bei der Formularannahme (`lead/annahme.ts`, 0015), und aus
+   * demselben Grund.
+   *
+   * `t_bewerbung_eingang` erlaubt dem Eingangsprinzipal das Einfuegen und
+   * ausdruecklich NICHT das Lesen („einfuegen ja, sehen nein"): wer ein
+   * Formular abschickt, darf nicht daraufhin die Bewerbungen der anderen
+   * lesen. `insert … returning` braucht aber eine Leseerlaubnis auf die
+   * zurueckgegebene Zeile — die Einfuegung ging durch und die RUECKGABE
+   * scheiterte, mit `new row violates row-level security policy`. Die Meldung
+   * zeigt auf die Einfuegung und meint das Lesen; gefunden hat es der
+   * Browserlauf, nachdem dieselbe Anweisung in `psql` ohne `returning`
+   * anstandslos lief.
+   */
+  const id = randomUUID();
+  await kontext.schreibe(
     `insert into bewerbung
-       (mandant_id, stelle_id, quelle, name, email, telefon, nachricht,
+       (id, mandant_id, stelle_id, quelle, name, email, telefon, nachricht,
         aufbewahrung_bis)
-     values ($1::uuid, $2::uuid,
-             case when $2::uuid is null then 'initiativ' else 'karriereseite' end::bewerbung_quelle,
-             $3, $4, $5, $6,
-             (current_date + ($7::int || ' days')::interval)::date)
-     returning id`,
-    [kontext.aktiverMandantId, neu.stelleId, neu.name.trim(), neu.email.trim().toLowerCase(),
-      neu.telefon ?? null, neu.nachricht ?? null, tage]);
-  if (z === undefined) {
-    throw new RecruitingFehler('Die Bewerbung wurde nicht angenommen.', 'abgewiesen', 403);
-  }
-  return z.id;
+     values ($1::uuid, $2::uuid, $3::uuid,
+             case when $3::uuid is null then 'initiativ' else 'karriereseite' end::bewerbung_quelle,
+             $4, $5, $6, $7,
+             (current_date + ($8::int || ' days')::interval)::date)`,
+    [id, kontext.aktiverMandantId, neu.stelleId, neu.name.trim(),
+      neu.email.trim().toLowerCase(), neu.telefon ?? null, neu.nachricht ?? null, tage]);
+  return id;
 }
 
 /**
@@ -227,7 +260,7 @@ export async function listeBewerbungen(
     `select ${BEWERBUNG_FELDER}
        from bewerbung b
        left join stelle s on s.id = b.stelle_id
-      where b.geloescht_am is null
+      where b.geloescht_am is null and b.mandant_id = app.aktiver_mandant()
       order by b.eingegangen_am desc
       limit 200`);
 }
@@ -239,7 +272,8 @@ export async function ladeBewerbung(
     `select ${BEWERBUNG_FELDER}
        from bewerbung b
        left join stelle s on s.id = b.stelle_id
-      where b.id = $1::uuid and b.geloescht_am is null`,
+      where b.id = $1::uuid and b.geloescht_am is null
+        and b.mandant_id = app.aktiver_mandant()`,
     [id]);
   return z ?? null;
 }
@@ -261,7 +295,7 @@ export async function leseBewertung(
     `select id, kriterium, gewicht, punkte, begruendung,
             erstellt_von_art::text as "erstelltVonArt", erstellt_am as "erstelltAm"
        from bewerbung_bewertung
-      where bewerbung_id = $1::uuid
+      where bewerbung_id = $1::uuid and mandant_id = app.aktiver_mandant()
       order by gewicht desc, kriterium`,
     [bewerbungId]);
 }
@@ -342,7 +376,7 @@ export async function rangliste(
     `select ${BEWERBUNG_FELDER}
        from bewerbung b
        left join stelle s on s.id = b.stelle_id
-      where b.geloescht_am is null
+      where b.geloescht_am is null and b.mandant_id = app.aktiver_mandant()
         and ($1::uuid is null or b.stelle_id = $1::uuid)
       order by b.eingegangen_am`,
     [stelleId ?? null]);
@@ -354,7 +388,7 @@ export async function rangliste(
   }>(
     `select bewerbung_id as "bewerbungId", kriterium, gewicht, punkte, begruendung
        from bewerbung_bewertung
-      where bewerbung_id = any($1::uuid[])
+      where bewerbung_id = any($1::uuid[]) and mandant_id = app.aktiver_mandant()
       order by gewicht desc, kriterium`,
     [zeilen.map((z) => z.id)]);
 
@@ -390,7 +424,7 @@ export async function leseVeroeffentlichungen(
             veroeffentlicht_am as "veroeffentlichtAm",
             externe_ref as "externeRef", meldung
        from stelle_veroeffentlichung
-      where stelle_id = $1::uuid
+      where stelle_id = $1::uuid and mandant_id = app.aktiver_mandant()
       order by boerse`,
     [stelleId]);
 }
@@ -452,7 +486,7 @@ export async function listeGespraeche(
        from gespraech g
        join bewerbung b on b.id = g.bewerbung_id
        left join stelle s on s.id = b.stelle_id
-      where b.geloescht_am is null
+      where b.geloescht_am is null and g.mandant_id = app.aktiver_mandant()
       order by g.termin desc
       limit 200`);
 }
@@ -465,7 +499,8 @@ export async function ladeGespraech(
        from gespraech g
        join bewerbung b on b.id = g.bewerbung_id
        left join stelle s on s.id = b.stelle_id
-      where g.id = $1::uuid and b.geloescht_am is null`,
+      where g.id = $1::uuid and b.geloescht_am is null
+        and g.mandant_id = app.aktiver_mandant()`,
     [id]);
   return z ?? null;
 }
@@ -528,19 +563,22 @@ export async function loeschStand(
   }>(
     `select id, name, aufbewahrung_bis::text as "aufbewahrungBis", loeschsperre
        from bewerbung
-      where geloescht_am is null and aufbewahrung_bis <= $1::date
+      where geloescht_am is null and mandant_id = app.aktiver_mandant()
+        and aufbewahrung_bis <= $1::date
       order by aufbewahrung_bis`,
     [stichtag]);
   const [n] = await kontext.abfrage<{ tag: string | null }>(
     `select min(aufbewahrung_bis)::text as tag
        from bewerbung
-      where geloescht_am is null and aufbewahrung_bis > $1::date`,
+      where geloescht_am is null and mandant_id = app.aktiver_mandant()
+        and aufbewahrung_bis > $1::date`,
     [stichtag]);
   const laeufe = await kontext.abfrage<{
     id: string; gelaufenAm: Date; geloescht: number; gesperrt: number;
   }>(
     `select id, gelaufen_am as "gelaufenAm", geloescht, gesperrt
        from bewerbung_loeschlauf
+      where mandant_id = app.aktiver_mandant()
       order by gelaufen_am desc
       limit 10`);
   return { faellig, naechste: n?.tag ?? null, laeufe };
@@ -598,7 +636,8 @@ export async function bedarf(
                       and z.entfernt_am is null)::int as fehlt,
               (e.beginn_zeitpunkt at time zone 'Europe/Berlin')::date as tag
          from einsatz e
-        where e.status <> 'storniert'
+        where e.mandant_id = app.aktiver_mandant()
+          and e.status <> 'storniert'
           and e.storniert_am is null
           and (e.beginn_zeitpunkt at time zone 'Europe/Berlin')::date
               between (select von from fenster) and (select bis from fenster)

@@ -58,6 +58,28 @@ describe('istKennung', () => {
   });
 });
 
+/**
+ * **Die eine Seite, die es ANDERS macht — und mit Recht.**
+ *
+ * `kalender/[id]` sagt zu: „ein fremder oder erfundener Termin ist eine
+ * Auskunft, kein Fehler" (AUT-06). Ein Termin einer anderen Gesellschaft und
+ * eine Kennung, die gar keine UUID ist, müssen von aussen gleich aussehen —
+ * sonst verrät die Antwort, was sie nicht zeigen darf. Ein `404` daraus zu
+ * machen beantwortete zwei ununterscheidbare Fälle verschieden.
+ *
+ * Sie prüft trotzdem, und das prüft diese Datei: die Abfrage läuft nur bei
+ * gültiger Kennung und antwortet sonst `null`, womit der Hinweis erscheint.
+ * Ungeprüft weitergereicht wird nichts — es endet nur woanders.
+ *
+ * Wer hier etwas einträgt, schreibt daneben, welche Zusage dieser Seite ein
+ * `404` brechen würde. Eine leere Begründung ist keine.
+ */
+const ANDERS_GEPRUEFT: Readonly<Record<string, string>> = {
+  'kalender/[id]/page.tsx':
+    'AUT-06: „gibt es nicht" und „gehört einer anderen Gesellschaft" müssen '
+    + 'gleich aussehen — die Seite zeigt beides als Hinweis, nicht als 404.',
+};
+
 describe('jede Seite mit einem Kennungsparameter prüft ihn', () => {
   it('es gibt überhaupt solche Seiten', () => {
     // Ohne diese Zusage liefe die Schleife unten über nichts und waere gruen.
@@ -67,6 +89,18 @@ describe('jede Seite mit einem Kennungsparameter prüft ihn', () => {
   for (const rel of MIT_KENNUNG) {
     it(rel, () => {
       const quelle = ohneKommentareMitTexten(readFileSync(join(WURZEL, rel), 'utf8'));
+      const grund = Object.entries(ANDERS_GEPRUEFT)
+        .find(([schluss]) => rel.endsWith(schluss))?.[1];
+      if (grund !== undefined) {
+        expect(grund.length, `${rel}: eine Ausnahme ohne Begründung ist keine`)
+          .toBeGreaterThan(30);
+        /* Geprüft wird sie trotzdem — nur eben selbst. */
+        expect(
+          /IST_UUID|istKennung/u.test(quelle),
+          `${rel} steht als Ausnahme in ANDERS_GEPRUEFT, prüft aber gar nichts.`,
+        ).toBe(true);
+        return;
+      }
       expect(
         quelle.includes('kennungOder404('),
         'Diese Seite reicht ihren Adressteil ungeprueft weiter — ein Segment, '
@@ -84,6 +118,7 @@ describe('die Prüfung steht VOR der ersten Abfrage', () => {
   for (const rel of MIT_KENNUNG) {
     it(rel, () => {
       const quelle = ohneKommentareMitTexten(readFileSync(join(WURZEL, rel), 'utf8'));
+      if (Object.keys(ANDERS_GEPRUEFT).some((schluss) => rel.endsWith(schluss))) return;
       const iTor = quelle.indexOf('kennungOder404(');
       const iErste = Math.min(
         ...['portalZugang(', 'mandantTor(', 'db()', 'withTenant(']

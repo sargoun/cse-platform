@@ -35,9 +35,32 @@ import { liesRumpf, type Rumpf } from '../rumpf';
  * den er nie aufgerufen hat (D-562).
  */
 
+/**
+ * Was ein Handler zurückgibt, wenn der Vorgang GESCHRIEBEN wurde und trotzdem
+ * schiefging.
+ *
+ * **Der Fall, der das nötig macht:** ein Versuch gegen eine unverbundene
+ * Jobbörse wird vermerkt (mit Datum und Grund) und schlägt fehl. Würde der
+ * Handler danach werfen, riss er den Vermerk mit — die Transaktion rollt
+ * zurück, und der Versuch, den morgen jemand sucht, hat nie stattgefunden.
+ * Genau das tat die erste Fassung, während ihr eigener Kommentar das
+ * Gegenteil behauptete.
+ *
+ * Also: schreiben, zurückgeben, festschreiben — und die Antwort danach aus
+ * `fehler` bilden. Ein JSON-Aufrufer bekommt seinen Status (R-17 verlangt 409
+ * für einen nicht verbundenen Kanal), ein Formular geht auf die Seite zurück,
+ * auf der der Vermerk jetzt steht.
+ */
+export interface HandlerErgebnis {
+  readonly ergebnis: string;
+  readonly fehler?: { readonly grund: string; readonly meldung: string; readonly status: number };
+}
+
 export interface Lauf {
   readonly recht: string;
-  readonly handle: (kontext: SchreibKontext, rumpf: Rumpf) => Promise<string>;
+  readonly handle: (
+    kontext: SchreibKontext, rumpf: Rumpf,
+  ) => Promise<string | HandlerErgebnis>;
   /** Wohin ein Formular danach zeigt — `slug` ist der Bereich. */
   readonly ziel: (slug: string, ergebnis: string) => string;
 }
@@ -65,12 +88,36 @@ export async function fuehreRecruitingAus(
         const [m] = await kontext.abfrage<{ slug: string }>(
           `select m.slug from mandant m where m.id = app.aktiver_mandant()`);
         const e = await lauf.handle(kontext, rumpf);
-        return { ergebnis: e, slug: m?.slug ?? '' };
-      }))) as { ergebnis: string; slug: string };
+        return {
+          ergebnis: typeof e === 'string' ? { ergebnis: e } : e,
+          slug: m?.slug ?? '',
+        };
+      }))) as { ergebnis: HandlerErgebnis; slug: string };
 
-    if (rumpf.json) return NextResponse.json({ ergebnis }, { status: 200 });
+    /*
+     * Geschrieben ist geschrieben — die Transaktion ist durch. Was jetzt noch
+     * kommt, ist die Antwort auf einen Vorgang, der stattgefunden hat.
+     */
+    if (ergebnis.fehler !== undefined) {
+      if (rumpf.json) {
+        return NextResponse.json(
+          { fehler: ergebnis.fehler.grund, meldung: ergebnis.fehler.meldung },
+          { status: ergebnis.fehler.status });
+      }
+      const zurueck = rumpf.felder['zurueck'];
+      const trenner = (zurueck ?? '').includes('?') ? '&' : '?';
+      return NextResponse.redirect(
+        internesZiel(
+          zurueck === undefined || zurueck === ''
+            ? null
+            : `${zurueck}${trenner}fehler=${encodeURIComponent(ergebnis.fehler.grund)}`,
+          lauf.ziel(slug, ergebnis.ergebnis), anfrage),
+        303);
+    }
+
+    if (rumpf.json) return NextResponse.json({ ergebnis: ergebnis.ergebnis }, { status: 200 });
     return NextResponse.redirect(
-      new URL(lauf.ziel(slug, ergebnis), erwarteterUrsprung(anfrage)), 303);
+      new URL(lauf.ziel(slug, ergebnis.ergebnis), erwarteterUrsprung(anfrage)), 303);
   } catch (fehler: unknown) {
     const antwort = fehlerantwort(fehler);
     if (antwort !== null) {
