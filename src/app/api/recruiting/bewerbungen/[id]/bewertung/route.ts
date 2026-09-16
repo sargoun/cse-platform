@@ -71,6 +71,26 @@ export async function POST(
             `„${kriterium}": Gewicht und Punkte müssen ganze Zahlen sein.`,
             'unbrauchbare_bewertung', 400);
         }
+        /*
+         * **Der Bereich wird HIER geprüft, nicht erst von der Datenbank.**
+         *
+         * `bewerbung_bewertung` trägt `gewicht between 0 and 100` und
+         * `punkte between 0 and 10` als CHECK. Ohne diese Zeilen käme ein
+         * `gewicht=101` aus einer direkten Anfrage bis zum `insert`, schlüge
+         * dort als `check_violation` auf und würde zu einem 500 — das Gerüst
+         * übersetzt nur `RecruitingFehler` und `BewertungFehler`. Ein
+         * Wertebereich ist eine EINGABE und gehört mit 400 beantwortet.
+         */
+        if (g < 0 || g > 100) {
+          throw new RecruitingFehler(
+            `„${kriterium}": Das Gewicht liegt zwischen 0 und 100.`,
+            'unbrauchbare_bewertung', 400);
+        }
+        if (p < 0 || p > 10) {
+          throw new RecruitingFehler(
+            `„${kriterium}": Die Punkte liegen zwischen 0 und 10.`,
+            'unbrauchbare_bewertung', 400);
+        }
         kriterien.push({ kriterium, gewicht: g, punkte: p, begruendung });
       }
 

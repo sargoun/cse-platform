@@ -16,7 +16,8 @@ import { Button } from '@/components/ui/Button';
  * oder den Inhalt einer Zeile tragen — alles davon gehoert ins Protokoll, nicht
  * auf einen Bildschirm, den irgendwer sieht. Der `digest` ist die
  * Zeichenkette, die genau diesen Bildschirm mit genau dieser Protokollzeile
- * verbindet; er verraet nichts und macht eine Nachfrage beantwortbar.
+ * verbindet; er verraet nichts und macht eine Nachfrage beantwortbar. Auch
+ * die Browserkonsole bekommt nur ihn.
  */
 /**
  * **Der Name der Eigenschaft gehoert dem Rahmenwerk, nicht dieser Datei.**
@@ -35,9 +36,20 @@ import { Button } from '@/components/ui/Button';
 export default function Fehlerseite(
   { error: fehler, reset }: { error: Error & { digest?: string }; reset: () => void },
 ) {
+  /**
+   * **In die Browserkonsole geht die Kennung, nicht der Fehler.**
+   *
+   * Hier stand `console.error('[fehlerseite]', fehler)` — mit dem ganzen
+   * Objekt. Der Kommentar darueber behauptete „der Browser sieht die Ursache
+   * nie"; die Zeile darunter legte sie ihm hin. In der Entwicklung traegt
+   * `fehler.message` den echten Serversatz (Tabellenname, SQL-Fragment,
+   * Zeileninhalt), und eine Konsole liest jeder mit, der den Bildschirm
+   * aufmacht — Bildschirmfoto an den Support inklusive. Protokolliert wird
+   * deshalb genau das, was auch auf dem Bildschirm steht: die Kennung, die
+   * diesen Aufruf mit der Serverzeile verbindet.
+   */
   useEffect(() => {
-    // Der Browser sieht die Ursache nie; die Konsole des Servers hat sie schon.
-    console.error('[fehlerseite]', fehler);
+    console.error('[fehlerseite]', fehler.digest ?? 'ohne Kennung');
   }, [fehler]);
 
   return (

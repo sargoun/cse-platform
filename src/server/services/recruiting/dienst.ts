@@ -338,13 +338,33 @@ export async function entscheide(
       'Eine Entscheidung ohne Begründung ist im AGG-Streit nichts wert.',
       'unvollstaendig', 400);
   }
-  const [z] = await kontext.schreibe<{ id: string }>(
-    `insert into einstellungsentscheidung
-       (mandant_id, bewerbung_id, ergebnis, begruendung, entschieden_von)
-     values ($1::uuid, $2::uuid, $3::bewerbung_status, $4, $5::uuid)
-     returning id`,
-    [kontext.aktiverMandantId, bewerbungId, ergebnis, begruendung.trim(),
-      kontext.benutzerId]);
+  /*
+   * **Ein zweiter Klick ist ein Konflikt, kein Absturz.**
+   *
+   * `entscheidung_je_bewerbung` ist eindeutig; ein Doppelklick oder zwei
+   * gleichzeitige Anfragen lassen den zweiten `insert` als
+   * `unique_violation` (23505) auflaufen. Das Gerüst übersetzt nur
+   * `RecruitingFehler` — ohne diesen Fang wäre die Antwort ein 500, und der
+   * Mensch läse „etwas ist kaputt", wo „schon entschieden" stimmt. Die Seite
+   * sagt dasselbe, wenn sie den Stand schon kennt.
+   */
+  let z: { id: string } | undefined;
+  try {
+    [z] = await kontext.schreibe<{ id: string }>(
+      `insert into einstellungsentscheidung
+         (mandant_id, bewerbung_id, ergebnis, begruendung, entschieden_von)
+       values ($1::uuid, $2::uuid, $3::bewerbung_status, $4, $5::uuid)
+       returning id`,
+      [kontext.aktiverMandantId, bewerbungId, ergebnis, begruendung.trim(),
+        kontext.benutzerId]);
+  } catch (fehler: unknown) {
+    if ((fehler as { code?: string }).code !== '23505') throw fehler;
+    throw new RecruitingFehler(
+      'Diese Bewerbung ist bereits entschieden. Eine Entscheidung gibt es je '
+      + 'Bewerbung genau einmal — was sich korrigieren lässt, ist der Status der '
+      + 'Bewerbung, nicht die Entscheidung selbst.',
+      'schon_entschieden', 409);
+  }
   if (z === undefined) {
     throw new RecruitingFehler(
       'Die Entscheidung wurde nicht geschrieben.', 'abgewiesen', 403);

@@ -8,6 +8,7 @@ import {
 } from '@/server/services/recruiting/dienst';
 import { punkteText } from '@/server/services/recruiting/rangfolge';
 import { kennungOder404 } from '../../../../kennung';
+import { haeltRechte } from '../../../../rechte';
 import { RecruitingSeite, leseImMandanten } from '../../rahmen';
 import { KNOPF } from '../../felder';
 import { BEWERBUNG_MARKE, berlinZeit } from '../../marken';
@@ -45,6 +46,17 @@ export default async function Stellenblatt(
       unterpfad="stellen"
       titel="Stelle"
       kinder={async (zugang) => {
+        /*
+         * **Der Knopf „Veröffentlichung" nur mit seinem Recht** (AUT-06).
+         *
+         * `/recruiting/stellen/[id]/veroeffentlichung` verlangt
+         * `recruiting.stelle_veroeffentlichen`; eine `leitung` hält
+         * `stelle_schreiben` und das andere nicht (0008). Der Knopf stand
+         * trotzdem da und führte für sie auf einen 404 — genau der Fall aus
+         * D-567: ein Menüpunkt, der auf 404 führt, ist schlechter als keiner,
+         * weil er die Existenz dessen verrät, was er nicht zeigen darf.
+         */
+        const darf = await haeltRechte(zugang.sitzung, 'recruiting.stelle_veroeffentlichen');
         const d = await leseImMandanten(zugang, async (kontext) => ({
           stelle: await ladeStelle(kontext, id),
           bewerber: await rangliste(kontext, id),
@@ -64,13 +76,15 @@ export default async function Stellenblatt(
               <Link href={`/portal/${mandant}/recruiting/stellen`} className={KNOPF}>
                 Alle Stellen
               </Link>
-              <Link
-                href={`/portal/${mandant}/recruiting/stellen/${id}/veroeffentlichung`}
-                data-cse="stelle-wege"
-                className={KNOPF}
-              >
-                Veröffentlichung
-              </Link>
+              {darf['recruiting.stelle_veroeffentlichen'] === true && (
+                <Link
+                  href={`/portal/${mandant}/recruiting/stellen/${id}/veroeffentlichung`}
+                  data-cse="stelle-wege"
+                  className={KNOPF}
+                >
+                  Veröffentlichung
+                </Link>
+              )}
             </nav>
 
             {s.entwurfVonArt === 'agent' && (

@@ -438,6 +438,36 @@ export async function schrittGehen(
     await schreibeWennNoch(kontext, id, b.status,
       `update beitrag set status = 'entwurf', freigabe_id = null, geaendert_von = $2::uuid
         where id = $1::uuid`, [id, kontext.benutzerId]);
+    /*
+     * **Und sie faellt auch IM POSTEINGANG weg** — hier stand nur die Zeile
+     * darueber.
+     *
+     * `freigabe_id = null` loeste den Beitrag von seiner Freigabe; die
+     * Freigabe selbst blieb `offen` liegen. Der Beitrag war damit sicher (der
+     * Trigger `freigabe_zieht_beitrag_nach`, 0163, greift nur auf
+     * `status = 'vorgelegt'`), der Posteingang nicht: dort wartete weiter eine
+     * Bitte um Freigabe auf einen Text, den es so nicht mehr gibt. Wer sie
+     * oeffnet, liest eine alte Vorschau, entscheidet, und diese Entscheidung
+     * geht als Glied in die Hashkette (K-13) — eine bezeugte Freigabe fuer
+     * einen zurueckgezogenen Antrag. Gemeldet hat das die Copilot-Runde auf
+     * PR 16.
+     *
+     * `and status = 'offen'` ist der ganze Riegel: aus `abgelehnt` heraus
+     * ueberarbeiten trifft eine ENTSCHIEDENE Freigabe, und die wird nicht
+     * umgeschrieben — Entscheidungen sind Tatsachen, kein Zustand (APR-07).
+     * Genau deshalb steht hier `zurueckgezogen` und nicht `abgelehnt`: den
+     * Antrag nimmt der Antragsteller zurueck, abgelehnt haette ihn jemand.
+     */
+    if (b.freigabeId !== null) {
+      await kontext.schreibe(
+        `update freigabe
+          set status = 'zurueckgezogen', geaendert_am = now(),
+              begruendung = coalesce(begruendung,
+                'Der Beitrag wurde zur Überarbeitung zurückgeholt; '
+                || 'der vorgelegte Text steht nicht mehr.')
+        where id = $1::uuid and status = 'offen'`,
+        [b.freigabeId]);
+    }
     return;
   }
   await schreibeWennNoch(kontext, id, b.status,

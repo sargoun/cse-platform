@@ -12011,3 +12011,75 @@ ersten echten Adapter zuschlägt.
 
 | Betrifft | SOC-03, SOC-07, O-10, `weg.ts`, `dienst.ts: sendeErneut`, D-560 |
 |---|---|
+
+---
+
+### D-573 · Elf Befunde aus der Copilot-Runde auf PR 16 — und die vier, die wirklich weh taten
+
+**Kontext.** Die Durchsicht auf PR 16 meldete elf Stellen. Sieben davon waren
+Kleinarbeit (fehlende Bereichsprüfungen, ein falscher Statuscode, ein Kommentar,
+der eine Zahl behauptete, die niemand pflegt). Vier waren echte Löcher, und
+alle vier hatten dieselbe Form: **eine Hälfte war gebaut, die andere fehlte.**
+
+**1 · Die Fehlerseite protokollierte, was sie zu verschweigen versprach.**
+`src/app/error.tsx` trug über dem `useEffect` den Satz „auf dem Bildschirm steht
+der `digest` und sonst nichts vom Fehler" — und darunter
+`console.error('[fehlerseite]', fehler)` mit dem ganzen Objekt. In der
+Entwicklung trägt `fehler.message` den echten Serversatz: Tabellenname,
+SQL-Fragment, Zeileninhalt. Eine Browserkonsole liest jeder mit, der den
+Bildschirm aufmacht, Bildschirmfoto an den Support inklusive. Protokolliert
+wird jetzt genau das, was auch auf dem Bildschirm steht: die Kennung.
+
+**2 · Die Dankesseite sagte „danach", und „danach" ist keine Dauer.**
+Art. 13 Abs. 2 lit. a DSGVO verlangt die Dauer der Speicherung. `/karriere/danke`
+nannte sie nicht, obwohl der Kopfkommentar derselben Datei behauptete, sie
+sage „wann gelöscht wird". Die Zahl steht seit REC-07 in
+`recruiting.aufbewahrung_tage` — derselben Einstellung, nach der die Annahme
+`aufbewahrung_bis` setzt und der Nachtlauf löscht. Sie wird jetzt gelesen und
+genannt. Fehlt sie, nennt die Seite **keine** Dauer und bleibt beim allgemeinen
+Satz: eine Zahl, die eine Öffentlichkeitsseite ersatzweise erfindet, ist eine
+Zusage, die niemand getroffen hat (O-373). Und die Auskunft wirft nicht — eine
+Dankesseite, die wegen einer fehlenden Einstellung mit einem Fehlerbildschirm
+endet, lässt den Menschen glauben, seine Bewerbung sei nicht angekommen.
+
+**3 · „Überarbeiten" liess die Bitte um Freigabe im Posteingang stehen.**
+Der Schritt setzte `beitrag.freigabe_id = null` — der Beitrag war damit sicher,
+denn `freigabe_zieht_beitrag_nach` (0163) greift nur auf `status = 'vorgelegt'`.
+Die `freigabe` selbst blieb `offen`. Im Posteingang wartete also weiter eine
+Bitte um Freigabe für einen Text, den es so nicht mehr gibt; wer sie öffnet,
+liest eine alte Vorschau, entscheidet, und **diese Entscheidung geht als Glied
+in die Hashkette** (K-13). Sie wird jetzt auf `zurueckgezogen` gesetzt — mit
+`and status = 'offen'` als ganzem Riegel: aus `abgelehnt` heraus zu überarbeiten
+trifft eine ENTSCHIEDENE Freigabe, und die wird nicht umgeschrieben (APR-07).
+`zurueckgezogen` und nicht `abgelehnt`, weil den Antrag der Antragsteller
+zurücknimmt; abgelehnt hätte ihn jemand. Zwei Fälle in
+`tests/isolation/social.test.ts (5b)`.
+
+**4 · Die Planungsseite hatte ihre Fehlertafel, es kam nur nie etwas an.**
+`FEHLER[…]` stand auf `…/planung/page.tsx` von Anfang an. `fuehreSocialAus`
+beantwortete einen `SocialFehler` aber für JEDEN Aufrufer mit
+`{"fehler":"vergangenheit"}`. Wer im Portal „Auf diesen Zeitpunkt legen"
+drückte und einen Zeitpunkt in der Vergangenheit erwischte, landete auf einer
+weissen Seite mit einem Datenfeld — der Satz, den ein Mensch lesen soll, als
+JSON, das Formular weg, der Rückweg der Zurück-Knopf des Browsers. Jetzt
+dieselbe Form wie in `api/recruiting/gemeinsam.ts` und `api/zeit/korrektur`:
+ein verstecktes `zurueck` im Formular, `?fehler=<grund>` beim Rückweg,
+`internesZiel` prüft das Feld gegen den eigenen Ursprung (D-562) — es kommt
+aus dem Rumpf, also vom Aufrufer, und ein fremdes Ziel wäre eine offene
+Umleitung. Ohne `zurueck` bleibt es beim JSON: ein Aufrufer ohne Rückweg hat
+keine Seite, auf die man ihn schicken könnte. Die Beitragsseite und die
+Neuanlage haben ihre Tafel dabei bekommen; **der Schlüssel wird abgebildet,
+nie angezeigt** — wer den Satz aus der Adresszeile nähme, könnte jemandem
+einen Link schicken, auf dem im eigenen Portal ein fremder Text steht.
+
+**Das Muster hinter allen vieren.** Kein einziger dieser Fehler ist ein
+Tippfehler; jeder ist eine Naht zwischen zwei Teilen, die einzeln richtig sind.
+Die Fehlerseite verspricht oben, was sie unten bricht. Die Dankesseite
+dokumentiert eine Zahl, die sie nicht zeigt. Der Schritt löst eine Verbindung
+und lässt das andere Ende hängen. Die Seite wartet auf einen Schlüssel, den
+niemand schickt. Lint und `typecheck` sehen davon nichts — sichtbar wird es,
+wenn jemand die beiden Hälften nebeneinanderlegt, und genau das tut eine
+Durchsicht.
+
+| Betrifft | `error.tsx`, `karriere/danke`, `social/dienst.ts`, `api/social/gemeinsam.ts`, D-562, O-373, K-13, APR-07 |
+|---|---|

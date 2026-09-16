@@ -19,8 +19,16 @@ import { fuehreRecruitingAus } from '../gemeinsam';
  */
 export const dynamic = 'force-dynamic';
 
-/** `1` bis `60` mit höchstens einer Nachkommastelle — mehr ergibt keine Woche. */
-const STUNDEN = /^(?:[1-9]|[1-5][0-9]|60)(?:[.,][05])?$/u;
+/**
+ * `1` bis `60` in halben Stunden.
+ *
+ * Die erste Fassung war `(?:[1-9]|[1-5][0-9]|60)(?:[.,][05])?` — und liess
+ * damit `60,5` durch, also mehr als die eigene Obergrenze. Ein Muster, das
+ * seine Grenze um eine halbe Stunde verfehlt, ist schlimmer als keines: es
+ * sieht nach einer Prüfung aus. Die `60` steht deshalb ohne Nachkommastelle
+ * da, und die Zahl wird unten zusätzlich verglichen.
+ */
+const STUNDEN = /^(?:(?:[1-9]|[1-5][0-9])(?:[.,][05])?|60)$/u;
 const DATUM = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/u;
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
@@ -42,7 +50,9 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         .filter((z) => z !== '');
 
       const stundenRoh = (rumpf.felder['wochenstunden'] ?? '').trim();
-      if (stundenRoh !== '' && !STUNDEN.test(stundenRoh)) {
+      const stunden = stundenRoh === '' ? null : Number(stundenRoh.replace(',', '.'));
+      if (stundenRoh !== ''
+          && (!STUNDEN.test(stundenRoh) || stunden === null || stunden < 1 || stunden > 60)) {
         throw new RecruitingFehler(
           'Wochenstunden zwischen 1 und 60, in halben Stunden.',
           'unbrauchbare_stunden', 400);
@@ -58,7 +68,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         beschreibung,
         anforderungen,
         ...(einsatzort === '' ? {} : { einsatzort }),
-        ...(stundenRoh === '' ? {} : { wochenstunden: Number(stundenRoh.replace(',', '.')) }),
+        ...(stunden === null ? {} : { wochenstunden: stunden }),
         ...(fristRoh === '' ? {} : { bewerbungsfrist: fristRoh }),
       });
     },

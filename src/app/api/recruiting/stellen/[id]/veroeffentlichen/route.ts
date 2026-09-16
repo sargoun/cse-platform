@@ -75,9 +75,28 @@ export async function POST(
           kontext, id, boerse, 'veroeffentlicht', port.hinweis, externeRef);
         return externeRef;
       } catch (fehler) {
-        if (!(fehler instanceof BoerseNichtVerbundenFehler)) throw fehler;
+        /*
+         * **Auch der UNERWARTETE Fehler wird vermerkt.**
+         *
+         * Hier stand `if (!(fehler instanceof BoerseNichtVerbundenFehler))
+         * throw fehler;` — und damit riss jeder andere Adapterfehler (ein
+         * Netzausfall, ein Tippfehler im Adapter) die Transaktion mit, samt
+         * dem Vermerk. Die Route versprach im Kommentar darüber das
+         * Gegenteil: „jeder Misserfolg wird festgehalten". Ein Versprechen,
+         * das nur für den einen bekannten Fall gilt, ist keines.
+         *
+         * Unterschieden wird trotzdem: `nicht_verbunden` ist ein ZUSTAND
+         * (O-374), `fehlgeschlagen` ein Vorfall — und nur der gehört ins
+         * Fehlerprotokoll, damit ihn jemand findet.
+         */
+        const bekannt = fehler instanceof BoerseNichtVerbundenFehler;
+        if (!bekannt) {
+          console.error('[recruiting] Boerse %s fuer Stelle %s fehlgeschlagen',
+            boerse, id, fehler);
+        }
+        const meldung = fehler instanceof Error ? fehler.message : String(fehler);
         await vermerkeVeroeffentlichung(
-          kontext, id, boerse, 'nicht_verbunden', fehler.message);
+          kontext, id, boerse, bekannt ? 'nicht_verbunden' : 'fehlgeschlagen', meldung);
         /*
          * **Zurückgeben, nicht werfen.** Ein Wurf hier risse den Vermerk mit:
          * die Transaktion rollte zurück, und der Versuch, den morgen jemand
@@ -87,7 +106,9 @@ export async function POST(
          */
         const ergebnis: HandlerErgebnis = {
           ergebnis: boerse,
-          fehler: { grund: 'kanal_nicht_verbunden', meldung: fehler.message, status: 409 },
+          fehler: bekannt
+            ? { grund: 'kanal_nicht_verbunden', meldung, status: 409 }
+            : { grund: 'veroeffentlichung_fehlgeschlagen', meldung, status: 502 },
         };
         return ergebnis;
       }

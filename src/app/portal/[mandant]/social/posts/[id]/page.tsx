@@ -63,6 +63,39 @@ const ERGEBNIS: Readonly<Record<string, { readonly pill: 'Aktiv' | 'Wartet' | 'I
 const FELD = 'min-h-11 w-full rounded-md border border-line bg-surface px-s3 py-s2 '
   + 'text-sm text-text focus:border-brand focus:outline-none';
 
+/**
+ * Die Saetze zu den Abweisungen der Routen — **auf DIESER Seite, nicht als
+ * JSON auf einer weissen.**
+ *
+ * Die Routen warfen ihren `SocialFehler` bisher als `{"fehler":"…"}` zurueck,
+ * fuer jeden Aufrufer gleich. Ein Formular hat damit den Menschen verloren.
+ * Jetzt kommt der Schluessel als `?fehler=` zurueck, und der Satz steht hier —
+ * dieselbe Form wie auf der Planungsseite.
+ *
+ * **Der Schluessel wird ABGEBILDET, nicht angezeigt.** Wer den Satz aus der
+ * Adresszeile nehmen liesse, koennte jemandem einen Link schicken, auf dem im
+ * eigenen Portal ein fremder Text steht.
+ */
+const FEHLER: Readonly<Record<string, string>> = {
+  falscher_status: 'Aus dem jetzigen Zustand führt dieser Schritt nicht weiter. '
+    + 'Vermutlich hat jemand anderes den Beitrag inzwischen weitergeschoben — '
+    + 'laden Sie die Seite neu.',
+  gleichzeitig: 'Jemand anderes war einen Augenblick schneller. Der Beitrag steht '
+    + 'jetzt anders da als beim Öffnen dieser Seite; laden Sie sie neu.',
+  grund_fehlt: 'Ein Rückzug ohne Grund ist keine Auskunft — er steht im Protokoll, '
+    + 'und jemand wird danach fragen.',
+  nicht_bearbeitbar: 'Bearbeitet wird nur der Entwurf. Nach dem Vorlegen bindet die '
+    + 'Freigabe an genau diesen Text; über „Überarbeiten" geht er zurück.',
+  nichts_zu_tun: 'Kein Kanal steht auf „fehlgeschlagen" — es gibt nichts zu wiederholen.',
+  quelle_unzulaessig: 'Diese Quelle lässt sich nicht übernehmen.',
+  unvollstaendig: 'Titel und Text sind Pflicht.',
+  unbekannter_schritt: 'Diesen Schritt geht die Route nicht. Freigeben und Ablehnen '
+    + 'fallen im Freigabe-Posteingang.',
+  kein_schreibrecht: 'Der Schreibvorgang ging nicht durch. Fehlt Ihnen das Recht dazu, '
+    + 'sagt es Ihnen die Person, die Ihre Rolle vergeben hat.',
+  keine_serverzeit: 'Die Uhr des Servers war nicht zu lesen. Bitte noch einmal versuchen.',
+};
+
 export default async function Beitrag(
   { params, searchParams }: {
     params: Promise<{ mandant: string; id: string }>;
@@ -76,6 +109,15 @@ export default async function Beitrag(
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
   const suche = await searchParams;
+  const abgewiesen = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  /**
+   * Der Rueckweg, den die Routen bei einer Abweisung nehmen.
+   *
+   * Er steht als verstecktes Feld in jedem Formular dieser Seite und wird von
+   * `internesZiel` (D-562) noch einmal gegen den eigenen Ursprung geprueft —
+   * das Feld kommt aus dem Rumpf, also vom Aufrufer.
+   */
+  const hierher = `/portal/${mandant}/social/posts/${id}`;
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => ({
@@ -170,6 +212,12 @@ export default async function Beitrag(
         </Hinweis>
       ) : null}
 
+      {abgewiesen === null ? null : (
+        <Hinweis art="warnung" cse="beitrag-fehler" className="mb-s5 max-w-prose">
+          {FEHLER[abgewiesen] ?? 'Der Schritt wurde abgewiesen.'}
+        </Hinweis>
+      )}
+
       {b.status === 'vorgelegt' && b.freigabeId !== null ? (
         <Hinweis art="hinweis" cse="beitrag-wartet" className="mb-s5 max-w-prose">
           <strong>Er liegt im Freigabe-Posteingang.</strong> Entschieden wird dort, nicht
@@ -200,6 +248,7 @@ export default async function Beitrag(
         <h2 className="mb-s3 text-h2 text-text">Inhalt</h2>
         <form method="post" action={`/api/social/beitraege/${id}`}
               className="flex max-w-prose flex-col gap-s4">
+          <input type="hidden" name="zurueck" value={hierher} />
           <FormField label="Titel" name="titel" defaultValue={b.titel} required
                      maxLength={200} disabled={!bearbeitbar} />
           <div className="flex flex-col gap-s2">
@@ -295,6 +344,7 @@ export default async function Beitrag(
               <form key={s} method="post" action={`/api/social/beitraege/${id}/schritt`}
                     className="flex flex-wrap items-end gap-s3">
                 <input type="hidden" name="schritt" value={s} />
+                <input type="hidden" name="zurueck" value={hierher} />
                 {s === 'zuruecknehmen' ? (
                   <FormField label="Grund" name="grund" required className="min-w-64 flex-1"
                              hinweis="Er steht im Protokoll — jemand wird danach fragen." />

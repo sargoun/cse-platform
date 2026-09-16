@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { autorisierungsAntwort } from '@/server/auth/antwort';
-import { istGleicherUrsprung, erwarteterUrsprung } from '@/server/auth/ursprung';
+import { istGleicherUrsprung, erwarteterUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { db } from '@/server/db/pool';
 import { type SchreibKontext, withTenant } from '@/server/kontext/index';
@@ -88,6 +88,34 @@ export async function fuehreSocialAus(
       new URL(lauf.ziel(slug, ergebnis), erwarteterUrsprung(anfrage)), 303);
   } catch (fehler: unknown) {
     if (fehler instanceof SocialFehler) {
+      /*
+       * **Ein Formular bekommt seine Seite zurueck, kein JSON.**
+       *
+       * Hier stand nur die `NextResponse.json`-Zeile darunter — fuer JEDEN
+       * Aufrufer. Wer im Portal „Auf diesen Zeitpunkt legen" drueckte und
+       * einen Zeitpunkt in der Vergangenheit erwischte, landete auf einer
+       * weissen Seite mit `{"fehler":"vergangenheit"}`: der Satz, den jemand
+       * lesen soll, stand als Datenfeld da, das Formular war weg und der
+       * Rueckweg war der Zurueck-Knopf des Browsers. Die Planungsseite HATTE
+       * ihre Fehlertafel (`FEHLER[…]`) die ganze Zeit — es kam nur nie etwas
+       * an. Gemeldet hat das die Copilot-Runde auf PR 16.
+       *
+       * Dieselbe Form wie in `api/recruiting/gemeinsam.ts` und
+       * `api/zeit/korrektur`: `zurueck` kommt als verstecktes Feld aus dem
+       * Formular, `internesZiel` laesst nur einen Pfad DIESER Anwendung durch
+       * (D-562) — ein fremdes Ziel im Feld waere sonst eine offene Umleitung.
+       * Ohne `zurueck` bleibt es beim JSON: ein Aufrufer ohne Rueckweg hat
+       * keine Seite, auf die man ihn schicken koennte.
+       */
+      const zurueck = rumpf.felder['zurueck'];
+      if (!rumpf.json && zurueck !== undefined && zurueck !== '') {
+        const trenner = zurueck.includes('?') ? '&' : '?';
+        return NextResponse.redirect(
+          internesZiel(
+            `${zurueck}${trenner}fehler=${encodeURIComponent(fehler.grund)}`,
+            zurueck, anfrage),
+          303);
+      }
       return NextResponse.json(
         { fehler: fehler.grund, meldung: fehler.message },
         { status: fehler.grund === 'unbekannt' ? 404 : 409 });

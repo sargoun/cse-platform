@@ -1,5 +1,6 @@
 import 'server-only';
 import { oeffentlichLesen } from '@/server/inhalt/lesen';
+import { aufbewahrungTage } from '@/server/services/recruiting/dienst';
 
 /**
  * Was die Karriereseite liest — ohne Sitzung, wie jede öffentliche Seite.
@@ -54,4 +55,27 @@ export async function offeneStelle(id: string): Promise<OffeneStelle | null> {
 export async function bereiche(): Promise<readonly { slug: string; name: string }[]> {
   return oeffentlichLesen((kontext) => kontext.abfrage<{ slug: string; name: string }>(
     `select slug, name from mandant where archiviert_am is null order by name`));
+}
+
+/**
+ * Die Aufbewahrungsfrist in Tagen — für die Auskunft nach Art. 13 DSGVO.
+ *
+ * **Warum `null` statt eines Werts aus dieser Datei.** Die Frist ist ein
+ * Platzhalter (O-373) und gehört dem Mandanten; eine Zahl, die eine
+ * Öffentlichkeitsseite ersatzweise nennt, ist eine Zusage, die niemand
+ * getroffen hat. Fehlt die Einstellung, nennt die Seite deshalb keine Dauer —
+ * der Satz bleibt richtig, nur unschärfer.
+ *
+ * **Und sie wirft nicht.** `aufbewahrungTage()` wirft absichtlich, wo eine
+ * Bewerbung ohne Uhr entstünde (REC-07). Hier entsteht nichts, hier wird
+ * Auskunft gegeben. Eine Dankesseite, die wegen einer fehlenden Einstellung mit
+ * einem Fehlerbildschirm endet, lässt den Menschen glauben, seine Bewerbung
+ * sei nicht angekommen — und sie ist es.
+ */
+export async function aufbewahrungsfristTage(): Promise<number | null> {
+  try {
+    return await oeffentlichLesen((kontext) => aufbewahrungTage(kontext));
+  } catch {
+    return null;
+  }
 }

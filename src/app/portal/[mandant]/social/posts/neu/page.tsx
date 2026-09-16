@@ -43,10 +43,24 @@ const ARTEN: readonly { readonly wert: string; readonly text: string }[] = [
 const FELD = 'min-h-11 w-full rounded-md border border-line bg-surface px-s3 py-s2 '
   + 'text-sm text-text focus:border-brand focus:outline-none';
 
+/** Dieselbe Tafel wie auf der Beitragsseite — der Schluessel kommt als `?fehler=`. */
+const FEHLER: Readonly<Record<string, string>> = {
+  unvollstaendig: 'Titel und Text sind Pflicht.',
+  quelle_unzulaessig: 'Diese Quelle lässt sich nicht übernehmen. Übernommen wird nur, '
+    + 'was freigegeben ist — eine Referenz braucht die Zustimmung der Kundin (PRO-05).',
+  kein_schreibrecht: 'Der Beitrag wurde nicht angelegt. Fehlt Ihnen das Recht dazu, '
+    + 'sagt es Ihnen die Person, die Ihre Rolle vergeben hat.',
+};
+
 export default async function NeuerBeitrag(
-  { params }: { params: Promise<{ mandant: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant } = await params;
+  const suche = await searchParams;
+  const abgewiesen = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   const tor = await mandantTor(`/portal/${mandant}/social/posts/neu`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
@@ -83,8 +97,15 @@ export default async function NeuerBeitrag(
         und das ist Absicht (SOC-08).
       </Hinweis>
 
+      {abgewiesen === null ? null : (
+        <Hinweis art="warnung" cse="neu-fehler" className="mb-s5 max-w-prose">
+          {FEHLER[abgewiesen] ?? 'Der Beitrag wurde nicht angelegt.'}
+        </Hinweis>
+      )}
+
       <form method="post" action="/api/social/beitraege" data-cse="beitrag-formular"
             className="flex max-w-prose flex-col gap-s4">
+        <input type="hidden" name="zurueck" value={`/portal/${mandant}/social/posts/neu`} />
         <FormField label="Titel" name="titel" required maxLength={200}
                    hinweis="Er steht im Freigabe-Posteingang und auf der Gesellschaftsseite." />
 

@@ -22,7 +22,8 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import type postgres from 'postgres';
 import { alsApp, alsRolle, schliessen, seed, sql, type Fixtur } from './harness.js';
 import {
-  legeBeitragAn as dienstLegeBeitragAn, legeVor, sendeErneut, setzeKanaele, veroeffentliche,
+  legeBeitragAn as dienstLegeBeitragAn, legeVor, schrittGehen, sendeErneut, setzeKanaele,
+  veroeffentliche,
 } from '../../src/server/services/social/dienst.js';
 import { entscheideFreigabe } from '../../src/server/services/freigabe/entscheiden.js';
 import { vermerkeAnsicht } from '../../src/server/services/freigabe/laden.js';
@@ -365,6 +366,78 @@ describe('(5) Vorlegen und Entscheiden gehen wirklich zusammen', () => {
     const [b] = await sql.unsafe<{ status: string }[]>(
       `select status::text as status from beitrag where id = $1::uuid`, [beitragId]);
     expect(b?.status).toBe('freigegeben');
+  });
+});
+
+/**
+ * **Was aus der Bitte um Freigabe wird, wenn der Text zurueckgeholt wird.**
+ *
+ * `ueberarbeiten` loeste den Beitrag von seiner Freigabe (`freigabe_id = null`)
+ * und liess die Freigabe selbst `offen` im Posteingang stehen: eine Bitte um
+ * Freigabe fuer einen Text, den es so nicht mehr gibt. Wer sie oeffnete,
+ * entschied — und diese Entscheidung geht als Glied in die Hashkette (K-13).
+ */
+describe('(5b) Überarbeiten holt die Bitte um Freigabe mit zurück', () => {
+  const kontextAuf = (tx: postgres.TransactionSql, konto: string, mandantId: string) => ({
+    scope: 'mandant' as const, portal: 'intern' as const, benutzerId: konto,
+    aktiverMandantId: mandantId, mandantIds: [mandantId],
+    abfrage: async <R,>(q: string, w: readonly unknown[] = []) =>
+      (await tx.unsafe(q, w as never[])) as readonly R[],
+    schreibe: async <R,>(q: string, w: readonly unknown[] = []) =>
+      (await tx.unsafe(q, w as never[])) as readonly R[],
+  });
+
+  it('die offene Freigabe steht danach auf `zurueckgezogen`', async () => {
+    const konto = await legeKontoAn(f.reinigung, 'admin');
+    const sitzung = {
+      scope: 'mandant' as const, mandantId: f.reinigung,
+      benutzerId: konto, portal: 'intern' as const, readonly: false,
+    };
+    const { beitragId } = await legeBeitragAn(f.reinigung, `Zurueck ${zufall()}`, 'entwurf');
+
+    const freigabeId = await alsApp(sitzung, async (tx) =>
+      legeVor(kontextAuf(tx, konto, f.reinigung), beitragId));
+
+    const [vorher] = await sql.unsafe<{ status: string }[]>(
+      `select status::text as status from freigabe where id = $1::uuid`, [freigabeId]);
+    expect(vorher?.status).toBe('offen');
+
+    await alsApp(sitzung, async (tx) =>
+      schrittGehen(kontextAuf(tx, konto, f.reinigung), beitragId, 'ueberarbeiten'));
+
+    const [nachher] = await sql.unsafe<{ status: string; grund: string | null }[]>(
+      `select status::text as status, begruendung as grund
+         from freigabe where id = $1::uuid`, [freigabeId]);
+    expect(nachher?.status).toBe('zurueckgezogen');
+    expect(nachher?.grund).toMatch(/Überarbeitung/u);
+
+    const [b] = await sql.unsafe<{ status: string; fid: string | null }[]>(
+      `select status::text as status, freigabe_id as fid
+         from beitrag where id = $1::uuid`, [beitragId]);
+    expect(b?.status).toBe('entwurf');
+    expect(b?.fid).toBeNull();
+  });
+
+  /**
+   * **Eine ENTSCHIEDENE Freigabe wird nicht umgeschrieben** (APR-07). Aus
+   * `abgelehnt` heraus zu ueberarbeiten trifft genau diesen Fall: die
+   * Ablehnung ist eine Tatsache und bleibt eine.
+   */
+  it('eine abgelehnte Freigabe bleibt abgelehnt', async () => {
+    const konto = await legeKontoAn(f.reinigung, 'admin');
+    const sitzung = {
+      scope: 'mandant' as const, mandantId: f.reinigung,
+      benutzerId: konto, portal: 'intern' as const, readonly: false,
+    };
+    const { beitragId, freigabeId } = await legeBeitragAn(
+      f.reinigung, `Abgelehnt ${zufall()}`, 'abgelehnt', 'abgelehnt');
+
+    await alsApp(sitzung, async (tx) =>
+      schrittGehen(kontextAuf(tx, konto, f.reinigung), beitragId, 'ueberarbeiten'));
+
+    const [nachher] = await sql.unsafe<{ status: string }[]>(
+      `select status::text as status from freigabe where id = $1::uuid`, [freigabeId]);
+    expect(nachher?.status).toBe('abgelehnt');
   });
 });
 

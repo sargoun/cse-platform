@@ -128,7 +128,7 @@ export function anbindungen(): readonly Anbindung[] {
        * **Der Ausloeser der Nachtlaeufe — die Anbindung, die niemand als eine
        * gesehen hat.**
        *
-       * Sechzehn Jobs tragen einen Zeitplan, es gibt einen Runner, ein
+       * Die Jobs tragen einen Zeitplan, es gibt einen Runner, ein
        * Laufprotokoll und eine bewachte Route. Was fehlte, war das, was ruft:
        * kein Cron-Eintrag, nirgends. Jede Datei einzeln gebaut und geprueft;
        * zusammen lief kein einziger Waechter — und weil ein nicht gelaufener
@@ -142,7 +142,17 @@ export function anbindungen(): readonly Anbindung[] {
        * Laufliste darunter, nicht diese Zeile.
        */
       schluessel: 'job_ausloeser', name: 'Nachtlauf-Auslöser (Supabase cron)',
-      zweck: 'Die 16 Wächter aus SPEC §14 starten — Fristen, Dienstplan, Mahnlauf, Kette',
+      /*
+       * **Ohne Zahl, und das ist die Lehre aus der Zahl.**
+       *
+       * Hier stand „Die 16 Wächter" — von Hand gepflegt, und beim siebzehnten
+       * Job (`bewerber_loeschung`) falsch. Eine Zahl, die jemand mitziehen
+       * muss, ist eine Zahl, die irgendwann nicht mehr stimmt; auf einem
+       * Betriebsbildschirm ist das schlimmer als keine, weil sie nach einer
+       * Auskunft aussieht. Wie viele es sind, steht in der Laufliste
+       * darunter — die zählt sie, statt sie zu behaupten.
+       */
+      zweck: 'Die Wächter aus SPEC §14 starten — Fristen, Dienstplan, Mahnlauf, Kette',
       stand: (process.env['JOB_TOKEN'] ?? '') === '' ? 'nicht_verbunden' : 'verbunden',
       hinweis: (process.env['JOB_TOKEN'] ?? '') === ''
         ? 'Ohne JOB_TOKEN antwortet /api/jobs/[schlüssel] mit 503 — kein Auslöser kann '

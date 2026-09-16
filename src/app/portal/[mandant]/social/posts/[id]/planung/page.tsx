@@ -106,6 +106,15 @@ export default async function Planung(
       ) : (
         <form method="post" action={`/api/social/beitraege/${id}/planung`}
               data-cse="planung-formular" className="flex max-w-prose flex-col gap-s4">
+          {/*
+            * **Ohne dieses Feld kam die Tafel oben nie zum Zug.**
+            *
+            * `FEHLER[…]` stand hier von Anfang an; die Route antwortete einem
+            * Formular aber mit `{"fehler":"vergangenheit"}` auf einer weissen
+            * Seite. Jetzt schickt sie den Schlüssel hierher zurück.
+            */}
+          <input type="hidden" name="zurueck"
+                 value={`/portal/${mandant}/social/posts/${id}/planung`} />
           <div className="flex flex-col gap-s2">
             <label htmlFor="zeitpunkt" className="text-xs text-text-muted">
               Zeitpunkt (Berliner Zeit)
