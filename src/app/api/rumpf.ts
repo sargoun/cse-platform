@@ -31,7 +31,26 @@ export async function liesRumpf(anfrage: NextRequest): Promise<Rumpf> {
      * kaputt war oder ein Feld fehlte — und sucht das Feld. Das Gerüst faengt
      * den Wurf ab und antwortet 400.
      */
-    const roh = (await anfrage.json()) as Record<string, unknown>;
+    const geparst: unknown = await anfrage.json();
+    /*
+     * **Gueltiges JSON ist noch kein Rumpf.** `[1, 2]`, `"text"`, `42` und
+     * `null` sind alle gueltig und kamen hier ungeprueft durch: aus einer
+     * Zeichenkette machte `Object.entries` Felder mit den Namen `0`, `1`, `2`,
+     * aus einer Liste Felder mit Indexnamen. Der Aufrufer bekam daraufhin
+     * `unvollstaendig` (409) und suchte ein Feld, waehrend seine FORM falsch
+     * war — genau der Unterschied, den `unlesbarer_rumpf` (400) benennt.
+     *
+     * Ein `SyntaxError` und keine eigene Fehlerklasse: kaputte Syntax und
+     * falsche Form sind fuer den Aufrufer dasselbe Ereignis, und das Geruest
+     * (`gemeinsam.ts`) beantwortet es bereits mit 400. Zwei Wege zu einer
+     * Antwort waeren einer zu viel.
+     *
+     * Gemeldet von der Copilot-Runde auf PR 16.
+     */
+    if (typeof geparst !== 'object' || geparst === null || Array.isArray(geparst)) {
+      throw new SyntaxError('Der JSON-Rumpf ist kein Objekt.');
+    }
+    const roh = geparst as Record<string, unknown>;
     const felder: Record<string, string> = {};
     for (const [k, v] of Object.entries(roh)) {
       if (typeof v === 'string') felder[k] = v;

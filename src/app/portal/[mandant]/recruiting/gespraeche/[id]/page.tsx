@@ -54,7 +54,16 @@ export default async function Gespraechsblatt(
             <dl className="mb-s6 grid max-w-prose grid-cols-1 gap-s2 text-sm sm:grid-cols-[auto_1fr] sm:gap-x-s5">
               <dt className="text-text-muted">Termin</dt>
               <dd className="m-0 min-w-0 tabular-nums text-text">
-                {berlinZeit(g.termin)} <span className="text-text-muted">(Europe/Berlin)</span>
+                {/*
+                  * Der Zusatz „(Europe/Berlin)" stand hier, solange
+                  * `berlinZeit` nur die Wanduhr gab. Seit D-584 nennt die
+                  * Ausgabe die Zone selbst (MEZ/MESZ) — und die ist genauer:
+                  * sie unterscheidet die beiden 02:30 der
+                  * Umstellungsnacht, was der Zonenname allein nicht kann.
+                  * Beides nebeneinander sagte dasselbe zweimal und das
+                  * Genauere leiser.
+                  */}
+                {berlinZeit(g.termin)}
               </dd>
               <dt className="text-text-muted">Dauer</dt>
               <dd className="m-0 min-w-0 tabular-nums text-text">

@@ -5179,6 +5179,7 @@ niemand ihn suchen.
 | O-500 | **Wie lange gilt ein Einladungs- und ein Zurücksetzungslink, wie viele Wiederherstellungscodes werden ausgegeben, und gilt eine Mindestlänge über zwölf Zeichen hinaus?** Die SPEC nennt keine Zahl. `plattform_einstellung` führt vier vorläufige Werte (168 h, 2 h, 10 Codes, 12 Zeichen); sie sind als `ist_vorlaeufig = true` markiert und über eine Zeile änderbar, ohne Code. Die Auswahl folgt gängiger Praxis, nicht einer Entscheidung: ein Einladungslink überlebt ein Wochenende, ein Zurücksetzungslink nicht. | AUT-01, AUT-04, `0155`, D-502 |
 | O-501 | **Welches Supabase-Projekt in der EU-Region (Frankfurt), welcher Auftragsverarbeitungsvertrag — und soll die Anmeldung über ein Firmenverzeichnis (SAML/OIDC) laufen?** Dieselbe Frage trägt den Postausgang: welcher in der EU gehostete Mailanbieter, welche Absenderadresse je Gesellschaft, laufen DKIM und DMARC über die bestehenden Domains? Ohne beides gibt es keinen Zurücksetzungs- und keinen Einladungslink, der ankommt. Bis zur Antwort prüft die Plattform das Kennwort selbst (`kern.zugangsdaten`, bcrypt), `/auth/callback` antwortet `501` statt eine Sitzung auszustellen, und `/auth/passwort-vergessen` sagt „nicht verbunden" statt „gesendet" (D-501, D-503). | AUT-01, AUT-04, NOT-02, `0155`, D-501 |
 | O-510 | **Warum zeigt die Seite hinter einer 303-Umleitung den alten Stand?** Nach dem Widerruf eines Kalenderzugangs steht die widerrufene Zeile auf der Umleitungsseite noch in der Liste. Festgestellt ist: die Datenbank ist zu diesem Zeitpunkt richtig (`widerrufen_am` gesetzt), der Feed antwortet sofort mit 404, und ein normaler Aufruf derselben Adresse zeigt die Liste richtig — es ist eine veraltete ANZEIGE und kein offener Zugang. Ausgeschlossen sind: fehlendes `force-dynamic` (steht), eine nicht abgeschlossene Transaktion (die 404-Antwort beweist das Gegenteil), `revalidatePath` auf dem Ziel und `cache-control: no-store` auf der Umleitung (beide eingebaut, beide ohne Wirkung). Bis zur Antwort sagt die Bestätigung auf der Seite ausdrücklich, dass eine noch sichtbare Zeile veraltet ist. Der Browsertest prüft den Stand deshalb nach einem frischen Aufruf — und die Wirkung des Widerrufs sofort. | CAL-03, `api/kalender-feed/widerrufen`, D-516 |
+| O-512 | **Soll `/karriere` in die Sitemap — und soll es englisch werden?** Die Sitemap kommt aus der DATENBANK (`seite`-Zeilen, PUB-10), nicht aus `OEFFENTLICHE_ROUTEN`; sie meldet der Suchmaschine, welche Seiten es GIBT, und eine Route ohne veroeffentlichte `seite`-Zeile rendert 404. `/karriere/*` ist dagegen im Code gebaut (REC-03) und hat keine `seite`-Zeile — es steht damit weder in der Sitemap noch auf Englisch. Fuer eine Karriereseite ist das Erste eine echte Einbusse: wer eine Stelle sucht, sucht sie bei Google. Die Copilot-Runde auf PR 16 meldete es als Verstoss gegen den zweisprachigen Vertrag (D-82). **Zwei Fragen, die der Auftraggeber beantwortet:** (a) Sollen im Code gebaute oeffentliche Routen in die Sitemap aufgenommen werden — und wenn ja, welche, und wie erfaehrt die Sitemap von ihnen, ohne eine zweite Liste zu werden, die veraltet? (b) Soll `/karriere` uebersetzt werden, samt Stellendetail, Formular und Dankseite, oder bleibt der Karrierebereich deutsch (Berliner Baustellen, deutschsprachige Teams)? **Heute ehrlich gemacht:** `NUR_DEUTSCH` nennt den Baum, `gibtEsIn()` haelt den Sprachumschalter und `hreflang` davon ab, eine englische Fassung zu behaupten, die es nicht gibt (D-583), und `sprachpfade.test.ts` faellt, sobald jemand uebersetzt, ohne den Eintrag zu entfernen. | REC-03, PUB-10, D-82, D-583, `services/inhalt/sitemap.ts`, `lib/sprache.ts` |
 | O-511 | **Soll der Versand an fremde Plattformen einen Ausgangskorb mit Idempotenzschlüssel bekommen, bevor der erste Kanal verbunden wird?** `sendeKanaele` (`services/social/dienst.ts`) ruft den Adapter INNERHALB der Geschäftstransaktion und schreibt `beitrag_kanal` danach. Bricht die Transaktion nach dem Adapter, aber vor dem Commit ab (Prozessende, ein späterer Kanal wirft), steht der Beitrag draussen, die Zeile sieht aber unversandt aus — und der nächste Versuch schickt ihn noch einmal. `BeitragAuftrag` kennt keinen Idempotenzschlüssel, den eine Plattform prüfen könnte. Gemeldet hat das die Copilot-Runde auf PR 16. **Heute ohne Wirkung:** alle fünf Plattformen sind absichtlich unverbunden (O-10) und antworten `nicht_verbunden`, einem terminalen Zustand ohne Nebenwirkung. Die richtige Form ist ein Ausgangskorb (`beitrag_versand` mit `idempotenz_schluessel`, Zustellung ausserhalb der Geschäftstransaktion, Abgleich danach) — das ist ein eigener Schritt mit Schema, Lauf und Tests, keine Zeile in `sendeKanaele`. Er gehört zu dem Zeitpunkt, an dem O-10 beantwortet ist und der erste Adapter echt wird; vorher wäre er ein Korb ohne Empfänger. | SOC-07, O-10, D-572, `services/social/dienst.ts` |
 | O-509 | **Welche KI-Endpunkte deckt der Auftragsverarbeitungsvertrag ab?** Der Adapter zerlegt `OPENAI_BASE_URL` und lässt nur `https` und einen Wirt aus einer Liste durch; in der Liste steht heute `eu.api.openai.com`, der Endpunkt, den OpenAI für EU-Datenresidenz nennt. Ob der AV-Vertrag des Kunden genau diesen abdeckt, ob er weitere abdeckt (Azure OpenAI in einer EU-Region hat je Ressource einen eigenen Wirt) und ob Nullspeicherung vertraglich zugesagt ist, weiss der Kunde — nicht diese Datei. Bis zur Antwort kommt jeder andere Wirt als `RESIDENCY_BLOCKED` zurück; ergänzen lässt sich die Liste über `OPENAI_EU_HOSTS`, und diese Variable zu setzen ist eine Entscheidung, die in die Verfahrensdokumentation gehört. | D-04, §8, `versand/modell-openai.ts`, D-509 |
 | O-502 | **Welche Kostenarten gehören in die Projektmarge (REP-05)?** Heute: Lohn (freigegebene Zeiteinträge zum internen Stundensatz aus `anstellung.stundensatz_intern`) plus Fremdleistung (Eingangsrechnungen mit Projektbezug). Nicht enthalten: Material ohne Rechnungsbezug, Gerätestunden und ein Gemeinkostensatz — und ob es einen geben soll, ist die eigentliche Frage: ein Zuschlag je Gesellschaft, ein Satz je Gewerk, oder gar keiner (dann ist die Zahl ein Deckungsbeitrag und keine Marge, und sollte so heissen). Bis zur Antwort nennt die Seite die Zahl „Kosten (Näherung)" und sagt unter der Tabelle, was fehlt — eine Marge, die so tut, als wäre sie die Nachkalkulation, wird in ein Angebot übernommen. | REP-05, `bericht/kennzahlen.ts`, D-506 |
@@ -12802,4 +12803,54 @@ Berliner Tag aus zählt.
 Jede ist gegen ihren eigenen Befund sabotiert worden und wurde rot.
 
 | Betrifft | AUT-06, D-581, D-82, Invariante 2, K-11, REC-07, LEG-11, `PortalRahmen.tsx`, `lib/sprache.ts`, `services/recruiting/dienst.ts` |
+|---|---|
+
+### D-584 · Vier Nachträge der sechsten Runde — zwei Zusagen, die der Code nicht hielt
+
+**1. `berlinZeit` nannte die Zone nicht — obwohl der Absatz darüber es
+versprach.** Wörtlich stand dort: „Berliner Ortszeit, ausgeschrieben — und
+die Zone steht dabei. Ein Gesprächstermin ohne Zonenangabe ist im Oktober
+zweideutig." Der Code gab `timeStyle: 'short'` aus, also die Wanduhr ohne
+Zone. In der Nacht der Rückstellung standen damit zwei Gesprächstermine — der
+eine 02:30 MESZ, der andere eine Stunde später 02:30 MEZ — mit demselben Text
+in der Liste. Wer zum falschen erscheint, hat kein Anzeigeproblem, sondern
+ein verpasstes Vorstellungsgespräch.
+
+Dieselbe Klasse wie D-580: eine Zusage im Kommentar, die keine Prüfung hält,
+wird still falsch. `timeZoneName: 'short'` schreibt MEZ oder MESZ dazu, und
+`zeit-anzeige.test.ts` hält beide Stunden der Umstellungsnacht auseinander —
+in beide Richtungen, denn am 29. März gibt es 02:30 gar nicht.
+
+**2. Gültiges JSON ist noch kein Rumpf.** `liesRumpf` nahm alles an, was
+`JSON.parse` durchliess. Aus `"titel=Probe"` machte `Object.entries` Felder
+mit den Namen `0`, `1`, `2`; aus `[1,2,3]` Felder mit Indexnamen. Die Route
+antwortete daraufhin `unvollstaendig` (409) — der Aufrufer suchte also ein
+fehlendes FELD, während seine FORM falsch war. Genau diesen Unterschied
+benennt `unlesbarer_rumpf` (400), und das Gerüst beantwortet ihn schon, wenn
+`liesRumpf` wirft. Es wirft jetzt einen `SyntaxError` — kaputte Syntax und
+falsche Form sind für den Aufrufer dasselbe Ereignis, und zwei Wege zu einer
+Antwort wären einer zu viel.
+
+**3. Die Architekturdoku wies auf Werkzeug, das es nicht mehr gibt.** D-582
+entfernte `drizzle-kit`, `01-ORDNERSTRUKTUR.md` nannte es weiter als den
+einen Anwender (`pnpm db:migrate (drizzle-kit)`), verlangte in der CI-Tabelle
+`drizzle-kit generate` ohne Diff und nannte Migrationen „drizzle-kit
+generated". Eine Anweisung, die auf ein entferntes Werkzeug zeigt, ist
+schlimmer als keine: sie schickt den nächsten Menschen auf die Suche nach
+einem Befehl, den es nicht gibt. Die drei Stellen nennen jetzt
+`src/server/db/migrate.ts`, und ein Kasten darüber sagt ausdrücklich, dass
+die übrigen Drizzle-Absätze des Dokuments eine **nie gebaute** Modellschicht
+beschreiben und als Geschichte zu lesen sind, bis jemand sie umschreibt.
+
+**4. Was `/karriere` angeht, war der Befund halb richtig — und die Hälfte
+zählt.** Die Sitemap kommt NICHT aus `OEFFENTLICHE_ROUTEN`, sondern aus der
+Datenbank (`seite`-Zeilen, PUB-10): sie meldet, welche Seiten es GIBT, und
+nicht, welche es geben soll. `/karriere/*` ist im Code gebaut und hat keine
+`seite`-Zeile — es fehlt der Suchmaschine also, aber aus einem anderen Grund
+als dem genannten. Ob im Code gebaute öffentliche Routen in die Sitemap
+gehören, und ob der Karrierebereich übersetzt wird, sind zwei Fragen an den
+Auftraggeber: **O-512**. Der Sprachumschalter behauptet bis dahin keine
+englische Fassung mehr (D-583).
+
+| Betrifft | Invariante 2, D-580, D-582, D-583, O-512, `recruiting/marken.ts`, `api/rumpf.ts`, `docs/architecture/01-ORDNERSTRUKTUR.md` |
 |---|---|
