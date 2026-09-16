@@ -80,7 +80,13 @@ export function PortalRahmen({
    */
   const ohneMehr = !tabs.ziele.some((z) => z.schluessel === 'mehr');
   return (
-    <div className="flex min-h-dvh flex-col bg-ink">
+    /*
+     * `sicher-oben`: mit `viewport-fit=cover` beginnt der Inhalt bei y=0 — im
+     * Browsertab liegt dort die Adresszeile, im installierten Modus die
+     * Statusleiste. Der Inset ist dann nicht null, und der Identitaetsstreifen
+     * verschwaende unter der Uhr (DESIGN §8).
+     */
+    <div className="sicher-oben flex min-h-dvh flex-col bg-ink">
       <div
         aria-hidden="true"
         data-cse="identitaets-streifen"
@@ -105,8 +111,8 @@ export function PortalRahmen({
           : { style: { background: `var(--area-${bereich})` } })}
       />
 
-      <header className="flex h-14 shrink-0 items-center gap-s3 border-b border-line
-                         bg-surface px-s4">
+      <header className="sicher-seiten flex h-14 shrink-0 items-center gap-s3
+                         border-b border-line bg-surface px-s4">
         {/*
           * Der Auftrittsname ist ein WEG, kein Schild.
           *
@@ -332,7 +338,7 @@ export function PortalRahmen({
           label={titel}
           {...(beschriftungen === undefined ? {} : { beschriftungen })}
         />
-        {/* `pb-20` unter `md`: die Tab-Leiste liegt fest am unteren Rand und
+        {/* `ueber-tableiste` unter `md`: die Tab-Leiste liegt fest am unteren Rand und
             verdeckte sonst die letzte Zeile jeder Liste. */}
         {/*
           * `min-w-0` — und das ist der Unterschied zwischen einer Seite, die
@@ -348,7 +354,7 @@ export function PortalRahmen({
           * so breit wie das Fenster; was wirklich breiter ist (das Raster,
           * eine Tabelle ab `md`), rollt in seinem eigenen Behaelter (D-420).
           */}
-        <main className="min-w-0 flex-1 p-s5 pb-20 md:pb-s5">{children}</main>
+        <main className="ueber-tableiste sicher-seiten min-w-0 flex-1 p-s5">{children}</main>
       </div>
 
       <TabLeiste

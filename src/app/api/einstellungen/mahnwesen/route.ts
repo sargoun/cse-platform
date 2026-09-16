@@ -1,6 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { istGleicherUrsprung } from '@/server/auth/ursprung';
+import { istGleicherUrsprung, erwarteterUrsprung } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
@@ -32,7 +32,7 @@ const ZINSARTEN: ReadonlySet<string> = new Set(
 
 function zurueck(anfrage: NextRequest, hinweis?: string): NextResponse {
   const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
-  const url = new URL(`/portal/${slug}/einstellungen/mahnwesen`, anfrage.nextUrl.origin);
+  const url = new URL(`/portal/${slug}/einstellungen/mahnwesen`, erwarteterUrsprung(anfrage));
   if (hinweis !== undefined) url.searchParams.set('hinweis', hinweis);
   return NextResponse.redirect(url, 303);
 }

@@ -1,6 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { istGleicherUrsprung } from '@/server/auth/ursprung';
+import { istGleicherUrsprung, erwarteterUrsprung } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
@@ -23,7 +23,7 @@ import {
 export const dynamic = 'force-dynamic';
 
 function zurueck(anfrage: NextRequest, slug: string, such: Readonly<Record<string, string>>): NextResponse {
-  const url = new URL(`/portal/${slug}/dokumente/aufbewahrung`, anfrage.nextUrl.origin);
+  const url = new URL(`/portal/${slug}/dokumente/aufbewahrung`, erwarteterUrsprung(anfrage));
   for (const [k, v] of Object.entries(such)) url.searchParams.set(k, v);
   return NextResponse.redirect(url, 303);
 }

@@ -12,6 +12,7 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mitLesekontext } from '../../../reinigung/daten';
 import { findeReklamation } from '@/server/services/reinigung/reklamation';
+import { kennungOder404 } from '../../../../kennung';
 
 /**
  * `/portal/[mandant]/qualitaet/reklamationen/[id]` — Aufnahme, Ursache,
@@ -51,6 +52,7 @@ export default async function ReklamationsBlatt({
   params: Promise<{ mandant: string; id: string }>;
 }) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const zugang = await portalZugang(`/portal/${mandant}/qualitaet/reklamationen/[id]`);
   if (zugang === null) return <AnmeldungNoetig />;
 

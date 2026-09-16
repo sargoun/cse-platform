@@ -14,6 +14,7 @@ import type { IconName } from '@/lib/design/icons';
 import { berlinHeute } from '@/server/db/heute';
 import { montag, tagePlus } from '@/lib/datum/kalendertag';
 import { stundenAusMinuten } from '@/lib/datum/stunden';
+import { haeltRechte } from '../../rechte';
 import {
   istMerkmal, ladeZeitfenster, MERKMALE, MERKMAL_TEXT, type ZeitZeile,
 } from './daten';
@@ -75,6 +76,11 @@ export default async function Zeitliste({
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
+
+  /* AUT-06: der MiLoG-Nachweis haengt an `zeit.exportieren`, und eine
+     `leitung` haelt es nicht. Ein Knopf dorthin verriete die Seite, die
+     er nicht zeigen darf. */
+  const darf = await haeltRechte(sitzung, 'zeit.exportieren');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const frage = await searchParams;
@@ -148,7 +154,9 @@ export default async function Zeitliste({
         <Sprung ziel={`${pfad}/live`} text="Aktuell im Einsatz" icon="uhr" />
         <Sprung ziel={`${pfad}/korrekturen`} text="Korrekturen" icon="stift" />
         <Sprung ziel={`${pfad}/einwaende`} text="Einwände" icon="warnung" />
-        <Sprung ziel={`${pfad}/milog`} text="MiLoG" icon="dokument" />
+        {darf['zeit.exportieren'] === true && (
+          <Sprung ziel={`${pfad}/milog`} text="MiLoG" icon="dokument" />
+        )}
       </nav>
 
       <div className="mb-s5 grid grid-cols-1 gap-s4 sm:grid-cols-2 xl:grid-cols-4">

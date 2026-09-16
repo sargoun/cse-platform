@@ -17,6 +17,7 @@ import {
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { lesePerson, type PersonZeile } from '../../daten';
 import { mandantTor, MandantAntwort } from '../../../../../unterseite';
+import { kennungOder404 } from '../../../../../kennung';
 
 /**
  * `/portal/[mandant]/personal/personen/[id]/zugang` — der Zugang einer
@@ -78,6 +79,7 @@ export default async function Zugang(
   },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   if (!UUID.test(id)) notFound();
   const tor = await mandantTor(`/portal/${mandant}/personal/personen/${id}/zugang`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;

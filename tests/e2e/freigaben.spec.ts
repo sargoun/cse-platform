@@ -131,7 +131,15 @@ test.describe('Freigabe-Posteingang', () => {
  * **Eigene Gesellschaften, damit die Reihenfolge nichts bedeutet.** Die Tests
  * oben entscheiden die beiden Vorschläge der Reinigung; ein Stapeltest, der
  * dieselben Zeilen bräuchte, liefe je nach Reihenfolge ins Leere. `bau` hat
- * genau eine Routinezeile, `security` genau eine markierte.
+ * genau eine STAPELFÄHIGE Zeile, `security` genau eine markierte.
+ *
+ * **„Stapelfähig", nicht „einzige".** Hier stand „genau eine Routinezeile" —
+ * und seit SOC-03 liegt in jedem Posteingang zusätzlich ein vorgelegter
+ * Beitrag. Der ist mit Absicht NICHT stapelfähig (er geht nach draussen,
+ * Invariante 7), also bleibt die Auswahl bei eins; der Posteingang ist danach
+ * aber nicht mehr leer. Genau daran ist diese Prüfung gescheitert, und der
+ * Unterschied ist kein Wortspiel: das eine ist eine Aussage über den Stapel,
+ * das andere eine über den Seed.
  */
 test.describe('Stapel, Einspruch, Rücknahme (APR-04 … APR-06)', () => {
   test('eine markierte Zeile kommt gar nicht erst in den Stapel', async ({ page }) => {
@@ -154,6 +162,14 @@ test.describe('Stapel, Einspruch, Rücknahme (APR-04 … APR-06)', () => {
 
     const haken = page.locator('[data-cse="stapel-auswahl"]:visible');
     await expect(haken).toHaveCount(1);
+    /*
+     * **Und es ist die Zeile, die gemeint ist.** `toHaveCount(1)` allein
+     * sagt nur, dass EINE stapelfaehige Zeile da ist — nicht welche. Kaeme
+     * morgen eine zweite Routinezeile dazu, genehmigte dieser Test
+     * stillschweigend die falsche und der Fehlschlag laege drei Schritte
+     * weiter unten, wo ihn niemand mehr hierher zurueckverfolgt.
+     */
+    await expect(haken.first()).toHaveAttribute('aria-label', /Abnahmetermin/u);
     const freigabeId = await haken.first().getAttribute('value');
     await haken.first().check();
     await page.locator('[data-cse="stapel-genehmigen"]').click();
@@ -162,7 +178,23 @@ test.describe('Stapel, Einspruch, Rücknahme (APR-04 … APR-06)', () => {
     await expect(page.locator('[data-cse="stapel-bericht"]')).toContainText('1 genehmigt');
     // Eine Terminbestätigung ist risikoarm — also läuft ein Einspruchsfenster.
     await expect(page.locator('[data-cse="stapel-verzoegert"]')).toContainText('Einspruchsfenster');
-    await expect(page.locator('[data-cse="posteingang-leer"]')).toBeVisible();
+    /*
+     * **Der Posteingang ist danach nicht LEER, sondern um DIESE Zeile
+     * kuerzer.**
+     *
+     * Hier stand `posteingang-leer`, und das stimmte genau so lange, wie
+     * `bau` einen einzigen Vorschlag hatte. Seit das Social Media Center
+     * seinen vorgelegten Beitrag in denselben Posteingang legt (SOC-03),
+     * warten dort zwei — und die Pruefung schlug fehl, obwohl der Stapel
+     * genau das getan hatte, was er sollte. Eine Zusicherung, die von der
+     * GESAMTZAHL der Seed-Vorschlaege abhaengt, misst den Seed und nicht den
+     * Stapel; sie faellt beim naechsten Modul wieder um.
+     *
+     * Zugesichert ist: die genehmigte Zeile ist weg. Das ist es, was der
+     * Stapel verspricht.
+     */
+    await expect(page.locator(`[data-cse="stapel-auswahl"][value="${String(freigabeId)}"]`))
+      .toHaveCount(0);
 
     /* Solange das Fenster läuft, steht die Zeile in „Laufende Fenster". */
     await page.goto('/portal/bau/freigaben/laufend');

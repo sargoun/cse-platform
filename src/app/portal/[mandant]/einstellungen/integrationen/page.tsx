@@ -1,7 +1,13 @@
+import type postgres from 'postgres';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
+import { Hinweis } from '@/components/ui/Hinweis';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { anbindungen, STAND_TEXT, type Anbindungsstand } from '@/server/registry/integrationen';
+import { alleJobs } from '@/server/jobs/bootstrap';
+import { planzeilen } from '@/server/jobs/zeitplan';
+import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
+import { bindeAnfrage } from '@/server/kontext/index';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 
@@ -16,8 +22,19 @@ import { mandantTor, MandantAntwort } from '../../../unterseite';
  */
 export const dynamic = 'force-dynamic';
 
+/** Gespeichert UTC, gezeigt Europe/Berlin (Invariante 2). */
+const BERLIN = new Intl.DateTimeFormat('de-DE', {
+  timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short',
+});
+
 const PILLE: Readonly<Record<Anbindungsstand, PillZustand>> = {
   verbunden: 'Aktiv',
+  /*
+   * „Wartet" und nicht „Aktiv": eingerichtet ist nicht gelaufen. Die Marke
+   * kommt aus der geschlossenen Menge in DESIGN §5 — eine neue waere hier
+   * erfunden, und das verbietet dieselbe Regel, die sie geschlossen haelt.
+   */
+  unbestaetigt: 'Wartet',
   nicht_verbunden: 'Inaktiv',
   entwicklung: 'Entwurf',
   dateiexport: 'Bereit',
@@ -34,6 +51,44 @@ export default async function Integrationen(
   const zeilen = anbindungen();
   const verbunden = zeilen.filter((z) => z.stand === 'verbunden').length;
 
+  /*
+   * **Der Zeitplan allein ist eine Behauptung.**
+   *
+   * `zeitplan: '0 3 * * *'` steht im Code und sagt, wann etwas laufen SOLL.
+   * Ob es gelaufen ist, steht in `job_lauf` — und genau dieser Vergleich
+   * fehlte: sechzehn Waechter mit einem Zeitplan, kein einziger Lauf, und
+   * kein Bildschirm, auf dem das aufgefallen waere. Ein Job, der nie laeuft,
+   * erzeugt keine Fehlermeldung; er erzeugt nur nichts.
+   *
+   * `job_lauf` traegt KEIN `mandant_id` (0010) — die Laeufe sind
+   * plattformweit, und das ist richtig: ein Nachtlauf laeuft einmal und
+   * schreibt sein Ergebnis je Mandant daneben. Es gibt hier also nichts nach
+   * Mandant zu filtern.
+   *
+   * **Gebunden wird die Sitzung trotzdem, und das war der Fehler.** Die
+   * Abfrage lief ueber die rohe Verbindung. `job_lauf` steht unter FORCE RLS,
+   * und `t_job_lauf_lesen` (0010:72) verlangt
+   * `app.hat_recht('system.betrieb_lesen', app.aktiver_mandant())` — ohne
+   * gebundene Sitzung ist der aktive Mandant NULL, das Recht antwortet
+   * `false`, und die Abfrage liefert NULL ZEILEN. Die Seite meldete dann
+   * „noch nie gelaufen" fuer JEDEN Waechter, ohne einen Fehler zu zeigen.
+   *
+   * In CI und im Seed fiel das nicht auf: dort steht `postgres` in
+   * `DATABASE_URL`, ein Superuser mit `BYPASSRLS`. Dieselbe Altlast wie in
+   * D-378, nur auf einem Bildschirm statt in einem Lauf — und mit derselben
+   * Wirkung: eine gruene Auskunft ueber nichts.
+   */
+  const laeufe = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) => {
+    await bindeAnfrage(tx, zugang.sitzung);
+    return tx.unsafe(
+      `select distinct on (job) job, gestartet_am, ergebnis::text as ergebnis
+         from job_lauf order by job, gestartet_am desc`,
+    );
+  }) as Promise<readonly { job: string; gestartet_am: Date; ergebnis: string | null }[]>);
+  const letzter = new Map(laeufe.map((l) => [l.job, l]));
+  const plan = planzeilen(alleJobs(db()));
+  const nieGelaufen = plan.filter((p) => !letzter.has(p.schluessel)).length;
+
   return (
     <PortalRahmen
       titel="Integrationen"
@@ -41,7 +96,7 @@ export default async function Integrationen(
       bereich={mandant as BereichSchluessel}
       nurLesen
       leiste={zugang.leiste}
-      wurzel={`/portal/${mandant}/einstellungen`}
+      wurzel={`/portal/${mandant}`}
       aktiverTab="mehr"
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
@@ -80,6 +135,60 @@ export default async function Integrationen(
         dieser Oberfläche — ein Schlüssel gehört nicht in eine Datenbank, die jemand
         exportieren kann.
       </p>
+
+      <h2 className="mb-s3 mt-s7 text-h2 text-text">Nachtläufe</h2>
+      <p data-cse="jobs-zaehler" data-anzahl={plan.length} data-nie={nieGelaufen}
+         className="mb-s5 max-w-[72ch] text-sm text-text-muted">
+        {String(plan.length)} Wächter tragen einen Zeitplan (SPEC §14).{' '}
+        {nieGelaufen === 0
+          ? 'Jeder davon ist mindestens einmal gelaufen.'
+          : `${String(nieGelaufen)} davon sind noch nie gelaufen.`}{' '}
+        Ein Zeitplan im Code sagt, wann etwas laufen soll; wann es gelaufen ist, steht
+        hier. Die beiden auseinanderlaufen zu lassen ist der Fehler, der keine
+        Fehlermeldung erzeugt.
+      </p>
+
+      {nieGelaufen === plan.length ? (
+        <Hinweis art="warnung" cse="jobs-kein-ausloeser" className="mb-s5 max-w-prose">
+          <strong>Kein Wächter ist je gelaufen.</strong> Das ist kein Fehler im Code —
+          es fehlt der Auslöser. Der Plan dafür wird aus dem Job-Register erzeugt
+          (<code>pnpm jobs:plan</code> → <code>docs/JOB-AUSLOESER.sql</code>) und einmal
+          in der Datenbank eingespielt; ohne <code>JOB_TOKEN</code> nimmt die
+          Auslöseroute ohnehin nichts an.
+        </Hinweis>
+      ) : null}
+
+      <div data-cse="jobs">
+        <DataTable
+          beschriftung="Nachtläufe, ihr Zeitplan und ihr letzter Lauf"
+          zeilen={plan}
+          schluessel={(p) => p.schluessel}
+          spalten={[
+            { schluessel: 'bezeichnung', kopf: 'Wächter', zelle: (p) => p.bezeichnung },
+            { schluessel: 'zeitplan', kopf: 'Zeitplan (UTC)',
+              zelle: (p) => <code className="text-xs">{p.zeitplan}</code> },
+            { schluessel: 'bereich', kopf: 'Umfang', zelle: (p) => p.bereich },
+            { schluessel: 'lauf', kopf: 'Zuletzt gelaufen',
+              zelle: (p) => {
+                const l = letzter.get(p.schluessel);
+                return l === undefined ? (
+                  <span data-cse="job-nie" className="flex items-center gap-s2">
+                    <StatusPill zustand="Inaktiv" />
+                    <span className="text-xs text-text-muted">noch nie</span>
+                  </span>
+                ) : (
+                  <span data-cse="job-lauf" data-ergebnis={l.ergebnis ?? 'offen'}
+                        className="flex items-center gap-s2">
+                    <StatusPill zustand={l.ergebnis === 'erfolg' ? 'Aktiv' : 'Überfällig'} />
+                    <span className="text-xs text-text-muted">
+                      {BERLIN.format(new Date(l.gestartet_am))}
+                    </span>
+                  </span>
+                );
+              } },
+          ]}
+        />
+      </div>
     </PortalRahmen>
   );
 }

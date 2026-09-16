@@ -34,6 +34,8 @@ import {
 } from './dienstplanWachen.js';
 import { registriereNachtragWache } from './nachtragWache.js';
 import { registriereFreigabeFenster } from './freigabeFenster.js';
+import { registriereSocialPlan } from './socialPlan.js';
+import { registriereBewerberLoeschung } from './bewerberLoeschung.js';
 
 /*
  * Methodensyntax, nicht Eigenschaftssyntax — wie ueberall sonst im Baum
@@ -81,6 +83,8 @@ export function alleJobs(db: Abfrage): readonly JobDefinition[] {
     registriereMorgenUnbesetzt(db);
     registriereNachtragWache(db);
     registriereFreigabeFenster(db);
+    registriereSocialPlan(db);
+    registriereBewerberLoeschung(db);
     registriereRadar(db);
     geschehen = true;
   }
@@ -109,8 +113,10 @@ export function vergissRegistrierung(): void {
  * die es noch nicht gibt.
  *
  * **Und eine Altlast, die der Kettenpruefer sichtbar gemacht hat.** Die
- * anderen vier Jobs laufen weiterhin OHNE `set local role cse_job`: sie
- * nehmen die Rolle, die in `DATABASE_URL` steht. Die Kommentare an vielen
+ * uebrigen Jobs laufen weiterhin OHNE `set local role cse_job`: sie
+ * nehmen die Rolle, die in `DATABASE_URL` steht. DREI binden sie inzwischen —
+ * der Kettenpruefer, `social_plan` (D-546) und `bewerber_loeschung` (D-570);
+ * der Rest nicht. Die Kommentare an vielen
  * Stellen („der Job verbindet sich als `cse_job`") beschrieben eine Absicht,
  * die nichts umsetzte — jede Policy und jedes Spaltenrecht, das seit 0012
  * fuer `cse_job` geschrieben wurde, lief bis hierher ungeprueft mit. Sie

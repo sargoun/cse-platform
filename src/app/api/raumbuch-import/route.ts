@@ -1,6 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { internesZiel, istGleicherUrsprung } from '@/server/auth/ursprung';
+import { internesZiel, istGleicherUrsprung, erwarteterUrsprung } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
@@ -102,7 +102,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     if (ergebnis.art === 'geprueft') {
       const ziel = `/portal/${mandantSlug}/objekte/${ergebnis.objektId}/raumbuch/import`
         + `?import=${ergebnis.importId}`;
-      return NextResponse.redirect(new URL(ziel, anfrage.nextUrl.origin), 303);
+      return NextResponse.redirect(new URL(ziel, erwarteterUrsprung(anfrage)), 303);
     }
 
     const zurueck = anfrage.nextUrl.searchParams.get('zurueck');

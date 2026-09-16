@@ -380,12 +380,20 @@ ausschreibung · ki · heute · kalender · uhr · standort · telefon · mail �
 glocke · suche · filter · plus · export · import · pfeil-rechts · pfeil-runter ·
 chevron-rechts · menue · schliessen · schloss · auge · stift · papierkorb ·
 warnung · ok · fehler · info · gruppe · person · euro · reinigung · security ·
-qualitaet · eingang · buch · bank`
+qualitaet · eingang · buch · bank · social`
 
 `glocke` is the notification inbox (NOT-01) and **not** `mail`: the two sit in
 the same header and mean different things — `mail` is a message a person
 wrote, `glocke` is what the system noticed. Two items on the same envelope
 read as one item, which is the rule right below.
+
+`social` (SOC-01) is a **node graph** — one point branching to two — and
+deliberately neither `export` nor `mail`. `export` is a file leaving for a
+machine; `mail` is one message to one named recipient; `social` is the same
+text going to several audiences at once, which is exactly what makes it worth
+its own approval step. No platform logo is ever used: a Meta or LinkedIn mark
+is someone else's trademark, it cannot take `currentColor`, and it would claim
+a connection the platform does not have (SOC-07).
 
 **No two navigation items share a glyph.** A sidebar is scanned by shape;
 four items on the same export arrow read as one item. `reinigung`,
@@ -523,6 +531,56 @@ A notice is one sentence with weight, in a frame: `--r-lg`, `1px` border,
 The first words carry the meaning in bold, so the colour never carries it
 alone (§9). Component: `components/ui/Hinweis.tsx`; every notice carries a
 `data-cse` anchor.
+
+### Status pages — 404 and error
+
+Two pages the platform had none of, while 232 call sites led to them. Next.js
+answers a missing `not-found.tsx` with its own English default: black on white,
+Inter nowhere, no way back. That page is the one a visitor sees at the moment
+they are already lost.
+
+Both share **one component**, `components/ui/Zustandsseite.tsx`, because they
+differ only in what they say — a layout written twice drifts two ways. It is a centred column, `max-w-form` (§3), vertically centred in the
+viewport with `--s9` of section padding:
+
+| Slot | Type (§2) | Colour (§1) |
+|---|---|---|
+| eyebrow — the code (`404`, `500`) | `micro`, uppercase | `--text-subtle` |
+| headline — what happened, in German | `h1` | `--text` |
+| explanation — one or two sentences | `base`, max `72ch` | `--text-muted` |
+| actions — at most two | Buttons (§5) | primary + ghost |
+
+**Rules, and each one is a decision, not a preference:**
+
+1. **Say what happened, never what the visitor did wrong.** „Diese Seite gibt
+   es nicht" — not „Ungültige Anfrage". The portal answers a missing *right*
+   with the same 404 as a missing *page* (AUT-06), so this text must be true
+   for both and must not hint which it was.
+2. **Always a way onward.** A status page with no link is a dead end. Primary
+   goes to the surface the visitor is on (public: `/`, portal:
+   `/portal/[mandant]`); ghost goes back.
+3. **No error detail on screen.** A stack trace, an SQL fragment, a table name
+   — those go to the log. `error.tsx` shows the `digest`, and only that: it is
+   the string that connects this screen to that log line.
+4. **No illustration, no number set in `display`.** A 404 drawn large is a joke
+   at the reader's expense; this is a working tool.
+5. **There is no `loading.tsx`, and that is a hard rule.** A `loading.tsx`
+   wraps its segment in a Suspense boundary, so the shell goes out **before the
+   page has decided anything** — with status `200`. At the root that silently
+   turns every `404` in the application into a `200`, including the one AUT-06
+   depends on: a request for another company's data would answer *found*. It
+   was written, it looked harmless, and it broke every status code in the app
+   until a browser check caught it. The same applies to any segment whose pages
+   can call `notFound()` — which is all of them. A slow screen shows its own
+   skeleton inside the page, where the status code is already settled.
+
+**These pages do not carry the portal frame, and that is a constraint, not a
+preference.** Next.js passes `not-found.tsx` no params, so a tenant-scoped page
+cannot know which company it is in; and the loader that would tell it
+(`mandantTor`) calls `notFound()` itself, which on a not-found page is a render
+loop on the one screen that must never fail. Instead the page reads the request
+path from the middleware header and offers the portal root as its primary
+action, so the navigation is one click away rather than gone.
 
 ### Navigation
 
@@ -670,6 +728,66 @@ Mobile-first. Rules that are not negotiable:
 - Portal navigation → bottom tab bar on phones
 - The employee check-in screen is **phone-only in practice**: one screen, one
   primary button, no scrolling, usable with gloves on and one hand
+
+### Safe area — the phone is not a rectangle
+
+Reported from a real device: the bottom tab bar sat flush against the screen
+edge, its labels a millimetre above the home indicator. On a phone with rounded
+corners, a notch or a home indicator, part of the viewport is **not reachable**
+— a tap there is swallowed by the system gesture, and text there is cut by the
+curve.
+
+Two things are needed together, and one without the other does nothing:
+
+1. `viewport-fit=cover` in the viewport meta. **Without it iOS reports every
+   `env(safe-area-inset-*)` as `0px`**, so padding written against those
+   variables silently does nothing.
+2. The inset carried by a **transparent border** on everything that touches an
+   edge — never by padding. The reason is below, and it is not a detail.
+
+| Where | Rule |
+|---|---|
+| Bottom tab bar | the bottom inset is added **below** the `44px` cell, never taken out of the tap target |
+| Content above the tab bar | clears `44px + 8px + inset` **in addition to** its own padding; the bar is `fixed` and covers whatever sits under it |
+| The `Mehr` sheet | ends at the top edge of the bar, so its `bottom` is `44px + inset` |
+| Every fixed left/right edge | the left/right inset — zero in portrait, non-zero in landscape on a notched phone |
+| Fixed headers | the top inset — zero in a browser tab, non-zero in standalone mode |
+
+The utilities live in `globals.css` as `.sicher-unten`, `.sicher-seiten`,
+`.sicher-oben` and `.ueber-tableiste`, because `env()` is not a Tailwind value
+and a hand-written `pb-[calc(...)]` in twelve files is twelve chances to write
+a different number.
+
+**Why a transparent border and not padding.** It was padding once, and it cost
+every page in the portal its margins. `globals.css` is loaded *after* Tailwind's
+generated utilities, so `.sicher-seiten` and `p-s5` are two declarations of the
+same property at the same specificity — and the later one wins. On a desktop,
+where every inset is `0px`, `.sicher-seiten` therefore meant
+`padding-left: 0px`: the cards sat flush against the window edge on every single
+page, on every screen size, and nothing in lint, typecheck or the test suite
+said a word, because no rule was broken — two correct rules simply met.
+
+A transparent border cannot have that fight. With `box-sizing: border-box`
+(Tailwind's default on every element) it grows the box inward exactly like
+padding, the background still paints under it (`background-clip: border-box` is
+the default, so the bar's surface reaches the physical edge while its labels do
+not), and it **composes** with whatever padding the element already carries
+instead of replacing it.
+
+Written as **physical** longhands — `border-left-width`, not
+`border-inline-start-width`. `safe-area-inset-left` is the physical left of the
+device and does not flip; the worker screens run in Arabic under `dir="rtl"`
+(SPEC §10), and a logical property there would put the notch inset on the wrong
+side of the screen.
+
+> **The rule this leaves behind:** a utility in `globals.css` never declares a
+> property that a Tailwind utility on the same element also declares. Where the
+> two would meet — padding, margin, colour — the custom rule takes a different
+> property. `tests/design/sichere-flaeche.test.ts` holds this.
+
+**`44px` stays `44px`.** The inset is space the system takes, not space the
+button gives up: a bar that shrinks its cells to fit the indicator fails the
+tap-target rule above on exactly the devices that need it most.
 
 ---
 

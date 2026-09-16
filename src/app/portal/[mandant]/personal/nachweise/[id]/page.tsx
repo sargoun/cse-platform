@@ -13,6 +13,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { berlinHeute } from '@/server/db/heute';
 import { berlinAnzeige } from '@/server/services/zeit/dauer';
 import { nachweislage, type Nachweislage } from '@/server/services/nachweis/uebersicht';
+import { kennungOder404 } from '../../../../kennung';
 import {
   lageVon, leseNachweis, leseWarnungen, type RegisterZeile, type WarnungZeile,
 } from '../daten';
@@ -47,6 +48,7 @@ export default async function Nachweisblatt({
   params: Promise<{ mandant: string; id: string }>;
 }) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const pfad = `/portal/${mandant}/personal/nachweise/${id}`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;

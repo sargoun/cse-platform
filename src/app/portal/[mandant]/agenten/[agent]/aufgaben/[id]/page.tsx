@@ -14,6 +14,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { schritte, type SchrittZeile } from '@/server/agent/laufzeit';
 import { kennungFuer } from '../../../kennung';
 import { Schrittkette } from '../../../Schrittkette';
+import { kennungOder404 } from '../../../../../kennung';
 
 /**
  * `/portal/[mandant]/agenten/[agent]/aufgaben/[id]` — ein Lauf, von vorne bis
@@ -59,6 +60,7 @@ export default async function Lauf(
   { params }: { params: Promise<{ mandant: string; agent: string; id: string }> },
 ) {
   const { mandant, agent, id } = await params;
+  kennungOder404(id);
   const kennung = kennungFuer(agent);
   if (kennung === undefined) notFound();
 

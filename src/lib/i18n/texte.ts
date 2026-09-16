@@ -401,6 +401,8 @@ export interface MeinTexte {
   readonly nachweise: string;
   readonly monatsnachweis: string;
   readonly abwesenheit: string;
+  /** Die Ueberschrift ueber den Zielen, die nicht in die Leiste passen. */
+  readonly weiteres: string;
 
   readonly laufendeSchicht: string;
   readonly naechsteSchicht: string;
@@ -499,6 +501,11 @@ export interface MeinTexte {
    * WEGEN der Uebersetzung hier liest, fand die Navigation unuebersetzt.
    */
   readonly nachrichten: string;
+  /** Der Posteingang der Person (EMP-11, NOT-03) — der vierte Tab. */
+  readonly keineNachrichten: string;
+  readonly ungelesen: string;
+  readonly gelesen: string;
+  readonly oeffnen: string;
   readonly profil: string;
   readonly bereichWechseln: string;
   readonly konto: string;
@@ -520,6 +527,7 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     nachweise: 'Nachweise',
     monatsnachweis: 'Monatsnachweis',
     abwesenheit: 'Abwesenheit',
+    weiteres: 'Weiteres',
     laufendeSchicht: 'Laufende Schicht',
     naechsteSchicht: 'Nächste Schicht',
     keineSchicht: 'Für Sie ist derzeit keine Schicht eingeteilt.',
@@ -597,6 +605,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     nurAufDeutsch: 'Dieser Text liegt nur auf Deutsch vor.',
     vorNaechsterSchicht: 'Vor Ihrer nächsten Schicht',
     nachrichten: 'Nachrichten',
+    keineNachrichten: 'Keine Nachrichten. Das heisst: nichts Offenes — nicht, dass etwas fehlt.',
+    ungelesen: 'ungelesen',
+    gelesen: 'gelesen',
+    oeffnen: 'Öffnen',
     profil: 'Profil',
     bereichWechseln: 'Bereich wechseln',
     konto: 'Konto',
@@ -615,6 +627,7 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     nachweise: 'Certificates',
     monatsnachweis: 'Monthly statement',
     abwesenheit: 'Absence',
+    weiteres: 'More',
     laufendeSchicht: 'Current shift',
     naechsteSchicht: 'Next shift',
     keineSchicht: 'You are not scheduled for a shift at the moment.',
@@ -691,6 +704,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     nurAufDeutsch: 'This text is available in German only.',
     vorNaechsterSchicht: 'Before your next shift',
     nachrichten: 'Messages',
+    keineNachrichten: 'No messages. That means nothing is pending — not that something is missing.',
+    ungelesen: 'unread',
+    gelesen: 'read',
+    oeffnen: 'Open',
     profil: 'Profile',
     bereichWechseln: 'Switch area',
     konto: 'Account',
@@ -709,6 +726,7 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     nachweise: 'الشهادات',
     monatsnachweis: 'كشف الساعات الشهري',
     abwesenheit: 'الغياب',
+    weiteres: 'المزيد',
     laufendeSchicht: 'المناوبة الجارية',
     naechsteSchicht: 'المناوبة القادمة',
     keineSchicht: 'لا توجد مناوبة مجدولة لك حالياً.',
@@ -785,6 +803,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     nurAufDeutsch: 'هذا النص متوفر باللغة الألمانية فقط.',
     vorNaechsterSchicht: 'قبل ورديتك القادمة',
     nachrichten: 'الرسائل',
+    keineNachrichten: 'لا توجد رسائل. يعني ما في شي معلّق — مش إنّو في شي ناقص.',
+    ungelesen: 'غير مقروءة',
+    gelesen: 'مقروءة',
+    oeffnen: 'فتح',
     profil: 'الملف الشخصي',
     bereichWechseln: 'تبديل القسم',
     konto: 'الحساب',
@@ -803,6 +825,7 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     nachweise: 'Belgeler',
     monatsnachweis: 'Aylık saat belgesi',
     abwesenheit: 'Devamsızlık',
+    weiteres: 'Diğer',
     laufendeSchicht: 'Devam eden vardiya',
     naechsteSchicht: 'Sonraki vardiya',
     keineSchicht: 'Şu anda size atanmış bir vardiya yok.',
@@ -879,6 +902,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     nurAufDeutsch: 'Bu metin yalnızca Almanca olarak mevcuttur.',
     vorNaechsterSchicht: 'Bir sonraki vardiyanızdan önce',
     nachrichten: 'Mesajlar',
+    keineNachrichten: 'Mesaj yok. Bu, bekleyen bir şey olmadığı anlamına gelir - eksik bir şey olduğu değil.',
+    ungelesen: 'okunmamış',
+    gelesen: 'okunmuş',
+    oeffnen: 'Aç',
     profil: 'Profil',
     bereichWechseln: 'Alan değiştir',
     konto: 'Hesap',

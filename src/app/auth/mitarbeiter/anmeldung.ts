@@ -1,6 +1,8 @@
 import 'server-only';
 import { isIP } from 'node:net';
 import { CODE_GUELTIG_MINUTEN } from '@/server/auth/mitarbeiter-anmeldung';
+import { keksSicher } from '@/server/auth/sitzung';
+import type { Umgebung } from '@/lib/dev-flaechen';
 
 /**
  * Was zwischen den beiden Anmeldeschritten liegt — an einer Stelle.
@@ -29,7 +31,42 @@ export const ANMELDUNG_DEV_COOKIE = 'cse_anmeldung_devcode';
  * hiesse, dass jemand mit einem gueltigen Code auf eine Seite kommt, die nicht
  * mehr weiss, zu welcher Nummer er gehoert.
  */
-export function anmeldeKeksOptionen(): {
+/**
+ * **Hier stand `secure: process.env.NODE_ENV === 'production'` — und das war
+ * der Fehler, der die Anmeldung am Telefon unmoeglich machte.**
+ *
+ * Nicht wegen der Bedingung, sondern wegen der SCHREIBWEISE. `process.env.X`
+ * als Literal im Quelltext ist fuer Webpacks DefinePlugin kein Zugriff,
+ * sondern eine Konstante: beim Bau wird der ganze Ausdruck durch sein
+ * Ergebnis ersetzt. Im gebauten Buendel stand woertlich
+ *
+ *     httpOnly:!0,sameSite:"lax",path:"/auth/mitarbeiter",…,secure:!0
+ *
+ * — `secure: true`, einkompiliert, durch keine Umgebungsvariable mehr
+ * erreichbar. Zum Vergleich derselbe Bau, derselbe Keksspeicher, der
+ * Sitzungskeks:
+ *
+ *     secure:"production"===a.NODE_ENV
+ *
+ * Dort steht die Frage noch, weil `sitzungsKeksOptionen` ueber einen
+ * PARAMETER liest und DefinePlugin einen Feldzugriff auf eine Variable nicht
+ * ersetzen kann. Zwei Keksfabriken, ein Unterschied von drei Zeichen, und nur
+ * eine davon liess sich reparieren.
+ *
+ * **Was daraus wurde.** Ueber `http://192.168.0.193` verwirft der Browser
+ * einen `Secure`-Keks vollstaendig (RFC 6265bis §5.5). Beide Anmeldekekse
+ * waren also weg, bevor der Mensch den Code eintippen konnte. Dass die
+ * Codeseite trotzdem erschien UND den Entwicklungscode zeigte, ist kein
+ * Widerspruch: Next.js rendert das Ziel einer `redirect()` aus einer Server
+ * Action in DERSELBEN Antwort und reicht dabei die eben gesetzten Kekse
+ * serverintern weiter (`action-handler.js`, `getForwardedHeaders`). `Secure`
+ * ist eine Browserregel und greift auf diesem Weg nicht. Erst der naechste
+ * Schritt war ein eigener Request — und der kam keksfrei an.
+ *
+ * Die Entscheidung steht jetzt an EINER Stelle (`keksSicher`), damit
+ * Anmeldekeks und Sitzungskeks nicht wieder verschieden antworten.
+ */
+export function anmeldeKeksOptionen(umgebung: Umgebung = process.env): {
   httpOnly: true; sameSite: 'lax'; path: string; maxAge: number; secure: boolean;
 } {
   return {
@@ -37,7 +74,7 @@ export function anmeldeKeksOptionen(): {
     sameSite: 'lax',
     path: '/auth/mitarbeiter',
     maxAge: CODE_GUELTIG_MINUTEN * 60,
-    secure: process.env.NODE_ENV === 'production',
+    secure: keksSicher(umgebung),
   };
 }
 

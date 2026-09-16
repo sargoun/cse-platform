@@ -5,6 +5,7 @@ import type postgres from 'postgres';
 import { db } from '../db/pool.js';
 import { ALT_SITZUNG_COOKIE, SITZUNG_COOKIE, beendeSitzung, sitzungsKeksOptionen } from './sitzung.js';
 import { istGleicherUrsprung } from './ursprung.js';
+import { erwarteterUrsprung } from '@/server/auth/ursprung';
 
 /**
  * Das Abmelden — einmal geschrieben, von zwei Adressen benutzt.
@@ -34,7 +35,7 @@ export async function meldeAb(anfrage: NextRequest, ziel: string): Promise<NextR
     });
   }
 
-  const antwort = NextResponse.redirect(new URL(ziel, anfrage.nextUrl.origin), 303);
+  const antwort = NextResponse.redirect(new URL(ziel, erwarteterUrsprung(anfrage)), 303);
   // Dieselben Attribute wie beim Setzen, nur `maxAge: 0` — ein Keks wird nur
   // geloescht, wenn Pfad und Flags zum gesetzten passen.
   antwort.cookies.set(SITZUNG_COOKIE, '', { ...sitzungsKeksOptionen(), maxAge: 0 });

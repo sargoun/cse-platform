@@ -8,7 +8,7 @@
  * Bildschirm SIEHT — und was ein Unbekannter aus dem Gesehenen ableiten kann.
  */
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Response } from '@playwright/test';
 import postgres from 'postgres';
 
 const DSN = process.env['DATABASE_URL']
@@ -197,7 +197,13 @@ test('der richtige Code meldet an, und ein zweites Mal nicht mehr', async ({ pag
   await page.fill('input[name="code"]', code);
   await page.locator('[data-cse="code-einloesen"]').click();
   await page.waitForURL(/\/portal\/mein/u);
-  await expect(page.locator('h1')).toBeVisible();
+  /*
+   * **Den TEXT festnageln, nicht die Sichtbarkeit.** `toBeVisible()` auf
+   * irgendeinem `h1` ist auch dann wahr, wenn die Anmeldung fehlgeschlagen
+   * ist — „Anmeldung erforderlich" hat ebenfalls eine Ueberschrift. Der
+   * Bildschirm, den eine angemeldete Kraft sieht, heisst „Heute".
+   */
+  await expect(page.locator('h1')).toHaveText('Heute');
 
   /*
    * Abmelden und denselben Code erneut: er ist verbraucht. Der Weg dorthin
@@ -291,4 +297,95 @@ test('die Dev-Anmeldung bietet keine Beschäftigten mehr an', async ({ page }) =
   // diese Zusage auch auf einer leeren Seite erfüllt.
   expect(await page.locator('[data-cse="dev-anmelden"][data-rolle="admin"]').count())
     .toBeGreaterThan(0);
+});
+
+/**
+ * (7) **Die Schreibweise, die ein Mensch am Telefon wirklich tippt.**
+ *
+ * Jede Prüfung oben LIEST die Nummer aus der Datenbank (`+49 170 1000000`)
+ * und gibt sie wörtlich ins Feld. Ein Mensch tippt `0170 1000000` — mit
+ * führender Null und Leerzeichen, so wie sie auf jeder Visitenkarte steht.
+ * Genau diese Form hat ein Nutzer eingegeben, und ob sie ankommt, hing an
+ * `normalisiereTelefon` und daran, dass der Vergleich beide Seiten auf E.164
+ * bringt.
+ *
+ * Die Prüfung kostet nichts und deckt die einzige Schreibweise ab, die im
+ * Betrieb tatsächlich vorkommt.
+ */
+test('die nationale Schreibweise mit führender Null meldet genauso an', async ({ page }) => {
+  const e164 = await nummerVon('fatima.yildiz@cse-gruppe.de');
+  /* `+49 170 1000000` → `0170 1000000`: Ländervorwahl weg, Null davor. */
+  const national = e164.replace(/^\+49\s*/u, '0');
+  expect(national, 'die Rückrechnung muss eine nationale Form ergeben').toMatch(/^0\d/u);
+
+  await page.goto('/auth/mitarbeiter');
+  await page.fill('input[name="telefon"]', national);
+  await bremseLoesenFuerFeld(page);
+  await page.locator('[data-cse="code-anfordern"]').click();
+  await page.waitForURL('**/auth/mitarbeiter/code');
+
+  const code = (await page.locator('[data-cse="dev-code-wert"]').innerText()).trim();
+  await page.fill('input[name="code"]', code);
+  await page.locator('[data-cse="code-einloesen"]').click();
+
+  await page.waitForURL(/\/portal\/mein/u);
+  await expect(page.locator('h1')).toHaveText('Heute');
+});
+
+/**
+ * (8) **Der Keks, den der Browser auch behält.**
+ *
+ * Der teuerste Fehler dieses Weges war unsichtbar: `anmeldeKeksOptionen`
+ * schrieb `secure: process.env.NODE_ENV === 'production'` als Literal, und
+ * Webpack betonierte daraus im Bau `secure:!0` ein (D-541). Über
+ * `http://192.168.0.193` verwarf jeder Browser den Keks, die Anmeldung war am
+ * Telefon unmöglich — und keine Prüfung wurde rot, weil die Browsersuite über
+ * `localhost` läuft und Loopback für Browser ein sicherer Kontext ist.
+ *
+ * Diese Prüfung schaut deshalb NICHT auf den Bildschirm, sondern auf den
+ * `Set-Cookie`-Kopf. Der ist unabhängig davon, über welchen Host die Suite
+ * läuft: unter `CSE_DEV_FLAECHEN=1` — und damit läuft Playwright — darf dort
+ * kein `Secure` stehen und kein `__Host-`-Name.
+ */
+test('unter CSE_DEV_FLAECHEN trägt kein Anmeldekeks `Secure`', async ({ page }) => {
+  const nummer = await nummerVon('fatima.yildiz@cse-gruppe.de');
+  /*
+   * **`response.headers()` taugt fuer `set-cookie` nicht.** Es liefert ein
+   * Objekt mit einem Wert je Name; mehrere `Set-Cookie`-Koepfe einer Antwort
+   * fallen dabei zusammen oder ganz heraus. `headerValue()` gibt sie roh
+   * zurueck — und weil es asynchron ist, werden die Antworten hier gesammelt
+   * und danach ausgelesen.
+   */
+  const antworten: Response[] = [];
+  page.on('response', (r) => { antworten.push(r); });
+
+  await page.goto('/auth/mitarbeiter');
+  await page.fill('input[name="telefon"]', nummer);
+  await bremseLoesenFuerFeld(page);
+  await page.locator('[data-cse="code-anfordern"]').click();
+  await page.waitForURL('**/auth/mitarbeiter/code');
+
+  const koepfe = (await Promise.all(antworten.map((r) => r.headerValue('set-cookie'))))
+    .filter((k): k is string => k !== null);
+  const anmeldekekse = koepfe.filter((k) => k.includes('cse_anmeldung_'));
+  expect(anmeldekekse.length, 'kein Set-Cookie fuer die Anmeldekekse gesehen')
+    .toBeGreaterThan(0);
+  for (const kopf of anmeldekekse) {
+    expect(kopf, 'ein `Secure`-Keks kommt ueber http:// nie an').not.toMatch(/;\s*Secure/iu);
+  }
+
+  const code = (await page.locator('[data-cse="dev-code-wert"]').innerText()).trim();
+  await page.fill('input[name="code"]', code);
+  await page.locator('[data-cse="code-einloesen"]').click();
+  await page.waitForURL(/\/portal\/mein/u);
+
+  /* Und der Sitzungskeks trägt denselben Zustand — eine Entscheidung, zwei Kekse. */
+  const spaeter = (await Promise.all(antworten.map((r) => r.headerValue('set-cookie'))))
+    .filter((k): k is string => k !== null);
+  const sitzung = spaeter.filter((k) => k.includes('cse_sitzung='));
+  expect(sitzung.length, 'kein Set-Cookie fuer den Sitzungskeks gesehen').toBeGreaterThan(0);
+  for (const kopf of sitzung) {
+    expect(kopf).not.toMatch(/;\s*Secure/iu);
+    expect(kopf, '`__Host-` verlangt `Secure` — beides oder keines').not.toContain('__Host-');
+  }
 });

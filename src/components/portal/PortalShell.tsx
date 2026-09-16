@@ -54,7 +54,8 @@ export function PortalShell({
           : { style: { background: `var(--area-${aktiv.bereich})` } })}
       />
 
-      <header className="flex h-14 shrink-0 items-center gap-s3 border-b border-line bg-surface px-s3">
+      <header className="sicher-seiten flex h-14 shrink-0 items-center gap-s3
+                         border-b border-line bg-surface px-s3">
         <BereichsUmschalter
           bereiche={bereiche}
           aktiv={aktiverMandantId}
@@ -71,7 +72,7 @@ export function PortalShell({
 
       <div className="flex flex-1">
         <Sidebar punkte={punkte} basis={basis} aktiv={aktiverPunkt} />
-        <main className="flex-1 p-s5 pb-20 md:pb-s5">{children}</main>
+        <main className="ueber-tableiste sicher-seiten min-w-0 flex-1 p-s5">{children}</main>
       </div>
     </div>
   );

@@ -14,6 +14,7 @@ import { portalZugang } from '../../../../../../zugang';
 import { slugTor } from '../../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../../../kennung';
 
 /**
  * `/portal/[mandant]/bau/projekte/[id]/aufmass/neu` — ein Aufmass aufnehmen
@@ -43,6 +44,7 @@ export default async function AufmassAufnehmen(
   },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const { probe = '', einheit = 'm²' } = await searchParams;
   const pfad = `/portal/${mandant}/bau/projekte/${id}/aufmass/neu`;
   const zugang = await portalZugang(pfad);

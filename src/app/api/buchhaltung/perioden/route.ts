@@ -1,6 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { istGleicherUrsprung } from '@/server/auth/ursprung';
+import { istGleicherUrsprung, erwarteterUrsprung } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
@@ -25,7 +25,7 @@ export const dynamic = 'force-dynamic';
 const ARTEN: readonly SchlussArt[] = ['vorlaeufig', 'endgueltig', 'oeffnen'];
 
 function zurueck(anfrage: NextRequest, slug: string, jahr: string, such: Readonly<Record<string, string>>): NextResponse {
-  const url = new URL(`/portal/${slug}/buchhaltung/perioden`, anfrage.nextUrl.origin);
+  const url = new URL(`/portal/${slug}/buchhaltung/perioden`, erwarteterUrsprung(anfrage));
   url.searchParams.set('jahr', jahr);
   for (const [k, v] of Object.entries(such)) url.searchParams.set(k, v);
   return NextResponse.redirect(url, 303);

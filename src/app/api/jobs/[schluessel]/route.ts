@@ -16,10 +16,14 @@
  * Dienstplan von acht Wochen neu materialisiert, ist keine Bequemlichkeit,
  * sondern ein Schalter fuer jeden, der die URL kennt.
  *
- * **Idempotent je Tag.** Der Schluessel ist `<job>:<Berliner Datum>`; zwei
- * Ausloeser derselben Nacht ergeben einen Lauf. Das Fenster gehoert dabei
- * nicht dieser Datei, sondern `job_lauf` und seinem eindeutigen Index — wer
- * als Zweiter kommt, bekommt `uebersprungen: true` und keine zweite Arbeit.
+ * **Idempotent je FENSTER, und das Fenster kommt aus dem Zeitplan.** Ein
+ * Nachtlauf hat den Schluessel `<job>:<Berliner Datum>` — zwei Ausloeser
+ * derselben Nacht ergeben einen Lauf. Ein Lauf alle fuenf Minuten bekommt
+ * einen Schluessel je Fuenfminutenfenster; ein Tagesschluessel haette ihn
+ * nach dem ersten Lauf bis zum naechsten Morgen stillgelegt
+ * (`zeitplan.ts: idempotenzSchluessel`). Durchgesetzt wird es nicht hier,
+ * sondern von `job_lauf` und seinem eindeutigen Index — wer als Zweiter
+ * kommt, bekommt `uebersprungen: true` und keine zweite Arbeit.
  */
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse, type NextRequest } from 'next/server';
@@ -30,6 +34,7 @@ import { fuehreAus } from '@/server/jobs/runner';
 import { PostgresProtokoll } from '@/server/jobs/postgres-protokoll';
 import { ProtokollAlarm } from '@/server/jobs/alarm';
 import { aktiveMandanten } from '@/server/jobs/mandanten';
+import { idempotenzSchluessel } from '@/server/jobs/zeitplan';
 
 export const dynamic = 'force-dynamic';
 
@@ -84,9 +89,43 @@ export async function POST(
     return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
   }
 
-  const [tag] = (await sql.unsafe(
-    `select (now() at time zone 'Europe/Berlin')::date::text as tag`,
-  )) as unknown as readonly { tag: string }[];
+  /*
+   * **Der Schluessel folgt dem ZEITPLAN, nicht dem Kalendertag.**
+   *
+   * Hier stand `<job>:<Berliner Datum>` fuer jeden Lauf. Fuer einen Nachtlauf
+   * ist das genau richtig: zwei Ausloeser derselben Nacht ergeben einen Lauf.
+   * Fuer `social_plan`, der alle fuenf Minuten laeuft, war es toedlich — nach
+   * dem ersten Lauf des Tages fand jeder weitere seinen Schluessel schon
+   * vergeben und wurde uebersprungen. Ein Beitrag auf 14:00 ging bis zum
+   * naechsten Morgen nicht hinaus, und der Lauf meldete „uebersprungen", also
+   * nicht einmal einen Fehler.
+   *
+   * Der Versatz kommt aus der Datenbank, nicht aus der Laufzeit des Servers:
+   * `Europe/Berlin` ist die Anzeigezeit dieser Plattform (Invariante 2), und
+   * die Sommerzeit verschiebt ihn zweimal im Jahr.
+   *
+   * **Beide Wanduhren, nicht eine Wanduhr und ein Zeitpunkt.** Hier stand
+   * `(now() at time zone 'Europe/Berlin') - now()`: links ein
+   * `timestamp`, rechts ein `timestamptz`. Postgres castet den linken dann
+   * ueber die SITZUNGSZEITZONE zurueck — und die ist nicht ueberall UTC.
+   * Steht sie auf `Europe/Berlin`, ergibt derselbe Ausdruck **0** statt 120,
+   * und der Tagesschluessel eines Nachtlaufs traegt das UTC-Datum statt des
+   * Berliner. Nachgemessen: unter `set time zone 'Europe/Berlin'` liefert die
+   * alte Fassung 0, diese 120 — in beiden Sitzungszeitzonen.
+   *
+   * **Und EIN Zeitpunkt fuer alles.** `jetzt` kommt jetzt mit heraus, statt
+   * dass die Route daneben `new Date()` liest. Zwei Uhren sind zwei Wahrheiten:
+   * eine Anfrage ueber eine Minutengrenze oder ein kleiner Versatz zwischen
+   * Anwendung und Datenbank berechnete sonst das vorige Fenster, waehrend
+   * Auswahl und gemeldeter `tag` das laufende meinen — bei `social_plan` faellt
+   * ein faelliger Beitrag damit aus seinem Fenster.
+   */
+  const [zeit] = (await sql.unsafe(
+    `select now() as jetzt,
+            (now() at time zone 'Europe/Berlin')::date::text as tag,
+            (extract(epoch from (now() at time zone 'Europe/Berlin')
+                                - (now() at time zone 'UTC')) / 60)::int as versatz`,
+  )) as unknown as readonly { jetzt: Date; tag: string; versatz: number }[];
 
   /**
    * Bei `je_mandant`: ALLE aktiven Gesellschaften, und zwar aus der
@@ -99,7 +138,8 @@ export async function POST(
   const mandanten = job.bereich === 'je_mandant' ? await aktiveMandanten(sql) : [];
 
   const ergebnis = await fuehreAus(job, new PostgresProtokoll(sql), new ProtokollAlarm(), {
-    idempotenzSchluessel: `${job.schluessel}:${tag!.tag}`,
+    idempotenzSchluessel: idempotenzSchluessel(
+      job.schluessel, job.zeitplan, new Date(zeit!.jetzt), zeit!.versatz),
     mandanten,
   });
 
@@ -107,7 +147,7 @@ export async function POST(
   // steht in `job_lauf`. Ein 500 hier liesse den externen Ausloeser
   // wiederholen — und genau das soll die Idempotenz verhindern, nicht
   // ausloesen.
-  return NextResponse.json({ job: job.schluessel, tag: tag!.tag, ...ergebnis });
+  return NextResponse.json({ job: job.schluessel, tag: zeit!.tag, ...ergebnis });
 }
 
 /** Was der externe Zeitplan eintragen muss — zum Vergleichen, nicht zum Raten. */

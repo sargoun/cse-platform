@@ -635,3 +635,137 @@ test.describe('(6) Arabisch: `dir="rtl"` und null axe-Verstöße', () => {
   });
   }
 });
+
+// ---------------------------------------------------------------------------
+
+test.describe('(8) sechs gebaute Seiten, zu denen kein Weg führte', () => {
+  /**
+   * **Der Befund.** Die Arbeiterleiste trägt fünf Ziele — und `mein/zeiten`,
+   * `urlaub`, `antraege`, `nachweise`, `dienstanweisungen` und
+   * `monatsnachweis` waren damit von NIRGENDS erreichbar. Gebaut, übersetzt,
+   * geprüft, und für den Menschen davor dasselbe wie nicht vorhanden.
+   *
+   * `mein/zeiten` ist dabei der teuerste der sechs: dort liegt der
+   * Einwandsweg aus EMP-07 — die einzige Stelle, an der eine Kraft einer
+   * Aufzeichnung widersprechen kann. Ein Widerspruchsrecht ohne Weg dorthin
+   * ist keines.
+   */
+  const ZIELE = [
+    '/portal/mein/zeiten', '/portal/mein/urlaub', '/portal/mein/antraege',
+    '/portal/mein/nachweise', '/portal/mein/dienstanweisungen',
+    '/portal/mein/monatsnachweis',
+  ];
+
+  test('jedes davon steht auf „Heute" und öffnet wirklich', async ({ page }) => {
+    await alsKonto(page, KONTO.fatima);
+    await page.goto('/portal/mein');
+
+    const liste = page.locator('[data-cse="mein-weiteres"] [data-cse="mein-weiteres-ziel"]');
+    await expect(liste).toHaveCount(ZIELE.length);
+
+    const gezeigt = await liste.evaluateAll((els) => els.map((e) => e.getAttribute('href')));
+    expect([...gezeigt].sort()).toEqual([...ZIELE].sort());
+
+    for (const ziel of ZIELE) {
+      await page.goto(ziel);
+      await expect(page.locator('h1').first(), ziel).not.toContainText(/gibt es hier nicht/u);
+      await expect(page.locator('h1').first(), ziel).not.toContainText(/wird noch gebaut/u);
+    }
+  });
+
+  test('und jede Zeile ist ein Tippziel nach DESIGN §8', async ({ page }) => {
+    await alsKonto(page, KONTO.fatima);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/portal/mein');
+    const kaesten = await page.locator('[data-cse="mein-weiteres-ziel"]')
+      .evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
+    for (const h of kaesten) expect(h).toBeGreaterThanOrEqual(44);
+  });
+});
+
+test.describe('(7) „Nur Lesen" ist eine Aussage über die SITZUNG', () => {
+  /**
+   * **Der Befund, der diese Prüfung nötig machte — ein Nutzerbericht.**
+   *
+   * Ein Nutzer öffnete am Telefon als Mitarbeiter zwei Ziele der unteren
+   * Leiste, las dort „Dieses Modul wird noch gebaut" — und daneben, in der
+   * Kopfzeile, das orange Schild **Nur Lesen**. Er schloss daraus, dass das
+   * Mitarbeiterkonto schreibgeschützt sei, und fragte, warum sein Mitarbeiter
+   * keine Stunden erfassen könne.
+   *
+   * Er hat das Schild richtig gelesen; es stand nur falsch da.
+   * `NochNichtGebaut` setzte `nurLesen` fest auf wahr — und „Nur Lesen" ist in
+   * dieser Plattform die Aussage über eine SITZUNG: die Gruppenansicht
+   * schreibt nicht (Invariante 10). Aus einem Bauzustand wurde eine
+   * Rechteauskunft, und zwar eine falsche.
+   *
+   * Die Regel, die hier festgehalten wird: **das Schild folgt der Sitzung,
+   * nicht dem Bauzustand.** In der Gruppenansicht steht es auch auf einer
+   * nicht gebauten Seite — dort stimmt es.
+   */
+  test('eine Mitarbeiterin sieht es NICHT — auch nicht auf einer nicht gebauten Seite',
+    async ({ page }) => {
+      await alsFatima(page);
+
+      /*
+       * **Hier standen einmal die zwei Ziele der Leiste**, die der Nutzer
+       * geöffnet hatte — `/portal/mein/nachrichten` und
+       * `/portal/konto/profil`. Beide sind inzwischen gebaut (D-557, D-558),
+       * und damit hätte diese Prüfung ihren Fall verloren: sie braucht eine
+       * Seite, die WIRKLICH noch nicht existiert, sonst misst sie das Schild
+       * auf einer fertigen Seite und wäre grün, ohne etwas zu zeigen.
+       *
+       * `/portal/mein/dokumente` (Phase 3) und `/portal/mein/objekte`
+       * (Phase 5) sind im Manifest geführt, für diese Rolle freigegeben und
+       * noch nicht gebaut — der Auffang antwortet dort mit der
+       * Bauzustandsseite. Fallen auch sie, fällt diese Prüfung auf und
+       * verlangt eine neue Adresse; das ist gewollt.
+       */
+      for (const pfad of ['/portal/mein/dokumente', '/portal/mein/objekte']) {
+        const antwort = await page.goto(pfad);
+        expect(antwort?.status(), pfad).toBe(200);
+        // Die Seite sagt, dass sie noch entsteht — das ist richtig so.
+        await expect(page.locator('[data-cse="noch-nicht"]'), pfad).toBeVisible();
+        // Und sie sagt NICHT, dass dieses Konto nichts darf.
+        await expect(page.locator('[data-cse="header-nur-lesen"]'), pfad).toHaveCount(0);
+      }
+    });
+
+  test('und die beiden Ziele, die den Befund ausgelöst haben, sind jetzt echte Seiten',
+    async ({ page }) => {
+      /*
+       * Die Gegenrichtung zum Befund aus D-549: der vierte und der fünfte Tab
+       * führten auf „Dieses Modul wird noch gebaut". Sie tun es nicht mehr —
+       * und diese Prüfung fällt, falls jemand sie wieder wegnimmt.
+       */
+      await alsFatima(page);
+
+      const nachrichten = await page.goto('/portal/mein/nachrichten');
+      expect(nachrichten?.status()).toBe(200);
+      await expect(page.locator('[data-cse="noch-nicht"]')).toHaveCount(0);
+
+      const profil = await page.goto('/portal/konto/profil');
+      expect(profil?.status()).toBe(200);
+      await expect(page.locator('[data-cse="noch-nicht"]')).toHaveCount(0);
+      // Die Sprachwahl ist der Grund, aus dem es diese Seite gibt (EMP-12).
+      await expect(page.locator('[data-cse="sprache-formular"]')).toBeVisible();
+      await expect(page.locator('[data-cse="sprache-wahl"]')).toHaveCount(4);
+    });
+
+  test('in der Gruppenansicht steht es weiterhin — dort stimmt es (Invariante 10)',
+    async ({ page }) => {
+      await alsKonto(page, KONTO.gruppe);
+      /* Die Gruppenansicht betreten — ein GET wechselt den Mandanten nie. */
+      await page.goto('/portal/gruppe');
+      /*
+       * `/portal/gruppe/radar` steht im Manifest (Phase 8), ist noch nicht
+       * gebaut — und steht trotzdem in der Tab-Leiste der Gruppe. Eine echte
+       * Adresse also, keine erfundene: die Prüfung läuft wirklich durch die
+       * Platzhalterseite und nicht durch ein 404.
+       */
+      const antwort = await page.goto('/portal/gruppe/radar');
+      expect(antwort?.status()).toBe(200);
+      await expect(page.locator('[data-cse="noch-nicht"]')).toBeVisible();
+      await expect(page.locator('[data-cse="header-nur-lesen"]')).toBeVisible();
+    });
+});

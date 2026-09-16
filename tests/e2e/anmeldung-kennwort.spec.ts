@@ -176,6 +176,46 @@ test.describe('die Anmeldung mit Kennwort', () => {
     await expect(page).toHaveURL(/\/auth\/login/u);
   });
 
+  /**
+   * **Der Befund aus dem Betrieb, und warum der Test ihn durchgelassen hat.**
+   *
+   * Wer sich ohne Rückweg anmeldete, landete auf `/portal` — und `/portal` war
+   * keine Seite: die erste Ansicht nach einer erfolgreichen Anmeldung war
+   * „Diese Seite gibt es hier nicht." Die Prüfungen daneben sahen es nicht,
+   * weil sie `toHaveURL(/\/portal/)` fragen und `/portal` dieses Muster
+   * erfüllt: die ADRESSE stimmte, die Seite dahinter fehlte.
+   *
+   * Deshalb wird hier auf den INHALT gesehen. Eine Adressprüfung, die ein 404
+   * für einen Erfolg hält, ist keine.
+   */
+  test('nach der Anmeldung steht kein 404 — der Wegweiser führt in den Bereich',
+    async ({ page }) => {
+      await page.goto('/auth/login');
+      await page.fill('input[name="email"]', await demoKonto('leitung'));
+      await page.fill('input[name="kennwort"]', KENNWORT);
+      await page.click('[data-cse="anmelden"]');
+
+      await expect(page).toHaveURL(/\/portal\/[a-z-]+/u);
+      await expect(page.locator('h1')).not.toContainText(/gibt es hier nicht/u);
+      // Die Portalhülle ist da — also eine Seite und kein Zustandsbildschirm.
+      await expect(page.locator('[data-cse="tableiste"], nav').first()).toBeVisible();
+    });
+
+  test('und `/portal` selbst ist ein Wegweiser, keine Sackgasse', async ({ page }) => {
+    // Sieben Stellen im Baum nennen `/portal` als letztes Rückfallziel. Sie
+    // alle einzeln zu reparieren hiesse, dieselbe Fallunterscheidung siebenmal
+    // zu führen — die Adresse muss selbst wissen, wohin sie gehört.
+    await page.goto('/auth/login');
+    await page.fill('input[name="email"]', await demoKonto('leitung'));
+    await page.fill('input[name="kennwort"]', KENNWORT);
+    await page.click('[data-cse="anmelden"]');
+    await expect(page).toHaveURL(/\/portal\//u);
+
+    await page.goto('/portal');
+    await expect(page).toHaveURL(/\/portal\/[a-z-]+/u);
+    await expect(page.locator('h1')).not.toContainText(/gibt es hier nicht/u);
+  });
+
   test('ein offener Rückweg wird nicht gefolgt (D-504)', async ({ page, baseURL }) => {
     await page.goto('/auth/login?weiter=//example.com');
     await page.fill('input[name="email"]', await demoKonto('leitung'));

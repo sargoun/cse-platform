@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-import {
-  NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler,
-} from '@/server/auth/fehler';
+import { autorisierungsAntwort } from '@/server/auth/antwort';
 import { BautagebuchFehler } from '@/server/services/bau/bautagebuch';
 
 /**
@@ -19,15 +17,14 @@ export function alsAntwort(fehler: unknown): NextResponse | null {
       { fehler: fehler.code, meldung: fehler.message }, { status: fehler.status },
     );
   }
-  if (fehler instanceof NichtGefundenFehler) {
-    return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
-  }
-  if (fehler instanceof NichtAngemeldetFehler) {
-    return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
-  }
-  if (fehler instanceof ZweiterFaktorFehler) {
-    return NextResponse.json({ fehler: 'zweiter_faktor' }, { status: 403 });
-  }
+  /*
+   * Die Autorisierungswuerfe stehen in `server/auth/antwort.ts` — dieselbe
+   * Uebersetzung, die jede andere schreibende Route braucht. Zwei Abschriften
+   * davon weichen irgendwann in einem Statuscode voneinander ab, und ein
+   * abweichender Statuscode ist ein Orakel (AUT-06).
+   */
+  const autorisierung = autorisierungsAntwort(fehler);
+  if (autorisierung !== null) return autorisierung;
   /**
    * `null` heisst: DIESER Fehler gehoert nicht hierher. Der Aufrufer wirft ihn
    * weiter, damit ein Programmfehler ein roter Lauf bleibt und nicht als

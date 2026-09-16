@@ -103,8 +103,28 @@ export function DataTable<Z>({
                   <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">
                     {s.kopf}
                   </dt>
+                  {/*
+                    * `min-w-0 break-words` — und beides zusammen, sonst wirkt
+                    * keins.
+                    *
+                    * Gemessen am Telefon: `buchhaltung/verfahrensdokumentation`
+                    * lief 133px ueber den rechten Rand, `jahrespaket` 3px,
+                    * `gruppe/protokoll` 14px. Die Ursache ist dieselbe Zelle —
+                    * ein SHA-256 oder ein Dateiname ist EIN Wort ohne
+                    * Trennstelle, und ein Rasterfeld hat von sich aus
+                    * `min-width: auto`: die `1fr`-Spalte kann darum nicht unter
+                    * die Breite dieses einen Wortes schrumpfen und schiebt die
+                    * ganze Seite hinaus. `min-w-0` nimmt der Spalte dieses
+                    * Mindestmass, `break-words` bricht das Wort.
+                    *
+                    * Am Schreibtisch trat es nie auf — dort steht die Tabelle
+                    * in einem eigenen Rollbereich. Der Kartenstapel ist der
+                    * Weg, auf dem es NIE seitlich rollen soll, und genau
+                    * deshalb muss hier gebrochen werden.
+                    */}
                   <dd
-                    className={['m-0 text-sm', s.numerisch === true ? 'cse-zahl' : ''].join(' ')}
+                    className={['m-0 min-w-0 break-words text-sm',
+                      s.numerisch === true ? 'cse-zahl' : ''].join(' ')}
                   >
                     {s.zelle(z)}
                   </dd>

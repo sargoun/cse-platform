@@ -15,6 +15,7 @@ import {
 import { AnmeldungNoetig } from '../../../../../Anmeldung';
 import { portalZugang } from '../../../../../zugang';
 import { slugTor } from '../../../../../unterseite';
+import { kennungOder404 } from '../../../../../kennung';
 
 /**
  * `/portal/[mandant]/security/schluessel/[id]/quittung` — die Übergabe mit
@@ -56,6 +57,7 @@ export default async function Quittung(
   },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const suche = await searchParams;
   const pfad = `/portal/${mandant}/security/schluessel/${id}/quittung`;
   const zugang = await portalZugang(pfad);

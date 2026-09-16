@@ -16,6 +16,7 @@ import {
   findeNachweis, ladePositionen, ladeSignaturen,
 } from '@/server/services/reinigung/leistungsnachweis';
 import { pruefeSchnappschuss } from '@/server/services/reinigung/schnappschuss';
+import { kennungOder404 } from '../../../../kennung';
 import type {
   SchnappschussPosition, SchnappschussWert,
 } from '@/server/services/reinigung/schnappschuss';
@@ -116,6 +117,7 @@ export default async function NachweisBlatt({
   params: Promise<{ mandant: string; id: string }>;
 }) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const zugang = await portalZugang(
     `/portal/${mandant}/reinigung/leistungsnachweise/[id]`,
   );

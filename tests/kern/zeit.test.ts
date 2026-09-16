@@ -108,6 +108,28 @@ describe('berlinInstant / berlinKalendertag', () => {
     expect(berlinInstant(2026, 7, 15, 22, 0).toISOString()).toBe('2026-07-15T20:00:00.000Z');
   });
 
+  /**
+   * Die beiden Stunden, an denen eine Ortszeit keine Antwort hat.
+   *
+   * Die Docstring von `berlinInstant` verspricht beides seit jeher; geprueft
+   * wurde es nie, und die Fassung davor hielt die zweite Zusage nicht: auf
+   * der Rueckstellungsnacht landete sie beim ZWEITEN Vorkommen. Ein Vertrag
+   * in einem Kommentar, den der Code nicht haelt, ist schlimmer als keiner.
+   */
+  it('a wall-clock time that occurs twice resolves to the FIRST occurrence', () => {
+    /* 2026-10-25: 03:00 MESZ wird 02:00 MEZ. 02:30 gibt es um 00:30Z und
+       noch einmal um 01:30Z. */
+    expect(berlinInstant(2026, 10, 25, 2, 30).toISOString())
+      .toBe('2026-10-25T00:30:00.000Z');
+  });
+
+  it('a wall-clock time that does not exist resolves FORWARD', () => {
+    /* 2026-03-29: 02:00 MEZ wird 03:00 MESZ. 02:30 gibt es nicht; gemeint
+       ist die Zeit danach, also 03:30 Ortszeit. */
+    expect(berlinInstant(2026, 3, 29, 2, 30).toISOString())
+      .toBe('2026-03-29T01:30:00.000Z');
+  });
+
   it('assigns a night shift to the Berlin day it starts on', () => {
     expect(berlinKalendertag(utc('2026-03-28T21:00:00Z'))).toBe('2026-03-28');
     expect(berlinKalendertag(utc('2026-03-29T04:00:00Z'))).toBe('2026-03-29');

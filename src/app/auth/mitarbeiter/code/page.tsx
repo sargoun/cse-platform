@@ -10,7 +10,9 @@ import { codeEinloesen } from '@/server/auth/mitarbeiter-anmeldung';
 import { smsDienst } from '@/server/auth/sms';
 import { SITZUNG_COOKIE, mitarbeiterSitzungAusstellen, sitzungsKeksOptionen }
   from '@/server/auth/sitzung';
-import { ANMELDUNG_DEV_COOKIE, ANMELDUNG_TELEFON_COOKIE, herkunft } from '../anmeldung';
+import {
+  ANMELDUNG_DEV_COOKIE, ANMELDUNG_TELEFON_COOKIE, anmeldeKeksOptionen, herkunft,
+} from '../anmeldung';
 
 /**
  * `/auth/mitarbeiter/code` — der zweite Schritt (EMP-01, PR 20).
@@ -43,7 +45,7 @@ export default async function CodeEingabe({ searchParams }: Props) {
    * Diese Seite mit einer Nummer aus der URL zu fuettern, waere ein zweiter
    * Weg zum selben Ziel — und der zweite Weg ist der, den niemand prueft.
    */
-  if (telefon === '') redirect('/auth/mitarbeiter');
+  if (telefon === '') redirect('/auth/mitarbeiter?fehler=abgelaufen');
 
   const devCode = keks.get(ANMELDUNG_DEV_COOKIE)?.value ?? null;
   /**
@@ -76,7 +78,24 @@ export default async function CodeEingabe({ searchParams }: Props) {
     'use server';
     const k = await cookies();
     const nummer = k.get(ANMELDUNG_TELEFON_COOKIE)?.value ?? '';
-    if (nummer === '') redirect('/auth/mitarbeiter');
+    /*
+     * **Ein Rueckwurf ohne ein Wort ist der schlimmste Fehlschlag, den diese
+     * Seite haben kann.**
+     *
+     * Hier stand `redirect('/auth/mitarbeiter')` — ohne Grund, ohne Meldung.
+     * Der Mensch tippt die Nummer, bekommt den Code, tippt den Code, drueckt
+     * „Anmelden" — und steht wieder am Anfang. Kein Fehlerkasten, kein Satz,
+     * nichts, woraus sich schliessen liesse, was zu tun waere. Genau so hat es
+     * ein Nutzer berichtet, und genau so verhielt es sich: der Keks mit der
+     * Nummer war nie im Browser angekommen (siehe `anmeldeKeksOptionen`),
+     * also war `nummer` leer, und diese Zeile warf ihn stumm zurueck.
+     *
+     * Der Grund geht jetzt mit. Er ist bewusst UNSPEZIFISCH („abgelaufen"):
+     * warum der Keks fehlt, weiss der Server nicht — abgelaufen, geloescht,
+     * vom Browser verworfen, ein zweites Fenster. Was der Mensch braucht, ist
+     * nicht die Ursache, sondern der naechste Schritt.
+     */
+    if (nummer === '') redirect('/auth/mitarbeiter?fehler=abgelaufen');
 
     const code = String(daten.get('code') ?? '').replace(/\s/gu, '');
     const { ip } = await herkunft(await headers());
@@ -107,9 +126,21 @@ export default async function CodeEingabe({ searchParams }: Props) {
      * Die Anmeldekekse verschwinden, sobald sie nichts mehr halten: eine
      * Telefonnummer, die nach der Anmeldung im Browser liegen bleibt, ist
      * gespeichert, ohne dass sie noch etwas tut.
+     *
+     * **Mit dem PFAD, unter dem sie gesetzt wurden.** Hier stand
+     * `k.delete(NAME)` ohne Pfad — und ein Keks auf `Path=/auth/mitarbeiter`
+     * wird davon NICHT getroffen: der Browser loescht nur, was in Name, Pfad
+     * und Domaene uebereinstimmt. Beide blieben also liegen, und der
+     * Entwicklungskeks traegt den Einmalcode im KLARTEXT. Zehn Minuten lang,
+     * nach einer Anmeldung, die ihn nicht mehr braucht.
+     *
+     * `maxAge: 0` mit denselben Optionen statt `delete`: so ist der
+     * Loeschkeks in jedem Attribut die Kopie des gesetzten, und es gibt keine
+     * zweite Stelle, an der jemand den Pfad nachziehen muesste.
      */
-    k.delete(ANMELDUNG_TELEFON_COOKIE);
-    k.delete(ANMELDUNG_DEV_COOKIE);
+    const weg = { ...anmeldeKeksOptionen(), maxAge: 0 };
+    k.set(ANMELDUNG_TELEFON_COOKIE, '', weg);
+    k.set(ANMELDUNG_DEV_COOKIE, '', weg);
     k.set(SITZUNG_COOKIE, anmeldung.sitzung.token, sitzungsKeksOptionen());
 
     /*

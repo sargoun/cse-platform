@@ -46,7 +46,6 @@ export default async function MandantDashboard(
   stelleSicherRegistriert();
 
   const { sitzung } = zugang;
-  if (sitzung.aktiverMandantId === null) notFound();
 
   /**
    * Der Pfad muss zum gebundenen Mandanten passen — und wenn nicht, gilt §4.5.
@@ -56,11 +55,23 @@ export default async function MandantDashboard(
    * Gesellschaften arbeitet und die Adresse der anderen oeffnet, bekommt das
    * Zwischenblatt mit POST-Knopf. Ein GET wechselt den Mandanten nie, aber ein
    * 404 auf den eigenen Bereich sagt "gibt es nicht" ueber etwas, das es gibt.
+   *
+   * **Und dieses Tor steht VOR der Frage nach dem aktiven Bereich.** Darueber
+   * stand `if (sitzung.aktiverMandantId === null) notFound()` — und in der
+   * Gruppenansicht ist er immer null (K-20). Damit endete „Bereich oeffnen"
+   * auf der Gruppenuebersicht auf „Diese Seite gibt es hier nicht", statt auf
+   * dem Wechselblatt: der Knopf, der in eine Gesellschaft fuehren soll, fuehrte
+   * in ein 404. Die Reihenfolge IST die Regel — dieselbe Lehre wie bei den
+   * nummerierten Ausloesern in 0036: wer zuerst prueft, bestimmt, welche
+   * Antwort der Mensch liest.
    */
   const tor = await slugTor(zugang, mandant);
   if (tor.art === 'wechsel') {
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
+  // Nach `slugTor` ist der aktive Bereich der des Pfads; ohne einen (K-20)
+  // gibt es diese Seite nicht.
+  if (sitzung.aktiverMandantId === null) notFound();
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {

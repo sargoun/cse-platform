@@ -202,6 +202,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'objekt_import.schreiben',
   },
   { modul: 'zeit', pfad: 'zeit/dauer', schreibend: false },
+  /**
+   * **Was ein `datetime-local`-Feld schickt, wird hier zum Instant.**
+   *
+   * Die Datei lag als `social/planeingabe` im Social-Modul — an Social war sie
+   * nie gebunden, sie stand dort nur, weil die Beitragsplanung sie zuerst
+   * brauchte. Der Gesprächstermin (REC-06) braucht dieselbe Umrechnung, und
+   * eine zweite Fassung wäre eine zweite Wahrheit über dieselbe Zeitzone.
+   * `social/planeingabe` re-exportiert weiter.
+   */
+  { modul: 'zeit', pfad: 'zeit/formulareingabe', schreibend: false },
   { modul: 'zeit', pfad: 'zeit/spalten', schreibend: false },
   /**
    * Der Check-in SCHREIBT — die Marke und den Zeiteintrag. Sein Recht ist
@@ -1007,6 +1017,45 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'kalender', pfad: 'kalender/ical', schreibend: false },
   { modul: 'kalender', pfad: 'kalender/fenster', schreibend: false },
   { modul: 'kalender', pfad: 'kalender/tagesraster', schreibend: false },
+  /**
+   * **Das Social Media Center (SOC-01…SOC-08) — einer schreibt, zwei nicht.**
+   *
+   * `weg` ist die Zustandsregel ohne jeden Zugriff, `port` der Vertrag mit
+   * den fremden Plattformen. `dienst` legt an, legt vor, plant und
+   * veroeffentlicht — und traegt deshalb `social.schreiben`. Damit ist
+   * `/portal/gruppe/social` lesend moeglich und schreibend nicht
+   * (Invariante 10); `gruppenansicht.test.ts` liest genau dieses Register.
+   */
+  { modul: 'social', pfad: 'social/weg', schreibend: false },
+  { modul: 'social', pfad: 'social/port', schreibend: false },
+  { modul: 'social', pfad: 'social/planeingabe', schreibend: false },
+  { modul: 'social', pfad: 'social/dienst', schreibend: true, schreibRecht: 'social.schreiben' },
+  /**
+   * **Recruiting (REC-01 … REC-09, PR 79).** `rangfolge` ist reiner Code ohne
+   * jeden Zugriff — Punktzahl und Reihenfolge rechnet eine geprüfte Funktion
+   * und nicht das Modell (Invariante 6). `dienst` legt Stellen an, nimmt
+   * Bewerbungen entgegen, bewertet und entscheidet.
+   *
+   * **Das Register nennt EIN Schreibrecht, der Dienst kennt drei.** Was hier
+   * steht, ist die Frage, die der Gruppentest stellt: gibt es in der
+   * Gruppenansicht ein Recht, unter dem dieser Dienst schreiben dürfte? Für
+   * `recruiting/dienst` ist das `recruiting.stelle_schreiben` — mandantenweit
+   * und in `gruppe` nicht gebunden. Die übrigen Schreibwege tragen ihr
+   * eigenes Recht an ihrer eigenen Stelle: `bewerte` verlangt
+   * `recruiting.bewerbung_bewerten`, `entscheide` verlangt
+   * `recruiting.entscheiden` (REC-06: eine Einstellungsentscheidung ist etwas
+   * anderes als eine Punktzahl), und `nimmBewerbungAn` verlangt GAR KEIN
+   * Recht — es ist der Weg des öffentlichen Formulars, und ein Bewerber hat
+   * keine Sitzung (REC-03).
+   *
+   * Damit ist `/portal/gruppe` lesend möglich und schreibend nicht
+   * (Invariante 10) — auch wenn es dort heute keine Recruiting-Seite gibt.
+   */
+  { modul: 'recruiting', pfad: 'recruiting/rangfolge', schreibend: false },
+  {
+    modul: 'recruiting', pfad: 'recruiting/dienst', schreibend: true,
+    schreibRecht: 'recruiting.stelle_schreiben',
+  },
   /*
    * **Der Feed-Zugang steht NICHT hier, und das ist kein Vergessen.**
    *

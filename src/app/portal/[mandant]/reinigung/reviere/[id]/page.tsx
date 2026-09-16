@@ -9,6 +9,7 @@ import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../kennung';
 import {
   findeRevier, ladeZugeordneteRaeume, mitLesekontext, type RevierRaumZeile,
 } from '../../daten';
@@ -41,6 +42,7 @@ export default async function RevierBlatt({
   params: Promise<{ mandant: string; id: string }>;
 }) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const zugang = await portalZugang(`/portal/${mandant}/reinigung/reviere/[id]`);
   if (zugang === null) return <AnmeldungNoetig />;
 

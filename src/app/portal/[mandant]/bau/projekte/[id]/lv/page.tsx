@@ -18,6 +18,7 @@ import { portalZugang } from '../../../../../zugang';
 import { slugTor } from '../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../../kennung';
 
 /**
  * `/portal/[mandant]/bau/projekte/[id]/lv` — das Leistungsverzeichnis als
@@ -55,6 +56,7 @@ export default async function LeistungsverzeichnisSeite(
   },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const { lv: gewaehlt } = await searchParams;
   const pfad = `/portal/${mandant}/bau/projekte/${id}/lv`;
   const zugang = await portalZugang(pfad);

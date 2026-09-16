@@ -164,3 +164,10 @@ next-env.d.ts
 
 # Der KoSIT-Pruefer und sein Regelwerk werden in CI geholt, nicht eingecheckt.
 .kosit/
+
+# Diagnoseskripte, die beim Suchen eines Fehlers entstehen. Sie gehören zu
+# einer Untersuchung, nicht zum Quellstand — und ohne diese Zeile wandert
+# irgendwann eines davon über `git add -A` in einen Commit, in dem es nichts
+# zu suchen hat (genau so ist `anmeldeweg-diag.mjs` in ad5ecee gelandet).
+*-diag.mjs
+*-diag.ts

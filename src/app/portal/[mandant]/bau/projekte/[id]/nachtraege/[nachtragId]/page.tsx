@@ -18,6 +18,7 @@ import { portalZugang } from '../../../../../../zugang';
 import { slugTor } from '../../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../../../kennung';
 
 /**
  * `/portal/[mandant]/bau/projekte/[id]/nachtraege/[nachtragId]` — ein
@@ -47,6 +48,8 @@ export default async function NachtragDetail(
   },
 ) {
   const { mandant, id, nachtragId } = await params;
+  kennungOder404(id);
+  kennungOder404(nachtragId);
   const pfad = `/portal/${mandant}/bau/projekte/${id}/nachtraege/${nachtragId}`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;

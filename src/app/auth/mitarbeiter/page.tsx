@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { codeAnfordern } from '@/server/auth/mitarbeiter-anmeldung';
 import { smsDienst } from '@/server/auth/sms';
+import { keksSicher } from '@/server/auth/sitzung';
 import {
   ANMELDUNG_DEV_COOKIE, ANMELDUNG_TELEFON_COOKIE, anmeldeKeksOptionen, herkunft,
 } from './anmeldung';
@@ -39,7 +40,20 @@ export const dynamic = 'force-dynamic';
  */
 export const metadata = { title: 'Anmeldung für Mitarbeitende — CSE Gruppe' };
 
-export default async function MitarbeiterAnmeldung() {
+export default async function MitarbeiterAnmeldung(
+  { searchParams }: {
+    readonly searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  },
+) {
+  /*
+   * **Warum hier ueberhaupt ein Fehler ankommen kann.** Der zweite Schritt
+   * wirft hierher zurueck, wenn der Keks mit der Nummer fehlt — und das tat er
+   * bisher STUMM. Wer das erlebt, hat gerade Nummer und Code eingetippt und
+   * steht ohne ein Wort wieder am Anfang.
+   */
+  const suche: Record<string, string | string[] | undefined> =
+    searchParams === undefined ? {} : await searchParams;
+  const abgelaufen = suche['fehler'] === 'abgelaufen';
   /**
    * **Ohne SMS-Gateway kann sich niemand anmelden, und das steht hier so da.**
    *
@@ -90,6 +104,41 @@ export default async function MitarbeiterAnmeldung() {
           : 'Geben Sie Ihre Mobilnummer ein. Sie erhalten einen sechsstelligen Code per SMS. '
             + 'Ein Kennwort brauchen Sie nicht.'}
       </p>
+
+      {abgelaufen && (
+        <p
+          data-cse="anmeldung-abgelaufen"
+          className="rounded-md border border-warning bg-warning-soft p-s4 text-sm text-warning"
+        >
+          <strong>Die angefangene Anmeldung gilt nicht mehr.</strong>{' '}
+          Bitte geben Sie Ihre Nummer noch einmal ein; Sie bekommen dann einen neuen Code.
+          Ein Code gilt zehn Minuten, und der Browser muss das kleine
+          Anmelde-Merkzeichen behalten dürfen — im privaten Modus oder bei
+          gesperrten Cookies kommt die Anmeldung nicht durch.
+        </p>
+      )}
+
+      {!keksSicher() && (
+        /*
+         * **Was hier steht, ist eine Tatsache ueber DIESE Installation.**
+         *
+         * Auf einer Vorfuehrflaeche (`CSE_DEV_FLAECHEN=1`) laufen die
+         * Anmeldekekse ohne `Secure`, damit die Anmeldung ueber
+         * `http://192.168…` am Telefon ueberhaupt funktioniert. Das ist die
+         * richtige Entscheidung fuer eine Demo und die falsche fuer den
+         * Ernstfall — also steht sie auf dem Bildschirm und nicht nur in einer
+         * Umgebungsvariablen, die niemand liest.
+         */
+        <p
+          data-cse="keks-ohne-secure"
+          className="rounded-md border border-line bg-surface p-s4 text-sm text-text-muted"
+        >
+          <strong>Vorführfläche.</strong> Diese Installation läuft ohne
+          verschlüsselte Verbindung, damit die Anmeldung im selben Netz am Telefon
+          funktioniert. Für den Echtbetrieb gehört die Plattform hinter HTTPS —
+          dann tragen die Anmelde-Merkzeichen wieder <code>Secure</code>.
+        </p>
+      )}
 
       {!sms.verbunden && (
         <p

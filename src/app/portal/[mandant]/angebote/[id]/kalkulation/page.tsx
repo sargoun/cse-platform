@@ -11,6 +11,7 @@ import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../kennung';
 
 /**
  * `/portal/[mandant]/angebote/[id]/kalkulation` — der Rechenweg, und der
@@ -68,6 +69,7 @@ export default async function KalkulationSeite(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const pfad = `/portal/${mandant}/angebote/${id}/kalkulation`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;

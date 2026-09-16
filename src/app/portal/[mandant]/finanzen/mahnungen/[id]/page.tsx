@@ -13,6 +13,7 @@ import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../kennung';
 
 /**
  * `/portal/[mandant]/finanzen/mahnungen/[id]` — eine Mahnung, ihre Positionen
@@ -45,6 +46,7 @@ export default async function MahnungDetail(
   },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const { hinweis } = await searchParams;
   const zugang = await portalZugang(`/portal/${mandant}/finanzen/mahnungen`);
   if (zugang === null) return <AnmeldungNoetig />;

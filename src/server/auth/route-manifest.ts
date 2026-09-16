@@ -282,6 +282,51 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + 'Zeiteintrag bleibt, bis die Planung entschieden hat.',
   },
   {
+    pfad: 'api/konto/sprache',
+    recht: null,
+    grund:
+      'EMP-12. Die eigene Portalsprache — de/en/ar/tr sind vollstaendig uebersetzt, und bis '
+      + 'zu dieser Route liess sich die Sprache NIRGENDS aendern: keine Seite, keine Route, '
+      + 'kein Recht. Der Rechtekatalog fuehrt dafuer keinen Schluessel, und §12.4 markiert '
+      + 'den Zugriff auf das eigene Konto als Selbstzugriff (`S`); einen Schluessel zu '
+      + 'erfinden, den man anschliessend JEDER Rolle bindet, pruefte nichts und behauptete '
+      + 'zu pruefen (K-19) — dieselbe Begruendung wie bei `api/zeit/einwand`. Offen ist die '
+      + 'Route deshalb nur im Sinne von "kein Modulrecht". Bewacht wird sie dreifach: durch '
+      + 'die Sitzung und den Ursprungsvergleich; durch `t_person_selbstpflege` bzw. '
+      + '`t_benutzer_selbstpflege`, die ausschliesslich die eigene Zeile zulassen (die '
+      + 'Kennung kommt aus `app.aktuelle_person()`, nie aus der Anfrage, K-02); und durch '
+      + 'das SPALTENRECHT aus 0165 — geaendert werden darf `sprache`, sonst nichts. '
+      + '`person.telefon` daneben ist der Anmeldeweg (EMP-01): ein tabellenweites '
+      + 'Schreibrecht machte aus dieser Route eine Kontouebernahme.',
+  },
+  {
+    /**
+     * TIM-07 — die AUSGABE der Check-in-Marke, und ihr Widerruf.
+     *
+     * **Die Haelfte, die gefehlt hat.** Das Einloesen ist seit 0035 komplett;
+     * die Ausgabe hatte genau einen Aufrufer, den Seed. Ohne diese Route kommt
+     * im Betrieb niemand an einen Check-in-Link — und TIM-07 ist der EINZIGE
+     * Weg, auf dem eine Mitarbeiterin ihre Zeit selbst erfasst (EMP-07
+     * verbietet ihr, den Eintrag zu schreiben).
+     *
+     * **Ein Recht fuer beides.** Wer eine Marke ausstellen darf, darf sie auch
+     * zuruecknehmen; eine zweite Berechtigung dafuer waere eine, die niemand
+     * vergibt, und dann stuende der Widerruf still. Die Datenbank prueft
+     * dasselbe Recht ein zweites Mal — und zwar im Mandanten der MARKE, nicht
+     * im aktiven der Sitzung (0164).
+     *
+     * **Der Name sagt `marken`, nicht `zeiten`** — und das ist kein Zufall:
+     * `tests/kern/mitarbeiter.test.ts` laesst unter `api/zeit…` keine Route
+     * zu, weil EMP-07 verbietet, dass irgendein Weg einen Zeiteintrag
+     * AENDERT. Diese Route aendert keinen; sie gibt die Marke aus, aus der
+     * beim Einloesen ein neuer entsteht. Die Wache ist absichtlich stumpf,
+     * und ein Pfad, der sie umgeht, waere eine Ausnahme in der Wache — der
+     * ehrlichere Weg ist ein Name, der sagt, was verwaltet wird.
+     */
+    pfad: 'api/checkin-marken',
+    recht: 'zeit.checkin_verwalten',
+  },
+  {
     /**
      * Die Entscheidung ueber einen fremden Einwand (EMP-07).
      *
@@ -293,6 +338,44 @@ export const ROUTEN: readonly RouteEintrag[] = [
      */
     pfad: 'api/zeit/einwand/entscheidung',
     recht: 'zeit.einwand_entscheiden',
+  },
+  {
+    /**
+     * Der dritte Vorgang: die Korrektur selbst (TIM-11, LEG-01, SEC-A9).
+     *
+     * **Der Befund, der diese Route gebracht hat.** `korrigiereZeiteintrag`
+     * war gebaut und geprueft und hatte KEINEN Aufrufer — keine Route, keine
+     * Seite. Damit endete der Einwandsweg im Nichts: eine Mitarbeiterin meldet
+     * eine Abweichung (EMP-07), die Planung erkennt sie an, und der
+     * Zeiteintrag blieb, wie er war. Die Entscheidungsroute daneben sagt das
+     * selbst („Anerkennen schreibt hier keine Korrektur") — nur gab es die
+     * Korrektur nirgends. Ein anerkannter Einwand, der die Aufzeichnung nicht
+     * aendert, ist im Lohnstreit eine Zusage ohne Folge.
+     *
+     * `zeit.korrigieren` und nicht `zeit.schreiben`: wer Zeiten erfasst,
+     * aendert damit noch keine bestehende Aufzeichnung — dieselbe Trennung,
+     * die `zeit.einwand_entscheiden` vom Erfassen trennt. Melden, entscheiden,
+     * korrigieren sind drei Vorgaenge mit drei Rechten, und die Datenbank
+     * prueft darueber hinaus, dass der Handelnde nicht der Betroffene ist
+     * (`zk_nicht_selbst`, 0036).
+     */
+    pfad: 'api/zeit/korrektur',
+    recht: 'zeit.korrigieren',
+  },
+  {
+    pfad: 'api/karriere/bewerbung',
+    recht: null,
+    grund:
+      'REC-03. Der oeffentliche Bewerbungsweg — wie `api/anfrage` bewusst ohne Konto, '
+      + 'weil sich jemand ohne Konto bewirbt. Was ihn schuetzt, sind nicht Rechte des '
+      + 'Aufrufers: Honigtopf, Ratenlimit ueber den IP-Hash, Validierung, und ein '
+      + 'Prinzipal (`withEingang`), der schreiben und NICHT lesen kann — wer sich '
+      + 'bewirbt, sieht damit keine fremde Bewerbung. Der Mandant kommt nie aus dem '
+      + 'Formular: bei einer Stellenbewerbung wird er aus der STELLE aufgeloest, und '
+      + 'zwar ueber die oeffentliche Sicht, die nur veroeffentlichte Stellen durchlaesst '
+      + '(K-02). Ohne das koennte ein praeparierter POST eine Bewerbung in eine fremde '
+      + 'Gesellschaft schreiben oder sich auf einen Entwurf bewerben, den niemand '
+      + 'ausgeschrieben hat.',
   },
   {
     /**
@@ -1182,6 +1265,76 @@ export const ROUTEN: readonly RouteEintrag[] = [
   { pfad: 'api/freigaben', recht: 'freigabe.lesen' },
   { pfad: 'api/freigaben/[id]', recht: 'freigabe.lesen' },
   { pfad: 'api/freigaben/[id]/entscheidung', recht: 'freigabe.entscheiden' },
+  /**
+   * Das Social Media Center (PR 78, SOC-01…SOC-08).
+   *
+   * **Vier Routen, zwei Rechte — und die Grenze liegt nicht beim Aufwand,
+   * sondern bei der Oeffentlichkeit.** Anlegen und Bearbeiten aendern einen
+   * Entwurf, den ausser der Redaktion niemand sieht: `social.schreiben`.
+   * Planen und Veroeffentlichen bringen denselben Text nach draussen, wo
+   * ihn niemand zurueckholt: `social.planen`. Wer schreiben darf, darf
+   * damit nicht schon senden — dieselbe Trennung wie zwischen Entscheiden
+   * und Stapel-Entscheiden darueber.
+   *
+   * `schritt` traegt beides: die Route waehlt je Schritt und prueft das
+   * genaue Recht selbst. Hier steht das SCHWAECHERE als Torpruefung; ein
+   * Vorlegen soll nicht am Planungsrecht scheitern.
+   *
+   * Freigeben und Ablehnen stehen NICHT hier: sie fallen im
+   * Freigabe-Posteingang (`freigabe.entscheiden`), und der Beitrag folgt
+   * seiner Freigabe ueber den Trigger aus `0163`. Ein zweiter Weg zur
+   * selben Entscheidung waere einer zu viel (SOC-08).
+   */
+  { pfad: 'api/social/beitraege', recht: 'social.schreiben' },
+  { pfad: 'api/social/beitraege/[id]', recht: 'social.schreiben' },
+  { pfad: 'api/social/beitraege/[id]/schritt', recht: 'social.schreiben' },
+  { pfad: 'api/social/beitraege/[id]/planung', recht: 'social.planen' },
+  /**
+   * Recruiting (REC-02, REC-05, REC-08, REC-09) — vier schreibende Routen,
+   * vier verschiedene Rechte. Die Trennung ist der Inhalt: eine Stelle
+   * ausschreiben, sie hinausgeben, eine Bewerbung bewerten und über einen
+   * Menschen entscheiden sind vier Vorgänge, und wer den einen darf, darf
+   * dadurch nicht die anderen.
+   *
+   * `…/entscheidung` trägt zusätzlich einen Riegel, den kein Recht ersetzt:
+   * der Auslöser `kern.entscheidung_ist_menschlich` (0166) weist jede Zeile
+   * ab, deren Akteur kein Mensch ist (Art. 22 DSGVO).
+   */
+  { pfad: 'api/recruiting/stellen', recht: 'recruiting.stelle_schreiben' },
+  /**
+   * **Vorlegen ist BITTEN, nicht entscheiden.**
+   *
+   * Wer die Anzeige schreibt, darf um ihre Freigabe bitten — deshalb
+   * `stelle_schreiben` und nicht `stelle_veroeffentlichen`. Entschieden wird
+   * im Freigabe-Posteingang, und die Zeile dort trägt
+   * `erforderliches_recht = 'recruiting.stelle_veroeffentlichen'`; der Riegel
+   * `stelle_braucht_genehmigung` (0167) laesst ohne diese Entscheidung keinen
+   * Statuswechsel zu. Zwei Wege zu derselben Entscheidung waeren einer zu
+   * viel (Invariante 7).
+   */
+  { pfad: 'api/recruiting/stellen/[id]/freigabe', recht: 'recruiting.stelle_schreiben' },
+  {
+    pfad: 'api/recruiting/stellen/[id]/veroeffentlichen',
+    recht: 'recruiting.stelle_veroeffentlichen',
+  },
+  /**
+   * **Ein Gespraech ist ein Kalendertermin — und ein Blick in eine Bewerbung.**
+   *
+   * Das Manifest fuehrt EIN Recht je Route; hier steht das engere der beiden,
+   * `bewerbung_lesen`, weil die Route zu genau dieser Bewerbung schreibt. Das
+   * zweite, `kalender.schreiben`, bewacht den BILDSCHIRM
+   * (`/recruiting/gespraeche`, Seitenkarte) und damit das Formular: wer es
+   * nicht haelt, sieht es nicht.
+   */
+  { pfad: 'api/recruiting/gespraeche', recht: 'recruiting.bewerbung_lesen' },
+  {
+    pfad: 'api/recruiting/bewerbungen/[id]/bewertung',
+    recht: 'recruiting.bewerbung_bewerten',
+  },
+  {
+    pfad: 'api/recruiting/bewerbungen/[id]/entscheidung',
+    recht: 'recruiting.entscheiden',
+  },
 ] as const;
 
 /** Die Routen, die ein Recht verlangen. */

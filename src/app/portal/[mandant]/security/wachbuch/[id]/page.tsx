@@ -11,6 +11,7 @@ import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { stundenMinutenText } from '@/lib/datum/stunden';
+import { kennungOder404 } from '../../../../kennung';
 import {
   ART_TEXT, leseEintrag, pruefeKette,
   type EintragZeile, type Kettenbefund,
@@ -38,6 +39,7 @@ export default async function Wachbuchblatt(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const pfad = `/portal/${mandant}/security/wachbuch/${id}`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;
