@@ -20,7 +20,6 @@
     "e2e:db": "bash scripts/e2e-db.sh",
     "test:a11y": "playwright test tests/e2e/a11y.spec.ts tests/e2e/seo.spec.ts",
     "lighthouse": "npx --yes @lhci/cli@0.15.1 autorun",
-    "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/server/db/migrate.ts",
     "db:triggers": "tsx scripts/generate-triggers.ts",
     "katalog": "tsx scripts/katalog/extrahiere.ts && tsx scripts/katalog/seed-sql.ts",
@@ -40,7 +39,6 @@
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",
-    "drizzle-orm": "^0.45.2",
     "next": "^15.1.6",
     "pdf-lib": "^1.17.1",
     "postgres": "^3.4.5",
@@ -57,7 +55,6 @@
     "@types/react-dom": "^19.0.3",
     "autoprefixer": "^10.5.5",
     "axe-core": "^4.13.0",
-    "drizzle-kit": "^0.31.10",
     "eslint": "^9.18.0",
     "postcss": "^8.5.28",
     "tailwindcss": "^3.4.19",

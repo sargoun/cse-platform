@@ -12643,3 +12643,68 @@ existiert.
 
 | Betrifft | AUT-06, D-567, D-573, D-578, EMP-07, `app/portal/rechte.ts`, `registry/routen.ts`, `tests/kern/verweis-rechte.test.ts`, 86 Seiten unter `app/portal/[mandant]` |
 |---|---|
+
+### D-582 · Drizzle stand im Stack und nirgends im Code
+
+**Kontext.** Die Stack-Tabelle in `CLAUDE.md` führte seit Phase 0 „ORM:
+Drizzle — migrations in repo, not dashboard-only". `ABGLEICH-AUFTRAG.md`
+hielt schon fest: „Kein Drizzle-Modell." Nachgemessen vor dieser
+Entscheidung:
+
+- `drizzle-orm` wird in keiner Datei importiert — nicht in `src/`, nicht in
+  `tests/`, nicht in `scripts/`. Die Abhängigkeit war tot.
+- `src/server/db/schema/` enthält genau eine Datei, `rls.ts` — das Register
+  der Löschsperren (K-16), kein Drizzle-Schema; es gibt kein einziges
+  `pgTable` im Projekt.
+- `pnpm db:generate` rief `drizzle-kit generate` über dieses Verzeichnis.
+  Ein Generator über einem Schema ohne Tabelle kann nur eine leere Migration
+  erzeugen — der Befehl stand in `CLAUDE.md` an erster Stelle und hätte nie
+  etwas Brauchbares getan.
+- Die 151 Migrationen in `drizzle/` sind handgeschriebenes SQL.
+  `src/server/db/migrate.ts` wendet sie in Dateireihenfolge an, unter der
+  Migratorrolle, mit Vorprüfung der Servervoraussetzungen und einem Buch der
+  angewandten Dateien (`__drizzle_migrations`, 0142).
+
+**Was die Vorgabe wirklich verlangte, ist erfüllt.** Der Satz hinter dem
+Namen — Migrationen im Repository, nie nur im Dashboard — gilt: jede
+Schemaänderung ist eine Datei im PR, wird gelesen, kann zurückgenommen
+werden. Nur die Schicht, die den Namen trägt, hat nie existiert.
+
+**Warum Drizzle jetzt nicht nachgezogen wird.** Die Datenschicht dieses
+Projekts IST SQL: RLS-Policies, `SECURITY DEFINER`-Funktionen unter
+`app.*`, `withTenant`, Trigger, Prüfsummenketten, Fensterfunktionen in den
+Berichten. Ein Abfrage-Erzeuger darüber wäre ein zweiter Dialekt für
+dieselben Sätze und keine zusätzliche Wand — die Wand steht in der
+Datenbank, und genau darum hält sie auch gegen einen Weg, den niemand
+vorhergesehen hat (K-03, Invariante 3). Ein Umbau von über hundert Diensten
+auf einen Erzeuger hätte keinen Test grüner gemacht und jede
+Fensterfunktion, jedes `for update`, jedes `lateral` durch eine Übersetzung
+geschickt, die man erst wieder lesen lernen müsste.
+
+**Entschieden:**
+
+1. `drizzle-orm` und `drizzle-kit` werden entfernt, mit ihnen
+   `drizzle.config.ts` und der Befehl `db:generate`. Eine Abhängigkeit, die
+   nichts tut, ist Angriffsfläche und Wartungslast ohne Gegenwert (die
+   Prüfkette aus Phase 10 sieht sie sonst bei jedem `pnpm audit`).
+2. **Der Ordner `drizzle/` und seine Nummerierung bleiben.** 151 Dateien,
+   `migrate.ts`, `test-db.sh`, die CI und die Verfahrensdokumentation (ACC-10)
+   nennen den Pfad; ihn umzubenennen wäre eine Änderung ohne Inhalt. Dasselbe
+   gilt für das Buch `__drizzle_migrations` — ein Name ist ein Name, die
+   Tabelle steht in 0142 und im Z3-Test, und das Umbenennen wäre eine weitere
+   Migration über nichts. Die Regel dahinter bleibt, wie sie in
+   `ABGLEICH-AUFTRAG.md` steht: der Migrator nummeriert nicht, er sortiert —
+   zwei Dateien mit derselben Nummer sind keine Fehlermeldung, sondern eine
+   unbestimmte Reihenfolge, und `tests/kern` wacht darüber.
+3. Die Stack-Tabelle in `CLAUDE.md` nennt die Schicht beim Namen, den sie
+   hat: `postgres.js` + SQL-Migrationen in `drizzle/`, angewandt durch
+   `pnpm db:migrate`. Die Bedingung dahinter ist unverändert.
+
+Eine Tabelle, die eine Schicht verspricht, die es nicht gibt, ist dieselbe
+Klasse Fehler wie der Kommentar in D-580: eine Annahme, die niemand mehr
+fragt. Der EU-Standort der Datenbank und die Auftragsverarbeitung sind von
+dieser Entscheidung nicht berührt — sie hängen an Supabase, nicht an der
+Bibliothek davor.
+
+| Betrifft | CLAUDE.md (Stack, Befehle), `package.json`, `drizzle.config.ts`, `src/server/db/migrate.ts`, `tests/kern/migrationsnummern.test.ts`, ABGLEICH-AUFTRAG.md §Drizzle, K-03, K-16, ACC-10 |
+|---|---|
