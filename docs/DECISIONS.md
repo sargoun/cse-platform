@@ -13183,3 +13183,49 @@ eine Prüfung, die nie rot war, hat nichts bewiesen.
 
 | Betrifft | LEG-09, ACC-10, D-586, D-587, D-580, `lib/markdown.ts`, `services/datenschutz/verzeichnis.ts`, `services/datenschutz/loeschkonzept.ts`, `services/buchhaltung/verfahrensdokumentation.ts` |
 |---|---|
+
+### D-590 · Die Schwelle, die sich nach dem Bestand richtete
+
+**Kontext.** `pnpm audit` meldete zwei moderate Befunde, beide aus derselben
+Meldung: GHSA-82fw-gwwq-j7x9, Pfaddurchgriff über den Redirect-Mock von
+`@vitest/mocker`, behoben ab Vitest 4.1.11. Der Baum stand auf 3.2.7. CI prüfte
+mit `--audit-level=high` — also war nichts rot, und der Phase-10-Punkt
+„dependency audit clean" stand weiter offen.
+
+**Eine Schwelle, die sich nach dem Bestand richtet, misst den Bestand.** Sie
+stand auf `high`, solange zwei moderate Befunde im Baum lagen, die sich nicht
+ohne einen Versionswechsel beheben liessen. Damit sagte sie nicht mehr „diese
+Stufe lassen wir durchgehen", sondern „diese beiden lassen wir durchgehen" —
+und das ist keine Zusage, sondern eine Beschreibung.
+
+**Also der Wechsel: Vitest 3.2.7 → 4.1.11.** Die genau behobene Fassung, nicht
+die neueste (5.0.1): der kleinere Sprung, und die Meldung ist damit erledigt.
+Danach meldet `pnpm audit` nichts mehr, und zwar bis hinunter zu `low`.
+
+Der Wechsel kostete zwei Stellen in den Läuferkonfigurationen, und beide waren
+STILL:
+
+- **`poolOptions` ist weggefallen**; die Angaben stehen jetzt oben. Die alte
+  Form bleibt lesbar und wirkungslos — `maxForks: 4` fiel damit still auf die
+  Kernzahl der Maschine zurück. Ein Läufer, der 138 Dateien auf einem kleinen
+  CI-Rechner gleichzeitig startet, wird langsamer statt schneller, und niemand
+  hätte gewusst, warum.
+- **`minWorkers` gibt es nicht mehr.** Geblieben ist `maxWorkers`, und das ist
+  die Angabe, auf die es in der Isolationssuite ankommt: `global-setup.ts` legt
+  genau so viele Datenbanken an, `harness.ts` wählt seine über
+  `VITEST_POOL_ID`. Eine Obergrenze darüber hinaus wäre ein Arbeiter ohne
+  Datenbank; weniger Arbeiter als erlaubt lassen höchstens einen Klon ungenutzt.
+  `tsc` hat die Zeile gefunden — die Konfiguration ist TypeScript, und das ist
+  hier der ganze Gewinn.
+
+Alle vier Suiten danach grün: 2470 Einheitstests, 1855 Isolationsfälle auf vier
+Arbeitern, beide Konformitätsläufe.
+
+**Und die Schwelle steht jetzt auf `moderate`.** Nicht auf `low`: geringfügige
+Meldungen im Werkzeugbaum kommen und gehen, und ein CI, das dafür rot wird,
+wird umgangen statt gelesen — dieselbe Überlegung wie bei der
+Betriebsüberwachung (D-588). Heute ist der Baum auch bei `low` sauber; die Wahl
+sagt also, was BLOCKIEREN soll, und nicht, was gerade bekannt ist.
+
+| Betrifft | SEC-A8, ROADMAP Phase 10, D-424, D-588, `.github/workflows/ci.yml`, `vitest.config.ts`, `vitest.isolation.config.ts`, `package.json` |
+|---|---|

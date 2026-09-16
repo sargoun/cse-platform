@@ -45,9 +45,21 @@ export default defineConfig({
     globalSetup: ['./tests/isolation/global-setup.ts'],
     fileParallelism: WORKER > 1,
     pool: 'forks',
+    /*
+     * **Nur noch die Obergrenze.** Vitest 4 kennt `minWorkers` nicht mehr;
+     * geblieben ist `maxWorkers`, und das ist die Angabe, auf die es hier
+     * ankommt: `global-setup.ts` legt GENAU so viele Datenbanken an, und
+     * `harness.ts` wählt seine über `VITEST_POOL_ID`. Eine Obergrenze darüber
+     * hinaus wäre ein Arbeiter ohne Datenbank. Startet der Läufer weniger
+     * Arbeiter als erlaubt, bleibt höchstens ein Klon ungenutzt — das kostet
+     * Zeit und keine Zusage.
+     */
     maxWorkers: WORKER,
-    minWorkers: WORKER,
-    // Eine Datei je Fork zur Zeit; `isolate` (Vorgabe) laedt jede Datei frisch.
-    poolOptions: { forks: { singleFork: WORKER === 1 } },
+    /*
+     * Eine Datei je Fork zur Zeit; `isolate` (Vorgabe) laedt jede Datei frisch.
+     * Der serielle Fall steht in `fileParallelism` — das frühere
+     * `poolOptions.forks.singleFork` sagte dasselbe ein zweites Mal und ist in
+     * Vitest 4 weggefallen.
+     */
   },
 });

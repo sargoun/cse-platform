@@ -616,7 +616,8 @@ Radar first — the agents operate on its output.
 
 - [ ] Migration from existing tools (Aplano, Lexware, Excel)
 - [ ] Tenant-isolation suite green
-- [ ] OWASP ZAP baseline; dependency audit clean; secrets audit
+- [ ] OWASP ZAP baseline; **dependency audit clean** (D-590: Vitest 4.1.11,
+      `pnpm audit` clean down to `low`, CI now gates at `moderate`); secrets audit
 - [ ] Backups with a **tested** restore
 - [ ] Monitoring: uptime, errors — **failed jobs are visible** since D-588:
       `/einstellungen/betrieb` shows every scheduled run against its protocol
