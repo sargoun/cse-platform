@@ -47,7 +47,17 @@ const KARTEN: readonly Karte[] = [
   { pfad: 'einstellungen/integrationen', titel: 'Integrationen', icon: 'export',
     text: 'Jede Anbindung mit ihrem wahren Zustand — verbunden, nicht verbunden, Dateiexport.' },
   { pfad: 'einstellungen/dpa', titel: 'Auftragsverarbeiter', icon: 'schloss',
-    text: 'Das Verzeichnis nach Art. 30 DSGVO: Dienst, Zweck, Region, Vertrag.' },
+    /*
+     * Der Text nannte diese Seite „das Verzeichnis nach Art. 30" — das ist
+     * sie nicht. Sie ist die Empfängerliste (Art. 30 Abs. 1 lit. d), eine
+     * von sieben Angaben. Das Verzeichnis selbst steht seit Phase 10 daneben,
+     * und zwei Seiten mit demselben Namen wären eine zu viel.
+     */
+    text: 'Die Empfänger (Art. 30 Abs. 1 lit. d): Dienst, Zweck, Region, Vertrag.' },
+  { pfad: 'datenschutz/verarbeitungsverzeichnis', titel: 'Verarbeitungsverzeichnis',
+    icon: 'dokument',
+    text: 'Das Verzeichnis nach Art. 30 DSGVO, erzeugt aus der laufenden Konfiguration — '
+      + 'samt dem, was es ausdrücklich NICHT sagt.' },
 ];
 
 export default async function Einstellungen(

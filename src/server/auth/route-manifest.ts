@@ -1137,6 +1137,21 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Das Verarbeitungsverzeichnis nach Art. 30 DSGVO (LEG-09, Phase 10) als
+     * Markdown oder JSON — unter `system.einstellung_lesen`, demselben Recht
+     * wie die Seite: es beschreibt die Konfiguration der Gesellschaft und
+     * aendert nichts. Zwei Rechte fuer dieselbe Auskunft waeren eine Tuer mit
+     * zwei Schloessern und einem Schluessel.
+     *
+     * Kein PDF: ein Verzeichnis nach Art. 30 wird fortgeschrieben und
+     * vorgelegt, nicht archiviert — eine dritte Kopie waere ab dem Abruf
+     * veraltet.
+     */
+    pfad: 'api/datenschutz/verarbeitungsverzeichnis',
+    recht: 'system.einstellung_lesen',
+  },
+  {
+    /**
      * Das Jahrespaket fuer den Steuerberater (ACC-11, PR 67): ein ZIP je
      * Wirtschaftsjahr, unter `buchhaltung.exportieren` wie der DATEV-Stapel.
      * Jeder Abruf steht im Protokoll.
