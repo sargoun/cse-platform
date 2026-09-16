@@ -1152,6 +1152,16 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Das Löschkonzept (LEG-09, Phase 10) als Markdown oder JSON — dasselbe
+     * Recht wie die Seite und wie das Verzeichnis daneben: beide beschreiben
+     * die Konfiguration dieser Gesellschaft und ändern nichts. Es beschreibt
+     * Löschungen und führt keine aus.
+     */
+    pfad: 'api/datenschutz/loeschkonzept',
+    recht: 'system.einstellung_lesen',
+  },
+  {
+    /**
      * Das Jahrespaket fuer den Steuerberater (ACC-11, PR 67): ein ZIP je
      * Wirtschaftsjahr, unter `buchhaltung.exportieren` wie der DATEV-Stapel.
      * Jeder Abruf steht im Protokoll.

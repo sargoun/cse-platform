@@ -13007,3 +13007,49 @@ sieben Angaben. Zwei Seiten mit demselben Namen wären eine zu viel.
 
 | Betrifft | LEG-09, LEG-10, Art. 30 DSGVO, O-514, D-04, D-485, K-16, `registry/verarbeitungen.ts`, `services/datenschutz/verzeichnis.ts` |
 |---|---|
+
+### D-587 · Das Löschkonzept — und die Hälfte, an der Auskünfte scheitern
+
+**Kontext.** LEG-09 verlangt neben dem Verzeichnis (D-586) ein Löschkonzept.
+Es beantwortet zwei Fragen: *was wird gelöscht, wann und wodurch* — und *was
+wird NICHT gelöscht, und warum*. Die zweite ist die unangenehme: vor einer
+Aufsicht ist „wir behalten das" ohne Grund dasselbe wie „wir wissen es nicht".
+
+**Alle drei Antworten stehen schon im System.** Deshalb wird das Konzept
+abgeleitet und nicht geschrieben:
+
+| Abschnitt | Quelle |
+|---|---|
+| 1. Fristen | die Aufbewahrungsregeln der Gesellschaft, `recruiting.aufbewahrung_tage`, § 17 MiLoG |
+| 2. Was wirklich löscht | das Jobregister — Lauf, Zeitplan und Wirkung |
+| 3. Was NICHT gelöscht wird | `rls.ts.KEIN_HARD_DELETE`, mit dem Grund je Tabelle (K-16) |
+
+Ein Dokument daneben wäre eine vierte Wahrheit, die beim ersten Umbau falsch
+wird. Dieses hier ist beim Abruf richtig oder es ist kaputt — und
+`loeschkonzept.test.ts` merkt das Zweite.
+
+**Drei Entscheidungen, die es ehrlich halten:**
+
+1. **Eine offene Frist steht als OFFEN, nicht als Zahl.** Die Personalakte,
+   die Konten und die Agentenläufe haben keine entschiedene Frist (O-514);
+   § 147 AO deckt die Belege, nicht die Akte. Auf dem Bildschirm zeigt die
+   Spalte dann den Zustand und nicht den Text daneben — wer die Tabelle
+   überfliegt, soll die Lücke sehen. Die Gegenprobe (eine erfundene Zahl
+   eintragen) macht den Fall rot.
+2. **Jede Sperre trägt ihren eigenen Grund.** „Aus gesetzlichen Gründen" wäre
+   keine Auskunft; `rls.ts` verlangt den Grund je Tabelle, und das Konzept
+   reicht ihn durch, statt ihn zusammenzufassen. Auch das ist sabotiert
+   worden: Floskel statt Grund → rot.
+3. **Die Läufe kommen aus dem Register, nicht aus einer Liste hier.** Fällt
+   ein Lauf weg, verschwindet er; steht einer in der Zuordnung und nicht im
+   Register, taucht er gar nicht erst auf, statt eine Löschung zu behaupten,
+   die niemand ausführt. Die Zuordnung ist ausdrücklich eine Liste und kein
+   Namensmuster: `*_loeschung` hätte `loeschsperre_pruefung` mitgenommen —
+   einen Lauf, der gerade NICHT löscht.
+
+**Es löscht nichts.** Der Weg für einen Antrag nach Art. 17 ist
+`/datenschutz/[id]/loeschung` und erzeugt eine Entscheidung. Diese Seite sagt,
+welche Fristen und welche Sperren diese Entscheidung vorfindet.
+
+| Betrifft | LEG-09, LEG-01, LEG-02, O-25, O-373, O-376, O-514, K-16, D-586, `services/datenschutz/loeschkonzept.ts` |
+|---|---|

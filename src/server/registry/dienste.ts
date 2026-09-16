@@ -820,6 +820,7 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * nichts. Modul `system`, wie die Seite und die Route.
    */
   { modul: 'system', pfad: 'datenschutz/verzeichnis', schreibend: false },
+  { modul: 'system', pfad: 'datenschutz/loeschkonzept', schreibend: false },
   /* D-487 — Serien anlegen; Anmeldecode durch die Einsatzleitung. */
   {
     modul: 'dienstplan', pfad: 'dienstplan/serie',
