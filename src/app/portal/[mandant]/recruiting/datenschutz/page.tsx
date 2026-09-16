@@ -38,7 +38,18 @@ export default async function Datenschutz(
           stand: await loeschStand(kontext, heute),
         }));
         const gesperrt = d.stand.faellig.filter((f) => f.loeschsperre !== null);
-        const offen = d.stand.faellig.filter((f) => f.loeschsperre === null);
+        /*
+         * **Drei Töpfe, nicht zwei.** `zurueckgehalten` ist eine EINGESTELLTE
+         * Bewerbung: der Nachtlauf nimmt sie nicht mit (O-376), weil das
+         * öffentliche Formular die Löschung nur „sofern kein
+         * Arbeitsverhältnis zustande kommt" zusagt. Sie deshalb gar nicht zu
+         * zeigen wäre der zweite Fehler: eine Zeile, die weder gelöscht wird
+         * noch irgendwo steht, ist eine, an die niemand mehr denkt.
+         */
+        const zurueck = d.stand.faellig.filter(
+          (f) => f.loeschsperre === null && f.zurueckgehalten);
+        const offen = d.stand.faellig.filter(
+          (f) => f.loeschsperre === null && !f.zurueckgehalten);
 
         return (
           <>
@@ -105,6 +116,38 @@ export default async function Datenschutz(
                     zelle: (f) => <span className="tabular-nums">{f.aufbewahrungBis}</span>,
                   },
                   { schluessel: 'grund', kopf: 'Grund der Sperre', zelle: (f) => f.loeschsperre ?? '—' },
+                ]}
+              />
+            )}
+
+            <h2 className="mb-s3 mt-s6 text-h3 text-text">
+              Zurückgehalten, weil eingestellt — {String(zurueck.length)}
+            </h2>
+            <p className="mb-s3 max-w-prose text-sm text-text-muted" data-cse="rec-o376">
+              Das Bewerbungsformular sagt zu: gelöscht nach der Frist,{' '}
+              <strong className="text-text">sofern kein Arbeitsverhältnis
+              zustande kommt</strong>. Diese Bewerbungen führten zu einem —
+              der Nachtlauf nimmt sie deshalb nicht mit. Wie lange die
+              Unterlagen eines Eingestellten bleiben und ob sie in die
+              Personalakte wandern, ist eine Frage an den Mandanten und keine,
+              die diese Plattform beantwortet (offene Frage O-376).
+            </p>
+            {zurueck.length === 0 ? (
+              <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
+                Nichts zurückgehalten.
+              </p>
+            ) : (
+              <DataTable
+                beschriftung="Eingestellte Bewerbungen über der Frist"
+                zeilen={zurueck}
+                schluessel={(f) => f.id}
+                spalten={[
+                  { schluessel: 'name', kopf: 'Name', zelle: (f) => f.name },
+                  {
+                    schluessel: 'bis',
+                    kopf: 'Wäre fällig',
+                    zelle: (f) => <span className="tabular-nums">{f.aufbewahrungBis}</span>,
+                  },
                 ]}
               />
             )}

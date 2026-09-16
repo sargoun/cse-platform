@@ -40,7 +40,8 @@ export default async function DankeSeite() {
         {tage === null ? (
           <>
             Ihre Angaben werden für dieses Verfahren verarbeitet und nach
-            dessen Abschluss gelöscht.
+            dessen Abschluss gelöscht, sofern kein Arbeitsverhältnis zustande
+            kommt.
           </>
         ) : (
           <>
@@ -48,7 +49,8 @@ export default async function DankeSeite() {
             <strong className="font-medium text-text">
               {String(tage)} Tage nach Eingang
             </strong>{' '}
-            gelöscht — auch dann, wenn wir uns nicht mehr melden.
+            gelöscht, sofern kein Arbeitsverhältnis zustande kommt — auch
+            dann, wenn wir uns nicht mehr melden.
           </>
         )}{' '}
         Wenn Sie möchten, dass wir sie früher löschen, schreiben Sie uns — die

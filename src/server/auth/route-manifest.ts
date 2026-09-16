@@ -1301,10 +1301,32 @@ export const ROUTEN: readonly RouteEintrag[] = [
    * ab, deren Akteur kein Mensch ist (Art. 22 DSGVO).
    */
   { pfad: 'api/recruiting/stellen', recht: 'recruiting.stelle_schreiben' },
+  /**
+   * **Vorlegen ist BITTEN, nicht entscheiden.**
+   *
+   * Wer die Anzeige schreibt, darf um ihre Freigabe bitten — deshalb
+   * `stelle_schreiben` und nicht `stelle_veroeffentlichen`. Entschieden wird
+   * im Freigabe-Posteingang, und die Zeile dort trägt
+   * `erforderliches_recht = 'recruiting.stelle_veroeffentlichen'`; der Riegel
+   * `stelle_braucht_genehmigung` (0167) laesst ohne diese Entscheidung keinen
+   * Statuswechsel zu. Zwei Wege zu derselben Entscheidung waeren einer zu
+   * viel (Invariante 7).
+   */
+  { pfad: 'api/recruiting/stellen/[id]/freigabe', recht: 'recruiting.stelle_schreiben' },
   {
     pfad: 'api/recruiting/stellen/[id]/veroeffentlichen',
     recht: 'recruiting.stelle_veroeffentlichen',
   },
+  /**
+   * **Ein Gespraech ist ein Kalendertermin — und ein Blick in eine Bewerbung.**
+   *
+   * Das Manifest fuehrt EIN Recht je Route; hier steht das engere der beiden,
+   * `bewerbung_lesen`, weil die Route zu genau dieser Bewerbung schreibt. Das
+   * zweite, `kalender.schreiben`, bewacht den BILDSCHIRM
+   * (`/recruiting/gespraeche`, Seitenkarte) und damit das Formular: wer es
+   * nicht haelt, sieht es nicht.
+   */
+  { pfad: 'api/recruiting/gespraeche', recht: 'recruiting.bewerbung_lesen' },
   {
     pfad: 'api/recruiting/bewerbungen/[id]/bewertung',
     recht: 'recruiting.bewerbung_bewerten',

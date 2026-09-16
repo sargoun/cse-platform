@@ -1840,9 +1840,9 @@ edited in their own mandant. Two editors never own one page.
 |---|---|---|---|---|
 | `/portal/[mandant]/recruiting` — overview | `recruiting.bewerbung_lesen` | `M1` | REC-01 | 9 |
 | `/portal/[mandant]/recruiting/bedarf` — requirement derived from unstaffed shifts and pipeline | `recruiting.bewerbung_lesen` + `dienstplan.lesen` | `M1` | REC-01, TIM-05 | 9 |
-| `/portal/[mandant]/recruiting/stellen` , `/[id]` | `recruiting.stelle_schreiben` | `M1` | REC-02 | 9 |
-| `/portal/[mandant]/recruiting/stellen/neu` — the AI drafts, a human edits and approves | `recruiting.stelle_schreiben` | `M1` | REC-02, APR-01, invariant 7 | 9 |
-| `/portal/[mandant]/recruiting/stellen/[id]/veroeffentlichung` — channels; „nicht verbunden" where no API exists | `recruiting.stelle_veroeffentlichen` | `M1` | REC-09, D-02 | 9 |
+| `/portal/[mandant]/recruiting/stellen` , `/[id]` | `recruiting.stelle_lesen` | `M1` | REC-02 | 9 |
+| `/portal/[mandant]/recruiting/stellen/neu` — the AI drafts, a human edits and approves | `recruiting.stelle_lesen` + `recruiting.stelle_schreiben` | `M1` | REC-02, APR-01, invariant 7 | 9 |
+| `/portal/[mandant]/recruiting/stellen/[id]/veroeffentlichung` — channels; „nicht verbunden" where no API exists | `recruiting.stelle_lesen` + `recruiting.stelle_veroeffentlichen` | `M1` | REC-09, D-02 | 9 |
 | `/portal/[mandant]/recruiting/bewerbungen` , `/[id]` | `recruiting.bewerbung_lesen` | `M1` | REC-03, REC-04 | 9 |
 | `/portal/[mandant]/recruiting/kandidaten` , `/[id]` — the parsed CV record | `recruiting.bewerbung_lesen` | `M1` | REC-04, REC-05 | 9 |
 | `/portal/[mandant]/recruiting/kandidaten/[id]/bewertung` — ranked match with **visible criteria** | `recruiting.bewerbung_bewerten` | `M1` | REC-05, REC-08, LEG-12 | 9 |

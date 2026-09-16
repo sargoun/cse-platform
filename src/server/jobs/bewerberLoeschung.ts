@@ -48,12 +48,33 @@ export function registriereBewerberLoeschung(db: JobVerbindung): JobDefinition {
        * jede Nacht brav „0 gelöscht", ohne ein rotes Zeichen. Die
        * `j_*`-Policies aus 0166 stehen für genau diesen Fall bereit.
        */
+      /*
+       * **Eine EINGESTELLTE Bewerbung nimmt dieser Lauf nicht mit** (O-376).
+       *
+       * Das öffentliche Formular sagt seit REC-03: „gelöscht … sofern kein
+       * Arbeitsverhältnis zustande kommt". Der Lauf las nur die Frist und nahm
+       * jede abgelaufene Zeile mit — samt `einstellungsentscheidung`, also
+       * genau dem Nachweis, den REC-08 verlangt. Zusage und Verhalten liefen
+       * auseinander; vor der Aufsicht zählt die Zusage. Gemeldet hat das die
+       * Copilot-Runde auf PR 16.
+       *
+       * **Zurückgehalten heisst nicht „für immer".** Welche Frist für die
+       * Bewerbungsunterlagen eines Eingestellten gilt, sagt die
+       * Personalaktenpraxis des Mandanten und nicht diese Datei — sie hier zu
+       * erfinden wäre eine erfundene Rechtsregel (`CLAUDE.md`). Die Zeilen
+       * stehen deshalb SICHTBAR auf `/recruiting/datenschutz` als
+       * zurückgehalten, statt still liegen zu bleiben.
+       *
+       * // TODO(client, O-376): Wie lange bleiben die Bewerbungsunterlagen
+       * eines EINGESTELLTEN Bewerbers, und wandern sie in die Personalakte?
+       */
       const faellig = await alsJobRolle(db, (jd) => jd.abfrage<{
         mandant_id: string; id: string; gesperrt: boolean;
       }>(
         `select mandant_id, id, (loeschsperre is not null) as gesperrt
            from bewerbung
           where geloescht_am is null
+            and status <> 'eingestellt'
             and aufbewahrung_bis <= app.berlin_heute()
           order by mandant_id, aufbewahrung_bis
           limit 500`));

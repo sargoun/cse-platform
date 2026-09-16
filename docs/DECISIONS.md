@@ -5175,6 +5175,7 @@ niemand ihn suchen.
 | O-373 | **Wie lange bleiben Bewerberdaten?** Die Plattform setzt die Uhr beim Eingang (`bewerbung.aufbewahrung_bis`) und der Nachtlauf räumt danach ab — nur die ZAHL gehört dem Mandanten. Die übliche Praxis orientiert sich an § 15 Abs. 4 AGG (zwei Monate zur Geltendmachung) plus der dreimonatigen Klagefrist, woraus in der Literatur meist sechs Monate ab Absage werden; das ist eine überwiegende PRAXIS, keine Vorschrift. Hinterlegt sind 180 Tage als `plattform_einstellung` mit `ist_vorlaeufig = true`, änderbar ohne Code. Offen ist ausserdem, ob die Frist ab EINGANG oder ab ABSAGE läuft — heute ab Eingang, weil eine Bewerbung ohne Entscheidung sonst nie abliefe. | REC-07, LEG-11, `0166`, D-569 |
 | O-374 | **Welche Jobbörse wird wirklich beauftragt — und mit welchem Vertrag?** Die Bundesagentur für Arbeit hat eine echte Arbeitgeber-Schnittstelle, setzt aber eine Betriebsnummer und eine freigeschaltete Kennung voraus. Indeed und StepStone stehen in CLAUDE.md unter „Out of scope" — verboten ist dort das SCRAPEN; eine Anzeige über eine offizielle Arbeitgeber-API wäre etwas anderes, nur gibt es dafür weder Vertrag noch Zugang. Bis zur Antwort sind alle vier Ziele sichtbar und dauerhaft `nicht_verbunden`, mit dem Grund an der Zeile: eine Liste, in der ein Ziel einfach fehlt, liest sich wie „geht nicht", und die Frage ist „noch nicht beauftragt". | REC-09, D-02, `versand/stellenboerse.ts`, D-569 |
 | O-375 | **Wohin gehen Bewerbungsunterlagen?** Das Karriereformular nimmt heute keine Datei an: der Belegspeicher ist nicht verbunden (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY), und ein Feld, das eine Datei annimmt und sie nirgends ablegt, ist schlimmer als keines — der Mensch glaubt, sie sei angekommen. Offen ist damit auch, wie lange ein Lebenslauf im Speicher bleibt und ob er beim Löschen der Bewerbung mitgeht (er muss). | REC-03, REC-04, REC-07, `karriere/Formular.tsx`, D-569 |
+| O-376 | **Wie lange bleiben die Bewerbungsunterlagen eines EINGESTELLTEN Bewerbers, und wandern sie in die Personalakte?** Das öffentliche Formular sagt seit REC-03 zu: gelöscht nach der Frist, „sofern kein Arbeitsverhältnis zustande kommt". Der Nachtlauf `bewerber_loeschung` las bis dahin nur die Frist und nahm auch `status = 'eingestellt'` mit — samt `einstellungsentscheidung`, also genau dem Nachweis, den REC-08 verlangt. Zusage und Verhalten liefen auseinander; vor der Aufsicht zählt die Zusage. Der Lauf hält eingestellte Bewerbungen jetzt zurück und zeigt sie auf `/recruiting/datenschutz` als solche. Eine eigene Frist dafür erfindet diese Plattform nicht: das ist Personalaktenpraxis und gehört dem Mandanten. | REC-03, REC-07, REC-08, LEG-11, `jobs/bewerberLoeschung.ts`, `karriere/Formular.tsx`, O-373 |
 | O-500 | **Wie lange gilt ein Einladungs- und ein Zurücksetzungslink, wie viele Wiederherstellungscodes werden ausgegeben, und gilt eine Mindestlänge über zwölf Zeichen hinaus?** Die SPEC nennt keine Zahl. `plattform_einstellung` führt vier vorläufige Werte (168 h, 2 h, 10 Codes, 12 Zeichen); sie sind als `ist_vorlaeufig = true` markiert und über eine Zeile änderbar, ohne Code. Die Auswahl folgt gängiger Praxis, nicht einer Entscheidung: ein Einladungslink überlebt ein Wochenende, ein Zurücksetzungslink nicht. | AUT-01, AUT-04, `0155`, D-502 |
 | O-501 | **Welches Supabase-Projekt in der EU-Region (Frankfurt), welcher Auftragsverarbeitungsvertrag — und soll die Anmeldung über ein Firmenverzeichnis (SAML/OIDC) laufen?** Dieselbe Frage trägt den Postausgang: welcher in der EU gehostete Mailanbieter, welche Absenderadresse je Gesellschaft, laufen DKIM und DMARC über die bestehenden Domains? Ohne beides gibt es keinen Zurücksetzungs- und keinen Einladungslink, der ankommt. Bis zur Antwort prüft die Plattform das Kennwort selbst (`kern.zugangsdaten`, bcrypt), `/auth/callback` antwortet `501` statt eine Sitzung auszustellen, und `/auth/passwort-vergessen` sagt „nicht verbunden" statt „gesendet" (D-501, D-503). | AUT-01, AUT-04, NOT-02, `0155`, D-501 |
 | O-510 | **Warum zeigt die Seite hinter einer 303-Umleitung den alten Stand?** Nach dem Widerruf eines Kalenderzugangs steht die widerrufene Zeile auf der Umleitungsseite noch in der Liste. Festgestellt ist: die Datenbank ist zu diesem Zeitpunkt richtig (`widerrufen_am` gesetzt), der Feed antwortet sofort mit 404, und ein normaler Aufruf derselben Adresse zeigt die Liste richtig — es ist eine veraltete ANZEIGE und kein offener Zugang. Ausgeschlossen sind: fehlendes `force-dynamic` (steht), eine nicht abgeschlossene Transaktion (die 404-Antwort beweist das Gegenteil), `revalidatePath` auf dem Ziel und `cache-control: no-store` auf der Umleitung (beide eingebaut, beide ohne Wirkung). Bis zur Antwort sagt die Bestätigung auf der Seite ausdrücklich, dass eine noch sichtbare Zeile veraltet ist. Der Browsertest prüft den Stand deshalb nach einem frischen Aufruf — und die Wirkung des Widerrufs sofort. | CAL-03, `api/kalender-feed/widerrufen`, D-516 |
@@ -12082,4 +12083,81 @@ wenn jemand die beiden Hälften nebeneinanderlegt, und genau das tut eine
 Durchsicht.
 
 | Betrifft | `error.tsx`, `karriere/danke`, `social/dienst.ts`, `api/social/gemeinsam.ts`, D-562, O-373, K-13, APR-07 |
+|---|---|
+
+---
+
+### D-574 · Zwei gebaute Wege, die niemand gehen konnte — und der Riegel, der fehlte
+
+**Kontext.** Die zweite Copilot-Runde auf PR 16 meldete sechzehn Stellen. Zehn
+davon sind in D-573 und im Commit davor abgearbeitet; drei blieben, und sie
+gehören zusammen: sie beschreiben **Recruiting als halb angeschlossenes Modul**.
+
+**1 · Eine Stellenanzeige konnte den Entwurf nie verlassen.**
+`stelle.status` kennt `freigegeben` seit 0166. Im ganzen Baum stand keine
+Zeile, die ihn setzt: keine Route, kein Dienst, kein Knopf.
+`/stellen/[id]/veroeffentlichung` antwortete deshalb immer „nicht freigegeben"
+(REC-09 unausführbar), und die Spalte war Zierde. Jede Datei einzeln gebaut und
+geprüft; zusammen ging nichts hinaus — dieselbe Form wie D-563, wo sechzehn
+Wächter einen Zeitplan hatten und keinen Auslöser.
+
+Gebaut ist jetzt der ganze Weg: `legeStelleVor()` legt eine Freigabe an
+(Abdruck über `jcsDigest`, RFC 8785 — `app.freigabe_entscheiden` vergleicht
+gegen `kanonisiere(vorschau)`, und `JSON.stringify` ergäbe eine andere
+Byte-Folge und damit eine Freigabe, die niemand entscheiden kann),
+`POST /api/recruiting/stellen/[id]/freigabe` ruft ihn, und auf dem
+Stellenblatt steht der Knopf. **Vorlegen ist BITTEN**: das Recht ist
+`recruiting.stelle_schreiben`; entschieden wird im Posteingang, und die Zeile
+trägt `erforderliches_recht = 'recruiting.stelle_veroeffentlichen'`.
+
+**2 · Und der Riegel darunter prüfte nur, DASS eine Kennung dasteht.**
+`stelle_freigegeben_hat_freigabe check (… freigabe_id is not null)` — eine
+`check`-Bedingung kann keine andere Tabelle lesen. Damit liess sich eine Stelle
+mit einer **offenen**, einer **abgelehnten** oder der Freigabe eines
+**Social-Beitrags** auf `veroeffentlicht` setzen: Invariante 7 mit einem
+Fremdschlüssel statt einer Entscheidung. `0167` bringt
+`app.stelle_braucht_genehmigung` (dieselbe Mechanik wie `beitrag` in 0163, mit
+der AKTION im Vergleich — 0130 §6) und `app.stelle_folgt_freigabe`, den Nachzug
+in BEIDE Richtungen: eine Ablehnung holt die Anzeige in den Entwurf zurück und
+löst die Kennung, statt sie als „liegt in Prüfung" stehen zu lassen.
+
+**Den Beweis lieferte der Seed.** Er griff sich bis dahin `select … from
+freigabe where status = 'genehmigt' limit 1` — meistens die eines
+Instagram-Beitrags — und flog beim ersten Lauf gegen 0167 auf die Nase, mit
+genau der Meldung, für die der Riegel gebaut ist. Er legt jetzt seine eigene
+Freigabe mit der richtigen Aktion an, im Mandantenkontext (`set_config`), weil
+`app.freigabe_genehmigt` ein Definer ist und `d_freigabe_lesen` (0123)
+`app.aktiver_mandant()` verlangt.
+
+**3 · REC-06 war gebaut und unerreichbar.** `planeGespraech` stand im Dienst,
+`/recruiting/gespraeche` stand da und versprach in seiner Leerseite einen Knopf
+auf dem Bewerbungsblatt — und im API-Baum rief niemand die Funktion. Ein Termin
+konnte nur aus dem Seed kommen. Jetzt gibt es
+`POST /api/recruiting/gespraeche` und das Formular auf dem Bewerbungsblatt, mit
+`kalender.schreiben` davor (dasselbe Recht, das die Gesprächsliste verlangt).
+Die Uhr ist die des Servers (Invariante 5), der Tag geht durch den Kalender
+(`2026-02-30` wird abgewiesen), und die Fragen stehen je Zeile einzeln —
+was einzeln gefragt wird, lässt sich als Fliesstext nicht abhaken.
+
+**4 · Der Löschlauf widersprach der Zusage auf dem Formular** (O-376).
+„Gelöscht nach der Frist, **sofern kein Arbeitsverhältnis zustande kommt**"
+steht seit REC-03 öffentlich da. Der Nachtlauf las nur die Frist und nahm auch
+`status = 'eingestellt'` mit — samt `einstellungsentscheidung`, also genau dem
+Nachweis, den REC-08 verlangt. Vor der Aufsicht zählt die Zusage: eingestellte
+Bewerbungen werden zurückgehalten und stehen als solche auf
+`/recruiting/datenschutz`. Eine eigene Frist dafür erfindet diese Plattform
+nicht — das ist Personalaktenpraxis und gehört dem Mandanten (O-376).
+
+**5 · Und `verweise.spec.ts` prüfte einen Menschen von fünf.**
+Der Lauf ging als `leitung` durch `reinigung` und brach nach 150 Seiten ab.
+Beides war eine Stichprobe, die sich als Zusicherung las: die Gruppenansicht,
+das Mitarbeiterportal und der Kundenzugang — drei ganze Oberflächen — sah er
+nie, und die Grenze schnitt dort ab, wo die Seiten selten werden und ein Fehler
+am längsten überlebt. Jetzt fünf Läufe, jeder bis die Schlange leer ist, mit
+eigenem Browserkontext; die Obergrenze darüber ist ein Ausreisser-Riegel, der
+die Prüfung FALLEN lässt, statt still weniger zu prüfen. Je Routenform genügen
+drei Vertreter — gesucht wird ein totes Ziel, und das hängt an der Route, nicht
+an der Zeile.
+
+| Betrifft | REC-02, REC-06, REC-07, REC-09, Invariante 7, `0167`, O-376, D-563, D-567, AUT-06 |
 |---|---|

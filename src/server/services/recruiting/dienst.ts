@@ -27,6 +27,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
+import { jcsDigest } from '../freigabe/kette.js';
 import { rangfolge, type Kriterium, type Rangzeile } from './rangfolge.js';
 
 export type StelleStatus = 'entwurf' | 'freigegeben' | 'veroeffentlicht' | 'geschlossen';
@@ -135,6 +136,101 @@ export async function legeStelleAn(
     throw new RecruitingFehler('Die Stelle wurde nicht angelegt.', 'kein_schreibrecht', 403);
   }
   return z.id;
+}
+
+/**
+ * **Eine Stelle zur Freigabe vorlegen** (REC-02, Invariante 7).
+ *
+ * **Warum es diese Funktion überhaupt gibt.** `stelle.status` kannte
+ * `freigegeben` seit 0166 — und im ganzen Baum stand keine Zeile, die ihn
+ * setzt. Eine Stelle konnte den Entwurf nie verlassen, die
+ * Veröffentlichungsseite lief in „nicht freigegeben", und REC-09 war damit
+ * für einen Menschen nicht ausführbar. Gebaut war alles, angeschlossen nichts;
+ * gemeldet hat es die Copilot-Runde auf PR 16.
+ *
+ * **Derselbe Weg wie beim Beitrag** (`legeVor`, social/dienst.ts), bis auf den
+ * Inhalt der Nutzlast — und das ist Absicht: zwei verschiedene Arten, eine
+ * Freigabe zu erbitten, wären eine zu viel.
+ *
+ *  - **Erst sperren, dann den Abdruck nehmen.** `payload_hash` bindet die
+ *    Entscheidung an genau diesen Text; zwischen einem ungesperrten Lesen und
+ *    dem `update` passt eine gleichzeitige Bearbeitung, und die Freigabe trüge
+ *    dann den Abdruck eines Textes, den es nicht mehr gibt.
+ *  - **`jcsDigest` und nicht `JSON.stringify`.** `app.freigabe_entscheiden`
+ *    bildet den Digest beim Entscheiden aus `kanonisiere(vorschau)` (RFC 8785,
+ *    sortierte Schlüssel). Eine andere Byte-Folge heisst: JEDE Entscheidung
+ *    wird abgewiesen — und zwar erst dem Menschen im Posteingang.
+ *  - **`erforderliches_recht` steht DRAN.** Ohne es fiele
+ *    `app.freigabe_entscheiden` auf das allgemeine `freigabe.entscheiden`
+ *    zurück, und eine Stellenanzeige ginge unter einem breiteren Recht hinaus,
+ *    als REC-02 vorsieht.
+ */
+export async function legeStelleVor(
+  kontext: SchreibKontext, id: string,
+): Promise<string> {
+  await kontext.abfrage(
+    `select id from stelle where id = $1::uuid and mandant_id = app.aktiver_mandant()
+      for update`, [id]);
+  const s = await ladeStelle(kontext, id);
+  if (s === null) throw new RecruitingFehler('Diese Stelle gibt es nicht.', 'unbekannt', 404);
+  if (s.status !== 'entwurf') {
+    throw new RecruitingFehler(
+      'Vorgelegt wird ein Entwurf. Was schon freigegeben oder veröffentlicht ist, '
+      + 'geht nicht noch einmal durch dieselbe Entscheidung.',
+      'falscher_status', 409);
+  }
+
+  const nutzlast = {
+    stelle_id: s.id,
+    titel: s.titel,
+    beschreibung: s.beschreibung,
+    anforderungen: [...s.anforderungen],
+    einsatzort: s.einsatzort,
+    wochenstunden: s.wochenstunden,
+  };
+  const [f] = await kontext.schreibe<{ id: string }>(
+    `insert into freigabe
+       (mandant_id, aktion, status, vorgang_typ, titel, zusammenfassung, risiko,
+        diff, vorschau_payload, payload_hash, bezug_typ, bezug_id, erstellt_von,
+        erforderliches_recht)
+     values ($1::uuid, 'stelle_veroeffentlichen', 'offen', 'stellenanzeige_entwurf',
+             $2, $3, 'mittel'::risiko_stufe, '[]'::jsonb, $4::jsonb, $5,
+             'stelle', $6::uuid, $7::uuid, 'recruiting.stelle_veroeffentlichen')
+     returning id`,
+    [kontext.aktiverMandantId, `Stellenanzeige: ${s.titel}`, stellenSatz(s),
+      nutzlast, jcsDigest(nutzlast), s.id, kontext.benutzerId]);
+  if (f === undefined) {
+    throw new RecruitingFehler(
+      'Die Freigabe wurde nicht angelegt.', 'kein_schreibrecht', 403);
+  }
+
+  /*
+   * **Nur die Kennung, nicht der Status.** `stelle.status` bleibt `entwurf`,
+   * bis jemand entscheidet; der Nachzug hängt am Ausloeser
+   * `freigabe_zieht_stelle_nach` (0167). Hier schon `freigegeben` zu setzen
+   * hiesse, die Entscheidung vorwegzunehmen — und der Riegel aus 0167 wiese
+   * es ohnehin ab, weil die Freigabe in diesem Augenblick `offen` ist.
+   */
+  const geaendert = await kontext.schreibe<{ id: string }>(
+    `update stelle set freigabe_id = $2::uuid, geaendert_am = now(), geaendert_von = $3::uuid
+      where id = $1::uuid and mandant_id = app.aktiver_mandant() and status = 'entwurf'
+      returning id`,
+    [id, f.id, kontext.benutzerId]);
+  if (geaendert.length === 0) {
+    throw new RecruitingFehler(
+      'Die Stelle hat sich inzwischen geändert — jemand anderes war schneller. '
+      + 'Bitte die Seite neu laden.', 'gleichzeitig', 409);
+  }
+  return f.id;
+}
+
+/** Der Satz, den ein Mensch im Freigabe-Posteingang liest. */
+function stellenSatz(s: StelleZeile): string {
+  const wo = s.einsatzort === null || s.einsatzort === ''
+    ? 'ohne Einsatzort' : `Einsatzort ${s.einsatzort}`;
+  return `Die Anzeige „${s.titel}" soll auf die Karriereseite und an die `
+    + `gewählten Börsen gehen — ${wo}. `
+    + `${s.beschreibung.slice(0, 200)}${s.beschreibung.length > 200 ? '…' : ''}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -556,6 +652,16 @@ export interface LoeschStand {
     readonly name: string;
     readonly aufbewahrungBis: string;
     readonly loeschsperre: string | null;
+    /**
+     * **Eingestellt — und deshalb NICHT vom Nachtlauf mitgenommen** (O-376).
+     *
+     * Das öffentliche Formular sagt „gelöscht … sofern kein Arbeitsverhältnis
+     * zustande kommt". Der Lauf nahm trotzdem jede abgelaufene Bewerbung mit,
+     * auch die mit `status = 'eingestellt'` — samt der Einstellungsentscheidung,
+     * die REC-08 gerade als Nachweis führt. Zusage und Verhalten liefen
+     * auseinander, und die Zusage ist die, die vor der Aufsicht zählt.
+     */
+    readonly zurueckgehalten: boolean;
   }[];
   readonly naechste: string | null;
   readonly laeufe: readonly {
@@ -580,8 +686,10 @@ export async function loeschStand(
 ): Promise<LoeschStand> {
   const faellig = await kontext.abfrage<{
     id: string; name: string; aufbewahrungBis: string; loeschsperre: string | null;
+    zurueckgehalten: boolean;
   }>(
-    `select id, name, aufbewahrung_bis::text as "aufbewahrungBis", loeschsperre
+    `select id, name, aufbewahrung_bis::text as "aufbewahrungBis", loeschsperre,
+            (status = 'eingestellt') as "zurueckgehalten"
        from bewerbung
       where geloescht_am is null and mandant_id = app.aktiver_mandant()
         and aufbewahrung_bis <= $1::date

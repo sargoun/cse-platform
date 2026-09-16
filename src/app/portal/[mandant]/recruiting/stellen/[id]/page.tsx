@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Button } from '@/components/ui/Button';
 import {
   ladeStelle, rangliste, leseVeroeffentlichungen, type StelleStatus,
 } from '@/server/services/recruiting/dienst';
@@ -28,6 +29,16 @@ const STATUS: Readonly<Record<StelleStatus, PillZustand>> = {
   veroeffentlicht: 'Aktiv', geschlossen: 'Abgeschlossen',
 };
 
+/** Die Abweisungen der Vorlage-Route — als Satz, nicht als Schlüssel. */
+const FEHLER: Readonly<Record<string, string>> = {
+  falscher_status: 'Vorgelegt wird ein Entwurf. Was schon freigegeben oder '
+    + 'veröffentlicht ist, geht nicht noch einmal durch dieselbe Entscheidung.',
+  gleichzeitig: 'Jemand anderes war einen Augenblick schneller. Bitte die Seite neu laden.',
+  kein_schreibrecht: 'Die Freigabe wurde nicht angelegt. Fehlt Ihnen das Recht dazu, '
+    + 'sagt es Ihnen die Person, die Ihre Rolle vergeben hat.',
+  unbekannt: 'Diese Stelle gibt es nicht.',
+};
+
 const ERGEBNIS: Readonly<Record<string, string>> = {
   offen: 'noch nicht versucht',
   veroeffentlicht: 'veröffentlicht',
@@ -36,10 +47,15 @@ const ERGEBNIS: Readonly<Record<string, string>> = {
 };
 
 export default async function Stellenblatt(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, id } = await params;
   kennungOder404(id);
+  const suche = await searchParams;
+  const abgewiesen = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   return (
     <RecruitingSeite
       mandant={mandant}
@@ -86,6 +102,48 @@ export default async function Stellenblatt(
                 </Link>
               )}
             </nav>
+
+            {/*
+              * **Der Weg, der gefehlt hat** (REC-02, Invariante 7).
+              *
+              * `stelle.status` kannte `freigegeben` seit 0166 — gesetzt hat
+              * ihn niemand. Eine Anzeige kam nie aus dem Entwurf, die
+              * Veröffentlichungsseite antwortete „nicht freigegeben", und
+              * REC-09 war für einen Menschen nicht ausführbar.
+              *
+              * Der Knopf LEGT VOR, er gibt nicht frei: entschieden wird im
+              * Freigabe-Posteingang, wo die Zeile ausdrücklich
+              * `recruiting.stelle_veroeffentlichen` verlangt. Zwei Wege zu
+              * derselben Entscheidung wären einer zu viel.
+              */}
+            {s.status === 'entwurf' && (
+              <form method="post" action={`/api/recruiting/stellen/${id}/freigabe`}
+                    className="mb-s5 flex max-w-prose flex-wrap items-center gap-s3">
+                <input type="hidden" name="zurueck"
+                       value={`/portal/${mandant}/recruiting/stellen/${id}`} />
+                <Button type="submit" variante="primary" data-cse="stelle-vorlegen">
+                  Zur Freigabe vorlegen
+                </Button>
+                <span className="text-sm text-text-muted">
+                  Sie bitten um die Freigabe — entschieden wird im
+                  Freigabe-Posteingang, von einem Menschen (Invariante 7).
+                </span>
+              </form>
+            )}
+
+            {suche['vorgelegt'] === '1' && (
+              <Hinweis art="hinweis" cse="stelle-vorgelegt" className="mb-s5 max-w-prose">
+                <strong>Die Anzeige liegt im Freigabe-Posteingang.</strong> Sie geht
+                hinaus, nachdem ein Mensch sie freigegeben hat — bis dahin bleibt sie
+                ein Entwurf.
+              </Hinweis>
+            )}
+
+            {abgewiesen !== null && (
+              <Hinweis art="warnung" cse="stelle-fehler" className="mb-s5 max-w-prose">
+                {FEHLER[abgewiesen] ?? 'Der Vorgang wurde abgewiesen.'}
+              </Hinweis>
+            )}
 
             {s.entwurfVonArt === 'agent' && (
               <Hinweis art="warnung" cse="stelle-agentenentwurf" className="mb-s5 max-w-prose">

@@ -328,3 +328,190 @@ describe('der Löschlauf löscht echt — und hält an einer Sperre (REC-07)', (
     expect(fremd).toHaveLength(0);
   });
 });
+
+/**
+ * **Eine Stellenanzeige geht nur mit einer GENEHMIGTEN Freigabe hinaus**
+ * (REC-02, Invariante 7, 0167).
+ *
+ * 0166 hatte nur `stelle_freigegeben_hat_freigabe check (… freigabe_id is not
+ * null)`. Eine `check`-Bedingung kann keine andere Tabelle lesen, also stand
+ * dort genau das: DASS eine Kennung dasteht. Welche, mit welchem Ausgang und
+ * für welche Aktion, blieb offen — und damit liess sich eine Stelle mit einer
+ * offenen, einer abgelehnten oder der Freigabe eines Social-Beitrags auf
+ * `veroeffentlicht` setzen. Gemeldet hat das die Copilot-Runde auf PR 16.
+ *
+ * Geprüft wird hier als EIGENTÜMER: der Riegel muss auch dann halten, wenn
+ * niemand über die Anwendung geht. Genau das ist der Unterschied zwischen
+ * einer Regel im Dienst und einer in der Datenbank (Invariante 3).
+ */
+describe('eine Stelle wird nicht ohne GENEHMIGUNG freigegeben (REC-02, 0167)', () => {
+  /**
+   * **Eine Rohschreibung MIT Mandantenkontext** — und warum sie sein muss.
+   *
+   * Der Riegel fragt `app.freigabe_genehmigt`, einen Definer, dessen Policy
+   * auf `freigabe` (`d_freigabe_lesen`, 0123) `mandant_id =
+   * app.aktiver_mandant()` verlangt. Eine Rohverbindung ohne gesetzte GUCs hat
+   * keinen aktiven Mandanten, sieht deshalb NULL Zeilen und fällt in den
+   * Riegel — **richtig herum**: er schliesst, wenn er nicht nachsehen kann.
+   *
+   * Der Test setzt den Kontext also, statt den Riegel zu lockern. Genau das
+   * tut der echte Weg auch: `withTenant` setzt dieselben beiden GUCs. Dieselbe
+   * Lehre wie in `social.test.ts`, und sie hat hier zwei Fehlschläge gekostet,
+   * bevor sie hier stand.
+   */
+  async function imMandanten<T>(
+    mandantId: string, fn: (tx: postgres.TransactionSql) => Promise<T>,
+  ): Promise<T> {
+    return sql.begin(async (tx) => {
+      await tx.unsafe(`select set_config('app.scope', 'mandant', true),
+                              set_config('app.mandant_id', $1, true)`, [mandantId]);
+      return fn(tx);
+    }) as Promise<T>;
+  }
+
+  async function freigabeAnlegen(
+    mandantId: string, status: string, aktion = 'stelle_veroeffentlichen',
+  ): Promise<string> {
+    const mensch = await legeKontoAn(mandantId);
+    const [fr] = (await sql.unsafe(
+      `insert into freigabe (mandant_id, aktion, status, vorgang_typ, titel,
+                             zusammenfassung, risiko, vorschau_payload, payload_hash,
+                             freigegeben_von, freigegeben_am, bezug_typ,
+                             erforderliches_recht)
+       values ($1::uuid, $2, $3::freigabe_status, 'stellenanzeige_entwurf', 'Probe',
+               'Probe', 'mittel'::risiko_stufe, '{}'::jsonb,
+               encode(sha256(convert_to('probe', 'UTF8')), 'hex'),
+               case when $3 = 'genehmigt' then $4::uuid else null end,
+               case when $3 = 'genehmigt' then now() else null end, 'stelle',
+               'recruiting.stelle_veroeffentlichen')
+       returning id`,
+      [mandantId, aktion, status, mensch])) as unknown as { id: string }[];
+    return fr!.id;
+  }
+
+  it('mit einer OFFENEN Freigabe wird sie abgewiesen', async () => {
+    const { stelleId } = await bewerbungAnlegen(f.reinigung, 30);
+    const freigabeId = await freigabeAnlegen(f.reinigung, 'offen');
+    await expect(alsRolle('', (tx) => tx.unsafe(
+      `update stelle set status = 'freigegeben', freigabe_id = $2::uuid
+        where id = $1::uuid`, [stelleId, freigabeId])))
+      .rejects.toThrow(/GENEHMIGTEN Freigabe/u);
+  });
+
+  it('mit einer ABGELEHNTEN ebenso', async () => {
+    const { stelleId } = await bewerbungAnlegen(f.reinigung, 30);
+    const freigabeId = await freigabeAnlegen(f.reinigung, 'abgelehnt');
+    await expect(alsRolle('', (tx) => tx.unsafe(
+      `update stelle set status = 'freigegeben', freigabe_id = $2::uuid
+        where id = $1::uuid`, [stelleId, freigabeId])))
+      .rejects.toThrow(/GENEHMIGTEN Freigabe/u);
+  });
+
+  /**
+   * **Die AKTION geht mit** (0130 §6). Ohne sie öffnete die Zustimmung zu
+   * einem Social-Beitrag eine Stellenanzeige: dieselbe Kennung, derselbe
+   * Mandant, derselbe Status — und eine völlig andere Entscheidung.
+   */
+  it('eine GENEHMIGTE Freigabe fuer etwas anderes traegt sie auch nicht', async () => {
+    const { stelleId } = await bewerbungAnlegen(f.reinigung, 30);
+    const freigabeId = await freigabeAnlegen(
+      f.reinigung, 'genehmigt', 'social_veroeffentlichen');
+    await expect(alsRolle('', (tx) => tx.unsafe(
+      `update stelle set status = 'freigegeben', freigabe_id = $2::uuid
+        where id = $1::uuid`, [stelleId, freigabeId])))
+      .rejects.toThrow(/GENEHMIGTEN Freigabe/u);
+  });
+
+  it('und ganz ohne Freigabe erst recht nicht', async () => {
+    const { stelleId } = await bewerbungAnlegen(f.reinigung, 30);
+    await expect(alsRolle('', (tx) => tx.unsafe(
+      `update stelle set status = 'freigegeben' where id = $1::uuid`, [stelleId])))
+      .rejects.toThrow();
+  });
+
+  it('mit einer GENEHMIGTEN Freigabe fuer DIESE Aktion geht sie durch', async () => {
+    const { stelleId } = await bewerbungAnlegen(f.reinigung, 30);
+    const freigabeId = await freigabeAnlegen(f.reinigung, 'genehmigt');
+    await imMandanten(f.reinigung, (tx) => tx.unsafe(
+      `update stelle set status = 'freigegeben', freigabe_id = $2::uuid
+        where id = $1::uuid`, [stelleId, freigabeId]));
+    const [s] = (await alsRolle('', (tx) => tx.unsafe(
+      `select status::text as status from stelle where id = $1::uuid`,
+      [stelleId]))) as unknown as { status: string }[];
+    expect(s!.status).toBe('freigegeben');
+  });
+
+  /**
+   * **Der Nachzug in beide Richtungen** (`freigabe_zieht_stelle_nach`).
+   *
+   * Ein Ausführer in `freigabe/ausfuehrung.ts` wäre die halbe Lösung: er läuft
+   * nur bei `genehmigt`. Bei einer ABLEHNUNG bliebe die Stelle auf ihrem Stand
+   * stehen, während ihre Freigabe abgelehnt ist — zwei Bildschirme, zwei
+   * Antworten, und niemand sucht danach.
+   */
+  it('die Entscheidung zieht die Stelle nach — genehmigt wird freigegeben', async () => {
+    const { stelleId } = await bewerbungAnlegen(f.reinigung, 30);
+    const freigabeId = await freigabeAnlegen(f.reinigung, 'offen');
+    const mensch = await legeKontoAn(f.reinigung);
+    await alsRolle('', (tx) => tx.unsafe(
+      `update stelle set freigabe_id = $2::uuid where id = $1::uuid`,
+      [stelleId, freigabeId]));
+    await imMandanten(f.reinigung, (tx) => tx.unsafe(
+      `update freigabe set status = 'genehmigt', freigegeben_von = $2::uuid,
+                           freigegeben_am = now()
+        where id = $1::uuid`, [freigabeId, mensch]));
+    const [s] = (await alsRolle('', (tx) => tx.unsafe(
+      `select status::text as status from stelle where id = $1::uuid`,
+      [stelleId]))) as unknown as { status: string }[];
+    expect(s!.status).toBe('freigegeben');
+  });
+
+  it('und eine ABLEHNUNG holt sie in den Entwurf zurueck, ohne Kennung', async () => {
+    const { stelleId } = await bewerbungAnlegen(f.reinigung, 30);
+    const freigabeId = await freigabeAnlegen(f.reinigung, 'offen');
+    await alsRolle('', (tx) => tx.unsafe(
+      `update stelle set freigabe_id = $2::uuid where id = $1::uuid`,
+      [stelleId, freigabeId]));
+    await alsRolle('', (tx) => tx.unsafe(
+      `update freigabe set status = 'abgelehnt', begruendung = 'Probe'
+        where id = $1::uuid`, [freigabeId]));
+    const [s] = (await alsRolle('', (tx) => tx.unsafe(
+      `select status::text as status, freigabe_id from stelle where id = $1::uuid`,
+      [stelleId]))) as unknown as { status: string; freigabe_id: string | null }[];
+    expect(s!.status).toBe('entwurf');
+    expect(s!.freigabe_id).toBeNull();
+  });
+});
+
+/**
+ * **Der Löschlauf nimmt eine EINGESTELLTE Bewerbung nicht mit** (O-376).
+ *
+ * Das öffentliche Formular sagt zu: gelöscht nach der Frist, „sofern kein
+ * Arbeitsverhältnis zustande kommt". Der Lauf las nur die Frist — samt
+ * `einstellungsentscheidung`, also dem Nachweis, den REC-08 verlangt. Zusage
+ * und Verhalten liefen auseinander; vor der Aufsicht zählt die Zusage.
+ */
+describe('eingestellte Bewerbungen haelt der Loeschlauf zurueck (O-376)', () => {
+  it('die Frist ist abgelaufen — und der Name steht noch da', async () => {
+    const { bewerbungId } = await bewerbungAnlegen(f.reinigung, -1);
+    await alsRolle('', (tx) => tx.unsafe(
+      `update bewerbung set status = 'eingestellt' where id = $1::uuid`, [bewerbungId]));
+
+    await job.ausfuehren({ mandantId: null, laufId: 'test-o376', versuch: 1 });
+
+    const [rest] = (await alsRolle('', (tx) => tx.unsafe(
+      `select name, geloescht_am from bewerbung where id = $1::uuid`,
+      [bewerbungId]))) as unknown as { name: string; geloescht_am: Date | null }[];
+    expect(rest!.name).toBe('Test Mensch');
+    expect(rest!.geloescht_am).toBeNull();
+  });
+
+  it('eine NICHT eingestellte mit derselben Frist geht dagegen', async () => {
+    const { bewerbungId } = await bewerbungAnlegen(f.reinigung, -1);
+    await job.ausfuehren({ mandantId: null, laufId: 'test-o376b', versuch: 1 });
+    const [rest] = (await alsRolle('', (tx) => tx.unsafe(
+      `select geloescht_am from bewerbung where id = $1::uuid`,
+      [bewerbungId]))) as unknown as { geloescht_am: Date | null }[];
+    expect(rest!.geloescht_am).not.toBeNull();
+  });
+});

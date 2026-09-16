@@ -150,18 +150,59 @@ export async function seedRecruiting(
     if (vorlagen.length === 0) continue;
 
     /*
-     * Die erste Stelle ist VERÖFFENTLICHT und trägt deshalb eine Freigabe —
-     * `stelle_freigegeben_hat_freigabe` (0166) lässt den Status ohne sie gar
-     * nicht zu. Die Demo umgeht den Riegel nicht, sie erfüllt ihn.
+     * Die erste Stelle ist VERÖFFENTLICHT und trägt deshalb eine EIGENE,
+     * genehmigte Freigabe. Die Demo umgeht den Riegel nicht, sie erfüllt ihn.
+     *
+     * **Hier stand einmal `select … where status = 'genehmigt' limit 1`** —
+     * irgendeine genehmigte Freigabe des Mandanten, meistens die eines
+     * Social-Beitrags. Das ging gut, solange `stelle_freigegeben_hat_freigabe`
+     * (0166) nur `freigabe_id is not null` prüfte. Seit 0167 fragt der
+     * Auslöser auch nach der AKTION — und wies den Seed ab, mit genau der
+     * Meldung, für die er gebaut ist: eine Zustimmung zu einem Instagram-Post
+     * öffnet keine Stellenanzeige. Der Seed war damit der erste echte Beweis,
+     * dass der Riegel greift.
+     *
+     * `erforderliches_recht` steht dran, weil `app.freigabe_entscheiden` sonst
+     * auf das allgemeine `freigabe.entscheiden` zurückfiele: der Demo-Posteingang
+     * liesse dann eine Stellenanzeige unter einem breiteren Recht durch, als
+     * der echte Weg es täte.
      */
-    const [freigabe] = await sql<{ id: string }[]>`
-      select id from freigabe
-       where mandant_id = ${mandantId} and status = 'genehmigt'
+    const [mensch] = await sql<{ id: string }[]>`
+      select benutzer_id as id from benutzer_mandant
+       where mandant_id = ${mandantId} and entzogen_am is null
        order by erstellt_am limit 1`;
+    const [freigabe] = mensch === undefined ? [] : await sql<{ id: string }[]>`
+      insert into freigabe
+        (mandant_id, aktion, status, vorgang_typ, titel, zusammenfassung, risiko,
+         vorschau_payload, payload_hash, freigegeben_von, freigegeben_am,
+         bezug_typ, erforderliches_recht)
+      values (${mandantId}, 'stelle_veroeffentlichen', 'genehmigt',
+              'stellenanzeige_entwurf', 'Stellenanzeige (Demo)',
+              'Freigabe der ersten Anzeige dieser Gesellschaft.',
+              'mittel'::risiko_stufe, ${sql.json({ demo: true })},
+              encode(sha256(convert_to('stelle-demo', 'UTF8')), 'hex'),
+              ${mensch.id}, now() - interval '22 days', 'stelle',
+              'recruiting.stelle_veroeffentlichen')
+      returning id`;
 
     for (const [i, v] of vorlagen.entries()) {
       const veroeffentlicht = i === 0 && freigabe !== undefined;
-      const [s] = await sql<{ id: string }[]>`
+        /*
+       * **Mit Mandantenkontext** — sonst schliesst der Riegel aus 0167
+       * mitten im Seed.
+       *
+       * `stelle_braucht_genehmigung` fragt `app.freigabe_genehmigt`, einen
+       * Definer, dessen Policy auf `freigabe` (`d_freigabe_lesen`, 0123)
+       * `mandant_id = app.aktiver_mandant()` verlangt. Die Seed-Verbindung ist
+       * der Eigentuemer und umgeht RLS fuer die EIGENEN Anweisungen; der
+       * Definer darin tut das nicht. Dieselbe Loesung wie im Social-Seed, und
+       * `set_config(..., true)` ist transaktionslokal: der Mandant verlaesst
+       * diese eine Transaktion nicht.
+       */
+      const [s] = await sql.begin(async (tx) => {
+        await tx`select set_config('app.scope', 'mandant', true),
+                        set_config('app.mandant_id', ${mandantId}, true)`;
+        return tx<{ id: string }[]>`
         insert into stelle
           (mandant_id, titel, beschreibung, anforderungen, einsatzort, wochenstunden,
            status, freigabe_id, veroeffentlicht_am, bewerbungsfrist, entwurf_von_art)
@@ -169,10 +210,11 @@ export async function seedRecruiting(
                 ${v.einsatzort}, ${v.wochenstunden},
                 ${veroeffentlicht ? 'veroeffentlicht' : 'entwurf'}::stelle_status,
                 ${veroeffentlicht ? freigabe.id : null},
-                ${veroeffentlicht ? sql`now() - interval '21 days'` : null},
-                ${veroeffentlicht ? sql`(app.berlin_heute() + 30)` : null},
+                ${veroeffentlicht ? tx`now() - interval '21 days'` : null},
+                ${veroeffentlicht ? tx`(app.berlin_heute() + 30)` : null},
                 ${i === 1 ? 'agent' : 'mensch'}::akteur_art)
         returning id`;
+      }) as unknown as { id: string }[];
       if (s === undefined) continue;
       stellen += 1;
       if (!veroeffentlicht) continue;

@@ -192,3 +192,103 @@ test('und auch die Initiativbewerbung mit Bereichswahl', async ({ page }) => {
   await page.locator('button[type="submit"]').first().click();
   await expect(page).toHaveURL(/danke/u);
 });
+
+/**
+ * **Der Weg, der gefehlt hat: Entwurf → Freigabe → Posteingang** (REC-02,
+ * Invariante 7).
+ *
+ * `stelle.status` kannte `freigegeben` seit 0166, und im ganzen Baum setzte
+ * ihn niemand: eine Anzeige kam nie aus dem Entwurf, `/veroeffentlichung`
+ * antwortete „nicht freigegeben", REC-09 war für einen Menschen nicht
+ * ausführbar. Jede Datei gebaut, keine angeschlossen — genau die Sorte Lücke,
+ * die eine Einzelprüfung nicht findet.
+ *
+ * Geprüft wird deshalb der GANZE Weg: anlegen, vorlegen, und die Bitte im
+ * Freigabe-Posteingang wiederfinden. Dass sie dort ANKOMMT, ist der Beweis;
+ * der Status der Stelle ändert sich absichtlich noch nicht (ein Mensch
+ * entscheidet).
+ */
+test('eine Stelle legt sich zur Freigabe vor und liegt danach im Posteingang', async ({ page }) => {
+  await alsKonto(page, KONTO.adminReinigung);
+  await page.goto('/portal/reinigung/recruiting/stellen/neu');
+
+  const titel = `Objektleitung Probe ${String(Date.now())}`;
+  await page.locator('[name="titel"]').fill(titel);
+  await page.locator('[name="beschreibung"]').fill(
+    'Führung eines Reinigungsteams in Berlin-Mitte, Früh- und Spätschicht.');
+  await page.locator('[name="anforderungen"]').fill('Führerschein\nDeutsch B2');
+  await page.locator('button[type="submit"]').first().click();
+  await page.waitForURL(/\/recruiting\/stellen\/[0-9a-f-]{36}/u);
+
+  /* Entwurf: der Knopf steht da, der Veröffentlichungsweg noch nicht offen. */
+  const vorlegen = page.locator('[data-cse="stelle-vorlegen"]');
+  await expect(vorlegen).toBeVisible();
+  await vorlegen.click();
+  await expect(page.locator('[data-cse="stelle-vorgelegt"]')).toBeVisible();
+
+  /*
+   * **Vorgelegt heisst NICHT freigegeben.** Der Riegel aus 0167 lässt den
+   * Status erst mit einer genehmigten Freigabe wandern; solange die Bitte
+   * offen ist, bleibt die Anzeige ein Entwurf — und der Knopf verschwindet,
+   * damit niemand zweimal bittet.
+   */
+  await expect(page.locator('[data-cse="stelle-vorlegen"]')).toHaveCount(0);
+
+  await page.goto('/portal/reinigung/freigaben');
+  await expect(page.locator('body')).toContainText(titel);
+});
+
+/**
+ * **REC-06 war gebaut und unerreichbar.** `planeGespraech` stand im Dienst,
+ * die Gesprächsliste stand da und versprach in ihrer Leerseite einen Knopf auf
+ * dem Bewerbungsblatt — und keine Route rief die Funktion. Ein Termin konnte
+ * nur aus dem Seed kommen.
+ */
+test('ein Gespräch entsteht am Bewerbungsblatt und steht danach in der Liste',
+  async ({ page }) => {
+    await alsKonto(page, KONTO.adminReinigung);
+    await page.goto('/portal/reinigung/recruiting/bewerbungen');
+    await page.locator('[data-cse="tabelle"] tbody tr a').first().click();
+    await page.waitForURL(/\/recruiting\/bewerbungen\/[0-9a-f-]{36}/u);
+
+    const formular = page.locator('[data-cse="gespraech-formular"]');
+    await expect(formular).toBeVisible();
+
+    /*
+     * **Ein Termin in der Zukunft, und zwar ausdrücklich.** Die Route prüft
+     * gegen `now()` AUS DER DATENBANK (Invariante 5); ein fester Wert im Test
+     * wäre irgendwann Vergangenheit und der Fehlschlag sähe aus wie ein
+     * kaputtes Formular.
+     */
+    const inEinerWoche = new Date(Date.now() + 7 * 24 * 3600 * 1000);
+    const wert = `${inEinerWoche.toISOString().slice(0, 10)}T10:30`;
+    await page.locator('[data-cse="gespraech-termin"]').fill(wert);
+    await page.locator('[name="ort"]').fill('Büro Wilmersdorfer Straße');
+    await page.locator('[data-cse="gespraech-fragen"]').fill(
+      'Erfahrung mit Objektleitung?\nVerfügbar ab wann?');
+    await page.locator('[data-cse="gespraech-anlegen"]').click();
+
+    await expect(page.locator('[data-cse="termin-angelegt"]')).toBeVisible();
+
+    await page.goto('/portal/reinigung/recruiting/gespraeche');
+    await expect(page.locator('[data-cse="tabelle"] tbody tr')).not.toHaveCount(0);
+  });
+
+/**
+ * **Ein Termin in der Vergangenheit ist keine Einladung** — und der Mensch
+ * bekommt den Satz auf SEINER Seite, nicht als JSON auf einer weissen.
+ */
+test('ein rückwirkender Gesprächstermin wird abgewiesen, auf der Seite',
+  async ({ page }) => {
+    await alsKonto(page, KONTO.adminReinigung);
+    await page.goto('/portal/reinigung/recruiting/bewerbungen');
+    await page.locator('[data-cse="tabelle"] tbody tr a').first().click();
+    await page.waitForURL(/\/recruiting\/bewerbungen\/[0-9a-f-]{36}/u);
+
+    const gestern = new Date(Date.now() - 24 * 3600 * 1000);
+    await page.locator('[data-cse="gespraech-termin"]')
+      .fill(`${gestern.toISOString().slice(0, 10)}T09:00`);
+    await page.locator('[data-cse="gespraech-anlegen"]').click();
+
+    await expect(page.locator('[data-cse="termin-fehler"]')).toContainText('Zukunft');
+  });

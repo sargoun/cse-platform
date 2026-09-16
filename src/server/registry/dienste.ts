@@ -202,6 +202,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'objekt_import.schreiben',
   },
   { modul: 'zeit', pfad: 'zeit/dauer', schreibend: false },
+  /**
+   * **Was ein `datetime-local`-Feld schickt, wird hier zum Instant.**
+   *
+   * Die Datei lag als `social/planeingabe` im Social-Modul — an Social war sie
+   * nie gebunden, sie stand dort nur, weil die Beitragsplanung sie zuerst
+   * brauchte. Der Gesprächstermin (REC-06) braucht dieselbe Umrechnung, und
+   * eine zweite Fassung wäre eine zweite Wahrheit über dieselbe Zeitzone.
+   * `social/planeingabe` re-exportiert weiter.
+   */
+  { modul: 'zeit', pfad: 'zeit/formulareingabe', schreibend: false },
   { modul: 'zeit', pfad: 'zeit/spalten', schreibend: false },
   /**
    * Der Check-in SCHREIBT — die Marke und den Zeiteintrag. Sein Recht ist
