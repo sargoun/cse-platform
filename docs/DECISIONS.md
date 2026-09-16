@@ -5170,9 +5170,18 @@ niemand ihn suchen.
 | O-355 | **Wer trägt die Modulbuchung ein und pflegt `mandant.module_gepflegt`?** Seit 0103 ist die Frage nicht mehr, was eine leere Liste heisst — das Kennzeichen sagt es: `false` = nicht eingetragen, es wird nicht gefiltert (damit eine neu angelegte Gesellschaft nicht schwarz wird); `true` = die Liste gilt, leer heisst kein Gewerk. Offen bleibt der Vorgang: kommt die Buchung aus dem Vertrag, aus der Verwaltung oder setzt sie ein Super-Admin über `system.module_zuweisen` — und wer merkt, wenn sie fehlt? | `src/server/registry/modul.ts`, 0103, D-377 |
 | O-356 | **Bucht jede Gesellschaft genau ein Gewerk, oder gibt es Überschneidungen?** Der Seed setzt `reinigung → [reinigung]`, `security → [security]`, `bau → [bau]`, `operations → []` — abgeleitet aus den Gewerken, die in `CLAUDE.md` stehen. Praktisch plausibel wäre anderes: Bauendreinigung bei der REALTIME Service, Veranstaltungsreinigung bei der SSE Security. Bis zur Antwort sieht eine Gesellschaft nur ihr eigenes Gewerk; die Korrektur ist eine Zeile in `mandant.module` und kein Codeeingriff. | `mandant.module`, `src/server/db/seed/index.ts`, D-377 |
 | O-357 | **Wohin gehen die Wächter-Meldungen aus SPEC §14 — Posteingang, Mail oder beides — und wer bekommt die Kettenmeldung?** Die Ablaufwarnung (60/30/7) erreicht die Person selbst; das ist EMP-08 und unstrittig. „Hashkette gebrochen" dagegen hat keinen persönlichen Empfänger: es ist eine Meldung an die Buchhaltung oder die Geschäftsführung, und beide sind heute keine adressierbare Größe im Modell. Solange die Frage offen ist, wird der Kettenprüfer bewusst NICHT als Job registriert — ein Lauf, der jede Nacht „ok" meldet, ohne dass jemand die Meldung liest, schafft Vertrauen, das er nicht deckt. | SPEC §14, `src/server/jobs/bootstrap.ts`, `kettenlauf.ts`, NOT-01 |
+| O-369 | **Darf jemand eine Freigabe ERBITTEN, ohne sie erteilen zu dürfen?** Die Schreibpolicy auf `freigabe` (`t_mandant`, 0136) verlangt `freigabe.entscheiden` — sie unterscheidet nicht zwischen „eine Freigabe anlegen“ und „eine Freigabe entscheiden“. Heute fällt das nirgends auf: jede Rolle mit `social.schreiben` trägt auch `freigabe.entscheiden` (0008), und dasselbe gilt für die übrigen Vorleger. Es fällt in dem Moment auf, in dem jemand es RICHTIG machen will: eine schmale Marketing- oder Sachbearbeiterrolle, die vorlegt und nichts entscheidet, ist genau das, wofür Invariante 7 da ist — und sie scheitert dann an der Policy, mit einer Meldung, die nach einem fehlenden Fachrecht aussieht. Die Policy einfach zu weiten ist keine Antwort: sie gilt für JEDE Freigabe dieser Plattform, und wer eine offene Freigabe anlegen darf, kann den Posteingang füllen. Bis zur Entscheidung hält `tests/isolation/social-job.test.ts` die Kopplung fest — sie wird rot, sobald eine Rolle `social.schreiben` ohne `freigabe.entscheiden` bekommt, und nicht erst im Betrieb. | APR-01, Invariante 7, `0136`, `0008`, `services/social/dienst.ts: legeVor` |
+| O-372 | **Soll die Gruppenansicht eine lesende Social-Übersicht über alle vier Gesellschaften bekommen?** Die Daten lassen es zu: die Policies in `0163` geben `gruppe.social.lesen` frei, und ein Beitrag trägt seinen Mandanten. Die Seitenkarte führt in §6 aber keine `/portal/gruppe/social`, und eine Route zu erfinden hiesse, eine Seite zu bauen, die niemand bestellt hat. Bis zur Antwort steht social nicht in `GRUPPEN_NAVIGATION` — vorher stand es dort mit dem Mandantenpfad und führte auf 404 (D-561). | SOC-01, TEN-05, `0163`, `registry/navigation.ts`, D-561 |
+| O-373 | **Wie lange bleiben Bewerberdaten?** Die Plattform setzt die Uhr beim Eingang (`bewerbung.aufbewahrung_bis`) und der Nachtlauf räumt danach ab — nur die ZAHL gehört dem Mandanten. Die übliche Praxis orientiert sich an § 15 Abs. 4 AGG (zwei Monate zur Geltendmachung) plus der dreimonatigen Klagefrist, woraus in der Literatur meist sechs Monate ab Absage werden; das ist eine überwiegende PRAXIS, keine Vorschrift. Hinterlegt sind 180 Tage als `plattform_einstellung` mit `ist_vorlaeufig = true`, änderbar ohne Code. Offen ist ausserdem, ob die Frist ab EINGANG oder ab ABSAGE läuft — heute ab Eingang, weil eine Bewerbung ohne Entscheidung sonst nie abliefe. | REC-07, LEG-11, `0166`, D-569 |
+| O-374 | **Welche Jobbörse wird wirklich beauftragt — und mit welchem Vertrag?** Die Bundesagentur für Arbeit hat eine echte Arbeitgeber-Schnittstelle, setzt aber eine Betriebsnummer und eine freigeschaltete Kennung voraus. Indeed und StepStone stehen in CLAUDE.md unter „Out of scope" — verboten ist dort das SCRAPEN; eine Anzeige über eine offizielle Arbeitgeber-API wäre etwas anderes, nur gibt es dafür weder Vertrag noch Zugang. Bis zur Antwort sind alle vier Ziele sichtbar und dauerhaft `nicht_verbunden`, mit dem Grund an der Zeile: eine Liste, in der ein Ziel einfach fehlt, liest sich wie „geht nicht", und die Frage ist „noch nicht beauftragt". | REC-09, D-02, `versand/stellenboerse.ts`, D-569 |
+| O-375 | **Wohin gehen Bewerbungsunterlagen?** Das Karriereformular nimmt heute keine Datei an: der Belegspeicher ist nicht verbunden (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY), und ein Feld, das eine Datei annimmt und sie nirgends ablegt, ist schlimmer als keines — der Mensch glaubt, sie sei angekommen. Offen ist damit auch, wie lange ein Lebenslauf im Speicher bleibt und ob er beim Löschen der Bewerbung mitgeht (er muss). | REC-03, REC-04, REC-07, `karriere/Formular.tsx`, D-569 |
+| O-376 | **Wie lange bleiben die Bewerbungsunterlagen eines EINGESTELLTEN Bewerbers, und wandern sie in die Personalakte?** Das öffentliche Formular sagt seit REC-03 zu: gelöscht nach der Frist, „sofern kein Arbeitsverhältnis zustande kommt". Der Nachtlauf `bewerber_loeschung` las bis dahin nur die Frist und nahm auch `status = 'eingestellt'` mit — samt `einstellungsentscheidung`, also genau dem Nachweis, den REC-08 verlangt. Zusage und Verhalten liefen auseinander; vor der Aufsicht zählt die Zusage. Der Lauf hält eingestellte Bewerbungen jetzt zurück und zeigt sie auf `/recruiting/datenschutz` als solche. Eine eigene Frist dafür erfindet diese Plattform nicht: das ist Personalaktenpraxis und gehört dem Mandanten. | REC-03, REC-07, REC-08, LEG-11, `jobs/bewerberLoeschung.ts`, `karriere/Formular.tsx`, O-373 |
 | O-500 | **Wie lange gilt ein Einladungs- und ein Zurücksetzungslink, wie viele Wiederherstellungscodes werden ausgegeben, und gilt eine Mindestlänge über zwölf Zeichen hinaus?** Die SPEC nennt keine Zahl. `plattform_einstellung` führt vier vorläufige Werte (168 h, 2 h, 10 Codes, 12 Zeichen); sie sind als `ist_vorlaeufig = true` markiert und über eine Zeile änderbar, ohne Code. Die Auswahl folgt gängiger Praxis, nicht einer Entscheidung: ein Einladungslink überlebt ein Wochenende, ein Zurücksetzungslink nicht. | AUT-01, AUT-04, `0155`, D-502 |
 | O-501 | **Welches Supabase-Projekt in der EU-Region (Frankfurt), welcher Auftragsverarbeitungsvertrag — und soll die Anmeldung über ein Firmenverzeichnis (SAML/OIDC) laufen?** Dieselbe Frage trägt den Postausgang: welcher in der EU gehostete Mailanbieter, welche Absenderadresse je Gesellschaft, laufen DKIM und DMARC über die bestehenden Domains? Ohne beides gibt es keinen Zurücksetzungs- und keinen Einladungslink, der ankommt. Bis zur Antwort prüft die Plattform das Kennwort selbst (`kern.zugangsdaten`, bcrypt), `/auth/callback` antwortet `501` statt eine Sitzung auszustellen, und `/auth/passwort-vergessen` sagt „nicht verbunden" statt „gesendet" (D-501, D-503). | AUT-01, AUT-04, NOT-02, `0155`, D-501 |
 | O-510 | **Warum zeigt die Seite hinter einer 303-Umleitung den alten Stand?** Nach dem Widerruf eines Kalenderzugangs steht die widerrufene Zeile auf der Umleitungsseite noch in der Liste. Festgestellt ist: die Datenbank ist zu diesem Zeitpunkt richtig (`widerrufen_am` gesetzt), der Feed antwortet sofort mit 404, und ein normaler Aufruf derselben Adresse zeigt die Liste richtig — es ist eine veraltete ANZEIGE und kein offener Zugang. Ausgeschlossen sind: fehlendes `force-dynamic` (steht), eine nicht abgeschlossene Transaktion (die 404-Antwort beweist das Gegenteil), `revalidatePath` auf dem Ziel und `cache-control: no-store` auf der Umleitung (beide eingebaut, beide ohne Wirkung). Bis zur Antwort sagt die Bestätigung auf der Seite ausdrücklich, dass eine noch sichtbare Zeile veraltet ist. Der Browsertest prüft den Stand deshalb nach einem frischen Aufruf — und die Wirkung des Widerrufs sofort. | CAL-03, `api/kalender-feed/widerrufen`, D-516 |
+| O-513 | **Darf jemand eine Freigabe VORLEGEN, ohne sie entscheiden zu duerfen?** Die Schreibpolicy auf `freigabe` (`t_mandant`, `0136`) verlangt in ihrem `with check` das Recht `freigabe.entscheiden` — fuer JEDEN Schreibvorgang, also auch fuer das Einfuegen einer offenen Bitte. Wer eine Stelle oder einen Beitrag vorlegt (`legeStelleVor`, `legeVor`), braucht damit heute das Recht, ueber Freigaben zu ENTSCHEIDEN. Das widerspricht dem Sinn von Invariante 7: vorlegen und entscheiden sind zwei Rollen, und die Trennung ist der ganze Zweck des Posteingangs. **Heute nicht erreichbar:** die Grundmatrix (`0008`) gibt `super_admin`, `admin` und `leitung` beide Rechte; ein Mandanten-Override kann sie trennen, und dann bekommt der Vorlegende ein 403 und kann den dokumentierten Weg nie beginnen. **Die richtige Form ist ein Definer** — `app.freigabe_vorlegen(...)` neben dem schon vorhandenen `app.freigabe_entscheiden`: er legt die offene Bitte im Namen des Vorlegenden an, prueft das FACHLICHE Recht (`recruiting.stelle_schreiben`, `social.schreiben`, …) und verlangt gerade NICHT das Entscheidungsrecht. Das beruehrt jeden Weg, der eine Freigabe erzeugt (Recruiting, Social, Eingangsrechnungen, Agentenlaeufe, Bau) und braucht Schema, Grants und Tests — ein eigener Schritt, keine Zeile in einem Dienst. Gemeldet hat es die Copilot-Runde auf PR 16. | Invariante 7, APR-01, `0136_freigabe_posteingang.sql`, `services/recruiting/dienst.ts`, `services/social/dienst.ts`, D-585 |
+| O-512 | **Soll `/karriere` in die Sitemap — und soll es englisch werden?** Die Sitemap kommt aus der DATENBANK (`seite`-Zeilen, PUB-10), nicht aus `OEFFENTLICHE_ROUTEN`; sie meldet der Suchmaschine, welche Seiten es GIBT, und eine Route ohne veroeffentlichte `seite`-Zeile rendert 404. `/karriere/*` ist dagegen im Code gebaut (REC-03) und hat keine `seite`-Zeile — es steht damit weder in der Sitemap noch auf Englisch. Fuer eine Karriereseite ist das Erste eine echte Einbusse: wer eine Stelle sucht, sucht sie bei Google. Die Copilot-Runde auf PR 16 meldete es als Verstoss gegen den zweisprachigen Vertrag (D-82). **Zwei Fragen, die der Auftraggeber beantwortet:** (a) Sollen im Code gebaute oeffentliche Routen in die Sitemap aufgenommen werden — und wenn ja, welche, und wie erfaehrt die Sitemap von ihnen, ohne eine zweite Liste zu werden, die veraltet? (b) Soll `/karriere` uebersetzt werden, samt Stellendetail, Formular und Dankseite, oder bleibt der Karrierebereich deutsch (Berliner Baustellen, deutschsprachige Teams)? **Heute ehrlich gemacht:** `NUR_DEUTSCH` nennt den Baum, `gibtEsIn()` haelt den Sprachumschalter und `hreflang` davon ab, eine englische Fassung zu behaupten, die es nicht gibt (D-583), und `sprachpfade.test.ts` faellt, sobald jemand uebersetzt, ohne den Eintrag zu entfernen. | REC-03, PUB-10, D-82, D-583, `services/inhalt/sitemap.ts`, `lib/sprache.ts` |
+| O-511 | **Soll der Versand an fremde Plattformen einen Ausgangskorb mit Idempotenzschlüssel bekommen, bevor der erste Kanal verbunden wird?** `sendeKanaele` (`services/social/dienst.ts`) ruft den Adapter INNERHALB der Geschäftstransaktion und schreibt `beitrag_kanal` danach. Bricht die Transaktion nach dem Adapter, aber vor dem Commit ab (Prozessende, ein späterer Kanal wirft), steht der Beitrag draussen, die Zeile sieht aber unversandt aus — und der nächste Versuch schickt ihn noch einmal. `BeitragAuftrag` kennt keinen Idempotenzschlüssel, den eine Plattform prüfen könnte. Gemeldet hat das die Copilot-Runde auf PR 16. **Heute ohne Wirkung:** alle fünf Plattformen sind absichtlich unverbunden (O-10) und antworten `nicht_verbunden`, einem terminalen Zustand ohne Nebenwirkung. Die richtige Form ist ein Ausgangskorb (`beitrag_versand` mit `idempotenz_schluessel`, Zustellung ausserhalb der Geschäftstransaktion, Abgleich danach) — das ist ein eigener Schritt mit Schema, Lauf und Tests, keine Zeile in `sendeKanaele`. Er gehört zu dem Zeitpunkt, an dem O-10 beantwortet ist und der erste Adapter echt wird; vorher wäre er ein Korb ohne Empfänger. | SOC-07, O-10, D-572, `services/social/dienst.ts` |
 | O-509 | **Welche KI-Endpunkte deckt der Auftragsverarbeitungsvertrag ab?** Der Adapter zerlegt `OPENAI_BASE_URL` und lässt nur `https` und einen Wirt aus einer Liste durch; in der Liste steht heute `eu.api.openai.com`, der Endpunkt, den OpenAI für EU-Datenresidenz nennt. Ob der AV-Vertrag des Kunden genau diesen abdeckt, ob er weitere abdeckt (Azure OpenAI in einer EU-Region hat je Ressource einen eigenen Wirt) und ob Nullspeicherung vertraglich zugesagt ist, weiss der Kunde — nicht diese Datei. Bis zur Antwort kommt jeder andere Wirt als `RESIDENCY_BLOCKED` zurück; ergänzen lässt sich die Liste über `OPENAI_EU_HOSTS`, und diese Variable zu setzen ist eine Entscheidung, die in die Verfahrensdokumentation gehört. | D-04, §8, `versand/modell-openai.ts`, D-509 |
 | O-502 | **Welche Kostenarten gehören in die Projektmarge (REP-05)?** Heute: Lohn (freigegebene Zeiteinträge zum internen Stundensatz aus `anstellung.stundensatz_intern`) plus Fremdleistung (Eingangsrechnungen mit Projektbezug). Nicht enthalten: Material ohne Rechnungsbezug, Gerätestunden und ein Gemeinkostensatz — und ob es einen geben soll, ist die eigentliche Frage: ein Zuschlag je Gesellschaft, ein Satz je Gewerk, oder gar keiner (dann ist die Zahl ein Deckungsbeitrag und keine Marge, und sollte so heissen). Bis zur Antwort nennt die Seite die Zahl „Kosten (Näherung)" und sagt unter der Tabelle, was fehlt — eine Marge, die so tut, als wäre sie die Nachkalkulation, wird in ein Angebot übernommen. | REP-05, `bericht/kennzahlen.ts`, D-506 |
 
@@ -10496,3 +10505,2440 @@ Server-Action ist von einem Unit-Test nicht lesbar; deshalb konnte ein falscher
 Link dort monatelang stehen. Die reine Funktion prüft `tests/kern/kennwort-mail.test.ts`
 auf die absolute Form, auf den doppelten Schrägstrich und auf die Kodierung des
 Tokens — ein Token mit `+` oder `&` käme sonst anders an, als er vergeben wurde.
+
+### D-533 · Ein Zeiger auf eine Freigabe ist keine Freigabe
+
+`beitrag_freigegeben_hat_freigabe` verlangte `freigabe_id is not null`. Eine
+OFFENE Freigabe erfüllte das genauso wie eine ABGELEHNTE — und eine Zustimmung
+zu einem Mahnbrief genauso wie eine zu diesem Beitrag. Invariante 7 stand damit
+in der Datenbank als Verabredung: „es liegt ein Vorgang vor" statt „ein Mensch
+hat zugestimmt". Vier Wege führten daran vorbei, und jeder endete damit, dass
+etwas Unbestätigtes auf einer öffentlichen Gesellschaftsseite steht.
+
+Eine `check`-Bedingung kann das nicht schließen: sie darf keine andere Tabelle
+lesen. Also ein Auslöser — und er liest die Freigabe **nicht selbst**, sondern
+fragt `app.freigabe_genehmigt(id, mandant, aktion)` aus 0123/0130. Das ist
+dieselbe strukturelle Ja/Nein-Frage, die schon der Kreditor und die Mahnung
+stellen, mit dem engen Spaltenrecht, das K-01 dafür vorsieht. Ein eigenes
+`select … from freigabe` wäre ein zweiter Weg zu derselben Auskunft gewesen —
+mit einem breiteren Recht und einer zweiten Policy, die auseinanderlaufen kann.
+
+**Die Aktion geht mit, und das ist der halbe Punkt.** Ohne das dritte Argument
+öffnete eine Zustimmung zu einem Mahnbrief einen Beitrag auf Instagram: gleiche
+Kennung, gleicher Mandant, gleicher Status, völlig andere Entscheidung. 0130 §6
+hatte genau diese Lücke für die Finanzseite geschlossen; Social hätte sie neu
+aufgemacht.
+
+**Der Riegel schließt, wenn er nicht nachsehen kann.** `app.freigabe_genehmigt`
+antwortet unter der Policy `mandant_id = app.aktiver_mandant()`. Eine Verbindung
+ohne gesetzten Mandanten sieht null Zeilen — und fällt damit in den Riegel statt
+daran vorbei. Der Seed und die Isolationsfixtur setzen deshalb dieselben beiden
+GUCs, die `withTenant` setzt, statt den Riegel zu lockern.
+
+### D-534 · Zwischen Lesen und Schreiben passiert der zweite Klick
+
+Jede Handlung im Social-Dienst las erst den Stand, prüfte ihn gegen `weg.ts` und
+schrieb dann `where id = $1`. Zwei gleichzeitige Anfragen lesen beide denselben
+Stand, finden beide den Weg erlaubt und schreiben beide. Das ist kein
+theoretischer Fall: die Knöpfe sind gewöhnliche Formulare, und ein langsamer
+Bildschirm lädt zum zweiten Klick ein.
+
+Beim Vorlegen entstehen dabei zwei Freigaben zu einem Beitrag. Beim
+Veröffentlichen ist es schwerer: das `update` stand am ENDE, also riefen **beide**
+Läufe vorher jeden Adapter. Was doppelt geschieht, ist nicht der Schreibvorgang —
+es ist die Aussendung, und einen zweiten Beitrag auf LinkedIn nimmt kein `update`
+zurück.
+
+Deshalb zwei Änderungen, nicht eine:
+
+1. Jedes `update` trägt den gelesenen Stand als Bedingung (`and status = …`).
+   Null betroffene Zeilen heißt: als mein Schreiben ankam, war der Beitrag
+   woanders — und das ist ein 409 mit einem Satz, kein stiller Erfolg.
+2. Beim Veröffentlichen steht dieses `update` **vor** dem ersten Gang nach
+   draußen. Wer die Bedingung nicht mehr erfüllt, fällt heraus, bevor ein Kanal
+   gefragt wurde.
+
+Der Status ist ab diesem Punkt ehrlich: auf der eigenen Gesellschaftsseite
+*steht* der Beitrag dann, und die fremden Kanäle tragen ihr Ergebnis einzeln
+daneben (SOC-07).
+
+### D-535 · Gelöscht wird nur, was nie hinausging
+
+`beitrag_kanal` hatte `delete` in der Zuteilung, und der Kommentar daneben sagte,
+der Dienst lasse es nur bei `ergebnis = 'offen'` zu. In der Datenbank stand davon
+nichts. Eine Zusicherung, die nur in der Dienstschicht lebt, ist bei einem
+`delete` daneben weg — und mit ihr die Auskunft, wo wann was draußen stand.
+Invariante 3 gilt hier wie überall: RLS ist nie die einzige Linie, aber auch nie
+die fehlende. Eine restriktive Löschpolicy auf `ergebnis = 'offen'` holt sie nach.
+
+Einen Kanal aus einem Entwurf herauszunehmen bleibt damit eine Korrektur am Plan.
+Ein `veroeffentlicht`, `nicht_verbunden` oder `fehlgeschlagen` ist ein Ereignis
+und bleibt stehen.
+
+### D-536 · Ein fehlendes Recht ist kein Programmfehler
+
+`fuehreSocialAus` fing `SocialFehler` und nichts sonst. Die Würfe von `authorize`
+liefen daran vorbei und endeten als **500** — und 500 sagt „hier ist etwas", wo
+AUT-06 nichts sagen will. Der Fall fällt beim Bauen nicht auf, weil er nur
+eintritt, wenn jemand **ohne** das Recht die Route ruft; im grünen Pfad wirft
+niemand.
+
+Die Übersetzung steht jetzt in `server/auth/antwort.ts` — eine Stelle, die sich
+auch das Bautagebuch teilt. Zwei Abschriften davon weichen irgendwann in einem
+Statuscode voneinander ab, und ein abweichender Statuscode ist ein Orakel.
+
+**Und die Prüfung, die das hätte finden sollen, fand es nicht:** `routen.test.ts`
+zählte `authorize(` im Kommentar als Aufruf. Eine Route mit
+`// hier fehlt noch authorize()` galt als bewacht — die Prüfung hätte in genau
+dem Fall versagt, für den es sie gibt. Kommentare und Zeichenketten fallen jetzt
+vorher weg, mit vier Gegenproben, die das belegen.
+
+### D-537 · Demodaten dürfen nichts behaupten, was rechtlich zählt
+
+Die Referenz im Seed trug `freigegeben_vom_kunden = true` neben einem Beleg, der
+sagte, die schriftliche Freigabe liege NICHT vor. Zwei Sätze über denselben
+Vorgang, die einander widersprechen — und PRO-05 hängt an genau diesem Feld:
+ein Kundenname auf einer Website ohne Zustimmung ist ein Problem, das Löschen
+nicht ungeschehen macht.
+
+Aufgelöst wird das **nicht**, indem das Feld auf `false` fällt (dann ist SOC-04
+eine leere Liste und die Oberfläche sieht unfertig aus, obwohl sie es nicht ist),
+sondern indem der ganze Datensatz als das auftritt, was er ist: ein erfundener
+Kunde mit einer erfundenen Freigabe. Der Kundenname trägt `(Demokunde)`, der
+Beleg beginnt mit `DEMODATEN:` — beides greifbar, wenn der erste echte Kunde
+eingetragen wird. Dieselbe Regel wie bei `DEMO-` in der Rechnungsnummer (D-499):
+**was eine offene Frage überbrückt, steht im Datensatz, nicht in einer Notiz.**
+
+Dazu, aus derselben Runde: der Seed verband keinen Beitrag mit einem Kanal.
+„Wohin er geht" war auf jedem Bildschirm leer und die Kanalbilanz überall null —
+also sagte „liegen geblieben: 0" einen Erfolg, den es nie gab. Die Beiträge
+tragen ihre Kanäle jetzt, mit `nicht_verbunden` als einzig möglichem Ergebnis
+(O-10) und nie mit einem erfundenen.
+
+### D-538 · Die Prüfdauer ist eine Aussage über einen Menschen
+
+Die Social-Statistik zeigte den Median „vorgelegt bis entschieden" jedem mit
+`social.schreiben`. Dieselbe Zahl trägt unter `/freigaben/pruefdauer` ein eigenes
+Recht (`freigabe.pruefdauer_lesen`, an `super_admin` gebunden) — weil „wie
+schnell entscheidet diese Person" keine Betriebskennzahl ist, sondern eine
+Leistungsaussage über einen Menschen, und weil die Durchwink-Erkennung daneben
+steht.
+
+Sie wird jetzt nur **berechnet**, wenn sie gezeigt werden darf. Eine Zahl, die
+der Server ermittelt und der Bildschirm verschweigt, ist die Zahl, die beim
+nächsten Umbau versehentlich wieder hingeschrieben wird. Und der Bildschirm
+trennt die beiden Bedeutungen von „—": „nicht sichtbar" heißt, es gibt sie und
+du darfst sie nicht sehen; „—" heißt, es gibt sie noch nicht.
+
+### D-539 · Eine Ladeseite an der Wurzel macht aus jedem 404 eine 200
+
+232 Aufrufe von `notFound()` führten auf Next.js' eigene Vorgabe: schwarz auf
+weiss, englisch, ohne Inter, ohne einen Weg zurück. Das ist die Seite, die
+jemand genau in dem Moment sieht, in dem er ohnehin verloren ist. Es gibt jetzt
+eine `not-found.tsx` und eine `error.tsx` an der Wurzel von `src/app` — an der
+Wurzel, weil Next.js die nächste oberhalb der Fallstelle sucht und eine Datei in
+`(public)` den Pfad `/auth/…` nicht abdeckt.
+
+**Und eine `loading.tsx`, die wieder weg musste.** Sie sah aus wie die dritte
+Seite derselben Familie und war eine Falle: eine `loading.tsx` hüllt ihr Segment
+in eine Suspense-Grenze, also geht die Hülle hinaus, **bevor die Seite
+irgendetwas entschieden hat** — mit Status `200`. An der Wurzel heisst das: jeder
+`404` der ganzen Anwendung wurde zu einer `200`, auch der, an dem AUT-06 hängt.
+Die Anfrage nach den Daten einer fremden Gesellschaft antwortete *gefunden*.
+
+Gefunden hat es die Browserprüfung, die ich für die neuen Seiten geschrieben
+hatte — `expect(antwort?.status()).toBe(404)` schlug fehl und meldete `200`. Ohne
+diese eine Zeile wäre die Regression gemergt worden und hätte wie ein
+Gestaltungsdetail ausgesehen.
+
+Deshalb gibt es im ganzen `src/app` keine `loading.tsx`, und `tests/kern/
+zustandsseiten.test.ts` sucht rekursiv danach. Nicht nur an der Wurzel: jedes
+Segment dieser Anwendung kann `notFound()` rufen, also hat jedes dasselbe
+Problem. Ein langsamer Bildschirm zeigt sein Gerüst **in** der Seite, wo der
+Statuscode schon feststeht.
+
+**Was die 404-Seite sagen darf.** AUT-06 beantwortet ein fehlendes RECHT mit
+demselben 404 wie eine fehlende SEITE — sonst wäre der Statuscode ein Orakel.
+Der Text muss also für beides stimmen und darf keines verraten: „Diese Seite
+gibt es hier nicht." ist wahr, wenn die Seite fehlt, und wahr, wenn sie jemand
+anderem gehört. Eine Browserprüfung stellt beide Fälle nebeneinander und
+vergleicht, was auf dem Bildschirm steht.
+
+**Kein Portalrahmen auf diesen Seiten**, und auch das ist eine Grenze und keine
+Bequemlichkeit: `not-found.tsx` bekommt in Next.js keine `params`, weiss also
+nicht, in welcher Gesellschaft sie steht — und der Lader, der es wüsste
+(`mandantTor`), ruft selbst `notFound()`. Auf einer Nichtgefunden-Seite wäre das
+eine Render-Schleife auf genau dem Bildschirm, der nie scheitern darf. Der Weg
+zurück kommt deshalb aus dem Pfad, den die Middleware in einen Kopf schreibt,
+und er wird gegen `^[a-z0-9-]{1,64}$` geprüft, bevor daraus ein Verweis wird.
+
+**`/portal/[mandant]/…` mit unbekanntem Unterpfad bleibt 200.** Dort liegt
+`[...rest]`, die Platzhalterseite für die noch nicht gebauten Bildschirme — sie
+sagt hin, dass es diesen Bildschirm noch nicht gibt, und das ist die richtige
+Auskunft. Der 404 des Portals fällt eine Ebene höher, beim Slug.
+
+### D-540 · Sechzehn Wächter mit einem Zeitplan — und nichts, das sie ruft
+
+`bootstrap.ts` trägt die Lücke, die einmal davor lag: es gab ein Register, einen
+Runner, ein Laufprotokoll und vier Jobdefinitionen und keine Stelle, die sie
+registriert. Diese hier liegt eine Ebene weiter draussen und sieht genauso aus.
+Sechzehn Jobs tragen einen Zeitplan, `/api/jobs/[schluessel]` ist gebaut und
+bewacht, `job_lauf` steht bereit — und es gibt keinen Cron-Eintrag, kein
+`vercel.json`, keinen n8n-Ablauf. Jede Datei einzeln gebaut und geprüft;
+zusammen läuft kein einziger Wächter.
+
+**Das ist die teuerste Sorte Lücke, weil sie nirgends rot wird.** Ein Test, der
+einen Job ausführt, beweist, dass der Job funktioniert. Ein Job, der nie läuft,
+erzeugt keine Fehlermeldung — er erzeugt nur nichts, und das fällt erst auf,
+wenn jemand eine Frist verpasst hat.
+
+**Der Plan wird ERZEUGT, nicht gepflegt.** Ein Zeitplan, der im Code steht und
+ein zweites Mal in einer Cron-Tabelle, sind zwei Wahrheiten; eine davon ändert
+jemand. `src/server/jobs/zeitplan.ts` baut aus `JobDefinition.zeitplan` die
+`cron.schedule`-Anweisungen, `pnpm jobs:plan` schreibt sie nach
+`docs/JOB-AUSLOESER.sql`, und `tests/kern/job-zeitplan.test.ts` besteht darauf,
+dass jeder registrierte Job dort vorkommt, genau einmal, mit seinem eigenen
+Zeitplan — und dass die eingecheckte Datei aktuell ist.
+
+**Supabase cron, nicht Vercel cron.** Vercel ruft mit GET und ohne eigene
+Kopfzeilen; die Auslöseroute verlangt POST **und** das Geheimnis in
+`x-job-token`. Eine Route, die ohne Geheimnis funktionieren müsste, wäre ein
+Schalter für jeden, der die URL kennt — deshalb antwortet sie ohne `JOB_TOKEN`
+mit 503 statt ersatzweise offen zu laufen. `pg_net` kann POST mit Kopfzeilen,
+also macht es das; so steht es auch im Stack.
+
+**Das Geheimnis steht nicht im Plan.** Der erzeugte Text liest
+`current_setting('cse.job_token')` — eine Datenbankeinstellung wie
+`cse.fenster_schluessel` (D-302). Ein Token in einer eingecheckten Datei ist ein
+Token in der Versionsgeschichte, und dort bleibt es auch nach dem Wechsel.
+
+**Und die eingecheckte Fassung trägt keinen plausiblen Host**, sondern
+`https://basis-einsetzen.invalid`. Eine erzeugte Datei mit einem echt
+aussehenden Hostnamen darin wird irgendwann in eine Produktionskonsole
+eingefügt; dann steht dort ein Eintrag, der jede Nacht eine fremde Adresse ruft
+— mit dem Geheimnis im Kopf. `.invalid` ist nach RFC 2606 reserviert und löst
+nirgends auf: ein versehentliches Einfügen scheitert sofort und laut statt still
+und falsch. Wer den Plan einspielt, erzeugt ihn mit
+`CSE_KANONISCHE_BASIS=… pnpm jobs:plan`.
+
+**Sichtbar ist es unter Einstellungen · Integrationen**, weil der Auslöser eine
+Anbindung ist und dort schon jede andere ihren wahren Zustand nennt. Die Liste
+stellt jeden Wächter neben seinen letzten Lauf: der Zeitplan sagt, wann etwas
+laufen **soll**, `job_lauf` sagt, wann es gelaufen **ist**. Die beiden
+auseinanderlaufen zu lassen war der Fehler; sie nebeneinander zu zeigen ist die
+Behebung. Ist noch keiner gelaufen, steht der Grund hin — kein Fehler im Code,
+es fehlt der Auslöser.
+
+`job_lauf` trägt kein `mandant_id` (0010), also steht diese Abfrage bewusst
+ausserhalb von `withTenant`: ein Nachtlauf läuft einmal und schreibt sein
+Ergebnis je Mandant daneben.
+
+### D-541 · `process.env.X` im Quelltext ist keine Abfrage, sondern eine Konstante
+
+Ein Nutzer konnte sich am Telefon nicht anmelden: Nummer eintippen, Code
+bekommen, Code eintippen — und zurück auf der Nummernseite, **ohne ein Wort**.
+Reproduziert, A/B belegt, Ursache im gebauten Bündel gelesen.
+
+`anmeldeKeksOptionen` schrieb
+
+```ts
+secure: process.env.NODE_ENV === 'production'
+```
+
+Webpacks DefinePlugin behandelt `process.env.X` im Quelltext nicht als Zugriff,
+sondern als Konstante: es ersetzt den ganzen Ausdruck beim **Bauen** durch sein
+Ergebnis. Im Bündel stand danach `secure:!0` — `true`, einbetoniert, durch keine
+Umgebungsvariable mehr erreichbar. Direkt daneben, im selben Bündel, der
+Sitzungskeks: `secure:"production"===a.NODE_ENV`. Der las über einen
+**Parameter**, und einen Feldzugriff auf eine Variable ersetzt DefinePlugin
+nicht. Drei Zeichen Unterschied, und nur eine der beiden Keksfabriken war
+überhaupt reparierbar.
+
+**Was daraus wurde.** `docs/LOKAL-STARTEN.md` sagt jedem: `pnpm build`,
+`pnpm start`. `next start` setzt `NODE_ENV=production`. Das Telefon erreicht den
+Rechner über `http://192.168.0.193`, und einen `Secure`-Keks verwirft dort jeder
+Browser vollständig (RFC 6265bis §5.5). Beide Anmeldekekse waren weg, bevor der
+Code eingetippt werden konnte.
+
+**Warum die Codeseite trotzdem erschien — mit sichtbarem Code.** Das war der
+Teil, der die Diagnose zweimal in die Irre führte, und er ist kein Widerspruch:
+Next.js rendert das Ziel einer `redirect()` aus einer Server Action in
+**derselben Antwort** und reicht die eben gesetzten Kekse dabei serverintern
+weiter (`action-handler.js`, `getForwardedHeaders`). `Secure` ist eine
+Browserregel und greift auf diesem Weg nicht. Der Server sah also Kekse, die der
+Browser nie gespeichert hatte. Erst der nächste Schritt war ein eigener Request
+— und der kam leer an.
+
+**Die Entscheidung hängt jetzt an `devFlaechenAn`, nicht an `NODE_ENV`.** Der
+Kommentar in `sitzung.ts` beschrieb seit D-414 genau die richtige Absicht („in
+der Entwicklung fällt `Secure` weg, das Telefon im Heimnetz erreicht den Server
+über http://192.168…"); die Bedingung darunter setzte sie nur nicht um, weil
+eine Vorführung ein PRODUKTIONSBAU ist. `devFlaechenAn` ist die Frage, die
+dieses Projekt ohnehin stellt, wenn es um „Vorführfläche oder Ernstfall" geht:
+sie zeigt den SMS-Code, sie öffnet `/dev/anmelden`, sie legt die Demodaten an.
+Ohne die Flagge ändert sich **nichts**: `Secure`, `__Host-`, wie bisher — im
+Browser nachgestellt und bestätigt.
+
+Name und Flagge kommen aus **einer** Antwort (`keksSicher`): ein
+`__Host-`-Keks ohne `Secure` wird ebenso verworfen wie ein `Secure`-Keks über
+`http://`. Zwei getrennte Entscheidungen wären zwei Gelegenheiten, sie
+auseinanderlaufen zu lassen.
+
+**Und die Prüfung, die den Fehler gefunden hätte, gab es nicht.** Jede denkbare
+Unit-Prüfung wäre auch vorher grün gewesen — im Test ersetzt niemand
+`process.env`. Die Browsersuite konnte es ebenfalls nicht sehen: sie läuft über
+`localhost`, und Loopback ist für Browser ein sicherer Kontext, der `Secure`
+akzeptiert. Der Fehler lebte ausschliesslich in der Kombination
+*Produktionsbau × unverschlüsselter Nicht-Loopback-Ursprung* — und genau die
+kommt in keiner Suite vor. `tests/kern/keks-sicherheit.test.ts` prüft deshalb
+den **Quelltext**: keine Keksfabrik darf `process.env.X` direkt lesen. Beim
+Schreiben dieser Prüfung fand sie sofort zwei weitere Stellen.
+
+### D-542 · Ein Rückwurf ohne Grund ist der schlimmste Fehlschlag
+
+Dieselbe Untersuchung förderte den zweiten Teil zutage, und der ist unabhängig
+von der Ursache oben. `code/page.tsx` warf bei fehlendem Keks mit
+`redirect('/auth/mitarbeiter')` zurück — ohne Parameter, ohne Meldung. Jede
+Ursache, die den Keks kostet (abgelaufen, privater Modus, gesperrte Cookies,
+zweites Fenster), sah für den Menschen identisch aus: **die Seite tut nichts**.
+
+Der Grund geht jetzt mit (`?fehler=abgelaufen`), und die Nummernseite sagt einen
+Satz. Er ist bewusst unspezifisch: warum der Keks fehlt, weiss der Server nicht.
+Was der Mensch braucht, ist nicht die Ursache, sondern der nächste Schritt.
+
+Dazu zwei Bildschirme, die Tatsachen aussprechen statt sie vorauszusetzen:
+
+- Läuft die Installation ohne `Secure` (Vorführfläche), **steht das auf der
+  Anmeldeseite**. Eine Entscheidung dieser Tragweite gehört nicht allein in eine
+  Umgebungsvariable, die niemand liest.
+- `/dev/anmelden` sagte seit PR 20 „Beschäftigte melden sich mit Telefonnummer
+  und Einmalcode an" — und nannte **keine einzige Nummer**. Sie standen nirgends
+  auf einem Bildschirm. Wer die Demo ansieht, konnte die Mitarbeiteranmeldung
+  damit nicht einmal falsch bedienen; er hatte keine Eingabe. Die Nummern der
+  Demo-Beschäftigten stehen jetzt dort — ohne Anmeldeknopf, denn der wäre die
+  zweite Tür, die PR 20 absichtlich zugemacht hat.
+
+### D-543 · Drei Nummern, die nirgendwohin führen — und die Prüfung, die es nicht merkte
+
+Die Untersuchung zu D-541 förderte drei weitere Dinge zutage, die mit der
+Ursache nichts zu tun haben und denselben Menschen genauso aufgehalten hätten.
+
+**Drei von elf Demonummern führen ins Leere.** Von elf Seed-Personen mit
+Telefonnummer haben drei keinen `mitarbeiter_zugang`: Berger, Kowalski, Mensah.
+Ihre Nummer landet auf der Codeseite ohne Code, ohne Fehlermeldung und ohne
+jeden Hinweis, dass hier nichts mehr kommt — das ist die Zusage aus D-487 („ob
+es die Nummer gibt, sagt diese Seite bewusst nicht"), und sie ist richtig. Eine
+LISTE, die solche Nummern anbietet, wäre es nicht: sie schickt jemanden in eine
+Sackgasse, die wie ein Fehler aussieht. Die Liste auf `/dev/anmelden` verlangt
+deshalb den Zugang mit (`join mitarbeiter_zugang`) und zeigt nur, was auch
+hindurchführt.
+
+**Die Anmeldekekse wurden nie gelöscht.** `cookies().delete(NAME)` lief ohne
+Pfad, gesetzt wurden sie aber auf `Path=/auth/mitarbeiter` — und der Browser
+löscht nur, was in Name, Pfad und Domäne übereinstimmt. Beide blieben liegen,
+und der Entwicklungskeks trägt den Einmalcode im KLARTEXT: zehn Minuten lang,
+nach einer Anmeldung, die ihn nicht mehr braucht. Sie werden jetzt mit
+`{ ...anmeldeKeksOptionen(), maxAge: 0 }` überschrieben — so ist der Löschkeks
+in jedem Attribut die Kopie des gesetzten, und niemand muss an einer zweiten
+Stelle den Pfad nachziehen.
+
+**Und der Grund, warum nichts davon rot wurde.** Der Mitarbeiterweg wird von
+drei Spezifikationsdateien ausschliesslich über `alsMitarbeiter()` betreten, und
+die Hilfe endete mit `waitForLoadState('networkidle')` — sie gab zurück, sobald
+das Netz ruhig war, **auch wenn die Anmeldung auf der Nummernseite geendet
+war**. Der Abnahmefall daneben prüfte `expect(page.locator('h1')).toBeVisible()`:
+auch „Anmeldung erforderlich" hat eine Überschrift. Keine einzige Prüfung im
+ganzen Haus sicherte zu, dass nach einer Anmeldung ein Sitzungskeks im Browser
+liegt.
+
+Vier Zusicherungen schliessen das:
+
+1. `alsMitarbeiter()` wartet auf `/portal/mein` **und** verlangt den
+   Sitzungskeks. Eine Hilfe ohne Nachbedingung macht aus „die Anmeldung ist
+   kaputt" ein „irgendein späterer Bildschirm ist leer" — und danach sucht man
+   an der falschen Stelle.
+2. Der Abnahmefall nagelt den TEXT fest: `toHaveText('Heute')`.
+3. Ein neuer Fall tippt die Schreibweise, die ein Mensch wirklich tippt —
+   `0170 1000000` statt `+49 170 1000000`. Jede Prüfung vorher las die Nummer
+   aus der Datenbank und gab sie wörtlich ins Feld; die nationale Form kam nie
+   vor, obwohl sie im Betrieb die einzige ist.
+4. Ein Fall schaut auf den `Set-Cookie`-KOPF statt auf den Bildschirm. Das ist
+   der einzige Weg, der von D-541 hätte rot werden können: die Suite läuft über
+   `localhost`, und Loopback ist für Browser ein sicherer Kontext, der
+   `Secure`-Kekse annimmt. Der Kopf verrät die Attribute unabhängig vom Host.
+
+### D-544 · Eine falsche Fehlerdiagnose kostet mehr Zeit als gar keine
+
+Der Warnkasten aus D-488 sagte unbedingt: „der Sitzungskeks verlangt
+`https://`". Das stimmte, solange `Secure` an `NODE_ENV` hing. Seit D-541 hängt
+es an `keksSicher()` — und auf einer Vorführfläche trägt der Keks es **nicht**.
+Dort schickte der Satz jemanden auf die Suche nach einer https-Adresse, die es
+gar nicht gibt, während die wirkliche Ursache (Cookies gesperrt, privates
+Fenster) unerwähnt blieb.
+
+Der Text kommt jetzt aus derselben Quelle wie der Keks selbst. Das ist die
+allgemeine Regel hinter dem Einzelfall: **ein Bildschirm, der eine Ursache
+nennt, muss sie von der Stelle lesen, die sie erzeugt** — nicht von einer
+Annahme darüber, was in der Auslieferung wohl gilt. Sonst wird aus einer
+Hilfestellung eine Fehlleitung, und zwar genau dann, wenn jemand sie braucht.
+
+**Offen, bewusst nicht geändert:** das Routenregister führt
+`/auth/mitarbeiter/code` als `bewachung: sitzung`. Die Seite hat keine Sitzung,
+sondern einen kurzlebigen Keks. Die Angabe ist ungenau, hat hier aber keine
+Laufzeitwirkung (`pruefeZugang` erreicht diesen Zweig nur mit vorhandener
+Sitzung, und die Seite ruft es gar nicht). Sie zu ändern hiesse, die
+Quellspezifikation anzufassen, aus der das Register erzeugt wird — das gehört
+in einen eigenen Durchgang und nicht in eine Fehlerbehebung.
+
+---
+
+### D-545 · Ein Idempotenzfenster für alle war eines zu wenig
+
+`/api/jobs/[schluessel]` bildete den Schlüssel eines Laufs als
+`<job>:<Berliner Datum>` — für jeden Job denselben. Für die fünfzehn
+Nachtläufe ist das genau richtig: zwei Auslöser derselben Nacht ergeben einen
+Lauf, kein zweites Mahnwesen.
+
+Für `social_plan` war es tödlich. Der Lauf trägt einen Zeitplan mit
+Fünf-Minuten-Schritt; nach dem **ersten** Lauf eines Tages fand jeder weitere
+seinen Schlüssel schon vergeben und wurde übersprungen. Ein Beitrag, auf 14:00
+gelegt, wäre bis zum nächsten Morgen nicht hinausgegangen — und der Lauf hätte
+„übersprungen" gemeldet, also nicht einmal einen Fehler. Genau die Sorte
+Ausfall, die dieses Register sonst verhindert.
+
+Das Fenster kommt jetzt aus dem **Zeitplan** und nicht aus einer zweiten
+Angabe daneben (`zeitplan.ts: fensterMinuten`): es gibt eine Quelle dafür, wie
+oft ein Lauf läuft, und das ist sein Cron. Gelesen werden Minute und Stunde;
+Tag, Monat und Wochentag können ein Fenster nur noch seltener machen, nie
+häufiger.
+
+**Und was sie nicht lesen kann, rät sie nicht, sondern wirft.** Eine
+Minutenliste (`15,45 * * * *`) heisst zweimal je Stunde, dreissig Minuten
+auseinander; stillschweigend „täglich" daraus zu machen wäre derselbe Ausfall,
+nur eine Ebene tiefer versteckt. `tests/kern/job-zeitplan.test.ts` ruft
+`fensterMinuten` für **jeden** registrierten Job auf — ein unlesbarer Zeitplan
+wird damit beim Festschreiben rot und nicht im Betrieb still.
+
+Zwei Feinheiten, beide geprüft:
+
+* **Der Tagesschlüssel trägt das Berliner Kalenderdatum**, dasselbe, das die
+  Route als `tag` zurückgibt. Beim Bauen stand hier kurz der zurückgerechnete
+  UTC-Augenblick — und Berliner Mitternacht liegt im Sommer um 22:00 UTC des
+  Vortags. Der Nachtlauf vom 15. Juni hiess damit `mahnlauf:2026-06-14`: ein
+  Schlüssel, der dem `tag` derselben Antwort widerspricht. Das ist keine
+  Kosmetik, sondern die stille Abweichung, an der ein Protokoll sein Vertrauen
+  verliert.
+* **Unterhalb eines Tages zählt der echte UTC-Augenblick**, nicht die Wanduhr.
+  In der Nacht der Rückstellung gibt es 02:05 Berliner Zeit zweimal; ein
+  Schlüssel aus der Wanduhr wäre für beide derselbe, und der zweite Lauf — eine
+  volle Stunde später — würde als Wiederholung übersprungen (Invariante 2).
+
+### D-546 · Der erste Lauf, der die Altlast aus D-378 abträgt
+
+D-378 hielt fest, dass ausser dem Kettenprüfer **kein** Job `set local role
+cse_job` bindet: sie laufen unter der Rolle aus `DATABASE_URL`, und die ist in
+CI und im Seed `postgres`, also Superuser mit `BYPASSRLS`. Jede Policy und
+jedes Spaltenrecht, das seit 0012 für `cse_job` geschrieben wurde, lief damit
+ungeprüft mit.
+
+`social_plan` war der nächste Lauf, der in diese Falle gegangen wäre — und er
+zeigt sie besonders deutlich, weil er **zwei verschiedene** Bindungen braucht:
+
+1. **Finden geht über Gesellschaftsgrenzen hinweg.** Ein `uebergreifend`-Lauf
+   sucht, was fällig ist, und das steht in vier Mandanten. Dafür ist
+   `alsJobRolle` da: `set local role cse_job` ohne Mandant, damit die
+   `j_*`-Policies aus 0163 greifen (`to cse_job`, `using (true)`). Sie standen
+   seit dem Schema bereit — sie mussten nur benutzt werden.
+2. **Arbeiten geht je Beitrag mit SEINEM Mandanten.** Der Riegel aus 0163
+   fragt beim Veröffentlichen `app.freigabe_genehmigt`, einen Definer, dessen
+   Policy auf `freigabe` (`d_freigabe_lesen`, 0123)
+   `mandant_id = app.aktiver_mandant()` verlangt. Ohne gebundenen Mandanten
+   sähe er null Zeilen und der Riegel schlösse — **richtig herum, aber zur
+   falschen Zeit**: der Beitrag *hat* eine genehmigte Freigabe, es fehlt nur
+   der Blick darauf. Der Lauf könnte nie veröffentlichen, und zwar aus einem
+   Grund, der wie „keine Freigabe" aussähe.
+
+Dass die Bindung **trägt** und nicht bloss danebensteht, hält
+`tests/isolation/social-job.test.ts` fest — nach dem Muster von
+`kette-job.test.ts`, und aus demselben Grund: die bestehenden Social-Prüfungen
+laufen als `cse_app` aus einer Portalsitzung, und auf diesem Weg war der Job
+nie gelaufen.
+
+Zwei der acht Fälle sind die eigentlichen:
+
+* **Ohne Bindung schliesst der Riegel** (Fall 5) — derselbe Beitrag, dieselbe
+  genehmigte Freigabe, nur ohne Mandant: die Veröffentlichung wird abgewiesen.
+  Damit ist der Unterschied zwischen „gebunden" und „nicht gebunden"
+  *unterscheidbar*, und nicht bloss behauptet.
+* **Jede Anweisung des Laufs läuft unter `cse_job`** (Fall 7). Die übrigen
+  Fälle wären auch grün geblieben, als der Lauf noch über die rohe Verbindung
+  suchte — weil die Testverbindung Superuser ist. Sie prüfen, **dass** er
+  findet, nicht **unter welcher Rolle**. Genau diese Lücke hat die Altlast so
+  lange getragen. Ein Horcher liest die Rolle deshalb am Ende jeder Transaktion
+  des Laufs, wo `set local role` noch gilt.
+
+Was das **nicht** ist: die Erledigung von D-378. Dreizehn Läufe binden ihre
+Rolle weiterhin nicht. Sie umzustellen heisst, für jeden einzeln Rechte und
+Policies nachzuziehen und jeden einzeln gegen die enge Rolle zu fahren — eine
+eigene Runde mit eigenen Tests. D-378 bleibt offen; dieser Eintrag zieht nur
+einen Namen von der Liste.
+
+### D-547 · Der eine Spalt, den die Bedingung im `update` nicht schliesst
+
+Der Social-Dienst riegelt den Abstand zwischen Lesen und Schreiben seit der
+letzten Runde mit `schreibeWennNoch` ab: die Bedingung steht IM `update`, und
+wer verliert, bekennt es. `setzeKanaele` konnte das als einzige nicht —
+geschrieben wird `beitrag_kanal`, und der Stand, gegen den geprüft wird, steht
+in `beitrag`.
+
+Der Ausfall dahinter ist genau der, den der Satz über der Funktion verbietet:
+zwei Anfragen lesen beide „entwurf", die eine legt vor, die andere hängt danach
+einen Kanal an — und **der ginge an einen Empfängerkreis, den niemand geprüft
+hat** (SOC-08). Nichts wäre rot dabei; beide Schreibvorgänge gelingen.
+
+Die Zeile wird jetzt gesperrt (`select … for update`), dieselbe Sperre, mit der
+der Nummernkreis seine Lücken verhindert (Invariante 4). Wer gleichzeitig
+vorlegt, wartet auf sie und prüft seinen Stand danach noch einmal; wer danach
+kommt, liest `vorgelegt` und wird abgewiesen. Das setzt eine Transaktion voraus
+— `fuehreSocialAus` hält eine —, und das steht im Dienst und nicht nur im
+Aufrufer.
+
+`tests/isolation/social.test.ts` (10) hält die Sperre fest, statt ihr zu
+glauben: eine Transaktion hält sie, eine zweite will vorlegen und **wartet**,
+bis das Anweisungszeitlimit zuschlägt. Ohne `for update` kommt die zweite
+sofort durch — die Prüfung wurde dagegen gefahren und ist dann rot.
+
+**Und die beiden Befunde derselben Runde, die keine waren.** Ein doppeltes
+Vorlegen hinterlässt keine verwaiste Freigabe: `fuehreSocialAus` führt den
+ganzen Schritt in EINER Transaktion aus, die Abweisung durch `schreibeWennNoch`
+rollt den `freigabe`-Eintrag mit zurück. Und `veroeffentliche` verschluckt
+keinen Adapterfehler: er landet als `fehlgeschlagen` samt Meldung an der
+Kanalzeile, steht mit Stapel im Fehlerprotokoll und **wird auf der
+Beitragsseite angezeigt**. Der Beitrag steht dabei zu Recht auf
+`veroeffentlicht` — auf der eigenen Gesellschaftsseite ist er es.
+
+Was daran wirklich fehlte, war der LAUF: dort klickt niemand, und
+`kanaele_fehlgeschlagen: 1` im Laufprotokoll sagt nicht, welcher Beitrag auf
+welcher Plattform nicht ankam. Gescheiterte Kanäle werden deshalb benannt und
+nicht gezählt — sie stehen als Sätze in `abgewiesen`, neben den abgewiesenen
+Beiträgen. Ein nicht verbundener Kanal bleibt eine Zahl: der ist ein bekannter
+Zustand (O-10) und steht bei jedem Beitrag gleich da.
+
+### D-548 · Ein Bauzustand ist keine Rechteauskunft
+
+**Der Befund kam von einem Nutzer**, und er kam als Frage: „warum kann der
+Mitarbeiter seine Arbeitsstunden nicht erfassen?" Dazu zwei Bildschirmfotos
+vom Telefon — `/portal/mein/nachrichten` und `/portal/konto/profil`, beide mit
+„Dieses Modul wird noch gebaut", und beide mit dem orangen Schild **Nur Lesen**
+in der Kopfzeile.
+
+Er hat das Schild richtig gelesen. Es stand nur falsch da.
+
+„Nur Lesen" ist in dieser Plattform die Aussage über eine **Sitzung**: die
+Gruppenansicht schreibt nicht (Invariante 10). `NochNichtGebaut` setzte
+`nurLesen` jedoch fest auf wahr — auf JEDER nicht gebauten Seite, für jede
+Rolle. Aus einem Bauzustand wurde damit eine Rechteauskunft, und zwar eine
+falsche: eine Mitarbeiterin, deren Sitzung sehr wohl schreiben darf
+(`mein/rahmen.tsx` übergibt `nurLesen={false}`), las auf zwei von fünf Zielen
+ihrer eigenen Leiste, dass sie es nicht darf.
+
+Der Wert kommt jetzt aus der Sitzung (`zugang.sitzung.ansicht === 'gruppe'`).
+In der Gruppenansicht steht das Schild weiterhin, auch auf einer nicht gebauten
+Seite — dort stimmt es.
+
+**Die allgemeine Regel, zum zweiten Mal in dieser Datei** (siehe D-544): ein
+Bildschirm, der eine Ursache nennt, muss sie von der Stelle lesen, die sie
+erzeugt. Ein fest verdrahteter Zustand in einer Anzeigekomponente ist keine
+Auskunft, sondern eine Behauptung — und die wird genau dann falsch, wenn
+jemand sie braucht.
+
+`tests/e2e/mitarbeiter.spec.ts` (7) hält beide Richtungen fest: die
+Mitarbeiterin sieht das Schild auf denselben zwei Seiten NICHT mehr, und die
+Gruppenansicht sieht es auf `/portal/gruppe/radar` weiterhin.
+
+### D-549 · Eine Tab-Leiste, die ins Leere zeigt, ist eine kaputte App
+
+Derselbe Nutzerbericht wie D-548, eine Ebene tiefer. Nachgezählt: **zwei von
+fünf** Zielen der Arbeiterleiste führen auf „Dieses Modul wird noch gebaut" —
+`Nachrichten` (`/portal/mein/nachrichten`, Phase 3) und `Profil`
+(`/portal/konto/profil`, Phase 1). Beide Phasen sind in der ROADMAP abgehakt.
+In der Gruppenleiste ein drittes (`Radar`, Phase 8).
+
+Unter 768 px **ist** diese Leiste die ganze Navigation (SEITENKARTE §11.2).
+Ein Fünftel davon, das zuverlässig auf eine Bauzustandsseite führt, ist für
+die Reinigungskraft im Treppenhaus keine halbe App — es ist eine kaputte.
+
+**Warum es nirgends rot wurde.** Die Leisten sind von Hand gepflegt
+(`tableiste.ts`), das Seitenverzeichnis wächst getrennt davon, und keine
+Prüfung verband beides. Jede Datei für sich richtig, zusammen ein totes Ziel —
+dieselbe Sorte Lücke wie beim Job-Register (D-540), nur eine Ebene weiter vorn,
+wo sie jeder Nutzer sieht und niemand meldet, weil sie aussieht wie Absicht.
+
+`tests/kern/tableiste-ziele.test.ts` verbindet die beiden Quellen: jedes Ziel
+steht im Manifest UND hat eine eigene `page.tsx` — ein Auffang zählt
+ausdrücklich nicht. Die Ausnahmeliste nennt je Eintrag das offene Kästchen, das
+ihn deckt, und **rostet nicht**: eine zweite Prüfung lässt die Suite
+fehlschlagen, sobald ein Eintrag gebaut ist und trotzdem noch dasteht.
+
+**Und die Glocke.** Ihr Wächter prüfte `^/portal/[a-z0-9-]+$` — eine FORM, und
+eine Form kann nicht wissen, welcher Name ein Mandant ist. `mein`, `konto`,
+`kunde` und `gruppe` kamen durch, also zeigte das Symbol im Arbeiterportal auf
+`/portal/mein/benachrichtigungen`: ein echtes 404 für jede Kraft, die darauf
+tippt. Die reservierten Wurzeln stehen jetzt ausdrücklich daneben.
+
+**Was damit NICHT erledigt ist** und in derselben Runde folgt: die beiden
+Seiten selbst. Solange sie fehlen, steht die Sprachwahl aus EMP-12 für niemanden
+zur Verfügung — `person.sprache` ist im ganzen Portal nirgends änderbar,
+obwohl de/en/ar/tr vollständig übersetzt sind.
+
+### D-550 · Die Fehlerseite stürzte selbst ab
+
+Aus der Durchsicht, und der schwerste Einzelbefund darin: `app/error.tsx`
+destrukturierte `{ fehler, reset }`. Next.js reicht die Ausnahme aber als
+`error` herein — `fehler` war `undefined`, und die erste Zeile, die
+`fehler.digest` liest, warf erneut.
+
+**Die Fehlerseite hat also nie jemand gesehen.** Jeder Serverfehler endete auf
+der nackten Ersatzseite des Rahmenwerks: ohne den Satz, ohne die Kennung, ohne
+den Knopf — und ohne dass irgendwo etwas rot wurde. Genau die Sorte Fehler, die
+im Betrieb niemand meldet: wer sie erlebt, hat ohnehin schon einen Fehler und
+hält den zweiten für den ersten.
+
+Umbenannt wird nur an der Naht zum Rahmenwerk (`{ error: fehler }`); die übrige
+Datei bleibt deutsch (K-Domänensprache), und der Grund steht daneben.
+
+**Und der Satz auf dem Bildschirm stimmte auch nicht.** „Der Vorgang wurde
+abgebrochen, bevor etwas gespeichert wurde" kann diese Seite nicht wissen: eine
+Fehlergrenze fängt auch einen Fehler NACH einem festgeschriebenen Schritt, und
+sie gilt für die ganze Anwendung. Wer den Satz liest und daraufhin noch einmal
+absendet, löst den Vorgang womöglich ein zweites Mal aus — bei einer Rechnung
+oder einem Zeiteintrag ist das teurer als die Unsicherheit. Die Seite sagt
+jetzt, was sie weiss: bitte nachsehen, bevor Sie wiederholen.
+
+### D-551 · Vier stille Abweichungen, die alle in UTC richtig aussahen
+
+Dieselbe Durchsicht, vier Befunde mit derselben Bauart: in der Entwicklung
+stimmt es, in der Auslieferung nicht — und nichts wird rot.
+
+**1. Der Berliner Versatz hing an der Sitzungszeitzone.** Die Auslöseroute
+bildete ihn als `(now() at time zone 'Europe/Berlin') - now()` — links ein
+`timestamp`, rechts ein `timestamptz`. Postgres castet den linken Wert über die
+**Sitzungszeitzone** zurück. Unter UTC kommt 120 heraus und alles sieht richtig
+aus; unter `set time zone 'Europe/Berlin'` kommt **0** heraus, und der
+Tagesschlüssel eines Nachtlaufs trägt das UTC-Datum statt des Berliner.
+Nachgemessen und als `tests/isolation/job-berliner-versatz.test.ts`
+festgehalten — samt der alten Fassung, damit der Unterschied belegt ist und
+nicht behauptet.
+
+**2. Zwei Uhren für einen Lauf.** Der `tag` kam aus der Datenbank, der
+Idempotenzschlüssel aus `new Date()` der Anwendung. Eine Anfrage über eine
+Minutengrenze oder ein kleiner Versatz zwischen beiden berechnete das vorige
+Fenster, während Auswahl und gemeldeter `tag` das laufende meinen. `jetzt`
+kommt jetzt aus derselben Abfrage.
+
+**3. Die Integrationsseite las `job_lauf` ohne gebundene Sitzung.** `job_lauf`
+steht unter FORCE RLS, und `t_job_lauf_lesen` verlangt
+`app.hat_recht('system.betrieb_lesen', app.aktiver_mandant())`. Ohne Sitzung ist
+der aktive Mandant NULL, das Recht antwortet `false`, die Abfrage liefert null
+Zeilen — und die Seite meldete **„noch nie gelaufen" für jeden Wächter**. In CI
+und im Seed fiel es nicht auf, weil dort `postgres` mit `BYPASSRLS` verbindet:
+dieselbe Altlast wie D-378, nur auf einem Bildschirm statt in einem Lauf.
+
+**4. „Demnächst" sortierte nach dem Wochentagsnamen.** `String(geplantFuer)`
+auf einem `Date` ergibt „Mon Jun 15 2026 …"; verglichen wurde damit „Fri" vor
+„Mon" vor „Sat". Sortiert wird jetzt über den Augenblick.
+
+### D-552 · Was der Kunde nicht freigegeben hat, geht nicht hinaus
+
+`quellenFuerBeitrag` bot nur Referenzen an, die nicht gelöscht sind **und** die
+der Kunde freigegeben hat. Das war die ANZEIGE. `legeBeitragAn` nahm dagegen
+jede Kennung, die als UUID durchging.
+
+Der Unterschied ist kein Schönheitsfehler: eine untergeschobene `referenz_id`
+hängt eine Kundenreferenz an den Beitrag, die der Kunde gerade **nicht**
+freigegeben hat — und der Beitrag geht danach auf die eigene Gesellschaftsseite
+und in die verbundenen Kanäle. **Die Freigabe des Kunden ist eine
+Einwilligung**; sie am Formular zu prüfen und am Server nicht heisst, sie gar
+nicht zu prüfen.
+
+Beide Quellen werden jetzt im Dienst gegengeprüft, mit denselben Bedingungen
+wie die Auswahlliste. `tests/isolation/social.test.ts` (11) hält drei Fälle
+fest: die nicht freigegebene wird abgewiesen, die freigegebene geht durch
+(sonst prüfte der Test nur, dass nichts geht), und eine freigegebene der
+ANDEREN Gesellschaft fällt schon an der RLS.
+
+### D-553 · Ein Kommentarentferner, der eine Sicherheitsprüfung blind machte
+
+`ohneKommentare` entfernte erst Kommentare, dann Zeichenketten. In
+`const marke = 'x//y'; await authorize(...)` schlug die `//`-Regel INNERHALB
+der Zeichenkette zu und frass den Rest der Zeile — samt `authorize`.
+`routen.test.ts` sucht genau diesen Aufruf, um zu belegen, dass eine Route
+bewacht ist: sie hätte die Zeile nicht mehr gesehen. **Eine Prüfung, die eine
+Zeile nicht sieht, meldet keinen Verstoss — sie meldet gar nichts.**
+
+Die umgekehrte Reihenfolge hat denselben Fehler spiegelbildlich (ein
+Anführungszeichen in einem Kommentar), deshalb ist die Antwort kein Tausch,
+sondern ein Durchgang von links nach rechts: ein Zustandsautomat, der an jeder
+Stelle weiss, ob er in Code, Kommentar oder Zeichenkette steht. Kein Parser —
+er kennt weder Ausdrücke noch Blöcke —, aber genau die vier Zustände, um die es
+geht. `tests/kern/quelltext.test.ts` hält zehn Fälle fest, den Befund zuerst.
+
+**Nebenbei mitgenommen:** kaputtes JSON blieb kaputtes JSON (`.catch(() => ({}))`
+machte daraus `unvollstaendig` 409 statt `unlesbarer_rumpf` 400), und
+`/dev/anmelden` bot gesperrte Zugänge als Demonummern an — beides Sackgassen,
+die wie ein Fehler aussehen.
+
+### D-554 · Die Sperrklinke hat gehalten — und zwar gegen mich
+
+CI wurde rot auf `fa445d4`, und der Befund war einer aus der eigenen Suite:
+`tests/isolation/definer-eigentum.test.ts` (K-01) fiel über die frisch
+angelegte `app.checkin_widerrufen`. Ihr fehlte
+`alter function … owner to cse_definer`.
+
+**Was das bedeutet hätte.** Eine `SECURITY DEFINER`-Funktion läuft mit den
+Rechten ihres EIGENTÜMERS. Ohne die Zeile gehört sie dem Konto, das die
+Migration ausführt — `postgres`, Superuser mit `BYPASSRLS`. Die Funktion wäre
+also **an jeder Policy vorbeigelaufen**, und die sorgfältig geschriebene
+`ct_definer` auf `checkin_token` wäre eine zweite Verteidigungslinie gewesen,
+die es nicht gibt. Genau die Altlast aus D-300, um einen Eintrag gewachsen —
+in einem Commit, der ansonsten grün war.
+
+Die Sperrklinke ist deshalb keine Formalie: sie hat einen Fehler gefangen, der
+nirgendwo kaputtgeht, den kein Typ und kein Lint sieht, und der genau so lange
+gut funktioniert, bis eine vergessene `where`-Klausel nicht an einer Policy
+scheitert, sondern liest, was sie greifen kann.
+
+**Und die andere Hälfte, die derselbe Testkopf ausdrücklich verlangt.** Nach
+einem Eigentumswechsel „liest die Funktion stillschweigend null Zeilen und
+schreibt einen falschen Wert ohne Fehlermeldung", wenn `cse_definer` ein
+Tabellenrecht oder eine Policy fehlt. Eine Prüfung, die nur das Eigentum misst,
+wäre grün über einer Funktion, die nichts mehr tut.
+
+`tests/isolation/checkin-widerruf.test.ts` fährt den Weg deshalb einmal ganz
+durch — Marke ausgeben, widerrufen, nachsehen — und hält fünf weitere Sätze
+fest: der Vorgang steht im Protokoll (`app.protokolliere` schreibt als eigener
+Definer, `cse_definer` braucht dafür kein `insert` auf `audit_log`), ein
+zweiter Widerruf tut nichts und ist trotzdem kein Fehler, der Grund des ersten
+bleibt stehen, ein Widerruf ohne Grund wird abgewiesen, eine Marke, die es
+nicht gibt, antwortet `false` statt eines Orakels (AUT-06) — und **das Recht
+wird im Mandanten der MARKE geprüft**: eine Planerin der Reinigung kann die
+Marke der Security nicht widerrufen, obwohl ihre Sitzung schreibt.
+
+### D-555 · Das Startskript war kein PowerShell mehr, bevor es lief
+
+Nutzerbericht: `windows-start.ps1` brach mit drei Parserfehlern ab, der erste
+auf der **letzten** Zeile — „Die Zeichenfolge hat kein Abschlusszeichen: '".
+Die Datei war syntaktisch einwandfrei. Sie war nur nicht in der Kodierung, in
+der Windows PowerShell 5.1 sie liest: **ohne BOM nimmt es ANSI
+(Windows-1252), nicht UTF-8.**
+
+Ein Geviertstrich `—` ist in UTF-8 `E2 80 94`. Als Windows-1252 gelesen werden
+daraus drei Zeichen, und das letzte (`0x94`) ist U+201D — ein typografisches
+Anführungszeichen. **PowerShell erkennt die typografischen Anführungszeichen
+als Anführungszeichen.** Jeder Gedankenstrich im Skript öffnete damit eine
+Zeichenkette, die nie geschlossen wurde; der Parser lief bis zum Dateiende und
+meldete dort, und der Mensch davor suchte auf der falschen Zeile.
+
+Betroffen waren zwanzig Zeilen: Gedankenstriche, deutsche Anführungszeichen,
+die Kastenzeichnung des Schlussrahmens und ein Auslassungszeichen.
+
+**Die Datei ist jetzt reines ASCII.** Ein BOM täte es auch; ASCII ist die
+stärkere Zusicherung, weil es jeden Editor, jedes Entpacken und jedes Kopieren
+durch ein Fenster überlebt, das die Kodierung nicht kennt.
+`tests/kern/lokal-starten.test.ts` hält es fest — mit der Begründung daneben,
+damit die nächste Person nicht denkt, es sei Geschmack.
+
+**Die allgemeine Regel:** eine Datei, die auf einer FREMDEN Plattform
+ausgeführt wird, darf sich nicht darauf verlassen, dass diese Plattform sie so
+liest, wie wir sie geschrieben haben. Dasselbe gilt für Zeilenenden und für
+jede Datei, die ein Windows-Werkzeug interpretiert.
+
+### D-556 · Die Ausgabefläche der Check-in-Marken — TIM-07 ist wieder begehbar
+
+Die Seite `/portal/[mandant]/zeiten/checkin-links` und die Route
+`POST /api/checkin-marken` schliessen die Lücke aus D-554: das Einlösen war
+seit 0035 komplett, die AUSGABE hatte genau einen Aufrufer — den Seed. Im
+Betrieb kam damit niemand an einen Check-in-Link, und TIM-07 ist der einzige
+Weg, auf dem eine Mitarbeiterin ihre Zeit selbst erfasst.
+
+Drei Entscheidungen, die die Form bestimmen:
+
+**Die Zeile ist die EINTEILUNG, nicht die Marke.** Der Planer fragt „wer kommt
+morgen an den Hackeschen Markt und kann dort stempeln", nicht „welche Marken
+existieren". Eine Liste der Marken beantwortet die zweite Frage und
+verschweigt die erste — und genau die Einteilung OHNE Marke ist die, bei der
+jemand vor der Tür steht und nicht einchecken kann. Sie trägt deshalb die
+Warnfarbe und den Knopf.
+
+**Das Geheimnis geht nicht durch die Adresszeile.** `app.checkin_ausgeben`
+gibt die Marke genau einmal im Klartext zurück; gespeichert wird nur ihr
+SHA-256. Sie in die Weiterleitung zu hängen hiesse: im Verlauf, im `Referer`
+und im Zugriffsprotokoll jedes Vermittlers dazwischen. Für eine Telefonnummer
+wurde derselbe Weg schon abgelehnt (D-542); eine Zugangsmarke ist mehr als
+das. Sie reist in einem kurzlebigen `httpOnly`-Keks, den die Seite liest und
+im selben Zug löscht.
+
+**Der Pfad heisst `api/checkin-marken` und nicht `api/zeiten/…`.**
+`tests/kern/mitarbeiter.test.ts` lässt unter `api/zeit…` keine Route zu, weil
+EMP-07 verbietet, dass irgendein Weg einen Zeiteintrag ÄNDERT. Diese Route
+ändert keinen; sie gibt die Marke aus, aus der beim Einlösen ein neuer
+entsteht. Die Wache ist absichtlich stumpf — und ein Pfad, der sie umgeht,
+wäre eine Ausnahme IN der Wache. Der ehrlichere Weg ist ein Name, der sagt,
+was verwaltet wird.
+
+### D-557 · EMP-12 war gebaut und für niemanden erreichbar
+
+`src/lib/i18n/texte.ts` übersetzt das Arbeiterportal vollständig in vier
+Sprachen — de, en, ar, tr, samt `dir="rtl"` und der richtigen Zahlen- und
+Datumsform. Die Sprache kommt aus `person.sprache`. Und sie liess sich
+**nirgends ändern**: keine Seite, keine Route, kein Recht, kein Schreibweg.
+Wer nicht die Sprache sprach, die in seiner Zeile stand, konnte nichts daran
+tun. In der ROADMAP ist EMP-12 abgehakt.
+
+`/portal/konto/profil` (der fünfte Tab jedes Arbeitertelefons, D-549) und
+`POST /api/konto/sprache` schliessen das.
+
+**Die Spaltenliste im Recht ist der eigentliche Inhalt dieser Entscheidung.**
+`person` trägt `telefon`, und diese Nummer **ist** der Anmeldeweg einer
+Mitarbeiterin (`app.zugang_code_anfordern`, EMP-01). Ein tabellenweites
+`grant update` liesse jede angemeldete Person ihre eigene Nummer ändern — und
+damit den Einmalcode auf ein beliebiges Telefon umleiten. Aus „ich stelle
+meine Sprache auf Arabisch" würde eine Kontoübernahme, in derselben Zeile.
+`0165` gewährt deshalb genau eine Spalte, nach der Vorlage, die `benutzer`
+seit 0007 trägt.
+
+Ein `grant update` gefolgt von `revoke update (telefon)` funktioniert in
+PostgreSQL **nicht** — das Tabellenrecht deckt weiter jede Spalte und der
+Entzug ändert stillschweigend nichts. Dieselbe Falle wie beim Lohnsatz
+(K-05): die Spalte muss von vornherein draussen bleiben.
+`tests/isolation/person-sprache.test.ts` fährt beide Richtungen: die Sprache
+geht durch, `telefon` und `vorname` werden abgewiesen.
+
+**Zwei Befunde nebenbei, beide von der Isolationsprüfung gefunden.** Der
+Dienst schrieb zunächst `geaendert_am = now()` mit — überflüssig (ein Auslöser
+setzt es) und dazu ein `permission denied for table person`: PostgreSQL prüft
+JEDE Spalte der `set`-Liste gegen das Recht, und eine davon fehlte. Und die
+Sprache wird in **einer** Spalte gesetzt, nicht in beiden: hat das Konto eine
+Person, gewinnt `person.sprache` (§3.2), sonst ist `benutzer.sprache` die
+einzige Quelle. Beide zu schreiben hiesse, einen Wert zu pflegen, den niemand
+liest — und beim nächsten Lesefehler stünde die falsche Quelle im Verdacht.
+
+**Wo der Dienst liegt, ist ebenfalls eine Entscheidung.** Nicht unter
+`services/`: das Dienstregister verlangt dort von jedem schreibenden Dienst
+ein Modulrecht aus dem Katalog, und zu Recht — ein Dienst dort ist eine
+Modul*operation*. Die eigene Sprache ist keine (K-19: einen Schlüssel
+erfinden, den man jeder Rolle bindet, prüft nichts). Das Haus hat für diesen
+Fall schon einen Ort: `server/benachrichtigung/posteingang.ts` schreibt
+ebenfalls, trägt ebenfalls kein Modulrecht, ist ebenfalls an
+`app.aktueller_benutzer()` gebunden — und liegt ebenfalls neben `services/`.
+`server/konto/sprache.ts` folgt dem, statt eine Ausnahme **in** die Wache zu
+schreiben.
+
+**Auf dem Bildschirm steht jede Sprache in IHRER Sprache** — „العربية", nicht
+„Arabisch". Wer die Oberfläche gerade nicht lesen kann, sucht das Wort, das er
+kennt; eine übersetzte Sprachliste ist genau für den unbrauchbar, der sie
+braucht. Und es sind Radioknöpfe, keine zugeklappte Auswahlliste: vier
+Einträge passen auf jeden Bildschirm, und eine Liste, die man erst öffnen
+muss, verlangt das Lesen der Oberfläche, um an die Sprache zu kommen, die man
+lesen kann.
+
+### D-558 · Der letzte tote Tab — und die Warnung, die ihren Empfänger nie erreichte
+
+`/portal/mein/nachrichten` war das vierte von fünf Zielen der Arbeiterleiste
+und führte auf „Dieses Modul wird noch gebaut — Phase 3". Phase 3 ist
+abgehakt. Damit ist der Befund aus D-549 abgetragen: **kein Ziel einer
+Tab-Leiste zeigt mehr auf die Platzhalterseite**, und die Ausnahmeliste in
+`tests/kern/tableiste-ziele.test.ts` enthält nur noch, was ein offenes
+ROADMAP-Kästchen deckt.
+
+**Die Meldungen gab es die ganze Zeit.** Wächter, Ablaufwarnungen (EMP-08) und
+Fristwarnungen schreiben seit mehreren PRs in `benachrichtigung`; der interne
+Posteingang zeigt sie. Nur die Kraft, an die eine Ablaufwarnung sich
+*richtet*, hatte keinen Bildschirm dafür. **Eine Warnung, die ihren Empfänger
+nicht erreicht, ist keine** — und sie sah im internen Posteingang aus wie
+zugestellt.
+
+**Dieselbe Abfrage, nicht eine zweite.** `ladePosteingang` gilt in beiden
+Scopes ohne eine Zeile Sonderbehandlung: `t_benachrichtigung_eigene` bindet
+jede Zeile an `empfaenger_id = app.aktueller_benutzer()`, und
+`app.sichtbare_mandanten()` ist im Personen-Scope genau die Menge der eigenen
+lebenden Beschäftigungen (0004). Eine zweite Fassung derselben Frage driftet,
+und zwei Posteingänge mit verschiedenen Zahlen machen beide unglaubwürdig
+(dieselbe Regel wie bei der Live-Ansicht, DSH-04).
+
+**Die Gesellschaft steht an jeder Zeile.** Ein Mensch, zwei Beschäftigungen
+(D-09, EMP-14): ohne sie sähe dieselbe Meldung zweimal gleich aus, und der
+Link führte in einen Bereich, den man beim Lesen nicht erkannt hat.
+
+**Vier Sprachen, nicht eine.** Die Seite ist der vierte Tab eines Portals, das
+in de/en/ar/tr übersetzt ist; ein deutscher Posteingang darin wäre genau die
+halbe Übersetzung, die D-419 schon einmal abgeräumt hat. Der Leersatz sagt
+dabei, was Leere BEDEUTET — „nichts Offenes, nicht: etwas fehlt" —, statt
+einen leeren Bildschirm zu zeigen, der sich wie ein Fehler liest.
+
+### D-559 · Der anerkannte Einwand, der zu nichts führte
+
+`korrigiereZeiteintrag` (TIM-11) war gebaut, geprüft und hatte **keinen
+einzigen Aufrufer** — keine Route, keine Seite. Damit endete der Einwandsweg
+im Nichts: eine Mitarbeiterin meldet eine Abweichung (EMP-07), die Planung
+erkennt sie an, und der Zeiteintrag blieb, wie er war. Die Entscheidungsroute
+sagt das seit ihrem ersten Tag selbst — „Anerkennen schreibt hier keine
+Korrektur" —, nur gab es die Korrektur nirgends.
+
+**Das ist die teuerste Sorte Lücke, weil sie nirgends rot wird.** Jeder Test
+über den Dienst war grün, denn der Dienst funktioniert: Kette, Spur,
+`zk_nicht_selbst`, gesperrter Monat — alles in `tests/isolation/`. Was fehlte,
+war die Frage, ob ihn jemand aufruft. Sie steht jetzt in
+`tests/kern/zeit-korrektur-weg.test.ts` und geht in jedem Lauf mit.
+
+**Drei Vorgänge, drei Rechte.** `zeit.korrigieren` und nicht `zeit.schreiben`:
+wer Zeiten erfasst, ändert damit noch keine bestehende Aufzeichnung —
+dieselbe Trennung, die `zeit.einwand_entscheiden` vom Erfassen trennt. Melden,
+entscheiden, korrigieren.
+
+**Die Route heisst `api/zeit/korrektur`, nicht `api/zeiten/…`.** Die
+EMP-07-Wache in `tests/kern/mitarbeiter.test.ts` weist jede Adresse ab, die
+einen Zeiteintrag im Pfad nennt. Eine Ausnahme in der Wache wäre der Anfang
+ihres Endes; ein Name, der nicht in ihr Muster fällt, ist es nicht — dieselbe
+Überlegung wie bei `api/checkin-marken` (D-557).
+
+**`zk_nicht_selbst` meldet `42501`, nicht `23514`.** Der Auslöser aus 0036
+wirft `insufficient_privilege`, nicht `check_violation`. Beides in einen Topf
+zu werfen hiesse, dem eigenen Zeiteintrag die Meldung „gesperrter Monat ohne
+Gegenbuchung" zu geben — eine Diagnose, die auf die falsche Fährte führt.
+Unterschieden wird am `detail`, das der Auslöser selbst mit „EMP-07" beginnen
+lässt; 42501 ist schliesslich auch, was Postgres bei einem fehlenden
+Tabellenrecht sagt, und das ist kein „das ist Ihr eigener Eintrag".
+
+**Der Link steht nur, wenn er trägt.** Vier Bedingungen: das Recht (sonst
+antwortet die Seite mit 404, und ein Knopf dorthin verriete ihre Existenz —
+AUT-06); nicht der eigene Eintrag; nicht laufend (der wird bearbeitet, nicht
+korrigiert); nicht abgelöst (die Kette gabelt nicht). Wer die Adresse trotzdem
+tippt, steht nicht vor einem 404, sondern vor einer Begründung — die Seite
+nennt jeden dieser Gründe in Worten.
+
+**Die Felder sind leer, wie bei der Nacherfassung.** Was aufgezeichnet wurde
+und was die Person behauptet, steht daneben zum Lesen. Vorbelegt wäre die
+Übernahme einer Behauptung ein Klick, und die entstehende Fassung trüge
+`planer_entscheidung`, ohne dass jemand entschieden hätte.
+
+**Das Ziel nach dem Absenden ist die NEUE Fassung.** Die alte trägt jetzt
+`ersetzt_am` und zeigt „Diese Fassung ist nicht mehr die aktuelle"; wer gerade
+korrigiert hat, dorthin zurückzuschicken hiesse, ihn auf einem überholten
+Blatt abzusetzen. Beim Storno ist es derselbe Eintrag — dort gibt es keine
+neue Fassung, nur einen stornierten Datensatz, und genau der soll zu sehen
+sein.
+
+**Und ein abgewiesenes Formular landet nicht als JSON auf einer weissen
+Seite.** Jeder Schlüssel, den die Route zurückschickt, hat auf der Seite einen
+Satz; ein Test hält beide Listen aneinander. Wer hier arbeitet, ist Planerin
+und nicht Entwicklerin.
+
+### D-560 · `/portal` war die erste Seite nach der Anmeldung — und es gab sie nicht
+
+Gemeldet aus dem Betrieb, mit Bildschirmfoto: Anmeldung mit einem
+`leitung`-Konto, und die erste Seite danach war **„Diese Seite gibt es hier
+nicht."** `wegNachAnmeldung` fällt ohne Rückweg auf `/portal` zurück, und
+`/portal` stand in keinem Manifest — also 404.
+
+**Sieben Stellen zeigen dorthin**, und keine davon war falsch:
+`wegNachAnmeldung`, beide Stufen des zweiten Faktors, die
+Wiederherstellungscodes, zwei Benachrichtigungsrouten und die Angebotsroute
+schreiben alle `?? '/portal'` als letzten Ausweg. Sie einzeln zu reparieren
+hiesse, dieselbe Fallunterscheidung siebenmal zu führen und beim achten
+Aufrufer wieder zu vergessen. **Eine Adresse, die überall als Rückfallziel
+steht, muss selbst wissen, wohin sie gehört.** `/portal` ist deshalb jetzt ein
+Wegweiser: Mitarbeiterportal, Kundenportal, Gruppenansicht oder — für ein
+`intern`-Konto — der aktive Bereich, und ohne einen die Bereichswahl (§4.4).
+
+**Warum kein Manifesteintrag.** Die Seite zeigt nichts. Sie liest die Sitzung
+und leitet weiter; es gibt kein Recht zu prüfen, weil es nichts zu sehen gibt.
+Ein Eintrag mit einem Leserecht machte aus einem Wegweiser eine Sache, die man
+„lesen darf".
+
+**Warum der Test es nicht gefunden hat — der eigentliche Befund.** Die
+Anmeldeprüfungen fragen seit jeher `toHaveURL(/\/portal/)`, und `/portal`
+erfüllt dieses Muster. Die **Adresse** stimmte, die Seite dahinter fehlte:
+eine Prüfung, die ein 404 für einen Erfolg hält, ist keine. Die beiden neuen
+Fälle in `tests/e2e/anmeldung-kennwort.spec.ts` sehen deshalb auf den INHALT —
+und sie fallen um, sobald man die Wegweiserseite entfernt.
+
+### D-561 · Die Gruppenansicht ist keine gefilterte Mandantensicht
+
+`GRUPPEN_NAVIGATION` war `NAVIGATION.filter((n) => n.gruppe)` — die
+MANDANTEN-Module mit ihren Mandantenpfaden, ausgegeben unter `/portal/gruppe`.
+**Von vierzehn so entstandenen Zielen führten elf auf 404:**
+`dienstplan/woche`, `zeiten`, `personal/anstellungen`, `angebote`,
+`finanzen/rechnungen`, `bau/projekte`, `reinigung/reviere`,
+`qualitaet/reklamationen`, `social`, `finanzen/zahlungen`,
+`finanzen/mahnungen`. §6 der Seitenkarte führt dort `dienstplan`,
+`auslastung`, `personen`, `rechnungen`, `projekte` — andere Namen für
+verwandte Sachen, und das ist kein Zufall: **eine Gruppenseite fasst vier
+Gesellschaften zusammen und ist deshalb eine andere Seite, nicht dieselbe mit
+mehr Zeilen.**
+
+Und die Rechte waren die falschen dazu: die Gruppenrouten verlangen
+`gruppe.objekt.lesen` und Geschwister (0004/0009), nicht `objekt.lesen`.
+`PortalRahmen` hatte das für die Sidebar bereits abgeräumt; diese Liste war
+die letzte Stelle, an der die alte Ableitung weiterlebte — sichtbar in
+`/dev/portal` und im `Mehr`-Blatt, sobald eine Gruppenleiste je eines
+bekäme.
+
+**Gefunden hat es eine Copilot-Anmerkung zu `social`** — einem einzigen
+Eintrag. Die Zeile stimmte; die Ursache lag eine Ebene tiefer, und zehn
+weitere Punkte hatten sie auch. Eine Anmerkung, die nur an ihrer Zeile
+abgearbeitet wird, lässt so etwas stehen.
+
+**Das Flag `gruppe` ist weg.** Ein Bool, das aus einer Mandantenliste eine
+Gruppenliste machen sollte, hat genau eine Wirkung: es lässt das Ergebnis
+richtig aussehen. Die Gruppenziele stehen jetzt ausdrücklich da, jedes mit
+seinem `gruppe.*`-Recht, und `tests/kern/gruppen-navigation.test.ts` hält für
+jedes fest: Registereintrag, `page.tsx`, Gruppenrecht aus dem Katalog, und
+dasselbe Recht wie die Route dahinter. `radar` und `kalender` stehen im
+Register und haben noch keine Seite; sie fehlen deshalb in der Liste, statt
+schon einmal verlinkt zu werden.
+
+**`navigationsRechte` fragt die Gruppenrechte jetzt mit.** Sie wurden nie
+gefragt — in der Gruppenansicht war der Wert für jeden Gruppenpunkt
+`undefined`, also `!== true`, also unsichtbar. Heute trägt keine Gruppenleiste
+ein `Mehr`-Blatt, das danach fragt; sobald eines dazukäme, wäre es leer
+gewesen, und niemand hätte gesehen warum.
+
+### D-562 · Das Ursprungstor verglich, wo der Server liegt — nicht, was der Browser angesprochen hat
+
+Gemeldet aus dem Betrieb, mit Bildschirmfoto: am Telefon unter
+`http://192.168.0.193` angemeldet, Sprache auf Arabisch gestellt, gespeichert —
+und auf dem Bildschirm stand `{"fehler":"fremder_ursprung"}`.
+
+`erwarteterUrsprung` baute den erwarteten Ursprung aus `anfrage.nextUrl.host`,
+und die Docstring darüber sagte: „den leitet Next.js aus dem `Host`-Kopf ab."
+**Das tut Next.js nicht.** `NextRequest.nextUrl` trägt die Adresse, unter der
+der SERVER läuft — `localhost:3000` —, unabhängig davon, welchen `Host` der
+Browser geschickt hat.
+
+**Am laufenden Server nachgemessen, nicht hergeleitet:** mit
+`Host: 192.168.0.193` und `Origin: http://192.168.0.193` kam 403; mit demselben
+`Host` und `Origin: http://localhost:3000` ging dieselbe Anfrage durch. Damit
+war bewiesen, welche der beiden Adressen verglichen wurde.
+
+**Die Reichweite war die ganze Plattform.** `istGleicherUrsprung` steht in
+**77 Routen** — jeder schreibende Weg. Wer die Plattform unter einer anderen
+Adresse aufrief als der, unter der der Server gestartet wurde, konnte lesen und
+nie schreiben: über die LAN-Adresse am Telefon, hinter einem Reverse-Proxy,
+unter der späteren Produktionsdomain. Und weil das Tor dabei korrekt 403
+meldete, sah es aus wie eine Sicherheitsfunktion, die ihre Arbeit tut.
+
+**Warum die Anmeldung trotzdem ging** — und das ist der Grund, warum es so
+lange unentdeckt blieb: `/auth/login` ist eine Server Action. Next.js prüft
+dort selbst, und zwar gegen den `Host`-Kopf. Wer sich anmeldete, kam durch;
+wer danach etwas speichern wollte, nicht.
+
+**Warum der `Host`-Kopf hier trägt, obwohl er fälschbar ist.** CSRF setzt den
+Browser des Opfers voraus: der setzt `Host` aus der Adresse, die das Opfer
+besucht hat, und `Origin` aus der Seite, die das Formular schickt. Sie gehen
+genau dann auseinander, wenn es ein Angriff ist. Wer beide Köpfe selbst
+schreibt, hat kein fremdes Sitzungskeks und greift damit niemanden an — er
+redet mit dem Server über sein eigenes Konto. Es ist dieselbe Prüfung, die
+Next.js für Server Actions führt und die Django und Rails führen.
+`x-forwarded-host` bleibt ungelesen: den schickt kein Browser je selbst.
+
+**`CSE_VERTRAUTE_URSPRUENGE`** nennt zusätzliche erlaubte Ursprünge,
+kommagetrennt — für einen Proxy, der `Host` auf seinen eigenen Namen
+umschreibt. Leer ist die Vorgabe. Was dort steht, hat ein Mensch
+hingeschrieben; nichts davon kommt aus der Anfrage.
+
+**Und der eigentliche Befund liegt im Test.** `tests/kern/ursprung.test.ts`
+baute sein `nextUrl` AUS DER ANGEFRAGTEN ADRESSE — also eine Welt, in der
+`nextUrl.host` immer das ist, was der Browser angesprochen hat, und in der
+dieser Fehler nicht existieren kann. Elf Fälle, alle grün, alle über eine
+Wirklichkeit, die es nicht gibt. Die Hilfsfunktion nimmt die beiden jetzt
+getrennt (`url` = was der Browser schickte, `serverUnter` = wo der Server
+läuft), und mit der alten Fassung von `wirt()` fallen sechs Fälle um — darunter
+drei, die vorher grün waren.
+
+### D-563 · Sieben Adressen antworteten 500 — gefunden erst, als jemand sie alle geöffnet hat
+
+Der Nutzer klickte auf der Gruppenübersicht „Bereich öffnen" und bekam „Diese
+Seite gibt es hier nicht." Daraus wurde ein Rundgang durch **jede**
+Portaladresse als Super-Administration — und der fand mehr als den einen Klick.
+
+**Befund 1 — der Knopf selbst.** In `/portal/[mandant]/page.tsx` stand
+`if (sitzung.aktiverMandantId === null) notFound()` **vor** `slugTor`. In der
+Gruppenansicht ist der aktive Bereich immer null (K-20); jede Gruppensitzung
+fiel damit auf 404, bevor das Wechselblatt kam. Eine Zeile zu früh — dieselbe
+Lehre wie bei den nummerierten Auslösern in `0036`: **die Reihenfolge IST die
+Regel.** `tests/kern/mandanten-tor.test.ts` prüft sie jetzt über alle 165
+Mandantsseiten, nicht über die eine, die es erwischt hat.
+
+**Befund 2 — 44 Seiten, die eine Kennung ungeprüft weiterreichen.** Die
+Seitenkarte führt `…/crm/leads/neu`, `…/crm/kunden/neu`, `…/angebote/neu`,
+`…/objekte/neu`, `…/reinigung/reviere/neu`; gebaut ist keine. Next.js greift
+deshalb die Nachbarroute `[id]` und reicht `"neu"` unverändert in ein
+`$1::uuid` — Postgres antwortet `invalid input syntax for type uuid`, die
+Anwendung mit **500**. Nachgezählt trugen 44 von 65 dynamischen Seiten diese
+Lücke, und es war nie nur `neu`: jeder Tippfehler in einer Adresse, jeder alte
+Verweis, jede Kennung aus einer anderen Datenbank ergab dort einen
+Serverfehler.
+
+**Ein 500 ist die schlechteste aller Antworten.** Er sagt „mein Fehler", wo
+„gibt es nicht" die Wahrheit ist, und er füllt das Fehlerprotokoll mit Zeilen,
+die keine Fehler sind — bis der eine echte darin untergeht. `kennungOder404`
+steht jetzt in jeder dieser Seiten, direkt hinter `await params`: was einmal in
+eine Abfrage gelangt ist, ist zu spät geprüft. Sechs Platzhalterseiten fangen
+die im Manifest geführten `/neu`-Adressen ab, damit dort „wird noch gebaut"
+steht und nicht „gibt es nicht" — die zweitbeste Antwort wird zur besten.
+
+**Befund 3 — `/zeiten/checkin-links`, zwei Fehler in einer Abfrage.** Die
+Seite, die in derselben Sitzung entstand, antwortete ebenfalls 500:
+
+- `o.name` — die Spalte heisst seit `0021` `bezeichnung`, und `o.name` gab es
+  nie.
+- `select ct.*` im Lateral — der Stern zieht `token_hash` mit, und genau die
+  Spalte ist aus dem Grant ausgespart (`0035`). Postgres meldet darauf
+  `permission denied for table checkin_token`: eine Meldung, die nach einer
+  fehlenden Policy klingt und ein SPALTENrecht meint.
+
+Beide Male dieselbe Ursache dahinter: **`listeCheckinZeilen` hatte keinen
+einzigen Aufrufer in den Prüfungen.** Eine Abfrage, die nie läuft, ist keine
+geprüfte Abfrage — derselbe Befund wie bei `korrigiereZeiteintrag` (D-559),
+zwei Stunden später und in meinem eigenen Code. Drei Isolationsfälle holen
+jetzt wirklich Zeilen.
+
+**Was der Rundgang sonst ergab** — 94 echte Seiten, 55 ehrliche Platzhalter,
+**0 Serverfehler**. Die 21 Adressen mit 404 sind die Gewerkemodule, die diese
+Gesellschaft nicht gebucht hat (D-377): für sie gibt es die Seite wirklich
+nicht, und das ist die richtige Antwort.
+
+**Die Lehre über den einzelnen Fehlern.** Alle drei Befunde lagen auf Wegen,
+die jede Prüfung für gedeckt hielt: die Seite war gebaut, der Dienst getestet,
+die Route im Manifest. Was fehlte, war jemand, der sie **öffnet**. Ein Rundgang
+durch alle Adressen kostet drei Minuten und hat gefunden, was zwei Suiten mit
+zusammen 3900 Fällen nicht gesehen haben.
+
+
+### D-564 · Zwei Register, dieselben Schlüssel — und der Nachtrag zu D-561
+
+`navigationsRechte` wurde mit `[...NAVIGATION, ...GRUPPEN_NAVIGATION]`
+gefüllt. Beide Register benutzen dieselben Schlüssel — `objekte`, `auftraege`,
+`rechnungen`, `dokumente`, `dienstplan`, `freigaben`, `agenten`, `berichte` —
+mit **verschiedenen Rechten**: `objekt.lesen` gegen `gruppe.objekt.lesen`. Der
+zweite Durchlauf überschrieb damit den ersten, und eine `leitung` im Mandanten
+verlor jeden Punkt, dessen GRUPPEN-Recht sie nicht hält: das `Mehr`-Blatt am
+Telefon war um acht Ziele ärmer.
+
+Gefunden hat es `crm.spec.ts` — ein Fall, der genau nach einem dieser Punkte
+sucht, und der seit D-561 zweimal rot war, bevor die Meldung gelesen wurde.
+
+**Die Lehre.** D-561 hat richtig erkannt, dass die Gruppenansicht eigene Ziele
+braucht, und daraus den falschen Schluss gezogen, dass beide Listen in dieselbe
+Karte gehören. Eine Sitzung ist entweder im Gruppen-Scope oder nicht; die Karte
+beantwortet **eine** Frage („darf diese Sitzung diesen Punkt sehen"), und die
+Antwort hängt am Scope. Gefragt wird deshalb die Liste, die zur Sitzung gehört.
+
+Zwei Namensräume in einer Karte zusammenzuführen ist immer eine stille
+Entscheidung darüber, wer gewinnt — und der Gewinner steht nirgends.
+
+### D-565 · Das Telefon ist kein Rechteck
+
+Gemeldet vom echten Gerät, mit Bildschirmfoto: die Tab-Leiste klebte am
+unteren Bildschirmrand, ihre Beschriftungen einen Millimeter über dem
+Home-Indikator. Auf einem Telefon mit runden Ecken, Notch oder Home-Indikator
+ist ein Teil des Sichtfensters **nicht erreichbar** — ein Tipp dort geht an die
+Systemgeste, und Text dort schneidet die Rundung ab.
+
+**Es fehlten beide Hälften, und eine ohne die andere tut nichts.**
+
+1. `viewport-fit=cover` gab es im ganzen Baum nicht. Ohne diese Angabe meldet
+   iOS **jeden** `env(safe-area-inset-*)` als `0px` — eine Polsterung dagegen
+   rechnet dann mit null und sieht aus wie ein vergessener Abstand statt wie
+   eine fehlende Zeile im Layout.
+2. `env(safe-area-inset-*)` kam im ganzen Baum nicht vor. Nachgezählt: null
+   Treffer über `src/` und die Tailwind-Konfiguration.
+
+**Die Regeln stehen in `globals.css`, nicht an den Elementen.** `env()` ist
+kein Tailwind-Wert, und ein handgeschriebenes `pb-[calc(…)]` in zwölf Dateien
+sind zwölf Gelegenheiten, eine andere Zahl zu schreiben. Vier Klassen:
+`sicher-unten`, `sicher-oben`, `sicher-seiten`, `ueber-tableiste` — plus
+`ueber-leiste-oberkante` für das `Mehr`-Blatt.
+
+**`44px` bleibt `44px`.** Der Inset ist Platz, den das System nimmt, nicht
+Platz, den der Knopf hergibt. Eine Leiste, die ihre Zellen schrumpft, um den
+Indikator unterzubringen, verfehlt DESIGN §8 auf genau den Geräten, die die
+Regel brauchen. Der Balken wächst, die Zelle nicht.
+
+**Der Umbruch bei `md` gehört INS Stylesheet.** `md:pb-s5` am Element hätte
+dieselbe Spezifität wie `.ueber-tableiste`, und diese Datei steht hinter
+Tailwinds erzeugten Utilities — sie hätte auch am Schreibtisch gewonnen, also
+52px Leere unter jeder Seite, unter einer Leiste, die dort `md:hidden` ist.
+
+**Und ein Nachzug, den dieselbe Änderung ausgelöst hat:** das `Mehr`-Blatt
+endete bei `bottom-11` = 44px, der Höhe der Zelle. Seit die Leiste um den Inset
+wächst, verdeckte das Blatt auf jedem Telefon mit Home-Indikator wieder genau
+den Knopf, der es zumacht — `<details>` schliesst ohne JavaScript nur über sein
+eigenes `<summary>`. `ueber-leiste-oberkante` rechnet beides zusammen.
+
+**Warum ein Browsertest das nicht prüfen kann.** Headless Chromium meldet jeden
+Inset als `0px`; es gibt keine Notch zu melden. Ein Lauf wäre grün, egal ob die
+Regeln dastehen — genau die Sorte grüner Lauf, die diesen Fehler hat entstehen
+lassen. `tests/design/sichere-flaeche.test.ts` prüft deshalb den VERTRAG: dass
+die Zeilen im Stylesheet stehen, dass jede einen `0px`-Ersatzwert trägt (ohne
+ihn fällt in einem alten Browser die ganze Deklaration weg, samt der 52px), und
+dass die Bauteile sie benutzen.
+
+### D-566 · Elf Seiten, deren ganze Navigation ins Nichts führte
+
+Ein Rundgang über **alle fünf Rollen**, der jeder Verweis folgt wie ein Mensch
+— nicht über die Routenliste, sondern über die Seiten selbst — fand **97
+verschiedene Ziele, die auf 404 führten.** Fast alle hatten eine Ursache.
+
+`wurzel` ist die PORTALWURZEL: `SeitenNavigation` und die Tab-Leiste lösen
+jeden Menüpunkt dagegen auf (`tabZiel`). Elf Seiten reichten aber den
+ABSCHNITT durch, in dem sie stehen:
+
+```
+wurzel={`/portal/${mandant}/einstellungen`}       // statt /portal/${mandant}
+wurzel={`/portal/${mandant}/dokumente`}
+wurzel={`/portal/${mandant}/personal/anstellungen`}
+```
+
+Auf `/portal/reinigung/dokumente/<id>` zeigte das Menü damit auf
+`/portal/reinigung/dokumente/crm`, `…/dokumente/zeiten`,
+`…/dokumente/finanzen/rechnungen` — **jeder Punkt der Seitenleiste, für jede
+Rolle, die eine hat.** Betroffen waren die Einstellungen samt aller
+Unterseiten, die Dokumentendetails, die Anstellungsdetails und das
+Agentenprotokoll.
+
+**Warum das monatelang niemand sah.** Die Seite selbst sieht richtig aus. Der
+Fehler steht in der NAVIGATION daneben, und wer dort arbeitet, drückt den
+Zurück-Knopf und hält es für einen verirrten Klick. Kein Test hat es gefunden,
+weil jeder Test die Adresse ansteuert, die er prüfen will — keiner klickt sich
+durch das Menü einer Detailseite.
+
+`tests/kern/portal-wurzel.test.ts` prüft jetzt jede `.tsx` unter
+`src/app/portal`: ein `wurzel` mit einem Segment hinter der Portalwurzel ist
+rot. Gegengeprüft — mit der alten Fassung fallen genau elf Fälle um.
+
+**Und ein Befund, der keiner war.** Derselbe Rundgang meldete React-Fehler
+`#418` (Hydration) auf drei Seiten. Nachgestellt mit `networkidle` und einer
+Sekunde Ruhe: alle vier betroffenen Adressen sind sauber. Die Meldung kam vom
+RUNDGANG selbst — er wartete nur auf `domcontentloaded` und navigierte
+mitten in der Hydration weiter. Die drei Seiten waren auch je Rolle
+verschieden, was ein echter Markup-Fehler nicht ist. Nichts zu reparieren;
+festgehalten, damit die nächste Messung mit demselben Werkzeug nicht dieselbe
+Stunde kostet.
+
+### D-567 · Sieben Knöpfe, die auf eine Seite zeigten, die man nicht sehen darf
+
+Derselbe Rundgang wie D-566 fand die zweite Sorte: Verweise, deren Ziel die
+Sitzung **nicht öffnen darf**. Eine `leitung` sah sie alle und bekam hinter
+jedem ein 404:
+
+| Knopf | Recht der Seite |
+|---|---|
+| „Budget" (Agentenliste, Agentendetail) | `agent.budget_verwalten` |
+| „Schrittprotokoll" (Agentendetail) | `agent.protokoll_lesen` |
+| „MiLoG" (Zeitenliste) und „MiLoG-Nachweise" (Lohnexport) | `zeit.exportieren` |
+| „Neuer Entwurf" (Rechnungsliste) | `finanzen.schreiben` |
+| „Prüfdauer" (Freigabe-Posteingang) | `freigabe.pruefdauer_lesen` |
+| „Zugang und Anmeldecode" (Personenblatt) | `personal.zugang_verwalten` |
+
+**Dass die Seite dahinter richtig sperrt, macht den Knopf davor nicht
+richtig.** AUT-06 verlangt, dass nicht einmal die Existenz sichtbar wird; ein
+Knopf, der auf 404 führt, sagt genau das Gegenteil — und er sagt es jedem, der
+das Recht nicht hält, also gerade denen, vor denen die Regel schützt.
+
+**`haeltRechte` fragt alle Schlüssel einer Seite in EINER Abfrage** und immer
+mit dem aktiven Mandanten (K-03): sechs Seiten mit je eigenem
+`select app.hat_recht(...)` wären sechs Stellen, an denen jemand den Mandanten
+vergisst.
+
+**Und die eigentliche Lehre steht im Werkzeug, nicht in den sieben Zeilen.**
+Gefunden hat beides — D-566 und D-567 — eine Prüfung, die durch das Portal
+geht **wie ein Mensch**: sie steuert keine Adressliste an, sondern folgt den
+Verweisen, die auf den Seiten wirklich stehen. Jede bestehende Prüfung ruft die
+Adresse auf, die sie prüfen will; keine drückt den Knopf daneben.
+
+`tests/e2e/verweise.spec.ts` bleibt deshalb da: 150 Seiten als `leitung` —
+die Rolle, die viel hält und nicht alles, also genau die Lage, in der ein
+ungeprüfter Knopf auffällt. Eine Super-Administration hält jedes Recht und
+hätte keinen einzigen dieser Fälle gezeigt. Die Ausnahmeliste im Test ist
+leer, und sie soll es bleiben: wer dort etwas einträgt, schreibt daneben,
+warum der Verweis trotzdem gezeigt wird.
+
+### D-568 · Sechs gebaute Seiten, zu denen kein Weg führte
+
+`mein/zeiten`, `mein/urlaub`, `mein/antraege`, `mein/nachweise`,
+`mein/dienstanweisungen` und `mein/monatsnachweis` sind gebaut, in vier
+Sprachen übersetzt und geprüft — und waren von **nirgends** erreichbar. Die
+Arbeiterleiste trägt fünf Ziele (SEITENKARTE §11.2), und mehr gehört dort auch
+nicht hin: sie ist für den Einsatz gemacht, nicht für die Verwaltung. Nur gab
+es daneben keinen zweiten Weg.
+
+**Für den Menschen davor ist eine Seite ohne Weg dorthin dasselbe wie keine
+Seite.** Der Unterschied zeigt sich nur in der Abdeckungszahl.
+
+**`mein/zeiten` ist der teuerste der sechs.** Dort liegt der Einwandsweg aus
+EMP-07 — die einzige Stelle, an der eine Kraft einer Aufzeichnung
+widersprechen kann. Ein Widerspruchsrecht ohne Weg dorthin ist keines, und es
+steht in derselben Reihe wie D-559: die Korrektur war gebaut und hatte keinen
+Aufrufer, der Einwand hatte einen Bildschirm ohne Verweis.
+
+Die sechs stehen jetzt unter „Weiteres" auf `/portal/mein` — in der Sprache
+der Person, mit `min-h-11` je Zeile (DESIGN §8: diese Liste wird auf einem
+Telefon mit Handschuhen bedient). Der Browsertest öffnet jede einzelne und
+prüft, dass keine „wird noch gebaut" sagt.
+
+### D-569 · Die eine Zeile, die jeder Seite ihre Ränder nahm
+
+**Gemeldet mit einem Bildschirmfoto**, nicht von einem Test: die Kacheln klebten
+am Fensterrand. Nicht auf einer Seite — auf **jeder** Seite des Portals, in
+jeder Breite, seit D-565 die Safe-area-Regeln aus DESIGN §8 einführte.
+
+```css
+.sicher-seiten {
+  padding-left:  env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+```
+
+`<main className="ueber-tableiste sicher-seiten flex-1 p-s5">`. Beide Klassen
+erklären `padding-left`. Beide sind Utilities, also gleich spezifisch. Und
+`globals.css` wird **nach** Tailwinds erzeugten Klassen geladen — die spätere
+gewinnt. Am Schreibtisch, wo jeder Inset `0px` ist, hiess das buchstäblich
+`padding-left: 0px`. Dieselbe Zeile traf die Kopfzeile (`px-s3`), die
+Arbeiterschirme und die öffentliche Leiste.
+
+**Warum nichts rot wurde, und das ist der eigentliche Befund.** Es war keine
+Regel verletzt. `eslint` sieht kein CSS. `typecheck` sieht Klassennamen, keine
+Kaskade. Die Vertragsprüfung `tests/design/sichere-flaeche.test.ts` prüfte, ob
+die Zeilen *dastehen* — sie standen da. Und der Browserlauf prüfte **Wege**:
+welcher Verweis wohin führt, ob eine Seite 200 antwortet, ob ein Knopf
+existiert. Kein einziger Test hat je gefragt, **wie breit etwas ist**. Eine
+Suite kann vollständig grün sein und trotzdem nichts über das Bild sagen.
+
+**Die Behebung ist nicht der andere Wert, sondern die andere Eigenschaft.** Der
+Inset ist jetzt ein durchsichtiger RAHMEN: bei `box-sizing: border-box`
+(Tailwinds Vorgabe auf allem) wächst er nach innen wie eine Polsterung, der
+Hintergrund liegt weiter darunter (`background-clip: border-box` — die Fläche
+der Leiste reicht bis an die Kante, ihre Beschriftung nicht), und er **addiert**
+sich zu der Polsterung, die das Element schon trägt. Physische Langformen,
+nicht `border-inline-start`: `safe-area-inset-left` ist die physische linke
+Seite des Geräts und dreht sich nicht, die Arbeiterschirme laufen auf Arabisch
+unter `dir="rtl"` (SPEC §10).
+
+Daraus die Regel, die in DESIGN §8 steht: **eine Utility in `globals.css`
+erklärt nie eine Eigenschaft, die eine Tailwind-Utility am selben Element auch
+erklärt.** Wo sich beide träfen, nimmt die eigene Regel eine andere
+Eigenschaft.
+
+**Und die Prüfung, die gefehlt hat: `tests/e2e/abmessungen.spec.ts`.** Sie fragt
+den Browser nach dem, was am Ende wirklich gerechnet wurde —
+`getComputedStyle` und `getBoundingClientRect` — für **jede Seite der
+Seitenkarte**, in jeder der drei Gesellschaften, mit dem Konto, dem die jeweilige
+Fläche gehört: 467 Seiten bei 390px und 467 bei 1440px, dazu ein Querschnitt bei
+768 und 1024.
+
+Sie hat auf dem ersten Lauf drei weitere Befunde gebracht, die niemand gemeldet
+hatte, alle am Telefon:
+
+| Wo | Was | Ursache |
+|---|---|---|
+| `buchhaltung/jahrespaket`, `gruppe/protokoll` | 3px und 14px Überbreite | `DataTable`, Kartenstapel: ein Rasterfeld hat `min-width: auto`, die `1fr`-Spalte konnte nicht unter die Breite eines Dateinamens schrumpfen → `min-w-0 break-words` |
+| `buchhaltung/verfahrensdokumentation` | 133px Überbreite, **ohne dass ein Kasten hinausragte** | ein SHA-256 ist ein Wort aus 64 Zeichen ohne Trennstelle: der Kasten blieb in der Spalte, die Schrift lief darüber hinaus → `break-all` |
+
+Der zweite Fall hat auch die Prüfung verbessert: eine Diagnose über
+`getBoundingClientRect` findet Kästen und sieht überlaufende **Schrift** nicht.
+`abmessungen.spec.ts` meldet seither beides getrennt — Kasten und Schrift.
+
+**Zwei Oberflächen, zwei Regeln.** Die Portalspalte ist ein Kasten mit einer
+Rinne (`p-s5`), und dass sie dasteht, ist der Befund. Die öffentliche Seite ist
+das Gegenteil: Bänder, die absichtlich bis an den Rand laufen (DESIGN §7). Dort
+prüft dieselbe Datei, was der Mensch sieht — **kein Text berührt den Rand**. Ein
+Farbband darf es, eine Zeile nicht.
+
+**Zwei Fehlschläge der Prüfung selbst sind hier festgehalten**, weil beide eine
+Lehre tragen:
+
+1. Der erste Selektor las `[data-cse="tableiste"] a, … button` und meldete eine
+   Zelle mit `0px` Höhe. Es war kein Produktfehler: im geschlossenen
+   `Mehr`-Blatt stehen die Punkte des ganzen Portals, `display: none`. Die
+   **Zelle** ist `[data-cse="tab"]`.
+2. Der Lauf mass auf demselben Stand einmal 71 und einmal 24 Seiten. Die Liste
+   enthielt `/auth/abmelden` — die Prüfung meldete sich mitten im Durchgang
+   selbst ab. Danach kam dasselbe Rennen über eine ausstehende clientseitige
+   Weiterleitung der Check-in-Seiten zurück, zweimal an anderer Stelle.
+   Beendet hat es erst ein **eigener Browserkontext je Gruppe** — und das ist
+   ausserdem näher an der Wahrheit: ein Mensch meldet sich nicht in derselben
+   Sitzung nacheinander als sieben verschiedene Leute an.
+
+| Betrifft | DESIGN §8, D-565, `globals.css`, `PortalShell`, `OeffentlicheShell`, `DataTable`, `abmessungen.spec.ts` |
+|---|---|
+
+### D-570 · Recruiting — und vier Befunde, die erst der Browser fand
+
+Phase 9, REC-01…REC-09: Stellen, Bewerbungen, Kandidaten mit Rangfolge,
+Gespräche, Löschfristen, Karriereseite. Schema `0166`, 15 Portalseiten, fünf
+öffentliche Seiten, vier schreibende Routen, ein Nachtlauf.
+
+**Die Punktzahl rechnet eine reine Funktion.** `rangfolge.ts` arbeitet in
+ganzzahligen Zehnteln, rundet kaufmännisch und gibt bei Gleichstand denselben
+Rang (1, 2, 2, 4). Ein gewichtetes Mittel in Gleitkomma kann bei gleichen
+Eingaben verschiedene Ergebnisse liefern, und an dieser Zahl hängt eine
+Reihenfolge von Menschen. Die Rangliste läuft deshalb auch in TypeScript und
+nicht als `sum(…)` in einer Abfrage, die niemand einzeln testen kann.
+
+**Keine Jobbörse ist verbunden, und jede sagt warum** (O-374). Ein Versuch wird
+vermerkt und schlägt fehl; es gibt keinen Demo-Erfolg (D-02, R-17).
+
+**Die Aufbewahrungsfrist ist ein Platzhalter** (O-373), 180 Tage, als
+`plattform_einstellung` mit `ist_vorlaeufig`. Der Nachtlauf löscht die Nutzlast
+und anonymisiert die Bewerbung; eine Löschsperre hält und wird gezählt.
+
+#### Die vier Befunde
+
+**1. `app.akteur_typ` als Riegel — ein Zaun, den man durch Weglassen übersteigt.**
+Der Auslöser für REC-08 fragte `akteur_typ <> 'mensch'`. Gefunden hat das
+`unveraenderbarkeit.test.ts`, dessen Regel lautet: keine Funktion, die eine
+Policy aufruft, nennt `app.akteur_typ` — die GUC setzt der Aufrufer selbst, sie
+dient dem PROTOKOLL und nichts sonst. Ein Weg, der sie einfach nicht auf
+`agent` setzt, wäre durchgekommen, ohne den Riegel zu berühren. Geprüft wird
+jetzt, was die Datenbank wirklich weiss: `entschieden_von` muss der angemeldete
+Benutzer sein — keine Entscheidung im Namen eines anderen, kein Eintrag ohne
+Sitzung. Art. 22 DSGVO ruht damit auf dem Recht, dieser Zeile und Invariante 7,
+und auf keiner Zeichenkette in einer Sitzungsvariablen.
+
+**2. Der Nachtlauf hätte jede Nacht abgebrochen.** `cse_job` hatte kein Recht
+auf `bewerbung_bewertung`, `kandidat`, `gespraech` und
+`einstellungsentscheidung` — `permission denied`. Ausserdem war das Anonymisieren
+der Bewerbung allein keine Löschung: eine Bewertungsbegründung ist ein Satz
+ÜBER einen Menschen. Beides fand die Isolationssuite beim ersten Lauf.
+
+**3. Die Stellenliste zeigte fremde Gesellschaften.** `t_stelle_oeffentlich`
+gibt jede veröffentlichte Stelle frei, ohne Mandantenbedingung — richtig für
+die Karriereseite, und Policies sind permissiv und **ODERn sich**. Damit stand
+in `/portal/reinigung/recruiting/stellen` die veröffentlichte Stelle jeder
+Gesellschaft. Kein Geheimnis war offen (eine veröffentlichte Stelle ist
+öffentlich), die Liste war falsch — und der erste Klick darauf führte in einen
+Fremdmandanten, wo der nächste Schreibvorgang am Fremdschlüssel zerbrach. Jede
+Abfrage dieses Moduls nennt ihren Mandanten jetzt selbst. Das ist Invariante 3,
+wörtlich: *RLS ist die zweite Verteidigungslinie, nie die einzige.*
+
+**4. `insert … returning` auf dem öffentlichen Eingang.** Die Einfügung ist
+erlaubt, das Lesen der zurückgegebenen Zeile nicht — der Eingangsprinzipal hat
+mit Absicht kein `recruiting.bewerbung_lesen`. Postgres meldet das als
+`new row violates row-level security policy`: eine Meldung, die auf die
+Einfügung zeigt und das Lesen meint. **Jede Bewerbung über die Karriereseite
+endete in einem 500.** Die Kennung entsteht jetzt in der Anwendung, wie bei der
+Formularannahme (0015).
+
+Dazu ein fünfter, kleinerer: der Veröffentlichungsversuch schrieb seinen
+Vermerk und **warf** danach — die Transaktion rollte zurück, und der Versuch,
+den morgen jemand sucht, hatte nie stattgefunden, während der Kommentar
+daneben das Gegenteil behauptete. Ein Handler gibt seinen Misserfolg jetzt
+zurück, statt ihn zu werfen; die 409 bildet das Gerüst danach.
+
+**Was diese fünf verbindet:** keiner war im Quelltext zu sehen, und keiner
+hätte ein Typ- oder Lint-Werkzeug erreicht. Drei fand die Isolationssuite an
+echtem Postgres, zwei der Browserlauf beim ersten Klick auf die erste Zeile
+einer Liste.
+
+| Betrifft | REC-01…REC-09, LEG-11, LEG-12, Art. 22 DSGVO, `0166`, O-373, O-374, O-375, D-02, R-17 |
+|---|---|
+
+### D-571 · 27 Umleitungen gegen die Adresse des Servers
+
+`NextRequest.nextUrl` trägt die Adresse, unter der der SERVER die Anfrage
+angenommen hat — nicht die, die im Browser steht. D-562 hat das für die
+CSRF-Schranke behoben; dieselbe Zeile stand noch in **27 weiteren Dateien**,
+diesmal als Ziel einer Umleitung:
+
+```ts
+NextResponse.redirect(new URL(`/portal/${slug}/…`, anfrage.nextUrl.origin), 303)
+```
+
+Hinter einem Proxy, einem Tunnel oder unter einer anderen Adresse schickt das
+den Menschen nach dem Absenden eines Formulars auf einen Wirt, den er nie
+aufgerufen hat. Beendet der Proxy TLS, steht dort ausserdem `http` — der
+Rückweg aus dem Portal wäre ein Downgrade.
+
+Betroffen war jede Rechnungsroute, die Buchhaltung, die Freigaben, der Lead,
+die Kalkulation, der Auftrag, die Abrechnung, das Mahnwesen, der
+Raumbuch-Import und die Abmeldung. Alle auf `erwarteterUrsprung(anfrage)`
+umgestellt; die Ziele waren durchweg interne Pfade, die beiden mit einem
+`zurueck` aus dem Formular laufen ohnehin schon durch `sichererRueckweg`.
+
+**Eine Merge-Wache hält es fest** (`interner-ursprung`, sabotagegeprüft):
+`nextUrl.origin` und `nextUrl.host` stehen ab jetzt nur noch in
+`server/auth/ursprung.ts`. Wer sie anderswo braucht, braucht in Wahrheit
+`erwarteterUrsprung` oder `internesZiel`.
+
+| Betrifft | D-562, `server/auth/ursprung.ts`, `scripts/guards/run-all.ts`, 27 Routen |
+|---|---|
+
+### D-572 · Der Kanal, der nie wieder versucht wurde
+
+Die Copilot-Runde auf PR 16 hat eine Lücke gefunden, und sie war echt: ein
+`beitrag_kanal` mit `ergebnis = 'fehlgeschlagen'` wurde **nie wieder
+versucht**. Der Planlauf holt nur `geplant`e Beiträge, der Beitrag ist danach
+`veroeffentlicht`, und im ganzen Baum gab es keine Stelle — weder Knopf noch
+Lauf —, die ihn wiederholt. Nachgesehen, nicht vermutet.
+
+**Die vorgeschlagene Reparatur war die falsche.** Sie lautete: den echten
+Adapterfehler weiterwerfen, damit der Beitrag `geplant` bleibt und der Lauf es
+erneut versucht. Das hiesse, die eigene Gesellschaftsseite von Instagram
+abhängig zu machen — und die eigene Seite ist kein Kanal (D-560): dort STEHT
+der Beitrag, sobald `status = 'veroeffentlicht'`, weil die öffentliche Policy
+ihn dann zeigt. Einen veröffentlichten Beitrag wegen eines fremden Kanals
+zurückzuhalten wäre eine Falschaussage in die andere Richtung.
+
+**Die richtige Form ist ein eigener Schritt.** `erneut_senden` führt auf
+DENSELBEN Zustand — als einziger Schritt des Weges, und deshalb steht das in
+`social-weg.test.ts` ausdrücklich als Ausnahme von „jeder Übergang landet
+woanders". Er wiederholt genau die `fehlgeschlagen`en Kanäle, fasst
+`veroeffentlicht_am` nicht an und lässt `nicht_verbunden` in Ruhe: das ist kein
+Fehlschlag, sondern ein bekannter Zustand (O-10), und ein Knopf, der ihn jede
+Woche neu versucht, erzeugt Rauschen statt Ergebnis.
+
+**`social.planen`, nicht `social.schreiben`.** Der Schritt schickt etwas nach
+draussen, an dieselben Plattformen wie „Jetzt veröffentlichen". Wer Texte
+schreibt, entscheidet damit nicht, wann sie hinausgehen.
+
+Der Knopf erscheint nur, wenn es etwas zu wiederholen GIBT und die Sitzung das
+Recht hält — ein Knopf, der jedes Mal „kein Kanal ist fehlgeschlagen"
+antwortet, sieht aus wie eine kaputte Funktion (AUT-06).
+
+**Warum es trotzdem erst jetzt kommt.** Heute kann `fehlgeschlagen` praktisch
+nur aus einem Programmfehler entstehen: alle fünf Plattformen sind absichtlich
+unverbunden und liefern `nicht_verbunden`. Die Wirkung im Betrieb war null —
+aber eine Lücke, die man kennt und stehen lässt, ist eine Lücke, die beim
+ersten echten Adapter zuschlägt.
+
+| Betrifft | SOC-03, SOC-07, O-10, `weg.ts`, `dienst.ts: sendeErneut`, D-560 |
+|---|---|
+
+---
+
+### D-573 · Elf Befunde aus der Copilot-Runde auf PR 16 — und die vier, die wirklich weh taten
+
+**Kontext.** Die Durchsicht auf PR 16 meldete elf Stellen. Sieben davon waren
+Kleinarbeit (fehlende Bereichsprüfungen, ein falscher Statuscode, ein Kommentar,
+der eine Zahl behauptete, die niemand pflegt). Vier waren echte Löcher, und
+alle vier hatten dieselbe Form: **eine Hälfte war gebaut, die andere fehlte.**
+
+**1 · Die Fehlerseite protokollierte, was sie zu verschweigen versprach.**
+`src/app/error.tsx` trug über dem `useEffect` den Satz „auf dem Bildschirm steht
+der `digest` und sonst nichts vom Fehler" — und darunter
+`console.error('[fehlerseite]', fehler)` mit dem ganzen Objekt. In der
+Entwicklung trägt `fehler.message` den echten Serversatz: Tabellenname,
+SQL-Fragment, Zeileninhalt. Eine Browserkonsole liest jeder mit, der den
+Bildschirm aufmacht, Bildschirmfoto an den Support inklusive. Protokolliert
+wird jetzt genau das, was auch auf dem Bildschirm steht: die Kennung.
+
+**2 · Die Dankesseite sagte „danach", und „danach" ist keine Dauer.**
+Art. 13 Abs. 2 lit. a DSGVO verlangt die Dauer der Speicherung. `/karriere/danke`
+nannte sie nicht, obwohl der Kopfkommentar derselben Datei behauptete, sie
+sage „wann gelöscht wird". Die Zahl steht seit REC-07 in
+`recruiting.aufbewahrung_tage` — derselben Einstellung, nach der die Annahme
+`aufbewahrung_bis` setzt und der Nachtlauf löscht. Sie wird jetzt gelesen und
+genannt. Fehlt sie, nennt die Seite **keine** Dauer und bleibt beim allgemeinen
+Satz: eine Zahl, die eine Öffentlichkeitsseite ersatzweise erfindet, ist eine
+Zusage, die niemand getroffen hat (O-373). Und die Auskunft wirft nicht — eine
+Dankesseite, die wegen einer fehlenden Einstellung mit einem Fehlerbildschirm
+endet, lässt den Menschen glauben, seine Bewerbung sei nicht angekommen.
+
+**3 · „Überarbeiten" liess die Bitte um Freigabe im Posteingang stehen.**
+Der Schritt setzte `beitrag.freigabe_id = null` — der Beitrag war damit sicher,
+denn `freigabe_zieht_beitrag_nach` (0163) greift nur auf `status = 'vorgelegt'`.
+Die `freigabe` selbst blieb `offen`. Im Posteingang wartete also weiter eine
+Bitte um Freigabe für einen Text, den es so nicht mehr gibt; wer sie öffnet,
+liest eine alte Vorschau, entscheidet, und **diese Entscheidung geht als Glied
+in die Hashkette** (K-13). Sie wird jetzt auf `zurueckgezogen` gesetzt — mit
+`and status = 'offen'` als ganzem Riegel: aus `abgelehnt` heraus zu überarbeiten
+trifft eine ENTSCHIEDENE Freigabe, und die wird nicht umgeschrieben (APR-07).
+`zurueckgezogen` und nicht `abgelehnt`, weil den Antrag der Antragsteller
+zurücknimmt; abgelehnt hätte ihn jemand. Zwei Fälle in
+`tests/isolation/social.test.ts (5b)`.
+
+**4 · Die Planungsseite hatte ihre Fehlertafel, es kam nur nie etwas an.**
+`FEHLER[…]` stand auf `…/planung/page.tsx` von Anfang an. `fuehreSocialAus`
+beantwortete einen `SocialFehler` aber für JEDEN Aufrufer mit
+`{"fehler":"vergangenheit"}`. Wer im Portal „Auf diesen Zeitpunkt legen"
+drückte und einen Zeitpunkt in der Vergangenheit erwischte, landete auf einer
+weissen Seite mit einem Datenfeld — der Satz, den ein Mensch lesen soll, als
+JSON, das Formular weg, der Rückweg der Zurück-Knopf des Browsers. Jetzt
+dieselbe Form wie in `api/recruiting/gemeinsam.ts` und `api/zeit/korrektur`:
+ein verstecktes `zurueck` im Formular, `?fehler=<grund>` beim Rückweg,
+`internesZiel` prüft das Feld gegen den eigenen Ursprung (D-562) — es kommt
+aus dem Rumpf, also vom Aufrufer, und ein fremdes Ziel wäre eine offene
+Umleitung. Ohne `zurueck` bleibt es beim JSON: ein Aufrufer ohne Rückweg hat
+keine Seite, auf die man ihn schicken könnte. Die Beitragsseite und die
+Neuanlage haben ihre Tafel dabei bekommen; **der Schlüssel wird abgebildet,
+nie angezeigt** — wer den Satz aus der Adresszeile nähme, könnte jemandem
+einen Link schicken, auf dem im eigenen Portal ein fremder Text steht.
+
+**Das Muster hinter allen vieren.** Kein einziger dieser Fehler ist ein
+Tippfehler; jeder ist eine Naht zwischen zwei Teilen, die einzeln richtig sind.
+Die Fehlerseite verspricht oben, was sie unten bricht. Die Dankesseite
+dokumentiert eine Zahl, die sie nicht zeigt. Der Schritt löst eine Verbindung
+und lässt das andere Ende hängen. Die Seite wartet auf einen Schlüssel, den
+niemand schickt. Lint und `typecheck` sehen davon nichts — sichtbar wird es,
+wenn jemand die beiden Hälften nebeneinanderlegt, und genau das tut eine
+Durchsicht.
+
+| Betrifft | `error.tsx`, `karriere/danke`, `social/dienst.ts`, `api/social/gemeinsam.ts`, D-562, O-373, K-13, APR-07 |
+|---|---|
+
+---
+
+### D-574 · Zwei gebaute Wege, die niemand gehen konnte — und der Riegel, der fehlte
+
+**Kontext.** Die zweite Copilot-Runde auf PR 16 meldete sechzehn Stellen. Zehn
+davon sind in D-573 und im Commit davor abgearbeitet; drei blieben, und sie
+gehören zusammen: sie beschreiben **Recruiting als halb angeschlossenes Modul**.
+
+**1 · Eine Stellenanzeige konnte den Entwurf nie verlassen.**
+`stelle.status` kennt `freigegeben` seit 0166. Im ganzen Baum stand keine
+Zeile, die ihn setzt: keine Route, kein Dienst, kein Knopf.
+`/stellen/[id]/veroeffentlichung` antwortete deshalb immer „nicht freigegeben"
+(REC-09 unausführbar), und die Spalte war Zierde. Jede Datei einzeln gebaut und
+geprüft; zusammen ging nichts hinaus — dieselbe Form wie D-563, wo sechzehn
+Wächter einen Zeitplan hatten und keinen Auslöser.
+
+Gebaut ist jetzt der ganze Weg: `legeStelleVor()` legt eine Freigabe an
+(Abdruck über `jcsDigest`, RFC 8785 — `app.freigabe_entscheiden` vergleicht
+gegen `kanonisiere(vorschau)`, und `JSON.stringify` ergäbe eine andere
+Byte-Folge und damit eine Freigabe, die niemand entscheiden kann),
+`POST /api/recruiting/stellen/[id]/freigabe` ruft ihn, und auf dem
+Stellenblatt steht der Knopf. **Vorlegen ist BITTEN**: das Recht ist
+`recruiting.stelle_schreiben`; entschieden wird im Posteingang, und die Zeile
+trägt `erforderliches_recht = 'recruiting.stelle_veroeffentlichen'`.
+
+**2 · Und der Riegel darunter prüfte nur, DASS eine Kennung dasteht.**
+`stelle_freigegeben_hat_freigabe check (… freigabe_id is not null)` — eine
+`check`-Bedingung kann keine andere Tabelle lesen. Damit liess sich eine Stelle
+mit einer **offenen**, einer **abgelehnten** oder der Freigabe eines
+**Social-Beitrags** auf `veroeffentlicht` setzen: Invariante 7 mit einem
+Fremdschlüssel statt einer Entscheidung. `0167` bringt
+`app.stelle_braucht_genehmigung` (dieselbe Mechanik wie `beitrag` in 0163, mit
+der AKTION im Vergleich — 0130 §6) und `app.stelle_folgt_freigabe`, den Nachzug
+in BEIDE Richtungen: eine Ablehnung holt die Anzeige in den Entwurf zurück und
+löst die Kennung, statt sie als „liegt in Prüfung" stehen zu lassen.
+
+**Den Beweis lieferte der Seed.** Er griff sich bis dahin `select … from
+freigabe where status = 'genehmigt' limit 1` — meistens die eines
+Instagram-Beitrags — und flog beim ersten Lauf gegen 0167 auf die Nase, mit
+genau der Meldung, für die der Riegel gebaut ist. Er legt jetzt seine eigene
+Freigabe mit der richtigen Aktion an, im Mandantenkontext (`set_config`), weil
+`app.freigabe_genehmigt` ein Definer ist und `d_freigabe_lesen` (0123)
+`app.aktiver_mandant()` verlangt.
+
+**3 · REC-06 war gebaut und unerreichbar.** `planeGespraech` stand im Dienst,
+`/recruiting/gespraeche` stand da und versprach in seiner Leerseite einen Knopf
+auf dem Bewerbungsblatt — und im API-Baum rief niemand die Funktion. Ein Termin
+konnte nur aus dem Seed kommen. Jetzt gibt es
+`POST /api/recruiting/gespraeche` und das Formular auf dem Bewerbungsblatt, mit
+`kalender.schreiben` davor (dasselbe Recht, das die Gesprächsliste verlangt).
+Die Uhr ist die des Servers (Invariante 5), der Tag geht durch den Kalender
+(`2026-02-30` wird abgewiesen), und die Fragen stehen je Zeile einzeln —
+was einzeln gefragt wird, lässt sich als Fliesstext nicht abhaken.
+
+**4 · Der Löschlauf widersprach der Zusage auf dem Formular** (O-376).
+„Gelöscht nach der Frist, **sofern kein Arbeitsverhältnis zustande kommt**"
+steht seit REC-03 öffentlich da. Der Nachtlauf las nur die Frist und nahm auch
+`status = 'eingestellt'` mit — samt `einstellungsentscheidung`, also genau dem
+Nachweis, den REC-08 verlangt. Vor der Aufsicht zählt die Zusage: eingestellte
+Bewerbungen werden zurückgehalten und stehen als solche auf
+`/recruiting/datenschutz`. Eine eigene Frist dafür erfindet diese Plattform
+nicht — das ist Personalaktenpraxis und gehört dem Mandanten (O-376).
+
+**5 · Und `verweise.spec.ts` prüfte einen Menschen von fünf.**
+Der Lauf ging als `leitung` durch `reinigung` und brach nach 150 Seiten ab.
+Beides war eine Stichprobe, die sich als Zusicherung las: die Gruppenansicht,
+das Mitarbeiterportal und der Kundenzugang — drei ganze Oberflächen — sah er
+nie, und die Grenze schnitt dort ab, wo die Seiten selten werden und ein Fehler
+am längsten überlebt. Jetzt fünf Läufe, jeder bis die Schlange leer ist, mit
+eigenem Browserkontext; die Obergrenze darüber ist ein Ausreisser-Riegel, der
+die Prüfung FALLEN lässt, statt still weniger zu prüfen. Je Routenform genügen
+drei Vertreter — gesucht wird ein totes Ziel, und das hängt an der Route, nicht
+an der Zeile.
+
+| Betrifft | REC-02, REC-06, REC-07, REC-09, Invariante 7, `0167`, O-376, D-563, D-567, AUT-06 |
+|---|---|
+
+---
+
+### D-575 · Vier Fähigkeiten, die niemand erreichen konnte — und ein 500, den nie jemand gesehen hat
+
+**Kontext.** Nach den zwei Copilot-Runden war die Frage nicht mehr „ist jede
+Datei richtig", sondern **„hängen sie zusammen"**. Geprüft wurde deshalb nicht
+der Code, sondern die VERDRAHTUNG: welche API-Route ruft niemand, welche Seite
+erreicht kein Verweis, welchen Dienst benutzt keine Oberfläche. Das ist derselbe
+Blick, der D-563 (sechzehn Wächter ohne Auslöser) und D-574 (Dienst ohne Knopf)
+gefunden hat — und er fand fünf weitere.
+
+**1 · Jede Laufansicht eines Agenten antwortete mit 500.**
+`/portal/[mandant]/agenten/[agent]/aufgaben/[id]` las `a.ausloeser` — das ist
+der TYPNAME (`create type ausloeser as enum`, 0128); die SPALTE heisst
+`ausgeloest_durch`. PostgreSQL antwortete `column a.ausloeser does not exist`,
+und zwar **für jede Rolle, in jeder Gesellschaft, seit es die Seite gibt.**
+
+Bemerkenswert ist nicht der Tippfehler, sondern **warum er überlebt hat**: kein
+einziger Browserlauf hat diese Seite je geöffnet. Sie stand in der Seitenkarte,
+war bewacht, hatte Rechte, Marken und einen sorgfältigen Kopfkommentar — und
+niemand ist je auf sie geklickt. `agenten.spec.ts` öffnet sie jetzt.
+
+**2 · `verweise.spec.ts` prüfte einen Menschen von fünf, und 150 Seiten von 600.**
+Der Lauf ging als `leitung` durch `reinigung` und brach nach 150 Seiten ab.
+Beides war eine Stichprobe, die sich als Zusicherung las: Gruppenansicht,
+Mitarbeiterportal und Kundenzugang — drei ganze Oberflächen — sah er nie, und
+die Grenze schnitt dort ab, wo die Seiten selten werden und ein Fehler am
+längsten überlebt. Jetzt fünf Läufe **bis die Schlange leer ist**, jeder mit
+eigenem Browserkontext, je Routenform drei Vertreter (gesucht wird ein totes
+ZIEL, und das hängt an der Route, nicht an der Zeile). Die Obergrenze darüber
+ist ein Ausreisser-Riegel, der die Prüfung FALLEN lässt, statt still weniger zu
+prüfen.
+
+Abdeckung danach: **607 Seitenaufrufe über 5 Rollen** statt 150 über eine —
+leitung 197, admin 216, Gruppe 89, Mitarbeiterin 61, Kundin 44. Beim ersten Lauf
+fielen zehn tote Ziele heraus.
+
+**3 · Zwei Verweise ohne ihr Recht** (AUT-06, wie D-567). Die
+Recruiting-Übersicht zeigte jedem „Was wann fällig wird" → `/recruiting/datenschutz`
+(braucht `recruiting.daten_loeschen`, das eine `leitung` nicht hält); der
+Freigabe-Bildschirm zeigte „manuell erfassen" →
+`/finanzen/eingangsrechnungen/neu` (braucht `eingang.lesen`). Beide 404 für die
+Rolle, die sie am ehesten anklickt.
+
+**4 · Das „lebende Feld" des Aufmaßformulars gab es nie.**
+`POST /api/bau/aufmasse/vorschau` stand seit BAU-02 im Baum, vollständig
+gebaut und bewacht, mit einem Kommentar, der genau dieses Feld beschreibt: „der
+Polier tippt `3 × (4,20 × 2,75)` und sieht daneben `30,87 m²`". Gerufen hat die
+Route **niemand**. Das Formular versprach im eigenen Absatz „die Menge rechnet
+der Server" — sehen konnte man das erst nach dem Absenden. `Rechenvorschau.tsx`
+zeigt das Ergebnis jetzt beim Tippen, **gerechnet vom Server**: ein zweiter
+Parser im Browser wäre der, den niemand prüft.
+
+**5 · TIM-10 war gebaut und unerreichbar.**
+`POST /api/check-in/[token]/medien` — Magic-Bytes-Prüfung, EXIF-Entfernung,
+privater Bucket, Rücknahme des Objekts bei gescheiterter Zeile — und die
+Stempelfläche hatte keinen Aufnahmeknopf. `Schichtfoto.tsx` sitzt jetzt unter
+der Bestätigung, sekundär (die Fläche behält EINEN Hauptknopf, DESIGN §8) und
+mit der Zusage auf dem Bildschirm: die Route meldet `exif_entfernt: true`, und
+genau das steht da.
+
+**6 · Und der Weg aus D-574 hatte einen zweiten Klick zu viel.**
+`stelle.status` bleibt `entwurf`, bis jemand entscheidet — „Zur Freigabe
+vorlegen" stand deshalb nach dem Vorlegen weiter da, und ein zweiter Klick legte
+eine ZWEITE Freigabe an. Zwei Bitten um dieselbe Anzeige im Posteingang, und wer
+die erste entscheidet, lässt die zweite als Zombie stehen. Der Knopf weicht
+jetzt einem Verweis auf die laufende Freigabe, und `legeStelleVor` weist eine
+zweite Bitte mit 409 ab — **der Riegel im Dienst, nicht nur am Knopf.**
+
+**Was bleibt: `tests/kern/api-verdrahtung.test.ts`.** Jede API-Route wird
+irgendwo ausserhalb von `src/app/api` genannt, oder sie steht mit einem GRUND in
+einer Ausnahmeliste — und ein zweiter Test hält fest, dass jede Ausnahme eine
+Route betrifft, die es wirklich gibt. **Kommentare zählen dabei nicht als
+Aufrufer:** die erste Fassung blieb grün, nachdem die Komponente entfernt war,
+weil der Absatz daneben die Adresse trug. Genau dieser Zustand — beschrieben,
+nicht verdrahtet — ist der, den die Wache finden soll.
+
+| Betrifft | BAU-02, TIM-10, DOC-06, AGT-01, AGT-04, REC-02, AUT-06, D-563, D-567, D-574 |
+|---|---|
+
+---
+
+### D-576 · Eine offene Weiterleitung, eine offene Wand und ein doppelter Versand
+
+**Kontext.** Die dritte Copilot-Runde meldete sechzehn Stellen; neun davon waren
+mit D-573 bis D-575 schon erledigt. Vier blieben, und drei davon sind
+Sicherheitsbefunde.
+
+**1 · Die Prüfung gegen offene Weiterleitungen hob sich selbst auf.**
+`internesZiel(zurueck, standard, anfrage)` weist ein absolutes `zurueck` ab und
+nimmt dann `standard`. Zwei Aufrufer reichten `zurueck` in **beide** Argumente:
+das abgewiesene `https://boese.example` kam als Rückfall unverändert zurück.
+Nach einem gültigen POST aus dem eigenen Portal ging die Umleitung nach
+draussen — genau die Gutgläubigkeit, auf die es bei einer offenen Weiterleitung
+ankommt. Einen der beiden hatte ich selbst gebaut, indem ich den anderen
+abgeschrieben habe (D-573, Social).
+
+Beide Aufrufer bekommen jetzt ein serverseitiges `HEIMWEG = '/portal'`. **Der
+Riegel steht trotzdem in der Funktion:** `internesZiel` prüft `standard`
+genauso wie `zurueck` und fällt sonst auf `/`. Eine Schutzfunktion, deren
+Schutz davon abhängt, dass jeder Aufrufer sie richtig benutzt, schützt den
+nächsten Aufrufer nicht. Vier neue Fälle in `weiterleitung-ziel.test.ts`,
+darunter das protokollrelative `//host` — es sieht aus wie ein Pfad und ist
+absolut.
+
+**2 · Der Riegel auf `bewerbung` hielt eine Tür zu, während die Wand offen
+stand** (0168). `kern.entscheidung_ist_menschlich` verlangt für eine
+Einstellungsentscheidung einen benannten Menschen (REC-08, Art. 22 DSGVO).
+Daneben gab `t_bewerbung_schreiben` jedem `update` auf `bewerbung` frei, der
+`recruiting.bewerbung_lesen` hält — ohne Spalten- und ohne Zustandsgrenze:
+`status = 'eingestellt'` liess sich direkt schreiben, ohne Entscheidung, ohne
+Begründung und ohne Namen. Auch `aufbewahrung_bis` verschieben oder
+`loeschsperre` setzen ging.
+
+**Die Anwendung brauchte die Erlaubnis nie.** Im ganzen Baum schreiben genau
+zwei Stellen auf `bewerbung`: der Nachtlauf (als `cse_job`, eigene
+`j_*`-Policies) und der Auslöser `entscheidung_zieht_bewerbung_nach`. Der lief
+als der Aufrufer — und brauchte deshalb die breite Policy. Er ist jetzt ein
+Definer mit eigener Policy, wie `app.beitrag_folgt_freigabe` in 0163; `update`
+auf `bewerbung` ist `cse_app` entzogen. Drei Isolationsfälle: der direkte
+Statuswechsel fällt, das Verschieben der Frist fällt, die Entscheidung trägt
+weiter.
+
+**3 · „Erneut senden" hatte keinen Anspruch.** `veroeffentliche` nimmt den
+Stand mit `schreibeWennNoch`, bevor der erste Adapter gefragt wird — ein
+doppelter Klick fällt dort heraus, bevor etwas hinausgeht. `sendeErneut` las
+die `fehlgeschlagen`en Kanäle und sendete danach: zwei gleichzeitige Klicks
+riefen denselben Adapter zweimal, und **ein zweiter Beitrag auf LinkedIn nimmt
+kein `update` zurück.** Der Anspruch ist jetzt das `update … where ergebnis =
+'fehlgeschlagen' returning`: PostgreSQL entscheidet, wer die Zeile bekommt.
+
+**4 · Eine geschlossene Stelle konnte noch einmal auf eine Börse gehen.**
+Der Riegel prüfte nur `entwurf`. `geschlossen` ist der Endzustand — die
+Karriereseite zeigt sie nicht mehr, die Personalstelle hat die Suche beendet.
+Mit einem verbundenen Adapter ginge eine zurückgezogene Anzeige ein zweites Mal
+hinaus, und dort holt sie niemand zurück. Heute verdeckte `nicht_verbunden` den
+Fehler.
+
+**Und der rote CI-Lauf war derselbe Befund wie D-575.** `barrierefreiheit`
+stand auf jedem Commit rot; die Ursache im Protokoll war
+`column a.ausloeser does not exist` — der 500 der Agenten-Laufansicht. Behoben
+in D-575, bevor der CI-Lauf gelesen wurde.
+
+| Betrifft | D-562, D-573, D-575, REC-08, REC-09, SOC-07, Art. 22 DSGVO, `0168` |
+|---|---|
+
+### D-577 · Die Prüfliste, die man nur füllen und nie berichtigen konnte
+
+**Kontext.** Nach der Verdrahtungswache für API-Routen (D-575) lag die Frage
+eine Ebene tiefer nahe: dieselbe Lücke gibt es auch bei DIENSTEN. Der Baum
+wurde entsprechend gelesen — jede exportierte Funktion unter
+`server/services/` gegen jeden Aufruf ausserhalb ihrer eigenen Datei.
+
+161 Treffer, und die allermeisten sind kein Befund: eine Hilfsfunktion, die
+ihr Test einzeln prüft, ist absichtlich exportiert und kein toter Weg. Nach
+Abzug dieser Gruppe blieben sieben Funktionen ohne jeden Aufrufer UND ohne
+Test. Fünf davon halten stand:
+
+- `listeAktuellImEinsatz` / `zaehleAktuellImEinsatz` sind Abschriften —
+  `/zeiten/live` liest `zeiteintrag_offen` selbst.
+- `setzeAnspruch` (Urlaubsanspruch) hat keine Oberfläche, weil die Regel
+  dahinter offen ist (**O-18**). Eine Maske zu bauen, die eine Zahl setzt,
+  über die niemand entschieden hat, wäre genau der Fehler, den O-18 verhindert.
+- `oeffentlicheStellen` und `ladeRaeume` sind Abschriften vorhandener Leser.
+
+**Der Befund.** `entfernePosition` (`services/vergabe/mappe.ts`) stand
+vollständig da, mit eigenem Fehlerfall und einem Kommentar, der seinen Zweck
+benennt: *„eine versehentlich angelegte Prüflistenzeile ist kein
+Geschäftsvorfall, sondern ein Tippfehler."* `POST /api/vergabe/mappe` kannte
+drei Handlungen — Position anlegen, Positionsstand setzen, Mappenstand setzen.
+Das Entfernen war keine davon, und keine andere Stelle im Baum rief die
+Funktion.
+
+Die Vergabemappe war damit eine Liste, die nur wächst. Der Ausweg „gilt nicht"
+existiert und nimmt die Zeile auch aus dem Pflichtzähler
+(`app.mappe_zaehler_nachfuehren` zählt `geprueft` und `nicht_zutreffend` als
+erledigt) — er verlangt aber eine **Begründung**, und für einen Tippfehler
+gibt es keine. Wer sich vertippte, trug den Tippfehler bis zur Einreichung mit
+sich und begründete ihn unterwegs.
+
+**Behoben.** Der Schritt `position_entfernen` an derselben Adresse, mit
+demselben Recht (`vergabe.schreiben`): wer die Liste führt, führt sie in beide
+Richtungen. Der Knopf steht an der **Zeile**, nicht in einem Auswahlfeld
+darunter — die beiden Formulare unter der Tabelle dürfen auswählen, weil ein
+falsch gesetzter Stand sich wieder setzen lässt; ein falsch gelöschter
+Eintrag nicht. Der Name der Zeile steht im `aria-label`, weil „Entfernen" in
+jeder Zeile gleich heisst (DESIGN §9).
+
+**Und eine Grenze, die vorher niemand brauchte.** `entfernePosition` prüfte den
+Stand der Mappe nicht — solange niemand die Funktion rief, fiel das nicht auf.
+Mit einem Knopf davor fällt es auf: eine **eingereichte** Mappe IST die Aussage
+darüber, was hinausgegangen ist, und eine Zeile daraus zu löschen hiesse, das
+Angebot nachträglich anders aussehen zu lassen, als es war. Vorher ist die
+Liste ein Arbeitsblatt, nachher ein Beleg.
+
+Die Bedingung steht **im `delete`**, nicht davor: ein `select` auf den Stand
+und ein `delete` danach sind zwei Aussagen mit einem Fenster dazwischen, in das
+die Einreichung genau hineinpasst — dann wäre die Zeile weg und die Mappe
+eingereicht. Null Zeilen heisst jetzt „gibt es nicht ODER ist zu", und beides
+führt zu demselben Satz (AUT-06).
+
+Drei Isolationsfälle: die Zeile verschwindet und der Zähler folgt, die
+eingereichte Mappe weist ab, die fremde Gesellschaft entfernt nichts.
+Gegengeprüft mit einer Sabotage — ohne `and m.status <> 'eingereicht'` wird
+der zweite Fall rot, der Riegel trägt den Test also wirklich.
+
+| Betrifft | D-563, D-574, D-575, O-18, RAD-07, D-07, `0147`, `services/vergabe/mappe.ts` |
+|---|---|
+
+### D-578 · Vier Befunde der vierten Copilot-Runde — ein Tor am falschen Ort, eine Zustimmung ohne Adressat, ein 500 und eine Zusage ohne Deckung
+
+**Kontext.** Die vierte Runde auf PR 16 meldete drei Stellen und legte neun
+weitere als „suppressed" bei. Drei der drei betrafen Code, der in **derselben
+Runde** entstanden war, in der die vorigen Befunde behoben wurden — ein
+nützlicher Hinweis darauf, dass eine Reparatur ihre eigene Prüfung braucht.
+
+---
+
+**1 · Ein Tor am Bildschirm ist kein Tor** (`api/recruiting/gespraeche`).
+
+Die Route bewachte `recruiting.bewerbung_lesen` und verliess sich für
+`kalender.schreiben` auf einen Kommentar, den ich selbst geschrieben hatte:
+das zweite Recht bewache die SEITE, geprüft von `mandantTor`, bevor jemand das
+Formular sieht.
+
+Das ist falsch herum gedacht. **Eine Anfrage an die Adresse geht nicht durch
+die Seite.** `mandantTor` läuft dabei nie; wer gleichen Ursprungs POSTet — ein
+zweiter Tab genügt — legt den Termin an, ohne den Kalender beschreiben zu
+dürfen. `t_gespraech_schreiben` (0166) prüft dasselbe eine Ebene tiefer nicht
+nach, weil auch sie nur `recruiting.bewerbung_lesen` kennt.
+
+Sichtbarkeit und Erlaubnis sind zwei Fragen. Die Seite beantwortet die erste
+(AUT-06: kein Knopf, den man nicht drücken darf), die Route die zweite — und
+die zweite ist die, an der es hängt. `Lauf` trägt jetzt `weitereRechte`, und
+`authorize` läuft je Recht.
+
+**2 · Eine Zustimmung gilt einem TEXT, nicht einer Gattung** (`0167`).
+
+Der Riegel aus der vorigen Runde prüfte Ausgang, Mandant und Aktion — und
+damit hätte eine echte, genehmigte `stelle_veroeffentlichen`-Freigabe der
+EINEN Anzeige die ANDERE geöffnet: `stelle.freigabe_id` ist eine beschreibbare
+Spalte, und wer zwei Anzeigen führt, hängt die Kennung um. Wer eine Hilfskraft
+genehmigt bekommen hat, hätte darunter eine Leitungsstelle veröffentlicht.
+
+Derselbe Befund wie der erste, eine Ebene tiefer — und genau dafür schreibt
+`legeStelleVor` den Nutzlast-Hash mit. Der Auslöser fragt jetzt zusätzlich nach
+`bezug_typ = 'stelle'` und `bezug_id = new.id`. Dazu gehört
+`grant select (bezug_typ, bezug_id) on freigabe to cse_definer`: ohne die
+Spaltenrechte scheiterte er an der Berechtigung, und zwar bei JEDER Freigabe —
+die Prüfung wäre nicht milder geworden, sie wäre gar nicht gelaufen.
+
+**Der Seed war der erste, der daran scheiterte**, und zwar zu Recht: er legte
+die Freigabe VOR der Schleife an, also vor jeder Stelle, und konnte deshalb
+kein `bezug_id` tragen. Er geht jetzt die echte Reihenfolge — Entwurf,
+Freigabe dazu, dann heben. Niemand genehmigt eine Anzeige, die es noch nicht
+gibt.
+
+**3 · Eine UUID-Prüfung beweist die Form, nicht die Sache** (`planeGespraech`).
+
+Eine gültig geformte, unbekannte Kennung lief in den zusammengesetzten
+Fremdschlüssel und kam als **500** heraus. Eine **gelöschte** Bewerbung
+(`geloescht_am`, REC-07) erfüllt den Fremdschlüssel weiterhin und hätte einen
+Termin bekommen, den keine Liste je zeigt — eine Einladung an jemanden, dessen
+Daten das Haus gerade anonymisiert hat. Gelesen wird jetzt vorher, unter dem
+aktiven Mandanten; eine fremde Bewerbung ist damit „gibt es nicht" und nicht
+„verboten" (AUT-06).
+
+**4 · Eine Zusage ohne Deckung** (Kalender).
+
+Das Bewerbungsblatt meldete nach dem Anlegen: „Er erscheint in der
+Gesprächsliste und im Kalender dieser Gesellschaft." Der erste Halbsatz
+stimmte. Der zweite nicht: der Kalender liest `kalender_eintrag`, `einsatz`,
+`projekt`, `ausschreibung_vorgang`, `freigabe` und `lead` — `gespraech` stand
+nicht darunter.
+
+Zwei Wege standen offen: den Satz streichen, oder ihn wahr machen. Es ist der
+zweite geworden, weil CAL-01 einen ZENTRALEN Kalender verlangt und ein
+Vorstellungstermin genau das ist, was jemand dort sucht. Eine Kopie in
+`kalender_eintrag` wäre die schlechtere Hälfte gewesen: zwei Zeilen für einen
+Termin laufen beim ersten Verschieben auseinander. Gelesen wird, wo die Sache
+steht — wie bei `einsatz` und `projekt` auch.
+
+Die Wand ist dabei die Policy und nicht die Datei: `t_gespraech_lesen` (0166)
+verlangt `recruiting.bewerbung_lesen`. Ein Kalender, der „Gespräch mit Frau X"
+zeigt, verriete sonst eine Bewerbung an jeden, der Termine sehen darf. Kein
+siebter Farbton: die Pille trägt den Ton von `termin`, weil ein Gespräch etwas
+ist, das jemand GEPLANT hat — DESIGN §5 nennt genau diese drei Fragen.
+
+---
+
+**Gegengeprüft.** Beide Riegel mit einer Sabotage: ohne `f.bezug_id = new.id`
+wird der Fall „Freigabe einer anderen Stelle" rot, ohne
+`and m.status <> 'eingereicht'` (D-577) der Fall der eingereichten Mappe. Ein
+Test, der ohne die Sache durchgeht, die er prüft, ist schlechter als keiner.
+
+| Betrifft | D-573, D-574, D-575, D-577, CAL-01, REC-06, REC-07, Invariante 7, AUT-06, `0166`, `0167` |
+|---|---|
+
+### D-579 · Der Bildschirm, der beim Ausgeben einer Zugangsmarke umfiel
+
+**Kontext.** Die vierte Copilot-Runde legte diesen Befund als „suppressed"
+bei — also unter denen, die sie selbst nicht für wichtig genug hielt, ihn zu
+posten. Er war der schwerste der ganzen Runde.
+
+**Der Befund.** `/portal/[mandant]/zeiten/checkin-links` las den Übergabe-Keks
+und löschte ihn im selben Zug: `keks.delete(MARKE_KEKS)`, mitten im Rendern
+einer **Server-Komponente**. Next 15 lässt Keksänderungen nur in einer
+Server-Action oder einem Routenhandler zu und wirft sonst.
+
+Die Folge im Betrieb: die Einsatzleitung drückt „Link ausgeben", die Route legt
+die Marke an und schickt sie im Keks zurück — und die Seite, die sie anzeigen
+soll, **fällt um**. Statt des Links steht die Fehlerhülle da. Und die Marke ist
+weg: `app.checkin_ausgeben` gibt sie genau einmal im Klartext zurück,
+gespeichert wird nur ihr SHA-256. Wer sie nicht ausliefert, hat sie verloren.
+Der einzige Ausweg wäre, eine zweite auszugeben — und dieselbe Wand steht
+wieder davor.
+
+**Warum es niemand gesehen hat.** Der Keks steht nur da, wenn unmittelbar davor
+jemand den Knopf gedrückt hat. Der Verweis-Durchlauf besucht die Seite sehr
+wohl — aber ohne Keks, und dann läuft die Zeile gar nicht. Kein Test hat je auf
+den Knopf gedrückt. Das ist dieselbe Form wie D-563, D-574 und D-575: jede
+Datei für sich grün, der Weg dazwischen nie gegangen.
+
+**Nachgemessen, nicht geglaubt.** Zuerst wurde der Weg als Browserlauf
+geschrieben (`checkin-marke.spec.ts`) — und er fiel, mit der Fehlerhülle im
+Bild. Erst danach die Reparatur.
+
+**Und der erste Versuch war falsch.** Der naheliegende Weg — die Middleware
+löscht den Keks — machte die Seite zwar wieder heil, zeigte den Link aber
+nicht mehr: **Next führt die Keksschublade der Antwort auch nach unten durch**,
+und `cookies()` in der Seite gab nichts zurück. Der zweite Lauf hat das gezeigt,
+nicht eine Überlegung.
+
+**Die Lösung** ist die Bauart, die in `middleware.ts` ohnehin schon zweimal
+steht (`KOPF_SPRACHE`, `KOPF_PFAD`): die Middleware liest den Keks EINMAL,
+reicht den Wert als **Kopf auf der Anfrage** an die Seite und räumt den Keks
+auf derselben Antwort ab. Die Seite bekommt ihn, das nächste Laden nicht — das
+Versprechen des Kekses, ohne die verbotene Änderung. Ein Kopf auf der Anfrage
+verlässt den Server nicht: er steht in keiner Auslieferung, keinem `Referer`
+und keinem Protokoll eines Vermittlers.
+
+`MARKE_KEKS` und seine Lebensdauer stehen jetzt in `lib/checkin-marke.ts`, einem
+Blatt **ohne einen einzigen Import**: die Middleware läuft in der Edge-Laufzeit
+und zöge über `keksSicher` → `server/auth/sitzung` sonst den halben Serverbaum
+mit.
+
+**Nur auf diesem einen Pfad.** Der Keks gilt für `/portal`; räumte ihn jede
+Portalseite ab, nähme ihn eine beliebige andere Anfrage weg, bevor der
+Bildschirm ihn zeigt, der ihn braucht.
+
+Zwei Browserfälle halten es fest: nach dem Ausgeben steht der Link da und die
+Fehlerhülle nicht, und beim zweiten Laden ist er weg.
+
+| Betrifft | TIM-09, D-541, D-563, D-575, D-578, `middleware.ts`, `lib/kopf.ts` |
+|---|---|
+
+### D-580 · Fünf rote CI-Läufe für einen Kommentar, der still falsch geworden war
+
+**Kontext.** `barrierefreiheit` fiel auf fünf Commits hintereinander
+(`a7e6764` … `0ccf5ab`), während jede andere Prüfung grün war. Das Log der
+Aktion zeigte nur das Abräumen des Containers; erst 900 Zeilen tiefer stand
+der eine Fall: `crm.spec.ts:124 › ein Modul ohne Recht steht NICHT im Blatt`,
+`Expected 0, Received 1`, dreimal.
+
+**Die Ursache war a7e6764 — und a7e6764 war richtig.** Der Menüpunkt
+„Einstellungen" wanderte von `system.einstellung_lesen` (hält nur die
+Super-Administration) auf `system.mandant_lesen`, das Recht, mit dem die Seite
+dahinter tatsächlich öffnet. Damit sah die Leitung den Bereich zum ersten
+Mal — und der Fall, der als `leitung.bau` nachsah, ob `einstellungen` im
+„Mehr"-Blatt FEHLT, bekam eine 1.
+
+Der Fall stand auf einem Satz im Kommentar: *„`leitung` hält
+`system.einstellung_lesen` nicht."* Der Satz war wahr und ist es noch; nur
+prüft der Menüpunkt dieses Recht seit a7e6764 nicht mehr. Eine Annahme, die
+niemand mehr fragt, wird still falsch — und ein `toHaveCount(0)` auf einem
+Punkt, der zu Recht da ist, sieht aus wie ein kaputtes Blatt.
+
+**Warum der örtliche Lauf grün war.** Der Browserlauf `e2e-k14` war GESTARTET,
+bevor a7e6764 gebaut war; Playwright fährt `next start` auf dem `.next`, das
+da liegt. 522 grün gegen einen Stand, der die Änderung nicht enthielt. Ein
+grüner Lauf beweist nur etwas über den Bau, den er gesehen hat.
+
+**Behoben, in drei Teilen:**
+
+1. **Die Voraussetzung wird gefragt, nicht behauptet.** `rolleHaelt()` liest
+   die lebende Rechtetabelle (`benutzer → benutzer_mandant →
+   rolle_berechtigung → berechtigung`), und der Fall sichert VORHER zu:
+   `leitung` hält `buchhaltung.lesen` nicht, `system.mandant_lesen` schon.
+   Kippt die Matrix, fällt er mit „Voraussetzung gefallen" und nicht mit einer
+   Zahl, die man erst deuten muss.
+2. **Der fehlende Punkt ist jetzt `buchungen`** (`buchhaltung.lesen`,
+   `registry/navigation.ts:92`). Nach 0008 hält `leitung` es nicht — die
+   Buchhaltung ist ein anderes Amt als die Leitung eines Gewerks. Nachgesehen
+   in der Datenbank, nicht im Kommentar: `buchhaltung.lesen | f`,
+   `system.mandant_lesen | t`.
+3. **Und die andere Hälfte von AUT-06 steht daneben.** Der Fall sichert jetzt
+   auch zu, dass `einstellungen` DA ist und sich öffnen lässt (`h1 =
+   Einstellungen`). Ein Blatt, das einen erlaubten Punkt verschweigt, ist
+   derselbe Fehler von der anderen Seite — und genau dieser Fall hatte ihn
+   fünf Läufe lang als richtig festgehalten.
+
+Die Sichtbarkeit im Blatt hängt allein am Recht: `modulAktiv` lässt
+`buchhaltung` und `system` durch (kein Gewerk gebunden, `GEWERK_FUER_MODUL`
+kennt sie nicht → offen). Der positive Klick auf Einstellungen beweist es am
+Bildschirm.
+
+| Betrifft | a7e6764, D-573, D-574, AUT-06, SEITENKARTE §11.2, `0008`, `crm.spec.ts` |
+|---|---|
+
+### D-581 · 102 Verweise, die auf 404 führten — und die Prüfung, die es hätte sein müssen
+
+**Kontext.** D-567 fand sechs Knöpfe, hinter denen eine `leitung` ein 404
+bekam, und brachte `haeltRechte`. Die Copilot-Runden auf PR 16 fanden
+sechs weitere in Social und Recruiting („Neuer Beitrag", „Neue Stelle",
+zweimal „Zur Freigabe", …). Zweimal dieselbe Klasse, zweimal durch Hinsehen
+gefunden — also wurde diesmal gemessen statt gesucht: jeder
+`href={`/portal/${mandant}/…`}` in jeder `page.tsx` des Mandantenportals,
+das Ziel im Routenmanifest nachgeschlagen, seine Leserechte
+(`leserechte()`) gegen die Leserechte der Seite gehalten. **Ergebnis: 102
+Stellen in 73 Dateien**, in denen ein Ziel ein Recht verlangt, das die Seite
+weder verlangt noch prüft. Mit den zwölf davor: 114.
+
+Die Verteilung sagt, wo die Grenzen zwischen Ämtern liegen: `personal` (22),
+`buchhaltung` (15), `freigaben` (8), `security` (7). Die meistgefehlten Rechte
+waren `buchhaltung.lesen`, `finanzen.lesen` und `personal.nachweis_lesen` —
+Querverweise aus einem Amt ins andere („Zur Buchung", „Rechnung öffnen",
+„Nachweise der Person"), die für die Administration selbstverständlich sind
+und für eine Objektleitung ein 404 mit Beschriftung.
+
+**Warum das kein kosmetischer Befund ist.** Ein Verweis, der auf 404 führt,
+verrät die Existenz dessen, was er nicht zeigen darf (AUT-06). Die Seite
+dahinter sperrt richtig — der Knopf davor ist trotzdem falsch, und ein
+ausgegrauter Knopf wäre es genauso: er verrät dasselbe, nur höflicher.
+
+**Behoben, gleichförmig:** Jede Seite fragt `haeltRechte(sitzung, …)` einmal
+für alle Rechte, die ihre Verweise brauchen; der Verweis steht nur, wenn das
+Recht da ist. Wo der Verweis der Titel einer Zeile war („Rechnung R-2026-…",
+„Max Mustermann"), bleibt der Titel als Text stehen und verliert nur den
+Link — die Zeile trägt ihre Information weiterhin, sie führt nur nirgends
+hin, wo man nicht hindarf. Nichts wird ausgegraut, nichts deaktiviert.
+
+**Und die Prüfung, die es hätte sein müssen:** `tests/kern/verweis-rechte.test.ts`.
+Sie macht dieselbe Messung dauerhaft — für alle drei Portale (`[mandant]`,
+`gruppe`, `mein`): jedes Leserecht eines Verweisziels ist Leserecht der Seite
+oder steht im Quelltext als Wächter (`darf['recht']`, `hat_recht('recht'`,
+`haeltRechte(… 'recht'`). Kommentare werden vorher entfernt — ein Absatz, der
+das Recht erklärt, ist kein Wächter. Sie prüft, ob der Wächter da IST, nicht
+ob er RICHTIG steht; das bleibt Sache der Browserläufe.
+
+Drei Dinge hat die Messung selbst erst lernen müssen, jedes ein Befund, der
+keiner war:
+
+1. **`[mandant]` ist ein Wort, kein Platzhalter.** Liess man es alles
+   schlucken, wurde `/portal/mein/zeiten/[x]` an
+   `/portal/[mandant]/zeiten/[id]` (`zeit.lesen`) gemessen statt an der
+   eigenen Zeile (`selbst`).
+2. **Erst die genaue Zeile, dann die Form.** `/freigaben/[id]` steht im
+   Manifest vor `/freigaben/erledigt`, `[id]` schluckt `erledigt` — und die
+   Seite `erledigt` wurde an `freigabe.entscheiden` gemessen statt an
+   `freigabe.lesen`. Dasselbe bei `stellen/neu` neben `stellen/[id]`.
+3. **Unter den Formen gewinnt die wörtlichste.** `/objekte/[x]/raumbuch/import`
+   passt auf `…/raumbuch/import` UND auf `…/raumbuch/[raumId]`; die erste
+   Zeile zu nehmen hiess, den Import an der Raumansicht zu messen.
+
+Nach diesen drei Korrekturen fielen die Befunde in `buendel`, `milog`,
+`raumbuch/import` und den Rückwegen der Freigaben weg — zu Recht, denn dort
+stand jeweils bereits das richtige Recht. Gruppen- und Mitarbeiterportal
+waren sauber, ohne eine einzige Änderung: die Gruppensicht liest mit eigenen
+Rechten, das Mitarbeiterportal mit `selbst`.
+
+**Eine Ausnahme, mit Grund.** `zeiten/[id]` verweist auf `…/korrektur` ohne
+`zeit.korrigieren` im Quelltext; der Wächter ist `darfKorrigieren()` in
+`zeiten/daten.ts`, der das Recht per `app.hat_recht` prüft UND den eigenen
+Eintrag ausschliesst (EMP-07) — strenger als der Rechtevergleich, für die
+Messung aber unsichtbar. Die Ausnahmeliste ist leer der Sollzustand; jeder
+Eintrag steht mit Satz, und ein Fall sichert zu, dass die Seite dazu
+existiert.
+
+| Betrifft | AUT-06, D-567, D-573, D-578, EMP-07, `app/portal/rechte.ts`, `registry/routen.ts`, `tests/kern/verweis-rechte.test.ts`, 86 Seiten unter `app/portal/[mandant]` |
+|---|---|
+
+### D-582 · Drizzle stand im Stack und nirgends im Code
+
+**Kontext.** Die Stack-Tabelle in `CLAUDE.md` führte seit Phase 0 „ORM:
+Drizzle — migrations in repo, not dashboard-only". `ABGLEICH-AUFTRAG.md`
+hielt schon fest: „Kein Drizzle-Modell." Nachgemessen vor dieser
+Entscheidung:
+
+- `drizzle-orm` wird in keiner Datei importiert — nicht in `src/`, nicht in
+  `tests/`, nicht in `scripts/`. Die Abhängigkeit war tot.
+- `src/server/db/schema/` enthält genau eine Datei, `rls.ts` — das Register
+  der Löschsperren (K-16), kein Drizzle-Schema; es gibt kein einziges
+  `pgTable` im Projekt.
+- `pnpm db:generate` rief `drizzle-kit generate` über dieses Verzeichnis.
+  Ein Generator über einem Schema ohne Tabelle kann nur eine leere Migration
+  erzeugen — der Befehl stand in `CLAUDE.md` an erster Stelle und hätte nie
+  etwas Brauchbares getan.
+- Die 151 Migrationen in `drizzle/` sind handgeschriebenes SQL.
+  `src/server/db/migrate.ts` wendet sie in Dateireihenfolge an, unter der
+  Migratorrolle, mit Vorprüfung der Servervoraussetzungen und einem Buch der
+  angewandten Dateien (`__drizzle_migrations`, 0142).
+
+**Was die Vorgabe wirklich verlangte, ist erfüllt.** Der Satz hinter dem
+Namen — Migrationen im Repository, nie nur im Dashboard — gilt: jede
+Schemaänderung ist eine Datei im PR, wird gelesen, kann zurückgenommen
+werden. Nur die Schicht, die den Namen trägt, hat nie existiert.
+
+**Warum Drizzle jetzt nicht nachgezogen wird.** Die Datenschicht dieses
+Projekts IST SQL: RLS-Policies, `SECURITY DEFINER`-Funktionen unter
+`app.*`, `withTenant`, Trigger, Prüfsummenketten, Fensterfunktionen in den
+Berichten. Ein Abfrage-Erzeuger darüber wäre ein zweiter Dialekt für
+dieselben Sätze und keine zusätzliche Wand — die Wand steht in der
+Datenbank, und genau darum hält sie auch gegen einen Weg, den niemand
+vorhergesehen hat (K-03, Invariante 3). Ein Umbau von über hundert Diensten
+auf einen Erzeuger hätte keinen Test grüner gemacht und jede
+Fensterfunktion, jedes `for update`, jedes `lateral` durch eine Übersetzung
+geschickt, die man erst wieder lesen lernen müsste.
+
+**Entschieden:**
+
+1. `drizzle-orm` und `drizzle-kit` werden entfernt, mit ihnen
+   `drizzle.config.ts` und der Befehl `db:generate`. Eine Abhängigkeit, die
+   nichts tut, ist Angriffsfläche und Wartungslast ohne Gegenwert (die
+   Prüfkette aus Phase 10 sieht sie sonst bei jedem `pnpm audit`).
+2. **Der Ordner `drizzle/` und seine Nummerierung bleiben.** 151 Dateien,
+   `migrate.ts`, `test-db.sh`, die CI und die Verfahrensdokumentation (ACC-10)
+   nennen den Pfad; ihn umzubenennen wäre eine Änderung ohne Inhalt. Dasselbe
+   gilt für das Buch `__drizzle_migrations` — ein Name ist ein Name, die
+   Tabelle steht in 0142 und im Z3-Test, und das Umbenennen wäre eine weitere
+   Migration über nichts. Die Regel dahinter bleibt, wie sie in
+   `ABGLEICH-AUFTRAG.md` steht: der Migrator nummeriert nicht, er sortiert —
+   zwei Dateien mit derselben Nummer sind keine Fehlermeldung, sondern eine
+   unbestimmte Reihenfolge, und `tests/kern` wacht darüber.
+3. Die Stack-Tabelle in `CLAUDE.md` nennt die Schicht beim Namen, den sie
+   hat: `postgres.js` + SQL-Migrationen in `drizzle/`, angewandt durch
+   `pnpm db:migrate`. Die Bedingung dahinter ist unverändert.
+
+Eine Tabelle, die eine Schicht verspricht, die es nicht gibt, ist dieselbe
+Klasse Fehler wie der Kommentar in D-580: eine Annahme, die niemand mehr
+fragt. Der EU-Standort der Datenbank und die Auftragsverarbeitung sind von
+dieser Entscheidung nicht berührt — sie hängen an Supabase, nicht an der
+Bibliothek davor.
+
+| Betrifft | CLAUDE.md (Stack, Befehle), `package.json`, `drizzle.config.ts`, `src/server/db/migrate.ts`, `tests/kern/migrationsnummern.test.ts`, ABGLEICH-AUFTRAG.md §Drizzle, K-03, K-16, ACC-10 |
+|---|---|
+
+### D-583 · Sechs Befunde der fünften Copilot-Runde — und die Lücke in der Vermessung selbst
+
+**Kontext.** D-581 hatte alle Portalverweise gegen das Manifest gemessen und
+102 Stellen geschlossen. Die Copilot-Runde auf `cc1c3ae` fand danach sechs
+weitere Befunde — und der wichtigste davon ist, **warum** die Vermessung sie
+nicht gefunden hatte.
+
+**1. Der Wächter sah nur, was `href` heisst.** Die Übersicht `/recruiting`
+öffnet mit `recruiting.bewerbung_lesen`; zwei ihrer Kacheln führen auf
+`/recruiting/stellen`, und das verlangt `recruiting.stelle_lesen`. Wer
+Bewerbungen liest, aber keine Anzeigen, sah zwei Zahlen und bekam hinter
+beiden ein 404 — mitten in einem Modul, das D-581 schon durchgegangen war.
+
+Der Grund: eine Kachel gibt ihr Ziel als EIGENSCHAFT weiter
+(`ziel: `/portal/${mandant}/…``), und `KachelRaster` macht daraus ein `<a>`.
+Das Suchmuster verlangte `href={`…`}`. **Eine Prüfung, die nur eine
+Schreibweise kennt, prüft eine Schreibweise und keine Regel.** Sie misst
+jetzt jede Vorlage, unter welchem Namen auch immer sie steht — `ziel:`,
+`zurueck`, `wurzel`, alles. Die Kacheln stehen nur noch mit dem Recht.
+
+**2. Die Portalwurzel — 162-mal derselbe Verweis.** Der breitere Matcher
+zeigte sofort, was vorher unsichtbar war: jede Portalseite reicht
+`wurzel={`/portal/${mandant}`}` an den Rahmen, und der macht daraus die
+Wortmarke und die Spur. Die Übersicht dahinter trägt
+`bericht.dashboard_lesen`.
+
+**Die Bedingung gehört in den Rahmen, nicht in 162 Seiten.** Eine Regel, die
+man 162-mal schreiben muss, schreibt irgendwann jemand nicht.
+`PortalRahmen` fragt deshalb die Tab-Leiste — den Tab mit dem leeren Pfad —,
+die `portalZugang` in derselben gebundenen Transaktion bewertet hat wie den
+Zugang zur Seite. Fehlt das Recht, bleibt der Firmenname ein NAME: kein
+ausgegrauter Knopf, denn ein gesperrter Verweis verrät dasselbe wie ein
+offener, nur höflicher. Ein eigener `haeltRechte`-Aufruf im Rahmen wäre eine
+zweite Abfrage auf jeder Seite und eine zweite Wahrheit über dasselbe Recht.
+Das Mitarbeiterportal führt seine Wurzel ohne Recht (`selbst`) — dort bleibt
+der Verweis, richtigerweise.
+
+**3. Vier Knöpfe, die erst nach dem Drücken Nein sagten.** Dieselbe Klasse,
+eine Ebene tiefer: nicht ein Verweis auf eine Seite, sondern ein Formular auf
+eine Route.
+
+- `social/posts/[id]` zeigte alle Schritte des Zustands. Die Route teilt sie
+  aber in zwei Rechte: `vorlegen`/`ueberarbeiten` gehören zu
+  `social.schreiben`, alles, was nach DRAUSSEN geht, zu `social.planen`. Die
+  Seite öffnet mit `social.lesen` allein.
+- Ebenso die Bearbeitung: `darfBearbeiten(status)` fragte den Zustand und
+  nicht das Recht — ein Leser bekam auf einem Entwurf offene Felder und einen
+  „Speichern"-Knopf, den `PATCH` abweist.
+- `recruiting/stellen/[id]` zeigte „Zur Freigabe vorlegen" jedem Leser.
+- `security/wachbuch/neu` schickte nach dem Speichern auf das Buch zurück —
+  und `wachbuch.schreiben` und `wachbuch.lesen` sind zwei Rechte, die `0008`
+  getrennt vergibt. Wer schreiben darf und nicht lesen, bekam als
+  Bestätigung seiner Arbeit eine Fehlerseite. Der Weg führt jetzt auf das
+  Formular zurück, mit einer Bestätigung: die Seite darf er per Definition
+  öffnen, er steht darauf.
+
+**4. Der Sprachumschalter bot eine Seite an, die es nicht gibt.** D-82: die
+öffentliche Website ist deutsch UND englisch, gleiche Pfade. `/karriere` kam
+in Phase 9 dazu und ist bisher nur deutsch; `/en/[seite]` lässt nur
+`OEFFENTLICHE_ROUTEN` durch. Der Umschalter rechnete sein Ziel allein aus der
+Adresse und bot `/en/karriere` an — ein 404, und zwar für JEDEN Besucher,
+nicht nur für eine Rolle. `gibtEsIn()` entscheidet das jetzt, `NUR_DEUTSCH`
+nennt die Ausnahme, und `hreflang` behauptet die Sprache ebenfalls nicht mehr
+(ein `hreflang` auf ein 404 ist schlimmer als keins — Google folgt ihm).
+
+**5. Die Frist, die Daten vernichtet, lief nach der falschen Uhr.**
+`nimmBewerbungAn` stellte `aufbewahrung_bis` mit `current_date` — dem
+Kalendertag der DATENBANKSITZUNG, und die läuft in UTC. Gelöscht wird gegen
+`app.berlin_heute()`. Zwischen 00:00 und 02:00 Berliner Zeit sind das zwei
+verschiedene Tage: eine Bewerbung, die nachts eingeht, bekam eine Frist, die
+einen Tag ZU FRÜH abläuft — und wurde einen Tag zu früh gelöscht.
+
+Das ist Invariante 2 (K-11) an der Stelle, an der sie am meisten wiegt: eine
+Frist, die Daten VERNICHTET (REC-07, LEG-11, DSGVO Art. 17) und die dem
+Bewerber auf dem Formular zugesagt wird. Ein Tag zu kurz ist kein
+Rundungsfehler, sondern eine gebrochene Zusage in der Richtung, in der nichts
+wiederherstellbar ist. Der Isolationsfall stellt die Sitzung ausdrücklich auf
+UTC — genau die Lage im Betrieb — und verlangt, dass die Frist trotzdem vom
+Berliner Tag aus zählt.
+
+**Vier Prüfungen, damit keine davon wiederkommt:**
+
+| Prüfung | Was sie festhält |
+|---|---|
+| `verweis-rechte.test.ts` (erweitert) | jede Vorlage, nicht nur `href` |
+| `rahmen-wurzel.test.ts` | jeder `href={wurzel}` hängt an `wurzelOffen`, und keine Leiste hat zwei Wurzelrechte |
+| `social-schritt-rechte.test.ts` | die Sichtbarkeitstabelle der Seite und die Rechtetabelle der Route nennen dasselbe Recht |
+| `sprachpfade.test.ts` | jeder deutsche Seitenbaum ist englisch gebaut oder steht in `NUR_DEUTSCH` |
+| `recruiting.test.ts` (Isolation) | die Aufbewahrungsfrist zählt vom Berliner Tag, auch in einer UTC-Sitzung |
+
+Jede ist gegen ihren eigenen Befund sabotiert worden und wurde rot.
+
+| Betrifft | AUT-06, D-581, D-82, Invariante 2, K-11, REC-07, LEG-11, `PortalRahmen.tsx`, `lib/sprache.ts`, `services/recruiting/dienst.ts` |
+|---|---|
+
+### D-584 · Vier Nachträge der sechsten Runde — zwei Zusagen, die der Code nicht hielt
+
+**1. `berlinZeit` nannte die Zone nicht — obwohl der Absatz darüber es
+versprach.** Wörtlich stand dort: „Berliner Ortszeit, ausgeschrieben — und
+die Zone steht dabei. Ein Gesprächstermin ohne Zonenangabe ist im Oktober
+zweideutig." Der Code gab `timeStyle: 'short'` aus, also die Wanduhr ohne
+Zone. In der Nacht der Rückstellung standen damit zwei Gesprächstermine — der
+eine 02:30 MESZ, der andere eine Stunde später 02:30 MEZ — mit demselben Text
+in der Liste. Wer zum falschen erscheint, hat kein Anzeigeproblem, sondern
+ein verpasstes Vorstellungsgespräch.
+
+Dieselbe Klasse wie D-580: eine Zusage im Kommentar, die keine Prüfung hält,
+wird still falsch. `timeZoneName: 'short'` schreibt MEZ oder MESZ dazu, und
+`zeit-anzeige.test.ts` hält beide Stunden der Umstellungsnacht auseinander —
+in beide Richtungen, denn am 29. März gibt es 02:30 gar nicht.
+
+**2. Gültiges JSON ist noch kein Rumpf.** `liesRumpf` nahm alles an, was
+`JSON.parse` durchliess. Aus `"titel=Probe"` machte `Object.entries` Felder
+mit den Namen `0`, `1`, `2`; aus `[1,2,3]` Felder mit Indexnamen. Die Route
+antwortete daraufhin `unvollstaendig` (409) — der Aufrufer suchte also ein
+fehlendes FELD, während seine FORM falsch war. Genau diesen Unterschied
+benennt `unlesbarer_rumpf` (400), und das Gerüst beantwortet ihn schon, wenn
+`liesRumpf` wirft. Es wirft jetzt einen `SyntaxError` — kaputte Syntax und
+falsche Form sind für den Aufrufer dasselbe Ereignis, und zwei Wege zu einer
+Antwort wären einer zu viel.
+
+**3. Die Architekturdoku wies auf Werkzeug, das es nicht mehr gibt.** D-582
+entfernte `drizzle-kit`, `01-ORDNERSTRUKTUR.md` nannte es weiter als den
+einen Anwender (`pnpm db:migrate (drizzle-kit)`), verlangte in der CI-Tabelle
+`drizzle-kit generate` ohne Diff und nannte Migrationen „drizzle-kit
+generated". Eine Anweisung, die auf ein entferntes Werkzeug zeigt, ist
+schlimmer als keine: sie schickt den nächsten Menschen auf die Suche nach
+einem Befehl, den es nicht gibt. Die drei Stellen nennen jetzt
+`src/server/db/migrate.ts`, und ein Kasten darüber sagt ausdrücklich, dass
+die übrigen Drizzle-Absätze des Dokuments eine **nie gebaute** Modellschicht
+beschreiben und als Geschichte zu lesen sind, bis jemand sie umschreibt.
+
+**4. Was `/karriere` angeht, war der Befund halb richtig — und die Hälfte
+zählt.** Die Sitemap kommt NICHT aus `OEFFENTLICHE_ROUTEN`, sondern aus der
+Datenbank (`seite`-Zeilen, PUB-10): sie meldet, welche Seiten es GIBT, und
+nicht, welche es geben soll. `/karriere/*` ist im Code gebaut und hat keine
+`seite`-Zeile — es fehlt der Suchmaschine also, aber aus einem anderen Grund
+als dem genannten. Ob im Code gebaute öffentliche Routen in die Sitemap
+gehören, und ob der Karrierebereich übersetzt wird, sind zwei Fragen an den
+Auftraggeber: **O-512**. Der Sprachumschalter behauptet bis dahin keine
+englische Fassung mehr (D-583).
+
+| Betrifft | Invariante 2, D-580, D-582, D-583, O-512, `recruiting/marken.ts`, `api/rumpf.ts`, `docs/architecture/01-ORDNERSTRUKTUR.md` |
+|---|---|
+
+### D-585 · Die siebte Runde — ein Löschlauf im Rennen, eine Prüfliste ohne Wand, und eine Stelle, die nie hinauskam
+
+**1. Der Löschlauf löschte, was ein Mensch gerade eingestellt hatte.** Die
+Suche läuft quer über alle Gesellschaften, ohne Sperre; `status <>
+'eingestellt'` stand NUR dort. Fällt die Einstellungsentscheidung zwischen
+dieser Suche und der löschenden Transaktion, nahm der Lauf die Bewerbung
+trotzdem mit: Gespräche weg, Bewertungen weg, **die Entscheidung selbst
+weg** (REC-08 verlangt genau sie), der Mensch anonymisiert. Die `update`-
+Anweisung trug keine Bedingung mehr.
+
+Jetzt liest die Löschtransaktion die Kennungen neu — unter `for update`, mit
+demselben Prädikat. Wer die Sperre hält, entscheidet: eine Einstellung, die
+vorher committet hat, fällt aus der Menge; eine, die noch läuft, wartet.
+Was dabei herausfällt, zählt als zurückgehalten und steht im Protokoll.
+
+**Der Fall dazu stellt das Fenster wirklich her.** Ein erster Versuch legte
+die Entscheidung vor dem Lauf an — der prüfte dann nur den Filter der Suche
+und blieb grün, auch als der Riegel entfernt war. Der zweite Fall gibt dem
+Lauf eine Verbindung mit einem Zwischenruf: sobald die Suchabfrage
+beantwortet ist, fällt die Entscheidung. Ohne den Riegel ist die Bewerbung
+danach gelöscht, mit ihm steht sie. **Ein Fall, der auch ohne die Sicherung
+grün ist, prüft die Sicherung nicht.**
+
+**2. Eine Prüflistenzeile liess sich aus einer FREMDEN Mappe löschen.**
+`entfernePosition` suchte die Zeile über ihre Kennung und den Mandanten. Wer
+`vergabe.schreiben` hält und eine Kennung aus einem anderen Vorgang kennt,
+löschte sie von der Seite einer beliebigen Mappe aus; das versteckte Feld im
+Formular entschied nur über die Umleitung. Der Aufrufer nennt die Mappe
+jetzt, und der Befehl verlangt sie.
+
+**Und die Bedingung war eine Momentaufnahme.** Sie stand als `exists` im
+`delete` — ohne Sperre, während die Einreichung
+(`app.mappe_einreichung_erfassen`) `for update` auf dieselbe Zeile nimmt.
+Zwei Vorgänge mit verschiedenen Serialisierungspunkten sind gar keiner: eine
+eingereichte Mappe konnte eine fehlende Zeile bekommen, und eine eingereichte
+Mappe IST der Beleg dessen, was hinausgegangen ist. Dieselbe Sperre, derselbe
+Punkt — wer zuerst kommt, gewinnt.
+
+**3. Keine im Portal angelegte Stelle kam je auf die Karriereseite.** Der
+Trigger aus 0167 bringt eine genehmigte Anzeige auf `freigegeben` und setzt
+`veroeffentlicht_am` ausdrücklich nicht. `/karriere` zeigt nur
+`veroeffentlicht`. **Dazwischen fehlte der Weg** — REC-02 und REC-03 waren
+gebaut, durchgetestet und liefen ins Leere; nur die Demodaten setzten den
+Zustand von Hand, weshalb der Bildschirm gefüllt aussah.
+
+`veroeffentlicheAufKarriereseite` ist dieser Schritt, und er gehört einem
+Menschen: die Freigabe erlaubt, der Mensch veröffentlicht — dieselbe
+Entscheidung wie bei Social (D-556, die eigene Seite ist kein Kanal). Der
+Knopf steht auf der Veröffentlichungsseite, direkt unter dem Satz, der bis
+heute behauptete, eine freigegebene Stelle stehe „sofort" unter `/karriere`.
+
+**4. Drei kleinere aus derselben Runde.**
+
+| Befund | Behoben |
+|---|---|
+| `/karriere` listete Stellen ARCHIVIERTER Gesellschaften, und die Bewerbungsannahme nahm sie an | `archiviert_am is null` in Liste, Detail und Mandantenauflösung |
+| Ein Schritt mit `social.planen`, aber ohne `social.schreiben`, lief in die RLS und bekam „jemand anderes war schneller" | Null Zeilen werden nachgefragt: steht die Zeile unverändert, ist es ein RECHT und keine Gleichzeitigkeit — `kein_recht`, 403, eigener Satz |
+
+Der Rechtefall ist mit der Grundmatrix (`0008`) nicht erreichbar:
+`social.planen` hält nur, wer auch `social.schreiben` hält. Erreichbar wird er
+durch einen Mandanten-Override — und dann führte die alte Meldung den
+Menschen in eine Schleife aus Neuladen und Wiederversuchen.
+
+**5. Was NICHT übernommen wurde, und warum.** Die Runde meldete, die Sitemap
+lasse `/karriere` aus, weil es nicht in `OEFFENTLICHE_ROUTEN` stehe. Die
+Sitemap kommt aber aus der Datenbank (`seite`-Zeilen, PUB-10) — sie meldet,
+welche Seiten es GIBT. `/karriere` fehlt ihr aus einem anderen Grund, und ob
+im Code gebaute Routen hineingehören, ist eine Frage an den Auftraggeber:
+**O-512**.
+
+| Betrifft | REC-02, REC-03, REC-07, REC-08, O-376, O-512, O-513, RAD-07, D-556, D-583, `jobs/bewerberLoeschung.ts`, `services/vergabe/mappe.ts`, `services/recruiting/dienst.ts` |
+|---|---|
+
+**Nachtrag aus der achten Runde.** Zwei Punkte, ein Satz zu jedem:
+
+- **`docs/ROADMAP.md` verlangte weiter „Drizzle with migrations in-repo".**
+  D-582 hatte `CLAUDE.md` und die Architekturdoku berichtigt und die
+  ROADMAP übersehen — eine Zeile, die den nächsten Menschen dazu bringt, ein
+  entferntes Paket wieder einzuziehen. Sie nennt jetzt `pnpm db:migrate` und
+  verweist auf D-582.
+- **Vorlegen verlangt heute das Recht zu ENTSCHEIDEN** (`t_mandant` auf
+  `freigabe`, `0136`). Das widerspricht dem Sinn von Invariante 7, ist mit der
+  Grundmatrix aber nicht erreichbar, und die richtige Form ist ein Definer
+  neben `app.freigabe_entscheiden`, der jeden Erzeugerweg betrifft: **O-513**.
+- Die beiden übrigen Punkte der Runde betrafen wieder `/en/karriere` — mit
+  O-512 beantwortet und in D-583 ehrlich gemacht.

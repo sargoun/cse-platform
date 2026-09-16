@@ -4,7 +4,9 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
+import { Hinweis } from '@/components/ui/Hinweis';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
+import { haeltRechte } from '../../../../rechte';
 import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
@@ -56,6 +58,24 @@ export default async function WachbuchNeu(
   if (sitzung.aktiverMandantId === null) notFound();
 
   const vorbelegt = typeof suche['objekt'] === 'string' ? suche['objekt'] : null;
+  /**
+   * **Wohin nach dem Speichern — und warum das eine Rechtefrage ist.**
+   *
+   * `wachbuch.schreiben` und `wachbuch.lesen` sind zwei Rechte, und die
+   * Matrix vergibt sie getrennt (`0008`: `mitarbeiter` schreibt und liest
+   * nicht). Der Rueckweg zeigte fest auf das Buch; wer es nicht lesen darf,
+   * schrieb seinen Eintrag und landete auf einem 404 — die Bestaetigung
+   * seiner Arbeit war eine Fehlerseite (AUT-06, D-581).
+   *
+   * Ohne das Leserecht fuehrt der Weg deshalb auf DIESES Formular zurueck,
+   * mit einer Bestaetigung. Die Seite darf er per Definition oeffnen: er
+   * steht darauf.
+   */
+  const darf = await haeltRechte(sitzung, 'wachbuch.lesen');
+  const zurueck = darf['wachbuch.lesen'] === true
+    ? `/portal/${mandant}/security/wachbuch`
+    : `${pfad}?gespeichert=1`;
+  const gespeichert = suche['gespeichert'] === '1';
 
   const { objekte, punkte } = await (db().begin(
     SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -91,6 +111,14 @@ export default async function WachbuchNeu(
       navigationsRechte={zugang.navigationsRechte}
     >
       <h1 className="mb-s2 text-h1 text-text">Wachbucheintrag</h1>
+
+      {gespeichert && (
+        <Hinweis art="erfolg" cse="wachbuch-gespeichert" className="mb-s5 max-w-prose">
+          <strong>Der Eintrag steht im Wachbuch.</strong> Er ist unveränderlich;
+          eine Korrektur ist ein neuer Eintrag, der auf ihn verweist. Das Buch
+          selbst bleibt Ihnen verschlossen — dafür braucht es das Leserecht.
+        </Hinweis>
+      )}
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         Der Zeitpunkt kommt vom Server und lässt sich nicht eintragen. Der
         Eintrag ist danach unveränderlich — eine Korrektur ist ein neuer
@@ -109,11 +137,7 @@ export default async function WachbuchNeu(
           className="max-w-prose rounded-lg border border-line bg-surface p-s5"
         >
           <input type="hidden" name="mandant" value={mandant} />
-          <input
-            type="hidden"
-            name="zurueck"
-            value={`/portal/${mandant}/security/wachbuch`}
-          />
+          <input type="hidden" name="zurueck" value={zurueck} />
 
           <label className="mb-s4 block">
             <span className={feld}>Objekt</span>

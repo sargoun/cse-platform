@@ -10,6 +10,8 @@ import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { leseRadarZeile, type RadarZeile } from '../daten';
+import { kennungOder404 } from '../../../kennung';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/radar/[id]` — eine Bekanntmachung (RAD-03, RAD-05,
@@ -73,10 +75,12 @@ export default async function Bekanntmachung(
   },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   if (!UUID.test(id)) notFound();
   const tor = await mandantTor(`/portal/${mandant}/radar/${id}`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+  const darf = await haeltRechte(zugang.sitzung, 'radar.plattform_verwalten');
   const suche = await searchParams;
   const vermerkt = typeof suche['vermerkt'] === 'string' ? suche['vermerkt'] : null;
   const abgewiesen = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
@@ -105,8 +109,15 @@ export default async function Bekanntmachung(
        * prueft ohnehin noch einmal — hier geht es darum, keinen Knopf zu
        * zeigen, der nur zu einer Absage fuehrt.
        */
-      const [r] = await kontext.abfrage<{ darf: boolean }>(
-        `select app.hat_recht('radar.status_setzen', app.aktiver_mandant()) as darf`);
+      /*
+       * `/radar/[id]/mappe` verlangt `vergabe.schreiben` (Manifest); diese
+       * Seite öffnet mit `radar.lesen` allein. Ein Verweis, der auf 404 führt,
+       * verrät, was er nicht zeigen darf (AUT-06). Gemeldet von der
+       * Copilot-Runde auf PR 16 / D-581.
+       */
+      const [r] = await kontext.abfrage<{ darf: boolean; mappe: boolean }>(
+        `select app.hat_recht('radar.status_setzen', app.aktiver_mandant()) as darf,
+                app.hat_recht('vergabe.schreiben', app.aktiver_mandant()) as mappe`);
       /*
        * Gibt es schon eine Vergabemappe? Wenn ja, fuehrt von hier ein Weg
        * dorthin — sonst waere die Mappe eine Seite, die niemand findet.
@@ -122,6 +133,7 @@ export default async function Bekanntmachung(
         mappe: mp === undefined ? null
           : { id: mp.id, status: mp.status, offen: Number(mp.offen) },
         darfStatus: r?.darf === true,
+        darfMappe: r?.mappe === true,
         zeilen,
         detail: {
           quelle: String(d['quelle']),
@@ -143,7 +155,7 @@ export default async function Bekanntmachung(
       };
     })) as Promise<{
       mappe: { id: string; status: string; offen: number } | null;
-      darfStatus: boolean; zeilen: readonly RadarZeile[]; detail: Detail;
+      darfStatus: boolean; darfMappe: boolean; zeilen: readonly RadarZeile[]; detail: Detail;
     } | null>);
 
   if (daten === null) notFound();
@@ -203,10 +215,17 @@ export default async function Bekanntmachung(
         <Hinweis art="warnung" cse="radar-plattform-warnung" className="mb-s5 max-w-prose">
           <strong>Auf {kopf.plattformName} ist diese Gesellschaft nicht freigeschaltet.</strong>{' '}
           Stand: {kopf.registrierung ?? 'unbekannt'}. Eine Freischaltung dauert Tage bis Wochen —
-          ohne sie ist ein Angebot am Abgabetag nicht abzugeben (RAD-09).{' '}
-          <Link href={`/portal/${mandant}/radar/plattformen`} className="underline underline-offset-4">
-            Plattformen verwalten
-          </Link>.
+          ohne sie ist ein Angebot am Abgabetag nicht abzugeben (RAD-09).
+          {/* `/radar/plattformen` verlangt `radar.plattform_verwalten` (Manifest);
+            * ohne das Recht fuehrte der Verweis auf 404 (AUT-06; D-581). */}
+          {darf['radar.plattform_verwalten'] === true && (
+            <>
+              {' '}
+              <Link href={`/portal/${mandant}/radar/plattformen`} className="underline underline-offset-4">
+                Plattformen verwalten
+              </Link>.
+            </>
+          )}
         </Hinweis>
       ) : null}
 
@@ -321,11 +340,13 @@ export default async function Bekanntmachung(
               ? `${String(daten.mappe.offen)} Pflichtposition${daten.mappe.offen === 1 ? '' : 'en'} noch offen.`
               : 'Alle Pflichtpositionen geprüft.'}
           </p>
-          <Link href={`/portal/${mandant}/radar/${id}/mappe`}
-                className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2"
-                data-cse="radar-zur-mappe">
-            Zur Vergabemappe
-          </Link>
+          {daten.darfMappe ? (
+            <Link href={`/portal/${mandant}/radar/${id}/mappe`}
+                  className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2"
+                  data-cse="radar-zur-mappe">
+              Zur Vergabemappe
+            </Link>
+          ) : null}
         </section>
       ) : null}
 

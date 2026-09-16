@@ -11,6 +11,8 @@ import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../kennung';
+import { haeltRechte } from '@/app/portal/rechte';
 import {
   assertBesetzungVeroeffentlichbar, PostenUnterbesetzt,
 } from '@/server/services/security/posten';
@@ -74,6 +76,7 @@ export default async function PostenBlatt(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const pfad = `/portal/${mandant}/security/posten/${id}`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -83,6 +86,7 @@ export default async function PostenBlatt(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
+  const darf = await haeltRechte(sitzung, 'dienstplan.lesen');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const heute = await berlinHeute();
@@ -297,13 +301,26 @@ export default async function PostenBlatt(
                   className="mb-s2 flex flex-wrap items-baseline justify-between gap-s3
                              border-b border-line pb-s2 text-sm last:border-0"
                 >
-                  <Link
-                    href={`/portal/${mandant}/dienstplan/einsatz/${s.id}`}
-                    className="tabular-nums text-text underline-offset-2
-                               hover:text-brand hover:underline"
-                  >
-                    {s.beginn_lokal} – {s.ende_lokal}
-                  </Link>
+                  {/*
+                    * `/dienstplan/einsatz/[id]` verlangt laut Manifest
+                    * `dienstplan.lesen`; diese Seite nur `security.lesen`. Ohne
+                    * das erste führte die Schichtzeile auf 404 und verriete, was
+                    * sie nicht zeigen darf (AUT-06; Copilot-Runde auf PR 16 /
+                    * D-581) — dann steht die Zeit als blosser Text.
+                    */}
+                  {darf['dienstplan.lesen'] === true ? (
+                    <Link
+                      href={`/portal/${mandant}/dienstplan/einsatz/${s.id}`}
+                      className="tabular-nums text-text underline-offset-2
+                                 hover:text-brand hover:underline"
+                    >
+                      {s.beginn_lokal} – {s.ende_lokal}
+                    </Link>
+                  ) : (
+                    <span className="tabular-nums text-text">
+                      {s.beginn_lokal} – {s.ende_lokal}
+                    </span>
+                  )}
                   <span className={`tabular-nums ${fehlt ? 'text-warning' : 'text-text-muted'}`}>
                     {s.besetzt_anzahl} von {s.soll_besetzung} besetzt
                     {fehlt && ` · Minimum ${s.min_besetzung} nicht erreicht`}

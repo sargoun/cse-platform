@@ -36,6 +36,41 @@ test.describe('Gruppenansicht', () => {
     await expect(page.locator('main form')).toHaveCount(0);
   });
 
+  /**
+   * **Der Befund aus dem Betrieb, mit Bildschirmfoto.** Auf der
+   * Gruppenübersicht steht je Gesellschaft ein Knopf „Bereich öffnen". Er
+   * führte auf „Diese Seite gibt es hier nicht."
+   *
+   * Der Grund war eine Zeile zu früh in `/portal/[mandant]/page.tsx`:
+   * `if (sitzung.aktiverMandantId === null) notFound()` stand VOR `slugTor`,
+   * und in der Gruppenansicht ist der aktive Bereich immer null (K-20). Jede
+   * Gruppensitzung fiel damit auf 404, bevor das Wechselblatt kam.
+   *
+   * Dass der Weg über das Blatt geht und nicht direkt, prüfen die Fälle
+   * daneben schon — aber alle über UNTERSEITEN (`/agenten`, `/auftraege`).
+   * Genau die Wurzel `/portal/<slug>`, auf die dieser Knopf zeigt, hatte
+   * keinen einzigen. Deshalb steht er hier, und zwar über den KNOPF statt
+   * über die Adresse: eine Prüfung, die `page.goto` benutzt, hätte gehalten,
+   * während der Knopf daneben ins Leere zeigt.
+   */
+  test('„Bereich öffnen" führt auf das Wechselblatt — nicht auf 404', async ({ page }) => {
+    await alsKonto(page, KONTO.gruppe);
+    await page.goto('/portal/gruppe');
+
+    const knopf = page.locator('[data-cse="gruppe-bereiche"] [data-cse="bereich-oeffnen"]').first();
+    await expect(knopf).toBeVisible();
+    await knopf.click();
+
+    await expect(page.locator('h1')).not.toContainText(/gibt es hier nicht/u);
+    await expect(page.locator('[data-cse="wechsel-frage"]')).toContainText('Gruppenübersicht');
+
+    // Und der Wechsel selbst trägt: danach steht die Gesellschaft da.
+    await page.locator('[data-cse="wechsel-knopf"]').click();
+    await expect(page).toHaveURL(/\/portal\/[a-z-]+$/u);
+    await expect(page.locator('h1')).not.toContainText(/gibt es hier nicht/u);
+    await expect(page.locator('[data-cse="header-nur-lesen"]')).toHaveCount(0);
+  });
+
   test('Aufträge: Gesellschaft je Zeile, Filter, Wechselblatt statt Direktsprung', async ({ page }) => {
     await alsKonto(page, KONTO.gruppe);
     await page.goto('/portal/gruppe/auftraege');

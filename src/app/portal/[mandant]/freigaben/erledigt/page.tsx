@@ -13,6 +13,7 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { ladeErledigte, type ErledigtZeile } from '@/server/services/freigabe/pruefdauer';
 import { STATUS_LABEL, STATUS_PILL, ausfuehrungText, zeitpunkt } from '../darstellung';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/freigaben/erledigt` — was entschieden wurde, mit dem
@@ -40,6 +41,7 @@ export default async function Erledigt(
     );
   }
   const { sitzung } = zugang;
+  const darf = await haeltRechte(sitzung, 'freigabe.entscheiden');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const zeilen = await (db().begin(SCHNAPPSCHUSS,
@@ -88,12 +90,18 @@ export default async function Erledigt(
           spalten={[
             {
               schluessel: 'titel', kopf: 'Vorgang',
-              zelle: (z) => (
+              /*
+               * Die Pruefseite `/freigaben/[id]` verlangt `freigabe.entscheiden`
+               * (Manifest); diese Liste nur `freigabe.lesen`. Wer liest und nicht
+               * entscheidet, sah je Zeile einen Verweis mit 404 dahinter (AUT-06;
+               * D-581) — jetzt den Titel als Text.
+               */
+              zelle: (z) => darf['freigabe.entscheiden'] === true ? (
                 <Link href={`/portal/${mandant}/freigaben/${z.id}`}
                       className="text-sm text-text underline underline-offset-2">
                   {z.titel ?? 'ohne Titel'}
                 </Link>
-              ),
+              ) : (z.titel ?? 'ohne Titel'),
             },
             {
               schluessel: 'status', kopf: 'Entscheidung',

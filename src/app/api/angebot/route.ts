@@ -1,6 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { istGleicherUrsprung } from '@/server/auth/ursprung';
+import { istGleicherUrsprung, erwarteterUrsprung } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
@@ -223,7 +223,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     const ziel = slug === ''
       ? '/portal'
       : `/portal/${slug}/angebote/${ergebnis.angebotId}`;
-    return NextResponse.redirect(new URL(ziel, anfrage.nextUrl.origin), 303);
+    return NextResponse.redirect(new URL(ziel, erwarteterUrsprung(anfrage)), 303);
   } catch (fehler) {
     // Die Antworten des Tors: 401 ohne Sitzung, 403 ohne zweiten Faktor,
     // 404 fuer ein fehlendes Recht — nie 403, das die Existenz bestaetigte.

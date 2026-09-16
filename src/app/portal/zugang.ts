@@ -5,7 +5,7 @@ import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { pruefeZugang, rechtepruefer, PORTAL_START } from '@/server/auth/zugang';
 import { bindeAnfrage, gruppenMandanten, rolleImMandanten } from '@/server/kontext/index';
-import { NAVIGATION } from '@/server/registry/navigation';
+import { GRUPPEN_NAVIGATION, NAVIGATION } from '@/server/registry/navigation';
 import { modulAktiv, type Modulbuchung } from '@/server/registry/modul';
 import { familie, findeRoute } from '@/server/registry/routen';
 import { leisteFuer, tableiste, type LeistenSchluessel }
@@ -241,6 +241,15 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
     const gefragt = [...new Set([
       ...ziele.map((z) => z.recht).filter((r): r is string => r !== null),
       ...NAVIGATION.map((n) => n.recht),
+      /*
+       * Und die GRUPPEN-Rechte dazu. Sie sind andere Schluessel
+       * (`gruppe.objekt.lesen` gegen `objekt.lesen`, 0004/0009) und wurden
+       * hier nie gefragt — in der Gruppenansicht war `navigationsRechte`
+       * damit fuer jeden Gruppenpunkt `undefined`. Heute traegt keine
+       * Gruppenleiste ein `Mehr`-Blatt, das danach fragt; sobald eines
+       * dazukaeme, waere es leer, und niemand saehe warum.
+       */
+      ...GRUPPEN_NAVIGATION.map((n) => n.recht),
     ])];
     const gehalten = await pruefer.hatRechte(gefragt, sitzung.aktiverMandantId);
     /**
@@ -283,8 +292,24 @@ export async function portalZugang(pfad: string): Promise<PortalZugang | null> {
      * er nicht zeigen darf. Gemerkt haette man es nie, denn ein sichtbarer
      * Punkt zu viel sieht aus wie ein vollstaendiges Menue.
      */
+    /**
+     * **Die Liste haengt am SCOPE, und beide zusammenzuwerfen war ein
+     * Fehler.**
+     *
+     * Hier stand `[...NAVIGATION, ...GRUPPEN_NAVIGATION]`. Beide Register
+     * benutzen dieselben Schluessel — `objekte`, `auftraege`, `rechnungen`,
+     * `dokumente`, `dienstplan`, `freigaben`, `agenten`, `berichte` — mit
+     * VERSCHIEDENEN Rechten: `objekt.lesen` gegen `gruppe.objekt.lesen`. Der
+     * zweite Durchlauf ueberschrieb damit den ersten, und eine `leitung` im
+     * Mandanten verlor jeden Punkt, dessen Gruppenrecht sie nicht haelt — das
+     * `Mehr`-Blatt am Telefon war um acht Ziele aermer. Gefunden hat es
+     * `crm.spec.ts`, das genau diesen Punkt sucht.
+     *
+     * Eine Sitzung ist entweder im Gruppen-Scope oder nicht. Gefragt wird
+     * deshalb die Liste, die zu ihr gehoert — und nicht beide in eine Karte.
+     */
     const navigationsRechte: Record<string, boolean> = {};
-    for (const n of NAVIGATION) {
+    for (const n of sitzung.ansicht === 'gruppe' ? GRUPPEN_NAVIGATION : NAVIGATION) {
       navigationsRechte[n.schluessel] = gehalten.has(n.recht) && frei(n.recht);
     }
 

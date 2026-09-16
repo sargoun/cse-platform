@@ -8,7 +8,7 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { withTenant } from '@/server/kontext/index';
 import {
   MappeFehler, SETZBARER_MAPPENSTAND, POSITIONSSTAENDE,
-  ergaenzePosition, setzeMappenstand, setzePositionsstand,
+  entfernePosition, ergaenzePosition, setzeMappenstand, setzePositionsstand,
   type MappenStand, type Positionsstand,
 } from '@/server/services/vergabe/mappe';
 import { alsAntwort } from '../../sicherheit/antwort';
@@ -16,8 +16,9 @@ import { alsAntwort } from '../../sicherheit/antwort';
 /**
  * `POST /api/vergabe/mappe` — die Prüfliste führen (RAD-07).
  *
- * Drei Handlungen an einer Adresse, unterschieden durch `was`: eine Position
- * anlegen, den Stand einer Position setzen, den Stand der Mappe setzen.
+ * Vier Handlungen an einer Adresse, unterschieden durch `was`: eine Position
+ * anlegen, eine Position ENTFERNEN, den Stand einer Position setzen, den Stand
+ * der Mappe setzen.
  * **Einreichen ist keine davon** — das ist eine eigene Route mit einem
  * eigenen Recht, weil es eine andere Aussage ist (D-07).
  */
@@ -76,6 +77,39 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             kategorie: text(daten, 'kategorie'),
             pflicht: daten.get('pflicht') !== null,
           });
+          return;
+        }
+
+        /*
+         * **Eine Prüflistenzeile zurücknehmen** — der Dienst konnte es, die
+         * Adresse kannte den Schritt nicht.
+         *
+         * `entfernePosition` stand vollständig da, mit eigenem Fehlerfall,
+         * und keine Zeile im Baum rief sie. Ohne diesen Schritt bleibt eine
+         * vertippte Zeile für immer in der Mappe: „gilt nicht" nimmt sie zwar
+         * aus dem Zähler, verlangt dafür aber eine BEGRÜNDUNG — und für einen
+         * Tippfehler gibt es keine. Genau das sagt der Dienst in seinem
+         * eigenen Kommentar: kein Geschäftsvorfall, sondern ein Tippfehler.
+         *
+         * Dasselbe Recht wie die übrigen drei (`vergabe.schreiben`): wer die
+         * Liste führt, führt sie in beide Richtungen. Und dieselbe Sperre —
+         * nach dem Einreichen ändert sich an der Mappe nichts mehr, das prüft
+         * der Dienst.
+         */
+        if (was === 'position_entfernen') {
+          const position = text(daten, 'position') ?? '';
+          /*
+           * **Die Mappe gehoert in den Befehl, nicht nur in die Umleitung.**
+           * Ohne sie suchte der Dienst die Position allein ueber ihre Kennung
+           * im Mandanten — wer eine fremde Kennung kennt, loeschte aus einem
+           * anderen Vorgang. Sie kommt aus demselben Feld wie bei
+           * `position_neu` und `mappenstand` (D-585).
+           */
+          const mappe = text(daten, 'mappe') ?? '';
+          if (!UUID.test(position) || !UUID.test(mappe)) {
+            throw new MappeFehler('nicht_gefunden', 'Position unbekannt.');
+          }
+          await entfernePosition(kontext, { mappeId: mappe, positionId: position });
           return;
         }
 

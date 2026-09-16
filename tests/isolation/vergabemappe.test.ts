@@ -21,7 +21,8 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import type postgres from 'postgres';
 import { alsApp, alsRolle, schliessen, seed, sql, type Fixtur } from './harness.js';
 import {
-  MappeFehler, ergaenzePosition, legeMappeAn, setzeMappenstand, setzePositionsstand,
+  MappeFehler, entfernePosition, ergaenzePosition, legeMappeAn, setzeMappenstand,
+  setzePositionsstand,
 } from '../../src/server/services/vergabe/mappe.js';
 import {
   EinreichungFehler, erfasseAusgang, erfasseEinreichung,
@@ -187,6 +188,100 @@ describe('(1) Der Zaehler wird gerechnet (D-492)', () => {
         `select id from vergabemappe_position where vergabemappe_id=$1`, [mappe]);
       await setzePositionsstand(k, { positionId: p!.id, stand: 'nicht_zutreffend' });
     })).rejects.toThrow(MappeFehler);
+  });
+});
+
+/**
+ * **Eine Zeile zurücknehmen** — der Dienst konnte es von Anfang an, und
+ * niemand rief ihn (D-577).
+ *
+ * `entfernePosition` stand vollständig da, mit eigenem Fehlerfall, und im
+ * ganzen Baum gab es keine Stelle, die sie benutzte: die Adresse kannte drei
+ * Handlungen, und das Entfernen war keine davon. Wer sich vertippte, behielt
+ * die Zeile für immer — „gilt nicht" nimmt sie zwar aus dem Zähler, verlangt
+ * dafür aber eine BEGRÜNDUNG, und für einen Tippfehler gibt es keine.
+ */
+describe('(2) Eine Pruefzeile laesst sich zuruecknehmen — bis zur Einreichung', () => {
+  it('die Zeile verschwindet, und der Zaehler folgt ihr', async () => {
+    const { vorgang } = await legeVorgangAn(f.reinigung);
+    const mappe = await legeMappeDirektAn(f.reinigung, vorgang);
+    await sql.unsafe(
+      `insert into vergabemappe_position (mandant_id, vergabemappe_id, position, bezeichnung, pflicht)
+       values ($1,$2,1,'Eigenerklaerung',true), ($1,$2,2,'Vertippt',true)`,
+      [f.reinigung, mappe]);
+
+    const [vorher] = await sql.unsafe<{ g: number }[]>(
+      `select pflichtpositionen_gesamt g from vergabemappe where id=$1`, [mappe]);
+    expect(vorher!.g).toBe(2);
+
+    await alsDienst(async (k) => {
+      const [p] = await k.abfrage<{ id: string }>(
+        `select id from vergabemappe_position where vergabemappe_id=$1 and position=2`, [mappe]);
+      await entfernePosition(k, { mappeId: mappe, positionId: p!.id });
+    });
+
+    const [nachher] = await sql.unsafe<{ g: number; n: number }[]>(
+      `select m.pflichtpositionen_gesamt g,
+              (select count(*) from vergabemappe_position p where p.vergabemappe_id = m.id) n
+         from vergabemappe m where m.id=$1`, [mappe]);
+    expect(Number(nachher!.n), 'die Zeile ist wirklich weg — kein weicher Loeschstand').toBe(1);
+    expect(Number(nachher!.g), 'der Zaehler rechnet sofort nach').toBe(1);
+  });
+
+  /**
+   * **Nach dem Einreichen ist die Liste ein Beleg.** Eine Zeile daraus zu
+   * löschen hiesse, das Angebot nachträglich anders aussehen zu lassen, als
+   * es war.
+   */
+  it('aus einer eingereichten Mappe verschwindet nichts mehr', async () => {
+    const { vorgang } = await legeVorgangAn(f.reinigung);
+    const mappe = await legeMappeDirektAn(f.reinigung, vorgang);
+    await sql.unsafe(
+      `insert into vergabemappe_position (mandant_id, vergabemappe_id, position, bezeichnung)
+       values ($1,$2,1,'Preisblatt')`, [f.reinigung, mappe]);
+    /*
+     * Eingereicht wird ueber den EINZIGEN Weg, den es gibt
+     * (`app.mappe_einreichung_erfassen`) — ein `update` von Hand scheitert
+     * an `kern.unterschrift_ist_die_eigene`, und das ist genau D-07.
+     */
+    await alsDienst(async (k) => erfasseEinreichung(k, {
+      mappeId: mappe, plattformText: 'per Post',
+    }));
+
+    const [p] = await sql.unsafe<{ id: string }[]>(
+      `select id from vergabemappe_position where vergabemappe_id=$1`, [mappe]);
+
+    await expect(alsDienst(async (k) => {
+      await entfernePosition(k, { mappeId: mappe, positionId: p!.id });
+    })).rejects.toThrow(MappeFehler);
+
+    const [danach] = await sql.unsafe<{ n: number }[]>(
+      `select count(*) n from vergabemappe_position where vergabemappe_id=$1`, [mappe]);
+    expect(Number(danach!.n), 'die Zeile steht noch').toBe(1);
+  });
+
+  /**
+   * Die Wand ist dieselbe wie überall: eine fremde Gesellschaft sieht die
+   * Zeile nicht, und „nicht gefunden" ist die Antwort — nicht „verboten"
+   * (AUT-06).
+   */
+  it('eine fremde Gesellschaft entfernt hier gar nichts', async () => {
+    const { vorgang } = await legeVorgangAn(f.reinigung);
+    const mappe = await legeMappeDirektAn(f.reinigung, vorgang);
+    await sql.unsafe(
+      `insert into vergabemappe_position (mandant_id, vergabemappe_id, position, bezeichnung)
+       values ($1,$2,1,'Eigenerklaerung')`, [f.reinigung, mappe]);
+    const [p] = await sql.unsafe<{ id: string }[]>(
+      `select id from vergabemappe_position where vergabemappe_id=$1`, [mappe]);
+
+    await expect(alsDienst(
+      async (k) => { await entfernePosition(k, { mappeId: mappe, positionId: p!.id }); },
+      f.security, fremder,
+    )).rejects.toThrow(MappeFehler);
+
+    const [danach] = await sql.unsafe<{ n: number }[]>(
+      `select count(*) n from vergabemappe_position where vergabemappe_id=$1`, [mappe]);
+    expect(Number(danach!.n)).toBe(1);
   });
 });
 
@@ -446,5 +541,54 @@ describe('(5) Die Waende', () => {
     await expect(alsRolle('cse_job', async (tx: postgres.TransactionSql) => tx.unsafe(
       `update vergabemappe set status = 'verworfen' where id = $1`, [mappe])))
       .rejects.toThrow(/permission denied|Berechtigung/iu);
+  });
+});
+
+/**
+ * **Eine Position gehört zu IHRER Mappe — auch beim Löschen.**
+ *
+ * `entfernePosition` suchte die Zeile allein über ihre Kennung und den
+ * Mandanten. Wer `vergabe.schreiben` hält und die Kennung einer Position aus
+ * einem anderen Vorgang kennt, löschte sie von der Seite einer fremden Mappe
+ * aus; das versteckte Feld im Formular entschied nur über die Umleitung. Der
+ * Befehl verlangt die Mappe jetzt.
+ *
+ * Gemeldet von der Copilot-Runde auf PR 16 (D-585).
+ */
+describe('eine Position laesst sich nicht aus einer FREMDEN Mappe entfernen', () => {
+  /*
+   * Kein eigenes `beforeEach`: die Sitzung, die `alsDienst` bindet, steht in
+   * `sitzung()` und liest die MODULWEITE Fixtur. Ein lokales `f` daneben
+   * hiesse, mit dem Konto des einen Seeds in die Daten eines anderen zu
+   * greifen — RLS sieht dann nichts, und der Fall waere aus dem falschen
+   * Grund gruen.
+   */
+  it('dieselbe Gesellschaft, zwei Mappen — die Kennung allein genuegt nicht', async () => {
+    const a = await legeVorgangAn(f.reinigung);
+    const b = await legeVorgangAn(f.reinigung);
+    const mappeA = await legeMappeDirektAn(f.reinigung, a.vorgang);
+    const mappeB = await legeMappeDirektAn(f.reinigung, b.vorgang);
+    await sql.unsafe(
+      `insert into vergabemappe_position (mandant_id, vergabemappe_id, position, bezeichnung)
+       values ($1,$2,1,'Eigenerklaerung A')`, [f.reinigung, mappeA]);
+    const [p] = await sql.unsafe<{ id: string }[]>(
+      `select id from vergabemappe_position where vergabemappe_id=$1`, [mappeA]);
+
+    /* Die Position gehoert zu A, genannt wird B — das ist kein Treffer. */
+    await expect(alsDienst(async (k) => {
+      await entfernePosition(k, { mappeId: mappeB, positionId: p!.id });
+    })).rejects.toThrow(MappeFehler);
+
+    const [danach] = await sql.unsafe<{ n: number }[]>(
+      `select count(*) n from vergabemappe_position where vergabemappe_id=$1`, [mappeA]);
+    expect(Number(danach!.n), 'die Zeile der anderen Mappe steht noch').toBe(1);
+
+    /* Und mit der richtigen Mappe geht es — sonst prueft der Fall nur ein Verbot. */
+    await alsDienst(async (k) => {
+      await entfernePosition(k, { mappeId: mappeA, positionId: p!.id });
+    });
+    const [weg] = await sql.unsafe<{ n: number }[]>(
+      `select count(*) n from vergabemappe_position where vergabemappe_id=$1`, [mappeA]);
+    expect(Number(weg!.n)).toBe(0);
   });
 });

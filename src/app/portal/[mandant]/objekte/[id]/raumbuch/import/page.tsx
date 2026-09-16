@@ -9,9 +9,11 @@ import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { formatiereMenge, mengeAusPostgresOderNull } from '@/server/services/finanz/menge';
 import { AnmeldungNoetig } from '../../../../../Anmeldung';
 import { portalZugang } from '../../../../../zugang';
+import { haeltRechte } from '@/app/portal/rechte';
 import { slugTor } from '../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../../kennung';
 
 /**
  * `/portal/[mandant]/objekte/[id]/raumbuch/import` — hochladen und VORSCHAU
@@ -59,6 +61,7 @@ export default async function RaumbuchImport(
   },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const suche = await searchParams;
   const importId = typeof suche['import'] === 'string' ? suche['import'] : null;
 
@@ -71,6 +74,7 @@ export default async function RaumbuchImport(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+  const darf = await haeltRechte(sitzung, 'objekt.lesen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -112,14 +116,22 @@ export default async function RaumbuchImport(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label="Zurück" className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/objekte/${id}/raumbuch`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← Raumbuch
-        </Link>
-      </nav>
+      {/*
+        * Das Raumbuch dahinter öffnet mit `objekt.lesen` (Manifest); diese
+        * Seite mit `objekt_import.schreiben`. Zwei Rechte aus zwei Modulen —
+        * ohne das erste führte „← Raumbuch" auf 404 und verriet damit, was es
+        * nicht zeigen darf (AUT-06; Copilot-Runde auf PR 16 / D-581).
+        */}
+      {darf['objekt.lesen'] === true && (
+        <nav aria-label="Zurück" className="mb-s3">
+          <Link
+            href={`/portal/${mandant}/objekte/${id}/raumbuch`}
+            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+          >
+            ← Raumbuch
+          </Link>
+        </nav>
+      )}
       <h1 className="mb-s5 text-h1 text-text">Raumbuch importieren</h1>
 
       {kopf === null ? (

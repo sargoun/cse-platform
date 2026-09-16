@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { anbieter } from '@/server/auth/kennwort-anmeldung';
+import { erwarteterUrsprung } from '@/server/auth/ursprung';
 
 /**
  * `GET /auth/callback` — die Rueckleitung des Identitaetsanbieters.
@@ -21,7 +22,7 @@ import { anbieter } from '@/server/auth/kennwort-anmeldung';
  */
 export function GET(anfrage: NextRequest): NextResponse {
   if (anbieter() === 'demo') {
-    const ziel = new URL('/auth/login', anfrage.nextUrl.origin);
+    const ziel = new URL('/auth/login', erwarteterUrsprung(anfrage));
     ziel.searchParams.set('fehler', 'fremd');
     return NextResponse.redirect(ziel, 303);
   }

@@ -14,6 +14,7 @@ import {
 import { AnmeldungNoetig } from '../../../../../Anmeldung';
 import { portalZugang } from '../../../../../zugang';
 import { slugTor } from '../../../../../unterseite';
+import { kennungOder404 } from '../../../../../kennung';
 
 /**
  * `/portal/[mandant]/security/dienstanweisungen/[id]/kenntnisnahmen` — wer
@@ -47,6 +48,7 @@ export default async function Kenntnisnahmen(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const pfad = `/portal/${mandant}/security/dienstanweisungen/${id}/kenntnisnahmen`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;

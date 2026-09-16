@@ -10,6 +10,7 @@ import { erstelleZ3Paket, type Z3Paket } from '@/server/services/buchhaltung/z3'
 import { liesWirtschaftsjahr, wirtschaftsjahrVon } from '@/server/services/buchhaltung/wirtschaftsjahr';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/buchhaltung/z3-export` — die Datentraegerueberlassung
@@ -43,6 +44,15 @@ export default async function Z3Export(
   const tor = await mandantTor(`/portal/${mandant}/buchhaltung/z3-export`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+
+  /*
+   * `/buchhaltung` und `/buchhaltung/buchungen` verlangen laut Manifest
+   * `buchhaltung.lesen`; diese Seite oeffnet mit `buchhaltung.exportieren`.
+   * Wer das Paket ziehen darf, darf nicht zwangslaeufig das Journal lesen —
+   * Knopf und Verweis fuehrten dann auf 404 und verrieten, was sie nicht
+   * zeigen duerfen (AUT-06, Copilot-Runde auf PR 16 / D-581).
+   */
+  const darf = await haeltRechte(zugang.sitzung, 'buchhaltung.lesen');
   const suche = await searchParams;
   const jahrRoh = typeof suche['jahr'] === 'string' ? suche['jahr'] : null;
   const gewaehlt = jahrRoh !== null && /^\d{4}$/u.test(jahrRoh) ? Number(jahrRoh) : null;
@@ -79,7 +89,9 @@ export default async function Z3Export(
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">Z3-Export {z.bezeichnung}</h1>
-        <Link href={`/portal/${mandant}/buchhaltung`} className={knopf}>Zur Buchhaltung</Link>
+        {darf['buchhaltung.lesen'] === true && (
+          <Link href={`/portal/${mandant}/buchhaltung`} className={knopf}>Zur Buchhaltung</Link>
+        )}
       </div>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         Datenträgerüberlassung nach § 147 Abs. 6 AO für das Wirtschaftsjahr {z.bezeichnung}{' '}
@@ -112,8 +124,14 @@ export default async function Z3Export(
       {z.unvollstaendig > 0 ? (
         <Hinweis art="warnung" cse="z3-unvollstaendig" className="mb-s5 max-w-prose">
           <strong>{String(z.unvollstaendig)} Buchungszeile(n) ohne Beleg oder Konto.</strong> Sie stehen im Journal mit
-          leeren Feldern; ein Prüfer sieht das. Wer ein vollständiges Paket will, kontiert sie zuerst —{' '}
-          <Link href={`/portal/${mandant}/buchhaltung/buchungen`} className="underline underline-offset-2">zu den Buchungen</Link>.
+          leeren Feldern; ein Prüfer sieht das. Wer ein vollständiges Paket will, kontiert sie zuerst
+          {/* Ohne `buchhaltung.lesen` endet der Satz nach „zuerst" — samt Gedankenstrich faellt nur der Verweis. */}
+          {darf['buchhaltung.lesen'] === true && (
+            <>
+              {' — '}
+              <Link href={`/portal/${mandant}/buchhaltung/buchungen`} className="underline underline-offset-2">zu den Buchungen</Link>
+            </>
+          )}.
         </Hinweis>
       ) : (
         <Hinweis art="erfolg" cse="z3-unvollstaendig" className="mb-s5 max-w-prose">

@@ -13,6 +13,8 @@ import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../kennung';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/buchhaltung/buchungen/[id]` — eine Buchung mit allen
@@ -65,6 +67,7 @@ export default async function Buchung(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   /* Ein Wort im Pfad ist ein 404, kein 500 — die Umwandlung nach uuid geschieht sonst in der Datenbank. */
   if (!istUuid(id)) notFound();
   const zugang = await portalZugang(`/portal/${mandant}/buchhaltung/buchungen/${id}`);
@@ -75,6 +78,15 @@ export default async function Buchung(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /*
+   * `/finanzen/rechnungen/[id]` verlangt laut Manifest `finanzen.lesen`; diese
+   * Seite oeffnet mit `buchhaltung.lesen`. Wer eine Buchung lesen darf, darf
+   * nicht zwangslaeufig die Rechnung dahinter oeffnen — der Verweis fuehrte
+   * dann auf 404 und verriete, was er nicht zeigen darf (AUT-06,
+   * Copilot-Runde auf PR 16 / D-581).
+   */
+  const darf = await haeltRechte(sitzung, 'finanzen.lesen');
 
   const zeilen = await (db().begin(SCHNAPPSCHUSS,
     async (tx: postgres.TransactionSql) => withTenant(tx, sitzung, async (kontext) =>
@@ -201,7 +213,7 @@ export default async function Buchung(
                 SHA-256 {kopf.datei_sha256}
               </p>
             )}
-            {kopf.rechnung_id === null ? null : (
+            {kopf.rechnung_id === null || darf['finanzen.lesen'] !== true ? null : (
               <p className="mt-s3 text-sm">
                 <Link
                   href={`/portal/${mandant}/finanzen/rechnungen/${kopf.rechnung_id}`}

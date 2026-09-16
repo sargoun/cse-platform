@@ -8,11 +8,13 @@ import { DataTable } from '@/components/ui/DataTable';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { berlinHeute } from '@/server/db/heute';
 import { berlinAnzeige } from '@/server/services/zeit/dauer';
 import { nachweislage, type Nachweislage } from '@/server/services/nachweis/uebersicht';
+import { kennungOder404 } from '../../../../kennung';
 import {
   lageVon, leseNachweis, leseWarnungen, type RegisterZeile, type WarnungZeile,
 } from '../daten';
@@ -47,6 +49,7 @@ export default async function Nachweisblatt({
   params: Promise<{ mandant: string; id: string }>;
 }) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const pfad = `/portal/${mandant}/personal/nachweise/${id}`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -57,6 +60,13 @@ export default async function Nachweisblatt({
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /* AUT-06: das Register `…/nachweise` verlangt laut Manifest
+     `personal.nachweis_lesen`, dieses Blatt `personal.nachweis_verwalten` —
+     wer nur das zweite hält, bekam hinter „Zum Register" ein 404. Ein Verweis
+     auf 404 verrät, was er nicht zeigen darf (Copilot-Runde auf PR 16 /
+     D-581). */
+  const darf = await haeltRechte(sitzung, 'personal.nachweis_lesen');
 
   const heute = await berlinHeute();
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -108,14 +118,16 @@ export default async function Nachweisblatt({
         </p>
       </div>
 
-      <nav className="mb-s5 flex flex-wrap gap-s2">
-        <Link
-          href={`/portal/${mandant}/personal/nachweise`}
-          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-        >
-          Zum Register
-        </Link>
-      </nav>
+      {darf['personal.nachweis_lesen'] === true && (
+        <nav className="mb-s5 flex flex-wrap gap-s2">
+          <Link
+            href={`/portal/${mandant}/personal/nachweise`}
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Zum Register
+          </Link>
+        </nav>
+      )}
 
       {zustand === 'abgelaufen' && kopf.blockiertEinsatz && (
         <p

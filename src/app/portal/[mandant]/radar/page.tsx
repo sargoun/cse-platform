@@ -12,6 +12,7 @@ import { alleQuellStaende } from '@/server/services/radar/quelle';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../unterseite';
 import { leseRadarKennzahlen, leseRadarListe, type RadarKennzahlen, type RadarZeile } from './daten';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/radar` — die Liste (RAD-01, RAD-02, RAD-05 … RAD-09).
@@ -76,6 +77,7 @@ export default async function Radar(
   const tor = await mandantTor(`/portal/${mandant}/radar`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+  const darf = await haeltRechte(zugang.sitzung, 'radar.profil_schreiben', 'radar.plattform_verwalten');
   const suche = await searchParams;
   const nurOffene = suche['alle'] !== '1';
 
@@ -176,8 +178,17 @@ export default async function Radar(
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">Vergaberadar</h1>
         <nav aria-label="Radar" className="flex flex-wrap gap-s2">
-          <Link href={`/portal/${mandant}/radar/profile`} className={knopf} data-cse="radar-profile">Suchprofile</Link>
-          <Link href={`/portal/${mandant}/radar/plattformen`} className={knopf} data-cse="radar-plattformen">Plattformen</Link>
+          {/*
+            * `/radar/profile` verlangt `radar.profil_schreiben`, `/radar/plattformen`
+            * `radar.plattform_verwalten` (Manifest); diese Liste nur `radar.lesen`.
+            * Ohne das jeweilige Recht fuehrte der Knopf auf 404 (AUT-06; D-581).
+            */}
+          {darf['radar.profil_schreiben'] === true && (
+            <Link href={`/portal/${mandant}/radar/profile`} className={knopf} data-cse="radar-profile">Suchprofile</Link>
+          )}
+          {darf['radar.plattform_verwalten'] === true && (
+            <Link href={`/portal/${mandant}/radar/plattformen`} className={knopf} data-cse="radar-plattformen">Plattformen</Link>
+          )}
           <Link href={nurOffene ? `/portal/${mandant}/radar?alle=1` : `/portal/${mandant}/radar`}
             className={knopf} data-cse="radar-umschalten">
             {nurOffene ? 'Auch abgelaufene' : 'Nur offene'}
@@ -206,7 +217,10 @@ export default async function Radar(
         <Hinweis art="warnung" cse="radar-ohne-profil" className="mb-s5 max-w-prose">
           <strong>Kein Suchprofil.</strong> Ohne Profil gibt es keine Punkte und keine Rangfolge —
           eine Bekanntmachung wird erst dadurch interessant, dass jemand gesagt hat, was diesen
-          Betrieb interessiert. <Link href={`/portal/${mandant}/radar/profile`} className="underline underline-offset-4">Profile ansehen</Link>.
+          Betrieb interessiert.
+          {darf['radar.profil_schreiben'] === true && (
+            <> <Link href={`/portal/${mandant}/radar/profile`} className="underline underline-offset-4">Profile ansehen</Link>.</>
+          )}
         </Hinweis>
       ) : null}
 

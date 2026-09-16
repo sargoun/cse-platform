@@ -8,7 +8,9 @@ import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { stundenAusMinuten } from '@/lib/datum/stunden';
-import { ladeZeiteintrag, type SpurZeile } from '../daten';
+import { darfKorrigieren, ladeZeiteintrag, type SpurZeile } from '../daten';
+import { kennungOder404 } from '../../../kennung';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/zeiten/[id]` — ein Zeiteintrag, vollständig (TIM-08,
@@ -79,9 +81,13 @@ const KORREKTUR_GRUND_TEXT: Readonly<Record<string, string>> = {
 };
 
 export default async function Zeiteintragsblatt(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const pfad = `/portal/${mandant}/zeiten/${id}`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -93,6 +99,12 @@ export default async function Zeiteintragsblatt(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /* AUT-06: die Schicht `…/dienstplan/einsatz/[id]` verlangt laut Manifest
+     `dienstplan.lesen`, dieses Blatt nur `zeit.lesen` — wer nur das zweite
+     hält, sah „Zur geplanten Schicht" und bekam dahinter ein 404. Ein Verweis
+     auf 404 verraet, was er nicht zeigen darf (Copilot-Runde auf PR 16 / D-581). */
+  const darf = await haeltRechte(sitzung, 'dienstplan.lesen');
+
   /**
    * Keine Zeile heisst 404 und nie 403: ein 403 bestätigte, dass es den
    * Eintrag gibt (AUT-06). Die RLS hat hier schon entschieden — diese Seite
@@ -100,6 +112,26 @@ export default async function Zeiteintragsblatt(
    */
   const e = await ladeZeiteintrag(sitzung, id);
   if (e === null) notFound();
+
+  /**
+   * Der Weg zur Korrektur (TIM-11) — und warum er nicht immer dasteht.
+   *
+   * Vier Bedingungen entscheiden, und jede einzelne führte sonst auf eine
+   * Schaltfläche, die beim Drücken scheitert: das Recht `zeit.korrigieren`
+   * (ohne es antwortet die Korrekturseite mit 404, und ein Knopf dorthin
+   * verriete, dass es sie gibt — AUT-06); der eigene Eintrag (`zk_nicht_selbst`,
+   * EMP-07); ein Eintrag, der noch läuft (der wird bearbeitet, nicht
+   * korrigiert); und eine Fassung, die bereits abgelöst ist (die Kette gabelt
+   * nicht). Die Korrekturseite selbst sagt jeden dieser Gründe noch einmal in
+   * Worten — wer die Adresse tippt, steht nicht vor einem 404, sondern vor
+   * einer Begründung.
+   */
+  const frage = await searchParams;
+  const korrigiert = frage['korrigiert'] === '1';
+
+  const befugnis = await darfKorrigieren(sitzung, e.personId);
+  const korrigierbar = befugnis.recht && !befugnis.eigener
+    && e.status !== 'laufend' && e.ersetztDurchId === null;
 
   return (
     <PortalRahmen
@@ -117,13 +149,35 @@ export default async function Zeiteintragsblatt(
           {e.person}
           {e.storniert && <span className="ml-s3 text-h3 text-danger">storniert</span>}
         </h1>
-        <Link
-          href={`/portal/${mandant}/zeiten`}
-          className="rounded-md border border-line px-s3 py-s1 text-sm text-text-muted hover:border-line-strong hover:text-text"
-        >
-          Zur Wochenliste
-        </Link>
+        <div className="flex flex-wrap gap-s2">
+          {korrigierbar && (
+            <Link
+              href={`/portal/${mandant}/zeiten/${id}/korrektur`}
+              data-cse="zur-korrektur"
+              className="rounded-md border border-line px-s3 py-s1 text-sm text-text-muted hover:border-line-strong hover:text-text"
+            >
+              Korrigieren
+            </Link>
+          )}
+          <Link
+            href={`/portal/${mandant}/zeiten`}
+            className="rounded-md border border-line px-s3 py-s1 text-sm text-text-muted hover:border-line-strong hover:text-text"
+          >
+            Zur Wochenliste
+          </Link>
+        </div>
       </div>
+
+      {korrigiert && (
+        <p
+          data-cse="korrektur-geschrieben"
+          className="mb-s4 max-w-prose rounded-lg border border-success bg-success-soft p-s4 text-sm text-success"
+        >
+          Die Korrektur ist geschrieben. Dies ist die neue Fassung; die alte bleibt
+          lesbar und steht unten in der Korrekturspur — mit Grund, Zeitpunkt und
+          Namen (TIM-11, Invariante 8).
+        </p>
+      )}
 
       {e.storniert && e.stornoGrund !== null && (
         <p className="mb-s4 rounded-lg border border-danger bg-danger-soft p-s4 text-sm text-danger">
@@ -179,7 +233,7 @@ export default async function Zeiteintragsblatt(
           <Feld label="Fassung" wert={`Version ${String(e.version)}`} zahl />
         </dl>
 
-        {e.einsatzId !== null && (
+        {e.einsatzId !== null && darf['dienstplan.lesen'] === true && (
           <p className="m-0 mt-s4 text-sm">
             <Link
               href={`/portal/${mandant}/dienstplan/einsatz/${e.einsatzId}`}

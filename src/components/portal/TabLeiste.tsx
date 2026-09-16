@@ -99,19 +99,24 @@ function MehrZelle({ wurzel, rechte, gruppenansicht }: {
         Mehr
       </summary>
       {/*
-        `bottom-11`, nicht `inset-0`.
+        `ueber-leiste-oberkante`, nicht `inset-0`.
 
         Das Blatt lag ueber der GANZEN Ansicht — und damit ueber der
         Tab-Leiste, in der sein eigenes `<summary>` steckt. Ohne JavaScript
         schliesst ein `<details>` nur ueber sein `<summary>`; verdeckt man das,
         gibt es keinen Weg zurueck, und der Fokus bleibt im Blatt gefangen.
-        Die Leiste ist `min-h-[44px]` hoch (= `bottom-11`), also endet das
-        Blatt darueber und laesst genau den Knopf frei, der es wieder zumacht.
+
+        Hier stand `bottom-11` — 44px, die Hoehe der Zelle. Seit die Leiste um
+        die Safe Area waechst (DESIGN §8), ist sie 44px PLUS Inset hoch, und
+        das Blatt verdeckte auf jedem Telefon mit Home-Indikator wieder genau
+        den Knopf, der es zumacht. `ueber-leiste-oberkante` rechnet beides
+        zusammen, an einer Stelle.
       */}
       <nav
         aria-label="Alle Bereiche"
         data-cse="mehr-blatt"
-        className="fixed inset-x-0 bottom-11 top-0 z-50 overflow-y-auto bg-surface p-s5"
+        className="ueber-leiste-oberkante sicher-seiten fixed inset-x-0 top-0 z-50
+                   overflow-y-auto bg-surface p-s5"
       >
         <h2 className="mt-0 text-h3 text-text">Alle Bereiche</h2>
         <ul className="m-0 list-none p-0">
@@ -173,7 +178,14 @@ export function TabLeiste({
     <nav
       aria-label={label}
       data-cse="tableiste"
-      className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-surface md:hidden"
+      /*
+       * `sicher-unten` und `sicher-seiten`: der Balken waechst um die Flaeche,
+       * die das Geraet fuer Home-Indikator und Rundung nimmt (DESIGN §8). Die
+       * 44px-Zelle darunter bleibt 44px — der Inset ist Platz, den das System
+       * nimmt, nicht Platz, den der Knopf hergibt.
+       */
+      className="sicher-unten sicher-seiten fixed inset-x-0 bottom-0 z-40 flex
+                 border-t border-line bg-surface md:hidden"
     >
       {gezeigt.map((z) => {
         if (z.schluessel === 'mehr' && navigationsRechte !== undefined) {

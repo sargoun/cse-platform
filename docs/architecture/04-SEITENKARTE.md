@@ -1801,13 +1801,13 @@ per-person review-duration distribution is performance monitoring.
 
 | Path | Right | Scope | SPEC | Phase |
 |---|---|---|---|---|
-| `/portal/[mandant]/social` — schedule overview, channel status | `social.schreiben` (read via `referenz.lesen`) | `M1` | SOC-01, SOC-03 | 9 |
-| `/portal/[mandant]/social/posts` — Entwurf · In Prüfung · Freigegeben · Geplant · Veröffentlicht | `social.schreiben` | `M1` | SOC-02, SOC-03 | 9 |
-| `/portal/[mandant]/social/posts/neu` — composer; pulls from real projects and released references | `social.schreiben` | `M1` | SOC-02, SOC-04, PRO-04, PRO-05 | 9 |
-| `/portal/[mandant]/social/posts/[id]` — editor and approval state | `social.schreiben` / `social.freigeben` | `M1` | SOC-03, SOC-08, APR-01 | 9 |
-| `/portal/[mandant]/social/posts/[id]/planung` — schedule a released post | `social.planen` | `M1` | SOC-03 | 9 |
-| `/portal/[mandant]/social/kanaele` — Instagram · Facebook · LinkedIn · TikTok · YouTube behind `SocialChannel` | `social.kanal_verbinden` | `M1` | SOC-06, SOC-07 | 9 |
-| `/portal/[mandant]/social/statistik` — `kanal_statistik` | `social.schreiben` | `M1` | SOC-01 | 9 |
+| `/portal/[mandant]/social` — schedule overview, channel status | `social.lesen` | `M1` | SOC-01, SOC-03 | 9 |
+| `/portal/[mandant]/social/posts` — Entwurf · In Prüfung · Freigegeben · Geplant · Veröffentlicht | `social.lesen` | `M1` | SOC-02, SOC-03 | 9 |
+| `/portal/[mandant]/social/posts/neu` — composer; pulls from real projects and released references | `social.lesen` + `social.schreiben` | `M1` | SOC-02, SOC-04, PRO-04, PRO-05 | 9 |
+| `/portal/[mandant]/social/posts/[id]` — editor and approval state | `social.lesen` / `social.freigeben` | `M1` | SOC-03, SOC-08, APR-01 | 9 |
+| `/portal/[mandant]/social/posts/[id]/planung` — schedule a released post | `social.lesen` + `social.planen` | `M1` | SOC-03 | 9 |
+| `/portal/[mandant]/social/kanaele` — Instagram · Facebook · LinkedIn · TikTok · YouTube behind `SocialChannel` | `social.lesen` + `social.kanal_verbinden` | `M1` | SOC-06, SOC-07 | 9 |
+| `/portal/[mandant]/social/statistik` — `kanal_statistik` | `social.lesen` | `M1` | SOC-01 | 9 |
 | `/portal/[mandant]/website/profil` — logo, cover, description of this area's public profile | `referenz.schreiben` + `system.identitaet_verwalten` | `M1` | PRO-01, PRO-02, TEN-07 | 2 |
 | `/portal/[mandant]/website/seiten` , `/[id]` | `referenz.schreiben` | `M1` | PUB-07, PUB-08 | 2 |
 | `/portal/[mandant]/website/leistungen` , `/[id]` | `referenz.schreiben` | `M1` | PRO-02, PUB-07, OPS-06 | 2 |
@@ -1840,9 +1840,9 @@ edited in their own mandant. Two editors never own one page.
 |---|---|---|---|---|
 | `/portal/[mandant]/recruiting` — overview | `recruiting.bewerbung_lesen` | `M1` | REC-01 | 9 |
 | `/portal/[mandant]/recruiting/bedarf` — requirement derived from unstaffed shifts and pipeline | `recruiting.bewerbung_lesen` + `dienstplan.lesen` | `M1` | REC-01, TIM-05 | 9 |
-| `/portal/[mandant]/recruiting/stellen` , `/[id]` | `recruiting.stelle_schreiben` | `M1` | REC-02 | 9 |
-| `/portal/[mandant]/recruiting/stellen/neu` — the AI drafts, a human edits and approves | `recruiting.stelle_schreiben` | `M1` | REC-02, APR-01, invariant 7 | 9 |
-| `/portal/[mandant]/recruiting/stellen/[id]/veroeffentlichung` — channels; „nicht verbunden" where no API exists | `recruiting.stelle_veroeffentlichen` | `M1` | REC-09, D-02 | 9 |
+| `/portal/[mandant]/recruiting/stellen` , `/[id]` | `recruiting.stelle_lesen` | `M1` | REC-02 | 9 |
+| `/portal/[mandant]/recruiting/stellen/neu` — the AI drafts, a human edits and approves | `recruiting.stelle_lesen` + `recruiting.stelle_schreiben` | `M1` | REC-02, APR-01, invariant 7 | 9 |
+| `/portal/[mandant]/recruiting/stellen/[id]/veroeffentlichung` — channels; „nicht verbunden" where no API exists | `recruiting.stelle_lesen` + `recruiting.stelle_veroeffentlichen` | `M1` | REC-09, D-02 | 9 |
 | `/portal/[mandant]/recruiting/bewerbungen` , `/[id]` | `recruiting.bewerbung_lesen` | `M1` | REC-03, REC-04 | 9 |
 | `/portal/[mandant]/recruiting/kandidaten` , `/[id]` — the parsed CV record | `recruiting.bewerbung_lesen` | `M1` | REC-04, REC-05 | 9 |
 | `/portal/[mandant]/recruiting/kandidaten/[id]/bewertung` — ranked match with **visible criteria** | `recruiting.bewerbung_bewerten` | `M1` | REC-05, REC-08, LEG-12 | 9 |

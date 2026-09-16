@@ -1,7 +1,7 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
-import { istGleicherUrsprung } from '@/server/auth/ursprung';
+import { istGleicherUrsprung, erwarteterUrsprung } from '@/server/auth/ursprung';
 import { bindePersoenlich } from '@/server/kontext/index';
 import { db } from '@/server/db/pool';
 import { markiereAlleGelesen } from '@/server/benachrichtigung/posteingang';
@@ -33,7 +33,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     return markiereAlleGelesen({ abfrage, schreibe: abfrage });
   }) as Promise<number>);
 
-  const ziel = new URL(zurueck, anfrage.nextUrl.origin);
+  const ziel = new URL(zurueck, erwarteterUrsprung(anfrage));
   ziel.searchParams.set('gelesen', String(anzahl));
   return NextResponse.redirect(ziel, 303);
 }

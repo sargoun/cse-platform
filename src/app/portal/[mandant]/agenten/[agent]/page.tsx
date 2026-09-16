@@ -16,6 +16,7 @@ import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungFuer } from '../kennung';
+import { haeltRechte } from '../../../rechte';
 import {
   WERKZEUG_REGISTER, fuerAgent, untergrenze, type AgentKennung,
 } from '@/server/agent/tools/register-werkzeuge';
@@ -98,6 +99,12 @@ export default async function AgentDetail(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
+
+  /* AUT-06: ein Knopf, dessen Ziel diese Sitzung nicht oeffnen darf,
+     verraet die Existenz dessen, was er nicht zeigen darf. */
+  const darf = await haeltRechte(
+    sitzung, 'agent.budget_verwalten', 'agent.protokoll_lesen', 'freigabe.lesen',
+  );
   if (sitzung.aktiverMandantId === null) notFound();
 
   const daten = await (db().begin(SCHNAPPSCHUSS,
@@ -228,12 +235,24 @@ export default async function AgentDetail(
               <>
                 <strong>Vorschlag liegt vor.</strong>{' '}
                 Der Entwurf steht im Freigabe-Posteingang und wartet auf eine Entscheidung —
-                versendet wurde nichts.{' '}
-                <Link href={`/portal/${mandant}/freigaben`}
-                      data-cse="zum-posteingang"
-                      className="underline underline-offset-2">
-                  zum Posteingang
-                </Link>
+                versendet wurde nichts.
+                {/*
+                  * `/freigaben` verlangt laut Manifest `freigabe.lesen`; diese
+                  * Seite verlangt nur `agent.lesen`. Wer einen Lauf starten
+                  * darf, darf den Posteingang nicht zwangslaeufig oeffnen —
+                  * der Verweis fuehrte dann auf 404 und verriet, was er nicht
+                  * zeigen darf (AUT-06, Copilot-Runde auf PR 16 / D-581).
+                  */}
+                {darf['freigabe.lesen'] === true && (
+                  <>
+                    {' '}
+                    <Link href={`/portal/${mandant}/freigaben`}
+                          data-cse="zum-posteingang"
+                          className="underline underline-offset-2">
+                      zum Posteingang
+                    </Link>
+                  </>
+                )}
               </>
           ) : lauf === 'bestand' ? (
               <>
@@ -346,17 +365,31 @@ export default async function AgentDetail(
                 : String(kopf.max_schritte)}
             </dd>
           </div>
-          <div>
-            <dt className="text-text-subtle">Monatsbudget</dt>
-            <dd className="text-text">
-              <Link
-                href={`/portal/${mandant}/agenten/budget`}
-                className="underline-offset-2 hover:text-brand hover:underline"
-              >
-                siehe Budget
-              </Link>
-            </dd>
-          </div>
+          {/*
+            * **Ohne das Recht steht die ZEILE nicht da** — nicht nur der Link
+            * fehlt.
+            *
+            * Hier stand „siehe Budget — dafür fehlt Ihnen das Recht". Der
+            * Satz nannte das geschützte Ziel beim Namen und erklärte
+            * obendrein, welches Recht dahintersteht: er verriet genau das,
+            * was er verbergen sollte (AUT-06). Ein Bildschirm, der eine Tür
+            * zeigt und dazusagt, dass man den Schlüssel nicht hat, hat die
+            * Tür trotzdem gezeigt. Gemeldet hat das die Copilot-Runde auf
+            * PR 16.
+            */}
+          {darf['agent.budget_verwalten'] !== true ? null : (
+            <div>
+              <dt className="text-text-subtle">Monatsbudget</dt>
+              <dd className="text-text">
+                <Link
+                  href={`/portal/${mandant}/agenten/budget`}
+                  className="underline-offset-2 hover:text-brand hover:underline"
+                >
+                  siehe Budget
+                </Link>
+              </dd>
+            </div>
+          )}
         </dl>
         <p className="mt-s3 text-xs text-text-subtle">
           Erreicht ein Lauf die Schrittgrenze, endet die Aufgabe als
@@ -448,12 +481,14 @@ export default async function AgentDetail(
 
       <div className="mb-s3 flex flex-wrap items-baseline justify-between gap-s3">
         <h2 className="text-h2 text-text">Läufe</h2>
-        <Link
-          href={`/portal/${mandant}/agenten/${agent}/protokoll`}
-          className="text-sm text-text underline-offset-2 hover:text-brand hover:underline"
-        >
-          Schrittprotokoll
-        </Link>
+        {darf['agent.protokoll_lesen'] === true && (
+          <Link
+            href={`/portal/${mandant}/agenten/${agent}/protokoll`}
+            className="text-sm text-text underline-offset-2 hover:text-brand hover:underline"
+          >
+            Schrittprotokoll
+          </Link>
+        )}
       </div>
 
       {aufgaben.length === 0 ? (

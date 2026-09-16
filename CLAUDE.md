@@ -28,7 +28,7 @@ tender radar + AI agents. One platform, separate legal entities, one group view.
 | DB | Supabase Postgres | **EU region (Frankfurt)** |
 | Auth | Supabase Auth | 2FA for admin roles |
 | Storage | Supabase Storage | private buckets, signed URLs only |
-| ORM | Drizzle | migrations in repo, not dashboard-only |
+| Data access | `postgres.js` + SQL migrations in `drizzle/` | migrations in repo, applied by `pnpm db:migrate`, never dashboard-only (D-582) |
 | UI | Tailwind + shadcn/ui | — |
 | AI | OpenAI API | **EU processing + zero-retention where offered** |
 | Jobs | Supabase cron + Edge Functions; n8n only for external glue | — |
@@ -44,7 +44,7 @@ Record each one in `docs/DECISIONS.md`.
 
 ```bash
 pnpm dev
-pnpm db:generate && pnpm db:migrate
+pnpm db:migrate         # applies drizzle/*.sql in filename order
 pnpm db:seed            # realistic Berlin demo data, all four areas
 pnpm test               # unit
 pnpm test:e2e           # playwright

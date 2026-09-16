@@ -17,6 +17,8 @@ import {
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { lesePerson, type PersonZeile } from '../../daten';
 import { mandantTor, MandantAntwort } from '../../../../../unterseite';
+import { kennungOder404 } from '../../../../../kennung';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/personal/personen/[id]/zugang` — der Zugang einer
@@ -78,10 +80,16 @@ export default async function Zugang(
   },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   if (!UUID.test(id)) notFound();
   const tor = await mandantTor(`/portal/${mandant}/personal/personen/${id}/zugang`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+  /* AUT-06: das Personenblatt `…/personen/[id]` verlangt laut Manifest
+     `personal.lesen`, diese Seite `personal.zugang_verwalten` — wer nur das
+     zweite hält, bekam hinter „Zur Person" ein 404. Ein Verweis auf 404
+     verrät, was er nicht zeigen darf (Copilot-Runde auf PR 16 / D-581). */
+  const darf = await haeltRechte(zugang.sitzung, 'personal.lesen');
   const suche = await searchParams;
   const grundRoh = typeof suche['grund'] === 'string' ? suche['grund'] : null;
   const grund = (['keine_anstellung', 'kein_zugang', 'gesperrt', 'bremse'] as const)
@@ -116,7 +124,9 @@ export default async function Zugang(
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">Zugang — {person.name}</h1>
-        <Link href={`/portal/${mandant}/personal/personen/${id}`} className={knopf}>Zur Person</Link>
+        {darf['personal.lesen'] === true && (
+          <Link href={`/portal/${mandant}/personal/personen/${id}`} className={knopf}>Zur Person</Link>
+        )}
       </div>
 
       <dl data-cse="zugang-stand" className="mb-s5 grid max-w-prose grid-cols-1 gap-s2 text-sm sm:grid-cols-[auto_1fr] sm:gap-x-s5">

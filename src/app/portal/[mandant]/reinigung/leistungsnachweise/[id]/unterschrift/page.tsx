@@ -9,9 +9,11 @@ import { portalZugang } from '../../../../../zugang';
 import { slugTor } from '../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { haeltRechte } from '@/app/portal/rechte';
 import { mitLesekontext } from '../../../daten';
 import { bereiteUnterschriftVor } from '@/server/services/reinigung/leistungsnachweis';
 import type { SchnappschussPosition } from '@/server/services/reinigung/schnappschuss';
+import { kennungOder404 } from '../../../../../kennung';
 
 /**
  * `/portal/[mandant]/reinigung/leistungsnachweise/[id]/unterschrift` — der
@@ -49,6 +51,7 @@ export default async function Unterschriftsblatt({
   params: Promise<{ mandant: string; id: string }>;
 }) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const zugang = await portalZugang(
     `/portal/${mandant}/reinigung/leistungsnachweise/[id]/unterschrift`,
   );
@@ -60,6 +63,13 @@ export default async function Unterschriftsblatt({
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /* AUT-06: der Nachweis `…/leistungsnachweise/[id]` verlangt laut Manifest
+     `nachweis.lesen`, dieses Blatt nur `nachweis.schreiben` — wer nur
+     unterschreiben lassen darf, sah „Zum Nachweis" und „Abbrechen" und bekam
+     dahinter ein 404. Ein Verweis auf 404 verraet, was er nicht zeigen darf
+     (Copilot-Runde auf PR 16 / D-581). */
+  const darf = await haeltRechte(sitzung, 'nachweis.lesen');
 
   const vorschau = await mitLesekontext(sitzung, async (k) =>
     bereiteUnterschriftVor(k, id).catch(() => null));
@@ -78,14 +88,16 @@ export default async function Unterschriftsblatt({
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label="Zurück" className="mb-s4">
-        <Link
-          href={`/portal/${mandant}/reinigung/leistungsnachweise/${id}`}
-          className="text-sm text-text-muted underline hover:text-text"
-        >
-          ← Zum Nachweis
-        </Link>
-      </nav>
+      {darf['nachweis.lesen'] === true && (
+        <nav aria-label="Zurück" className="mb-s4">
+          <Link
+            href={`/portal/${mandant}/reinigung/leistungsnachweise/${id}`}
+            className="text-sm text-text-muted underline hover:text-text"
+          >
+            ← Zum Nachweis
+          </Link>
+        </nav>
+      )}
 
       <h1 className="mb-s3 text-h1 text-text">
         Leistungsnachweis {vorschau.kopf.nummer ?? ''}
@@ -195,12 +207,14 @@ export default async function Unterschriftsblatt({
           <Button type="submit" variante="primary" disabled={!bereit}>
             Unterschreiben
           </Button>
-          <Link
-            href={`/portal/${mandant}/reinigung/leistungsnachweise/${id}`}
-            className="inline-flex min-h-11 items-center text-sm text-text-muted underline hover:text-text"
-          >
-            Abbrechen
-          </Link>
+          {darf['nachweis.lesen'] === true && (
+            <Link
+              href={`/portal/${mandant}/reinigung/leistungsnachweise/${id}`}
+              className="inline-flex min-h-11 items-center text-sm text-text-muted underline hover:text-text"
+            >
+              Abbrechen
+            </Link>
+          )}
         </div>
       </form>
     </PortalRahmen>

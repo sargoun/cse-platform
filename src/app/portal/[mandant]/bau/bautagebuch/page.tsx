@@ -11,6 +11,7 @@ import { BAUTAG_PILLE, BAUTAG_STATUS_TEXT } from '../bautagebuch-anzeige';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
+import { haeltRechte } from '../../../rechte';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 
@@ -45,6 +46,12 @@ export default async function BautagebuchUeberProjekte(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /* AUT-06: der Bautag `…/bautagebuch/[datum]` verlangt laut Manifest
+     `bau.schreiben`, diese Liste nur `bau.lesen` — eine `kunde` sah jeden Tag
+     als Verweis und bekam dahinter ein 404. Ein Verweis auf 404 verraet, was
+     er nicht zeigen darf (Copilot-Runde auf PR 16 / D-581). */
+  const darf = await haeltRechte(sitzung, 'bau.schreiben');
 
   const tage = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => listeBautage(kontext, { nurOffene })),
@@ -99,14 +106,14 @@ export default async function BautagebuchUeberProjekte(
             {
               schluessel: 'datum',
               kopf: 'Tag',
-              zelle: (z) => (
+              zelle: (z) => (darf['bau.schreiben'] === true ? (
                 <Link
                   href={`/portal/${mandant}/bau/projekte/${z.projekt_id}/bautagebuch/${z.datum}`}
                   className="text-text underline-offset-2 hover:text-brand hover:underline"
                 >
                   {z.datum_lokal}
                 </Link>
-              ),
+              ) : z.datum_lokal),
             },
             {
               schluessel: 'projekt',

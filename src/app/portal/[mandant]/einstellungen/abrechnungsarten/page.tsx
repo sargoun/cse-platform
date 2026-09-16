@@ -6,6 +6,7 @@ import { alleAbrechnungsarten } from '@/server/services/finanz/abrechnungsart/in
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 
@@ -39,6 +40,14 @@ export default async function Abrechnungsarten(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   if (zugang.sitzung.aktiverMandantId === null) notFound();
+
+  /*
+   * `/auftraege` verlangt `auftrag.lesen` (Manifest); diese Seite öffnet mit
+   * `abrechnung.schreiben` allein. Ein Verweis, der auf 404 führt, verrät,
+   * was er nicht zeigen darf (AUT-06). Gemeldet von der Copilot-Runde auf
+   * PR 16 / D-581.
+   */
+  const darf = await haeltRechte(zugang.sitzung, 'auftrag.lesen');
 
   const arten = alleAbrechnungsarten();
 
@@ -122,15 +131,19 @@ export default async function Abrechnungsarten(
       <p className="mt-s5 max-w-prose text-sm text-text-muted">
         Die Abrechnungsart wird je Auftrag gesetzt und gilt für einen Zeitraum —
         ein Vertrag, der zum 1. Januar von Stundenlohn auf Monatspauschale
-        wechselt, bekommt eine zweite Zeile und keine überschriebene. Der Weg
-        dorthin führt über den{' '}
-        <Link
-          href={`/portal/${mandant}/auftraege`}
-          className="text-text underline-offset-2 hover:text-brand hover:underline"
-        >
-          Auftrag
-        </Link>
-        .
+        wechselt, bekommt eine zweite Zeile und keine überschriebene.
+        {darf['auftrag.lesen'] === true ? (
+          <>
+            {' '}Der Weg dorthin führt über den{' '}
+            <Link
+              href={`/portal/${mandant}/auftraege`}
+              className="text-text underline-offset-2 hover:text-brand hover:underline"
+            >
+              Auftrag
+            </Link>
+            .
+          </>
+        ) : null}
       </p>
     </PortalRahmen>
   );

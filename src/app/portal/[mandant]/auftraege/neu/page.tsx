@@ -9,6 +9,7 @@ import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { haeltRechte } from '../../../rechte';
 
 /**
  * `/portal/[mandant]/auftraege/neu` — der Auftragsassistent (OPS-10).
@@ -42,6 +43,15 @@ export default async function AuftragAssistent(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /*
+   * `/auftraege` verlangt laut Manifest `auftrag.lesen`; dieser Assistent
+   * oeffnet mit `auftrag.schreiben`. Wer anlegen darf, darf die Liste
+   * nicht zwangslaeufig lesen — der Rueckverweis fuehrte dann auf 404 und
+   * verriet, was er nicht zeigen darf (AUT-06, Copilot-Runde auf PR 16 /
+   * D-581).
+   */
+  const darf = await haeltRechte(sitzung, 'auftrag.lesen');
+
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => ({
       kunden: await kontext.abfrage<Auswahl>(
@@ -73,14 +83,16 @@ export default async function AuftragAssistent(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label="Zurück" className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/auftraege`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← Alle Aufträge
-        </Link>
-      </nav>
+      {darf['auftrag.lesen'] === true && (
+        <nav aria-label="Zurück" className="mb-s3">
+          <Link
+            href={`/portal/${mandant}/auftraege`}
+            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+          >
+            ← Alle Aufträge
+          </Link>
+        </nav>
+      )}
       <h1 className="mb-s5 text-h1 text-text">Neuer Auftrag</h1>
 
       {daten.kunden.length === 0 ? (

@@ -31,17 +31,32 @@ export interface NochNichtGebautProps {
   /** Die Phase aus dem Manifest — sie sagt, WANN, statt nur "spaeter". */
   readonly phase: number | null;
   readonly pfad: string;
+  /**
+   * **Ob die SITZUNG schreibgeschuetzt ist — nicht, ob die Seite leer ist.**
+   *
+   * Hier stand `nurLesen` fest auf wahr, und das war eine Verwechslung mit
+   * Folgen. „Nur Lesen" ist in dieser Plattform die Aussage ueber eine
+   * Sitzung: die Gruppenansicht schreibt nicht (Invariante 10). Auf einer
+   * Seite, die bloss noch nicht gebaut ist, sagte dasselbe Schild einer
+   * Mitarbeiterin, ihr KONTO duerfe nichts — und genau so hat es ein Nutzer
+   * gelesen, der daraufhin fragte, warum sein Mitarbeiter keine Stunden
+   * erfassen koenne. Ein Bauzustand wurde zur Rechteauskunft.
+   *
+   * Der Wert kommt deshalb aus der Sitzung und nicht aus dieser Datei. In der
+   * Gruppenansicht steht das Schild weiterhin — dort stimmt es.
+   */
+  readonly nurLesen?: boolean;
 }
 
 export function NochNichtGebaut({
   titel, bereich, leiste, wurzel, sichtbareTabs, aktiverTab, phase, pfad, navigationsRechte,
-  beschriftungen,
+  beschriftungen, nurLesen = false,
 }: NochNichtGebautProps) {
   return (
     <PortalRahmen
       titel={titel}
       bereich={bereich}
-      nurLesen
+      nurLesen={nurLesen}
       leiste={leiste}
       wurzel={wurzel}
       {...(aktiverTab === undefined ? {} : { aktiverTab })}

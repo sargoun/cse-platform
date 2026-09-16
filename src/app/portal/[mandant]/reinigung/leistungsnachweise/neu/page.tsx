@@ -7,6 +7,7 @@ import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/reinigung/leistungsnachweise/neu` — der Bürofallback
@@ -48,6 +49,13 @@ export default async function NachweisAnlegen({
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /* AUT-06: die Liste `…/reinigung/leistungsnachweise` verlangt laut Manifest
+     `nachweis.lesen`, dieses Blatt nur `nachweis.schreiben` — wer nur anlegen
+     darf, sah „Alle Leistungsnachweise" und bekam dahinter ein 404. Ein
+     Verweis auf 404 verraet, was er nicht zeigen darf (Copilot-Runde auf
+     PR 16 / D-581). */
+  const darf = await haeltRechte(sitzung, 'nachweis.lesen');
+
   return (
     <PortalRahmen
       titel="Neuer Leistungsnachweis"
@@ -59,14 +67,16 @@ export default async function NachweisAnlegen({
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label="Zurück" className="mb-s4">
-        <Link
-          href={`/portal/${mandant}/reinigung/leistungsnachweise`}
-          className="text-sm text-text-muted underline hover:text-text"
-        >
-          ← Alle Leistungsnachweise
-        </Link>
-      </nav>
+      {darf['nachweis.lesen'] === true && (
+        <nav aria-label="Zurück" className="mb-s4">
+          <Link
+            href={`/portal/${mandant}/reinigung/leistungsnachweise`}
+            className="text-sm text-text-muted underline hover:text-text"
+          >
+            ← Alle Leistungsnachweise
+          </Link>
+        </nav>
+      )}
 
       <h1 className="mb-s3 text-h1 text-text">Neuer Leistungsnachweis</h1>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">

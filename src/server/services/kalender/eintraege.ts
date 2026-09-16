@@ -36,6 +36,7 @@ export type Quelle =
   | 'projekt'     // Soll- und Ist-Ende
   | 'vergabe'     // Angebotsfrist einer Ausschreibung
   | 'freigabe'    // Frist im Freigabe-Posteingang
+  | 'gespraech'   // Bewerbungsgespraech (REC-06)
   | 'lead';       // SLA-Frist einer Anfrage
 
 export interface KalenderZeile {
@@ -135,6 +136,57 @@ export async function kalenderZeilen(
           and ($3::uuid is null
                or k.besitzer_benutzer_id = $3::uuid
                or $3::uuid = any (k.teilnehmer))`, w);
+    alle.push(...zeilen);
+  }
+
+  /*
+   * **Das Bewerbungsgespraech gehoert in den Kalender — es war eine Zusage
+   * ohne Deckung.**
+   *
+   * Das Bewerbungsblatt meldete nach dem Anlegen: „Er erscheint in der
+   * Gespraechsliste und im Kalender dieser Gesellschaft." Der erste Halbsatz
+   * stimmte, der zweite nicht: der Kalender las `kalender_eintrag`, `einsatz`,
+   * `projekt`, `ausschreibung_vorgang`, `freigabe` und `lead` — `gespraech`
+   * stand nicht darunter. Gemeldet hat das die Copilot-Runde auf PR 16.
+   *
+   * Zwei Wege standen offen: den Satz streichen, oder ihn wahr machen. Es ist
+   * der zweite geworden, weil CAL-01 einen ZENTRALEN Kalender verlangt und
+   * ein Vorstellungstermin genau das ist, was jemand dort sucht. Eine zweite
+   * Zeile in `kalender_eintrag` waere die schlechtere Haelfte gewesen: zwei
+   * Zeilen fuer einen Termin laufen beim ersten Verschieben auseinander.
+   * Hier wird gelesen, wo die Sache steht — so wie bei `einsatz` und
+   * `projekt` auch.
+   *
+   * **Die Wand ist die Policy.** `t_gespraech_lesen` (0166) verlangt
+   * `recruiting.bewerbung_lesen`; wer das nicht haelt, bekommt hier null
+   * Zeilen, ohne dass diese Datei davon wissen muss. Ein Kalender, der
+   * „Gespraech mit Frau X" zeigt, haette sonst eine Bewerbung verraten.
+   *
+   * **`$3::uuid is null`, wie bei Projekt und Vergabe (D-517):** ein
+   * Gespraech gehoert der Gesellschaft, nicht einem Postfach — `gespraech`
+   * traegt keinen Teilnehmer, nur `erstellt_von`. Im persoenlichen Kalender
+   * stuende es sonst allein bei dem, der es eingetragen hat, und fehlte genau
+   * denen, die es fuehren.
+   */
+  if (zeigt(lage, 'gespraech')) {
+    const zeilen = await db.abfrage<KalenderZeile>(
+      `select g.id::text as id, 'gespraech'::text as quelle,
+              'Gespräch: ' || coalesce(nullif(btrim(b.name), ''), 'Bewerbung') as titel,
+              g.termin::text as beginn,
+              (g.termin + make_interval(mins => g.dauer_minuten))::text as ende,
+              false as ganztaegig, g.ort,
+              case when g.status = 'abgesagt' then 'Abgesagt'
+                   else nullif(btrim(coalesce(s.titel, '')), '') end as beschreibung,
+              (g.status = 'abgesagt') as abgesagt,
+              coalesce(g.geaendert_am, g.erstellt_am)::text as geaendert,
+              ${WEG('g', '/recruiting/bewerbungen/')} || g.bewerbung_id::text as weg
+         from gespraech g
+         join bewerbung b on b.id = g.bewerbung_id and b.mandant_id = g.mandant_id
+         left join stelle s on s.id = b.stelle_id and s.mandant_id = b.mandant_id
+        where g.termin < ${FENSTER_ENDE}
+          and g.termin + make_interval(mins => g.dauer_minuten) > ${FENSTER}
+          and b.geloescht_am is null
+          and ($3::uuid is null or g.erstellt_von = $3::uuid)`, w);
     alle.push(...zeilen);
   }
 

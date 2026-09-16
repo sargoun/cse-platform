@@ -8,6 +8,7 @@ import { DataTable } from '@/components/ui/DataTable';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { berlinHeute } from '@/server/db/heute';
@@ -45,6 +46,12 @@ export default async function Personenliste(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /* AUT-06: „Nachweise" verlangt laut Manifest `personal.nachweis_lesen`,
+     „Stundenkonten" `zeit.konto_lesen`; diese Liste öffnet mit `personal.lesen`
+     allein. Ohne das Recht führte der Knopf auf 404 und verriet, was er nicht
+     zeigen darf (Copilot-Runde auf PR 16 / D-581). */
+  const darf = await haeltRechte(sitzung, 'personal.nachweis_lesen', 'zeit.konto_lesen');
+
   const heute = await berlinHeute();
   const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, (kontext) => lesePersonen(kontext, heute)),
@@ -72,8 +79,12 @@ export default async function Personenliste(
 
       <nav className="mb-s5 flex flex-wrap gap-s2">
         <Verweis mandant={mandant} ziel="anstellungen" text="Beschäftigungen" />
-        <Verweis mandant={mandant} ziel="nachweise" text="Nachweise" />
-        <Verweis mandant={mandant} ziel="stundenkonten" text="Stundenkonten" />
+        {darf['personal.nachweis_lesen'] === true && (
+          <Verweis mandant={mandant} ziel="nachweise" text="Nachweise" />
+        )}
+        {darf['zeit.konto_lesen'] === true && (
+          <Verweis mandant={mandant} ziel="stundenkonten" text="Stundenkonten" />
+        )}
       </nav>
 
       {zeilen.length === 0 ? (

@@ -12,6 +12,8 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { berlinHeute } from '@/server/db/heute';
 import { nachweislage, type Nachweislage } from '@/server/services/nachweis/uebersicht';
+import { kennungOder404 } from '../../../../kennung';
+import { haeltRechte } from '../../../../rechte';
 import {
   leseAnstellungen, lesePerson, spracheText,
   type AnstellungZeile, type PersonZeile,
@@ -42,6 +44,7 @@ export default async function Personenblatt(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const pfad = `/portal/${mandant}/personal/personen/${id}`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -51,6 +54,17 @@ export default async function Personenblatt(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
+
+  /* AUT-06: ein Knopf, dessen Ziel diese Sitzung nicht oeffnen darf,
+     verraet die Existenz dessen, was er nicht zeigen darf. Laut Manifest
+     verlangt „Zugang" `personal.zugang_verwalten`, das Register
+     `personal.nachweis_lesen`, das Stundenkonto `zeit.konto_lesen` und das
+     Nachweisblatt `personal.nachweis_verwalten`; dieses Blatt öffnet mit
+     `personal.lesen` allein — die drei letzten führten sonst auf 404
+     (Copilot-Runde auf PR 16 / D-581). */
+  const darf = await haeltRechte(
+    sitzung, 'personal.zugang_verwalten', 'personal.nachweis_lesen',
+    'zeit.konto_lesen', 'personal.nachweis_verwalten');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const heute = await berlinHeute();
@@ -105,19 +119,23 @@ export default async function Personenblatt(
         >
           Alle Personen
         </Link>
-        <Link
-          href={`/portal/${mandant}/personal/nachweise`}
-          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-        >
-          Nachweisregister
-        </Link>
-        <Link
-          href={`/portal/${mandant}/personal/personen/${id}/zugang`}
-          data-cse="person-zugang"
-          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-        >
-          Zugang und Anmeldecode
-        </Link>
+        {darf['personal.nachweis_lesen'] === true && (
+          <Link
+            href={`/portal/${mandant}/personal/nachweise`}
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Nachweisregister
+          </Link>
+        )}
+        {darf['personal.zugang_verwalten'] === true && (
+          <Link
+            href={`/portal/${mandant}/personal/personen/${id}/zugang`}
+            data-cse="person-zugang"
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Zugang und Anmeldecode
+          </Link>
+        )}
       </nav>
 
       <h2 className="mb-s3 text-h3 text-text">
@@ -166,10 +184,13 @@ export default async function Personenblatt(
                 </span>
               ),
             },
-            {
+            // Die Spalte besteht nur aus dem Verweis; ohne `zeit.konto_lesen`
+            // entfällt sie ganz — ein leerer Kopf „Stundenkonto" läse sich wie
+            // „kein Konto" (AUT-06, s. o.).
+            ...(darf['zeit.konto_lesen'] === true ? [{
               schluessel: 'konto',
               kopf: 'Stundenkonto',
-              zelle: (a) => (
+              zelle: (a: AnstellungZeile) => (
                 <Link
                   href={`/portal/${mandant}/personal/stundenkonten/${a.anstellungId}`}
                   className="text-text underline decoration-line underline-offset-4 hover:decoration-current"
@@ -177,7 +198,7 @@ export default async function Personenblatt(
                   ansehen
                 </Link>
               ),
-            },
+            }] : []),
           ]}
         />
       )}
@@ -197,14 +218,18 @@ export default async function Personenblatt(
             {
               schluessel: 'bezeichnung',
               kopf: 'Nachweis',
-              zelle: (n) => (
-                <Link
-                  href={`/portal/${mandant}/personal/nachweise/${n.nachweisId}`}
-                  className="text-text underline decoration-line underline-offset-4 hover:decoration-current"
-                >
-                  {n.bezeichnung}
-                </Link>
-              ),
+              // Ohne `personal.nachweis_verwalten` bleibt die Bezeichnung — nur
+              // der Weg zum Blatt fällt weg (AUT-06, s. o.).
+              zelle: (n) => (darf['personal.nachweis_verwalten'] === true
+                ? (
+                  <Link
+                    href={`/portal/${mandant}/personal/nachweise/${n.nachweisId}`}
+                    className="text-text underline decoration-line underline-offset-4 hover:decoration-current"
+                  >
+                    {n.bezeichnung}
+                  </Link>
+                )
+                : <span className="text-text">{n.bezeichnung}</span>),
             },
             {
               schluessel: 'gueltig',

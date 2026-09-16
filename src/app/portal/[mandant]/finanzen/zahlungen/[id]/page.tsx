@@ -13,6 +13,7 @@ import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../kennung';
 
 /**
  * `/portal/[mandant]/finanzen/zahlungen/[id]` — eine Zahlung und wohin sie
@@ -75,6 +76,7 @@ export default async function ZahlungDetail(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const zugang = await portalZugang(`/portal/${mandant}/finanzen/zahlungen/[id]`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);

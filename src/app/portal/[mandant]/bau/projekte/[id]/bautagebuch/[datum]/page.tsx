@@ -24,6 +24,8 @@ import { portalZugang } from '../../../../../../zugang';
 import { slugTor } from '../../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../../../kennung';
+import { haeltRechte } from '../../../../../../rechte';
 
 /**
  * `/portal/[mandant]/bau/projekte/[id]/bautagebuch/[datum]` — der Bautag
@@ -74,6 +76,7 @@ export default async function Bautag(
   { params }: { params: Promise<{ mandant: string; id: string; datum: string }> },
 ) {
   const { mandant, id, datum } = await params;
+  kennungOder404(id);
   if (!istKalendertag(datum)) notFound();
 
   const pfad = `/portal/${mandant}/bau/projekte/${id}/bautagebuch/${datum}`;
@@ -86,6 +89,12 @@ export default async function Bautag(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /* AUT-06: die Tagesliste `…/bautagebuch` verlangt laut Manifest
+     `bau.lesen`, dieser Bautag nur `bau.schreiben` — wer nur das zweite
+     haelt, bekam hinter „Zurück zu allen Bautagen" ein 404. Ein Verweis auf
+     404 verraet, was er nicht zeigen darf (Copilot-Runde auf PR 16 / D-581). */
+  const darf = await haeltRechte(sitzung, 'bau.lesen');
 
   /**
    * Die Seite LEGT NICHTS AN. Ein GET, das eine Zeile erzeugt, legt bei jedem
@@ -677,12 +686,14 @@ export default async function Bautag(
         </section>
       )}
 
-      <Link
-        href={`/portal/${mandant}/bau/projekte/${id}/bautagebuch`}
-        className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-      >
-        Zurück zu allen Bautagen
-      </Link>
+      {darf['bau.lesen'] === true && (
+        <Link
+          href={`/portal/${mandant}/bau/projekte/${id}/bautagebuch`}
+          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+        >
+          Zurück zu allen Bautagen
+        </Link>
+      )}
     </PortalRahmen>
   );
 }

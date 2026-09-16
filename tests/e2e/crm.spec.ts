@@ -9,6 +9,7 @@
  */
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import postgres from 'postgres';
 /**
  * Angemeldet wird als BESTIMMTES Konto, nicht als „irgendwer mit Rolle admin".
  *
@@ -20,6 +21,37 @@ import { expect, test } from '@playwright/test';
  * Bildschirm aussah und eine falsche Anmeldung war.
  */
 import { alsKonto, KONTO } from './hilfen/anmeldung';
+
+const DSN = process.env['DATABASE_URL']
+  ?? process.env['TEST_DATABASE_URL']
+  ?? 'postgres://postgres@localhost:55432/cse_test';
+const sql = postgres(DSN, { max: 2, onnotice: () => {} });
+
+/**
+ * Hält die Rolle dieses Kontos das Recht — nach der LEBENDEN Rechtetabelle?
+ *
+ * Der Fall unten stand einmal auf einer Annahme im Kommentar („`leitung` hält
+ * `system.einstellung_lesen` nicht"), und die Annahme wurde still falsch: der
+ * Menüpunkt wanderte auf `system.mandant_lesen` (D-580), das `leitung` sehr
+ * wohl hält, und die Zusicherung fiel mit `Expected 0, Received 1` — einem
+ * Fehlerbild, das nach einem kaputten Blatt aussieht und ein veralteter
+ * Kommentar war. Fünf CI-Läufe rot, bevor jemand nachsah.
+ *
+ * Deshalb steht die Voraussetzung jetzt als ABFRAGE da, nicht als Satz: kippt
+ * die Matrix, fällt der Fall mit „die Voraussetzung gilt nicht mehr" — und
+ * nicht mit einer Zahl, die man erst deuten muss.
+ */
+async function rolleHaelt(email: string, recht: string): Promise<boolean> {
+  const [z] = await sql<{ hat: boolean }[]>`
+    select exists (
+      select 1
+        from benutzer b
+        join benutzer_mandant bm on bm.benutzer_id = b.id and bm.entzogen_am is null
+        join rolle_berechtigung rb on rb.rolle_id = bm.rolle_id
+        join berechtigung be on be.id = rb.berechtigung_id
+       where b.email = ${email} and be.schluessel = ${recht}) as hat`;
+  return z?.hat === true;
+}
 
 test.describe('(1) Die Kundenliste zeigt den Werbestatus', () => {
   test('sie führt die Seed-Kunden mit Rechtsgrundlage', async ({ page }) => {
@@ -121,7 +153,7 @@ test.describe('(4) „Mehr" öffnet den vollständigen Baum (SEITENKARTE §11.2)
     await expect(page.locator('h1')).toHaveText('CRM');
   });
 
-  test('ein Modul ohne Recht steht NICHT im Blatt', async ({ page }) => {
+  test('ein Modul ohne Recht steht NICHT im Blatt — eines mit Recht schon', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 720 });
     /**
      * Hier ist die ROLLE die Aussage, nicht der Mensch: geprueft wird, was
@@ -130,16 +162,44 @@ test.describe('(4) „Mehr" öffnet den vollständigen Baum (SEITENKARTE §11.2)
      * „Leitung Security" stellte — eine Zusicherung, die niemand gegeben hat.
      * `leitung.bau` ist genau die Leitung DIESER Gesellschaft; unter einer
      * Sitzung in `security` haette `/portal/bau` mit 404 geantwortet.
+     *
+     * **Die Voraussetzung wird GEFRAGT, nicht behauptet.** `buchungen` trägt
+     * `buchhaltung.lesen` (`registry/navigation.ts`), und das hält `leitung`
+     * nach 0008 nicht — die Buchhaltung ist ein anderes Amt als die Leitung
+     * eines Gewerks. `einstellungen` trägt `system.mandant_lesen`, und das
+     * hält sie (D-580). Beides steht hier als Abfrage; sonst hiesse ein Kippen
+     * der Matrix „Received 1" statt „Voraussetzung gefallen".
      */
+    expect(await rolleHaelt(KONTO.leitungBau, 'buchhaltung.lesen'),
+      'Voraussetzung: leitung hält buchhaltung.lesen NICHT (0008)').toBe(false);
+    expect(await rolleHaelt(KONTO.leitungBau, 'system.mandant_lesen'),
+      'Voraussetzung: leitung hält system.mandant_lesen (0008, D-580)').toBe(true);
+
     await alsKonto(page, KONTO.leitungBau);
     await page.goto('/portal/bau');
     await page.locator('[data-cse="tab"][data-tab="mehr"]').click();
-    // `leitung` hält `system.einstellung_lesen` nicht — der Punkt fehlt,
-    // statt ausgegraut zu sein: ein Menüpunkt, der auf 404 führt, verrät
-    // die Existenz dessen, was er nicht zeigen darf.
-    await expect(page.locator('[data-cse="mehr-ziel"][data-ziel="einstellungen"]'))
+    await expect(page.locator('[data-cse="mehr-blatt"]')).toBeVisible();
+
+    // Ohne Recht fehlt der Punkt — nicht ausgegraut, sondern gar nicht: ein
+    // Menüpunkt, der auf 404 führt, verrät die Existenz dessen, was er nicht
+    // zeigen darf (AUT-06).
+    await expect(page.locator('[data-cse="mehr-ziel"][data-ziel="buchungen"]'))
       .toHaveCount(0);
     await expect(page.locator('[data-cse="mehr-ziel"][data-ziel="objekte"]')).toBeVisible();
+
+    /*
+     * **Und mit Recht steht er da — das ist die andere Hälfte von AUT-06.**
+     * Bis D-580 stand `einstellungen` auf `system.einstellung_lesen`, einem
+     * Recht, das nur die Super-Administration hält; die Leitung sah den
+     * Bereich nie, obwohl seine Seite für sie offen stand. Ein Blatt, das
+     * einen erlaubten Punkt verschweigt, ist derselbe Fehler von der anderen
+     * Seite — und genau dieser Fall hielt ihn fünf Läufe lang fest, weil er
+     * das Fehlen als richtig zusicherte.
+     */
+    const einstellungen = page.locator('[data-cse="mehr-ziel"][data-ziel="einstellungen"]');
+    await expect(einstellungen).toBeVisible();
+    await einstellungen.click();
+    await expect(page.locator('h1')).toHaveText('Einstellungen');
   });
 });
 
@@ -152,3 +212,5 @@ test.describe('(5) barrierefrei', () => {
     expect(ergebnis.violations).toEqual([]);
   });
 });
+
+test.afterAll(async () => { await sql.end(); });

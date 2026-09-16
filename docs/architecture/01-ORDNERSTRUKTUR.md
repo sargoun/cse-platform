@@ -3078,17 +3078,29 @@ pass before any file appears under `src/app/portal/[mandant]/dienstplan/`:
 | `supabase/config.toml` | **Local development only**: ports, auth settings (MFA enabled), buckets declared **private**, `db.major_version`. It mirrors the Frankfurt project's settings; the region itself is set in the project/IaC and recorded in DECISIONS (D-04, O-11) | D-04 (EU region), SEC-A6 (private buckets), AUT-02 (MFA) |
 | `supabase/functions/cron-dispatch` | The only Edge Function: invoked by `pg_cron`, calls `api/cron/[job]` with the shared secret. It contains no business logic and stamps no time — schedules stay in the database where they are auditable | invariant 5 (server clock), `07-INTEGRATIONEN.md` §22, `05-API-KARTE.md` §C.4 |
 
-**There is no `supabase/migrations` symlink.** Two runners over one directory is a corruption
-waiting to happen: drizzle-kit tracks state in `meta/_journal.json` and `__drizzle_migrations`,
-the Supabase CLI in its own `schema_migrations` table with a `<timestamp>_name.sql` naming
-convention it will not recognise in `0007_nummernkreis.sql`, and `meta/` is not SQL at all.
+> **D-582 — Drizzle was removed; this section describes the migrator that exists.**
+> `drizzle-orm` was never imported by a single file and `src/server/db/schema/` holds no
+> `pgTable`, so both packages and `drizzle.config.ts` are gone. The folder `drizzle/`, the
+> four-digit numbering and the journal table `__drizzle_migrations` keep their names: the
+> migrator, `scripts/test-db.sh`, CI and the Verfahrensdokumentation (ACC-10) all name that
+> path, and renaming them would be a change without content. **Passages elsewhere in this
+> document that describe a Drizzle model layer (`client.ts`, `schema/*.ts` table constants,
+> relations) describe a design that was never built** — read them as history until they are
+> rewritten.
 
-**One applier: `pnpm db:migrate` (drizzle-kit) in every environment, including local.**
-`supabase start` provides Postgres, Auth, Storage and cron for local development; it never
-applies schema. RLS, roles, functions and triggers are authored in `src/server/db/rls/`,
-`funktionen/` and `triggers/`, and folded into the numbered migration sequence by `pnpm db:rls`
-(`drizzle-kit generate --custom`) — so policies version, review and roll back exactly like
-tables, and the dashboard is never a source of schema.
+**There is no `supabase/migrations` symlink.** Two runners over one directory is a corruption
+waiting to happen: the repository migrator tracks state in `__drizzle_migrations`, the Supabase
+CLI in its own `schema_migrations` table with a `<timestamp>_name.sql` naming convention it
+will not recognise in `0007_nummernkreis.sql`.
+
+**One applier: `pnpm db:migrate` in every environment, including local.** It is
+`src/server/db/migrate.ts`: it applies every `drizzle/*.sql` in filename order, under the
+migrator role, checks the server's prerequisites first and records each applied file in
+`__drizzle_migrations`. `supabase start` provides Postgres, Auth, Storage and cron for local
+development; it never applies schema. RLS, roles, functions and triggers are authored in
+`src/server/db/rls/`, `funktionen/` and `triggers/` and folded into the numbered migration
+sequence by hand-written SQL in that same sequence — so policies version, review and roll back
+exactly like tables, and the dashboard is never a source of schema.
 
 ---
 
@@ -3097,7 +3109,7 @@ tables, and the dashboard is never a source of schema.
 | Workflow | Steps | Gate |
 |---|---|---|
 | `ci.yml` | `pnpm typecheck` · `pnpm lint` · `pnpm lint:design` · `pnpm lint:todo` · `pnpm test` · `pnpm build` | required |
-| `db.yml` | `drizzle-kit generate` must produce **no diff** · `pnpm test:invariants` · RLS **and FORCE** coverage via `scripts/rls-check.ts` · the **K-19 right-key extraction** (`rechte-katalog.test.ts`): every right key any policy, route gate, service or seed writes has a `berechtigung` row, and every catalogue row is used — a misspelled key is otherwise a permanently empty screen with no error | required |
+| `db.yml` | migration order and numbering (`migrationsnummern.test.ts`, D-582) · `pnpm test:invariants` · RLS **and FORCE** coverage via `scripts/rls-check.ts` · the **K-19 right-key extraction** (`rechte-katalog.test.ts`): every right key any policy, route gate, service or seed writes has a `berechtigung` row, and every catalogue row is used — a misspelled key is otherwise a permanently empty screen with no error | required |
 | `isolation.yml` | `pnpm test:isolation` against a seeded local Supabase, connected as `cse_app` | **required — SEC-A3** |
 | `e2e.yml` | Playwright, chromium desktop + mobile viewport, `TZ=Europe/Berlin`; a **second run under a non-Berlin TZ** so a UTC assumption cannot pass silently (K-11) | required |
 | `compliance.yml` | KoSIT validation of generated XRechnung samples (FIN-11) · DATEV EXTF golden-file diff (ACC-02) | **required immediately** — it passes trivially on an empty sample set, so the first sample cannot merge unvalidated |
@@ -3124,7 +3136,7 @@ every `*.platzhalter.ts` must have a matching entry in `DECISIONS.md` § Open, a
 | React component files | kebab-case file, PascalCase export | `mandant-switcher.tsx` → `export function MandantSwitcher` |
 | Service / query / job / tool files | kebab-case, named after the domain noun | `nummernkreis.ts`, `lead-sla/fristen.platzhalter.ts`, `berechne-preis.ts` |
 | Schema files | kebab-case domain name | `radar-ki-inhalt.ts`, `zeit-intern.ts` |
-| Migrations | drizzle-kit generated, never renamed, never edited after merge | `0007_nummernkreis.sql` |
+| Migrations | hand-written SQL under `drizzle/`, four digits, never renamed, never edited after merge (D-582) | `0007_nummernkreis.sql` |
 | Unit tests | source name + `.test.ts`, beside the source | `dauer.test.ts` |
 | Playwright specs | `.spec.ts`, only under `tests/` | `tests/e2e/finanz/storno.spec.ts` |
 | Private route files | leading underscore | `_actions.ts`, `_schemas.ts`, `_components/` |

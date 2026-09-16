@@ -12,6 +12,8 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mitLesekontext } from '../../../reinigung/daten';
 import { findeReklamation } from '@/server/services/reinigung/reklamation';
+import { kennungOder404 } from '../../../../kennung';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/qualitaet/reklamationen/[id]` — Aufnahme, Ursache,
@@ -51,6 +53,7 @@ export default async function ReklamationsBlatt({
   params: Promise<{ mandant: string; id: string }>;
 }) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const zugang = await portalZugang(`/portal/${mandant}/qualitaet/reklamationen/[id]`);
   if (zugang === null) return <AnmeldungNoetig />;
 
@@ -60,6 +63,13 @@ export default async function ReklamationsBlatt({
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /* AUT-06: der Nachweis `…/reinigung/leistungsnachweise/[id]` verlangt laut
+     Manifest `nachweis.lesen`, die Schicht `…/dienstplan/einsatz/[id]`
+     `dienstplan.lesen` — dieses Blatt nur `qualitaet.lesen`. Wer eines der
+     beiden nicht hält, sah den Verweis und bekam dahinter ein 404; ein Verweis
+     auf 404 verraet, was er nicht zeigen darf (Copilot-Runde auf PR 16 / D-581). */
+  const darf = await haeltRechte(sitzung, 'nachweis.lesen', 'dienstplan.lesen');
 
   const zeile = await mitLesekontext(sitzung, async (k) => findeReklamation(k, id));
   // AUT-06: eine fremde Zeile ist nicht vorhanden, nicht verboten.
@@ -122,13 +132,15 @@ export default async function ReklamationsBlatt({
             Bestrittener Nachweis:{' '}
             {zeile.leistungsnachweisId === null ? (
               'keiner'
-            ) : (
+            ) : darf['nachweis.lesen'] === true ? (
               <Link
                 href={`/portal/${mandant}/reinigung/leistungsnachweise/${zeile.leistungsnachweisId}`}
                 className="underline hover:text-text"
               >
                 {zeile.leistungsnachweisNummer ?? 'Nachweis öffnen'}
               </Link>
+            ) : (
+              zeile.leistungsnachweisNummer ?? '—'
             )}
           </p>
           <p className="m-0 text-text-muted">
@@ -136,13 +148,15 @@ export default async function ReklamationsBlatt({
             Nacharbeit:{' '}
             {zeile.nacharbeitEinsatzId === null ? (
               'noch keine Schicht hinterlegt'
-            ) : (
+            ) : darf['dienstplan.lesen'] === true ? (
               <Link
                 href={`/portal/${mandant}/dienstplan/einsatz/${zeile.nacharbeitEinsatzId}`}
                 className="underline hover:text-text"
               >
                 Schicht vom {zeile.nacharbeitDatum ?? '—'}
               </Link>
+            ) : (
+              `Schicht vom ${zeile.nacharbeitDatum ?? '—'}`
             )}
           </p>
         </div>

@@ -12,6 +12,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mitLesekontext } from '../../reinigung/daten';
 import { listeReklamationen, type ReklamationZeile }
   from '@/server/services/reinigung/reklamation';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/qualitaet/reklamationen` — die Beanstandungen (OPS-11,
@@ -63,6 +64,13 @@ export default async function ReklamationsListe({
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /* AUT-06: der Nachweis `…/reinigung/leistungsnachweise/[id]` verlangt laut
+     Manifest `nachweis.lesen`, diese Liste nur `qualitaet.lesen` — wer das
+     zweite nicht hält, sah in der Spalte einen Verweis und bekam dahinter ein
+     404. Ein Verweis auf 404 verraet, was er nicht zeigen darf (Copilot-Runde
+     auf PR 16 / D-581). Die Nummer bleibt; sie ist Teil der Reklamation. */
+  const darf = await haeltRechte(sitzung, 'nachweis.lesen');
 
   const zeilen = await mitLesekontext(sitzung, async (k) => listeReklamationen(k));
   const offen = zeilen.filter((z) => z.status === 'offen' || z.status === 'in_arbeit').length;
@@ -134,14 +142,14 @@ export default async function ReklamationsListe({
               kopf: 'Bestrittener Nachweis',
               zelle: (z) => (z.leistungsnachweisId === null
                 ? '—'
-                : (
+                : darf['nachweis.lesen'] === true ? (
                   <Link
                     href={`/portal/${mandant}/reinigung/leistungsnachweise/${z.leistungsnachweisId}`}
                     className="underline hover:text-text"
                   >
                     {z.leistungsnachweisNummer ?? 'Nachweis'}
                   </Link>
-                )),
+                ) : (z.leistungsnachweisNummer ?? 'Nachweis')),
             },
             {
               schluessel: 'nacharbeit',

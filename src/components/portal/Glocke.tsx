@@ -24,9 +24,21 @@ import type postgres from 'postgres';
  * `/portal/[mandant]/benachrichtigungen`; in der Gruppenansicht gibt es
  * keinen Bereich, und dann erscheint die Glocke gar nicht, statt auf 404 zu
  * fuehren.
+ *
+ * **Und kein Ziel unter einer Wurzel, die kein Mandant IST.** Der Ausdruck
+ * `[a-z0-9-]+` liess `mein`, `konto`, `kunde` und `gruppe` durch — vier
+ * Portalwurzeln, unter denen es keinen `benachrichtigungen`-Zweig gibt. Im
+ * Arbeiterportal zeigte die Glocke deshalb auf `/portal/mein/
+ * benachrichtigungen`, und das ist ein echtes 404: die Kraft, die auf das
+ * Symbol tippt, landet auf einer Fehlerseite. Der Ausdruck prueft eine FORM,
+ * und eine Form kann nicht wissen, welcher Name ein Mandant ist — also steht
+ * die Liste der reservierten Wurzeln hier ausdruecklich daneben.
  */
+const RESERVIERT = new Set(['mein', 'konto', 'kunde', 'gruppe']);
+
 export async function Glocke({ wurzel }: { readonly wurzel: string }) {
-  if (!/^\/portal\/[a-z0-9-]+$/u.test(wurzel)) return null;
+  const treffer = /^\/portal\/([a-z0-9-]+)$/u.exec(wurzel);
+  if (treffer === null || RESERVIERT.has(treffer[1]!)) return null;
 
   const sitzung = await aktuelleSitzung();
   if (sitzung === null) return null;

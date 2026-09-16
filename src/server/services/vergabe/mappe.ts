@@ -157,17 +157,68 @@ export async function setzePositionsstand(
   }
 }
 
-/** Entfernt eine Zeile. Kein weicher Löschstand: eine versehentlich angelegte
- *  Prüflistenzeile ist kein Geschäftsvorfall, sondern ein Tippfehler. */
+/**
+ * Entfernt eine Zeile. Kein weicher Löschstand: eine versehentlich angelegte
+ * Prüflistenzeile ist kein Geschäftsvorfall, sondern ein Tippfehler.
+ *
+ * **Bis zur Einreichung, und keinen Schritt weiter.** Eine eingereichte Mappe
+ * IST die Aussage darüber, was hinausgegangen ist; eine Zeile daraus zu
+ * löschen hiesse, das Angebot nachträglich anders aussehen zu lassen, als es
+ * war. Vorher ist die Liste ein Arbeitsblatt, nachher ein Beleg.
+ *
+ * **Die Mappe wird GESPERRT, nicht nur gelesen.** Hier stand die Bedingung
+ * als `exists` im `delete` — eine Momentaufnahme ohne Sperre. Die Einreichung
+ * (`app.mappe_einreichung_erfassen`, 0147) nimmt dagegen `for update` auf
+ * dieselbe Zeile. Zwei Vorgänge mit verschiedenen Serialisierungspunkten sind
+ * gar keiner: der Löschvorgang liest „offen", die Einreichung committet
+ * „eingereicht", und beide gehen durch — eine eingereichte Mappe mit einer
+ * fehlenden Prüflistenzeile. Das ist genau der Beleg, den niemand mehr
+ * berichtigen darf.
+ *
+ * Deshalb sperrt diese Funktion dieselbe Zeile mit derselben Anweisung. Wer
+ * zuerst kommt, gewinnt; der andere wartet und bekommt danach die Wahrheit —
+ * die Einreichung ein „bereits eingereicht", die Löschung ein „nicht
+ * gefunden".
+ *
+ * **Und die Mappe steht im Löschbefehl.** Die Position wurde allein über ihre
+ * Kennung und den Mandanten gesucht. Wer `vergabe.schreiben` hält und die
+ * Kennung einer Position aus einer ANDEREN Mappe kennt, löschte sie aus einem
+ * fremden Vorgang heraus — das versteckte Feld im Formular entschied nur, wo
+ * er danach landete. Der Aufrufer nennt die Mappe jetzt, und der Befehl
+ * verlangt sie.
+ *
+ * Null Zeilen heisst weiterhin: es gibt sie nicht, sie gehört zu einer
+ * anderen Mappe, ODER die Mappe ist zu — alle drei führen zu demselben Satz
+ * (AUT-06 — die Antwort verrät nicht, welcher Fall zutrifft).
+ *
+ * Gemeldet von der Copilot-Runde auf PR 16 (D-585).
+ */
+export interface PositionEntfernen {
+  readonly mappeId: string;
+  readonly positionId: string;
+}
+
 export async function entfernePosition(
-  kontext: SchreibKontext, positionId: string,
+  kontext: SchreibKontext, eingabe: PositionEntfernen,
 ): Promise<void> {
+  const [mappe] = await kontext.schreibe<{ id: string }>(
+    `select m.id from vergabemappe m
+      where m.id = $2::uuid and m.mandant_id = $1::uuid
+        and m.geloescht_am is null and m.status <> 'eingereicht'
+        for update`,
+    [kontext.aktiverMandantId, eingabe.mappeId]);
+  if (mappe === undefined) {
+    throw new MappeFehler('nicht_gefunden',
+      'Die Position wurde nicht gefunden, oder die Mappe ist bereits eingereicht.');
+  }
   const zeilen = await kontext.schreibe<{ id: string }>(
-    `delete from vergabemappe_position
-      where id = $2::uuid and mandant_id = $1::uuid returning id`,
-    [kontext.aktiverMandantId, positionId]);
+    `delete from vergabemappe_position p
+      where p.id = $2::uuid and p.mandant_id = $1::uuid and p.vergabemappe_id = $3::uuid
+      returning p.id`,
+    [kontext.aktiverMandantId, eingabe.positionId, mappe.id]);
   if (zeilen.length === 0) {
-    throw new MappeFehler('nicht_gefunden', 'Die Position wurde nicht gefunden.');
+    throw new MappeFehler('nicht_gefunden',
+      'Die Position wurde nicht gefunden, oder die Mappe ist bereits eingereicht.');
   }
 }
 

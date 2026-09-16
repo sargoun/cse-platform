@@ -96,12 +96,22 @@ function berlinVersatzMinuten(instant: Date): number {
 /**
  * The instant of a Berlin wall-clock time.
  *
- * Resolved by guessing the offset and correcting once, which converges for
- * every real case including both transition nights. A wall-clock time that
- * does not exist (02:30 on the spring-forward day) resolves forward, and one
- * that occurs twice (02:30 on the fall-back day) resolves to the first
- * occurrence — stated here because leaving it to chance is how a nightly
- * generator produces a shift an hour off, twice a year.
+ * A wall-clock time that does not exist (02:30 on the spring-forward day)
+ * resolves FORWARD, and one that occurs twice (02:30 on the fall-back day)
+ * resolves to the FIRST occurrence — stated here because leaving it to chance
+ * is how a nightly generator produces a shift an hour off, twice a year.
+ *
+ * **Both offsets around the day are tried, and the earliest valid instant
+ * wins.** The earlier version guessed one offset and corrected once. That
+ * converges, but on the fall-back night it converged on the SECOND occurrence
+ * — the opposite of what the line above promises, and nothing caught it
+ * because no test named that hour. A contract in a docstring that the code
+ * does not keep is worse than no contract: the next caller reads it and plans
+ * around it.
+ *
+ * A candidate is valid when the offset AT that instant is the offset that
+ * produced it; a non-existent wall-clock time has no valid candidate, and
+ * then the offset in force BEFORE the change gives the forward resolution.
  */
 export function berlinInstant(
   jahr: number,
@@ -111,11 +121,16 @@ export function berlinInstant(
   minute = 0,
 ): Date {
   const naiv = Date.UTC(jahr, monat - 1, tag, stunde, minute);
-  const ersterVersuch = new Date(naiv - 60 * 60_000);
-  const versatz = berlinVersatzMinuten(ersterVersuch);
-  const kandidat = new Date(naiv - versatz * 60_000);
-  const versatz2 = berlinVersatzMinuten(kandidat);
-  return versatz2 === versatz ? kandidat : new Date(naiv - versatz2 * 60_000);
+  const TAG_MS = 24 * 60 * 60_000;
+  const vorher = berlinVersatzMinuten(new Date(naiv - TAG_MS));
+  const nachher = berlinVersatzMinuten(new Date(naiv + TAG_MS));
+
+  const gueltige = [...new Set([vorher, nachher])]
+    .map((versatz) => naiv - versatz * 60_000)
+    .filter((kandidat) => berlinVersatzMinuten(new Date(kandidat)) === (naiv - kandidat) / 60_000)
+    .sort((a, b) => a - b);
+
+  return new Date(gueltige[0] ?? naiv - vorher * 60_000);
 }
 
 /**

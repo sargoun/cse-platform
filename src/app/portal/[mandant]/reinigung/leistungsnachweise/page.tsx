@@ -9,6 +9,7 @@ import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { haeltRechte } from '@/app/portal/rechte';
 import { mitLesekontext } from '../daten';
 import { listeNachweise, type NachweisKopf }
   from '@/server/services/reinigung/leistungsnachweis';
@@ -53,6 +54,13 @@ export default async function NachweisListe({
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /* AUT-06: der Bürofallback `…/leistungsnachweise/neu` verlangt laut Manifest
+     `nachweis.schreiben`, diese Liste nur `nachweis.lesen` — wer nur lesen
+     darf, sah „Neuen Nachweis anlegen" und bekam dahinter ein 404. Ein Verweis
+     auf 404 verraet, was er nicht zeigen darf (Copilot-Runde auf PR 16 /
+     D-581). */
+  const darf = await haeltRechte(sitzung, 'nachweis.schreiben');
+
   const nachweise = await mitLesekontext(sitzung, async (k) => listeNachweise(k));
   const offen = nachweise.filter((n) => n.status === 'vorgelegt').length;
   const signiert = nachweise.filter((n) => n.status === 'signiert').length;
@@ -70,9 +78,11 @@ export default async function NachweisListe({
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">Leistungsnachweise</h1>
-        <Link href={`/portal/${mandant}/reinigung/leistungsnachweise/neu`} className="text-sm underline hover:text-text">
-          Neuen Nachweis anlegen
-        </Link>
+        {darf['nachweis.schreiben'] === true && (
+          <Link href={`/portal/${mandant}/reinigung/leistungsnachweise/neu`} className="text-sm underline hover:text-text">
+            Neuen Nachweis anlegen
+          </Link>
+        )}
       </div>
 
       <div className="mb-s5 grid grid-cols-1 gap-s4 sm:grid-cols-3">

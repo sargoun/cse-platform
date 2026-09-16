@@ -12,6 +12,7 @@ import {
 } from '@/server/services/buchhaltung/verfahrensdokumentation';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/buchhaltung/verfahrensdokumentation` — die
@@ -50,6 +51,15 @@ export default async function Verfahrensdoku({ params }: { params: Promise<{ man
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
 
+  /*
+   * `/buchhaltung` verlangt laut Manifest `buchhaltung.lesen`; diese Seite
+   * oeffnet mit `buchhaltung_konfiguration.lesen`. Wer die Dokumentation
+   * lesen darf, darf nicht zwangslaeufig die Buchhaltung oeffnen — der Knopf
+   * fuehrte dann auf 404 und verriete, was er nicht zeigen darf (AUT-06,
+   * Copilot-Runde auf PR 16 / D-581).
+   */
+  const darf = await haeltRechte(zugang.sitzung, 'buchhaltung.lesen');
+
   const jobs = alleJobs(db());
   const d = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, (kontext) =>
@@ -72,7 +82,9 @@ export default async function Verfahrensdoku({ params }: { params: Promise<{ man
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">Verfahrensdokumentation</h1>
-        <Link href={`/portal/${mandant}/buchhaltung`} className={knopf}>Zur Buchhaltung</Link>
+        {darf['buchhaltung.lesen'] === true && (
+          <Link href={`/portal/${mandant}/buchhaltung`} className={knopf}>Zur Buchhaltung</Link>
+        )}
       </div>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         Erzeugt aus der lebenden Konfiguration der {d.firma} (GoBD Rz. 151 ff.): Gesellschaft, Fassung und
@@ -85,17 +97,31 @@ export default async function Verfahrensdoku({ params }: { params: Promise<{ man
         <dt className="text-text-muted">Abgerufen</dt>
         <dd className="text-text">{d.abgerufenAm} (Europe/Berlin)</dd>
         <dt className="text-text-muted">Fassung</dt>
-        <dd className="text-text" data-cse="vd-fassung">
+        <dd className="min-w-0 break-words text-text" data-cse="vd-fassung">
           Commit {d.auslieferung.commit ?? 'nicht bekannt (lokal)'} · Umgebung {d.auslieferung.umgebung ?? 'lokal'}
         </dd>
         <dt className="text-text-muted">Schemastand</dt>
-        <dd className="text-text" data-cse="vd-schemastand">
+        <dd className="min-w-0 break-words text-text" data-cse="vd-schemastand">
           {d.schemastand === null
             ? 'nicht ablesbar — diese Datenbank führt kein Migrationsjournal'
             : `${d.schemastand.migration} (${d.schemastand.angewendetAm}), ${String(d.migrationen)} Migrationen`}
         </dd>
         <dt className="text-text-muted">SHA-256 der Struktur (Konfiguration und Verfahren)</dt>
-        <dd className="font-mono text-xs text-text" data-cse="vd-sha256">{d.sha256}</dd>
+        {/*
+          * `break-all`, und zwar hier und nicht `break-words`.
+          *
+          * Gemessen am Telefon: diese Seite lief 133px ueber den rechten Rand,
+          * und zwar OHNE dass ein einziger Kasten hinausragte — ein
+          * SHA-256 ist ein Wort aus 64 Zeichen ohne Trennstelle, der Kasten
+          * blieb brav in der Spalte, und die Schrift lief darueber hinaus.
+          * `break-words` haette nichts geholfen: es bricht zwischen Woertern,
+          * und hier gibt es nur eines. `break-all` darf mitten im Wort
+          * trennen, was bei einem Hash genau richtig ist — er wird gelesen,
+          * nicht gesprochen.
+          */}
+        <dd className="min-w-0 break-all font-mono text-xs text-text" data-cse="vd-sha256">
+          {d.sha256}
+        </dd>
       </dl>
 
       <div data-cse="vd-abrufe" className="mb-s6 flex flex-wrap items-center gap-s3">

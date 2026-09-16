@@ -9,6 +9,7 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
+import { haeltRechte } from '../../../rechte';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import {
@@ -53,6 +54,13 @@ export default async function Pruefdauer(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /* AUT-06: der Posteingang `/freigaben` verlangt laut Manifest
+     `freigabe.lesen`, diese Seite nur `freigabe.pruefdauer_lesen`. Wer die
+     Verteilung lesen darf, darf nicht zwangsläufig den Posteingang öffnen —
+     der Knopf führte dann auf 404 und verriet, was er nicht zeigen darf
+     (Copilot-Runde auf PR 16 / D-581). */
+  const darf = await haeltRechte(sitzung, 'freigabe.lesen');
+
   const zeilen = await (db().begin(SCHNAPPSCHUSS,
     async (tx: postgres.TransactionSql) => withTenant(tx, sitzung, async (kontext) =>
       ladeVerteilung(kontext)))) as readonly VerteilungsZeile[];
@@ -75,12 +83,14 @@ export default async function Pruefdauer(
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">Prüfdauer</h1>
-        <Link
-          href={`/portal/${mandant}/freigaben`}
-          className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
-        >
-          Zum Posteingang
-        </Link>
+        {darf['freigabe.lesen'] === true && (
+          <Link
+            href={`/portal/${mandant}/freigaben`}
+            className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
+          >
+            Zum Posteingang
+          </Link>
+        )}
       </div>
 
       <p className="mb-s6 max-w-prose text-sm text-text-muted">

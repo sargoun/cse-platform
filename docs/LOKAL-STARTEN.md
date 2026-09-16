@@ -10,7 +10,35 @@ Voraussetzungen: Node ≥ 22, `pnpm`, Docker.
 
 ## 1. Der kurze Weg
 
-Windows (PowerShell):
+**Windows: ein Befehl.**
+
+```powershell
+.\scripts\windows-start.ps1
+```
+
+Er macht alles, was unten steht — und drei Dinge, die eine Befehlsliste nicht
+kann:
+
+- **Er beendet einen laufenden Server ZUERST.** Der haeufigste Fehlschlag beim
+  zweiten Anlauf: auf 3001 haengt noch ein Server von vorhin, `pnpm build`
+  bricht ab, und die uebrigen Befehle laufen trotzdem weiter, weil PowerShell
+  bei einem Fehler nicht stehenbleibt. Am Ende stehen drei Meldungen, von denen
+  nur die erste zaehlt. Vorher wird geprueft, ob der Server auf dem Hafen
+  ueberhaupt UNSERER ist (`/healthz`) — ein fremdes Programm wird nicht
+  abgeschossen.
+- **Er bleibt bei jedem Fehlschlag stehen** und nennt den Schritt.
+- **Er setzt die Datenbank frisch auf.** Sonst laeuft der Seed ueber vorhandene
+  Daten, legt (richtigerweise) nichts nach und meldet ueberall `0` — was sich
+  wie ein kaputter Seed liest und keiner ist. Wer eigene Eingaben behalten
+  will: `-DatenBehalten`.
+
+Schalter: `-Port 3002` · `-DatenBehalten` · `-OhneBau`.
+
+Am Ende nennt er die Adresse fuer das Telefon und die Konten zum Anmelden.
+
+---
+
+Derselbe Weg von Hand, Windows (PowerShell):
 
 ```powershell
 $env:DATABASE_URL   = "postgres://postgres@localhost:5433/postgres"
@@ -22,10 +50,13 @@ Remove-Item -Recurse -Force .next, node_modules\.cache -ErrorAction SilentlyCont
 
 pnpm install
 
-# Frische Datenbank
+# Frische Datenbank — `pgvector/pgvector:pg16`, NICHT `postgres:16`.
+# Es ist dasselbe Postgres 16, nur mit der Erweiterung `vector` darin. Der
+# Wissensindex (0151) braucht sie; ohne sie bricht `db:migrate` ab und die
+# Datenbank bleibt halb migriert.
 docker rm -f cse-db
 docker run -d --name cse-db -e POSTGRES_USER=postgres -e POSTGRES_HOST_AUTH_METHOD=trust `
-  -p 5433:5432 postgres:16
+  -p 5433:5432 pgvector/pgvector:pg16
 Start-Sleep -Seconds 6
 
 # K-06-Schluessel — siehe Abschnitt 3. OHNE DIESE ZEILE bleibt der Seed unvollstaendig.
@@ -51,7 +82,7 @@ pnpm install
 
 docker rm -f cse-db 2>/dev/null || true
 docker run -d --name cse-db -e POSTGRES_USER=postgres -e POSTGRES_HOST_AUTH_METHOD=trust \
-  -p 5433:5432 postgres:16
+  -p 5433:5432 pgvector/pgvector:pg16
 sleep 6
 
 docker exec cse-db psql -U postgres -c \
@@ -63,6 +94,63 @@ pnpm build && pnpm start
 
 Danach: <http://localhost:3001> (oeffentliche Website) und
 <http://localhost:3001/dev/anmelden> (Rollenkonten der Demo).
+
+---
+
+## 1a. Wer sich wie anmeldet
+
+**Verwaltung, Leitung, Kunde — `/auth/login`**, Kennwort fuer alle:
+`demo-cse-2026`.
+
+| E-Mail | Rolle | sieht |
+|---|---|---|
+| `admin@cse-gruppe.de` | super_admin | Gruppensicht und alle vier Gesellschaften |
+| `leitung.reinigung@cse-gruppe.de` | leitung | CSE Dienstleistungen |
+| `leitung.bau@cse-gruppe.de` | leitung | REALTIME Service |
+| `leitung.security@cse-gruppe.de` | leitung | SSE Security |
+| `admin.reinigung@cse-gruppe.de` | admin | Verwaltung der Reinigung |
+| `kunde.demo@example.test` | kunde | Kundenportal |
+
+Die `admin`- und `super_admin`-Konten laufen in den zweiten Faktor (2FA ist fuer
+sie Pflicht). **Der kuerzeste Weg hinein ist deshalb `leitung.*`.**
+
+**Beschaeftigte — `/auth/mitarbeiter`, Mobilnummer und Einmalcode, KEIN
+Kennwort** (EMP-01). Die Nummern der Demopersonen stehen auf
+<http://localhost:3001/dev/anmelden>; ohne SMS-Gateway (O-82) erscheint der Code
+dort auf dem Bildschirm, wo sonst die SMS ankaeme.
+
+| Nummer | Mensch | besonders |
+|---|---|---|
+| `0170 1000000` | Fatima Yildiz | ein Mensch, ZWEI Gesellschaften (D-09) |
+| `0170 1000002` | Amir Haddad | dieselbe Oberflaeche auf Arabisch (EMP-12) |
+
+Die nationale Schreibweise mit fuehrender Null ist die richtige — sie wird auf
+E.164 normalisiert, bevor verglichen wird. Der Rest der Seed-Personen hat
+absichtlich keinen Portalzugang; ihre Nummern fuehren auf die Codeseite und
+dort nicht weiter (D-543).
+
+---
+
+## 1b. `CSE_DEV_FLAECHEN=1` ist nicht optional — sonst kommt das Telefon nicht rein
+
+Die Flagge steht oben in derselben Zeile wie `DATABASE_URL`, und sie entscheidet
+mehr, als ihr Name sagt:
+
+- sie legt die **Demodaten** an (ohne sie bleibt der Seed bei der Struktur),
+- sie zeigt den **Einmalcode auf dem Bildschirm**, solange kein SMS-Gateway
+  verbunden ist,
+- sie oeffnet **`/dev/anmelden`**,
+- und seit D-541 entscheidet sie, ob die Anmeldekekse **`Secure`** tragen.
+
+Der letzte Punkt ist der, an dem eine Anmeldung am Telefon frueher unmoeglich
+war. `pnpm start` setzt `NODE_ENV=production`; das Telefon erreicht den Rechner
+aber ueber `http://192.168.x.x`, und einen `Secure`-Keks verwirft dort **jeder**
+Browser (RFC 6265bis §5.5). Ohne die Flagge kommt man auf einem Telefon im
+eigenen Netz also nicht hinein — nicht weil etwas kaputt ist, sondern weil die
+Verbindung unverschluesselt ist. Die Anmeldeseite sagt das inzwischen auch hin.
+
+**Produktiv gilt das Gegenteil:** dort steht die Flagge NICHT, die Kekse tragen
+`Secure` und den `__Host-`-Namen, und die Plattform gehoert hinter HTTPS.
 
 ---
 

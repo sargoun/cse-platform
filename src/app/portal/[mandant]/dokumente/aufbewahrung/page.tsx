@@ -12,6 +12,7 @@ import {
 import { liesWirtschaftsjahr, type Wirtschaftsjahr } from '@/server/services/buchhaltung/wirtschaftsjahr';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
 import { KATEGORIE } from '../darstellung';
 
 /**
@@ -44,6 +45,12 @@ export default async function Aufbewahrung(
   const tor = await mandantTor(`/portal/${mandant}/dokumente/aufbewahrung`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+
+  /* AUT-06: `…/buchhaltung/archiv` verlangt laut Manifest `buchhaltung.lesen`,
+     diese Seite verlangt es nicht. Wer Fristen pflegt, ohne das Archiv oeffnen
+     zu duerfen, bekam hinter „Zum GoBD-Archiv" ein 404 — ein Verweis auf 404
+     verraet, was er nicht zeigen darf (Copilot-Runde auf PR 16 / D-581). */
+  const darf = await haeltRechte(zugang.sitzung, 'buchhaltung.lesen');
   const suche = await searchParams;
   const gesetzt = typeof suche['gesetzt'] === 'string' ? suche['gesetzt'] : null;
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
@@ -71,10 +78,12 @@ export default async function Aufbewahrung(
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">Aufbewahrungsregeln</h1>
-        <Link href={`/portal/${mandant}/buchhaltung/archiv`}
-              className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2">
-          Zum GoBD-Archiv
-        </Link>
+        {darf['buchhaltung.lesen'] === true ? (
+          <Link href={`/portal/${mandant}/buchhaltung/archiv`}
+                className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2">
+            Zum GoBD-Archiv
+          </Link>
+        ) : null}
       </div>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         Je Kategorie gilt die Regel dieser Gesellschaft, sonst die der Plattform. Die Frist

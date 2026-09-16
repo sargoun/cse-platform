@@ -1,6 +1,7 @@
 import type postgres from 'postgres';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Rechenvorschau } from '@/components/bau/Rechenvorschau';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { berlinHeute } from '@/server/db/heute';
@@ -14,6 +15,8 @@ import { portalZugang } from '../../../../../../zugang';
 import { slugTor } from '../../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../../../kennung';
+import { haeltRechte } from '../../../../../../rechte';
 
 /**
  * `/portal/[mandant]/bau/projekte/[id]/aufmass/neu` — ein Aufmass aufnehmen
@@ -43,6 +46,7 @@ export default async function AufmassAufnehmen(
   },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const { probe = '', einheit = 'm²' } = await searchParams;
   const pfad = `/portal/${mandant}/bau/projekte/${id}/aufmass/neu`;
   const zugang = await portalZugang(pfad);
@@ -54,6 +58,13 @@ export default async function AufmassAufnehmen(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /* AUT-06: die Blattliste `…/aufmass` verlangt laut Manifest `bau.lesen`,
+     dieses Blatt nur `bau.aufmass_erfassen` — eine Kraft vor Ort haelt das
+     eine und nicht das andere, und „Abbrechen" fuehrte sie auf ein 404. Ein
+     Verweis auf 404 verraet, was er nicht zeigen darf (Copilot-Runde auf
+     PR 16 / D-581). */
+  const darf = await haeltRechte(sitzung, 'bau.lesen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -220,15 +231,21 @@ export default async function AufmassAufnehmen(
                 placeholder="Bezeichnung"
                 className="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text"
               />
-              <input
+              {/*
+                * **Das lebende Feld** (BAU-02).
+                *
+                * `POST /api/bau/aufmasse/vorschau` stand seit BAU-02 im Baum,
+                * mit einem Kommentar, der genau dieses Feld beschreibt — und
+                * im ganzen Quelltext rief die Route niemand. Der Satz über
+                * diesem Block versprach „die Menge rechnet der Server", und
+                * sehen konnte man das erst nach dem Absenden. Jetzt steht das
+                * Ergebnis daneben, und zwar GERECHNET VOM SERVER: ein zweiter
+                * Parser im Browser wäre der, den niemand prüft.
+                */}
+              <Rechenvorschau
                 name={`zeile_rechenansatz_${String(n)}`}
-                placeholder="3 × (4,20 × 2,75)"
-                className="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 font-mono text-sm text-text"
-              />
-              <input
-                name={`zeile_einheit_${String(n)}`}
-                placeholder="m²"
-                className="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text"
+                einheitName={`zeile_einheit_${String(n)}`}
+                cse={`zeile-rechenansatz-${String(n)}`}
               />
               <select
                 name={`zeile_lv_${String(n)}`}
@@ -265,12 +282,14 @@ export default async function AufmassAufnehmen(
 
         <div className="mt-s5 flex flex-wrap items-center gap-s3">
           <Button type="submit" variante="primary">Aufmaß speichern</Button>
-          <Link
-            href={`/portal/${mandant}/bau/projekte/${id}/aufmass`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            Abbrechen
-          </Link>
+          {darf['bau.lesen'] === true && (
+            <Link
+              href={`/portal/${mandant}/bau/projekte/${id}/aufmass`}
+              className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+            >
+              Abbrechen
+            </Link>
+          )}
         </div>
       </form>
     </PortalRahmen>

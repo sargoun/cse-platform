@@ -9,6 +9,8 @@ import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { haeltRechte } from '@/app/portal/rechte';
+import { kennungOder404 } from '../../../../kennung';
 import {
   findeRevier, ladeZugeordneteRaeume, mitLesekontext, type RevierRaumZeile,
 } from '../../daten';
@@ -41,6 +43,7 @@ export default async function RevierBlatt({
   params: Promise<{ mandant: string; id: string }>;
 }) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const zugang = await portalZugang(`/portal/${mandant}/reinigung/reviere/[id]`);
   if (zugang === null) return <AnmeldungNoetig />;
 
@@ -50,6 +53,13 @@ export default async function RevierBlatt({
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /* AUT-06: die Zuordnung `…/reviere/[id]/raeume` verlangt laut Manifest
+     `reinigung.schreiben`, dieses Blatt nur `reinigung.lesen` — wer nur lesen
+     darf, sah „Räume zuordnen und neu kalkulieren" und bekam dahinter ein
+     404. Ein Verweis auf 404 verraet, was er nicht zeigen darf (Copilot-Runde
+     auf PR 16 / D-581). */
+  const darf = await haeltRechte(sitzung, 'reinigung.schreiben');
 
   const { revier, raeume } = await mitLesekontext(sitzung, async (kontext) => ({
     revier: await findeRevier(kontext, id),
@@ -141,9 +151,11 @@ export default async function RevierBlatt({
 
       <div className="mb-s4 flex flex-wrap items-baseline justify-between gap-s3">
         <h2 className="m-0 text-h3 text-text">Räume</h2>
-        <Link href={`/portal/${mandant}/reinigung/reviere/${id}/raeume`} className="text-sm underline hover:text-text">
-          Räume zuordnen und neu kalkulieren
-        </Link>
+        {darf['reinigung.schreiben'] === true && (
+          <Link href={`/portal/${mandant}/reinigung/reviere/${id}/raeume`} className="text-sm underline hover:text-text">
+            Räume zuordnen und neu kalkulieren
+          </Link>
+        )}
       </div>
 
       {raeume.length === 0 ? (

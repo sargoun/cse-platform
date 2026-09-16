@@ -19,6 +19,20 @@ import { wetterPort } from '../versand/dwd.js';
  */
 export type Anbindungsstand =
   | 'verbunden'
+  /**
+   * **Eingerichtet, aber nie bestätigt.**
+   *
+   * Der Nachtlauf-Auslöser brachte diesen Zustand: `JOB_TOKEN` beweist, dass
+   * die TÜR offen ist — nicht, dass jemand angeklopft hat. Der Cron-Eintrag
+   * steht in Supabase, nicht in diesem Prozess, und genau das war die Lücke,
+   * die D-563 aufgedeckt hat: sechzehn Wächter mit Zeitplan, und niemand, der
+   * sie rief. Ein Bildschirm, der das „verbunden" nennt, wiederholte den
+   * Fehler als Auskunft. Gemeldet hat es die Copilot-Runde auf PR 16.
+   *
+   * Bestätigt wird durch AKTIVITÄT, und die steht in der Laufliste
+   * (`/portal/[mandant]/einstellungen/jobs`) — nicht hier.
+   */
+  | 'unbestaetigt'
   | 'nicht_verbunden'
   | 'entwicklung'
   | 'dateiexport'
@@ -124,6 +138,57 @@ export function anbindungen(): readonly Anbindung[] {
       offen: null,
     },
     {
+      /*
+       * **Der Ausloeser der Nachtlaeufe — die Anbindung, die niemand als eine
+       * gesehen hat.**
+       *
+       * Die Jobs tragen einen Zeitplan, es gibt einen Runner, ein
+       * Laufprotokoll und eine bewachte Route. Was fehlte, war das, was ruft:
+       * kein Cron-Eintrag, nirgends. Jede Datei einzeln gebaut und geprueft;
+       * zusammen lief kein einziger Waechter — und weil ein nicht gelaufener
+       * Job keine Fehlermeldung erzeugt, faellt das erst auf, wenn jemand die
+       * Zahlen vermisst.
+       *
+       * `JOB_TOKEN` ist hier die ehrliche Auskunft: ohne das Geheimnis
+       * antwortet `/api/jobs/[schluessel]` mit 503, also kann kein Ausloeser
+       * angeschlossen sein. Ist es gesetzt, ist der Weg offen — ob draussen
+       * wirklich ein Cron-Eintrag steht, sagt `docs/JOB-AUSLOESER.sql` und die
+       * Laufliste darunter, nicht diese Zeile.
+       */
+      schluessel: 'job_ausloeser', name: 'Nachtlauf-Auslöser (Supabase cron)',
+      /*
+       * **Ohne Zahl, und das ist die Lehre aus der Zahl.**
+       *
+       * Hier stand „Die 16 Wächter" — von Hand gepflegt, und beim siebzehnten
+       * Job (`bewerber_loeschung`) falsch. Eine Zahl, die jemand mitziehen
+       * muss, ist eine Zahl, die irgendwann nicht mehr stimmt; auf einem
+       * Betriebsbildschirm ist das schlimmer als keine, weil sie nach einer
+       * Auskunft aussieht. Wie viele es sind, steht in der Laufliste
+       * darunter — die zählt sie, statt sie zu behaupten.
+       */
+      zweck: 'Die Wächter aus SPEC §14 starten — Fristen, Dienstplan, Mahnlauf, Kette',
+      /*
+       * **`unbestaetigt` und nicht `verbunden`.**
+       *
+       * Hier stand `verbunden`, sobald `JOB_TOKEN` gesetzt war. Das Geheimnis
+       * beweist aber nur, dass die Route Läufe ANNIMMT — nicht, dass jemand
+       * sie ruft. Mit gesetztem Schlüssel und nicht eingespieltem
+       * `docs/JOB-AUSLOESER.sql` — genau der stille Ausfall, den D-563 fand —
+       * zählte dieser Bildschirm den Auslöser als gesund, während kein
+       * einziger Wächter lief. Einrichtung und Betrieb sind zwei Zustände,
+       * und dieser Bildschirm kennt nur den ersten.
+       */
+      stand: (process.env['JOB_TOKEN'] ?? '') === '' ? 'nicht_verbunden' : 'unbestaetigt',
+      hinweis: (process.env['JOB_TOKEN'] ?? '') === ''
+        ? 'Ohne JOB_TOKEN antwortet /api/jobs/[schlüssel] mit 503 — kein Auslöser kann '
+          + 'angeschlossen sein, und kein Wächter läuft. Der Plan dafür wird aus dem '
+          + 'Job-Register erzeugt: `pnpm jobs:plan` → docs/JOB-AUSLOESER.sql.'
+        : 'JOB_TOKEN ist gesetzt, die Auslöseroute nimmt Läufe an — mehr weiss dieser '
+          + 'Bildschirm nicht. Ob draussen ein Cron-Eintrag steht und wirklich ruft, '
+          + 'beantwortet allein die Laufliste unter Einstellungen › Jobs.',
+      offen: null,
+    },
+    {
       schluessel: 'n8n', name: 'n8n',
       zweck: 'Externe Verknüpfungen, nur als Klebstoff (CLAUDE.md, Stack)',
       stand: 'nicht_verbunden',
@@ -135,6 +200,7 @@ export function anbindungen(): readonly Anbindung[] {
 
 export const STAND_TEXT: Readonly<Record<Anbindungsstand, string>> = {
   verbunden: 'verbunden',
+  unbestaetigt: 'eingerichtet, nicht bestätigt',
   nicht_verbunden: 'nicht verbunden',
   entwicklung: 'Entwicklungsfläche',
   dateiexport: 'Dateiexport',

@@ -2,7 +2,8 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { shellTexte } from '@/lib/i18n/texte';
 import { GesellschaftsWahl } from './GesellschaftsWahl';
 import { Logo, Marke } from '@/components/marke/Marke';
-import { EIGENNAME, SPRACHEN, mitSprache, type Sprache } from '@/lib/sprache';
+import { EIGENNAME, SPRACHEN, gibtEsIn, mitSprache, type Sprache } from '@/lib/sprache';
+import { berlinKalendertag } from '@/server/services/zeit/dauer';
 
 /**
  * Die oeffentliche Shell — Kopf 72px, Fussbereich, Markenavatar-Reihe (PUB-14).
@@ -84,8 +85,18 @@ export function OeffentlicheShell(
   OeffentlicheShellProps,
 ) {
   const t = shellTexte(sprache);
-  /* Das Jahr der Serveruhr — eine Fusszeile ist kein Zeiteintrag (Invariante 5 gilt Diensten). */
-  const jahr = new Date().getFullYear();
+  /*
+   * **Das Jahr in BERLINER Zeit, nicht in der des Servers** (Invariante 2).
+   *
+   * Hier stand `new Date().getFullYear()` mit dem Vermerk „eine Fusszeile ist
+   * kein Zeiteintrag". Das stimmt — und trotzdem war es falsch: der Server
+   * läuft in UTC, und zwischen 00:00 und 01:00 Berliner Zeit am Neujahrstag
+   * ist dort noch der 31. Dezember. Eine Stunde im Jahr stünde im Impressum
+   * das alte Jahr. Eine Stunde ist wenig; ein Copyright-Vermerk mit dem
+   * falschen Jahr ist trotzdem eine falsche Angabe, und die Regel lautet
+   * „angezeigt wird Europe/Berlin" ohne Ausnahme für Kleinigkeiten.
+   */
+  const jahr = Number(berlinKalendertag(new Date()).slice(0, 4));
   return (
     <div className="flex min-h-dvh flex-col bg-ink">
       {/*
@@ -106,7 +117,18 @@ export function OeffentlicheShell(
         */}
       <header
         data-cse="oeffentlicher-kopf"
-        className="sticky top-0 z-40 flex h-[72px] items-center gap-s5 px-s5"
+        /* Klebt oben: der obere Inset gehoert an ihn, nicht an den Inhalt
+           darunter (DESIGN §8). `sicher-seiten` haelt ihn im Querformat von
+           der Rundung weg. */
+        /*
+         * `box-content`: `sicher-oben` traegt den oberen Inset als Rahmen, und
+         * ein Rahmen liegt bei `border-box` INNERHALB der 72px — im
+         * installierten Modus waere die Leiste dann 72px hoch geblieben und
+         * ihr Inhalt auf 25px zusammengedrueckt. Mit `content-box` sind die
+         * 72px die Zeile, und der Inset kommt darueber.
+         */
+        className="sicher-oben sicher-seiten sticky top-0 z-40 box-content flex
+                   h-[72px] items-center gap-s5 px-s5"
       >
         {/*
           * **Der Unschaerfe-Grund liegt HIER und nicht auf dem `header`** —
@@ -309,7 +331,7 @@ export function OeffentlicheShell(
                 * daran fielen schon einmal dreizehn Sprachpruefungen. Diese
                 * Punkte liegen IM Menue-`nav` und tragen eine eigene Kennung.
                 */}
-              {SPRACHEN.filter((s) => s !== sprache).map((s) => (
+              {SPRACHEN.filter((s) => s !== sprache && gibtEsIn(pfad, s)).map((s) => (
                 <li key={s} className="border-b border-line">
                   <a
                     href={mitSprache(pfad, s)}
@@ -404,7 +426,12 @@ export function OeffentlicheShell(
           data-cse="sprachwahl"
           className="ml-s4 hidden items-center gap-s2 xl:flex"
         >
-          {SPRACHEN.map((s) => (
+          {/*
+            * Nur Sprachen, in denen es diese Seite gibt: `/karriere` ist
+            * bisher deutsch, und ein Umschalter auf ein 404 ist kein
+            * Umschalter (D-583).
+            */}
+          {SPRACHEN.filter((s) => gibtEsIn(pfad, s)).map((s) => (
             <a
               key={s}
               href={mitSprache(pfad, s)}

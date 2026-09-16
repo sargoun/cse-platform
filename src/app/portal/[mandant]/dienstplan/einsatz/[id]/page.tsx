@@ -16,6 +16,8 @@ import { beschriftung } from '../../daten';
 import { Button } from '@/components/ui/Button';
 import { pruefeEinteilung, type Vorschau } from '@/server/services/dienstplan/einteilung';
 import type { ArbzgBefund } from '@/server/services/zeit/arbzg';
+import { kennungOder404 } from '../../../../kennung';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/dienstplan/einsatz/[id]` — die einzelne Schicht.
@@ -80,6 +82,7 @@ export default async function Einsatzblatt({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const pfad = `/portal/${mandant}/dienstplan/einsatz/${id}`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -90,6 +93,13 @@ export default async function Einsatzblatt({
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /* AUT-06: das Nachweisregister `…/personal/nachweise` verlangt laut Manifest
+     `personal.nachweis_lesen`, diese Schicht nur `dienstplan.lesen` — wer die
+     Sperre im Pruefblatt sah, bekam hinter „Nachweisregister oeffnen" ein 404.
+     Ein Verweis auf 404 verraet, was er nicht zeigen darf (Copilot-Runde auf
+     PR 16 / D-581). */
+  const darf = await haeltRechte(sitzung, 'personal.nachweis_lesen');
 
   const frage = await searchParams;
   const rohPruefling = typeof frage['pruefe'] === 'string' ? frage['pruefe'] : null;
@@ -372,6 +382,7 @@ export default async function Einsatzblatt({
               pfad={pfad}
               funktion={funktion}
               name={kandidaten.find((k) => k.id === pruefling)?.name ?? 'die Beschäftigung'}
+              darfNachweise={darf['personal.nachweis_lesen'] === true}
             />
           )}
         </section>
@@ -442,7 +453,7 @@ const REGEL_TEXT: Readonly<Record<string, string>> = {
  * Text, nicht Farbe (DESIGN §9): jede Zeile sagt, WAS gefunden wurde.
  */
 function Pruefblatt({
-  vorschau, einsatzId, anstellungId, mandant, pfad, funktion, name,
+  vorschau, einsatzId, anstellungId, mandant, pfad, funktion, name, darfNachweise,
 }: {
   readonly vorschau: Vorschau;
   readonly einsatzId: string;
@@ -451,6 +462,8 @@ function Pruefblatt({
   readonly pfad: string;
   readonly funktion: string;
   readonly name: string;
+  /** Haelt die Sitzung `personal.nachweis_lesen`? Sonst gibt es den Weg ins Register nicht (AUT-06). */
+  readonly darfNachweise: boolean;
 }) {
   const gesperrt = vorschau.qualifikationsfehler !== null;
   const befunde: readonly ArbzgBefund[] = vorschau.arbzg ?? [];
@@ -501,15 +514,22 @@ function Pruefblatt({
             Der Weg aus der Sperre heraus. Ohne ihn endet der Bildschirm mit
             einem Nein und lässt offen, WO man nachsieht — und die Planerin
             sucht den Nachweisstand dann in einer Mail.
+
+            AUT-06: nur fuer eine Sitzung, die `personal.nachweis_lesen` haelt —
+            das Register verlangt es laut Manifest, und ein Verweis, der auf 404
+            fuehrt, verraet, was er nicht zeigen darf (Copilot-Runde auf PR 16 /
+            D-581). Kein ausgegrauter Ersatz: der Absatz fehlt dann ganz.
           */}
-          <p className="m-0 mt-s2 text-sm">
-            <Link
-              href={`/portal/${mandant}/personal/nachweise`}
-              className="text-danger underline decoration-danger underline-offset-4"
-            >
-              Nachweisregister öffnen
-            </Link>
-          </p>
+          {darfNachweise && (
+            <p className="m-0 mt-s2 text-sm">
+              <Link
+                href={`/portal/${mandant}/personal/nachweise`}
+                className="text-danger underline decoration-danger underline-offset-4"
+              >
+                Nachweisregister öffnen
+              </Link>
+            </p>
+          )}
         </>
       ) : (
         <p className="m-0 text-sm text-text-muted">

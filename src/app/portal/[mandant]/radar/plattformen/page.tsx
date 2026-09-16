@@ -8,6 +8,7 @@ import { StatusPill } from '@/components/ui/StatusPill';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { lesePlattformen, type PlattformZeile } from '../daten';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/radar/plattformen` — wo diese Gesellschaft bieten darf
@@ -43,6 +44,7 @@ export default async function Plattformen(
   const tor = await mandantTor(`/portal/${mandant}/radar/plattformen`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+  const darf = await haeltRechte(zugang.sitzung, 'radar.lesen');
 
   const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, (kontext) => lesePlattformen(kontext))) as Promise<readonly PlattformZeile[]>);
@@ -65,10 +67,17 @@ export default async function Plattformen(
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">Vergabeplattformen</h1>
-        <Link href={`/portal/${mandant}/radar`}
-              className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2">
-          Zum Radar
-        </Link>
+        {/*
+          * `/radar` oeffnet mit `radar.lesen` (Manifest); diese Seite mit `radar.plattform_verwalten`.
+          * Ohne das Recht fuehrte der Verweis auf 404 und verriet damit, was er
+          * nicht zeigen darf (AUT-06; D-581).
+          */}
+        {darf['radar.lesen'] === true && (
+          <Link href={`/portal/${mandant}/radar`}
+                className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2">
+            Zum Radar
+          </Link>
+        )}
       </div>
 
       <p className="mb-s5 max-w-prose text-sm text-text-muted">

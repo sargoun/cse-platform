@@ -12,6 +12,7 @@ import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { haeltRechte } from '../../../rechte';
 
 /**
  * `/portal/[mandant]/finanzen/rechnungen` — das Rechnungsausgangsbuch
@@ -75,6 +76,10 @@ export default async function Rechnungsliste(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
+
+  /* AUT-06: ein Knopf, dessen Ziel diese Sitzung nicht oeffnen darf,
+     verraet die Existenz dessen, was er nicht zeigen darf. */
+  const darf = await haeltRechte(sitzung, 'finanzen.schreiben');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -118,12 +123,14 @@ export default async function Rechnungsliste(
             <Link href={`/portal/${mandant}/finanzen/rechnungen`} className="underline underline-offset-2">alle zeigen</Link>
           </p>
         )}
-        <Link
-          href={`/portal/${mandant}/finanzen/rechnungen/neu`}
-          className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
-        >
-          Neuer Entwurf
-        </Link>
+        {darf['finanzen.schreiben'] === true && (
+          <Link
+            href={`/portal/${mandant}/finanzen/rechnungen/neu`}
+            className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
+          >
+            Neuer Entwurf
+          </Link>
+        )}
       </div>
 
       {zeilen.length === 0 ? (

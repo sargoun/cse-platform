@@ -10,6 +10,7 @@ import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { leseMappe, type MappenBlick } from './daten';
+import { kennungOder404 } from '../../../../kennung';
 
 /**
  * `/portal/[mandant]/radar/[id]/mappe` — die Vergabemappe (RAD-07, D-07).
@@ -101,6 +102,7 @@ export default async function Vergabemappe(
   },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   if (!UUID.test(id)) notFound();
   const tor = await mandantTor(`/portal/${mandant}/radar/${id}/mappe`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
@@ -113,16 +115,34 @@ export default async function Vergabemappe(
     withTenant(tx, zugang.sitzung, async (kontext) => {
       const mappe = await leseMappe(kontext, id);
       if (mappe === null) return null;
-      const [r] = await kontext.abfrage<{ schreiben: boolean; einreichen: boolean }>(
+      /*
+       * `/radar/[id]` verlangt `radar.lesen`, `/radar/plattformen` verlangt
+       * `radar.plattform_verwalten` (Manifest); diese Seite öffnet mit
+       * `vergabe.schreiben` allein. Ein Verweis, der auf 404 führt, verrät,
+       * was er nicht zeigen darf (AUT-06). Gemeldet von der Copilot-Runde auf
+       * PR 16 / D-581.
+       */
+      const [r] = await kontext.abfrage<{
+        schreiben: boolean; einreichen: boolean; radar: boolean; plattformen: boolean;
+      }>(
         `select app.hat_recht('vergabe.schreiben', app.aktiver_mandant()) as schreiben,
-                app.hat_recht('vergabe.einreichung_erfassen', app.aktiver_mandant()) as einreichen`);
-      return { mappe, darfSchreiben: r?.schreiben === true, darfEinreichen: r?.einreichen === true };
+                app.hat_recht('vergabe.einreichung_erfassen', app.aktiver_mandant()) as einreichen,
+                app.hat_recht('radar.lesen', app.aktiver_mandant()) as radar,
+                app.hat_recht('radar.plattform_verwalten', app.aktiver_mandant()) as plattformen`);
+      return {
+        mappe,
+        darfSchreiben: r?.schreiben === true,
+        darfEinreichen: r?.einreichen === true,
+        darfRadar: r?.radar === true,
+        darfPlattformen: r?.plattformen === true,
+      };
     })) as Promise<{
       mappe: MappenBlick; darfSchreiben: boolean; darfEinreichen: boolean;
+      darfRadar: boolean; darfPlattformen: boolean;
     } | null>);
 
   if (daten === null) notFound();
-  const { mappe: m, darfSchreiben, darfEinreichen } = daten;
+  const { mappe: m, darfSchreiben, darfEinreichen, darfRadar, darfPlattformen } = daten;
   const offenePflicht = m.pflichtGesamt - m.pflichtErledigt;
   const gesperrt = m.status === 'eingereicht' || m.status === 'verworfen';
 
@@ -143,10 +163,12 @@ export default async function Vergabemappe(
           <h1 className="text-h1 text-text">Vergabemappe</h1>
           <p className="mt-s2 max-w-prose text-sm text-text-muted">{m.titel}</p>
         </div>
-        <Link href={`/portal/${mandant}/radar/${id}`}
-              className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2">
-          Zur Bekanntmachung
-        </Link>
+        {darfRadar ? (
+          <Link href={`/portal/${mandant}/radar/${id}`}
+                className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2">
+            Zur Bekanntmachung
+          </Link>
+        ) : null}
       </div>
 
       {vermerkt !== null ? (
@@ -191,10 +213,15 @@ export default async function Vergabemappe(
         <Hinweis art="warnung" cse="mappe-plattform" className="mb-s5 max-w-prose">
           <strong>Auf {m.plattformName} ist diese Gesellschaft nicht freigeschaltet.</strong>{' '}
           Eine vollständige Mappe nützt nichts, wenn niemand sie hochladen kann — die
-          Freischaltung dauert Tage bis Wochen (RAD-09).{' '}
-          <Link href={`/portal/${mandant}/radar/plattformen`} className="underline underline-offset-4">
-            Plattformen verwalten
-          </Link>.
+          Freischaltung dauert Tage bis Wochen (RAD-09).
+          {darfPlattformen ? (
+            <>
+              {' '}
+              <Link href={`/portal/${mandant}/radar/plattformen`} className="underline underline-offset-4">
+                Plattformen verwalten
+              </Link>.
+            </>
+          ) : null}
         </Hinweis>
       ) : null}
 
@@ -266,7 +293,15 @@ export default async function Vergabemappe(
                   <th className="py-s2 pr-s3 font-normal">Unterlage</th>
                   <th className="py-s2 pr-s3 font-normal">Pflicht</th>
                   <th className="py-s2 pr-s3 font-normal">Stand</th>
-                  <th className="py-s2 font-normal">Herkunft</th>
+                  <th className="py-s2 pr-s3 font-normal">Herkunft</th>
+                  {/*
+                    * Die Spalte erscheint nur, wenn es in ihr etwas zu tun
+                    * gibt. Eine leere Spalte mit Überschrift sagt „hier
+                    * fehlt etwas" — dabei ist die Liste nur zu.
+                    */}
+                  {darfSchreiben && !gesperrt ? (
+                    <th className="py-s2 font-normal"><span className="sr-only">Zeile entfernen</span></th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody>
@@ -294,10 +329,43 @@ export default async function Vergabemappe(
                         </span>
                       )}
                     </td>
-                    <td className="py-s3 text-xs text-text-subtle">
+                    <td className="py-s3 pr-s3 text-xs text-text-subtle">
                       {p.quelleDokument === null ? '—' : p.quelleDokument}
                       {p.quelleSeite === null ? '' : `, S. ${String(p.quelleSeite)}`}
                     </td>
+                    {/*
+                      * **Entfernen steht an der ZEILE, nicht in einem
+                      * Auswahlfeld darunter.**
+                      *
+                      * Die beiden Formulare unter der Tabelle wählen ihre
+                      * Position aus einer Liste — beim Setzen eines Standes
+                      * geht das, weil ein falsch gesetzter Stand sich wieder
+                      * setzen lässt. Beim Löschen geht es nicht: wer sich im
+                      * Auswahlfeld vergreift, löscht die falsche Zeile und
+                      * merkt es nicht. Hier ist die Zeile, die verschwindet,
+                      * dieselbe, auf die geklickt wird.
+                      *
+                      * Der Name steht im `aria-label`, weil „Entfernen" in
+                      * jeder Zeile gleich heisst und ein Screenreader die
+                      * Knöpfe sonst nicht unterscheiden kann (DESIGN §9).
+                      */}
+                    {darfSchreiben && !gesperrt ? (
+                      <td className="py-s3">
+                        <form method="post" action="/api/vergabe/mappe"
+                              data-cse="mappe-position-entfernen">
+                          <input type="hidden" name="mandant" value={mandant} />
+                          <input type="hidden" name="ausschreibung" value={id} />
+                          <input type="hidden" name="was" value="position_entfernen" />
+                          <input type="hidden" name="mappe" value={m.mappeId} />
+                          <input type="hidden" name="position" value={p.id} />
+                          <Button type="submit" variante="danger"
+                                  data-cse="position-entfernen"
+                                  aria-label={`Position ${String(p.position)} „${p.bezeichnung}" entfernen`}>
+                            Entfernen
+                          </Button>
+                        </form>
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>

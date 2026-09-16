@@ -12,6 +12,8 @@ import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../kennung';
+import { haeltRechte } from '../../../rechte';
 
 /** `/portal/[mandant]/auftraege/[id]` — ein Auftrag mit dem, was OPS-10 verlangt. */
 export const dynamic = 'force-dynamic';
@@ -48,6 +50,7 @@ export default async function AuftragDetail(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const zugang = await portalZugang(`/portal/${mandant}/auftraege/${id}`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
@@ -56,6 +59,17 @@ export default async function AuftragDetail(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /*
+   * Kunde, Objekt und Angebot verlangen laut Manifest `crm.lesen`,
+   * `objekt.lesen` bzw. `angebot.lesen`; diese Seite oeffnet mit
+   * `auftrag.lesen` allein. Wer den Auftrag lesen darf, darf nicht
+   * zwangslaeufig den Kunden, das Objekt oder das Angebot oeffnen — der
+   * Verweis fuehrte dann auf 404 und verriet, was er nicht zeigen darf
+   * (AUT-06, Copilot-Runde auf PR 16 / D-581). Ohne Recht steht der
+   * blosse Name.
+   */
+  const darf = await haeltRechte(sitzung, 'crm.lesen', 'objekt.lesen', 'angebot.lesen');
 
   const [kopf] = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => kontext.abfrage<Kopf>(
@@ -83,22 +97,24 @@ export default async function AuftragDetail(
 
   const felder: readonly (readonly [string, React.ReactNode])[] = [
     ['Nummer', kopf.auftragsnummer],
-    ['Kunde', (
+    ['Kunde', darf['crm.lesen'] === true ? (
       <Link
         href={`/portal/${mandant}/crm/kunden/${kopf.kunde_id}`}
         className="text-text underline-offset-2 hover:text-brand hover:underline"
       >
         {kopf.kunde}
       </Link>
-    )],
-    ['Ort', kopf.objekt === null || kopf.objekt_id === null ? 'ohne festen Ort' : (
-      <Link
-        href={`/portal/${mandant}/objekte/${kopf.objekt_id}`}
-        className="text-text underline-offset-2 hover:text-brand hover:underline"
-      >
-        {kopf.objekt}
-      </Link>
-    )],
+    ) : kopf.kunde],
+    ['Ort', kopf.objekt === null || kopf.objekt_id === null
+      ? 'ohne festen Ort'
+      : darf['objekt.lesen'] === true ? (
+        <Link
+          href={`/portal/${mandant}/objekte/${kopf.objekt_id}`}
+          className="text-text underline-offset-2 hover:text-brand hover:underline"
+        >
+          {kopf.objekt}
+        </Link>
+      ) : kopf.objekt],
     ['Verantwortlich', kopf.leitung ?? '—'],
     ['Start', kopf.start],
     ['Laufzeit bis', kopf.laufzeit_bis ?? 'unbefristet'],
@@ -111,14 +127,16 @@ export default async function AuftragDetail(
     ['Wert netto', kopf.wert === null
       ? <span className="text-text-subtle">offen</span>
       : formatiereGeld(cent(BigInt(kopf.wert)))],
-    ['Aus Angebot', kopf.angebotsnummer === null || kopf.angebot_id === null ? '—' : (
-      <Link
-        href={`/portal/${mandant}/angebote/${kopf.angebot_id}`}
-        className="text-text underline-offset-2 hover:text-brand hover:underline"
-      >
-        {kopf.angebotsnummer}
-      </Link>
-    )],
+    ['Aus Angebot', kopf.angebotsnummer === null || kopf.angebot_id === null
+      ? '—'
+      : darf['angebot.lesen'] === true ? (
+        <Link
+          href={`/portal/${mandant}/angebote/${kopf.angebot_id}`}
+          className="text-text underline-offset-2 hover:text-brand hover:underline"
+        >
+          {kopf.angebotsnummer}
+        </Link>
+      ) : kopf.angebotsnummer],
   ];
 
   return (

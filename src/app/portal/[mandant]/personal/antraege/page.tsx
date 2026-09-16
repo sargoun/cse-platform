@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { listeOffeneAntraege, type AntragZeile }
@@ -48,6 +49,14 @@ export default async function Antragseingang(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
+  /* AUT-06: „Abwesenheiten" verlangt laut Manifest `zeit.abwesenheit_lesen`,
+     „Stundenkonten" `zeit.konto_lesen`, „Nachweise" `personal.nachweis_lesen`;
+     dieser Eingang öffnet mit `zeit.antrag_entscheiden` allein. Ohne das Recht
+     führte der Knopf auf 404 und verriet, was er nicht zeigen darf
+     (Copilot-Runde auf PR 16 / D-581). */
+  const darf = await haeltRechte(
+    sitzung, 'zeit.abwesenheit_lesen', 'zeit.konto_lesen', 'personal.nachweis_lesen');
+
   const zeilen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => listeOffeneAntraege(kontext)),
   ) as Promise<readonly AntragZeile[]>);
@@ -70,24 +79,30 @@ export default async function Antragseingang(
       </div>
 
       <nav className="mb-s5 flex flex-wrap gap-s2">
-        <Link
-          href={`/portal/${mandant}/personal/abwesenheiten`}
-          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-        >
-          Abwesenheiten
-        </Link>
-        <Link
-          href={`/portal/${mandant}/personal/stundenkonten`}
-          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-        >
-          Stundenkonten
-        </Link>
-        <Link
-          href={`/portal/${mandant}/personal/nachweise`}
-          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-        >
-          Nachweise
-        </Link>
+        {darf['zeit.abwesenheit_lesen'] === true && (
+          <Link
+            href={`/portal/${mandant}/personal/abwesenheiten`}
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Abwesenheiten
+          </Link>
+        )}
+        {darf['zeit.konto_lesen'] === true && (
+          <Link
+            href={`/portal/${mandant}/personal/stundenkonten`}
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Stundenkonten
+          </Link>
+        )}
+        {darf['personal.nachweis_lesen'] === true && (
+          <Link
+            href={`/portal/${mandant}/personal/nachweise`}
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Nachweise
+          </Link>
+        )}
       </nav>
 
       {zeilen.length === 0 ? (

@@ -1,6 +1,6 @@
 import 'server-only';
 import { createHash, randomBytes } from 'node:crypto';
-import { devFlaechenAn } from '../../lib/dev-flaechen.js';
+import { devFlaechenAn, type Umgebung } from '../../lib/dev-flaechen.js';
 import type { Portal, Scope, Sitzung, Transaktion } from '../kontext/index.js';
 
 /**
@@ -39,10 +39,46 @@ import type { Portal, Scope, Sitzung, Transaktion } from '../kontext/index.js';
  */
 export const ALT_SITZUNG_COOKIE = 'cse_sitzung';
 
-export function sitzungsKeksName(
-  umgebung: { readonly NODE_ENV?: string | undefined } = process.env,
-): string {
-  return umgebung.NODE_ENV === 'production' ? '__Host-cse_sitzung' : ALT_SITZUNG_COOKIE;
+export function sitzungsKeksName(umgebung: Umgebung = process.env): string {
+  return keksSicher(umgebung) ? '__Host-cse_sitzung' : ALT_SITZUNG_COOKIE;
+}
+
+/**
+ * **Bekommt der Keks `Secure` — und damit auch den `__Host-`-Namen?**
+ *
+ * Diese eine Frage entscheidet BEIDES, und sie muss es: ein `__Host-`-Keks
+ * ohne `Secure` wird vom Browser verworfen, ein `Secure`-Keks ueber `http://`
+ * ebenso. Zwei getrennte Entscheidungen waeren zwei Gelegenheiten, sie
+ * auseinanderlaufen zu lassen.
+ *
+ * **Sie haengt an `devFlaechenAn` und NICHT an `NODE_ENV`** — das ist der
+ * Unterschied, an dem die Anmeldung am Telefon gescheitert ist.
+ * `docs/LOKAL-STARTEN.md` sagt jedem, der die Demo ansieht: `pnpm build` und
+ * `pnpm start`. `next start` setzt `NODE_ENV=production`. Damit trug jeder
+ * Keks `Secure`, das Telefon erreicht den Server aber ueber
+ * `http://192.168.0.193` — und der Browser verwarf ihn. Der Kommentar oben
+ * beschrieb seit D-414 genau die richtige Absicht („in der Entwicklung faellt
+ * `Secure` weg, das Telefon im Heimnetz erreicht den Server ueber
+ * http://192.168…"); die Bedingung darunter setzte sie nur nicht um.
+ *
+ * `devFlaechenAn` ist die Frage, die dieses Projekt ohnehin stellt, wenn es um
+ * „Vorfuehrflaeche oder Ernstfall" geht: sie zeigt den SMS-Code auf dem
+ * Bildschirm, sie oeffnet `/dev/anmelden`, sie legt die Demodaten an. Eine
+ * Installation mit `CSE_DEV_FLAECHEN=1` ist eine Vorfuehrflaeche — dort ohne
+ * `Secure` zu arbeiten ist keine zusaetzliche Preisgabe, sondern dieselbe
+ * Entscheidung noch einmal. OHNE die Flagge aendert sich nichts: `Secure`,
+ * `__Host-`, wie bisher.
+ *
+ * **Der Parameter ist kein Zierrat.** `process.env.NODE_ENV` als LITERAL im
+ * Quelltext ersetzt Webpacks DefinePlugin beim Bau durch die Zeichenkette —
+ * aus `secure: process.env.NODE_ENV === 'production'` wird im Buendel
+ * `secure:!0`, und keine Umgebungsvariable der Welt aendert das danach noch.
+ * Ein Zugriff auf einen PARAMETER (`umgebung.NODE_ENV`) bleibt stehen. Genau
+ * daran unterschieden sich die beiden Keksfabriken dieses Projekts, und genau
+ * deshalb war die eine reparierbar und die andere nicht.
+ */
+export function keksSicher(umgebung: Umgebung = process.env): boolean {
+  return !devFlaechenAn(umgebung);
 }
 
 export const SITZUNG_COOKIE = sitzungsKeksName();
@@ -64,9 +100,7 @@ export const SITZUNG_MAX_ALTER_SEK = 12 * 60 * 60;
  * `sameSite: 'lax'` bleibt: ein fremdes Formular schickt ihn nicht mit, und
  * `ursprung.ts` steht als zweite Linie davor.
  */
-export function sitzungsKeksOptionen(
-  umgebung: { readonly NODE_ENV?: string | undefined } = process.env,
-): {
+export function sitzungsKeksOptionen(umgebung: Umgebung = process.env): {
   httpOnly: true; sameSite: 'lax'; path: '/'; maxAge: number; secure: boolean;
 } {
   return {
@@ -74,7 +108,7 @@ export function sitzungsKeksOptionen(
     sameSite: 'lax',
     path: '/',
     maxAge: SITZUNG_MAX_ALTER_SEK,
-    secure: umgebung.NODE_ENV === 'production',
+    secure: keksSicher(umgebung),
   };
 }
 

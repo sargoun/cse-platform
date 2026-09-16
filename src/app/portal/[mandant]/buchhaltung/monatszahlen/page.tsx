@@ -12,6 +12,7 @@ import { monatszahlen, type Monatszahlen } from '@/server/services/buchhaltung/m
 import { liesWirtschaftsjahr, wirtschaftsjahrVon } from '@/server/services/buchhaltung/wirtschaftsjahr';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/buchhaltung/monatszahlen` — Erloese, Aufwand, Ergebnis
@@ -38,6 +39,16 @@ export default async function MonatszahlenSeite(
   const tor = await mandantTor(`/portal/${mandant}/buchhaltung/monatszahlen`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+
+  /*
+   * `/finanzen/rechnungen` verlangt laut Manifest `finanzen.lesen`,
+   * `/finanzen/eingangsrechnungen` `eingang.lesen`; diese Seite oeffnet mit
+   * `buchhaltung.lesen`. Wer die Monatszahlen lesen darf, darf nicht
+   * zwangslaeufig die Listen dahinter oeffnen — die Zahl fuehrte dann auf 404
+   * und verriete, was sie nicht zeigen darf (AUT-06, Copilot-Runde auf PR 16 /
+   * D-581). Ohne das Recht steht der Betrag ohne Verweis.
+   */
+  const darf = await haeltRechte(zugang.sitzung, 'finanzen.lesen', 'eingang.lesen');
   const suche = await searchParams;
   const jahrRoh = typeof suche['jahr'] === 'string' ? suche['jahr'] : null;
   const gewaehlt = jahrRoh !== null && /^\d{4}$/u.test(jahrRoh) ? Number(jahrRoh) : null;
@@ -96,20 +107,20 @@ export default async function MonatszahlenSeite(
         spalten={[
           { schluessel: 'monat', kopf: 'Monat', zelle: (m) => m.label },
           { schluessel: 'erloese', kopf: 'Erlöse netto', numerisch: true,
-            zelle: (m) => (
+            zelle: (m) => (darf['finanzen.lesen'] === true ? (
               <Link href={`/portal/${mandant}/finanzen/rechnungen?monat=${m.monat}`} data-cse="monat-erloese"
                     className="underline-offset-2 hover:text-brand hover:underline">
                 {geld(m.erloeseCent)}
               </Link>
-            ) },
+            ) : geld(m.erloeseCent)) },
           { schluessel: 'rechnungen', kopf: 'Rechnungen', numerisch: true, zelle: (m) => String(m.rechnungen) },
           { schluessel: 'aufwand', kopf: 'Aufwand netto', numerisch: true,
-            zelle: (m) => (
+            zelle: (m) => (darf['eingang.lesen'] === true ? (
               <Link href={`/portal/${mandant}/finanzen/eingangsrechnungen?monat=${m.monat}`} data-cse="monat-aufwand"
                     className="underline-offset-2 hover:text-brand hover:underline">
                 {geld(m.aufwandCent)}
               </Link>
-            ) },
+            ) : geld(m.aufwandCent)) },
           { schluessel: 'ergebnis', kopf: 'Ergebnis', numerisch: true,
             zelle: (m) => <strong data-cse="monat-ergebnis" data-cent={m.ergebnisCent.toString()}>{geld(m.ergebnisCent)}</strong> },
           { schluessel: 'periode', kopf: 'Monat',

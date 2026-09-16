@@ -8,7 +8,9 @@ import { portalZugang } from '../../../../../zugang';
 import { slugTor } from '../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { haeltRechte } from '@/app/portal/rechte';
 import { findeRevier, ladeObjektRaeume, mitLesekontext } from '../../../daten';
+import { kennungOder404 } from '../../../../../kennung';
 
 /**
  * `/portal/[mandant]/reinigung/reviere/[id]/raeume` — Räume zuordnen und die
@@ -34,6 +36,7 @@ export default async function RaeumeZuordnen({
   params: Promise<{ mandant: string; id: string }>;
 }) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const zugang = await portalZugang(`/portal/${mandant}/reinigung/reviere/[id]/raeume`);
   if (zugang === null) return <AnmeldungNoetig />;
 
@@ -43,6 +46,13 @@ export default async function RaeumeZuordnen({
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /* AUT-06: die Zone `…/reinigung/reviere/[id]` verlangt laut Manifest
+     `reinigung.lesen`, dieses Blatt nur `reinigung.schreiben` — wer nur
+     zuordnen darf, sah den Rücksprung zur Zone und „Abbrechen" und bekam
+     dahinter ein 404. Ein Verweis auf 404 verraet, was er nicht zeigen darf
+     (Copilot-Runde auf PR 16 / D-581). */
+  const darf = await haeltRechte(sitzung, 'reinigung.lesen');
 
   const { revier, raeume } = await mitLesekontext(sitzung, async (kontext) => {
     const r = await findeRevier(kontext, id);
@@ -66,14 +76,16 @@ export default async function RaeumeZuordnen({
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label="Zurück" className="mb-s4">
-        <Link
-          href={`/portal/${mandant}/reinigung/reviere/${id}`}
-          className="text-sm text-text-muted underline hover:text-text"
-        >
-          ← {revier.bezeichnung}
-        </Link>
-      </nav>
+      {darf['reinigung.lesen'] === true && (
+        <nav aria-label="Zurück" className="mb-s4">
+          <Link
+            href={`/portal/${mandant}/reinigung/reviere/${id}`}
+            className="text-sm text-text-muted underline hover:text-text"
+          >
+            ← {revier.bezeichnung}
+          </Link>
+        </nav>
+      )}
 
       <h1 className="mb-s3 text-h1 text-text">Räume zuordnen</h1>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
@@ -162,12 +174,14 @@ export default async function RaeumeZuordnen({
           <Button type="submit" variante="primary">
             Zuordnen und neu kalkulieren
           </Button>
-          <Link
-            href={`/portal/${mandant}/reinigung/reviere/${id}`}
-            className="inline-flex min-h-11 items-center text-sm text-text-muted underline hover:text-text"
-          >
-            Abbrechen
-          </Link>
+          {darf['reinigung.lesen'] === true && (
+            <Link
+              href={`/portal/${mandant}/reinigung/reviere/${id}`}
+              className="inline-flex min-h-11 items-center text-sm text-text-muted underline hover:text-text"
+            >
+              Abbrechen
+            </Link>
+          )}
         </div>
       </form>
     </PortalRahmen>

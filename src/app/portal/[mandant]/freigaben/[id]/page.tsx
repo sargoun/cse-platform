@@ -15,9 +15,11 @@ import { euroMitVorzeichen, OHNE_VERGLEICH } from '@/server/services/freigabe/zu
 import { mengeNachPostgres } from '@/server/services/finanz/menge';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
+import { haeltRechte } from '../../../rechte';
 import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../kennung';
 import {
   FEHLER_TEXT, RISIKO_LABEL, STATUS_LABEL, STATUS_PILL, VORGANG_LABEL,
   ausfuehrungText, zeitpunkt,
@@ -85,6 +87,7 @@ export default async function Freigabe(
   },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   if (!UUID.test(id)) notFound();
   const suche = await searchParams;
   const zugang = await portalZugang(`/portal/${mandant}/freigaben/${id}`);
@@ -128,6 +131,24 @@ export default async function Freigabe(
   const vermerkt = typeof suche['vermerkt'] === 'string' ? suche['vermerkt'] : null;
   /* PR 63: ein Vorschlag aus einer E-Rechnung — mit den zwei Wegen, die er hat. */
   const istERechnung = f.aktion === 'eingangsrechnung_uebernehmen';
+  /**
+   * **„Manuell erfassen" nur mit dem Recht dahinter** (AUT-06).
+   *
+   * `/finanzen/eingangsrechnungen/neu` verlangt `eingang.lesen`; eine
+   * `leitung` entscheidet Freigaben und hält es nicht. Der Verweis stand
+   * trotzdem in jedem E-Rechnungs-Kasten und führte für sie auf 404 —
+   * gefunden vom erweiterten Verweiselauf (D-575), der jedem gezeigten Link
+   * bis zum Ende folgt.
+   */
+  const darf = await haeltRechte(sitzung, 'eingang.lesen', 'freigabe.lesen');
+  const darfErfassen = darf['eingang.lesen'] === true;
+  /**
+   * **„Zum Posteingang" nur mit `freigabe.lesen`** (AUT-06). Der Posteingang
+   * `/freigaben` verlangt es laut Manifest; diese Prüfseite öffnet mit
+   * `freigabe.entscheiden`. Ohne das Recht führte der Knopf auf 404 und
+   * verriet, was er nicht zeigen darf (Copilot-Runde auf PR 16 / D-581).
+   */
+  const darfPosteingang = darf['freigabe.lesen'] === true;
   const uebernommen = istERechnung && f.bezugTyp === 'eingangsrechnung' && f.bezugId !== null
     ? f.bezugId : null;
   const titel = f.titel ?? 'Freigabe';
@@ -169,12 +190,14 @@ export default async function Freigabe(
             ) : null}
           </p>
         </div>
-        <Link
-          href={`/portal/${mandant}/freigaben`}
-          className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
-        >
-          Zum Posteingang
-        </Link>
+        {darfPosteingang && (
+          <Link
+            href={`/portal/${mandant}/freigaben`}
+            className="min-h-11 rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2"
+          >
+            Zum Posteingang
+          </Link>
+        )}
       </div>
 
       {vorschlag !== null ? (
@@ -245,12 +268,17 @@ export default async function Freigabe(
             Freigeben übernimmt genau diese Werte als Eingangsrechnung.
             {gesperrt
               ? ' Da Felder unsicher sind, ist die Freigabe gesperrt — die Werte lassen sich '
-                + 'von Hand prüfen und erfassen:'
-              : ' Wer lieber selbst erfasst, findet die Werte vorbelegt:'}{' '}
-            <Link href={`/portal/${mandant}/finanzen/eingangsrechnungen/neu?von=${id}`}
-                  data-cse="manuell-erfassen" className="underline underline-offset-2">
-              manuell erfassen
-            </Link>.
+                + 'von Hand prüfen und erfassen.'
+              : ' Wer lieber selbst erfasst, findet die Werte vorbelegt.'}
+            {darfErfassen && (
+              <>
+                {' '}
+                <Link href={`/portal/${mandant}/finanzen/eingangsrechnungen/neu?von=${id}`}
+                      data-cse="manuell-erfassen" className="underline underline-offset-2">
+                  Manuell erfassen
+                </Link>.
+              </>
+            )}
           </>
         )}
         />

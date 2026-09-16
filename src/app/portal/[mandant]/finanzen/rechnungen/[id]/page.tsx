@@ -16,6 +16,7 @@ import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../kennung';
 
 /**
  * `/portal/[mandant]/finanzen/rechnungen/[id]` — **Entwurfseditor ODER
@@ -125,6 +126,7 @@ export default async function Rechnungsblatt(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const zugang = await portalZugang(`/portal/${mandant}/finanzen/rechnungen/${id}`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
@@ -270,6 +272,17 @@ export default async function Rechnungsblatt(
       darfStornieren: ((await kontext.abfrage<{ darf: boolean }>(
         `select app.hat_recht('finanzen.stornieren', app.aktiver_mandant()) as darf`,
       ))[0]?.darf) === true,
+      /*
+       * `/finanzen/rechnungen/[id]/xrechnung` verlangt laut Manifest
+       * `finanzen.herunterladen`; diese Seite oeffnet mit `finanzen.lesen`.
+       * „XRechnung ansehen" stand sonst auch vor dem, der das Blatt nicht
+       * oeffnen darf, und fuehrte auf 404 — ein Verweis, der die Existenz
+       * dessen verraet, was er nicht zeigen darf (AUT-06, Copilot-Runde auf
+       * PR 16 / D-581).
+       */
+      darfHerunterladen: ((await kontext.abfrage<{ darf: boolean }>(
+        `select app.hat_recht('finanzen.herunterladen', app.aktiver_mandant()) as darf`,
+      ))[0]?.darf) === true,
     }))) as Promise<{
       kopf: Kopf | null; positionen: readonly Pos[]; steuer: readonly Steuer[];
       abzuege: readonly Abzug[];
@@ -278,6 +291,7 @@ export default async function Rechnungsblatt(
       fin18: Fin18Befund | null;
       steuerfall: Awaited<ReturnType<typeof ermittleSteuerfall>>;
       darfStornieren: boolean;
+      darfHerunterladen: boolean;
     }>);
 
   const k = daten.kopf;
@@ -323,13 +337,18 @@ export default async function Rechnungsblatt(
           * einem oeffentlichen Auftraggeber — wer wissen will, ob eine
           * Rechnung elektronisch zustellbar waere, findet die Antwort sonst
           * nur, indem er sie verschickt.
+          *
+          * Bei jedem Beleg — aber nur fuer den, der das Blatt oeffnen darf
+          * (`finanzen.herunterladen`, siehe `darfHerunterladen` oben; AUT-06).
           */}
-        <Link
-          href={`/portal/${mandant}/finanzen/rechnungen/${k.id}/xrechnung`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          XRechnung ansehen
-        </Link>
+        {daten.darfHerunterladen && (
+          <Link
+            href={`/portal/${mandant}/finanzen/rechnungen/${k.id}/xrechnung`}
+            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+          >
+            XRechnung ansehen
+          </Link>
+        )}
         {/*
           * ZUGFeRD (PR 53) — und der Verweis steht nur bei einem
           * FESTGESCHRIEBENEN Beleg.

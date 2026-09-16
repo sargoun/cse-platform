@@ -160,6 +160,9 @@ export async function Unterseite({ pfad, wurzel, bereich }: UnterseiteProps) {
       navigationsRechte={zugang.navigationsRechte}
       phase={route?.phase ?? null}
       pfad={route?.pfad ?? pfad}
+      /* Das Schild „Nur Lesen" gehoert der SITZUNG, nicht dem Bauzustand:
+         in der Gruppenansicht steht es (Invariante 10), sonst nicht. */
+      nurLesen={zugang.sitzung.ansicht === 'gruppe'}
       /* Die Arbeiterleiste in der Sprache der Person — auch auf einem Ziel,
          das es noch nicht gibt (D-419). */
       {...(zugang.sprache === null
@@ -193,6 +196,7 @@ export async function MandantUnterseite({ segmente, mandant }: {
       navigationsRechte={zugang.navigationsRechte}
       phase={route?.phase ?? null}
       pfad={route?.pfad ?? pfad}
+      nurLesen={zugang.sitzung.ansicht === 'gruppe'}
     />
   );
 }

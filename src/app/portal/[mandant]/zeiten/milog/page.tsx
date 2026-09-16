@@ -13,6 +13,7 @@ import { monatsErster, monatVerschieben, monatsName } from '@/lib/datum/kalender
 import { berlinAnzeige } from '@/server/services/zeit/dauer';
 import type { MiLoGZeile } from '@/server/services/zeit/milog';
 import { ladeAnstellungenMitZeit, ladeNachweis } from '../daten';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/zeiten/milog` — die Aufzeichnung nach § 17 MiLoG
@@ -60,6 +61,7 @@ export default async function MiLoGAufzeichnung({
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
+  const darf = await haeltRechte(sitzung, 'zeit.lesen');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const frage = await searchParams;
@@ -97,12 +99,19 @@ export default async function MiLoGAufzeichnung({
       <nav aria-label="Monat wechseln" className="mb-s5 flex flex-wrap items-center gap-s2">
         <Sprung mandant={mandant} monat={monatVerschieben(monat, -1)} text="← Voriger Monat" />
         <Sprung mandant={mandant} monat={monatVerschieben(monat, 1)} text="Nächster Monat →" />
-        <Link
-          href={`/portal/${mandant}/zeiten`}
-          className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
-        >
-          Zu den Zeiten
-        </Link>
+        {/*
+          * `/zeiten` oeffnet mit `zeit.lesen` (Manifest); diese Seite mit `zeit.exportieren`.
+          * Ohne das Recht fuehrte der Verweis auf 404 und verriet damit, was er
+          * nicht zeigen darf (AUT-06; D-581).
+          */}
+        {darf['zeit.lesen'] === true && (
+          <Link
+            href={`/portal/${mandant}/zeiten`}
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text"
+          >
+            Zu den Zeiten
+          </Link>
+        )}
       </nav>
 
       {anstellungen.length === 0 ? (

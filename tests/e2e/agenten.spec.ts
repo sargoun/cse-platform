@@ -150,3 +150,49 @@ test.describe('Agenten-Zentrum', () => {
     await expect(page.getByRole('heading', { name: 'Agenten', level: 1 })).toHaveCount(0);
   });
 });
+
+/**
+ * **Die Laufansicht — die Seite, die niemand je geöffnet hat** (AGT-01,
+ * AGT-04).
+ *
+ * `/portal/[mandant]/agenten/[agent]/aufgaben/[id]` antwortete mit **500**, für
+ * jede Rolle und in jeder Gesellschaft, seit es sie gibt: die Abfrage las
+ * `a.ausloeser`, und das ist der TYPNAME aus 0128 — die Spalte heisst
+ * `ausgeloest_durch`. Überlebt hat der Tippfehler, weil kein einziger
+ * Browserlauf diese Adresse je angesteuert hat. Sie stand in der Seitenkarte,
+ * war bewacht, hatte Rechte, Marken und einen sorgfältigen Kopfkommentar — und
+ * niemand ist je auf sie geklickt. Gefunden hat sie erst der erweiterte
+ * Verweiselauf (D-575), der jedem gezeigten Link bis zum Ende folgt.
+ *
+ * **Deshalb wird hier GEKLICKT und nicht `goto` gerufen.** Eine Prüfung, die
+ * eine Adresse direkt ansteuert, prüft die Seite; eine, die den Weg dorthin
+ * geht, prüft ausserdem, dass es ihn gibt.
+ */
+test.describe('Ein Lauf, von vorne bis hinten', () => {
+  test('von der Agentenseite auf die Laufansicht — und sie antwortet 200', async ({ page }) => {
+    await anmelden(page, KONTO.adminReinigung);
+    await page.goto(`/portal/${MANDANT}/agenten`);
+
+    const agent = page.locator('[data-cse="agent-karte"] a, [data-cse="agentenliste"] a').first();
+    if (await agent.count() === 0) {
+      await page.goto(`/portal/${MANDANT}/agenten/backoffice`);
+    } else {
+      await agent.click();
+    }
+    await page.waitForLoadState('domcontentloaded');
+
+    const lauf = page.locator('a[href*="/aufgaben/"]').first();
+    expect(await lauf.count(), 'kein Lauf verlinkt — der Seed führt je Agent einen')
+      .toBeGreaterThan(0);
+    await lauf.click();
+    await page.waitForURL(/\/aufgaben\/[0-9a-f-]{36}/u);
+
+    /*
+     * **Der Beweis ist nicht „200", sondern ein Feld, das aus der Abfrage
+     * kommt.** Ein 500 würde hier zwar auch auffallen, aber `lauf-ausloeser`
+     * liest GENAU die Spalte, die den Ausfall verursacht hat.
+     */
+    await expect(page.locator('[data-cse="lauf-ausloeser"]')).toBeVisible();
+    await expect(page.locator('h1')).not.toContainText('schiefgegangen');
+  });
+});

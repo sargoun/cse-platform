@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { istGleicherUrsprung } from '@/server/auth/ursprung';
+import { istGleicherUrsprung, erwarteterUrsprung } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
@@ -46,7 +46,7 @@ function zurueck(anfrage: NextRequest, pfad: string, such?: Readonly<Record<stri
 NextResponse {
   const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
   const url = new URL(
-    `/portal/${slug}/finanzen/eingangsrechnungen${pfad}`, anfrage.nextUrl.origin);
+    `/portal/${slug}/finanzen/eingangsrechnungen${pfad}`, erwarteterUrsprung(anfrage));
   for (const [k, v] of Object.entries(such ?? {})) url.searchParams.set(k, v);
   return NextResponse.redirect(url, 303);
 }
@@ -290,7 +290,7 @@ async function liesERechnung(
       waise.wert = null;
 
       const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
-      const ziel = new URL(`/portal/${slug}/freigaben/${vorschlag.freigabeId}`, anfrage.nextUrl.origin);
+      const ziel = new URL(`/portal/${slug}/freigaben/${vorschlag.freigabeId}`, erwarteterUrsprung(anfrage));
       ziel.searchParams.set('vorschlag', vorschlag.neu ? 'neu' : 'vorhanden');
       return NextResponse.redirect(ziel, 303);
     }))) as NextResponse;

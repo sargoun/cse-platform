@@ -13,6 +13,7 @@ import { auslieferungAusUmgebung } from '@/server/services/buchhaltung/verfahren
 import { liesWirtschaftsjahr, wirtschaftsjahrVon } from '@/server/services/buchhaltung/wirtschaftsjahr';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/buchhaltung/jahrespaket` — das Jahrespaket fuer den
@@ -44,6 +45,16 @@ export default async function JahrespaketSeite(
   const tor = await mandantTor(`/portal/${mandant}/buchhaltung/jahrespaket`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+
+  /*
+   * `/buchhaltung` verlangt laut Manifest `buchhaltung.lesen`,
+   * `/dokumente/buendel` `dokument.buendel_exportieren`; diese Seite oeffnet
+   * mit `buchhaltung.exportieren`. Wer das Paket ziehen darf, darf nicht
+   * zwangslaeufig die Uebersicht oder das Pruefbuendel oeffnen — der Knopf
+   * fuehrte dann auf 404 und verriete, was er nicht zeigen darf (AUT-06,
+   * Copilot-Runde auf PR 16 / D-581).
+   */
+  const darf = await haeltRechte(zugang.sitzung, 'buchhaltung.lesen', 'dokument.buendel_exportieren');
   const suche = await searchParams;
   const jahrRoh = typeof suche['jahr'] === 'string' ? suche['jahr'] : null;
   const gewaehlt = jahrRoh !== null && /^\d{4}$/u.test(jahrRoh) ? Number(jahrRoh) : null;
@@ -82,7 +93,9 @@ export default async function JahrespaketSeite(
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">Jahrespaket {jp.bezeichnung}</h1>
-        <Link href={`/portal/${mandant}/buchhaltung`} className={knopf}>Zur Buchhaltung</Link>
+        {darf['buchhaltung.lesen'] === true && (
+          <Link href={`/portal/${mandant}/buchhaltung`} className={knopf}>Zur Buchhaltung</Link>
+        )}
       </div>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         Ein ZIP für den Steuerberater, Wirtschaftsjahr {jp.bezeichnung} ({deutschesDatum(jp.von)} bis {deutschesDatum(jp.bis)}):
@@ -128,7 +141,9 @@ export default async function JahrespaketSeite(
       <div data-cse="jahrespaket-abrufe" className="mb-s6 flex flex-wrap items-center gap-s3">
         <a href={api} data-cse="jahrespaket-abrufen" className={knopf}>Paket (ZIP)</a>
         <Link href={`/portal/${mandant}/buchhaltung/datev`} className={knopf}>DATEV-Stapel</Link>
-        <Link href={`/portal/${mandant}/dokumente/buendel?jahr=${String(jp.jahr)}`} className={knopf}>Prüfbündel</Link>
+        {darf['dokument.buendel_exportieren'] === true && (
+          <Link href={`/portal/${mandant}/dokumente/buendel?jahr=${String(jp.jahr)}`} className={knopf}>Prüfbündel</Link>
+        )}
       </div>
 
       <DataTable

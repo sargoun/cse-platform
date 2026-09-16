@@ -12,6 +12,7 @@ import { MONATSNAMEN, monatVerschieben } from '@/lib/datum/kalendertag';
 import { erstelleLohnexport, type Lohnexport, type KontoLage } from '@/server/services/zeit/lohnexport';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { haeltRechte } from '../../../rechte';
 
 /**
  * `/portal/[mandant]/buchhaltung/lohnexport` — Zeitdaten eines Monats fuer
@@ -43,6 +44,10 @@ export default async function LohnexportSeite(
   const tor = await mandantTor(`/portal/${mandant}/buchhaltung/lohnexport`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+
+  /* AUT-06: ein Knopf, dessen Ziel diese Sitzung nicht oeffnen darf,
+     verraet die Existenz dessen, was er nicht zeigen darf. */
+  const darf = await haeltRechte(zugang.sitzung, 'zeit.exportieren');
   const suche = await searchParams;
   const monatRoh = typeof suche['monat'] === 'string' ? suche['monat'] : null;
   const gewaehlt = monatRoh !== null && /^\d{4}-(0[1-9]|1[0-2])$/u.test(monatRoh) ? monatRoh : null;
@@ -109,7 +114,9 @@ export default async function LohnexportSeite(
 
       <div data-cse="lohnexport-abrufe" className="mb-s6 flex flex-wrap items-center gap-s3">
         <a href={api} data-cse="lohnexport-abrufen" className={knopf}>Paket (ZIP)</a>
-        <Link href={`/portal/${mandant}/zeiten/milog`} className={knopf}>MiLoG-Nachweise</Link>
+        {darf['zeit.exportieren'] === true && (
+          <Link href={`/portal/${mandant}/zeiten/milog`} className={knopf}>MiLoG-Nachweise</Link>
+        )}
         <span className="font-mono text-xs text-text-muted" data-cse="lohnexport-sha256" title={e.zipSha256}>
           SHA-256 {e.zipSha256.slice(0, 16)}…
         </span>

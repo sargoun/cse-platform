@@ -15,6 +15,8 @@ import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../kennung';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/auftraege/[id]/abrechnung` — wie DIESER Auftrag
@@ -73,6 +75,7 @@ export default async function AuftragAbrechnung(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const zugang = await portalZugang(`/portal/${mandant}/auftraege/${id}/abrechnung`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
@@ -80,6 +83,7 @@ export default async function AuftragAbrechnung(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
+  const darf = await haeltRechte(sitzung, 'auftrag.lesen');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -114,14 +118,22 @@ export default async function AuftragAbrechnung(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label="Zurück" className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/auftraege/${id}`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← {daten.kopf.auftragsnummer} · {daten.kopf.bezeichnung}
-        </Link>
-      </nav>
+      {/*
+        * Der Auftrag dahinter öffnet mit `auftrag.lesen` (Manifest); diese
+        * Seite mit dem Abrechnungsrecht. Ohne das erste führte der Weg zurück
+        * auf 404 und verriet damit, was er nicht zeigen darf (AUT-06, D-581).
+        * Nummer und Bezeichnung stehen in der Überschrift darunter ohnehin.
+        */}
+      {darf['auftrag.lesen'] === true && (
+        <nav aria-label="Zurück" className="mb-s3">
+          <Link
+            href={`/portal/${mandant}/auftraege/${id}`}
+            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+          >
+            ← {daten.kopf.auftragsnummer} · {daten.kopf.bezeichnung}
+          </Link>
+        </nav>
+      )}
       <h1 className="mb-s2 text-h1 text-text">Abrechnung</h1>
       <p className="mb-s5 text-sm text-text-muted">{daten.kopf.kunde}</p>
 

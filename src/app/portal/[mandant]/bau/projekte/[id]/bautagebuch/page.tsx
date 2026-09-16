@@ -15,6 +15,8 @@ import { portalZugang } from '../../../../../zugang';
 import { slugTor } from '../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../../kennung';
+import { haeltRechte } from '../../../../../rechte';
 
 /**
  * `/portal/[mandant]/bau/projekte/[id]/bautagebuch` — die Tage einer
@@ -35,6 +37,7 @@ export default async function BautagebuchListe(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const pfad = `/portal/${mandant}/bau/projekte/${id}/bautagebuch`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -45,6 +48,13 @@ export default async function BautagebuchListe(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /* AUT-06: der Bautag `…/bautagebuch/[datum]` verlangt laut Manifest
+     `bau.schreiben`, diese Liste nur `bau.lesen` — eine `kunde` sah den Knopf
+     „Heutigen Tag führen" und jeden Tag als Verweis und bekam dahinter ein
+     404. Ein Verweis auf 404 verraet, was er nicht zeigen darf (Copilot-Runde
+     auf PR 16 / D-581). */
+  const darf = await haeltRechte(sitzung, 'bau.schreiben');
 
   const heute = await berlinHeute();
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -77,12 +87,14 @@ export default async function BautagebuchListe(
             {daten.projekt.nummer} · {daten.projekt.bezeichnung}
           </p>
         </div>
-        <Link
-          href={`/portal/${mandant}/bau/projekte/${id}/bautagebuch/${heute}`}
-          className="rounded-md bg-brand px-s5 py-s3 text-sm font-semibold text-white hover:bg-brand-hover"
-        >
-          Heutigen Tag führen
-        </Link>
+        {darf['bau.schreiben'] === true && (
+          <Link
+            href={`/portal/${mandant}/bau/projekte/${id}/bautagebuch/${heute}`}
+            className="rounded-md bg-brand px-s5 py-s3 text-sm font-semibold text-white hover:bg-brand-hover"
+          >
+            Heutigen Tag führen
+          </Link>
+        )}
       </div>
 
       {daten.tage.length === 0 ? (
@@ -98,14 +110,14 @@ export default async function BautagebuchListe(
             {
               schluessel: 'datum',
               kopf: 'Tag',
-              zelle: (z) => (
+              zelle: (z) => (darf['bau.schreiben'] === true ? (
                 <Link
                   href={`/portal/${mandant}/bau/projekte/${id}/bautagebuch/${z.datum}`}
                   className="text-text underline-offset-2 hover:text-brand hover:underline"
                 >
                   {z.datum_lokal}
                 </Link>
-              ),
+              ) : z.datum_lokal),
             },
             {
               schluessel: 'arbeitszeit',

@@ -11,6 +11,8 @@ import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../kennung';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/angebote/[id]/kalkulation` — der Rechenweg, und der
@@ -68,6 +70,7 @@ export default async function KalkulationSeite(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const pfad = `/portal/${mandant}/angebote/${id}/kalkulation`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -76,6 +79,7 @@ export default async function KalkulationSeite(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
+  const darf = await haeltRechte(sitzung, 'angebot.lesen');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -123,14 +127,22 @@ export default async function KalkulationSeite(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label="Zurück" className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/angebote/${id}`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← Zum Angebot
-        </Link>
-      </nav>
+      {/*
+        * Das Angebot dahinter öffnet mit `angebot.lesen` (Manifest); diese
+        * Seite mit `kalkulation.lesen`. Zwei Rechte, je Mandant getrennt
+        * entziehbar — ohne das erste führte „Zum Angebot" auf 404 und verriet
+        * damit, was es nicht zeigen darf (AUT-06, D-581).
+        */}
+      {darf['angebot.lesen'] === true && (
+        <nav aria-label="Zurück" className="mb-s3">
+          <Link
+            href={`/portal/${mandant}/angebote/${id}`}
+            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+          >
+            ← Zum Angebot
+          </Link>
+        </nav>
+      )}
 
       <h1 className="mb-s4 text-h1 text-text">Kalkulation</h1>
 

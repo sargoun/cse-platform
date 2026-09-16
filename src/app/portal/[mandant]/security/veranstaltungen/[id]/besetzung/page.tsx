@@ -10,6 +10,8 @@ import { portalZugang } from '../../../../../zugang';
 import { slugTor } from '../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { kennungOder404 } from '../../../../../kennung';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/security/veranstaltungen/[id]/besetzung` — das Brett der
@@ -57,6 +59,7 @@ export default async function Besetzungsbrett(
   },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
   const suche = await searchParams;
   const pfad = `/portal/${mandant}/security/veranstaltungen/${id}/besetzung`;
   const zugang = await portalZugang(pfad);
@@ -67,6 +70,7 @@ export default async function Besetzungsbrett(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
+  const darf = await haeltRechte(sitzung, 'security.lesen', 'dienstplan.lesen', 'dienstplan.arbzg_lesen');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const daten = await (db().begin(
@@ -135,13 +139,22 @@ export default async function Besetzungsbrett(
     >
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">{kopf.bezeichnung}</h1>
-        <Link
-          href={`/portal/${mandant}/security/veranstaltungen`}
-          className="rounded-md border border-line px-s3 py-s1 text-sm text-text-muted
-                     hover:border-line-strong hover:text-text"
-        >
-          Zu den Veranstaltungen
-        </Link>
+        {/*
+          * Die Liste dahinter verlangt laut Manifest `security.lesen`; dieses
+          * Brett nur `dienstplan.schreiben`. Wer besetzen darf, darf die
+          * Veranstaltungen nicht zwangsläufig sehen — der Verweis führte dann
+          * auf 404 und verriete, was er nicht zeigen darf (AUT-06;
+          * Copilot-Runde auf PR 16 / D-581).
+          */}
+        {darf['security.lesen'] === true && (
+          <Link
+            href={`/portal/${mandant}/security/veranstaltungen`}
+            className="rounded-md border border-line px-s3 py-s1 text-sm text-text-muted
+                       hover:border-line-strong hover:text-text"
+          >
+            Zu den Veranstaltungen
+          </Link>
+        )}
       </div>
 
       <p className="mb-s5 text-sm text-text-muted">
@@ -166,13 +179,24 @@ export default async function Besetzungsbrett(
           {offen !== null && offen > 0
             && `, ${String(offen)} nicht — fehlender Nachweis, Arbeitszeitbefund oder `
               + 'bereits eingeteilt. Die Gründe stehen im Konflikteingang.'}
-          {' '}
-          <Link
-            href={`/portal/${mandant}/dienstplan/konflikte`}
-            className="text-text underline-offset-2 hover:text-brand hover:underline"
-          >
-            Zum Konflikteingang
-          </Link>
+          {/*
+            * `/dienstplan/konflikte` verlangt laut Manifest `dienstplan.lesen`
+            * UND `dienstplan.arbzg_lesen`; dieses Brett nur
+            * `dienstplan.schreiben`. Ohne beide führte der Verweis auf 404 und
+            * verriete, was er nicht zeigen darf (AUT-06; Copilot-Runde auf
+            * PR 16 / D-581). Der Satz davor steht auch ohne ihn.
+            */}
+          {darf['dienstplan.lesen'] === true && darf['dienstplan.arbzg_lesen'] === true && (
+            <>
+              {' '}
+              <Link
+                href={`/portal/${mandant}/dienstplan/konflikte`}
+                className="text-text underline-offset-2 hover:text-brand hover:underline"
+              >
+                Zum Konflikteingang
+              </Link>
+            </>
+          )}
         </p>
       )}
 

@@ -151,6 +151,40 @@ test.describe('Vergabemappe (Phase 8, PR 70)', () => {
       .toContainText('Tariftreue- und Mindestlohnerklärung');
   });
 
+  /**
+   * **Die Gegenrichtung zum Hinzufügen** (D-577).
+   *
+   * `entfernePosition` gab es im Dienst seit PR 70, und keine Adresse rief
+   * sie: die Prüfliste wuchs und schrumpfte nie. Diese Zusicherung geht den
+   * Weg, den ein Mensch geht — Zeile anlegen, Zeile wieder wegnehmen —, denn
+   * genau das war die Lücke: gebaut, geprüft, und vom Bildschirm aus nicht
+   * erreichbar.
+   */
+  test('eine vertippte Zeile laesst sich wieder wegnehmen', async ({ page }) => {
+    await anmelden(page, KONTO.adminReinigung);
+    await zurMappe(page);
+    const vorher = await page.locator('[data-cse="mappe-position"]').count();
+
+    await page.fill('[data-cse="mappe-position-neu"] input[name="bezeichnung"]',
+      'Tariftreueerklaerunggg');
+    await page.locator('[data-cse="position-hinzufuegen"]').click();
+    await page.waitForURL(/vermerkt=mappe/u);
+    await expect(page.locator('[data-cse="mappe-position"]')).toHaveCount(vorher + 1);
+
+    /*
+     * Der Knopf der LETZTEN Zeile — die neue steht am Ende der Liste
+     * (`ergaenzePosition` vergibt `max(position) + 1`). Genau darum steht der
+     * Knopf an der Zeile und nicht in einem Auswahlfeld: hier ist sichtbar,
+     * welche Zeile verschwindet.
+     */
+    await page.locator('[data-cse="position-entfernen"]').last().click();
+    await page.waitForURL(/vermerkt=mappe/u);
+
+    await expect(page.locator('[data-cse="mappe-position"]')).toHaveCount(vorher);
+    await expect(page.locator('[data-cse="mappe-positionen"]'))
+      .not.toContainText('Tariftreueerklaerunggg');
+  });
+
   test('ohne Dokumentenspeicher wird NICHTS gespeichert — und die Seite sagt es', async ({ page }) => {
     await anmelden(page, KONTO.adminReinigung);
     await zurMappe(page);

@@ -8,48 +8,62 @@ No time estimates by design — sequence and acceptance, not duration.
 
 Feature IDs refer to `SPEC.md`.
 
-## Where the work actually stands — this file does not say it
+## Where the work actually stands
 
-**None of the boxes below have ever been ticked.** This file has not been
-touched since the commit that created it, five phases ago; every `- [ ]` in it
-means "planned", never "open". Read as a status board it says the platform is
-empty, which is the opposite of true — and a session that believes it rebuilds
-what already exists, on top of what already exists.
+**The boxes below ARE ticked now** — and the sentence that used to stand here
+("none of the boxes below have ever been ticked") was true when it was written
+and false for a long time afterwards. A status paragraph that stops being
+maintained is worse than none: it is read as fact.
 
-The status lives in three places, and each of them is kept:
+Counted from this file, phase by phase:
 
-- `docs/architecture/PHASE-5-STAND.md` — what is built, what was found, where
-  Phase 6 begins.
+| Phase | done | open | |
+|---|---:|---:|---|
+| 0 · Analysis & architecture | 0 | 6 | the documents exist; the boxes were never ticked |
+| 1 · Tenancy, auth, permissions | 15 | 2 | |
+| 2 · Public website & profiles | 8 | 3 | |
+| 3 · Portals & dashboards | 4 | 1 | |
+| 4 · CRM & operations | 9 | 0 | |
+| 5 · Scheduling, time, trade modules | 12 | 0 | |
+| 6 · Finance | 10 | 0 | |
+| 7 · Accounting & DATEV | 10 | 0 | |
+| 8 · Tender radar & AI agents | 14 | 0 | |
+| 9 · Social, recruiting, reporting | 3 | 3 | recruiting is the open one |
+| 10 · Hardening & launch | 1 | 8 | |
+
+**Phases 4 to 9 are closed.** Phase 9 carried Social, recruiting,
+notifications, the calendar and the six reports; every box in it is ticked
+against the database and the suites, not against memory. Phase 10 has barely
+begun.
+
+**What a tick does NOT mean.** A ticked box means the feature is built, tested
+and reachable — not that every screen behind it exists. A walk through every
+portal address (2026-09-15) counted **94 real pages, 55 "this module is still
+being built" placeholders and 0 server errors** for an administration in one
+company. The placeholders are honest and named; they are the work of task
+"160 placeholder routes".
+
+**Where the moving numbers live** — they change with every commit and therefore
+do not belong in this file:
+
 - `docs/DECISIONS.md` — every decision with its reason, and the open questions
   under "Open" / "Offen".
-- The pull request for the branch in hand — the test counts and the file and
-  commit numbers of the moment. They move with every commit and therefore do
-  not belong in this file either.
+- `docs/architecture/PHASE-5-STAND.md` — the hand-off of that phase.
+- The pull request for the branch in hand — test counts, file and commit
+  numbers of the moment.
 
-Two facts that this sequence otherwise hides, both true at the time of
-Phase 5's hand-off (PR #5):
+**The named exceptions that survive the ticks:**
 
-1. **Phases 0 to 5 are built** — the three trade modules, scheduling, time,
-   hour accounts and the employee portal in four languages. The login was the
-   one named exception; **PR 20 has since closed half of it.** Employees sign
-   in for real at `/auth/mitarbeiter` with a phone number and a one-time code
-   (`0113`–`0115`, EMP-01), and `/dev/anmelden` no longer lists them.
-   **What is still open is the other half:** `/auth/login` — e-mail, password
-   and the second factor Phase 1 promises for `super_admin` and `admin`
-   (AUT-01, AUT-02) — is not built, so those roles and the customer login
-   still come from `/dev/anmelden`, which only exists when `CSE_DEV_FLAECHEN`
-   is on. That page is narrowed, not retired, and it goes when `/auth/login`
-   arrives (D-386). Whatever else is missing is named individually, not by a
-   blank box: `PHASE-5-STAND.md` §"Offen in dieser Phase" and the open
-   questions in `DECISIONS.md`.
-2. **Phase 6 has already begun**, against the "phases are sequential" rule at
-   the top. PR 46 — invoice lifecycle, number assignment, hash chain, Storno —
-   ships inside the Phase 5 branch (`0075`–`0077`,
-   `src/server/services/finanz/rechnung.ts`); PR 47 to 49 sit on
-   `claude/phase-5-dienstplan-zeit`. That was a deliberate call, not a slip,
-   and the reason is in `DECISIONS.md` under "PHASE 6, NICHT IN DIESEM ZWEIG".
-   The invoice itself stays locked until **O-134** is answered: no number is
-   ever drawn from an unconfirmed circle.
+1. **Login is complete.** `/auth/login` with e-mail, password and the second
+   factor is built (PR 77); employees sign in at `/auth/mitarbeiter` with a
+   phone number and a one-time code (EMP-01). `/dev/anmelden` is a development
+   surface behind `CSE_DEV_FLAECHEN` and ships as a 404 (D-386).
+2. **No external channel is connected.** DATEV, the five social platforms, the
+   job boards, the mail provider and the AI endpoint are built as interfaces
+   and marked "not connected" in the interface. Nothing simulates a successful
+   external call — that is a rule, not a gap (see "Out of scope" in CLAUDE.md).
+3. **Invoice numbers stay locked until O-134 is answered.** No number is ever
+   drawn from an unconfirmed circle.
 
 ---
 
@@ -61,7 +75,9 @@ Before any feature code. The client asked for this explicitly.
 - [ ] Produce: folder structure · DB schema · auth model · permission model ·
       page map · API map · agent architecture · integration architecture
 - [ ] Next.js 15 + TypeScript strict + Tailwind + shadcn/ui
-- [ ] Supabase project, **EU (Frankfurt)**; Drizzle with migrations in-repo
+- [ ] Supabase project, **EU (Frankfurt)**; SQL migrations in-repo under `drizzle/`,
+      applied by `pnpm db:migrate` (D-582 — Drizzle itself was removed, the folder
+      and its numbering keep the name)
 - [ ] CI: typecheck, lint, unit, e2e, dependency audit
 - [ ] **Implement `docs/DESIGN.md` as code**: CSS variables in `globals.css` +
       Tailwind theme; Inter and Caveat loaded; base components built
@@ -544,10 +560,30 @@ Radar first — the agents operate on its output.
 
 ## Phase 9 · Social, recruiting, reporting — SOC-*, REC-*, REP-*, NOT-*
 
-- [ ] Social Media Center: drafts, approval, scheduling, publish to CSE profiles
-- [ ] External channels behind an interface, marked "not connected"
-- [ ] Recruiting: job ad drafting, inbound applications, CV parsing, ranking
-      with visible criteria, interview scheduling, DSGVO purge
+- [x] **Social Media Center** (SOC-01…SOC-08, D-556…D-560, D-572, D-573): the
+      four profiles from one place, `entwurf → vorgelegt → freigegeben →
+      geplant → veroeffentlicht` with the decision falling in the approval
+      inbox and never on the post page (SOC-08 — two ways to one decision
+      would be one too many), the nightly `social_plan` run under `cse_job`,
+      and `erneut_senden` for channels that failed. Content pulls from
+      released references only (PRO-05). **Publishing to the company page on
+      the CSE site works immediately** — it is not a channel, the post stands
+      there the moment `status = 'veroeffentlicht'`
+- [x] **External channels behind an interface, marked "not connected"**
+      (SOC-06, SOC-07, O-10): Instagram, Facebook, LinkedIn, TikTok and
+      YouTube implement one `SocialKanal` port; none is connected, each says
+      so in the interface, and a per-channel result sheet records what came
+      back. Nothing simulates a successful external call
+- [x] **Recruiting** (REC-01…REC-09, D-570, D-573): staffing requirement from
+      unstaffed shifts, job ad drafting, inbound applications over
+      `/karriere/*` and the initiative form, the parsed candidate record,
+      the ranked shortlist **computed in TypeScript with its criteria on
+      screen** (REC-05/REC-08 — the model never ranks), interviews with
+      prepared questions on the calendar, the hiring decision bound to the
+      human who writes it (`kern.entscheidung_ist_menschlich`, REC-08,
+      DSGVO Art. 22), and the nightly `bewerber_loeschung` purge against
+      `aufbewahrung_bis` with `loeschsperre` honoured (REC-07). Job boards
+      are built as a port and are not connected (REC-09)
 - [x] **Reports** (REP-01…REP-07, D-506…D-508): revenue, orders and leads,
       **channel attribution**, hours, projects, tender pipeline — six per
       company under `/portal/[mandant]/berichte`, the same six split per

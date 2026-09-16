@@ -1,6 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { istGleicherUrsprung } from '@/server/auth/ursprung';
+import { istGleicherUrsprung, erwarteterUrsprung } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
@@ -104,7 +104,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     /* Aus dem Formular der Seite (`mandant` gesetzt): auf den Stapel, nicht auf JSON. */
     if (slug !== '') {
       return NextResponse.redirect(
-        new URL(`/portal/${slug}/buchhaltung/datev/${ergebnis.exportId}`, anfrage.nextUrl.origin),
+        new URL(`/portal/${slug}/buchhaltung/datev/${ergebnis.exportId}`, erwarteterUrsprung(anfrage)),
         303);
     }
     return NextResponse.json({
