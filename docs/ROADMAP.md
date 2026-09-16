@@ -75,7 +75,9 @@ Before any feature code. The client asked for this explicitly.
 - [ ] Produce: folder structure · DB schema · auth model · permission model ·
       page map · API map · agent architecture · integration architecture
 - [ ] Next.js 15 + TypeScript strict + Tailwind + shadcn/ui
-- [ ] Supabase project, **EU (Frankfurt)**; Drizzle with migrations in-repo
+- [ ] Supabase project, **EU (Frankfurt)**; SQL migrations in-repo under `drizzle/`,
+      applied by `pnpm db:migrate` (D-582 — Drizzle itself was removed, the folder
+      and its numbering keep the name)
 - [ ] CI: typecheck, lint, unit, e2e, dependency audit
 - [ ] **Implement `docs/DESIGN.md` as code**: CSS variables in `globals.css` +
       Tailwind theme; Inter and Caveat loaded; base components built
