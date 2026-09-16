@@ -65,6 +65,14 @@ export interface Lauf {
   readonly ziel: (slug: string, ergebnis: string) => string;
 }
 
+/**
+ * Wohin es geht, wenn `zurueck` nicht in diese Anwendung zeigt.
+ *
+ * `/portal` ist der Wegweiser (D-560) und kein Bildschirm, den jemand
+ * vorgeben kann — genau das ist der Punkt.
+ */
+const HEIMWEG = '/portal';
+
 export async function fuehreRecruitingAus(
   anfrage: NextRequest, lauf: Lauf,
 ): Promise<NextResponse> {
@@ -131,10 +139,22 @@ export async function fuehreRecruitingAus(
       const zurueck = rumpf.felder['zurueck'];
       if (!rumpf.json && zurueck !== undefined && zurueck !== '') {
         const trenner = zurueck.includes('?') ? '&' : '?';
+        /*
+         * **Der Rueckfall ist SERVERSEITIG, nicht noch einmal `zurueck`.**
+         *
+         * Hier stand `zurueck` in beiden Argumenten — und damit wurde die
+         * Pruefung zu ihrem eigenen Gegenteil: `internesZiel` wies ein
+         * absolutes `https://boese.example` als Ziel ab und gab es als
+         * Rueckfall unveraendert zurueck. Nach einem gueltigen POST aus dem
+         * eigenen Portal ging die Umleitung nach draussen. Gemeldet hat das
+         * die Copilot-Runde auf PR 16; `internesZiel` prueft den Rueckfall
+         * seither ebenfalls, aber ein Aufrufer, der sein eigenes Ziel nicht
+         * kennt, gehoert trotzdem korrigiert.
+         */
         return NextResponse.redirect(
           internesZiel(
             `${zurueck}${trenner}fehler=${encodeURIComponent(antwort.grund)}`,
-            zurueck, anfrage),
+            HEIMWEG, anfrage),
           303);
       }
       return NextResponse.json(

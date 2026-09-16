@@ -161,15 +161,37 @@ export function internesZiel(
   // TLS-beendenden Proxy steht dort `http`, und ein interner Redirect zeigte
   // dann auf `http://…` — ein Downgrade auf dem Rueckweg aus dem Portal.
   const basis = new URL(erwarteterUrsprung(anfrage));
-  if (zurueck === null || zurueck === undefined || zurueck === '') {
-    return new URL(standard, basis);
-  }
+  const heim = innerhalb(standard, basis) ?? new URL('/', basis);
+  const gewaehlt = innerhalb(zurueck, basis);
+  return gewaehlt ?? heim;
+}
+
+/**
+ * **Der Rueckfall wird GENAUSO geprueft wie das Ziel** — und das war er nicht.
+ *
+ * Hier stand `return new URL(standard, basis)` an drei Stellen. Solange
+ * `standard` serverseitig entsteht, ist das richtig; zwei Aufrufer reichten
+ * aber `zurueck` in BEIDE Argumente — und damit wurde die Pruefung zu ihrem
+ * eigenen Gegenteil: ein absolutes `https://boese.example` fiel als Ziel durch
+ * und kam als Rueckfall unveraendert zurueck. Nach einem gueltigen POST aus
+ * dem eigenen Portal ging die Umleitung nach draussen. Gemeldet hat das die
+ * Copilot-Runde auf PR 16.
+ *
+ * Die Aufrufer sind korrigiert. Der Riegel steht trotzdem HIER: eine
+ * Schutzfunktion, deren Schutz davon abhaengt, dass jeder Aufrufer sie richtig
+ * benutzt, schuetzt den naechsten Aufrufer nicht. Bleibt auch `standard`
+ * fremd, geht es auf `/` — ein Ziel, das niemand vorgeben kann.
+ *
+ * `null` heisst „nicht innerhalb": leer, unlesbar oder fremder Ursprung.
+ */
+function innerhalb(roh: string | null | undefined, basis: URL): URL | null {
+  if (roh === null || roh === undefined || roh === '') return null;
   try {
-    const ziel = new URL(zurueck, basis);
-    if (ziel.origin !== basis.origin) return new URL(standard, basis);
+    const ziel = new URL(roh, basis);
+    if (ziel.origin !== basis.origin) return null;
     // Nur Pfad, Abfrage und Anker uebernehmen — nie Anmeldedaten im Ziel.
     return new URL(`${ziel.pathname}${ziel.search}${ziel.hash}`, basis);
   } catch {
-    return new URL(standard, basis);
+    return null;
   }
 }

@@ -79,4 +79,38 @@ describe('internesZiel hinter einem Proxy', () => {
     expect(internesZiel(null, STANDARD, a).toString())
       .toBe(`https://cse.example${STANDARD}`);
   });
+
+  /**
+   * **Der RUECKFALL wird genauso geprueft wie das Ziel.**
+   *
+   * Zwei Aufrufer reichten `zurueck` in BEIDE Argumente — und hoben die
+   * Pruefung damit auf: ein absolutes `https://boese.example` fiel als Ziel
+   * durch und kam als Rueckfall unveraendert zurueck. Nach einem gueltigen
+   * POST aus dem eigenen Portal ging die Umleitung nach draussen. Gemeldet hat
+   * das die Copilot-Runde auf PR 16.
+   *
+   * Die Aufrufer sind korrigiert; dieser Fall haelt fest, dass die FUNKTION
+   * auch dann schuetzt, wenn der naechste Aufrufer denselben Fehler macht.
+   */
+  it('ein fremder RUECKFALL landet auf `/`, nicht draussen', () => {
+    expect(internesZiel('https://boese.example/phish', 'https://boese.example/phish', anfrage)
+      .toString()).toBe('https://cse.example/');
+  });
+
+  it('auch wenn nur der Rueckfall fremd ist und `zurueck` fehlt', () => {
+    expect(internesZiel(null, 'https://boese.example/', anfrage).toString())
+      .toBe('https://cse.example/');
+    expect(internesZiel('', '//boese.example/pfad', anfrage).toString())
+      .toBe('https://cse.example/');
+  });
+
+  /**
+   * `//host` ist protokollrelativ und damit ABSOLUT — `new URL('//boese.example',
+   * 'https://cse.example')` ergibt `https://boese.example`. Die Form sieht aus
+   * wie ein Pfad und ist keiner; genau deshalb steht sie hier.
+   */
+  it('ein protokollrelatives Ziel ist kein interner Pfad', () => {
+    expect(internesZiel('//boese.example/phish', STANDARD, anfrage).toString())
+      .toBe(`https://cse.example${STANDARD}`);
+  });
 });

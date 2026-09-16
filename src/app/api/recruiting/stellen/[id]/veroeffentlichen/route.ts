@@ -62,6 +62,23 @@ export async function POST(
           'Ein Entwurf geht nicht hinaus. Die Stelle braucht zuerst eine Freigabe '
           + '(Invariante 7).', 'nicht_freigegeben', 409);
       }
+      /*
+       * **Und eine GESCHLOSSENE erst recht nicht.**
+       *
+       * `geschlossen` ist der Endzustand: die Karriereseite zeigt sie nicht
+       * mehr (`t_stelle_oeffentlich`), und die Personalstelle hat die Suche
+       * beendet. Der Riegel oben liess sie trotzdem durch — mit einem
+       * verbundenen Adapter ginge eine zurückgezogene Anzeige ein zweites Mal
+       * auf eine fremde Börse, und **dort holt sie niemand zurück.** Heute
+       * endete der Versuch als `nicht_verbunden`, was den Fehler verdeckte.
+       * Gemeldet hat das die Copilot-Runde auf PR 16.
+       */
+      if (stelle.geschlossenAm !== null) {
+        throw new RecruitingFehler(
+          'Diese Stelle ist geschlossen. Eine zurückgezogene Anzeige geht nicht '
+          + 'noch einmal hinaus — was auf einer fremden Börse steht, nimmt diese '
+          + 'Plattform nicht zurück (REC-09).', 'geschlossen', 409);
+      }
 
       const port = boersenPort(boerse);
       try {

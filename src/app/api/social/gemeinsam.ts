@@ -56,6 +56,14 @@ export interface Lauf {
   readonly ziel: (slug: string, ergebnis: string) => string;
 }
 
+/**
+ * Wohin es geht, wenn `zurueck` nicht in diese Anwendung zeigt.
+ *
+ * `/portal` ist der Wegweiser (D-560) und kein Bildschirm, den jemand
+ * vorgeben kann — genau das ist der Punkt.
+ */
+const HEIMWEG = '/portal';
+
 export async function fuehreSocialAus(
   anfrage: NextRequest, lauf: Lauf,
 ): Promise<NextResponse> {
@@ -110,10 +118,16 @@ export async function fuehreSocialAus(
       const zurueck = rumpf.felder['zurueck'];
       if (!rumpf.json && zurueck !== undefined && zurueck !== '') {
         const trenner = zurueck.includes('?') ? '&' : '?';
+        /*
+         * **Der Rueckfall ist SERVERSEITIG** — `zurueck` in beiden Argumenten
+         * hebt die Pruefung auf: ein abgewiesenes fremdes Ziel kaeme als
+         * Rueckfall unveraendert zurueck. Dieselbe Stelle, derselbe Fehler wie
+         * in `api/recruiting/gemeinsam.ts`; ich hatte sie von dort abgeschrieben.
+         */
         return NextResponse.redirect(
           internesZiel(
             `${zurueck}${trenner}fehler=${encodeURIComponent(fehler.grund)}`,
-            zurueck, anfrage),
+            HEIMWEG, anfrage),
           303);
       }
       return NextResponse.json(

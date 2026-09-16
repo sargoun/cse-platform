@@ -707,14 +707,38 @@ export async function sendeErneut(
       'Erneut gesendet wird nur, was veröffentlicht ist.', 'falscher_status');
   }
 
-  const offen = (await kanaeleZuBeitrag(kontext, id))
-    .filter((z) => z.ergebnis === 'fehlgeschlagen');
-  if (offen.length === 0) {
+  /*
+   * **Die Kanaele werden BEANSPRUCHT, bevor irgendetwas hinausgeht.**
+   *
+   * Vorher las diese Funktion die `fehlgeschlagen`en Zeilen und sendete
+   * danach. Zwei gleichzeitige Klicks — ein doppelter genuegt — lasen beide
+   * dieselben Zeilen und riefen beide den Adapter: ein zweiter Beitrag auf
+   * LinkedIn, den kein `update` zurueckholt. `veroeffentliche` hatte diesen
+   * Riegel von Anfang an (dort ueber `beitrag.status`); hier fehlte er, weil
+   * der Status sich absichtlich NICHT aendert. Gemeldet hat das die
+   * Copilot-Runde auf PR 16.
+   *
+   * Der Anspruch ist das `update … where ergebnis = 'fehlgeschlagen'
+   * returning`: PostgreSQL entscheidet, wer die Zeile bekommt, und der
+   * Zweite bekommt sie nicht. `offen` ist der Zwischenzustand, den es
+   * ohnehin gibt — eine Zeile, die gesendet werden soll und noch keine
+   * Antwort hat.
+   */
+  const beansprucht = await kontext.schreibe<{ kanalId: string }>(
+    `update beitrag_kanal set ergebnis = 'offen', meldung = null
+      where beitrag_id = $1::uuid and mandant_id = app.aktiver_mandant()
+        and ergebnis = 'fehlgeschlagen'
+      returning kanal_id as "kanalId"`,
+    [id]);
+  if (beansprucht.length === 0) {
     throw new SocialFehler(
       'Kein Kanal ist fehlgeschlagen. Ein nicht verbundener Kanal ist kein '
       + 'Fehlschlag, sondern ein bekannter Zustand (O-10) — ihn zu wiederholen '
       + 'änderte nichts.', 'nichts_zu_tun');
   }
+  const gehoertMir = new Set(beansprucht.map((z) => z.kanalId));
+  const offen = (await kanaeleZuBeitrag(kontext, id))
+    .filter((z) => gehoertMir.has(z.kanalId));
 
   const adresse = await beitragsadresse(kontext, id, basis);
   const ergebnisse = await sendeKanaele(

@@ -515,3 +515,72 @@ describe('eingestellte Bewerbungen haelt der Loeschlauf zurueck (O-376)', () => 
     expect(rest!.geloescht_am).not.toBeNull();
   });
 });
+
+/**
+ * **Der Status einer Bewerbung wandert NUR über eine Entscheidung**
+ * (REC-08, Art. 22 DSGVO, 0168).
+ *
+ * `t_bewerbung_schreiben` gab jedem `update` frei, der
+ * `recruiting.bewerbung_lesen` hält — ohne Spalten- und ohne Zustandsgrenze.
+ * Der Riegel `kern.entscheidung_ist_menschlich` hielt damit genau eine Tür zu,
+ * während die Wand daneben offen stand: `status = 'eingestellt'` liess sich
+ * direkt schreiben, ohne Entscheidung, ohne Begründung, ohne Namen dessen, der
+ * sie traf. Gemeldet hat das die Copilot-Runde auf PR 16.
+ */
+describe('cse_app schreibt nicht auf `bewerbung` (REC-08, 0168)', () => {
+  it('ein direktes `update status` wird abgewiesen', async () => {
+    const konto = await legeKontoAn(f.reinigung, 'admin');
+    const { bewerbungId } = await bewerbungAnlegen(f.reinigung, 30);
+    const sitzung = {
+      scope: 'mandant' as const, mandantId: f.reinigung,
+      benutzerId: konto, portal: 'intern' as const, readonly: false,
+    };
+    await expect(alsApp(sitzung, (tx) => tx.unsafe(
+      `update bewerbung set status = 'eingestellt' where id = $1::uuid`, [bewerbungId])))
+      .rejects.toThrow();
+  });
+
+  /**
+   * **Und auch die Uhr nicht.** `aufbewahrung_bis` zu verschieben wäre die
+   * lautlose Version derselben Umgehung: die Bewerbung bliebe über die Frist
+   * hinaus liegen, ohne dass jemand eine `loeschsperre` mit Grund gesetzt hat
+   * (REC-07).
+   */
+  it('auch `aufbewahrung_bis` laesst sich nicht verschieben', async () => {
+    const konto = await legeKontoAn(f.reinigung, 'admin');
+    const { bewerbungId } = await bewerbungAnlegen(f.reinigung, 30);
+    const sitzung = {
+      scope: 'mandant' as const, mandantId: f.reinigung,
+      benutzerId: konto, portal: 'intern' as const, readonly: false,
+    };
+    await expect(alsApp(sitzung, (tx) => tx.unsafe(
+      `update bewerbung set aufbewahrung_bis = app.berlin_heute() + 9999
+        where id = $1::uuid`, [bewerbungId])))
+      .rejects.toThrow();
+  });
+
+  /**
+   * **Der Weg über die Entscheidung geht weiter** — sonst wäre der Riegel
+   * ein Verbot statt einer Bahn. Der Nachzug hängt seit 0168 an einem Definer
+   * (`app.entscheidung_zieht_bewerbung_nach`), damit `cse_app` die Erlaubnis
+   * nicht selbst braucht.
+   */
+  it('aber eine Entscheidung zieht den Status nach', async () => {
+    const konto = await legeKontoAn(f.reinigung, 'admin');
+    const { bewerbungId } = await bewerbungAnlegen(f.reinigung, 30);
+    const sitzung = {
+      scope: 'mandant' as const, mandantId: f.reinigung,
+      benutzerId: konto, portal: 'intern' as const, readonly: false,
+    };
+    await alsApp(sitzung, (tx) => tx.unsafe(
+      `insert into einstellungsentscheidung
+         (mandant_id, bewerbung_id, ergebnis, begruendung, entschieden_von)
+       values ($1::uuid, $2::uuid, 'eingestellt', 'Probe', $3::uuid)`,
+      [f.reinigung, bewerbungId, konto]));
+
+    const [b] = (await alsRolle('', (tx) => tx.unsafe(
+      `select status::text as status from bewerbung where id = $1::uuid`,
+      [bewerbungId]))) as unknown as { status: string }[];
+    expect(b!.status).toBe('eingestellt');
+  });
+});

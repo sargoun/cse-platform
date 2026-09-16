@@ -12241,3 +12241,69 @@ nicht verdrahtet — ist der, den die Wache finden soll.
 
 | Betrifft | BAU-02, TIM-10, DOC-06, AGT-01, AGT-04, REC-02, AUT-06, D-563, D-567, D-574 |
 |---|---|
+
+---
+
+### D-576 · Eine offene Weiterleitung, eine offene Wand und ein doppelter Versand
+
+**Kontext.** Die dritte Copilot-Runde meldete sechzehn Stellen; neun davon waren
+mit D-573 bis D-575 schon erledigt. Vier blieben, und drei davon sind
+Sicherheitsbefunde.
+
+**1 · Die Prüfung gegen offene Weiterleitungen hob sich selbst auf.**
+`internesZiel(zurueck, standard, anfrage)` weist ein absolutes `zurueck` ab und
+nimmt dann `standard`. Zwei Aufrufer reichten `zurueck` in **beide** Argumente:
+das abgewiesene `https://boese.example` kam als Rückfall unverändert zurück.
+Nach einem gültigen POST aus dem eigenen Portal ging die Umleitung nach
+draussen — genau die Gutgläubigkeit, auf die es bei einer offenen Weiterleitung
+ankommt. Einen der beiden hatte ich selbst gebaut, indem ich den anderen
+abgeschrieben habe (D-573, Social).
+
+Beide Aufrufer bekommen jetzt ein serverseitiges `HEIMWEG = '/portal'`. **Der
+Riegel steht trotzdem in der Funktion:** `internesZiel` prüft `standard`
+genauso wie `zurueck` und fällt sonst auf `/`. Eine Schutzfunktion, deren
+Schutz davon abhängt, dass jeder Aufrufer sie richtig benutzt, schützt den
+nächsten Aufrufer nicht. Vier neue Fälle in `weiterleitung-ziel.test.ts`,
+darunter das protokollrelative `//host` — es sieht aus wie ein Pfad und ist
+absolut.
+
+**2 · Der Riegel auf `bewerbung` hielt eine Tür zu, während die Wand offen
+stand** (0168). `kern.entscheidung_ist_menschlich` verlangt für eine
+Einstellungsentscheidung einen benannten Menschen (REC-08, Art. 22 DSGVO).
+Daneben gab `t_bewerbung_schreiben` jedem `update` auf `bewerbung` frei, der
+`recruiting.bewerbung_lesen` hält — ohne Spalten- und ohne Zustandsgrenze:
+`status = 'eingestellt'` liess sich direkt schreiben, ohne Entscheidung, ohne
+Begründung und ohne Namen. Auch `aufbewahrung_bis` verschieben oder
+`loeschsperre` setzen ging.
+
+**Die Anwendung brauchte die Erlaubnis nie.** Im ganzen Baum schreiben genau
+zwei Stellen auf `bewerbung`: der Nachtlauf (als `cse_job`, eigene
+`j_*`-Policies) und der Auslöser `entscheidung_zieht_bewerbung_nach`. Der lief
+als der Aufrufer — und brauchte deshalb die breite Policy. Er ist jetzt ein
+Definer mit eigener Policy, wie `app.beitrag_folgt_freigabe` in 0163; `update`
+auf `bewerbung` ist `cse_app` entzogen. Drei Isolationsfälle: der direkte
+Statuswechsel fällt, das Verschieben der Frist fällt, die Entscheidung trägt
+weiter.
+
+**3 · „Erneut senden" hatte keinen Anspruch.** `veroeffentliche` nimmt den
+Stand mit `schreibeWennNoch`, bevor der erste Adapter gefragt wird — ein
+doppelter Klick fällt dort heraus, bevor etwas hinausgeht. `sendeErneut` las
+die `fehlgeschlagen`en Kanäle und sendete danach: zwei gleichzeitige Klicks
+riefen denselben Adapter zweimal, und **ein zweiter Beitrag auf LinkedIn nimmt
+kein `update` zurück.** Der Anspruch ist jetzt das `update … where ergebnis =
+'fehlgeschlagen' returning`: PostgreSQL entscheidet, wer die Zeile bekommt.
+
+**4 · Eine geschlossene Stelle konnte noch einmal auf eine Börse gehen.**
+Der Riegel prüfte nur `entwurf`. `geschlossen` ist der Endzustand — die
+Karriereseite zeigt sie nicht mehr, die Personalstelle hat die Suche beendet.
+Mit einem verbundenen Adapter ginge eine zurückgezogene Anzeige ein zweites Mal
+hinaus, und dort holt sie niemand zurück. Heute verdeckte `nicht_verbunden` den
+Fehler.
+
+**Und der rote CI-Lauf war derselbe Befund wie D-575.** `barrierefreiheit`
+stand auf jedem Commit rot; die Ursache im Protokoll war
+`column a.ausloeser does not exist` — der 500 der Agenten-Laufansicht. Behoben
+in D-575, bevor der CI-Lauf gelesen wurde.
+
+| Betrifft | D-562, D-573, D-575, REC-08, REC-09, SOC-07, Art. 22 DSGVO, `0168` |
+|---|---|
