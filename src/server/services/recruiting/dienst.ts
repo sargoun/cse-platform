@@ -304,6 +304,23 @@ export async function nimmBewerbungAn(
    * anstandslos lief.
    */
   const id = randomUUID();
+  /*
+   * **`app.berlin_heute()` und nicht `current_date`** — Invariante 2, K-11.
+   *
+   * Hier stand `current_date`. Das ist der Kalendertag der DATENBANKSITZUNG,
+   * und die laeuft in UTC: eine Bewerbung, die um 00:30 Berliner Zeit im
+   * Sommer eingeht (22:30 UTC des Vortags), bekam eine Frist, die einen Tag
+   * ZU FRUEH ablaeuft. Geloescht wird dann gegen `app.berlin_heute()`
+   * (`jobs/bewerberLoeschung.ts`) — also nach einer anderen Uhr, als die
+   * Frist gestellt wurde.
+   *
+   * Es geht um eine Frist, die Daten VERNICHTET (REC-07, LEG-11, DSGVO
+   * Art. 17) und die dem Bewerber auf dem Formular zugesagt wird. Ein Tag zu
+   * kurz ist kein Rundungsfehler, sondern eine gebrochene Zusage — in die
+   * Richtung, in der nichts wiederherstellbar ist.
+   *
+   * Gemeldet von der Copilot-Runde auf PR 16.
+   */
   await kontext.schreibe(
     `insert into bewerbung
        (id, mandant_id, stelle_id, quelle, name, email, telefon, nachricht,
@@ -311,7 +328,7 @@ export async function nimmBewerbungAn(
      values ($1::uuid, $2::uuid, $3::uuid,
              case when $3::uuid is null then 'initiativ' else 'karriereseite' end::bewerbung_quelle,
              $4, $5, $6, $7,
-             (current_date + ($8::int || ' days')::interval)::date)`,
+             (app.berlin_heute() + ($8::int || ' days')::interval)::date)`,
     [id, kontext.aktiverMandantId, neu.stelleId, neu.name.trim(),
       neu.email.trim().toLowerCase(), neu.telefon ?? null, neu.nachricht ?? null, tage]);
   return id;

@@ -25,7 +25,9 @@ import { alsApp, alsRolle, schliessen, seed, sql, type Fixtur } from './harness.
 import { alsJobRolle, alsJobSitzung } from '../../src/server/jobs/sitzung.js';
 import { registriereBewerberLoeschung } from '../../src/server/jobs/bewerberLoeschung.js';
 import { leereRegister, type JobDefinition } from '../../src/server/jobs/registry.js';
-import { planeGespraech, RecruitingFehler } from '../../src/server/services/recruiting/dienst.js';
+import {
+  aufbewahrungTage, nimmBewerbungAn, planeGespraech, RecruitingFehler,
+} from '../../src/server/services/recruiting/dienst.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 
 let f: Fixtur;
@@ -684,5 +686,91 @@ describe('cse_app schreibt nicht auf `bewerbung` (REC-08, 0168)', () => {
       `select status::text as status from bewerbung where id = $1::uuid`,
       [bewerbungId]))) as unknown as { status: string }[];
     expect(b!.status).toBe('eingestellt');
+  });
+});
+
+/**
+ * **Die Frist, die Daten vernichtet, laeuft nach der BERLINER Uhr**
+ * (Invariante 2, K-11, REC-07, LEG-11).
+ *
+ * `nimmBewerbungAn` stellte die Frist mit `current_date` — dem Kalendertag der
+ * Datenbanksitzung, und die laeuft in UTC. Der Loeschlauf vergleicht dagegen
+ * mit `app.berlin_heute()`. Zwischen 00:00 und 02:00 Berliner Zeit sind das
+ * ZWEI VERSCHIEDENE Tage: die Bewerbung bekam eine Frist, die einen Tag zu
+ * frueh ablaeuft, und wurde einen Tag zu frueh geloescht.
+ *
+ * Der Fall stellt die Sitzung ausdruecklich auf UTC — genau die Lage im
+ * Betrieb — und verlangt, dass die Frist trotzdem vom Berliner Tag aus
+ * zaehlt. Mit `current_date` faellt er in den zwei Nachtstunden; mit
+ * `app.berlin_heute()` zu jeder Stunde des Jahres.
+ */
+describe('die Aufbewahrungsfrist zaehlt vom Berliner Kalendertag (Invariante 2)', () => {
+  let f: Fixtur;
+  beforeEach(async () => { f = await seed(); });
+
+  /**
+   * **Der Fall sucht sich die Zeitzone, in der es weh tut.**
+   *
+   * `current_date` ist der Kalendertag der SITZUNG. Ob er von Berlins Tag
+   * abweicht, haengt an der Stunde, in der die Pruefung laeuft — ein Fall,
+   * der um 12 Uhr mittags gruen ist und um 1 Uhr nachts rot, ist kein Fall,
+   * sondern ein Wuerfel. Er waehlt deshalb ZUR LAUFZEIT eine Zone, deren
+   * Datum jetzt gerade ein anderes ist als Berlins: `Etc/GMT-14` (UTC+14)
+   * liegt 12–13 Stunden vor Berlin, `Etc/GMT+12` 13–14 Stunden dahinter —
+   * zusammen decken sie jede Stunde des Tages ab, und mindestens eine der
+   * beiden weicht immer ab.
+   *
+   * Mit `current_date` faellt er dann zuverlaessig; mit `app.berlin_heute()`
+   * haelt er zu jeder Stunde des Jahres.
+   */
+  it('die Frist zaehlt ab dem Berliner Heute — in einer Sitzung mit fremdem Datum', async () => {
+    const konto = await legeKontoAn(f.reinigung, 'admin');
+    const sitzung = {
+      scope: 'mandant' as const, mandantId: f.reinigung,
+      benutzerId: konto, portal: 'intern' as const, readonly: false,
+    };
+    const [zeile] = (await alsApp(sitzung, async (tx: postgres.TransactionSql) => {
+      const abweichende = (await tx.unsafe(
+        `select z as zone
+           from unnest(array['Etc/GMT-14', 'Etc/GMT+12']) as z
+          where (now() at time zone z)::date <> app.berlin_heute()
+          limit 1`)) as unknown as { zone: string }[];
+      const zone = abweichende[0]?.zone;
+      expect(zone, 'keine der beiden Zonen weicht ab — die Auswahl stimmt nicht')
+        .toBeTypeOf('string');
+      await tx.unsafe(`set local timezone to '${zone as string}'`);
+
+      const kontext = {
+        aktiverMandantId: f.reinigung,
+        benutzerId: konto,
+        abfrage: async <T,>(a: string, w: readonly unknown[] = []) =>
+          (await tx.unsafe(a, w as never[])) as unknown as readonly T[],
+        schreibe: async (a: string, w: readonly unknown[] = []) => {
+          await tx.unsafe(a, w as never[]);
+        },
+      } as unknown as SchreibKontext;
+      const id = await nimmBewerbungAn(kontext, {
+        stelleId: null, name: 'Nachtbewerbung', email: 'nacht@example.org',
+        telefon: null, nachricht: null,
+      });
+      /*
+       * Die Zahl der Tage kommt aus derselben Einstellung, die der Dienst
+       * gefragt hat (O-373) — sie hier zu wiederholen hiesse, den Fall an
+       * einem Wert zu messen, den er selbst gesetzt hat.
+       */
+      const tage = await aufbewahrungTage(kontext);
+      return tx.unsafe(
+        `select aufbewahrung_bis::text as bis,
+                (app.berlin_heute() + ($2::int || ' days')::interval)::date::text as soll,
+                (current_date + ($2::int || ' days')::interval)::date::text as falsch
+           from bewerbung where id = $1::uuid`, [id, tage]);
+    })) as unknown as { bis: string; soll: string; falsch: string }[];
+
+    expect(zeile!.bis).toBe(zeile!.soll);
+    /*
+     * Und die Gegenprobe: der Fall misst wirklich einen Unterschied. Waeren
+     * beide Tage gleich, bewiese das Obige nichts.
+     */
+    expect(zeile!.soll).not.toBe(zeile!.falsch);
   });
 });

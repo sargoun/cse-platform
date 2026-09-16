@@ -26,7 +26,19 @@ export default async function Uebersicht(
       unterpfad=""
       titel="Recruiting"
       kinder={async (zugang) => {
-        const darf = await haeltRechte(zugang.sitzung, 'recruiting.daten_loeschen');
+        /*
+         * **Eine Kachel ist ein Verweis, auch wenn sie wie eine Zahl aussieht.**
+         *
+         * Diese Übersicht öffnet mit `recruiting.bewerbung_lesen`; die beiden
+         * Stellen-Kacheln führen auf `/recruiting/stellen`, und das verlangt
+         * `recruiting.stelle_lesen` (Manifest). Wer Bewerbungen liest, aber
+         * keine Anzeigen, sah zwei Zahlen und bekam hinter beiden ein 404
+         * (AUT-06, D-581). Die Vermessung aus D-581 fand das nicht, weil das
+         * Ziel hier `ziel:` heisst und nicht `href=` — deshalb misst der
+         * Wächter jetzt jede Vorlage, gleich unter welchem Namen sie steht.
+         */
+        const darf = await haeltRechte(zugang.sitzung,
+          'recruiting.daten_loeschen', 'recruiting.stelle_lesen');
         const d = await leseImMandanten(zugang, async (kontext) => ({
           stellen: await listeStellen(kontext),
           bewerbungen: await listeBewerbungen(kontext),
@@ -43,12 +55,14 @@ export default async function Uebersicht(
             <h1 className="mb-s5 text-h1 text-text">Recruiting</h1>
             <KachelRaster
               kacheln={[
-                { schluessel: 'veroeffentlicht', label: 'Veröffentlichte Stellen',
-                  wert: veroeffentlicht.length, ton: 'info', icon: 'dokument',
-                  ziel: `/portal/${mandant}/recruiting/stellen` },
-                { schluessel: 'entwuerfe', label: 'Stellenentwürfe',
-                  wert: entwuerfe.length, ton: 'muted', icon: 'stift',
-                  ziel: `/portal/${mandant}/recruiting/stellen` },
+                ...(darf['recruiting.stelle_lesen'] === true ? [
+                  { schluessel: 'veroeffentlicht', label: 'Veröffentlichte Stellen',
+                    wert: veroeffentlicht.length, ton: 'info' as const, icon: 'dokument' as const,
+                    ziel: `/portal/${mandant}/recruiting/stellen` },
+                  { schluessel: 'entwuerfe', label: 'Stellenentwürfe',
+                    wert: entwuerfe.length, ton: 'muted' as const, icon: 'stift' as const,
+                    ziel: `/portal/${mandant}/recruiting/stellen` },
+                ] : []),
                 { schluessel: 'offen', label: 'Offene Bewerbungen',
                   wert: offen.length, ton: offen.length > 0 ? 'warning' : 'muted',
                   icon: 'person',

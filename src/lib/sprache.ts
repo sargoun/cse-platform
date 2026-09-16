@@ -84,6 +84,40 @@ export function mitSprache(pfad: string, sprache: Sprache): string {
 }
 
 /**
+ * **Welche Pfade es NUR auf Deutsch gibt.**
+ *
+ * D-82 sagt: die oeffentliche Website ist deutsch UND englisch, gleiche Pfade.
+ * Der Karrierebereich (REC-03, `/karriere/*`) kam in Phase 9 dazu und ist
+ * bisher nur deutsch gebaut — der englische Baum kennt ihn nicht
+ * (`/en/[seite]` laesst nur `OEFFENTLICHE_ROUTEN` durch). Der
+ * Sprachumschalter rechnete den Zielpfad aber allein aus der Adresse: auf
+ * `/karriere` bot er `/en/karriere` an, und dahinter lag ein 404. Ein
+ * Verweis, der auf 404 fuehrt, ist derselbe Fehler wie im Portal (AUT-06,
+ * D-581) — hier trifft er jeden Besucher, nicht nur eine Rolle.
+ *
+ * **Die Liste ist eine Ansage, keine Vermutung.** `tests/kern/sprachpfade.test.ts`
+ * haelt sie gegen den wirklichen Dateibaum: eine neue deutsche Seite ohne
+ * englische Entsprechung muss hier stehen, sonst faellt die Pruefung. Wird
+ * `/karriere` uebersetzt, verschwindet der Eintrag — und der Umschalter
+ * bietet die Sprache von selbst wieder an.
+ *
+ * Gemeldet von der Copilot-Runde auf PR 16.
+ */
+export const NUR_DEUTSCH: readonly string[] = ['/karriere'];
+
+/**
+ * Gibt es diesen Inhaltspfad in dieser Sprache?
+ *
+ * Geprueft wird der Pfad UND sein Baum: `/karriere/berlin/bewerbung` liegt
+ * unter `/karriere` und ist damit ebenso deutsch.
+ */
+export function gibtEsIn(pfad: string, sprache: Sprache): boolean {
+  if (sprache === VORGABE_SPRACHE) return true;
+  const { pfad: rein } = zerlegePfad(pfad);
+  return !NUR_DEUTSCH.some((n) => rein === n || rein.startsWith(`${n}/`));
+}
+
+/**
  * Die Adressen EINER Seite in allen Sprachen — fuer `hreflang`.
  *
  * Sie entstehen an einer Stelle, weil `hreflang` nur wirkt, wenn die Verweise
@@ -96,7 +130,14 @@ export function alternativen(
 ): Readonly<Record<string, string>> {
   const { pfad: rein } = zerlegePfad(pfad);
   const eintraege: Record<string, string> = {};
-  for (const s of SPRACHEN) eintraege[BCP47[s]] = `${basis}${mitSprache(rein, s)}`;
+  /*
+   * Nur Sprachen, in denen es die Seite WIRKLICH gibt. Ein `hreflang` auf
+   * eine 404-Adresse ist schlimmer als keins: Google folgt ihm, findet
+   * nichts und wertet die Angabe fuer die ganze Seite ab.
+   */
+  for (const s of SPRACHEN) {
+    if (gibtEsIn(rein, s)) eintraege[BCP47[s]] = `${basis}${mitSprache(rein, s)}`;
+  }
   // `x-default` zeigt auf die Vorgabe: was ein Besucher bekommt, dessen
   // Sprache keine der beiden ist.
   eintraege['x-default'] = `${basis}${mitSprache(rein, VORGABE_SPRACHE)}`;

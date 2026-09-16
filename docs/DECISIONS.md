@@ -12708,3 +12708,98 @@ Bibliothek davor.
 
 | Betrifft | CLAUDE.md (Stack, Befehle), `package.json`, `drizzle.config.ts`, `src/server/db/migrate.ts`, `tests/kern/migrationsnummern.test.ts`, ABGLEICH-AUFTRAG.md §Drizzle, K-03, K-16, ACC-10 |
 |---|---|
+
+### D-583 · Sechs Befunde der fünften Copilot-Runde — und die Lücke in der Vermessung selbst
+
+**Kontext.** D-581 hatte alle Portalverweise gegen das Manifest gemessen und
+102 Stellen geschlossen. Die Copilot-Runde auf `cc1c3ae` fand danach sechs
+weitere Befunde — und der wichtigste davon ist, **warum** die Vermessung sie
+nicht gefunden hatte.
+
+**1. Der Wächter sah nur, was `href` heisst.** Die Übersicht `/recruiting`
+öffnet mit `recruiting.bewerbung_lesen`; zwei ihrer Kacheln führen auf
+`/recruiting/stellen`, und das verlangt `recruiting.stelle_lesen`. Wer
+Bewerbungen liest, aber keine Anzeigen, sah zwei Zahlen und bekam hinter
+beiden ein 404 — mitten in einem Modul, das D-581 schon durchgegangen war.
+
+Der Grund: eine Kachel gibt ihr Ziel als EIGENSCHAFT weiter
+(`ziel: `/portal/${mandant}/…``), und `KachelRaster` macht daraus ein `<a>`.
+Das Suchmuster verlangte `href={`…`}`. **Eine Prüfung, die nur eine
+Schreibweise kennt, prüft eine Schreibweise und keine Regel.** Sie misst
+jetzt jede Vorlage, unter welchem Namen auch immer sie steht — `ziel:`,
+`zurueck`, `wurzel`, alles. Die Kacheln stehen nur noch mit dem Recht.
+
+**2. Die Portalwurzel — 162-mal derselbe Verweis.** Der breitere Matcher
+zeigte sofort, was vorher unsichtbar war: jede Portalseite reicht
+`wurzel={`/portal/${mandant}`}` an den Rahmen, und der macht daraus die
+Wortmarke und die Spur. Die Übersicht dahinter trägt
+`bericht.dashboard_lesen`.
+
+**Die Bedingung gehört in den Rahmen, nicht in 162 Seiten.** Eine Regel, die
+man 162-mal schreiben muss, schreibt irgendwann jemand nicht.
+`PortalRahmen` fragt deshalb die Tab-Leiste — den Tab mit dem leeren Pfad —,
+die `portalZugang` in derselben gebundenen Transaktion bewertet hat wie den
+Zugang zur Seite. Fehlt das Recht, bleibt der Firmenname ein NAME: kein
+ausgegrauter Knopf, denn ein gesperrter Verweis verrät dasselbe wie ein
+offener, nur höflicher. Ein eigener `haeltRechte`-Aufruf im Rahmen wäre eine
+zweite Abfrage auf jeder Seite und eine zweite Wahrheit über dasselbe Recht.
+Das Mitarbeiterportal führt seine Wurzel ohne Recht (`selbst`) — dort bleibt
+der Verweis, richtigerweise.
+
+**3. Vier Knöpfe, die erst nach dem Drücken Nein sagten.** Dieselbe Klasse,
+eine Ebene tiefer: nicht ein Verweis auf eine Seite, sondern ein Formular auf
+eine Route.
+
+- `social/posts/[id]` zeigte alle Schritte des Zustands. Die Route teilt sie
+  aber in zwei Rechte: `vorlegen`/`ueberarbeiten` gehören zu
+  `social.schreiben`, alles, was nach DRAUSSEN geht, zu `social.planen`. Die
+  Seite öffnet mit `social.lesen` allein.
+- Ebenso die Bearbeitung: `darfBearbeiten(status)` fragte den Zustand und
+  nicht das Recht — ein Leser bekam auf einem Entwurf offene Felder und einen
+  „Speichern"-Knopf, den `PATCH` abweist.
+- `recruiting/stellen/[id]` zeigte „Zur Freigabe vorlegen" jedem Leser.
+- `security/wachbuch/neu` schickte nach dem Speichern auf das Buch zurück —
+  und `wachbuch.schreiben` und `wachbuch.lesen` sind zwei Rechte, die `0008`
+  getrennt vergibt. Wer schreiben darf und nicht lesen, bekam als
+  Bestätigung seiner Arbeit eine Fehlerseite. Der Weg führt jetzt auf das
+  Formular zurück, mit einer Bestätigung: die Seite darf er per Definition
+  öffnen, er steht darauf.
+
+**4. Der Sprachumschalter bot eine Seite an, die es nicht gibt.** D-82: die
+öffentliche Website ist deutsch UND englisch, gleiche Pfade. `/karriere` kam
+in Phase 9 dazu und ist bisher nur deutsch; `/en/[seite]` lässt nur
+`OEFFENTLICHE_ROUTEN` durch. Der Umschalter rechnete sein Ziel allein aus der
+Adresse und bot `/en/karriere` an — ein 404, und zwar für JEDEN Besucher,
+nicht nur für eine Rolle. `gibtEsIn()` entscheidet das jetzt, `NUR_DEUTSCH`
+nennt die Ausnahme, und `hreflang` behauptet die Sprache ebenfalls nicht mehr
+(ein `hreflang` auf ein 404 ist schlimmer als keins — Google folgt ihm).
+
+**5. Die Frist, die Daten vernichtet, lief nach der falschen Uhr.**
+`nimmBewerbungAn` stellte `aufbewahrung_bis` mit `current_date` — dem
+Kalendertag der DATENBANKSITZUNG, und die läuft in UTC. Gelöscht wird gegen
+`app.berlin_heute()`. Zwischen 00:00 und 02:00 Berliner Zeit sind das zwei
+verschiedene Tage: eine Bewerbung, die nachts eingeht, bekam eine Frist, die
+einen Tag ZU FRÜH abläuft — und wurde einen Tag zu früh gelöscht.
+
+Das ist Invariante 2 (K-11) an der Stelle, an der sie am meisten wiegt: eine
+Frist, die Daten VERNICHTET (REC-07, LEG-11, DSGVO Art. 17) und die dem
+Bewerber auf dem Formular zugesagt wird. Ein Tag zu kurz ist kein
+Rundungsfehler, sondern eine gebrochene Zusage in der Richtung, in der nichts
+wiederherstellbar ist. Der Isolationsfall stellt die Sitzung ausdrücklich auf
+UTC — genau die Lage im Betrieb — und verlangt, dass die Frist trotzdem vom
+Berliner Tag aus zählt.
+
+**Vier Prüfungen, damit keine davon wiederkommt:**
+
+| Prüfung | Was sie festhält |
+|---|---|
+| `verweis-rechte.test.ts` (erweitert) | jede Vorlage, nicht nur `href` |
+| `rahmen-wurzel.test.ts` | jeder `href={wurzel}` hängt an `wurzelOffen`, und keine Leiste hat zwei Wurzelrechte |
+| `social-schritt-rechte.test.ts` | die Sichtbarkeitstabelle der Seite und die Rechtetabelle der Route nennen dasselbe Recht |
+| `sprachpfade.test.ts` | jeder deutsche Seitenbaum ist englisch gebaut oder steht in `NUR_DEUTSCH` |
+| `recruiting.test.ts` (Isolation) | die Aufbewahrungsfrist zählt vom Berliner Tag, auch in einer UTC-Sitzung |
+
+Jede ist gegen ihren eigenen Befund sabotiert worden und wurde rot.
+
+| Betrifft | AUT-06, D-581, D-82, Invariante 2, K-11, REC-07, LEG-11, `PortalRahmen.tsx`, `lib/sprache.ts`, `services/recruiting/dienst.ts` |
+|---|---|

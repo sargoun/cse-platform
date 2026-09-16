@@ -89,9 +89,16 @@ export default async function Stellenblatt(
          * der Rangliste einen 404 — ein Verweis auf 404 verrät, was er nicht
          * zeigen darf (AUT-06, Copilot-Runde auf PR 16 / D-581).
          */
+        /*
+         * `recruiting.stelle_schreiben` steht dazu, weil das Formular „Zur
+         * Freigabe vorlegen" eine SCHREIBENDE Route ruft
+         * (`POST /api/recruiting/stellen/[id]/freigabe`). Diese Seite oeffnet
+         * mit `recruiting.stelle_lesen`; ein reiner Leser sah den Knopf und
+         * erfuhr die Abweisung erst nach dem Druecken (AUT-06, D-581).
+         */
         const darf = await haeltRechte(
           zugang.sitzung, 'recruiting.stelle_veroeffentlichen', 'freigabe.entscheiden',
-          'recruiting.bewerbung_lesen');
+          'recruiting.bewerbung_lesen', 'recruiting.stelle_schreiben');
         const d = await leseImMandanten(zugang, async (kontext) => ({
           stelle: await ladeStelle(kontext, id),
           bewerber: await rangliste(kontext, id),
@@ -152,7 +159,8 @@ export default async function Stellenblatt(
               </Hinweis>
             )}
 
-            {s.status === 'entwurf' && s.freigabeId === null && (
+            {s.status === 'entwurf' && s.freigabeId === null
+              && darf['recruiting.stelle_schreiben'] === true && (
               <form method="post" action={`/api/recruiting/stellen/${id}/freigabe`}
                     className="mb-s5 flex max-w-prose flex-wrap items-center gap-s3">
                 <input type="hidden" name="zurueck"

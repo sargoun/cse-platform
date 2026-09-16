@@ -137,8 +137,23 @@ const OHNE_BEDINGUNG: Readonly<Record<string, string>> = {
 function befundeFuer(portal: typeof PORTALE[number]): readonly string[] {
   const wurzel = join(PORTAL, portal.ordner);
   const dateien = seiten(wurzel);
+  /*
+   * **Jede Vorlage zaehlt — nicht nur die, die `href` heisst.**
+   *
+   * Hier stand `href=\{`…`\}`. Eine Kachel gibt ihr Ziel aber als
+   * EIGENSCHAFT weiter (`ziel: `/portal/${mandant}/recruiting/stellen``), und
+   * `KachelRaster` macht daraus ein `<a>`; ein `zurueck`-Feld wird nach dem
+   * Absenden zur Adresse. Beides ist ein Weg mit einem Recht am Ende, und
+   * beides sah diese Vermessung nicht: die Copilot-Runde auf PR 16 fand
+   * genau so zwei Kacheln mit einem 404 dahinter, mitten in einem Modul, das
+   * D-581 schon durchgegangen war.
+   *
+   * Gesucht wird deshalb die VORLAGE selbst, unter welchem Namen auch immer
+   * sie steht. Ein Ziel, das die Seite ohnehin mit ihren eigenen Rechten
+   * oeffnet, faellt hinten heraus — es fehlt dann kein Recht.
+   */
   const hrefMuster = new RegExp(
-    `href=\\{\`${portal.href.replace(/[${}]/gu, (z) => `\\${z}`)}([^\`]*)\`\\}`, 'gu');
+    `\`${portal.href.replace(/[${}]/gu, (z) => `\\${z}`)}([^\`]*)\``, 'gu');
   const befunde: string[] = [];
   for (const datei of dateien) {
     const rel = relative(wurzel, datei).split(/[/\\]/u).join('/');
@@ -157,6 +172,18 @@ function befundeFuer(portal: typeof PORTALE[number]): readonly string[] {
       gesehen.add(ziel);
       const schluessel = `${portal.ordner}/${rel} → ${ziel}`;
       if (schluessel in OHNE_BEDINGUNG) continue;
+      /*
+       * **Die Portalwurzel bewacht der RAHMEN, nicht jede Seite.**
+       *
+       * `wurzel={`/portal/${mandant}`}` steht in jeder der 162 Seiten, und
+       * die Uebersicht dahinter traegt ihr eigenes Leserecht. Die Bedingung
+       * 162-mal zu wiederholen hiesse, sie 162-mal vergessen zu koennen;
+       * `PortalRahmen` fragt stattdessen einmal die Tab-Leiste, die dasselbe
+       * Recht in derselben Transaktion bewertet hat, und zeigt den Namen
+       * ohne Verweis, wenn er fehlt (D-583). `tests/kern/rahmen-wurzel.test.ts`
+       * haelt das fest.
+       */
+      if (ziel === portal.manifest) continue;
       const route = finde(ziel);
       if (route === undefined) continue;
       const fehlend = leserechte(route)

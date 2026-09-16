@@ -116,7 +116,7 @@ export default async function Beitrag(
    * im Posteingang liegt, bleibt für alle; nur der Weg hängt am Recht.
    * Gemeldet von der Copilot-Runde auf PR 16.
    */
-  const darf = await haeltRechte(zugang.sitzung, 'freigabe.entscheiden');
+  const darf = await haeltRechte(zugang.sitzung, 'freigabe.entscheiden', 'social.schreiben');
   const suche = await searchParams;
   const abgewiesen = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   /**
@@ -181,9 +181,34 @@ export default async function Beitrag(
    * Fehlerbericht mit Verzögerung (AUT-06).
    */
   const hatFehlgeschlagene = daten.kanaele.some((k) => k.ergebnis === 'fehlgeschlagen');
+  /**
+   * **Jeder Schritt steht unter dem Recht, das seine Route verlangt.**
+   *
+   * `RECHT` in `/api/social/beitraege/[id]/schritt` teilt die Schritte in
+   * zwei: `vorlegen` und `ueberarbeiten` gehoeren zu `social.schreiben`,
+   * alles, was nach DRAUSSEN geht (`veroeffentlichen`, `zuruecknehmen`,
+   * `planung_aufheben`, `erneut_senden`), zu `social.planen`. Diese Seite
+   * oeffnet mit `social.lesen` allein — hier stand nur die Bedingung fuer
+   * `erneut_senden`, also bekam ein reiner Leser die uebrigen Knoepfe zu
+   * sehen und ihre Abweisung erst NACH dem Druecken (AUT-06, D-581).
+   *
+   * Die Tabelle steht bewusst hier und nicht importiert: die Route entscheidet
+   * ueber die Ausfuehrung, diese Seite nur ueber die Sichtbarkeit — und ein
+   * Knopf, der faelschlich fehlt, ist ein anderer Fehler als einer, der
+   * faelschlich wirkt. `tests/kern/social-schritt-rechte.test.ts` haelt beide
+   * Listen aneinander.
+   */
+  const rechtJeSchritt: Readonly<Record<string, boolean>> = {
+    vorlegen: darf['social.schreiben'] === true,
+    ueberarbeiten: darf['social.schreiben'] === true,
+    veroeffentlichen: daten.darfPlanen,
+    zuruecknehmen: daten.darfPlanen,
+    planung_aufheben: daten.darfPlanen,
+    erneut_senden: daten.darfPlanen && hatFehlgeschlagene,
+  };
   const schritte = moeglicheSchritte(b.status)
     .filter((s): s is Schritt => !OHNE.includes(s))
-    .filter((s) => s !== 'erneut_senden' || (hatFehlgeschlagene && daten.darfPlanen));
+    .filter((s) => rechtJeSchritt[s] === true);
   /*
    * Der Weg zur Planung steht offen, wenn der Zustand ihn kennt UND der
    * Mensch das Recht dazu haelt — nicht, weil der Zustand zufaellig
@@ -193,7 +218,13 @@ export default async function Beitrag(
    */
   const planbar = naechsterStatus(b.status, 'planen') !== null && daten.darfPlanen;
   const gewaehlt = new Set(daten.kanaele.map((k) => k.kanalId));
-  const bearbeitbar = darfBearbeiten(b.status);
+  /*
+   * Bearbeiten heisst speichern, und das verlangt `social.schreiben`
+   * (`PATCH /api/social/beitraege/[id]`). Der Zustand allein reichte hier
+   * nicht: ein Leser bekam auf einem Entwurf offene Felder und einen
+   * „Speichern"-Knopf, dessen Route ihn abweist.
+   */
+  const bearbeitbar = darfBearbeiten(b.status) && darf['social.schreiben'] === true;
 
   return (
     <PortalRahmen

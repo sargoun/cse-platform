@@ -2,7 +2,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { shellTexte } from '@/lib/i18n/texte';
 import { GesellschaftsWahl } from './GesellschaftsWahl';
 import { Logo, Marke } from '@/components/marke/Marke';
-import { EIGENNAME, SPRACHEN, mitSprache, type Sprache } from '@/lib/sprache';
+import { EIGENNAME, SPRACHEN, gibtEsIn, mitSprache, type Sprache } from '@/lib/sprache';
 import { berlinKalendertag } from '@/server/services/zeit/dauer';
 
 /**
@@ -331,7 +331,7 @@ export function OeffentlicheShell(
                 * daran fielen schon einmal dreizehn Sprachpruefungen. Diese
                 * Punkte liegen IM Menue-`nav` und tragen eine eigene Kennung.
                 */}
-              {SPRACHEN.filter((s) => s !== sprache).map((s) => (
+              {SPRACHEN.filter((s) => s !== sprache && gibtEsIn(pfad, s)).map((s) => (
                 <li key={s} className="border-b border-line">
                   <a
                     href={mitSprache(pfad, s)}
@@ -426,7 +426,12 @@ export function OeffentlicheShell(
           data-cse="sprachwahl"
           className="ml-s4 hidden items-center gap-s2 xl:flex"
         >
-          {SPRACHEN.map((s) => (
+          {/*
+            * Nur Sprachen, in denen es diese Seite gibt: `/karriere` ist
+            * bisher deutsch, und ein Umschalter auf ein 404 ist kein
+            * Umschalter (D-583).
+            */}
+          {SPRACHEN.filter((s) => gibtEsIn(pfad, s)).map((s) => (
             <a
               key={s}
               href={mitSprache(pfad, s)}

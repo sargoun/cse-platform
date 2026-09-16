@@ -64,6 +64,29 @@ export function PortalRahmen({
   navigationsRechte, beschriftungen, children,
 }: PortalRahmenProps) {
   const tabs = tableiste(leiste);
+  /**
+   * **Darf diese Sitzung die Wurzel ueberhaupt OEFFNEN?**
+   *
+   * Die Wortmarke und die Spur zeigen auf `wurzel` — die Uebersicht. Die
+   * traegt im Manifest ein eigenes Leserecht (`bericht.dashboard_lesen` im
+   * Mandantenportal, `gruppe.bericht.lesen` in der Gruppensicht), und Rechte
+   * sind je Gesellschaft einzeln widerrufbar. Wem es fehlt, der bekam hinter
+   * dem Firmennamen ein 404 — auf JEDER Portalseite, weil der Rahmen ueberall
+   * derselbe ist (AUT-06, D-581).
+   *
+   * **Gefragt wird die Leiste, nicht ein zweites Mal die Datenbank.** Die
+   * Wurzel ist der Tab mit dem leeren Pfad; `sichtbareTabs` hat ihn in
+   * derselben gebundenen Transaktion bewertet, in der das Tor den Zugang zur
+   * Seite geprueft hat (`portalZugang`). Ein eigener `haeltRechte`-Aufruf
+   * hier waere eine zweite Abfrage auf jeder einzelnen Seite — und eine
+   * zweite Wahrheit ueber dasselbe Recht.
+   *
+   * Fehlt die Angabe (eine Seite, die sie nicht reicht), bleibt es beim
+   * Verweis: diese Pruefung verschaerft, sie erfindet nichts.
+   */
+  const wurzelTab = tabs.ziele.find((t) => t.pfad === '' && t.recht !== null);
+  const wurzelOffen = wurzelTab === undefined || sichtbareTabs === undefined
+    || sichtbareTabs[wurzelTab.schluessel] !== false;
   const b = (schluessel: string, vorgabe: string): string =>
     beschriftungen?.[schluessel] ?? vorgabe;
   /**
@@ -136,23 +159,45 @@ export function PortalRahmen({
            * Name (DESIGN §1 Lockup), ohne den Unterstrich, der aus einem
            * Firmennamen einen Textlink machte. Der Hover ist die Flaeche.
            */
-          <a href={wurzel} data-cse="portal-logo"
-             className="-ms-s2 flex min-h-11 min-w-11 items-center gap-s2 rounded-md px-s2
-                        text-h3 text-text transition-colors duration-fast ease-brand
-                        hover:bg-surface-2">
-            {bereich === null ? <Marke art="gruppe" groesse="sm" /> : <Marke art={bereich} groesse="sm" />}
-            <span className="truncate">{titel}</span>
-          </a>
+          wurzelOffen ? (
+            <a href={wurzel} data-cse="portal-logo"
+               className="-ms-s2 flex min-h-11 min-w-11 items-center gap-s2 rounded-md px-s2
+                          text-h3 text-text transition-colors duration-fast ease-brand
+                          hover:bg-surface-2">
+              {bereich === null ? <Marke art="gruppe" groesse="sm" /> : <Marke art={bereich} groesse="sm" />}
+              <span className="truncate">{titel}</span>
+            </a>
+          ) : (
+            /*
+             * Ohne das Recht auf die Uebersicht bleibt der Name ein NAME —
+             * nicht ein ausgegrauter Knopf. Ein gesperrter Verweis verraet
+             * dasselbe wie ein offener (AUT-06); er ist nur hoeflicher dabei.
+             */
+            <span data-cse="portal-logo-ohne-ziel"
+                  className="-ms-s2 flex min-h-11 min-w-11 items-center gap-s2 px-s2
+                             text-h3 text-text">
+              {bereich === null ? <Marke art="gruppe" groesse="sm" /> : <Marke art={bereich} groesse="sm" />}
+              <span className="truncate">{titel}</span>
+            </span>
+          )
         ) : (
           <nav aria-label={b('pfad.label', 'Pfad')} data-cse="spur"
                className="flex min-w-0 items-center gap-s2">
-            <a href={wurzel} data-cse="spur-zurueck"
-               className="flex min-h-11 min-w-11 items-center gap-s2 text-sm text-text-muted
-                          transition-colors duration-fast ease-brand hover:text-text">
-              {bereich === null ? <Marke art="gruppe" groesse="sm" /> : <Marke art={bereich} groesse="sm" />}
-              <span aria-hidden="true">‹</span>
-              {wurzelTitel}
-            </a>
+            {wurzelOffen ? (
+              <a href={wurzel} data-cse="spur-zurueck"
+                 className="flex min-h-11 min-w-11 items-center gap-s2 text-sm text-text-muted
+                            transition-colors duration-fast ease-brand hover:text-text">
+                {bereich === null ? <Marke art="gruppe" groesse="sm" /> : <Marke art={bereich} groesse="sm" />}
+                <span aria-hidden="true">‹</span>
+                {wurzelTitel}
+              </a>
+            ) : (
+              <span data-cse="spur-ohne-ziel"
+                    className="flex min-h-11 min-w-11 items-center gap-s2 text-sm text-text-muted">
+                {bereich === null ? <Marke art="gruppe" groesse="sm" /> : <Marke art={bereich} groesse="sm" />}
+                {wurzelTitel}
+              </span>
+            )}
             <span aria-hidden="true" className="text-text-subtle">›</span>
             <span className="truncate text-h3 text-text">{titel}</span>
           </nav>
