@@ -1,4 +1,5 @@
 import { keksSicher } from '@/server/auth/sitzung';
+import { MARKE_GUELTIG_MINUTEN, MARKE_KEKS_PFAD } from '@/lib/checkin-marke';
 
 /**
  * Der kurzlebige Keks, in dem eine frisch ausgegebene Marke EINMAL reist.
@@ -12,17 +13,21 @@ import { keksSicher } from '@/server/auth/sitzung';
  * (`auth/mitarbeiter/anmeldung.ts`); eine Zugangsmarke ist mehr als das.
  *
  * **Zehn Minuten, und der Pfad reicht genau einen Bildschirm weit.** Er ist
- * kein Speicher, sondern eine Übergabe: die Seite liest ihn, zeigt den Link
- * und löscht ihn im selben Atemzug.
+ * kein Speicher, sondern eine Übergabe: die Seite liest ihn und zeigt den
+ * Link, und die **Middleware** nimmt ihn auf derselben Antwort wieder weg.
+ *
+ * Hier stand einmal „die Seite … löscht ihn im selben Atemzug", und die Seite
+ * tat das auch — mit `keks.delete()` mitten im Rendern einer
+ * Server-Komponente. Next 15 verbietet das, und die Seite warf: wer eine Marke
+ * ausgab, bekam die Fehlerhülle und die Marke war WEG (sie kommt genau einmal
+ * im Klartext). Nie aufgefallen, weil der Keks nur dasteht, wenn unmittelbar
+ * davor jemand den Knopf gedrückt hat — und das tat kein Test (D-579).
  *
  * `secure` kommt aus `keksSicher()` und nicht aus einer eigenen Regel — auf
  * einer Vorführfläche über `http://192.168…` nähme der Browser einen
  * `Secure`-Keks sonst gar nicht erst an (D-541).
  */
-export const MARKE_KEKS = 'cse_checkin_marke';
-
-/** So lange darf die Übergabe offen stehen. */
-export const MARKE_GUELTIG_MINUTEN = 10;
+export { MARKE_GUELTIG_MINUTEN, MARKE_KEKS } from '@/lib/checkin-marke';
 
 export function markeKeksOptionen(): {
   httpOnly: true; sameSite: 'lax'; path: string; maxAge: number; secure: boolean;
@@ -30,7 +35,7 @@ export function markeKeksOptionen(): {
   return {
     httpOnly: true,
     sameSite: 'lax',
-    path: '/portal',
+    path: MARKE_KEKS_PFAD,
     maxAge: MARKE_GUELTIG_MINUTEN * 60,
     secure: keksSicher(),
   };

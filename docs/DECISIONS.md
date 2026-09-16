@@ -12459,3 +12459,61 @@ Test, der ohne die Sache durchgeht, die er prüft, ist schlechter als keiner.
 
 | Betrifft | D-573, D-574, D-575, D-577, CAL-01, REC-06, REC-07, Invariante 7, AUT-06, `0166`, `0167` |
 |---|---|
+
+### D-579 · Der Bildschirm, der beim Ausgeben einer Zugangsmarke umfiel
+
+**Kontext.** Die vierte Copilot-Runde legte diesen Befund als „suppressed"
+bei — also unter denen, die sie selbst nicht für wichtig genug hielt, ihn zu
+posten. Er war der schwerste der ganzen Runde.
+
+**Der Befund.** `/portal/[mandant]/zeiten/checkin-links` las den Übergabe-Keks
+und löschte ihn im selben Zug: `keks.delete(MARKE_KEKS)`, mitten im Rendern
+einer **Server-Komponente**. Next 15 lässt Keksänderungen nur in einer
+Server-Action oder einem Routenhandler zu und wirft sonst.
+
+Die Folge im Betrieb: die Einsatzleitung drückt „Link ausgeben", die Route legt
+die Marke an und schickt sie im Keks zurück — und die Seite, die sie anzeigen
+soll, **fällt um**. Statt des Links steht die Fehlerhülle da. Und die Marke ist
+weg: `app.checkin_ausgeben` gibt sie genau einmal im Klartext zurück,
+gespeichert wird nur ihr SHA-256. Wer sie nicht ausliefert, hat sie verloren.
+Der einzige Ausweg wäre, eine zweite auszugeben — und dieselbe Wand steht
+wieder davor.
+
+**Warum es niemand gesehen hat.** Der Keks steht nur da, wenn unmittelbar davor
+jemand den Knopf gedrückt hat. Der Verweis-Durchlauf besucht die Seite sehr
+wohl — aber ohne Keks, und dann läuft die Zeile gar nicht. Kein Test hat je auf
+den Knopf gedrückt. Das ist dieselbe Form wie D-563, D-574 und D-575: jede
+Datei für sich grün, der Weg dazwischen nie gegangen.
+
+**Nachgemessen, nicht geglaubt.** Zuerst wurde der Weg als Browserlauf
+geschrieben (`checkin-marke.spec.ts`) — und er fiel, mit der Fehlerhülle im
+Bild. Erst danach die Reparatur.
+
+**Und der erste Versuch war falsch.** Der naheliegende Weg — die Middleware
+löscht den Keks — machte die Seite zwar wieder heil, zeigte den Link aber
+nicht mehr: **Next führt die Keksschublade der Antwort auch nach unten durch**,
+und `cookies()` in der Seite gab nichts zurück. Der zweite Lauf hat das gezeigt,
+nicht eine Überlegung.
+
+**Die Lösung** ist die Bauart, die in `middleware.ts` ohnehin schon zweimal
+steht (`KOPF_SPRACHE`, `KOPF_PFAD`): die Middleware liest den Keks EINMAL,
+reicht den Wert als **Kopf auf der Anfrage** an die Seite und räumt den Keks
+auf derselben Antwort ab. Die Seite bekommt ihn, das nächste Laden nicht — das
+Versprechen des Kekses, ohne die verbotene Änderung. Ein Kopf auf der Anfrage
+verlässt den Server nicht: er steht in keiner Auslieferung, keinem `Referer`
+und keinem Protokoll eines Vermittlers.
+
+`MARKE_KEKS` und seine Lebensdauer stehen jetzt in `lib/checkin-marke.ts`, einem
+Blatt **ohne einen einzigen Import**: die Middleware läuft in der Edge-Laufzeit
+und zöge über `keksSicher` → `server/auth/sitzung` sonst den halben Serverbaum
+mit.
+
+**Nur auf diesem einen Pfad.** Der Keks gilt für `/portal`; räumte ihn jede
+Portalseite ab, nähme ihn eine beliebige andere Anfrage weg, bevor der
+Bildschirm ihn zeigt, der ihn braucht.
+
+Zwei Browserfälle halten es fest: nach dem Ausgeben steht der Link da und die
+Fehlerhülle nicht, und beim zweiten Laden ist er weg.
+
+| Betrifft | TIM-09, D-541, D-563, D-575, D-578, `middleware.ts`, `lib/kopf.ts` |
+|---|---|

@@ -1,5 +1,5 @@
 import type postgres from 'postgres';
-import { cookies, headers } from 'next/headers';
+import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
@@ -15,7 +15,8 @@ import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
-import { MARKE_KEKS, MARKE_GUELTIG_MINUTEN } from '@/app/api/checkin-marken/keks';
+import { MARKE_GUELTIG_MINUTEN } from '@/lib/checkin-marke';
+import { KOPF_CHECKIN_MARKE } from '@/lib/kopf';
 
 /**
  * `/portal/[mandant]/zeiten/checkin-links` — die Ausgabe der Check-in-Marken
@@ -104,14 +105,25 @@ export default async function CheckinLinks(
       listeCheckinZeilen(kontext))) as Promise<readonly CheckinZeile[]>);
 
   /*
-   * **Gelesen und im selben Zug verbraucht.** Der Keks trägt die Marke genau
-   * einen Bildschirm weit; ein zweites Laden zeigt sie nicht noch einmal.
-   * `delete` hier statt im Aufrufer: die Seite ist die Stelle, die sie
-   * ausliefert, und damit die Stelle, die sie loswird.
+   * **Aus dem Kopf, nicht aus dem Keks** (D-579).
+   *
+   * Hier stand `keks.get(...)` und daneben `keks.delete(...)`, mitten im
+   * Rendern. Next 15 lässt Keksänderungen nur in einer Server-Action oder
+   * einem Routenhandler zu; die Seite warf also, sobald der Keks dastand —
+   * und das war genau der Moment, in dem jemand eine Marke ausgegeben hatte.
+   * Statt des Links kam die Fehlerhülle, und die Marke war verloren:
+   * `app.checkin_ausgeben` gibt sie genau einmal im Klartext zurück.
+   *
+   * Aufgefallen ist es keinem Test, weil kein Test je auf den Knopf gedrückt
+   * hat. Der Verweis-Durchlauf besucht diese Seite sehr wohl — ohne Keks, und
+   * dann lief die Zeile nicht. `checkin-marke.spec.ts` geht den Weg jetzt
+   * vollständig.
+   *
+   * Das Versprechen bleibt: die Marke reist genau einen Bildschirm weit. Die
+   * Middleware liest den Keks, reicht ihn hier herein und räumt ihn auf
+   * derselben Antwort ab.
    */
-  const keks = await cookies();
-  const frischeMarke = keks.get(MARKE_KEKS)?.value ?? null;
-  if (frischeMarke !== null) keks.delete(MARKE_KEKS);
+  const frischeMarke = (await headers()).get(KOPF_CHECKIN_MARKE);
 
   /*
    * Die kanonische Basis, damit der Link absolut ist — ein relativer taugt in
