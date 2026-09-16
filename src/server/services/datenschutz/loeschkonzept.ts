@@ -32,6 +32,7 @@ import { KEIN_HARD_DELETE, type Loeschart } from '@/server/db/schema/rls';
 import { UNTERGRENZE, liesAufbewahrung } from '@/server/services/dokument/aufbewahrung';
 import { KATEGORIEN, type Kategorie } from '@/server/services/dokument/kategorie';
 import type { JobDefinition } from '@/server/jobs/registry';
+import { markdownZelle } from '@/lib/markdown';
 
 export interface Abfrage {
   abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
@@ -223,7 +224,8 @@ export function alsMarkdown(k: Loeschkonzept): string {
     '## 1. Fristen', '',
     '| Klasse | Frist | Grundlage | Auslöser |',
     '|---|---|---|---|',
-    ...k.fristen.map((f) => `| ${f.klasse} | ${f.frist} | ${f.grundlage} | ${f.ausloeser} |`),
+    ...k.fristen.map((f) => `| ${markdownZelle(f.klasse)} | ${markdownZelle(f.frist)} `
+      + `| ${markdownZelle(f.grundlage)} | ${markdownZelle(f.ausloeser)} |`),
     '',
     '## 2. Was wirklich löscht', '',
   ];
@@ -231,12 +233,13 @@ export function alsMarkdown(k: Loeschkonzept): string {
     z.push('*Kein Lauf dieser Plattform löscht personenbezogene Daten.*', '');
   } else {
     z.push('| Lauf | Zeitplan (UTC) | Wirkung |', '|---|---|---|',
-      ...k.laeufe.map((l) => `| ${l.bezeichnung} | \`${l.zeitplan}\` | ${l.wirkung} |`), '');
+      ...k.laeufe.map((l) => `| ${markdownZelle(l.bezeichnung)} | \`${l.zeitplan}\` `
+        + `| ${markdownZelle(l.wirkung)} |`), '');
   }
   z.push('## 3. Was NICHT gelöscht wird — und warum', '');
   for (const g of k.sperren) {
     z.push(`### ${LOESCHART_LABEL[g.art]}`, '', '| Tabelle | Grund |', '|---|---|',
-      ...g.tabellen.map((t) => `| \`${t.tabelle}\` | ${t.grund.replaceAll('|', '\\|')} |`), '');
+      ...g.tabellen.map((t) => `| \`${t.tabelle}\` | ${markdownZelle(t.grund)} |`), '');
   }
   z.push('## 4. Offen', '', ...k.offen.map((o) => `- ${o}`), '');
   return z.join('\n');

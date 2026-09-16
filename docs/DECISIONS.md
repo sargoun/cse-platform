@@ -13053,3 +13053,133 @@ welche Fristen und welche Sperren diese Entscheidung vorfindet.
 
 | Betrifft | LEG-09, LEG-01, LEG-02, O-25, O-373, O-376, O-514, K-16, D-586, `services/datenschutz/loeschkonzept.ts` |
 |---|---|
+
+### D-588 · Der gescheiterte Nachtlauf hatte keinen Bildschirm
+
+**Kontext.** `runner.ts` verspricht in seinem eigenen Kopf: „KEIN stiller Tod."
+Das Versprechen hielt bis zur Datenbank. Ein Lauf, der um vier Uhr scheitert,
+schreibt `job_lauf.ergebnis = 'fehler'` und eine Zeile auf `stderr` — und dann
+passiert nichts. Kein Bildschirm zeigt ihn. Der Ausfall fällt auf, wenn jemand
+die Mahnungen vermisst, und das ist Wochen später.
+
+Dieselbe Lücke wie in `bootstrap.ts` (kein Job registriert) und in D-540
+(kein Auslöser), nur am anderen Ende: dort lief nichts, hier sieht niemand,
+dass etwas nicht lief.
+
+**Drei Ausfälle, und der stillste ist der schlimmste.**
+
+| Art | Wie er sich meldet |
+|---|---|
+| `fehler` | laut: in `job_lauf`, mit Text |
+| `haengt` | gar nicht — der Lauf kommt nie dazu |
+| `ausgeblieben` | **gar nicht** — er erzeugt keinen Fehler, er erzeugt nur nichts |
+
+Das Ausbleiben ist nur im Vergleich mit dem ZEITPLAN sichtbar. Deshalb steht
+die Überwachung neben dem Register und nicht neben dem Protokoll: das Protokoll
+kennt nur, was passiert ist.
+
+**Der hängende Lauf wird eigens gesucht, und das ist der Punkt.** „Letzter Lauf
+je Job" zeigt ihn nicht: sobald der nächste startet, steht der aufgegebene
+nicht mehr vorn. Wer nur den neuesten Lauf ansieht, sieht ihn nie wieder — und
+er wird trotzdem nie beendet. Eine eigene Abfrage über `beendet_am is null`
+findet ihn, und `exists (ein neuerer Lauf)` beweist, dass er aufgegeben wurde.
+Die Sabotage (das `ueberholt` streichen) macht den Fall rot.
+
+**Der Erwartungsabstand kommt aus dem Cron, und er rundet nach OBEN.**
+`fensterMinuten` rundet nach unten — für ein Idempotenzfenster ist das richtig,
+weil ein zu kleines höchstens einen doppelten Auslöser durchlässt. Für eine
+Überwachung ist es falsch: ein zu kleiner Erwartungswert erzeugt Fehlalarm, und
+
+> ein Bildschirm, der grundlos rot ist, wird nach zwei Wochen nicht mehr
+> gelesen — und dann steht der echte Ausfall auch darin.
+
+Das ist teurer als gar keine Überwachung. Deshalb zwei Funktionen mit
+entgegengesetzter Rundung statt einer mit einem Schalter, und deshalb gilt ein
+Lauf erst nach dem DOPPELTEN Abstand als ausgeblieben: beim einfachen ist der
+nächste gerade erst fällig, beim doppelten ist ein Auslöser beweisbar
+ausgefallen. Ein Befund, der beweisbar ist, wird geglaubt.
+
+**Und was sich nicht beurteilen lässt, wird gesagt statt geraten.**
+`0 6 15 6,12 *` — der Basiszinssatz, zweimal im Jahr. Aus Minute und Stunde
+allein wäre sein Abstand „ein Tag", und der Wächter stünde ab dem 16. Juni ein
+halbes Jahr auf Rot. Wo Monatstag, Monat oder Wochentag gesetzt sind, meldet
+die Überwachung „nicht beurteilbar" mit dem Grund. Ein Fehler desselben Laufs
+steht trotzdem da — unbeurteilbar ist der ABSTAND, nicht das Ergebnis.
+
+**Eine Uhr, und zwar die der Datenbank.** Das Alter jedes Laufs rechnet
+Postgres (`now() - gestartet_am`), nicht der Node-Prozess: `gestartet_am` ist
+mit der Datenbankuhr gestempelt, und zwei Uhren, die gegeneinander laufen,
+erzeugen genau an der Schwelle einen Fehlalarm oder ein Schweigen. Bleibt die
+Zeile aus, endet der Aufruf laut — eine Ausweichuhr aus dem Prozess wäre genau
+die zweite Uhr (Invariante 2, Invariante 5). `cse/no-client-clock` hat den
+ersten Entwurf daran erwischt.
+
+**Die Frage vor allen anderen: läuft überhaupt etwas?** Ohne `pg_cron` startet
+kein einziger Wächter, und dann heissen siebzehn „noch nie gelaufen" nicht
+siebzehn Fehler, sondern einen. Gefragt wird deshalb zuerst die Erweiterung
+(`pg_extension` liest jede Rolle) und dann die LESEERLAUBNIS auf `cron.job` —
+statt die Abfrage zu wagen: ein Fehler mitten in der Transaktion bräche sie ab,
+und die ganze Seite wäre weg, weil eine Nebenauskunft fehlt. Ist `cron.job`
+nicht lesbar, sagt der Bildschirm das, statt „alles eingetragen" zu behaupten.
+
+**Was diese Gesellschaft angeht — und was nicht.** `job_lauf` trägt kein
+`mandant_id` (0010) und ist mit `system.betrieb_lesen` lesbar; `job_lauf_mandant`
+ist ein Mandantendatum und trägt die übliche Trennung. Ein Lauf, der für zwei
+Gesellschaften scheitert, zeigt hier die eigene Zeile mit Text und die fremde
+gar nicht — die Zahl der betroffenen Gesellschaften steht trotzdem da, sonst
+sähe „hier nichts" wie „nichts passiert" aus. Der Isolationsfall prüft beide
+Richtungen und sucht den fremden Fehlertext im ganzen Ergebnis.
+
+**Die Seite löst nichts aus.** Ein Lauf startet über `/api/jobs/[schluessel]`
+mit dem Betriebsgeheimnis; ein Knopf hier wäre derselbe Schalter ohne
+Geheimnis.
+
+| Betrifft | SPEC §14, D-540, K-11, Invariante 2, Invariante 5, `jobs/zeitplan.ts: erwartungsabstand`, `services/betrieb/ueberwachung.ts`, `einstellungen/betrieb`, `0010_job_lauf.sql` |
+|---|---|
+
+### D-589 · Eine Prüfsumme, die zwei Stände als einen bestätigte
+
+**Kontext.** Die achte Copilot-Runde, zwei Befunde auf PR 17. Beide echt, beide
+in der Sorte Code, die niemandem auffällt, weil das Ergebnis aussieht wie ein
+Ergebnis.
+
+**1. Der Hash deckte nicht alles, was unter ihm stand.** Das
+Verarbeitungsverzeichnis hashte `abschnitte`; `offen` ging im JSON mit hinaus
+und stand im Markdown unter derselben Zeile „Prüfsumme des Inhalts". Eine
+Aufbewahrungsklasse, die auf Platzhalter steht und zu KEINER Tätigkeit gehört,
+ändert genau eines: die offene Liste. Zwei verschiedene Auskünfte trugen damit
+denselben Abdruck.
+
+Vor einer Aufsicht ist das der Fall, in dem eine Prüfsumme das Gegenteil dessen
+tut, wofür sie da ist: **sie bestätigt zwei Stände als einen.** Das Löschkonzept
+hashte von Anfang an über beides, die Verfahrensdokumentation ebenso — es war
+eine Abweichung, keine Entscheidung. Der Fall dazu setzt einen Platzhalter auf
+`projekt` (zu keiner Tätigkeit gehörend), beweist zuerst, dass die Abschnitte
+Zeichen für Zeichen dieselben bleiben, und verlangt dann einen anderen Hash.
+
+**2. Eine Zelle ist einzeilig — ein Datenbankwert weiss das nicht.** Zwei der
+drei Markdown-Erzeuger maskierten den senkrechten Strich und liessen den
+Zeilenumbruch stehen. Ein Geschäftsführer oder eine Rechtsgrundlage mit `\n`
+darin beendet die Tabelle an dieser Stelle; der Rest wird zu freien Zeilen,
+eine davon womöglich zu einer neuen Kopfzeile.
+
+Das Dokument sieht danach aus wie ein Dokument. Es geht an eine Aufsicht, und
+dort fehlt eine Zeile, die niemand vermisst, weil niemand weiss, dass sie da
+sein sollte.
+
+Die Maskierung steht jetzt an EINER Stelle (`lib/markdown.ts`) statt dreimal
+nebeneinander — drei Kopien sind drei Gelegenheiten, eine davon zu vergessen,
+und genau das war passiert. `freigabe/diff.ts` bleibt ausgenommen und zwar
+begründet: es maskiert Backslash und Strich, um Felder verlustfrei zu
+VERKETTEN; dort wäre ein zum Leerzeichen gemachter Umbruch eine Verfälschung.
+Ein Fall hält die Ausnahme fest, ein zweiter verbietet jede weitere eigene
+Maskierung unter `services/`.
+
+**Der erste Prüffall dazu war grün, obwohl der Fehler noch drin war.** Er
+suchte `Gefälscht |` im Markdown — und der Strich WAR maskiert, also fand er
+nichts und war zufrieden. Die Sabotage hat das aufgedeckt: er prüft jetzt, dass
+der ganze Wert in DERSELBEN Zeile steht. Dieselbe Lehre wie D-580 und D-583 —
+eine Prüfung, die nie rot war, hat nichts bewiesen.
+
+| Betrifft | LEG-09, ACC-10, D-586, D-587, D-580, `lib/markdown.ts`, `services/datenschutz/verzeichnis.ts`, `services/datenschutz/loeschkonzept.ts`, `services/buchhaltung/verfahrensdokumentation.ts` |
+|---|---|

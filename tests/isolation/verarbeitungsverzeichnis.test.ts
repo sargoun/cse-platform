@@ -158,6 +158,76 @@ describe('das Verzeichnis beschreibt die Gesellschaft, in der es abgerufen wird'
     expect(v.offen.join(' ')).toMatch(/O-514/u);
   });
 
+  /**
+   * **Die Prüfsumme deckt alles, was unter ihr steht.**
+   *
+   * Sie lief über die Abschnitte allein, `offen` stand daneben unter derselben
+   * Zeile „Prüfsumme des Inhalts". Eine Aufbewahrungsklasse, die auf
+   * Platzhalter steht und zu KEINER Tätigkeit gehört, ändert genau eines: die
+   * offene Liste. Die Abschnitte bleiben Zeichen für Zeichen dieselben — und
+   * mit dem alten Hash trugen zwei verschiedene Auskünfte denselben Abdruck.
+   * Das ist der Fall, in dem eine Prüfsumme das Gegenteil dessen tut, wofür
+   * sie da ist. Gemeldet von der Copilot-Runde auf PR 17.
+   */
+  it('ein offener Punkt ohne eigene Tätigkeit ändert den SHA-256 trotzdem', async () => {
+    /* `projekt` gehört zu keiner der zwölf Tätigkeiten — nachgewiesen, nicht angenommen. */
+    const klassen = VERARBEITUNGEN
+      .filter((v) => v.fristQuelle.art === 'dokumentklasse')
+      .map((v) => (v.fristQuelle as { readonly kategorie: string }).kategorie);
+    expect(klassen).not.toContain('projekt');
+
+    /*
+     * Alle Platzhalter der Plattform zurücknehmen — sonst steht die O-25-Zeile
+     * schon vorher in `offen`, und der Fall wäre keiner. `seed()` setzt die
+     * Vorgabe im nächsten `beforeEach` wieder her.
+     */
+    await sql.unsafe(
+      `update dokument_aufbewahrung set ist_platzhalter = false where mandant_id is null`);
+    const vorher = await alsApp(sitzung(), (tx) =>
+      erstelleVerarbeitungsverzeichnis(kontextAus(tx), JETZT));
+
+    await sql.unsafe(
+      `insert into dokument_aufbewahrung
+              (mandant_id, kategorie, jahre, loeschsperre, grundlage, ist_platzhalter)
+       values ($1, 'projekt', 6, true, 'Noch nicht bestätigt', true)
+       on conflict (mandant_id, kategorie)
+       do update set ist_platzhalter = true`, [f.reinigung]);
+    const nachher = await alsApp(sitzung(), (tx) =>
+      erstelleVerarbeitungsverzeichnis(kontextAus(tx), JETZT));
+
+    expect(JSON.stringify(nachher.abschnitte), 'die Abschnitte dürfen sich NICHT geändert haben')
+      .toBe(JSON.stringify(vorher.abschnitte));
+    expect(nachher.offen).not.toEqual(vorher.offen);
+    expect(nachher.sha256, 'zwei Stände, zwei Abdrücke').not.toBe(vorher.sha256);
+  });
+
+  /**
+   * **Ein Zeilenumbruch in einem Namen zerbricht die Tabelle.** Die
+   * Geschäftsführung steht in einer Zelle; was jemand ins Formular geschrieben
+   * hat, entscheidet dann über die Form des Dokuments, das an eine Aufsicht
+   * geht.
+   */
+  it('ein Name mit Zeilenumbruch erzeugt keine zweite Tabellenzeile', async () => {
+    await sql.unsafe(
+      `update mandant set geschaeftsfuehrer = array[$2::text] where id = $1`,
+      [f.reinigung, 'Eva Beyer\n| Kopf | Kopf |\n|---|---|\nGefälscht | x']);
+    const v = await alsApp(sitzung(), (tx) =>
+      erstelleVerarbeitungsverzeichnis(kontextAus(tx), JETZT));
+    const md = alsMarkdown(v);
+    const zeilen = md.split('\n').filter((z) => z.startsWith('| Geschäftsführung'));
+    expect(zeilen.length, 'die Angabe steht genau einmal').toBe(1);
+    /*
+     * **Der ganze Wert steht in DIESER Zeile.** Nur den Strich zu maskieren
+     * genügt nicht: die Zelle bräche nach „Eva Beyer" ab, der Rest würde zu
+     * eigenen Zeilen — und eine davon zu einer zweiten Kopfzeile, die den
+     * Rest der Tabelle unbrauchbar macht.
+     */
+    expect(zeilen[0], 'der Rest des Namens ist in eigene Zeilen gerutscht')
+      .toContain('Gefälscht');
+    expect(zeilen[0]?.endsWith(' |')).toBe(true);
+    expect(md).not.toMatch(/^\|---\|---\|$\n^\|---\|---\|$/mu);
+  });
+
   it('als Markdown trägt es Kopf, Abschnitte und die offenen Punkte', async () => {
     const v = await alsApp(sitzung(), (tx) =>
       erstelleVerarbeitungsverzeichnis(kontextAus(tx), JETZT));

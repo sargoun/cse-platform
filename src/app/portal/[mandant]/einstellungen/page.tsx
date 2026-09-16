@@ -58,6 +58,9 @@ const KARTEN: readonly Karte[] = [
     icon: 'dokument',
     text: 'Das Verzeichnis nach Art. 30 DSGVO, erzeugt aus der laufenden Konfiguration — '
       + 'samt dem, was es ausdrücklich NICHT sagt.' },
+  { pfad: 'einstellungen/betrieb', titel: 'Betrieb', icon: 'warnung',
+    text: 'Jeder geplante Lauf gegen sein Protokoll: gescheitert, hängend, ausgeblieben '
+      + '— und ob überhaupt ein Auslöser eingerichtet ist.' },
   { pfad: 'datenschutz/loeschkonzept', titel: 'Löschkonzept', icon: 'warnung',
     text: 'Was wann gelöscht wird, durch welchen Lauf — und was NICHT, mit dem Grund '
       + 'je Tabelle.' },

@@ -821,6 +821,12 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   { modul: 'system', pfad: 'datenschutz/verzeichnis', schreibend: false },
   { modul: 'system', pfad: 'datenschutz/loeschkonzept', schreibend: false },
+  /*
+   * Phase 10 — die Betriebsueberwachung (SPEC §14, D-540). Lesend: sie stellt
+   * das Laufprotokoll neben den Zeitplan und loest nichts aus. Ein Lauf startet
+   * ueber `/api/jobs/[schluessel]` mit dem Betriebsgeheimnis, nicht von hier.
+   */
+  { modul: 'system', pfad: 'betrieb/ueberwachung', schreibend: false },
   /* D-487 — Serien anlegen; Anmeldecode durch die Einsatzleitung. */
   {
     modul: 'dienstplan', pfad: 'dienstplan/serie',

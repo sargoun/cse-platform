@@ -231,3 +231,121 @@ export function idempotenzSchluessel(
   const zeit = new Date((eimer - versatzMinuten) * 60_000);
   return `${schluessel}:${zeit.toISOString().slice(0, 16)}Z`;
 }
+
+/**
+ * **Wann muss ein Lauf spaetestens wieder da sein?**
+ *
+ * Die Betriebsueberwachung stellt eine andere Frage als `fensterMinuten`, und
+ * der Unterschied ist die RICHTUNG DER RUNDUNG — deshalb sind es zwei
+ * Funktionen und nicht eine mit einem Schalter:
+ *
+ *  - `fensterMinuten` rundet nach UNTEN. Ein zu kleines Idempotenzfenster
+ *    laesst hoechstens einen doppelten Ausloeser durch; ein zu grosses legt
+ *    einen Lauf still.
+ *  - `erwartungsabstand` rundet nach OBEN: es liefert den GROESSTEN Abstand
+ *    zwischen zwei Ausloesern. Ein zu kleiner Erwartungswert erzeugt einen
+ *    Fehlalarm — und ein Ueberwachungsbildschirm, der grundlos rot ist, wird
+ *    nach zwei Wochen nicht mehr gelesen. Das ist teurer als gar keiner,
+ *    weil dann auch der echte Ausfall darin steht.
+ *
+ * **Ein Kalenderfeld macht die Frage unbeantwortbar** — und dann sagt sie das,
+ * statt zu raten. `0 6 15 6,12 *` (Basiszinssatz, zweimal im Jahr) haette mit
+ * Minute und Stunde allein den Abstand „ein Tag"; der Waechter waere ab dem
+ * 16. Juni dauerhaft rot. Wo Monatstag, Monat oder Wochentag gesetzt sind,
+ * haengt der Abstand an Kalenderregeln, die diese Funktion nicht nachrechnet.
+ *
+ * **Gerechnet wird in UTC, und das ist keine Nachlaessigkeit.** `pg_cron`
+ * plant in UTC (siehe `cronPlanSql`), und UTC kennt keine Zeitumstellung —
+ * zwischen zwei taeglichen Laeufen liegen deshalb IMMER 1440 Minuten. Derselbe
+ * Plan in Berliner Ortszeit haette zweimal im Jahr eine Nacht mit 23 oder 25
+ * Stunden, und genau davor schuetzt Invariante 2: gerechnet wird auf
+ * UTC-Augenblicken, angezeigt wird Berlin.
+ */
+export type Erwartung =
+  | { readonly art: 'bekannt'; readonly minuten: number }
+  | { readonly art: 'unbestimmt'; readonly grund: string };
+
+/**
+ * Ein Cron-Feld zu seinen Werten — `*`, `*​/n`, `a`, `a-b`, `a-b/n` und Listen
+ * davon. `null` heisst: nicht gelesen, und dann wird auch nichts behauptet.
+ */
+function feldwerte(feld: string, hoechst: number): readonly number[] | null {
+  const werte = new Set<number>();
+  for (const teil of feld.split(',')) {
+    const stuecke = teil.split('/');
+    if (stuecke.length > 2) return null;
+    const [spanne, schritt] = stuecke;
+    if (spanne === undefined || spanne === '') return null;
+    if (schritt !== undefined && !/^[0-9]{1,2}$/u.test(schritt)) return null;
+    const n = schritt === undefined ? 1 : Number(schritt);
+    if (n < 1) return null;
+
+    let von: number;
+    let bis: number;
+    if (spanne === '*') {
+      von = 0;
+      bis = hoechst;
+    } else {
+      const grenzen = /^([0-9]{1,2})(?:-([0-9]{1,2}))?$/u.exec(spanne);
+      if (grenzen === null) return null;
+      von = Number(grenzen[1]);
+      /*
+       * `5-17` ist die Spanne; `5/10` ist die Vixie-Schreibweise fuer „ab 5
+       * in Schritten von 10 bis zum Ende". Ohne Schritt ist `5` ein einzelner
+       * Wert — sonst waere jede feste Stunde plötzlich ein Tageslauf.
+       */
+      bis = grenzen[2] !== undefined ? Number(grenzen[2])
+        : (schritt === undefined ? von : hoechst);
+      if (von > hoechst || bis > hoechst || von > bis) return null;
+    }
+    for (let w = von; w <= bis; w += n) werte.add(w);
+  }
+  return werte.size === 0 ? null : [...werte].sort((a, b) => a - b);
+}
+
+export function erwartungsabstand(zeitplan: string): Erwartung {
+  const felder = zeitplan.trim().split(/\s+/u);
+  if (felder.length !== 5) {
+    return { art: 'unbestimmt', grund: `„${zeitplan}" ist kein 5-Feld-Cron.` };
+  }
+  const [minute, stunde, tag, monat, wochentag] = felder as [
+    string, string, string, string, string];
+
+  const kalender = [
+    tag === '*' ? null : 'Monatstag',
+    monat === '*' ? null : 'Monat',
+    wochentag === '*' ? null : 'Wochentag',
+  ].filter((k): k is string => k !== null);
+  if (kalender.length > 0) {
+    return {
+      art: 'unbestimmt',
+      grund: `Der Zeitplan bindet an ${kalender.join(' und ')} — der Abstand zwischen `
+        + 'zwei Läufen hängt damit am Kalender und nicht an Minute und Stunde. '
+        + 'Ein Ausbleiben lässt sich hier nicht feststellen, ohne es zu erfinden.',
+    };
+  }
+
+  const minuten = feldwerte(minute, 59);
+  const stunden = feldwerte(stunde, 23);
+  if (minuten === null || stunden === null) {
+    return {
+      art: 'unbestimmt',
+      grund: `„${minuten === null ? minute : stunde}" ist als `
+        + `${minuten === null ? 'Minute' : 'Stunde'} nicht gelesen worden.`,
+    };
+  }
+
+  /* Alle Ausloesezeitpunkte eines Tages, in Minuten seit Mitternacht UTC. */
+  const zeitpunkte = stunden
+    .flatMap((h) => minuten.map((m) => h * 60 + m))
+    .sort((a, b) => a - b);
+
+  let groesster = 0;
+  for (let i = 0; i < zeitpunkte.length; i += 1) {
+    /* Der letzte Zeitpunkt trifft den ersten des Folgetages — daher `+ 1440`. */
+    const naechster = i + 1 < zeitpunkte.length
+      ? zeitpunkte[i + 1]! : zeitpunkte[0]! + 1440;
+    groesster = Math.max(groesster, naechster - zeitpunkte[i]!);
+  }
+  return { art: 'bekannt', minuten: groesster };
+}

@@ -32,6 +32,7 @@ import { AUFTRAGSVERARBEITER } from '@/server/registry/auftragsverarbeiter';
 import { modulAktiv, type Modulbuchung } from '@/server/registry/modul';
 import { liesAufbewahrung, type AufbewahrungZeile } from '@/server/services/dokument/aufbewahrung';
 import type { Kategorie } from '@/server/services/dokument/kategorie';
+import { markdownZelle } from '@/lib/markdown';
 
 export interface Abfrage {
   abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
@@ -135,13 +136,21 @@ export function fristText(
   }
 }
 
-/** Kanonisches JSON: stabile Reihenfolge, keine Uhr. */
-function kanonisch(abschnitte: readonly Abschnitt[]): string {
-  return JSON.stringify(abschnitte.map((a) => ({
-    nummer: a.nummer, titel: a.titel, quelle: a.quelle,
-    absaetze: a.absaetze,
-    tabelle: a.tabelle === null ? null : { kopf: a.tabelle.kopf, zeilen: a.tabelle.zeilen },
-  })));
+/**
+ * Kanonisches JSON: stabile Reihenfolge, keine Uhr — **und alles, was unter
+ * der Prüfsumme steht**, also auch die offenen Punkte.
+ */
+function kanonisch(
+  inhalt: { readonly abschnitte: readonly Abschnitt[]; readonly offen: readonly string[] },
+): string {
+  return JSON.stringify({
+    abschnitte: inhalt.abschnitte.map((a) => ({
+      nummer: a.nummer, titel: a.titel, quelle: a.quelle,
+      absaetze: a.absaetze,
+      tabelle: a.tabelle === null ? null : { kopf: a.tabelle.kopf, zeilen: a.tabelle.zeilen },
+    })),
+    offen: inhalt.offen,
+  });
 }
 
 export async function erstelleVerarbeitungsverzeichnis(
@@ -355,7 +364,22 @@ export async function erstelleVerarbeitungsverzeichnis(
       ? ['Für mindestens einen Auftragsverarbeiter ist kein AV-Vertrag hinterlegt'] : []),
   ];
 
-  const sha256 = createHash('sha256').update(kanonisch(abschnitte), 'utf8').digest('hex');
+  /*
+   * **Die Prüfsumme deckt ALLES, was unter ihr steht.**
+   *
+   * Sie lief über `abschnitte` allein — `offen` stand daneben im JSON und im
+   * Markdown, unter derselben Zeile „Prüfsumme des Inhalts". Damit konnten
+   * zwei verschiedene Auskünfte denselben Abdruck tragen: eine Frist, die
+   * für eine Dokumentklasse OHNE eigene Tätigkeit auf Platzhalter steht,
+   * ändert die offene Liste und keinen Abschnitt. Vor einer Aufsicht ist
+   * genau das der Fall, in dem eine Prüfsumme das Gegenteil dessen tut,
+   * wofür sie da ist: sie bestätigt zwei Stände als einen.
+   *
+   * Gemeldet hat es die Copilot-Runde auf PR 17. Das Löschkonzept hashte von
+   * Anfang an über beides (`roh`), die Verfahrensdokumentation ebenso.
+   */
+  const sha256 = createHash('sha256')
+    .update(kanonisch({ abschnitte, offen }), 'utf8').digest('hex');
   const abgerufenAm = new Intl.DateTimeFormat('de-DE', {
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
@@ -384,7 +408,7 @@ export function alsMarkdown(v: Verarbeitungsverzeichnis): string {
       zeilen.push(`| ${a.tabelle.kopf.join(' | ')} |`);
       zeilen.push(`|${a.tabelle.kopf.map(() => '---').join('|')}|`);
       for (const z of a.tabelle.zeilen) {
-        zeilen.push(`| ${z.map((s) => s.replaceAll('|', '\\|')).join(' | ')} |`);
+        zeilen.push(`| ${z.map(markdownZelle).join(' | ')} |`);
       }
       zeilen.push('');
     } else if (a.tabelle !== null) {
