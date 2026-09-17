@@ -282,6 +282,31 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + 'Zeiteintrag bleibt, bis die Planung entschieden hat.',
   },
   {
+    /**
+     * Ein Bild in die oeffentliche Galerie aufnehmen oder herausnehmen
+     * (§5.21, PUB-04, 0170).
+     *
+     * `referenz.schreiben` — dasselbe Recht, das `t_medien_pflege` verlangt.
+     * Die Route ist die erste Linie, die Policy die zweite: ein Bild, das auf
+     * einer oeffentlichen Seite steht und dort nicht hingehoert, laesst sich
+     * nicht zurueckholen.
+     */
+    pfad: 'api/website/galerie',
+    recht: 'referenz.schreiben',
+  },
+  {
+    /**
+     * Ein Projekt auf die Website stellen oder zurueckziehen (§5.21, PRO-05).
+     *
+     * `referenz.veroeffentlichen` und NICHT `referenz.schreiben`: einen
+     * Entwurf zu aendern und ihn mit dem Namen eines Kunden oeffentlich zu
+     * machen sind zwei Entscheidungen, und die zweite traegt die
+     * Kundenfreigabe. Der Dienst prueft sie zusaetzlich und sagt, was fehlt.
+     */
+    pfad: 'api/website/referenzen',
+    recht: 'referenz.veroeffentlichen',
+  },
+  {
     pfad: 'api/konto/sprache',
     recht: null,
     grund:

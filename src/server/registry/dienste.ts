@@ -419,6 +419,12 @@ export const DIENSTE: readonly DienstEintrag[] = [
   // Die oeffentliche Galerie (0170): liest `medien` mit einem `galerie_rang`
   // und nichts sonst. Lesend — kuratiert wird in der Website-Redaktion.
   { modul: 'referenz', pfad: 'inhalt/galerie', schreibend: false },
+  // Die Website-Redaktion (§5.21): sie schreibt in seite, abschnitt, medien
+  // und referenz — alle vier Policies verlangen dasselbe Recht.
+  {
+    modul: 'referenz', pfad: 'inhalt/redaktion',
+    schreibend: true, schreibRecht: 'referenz.schreiben',
+  },
   {
     modul: 'referenz', pfad: 'inhalt/import',
     schreibend: true, schreibRecht: 'referenz.schreiben',
