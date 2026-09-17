@@ -416,6 +416,9 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'referenz', pfad: 'inhalt/nap', schreibend: false },
   { modul: 'referenz', pfad: 'inhalt/routen', schreibend: false },
   { modul: 'referenz', pfad: 'inhalt/referenz', schreibend: false },
+  // Die oeffentliche Galerie (0170): liest `medien` mit einem `galerie_rang`
+  // und nichts sonst. Lesend — kuratiert wird in der Website-Redaktion.
+  { modul: 'referenz', pfad: 'inhalt/galerie', schreibend: false },
   {
     modul: 'referenz', pfad: 'inhalt/import',
     schreibend: true, schreibRecht: 'referenz.schreiben',

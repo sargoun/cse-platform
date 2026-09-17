@@ -378,22 +378,16 @@ describe('die gebaute Anwendung und die Karte widersprechen sich nicht', () => {
       '/news/[slug]',
       '/projekte/[slug]',
 
-      /**
-       * §2.2 — die tiefen Profilseiten. PR 16 lieferte je Gesellschaft EINE
-       * Profilseite; die Karte sieht neun vor. Sie hängen an Modulen, die es
-       * noch nicht gibt: Galerie und Beiträge an `medien` und `social_post`,
-       * Projekte an `referenz` mit Kundenfreigabe (PRO-05).
+      /*
+       * **§2.2 — die zehn tiefen Profilseiten sind hier weg, und das ist der
+       * Zweck dieser Liste.**
+       *
+       * Sie stand hier, solange PR 16 je Gesellschaft nur EINE Profilseite
+       * lieferte. Seit `0170` den Referenzen und Beiträgen ihren URL-Schlüssel
+       * gibt und die Galerie einen `galerie_rang` hat, sind alle zehn gebaut —
+       * deutsch und englisch (D-82). Der Rest dieser Liste ist echte,
+       * gemessene Arbeit; wer sie wieder wachsen lässt, fällt hier auf.
        */
-      '/unternehmen/[bereich]/beitraege',
-      '/unternehmen/[bereich]/beitraege/[slug]',
-      '/unternehmen/[bereich]/galerie',
-      '/unternehmen/[bereich]/kontakt',
-      '/unternehmen/[bereich]/leistungen',
-      '/unternehmen/[bereich]/news',
-      '/unternehmen/[bereich]/news/[slug]',
-      '/unternehmen/[bereich]/projekte',
-      '/unternehmen/[bereich]/projekte/[slug]',
-      '/unternehmen/[bereich]/unternehmensdaten',
     ].sort());
   });
 });

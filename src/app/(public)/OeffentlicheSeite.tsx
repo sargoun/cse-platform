@@ -4,6 +4,7 @@ import { JsonLd } from '@/components/oeffentlich/JsonLd';
 import { Gesellschaften } from '@/components/oeffentlich/Gesellschaften';
 import { Kontaktwege } from '@/components/oeffentlich/Kontaktwege';
 import { Beitraege } from '@/components/oeffentlich/Beitraege';
+import { ProfilTabs } from '@/components/oeffentlich/ProfilTabs';
 import { ansprueche, seitenDaten } from '@/server/inhalt/seiten-daten';
 import { oeffentlichLesen } from '@/server/inhalt/lesen';
 import { oeffentlicheBeitraege } from '@/server/services/social/dienst';
@@ -50,6 +51,27 @@ export async function OeffentlicheSeite(
         sprache={sprache}
         gruppeName={daten.gruppeName}
       />
+      {/*
+        * **Die Reiterleiste des Profils, auf der Wurzel wie auf jeder
+        * Unterseite** (SEITENKARTE §2.2, DESIGN §4).
+        *
+        * Sie steht hier und nicht in `ProfilRahmen`, weil die Wurzel NICHT
+        * durch jenen Rahmen geht: sie ist eine redaktionelle Seite aus
+        * `seite`/`abschnitt`, die Unterseiten sind Listen aus Fachtabellen.
+        * Stünde die Leiste nur dort, wäre die Profilseite die einzige, von der
+        * aus man ihre sieben Unterseiten nicht erreicht — also genau die
+        * Seite, auf der jeder anfängt.
+        */}
+      {bereich !== null && (
+        <div className="mx-auto w-full max-w-content px-s4">
+          <ProfilTabs
+            bereich={bereich.slug}
+            aktiv=""
+            sprache={sprache}
+            label={sprache === 'en' ? 'Profile sections' : 'Bereiche des Profils'}
+          />
+        </div>
+      )}
       {/*
         * Das Impressum bekommt die Pflichtangaben aus `mandant` angehaengt.
         *

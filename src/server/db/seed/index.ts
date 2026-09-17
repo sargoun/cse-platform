@@ -1681,8 +1681,10 @@ async function main(): Promise<void> {
     `  Social: ${String(social.kanaele)} Kanäle (alle NICHT verbunden, O-10)`
     + (social.uebersprungen
       ? ' — keine Beiträge ohne CSE_DEV_FLAECHEN\n'
-      : `, ${String(social.beitraege)} Beiträge in vier Zuständen und `
-        + `${String(social.referenzen)} freigegebene Referenzen (SOC-04)\n`));
+      : `, ${String(social.beitraege)} Beiträge in vier Zuständen, `
+        + `${String(social.referenzen)} freigegebene Referenzen (SOC-04) und `
+        + `${String(social.galeriebilder)} Galeriebilder — als PLATZHALTER markiert, `
+        + `weil die fünf CC0-Motive kein Objekt dieser Gruppe zeigen (O-13)\n`));
 
   /**
    * Recruiting NACH den Freigaben: eine veröffentlichte Stelle hängt an einer

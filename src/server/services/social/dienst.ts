@@ -52,6 +52,8 @@ export class SocialFehler extends Error {
 
 export interface BeitragZeile {
   readonly id: string;
+  /** Der URL-Schluessel unter `/unternehmen/<bereich>/news/` (0170). */
+  readonly slug: string;
   readonly titel: string;
   readonly text: string;
   readonly art: string;
@@ -85,7 +87,7 @@ export interface BeitragKanalZeile {
   readonly versuche: number;
 }
 
-const FELDER = `b.id, b.titel, b.text, b.art::text as art, b.status::text as status,
+const FELDER = `b.id, b.slug, b.titel, b.text, b.art::text as art, b.status::text as status,
                 b.geplant_fuer as "geplantFuer", b.veroeffentlicht_am as "veroeffentlichtAm",
                 b.zurueckgezogen_am as "zurueckgezogenAm", b.freigabe_id as "freigabeId",
                 b.projekt_id as "projektId", b.referenz_id as "referenzId",
@@ -784,6 +786,89 @@ export async function oeffentlicheBeitraege(
       order by b.veroeffentlicht_am desc
       limit $2::int`,
     [mandantId, grenze]);
+}
+
+/**
+ * Die vier Arten, nach denen `/beitraege` und `/news` sich unterscheiden
+ * (SOC-02, SEITENKARTE §2.2).
+ *
+ * **Warum es zwei Listen gibt und nicht eine.** Die Karte führt beide Adressen
+ * getrennt, und sie meinen Verschiedenes: `/news` ist das, was eine
+ * Gesellschaft ankündigt — eine Neuigkeit oder eine Aktualisierung, die Sorte
+ * Eintrag, die in eine Pressemitteilung gehört. `/beitraege` ist alles, was
+ * sie öffentlich geschrieben hat, Projektschauen eingeschlossen. Die Trennung
+ * steht deshalb an der ART, die `beitrag_art` ohnehin führt, und nicht an
+ * einer zweiten Spalte, die jemand pflegen müsste.
+ *
+ * // TODO(client, O-548): Zählt eine `projektschau` für den Kunden zu den
+ * // „Neuigkeiten"? Hier NICHT — sie hat ihre eigene Liste unter `/projekte`.
+ * // Wenn die Gruppe das anders sieht, ist es diese eine Zeile.
+ */
+export const NEUIGKEITS_ARTEN: readonly string[] = ['neuigkeit', 'aktualisierung'];
+
+/**
+ * Die Neuigkeiten EINER Gesellschaft — `/unternehmen/<bereich>/news`.
+ *
+ * Dieselben drei Bedingungen wie überall auf dem öffentlichen Weg:
+ * veröffentlicht, nicht zurückgezogen, dieser Mandant. Sie stehen hier UND in
+ * `t_beitrag_oeffentlich`; eine vergessene Bedingung im Code zeigt sonst einen
+ * Entwurf, den niemand freigegeben hat.
+ */
+export async function oeffentlicheNeuigkeiten(
+  kontext: LeseKontext, mandantId: string, grenze = 24,
+): Promise<readonly BeitragZeile[]> {
+  return kontext.abfrage<BeitragZeile>(
+    `select ${FELDER}
+       from beitrag b
+      where b.mandant_id = $1::uuid and b.status = 'veroeffentlicht'
+        and b.zurueckgezogen_am is null
+        and b.art::text = any($2::text[])
+      order by b.veroeffentlicht_am desc, b.id
+      limit $3::int`,
+    [mandantId, NEUIGKEITS_ARTEN, grenze]);
+}
+
+/** Ein einzelner Beitrag unter seiner kanonischen Adresse (SEITENKARTE §2.2). */
+export async function oeffentlicherBeitragNachSlug(
+  kontext: LeseKontext, mandantId: string, slug: string,
+): Promise<BeitragZeile | null> {
+  const [z] = await kontext.abfrage<BeitragZeile>(
+    `select ${FELDER}
+       from beitrag b
+      where b.mandant_id = $1::uuid and b.slug = $2
+        and b.status = 'veroeffentlicht' and b.zurueckgezogen_am is null`,
+    [mandantId, slug]);
+  return z ?? null;
+}
+
+/** Ein Beitrag MIT seiner Gesellschaft — für die Gruppenliste `/news`. */
+export interface BeitragMitBereich extends BeitragZeile {
+  readonly bereichSlug: string;
+  readonly bereichName: string;
+}
+
+/**
+ * Die Gruppenliste `/news` — über alle Gesellschaften, nach Datum.
+ *
+ * **Jeder Eintrag zeigt auf die Gesellschaftsadresse**, nicht auf sich selbst:
+ * §2.2 macht `/unternehmen/<bereich>/news/<slug>` zur kanonischen Adresse, und
+ * diese Liste setzt `rel=canonical` darauf. Deshalb reist der Bereichs-Slug
+ * mit, statt im Code nachgeschlagen zu werden.
+ */
+export async function neuigkeitenDerGruppe(
+  kontext: LeseKontext, grenze = 24,
+): Promise<readonly BeitragMitBereich[]> {
+  return kontext.abfrage<BeitragMitBereich>(
+    `select ${FELDER},
+            m.slug as "bereichSlug", m.name as "bereichName"
+       from beitrag b
+       join mandant m on m.id = b.mandant_id
+      where b.status = 'veroeffentlicht' and b.zurueckgezogen_am is null
+        and b.art::text = any($1::text[])
+        and m.archiviert_am is null
+      order by b.veroeffentlicht_am desc, b.id
+      limit $2::int`,
+    [NEUIGKEITS_ARTEN, grenze]);
 }
 
 export interface Quelle {

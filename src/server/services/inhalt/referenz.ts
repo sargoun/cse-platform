@@ -138,9 +138,15 @@ export class ReferenzAusTabelle implements ReferenzQuelle {
    * Zuordnung im Code noch einmal zu bauen — und beim naechsten Bereich
    * falsch.
    *
-   * **`geloescht_am is null` steht auch auf `mandant`.** Eine stillgelegte
+   * **`archiviert_am is null` steht auch auf `mandant`.** Eine stillgelegte
    * Gesellschaft hat keine oeffentliche Seite mehr; ihre Referenzen zeigten
    * sonst auf eine Adresse, die 404 antwortet.
+   *
+   * Die Spalte heisst `archiviert_am` und nicht `geloescht_am` — `mandant`
+   * wird nicht geloescht, sondern stillgelegt (Invariante 8). Der erste
+   * Entwurf hier schrieb `geloescht_am`; die Abfrage waere zur Laufzeit an
+   * „column does not exist" gescheitert, und zwar auf der Gruppenseite, die
+   * kein Fall bis dahin gefahren ist.
    */
   async fuerGruppe(grenze = 24): Promise<readonly ReferenzMitBereich[]> {
     const zeilen = (await this.db.unsafe(
@@ -153,7 +159,7 @@ export class ReferenzAusTabelle implements ReferenzQuelle {
         where r.freigegeben_vom_kunden
           and r.status = 'veroeffentlicht'
           and r.geloescht_am is null
-          and b.geloescht_am is null
+          and b.archiviert_am is null
         order by r.jahr desc nulls last, r.sortierung, r.titel
         limit $1`,
       [grenze],
