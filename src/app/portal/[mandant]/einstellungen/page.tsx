@@ -92,6 +92,30 @@ const KARTEN: readonly Karte[] = [
   { pfad: 'einstellungen/import', titel: 'Übernahme aus Altsystemen', icon: 'eingang',
     text: 'Aplano, Lexware, Excel: der Zustand jeder Quelle und die Regel, die beim '
       + 'Import gelten wird.' },
+  /*
+   * **Die fünf Stammdatenkataloge (SEITENKARTE §5.13).** Sie haben keinen
+   * eigenen Navigationspunkt: die Seitenkarte führt keine Indexroute
+   * `/portal/[mandant]/stammdaten`, und eine Karte auf eine Adresse, die das
+   * Manifest nicht kennt, führte auf 404. Sie stehen deshalb hier, wie
+   * `einstellungen/abrechnungsarten` — ohne Einstieg wären sie gebaut und
+   * nicht da. Alle fünf öffnen mit `stammdaten.verwalten`, und die Prüfung
+   * oben holt dieses Recht aus dem Manifest.
+   */
+  { pfad: 'stammdaten/abwesenheitsarten', titel: 'Abwesenheitsarten', icon: 'kalender',
+    text: 'Urlaub, Krankheit, Freistellung: bezahlt oder nicht, Nachweis ab Tag N, '
+      + 'Lohnart — und was davon noch ungeklärt ist.' },
+  { pfad: 'stammdaten/antragsarten', titel: 'Antragsarten', icon: 'freigabe',
+    text: 'Was ein Antrag verlangt und was seine Genehmigung auslöst — je Schalter '
+      + 'mit dem Ort, an dem er wirkt.' },
+  { pfad: 'stammdaten/qualifikationen', titel: 'Qualifikationen', icon: 'security',
+    text: 'Der Katalog, auf den sich Nachweise und Posten berufen — samt der Sperre, '
+      + 'die eine Einteilung scheitern lässt (SEC-04).' },
+  { pfad: 'stammdaten/belagsarten', titel: 'Belagsarten', icon: 'aufmass',
+    text: 'Leistungswerte in m²/h mit Quelle und Gültigkeitszeitraum: eine Änderung '
+      + 'ist eine neue Fassung, kein Überschreiben.' },
+  { pfad: 'stammdaten/reinigungsklassen', titel: 'Reinigungsklassen', icon: 'reinigung',
+    text: 'Die Einstufung im Raumbuch — heute ohne Frequenz- und Preiswirkung, und '
+      + 'noch unbestätigt (O-55).' },
 ];
 
 export default async function Einstellungen(

@@ -1,0 +1,31 @@
+-- 0250 — ein Wert im Enum `bezug_typ`: `lead_aktivitaet` (CRM-04,
+-- 04-SEITENKARTE §5.2).
+--
+-- ===========================================================================
+-- Warum eine eigene Datei mit genau einer Anweisung
+-- ===========================================================================
+--
+-- Postgres erlaubt `alter type … add value` nicht in derselben Transaktion,
+-- in der der neue Wert benutzt wird. Jede Migration laeuft hier in EINER
+-- Transaktion — der Wert braucht deshalb seine eigene Datei, auch wenn sie
+-- damit aus einer Zeile besteht.
+--
+-- ===========================================================================
+-- Wozu der Wert
+-- ===========================================================================
+--
+-- Eine Wiedervorlage (CRM-04) steht auf `lead_aktivitaet` und wird laut
+-- Seitenkarte zugleich als `aufgabe` und als `kalender_eintrag` gespiegelt.
+-- Damit dieselbe Wiedervorlage an allen drei Stellen WIEDERGEFUNDEN wird —
+-- beim Erledigen, beim Verschieben —, braucht die Spiegelzeile einen
+-- eindeutigen Rueckverweis.
+--
+-- `bezug_typ = 'lead'` waere dafuer nicht eindeutig: an einem Lead haengen
+-- viele Wiedervorlagen, und ein „erledigt" haette dann alle geschlossen.
+-- Ausserdem gibt es Wiedervorlagen ohne Lead — `lead_aktivitaet` traegt
+-- `kunde_id` genauso (`lead_aktivitaet_hat_bezug`).
+--
+-- `kalender_eintrag.bezug_typ` ist `text` und braucht diesen Wert nicht;
+-- `aufgabe.bezug_typ` ist das Enum, und deshalb steht er hier.
+
+alter type bezug_typ add value 'lead_aktivitaet';

@@ -409,4 +409,5 @@ create trigger trg_lv_import_geaendert_am
   before update on lv_import
   for each row execute function kern.setze_geaendert_am();
 
+
 -- >>> Ende des generierten Blocks

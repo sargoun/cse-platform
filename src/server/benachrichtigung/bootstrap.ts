@@ -1,6 +1,7 @@
 import 'server-only';
 import { arten, type ArtDefinition } from './registry.js';
 import { registriereWaechterArten } from '../services/waechter/benachrichtigung.js';
+import { registriereDienstplanArten } from '../services/dienstplan/benachrichtigung.js';
 import { registriereLeadArten } from '../services/lead/benachrichtigung.js';
 import { registriereNachweisArten } from '../services/nachweis/benachrichtigung.js';
 import { registriereRadarArten } from '../services/radar/benachrichtigung.js';
@@ -27,6 +28,7 @@ import { registriereAgentArten } from '../agent/benachrichtigung.js';
  */
 export function alleArten(): readonly ArtDefinition[] {
   registriereWaechterArten();
+  registriereDienstplanArten();
   registriereLeadArten();
   registriereNachweisArten();
   registriereRadarArten();

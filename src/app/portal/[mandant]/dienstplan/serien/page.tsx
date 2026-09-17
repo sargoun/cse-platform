@@ -157,9 +157,24 @@ export default async function Serienliste(
             {
               schluessel: 'bezeichnung',
               kopf: 'Serie',
+              /*
+                Der Name fuehrt auf das Blatt der Serie.
+
+                Ohne diesen Verweis war `/dienstplan/serien/[id]` gebaut, im
+                Routenregister eingetragen und fuer niemanden erreichbar — und
+                genau dort steht, was diese Liste nicht zeigt: `generiert_bis`
+                gross, die materialisierten Schichten und die
+                Einzeltermin-Ausnahmen.
+              */
               zelle: (z) => (
                 <span>
-                  <span className="block text-text">{z.bezeichnung}</span>
+                  <Link
+                    href={`/portal/${mandant}/dienstplan/serien/${z.id}`}
+                    data-cse="zur-serie"
+                    className="block text-text underline-offset-2 hover:text-brand hover:underline"
+                  >
+                    {z.bezeichnung}
+                  </Link>
                   <span className="block text-micro text-text-muted">
                     {z.objekt}{z.revier !== null ? ` · ${z.revier}` : ''}
                   </span>

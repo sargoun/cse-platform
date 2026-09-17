@@ -150,18 +150,35 @@ export function positionsBetragCent(
 }
 
 /**
- * Zählt diese Position in die Auftragssumme?
+ * Zählt diese POSITIONSART in die Auftragssumme?
  *
  * **Bedarfs- und Alternativpositionen zählen NICHT** — sie sind angeboten,
  * aber nicht beauftragt, und sie in eine Summe zu nehmen hiesse, dem Kunden
  * einen Auftragswert zu nennen, den er nie erteilt hat. Das ist die
  * ausdrückliche Vorgabe von 03-GEWERKE §3.3, solange O-155 offen ist.
+ *
+ * **Die Art steht getrennt von der Zeile, weil zwei Seiten sie brauchen.**
+ * Der LV-Baum hat einen ganzen `LvZeile`-Satz, die Positionsdetailseite hat
+ * nur die Spalte — und sie hatte deshalb ihre EIGENE Kopie dieser Regel im
+ * Seitenkörper. Zwei Kopien einer offenen Frage beantworten sie irgendwann
+ * verschieden, und das fällt erst auf, wenn zwei Seiten zwei Auftragssummen
+ * über denselben Vertrag zeigen.
  * // TODO(client, O-155): Welche Positionsarten kommen vor, und wie geht jede
  * in die Angebots- bzw. Auftragssumme ein?
  */
+export function zaehltPositionsartInSumme(positionsart: string): boolean {
+  return positionsart !== 'bedarfsposition' && positionsart !== 'alternativposition';
+}
+
+/**
+ * Zählt diese Position in die Auftragssumme?
+ *
+ * `art !== 'position'` zuerst: ein Los oder ein Titel trägt seine Summe aus
+ * den Kindern, und ein Hinweistext trägt gar keine.
+ */
 export function zaehltInSumme(zeile: LvZeile): boolean {
   if (zeile.art !== 'position') return false;
-  return zeile.positionsart !== 'bedarfsposition' && zeile.positionsart !== 'alternativposition';
+  return zaehltPositionsartInSumme(zeile.positionsart);
 }
 
 /**
@@ -512,7 +529,6 @@ export interface LvPositionDetail {
   readonly einheit: string | null;
   readonly menge_vertrag: string | null;
   readonly einheitspreis_cent: string | null;
-  readonly steuer_kennzeichen: string | null;
   readonly gaeb_dp: string | null;
   readonly quelle_seite: number | null;
   readonly quelle_bereich: unknown;
@@ -527,6 +543,25 @@ export interface LvPositionDetail {
 
 /**
  * Eine Position — mit Preis nur ueber `app.lv_preis_lesen` (K-05, §1.9).
+ *
+ * **`steuer_kennzeichen` steht NICHT in dieser Abfrage, und das ist keine
+ * Auslassung.** 0071 entzieht `cse_app` das `select` auf `lv_position` und
+ * erteilt eine erschoepfende Spaltenliste OHNE `einheitspreis_cent` UND ohne
+ * `steuer_kennzeichen` („OMITTED", Zeile 689) — die Kraft auf der Baustelle
+ * braucht die Kalkulation des Auftrags nicht. Ein Spalten-GRANT maskiert
+ * nicht, er verweigert: die Spalte hier zu lesen liess die GANZE Abfrage mit
+ * „permission denied for table lv_position" scheitern, und zwar fuer jeden
+ * Benutzer, auch fuer den mit `bau.preis_lesen`. Genau das ist passiert, und
+ * nur eine Probe gegen echtes Postgres hat es gezeigt.
+ *
+ * Fuer den Preis gibt es den gepruegten Leser; fuer das Steuerkennzeichen
+ * gibt es keinen, und einen zu bauen hiesse zu entscheiden, wer es sehen
+ * darf.
+ * // TODO(client, O-632): Soll das Steuerkennzeichen der LV-Position (§ 13b
+ * UStG — Bauleistungen sind der Regelfall des Wechsels der Steuerschuld) in
+ * der Oberflaeche erscheinen, und hinter welchem Recht — `bau.preis_lesen`
+ * wie der Einheitspreis, oder einem eigenen? Bis zur Antwort zeigt die
+ * Positionsseite die Spalte nicht und sagt das.
  *
  * **Die aufgemessene Menge wird in Postgres summiert**, nicht im
  * Node-Prozess: `aufmass_zeile.menge` ist `numeric(12,3)`, und eine Summe
@@ -549,7 +584,6 @@ export async function findeLvPosition(
             l.positionsart::text as positionsart, l.kurztext, l.langtext, l.einheit,
             l.menge_vertrag::text as menge_vertrag,
             app.lv_preis_lesen(l.id)::text as einheitspreis_cent,
-            l.steuer_kennzeichen::text as steuer_kennzeichen,
             l.gaeb_dp, l.quelle_seite, l.quelle_bereich,
             l.konfidenz::text as konfidenz,
             to_char(l.geprueft_am at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')
@@ -681,21 +715,34 @@ export async function ladeNachtraegeJePosition(
   kontext: LeseKontext, lvPositionId: string,
 ): Promise<readonly NachtragAufPosition[]> {
   return kontext.abfrage<NachtragAufPosition>(
+    /*
+     * **Keine `n.*`, sondern sechs benannte Spalten** — und das ist keine
+     * Stilfrage. 0080 entzieht `cse_app` das `select` auf `nachtrag` und
+     * erteilt eine erschoepfende Spaltenliste OHNE `betrag_netto_cent` und
+     * `beauftragter_betrag_netto_cent` („OMITTED", Zeile 387): der Betrag
+     * eines Nachtrags ist Kalkulation. Ein `select n.*` in den drei
+     * Vereinigungszweigen expandierte auf ALLE Spalten und liess die Abfrage
+     * mit „permission denied for table nachtrag" scheitern — fuer jeden
+     * Benutzer. Eine Probe gegen echtes Postgres hat es gezeigt; im Typsystem
+     * ist `n.*` unsichtbar.
+     */
     `with pos as (
        select l.id, l.projekt_id, l.auftrag_leistung_id, l.leistungsverzeichnis_id
          from lv_position l where l.id = $1
      )
-     select distinct on (n.id, bezug) n.id, n.nummer, n.titel, n.status::text as status,
+     select distinct on (n.id, bezug) n.id, n.nummer, n.titel, n.status,
             n.projekt_id, bezug
        from (
-         select n.*, 'nachtrags_lv'::text as bezug
+         select n.id, n.nummer, n.titel, n.status::text as status, n.projekt_id,
+                n.storniert_am, 'nachtrags_lv'::text as bezug
            from nachtrag n
            join leistungsverzeichnis lv on lv.nachtrag_id = n.id and lv.mandant_id = n.mandant_id
            join pos on pos.leistungsverzeichnis_id = lv.id
 
          union all
 
-         select n.*, 'auftragszeile'::text as bezug
+         select n.id, n.nummer, n.titel, n.status::text as status, n.projekt_id,
+                n.storniert_am, 'auftragszeile'::text as bezug
            from nachtrag n
            join pos on pos.auftrag_leistung_id is not null
                    and n.auftrag_leistung_id = pos.auftrag_leistung_id
@@ -703,7 +750,8 @@ export async function ladeNachtraegeJePosition(
 
          union all
 
-         select n.*, 'aufmasszeile'::text as bezug
+         select n.id, n.nummer, n.titel, n.status::text as status, n.projekt_id,
+                n.storniert_am, 'aufmasszeile'::text as bezug
            from nachtrag n
            join aufmass_zeile z on z.nachtrag_id = n.id and z.mandant_id = n.mandant_id
            join pos on pos.id = z.lv_position_id

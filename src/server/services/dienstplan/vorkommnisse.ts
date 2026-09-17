@@ -73,6 +73,15 @@ export interface Ausnahme {
   readonly ersatzBeginnLokal: string | null;
   /** Weicht die Dauer ab? Sonst erbt das Vorkommnis die des Turnus. */
   readonly dauerMinuten: number | null;
+  /**
+   * Die Nacht laeuft, aber mit weniger Wachen (`posten_ausnahme.ersatz_besetzung`,
+   * 0069 §6.4) — die vierte Ausnahmeart aus 04-PLANUNG-ZEIT.md §8.2.
+   *
+   * `null` oder fehlend heisst: die Sollbesetzung des Traegers gilt
+   * unveraendert — **nicht** „null Wachen". Eine Reinigungsrunde kennt diese
+   * Art nicht; `turnus_ausnahme` traegt die Spalte gar nicht.
+   */
+  readonly ersatzBesetzung?: number | null;
 }
 
 /** Das Fenster in Berliner Kalendertagen, beide Grenzen inklusiv. */
@@ -194,6 +203,46 @@ export function nominalesEnde(
   };
 }
 
+/**
+ * Die Besetzung einer Schicht, wenn eine Ausnahme sie in reduzierter Staerke
+ * ansetzt (§6.4, §8.2 vierte Art).
+ *
+ * `ersatz_besetzung` ersetzt die SOLLBESETZUNG — so steht es in 0069. Was
+ * damit aus der MINDESTBESETZUNG wird, steht dort nicht, und es ist keine
+ * Kleinigkeit: eine Nacht mit einer Wache statt zwei liegt unter dem
+ * Minimum eines Postens, der zwei verlangt, und ob das zulaessig ist,
+ * entscheidet der Vertrag (SEC-01) und nicht diese Funktion.
+ *
+ * Solange die Frage offen ist, wird das Minimum **mitgesenkt** und nie
+ * ueberschritten: `min(min, ersatz)`. Damit entsteht keine Schicht, die per
+ * Konstruktion unterbesetzt ist (`min > soll` waere genau das), und die
+ * reduzierte Nacht erscheint in `offene-schichten` nicht als Notfall, den
+ * niemand beheben kann. Die Gegenrichtung — Minimum stehen lassen und die
+ * Nacht dauerhaft rot melden — waere die andere denkbare Antwort, und sie
+ * gehoert dem Kunden.
+ *
+ * // TODO(client, O-714): Darf eine Ausnahme mit reduzierter Staerke unter die Mindestbesetzung des Postens gehen, oder ist die Mindestbesetzung eine harte Untergrenze, die eine Ausnahme nicht senken kann?
+ */
+export function besetzungMitAusnahme(
+  traeger: Pick<Bedarfstraeger, 'sollBesetzung' | 'minBesetzung'>,
+  ersatzBesetzung: number | null | undefined,
+): { readonly sollBesetzung: number; readonly minBesetzung: number } {
+  if (ersatzBesetzung === null || ersatzBesetzung === undefined) {
+    return { sollBesetzung: traeger.sollBesetzung, minBesetzung: traeger.minBesetzung };
+  }
+  if (!Number.isInteger(ersatzBesetzung) || ersatzBesetzung < 1) {
+    throw new PlanungsFehler(
+      `ersatz_besetzung ${String(ersatzBesetzung)} ist keine Staerke — die Pruefbedingung `
+      + 'der Tabelle laesst nur ganze Zahlen ab 1 zu, die Zeile stammt also nicht aus '
+      + 'dieser Anwendung.',
+    );
+  }
+  return {
+    sollBesetzung: ersatzBesetzung,
+    minBesetzung: Math.min(traeger.minBesetzung, ersatzBesetzung),
+  };
+}
+
 function ausOrtszeit(wert: string, feld: string): { datum: string; stunde: number; minute: number } {
   const treffer = ORTSZEIT.exec(wert);
   if (treffer === null) {
@@ -297,14 +346,22 @@ export function planeVorkommnisse(
     }
 
     const ende = nominalesEnde(stunde, minute, dauer);
+    /*
+     * Die reduzierte Staerke haengt an der VERSCHIEBUNG dieses Tages — die
+     * einzige Ausnahmeart, die ein regulaeres Vorkommnis noch erreicht
+     * (`ausfall` ist oben weg, `zusatz` macht seinen eigenen Termin). Bei
+     * einem Posten laesst `posten_ausnahme_uk (posten_id, datum)` ohnehin nur
+     * eine Zeile je Tag zu.
+     */
+    const staerke = besetzungMitAusnahme(traeger, verschiebung?.ersatzBesetzung);
     einsaetze.push({
       quellSchluessel: schluessel,
       planDatum: datum,
       beginnLokal: `${zweistellig(stunde)}:${zweistellig(minute)}`,
       endeLokal: ende.endeLokal,
       endetAmFolgetag: ende.endetAmFolgetag,
-      sollBesetzung: traeger.sollBesetzung,
-      minBesetzung: traeger.minBesetzung,
+      sollBesetzung: staerke.sollBesetzung,
+      minBesetzung: staerke.minBesetzung,
       herkunft: 'serie',
       feiertagDatum: feiertag !== undefined ? datum : null,
     });
@@ -320,14 +377,15 @@ export function planeVorkommnisse(
         ? ausOrtszeit(a.ersatzBeginnLokal, `ausnahme(${a.id})`)
         : { datum: a.datum, stunde: traeger.dtstartLokal.stunde, minute: traeger.dtstartLokal.minute };
     const ende = nominalesEnde(start.stunde, start.minute, a.dauerMinuten ?? traeger.dauerMinuten);
+    const staerke = besetzungMitAusnahme(traeger, a.ersatzBesetzung);
     einsaetze.push({
       quellSchluessel: ausnahmeSchluessel(a.id),
       planDatum: start.datum,
       beginnLokal: `${zweistellig(start.stunde)}:${zweistellig(start.minute)}`,
       endeLokal: ende.endeLokal,
       endetAmFolgetag: ende.endetAmFolgetag,
-      sollBesetzung: traeger.sollBesetzung,
-      minBesetzung: traeger.minBesetzung,
+      sollBesetzung: staerke.sollBesetzung,
+      minBesetzung: staerke.minBesetzung,
       herkunft: 'ausnahme',
       feiertagDatum: feiertage.get(start.datum) ?? null,
     });

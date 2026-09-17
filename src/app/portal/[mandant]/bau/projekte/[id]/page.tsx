@@ -8,6 +8,7 @@ import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { cent, formatiereGeld, type Cent } from '@/server/services/finanz/geld';
 import { findeProjektDetail, type ProjektDetailZeile } from '@/server/services/bau/lv';
 import { ladeProjektMarge, type ProjektMarge } from '@/server/services/bau/uebersicht';
+import { prozent } from '@/server/services/bericht/ausgabe';
 import { ladeAusserhalbLv, type AusserhalbLvWarnung }
   from '@/server/services/bau/ausserhalb-lv';
 import { AusserhalbLvWarnungen } from '../../AusserhalbLvWarnungen';
@@ -144,11 +145,18 @@ export default async function ProjektDetail(
     : geld(daten.marge.lohn_cent) + geld(daten.marge.fremd_cent);
   const deckungCent: bigint | null = summeCent === null || kostenCent === null
     ? null : summeCent - kostenCent;
-  const margeProzent = summeCent === null || summeCent === 0n || deckungCent === null
+  /**
+   * **Basispunkte, keine Gleitkommaprozente.** Erst in Basispunkte
+   * multiplizieren, dann teilen: eine Gleitkommadivision auf Cent-Beträgen
+   * liefert bei grossen Summen eine andere Stelle. Angezeigt wird mit
+   * `prozent()` aus dem Berichtsmodul — dieselbe Darstellung wie in
+   * `/berichte/projekte`, und sie kommt ohne `toLocaleString` aus, das die
+   * Wache `anzeige-berlin` auf einer Zahl im Zweifel als Datum ohne Zone
+   * meldet (zu Recht: derselbe Aufruf steht auf einem `Date` genauso).
+   */
+  const margeBp = summeCent === null || summeCent === 0n || deckungCent === null
     ? null
-    // Erst in Cent multiplizieren, dann teilen: eine Gleitkommadivision auf
-    // Cent-Beträgen liefert bei grossen Summen eine andere Stelle.
-    : Number((deckungCent * 1000n) / summeCent) / 10;
+    : Number((deckungCent * 10000n) / summeCent);
 
   const karten: readonly {
     readonly schluessel: string;
@@ -338,14 +346,14 @@ export default async function ProjektDetail(
                 {p.sicherheitseinbehalt_bp === null
                   ? <span className="text-text-subtle">nicht vereinbart</span>
                   /*
-                   * Basispunkte, nie Gleitkomma: 250 bp sind 2,50 %. Die
-                   * Anzeige teilt durch 100 und rechnet damit nichts —
-                   * gespeichert bleibt die ganze Zahl (Invariante 1,
-                   * 03-GEWERKE §7.1).
+                   * Basispunkte, nie Gleitkomma: 250 bp sind 2,50 %. `prozent`
+                   * rechnet in ganzen Zahlen (Ganzteil und Rest getrennt) und
+                   * traegt das Vorzeichen vor dem Ganzteil — gespeichert
+                   * bleibt die ganze Zahl (Invariante 1, 03-GEWERKE §7.1).
+                   * Die bp stehen daneben, weil der Vertrag sie so nennt.
                    */
-                  : `${(p.sicherheitseinbehalt_bp / 100).toLocaleString('de-DE', {
-                    minimumFractionDigits: 2, maximumFractionDigits: 2,
-                  })} % (${String(p.sicherheitseinbehalt_bp)} bp)`}
+                  : `${prozent(p.sicherheitseinbehalt_bp)} (${
+                    String(p.sicherheitseinbehalt_bp)} bp)`}
               </dd>
             </div>
             <div>
@@ -356,9 +364,7 @@ export default async function ProjektDetail(
                 {deckungCent === null
                   ? <span className="text-text-subtle">Recht kalkulation.lesen</span>
                   : `${formatiereGeld(cent(deckungCent))}${
-                    margeProzent === null ? '' : ` · ${margeProzent.toLocaleString('de-DE', {
-                      minimumFractionDigits: 1, maximumFractionDigits: 1,
-                    })} %`}`}
+                    margeBp === null ? '' : ` · ${prozent(margeBp)}`}`}
               </dd>
             </div>
           </dl>

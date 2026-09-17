@@ -1,5 +1,5 @@
 import 'server-only';
-import type { SchreibKontext } from '../../kontext/index.js';
+import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { WOCHENTAGE, leseRegel, type Wochentag } from '../../../lib/datum/rrule.js';
 import { generiereEinsaetze, type SerienBericht } from './generator.js';
 
@@ -190,5 +190,486 @@ export async function legePlanungsserieAn(
     planungsserieId, traegerId: e.traegerId, bestandSchon: vorhanden !== undefined,
     erzeugt: bericht?.erzeugt ?? 0, aktualisiert: bericht?.aktualisiert ?? 0,
     uebersprungen: bericht?.uebersprungen ?? [], generiertBis: bericht?.generiertBis ?? null,
+  };
+}
+
+/* ===========================================================================
+ * Das Blatt EINER Serie — lesend (TIM-02, TIM-03, D-487)
+ * ======================================================================== */
+
+/**
+ * **`planungsserie` traegt keines der Felder, die ein Serienblatt zeigt.**
+ *
+ * Kein `bezeichnung`, kein `objekt_id`, keine `rrule`, kein `dtstart`, keine
+ * `dauer_minuten`, keine Feiertagsregel, kein `gueltig_ab`/`gueltig_bis` —
+ * nur `turnus_id`/`posten_id`/`veranstaltung_id`, `quelle`, `zeitzone`,
+ * `feiertage_ueberspringen`, `feiertag_bundesland`, `horizont_tage`,
+ * `generiert_bis`, `letzte_generierung_am`, `letzte_meldung`.
+ *
+ * `leseSerie` ist deshalb **kein Einzelsatz-Read, sondern der Traeger-Join**
+ * ueber `turnus` + `posten` + `veranstaltung` + `revier` + `objekt` — derselbe
+ * `coalesce`-Join, der in der Listenseite schon steht. Wer das als
+ * `select * from planungsserie where id = $1` baut, bekommt eine Seite mit
+ * lauter leeren Feldern und keine Fehlermeldung.
+ *
+ * Die Feiertagsregel einer POSTENSERIE wird aus `ps.feiertage_ueberspringen`
+ * abgeleitet: `posten` traegt keine `feiertagsregel`-Spalte, und die
+ * Entscheidung wurde bei der Anlage der Serie festgeschrieben (§8.5).
+ */
+export interface SerienBlatt {
+  readonly id: string;
+  readonly quelle: 'turnus' | 'posten' | 'veranstaltung';
+  readonly turnusId: string | null;
+  readonly postenId: string | null;
+  readonly veranstaltungId: string | null;
+  readonly bezeichnung: string;
+  readonly objektId: string | null;
+  readonly objekt: string | null;
+  readonly revier: string | null;
+  readonly posten: string | null;
+  /** `null` bei einer Veranstaltung — ein einzelnes Fenster ist keine Regel (SEC-08). */
+  readonly rrule: string | null;
+  /** Wanduhr `HH:MM`, Europe/Berlin. */
+  readonly beginnLokal: string | null;
+  readonly dauerMinuten: number;
+  readonly sollBesetzung: number;
+  readonly minBesetzung: number;
+  readonly feiertagsregel: 'ausfall' | 'unveraendert';
+  readonly feiertagBundesland: string;
+  readonly zeitzone: string;
+  readonly gueltigAb: string | null;
+  readonly gueltigBis: string | null;
+  readonly horizontTage: number;
+  readonly generiertBis: string | null;
+  readonly letzteGenerierungLokal: string | null;
+  readonly letzteMeldung: Record<string, unknown>;
+  readonly archiviert: boolean;
+  readonly einsaetze: number;
+}
+
+interface RohBlatt {
+  id: string;
+  quelle: SerienBlatt['quelle'];
+  turnus_id: string | null;
+  posten_id: string | null;
+  veranstaltung_id: string | null;
+  bezeichnung: string | null;
+  objekt_id: string | null;
+  objekt: string | null;
+  revier: string | null;
+  posten: string | null;
+  rrule: string | null;
+  beginn_lokal: string | null;
+  dauer_minuten: number | null;
+  soll_besetzung: number | null;
+  min_besetzung: number | null;
+  feiertagsregel: string | null;
+  feiertag_bundesland: string;
+  zeitzone: string;
+  gueltig_ab: string | null;
+  gueltig_bis: string | null;
+  horizont_tage: number;
+  generiert_bis: string | null;
+  letzte_generierung_lokal: string | null;
+  letzte_meldung: Record<string, unknown> | null;
+  archiviert: boolean;
+  einsaetze: number;
+}
+
+/**
+ * Eine Serie — oder `null`, und das heisst nach aussen 404 und nie 403
+ * (AUT-06). Eine fremde Zeile ist nicht vorhanden, nicht verboten.
+ */
+export async function leseSerie(
+  kontext: LeseKontext, id: string,
+): Promise<SerienBlatt | null> {
+  const [z] = await kontext.abfrage<RohBlatt>(
+    `select ps.id, ps.quelle::text as quelle,
+            ps.turnus_id, ps.posten_id, ps.veranstaltung_id,
+            coalesce(t.bezeichnung, p.bezeichnung, va.bezeichnung) as bezeichnung,
+            coalesce(r.objekt_id, p.objekt_id, va.objekt_id)       as objekt_id,
+            o.bezeichnung as objekt, r.bezeichnung as revier, p.bezeichnung as posten,
+            coalesce(t.rrule, p.abdeckung_rrule)                   as rrule,
+            to_char(coalesce(t.dtstart_lokal, p.dtstart_lokal,
+                             (va.beginn at time zone 'Europe/Berlin')), 'HH24:MI')
+                                                                   as beginn_lokal,
+            coalesce(t.dauer_minuten, p.dauer_minuten,
+                     (extract(epoch from (va.ende - va.beginn)) / 60)::int, 0)::int
+                                                                   as dauer_minuten,
+            coalesce(p.soll_besetzung, va.soll_besetzung, 1)::int   as soll_besetzung,
+            coalesce(p.min_besetzung, 1)::int                      as min_besetzung,
+            coalesce(t.feiertagsregel::text,
+                     case when ps.feiertage_ueberspringen then 'ausfall'
+                          else 'unveraendert' end)                 as feiertagsregel,
+            ps.feiertag_bundesland, ps.zeitzone,
+            to_char(coalesce(t.gueltig_ab, p.gueltig_ab,
+                             (va.beginn at time zone 'Europe/Berlin')::date),
+                    'YYYY-MM-DD')                                  as gueltig_ab,
+            to_char(coalesce(t.gueltig_bis, p.gueltig_bis,
+                             (va.ende at time zone 'Europe/Berlin')::date),
+                    'YYYY-MM-DD')                                  as gueltig_bis,
+            ps.horizont_tage,
+            to_char(ps.generiert_bis, 'YYYY-MM-DD')                as generiert_bis,
+            to_char((ps.letzte_generierung_am at time zone 'Europe/Berlin'),
+                    'DD.MM.YYYY HH24:MI')                          as letzte_generierung_lokal,
+            ps.letzte_meldung,
+            (ps.archiviert_am is not null)                         as archiviert,
+            coalesce(e.anzahl, 0)::int                             as einsaetze
+       from planungsserie ps
+       left join turnus t  on t.mandant_id = ps.mandant_id and t.id = ps.turnus_id
+       left join posten p  on p.mandant_id = ps.mandant_id and p.id = ps.posten_id
+       left join veranstaltung va on va.mandant_id = ps.mandant_id
+                                 and va.id = ps.veranstaltung_id
+       left join revier r  on r.mandant_id = ps.mandant_id and r.id = t.revier_id
+       left join objekt o  on o.mandant_id = ps.mandant_id
+                          and o.id = coalesce(r.objekt_id, p.objekt_id, va.objekt_id)
+       left join lateral (
+              select count(*) as anzahl from einsatz e
+               where e.planungsserie_id = ps.id and e.storniert_am is null
+            ) e on true
+      where ps.id = $1`,
+    [id],
+  );
+  if (z === undefined) return null;
+  return {
+    id: z.id,
+    quelle: z.quelle,
+    turnusId: z.turnus_id,
+    postenId: z.posten_id,
+    veranstaltungId: z.veranstaltung_id,
+    /* Kein Traeger lesbar heisst: die Serie steht da, ihr Traeger nicht — das
+       ist keine leere Bezeichnung, sondern eine Auskunft. */
+    bezeichnung: z.bezeichnung ?? 'Träger nicht einsehbar',
+    objektId: z.objekt_id,
+    objekt: z.objekt,
+    revier: z.revier,
+    posten: z.posten,
+    rrule: z.rrule,
+    beginnLokal: z.beginn_lokal,
+    dauerMinuten: Number(z.dauer_minuten ?? 0),
+    sollBesetzung: Number(z.soll_besetzung ?? 1),
+    minBesetzung: Number(z.min_besetzung ?? 1),
+    feiertagsregel: z.feiertagsregel === 'ausfall' ? 'ausfall' : 'unveraendert',
+    feiertagBundesland: z.feiertag_bundesland,
+    zeitzone: z.zeitzone,
+    gueltigAb: z.gueltig_ab,
+    gueltigBis: z.gueltig_bis,
+    horizontTage: Number(z.horizont_tage),
+    generiertBis: z.generiert_bis,
+    letzteGenerierungLokal: z.letzte_generierung_lokal,
+    letzteMeldung: z.letzte_meldung ?? {},
+    archiviert: z.archiviert,
+    einsaetze: Number(z.einsaetze),
+  };
+}
+
+export interface SerienEinsatzZeile {
+  readonly id: string;
+  readonly tagLokal: string;
+  readonly beginnLokal: string;
+  readonly endeLokal: string;
+  readonly endetAmFolgetag: boolean;
+  readonly zeitanomalie: 'keine' | 'dst_luecke' | 'dst_doppelt';
+  readonly status: string;
+  readonly storniert: boolean;
+  readonly stornoGrund: string | null;
+  readonly sollBesetzung: number;
+  readonly eingeteilt: number;
+  readonly ausAusnahme: boolean;
+}
+
+/**
+ * Die materialisierten Schichten dieser Serie — ab heute.
+ *
+ * `storniert` kommt MIT: eine Schicht, die der Generator wegen einer
+ * Serienaenderung storniert hat, faellt sonst einfach weg, und im Plan fehlt
+ * dann etwas ohne Grund (Invariante 8, §8.4).
+ *
+ * `ausAusnahme` liest den Idempotenzschluessel: ein Zusatztermin traegt
+ * `ausnahme:<id>`, ein Serientermin `serie:<serie>:<tag>:<zeit>` (§8.3). Damit
+ * steht auf dem Blatt, welche Schicht aus der Regel kommt und welche jemand
+ * eigens eingetragen hat.
+ */
+export async function leseSerienEinsaetze(
+  kontext: LeseKontext, serieId: string,
+): Promise<readonly SerienEinsatzZeile[]> {
+  const zeilen = await kontext.abfrage<{
+    id: string; tag_lokal: string; beginn_lokal: string; ende_lokal: string;
+    endet_am_folgetag: boolean; zeitanomalie: SerienEinsatzZeile['zeitanomalie'];
+    status: string; storniert: boolean; storno_grund: string | null;
+    soll_besetzung: number; eingeteilt: number; aus_ausnahme: boolean;
+  }>(
+    `select e.id,
+            to_char((e.beginn_zeitpunkt at time zone 'Europe/Berlin'), 'DD.MM.YYYY')
+              as tag_lokal,
+            to_char((e.beginn_zeitpunkt at time zone 'Europe/Berlin'), 'HH24:MI')
+              as beginn_lokal,
+            to_char((e.ende_zeitpunkt   at time zone 'Europe/Berlin'), 'HH24:MI')
+              as ende_lokal,
+            e.endet_am_folgetag, e.zeitanomalie::text as zeitanomalie,
+            e.status::text as status,
+            (e.storniert_am is not null) as storniert, e.storno_grund,
+            e.soll_besetzung::int as soll_besetzung,
+            e.besetzt_anzahl::int as eingeteilt,
+            (e.quell_schluessel like 'ausnahme:%') as aus_ausnahme
+       from einsatz e
+      where e.planungsserie_id = $1
+        and (e.beginn_zeitpunkt at time zone 'Europe/Berlin')::date
+            >= app.berlin_heute()
+      order by e.beginn_zeitpunkt`,
+    [serieId],
+  );
+  return zeilen.map((z) => ({
+    id: z.id,
+    tagLokal: z.tag_lokal,
+    beginnLokal: z.beginn_lokal,
+    endeLokal: z.ende_lokal,
+    endetAmFolgetag: z.endet_am_folgetag,
+    zeitanomalie: z.zeitanomalie,
+    status: z.status,
+    storniert: z.storniert,
+    stornoGrund: z.storno_grund,
+    sollBesetzung: Number(z.soll_besetzung),
+    eingeteilt: Number(z.eingeteilt),
+    ausAusnahme: z.aus_ausnahme,
+  }));
+}
+
+/* ===========================================================================
+ * Einzeltermin-Ausnahmen (TIM-02, §5.4, §8.2)
+ * ======================================================================== */
+
+/**
+ * **Drei Arten, nicht zwei.** `turnus_ausnahme_art` ist
+ * ('ausfall','zusatz','verschiebung'), und `zusatz` IST im Generator
+ * implementiert (eigener Zweig in `vorkommnisse.ts`). Eine Liste mit nur zwei
+ * Arten liesse eine bestehende `zusatz`-Zeile unbeschriftet und den einzigen
+ * Weg, eine Zusatzschicht in eine Serie zu haengen, unerreichbar.
+ */
+export type AusnahmeArt = 'ausfall' | 'zusatz' | 'verschiebung';
+
+export const AUSNAHME_ARTEN: readonly AusnahmeArt[] = ['ausfall', 'verschiebung', 'zusatz'];
+
+export interface AusnahmeZeile {
+  readonly id: string;
+  readonly datum: string;
+  readonly art: AusnahmeArt;
+  /** `JJJJ-MM-TT HH:MM` Wanduhr — ohne Zone, so wie die Spalte sie traegt. */
+  readonly ersatzBeginnLokal: string | null;
+  readonly dauerMinuten: number | null;
+  /** Nur bei einer Postenausnahme belegt (§6.4). */
+  readonly ersatzBesetzung: number | null;
+  readonly grund: string;
+  readonly angelegtLokal: string;
+  readonly angelegtVon: string | null;
+}
+
+/**
+ * Die Ausnahmen des Traegers — aus der Tabelle, die zu ihm gehoert.
+ *
+ * `turnus_ausnahme` verlangt zum LESEN `reinigung.lesen`,
+ * `posten_ausnahme` verlangt `security.lesen` (0029 / 0069) — nicht
+ * `dienstplan.lesen`, auf das die Serienroute getort ist. Eine Sitzung ohne
+ * das Gewerkerecht bekommt hier null Zeilen, und die Seite muss das als
+ * „nicht einsehbar" ausweisen statt als „keine Ausnahme". Welches Recht
+ * gilt, sagt `ausnahmeLeserecht`.
+ */
+export function ausnahmeLeserecht(blatt: Pick<SerienBlatt, 'turnusId' | 'postenId'>): string | null {
+  if (blatt.turnusId !== null) return 'reinigung.lesen';
+  if (blatt.postenId !== null) return 'security.lesen';
+  return null;
+}
+
+export function ausnahmeSchreibrecht(
+  blatt: Pick<SerienBlatt, 'turnusId' | 'postenId'>,
+): string | null {
+  if (blatt.turnusId !== null) return 'reinigung.schreiben';
+  if (blatt.postenId !== null) return 'security.schreiben';
+  return null;
+}
+
+export async function leseAusnahmen(
+  kontext: LeseKontext, blatt: Pick<SerienBlatt, 'turnusId' | 'postenId'>,
+): Promise<readonly AusnahmeZeile[]> {
+  const [tabelle, spalte, traegerId, staerke] = blatt.turnusId !== null
+    ? ['turnus_ausnahme', 'turnus_id', blatt.turnusId, 'null::smallint']
+    : blatt.postenId !== null
+      ? ['posten_ausnahme', 'posten_id', blatt.postenId, 'a.ersatz_besetzung']
+      : [null, null, null, null];
+  if (tabelle === null || traegerId === null) return [];
+
+  const zeilen = await kontext.abfrage<{
+    id: string; datum: string; art: AusnahmeArt;
+    ersatz_beginn_lokal: string | null; dauer_minuten: number | null;
+    ersatz_besetzung: number | null; grund: string;
+    angelegt_lokal: string; angelegt_von: string | null;
+  }>(
+    `select a.id, to_char(a.datum, 'YYYY-MM-DD') as datum, a.art::text as art,
+            to_char(a.ersatz_beginn_lokal, 'YYYY-MM-DD HH24:MI') as ersatz_beginn_lokal,
+            a.dauer_minuten, ${staerke as string} as ersatz_besetzung, a.grund,
+            to_char((a.erstellt_am at time zone 'Europe/Berlin'), 'DD.MM.YYYY HH24:MI')
+              as angelegt_lokal,
+            b.name as angelegt_von
+       from ${tabelle} a
+       left join benutzer b on b.id = a.erstellt_von
+      where a.${spalte as string} = $1
+      order by a.datum desc, a.erstellt_am desc`,
+    [traegerId],
+  );
+  return zeilen.map((z) => ({
+    id: z.id,
+    datum: z.datum,
+    art: z.art,
+    ersatzBeginnLokal: z.ersatz_beginn_lokal,
+    dauerMinuten: z.dauer_minuten === null ? null : Number(z.dauer_minuten),
+    ersatzBesetzung: z.ersatz_besetzung === null || z.ersatz_besetzung === undefined
+      ? null : Number(z.ersatz_besetzung),
+    grund: z.grund,
+    angelegtLokal: z.angelegt_lokal,
+    angelegtVon: z.angelegt_von,
+  }));
+}
+
+export interface AusnahmeEingabe {
+  readonly planungsserieId: string;
+  readonly datum: string;
+  readonly art: AusnahmeArt;
+  /** Wanduhr `HH:MM` am Ersatztag — Pflicht bei `verschiebung`. */
+  readonly ersatzDatum?: string | null;
+  readonly ersatzZeit?: string | null;
+  readonly dauerMinuten?: number | null;
+  readonly ersatzBesetzung?: number | null;
+  readonly grund: string;
+}
+
+export class AusnahmeNichtTragfaehig extends Error {
+  readonly code = 'nicht_tragfaehig';
+  readonly status = 409;
+  constructor(nachricht: string) {
+    super(nachricht);
+    this.name = 'AusnahmeNichtTragfaehig';
+  }
+}
+
+const MINDESTGRUND = 10;
+
+/**
+ * Eine Einzeltermin-Ausnahme anlegen — und sofort neu materialisieren.
+ *
+ * **Warum der Generator gleich mitlaeuft.** Eine Ausnahme, die erst der
+ * Nachtlauf anwendet, ist bis zum naechsten Morgen eine Zeile ohne Wirkung:
+ * die Schicht steht noch im Plan, und wer sie ausgetragen hat, glaubt das
+ * Gegenteil. Derselbe Grund wie bei `legePlanungsserieAn`.
+ *
+ * **Eine Veranstaltung hat keine Ausnahmetabelle.** Ein einzelnes Fenster
+ * (SEC-08) wird geaendert oder abgesagt, nicht „ausgenommen" — der Versuch
+ * wird abgewiesen, statt eine Zeile zu schreiben, die nirgends hingehoert.
+ */
+export async function legeAusnahmeAn(
+  kontext: SchreibKontext, e: AusnahmeEingabe,
+): Promise<{ readonly id: string; readonly bericht: SerienBericht | null }> {
+  if (!DATUM.test(e.datum)) throw new SerieEingabeFehlt('Das Datum ist ein Kalendertag JJJJ-MM-TT.');
+  if (!AUSNAHME_ARTEN.includes(e.art)) {
+    throw new SerieEingabeFehlt('Die Art ist „ausfall", „verschiebung" oder „zusatz".');
+  }
+  const grund = e.grund.trim();
+  if (grund.length < MINDESTGRUND) {
+    throw new SerieEingabeFehlt(
+      `Der Grund ist Pflicht und mindestens ${String(MINDESTGRUND)} Zeichen lang — eine `
+      + 'Ausnahme ohne genannten Grund ist keine Dokumentation, sondern ein Klick.');
+  }
+
+  const [serie] = await kontext.abfrage<{
+    turnus_id: string | null; posten_id: string | null; veranstaltung_id: string | null;
+  }>(
+    `select turnus_id, posten_id, veranstaltung_id from planungsserie
+      where id = $1 and archiviert_am is null`,
+    [e.planungsserieId]);
+  // AUT-06: eine fremde oder archivierte Serie ist nicht vorhanden.
+  if (serie === undefined) throw new SerieEingabeFehlt('Diese Serie ist nicht vorhanden.');
+  if (serie.turnus_id === null && serie.posten_id === null) {
+    throw new AusnahmeNichtTragfaehig(
+      'Eine Veranstaltung kennt keine Einzeltermin-Ausnahme (SEC-08): ein einzelnes '
+      + 'Fenster wird geändert oder abgesagt. Es gibt dafür keine Tabelle, und eine '
+      + 'Zeile ohne Tabelle wäre eine Eingabe, die verschwindet.');
+  }
+
+  let ersatzBeginn: string | null = null;
+  if (e.art === 'verschiebung' || (e.art === 'zusatz' && (e.ersatzZeit ?? '') !== '')) {
+    const zeit = e.ersatzZeit ?? '';
+    const tag = (e.ersatzDatum ?? '') === '' ? e.datum : (e.ersatzDatum as string);
+    if (!UHRZEIT.test(zeit)) {
+      throw new SerieEingabeFehlt(
+        'Eine Verschiebung braucht eine Ersatz-Uhrzeit HH:MM — die Prüfbedingung der '
+        + 'Tabelle lässt sie nicht weg.');
+    }
+    if (!DATUM.test(tag)) throw new SerieEingabeFehlt('Der Ersatztag ist ein Kalendertag.');
+    ersatzBeginn = `${tag} ${zeit}`;
+  }
+
+  const dauer = e.dauerMinuten ?? null;
+  if (dauer !== null && (!Number.isInteger(dauer) || dauer < 15 || dauer > 1440)) {
+    throw new SerieEingabeFehlt('Die Dauer liegt zwischen 15 Minuten und 24 Stunden.');
+  }
+  const staerke = e.ersatzBesetzung ?? null;
+  if (staerke !== null && (!Number.isInteger(staerke) || staerke < 1)) {
+    throw new SerieEingabeFehlt('Die Ersatzbesetzung ist eine ganze Zahl ab 1.');
+  }
+
+  /*
+   * Zwei Tabellen, zwei Spaltenlisten — `posten_ausnahme` traegt
+   * `ersatz_besetzung`, `turnus_ausnahme` nicht (0069 §6.4). Die eine Spalte
+   * in beide Anweisungen zu schreiben waere ein Laufzeitfehler auf der
+   * Reinigungsseite, und zwar erst beim ersten Klick.
+   */
+  const [zeile] = serie.turnus_id !== null
+    ? await kontext.schreibe<{ id: string }>(
+      `insert into turnus_ausnahme
+         (mandant_id, turnus_id, datum, art, ersatz_beginn_lokal, dauer_minuten,
+          grund, erstellt_von_art, erstellt_von)
+       values ($1::uuid, $2::uuid, $3::date, $4::turnus_ausnahme_art,
+               $5::timestamp, $6::integer, $7, 'mensch', $8::uuid)
+       returning id`,
+      [kontext.aktiverMandantId, serie.turnus_id, e.datum, e.art, ersatzBeginn, dauer,
+        grund, kontext.benutzerId])
+    : await kontext.schreibe<{ id: string }>(
+      `insert into posten_ausnahme
+         (mandant_id, posten_id, datum, art, ersatz_beginn_lokal, dauer_minuten,
+          ersatz_besetzung, grund, erstellt_von_art, erstellt_von)
+       values ($1::uuid, $2::uuid, $3::date, $4::turnus_ausnahme_art,
+               $5::timestamp, $6::integer, $7::smallint, $8, 'mensch', $9::uuid)
+       returning id`,
+      [kontext.aktiverMandantId, serie.posten_id, e.datum, e.art, ersatzBeginn, dauer,
+        staerke, grund, kontext.benutzerId]);
+
+  if (zeile === undefined) {
+    /*
+     * Null Zeilen heisst hier NICHT „gibt es nicht", sondern: die
+     * Schreibpolicy hat nicht getroffen. `turnus_ausnahme` verlangt
+     * `reinigung.schreiben`, `posten_ausnahme` verlangt `security.schreiben`
+     * — nicht `dienstplan.schreiben`, auf das die Route getort ist. Der Satz
+     * nennt das Recht, weil die Route es sonst als 404 ausgibt und niemand
+     * erfaehrt, was fehlt.
+     */
+    throw new SerieEingabeFehlt(
+      'Die Ausnahme wurde nicht geschrieben — dafür fehlt das Gewerkerecht '
+      + `(${serie.turnus_id !== null ? 'reinigung.schreiben' : 'security.schreiben'}) `
+      + 'oder die Serie gehört nicht zu dieser Gesellschaft.');
+  }
+
+  const [heute] = await kontext.abfrage<{ tag: string }>(`select app.berlin_heute()::text as tag`);
+  const berichte: readonly SerienBericht[] = await generiereEinsaetze(
+    { unsafe: (sql, werte) => kontext.schreibe<unknown>(sql, werte) },
+    kontext.aktiverMandantId, { heute: heute?.tag ?? e.datum, laufId: null }, { eigen: true });
+
+  await kontext.schreibe(
+    `select app.protokolliere('dienstplan.ausnahme_angelegt', $1, $2, null, $3::jsonb,
+                              app.aktiver_mandant())`,
+    [serie.turnus_id !== null ? 'turnus_ausnahme' : 'posten_ausnahme', zeile.id,
+      { planungsserieId: e.planungsserieId, datum: e.datum, art: e.art, grund }]);
+
+  return {
+    id: zeile.id,
+    bericht: berichte.find((b) => b.planungsserieId === e.planungsserieId) ?? null,
   };
 }

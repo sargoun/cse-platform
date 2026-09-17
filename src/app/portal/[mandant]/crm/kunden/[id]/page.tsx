@@ -13,6 +13,8 @@ import { slugTor } from '../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
+import { haeltRechte } from '@/app/portal/rechte';
+import { Unternavigation } from './Unternavigation';
 
 /**
  * `/portal/[mandant]/crm/kunden/[id]` — ein Kunde, seine Kontakte, seine
@@ -88,6 +90,14 @@ export default async function KundeDetail(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+
+  /*
+   * Die Rechte der drei Unterseiten — VOR dem Rendern, damit die
+   * Unternavigation keinen Reiter zeigt, hinter dem ein 404 steht (AUT-06).
+   * Dieselbe eine Abfrage fuer alle drei Schluessel (`app/portal/rechte.ts`).
+   */
+  const unterrechte = await haeltRechte(sitzung,
+    'crm_entgelt.lesen', 'abrechnung.lesen', 'system.benutzer_verwalten');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -176,6 +186,13 @@ export default async function KundeDetail(
         </Link>
       </nav>
 
+      <Unternavigation
+        mandant={mandant}
+        kundeId={id}
+        aktiv="uebersicht"
+        rechte={unterrechte}
+      />
+
       <div className="mb-s5 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">{kopf.name}</h1>
         {kopf.ist_oeffentlicher_auftraggeber ? (
@@ -239,7 +256,20 @@ export default async function KundeDetail(
             zeilen={kontakte}
             schluessel={(z) => z.id}
             spalten={[
-              { schluessel: 'name', kopf: 'Name', zelle: (z) => z.name },
+              {
+                schluessel: 'name',
+                kopf: 'Name',
+                /* Der Verweis auf das Kontaktblatt: dort steht der
+                   Rechtsgrundlagen-Nachweis, der hier absichtlich fehlt. */
+                zelle: (z) => (
+                  <Link
+                    href={`/portal/${mandant}/crm/kontakte/${z.id}`}
+                    className="text-text underline-offset-2 hover:text-brand hover:underline"
+                  >
+                    {z.name}
+                  </Link>
+                ),
+              },
               { schluessel: 'position', kopf: 'Position', zelle: (z) => z.position ?? '—' },
               { schluessel: 'email', kopf: 'E-Mail', zelle: (z) => z.email ?? '—' },
               { schluessel: 'telefon', kopf: 'Telefon', zelle: (z) => z.telefon ?? '—' },

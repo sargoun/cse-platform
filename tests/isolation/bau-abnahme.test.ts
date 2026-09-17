@@ -21,10 +21,13 @@
  *     lesbar.
  */
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import type postgres from 'postgres';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import {
   baueAbnahmeSchnappschuss, abnahmeSchnappschussHash,
+  ladeMaengel, listeAbnahmen, protokolliereAbnahme,
 } from '../../src/server/services/bau/abnahme.js';
+import type { LeseKontext, SchreibKontext } from '../../src/server/kontext/index.js';
 
 let f: Fixtur;
 const zufall = (): string => String(Math.random()).slice(2, 10);
@@ -60,7 +63,21 @@ async function baueProjekt(
 ): Promise<Aufbau> {
   const benutzer = await konto(`abnahme-${zufall()}@cse.test`);
   await sql.unsafe(
-    `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id) values ($1,$2,$3)`,
+    /*
+     * **`gueltig_ab` ausdruecklich auf GESTERN — und das ist ein Befund, keine
+     * Vorsichtsmassnahme.** Der Spaltenvorgabewert ist `app.berlin_heute()`
+     * (0169), `app.ist_mitglied` hat aber `p_stichtag date default
+     * CURRENT_DATE`, und die Zwei-Argument-Aufrufer (0025
+     * `kern.auftrag_verantwortlich_im_mandant`, 0146) nehmen genau diesen
+     * Vorgabewert. Zwischen 22:00 UTC und Mitternacht ist `berlin_heute()`
+     * schon morgen und `CURRENT_DATE` noch heute: eine soeben angelegte
+     * Mitgliedschaft gilt dann NICHT, und das Anlegen des Auftrags scheitert
+     * mit „Der Verantwortliche gehoert nicht zu dieser Gesellschaft". Diese
+     * Fixtur setzt den Tag deshalb selbst; die Ursache gehoert nach 0169 und
+     * steht im Ergebnisbericht.
+     */
+    `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, gueltig_ab)
+     values ($1,$2,$3, current_date - 1)`,
     [benutzer, mandant, await rolleId(rolle)]);
 
   const [k] = await sql.unsafe<{ id: string }[]>(
@@ -539,4 +556,138 @@ describe('§10.4 — der Schnappschuss ist nachrechenbar', () => {
       baueAbnahmeSchnappschuss({ ...kopf, vorbehaltVertragsstrafe: false }, []));
     expect(mit).not.toBe(ohne);
   });
+});
+
+/* ===========================================================================
+ * Der DIENST, nicht die Tabelle
+ * ======================================================================== */
+/**
+ * **Alles darueber schreibt von Hand — hier schreibt `protokolliereAbnahme`.**
+ *
+ * Die Abschnitte oben pruefen die Ausloeser, und dafuer ist die Handschrift
+ * richtig: ein Ausloeser interessiert sich nicht fuer den Aufrufer. Aber die
+ * Reihenfolge, auf der das ganze Siegel ruht — Schnappschuss aus der EINGABE
+ * bauen, Kopf einfuegen, Maengel in DERSELBEN Transaktion nachziehen —, ist
+ * eine Eigenschaft des Dienstes. Sie laesst sich nur pruefen, indem er
+ * wirklich laeuft, gegen die echten Policies und mit dem Recht an der Sitzung.
+ *
+ * Die Eingabe ist WORTGLEICH die des Saatlaufs (`src/server/db/seed/bau.ts`,
+ * Schritt 6). Damit ist dieser Test zugleich die Probe auf die Demodaten: ein
+ * Saatlauf, der an einer Bedingung von 0211 scheitert, scheitert hier zuerst.
+ */
+describe('der Dienst laeuft durch die Policies — dieselbe Eingabe wie der Saatlauf', () => {
+  /**
+   * `readonly: false` ist Pflicht: die Harness setzt `app.readonly` auf `on`,
+   * sobald das Feld fehlt (fail-closed), und jede `with check`-Bedingung
+   * verlangt `not app.ist_readonly()`. Ohne diese Zeile scheitert der Schreib-
+   * vorgang mit „new row violates row-level security policy" — was wie ein
+   * Policyfehler aussieht und keiner ist.
+   */
+  const SCHREIBEND = (bau: Aufbau) => ({
+    scope: 'mandant' as const, mandantId: bau.mandant, benutzerId: bau.benutzer,
+    portal: 'intern' as const, readonly: false,
+  });
+
+  /** Ein Kontext auf DERSELBEN Transaktion wie `alsApp` (wie in bau-lv-import). */
+  function kontextAus(tx: postgres.TransactionSql, bau: Aufbau): SchreibKontext {
+    const fuehre = async <T>(s: string, w?: readonly unknown[]): Promise<readonly T[]> =>
+      tx.unsafe(s, (w ?? []) as never[]) as unknown as readonly T[];
+    return {
+      scope: 'mandant', portal: 'intern', benutzerId: bau.benutzer,
+      aktiverMandantId: bau.mandant, mandantIds: [bau.mandant],
+      abfrage: fuehre, schreibe: fuehre,
+    } satisfies LeseKontext & SchreibKontext;
+  }
+
+  /** Zwei Positionen, auf die die Maengel zeigen — die OZ steht IM Siegel. */
+  async function positionen(bau: Aufbau): Promise<Map<string, string>> {
+    const je = new Map<string, string>();
+    for (const [oz, kurztext, einheit, menge] of [
+      ['1.2.6', 'Revisionsklappe 400 × 400 mm, F30', 'St', '6.000'],
+      ['1.2.7', 'Anschlussfugen dauerelastisch schließen', 'm', '164.000'],
+    ] as const) {
+      const [z] = await sql.unsafe<{ id: string }[]>(
+        `insert into lv_position (mandant_id, leistungsverzeichnis_id, projekt_id, oz, pfad,
+                                  sortier_pfad, ebene, art, positionsart, kurztext, einheit,
+                                  menge_vertrag)
+         values ($1,$2,$3,$4,'','',1,'position','normalposition',$5,$6,$7::numeric)
+         returning id`,
+        [bau.mandant, bau.lv, bau.projekt, oz, kurztext, einheit, menge] as never[]);
+      je.set(oz, z!.id);
+    }
+    return je;
+  }
+
+  it('protokolliert die Teilabnahme, siegelt sie und laesst den Projektstatus stehen',
+    async () => {
+      const bau = await baueProjekt(f.bau);
+      const pos = await positionen(bau);
+
+      const ergebnis = await alsApp(SCHREIBEND(bau), async (tx) => {
+        const kontext = kontextAus(tx, bau);
+        const teil = await protokolliereAbnahme(kontext, {
+          projektId: bau.projekt,
+          art: 'teilabnahme',
+          abnahmeAm: '2026-09-18',
+          leistungsumfang:
+            'Titel 1.2 Trockenbau, Bauabschnitt Nordseite (OZ 1.2.1 bis 1.2.8) — '
+            + 'Ständerwände, Vorsatzschalen und Dachschrägenbekleidung, '
+            + 'abgenommen zur Weiterarbeit der Folgegewerke.',
+          abgenommen: true,
+          verweigerungGrund: null,
+          vorbehaltVertragsstrafe: true,
+          vorbehaltMaengel: true,
+          vorbehaltText:
+            'Der Auftraggeber behält sich die Vertragsstrafe wegen Überschreitung der '
+            + 'Zwischenfrist für den Trockenbau ausdrücklich vor (§ 11 Abs. 4 VOB/B). '
+            + 'Die im Protokoll aufgeführten Mängel bleiben nach § 12 Abs. 3 VOB/B '
+            + 'vorbehalten; die Abnahme des Bauabschnitts wird dadurch nicht berührt.',
+          teilnehmer: [
+            'REALTIME Service GmbH, Bauleitung (Auftragnehmer)',
+            'Hausverwaltung Berliner Straße 42 GmbH, technische Leitung (Auftraggeber)',
+            'Architekturbüro Kranz, Bauleitung Örtlichkeit (Planer)',
+          ],
+          maengel: [
+            { beschreibung:
+                'Anschlussfuge Dachschräge zu Giebelwand auf 6 m nicht dauerelastisch '
+                + 'geschlossen; Rissbildung sichtbar.',
+              fristAm: '2026-10-02', lvPositionId: pos.get('1.2.7') ?? null },
+            { beschreibung:
+                'Zwei Revisionsklappen im Flur sitzen nicht fluchtend; Laibung '
+                + 'nachzuarbeiten.',
+              fristAm: '2026-10-09', lvPositionId: pos.get('1.2.6') ?? null },
+          ],
+        });
+
+        const [gespeichert] = await tx.unsafe<{ hash: string; strafe: boolean }[]>(
+          `select snapshot_hash as hash, vorbehalt_vertragsstrafe as strafe
+             from abnahme where id = $1`, [teil.id] as never[]);
+        return {
+          teil,
+          hashInDb: gespeichert!.hash,
+          strafe: gespeichert!.strafe,
+          maengel: await ladeMaengel(kontext, teil.id),
+          liste: await listeAbnahmen(kontext, { projektId: bau.projekt }),
+        };
+      });
+
+      // Das Siegel steht in der Zeile, und es ist DASSELBE, das der Dienst
+      // zurueckgegeben hat — waeren es zwei, gaebe es zwei Protokolle.
+      expect(ergebnis.hashInDb).toBe(ergebnis.teil.hash);
+      expect(ergebnis.teil.hash).toMatch(/^[0-9a-f]{64}$/u);
+      // O-154: die Gewaehrleistungsfrist wird NICHT abgeleitet, solange das
+      // Regime offen ist — die Schnittstelle gibt null, und das bleibt so.
+      expect(ergebnis.teil.fristEnde).toBeNull();
+      expect(ergebnis.strafe).toBe(true);
+      // Die Maengel in der Reihenfolge der Eingabe, mit ihrer OZ am Bezug.
+      expect(ergebnis.maengel.map((m) => m.oz)).toEqual(['1.2.7', '1.2.6']);
+      expect(ergebnis.liste).toHaveLength(1);
+      expect(ergebnis.liste[0]!.art).toBe('teilabnahme');
+      expect(ergebnis.liste[0]!.maengel_offen).toBe(2);
+
+      // § 12 Abs. 2: eine Teilabnahme schlaegt den Projektstatus nicht um.
+      const [stand] = await sql.unsafe<{ status: string }[]>(
+        `select status::text as status from projekt where id = $1`, [bau.projekt]);
+      expect(stand!.status).toBe('in_arbeit');
+    });
 });

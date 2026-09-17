@@ -65,6 +65,8 @@ import {
 import {
   behinderungNutzlast, erstelleBehinderung, findeBehinderung, zeigeWegfallAn,
 } from '../../services/bau/behinderung.js';
+import { protokolliereAbnahme } from '../../services/bau/abnahme.js';
+import { legeLvImportAn } from '../../services/bau/lv-import.js';
 import { hefteWetterAn } from '../../services/bau/wetter.js';
 import { wetterPort } from '../../versand/dwd.js';
 import { nutzlastHash } from '../../agent/policy.js';
@@ -92,6 +94,15 @@ export interface BauErgebnis {
   /** Was `hefteWetterAn` geantwortet hat — wortwoertlich, nicht beschoenigt. */
   readonly wetterBefund: string;
   readonly wetterVerbunden: boolean;
+  /** § 12 Abs. 2 VOB/B: die Art der protokollierten Abnahme, oder `null`. */
+  readonly abnahmeArt: string | null;
+  /** § 12 Abs. 3: die im Protokoll aufgenommenen Maengel. */
+  readonly abnahmeMaengel: number;
+  /** Wurde die Vertragsstrafe vorbehalten (§ 11 Abs. 4)? */
+  readonly abnahmeStrafeVorbehalten: boolean;
+  /** Der wartende LV-Import: Zeilen insgesamt und die mit Fehlern. */
+  readonly lvImportZeilen: number;
+  readonly lvImportFehler: number;
 }
 
 const LEER: BauErgebnis = {
@@ -99,6 +110,8 @@ const LEER: BauErgebnis = {
   aufmassblaetter: 0, aufmassZeilen: 0, nachtraege: 0, nachtragsnummer: null,
   behinderungen: 0, behinderungenLaufend: 0, gewerke: 0, bautage: 0, mannstunden: 0, tagespositionen: 0,
   wetterBefund: 'nicht abgerufen', wetterVerbunden: false,
+  abnahmeArt: null, abnahmeMaengel: 0, abnahmeStrafeVorbehalten: false,
+  lvImportZeilen: 0, lvImportFehler: 0,
 };
 
 const PROJEKT = {
@@ -1026,6 +1039,117 @@ export async function seedBau(
       if (tag.versatz === 0) await schliesseBautag(kontext, bautagId);
     }
 
+    /* ------------------------------------------------------------------ */
+    /* 6 — die Teilabnahme (§ 12 Abs. 2 VOB/B)                             */
+    /* ------------------------------------------------------------------ */
+    /**
+     * **Eine TEILABNAHME, und das ist eine Entscheidung.**
+     *
+     * Eine wirksame GESAMTabnahme schlaegt `projekt.status` auf `abgenommen`
+     * um (Ausloeser `kern.abnahme_projekt_status`, 0211) — das Demoprojekt
+     * waere damit fertig, und Nachtrag, Behinderung und Bautagebuch stuenden
+     * an einem abgenommenen Bau. Die Teilabnahme laesst den Status stehen
+     * (§ 12 Abs. 2: „in sich abgeschlossene Teile der Leistung"), zeigt aber
+     * genau die Kanten, um die es geht: den Leistungsumfang, die beiden
+     * Vorbehalte im Wortlaut, die Mängelliste mit Fristen — und dass
+     * `gewaehrleistung_bis` LEER bleibt, weil die Frist offen ist (O-154).
+     *
+     * `vorbehalt_vertragsstrafe` steht auf `true` und traegt seinen Wortlaut:
+     * nach § 11 Abs. 4 VOB/B verfaellt der Anspruch, wenn er bei der Abnahme
+     * nicht vorbehalten wird. Ein Demobestand, in dem er nie vorbehalten ist,
+     * zeigte diese Kante nie — und der Bericht ueber die verfallenen
+     * Ansprueche (Index `abnahme_strafe_idx`) haette nichts, wogegen er
+     * pruefen kann.
+     */
+    const teilabnahme = await protokolliereAbnahme(kontext, {
+      projektId: projekt.id,
+      art: 'teilabnahme',
+      // Berliner Kalendertag (K-11), nicht die Serverzeit: der Tag, an dem
+      // begangen wurde. `protokolliert_am` setzt der Server daneben.
+      abnahmeAm: tagePlus(bauwoche, 4),
+      leistungsumfang:
+        'Titel 1.2 Trockenbau, Bauabschnitt Nordseite (OZ 1.2.1 bis 1.2.8) — '
+        + 'Ständerwände, Vorsatzschalen und Dachschrägenbekleidung, '
+        + 'abgenommen zur Weiterarbeit der Folgegewerke.',
+      abgenommen: true,
+      verweigerungGrund: null,
+      vorbehaltVertragsstrafe: true,
+      vorbehaltMaengel: true,
+      vorbehaltText:
+        'Der Auftraggeber behält sich die Vertragsstrafe wegen Überschreitung der '
+        + 'Zwischenfrist für den Trockenbau ausdrücklich vor (§ 11 Abs. 4 VOB/B). '
+        + 'Die im Protokoll aufgeführten Mängel bleiben nach § 12 Abs. 3 VOB/B '
+        + 'vorbehalten; die Abnahme des Bauabschnitts wird dadurch nicht berührt.',
+      teilnehmer: [
+        'REALTIME Service GmbH, Bauleitung (Auftragnehmer)',
+        'Hausverwaltung Berliner Straße 42 GmbH, technische Leitung (Auftraggeber)',
+        'Architekturbüro Kranz, Bauleitung Örtlichkeit (Planer)',
+      ],
+      maengel: [
+        {
+          beschreibung:
+            'Anschlussfuge Dachschräge zu Giebelwand auf 6 m nicht dauerelastisch '
+            + 'geschlossen; Rissbildung sichtbar.',
+          fristAm: tagePlus(bauwoche, 18),
+          lvPositionId: nachOz.get('1.2.7') ?? null,
+        },
+        {
+          beschreibung:
+            'Zwei Revisionsklappen im Flur sitzen nicht fluchtend; Laibung nachzuarbeiten.',
+          fristAm: tagePlus(bauwoche, 25),
+          lvPositionId: nachOz.get('1.2.6') ?? null,
+        },
+      ],
+    });
+
+    const [abnahmeStand] = await kontext.abfrage<{
+      art: string; maengel: string; strafe: boolean;
+    }>(
+      `select a.art::text as art, a.vorbehalt_vertragsstrafe as strafe,
+              (select count(*) from abnahme_mangel m where m.abnahme_id = a.id) as maengel
+         from abnahme a where a.id = $1`,
+      [teilabnahme.id],
+    );
+
+    /* ------------------------------------------------------------------ */
+    /* 7 — der wartende LV-Import (BAU-01, O-41)                           */
+    /* ------------------------------------------------------------------ */
+    /**
+     * **Der Import bleibt in der Vorschau — uebernommen wird er NICHT.**
+     *
+     * Die Uebernahme legte eine NEUE Fassung des Leistungsverzeichnisses an,
+     * und jede maschinell gelesene Position waere bis zu ihrer Bestaetigung
+     * ungeprueft (`geprueft_von is null`) — ein Aufmass koennte dann auf
+     * keiner von ihnen gegengezeichnet werden (Hindernis in `pruefeVorlage`).
+     * Der Demobestand zeigt deshalb genau den Zustand, den die Seite
+     * `/lv/import?import=…` fuehrt: gelesen, verglichen, wartend.
+     *
+     * Die vier Zeilen sind die vier Faelle, die die Vorschau unterscheidet:
+     * eine unveraenderte (1.1.2), eine geaenderte Menge (1.2.5), eine neue
+     * Position (1.2.13) und eine, die NICHT lesbar ist — „zwölf" ist keine
+     * Menge, und die Zeile steht mit ihrem Fehler da, statt still zu fehlen.
+     *
+     * Das Format ist `csv_semikolon`, das einzige implementierte. Welches
+     * Austauschformat die Gruppe wirklich bekommt, ist offen (O-41); die
+     * Auswahl in der Oberflaeche sagt das, und dieser Seed taeuscht kein
+     * GAEB vor, das niemand liest.
+     */
+    const importCsv = [
+      'OZ;Kurztext;Positionsart;Einheit;Menge;Einheitspreis',
+      '1.1.2;Fassadengerüst Hofseite, Lastklasse 3;Normalposition;m²;186,000;11,80',
+      '1.2.5;Abgehängte Unterdecke F30, Flur;Normalposition;m²;52,200;98,00',
+      '1.2.13;Schachtverkleidung F90 vor Abluftstrang;Normalposition;m²;18,400;142,50',
+      '1.3.4;Sockelleiste Eiche, gelackt;Normalposition;m;zwölf;9,40',
+    ].join('\n');
+
+    const lvImport = await legeLvImportAn(kontext, {
+      projektId: projekt.id,
+      dateiname: 'LV-Ausbau-DG-Fassung-2.csv',
+      format: 'csv_semikolon',
+      bezeichnung: 'Leistungsverzeichnis Ausbau — Fassung 2 (Nachtrag Schacht)',
+      inhalt: importCsv,
+    });
+
     return {
       projekte: 1,
       lvZeilen: gelesen.length,
@@ -1043,6 +1167,11 @@ export async function seedBau(
       tagespositionen,
       wetterBefund,
       wetterVerbunden: port.verbunden,
+      abnahmeArt: abnahmeStand?.art ?? null,
+      abnahmeMaengel: Number(abnahmeStand?.maengel ?? 0),
+      abnahmeStrafeVorbehalten: abnahmeStand?.strafe ?? false,
+      lvImportZeilen: lvImport.gueltig + lvImport.fehler,
+      lvImportFehler: lvImport.fehler,
     };
   }, { personId: bauleitung.person_id });
 }

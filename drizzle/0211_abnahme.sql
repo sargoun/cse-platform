@@ -584,4 +584,5 @@ create trigger trg_abnahme_mangel_geaendert_am
   before update on abnahme_mangel
   for each row execute function kern.setze_geaendert_am();
 
+
 -- >>> Ende des generierten Blocks

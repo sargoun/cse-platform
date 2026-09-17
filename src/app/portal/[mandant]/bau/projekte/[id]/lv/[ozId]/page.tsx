@@ -11,7 +11,7 @@ import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { formatiereMenge, mengeAusPostgresOderNull } from '@/server/services/finanz/menge';
 import {
   findeLvPosition, ladeAufmasseJePosition, ladeLvPfad, ladeNachtraegeJePosition,
-  positionsBetragCent,
+  positionsBetragCent, zaehltPositionsartInSumme,
   type AufmassAufPosition, type LvAhne, type LvPositionDetail, type NachtragAufPosition,
 } from '@/server/services/bau/lv';
 import { formatiereErgebnis } from '@/server/services/bau/aufmass';
@@ -79,21 +79,6 @@ const BEZUG_TEXT: Readonly<Record<string, string>> = {
   auftragszeile: 'gleiche Auftragszeile',
   aufmasszeile: 'Aufmaßzeile diesem Nachtrag zugeordnet',
 };
-
-/**
- * Zählt diese Positionsart in die Auftragssumme?
- *
- * Dieselbe Aussage wie `zaehltInSumme` im Dienst — hier auf der Positionsart
- * statt auf der Zeile, weil die Detailseite keinen `LvZeile`-Satz baut.
- * **Der Text daneben ist WORTGLEICH mit dem im LV-Baum**: zwei Seiten, die
- * dasselbe Feld verschieden beschriften, sind zwei verschiedene Aussagen über
- * denselben Vertrag.
- * // TODO(client, O-155): Welche Positionsarten kommen vor, und wie geht jede
- * in die Angebots- bzw. Auftragssumme ein?
- */
-function zaehltArtInSumme(positionsart: string): boolean {
-  return positionsart !== 'bedarfsposition' && positionsart !== 'alternativposition';
-}
 
 export default async function LvPositionSeite(
   { params }: { params: Promise<{ mandant: string; id: string; ozId: string }> },
@@ -246,7 +231,7 @@ export default async function LvPositionSeite(
           </p>
         )}
 
-        {p.art === 'position' && !zaehltArtInSumme(p.positionsart) && (
+        {p.art === 'position' && !zaehltPositionsartInSumme(p.positionsart) && (
           <p className="mt-s3 text-sm text-warning" data-cse="nicht-in-summe">
             {/*
               * WORTGLEICH mit dem LV-Baum (`lv/page.tsx`): zwei verschiedene
@@ -259,11 +244,22 @@ export default async function LvPositionSeite(
           </p>
         )}
 
-        {p.steuer_kennzeichen !== null && (
-          <p className="mt-s3 text-sm text-text-muted">
-            Steuerkennzeichen: <code>{p.steuer_kennzeichen}</code>
-          </p>
-        )}
+        {/*
+          * Das Steuerkennzeichen steht NICHT hier, und der Satz sagt warum.
+          * 0071 entzieht `cse_app` die Spalte zusammen mit dem Einheitspreis
+          * (K-05, „OMITTED"); sie zu lesen liess die ganze Abfrage mit einem
+          * Rechtefehler scheitern. Fuer den Preis gibt es einen gepruegten
+          * Leser, fuer das Kennzeichen keinen — und einen zu bauen hiesse zu
+          * entscheiden, wer es sehen darf (O-632, siehe `findeLvPosition`).
+          */}
+        <p className="mt-s3 text-sm text-text-muted" data-cse="steuerkennzeichen-offen">
+          Steuerkennzeichen (§ 13b UStG):{' '}
+          <span className="text-warning">offen (O-632)</span> — die Spalte ist für
+          die Anwendung nicht lesbar (0071 entzieht sie zusammen mit dem
+          Einheitspreis). Ob sie hier erscheint und hinter welchem Recht, ist
+          nicht entschieden; ein geratenes Kennzeichen entschied über den
+          Wechsel der Steuerschuld.
+        </p>
       </section>
 
       {/* ------------------------------------------------------------------ */}

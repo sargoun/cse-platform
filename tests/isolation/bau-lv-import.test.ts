@@ -83,7 +83,21 @@ async function konto(email: string): Promise<string> {
 async function baueProjekt(mandant: string, rolle = 'admin'): Promise<Aufbau> {
   const benutzer = await konto(`lvimport-${zufall()}@cse.test`);
   await sql.unsafe(
-    `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id) values ($1,$2,$3)`,
+    /*
+     * **`gueltig_ab` ausdruecklich auf GESTERN — und das ist ein Befund, keine
+     * Vorsichtsmassnahme.** Der Spaltenvorgabewert ist `app.berlin_heute()`
+     * (0169), `app.ist_mitglied` hat aber `p_stichtag date default
+     * CURRENT_DATE`, und die Zwei-Argument-Aufrufer (0025
+     * `kern.auftrag_verantwortlich_im_mandant`, 0146) nehmen genau diesen
+     * Vorgabewert. Zwischen 22:00 UTC und Mitternacht ist `berlin_heute()`
+     * schon morgen und `CURRENT_DATE` noch heute: eine soeben angelegte
+     * Mitgliedschaft gilt dann NICHT, und das Anlegen des Auftrags scheitert
+     * mit „Der Verantwortliche gehoert nicht zu dieser Gesellschaft". Diese
+     * Fixtur setzt den Tag deshalb selbst; die Ursache gehoert nach 0169 und
+     * steht im Ergebnisbericht.
+     */
+    `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, gueltig_ab)
+     values ($1,$2,$3, current_date - 1)`,
     [benutzer, mandant, await rolleId(rolle)]);
 
   const [k] = await sql.unsafe<{ id: string }[]>(
@@ -177,7 +191,21 @@ describe('K-05: der Preis der Zwischenzeile hängt an derselben Spaltenkante', (
 
     const ohne = await konto(`lvimport-lesen-${zufall()}@cse.test`);
     await sql.unsafe(
-      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id) values ($1,$2,$3)`,
+      /*
+       * **`gueltig_ab` ausdruecklich auf GESTERN — und das ist ein Befund, keine
+       * Vorsichtsmassnahme.** Der Spaltenvorgabewert ist `app.berlin_heute()`
+       * (0169), `app.ist_mitglied` hat aber `p_stichtag date default
+       * CURRENT_DATE`, und die Zwei-Argument-Aufrufer (0025
+       * `kern.auftrag_verantwortlich_im_mandant`, 0146) nehmen genau diesen
+       * Vorgabewert. Zwischen 22:00 UTC und Mitternacht ist `berlin_heute()`
+       * schon morgen und `CURRENT_DATE` noch heute: eine soeben angelegte
+       * Mitgliedschaft gilt dann NICHT, und das Anlegen des Auftrags scheitert
+       * mit „Der Verantwortliche gehoert nicht zu dieser Gesellschaft". Diese
+       * Fixtur setzt den Tag deshalb selbst; die Ursache gehoert nach 0169 und
+       * steht im Ergebnisbericht.
+       */
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, gueltig_ab)
+       values ($1,$2,$3, current_date - 1)`,
       [ohne, f.bau, await rolleId('leitung')]);
 
     const zeilen = await alsApp(
@@ -469,7 +497,21 @@ describe('Invariante 3 und K-04 — Mandant und interne Decke', () => {
 
       const kraft = await konto(`lvimport-kraft-${zufall()}@cse.test`);
       await sql.unsafe(
-        `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id) values ($1,$2,$3)`,
+        /*
+         * **`gueltig_ab` ausdruecklich auf GESTERN — und das ist ein Befund, keine
+         * Vorsichtsmassnahme.** Der Spaltenvorgabewert ist `app.berlin_heute()`
+         * (0169), `app.ist_mitglied` hat aber `p_stichtag date default
+         * CURRENT_DATE`, und die Zwei-Argument-Aufrufer (0025
+         * `kern.auftrag_verantwortlich_im_mandant`, 0146) nehmen genau diesen
+         * Vorgabewert. Zwischen 22:00 UTC und Mitternacht ist `berlin_heute()`
+         * schon morgen und `CURRENT_DATE` noch heute: eine soeben angelegte
+         * Mitgliedschaft gilt dann NICHT, und das Anlegen des Auftrags scheitert
+         * mit „Der Verantwortliche gehoert nicht zu dieser Gesellschaft". Diese
+         * Fixtur setzt den Tag deshalb selbst; die Ursache gehoert nach 0169 und
+         * steht im Ergebnisbericht.
+         */
+        `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, gueltig_ab)
+         values ($1,$2,$3, current_date - 1)`,
         [kraft, f.bau, await rolleId('mitarbeiter')]);
       const gesehen = await alsApp(
         { scope: 'mandant', mandantId: f.bau, benutzerId: kraft, portal: 'mitarbeiter', readonly: false },

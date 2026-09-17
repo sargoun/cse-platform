@@ -9,8 +9,8 @@ import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
 import {
-  EinwandBereitsEntschiedenFehler, EinwandNichtGefundenFehler, entscheideEinwand,
-  type EntscheidungEingabe,
+  EinwandBereitsEntschiedenFehler, EinwandEigenerFehler, EinwandNichtGefundenFehler,
+  entscheideEinwand, type EntscheidungEingabe,
 } from '@/server/services/zeit/einwand';
 
 /**
@@ -100,6 +100,19 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     }
     if (fehler instanceof EinwandBereitsEntschiedenFehler) {
       return NextResponse.json({ fehler: 'bereits_entschieden' }, { status: 409 });
+    }
+    /*
+     * EMP-07, und der Fall endete vorher in einem ungefangenen 500.
+     *
+     * Der Ausloeser `kern.zeit_einwand_status` verbietet die Entscheidung
+     * ueber den EIGENEN Einwand und wirft mit `check_violation`. Diese
+     * Fangkette kannte nur „nicht gefunden", „bereits entschieden" und die
+     * Auth-Fehler — der Klick der betroffenen Person auf ihrem eigenen
+     * Vorgang wurde damit zum Serverfehler. Geprueft wird jetzt VORHER im
+     * Dienst; dieser Zweig ist die Uebersetzung.
+     */
+    if (fehler instanceof EinwandEigenerFehler) {
+      return NextResponse.json({ fehler: 'eigener_einwand' }, { status: 409 });
     }
     // AUT-06: fehlendes Recht sieht von aussen aus wie eine fehlende Zeile.
     if (fehler instanceof NichtGefundenFehler) {
