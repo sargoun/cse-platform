@@ -605,6 +605,26 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'galt. Sie endet mit ihrer Definition, nicht für sich.',
   },
   {
+    tabelle: 'akquise_ziel',
+    art: 'archiv',
+    migration: '0175',
+    grund:
+      '§12. Eine recherchierte Firma, die jemand mit Grund verworfen hat, muss '
+      + 'verworfen BLEIBEN — sonst findet dieselbe Recherche sie naechste Woche '
+      + 'wieder, und der Vertrieb telefoniert ein zweites Mal hinterher. '
+      + '`archiviert_am` beendet sie.',
+  },
+  {
+    tabelle: 'akquise_quelle',
+    art: 'archiv',
+    migration: '0175',
+    grund:
+      '§12. Die Quelle traegt die Herkunft jeder Zeile, die ueber sie kam. Sie zu '
+      + 'loeschen hiesse, bei hunderten Firmen nicht mehr sagen zu koennen, woher '
+      + 'sie stammen — und genau das fragt eine Datenschutzpruefung als erstes. '
+      + '`aktiv = false` legt sie still.',
+  },
+  {
     tabelle: 'lead',
     art: 'archiv',
     migration: '0017',

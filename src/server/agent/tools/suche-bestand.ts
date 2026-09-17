@@ -111,6 +111,116 @@ export const KATALOG: readonly KatalogEintrag[] = [
     antwortSpalte: 'antwort',
     einheit: 'Nachweise',
   },
+  /*
+   * ───────────────────────────────────────────────────────────────────────
+   * Die fuenf Fragen, die eine Geschaeftsfuehrung wirklich zuerst stellt.
+   *
+   * Jede ist von Hand gegen den Demobestand geprueft, und jede traegt die
+   * Mandantengrenze IM SQL — zusaetzlich zu RLS (Invariante 3). Keine
+   * formuliert ein Modell; sie stehen hier, weil jemand sie geschrieben und
+   * nachgerechnet hat.
+   * ───────────────────────────────────────────────────────────────────────
+   */
+  {
+    id: 'offene_rechnungen_anzahl',
+    frage: 'Wie viele Rechnungen sind offen?',
+    /*
+     * **`festgeschrieben_am is not null` ist die Bedingung, nicht der Status.**
+     * Ein Entwurf hat keine Nummer und ist keine Forderung (Invariante 4); ihn
+     * mitzuzaehlen hiesse, dem Chef eine Zahl zu nennen, die noch niemand
+     * versendet hat. `offener_betrag` kommt aus dem Offene-Posten-Bestand und
+     * nicht aus `brutto_cent`: eine teilweise bezahlte Rechnung ist nicht
+     * offen in Hoehe ihres Bruttobetrags.
+     */
+    sql: `select count(*)::int as antwort
+            from rechnung r
+           where r.mandant_id = $1::uuid
+             and r.festgeschrieben_am is not null
+             and r.verworfen_am is null
+             and exists (select 1 from offener_posten op
+                          where op.mandant_id = r.mandant_id and op.rechnung_id = r.id
+                            and op.ausgeglichen_am is null)`,
+    parameter: [],
+    antwortSpalte: 'antwort',
+    einheit: 'Rechnungen',
+  },
+  {
+    id: 'ueberfaellige_rechnungen_anzahl',
+    frage: 'Wie viele Rechnungen sind ueberfaellig?',
+    sql: `select count(*)::int as antwort
+            from rechnung r
+           where r.mandant_id = $1::uuid
+             and r.festgeschrieben_am is not null
+             and r.verworfen_am is null
+             and r.faellig_am is not null
+             and r.faellig_am < app.berlin_heute()
+             and exists (select 1 from offener_posten op
+                          where op.mandant_id = r.mandant_id and op.rechnung_id = r.id
+                            and op.ausgeglichen_am is null)`,
+    parameter: [],
+    antwortSpalte: 'antwort',
+    einheit: 'Rechnungen',
+  },
+  {
+    id: 'laufende_auftraege',
+    frage: 'Wie viele Auftraege laufen gerade?',
+    /*
+     * **Die Werte sind die des Enums, nicht die, die man erwartet.**
+     * `auftrag_status` kennt `angelegt`, `aktiv`, `pausiert`, `abgeschlossen`,
+     * `storniert` — nicht `entwurf` und nicht `gekuendigt`. Der erste Entwurf
+     * schrieb die erwarteten, und Postgres antwortete mit „invalid input value
+     * for enum", und zwar erst beim AUFRUF: eine Zeichenkette prueft kein
+     * Typpruefer. Dagegen steht jetzt ein Fall, der jeden Katalogeintrag
+     * wirklich faehrt (`tests/isolation/assistent-katalog.test.ts`).
+     *
+     * `angelegt` zaehlt nicht mit: ein angelegter Auftrag ist noch keiner, der
+     * laeuft.
+     */
+    sql: `select count(*)::int as antwort
+            from auftrag a
+           where a.mandant_id = $1::uuid
+             and a.archiviert_am is null
+             and a.abgeschlossen_am is null
+             -- angelegt/storniert, nicht entwurf/gekuendigt: siehe oben.
+             and a.status in ('aktiv', 'pausiert')`,
+    parameter: [],
+    antwortSpalte: 'antwort',
+    einheit: 'Auftraege',
+  },
+  {
+    id: 'offene_leads',
+    frage: 'Wie viele Anfragen warten auf eine Antwort?',
+    /*
+     * `erste_reaktion_am is null` und nicht `status = 'neu'`: gefragt ist, wem
+     * noch niemand geantwortet hat — und ein Lead kann in Bearbeitung stehen,
+     * ohne dass der Anfragende etwas gehoert hat (REQ-06).
+     */
+    sql: `select count(*)::int as antwort
+            from lead l
+           where l.mandant_id = $1::uuid
+             and l.archiviert_am is null
+             and l.erste_reaktion_am is null
+             and l.status not in ('gewonnen', 'verloren', 'kein_bedarf')`,
+    parameter: [],
+    antwortSpalte: 'antwort',
+    einheit: 'Anfragen',
+  },
+  {
+    id: 'wartende_freigaben',
+    frage: 'Wie viele Vorgaenge warten auf meine Freigabe?',
+    /*
+     * Die Frage hinter der Frage: was haelt gerade etwas auf? Jede offene
+     * Freigabe ist eine Nachricht, die nicht hinausgeht, eine Rechnung, die
+     * nicht gebucht wird, oder eine Anzeige, die nicht erscheint
+     * (Invariante 7).
+     */
+    sql: `select count(*)::int as antwort
+            from freigabe f
+           where f.mandant_id = $1::uuid and f.status = 'offen'`,
+    parameter: [],
+    antwortSpalte: 'antwort',
+    einheit: 'Vorgaenge',
+  },
 ];
 
 export class BestandFehler extends Error {

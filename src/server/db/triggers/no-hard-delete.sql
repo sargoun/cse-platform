@@ -2151,3 +2151,28 @@ revoke delete, truncate on vergabemappe from cse_app, cse_anon, cse_checkin, cse
 
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0175)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- akquise_ziel (archiv): §12. Eine recherchierte Firma, die jemand mit Grund verworfen hat, muss verworfen BLEIBEN — sonst findet dieselbe Recherche sie naechste Woche wieder, und der Vertrieb telefoniert ein zweites Mal hinterher. `archiviert_am` beendet sie.
+create trigger trg_akquise_ziel_kein_hard_delete
+  before delete on akquise_ziel
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_akquise_ziel_kein_truncate
+  before truncate on akquise_ziel
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on akquise_ziel from cse_app, cse_anon, cse_checkin, cse_job;
+
+-- akquise_quelle (archiv): §12. Die Quelle traegt die Herkunft jeder Zeile, die ueber sie kam. Sie zu loeschen hiesse, bei hunderten Firmen nicht mehr sagen zu koennen, woher sie stammen — und genau das fragt eine Datenschutzpruefung als erstes. `aktiv = false` legt sie still.
+create trigger trg_akquise_quelle_kein_hard_delete
+  before delete on akquise_quelle
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_akquise_quelle_kein_truncate
+  before truncate on akquise_quelle
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on akquise_quelle from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
