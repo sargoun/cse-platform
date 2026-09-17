@@ -13324,6 +13324,44 @@ sondern ungelesen — und in dieser Runde lag dort der grössere Teil.
 
 ---
 
+### D-602 · Die Gruppenlisten zeigen echte Zeilen, nicht „Hier stehen bald Referenzen"
+
+**Der Befund.** `/projekte` trug den Abschnitt „Hier stehen bald Referenzen",
+`/news` den Abschnitt „Noch keine Beiträge". Beides stimmte nicht: vier
+freigegebene Referenzen und sechzehn Beiträge standen auf den vier
+Gesellschaftsprofilen. Ein Besucher, der über die Gruppenseite kam, las also, es
+gebe nichts — zwei Klicks von dem entfernt, was es gab.
+
+Der Fehler ist nicht, dass die Texte falsch waren, als sie geschrieben wurden.
+Er ist, dass ein redaktioneller Platzhalter keinen Wecker stellt: er bleibt
+stehen, bis jemand zufällig hinsieht. Die Liste darunter kommt jetzt aus den
+Fachtabellen, und sie ist leer oder gefüllt, je nachdem wie die Wirklichkeit ist.
+
+**Jede Zeile führt zur KANONISCHEN Adresse bei ihrer Gesellschaft** —
+`/unternehmen/<bereich>/projekte/<slug>`. Die Gruppenliste ist eine Übersicht,
+kein zweiter Ort für denselben Text. Zwei Adressen für einen Inhalt wären zwei
+Einträge im Suchindex und eine Entscheidung, welcher der richtige ist, die
+niemand trifft. §2.2 der Seitenkarte legt die kanonische Adresse fest; diese
+Liste hält sich daran, statt sie zu verdoppeln.
+
+**Der redaktionelle Abschnitt bleibt — er wird zur Einleitung.** „Wir zeigen ein
+Projekt erst, wenn der Kunde der Nennung schriftlich zugestimmt hat" ist auf
+einer gefüllten Liste genauso wahr wie auf einer leeren, und es ist die Antwort
+auf die Frage, die ein Besucher vor einer kurzen Referenzliste stellt. Der
+Unterschied zum alten Text ist die Richtung: er erklärt jetzt, warum die Liste
+ist, wie sie ist, statt sich für ihr Fehlen zu entschuldigen.
+
+**Gelesen wird nur auf diesen beiden Pfaden.** Die Abfrage steht hinter
+`pfad === '/projekte'`; eine Abfrage auf jeder öffentlichen Seite wären dreizehn
+Abfragen für zwei Listen.
+
+**`<a>` statt `<Link>`, und das ist kein Rückschritt.** `typedRoutes` prüft
+`href` gegen die bekannten Routen und nimmt keine zur Laufzeit gebaute
+Zeichenkette an — `mitSprache()` gibt genau eine. Dieselbe Bauart wie in
+`Auswahl.tsx` und `ProfilTabs.tsx`; auf einer öffentlichen Seite ist der
+vollständige Seitenwechsel ohnehin richtig. Gefunden hat das der Next-Build, den
+`npx tsc --noEmit` nicht ersetzt: die Routentypen entstehen erst beim Bauen.
+
 ### D-601 · Das CRM bekommt seine Schreibwege — und die Rechtsgrundlage steht in der Mitte
 
 **Der Befund.** Das CRM-Fundament stand seit Phase 4 vollständig: Kunden,

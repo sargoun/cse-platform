@@ -5,9 +5,13 @@ import { Gesellschaften } from '@/components/oeffentlich/Gesellschaften';
 import { Kontaktwege } from '@/components/oeffentlich/Kontaktwege';
 import { Beitraege } from '@/components/oeffentlich/Beitraege';
 import { ProfilTabs } from '@/components/oeffentlich/ProfilTabs';
+import { GruppenNeuigkeiten, GruppenProjekte } from '@/components/oeffentlich/GruppenListen';
 import { ansprueche, seitenDaten } from '@/server/inhalt/seiten-daten';
 import { oeffentlichLesen } from '@/server/inhalt/lesen';
-import { oeffentlicheBeitraege } from '@/server/services/social/dienst';
+import {
+  neuigkeitenDerGruppe, oeffentlicheBeitraege,
+} from '@/server/services/social/dienst';
+import { ReferenzAusTabelle } from '@/server/services/inhalt/referenz';
 import { VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 import { shellBereiche } from './lade-shell';
 
@@ -40,6 +44,27 @@ export async function OeffentlicheSeite(
   const beitraege = bereich === null
     ? []
     : await oeffentlichLesen((kontext) => oeffentlicheBeitraege(kontext, bereich.id));
+
+  /*
+   * **Die Gruppenlisten lesen ECHTE Zeilen.** `/projekte` und `/news` trugen
+   * einen redaktionellen Abschnitt „Hier stehen bald Referenzen" bzw. „Noch
+   * keine Beiträge" — und die Referenzen und Beiträge gab es längst, auf den
+   * vier Gesellschaftsprofilen. Wer über die Gruppenseite kam, las also, es
+   * gebe nichts, während zwei Klicks weiter vier freigegebene Projekte standen.
+   *
+   * Der Pfad entscheidet, ob gelesen wird: eine Abfrage auf JEDER öffentlichen
+   * Seite wäre dreizehn Abfragen für zwei Listen.
+   */
+  const istProjekte = pfad === '/projekte' || pfad === '/en/projekte';
+  const istNews = pfad === '/news' || pfad === '/en/news';
+
+  const gruppenProjekte = !istProjekte ? [] : await oeffentlichLesen((kontext) =>
+    new ReferenzAusTabelle({
+      unsafe: (sql: string, werte?: readonly unknown[]) => kontext.abfrage(sql, werte),
+    }).fuerGruppe());
+
+  const gruppenNews = !istNews
+    ? [] : await oeffentlichLesen((kontext) => neuigkeitenDerGruppe(kontext));
 
   return (
     <>
@@ -97,6 +122,19 @@ export async function OeffentlicheSeite(
         */}
       {pfad === '/kontakt' && (
         <Kontaktwege bereiche={daten.bereiche} sprache={sprache} />
+      )}
+      {/*
+        * Dieselbe Bauart wie bei `/impressum` und `/kontakt`: der
+        * redaktionelle Abschnitt bleibt die Einleitung, die Liste kommt
+        * darunter aus den Fachtabellen. Jede Zeile führt auf die KANONISCHE
+        * Adresse bei ihrer Gesellschaft — zwei Adressen für einen Text wären
+        * zwei Einträge im Suchindex.
+        */}
+      {istProjekte && (
+        <GruppenProjekte referenzen={gruppenProjekte} sprache={sprache} />
+      )}
+      {istNews && (
+        <GruppenNeuigkeiten beitraege={gruppenNews} sprache={sprache} />
       )}
       {/*
         * **Die Profilseite einer Gesellschaft endete nach den Leistungen.**

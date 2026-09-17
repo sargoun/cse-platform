@@ -151,11 +151,19 @@ export const SEITEN: readonly SeitenInhalt[] = [
       { art: 'hero', ueberschrift: 'Projekte', text: null },
       {
         art: 'text',
-        ueberschrift: 'Hier stehen bald Referenzen',
+        ueberschrift: 'Nur mit schriftlicher Zustimmung',
+        /*
+         * **Der Text ist die EINLEITUNG, nicht mehr die Entschuldigung.**
+         * Er lautete „Hier stehen bald Referenzen" — und die Referenzen gab es
+         * längst, auf den vier Gesellschaftsprofilen. Die Liste darunter kommt
+         * jetzt aus `referenz` (D-602); dieser Satz erklärt, warum sie kurz
+         * ist, und das gilt auf einer gefüllten Liste genauso.
+         */
         text:
-          'Projekte erscheinen an dieser Stelle, sobald der jeweilige Kunde der '
-          + 'Nennung schriftlich zugestimmt hat. Ohne diese Zustimmung wird kein '
-          + 'Projekt gezeigt — auch kein abgeschlossenes und auch kein gelungenes.',
+          'Wir zeigen ein Projekt erst, wenn der Kunde der Nennung schriftlich '
+          + 'zugestimmt hat. Ohne diese Zustimmung steht es hier nicht — auch kein '
+          + 'abgeschlossenes und auch kein gelungenes. Jedes Projekt führt zu der '
+          + 'Gesellschaft, die es ausgeführt hat.',
       },
     ],
   },
@@ -189,8 +197,11 @@ export const SEITEN: readonly SeitenInhalt[] = [
       { art: 'hero', ueberschrift: 'Aktuelles', text: null },
       {
         art: 'text',
-        ueberschrift: 'Noch keine Beiträge',
-        text: 'Sobald es etwas zu berichten gibt, steht es hier.',
+        ueberschrift: 'Aus den vier Gesellschaften',
+        /* Dieselbe Umkehr wie bei `/projekte` (D-602). */
+        text:
+          'Was die Gesellschaften der Gruppe berichten, steht hier zusammen — '
+          + 'jeder Beitrag führt zu der Gesellschaft, von der er stammt.',
       },
     ],
   },
