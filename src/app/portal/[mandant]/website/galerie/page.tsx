@@ -119,8 +119,23 @@ function Raster(
             )}
           </span>
           <span className="min-w-0 break-words text-sm text-text">{b.alt}</span>
+          {/*
+            * **`flex-wrap` unten, und das ist eine gemessene Korrektur.**
+            *
+            * Die Zeile trug ein Zahlenfeld und zwei Knoepfe in einer Flexzeile
+            * ohne Umbruch: bei 390 px stand sie 83 px ueber den Rand hinaus,
+            * und die ganze Seite bekam einen waagerechten Rollbalken.
+            * Aufgefallen ist das erst, als diese Seite ueberhaupt erreichbar
+            * wurde — `abmessungen.spec.ts` faehrt jede Adresse der Karte, und
+            * bis heute frueh fuehrte kein Weg hierher.
+            *
+            * Dieselbe Ursache wie D-594: eine Reihe, die auf einem breiten
+            * Bildschirm entworfen wurde und auf einem schmalen keinen
+            * Umbruchpunkt hat.
+            */}
           {!nurLesen && (
-            <form method="post" action="/api/website/galerie" className="flex items-center gap-s2">
+            <form method="post" action="/api/website/galerie"
+                  className="flex flex-wrap items-center gap-s2">
               <input type="hidden" name="medienId" value={b.id} />
               <input type="hidden" name="zurueck" value={`/portal/${mandant}/website/galerie`} />
               {drin ? (

@@ -1,8 +1,10 @@
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { basisAusAnfrage } from '@/server/inhalt/seiten-daten';
 import { FORMULAR_SCHLUESSEL, angebotPfad } from '@/lib/formular/bereiche';
 import { bereicheLesen, oeffentlichLesen } from '@/server/inhalt/lesen';
 import { AUSWAHL_TEXTE } from '@/lib/i18n/texte';
-import { mitSprache, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
+import { alternativen, mitSprache, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 import { BereichsAvatar } from '@/components/ui/AreaBadge';
 import type { BereichSchluessel } from '@/lib/design/theme';
 
@@ -18,6 +20,32 @@ import type { BereichSchluessel } from '@/lib/design/theme';
  * Die Bereiche kommen aus `mandant`, nicht aus einer Liste hier — ein fünfter
  * Bereich braucht eine Zeile und keine Komponente.
  */
+/**
+ * Die Metadaten der Auswahlseite.
+ *
+ * **Sie stehen HIER und nicht in `page.tsx`.** Aus einer `page.tsx` exportiert
+ * Next.js nur, was es kennt; alles andere ist ein Bau-Fehler, den
+ * `tsc --noEmit` nicht sieht — die Routentypen entstehen erst beim Bauen.
+ * Dass es mit `auswahlMetadaten` dort gutging, war Zufall: Next erzeugt die
+ * strenge Typdatei nur fuer einen Teil der Seiten, und fuer diese eben nicht.
+ * Ein Zufall, der bei der naechsten Next-Fassung anders ausgeht, ist keine
+ * Grundlage — die Wache `page-fremder-export` haelt die Regel jetzt fest.
+ */
+export async function auswahlMetadaten(
+  sprache: Sprache = VORGABE_SPRACHE,
+): Promise<Metadata> {
+  const basis = await basisAusAnfrage();
+  const t = AUSWAHL_TEXTE[sprache];
+  return {
+    title: t.titel,
+    description: t.einleitung,
+    alternates: {
+      canonical: `${basis}${mitSprache('/angebot', sprache)}`,
+      languages: alternativen('/angebot', basis),
+    },
+  };
+}
+
 export async function Angebotsauswahl(
   { sprache = VORGABE_SPRACHE }: { readonly sprache?: Sprache } = {},
 ) {

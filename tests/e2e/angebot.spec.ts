@@ -55,7 +55,12 @@ test.describe('(1) Phase-2-Abnahme: Formular bei 375 px → Lead mit Frist und B
      * schickt sie ihn auf die Dankseite (D-599). 303 heisst: mit GET folgen,
      * und ein Neuladen sendet die Anfrage nicht ein zweites Mal.
      */
-    expect(antwort.status(), await antwort.text()).toBe(303);
+    /*
+     * KEIN `await antwort.text()` in der Meldung: ein 303 hat keinen Koerper,
+     * und Playwright wirft „Response body is unavailable for redirect
+     * responses" — der Fall waere dann rot, ohne dass die Zusage verletzt ist.
+     */
+    expect(antwort.status()).toBe(303);
 
     /* Und er kommt dort auch an — mit seiner Vorgangsnummer. */
     await page.waitForURL(/\/angebot\/reinigung\/danke\?nr=/u);
@@ -199,12 +204,17 @@ test.describe('(5) die Bestätigung nach der Anfrage (REQ-01, §2.3)', () => {
       .toContainText('Your enquiry has arrived');
   });
 
-  test('ein Bereich ohne Formular hat auch keine Dankseite', async ({ page }) => {
+  test('ein Bereich, den es nicht gibt, hat auch keine Dankseite', async ({ page }) => {
     /*
-     * Sonst bestaetigte sie eine Anfrage, die nie moeglich war. CSE Operations
-     * hat kein veroeffentlichtes Formular (O-61).
+     * Sonst bestaetigte sie eine Anfrage, die nie moeglich war.
+     *
+     * **Der erste Entwurf nahm `operations` als Beispiel** — mit der Begruendung
+     * „hat kein veroeffentlichtes Formular (O-61)". Das stimmte nicht: alle
+     * VIER Bereiche haben eines, `angebot_operations` eingeschlossen. Der Fall
+     * war gruen gedacht und rot gemessen, und das Messen hatte recht. Er
+     * nimmt jetzt einen Bereich, den es wirklich nicht gibt.
      */
-    const antwort = await page.goto('/angebot/operations/danke?nr=L-X');
+    const antwort = await page.goto('/angebot/gibtsnicht/danke?nr=L-X');
     expect(antwort?.status()).toBe(404);
   });
 

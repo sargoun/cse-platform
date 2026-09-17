@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { AngebotSeiteFuer, angebotMetadaten } from './Angebot';
+import { AngebotSeiteFuer, angebotMetadaten, felderAus } from './Angebot';
 
 /**
  * `/angebot/[bereich]` — die deutsche Route (REQ-01).
@@ -36,5 +36,5 @@ export default async function AnfrageSeite(
    */
   const suche = await searchParams;
   const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : undefined;
-  return AngebotSeiteFuer(bereich, undefined, meldung);
+  return AngebotSeiteFuer(bereich, undefined, meldung, felderAus(suche['felder']));
 }

@@ -103,9 +103,26 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
      */
     const ziel = formularSchluessel(bereich) === undefined
       ? '/angebot' : `/angebot/${bereich}`;
+    /*
+     * **Die FELDmeldungen reisen mit, nicht nur der Sammelsatz.**
+     *
+     * Der erste Entwurf dieser Weiche haengte nur `meldung` an die Adresse.
+     * Damit las ein Besucher „Bitte pruefen Sie Ihre Eingaben" und nicht, WELCHE
+     * — die JSON-Antwort davor hatte die Feldmeldungen einzeln getragen. Ein
+     * Formular ohne JavaScript ist kein Grund, weniger zu sagen als vorher;
+     * `AnfrageFormular` hat fuer genau das eine `fehler`-Eigenschaft, die jedes
+     * Feld mit `aria-invalid` markiert und die Meldung darunter setzt.
+     *
+     * JSON in der Adresse und nicht ein eigener Parameter je Feld: die
+     * Feldnamen kommen aus `formular_definition` und sind nicht im Voraus
+     * bekannt.
+     */
+    const parameter = new URLSearchParams({ meldung });
+    if (Object.keys(felder).length > 0) {
+      parameter.set('felder', JSON.stringify(felder));
+    }
     return NextResponse.redirect(new URL(
-      `${mitSprache(ziel, sprache)}?meldung=${encodeURIComponent(meldung)}`,
-      anfrage.url,
+      `${mitSprache(ziel, sprache)}?${parameter.toString()}`, anfrage.url,
     ), 303);
   };
 
