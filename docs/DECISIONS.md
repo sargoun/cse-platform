@@ -5184,6 +5184,7 @@ niemand ihn suchen.
 | O-512 | **Soll `/karriere` in die Sitemap — und soll es englisch werden?** Die Sitemap kommt aus der DATENBANK (`seite`-Zeilen, PUB-10), nicht aus `OEFFENTLICHE_ROUTEN`; sie meldet der Suchmaschine, welche Seiten es GIBT, und eine Route ohne veroeffentlichte `seite`-Zeile rendert 404. `/karriere/*` ist dagegen im Code gebaut (REC-03) und hat keine `seite`-Zeile — es steht damit weder in der Sitemap noch auf Englisch. Fuer eine Karriereseite ist das Erste eine echte Einbusse: wer eine Stelle sucht, sucht sie bei Google. Die Copilot-Runde auf PR 16 meldete es als Verstoss gegen den zweisprachigen Vertrag (D-82). **Zwei Fragen, die der Auftraggeber beantwortet:** (a) Sollen im Code gebaute oeffentliche Routen in die Sitemap aufgenommen werden — und wenn ja, welche, und wie erfaehrt die Sitemap von ihnen, ohne eine zweite Liste zu werden, die veraltet? (b) Soll `/karriere` uebersetzt werden, samt Stellendetail, Formular und Dankseite, oder bleibt der Karrierebereich deutsch (Berliner Baustellen, deutschsprachige Teams)? **Heute ehrlich gemacht:** `NUR_DEUTSCH` nennt den Baum, `gibtEsIn()` haelt den Sprachumschalter und `hreflang` davon ab, eine englische Fassung zu behaupten, die es nicht gibt (D-583), und `sprachpfade.test.ts` faellt, sobald jemand uebersetzt, ohne den Eintrag zu entfernen. | REC-03, PUB-10, D-82, D-583, `services/inhalt/sitemap.ts`, `lib/sprache.ts` |
 | O-511 | **Soll der Versand an fremde Plattformen einen Ausgangskorb mit Idempotenzschlüssel bekommen, bevor der erste Kanal verbunden wird?** `sendeKanaele` (`services/social/dienst.ts`) ruft den Adapter INNERHALB der Geschäftstransaktion und schreibt `beitrag_kanal` danach. Bricht die Transaktion nach dem Adapter, aber vor dem Commit ab (Prozessende, ein späterer Kanal wirft), steht der Beitrag draussen, die Zeile sieht aber unversandt aus — und der nächste Versuch schickt ihn noch einmal. `BeitragAuftrag` kennt keinen Idempotenzschlüssel, den eine Plattform prüfen könnte. Gemeldet hat das die Copilot-Runde auf PR 16. **Heute ohne Wirkung:** alle fünf Plattformen sind absichtlich unverbunden (O-10) und antworten `nicht_verbunden`, einem terminalen Zustand ohne Nebenwirkung. Die richtige Form ist ein Ausgangskorb (`beitrag_versand` mit `idempotenz_schluessel`, Zustellung ausserhalb der Geschäftstransaktion, Abgleich danach) — das ist ein eigener Schritt mit Schema, Lauf und Tests, keine Zeile in `sendeKanaele`. Er gehört zu dem Zeitpunkt, an dem O-10 beantwortet ist und der erste Adapter echt wird; vorher wäre er ein Korb ohne Empfänger. | SOC-07, O-10, D-572, `services/social/dienst.ts` |
 | O-509 | **Welche KI-Endpunkte deckt der Auftragsverarbeitungsvertrag ab?** Der Adapter zerlegt `OPENAI_BASE_URL` und lässt nur `https` und einen Wirt aus einer Liste durch; in der Liste steht heute `eu.api.openai.com`, der Endpunkt, den OpenAI für EU-Datenresidenz nennt. Ob der AV-Vertrag des Kunden genau diesen abdeckt, ob er weitere abdeckt (Azure OpenAI in einer EU-Region hat je Ressource einen eigenen Wirt) und ob Nullspeicherung vertraglich zugesagt ist, weiss der Kunde — nicht diese Datei. Bis zur Antwort kommt jeder andere Wirt als `RESIDENCY_BLOCKED` zurück; ergänzen lässt sich die Liste über `OPENAI_EU_HOSTS`, und diese Variable zu setzen ist eine Entscheidung, die in die Verfahrensdokumentation gehört. | D-04, §8, `versand/modell-openai.ts`, D-509 |
+| O-596 | **Welche Recherchequelle soll für die Akquise beauftragt werden — oder keine?** §12 der Auftragsbeschreibung wünscht einen Agenten, der selbstständig nach möglichen Auftraggebern sucht. Der naheliegende Weg — Firmenverzeichnisse und Portale automatisiert auslesen — ist ausgeschlossen: er verletzt deren Nutzungsbedingungen (CLAUDE.md, „Out of scope") und erzeugt nach **Art. 14 DSGVO** für jeden erfassten Ansprechpartner eine Informationspflicht binnen eines Monats. Eine Liste mit 5.000 Namen wäre also 5.000 Briefe, bevor überhaupt jemand angerufen wurde. **Heute gebaut:** die Schnittstelle (`services/akquise/quelle.ts`) mit vier Quellenarten — `manuell`, `register` (amtliches Handelsregister), `dienstleister` (Datenanbieter mit AV-Vertrag) und `vergabe_radar` (die Plattform hat ihn ohnehin). **Keine ist verbunden**, `KeinRechercheur` wirft, statt eine leere Liste zu geben, und ein Lauf ohne Quelle wird als `uebersprungen` MIT Grund protokolliert — nicht als „0 Treffer". `akquise_ziel` speichert ausserdem **keine Personendaten**; das erzwingt schon der Typ `Fund`, durch den ein Name gar nicht passt. Die Frage ist kaufmännisch und juristisch, nicht technisch: welche Quelle wird beauftragt, und deckt ihr Vertrag die Verwendung zur Ansprache? | §12, `services/akquise/quelle.ts`, `drizzle/0172`, Art. 14 DSGVO, O-34 |
 | O-548 | **Zählt eine Projektschau zu den „Neuigkeiten" einer Gesellschaft?** `04-SEITENKARTE.md` §2.2 führt `/unternehmen/<bereich>/beitraege` und `/unternehmen/<bereich>/news` als zwei Adressen, und `beitrag_art` (SOC-02) kennt vier Arten: `beitrag`, `projektschau`, `neuigkeit`, `aktualisierung`. Die Karte sagt nicht, welche Art in welcher Liste steht. **Heute gewählt:** `/news` zeigt `neuigkeit` und `aktualisierung` — das, was eine Gesellschaft ankündigt —, `/beitraege` zeigt alles Veröffentlichte, und eine `projektschau` hat mit `/projekte` ohnehin ihre eigene Liste. Die Trennung steht an EINER Konstante (`NEUIGKEITS_ARTEN`), nicht an einer zweiten Spalte, die jemand pflegen müsste; sie umzustellen ist eine Zeile. Die Frage ist redaktionell und nicht technisch: wenn die Gruppe eine Projektschau als Neuigkeit versteht, gehört sie in beide Listen. | SOC-02, SOC-05, PRO-04, SEITENKARTE §2.2, `services/social/dienst.ts` |
 | O-502 | **Welche Kostenarten gehören in die Projektmarge (REP-05)?** Heute: Lohn (freigegebene Zeiteinträge zum internen Stundensatz aus `anstellung.stundensatz_intern`) plus Fremdleistung (Eingangsrechnungen mit Projektbezug). Nicht enthalten: Material ohne Rechnungsbezug, Gerätestunden und ein Gemeinkostensatz — und ob es einen geben soll, ist die eigentliche Frage: ein Zuschlag je Gesellschaft, ein Satz je Gewerk, oder gar keiner (dann ist die Zahl ein Deckungsbeitrag und keine Marge, und sollte so heissen). Bis zur Antwort nennt die Seite die Zahl „Kosten (Näherung)" und sagt unter der Tabelle, was fehlt — eine Marge, die so tut, als wäre sie die Nachkalkulation, wird in ein Angebot übernommen. | REP-05, `bericht/kennzahlen.ts`, D-506 |
 
@@ -13322,6 +13323,68 @@ sondern ungelesen — und in dieser Runde lag dort der grössere Teil.
 |---|---|
 
 ---
+
+### D-595 · Die KI-Akquise sucht Firmen, keine Menschen — und sendet nichts
+
+**Der Auftrag.** §12 der Auftragsbeschreibung wünscht einen Agenten, der
+selbstständig nach möglichen Auftraggebern sucht, sie bewertet, eine Ansprache
+entwirft und sie hinausschickt. Der Kunde hat die Frage ausdrücklich gestellt:
+„Was ist das Problem, wenn wir es mit menschlicher Freigabe bauen?"
+
+**Die Antwort, so genau wie sie ist.** Die menschliche Freigabe löst das eine
+Problem und nicht das andere. Sie deckt §7 UWG ab — ein Mensch entscheidet, ob
+eine Nachricht hinausgeht, und die Plattform lässt ohne diese Entscheidung
+nichts durch (Invariante 7). Sie hilft aber **nicht** gegen Art. 14 DSGVO. Wer
+personenbezogene Daten nicht bei der betroffenen Person erhebt, muss sie binnen
+eines Monats informieren — unabhängig davon, ob er sie je anspricht. Eine
+Recherchedatenbank mit 5.000 Ansprechpartnern erzeugt also 5.000
+Informationspflichten in dem Moment, in dem sie entsteht, und keine Freigabe
+davor ändert daran etwas.
+
+**Was daraus folgt, ist kein Verzicht, sondern ein Zuschnitt.** Gebaut wurde
+die ganze Kette; sie speichert nur andere Daten als erwartet:
+
+| Glied | Gebaut | Begründung |
+|---|---|---|
+| Quellen | `akquise_quelle` mit vier Arten, **keine verbunden** | Portale auszulesen verstösst gegen deren Nutzungsbedingungen (CLAUDE.md „Out of scope"); legal sind das amtliche Register, ein Anbieter mit Vertrag und der eigene Vergaberadar (O-596) |
+| Recherche | `jobs/akquise.ts`, 05:10 UTC je Gesellschaft | Ein Lauf ohne Quelle wird als `uebersprungen` MIT Grund protokolliert — nicht als „0 Treffer" |
+| Firmen | `akquise_ziel`, **nur Firmendaten** | Art. 14 DSGVO: die Spalten für Name, Funktion und Durchwahl gibt es nicht. Auch der Typ `Fund` lässt keinen durch |
+| Bewertung | `akquise/bewertung.ts`, deterministisch | Invariante 6: kein Modell rechnet eine Zahl. Gewichte sind Platzhalter (O-15), und die Begründung sagt das in jedem Datensatz |
+| Entwurf | `akquise/entwurf.ts`, Vorlage | Entwerfen ist erlaubt; §7 UWG verbietet das *Zusenden*, nicht das *Schreiben*. Kein Preis im Text — den rechnet `kalkulation` |
+| Übernahme | `akquise/uebernahme.ts` → `lead` mit `quelle = 'akquise'` | Ein Mensch entscheidet. Der Lead entsteht **ohne Ansprechpartner** — `app.darf_kontaktiert_werden` lässt damit keine elektronische Werbung durch |
+| Versand | **nichts** | Es gibt keinen Zweig, der sendet. Der Weg nach draussen führt über `lead_aktivitaet` durch `kern.uwg_sendetor`, das gegen den lebenden Kontakt neu prüft |
+
+**Der Lead ohne Ansprechpartner ist das Kernstück, nicht die Lücke.** Er steht
+im Vertrieb, ist sichtbar, hat eine Punktzahl und eine Begründung — und ist
+nicht anschreibbar. Wer diese Firma ansprechen will, legt einen Kontakt an,
+nennt dessen Rechtsgrundlage und informiert ihn nach Art. 14. Damit steht die
+Pflicht dort, wo sie hingehört: bei den paar Firmen, die jemand wirklich
+ansprechen will, statt bei allen, die eine Recherche gefunden hat.
+
+**Welcher Weg überhaupt offen wäre**, steht im Entwurf jeder Firma im Klartext:
+
+- **E-Mail** — nach §7 Abs. 2 Nr. 2 UWG nur mit *vorheriger ausdrücklicher*
+  Einwilligung, auch im B2B. Eine recherchierte Firma hat keine. Dieser Weg ist
+  nicht „vorläufig zu", er ist zu.
+- **Telefon** an ein Unternehmen — §7 Abs. 2 Nr. 1 UWG verlangt nur die
+  *mutmassliche* Einwilligung, also einen sachlichen Zusammenhang. Bei einer
+  Hausverwaltung und einer Gebäudereinigung ist der denkbar; ob er im Einzelfall
+  trägt, ist eine Rechtsfrage (O-34).
+- **Brief** — fällt unter §7 Abs. 2 gar nicht. Rechtlich der unauffälligste Weg.
+
+**Und eine Stelle, an der die Plattform heute strenger ist als das Gesetz.**
+`app.darf_kontaktiert_werden` weist **jeden** Kanal ab, solange die
+Rechtsgrundlage `keine` ist — auch `post`. Das ist bewusst: eine Vorsichtsstellung
+bis zur anwaltlichen Prüfung der Ausgangsmatrix (O-34). Diese eine Zeile ist der
+Schalter zwischen „gar keine Kaltansprache" und „Kaltansprache per Brief ist
+zulässig", und sie umzulegen ist eine Entscheidung des Mandanten mit seinem
+Anwalt, keine des Entwicklers. Der Entwurfsbildschirm sagt genau das.
+
+**Was den Kunden das kostet.** Nichts von dem, was er wollte, ausser der
+Vorstellung, die Plattform könne eine Adressliste kaufen und loslegen. Sie kann
+suchen, bewerten, begründen, entwerfen und übergeben. Den letzten Schritt —
+einen Menschen ansprechen — macht ein Mensch, und er macht ihn mit der
+Information, warum er ihn machen darf.
 
 ### D-592 · Das interne Portal spricht Deutsch und Englisch — und der Umschalter steht auf jeder Seite
 

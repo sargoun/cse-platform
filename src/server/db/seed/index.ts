@@ -32,6 +32,7 @@ import { seedEingang } from './eingang.js';
 import { seedRechnungen } from './rechnung.js';
 import { seedSocial } from './social.js';
 import { seedRecruiting } from './recruiting.js';
+import { seedAkquise } from './akquise.js';
 import { seedBerichtsdaten } from './berichtsdaten.js';
 import { seedRadar } from './radar.js';
 import { DEMO_KENNWORT, seedZugangsdaten } from './zugang.js';
@@ -1698,6 +1699,20 @@ async function main(): Promise<void> {
       + `${String(recruiting.bewerbungen)} Bewerbungen `
       + `(eine je Stelle abgelaufen und eine gesperrt — REC-07), `
       + `${String(recruiting.bewertungen)} Bewertungskriterien\n`);
+
+  /*
+   * Die Akquise. Die vier Quellen und der übersprungene Lauf entstehen immer;
+   * die Firmen nur mit Demoflagge. Vor den Rechnungen, weil sie von nichts
+   * abhängt — und nach dem CRM, weil ihr Zielbild der Lead ist.
+   */
+  const akquise = await seedAkquise(sql, ids, demodaten);
+  process.stdout.write(
+    `  Akquise: ${String(akquise.quellen)} Recherchequellen (KEINE verbunden, O-596), `
+    + `${String(akquise.laeufe)} protokollierte Leerläufe`
+    + (akquise.uebersprungen
+      ? ' — keine Firmen ohne CSE_DEV_FLAECHEN\n'
+      : `, ${String(akquise.ziele)} recherchierte Firmen OHNE Personendaten `
+        + '(Art. 14 DSGVO — die Spalten dafür gibt es nicht)\n'));
 
   /**
    * Zuletzt die Ausgangsrechnungen — nach Kunden, Konten und Nummernkreisen,

@@ -31,6 +31,7 @@ interface Zahlen {
   readonly kontakte: string;
   readonly leads_offen: string;
   readonly ohne_grundlage: string;
+  readonly akquise_offen: string;
 }
 
 export default async function CrmUebersicht(
@@ -57,7 +58,10 @@ export default async function CrmUebersicht(
               (select count(*) from ansprechpartner ap
                 where ap.archiviert_am is null
                   and not app.darf_kontaktiert_werden(ap.id, 'email', 'werbung'))::text
-                as ohne_grundlage`,
+                as ohne_grundlage,
+              (select count(*) from akquise_ziel
+                where archiviert_am is null and status in ('neu','geprueft'))::text
+                as akquise_offen`,
     ))) as Promise<readonly Zahlen[]>);
 
   /**
@@ -75,6 +79,14 @@ export default async function CrmUebersicht(
       ziel: { pathname: `/portal/${mandant}/crm/kunden` } },
     { label: 'Leads offen', wert: zahlen?.leads_offen ?? '0',
       ziel: { pathname: `/portal/${mandant}/crm/leads` } },
+    /*
+     * Die Akquise steht NEBEN den Leads und nicht darin: eine recherchierte
+     * Firma hat nichts angefragt, hat keine Frist und darf nicht angeschrieben
+     * werden. Zwei Kacheln sind hier die ehrlichere Darstellung als eine
+     * Summe, die beides zusammenzieht.
+     */
+    { label: 'Akquise offen', wert: zahlen?.akquise_offen ?? '0',
+      ziel: { pathname: `/portal/${mandant}/crm/akquise` } },
   ];
 
   return (

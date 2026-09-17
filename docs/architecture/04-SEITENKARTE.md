@@ -924,7 +924,19 @@ eventually two addresses on one invoice.
 | `/portal/[mandant]/crm/kontakte/[id]` | `crm.lesen` | `M1` | CRM-03, CRM-08, LEG-08 | 4 |
 | `/portal/[mandant]/crm/kontakte/[id]/rechtsgrundlage` — set, with evidence and date | `crm.rechtsgrundlage_setzen` | `M1` | CRM-08, LEG-08 | 4 |
 | `/portal/[mandant]/crm/wiedervorlagen` — follow-ups due | `crm.lesen` | `M1` | CRM-03, CRM-04 | 4 |
+| `/portal/[mandant]/crm/akquise` — researched companies, scored, not yet contacted | `crm.lesen` | `M1` | §12 | 4 |
+| `/portal/[mandant]/crm/akquise/[id]` — one company: score breakdown, outreach draft, hand-over to a lead | `crm.lesen` (+ `crm.schreiben` to act) | `M1` | §12, CRM-08, LEG-08 | 4 |
+| `/portal/[mandant]/crm/akquise/quellen` — research sources and the nightly run log | `crm.lesen` | `M1` | §12, O-596 | 4 |
 
+- **Akquise is a waiting room, not the pipeline.** A researched company is a guess: no
+  enquiry, no deadline, no legal basis to contact anyone. Putting those rows in
+  `/crm/leads` would flood the sales working list with guesses and run the REQ-06 SLA
+  escalation against companies that never asked for anything. They live in their own list
+  until a human hands one over, which creates a `lead` with `quelle = 'akquise'` and **no
+  Ansprechpartner** — so `app.darf_kontaktiert_werden` blocks every electronic message until
+  someone records a contact and its legal basis. `akquise_ziel` stores **company data only**:
+  Art. 14 GDPR would otherwise require informing every researched person within a month
+  (O-596, D-595).
 - **CRM-08 is a route-level gate, not a badge.** Every screen that can start an outbound
   message renders the send control **disabled with the reason shown** when the contact's
   legal basis does not cover the message class (§2.3), and `crm.kommunikation_versenden` plus

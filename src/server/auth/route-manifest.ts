@@ -307,6 +307,20 @@ export const ROUTEN: readonly RouteEintrag[] = [
     recht: 'referenz.veroeffentlichen',
   },
   {
+    /*
+     * §12. Ansehen, verwerfen und uebernehmen sind Entscheidungen eines
+     * Menschen ueber einen Vertriebsvorgang — deshalb `crm.schreiben` und
+     * nicht ein eigener Schluessel, den man anschliessend jeder Rolle bindet,
+     * die `crm.schreiben` schon hat (K-19).
+     *
+     * **Senden ist hier KEINE Handlung.** Der Weg nach draussen fuehrt ueber
+     * `lead_aktivitaet` und dort durch `kern.uwg_sendetor`; eine zweite Tuer
+     * neben dem Tor waere der ganze Sinn des Tores.
+     */
+    pfad: 'api/akquise/ziel',
+    recht: 'crm.schreiben',
+  },
+  {
     pfad: 'api/konto/sprache',
     recht: null,
     grund:

@@ -450,6 +450,35 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'crm.kommunikation_versenden',
   },
   { modul: 'crm', pfad: 'lead/benachrichtigung', schreibend: false },
+  /*
+   * Die Akquise (§12). Sie gehört zum Modul `crm` und nicht zu einem eigenen:
+   * ein recherchiertes Ziel ist eine Vorstufe des Leads, und wer Leads sehen
+   * darf, soll auch sehen, woher der nächste kommt. Ein eigener
+   * Rechteschlüssel hätte bedeutet, dass eine Vertriebsleitung ihre eigene
+   * Pipeline nur halb sieht.
+   *
+   * `bewertung`, `gewichte.platzhalter` und `entwurf` RECHNEN und FORMULIEREN,
+   * sie schreiben nichts — sie laufen deshalb auch in der Gruppenansicht.
+   * `quelle` schreibt die Laufprotokolle, `ziel` die Liste, `uebernahme` den
+   * Lead.
+   */
+  { modul: 'crm', pfad: 'akquise/bewertung', schreibend: false },
+  { modul: 'crm', pfad: 'akquise/gewichte.platzhalter', schreibend: false },
+  { modul: 'crm', pfad: 'akquise/entwurf', schreibend: false },
+  /*
+   * `quelle` liest nur. Der Lauf, der `akquise_lauf` schreibt, steht in
+   * `server/jobs/akquise.ts` — `cse_app` hat auf dieser Tabelle gar kein
+   * INSERT (0172). Eine Recherche ist ein Nachtlauf und kein Knopf.
+   */
+  { modul: 'crm', pfad: 'akquise/quelle', schreibend: false },
+  {
+    modul: 'crm', pfad: 'akquise/ziel',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  {
+    modul: 'crm', pfad: 'akquise/uebernahme',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
   // Kennzahlen. Sie ZÄHLEN — in der Gruppenansicht ist daran nichts
   // gefährlich, und schreiben können sie nicht.
   { modul: 'bericht', pfad: 'bericht/kacheln', schreibend: false },
