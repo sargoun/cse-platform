@@ -1,6 +1,7 @@
 import { tabZiel, type TabZiel } from '@/server/registry/tableiste';
 import { GRUPPEN_NAVIGATION, NAVIGATION } from '@/server/registry/navigation';
 import { Icon } from '@/components/ui/Icon';
+import { Sprachumschalter } from './Sprachumschalter';
 
 /**
  * Die Tab-Leiste unter 768 px (DESIGN §5/§8, SEITENKARTE §11.2).
@@ -47,6 +48,8 @@ export interface TabLeisteProps {
    * Sprachen (EMP-12). Was hier fehlt, faellt auf das Register zurueck.
    */
   readonly beschriftungen?: Readonly<Record<string, string>>;
+  /** Traegt das Blatt den Sprachumschalter? Nur das interne Portal (D-592). */
+  readonly intern?: boolean;
 }
 
 /**
@@ -62,11 +65,25 @@ export interface TabLeisteProps {
  * ausgegraut: ein Menuepunkt, der auf 404 fuehrt, verraet die Existenz
  * dessen, was er nicht zeigen darf (AUT-06).
  */
-function MehrZelle({ wurzel, rechte, gruppenansicht }: {
+function MehrZelle({ wurzel, rechte, gruppenansicht, beschriftungen, intern }: {
   readonly wurzel: string;
   readonly rechte: Readonly<Record<string, boolean>>;
   readonly gruppenansicht: boolean;
+  /**
+   * Die Karte der Huelle — dieselbe wie oben in der Leiste.
+   *
+   * **Hier stand nichts, und das war die Luecke.** Die Tabs der Leiste lasen
+   * schon `beschriftungen`; das Blatt dahinter las `n.label` aus dem Register
+   * und die vier Sitzungspunkte als deutsche Literale. Unter 768 px war das
+   * Portal damit einsprachig — auf genau den Geraeten, auf denen es meistens
+   * geoeffnet wird.
+   */
+  readonly beschriftungen?: Readonly<Record<string, string>>;
+  /** Traegt das Blatt den Sprachumschalter? Nur das interne Portal (D-592). */
+  readonly intern: boolean;
 }) {
+  const b = (schluessel: string, vorgabe: string): string =>
+    beschriftungen?.[schluessel] ?? vorgabe;
   /*
    * **Nachgeschlagen unter `schluessel`, nicht unter `recht`.**
    *
@@ -96,7 +113,7 @@ function MehrZelle({ wurzel, rechte, gruppenansicht }: {
                    justify-center gap-s1 px-s2 py-s2 text-micro text-text-muted"
       >
         <Icon name="menue" groesse="md" />
-        Mehr
+        {b('mehr', 'Mehr')}
       </summary>
       {/*
         `ueber-leiste-oberkante`, nicht `inset-0`.
@@ -129,7 +146,7 @@ function MehrZelle({ wurzel, rechte, gruppenansicht }: {
                 className="flex min-h-[44px] items-center gap-s3 py-s3 text-sm text-text"
               >
                 <Icon name={n.icon} groesse="md" className="shrink-0" />
-                {n.label}
+                {b(n.schluessel, n.label)}
               </a>
             </li>
           ))}
@@ -144,10 +161,11 @@ function MehrZelle({ wurzel, rechte, gruppenansicht }: {
           * das Telefon alles findet, was nicht in fuenf Tabs passt; ein
           * Portal ohne Ausgang waere es sonst genau hier.
           */}
-        <h2 className="mt-s5 text-h3 text-text">Sitzung</h2>
+        <h2 className="mt-s5 text-h3 text-text">{b('sitzung.label', 'Sitzung')}</h2>
         <ul className="m-0 list-none p-0">
-          {([['/auth/bereich', 'Bereich wechseln'], ['/portal/konto', 'Konto'],
-             ['/', 'Website']] as const).map(([ziel, text]) => (
+          {([['/auth/bereich', b('sitzung.bereich', 'Bereich wechseln')],
+             ['/portal/konto', b('sitzung.konto', 'Konto')],
+             ['/', b('sitzung.website', 'Website')]] as const).map(([ziel, text]) => (
                <li key={ziel} className="border-b border-line">
                  <a href={ziel} data-cse="mehr-sitzung"
                     className="flex min-h-[44px] items-center py-s3 text-sm text-text">
@@ -159,10 +177,21 @@ function MehrZelle({ wurzel, rechte, gruppenansicht }: {
             <form method="post" action="/api/abmelden">
               <button type="submit" data-cse="mehr-abmelden"
                       className="flex min-h-[44px] w-full items-center py-s3 text-sm text-text">
-                Abmelden
+                {b('sitzung.abmelden', 'Abmelden')}
               </button>
             </form>
           </li>
+          {/*
+            * Der Sprachumschalter am Telefon. Er steht im Blatt und nicht in
+            * der Kopfzeile: dort ist er unter `sm` ausgeblendet, und ohne
+            * diesen Eintrag koennte am Telefon niemand die Sprache wechseln —
+            * genau auf dem Geraet, auf dem das Portal am haeufigsten offen ist.
+            */}
+          {intern && (
+            <li className="border-b border-line">
+              <Sprachumschalter label={b('sprache.label', 'Sprache')} />
+            </li>
+          )}
         </ul>
       </nav>
     </details>
@@ -171,7 +200,7 @@ function MehrZelle({ wurzel, rechte, gruppenansicht }: {
 
 export function TabLeiste({
   ziele, aktiv, wurzel, label, sichtbar, navigationsRechte, gruppenansicht = false,
-  beschriftungen,
+  beschriftungen, intern = false,
 }: TabLeisteProps) {
   const gezeigt = ziele.filter((z) => sichtbar?.[z.schluessel] !== false);
   return (
@@ -195,6 +224,8 @@ export function TabLeiste({
               wurzel={wurzel}
               rechte={navigationsRechte}
               gruppenansicht={gruppenansicht}
+              intern={intern}
+              {...(beschriftungen === undefined ? {} : { beschriftungen })}
             />
           );
         }

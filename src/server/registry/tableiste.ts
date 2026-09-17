@@ -44,6 +44,22 @@ export type LeistenSchluessel =
   | 'intern_global' | 'intern_admin' | 'intern_leitung'
   | 'mitarbeiter' | 'kunde' | 'gruppe';
 
+/**
+ * Die Leisten des INTERNEN Publikums — die vier, die die zweisprachige Huelle
+ * deckt (D-592).
+ *
+ * Sie steht hier und nicht in der Huelle, weil `LeistenSchluessel` hier steht:
+ * kommt eine funfte interne Leiste dazu, faellt der Compiler ueber diese
+ * Zeile, und nicht erst der Bildschirm ueber eine fehlende Uebersetzung.
+ */
+export const INTERNE_LEISTEN: readonly LeistenSchluessel[] = [
+  'intern_global', 'intern_admin', 'intern_leitung', 'gruppe',
+];
+
+export function istInterneLeiste(schluessel: LeistenSchluessel): boolean {
+  return INTERNE_LEISTEN.includes(schluessel);
+}
+
 export interface TabLeiste {
   readonly schluessel: LeistenSchluessel;
   readonly familie: Familie;

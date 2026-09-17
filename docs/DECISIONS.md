@@ -13319,3 +13319,83 @@ sondern ungelesen — und in dieser Runde lag dort der grössere Teil.
 
 | Betrifft | LEG-09, SEC-A9, AUT-02, K-15, O-373, O-514, D-580, D-586, D-587, D-588, D-589, `api/datenschutz/*`, `services/datenschutz/verzeichnis.ts`, `registry/verarbeitungen.ts`, `tests/e2e/datenschutz-dokumente.spec.ts` |
 |---|---|
+
+---
+
+### D-592 · Das interne Portal spricht Deutsch und Englisch — und der Umschalter steht auf jeder Seite
+
+**Der Auftrag.** „Die interne Oberfläche zweisprachig (de/en), ein
+Sprachumschalter auf jeder Seite." Das Mitarbeiterportal sprach seit PR 20
+vier Sprachen (EMP-12); die Bildschirme der Verwaltung waren durchgehend
+deutsch.
+
+**Warum zwei Sprachen und nicht vier.** Die Arbeiterin am Objekt hat keine
+Wahl: sie muss ihre Schicht lesen können, also spricht ihr Portal `de`, `en`,
+`ar`, `tr`. Die internen Bildschirme sind eine andere Lage. Sie führen
+Buchhaltung, Vergabe und Personalakten; ihr Vokabular ist das des UStG, der
+VOB und der GoBD, und die Hälfte davon hat gar kein englisches Wort —
+`Aufmass`, `Nachtrag`, `Leistungsnachweis`. Vier Sprachen hiessen vier
+Übersetzungen dieser Begriffe, und drei davon wären eine Erfindung. Englisch
+kommt dazu, weil die Gruppe Steuerberatung, Entwicklung und Prüfer einkauft,
+die nicht alle Deutsch lesen.
+
+**`ar` und `tr` fallen auf Deutsch, nicht auf Englisch.** Wer als Person `tr`
+gewählt hat, hat das für das Mitarbeiterportal getan; über sein Englisch sagt
+die Wahl nichts. Ein internes Konto auf Englisch zu stellen, weil jemand
+Türkisch bevorzugt, wäre geraten. Deutsch ist die Sprache, in der diese
+Bildschirme rechtlich richtig sind; Englisch ist die, die jemand ausdrücklich
+wählt. `internSprache()` bildet das an einer Stelle ab, und ein Test fährt
+jede der vier Portalsprachen durch.
+
+**Eine Spalte, kein zweiter Speicher.** Die Wahl steht dort, wo sie schon
+stand: `person.sprache`, und für ein Konto ohne Mensch `benutzer.sprache` —
+genau die Regel, die seit 0007 im Spaltenkommentar steht und die
+`konto/sprache.ts` beim Schreiben befolgt. Das Tor (`portalZugang`) las sie
+bisher nur für `portal = 'mitarbeiter'`; jetzt liest es sie für jedes Portal,
+in derselben gebundenen Transaktion, unter `t_person_lesen` bzw.
+`t_benutzer_lesen`. Der Umschalter schreibt über `POST /api/konto/sprache` —
+die Route gab es bereits, samt Ursprungsvergleich, Selbstpflege-Policy und
+Spaltenrecht; sie bekommt hier keinen zweiten Weg daneben.
+
+**Warum die Sprache nicht als Eigenschaft durch die Hülle reist.**
+`PortalRahmen` steht an 176 Stellen. Sprache und Rückweg als
+Pflichteigenschaften anzuhängen hiesse, 176 Aufrufe zu ändern und bei jedem
+künftigen zu HOFFEN, dass jemand daran denkt. Vergisst es einer, fällt seine
+Seite still ins Deutsche zurück und der Umschalter wirft den Benutzer auf die
+Kontoseite — kein Fehler, keine rote Zeile, nur ein Bildschirm, der sich
+falsch benimmt. Stattdessen ein Anfragespeicher (`app/portal/huellen-speicher.ts`):
+das Tor schreibt hinein, die Hülle liest heraus. `cache()` von React und
+**keine Modulvariable** — eine Modulvariable lebt im Prozess, zwei Anfragen
+zweier Benutzer teilten sie sich, und wer zuletzt das Tor passierte, bestimmte
+die Sprache aller anderen und im schlimmsten Fall ihren Rückweg.
+
+**Der Rückweg.** Der Umschalter ist ein gewöhnliches `<form method="post">` —
+kein Skript, damit er auf einem alten Diensttelefon funktioniert — und trägt
+die aktuelle Adresse als `zurueck` mit. Ohne sie landete jeder Wechsel auf
+`/portal/konto/profil`; wer die Sprache auf der Auftragsliste wechselt, will
+die Auftragsliste behalten. Die Adresse füllt die Seite selbst, nicht der
+Browser, und die Route prüft sie zusätzlich gegen `internesZiel`.
+
+**Was übersetzt ist — und was noch nicht.** Übersetzt ist die HÜLLE: beide
+Navigationsregister (28 + 17 Punkte), die Tab-Leisten des internen Publikums,
+die Kopfzeile und — das war die stillste Lücke — das „Mehr"-Blatt unter
+768 px. Dessen Punkte lasen `n.label` direkt aus dem Register und seine vier
+Sitzungspunkte waren deutsche Literale; unter 768 px war das Portal damit
+einsprachig, also genau auf den Geräten, auf denen es am häufigsten geöffnet
+wird. Die Fliesstexte der einzelnen Module folgen; sie sind hier nicht
+behauptet, und der Browsertest behauptet sie ausdrücklich nicht.
+
+**Die Wache.** `tests/kern/intern-beschriftungen.test.ts` vergleicht die
+Schlüsselmenge der Karte gegen die Register: ein neuer Navigationspunkt ohne
+Übersetzung fällt dort auf, nicht am Bildschirm. Denn der Rückfall auf das
+deutsche Label des Registers ist als Verhalten richtig — ein leerer
+Menüpunkt wäre schlimmer — und macht die Lücke eben deshalb unsichtbar. Der
+Test fällt ausserdem, wenn ein Schlüssel auf nichts zeigt (Tippfehler), wenn
+die zwei Sprachen verschiedene Schlüsselmengen haben und wenn jemand die
+deutsche Spalte nach Englisch kopiert. Alle drei Sabotagen wurden gefahren,
+alle drei wurden gefangen. `INTERNE_LEISTEN` steht im Register neben
+`LeistenSchluessel`, damit eine fünfte interne Leiste den Compiler und nicht
+den Bildschirm trifft.
+
+| Betrifft | EMP-12, D-419, `lib/i18n/intern.ts`, `app/portal/huellen-speicher.ts`, `components/portal/Sprachumschalter.tsx`, `components/portal/PortalRahmen.tsx`, `components/portal/TabLeiste.tsx`, `server/registry/tableiste.ts`, `app/portal/zugang.ts` |
+|---|---|

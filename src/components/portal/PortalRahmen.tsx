@@ -4,8 +4,11 @@ import { Marke } from '@/components/marke/Marke';
 import { Glocke } from './Glocke';
 import { TabLeiste } from './TabLeiste';
 import { SeitenNavigation } from './SeitenNavigation';
-import { tableiste, type LeistenSchluessel } from '@/server/registry/tableiste';
+import { istInterneLeiste, tableiste, type LeistenSchluessel } from '@/server/registry/tableiste';
+import { Sprachumschalter } from './Sprachumschalter';
 import { NAVIGATION } from '@/server/registry/navigation';
+import { internBeschriftungen } from '@/lib/i18n/intern';
+import { gemerkteHuelle } from '@/app/portal/huellen-speicher';
 import type { BereichSchluessel } from '@/lib/design/theme';
 
 /**
@@ -87,8 +90,20 @@ export function PortalRahmen({
   const wurzelTab = tabs.ziele.find((t) => t.pfad === '' && t.recht !== null);
   const wurzelOffen = wurzelTab === undefined || sichtbareTabs === undefined
     || sichtbareTabs[wurzelTab.schluessel] !== false;
+  /**
+   * Die Beschriftungen — uebergebene zuerst, sonst die der internen Huelle in
+   * der Sprache DIESER Anfrage (D-592).
+   *
+   * Das Mitarbeiterportal und das Kundenportal geben ihre Karte mit; sie
+   * sprechen vier Sprachen und haben eigene Schluessel. Alles andere ist das
+   * interne Portal, und dort holt der Rahmen die Karte selbst, statt sie sich
+   * von 176 Aufrufstellen reichen zu lassen — von denen eine sie vergessen
+   * wuerde, ohne dass jemand einen Fehler saehe.
+   */
+  const stand = gemerkteHuelle();
+  const karte = beschriftungen ?? internBeschriftungen(stand.sprache);
   const b = (schluessel: string, vorgabe: string): string =>
-    beschriftungen?.[schluessel] ?? vorgabe;
+    karte[schluessel] ?? vorgabe;
   /**
    * **Auf dem Telefon braucht jede Leiste ohne `Mehr` einen eigenen Ausgang.**
    *
@@ -254,6 +269,15 @@ export function PortalRahmen({
             {b('sitzung.website', 'Website')}
           </a>
           {/*
+            * Der Sprachumschalter — nur im internen Portal (D-592). Das
+            * Mitarbeiterportal spricht vier Sprachen und waehlt sie auf der
+            * Profilseite; zwei Umschalter mit verschiedenen Auswahlmengen auf
+            * einem Bildschirm waeren eine Falle, keine Hilfe.
+            */}
+          {istInterneLeiste(leiste) && (
+            <Sprachumschalter label={b('sprache.label', 'Sprache')} />
+          )}
+          {/*
             * Ein FORMULAR, kein Verweis: eine Abmeldung aendert Zustand, und
             * ein GET dafuer laesst sich von einem fremden Bild-Tag ausloesen.
             */}
@@ -381,7 +405,7 @@ export function PortalRahmen({
             : (sichtbareTabs === undefined ? {} : { sichtbar: sichtbareTabs }))}
           bereich={bereich}
           label={titel}
-          {...(beschriftungen === undefined ? {} : { beschriftungen })}
+          beschriftungen={karte}
         />
         {/* `ueber-tableiste` unter `md`: die Tab-Leiste liegt fest am unteren Rand und
             verdeckte sonst die letzte Zeile jeder Liste. */}
@@ -410,7 +434,8 @@ export function PortalRahmen({
         {...(navigationsRechte === undefined ? {} : { navigationsRechte })}
         gruppenansicht={leiste === 'gruppe'}
         label={titel}
-        {...(beschriftungen === undefined ? {} : { beschriftungen })}
+        beschriftungen={karte}
+        intern={istInterneLeiste(leiste)}
       />
     </div>
   );
