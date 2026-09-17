@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { alsKonto, KONTO } from './hilfen/anmeldung';
 
 /**
@@ -21,7 +21,7 @@ const BLATT = '[data-cse="sprachumschalter"][data-ort="blatt"]';
  * vorige Lauf geendet hat. Wer den Uebergang messen will, stellt den
  * Ausgangspunkt selbst her.
  */
-async function aufDeutsch(page: import('@playwright/test').Page): Promise<void> {
+async function aufDeutsch(page: Page): Promise<void> {
   const de = page.locator(`${KOPF} button[value="de"]`);
   if (await de.count() === 1 && await de.isVisible() && await de.isEnabled()) await de.click();
 }

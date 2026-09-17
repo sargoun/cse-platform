@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { NAVIGATION, GRUPPEN_NAVIGATION } from '@/server/registry/navigation';
 import { INTERNE_LEISTEN, tableiste } from '@/server/registry/tableiste';
 import {
-  INTERN_BESCHRIFTUNGEN, INTERN_SPRACHEN, internBeschriftungen, internSprache,
-  internSprachwahl, istInternSprache,
+  BAUZUSTAND_TEXTE, bauzustandTexte, INTERN_BESCHRIFTUNGEN, INTERN_SPRACHEN,
+  internBeschriftungen, internSprache, internSprachwahl, istInternSprache,
 } from '@/lib/i18n/intern';
 import { PORTAL_SPRACHEN } from '@/lib/i18n/texte';
 
@@ -124,5 +124,55 @@ describe('die Sprachwahl des Umschalters', () => {
 
   it('meldet fuer ein Konto ohne Angabe Deutsch und keine fremde Wahl', () => {
     expect(internSprachwahl(null)).toEqual({ aktiv: 'de', fremdeWahl: null });
+  });
+});
+
+/**
+ * Die Bauzustandsseite — die haeufigste Seite dieses Portals.
+ *
+ * Sie steht auf 136 der 434 Routen der Seitenkarte. Ein deutscher Absatz
+ * inmitten einer englischen Huelle waere genau dort am auffaelligsten.
+ */
+describe('die Texte der Bauzustandsseite', () => {
+  it('sagt in beiden Sprachen etwas, und nicht dasselbe', () => {
+    for (const s of INTERN_SPRACHEN) {
+      expect(BAUZUSTAND_TEXTE[s].titel.trim()).not.toBe('');
+      expect(BAUZUSTAND_TEXTE[s].warumKeinLeererBildschirm.trim()).not.toBe('');
+    }
+    expect(BAUZUSTAND_TEXTE.de.titel).not.toBe(BAUZUSTAND_TEXTE.en.titel);
+    expect(BAUZUSTAND_TEXTE.de.warumKeinLeererBildschirm)
+      .not.toBe(BAUZUSTAND_TEXTE.en.warumKeinLeererBildschirm);
+  });
+
+  it('nennt die Phase, wenn es eine gibt — und sagt sonst „spaeter", nicht „null"', () => {
+    for (const s of INTERN_SPRACHEN) {
+      const [, mitZahl] = BAUZUSTAND_TEXTE[s].satz(7);
+      expect(mitZahl).toContain('7');
+
+      const [, ohne] = BAUZUSTAND_TEXTE[s].satz(null);
+      /*
+       * Der Fall, der wirklich schiefgehen kann: eine Vorlage, die `phase`
+       * blind einsetzt, schreibt „in Phase null" auf den Bildschirm.
+       */
+      expect(ohne.toLowerCase()).not.toContain('null');
+      expect(ohne).not.toMatch(/\d/);
+    }
+  });
+
+  it('endet den Satz mit einem Punkt — der Pfad steht davor, nicht dahinter', () => {
+    for (const s of INTERN_SPRACHEN) {
+      for (const phase of [null, 3]) {
+        const [vor, nach] = BAUZUSTAND_TEXTE[s].satz(phase);
+        expect(vor.startsWith(' '), `${s}: der Pfad braucht Abstand`).toBe(true);
+        expect(nach.trimEnd().endsWith('.'), `${s}/${phase}`).toBe(true);
+      }
+    }
+  });
+
+  it('bildet die vier Portalsprachen auf die zwei Textsaetze ab', () => {
+    expect(bauzustandTexte('en')).toBe(BAUZUSTAND_TEXTE.en);
+    expect(bauzustandTexte('ar')).toBe(BAUZUSTAND_TEXTE.de);
+    expect(bauzustandTexte('tr')).toBe(BAUZUSTAND_TEXTE.de);
+    expect(bauzustandTexte(null)).toBe(BAUZUSTAND_TEXTE.de);
   });
 });

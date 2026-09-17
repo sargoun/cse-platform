@@ -185,6 +185,54 @@ Readonly<Record<InternSprache, Readonly<Record<string, string>>>> = {
 };
 
 /**
+ * Die Texte der Bauzustandsseite (`NochNichtGebaut`).
+ *
+ * **Warum ausgerechnet die zuerst.** Sie steht auf 136 der 434 Routen der
+ * Seitenkarte — mehr als jede andere Seite dieses Portals. Eine
+ * zweisprachige Huelle um einen deutschen Absatz herum waere genau dort am
+ * auffaelligsten, wo am meisten Leute landen.
+ *
+ * `pfad` und `phase` reisen als Bausteine hinein, statt den Satz zu
+ * zerschneiden: eine Sprache, die die Wortstellung anders baut, braucht den
+ * ganzen Satz in der Hand.
+ */
+export interface BauzustandTexte {
+  readonly titel: string;
+  /** `(pfad, phase)` → der Satz. `phase === null` heisst „spaeter, ohne Zahl". */
+  readonly satz: (phase: number | null) => readonly [vor: string, nach: string];
+  readonly warumKeinLeererBildschirm: string;
+}
+
+export const BAUZUSTAND_TEXTE: Readonly<Record<InternSprache, BauzustandTexte>> = {
+  de: {
+    titel: 'Dieses Modul wird noch gebaut',
+    satz: (phase) => [
+      ' steht in der Seitenkarte und ist Ihnen freigegeben — die Seite dahinter entsteht',
+      phase === null ? ' in einer späteren Phase.' : ` in Phase ${phase}.`,
+    ],
+    warumKeinLeererBildschirm:
+      'Hier steht bewusst kein leerer Bildschirm mit einer Überschrift: eine leere Liste '
+      + 'liest sich wie „es gibt nichts“, und das wäre eine Aussage über Ihre Daten statt '
+      + 'über den Bauzustand.',
+  },
+  en: {
+    titel: 'This module is still being built',
+    satz: (phase) => [
+      ' is on the site map and you have access to it — the page behind it is being built',
+      phase === null ? ' in a later phase.' : ` in phase ${phase}.`,
+    ],
+    warumKeinLeererBildschirm:
+      'This is deliberately not an empty screen with a heading: an empty list reads as '
+      + '“there is nothing here”, and that would be a statement about your data rather '
+      + 'than about what has been built.',
+  },
+};
+
+export function bauzustandTexte(sprache: PortalSprache | null | undefined): BauzustandTexte {
+  return BAUZUSTAND_TEXTE[internSprache(sprache)];
+}
+
+/**
  * Die Beschriftungen fuer eine Sitzung — das, was `PortalRahmen` erwartet.
  *
  * Eine Funktion und keine direkte Indizierung, damit die Aufruferin die
