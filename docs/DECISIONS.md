@@ -13467,3 +13467,51 @@ to be false* — das Loch, live. Mit 0169 sind beide Dateien grün,
 
 | Betrifft | AUT-01, AUT-06, K-11/§1.8, Invariante 2, `0169_berechtigungsfenster_berlin.sql`, `tests/isolation/berechtigungsfenster.test.ts`, `tests/isolation/recruiting.test.ts` |
 |---|---|
+
+---
+
+### D-594 · Eine Pillenzeile, die nicht umbrechen darf, schiebt die ganze Seite hinaus
+
+**Der Befund.** Der Massenlauf am Telefon (`tests/e2e/abmessungen.spec.ts`,
+390px, 470 Routen) meldete zwei Seiten zu breit: `finanzen/ausgangsbuch` um
+23px, `finanzen/eingangsrechnungen` um 4px. Beide Male dieselbe Zelle — eine
+`StatusPill` und ein Wort daneben in
+`<span className="inline-flex items-center gap-s2">`.
+
+**Warum `min-w-0 break-words` am `<dd>` nicht genügt.** Der Kartenstapel unter
+`md` trägt beides schon, und zwar genau deshalb (D-420). Durch einen
+Flex-Container wirkt es nicht: ein Flex-Element hat von sich aus
+`min-width: auto`, also kann ein `inline-flex` ohne `flex-wrap` nicht unter die
+Summe seiner Kinder schrumpfen. Die Korrektur von damals war richtig und eine
+Ebene zu hoch.
+
+**Warum es so lange unsichtbar war.** Ohne Demodaten hat die Tabelle keine
+Zeilen, ohne Zeilen keine Pillen. Der Lauf ohne `CSE_DEV_FLAECHEN=1` misst
+dieselbe Seite und findet nichts — die Abdeckungszahl (461 statt 470 Seiten)
+sieht dabei fast gleich aus.
+
+**Alle neunundzwanzig, nicht die zwei.** Das Muster stand 29-mal im Baum. Zwei
+liefen über, weil ihr Text gerade lang genug war; die übrigen 27 warteten auf
+einen längeren Status, einen Ablehnungsgrund — oder auf die englische Fassung
+desselben Wortes, seit die Oberfläche zweisprachig ist (D-592). „Storniert"
+ist kürzer als „cancelled", und die Zelle hat keinen Puffer.
+
+**Die Wache** (`tests/kern/pillenzeile-umbricht.test.ts`) prüft GENAU die
+Zeichenkette, die dieses Haus für diese Zelle benutzt, und nicht jedes
+`inline-flex`: die Knöpfe und Filterpillen tragen dieselbe Anzeigeart, und ein
+umbrechender Knopf wäre kaputt, nicht gerettet. Ein Gegen-Check zählt die
+korrigierte Form (≥ 25 Dateien), damit die Wache in einem leeren Baum nicht
+grün ist. Sabotiert: eine Zeile zurückgedreht, die Wache fiel. Der
+vollständige Beweis bleibt der Massenlauf — er misst wirklich, statt
+Klassennamen zu lesen.
+
+**Der Sprachumschalter bekommt dasselbe, aus einem anderen Grund.** Im
+zugeklappten „Mehr"-Blatt ist der Kasten 17px breit — Chromium legt den Inhalt
+eines geschlossenen `<details>` trotzdem aus. Zwei Knöpfe, die nicht
+schrumpfen, standen dort bis x=465 in einem Kasten, der bei 390 endet. Das
+`overflow-x` des Blattes beschneidet sie, die Seite wächst also nicht; aber
+ein Kasten, der aus seinem Kasten hängt, ist kein Zustand, auf den man sich
+verlässt.
+
+| Betrifft | WCAG 1.4.10, DESIGN §8, D-420, D-592, `tests/kern/pillenzeile-umbricht.test.ts`, `tests/e2e/abmessungen.spec.ts`, 29 Portalseiten |
+|---|---|
