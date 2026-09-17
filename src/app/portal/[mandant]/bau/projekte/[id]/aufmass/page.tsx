@@ -119,7 +119,7 @@ export default async function AufmassListe(
               schluessel: 'status',
               kopf: 'Status',
               zelle: (z) => (
-                <span className="inline-flex items-center gap-s2">
+                <span className="inline-flex flex-wrap items-center gap-s2">
                   <StatusPill zustand={AUFMASS_PILLE[z.status] ?? 'Entwurf'} />
                   {/* §9: das WORT traegt die rechtliche Bedeutung, nicht die Farbe. */}
                   <span className="text-xs text-text-muted">

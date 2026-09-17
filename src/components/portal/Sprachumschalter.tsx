@@ -41,7 +41,16 @@ export function Sprachumschalter(
        * Vorfahren behelfen.
        */
       data-ort={ort}
-      className="flex items-center gap-s2"
+      /*
+       * `flex-wrap`: im geschlossenen „Mehr"-Blatt ist der Kasten 17px breit —
+       * Chromium legt den Inhalt eines zugeklappten `<details>` trotzdem aus.
+       * Zwei Knoepfe, die nicht schrumpfen, stehen dann bis x=465 in einem
+       * Kasten, der bei 390 endet. Sie werden zwar vom `overflow-x` des
+       * Blattes beschnitten und schieben die Seite nicht hinaus — aber ein
+       * Kasten, der aus seinem Kasten haengt, ist kein Zustand, auf den man
+       * sich verlassen will, und der Massenlauf zaehlt ihn zu Recht auf.
+       */
+      className="flex flex-wrap items-center gap-s2"
       {...(fremdeWahl === null ? {} : { title: sprachHinweis(stand.sprache, fremdeWahl) })}
     >
       {stand.pfad !== null && <input type="hidden" name="zurueck" value={stand.pfad} />}

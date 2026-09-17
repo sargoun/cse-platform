@@ -284,7 +284,7 @@ export default async function BankAuszug(
             {
               schluessel: 'zustand', kopf: 'Zustand',
               zelle: (z) => (
-                <span className="inline-flex items-center gap-s2">
+                <span className="inline-flex flex-wrap items-center gap-s2">
                   <StatusPill zustand={ZUSTAND[z.zustand] ?? 'Offen'} />
                   {z.gebucht ? null : (
                     <span className="text-xs text-text-muted">Vormerkung</span>

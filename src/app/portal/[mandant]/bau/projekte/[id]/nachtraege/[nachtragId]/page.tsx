@@ -90,7 +90,7 @@ export default async function NachtragDetail(
             {nachtrag.projekt_nummer} · {nachtrag.projekt}
           </p>
         </div>
-        <span className="inline-flex items-center gap-s2">
+        <span className="inline-flex flex-wrap items-center gap-s2">
           <StatusPill
             zustand={nachtrag.ueberfaellig
               ? 'Überfällig'

@@ -189,7 +189,7 @@ export default async function NachtraegeJeProjekt(
               schluessel: 'status',
               kopf: 'Status',
               zelle: (z) => (
-                <span className="inline-flex items-center gap-s2">
+                <span className="inline-flex flex-wrap items-center gap-s2">
                   <StatusPill
                     zustand={z.ueberfaellig
                       ? 'Überfällig'

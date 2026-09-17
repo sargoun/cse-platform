@@ -110,7 +110,7 @@ export default async function AufmassBlatt(
             {' · '}{ERHEBUNGSART_TEXT[daten.kopf.erhebungsart] ?? daten.kopf.erhebungsart}
           </p>
         </div>
-        <span className="inline-flex items-center gap-s2">
+        <span className="inline-flex flex-wrap items-center gap-s2">
           <StatusPill zustand={AUFMASS_PILLE[daten.kopf.status] ?? 'Entwurf'} />
           <span className="text-sm text-text-muted">
             {AUFMASS_STATUS_TEXT[daten.kopf.status] ?? daten.kopf.status}

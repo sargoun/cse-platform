@@ -154,7 +154,7 @@ export default async function BehinderungenJeProjekt(
               schluessel: 'status',
               kopf: 'Status',
               zelle: (z) => (
-                <span className="inline-flex items-center gap-s2">
+                <span className="inline-flex flex-wrap items-center gap-s2">
                   <StatusPill zustand={BEHINDERUNG_PILLE[z.status] ?? 'Entwurf'} />
                   {/* §9: das WORT trägt die rechtliche Bedeutung, nicht die Farbe. */}
                   <span className="text-xs text-text-muted">

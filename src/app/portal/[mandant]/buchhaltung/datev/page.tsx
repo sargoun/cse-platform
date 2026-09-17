@@ -218,7 +218,7 @@ export default async function Datev(
             {
               schluessel: 'status', kopf: 'Status',
               zelle: (z) => (
-                <span className="inline-flex items-center gap-s2">
+                <span className="inline-flex flex-wrap items-center gap-s2">
                   <StatusPill zustand={STATUS[z.status] ?? 'Offen'} />
                   {z.verwerfungsgrund === null ? null : (
                     <span className="text-xs text-text-muted">{z.verwerfungsgrund}</span>

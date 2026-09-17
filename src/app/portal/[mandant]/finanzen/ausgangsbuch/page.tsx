@@ -196,7 +196,7 @@ export default async function Ausgangsbuch(
               schluessel: 'hinweis',
               kopf: 'Hinweis',
               zelle: (z) => (
-                <span className="inline-flex items-center gap-s2">
+                <span className="inline-flex flex-wrap items-center gap-s2">
                   {z.storniert ? <StatusPill zustand="Archiviert" /> : null}
                   {z.luecke ? <StatusPill zustand="Fehler" /> : null}
                   {z.storniert ? <span className="text-xs text-text-muted">storniert</span> : null}

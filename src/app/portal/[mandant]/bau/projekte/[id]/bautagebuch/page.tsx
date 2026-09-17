@@ -130,7 +130,7 @@ export default async function BautagebuchListe(
               schluessel: 'status',
               kopf: 'Status',
               zelle: (z) => (
-                <span className="inline-flex items-center gap-s2">
+                <span className="inline-flex flex-wrap items-center gap-s2">
                   <StatusPill zustand={z.storniert ? 'Archiviert' : BAUTAG_PILLE[z.status] ?? 'Entwurf'} />
                   {/* §9: das WORT traegt die Bedeutung, nicht die Farbe. */}
                   <span className="text-xs text-text-muted">

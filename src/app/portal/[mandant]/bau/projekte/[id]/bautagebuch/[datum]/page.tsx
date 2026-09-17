@@ -167,7 +167,7 @@ export default async function Bautag(
               && ` · gegengezeichnet von ${kopf.gegengezeichnet_von_name ?? ''} am ${kopf.gegengezeichnet_lokal}`}
           </p>
         </div>
-        <span className="inline-flex items-center gap-s2">
+        <span className="inline-flex flex-wrap items-center gap-s2">
           <StatusPill
             zustand={kopf === null
               ? 'Entwurf'

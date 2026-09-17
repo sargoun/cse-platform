@@ -105,7 +105,7 @@ export default async function AufmassUeberProjekte(
               schluessel: 'status',
               kopf: 'Status',
               zelle: (z) => (
-                <span className="inline-flex items-center gap-s2">
+                <span className="inline-flex flex-wrap items-center gap-s2">
                   <StatusPill zustand={AUFMASS_PILLE[z.status] ?? 'Entwurf'} />
                   <span className="text-xs text-text-muted">
                     {AUFMASS_STATUS_TEXT[z.status] ?? z.status}

@@ -179,7 +179,7 @@ export default async function Rechnungsliste(
               schluessel: 'status',
               kopf: 'Zustand',
               zelle: (z) => (
-                <span className="inline-flex items-center gap-s2">
+                <span className="inline-flex flex-wrap items-center gap-s2">
                   <StatusPill zustand={PILLE[z.status] ?? 'Entwurf'} />
                   {z.storniert_durch === null ? null : (
                     <span className="text-xs text-text-muted">

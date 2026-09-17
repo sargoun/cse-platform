@@ -171,7 +171,7 @@ export default async function Zahlungen(
                 schluessel: 'faellig',
                 kopf: 'Fällig',
                 zelle: (p) => (
-                  <span className="inline-flex items-center gap-s2">
+                  <span className="inline-flex flex-wrap items-center gap-s2">
                     {p.faelligAm}
                     {p.ueberfaelligTage > 0 ? (
                       <StatusPill zustand="Überfällig" />

@@ -89,7 +89,7 @@ export default async function BehinderungDetail(
             {' · '}{BEHINDERUNG_GRUND_KURZ[b.grund_kategorie] ?? b.grund_kategorie}
           </p>
         </div>
-        <span className="inline-flex items-center gap-s2">
+        <span className="inline-flex flex-wrap items-center gap-s2">
           <StatusPill zustand={BEHINDERUNG_PILLE[b.status] ?? 'Entwurf'} />
           <span className="text-sm text-text-muted">
             {BEHINDERUNG_STATUS_TEXT[b.status] ?? b.status}

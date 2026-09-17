@@ -533,7 +533,7 @@ export default async function AgentDetail(
               schluessel: 'status',
               kopf: 'Zustand',
               zelle: (a) => (
-                <span className="inline-flex items-center gap-s2">
+                <span className="inline-flex flex-wrap items-center gap-s2">
                   <StatusPill zustand={PILLE[a.status] ?? 'Wartet'} />
                   {a.budget_stopp
                     ? <span className="text-xs text-warning">Budget</span>

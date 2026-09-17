@@ -236,7 +236,7 @@ export default async function Buchung(
             schluessel: 'konto', kopf: 'Konto',
             zelle: (z) => (z.konto === null
               ? (
-                <span className="inline-flex items-center gap-s2">
+                <span className="inline-flex flex-wrap items-center gap-s2">
                   <StatusPill zustand="Fehler" />
                   <span className="text-xs text-warning">
                     {z.pruefhinweis ?? 'Kontenzuordnung fehlt'}

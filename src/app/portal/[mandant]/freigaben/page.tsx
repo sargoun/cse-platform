@@ -263,7 +263,7 @@ export default async function Freigaben(
               schluessel: 'pruefung', kopf: 'Prüfung',
               zelle: (z) => (z.unsichereFelder > 0
                 ? (
-                  <span className="inline-flex items-center gap-s2">
+                  <span className="inline-flex flex-wrap items-center gap-s2">
                     <StatusPill zustand="Wartet" />
                     <span className="text-xs text-warning">
                       {String(z.unsichereFelder)} unsicher
