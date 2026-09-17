@@ -5,6 +5,7 @@ import { withEingang } from '@/server/kontext/eingang';
 import { withOeffentlich } from '@/server/kontext/oeffentlich';
 import { formularSchluessel } from '@/lib/formular/bereiche';
 import { Felder, FormularFehler } from '@/lib/formular/schema';
+import { istUebermittlung } from '@/lib/formular/uebermittlung';
 import { ipHash, nimmAn, pruefeRatenlimit, RatenlimitFehler, istBot }
   from '@/server/services/lead/annahme';
 import { bestaetige } from '@/server/services/lead/bestaetigung';
@@ -168,13 +169,24 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
   const dateiSchluessel = new Set(felder.filter((f) => f.typ === 'datei').map((f) => f.schluessel));
   const werte: Record<string, unknown> = {};
   for (const [name, wert] of formData.entries()) {
-    // `sprache` gehoert wie `bereich` und `website` zur UEBERMITTLUNG, nicht
-    // zum Formular: die Validierung kennt nur Felder der `formular_definition`
-    // und wies die Anfrage sonst als "unbekanntes Feld" ab — das eigene
-    // versteckte Feld haette jede Absendung gebrochen.
-    if (name === 'bereich' || name === 'website' || name === 'sprache'
-        || name.startsWith('utm_')
-        || name === 'landing_page' || dateiSchluessel.has(name)) continue;
+    /*
+     * **Diese Liste ist die Uebermittlung, nicht das Formular.** Die
+     * Validierung kennt nur Felder der `formular_definition` und weist alles
+     * andere als „unbekanntes Feld" ab.
+     *
+     * **Und genau das ist passiert.** `antwort` kam mit D-599 als verstecktes
+     * Feld dazu — die Weiche „Browser bekommt eine Seite" — und fehlte hier.
+     * Die Folge war nicht ein Randfall, sondern: JEDE Absendung des Formulars
+     * wurde abgewiesen, mit der Meldung „Bitte pruefen Sie die markierten
+     * Felder" und einem Feldnamen, den es nicht gibt. Der Kommentar darueber
+     * warnte woertlich davor („das eigene versteckte Feld haette jede
+     * Absendung gebrochen"), und die Zeile wurde trotzdem vergessen.
+     *
+     * Gefunden hat es der Browserlauf, nicht der Typpruefer: ein Feldname ist
+     * eine Zeichenkette, und eine vergessene Zeichenkette in einer Liste sieht
+     * aus wie nichts.
+     */
+    if (istUebermittlung(name) || dateiSchluessel.has(name)) continue;
     if (typeof wert === 'string') werte[name] = wert;
   }
 
