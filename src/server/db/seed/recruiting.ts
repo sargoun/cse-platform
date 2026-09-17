@@ -29,6 +29,7 @@ import type postgres from 'postgres';
 export interface RecruitingErgebnis {
   readonly stellen: number;
   readonly bewerbungen: number;
+  readonly antworten: number;
   readonly bewertungen: number;
   readonly uebersprungen: boolean;
 }
@@ -134,11 +135,12 @@ export async function seedRecruiting(
   sql: postgres.Sql, ids: ReadonlyMap<string, string>, demodaten: boolean,
 ): Promise<RecruitingErgebnis> {
   if (!demodaten) {
-    return { stellen: 0, bewerbungen: 0, bewertungen: 0, uebersprungen: true };
+    return { stellen: 0, bewerbungen: 0, bewertungen: 0, antworten: 0, uebersprungen: true };
   }
 
   let stellen = 0;
   let bewerbungen = 0;
+  let antworten = 0;
   let bewertungen = 0;
 
   const [frist] = await sql<{ tage: number }[]>`
@@ -148,6 +150,15 @@ export async function seedRecruiting(
   for (const [slug, mandantId] of ids) {
     const vorlagen = STELLEN[slug] ?? [];
     if (vorlagen.length === 0) continue;
+
+    /*
+     * Der Gesellschaftsname für die Grussformel der Antwortentwürfe — aus der
+     * Datenbank gelesen und nicht aus dem Slug gebastelt. „reinigung" ist kein
+     * Firmenname, und unter einem Brief steht der Firmenname.
+     */
+    const [gesellschaft] = await sql<{ name: string }[]>`
+      select name from mandant where id = ${mandantId}`;
+    const firmenname = gesellschaft?.name ?? slug;
 
     /*
      * Die erste Stelle ist VERÖFFENTLICHT und trägt deshalb eine EIGENE,
@@ -269,6 +280,38 @@ export async function seedRecruiting(
         if (bw === undefined) continue;
         bewerbungen += 1;
 
+        /*
+         * **Die Eingangsbestätigung als ENTWURF** — für jede Bewerbung, die
+         * noch lebt (REC-03).
+         *
+         * Nicht als „gesendet": es ist kein Postausgang verbunden (O-501), und
+         * eine Demozeile, die Versand behauptet, wäre die vorgetäuschte
+         * Integration, gegen die die ganze Kette gebaut ist. Als Entwurf zeigt
+         * sie genau den Stand: der Text steht, ein Mensch fehlt, ein Anbieter
+         * auch.
+         *
+         * Die abgelaufenen Bewerbungen bekommen keine — der Löschlauf nimmt
+         * sie mit, und eine Antwort an jemanden, dessen Daten heute Nacht
+         * verschwinden, ist kein sinnvolles Demodatum.
+         */
+        if (!abgelaufen) {
+          const [a] = await sql<{ id: string }[]>`
+            insert into bewerbung_antwort
+              (mandant_id, bewerbung_id, art, betreff, text, entworfen_von)
+            values (${mandantId}, ${bw.id}, 'eingangsbestaetigung',
+                    ${`Ihre Bewerbung als ${v.titel}`},
+                    ${`Guten Tag ${b.name},\n\n`
+                      + `vielen Dank für Ihre Bewerbung als ${v.titel}. Sie ist bei uns `
+                      + 'eingegangen und wird gerade gesichtet.\n\n'
+                      + 'Wir melden uns, sobald wir sie durchgesehen haben. Bis dahin '
+                      + 'brauchen Sie nichts weiter zu tun.\n\n'
+                      + `Freundliche Grüße\n${firmenname}`},
+                    'mensch'::akteur_art)
+            on conflict do nothing
+            returning id`;
+          if (a !== undefined) antworten += 1;
+        }
+
         /* Die mittlere ist bewertet — damit die Rangfolge nicht aus einer Zeile besteht. */
         if (j !== 1) continue;
         for (const [k, anforderung] of v.anforderungen.entries()) {
@@ -286,5 +329,5 @@ export async function seedRecruiting(
     }
   }
 
-  return { stellen, bewerbungen, bewertungen, uebersprungen: false };
+  return { stellen, bewerbungen, bewertungen, antworten, uebersprungen: false };
 }

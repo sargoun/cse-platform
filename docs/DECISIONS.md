@@ -13324,6 +13324,79 @@ sondern ungelesen — und in dieser Runde lag dort der grössere Teil.
 
 ---
 
+### D-598 · Eine Absage nennt keinen Grund — und die Datenbank passt darauf auf
+
+**Der Auftrag.** Der Agent soll auf Bewerbungen antworten und senden. Gebaut
+ist die Kette: Entwurf → Freigabe durch einen Menschen → Versand. Die
+schwierige Entscheidung steckt nicht im Ablauf, sondern im Text.
+
+**§ 22 AGG kehrt die Beweislast um.** Wer Indizien für eine Benachteiligung
+vorträgt, zwingt den Arbeitgeber zum Gegenbeweis. Jede Begründung in einem
+Absageschreiben ist ein solches Indiz in spe:
+
+| Der höfliche Satz | Was ein Anwalt daraus macht |
+|---|---|
+| „Wir suchen jemanden mit mehr Berufserfahrung." | Altersindiz |
+| „Das Team passt fachlich besser zusammen." | Indiz für alles Übrige |
+| „Die Sprachkenntnisse reichen für dieses Objekt nicht." | Indiz ethnischer Herkunft |
+| „Wir haben uns für eine andere Bewerbung entschieden." | nichts |
+
+Deutsche Personalpraxis schreibt Absagen deshalb ohne Grund. Das ist kein
+Ausweichen: die Begründung wird sehr wohl festgehalten, nur eben **intern** in
+`einstellungsentscheidung.begruendung` — wo sie im Streitfall den sachlichen
+Grund *belegt*, statt ihn im Brief *angreifbar* zu machen. `entscheide()`
+verlangt sie deshalb weiterhin zwingend.
+
+**Warum ein Auslöser und nicht eine Ermahnung im Handbuch.** Der Text entsteht
+aus einer Vorlage, und die Vorlage nennt keinen Grund. Der gefährliche Weg ist
+der andere: jemand bearbeitet den Entwurf im Browser und ergänzt einen Satz —
+aus Höflichkeit, weil eine Absage ohne Grund unpersönlich wirkt. Genau diese
+Höflichkeit ist das Indiz.
+
+`kern.absage_ohne_grund` (0174) vergleicht deshalb **jedes 30-Zeichen-Fenster**
+der gespeicherten Begründung mit dem Antworttext und weist eine Übernahme ab.
+Nicht gegen eine Wortliste: eine Wortliste verbietet Wörter, und die Begründung
+kann jedes Wort enthalten. Die Grenze von 30 Zeichen ist bewusst — kürzere
+Übereinstimmungen sind Zufall („wir haben uns entschieden"), längere sind
+Übernahme. Ein einfaches `position(grund in text)` fände nur die wörtliche
+Vollkopie, und wer kopiert, kürzt meist.
+
+Der Riegel gilt **nur für die Absage**. Eine Einladung darf jeden Grund nennen;
+eine positive Begründung ist kein AGG-Indiz.
+
+**Eine Antwort an eine Bewerberin geht NICHT durch das UWG-Tor.** §7 UWG regelt
+Werbung. Eine Bewerbung ist eine Kontaktaufnahme *durch* die betroffene Person;
+die Antwort darauf ist vorvertragliche Kommunikation (Art. 6 Abs. 1 lit. b
+DSGVO). Sie durch `app.darf_kontaktiert_werden` zu schicken hiesse, eine Absage
+zu blockieren, weil kein Werbeeinverständnis vorliegt — und eine unbeantwortete
+Bewerbung ist kein Datenschutz, sondern Unhöflichkeit mit AGG-Risiko.
+
+**Gesendet wird nichts, und das steht überall dran.** Es ist kein Postausgang
+verbunden (O-501). Zwei Feinheiten, die beide aus demselben Grundsatz folgen:
+
+- `sende()` **schreibt** den Fehlgrund in `versand_fehler`, statt ihn zu werfen.
+  Ein geworfener Fehler rollt die Transaktion zurück, und dann steht in der
+  Datenbank nichts darüber, dass jemand es versucht hat. Der Personalbereich
+  sähe eine freigegebene Absage ohne jede Spur.
+- Auch der **Entwicklungsdienst** bekommt kein `gesendet_am`. Er nimmt jede Mail
+  an und verschickt keine — er ist der gefährlichere Fall, weil er nicht wirft.
+  Wer nur den Fehler fängt, schriebe hier „zugestellt", und die Bewerberin
+  wartete.
+
+**`freigegeben` heisst nicht `gesendet`.** Der Nachzug
+`app.antwort_folgt_freigabe` setzt den Stand und den Menschen, der entschieden
+hat; dort bleibt die Zeile stehen, bis wirklich etwas hinausgeht. Er zieht auch
+bei einer **Ablehnung** nach — dieselbe Begründung wie bei
+`app.stelle_folgt_freigabe` (0167): ein Ausführer läuft nur auf `genehmigt`, und
+ein abgelehnter Entwurf bliebe sonst auf ewig `wartet_auf_freigabe` stehen, wo
+ihn der eindeutige Index gegen jeden zweiten Versuch sperrt.
+
+**Der Antworttext geht bei der Löschung mit** (REC-07) — als einzige Ausnahme
+von Invariante 8. Er beginnt mit „Sehr geehrte Frau …", trägt also genau den
+Namen, um dessentwillen gelöscht wird. Ohne Kaskade: `jobs/bewerberLoeschung.ts`
+benennt jede abhängige Zeile einzeln, weil LEG-11 einen Nachweis verlangt, und
+eine Kaskade führt keinen.
+
 ### D-595 · Die KI-Akquise sucht Firmen, keine Menschen — und sendet nichts
 
 **Der Auftrag.** §12 der Auftragsbeschreibung wünscht einen Agenten, der

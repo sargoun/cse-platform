@@ -1108,6 +1108,17 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibRecht: 'recruiting.stelle_schreiben',
   },
   /*
+   * Die Antwort an eine Bewerberin (REC-03). Dasselbe Muster wie oben: das
+   * Register nennt das Recht, unter dem in der Gruppenansicht geschrieben
+   * werden KOENNTE — `recruiting.bewerbung_bewerten`. Dass `legeVor` und
+   * `sende` zusaetzlich `recruiting.entscheiden` verlangen, steht an der
+   * Route: eine Absage IST die Entscheidung, aus Sicht der Empfaengerin.
+   */
+  {
+    modul: 'recruiting', pfad: 'recruiting/antwort', schreibend: true,
+    schreibRecht: 'recruiting.bewerbung_bewerten',
+  },
+  /*
    * **Der Feed-Zugang steht NICHT hier, und das ist kein Vergessen.**
    *
    * Er schreibt (`kalender_feed` anlegen und widerrufen), aber er gehoert dem

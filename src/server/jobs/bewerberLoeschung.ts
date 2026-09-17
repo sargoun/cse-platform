@@ -162,6 +162,19 @@ export function registriereBewerberLoeschung(db: JobVerbindung): JobDefinition {
               `delete from einstellungsentscheidung where bewerbung_id = any($1::uuid[])`,
               [e.zuLoeschen]);
             /*
+             * **Der Antworttext geht mit** (0174). Er beginnt mit „Sehr
+             * geehrte Frau …" — er trägt also genau den Namen, um
+             * dessentwillen gelöscht wird. Bliebe er stehen, wäre die
+             * Bewerbung anonymisiert und die Anrede nicht.
+             *
+             * Dass diese Zeile hier steht und keine Kaskade sie mitnimmt, ist
+             * dieselbe Entscheidung wie oben: LEG-11 verlangt einen Nachweis,
+             * WAS gelöscht wurde, und eine Kaskade führt keinen.
+             */
+            await jd.abfrage(
+              `delete from bewerbung_antwort where bewerbung_id = any($1::uuid[])`,
+              [e.zuLoeschen]);
+            /*
              * `example.invalid` ist die von RFC 2606 reservierte Domain: die
              * Adresse erfüllt den CHECK auf die E-Mail-Form und kann niemanden
              * erreichen. Ein leeres Feld ginge nicht — `bewerbung_email_form`

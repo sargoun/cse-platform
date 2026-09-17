@@ -1698,7 +1698,9 @@ async function main(): Promise<void> {
     : `  Recruiting: ${String(recruiting.stellen)} Stellen, `
       + `${String(recruiting.bewerbungen)} Bewerbungen `
       + `(eine je Stelle abgelaufen und eine gesperrt — REC-07), `
-      + `${String(recruiting.bewertungen)} Bewertungskriterien\n`);
+      + `${String(recruiting.bewertungen)} Bewertungskriterien, `
+      + `${String(recruiting.antworten)} Antwortentwürfe (KEINER gesendet — `
+      + `kein Postausgang verbunden, O-501)\n`);
 
   /*
    * Die Akquise. Die vier Quellen und der übersprungene Lauf entstehen immer;

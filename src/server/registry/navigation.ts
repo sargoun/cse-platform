@@ -160,6 +160,28 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    */
   { schluessel: 'social', label: 'Social Media', pfad: 'social', recht: 'social.lesen', icon: 'social' },
   /**
+   * `website` — die Pflege des oeffentlichen Auftritts (PUB-07, PRO-01 … PRO-05).
+   *
+   * **Dieser Punkt hat gefehlt, und die Seiten dahinter gab es trotzdem.**
+   * `website/seiten`, `website/galerie` und `website/referenzen` waren gebaut,
+   * arbeiteten und waren aus dem Portal heraus mit keinem einzigen Klick
+   * erreichbar — man kam nur hin, indem man die Adresse eintippte. Gefunden
+   * hat das ein Abgleich gegen die Auftragsbeschreibung, nicht eine Pruefung:
+   * kein Test fragt „fuehrt irgendein Weg dorthin", und drei Bildschirme, die
+   * niemand oeffnen kann, sind genauso gut nicht gebaut.
+   *
+   * **Das Recht ist `referenz.schreiben`** — das, was zwoelf der dreizehn
+   * website-Routen im Manifest tragen. `website/formulare` verlangt
+   * `formular.schreiben` und `website/profil` zusaetzlich
+   * `system.identitaet_verwalten`; beide tragen ihr Recht selbst, und die
+   * Sprungzeile zeigt nur, was diese Sitzung oeffnen darf (AUT-06, D-567).
+   *
+   * Der Punkt zeigt auf `website/seiten` und nicht auf `website`: eine
+   * Modulwurzel gibt es nicht, und ein Menuepunkt auf eine Seite, die es nicht
+   * gibt, ist der sichtbarste 404 im ganzen Portal.
+   */
+  { schluessel: 'website', label: 'Website', pfad: 'website/seiten', recht: 'referenz.schreiben', icon: 'dokument' },
+  /**
    * `recruiting` — Stellen, Bewerbungen, Kandidaten (REC-01 … REC-09, PR 79).
    *
    * **Das Recht ist `recruiting.bewerbung_lesen`**, das schmalste der sieben:

@@ -135,8 +135,15 @@ export function bewerte(
 
   // ─── Stichwort im Namen ───
   const name = normal(daten.firmenname);
-  const nameTrifft = Object.values(zuordnung).flat()
-    .filter((w) => name.includes(normal(w)));
+  /*
+   * `new Set`, weil ein Wort in zwei Bereichslisten stehen kann — „wohnungsbau"
+   * gehoert zur Reinigung UND zum Bau. Ohne die Entdopplung stuende es zweimal
+   * in der Begruendung, und ein Leser haelt eine doppelte Nennung fuer einen
+   * doppelten Treffer.
+   */
+  const nameTrifft = [...new Set(Object.values(zuordnung).flat()
+    .filter((w) => name.includes(normal(w)))
+    .map((w) => normal(w)))];
   if (nameTrifft.length > 0) {
     punkte += GEWICHTE_PLATZHALTER.stichwort;
     teile.push(

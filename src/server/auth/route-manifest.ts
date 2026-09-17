@@ -308,6 +308,32 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /*
+     * PUB-07/PUB-08. Einen Abschnitt aendern ODER eine Seite veroeffentlichen.
+     * Das Manifest nennt das schwaechere Recht (die Route bewacht die
+     * Adresse); die Route verlangt fuer `status` zusaetzlich
+     * `referenz.veroeffentlichen`. Einen Entwurf schreiben und einen Satz auf
+     * die Startseite der GmbH stellen sind zwei Handlungen.
+     */
+    pfad: 'api/website/seite',
+    recht: 'referenz.schreiben',
+  },
+  {
+    /*
+     * REC-03. Vier Handlungen an einem Antwortentwurf: entwerfen, aendern,
+     * vorlegen, senden. Das Manifest nennt das SCHWAECHERE der beiden Rechte,
+     * weil es die Route bewacht; die Route selbst verlangt fuer `vorlegen` und
+     * `senden` zusaetzlich `recruiting.entscheiden`.
+     *
+     * Das ist kein Schlupfloch, sondern die Reihenfolge: das Manifest sagt
+     * „wer darf diese Adresse ueberhaupt aufrufen", die Route sagt „und wer
+     * darf DIESE Handlung". Ein Manifest, das hier `entscheiden` forderte,
+     * naehme dem Bewertenden das Entwerfen.
+     */
+    pfad: 'api/recruiting/antwort',
+    recht: 'recruiting.bewerbung_bewerten',
+  },
+  {
+    /*
      * §12. Ansehen, verwerfen und uebernehmen sind Entscheidungen eines
      * Menschen ueber einen Vertriebsvorgang — deshalb `crm.schreiben` und
      * nicht ein eigener Schluessel, den man anschliessend jeder Rolle bindet,

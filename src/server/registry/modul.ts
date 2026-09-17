@@ -72,6 +72,13 @@ export const QUERSCHNITT: ReadonlySet<string> = new Set([
   // wird, nicht. An ein Gewerk gebunden waere das Modul bei CSE Operations
   // abgeschaltet, und genau dort liegt die Gruppenkommunikation.
   'social',
+  // `referenz` (PUB-07, PRO-01 … PRO-05): die Pflege des oeffentlichen
+  // Auftritts. Dieselbe Begruendung wie bei `social` und derselbe Grund, es
+  // NICHT an ein Gewerk zu binden: jede der vier Gesellschaften hat ein
+  // Profil, Referenzen und eine Galerie. An ein Gewerk gebunden waere die
+  // Website-Pflege bei CSE Operations abgeschaltet — und dort liegt die
+  // Gruppenkommunikation.
+  'referenz',
   // `recruiting` (PR 79, REC-01): jede der vier Gesellschaften stellt Menschen
   // ein, und sie stellt ihre eigenen ein — eine Bewerbung gehoert dem
   // Mandanten, bei dem sie eingeht (Invariante 3). WEN eine Gesellschaft

@@ -71,6 +71,13 @@ describe('die Beschriftungen der internen Huelle', () => {
     expect(gleich.sort()).toEqual([
       'bank', 'crm', 'datev', 'leads', 'radar', 'recruiting', 'security',
       'sitzung.website',
+      /*
+       * `website` steht in beiden Spalten gleich, weil „Website" im Deutschen
+       * dasselbe Wort ist — der Duden fuehrt es, und „Netzauftritt" saehe in
+       * einem Menue aus wie ein Scherz. Dieselbe Begruendung wie bei `crm`
+       * und `sitzung.website`.
+       */
+      'website',
     ]);
   });
 
