@@ -13324,6 +13324,138 @@ sondern ungelesen — und in dieser Runde lag dort der grössere Teil.
 
 ---
 
+### D-600 · Die zwei gesetzlichen Pflichtwege der Website — mit einem Empfänger
+
+**Der Befund.** `04-SEITENKARTE.md` §2.4 führt seit Phase 2 drei öffentliche
+Adressen, die das Gesetz verlangt: `/datenschutz/anfrage`,
+`/datenschutz/anfrage/danke` (Art. 15–21 DSGVO) und
+`/barrierefreiheit/feedback` (BFSG). Alle drei antworteten mit 404. Die
+Barrierefreiheitserklärung nannte ersatzweise eine E-Mail-Adresse; für die
+Betroffenenrechte gab es gar nichts.
+
+**Die Reihenfolge war die eigentliche Entscheidung: zuerst der Empfänger, dann
+das Formular.** Die Seitenkarte sagt es in einem Satz, der es wert ist,
+wiederholt zu werden:
+
+> Ein öffentliches Formular, das eine Pflicht nach Art. 12 Abs. 3 erzeugt und
+> keinen internen Empfänger hat, ist eine versäumte gesetzliche Frist mit einem
+> Zeitstempel darauf.
+
+Ein Formular, das in kein Postfach führt, ist schlechter als der 404: der 404
+verspricht nichts.
+
+**Zwei Tabellen und nicht eine.** Beide Formulare erzeugen eine Antwortpflicht,
+und sie sind trotzdem verschieden:
+
+| | `betroffenenanfrage` (0176) | `barrierebericht` (0177) |
+|---|---|---|
+| Grundlage | Art. 12 Abs. 3 DSGVO | BFSG / EU 2019/882 |
+| Frist | **ein Monat**, verlängerbar um zwei | keine gesetzliche |
+| Empfänger | `datenschutz.auskunft_erstellen` | `referenz.schreiben` — wer die Seite ändern kann |
+| Kontaktdaten | Name und E-Mail **Pflicht** (die Antwort muss ankommen) | **freiwillig** (siehe unten) |
+
+Sie zusammenzulegen hiesse, die Monatsfrist auf etwas anzuwenden, für das sie
+nicht gilt — und eine Barrieremeldung im Datenschutzpostfach liegen zu lassen,
+wo sie niemand beheben kann.
+
+**Die Monatsfrist ist ein MONAT und keine dreissig Tage.** Vom 31. Januar
+gerechnet ist das der 28. Februar; `+ interval '30 days'` gäbe den 2. März —
+zwei Tage nach der gesetzlichen Frist, und eine überschrittene Frist ist ein
+eigener Verstoss, unabhängig davon, wie die Anfrage am Ende beschieden wird.
+
+Der erste Entwurf schrieb sie als generierte Spalte, und Postgres wies ihn ab:
+„generation expression is not immutable". Zu Recht — `timestamptz + interval
+'1 month'` hängt an der Zeitzone, und welcher Kalendertag einen Monat später
+ist, ist in Berlin etwas anderes als in UTC. Sie wird deshalb von einem Auslöser
+gesetzt, der die Zone **ausschreibt**; über den Sommerzeitwechsel bleibt es bei
+derselben Ortszeit, weil „ein Monat später, 12 Uhr" für einen Juristen 12 Uhr
+Ortszeit heisst.
+
+**Das Auskunftsformular fragt absichtlich wenig.** Kein Geburtsdatum, keine
+Anschrift, keine Kundennummer. Der naheliegende Weg wäre, all das „zur
+Identitätsprüfung" zu verlangen — und das kehrt den Zweck um: ein
+Auskunftsersuchen ist der Moment, in dem jemand *weniger* von sich preisgeben
+will. Art. 12 Abs. 6 erlaubt die Nachfrage nur bei **begründeten Zweifeln**, also
+hinterher, im Einzelfall, von einem Menschen. Mehr Daten zu verlangen, als man
+herausgibt, wäre das Gegenteil von Datenschutz, und der Bildschirm sagt das.
+
+**Der Barrieremeldeweg verlangt gar keine Adresse.** Wer eine Antwort möchte,
+hinterlässt eine; wer nur sagen will „diese Tabelle ist mit dem Screenreader
+nicht lesbar", soll das können. Ein Pflichtfeld wäre eine Hürde vor dem Weg, der
+Hürden melden soll. In der internen Liste steht deshalb „anonym" und nicht ein
+leeres Feld — wer den Unterschied nicht kennt, hält die Lücke für einen
+Datenverlust.
+
+**Und dieses eine Formular hat KEINEN Honigtopf.** Die Angebotsanfrage hat einen,
+und das ist dort richtig. Hier wäre selbst ein unsichtbares Zusatzfeld ein
+Risiko: ein Screenreader-Nutzer, dessen Software es doch vorliest und ausfüllt,
+bekäme seine Barrieremeldung verworfen — ohne je zu erfahren warum. Aus demselben
+Grund gibt es kein Ratenlimit und kein Konto davor.
+
+**Beide schreiben über den Eingangsprinzipal**, der `formular.schreiben` hält und
+ausdrücklich kein Leserecht (0016). Eine Übernahme der öffentlichen Fläche
+liefert damit keinen Lesezugriff auf die Liste derer, die eine Auskunft verlangt
+haben — und das ist die Liste, die am meisten verrät.
+
+**Und die Bestätigung des Auskunftsformulars nennt die Frist**, anders als die
+der Angebotsanfrage. Dort ist die Antwortzeit eine Zusage des Unternehmens und
+deshalb eine Entscheidung des Mandanten (O-14, D-599); hier ist sie Gesetz, und
+die betroffene Person hat ein Recht darauf, sie zu kennen. Auch die mögliche
+Verlängerung steht dort — wer sie erst im Verlängerungsschreiben liest, hält sie
+für eine Ausrede.
+
+### D-599 · Ein Browser bekommt eine Seite, ein Programm bekommt JSON
+
+**Der Befund.** Das Angebotsformular hat kein JavaScript — bewusst: ein
+Formular, das ohne Skript nicht abschickt, schliesst genau die Besucher aus,
+für die das BFSG gilt. Es ist also ein reines `<form method="post">`, der
+Browser navigiert zur Zielroute und zeigt an, was zurückkommt. Zurück kam
+`{"ok":true,"leadnummer":"L-…"}`.
+
+Ein Besucher, der gerade um ein Angebot gebeten hatte, sah eine weisse Seite
+mit einer geschweiften Klammer. Das war der letzte Eindruck der Firma bei ihm,
+und der wahrscheinlichste nächste Schritt ist, es noch einmal zu versuchen —
+womit die REQ-05-Warteschlange sich mit Doppeln füllt. `04-SEITENKARTE.md` §2.3
+beschreibt genau diesen Ablauf; gebaut war er trotzdem so.
+
+**Die Weiche ist ein verstecktes Feld, kein Header.** Das Formular trägt
+`antwort=seite`; wer es schickt, bekommt einen `303` auf
+`/angebot/[bereich]/danke?nr=…`, wer es weglässt, bekommt JSON wie bisher. Der
+naheliegende Weg wäre `Accept: text/html` gewesen — aber der Header eines
+Formular-POST sieht je nach Browser verschieden aus, und eine Weiche, die auf
+ihn hört, fällt irgendwann auf die falsche Seite. Ein Feld sagt es ausdrücklich.
+
+Die Programme, die diese Route benutzen, ändern sich dadurch nicht: die vier
+API-Fälle in `tests/e2e/angebot.spec.ts` schicken das Feld nicht und prüfen
+weiterhin JSON — Statuscodes, Feldfehler, die „nicht verbunden"-Meldung des
+Belegspeichers.
+
+**`303`, nicht `302`.** Nach einem POST soll der Browser mit GET folgen, und
+ein Neuladen der Bestätigung darf die Anfrage nicht ein zweites Mal senden.
+
+**Auch der FEHLERweg geht zurück auf eine Seite.** Eine abgewiesene Eingabe
+zeigte dieselbe weisse JSON-Seite — an genau der Stelle, an der jemand etwas
+kaufen wollte. Sie führt jetzt zurück auf das Formular, mit dem Grund im
+Klartext als `role="alert"`. Der Text reist mit und nicht ein Schlüssel: die
+Meldungen entstehen in `formular_definition.felder`, und eine zweite Liste in
+der Oberfläche wäre eine, die ausein­anderläuft.
+
+**Die Dankseite liegt unter `[bereich]` und nicht daneben.** Ein statischer
+Ordner `/angebot/danke` würde vom dynamischen `[bereich]` überdeckt: die Adresse
+sähe aus wie ein Bereich namens „danke", der hat kein Formular, und die
+Bestätigung wäre ein 404 — nachdem der Lead schon geschrieben ist. §2.3 der
+Seitenkarte hat diesen Fall vorausgesehen und deshalb den ganzen Pfad dynamisch
+gemacht.
+
+**Was die Seite NICHT sagt: wann geantwortet wird.** Die Plattform kennt eine
+Frist je Formular (`formular_definition.sla_stunden`), aber ob sie dem Kunden
+genannt werden soll, ist eine Zusage des Mandanten und keine des Entwicklers
+(O-14). Ein „wir melden uns binnen 24 Stunden" auf einer Website ist eine
+Werbeaussage, an der man gemessen wird. Sie nennt stattdessen die
+Vorgangsnummer — das einzige, womit ein Anfragender bei einem Rückruf auf seine
+Anfrage zeigen kann — und trägt `robots: noindex`, weil eine Adresse mit einer
+Vorgangsnummer darin nicht in einen Suchindex gehört.
+
 ### D-598 · Eine Absage nennt keinen Grund — und die Datenbank passt darauf auf
 
 **Der Auftrag.** Der Agent soll auf Bewerbungen antworten und senden. Gebaut

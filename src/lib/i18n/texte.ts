@@ -307,6 +307,49 @@ export const API_TEXTE: Readonly<Record<Sprache, ApiTexte>> = {
   },
 };
 
+/**
+ * Die Dankseite `/angebot/[bereich]/danke` (§2.3, REQ-01).
+ *
+ * **Sie nennt die Vorgangsnummer**, und das ist kein Schmuck: sie ist das
+ * einzige, womit ein Anfragender bei einem Rueckruf auf seine Anfrage zeigen
+ * kann. Ohne sie heisst es „ich habe da mal was geschickt".
+ *
+ * **Und sie verspricht keine Frist.** Wie schnell geantwortet wird, ist die
+ * offene Frage O-14 — die Plattform kennt eine Frist je Formular, aber ob sie
+ * dem Kunden GENANNT werden soll, ist eine Zusage des Mandanten und keine des
+ * Entwicklers. Ein „wir melden uns binnen 24 Stunden" auf einer Website ist
+ * eine Werbeaussage, an der man gemessen wird.
+ */
+export interface DankTexte {
+  readonly titel: string;
+  readonly satz: string;
+  readonly nummerLabel: string;
+  readonly nummerHinweis: string;
+  readonly weiter: string;
+  readonly zurStartseite: string;
+}
+
+export const DANK_TEXTE: Readonly<Record<Sprache, DankTexte>> = {
+  de: {
+    titel: 'Ihre Anfrage ist angekommen',
+    satz: 'Vielen Dank. Wir haben Ihre Anfrage aufgenommen und sehen sie uns an. '
+      + 'Sobald wir sie durchgegangen sind, melden wir uns bei Ihnen.',
+    nummerLabel: 'Ihre Vorgangsnummer',
+    nummerHinweis: 'Bitte nennen Sie diese Nummer, wenn Sie sich auf die Anfrage beziehen.',
+    weiter: 'Noch eine Anfrage stellen',
+    zurStartseite: 'Zur Startseite',
+  },
+  en: {
+    titel: 'Your enquiry has arrived',
+    satz: 'Thank you. We have recorded your enquiry and are looking at it. '
+      + 'We will get in touch as soon as we have been through it.',
+    nummerLabel: 'Your reference number',
+    nummerHinweis: 'Please quote this number when referring to your enquiry.',
+    weiter: 'Send another enquiry',
+    zurStartseite: 'Back to the home page',
+  },
+};
+
 /** Die Bereichsauswahl `/angebot` (§2.3, REQ-01). */
 export interface AuswahlTexte {
   readonly titel: string;

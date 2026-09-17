@@ -605,6 +605,26 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'galt. Sie endet mit ihrer Definition, nicht für sich.',
   },
   {
+    tabelle: 'barrierebericht',
+    art: 'archiv',
+    migration: '0177',
+    grund:
+      'LEG-07, BFSG. Die Barrierefreiheitserklaerung muss den STAND nennen, und der '
+      + 'Stand ist die Summe der gemeldeten und behobenen Barrieren. Eine geloeschte '
+      + 'Meldung ist eine, die es nie gab — und genau danach fragt eine '
+      + 'Marktueberwachungsbehoerde.',
+  },
+  {
+    tabelle: 'betroffenenanfrage',
+    art: 'archiv',
+    migration: '0176',
+    grund:
+      'LEG-09, Art. 12 Abs. 3 DSGVO. Der Nachweis, DASS eine Anfrage einging und '
+      + 'wann, ist genau das, was eine Aufsichtsbehoerde sehen will. Eine geloeschte '
+      + 'Auskunftsanfrage ist von einer nie gestellten nicht zu unterscheiden — und '
+      + 'die Beweislast liegt beim Verantwortlichen.',
+  },
+  {
     tabelle: 'akquise_ziel',
     art: 'archiv',
     migration: '0175',

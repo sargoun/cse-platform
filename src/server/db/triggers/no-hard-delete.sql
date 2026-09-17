@@ -2176,3 +2176,35 @@ revoke delete, truncate on akquise_quelle from cse_app, cse_anon, cse_checkin, c
 
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0176)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- betroffenenanfrage (archiv): LEG-09, Art. 12 Abs. 3 DSGVO. Der Nachweis, DASS eine Anfrage einging und wann, ist genau das, was eine Aufsichtsbehoerde sehen will. Eine geloeschte Auskunftsanfrage ist von einer nie gestellten nicht zu unterscheiden — und die Beweislast liegt beim Verantwortlichen.
+create trigger trg_betroffenenanfrage_kein_hard_delete
+  before delete on betroffenenanfrage
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_betroffenenanfrage_kein_truncate
+  before truncate on betroffenenanfrage
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on betroffenenanfrage from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0177)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- barrierebericht (archiv): LEG-07, BFSG. Die Barrierefreiheitserklaerung muss den STAND nennen, und der Stand ist die Summe der gemeldeten und behobenen Barrieren. Eine geloeschte Meldung ist eine, die es nie gab — und genau danach fragt eine Marktueberwachungsbehoerde.
+create trigger trg_barrierebericht_kein_hard_delete
+  before delete on barrierebericht
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_barrierebericht_kein_truncate
+  before truncate on barrierebericht
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on barrierebericht from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks

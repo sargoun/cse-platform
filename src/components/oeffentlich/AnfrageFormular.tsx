@@ -186,6 +186,21 @@ export function AnfrageFormular(
           * bewusst geoeffnet hat.
           */}
         <input type="hidden" name="sprache" value={sprache} />
+        {/**
+          * **„Ich bin ein Browser, schick mich auf eine Seite."**
+          *
+          * Ohne dieses Feld antwortete `/api/anfrage` mit JSON, und das
+          * Formular hat kein JavaScript — der Besucher landete also auf einer
+          * weissen Seite mit `{"ok":true,...}`, nachdem er gerade um ein
+          * Angebot gebeten hatte. Der erste Eindruck der ganzen Firma.
+          *
+          * **Warum ein Feld und nicht der `Accept`-Header.** Der Header eines
+          * Formular-POST sieht je nach Browser verschieden aus, und eine
+          * Weiche, die auf ihn hoert, faellt irgendwann auf die falsche Seite.
+          * Ein Feld sagt es ausdruecklich: dieselbe Route bedient weiter
+          * Programme mit JSON — sie schicken das Feld nicht mit.
+          */}
+        <input type="hidden" name="antwort" value="seite" />
 
         {/**
           * Der Honigtopf.

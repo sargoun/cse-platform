@@ -308,6 +308,49 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /*
+     * LEG-09, Art. 15–21 DSGVO. Der oeffentliche Eingang fuer
+     * Betroffenenrechte — wie `api/anfrage` bewusst OHNE Konto: wer eine
+     * Auskunft verlangt, ist per Definition niemand, den die Plattform kennt.
+     * Geschrieben wird ueber den Eingangsprinzipal, der `formular.schreiben`
+     * haelt und kein Leserecht.
+     */
+    /*
+     * LEG-09. Entscheiden — im Gegensatz zum oeffentlichen Eingang daneben
+     * verlangt dieser Weg alles: Sitzung, Mandant und das Recht. Entgegennehmen
+     * darf jeder, entscheiden nur ein benannter Mensch.
+     */
+    pfad: 'api/datenschutz/bearbeiten',
+    recht: 'datenschutz.auskunft_erstellen',
+  },
+  {
+    /*
+     * LEG-07. Eine gemeldete Barriere abschliessen. `referenz.schreiben`, weil
+     * behoben wird, wer die Seite aendern kann — der Meldeweg daneben verlangt
+     * gar kein Recht, und das ist die Richtung: melden darf jeder.
+     */
+    pfad: 'api/barrierefreiheit/erledigen',
+    recht: 'referenz.schreiben',
+  },
+  {
+    pfad: 'api/barrierefreiheit/meldung',
+    recht: null,
+    grund:
+      'LEG-07, BFSG. Der gesetzliche Meldeweg fuer Barrieren. Ein Konto davor '
+      + 'traefe genau die Menschen, fuer die er da ist — und ein Honigtopf oder '
+      + 'ein Ratenlimit ebenso: ein Screenreader, der ein unsichtbares Feld doch '
+      + 'ausfuellt, liesse die Meldung verwerfen, ohne dass jemand erfaehrt warum.',
+  },
+  {
+    pfad: 'api/datenschutz/anfrage',
+    recht: null,
+    grund:
+      'Art. 12 Abs. 2 DSGVO verlangt, die Ausuebung der Betroffenenrechte zu '
+      + 'ERLEICHTERN. Ein Konto davor waere das Gegenteil — und die meisten '
+      + 'Anfragenden haben keines. Der Schutz liegt nicht an der Tuer, sondern '
+      + 'im Prinzipal: er darf anlegen und nicht lesen.',
+  },
+  {
+    /*
      * PUB-07/PUB-08. Einen Abschnitt aendern ODER eine Seite veroeffentlichen.
      * Das Manifest nennt das schwaechere Recht (die Route bewacht die
      * Adresse); die Route verlangt fuer `status` zusaetzlich

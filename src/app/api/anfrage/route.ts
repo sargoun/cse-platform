@@ -13,7 +13,7 @@ import { ladeHoch } from '@/server/services/dokument/upload';
 import { NichtVerbundenFehler, SupabaseSpeicher } from '@/server/storage/adapter';
 import { API_TEXTE } from '@/lib/i18n/texte';
 import { uebersetzeFeldmeldungen } from '@/lib/i18n/formular-en';
-import { SPRACHEN, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
+import { mitSprache, SPRACHEN, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 
 /**
  * `POST /api/anfrage` — die oeffentliche Angebotsanfrage (REQ-01 … REQ-07).
@@ -73,9 +73,45 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
   const t = API_TEXTE[sprache];
 
   const bereich = String(formData.get('bereich') ?? '');
+
+  /**
+   * **Ein Browser bekommt eine Seite, ein Programm bekommt JSON.**
+   *
+   * Das Formular hat kein JavaScript und traegt deshalb `antwort=seite`. Ohne
+   * diese Weiche sah ein Besucher, dessen Eingabe die Pruefung nicht bestand,
+   * `{"ok":false,…}` auf weissem Grund — und zwar an genau der Stelle, an der
+   * er etwas kaufen wollte. Der Grund reist als TEXT in der Adresse zurueck
+   * zum Formular, wo `AnfrageFormular` ihn als `role="alert"` ausgibt.
+   *
+   * **Warum ein Feld und nicht der `Accept`-Header.** Der Header eines
+   * Formular-POST sieht je nach Browser verschieden aus; eine Weiche, die auf
+   * ihn hoert, faellt irgendwann auf die falsche Seite. Das Feld sagt es
+   * ausdruecklich — ein Programm schickt es nicht mit und bekommt JSON wie
+   * bisher.
+   *
+   * 303 und nicht 302: nach einem POST soll der Browser GET folgen, und ein
+   * Neuladen darf die Anfrage nicht ein zweites Mal senden.
+   */
+  const alsSeite = String(formData.get('antwort') ?? '') === 'seite';
+  const antworteFehler = (status: number, meldung: string,
+                          felder: Readonly<Record<string, string>> = {}): NextResponse => {
+    if (!alsSeite) return fehlerAntwort(status, meldung, felder);
+    /*
+     * Kennt die Plattform den Bereich nicht, fuehrt ein Ruecksprung auf
+     * `/angebot/<unbekannt>` selbst in ein 404. Dann lieber die Auswahlseite:
+     * sie zeigt die vier Bereiche, und der Besucher findet von dort zurueck.
+     */
+    const ziel = formularSchluessel(bereich) === undefined
+      ? '/angebot' : `/angebot/${bereich}`;
+    return NextResponse.redirect(new URL(
+      `${mitSprache(ziel, sprache)}?meldung=${encodeURIComponent(meldung)}`,
+      anfrage.url,
+    ), 303);
+  };
+
   const schluessel = formularSchluessel(bereich);
   if (schluessel === undefined) {
-    return fehlerAntwort(404, t.keinFormular);
+    return antworteFehler(404, t.keinFormular);
   }
 
   // 1 — Honigtopf. VOR jeder Datenbankberührung: ein Bot soll nicht einmal
@@ -88,13 +124,13 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
 
   const [formular] = await withOeffentlichLesen(schluessel);
   if (formular === undefined) {
-    return fehlerAntwort(404, t.keinFormular);
+    return antworteFehler(404, t.keinFormular);
   }
 
   const felderGeprueft = Felder.safeParse(formular.felder);
   if (!felderGeprueft.success) {
     // Eine kaputte Definition ist ein Fehler DES BETREIBERS, kein Eingabefehler.
-    return fehlerAntwort(500, t.nichtVerfuegbar);
+    return antworteFehler(500, t.nichtVerfuegbar);
   }
   const felder = felderGeprueft.data;
 
@@ -132,18 +168,18 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
     const roh = formData.get(f.schluessel);
     if (!(roh instanceof File) || roh.size === 0) continue;
     if (roh.size > f.maxBytes) {
-      return fehlerAntwort(413, t.dateiZuGross, { [f.schluessel]: f.fehlermeldung });
+      return antworteFehler(413, t.dateiZuGross, { [f.schluessel]: f.fehlermeldung });
     }
     const bytes = new Uint8Array(await roh.arrayBuffer());
     try {
       const { mime } = pruefeUpload(bytes, roh.type);
       if (!f.mime.includes(mime)) {
-        return fehlerAntwort(415, t.dateityp,
+        return antworteFehler(415, t.dateityp,
           { [f.schluessel]: f.fehlermeldung });
       }
       datei = { bytes, name: roh.name, mime };
     } catch {
-      return fehlerAntwort(415, t.dateityp,
+      return antworteFehler(415, t.dateityp,
         { [f.schluessel]: f.fehlermeldung });
     }
   }
@@ -294,17 +330,43 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
         return angenommen;
       })) as Awaited<ReturnType<typeof nimmAn>>;
 
+    /*
+     * **Ein Browser bekommt eine Seite, ein Programm bekommt JSON.**
+     *
+     * Das Formular traegt `antwort=seite` und hat kein JavaScript. Ohne diese
+     * Weiche landete der Besucher auf `{"ok":true,…}` — direkt nachdem er um
+     * ein Angebot gebeten hat. Die Leadnummer reist in der Adresse mit, damit
+     * die Dankseite sie nennen kann: sie ist das einzige, womit er bei einem
+     * Rueckruf auf seine Anfrage zeigen kann.
+     *
+     * 303 und nicht 302: nach einem POST soll der Browser GET folgen, und ein
+     * Neuladen der Dankseite darf die Anfrage nicht ein zweites Mal senden.
+     */
+    if (String(formData.get('antwort') ?? '') === 'seite') {
+      /*
+       * **Die Sprache steht im PFAD, nicht in einem Parameter** (D-82): die
+       * englische Fassung liegt unter `/en/…`, und ein `?sprache=en` auf der
+       * deutschen Adresse waere eine zweite Wahrheit ueber dieselbe Seite.
+       * `mitSprache` ist dieselbe Funktion, die auch jeder Verweis benutzt.
+       */
+      return NextResponse.redirect(new URL(
+        `${mitSprache(`/angebot/${bereich}/danke`, sprache)}`
+        + `?nr=${encodeURIComponent(ergebnis.leadnummer)}`,
+        anfrage.url,
+      ), 303);
+    }
+
     return NextResponse.json({
       ok: true,
       meldung: t.dank,
       leadnummer: ergebnis.leadnummer,
     });
   } catch (fehler) {
-    if (fehler instanceof RatenlimitFehler) return fehlerAntwort(429, fehler.message);
+    if (fehler instanceof RatenlimitFehler) return antworteFehler(429, fehler.message);
     // Kein simulierter Erfolg: der Speicher ist nicht verbunden, und das steht
     // in der Antwort statt in einem Logfile.
     if (fehler instanceof NichtVerbundenFehler) {
-      return fehlerAntwort(503, t.uploadNichtVerbunden);
+      return antworteFehler(503, t.uploadNichtVerbunden);
     }
     if (fehler instanceof FormularFehler) {
       /**
@@ -318,9 +380,9 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
       const felder = sprache === 'de'
         ? fehler.felder
         : uebersetzeFeldmeldungen(schluessel, fehler.felder);
-      return fehlerAntwort(400, fehler.message, felder);
+      return antworteFehler(400, fehler.message, felder);
     }
-    return fehlerAntwort(500, t.nichtGespeichert);
+    return antworteFehler(500, t.nichtGespeichert);
   }
 }
 

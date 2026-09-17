@@ -860,6 +860,25 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'system', pfad: 'datenschutz/verzeichnis', schreibend: false },
   { modul: 'system', pfad: 'datenschutz/loeschkonzept', schreibend: false },
   /*
+   * Die beiden oeffentlichen PFLICHTWEGE (LEG-09, LEG-07). Sie schreiben, und
+   * zwar ueber den EINGANGSPRINZIPAL — derselbe wie bei der Angebotsanfrage,
+   * mit `formular.schreiben` und ohne Leserecht. Das Register nennt deshalb
+   * `formular.schreiben` und nicht `datenschutz.*`: das waere das Recht des
+   * Bearbeitenden, nicht das des Eingangs.
+   *
+   * In der Gruppenansicht laufen sie nicht: `withEingang` bindet genau EINEN
+   * Mandanten, und den nennt das Formular. Eine Anfrage „an die Gruppe" gaebe
+   * es rechtlich ohnehin nicht — die vier sind eigene juristische Personen.
+   */
+  {
+    modul: 'formular', pfad: 'datenschutz/anfrage',
+    schreibend: true, schreibRecht: 'formular.schreiben',
+  },
+  {
+    modul: 'formular', pfad: 'datenschutz/barriere',
+    schreibend: true, schreibRecht: 'formular.schreiben',
+  },
+  /*
    * Phase 10 — die Betriebsueberwachung (SPEC §14, D-540). Lesend: sie stellt
    * das Laufprotokoll neben den Zeitplan und loest nichts aus. Ein Lauf startet
    * ueber `/api/jobs/[schluessel]` mit dem Betriebsgeheimnis, nicht von hier.

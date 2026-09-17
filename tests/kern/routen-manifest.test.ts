@@ -358,20 +358,22 @@ describe('die gebaute Anwendung und die Karte widersprechen sich nicht', () => {
      * jemand eine achtzehnte Zeile hinzufügt.
      */
     expect(offen).toEqual([
-      // §2.3 — die Danke-Seite. Die Annahme antwortet heute JSON (PR 17);
-      // eine eigene Seite ist der Weg für ein Formular ohne JavaScript.
-      '/angebot/[bereich]/danke',
-
-      /**
-       * §2.4 — die drei öffentlichen PFLICHTWEGE. Sie wiegen schwerer als
-       * alles andere in dieser Liste: Art. 15–21 DSGVO verlangt einen Weg für
-       * Auskunft und Löschung, und BFSG verlangt einen Meldeweg für Barrieren.
-       * Die Barrierefreiheitserklärung nennt heute eine E-Mail-Adresse — das
-       * erfüllt den Meldeweg, das Formular wäre der bessere.
+      /*
+       * §2.3 — die Danke-Seite steht nicht mehr hier: sie ist gebaut, in
+       * beiden Sprachen, und `/api/anfrage` schickt den Browser mit 303
+       * dorthin. Die Route antwortet Programmen weiterhin JSON; die Weiche ist
+       * ein verstecktes Feld und kein Header (D-599).
        */
-      '/barrierefreiheit/feedback',
-      '/datenschutz/anfrage',
-      '/datenschutz/anfrage/danke',
+
+      /*
+       * §2.4 — die drei öffentlichen PFLICHTWEGE stehen nicht mehr hier: sie
+       * sind gebaut. `/datenschutz/anfrage` schreibt eine `betroffenenanfrage`
+       * mit laufender Monatsfrist (Art. 12 Abs. 3, 0176),
+       * `/barrierefreiheit/feedback` einen `barrierebericht` (BFSG, 0177) —
+       * beide über den Eingangsprinzipal, der anlegen und nicht lesen darf.
+       * Ein öffentliches Formular ohne internen Empfänger wäre eine versäumte
+       * gesetzliche Frist mit einem Zeitstempel darauf (D-600).
+       */
 
       // Detailseiten, deren Modul noch nicht gemergt ist (Phase 4 bis 9).
       '/leistungen/[slug]',

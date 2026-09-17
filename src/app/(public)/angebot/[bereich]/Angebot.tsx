@@ -65,7 +65,7 @@ export async function angebotMetadaten(
  * die, die sie gezeigt hat.
  */
 export async function AngebotSeiteFuer(
-  bereich: string, sprache: Sprache = VORGABE_SPRACHE,
+  bereich: string, sprache: Sprache = VORGABE_SPRACHE, meldung?: string | undefined,
 ) {
   const formular = await ladeFormular(bereich);
   if (formular === null) notFound();
@@ -84,6 +84,7 @@ export async function AngebotSeiteFuer(
   return (
     <AnfrageFormular
       bereich={bereich} titel={titel} felder={felderAnzeige} sprache={sprache}
+      {...(meldung === undefined ? {} : { meldung })}
     />
   );
 }
