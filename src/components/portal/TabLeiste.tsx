@@ -189,7 +189,7 @@ function MehrZelle({ wurzel, rechte, gruppenansicht, beschriftungen, intern }: {
             */}
           {intern && (
             <li className="border-b border-line">
-              <Sprachumschalter label={b('sprache.label', 'Sprache')} />
+              <Sprachumschalter label={b('sprache.label', 'Sprache')} ort="blatt" />
             </li>
           )}
         </ul>

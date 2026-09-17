@@ -275,7 +275,7 @@ export function PortalRahmen({
             * einem Bildschirm waeren eine Falle, keine Hilfe.
             */}
           {istInterneLeiste(leiste) && (
-            <Sprachumschalter label={b('sprache.label', 'Sprache')} />
+            <Sprachumschalter label={b('sprache.label', 'Sprache')} ort="kopfzeile" />
           )}
           {/*
             * Ein FORMULAR, kein Verweis: eine Abmeldung aendert Zustand, und

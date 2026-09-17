@@ -2,6 +2,16 @@ import { expect, test } from '@playwright/test';
 import { alsKonto, KONTO } from './hilfen/anmeldung';
 
 /**
+ * **Beide Fassungen stehen gleichzeitig im Dokument.** Die der Kopfzeile ist
+ * unter `sm` ausgeblendet, die des „Mehr"-Blatts ab `md` — sichtbar ist je
+ * nach Breite genau eine, im DOM sind es immer zwei. Jede Auswahl nennt
+ * deshalb ihren Ort; ein blosses `[data-cse="sprachumschalter"]` traefe zwei
+ * Elemente, und Playwright bricht darauf zu Recht ab.
+ */
+const KOPF = '[data-cse="sprachumschalter"][data-ort="kopfzeile"]';
+const BLATT = '[data-cse="sprachumschalter"][data-ort="blatt"]';
+
+/**
  * Der Sprachumschalter des internen Portals (D-592).
  *
  * **Was hier geprueft wird, und was ausdruecklich nicht.** Geprueft wird, dass
@@ -16,15 +26,15 @@ import { alsKonto, KONTO } from './hilfen/anmeldung';
 /** Zurueck auf Deutsch, damit die Reihenfolge der Tests nichts faerbt. */
 test.afterEach(async ({ page }) => {
   await page.goto('/portal/reinigung');
-  const de = page.locator('[data-cse="sprachumschalter"] button[value="de"]');
-  if (await de.isEnabled()) await de.click();
+  const de = page.locator(`${KOPF} button[value="de"]`);
+  if (await de.count() === 1 && await de.isEnabled()) await de.click();
 });
 
 test('die Kopfzeile traegt den Umschalter, und Deutsch ist die Vorgabe', async ({ page }) => {
   await alsKonto(page, KONTO.adminReinigung);
   await page.goto('/portal/reinigung');
 
-  const umschalter = page.locator('[data-cse="sprachumschalter"]');
+  const umschalter = page.locator(KOPF);
   await expect(umschalter).toBeVisible();
   /*
    * Die aktive Sprache ist ein DEAKTIVIERTER Knopf, kein fehlender: wer
@@ -42,7 +52,7 @@ test('ein Klick auf English uebersetzt die Huelle und bleibt auf der Seite', asy
   // Vorher: die Sitzungspunkte stehen auf Deutsch.
   await expect(page.locator('[data-cse="sitzungsnavigation"]')).toContainText('Abmelden');
 
-  await page.locator('[data-cse="sprachumschalter"] button[value="en"]').click();
+  await page.locator(`${KOPF} button[value="en"]`).click();
 
   /*
    * **Dieselbe Adresse, nicht die Kontoseite.** Die Route faellt ohne
@@ -52,13 +62,13 @@ test('ein Klick auf English uebersetzt die Huelle und bleibt auf der Seite', asy
   await expect(page).toHaveURL(/\/portal\/reinigung\/auftraege$/);
   await expect(page.locator('[data-cse="sitzungsnavigation"]')).toContainText('Sign out');
   await expect(page.locator('[data-cse="sitzungsnavigation"]')).toContainText('Account');
-  await expect(page.locator('[data-cse="sprachumschalter"] button[value="en"]')).toBeDisabled();
+  await expect(page.locator(`${KOPF} button[value="en"]`)).toBeDisabled();
 });
 
 test('die Wahl gilt auf der NAECHSTEN Seite weiter, nicht nur auf dieser', async ({ page }) => {
   await alsKonto(page, KONTO.adminReinigung);
   await page.goto('/portal/reinigung');
-  await page.locator('[data-cse="sprachumschalter"] button[value="en"]').click();
+  await page.locator(`${KOPF} button[value="en"]`).click();
 
   /*
    * Der eigentliche Beweis, dass die Wahl in der DATENBANK steht und nicht in
@@ -66,13 +76,13 @@ test('die Wahl gilt auf der NAECHSTEN Seite weiter, nicht nur auf dieser', async
    */
   await page.goto('/portal/reinigung/objekte');
   await expect(page.locator('[data-cse="sitzungsnavigation"]')).toContainText('Sign out');
-  await expect(page.locator('[data-cse="sprachumschalter"] button[value="en"]')).toBeDisabled();
+  await expect(page.locator(`${KOPF} button[value="en"]`)).toBeDisabled();
 });
 
 test('die Gruppenansicht traegt den Umschalter ebenfalls', async ({ page }) => {
   await alsKonto(page, KONTO.gruppe);
   await page.goto('/portal/gruppe');
-  await expect(page.locator('[data-cse="sprachumschalter"]')).toBeVisible();
+  await expect(page.locator(KOPF)).toBeVisible();
 });
 
 test('das Mitarbeiterportal traegt ihn NICHT — es waehlt vier Sprachen im Profil', async ({ page }) => {
@@ -95,7 +105,7 @@ test('am Telefon steht er im „Mehr"-Blatt, nicht in der Kopfzeile', async ({ p
   await expect(page.locator('[data-cse="sitzungsnavigation"]')).toBeHidden();
 
   await page.locator('[data-cse="mehr"] summary').click();
-  const imBlatt = page.locator('[data-cse="mehr-blatt"] [data-cse="sprachumschalter"]');
+  const imBlatt = page.locator(BLATT);
   await expect(imBlatt).toBeVisible();
   await imBlatt.locator('button[value="en"]').click();
   await expect(page.locator('[data-cse="mehr"] summary')).toContainText('More');

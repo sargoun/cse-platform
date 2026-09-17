@@ -13399,3 +13399,71 @@ den Bildschirm trifft.
 
 | Betrifft | EMP-12, D-419, `lib/i18n/intern.ts`, `app/portal/huellen-speicher.ts`, `components/portal/Sprachumschalter.tsx`, `components/portal/PortalRahmen.tsx`, `components/portal/TabLeiste.tsx`, `server/registry/tableiste.ts`, `app/portal/zugang.ts` |
 |---|---|
+
+---
+
+### D-593 · Das Berechtigungsfenster zählte den falschen Kalendertag — zwei Stunden jede Nacht
+
+**Wie es auffiel.** Der Isolationslauf vor dem Push auf D-592 war rot:
+`tests/isolation/recruiting.test.ts` fiel in „die Frist zählt ab dem Berliner
+Heute — in einer Sitzung mit fremdem Datum". Der Fall reproduzierte sich auf
+`origin/main` (e22919d) ohne jede Änderung von mir; er hat mit der
+Zweisprachigkeit nichts zu tun.
+
+**Der Befund.** `benutzer_mandant.gueltig_ab` und `gueltig_bis` sind `date`.
+Sechs Funktionen — `app.hat_recht_fuer` (und damit `app.hat_recht`),
+`app.switcher_mandanten`, `app.darf_gruppenansicht`,
+`app.benutzer_mit_recht`, `app.kennwort_anmelden`,
+`app.kalender_feed_aufloesen` — verglichen sie gegen `current_date`. Das ist
+der Kalendertag der SITZUNGSZEITZONE, und die Verbindung läuft auf UTC
+(Supabase-Vorgabe). Im Sommer ist Berlin UTC+2. Zwischen 00:00 und 02:00
+Berliner Zeit galt deshalb jede Nacht:
+
+- eine Mitgliedschaft mit `gueltig_bis = gestern` ist noch gültig, weil
+  `current_date` noch auf gestern steht — **ein entzogener Zugang überlebt sein
+  Ende um bis zu zwei Stunden**;
+- eine Mitgliedschaft mit `gueltig_ab = heute` gilt noch nicht — wer zum
+  Monatsersten anfängt, ist um 00:30 ausgesperrt.
+
+Die zweite Richtung ist ärgerlich, die erste ist ein Loch. Beide sind still:
+AUT-06 beantwortet „kein Recht" und „gibt es nicht" gleich, also erscheint ein
+404 und sonst nichts.
+
+**Warum es so lange stand.** 0075 hat `app.berlin_heute()` eingeführt — und im
+Kommentar ausdrücklich auf die FINANZDOMÄNE bezogen: dort war die Begründung
+eine Rechnung, die um 00:30 auf den Vortag datiert und damit im falschen
+Voranmeldungsmonat landet. Dieselbe Uhr steht über den Berechtigungen; nur hat
+sie dort niemand abgelesen. Der Kommentar der Funktion sagt jetzt beides.
+
+**Warum CI es nicht fing.** Der Fall in `recruiting.test.ts` sucht sich eine
+Zone, deren Datum von Berlin abweicht, und nimmt die erste von zweien:
+`Etc/GMT-14` (vor Berlin) oder `Etc/GMT+12` (dahinter). Welche abweicht, hängt
+an der UTC-Stunde — vormittags die zurückliegende, nachmittags die
+vorausliegende. **Nur die zurückliegende fällt.** Der Fall war also zwölf
+Stunden am Tag rot und zwölf Stunden grün, und CI lief in der grünen Hälfte.
+Ein Fall, der sich seine Eingabe nach der Uhr sucht, prüft zu verschiedenen
+Zeiten Verschiedenes.
+
+**Die Behebung** (`0169_berechtigungsfenster_berlin.sql`). Dieselben sechs
+Funktionen, Wort für Wort wie sie in der Datenbank standen — abgeschrieben mit
+`pg_get_functiondef`, nicht von Hand, deshalb die Grossschreibung der
+Schlüsselwörter —, mit genau einer Änderung: `current_date` wird
+`app.berlin_heute()`. Alle vierzehn Vorkommen stehen an `bm.gueltig_ab` oder
+`bm.gueltig_bis`; ein anderes `current_date` steht in diesen Körpern nicht.
+Dazu die Vorgabe der Spalte selbst, die eine um 00:30 entstehende
+Mitgliedschaft auf gestern legte.
+
+**Die Wache** (`tests/isolation/berechtigungsfenster.test.ts`). Sie fährt
+**immer beide** Extremzonen plus Berlin und UTC und verlangt in allen vieren
+dieselbe Antwort — nicht „die Zone, die gerade abweicht". Damit hängt sie
+nicht mehr an der Uhr. Dazu ein struktureller Fall, der den Katalog fragt, ob
+irgendeine Funktion wieder `gueltig_*` gegen `current_date` prüft, mit
+Gegenprobe auf die sechs Namen, damit ein leerer Katalog ihn nicht grün macht.
+
+**Falsifiziert.** Mit entferntem 0169 fallen sechs der sieben Fälle, darunter
+„eine gestern beendete Mitgliedschaft gilt in keiner Zone" mit *expected true
+to be false* — das Loch, live. Mit 0169 sind beide Dateien grün,
+`recruiting.test.ts` eingeschlossen.
+
+| Betrifft | AUT-01, AUT-06, K-11/§1.8, Invariante 2, `0169_berechtigungsfenster_berlin.sql`, `tests/isolation/berechtigungsfenster.test.ts`, `tests/isolation/recruiting.test.ts` |
+|---|---|

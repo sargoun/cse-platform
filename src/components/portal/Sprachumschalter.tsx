@@ -19,7 +19,9 @@ import { gemerkteHuelle } from '@/app/portal/huellen-speicher';
  * „Deutsch" nicht sieht, weiss nicht, ob er Deutsch hat; wer ihn grau und
  * unklickbar sieht, weiss es. `aria-current` sagt dasselbe der Vorlesesoftware.
  */
-export function Sprachumschalter({ label }: { readonly label: string }) {
+export function Sprachumschalter(
+  { label, ort }: { readonly label: string; readonly ort: 'kopfzeile' | 'blatt' },
+) {
   const stand = gemerkteHuelle();
   const { aktiv, fremdeWahl } = internSprachwahl(stand.sprache);
 
@@ -29,6 +31,14 @@ export function Sprachumschalter({ label }: { readonly label: string }) {
       action="/api/konto/sprache"
       aria-label={label}
       data-cse="sprachumschalter"
+      /*
+       * **Wo dieser Umschalter steht, gehoert ins Markup.** Beide Fassungen —
+       * die der Kopfzeile und die des „Mehr"-Blatts — stehen gleichzeitig im
+       * Dokument; sichtbar ist je nach Breite nur eine. Ohne Unterscheidung
+       * traefe jede Pruefung zwei Elemente und muesste sich ueber die
+       * Vorfahren behelfen.
+       */
+      data-ort={ort}
       className="flex items-center gap-s2"
     >
       {stand.pfad !== null && <input type="hidden" name="zurueck" value={stand.pfad} />}
