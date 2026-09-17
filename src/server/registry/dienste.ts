@@ -814,6 +814,19 @@ export const DIENSTE: readonly DienstEintrag[] = [
   /* PR 67 — Jahrespaket und Lohnexport. */
   { modul: 'buchhaltung', pfad: 'buchhaltung/jahrespaket', schreibend: false },
   { modul: 'zeit', pfad: 'zeit/lohnexport', schreibend: false },
+  /*
+   * Phase 10 — das Verarbeitungsverzeichnis nach Art. 30 DSGVO (LEG-09).
+   * Lesend: es beschreibt die Konfiguration der Gesellschaft, es aendert
+   * nichts. Modul `system`, wie die Seite und die Route.
+   */
+  { modul: 'system', pfad: 'datenschutz/verzeichnis', schreibend: false },
+  { modul: 'system', pfad: 'datenschutz/loeschkonzept', schreibend: false },
+  /*
+   * Phase 10 — die Betriebsueberwachung (SPEC §14, D-540). Lesend: sie stellt
+   * das Laufprotokoll neben den Zeitplan und loest nichts aus. Ein Lauf startet
+   * ueber `/api/jobs/[schluessel]` mit dem Betriebsgeheimnis, nicht von hier.
+   */
+  { modul: 'system', pfad: 'betrieb/ueberwachung', schreibend: false },
   /* D-487 — Serien anlegen; Anmeldecode durch die Einsatzleitung. */
   {
     modul: 'dienstplan', pfad: 'dienstplan/serie',

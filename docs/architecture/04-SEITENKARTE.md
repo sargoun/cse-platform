@@ -1889,6 +1889,7 @@ the back door into the cost base that the module ceiling closes elsewhere.
 | `/portal/[mandant]/einstellungen/agent-richtlinien` | `agent.richtlinie_verwalten` | `M1` | AGT-03, APR-01 | 8 |
 | `/portal/[mandant]/einstellungen/vorlagen` — offer PDF, Behinderungsanzeige, dunning and e-mail templates | `system.einstellung_verwalten` | `M1` | OPS-08, BAU-06, FIN-15 | 4 |
 | `/portal/[mandant]/einstellungen/integrationen` — DATEV · social · job boards · DWD · SMS · e-mail · map · radar sources, each **verbunden / nicht verbunden** | `system.einstellung_lesen` / `system.einstellung_verwalten` | `M1` | ACC-02, SOC-06, SOC-07, REC-09, BAU-08, RAD-01, RAD-02, EMP-01 | **2** |
+| `/portal/[mandant]/einstellungen/betrieb` — the operations view: every scheduled run against its protocol — **failed**, **hanging**, **absent**, never run — plus whether a trigger is installed at all | `system.betrieb_lesen` | `M1` | SPEC §14, D-540 | 10 |
 | `/portal/[mandant]/einstellungen/dpa` — the processor register: service, purpose, region, DPA date | `system.einstellung_lesen` | `M1` | LEG-09, D-04 | 7 |
 | `/portal/[mandant]/einstellungen/protokoll` — the audit log: actor (human · agent · system), action, before, after, instant, IP | `system.audit_lesen` | `M1` | SEC-A9, AUT-08, TEN-09, LEG-01 | 1 |
 | `/portal/[mandant]/einstellungen/protokoll/export` — evidence bundle | `system.audit_exportieren` | `M1` | SEC-A9, DOC-08, LEG-01 | 7 |
@@ -1943,6 +1944,7 @@ the active mandant only**; platform rows are readable by `super_admin` alone, an
 | `/portal/[mandant]/datenschutz/[id]/berichtigung` — Art. 16 | `datenschutz.berichtigung_bearbeiten` | `M1` | LEG-09 | 7 |
 | `/portal/[mandant]/datenschutz/[id]/loeschung` — Art. 17 **against** the retention holds; produces a decision record, never a delete | `datenschutz.loeschung_pruefen` | `M1` | LEG-09, LEG-01, LEG-02 | 7 |
 | `/portal/[mandant]/datenschutz/verarbeitungsverzeichnis` — the Art. 30 register | `system.einstellung_lesen` | `M1` | LEG-09 | 7 |
+| `/portal/[mandant]/datenschutz/loeschkonzept` — the deletion concept, derived from the retention rules, the purge jobs and the `KEIN_HARD_DELETE` register: what is erased, when, by which run — and what is **not**, with its reason | `system.einstellung_lesen` | `M1` | LEG-09, LEG-01, LEG-02 | 10 |
 | `/portal/[mandant]/datenschutz/widersprueche` — the Werbewiderspruch log of §2.4 | `crm.rechtsgrundlage_lesen` | `M1` | CRM-08, LEG-08 | 4 |
 
 The Art. 30 register is a different document with a different legal basis from ACC-10's GoBD

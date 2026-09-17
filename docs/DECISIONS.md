@@ -5179,7 +5179,8 @@ niemand ihn suchen.
 | O-500 | **Wie lange gilt ein Einladungs- und ein Zurücksetzungslink, wie viele Wiederherstellungscodes werden ausgegeben, und gilt eine Mindestlänge über zwölf Zeichen hinaus?** Die SPEC nennt keine Zahl. `plattform_einstellung` führt vier vorläufige Werte (168 h, 2 h, 10 Codes, 12 Zeichen); sie sind als `ist_vorlaeufig = true` markiert und über eine Zeile änderbar, ohne Code. Die Auswahl folgt gängiger Praxis, nicht einer Entscheidung: ein Einladungslink überlebt ein Wochenende, ein Zurücksetzungslink nicht. | AUT-01, AUT-04, `0155`, D-502 |
 | O-501 | **Welches Supabase-Projekt in der EU-Region (Frankfurt), welcher Auftragsverarbeitungsvertrag — und soll die Anmeldung über ein Firmenverzeichnis (SAML/OIDC) laufen?** Dieselbe Frage trägt den Postausgang: welcher in der EU gehostete Mailanbieter, welche Absenderadresse je Gesellschaft, laufen DKIM und DMARC über die bestehenden Domains? Ohne beides gibt es keinen Zurücksetzungs- und keinen Einladungslink, der ankommt. Bis zur Antwort prüft die Plattform das Kennwort selbst (`kern.zugangsdaten`, bcrypt), `/auth/callback` antwortet `501` statt eine Sitzung auszustellen, und `/auth/passwort-vergessen` sagt „nicht verbunden" statt „gesendet" (D-501, D-503). | AUT-01, AUT-04, NOT-02, `0155`, D-501 |
 | O-510 | **Warum zeigt die Seite hinter einer 303-Umleitung den alten Stand?** Nach dem Widerruf eines Kalenderzugangs steht die widerrufene Zeile auf der Umleitungsseite noch in der Liste. Festgestellt ist: die Datenbank ist zu diesem Zeitpunkt richtig (`widerrufen_am` gesetzt), der Feed antwortet sofort mit 404, und ein normaler Aufruf derselben Adresse zeigt die Liste richtig — es ist eine veraltete ANZEIGE und kein offener Zugang. Ausgeschlossen sind: fehlendes `force-dynamic` (steht), eine nicht abgeschlossene Transaktion (die 404-Antwort beweist das Gegenteil), `revalidatePath` auf dem Ziel und `cache-control: no-store` auf der Umleitung (beide eingebaut, beide ohne Wirkung). Bis zur Antwort sagt die Bestätigung auf der Seite ausdrücklich, dass eine noch sichtbare Zeile veraltet ist. Der Browsertest prüft den Stand deshalb nach einem frischen Aufruf — und die Wirkung des Widerrufs sofort. | CAL-03, `api/kalender-feed/widerrufen`, D-516 |
-| O-513 | **Darf jemand eine Freigabe VORLEGEN, ohne sie entscheiden zu duerfen?** Die Schreibpolicy auf `freigabe` (`t_mandant`, `0136`) verlangt in ihrem `with check` das Recht `freigabe.entscheiden` — fuer JEDEN Schreibvorgang, also auch fuer das Einfuegen einer offenen Bitte. Wer eine Stelle oder einen Beitrag vorlegt (`legeStelleVor`, `legeVor`), braucht damit heute das Recht, ueber Freigaben zu ENTSCHEIDEN. Das widerspricht dem Sinn von Invariante 7: vorlegen und entscheiden sind zwei Rollen, und die Trennung ist der ganze Zweck des Posteingangs. **Heute nicht erreichbar:** die Grundmatrix (`0008`) gibt `super_admin`, `admin` und `leitung` beide Rechte; ein Mandanten-Override kann sie trennen, und dann bekommt der Vorlegende ein 403 und kann den dokumentierten Weg nie beginnen. **Die richtige Form ist ein Definer** — `app.freigabe_vorlegen(...)` neben dem schon vorhandenen `app.freigabe_entscheiden`: er legt die offene Bitte im Namen des Vorlegenden an, prueft das FACHLICHE Recht (`recruiting.stelle_schreiben`, `social.schreiben`, …) und verlangt gerade NICHT das Entscheidungsrecht. Das beruehrt jeden Weg, der eine Freigabe erzeugt (Recruiting, Social, Eingangsrechnungen, Agentenlaeufe, Bau) und braucht Schema, Grants und Tests — ein eigener Schritt, keine Zeile in einem Dienst. Gemeldet hat es die Copilot-Runde auf PR 16. | Invariante 7, APR-01, `0136_freigabe_posteingang.sql`, `services/recruiting/dienst.ts`, `services/social/dienst.ts`, D-585 |
+| O-514 | **Auf welcher Rechtsgrundlage verarbeitet jede Gesellschaft — und wie lange hält sie Personal-, Konto- und Agentendaten?** Das Verarbeitungsverzeichnis nach Art. 30 (`services/datenschutz/verzeichnis.ts`) erzeugt sich aus der laufenden Konfiguration: Verantwortlicher, Tätigkeiten der gebuchten Module, Empfänger, Massnahmen. **Zwei Angaben kann es nicht erzeugen.** (a) Die Rechtsgrundlage je Tätigkeit (Art. 6 Abs. 1) — Vertrag, rechtliche Verpflichtung, berechtigtes Interesse oder Einwilligung — hängt an Arbeitsverträgen, Kundenverträgen und einer etwaigen Betriebsvereinbarung; sie zu erfinden hiesse, ein Verzeichnis zu liefern, das vor einer Aufsicht wie eine Prüfung aussieht und keine ist. (b) Die Aufbewahrungsfrist für Personalstammdaten, Dienstpläne, Abwesenheiten, Konten, Agentenläufe **und die Betriebsnachweise eines Objekts — Wachbuch, Leistungsnachweis, Bautagebuch** (V-09; sie werden im Streit vorgelegt, was ihre Unveränderlichkeit begründet, aber keine Frist nennt): § 147 AO und § 257 HGB decken die Belege, nicht die Personalakte, und was danach gilt, sagt die Personalaktenpraxis des Mandanten. Dazu gehört die Frage nach dem **Betriebsrat** (§ 87 BetrVG), die auch über LEG-10 entscheidet — den Standortpunkt bei Beginn und Ende eines Einsatzes. **Heute ehrlich gemacht:** Abschnitt 8 des Verzeichnisses sagt ausdrücklich, was dort NICHT steht und warum, und `verarbeitungen.test.ts` hält fest, dass keine Rechtsgrundlage ins Register wandert. | LEG-09, LEG-10, Art. 6 DSGVO, § 87 BetrVG, `registry/verarbeitungen.ts`, `services/datenschutz/verzeichnis.ts` |
+| O-513 | **Darf jemand eine Freigabe VORLEGEN, ohne sie entscheiden zu duerfen — und welches Recht traegt dann das Vorlegen?** Die Schreibpolicy auf `freigabe` (`t_mandant`, `0136`) verlangt in ihrem `with check` das Recht `freigabe.entscheiden` — fuer JEDEN Schreibvorgang, also auch fuer das Einfuegen einer offenen Bitte. Wer eine Stelle oder einen Beitrag vorlegt (`legeStelleVor`, `legeVor`), braucht damit heute das Recht, ueber Freigaben zu ENTSCHEIDEN. Das widerspricht dem Sinn von Invariante 7: vorlegen und entscheiden sind zwei Rollen, und die Trennung ist der ganze Zweck des Posteingangs. **Heute nicht erreichbar:** die Grundmatrix (`0008`) gibt `super_admin`, `admin` und `leitung` beide Rechte; ein Mandanten-Override kann sie trennen, und dann bekommt der Vorlegende ein 403 und kann den dokumentierten Weg nie beginnen. **Vier Wege erzeugen heute eine offene Bitte** (nachgesehen, nicht vermutet): `services/social/dienst.ts`, `services/recruiting/dienst.ts`, `services/finanz/eingang/vorschlag.ts` und `agent/orchestrator.ts`; der vierte hat gar keinen menschlichen Urheber. Ihre Spalten zusammen sind 22 — eine Umstellung beruehrt alle vier, nicht zwei. **Die Form ist ein Definer** `app.freigabe_vorlegen(...)` neben `app.freigabe_entscheiden`: er legt die offene Bitte an, setzt `status` und die Entscheidungsfelder SELBST (der Aufrufer kann sie nicht mitgeben) und prueft ein fachliches Recht statt des Entscheidungsrechts. **Offen ist genau eine Frage, und sie ist keine technische:** WELCHES fachliche Recht traegt das Vorlegen einer Aktion? Eine Policy allein kann das nicht beantworten, und ein Aufrufer, der sein eigenes Pruefrecht mitgibt, prueft sich selbst — dann koennte jemand mit `social.schreiben` eine erfundene Rechnungsfreigabe in den Posteingang legen, die ein Entscheider spaeter abnickt. Kein Rechteausbruch, aber ein Koeder, den es heute nicht gibt. Drei Antworten stehen zur Wahl: (a) eine Zuordnung Aktion → Recht IM Definer, wie die uebrigen Register dieser Plattform — praezise, aber jede neue Freigabeart braucht eine Migration; (b) **die Ableitung aus dem Katalog: wer vorlegt, muss im MODUL des Entscheidungsrechts ein nicht-lesendes Recht halten** (`social.freigeben` → Modul `social` → `social.schreiben` genuegt). Das braucht kein neues Register, weil `berechtigung` Modul, Objekt und Aktion bereits fuehrt, und schliesst den Koeder ueber Modulgrenzen hinweg — **das ist die Empfehlung**; (c) ein eigenes Recht `freigabe.vorlegen`, das dann aber in die Rollenmatrix gehoert und damit erst recht eine Entscheidung des Auftraggebers ist. Gemeldet hat den Befund die Copilot-Runde auf PR 16. | Invariante 7, APR-01, K-19, `0136_freigabe_posteingang.sql`, `services/recruiting/dienst.ts`, `services/social/dienst.ts`, `services/finanz/eingang/vorschlag.ts`, `agent/orchestrator.ts`, D-585 |
 | O-512 | **Soll `/karriere` in die Sitemap — und soll es englisch werden?** Die Sitemap kommt aus der DATENBANK (`seite`-Zeilen, PUB-10), nicht aus `OEFFENTLICHE_ROUTEN`; sie meldet der Suchmaschine, welche Seiten es GIBT, und eine Route ohne veroeffentlichte `seite`-Zeile rendert 404. `/karriere/*` ist dagegen im Code gebaut (REC-03) und hat keine `seite`-Zeile — es steht damit weder in der Sitemap noch auf Englisch. Fuer eine Karriereseite ist das Erste eine echte Einbusse: wer eine Stelle sucht, sucht sie bei Google. Die Copilot-Runde auf PR 16 meldete es als Verstoss gegen den zweisprachigen Vertrag (D-82). **Zwei Fragen, die der Auftraggeber beantwortet:** (a) Sollen im Code gebaute oeffentliche Routen in die Sitemap aufgenommen werden — und wenn ja, welche, und wie erfaehrt die Sitemap von ihnen, ohne eine zweite Liste zu werden, die veraltet? (b) Soll `/karriere` uebersetzt werden, samt Stellendetail, Formular und Dankseite, oder bleibt der Karrierebereich deutsch (Berliner Baustellen, deutschsprachige Teams)? **Heute ehrlich gemacht:** `NUR_DEUTSCH` nennt den Baum, `gibtEsIn()` haelt den Sprachumschalter und `hreflang` davon ab, eine englische Fassung zu behaupten, die es nicht gibt (D-583), und `sprachpfade.test.ts` faellt, sobald jemand uebersetzt, ohne den Eintrag zu entfernen. | REC-03, PUB-10, D-82, D-583, `services/inhalt/sitemap.ts`, `lib/sprache.ts` |
 | O-511 | **Soll der Versand an fremde Plattformen einen Ausgangskorb mit Idempotenzschlüssel bekommen, bevor der erste Kanal verbunden wird?** `sendeKanaele` (`services/social/dienst.ts`) ruft den Adapter INNERHALB der Geschäftstransaktion und schreibt `beitrag_kanal` danach. Bricht die Transaktion nach dem Adapter, aber vor dem Commit ab (Prozessende, ein späterer Kanal wirft), steht der Beitrag draussen, die Zeile sieht aber unversandt aus — und der nächste Versuch schickt ihn noch einmal. `BeitragAuftrag` kennt keinen Idempotenzschlüssel, den eine Plattform prüfen könnte. Gemeldet hat das die Copilot-Runde auf PR 16. **Heute ohne Wirkung:** alle fünf Plattformen sind absichtlich unverbunden (O-10) und antworten `nicht_verbunden`, einem terminalen Zustand ohne Nebenwirkung. Die richtige Form ist ein Ausgangskorb (`beitrag_versand` mit `idempotenz_schluessel`, Zustellung ausserhalb der Geschäftstransaktion, Abgleich danach) — das ist ein eigener Schritt mit Schema, Lauf und Tests, keine Zeile in `sendeKanaele`. Er gehört zu dem Zeitpunkt, an dem O-10 beantwortet ist und der erste Adapter echt wird; vorher wäre er ein Korb ohne Empfänger. | SOC-07, O-10, D-572, `services/social/dienst.ts` |
 | O-509 | **Welche KI-Endpunkte deckt der Auftragsverarbeitungsvertrag ab?** Der Adapter zerlegt `OPENAI_BASE_URL` und lässt nur `https` und einen Wirt aus einer Liste durch; in der Liste steht heute `eu.api.openai.com`, der Endpunkt, den OpenAI für EU-Datenresidenz nennt. Ob der AV-Vertrag des Kunden genau diesen abdeckt, ob er weitere abdeckt (Azure OpenAI in einer EU-Region hat je Ressource einen eigenen Wirt) und ob Nullspeicherung vertraglich zugesagt ist, weiss der Kunde — nicht diese Datei. Bis zur Antwort kommt jeder andere Wirt als `RESIDENCY_BLOCKED` zurück; ergänzen lässt sich die Liste über `OPENAI_EU_HOSTS`, und diese Variable zu setzen ist eine Entscheidung, die in die Verfahrensdokumentation gehört. | D-04, §8, `versand/modell-openai.ts`, D-509 |
@@ -12942,3 +12943,379 @@ im Code gebaute Routen hineingehören, ist eine Frage an den Auftraggeber:
   neben `app.freigabe_entscheiden`, der jeden Erzeugerweg betrifft: **O-513**.
 - Die beiden übrigen Punkte der Runde betrafen wieder `/en/karriere` — mit
   O-512 beantwortet und in D-583 ehrlich gemacht.
+
+### D-586 · Das Verarbeitungsverzeichnis, das sich selbst schreibt — und sagt, was es nicht weiss
+
+**Kontext.** LEG-09 verlangt vier Dinge: Verarbeitungsverzeichnis, AV-Verträge,
+Löschkonzept, Betroffenenrechte. Das Verzeichnis nach Art. 30 DSGVO war seit
+Phase 7 als Route geplant (`/portal/[mandant]/datenschutz/verarbeitungsverzeichnis`)
+und nie gebaut. Phase 10 baut es — nach demselben Muster wie die
+GoBD-Verfahrensdokumentation (ACC-10, D-485), und aus demselben Grund.
+
+**Warum es erzeugt und nicht gepflegt wird.** Ein Verzeichnis in einer Datei
+beschreibt den Tag, an dem jemand es zuletzt angefasst hat. Vor einer Aufsicht
+zählt der Stand des Systems. Also entsteht es beim Abruf, aus fünf lebenden
+Quellen:
+
+| Angabe (Art. 30 Abs. 1) | Quelle |
+|---|---|
+| lit. a — Verantwortlicher | `mandant`: Firma, Rechtsform, Anschrift, Geschäftsführung, HR, USt-IdNr. |
+| lit. b, c — Zwecke, Betroffene, Daten | `registry/verarbeitungen.ts`, gefiltert über `mandant.module` |
+| lit. d — Empfänger | `registry/auftragsverarbeiter.ts` mit Region und Vertragsstand |
+| lit. e — Drittland | dieselbe Liste: alle auf EU festgelegt (D-04) |
+| lit. f — Löschfristen | die Aufbewahrungsregeln der Gesellschaft und `recruiting.aufbewahrung_tage` |
+| Art. 32 — Massnahmen | was der Code erzwingt: RLS, AAL2, private Buckets, Hashkette, Serveruhr, Freigabe |
+
+Was diese Gesellschaft nicht gebucht hat, steht nicht drin: `modulAktiv`
+beantwortet die Frage hier wie in der Navigation. Ein Verzeichnis, das die
+Bautätigkeiten einer Reinigungsfirma aufführt, ist vor einer Aufsicht
+schlimmer als eines, das fehlt — es zeigt, dass niemand hingesehen hat.
+
+**Die Grenze, die das Dokument selbst zieht.** Abschnitt 8 heisst „Was dieses
+Verzeichnis NICHT sagt", und dort steht die Rechtsgrundlage je Tätigkeit
+(Art. 6 Abs. 1). Sie hängt an Arbeitsverträgen, Kundenverträgen und einer
+etwaigen Betriebsvereinbarung — **O-514**. Ebenso die Frage nach dem
+Betriebsrat (§ 87 BetrVG), die über LEG-10 mitentscheidet.
+
+**Ein Verzeichnis mit ausgedachten Grundlagen wäre schlimmer als keines: es
+sähe geprüft aus.** Deshalb hält `verarbeitungen.test.ts` fest, dass das
+Register kein FELD für eine Rechtsgrundlage kennt — und zwar als Feld, nicht
+als Wort: `V-06` nennt „Rechtsgrundlage der Ansprache" als DATENART, weil das
+CRM sie wirklich speichert (CRM-08, § 7 UWG), und das zu verschweigen wäre
+die andere Unwahrheit.
+
+**Warum ein Code-Register und keine Tabelle.** Dieselbe Entscheidung wie bei
+`rls.ts` (K-16): die Liste der Tätigkeiten ändert sich mit dem CODE, nicht mit
+dem Betrieb. Eine neue Tätigkeit entsteht, wenn jemand ein Modul baut — und
+dann soll sie im selben PR entstehen, gelesen und geprüft. Was für eine
+Gesellschaft GILT, entscheidet dagegen der Betrieb, und das liest der Abruf.
+
+**Der Hash über den Inhalt, die Uhr daneben** — wie bei ACC-10. Zwei Abrufe
+desselben Standes tragen denselben SHA-256; ein Fall sichert das zu, und die
+Gegenprobe (Uhr in den Hash) macht ihn rot.
+
+**Kein PDF, mit Absicht.** Ein Verzeichnis nach Art. 30 wird fortgeschrieben
+und vorgelegt, nicht archiviert: eine Aufsicht bekommt den Stand des Tages,
+an dem sie fragt. Markdown liest ein Mensch, JSON vergleicht eine Prüfung.
+Eine dritte Kopie wäre ab dem Abruf veraltet — genau das Problem, gegen das
+diese Seite gebaut ist. Jeder Abruf steht im Protokoll: wer das Verzeichnis
+seiner Gesellschaft gezogen hat, ist selbst eine Auskunft.
+
+**Nebenbei berichtigt:** die Kachel `einstellungen/dpa` nannte sich „das
+Verzeichnis nach Art. 30". Sie ist die Empfängerliste (lit. d), eine von
+sieben Angaben. Zwei Seiten mit demselben Namen wären eine zu viel.
+
+| Betrifft | LEG-09, LEG-10, Art. 30 DSGVO, O-514, D-04, D-485, K-16, `registry/verarbeitungen.ts`, `services/datenschutz/verzeichnis.ts` |
+|---|---|
+
+### D-587 · Das Löschkonzept — und die Hälfte, an der Auskünfte scheitern
+
+**Kontext.** LEG-09 verlangt neben dem Verzeichnis (D-586) ein Löschkonzept.
+Es beantwortet zwei Fragen: *was wird gelöscht, wann und wodurch* — und *was
+wird NICHT gelöscht, und warum*. Die zweite ist die unangenehme: vor einer
+Aufsicht ist „wir behalten das" ohne Grund dasselbe wie „wir wissen es nicht".
+
+**Alle drei Antworten stehen schon im System.** Deshalb wird das Konzept
+abgeleitet und nicht geschrieben:
+
+| Abschnitt | Quelle |
+|---|---|
+| 1. Fristen | die Aufbewahrungsregeln der Gesellschaft, `recruiting.aufbewahrung_tage`, § 17 MiLoG |
+| 2. Was wirklich löscht | das Jobregister — Lauf, Zeitplan und Wirkung |
+| 3. Was NICHT gelöscht wird | `rls.ts.KEIN_HARD_DELETE`, mit dem Grund je Tabelle (K-16) |
+
+Ein Dokument daneben wäre eine vierte Wahrheit, die beim ersten Umbau falsch
+wird. Dieses hier ist beim Abruf richtig oder es ist kaputt — und
+`loeschkonzept.test.ts` merkt das Zweite.
+
+**Drei Entscheidungen, die es ehrlich halten:**
+
+1. **Eine offene Frist steht als OFFEN, nicht als Zahl.** Die Personalakte,
+   die Konten und die Agentenläufe haben keine entschiedene Frist (O-514);
+   § 147 AO deckt die Belege, nicht die Akte. Auf dem Bildschirm zeigt die
+   Spalte dann den Zustand und nicht den Text daneben — wer die Tabelle
+   überfliegt, soll die Lücke sehen. Die Gegenprobe (eine erfundene Zahl
+   eintragen) macht den Fall rot.
+2. **Jede Sperre trägt ihren eigenen Grund.** „Aus gesetzlichen Gründen" wäre
+   keine Auskunft; `rls.ts` verlangt den Grund je Tabelle, und das Konzept
+   reicht ihn durch, statt ihn zusammenzufassen. Auch das ist sabotiert
+   worden: Floskel statt Grund → rot.
+3. **Die Läufe kommen aus dem Register, nicht aus einer Liste hier.** Fällt
+   ein Lauf weg, verschwindet er; steht einer in der Zuordnung und nicht im
+   Register, taucht er gar nicht erst auf, statt eine Löschung zu behaupten,
+   die niemand ausführt. Die Zuordnung ist ausdrücklich eine Liste und kein
+   Namensmuster: `*_loeschung` hätte `loeschsperre_pruefung` mitgenommen —
+   einen Lauf, der gerade NICHT löscht.
+
+**Es löscht nichts.** Der Weg für einen Antrag nach Art. 17 ist
+`/datenschutz/[id]/loeschung` und erzeugt eine Entscheidung. Diese Seite sagt,
+welche Fristen und welche Sperren diese Entscheidung vorfindet.
+
+| Betrifft | LEG-09, LEG-01, LEG-02, O-25, O-373, O-376, O-514, K-16, D-586, `services/datenschutz/loeschkonzept.ts` |
+|---|---|
+
+### D-588 · Der gescheiterte Nachtlauf hatte keinen Bildschirm
+
+**Kontext.** `runner.ts` verspricht in seinem eigenen Kopf: „KEIN stiller Tod."
+Das Versprechen hielt bis zur Datenbank. Ein Lauf, der um vier Uhr scheitert,
+schreibt `job_lauf.ergebnis = 'fehler'` und eine Zeile auf `stderr` — und dann
+passiert nichts. Kein Bildschirm zeigt ihn. Der Ausfall fällt auf, wenn jemand
+die Mahnungen vermisst, und das ist Wochen später.
+
+Dieselbe Lücke wie in `bootstrap.ts` (kein Job registriert) und in D-540
+(kein Auslöser), nur am anderen Ende: dort lief nichts, hier sieht niemand,
+dass etwas nicht lief.
+
+**Drei Ausfälle, und der stillste ist der schlimmste.**
+
+| Art | Wie er sich meldet |
+|---|---|
+| `fehler` | laut: in `job_lauf`, mit Text |
+| `haengt` | gar nicht — der Lauf kommt nie dazu |
+| `ausgeblieben` | **gar nicht** — er erzeugt keinen Fehler, er erzeugt nur nichts |
+
+Das Ausbleiben ist nur im Vergleich mit dem ZEITPLAN sichtbar. Deshalb steht
+die Überwachung neben dem Register und nicht neben dem Protokoll: das Protokoll
+kennt nur, was passiert ist.
+
+**Der hängende Lauf wird eigens gesucht, und das ist der Punkt.** „Letzter Lauf
+je Job" zeigt ihn nicht: sobald der nächste startet, steht der aufgegebene
+nicht mehr vorn. Wer nur den neuesten Lauf ansieht, sieht ihn nie wieder — und
+er wird trotzdem nie beendet. Eine eigene Abfrage über `beendet_am is null`
+findet ihn, und `exists (ein neuerer Lauf)` beweist, dass er aufgegeben wurde.
+Die Sabotage (das `ueberholt` streichen) macht den Fall rot.
+
+**Der Erwartungsabstand kommt aus dem Cron, und er rundet nach OBEN.**
+`fensterMinuten` rundet nach unten — für ein Idempotenzfenster ist das richtig,
+weil ein zu kleines höchstens einen doppelten Auslöser durchlässt. Für eine
+Überwachung ist es falsch: ein zu kleiner Erwartungswert erzeugt Fehlalarm, und
+
+> ein Bildschirm, der grundlos rot ist, wird nach zwei Wochen nicht mehr
+> gelesen — und dann steht der echte Ausfall auch darin.
+
+Das ist teurer als gar keine Überwachung. Deshalb zwei Funktionen mit
+entgegengesetzter Rundung statt einer mit einem Schalter, und deshalb gilt ein
+Lauf erst nach dem DOPPELTEN Abstand als ausgeblieben: beim einfachen ist der
+nächste gerade erst fällig, beim doppelten ist ein Auslöser beweisbar
+ausgefallen. Ein Befund, der beweisbar ist, wird geglaubt.
+
+**Und was sich nicht beurteilen lässt, wird gesagt statt geraten.**
+`0 6 15 6,12 *` — der Basiszinssatz, zweimal im Jahr. Aus Minute und Stunde
+allein wäre sein Abstand „ein Tag", und der Wächter stünde ab dem 16. Juni ein
+halbes Jahr auf Rot. Wo Monatstag, Monat oder Wochentag gesetzt sind, meldet
+die Überwachung „nicht beurteilbar" mit dem Grund. Ein Fehler desselben Laufs
+steht trotzdem da — unbeurteilbar ist der ABSTAND, nicht das Ergebnis.
+
+**Eine Uhr, und zwar die der Datenbank.** Das Alter jedes Laufs rechnet
+Postgres (`now() - gestartet_am`), nicht der Node-Prozess: `gestartet_am` ist
+mit der Datenbankuhr gestempelt, und zwei Uhren, die gegeneinander laufen,
+erzeugen genau an der Schwelle einen Fehlalarm oder ein Schweigen. Bleibt die
+Zeile aus, endet der Aufruf laut — eine Ausweichuhr aus dem Prozess wäre genau
+die zweite Uhr (Invariante 2, Invariante 5). `cse/no-client-clock` hat den
+ersten Entwurf daran erwischt.
+
+**Die Frage vor allen anderen: läuft überhaupt etwas?** Ohne `pg_cron` startet
+kein einziger Wächter, und dann heissen siebzehn „noch nie gelaufen" nicht
+siebzehn Fehler, sondern einen. Gefragt wird deshalb zuerst die Erweiterung
+(`pg_extension` liest jede Rolle) und dann die LESEERLAUBNIS auf `cron.job` —
+statt die Abfrage zu wagen: ein Fehler mitten in der Transaktion bräche sie ab,
+und die ganze Seite wäre weg, weil eine Nebenauskunft fehlt. Ist `cron.job`
+nicht lesbar, sagt der Bildschirm das, statt „alles eingetragen" zu behaupten.
+
+**Was diese Gesellschaft angeht — und was nicht.** `job_lauf` trägt kein
+`mandant_id` (0010) und ist mit `system.betrieb_lesen` lesbar; `job_lauf_mandant`
+ist ein Mandantendatum und trägt die übliche Trennung. Ein Lauf, der für zwei
+Gesellschaften scheitert, zeigt hier die eigene Zeile mit Text und die fremde
+gar nicht — die Zahl der betroffenen Gesellschaften steht trotzdem da, sonst
+sähe „hier nichts" wie „nichts passiert" aus. Der Isolationsfall prüft beide
+Richtungen und sucht den fremden Fehlertext im ganzen Ergebnis.
+
+**Die Seite löst nichts aus.** Ein Lauf startet über `/api/jobs/[schluessel]`
+mit dem Betriebsgeheimnis; ein Knopf hier wäre derselbe Schalter ohne
+Geheimnis.
+
+| Betrifft | SPEC §14, D-540, K-11, Invariante 2, Invariante 5, `jobs/zeitplan.ts: erwartungsabstand`, `services/betrieb/ueberwachung.ts`, `einstellungen/betrieb`, `0010_job_lauf.sql` |
+|---|---|
+
+### D-589 · Eine Prüfsumme, die zwei Stände als einen bestätigte
+
+**Kontext.** Die achte Copilot-Runde, zwei Befunde auf PR 17. Beide echt, beide
+in der Sorte Code, die niemandem auffällt, weil das Ergebnis aussieht wie ein
+Ergebnis.
+
+**1. Der Hash deckte nicht alles, was unter ihm stand.** Das
+Verarbeitungsverzeichnis hashte `abschnitte`; `offen` ging im JSON mit hinaus
+und stand im Markdown unter derselben Zeile „Prüfsumme des Inhalts". Eine
+Aufbewahrungsklasse, die auf Platzhalter steht und zu KEINER Tätigkeit gehört,
+ändert genau eines: die offene Liste. Zwei verschiedene Auskünfte trugen damit
+denselben Abdruck.
+
+Vor einer Aufsicht ist das der Fall, in dem eine Prüfsumme das Gegenteil dessen
+tut, wofür sie da ist: **sie bestätigt zwei Stände als einen.** Das Löschkonzept
+hashte von Anfang an über beides, die Verfahrensdokumentation ebenso — es war
+eine Abweichung, keine Entscheidung. Der Fall dazu setzt einen Platzhalter auf
+`projekt` (zu keiner Tätigkeit gehörend), beweist zuerst, dass die Abschnitte
+Zeichen für Zeichen dieselben bleiben, und verlangt dann einen anderen Hash.
+
+**2. Eine Zelle ist einzeilig — ein Datenbankwert weiss das nicht.** Zwei der
+drei Markdown-Erzeuger maskierten den senkrechten Strich und liessen den
+Zeilenumbruch stehen. Ein Geschäftsführer oder eine Rechtsgrundlage mit `\n`
+darin beendet die Tabelle an dieser Stelle; der Rest wird zu freien Zeilen,
+eine davon womöglich zu einer neuen Kopfzeile.
+
+Das Dokument sieht danach aus wie ein Dokument. Es geht an eine Aufsicht, und
+dort fehlt eine Zeile, die niemand vermisst, weil niemand weiss, dass sie da
+sein sollte.
+
+Die Maskierung steht jetzt an EINER Stelle (`lib/markdown.ts`) statt dreimal
+nebeneinander — drei Kopien sind drei Gelegenheiten, eine davon zu vergessen,
+und genau das war passiert. `freigabe/diff.ts` bleibt ausgenommen und zwar
+begründet: es maskiert Backslash und Strich, um Felder verlustfrei zu
+VERKETTEN; dort wäre ein zum Leerzeichen gemachter Umbruch eine Verfälschung.
+Ein Fall hält die Ausnahme fest, ein zweiter verbietet jede weitere eigene
+Maskierung unter `services/`.
+
+**Der erste Prüffall dazu war grün, obwohl der Fehler noch drin war.** Er
+suchte `Gefälscht |` im Markdown — und der Strich WAR maskiert, also fand er
+nichts und war zufrieden. Die Sabotage hat das aufgedeckt: er prüft jetzt, dass
+der ganze Wert in DERSELBEN Zeile steht. Dieselbe Lehre wie D-580 und D-583 —
+eine Prüfung, die nie rot war, hat nichts bewiesen.
+
+| Betrifft | LEG-09, ACC-10, D-586, D-587, D-580, `lib/markdown.ts`, `services/datenschutz/verzeichnis.ts`, `services/datenschutz/loeschkonzept.ts`, `services/buchhaltung/verfahrensdokumentation.ts` |
+|---|---|
+
+### D-590 · Die Schwelle, die sich nach dem Bestand richtete
+
+**Kontext.** `pnpm audit` meldete zwei moderate Befunde, beide aus derselben
+Meldung: GHSA-82fw-gwwq-j7x9, Pfaddurchgriff über den Redirect-Mock von
+`@vitest/mocker`, behoben ab Vitest 4.1.11. Der Baum stand auf 3.2.7. CI prüfte
+mit `--audit-level=high` — also war nichts rot, und der Phase-10-Punkt
+„dependency audit clean" stand weiter offen.
+
+**Eine Schwelle, die sich nach dem Bestand richtet, misst den Bestand.** Sie
+stand auf `high`, solange zwei moderate Befunde im Baum lagen, die sich nicht
+ohne einen Versionswechsel beheben liessen. Damit sagte sie nicht mehr „diese
+Stufe lassen wir durchgehen", sondern „diese beiden lassen wir durchgehen" —
+und das ist keine Zusage, sondern eine Beschreibung.
+
+**Also der Wechsel: Vitest 3.2.7 → 4.1.11.** Die genau behobene Fassung, nicht
+die neueste (5.0.1): der kleinere Sprung, und die Meldung ist damit erledigt.
+Danach meldet `pnpm audit` nichts mehr, und zwar bis hinunter zu `low`.
+
+Der Wechsel kostete zwei Stellen in den Läuferkonfigurationen, und beide waren
+STILL:
+
+- **`poolOptions` ist weggefallen**; die Angaben stehen jetzt oben. Die alte
+  Form bleibt lesbar und wirkungslos — `maxForks: 4` fiel damit still auf die
+  Kernzahl der Maschine zurück. Ein Läufer, der 138 Dateien auf einem kleinen
+  CI-Rechner gleichzeitig startet, wird langsamer statt schneller, und niemand
+  hätte gewusst, warum.
+- **`minWorkers` gibt es nicht mehr.** Geblieben ist `maxWorkers`, und das ist
+  die Angabe, auf die es in der Isolationssuite ankommt: `global-setup.ts` legt
+  genau so viele Datenbanken an, `harness.ts` wählt seine über
+  `VITEST_POOL_ID`. Eine Obergrenze darüber hinaus wäre ein Arbeiter ohne
+  Datenbank; weniger Arbeiter als erlaubt lassen höchstens einen Klon ungenutzt.
+  `tsc` hat die Zeile gefunden — die Konfiguration ist TypeScript, und das ist
+  hier der ganze Gewinn.
+
+Alle vier Suiten danach grün: 2470 Einheitstests, 1855 Isolationsfälle auf vier
+Arbeitern, beide Konformitätsläufe.
+
+**Und die Schwelle steht jetzt auf `moderate`.** Nicht auf `low`: geringfügige
+Meldungen im Werkzeugbaum kommen und gehen, und ein CI, das dafür rot wird,
+wird umgangen statt gelesen — dieselbe Überlegung wie bei der
+Betriebsüberwachung (D-588). Heute ist der Baum auch bei `low` sauber; die Wahl
+sagt also, was BLOCKIEREN soll, und nicht, was gerade bekannt ist.
+
+| Betrifft | SEC-A8, ROADMAP Phase 10, D-424, D-588, `.github/workflows/ci.yml`, `vitest.config.ts`, `vitest.isolation.config.ts`, `package.json` |
+|---|---|
+
+### D-591 · Sieben Befunde, die nie als Kommentar ankamen
+
+**Kontext.** Die neunte Copilot-Runde auf PR 17 postete zwei Threads und legte
+**sieben weitere unter „Suppressed comments"** in die Zusammenfassung. Wer nur
+die Threads abarbeitet, hakt die Runde ab und lässt sieben echte Befunde
+liegen. Alle sieben waren echt; drei davon trafen genau die Zusagen, auf denen
+dieses Paket steht.
+
+**1. Das Dokument entstand aus zwei Ständen, und die Prüfsumme bezeugte es als
+einen.** Die Ausgaberoute lief unter `read committed`, während der Dienst
+nacheinander `mandant`, die Aufbewahrungsregeln und eine Plattformeinstellung
+liest. Ändert jemand dazwischen eine Regel, kommen die Abschnitte aus
+verschiedenen Augenblicken — und darunter steht ein SHA-256, der Einheit
+behauptet. Derselbe Fehler wie D-589, eine Ebene tiefer: dort fehlte dem Hash
+ein Teil des Inhalts, hier fehlte dem Inhalt ein gemeinsamer Augenblick. Die
+Seite hatte `SCHNAPPSCHUSS` von Anfang an; jetzt haben ihn beide Abrufe.
+
+**2. Eine Aussage nach Art. 32, die der Code nicht hält.** Unter „Zweiter
+Faktor" stand: „Verwaltende Rollen erreichen ihre Bereiche nur mit AAL2." Im
+Manifest tragen **drei** Routen `aal2: true` — Rollenmatrix, Rollendetail,
+Modulbuchung. Alles andere, dieses Verzeichnis eingeschlossen, steht einer
+AAL1-Sitzung offen.
+
+> Eine falsche Angabe unter Art. 32 ist schlimmer als eine fehlende: sie steht
+> vor einer Aufsicht und ist nachprüfbar.
+
+Genannt wird jetzt, was wirklich gilt: die Faktorpflicht am Konto, AAL2 für
+Super-Admin-Rechte und für die drei Routen — und ausdrücklich, dass dieser
+Bildschirm nicht dazugehört.
+
+**3. Eine Vorgabe der Plattform, ausgegeben als Entscheidung der
+Gesellschaft.** Die Bewerberfrist kommt aus `app.plattform_einstellung` und
+kennt keinen Mandanten; der Satz sagte trotzdem „für diese Gesellschaft". Er
+sagt jetzt „plattformweite Vorgabe, noch nicht je Gesellschaft entschieden
+(O-373)" — dieselbe Frage, nur nicht mehr als beantwortet ausgegeben.
+
+**4. `gesetz` ohne Gesetz.** `V-09` trug als Fristquelle „Unveränderlich;
+Löschung nur über das Löschkonzept". Das nennt kein Gesetz und keine Frist — es
+beschreibt, WIE gelöscht wird, nicht WANN. `fristText` behandelt `gesetz` als
+entschieden und trägt die Zeile nicht unter „Offen" ein; das Verzeichnis gab
+eine unentschiedene Aufbewahrung als geklärt aus, also genau das, wogegen sein
+Abschnitt 8 geschrieben ist. Die Zeile ist jetzt `offen` und O-514 nennt die
+Betriebsnachweise ausdrücklich. **Neu ist die Wache dazu:** eine gesetzliche
+Frist muss eine Fundstelle nennen (`§` oder `Art. n`), sonst ist sie keine.
+
+**5. Der Fall, der die Filterung prüfen sollte, prüfte sie nicht.** Der
+Integrationsfall zählte die Tätigkeiten und nannte das im Kommentar „zugleich
+die Gegenprobe". Es war keine: alle zwölf hängen an Querschnittsmodulen oder an
+einem ohne Gewerkzuordnung, und `modulAktiv` antwortet für beide `true` — die
+Zahl stimmt, ob gefiltert wird oder nicht. Dieselbe Sorte wie D-580 und die
+halbe Maskierung aus D-589: **grün ohne Aussage.** Der Kommentar sagt jetzt,
+was der Fall wirklich zeigt; die Wirkung des Filters prüft ein Fall an einem
+echt gewerkgebundenen Modul, und ein Stolperdraht wird rot, sobald eine
+gewerkgebundene Tätigkeit dazukommt.
+
+**6. Die Ausgaberoute war gebaut und ungeprüft.** Die Isolationsfälle rufen die
+DIENSTE auf; über die Grenze dahinter — Recht, Anhang, Typ, Prüfsumme im Kopf —
+sagten sie nichts. `datenschutz-dokumente.spec.ts` misst jetzt genau dort, für
+beide Dokumente und die Betriebsansicht, einschliesslich des Falls ohne Recht:
+404 für die Seite UND für die Adresse, denn eine offene Adresse neben einer
+verschlossenen Tür ist keine Tür weniger.
+
+**7. „Jeder Abruf steht im Protokoll" war zu weit.** Die Seite protokolliert
+nicht — und keine einzige Portalseite dieses Baums tut es. Protokolliert wird,
+was ein ARTEFAKT erzeugt: eine Datei, die das System verlässt. Ein
+Seitenaufruf, der eine Protokollzeile schreibt, wäre die einzige seiner Art,
+und das Prüfprotokoll füllte sich mit Aufrufen statt mit Vorgängen (SEC-A9
+fragt, wer was GEÄNDERT hat). Berichtigt wurde die Zusage, nicht die Regel.
+
+**Und der Browserfall zu (6) hat sofort etwas gefunden — an mir.** Sein erster
+Entwurf lief als Administration der Reinigung und bekam auf beiden
+Datenschutzseiten 404. Das war kein Fehler der Seiten: `system.einstellung_lesen`
+ist in der Grundmatrix (`0008`) an `super_admin` gebunden und für `admin` und
+`leitung` nur *bindbar* — je Gesellschaft erteilbar, nicht vorgegeben. Die
+Annahme war falsch, nicht der Code.
+
+Der Fall prüft jetzt BEIDE Seiten derselben Grenze, und das ist der Gewinn:
+dieselbe Person sieht die Betriebsansicht (sie hält `system.betrieb_lesen`) und
+die beiden Datenschutzdokumente nicht. Aus einer Zeile in der Rechtematrix wird
+damit eine gemessene Tatsache — und genau dafür ist ein Browserlauf da. Die
+Super-Administration erreicht die Seiten über das Wechselblatt, denselben Weg,
+den `einstellungen.spec.ts` für die Rollenmatrix geht (D-474).
+
+**Die Lehre über die sieben hinaus.** Eine Prüfzusammenfassung ist kein Anhang
+zur Kommentarliste. Was dort unter „suppressed" steht, ist nicht erledigt,
+sondern ungelesen — und in dieser Runde lag dort der grössere Teil.
+
+| Betrifft | LEG-09, SEC-A9, AUT-02, K-15, O-373, O-514, D-580, D-586, D-587, D-588, D-589, `api/datenschutz/*`, `services/datenschutz/verzeichnis.ts`, `registry/verarbeitungen.ts`, `tests/e2e/datenschutz-dokumente.spec.ts` |
+|---|---|

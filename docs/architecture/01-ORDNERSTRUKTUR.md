@@ -3114,7 +3114,7 @@ exactly like tables, and the dashboard is never a source of schema.
 | `e2e.yml` | Playwright, chromium desktop + mobile viewport, `TZ=Europe/Berlin`; a **second run under a non-Berlin TZ** so a UTC assumption cannot pass silently (K-11) | required |
 | `compliance.yml` | KoSIT validation of generated XRechnung samples (FIN-11) · DATEV EXTF golden-file diff (ACC-02) | **required immediately** — it passes trivially on an empty sample set, so the first sample cannot merge unvalidated |
 | `a11y.yml` | axe on public routes · Lighthouse CI budgets | required (PUB-09, PUB-10, LEG-07) |
-| `security.yml` | `pnpm audit --audit-level=high` · OWASP ZAP baseline · secret scan | required (SEC-A8) |
+| `security.yml` | `pnpm audit --audit-level=moderate` (D-590) · OWASP ZAP baseline · secret scan | required (SEC-A8) |
 
 A conditionally-required check is not a gate, which is why `compliance.yml` is required from
 day one rather than "once samples exist".

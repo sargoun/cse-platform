@@ -1,5 +1,5 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { availableParallelism, tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
@@ -64,8 +64,28 @@ describe('die Konfiguration traegt den Aufbau — nicht nur die Absicht', () => 
     const test = (konfiguration as { test?: Record<string, unknown> }).test ?? {};
     expect(test['globalSetup']).toEqual(['./tests/isolation/global-setup.ts']);
     expect(test['pool']).toBe('forks');
-    expect(test['maxWorkers']).toBe(test['minWorkers']);
     expect(test['fileParallelism']).toBe((test['maxWorkers'] as number) > 1);
+  });
+
+  /**
+   * **Die Obergrenze IST die Zahl der angelegten Datenbanken.**
+   *
+   * Hier stand `maxWorkers === minWorkers` — die frühere Art, die Zahl der
+   * Arbeiter festzunageln. Vitest 4 kennt `minWorkers` nicht mehr (D-590), und
+   * damit ist die Obergrenze die einzige Angabe, die noch zählt: `global-setup`
+   * legt genau `anzahlWorker(...)` Klone an, `harness.ts` wählt seinen über
+   * `VITEST_POOL_ID`. Stünde hier eine grössere Zahl, bekäme ein Arbeiter eine
+   * Adresse ohne Datenbank — und der Fehler sähe aus wie ein RLS-Befund, also
+   * wie das Gegenteil dessen, was er ist.
+   *
+   * Geprüft wird deshalb, dass die Konfiguration DIESELBE Funktion benutzt wie
+   * der Aufbau, und nicht eine Zahl daneben.
+   */
+  it('die Obergrenze kommt aus derselben Funktion wie die Zahl der Klone', () => {
+    const test = (konfiguration as { test?: Record<string, unknown> }).test ?? {};
+    expect(test['maxWorkers']).toBe(anzahlWorker(process.env, availableParallelism()));
+    expect(test['minWorkers'], 'Vitest 4 kennt die Angabe nicht — sie waere eine '
+      + 'Zusage, die der Laeufer nicht haelt').toBeUndefined();
   });
 
   /**

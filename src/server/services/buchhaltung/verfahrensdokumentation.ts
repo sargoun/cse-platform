@@ -8,6 +8,7 @@ import type { JobDefinition } from '../../jobs/registry.js';
 import { liesAufbewahrung } from '../dokument/aufbewahrung.js';
 import { RAHMEN_NAME, istKontenrahmen } from './kontenrahmen.js';
 import { liesWirtschaftsjahr, type Wirtschaftsjahr } from './wirtschaftsjahr.js';
+import { markdownZelle } from '../../../lib/markdown.js';
 
 /**
  * Die Verfahrensdokumentation — erzeugt aus der lebenden Konfiguration
@@ -545,10 +546,6 @@ export const TEILE: readonly { readonly praefix: string; readonly titel: string 
   { praefix: '4', titel: 'Betriebsdokumentation' },
   { praefix: '5', titel: 'Offene Punkte' },
 ];
-
-function markdownZelle(text: string): string {
-  return text.replace(/\|/gu, '\\|').replace(/\r?\n/gu, ' ');
-}
 
 /**
  * Die Dokumentation als Markdown — mit Kopf, Teilen, Abschnitten und Tabellen.

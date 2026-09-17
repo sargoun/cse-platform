@@ -44,6 +44,15 @@ export default defineConfig({
     // faked. That is seconds per case, so the default five is too short.
     testTimeout: 120_000,
     hookTimeout: 60_000,
-    poolOptions: { forks: { singleFork: false, maxForks: 4 } },
+    /*
+     * **Vier Forks, ausdrücklich.** In Vitest 4 ist `poolOptions` weggefallen;
+     * die Angaben stehen jetzt oben. Stehen geblieben wäre die alte Form nicht
+     * etwa ein Fehler, sondern WIRKUNGSLOS — die Obergrenze fiele still auf die
+     * Kernzahl der Maschine zurück, und ein Läufer, der 138 Dateien auf einem
+     * kleinen CI-Rechner gleichzeitig startet, wird langsamer statt schneller.
+     * `pool` steht mit dabei, weil die alte Form ihn über `forks` mitgesagt hat.
+     */
+    pool: 'forks',
+    maxWorkers: 4,
   },
 });

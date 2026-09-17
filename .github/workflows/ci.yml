@@ -54,8 +54,20 @@ jobs:
       # Zusage gebrochen ist.
 
       # SEC-A8: a known-vulnerable dependency fails the branch.
+      #
+      # **Die Schwelle steht auf `moderate` und nicht mehr auf `high`** (D-590).
+      # Sie stand auf `high`, solange der Baum zwei moderate Befunde trug, die
+      # niemand beheben konnte, ohne Vitest zu wechseln — eine Schwelle, die
+      # sich nach dem Bestand richtet, misst den Bestand und nicht die Zusage.
+      # Seit dem Wechsel auf Vitest 4.1.11 ist der Baum sauber, und zwar bis
+      # hinunter zu `low`.
+      #
+      # `low` ist die Schwelle trotzdem NICHT: geringfügige Befunde im
+      # Werkzeugbaum kommen und gehen, und ein CI, das dafür rot wird, wird
+      # umgangen statt gelesen — dieselbe Überlegung wie bei der
+      # Betriebsüberwachung (D-588).
       - name: Audit
-        run: pnpm audit --audit-level=high
+        run: pnpm audit --audit-level=moderate
 
   # ---------------------------------------------------------------------------
   # Die Isolationssuite — RLS am echten Postgres, als cse_app und nie als

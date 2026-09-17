@@ -616,12 +616,18 @@ Radar first — the agents operate on its output.
 
 - [ ] Migration from existing tools (Aplano, Lexware, Excel)
 - [ ] Tenant-isolation suite green
-- [ ] OWASP ZAP baseline; dependency audit clean; secrets audit
+- [ ] OWASP ZAP baseline; **dependency audit clean** (D-590: Vitest 4.1.11,
+      `pnpm audit` clean down to `low`, CI now gates at `moderate`); secrets audit
 - [ ] Backups with a **tested** restore
-- [ ] Monitoring: uptime, errors, failed jobs
+- [ ] Monitoring: uptime, errors — **failed jobs are visible** since D-588:
+      `/einstellungen/betrieb` shows every scheduled run against its protocol
+      (failed · hanging · absent · never run) and whether a trigger is installed
+      at all. Uptime and an on-call channel remain open (O-354).
 - [ ] Load and mobile testing on real devices
-- [ ] DSGVO pack: processing register, DPAs, deletion concept, employee notice
-      for geolocation
+- [ ] DSGVO pack: **processing register (Art. 30) generated from the live
+      configuration** (D-586) and **deletion concept derived from the retention
+      rules** (D-587) are built; DPAs and the employee notice for geolocation
+      remain open, the latter with O-514 (works council, § 87 BetrVG)
 - [x] Verfahrensdokumentation generated from live configuration (PR 66,
       D-485) — re-read before go-live: every open point in its section 5
       must be closed or accepted
