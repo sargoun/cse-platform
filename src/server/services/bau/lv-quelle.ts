@@ -131,21 +131,35 @@ function normal(text: string): string {
 /**
  * Welche Quellspalte auf welches Feld zeigt — geraten, aber sichtbar.
  *
- * Erst die genaue Uebereinstimmung, dann die enthaltene (dieselbe Reihenfolge
- * wie in `raumbuch/import.ts`): sonst nimmt „Positionsart" die Spalte
- * „Position" weg, und die OZ landet nirgends.
+ * **Zwei Durchgaenge ueber ALLE Felder, nicht zwei je Feld.** Erst bekommt
+ * jedes Feld seine GENAUE Uebereinstimmung, dann die uebrigen ihre
+ * enthaltene. Die naheliegende Fassung — je Feld erst genau, dann enthalten —
+ * hat einen Fehler, den ein Einheitstest gefunden hat: `art` steht in der
+ * Reihenfolge vor `positionsart`, und `normal('Positionsart')` ENTHAELT
+ * „art". Die Spalte „Positionsart" wurde damit als Artspalte gelesen, die
+ * Positionsart landete nirgends, und jede Zeile hiess „unbestimmt" — also
+ * zaehlte jede Bedarfsposition in die Auftragssumme (O-155). Ein Fehler, den
+ * man an der Vorschau nicht sieht, weil sie genau das zeigt, was gelesen
+ * wurde.
  */
 export function ordneSpaltenZu(
   kopf: readonly string[],
 ): Readonly<Partial<Record<Feld, string>>> {
   const zuordnung: Partial<Record<Feld, string>> = {};
   const belegt = new Set<string>();
-  for (const feld of Object.keys(SPALTEN) as readonly Feld[]) {
+  const felder = Object.keys(SPALTEN) as readonly Feld[];
+
+  for (const feld of felder) {
     const worte = SPALTEN[feld].map(normal);
     const genau = kopf.find((s) => !belegt.has(s) && worte.includes(normal(s)));
-    const treffer = genau
-      ?? kopf.find((s) => !belegt.has(s) && worte.some((w) => normal(s).includes(w)));
-    if (treffer !== undefined) { zuordnung[feld] = treffer; belegt.add(treffer); }
+    if (genau !== undefined) { zuordnung[feld] = genau; belegt.add(genau); }
+  }
+  for (const feld of felder) {
+    if (zuordnung[feld] !== undefined) continue;
+    const worte = SPALTEN[feld].map(normal);
+    const enthalten = kopf.find(
+      (s) => !belegt.has(s) && worte.some((w) => normal(s).includes(w)));
+    if (enthalten !== undefined) { zuordnung[feld] = enthalten; belegt.add(enthalten); }
   }
   return zuordnung;
 }
