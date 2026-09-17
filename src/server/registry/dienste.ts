@@ -451,6 +451,17 @@ export const DIENSTE: readonly DienstEintrag[] = [
   },
   { modul: 'crm', pfad: 'lead/benachrichtigung', schreibend: false },
   /*
+   * Kunde, Kontakt und Lead von Hand anlegen (CRM-01, CRM-03, CRM-07). Ein
+   * eigener Dienst und nicht ein Zweig in `lead/annahme`: die Annahme ist der
+   * ANONYME Weg mit Honigtopf, Ratenlimit und einem Prinzipal ohne Leserecht.
+   * Dieselbe Funktion fuer beides hiesse, dass jede Aenderung am einen Weg den
+   * anderen mitveraendert — und einer der beiden ist oeffentlich erreichbar.
+   */
+  {
+    modul: 'crm', pfad: 'crm/anlegen',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /*
    * Die Akquise (§12). Sie gehört zum Modul `crm` und nicht zu einem eigenen:
    * ein recherchiertes Ziel ist eine Vorstufe des Leads, und wer Leads sehen
    * darf, soll auch sehen, woher der nächste kommt. Ein eigener

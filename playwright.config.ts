@@ -96,6 +96,21 @@ export default defineConfig({
       CSE_KANONISCHE_BASIS: 'http://localhost:3000',
     },
     reuseExistingServer: false,
-    timeout: 180_000,
+    /**
+     * **600 Sekunden, und das ist gemessen, nicht geraten.**
+     *
+     * Hier standen 180. `webServer.command` ist `pnpm build && pnpm start`, und
+     * der Bau dauerte bei 439 Routen und warmem Cache **3 min 13 s** — also
+     * dreizehn Sekunden zu lang. Die Folge war kein Testfehler, sondern
+     * „Timed out waiting 180000ms from config.webServer": die ganze Suite lief
+     * gar nicht erst an, und das sieht in einem Protokoll aus wie ein
+     * kaputter Server.
+     *
+     * Die Zahl ist die Bauzeit mal drei. Nicht knapp darüber: ein kalter Cache
+     * (frischer Container, erster Lauf nach `pnpm install`) braucht deutlich
+     * länger als ein warmer, und ein Zeitlimit, das genau bis zum Messwert
+     * reicht, fällt beim nächsten Route-Zuwachs wieder.
+     */
+    timeout: 600_000,
   },
 });

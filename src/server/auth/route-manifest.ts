@@ -319,6 +319,26 @@ export const ROUTEN: readonly RouteEintrag[] = [
      * verlangt dieser Weg alles: Sitzung, Mandant und das Recht. Entgegennehmen
      * darf jeder, entscheiden nur ein benannter Mensch.
      */
+    /*
+     * CRM-01/CRM-03. Kunde ODER Ansprechpartner — welches, entscheidet das
+     * Feld `kundeId`. Eine Route fuer beides, weil beide dasselbe Recht
+     * verlangen und dasselbe Formular sie erzeugt; zwei Routen waeren zwei
+     * Stellen, an denen `crm.schreiben` steht.
+     */
+    pfad: 'api/crm/kunde',
+    recht: 'crm.schreiben',
+  },
+  {
+    /*
+     * CRM-02/CRM-07. Anlegen ODER den Stand aendern. Ein Verlust traegt einen
+     * Grund — beide Verlustzustaende, `verloren` wie `kein_bedarf`: eine
+     * Pipeline, in der die Haelfte der Verluste „ohne Grund" heisst,
+     * beantwortet keine einzige Frage.
+     */
+    pfad: 'api/crm/lead',
+    recht: 'crm.schreiben',
+  },
+  {
     pfad: 'api/datenschutz/bearbeiten',
     recht: 'datenschutz.auskunft_erstellen',
   },

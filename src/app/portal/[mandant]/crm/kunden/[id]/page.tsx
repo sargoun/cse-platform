@@ -26,6 +26,9 @@ import { kennungOder404 } from '../../../../kennung';
  */
 export const dynamic = 'force-dynamic';
 
+const KONTAKT_FELD =
+  'w-full rounded-md border border-line bg-surface px-s3 py-s2 text-sm text-text';
+
 const GRUNDLAGE_TEXT: Readonly<Record<string, string>> = {
   einwilligung: 'Einwilligung',
   bestandskunde: 'Bestandskunde',
@@ -123,9 +126,12 @@ export default async function KundeDetail(
        * Auftrag“ gemacht: eine Aussage ueber den KUNDEN statt ueber die
        * Berechtigung — und der Vertrieb ruft mit ihr beim Kunden an.
        */
-      const [rechte] = await kontext.abfrage<{ objekt: boolean; auftrag: boolean }>(
+      const [rechte] = await kontext.abfrage<{
+        objekt: boolean; auftrag: boolean; schreiben: boolean;
+      }>(
         `select app.hat_recht('objekt.lesen', app.aktiver_mandant()) as objekt,
-                app.hat_recht('auftrag.lesen', app.aktiver_mandant()) as auftrag`);
+                app.hat_recht('auftrag.lesen', app.aktiver_mandant()) as auftrag,
+                app.hat_recht('crm.schreiben', app.aktiver_mandant()) as schreiben`);
 
       const objekte = await kontext.abfrage<ObjektZeile>(
         `select id, bezeichnung, ort from objekt
@@ -140,7 +146,7 @@ export default async function KundeDetail(
     })) as Promise<{
       kopf: Kopf; kontakte: readonly KontaktZeile[];
       objekte: readonly ObjektZeile[]; auftraege: readonly AuftragZeile[];
-      rechte: { objekt: boolean; auftrag: boolean } | undefined;
+      rechte: { objekt: boolean; auftrag: boolean; schreiben: boolean } | undefined;
     } | null>);
 
   if (daten === null) notFound();
@@ -148,6 +154,7 @@ export default async function KundeDetail(
   // Fehlt die Zeile, ist die engste Annahme die sichere: nichts behaupten.
   const darfObjekt = daten.rechte?.objekt === true;
   const darfAuftrag = daten.rechte?.auftrag === true;
+  const darfSchreiben = daten.rechte?.schreiben === true;
 
   return (
     <PortalRahmen
@@ -247,6 +254,98 @@ export default async function KundeDetail(
               },
             ]}
           />
+        )}
+
+        {/*
+          * **Das Formular steht HIER und nicht auf einer eigenen Adresse.**
+          * Ein Ansprechpartner gehoert zu einem Kunden; ihn auf einer leeren
+          * Seite anzulegen hiesse, den Kunden noch einmal auszuwaehlen — aus
+          * einer Liste, in der man gerade stand.
+          */}
+        {darfSchreiben && (
+          <details className="mt-s5" data-cse="kontakt-anlegen">
+            <summary className="cursor-pointer text-sm text-brand">
+              Ansprechpartner hinzufügen
+            </summary>
+            <form method="post" action="/api/crm/kunde" data-cse="kontakt-formular"
+                  className="mt-s4 flex max-w-[48ch] flex-col gap-s3">
+              <input type="hidden" name="kundeId" value={id} />
+              <input type="hidden" name="zurueck"
+                     value={`/portal/${mandant}/crm/kunden/${id}`} />
+
+              <div className="flex gap-s3">
+                <label className="flex w-28 flex-col gap-s2 text-sm text-text">
+                  Anrede
+                  <input name="anrede" className={KONTAKT_FELD} />
+                </label>
+                <label className="flex flex-1 flex-col gap-s2 text-sm text-text">
+                  Vorname
+                  <input name="vorname" className={KONTAKT_FELD} autoComplete="given-name" />
+                </label>
+              </div>
+              <label className="flex flex-col gap-s2 text-sm text-text">
+                Nachname
+                <input name="nachname" required className={KONTAKT_FELD}
+                       autoComplete="family-name" data-cse="kontakt-nachname" />
+              </label>
+              <label className="flex flex-col gap-s2 text-sm text-text">
+                Position
+                <input name="position" className={KONTAKT_FELD} />
+              </label>
+              <label className="flex flex-col gap-s2 text-sm text-text">
+                E-Mail
+                <input name="email" type="email" className={KONTAKT_FELD} />
+              </label>
+              <label className="flex flex-col gap-s2 text-sm text-text">
+                Telefon
+                <input name="telefon" className={KONTAKT_FELD} autoComplete="tel" />
+              </label>
+
+              <fieldset className="m-0 mt-s3 flex flex-col gap-s2 border-0 p-0">
+                <legend className="mb-s2 p-0 text-sm font-semibold text-text">
+                  Dürfen wir ihn bewerben?
+                </legend>
+                <p className="m-0 mb-s2 text-xs text-text-muted">
+                  Aus diesem Feld zieht das Tor oben seine Antwort. Ohne Grundlage
+                  steht der Kontakt in der Liste und bekommt keine Werbung —
+                  Rechnungen und Terminbestätigungen schon.
+                </p>
+                {([
+                  ['keine', 'Keine (Vorgabe)'],
+                  ['bestandskunde', 'Bestandskunde'],
+                  ['anfrage', 'Er hat angefragt'],
+                  ['einwilligung', 'Ausdrückliche Einwilligung'],
+                ] as const).map(([w, t], i) => (
+                  <label key={w} className="flex items-center gap-s2 text-sm text-text">
+                    <input type="radio" name="rechtsgrundlage" value={w} required
+                           defaultChecked={i === 0} data-cse="kontakt-grundlage" />
+                    {t}
+                  </label>
+                ))}
+                <label className="mt-s2 flex flex-col gap-s2 text-sm text-text">
+                  Woher stammt sie?
+                  <input name="grundlageQuelle" className={KONTAKT_FELD} />
+                </label>
+                <p className="m-0 mt-s2 text-xs text-text-muted">
+                  Bei einer Einwilligung: wofür genau? Was hier nicht steht, ist
+                  gesperrt.
+                </p>
+                <div className="flex flex-wrap gap-s3">
+                  {(['email', 'telefon', 'sms', 'post', 'whatsapp'] as const).map((k) => (
+                    <label key={k} className="flex items-center gap-s2 text-sm text-text">
+                      <input type="checkbox" name="kanal" value={k} data-cse="kontakt-kanal" />
+                      {k}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
+              <button type="submit" data-cse="kontakt-speichern"
+                      className="min-h-11 self-start rounded-md bg-brand px-s5 py-s3 text-sm font-semibold text-white hover:bg-brand-hover">
+                Ansprechpartner anlegen
+              </button>
+            </form>
+          </details>
         )}
       </section>
 

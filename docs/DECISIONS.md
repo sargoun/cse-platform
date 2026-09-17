@@ -13324,6 +13324,79 @@ sondern ungelesen — und in dieser Runde lag dort der grössere Teil.
 
 ---
 
+### D-601 · Das CRM bekommt seine Schreibwege — und die Rechtsgrundlage steht in der Mitte
+
+**Der Befund.** Das CRM-Fundament stand seit Phase 4 vollständig: Kunden,
+Kontakte, Leads, Verlauf, und vor allem das UWG-Tor, das jede Werbenachricht an
+einen Kontakt ohne erfasste Rechtsgrundlage in der Datenbank selbst abweist.
+Benutzbar war davon nur die Leseseite. Weder ein Lead noch ein Kunde noch ein
+Kontakt liess sich im Portal anlegen; `crm/leads/neu` und `crm/kunden/neu` waren
+Platzhalterdateien, die „wird noch gebaut" sagten.
+
+Ein CRM, in dem man keinen Kunden anlegen kann, ist eine Liste.
+
+**Was gebaut wurde, ist gewöhnlich. Wo es steht, ist die Entscheidung.**
+
+Die Rechtsgrundlage ist kein Feld unter „Sonstiges". Aus ihr zieht
+`app.darf_kontaktiert_werden` seine Antwort, und die entscheidet, ob eine
+Werbenachricht hinausgeht oder abgewiesen wird (§7 UWG, LEG-08). Sie steht
+deshalb als eigener Kasten mitten im Formular, mit dem Satz daneben, was sie
+bewirkt — und nicht als letztes Pflichtfeld, das jemand wegklickt.
+
+**Die Vorgabe ist `keine`, und das ist der sichere Zweig.** Ein Kunde ohne
+Grundlage steht in der Liste, lässt sich bebuchen und berechnen — und bekommt
+keine Werbung. Wer die Grundlage kennt, trägt sie ein; wer sie nicht kennt, soll
+nicht raten. Der umgekehrte Vorgabewert („Bestandskunde", weil es meistens
+stimmt) wäre die bequeme Wahl und im Streitfall die teure.
+
+**Wer eine Grundlage angibt, muss ihre QUELLE nennen.** Der CHECK
+`kunde_grundlage_belegt` erzwingt es ohnehin; der Dienst sagt zusätzlich, warum:
+eine Einwilligung, von der niemand sagen kann, wann und wo sie erteilt wurde,
+ist in einer Abmahnung nichts wert.
+
+**Und eine Einwilligung ohne Kanäle wird abgewiesen.**
+`app.darf_kontaktiert_werden` prüft bei `rechtsgrundlage = 'einwilligung'`, ob
+der Kanal in `einwilligung_kanaele` steht — eine leere Liste heisst also: jeder
+elektronische Weg gesperrt. Technisch richtig, als Eingabe fast immer ein
+Versehen. Der Dienst weist es deshalb ab, statt es stillschweigend zu
+übernehmen: „eine Einwilligung in nichts" ist der Satz, den der Mensch davor
+liest.
+
+Der Isolationsfall prüft nicht, dass gespeichert wurde, sondern dass es **bis
+zum Tor durchschlägt**: ein frisch angelegter Kontakt ohne Grundlage ist
+nachweislich nicht anschreibbar, und einer mit Einwilligung für `email` ist es
+per Mail und nicht per Telefon.
+
+**Die Kundennummer ist kein Nummernkreis.** Dieselbe Begründung wie bei der
+Leadnummer (K-12): die lückenlose Kette gehört Rechnungen, wo eine Lücke ein
+GoBD-Befund ist. Ein Kunde ist kein Beleg, und ein abgebrochenes Formular darf
+eine Nummer verbrauchen. Sie entsteht in derselben Anweisung wie der `insert` —
+getrennt gerechnet bekämen zwei gleichzeitige Anlagen dieselbe Zahl, und die
+zweite fiele auf `kunde_nummer_uk` mit einem Fehler, den der Mensch davor nicht
+versteht. Und sie zählt **je Gesellschaft**: es sind vier Unternehmen, und ein
+plattformweiter Zähler verriete nebenbei, wie viele Kunden die Schwester hat.
+
+**Der Lead von Hand trägt KEINE Frist.** `sla_stunden` hängt an einem Formular
+und daran, was dem Anfragenden zugesagt wurde. Für einen Lead aus einem
+Telefonat eine zu erfinden hiesse, eine Geschäftsregel per Vorgabewert zu wählen
+(O-14) — und die REQ-06-Eskalation liefe dann auf einen Vorgang, für den niemand
+eine Frist versprochen hat. Der Bildschirm sagt das, statt die leere Spalte
+unerklärt zu lassen.
+
+**Seine erste Aktivität ist `intern`, nicht `ausgehend`.** Derselbe Grund wie in
+`annahme.ts`: `kern.setze_erste_reaktion()` stempelt auf die erste ausgehende
+Aktivität, und ein frisch eingetragener Lead wäre sonst in der Sekunde seiner
+Entstehung „beantwortet".
+
+**Ein Verlust trägt einen Grund — beide Verlustzustände.** `kein_bedarf` ist für
+die Auswertung genauso ein Verlust wie `verloren`, und eine Pipeline, in der die
+Hälfte der Verluste „ohne Grund" heisst, beantwortet keine einzige Frage.
+
+**Das Kontaktformular steht auf der Kundenseite, nicht auf einer eigenen
+Adresse.** Ein Ansprechpartner gehört zu einem Kunden; ihn auf einer leeren
+Seite anzulegen hiesse, den Kunden noch einmal auszuwählen — aus einer Liste, in
+der man gerade stand.
+
 ### D-600 · Die zwei gesetzlichen Pflichtwege der Website — mit einem Empfänger
 
 **Der Befund.** `04-SEITENKARTE.md` §2.4 führt seit Phase 2 drei öffentliche
