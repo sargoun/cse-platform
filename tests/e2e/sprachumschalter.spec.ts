@@ -12,6 +12,21 @@ const KOPF = '[data-cse="sprachumschalter"][data-ort="kopfzeile"]';
 const BLATT = '[data-cse="sprachumschalter"][data-ort="blatt"]';
 
 /**
+ * Stellt die Sitzung auf Deutsch — ohne ueber den Ausgangszustand etwas zu
+ * behaupten.
+ *
+ * **Diese Suite teilt sich EINE Datenbank und raeumt nicht auf** (Invariante 8):
+ * die Sprachwahl eines Falls steht beim naechsten Lauf noch da. Ein Fall, der
+ * „am Anfang ist es Deutsch" VORAUSSETZT, prueft deshalb in Wahrheit, wie der
+ * vorige Lauf geendet hat. Wer den Uebergang messen will, stellt den
+ * Ausgangspunkt selbst her.
+ */
+async function aufDeutsch(page: import('@playwright/test').Page): Promise<void> {
+  const de = page.locator(`${KOPF} button[value="de"]`);
+  if (await de.count() === 1 && await de.isVisible() && await de.isEnabled()) await de.click();
+}
+
+/**
  * Der Sprachumschalter des internen Portals (D-592).
  *
  * **Was hier geprueft wird, und was ausdruecklich nicht.** Geprueft wird, dass
@@ -23,16 +38,28 @@ const BLATT = '[data-cse="sprachumschalter"][data-ort="blatt"]';
  * einschraenkt — und beweist dann nichts.
  */
 
-/** Zurueck auf Deutsch, damit die Reihenfolge der Tests nichts faerbt. */
+/**
+ * Zurueck auf Deutsch, damit die Reihenfolge der Faelle nichts faerbt.
+ *
+ * **Die Breite wird zuerst zurueckgesetzt.** Der Telefonfall laesst 375px
+ * stehen; dort ist der Umschalter der Kopfzeile zwar im Dokument, aber per
+ * CSS verborgen, und ein Klick darauf wartet bis zum Zeitablauf auf ein
+ * Element, das nie sichtbar wird. Aufgeraeumt wird am Schreibtisch.
+ */
 test.afterEach(async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/portal/reinigung');
-  const de = page.locator(`${KOPF} button[value="de"]`);
-  if (await de.count() === 1 && await de.isEnabled()) await de.click();
+  await aufDeutsch(page);
 });
 
+/*
+ * **Absichtlich `leitungBau`.** Kein anderer Fall dieser Datei wechselt die
+ * Sprache dieses Kontos; seine Vorgabe ist deshalb wirklich die des Seeds und
+ * nicht der Rest des vorigen Laufs.
+ */
 test('die Kopfzeile traegt den Umschalter, und Deutsch ist die Vorgabe', async ({ page }) => {
-  await alsKonto(page, KONTO.adminReinigung);
-  await page.goto('/portal/reinigung');
+  await alsKonto(page, KONTO.leitungBau);
+  await page.goto('/portal/bau');
 
   const umschalter = page.locator(KOPF);
   await expect(umschalter).toBeVisible();
@@ -48,6 +75,7 @@ test('die Kopfzeile traegt den Umschalter, und Deutsch ist die Vorgabe', async (
 test('ein Klick auf English uebersetzt die Huelle und bleibt auf der Seite', async ({ page }) => {
   await alsKonto(page, KONTO.adminReinigung);
   await page.goto('/portal/reinigung/auftraege');
+  await aufDeutsch(page);
 
   // Vorher: die Sitzungspunkte stehen auf Deutsch.
   await expect(page.locator('[data-cse="sitzungsnavigation"]')).toContainText('Abmelden');
@@ -68,6 +96,7 @@ test('ein Klick auf English uebersetzt die Huelle und bleibt auf der Seite', asy
 test('die Wahl gilt auf der NAECHSTEN Seite weiter, nicht nur auf dieser', async ({ page }) => {
   await alsKonto(page, KONTO.adminReinigung);
   await page.goto('/portal/reinigung');
+  await aufDeutsch(page);
   await page.locator(`${KOPF} button[value="en"]`).click();
 
   /*
@@ -97,8 +126,10 @@ test('das Mitarbeiterportal traegt ihn NICHT — es waehlt vier Sprachen im Prof
 });
 
 test('am Telefon steht er im „Mehr"-Blatt, nicht in der Kopfzeile', async ({ page }) => {
-  await page.setViewportSize({ width: 375, height: 812 });
   await alsKonto(page, KONTO.adminReinigung);
+  await page.goto('/portal/reinigung');
+  await aufDeutsch(page);
+  await page.setViewportSize({ width: 375, height: 812 });
   await page.goto('/portal/reinigung');
 
   // Die Kopfzeilen-Navigation ist unter `sm` ausgeblendet — mit ihr der Umschalter.
