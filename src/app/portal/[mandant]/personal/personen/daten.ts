@@ -7,11 +7,14 @@
  * Telefon, Nachweise) hängen an `person_id`, alles Kostenwirksame an
  * `anstellung_id`.
  *
- * **Kein Geburtsdatum, nirgends.** `person.geburtsdatum` ist der
- * Anwendungsrolle zwar lesbar, aber die Seitenkarte führt es unter
- * `personen/[id]/stammdaten` mit dem eigenen Recht `personal.stammdaten_lesen`
- * (SEC-03, LEG-09). Es hier „nur zur Anzeige" mitzulesen höbe diese Trennung
- * auf — und zwar an der Stelle, an der niemand mehr nachsieht.
+ * **Kein Geburtsdatum, nirgends — und seit `0190` auch keines mehr möglich.**
+ * Die Seitenkarte führt es unter `personen/[id]/stammdaten` mit dem eigenen
+ * Recht `personal.stammdaten_lesen` (SEC-03, LEG-09). Bis `0190` war die
+ * Spalte der Anwendungsrolle trotzdem lesbar, das Recht bewachte also eine Tür
+ * neben einer offenen Wand; jetzt ist `geburtsdatum` — mit `geburtsort` und
+ * `staatsangehoerigkeit` — aus dem SELECT-Grant für `cse_app` genommen, und
+ * ein `select geburtsdatum` hier scheitert mit „permission denied". Der eine
+ * Lesepfad ist `app.person_stammdaten_lesen`, und er protokolliert.
  *
  * **Kein Entgelt, nirgends** (K-05): `anstellung.stundensatz_intern` ist
  * `cse_app` als Spaltenrecht entzogen; diese Abfragen fragen ihn nicht, und

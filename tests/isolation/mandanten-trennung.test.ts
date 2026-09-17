@@ -9,8 +9,48 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { alsApp, type Fixtur, schliessen, seed, sql } from './harness.js';
 
 let f: Fixtur;
+/**
+ * Ein Konto, das `personal.entgelt_lesen` in der Reinigung HAELT.
+ *
+ * **Warum es das seit `0193` braucht.** `app.anstellung_entgelt_lesen` prüfte
+ * bis dahin nur `m = any (app.sichtbare_mandanten())` — jede Sitzung, die die
+ * Gesellschaft überhaupt sah, las jeden Stundensatz darin, und der
+ * Spaltenentzug nach K-05 war wirkungslos, weil es einen zweiten Weg gab.
+ * Seither prüft die Funktion das Recht UND den aktiven Mandanten. Die beiden
+ * Zusicherungen unten sind damit Aussagen über eine BERECHTIGTE Sitzung, und
+ * genau deshalb braucht die Fixtur jetzt eine.
+ *
+ * `personal.entgelt_lesen` ist für `leitung` nur *bindbar* und nicht gebunden
+ * (`katalog.generiert.ts`) — es wird hier als Mandanten-Override erteilt, wie
+ * es die Rechteverwaltung tut.
+ */
+let entgeltKonto = '';
+
+async function kontoMitEntgeltrecht(): Promise<string> {
+  const email = `entgelt-${String(Math.random()).slice(2, 10)}@cse.test`;
+  const [u] = await sql.unsafe<{ id: string }[]>(
+    `insert into auth.users (email) values ($1) returning id`, [email]);
+  await sql.unsafe(
+    `insert into benutzer (id, email, name, status) values ($1,$2,$2,'aktiv')`,
+    [u!.id, email]);
+  await sql.unsafe(
+    `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id)
+     select $1, $2, r.id from rolle r
+      where r.schluessel = 'leitung' and r.mandant_id is null`,
+    [u!.id, f.reinigung]);
+  await sql.unsafe(
+    `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+     select r.id, b.id, $1, true from rolle r, berechtigung b
+      where r.schluessel = 'leitung' and r.mandant_id is null
+        and b.schluessel = 'personal.entgelt_lesen'
+     on conflict do nothing`,
+    [f.reinigung]);
+  return u!.id;
+}
+
 beforeAll(async () => {
   f = await seed();
+  entgeltKonto = await kontoMitEntgeltrecht();
 });
 afterAll(async () => {
   await schliessen();
@@ -73,14 +113,35 @@ describe('(2) the dual-employed person is ONE row, the wage rate is not shared',
   });
 
   it('the accessor returns her reinigung rate and NULL for her security rate', async () => {
-    const eigen = await alsApp({ scope: 'mandant', mandantId: f.reinigung, portal: 'intern' }, (tx) =>
-      tx`select app.anstellung_entgelt_lesen(${f.fatimaReinigung}) as satz`,
+    const eigen = await alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: entgeltKonto, portal: 'intern' },
+      (tx) => tx`select app.anstellung_entgelt_lesen(${f.fatimaReinigung}) as satz`,
     );
-    const fremd = await alsApp({ scope: 'mandant', mandantId: f.reinigung, portal: 'intern' }, (tx) =>
-      tx`select app.anstellung_entgelt_lesen(${f.fatimaSecurity}) as satz`,
+    const fremd = await alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: entgeltKonto, portal: 'intern' },
+      (tx) => tx`select app.anstellung_entgelt_lesen(${f.fatimaSecurity}) as satz`,
     );
     expect(String(eigen[0]?.['satz'])).toBe('1450');
     expect(fremd[0]?.['satz']).toBeNull();
+  });
+
+  /**
+   * **Die Gegenprobe zu 0193: OHNE das Recht liefert die Funktion keinen
+   * Wert — sie wirft.**
+   *
+   * Eine Sitzung ohne Konto sieht die Gesellschaft (die Policies oben binden
+   * an `sichtbare_mandanten`), hält aber `personal.entgelt_lesen` nicht. Bis
+   * `0193` gab sie genau hier `1450` zurück; das war die Lücke, die K-05 und
+   * D-09 §6 ausschliessen sollen. Geworfen wird und nicht `null` geliefert,
+   * damit die Oberfläche „kein Recht" von „kein Satz hinterlegt"
+   * unterscheiden kann.
+   */
+  it('ohne `personal.entgelt_lesen` gibt es KEINEN Satz — 42501 statt einer Zahl', async () => {
+    await expect(
+      alsApp({ scope: 'mandant', mandantId: f.reinigung, portal: 'intern' }, (tx) =>
+        tx`select app.anstellung_entgelt_lesen(${f.fatimaReinigung}) as satz`,
+      ),
+    ).rejects.toThrow(/nicht berechtigt/u);
   });
 });
 
@@ -238,8 +299,14 @@ describe('audit_log has exactly one writer', () => {
 
   it('app.protokolliere writes, and the entgelt accessor leaves a trail', async () => {
     const vorher = await sql.unsafe<{ n: string }[]>(`select count(*)::text as n from audit_log`);
-    await alsApp({ scope: 'mandant', mandantId: f.reinigung, benutzerId: f.fatima, portal: 'intern' }, (tx) =>
-      tx`select app.anstellung_entgelt_lesen(${f.fatimaReinigung})`,
+    /*
+     * Mit einem Konto, das das Recht HAELT (0193): ohne das Recht wirft die
+     * Funktion, und ein Wurf schreibt keine Auditzeile — der Test hätte dann
+     * das Gegenteil dessen geprüft, was er behauptet.
+     */
+    await alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: entgeltKonto, portal: 'intern' },
+      (tx) => tx`select app.anstellung_entgelt_lesen(${f.fatimaReinigung})`,
     );
     const nachher = await sql.unsafe<{ n: string }[]>(`select count(*)::text as n from audit_log`);
     expect(Number(nachher[0]!.n)).toBe(Number(vorher[0]!.n) + 1);

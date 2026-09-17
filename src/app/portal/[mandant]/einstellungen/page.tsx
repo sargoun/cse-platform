@@ -64,6 +64,34 @@ const KARTEN: readonly Karte[] = [
   { pfad: 'datenschutz/loeschkonzept', titel: 'Löschkonzept', icon: 'warnung',
     text: 'Was wann gelöscht wird, durch welchen Lauf — und was NICHT, mit dem Grund '
       + 'je Tabelle.' },
+  /*
+   * **Die sechs, die es gab und die hier fehlten.** Alle sechs standen im
+   * Routenmanifest und waren nur über die Adresszeile erreichbar — eine Seite,
+   * die kein Weg erreicht, ist gebaut und nicht da. Die Karte fragt das Recht
+   * ihrer Zielseite aus dem Manifest, also entscheidet dieselbe Prüfung wie
+   * oben, wer sie sieht.
+   */
+  { pfad: 'einstellungen/identitaet', titel: 'Identität', icon: 'einstellungen',
+    text: 'Kurzname, Identitätsfarbe, Logo und Titelbild mit Alternativtext — und die '
+      + 'drei rechtlichen Fusszeilen jeder Rechnung und jedes Angebots.' },
+  { pfad: 'einstellungen/arbeitszeit', titel: 'Arbeitszeit', icon: 'zeit',
+    text: 'Arbeitszeitmodelle, Sollzeitregel und Übertrag — plus die strengere '
+      + 'tarifliche Pausen- und Ruhezeitregel neben dem Gesetz.' },
+  { pfad: 'einstellungen/vorlagen', titel: 'Vorlagen', icon: 'dokument',
+    text: 'Behinderungsanzeige, Mahntext, Benachrichtigungen und Fusszeilen — jede an '
+      + 'ihrer echten Quelle, mit einem Editor je Zeile.' },
+  { pfad: 'einstellungen/agent-richtlinien', titel: 'Agent-Richtlinien', icon: 'schloss',
+    text: 'Je Aktion des Ausgangs-Gates: geht sie ohne Menschen hinaus, bis zu welchem '
+      + 'Betrag — und was im Code gesperrt bleibt.' },
+  { pfad: 'einstellungen/protokoll/export', titel: 'Protokoll exportieren',
+    icon: 'export',
+    text: 'Das Beweismittelbündel: Zeitraum, Manifest mit SHA-256, Zeilen als CSV — '
+      + 'und was ausdrücklich nicht darin steht.' },
+  /* `eingang` und nicht `import`: DESIGN §4 führt kein Importsymbol, und ein
+     neues hier zu erfinden wäre derselbe Verstoss wie eine neue Farbe. */
+  { pfad: 'einstellungen/import', titel: 'Übernahme aus Altsystemen', icon: 'eingang',
+    text: 'Aplano, Lexware, Excel: der Zustand jeder Quelle und die Regel, die beim '
+      + 'Import gelten wird.' },
 ];
 
 export default async function Einstellungen(

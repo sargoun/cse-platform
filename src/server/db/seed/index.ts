@@ -37,6 +37,8 @@ import { seedBerichtsdaten } from './berichtsdaten.js';
 import { seedRadar } from './radar.js';
 import { DEMO_KENNWORT, seedZugangsdaten } from './zugang.js';
 import { seedBenachrichtigungen } from './benachrichtigung.js';
+import { seedKern } from './kern.js';
+import { seedDatenschutz } from './datenschutz.js';
 import { devFlaechenAn } from '../../../lib/dev-flaechen.js';
 import { SupabaseSpeicher } from '../../storage/adapter.js';
 
@@ -764,8 +766,57 @@ async function main(): Promise<void> {
               ${satz}, 'aktiv')
       on conflict do nothing`;
   }
+  /**
+   * **Je Beschaeftigung eine datierte Kondition** (01-KERN §6.15, 0192).
+   *
+   * Ohne sie zeigt `/personal/anstellungen/[id]/entgelt` eine Zahl ohne
+   * Geschichte: der Satz kaeme aus dem Spiegel (dem Bestand vor der datierten
+   * Tabelle), und die Seite koennte nicht vorfuehren, was sie leistet — dass
+   * eine Erhoehung die Vergangenheit NICHT neu bewertet. `gilt_ab` ist der
+   * Eintritt und nicht „heute": ein Default „heute" machte aus jeder
+   * rueckwirkenden Kondition lautlos eine ab heute geltende.
+   *
+   * Der Ausloeser `kern.anstellung_kondition_spiegeln` schreibt den Spiegel
+   * danach selbst — dieselben Werte, nur jetzt aus der datierten Quelle.
+   */
+  for (const [person, bereich, nummer, satz] of anstellungen) {
+    await sql`
+      insert into anstellung_kondition
+        (mandant_id, anstellung_id, gilt_ab, stundensatz_intern_cent, grund)
+      select a.mandant_id, a.id, a.eintritt, ${satz}, 'Eintritt (Seed)'
+        from anstellung a
+       where a.mandant_id = ${ids.get(bereich)!}
+         and a.person_id = ${personIds[person]!}
+         and a.personalnummer = ${nummer}
+         and not exists (select 1 from anstellung_kondition k where k.anstellung_id = a.id)`;
+  }
+
+  /**
+   * **Eine Personendublette — sonst ist `/personal/zusammenfuehren`
+   * unpruefbar.**
+   *
+   * „Fatma Yildiz" ist derselbe Mensch wie „Fatima Yildiz", zweimal angelegt
+   * (die Schreibweise aus dem Bewerbungsformular gegen die aus dem Vertrag).
+   * Das ist NICHT der D-09-Fall: Fatima hat zwei Beschaeftigungen in zwei
+   * Gesellschaften und ist EINE Zeile — hier sind es zwei Zeilen fuer einen
+   * Menschen, und genau das hebt D-09 auf.
+   */
+  const [dublette] = await sql<{ id: string }[]>`
+    insert into person (vorname, nachname, sprache, telefon)
+    select 'Fatma', 'Yildiz', 'tr', '+49 170 1000099'
+     where not exists (select 1 from person where vorname = 'Fatma' and nachname = 'Yildiz')
+    returning id`;
+  if (dublette !== undefined) {
+    await sql`
+      insert into anstellung
+        (mandant_id, person_id, personalnummer, eintritt, stundensatz_intern, status)
+      values (${ids.get('reinigung')!}, ${dublette.id}, 'R-1099', '2024-03-01', 1450, 'aktiv')
+      on conflict do nothing`;
+  }
+
   process.stdout.write(
-    `  ${menschen.length} Menschen, ${anstellungen.length} Beschäftigungen `
+    `  ${menschen.length} Menschen, ${anstellungen.length} Beschäftigungen, `
+    + `${anstellungen.length} datierte Konditionen, 1 Dublette `
     + '(Vergütung der Leitungen offen: O-347)\n');
 
   // --------------------------------------------------------- Nummernkreise
@@ -1571,6 +1622,11 @@ async function main(): Promise<void> {
       + `${bau.nachtragsnummer ?? ''} eingereicht (mit gebundener Freigabe)\n`,
     );
     process.stdout.write(
+      `  ${String(bau.behinderungen)} Behinderungen nach \u00a7 6 VOB/B, davon `
+      + `${String(bau.behinderungenLaufend)} laufend ohne angezeigten Wegfall (BAU-06) `
+      + '\u2014 Versandbeleg fehlt: Medienspeicher nicht verbunden\n',
+    );
+    process.stdout.write(
       `  ${String(bau.bautage)} Bautage mit ${String(bau.mannstunden)} Mannstundenzeilen `
       + `und ${String(bau.tagespositionen)} Geraete-/Liefer-/Vorkommniszeilen ueber `
       + `${String(bau.gewerke)} Gewerke (Katalog unbestaetigt: O-159)\n`,
@@ -1644,6 +1700,21 @@ async function main(): Promise<void> {
     + ' — über erzeuge(), meldeAblaufwarnungen() und die Zustellung, NOT-01/NOT-03\n',
   );
 
+  /*
+   * Teams, Aufgaben und ein Nachrichtenfaden je Gesellschaft (OPS-11, EMP-11).
+   *
+   * NACH den Auftraegen und Leads, weil die Aufgaben daran haengen: ein Bezug
+   * auf eine erfundene Kennung waere ein toter Verweis in der Liste, und genau
+   * den soll die Bezugsaufloesung nicht produzieren.
+   */
+  const kern = await seedKern(sql);
+  process.stdout.write(
+    `  Kern: ${String(kern.teams)} Teams mit ${String(kern.mitglieder)} Mitgliedern, `
+    + `${String(kern.aufgaben)} Aufgaben (eine ueberfaellig, eine heute, eine `
+    + `ohne Frist und ohne Bezug) und ${String(kern.faeden)} Nachrichtenfaeden `
+    + '— intern, Kanal Portal, nichts gesendet (kein Versender verbunden, O-36)\n',
+  );
+
   /**
    * Zum Schluss: die Demokennwörter (D-501). Nach allen Konten, weil sie
    * jedes anfassen — auch die, die weiter oben erst entstanden sind.
@@ -1715,6 +1786,28 @@ async function main(): Promise<void> {
       ? ' — keine Firmen ohne CSE_DEV_FLAECHEN\n'
       : `, ${String(akquise.ziele)} recherchierte Firmen OHNE Personendaten `
         + '(Art. 14 DSGVO — die Spalten dafür gibt es nicht)\n'));
+
+  /*
+   * Betroffenenrechte und Widersprueche — NACH dem CRM und dem Recruiting,
+   * weil sie sich auf einen Kontakt und eine Bewerbung zuordnen, und nach
+   * den Anstellungen, weil eine Anfrage einer Person zugeordnet wird.
+   *
+   * Vor diesem Aufruf legte der Seed NULL betroffenenanfrage-Zeilen an: es
+   * gab keine `[id]`, die man haette aufrufen koennen, und die vier
+   * Vorgangsseiten waren weder klickbar noch e2e-pruefbar.
+   */
+  const datenschutz = await seedDatenschutz(sql, ids, demodaten);
+  process.stdout.write(datenschutz.uebersprungen
+    ? '  Datenschutz: keine Betroffenenanfragen ohne CSE_DEV_FLAECHEN\n'
+    : `  Datenschutz: ${String(datenschutz.anfragen)} Betroffenenanfragen `
+      + '(eine ueberfaellig, eine verlaengert, eine beantwortet — Art. 12 Abs. 3), '
+      + `${String(datenschutz.loeschentscheidungen)} Loeschentscheidungen, `
+      + `${String(datenschutz.berichtigungsfelder)} Berichtigungsfelder, `
+      + `${String(datenschutz.auskuenfte)} Auskunftsartefakte mit Pruefsumme, `
+      + `${String(datenschutz.werbewiderspruch)} Werbewiderspruch (ueber den `
+      + 'Token eingeloest, K-09) und '
+      + `${String(datenschutz.art21)} Widerspruch nach Art. 21 `
+      + '(rechtsgrundlage faellt auf „keine")\n');
 
   /**
    * Zuletzt die Ausgangsrechnungen — nach Kunden, Konten und Nummernkreisen,

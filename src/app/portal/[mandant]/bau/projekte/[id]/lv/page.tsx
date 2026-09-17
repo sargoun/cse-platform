@@ -173,7 +173,12 @@ export default async function LeistungsverzeichnisSeite(
               </thead>
               <tbody>
                 {flach.map((knoten) => (
-                  <Zeile key={knoten.zeile.id} knoten={knoten} />
+                  <Zeile
+                    key={knoten.zeile.id}
+                    knoten={knoten}
+                    mandant={mandant}
+                    projektId={id}
+                  />
                 ))}
               </tbody>
               <tfoot>
@@ -217,7 +222,13 @@ export default async function LeistungsverzeichnisSeite(
  * Eine Zeile des Baums. Die Einrueckung folgt `ebene`, die Σ steht bei Los,
  * Titel und Untertitel — bei einer Position steht ihr eigener Betrag.
  */
-function Zeile({ knoten }: { readonly knoten: LvKnoten }) {
+function Zeile(
+  { knoten, mandant, projektId }: {
+    readonly knoten: LvKnoten;
+    readonly mandant: string;
+    readonly projektId: string;
+  },
+) {
   const z = knoten.zeile;
   const istPosition = z.art === 'position';
   const betrag = istPosition && zaehltInSumme(z)
@@ -231,7 +242,22 @@ function Zeile({ knoten }: { readonly knoten: LvKnoten }) {
       data-oz={z.oz}
       data-art={z.art}
     >
-      <td className="px-s4 py-s3 align-top tabular-nums text-text-muted">{z.oz}</td>
+      <td className="px-s4 py-s3 align-top tabular-nums text-text-muted">
+        {/*
+          * Nur eine POSITION hat eine Detailseite. Los, Titel und
+          * Untertitel sind Gliederung: sie tragen keine Menge, keinen Preis
+          * und kein Aufmass, und ein Verweis dorthin führte auf eine Seite,
+          * die nichts zu sagen hätte.
+          */}
+        {istPosition ? (
+          <Link
+            href={`/portal/${mandant}/bau/projekte/${projektId}/lv/${z.id}`}
+            className="text-text-muted underline-offset-2 hover:text-brand hover:underline"
+          >
+            {z.oz}
+          </Link>
+        ) : z.oz}
+      </td>
       <td className="px-s4 py-s3 align-top" style={{ paddingLeft: `${String(z.ebene * 12)}px` }}>
         <span className={ART_KLASSE[z.art] ?? 'text-sm text-text'}>{z.kurztext}</span>
         {istUngeprueftMaschinell(z) && (

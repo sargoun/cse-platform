@@ -375,10 +375,15 @@ describe('die gebaute Anwendung und die Karte widersprechen sich nicht', () => {
        * gesetzliche Frist mit einem Zeitstempel darauf (D-600).
        */
 
-      // Detailseiten, deren Modul noch nicht gemergt ist (Phase 4 bis 9).
-      '/leistungen/[slug]',
-      '/news/[slug]',
-      '/projekte/[slug]',
+      /*
+       * §2.1 — die drei Gruppen-Detailseiten stehen nicht mehr hier: sie sind
+       * gebaut, deutsch und englisch (D-82). `/leistungen/[slug]` liest seine
+       * `seite`-Zeile wie jede andere redaktionelle Seite; `/news/[slug]` und
+       * `/projekte/[slug]` lesen `beitrag` bzw. `referenz` der Gesellschaft
+       * `operations` und setzen `rel=canonical` auf deren Adresse unter
+       * `/unternehmen/operations/…` — eine Zeile, eine kanonische Adresse
+       * (§2.2). `tests/kern/gruppen-kanonik.test.ts` haelt genau das fest.
+       */
 
       /*
        * **§2.2 — die zehn tiefen Profilseiten sind hier weg, und das ist der

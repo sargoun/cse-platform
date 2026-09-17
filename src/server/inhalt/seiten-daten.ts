@@ -2,7 +2,7 @@ import 'server-only';
 import { headers } from 'next/headers';
 import { kanonischeBasis } from '@/lib/domains';
 import { ladeSeite, pruefeSeite, type Seite } from '@/server/services/inhalt/seite';
-import { faqAus, leistungenAus, breadcrumb, faqPage, localBusiness, organisation, services, webSite }
+import { faqAus, leistungenAus, breadcrumb, faqPage, localBusiness, organisation, seitenService, services, webSite }
   from '@/server/services/inhalt/jsonld';
 import type { BereichsQuelle } from '@/server/services/inhalt/jsonld';
 import type { NapQuelle } from '@/server/services/inhalt/nap';
@@ -31,6 +31,17 @@ function alsBereichsQuelle(z: BereichZeile): BereichsQuelle {
       telefon: z.telefon, email: z.email,
     },
   };
+}
+
+/**
+ * Ist das eine Leistungsseite unter `/leistungen/<slug>` (PUB-07)?
+ *
+ * Die Form ist dieselbe, die `seite.pfad` per `CHECK` erlaubt; das `en`-Praefix
+ * gehoert dazu, weil die englische Fassung eine EIGENE `seite`-Zeile ist
+ * (D-82) und denselben Block bekommen soll.
+ */
+export function istLeistungsseite(pfad: string): boolean {
+  return /^\/(?:en\/)?leistungen\/[a-z0-9-]+$/u.test(pfad);
 }
 
 export interface SeitenDaten {
@@ -63,11 +74,26 @@ export async function seitenDaten(
     const bereiche = await bereicheLesen(kontext, sprache);
     const gruppeName = await einstellungLesen(kontext, 'website.gruppenname');
     const gruppeNap = await einstellungLesen(kontext, 'website.rechtstraeger');
-    return { seite, bereiche, gruppeName, gruppeNap };
+    /*
+     * **Wem gehoert die Leistungsseite?** Nur fuer `/leistungen/<slug>`
+     * gefragt: eine Abfrage auf JEDER oeffentlichen Seite waere dreizehn
+     * Abfragen fuer einen Block, den zwölf davon nicht haben. `null` heisst
+     * „der Gruppe" — und dann bleibt `Service.provider` weg (O-652).
+     */
+    const besitzer = istLeistungsseite(pfad)
+      ? (await kontext.abfrage<{ slug: string | null }>(
+        `select m.slug from seite s
+           left join mandant m on m.id = s.mandant_id and m.archiviert_am is null
+          where s.pfad = $1 and s.sprache = $2
+            and s.status = 'veroeffentlicht' and s.geloescht_am is null`,
+        [pfad, sprache],
+      ))[0]?.slug ?? null
+      : null;
+    return { seite, bereiche, gruppeName, gruppeNap, besitzer };
   });
   if (ergebnis === null) return null;
 
-  const { seite, bereiche, gruppeName, gruppeNap } = ergebnis;
+  const { seite, bereiche, gruppeName, gruppeNap, besitzer } = ergebnis;
   pruefeSeite(seite);
 
   const quellen = bereiche.map(alsBereichsQuelle);
@@ -92,6 +118,15 @@ export async function seitenDaten(
       jsonLd.push(breadcrumb(basis, [
         { name: 'Start', pfad: '/' }, { name: seite.titel, pfad },
       ]));
+      /*
+       * **Die Leistungsseite bekommt ihren `Service`-Block — hier und nicht
+       * in der Seitenkomponente.** Sonst setzte ihn jede neue Seite neu
+       * zusammen, und die vierte vergaesse ihn (siehe die Begruendung oben).
+       * `provider` steht nur da, wo die Gesellschaft bekannt ist (O-652).
+       */
+      if (istLeistungsseite(pfad)) {
+        jsonLd.push(seitenService(seite.titel, seite.beschreibung, basis, besitzer));
+      }
     }
   } else {
     jsonLd.push(localBusiness(eigener, basis));

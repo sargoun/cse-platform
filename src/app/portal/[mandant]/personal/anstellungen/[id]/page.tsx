@@ -109,10 +109,17 @@ export default async function Anstellungsblatt(
       // `dienstplan` bewacht unten den Verweis „Dienstplan" (AUT-06); die
       // beiden anderen entscheiden, ob Konto und Abwesenheiten gelesen werden —
       // und über `null` auch, ob ihre Verweise stehen.
-      const [rechte] = await kontext.abfrage<{ konto: boolean; abwesenheit: boolean; dienstplan: boolean }>(
+      const [rechte] = await kontext.abfrage<{
+        konto: boolean; abwesenheit: boolean; dienstplan: boolean;
+        schreiben: boolean; entgelt: boolean; beenden: boolean;
+      }>(
         `select app.hat_recht('zeit.konto_lesen', $1::uuid) as konto,
                 app.hat_recht('zeit.abwesenheit_lesen', $1::uuid) as abwesenheit,
-                app.hat_recht('dienstplan.lesen', $1::uuid) as dienstplan`, [mandantId]);
+                app.hat_recht('dienstplan.lesen', $1::uuid) as dienstplan,
+                app.hat_recht('personal.schreiben', $1::uuid) as schreiben,
+                app.hat_recht('personal.entgelt_lesen', $1::uuid) as entgelt,
+                app.hat_recht('personal.anstellung_beenden', $1::uuid) as beenden`,
+        [mandantId]);
       const konten = rechte?.konto === true ? await kontext.abfrage<Konto>(
         `select k.id, k.jahr, k.monat, k.soll_minuten as "sollMinuten", k.ist_minuten as "istMinuten",
                 k.saldo_minuten as "saldoMinuten", k.urlaub_tage::text as urlaub, k.krank_tage::text as krank,
@@ -134,13 +141,22 @@ export default async function Anstellungsblatt(
             and ab.bis >= (now() at time zone 'Europe/Berlin')::date - 365
           order by ab.von desc
           limit 20`, [id]) : null;
-      return { kopf, konten, abwesenheiten, darfDienstplan: rechte?.dienstplan === true };
+      return {
+        kopf, konten, abwesenheiten,
+        darfDienstplan: rechte?.dienstplan === true,
+        darfSchreiben: rechte?.schreiben === true,
+        darfEntgelt: rechte?.entgelt === true,
+        darfBeenden: rechte?.beenden === true,
+      };
     })) as Promise<{
       kopf: Kopf; konten: readonly Konto[] | null; abwesenheiten: readonly Abwesenheit[] | null;
-      darfDienstplan: boolean;
+      darfDienstplan: boolean; darfSchreiben: boolean; darfEntgelt: boolean;
+      darfBeenden: boolean;
     } | null>);
   if (daten === null) notFound();
-  const { kopf, konten, abwesenheiten, darfDienstplan } = daten;
+  const {
+    kopf, konten, abwesenheiten, darfDienstplan, darfSchreiben, darfEntgelt, darfBeenden,
+  } = daten;
   const verweis = 'inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text';
 
   return (
@@ -148,7 +164,15 @@ export default async function Anstellungsblatt(
       titel={kopf.name}
       wurzelTitel="Beschäftigungen"
       bereich={mandant as BereichSchluessel}
-      nurLesen
+      /*
+       * **Das Schild „Nur Lesen" gehoert der SITZUNG, nicht dem Bauzustand**
+       * (`unterseite.tsx`). Es stand hier fest auf `true`, weil das Blatt
+       * nichts schrieb; seit oben „Vertrag ändern", „Entgelt" und „Beenden"
+       * stehen, waere das ein Widerspruch auf einem Bildschirm — ein Schild
+       * „nur lesen" neben drei Schreibwegen. In der Gruppenansicht steht es
+       * weiter (Invariante 10).
+       */
+      nurLesen={zugang.sitzung.ansicht === 'gruppe'}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
       aktiverTab="mehr"
@@ -185,6 +209,29 @@ export default async function Anstellungsblatt(
         {darfDienstplan && (
           <Link href={`/portal/${mandant}/dienstplan/woche`} className={verweis}>Dienstplan</Link>
         )}
+        {/*
+          * Die drei Schreibwege dieser Beschaeftigung — jeder mit SEINEM Recht.
+          * „Vertrag" verlangt `personal.schreiben`, „Entgelt"
+          * `personal.entgelt_lesen` (K-05), „Beenden"
+          * `personal.anstellung_beenden`. Ein Knopf, dessen Ziel dieselbe
+          * Sitzung nicht oeffnen darf, verraet, was er nicht zeigen darf
+          * (AUT-06, D-581) — deshalb wird jedes Recht vorher gefragt.
+          */}
+        {darfSchreiben && (
+          <Link href={`/portal/${mandant}/personal/anstellungen/${kopf.id}/vertrag`} className={verweis}>
+            Vertrag ändern
+          </Link>
+        )}
+        {darfEntgelt && (
+          <Link href={`/portal/${mandant}/personal/anstellungen/${kopf.id}/entgelt`} className={verweis}>
+            Entgelt
+          </Link>
+        )}
+        {darfBeenden && kopf.status !== 'beendet' && (
+          <Link href={`/portal/${mandant}/personal/anstellungen/${kopf.id}/beenden`} className={verweis}>
+            Beschäftigung beenden
+          </Link>
+        )}
       </nav>
 
       <section className="mb-s6 rounded-lg border border-line bg-surface p-s5">
@@ -199,9 +246,11 @@ export default async function Anstellungsblatt(
           <Feld label="Weitere Beschäftigungen" wert={kopf.weitere === 0 ? 'keine' : `${String(kopf.weitere)} — in anderen Gesellschaften (D-09); Arbeitszeitgrenzen gelten je Person, siehe Gruppenansicht`} />
         </dl>
         <p className="mt-s4 text-sm text-text-subtle">
-          Der interne Stundensatz steht auf einer eigenen Seite mit eigenem Recht (K-05).
-          Vertrag ändern und Beschäftigung beenden sind Schreibvorgänge und kommen mit
-          der Personalverwaltung.
+          Der interne Stundensatz steht auf einer eigenen Seite mit eigenem Recht (K-05);
+          Arbeitszeitmodell, Wochenstunden und Arbeitstage sind dort ein Spiegel der
+          datierten Kondition und werden über sie geändert (01-KERN §6.14). Vertrag
+          ändern, Entgelt und Beenden stehen oben — jeweils nur mit dem Recht, das dazu
+          gehört.
         </p>
       </section>
 

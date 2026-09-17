@@ -96,7 +96,9 @@ export default async function EingangsrechnungDetail(
    * 404 und verriete, was er nicht zeigen darf (AUT-06, Copilot-Runde auf
    * PR 16 / D-581). Ohne das Recht entfaellt der ganze Satz.
    */
-  const darf = await haeltRechte(sitzung, 'freigabe.entscheiden');
+  const darf = await haeltRechte(
+    sitzung, 'freigabe.entscheiden', 'eingang.freigeben',
+    'abrechnung.freistellung_pflegen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => ({
@@ -158,13 +160,41 @@ export default async function EingangsrechnungDetail(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label="Zurück" className="mb-s3">
+      <nav aria-label="Zurück" className="mb-s3 flex flex-wrap gap-s4">
         <Link
           href={`/portal/${mandant}/finanzen/eingangsrechnungen`}
           className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
         >
           ← Eingangsrechnungen
         </Link>
+        {/*
+          * Der Freigabebildschirm zeigt die vier Angaben, die der
+          * Freigabesatz einfriert, und die Vier-Augen-Lage im Klartext. Er
+          * oeffnet mit `eingang.freigeben`; ohne das Recht fuehrte der
+          * Verweis auf 404 und verriete, was er verbirgt (AUT-06, D-581).
+          */}
+        {darf['eingang.freigeben'] === true ? (
+          <Link
+            href={`/portal/${mandant}/finanzen/eingangsrechnungen/${kopf.id}/freigabe`}
+            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+          >
+            Freigabe ansehen
+          </Link>
+        ) : null}
+        {/*
+          * Die steuerliche Lage (§13b UStG, §48 EStG) steht auf einem eigenen
+          * Blatt: es prueft gegen das Leistungsdatum und nennt die drei
+          * Ausgaenge des §48 mit Namen. Es oeffnet laut Register mit
+          * `abrechnung.freistellung_pflegen`.
+          */}
+        {darf['abrechnung.freistellung_pflegen'] === true ? (
+          <Link
+            href={`/portal/${mandant}/finanzen/eingangsrechnungen/${kopf.id}/steuer`}
+            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+          >
+            Steuerliche Lage
+          </Link>
+        ) : null}
       </nav>
 
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">

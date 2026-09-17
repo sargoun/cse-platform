@@ -101,6 +101,9 @@ export const MIGRATIONS_DATEIEN: Readonly<Record<string, string>> = {
   '0175': join(WURZEL, 'drizzle/0175_akquise_loeschsperre.sql'),
   '0176': join(WURZEL, 'drizzle/0176_betroffenenanfrage.sql'),
   '0177': join(WURZEL, 'drizzle/0177_barrierebericht.sql'),
+  // Kern: Teams, Aufgaben (0230) und die Nachrichtenfaeden (0231).
+  '0230': join(WURZEL, 'drizzle/0230_kern_team_aufgabe.sql'),
+  '0231': join(WURZEL, 'drizzle/0231_nachricht_faden.sql'),
 };
 export const BEGINN = '-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern';
 export const ENDE = '-- >>> Ende des generierten Blocks';

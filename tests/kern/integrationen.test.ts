@@ -35,7 +35,15 @@ describe('anbindungen()', () => {
       expect(zeilen.find((z) => z.schluessel === 'datev')?.stand).toBe('dateiexport');
       // Was noch nicht gewaehlt ist, verweist auf die Frage, die es klaert (D-477).
       const mitFrage = zeilen.filter((z) => z.offen !== null).map((z) => z.schluessel).sort();
-      expect(mitFrage).toEqual(['email', 'karte', 'modell', 'n8n', 'ocr', 'sms']);
+      /*
+       * `altsystem` kam mit `/einstellungen/import` dazu (O-128): die
+       * Uebernahme aus Aplano, Lexware und den Excel-Dateien ist eine
+       * Anbindung wie jede andere, und sie stand in dieser Liste nicht. Ihr
+       * Zustand kommt aus demselben Port, der eine Datei annehmen wuerde —
+       * eine zweite Liste verpasste den Tag, an dem ein Parser dazukommt.
+       */
+      expect(mitFrage).toEqual(
+        ['altsystem', 'email', 'karte', 'modell', 'n8n', 'ocr', 'sms']);
       for (const z of zeilen.filter((z) => z.offen !== null)) expect(z.offen).toMatch(/^O-\d+$/u);
     } finally {
       if (vorher.url !== undefined) process.env['SUPABASE_URL'] = vorher.url;

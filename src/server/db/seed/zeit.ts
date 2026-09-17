@@ -403,6 +403,49 @@ async function seedAbwesenheiten(
     insert into urlaubskonto (mandant_id, anstellung_id, jahr, anspruch_tage, erstellt_von)
     values (${mandantId}, ${zweiteAnstellung}, ${jahr}, 30, ${planerId})
     on conflict (anstellung_id, jahr) do nothing`;
+  /*
+   * Die Konten, die die DETAILSEITEN brauchen — und zwar bevor die Zeilen
+   * entstehen, die darauf zeigen.
+   *
+   * Das Detailblatt einer Abwesenheit zeigt den Stand des Jahres daneben, und
+   * „kein Anspruch hinterlegt" ist dort eine Warnung: im Seed soll der
+   * Normalfall zu sehen sein. Und eine Genehmigung verlangt ein OFFENES Konto
+   * des Jahres, in dem der Urlaub beginnt (O-18) — liegt der beantragte
+   * Zeitraum im naechsten Kalenderjahr, braucht auch DAS Jahr ein Konto,
+   * sonst bricht die Genehmigung mit `no_data_found` ab.
+   */
+  const jahrBeantragt = Number(tagePlus(heute, 60).slice(0, 4));
+  for (const [anstellung, j] of [
+    [ersteAnstellung, Number(heute.slice(0, 4))],
+    [zweiteAnstellung, jahrBeantragt],
+  ] as const) {
+    await sql`
+      insert into urlaubskonto (mandant_id, anstellung_id, jahr, anspruch_tage, erstellt_von)
+      values (${mandantId}, ${anstellung}, ${j}, 30, ${planerId})
+      on conflict (anstellung_id, jahr) do nothing`;
+  }
+
+  /**
+   * **Eine BEANTRAGTE Abwesenheit — sonst ist die Entscheidung nicht
+   * vorfuehrbar.**
+   *
+   * Der Seed hatte `erfasst` (eine Krankmeldung, die zur Kenntnis genommen
+   * wird) und `storniert`, aber keine einzige Zeile im Status `beantragt`.
+   * Genau die ist die Voraussetzung fuer „Genehmigen" und „Ablehnen" auf
+   * `/personal/abwesenheiten/[id]`: der Dienst laesst beide nur aus
+   * `beantragt` heraus zu. Ohne diese Zeile zeigt die Seite ihre Entscheidung
+   * nie, und „seed data exercises it" (CLAUDE.md, Definition of done) waere
+   * fuer die Route nicht erfuellt.
+   */
+  await sql`
+    insert into abwesenheit
+      (mandant_id, anstellung_id, abwesenheitsart_id, von, bis, tage_angerechnet,
+       status, erstellt_von)
+    values (${mandantId}, ${zweiteAnstellung}, ${urlaub.id},
+            ${tagePlus(heute, 60)}::date, ${tagePlus(heute, 64)}::date, 5,
+            'beantragt', ${planerId})`;
+  angelegt += 1;
+
   await sql`
     insert into antrag
       (mandant_id, anstellung_id, antragsart_id, von_datum, bis_datum,

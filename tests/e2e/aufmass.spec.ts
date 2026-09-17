@@ -297,10 +297,34 @@ test.describe('(4) die OZ-Ordnung und die Summen im Baum', () => {
   });
 });
 
+/**
+ * **Das Formular steht seit dem Umbau nicht mehr auf dem Blatt.**
+ *
+ * Es hing auf der Blattansicht, und die ist mit `bau.lesen` bewacht — der
+ * Endpunkt dahinter verlangt `bau.aufmass_freigeben`. Wer nur lesen durfte,
+ * sah den Knopf und bekam beim Abschicken 403; genau dagegen gibt es
+ * `haeltRechte` (AUT-06). Seitdem traegt `…/aufmass/[aufmassId]/freigabe` das
+ * Recht an der Tuer, und das Blatt verweist nur noch dorthin.
+ *
+ * Diese Pruefungen gehen deshalb den WEG, den ein Mensch geht: Blatt →
+ * „Zur Gegenzeichnung" → unterschreiben → zurueck auf dem Blatt mit Digest.
+ * Ein Test, der das Formular weiter auf dem Blatt erwartet, pruefte den
+ * Fehler, der gerade behoben wurde.
+ */
 test.describe('(3) ohne Messfoto keine Gegenzeichnung', () => {
-  test('das Blatt ohne Foto zeigt den Grund statt eines Knopfes', async ({ page }) => {
+  test('das Blatt ohne Foto zeigt den Grund statt eines Weges', async ({ page }) => {
     await anmelden(page);
     await page.goto(`/portal/${mandantSlug}/bau/projekte/${projektId}/aufmass/${aufmassOhneFoto}`);
+
+    await expect(page.locator('[data-cse="hindernisse"]')).toContainText('Messfoto');
+    await expect(page.locator('[data-cse="zur-freigabe"]')).toHaveCount(0);
+    await expect(page.locator('[data-cse="gegenzeichnung"]')).toHaveCount(0);
+  });
+
+  test('und die Freigabeseite desselben Blattes nennt dasselbe Hindernis', async ({ page }) => {
+    await anmelden(page);
+    await page.goto(
+      `/portal/${mandantSlug}/bau/projekte/${projektId}/aufmass/${aufmassOhneFoto}/freigabe`);
 
     await expect(page.locator('[data-cse="hindernisse"]')).toContainText('Messfoto');
     await expect(page.locator('[data-cse="gegenzeichnung"]')).toHaveCount(0);
@@ -309,6 +333,16 @@ test.describe('(3) ohne Messfoto keine Gegenzeichnung', () => {
   test('mit Foto lässt es sich gegenzeichnen — und ist danach unveränderlich', async ({ page }) => {
     await anmelden(page);
     await page.goto(`/portal/${mandantSlug}/bau/projekte/${projektId}/aufmass/${aufmassMitFoto}`);
+
+    // Auf dem Blatt steht der WEG, nicht das Formular.
+    await expect(page.locator('[data-cse="gegenzeichnung"]')).toHaveCount(0);
+    await page.locator('[data-cse="zur-freigabe"]')
+      .getByRole('link', { name: 'Zur Gegenzeichnung' }).click();
+    await page.waitForLoadState('networkidle');
+
+    // Und die Freigabeseite zeigt, WAS gegengezeichnet wird, bevor jemand
+    // unterschreibt — dieselben Zeilen mit Rechenansatz wie das Blatt.
+    await expect(page.locator('[data-cse="rechenansatz"]').first()).toContainText(FORMEL);
 
     const formular = page.locator('[data-cse="gegenzeichnung"]');
     await expect(formular).toBeVisible();
@@ -320,7 +354,9 @@ test.describe('(3) ohne Messfoto keine Gegenzeichnung', () => {
     // Die Unterschrift steht mit ihrem Digest da …
     await expect(page.locator('[data-cse="signatur"]')).toContainText('Frau Beyer');
     await expect(page.locator('[data-cse="signatur"]')).toContainText('SHA-256');
-    // … und das Formular ist weg: ab hier ist das Blatt eingefroren.
+    // … und es gibt keinen Weg mehr zur Freigabe: ab hier ist das Blatt
+    // eingefroren, korrigiert wird durch Storno mit Ersatzblatt.
+    await expect(page.locator('[data-cse="zur-freigabe"]')).toHaveCount(0);
     await expect(page.locator('[data-cse="gegenzeichnung"]')).toHaveCount(0);
   });
 });

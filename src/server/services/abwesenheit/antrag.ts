@@ -44,6 +44,26 @@ export interface AntragZeile {
   readonly entschiedenAm: Date | null;
   readonly entscheidungKommentar: string | null;
   readonly abwesenheitId: string | null;
+  /**
+   * Die Felder, an denen sich ein TAUSCHANTRAG von einem Abwesenheitsantrag
+   * unterscheidet — und der Grund, warum sie hier stehen.
+   *
+   * `entscheideAntrag` behandelt nur den Abwesenheitszweig
+   * (`antragsart.erzeugt_abwesenheit`). Ein Tauschantrag wuerde auf
+   * `genehmigt` gesetzt, ohne dass im Dienstplan etwas geschieht und ohne das
+   * SEC-04-Qualifikationstor, das 05-API-KARTE §C.8 fuer eine
+   * Tauschgenehmigung ausdruecklich verlangt („a swap approval passes the same
+   * SEC-04 gate as besetzen"). Eine Oberflaeche, die das nicht unterscheiden
+   * kann, zeigt einen Genehmigen-Knopf, der eine Genehmigung OHNE Wirkung
+   * erzeugt.
+   */
+  readonly erzeugtAbwesenheit: boolean;
+  readonly einsatzId: string | null;
+  readonly tauschPartnerAnstellungId: string | null;
+  readonly abwesenheitsartId: string | null;
+  /** `null` = keine Art gewaehlt; `false` = zaehlt nicht auf das Urlaubskonto. */
+  readonly zaehltAufUrlaubskonto: boolean | null;
+  readonly storniertAm: Date | null;
 }
 
 export class AntragNichtGefunden extends Error {
@@ -86,9 +106,14 @@ const ZEILE = `
          to_char(a.von_datum, 'YYYY-MM-DD')        as von_datum,
          to_char(a.bis_datum, 'YYYY-MM-DD')        as bis_datum,
          a.nachricht, a.eingereicht_am, a.entschieden_am, a.entscheidung_kommentar,
+         a.storniert_am,
+         art.erzeugt_abwesenheit,
+         a.einsatz_id, a.tausch_partner_anstellung_id, a.abwesenheitsart_id,
+         aa.zaehlt_auf_urlaubskonto,
          (select ab.id from abwesenheit ab where ab.antrag_id = a.id limit 1) as abwesenheit_id
     from antrag a
     join antragsart art on art.id = a.antragsart_id
+    left join abwesenheitsart aa on aa.id = a.abwesenheitsart_id
     join anstellung an on an.mandant_id = a.mandant_id and an.id = a.anstellung_id
     join person p on p.id = an.person_id`;
 
@@ -98,7 +123,12 @@ interface RohZeile {
   readonly von_datum: string | null; readonly bis_datum: string | null;
   readonly nachricht: string | null; readonly eingereicht_am: Date;
   readonly entschieden_am: Date | null; readonly entscheidung_kommentar: string | null;
-  readonly abwesenheit_id: string | null;
+  readonly abwesenheit_id: string | null; readonly erzeugt_abwesenheit: boolean;
+  readonly einsatz_id: string | null;
+  readonly tausch_partner_anstellung_id: string | null;
+  readonly abwesenheitsart_id: string | null;
+  readonly zaehlt_auf_urlaubskonto: boolean | null;
+  readonly storniert_am: Date | null;
 }
 
 function zeile(z: RohZeile): AntragZeile {
@@ -116,6 +146,12 @@ function zeile(z: RohZeile): AntragZeile {
     entschiedenAm: z.entschieden_am,
     entscheidungKommentar: z.entscheidung_kommentar,
     abwesenheitId: z.abwesenheit_id,
+    erzeugtAbwesenheit: z.erzeugt_abwesenheit,
+    einsatzId: z.einsatz_id,
+    tauschPartnerAnstellungId: z.tausch_partner_anstellung_id,
+    abwesenheitsartId: z.abwesenheitsart_id,
+    zaehltAufUrlaubskonto: z.zaehlt_auf_urlaubskonto,
+    storniertAm: z.storniert_am,
   };
 }
 
