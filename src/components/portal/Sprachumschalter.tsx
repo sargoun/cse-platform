@@ -1,4 +1,6 @@
-import { INTERN_EIGENNAME, INTERN_SPRACHEN, internSprachwahl } from '@/lib/i18n/intern';
+import {
+  INTERN_EIGENNAME, INTERN_SPRACHEN, internSprachwahl, sprachHinweis,
+} from '@/lib/i18n/intern';
 import { gemerkteHuelle } from '@/app/portal/huellen-speicher';
 
 /**
@@ -40,8 +42,26 @@ export function Sprachumschalter(
        */
       data-ort={ort}
       className="flex items-center gap-s2"
+      {...(fremdeWahl === null ? {} : { title: sprachHinweis(stand.sprache, fremdeWahl) })}
     >
       {stand.pfad !== null && <input type="hidden" name="zurueck" value={stand.pfad} />}
+      {/*
+        * **Wessen Wahl hier ueberschrieben wuerde, muss dastehen.** Die Spalte
+        * `sprache` ist EINE fuer beide Portale: wer als Arbeiterin Arabisch
+        * gewaehlt hat, ersetzt sie mit einem Klick hier. Ein Bildschirm, der
+        * das still tut, ist schlimmer als einer, der die Wahl gar nicht
+        * anboete.
+        *
+        * `sr-only` und `title`: sichtbar ist der Umschalter eine Zeile in
+        * einer engen Kopfzeile — dort ist fuer zwei Saetze kein Platz (DESIGN
+        * §6). Der Screenreader liest sie, die Maus findet sie, und der Platz
+        * bleibt, wie er ist.
+        */}
+      {fremdeWahl !== null && (
+        <span className="sr-only" data-cse="sprache-fremd">
+          {sprachHinweis(stand.sprache, fremdeWahl)}
+        </span>
+      )}
       {INTERN_SPRACHEN.map((s) => (
         <button
           key={s}

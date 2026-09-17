@@ -4,8 +4,9 @@ import { INTERNE_LEISTEN, tableiste } from '@/server/registry/tableiste';
 import {
   BAUZUSTAND_TEXTE, bauzustandTexte, INTERN_BESCHRIFTUNGEN, INTERN_SPRACHEN,
   internBeschriftungen, internSprache, internSprachwahl, istInternSprache,
+  SPRACH_HINWEIS, sprachHinweis,
 } from '@/lib/i18n/intern';
-import { PORTAL_SPRACHEN } from '@/lib/i18n/texte';
+import { PORTAL_EIGENNAME, PORTAL_SPRACHEN } from '@/lib/i18n/texte';
 
 /**
  * Die Beschriftungen der internen Huelle — gegen die Register geprueft.
@@ -174,5 +175,49 @@ describe('die Texte der Bauzustandsseite', () => {
     expect(bauzustandTexte('ar')).toBe(BAUZUSTAND_TEXTE.de);
     expect(bauzustandTexte('tr')).toBe(BAUZUSTAND_TEXTE.de);
     expect(bauzustandTexte(null)).toBe(BAUZUSTAND_TEXTE.de);
+  });
+});
+
+/**
+ * Der Hinweis fuer jemanden, dessen Portalsprache der Umschalter nicht
+ * anbietet.
+ *
+ * Die Spalte `sprache` ist EINE fuer beide Portale. Wer als Arbeiterin `ar`
+ * gewaehlt hat, ersetzt sie mit einem Klick im internen Umschalter — und ein
+ * Bildschirm, der das still tut, ist schlimmer als einer, der die Wahl gar
+ * nicht anboete.
+ */
+describe('der Hinweis auf eine fremde Sprachwahl', () => {
+  it('nennt die Sprache in ihrem EIGENEN Namen, nicht als Kuerzel', () => {
+    const text = sprachHinweis('ar', 'ar');
+    expect(text).toContain(PORTAL_EIGENNAME.ar);
+    expect(text).not.toMatch(/\bar\b/);
+  });
+
+  it('sagt, dass die Wahl auch das Mitarbeiterportal trifft', () => {
+    for (const fremd of ['ar', 'tr'] as const) {
+      /*
+       * Der Satz, auf den es ankommt: „ersetzt auch". Ohne ihn stuende dort
+       * nur, dass es diese Ansicht auf Deutsch gibt — und das beantwortet die
+       * Frage nicht, die jemand hat, bevor er klickt.
+       */
+      expect(sprachHinweis(fremd, fremd).toLowerCase()).toContain('ersetzt auch');
+      expect(sprachHinweis('en', fremd).toLowerCase()).toContain('also replaces');
+    }
+  });
+
+  it('erscheint nur dort, wo er gebraucht wird — internSprachwahl entscheidet', () => {
+    expect(internSprachwahl('de').fremdeWahl).toBeNull();
+    expect(internSprachwahl('en').fremdeWahl).toBeNull();
+    expect(internSprachwahl(null).fremdeWahl).toBeNull();
+    expect(internSprachwahl('ar').fremdeWahl).toBe('ar');
+    expect(internSprachwahl('tr').fremdeWahl).toBe('tr');
+  });
+
+  it('steht in beiden internen Sprachen bereit', () => {
+    for (const s of INTERN_SPRACHEN) {
+      expect(SPRACH_HINWEIS[s]('Türkçe').trim()).not.toBe('');
+    }
+    expect(SPRACH_HINWEIS.de('X')).not.toBe(SPRACH_HINWEIS.en('X'));
   });
 });

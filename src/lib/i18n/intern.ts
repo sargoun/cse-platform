@@ -1,4 +1,4 @@
-import { PORTAL_SPRACHEN, type PortalSprache } from './texte';
+import { PORTAL_EIGENNAME, PORTAL_SPRACHEN, type PortalSprache } from './texte';
 
 /**
  * Die Sprachen der INTERNEN Oberflaeche — Deutsch und Englisch.
@@ -243,6 +243,39 @@ export function internBeschriftungen(
   sprache: PortalSprache | null | undefined,
 ): Readonly<Record<string, string>> {
   return INTERN_BESCHRIFTUNGEN[internSprache(sprache)];
+}
+
+/**
+ * Der Hinweis fuer jemanden, dessen Portalsprache der Umschalter gar nicht
+ * anbietet (D-592).
+ *
+ * **Warum es ihn geben muss.** Die Spalte `sprache` ist EINE Spalte fuer beide
+ * Portale. Wer als Arbeiterin `ar` gewaehlt hat und sich am internen Portal
+ * anmeldet, sieht hier Deutsch markiert — ein Klick auf „Deutsch" oder
+ * „English" ersetzt dann seine Arbeiterportal-Sprache, ohne dass irgendwo
+ * stuende, dass das passiert. Ein Bildschirm, der eine Wahl STILL
+ * ueberschreibt, ist schlimmer als einer, der sie gar nicht anbietet.
+ *
+ * Der Text steht in beiden internen Sprachen, obwohl in dieser Lage immer
+ * Deutsch gilt: `internSprache('ar')` ist `de`. Er stuende auf Englisch nur
+ * dann, wenn jemand vorher ausdruecklich Englisch gewaehlt haette — und dann
+ * ist `fremdeWahl` null und der Hinweis erscheint nicht. Er steht trotzdem
+ * da, weil eine Karte mit einem Loch darin beim naechsten Leser wie ein
+ * Versehen aussieht.
+ */
+export const SPRACH_HINWEIS: Readonly<Record<InternSprache, (fremd: string) => string>> = {
+  de: (fremd) =>
+    `Ihre Portalsprache ist ${fremd}. Diese Ansicht gibt es nur auf Deutsch und `
+    + 'Englisch — eine Wahl hier ersetzt auch die Sprache Ihres Mitarbeiterportals.',
+  en: (fremd) =>
+    `Your portal language is ${fremd}. This view exists only in German and English — `
+    + 'choosing here also replaces the language of your employee portal.',
+};
+
+export function sprachHinweis(
+  sprache: PortalSprache | null | undefined, fremd: PortalSprache,
+): string {
+  return SPRACH_HINWEIS[internSprache(sprache)](PORTAL_EIGENNAME[fremd]);
 }
 
 /**
