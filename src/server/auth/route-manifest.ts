@@ -1415,6 +1415,70 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + '`app.ist_eingesetzt_auf_projekt` und `app.aktuelle_person()`. Abschluss und '
       + 'Gegenzeichnung bleiben `bau.schreiben` und damit der Bauleitung.',
   },
+  {
+    /**
+     * Die Wachbuchseite von der eigenen Schicht (SEC-05, § 34a GewO).
+     *
+     * `recht: null` heisst hier NICHT „ungeprueft". Es heisst: diese Route
+     * ruft `authorize()` nicht, und das Manifest sagt genau das, was der
+     * Handler tut — eine Zeile `wachbuch.schreiben` waere eine Behauptung
+     * ueber ein Tor, das es in dieser Datei nicht gibt. Geprueft wird der
+     * Schluessel trotzdem, nur eine Ebene tiefer.
+     */
+    pfad: 'api/mein/schichten/[zuordnungId]/wachbuch',
+    recht: null,
+    grund:
+      'SEC-05, TIM-08, LEG-01, SEITENKARTE §7. Der Weg fuehrt ueber die Bruecke '
+      + '`api/mein/schichten/bruecke.ts`: Ursprungsvergleich, Sitzung, die eigene '
+      + 'Zuordnung im Personen-Scope und der daraus serverseitig abgeleitete Mandant '
+      + '(K-02) — nie ein Feld der Anfrage. Das Recht `wachbuch.schreiben` prueft die '
+      + 'WITH-CHECK-Haelfte von `wachbuch_eintrag.t_mandant` (0070), also die zweite '
+      + 'Linie an der Stelle, an der sie wirkt (AUT-05); `einsatz.t_selbst_m1` (0300) '
+      + 'traegt die Zugehoerigkeitsprobe, und die restriktive Mitarbeiterdecke (K-04) '
+      + 'liegt darueber. Objekt, Einsatz und Urheber loest der Dienst selbst auf.',
+  },
+  {
+    /**
+     * Den Leistungsnachweis auf der Schicht anlegen und vorlegen (CLN-04).
+     *
+     * Wie die Wachbuchseite: kein `authorize()` im Handler, also `recht: null`
+     * — und aus demselben Grund, aus dem `api/mein/antraege` keinen Schluessel
+     * traegt. Die Abgrenzung ist „diese Kraft ist auf DIESEM Objekt
+     * eingesetzt", und das laesst sich als Rolle nicht sagen (K-19).
+     */
+    pfad: 'api/mein/schichten/[zuordnungId]/leistungsnachweis',
+    recht: null,
+    grund:
+      'CLN-04, FIN-05, SEITENKARTE §7. Selbstzugriff ueber die Bruecke '
+      + '`api/mein/schichten/bruecke.ts` (Ursprung, Sitzung, eigene Zuordnung, daraus '
+      + 'der Mandant — K-02) und die Policies `leistungsnachweis.t_selbst_m1_lesen` und '
+      + '`t_selbst_m1_vorlegen` (0304) auf `app.ist_eingesetzt_auf_objekt`. Deren '
+      + 'WITH CHECK verlangt zusaetzlich `nachweis.schreiben` (AUT-05) und laesst genau '
+      + 'zwei Uebergaenge zu — entwurf→vorgelegt und vorgelegt→signiert; stornieren und '
+      + 'ablehnen bleiben dem Buero. Den Kunden liest die Route aus `objekt.kunde_id`, '
+      + 'nicht aus dem Formular.',
+  },
+  {
+    /**
+     * Die Unterschrift des Kunden auf dem Telefon der Kraft (CLN-04, LEG-01).
+     *
+     * Eine eigene Adresse und nicht ein Zweig der Route darueber: zwischen
+     * Anzeige und Fingerdruck steht die Pruefsumme (0066), und `signiere`
+     * weist ab, was nicht dazu passt. Auch hier kein `authorize()` — die
+     * Wache ist dieselbe Bruecke plus die Signaturdecke.
+     */
+    pfad: 'api/mein/schichten/[zuordnungId]/leistungsnachweis/[id]/unterschrift',
+    recht: null,
+    grund:
+      'CLN-04, TIM-08, LEG-01, SEITENKARTE §7. Selbstzugriff ueber dieselbe Bruecke wie '
+      + 'der Nachweis (Ursprung, Sitzung, eigene Zuordnung, Mandant aus der Schicht — '
+      + 'K-02). Die Zeile entsteht unter `leistungsnachweis_signatur.p_portal_decke` und '
+      + '`t_selbst_signatur` (0304): sichtbar bleibt nur die eigene Gegenzeichnung und '
+      + 'die Unterschrift, die DIESES Konto selbst aufgenommen hat (0066 §5.8). '
+      + '`unterzeichnet_am` stempelt ein Ausloeser mit `now()` (Invariante 5); die '
+      + 'bestaetigte Pruefsumme haelt `signiere` gegen einen neu gebauten Abzug und weist '
+      + 'ab, wenn beide nicht gleich sind.',
+  },
 
   /**
    * Die vier Wege der Ausgangsrechnung (PR 46) — VIER Adressen und nicht eine.
@@ -2023,6 +2087,80 @@ export const ROUTEN: readonly RouteEintrag[] = [
      */
     pfad: 'api/personal/zugang-code',
     recht: 'personal.zugang_verwalten',
+  },
+  /**
+   * Die Personalakte (D-09, 01-KERN §6.13/§6.14/§6.15, 05-API-KARTE §C.8).
+   *
+   * **Fuenf Adressen und nicht eine Maske**, weil die Spalten dahinter
+   * verschieden schwer wiegen. Wer eine Personalnummer tippt, soll damit
+   * keinen Stundensatz gesetzt und keinen Austritt verfuegt haben — und genau
+   * das waere der Fall, wenn ein Handler sich intern verzweigte: von aussen
+   * saehe die Aufzaehlungsprobe nur noch EIN Recht.
+   *
+   * Alle fuenf laufen durch `api/personal/gemeinsam.ts`; dort steht der
+   * `authorize`-Aufruf, einmal statt fuenfmal.
+   */
+  {
+    /**
+     * Personalnummer und Eintritt — das Leichteste der drei auf `anstellung`.
+     * Arbeitszeitmodell und Wochenstunden stehen bewusst NICHT hier: sie sind
+     * der Spiegel der datierten `anstellung_kondition` (§6.14) und laufen
+     * ueber `…/entgelt` mit dem strengeren Schluessel; `cse_app` hat auf
+     * diesen Spalten ueberhaupt kein UPDATE (0191).
+     */
+    pfad: 'api/personal/anstellungen/[id]/vertrag',
+    recht: 'personal.schreiben',
+  },
+  {
+    /**
+     * Der datierte Entgeltsatz (§6.15, Invariante 1). `personal.schreiben`
+     * waere hier zu schwach: `personal.entgelt_schreiben` haelt nur
+     * `super_admin` fest, `admin` bindbar — und dieselbe Trennung prueft die
+     * WITH-CHECK-Haelfte von `anstellung_kondition` ein zweites Mal (0192,
+     * AUT-05). Der Betrag wird serverseitig in Cent geparst, nie geraten.
+     */
+    pfad: 'api/personal/anstellungen/[id]/entgelt',
+    recht: 'personal.entgelt_schreiben',
+  },
+  {
+    /**
+     * Austritt und Grund (K-14, R-08). Ein eigener Schluessel, weil am
+     * Statuswechsel der Entzug der abgeleiteten Mitgliedschaft haengt — und
+     * weil es nie ein DELETE ist (Invariante 8): Zeit-, Konto- und
+     * Rechnungsdaten haengen an dieser Zeile.
+     */
+    pfad: 'api/personal/anstellungen/[id]/beenden',
+    recht: 'personal.anstellung_beenden',
+  },
+  {
+    /**
+     * Geburtsdatum, Geburtsort, Staatsangehoerigkeit (SEC-03, LEG-09, §6.13).
+     *
+     * **Geschrieben mit `personal.schreiben`, gelesen mit
+     * `personal.stammdaten_lesen`** — und das Manifest fuehrt das SCHREIBEN,
+     * weil diese Route schreibt. GRANT UPDATE und GRANT SELECT sind getrennt:
+     * das Formular nimmt ein Geburtsdatum auf, ohne es zurueckzulesen; wer das
+     * Ergebnis sehen will, geht ueber `app.person_stammdaten_lesen` und
+     * hinterlaesst seine Auditzeile. `t_person_personalpflege` (0190) verlangt
+     * zusaetzlich eine Beschaeftigung in der AKTIVEN Gesellschaft — `person`
+     * traegt keinen Mandanten (D-09).
+     */
+    pfad: 'api/personal/personen/[id]/stammdaten',
+    recht: 'personal.schreiben',
+  },
+  {
+    /**
+     * Zwei `person`-Zeilen sind ein Mensch (§6.13, LEG-09).
+     *
+     * Der eigene Schluessel ist hier die ganze Zusage: die Zusammenfuehrung
+     * zieht Zertifikate, Beschaeftigungen und Zugaenge zusammen und ist nicht
+     * rueckgaengig zu machen — sie darf nicht dasselbe Recht tragen wie eine
+     * korrigierte Personalnummer. Mandant, Zyklusfreiheit und Protokoll
+     * prueft `app.person_zusammenfuehren` (0194) ein zweites Mal; der
+     * Dublettenzeiger ist fuer `cse_app` nicht schreibbar.
+     */
+    pfad: 'api/personal/zusammenfuehren',
+    recht: 'personal.zusammenfuehren',
   },
   /**
    * Der Freigabe-Posteingang (PR 62 Rest, APR-01/02/03/07/08, D-472).

@@ -1583,6 +1583,65 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * nennt sein Recht —, gilt fuer Mandantenlogik. Sie hier aufzuweichen
    * hiesse, sie ueberall aufzuweichen.
    */
+  /**
+   * **Nachtrag: die neun, die zwei Domaenen als „bereits gefuehrt" meldeten.**
+   *
+   * Sie waren es nicht — keiner der neun stand im Register, und der Gegentest
+   * („das Register kennt jeden Dienst, der existiert") war darueber rot. Der
+   * Eintragende hat sie deshalb NICHT geraten, sondern stehen lassen und
+   * gemeldet: `schreibend` und `schreibRecht` folgen aus der Policy der
+   * geschriebenen Tabelle, und wer sie errät, errät eine Rechtezusage.
+   *
+   * Nachgesehen wurde in den Dateien selbst. Die sechs Finanzdienste nehmen
+   * ausschliesslich `Abfrage` (lesen) — kein `SchreibKontext`, kein `insert`,
+   * kein `update`. `finanz/versand` liest das Versandprotokoll; geschrieben
+   * wird `rechnung_versand` an anderer Stelle. Die drei Personaldienste
+   * schreiben, jeder unter dem Recht seiner Policy.
+   */
+  { modul: 'finanzen', pfad: 'finanz/ausgabe', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/beleg', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/kreisuebersicht', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/versand', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/vorabpruefung', schreibend: false },
+  { modul: 'finanzen', pfad: 'finanz/zugferd/vorschau', schreibend: false },
+
+  /**
+   * `personal/stammdaten` schreibt `person` (Geburtsort, Staatsangehoerigkeit
+   * — Bewacherregister, §34a GewO). Die Policy `t_person_personalpflege`
+   * (0190) verlangt `personal.schreiben`; gelesen wird dagegen ueber
+   * `app.person_stammdaten_lesen` unter `personal.stammdaten_lesen`, und
+   * jeder Lesezugriff hinterlaesst eine Auditzeile.
+   */
+  {
+    modul: 'personal', pfad: 'personal/stammdaten',
+    schreibend: true, schreibRecht: 'personal.schreiben',
+  },
+
+  /**
+   * `personal/anstellung` schreibt `anstellung` und `anstellung_kondition`.
+   * Zwei Rechte treffen aufeinander: `personal.anstellung_beenden` fuer die
+   * Beendigung, `personal.entgelt_schreiben` fuer die datierte Kondition
+   * (0192). **Hier steht das strengere** — dieselbe Regel wie bei
+   * `finanz/kunde-steuer` weiter oben. Wer nur beenden darf, kommt an der
+   * Kondition ohnehin an der Policy nicht vorbei.
+   */
+  {
+    modul: 'personal', pfad: 'personal/anstellung',
+    schreibend: true, schreibRecht: 'personal.entgelt_schreiben',
+  },
+
+  /**
+   * `personal/dublette` fuehrt zwei Personenzeilen zusammen. Der Schreibweg
+   * ist ausschliesslich `app.person_zusammenfuehren` (0194), und die Funktion
+   * prueft selbst `personal.zusammenfuehren` (Zeile 221) — die Dublette kann
+   * bei einer SCHWESTERGESELLSCHAFT beschaeftigt sein, die die
+   * zusammenfuehrende Sitzung gar nicht sieht, deshalb ein Definer und keine
+   * Policy.
+   */
+  {
+    modul: 'personal', pfad: 'personal/dublette',
+    schreibend: true, schreibRecht: 'personal.zusammenfuehren',
+  },
 ] as const;
 
 /**
