@@ -40,18 +40,32 @@ darunter.
 | finanzen | 15 | 0180–0189 | Bau fertig, Kritik offen |
 | personal | 7 | 0190–0199 | Bau fertig, Kritik offen |
 | einstellungen | 6 | 0200–0209 | Bau fertig, Kritik offen |
-| bau | 6 | 0210–0219 | im Bau |
+| bau | 6 | 0210–0219 | Bau fertig, Kritik offen |
 | datenschutz | 5 | 0220–0229 | Bau fertig, Kritik offen |
 | aufgaben-nachrichten-oeffentlich | 9 | 0230–0244 | Bau fertig, Kritik offen |
-| crm-rest | 7 | 0245–0254 | im Bau |
+| crm-rest | 7 | 0245–0254 | angefangen, vom Limit unterbrochen |
 | kundenportal | 10 | 0255–0264 | offen |
-| dienstplan-zeit | 6 | 0265–0274 | im Bau |
-| stammdaten | 5 | 0275–0279 | im Bau |
+| dienstplan-zeit | 6 | 0265–0274 | angefangen, vom Limit unterbrochen |
+| stammdaten | 5 | 0275–0279 | Bau fertig, Kritik offen |
 | website-pflege | 9 | 0280–0284 | offen |
 | reinigung-security-qualitaet | 11 | 0285–0289 | offen |
 | agenten-freigaben-radar | 6 | 0290–0294 | offen |
 | vertrieb-rest | 9 | 0295–0299 | offen |
 | mitarbeiterportal | 6 | 0300–0304 | offen |
+
+### Was das Nutzungslimit am 17.09. gekostet hat
+
+Es traf mitten im Lauf und erwischte **alle fünfzehn Kritikagenten auf
+einmal** — die Kritik ist der Schritt, der noch vollständig fehlt. Sieben
+Domänen sind gebaut, acht nicht angefangen oder unterbrochen.
+
+Wichtig für den, der weitermacht: die Bauergebnisse der sieben liegen im
+Journal des Workflows unter
+`~/.claude/projects/…/subagents/workflows/wf_e922f671-7af/journal.jsonl`
+(eine `{"type":"result"}`-Zeile je Agent). **Dieses Journal überlebt einen
+Container-Neustart nicht.** Was daraus gebraucht wird, steht deshalb in
+`register/*.md` — und wo eine Domäne dort keine Datei hat, muss ihr
+Bauergebnis aus dem Journal geholt werden, BEVOR der Container geht.
 
 **Die Nummernbereiche sind nicht Kosmetik.** Acht Agenten arbeiten gleichzeitig
 im selben Arbeitsbaum. Der Migrator sortiert nach Dateinamen; zwei Agenten, die
