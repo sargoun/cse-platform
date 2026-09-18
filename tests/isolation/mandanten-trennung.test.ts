@@ -173,7 +173,22 @@ describe('(3) a write without exactly one active mandant is refused', () => {
   });
 
   it('accepts the same insert for the active tenant', async () => {
-    const zeilen = await alsApp({ scope: 'mandant', mandantId: f.reinigung, portal: 'intern', readonly: false }, (tx) =>
+    /*
+     * **Mit gebundenem Benutzer, und das ist seit 0367 der Punkt.**
+     *
+     * Bis dahin prüfte `t_anstellung_schreiben` gar kein Recht: wer irgendeine
+     * Mandantensitzung hatte, konnte eine Beschäftigung anlegen. 0367 zieht
+     * `personal.schreiben` ein (04-SEITENKARTE §5.12, D-09/EMP-14), und eine
+     * prinzipallose Sitzung fällt nun daran — nicht am Mandantentor.
+     *
+     * Dieser Fall ist die POSITIVE Gegenprobe zu den drei Absagen darüber: er
+     * belegt, dass sie am Mandantentor scheitern und nicht aus irgendeinem
+     * anderen Grund. Dafür muss er dieselbe Tabelle treffen und durchkommen —
+     * also mit einem Benutzer, der das Recht hält (`leitung`, gebunden laut
+     * Katalog). Die Reihenfolge im `with check` macht die Gegenprobe weiterhin
+     * scharf: `app.assert_genau_ein_mandant()` steht VOR der Rechtefrage.
+     */
+    const zeilen = await alsApp({ scope: 'mandant', mandantId: f.reinigung, benutzerId: entgeltKonto, portal: 'intern', readonly: false }, (tx) =>
       tx`insert into anstellung (mandant_id, person_id, personalnummer, eintritt)
          values (${f.reinigung}, ${f.jonas}, 'R-9999', '2025-01-01') returning id`,
     );
