@@ -156,3 +156,37 @@ comment on policy t_selbst_m1 on objekt is
   'Mitarbeiterportals — die Vorpruefung von erstelleEntwurf, die den Kunden '
   'des Objekts serverseitig aufloest (nie aus der Anfrage). Praedikat wie in '
   'leistungsnachweis.p_portal_decke: app.ist_eingesetzt_auf_objekt.';
+
+/**
+ * Der Kontrollpunkt des eigenen Objekts — im M1-Scope.
+ *
+ * **Wofuer.** SEC-05 kennt den Praesenznachweis: ein Wachbucheintrag, der an
+ * einem Kontrollpunkt entsteht, und `pruefeText` weist „Praesenz bestaetigt"
+ * ohne Kontrollpunkt ohnehin ab. Die ID kommt damit aus dem FORMULAR, und
+ * alles, was aus einer Anfrage kommt, muss serverseitig gegen das Objekt
+ * gehalten werden (K-02) — `schreibeEintrag` tut das fuer `posten`,
+ * `veranstaltung` und `einsatz` schon.
+ *
+ * **Warum die Zeile noetig ist.** Im Personen-Scope liest die Wache ihre
+ * Kontrollpunkte ueber `t_person` (0057); der Schreibweg steht aber im
+ * M1-Scope, und dort greift nur `t_mandant` mit `security.lesen` — ein Recht
+ * der Leitung. Die Vorpruefung faende null Zeilen und wiese den EIGENEN
+ * Kontrollpunkt als „gehoert nicht zu diesem Objekt" ab: derselbe AUT-05-Fehler
+ * wie beim Objekt darueber, nur eine Tabelle weiter.
+ *
+ * Praedikat wortgleich mit `objekt.t_selbst_m1` und mit
+ * `kontrollpunkt.p_intern_einsatz_decke`, deren Mitarbeiterzweig dieselbe
+ * Frage schon stellt.
+ */
+create policy t_selbst_m1 on kontrollpunkt for select to cse_app
+using (
+  app.portal() = 'mitarbeiter'
+  and mandant_id = app.aktiver_mandant()
+  and app.ist_eingesetzt_auf_objekt(objekt_id)
+);
+
+comment on policy t_selbst_m1 on kontrollpunkt is
+  'SEC-05 (0300): der Kontrollpunkt des eigenen Objekts im M1-Scope. Er traegt '
+  'die Vorpruefung in schreibeEintrag, die den Kontrollpunkt aus dem Formular '
+  'gegen das Objekt der Schicht haelt (K-02). Ohne ihn sieht der Schreibweg '
+  'null Zeilen und weist den eigenen Kontrollpunkt ab (AUT-05).';

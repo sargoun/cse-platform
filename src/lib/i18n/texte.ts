@@ -583,7 +583,19 @@ export interface MeinTexte {
   readonly wachbuch: string;
   readonly wachbuchNeu: string;
   readonly uebergabe: string;
-  readonly uebergabeZu: string;
+  /**
+   * Das Uebergabefenster ist GAR NICHT eingestellt (`uebergabeFenster ===
+   * null`) — die offene Frage O-151 ist noch nicht beantwortet.
+   *
+   * Getrennt von `uebergabeAus`, weil `Schichtbuch.uebergabeFenster` die zwei
+   * Faelle mit Absicht unterscheidet: `null` heisst „nie eingerichtet",
+   * `00:00:00` heisst „eingestellt und abgeschaltet" (der Seed-Vorgabewert aus
+   * 0033). Ein Satz fuer beide behauptete auf jedem Seed-Bildschirm etwas,
+   * das dort nicht stimmt.
+   */
+  readonly uebergabeNichtEingestellt: string;
+  /** Das Fenster ist eingestellt und steht auf 0 — bewusst abgeschaltet. */
+  readonly uebergabeAus: string;
   readonly art: string;
   readonly betreff: string;
   readonly eintragstext: string;
@@ -623,6 +635,41 @@ export interface MeinTexte {
   readonly hinzufuegen: string;
   readonly tagGeschlossen: string;
   readonly abgleich: string;
+  /**
+   * Die vier Befunde des Mannstundenabgleichs — als SCHLUESSEL und nicht als
+   * fertiger Satz.
+   *
+   * `gleicheMannstundenAb` liefert in `text` einen deutschen Satz. Er gehoert
+   * dem internen Portal; auf einem Arbeiterbildschirm, der nach SPEC §10 auch
+   * arabisch und tuerkisch kann, waere er die einzige deutsche Zeile der
+   * Seite. Die Zahl steht daneben und kommt weiter aus dem Dienst — nur der
+   * Satz wird hier gewaehlt.
+   */
+  readonly abgleichDeckungsgleich: string;
+  readonly abgleichAbweichung: string;
+  readonly abgleichOhneAngabe: string;
+  readonly abgleichZeitNichtLesbar: string;
+  /** Beschriftung ueber der Wetterquelle — nicht „Status" (die Pille daneben). */
+  readonly wetterQuelle: string;
+  /**
+   * Die Schicht ist vorbei — erfasst wird nichts mehr.
+   *
+   * `app.ist_eingesetzt_auf_objekt`/`…_projekt` verlangen
+   * `ende_zeitpunkt >= now()`; mit der Minute des Schichtendes schliessen
+   * Wachbuch, Fotos, Leistungsnachweis und Bautagebuch. Bis O-740 beantwortet
+   * ist, ist das die Grenze — und sie steht auf dem Bildschirm, statt dass ein
+   * Formular scheitert.
+   */
+  readonly schichtBeendet: string;
+  /** Die Einteilung wurde aus dem Plan genommen (`entfernt_am`). */
+  readonly schichtEntfernt: string;
+  /**
+   * Der Nachweis ist vorgelegt, traegt aber keine Nummer.
+   *
+   * `legeVor` gibt diesen Fall als `nummerOffen` zurueck; ohne den Satz stuende
+   * das Blatt ohne Nummer da und niemand wuesste, ob das so gehoert (O-147).
+   */
+  readonly nummerOffen: string;
   readonly offeneFrage: string;
 }
 
@@ -738,9 +785,12 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     wachbuch: 'Wachbuch',
     wachbuchNeu: 'Eintrag schreiben',
     uebergabe: 'Übergabe',
-    uebergabeZu:
-      'Das Übergabefenster ist nicht eingestellt (offen, O-151). Bis dahin stehen hier '
-      + 'nur die eigenen Einträge.',
+    uebergabeNichtEingestellt:
+      'Das Übergabefenster ist noch nicht eingestellt (offene Frage O-151). Bis dahin '
+      + 'stehen hier nur die eigenen Einträge.',
+    uebergabeAus:
+      'Das Übergabefenster ist eingestellt und steht auf null — die Einträge der '
+      + 'Vorschicht bleiben verdeckt. Hier stehen nur die eigenen Einträge.',
     art: 'Art',
     betreff: 'Betreff',
     eintragstext: 'Was ist passiert?',
@@ -778,6 +828,22 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     hinzufuegen: 'Hinzufügen',
     tagGeschlossen: 'Dieser Bautag ist geschlossen — es kommt nichts mehr hinzu.',
     abgleich: 'Abgleich mit der Zeiterfassung',
+    abgleichDeckungsgleich: 'Die eigenen Stunden decken sich mit der Zeiterfassung dieses Tages.',
+    abgleichAbweichung: 'Bautagebuch und Zeiterfassung weichen voneinander ab.',
+    abgleichOhneAngabe: 'Für diesen Tag sind weder Mannstunden noch Zeiten erfasst.',
+    abgleichZeitNichtLesbar:
+      'Der Abgleich mit der Zeiterfassung ist diesem Zugang nicht möglich — es wird '
+      + 'deshalb kein Befund gezeigt.',
+    wetterQuelle: 'Wetterquelle',
+    schichtBeendet:
+      'Diese Schicht ist beendet. Erfasst wird hier nichts mehr; was fehlt, meldet '
+      + 'die Einsatzleitung nach.',
+    schichtEntfernt:
+      'Diese Einteilung wurde aus dem Plan genommen. Sie bleibt lesbar, aber es kann '
+      + 'nichts mehr dazu erfasst werden.',
+    nummerOffen:
+      'Dieser Nachweis hat noch keine Nummer — in dieser Gesellschaft ist kein '
+      + 'Nummernkreis dafür eingerichtet.',
     offeneFrage: 'offen',
   },
   en: {
@@ -890,9 +956,12 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     wachbuch: 'Security log',
     wachbuchNeu: 'Write an entry',
     uebergabe: 'Handover',
-    uebergabeZu:
-      'The handover window is not configured (open, O-151). Until then only your own '
-      + 'entries appear here.',
+    uebergabeNichtEingestellt:
+      'The handover window has not been configured yet (open question O-151). Until then '
+      + 'only your own entries appear here.',
+    uebergabeAus:
+      'The handover window is configured and set to zero — the previous shift\u2019s entries '
+      + 'stay hidden. Only your own entries appear here.',
     art: 'Type',
     betreff: 'Subject',
     eintragstext: 'What happened?',
@@ -930,6 +999,21 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     hinzufuegen: 'Add',
     tagGeschlossen: 'This site day is closed — nothing more is added.',
     abgleich: 'Comparison with time tracking',
+    abgleichDeckungsgleich: 'Your own hours match this day\u2019s time tracking.',
+    abgleichAbweichung: 'The site diary and the time tracking differ.',
+    abgleichOhneAngabe: 'Neither man-hours nor times are recorded for this day.',
+    abgleichZeitNichtLesbar:
+      'This account cannot compare against time tracking — no finding is shown.',
+    wetterQuelle: 'Weather source',
+    schichtBeendet:
+      'This shift has ended. Nothing more is recorded here; anything missing is filed '
+      + 'by the dispatcher.',
+    schichtEntfernt:
+      'This assignment was removed from the plan. It stays readable, but nothing can '
+      + 'be recorded against it any more.',
+    nummerOffen:
+      'This record does not have a number yet — no number range is configured for it '
+      + 'in this company.',
     offeneFrage: 'open',
   },
   ar: {
@@ -1041,8 +1125,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     wachbuch: 'دفتر الحراسة',
     wachbuchNeu: 'كتابة قيد',
     uebergabe: 'التسليم',
-    uebergabeZu:
+    uebergabeNichtEingestellt:
       'لم تُضبط فترة التسليم بعد (مسألة مفتوحة، O-151). حتى ذلك الحين تظهر هنا قيودك أنت فقط.',
+    uebergabeAus:
+      'فترة التسليم مضبوطة على صفر — تبقى قيود الوردية السابقة مخفية. تظهر هنا قيودك أنت فقط.',
     art: 'النوع',
     betreff: 'الموضوع',
     eintragstext: 'ماذا حدث؟',
@@ -1079,6 +1165,18 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     hinzufuegen: 'إضافة',
     tagGeschlossen: 'أُغلق يوم الموقع هذا — لا يُضاف إليه شيء بعد الآن.',
     abgleich: 'المقارنة مع تسجيل الوقت',
+    abgleichDeckungsgleich: 'ساعاتك تطابق تسجيل الوقت لهذا اليوم.',
+    abgleichAbweichung: 'يوجد فرق بين يومية الموقع وتسجيل الوقت.',
+    abgleichOhneAngabe: 'لم تُسجَّل لهذا اليوم ساعات عمل ولا أوقات.',
+    abgleichZeitNichtLesbar:
+      'لا يمكن لهذا الحساب المقارنة مع تسجيل الوقت — لذلك لا تُعرض أي نتيجة.',
+    wetterQuelle: 'مصدر بيانات الطقس',
+    schichtBeendet:
+      'انتهت هذه الوردية. لم يعد بالإمكان التسجيل هنا؛ وما ينقص تستدركه إدارة العمليات.',
+    schichtEntfernt:
+      'أُزيل هذا التكليف من الخطة. يبقى قابلاً للقراءة، لكن لا يمكن تسجيل أي شيء عليه بعد الآن.',
+    nummerOffen:
+      'لا يحمل هذا المحضر رقماً بعد — لا يوجد نطاق ترقيم مُعدّ له في هذه الشركة.',
     offeneFrage: 'مفتوح',
   },
   tr: {
@@ -1191,9 +1289,12 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     wachbuch: 'Güvenlik defteri',
     wachbuchNeu: 'Kayıt yaz',
     uebergabe: 'Devir teslim',
-    uebergabeZu:
-      'Devir teslim penceresi ayarlanmadı (açık soru, O-151). O zamana kadar burada '
+    uebergabeNichtEingestellt:
+      'Devir teslim penceresi henüz ayarlanmadı (açık soru O-151). O zamana kadar burada '
       + 'yalnızca kendi kayıtlarınız görünür.',
+    uebergabeAus:
+      'Devir teslim penceresi ayarlı ve sıfırda — önceki vardiyanın kayıtları gizli kalır. '
+      + 'Burada yalnızca kendi kayıtlarınız görünür.',
     art: 'Tür',
     betreff: 'Konu',
     eintragstext: 'Ne oldu?',
@@ -1230,6 +1331,21 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     hinzufuegen: 'Ekle',
     tagGeschlossen: 'Bu şantiye günü kapatıldı — artık hiçbir şey eklenmez.',
     abgleich: 'Zaman kaydıyla karşılaştırma',
+    abgleichDeckungsgleich: 'Kendi saatleriniz bu günün zaman kaydıyla örtüşüyor.',
+    abgleichAbweichung: 'Şantiye günlüğü ile zaman kaydı birbirinden farklı.',
+    abgleichOhneAngabe: 'Bu gün için ne adam-saat ne de süre kaydedilmiş.',
+    abgleichZeitNichtLesbar:
+      'Bu hesap zaman kaydıyla karşılaştırma yapamıyor — bu nedenle bir bulgu gösterilmiyor.',
+    wetterQuelle: 'Hava durumu kaynağı',
+    schichtBeendet:
+      'Bu vardiya sona erdi. Burada artık kayıt yapılmaz; eksik kalanı operasyon '
+      + 'yönetimi sonradan bildirir.',
+    schichtEntfernt:
+      'Bu görevlendirme plandan çıkarıldı. Okunabilir kalır, ancak buna artık hiçbir '
+      + 'şey kaydedilemez.',
+    nummerOffen:
+      'Bu belgenin henüz bir numarası yok — bu şirkette bunun için bir numara aralığı '
+      + 'tanımlı değil.',
     offeneFrage: 'açık',
   },
 };
@@ -1360,5 +1476,78 @@ Readonly<Record<PortalSprache, Readonly<Record<WachbuchArtSchluessel, string>>>>
     uebergabe: 'Devir teslim',
     schluessel: 'Anahtar',
     alarm: 'Alarm',
+  },
+};
+
+/**
+ * Der Zustand eines Bautags und die Herkunft seiner Wetterangabe — in vier
+ * Sprachen (BAU-07, BAU-08, SPEC §10, EMP-12).
+ *
+ * **Warum sie hierher umgezogen sind.** Beide Karten standen als deutsche
+ * Literale in `app/portal/[mandant]/bau/bautagebuch-anzeige.ts`, also in der
+ * Anzeigehilfe des INTERNEN Portals. Die Bautagebuchseite des
+ * Mitarbeiterportals las sie von dort — und schrieb damit „Gegengezeichnet
+ * (Auftraggeber)" und „keine Quelle" auch auf einen Bildschirm, der gerade auf
+ * Arabisch oder Tuerkisch steht. Die Sprachwache sah das nicht, weil sie nur
+ * `MEIN_TEXTE` prueft.
+ *
+ * Dieselbe Bauart wie `WACHBUCH_ART_TEXTE`: die SCHLUESSEL sind das Vokabular
+ * der Datenbank (`bautagebuch_status`, `wetter_quelle`) und reisen
+ * unuebersetzt; uebersetzt wird nur, was auf dem Bildschirm steht (D-83). Das
+ * interne Portal nimmt die `de`-Spalte und liest damit wortgleich wie zuvor.
+ *
+ * `keine` bekommt den WOERTLICHEN Satz aus BAU-08 und keine Null: „0 °C" und
+ * „keine Angabe" sind zwei verschiedene Aussagen, und die erste ist im
+ * Bauprozess eine Falschangabe.
+ */
+export type BautagStatusSchluessel = 'entwurf' | 'abgeschlossen' | 'gegengezeichnet';
+
+export const BAUTAG_STATUS_TEXTE:
+Readonly<Record<PortalSprache, Readonly<Record<BautagStatusSchluessel, string>>>> = {
+  de: {
+    entwurf: 'Entwurf',
+    abgeschlossen: 'Abgeschlossen',
+    gegengezeichnet: 'Gegengezeichnet (Auftraggeber)',
+  },
+  en: {
+    entwurf: 'Draft',
+    abgeschlossen: 'Closed',
+    gegengezeichnet: 'Countersigned (client)',
+  },
+  ar: {
+    entwurf: 'مسودة',
+    abgeschlossen: 'مُغلق',
+    gegengezeichnet: 'موقَّع من صاحب العمل',
+  },
+  tr: {
+    entwurf: 'Taslak',
+    abgeschlossen: 'Kapatıldı',
+    gegengezeichnet: 'İşveren tarafından imzalandı',
+  },
+};
+
+export type WetterQuelleSchluessel = 'dwd' | 'manuell' | 'keine';
+
+export const WETTER_QUELLE_TEXTE:
+Readonly<Record<PortalSprache, Readonly<Record<WetterQuelleSchluessel, string>>>> = {
+  de: {
+    dwd: 'DWD Open Data',
+    manuell: 'manuell erfasst',
+    keine: 'keine Quelle',
+  },
+  en: {
+    dwd: 'DWD Open Data',
+    manuell: 'entered manually',
+    keine: 'no source',
+  },
+  ar: {
+    dwd: 'DWD Open Data',
+    manuell: 'أُدخل يدوياً',
+    keine: 'لا يوجد مصدر',
+  },
+  tr: {
+    dwd: 'DWD Open Data',
+    manuell: 'elle girildi',
+    keine: 'kaynak yok',
   },
 };

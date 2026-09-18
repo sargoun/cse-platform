@@ -86,6 +86,26 @@ as $$
     interval '0');
 $$;
 
+/*
+ * **Eigentum: `cse_definer`, und nicht `postgres`** (K-01).
+ *
+ * Eine `security definer`-Funktion laeuft als ihr Eigentuemer. Ohne die
+ * folgende Zeile gehoerte sie dem Migrationsbenutzer `postgres` — Superuser
+ * mit BYPASSRLS —, und damit liefe sie an jeder Zeilenpolicy vorbei. Die
+ * NULLSTELLIGE Fassung aus 0070 traegt diesen Fehler als Altlast und steht
+ * dafuer in der Ausnahmeliste von `tests/isolation/definer-eigentum.test.ts`;
+ * eine NEUE Funktion darf ihn nicht erben, nur weil sie denselben Namen traegt.
+ * (Die Wache verglich bis 0304 nur `nspname.proname` — eine Ueberladung
+ * rutschte durch. Sie vergleicht jetzt die volle Signatur.)
+ *
+ * `app.einstellung(uuid, text)` ist bisher nur `cse_app` und `cse_job`
+ * gegrantet. Aus dem Rumpf heraus laeuft der Aufruf als `cse_definer`, und ohne
+ * das Recht scheiterte er mit „permission denied for function app.einstellung"
+ * — also ausgerechnet dort, wo das Fenster gelesen wird.
+ */
+alter function app.uebergabe_fenster(uuid) owner to cse_definer;
+grant execute on function app.einstellung(uuid, text) to cse_definer;
+
 revoke execute on function app.uebergabe_fenster(uuid) from public;
 grant execute on function app.uebergabe_fenster(uuid) to cse_app, cse_job;
 

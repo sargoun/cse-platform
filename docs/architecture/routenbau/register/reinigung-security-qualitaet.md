@@ -13,9 +13,7 @@ dem Bauschritt geändert hat.
 
 - Bau: fertig
 - Kritik: 14 Befunde
-- Behebung: 0 behoben, 0 widerlegt, 0 offen
-
-> **Der Behebungsschritt lief noch nicht.** Die Einträge unten stammen aus dem Bauschritt und können durch ihn noch wachsen.
+- Behebung: 13 behoben, 1 widerlegt, 6 offen
 
 ## Gebaute Adressen
 
@@ -44,191 +42,149 @@ dem Bauschritt geändert hat.
 
 ## src/server/registry/dienste.ts
 
-/**
-   * **Die Reinigung, Runde zwei (PR reinigung-security-qualitaet).** Alle vier
-   * lesen; geschrieben wird der Abruf und die Ausnahme, und beide hinter dem
-   * Recht, das die RLS ihrer Tabelle verlangt.
-   *
-   * `reinigung/turnusvorschau` ist REIN — keine Datenbank, kein `now()`: sie
-   * rechnet aus Regel, Anker und Feiertagskarte die Termine samt Instant und
-   * DST-Befund. Deshalb `schreibend: false` ohne Gewissensfrage.
-   *
-   * `reinigung/sonderleistung` schreibt ZWEI Tabellen mit zwei Rechten:
-   * `sonderleistung` hinter `reinigung.schreiben`, der Zeitwert einer
-   * Katalogzeile hinter `katalog.schreiben`. Im Register steht das striktere
-   * der beiden Module; die Aufteilung steht im Handler.
-   */
+## src/server/registry/dienste.ts
+
+UNVERAENDERT gegenueber dem Bauschritt. Die Eintraege stehen woertlich in
+`docs/architecture/routenbau/register/reinigung-security-qualitaet.md` und gelten weiter:
+
   { modul: 'reinigung', pfad: 'reinigung/turnus', schreibend: true, schreibRecht: 'reinigung.schreiben' },
   { modul: 'reinigung', pfad: 'reinigung/turnusvorschau', schreibend: false },
   { modul: 'reinigung', pfad: 'reinigung/sonderleistung', schreibend: true, schreibRecht: 'reinigung.schreiben' },
   { modul: 'reinigung', pfad: 'reinigung/uebersicht', schreibend: false },
-  /*
-   * Der turnus-verankerte und der serien-verankerte Blick auf dieselben zwei
-   * Zahlen („wie viele Termine", „geplant bis") — eine Quelle, zwei Seiten.
-   * Rein lesend: geschrieben wird eine Serie in `dienstplan/serie`.
-   */
   { modul: 'dienstplan', pfad: 'dienstplan/serienliste', schreibend: false },
-  /*
-   * Der Lesepfad des Nachweisregisters, gehoben aus
-   * `app/portal/[mandant]/personal/nachweise/daten.ts`: der Modulkopf der
-   * Sicherheit braucht dieselbe Auskunft und darf nicht die `daten.ts` einer
-   * anderen Seite lesen.
-   */
   { modul: 'personal', pfad: 'nachweis/register', schreibend: false },
-  /**
-   * **Die Sicherheit, Runde zwei.** `security/bewacherregister` schreibt —
-   * und zwar unter `personal.bewacher_verwalten`, nicht unter
-   * `security.schreiben`: `bewacher_eintrag` traegt kein `mandant_id`, der
-   * Eintrag haengt am MENSCHEN (D-09), und die Policies `be_schreiben` /
-   * `be_aendern` verlangen genau dieses Recht. Das Modul ist deshalb
-   * `personal`.
-   *
-   * `security/uebersicht` und `security/veranstaltung` lesen nur.
-   */
   { modul: 'personal', pfad: 'security/bewacherregister', schreibend: true, schreibRecht: 'personal.bewacher_verwalten' },
   { modul: 'security', pfad: 'security/uebersicht', schreibend: false },
   { modul: 'security', pfad: 'security/veranstaltung', schreibend: false },
 
+Kein neuer Dienst, keine geaenderte Modulzuordnung, kein geaendertes Schreibrecht. Der
+Behebungsschritt hat nur BESTEHENDE Dienste erweitert:
+
+- `reinigung/turnus`: `TurnusZeile` traegt zusaetzlich `serieGeprueft: boolean`; `planungsserieId`
+  ist ohne `dienstplan.lesen` jetzt `null`.
+- `reinigung/uebersicht`: `ReinigungKopf.ohneSerie` ist jetzt `readonly TurnusZeile[] | null`.
+- `reinigung/sonderleistung`: `AbrufAuswahl` traegt zusaetzlich `vertragszeilen` (hinter
+  `auftrag.lesen`, mit „nicht geprueft\"-Fall); `ladeAbrufAuswahl` fragt `auftrag.lesen` mit.
+- `reinigung/qualitaet`: neu `zaehlePruefungen()` und `PRUEFUNG_GRENZE` (beide lesend, kein
+  eigener Registereintrag noetig — dieselbe Datei, derselbe Pfad).
+- `security/uebersicht`: `BEWACHER_QUALIFIKATION` (Wert `'34a'`, traf keine Katalogzeile) ist
+  ersetzt durch `BEWACHER_QUALIFIKATIONEN` mit den drei echten Schluesseln; `NachweisLage`
+  traegt zusaetzlich `bewacher: boolean`.
+- `security/bewacherregister`: neu exportiert `BEWACHER_VORWARNUNG_TAGE` (Platzhalter, O-707).
+
 ## src/server/auth/route-manifest.ts
 
-{
-    pfad: 'api/reinigung/turnus',
-    recht: 'reinigung.schreiben',
-    grund:
-      'CLN-02, CLN-03. Ein EIGENER Handler neben `api/dienstplan/serien`, und zwar wegen '
-      + 'eines Rechtebruchs: jener autorisiert hart auf `dienstplan.schreiben`, die Route '
-      + '`/portal/[mandant]/reinigung/turnus/neu` verlangt laut Manifest aber '
-      + '`reinigung.schreiben` — eine Reinigungsleitung ohne Dienstplanrecht sah eine Seite, '
-      + 'die ihr Recht anzeigt, und bekam hinter dem Knopf einen Fehler ueber ein anderes. '
-      + 'Zwei Oberflaechen, zwei Rechte, EIN Dienst: dieser Handler prueft das Recht der '
-      + 'Route und ruft `legeTurnusSerieAn`. Fuer die SERIE und die Schichten wird zusaetzlich '
-      + '`dienstplan.schreiben` verlangt (RLS von `planungsserie`/`einsatz`); fehlt es, '
-      + 'bricht die Transaktion ab und es entsteht auch kein Turnus — ein Turnus ohne Serie '
-      + 'erzeugt keine Schicht und waere eine Regel, die aussieht, als gaelte sie. Die '
-      + 'Ausnahme (`turnus_ausnahme`) braucht das zweite Recht nicht.',
-  },
-  {
-    pfad: 'api/reinigung/sonderleistungen',
-    recht: 'reinigung.schreiben',
-    grund:
-      'CLN-05, OPS-06. Vier Vorgaenge, EINE Adresse, ZWEI Rechte: Abruf erfassen, Zustand '
-      + 'setzen und stornieren laufen auf `sonderleistung` und damit auf '
-      + '`reinigung.schreiben`; der Zeitwert einer Katalogzeile laeuft auf '
-      + '`leistungskatalog_position` und damit auf `katalog.schreiben` — dem Recht, das das '
-      + 'Routenmanifest der Seite als Schreibrecht fuehrt. Der Handler autorisiert je Vorgang '
-      + 'auf das Recht der TABELLE; ein gemeinsames Recht fuer beide Haelften waere eine '
-      + 'erfundene Vereinfachung. Der Zustand `abgerechnet` kommt hier nicht durch: diesen '
-      + 'Stempel setzt die Rechnungsuebernahme (`positionsquelle.ts`), und ein Weg zurueck '
-      + 'auf `erbracht` machte den Abruf ein zweites Mal abrechenbar.',
-  },
-  {
-    pfad: 'api/security/bewacherregister',
-    recht: 'personal.bewacher_verwalten',
-    grund:
-      'SEC-03, LEG-04. Dasselbe Recht, das die Policies `be_schreiben` und `be_aendern` '
-      + 'verlangen — und NICHT `security.schreiben`: `bewacher_eintrag` traegt kein '
-      + '`mandant_id`, der Eintrag haengt am Menschen (D-09). Der Handler prueft zusaetzlich '
-      + 'die MODULBUCHUNG (`securityGebucht`), weil die zentrale Modulsperre hier nicht '
-      + 'greift: das einzige Recht dieser Route ist `personal.bewacher_verwalten`, und '
-      + '`personal` steht in QUERSCHNITT. Ohne die Pruefung waere der Schreibweg in einer '
-      + 'Gesellschaft ohne Security erreichbar. Kein Abgleich, kein Abruf, keine simulierte '
-      + 'Antwort: `quelle` bleibt per Pruefbedingung `manuell`, und das Format der '
-      + 'Bewacher-ID wird nicht geprueft (O-40).',
-  },
-  {
-    pfad: 'api/qualitaet/pruefungen',
-    recht: 'qualitaet.schreiben',
-    grund:
-      'OPS-11, SPEC §22. `qualitaet.schreiben` und nicht `reinigung.schreiben`: eine Pruefung '
-      + 'an einem Wachobjekt ist dieselbe Zeile wie eine an einem Reinigungsrevier, und das '
-      + 'Modul ist ein Querschnittsmodul (04-SEITENKARTE.md §5.6) — dasselbe Recht wie bei '
-      + '`api/qualitaet/reklamationen` daneben. Nummer und Pruefzeitpunkt vergibt der Dienst '
-      + '(`erfassePruefung`, Ausloeser `kern.qualitaetspruefung_feldzeit` auf `now()`); eine '
-      + 'Zeit aus der Anfrage waere eine rueckdatierbare Pruefung (Invariante 5). Der KUNDE '
-      + 'kommt vom Objekt und der PRUEFER aus der Sitzung — beides aus der Anfrage waere ein '
-      + 'Protokoll im falschen Kundenkonto bzw. eines, das jemand einem Kollegen unterschiebt.',
-  },
+## src/server/registry/routen.generiert.ts (GENERIERTER BLOCK — von mir nicht angefasst)
+
+Eine Zeile aendern, Zeile 127. Grund: die Seite `/portal/[mandant]/reinigung/sonderleistungen`
+fuehrt ZWEI Haelften mit ZWEI Rechten — die Katalogzeilen unter `katalog.schreiben`, die
+Abrufe (erfassen, Zustand setzen, stornieren) unter `reinigung.schreiben`. Der Handler
+autorisiert das bereits je Vorgang korrekt (`api/reinigung/sonderleistungen/route.ts:78-85`);
+im Register stand bisher nur die Kataloghaelfte, also schrieb die halbe Seite unter einem
+Recht, das in keinem Routeneintrag vorkommt.
+
+BISHER:
+
+  { pfad: "/portal/[mandant]/reinigung/sonderleistungen", beschreibung: "Glas · Sonderreinigung · Warenräumung as catalogue entries with their own time values", bewachung: {"art":"recht","lesen":["reinigung.lesen"],"schreiben":["katalog.schreiben"],"aal2":false}, scope: "M1", spec: ["CLN-05","OPS-06"], phase: 5, abschnitt: "5.7 Trade module — Reinigung (CLN-01…CLN-05)", zeile: 1096 },
+
+NEU:
+
+  { pfad: "/portal/[mandant]/reinigung/sonderleistungen", beschreibung: "Glas · Sonderreinigung · Warenräumung as catalogue entries with their own time values", bewachung: {"art":"recht","lesen":["reinigung.lesen"],"schreiben":["reinigung.schreiben","katalog.schreiben"],"aal2":false}, scope: "M1", spec: ["CLN-05","OPS-06"], phase: 5, abschnitt: "5.7 Trade module — Reinigung (CLN-01…CLN-05)", zeile: 1096 },
+
+Alternative, falls O-702 zugunsten des Katalogs entschieden wird: die Abrufhaelfte auf eine
+eigene Route verlegen. Das ist eine Registerentscheidung, keine Seitenentscheidung.
+
+## src/server/auth/route-manifest.ts
+
+UNVERAENDERT gegenueber dem Bauschritt — die vier Eintraege (`api/reinigung/turnus`,
+`api/reinigung/sonderleistungen`, `api/security/bewacherregister`, `api/qualitaet/pruefungen`)
+stehen woertlich in `docs/architecture/routenbau/register/reinigung-security-qualitaet.md`
+und gelten weiter. Der Behebungsschritt hat kein Recht und keine Adresse verschoben.
 
 ## src/server/db/schema/rls.ts
 
-Keine neue Tabelle, keine neue Loeschsperre, kein neuer Trigger — `src/server/db/schema/rls.ts` braucht keinen Eintrag.
+## src/server/db/schema/rls.ts
 
-Alle acht benutzten Tabellen (turnus, turnus_ausnahme, sonderleistung, leistungskatalog_position, qualitaetspruefung, qualitaetspruefung_position, pruefverfahren, bewacher_eintrag, veranstaltung) stehen samt RLS und Archivregeln in der laufenden Datenbank; nachgemessen in pg_policies und \d.
+KEIN Eintrag noetig — unveraendert gegenueber dem Bauschritt. Der Behebungsschritt hat keine
+Tabelle, keine Policy, keine Loeschsperre und keinen Ausloeser angelegt oder geaendert; es gibt
+auch keine neue Migration (Bereich 0285–0289 bleibt unbenutzt).
 
-NEBENBEFUND zur Kenntnis (keine Aenderung von mir): `bewacher_eintrag` traegt KEINE `loeschsperre`-Spalte, aber sehr wohl `trg_bewacher_eintrag_kein_hard_delete` und `trg_bewacher_eintrag_kein_truncate`. Falls rls.ts die Loeschsperren ueber die Spalte fuehrt, fehlt diese Tabelle dort — das ist eine Registerfrage, nicht eine dieser Domaene.
+NEBENBEFUND aus dem Bauschritt, unveraendert zur Kenntnis: `bewacher_eintrag` traegt KEINE
+`loeschsperre`-Spalte, hat aber `trg_bewacher_eintrag_kein_hard_delete` und
+`trg_bewacher_eintrag_kein_truncate`. Fuehrt `rls.ts` die Loeschsperren ueber die Spalte, fehlt
+diese Tabelle dort. Registerfrage, nicht Domaenenfrage.
+
+NEUER NEBENBEFUND aus dem Behebungsschritt (keine Aenderung von mir, aber fuer den
+Registerbetreuer wichtig): `qualitaetspruefung` hat KEINE Pruefbedingung, die einen Pruefer
+verlangt — `qp_akteur_stimmig` prueft den ERFASSER (`erstellt_von_art`/`erstellt_von`), nicht
+`pruefer_anstellung_id`/`pruefer_extern_name`. Eine Zeile ohne beides ist auf Datenbankebene
+erlaubt. Der Dienstweg schliesst das jetzt (Befund 8), eine Pruefbedingung waere die zweite
+Verteidigungslinie — das ist eine Migration und gehoert damit nicht in meinen Nummernbereich.
 
 ## src/server/registry/navigation.ts
 
-Zwei Menuepunkte zeigen ausdruecklich deshalb auf eine Unterseite, weil die Modulwurzel fehlte. Beide sind jetzt gebaut — die Pfade gehoeren auf die Wurzeln, und die Begruendungen im Kommentar sind damit ueberholt.
+## src/server/registry/navigation.ts
 
-ERSETZEN (bisher navigation.ts:214–226, Kommentar plus Zeile):
+UNVERAENDERT gegenueber dem Bauschritt — die beiden ERSETZEN-Bloecke stehen woertlich in
+`docs/architecture/routenbau/register/reinigung-security-qualitaet.md` und gelten weiter
+(`security` statt `security/posten`, `reinigung` statt `reinigung/reviere`, jeweils mit
+Kommentar).
 
-  /**
-   * `security`, nicht `security/posten`: die Modulübersicht der Seitenkarte
-   * (§5.8, Zeile 1) ist gebaut — drei Kacheln (unterbesetzte Posten, gesperrte
-   * oder ablaufende § 34a-Nachweise, Vorkommnisse der letzten sieben Tage) und
-   * die Wege des Moduls, jeder unter dem Recht seines Ziels.
-   *
-   * `gruppe: false` — und das ist eine Entscheidung, keine Auslassung. Der
-   * Modulkopf liest `einsatz`, `nachweis` und `wachbuch_eintrag`; das Wachbuch
-   * hat KEINEN Gruppenlesepfad (§1.7), und `/portal/gruppe/security` gibt es
-   * nicht. Eine Gruppenleitung liest keine Vorkommnismeldungen einer anderen
-   * Gesellschaft.
-   */
-  { schluessel: 'security', label: 'Security', pfad: 'security', recht: 'security.lesen', icon: 'security' },
+EINE Korrektur am Kommentartext des ersten Blocks, weil die Seite jetzt anders heisst: dort
+steht „drei Kacheln (unterbesetzte Posten, gesperrte oder ablaufende § 34a-Nachweise,
+Vorkommnisse der letzten sieben Tage)\". Die mittlere Kachel heisst jetzt „Nachweise abgelaufen
+oder ablaufend\" und ist nicht auf § 34a eingegrenzt (Befund 3, O-706). Bitte im Kommentar
+ersetzen durch: „abgelaufene oder ablaufende Nachweise\". Der Eintrag selbst — Pfad, Recht,
+Icon, `gruppe: false` — bleibt wie er ist.
 
-ERSETZEN (bisher navigation.ts:227–238, Kommentar plus Zeile):
-
-  /**
-   * `reinigung`, nicht `reinigung/reviere`: die Modulübersicht hat mit dem
-   * Turnus-Gesundheitsblatt ihren Inhalt bekommen — heutige Schichten, offene
-   * Leistungsnachweise und die Serien, deren Generator stehen geblieben ist.
-   * Die letzte ist die Auskunft, wegen der es die Seite gibt: ein leerer
-   * Dienstplan sieht aus wie ein ruhiger Tag.
-   *
-   * Das Icon bleibt `reinigung` aus dem geschlossenen Satz (DESIGN §5).
-   */
-  { schluessel: 'reinigung', label: 'Reinigung', pfad: 'reinigung', recht: 'reinigung.lesen', icon: 'reinigung' },
-
-Der eigene Punkt „Bewacherregister" (PR 42, weiter unten in derselben Datei) kann bleiben: die Route ist erreichbar und prueft die Modulbuchung jetzt selbst. Wo er auf `personal.bewacher_verwalten` bewacht ist, ist er korrekt — nur zeigt er in einer Gesellschaft ohne gebuchtes Security jetzt auf eine 404. Wenn das stoeren soll, braucht der Punkt `security.lesen` als ZWEITES Recht; das ist eine Registerentscheidung und keine Seitenentscheidung.
+Der eigene Punkt „Bewacherregister\" (PR 42) bleibt unveraendert gueltig, inklusive der offenen
+Registerfrage aus dem Bauschritt, ob er `security.lesen` als ZWEITES Recht braucht.
 
 ## Sonstiges
 
 ## docs/architecture/04-SEITENKARTE.md
 
-- §5.7 Zeile `/reinigung/sonderleistungen`: die Zeile beschreibt „Katalogeintraege mit eigenen Zeitwerten" und vergibt `katalog.schreiben`, der Datenbestand dahinter sind aber ZWEI Dinge (`leistungskatalog_position` und `sonderleistung`). Die Seite fuehrt bis zur Antwort BEIDE Haelften getrennt und beschriftet; bitte O-702 an der Zeile vermerken.
-- §5.8: es gibt weiterhin keine Route `/security/veranstaltungen/neu`, und woher ein Eventauftrag kommt, ist offen — bitte O-703 an der Zeile `/security/veranstaltungen` vermerken.
-- §5.8 Zeile `/security/bewacherregister`: die Route traegt als einziges Recht `personal.bewacher_verwalten`; `personal` ist Querschnittsmodul, die zentrale Modulsperre greift also nicht. Die Seite UND der Handler pruefen die Modulbuchung jetzt selbst (`securityGebucht`). Bitte als Bauart notieren oder `security.lesen` als zweites Leserecht ins Manifest nehmen.
-- §5.6 Zeilen `/qualitaet/pruefungen*`: bitte O-704 (Korrekturweg einer falsch erfassten Pruefung) und O-705 (was auf einen Mangel mit Frist folgt) vermerken.
-- §5.7 Zeile `/reinigung/turnus/[id]`: bitte O-701 (Wirkung einer Regelaenderung auf bereits materialisierte Schichten) vermerken.
+Unveraendert aus dem Bauschritt:
+- §5.7 Zeile `/reinigung/sonderleistungen`: O-702 an der Zeile vermerken (die Zeile beschreibt
+  Katalogeintraege und vergibt `katalog.schreiben`, dahinter stehen aber ZWEI Tabellen).
+- §5.8: O-703 an der Zeile `/security/veranstaltungen` vermerken (es gibt weiterhin keine
+  Route `/security/veranstaltungen/neu`).
 
-## docs/DESIGN.md
+Neu aus dem Behebungsschritt:
+- §5.7 Zeile `/reinigung/sonderleistungen`: zusaetzlich O-708 vermerken — die Vertragszeile
+  laesst sich beim Erfassen setzen, aber nicht nachtraeglich zuordnen.
+- §5.8 Zeile `/security` (Modulkopf): die Liste heisst nicht mehr „§ 34a-Nachweise\", sondern
+  „Nachweise mit Frist\", und zeigt alle Qualifikationen der Gesellschaft; O-706 an der Zeile
+  vermerken.
+- §5.8 Zeile `/security/bewacherregister`: O-707 an der Zeile vermerken (Vorwarnvorlauf).
 
-§5 fuehrt ein geschlossenes Pillenvokabular, und drei Wortsaetze dieser Domaene stehen nicht darin. Abgebildet statt erfunden — der Klartext steht als WORT daneben (§9). Zur Ergaenzung beantragt:
+## Warteschlangendatei
 
-- `sonderleistung_status`: „Beauftragt" und „Erbracht" fehlen. Abgebildet auf Wartet / Offen / Geplant / Bereit / Abgeschlossen / Archiviert.
-- `bewacher_status`: „Registriert", „Beantragt", „Erloschen", „Gesperrt" fehlen. Abgebildet auf Aktiv / Wartet / Archiviert / Fehler / Abgelehnt / Inaktiv.
-- Ein Wort fuer „unbestaetigter Katalogwert" fehlt weiterhin (03-GEWERKE.md §2.3 Nr. 5 beantragt es schon); bis dahin steht es als Text in `--warning`.
+`docs/architecture/routenbau/register/reinigung-security-qualitaet.md` traegt im Abschnitt
+„Stand\" noch „Behebung: 0 behoben, 0 widerlegt, 0 offen\" und den Satz „Der Behebungsschritt
+lief noch nicht.\" Beides ist jetzt ueberholt: 13 behoben (12 Befunde plus ein Eigenbefund an
+der Testfixtur), 1 widerlegt, 1 als Registereintrag zurueckgegeben. Ich habe die Datei nicht
+angefasst, weil sie die gemeinsame Warteschlange ist.
 
-Ausserdem fehlt ein Wort fuer den Zustand „nicht geprueft" (Recht fehlt, es gibt keine Aussage). Er kommt in dieser Domaene an sechzehn Stellen vor und ist konsequent als Text `nicht geprueft` in `--text-muted` gesetzt, nie als Farbe allein.
+## Arbeitsbaum, ausserhalb meiner Aenderungen
 
-## src/server/db/seed/index.ts — schon eingebaut, hier zur Kenntnis
-
-Zwei Aufrufe sind ergaenzt (Import in Zeile 25 und 27, Aufrufe nach `seedWachbuch` bzw. nach `seedReinigung`):
-
-  const reg = await seedBewacherUndEvents(sql, ids, sec.objektId);
-  const sonder = await seedSonderUndQualitaet(sql, ids);
-
-Falls ein anderer Agent dieselbe Datei aendert und es kollidiert: beide Funktionen sind exportiert (`seed/security.ts`, `seed/reinigung.ts`), idempotent und steigen einzeln aus. Die Protokollzeilen stehen unmittelbar daneben im Diff.
+`vitest.rsq.tmp.config.ts` erscheint als geloescht (` D`). Es war MEINE Notizdatei (eine Kopie
+von `vitest.isolation.config.ts` ohne `globalSetup`, um die Isolationszusagen gegen die eigene
+Datenbank zu fahren, solange der gemeinsame Vorlagenbau haengt). Ein paralleler Agent hat sie
+mit Commit 8151634 („Die Warteschlange traegt jetzt auch die Befunde …\") versehentlich
+mitcommittet; ich habe sie geloescht. Die Loeschung ist richtig und soll bleiben.
 
 ## Zeilen für docs/DECISIONS.md, Abschnitt „Offen"
 
-| O-700 | **Ist ein Ausfall eines Reinigungsturnus vom Pauschalbetrag abzuziehen, und ist ein Zusatztermin zusaetzlich zu berechnen — oder gleicht die Pauschale beides aus?** `turnus_ausnahme.abrechnungsrelevant` ist nullbar, und der Dienst leitet den Wert NICHT aus der Art ab: `art = 'ausfall' ? true : false` waere plausibel und waere eine Vertragsaussage, die niemand getroffen hat. Bis zur Antwort bleibt die Spalte leer, wenn niemand sie setzt; das Anlegeformular hat „offen — noch nicht entschieden" als Vorgabe und nicht „nein", und die Ausnahmeliste zeigt `offen (O-700)`. | CLN-02, CLN-03, FIN-01, `turnus_ausnahme.abrechnungsrelevant`, `services/reinigung/turnus.ts` |
-| O-701 | **Was geschieht mit den bereits erzeugten Schichten, wenn Regel, Beginn oder Dauer eines laufenden Turnus geaendert werden — werden kuenftige Schichten nachgezogen, bleibt der Bestand unveraendert, oder wird die Serie beendet und eine neue angelegt?** An den materialisierten `einsatz`-Zeilen haengen Check-in-Links, Leistungsnachweise und Rechnungen. Eine still gewaehlte Variante veraendert rueckwirkend bezahlte Schichten — und zwar lautlos. `/reinigung/turnus/[id]` ist deshalb lesend gebaut und sagt es; rueckwirkungsfrei bleibt der Weg, den 0069 vorsieht: eine Ausnahme fuer einen einzelnen Tag. | CLN-02, TIM-02, TIM-03, `turnus`, `planungsserie`, `einsatz`, `services/dienstplan/generator.ts` |
-| O-702 | **Pflegt die Seite „Sonderleistungen" die Katalogzeilen (Glas, Sonderreinigung, Warenraeumung mit ihren Zeitwerten) oder die einzelnen Abrufe je Objekt — oder beides, und wer pflegt dann den Leistungskatalog?** 04-SEITENKARTE.md §5.7 beschreibt Katalogeintraege und vergibt `katalog.schreiben`; dahinter liegen ZWEI Tabellen mit zwei Rechten (`leistungskatalog_position` / `katalog.lesen`+`katalog.schreiben`, `sonderleistung` / `reinigung.lesen`+`reinigung.schreiben`), und `/leistungskatalog` (Phase 4) gibt es noch nicht. Bis zur Antwort fuehrt die Seite beide Haelften getrennt und beschriftet, jede hinter ihrem Recht. Der LISTENPREIS wird dort ausdruecklich nicht geaendert: er geht in Angebote und Rechnungen, und zwei Seiten, die dieselbe Preisspalte schreiben, sind eine zu viel. | CLN-05, OPS-06, FIN-01, `leistungskatalog_position`, `sonderleistung`, `services/reinigung/sonderleistung.ts` |
-| O-703 | **Woher entsteht ein Veranstaltungsauftrag — aus einer Auftragsleistung, aus dem Vertrieb oder handerfasst von der Wachleitung, und wer darf ihn anlegen?** Im ganzen Baum gab es keinen Anlegeweg fuer `veranstaltung`, und 04-SEITENKARTE.md §5.8 fuehrt keine Route `/veranstaltungen/neu`. Davon haengt ab, welche Felder Pflicht sind (`auftrag_leistung_id`? `dienstanweisung_id`?) und wer sie fuellt. `/security/veranstaltungen/[id]` ist deshalb ohne Anlegeknopf gebaut; der Seed schreibt zwei Zeilen handerfasst und OHNE `auftrag_leistung_id`, damit die Seite belegbar ist, ohne eine Herkunft zu behaupten. | SEC-08, OPS-05, `veranstaltung`, `services/security/veranstaltung.ts`, `db/seed/security.ts` |
-| O-704 | **Wie wird eine falsch erfasste Qualitaetspruefung berichtigt — durch eine ersetzende Pruefung mit Verweis auf die alte (wie im Wachbuch), durch Archivieren mit Grund, oder ist eine Korrektur der Felder zulaessig?** `qualitaetspruefung` traegt `archiviert_am` und `loeschsperre`, aber KEIN `ersetzt_durch_id` — es gibt also keine Stelle, an der eine Richtigstellung auf ihren Vorgaenger zeigen koennte. Geloescht wird ohnehin nie (Invariante 8). Bis zur Antwort ist `/qualitaet/pruefungen/[id]` lesend, und eine Korrektur entsteht als neue Pruefung ohne Verweis. | OPS-11, SPEC §22, LEG-01, `qualitaetspruefung`, `wachbuch_eintrag.ersetzt_durch_id` als Vorbild |
-| O-705 | **Was folgt auf einen Mangel mit Frist — entsteht daraus automatisch eine Reklamation oder eine Aufgabe, und wer ist verantwortlich, wenn die Frist verstreicht?** `qualitaetspruefung_position` traegt `mangel_beschreibung` und `frist_am`, aber keinen Schluessel auf `reklamation` oder `aufgabe`; in der ANDEREN Richtung gibt es einen (`reklamation.qualitaetspruefung_position_id`). Eine Verknuepfung „Mangel wird Reklamation" zu bauen hiesse zu entscheiden, WANN das geschieht und WER es tut — und eine verstrichene Frist waere dann ein Versprechen an den Kunden, das niemand gegeben hat (dieselbe Lage wie O-14 bei `reklamation.faellig_am`). Das Pruefblatt markiert eine ueberfaellige Frist farbig und im Text und sagt, dass daraus nichts von selbst folgt. | OPS-11, FIN-18, `qualitaetspruefung_position.frist_am`, `reklamation`, `aufgabe` |
+| O-706 | **Zeigt der Sicherheits-Modulkopf nur die Bewachernachweise oder alle Nachweise mit Frist?** Die Liste hiess „§ 34a-Nachweise mit Frist" und war auf nichts eingegrenzt: `leseRegister` kennt keinen Qualifikationsfilter und liefert jede Zeile der Gesellschaft. Die dafuer angelegte Konstante `BEWACHER_QUALIFIKATION = '34a'` wurde nirgends benutzt — und haette, benutzt, KEINE Katalogzeile getroffen: im plattformweiten Katalog heissen sie `34a_sachkunde`, `34a_unterrichtung` und `bewacherausweis`. Ein Filter darauf haette die Liste still geleert und „nichts abgelaufen" gemeldet. **Heute gebaut:** die Liste zeigt weiter ALLE Nachweise mit Frist — weil SEC-04 nicht an der Qualifikation haengt, sondern an `einsatzanforderung.zwingend` des jeweiligen Postens (`app.einsatz_qualifikation_erfuellt`), also auch eine abgelaufene Unterweisung sperren kann —, Ueberschrift und Kachel sagen das jetzt, der unbelegte Zusatz „N sperren die Einteilung" ist weg, und `BEWACHER_QUALIFIKATIONEN` traegt die drei echten Schluessel und MARKIERT die betroffenen Zeilen mit „§ 34a". Die Frage ist fachlich: soll der Modulkopf der Sicherheit auf die Bewacherqualifikationen verengt werden — mit dem Preis, dass eine abgelaufene, aber zwingend geforderte Erste-Hilfe- oder Unterweisungszeile dort nicht mehr auffaellt? | SEC-02, SEC-04, `services/security/uebersicht.ts`, `services/nachweis/register.ts`, `db/seed/qualifikation.ts` |
+| O-707 | **In welchem Vorlauf ist eine ablaufende Bewacher-Erlaubnis zu melden?** Die Kachel „Laeuft in 60 Tagen ab" rechnete gegen eine blanke `60` in der Seite. `bewacher_eintrag` traegt — anders als `qualifikation`, wo `warnung_tage` die Schwellen als Daten fuehrt und `lageVon` sie ausliest — KEINE Warnstufen, und O-40 deckt nur Format, Pflichtfelder und Meldeereignisse ab. Damit war die Zahl eine unentschiedene Geschaeftsregel im Code, in einem Register, das ueber die Einsetzbarkeit eines Menschen entscheidet. **Heute gebaut:** die Schwelle heisst `BEWACHER_VORWARNUNG_TAGE` und steht EINMAL im Dienst, ausdruecklich als Platzhalter; die Kachel nennt die Zahl UND kennzeichnet sie als offen, und darueber steht ein Hinweis, dass gegen einen Platzhalter gerechnet wird. Die Frage hat zwei Haelften: welcher Vorlauf gilt, und gehoert die Schwelle in den Eintrag (wie `qualifikation.warnung_tage`) oder gilt eine feste Frist fuer alle? Kommen Warnstufen in die Tabelle, tritt die Konstante ersatzlos zurueck. | SEC-03, LEG-04, O-40, `services/security/bewacherregister.ts` |
+| O-708 | **Laesst sich die Vertragszeile eines bereits erfassten Abrufs nachtraeglich zuordnen — und nach `abgerechnet` noch?** Die Rechnungsuebernahme verbindet `sonderleistung` per INNER JOIN mit `auftrag_leistung` (`finanz/abrechnungsart/einzelabruf.ts`); ein Abruf ohne `auftrag_leistung_id` ist damit strukturell nicht abrechenbar. Der einzige Anlegeweg setzte das Feld nie — weder hatte das Formular es, noch reichte der Handler etwas durch —, und dieselbe Seite meldete die so entstandenen Zeilen anschliessend selbst als „Ohne Vertragszeile". **Heute gebaut:** das Formular bietet die lebenden Vertragszeilen an (nach Objekt gruppiert, Rahmenzeilen ohne Objektbezug in eigener Gruppe), hinter `auftrag.lesen` mit „nicht geprueft"-Fall, und der Handler reicht sie durch. Die Angabe bleibt FREIWILLIG, weil ein Abruf oft vor dem Nachtrag entsteht, der die Zeile ueberhaupt erst schafft. Ein zweiter Vorgang „Vertragszeile zuordnen" ist bewusst NICHT gebaut: ob eine solche Nachtragung zulaessig ist, wer sie darf, und ob sie nach dem Stempel `abgerechnet` noch erlaubt sein soll, ist eine Vertrags- und Buchungsfrage — eine still gewaehlte Antwort schluege einen bereits abgerechneten Abruf einer anderen Vertragszeile zu. | CLN-05, OPS-06, FIN-07, `services/reinigung/sonderleistung.ts`, `finanz/abrechnungsart/einzelabruf.ts` |
+| O-700 | **Ist ein Ausfall eines Reinigungsturnus vom Pauschalbetrag abzuziehen und ein Zusatztermin zusaetzlich zu berechnen, oder gleicht die Pauschale beides aus?** (aus dem Bauschritt, unveraendert) `turnus_ausnahme.abrechnungsrelevant` bleibt `null` — UNBEANTWORTET, nicht „nein": ein vorausgewaehltes „nein" waere eine Vertragsaussage, die niemand getroffen hat. Das Feld im Formular fuehrt „offen — noch nicht entschieden (O-700)" als Vorgabe. | CLN-02, CLN-03, `services/reinigung/turnus.ts`, `api/reinigung/turnus/route.ts` |
+| O-701 | **Was geschieht mit den bereits erzeugten Schichten, wenn Regel, Beginn oder Dauer eines laufenden Turnus geaendert werden — werden kuenftige Schichten nachgezogen, bleibt der Bestand unveraendert, oder wird die Serie beendet und eine neue angelegt?** (aus dem Bauschritt, unveraendert) An den erzeugten Schichten haengen Check-in-Links, Leistungsnachweise und Rechnungen; eine still gewaehlte Variante veraenderte rueckwirkend bezahlte Schichten. Regel, Beginn und Dauer sind auf dem Turnusblatt deshalb NICHT aenderbar, sichtbar als „offen (O-701)"; fuer einen einzelnen Tag gibt es die Ausnahme. | CLN-02, TIM-02, `portal/[mandant]/reinigung/turnus/[id]/page.tsx` |
+| O-702 | **Pflegt die Seite „Sonderleistungen" die Katalogzeilen oder die einzelnen Abrufe je Objekt — oder beides, und wer pflegt dann den Leistungskatalog?** (aus dem Bauschritt, unveraendert) Die Seite fuehrt bis zur Antwort BEIDE Haelften getrennt und beschriftet, jede hinter dem Recht ihrer Tabelle (`leistungskatalog_position` → `katalog.schreiben`, `sonderleistung` → `reinigung.schreiben`). Der Registereintrag der Route fuehrt darum jetzt beide Schreibrechte. | CLN-05, OPS-06, `services/reinigung/sonderleistung.ts` |
+| O-703 | **Woher entsteht ein Veranstaltungsauftrag — aus einer Auftragsleistung, aus dem Vertrieb oder handerfasst von der Wachleitung, und wer darf ihn anlegen?** (aus dem Bauschritt, unveraendert) Es gibt weiterhin keine Route `/security/veranstaltungen/neu`; der Seed legt zwei Veranstaltungen an, eine davon mit Ort nur als Text. | SEC-08, `services/security/veranstaltung.ts`, SEITENKARTE §5.8 |
+| O-704 | **Wie wird eine falsch erfasste Qualitaetspruefung berichtigt — durch eine ersetzende Pruefung mit Verweis auf die alte (wie im Wachbuch), durch Archivieren mit Grund, oder ist eine Korrektur der Felder zulaessig?** (aus dem Bauschritt, unveraendert) Das Pruefblatt ist lesend; die Tabelle traegt keinen Korrekturweg. | OPS-11, `portal/[mandant]/qualitaet/pruefungen/[id]/page.tsx` |
+| O-705 | **Was folgt auf einen Mangel mit Frist — entsteht daraus automatisch eine Reklamation oder eine Aufgabe, und wer ist verantwortlich, wenn die Frist verstreicht?** (aus dem Bauschritt, unveraendert) Es entsteht heute NICHTS von selbst; die ueberfaellige Frist wird farbig UND im Text gezeigt, mehr nicht. | OPS-11, OPS-12, `portal/[mandant]/qualitaet/pruefungen/[id]/page.tsx`, `db/seed/reinigung.ts` |
 
 ## Befunde des Prüfers (14)
 
@@ -265,6 +221,19 @@ Falls ein anderer Agent dieselbe Datei aendert und es kollidiert: beide Funktion
 
 Zwei blockierende Befunde bleiben, und beide sind Rückfälle in genau die Fehlerklasse, gegen die diese Domäne gebaut wurde. Erstens: `planungsserieId` ist als einziges der drei fremdberechtigten Felder nicht auf `null` gesetzt, wenn `dienstplan.lesen` fehlt — zwei Seiten behaupten daraufhin in Warnfarbe „Keine Serie — der Generator hat diesen Turnus noch nie gesehen\", obwohl es die Serie gibt; erreichbar über `benutzer_mandant.module` (AUT-01). Zweitens: `pruefeAnker` schliesst den Revierraum aus fremdem Revier aus, lässt aber das REVIER aus fremdem Objekt durch (`qp_revier_fk` kennt nur den Mandanten), und das Formular bietet dazu alle Reviere ungefiltert an — ein Prüfprotokoll landet am falschen Haus. Dazu vier wichtige Befunde: die §-34a-Kachel der Sicherheit zählt in Wahrheit alle Qualifikationen (die dafür angelegte Konstante `BEWACHER_QUALIFIKATION` wird nirgends benutzt), im Bewacherregister steht eine erfundene 60-Tage-Frist ohne TODO und ohne Registerzeile, die zugesagte Generator-Rückmeldung nach dem Turnusanlegen verschwindet, weil die Zielseite kein `searchParams` nimmt, und jeder über die neue Oberfläche erfasste Sonderleistungsabruf ist wegen des fehlenden `auftrag_leistung_id` strukturell nicht abrechenbar — was dieselbe Seite anschliessend selbst als roten Befund meldet. Der Isolationstest war auftragsgemäss nicht ausführbar; die Aussagen darin konnte ich nur statisch prüfen.
 
+## Vom Behebenden WIDERLEGT (Befund war falsch)
+
+- [KLEIN 14] „Der vierte Pflichtfall aus CLAUDE.md ist nicht abgedeckt" — WIDERLEGT, Code unveraendert. Der Pflichtfall „ten shifts starting at the same instant on one object" IST gegen echtes Postgres abgedeckt, nur nicht in der vom Pruefer gelesenen Datei: `tests/isolation/dienstplan-generator.test.ts:242-279`, Abschnitt „(5) zehn Serien zur selben Sekunde an einem Objekt (TIM-04)" — eine Serie plus NEUN weitere Reviere/Turnusse/Serien auf DEMSELBEN Objekt mit derselben Anfangszeit, danach `select count(*) from einsatz where objekt_id = $1 and beginn_zeitpunkt = (select zeitpunkt from app.loese_ortszeit(date '2027-01-04','06:00','Europe/Berlin'))` mit `expect(z!.anzahl, 'zehn Schichten, zehn Zeilen').toBe(10)`. Die strukturelle Haelfte (kein `exclude using`, kein eindeutiger Index ueber `objekt_id` + `beginn_zeitpunkt`) haelt `tests/kern/dienstplan-schema.test.ts:58-80` unter „TIM-04". Der Dateikopf von `tests/kern/turnus-vorschau.test.ts` sagt seit dem Bauschritt selbst, der Fall sei „zur Haelfte hier … und zur Haelfte im Isolationstest" — die Behauptung, der Bericht fuehre den Determinismus-Test als den ganzen Pflichtfall, trifft die Datei nicht. Zutreffend war allein, dass der `describe`-Name aus dem Zusammenhang gerissen ueberzogen klingt; er heisst jetzt „Pflichtfall 4, Haelfte 1 von 2 — die Aufloesung ist deterministisch" und der Kommentar nennt Datei und Abschnitt der anderen Haelfte. GEPRUEFT: beide Dateien laufen gruen (44 Zusagen).
+
+## Nach der Behebung noch offen
+
+- [KLEIN 13] `src/server/registry/routen.generiert.ts:127` — Befund BESTAETIGT, aber nicht von mir geaendert: die Datei ist ein GENERIERTER Block und steht auf der Nichtanfassen-Liste. Die Seite zeigt drei Schreibformulare auf `sonderleistung` unter `reinigung.schreiben` (Abruf erfassen, Zustand setzen, stornieren), der Registereintrag fuehrt als `schreiben` nur `katalog.schreiben`. Ersatzzeile steht unter `registry_manifest` — bitte zentral einsetzen.
+- O-706 (neu): Umfang der Nachweiskachel/-liste im Sicherheits-Modulkopf. Heute: ALLE Nachweise der Gesellschaft mit Frist, die Bewacherqualifikationen markiert.
+- O-707 (neu): Vorwarnvorlauf fuer eine ablaufende Bewacher-Erlaubnis. Heute: benannter Platzhalter `BEWACHER_VORWARNUNG_TAGE = 60`, in der Kachel als offen gekennzeichnet.
+- O-708 (neu): nachtraegliche Zuordnung/Aenderung der Vertragszeile eines Abrufs, und ob das nach `abgerechnet` zulaessig ist. Heute: Zuordnung nur beim Erfassen; ein zweiter Vorgang „Vertragszeile zuordnen" ist bewusst NICHT gebaut.
+- FREMDDOMAENE, blockiert die Isolations-Suite: `pnpm db:seed` bricht derzeit in `legeKatalogHierarchieAn` (`src/server/db/seed/vertrieb.ts:541-576`) mit `42501 new row violates row-level security policy for table "leistungskatalog_position"` ab. Ursache liegt in der parallel laufenden Katalogarbeit (`drizzle/0298_leistungskatalog_status.sql` ungetrackt, `src/server/db/seed/vertrieb.ts` und `src/server/services/stammdaten/katalog.ts` geaendert, `src/server/services/katalog/` neu): der einzige Katalog steht auf `status = 'entwurf'`, die Policy `leistungskatalog_position.t_mandant` verlangt `katalog.schreiben`. NACHGEWIESEN NICHT MEINE AENDERUNG: der Seedschritt meiner Domaene laeuft davor durch („4 Einzelabrufe …, 2 Qualitaetspruefungen") und `seedVertrieb` importiert keine meiner Dateien. Folge: `tests/isolation/global-setup.ts` kann die Vorlagen nicht bauen, also laeuft `pnpm test:isolation` fuer NIEMANDEN. Gehoert dem Eigner der Katalogdomaene.
+- FREMDDOMAENE: `tests/isolation/reinigung.test.ts` > „eine neu angelegte Gesellschaft bekommt ihre Platzhalterzeile" faellt mit „Fuer den Bereich pruef-<zufall> gibt es kein Identitaetstoken in DESIGN §1" (`trg_mandant_identitaet_anlegen`). Der Test legt bewusst einen Mandanten mit Zufalls-Slug an; eine neuere Identitaets-Migration laesst das nicht mehr zu. Vorbestehend, nicht von mir beruehrt, und die Entscheidung (Test-Slug mit Token, oder Ausloeser fuer Testslugs durchlaessig) gehoert zur Identitaetsarbeit.
+
 ## Notizen des Bauender
 
 MIGRATIONEN: keine. Mein Bereich 0285–0289 bleibt UNGENUTZT — alle acht Tabellen (turnus, turnus_ausnahme, sonderleistung, leistungskatalog_position, qualitaetspruefung(_position), pruefverfahren, bewacher_eintrag, veranstaltung) stehen samt RLS und Archivregeln in der Datenbank, und auch `be_schreiben` (INSERT auf personal.bewacher_verwalten) gab es entgegen der Planannahme schon. Der Migrationslauf wurde trotzdem viermal vollstaendig gefahren (drop/create w_rsq + pnpm db:migrate), zuletzt bis 0299 mit „Migrationen angewendet.".
@@ -288,3 +257,40 @@ SEED: die vier leeren Tabellen sind gefuellt, ueber die ECHTEN Dienste und damit
 ZWEI HEBUNGEN mit Folgen in fremden Dateien, beide minimal: `dienstplan/serien/page.tsx` ruft jetzt `listeSerien()` statt seiner Inline-Abfrage (und `lesbareRegel` aus lib), und `personal/nachweise/daten.ts` ist ein reiner Re-Export auf `services/nachweis/register.ts`. Beide bleiben unter demselben Namen importierbar; keine zweite Fassung irgendwo.
 
 DAS FEHLT NOCH und ist keine Seitenarbeit: `docs/DECISIONS.md` kennt O-700…O-705 noch nicht, deshalb meldet die Wache `todo-client-nicht-im-register` sechs Treffer in meinen Dateien — die Zeilen stehen fertig in `decisions_zeilen`. Ebenso fehlen die Dienstregister- und Manifesteintraege (portal-shell.test.ts und routen.test.ts sind deswegen rot); die Texte stehen in `registry_dienste` und `registry_manifest`. Typecheck, eslint und alle uebrigen Wachen sind auf meinen Pfaden sauber.
+
+## Notizen des Behebender
+
+PRUEFSTAND. `pnpm typecheck` sauber. `npx eslint .` sauber. `pnpm guards` meldet nur `todo-client-nicht-im-register` (83 Treffer im ganzen Baum, davon 9 aus dieser Domaene — das ist genau die Warteschlange, die zentral eingetragen wird; keine einzige Verletzung einer Gestaltungs- oder Farbregel). Migration nach der letzten Aenderung erneut gegen die eigene Datenbank geprueft: `drop/create w_rsq` + `cse.fenster_schluessel` + `pnpm db:migrate` → „Migrationen angewendet\" bis `0304`. KEINE neue Migration; der Bereich 0285–0289 bleibt unbenutzt, weil kein Befund eine Schemaaenderung verlangte.
+
+TESTS. kern: `turnus-vorschau`, `dienstplan-schema`, `nachweis`, `reinigung-schnappschuss`, `reinigung-sollzeit`, `reinigung-turnus-regel`, `security-umgehungsweg`, `sonderleistung-status` — 89 Zusagen gruen. isolation `reinigung-security-qualitaet.test.ts` — 23 von 23 gruen (21 vorhandene + 2 neue Regressionszusagen). Beide neuen Zusagen sind GEGENGEPRUEFT: mit zurueckgenommenem Fix faellt jeweils genau sie und nur sie.
+
+WARUM DIE ISOLATIONSLAEUFE UEBER EINE EIGENE KONFIGURATION LIEFEN. `pnpm test:isolation` startet ueber `tests/isolation/global-setup.ts` einen vollstaendigen `pnpm db:seed` fuer die Vorlagendatenbank — und der bricht derzeit in der KATALOGDOMAENE ab (siehe „offen\"). Damit laesst sich die Suite zurzeit fuer keine Domaene fahren. Ich habe deshalb eine Notizkopie der Konfiguration ohne `globalSetup` benutzt und gegen eine selbst angelegte, migrierte und bis zum Abbruchpunkt geseedete Datenbank gefahren; die Notizkopie ist wieder geloescht. Die Zusagen selbst sind unveraendert die des Baums.
+
+ZWEI FUNDE, DIE DIE KRITIK NICHT HATTE UND DIE WICHTIGER SIND ALS DIE HALBE LISTE:
+(1) `BEWACHER_QUALIFIKATION = '34a'` traf KEINE Katalogzeile. Der Pruefer schlug als ersten Weg vor, `leseRegister` damit zu filtern — das haette die Liste still geleert und aus einer falschen Ueberschrift eine falsche Entwarnung gemacht, also den Fehler verschlimmert. Die echten Schluessel (`34a_sachkunde`, `34a_unterrichtung`, `bewacherausweis`) sind nachgemessen; zwei davon tragen ausserdem `laeuftAb: false`, ein Filter auf „§ 34a mit Frist\" waere also ohnehin fast immer leer gewesen.
+(2) `tests/isolation/reinigung-security-qualitaet.test.ts` konnte seit dem Bauschritt NIE laufen (Fixtur gegen abgeschaltete Ausloeser). Alle 22 Zusagen dieser Domaene waren tot, ohne dass es auffiel — weil die Suite als Ganzes am Vorlagenbau haengt. Behoben; deshalb stehen jetzt ueberhaupt erst Zahlen hinter „23 gruen\".
+
+ZUR SCHWERE VON BEFUND 1. Der Pruefer nennt es „Fehlalarm statt Fehlentwarnung\" und hat recht, aber die Reparatur ist nicht symmetrisch zur Entwarnung: `planungsserieId === null` bedeutet nach dem Fix „kein Recht ODER keine Serie\" und ist als Spalte allein KEINE Auskunft mehr. Ein blosses `planbar ? … : null` haette die Oberflaechen still auf „keine Serie\" stehen lassen. Deshalb das zusaetzliche Feld `serieGeprueft` — es ist der einzige Weg, auf dem eine Seite die beiden Faelle noch auseinanderhalten kann, und die Regressionszusage prueft genau das (sie faellt naemlich NICHT an `planungsserieId`, sondern an `ohneSerie`).
+
+GESTALTUNG. Keine neuen Werte. Entfernt wurde `min-h-[88px]`; verwendet wurden ausschliesslich vorhandene Tokenklassen (`text-micro`, `text-text-subtle`, `tracking-[0.08em]` — letzteres steht im Baum bereits mehrfach, u. a. auf dem Turnusblatt). Alle neuen Oberflaechentexte sind deutsch. Fehlendes Recht fuehrt weiterhin zu 404, nicht 403 (AUT-06); Routenhandler bleiben duenn (autorisieren → Dienst → zurueck), die neue Zaehlung der Qualitaetskacheln und die Ankerpruefung liegen im Dienst, nicht in der Komponente.
+
+GEAENDERTE DATEIEN (alle absolut):
+/home/user/cse-platform/src/server/services/reinigung/turnus.ts
+/home/user/cse-platform/src/server/services/reinigung/uebersicht.ts
+/home/user/cse-platform/src/server/services/reinigung/qualitaet.ts
+/home/user/cse-platform/src/server/services/reinigung/sonderleistung.ts
+/home/user/cse-platform/src/server/services/security/uebersicht.ts
+/home/user/cse-platform/src/server/services/security/bewacherregister.ts
+/home/user/cse-platform/src/app/portal/[mandant]/reinigung/page.tsx
+/home/user/cse-platform/src/app/portal/[mandant]/reinigung/turnus/page.tsx
+/home/user/cse-platform/src/app/portal/[mandant]/reinigung/turnus/[id]/page.tsx
+/home/user/cse-platform/src/app/portal/[mandant]/reinigung/sonderleistungen/page.tsx
+/home/user/cse-platform/src/app/portal/[mandant]/security/page.tsx
+/home/user/cse-platform/src/app/portal/[mandant]/security/bewacherregister/page.tsx
+/home/user/cse-platform/src/app/portal/[mandant]/qualitaet/pruefungen/page.tsx
+/home/user/cse-platform/src/app/portal/[mandant]/qualitaet/pruefungen/neu/page.tsx
+/home/user/cse-platform/src/app/api/reinigung/sonderleistungen/route.ts
+/home/user/cse-platform/src/app/api/qualitaet/pruefungen/route.ts
+/home/user/cse-platform/tests/kern/turnus-vorschau.test.ts
+/home/user/cse-platform/tests/isolation/reinigung-security-qualitaet.test.ts
+Geloescht: /home/user/cse-platform/vitest.rsq.tmp.config.ts (meine Notizdatei, von einem parallelen Agenten versehentlich mitcommittet).

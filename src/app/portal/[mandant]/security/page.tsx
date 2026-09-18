@@ -401,7 +401,7 @@ export default async function SecurityKopfSeite(
                   <p className="m-0 mt-s2 text-sm text-text-muted">
                     {v.objekt}
                     {' · '}
-                    {v.urheber}
+                    {v.urheber ?? '—'}
                     {v.nachgetragen && (
                       <span className="ml-s2 text-warning">· nachgetragen</span>
                     )}

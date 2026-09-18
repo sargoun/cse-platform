@@ -73,6 +73,22 @@ export async function POST(
           art: art as WachbuchArt,
           betreff,
           eintragstext,
+          /*
+           * Der Praesenznachweis (SEC-05). Die Kennung kommt aus dem
+           * Formular — gepruft wird sie NICHT hier, sondern in
+           * `schreibeEintrag`: der Dienst haelt sie gegen das Objekt der
+           * Schicht (K-02), wie er es fuer Posten, Veranstaltung und Einsatz
+           * schon tut. Ein leeres Feld ist `null` und keine leere Zeichenkette,
+           * sonst scheiterte der Cast auf `uuid`.
+           */
+          kontrollpunktId: textOder(daten, 'kontrollpunkt'),
+          /*
+           * `praesenz` ohne Kontrollpunkt weist `pruefeText` ab (400 mit
+           * Grund). Das ist Absicht und wird hier nicht vorweggenommen: eine
+           * zweite Pruefung in der Route waere eine zweite Regel, die
+           * auseinanderlaufen kann.
+           */
+          praesenzBestaetigt: daten.get('praesenz') === 'ja',
           polizeiInformiert: daten.get('polizei') === 'ja',
           /*
            * Die Behauptung des Geraets — gespeichert, nie massgeblich

@@ -17,7 +17,6 @@ export interface AnnahmeKopf {
   readonly entschieden_am: string | null;
   readonly auftrag_id: string | null;
   readonly auftragsnummer: string | null;
-  readonly darf_auftrag_lesen: boolean;
   readonly hat_nummernkreis: boolean;
 }
 

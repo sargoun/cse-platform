@@ -236,10 +236,10 @@ comment on policy t_selbst_signatur on leistungsnachweis_signatur is
 -- Unterschriftsblatt stehen. Kein Preis, kein Auftrag, keine Anschrift, keine
 -- zweite Zeile des Kunden.
 --
--- Die Rechte, die die Funktion dafuer braucht, sind spaltenweise: `cse_definer`
--- liest `kunde` und `revier` schon (0033/0050), auf `objekt` bekommt sie genau
--- vier Spalten. Ein ungeteiltes `grant select on objekt` truege die eine
--- Spalte mit, die K-05 der Anwendungsrolle entzogen hat.
+-- Die Rechte, die die Funktion dafuer braucht, sind spaltenweise: auf `objekt`
+-- bekommt `cse_definer` genau vier Spalten. Ein ungeteiltes
+-- `grant select on objekt` truege die eine Spalte mit, die K-05 der
+-- Anwendungsrolle entzogen hat.
 
 grant select (id, mandant_id, bezeichnung, kunde_id) on objekt to cse_definer;
 
@@ -251,6 +251,59 @@ grant select (id, mandant_id, bezeichnung, kunde_id) on objekt to cse_definer;
  */
 grant execute on function app.ist_eingesetzt_auf_objekt(uuid) to cse_definer;
 create policy d_nachweis_kopf on objekt for select to cse_definer using (true);
+
+/*
+ * **Und `kunde` — die Zeile, an der die erste Fassung dieser Migration selbst
+ * in AUT-05 lief.**
+ *
+ * Der Kommentar oben nahm an, `cse_definer` lese `kunde` „schon". Das stimmt
+ * nur im Mandantenscope: die einzige permissive SELECT-Policy dieser Rolle ist
+ * `d_kunde_pflichtfeld` mit `mandant_id = app.aktiver_mandant()` (0033), und
+ * der ist im Personen-Scope NULL (K-20). Die Seite
+ * `/portal/mein/schichten/[zuordnungId]/leistungsnachweis` laeuft aber GENAU
+ * dort. Gemessen im Personen-Scope: `leistungsnachweis` 1 Zeile,
+ * `app.ist_eingesetzt_auf_objekt` true, `set role cse_definer; select count(*)
+ * from kunde` = 0 — und damit `app.leistungsnachweis_kopf_schicht(...)` = 0
+ * Zeilen. Derselbe INNER-JOIN-Fehler, eine Ebene tiefer: null Zeilen statt
+ * „ohne Namen", und die Folge auf dem Bildschirm ist nicht „ohne Namen",
+ * sondern wieder das Anlegeformular — jeder Klick ein weiterer vorgelegter
+ * Nachweis.
+ *
+ * **Warum nicht `mandant_id = any (app.sichtbare_mandanten())`.** Das waere
+ * die kurze Fassung und oeffnete jeder kuenftigen Definer-Funktion im
+ * Personen-Scope den ganzen Kundenstamm beider Beschaeftigungen. Eine Policy
+ * gilt der ROLLE, nicht dem Aufrufer. Deshalb traegt sie hier dasselbe Tor wie
+ * die Funktion — Mitarbeiterportal, eigene Beschaeftigung, Einsatz auf dem
+ * Objekt — und zusaetzlich die Bedingung, dass es ueberhaupt einen
+ * Leistungsnachweis dieses Kunden auf einem solchen Objekt gibt. Sichtbar wird
+ * damit genau der Name, der auf dem Unterschriftsblatt steht.
+ *
+ * Der Einschub auf `leistungsnachweis` laeuft als `cse_definer`; dort traegt
+ * `d_medien_bezug` (0093) `using (true)`, es entsteht also keine
+ * Ringabhaengigkeit ueber `kunde` zurueck.
+ */
+create policy d_kunde_nachweis_kopf on kunde for select to cse_definer
+using (
+  app.portal() = 'mitarbeiter'
+  and app.aktuelle_person() is not null
+  and mandant_id = any (app.sichtbare_mandanten())
+  and exists (
+    select 1
+      from public.leistungsnachweis l
+     where l.kunde_id = kunde.id
+       and l.mandant_id = kunde.mandant_id
+       and l.objekt_id is not null
+       and app.ist_eingesetzt_auf_objekt(l.objekt_id)
+  )
+);
+
+comment on policy d_kunde_nachweis_kopf on kunde is
+  'CLN-04, EMP-13 (0304): der EINE Kundenname, den das Unterschriftsblatt der '
+  'Kraft braucht — fuer cse_definer und nur dort, wo ein Leistungsnachweis '
+  'dieses Kunden auf einem Objekt liegt, auf dem dieser Mensch eingesetzt ist. '
+  'd_kunde_pflichtfeld haengt an app.aktiver_mandant() und ist im '
+  'Personen-Scope NULL (K-20); ohne diese Zeile gibt '
+  'app.leistungsnachweis_kopf_schicht dort null Zeilen zurueck (AUT-05).';
 
 create function app.leistungsnachweis_kopf_schicht(p_nachweis uuid)
 returns table (
@@ -327,3 +380,61 @@ comment on function app.leistungsnachweis_kopf_schicht(uuid) is
   'Recht, nicht kein Recht (D-366). Geprueft werden Portal, Beschaeftigung '
   'und Einsatz auf dem Objekt; ein fremder Nachweis ergibt null Zeilen und '
   'damit 404 (AUT-06).';
+
+-- ---------------------------------------------------------------------------
+-- 5. Die Nummer — derselbe Nachweis bekommt aus dem Buero eine und von der
+--    Schicht keine
+-- ---------------------------------------------------------------------------
+--
+-- **Der Befund.** `legeVor` zieht die Nummer ueber `vergebeNummer`, und
+-- `nummernkreis` traegt die restriktive Decke `p_nk_intern_ceiling` USING
+-- `app.portal() = 'intern'`. Im M1-Scope des Mitarbeiterportals ist die Tabelle
+-- damit vollstaendig unsichtbar. Gemessen als Mitarbeiterin in ihrem Mandanten:
+-- `select count(*) from nummernkreis` = 0, obwohl die Datenbank drei
+-- nicht-Platzhalterkreise des Typs `leistungsnachweis` fuehrt. `vergebeNummer`
+-- meldet `kein_kreis`, `legeVor` faengt genau diesen Grund ab und gibt ihn als
+-- `nummerOffen` zurueck — der Nachweis steht auf `vorgelegt` und traegt
+-- `nummer = NULL`.
+--
+-- Das ist kein Schutz, sondern eine stille Ungleichheit: derselbe Vorgang,
+-- aus dem Buero ausgeloest, bekommt eine Nummer. Und die Nummer steht im Kopf,
+-- geht ueber `baueSchnappschuss` in den Abzug und damit in die Pruefsumme, die
+-- der Kunde unterschreibt — zwei Blaetter desselben Monats, eines mit und eines
+-- ohne Nummer, je nachdem wer den Knopf gedrueckt hat.
+--
+-- **Was hier geoeffnet wird, und nicht mehr.** Genau EIN Kreistyp,
+-- `leistungsnachweis`, und nur im Mitarbeiterportal. Alles andere bleibt, wie
+-- es war: der Ausgangsrechnungs- und Gutschriftkreis ist `d_kreis_ziehen`
+-- ohnehin entzogen (er laeuft ueber `fin.rechnung_nummer_ziehen`), und die
+-- Spaltenrechte von `cse_app` auf `nummernkreis` erlauben ohnehin nur den
+-- Zaehler und die Aenderungsspur — nicht die Maske, nicht `geschlossen_am`,
+-- nicht `lueckenlos`. Was die Kraft damit kann, ist eine Nummer ZIEHEN; was sie
+-- nicht kann, ist einen Kreis anlegen, schliessen oder umformatieren.
+--
+-- Ein Definer-Weg wie `nk_wachbuch_definer` (0070) waere die Alternative. Er
+-- ist hier die schlechtere: `vergebeNummer` ist die eine getestete Stelle, an
+-- der `SELECT … FOR UPDATE` die Vergabe serialisiert (Invariante 4 sinngemaess),
+-- und eine zweite Fassung derselben Rechnung daneben zu stellen hiesse, die
+-- Luecken-Zusage zweimal zu halten.
+--
+-- Die Decke wird NEU GESETZT und nicht erweitert — eine Policy laesst sich
+-- nicht aendern. Der `intern`-Zweig steht wortgleich wie zuvor.
+--
+-- // TODO(client, O-147): Sollen Leistungsnachweise fortlaufend und lueckenlos nummeriert sein, und ab welchem Schritt — Vorlage oder Unterschrift?
+
+drop policy p_nk_intern_ceiling on nummernkreis;
+
+create policy p_nk_intern_ceiling on nummernkreis as restrictive for all to cse_app
+  using (
+    app.portal() = 'intern'
+    or (app.portal() = 'mitarbeiter' and kreis_typ = 'leistungsnachweis')
+  );
+
+comment on policy p_nk_intern_ceiling on nummernkreis is
+  'FIN-03 (0304): die Nummernkreise gehoeren dem Buero — mit EINER Ausnahme. '
+  'Der Leistungsnachweis, den die Kraft auf ihrer Schicht vorlegt, laeuft '
+  'durch dasselbe legeVor wie der aus dem Buero; ohne diesen Zweig bekaeme er '
+  'still keine Nummer (nummerOffen = kein_kreis), und dieselbe Handlung haette '
+  'je nach Bildschirm ein anderes Ergebnis. Geoeffnet ist genau der Kreistyp '
+  'leistungsnachweis; die Spaltenrechte von cse_app lassen ohnehin nur den '
+  'Zaehler zu.';

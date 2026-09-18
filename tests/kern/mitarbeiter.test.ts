@@ -189,6 +189,44 @@ describe('(4) die Feldwache kennt ihre eigenen Falschtreffer (K-05)', () => {
     expect(GELD_WOERTER.length).toBeGreaterThan(5);
     expect(GELD_WOERTER).toContain('stundensatz');
   });
+
+  it('JEDE `*_FELDER`-Liste unter `services/mitarbeiter/` steht in MITARBEITER_NUTZLASTEN', async () => {
+    /**
+     * **Die Luecke, die diese Probe schliesst.** `SCHICHT_NACHWEIS_FELDER` und
+     * `SCHICHT_MEDIUM_FELDER` waren exportiert, aber nicht eingetragen — also
+     * prueften weder die Wortprobe oben noch der Feldvergleich in
+     * `tests/isolation/mitarbeiter.test.ts` sie je. Nichts zaehlte die
+     * Exporte auf, und deshalb fiel es nicht auf: die Datei lief mit 20 von 21
+     * gruen, ohne die zwei anzufassen.
+     *
+     * Verglichen werden die LISTEN selbst und nicht ihre Namen: der Schluessel
+     * im Register darf anders heissen als die Konstante, aber die Liste dahinter
+     * muss dieselbe sein.
+     */
+    const verzeichnis = join(WURZEL, 'src/server/services/mitarbeiter');
+    const dateien = readdirSync(verzeichnis)
+      .filter((d) => d.endsWith('.ts') && d !== 'felder.ts');
+    const eingetragen = new Set<readonly string[]>(Object.values(MITARBEITER_NUTZLASTEN));
+    const fehlend: string[] = [];
+    let gesehen = 0;
+
+    for (const datei of dateien) {
+      const modul = await import(join(verzeichnis, datei)) as Record<string, unknown>;
+      for (const [name, wert] of Object.entries(modul)) {
+        if (!name.endsWith('_FELDER') || !Array.isArray(wert)) continue;
+        gesehen += 1;
+        if (!eingetragen.has(wert as readonly string[])) fehlend.push(`${datei}:${name}`);
+      }
+    }
+
+    // Ohne diese Zeile bestuende die Probe auf einer leeren Menge.
+    expect(gesehen).toBeGreaterThan(5);
+    expect(
+      fehlend,
+      'Jede exportierte *_FELDER-Liste gehoert in MITARBEITER_NUTZLASTEN (K-05) — '
+      + 'sonst prueft die Wortprobe sie nie.',
+    ).toEqual([]);
+  });
 });
 
 // ---------------------------------------------------------------------------

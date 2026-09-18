@@ -17,7 +17,8 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../kennung';
-import { FELD, FEHLERTEXT, KENNZEICHEN, KOSTENARTEN, PILLE } from '../daten';
+import { FEHLERTEXT, PILLE } from '../daten';
+import { PositionsFelder } from './PositionsFelder';
 
 /**
  * `/portal/[mandant]/leistungskatalog/[id]` — eine Fassung mit ihrem
@@ -281,6 +282,124 @@ export default async function Katalogfassung(
         />
       )}
 
+      {/* ------------------------------------------------------------------ */}
+      {/* Positionen ÄNDERN und AUSSER KRAFT SETZEN.                          */}
+      {/*                                                                    */}
+      {/* Beide Handlungen gab es in `/api/katalog` und im Routenmanifest    */}
+      {/* und auf keiner Seite. Eine falsch angelegte Position liess sich     */}
+      {/* damit weder korrigieren noch beenden — und geloescht wird nicht     */}
+      {/* (`verhindere_loeschung`, Invariante 8).                             */}
+      {/*                                                                    */}
+      {/* Als aufklappbare Zeile statt als neunte Tabellenspalte: der         */}
+      {/* Feldsatz ist der volle (`aenderePosition` schreibt JEDE Spalte,     */}
+      {/* ein kuerzeres Formular loeschte still Werte), und der gehoert       */}
+      {/* nicht in eine Tabellenzelle.                                       */}
+      {/* ------------------------------------------------------------------ */}
+      {schreiben && positionen.length > 0 ? (
+        <section aria-labelledby="pflegen" className="mt-s7">
+          <h2 id="pflegen" className="text-h2 text-text">Positionen pflegen</h2>
+          <p className="mt-s2 max-w-[72ch] text-sm text-text-muted">
+            Ändern schreibt <strong>alle</strong> Felder der Zeile — die Maske
+            ist deshalb aus dem Bestand vorbelegt und nicht leer. Eine Position
+            wird nie gelöscht: sie bekommt ein <strong>Gültig bis</strong>, und
+            ihre Ordnungszahl wird damit für eine Nachfolgerin frei
+            (<code>lkp_oz_uk</code> gilt nur, solange die Position gilt).
+          </p>
+          <div className="mt-s4 flex flex-col gap-s3">
+            {positionen.map((p) => (
+              <details
+                key={p.id}
+                data-cse="position-pflegen"
+                className="rounded-lg border border-line bg-surface"
+              >
+                <summary className="cursor-pointer list-none p-s4 text-sm text-text">
+                  <span className="font-medium">{p.oz}</span>
+                  {' · '}{p.kurztext}
+                  {p.gueltig_bis === null ? null : (
+                    <span className="ml-s3 text-xs text-text-muted">
+                      außer Kraft seit {p.gueltig_bis}
+                    </span>
+                  )}
+                </summary>
+
+                <div className="border-t border-line p-s5">
+                  <form
+                    method="post"
+                    action="/api/katalog"
+                    data-cse="position-aendern-form"
+                    className="max-w-prose"
+                  >
+                    <input type="hidden" name="aktion" value="position_aendern" />
+                    <input type="hidden" name="katalogId" value={id} />
+                    <input type="hidden" name="positionId" value={p.id} />
+                    <input type="hidden" name="zurueck" value={pfad} />
+                    <PositionsFelder praefix={p.id} zeile={p} auswahl={auswahl} />
+                    <button
+                      type="submit"
+                      data-cse="position-aendern"
+                      className="mt-s5 inline-flex min-h-11 items-center rounded-md bg-brand px-s5 text-sm text-white hover:bg-brand-hover"
+                    >
+                      Änderung speichern
+                    </button>
+                  </form>
+
+                  {p.gueltig_bis === null ? (
+                    <form
+                      method="post"
+                      action="/api/katalog"
+                      data-cse="position-ausser-kraft-form"
+                      className="mt-s5 max-w-prose border-t border-line pt-s5"
+                    >
+                      <input type="hidden" name="aktion" value="position_ausser_kraft" />
+                      <input type="hidden" name="katalogId" value={id} />
+                      <input type="hidden" name="positionId" value={p.id} />
+                      <input type="hidden" name="zurueck" value={pfad} />
+                      <label
+                        className="block text-sm text-text"
+                        htmlFor={`${p.id}-gueltigBis`}
+                      >
+                        Außer Kraft setzen zum
+                      </label>
+                      <input
+                        id={`${p.id}-gueltigBis`}
+                        name="gueltigBis"
+                        type="date"
+                        required
+                        min={p.gueltig_ab_iso}
+                        defaultValue={berlinKalendertag(new Date())}
+                        className="mt-s2 min-h-11 w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text sm:w-64"
+                      />
+                      <p className="mt-s2 max-w-[72ch] text-xs text-text-muted">
+                        Das Ende darf nicht vor dem Beginn liegen
+                        (<code>lkp_zeitraum_stimmig</code>) — diese Position gilt
+                        ab <strong>{p.gueltig_ab}</strong>. Angebots-,
+                        Auftrags- und Rechnungszeilen, die auf ihr stehen,
+                        bleiben unberührt: was ein Kunde bezahlt hat, behält
+                        seine Herkunft.
+                      </p>
+                      <button
+                        type="submit"
+                        data-cse="position-ausser-kraft"
+                        className="mt-s4 inline-flex min-h-11 items-center rounded-md border border-line px-s5 text-sm text-text hover:bg-surface-2"
+                      >
+                        Außer Kraft setzen
+                      </button>
+                    </form>
+                  ) : (
+                    <p className="mt-s5 border-t border-line pt-s5 text-sm text-text-muted">
+                      Diese Position ist seit <strong>{p.gueltig_bis}</strong>{' '}
+                      außer Kraft. Ein neues Ende setzt das Formular oben
+                      (<em>Gültig bis</em> steht dort nicht — es bleibt, wie es
+                      ist).
+                    </p>
+                  )}
+                </div>
+              </details>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       {/* Statuswechsel ---------------------------------------------------- */}
       {darf['katalog.schreiben'] === true && zugang.sitzung.ansicht !== 'gruppe'
         && !archiviert ? (
@@ -340,155 +459,7 @@ export default async function Katalogfassung(
             <input type="hidden" name="katalogId" value={id} />
             <input type="hidden" name="zurueck" value={pfad} />
 
-            <div className="grid grid-cols-1 gap-s4 sm:grid-cols-2">
-              <div>
-                <label className="block text-sm text-text" htmlFor="oz">Ordnungszahl</label>
-                <input id="oz" name="oz" type="text" required placeholder="1.2"
-                       className={FELD} />
-                <p className="mt-s1 text-xs text-text-muted">
-                  Je Fassung eindeutig, solange die Position gilt
-                  (<code>lkp_oz_uk</code>).
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm text-text" htmlFor="einheit">Einheit</label>
-                <input id="einheit" name="einheit" type="text" required placeholder="m², Std., psch"
-                       className={FELD} />
-              </div>
-            </div>
-
-            <label className="mt-s4 block text-sm text-text" htmlFor="kurztext">
-              Kurztext
-            </label>
-            <input id="kurztext" name="kurztext" type="text" required className={FELD} />
-
-            <label className="mt-s4 block text-sm text-text" htmlFor="langtext">
-              Langtext
-            </label>
-            <textarea
-              id="langtext"
-              name="langtext"
-              rows={3}
-              className="mt-s2 w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text"
-            />
-            <p className="mt-s1 text-xs text-text-muted">
-              Was der Kunde liest, wenn er fragt, wie der Preis zustande kommt.
-            </p>
-
-            <label className="mt-s4 block text-sm text-text" htmlFor="parentId">
-              Untergeordnet zu
-            </label>
-            <select id="parentId" name="parentId" className={FELD}>
-              <option value="">— oberste Ebene —</option>
-              {auswahl.map((p) => (
-                <option key={p.id} value={p.id}>{p.oz} · {p.kurztext}</option>
-              ))}
-            </select>
-
-            <fieldset className="mt-s5 rounded-md border border-line p-s4">
-              <legend className="px-s2 text-sm text-text">
-                Werte — mindestens einer, offen (O-17, O-731)
-              </legend>
-              <div className="grid grid-cols-1 gap-s4 sm:grid-cols-3">
-                <div>
-                  <label className="block text-sm text-text" htmlFor="zeitwertMinuten">
-                    Zeitwert (Minuten)
-                  </label>
-                  <input id="zeitwertMinuten" name="zeitwertMinuten" type="text"
-                         inputMode="decimal" placeholder="4,5" className={FELD} />
-                </div>
-                <div>
-                  <label className="block text-sm text-text" htmlFor="leistungswert">
-                    Leistungswert (m²/h)
-                  </label>
-                  <input id="leistungswert" name="leistungswert" type="text"
-                         inputMode="decimal" placeholder="250" className={FELD} />
-                </div>
-                <div>
-                  <label className="block text-sm text-text" htmlFor="standardEinzelpreis">
-                    Standardpreis (€)
-                  </label>
-                  <input id="standardEinzelpreis" name="standardEinzelpreis" type="text"
-                         inputMode="decimal" placeholder="12,50" className={FELD} />
-                </div>
-              </div>
-              <p className="mt-s3 max-w-[72ch] text-xs text-text-muted">
-                Deutsch geschrieben: <code>12,5</code>. Der Punkt ist der
-                Tausendertrenner — <code>12.50</code> wäre mehrdeutig und wird
-                als 12,50 gelesen. Geldbeträge werden in ganze Cent gewandelt,
-                nie als Fließkommazahl gespeichert (Invariante 1).
-              </p>
-              <label className="mt-s4 flex items-start gap-s3 text-sm text-text">
-                <input type="checkbox" name="bestaetigt" value="ja"
-                       className="mt-1 min-h-5 min-w-5" />
-                <span>
-                  Diese Werte sind für <strong>diese Fassung</strong> bestätigt.
-                  Ohne Häkchen trägt die Position <code>ist_platzhalter</code> und
-                  erscheint überall als unbestätigt. Das Häkchen beantwortet{' '}
-                  <strong>nicht</strong> O-17 oder O-731 — es sagt „für diese
-                  Fassung rechnen wir so".
-                </span>
-              </label>
-            </fieldset>
-
-            <div className="mt-s4 grid grid-cols-1 gap-s4 sm:grid-cols-2">
-              <div>
-                <label className="block text-sm text-text" htmlFor="kostenart">
-                  Kostenart
-                </label>
-                <select id="kostenart" name="kostenart" className={FELD}>
-                  <option value="">— keine —</option>
-                  {KOSTENARTEN.map((k) => (
-                    <option key={k.wert} value={k.wert}>{k.text}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-text" htmlFor="steuerKennzeichen">
-                  Steuerkennzeichen
-                </label>
-                <select id="steuerKennzeichen" name="steuerKennzeichen"
-                        defaultValue="regelsatz" className={FELD}>
-                  {KENNZEICHEN.map((k) => (
-                    <option key={k.wert} value={k.wert}>{k.text}</option>
-                  ))}
-                </select>
-                <p className="mt-s1 text-xs text-text-muted">
-                  Vorgabe Regelsatz. Welche Leistung welches Kennzeichen trägt,
-                  hängt an der Lage des <strong>Kunden</strong>, nicht am Katalog
-                  — <strong>offen (O-60)</strong>.
-                </p>
-              </div>
-            </div>
-
-            <label className="mt-s4 block text-sm text-text" htmlFor="steuerbefreiungGrund">
-              Norm der Steuerbefreiung
-            </label>
-            <input id="steuerbefreiungGrund" name="steuerbefreiungGrund" type="text"
-                   placeholder="nur bei „steuerfrei“ — z. B. § 4 Nr. 12a UStG"
-                   className={FELD} />
-            <p className="mt-s1 text-xs text-text-muted">
-              Pflicht bei <code>steuerfrei</code> (<code>lkp_steuerfrei_mit_grund</code>)
-              — eine Befreiung ohne genannte Norm ist im Streit mit dem Finanzamt
-              nichts.
-            </p>
-
-            <div className="mt-s4 grid grid-cols-1 gap-s4 sm:grid-cols-2">
-              <div>
-                <label className="block text-sm text-text" htmlFor="gueltigAb">
-                  Gültig ab
-                </label>
-                <input id="gueltigAb" name="gueltigAb" type="date" required
-                       defaultValue={berlinKalendertag(new Date())} className={FELD} />
-              </div>
-              <div>
-                <label className="block text-sm text-text" htmlFor="sortierung">
-                  Sortierung
-                </label>
-                <input id="sortierung" name="sortierung" type="number" step="1"
-                       defaultValue="0" className={FELD} />
-              </div>
-            </div>
+            <PositionsFelder praefix="neu" zeile={null} auswahl={auswahl} />
 
             <button
               type="submit"

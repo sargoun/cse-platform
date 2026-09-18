@@ -59,9 +59,23 @@ describe('(1) Der Sicherheitseinbehalt als Basispunkte (O-20)', () => {
   });
 
   it('was keine Prozentangabe ist, wird abgewiesen — nicht geraten', () => {
-    for (const roh of ['', 'fuenf', '5%', '-5', '5,', ',5', '1.2.3', '5,555']) {
+    for (const roh of ['', 'fuenf', '-5', '5,', ',5', '1.2.3', '5,555']) {
       expect(() => prozentInBasispunkte(roh), roh).toThrow(AbschlussFehler);
     }
+  });
+
+  /**
+   * Das Prozentzeichen im Prozentfeld ist kein Fehler.
+   *
+   * Es wurde hier abgewiesen und in `kalkulation/bestaetigung.ts` abgeschnitten
+   * — dieselbe Umrechnung, zwei Antworten. Seit beide durch
+   * `finanz/prozent.ts` gehen, gilt die mildere: wer in ein Feld mit der
+   * Aufschrift „%" `5 %` tippt, hat sich nicht vertan.
+   */
+  it('ein mitgetipptes Prozentzeichen faellt weg, statt abgewiesen zu werden', () => {
+    expect(prozentInBasispunkte('5%')).toBe(500);
+    expect(prozentInBasispunkte('5 %')).toBe(500);
+    expect(prozentInBasispunkte('4,35 %')).toBe(435);
   });
 
   it('und mehr als 100 Prozent ebenso', () => {

@@ -263,7 +263,7 @@ export async function seedVertrieb(
   // Kalendertag geschnitten. Node rechnet hier keine Zone um (Invariante 2).
   const monatsanfang = `${heute.slice(0, 7)}-01`;
 
-  return alsPortalSitzung(sql, mandantId, freigeber.id, async (kontext) => {
+  const ergebnis = await alsPortalSitzung(sql, mandantId, freigeber.id, async (kontext) => {
     /**
      * Dieselbe Schicht wie in `/api/angebot`: `abfrage` fuer die Dienste,
      * `unsafe` fuer `vergebeNummer`. Der Nummernkreis zieht seine Zeile mit
@@ -501,22 +501,6 @@ export async function seedVertrieb(
       }
     }
 
-    /* ------------------------------------------------------------------ */
-    /* 5 — eine HIERARCHIE im Leistungskatalog                             */
-    /* ------------------------------------------------------------------ */
-
-    /**
-     * Der Katalog trug nur flache Positionen; `/leistungskatalog/[id]` zeigt
-     * aber einen BAUM, und eine Einrueckung, die nie eingeruecht ist, prueft
-     * nichts. Zwei Zeilen genuegen: eine Gruppe und ein Kind darunter.
-     *
-     * `ist_platzhalter` bleibt `true` — der Zeitwert ist nicht bestaetigt
-     * (O-17, O-731), und der CHECK `lkp_kalkulierbar` verlangt trotzdem einen
-     * Wert. Genau deshalb steht er als GEKENNZEICHNETER Platzhalter da und
-     * nicht als NULL.
-     */
-    await legeKatalogHierarchieAn(db);
-
     return {
       angebote: 3,
       positionen: positionen + entwurfPositionen + freigabePositionen,
@@ -528,6 +512,29 @@ export async function seedVertrieb(
       kundendokument: freigabeErfasst ? KUNDENSCHREIBEN.titel : null,
     };
   });
+
+  /* -------------------------------------------------------------------- */
+  /* 5 — eine HIERARCHIE im Leistungskatalog, in EIGENER Sitzung           */
+  /* -------------------------------------------------------------------- */
+
+  /**
+   * Der Katalog trug nur flache Positionen; `/leistungskatalog/[id]` zeigt
+   * aber einen BAUM, und eine Einrueckung, die nie eingerueckt ist, prueft
+   * nichts. Zwei Zeilen genuegen: eine Gruppe und ein Kind darunter.
+   *
+   * **Warum eine zweite Sitzung.** Der Freigeber oben wird ueber
+   * `angebot.preis_freigeben` gesucht und ist damit die `leitung`; die Policy
+   * `t_mandant` auf `leistungskatalog_position` verlangt im WITH CHECK aber
+   * `katalog.schreiben`, und das haelt die `leitung` nicht. In der
+   * Freigeber-Sitzung starb der ganze Seed an dieser Stelle mit `42501` —
+   * mitten in Phase Vertrieb, also entstand auch nichts danach, und die
+   * Isolationssuite kam nicht ueber ihr `globalSetup` hinaus. Der Katalog
+   * gehoert einem anderen Menschen als der Preis; der Seed bildet das jetzt
+   * ab, statt einen Menschen zu bauen, den es nicht gibt.
+   */
+  await legeKatalogHierarchieAn(sql, mandantId);
+
+  return ergebnis;
 }
 
 /**
@@ -538,12 +545,45 @@ export async function seedVertrieb(
  * solange die Position gilt. Der zweite Lauf darf deshalb nicht einfach
  * einfuegen.
  */
-async function legeKatalogHierarchieAn(db: {
+async function legeKatalogHierarchieAn(sql: Sql, mandantId: string): Promise<void> {
+  /**
+   * Gesucht wird ueber das RECHT, nicht ueber die Rolle — wie beim Freigeber.
+   *
+   * `katalog.schreiben` liegt heute bei `super_admin` und `admin` und ist bei
+   * `leitung` nur BINDBAR, also nicht gebunden. Eine fest verdrahtete Rolle
+   * waere beim naechsten Katalogschnitt still falsch; findet sich niemand,
+   * bleibt die Hierarchie aus, statt den Seed umzuwerfen.
+   */
+  const [schreiber] = await sql<{ id: string }[]>`
+    select b.id
+      from benutzer b
+      join benutzer_mandant bm on bm.benutzer_id = b.id and bm.mandant_id = ${mandantId}
+      join rolle r on r.id = bm.rolle_id
+     where b.status = 'aktiv' and bm.entzogen_am is null
+       and exists (select 1
+                     from rolle_berechtigung rb
+                     join berechtigung be on be.id = rb.berechtigung_id
+                    where rb.rolle_id = r.id and be.schluessel = 'katalog.schreiben')
+     order by b.email limit 1`;
+  if (schreiber === undefined) return;
+
+  await alsPortalSitzung(sql, mandantId, schreiber.id, async (kontext) => {
+    await legeKatalogZeilenAn({ abfrage: kontext.abfrage.bind(kontext) }, mandantId);
+  });
+}
+
+/**
+ * Die beiden Zeilen selbst — getrennt, damit die Sitzung oben nur die Sitzung
+ * ist und dieser Teil weiterhin gegen eine schlichte Abfrageschnittstelle
+ * schreibt.
+ */
+async function legeKatalogZeilenAn(db: {
   abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
-}): Promise<void> {
+}, mandantId: string): Promise<void> {
   const [katalog] = await db.abfrage<{ id: string }>(
     `select id from leistungskatalog
-      where status <> 'archiviert' order by version desc limit 1`);
+      where mandant_id = $1 and status <> 'archiviert'
+      order by version desc limit 1`, [mandantId]);
   if (katalog === undefined) return;
 
   const [gruppe] = await db.abfrage<{ id: string }>(

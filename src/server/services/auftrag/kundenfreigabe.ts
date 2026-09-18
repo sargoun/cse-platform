@@ -171,13 +171,28 @@ export async function erfasseKundenfreigabe(
 ): Promise<{ readonly auftragsnummer: string }> {
   const [auftrag] = await db.abfrage<{
     auftragsnummer: string; kunde_id: string; freigegeben: boolean;
+    widerrufen_am: Date | null;
   }>(
-    `select auftragsnummer, kunde_id, freigegeben_vom_kunden as freigegeben
+    `select auftragsnummer, kunde_id, freigegeben_vom_kunden as freigegeben,
+            freigabe_widerrufen_am as widerrufen_am
        from auftrag where id = $1 for update`, [auftragId]);
   if (auftrag === undefined) {
     throw new KundenfreigabeFehler('Auftrag nicht gefunden', 'nicht_gefunden');
   }
-  if (auftrag.freigegeben) {
+  /**
+   * Der Waechter fragt BEIDES — und das ist der Unterschied zwischen einer
+   * geltenden und einer widerrufenen Freigabe.
+   *
+   * `freigegeben_vom_kunden` bleibt nach einem Widerruf auf `true` stehen (der
+   * CHECK `auftrag_referenzfreigabe_vollstaendig` verlangt es, solange die
+   * drei Pflichtangaben da sind). Ein Waechter, der nur dieses Kennzeichen
+   * liest, wies deshalb auch die ERNEUTE Erfassung ab — mit dem Satz „liegt
+   * bereits vor", was fuer eine widerrufene Freigabe schlicht falsch ist. Und
+   * weil niemand mehr hierher kam, war `freigabe_widerrufen_am = null` unten
+   * toter Code. Der Kunde darf seine Meinung ein zweites Mal aendern; der
+   * Widerruf ist kein Urteil, sondern ein Stand.
+   */
+  if (auftrag.freigegeben && auftrag.widerrufen_am === null) {
     throw new KundenfreigabeFehler(
       `Für ${auftrag.auftragsnummer} liegt die Freigabe bereits vor`, 'schon_freigegeben');
   }
@@ -258,10 +273,9 @@ export async function widerrufeKundenfreigabe(
 ): Promise<{ readonly auftragsnummer: string }> {
   const [auftrag] = await db.abfrage<{
     auftragsnummer: string; freigegeben: boolean; widerrufen_am: Date | null;
-    freigabe_text: string | null;
   }>(
     `select auftragsnummer, freigegeben_vom_kunden as freigegeben,
-            freigabe_widerrufen_am as widerrufen_am, freigabe_text
+            freigabe_widerrufen_am as widerrufen_am
        from auftrag where id = $1 for update`, [auftragId]);
   if (auftrag === undefined) {
     throw new KundenfreigabeFehler('Auftrag nicht gefunden', 'nicht_gefunden');
@@ -288,10 +302,25 @@ export async function widerrufeKundenfreigabe(
              * Serverzeit). Der Wert hier ist nur das Signal "von null auf
              * gesetzt", das der Ausloeser braucht.
              */
-            freigabe_widerrufen_am = now(),
-            freigabe_text = coalesce(freigabe_text, '')
-                            || E'\n\nWiderrufen: ' || $2
+            freigabe_widerrufen_am = now()
       where id = $1`,
-    [auftragId, grund.trim()]);
+    [auftragId]);
+  /**
+   * Der Grund geht ins PRUEFPROTOKOLL, nicht in den Beleg.
+   *
+   * `freigabe_text` traegt den festgehaltenen WORTLAUT der Kundenerklaerung —
+   * das ist die Zeile, auf die sich PRO-05 im Streitfall beruft, und die Seite
+   * zeigt sie unter der Ueberschrift „Wortlaut". Ein Beleg, an den man etwas
+   * anhaengt, ist kein unveraenderter Beleg mehr: danach stuenden Kundensatz
+   * und interne Notiz in einer Spalte und niemand koennte sie noch trennen.
+   *
+   * `app.protokolliere` haelt denselben Grund MIT Akteur, Zeit, Sitzung und IP
+   * fest — mehr, als das Anhaengen je konnte, und an der Stelle, an der man
+   * im Nachhinein danach sucht.
+   */
+  await db.abfrage(
+    `select app.protokolliere('auftrag.kundenfreigabe_widerrufen', 'auftrag',
+                              $1, null, $2::jsonb, app.aktiver_mandant())`,
+    [auftragId, JSON.stringify({ grund: grund.trim() })]);
   return { auftragsnummer: auftrag.auftragsnummer };
 }

@@ -40,7 +40,12 @@ export const FEHLERTEXT: Readonly<Record<string, string>> = {
     'Ein Zahlenfeld war nicht lesbar. Deutsch schreiben: 12,5 — der Punkt ist der '
     + 'Tausendertrenner.',
   unvollstaendig: 'Eine Pflichtangabe fehlt.',
-  nicht_gefunden: 'Diese Fassung oder Position gibt es nicht.',
+  zeitraum_unstimmig:
+    'Das Ende der Gültigkeit liegt vor ihrem Beginn. Eine Position, die endet, bevor '
+    + 'sie gilt, hat nie gegolten — der CHECK lkp_zeitraum_stimmig lässt das nicht zu.',
+  nicht_gefunden:
+    'Diese Fassung oder Position gibt es nicht — oder die Position gehört zu einer '
+    + 'anderen Fassung.',
   kein_recht: 'Ihnen fehlt katalog.schreiben.',
 };
 

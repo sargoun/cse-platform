@@ -5,7 +5,7 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { alsStundenText } from '@/server/services/kalkulation/richtzeit';
-import { ladePruefliste } from '@/server/services/auftrag/abschluss';
+import { PRUEFLISTE_ZIELRECHTE, ladePruefliste } from '@/server/services/auftrag/abschluss';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill } from '@/components/ui/StatusPill';
@@ -67,10 +67,15 @@ export default async function Abschluss(
    * 404 und verriete damit, was er nicht zeigen darf (AUT-06). Die Zahl bleibt
    * sichtbar (sie kommt aus der Definer-Funktion), nur der Weg dorthin
    * verschwindet.
+   *
+   * Die Liste kommt aus dem DIENST (`PRUEFLISTE_ZIELRECHTE`) und wird hier
+   * nicht ein zweites Mal aufgeschrieben: `haeltRechte` legt NUR die
+   * uebergebenen Schluessel in seine Karte, ein hier vergessenes Recht waere
+   * also `undefined` und damit fuer jeden Benutzer „fehlt" — auch fuer
+   * `super_admin`. Dazu `auftrag.lesen` fuer den Rueckverweis auf den Auftrag.
    */
   const darf = await haeltRechte(
-    sitzung, 'auftrag.lesen', 'zeit.lesen', 'finanzen.lesen',
-    'reinigung.lesen', 'bau.lesen');
+    sitzung, 'auftrag.lesen', ...PRUEFLISTE_ZIELRECHTE);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {

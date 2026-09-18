@@ -28,7 +28,7 @@ export class KatalogFehler extends Error {
   constructor(nachricht: string, readonly grund:
     | 'nicht_gefunden' | 'archiviert' | 'oz_belegt' | 'schluessel_belegt'
     | 'ohne_wert' | 'fremder_elternteil' | 'zyklus' | 'unvollstaendig'
-    | 'zahl_unlesbar' | 'status_endstation') {
+    | 'zahl_unlesbar' | 'status_endstation' | 'zeitraum_unstimmig') {
     super(nachricht);
     this.name = 'KatalogFehler';
   }
@@ -108,8 +108,12 @@ export interface PositionZeile {
   readonly steuer_kennzeichen: string;
   readonly steuerbefreiung_grund: string | null;
   readonly ist_platzhalter: boolean;
+  /** Deutsch formatiert, fuer die Anzeige. */
   readonly gueltig_ab: string;
   readonly gueltig_bis: string | null;
+  /** ISO `YYYY-MM-DD` — was ein `<input type="date">` als Vorbelegung braucht. */
+  readonly gueltig_ab_iso: string;
+  readonly gueltig_bis_iso: string | null;
   readonly sortierung: number;
   /** Wie tief im Baum — vom `with recursive`, nicht in der Seite gezaehlt. */
   readonly tiefe: number;
@@ -167,6 +171,8 @@ export async function ladeKatalog(
             steuerbefreiung_grund, ist_platzhalter,
             to_char(gueltig_ab, 'DD.MM.YYYY') as gueltig_ab,
             to_char(gueltig_bis, 'DD.MM.YYYY') as gueltig_bis,
+            gueltig_ab::text as gueltig_ab_iso,
+            gueltig_bis::text as gueltig_bis_iso,
             sortierung, tiefe
        from baum
       order by pfad_zahl, pfad_text`,
@@ -408,6 +414,17 @@ function alsKatalogFehler(fehler: unknown): never {
       'Eine Position braucht mindestens einen Wert (Zeitwert, Leistungswert oder '
       + 'Standardeinzelpreis)', 'ohne_wert');
   }
+  /**
+   * `lkp_zeitraum_stimmig` — ein Ende vor dem Anfang.
+   *
+   * Ohne diese Zeile kam der CHECK als roher `23514` heraus, und
+   * `fuehreUebergangAus` macht daraus eine 500 ohne Satz: die Seite kann
+   * keinen Text zeigen, weil sie keinen Grund bekommt.
+   */
+  if (verstoss(fehler, '23514', 'lkp_zeitraum_stimmig')) {
+    throw new KatalogFehler(
+      'Das Ende der Gueltigkeit liegt vor ihrem Beginn', 'zeitraum_unstimmig');
+  }
   const text = meldung(fehler);
   if (/Katalog ist archiviert/u.test(text)) {
     throw new KatalogFehler(
@@ -453,8 +470,21 @@ export async function legePositionAn(
   }
 }
 
+/**
+ * Die Fassung steht in JEDER Anweisung mit — wie `objekt_id` bei `raum`.
+ *
+ * Die Route prueft Katalog- und Positionskennung einzeln und reichte danach
+ * nur die Position weiter; das `where id = $1` traf damit auch eine Position
+ * einer ANDEREN Fassung desselben Mandanten — auch einer aktiven. Die
+ * Umleitung zeigte anschliessend auf die Fassung aus dem Formular, also sah
+ * niemand, was wirklich getroffen wurde, und die RLS hatte zu Recht nichts zu
+ * beanstanden: der Mandant stimmte ja. Die Bindung gehoert deshalb in die
+ * Anweisung selbst, nicht in eine Vorabpruefung, die ein zweiter Schreibweg
+ * vergessen kann. Ein nicht getroffener Treffer wird zum vorhandenen
+ * `nicht_gefunden`.
+ */
 export async function aenderePosition(
-  db: Abfrage, positionId: string, eingabe: PositionEingabe,
+  db: Abfrage, katalogId: string, positionId: string, eingabe: PositionEingabe,
 ): Promise<void> {
   const w = pruefeUndWandle(eingabe);
   try {
@@ -470,14 +500,18 @@ export async function aenderePosition(
               ist_platzhalter = $13,
               gueltig_ab = $14::date,
               sortierung = $15
-        where id = $1
+        where id = $1 and katalog_id = $16
         returning id`,
       [positionId, eingabe.parentId ?? null, eingabe.oz.trim(), eingabe.kurztext.trim(),
        eingabe.langtext ?? null, eingabe.einheit.trim(),
        w.zeitwert, w.leistungswert, w.preis === null ? null : String(w.preis),
        w.kostenart, w.kennzeichen, eingabe.steuerbefreiungGrund ?? null,
-       eingabe.bestaetigt !== true, eingabe.gueltigAb, eingabe.sortierung ?? 0]);
-    if (z === undefined) throw new KatalogFehler('Position nicht gefunden', 'nicht_gefunden');
+       eingabe.bestaetigt !== true, eingabe.gueltigAb, eingabe.sortierung ?? 0,
+       katalogId]);
+    if (z === undefined) {
+      throw new KatalogFehler(
+        'Diese Position gehoert nicht zu dieser Fassung', 'nicht_gefunden');
+    }
   } catch (fehler) {
     if (fehler instanceof KatalogFehler) throw fehler;
     alsKatalogFehler(fehler);
@@ -497,13 +531,22 @@ export async function aenderePosition(
  * frei.
  */
 export async function setzePositionAusserKraft(
-  db: Abfrage, positionId: string, gueltigBis: string,
+  db: Abfrage, katalogId: string, positionId: string, gueltigBis: string,
 ): Promise<void> {
   try {
+    /**
+     * `katalog_id` steht mit — dieselbe Bindung wie in `aenderePosition`, und
+     * aus demselben Grund: sonst liesse sich die Position einer anderen,
+     * moeglicherweise AKTIVEN Fassung ausser Kraft setzen.
+     */
     const [z] = await db.abfrage<{ id: string }>(
-      `update leistungskatalog_position set gueltig_bis = $2::date
-        where id = $1 returning id`, [positionId, gueltigBis]);
-    if (z === undefined) throw new KatalogFehler('Position nicht gefunden', 'nicht_gefunden');
+      `update leistungskatalog_position set gueltig_bis = $3::date
+        where id = $1 and katalog_id = $2 returning id`,
+      [positionId, katalogId, gueltigBis]);
+    if (z === undefined) {
+      throw new KatalogFehler(
+        'Diese Position gehoert nicht zu dieser Fassung', 'nicht_gefunden');
+    }
   } catch (fehler) {
     if (fehler instanceof KatalogFehler) throw fehler;
     alsKatalogFehler(fehler);

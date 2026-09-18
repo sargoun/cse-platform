@@ -61,6 +61,33 @@ export interface EigeneSchicht {
   /** `keine` · `dst_vor` · `dst_rueck` — die Nacht, die nicht 8 Stunden hat. */
   readonly zeitanomalie: string;
   readonly laeuftJetzt: boolean;
+  /**
+   * Ist die Schicht VORBEI? (`now() >= ende_zeitpunkt`)
+   *
+   * Sie steht hier, weil mit dieser Minute die Erfassung schliesst und die
+   * Seite das SAGEN muss. `app.ist_eingesetzt_auf_objekt` und
+   * `app.ist_eingesetzt_auf_projekt` verlangen `e.ende_zeitpunkt >= now()`
+   * (0004); danach greift keine der M1-Policies aus 0300/0303/0304 mehr. Ohne
+   * dieses Feld boten Wachbuch, Fotos, Leistungsnachweis und Bautagebuch
+   * weiter ein Formular an, das die Datenbank dann abweist — beim
+   * Leistungsnachweis mit einem nackten `422 kein_objekt`.
+   *
+   * Wie lange nach Schichtende noch erfasst werden darf, ist offen (O-740);
+   * bis zur Antwort ist die Grenze das Schichtende, und die Seite nennt sie.
+   */
+  readonly beendet: boolean;
+  /**
+   * Wurde die Einteilung AUS DEM PLAN GENOMMEN? (`entfernt_am is not null`)
+   *
+   * `findeEigeneSchicht` filtert bewusst NICHT auf `entfernt_am is null` — die
+   * Detailseite soll die entfernte Einteilung weiter zeigen (0300). Tragen
+   * soll sie aber nichts mehr: `einsatz_zuordnung.t_selbst_m1` verlangt
+   * `entfernt_am is null`, also endet jeder Schreibweg mit `404
+   * nicht_gefunden`. Eine Seite, die zum Ausfuellen einlaedt und den Menschen
+   * dann wie einen Fremden behandelt, ist schlechter als eine, die den Grund
+   * schreibt.
+   */
+  readonly entfernt: boolean;
 }
 
 /**
@@ -75,7 +102,7 @@ export const SCHICHT_FELDER = [
   'objekt', 'objektId', 'projektId',
   'planDatum', 'beginnLokal', 'endeLokal', 'endetAmFolgetag',
   'pauseGeplantMinuten', 'dauerMinuten', 'funktion', 'status', 'einsatzStatus',
-  'zeitanomalie', 'laeuftJetzt',
+  'zeitanomalie', 'laeuftJetzt', 'beendet', 'entfernt',
 ] as const;
 
 interface SchichtRoh {
@@ -98,6 +125,8 @@ interface SchichtRoh {
   readonly einsatz_status: string;
   readonly zeitanomalie: string;
   readonly laeuft_jetzt: boolean;
+  readonly beendet: boolean;
+  readonly entfernt: boolean;
 }
 
 /**
@@ -131,7 +160,13 @@ const SPALTEN = `
   e.status::text                                as einsatz_status,
   e.zeitanomalie::text                          as zeitanomalie,
   (now() >= z.beginn_zeitpunkt and now() < z.ende_zeitpunkt)
-                                                as laeuft_jetzt`;
+                                                as laeuft_jetzt,
+  -- now() kommt aus der DATENBANK (Invariante 5) — dieselbe Uhr, die
+  -- app.ist_eingesetzt_auf_objekt benutzt. Aus dem Node-Prozess gerechnet
+  -- koennten Seite und Policy um Sekunden auseinanderliegen, und dann
+  -- verspraeche der Bildschirm ein Formular, das die Zeile schon abweist.
+  (now() >= z.ende_zeitpunkt)                   as beendet,
+  (z.entfernt_am is not null)                   as entfernt`;
 
 const QUELLE = `
   from einsatz_zuordnung z
@@ -167,6 +202,8 @@ function abbilden(z: SchichtRoh): EigeneSchicht {
     einsatzStatus: z.einsatz_status,
     zeitanomalie: z.zeitanomalie,
     laeuftJetzt: z.laeuft_jetzt,
+    beendet: z.beendet,
+    entfernt: z.entfernt,
   };
 }
 

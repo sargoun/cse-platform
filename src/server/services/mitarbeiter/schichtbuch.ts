@@ -36,9 +36,28 @@ export function istFensterOffen(wert: string | null): boolean {
   return !/^0+(:0+)*(\.0+)?$/u.test(wert.trim());
 }
 
+/** Ein Kontrollpunkt dieses Objekts — Kennung und Name, mehr braucht das Formular nicht. */
+export interface SchichtKontrollpunkt {
+  readonly id: string;
+  readonly bezeichnung: string;
+}
+
+export const SCHICHT_KONTROLLPUNKT_FELDER = ['id', 'bezeichnung'] as const;
+
 export interface Schichtbuch {
   /** Was diese Anmeldung an diesem Objekt sehen darf, neueste zuerst. */
   readonly eintraege: readonly EintragZeile[];
+  /**
+   * Die Kontrollpunkte DIESES Objekts, fuer den Praesenznachweis (SEC-05).
+   *
+   * Sie stehen hier und nicht in einer zweiten Abfrage der Seite, damit die
+   * Auswahlliste des Formulars aus derselben Quelle kommt wie das Buch —
+   * `kontrollpunkt.t_person` (0057) grenzt im Personen-Scope auf Objekte ein,
+   * auf denen dieser Mensch eingesetzt ist. Ist die Liste leer, bietet das
+   * Formular das Feld nicht an: `pruefeText` weist „Praesenz bestaetigt" ohne
+   * Kontrollpunkt ohnehin ab.
+   */
+  readonly kontrollpunkte: readonly SchichtKontrollpunkt[];
   /**
    * Das Uebergabefenster dieser Gesellschaft als Text (`12:00:00`) — oder
    * `null`, wenn es gar nicht eingestellt ist.
@@ -66,6 +85,15 @@ export async function leseSchichtbuch(
 ): Promise<Schichtbuch> {
   const eintraege = await leseBuch(kontext, { objektId: bezug.objektId, grenze: 50 });
 
+  const kontrollpunkte = await kontext.abfrage<SchichtKontrollpunkt>(
+    `select k.id, k.bezeichnung
+       from kontrollpunkt k
+      where k.objekt_id = $1::uuid
+        and k.archiviert_am is null
+      order by k.reihenfolge, k.bezeichnung`,
+    [bezug.objektId],
+  );
+
   const [fenster] = await kontext.abfrage<{ wert: string | null; gesetzt: boolean }>(
     `select app.uebergabe_fenster($1::uuid)::text as wert,
             (app.einstellung($1::uuid, 'wachbuch.uebergabe_fenster') is not null) as gesetzt`,
@@ -73,5 +101,8 @@ export async function leseSchichtbuch(
   );
 
   const wert = fenster?.gesetzt === true ? fenster.wert : null;
-  return { eintraege, uebergabeFenster: wert, uebergabeOffen: istFensterOffen(wert) };
+  return {
+    eintraege, kontrollpunkte,
+    uebergabeFenster: wert, uebergabeOffen: istFensterOffen(wert),
+  };
 }

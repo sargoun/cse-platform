@@ -13,9 +13,7 @@ dem Bauschritt geändert hat.
 
 - Bau: fertig
 - Kritik: 14 Befunde
-- Behebung: 0 behoben, 0 widerlegt, 0 offen
-
-> **Der Behebungsschritt lief noch nicht.** Die Einträge unten stammen aus dem Bauschritt und können durch ihn noch wachsen.
+- Behebung: 13 behoben, 1 widerlegt, 3 offen
 
 ## Migrationen (gegen eine eigene Datenbank gefahren: True)
 
@@ -40,52 +38,58 @@ dem Bauschritt geändert hat.
 
 ## src/server/registry/dienste.ts
 
-/*
-   * Das Suchprofil des Vergaberadars (RAD-04, RAD-05). Der einzige
-   * SCHREIBENDE Radardienst neben `radar/vorgang`: Stammdaten, CPV-Zeilen und
-   * Empfaenger eines Profils. Punkte rechnet er keine — das tut
-   * `radar/bewertung` im Nachtlauf.
-   */
-  {
-    modul: 'radar', pfad: 'radar/profil',
-    schreibend: true, schreibRecht: 'radar.profil_schreiben',
-  },
-  /*
-   * Die LAGE eines Freigabefensters (APR-05, APR-06) — rein, ohne Datenbank.
-   * Drei Bildschirme entscheiden aus denselben vier Werten, ob ein Knopf
-   * dastehen darf; drei Abschriften derselben Bedingung liefen auseinander,
-   * und der teure Fall ist der FEHLENDE Knopf ueber einem laufenden Fenster.
-   */
-  { modul: 'freigabe', pfad: 'freigabe/fenster', schreibend: false },
-  /*
-   * **Vorhandene Luecke, nicht von dieser Domaene angelegt.**
-   * `services/agent/richtlinie.ts` stand nie im Register;
-   * `tests/kern/portal-shell.test.ts` („das Register kennt jeden Dienst")
-   * meldet es zusammen mit den beiden Zeilen darueber. Der Eintrag gehoert
-   * hierher, weil `setzeRichtlinie` schreibt — und zwar unter dem Recht, das
-   * `/api/einstellungen/agent-richtlinien` erzwingt.
+// src/server/registry/dienste.ts — drei Zeilen; die ersten beiden neben ihre
+// Geschwister (radar/vorgang bzw. freigabe/fenster.platzhalter), die dritte
+// eroeffnet das Modul `agent`.
+
+  /**
+   * **Das Ausgangs-Gate als DATEN (AGT-03, APR-01, Invariante 7).**
+   * `richtlinie` liest die acht AKTIONEN und setzt eine Zeile. Entschieden
+   * wird in `server/agent/policy.ts`, nicht hier — und fuer Angebot, Nachtrag
+   * und Behinderungsanzeige im Code, unabhaengig von jeder Zeile der Tabelle.
+   * Das Schreibrecht ist `agent.richtlinie_verwalten` und nicht
+   * `versand.freigeben` (D-…): wer die REGEL setzt, gibt damit nichts frei.
    */
   {
     modul: 'agent', pfad: 'agent/richtlinie',
     schreibend: true, schreibRecht: 'agent.richtlinie_verwalten',
   },
 
+  /**
+   * **Das Suchprofil des Vergaberadars (RAD-04, RAD-05).** Stammdaten,
+   * CPV-Zeilen und Benachrichtigungsempfaenger — fuenf Schreibhandlungen
+   * hinter EINEM Recht, weil sie ein Profil betreffen. Punkte rechnet es
+   * keine: die Bewertung entsteht im Nachtlauf aus `radar/bewertung`.
+   */
+  {
+    modul: 'radar', pfad: 'radar/profil',
+    schreibend: true, schreibRecht: 'radar.profil_schreiben',
+  },
+
+  /**
+   * **Die LAGE eines Fensters (APR-05, APR-06)** — eine reine Funktion ueber
+   * vier Werten (Entscheidungsstand, Ausfuehrungsstand, Fensterspalte, Uhr),
+   * ohne Datenbank und ohne Schreibweg. Geschrieben wird in
+   * `freigabe/stapel`; `fenster.platzhalter` haelt die zwei offenen Zahlen
+   * aus O-108.
+   */
+  { modul: 'freigabe', pfad: 'freigabe/fenster', schreibend: false },
+
 ## src/server/auth/route-manifest.ts
 
-{
+// src/server/auth/route-manifest.ts — eine Zeile, neben 'api/radar/vorgang'.
+
+  {
     /**
-     * Ein Suchprofil des Vergaberadars pflegen (RAD-04, RAD-05). **Fuenf
-     * Handlungen an einer Adresse**, weil sie EIN Profil betreffen:
-     * Stammdaten setzen, eine CPV-Zeile anlegen oder aendern, eine entfernen,
-     * einen Empfaenger eintragen, einen entfernen. Fuenf Routen waeren fuenf
-     * Stellen, an denen jemand das `authorize` vergisst.
+     * Ein Suchprofil des Vergaberadars pflegen (RAD-04, RAD-05): Stammdaten
+     * setzen, eine CPV-Zeile anlegen oder aendern, eine entfernen, einen
+     * Benachrichtigungsempfaenger eintragen, einen entfernen. Fuenf
+     * Handlungen, ein Tor — fuenf Routen waeren fuenf Stellen, an denen
+     * jemand das `authorize` vergisst.
      *
-     * **Was gesperrt ist, taucht als Feldname gar nicht auf**: Gewichtung und
-     * Benachrichtigungsschwelle (O-15), die Wirkung der Negativ-Stichwoerter
-     * (O-191), die Waehrung der Wertgrenzen (O-47). Und Punkte rechnet die
-     * Route keine — das tut der Nachtlauf, deterministisch (RAD-05,
-     * Invariante 6). Ein Speichern zaehlt die Profilfassung hoch, und der
-     * naechste Lauf schreibt eine NEUE Bewertung neben die alte.
+     * Was gesperrt ist, taucht hier nicht einmal als Feldname auf:
+     * Gewichtung, Benachrichtigungsschwelle, Skala, Waehrung und die Wirkung
+     * der Negativ-Stichwoerter sind O-15, O-47 und O-191.
      */
     pfad: 'api/radar/profil',
     recht: 'radar.profil_schreiben',
@@ -93,26 +97,20 @@ dem Bauschritt geändert hat.
 
 ## src/server/db/schema/rls.ts
 
-Keine Aenderung noetig. `0290` legt keine Tabelle an, sondern zwei CHECK-Bedingungen auf das vorhandene `agent_richtlinie` — dessen Loeschsperre, Audit- und `geaendert_am`-Trigger stehen seit `0203` im generierten Block und bleiben unberuehrt. Keine neue Policy, kein neuer Trigger.
+Keine Aenderung. Die einzige Migration dieser Domaene (0290_agent_richtlinie_willenserklaerung.sql) bleibt unveraendert; es kam keine neue dazu. Die Rechteverschiebung auf agent_richtlinie (t_richtlinie_lesen/-schreiben auf agent.richtlinie_verwalten statt versand.lesen/versand.freigeben) steht bereits in 0290 und ist durch tests/isolation/agent-richtlinie-riegel.test.ts gedeckt. src/server/db/schema/rls.ts habe ich nicht angefasst.
 
 ## src/server/registry/navigation.ts
 
-Keine Aenderung noetig. Alle sechs Routen stehen bereits in `routen.generiert.ts` (Zeilen 282, 286, 293, 294, 295, 303, 304) mit ihrer Bewachung; sie sind Unterseiten, die ueber Verweise erreicht werden, und ihre Eltern (`agenten`, `freigaben`, `radar`) stehen in `navigation.ts`/`tableiste.ts`. Keine neue Kennzahl, kein neues Modul.
+Keine Aenderung — und das ist diesmal geprueft statt behauptet. Die sechs Routen sind Unterseiten, die ueber Verweise erreicht werden; die Verweise FEHLTEN (Befund 1) und sind jetzt auf den vier Elternseiten gesetzt, jeder hinter genau dem Recht, mit dem routen.generiert.ts seine Route bewacht. Ein eigener Navigationspunkt waere fuer keine der sechs richtig: /radar/[id]/status, /freigaben/[id]/einspruch, /freigaben/[id]/rueckgaengig und /agenten/[agent]/start haengen an einer Kennung und koennen ohne sie nicht aufgerufen werden; /agenten/richtlinien und /radar/profile/[id] sitzen unter Punkten, die es schon gibt (agenten, radar).
 
 ## Sonstiges
 
-`docs/architecture/04-SEITENKARTE.md`: keine Aenderung — alle sechs Routen stehen dort (§5.18, §5.19, §5.20).
-
-`docs/DESIGN.md`: keine Aenderung — kein neuer Gestaltungswert. Verwendet sind ausschliesslich vorhandene Werte (s1…s7, text-h1/h2/h3, text-sm/xs/base, border-line, bg-surface/-2/-3, text-text/-muted/-subtle, text-danger/-warning/-success, *-soft, rounded-md/lg, min-h-11, max-w-prose, tabular-nums, font-mono). Die Spaltenbreiten der Definitionslisten sind auf `grid-cols-[12rem_1fr]` normiert, also auf den Wert, den die Nachbarseiten schon benutzen.
-
-`package.json`, `scripts/guards/*`, `src/server/db/triggers/*`: nicht angefasst.
-
-**Die Rechte-Diskrepanz an `agent_richtlinie` ist bereits geloest** und braucht keine Migration mehr: `drizzle/0203_agent_richtlinie_recht.sql` zieht `t_richtlinie_lesen` und `t_richtlinie_schreiben` auf `agent.richtlinie_verwalten` ODER `versand.*`. In der lebenden Datenbank nachgesehen (`pg_policies`). Der Plan fuehrte das als Blocker, die KRITIK entschaerfte es zu „Aufraeumarbeit" — beides ist ueberholt, es ist getan.
+Zwei Zeilen fuer docs/DECISIONS.md unter „Open — ask, do not guess" (Zeile 2818 ff.) — siehe `decisions_zeilen`. Sie gehoeren zwingend dorthin, bevor die beiden Platzhalter in src/server/services/radar/profil.ts stehen bleiben duerfen: die Arbeitsregel verlangt Schnittstelle + bezeichneter Platzhalter + TODO(client, O-NN) + DECISIONS-Zeile, und heute fehlt genau das letzte Glied. Sonst nichts: package.json, 04-SEITENKARTE.md und die generierten Bloecke sind unberuehrt.
 
 ## Zeilen für docs/DECISIONS.md, Abschnitt „Offen"
 
-| O-720 | **Soll ein Suchprofil des Vergaberadars archiviert werden koennen — und was geschieht dann mit den Bewertungen, die es erzeugt hat?** `radar_profil` traegt `geloescht_am`/`geloescht_von`, ein Archivieren war also vorgesehen; nur sagt niemand, was danach mit den `bewertung`-Zeilen geschieht, die den Profilnamen in ihrer Begruendung fuehren und die die Radarliste weiter mit `radar_profil` verbindet (ohne Filter auf `geloescht_am`). **Heute gewaehlt ist die sichere Richtung:** der Editor bietet kein Archivieren an, abgeschaltet wird ueber `ist_aktiv` — der Nachtlauf bewertet dann nichts mehr mit diesem Profil, und nichts wird unlesbar. `leseProfil` laedt ein archiviertes Profil nicht (eine Suche zu bearbeiten, die nicht mehr laeuft, ergibt keinen Sinn), und `schreibeProfil` weist es ab. | RAD-04, RAD-05, `services/radar/profil.ts`, `radar/profile/[id]` |
-| O-721 | **Gegen welche Fassung der amtlichen NUTS-Liste sind die Regionspraefixe eines Suchprofils zu pruefen — und soll ein Praefix, das kein Gebiet bezeichnet, abgewiesen oder nur markiert werden?** Es gibt keine NUTS-Tabelle im Haus. `pruefeNutsPraefix` prueft deshalb die FORM (zwei Buchstaben Land, bis zu drei weitere Stellen) und macht Grossbuchstaben daraus — ein kleingeschriebenes Praefix traefe nie, und das faellt niemandem auf, weil die Liste einfach leer bliebe. `ZZ999` geht bewusst durch: die Form stimmt, das Gebiet gibt es nicht, und die Oberflaeche sagt genau das am Feld, statt eine Pruefung vorzutaeuschen. Dieselbe Lage wie O-98 fuer die CPV-Codes, eine Ebene weiter. | RAD-04, O-98, `services/radar/profil.ts`, `radar/profile/[id]` |
+| O-720 | Should a search profile be archivable — and what then happens to the evaluations it produced: do they stay readable under the profile name, or disappear from the radar? |
+| O-721 | Against which edition of the official NUTS list are a search profile's region prefixes to be validated — and should a prefix that matches the form but designates no region be rejected, or only flagged? |
 
 ## Befunde des Prüfers (14)
 
@@ -147,6 +145,16 @@ Keine Aenderung noetig. Alle sechs Routen stehen bereits in `routen.generiert.ts
 
 **Urteil:** Handwerklich ist der Kern in Ordnung: Migration 0290 ist in `w_agt` angewendet und traegt genau die beiden behaupteten CHECKs; jede neue Abfrage laeuft gegen echtes Postgres ohne Spalten- oder Enum-Fehler (alle 13 nachgestellt, Schreibwege in einer zurueckgerollten Transaktion); `pnpm typecheck` ist projektweit fehlerfrei; die vier Kerntestdateien laufen mit 66 gruenen Faellen; Geld ist ueberall `bigint`-Cent, Zeit `timestamptz` mit `now()` aus der Datenbank und Anzeige in Europe/Berlin; Rechte werden serverseitig geprueft und fehlende Zeilen werden zu 404, nicht 403; kein erfundener Gestaltungswert, kein Hex-Code, keine vorgetaeuschte externe Integration; die gesperrten Felder (O-15, O-47, O-98, O-191) stehen tatsaechlich sichtbar gesperrt statt zu fehlen; der `slugFuer`-Befund am `/api/agenten/lauf` ist echt und richtig behoben; der Versionszaehler-Vergleich in `schreibeProfil` ist eine substanzielle, korrekt begruendete Eigenleistung. Der schwerste Befund ist kein SQL- und kein Rechtefehler, sondern Erreichbarkeit: fuenf der sechs Seiten haben keinen eingehenden Verweis, obwohl der Bericht das Gegenteil behauptet — als Arbeitsergebnis sind sie damit vorhanden, aber nicht benutzbar. Dazu kommen drei Auslassungen mit echter Wirkung (Pflichtbegruendung nur im Browser, drei Schreibhandlungen des Radarprofils ohne Protokolleintrag bei hartem Loeschen, toter Fehlerweg der Statusseite) und die offene Registerarbeit, die zwei Kerntests fallen laesst. Nichts davon ist eine erfundene Geschaeftsregel oder ein Datenleck; alles ist mit begrenztem Aufwand nachzuziehen.
 
+## Vom Behebenden WIDERLEGT (Befund war falsch)
+
+- Befund 12, erste Abhilfevariante ('den Kommentar korrigieren und den Verweis UNBEDINGT setzen'): umgesetzt, von der Wache abgewiesen, zurueckgenommen. tests/kern/verweis-rechte.test.ts prueft statisch, dass jeder Verweis, dessen Ziel ein Recht verlangt, an einem Recht haengt, das die Seite selbst erhoben hat; der unbedingte Link erschien dort sofort als Befund ('[mandant]/radar/[id]/status/page.tsx -> /portal/[mandant]/radar/[x] verlangt radar.lesen'). Die Wache kann von der RLS-Policy nichts wissen, und ihre Regel ist die sicherere. Die zweite Variante ('das Tor im Manifest auf radar.status_setzen UND radar.lesen stellen') scheidet aus, weil routen.generiert.ts ein generierter, gemeinsamer Block ist, den ich nicht anfassen darf. Umgesetzt ist deshalb eine dritte: radar.lesen bleibt in haeltRechte, der Verweis bleibt bedingt, und der Kommentar sagt jetzt die Wahrheit — die Bedingung KANN nicht falsch sein (die Lesepolicies erzwingen das Recht, sonst 404), sie steht fuer die Wache da, und die Herleitung steht im Kommentar statt im Code. Der eigentliche Defekt, den der Befund benennt (die falsche Aussage 'oeffnet mit radar.status_setzen allein'), ist damit behoben; das tote `? :` bleibt mit ausgeschriebenem Grund stehen.
+
+## Nach der Behebung noch offen
+
+- Befund 7 (wichtig) — die Registerarbeit ist NICHT getan und kann es hier nicht sein: dienste.ts, route-manifest.ts und docs/DECISIONS.md sind die gemeinsamen Dateien, die ich laut Auftrag nicht anfassen darf. Die vier Zeilen und die zwei DECISIONS-Zeilen stehen vollstaendig in `registry_dienste`, `registry_manifest` und `decisions_zeilen`. Bestaetigt: `npx vitest run tests/kern/portal-shell.test.ts` listet 'agent/richtlinie', 'radar/profil', 'freigabe/fenster'; `tests/kern/routen.test.ts` listet 'api/radar/profil'; `grep O-720|O-721 docs/DECISIONS.md` ist leer, waehrend services/radar/profil.ts beide TODO(client, O-NNN) traegt (Zeilen 43 und 116, O-Nummer jeweils in derselben Zeile). Beide Tests fallen zusaetzlich wegen vieler fremder Domaenen (72 bzw. 61 Eintraege) — meine vier sind davon unabhaengig zu setzen.
+- Die beiden Isolationstests sind geschrieben, aber NICHT gelaufen. Der Seed ist derzeit durch eine parallele Aenderung einer fremden Domaene kaputt: `PostgresError: new row violates row-level security policy for table "leistungskatalog_position"` in src/server/db/seed/index.ts. Betroffen sind src/server/db/seed/reinigung.ts und 0298_leistungskatalog_status.sql — nichts davon habe ich angefasst. Ohne Seed baut tests/isolation/global-setup.ts keine Vorlagendatenbank, also laeuft KEINE Isolationsdatei, nicht nur meine. Die zehn neuen Faelle (sechs zur Begruendungspflicht, vier zum Protokoll, zwei zur Entdoppelung) sind zu fahren, sobald der Seed wieder durchlaeuft. Typecheck und ESLint sind ueber ihnen sauber.
+- Der zweite Reiter ist nur in ZWEI der drei Routen dieser Domaene geschlossen. /api/freigaben/fenster (Zeile 66) nimmt den Bereichsslug weiter aus dem Formular, /api/einstellungen/agent-richtlinien (Zeile 59) aus dem Query-Parameter. Beides ist derselbe Defekt wie Befund 11, und der Pruefer hat ihn dort nicht gemeldet. Ich habe ihn nicht mitgeschleppt, weil die Umstellung bei /api/freigaben/fenster die Reihenfolge der Pruefungen aendert (der Grund wird heute VOR der Transaktion geprueft, der Slug kaeme aus ihr) — das ist eine eigene Aenderung mit eigenem Test und keine Aufraeumung. Hausweit betrifft dasselbe Muster ueber zwanzig Routen (bau/aufmasse, bau/nachtraege, qualitaet/*, reinigung/*, zeit/einwand/entscheidung, stammdaten/*, einstellungen/*). Lohnt eine eigene Runde.
+
 ## NICHT gebaut, mit Grund
 
 - `src/app/api/agenten/richtlinie/route.ts` — bewusst NICHT gebaut. Der Plan nennt sie, aber `/api/einstellungen/agent-richtlinien` existiert inzwischen und macht genau diesen Schreibvorgang samt authorize auf `agent.richtlinie_verwalten`. Eine zweite Route waere eine zweite Stelle, an der jemand das authorize vergisst oder die Sperre der drei Willenserklaerungen ausl aesst. Stattdessen traegt der bestehende Handler ein Zielfeld aus geschlossenem Satz (einstellungen | agenten) — 20 Zeilen, ein Schreibweg.
@@ -172,3 +180,23 @@ Keine Aenderung noetig. Alle sechs Routen stehen bereits in `routen.generiert.ts
 **Drei Registereintraege fehlen ohne Dich** (Text oben): `radar/profil`, `freigabe/fenster` und — vorhandene Luecke, nicht von mir — `agent/richtlinie`. `tests/kern/portal-shell.test.ts` („das Register kennt jeden Dienst") faellt bis dahin mit genau diesen drei Namen. Ebenso `api/radar/profil` im Route-Manifest, und O-720/O-721 in DECISIONS.md — bis die dort stehen, meldet die TODO-Wache `todo-client-nicht-im-register` fuer `services/radar/profil.ts:43` und `:116` (die uebrigen 63 Meldungen derselben Wache sind fremde O-Nummern).
 
 Typecheck projektweit: 0 Fehler. eslint auf allen beruehrten Pfaden: sauber. 66 Kerntests gruen. `pnpm test`, `test:isolation`, `test:e2e`, `db:seed`, `db:triggers`, `build`, `git commit/add` und Migrationen gegen cse_dev/cse_test wurden nicht ausgefuehrt.
+
+## Notizen des Behebender
+
+PRUEFSTAND. `pnpm typecheck` sauber. ESLint sauber ueber allen geaenderten Dateien und den beiden Isolationstests (die Tailwind-Wache ist die eigene Regel eslint-rules/no-raw-color.js — ich habe keinen Farbwert erfunden, nur vorhandene Tokens benutzt: text-brand, text-text-muted, text-text-subtle, border-line-strong, mt-s1/s3, mb-s4/s6, px-s4/s5, py-s3, min-h-11, rounded-md, underline-offset-2). Die fuenf Kerntests dieser Domaene laufen gruen (agent-richtlinie, agent-richtlinie-riegel, freigabe-fenster-lage, radar-profil-pruefung, radar-frist — 78 Faelle).
+
+MIGRATION. Keine neue Migration noetig (alle vierzehn Befunde sind Code, nicht Schema). Trotzdem einmal vollstaendig gegen die eigene Datenbank gefahren, wie beauftragt: drop/create w_agt, cse.fenster_schluessel gesetzt, `pnpm db:migrate` — laeuft bis 0304 durch, 'Migrationen angewendet'. Die Nummern 0290–0294 sind damit weiterhin frei bis auf 0290, das aus dem Bauschritt stammt.
+
+DIE DATENBANK HAENGT AN PORT 55432, NICHT AN 5432. Der Auftrag liess den Verbindungsteil offen; als root ist der Standardsocket nicht erreichbar ('role root does not exist'). Die richtige Adresse steht in tests/isolation/harness.ts:19 — postgres://postgres@localhost:55432/<db>. Fuer die naechste Runde: `psql "postgres://postgres@localhost:55432/w_agt"`.
+
+WAS ICH UEBER DIE BEFUNDE HINAUS GEAENDERT HABE, und warum — drei Stellen, jede im selben Atemzug wie ein Befund:
+(1) Das Literal '12 — Platzhalter (offene Frage O-196)' stand auch auf der Agenten-Detailseite (Zeile 364), nicht nur auf dem Vorschaltblatt. Eine von zwei identischen Doppelungen zu beseitigen heisst, den Befund halb zu beheben.
+(2) /api/radar/vorgang nahm den Bereichsslug wie /api/radar/profil aus dem Formular. Ich habe die drei Zeilen der Umleitung fuer Befund 5 ohnehin umgeschrieben; eine bekannte, identische 404-Ursache in einer Datei stehen zu lassen, die gerade offen auf dem Tisch liegt, waere schlechter als der etwas breitere Diff. Die versteckten mandant-Felder sind aus radar/[id]/page.tsx und radar/[id]/status/page.tsx entfernt.
+(3) einstellungen/agent-richtlinien gibt `?hinweis=` genauso roh aus wie die beiden im Befund genannten Seiten und wird vom selben Handler bedient. Haette ich sie ausgelassen, zeigte sie nach der Umstellung den blanken Code.
+
+DREI ENTSCHEIDUNGEN, die ein Nachleser kennen sollte:
+(a) Befund 3 liess die Wahl zwischen Pflichtpruefung im Dienst und Streichen der Beschriftung. Ich habe BEIDE Haelften genommen, weil jede allein eine Luecke laesst: die Pruefung ohne coalesce loescht weiter still, was die Schwesterseite nicht mitschickt; das coalesce ohne Pruefung laesst Automatik ohne jede Erklaerung zu. Die Grenze von fuenf Zeichen ist keine erfundene Geschaeftsregel, sondern die, die app.freigabe_einspruch fuer den Einspruchsgrund schon zieht — 'ok' ist keine Erklaerung.
+(b) Die Pflicht greift nur bei autoErlaubt. Das Anlegeformular der Liste schickt bewusst nur die Aktion (fail-closed: aktiv, ohne Automatik) — wer nichts ohne Menschen hinauslaesst, schuldet dafuer auch keine Erklaerung. Eine unbedingte Pflicht haette dieses Formular unbenutzbar gemacht.
+(c) Die Fensterverweise auf freigaben/[id] stehen als eigener Absatz VOR den beiden Fensterabschnitten und nicht in ihnen. In ihnen waeren sie nur sichtbar, wenn ein Fenster laeuft — und der haeufigste Zustand ist heute, dass keines laeuft (app.freigabe_umkehrbar gibt fuer jede Vorgangsart false, O-368). Genau dafuer wurden die beiden Unterseiten gebaut.
+
+ZWEI FREMDE BAUSTELLEN, die meine Arbeit nicht betreffen, aber jede Testrunde stoeren: der Seed bricht an leistungskatalog_position ab (fremde Domaene, blockiert die GANZE Isolationssuite), und tests/kern/verweis-rechte.test.ts sowie tests/kern/kennung-tor.test.ts fallen mit 16 bzw. 4 Eintraegen aus fremden Domaenen (bau, datenschutz, finanzen, zeiten, objekte, einstellungen, dienstplan, auftraege). Aus dieser Domaene steht in keiner der beiden Listen mehr ein Eintrag.

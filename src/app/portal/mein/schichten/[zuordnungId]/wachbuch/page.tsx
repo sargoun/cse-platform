@@ -11,7 +11,7 @@ import { leseSchichtbuch, type Schichtbuch }
 import { findeSchichtBezug } from '@/server/services/mitarbeiter/schicht-zugang';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../../rahmen';
-import { Feld, Felder, Leer } from '../../../bausteine';
+import { Feld, Felder, Hinweis, Leer } from '../../../bausteine';
 
 /**
  * `/portal/mein/schichten/[zuordnungId]/wachbuch` — das Buch auf der Schicht
@@ -83,6 +83,17 @@ export default async function MeinWachbuch(
   const { schicht, buch } = ergebnis.daten;
   const t = basis.texte;
   const arten = WACHBUCH_ART_TEXTE[basis.sprache];
+  /*
+   * Warum hier kein Formular mehr steht — und nicht: warum es scheitert.
+   *
+   * `einsatz_zuordnung.t_selbst_m1` (0300) verlangt `entfernt_am is null`, und
+   * `app.ist_eingesetzt_auf_objekt` verlangt `ende_zeitpunkt >= now()` (0004).
+   * Nach Schichtende und nach dem Herausnehmen aus dem Plan endet jeder
+   * Schreibweg mit `404 nicht_gefunden` — eine Seite, die trotzdem zum
+   * Ausfuellen einlaedt, behandelt den Menschen danach wie einen Fremden.
+   */
+  const sperre = schicht.entfernt ? t.schichtEntfernt
+    : schicht.beendet ? t.schichtBeendet : null;
   const eingabe =
     'min-h-11 w-full rounded-md border border-line-strong bg-surface px-s3 py-s2 '
     + 'text-base text-text';
@@ -109,11 +120,17 @@ export default async function MeinWachbuch(
             <h2 className="mb-s3 text-h2 text-text">{t.uebergabe}</h2>
             {buch !== null && !buch.uebergabeOffen && (
               /*
-                Der ehrliche Satz statt einer leeren Liste: das Fenster ist
-                nicht eingestellt, also steht hier nur das Eigene (O-151).
+                Der ehrliche Satz statt einer leeren Liste — und ZWEI Saetze,
+                nicht einer: `uebergabeFenster === null` heisst „nie
+                eingerichtet" (O-151 ist offen), `00:00:00` heisst
+                „eingerichtet und abgeschaltet" (der Seed-Vorgabewert aus
+                0033). Ein Satz fuer beide behauptete auf jedem
+                Seed-Bildschirm etwas, das dort nicht stimmt.
               */
               <p data-cse="uebergabe-zu" className="mb-s3 max-w-prose text-base text-warning">
-                {t.uebergabeZu}
+                {buch.uebergabeFenster === null
+                  ? t.uebergabeNichtEingestellt
+                  : t.uebergabeAus}
               </p>
             )}
             {buch === null || buch.eintraege.length === 0 ? (
@@ -160,6 +177,8 @@ export default async function MeinWachbuch(
 
           <section data-cse="wachbuch-formular">
             <h2 className="mb-s3 text-h2 text-text">{t.wachbuchNeu}</h2>
+            {sperre !== null ? <Hinweis text={sperre} marke="erfassung-zu" /> : (
+            <>
             <p className="mb-s4 max-w-prose text-base text-text-muted">
               {t.unveraenderlich}
             </p>
@@ -202,6 +221,35 @@ export default async function MeinWachbuch(
                 <textarea id="wb-text" name="eintragstext" rows={4} required className={eingabe} />
               </div>
 
+              {/*
+                Der Praesenznachweis (SEC-05): ein Eintrag AN einem
+                Kontrollpunkt. Das Feld erscheint nur, wenn dieses Objekt
+                ueberhaupt Kontrollpunkte fuehrt — eine leere Auswahlliste
+                waere die Behauptung, es gaebe welche. Und „Praesenz
+                bestaetigt" steht NUR daneben: `pruefeText` weist die Marke
+                ohne Kontrollpunkt ab, also darf der Bildschirm sie ohne
+                Kontrollpunkt gar nicht erst anbieten.
+              */}
+              {buch !== null && buch.kontrollpunkte.length > 0 && (
+                <>
+                  <div className="flex flex-col gap-s2">
+                    <label htmlFor="wb-kp" className="text-base text-text">
+                      {t.kontrollpunkt}
+                    </label>
+                    <select id="wb-kp" name="kontrollpunkt" className={eingabe}>
+                      <option value="">—</option>
+                      {buch.kontrollpunkte.map((k) => (
+                        <option key={k.id} value={k.id}>{k.bezeichnung}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <label className="flex min-h-11 items-center gap-s3 text-base text-text">
+                    <input type="checkbox" name="praesenz" value="ja" />
+                    {t.praesenz}
+                  </label>
+                </>
+              )}
+
               <label className="flex min-h-11 items-center gap-s3 text-base text-text">
                 <input type="checkbox" name="polizei" value="ja" />
                 {t.polizei}
@@ -225,6 +273,8 @@ export default async function MeinWachbuch(
                 {t.absenden}
               </button>
             </form>
+            </>
+            )}
           </section>
         </>
       )}

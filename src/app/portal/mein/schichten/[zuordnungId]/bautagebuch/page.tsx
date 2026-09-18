@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { StatusPill } from '@/components/ui/StatusPill';
+import { BAUTAG_PILLE } from '@/app/portal/[mandant]/bau/bautagebuch-anzeige';
 import {
-  BAUTAG_PILLE, BAUTAG_STATUS_TEXT, WETTER_QUELLE_TEXT,
-} from '@/app/portal/[mandant]/bau/bautagebuch-anzeige';
+  BAUTAG_STATUS_TEXTE, WETTER_QUELLE_TEXTE,
+  type BautagStatusSchluessel, type WetterQuelleSchluessel,
+} from '@/lib/i18n/texte';
 import {
   alsStunden, findeBautagZuDatum, gleicheMannstundenAb, leseMannstunden,
   lesePositionen, leseTagesfotos, listeGewerke, POSITION_ART_TEXT,
@@ -12,9 +14,10 @@ import {
 } from '@/server/services/bau/bautagebuch';
 import { findeEigeneSchicht, type EigeneSchicht }
   from '@/server/services/mitarbeiter/schichten';
+import { findeSchichtBezug } from '@/server/services/mitarbeiter/schicht-zugang';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../../rahmen';
-import { Feld, Felder, Leer } from '../../../bausteine';
+import { Feld, Felder, Hinweis, Leer } from '../../../bausteine';
 
 /**
  * `/portal/mein/schichten/[zuordnungId]/bautagebuch` — der Bautag der Kolonne
@@ -84,7 +87,19 @@ export default async function MeinBautagebuch(
        * wird er mit der ersten Eintragung, ueber die Route.
        */
       const tag = await findeBautagZuDatum(kontext, schicht.projektId, schicht.planDatum);
-      const gewerke = await listeGewerke(kontext);
+      /*
+       * Der Gewerkekatalog DIESER Gesellschaft, und der Mandant kommt aus dem
+       * BEZUG der Schicht — nie aus der Anfrage (K-02).
+       *
+       * Ohne den Parameter griffe im Personen-Scope `gewerk.t_mitarbeiter_lesen`
+       * (0303) mit `mandant_id = any (app.sichtbare_mandanten())`, und die
+       * Auswahlliste mischte die Gewerke ALLER Beschaeftigungen dieses
+       * Menschen. Ein Gewerk der Reinigung auf einer Bau-Schicht laeuft in den
+       * Fremdschluessel `(mandant_id, gewerk_id)` — ein roher Datenbankfehler
+       * statt einer Meldung.
+       */
+      const bezug = await findeSchichtBezug(kontext, zuordnungId);
+      const gewerke = bezug === null ? [] : await listeGewerke(kontext, bezug.mandantId);
       if (tag === null) return { ...leer, gewerke };
 
       return {
@@ -114,6 +129,36 @@ export default async function MeinBautagebuch(
   const artText: Readonly<Record<string, string>> = {
     geraet: t.geraet, lieferung: t.lieferung, vorkommnis: t.vorkommnis,
   };
+  /*
+   * Zustand des Bautags und Herkunft der Wetterangabe in DER SPRACHE DIESES
+   * BILDSCHIRMS. Vorher standen hier `BAUTAG_STATUS_TEXT` und
+   * `WETTER_QUELLE_TEXT` aus der Anzeigehilfe des INTERNEN Portals — deutsche
+   * Literale auf einem Arbeiterbildschirm, der nach SPEC §10 / EMP-12 auch
+   * arabisch und tuerkisch kann.
+   */
+  const bautagStatus = BAUTAG_STATUS_TEXTE[basis.sprache];
+  const wetterQuelle = WETTER_QUELLE_TEXTE[basis.sprache];
+  /*
+   * Der Befund als SCHLUESSEL, nicht als fertiger Satz. `gleicheMannstundenAb`
+   * gibt in `text` einen deutschen Satz zurueck; er gehoert dem internen
+   * Portal. Die Zahlen daneben kommen weiter aus dem Dienst — gerechnet wird
+   * hier nichts.
+   */
+  const abgleichSatz: Readonly<Record<string, string>> = {
+    deckungsgleich: t.abgleichDeckungsgleich,
+    abweichung: t.abgleichAbweichung,
+    ohne_angabe: t.abgleichOhneAngabe,
+    zeit_nicht_lesbar: t.abgleichZeitNichtLesbar,
+  };
+  /*
+   * Nach Schichtende und nach dem Herausnehmen aus dem Plan traegt die Schicht
+   * nichts mehr: `app.ist_eingesetzt_auf_projekt` verlangt
+   * `ende_zeitpunkt >= now()` (0004), `einsatz_zuordnung.t_selbst_m1` verlangt
+   * `entfernt_am is null` (0300). Der Grund steht als Satz da, statt dass ein
+   * Formular in ein nacktes 404 laeuft (O-740).
+   */
+  const sperre = schicht.entfernt ? t.schichtEntfernt
+    : schicht.beendet ? t.schichtBeendet : null;
 
   return (
     <MeinRahmen basis={basis} titel={t.bautagebuch} aktiverTab="schichten">
@@ -146,7 +191,7 @@ export default async function MeinBautagebuch(
               <div className="mb-s3 flex flex-wrap items-center gap-s3">
                 <StatusPill zustand={BAUTAG_PILLE[tag.status] ?? 'Entwurf'} />
                 <span className="text-sm text-text-muted">
-                  {BAUTAG_STATUS_TEXT[tag.status] ?? tag.status}
+                  {bautagStatus[tag.status as BautagStatusSchluessel] ?? tag.status}
                 </span>
               </div>
               <Felder>
@@ -160,8 +205,14 @@ export default async function MeinBautagebuch(
                 <Feld label={t.ende}>
                   <span className="cse-zahl">{tag.arbeitsende_lokal ?? '—'}</span>
                 </Feld>
-                <Feld label={t.status}>
-                  {WETTER_QUELLE_TEXT[tag.wetter_quelle] ?? tag.wetter_quelle}
+                {/*
+                  `t.wetterQuelle` und NICHT `t.status`: hier stand
+                  „Status: keine Quelle". Der Zustand des Bautags steht
+                  daneben in der Pille und im Wort davor.
+                */}
+                <Feld label={t.wetterQuelle}>
+                  {wetterQuelle[tag.wetter_quelle as WetterQuelleSchluessel]
+                    ?? tag.wetter_quelle}
                 </Feld>
               </Felder>
               {!offen && (
@@ -209,7 +260,8 @@ export default async function MeinBautagebuch(
             )}
 
             {offen && (
-              gewerke.length === 0 ? (
+              sperre !== null ? <Hinweis text={sperre} marke="erfassung-zu" />
+              : gewerke.length === 0 ? (
                 /*
                  * Regel 1 auf dem Bildschirm: der Gewerkekatalog wird leer
                  * ausgeliefert, bis feststeht, welche Gewerke gefuehrt werden.
@@ -308,6 +360,7 @@ export default async function MeinBautagebuch(
             )}
 
             {offen && (
+              sperre !== null ? <Hinweis text={sperre} marke="erfassung-zu" /> : (
               <form
                 method="post"
                 action={`/api/mein/schichten/${zuordnungId}/bautagebuch/position`}
@@ -354,6 +407,7 @@ export default async function MeinBautagebuch(
                 </div>
                 <button type="submit" className={knopf}>{t.hinzufuegen}</button>
               </form>
+              )
             )}
           </section>
 
@@ -381,7 +435,9 @@ export default async function MeinBautagebuch(
                 ohne diesen Satz waere im Mitarbeiterportal regelmaessig eine
                 Falschmeldung.
               */}
-              <p className="m-0 mb-s3 max-w-prose text-base text-text">{abgleich.text}</p>
+              <p className="m-0 mb-s3 max-w-prose text-base text-text">
+                {abgleichSatz[abgleich.befund] ?? abgleich.befund}
+              </p>
               <Felder>
                 <Feld label={t.mannstunden}>
                   <span className="cse-zahl">

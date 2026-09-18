@@ -84,7 +84,17 @@ export default async function Kundenfreigabe(
 
   const widerrufen = stand.widerrufen_am !== null;
   const gilt = stand.freigegeben && !widerrufen;
-  const kannErfassen = !stand.freigegeben && ansprechpartner.length > 0
+  /**
+   * Erfassen darf, wer KEINE GELTENDE Freigabe vor sich hat — nicht: wer keine
+   * Freigabe vor sich hat.
+   *
+   * Nach einem Widerruf bleibt `freigegeben_vom_kunden` auf `true` stehen (der
+   * CHECK verlangt es, solange die drei Pflichtangaben da sind). An
+   * `!stand.freigegeben` gehaengt, verschwand das Erfassungsformular damit fuer
+   * immer: der Widerruf war eine Sackgasse, und ein Kunde, der seine Meinung
+   * ein zweites Mal aendert, hatte im Portal keinen Weg zurueck.
+   */
+  const kannErfassen = !gilt && ansprechpartner.length > 0
     && dokumente.length > 0;
 
   return (
@@ -158,6 +168,14 @@ export default async function Kundenfreigabe(
               ? `Die Freigabe ist widerrufen — ${stand.widerrufen_am ?? ''}.`
               : `Die Freigabe liegt vor — erteilt ${stand.freigabe_am ?? ''}.`}
           </strong>
+          {widerrufen && (
+            <p className="mt-s3 mb-0 text-sm">
+              Der <strong>Grund</strong> des Widerrufs steht im Prüfprotokoll,
+              nicht hier: der Wortlaut unten ist die Erklärung des Kunden und
+              bleibt, wie der Kunde sie erklärt hat. Eine neue Erklärung lässt
+              sich unten erfassen — sie hebt den Widerruf auf.
+            </p>
+          )}
           <dl className="m-0 mt-s4 grid grid-cols-[auto_1fr] gap-x-s5 gap-y-s2">
             <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">
               Erklärt von
@@ -197,9 +215,18 @@ export default async function Kundenfreigabe(
       ) : null}
 
       {/* Das Formular ----------------------------------------------------- */}
-      {stand.freigegeben ? null : kannErfassen ? (
+      {gilt ? null : kannErfassen ? (
         <section aria-labelledby="erfassen" className="mb-s7">
-          <h2 id="erfassen" className="text-h2 text-text">Die Erlaubnis festhalten</h2>
+          <h2 id="erfassen" className="text-h2 text-text">
+            {widerrufen ? 'Die Erlaubnis erneut festhalten' : 'Die Erlaubnis festhalten'}
+          </h2>
+          {widerrufen && (
+            <p className="mt-s2 max-w-prose text-sm text-text-muted">
+              Die frühere Freigabe ist widerrufen. Eine neue Erklärung des
+              Kunden hebt den Widerruf auf; der Vorgang steht im Prüfprotokoll,
+              mit Grund, Mensch und Zeitpunkt.
+            </p>
+          )}
           <form
             method="post"
             action="/api/auftrag/kundenfreigabe"
@@ -267,7 +294,7 @@ export default async function Kundenfreigabe(
               data-cse="freigabe-erfassen"
               className="mt-s4 inline-flex min-h-11 items-center rounded-md bg-brand px-s5 text-sm text-white hover:bg-brand-hover"
             >
-              Freigabe festhalten
+              {widerrufen ? 'Freigabe erneut festhalten' : 'Freigabe festhalten'}
             </button>
           </form>
         </section>

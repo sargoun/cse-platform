@@ -10,7 +10,7 @@ import {
 } from '@/server/services/mitarbeiter/medien';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../../rahmen';
-import { Feld, Felder, Leer } from '../../../bausteine';
+import { Feld, Felder, Hinweis, Leer } from '../../../bausteine';
 
 /**
  * `/portal/mein/schichten/[zuordnungId]/fotos` — die Aufnahmen der Schicht
@@ -94,6 +94,17 @@ export default async function MeineSchichtfotos(
   const { basis } = ergebnis;
   const { schicht, aufnahmen, verbunden } = ergebnis.daten;
   const t = basis.texte;
+  /*
+   * Zwei Gruende, aus denen hier kein Formular steht, und sie sind nicht
+   * derselbe wie „kein Speicher verbunden": die Schicht ist vorbei
+   * (`app.ist_eingesetzt_auf_objekt` verlangt `ende_zeitpunkt >= now()`, 0004)
+   * oder die Einteilung wurde aus dem Plan genommen
+   * (`einsatz_zuordnung.t_selbst_m1` verlangt `entfernt_am is null`, 0300).
+   * Beide enden im Schreibweg mit `404 nicht_gefunden`; beide gehoeren als
+   * Satz auf den Bildschirm (O-740).
+   */
+  const sperre = schicht.entfernt ? t.schichtEntfernt
+    : schicht.beendet ? t.schichtBeendet : null;
   const eingabe =
     'min-h-11 w-full rounded-md border border-line-strong bg-surface px-s3 py-s2 '
     + 'text-base text-text';
@@ -168,7 +179,8 @@ export default async function MeineSchichtfotos(
       <section data-cse="aufnahme-formular">
         <h2 className="mb-s3 text-h2 text-text">{t.aufnahmeHinzufuegen}</h2>
         <p className="mb-s4 max-w-prose text-base text-text-muted">{t.ohneOrtsdaten}</p>
-        {verbunden ? (
+        {sperre !== null ? <Hinweis text={sperre} marke="erfassung-zu" />
+          : verbunden ? (
           /*
             Ein echtes multipart-`<form>` ohne JavaScript. `capture="environment"`
             oeffnet auf dem Telefon direkt die rueckwaertige Kamera; auf einem

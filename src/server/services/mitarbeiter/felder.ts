@@ -32,6 +32,9 @@ import { STUNDEN_FENSTER_FELDER, KONTO_ANSICHT_FELDER, URLAUB_ANSICHT_FELDER }
 import { ZEITEINTRAG_FELDER } from './zeiten.js';
 import { EIGENER_NACHWEIS_FELDER, EIGENE_NACHWEISLAGE_FELDER } from './nachweise.js';
 import { EIGENER_ANTRAG_FELDER, EIGENE_ABWESENHEIT_FELDER } from './antraege.js';
+import { SCHICHT_NACHWEIS_FELDER } from './nachweis-schicht.js';
+import { SCHICHT_MEDIUM_FELDER } from './medien.js';
+import { SCHICHT_KONTROLLPUNKT_FELDER } from './schichtbuch.js';
 
 /**
  * Jede Nutzlast, die das Mitarbeiterportal einer Seite gibt, mit ihrer
@@ -48,6 +51,18 @@ export const MITARBEITER_NUTZLASTEN: Readonly<Record<string, readonly string[]>>
   nachweislage: EIGENE_NACHWEISLAGE_FELDER,
   antrag: EIGENER_ANTRAG_FELDER,
   abwesenheit: EIGENE_ABWESENHEIT_FELDER,
+  /*
+   * Die Nutzlasten der vier Schichtseiten (0300–0304). Sie fehlten hier, und
+   * damit prueften WEDER die Wortprobe noch der Feldvergleich sie — still,
+   * denn nichts zaehlte die `*_FELDER`-Exporte auf. Genau dagegen ist diese
+   * Liste laut ihrem Kopfkommentar gebaut. `tests/kern/mitarbeiter.test.ts`
+   * haelt jetzt zusaetzlich jeden Export unter `services/mitarbeiter/` gegen
+   * diese Schluessel, damit sich die Luecke beim naechsten Dienst nicht
+   * wiederholt.
+   */
+  schichtNachweis: SCHICHT_NACHWEIS_FELDER,
+  schichtMedium: SCHICHT_MEDIUM_FELDER,
+  schichtKontrollpunkt: SCHICHT_KONTROLLPUNKT_FELDER,
 };
 
 /**

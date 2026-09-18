@@ -109,13 +109,22 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         throw new KatalogFehler('Keine Position benannt', 'nicht_gefunden');
       }
 
+      /**
+       * BEIDE Kennungen gehen weiter — die Position allein reichte nicht.
+       *
+       * Die Dienste vergleichen `id = $1 and katalog_id = $2`, wie es
+       * `api/raum` mit `objekt_id` macht. Vorher traf das `where id = $1` auch
+       * eine Position einer anderen Fassung desselben Mandanten, waehrend die
+       * Umleitung auf die Fassung aus dem Formular zeigte.
+       */
       if (aktion === 'position_aendern') {
-        await aenderePosition(db, positionId, positionAus(rumpf));
+        await aenderePosition(db, katalogId, positionId, positionAus(rumpf));
         return { katalogId };
       }
       if (aktion === 'position_ausser_kraft') {
         await setzePositionAusserKraft(
-          db, positionId, pflichtDatum(rumpf.felder['gueltigBis'], 'Gültig bis'));
+          db, katalogId, positionId,
+          pflichtDatum(rumpf.felder['gueltigBis'], 'Gültig bis'));
         return { katalogId };
       }
       throw new KatalogFehler(`Unbekannte Handlung: ${aktion}`, 'unvollstaendig');

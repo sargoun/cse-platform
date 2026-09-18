@@ -21,6 +21,7 @@
  * freigegeben wird und ob eine Buergschaft ihn ersetzt, ist O-20.
  */
 import { cent, parseGeld, type Cent } from '../finanz/geld.js';
+import { prozentInBasispunkteOderGrund } from '../finanz/prozent.js';
 
 export interface Abfrage {
   abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
@@ -63,6 +64,25 @@ export interface Befund {
   readonly zielRecht: string | null;
 }
 
+/**
+ * Die Rechte, die ein `Befund.zielRecht` fuehren kann — abschliessend.
+ *
+ * Die Seite fragt GENAU diese ab (`haeltRechte`). Stuenden sie dort ein
+ * zweites Mal von Hand, liefe die Liste irgendwann auseinander — und weil
+ * `haeltRechte` nur die UEBERGEBENEN Schluessel in seine Karte legt, waere ein
+ * hier genanntes, dort vergessenes Recht `undefined` und damit fuer JEDEN
+ * Benutzer „fehlt" — auch fuer `super_admin`. Genau das war der Fall, solange
+ * hier `leistungsnachweis.lesen`, `aufmass.lesen` und `nachtrag.lesen`
+ * standen: drei Schluessel, die der Berechtigungskatalog gar nicht kennt.
+ *
+ * Die Werte stammen aus dem Routenregister der ZIELE, nicht aus dem Modul, in
+ * dem sie liegen: `/reinigung/leistungsnachweise` wacht mit `nachweis.lesen`,
+ * nicht mit `reinigung.lesen`.
+ */
+export const PRUEFLISTE_ZIELRECHTE = [
+  'zeit.lesen', 'nachweis.lesen', 'finanzen.lesen', 'bau.lesen',
+] as const;
+
 export interface Pruefliste {
   readonly befunde: readonly Befund[];
   /** Erfasste Minuten am Auftrag — die Groesse, an der FIN-18 haengt. */
@@ -72,7 +92,7 @@ export interface Pruefliste {
   readonly offeneBefunde: number;
 }
 
-interface BefundeZeile {
+export interface BefundeZeile {
   readonly zeit_ohne_freigabe: string;
   readonly zeit_ohne_abrechnung: string;
   readonly erfasste_minuten: string;
@@ -92,9 +112,30 @@ export async function ladePruefliste(
   if (z === undefined) {
     throw new AbschlussFehler('Auftrag nicht gefunden', 'nicht_gefunden');
   }
-  const n = (wert: string): number => Number(wert);
+  const befunde = befundeAus(z);
+  const erfassteMinuten = Number(z.erfasste_minuten);
+  return {
+    befunde,
+    erfassteMinuten,
+    fin18Trifft: erfassteMinuten === 0,
+    offeneBefunde: befunde.filter((b) => b.anzahl > 0).length,
+  };
+}
 
-  const befunde: readonly Befund[] = [
+/**
+ * Die acht Befunde aus einer Zeile — OHNE Datenbank, damit sie pruefbar sind.
+ *
+ * Drei von ihnen trugen ein `zielRecht`, das der Berechtigungskatalog gar
+ * nicht kennt (`leistungsnachweis.lesen`, `aufmass.lesen`, `nachtrag.lesen`),
+ * und zwei ein `ziel`, das es als Route nicht gibt. Beides faellt nicht auf,
+ * solange die Pruefung eine Datenbank braucht: aus `undefined` wird auf der
+ * Seite stillschweigend „Ihnen fehlt …" — auch fuer `super_admin`. Als reine
+ * Funktion laesst sich die Liste gegen Routenregister und Rechtekatalog
+ * halten (`tests/kern/abschluss-pruefliste.test.ts`).
+ */
+export function befundeAus(z: BefundeZeile): readonly Befund[] {
+  const n = (wert: string): number => Number(wert);
+  return [
     {
       schluessel: 'zeit_ohne_freigabe',
       titel: 'Zeiteinträge ohne Freigabe',
@@ -117,7 +158,7 @@ export async function ladePruefliste(
       erklaerung: 'Der Kunde hat gegengezeichnet — abgerechnet wurde es nicht. Das ist '
         + 'die Zeile, die man im Nachhinein am schwersten durchsetzt.',
       anzahl: n(z.nachweise_ohne_rechnung), sperrt: false,
-      ziel: 'reinigung/nachweise', zielRecht: 'leistungsnachweis.lesen',
+      ziel: 'reinigung/leistungsnachweise', zielRecht: 'nachweis.lesen',
     },
     {
       schluessel: 'rechnungen_entwurf',
@@ -133,7 +174,7 @@ export async function ladePruefliste(
       erklaerung: 'Weder gegengezeichnet noch einseitig festgestellt — die Menge ist '
         + 'zwischen den Parteien nicht geklärt (VOB/B).',
       anzahl: n(z.aufmasse_offen), sperrt: false,
-      ziel: 'bau/aufmasse', zielRecht: 'aufmass.lesen',
+      ziel: 'bau/aufmass', zielRecht: 'bau.lesen',
     },
     {
       schluessel: 'nachtraege_offen',
@@ -141,7 +182,7 @@ export async function ladePruefliste(
       erklaerung: 'Angemeldet, kalkuliert oder eingereicht, aber nicht beauftragt und '
         + 'nicht abgelehnt. Nach dem Abschluss ist die Grundlage fort.',
       anzahl: n(z.nachtraege_offen), sperrt: false,
-      ziel: 'bau/nachtraege', zielRecht: 'nachtrag.lesen',
+      ziel: 'bau/nachtraege', zielRecht: 'bau.lesen',
     },
     {
       schluessel: 'ohne_abrechnungsart',
@@ -160,14 +201,6 @@ export async function ladePruefliste(
       ziel: null, zielRecht: null,
     },
   ];
-
-  const erfassteMinuten = n(z.erfasste_minuten);
-  return {
-    befunde,
-    erfassteMinuten,
-    fin18Trifft: erfassteMinuten === 0,
-    offeneBefunde: befunde.filter((b) => b.anzahl > 0).length,
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -183,29 +216,30 @@ export interface AbschlussEingabe {
   readonly einbehaltBetrag?: string | null;
 }
 
-/** Deutsche Prozentangabe in Basispunkte: `"5"` → `500`, `"5,5"` → `550`. */
+/**
+ * Deutsche Prozentangabe in Basispunkte: `"5"` → `500`, `"5,5"` → `550`.
+ *
+ * Gerechnet wird in `finanz/prozent.ts` — dieselbe Umrechnung wie bei den
+ * Kalkulationszuschlaegen, und nicht mehr eine zweite Abschrift davon mit
+ * eigener Regel und eigener Grenze. Hier steht nur, wie eng der Bereich ist
+ * (0–100 %) und wie der Fehler heisst, damit die Seite einen Satz zeigen kann
+ * statt einer 500.
+ */
 export function prozentInBasispunkte(roh: string): number {
-  const text = roh.trim().replace(',', '.');
-  if (!/^\d{1,3}(?:\.\d{1,2})?$/u.test(text)) {
+  const ergebnis = prozentInBasispunkteOderGrund(roh, EINBEHALT_HOECHSTENS_BP);
+  if (ergebnis.art === 'unlesbar') {
     throw new AbschlussFehler(
       `„${roh}" ist kein lesbarer Prozentsatz`, 'zahl_unlesbar');
   }
-  /**
-   * Ueber Zeichenketten, nicht ueber `Number(text) * 100`.
-   *
-   * `5.6 * 100` ist in Fliesskomma `560.0000000000001`, und `Math.round`
-   * raeumt das hier auf — aber nur, weil der Bereich klein ist. Die
-   * Zerlegung ist exakt und traegt dieselbe Absicht wie Invariante 1: eine
-   * Zahl, die einen Betrag bestimmt, entsteht nicht aus einem Fliesskommawert.
-   */
-  const [ganz = '0', bruch = ''] = text.split('.');
-  const bp = Number(ganz) * 100 + Number(bruch.padEnd(2, '0') || '0');
-  if (bp < 0 || bp > 10000) {
+  if (ergebnis.art === 'ausserhalb') {
     throw new AbschlussFehler(
       'Der Einbehaltssatz liegt zwischen 0 und 100 Prozent', 'zahl_unlesbar');
   }
-  return bp;
+  return ergebnis.bp;
 }
+
+/** 100 % — ein voller Einbehalt ist eine Vereinbarung, kein Tippfehler. */
+const EINBEHALT_HOECHSTENS_BP = 10_000;
 
 /**
  * Der Abschluss — mit den Abnahmeangaben, weil sie dazugehoeren.
@@ -264,7 +298,8 @@ export async function schliesseAuftragAb(
   const bp = prozent === null ? null : prozentInBasispunkte(prozent);
   const einbehaltCent: Cent | null = betrag === null ? null : geld(betrag);
 
-  const [nachher] = await db.abfrage<{ auftragsnummer: string; abgeschlossen_am: Date }>(
+  const [nachher] = await mitEinbehaltFehler(() => db.abfrage<{
+    auftragsnummer: string; abgeschlossen_am: Date }>(
     `update auftrag
         set status = 'abgeschlossen',
             /**
@@ -275,12 +310,27 @@ export async function schliesseAuftragAb(
              */
             abnahme_am = coalesce($2::date, abnahme_am),
             gewaehrleistung_bis = coalesce($3::date, gewaehrleistung_bis),
-            sicherheitseinbehalt_bp = coalesce($4, sicherheitseinbehalt_bp),
-            sicherheitseinbehalt_cent = coalesce($5, sicherheitseinbehalt_cent)
+            /**
+             * Satz ODER Betrag — und ein Wechsel muss der andere Spalte
+             * WEGNEHMEN, nicht danebenstellen.
+             *
+             * Mit zwei blossen coalesce blieb der alte Betrag stehen, sobald
+             * die Maske einen Satz schickte (das Betragsfeld leer). Dann
+             * standen beide Spalten, num_nonnulls(...) = 2, und
+             * auftrag_einbehalt_eindeutig schlug als roher 23514 zu — ein
+             * Fehler ohne Satz, weil ihn niemand uebersetzt. Die Maske fuellt
+             * beide Felder aus dem Bestand vor, der Wechsel ist also der
+             * Normalfall, nicht die Ausnahme.
+             */
+            sicherheitseinbehalt_bp = case when $5::bigint is not null then null
+                                           else coalesce($4::int, sicherheitseinbehalt_bp) end,
+            sicherheitseinbehalt_cent = case when $4::int is not null then null
+                                             else coalesce($5::bigint,
+                                                           sicherheitseinbehalt_cent) end
       where id = $1
       returning auftragsnummer, abgeschlossen_am`,
     [auftragId, abnahme, gewaehrleistung, bp,
-     einbehaltCent === null ? null : String(einbehaltCent)]);
+     einbehaltCent === null ? null : String(einbehaltCent)]));
   if (nachher === undefined) {
     throw new AbschlussFehler('Der Abschluss hat keine Zeile getroffen', 'nicht_gefunden');
   }
@@ -288,6 +338,29 @@ export async function schliesseAuftragAb(
     auftragsnummer: nachher.auftragsnummer,
     abgeschlossenAm: nachher.abgeschlossen_am,
   };
+}
+
+/**
+ * Die zweite Linie unter dem `case`-Ausdruck oben.
+ *
+ * Die Spalten werden jetzt gegenseitig geleert, `auftrag_einbehalt_eindeutig`
+ * sollte also nicht mehr zuschlagen. Sollte er es doch — eine spaetere
+ * Erweiterung, ein Ausloeser, der die andere Spalte wieder fuellt —, liest ein
+ * Mensch den Satz zu O-20 statt einer 500 ohne Text: `fuehreUebergangAus`
+ * wirft alles weiter, was kein `AbschlussFehler` ist.
+ */
+async function mitEinbehaltFehler<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (fehler) {
+    const f = fehler as { code?: string; constraint_name?: string };
+    if (f.code === '23514' && f.constraint_name === 'auftrag_einbehalt_eindeutig') {
+      throw new AbschlussFehler(
+        'Der Sicherheitseinbehalt ist ein Satz ODER ein Betrag, nicht beides — '
+        + 'welcher von beiden gilt, ist offen (O-20)', 'einbehalt_doppelt');
+    }
+    throw fehler;
+  }
 }
 
 function leer(wert: string | null | undefined): string | null {

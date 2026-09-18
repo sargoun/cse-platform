@@ -18,6 +18,7 @@ import { addiere, basisPunkte, parseGeld, type Cent } from '../finanz/geld.js';
 import type { MilliMenge } from '../finanz/menge.js';
 import { kalkuliere, verteileNetto } from './index.js';
 import type { Flaechenposten } from './richtzeit.js';
+import { prozentInBasispunkteOderGrund } from '../finanz/prozent';
 
 export interface Abfrage {
   abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
@@ -77,18 +78,24 @@ export interface Bestaetigung {
  * Zuschlag zu aendern, den jemand eingetippt hat.
  */
 export function prozentInBasispunkte(eingabe: string): number {
-  const text = eingabe.trim().replace(/\s|%/gu, '').replace(',', '.');
-  if (!/^\d+(?:\.\d{1,2})?$/u.test(text)) {
+  /**
+   * Gerechnet wird in `finanz/prozent.ts`, damit der Sicherheitseinbehalt in
+   * `auftrag/abschluss.ts` und dieser Zuschlag DIESELBE Umrechnung benutzen.
+   * Hier bleibt die Grenze (1000 %) und der Name des Fehlers.
+   */
+  const ergebnis = prozentInBasispunkteOderGrund(eingabe, ZUSCHLAG_HOECHSTENS_BP);
+  if (ergebnis.art === 'unlesbar') {
     throw new KalkulationFehler(
       `Kein Prozentsatz: ${JSON.stringify(eingabe)}`, 'keine_zahl');
   }
-  const [ganz = '0', bruch = ''] = text.split('.');
-  const bp = Number(ganz) * 100 + Number(bruch.padEnd(2, '0'));
-  if (bp > 100_000) {
+  if (ergebnis.art === 'ausserhalb') {
     throw new KalkulationFehler(`Zuschlag ausserhalb des Bereichs: ${eingabe}`, 'keine_zahl');
   }
-  return bp;
+  return ergebnis.bp;
 }
+
+/** 1000 % — die Grenze der Spalte, nicht eine kaufmaennische Aussage. */
+const ZUSCHLAG_HOECHSTENS_BP = 100_000;
 
 /**
  * Der Eurobetrag als ganze Cent — ueber die geprueft Geldfunktion, nie ueber `Number`.

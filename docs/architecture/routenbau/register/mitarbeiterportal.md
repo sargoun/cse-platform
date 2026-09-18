@@ -13,9 +13,7 @@ dem Bauschritt geändert hat.
 
 - Bau: fertig
 - Kritik: 14 Befunde
-- Behebung: 0 behoben, 0 widerlegt, 0 offen
-
-> **Der Behebungsschritt lief noch nicht.** Die Einträge unten stammen aus dem Bauschritt und können durch ihn noch wachsen.
+- Behebung: 14 behoben, 0 widerlegt, 4 offen
 
 ## Migrationen (gegen eine eigene Datenbank gefahren: True)
 
@@ -42,170 +40,61 @@ dem Bauschritt geändert hat.
 
 ## src/server/registry/dienste.ts
 
-// In src/server/registry/dienste.ts, im Block der `mitarbeiter/`-Eintraege
-// (heute Zeile ~693–705), NACH `{ modul: 'dienstanweisung', pfad: 'mitarbeiter/dienstanweisungen', schreibend: false },`:
+In src/server/registry/dienste.ts, im Block des Mitarbeiterportals (neben den vorhandenen `mitarbeiter/*`-Zeilen, ~Z. 693-705), VIER neue Zeilen — alle lesend, was der Gegentest `tests/kern/mitarbeiter.test.ts` („und KEINER davon schreibt\") ausdruecklich verlangt und was hier auch stimmt: keine der vier Dateien nimmt einen SchreibKontext.
 
-  /**
-   * Die vier Dienste der Schichtseiten — alle LESEND, und das ist dieselbe
-   * Zusage wie fuer die uebrigen `mitarbeiter/`-Dienste (EMP-07, K-18):
-   * geschrieben wird in den FACHdiensten, damit kein Weg an ihnen vorbeifuehrt.
-   *
-   *  - `schicht-zugang` loest die eigene Zuordnung im Personen-Scope auf und
-   *    leitet den Mandanten daraus ab — die PER->M1-Bruecke jeder Schreibroute.
-   *  - `schichtbuch` legt das Uebergabefenster neben `leseBuch`, damit die
-   *    Seite „Fenster zu" von „nichts passiert" unterscheiden kann (O-151).
-   *  - `medien` listet die Aufnahmen einer Schicht; abgelegt werden sie von
-   *    `zeit/medien`.
-   *  - `nachweis-schicht` liest die Leistungsnachweise des eigenen Objekts
-   *    OHNE den Kundenjoin, den die Kraft nicht lesen darf (EMP-13, K-05).
-   */
-  { modul: 'dienstplan', pfad: 'mitarbeiter/schicht-zugang', schreibend: false },
-  { modul: 'wachbuch', pfad: 'mitarbeiter/schichtbuch', schreibend: false },
-  { modul: 'zeit', pfad: 'mitarbeiter/medien', schreibend: false },
-  { modul: 'nachweis', pfad: 'mitarbeiter/nachweis-schicht', schreibend: false },
+  { modul: 'nachweis',      pfad: 'mitarbeiter/nachweis-schicht', schreibend: false },
+  { modul: 'zeit',          pfad: 'mitarbeiter/medien',           schreibend: false },
+  { modul: 'dienstplan',    pfad: 'mitarbeiter/schicht-zugang',   schreibend: false },
+  { modul: 'wachbuch',      pfad: 'mitarbeiter/schichtbuch',      schreibend: false },
 
-// ---------------------------------------------------------------------------
-// AENDERUNG an einem bestehenden Eintrag: `zeit/medien` SCHREIBT jetzt.
-// Der vorhandene Einzeiler
-//     { modul: 'zeit', pfad: 'zeit/medien', schreibend: false },
-// (mit seinem Kopfkommentar „Die Medienerfassung PRUEFT und LEGT AB …")
-// wird ersetzt durch:
+UND EINE AENDERUNG an der vorhandenen Zeile (~Z. 264), samt ihrem Kommentar darueber: `zeit/medien` SCHREIBT jetzt. `legeSchichtMediumAb` (Z. 311) nimmt einen `SchreibKontext` und legt die `einsatz_medien`-Zeile selbst an — der Kommentar darueber („er kann keine Zeile anlegen\") stimmt seit 0303 nicht mehr. Das einzutragende Recht ist `zeit.schreiben`: das ist der Schluessel, den `einsatz_medien.t_mandant` in seiner WITH-CHECK-Haelfte verlangt, also der Weg des BUEROS. Der Weg der Kraft laeuft ueber `t_selbst_schichtmedien` und traegt bewusst gar kein Recht (K-19, Selbstzugriff) — genau wie bei `abwesenheit/antrag`, wo auch das staerkere Bueromrecht im Register steht. `zeit.schreiben` ist an super_admin/admin/leitung gebunden und nicht an `mitarbeiter`, die Gruppenansichtsprobe bleibt also gruen.
 
-  /**
-   * Die Medienerfassung prueft, bereinigt und legt ab — und schreibt seit der
-   * Mitarbeiterportal-Welle auch die ZEILE, auf EINEM der beiden Wege:
-   * `app.offline_ereignis_annehmen` bleibt der Weg der Check-in-Marke (K-08),
-   * `legeSchichtMediumAb` ist der Weg der angemeldeten Kraft.
-   *
-   * Genannt ist `zeit.schreiben` — das Recht des GEFAEHRLICHEREN Weges, wie
-   * bei `zeit/einwand`: es ist die WITH-CHECK-Haelfte von
-   * `einsatz_medien.t_mandant`, also der Weg des Bueros an jeder Zeile der
-   * Tabelle. Die Kraft haelt es NICHT; sie schreibt ueber die schmale
-   * Selbstzugriffspolicy `t_selbst_schichtmedien` (0303), fuer die es
-   * absichtlich keinen Katalogschluessel gibt (K-19).
-   */
-  {
-    modul: 'zeit', pfad: 'zeit/medien',
-    schreibend: true, schreibRecht: 'zeit.schreiben',
-  },
+  { modul: 'zeit', pfad: 'zeit/medien', schreibend: true, schreibRecht: 'zeit.schreiben' },
 
 ## src/server/auth/route-manifest.ts
 
-// In src/server/auth/route-manifest.ts, im Block der `api/mein/`-Eintraege
-// (heute nach `{ pfad: 'api/mein/abwesenheit', recht: 'zeit.abwesenheit_melden' },`):
+In src/server/auth/route-manifest.ts, SIEBEN Eintraege (bautagebuch/position und /mannstunden einzeln — vier Handlungen hinter einer Adresse hiessen, dass die Pruefung sich im Handler verzweigt). Das Recht steht jeweils so, wie es die INSERT-/UPDATE-Policy der Zieltabelle tatsaechlich verlangt; gemessen an pg_policies:
 
-  {
-    /**
-     * EMP-10 — der Mensch nimmt seinen EIGENEN Antrag zurueck.
-     *
-     * Dieselbe Begruendung wie beim Einreichen: „nur der Betroffene" laesst
-     * sich als Recht nicht ausdruecken, weil ein Recht einer Rolle gehoert und
-     * eine Rolle vielen Menschen (K-19, SEITENKARTE §7). Bewacht wird der Weg
-     * vierfach: Sitzung, Ursprungsvergleich, der aus der BESCHAEFTIGUNG des
-     * Antrags serverseitig aufgeloeste Mandant (K-02) und
-     * `antrag.t_selbst_zurueckziehen` (0301) — USING nur `eingereicht` und
-     * `in_pruefung`, WITH CHECK nur der Zielzustand `zurueckgezogen`. Eine
-     * Selbstgenehmigung faellt an der WITH-CHECK-Haelfte.
-     */
-    pfad: 'api/mein/antraege/[id]/zurueckziehen',
-    recht: null,
-    grund:
-      'EMP-10, SEITENKARTE §7. Die Ruecknahme des eigenen Antrags ist Selbstzugriff und '
-      + 'kein Modulrecht — `zeit.antrag_entscheiden` ist das Recht der PLANUNG und wuerde '
-      + 'hier das Falsche pruefen. Die Wache ist die Sitzung, der Ursprungsvergleich, der '
-      + 'aus der Beschaeftigung aufgeloeste Mandant (K-02) und die Policy '
-      + '`t_selbst_zurueckziehen` (0301) plus die restriktive Mitarbeiterdecke (K-04).',
-  },
-  {
-    /**
-     * SEC-05, § 34a GewO — die Wache schreibt eine Seite ihres Wachbuchs.
-     *
-     * `wachbuch.schreiben` steht im Katalog UND an der Rolle `mitarbeiter`
-     * (0008). Geprueft wird es in der WITH-CHECK-Haelfte von
-     * `wachbuch_eintrag.t_mandant`, also dort, wo es wirken muss (K-03,
-     * AUT-05); Objekt, Schicht und Urheber loest die Route serverseitig aus
-     * der Zuordnung auf, nie aus dem Formular (K-02).
-     */
-    pfad: 'api/mein/schichten/[zuordnungId]/wachbuch',
-    recht: 'wachbuch.schreiben',
-  },
-  {
-    pfad: 'api/mein/schichten/[zuordnungId]/fotos',
-    recht: null,
-    grund:
-      'TIM-10, DOC-06, SEITENKARTE §7. Die Aufnahme von der eigenen Schicht ist '
-      + 'Selbstzugriff: `zeit.schreiben` ist das Recht des Bueros an `einsatz_medien` und '
-      + 'haette der Kraft den ganzen Zeitbestand geoeffnet. Die Wache ist die Sitzung, der '
-      + 'aus der Schicht aufgeloeste Mandant (K-02) und `t_selbst_schichtmedien` (0303), '
-      + 'die nur Zeilen an einem Einsatz zulaesst, den diese Person sehen kann — plus die '
-      + 'restriktive Mitarbeiterdecke (K-04).',
-  },
-  {
-    /**
-     * CLN-04 — Leistungsnachweis anlegen und vorlegen.
-     *
-     * `nachweis.schreiben` ist im Katalog an `mitarbeiter` gebunden und wird
-     * in der WITH-CHECK-Haelfte von `leistungsnachweis.t_mandant` ein zweites
-     * Mal geprueft (AUT-05). Der Kunde kommt aus `objekt.kunde_id`, nie aus
-     * einem Feld der Anfrage.
-     */
-    pfad: 'api/mein/schichten/[zuordnungId]/leistungsnachweis',
-    recht: 'nachweis.schreiben',
-  },
-  {
-    /**
-     * CLN-04, TIM-08 — der Kunde unterschreibt auf dem Telefon der Kraft.
-     *
-     * Eigene Adresse und nicht derselbe Handler: zwischen Anzeige und
-     * Fingerdruck steht die Pruefsumme (0066), und das ist ein anderer Vorgang
-     * als das Vorlegen.
-     */
-    pfad: 'api/mein/schichten/[zuordnungId]/leistungsnachweis/[id]/unterschrift',
-    recht: 'nachweis.schreiben',
-  },
-  {
-    pfad: 'api/mein/schichten/[zuordnungId]/bautagebuch/position',
-    recht: null,
-    grund:
-      'BAU-07, SEITENKARTE §7. Geraet, Lieferung und Vorkommnis auf der EIGENEN Baustelle '
-      + 'sind Selbstzugriff. `bau.schreiben` waere zu breit — es traegt auch das '
-      + 'Leistungsverzeichnis, die Nachtragsanmeldung und die Aufmassfreigabe; ein neuer '
-      + 'Schluessel scheidet nach K-19 aus. Die Wache ist die Sitzung, das aus der Schicht '
-      + 'aufgeloeste Projekt (K-02) und `bautagebuch_position.t_selbst_m1_erfassen` (0303), '
-      + 'die nur Zeilen auf Projekten zulaesst, auf denen dieser Mensch eingesetzt ist.',
-  },
-  {
-    pfad: 'api/mein/schichten/[zuordnungId]/bautagebuch/mannstunden',
-    recht: null,
-    grund:
-      'BAU-07, SEITENKARTE §7. Dieselbe Begruendung wie bei der Position: Selbstzugriff '
-      + 'ueber `bautagebuch_mannstunden.t_selbst_m1_erfassen` (0303), `herkunft` ist immer '
-      + '`eigen` — Nachunternehmerstunden bezeugt die Bauleitung, weil dahinter die '
-      + 'Rechnung eines Dritten steht.',
-  },
+  { pfad: 'api/mein/antraege/[id]/zurueckziehen', recht: null,
+    grund: 'EMP-10, SEITENKARTE §7. Den EIGENEN Antrag zurueckziehen ist Selbstzugriff und kein Modulrecht (K-19). Die Wache ist die Sitzung, der Ursprungsvergleich, der aus der Beschaeftigung serverseitig aufgeloeste Mandant (K-02) und die Policy t_selbst_zurueckziehen (0301), deren USING nur eingereicht/in_pruefung und deren WITH CHECK nur zurueckgezogen zulaesst — eine Selbstgenehmigung ist damit nicht formulierbar.' },
+
+  { pfad: 'api/mein/schichten/[zuordnungId]/wachbuch', recht: 'wachbuch.schreiben' },
+
+  { pfad: 'api/mein/schichten/[zuordnungId]/fotos', recht: null,
+    grund: 'TIM-10, DOC-06, SEITENKARTE §7. Die Aufnahme an der eigenen Schicht laeuft ueber t_selbst_schichtmedien (0303); die Abgrenzung kommt aus der SICHTBARKEIT des Elternteils unter der RLS von einsatz bzw. bautagebuch, nicht aus einem Rechteschluessel. zeit.schreiben ist an super_admin/admin/leitung gebunden und waere hier das falsche Recht — es oeffnete die Zeiterfassung der ganzen Gesellschaft.' },
+
+  { pfad: 'api/mein/schichten/[zuordnungId]/leistungsnachweis', recht: 'nachweis.schreiben' },
+
+  { pfad: 'api/mein/schichten/[zuordnungId]/leistungsnachweis/[id]/unterschrift', recht: 'nachweis.schreiben' },
+
+  { pfad: 'api/mein/schichten/[zuordnungId]/bautagebuch/position', recht: null,
+    grund: 'BAU-07, SEITENKARTE §7. Die Kolonne FUEGT AN, ueber bautagebuch_position.t_selbst_m1_erfassen (0303) auf app.ist_eingesetzt_auf_projekt. bau.schreiben waere zu breit: es traegt in derselben WITH-CHECK-Haelfte auch lv_position, nachtrag und die Aufmassfreigabe — wer den Tag fuehrt, bekaeme das Leistungsverzeichnis. Ein neuer Schluessel scheidet nach K-19 aus.' },
+
+  { pfad: 'api/mein/schichten/[zuordnungId]/bautagebuch/mannstunden', recht: null,
+    grund: 'BAU-07, SEITENKARTE §7. Wie die Position: bautagebuch_mannstunden.t_selbst_m1_erfassen (0303), Selbstzugriff ueber app.ist_eingesetzt_auf_projekt und app.aktuelle_person(). Abschluss und Gegenzeichnung bleiben bau.schreiben und damit der Bauleitung.' },
 
 ## src/server/db/schema/rls.ts
 
-— keine Aenderung. Es entsteht keine neue Tabelle; 0300–0304 setzen ausschliesslich Policies, zwei Funktionen (app.uebergabe_fenster(uuid), app.leistungsnachweis_kopf_schicht(uuid)), ein `create or replace` auf app.uebergabe_sichtbar und einen spaltenweisen Grant auf `objekt` fuer `cse_definer`. Die Loeschsperren der beruehrten Tabellen (antrag, wachbuch_eintrag, einsatz_medien, bautagebuch*, leistungsnachweis*) stehen bereits im Register.
+Keine Aenderung an src/server/db/schema/rls.ts noetig — alle neuen Policies stehen in 0300/0302/0303/0304 und tragen dort ihren `comment on policy`. Neu hinzugekommen gegenueber dem Bauschritt: `kunde.d_kunde_nachweis_kopf` (SELECT, cse_definer, 0304), `kontrollpunkt.t_selbst_m1` (SELECT, cse_app, 0300) und die neu gesetzte Decke `nummernkreis.p_nk_intern_ceiling` (RESTRICTIVE ALL, cse_app, 0304).
 
 ## src/server/registry/navigation.ts
 
-— keine Aenderung. Alle sechs Seitenrouten stehen bereits in src/server/registry/routen.generiert.ts (Zeilen 407–410, 418, 427) mit `bewachung: {"art":"selbst"}`; die Tab-Leiste bleibt unveraendert, weil die vier Schichtseiten ueber die Schicht-Detailseite erreicht werden und nicht ueber die untere Leiste (SEITENKARTE §11.2).
+Keine Aenderung. Die vier Schichtseiten haengen unter `/portal/mein/schichten/[zuordnungId]` und werden von dort verlinkt; die Tableiste (5 Ziele) bleibt unberuehrt, tests/kern/mitarbeiter.test.ts prueft sie weiter gruen.
 
 ## Sonstiges
 
-1) scripts/guards/run-all.ts — KEINE Aenderung noetig (Stand geprueft). Der erste Entwurf der Fotoroute rief `Speicher.entferne` als Waisen-Ruecknahme und fiel in Wache 14; die Route dreht die Reihenfolge jetzt um (ZEILE, dann Bucket, beides in EINER Transaktion) und braucht gar keine Ruecknahme mehr. `verzoegerterSpeicher` in zeit/medien.ts VERWEIGERT das Loeschen ausdruecklich, statt es durchzureichen.
+ZWEI ZEILEN FUER docs/DECISIONS.md unter „Open\":
 
-2) docs/architecture/03-AUTH-BERECHTIGUNGEN.md §12 — KEIN neuer Rechteschluessel. Der Plan schlug `bau.bautagebuch_erfassen` vor; das haette den generierten Katalog und drizzle/0008 (BLOCK-Sentinels) beruehrt. Stattdessen reiner Selbstzugriff wie bei `antrag.t_selbst_einreichen` — das ist auch die Form, die Register und SEITENKARTE §7 fuer diese Routen fuehren (`S`).
+- **O-740** — Bis wann NACH Schichtende darf eine Kraft noch zu dieser Schicht erfassen (Foto, Wachbucheintrag, Leistungsnachweis, Bautagebuch)? `app.eigene_einsatz_objekte`/`_projekte` verlangen heute `ende_zeitpunkt >= now()` (0004), also schliesst die Erfassung mit der Minute des Schichtendes. CLN-04 laesst den Kunden aber AM ENDE der Schicht unterschreiben. Bis zur Antwort gilt die enge Auslegung, und die vier Schichtseiten schreiben den Grund auf den Bildschirm (`MeinTexte.schichtBeendet`), statt ein Formular anzubieten, das in `404`/`422 kein_objekt` laeuft. Quelle: drizzle/0300_mitarbeiter_schicht_m1_lesen.sql:145.
 
-3) docs/architecture/04-SEITENKARTE.md — falls dort der Zustand je Route gefuehrt wird: die sechs Routen sind nicht mehr „Platzhalter". Inhaltlich zu korrigieren waere §7 an zwei Stellen: die Wachbucharten heissen rundgang · vorkommnis · uebergabe · schluessel · alarm (nicht „Streife · Vorfall"), und die Unterschrift des Auftraggebers ist im Mitarbeiterportal seit 0304 sichtbar, WENN dieses Konto sie selbst aufgenommen hat (erstellt_von) — 0066 §5.8 bleibt sonst unveraendert.
+- **O-741** — Soll der Auftraggeber den Leistungsnachweis zusaetzlich handschriftlich auf dem Bildschirm zeichnen, oder gilt eine getippte Namensangabe mit Serverzeit und Pruefsumme als ausreichend? Heute wird der Name getippt und mit `zeitabweichung_sek` und dem Digest des Abzugs festgehalten (0066); eine Zeichenflaeche braeuchte JavaScript, und die Geraete sind alte Diensttelefone im Treppenhaus. Quelle: src/app/api/mein/schichten/[zuordnungId]/leistungsnachweis/[id]/unterschrift/route.ts:31.
 
-4) tests/kern/mitarbeiter.test.ts und tests/kern/portal-shell.test.ts sind rot, bis dienste.ts die vier Eintraege oben traegt. Das ist die erwartete Rueckmeldung des Registers, kein Defekt der Dienste — portal-shell war ohnehin schon rot (kundenportal/* eines anderen Agenten fehlt dort ebenfalls).
+BEREITS VORHANDENE O-NUMMERN, die diese Nachbesserung nur ZITIERT und nicht neu anlegt: O-147 (Nummerierung des Leistungsnachweises — jetzt in 0304 an der neuen Decke vermerkt), O-151 (Uebergabefenster), O-159 (Gewerkekatalog), O-348 (Einzelpreis je Durchgang), O-280/O-281/O-282 (Mannstundenabgleich).
 
 ## Zeilen für docs/DECISIONS.md, Abschnitt „Offen"
 
-| O-740 | Bis wann NACH Schichtende darf eine Kraft noch zu dieser Schicht erfassen — Foto, Wachbucheintrag, Leistungsnachweis, Bautagebuch? `app.ist_eingesetzt_auf_objekt` verlangt heute `ende_zeitpunkt >= now()`, das Fenster schliesst also mit der Minute des Schichtendes. |
-| O-741 | Soll der Auftraggeber den Leistungsnachweis zusaetzlich handschriftlich auf dem Bildschirm zeichnen, oder genuegt die getippte Namensangabe mit Serverzeit und Pruefsumme? Ein Canvas braucht JavaScript, und die Geraete sind alte Diensttelefone. |
+- **O-740** — Bis wann NACH Schichtende darf eine Kraft noch zu dieser Schicht erfassen (Foto, Wachbucheintrag, Leistungsnachweis, Bautagebuch)? `app.eigene_einsatz_objekte`/`_projekte` verlangen heute `ende_zeitpunkt >= now()` (0004), also schliesst die Erfassung mit der Minute des Schichtendes; CLN-04 laesst den Kunden aber AM ENDE der Schicht unterschreiben. Bis zur Antwort gilt die enge Auslegung, und die vier Schichtseiten nennen den Grund auf dem Bildschirm statt ein Formular anzubieten, das scheitert. Quelle: drizzle/0300_mitarbeiter_schicht_m1_lesen.sql:145.
+- **O-741** — Soll der Auftraggeber den Leistungsnachweis zusaetzlich handschriftlich auf dem Bildschirm zeichnen, oder gilt eine getippte Namensangabe mit Serverzeit und Pruefsumme als ausreichend? Heute wird der Name getippt und mit `zeitabweichung_sek` und dem Digest des Abzugs festgehalten (0066); eine Zeichenflaeche braeuchte JavaScript, und die Geraete sind alte Diensttelefone im Treppenhaus. Quelle: src/app/api/mein/schichten/[zuordnungId]/leistungsnachweis/[id]/unterschrift/route.ts:31.
 
 ## Befunde des Prüfers (14)
 
@@ -248,6 +137,13 @@ Beide sind derselbe AUT-05-Fehler (INNER JOIN auf eine unter RLS unsichtbare Tab
 
 Handwerklich ist der Rest solide: die Migrationen setzen enge Selbstzugriffspolicies statt neuer Rechteschluessel, `t_selbst_zurueckziehen`, `t_selbst_schichtmedien` und die Bautagebuch-Policies habe ich gegen echtes Postgres nachgemessen und sie tun, was sie behaupten; Geld bleibt bigint, jede Ortszeit kommt fertig aus der Datenbank, die Serveruhr gilt, 404 statt 403, keine erfundene Geschaeftsregel, keine erfundenen Gestaltungswerte, keine Schein-Integration, tsc und eslint sauber. Dazu kommen aber eine still verschluckte Nummernvergabe (`p_nk_intern_ceiling`), ein neuer Definer im Eigentum von `postgres`, drei nicht gepflegte Register mit zwei roten Wachen (eine davon im Bericht nicht genannt) und deutsche Festtexte auf einem viersprachigen Arbeiterbildschirm.
 
+## Nach der Behebung noch offen
+
+- Die drei gemeinsamen Dateien sind absprachegemaess NICHT angefasst — die Eintraege stehen unten in registry_dienste, registry_manifest und registry_sonstiges. Ohne sie bleiben drei Wachen rot: tests/kern/mitarbeiter.test.ts:312 („jeder Dienst unter mitarbeiter/ ist eingetragen"), tests/kern/routen.test.ts:101 („keine Route fehlt im Manifest") und tests/kern/portal-shell.test.ts („das Register kennt jeden Dienst"). Achtung: diese drei Wachen sind NICHT nur wegen meiner Domaene rot — portal-shell meldet 72 fehlende Dienste und routen.test 60 fehlende Routen aus der ganzen Welle (bau/lv-import, stammdaten/*, dokument/kundenfreigabe, crm/* …). Meine sind eine kleine Teilmenge davon.
+- ZWEI K-01-VERSTOESSE AUS ANDEREN DOMAENEN, die meine Umstellung der Sperrklinke auf volle Signaturen sichtbar macht (sie waren auch vorher schon rot, nur ungezaehlt): `fin.auftrag_abschluss_befunde(p_auftrag uuid)` aus drizzle/0299 und `kern.nachricht_kopf_fortschreiben()` aus drizzle/0255 sind `security definer` und gehoeren `postgres` — Superuser mit BYPASSRLS. Beide liegen ausserhalb meines Migrationsfensters 0300–0304; ich habe sie NICHT in die ALTLAST-Liste aufgenommen, weil das genau das Wachsen der Altlast waere, das der Test verhindern soll. tests/isolation/definer-eigentum.test.ts meldet sie namentlich. Fix gehoert in 0255 bzw. 0299: `alter function … owner to cse_definer;`.
+- O-740 und O-741 brauchen ihre Zeile in docs/DECISIONS.md unter „Open" (Textbausteine unten). Die Wache `todo-client-nicht-im-register` meldet beide; die uebrigen 81 Meldungen derselben Wache stammen aus anderen Domaenen (O-640/641/645/650/651/660/661/662/670/671/710–713/730/732/734/735/736).
+- O-740 ist bis zur Antwort des Kunden mit der ENGEN Auslegung gebaut: mit dem Schichtende schliesst die Erfassung, und die Seite sagt es (statt sie stillschweigend um einen erfundenen Nachlauf zu verlaengern). Wird die Frage anders beantwortet, ist der Ort der Aenderung `app.eigene_einsatz_objekte`/`_projekte` in 0004 — und dann als entschiedene Regel in DECISIONS.md, nicht als Zahl in einer Funktion.
+
 ## Notizen des Bauender
 
 PRUEFUNG. Zwei eigene Datenbanken, beide bleiben stehen: `w_mapo` (leer, von 0001 bis 0304 durchmigriert — der Lauf endet mit „Migrationen angewendet.", inklusive der 0183/0184 eines anderen Agenten) und `w_mapo_daten` (Klon von cse_test_vorlage, also migriert UND geseedet; darauf liefen alle Policy- und Ablaufproben). Nicht ausgefuehrt: pnpm db:migrate gegen cse_dev/cse_test, pnpm db:triggers, pnpm test, pnpm test:isolation, pnpm test:e2e, pnpm db:seed, pnpm build, git add/commit. `npx tsc --noEmit` ist im GANZEN Baum fehlerfrei (nicht nur gefiltert); eslint auf allen eigenen Pfaden sauber; `tests/kern/mitarbeiter-sprachen.test.ts` 19/19 gruen.
@@ -267,3 +163,18 @@ UEBERSETZUNG: 62 neue Schluessel in MeinTexte, viermal gefuellt (de/en/ar/tr), p
 TESTS: tests/isolation/mitarbeiterportal-schicht.test.ts deckt alle fuenf Migrationen mit Positiv- UND Gegenprobe ab (fremde Schicht, entfernte Zuordnung, Selbstgenehmigung, fremder Antrag, entschiedener Antrag, Fenster zu/offen, fremdes Objekt, fremder Einsatz, Tag schliessen, veraltete Pruefsumme). Ausgefuehrt habe ich sie NICHT — `pnpm test:isolation` steht auf der Verbotsliste, und ihr global-setup legt die gemeinsamen Vorlagen cse_test_vorlage* neu an, an denen andere Agenten gerade arbeiten. Jede einzelne Zusage darin ist stattdessen von Hand gegen echtes Postgres gemessen (psql-Skripte und ein tsx-Skript im Kratzverzeichnis); die Zahlen stehen in den Bemerkungen je Route. Ein Punkt, den die Suite spaeter zeigen wird und ich nicht ausschliessen kann: die Fixtur `baustelle()` habe ich nach den Schemabedingungen gebaut, die mir die lebende Datenbank genannt hat (projekt.auftrag_id NOT NULL, projekt_status kennt kein „laufend", einsatz.objekt_id verlangt kern.einsatz_kunde_setzen) — geprueft ist sie in derselben Form als psql-Fixtur, nicht als Vitest-Lauf.
 
 WACHEN: `npx tsx scripts/guards/run-all.ts` meldet 74 Verstoesse, ALLE `todo-client-nicht-im-register` und fast alle aelter als diese Arbeit (O-604 … O-736 quer durch den Baum). Meine zwei — O-740, O-741 — reihen sich dort ein, bis docs/DECISIONS.md die Zeilen oben traegt. Die einzige Wache, die diese Arbeit ausgeloest hatte (Wache 14, Speicher.entferne), ist gruen.
+
+## Notizen des Behebender
+
+ALLE 14 BEFUNDE HABEN SICH BESTAETIGT — keiner war zu widerlegen. Die zwei blockierenden habe ich vor der Reparatur im Personen-Scope gegen echtes Postgres nachgestellt (w_mapo_daten, Migrationsstand des Repos) und danach dieselbe Messung wiederholt.
+
+GESTALTUNG: keine neuen Werte. Der neue Baustein `Hinweis` in src/app/portal/mein/bausteine.tsx benutzt ausschliesslich Vorhandenes — `text-warning`, `text-base`, `mb-s4`, `max-w-prose`, `m-0` —, also genau das Vokabular, mit dem die vier Seiten den geschlossenen Uebergabe-Fall und „Speicher nicht verbunden\" schon schreiben. Keine Farbe, kein Abstand, keine Rundung erfunden; docs/DESIGN.md nicht geaendert.
+
+EINE WARNUNG ZUR ARBEITSUMGEBUNG: waehrend dieses Laufs hat ein fremder Vorgang die Arbeitskopie mit `git stash` (Nachricht „pruefbefunde-vertrieb-rest-zwischenstand\") und `git reset` geleert — meine drei Migrationsaenderungen waren fuer einige Minuten verschwunden und stecken noch heute in stash@{0}. Ich habe sie mit `git checkout stash@{0} -- drizzle/0302… 0303… 0304…` zurueckgeholt und danach nach jeder Aenderung eine Kopie in den Scratchpad gelegt. Es laeuft offenbar mindestens ein zweiter Agent (vertrieb-rest) auf demselben Arbeitsbaum; in `git status` stehen seine Dateien (angebote, leistungskatalog, auftrag, katalog, vertrieb-Seed, finanz/prozent.ts) neben meinen. Wer als naechstes stasht, trifft beide.
+
+DREI DINGE, DIE ICH UEBER DEN BEFUNDBERICHT HINAUS GEMACHT HABE UND DIE DER PRUEFER SEHEN SOLLTE:
+(1) Beim Praesenznachweis (Befund 11) blieb nach dem Nachruesten des Formularfelds eine Luecke offen, die niemand genannt hatte: `schreibeEintrag` prueft Posten, Veranstaltung und Einsatz gegen das Objekt, den Kontrollpunkt aber nicht — obwohl der seit dieser Aenderung aus dem Formular kommt. Ein Kontrollpunkt aus Haus B waere in der nach § 34a GewO unveraenderlichen Kette von Haus A gelandet. Die Pruefung ist ergaenzt, und 0300 traegt die dafuer noetige M1-Lesepolicy, weil die Vorpruefung sonst den EIGENEN Kontrollpunkt abgewiesen haette.
+(2) Die Isolationssuite war, wie der Pruefer vermutete, nie gelaufen. Sie fiel mit 9 von 17, und keiner der neun war ein Policy-Defekt — der lehrreichste: der Treiber schickte `$2::jsonb` als JSON-String, das Uebergabefenster fiel damit auf `interval '0'`, und die Probe „ohne Fenster sieht sie nur ihre eigenen Seiten\" stand gruen, ohne irgendetwas zu beweisen. Eine gruene Probe, die aus dem falschen Grund gruen ist, ist schlechter als eine rote.
+(3) Die Umstellung der K-01-Sperrklinke auf volle Signaturen legt zwei Verstoesse anderer Domaenen offen (0255, 0299). Ich habe sie bewusst NICHT in die ALTLAST-Liste aufgenommen — das waere genau das Wachsen der Altlast, gegen das die Datei geschrieben ist.
+
+NICHT ANGEFASST, wie verabredet: src/server/registry/*, src/server/auth/route-manifest.ts, src/server/db/schema/rls.ts, docs/DECISIONS.md, docs/04-SEITENKARTE.md, package.json. Kein `git commit`, kein `pnpm build`, keine vollen Suiten.

@@ -16,10 +16,14 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
-  EINWAND_ARTEN, EINWAND_ART_TEXTE, MEIN_TEXTE, PORTAL_BCP47, PORTAL_EIGENNAME,
-  PORTAL_RICHTUNG, PORTAL_SPRACHEN, WACHBUCH_ARTEN_I18N, WACHBUCH_ART_TEXTE,
+  BAUTAG_STATUS_TEXTE, EINWAND_ARTEN, EINWAND_ART_TEXTE, MEIN_TEXTE, PORTAL_BCP47,
+  PORTAL_EIGENNAME, PORTAL_RICHTUNG, PORTAL_SPRACHEN, WACHBUCH_ARTEN_I18N,
+  WACHBUCH_ART_TEXTE, WETTER_QUELLE_TEXTE,
   istPortalSprache, meinTexte,
 } from '../../src/lib/i18n/texte.js';
+import {
+  BAUTAG_STATUS_TEXT, WETTER_QUELLE_TEXT,
+} from '../../src/app/portal/[mandant]/bau/bautagebuch-anzeige.js';
 import { ART_TEXT } from '../../src/server/services/security/wachbuch.js';
 import { istFensterOffen } from '../../src/server/services/mitarbeiter/schichtbuch.js';
 import { SPRACHEN } from '../../src/lib/sprache.js';
@@ -174,6 +178,72 @@ describe('die fuenf Wachbucharten sind in allen vier Sprachen benannt (SEC-05)',
      * Wache ueber verschiedene Dinge zu sprechen glauben.
      */
     expect(WACHBUCH_ART_TEXTE.de).toEqual(ART_TEXT);
+  });
+});
+
+describe('der Bautag spricht auch arabisch und tuerkisch (BAU-07, EMP-12)', () => {
+  /**
+   * **Der Befund, gegen den diese Faelle stehen.** `BAUTAG_STATUS_TEXT` und
+   * `WETTER_QUELLE_TEXT` waren deutsche Literale in der Anzeigehilfe des
+   * INTERNEN Portals, und die Bautagebuchseite des Mitarbeiterportals las sie
+   * von dort. Auf einem arabischen Bildschirm stand „Gegengezeichnet
+   * (Auftraggeber)" und „keine Quelle". Die Sprachwache sah es nicht, weil sie
+   * nur `MEIN_TEXTE` prueft — deshalb prueft sie jetzt auch diese zwei Karten.
+   */
+  it('jede Sprache traegt jeden Bautagstatus, und keiner ist leer', () => {
+    const schluessel = Object.keys(BAUTAG_STATUS_TEXTE.de).sort();
+    expect(schluessel).toHaveLength(3);
+    for (const s of PORTAL_SPRACHEN) {
+      expect(Object.keys(BAUTAG_STATUS_TEXTE[s]).sort(), s).toEqual(schluessel);
+      for (const k of schluessel) {
+        expect(BAUTAG_STATUS_TEXTE[s][k as keyof typeof BAUTAG_STATUS_TEXTE.de].trim(),
+          `${s}.${k}`).not.toBe('');
+      }
+    }
+  });
+
+  it('jede Sprache traegt jede Wetterquelle, und keine ist leer', () => {
+    const schluessel = Object.keys(WETTER_QUELLE_TEXTE.de).sort();
+    expect(schluessel).toHaveLength(3);
+    for (const s of PORTAL_SPRACHEN) {
+      expect(Object.keys(WETTER_QUELLE_TEXTE[s]).sort(), s).toEqual(schluessel);
+      for (const k of schluessel) {
+        expect(WETTER_QUELLE_TEXTE[s][k as keyof typeof WETTER_QUELLE_TEXTE.de].trim(),
+          `${s}.${k}`).not.toBe('');
+      }
+    }
+  });
+
+  it('und keine Sprache ausser Deutsch gibt einfach den deutschen Text zurueck', () => {
+    for (const s of PORTAL_SPRACHEN) {
+      if (s === 'de') continue;
+      const gleich = Object.keys(BAUTAG_STATUS_TEXTE.de).filter(
+        (k) => BAUTAG_STATUS_TEXTE[s][k as 'entwurf'] === BAUTAG_STATUS_TEXTE.de[k as 'entwurf']);
+      expect(gleich, `${s}: Bautagstatus unuebersetzt`).toEqual([]);
+    }
+    /*
+     * Bei der Wetterquelle ist EIN Wert absichtlich gleich: „DWD Open Data"
+     * ist ein Eigenname (§ der Deutsche Wetterdienst nennt sein Angebot so)
+     * und wird nicht uebersetzt — wie `PORTAL_EIGENNAME` oben.
+     */
+    for (const s of PORTAL_SPRACHEN) {
+      if (s === 'de') continue;
+      const gleich = Object.keys(WETTER_QUELLE_TEXTE.de).filter(
+        (k) => WETTER_QUELLE_TEXTE[s][k as 'dwd'] === WETTER_QUELLE_TEXTE.de[k as 'dwd']);
+      expect(gleich, `${s}: Wetterquelle unuebersetzt`).toEqual(['dwd']);
+    }
+  });
+
+  it('das interne Portal liest die de-Spalte — zeichengleich mit frueher', () => {
+    /*
+     * Die Anzeigehilfe des internen Portals leitet ihre zwei Karten jetzt aus
+     * der i18n-Tabelle ab. Sie muss dabei WOERTLICH dasselbe sagen wie zuvor,
+     * sonst hat der Umzug nebenbei eine Beschriftung geaendert.
+     */
+    expect(BAUTAG_STATUS_TEXT).toEqual(BAUTAG_STATUS_TEXTE.de);
+    expect(WETTER_QUELLE_TEXT).toEqual(WETTER_QUELLE_TEXTE.de);
+    expect(BAUTAG_STATUS_TEXT.gegengezeichnet).toBe('Gegengezeichnet (Auftraggeber)');
+    expect(WETTER_QUELLE_TEXT.keine).toBe('keine Quelle');
   });
 });
 

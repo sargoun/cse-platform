@@ -1,6 +1,7 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { istGleicherUrsprung, erwarteterUrsprung } from '@/server/auth/ursprung';
+import { istGleicherUrsprung, erwarteterUrsprung, internesZiel }
+  from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
@@ -29,6 +30,11 @@ import { NummernkreisFehler } from '@/server/services/finanz/nummernkreis';
  * wird in `services/`, entschieden in der Datenbank.
  */
 export const dynamic = 'force-dynamic';
+
+/** JSON oder Formular — dieselbe Frage im Erfolgs- und im Fehlerweg. */
+function jsonAngefragt(anfrage: NextRequest): boolean {
+  return (anfrage.headers.get('content-type') ?? '').includes('application/json');
+}
 
 type Aktion = 'aus_raumbuch' | 'versenden' | 'in_auftrag';
 
@@ -71,6 +77,17 @@ interface Koerper {
   readonly angebotId?: string | undefined;
   readonly art?: string | undefined;
   readonly startDatum?: string | undefined;
+  /**
+   * Wohin ein FORMULAR nach einem abgewiesenen Uebergang zurueckkehrt.
+   *
+   * Ohne dieses Feld beantwortete die Route jeden `AngebotFehler` mit
+   * `{"fehler":"ohne_freigabe"}` als JSON — ein Mensch, der auf
+   * `/angebote/[id]/versand` gedrueckt hatte, landete auf einer weissen Seite
+   * mit einem Datenfeld. Die Seite fuehrt fuer genau diese Gruende eine
+   * Satztabelle; unerreichbar war nur der Weg dorthin. `uebergang.ts` macht
+   * es fuer die anderen Routen dieser Runde genauso (D-562).
+   */
+  readonly zurueck?: string | undefined;
 }
 
 async function koerperAus(anfrage: NextRequest): Promise<Koerper> {
@@ -84,7 +101,7 @@ async function koerperAus(anfrage: NextRequest): Promise<Koerper> {
   return {
     aktion: text('aktion'), objektId: text('objektId'), kundeId: text('kundeId'),
     titel: text('titel'), turnus: text('turnus'), angebotId: text('angebotId'),
-    art: text('art'), startDatum: text('startDatum'),
+    art: text('art'), startDatum: text('startDatum'), zurueck: text('zurueck'),
   };
 }
 
@@ -215,9 +232,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ fehler: 'nichts_zu_kalkulieren' }, { status: 409 });
     }
 
-    const jsonGewuenscht = (anfrage.headers.get('content-type') ?? '')
-      .includes('application/json');
-    if (jsonGewuenscht) return NextResponse.json(ergebnis, { status: 200 });
+    if (jsonAngefragt(anfrage)) return NextResponse.json(ergebnis, { status: 200 });
 
     const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
     const ziel = slug === ''
@@ -241,18 +256,36 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
      * lesen kann — ein 500 mit Stapelspur sagt der Leitung nichts darueber,
      * dass die Kalkulation noch auf offenen Werten steht.
      */
-    if (fehler instanceof AngebotFehler) {
-      return NextResponse.json({ fehler: fehler.grund, text: fehler.message }, { status: 409 });
-    }
-    if (fehler instanceof NummernkreisFehler) {
-      return NextResponse.json({ fehler: fehler.grund, text: fehler.message }, { status: 409 });
-    }
-    if (fehler instanceof TarifFehler) {
-      return NextResponse.json({ fehler: 'turnus', text: fehler.message }, { status: 400 });
-    }
-    const text = fehler instanceof Error ? fehler.message : String(fehler);
-    if (/unbestaetigte Werte/u.test(text)) {
-      return NextResponse.json({ fehler: 'kalkulation_platzhalter', text }, { status: 409 });
+    const grund = fehler instanceof AngebotFehler ? fehler.grund
+      : fehler instanceof NummernkreisFehler ? fehler.grund
+        : fehler instanceof TarifFehler ? 'turnus'
+          : /unbestaetigte Werte/u.test(
+            fehler instanceof Error ? fehler.message : String(fehler))
+            ? 'kalkulation_platzhalter' : null;
+    if (grund !== null) {
+      /**
+       * Ein FORMULAR bekommt seine Seite zurueck, kein JSON — derselbe Weg
+       * wie in `uebergang.ts` (D-562).
+       *
+       * `/angebote/[id]/versand` fuehrt eine Satztabelle fuer genau diese
+       * Gruende (`ohne_freigabe`, `kein_kreis`, `luecke` …) und einen
+       * `?fehler=`-Block, der sie zeigt. Ohne dieses versteckte Feld war
+       * beides unerreichbar: ein abgewiesener Versand — eine veraltete Seite,
+       * zwei Klicks im Rennen — endete auf einer weissen Seite mit
+       * `{"fehler":"…"}`. `internesZiel` laesst nur einen Pfad DIESER
+       * Anwendung durch; ein fremdes Ziel im Feld waere eine offene Umleitung.
+       */
+      const zurueck = koerper.zurueck;
+      if (!jsonAngefragt(anfrage) && zurueck !== undefined && zurueck !== '') {
+        const trenner = zurueck.includes('?') ? '&' : '?';
+        return NextResponse.redirect(
+          internesZiel(
+            `${zurueck}${trenner}fehler=${encodeURIComponent(grund)}`, '/portal', anfrage),
+          303);
+      }
+      const text = fehler instanceof Error ? fehler.message : String(fehler);
+      return NextResponse.json(
+        { fehler: grund, text }, { status: fehler instanceof TarifFehler ? 400 : 409 });
     }
     throw fehler;
   }

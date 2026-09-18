@@ -355,6 +355,17 @@ export default async function Versand(
             */}
           <input type="hidden" name="aktion" value="versenden" />
           <input type="hidden" name="angebotId" value={id} />
+          {/*
+            * `zurueck` — sonst kann auf dieser Seite kein Fehlersatz stehen.
+            *
+            * `/api/angebot` antwortete auf jeden abgewiesenen Versand mit JSON
+            * 409; der `?fehler=`-Block oben und die Satztabelle in `daten.ts`
+            * waren damit unerreichbar, und ein Mensch sah `{"fehler":"…"}` auf
+            * weissem Grund. Die Route kennt das Feld jetzt und leitet auf
+            * genau diese Seite zurueck (D-562) — dieselbe Mechanik wie in
+            * `uebergang.ts`.
+            */}
+          <input type="hidden" name="zurueck" value={pfad} />
           <button
             type="submit"
             data-cse="versenden"

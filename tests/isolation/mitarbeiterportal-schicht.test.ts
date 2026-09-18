@@ -239,19 +239,43 @@ describe('0300 — die eigene Schicht im M1-Scope', () => {
     const s = await schicht({
       mandant: f.reinigung, anstellung: f.fatimaReinigung, person: f.fatima, objekt: o,
     });
-    await expect(aufDerSchicht(fatimaKonto, f.fatima, s.zuordnung, async (k) =>
+    /*
+     * **Ein UPDATE, das die RLS nicht durchlaesst, WIRFT nicht.** Es trifft
+     * null Zeilen — `USING` filtert, `WITH CHECK` wirft. Die erste Fassung
+     * erwartete hier eine Ausnahme und behauptete damit etwas ueber
+     * PostgreSQL, das nicht stimmt. Geprueft wird deshalb die WIRKUNG: der
+     * Wert steht danach unveraendert da.
+     *
+     * `einsatz.t_selbst_m1` (0300) ist `for select`; eine UPDATE-Policy hat
+     * die Kraft auf `einsatz` nicht, also greift keine.
+     */
+    await aufDerSchicht(fatimaKonto, f.fatima, s.zuordnung, async (k) =>
       k.schreibe(`update einsatz set pause_geplant_minuten = 99 where id = $1::uuid`,
-        [s.einsatz]))).rejects.toThrow();
+        [s.einsatz]));
+    const [nachher] = await sql.unsafe<{ pause_geplant_minuten: number }[]>(
+      `select pause_geplant_minuten from einsatz where id = $1`, [s.einsatz]);
+    expect(nachher!.pause_geplant_minuten).not.toBe(99);
   });
 });
 
 describe('0301 — den eigenen Antrag zurueckziehen', () => {
   async function urlaubsantrag(): Promise<string> {
+    /*
+     * Die Kataloge sind GLOBAL: `antragsart` und `abwesenheitsart` tragen
+     * `mandant_id is null`, solange eine Gesellschaft nichts Eigenes
+     * hinterlegt hat. Die erste Fassung suchte nur nach `mandant_id = $1`,
+     * fand nichts und starb an `undefined.id` — ein Fehlschlag, der wie ein
+     * Policy-Defekt aussieht und keiner war.
+     */
     const [art] = await sql.unsafe<{ id: string }[]>(
-      `select id from antragsart where mandant_id = $1 and schluessel = 'urlaub'`,
+      `select id from antragsart
+        where (mandant_id = $1 or mandant_id is null) and schluessel = 'urlaub'
+        order by mandant_id nulls last limit 1`,
       [f.reinigung]);
     const [abw] = await sql.unsafe<{ id: string }[]>(
-      `select id from abwesenheitsart where mandant_id = $1 and schluessel = 'urlaub'`,
+      `select id from abwesenheitsart
+        where (mandant_id = $1 or mandant_id is null) and schluessel = 'urlaub'
+        order by mandant_id nulls last limit 1`,
       [f.reinigung]);
     return sql.begin(async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzungVon(fatimaKonto, f.fatima, f.reinigung), async (k) =>
@@ -292,9 +316,17 @@ describe('0301 — den eigenen Antrag zurueckziehen', () => {
 
   it('nach einer Entscheidung ist es keine Ruecknahme mehr', async () => {
     const id = await urlaubsantrag();
+    /*
+     * `an_entscheidung_paarweise` verlangt `entschieden_am` und
+     * `entschieden_von` GEMEINSAM — eine Entscheidung ohne Entscheider ist
+     * keine. Die erste Fassung setzte nur den Status und starb an der
+     * Bedingung, nicht an der Policy.
+     */
     await sql.unsafe(
-      `update antrag set status = 'abgelehnt', entscheidung_kommentar = 'kein Grund'
-        where id = $1`, [id] as never[]);
+      `update antrag
+          set status = 'abgelehnt', entscheidung_kommentar = 'kein Grund',
+              entschieden_am = now(), entschieden_von = $2
+        where id = $1`, [id, jonasKonto] as never[]);
     await expect(sql.begin(async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzungVon(fatimaKonto, f.fatima, f.reinigung), async (k) =>
         zieheAntragZurueck(k, id)))).rejects.toThrow();
@@ -302,6 +334,32 @@ describe('0301 — den eigenen Antrag zurueckziehen', () => {
 });
 
 describe('0302 — die Uebergabe im Wachbuch', () => {
+  /**
+   * Das Fenster SETZT diese Datei selbst.
+   *
+   * Der Seed der Auslieferung legt `wachbuch.uebergabe_fenster` mit
+   * `{"interval":"PT0S"}` an (0033); die Isolationsfixtur legt nur Mandanten
+   * an und keine Einstellungen. Die erste Fassung schrieb ein `update` und
+   * traf null Zeilen — die Probe behauptete danach, das Fenster sei zu, und
+   * bewies damit nur, dass es die Zeile nicht gab.
+   */
+  async function setzeFenster(dauer: string): Promise<void> {
+    /*
+     * `jsonb_build_object` und NICHT `$2::jsonb`: der Treiber schickt eine
+     * Zeichenkette als JSON-STRING, und `'"{\"interval\":\"PT12H\"}"'` ist
+     * ein jsonb-String und kein Objekt. `->> 'interval'` gibt darauf NULL, das
+     * Fenster faellt auf `interval '0'` — die Probe stand dann gruen auf „zu"
+     * und bewies nichts. Gemessen: `app.einstellung(...)` lieferte
+     * `"{\"interval\": \"PT12H\"}"` (mit Anfuehrungszeichen) statt
+     * `{"interval": "PT12H"}`.
+     */
+    await sql.unsafe(
+      `insert into mandant_einstellung (mandant_id, schluessel, wert)
+       values ($1, 'wachbuch.uebergabe_fenster', jsonb_build_object('interval', $2::text))
+       on conflict (mandant_id, schluessel) do update set wert = excluded.wert`,
+      [f.reinigung, dauer] as never[]);
+  }
+
   async function fremderEintrag(objektId: string, einsatzId: string): Promise<void> {
     /* Ein Eintrag der KOLLEGIN am selben Objekt — sie schreibt ihn selbst. */
     await sql.begin(async (tx: postgres.TransactionSql) =>
@@ -321,6 +379,8 @@ describe('0302 — die Uebergabe im Wachbuch', () => {
       mandant: f.reinigung, anstellung: f.jonasReinigung, person: f.jonas, objekt: o,
     });
     await fremderEintrag(o, seine.einsatz);
+    /* Eingestellt und AUS — der Vorgabewert des Seeds (0033). */
+    await setzeFenster('PT0S');
 
     const buch = await imPersonenScope(fatimaKonto, f.fatima, async (k) =>
       leseSchichtbuch(k, { objektId: o, mandantId: f.reinigung }));
@@ -346,10 +406,7 @@ describe('0302 — die Uebergabe im Wachbuch', () => {
     });
     await fremderEintrag(o, seine.einsatz);
     await fremderEintrag(fremdesObjekt, seineWoanders.einsatz);
-    await sql.unsafe(
-      `update mandant_einstellung set wert = '{"interval":"PT12H"}'::jsonb
-        where mandant_id = $1 and schluessel = 'wachbuch.uebergabe_fenster'`,
-      [f.reinigung] as never[]);
+    await setzeFenster('PT12H');
 
     const meins = await imPersonenScope(fatimaKonto, f.fatima, async (k) =>
       leseSchichtbuch(k, { objektId: o, mandantId: f.reinigung }));
@@ -358,9 +415,77 @@ describe('0302 — die Uebergabe im Wachbuch', () => {
 
     expect(meins.uebergabeOffen).toBe(true);
     expect(meins.eintraege).toHaveLength(1);
+    /*
+     * **Und der Name der Kollegin bleibt weg.** `leseBuch` verband `person`
+     * bis 0304 als INNER JOIN; im Mitarbeiterportal ist deren `person`-Zeile
+     * unsichtbar (`p_ma_ceiling` auf `anstellung`), und damit fiel die GANZE
+     * Zeile aus dem Ergebnis: die Seite zeigte „keine Eintraege", obwohl das
+     * Fenster offen war — genau die Falschaussage, gegen die 0302 geschrieben
+     * wurde. Der LEFT JOIN bringt die Zeile und laesst den Namen weg
+     * (EMP-13); `urheber` ist deshalb `null` und nicht ein Name.
+     */
+    expect(meins.eintraege[0]!.urheber).toBeNull();
+    expect(meins.eintraege[0]!.betreff).not.toBe('');
     /* Auf dem Objekt, auf dem sie NICHT eingesetzt ist, bleibt es leer. */
     expect(fremd.eintraege).toHaveLength(0);
     expect(meine.zuordnung).not.toBe(seine.zuordnung);
+  });
+
+  it('der Praesenznachweis braucht den EIGENEN Kontrollpunkt (SEC-05)', async () => {
+    /**
+     * Der Kontrollpunkt kommt aus dem Formular, also wird er serverseitig
+     * gegen das Objekt der Schicht gehalten (K-02) — `schreibeEintrag` tut das
+     * fuer Posten, Veranstaltung und Einsatz schon, und seit 0304 auch hier.
+     *
+     * Damit die Pruefung im M1-Scope ueberhaupt etwas SIEHT, traegt 0300
+     * `kontrollpunkt.t_selbst_m1`: `t_mandant` verlangt `security.lesen`, ein
+     * Recht der Leitung, und ohne die Zeile wiese die Vorpruefung den EIGENEN
+     * Kontrollpunkt als fremd ab (AUT-05).
+     */
+    const o = await objekt(f.reinigung);
+    const fremdesObjekt = await objekt(f.reinigung, 'Fremdhaus');
+    const s = await schicht({
+      mandant: f.reinigung, anstellung: f.fatimaReinigung, person: f.fatima, objekt: o,
+    });
+    const kp = async (objektId: string): Promise<string> => {
+      const [z] = await sql.unsafe<{ id: string }[]>(
+        `insert into kontrollpunkt (mandant_id, objekt_id, bezeichnung, kurzzeichen,
+                                    nachweisart, reihenfolge, erstellt_von_art)
+         values ($1,$2,'Haupteingang',$3,'manuell',10,'system') returning id`,
+        [f.reinigung, objektId, `KP-${zufall()}`] as never[]);
+      return z!.id;
+    };
+    const meiner = await kp(o);
+    const fremder = await kp(fremdesObjekt);
+
+    /* Die Seite bietet genau die Kontrollpunkte DIESES Objekts an. */
+    const buch = await imPersonenScope(fatimaKonto, f.fatima, async (k) =>
+      leseSchichtbuch(k, { objektId: o, mandantId: f.reinigung }));
+    expect(buch.kontrollpunkte.map((x) => x.id)).toEqual([meiner]);
+
+    const id = await aufDerSchicht(fatimaKonto, f.fatima, s.zuordnung,
+      async (k, bezug) => schreibeEintrag(k, {
+        objektId: bezug!.objektId!, einsatzId: bezug!.einsatzId,
+        art: 'rundgang', betreff: 'Kontrollgang', eintragstext: 'Tuer verschlossen.',
+        kontrollpunktId: meiner, praesenzBestaetigt: true,
+      }));
+    expect(id).toMatch(/^[0-9a-f-]{36}$/u);
+
+    /* Ein Kontrollpunkt aus Haus B gehoert nicht in die Kette von Haus A. */
+    await expect(aufDerSchicht(fatimaKonto, f.fatima, s.zuordnung,
+      async (k, bezug) => schreibeEintrag(k, {
+        objektId: bezug!.objektId!, einsatzId: bezug!.einsatzId,
+        art: 'rundgang', betreff: 'Kontrollgang', eintragstext: 'Tuer verschlossen.',
+        kontrollpunktId: fremder, praesenzBestaetigt: true,
+      }))).rejects.toThrow();
+
+    /* Und „Praesenz" ohne Kontrollpunkt weist der Dienst ab. */
+    await expect(aufDerSchicht(fatimaKonto, f.fatima, s.zuordnung,
+      async (k, bezug) => schreibeEintrag(k, {
+        objektId: bezug!.objektId!, einsatzId: bezug!.einsatzId,
+        art: 'rundgang', betreff: 'Kontrollgang', eintragstext: 'Tuer verschlossen.',
+        praesenzBestaetigt: true,
+      }))).rejects.toThrow();
   });
 
   it('die Kraft schreibt ihre Seite — mit dem Einsatz als Bezug', async () => {
@@ -458,10 +583,17 @@ describe('0303 — Aufnahme und Bautagebuch auf der eigenen Schicht', () => {
     });
     expect(zeilen.map((z) => z.id)).toContain(zeileId);
 
-    /* Kein Abschluss: den Tag schliesst die Bauleitung mit `bau.schreiben`. */
-    await expect(aufDerSchicht(fatimaKonto, f.fatima, s.zuordnung, async (k) =>
+    /*
+     * Kein Abschluss: den Tag schliesst die Bauleitung mit `bau.schreiben`.
+     * Auch hier WIRFT die RLS nicht — sie trifft nichts. Gemessen wird die
+     * Wirkung, nicht eine Ausnahme, die PostgreSQL gar nicht wirft.
+     */
+    await aufDerSchicht(fatimaKonto, f.fatima, s.zuordnung, async (k) =>
       k.schreibe(`update bautagebuch set abgeschlossen_am = now() where projekt_id = $1::uuid`,
-        [p]))).rejects.toThrow();
+        [p]));
+    const [tagNachher] = await sql.unsafe<{ abgeschlossen_am: Date | null }[]>(
+      `select abgeschlossen_am from bautagebuch where projekt_id = $1`, [p]);
+    expect(tagNachher!.abgeschlossen_am).toBeNull();
   });
 });
 
@@ -510,6 +642,100 @@ describe('0304 — der Leistungsnachweis auf der Schicht', () => {
     const fremd = await imPersonenScope(jonasKonto, f.jonas, async (k) =>
       ladeSignaturen(k, ergebnis.id));
     expect(fremd).toHaveLength(0);
+  });
+
+  it('das Unterschriftsblatt traegt auch im PERSONEN-Scope — mit Kundennamen', async () => {
+    /**
+     * **Der Fall, den die Probe oben nicht sah.** `bereiteUnterschriftVor` lief
+     * dort nur in `aufDerSchicht`, also im M1-Scope, wo
+     * `app.aktiver_mandant()` gesetzt ist. Die SEITE laeuft aber im
+     * Personen-Scope, und dort ist er NULL (K-20): die einzige permissive
+     * SELECT-Policy von `cse_definer` auf `kunde` (`d_kunde_pflichtfeld`,
+     * 0033) haengt daran, also gab `app.leistungsnachweis_kopf_schicht` null
+     * Zeilen zurueck — `NachweisNichtGefunden` auf ein Blatt, das die Kraft
+     * gerade selbst vorgelegt hat (AUT-05). Auf dem Bildschirm stand dann
+     * wieder das Anlegeformular, und jeder Klick erzeugte einen WEITEREN
+     * vorgelegten Nachweis.
+     *
+     * 0304 traegt dafuer `d_kunde_nachweis_kopf` — eng auf denselben drei
+     * Bedingungen wie die Funktion selbst.
+     */
+    const o = await objekt(f.reinigung);
+    const s = await schicht({
+      mandant: f.reinigung, anstellung: f.fatimaReinigung, person: f.fatima, objekt: o,
+    });
+    const id = await aufDerSchicht(fatimaKonto, f.fatima, s.zuordnung,
+      async (k, bezug) => {
+        const [obj] = await k.abfrage<{ kunde_id: string }>(
+          `select kunde_id from objekt where id = $1::uuid`, [bezug!.objektId]);
+        const neu = await erstelleEntwurf(k, {
+          objektId: bezug!.objektId!, kundeId: obj!.kunde_id,
+          von: bezug!.vonDatum, bis: bezug!.bisDatum,
+          positionen: [{
+            bezeichnung: 'Unterhaltsreinigung', menge: '1.000', einheit: 'Durchgang',
+            quelle: 'manuell', einzelpreisCent: null,
+          }],
+        });
+        await legeVor(k, neu);
+        return neu;
+      });
+
+    const vorschau = await imPersonenScope(fatimaKonto, f.fatima, async (k) =>
+      bereiteUnterschriftVor(k, id));
+    expect(vorschau.kopf.kunde).toBe('Testkunde');
+    expect(vorschau.positionen).toHaveLength(1);
+    expect(vorschau.pruefsumme).toMatch(/^[0-9a-f]{64}$/u);
+
+    /*
+     * Die Gegenprobe: die Kollegin ist auf diesem Objekt nicht eingesetzt.
+     * Fuer sie bleibt es null Zeilen — also 404 und nicht 403 (AUT-06).
+     */
+    await expect(imPersonenScope(jonasKonto, f.jonas, async (k) =>
+      bereiteUnterschriftVor(k, id))).rejects.toThrow(/nicht/iu);
+  });
+
+  it('der Nachweis der Schicht bekommt eine NUMMER — wie der aus dem Buero', async () => {
+    /*
+     * Der Kreis gehoert zur Fixtur: die Isolationsfixtur legt Mandanten an und
+     * keine Nummernkreise. `ist_platzhalter = false` ist die Bedingung, unter
+     * der `vergebeNummer` ueberhaupt zieht; `zuruecksetzung` ist dann Pflicht
+     * (`nk_bestaetigt_hat_ruecksetzung`).
+     */
+    await sql.unsafe(
+      `insert into nummernkreis (mandant_id, kreis_typ, jahr, bezeichnung, lueckenlos,
+                                 format_maske, zuruecksetzung, ist_platzhalter,
+                                 geoeffnet_am, erstellt_von_art, erstellt_von_dienst)
+       values ($1,'leistungsnachweis',0,'Leistungsnachweise',false,
+               'LN-{nr:5}','nie',false, now(),'system','fixtur')`,
+      [f.reinigung] as never[]);
+
+    /**
+     * `nummernkreis.p_nk_intern_ceiling` war USING `app.portal() = 'intern'`;
+     * im Mitarbeiterportal war die Tabelle damit unsichtbar, `vergebeNummer`
+     * meldete `kein_kreis`, und `legeVor` gab das still als `nummerOffen`
+     * zurueck. Derselbe Vorgang aus dem Buero bekam eine Nummer — und die
+     * Nummer steht im Abzug, ueber den die Pruefsumme laeuft.
+     */
+    const o = await objekt(f.reinigung);
+    const s = await schicht({
+      mandant: f.reinigung, anstellung: f.fatimaReinigung, person: f.fatima, objekt: o,
+    });
+    const ergebnis = await aufDerSchicht(fatimaKonto, f.fatima, s.zuordnung,
+      async (k, bezug) => {
+        const [obj] = await k.abfrage<{ kunde_id: string }>(
+          `select kunde_id from objekt where id = $1::uuid`, [bezug!.objektId]);
+        const neu = await erstelleEntwurf(k, {
+          objektId: bezug!.objektId!, kundeId: obj!.kunde_id,
+          von: bezug!.vonDatum, bis: bezug!.bisDatum,
+          positionen: [{
+            bezeichnung: 'Unterhaltsreinigung', menge: '1.000', einheit: 'Durchgang',
+            quelle: 'manuell', einzelpreisCent: null,
+          }],
+        });
+        return legeVor(k, neu);
+      });
+    expect(ergebnis.nummerOffen).toBeNull();
+    expect(ergebnis.nummer).not.toBeNull();
   });
 
   it('eine veraltete Anzeige wird NICHT unterschrieben', async () => {

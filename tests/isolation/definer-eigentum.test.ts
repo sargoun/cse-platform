@@ -37,57 +37,134 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { schliessen, sql } from './harness.js';
 
 /**
- * Die 95 Funktionen, die den Fehler heute tragen. **Diese Liste darf nur
- * kuerzer werden.**
+ * Die Funktionen, die den Fehler heute tragen — mit VOLLER SIGNATUR. **Diese
+ * Liste darf nur kuerzer werden.**
+ *
+ * **Warum die Signatur und nicht der Name.** Bis 0304 stand hier
+ * `app.uebergabe_fenster` ohne Argumente, und der Vergleich unten lief ueber
+ * `nspname || '.' || proname`. 0302 legte daneben eine NEUE Ueberladung
+ * `app.uebergabe_fenster(uuid)` an — `security definer`, Eigentuemer
+ * `postgres`, also genau der Fehler, den diese Datei einfrieren soll. Sie
+ * erbte den Freibrief des gleichnamigen Altlasteintrags und rutschte durch.
+ * Die Altlast waechst damit hinter der Wache, die sie einfrieren soll.
+ *
+ * Mit `pg_get_function_identity_arguments` ist jede Ueberladung ein eigener
+ * Eintrag. `app.einstellung` steht deshalb zweimal darin — zwei Funktionen,
+ * zwei Zeilen — und `app.uebergabe_fenster()` nur noch in der nullstelligen
+ * Fassung; die einstellige gehoert seit 0302 `cse_definer`.
+ *
+ * Zwei Eintraege standen frueher hier und gehoeren nicht (mehr) dazu; der
+ * Grund soll mit der Umstellung nicht verlorengehen:
+ *
+ *  - `app.hat_zweiten_faktor` gehoert seit 0155 `cse_definer` — sie liest
+ *    jetzt auch `kern.zweiter_faktor` und braucht ein Eigentum mit genau
+ *    diesem Recht statt dem der Migrationsrolle.
+ *  - `kern.checkin_token_widerrufen` wurde in 0063 ERST zu einem Definer
+ *    gemacht. Diese Liste friert ein, was VOR K-01 entstand; sie aufzunehmen
+ *    hiesse, die Altlast wachsen zu lassen. 0091 gibt ihr `cse_definer`.
  */
 const ALTLAST: readonly string[] = [
-  'app.aktuelle_kunden', 'app.anstellung_entgelt_lesen', 'app.arbzg_befund_quittieren',
-  'app.arbzg_befund_schreiben', 'app.arbzg_belastung', 'app.audit_nutzlast_lesen',
-  'app.aufbewahrung_regel', 'app.checkin_ausgeben', 'app.checkin_verbrauchen',
-  'app.darf_gruppenansicht', 'app.darf_kontaktiert_werden', 'app.eigene_einsatz_objekte',
-  'app.eigene_einsatz_projekte', 'app.einsatz_hat_zeiterfassung', 'app.einsatz_qualifikation_erfuellt',
-  'app.einstellung', 'app.einstellung', 'app.fenster_schluessel',
-  'app.firma_aufloesen', 'app.firma_kandidaten', 'app.formular_eingang_zaehlen',
-  'app.formular_zustaendigkeit', 'app.freigabe_kette_ziehen', 'app.hat_recht',
-  // `app.hat_zweiten_faktor` stand hier und gehoert seit 0155 `cse_definer`:
-  // sie liest jetzt auch `kern.zweiter_faktor`, und dafuer braucht sie ein
-  // Eigentum mit genau diesem Recht statt dem der Migrationsrolle.
-  'app.ist_eingesetzt_auf_objekt', 'app.ist_eingesetzt_auf_projekt',
-  'app.ist_mitglied', 'app.ist_super_admin', 'app.lead_posteingang',
-  'app.leistungswerte_lesen', 'app.lv_preis_lesen', 'app.mandant_fuer_wechsel',
-  'app.objekt_notiz_lesen', 'app.offline_ablehnen', 'app.offline_eingang_zuordnen',
-  'app.offline_ereignis_annehmen', 'app.offline_uebernehmen', 'app.offline_unzugeordnet_lesen',
-  'app.planungsbedarf', 'app.plattform_einstellung', 'app.protokolliere',
-  'app.qualifikationsanforderung', 'app.raum_notizen_lesen', 'app.rechte_mandanten',
-  'app.rechtsgrundlage_lesen', 'app.rechtsgrundlage_von', 'app.sichtbare_mandanten',
-  'app.sitzung_aufloesen', 'app.switcher_bereiche', 'app.switcher_mandanten',
-  'app.uebergabe_fenster', 'app.uebergabe_sichtbar', 'app.versuch_protokollieren',
-  'app.wetter_beobachtung_uebernehmen', 'app.zahlungskondition_lesen', 'fin.kind_unveraenderlich',
-  'fin.rechnung_summen_stimmig', 'fin.rechnung_verkettet', 'fin.setze_aufbewahrung',
-  'kern.abwesenheit_urlaubskonto', 'kern.antrag_erzeugt_abwesenheit', 'kern.aufmass_kopf_denorm',
-  'kern.behinderung_vorlagen_vorbelegen', 'kern.benutzer_2fa_pflicht', 'kern.bewegung_summe',
-  'kern.checkin_einloesung_paarweise', 'kern.da_kenntnisnahme_vorbereiten',
-  // `kern.checkin_token_widerrufen` stand hier und gehoert nicht hierher:
-  // die Funktion wurde in 0063 ZU einem Definer gemacht, die Grenze ist also
-  // neu gezogen worden. Diese Liste friert ein, was vor K-01 entstand — sie
-  // aufzunehmen hiess, die Altlast wachsen zu lassen, und genau das soll
-  // dieser Test verhindern. 0091 gibt ihr `cse_definer`.
-  'kern.da_version_vorbereiten', 'kern.einsatz_medien_bezug_pruefen', 'kern.einsatz_medien_loeschsperre',
-  'kern.ln_kopfstatus_fortschreiben', 'kern.mandant_behinderung_vorlagen_vorbelegen', 'kern.mandant_nachtrag_grundlagen_vorbelegen',
-  'kern.mandant_pruefverfahren_vorbelegen', 'kern.nachtrag_grundlagen_vorbelegen', 'kern.nachweis_dokumentpflicht',
-  'kern.oeffne_kenntnisnahme_pflicht', 'kern.pflege_da_pflicht', 'kern.protokolliere_aenderung',
-  'kern.pruefe_qualifikation_mandant', 'kern.refresh_schluessel_status', 'kern.rolle_berechtigung_pruefen',
-  'kern.schluessel_quittung_vorbereiten', 'kern.setze_aufbewahrung', 'kern.sitzung_mandant_pruefen',
-  'kern.sitzung_wechsel_audit', 'kern.stundenkonto_monat_sperren', 'kern.wachbuch_eintrag_vorbereiten',
-  'zeit_intern.arbzg_belastung_job', 'zeit_intern.einsatz_fenster_projizieren', 'zeit_intern.ez_fenster_projizieren',
-  'zeit_intern.fenster_setzen', 'zeit_intern.z_fenster_projizieren',
+  'app.aktuelle_kunden()',
+  'app.anstellung_entgelt_lesen(p_anstellung uuid)',
+  'app.arbzg_befund_quittieren(p_id uuid, p_begruendung text)',
+  'app.arbzg_befund_schreiben(p_person uuid, p_regel arbzg_regel, p_schwere verstoss_schwere, p_beginn timestamp with time zone, p_ende timestamp with time zone, p_ist_minuten integer, p_grenzwert integer, p_ursache jsonb, p_mandanten uuid[])',
+  'app.arbzg_belastung(p_person uuid, p_von timestamp with time zone, p_bis timestamp with time zone)',
+  'app.audit_nutzlast_lesen(p_audit bigint)',
+  'app.aufbewahrung_regel(p_mandant uuid, p_kategorie text)',
+  'app.checkin_ausgeben(p_zuordnung uuid, p_zweck token_zweck, p_kanal text)',
+  'app.checkin_verbrauchen(p_token_hash text, p_geraete_zeit timestamp with time zone, p_ip inet, p_user_agent text, p_geo jsonb)',
+  'app.darf_gruppenansicht()',
+  'app.darf_kontaktiert_werden(p_ansprechpartner uuid, p_kanal text, p_zweck text)',
+  'app.eigene_einsatz_objekte()',
+  'app.eigene_einsatz_projekte()',
+  'app.einsatz_hat_zeiterfassung(p_einsatz uuid)',
+  'app.einsatz_qualifikation_erfuellt(p_anstellung uuid, p_einsatz uuid)',
+  'app.einstellung(p_mandant uuid, p_schluessel text)',
+  'app.einstellung(p_schluessel text)',
+  'app.fenster_schluessel()',
+  'app.firma_aufloesen(p_ust_id text, p_name text, p_land character)',
+  'app.firma_kandidaten(p_name text, p_land character)',
+  'app.formular_eingang_zaehlen(p_ip_hash text, p_seit timestamp with time zone)',
+  'app.formular_zustaendigkeit(p_formular uuid)',
+  'app.freigabe_kette_ziehen(p_mandant uuid)',
+  'app.hat_recht(p_schluessel text, p_mandant uuid)',
+  'app.ist_eingesetzt_auf_objekt(p_objekt uuid)',
+  'app.ist_eingesetzt_auf_projekt(p_projekt uuid)',
+  'app.ist_mitglied(p_benutzer uuid, p_mandant uuid, p_stichtag date)',
+  'app.ist_super_admin()',
+  'app.lead_posteingang()',
+  'app.leistungswerte_lesen(p_stichtag date)',
+  'app.lv_preis_lesen(p_lv_position uuid)',
+  'app.mandant_fuer_wechsel(p_slug text)',
+  'app.objekt_notiz_lesen(p_objekt uuid)',
+  'app.offline_ablehnen(p_ereignis uuid, p_grund ablehnung_grund, p_begruendung text)',
+  'app.offline_eingang_zuordnen(p_eingang uuid, p_einsatz_zuordnung uuid, p_begruendung text)',
+  'app.offline_ereignis_annehmen(p_token_hash text, p_ereignisse jsonb, p_ip inet)',
+  'app.offline_uebernehmen(p_ereignis uuid, p_beginn timestamp with time zone, p_ende timestamp with time zone, p_begruendung text)',
+  'app.offline_unzugeordnet_lesen()',
+  'app.planungsbedarf(p_mandant uuid, p_von date, p_bis date)',
+  'app.plattform_einstellung(p_schluessel text)',
+  'app.protokolliere(p_aktion text, p_objekt_typ text, p_objekt_id text, p_vorher jsonb, p_nachher jsonb, p_mandant uuid)',
+  'app.qualifikationsanforderung(p_einsatz uuid)',
+  'app.raum_notizen_lesen(p_objekt uuid)',
+  'app.rechte_mandanten(p_recht text)',
+  'app.rechtsgrundlage_lesen(p_ansprechpartner uuid)',
+  'app.rechtsgrundlage_von(p_ansprechpartner uuid, p_mandant uuid)',
+  'app.sichtbare_mandanten()',
+  'app.sitzung_aufloesen(p_token_hash text)',
+  'app.switcher_bereiche()',
+  'app.switcher_mandanten()',
+  'app.uebergabe_fenster()',
+  'app.uebergabe_sichtbar(p_objekt uuid, p_erfasst_am timestamp with time zone)',
+  'app.versuch_protokollieren(p_kennung text, p_ip inet, p_erfolg boolean, p_grund text, p_art text)',
+  'app.wetter_beobachtung_uebernehmen(p_station_id text, p_name text, p_breitengrad numeric, p_laengengrad numeric, p_zeitpunkt timestamp with time zone, p_temperatur_c numeric, p_niederschlag_mm numeric, p_wind_ms numeric, p_qualitaetsniveau smallint, p_roh jsonb)',
+  'app.zahlungskondition_lesen(p_kunde uuid)',
+  'fin.kind_unveraenderlich()',
+  'fin.rechnung_summen_stimmig()',
+  'fin.rechnung_verkettet()',
+  'fin.setze_aufbewahrung()',
+  'kern.abwesenheit_urlaubskonto()',
+  'kern.antrag_erzeugt_abwesenheit()',
+  'kern.aufmass_kopf_denorm()',
+  'kern.behinderung_vorlagen_vorbelegen(p_mandant uuid)',
+  'kern.benutzer_2fa_pflicht()',
+  'kern.bewegung_summe()',
+  'kern.checkin_einloesung_paarweise()',
+  'kern.da_kenntnisnahme_vorbereiten()',
+  'kern.da_version_vorbereiten()',
+  'kern.einsatz_medien_bezug_pruefen()',
+  'kern.einsatz_medien_loeschsperre()',
+  'kern.ln_kopfstatus_fortschreiben()',
+  'kern.mandant_behinderung_vorlagen_vorbelegen()',
+  'kern.mandant_nachtrag_grundlagen_vorbelegen()',
+  'kern.mandant_pruefverfahren_vorbelegen()',
+  'kern.nachtrag_grundlagen_vorbelegen(p_mandant uuid)',
+  'kern.nachweis_dokumentpflicht()',
+  'kern.oeffne_kenntnisnahme_pflicht()',
+  'kern.pflege_da_pflicht()',
+  'kern.protokolliere_aenderung()',
+  'kern.pruefe_qualifikation_mandant()',
+  'kern.refresh_schluessel_status()',
+  'kern.rolle_berechtigung_pruefen()',
+  'kern.schluessel_quittung_vorbereiten()',
+  'kern.setze_aufbewahrung()',
+  'kern.sitzung_mandant_pruefen()',
+  'kern.sitzung_wechsel_audit()',
+  'kern.stundenkonto_monat_sperren()',
+  'kern.wachbuch_eintrag_vorbereiten()',
+  'zeit_intern.arbzg_belastung_job(p_person uuid, p_von timestamp with time zone, p_bis timestamp with time zone)',
+  'zeit_intern.einsatz_fenster_projizieren()',
+  'zeit_intern.ez_fenster_projizieren()',
+  'zeit_intern.fenster_setzen(p_quelle fenster_quelle, p_quelle_id uuid, p_zuordnung_quelle_id uuid, p_person uuid, p_mandant uuid, p_anstellung uuid, p_beginn timestamp with time zone, p_ende timestamp with time zone, p_pause integer, p_aktiv boolean)',
+  'zeit_intern.z_fenster_projizieren()',
 ];
 
 interface DefinerZeile { name: string; eigentuemer: string }
 
 async function definerFunktionen(): Promise<readonly DefinerZeile[]> {
   return sql.unsafe<DefinerZeile[]>(
-    `select n.nspname || '.' || p.proname            as name,
+    `select n.nspname || '.' || p.proname
+              || '(' || pg_get_function_identity_arguments(p.oid) || ')' as name,
             pg_get_userbyid(p.proowner)              as eigentuemer
        from pg_proc p
        join pg_namespace n on n.oid = p.pronamespace

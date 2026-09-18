@@ -59,6 +59,16 @@ export default async function Annahme(
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
   const { sitzung } = zugang;
+  /**
+   * `angebot.lesen` fuer den Rueckverweis auf das Angebot, `auftrag.lesen` fuer
+   * den auf den entstandenen Auftrag — und BEIDE werden auch benutzt.
+   *
+   * `auftrag.lesen` wurde hier geholt und danach ein zweites Mal im SQL
+   * gefragt (`select app.hat_recht('auftrag.lesen', …) as darf_auftrag_lesen`).
+   * Zwei Quellen fuer dieselbe Frage sind eine zu viel: die eine kann
+   * verschwinden, waehrend die andere stehen bleibt, und dann sieht es
+   * geprueft aus. Gefragt wird jetzt nur noch hier.
+   */
   const darf = await haeltRechte(sitzung, 'angebot.lesen', 'auftrag.lesen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -73,8 +83,6 @@ export default async function Annahme(
                 to_char(a.entschieden_am at time zone 'Europe/Berlin',
                         'DD.MM.YYYY HH24:MI') as entschieden_am,
                 t.id as auftrag_id, t.auftragsnummer,
-                (select app.hat_recht('auftrag.lesen', app.aktiver_mandant()))
-                  as darf_auftrag_lesen,
                 exists (select 1 from nummernkreis n
                          where n.mandant_id = a.mandant_id
                            and n.kreis_typ = 'auftrag') as hat_nummernkreis
@@ -188,7 +196,7 @@ export default async function Annahme(
           {kopf.auftragsnummer === null ? '.' : ` — ${kopf.auftragsnummer}.`} Ein
           zweiter entsteht nicht: <code className="text-text">auftrag_angebot_uk</code>{' '}
           lässt genau einen zu.
-          {kopf.darf_auftrag_lesen && kopf.auftrag_id !== null ? (
+          {darf['auftrag.lesen'] === true && kopf.auftrag_id !== null ? (
             <p className="mt-s3 mb-0">
               <Link
                 href={`/portal/${mandant}/auftraege/${kopf.auftrag_id}`}

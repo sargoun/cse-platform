@@ -53,8 +53,8 @@
 --   Mitarbeiterportals sieht die Kraft dort GENAU ihre eigenen Schichten
 --   (`einsatz.t_selbst_m1`, 0300) — also kann das Foto nur an einer eigenen
 --   Schicht haengen. Dasselbe fuer `bautagebuch`: dort zeigt
---   `bautagebuch.t_selbst_m1` (0304) nur die Bautage von Projekten, auf denen
---   sie eingesetzt ist.
+--   `bautagebuch.t_selbst_m1` (weiter unten in DIESER Migration) nur die
+--   Bautage von Projekten, auf denen sie eingesetzt ist.
 --
 -- Die Bedingung ist damit dieselbe, die auch die Seite zeigt, und sie kann
 -- nicht auseinanderlaufen: wer den Elternteil nicht sehen kann, kann kein Bild
@@ -276,14 +276,15 @@ comment on policy t_selbst_m1_storno on bautagebuch_mannstunden is
 -- Der Katalog ist eine Stammliste von Gewerkenamen (Rohbau, Elektro) — kein
 -- Preis, kein Lohn, kein Kunde. Was er der Kolonne verraet, ist, unter welchem
 -- Gewerk ihre eigenen Stunden stehen, und genau das muss sie lesen koennen.
--- Das Recht ist `bau.aufmass_erfassen` — dasselbe, mit dem
--- `projekt.t_erfassen_lesen` (0089) der Kolonne ihr Projekt oeffnet, und es
--- ist der Mitarbeiterrolle im Katalog gebunden. Kein neuer Schluessel.
+-- EIN RECHT STEHT DESHALB NICHT DAVOR: ein Rechteschluessel waere die Zusage,
+-- dass hier etwas Schuetzenswertes liegt, und der einzige Effekt waere, die
+-- Kolonne von den Namen ihrer eigenen Stunden auszuschliessen. Die Grenze ist
+-- die Gesellschaft (`app.sichtbare_mandanten()`) und das Portal, nicht ein
+-- Schluessel (K-19).
 --
 -- Die Decke wird dafuer NEU GESETZT und nicht erweitert — eine Policy laesst
 -- sich nicht aendern. Der `intern`-Zweig steht darin wortgleich wie in 0082;
--- hinzu kommt der Mitarbeiterzweig, und er traegt das Recht mit, damit die
--- Decke fuer sich schon eng ist.
+-- hinzu kommt der Mitarbeiterzweig.
 
 drop policy p_intern_decke on gewerk;
 

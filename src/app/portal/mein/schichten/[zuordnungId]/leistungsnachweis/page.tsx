@@ -11,7 +11,7 @@ import {
 } from '@/server/services/mitarbeiter/nachweis-schicht';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../../rahmen';
-import { Feld, Felder, Leer } from '../../../bausteine';
+import { Feld, Felder, Hinweis, Leer } from '../../../bausteine';
 
 /**
  * `/portal/mein/schichten/[zuordnungId]/leistungsnachweis` — der Nachweis auf
@@ -84,8 +84,22 @@ export default async function MeinLeistungsnachweis(
        * Bildschirm nicht beantworten kann — dann steht nur die Liste da.
        */
       const offen = nachweise.filter((n) => n.status === 'vorgelegt' && !n.storniert);
+      /*
+       * **Kein `.catch(() => null)` mehr.** Hier stand einer, und er hat den
+       * einzigen Fehler verschluckt, der hier ueberhaupt auftreten kann:
+       * `bereiteUnterschriftVor` wirft `NachweisNichtGefunden`, wenn der Kopf
+       * nicht lesbar ist — und genau das tat er im Personen-Scope, weil
+       * `app.leistungsnachweis_kopf_schicht` dort null Zeilen gab (der
+       * `kunde`-Join, repariert in 0304). Die Folge auf dem Bildschirm war
+       * nicht „kein Blatt", sondern das ANLEGEFORMULAR: jeder Klick ein
+       * weiterer vorgelegter Nachweis auf derselben Schicht.
+       *
+       * Ein Fehler hier ist jetzt ein Fehler. Was die Kraft sieht, ist dann
+       * die Fehlerseite — und nicht ein Formular, das etwas anderes tut, als
+       * sie glaubt.
+       */
       const vorschau = offen.length === 1 && offen[0] !== undefined
-        ? await bereiteUnterschriftVor(kontext, offen[0].id).catch(() => null)
+        ? await bereiteUnterschriftVor(kontext, offen[0].id)
         : null;
       return { schicht, nachweise, vorschau };
     },
@@ -96,6 +110,20 @@ export default async function MeinLeistungsnachweis(
   const { basis } = ergebnis;
   const { schicht, nachweise, vorschau } = ergebnis.daten;
   const t = basis.texte;
+  /*
+   * Mit der Minute des Schichtendes schliesst die Erfassung, und die Seite
+   * sagt es, statt ein Formular anzubieten, das scheitert.
+   *
+   * `app.ist_eingesetzt_auf_objekt` verlangt `ende_zeitpunkt >= now()` (0004);
+   * danach greifen weder `leistungsnachweis.t_selbst_m1_*` noch
+   * `objekt.t_selbst_m1` (0300/0304), und der POST antwortete mit einem
+   * nackten `422 kein_objekt`. Wie lange NACH Schichtende noch erfasst werden
+   * darf, ist die offene Frage O-740; bis zur Antwort ist die Grenze das
+   * Schichtende — und CLN-04 laesst den Kunden AM ENDE der Schicht
+   * unterschreiben, also steht der Grund hier und nicht nur in 0300.
+   */
+  const sperre = schicht.entfernt ? t.schichtEntfernt
+    : schicht.beendet ? t.schichtBeendet : null;
   const eingabe =
     'min-h-11 w-full rounded-md border border-line-strong bg-surface px-s3 py-s2 '
     + 'text-base text-text';
@@ -140,9 +168,16 @@ export default async function MeinLeistungsnachweis(
                       <Feld label={t.positionen}>
                         <span className="cse-zahl">{n.positionen}</span>
                       </Feld>
+                      {/*
+                        `unterschriften` traegt die ROLLENSCHLUESSEL des Enums
+                        (`auftraggeber`, `auftragnehmer`). Sie sind das
+                        Vokabular der Datenbank und reisen unuebersetzt (D-83);
+                        auf einen vierprachigen Bildschirm gehoeren sie nicht.
+                        Was die Kraft wissen muss, ist: liegt eine Unterschrift
+                        vor oder nicht.
+                      */}
                       <Feld label={t.unterschrift}>
-                        {n.unterschriften.length === 0 ? '—'
-                          : n.unterschriften.join(' · ')}
+                        {n.unterschriften.length === 0 ? '—' : t.unterschrieben}
                       </Feld>
                     </Felder>
                   </li>
@@ -154,6 +189,8 @@ export default async function MeinLeistungsnachweis(
           {vorschau === null ? (
             <section data-cse="nachweis-formular">
               <h2 className="mb-s3 text-h2 text-text">{t.entwurfAnlegen}</h2>
+              {sperre !== null ? <Hinweis text={sperre} marke="erfassung-zu" /> : (
+              <>
               <p className="mb-s4 max-w-prose text-base text-text-muted">
                 {t.menge} · {t.einheit} — {t.offeneFrage} (O-348)
               </p>
@@ -218,6 +255,8 @@ export default async function MeinLeistungsnachweis(
                   {t.vorlegen}
                 </button>
               </form>
+              </>
+              )}
             </section>
           ) : (
             <section data-cse="unterschriftsblatt">
@@ -232,7 +271,19 @@ export default async function MeinLeistungsnachweis(
                     </span>
                   </Feld>
                   <Feld label={t.objekt}>{vorschau.kopf.objekt ?? '—'}</Feld>
+                  {/*
+                    Die Nummer steht im Abzug und geht ueber `baueSchnappschuss`
+                    in die Pruefsumme, die der Kunde unterschreibt. Fehlt sie,
+                    SAGT die Seite es — ob Leistungsnachweise ueberhaupt
+                    fortlaufend nummeriert werden, ist offen (O-147).
+                  */}
+                  <Feld label={t.nummer}>
+                    {vorschau.kopf.nummer ?? '—'}
+                  </Feld>
                 </Felder>
+                {vorschau.kopf.nummer === null && (
+                  <Hinweis text={t.nummerOffen} marke="nummer-offen" />
+                )}
                 <table className="mt-s4 w-full border-collapse text-base text-text">
                   <thead>
                     <tr className="border-b border-line text-left">

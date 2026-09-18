@@ -1,4 +1,5 @@
 import type { PillZustand } from '@/components/ui/StatusPill';
+import { BAUTAG_STATUS_TEXTE, WETTER_QUELLE_TEXTE } from '@/lib/i18n/texte';
 
 /**
  * Wie ein Bautag angezeigt wird — an EINER Stelle, nicht in drei Seiten.
@@ -23,21 +24,21 @@ export const BAUTAG_PILLE: Readonly<Record<string, PillZustand>> = {
   gegengezeichnet: 'Bereit',
 };
 
-export const BAUTAG_STATUS_TEXT: Readonly<Record<string, string>> = {
-  entwurf: 'Entwurf',
-  abgeschlossen: 'Abgeschlossen',
-  gegengezeichnet: 'Gegengezeichnet (Auftraggeber)',
-};
-
 /**
- * Was ueber dem Wetterfeld steht.
+ * Die Woerter selbst stehen in `lib/i18n/texte.ts` und nicht hier.
  *
- * `keine` bekommt den WOERTLICHEN Satz aus BAU-08 und keine Null: „0 °C" und
- * „keine Angabe" sind zwei verschiedene Aussagen, und die erste ist im
- * Bauprozess eine Falschangabe.
+ * Der Grund ist ein gemessener: die Bautagebuchseite des MITARBEITERPORTALS
+ * las diese beiden Karten von hier und schrieb damit „Gegengezeichnet
+ * (Auftraggeber)" und „keine Quelle" auch auf einen Bildschirm, der gerade auf
+ * Arabisch oder Tuerkisch steht (SPEC §10, EMP-12). Eine Anzeigehilfe des
+ * internen Portals ist der falsche Ort fuer einen Text, den ein vierprachiger
+ * Bildschirm braucht.
+ *
+ * Das interne Portal nimmt hier die `de`-Spalte und liest damit wortgleich wie
+ * zuvor; das Mitarbeiterportal waehlt die Spalte seiner Sprache.
  */
-export const WETTER_QUELLE_TEXT: Readonly<Record<string, string>> = {
-  dwd: 'DWD Open Data',
-  manuell: 'manuell erfasst',
-  keine: 'keine Quelle',
-};
+export const BAUTAG_STATUS_TEXT: Readonly<Record<string, string>> =
+  BAUTAG_STATUS_TEXTE.de;
+
+export const WETTER_QUELLE_TEXT: Readonly<Record<string, string>> =
+  WETTER_QUELLE_TEXTE.de;

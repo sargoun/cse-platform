@@ -23,11 +23,24 @@ import { aufDerSchicht, dienstFehlerAntwort, zurueckZu } from '../../bruecke';
  * **Der Preis bleibt LEER.** `einzelpreis_cent` wird nicht gesetzt:
  * // TODO(client, O-348): Traegt eine Position bei Monatspauschale einen Einzelpreis je Durchgang, oder bleibt er leer und die Rechnung stellt die Pauschale?
  *
- * **Die Nummer faellt vielleicht nicht.** `legeVor` zieht sie aus dem
- * Nummernkreis `leistungsnachweis`; gibt es keinen oder ist er ein Platzhalter,
- * bleibt `nummer` NULL und der Vorgang gelingt trotzdem — O-147 laesst offen,
- * ob ueberhaupt lueckenlos nummeriert wird, und eine erfundene Nummer waere
- * schlimmer als keine (K-17).
+ * **Die Nummer faellt vielleicht nicht — und dann steht es auf dem Blatt.**
+ * `legeVor` zieht sie aus dem Nummernkreis `leistungsnachweis`; gibt es keinen
+ * oder ist er ein Platzhalter, bleibt `nummer` NULL und der Vorgang gelingt
+ * trotzdem. O-147 laesst offen, ob ueberhaupt lueckenlos nummeriert wird, und
+ * eine erfundene Nummer waere schlimmer als keine (K-17).
+ *
+ * Bis 0304 fiel dieser Fall IMMER, und still: `nummernkreis.p_nk_intern_ceiling`
+ * war USING `app.portal() = 'intern'`, die Tabelle im Mitarbeiterportal also
+ * unsichtbar, `vergebeNummer` meldete `kein_kreis` — derselbe Nachweis bekam
+ * aus dem Buero eine Nummer und von der Schicht keine. 0304 oeffnet genau den
+ * Kreistyp `leistungsnachweis` fuer dieses Portal.
+ *
+ * **Gesagt wird es auf der SEITE, nicht hier.** Diese Route antwortet mit
+ * einem 303 auf ein echtes `<form method="post">` (die Geraete sind alte
+ * Diensttelefone ohne JavaScript); ein Rumpf kaeme nie an. Die Seite liest den
+ * Kopf danach ohnehin neu und schreibt `t.nummerOffen`, wenn `nummer` fehlt.
+ * `nummerOffen` wird hier deshalb ENTGEGENGENOMMEN und nicht weggeworfen — der
+ * Wert steht im Rueckgabetyp und faellt auf, wenn jemand ihn spaeter braucht.
  */
 export const dynamic = 'force-dynamic';
 
@@ -90,8 +103,8 @@ export async function POST(
         bis: bezug.bisDatum,
         positionen,
       });
-      await legeVor(k, id);
-      return id;
+      const { nummer, nummerOffen } = await legeVor(k, id);
+      return { id, nummer, nummerOffen };
     });
     if (ergebnis.art === 'antwort') return ergebnis.antwort;
     if (ergebnis.wert === null) {

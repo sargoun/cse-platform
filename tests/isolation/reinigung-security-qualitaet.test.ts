@@ -194,11 +194,33 @@ async function baueAuf(mandant: string): Promise<Aufbau> {
      values ($1,$2,1,$3,'Glas',1,'Stk',45000,1900,'2026-01-01') returning id`,
     [mandant, auf!.id, o!.id] as never[]);
 
-  /* Das Platzhalterverfahren legt eine Migration je Gesellschaft an — es wird
-     gelesen, nicht ein zweites angelegt (`pruefverfahren_schluessel_uk`). */
-  const [pv] = await sql.unsafe<{ id: string }[]>(
+  /**
+   * Das Platzhalterverfahren — gelesen, und wenn es fehlt, VON HAND angelegt.
+   *
+   * In Produktion legt `trg_mandant_pruefverfahren_vorbelegen` es je
+   * Gesellschaft an (0068). Die Fixtur bekommt es aber NICHT: `seed()` in
+   * `harness.ts` setzt `session_replication_role = replica`, um die
+   * Loeschriegel fuer das `truncate` abzuschalten — und das schaltet jeden
+   * Haken ab, auch die vorbelegenden. Dieselbe Falle, die der Harness fuer
+   * `trg_mandant_domaene` schon kennt und dort mit einem Aufruf von Hand
+   * loest.
+   *
+   * Ohne diese Zeilen ist `pv` undefiniert, `baueAuf` wirft beim Aufbau, und
+   * ALLE Zusagen dieser Datei fallen mit einem `TypeError` aus — also mit
+   * einer Meldung, die nach einem Produktfehler aussieht und keiner ist.
+   * Gelesen wird trotzdem zuerst: `pruefverfahren_schluessel_uk` laesst kein
+   * zweites `unbestimmt` zu, und ein Lauf gegen eine Datenbank MIT Haken
+   * legte sonst ein Duplikat an.
+   */
+  const [vorhanden] = await sql.unsafe<{ id: string }[]>(
     `select id from pruefverfahren where mandant_id = $1 and archiviert_am is null
       order by ist_platzhalter limit 1`, [mandant]);
+  const pv = vorhanden ?? (await sql.unsafe<{ id: string }[]>(
+    `insert into pruefverfahren (mandant_id, schluessel, bezeichnung, beschreibung,
+                                 ist_platzhalter, erstellt_von_art)
+     values ($1,'unbestimmt','Unbestimmtes Prüfverfahren',
+             'Platzhalter, bis O-29 beantwortet ist.', true, 'system')
+     returning id`, [mandant] as never[]))[0];
 
   const [t] = await sql.unsafe<{ id: string }[]>(
     `insert into turnus (mandant_id, revier_id, leistungskatalog_position_id, bezeichnung,
@@ -666,6 +688,50 @@ describe('Turnus und Modulkoepfe — „nicht geprueft" ist nicht „nichts offe
       expect((await listeSerien(k)).some((s) => s.generiert_bis === '2026-01-01'))
         .toBe(true);
     });
+  });
+
+  it('ohne `dienstplan.lesen` heisst die leere Serie „nicht geprueft", nicht „keine Serie"', async () => {
+    /*
+     * Der Fehlalarm zur Fehlentwarnung. `planungsserie` liegt hinter
+     * `dienstplan.lesen` (pg_policies: t_mandant); ohne das Recht liefert der
+     * LEFT JOIN still NULL. Wer daraus „keine Serie — der Generator hat
+     * diesen Turnus noch nie gesehen" macht, behauptet das ueber JEDEN
+     * Turnus, obwohl hier eine Serie steht.
+     *
+     * Erreichbar ueber `benutzer_mandant.module` (AUT-01): die
+     * Modulbeschraenkung ist eine SCHNITTMENGE in `app.hat_recht_fuer`
+     * (`split_part(p_schluessel, '.', 1) = any (bm.module)`). Eine
+     * Reinigungsleitung mit `module = {reinigung,objekt,katalog}` haelt
+     * `reinigung.lesen`, aber nicht `dienstplan.lesen`.
+     */
+    await sql.unsafe(
+      `update benutzer_mandant set module = array['reinigung','objekt','katalog']
+        where benutzer_id = $1 and mandant_id = $2`,
+      [a.leitung, a.mandant] as never[]);
+
+    await alsLeitung(a, async (k) => {
+      const { zeilen, geprueft } = await listeTurnusse(k);
+      expect(geprueft['dienstplan.lesen']).toBe(false);
+      const t = zeilen.find((z) => z.id === a.turnus)!;
+      // Der Turnus selbst ist da — `turnus` liegt hinter `reinigung.lesen`.
+      expect(t.bezeichnung).toBe('Unterhalt früh');
+      // Und JEDE Angabe aus der Planung steht auf „nicht geprueft".
+      expect(t.serieGeprueft).toBe(false);
+      expect(t.planungsserieId).toBeNull();
+      expect(t.generiertBis).toBeNull();
+      expect(t.einsaetze).toBeNull();
+
+      const kopf = await ladeReinigungKopf(k, STICHTAG);
+      expect(kopf.stehendeSerien).toBeNull();
+      // Die Kachel „Ohne Serie" darf hier NICHT jeden Turnus zaehlen.
+      expect(kopf.ohneSerie).toBeNull();
+    });
+
+    // Zurueck auf unbeschraenkt — die Fixtur steht fuer die naechste Zusage.
+    await sql.unsafe(
+      `update benutzer_mandant set module = null
+        where benutzer_id = $1 and mandant_id = $2`,
+      [a.leitung, a.mandant] as never[]);
   });
 
   it('legt eine Ausnahme an; `abrechnungsrelevant` bleibt OFFEN (O-700)', async () => {

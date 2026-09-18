@@ -327,18 +327,32 @@ describe('(3) Die Kundenfreigabe am Dokument (DOC-04, 0297)', () => {
     await dokument(f.reinigung, { kundeId: kundeB, frei: true });
     await dokument(f.reinigung, { kundeId: null, frei: true });
 
+    /**
+     * Gemessen wird die KENNUNG, nicht der Name aus `kunde`.
+     *
+     * Ein `left join kunde` sieht von hier aus nichts: die Sitzung ist
+     * `scope = 'mandant'` mit `portal = 'kunde'`, also greift `t_kunde`
+     * (verlangt `scope = 'kunde'`) nicht und `t_mandant` verlangt `crm.lesen`,
+     * das ein Kundenkonto nicht haelt. Der Name kam deshalb als NULL zurueck —
+     * richtig so, und als Zusicherung wertlos: sie haette denselben NULL-Wert
+     * gemeldet, wenn das falsche Dokument sichtbar gewesen waere. Die
+     * `kunde_id` steht in der Dokumentzeile selbst und sagt genau das, worum
+     * es hier geht.
+     */
     const sichtbar = await alsApp(
       { scope: 'mandant', mandantId: f.reinigung, benutzerId: konteninhaber,
         portal: 'kunde', readonly: true },
       async (tx) => {
         const [z] = await tx.unsafe<{ n: string; welche: string | null }[]>(
-          `select count(*) n, string_agg(k.name, ',' order by k.name) welche
-             from dokument d left join kunde k on k.id = d.kunde_id`);
+          `select count(*) n,
+                  string_agg(d.kunde_id::text, ',' order by d.kunde_id::text) welche
+             from dokument d`);
         return { n: Number(z!.n), welche: z!.welche };
       });
 
     expect(sichtbar.n).toBe(1);
-    expect(sichtbar.welche).toBe('Kunde A');
+    expect(sichtbar.welche).toBe(kundeA);
+    expect(sichtbar.welche).not.toBe(kundeB);
   });
 
   it('und ein Dokument OHNE Kundenzuordnung erreicht kein Kundenkonto', async () => {
