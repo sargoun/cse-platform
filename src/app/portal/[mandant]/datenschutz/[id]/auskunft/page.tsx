@@ -4,7 +4,8 @@ import { DataTable } from '@/components/ui/DataTable';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { StatusPill } from '@/components/ui/StatusPill';
 import type { BereichSchluessel } from '@/lib/design/theme';
-import { MandantAntwort } from '@/app/portal/unterseite';
+import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
+import { kennungOder404 } from '@/app/portal/kennung';
 import {
   erstelleAuskunft, erteilte,
   type Auskunft, type AuskunftAbschnitt, type AuskunftZeile,
@@ -102,16 +103,19 @@ export default async function Auskunftsseite(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
+  const tor = await mandantTor(
+    `/portal/${mandant}/datenschutz/${id}/auskunft`, mandant);
+  if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
+  const { zugang } = tor;
 
-  const geladen = await ladeVorgang<Extra>(
-    `/portal/${mandant}/datenschutz/${id}/auskunft`, mandant, id, [],
+  const { z, zuordnung, darf, extra } = await ladeVorgang<Extra>(
+    zugang, mandant, id, [],
     async (kontext, v) => ({
       auskunft: await erstelleAuskunft(kontext, v.z.id, v.zuordnung, new Date()),
       frueher: await erteilte(kontext, v.z.id),
     }),
   );
-  if (geladen.art !== 'ok') return <MandantAntwort tor={geladen.tor} />;
-  const { zugang, z, zuordnung, darf, extra } = geladen;
   const a = extra.auskunft;
 
   const knopf = 'inline-flex min-h-11 items-center rounded-md border border-line-strong '

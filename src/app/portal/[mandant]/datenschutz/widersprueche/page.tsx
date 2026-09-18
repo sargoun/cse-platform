@@ -56,12 +56,18 @@ const GRUNDLAGE_TEXT: Readonly<Record<string, string>> = {
   keine: 'keine',
 };
 
-function Blatt({ titel, erklaerung, zeilen, art, mandant }: {
+function Blatt({ titel, erklaerung, zeilen, art, mandant, darfKunde }: {
   readonly titel: string;
   readonly erklaerung: string;
   readonly zeilen: readonly WiderspruchZeile[];
   readonly art: 'werbung' | 'verarbeitung';
   readonly mandant: string;
+  /**
+   * Die Kundenseite verlangt `crm.lesen`. Ohne das Recht bleibt der Name als
+   * Text stehen und verliert nur den Verweis (D-567): ein Verweis, der auf
+   * 404 führt, verrät die Existenz dessen, was er nicht zeigen darf (AUT-06).
+   */
+  readonly darfKunde: boolean;
 }) {
   return (
     <section aria-label={titel} data-cse={`widerspruch-${art}`} className="mb-s7">
@@ -89,7 +95,7 @@ function Blatt({ titel, erklaerung, zeilen, art, mandant }: {
               kopf: 'Kontakt oder Firma',
               zelle: (w) => (
                 <span>
-                  {w.ebene === 'kunde' && w.kundeName !== null ? (
+                  {w.ebene === 'kunde' && w.kundeName !== null && darfKunde ? (
                     <Link href={`/portal/${mandant}/crm/kunden/${w.betroffenerId}`}
                           className="text-text underline-offset-2 hover:text-brand hover:underline">
                       {w.name}
@@ -139,7 +145,10 @@ export default async function Widerspruechseite(
     `/portal/${mandant}/datenschutz/widersprueche`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
-  const darf = await haeltRechte(zugang.sitzung, 'crm.rechtsgrundlage_lesen');
+  /* `crm.lesen` gehoert nicht dieser Seite, sondern dem Ziel ihrer Verweise:
+     die Namensspalte fuehrt auf die Kundenseite (D-567). */
+  const darf = await haeltRechte(
+    zugang.sitzung, 'crm.rechtsgrundlage_lesen', 'crm.lesen');
 
   /**
    * **Der Definer WIRFT, wenn das Recht fehlt — und das ist richtig.**
@@ -216,6 +225,7 @@ export default async function Widerspruechseite(
         zeilen={werbung}
         art="werbung"
         mandant={mandant}
+        darfKunde={darf['crm.lesen'] === true}
       />
 
       <Blatt
@@ -224,6 +234,7 @@ export default async function Widerspruechseite(
         zeilen={verarbeitung}
         art="verarbeitung"
         mandant={mandant}
+        darfKunde={darf['crm.lesen'] === true}
       />
 
       <section aria-labelledby="protokoll" className="mb-s6">

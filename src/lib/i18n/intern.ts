@@ -83,7 +83,9 @@ Readonly<Record<InternSprache, Readonly<Record<string, string>>>> = {
     zeiten: 'Zeiten',
     personal: 'Personal',
     angebote: 'Angebote',
+    leistungskatalog: 'Leistungskatalog',
     auftraege: 'Aufträge',
+    aufgaben: 'Aufgaben',
     rechnungen: 'Rechnungen',
     zahlungen: 'Zahlungen',
     eingangsrechnungen: 'Eingangsrechnungen',
@@ -93,6 +95,7 @@ Readonly<Record<InternSprache, Readonly<Record<string, string>>>> = {
     bank: 'Bank',
     datev: 'DATEV',
     dokumente: 'Dokumente',
+    nachrichten: 'Nachrichten',
     agenten: 'Agenten',
     freigaben: 'Freigaben',
     social: 'Social Media',
@@ -138,7 +141,14 @@ Readonly<Record<InternSprache, Readonly<Record<string, string>>>> = {
     zeiten: 'Time',
     personal: 'Staff',
     angebote: 'Quotes',
+    /*
+     * Der Katalog der Leistungen mit Preis und Zeitwert — die Quelle, aus
+     * der Angebotszeilen entstehen. „Price list" waere zu eng: es stehen
+     * auch Zeitwerte darin.
+     */
+    leistungskatalog: 'Service catalogue',
     auftraege: 'Orders',
+    aufgaben: 'Tasks',
     rechnungen: 'Invoices',
     zahlungen: 'Payments',
     eingangsrechnungen: 'Supplier invoices',
@@ -151,6 +161,13 @@ Readonly<Record<InternSprache, Readonly<Record<string, string>>>> = {
     /* Ein Produktname. Bleibt. */
     datev: 'DATEV',
     dokumente: 'Documents',
+    /*
+     * Der Fadenposteingang — der Schriftverkehr in einem Vorgang
+     * (`nachricht`). „Correspondence" waere praeziser und in einem Menue
+     * zu lang; `texte.ts` sagt fuer denselben Posteingang ebenfalls
+     * „Messages".
+     */
+    nachrichten: 'Messages',
     agenten: 'Agents',
     freigaben: 'Approvals',
     social: 'Social media',

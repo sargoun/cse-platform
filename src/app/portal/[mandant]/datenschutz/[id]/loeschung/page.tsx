@@ -5,7 +5,8 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { Button } from '@/components/ui/Button';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import type { BereichSchluessel } from '@/lib/design/theme';
-import { MandantAntwort } from '@/app/portal/unterseite';
+import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
+import { kennungOder404 } from '@/app/portal/kennung';
 import {
   ERGEBNIS_TEXT, NICHT_IN_DER_MATRIX, VOLLZUG, matrix,
   type Entscheidungszeile, type Ort,
@@ -57,16 +58,24 @@ export default async function Loeschungsseite(
   { params }: { params: Promise<{ mandant: string; id: string }> },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
+  const tor = await mandantTor(
+    `/portal/${mandant}/datenschutz/${id}/loeschung`, mandant);
+  if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
+  const { zugang } = tor;
 
-  const geladen = await ladeVorgang<readonly Ort[]>(
-    `/portal/${mandant}/datenschutz/${id}/loeschung`, mandant, id,
-    ['crm.lesen', 'crm.rechtsgrundlage_lesen'],
+  const { z, zuordnung, darf, extra: orte } = await ladeVorgang<readonly Ort[]>(
+    zugang, mandant, id,
+    /* `system.einstellung_lesen` steht hier fuer den Verweis aufs
+       Loeschkonzept, nicht fuer diese Seite: sein Ziel verlangt es, also
+       fragt es diese Seite mit (D-567). */
+    ['crm.lesen', 'crm.rechtsgrundlage_lesen', 'system.einstellung_lesen'],
     async (kontext, v) => matrix(kontext, v.z.id, v.zuordnung),
   );
-  if (geladen.art !== 'ok') return <MandantAntwort tor={geladen.tor} />;
-  const { zugang, z, zuordnung, darf, extra: orte } = geladen;
 
   const darfSchreiben = darf['datenschutz.loeschung_pruefen'] === true;
+  const darfKonzept = darf['system.einstellung_lesen'] === true;
+  const darfAkte = darf['datenschutz.auskunft_erstellen'] === true;
   const erledigt = ['beantwortet', 'abgelehnt'].includes(z.status);
   const zurueck = `/portal/${mandant}/datenschutz/${z.id}/loeschung`;
   const feld = 'w-full rounded-md border border-line bg-surface px-s3 py-s2 text-sm text-text';
@@ -114,10 +123,12 @@ export default async function Loeschungsseite(
           Anonymisierungsweg existiert, ist das Ergebnis eine dokumentierte
           Vormerkung, und die Ausführung geschieht von Hand und wird hier
           nachgetragen.{' '}
-          <Link href={`/portal/${mandant}/datenschutz/loeschkonzept`}
-                className="underline-offset-2 hover:text-text hover:underline">
-            Löschkonzept der Gesellschaft
-          </Link>
+          {darfKonzept ? (
+            <Link href={`/portal/${mandant}/datenschutz/loeschkonzept`}
+                  className="underline-offset-2 hover:text-text hover:underline">
+              Löschkonzept der Gesellschaft
+            </Link>
+          ) : 'Massgeblich bleibt das Löschkonzept der Gesellschaft.'}
         </span>
       </Hinweis>
 
@@ -146,10 +157,12 @@ export default async function Loeschungsseite(
           <strong className="block">Dieser Vorgang ist keinem Datensatz zugeordnet.</strong>
           Welche Tabellen betroffen sind, lässt sich ohne den Datensatz nicht
           sagen.{' '}
-          <Link href={`/portal/${mandant}/datenschutz/${z.id}`}
-                className="underline-offset-2 hover:text-text hover:underline">
-            Zuerst zuordnen
-          </Link>
+          {darfAkte ? (
+            <Link href={`/portal/${mandant}/datenschutz/${z.id}`}
+                  className="underline-offset-2 hover:text-text hover:underline">
+              Zuerst zuordnen
+            </Link>
+          ) : 'Zuerst zuordnen — auf der Vorgangsseite.'}
         </Hinweis>
       ) : null}
 

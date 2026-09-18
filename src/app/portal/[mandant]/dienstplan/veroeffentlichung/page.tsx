@@ -124,6 +124,7 @@ export default async function Veroeffentlichung(
    */
   const darf = await haeltRechte(
     sitzung, 'dienstplan.veroeffentlichen', 'dienstplan.lesen', 'objekt.lesen',
+    'dienstplan.arbzg_lesen',
   );
   if (darf['dienstplan.lesen'] !== true) notFound();
 
@@ -230,12 +231,26 @@ export default async function Veroeffentlichung(
           aufhält, ist <strong>offen (O-712)</strong> und wird hier nicht
           entschieden; dass Sie trotz Sperre veröffentlicht haben, steht danach im
           Beleg.{' '}
-          <Link
-            href={`/portal/${mandant}/dienstplan/konflikte`}
-            className="underline"
-          >
-            Zum Konflikteingang
-          </Link>
+          {/*
+            * Der Konflikteingang verlangt zusaetzlich `dienstplan.arbzg_lesen`
+            * (Routenregister, §5.10): er zeigt Ruhezeiten und Hoechstarbeitszeiten,
+            * also Angaben ueber die Gesundheit von Menschen. Wer die Zahl hier
+            * sehen darf, darf die Liste dahinter deshalb nicht zwangslaeufig
+            * oeffnen — ohne das Recht bleibt der Satz und faellt der Verweis weg
+            * (D-567, AUT-06).
+            */}
+          {darf['dienstplan.arbzg_lesen'] === true ? (
+            <Link
+              href={`/portal/${mandant}/dienstplan/konflikte`}
+              className="underline"
+            >
+              Zum Konflikteingang
+            </Link>
+          ) : (
+            <span>
+              Der Konflikteingang selbst braucht <code>dienstplan.arbzg_lesen</code>.
+            </span>
+          )}
         </p>
       )}
 

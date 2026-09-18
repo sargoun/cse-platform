@@ -106,7 +106,16 @@ export default async function Stornoblatt(
 
   /* Diese Seite öffnet mit `finanzen.stornieren`; der Beleg daneben verlangt
      `finanzen.lesen` (AUT-06, D-581). */
-  const darf = await haeltRechte(sitzung, 'finanzen.lesen');
+  /*
+   * `finanzen.entwurf_verwerfen` kommt dazu, weil der Hinweis unten auf die
+   * Verwerfen-Seite zeigt und diese Route genau dieses Recht verlangt
+   * (Routenregister, §5.14). Stornieren und Verwerfen sind zwei Vorgaenge mit
+   * zwei Rechten: das eine hebt einen festgeschriebenen Beleg auf, das andere
+   * raeumt einen Entwurf weg, der nie einer war. Wer nur stornieren darf,
+   * bekam hinter dem Verweis ein 404 (D-567, AUT-06).
+   */
+  const darf = await haeltRechte(
+    sitzung, 'finanzen.lesen', 'finanzen.entwurf_verwerfen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -282,13 +291,20 @@ export default async function Stornoblatt(
               : 'Dieser Entwurf ist verworfen. Es gibt nichts aufzuheben.'}
           </p>
           {k.status === 'entwurf' ? (
-            <p className="m-0 mt-s2">
-              <Link
-                href={`/portal/${mandant}/finanzen/rechnungen/${id}/verwerfen`}
-                className="text-sm underline underline-offset-2"
-              >
-                Zur Verwerfen-Seite →
-              </Link>
+            <p className="m-0 mt-s2 text-sm">
+              {darf['finanzen.entwurf_verwerfen'] === true ? (
+                <Link
+                  href={`/portal/${mandant}/finanzen/rechnungen/${id}/verwerfen`}
+                  className="underline underline-offset-2"
+                >
+                  Zur Verwerfen-Seite →
+                </Link>
+              ) : (
+                <span className="text-text-muted">
+                  Verworfen wird er von jemandem mit{' '}
+                  <code className="text-text">finanzen.entwurf_verwerfen</code>.
+                </span>
+              )}
             </p>
           ) : null}
         </Hinweis>

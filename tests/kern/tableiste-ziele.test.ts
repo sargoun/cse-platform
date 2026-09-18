@@ -41,13 +41,20 @@ const WURZEL = resolve(import.meta.dirname, '../..');
 const NOCH_OFFEN: Readonly<Record<string, string>> = {
   /*
    * Das Kundenportal ist in der ROADMAP ein OFFENES Kaestchen (Phase 3,
-   * „Customer portal"). Seine Leiste zeigt deshalb auf Seiten, die noch nicht
-   * dran sind — das ist Absicht und keine Luecke.
+   * „Customer portal"). EIN Ziel seiner Leiste ist deshalb noch nicht dran —
+   * das ist Absicht und keine Luecke.
+   *
+   * **Hier standen einmal drei weitere** — `rechnungen`, `nachweise` und
+   * `nachrichten`. Alle drei sind gebaut, und zwar wirklich: sie tragen echte
+   * Zeilen aus der Datenbank (`services/kundenportal/rechnung.ts`,
+   * `nachricht.ts`, `nachweis.ts`) statt einer Kopfzeile mit Platzhaltertext.
+   * Die dritte Pruefung unten hat ihr Verschwinden erzwungen.
+   *
+   * Offen bleibt allein die Auftragsliste: `/portal/kunde/auftraege` hat keine
+   * eigene `page.tsx` und faellt auf den Auffang `[...rest]` — also auf genau
+   * die Bauzustandsseite, die der Befund dieser Datei ist.
    */
   '/portal/kunde/auftraege': 'ROADMAP Phase 3 — Customer portal, Kästchen offen',
-  '/portal/kunde/rechnungen': 'ROADMAP Phase 3 — Customer portal, Kästchen offen',
-  '/portal/kunde/nachweise': 'ROADMAP Phase 3 — Customer portal, Kästchen offen',
-  '/portal/kunde/nachrichten': 'ROADMAP Phase 3 — Customer portal, Kästchen offen',
   /* Radar-Gruppenansicht: Phase 8 liefert die Mandantensicht, die Gruppensicht
      steht als eigene Zeile noch aus. */
   '/portal/gruppe/radar': 'Gruppensicht des Radars — eigene Zeile, noch nicht gebaut',

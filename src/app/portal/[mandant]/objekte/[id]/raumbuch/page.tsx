@@ -88,8 +88,17 @@ export default async function Raumbuch(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
   const mandantId = sitzung.aktiverMandantId;
+  /*
+   * `objekt.schreiben` kommt dazu, weil das RAUMBLATT
+   * (`…/raumbuch/[raumId]`) genau dieses Recht als Leserecht traegt
+   * (Routenregister, §5.5): das Blatt ist der Pflegeort eines Raums, nicht
+   * seine Ansicht. Diese Liste oeffnet mit `objekt.lesen` — wer nur sie haelt,
+   * bekam hinter jeder Raumnummer ein 404 (D-567, AUT-06). Ohne das Recht
+   * bleibt die Nummer als Text stehen: die Zeile traegt ihre Angabe weiter,
+   * sie fuehrt nur nirgends hin.
+   */
   const darf = await haeltRechte(
-    sitzung, 'objekt_import.schreiben', 'stammdaten.verwalten');
+    sitzung, 'objekt_import.schreiben', 'stammdaten.verwalten', 'objekt.schreiben');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -194,13 +203,17 @@ export default async function Raumbuch(
                 * koennen — sondern einer, ihn zu benennen.
                 */
               zelle: (z) => (
-                <Link
-                  href={`/portal/${mandant}/objekte/${id}/raumbuch/${z.id}`}
-                  data-cse="zum-raumblatt"
-                  className="text-text underline underline-offset-2 hover:text-brand"
-                >
-                  {z.raumnummer ?? <span className="text-text-subtle">ohne Nummer</span>}
-                </Link>
+                darf['objekt.schreiben'] === true ? (
+                  <Link
+                    href={`/portal/${mandant}/objekte/${id}/raumbuch/${z.id}`}
+                    data-cse="zum-raumblatt"
+                    className="text-text underline underline-offset-2 hover:text-brand"
+                  >
+                    {z.raumnummer ?? <span className="text-text-subtle">ohne Nummer</span>}
+                  </Link>
+                ) : (
+                  z.raumnummer ?? <span className="text-text-subtle">ohne Nummer</span>
+                )
               ),
             },
             {

@@ -21,6 +21,7 @@ import { slugTor } from '../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../../kennung';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/bau/projekte/[id]/abnahme` — das Abnahmeprotokoll nach
@@ -84,6 +85,15 @@ export default async function AbnahmeSeite(
    * und waren keine. Wer das Protokoll nur LESEN koennen soll, braucht eine
    * andere Bewachung dieser Route — nicht eine Bedingung in dieser Datei.
    */
+  /**
+   * **`bau.schreiben` ist nicht `bau.lesen`.** `app.hat_recht` loest jeden
+   * Schluessel einzeln auf; eine Hierarchie, in der Schreiben das Lesen
+   * einschloesse, gibt es nicht — und AUT-03 erlaubt, `bau.lesen` je Mandant
+   * zu entziehen, waehrend `bau.schreiben` steht. Der Rueckweg auf das
+   * Projektblatt (`bau.lesen`) braucht deshalb seine eigene Bedingung,
+   * sonst zeigt er auf ein 404 (D-567, AUT-06).
+   */
+  const darf = await haeltRechte(sitzung, 'bau.lesen');
 
   const heute = await berlinHeute();
 
@@ -151,14 +161,16 @@ export default async function AbnahmeSeite(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label="Zurück" className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/bau/projekte/${id}`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← Projekt {p.nummer}
-        </Link>
-      </nav>
+      {darf['bau.lesen'] === true && (
+        <nav aria-label="Zurück" className="mb-s3">
+          <Link
+            href={`/portal/${mandant}/bau/projekte/${id}`}
+            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+          >
+            ← Projekt {p.nummer}
+          </Link>
+        </nav>
+      )}
 
       <h1 className="mb-s2 text-h1 text-text">Abnahme</h1>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">

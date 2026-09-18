@@ -24,6 +24,7 @@ import { slugTor } from '../../../../../../../unterseite';
 import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../../../../kennung';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/bau/projekte/[id]/aufmass/[aufmassId]/freigabe` — die
@@ -68,6 +69,15 @@ export default async function AufmassFreigabe(
   }
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
+  /**
+   * **Diese Route traegt `bau.aufmass_freigeben`, nicht `bau.lesen`.**
+   * `app.hat_recht` loest jeden Schluessel einzeln auf — Gegenzeichnen
+   * schliesst Lesen nicht ein, und AUT-03 erlaubt, `bau.lesen` je Mandant zu
+   * entziehen. Beide Wege zurueck auf das Aufmassblatt (der Rueckverweis oben
+   * und das `zurueck` des Formulars) brauchen deshalb ihre eigene Bedingung,
+   * sonst endet die Unterschrift auf einem 404 (D-567, AUT-06).
+   */
+  const darf = await haeltRechte(sitzung, 'bau.lesen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -99,7 +109,15 @@ export default async function AufmassFreigabe(
   const hindernisse: readonly VorlageHindernis[] = daten.stand === null
     ? []
     : pruefeVorlage(daten.stand).filter((h) => h !== 'nicht_entwurf');
-  const blattPfad = `/portal/${mandant}/bau/projekte/${id}/aufmass/${aufmassId}`;
+  /*
+   * Ohne `bau.lesen` fuehrt der Rueckweg nach der Unterschrift auf diese Seite
+   * zurueck — sie zeigt dann den festgeschriebenen Stand. Ein Rueckweg auf ein
+   * Blatt, das die Sitzung nicht oeffnen darf, waere ein 404 nach einem
+   * gelungenen Vorgang.
+   */
+  const blattPfad = darf['bau.lesen'] === true
+    ? `/portal/${mandant}/bau/projekte/${id}/aufmass/${aufmassId}`
+    : pfad;
 
   return (
     <PortalRahmen
@@ -112,14 +130,16 @@ export default async function AufmassFreigabe(
       sichtbareTabs={zugang.sichtbareTabs}
       navigationsRechte={zugang.navigationsRechte}
     >
-      <nav aria-label="Zurück" className="mb-s3">
-        <Link
-          href={`/portal/${mandant}/bau/projekte/${id}/aufmass/${aufmassId}`}
-          className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-        >
-          ← Aufmaßblatt
-        </Link>
-      </nav>
+      {darf['bau.lesen'] === true && (
+        <nav aria-label="Zurück" className="mb-s3">
+          <Link
+            href={`/portal/${mandant}/bau/projekte/${id}/aufmass/${aufmassId}`}
+            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+          >
+            ← Aufmaßblatt
+          </Link>
+        </nav>
+      )}
 
       <div className="mb-s5 flex flex-wrap items-start justify-between gap-s3">
         <div>

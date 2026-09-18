@@ -407,7 +407,7 @@ export default async function LvPositionSeite(
                 >
                   {n.nummer} · {n.titel}
                 </Link>
-                <span className="ml-s2 inline-flex items-center gap-s2">
+                <span className="ml-s2 inline-flex flex-wrap items-center gap-s2">
                   <StatusPill zustand={NACHTRAG_PILLE[n.status] ?? 'Offen'} />
                   <span className="text-xs">
                     {NACHTRAG_STATUS_TEXT[n.status] ?? n.status}
@@ -449,17 +449,24 @@ export default async function LvPositionSeite(
                   {p.quelle_seite === null ? '—' : String(p.quelle_seite)}
                 </dd>
               </div>
-              <div>
+              <div className="min-w-0">
                 {/*
                   * `quelle_bereich` wurde gelesen und nirgends gezeigt — eine
                   * mitgelesene Spalte ohne Leser. Sie steht jetzt hier: die
                   * Stelle auf der Seite, an der die Zahl gefunden wurde, ist
                   * der einzige Weg, eine maschinelle Lesung nachzuprüfen.
+                  *
+                  * `min-w-0 break-words` — D-420. Ohne Rechteck fällt
+                  * `fundstelleText` auf das rohe JSON zurück: ein Wort ohne
+                  * Leerzeichen, das die Zweispalte am Telefon auseinanderdrückt.
                   */}
                 <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">
                   Quelle: Fundstelle
                 </dt>
-                <dd className="m-0 mt-s1 text-sm text-text" data-cse="quelle-bereich">
+                <dd
+                  className="m-0 mt-s1 min-w-0 break-words text-sm text-text"
+                  data-cse="quelle-bereich"
+                >
                   {fundstelleText(p.quelle_bereich) ?? '—'}
                 </dd>
               </div>

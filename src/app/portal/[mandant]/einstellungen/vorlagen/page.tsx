@@ -11,6 +11,7 @@ import {
 } from '@/server/services/einstellung/vorlagen';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/einstellungen/vorlagen` — jede Vorlage dieser
@@ -47,6 +48,20 @@ export default async function Vorlagen(
   const tor = await mandantTor(`/portal/${mandant}/einstellungen/vorlagen`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
+
+  /**
+   * **Die beiden Wegweiser stehen unter dem Recht IHRES Ziels.**
+   *
+   * Diese Seite traegt `system.einstellung_verwalten`. Mahnwesen verlangt
+   * `mahnung.schreiben` (nicht `mahnung.lesen`, das hier schon abgefragt
+   * wird — die Stufen zu SEHEN und sie zu PFLEGEN sind zwei Rechte), und
+   * Identitaet verlangt `system.identitaet_verwalten`. Wer nur Vorlagen
+   * verwaltet, bekam hinter beiden Verweisen ein 404 (D-567, AUT-06). Ohne
+   * das Recht bleibt der Name stehen und verliert nur den Verweis — die
+   * Auskunft, WO der Text gepflegt wird, ist selbst kein Geheimnis.
+   */
+  const darf = await haeltRechte(
+    zugang.sitzung, 'mahnung.schreiben', 'system.identitaet_verwalten');
 
   const uebersicht = await (db().begin(SCHNAPPSCHUSS,
     async (tx: postgres.TransactionSql) => withTenant(tx, zugang.sitzung,
@@ -158,10 +173,14 @@ export default async function Vorlagen(
         <p className="mb-s4 max-w-[72ch] text-sm text-text-muted">
           Der Text liegt auf der Mahnstufe, zusammen mit Frist, Gebühr und Zinsart.
           Gepflegt wird er dort:{' '}
-          <a className="text-brand underline"
-             href={`/portal/${mandant}/einstellungen/mahnwesen`}>
-            Einstellungen › Mahnwesen
-          </a>. Hier steht er, damit man alle Vorlagen an einer Stelle findet — nicht,
+          {darf['mahnung.schreiben'] === true ? (
+            <a className="text-brand underline"
+               href={`/portal/${mandant}/einstellungen/mahnwesen`}>
+              Einstellungen › Mahnwesen
+            </a>
+          ) : (
+            <span className="text-text">Einstellungen › Mahnwesen</span>
+          )}. Hier steht er, damit man alle Vorlagen an einer Stelle findet — nicht,
           damit man ihn zweimal ändern kann.
         </p>
         {rechte.mahnungLesen ? (
@@ -262,10 +281,14 @@ export default async function Vorlagen(
         <p className="mb-s4 max-w-[72ch] text-sm text-text-muted">
           Brief-, Rechnungs- und Angebotsfuss und der E-Mail-Absender gehören zur
           Identität dieser Gesellschaft und werden dort gepflegt:{' '}
-          <a className="text-brand underline"
-             href={`/portal/${mandant}/einstellungen/identitaet`}>
-            Einstellungen › Identität
-          </a>.
+          {darf['system.identitaet_verwalten'] === true ? (
+            <a className="text-brand underline"
+               href={`/portal/${mandant}/einstellungen/identitaet`}>
+              Einstellungen › Identität
+            </a>
+          ) : (
+            <span className="text-text">Einstellungen › Identität</span>
+          )}.
         </p>
         {identitaet === null ? (
           <Hinweis art="warnung" cse="fuss-keine-identitaet" className="max-w-[72ch]">

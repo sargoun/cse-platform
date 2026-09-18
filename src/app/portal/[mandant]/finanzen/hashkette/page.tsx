@@ -373,7 +373,7 @@ export default async function Hashkettenblatt(
                       <StatusPill zustand="Abgeschlossen" />
                     ) : (
                       <span className="inline-flex flex-col gap-s1">
-                        <span className="inline-flex items-center gap-s2">
+                        <span className="inline-flex flex-wrap items-center gap-s2">
                           <StatusPill zustand="Fehler" />
                           <span className="text-xs text-text">
                             Rechnung {z.bruch.nummer}, Position {z.bruch.position}

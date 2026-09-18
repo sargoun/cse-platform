@@ -9,8 +9,8 @@
  * wirklich existiert; und dass die Wache gegen ihre eigenen Falschtreffer
  * geprueft ist.
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ROUTEN as API_ROUTEN } from '../../src/server/auth/route-manifest.js';
 import { ROUTEN, findeRoute } from '../../src/server/registry/routen.js';
@@ -49,6 +49,86 @@ function dateien(verzeichnis: string): readonly string[] {
 }
 
 // ---------------------------------------------------------------------------
+// Die Modulhuelle einer Route — und was darin einen Zeiteintrag schreibt
+// ---------------------------------------------------------------------------
+
+/**
+ * `@/server/x` und `../y` zu einer Datei unter `src/` — oder `null`.
+ *
+ * Paketnamen (`postgres`, `next/server`) fallen durch: sie liegen nicht in
+ * diesem Baum, und was nicht in diesem Baum liegt, schreibt hier auch keine
+ * Tabelle.
+ */
+function moduldatei(quelle: string, spezifizierer: string): string | null {
+  let basis: string;
+  if (spezifizierer.startsWith('@/')) basis = join(WURZEL, 'src', spezifizierer.slice(2));
+  else if (spezifizierer.startsWith('.')) basis = resolve(dirname(quelle), spezifizierer);
+  else return null;
+  const src = join(WURZEL, 'src');
+  for (const endung of ['.ts', '.tsx', '/index.ts', '/index.tsx']) {
+    const kandidat = `${basis}${endung}`;
+    // Kein Ausbruch aus `src/` ueber `../../..` — und kein Verzeichnis.
+    if (!kandidat.startsWith(`${src}/`)) continue;
+    if (existsSync(kandidat) && statSync(kandidat).isFile()) return kandidat;
+  }
+  return null;
+}
+
+/**
+ * Alle Dateien unter `src/`, die von `einstieg` aus erreichbar sind —
+ * TRANSITIV, nicht eine Ebene tief.
+ *
+ * Eine Ebene reichte hier nicht: die Schichtrouten rufen nichts selbst, sie
+ * reichen an `bruecke.ts` weiter, und die Bruecke reicht an den Fachdienst
+ * weiter. Wer nur eine Ebene liest, liest genau bis zu der Stelle, an der das
+ * Schreiben anfaengt.
+ */
+function modulhuelle(einstieg: string): readonly string[] {
+  const gesehen = new Set<string>();
+  const stapel = [einstieg];
+  while (stapel.length > 0) {
+    const datei = stapel.pop() as string;
+    if (gesehen.has(datei)) continue;
+    gesehen.add(datei);
+    const quelle = readFileSync(datei, 'utf8');
+    for (const treffer of quelle.matchAll(/from\s+'([^']+)'/gu)) {
+      const ziel = moduldatei(datei, treffer[1] ?? '');
+      if (ziel !== null) stapel.push(ziel);
+    }
+  }
+  return [...gesehen];
+}
+
+/**
+ * Eine Anweisung, die `zeiteintrag` SCHREIBT — kein `select … from`.
+ *
+ * Lesen ist ausdruecklich erlaubt und geschieht ueberall: das Stundenkonto,
+ * der Monatsnachweis und das Bautagebuch lesen Zeiteintraege. EMP-07 verbietet
+ * das AENDERN, und genau diese drei Anweisungen aendern.
+ */
+const SCHREIBT_ZEITEINTRAG = /(?:insert\s+into|update|delete\s+from)\s+zeiteintrag\b/iu;
+
+/** Die Dateien der Huelle, die einen Zeiteintrag schreiben. */
+function zeiteintragSchreiber(einstieg: string): readonly string[] {
+  return modulhuelle(einstieg)
+    .filter((d) => SCHREIBT_ZEITEINTRAG.test(ohneKommentare(readFileSync(d, 'utf8'))))
+    .map((d) => d.replace(`${WURZEL}/`, ''))
+    .sort();
+}
+
+/** Jede `route.ts` unter `src/app/api/mein/**`, als Manifestpfad. */
+function meineRoutendateien(): readonly { readonly pfad: string; readonly datei: string }[] {
+  const api = join(WURZEL, 'src/app/api');
+  return dateien(join(api, 'mein'))
+    .filter((d) => /\/route\.tsx?$/u.test(d))
+    .map((datei) => ({
+      pfad: `api/${datei.slice(api.length + 1).replace(/\/route\.tsx?$/u, '')}`,
+      datei,
+    }))
+    .sort((a, b) => a.pfad.localeCompare(b.pfad));
+}
+
+// ---------------------------------------------------------------------------
 
 describe('(2) es gibt keinen Weg, der einen Zeiteintrag aendert (EMP-07)', () => {
   it('keine API-Route traegt einen Zeiteintrag im Pfad', () => {
@@ -63,21 +143,127 @@ describe('(2) es gibt keinen Weg, der einen Zeiteintrag aendert (EMP-07)', () =>
     expect(verdaechtig).toEqual([]);
   });
 
-  it('das Mitarbeiterportal hat genau DREI eigene Schreibrouten, und keine davon ist Zeit', () => {
+  /**
+   * **Die Sperrklinke — sie darf mitwachsen, sie darf nicht verschwinden.**
+   *
+   * Frueher stand hier „genau DREI", und die Drei war das Falsche daran: die
+   * Zusage von EMP-07 ist nicht „es sind drei", sondern „keine davon aendert
+   * einen Zeiteintrag". Eine Zahl faellt bei jedem ehrlichen Zuwachs um und
+   * wird dann hochgesetzt, bis niemand mehr hinsieht.
+   *
+   * Geblieben ist die LISTE — sie ist die Sperrklinke: eine neue Adresse unter
+   * `api/mein/` faellt auf, bevor jemand sie benutzt, und wer sie eintraegt,
+   * hat sie gelesen. Dazu gekommen ist die PRUEFUNG darunter, die fuer jede
+   * Adresse der Liste NACHWEIST, was die Liste bisher nur behauptete.
+   *
+   * PR 42 brachte die Kenntnisnahme (EMP-09), 0301/0303 den Rueckzug, die
+   * Fotos und die zwei Bautagebuchwege, 0304 den Leistungsnachweis mit seiner
+   * Unterschrift und 0070/0300 die Wachbuchseite.
+   */
+  const MEINE_SCHREIBROUTEN: readonly string[] = [
+    'api/mein/abwesenheit',
+    'api/mein/antraege',
+    'api/mein/antraege/[id]/zurueckziehen',
+    'api/mein/dienstanweisungen/[id]/kenntnisnahme',
+    'api/mein/schichten/[zuordnungId]/bautagebuch/mannstunden',
+    'api/mein/schichten/[zuordnungId]/bautagebuch/position',
+    'api/mein/schichten/[zuordnungId]/fotos',
+    'api/mein/schichten/[zuordnungId]/leistungsnachweis',
+    'api/mein/schichten/[zuordnungId]/leistungsnachweis/[id]/unterschrift',
+    'api/mein/schichten/[zuordnungId]/wachbuch',
+  ];
+
+  it('jede Schreibroute des Portals steht namentlich in der Liste', () => {
+    const meine = API_ROUTEN
+      .filter((r) => r.pfad.startsWith('api/mein/'))
+      .map((r) => r.pfad)
+      .sort();
+    expect(meine).toEqual([...MEINE_SCHREIBROUTEN].sort());
+  });
+
+  it('und die Liste beschreibt den Baum — kein Eintrag ohne Datei, keine Datei ohne Eintrag', () => {
+    // Sonst pruefte die Zusage darunter eine Liste statt des Programms: eine
+    // gestrichene Adresse bliebe als gruene Zeile stehen, eine neue fehlte.
+    expect(meineRoutendateien().map((r) => r.pfad))
+      .toEqual([...MEINE_SCHREIBROUTEN].sort());
+  });
+
+  it('KEINE Route unter `api/mein/` schreibt einen Zeiteintrag (EMP-07)', () => {
     /**
-     * Die Liste ist die Zusage, nicht ihre Laenge: jede Adresse unter
-     * `api/mein/` steht hier namentlich, und eine vierte faellt auf, bevor
-     * jemand sie benutzt. PR 42 hat die dritte gebracht — die Kenntnisnahme
-     * einer Dienstanweisung (EMP-09) —, und sie ist so wenig eine Zeitroute
-     * wie die beiden anderen.
+     * **Die eigentliche Zusage — nachgewiesen statt aufgezaehlt.**
+     *
+     * Gelesen wird die Modulhuelle jeder Portalroute: die Datei selbst, die
+     * Bruecke, die Fachdienste dahinter, transitiv bis an den Rand von `src/`.
+     * Taucht darin `insert into` / `update` / `delete from zeiteintrag` auf,
+     * faellt die Probe — egal, ob die Adresse in der Liste oben steht.
+     *
+     * Das ist strenger als die Namensliste, die hier frueher stand: die Liste
+     * sagte „diese drei sind in Ordnung", ohne je nachzusehen. Ein vierter
+     * Eintrag haette sie geheilt. Hier heilt kein Eintrag etwas — eine neue
+     * Adresse muss die Eigenschaft erfuellen, sonst bleibt sie rot.
+     */
+    const verdaechtig: string[] = [];
+    for (const { pfad, datei } of meineRoutendateien()) {
+      /*
+       * Ohne diese Zeile bestuende die Probe auf einer Huelle von EINS: wenn
+       * `moduldatei` eines Tages nichts mehr aufloest — ein Aliaswechsel, ein
+       * anderer Anfuehrungsstil — laege jeder Fachdienst ausserhalb, und die
+       * Probe meldete zehnmal „sauber", ohne eine einzige Zeile davon gelesen
+       * zu haben.
+       */
+      const huelle = modulhuelle(datei);
+      expect(huelle.length, `${pfad}: die Huelle reicht nicht ueber die Route hinaus`)
+        .toBeGreaterThan(3);
+      for (const schreiber of zeiteintragSchreiber(datei)) {
+        verdaechtig.push(`${pfad} → ${schreiber}`);
+      }
+    }
+    expect(
+      verdaechtig,
+      'EMP-07: eine Route des Mitarbeiterportals erreicht einen Schreibweg auf '
+      + '`zeiteintrag`. Korrigiert wird ueber `api/zeit/korrektur`, eingewendet '
+      + 'ueber `api/zeit/einwand` — nicht aus dem Portal heraus.',
+    ).toEqual([]);
+  });
+
+  it('und die Probe sagt auch Nein — `api/zeit/korrektur` faellt ihr auf', () => {
+    /**
+     * **Die Gegenprobe.** Ohne sie koennte `zeiteintragSchreiber` schlicht
+     * eine leere Liste zurueckgeben und alles oben waere gruen, ohne dass
+     * irgendetwas geprueft wuerde.
+     *
+     * Genommen wird die EINE Route des Baums, die einen Zeiteintrag
+     * rechtmaessig aendert (TIM-11). Sie liegt nicht unter `api/mein/`, sie
+     * ruft `korrigiereZeiteintrag` nicht selbst — der Dienst
+     * `services/zeit/korrektur.ts` schreibt —, und genau ueber zwei
+     * Importkanten muss die Probe hinkommen, um das zu sehen.
+     */
+    const korrektur = join(WURZEL, 'src/app/api/zeit/korrektur/route.ts');
+    expect(existsSync(korrektur), 'die Gegenprobe braucht ihre Route').toBe(true);
+    // Die Huelle ist wirklich eine Huelle und nicht die eine Datei.
+    expect(modulhuelle(korrektur).length).toBeGreaterThan(5);
+    expect(zeiteintragSchreiber(korrektur))
+      .toContain('src/server/services/zeit/korrektur.ts');
+  });
+
+  it('und genau EINE Portalroute traegt ueberhaupt ein Recht — die Abwesenheitsmeldung', () => {
+    /**
+     * Alles andere unter `api/mein/` ist Selbstzugriff (SEITENKARTE §7): „nur
+     * der Betroffene" laesst sich als Recht gar nicht ausdruecken, weil ein
+     * Recht einer Rolle gehoert und eine Rolle vielen Menschen. Ein erfundener
+     * Schluessel muesste jeder Mitarbeiterrolle gebunden werden — er pruefte
+     * nichts und behauptete, man pruefe (K-19).
+     *
+     * Der Grund ist deshalb Pflicht: er ist die Stelle, an der jemand
+     * nachliest, WAS statt des Rechts bewacht — Sitzung, Ursprungsvergleich,
+     * der serverseitig abgeleitete Mandant (K-02) und die Policy.
      */
     const meine = API_ROUTEN.filter((r) => r.pfad.startsWith('api/mein/'));
-    expect(meine.map((r) => r.pfad).sort())
-      .toEqual([
-        'api/mein/abwesenheit',
-        'api/mein/antraege',
-        'api/mein/dienstanweisungen/[id]/kenntnisnahme',
-      ]);
+    expect(meine.filter((r) => r.recht !== null).map((r) => r.pfad))
+      .toEqual(['api/mein/abwesenheit']);
+    for (const r of meine.filter((r) => r.recht === null)) {
+      expect((r.grund ?? '').length, r.pfad).toBeGreaterThan(40);
+    }
   });
 
   it('die Kenntnisnahme ist Selbstzugriff — ohne Recht, aber mit einem Grund', () => {

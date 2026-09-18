@@ -5,7 +5,8 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { Button } from '@/components/ui/Button';
 import { StatusPill } from '@/components/ui/StatusPill';
 import type { BereichSchluessel } from '@/lib/design/theme';
-import { MandantAntwort } from '@/app/portal/unterseite';
+import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
+import { kennungOder404 } from '@/app/portal/kennung';
 import {
   ART_TEXT, ZUORDNUNG_TEXT, kandidaten, type Kandidat,
 } from '@/server/services/datenschutz/anfrage';
@@ -59,11 +60,15 @@ export default async function Vorgangsakte(
   },
 ) {
   const { mandant, id } = await params;
+  kennungOder404(id);
+  const tor = await mandantTor(`/portal/${mandant}/datenschutz/${id}`, mandant);
+  if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
+  const { zugang } = tor;
   const suche = await searchParams;
   const nadel = typeof suche['suche'] === 'string' ? suche['suche'] : '';
 
-  const geladen = await ladeVorgang<Extra>(
-    `/portal/${mandant}/datenschutz/${id}`, mandant, id,
+  const { z, zuordnung, darf, extra } = await ladeVorgang<Extra>(
+    zugang, mandant, id,
     ['crm.lesen', 'crm.rechtsgrundlage_lesen'],
     async (kontext, v) => ({
       treffer: await kandidaten(kontext, nadel),
@@ -74,9 +79,10 @@ export default async function Vorgangsakte(
         ? await stand(kontext, v.zuordnung.id, null) : [],
     }),
   );
-  if (geladen.art !== 'ok') return <MandantAntwort tor={geladen.tor} />;
-  const { zugang, z, zuordnung, darf, extra } = geladen;
 
+  /* Das Nachweisblatt verlangt `crm.rechtsgrundlage_lesen` — ohne das Recht
+     bleibt der Name stehen und der Verweis fort (AUT-06, D-567). */
+  const darfWidersprueche = darf['crm.rechtsgrundlage_lesen'] === true;
   const erledigt = ['beantwortet', 'abgelehnt'].includes(z.status);
   const zurueck = `/portal/${mandant}/datenschutz/${z.id}`;
   const feld = 'w-full rounded-md border border-line bg-surface px-s3 py-s2 text-sm text-text';
@@ -503,10 +509,12 @@ export default async function Vorgangsakte(
           </form>
         )}
         <p className="mt-s4 max-w-prose text-xs text-text-muted">
-          <Link href={`/portal/${mandant}/datenschutz/widersprueche`}
-                className="underline-offset-2 hover:text-text hover:underline">
-            Nachweisblatt aller Widersprüche
-          </Link>
+          {darfWidersprueche ? (
+            <Link href={`/portal/${mandant}/datenschutz/widersprueche`}
+                  className="underline-offset-2 hover:text-text hover:underline">
+              Nachweisblatt aller Widersprüche
+            </Link>
+          ) : 'Nachweisblatt aller Widersprüche'}
         </p>
       </section>
     </PortalRahmen>

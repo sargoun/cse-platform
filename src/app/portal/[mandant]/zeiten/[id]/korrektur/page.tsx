@@ -114,7 +114,11 @@ export default async function Korrekturblatt({
      „Zum Zeiteintrag", „Abbrechen" und „Zur aktuellen Fassung" und bekam
      dahinter ein 404. Ein Verweis auf 404 verraet, was er nicht zeigen darf
      (Copilot-Runde auf PR 16 / D-581). */
-  const darf = await haeltRechte(sitzung, 'zeit.lesen');
+  /* Und das Einwandblatt (`…/zeiten/einwaende/[id]`) traegt ein DRITTES Recht:
+     `zeit.einwand_entscheiden` (Routenregister, §5.11). Die Meldung zu SEHEN
+     und ueber sie zu ENTSCHEIDEN ist nicht dasselbe wie einen Zeiteintrag zu
+     lesen; `zeit.lesen` deckte den Verweis darauf nicht ab. */
+  const darf = await haeltRechte(sitzung, 'zeit.lesen', 'zeit.einwand_entscheiden');
 
   const e = await ladeZeiteintrag(sitzung, id);
   if (e === null) notFound();
@@ -298,7 +302,7 @@ export default async function Korrekturblatt({
               {einwand.betrifftDatum.slice(0, 4)} eine Abweichung gemeldet
               (Stand: {einwand.status}). Diese Korrektur wird mit ihr verknüpft, damit
               auf dem Einwandblatt steht, dass sie gefolgt ist.{' '}
-              {darf['zeit.lesen'] === true && (
+              {darf['zeit.einwand_entscheiden'] === true && (
                 <Link
                   href={`/portal/${mandant}/zeiten/einwaende/${einwand.id}`}
                   className="underline"

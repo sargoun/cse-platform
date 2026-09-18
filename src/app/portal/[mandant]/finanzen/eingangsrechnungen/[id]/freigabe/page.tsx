@@ -110,7 +110,16 @@ export default async function Freigabeblatt(
    * eine Rechnung zu zeigen, die es nicht gibt.
    */
   const darf = await haeltRechte(
-    sitzung, 'eingang.lesen', 'freigabe.entscheiden', 'eingang.schreiben');
+    sitzung, 'eingang.lesen', 'freigabe.entscheiden', 'eingang.schreiben',
+    /*
+     * Die steuerliche Lage (§48b-Freistellungsbescheinigung) ist mit
+     * `abrechnung.freistellung_pflegen` bewacht — ein eigenes Recht, kein
+     * Anhaengsel von `eingang.lesen`: dort steht die Bescheinigung des
+     * Lieferanten mit ihrer Gueltigkeit, und wer Rechnungen freigibt, pflegt
+     * sie deshalb nicht zwangslaeufig. Ohne das Recht bleibt der Einbehalt
+     * stehen und faellt der Verweis weg (D-567, AUT-06).
+     */
+    'abrechnung.freistellung_pflegen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => ({
@@ -314,13 +323,17 @@ export default async function Freigabeblatt(
                 ? 'noch nicht gerechnet'
                 : formatiereGeld(cent(BigInt(k.bauabzugsteuer_cent)))}`
               : 'kein Einbehalt'}
-            {' · '}
-            <Link
-              href={`/portal/${mandant}/finanzen/eingangsrechnungen/${id}/steuer`}
-              className="underline underline-offset-2"
-            >
-              steuerliche Lage
-            </Link>
+            {darf['abrechnung.freistellung_pflegen'] === true ? (
+              <>
+                {' · '}
+                <Link
+                  href={`/portal/${mandant}/finanzen/eingangsrechnungen/${id}/steuer`}
+                  className="underline underline-offset-2"
+                >
+                  steuerliche Lage
+                </Link>
+              </>
+            ) : null}
           </dd>
         </div>
       </dl>

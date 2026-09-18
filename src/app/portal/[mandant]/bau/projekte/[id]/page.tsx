@@ -118,7 +118,16 @@ export default async function ProjektDetail(
    * Verweis da und sagt, welches Recht fehlt — dasselbe Muster wie auf der
    * Aufmassdetailseite fuer `bau.aufmass_freigeben`.
    */
-  const darf = await haeltRechte(sitzung, 'bau.schreiben');
+  /*
+   * `bericht.lesen` und `kalkulation.lesen` kommen dazu, weil der Hinweis am
+   * Deckungsbeitrag auf `/berichte/projekte` zeigt und diese Route BEIDE
+   * verlangt (Routenregister, §5.23). `darf_kalkulation_lesen` aus der
+   * Abfrage deckt nur die eine Haelfte ab und sagt nichts ueber das
+   * Berichtsmodul; eine Objektleitung mit Kalkulationsrecht und ohne
+   * Berichtsrecht bekam hinter dem Wort „Projekte" ein 404 (D-567, AUT-06).
+   */
+  const darf = await haeltRechte(
+    sitzung, 'bau.schreiben', 'bericht.lesen', 'kalkulation.lesen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -409,12 +418,14 @@ export default async function ProjektDetail(
             Deckungsbeitrag = Auftragssumme − Lohn − Fremdleistung, in ganzen
             Cent gerechnet; der Prozentwert ist nur die Anzeige. Berechnet und
             noch nicht abgerechnet zeigt der Bericht{' '}
-            <Link
-              href={`/portal/${mandant}/berichte/projekte`}
-              className="underline-offset-2 hover:text-text hover:underline"
-            >
-              Projekte
-            </Link>.
+            {darf['bericht.lesen'] === true && darf['kalkulation.lesen'] === true ? (
+              <Link
+                href={`/portal/${mandant}/berichte/projekte`}
+                className="underline-offset-2 hover:text-text hover:underline"
+              >
+                Projekte
+              </Link>
+            ) : 'Projekte'}.
           </p>
         )}
       </section>

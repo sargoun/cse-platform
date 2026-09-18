@@ -278,9 +278,18 @@ export default async function LvImportSeite(
       ) : (
         <>
           <dl className="m-0 mb-s5 grid grid-cols-2 gap-s4 sm:grid-cols-6">
-            <div>
+            <div className="min-w-0">
               <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">Datei</dt>
-              <dd className="m-0 mt-s1 text-sm text-text">{kopf.dateiname}</dd>
+              {/*
+                * `min-w-0 break-words` am Wert UND am Rasterfeld — D-420. Ein
+                * Dateiname ist ein Wort ohne Trennstelle
+                * (`LV_Rohbau_Musterstrasse_Stand_09-2026.csv`); in der
+                * Zweispalte am Telefon wird die Spalte sonst so breit wie er
+                * und schiebt die Seite hinaus.
+                */}
+              <dd className="m-0 mt-s1 min-w-0 break-words text-sm text-text">
+                {kopf.dateiname}
+              </dd>
             </div>
             <div>
               <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">Format</dt>
@@ -397,7 +406,7 @@ export default async function LvImportSeite(
                 kopf: 'Übernahme',
                 zelle: (z) => (
                   <span className="inline-flex flex-col gap-s1">
-                    <span className="inline-flex items-center gap-s2">
+                    <span className="inline-flex flex-wrap items-center gap-s2">
                       <StatusPill zustand={AKTIONSPILLE[z.aktion] ?? 'Fehler'} />
                       <span className="text-xs text-text-muted">
                         {AKTION_TEXT[z.aktion] ?? z.aktion}

@@ -54,7 +54,7 @@ export default async function Kundenfreigabe(
   const { zugang } = tor;
   const { sitzung } = zugang;
   const darf = await haeltRechte(
-    sitzung, 'auftrag.lesen', 'referenz.schreiben', 'dokument.lesen');
+    sitzung, 'auftrag.lesen', 'referenz.schreiben', 'dokument.lesen', 'crm.lesen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -306,7 +306,7 @@ export default async function Kundenfreigabe(
               <li>
                 Zu {stand.kunde} ist kein Ansprechpartner hinterlegt. Eine
                 Erlaubnis, die niemand erklärt hat, gibt es nicht —
-                {darf['auftrag.lesen'] === true ? (
+                {darf['crm.lesen'] === true ? (
                   <>
                     {' '}erst in der{' '}
                     <Link
