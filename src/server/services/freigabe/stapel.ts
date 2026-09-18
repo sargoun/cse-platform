@@ -2,6 +2,7 @@ import 'server-only';
 import type { SchreibKontext } from '../../kontext/index.js';
 import { AusfuehrungAbgewiesen, fuehreAus, hatAusfuehrer } from './ausfuehrung.js';
 import { FreigabeAbgewiesen, entscheideFreigabe } from './entscheiden.js';
+import { stapelGrund } from './posteingang.js';
 import { EINSPRUCH_MINUTEN, RUECKNAHME_MINUTEN } from './fenster.platzhalter.js';
 
 /**
@@ -121,18 +122,20 @@ export async function entscheideStapel(
       uebersprungen.push({ freigabeId: id, grund: `bereits entschieden (${z.status})` });
       continue;
     }
-    if (!z.stapel_faehig) {
-      uebersprungen.push({
-        freigabeId: id,
-        grund: z.stapel_sperre_grund ?? 'im Stapel nicht zugelassen — einzeln prüfen (APR-04)',
-      });
-      continue;
-    }
-    if (z.unsichere_felder_anzahl > 0) {
-      uebersprungen.push({
-        freigabeId: id,
-        grund: `${String(z.unsichere_felder_anzahl)} unsichere(s) Feld(er) — einzeln prüfen (APR-03)`,
-      });
+    /*
+     * **Die Regel steht in `posteingang.ts`, nicht hier.** Derselbe Satz
+     * entscheidet ueber die Haekchenspalte des Posteingangs, ueber die
+     * Stapelmappe und ueber diese Schleife — drei Fassungen davon waeren
+     * zwei zu viel, und die dritte vergisst den Fall „stapelfaehig, aber ein
+     * unsicheres Feld" (APR-03).
+     */
+    const gesperrt = stapelGrund({
+      stapelFaehig: z.stapel_faehig,
+      unsichereFelder: z.unsichere_felder_anzahl,
+      stapelSperreGrund: z.stapel_sperre_grund,
+    });
+    if (gesperrt !== null) {
+      uebersprungen.push({ freigabeId: id, grund: gesperrt });
       continue;
     }
 

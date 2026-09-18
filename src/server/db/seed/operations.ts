@@ -254,7 +254,7 @@ export const KUNDENZUGANG_NUMMER = 'K-10001';
 
 export async function seedOperations(
   sql: Sql, ids: ReadonlyMap<string, string>, kundenKontoId: string | null,
-): Promise<{ objekte: number; raeume: number }> {
+): Promise<{ objekte: number; raeume: number; belegschaftsdokumente: number }> {
   const heute = new Date().toISOString().slice(0, 10);
 
   // --- Kataloge je Bereich (nur Reinigung braucht sie heute) ---------------
@@ -442,6 +442,8 @@ export async function seedOperations(
   // --- Objekte und Raumbuecher ---------------------------------------------
   let objekte = 0;
   let raeume = 0;
+  /** Die der Belegschaft freigegebenen Unterlagen (EMP-11, DOC-04). */
+  let belegschaftsdokumente = 0;
   for (const o of OBJEKTE) {
     const mandant = ids.get(o.bereich);
     if (mandant === undefined) continue;
@@ -480,6 +482,99 @@ export async function seedOperations(
                 ${quelle}, ${i})`;
       raeume += 1;
     }
+
+    /**
+     * --- Der Ansprechpartner VOR ORT (EMP-02, OPS-01) ---------------------
+     *
+     * `objekt.ansprechpartner_id` blieb bisher leer, und damit zeigte
+     * `/portal/mein/objekte/[id]` genau das, was `app.mein_objekt_zugang`
+     * herausgibt: nichts. Eine Seite, deren Demodaten ihr Hauptfeld nie
+     * fuellen, ist eine, die niemand beim Ausprobieren pruefen kann.
+     *
+     * Die Telefonnummer stammt aus dem Bereich **030 23125 xx**, den die
+     * Bundesnetzagentur fuer Film und Demonstration reserviert hat — sie
+     * gehoert garantiert niemandem. Eine erfundene Nummer aus dem echten
+     * Nummernraum klingelte bei einem Menschen, der nichts damit zu tun hat.
+     */
+    if (kundeId !== null) {
+      await sql`
+        update objekt o set ansprechpartner_id = ap.id
+          from (select id from ansprechpartner
+                 where mandant_id = ${mandant} and kunde_id = ${kundeId}
+                   and archiviert_am is null and ausgeschieden_am is null
+                   and anonymisiert_am is null
+                 order by ist_hauptkontakt desc, nachname limit 1) ap
+         where o.id = ${objektId} and o.ansprechpartner_id is null`;
+      await sql`
+        update ansprechpartner set telefon = '+49 30 23125 174'
+         where id = (select ansprechpartner_id from objekt where id = ${objektId})
+           and telefon is null`;
+    }
+
+    /**
+     * --- Eine der Belegschaft freigegebene Unterlage (EMP-11, DOC-04) -----
+     *
+     * `sichtbar_fuer_mitarbeiter` ist `default false` und wird nur durch eine
+     * Handlung wahr. Ohne diese Zeile bleibt `/portal/mein/dokumente` in jeder
+     * Demodatenbank leer — und eine leere Liste beweist nicht, dass die
+     * Decke richtig sitzt, sondern nur, dass nichts da ist (K-18).
+     *
+     * **Kein Dateispeicher, und deshalb auch keine Datei.** `dokument` haelt
+     * die Metadaten, die Bytes liegen im privaten Bucket, und der ist nicht
+     * verbunden. Der Seed legt die Zeile an und behauptet keinen Abruf:
+     * `dokument_zugriff` entsteht beim ECHTEN Abruf ueber die signierte
+     * Adresse (CLAUDE.md, „No fake integrations").
+     */
+    const belegschaftsTitel = `Betriebsanweisung ${o.bezeichnung} (Demodaten)`;
+    const [dokDa] = await sql<{ id: string }[]>`
+      select id from dokument
+       where mandant_id = ${mandant} and titel = ${belegschaftsTitel}
+         and geloescht_am is null limit 1`;
+    if (dokDa === undefined) {
+      await sql`
+        insert into dokument
+          (mandant_id, kategorie, titel, beschreibung, objekt_id,
+           bucket, objekt_schluessel, mime_typ, mime_verifiziert, groesse_bytes,
+           exif_entfernt, sichtbar_fuer_kunde, sichtbar_fuer_mitarbeiter,
+           entstanden_am)
+        values (${mandant}, 'unternehmen', ${belegschaftsTitel},
+                'Aushang für die eingesetzten Kräfte: Zutritt, Meldewege, Notfallnummern.',
+                ${objektId},
+                'dokumente', ${`demo/betriebsanweisung/${o.nummer}.pdf`},
+                'application/pdf', true, 43008, true, false, true,
+                current_date)`;
+      belegschaftsdokumente += 1;
+    }
+  }
+
+  /**
+   * Und eine Unterlage OHNE Objektbezug je Gesellschaft.
+   *
+   * Sie prueft den anderen Weg derselben Seite: `dokument.objekt_id` ist
+   * nullbar, und die Liste liest ueber `left join objekt` — ein `join` liesse
+   * genau diese Zeile verschwinden, still und ohne Fehler.
+   */
+  for (const bereich of ['reinigung', 'security', 'bau'] as const) {
+    const mandant = ids.get(bereich);
+    if (mandant === undefined) continue;
+    const titel = 'Notfallnummern und Meldewege (Demodaten)';
+    const [da] = await sql<{ id: string }[]>`
+      select id from dokument
+       where mandant_id = ${mandant} and titel = ${titel}
+         and geloescht_am is null limit 1`;
+    if (da !== undefined) continue;
+    await sql`
+      insert into dokument
+        (mandant_id, kategorie, titel, beschreibung,
+         bucket, objekt_schluessel, mime_typ, mime_verifiziert, groesse_bytes,
+         exif_entfernt, sichtbar_fuer_kunde, sichtbar_fuer_mitarbeiter,
+         entstanden_am)
+      values (${mandant}, 'unternehmen', ${titel},
+              'Wen rufe ich wann an — Einsatzleitung, Notdienst, Polizei.',
+              'dokumente', ${`demo/notfallnummern/${bereich}.pdf`},
+              'application/pdf', true, 18432, true, false, true,
+              current_date)`;
+    belegschaftsdokumente += 1;
   }
 
   // --- Zwei Anfragen im Posteingang ---------------------------------------
@@ -565,5 +660,5 @@ export async function seedOperations(
     }
   }
 
-  return { objekte, raeume };
+  return { objekte, raeume, belegschaftsdokumente };
 }

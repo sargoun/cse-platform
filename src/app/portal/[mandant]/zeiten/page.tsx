@@ -80,7 +80,7 @@ export default async function Zeitliste({
   /* AUT-06: der MiLoG-Nachweis haengt an `zeit.exportieren`, und eine
      `leitung` haelt es nicht. Ein Knopf dorthin verriete die Seite, die
      er nicht zeigen darf. */
-  const darf = await haeltRechte(sitzung, 'zeit.exportieren');
+  const darf = await haeltRechte(sitzung, 'zeit.exportieren', 'zeit.abrechnung_freigeben');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const frage = await searchParams;
@@ -156,6 +156,14 @@ export default async function Zeitliste({
         <Sprung ziel={`${pfad}/einwaende`} text="Einwände" icon="warnung" />
         {darf['zeit.exportieren'] === true && (
           <Sprung ziel={`${pfad}/milog`} text="MiLoG" icon="dokument" />
+        )}
+        {/* Die Freigabe zur Abrechnung haengt an `zeit.abrechnung_freigeben` —
+            nicht geseedet und an keine Rolle gebunden, solange O-39 offen ist
+            (03-AUTH §12.4). Der Verweis erscheint deshalb heute fuer niemanden,
+            und das ist richtig: ein Knopf auf eine 404 verraet, was er nicht
+            zeigen darf (AUT-06, D-581). */}
+        {darf['zeit.abrechnung_freigeben'] === true && (
+          <Sprung ziel={`${pfad}/freigabe`} text="Freigabe" icon="freigabe" />
         )}
       </nav>
 

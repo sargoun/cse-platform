@@ -1557,7 +1557,10 @@ async function main(): Promise<void> {
   const ops = await seedOperations(sql, ids, kundenKonto?.id ?? null);
   process.stdout.write(
     `  ${String(ops.objekte)} Objekte, ${String(ops.raeume)} Raeume, `
-    + 'Belagsarten und Reinigungsklassen (Leistungswerte: Platzhalter, O-17)\n',
+    + 'Belagsarten und Reinigungsklassen (Leistungswerte: Platzhalter, O-17)\n'
+    + `  ${String(ops.belegschaftsdokumente)} der Belegschaft freigegebene `
+    + 'Unterlagen (EMP-11, DOC-04) — Metadaten ohne Datei, der Bucket ist nicht '
+    + 'verbunden\n',
   );
 
   /**

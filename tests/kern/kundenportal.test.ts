@@ -196,6 +196,15 @@ describe('die Kundendienste rühren keine intern-only Tabelle an (K-18)', () => 
     'zahlung', 'op_ausgleich', 'mahnung', 'mahnlauf', 'rechnung_hash',
     'rechnungsposition_quelle', 'rechnungsausgangsbuch', 'bautagebuch',
     'nachtrag', 'behinderung', 'leistungsverzeichnis', 'kalkulation',
+    /*
+     * `belagsart` und `reinigungsklasse` sind INTERNE Kataloge: sie tragen
+     * eine restriktive Decke gegen das Kundenportal und kein `t_kunde`
+     * (0021). Ein `left join` darauf ergaebe fuer JEDEN Raum „—" und liese
+     * sich wie „nicht erfasst" — und er gaebe, wenn die Decke einmal fiele,
+     * die Kalkulationsgrundlage heraus, aus der der Preis entsteht.
+     * `revier` und `turnus` sind derselbe Fall eine Ebene weiter.
+     */
+    'belagsart', 'reinigungsklasse', 'revier', 'turnus',
   ] as const;
 
   for (const tabelle of VERBOTEN) {
@@ -244,6 +253,29 @@ describe('die Projektion gibt keine internen Spalten heraus (04-SEITENKARTE §8)
     'auftragssumme_netto_cent', 'sicherheitseinbehalt',
     'absender_benutzer_id', 'absender_extern', 'erstellt_von', 'geaendert_von',
     'letzte_mahnstufe', 'nummer_laufend', 'nummernkreis_id', 'festgeschrieben_von',
+    /*
+     * Der Auftrag, das Angebot und das Objekt (Stapel „auftraege/angebote/
+     * objekte/dokumente"). Jede dieser Spalten steht auf einer Tabelle, deren
+     * ZEILE der Kunde zu Recht sieht — RLS wirkt zeilenweise, die Projektion
+     * entscheidet, welche Spalten herauskommen:
+     *
+     *   auftragswert_netto_cent   die Auftragssumme (offen, O-840)
+     *   personalbedarf_anzahl     die Besetzung (§8: no names, no schedules)
+     *   wochenstunden_soll        dieselbe Zeile von §8, plus Rechengroesse
+     *   ausstattung_hinweis       interner Vermerk fuer die Kolonne
+     *   entscheidung_notiz        interner Vermerk zur Angebotsentscheidung
+     *   versendet_von             Name aus dem Haus
+     *   freigegeben_von           Name aus dem Haus
+     *   zutritt_hinweis           Schluessel- und Zutrittsangabe des Hauses
+     *   geo_lat / geo_lon         Koordinaten fuer Anfahrt und Geofence
+     *   objekt_schluessel         der Ablageort im Bucket (DOC-03)
+     *   loeschsperre              Aufbewahrungspflicht des Hauses (DOC-07)
+     *   sichtbar_fuer_mitarbeiter wer im Haus dasselbe Dokument sieht
+     */
+    'auftragswert_netto_cent', 'personalbedarf_anzahl', 'wochenstunden_soll',
+    'ausstattung_hinweis', 'entscheidung_notiz', 'versendet_von', 'freigegeben_von',
+    'zutritt_hinweis', 'geo_lat', 'geo_lon',
+    'objekt_schluessel', 'loeschsperre', 'sichtbar_fuer_mitarbeiter',
   ] as const;
 
   for (const spalte of VERBOTEN) {
@@ -291,14 +323,14 @@ describe('jede Kundenseite geht durch die eine Hülle', () => {
      * **Die Auffangroute `[...rest]` bleibt — und sie darf die Huelle NICHT
      * benutzen.**
      *
-     * Sie faengt die Kundenrouten ab, die anderen Stapeln gehoeren und heute
-     * Platzhalter sind: `auftraege`, `angebote`, `objekte`, `dokumente`.
-     * `auftraege` steht in der Tab-Leiste — ohne die Auffangroute waere das
-     * Ziel eines sichtbaren Menuepunkts ein 404, also genau der Fehler aus
-     * AUT-06, nur in die andere Richtung. Sie zeigt „wird noch gebaut" und
-     * braucht dafuer keinen Kunden-Scope: eine konkrete Route gewinnt in
-     * Next.js immer gegen eine Auffangroute, sie sieht also nur, was es nicht
-     * gibt.
+     * Die vier Routen, die sie frueher aufgefangen hat — `auftraege`,
+     * `angebote`, `objekte`, `dokumente` —, sind gebaut; die Liste unten
+     * haelt das fest. Sie bleibt trotzdem stehen, fuer jede Adresse unter
+     * `/portal/kunde/…`, die es nicht gibt: ein Tippfehler in der Adresszeile
+     * oder ein alter Verweis soll „wird noch gebaut" sehen und keinen
+     * Serverfehler. Dafuer braucht sie keinen Kunden-Scope — eine konkrete
+     * Route gewinnt in Next.js immer gegen eine Auffangroute, sie sieht also
+     * nur, was es nicht gibt.
      */
     if (pfad.includes('[...rest]')) continue;
 
@@ -326,17 +358,24 @@ describe('jede Kundenseite geht durch die eine Hülle', () => {
     });
   }
 
-  it('die zehn Adressen dieses Stapels sind GEBAUT, nicht aufgefangen', () => {
+  it('alle neunzehn Adressen des Kundenportals sind GEBAUT, nicht aufgefangen', () => {
     /**
      * Die Gegenprobe zur Auffangroute: solange sie steht, ist eine vergessene
      * Seite von einer gebauten nicht zu unterscheiden — sie antwortet
      * höflich „wird noch gebaut", und niemand sieht die Lücke. Diese Liste
-     * ist der Stapel; fehlt eine Datei, fällt der Test statt der Seite.
+     * ist das ganze Kundenportal; fehlt eine Datei, fällt der Test statt der
+     * Seite.
+     *
+     * Die acht zuletzt hinzugekommenen (`auftraege`, `angebote`, `objekte`,
+     * `dokumente` je mit Blatt) standen bis dahin in der Auffangroute —
+     * `auftraege` sogar als Ziel eines SICHTBAREN Menuepunkts der Tab-Leiste.
      */
     const gebaut = new Set(SEITENQUELLEN.map((s) => s.pfad));
     for (const route of [
       '', 'nachrichten', 'nachrichten/[id]', 'nachweise', 'projekte', 'projekte/[id]',
       'rechnungen', 'rechnungen/[id]', 'reklamationen', 'reklamationen/[id]', 'zahlungen',
+      'auftraege', 'auftraege/[id]', 'angebote', 'angebote/[id]',
+      'objekte', 'objekte/[id]', 'dokumente', 'dokumente/[id]',
     ]) {
       const datei = `src/app/portal/kunde/${route === '' ? '' : `${route}/`}page.tsx`;
       expect(gebaut.has(datei), `${datei} fehlt`).toBe(true);

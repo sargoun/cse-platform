@@ -236,38 +236,109 @@ export async function seedKern(sql: postgres.Sql): Promise<KernErgebnis> {
         returning id, thread_id`;
 
       /*
-       * Empfänger: die erste Beschäftigung dieser Gesellschaft — als PERSON
-       * und nicht als Anmeldung, denn EMP-11 adressiert den Menschen (D-09).
+       * Empfänger: die Menschen DIESER Gesellschaft, die sich auch ANMELDEN
+       * können — als PERSON und nicht als Anmeldung, denn EMP-11 adressiert
+       * den Menschen (D-09).
        *
-       * Hat die Gesellschaft keine Beschäftigung (`operations` hat keine),
-       * geht die Zeile an das KONTO. Sonst stünde im Posteingang ein Faden
-       * ohne Empfänger, und die eigene Ungelesen-Zahl — die Zahl, an der die
-       * Liste und der „Als gelesen"-Knopf hängen — wäre dort nie prüfbar.
+       * **Warum die Anmeldbarkeit hier zählt.** Bis 0350 nahm diese Stelle
+       * schlicht die erste Beschäftigung; in der Reinigung ist das Jonas
+       * Berger, und der hat kein Konto. Die Zeile stand damit in der
+       * Datenbank und auf keinem Bildschirm — wer `/portal/mein/nachrichten`
+       * im Demobestand ansah, bekam den Leerzustand und konnte ihn nicht von
+       * einer kaputten Abfrage unterscheiden. Genau dieser Befund kam aus dem
+       * Betrieb: „gesendet" gemeldet, im Konto nichts angekommen.
+       *
+       * **Und deshalb ALLE anmeldbaren, nicht eine.** Eine Schlüsselübergabe
+       * betrifft das Team, nicht einen Menschen — und für den Demobestand
+       * heisst es: jede Anmeldung, mit der jemand das Mitarbeiterportal
+       * ansieht, hat auch etwas darin. Die erste Zeile ist `an`, die übrigen
+       * sind `kopie`; ohne diesen Unterschied bliebe `empfaenger_art`
+       * ungeprüft.
+       *
+       * Hat die Gesellschaft gar keine anmeldbare Beschäftigung
+       * (`operations` hat keine), geht die Zeile an das KONTO. Sonst stünde
+       * im Posteingang ein Faden ohne Empfänger, und die eigene
+       * Ungelesen-Zahl — die Zahl, an der die Liste und der „Als
+       * gelesen"-Knopf hängen — wäre nie prüfbar.
        */
-      const erste = beschaeftigungen[0];
-      await (erste === undefined
-        ? sql`
+      const empfaenger = await sql<{ person_id: string }[]>`
+        select a.person_id
+          from anstellung a
+          join person p on p.id = a.person_id
+         where a.mandant_id = ${konto.mandant_id} and a.geloescht_am is null
+           and a.status = 'aktiv'
+           and exists (select 1 from benutzer b
+                        where b.person_id = a.person_id and b.status = 'aktiv'
+                          and b.deaktiviert_am is null and not b.ist_dienstkonto)
+         order by p.nachname, p.vorname
+         limit 3`;
+
+      if (empfaenger.length === 0) {
+        await sql`
           insert into nachricht_empfaenger
             (mandant_id, nachricht_id, empfaenger_typ, empfaenger_id, art, erstellt_von)
           values (${konto.mandant_id}, ${wurzel!.id}, 'benutzer', ${konto.id},
                   'an', ${konto.id})
-          on conflict do nothing`
-        : sql`
+          on conflict do nothing`;
+      }
+      for (const [i, e] of empfaenger.entries()) {
+        await sql`
           insert into nachricht_empfaenger
             (mandant_id, nachricht_id, empfaenger_typ, empfaenger_id, art, erstellt_von)
-          values (${konto.mandant_id}, ${wurzel!.id}, 'person', ${erste.person_id},
-                  'an', ${konto.id})
-          on conflict do nothing`);
+          values (${konto.mandant_id}, ${wurzel!.id}, 'person', ${e.person_id},
+                  ${i === 0 ? 'an' : 'kopie'}, ${konto.id})
+          on conflict do nothing`;
+      }
 
-      /* Eine Antwort, damit der Faden ein Faden ist und nicht ein Zettel.
-       * `antwortet_auf_id` setzt `trg_thread_id` die Wurzel. */
-      await sql`
+      /*
+       * Eine Antwort, damit der Faden ein Faden ist und nicht ein Zettel.
+       * `antwortet_auf_id` setzt `trg_thread_id` die Wurzel.
+       *
+       * **Sie kommt von der ANGESCHRIEBENEN, nicht vom Absender.** Vorher
+       * antwortete das Verwaltungskonto sich selbst — ein Faden, in dem
+       * jemand zweimal dasselbe sagt, und im Posteingang der Kraft war die
+       * zweite Zeile ausserdem unsichtbar: `t_nachricht_eigene` (0231) zeigt
+       * nur, was man selbst geschrieben hat oder was an einen adressiert ist,
+       * und die Antwort war weder noch. Der Verlauf auf
+       * `/portal/mein/nachrichten/[id]` hatte damit im Demobestand genau eine
+       * Zeile — nicht vorführbar und nicht prüfbar.
+       *
+       * Adressiert wird zurück an das Verwaltungskonto (`an`) und an die
+       * Mitgelesenen (`kopie`): so trägt der Faden in beide Richtungen, und
+       * das ist die Zusage, die EMP-11 macht.
+       */
+      const [antwortender] = empfaenger.length === 0 ? [] : await sql<{ id: string }[]>`
+        select b.id from benutzer b
+         where b.person_id = ${empfaenger[0]!.person_id} and b.status = 'aktiv'
+           and b.deaktiviert_am is null and not b.ist_dienstkonto
+         limit 1`;
+      const [antwort] = await sql<{ id: string }[]>`
         insert into nachricht
           (mandant_id, koerper, richtung, kanal, akteur_art,
            absender_benutzer_id, antwortet_auf_id, erstellt_von)
         values (${konto.mandant_id},
                 'Der Termin passt. Ich bringe die Quittungsmappe mit.',
-                'intern', 'portal', 'mensch', ${konto.id}, ${wurzel!.id}, ${konto.id})`;
+                'intern', 'portal', 'mensch',
+                ${antwortender?.id ?? konto.id}, ${wurzel!.id},
+                ${antwortender?.id ?? konto.id})
+        returning id`;
+
+      if (antwortender !== undefined) {
+        await sql`
+          insert into nachricht_empfaenger
+            (mandant_id, nachricht_id, empfaenger_typ, empfaenger_id, art, erstellt_von)
+          values (${konto.mandant_id}, ${antwort!.id}, 'benutzer', ${konto.id},
+                  'an', ${antwortender.id})
+          on conflict do nothing`;
+        for (const e of empfaenger.slice(1)) {
+          await sql`
+            insert into nachricht_empfaenger
+              (mandant_id, nachricht_id, empfaenger_typ, empfaenger_id, art, erstellt_von)
+            values (${konto.mandant_id}, ${antwort!.id}, 'person', ${e.person_id},
+                    'kopie', ${antwortender.id})
+            on conflict do nothing`;
+        }
+      }
       faeden += 1;
     }
   }

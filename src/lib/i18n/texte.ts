@@ -549,6 +549,43 @@ export interface MeinTexte {
   readonly ungelesen: string;
   readonly gelesen: string;
   readonly oeffnen: string;
+  /**
+   * Die zweite Quelle desselben Bildschirms (EMP-11, NOT-03, 0350).
+   *
+   * `/portal/mein/nachrichten` zeigte bis 0350 ausschliesslich
+   * `benachrichtigung` — Waechter-, Ablauf- und Fristmeldungen. Eine interne
+   * Nachricht der Leitung steht in `nachricht`, einer ANDEREN Tabelle, und kam
+   * deshalb nie an. Die Seite fuehrt jetzt beides zusammen; damit die Kraft
+   * die zwei Arten auseinanderhaelt, traegt jede Zeile ihre Beschriftung.
+   */
+  readonly systemmeldung: string;
+  readonly nachrichtenFaden: string;
+  readonly verlauf: string;
+  readonly absender: string;
+  /** Eine Zeile, die ich selbst geschrieben habe — kein fremder Name davor. */
+  readonly ichSelbst: string;
+  readonly unbekannterAbsender: string;
+  readonly antworten: string;
+  readonly ihreAntwort: string;
+  readonly alsGelesenMarkieren: string;
+  readonly fadenGeschlossen: string;
+  /** Invariante 7: nichts verlaesst das System. Und das steht auf dem Schirm. */
+  readonly antwortNurImPortal: string;
+  /** Die Rueckmeldung nach einem POST — sie sagt, WAS geschehen ist. */
+  readonly gespeichert: string;
+  readonly antwortImVorgang: string;
+  /** Der Stempel traf null eigene Zeilen. „Gespeichert." waere hier unwahr. */
+  readonly schonGelesen: string;
+  /**
+   * Zwei offene Geschaeftsfragen, als SATZ auf dem Bildschirm (O-830, O-831).
+   *
+   * Nicht ein ausgegrauter Knopf und nicht ein weggelassener Absatz: wer eine
+   * Anlage erwartet und keine sieht, sucht sie — und wer schreiben will und
+   * keinen Knopf findet, haelt das Portal fuer kaputt.
+   */
+  readonly neuerFadenOffen: string;
+  readonly anlagen: string;
+  readonly anlagenNichtAbrufbar: string;
   readonly profil: string;
   readonly bereichWechseln: string;
   readonly konto: string;
@@ -671,6 +708,54 @@ export interface MeinTexte {
    */
   readonly nummerOffen: string;
   readonly offeneFrage: string;
+
+  /**
+   * Die eigenen Dokumente und die eigenen Objekte (EMP-02, EMP-11, DOC-03,
+   * DOC-04, OPS-01) — `/portal/mein/dokumente` und `/portal/mein/objekte`.
+   *
+   * **`dokumenteOffenerBezug` traegt eine offene Frage als SATZ.** „Die
+   * Dokumente, die diesen Menschen betreffen" und „die Dokumente, die der
+   * Belegschaft freigegeben sind" sind nicht dasselbe, und `dokument` traegt
+   * keine `person_id` (O-850). Wer eine Lohnabrechnung sucht und eine
+   * Betriebsanweisung findet, soll lesen koennen, warum — nicht raten.
+   *
+   * **`zutrittNurWaehrendEinteilung` ist keine Entschuldigung, sondern die
+   * Regel.** Ein Schluessel- oder Alarmcode gehoert dem, der dort eingeteilt
+   * IST, und nur, solange er es ist (`app.ist_eingesetzt_auf_objekt`, 0069,
+   * 0360). Der Satz steht da, wo der Hinweis stuende — sonst liest sich ein
+   * leeres Feld wie „ist nichts hinterlegt", und die Kraft steht vor der Tuer
+   * und sucht weiter.
+   */
+  readonly dokumente: string;
+  readonly keineDokumente: string;
+  readonly kategorie: string;
+  readonly alleKategorien: string;
+  readonly dateiOeffnen: string;
+  readonly signaturHinweis: string;
+  readonly gueltigMinuten: string;
+  readonly groesse: string;
+  readonly abgelegtAm: string;
+  readonly dokumenteOffenerBezug: string;
+  readonly abrufProtokolliert: string;
+  /** Die Liste ist an ihrer Obergrenze — und sagt es, statt still abzuschneiden. */
+  readonly listeGekuerzt: string;
+
+  readonly objekte: string;
+  readonly keineObjekte: string;
+  readonly objektnummer: string;
+  readonly anschrift: string;
+  readonly gebaeudetyp: string;
+  readonly etagen: string;
+  readonly zutritt: string;
+  readonly ansprechpartner: string;
+  readonly telefon: string;
+  readonly mobil: string;
+  readonly aktuellEingeteilt: string;
+  readonly nichtMehrEingeteilt: string;
+  readonly zutrittNurWaehrendEinteilung: string;
+  readonly keinZutrittHinterlegt: string;
+  readonly letzteSchicht: string;
+  readonly meineSchichtenHier: string;
 }
 
 export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
@@ -766,6 +851,27 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     ungelesen: 'ungelesen',
     gelesen: 'gelesen',
     oeffnen: 'Öffnen',
+    systemmeldung: 'Systemmeldung',
+    nachrichtenFaden: 'Nachricht',
+    verlauf: 'Verlauf',
+    absender: 'Von',
+    ichSelbst: 'Ich',
+    unbekannterAbsender: 'Unbekannt',
+    antworten: 'Antworten',
+    ihreAntwort: 'Ihre Antwort',
+    alsGelesenMarkieren: 'Als gelesen markieren',
+    fadenGeschlossen:
+      'Dieser Vorgang ist abgeschlossen. Er bleibt lesbar und nimmt keine Antwort mehr auf.',
+    antwortNurImPortal:
+      'Ihre Antwort bleibt im Portal. Sie geht nicht per E-Mail oder SMS hinaus.',
+    gespeichert: 'Gespeichert.',
+    antwortImVorgang: 'Ihre Antwort steht im Vorgang.',
+    schonGelesen: 'Für Sie war dieser Vorgang schon gelesen.',
+    neuerFadenOffen:
+      'Von sich aus eine Nachricht zu schreiben ist noch nicht eingerichtet — wen Sie dann anschreiben dürfen, ist eine offene Frage (O-830). Auf einen Vorgang zu antworten funktioniert.',
+    anlagen: 'Anlagen',
+    anlagenNichtAbrufbar:
+      'Die Dateien erhalten Sie auf dem bisherigen Weg; ob Anlagen im Portal zu öffnen sind, ist noch nicht entschieden (O-831).',
     profil: 'Profil',
     bereichWechseln: 'Bereich wechseln',
     konto: 'Konto',
@@ -845,6 +951,44 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
       'Dieser Nachweis hat noch keine Nummer — in dieser Gesellschaft ist kein '
       + 'Nummernkreis dafür eingerichtet.',
     offeneFrage: 'offen',
+
+    dokumente: 'Dokumente',
+    keineDokumente: 'Für Sie ist zurzeit kein Dokument freigegeben.',
+    kategorie: 'Kategorie',
+    alleKategorien: 'Alle',
+    dateiOeffnen: 'Datei öffnen',
+    signaturHinweis:
+      'Die Datei liegt in einem geschützten Speicher. Der Link wird bei jedem Öffnen '
+      + 'neu ausgestellt und verfällt danach.',
+    gueltigMinuten: 'Minuten gültig',
+    groesse: 'Größe',
+    abgelegtAm: 'Abgelegt am',
+    dokumenteOffenerBezug:
+      'Hier steht, was Ihre Gesellschaft der Belegschaft freigegeben hat. Unterlagen, '
+      + 'die nur Sie persönlich betreffen, sind noch nicht zugeordnet — offen (O-850).',
+    abrufProtokolliert: 'Jeder Abruf wird mit Ihrem Konto protokolliert.',
+    listeGekuerzt:
+      'Es werden nur die neuesten Einträge angezeigt. Grenzen Sie die Liste über die '
+      + 'Kategorie ein.',
+
+    objekte: 'Meine Objekte',
+    keineObjekte: 'Sie sind auf keinem Objekt eingeteilt.',
+    objektnummer: 'Objektnummer',
+    anschrift: 'Anschrift',
+    gebaeudetyp: 'Gebäudetyp',
+    etagen: 'Etagen',
+    zutritt: 'Zutritt',
+    ansprechpartner: 'Ansprechpartner vor Ort',
+    telefon: 'Telefon',
+    mobil: 'Mobil',
+    aktuellEingeteilt: 'Aktuell eingeteilt',
+    nichtMehrEingeteilt: 'Sie sind hier zurzeit nicht eingeteilt.',
+    zutrittNurWaehrendEinteilung:
+      'Zutrittsangaben und Ansprechpartner sehen Sie, solange Sie auf diesem Objekt '
+      + 'eingeteilt sind.',
+    keinZutrittHinterlegt: 'Für dieses Objekt ist kein Zutrittshinweis hinterlegt.',
+    letzteSchicht: 'Letzte Schicht',
+    meineSchichtenHier: 'Meine Schichten hier',
   },
   en: {
     heute: 'Today',
@@ -937,6 +1081,27 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     ungelesen: 'unread',
     gelesen: 'read',
     oeffnen: 'Open',
+    systemmeldung: 'System notice',
+    nachrichtenFaden: 'Message',
+    verlauf: 'History',
+    absender: 'From',
+    ichSelbst: 'Me',
+    unbekannterAbsender: 'Unknown',
+    antworten: 'Reply',
+    ihreAntwort: 'Your reply',
+    alsGelesenMarkieren: 'Mark as read',
+    fadenGeschlossen:
+      'This thread is closed. It stays readable and takes no further reply.',
+    antwortNurImPortal:
+      'Your reply stays in the portal. It is not sent by email or SMS.',
+    gespeichert: 'Saved.',
+    antwortImVorgang: 'Your reply is now part of the thread.',
+    schonGelesen: 'For you this thread was already read.',
+    neuerFadenOffen:
+      'Starting a message yourself is not set up yet — who you would be allowed to write to is an open question (O-830). Replying to a thread works.',
+    anlagen: 'Attachments',
+    anlagenNichtAbrufbar:
+      'You receive the files the way you did before; whether attachments can be opened in the portal has not been decided yet (O-831).',
     profil: 'Profile',
     bereichWechseln: 'Switch area',
     konto: 'Account',
@@ -1015,6 +1180,43 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
       'This record does not have a number yet — no number range is configured for it '
       + 'in this company.',
     offeneFrage: 'open',
+
+    dokumente: 'Documents',
+    keineDokumente: 'No document has been released to you at the moment.',
+    kategorie: 'Category',
+    alleKategorien: 'All',
+    dateiOeffnen: 'Open file',
+    signaturHinweis:
+      'The file sits in protected storage. The link is issued afresh each time you open '
+      + 'it and expires afterwards.',
+    gueltigMinuten: 'minutes valid',
+    groesse: 'Size',
+    abgelegtAm: 'Filed on',
+    dokumenteOffenerBezug:
+      'What you see here is what your company released to the workforce. Papers that '
+      + 'concern you personally are not linked yet — open (O-850).',
+    abrufProtokolliert: 'Every retrieval is logged against your account.',
+    listeGekuerzt:
+      'Only the most recent entries are shown. Narrow the list down by category.',
+
+    objekte: 'My sites',
+    keineObjekte: 'You are not assigned to any site.',
+    objektnummer: 'Site number',
+    anschrift: 'Address',
+    gebaeudetyp: 'Building type',
+    etagen: 'Floors',
+    zutritt: 'Access',
+    ansprechpartner: 'Contact on site',
+    telefon: 'Phone',
+    mobil: 'Mobile',
+    aktuellEingeteilt: 'Currently assigned',
+    nichtMehrEingeteilt: 'You are not assigned here at the moment.',
+    zutrittNurWaehrendEinteilung:
+      'Access details and the site contact are shown while you are assigned to this '
+      + 'site.',
+    keinZutrittHinterlegt: 'No access note is on file for this site.',
+    letzteSchicht: 'Last shift',
+    meineSchichtenHier: 'My shifts here',
   },
   ar: {
     heute: 'اليوم',
@@ -1107,6 +1309,27 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     ungelesen: 'غير مقروءة',
     gelesen: 'مقروءة',
     oeffnen: 'فتح',
+    systemmeldung: 'إشعار من النظام',
+    nachrichtenFaden: 'رسالة',
+    verlauf: 'المسار',
+    absender: 'من',
+    ichSelbst: 'أنا',
+    unbekannterAbsender: 'غير معروف',
+    antworten: 'ردّ',
+    ihreAntwort: 'ردّك',
+    alsGelesenMarkieren: 'وضع علامة مقروء',
+    fadenGeschlossen:
+      'هذه المحادثة مغلقة. تبقى للقراءة ولا تقبل ردًّا جديدًا.',
+    antwortNurImPortal:
+      'ردّك يبقى داخل البوابة ولا يُرسل عبر البريد الإلكتروني أو الرسائل القصيرة.',
+    gespeichert: 'تم الحفظ.',
+    antwortImVorgang: 'ردّك صار ضمن المحادثة.',
+    schonGelesen: 'بالنسبة إلك هذه المحادثة كانت مقروءة أصلاً.',
+    neuerFadenOffen:
+      'إرسال رسالة من طرفك لسّا مش مفعّل — لمين بيحقّ لك تكتب سؤال مفتوح (O-830). الردّ على محادثة شغّال.',
+    anlagen: 'المرفقات',
+    anlagenNichtAbrufbar:
+      'بتوصلك الملفات بالطريقة المعتادة؛ وهل تنفتح المرفقات داخل البوابة لسّا ما تقرّر (O-831).',
     profil: 'الملف الشخصي',
     bereichWechseln: 'تبديل القسم',
     konto: 'الحساب',
@@ -1178,6 +1401,40 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     nummerOffen:
       'لا يحمل هذا المحضر رقماً بعد — لا يوجد نطاق ترقيم مُعدّ له في هذه الشركة.',
     offeneFrage: 'مفتوح',
+
+    dokumente: 'المستندات',
+    keineDokumente: 'لا يوجد حالياً أي مستند متاح لك.',
+    kategorie: 'الفئة',
+    alleKategorien: 'الكل',
+    dateiOeffnen: 'فتح الملف',
+    signaturHinweis:
+      'الملف محفوظ في مخزن محمي. يُصدر الرابط من جديد عند كل فتح ثم تنتهي صلاحيته.',
+    gueltigMinuten: 'دقيقة صلاحية',
+    groesse: 'الحجم',
+    abgelegtAm: 'تاريخ الحفظ',
+    dokumenteOffenerBezug:
+      'ما تراه هنا هو ما أتاحته شركتك للعاملين. أما الأوراق التي تخصّك شخصياً فلم تُربط '
+      + 'بعد — مفتوح (O-850).',
+    abrufProtokolliert: 'يُسجَّل كل استدعاء للملف باسم حسابك.',
+    listeGekuerzt: 'تُعرض أحدث المدخلات فقط. ضيّق القائمة حسب الفئة.',
+
+    objekte: 'مواقعي',
+    keineObjekte: 'لست مكلّفاً بأي موقع.',
+    objektnummer: 'رقم الموقع',
+    anschrift: 'العنوان',
+    gebaeudetyp: 'نوع المبنى',
+    etagen: 'الطوابق',
+    zutritt: 'الدخول',
+    ansprechpartner: 'جهة الاتصال في الموقع',
+    telefon: 'هاتف',
+    mobil: 'جوال',
+    aktuellEingeteilt: 'مكلّف حالياً',
+    nichtMehrEingeteilt: 'لست مكلّفاً بهذا الموقع في الوقت الحالي.',
+    zutrittNurWaehrendEinteilung:
+      'تظهر لك بيانات الدخول وجهة الاتصال ما دمت مكلّفاً بهذا الموقع.',
+    keinZutrittHinterlegt: 'لا توجد إرشادات دخول مسجّلة لهذا الموقع.',
+    letzteSchicht: 'آخر مناوبة',
+    meineSchichtenHier: 'مناوباتي هنا',
   },
   tr: {
     heute: 'Bugün',
@@ -1270,6 +1527,27 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     ungelesen: 'okunmamış',
     gelesen: 'okunmuş',
     oeffnen: 'Aç',
+    systemmeldung: 'Sistem bildirimi',
+    nachrichtenFaden: 'Mesaj',
+    verlauf: 'Geçmiş',
+    absender: 'Gönderen',
+    ichSelbst: 'Ben',
+    unbekannterAbsender: 'Bilinmiyor',
+    antworten: 'Yanıtla',
+    ihreAntwort: 'Yanıtınız',
+    alsGelesenMarkieren: 'Okundu olarak işaretle',
+    fadenGeschlossen:
+      'Bu konu kapatıldı. Okunabilir kalır, yeni bir yanıt almaz.',
+    antwortNurImPortal:
+      'Yanıtınız portalda kalır. E-posta veya SMS ile gönderilmez.',
+    gespeichert: 'Kaydedildi.',
+    antwortImVorgang: 'Yanıtınız konunun içinde.',
+    schonGelesen: 'Sizin için bu konu zaten okunmuştu.',
+    neuerFadenOffen:
+      'Kendiniz mesaj başlatmak henüz açık değil — kime yazabileceğiniz açık bir soru (O-830). Bir konuya yanıt vermek çalışıyor.',
+    anlagen: 'Ekler',
+    anlagenNichtAbrufbar:
+      'Dosyaları eskisi gibi alırsınız; eklerin portalda açılıp açılamayacağı henüz kararlaştırılmadı (O-831).',
     profil: 'Profil',
     bereichWechseln: 'Alan değiştir',
     konto: 'Hesap',
@@ -1347,6 +1625,43 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
       'Bu belgenin henüz bir numarası yok — bu şirkette bunun için bir numara aralığı '
       + 'tanımlı değil.',
     offeneFrage: 'açık',
+
+    dokumente: 'Belgeler',
+    keineDokumente: 'Şu anda size açılmış bir belge yok.',
+    kategorie: 'Kategori',
+    alleKategorien: 'Tümü',
+    dateiOeffnen: 'Dosyayı aç',
+    signaturHinweis:
+      'Dosya korumalı bir depoda durur. Bağlantı her açışta yeniden düzenlenir ve '
+      + 'ardından geçersiz olur.',
+    gueltigMinuten: 'dakika geçerli',
+    groesse: 'Boyut',
+    abgelegtAm: 'Kayıt tarihi',
+    dokumenteOffenerBezug:
+      'Burada gördüğünüz, şirketinizin çalışanlara açtığı belgelerdir. Yalnızca sizi '
+      + 'ilgilendiren evraklar henüz eşleştirilmedi — açık (O-850).',
+    abrufProtokolliert: 'Her dosya çağrısı hesabınıza kaydedilir.',
+    listeGekuerzt:
+      'Yalnızca en yeni kayıtlar gösterilir. Listeyi kategoriye göre daraltın.',
+
+    objekte: 'Nesnelerim',
+    keineObjekte: 'Hiçbir nesnede görevlendirilmiş değilsiniz.',
+    objektnummer: 'Nesne numarası',
+    anschrift: 'Adres',
+    gebaeudetyp: 'Bina türü',
+    etagen: 'Kat sayısı',
+    zutritt: 'Giriş',
+    ansprechpartner: 'Yerindeki yetkili',
+    telefon: 'Telefon',
+    mobil: 'Cep',
+    aktuellEingeteilt: 'Şu anda görevli',
+    nichtMehrEingeteilt: 'Şu anda burada görevli değilsiniz.',
+    zutrittNurWaehrendEinteilung:
+      'Giriş bilgilerini ve yerindeki yetkiliyi, bu nesnede görevli olduğunuz sürece '
+      + 'görürsünüz.',
+    keinZutrittHinterlegt: 'Bu nesne için kayıtlı bir giriş açıklaması yok.',
+    letzteSchicht: 'Son vardiya',
+    meineSchichtenHier: 'Buradaki vardiyalarım',
   },
 };
 
@@ -1551,3 +1866,84 @@ Readonly<Record<PortalSprache, Readonly<Record<WetterQuelleSchluessel, string>>>
     keine: 'kaynak yok',
   },
 };
+
+/**
+ * Die neun Dokumentkategorien (DOC-01, `dokument_kategorie`) — in vier
+ * Sprachen.
+ *
+ * Dieselbe Bauart wie `WACHBUCH_ART_TEXTE`: die SCHLUESSEL sind das Vokabular
+ * des Enums und reisen unuebersetzt in die Datenbank; uebersetzt wird nur, was
+ * auf dem Bildschirm steht (D-83).
+ *
+ * **Warum die Kategorie im Mitarbeiterportal ueberhaupt gross danebensteht.**
+ * Solange O-851 offen ist — welche Kategorien duerfen einer Belegschaft
+ * ueberhaupt freigegeben werden —, prueft die Datenbank nur die Freigabe, nicht
+ * die Kategorie. Die sichtbare Kategorie ist damit die Stelle, an der eine
+ * falsche Freigabe auffaellt: „Rechnung" auf einem Arbeiterbildschirm ist ein
+ * Befund, kein Etikett.
+ *
+ * `mitarbeiter` heisst hier **Personalunterlage** und nicht „Mitarbeiter": die
+ * Kategorie bezeichnet die UNTERLAGE, nicht den Menschen, und „Mitarbeiter"
+ * als Ueberschrift ueber einem Dokument liest sich wie eine Personalakte, die
+ * offen liegt.
+ */
+export const DOKUMENT_KATEGORIE_TEXTE:
+Readonly<Record<PortalSprache, Readonly<Record<string, string>>>> = {
+  de: {
+    kunde: 'Kundenunterlage',
+    vertrag: 'Vertrag',
+    angebot: 'Angebot',
+    rechnung: 'Rechnung',
+    beleg: 'Beleg',
+    mitarbeiter: 'Personalunterlage',
+    projekt: 'Projektunterlage',
+    buchhaltung: 'Buchhaltung',
+    unternehmen: 'Unternehmensunterlage',
+  },
+  en: {
+    kunde: 'Customer file',
+    vertrag: 'Contract',
+    angebot: 'Quotation',
+    rechnung: 'Invoice',
+    beleg: 'Receipt',
+    mitarbeiter: 'Personnel file',
+    projekt: 'Project file',
+    buchhaltung: 'Accounting',
+    unternehmen: 'Company file',
+  },
+  ar: {
+    kunde: 'ملف العميل',
+    vertrag: 'عقد',
+    angebot: 'عرض سعر',
+    rechnung: 'فاتورة',
+    beleg: 'إيصال',
+    mitarbeiter: 'ملف شؤون الموظفين',
+    projekt: 'ملف المشروع',
+    buchhaltung: 'المحاسبة',
+    unternehmen: 'ملف الشركة',
+  },
+  tr: {
+    kunde: 'Müşteri evrakı',
+    vertrag: 'Sözleşme',
+    angebot: 'Teklif',
+    rechnung: 'Fatura',
+    beleg: 'Belge',
+    mitarbeiter: 'Personel evrakı',
+    projekt: 'Proje evrakı',
+    buchhaltung: 'Muhasebe',
+    unternehmen: 'Şirket evrakı',
+  },
+};
+
+/**
+ * Das Label einer Kategorie — oder der SCHLUESSEL selbst.
+ *
+ * Kein Rueckfall auf „Sonstiges": eine unbekannte Kategorie ist eine, die das
+ * Enum erweitert hat, und dann soll auf dem Bildschirm ihr Name stehen und
+ * nicht ein Sammelbegriff, der sie verschwinden laesst.
+ */
+export function dokumentKategorieText(
+  sprache: PortalSprache, kategorie: string,
+): string {
+  return DOKUMENT_KATEGORIE_TEXTE[sprache][kategorie] ?? kategorie;
+}

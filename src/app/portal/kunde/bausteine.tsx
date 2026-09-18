@@ -107,11 +107,99 @@ export function Kopfzeile({
   );
 }
 
+/** Die Listen, die einen Gesellschaftsfilter tragen — siehe unten. */
+export type FilterWurzel =
+  | '/portal/kunde/rechnungen' | '/portal/kunde/auftraege'
+  | '/portal/kunde/angebote' | '/portal/kunde/objekte';
+
+/**
+ * Der Gesellschaftsfilter — EIN Baustein, nicht vier Abschriften.
+ *
+ * **Er ist kein Mandantenwechsler.** Im Kunden-Scope gibt es keinen aktiven
+ * Mandanten (K-20), und ein Umschalter, der die SITZUNG aendert, waere genau
+ * der Weg, den Invariante 3 ausschliesst („never a URL param, never client
+ * state"). Dieser Filter verengt die ANZEIGE; welche Zeilen es ueberhaupt
+ * gibt, entscheidet RLS je Gesellschaft. Der Slug in der Adresse kann
+ * deshalb nichts oeffnen — er kann nur wegnehmen.
+ *
+ * **Er erscheint nur, wenn es etwas zu filtern gibt.** Eine Leiste mit einem
+ * einzigen Knopf sieht aus wie eine Wahl, die man nicht hat, und der
+ * Normalfall ist EIN Lieferant. Der Fall, fuer den er existiert, ist O-52:
+ * ein Login, zwei Gesellschaften der Gruppe.
+ *
+ * Die Markierung (`data-cse`, `aria-current`) und die Klassen sind
+ * unveraendert die der Rechnungsliste, die diesen Filter zuerst hatte — damit
+ * aus „einmal geschrieben" nicht „zweimal verschieden" wird.
+ */
+export function GesellschaftsFilter({
+  wurzel, gesellschaften, aktiv,
+}: {
+  /**
+   * Eine AUFZAEHLUNG und kein `string`, und das ist nicht Pedanterie:
+   * `typedRoutes` (next.config.ts) prueft jedes `href` gegen die wirklich
+   * vorhandenen Routen. Mit `string` faellt diese Pruefung fuer den ganzen
+   * Baustein weg — und der erste Tippfehler in einer Wurzel waere ein
+   * Filter, der auf 404 fuehrt, statt eines Fehlers beim Bauen.
+   */
+  readonly wurzel: FilterWurzel;
+  readonly gesellschaften: readonly { readonly mandantSlug: string; readonly mandantName: string }[];
+  readonly aktiv: string | null;
+}) {
+  if (gesellschaften.length <= 1) return null;
+  const pille = (an: boolean): string => [
+    'inline-flex min-h-11 items-center rounded-full px-s4 text-sm transition-colors duration-fast ease-brand',
+    an ? 'bg-white text-ink' : 'bg-surface-3 text-text-muted hover:text-text',
+  ].join(' ');
+  return (
+    <nav
+      aria-label="Gesellschaft"
+      data-cse="gesellschaft-filter"
+      className="mb-s5 flex flex-wrap gap-s2"
+    >
+      <Link
+        href={wurzel}
+        aria-current={aktiv === null ? 'page' : undefined}
+        className={pille(aktiv === null)}
+      >
+        Alle
+      </Link>
+      {gesellschaften.map((g) => (
+        <Link
+          key={g.mandantSlug}
+          href={`${wurzel}?gesellschaft=${g.mandantSlug}`}
+          aria-current={aktiv === g.mandantSlug ? 'page' : undefined}
+          className={pille(aktiv === g.mandantSlug)}
+        >
+          {g.mandantName}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+/**
+ * Ein Slug aus der Adresszeile, auf seine FORM geprueft.
+ *
+ * Er geht danach als Parameter (`$1`) in die Abfrage, nie in den SQL-Text —
+ * und ein Slug, den es nicht gibt, ergibt eine leere Liste statt eines
+ * Fehlers. Die Pruefung steht hier einmal, weil vier Listen sie brauchen und
+ * vier Abschriften vier Gelegenheiten waeren, das Muster zu lockern.
+ */
+export function slugAus(
+  suche: Record<string, string | string[] | undefined>, schluessel = 'gesellschaft',
+): string | null {
+  const roh = suche[schluessel];
+  if (typeof roh !== 'string') return null;
+  return /^[a-z0-9-]{1,40}$/u.test(roh) ? roh : null;
+}
+
 /** Der Weg zurueck in die Liste — auf jeder Detailseite an derselben Stelle. */
 export function Zurueck({
   ziel, text,
 }: { readonly ziel: '/portal/kunde/nachrichten' | '/portal/kunde/reklamationen'
-  | '/portal/kunde/rechnungen' | '/portal/kunde/projekte' | '/portal/kunde/nachweise';
+  | '/portal/kunde/rechnungen' | '/portal/kunde/projekte' | '/portal/kunde/nachweise'
+  | '/portal/kunde/auftraege' | '/portal/kunde/angebote' | '/portal/kunde/objekte'
+  | '/portal/kunde/dokumente';
   readonly text: string }) {
   return (
     <nav aria-label="Zurück" className="mb-s4">

@@ -7,7 +7,9 @@ import {
 } from '@/server/services/kundenportal/rechnung';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { kundePortal, KundenRahmen } from '../rahmen';
-import { Gesellschaft, KeinZugang, Kopfzeile, Leer } from '../bausteine';
+import {
+  Gesellschaft, GesellschaftsFilter, KeinZugang, Kopfzeile, Leer, slugAus,
+} from '../bausteine';
 
 /**
  * `/portal/kunde/rechnungen` — die eigenen festgeschriebenen Belege
@@ -57,10 +59,11 @@ export default async function Kundenrechnungen(
    * Der Slug wird auf die Form geprueft und danach als Parameter in die
    * Abfrage gegeben ($1), nie in den SQL-Text. Ein Slug, den es nicht gibt,
    * ergibt eine leere Liste — kein Fehler, und die Zeile unten sagt, dass
-   * gefiltert wird.
+   * gefiltert wird. `slugAus` ist dieselbe Pruefung wie auf den drei anderen
+   * gefilterten Kundenlisten; sie stand hier zuerst und ist nach
+   * `bausteine.tsx` gewandert, damit vier Listen nicht vier Muster haben.
    */
-  const rohSlug = typeof suche['gesellschaft'] === 'string' ? suche['gesellschaft'] : null;
-  const slug = rohSlug !== null && /^[a-z0-9-]{1,40}$/u.test(rohSlug) ? rohSlug : null;
+  const slug = slugAus(suche);
 
   const ergebnis = await kundePortal('/portal/kunde/rechnungen', async (kontext) => ({
     rechnungen: await listeKundenrechnungen(kontext, { mandantSlug: slug }),
@@ -91,45 +94,15 @@ export default async function Kundenrechnungen(
    * Portalkunden. Ein Knopf, der einen Fehler laedt, ist schlechter als
    * keiner — der Beleg selbst weiss es und sagt es (`[id]/page.tsx`).
    */
-  const pille = (aktiv: boolean): string => [
-    'inline-flex min-h-11 items-center rounded-full px-s4 text-sm transition-colors duration-fast ease-brand',
-    aktiv ? 'bg-white text-ink' : 'bg-surface-3 text-text-muted hover:text-text',
-  ].join(' ');
-
   return (
     <KundenRahmen basis={basis} titel="Rechnungen" aktiverTab="rechnungen">
       <Kopfzeile titel="Rechnungen" />
 
-      {/*
-        * Der Filter erscheint nur, wenn es etwas zu filtern gibt. Eine
-        * Leiste mit einem einzigen Knopf sieht aus wie eine Wahl, die man
-        * nicht hat — und der Normalfall ist EIN Lieferant.
-        */}
-      {daten.gesellschaften.length > 1 && (
-        <nav
-          aria-label="Gesellschaft"
-          data-cse="gesellschaft-filter"
-          className="mb-s5 flex flex-wrap gap-s2"
-        >
-          <Link
-            href="/portal/kunde/rechnungen"
-            aria-current={slug === null ? 'page' : undefined}
-            className={pille(slug === null)}
-          >
-            Alle
-          </Link>
-          {daten.gesellschaften.map((g) => (
-            <Link
-              key={g.mandantSlug}
-              href={`/portal/kunde/rechnungen?gesellschaft=${g.mandantSlug}`}
-              aria-current={slug === g.mandantSlug ? 'page' : undefined}
-              className={pille(slug === g.mandantSlug)}
-            >
-              {g.mandantName}
-            </Link>
-          ))}
-        </nav>
-      )}
+      <GesellschaftsFilter
+        wurzel="/portal/kunde/rechnungen"
+        gesellschaften={daten.gesellschaften}
+        aktiv={slug}
+      />
 
       {daten.rechnungen.length === 0 ? (
         <Leer text={slug === null

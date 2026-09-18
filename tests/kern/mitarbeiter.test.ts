@@ -165,6 +165,17 @@ describe('(2) es gibt keinen Weg, der einen Zeiteintrag aendert (EMP-07)', () =>
     'api/mein/antraege',
     'api/mein/antraege/[id]/zurueckziehen',
     'api/mein/dienstanweisungen/[id]/kenntnisnahme',
+    /*
+     * Der Dateiabruf (0361) ist ein LESEWEG und steht trotzdem hier: er
+     * schreibt eine Zeile in `dokument_zugriff`, weil DOC-03 und SEC-A6 das
+     * verlangen — „wer wissen will, wer eine Personalakte gesehen hat
+     * (Art. 15 DSGVO), findet sie hier". Ein Abruf ohne Spur waere fuer die
+     * Datenschutzauskunft unsichtbar, und eine Liste, die nur die
+     * offensichtlichen Schreibwege kennt, haette ihn nie gesehen.
+     */
+    'api/mein/dokumente/[id]/datei',
+    /* Die Antwort im eigenen Faden (0350, EMP-11). */
+    'api/mein/nachrichten/[id]',
     'api/mein/schichten/[zuordnungId]/bautagebuch/mannstunden',
     'api/mein/schichten/[zuordnungId]/bautagebuch/position',
     'api/mein/schichten/[zuordnungId]/fotos',

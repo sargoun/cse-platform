@@ -127,6 +127,17 @@ export default async function Freigaben(
               Prüfdauer
             </Link>
           )}
+          {/* Die Stapelmappe zeigt jeden Routinefall EINZELN, mit seinen
+              geänderten Feldern (APR-02). Sie verlangt
+              `freigabe.stapel_entscheiden` — wer es nicht hält, sähe hinter dem
+              Verweis ein 404 (AUT-06, D-581). */}
+          {darfStapel && (
+            <Link href={`/portal/${mandant}/freigaben/stapel`}
+                  data-cse="zur-stapelmappe"
+                  className="text-text underline underline-offset-2">
+              Stapelmappe
+            </Link>
+          )}
         </p>
         <p className="text-sm text-text-muted" data-cse="posteingang-zaehler" data-anzahl={String(eintraege.length)}>
           {eintraege.length === 0

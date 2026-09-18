@@ -249,6 +249,35 @@ export async function findeEigeneSchicht(
 }
 
 /**
+ * Die eigenen Schichten AUF EINEM OBJEKT — die kommenden zuerst (EMP-02,
+ * OPS-01).
+ *
+ * Sie steht hier und nicht in `mitarbeiter/objekte.ts`, weil sie DIESELBE
+ * Projektion benutzt wie Liste, Einzelansicht und „Heute": eine zweite Auswahl
+ * derselben Spalten waere die, die beim naechsten Feld zurueckbleibt — und die
+ * Objektseite zeigte dann eine Schicht anders als die Schichtliste, aus der
+ * man sie kennt.
+ *
+ * **Die Grenze ist ein Parameter mit Vorgabewert und keine Zahl im SQL.** Auf
+ * einem Objekt, auf dem jemand seit zwei Jahren arbeitet, sind es sonst
+ * hunderte Zeilen auf einem Telefon.
+ */
+export async function listeEigeneSchichtenAufObjekt(
+  kontext: LeseKontext, objektId: string, grenze = 20,
+): Promise<readonly EigeneSchicht[]> {
+  const roh = await kontext.abfrage<SchichtRoh>(
+    `select ${SPALTEN} ${QUELLE}
+      where ${LEBEND} and e.objekt_id = $1::uuid
+      order by (z.ende_zeitpunkt >= now()) desc,
+               case when z.ende_zeitpunkt >= now() then z.beginn_zeitpunkt end asc,
+               z.beginn_zeitpunkt desc
+      limit $2::int`,
+    [objektId, grenze],
+  );
+  return roh.map(abbilden);
+}
+
+/**
  * Die laufende Schicht — oder, wenn keine laeuft, die naechste (EMP-02).
  *
  * **`now()` kommt aus der DATENBANK**, nicht aus dem Node-Prozess und erst

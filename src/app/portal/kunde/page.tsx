@@ -4,6 +4,7 @@ import type { IconName } from '@/lib/design/icons';
 import { formatiereGeld, cent } from '@/server/services/finanz/geld';
 import { kundenUebersicht, type Kundenuebersicht }
   from '@/server/services/kundenportal/uebersicht';
+import { DOKUMENTE_ERREICHBAR } from '@/server/services/kundenportal/dokument';
 import { findeRoute, leserechte } from '@/server/registry/routen';
 import { AnmeldungNoetig } from '../Anmeldung';
 import { kundePortal, KundenRahmen } from './rahmen';
@@ -20,10 +21,11 @@ import { KeinZugang, Kopfzeile } from './bausteine';
  * Die Kunden-Tab-Leiste (`registry/tableiste.ts`) fuehrt genau FUENF Ziele —
  * Uebersicht, Auftraege, Rechnungen, Nachweise, Nachrichten — und sie hat kein
  * `Mehr` (§11.2 nennt die beiden Leisten ohne `Mehr` beim Namen; die
- * Kundenleiste steht dort nicht, hat aber trotzdem keines). Zahlungen,
- * Nachweise nach Projekt, Projekte und Reklamationen sind damit gebaut und mit
- * keinem einzigen Klick erreichbar: man kaeme nur hin, indem man die Adresse
- * eintippt. Drei Bildschirme, die niemand oeffnen kann, sind genauso gut nicht
+ * Kundenleiste steht dort nicht, hat aber trotzdem keines). Gebaut sind aber
+ * ZEHN Bildschirme: dazu Angebote, Objekte, Bauprojekte, Zahlungen,
+ * Reklamationen und Dokumente. Sechs davon waeren ohne diese Seite mit keinem
+ * einzigen Klick erreichbar — man kaeme nur hin, indem man die Adresse
+ * eintippt. Ein Bildschirm, den niemand oeffnen kann, ist genauso gut nicht
  * gebaut.
  *
  * Die dauerhafte Loesung ist ein `KUNDEN_NAVIGATION`-Register neben
@@ -48,7 +50,9 @@ export const dynamic = 'force-dynamic';
 interface Ziel {
   readonly pfad: '/portal/kunde/rechnungen' | '/portal/kunde/zahlungen'
   | '/portal/kunde/nachweise' | '/portal/kunde/projekte'
-  | '/portal/kunde/reklamationen' | '/portal/kunde/nachrichten';
+  | '/portal/kunde/reklamationen' | '/portal/kunde/nachrichten'
+  | '/portal/kunde/auftraege' | '/portal/kunde/angebote'
+  | '/portal/kunde/objekte' | '/portal/kunde/dokumente';
   readonly titel: string;
   readonly icon: IconName;
   readonly zahl: (u: Kundenuebersicht) => string;
@@ -77,15 +81,43 @@ function rechteFuer(pfad: string): readonly string[] {
 }
 
 /**
- * Die sechs Ziele dieses Stapels.
+ * Die ZEHN Ziele des Kundenportals.
  *
- * `auftraege`, `angebote`, `objekte` und `dokumente` stehen NICHT hier: sie
- * gehoeren anderen Stapeln und sind heute Platzhalter. Ein Verweis auf „dieses
- * Modul wird noch gebaut" ist die teuerste Art, eine Luecke zu zeigen
- * (dieselbe Ueberlegung wie bei `NAVIGATION` fuer `bau/projekte`). `Auftraege`
- * steht bereits in der Tab-Leiste; wer dorthin will, findet den Weg.
+ * Es waren sechs, solange `auftraege`, `angebote`, `objekte` und `dokumente`
+ * in der Auffangroute endeten — ein Verweis auf „dieses Modul wird noch
+ * gebaut" ist die teuerste Art, eine Luecke zu zeigen. Die vier sind gebaut
+ * und stehen deshalb jetzt hier.
+ *
+ * **`dokumente` steht darin, obwohl die Liste dahinter heute leer ist**, und
+ * das ist eine bewusste Entscheidung gegen das Weglassen: die Seite ERKLAERT
+ * ihre Leere (O-671), und die Karte tut es auch. Ein Bildschirm, der sagt
+ * „dieser Weg ist noch nicht geoeffnet, so bekommen Sie die Unterlage
+ * heute", ist besser als ein Menuepunkt, den es nicht gibt und nach dem
+ * jemand sucht.
  */
 const ZIELE: readonly Ziel[] = [
+  {
+    pfad: '/portal/kunde/auftraege', titel: 'Aufträge',
+    icon: 'auftrag',
+    zahl: (u) => String(u.auftraegeAktiv),
+    satz: (u) => u.auftraege === u.auftraegeAktiv
+      ? 'laufende Aufträge'
+      : `laufend, ${u.auftraege} insgesamt`,
+  },
+  {
+    pfad: '/portal/kunde/angebote', titel: 'Angebote',
+    icon: 'angebot',
+    zahl: (u) => String(u.angeboteOffen),
+    satz: (u) => u.angebote === 0
+      ? 'kein Angebot versendet'
+      : `zur Entscheidung, ${u.angebote} insgesamt`,
+  },
+  {
+    pfad: '/portal/kunde/objekte', titel: 'Objekte',
+    icon: 'objekt',
+    zahl: (u) => String(u.objekte),
+    satz: () => 'Liegenschaften mit Raumbuch',
+  },
   {
     pfad: '/portal/kunde/rechnungen', titel: 'Rechnungen',
     icon: 'rechnung',
@@ -127,6 +159,18 @@ const ZIELE: readonly Ziel[] = [
     satz: (u) => u.nachrichtenUngelesen === 0
       ? 'alle gelesen'
       : `davon ${u.nachrichtenUngelesen} ungelesen`,
+  },
+  {
+    pfad: '/portal/kunde/dokumente', titel: 'Dokumente',
+    icon: 'dokument',
+    zahl: (u) => String(u.dokumente),
+    /*
+     * Solange der Weg nicht geoeffnet ist, sagt die Karte das — statt „0
+     * freigegeben" zu behaupten, was eine Tatsachenbehauptung waere und
+     * falsch (K-18). `DOKUMENTE_ERREICHBAR` ist die eine Stelle, die sich
+     * aendert, wenn O-671 beantwortet ist.
+     */
+    satz: () => DOKUMENTE_ERREICHBAR ? 'für Sie freigegeben' : 'Weg noch nicht geöffnet (O-671)',
   },
 ];
 
