@@ -39,48 +39,11 @@ dem Bauschritt geändert hat.
 - `/werbewiderspruch (oeffentlich, tokenlos)` — fertig
   - NICHT in meinem Plan, aber im Typecheck-Filter genannt und Voraussetzung dafuer, dass das Nachweisblatt je etwas zeigt. Gesellschaftswahl im Formular (vier Verantwortliche), Antwort immer gleich (keine Auskunft ueber den Bestand), Schreibweg ueber den Eingangsprinzipal. ACHTUNG Ueberschneidung: /werbewiderspruch/[token]/page.tsx hat parallel die Domaene aufgaben-nachrichten-oeffentlich gebaut; ihre Seite postet 'token' an genau meine Route, die Staende erfasst|bereits|unbekannt passen zusammen, und ihr TOKEN_FORM (20–200 base64url) passt zu meinem neuerToken() (43 Zeichen). Bitte nur pruefen, nicht doppelt bauen.
 
-## src/server/registry/dienste.ts
+## docs/architecture/04-SEITENKARTE.md (Rest des Navigationsabschnitts)
 
-UNVERAENDERT gegenueber dem Bauschritt, bis auf EINEN praeziseren Kommentarsatz. Die vier Eintraege stehen vollstaendig in /home/user/cse-platform/docs/architecture/routenbau/register/datenschutz.md, Abschnitt „## src/server/registry/dienste.ts":
+Der Registerteil ist erledigt und deshalb gestrichen: navigation.ts, tableiste.ts, modul.ts und kennzahlen.ts brauchen fuer diese Domaene nichts — nachgeprueft, nicht nur uebernommen. Was hier stehen bleibt, gehoert NICHT in diese vier Register, sondern in die Seitenkarte:
 
-{ modul: 'datenschutz', pfad: 'datenschutz/auskunft',           schreibend: true, schreibRecht: 'datenschutz.auskunft_erstellen' },
-{ modul: 'datenschutz', pfad: 'datenschutz/berichtigung',       schreibend: true, schreibRecht: 'datenschutz.berichtigung_bearbeiten' },
-{ modul: 'datenschutz', pfad: 'datenschutz/loeschentscheidung', schreibend: true, schreibRecht: 'datenschutz.loeschung_pruefen' },
-{ modul: 'datenschutz', pfad: 'datenschutz/werbewiderspruch',   schreibend: true, schreibRecht: 'datenschutz.auskunft_erstellen' },
-
-Geaendert ist nur der erklaerende Block darueber: `erfasseOhneToken` haelt weiterhin kein Benutzerrecht, aber `app.werbewiderspruch_formular` prueft K-04, app.ist_readonly() und formular.schreiben jetzt SELBST, statt es dem Aufrufer zu glauben — dazu Ratenlimit und Honigtopf. Der vollstaendige Kommentartext steht im Register.
-
-## src/server/auth/route-manifest.ts
-
-UNVERAENDERT gegenueber dem Bauschritt — dieselben sechs Eintraege, dieselben Begruendungen. Vollstaendig (mit den langen `grund`-Texten) in /home/user/cse-platform/docs/architecture/routenbau/register/datenschutz.md, Abschnitt „## src/server/auth/route-manifest.ts":
-
-api/datenschutz/zuordnen      → datenschutz.auskunft_erstellen
-api/datenschutz/auskunft      → datenschutz.auskunft_erstellen
-api/datenschutz/berichtigung  → datenschutz.berichtigung_bearbeiten
-api/datenschutz/loeschung     → datenschutz.loeschung_pruefen
-api/datenschutz/widerspruch   → datenschutz.auskunft_erstellen
-api/werbewiderspruch          → recht: null, mit Grund (§ 7 Abs. 3 Nr. 4 UWG: „jederzeit", kein Konto und kein Ursprungstest davor)
-
-NACHGEMESSEN: `npx vitest run tests/kern/routen.test.ts` nennt in der Fehlliste genau diese sechs aus meiner Domaene (neben denen anderer Domaenen) — es hat sich also nichts verschoben. Ein Satz im `grund` von api/werbewiderspruch ist jetzt genauer und sollte so uebernommen werden: „…ohne Token der Eingangsprinzipal mit `formular.schreiben`, und das prueft seit dieser Runde `app.werbewiderspruch_formular` selbst; dazu ein Ratenlimit je IP-Abdruck in derselben Transaktion und ein Honigtopf im Formular."
-
-## src/server/db/schema/rls.ts
-
-UNVERAENDERT gegenueber dem Bauschritt — fuenf Eintraege in KEIN_HARD_DELETE, alle `append`, in DIESER Reihenfolge (der Generator erzeugt den Block je Migration in Array-Reihenfolge, und die handgeschriebenen Bloecke in 0221/0222 stehen genau so):
-
-  0221: datenschutz_auskunft · berichtigung_feld · loeschentscheidung
-  0222: werbewiderspruch_token ZUERST, dann werbewiderspruch
-
-Die vollstaendigen `grund`-Texte stehen in /home/user/cse-platform/docs/architecture/routenbau/register/datenschutz.md, Abschnitt „## src/server/db/schema/rls.ts". Keine Eintraege in AUDITIERT, GEAENDERT_AM oder DEFINER_ONLY — mit Begruendung ebendort.
-
-REIHENFOLGE: erst rls.ts, dann die zwei Zeilen in scripts/generate-triggers.ts, dann `pnpm db:triggers --check`. Heute meldet der Check nur deshalb „Trigger sind aktuell.", weil MIGRATIONS_DATEIEN 0221/0222 gar nicht kennt.
-
-NEBENWIRKUNG, solange rls.ts fehlt: `loeschartVon()` in loeschentscheidung.ts findet werbewiderspruch/werbewiderspruch_token nicht und schreibt „keine Loeschsperre registriert" in die Matrix — sichtbar falsch, aber nicht still. Mit den Eintraegen ist es richtig.
-
-## src/server/registry/navigation.ts
-
-navigation.ts und tableiste.ts: NICHTS einzufuegen (geprueft, nicht vergessen — die Domaene haengt am Tab „mehr", den die Seiten selbst setzen). kennzahlen.ts: keine neue Kennzahl.
-
-ABER ZWEI ZEILEN FEHLEN IN 04-SEITENKARTE.md §2.4, und damit in routen.generiert.ts — die deutsche UND die englische Fassung des Pflichtwegs (D-82). Die englische Seite ist gebaut; sie fehlt nur im Register:
+ZWEI ZEILEN FEHLEN IN 04-SEITENKARTE.md §2.4, und damit in routen.generiert.ts — die deutsche UND die englische Fassung des Pflichtwegs (D-82). Die englische Seite ist gebaut; sie fehlt nur im Register:
 
   /en/werbewiderspruch          — English counterpart, same path (D-82), bewachung „offen", Phase 4, SPEC CRM-08/LEG-08
   /en/werbewiderspruch/[token]  — dito; die SEITE dazu ist bewusst nicht gebaut (sie gehoert der Domaene aufgaben-nachrichten-oeffentlich)
@@ -105,20 +68,11 @@ UND EIN BEFUND AN §5.25, der NICHT durch Erweitern der `lesen`-Liste zu beheben
 
 5) Eine Aenderung AUSSERHALB der Domaene, additiv und mit Grund: src/server/services/inhalt/sitemap.ts, AUSGESCHLOSSEN um '/en/werbewiderspruch' ergaenzt. 04-SEITENKARTE §2.5 verlangt die Sperre fuer /werbewiderspruch/; `istAusgeschlossen` vergleicht Praefixe, und '/en/…' beginnt nicht mit '/werbewiderspruch'. Ohne die Zeile waere die Flaeche in einer Sprache beschrieben und in der anderen offen.
 
-## Zeilen für docs/DECISIONS.md, Abschnitt „Offen"
+## Zeilen für docs/DECISIONS.md, Abschnitt „Offen“ — ERLEDIGT (18.09.2026)
 
-| O-640 | Does a Werbewiderspruch apply per channel (e-mail blocked, post keeps running) or across all channels? Today it is blanket: the block sits in ONE column (`werbewiderspruch_am`, 0020), and `werbewiderspruch.kanal` only describes what triggered it. Note that `nachricht_kanal` (portal/email/sms, 0231) and the CRM channel list (email/telefon/sms/post/whatsapp, 0020) are two different vocabularies. |
-| O-641 | Does an advertising objection raised at one entity also bind the other three? Today it does not — the four are separate controllers, and `/werbewiderspruch` asks which one, exactly as `/datenschutz/anfrage` does. |
-| O-642 | Does the internal hourly rate (`anstellung.stundensatz_intern`, K-05) belong in an Art. 15 export, or is it the entity's costing data? The Art.-15 section for `anstellung` omits it today and says so. |
-| O-643 | Does the absence TYPE (`abwesenheit.abwesenheitsart_id` — health-adjacent, Art. 9) belong in an Art. 15 export, and behind which additional check? It is readable through `app.abwesenheit_grund_lesen` with its own right; the export lists dates and status only. |
-| O-644 | Who EXECUTES an erasure decision, and how? There is no anonymisation procedure (`app.person_anonymisieren` is described in 02-CRM-OPERATIONS.md and does not exist), no run that writes `anonymisiert_am`, and no tombstone path for an employee, a customer contact or a company. Until there is one, `M/datenschutz/[id]/loeschung` produces a documented PRE-NOTE, not a release — a signed release for an execution nobody performs is worse than none. |
-| O-645 | Should the one-click objection link expire, and after how long? § 7 Abs. 3 Nr. 4 UWG says "jederzeit", so `werbewiderspruch_token.gueltig_bis` is NULL today — the choice that is safe for the data subject, not a decided rule. |
-| O-646 | Which recipients under Art. 19 DSGVO exist per data class (payroll office, client, authority), and by which route are they informed? The platform holds no recipient list; `berichtigung_feld.art19_empfaenger` records whoever a human names. |
-| O-647 | How is a restriction under Art. 18 DSGVO implemented technically — a per-record restriction flag, or organisationally? The data model carries no "restricted" marker: there is no column that pauses processing without ending it, and a checkbox that blocks nothing would be the worse answer. **The same decision governs an Art. 21 objection raised by an employee or an applicant**: `widerspruch_am` exists only on `ansprechpartner` and `kunde` (the advertising side), so for those groups the objection is today decided by a human, implemented organisationally and recorded in the closing text of the request. `/datenschutz/[id]` says both on the screen. |
-| O-648 | Which of the employee branch's derived findings, access records and assignments belong in an Art. 15 export, and which are mechanics? Eleven tables carry `person_id` and are no section of their own today: `arbeitszeit_verstoss`, `planungs_konflikt`, `nachweis_warnung`, `da_pflicht` (derived from data already disclosed in full), `benutzer`, `checkin_token`, `offline_ereignis` (the mechanics of access), `einsatz_zuordnung`, `zeitnachweis`, `team_mitglied`, `bewacher_eintrag`. They are NAMED in the delivered export as an open section rather than left out — the answer decides whether they become sections. (The erasure side of the same list is O-71.) |
-| O-649 | Who sends the confirmation of a tokenless advertising objection (`/werbewiderspruch`), and what does it say when the address is not in our records at all? A confirmation that says "removed" would disclose that the address was held; one that says nothing is not a confirmation. No outbound mail is connected today, and the page says so instead of claiming a send. |
-HINWEIS ZU O-647: die Zeile ist gegenueber dem Bauschritt ERWEITERT (Art. 21 fuer Beschaeftigte/Bewerberinnen faellt unter dieselbe Entscheidung). Bitte die erweiterte Fassung uebernehmen.
-HINWEIS: O-71 („Erasure concept (Art. 17): which personal data is anonymised, on which trigger?") wird jetzt von loeschentscheidung.ts (NICHT_IN_DER_MATRIX) referenziert. Die Zeile steht bereits in DECISIONS.md:2920 und braucht keine Aenderung.
+Eingetragen heisst gelöscht. Die 10 Zeilen dieser Domäne stehen in
+`docs/DECISIONS.md` unter „Open — ask, do not guess“, Unterabschnitt
+„Raised while building · die Domänenwelle (Routenbau)“. Hier ist nichts mehr offen.
 
 ## Befunde des Prüfers (19)
 

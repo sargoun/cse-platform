@@ -46,50 +46,42 @@ dem Bauschritt geändert hat.
 
 ## src/server/registry/dienste.ts
 
-Keine Aenderung an einem Registerverzeichnis noetig. Zur Kenntnis, weil die Dateien geteilt sind: src/server/services/gruppe/auslastung.ts (beide Abfragen gruppieren jetzt auf app.person_kanonisch), src/server/services/datenschutz/berichtigung.ts (editorPfad fuer 'person'), src/app/api/abwesenheiten/[id]/route.ts und src/app/api/antraege/[id]/route.ts (Fehlerumleitung + liesRumpf) liegen ausserhalb von src/server/services/personal, sind aber von dieser Runde geaendert.
+**NICHT ERLEDIGT — dieselbe Lage wie bei finanzen.** Der Abschnitt sagte „Keine
+Aenderung an einem Registerverzeichnis noetig" und zaehlte danach nur Dateien
+AUSSERHALB von `src/server/services/personal` auf.
+
+Gemessen am Baum (18.09., beim Leeren der Warteschlange) fehlen drei Dienste
+DIESER Domaene im Register, und `tests/kern/portal-shell.test.ts` bleibt dafuer
+rot:
+
+- `personal/anstellung`
+- `personal/dublette`
+- `personal/stammdaten`
+
+Nicht eingetragen, aus demselben Grund wie bei finanzen: welches Recht ein
+Schreibweg nennt, entscheidet die Policy der geschriebenen Tabelle, und das ist
+hier nicht geraten worden. Wer die Domaene personal kennt, traegt die drei nach
+und streicht diesen Abschnitt.
 
 ## src/server/auth/route-manifest.ts
 
 Keine Aenderung noetig. Alle sieben Routen der Domaene stehen unveraendert in src/server/registry/routen.generiert.ts (Zeilen 199-215) mit den Rechten, gegen die die Seiten autorisieren; ich habe weder eine Route hinzugefuegt noch ein Recht verschoben. src/app/api/formular-antwort.ts ist ein Hilfsmodul ohne eigene Route und braucht keinen Manifesteintrag. Anzumerken bleibt O-614: das Manifest fuehrt /portal/[mandant]/personal/anstellungen/[id]/entgelt mit aal2: false, 05-API-KARTE §C.8 mit 'sitzung+2fa' — wird O-614 zugunsten der zweiten Stufe entschieden, ist das eine Zeile im Manifest.
-
-## src/server/db/schema/rls.ts
-
-In src/server/db/schema/rls.ts nachzutragen (ich habe die Datei nicht angefasst):
-
-KEIN_HARD_DELETE:
-  { tabelle: 'anstellung_kondition', art: 'append', migration: '0192', grund: '§6.15, LEG-02, ACC-12. Die datierte Kondition ist die Grundlage jeder Sollstunden- und Lohnkostenrechnung; eine geloeschte Zeile bewertet stillschweigend jeden abgerechneten Monat neu, in dem sie galt. Abgeloest wird sie von der naechsten datierten Zeile, geschlossen ueber gilt_bis — nie durch DELETE.' }
-
-AUDITIERT:
-  { tabelle: 'anstellung_kondition', migration: '0192' }
-
-Beide Zeilen muessen ZUSAMMEN mit dem Eintrag in scripts/generate-triggers.ts kommen (siehe registry_sonstiges) — ohne den Dateipfad bricht generate-triggers.ts mit MIGRATIONS_DATEIEN[m]! = undefined ab (Zeile 192/205). Danach: pnpm db:triggers (ersetzt den vorhandenen Block in drizzle/0192_anstellung_kondition.sql idempotent — er steht dort heute von Hand und ist SQL-seitig korrekt, es fehlt nur der Erzeuger) und pnpm db:triggers --check. Erst dann iteriert tests/isolation/unveraenderbarkeit.test.ts (Zeile 79 und 242) die Tabelle mit.
-
-## src/server/registry/navigation.ts
-
-Keine Aenderung noetig. Es kommt kein Menuepunkt dazu; alle geaenderten Seiten sind Unterseiten von /portal/[mandant]/personal und haengen an den bestehenden Tabs.
 
 ## Sonstiges
 
 A) scripts/generate-triggers.ts — in MIGRATIONS_DATEIEN ergaenzen (nur zusammen mit den zwei rls.ts-Zeilen oben):
   '0192': join(WURZEL, 'drizzle/0192_anstellung_kondition.sql'),
 
-B) docs/DECISIONS.md — sieben Zeilen unter "Offen" (Spalten: | # | Question | Blocks |). O-610 bis O-614 stammen aus dem Bauschritt, O-615 und O-616 sind in dieser Runde dazugekommen:
+B) docs/DECISIONS.md — ERLEDIGT (18.09.2026). Alle SIEBEN Zeilen stehen in
+`docs/DECISIONS.md`: O-610 bis O-614 in der Fassung aus dem Abschnitt „Zeilen für
+docs/DECISIONS.md“ (sie ist die ausführlichere und gegen die Datenbank geprüfte),
+dazu O-615 und O-616 aus dieser Liste, die dort fehlten. Nichts mehr offen.
 
-| O-610 | **Welcher Branchentarif gilt je Gesellschaft — Gebäudereinigung RTV, Sicherheitsgewerbe Berlin, Bau —, welche Tarifgruppen führt er, und wird die Gruppe in der Plattform geführt oder nur im Lohnsystem?** `anstellung_kondition.tarifgruppe` und `anstellung.tarifgruppe` sind seit 0192 da und bleiben bewusst FREIE Textfelder: eine Auswahlliste wäre eine erfundene Tarifsystematik, und CLAUDE.md nennt Tarifsätze ausdrücklich als offene Regel. Die Entgeltseite sagt „offen (O-610)" an der Stelle, an der die Liste stünde. | K-05, `anstellung_kondition`, `0192`, CLAUDE.md „Never invent a business rule" |
-| O-611 | **Welche Angaben gewinnen beim Zusammenführen zweier Personenzeilen, welcher Portalzugang überlebt, lässt sich eine Zusammenführung zurücknehmen — und darf eine Gesellschaft eine Dublette zusammenführen, deren zweite Beschäftigung bei einer Schwestergesellschaft liegt und die sie deshalb nicht sehen kann?** Ausgeliefert ist die engste Annahme: beide Zeilen müssen in der aktiven Gesellschaft beschäftigt sein, kein Feld wird übernommen, kein Zugang widerrufen, nichts umgehängt — `app.person_zusammenfuehren` weist den Schwesterfall mit einem Satz ab, der ihn benennt, statt still die Hälfte zu tun. Seit 0195 wirkt der Zeiger dort, wo je Mensch aggregiert wird (ArbZG-Leser, Gruppenauslastung); jeder andere Lesepfad zeigt weiter zwei Zeilen, und die Seite sagt das. | Invariante 8, Invariante 9, D-09, LEG-09, `0194`, `0195`, `person.zusammengefuehrt_in_person_id` |
-| O-612 | **Welche Beendigungsgründe führt die Gruppe als Auswahlliste — Eigenkündigung, Kündigung Arbeitgeber, Befristung, Aufhebungsvertrag, Rente … — und müssen sie den Codes des Lohnsystems für die Abmeldung entsprechen?** `anstellung.austritt_grund` ist seit 0191 eine eigene Spalte (01-KERN §6.14) und nimmt bis zur Antwort freien Text; der Grund steht zusätzlich im `audit_log`. Eine erfundene Auswahlliste wäre genau die Sorte Wert, die später in einer Abmeldung landet und dort nicht passt. | LEG-11, `anstellung.austritt_grund`, `0191`, 05-API-KARTE §C.8 |
-| O-613 | **Soll die Genehmigung eines Tauschantrags die Umbesetzung im Dienstplan selbst ausführen — mit dem SEC-04-Qualifikationstor — oder nur die Freigabe erteilen, die eine Planerin dann umsetzt?** `entscheideAntrag` behandelt heute nur den Abwesenheitszweig; eine Tauschgenehmigung setzte den Status, ohne dass im Plan etwas geschieht und ohne das Tor, das 05-API-KARTE §C.8 dafür verlangt („A swap approval passes the same SEC-04 gate as besetzen"). Bis zur Antwort zeigt `/personal/antraege/[id]` für Tauschanträge keinen Genehmigen-Knopf, sondern den Satz warum. | SEC-04, EMP-10, 05-API-KARTE §C.8, `services/abwesenheit/antrag.ts: entscheideAntrag` |
-| O-614 | **Verlangt der Zugriff auf Entgeltdaten eine zweite Anmeldestufe oder genügt die Sitzung mit dem Recht?** 05-API-KARTE führt `/personal/anstellungen/[id]/entgelt` als „sitzung+2fa right", das Routen-Manifest trägt `aal2: false` — zwei Aussagen über dieselbe Tür, und gilt heute die schwächere. `app.entgelt_lesen` prüft seit 0193 `personal.entgelt_lesen` und den aktiven Mandanten und protokolliert jeden Abruf; die zweite Stufe wäre eine Zeile im Manifest, aber sie ist eine Entscheidung über den Arbeitsalltag der Personalstelle und nicht über eine Zeile. Die Seite nennt die Frage sichtbar. | K-05, D-09 §6, AUT-08, `0193`, `route-manifest.ts`, 05-API-KARTE §C.8 |
-| O-615 | **Soll eine Wiedereinstellung einen zuvor von Hand entzogenen Portalzugang automatisch wiederherstellen, oder bleibt die Wiedererteilung eine ausdrückliche Handlung der Leitung?** `kern.bm_aus_anstellung` legt seit dieser Runde keine abgeleitete Mitgliedschaft mehr an, wenn für (benutzer_id, mandant_id) eine Zeile mit einem FREMDEN Entzugsgrund steht — ein Entzug, den jemand aus einem Grund verhängt hat, den die Datenbank nicht kennt, überlebt damit eine Datumsänderung und eine neue Beschäftigung. Das ist die sichere Richtung (ein fehlender Zugang wird gemeldet, ein unbemerkt wiederkommender nicht) und ausdrücklich eine Annahme. | K-14, AUT-08, `0191`, `kern.bm_aus_anstellung`, `benutzer_mandant.entzugsgrund` |
-| O-616 | **Was soll die Genehmigung einer kundeneigenen Antragsart bewirken, die keine Abwesenheit erzeugt — Stammdatenänderung, Schichtabgabe, unbezahlte Freistellung?** Der Katalog `antragsart` ist nach K-17 kundenpflegbar (0275 gibt `insert`), und O-142 nennt diese Arten namentlich als kommende. `entscheideAntrag` läuft nur in den Abwesenheitszweig, wenn `erzeugt_abwesenheit` UND eine Abwesenheitsart UND ein Zeitraum da sind; für alles andere legte eine „Genehmigung" nur den Status um. Bis zur Antwort zeigt die Antragsseite für solche Arten keinen Knopf, sondern den Satz, dass hier nichts geschähe. | K-17, EMP-10, O-142, `0074`, `0275`, `services/abwesenheit/antrag.ts` |
+## Zeilen für docs/DECISIONS.md, Abschnitt „Offen“ — ERLEDIGT (18.09.2026)
 
-## Zeilen für docs/DECISIONS.md, Abschnitt „Offen"
-
-| O-610 | **Welcher Branchentarif gilt je Gesellschaft, welche Tarifgruppen fuehrt er — und wird die Gruppe in der Plattform gefuehrt oder nur im Lohnsystem?** Gebaeudereinigung (RTV), Sicherheitsgewerbe Berlin und Bau haben je eigene Tarifwerke mit eigenen Gruppen; CLAUDE.md nennt Tarifsaetze ausdruecklich als offene Regel, und diese Plattform rechnet keine Loehne (D-06). **Heute gebaut:** `anstellung_kondition.tarifgruppe` und der Spiegel `anstellung.tarifgruppe` als FREIES Textfeld, beide `cse_app` als SELECT entzogen (K-05) und nur ueber `app.entgelt_lesen` erreichbar; die Entgeltseite beschriftet das Feld sichtbar als „offen (O-610)" und zeigt keine Auswahlliste. Eine Auswahlliste waere eine Tarifentscheidung in einer Oberflaeche — sie saehe bestaetigt aus und ginge in jede Kalkulation ein. | K-05, D-06, 01-KERN §6.14/§6.15, `drizzle/0192`, O-136, O-18 |
-| O-611 | **Wie wird eine Personendublette zusammengefuehrt — welche Angaben gewinnen, welcher Zugang ueberlebt, und darf eine Gesellschaft ueber eine Beschaeftigung entscheiden, die sie nicht sieht?** Vier Fragen, eine Nummer, weil sie zusammen entschieden werden muessen: (a) welche Angaben bei Widerspruch uebernommen werden, (b) welcher Portalzugang ueberlebt, wenn beide Zeilen einen haben (`mitarbeiter_zugang` traegt `unique (person_id)` — das Umhaengen wirft 23505, und das ist der Regelfall einer Dublette), (c) ob eine Zusammenfuehrung zurueckgenommen werden kann, (d) ob eine Gesellschaft eine Dublette zusammenfuehren darf, deren zweite Beschaeftigung bei einer Schwestergesellschaft liegt und die sie deshalb gar nicht sehen kann. **Heute gebaut:** die engste Annahme. `app.person_zusammenfuehren` setzt NUR den Zeiger `person.zusammengefuehrt_in_person_id`, verlangt dass BEIDE Zeilen in der aktiven Gesellschaft beschaeftigt sind (und weist den Schwesterfall mit einem Satz ab, der O-611 nennt), haengt keine einzige Zeile um und schreibt eine Auditzeile mit beiden Kennungen und dem Grund. Aufgeloest wird ueber `app.person_kanonisch` und `app.person_identitaeten` — das zweite ist die Funktion, die eine Aggregation je MENSCH braucht (Invariante 9, ArbZG ueber Gesellschaftsgrenzen, K-06). Die Geschichte wird nicht umgeschrieben und kann es nicht: 50 Tabellen haben einen Fremdschluessel auf `person`, die Zeitdomaene traegt `person_id` in zusammengesetzten Fremdschluesseln ohne `on update cascade`, und `zeiteintrag`, `wachbuch_eintrag`, `da_kenntnisnahme`, `checkin_token`, `aufmass_signatur` und `leistungsnachweis_signatur` weisen jedes UPDATE ab. | D-09, LEG-09, Invariante 8, Invariante 9, 01-KERN §6.13, `drizzle/0194`, `services/personal/dublette.ts`, O-220 |
-| O-612 | **Welche Beendigungsgruende fuehrt die Gruppe — und muessen sie den Codes des Lohnsystems fuer die SV-Abmeldung entsprechen?** Eigenkuendigung, Kuendigung durch den Arbeitgeber, Befristungsablauf, Aufhebungsvertrag, Rente, Tod: die Liste ist lohn- und meldewirksam (die SV-Abmeldung traegt einen Abgabegrund), und eine erfundene Auswahl saehe wie eine abgestimmte aus. **Heute gebaut:** `anstellung.austritt_grund text` (01-KERN §6.14 fuehrt die Spalte namentlich, auch in den Grant-Listen von §11 — sie zu umgehen und den Grund ins `audit_log` zu schreiben waere die stillschweigende Wahl gegen das Datenmodell) als PFLICHTFELD in Worten, mit Beispielen im Platzhalter und dem sichtbaren Hinweis „offen (O-612)" an der Seite. Der Grund steht ausserdem im Protokoll: die Spalte sagt „warum ist diese Beschaeftigung beendet", das Protokoll sagt „wer hat das wann eingetragen". | D-09, K-14, R-08, 01-KERN §6.14, 05-API-KARTE §C.8, `drizzle/0191`, `services/personal/anstellung.ts` |
-| O-613 | **Soll die Genehmigung eines Tauschantrags die Umbesetzung im Dienstplan selbst ausfuehren — und wer verantwortet dann das SEC-04-Qualifikationstor?** `entscheideAntrag` behandelt heute nur den Abwesenheitszweig (`antragsart.erzeugt_abwesenheit`). Ein Tauschantrag (`antrag.tausch_partner_anstellung_id`, `antrag.einsatz_id`) wuerde auf `genehmigt` gesetzt, ohne dass im Dienstplan etwas geschieht — und 05-API-KARTE §C.8 verlangt fuer eine Tauschgenehmigung ausdruecklich dasselbe Qualifikationstor wie fuer das Besetzen („a swap approval passes the same SEC-04 gate as besetzen"). **Heute gebaut:** `/personal/antraege/[id]` zeigt fuer einen Tauschantrag KEINEN Genehmigen-Knopf, sondern den Satz, dass der Tausch im Dienstplan vollzogen wird, und benennt die offene Frage. Eine Genehmigung ohne Wirkung ist schlimmer als ein fehlender Knopf: der Antragsteller liest „genehmigt" und kommt nicht zur Schicht. | EMP-10, EMP-11, SEC-04, 05-API-KARTE §C.8, `services/abwesenheit/antrag.ts`, `personal/antraege/[id]` |
-| O-614 | **Verlangt der Zugriff auf Entgeltdaten eine zweite Anmeldestufe?** 05-API-KARTE fuehrt `…/anstellungen/[id]/entgelt` und `…/konditionen` als „sitzung+2fa"; das Routen-Manifest (`registry/routen.generiert.ts`) fuehrt dieselbe Route mit `aal2: false`. Zwei Dokumente, zwei Antworten — und es ist keine technische Frage, sondern eine ueber Zugangssicherheit: `personal.entgelt_lesen` ist fuer `admin` und `leitung` bindbar, eine 2FA-Pflicht traefe damit Konten, die nach AUT-02/K-15 heute auf `aal1` laufen (`leitung` hat keinen zweiten Faktor, und K-15 warnt ausdruecklich davor, eine `aal2`-Bedingung an einen Lesepfad zu haengen, von dem die Mitgliedschaftsaufloesung abhaengt). **Heute ausgeliefert:** der Stand des Manifests (`aal2: false`); das Recht und die Auditzeile tragen die Absicherung, und die Entgeltseite nennt die Abweichung sichtbar. | K-05, K-15, AUT-02, D-09 §6, 05-API-KARTE §C.8, `registry/routen.generiert.ts`, `drizzle/0193` |
+Eingetragen heisst gelöscht. Die 7 Zeilen dieser Domäne stehen in
+`docs/DECISIONS.md` unter „Open — ask, do not guess“, Unterabschnitt
+„Raised while building · die Domänenwelle (Routenbau)“. Hier ist nichts mehr offen.
 
 ## Befunde des Prüfers (16)
 

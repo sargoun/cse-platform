@@ -82,3 +82,16 @@ create policy t_referenz_pflege on referenz for all to cse_app
               and app.hat_recht('referenz.kundenfreigabe_erfassen', mandant_id));
 
 grant select, insert, update on unternehmensprofil, referenz to cse_app;
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0015)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+create trigger trg_referenz_geaendert_am
+  before update on referenz
+  for each row execute function kern.setze_geaendert_am();
+create trigger trg_unternehmensprofil_geaendert_am
+  before update on unternehmensprofil
+  for each row execute function kern.setze_geaendert_am();
+
+
+-- >>> Ende des generierten Blocks

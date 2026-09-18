@@ -38,156 +38,47 @@ dem Bauschritt geändert hat.
 - `/portal/[mandant]/website/referenzen (bestehende Liste, korrigiert)` — fertig
   - Zwei von der Kritik gemeldete Fehler behoben: (1) der Veroeffentlichen-Knopf stand ohne Rechtepruefung, obwohl referenz.veroeffentlichen nur super_admin haelt - ein admin druckte ihn und bekam einen 500. Jetzt gegen haeltRechte gegattert. (2) /api/website/referenzen fing nur RedaktionFehler, NichtGefundenFehler flog durch; jetzt ueber autorisierungsAntwort auf 404 abgebildet. Dazu ein Verweis vom Projekttitel auf die neue Detailseite.
 
-## src/server/registry/dienste.ts
+## src/server/db/schema/rls.ts — NOCH OFFEN: `referenz` in AUDITIERT
 
-// src/server/registry/dienste.ts — EIN neuer Eintrag, direkt hinter
-// `{ modul: 'referenz', pfad: 'inhalt/redaktion', … }`:
+**Teilweise eingetragen (18.09., beim Leeren der Warteschlange).** Die vier
+`GEAENDERT_AM`-Zeilen STEHEN jetzt in `src/server/db/schema/rls.ts` — `seite` (0014),
+`abschnitt` (0014), `referenz` (0015), `unternehmensprofil` (0015), gegen die Tabellen
+geprueft statt uebernommen: alle vier tragen die Spalte `geaendert_am` und trugen bis
+heute keinen Ausloeser, der sie setzt. `pnpm db:triggers` hat daraus die Bloecke in
+`drizzle/0014_seite_abschnitt_medien.sql` und `drizzle/0015_profil_referenz.sql`
+erzeugt (beide Dateien trugen vorher gar keinen Block); eine frisch migrierte Datenbank
+hat danach `trg_seite_geaendert_am`, `trg_abschnitt_geaendert_am`,
+`trg_referenz_geaendert_am` und `trg_unternehmensprofil_geaendert_am`. Damit haengt der
+Zeitstempel nicht mehr am Aufrufer in `services/inhalt/redaktion.ts`.
 
-  // Die Anfrageformulare (§5.21, REQ-01 … REQ-04). Eigener Dienst und nicht
-  // Teil von `inhalt/redaktion`: `formular_definition` haengt an
-  // `formular.schreiben` statt an `referenz.schreiben`, ist in ihren FELDERN
-  // nach dem Veroeffentlichen eingefroren und wird nie an ihrem Platz
-  // geaendert, sondern als Version + 1 angelegt.
-  {
-    modul: 'formular', pfad: 'inhalt/formular',
-    schreibend: true, schreibRecht: 'formular.schreiben',
-  },
+NICHT eingetragen: **`referenz` in AUDITIERT** und die Zeile in KEIN_HARD_DELETE, die
+`tests/kern/loeschsperre.test.ts` („an audited table is delete-locked") dann verlangt.
+Drei Gruende, jeder gegen die Wirklichkeit gemessen:
 
-## src/server/auth/route-manifest.ts
+1. **`referenz` hat kein `geloescht_von`.** `\d referenz` zeigt nur `geloescht_am`,
+   waehrend `dokument`, `person`, `anstellung`, `vergabemappe`, `team`, `aufgabe` und
+   `nachricht` beide Spalten tragen. `Loeschart = 'soft'` ist im Kopf von `rls.ts`
+   ausdruecklich als „`geloescht_am` / `geloescht_von`" definiert, und
+   `baueSoftDelete('referenz')` (`src/server/db/soft-delete.ts`) erzeugte damit ein
+   `update … set geloescht_von = app.aktueller_benutzer()` gegen eine Spalte, die es
+   nicht gibt. Heute ruft das niemand — mit dem Registereintrag stuende der Weg offen
+   und saehe richtig aus. **Voraussetzung ist eine Migration, die
+   `referenz.geloescht_von` nachtraegt.**
+2. Dieser Abschnitt lieferte keinen `grund`-Text, und `loeschsperre.test.ts` verlangt
+   darin einen pruefbaren Anker aus seiner Liste. `PRO-05` — der Anker, den die
+   Begruendung hier nennt — steht nicht darin; ein Text musste also erfunden werden,
+   und das ist bei einer Loeschsperre genau das Falsche.
+3. `SOFT_DELETE` ist aus `KEIN_HARD_DELETE` ABGELEITET und in
+   `tests/isolation/unveraenderbarkeit.test.ts:146` eingefroren. Heute lautet die Liste
+   `['dokument','person','anstellung','vergabemappe','team','aufgabe','nachricht']`;
+   mit `referenz` kaeme sie ans Ende.
 
-// src/server/auth/route-manifest.ts — vier neue Bloecke, einzusortieren zu den
-// anderen `api/website/…`-Zeilen (heute: galerie, referenzen, seite).
-  {
-    /**
-     * Die Anfrageformulare einer Gesellschaft: Kopf, Zustaendigkeit,
-     * Veroeffentlichen/Zurueckziehen, neue Version (§5.21, REQ-01 … REQ-04).
-     *
-     * `formular.schreiben` — dasselbe Recht, das `t_formular_definition_pflege`
-     * verlangt. Es haelt auch der zum Internet offene Annahmeprinzipal
-     * `formular_eingang`; den weist der Dienst zusaetzlich ab
-     * (`verweigereDienstkonto`, O-682), denn ein Dienstkonto pflegt keine
-     * Website. Welches Recht das Live-Stellen wirklich tragen soll, ist offen.
-     */
-    pfad: 'api/website/formular',
-    recht: 'formular.schreiben',
-  },
-  {
-    /**
-     * Die Leistungseintraege einer Bereichsprofilseite (§5.21, PRO-02, PUB-11).
-     *
-     * `referenz.schreiben` — dasselbe Recht, das `t_abschnitt_pflege` verlangt.
-     * Die Mandantengrenze zieht der Dienst ueber den PFAD der Seite
-     * (`EIGENE_PROFILSEITE`), weil `abschnitt` keine `mandant_id` traegt
-     * (O-49); die Route ist die erste Linie davor.
-     */
-    pfad: 'api/website/leistungen',
-    recht: 'referenz.schreiben',
-  },
-  {
-    /**
-     * Die Texte und der Zustand EINER Sprachfassung des Unternehmensprofils
-     * (§5.21, PRO-01, PRO-02, D-82).
-     *
-     * `referenz.schreiben` — dasselbe Recht, das `t_profil_pflege` verlangt.
-     * Veroeffentlicht wird je SPRACHE: eine Sprachfassung mitzureissen ist
-     * nicht moeglich, und deshalb traegt die Route auch keinen zweiten
-     * Rechteschluessel fuers Veroeffentlichen — anders als bei `seite`.
-     */
-    pfad: 'api/website/profil',
-    recht: 'referenz.schreiben',
-  },
-  {
-    /**
-     * Die Felder und die Kundenfreigabe EINER Referenz (§5.21, PRO-05).
-     *
-     * `referenz.schreiben` steht hier; die Policy `t_referenz_pflege` verlangt
-     * in ihrer `with check` zusaetzlich `referenz.kundenfreigabe_erfassen`, und
-     * zwar fuer JEDEN Schreibvorgang auf dieser Tabelle. Das zweite prueft der
-     * DIENST vor jedem `update` und weist es mit einem Satz ab — eine
-     * `with check` wirft, sie filtert nicht, und ein 500 waere die falsche
-     * Auskunft fuer eine Handlung, die jemand einfach nicht darf.
-     *
-     * Das Veroeffentlichen steht NICHT hier: es hat sein eigenes Recht
-     * (`referenz.veroeffentlichen`) und seine eigene Route
-     * (`api/website/referenzen`).
-     */
-    pfad: 'api/website/referenz',
-    recht: 'referenz.schreiben',
-  },
-
-## src/server/db/schema/rls.ts
-
-// src/server/db/schema/rls.ts — drei Tabellen fehlen in GEAENDERT_AM, und
-// `referenz` fehlt zusaetzlich in AUDITIERT. Ich habe den Symptomteil im
-// Dienst geschlossen (`geaendert_am = now()` in jedem update von
-// services/inhalt/redaktion.ts), aber das haengt am Aufrufer: der naechste
-// Schreibweg auf diese Tabellen vergisst es wieder.
-//
-// In GEAENDERT_AM aufnehmen (die Migration ist die, die die Tabelle anlegt —
-// `seite` und `abschnitt` in 0014, `referenz` in 0015, `unternehmensprofil`
-// dort, wo es angelegt wird; bitte beim Eintragen gegen die Tabelle pruefen,
-// `generate-triggers.ts` schreibt den Block dann in genau diese Datei):
-//
-//   // Die Website-Redaktion schreibt in alle vier, und keine trug bisher
-//   // einen Zeitstempel: nach einer Aenderung blieb keine Spur, an der sich
-//   // ablesen liesse, wann der oeffentliche Auftritt zuletzt angefasst wurde.
-//   { tabelle: 'seite', migration: '0014' },
-//   { tabelle: 'abschnitt', migration: '0014' },
-//   { tabelle: 'referenz', migration: '0015' },
-//   { tabelle: 'unternehmensprofil', migration: '0015' },
-//
-// In AUDITIERT aufnehmen — mindestens `referenz`:
-//
-//   // PRO-05: `freigegeben_vom_kunden`, `freigabe_am` und `freigabe_beleg`
-//   // sind der Beleg dafuer, dass ein Kundenname oeffentlich stehen DARF.
-//   // Wer das Haekchen wann gesetzt hat, ist beim Anruf des Kunden die
-//   // Frage; ohne Auditzeile gibt es darauf keine Antwort.
-//   { tabelle: 'referenz', migration: '0015' },
-//
-// Achtung, der Test `tests/kern/loeschsperre.test.ts` haelt fest: „an audited
-// table is delete-locked" — `referenz` muss dann in derselben Migration auch
-// in KEIN_HARD_DELETE stehen (sie traegt `geloescht_am`, also `art: 'soft'`).
-// Falls sie dort schon steht, ist nichts weiter zu tun; falls nicht, gehoert
-// der Eintrag mit derselben Migrationsnummer dazu.
-// Danach: `pnpm db:triggers`, dann `tests/kern/loeschsperre.test.ts`.
-
-## src/server/registry/navigation.ts
-
-// src/server/registry/navigation.ts — Ersatz fuer den Kommentarblock ueber
-// dem `website`-Eintrag (heute Zeilen 162-182). Die Zahl war falsch (zehn,
-// nicht zwoelf) und eine der drei Ausnahmen fehlte.
-  /**
-   * `website` — die Pflege des oeffentlichen Auftritts (PUB-07, PRO-01 … PRO-05).
-   *
-   * **Dieser Punkt hat gefehlt, und die Seiten dahinter gab es trotzdem.**
-   * `website/seiten`, `website/galerie` und `website/referenzen` waren gebaut,
-   * arbeiteten und waren aus dem Portal heraus mit keinem einzigen Klick
-   * erreichbar — man kam nur hin, indem man die Adresse eintippte. Gefunden
-   * hat das ein Abgleich gegen die Auftragsbeschreibung, nicht eine Pruefung:
-   * kein Test fragt „fuehrt irgendein Weg dorthin", und drei Bildschirme, die
-   * niemand oeffnen kann, sind genauso gut nicht gebaut.
-   *
-   * **Das Recht ist `referenz.schreiben`** — das, was ZEHN der dreizehn
-   * website-Routen im Manifest tragen (profil, seiten, seiten/[id],
-   * leistungen, leistungen/[id], referenzen, referenzen/[id], news, news/[id],
-   * galerie). Die drei anderen tragen ihr eigenes:
-   * `website/formulare` und `website/formulare/[id]` verlangen
-   * `formular.schreiben`, `website/referenzen/[id]/veroeffentlichen` verlangt
-   * `referenz.veroeffentlichen`. Jede traegt ihr Recht selbst, und die
-   * Sprungzeile in `app/portal/[mandant]/website/spruenge.tsx` zeigt nur, was
-   * diese Sitzung oeffnen darf (AUT-06, D-567) — sie liest die Bedingung dort,
-   * wo die Route sie auch wirklich prueft, statt sie abzuschreiben.
-   *
-   * **Was dieser Punkt nicht leisten kann:** `leitung` haelt
-   * `referenz.schreiben` nur, wo eine Gesellschaft es ihr bindet, und sieht
-   * den Tab sonst gar nicht — auch nicht die Neuigkeitenansicht, obwohl sie
-   * dieselben Beitraege unter Social Media pflegt. Das ist eine Entscheidung
-   * ueber die Rollenmatrix und steht als O-683 im Register.
-   *
-   * Der Punkt zeigt auf `website/seiten` und nicht auf `website`: eine
-   * Modulwurzel gibt es nicht, und ein Menuepunkt auf eine Seite, die es nicht
-   * gibt, ist der sichtbarste 404 im ganzen Portal.
-   */
+Reihenfolge fuer den, der weitermacht: Migration mit `referenz.geloescht_von`
+→ `{ tabelle: 'referenz', art: 'soft', migration: '0015', grund: … }` in
+KEIN_HARD_DELETE UND `{ tabelle: 'referenz', migration: '0015' }` in AUDITIERT (dieselbe
+Migrationsnummer, sonst faellt „an audited table is delete-locked")
+→ `pnpm db:triggers` → die eingefrorene Liste in `unveraenderbarkeit.test.ts:146`
+nachziehen.
 
 ## Sonstiges
 
@@ -226,12 +117,11 @@ dem Bauschritt geändert hat.
 // D-567 verbietet. Die eigentliche Frage („darf leitung den oeffentlichen
 // Auftritt pflegen?") ist O-683 und gehoert dem Auftraggeber.
 
-## Zeilen für docs/DECISIONS.md, Abschnitt „Offen"
+## Zeilen für docs/DECISIONS.md, Abschnitt „Offen“ — ERLEDIGT (18.09.2026)
 
-| O-680 | Sollen die Anfrageformulare im Portal um eigene FELDER erweiterbar sein? Die englische Fassung eines Feldes lebt heute im Code (`lib/i18n/formular-en.ts`) und nicht in der Datenbank; ein im Portal angelegtes Feld stuende auf `/en/angebot` deutsch da (D-82, D-83). Dann braucht es eine Uebersetzungstabelle per Migration. Solange offen: die Feldliste ist in `/portal/[mandant]/website/formulare/[id]` LESBAR und nicht aenderbar; geaendert wird, was ohne zweite Quelle auskommt (Titel, Beschreibung, Zustaendigkeit, Zustand). | offen | `src/server/services/inhalt/formular.ts` |
-| O-681 | Sollen Neuigkeiten zweisprachig gefuehrt werden? `seite` und `unternehmensprofil` tragen eine `sprache` und fuehren je Sprache eine eigene Zeile (D-82); `beitrag` hat keine Sprachspalte — `/en/unternehmen/<bereich>/news` zeigt deshalb den deutschen Wortlaut. Das ist der heutige Stand des Schemas, keine Entscheidung. | offen | `src/app/portal/[mandant]/website/news/page.tsx` |
-| O-682 | Welches Recht traegt das Live-Stellen und Zurueckziehen eines Anfrageformulars? `formular.schreiben` haelt auch der zum Internet offene Annahmeprinzipal `formular_eingang`; wer ihn uebernaehme, koennte das lebende Formular einer Gesellschaft zurueckziehen (`/angebot/<bereich>` antwortet danach mit 404). Braucht die Redaktion ein eigenes Recht, wie `referenz.veroeffentlichen` es bei `seite` ist? Bis dahin fail-closed: `verweigereDienstkonto` weist jedes Dienstkonto ab. | offen | `src/server/services/inhalt/formular.ts` |
-| O-683 | Soll `leitung` den oeffentlichen Auftritt pflegen duerfen? `referenz.schreiben` ist fuer sie heute nur `bindbar` und nicht `gebunden`; ohne Bindung sieht sie den Tab „Website" gar nicht und kommt auch nicht auf `/portal/<bereich>/website/news` — obwohl sie dieselben Beitraege unter Social Media bearbeitet (`social.lesen`/`social.schreiben` haelt sie gebunden). Eine Sprungzeile kann das nicht heilen: sie zeigt Rechte, sie vergibt keine. | offen | `src/app/portal/[mandant]/website/spruenge.tsx` |
+Eingetragen heisst gelöscht. Die 4 Zeilen dieser Domäne stehen in
+`docs/DECISIONS.md` unter „Open — ask, do not guess“, Unterabschnitt
+„Raised while building · die Domänenwelle (Routenbau)“. Hier ist nichts mehr offen.
 
 ## Befunde des Prüfers (13)
 

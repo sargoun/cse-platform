@@ -35,101 +35,20 @@ dem Bauschritt geändert hat.
 - `/portal/[mandant]/stammdaten/reinigungsklassen` — fertig
   - Code, Bezeichnung, Beschreibung, Sortierung, Bestaetigung (O-55) — anlegen, aendern, umsortieren, archivieren. Wirkungstext nach KRITIK neu geschrieben: die Klasse steuert NUR raum.reinigungsklasse_id und die Code-Zuordnung des Raumbuch-Imports, sie geht in keine Sollzeit und keine Kalkulation (die rechnen ueber die Belagsart). Vor dem Archivieren nennt die Zeile die Zahl der Raeume und Importzeilen; der Teilindex gibt den Code erst danach frei. Ergaenzt: Lesen braucht objekt.lesen (Policy t_mandant) — die Seite sagt, dass eine leere Liste dann nicht 'keine Klassen' heisst.
 
-## src/server/registry/dienste.ts
-
-In src/server/registry/dienste.ts, Array DIENSTE, sechs Eintraege:
-
-  /**
-   * **Die fuenf Stammdatenkataloge (SEITENKARTE §5.13).** `katalog` ist das
-   * Gemeinsame der fuenf — Schluesselform, Pflichttexte, i18n auf genau
-   * de/en/ar/tr, `pflegbar`/`sperrgrund`, die Uebersetzer fuer 23505/42501 und
-   * die Stufenkollision aus 0276. Es rechnet nichts und schreibt nichts,
-   * deshalb `schreibend: false`.
-   *
-   * Die fuenf Fachdienste schreiben und nennen dafuer `stammdaten.verwalten`
-   * — dasselbe Recht, das die Routen und die WITH-CHECK-Policies verlangen.
-   * Modul ist `stammdaten` und nicht `reinigung`: abwesenheitsart,
-   * antragsart und qualifikation haengen am MENSCHEN, belagsart und
-   * reinigungsklasse sind in einer Gesellschaft ohne Reinigung einfach leer.
-   */
-  { modul: 'stammdaten', pfad: 'stammdaten/katalog', schreibend: false },
-  {
-    modul: 'stammdaten', pfad: 'stammdaten/abwesenheitsart',
-    schreibend: true, schreibRecht: 'stammdaten.verwalten',
-  },
-  {
-    modul: 'stammdaten', pfad: 'stammdaten/antragsart',
-    schreibend: true, schreibRecht: 'stammdaten.verwalten',
-  },
-  {
-    modul: 'stammdaten', pfad: 'stammdaten/belagsart',
-    schreibend: true, schreibRecht: 'stammdaten.verwalten',
-  },
-  {
-    modul: 'stammdaten', pfad: 'stammdaten/qualifikation',
-    schreibend: true, schreibRecht: 'stammdaten.verwalten',
-  },
-  {
-    modul: 'stammdaten', pfad: 'stammdaten/reinigungsklasse',
-    schreibend: true, schreibRecht: 'stammdaten.verwalten',
-  },
-
-## src/server/auth/route-manifest.ts
-
-In src/server/auth/route-manifest.ts, Array ROUTEN, fuenf Eintraege (Recht stimmt wortgleich mit authorize({ recht: 'stammdaten.verwalten', schreibend: true }) in allen fuenf Handlern und mit den WITH-CHECK-Policies der Tabellen ueberein — kein Rechtebruch zu ueberbruecken):
-
-  {
-    /**
-     * Die fuenf Stammdatenkataloge (SEITENKARTE §5.13, OPS-02, OPS-03,
-     * SEC-01, EMP-05, EMP-10).
-     *
-     * `stammdaten.verwalten` und nicht `objekt.lesen`: hier wird der KATALOG
-     * gepflegt, nicht ein Objekt gelesen. Dass belagsart und reinigungsklasse
-     * zusaetzlich `objekt.lesen` brauchen, ist die Lesepolicy der Tabellen
-     * (0021) und keine zweite Routenfrage — die Seiten sagen es dem Menschen.
-     */
-    pfad: 'api/stammdaten/abwesenheitsarten',
-    recht: 'stammdaten.verwalten',
-  },
-  { pfad: 'api/stammdaten/antragsarten', recht: 'stammdaten.verwalten' },
-  { pfad: 'api/stammdaten/belagsarten', recht: 'stammdaten.verwalten' },
-  { pfad: 'api/stammdaten/qualifikationen', recht: 'stammdaten.verwalten' },
-  { pfad: 'api/stammdaten/reinigungsklassen', recht: 'stammdaten.verwalten' },
-
-## src/server/db/schema/rls.ts
-
-KEIN Eintrag noetig — geprueft. Alle fuenf Tabellen stehen bereits in src/server/db/schema/rls.ts, weil sie nicht neu sind: belagsart:182, reinigungsklasse:192, qualifikation:390, abwesenheitsart:788, antragsart:806; die AUDITIERT-Liste fuehrt belagsart:1737 (bewusst als einzige der fuenf), die Ausloeserlisten belagsart:1954, reinigungsklasse:1955, qualifikation:1973. Die Kommentare ab 1730 und 1753 begruenden ausdruecklich, warum abwesenheitsart, antragsart, qualifikation und reinigungsklasse KEINEN Audit-Ausloeser tragen — genau deshalb schreiben die vier Dienste ihre Protokollzeile von Hand, und genau das war die Ursache des blockierenden K-19-Befundes.
-
-## src/server/registry/navigation.ts
-
-KEIN Eintrag noetig — und das ist geprueft, nicht angenommen. src/server/registry/navigation.ts kennt keinen Schluessel 'stammdaten' und braucht auch keinen: die fuenf Seiten sind Karten in der KARTEN-Liste von src/app/portal/[mandant]/einstellungen/page.tsx (Zeilen 104-118, bereits eingetragen und keine gesperrte Datei), genau wie einstellungen/abrechnungsarten. Der Tab ist 'mehr'. Zusaetzlich sind sie seit dieser Sitzung aus den drei Nachbarseiten verlinkt, an denen der Wert wirkt (Raumbuch, Nachweisregister, Antragseingang) — rechtegeprueft ueber haeltRechte, AUT-06.
-
 ## Sonstiges
 
-1) src/server/registry/modul.ts, Set QUERSCHNITT — eine Zeile, in die bestehende Liste (heute: 'bericht', 'crm', 'objekt', 'raum', 'dienstplan', 'zeit', 'personal', 'angebot', 'auftrag', 'kalkulation', 'katalog', 'finanzen', 'dokument', …):
-
-  // `stammdaten` (SEITENKARTE §5.13): die fuenf Kataloge sind KEIN Gewerk.
-  // abwesenheitsart, antragsart und qualifikation haengen am Menschen und
-  // gelten in jeder Gesellschaft; belagsart und reinigungsklasse sind in
-  // einer Gesellschaft ohne Reinigung einfach leer — leer ist nicht
-  // dasselbe wie gesperrt. modulAktiv gibt heute ueber den Rueckfall
-  // 'unbekanntes Modul bleibt offen' (Zeile 135) zufaellig dieselbe
-  // Antwort; diese Zeile macht sie absichtlich. Ohne sie nimmt der erste
-  // GEWERK_FUER_MODUL['stammdaten'] = 'reinigung' die drei
-  // Personal-Kataloge fuer security, bau und operations vom Bildschirm.
-  'stammdaten',
+1) ERLEDIGT und gestrichen: `stammdaten` steht jetzt in `QUERSCHNITT`
+   (`src/server/registry/modul.ts`), mit der Begruendung aus diesem Eintrag.
 
 2) tests/kern/katalog-unbenutzt.ts:191 — optionale Hygiene, von mir bewusst NICHT angefasst. Die KRITIK des Plans weist nach, dass 'stammdaten.verwalten' dem Pruefer laengst als benutzt gilt (22 Funde, davon 16 in Migrationen) und dass katalog.test.ts nur `unbenutzt ⊆ Warteliste` prueft — eine Obermenge ist erlaubt, es ist also kein Bau-Gate.
 
 3) Migration: KEINE neue und KEINE geaenderte. 0275-0279 stehen unveraendert, wie sie der Bauschritt hinterlassen hat. Wie verlangt nach der Arbeit erneut geprueft: `drop database if exists w_stamm` / `create database w_stamm` / `alter database w_stamm set cse.fenster_schluessel = '…'` / `DATABASE_URL=…/w_stamm pnpm db:migrate` -> laeuft bis 0304_leistungsnachweis_auf_der_schicht.sql durch, „Migrationen angewendet."
 
-## Zeilen für docs/DECISIONS.md, Abschnitt „Offen"
+## Zeilen für docs/DECISIONS.md, Abschnitt „Offen“ — ERLEDIGT (18.09.2026)
 
-| O-690 | **Fuehrt jede Gesellschaft eigene Abwesenheitsarten, oder gilt der Katalog gruppenweit einheitlich — und muss der Lohnartenschluessel je Art in allen drei Rechtseinheiten derselbe sein?** Die Plattform kann beides: `abwesenheitsart` ist zweistufig (K-17), die Pflegeseite legt auf Wunsch eine mandanteigene Art an und `kern.katalog_schluessel_frei` (0276) verhindert, dass derselbe Schluessel auf beiden Stufen aktiv ist. Offen ist die organisatorische Haelfte: eine eigene Art je Gesellschaft heisst je Gesellschaft eine eigene Lohnzuordnung im ACC-12-Export. | EMP-05, ACC-12, `abwesenheitsart`, O-139 |
-| O-691 | **Wer pflegt in der Gruppe den PLATTFORM-Katalog (Abwesenheitsarten, Antragsarten, Qualifikationen), und braucht eine Aenderung daran eine zweite Zustimmung?** Plattformweite Katalogzeilen gelten fuer alle vier Gesellschaften; sie sind seit 0275 (abwesenheitsart, antragsart) und 0030 §6.16 (qualifikation) genau dem Super-Admin mit zweitem Faktor zugaenglich, und jede Aenderung steht im Pruefprotokoll. Ein Vier-Augen-Prinzip ist NICHT gebaut — `bezahlt` oder `blockiert_einsatz` wirken mit dem Speichern. | AUT-01, AUT-02, K-17, `abwesenheitsart`, `antragsart`, `qualifikation` |
-| O-692 | **Darf eine Belagsart-Fassung zwischen dem Beginn der laufenden Fassung und heute beginnen, wenn fuer diesen Zeitraum schon Kalkulationen gerechnet wurden — und wer gibt das frei?** Heute gilt: eine neue Fassung beginnt STRIKT NACH dem Beginn der laufenden; ein frueherer Beginn wird von `pruefeDatierung` abgewiesen und waere ohnehin unmoeglich, weil die laufende `gueltig_bis is null` traegt und `belagsart_zeitraum_eindeutig` jede Ueberschneidung mit ihrem Bereich `daterange(gueltig_ab, 'infinity')` ausschliesst. Unbewacht ist genau der Bereich DAZWISCHEN: ein Beginn nach dem Start der laufenden Fassung, aber vor `app.berlin_heute()`, wird angenommen und aendert rueckwirkend die Grundlage jeder Kalkulation aus dieser Zeit, ohne dass jemand zustimmt. Die strengere Variante — Beginn nie vor `app.berlin_heute()` — ist eine Zeile im Dienst. | OPS-03, O-17, `belagsart`, `kalkulation_position` |
-| O-693 | **Was geschieht mit Raeumen, die auf eine archivierte Reinigungsklasse zeigen — bleibt die Einstufung stehen oder muessen sie vor dem Archivieren umgestuft werden?** Heute bleibt sie stehen: `archiviert_am` gibt den Code frei (Teilindex `reinigungsklasse_code_uk`), `raum.reinigungsklasse_id` wird NICHT geleert, und die Pflegeseite nennt vor dem Archivieren die Zahl der betroffenen Raeume und Importzeilen. Die Alternative — Archivieren nur ohne haengende Raeume — waere eine Sperre, die ein Mensch heute nicht erwartet. | OPS-02, O-55, `reinigungsklasse`, `raum` |
-| O-694 | **Gibt es eine Hoechstlaenge fuer Belagsart- und Reinigungsklassen-Codes aus dem Kundenraumbuch — und wenn ja, welche?** Heute gilt: KEINE. `belagsart.code` und `reinigungsklasse.code` sind `text` ohne CHECK und ohne `varchar(n)`; die Dienste pruefen nur auf Vorhandensein und Randleerraum, weil der Code aus dem Raumbuch DES KUNDEN kommt und dort so aussieht, wie er dort aussieht. Eine vorher im Dienst gefuehrte Grenze von 20 Zeichen war erfunden (weder Tabelle noch SPEC/DESIGN/DECISIONS nannten sie) und haette eine echte Kundendatei mit einem laengeren Code abgewiesen; sie ist entfernt. | OPS-02, OPS-03, `belagsart`, `reinigungsklasse`, `raumbuch_import_zeile` |
+Eingetragen heisst gelöscht. Die 5 Zeilen dieser Domäne stehen in
+`docs/DECISIONS.md` unter „Open — ask, do not guess“, Unterabschnitt
+„Raised while building · die Domänenwelle (Routenbau)“. Hier ist nichts mehr offen.
 
 ## Befunde des Prüfers (14)
 

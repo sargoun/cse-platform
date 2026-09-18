@@ -5,9 +5,14 @@
  * nicht: ein Menüpunkt, der auf einen 404 führt, ist schlechter als keiner,
  * weil er die Existenz dessen verrät, was er nicht zeigen darf (AUT-06).
  *
- * `gruppe` sagt, ob der Punkt in der Gruppenansicht überhaupt sinnvoll ist.
- * Alles Schreibende steht dort auf `false` — nicht weil es ausgeblendet
- * werden soll, sondern weil es dort nichts zu tun gibt (Invariante 10).
+ * **Es gibt DREI Listen, nicht eine mit Schaltern.** `NAVIGATION` ist die
+ * Mandantensicht, `GRUPPEN_NAVIGATION` die Gruppensicht, `KUNDEN_NAVIGATION`
+ * das Kundenportal. Hier stand einmal ein Feld `gruppe: boolean`, aus dem die
+ * Gruppenliste gefiltert wurde — eine Gruppenseite fasst aber vier
+ * Gesellschaften zusammen und ist deshalb eine ANDERE Seite mit einem anderen
+ * Recht, nicht dieselbe mit mehr Zeilen (D-561). Das Feld ist weg; einzelne
+ * Kommentare unten nennen es noch, weil sie die damalige Entscheidung
+ * festhalten.
  */
 import type { IconName } from '@/lib/design/icons';
 
@@ -18,6 +23,13 @@ export interface NaviEintrag {
   readonly pfad: string;
   /** Der Rechteschlüssel, ohne den der Punkt nicht erscheint. */
   readonly recht: string;
+  /**
+   * Ein ZWEITER Rechteschluessel, wenn die Zielroute zwei Leserechte fuehrt.
+   *
+   * `pruefeZugang` verknuepft die Leserechte einer Route mit UND. Ein
+   * Menuepunkt, der nur eines prueft, ist der 404 aus AUT-06 mit Ansage.
+   */
+  readonly zusatzRecht?: string;
   /** Das Icon aus dem geschlossenen Satz (DESIGN §5). */
   readonly icon: IconName;
 }
@@ -40,7 +52,39 @@ export const NAVIGATION: readonly NaviEintrag[] = [
   // `personal/anstellungen`: den nackten Pfad kennt die Seitenkarte nicht.
   { schluessel: 'personal', label: 'Personal', pfad: 'personal/anstellungen', recht: 'personal.lesen', icon: 'personal' },
   { schluessel: 'angebote', label: 'Angebote', pfad: 'angebote', recht: 'angebot.lesen', icon: 'angebot' },
+  /**
+   * `leistungskatalog` (OPS-06, CLN-05) — er fehlte, und ohne diesen Eintrag
+   * waeren beide Katalogseiten gebaut und aus keinem Menue erreichbar.
+   *
+   * Recht `katalog.lesen` und nicht `katalog.schreiben`: eine Leitung darf den
+   * Katalog SEHEN (Preise, Zeitwerte, Platzhalteranteil) und nicht aendern —
+   * `katalog.schreiben` halten nur `admin` und `super_admin`. Ein Punkt am
+   * Schreibrecht haette der Leitung die Seite verborgen, die sie im
+   * Preisgespraech braucht.
+   *
+   * Er steht direkt nach `angebote`: der Katalog ist die Quelle, aus der
+   * Angebotszeilen entstehen. KEIN Eintrag in `GRUPPEN_NAVIGATION` — der
+   * Katalog ist je Gesellschaft geschnitten (`leistungskatalog_aktiv_uk` ist
+   * unique auf `(mandant_id, schluessel)`), und eine Gruppenansicht darueber
+   * waere eine Liste aus vier Katalogen, die einander nicht entsprechen.
+   */
+  { schluessel: 'leistungskatalog', label: 'Leistungskatalog', pfad: 'leistungskatalog', recht: 'katalog.lesen', icon: 'buch' },
   { schluessel: 'auftraege', label: 'Aufträge', pfad: 'auftraege', recht: 'auftrag.lesen', icon: 'auftrag' },
+  /**
+   * `aufgaben` — die offene Pflicht (OPS-11, DSH-01, SPEC §14).
+   *
+   * **Ohne diesen Punkt waere die Liste aus dem Portal heraus mit keinem Klick
+   * erreichbar** — man kaeme nur hin, indem man die Adresse eintippt.
+   *
+   * Das Recht ist `aufgabe.lesen`, dasselbe, das die Route im Manifest traegt.
+   * Das Icon ist `ok` aus dem geschlossenen Satz (DESIGN §5).
+   *
+   * **Nicht in `GRUPPEN_NAVIGATION`**, obwohl `gruppe.aufgabe.lesen` im
+   * Katalog steht und `t_aufgabe_gruppe` (0230) es freigibt: die Seitenkarte
+   * fuehrt in §6 keine `/portal/gruppe/aufgaben`, und ein Punkt auf eine
+   * Seite, die es nicht gibt, ist der Fehler aus D-561.
+   */
+  { schluessel: 'aufgaben', label: 'Aufgaben', pfad: 'aufgaben', recht: 'aufgabe.lesen', icon: 'ok' },
   // `finanzen/rechnungen`: die Rechnungen liegen unter `finanzen`, und `rechnungen`
   // allein gibt es als Route nicht — der Punkt fuehrte auf einen 404.
   { schluessel: 'rechnungen', label: 'Rechnungen', pfad: 'finanzen/rechnungen', recht: 'finanzen.lesen', icon: 'rechnung' },
@@ -109,6 +153,21 @@ export const NAVIGATION: readonly NaviEintrag[] = [
   { schluessel: 'datev', label: 'DATEV', pfad: 'buchhaltung/datev', recht: 'buchhaltung.exportieren', icon: 'export' },
   { schluessel: 'dokumente', label: 'Dokumente', pfad: 'dokumente', recht: 'dokument.lesen', icon: 'dokument' },
   /**
+   * `nachrichten` — der Fadenposteingang (EMP-11, CRM-03, SEITENKARTE §5.17).
+   *
+   * **Nicht zu verwechseln mit `/portal/mein/nachrichten`**: das ist der
+   * Meldungs-Posteingang ueber `benachrichtigung` (NOT-01) an der
+   * Arbeiterleiste. Hier geht es um `nachricht` — den Schriftverkehr in einem
+   * Vorgang.
+   *
+   * **Nicht in `GRUPPEN_NAVIGATION`.** `gruppe.nachricht.lesen` steht im
+   * Katalog und `t_nachricht_gruppe` (0011) gibt es frei — aber
+   * `06-RADAR-KI-INHALT.md` §1.4 verlangt fuer `nachricht` das Gegenteil, und
+   * die Seitenkarte fuehrt keine `/portal/gruppe/nachrichten`. Der Widerspruch
+   * ist gemeldet und nicht entschieden: O-651.
+   */
+  { schluessel: 'nachrichten', label: 'Nachrichten', pfad: 'nachrichten', recht: 'nachricht.lesen', icon: 'mail' },
+  /**
    * `agenten` — das Agenten-Zentrum (AGT-01, SPEC §22).
    *
    * `gruppe: false`, obwohl die Seitenkarte `/portal/gruppe/agenten` fuehrt:
@@ -170,11 +229,22 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * kein Test fragt „fuehrt irgendein Weg dorthin", und drei Bildschirme, die
    * niemand oeffnen kann, sind genauso gut nicht gebaut.
    *
-   * **Das Recht ist `referenz.schreiben`** — das, was zwoelf der dreizehn
-   * website-Routen im Manifest tragen. `website/formulare` verlangt
-   * `formular.schreiben` und `website/profil` zusaetzlich
-   * `system.identitaet_verwalten`; beide tragen ihr Recht selbst, und die
-   * Sprungzeile zeigt nur, was diese Sitzung oeffnen darf (AUT-06, D-567).
+   * **Das Recht ist `referenz.schreiben`** — das, was ZEHN der dreizehn
+   * website-Routen im Manifest tragen (profil, seiten, seiten/[id],
+   * leistungen, leistungen/[id], referenzen, referenzen/[id], news, news/[id],
+   * galerie). Die drei anderen tragen ihr eigenes:
+   * `website/formulare` und `website/formulare/[id]` verlangen
+   * `formular.schreiben`, `website/referenzen/[id]/veroeffentlichen` verlangt
+   * `referenz.veroeffentlichen`. Jede traegt ihr Recht selbst, und die
+   * Sprungzeile in `app/portal/[mandant]/website/spruenge.tsx` zeigt nur, was
+   * diese Sitzung oeffnen darf (AUT-06, D-567) — sie liest die Bedingung dort,
+   * wo die Route sie auch wirklich prueft, statt sie abzuschreiben.
+   *
+   * **Was dieser Punkt nicht leisten kann:** `leitung` haelt
+   * `referenz.schreiben` nur, wo eine Gesellschaft es ihr bindet, und sieht
+   * den Tab sonst gar nicht — auch nicht die Neuigkeitenansicht, obwohl sie
+   * dieselben Beitraege unter Social Media pflegt. Das ist eine Entscheidung
+   * ueber die Rollenmatrix und steht als O-683 im Register.
    *
    * Der Punkt zeigt auf `website/seiten` und nicht auf `website`: eine
    * Modulwurzel gibt es nicht, und ein Menuepunkt auf eine Seite, die es nicht
@@ -204,38 +274,47 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    */
   { schluessel: 'recruiting', label: 'Recruiting', pfad: 'recruiting', recht: 'recruiting.bewerbung_lesen', icon: 'person' },
   /**
-   * `bau/projekte`, nicht `bau`: die Seitenkarte fuehrt zwar beides, aber die
-   * Modulübersicht ist eine Phase-5-Seite ohne Inhalt, solange Nachträge,
-   * Behinderungen und Bautagebuch fehlen (PR 44/45). Der Punkt zeigt deshalb
-   * dorthin, wo etwas steht — ein Menüpunkt auf eine leere Seite ist die
-   * teuerste Art, eine Lücke zu zeigen.
+   * `bau`, nicht mehr `bau/projekte`: die Modulübersicht der Seitenkarte
+   * (§5.9, Zeile 1) ist gebaut und trägt die drei Punkte, auf die sie zeigt —
+   * offene Nachträge (BAU-04), laufende Behinderungen (BAU-06) und den Stand
+   * des Bautagebuchs (BAU-07). Der Punkt zeigte bewusst auf die Projektliste,
+   * solange die Übersicht leer gewesen wäre; jetzt wäre der Umweg die Lücke.
    */
-  { schluessel: 'bau', label: 'Bau', pfad: 'bau/projekte', recht: 'bau.lesen', icon: 'aufmass' },
+  { schluessel: 'bau', label: 'Bau', pfad: 'bau', recht: 'bau.lesen', icon: 'aufmass' },
   /**
-   * `security/posten`, nicht `security`: die Modulübersicht der Seitenkarte
-   * (§5.8, Zeile 1) ist noch nicht gebaut, und ein Menüpunkt auf eine Seite,
-   * die es nicht gibt, ist der sichtbarste 404 im ganzen Portal.
+   * `security`, nicht mehr `security/posten`: die Modulübersicht (§5.8,
+   * Zeile 1) ist gebaut. Sie trägt drei Kacheln — unterbesetzte Posten,
+   * abgelaufene oder ablaufende Nachweise und die Vorkommnisse der letzten
+   * sieben Tage — und darunter die Wege ins Modul (Posten, Wachbuch,
+   * Veranstaltungen, Dienstanweisungen, Schlüssel, Bewacherregister), jeder
+   * unter dem Recht SEINES Ziels. Der Punkt zeigte bewusst auf die
+   * Postenliste, solange die Übersicht nicht gebaut war; jetzt wäre der
+   * Umweg die Lücke.
    *
-   * `gruppe: false` — und das ist eine Entscheidung, keine Auslassung. Posten
-   * tragen zwar eine Gruppenlesepolicy (`gruppe.security.lesen`), aber der
-   * Punkt führte in der Gruppenansicht auf `/portal/gruppe/security/posten`,
-   * und diese Seite gibt es nicht. Das Wachbuch hat ohnehin KEINEN
-   * Gruppenlesepfad (§1.7): eine Gruppenleitung liest keine
-   * Vorkommnismeldungen einer anderen Gesellschaft.
+   * **Die mittlere Kachel heisst „Nachweise abgelaufen oder ablaufend" und
+   * ist NICHT auf § 34a GewO eingegrenzt** — sie zählt alle Qualifikationen
+   * mit Frist (O-706). Hier stand „§ 34a-Nachweise" und beschrieb damit eine
+   * engere Zahl, als die Seite zeigt.
+   *
+   * Kein Eintrag in `GRUPPEN_NAVIGATION`: `/portal/gruppe/security` gibt es
+   * nicht, und das Wachbuch hat ohnehin KEINEN Gruppenlesepfad (§1.7) — eine
+   * Gruppenleitung liest keine Vorkommnismeldungen einer anderen
+   * Gesellschaft.
    */
-  { schluessel: 'security', label: 'Security', pfad: 'security/posten', recht: 'security.lesen', icon: 'security' },
+  { schluessel: 'security', label: 'Security', pfad: 'security', recht: 'security.lesen', icon: 'security' },
   /**
-   * `reinigung/reviere`, nicht `reinigung`: die Modulübersicht steht zwar in
-   * der Seitenkarte, hat aber erst mit dem Turnus-Gesundheitsblatt einen
-   * Inhalt (PR 42). Der Punkt zeigt dorthin, wo etwas steht — ein Menüpunkt
-   * auf eine leere Seite ist die teuerste Art, eine Lücke zu zeigen.
+   * `reinigung`, nicht mehr `reinigung/reviere`: die Modulübersicht (§5.7,
+   * Zeile 1) ist gebaut und hat einen Inhalt — Reviere, Schichten heute,
+   * offene Nachweise und das Gesundheitsblatt des Turnus („Generator steht",
+   * PR 42). Der Punkt zeigte bewusst auf die Revierliste, solange die
+   * Übersicht leer gewesen wäre; jetzt wäre der Umweg die Lücke.
    *
-   * Das Icon ist `objekt` und nicht ein eigenes: der geschlossene Satz aus
-   * DESIGN §5 führt keines für die Reinigung, und ein neues zu zeichnen hiesse
-   * zuerst DESIGN.md zu ändern. Ein Revier IST eine Zone in einem Gebäude,
-   * also ist das Gebäude das nächstliegende Bild.
+   * Das Icon ist `reinigung` aus dem geschlossenen Satz (DESIGN §5). Hier
+   * stand einmal `objekt` mit der Begründung, ein Revier SEI eine Zone in
+   * einem Gebäude — der Satz führt seit DESIGN §5 ein eigenes Bild, und der
+   * Eintrag benutzte es längst.
    */
-  { schluessel: 'reinigung', label: 'Reinigung', pfad: 'reinigung/reviere', recht: 'reinigung.lesen', icon: 'reinigung' },
+  { schluessel: 'reinigung', label: 'Reinigung', pfad: 'reinigung', recht: 'reinigung.lesen', icon: 'reinigung' },
   /**
    * Qualität steht NEBEN den Gewerken, nicht darin: eine Beanstandung über
    * einen Wachmann ist dieselbe Zeile wie eine über eine Reinigungsrunde
@@ -246,12 +325,19 @@ export const NAVIGATION: readonly NaviEintrag[] = [
   /**
    * PR 42 — die beiden Security-Register bekommen eigene Punkte.
    *
-   * Nicht weil das Modul zwei Sidebar-Zeilen braucht, sondern weil der eine
-   * `security`-Punkt auf `security/posten` zeigt und dort nichts steht, was
-   * zu den Dienstanweisungen oder zum Schluesselbestand fuehrt. Ein Register,
-   * das nur ueber die Adresszeile erreichbar ist, ist eines, das niemand
-   * pflegt — und ein ungepflegter Schluesselbestand beantwortet die Frage
-   * „wer hatte Zutritt" nicht.
+   * Nicht weil das Modul zwei Sidebar-Zeilen braucht, sondern weil ein
+   * Register, das nur ueber die Adresszeile erreichbar ist, eines ist, das
+   * niemand pflegt — und ein ungepflegter Schluesselbestand beantwortet die
+   * Frage „wer hatte Zutritt" nicht.
+   *
+   * **Die zweite Haelfte der urspruenglichen Begruendung ist ueberholt.** Sie
+   * lautete: der `security`-Punkt zeige auf `security/posten`, und dort stehe
+   * nichts, was zu den Dienstanweisungen oder zum Schluesselbestand fuehre.
+   * Seit der Punkt auf die Moduluebersicht zeigt, fuehren von dort Wege zu
+   * beiden — jeder unter dem Recht SEINES Ziels. Die zwei Sidebar-Punkte sind
+   * damit der ZWEITE Weg. Sie bleiben, weil eine Umstellung nichts entfernt,
+   * was funktioniert; ob die Sidebar beide auf Dauer fuehrt, entscheidet die
+   * Gestaltung und nicht dieses Register.
    *
    * `gruppe: false` fuer beide: `da_kenntnisnahme` traegt bewusst KEINE
    * Gruppenpolicy (0078 §12), und §1.7 schliesst das Gruppenlesen fuer
@@ -340,3 +426,48 @@ export const GRUPPEN_NAVIGATION: readonly NaviEintrag[] = [
   { schluessel: 'berichte', label: 'Berichte', pfad: 'berichte', recht: 'gruppe.bericht.lesen', icon: 'uebersicht' },
   { schluessel: 'protokoll', label: 'Protokoll', pfad: 'protokoll', recht: 'gruppe.system.audit_lesen', icon: 'auge' },
 ];
+
+/**
+ * Der Navigationsbaum des KUNDENPORTALS — das, was hinter `Mehr` steht.
+ *
+ * **Warum es ihn braucht.** Die Kundenleiste fuehrt fuenf Ziele; gebaut sind
+ * acht Bildschirme. `projekte`, `zahlungen` und `reklamationen` waren damit
+ * gebaut und aus KEINER Leiste erreichbar — die Sprungkarten der Uebersicht
+ * reichen einen Schritt weit, und von `/portal/kunde/rechnungen/[id]` kommt
+ * man ohne Adresszeile gar nicht zu den Zahlungen.
+ *
+ * **`recht` ist EIN Schluessel, zwei Routen verlangen zwei.**
+ * `/portal/kunde/rechnungen` fuehrt im Manifest
+ * `["finanzen.lesen","finanzen.herunterladen"]`, `/portal/kunde/nachweise`
+ * fuehrt `["nachweis.lesen","bau.lesen"]`, und `pruefeZugang` verknuepft sie
+ * mit UND. Ein Punkt, der nur das erste prueft, fuehrte auf 404 und verriete
+ * die Existenz dessen, was er nicht zeigen darf (AUT-06, D-581). Deshalb das
+ * optionale `zusatzRecht` oben — und nicht, weil ein zweites Feld huebscher
+ * waere.
+ *
+ * `angebote`, `objekte` und `dokumente` stehen bewusst NICHT darin: die
+ * Seiten dahinter gehoeren anderen Stapeln und sind heute Platzhalter
+ * (`[...rest]`). `auftraege` steht darin, weil es heute schon in der
+ * Tableiste steht und in derselben Auffangroute endet — der Punkt wird also
+ * nicht schlechter, er wandert nur.
+ *
+ * **Dieser Baum wird heute von NICHTS gerendert, und das ist Absicht.** Das
+ * Blatt hinter `Mehr` (`components/portal/TabLeiste.tsx`), die Schiene
+ * (`components/portal/PortalRahmen.tsx`) und die Rechtekarte
+ * (`app/portal/zugang.ts`) kennen genau zwei Baeume; sie muessen den dritten
+ * erst lesen lernen. Bis dahin traegt die Kundenleiste KEIN `Mehr` — ein
+ * `Mehr`, das den INTERNEN Baum unter `/portal/kunde` ausgibt, waere ein
+ * Blatt voller 404 und verriete die Existenz dessen, was es nicht zeigen
+ * darf (AUT-06). Die drei Aenderungen gehoeren zusammen eingespielt.
+ */
+export const KUNDEN_NAVIGATION: readonly NaviEintrag[] = [
+  { schluessel: 'uebersicht', label: 'Übersicht', pfad: '', recht: 'bericht.dashboard_lesen', icon: 'uebersicht' },
+  { schluessel: 'auftraege', label: 'Aufträge', pfad: 'auftraege', recht: 'auftrag.lesen', icon: 'auftrag' },
+  { schluessel: 'projekte', label: 'Bauprojekte', pfad: 'projekte', recht: 'bau.lesen', icon: 'aufmass' },
+  { schluessel: 'rechnungen', label: 'Rechnungen', pfad: 'rechnungen', recht: 'finanzen.lesen', zusatzRecht: 'finanzen.herunterladen', icon: 'rechnung' },
+  { schluessel: 'zahlungen', label: 'Zahlungen', pfad: 'zahlungen', recht: 'zahlung.lesen', icon: 'euro' },
+  { schluessel: 'nachweise', label: 'Nachweise', pfad: 'nachweise', recht: 'nachweis.lesen', zusatzRecht: 'bau.lesen', icon: 'dokument' },
+  { schluessel: 'reklamationen', label: 'Reklamationen', pfad: 'reklamationen', recht: 'qualitaet.lesen', icon: 'qualitaet' },
+  { schluessel: 'nachrichten', label: 'Nachrichten', pfad: 'nachrichten', recht: 'nachricht.lesen', icon: 'mail' },
+];
+

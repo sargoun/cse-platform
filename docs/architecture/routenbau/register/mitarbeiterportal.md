@@ -38,48 +38,43 @@ dem Bauschritt geändert hat.
 - `/portal/mein/schichten/[zuordnungId]/bautagebuch` — fertig
   - Kritik bestaetigt und um einen stillen Fehler ergaenzt: leseMannstunden joint gewerk INNER, und gewerk.p_intern_decke liess nur portal='intern' durch — im Mitarbeiterportal waeren nicht 'die Gewerke unbekannt', sondern die MANNSTUNDENZEILEN verschwunden. 0303 setzt die Decke neu (intern+mitarbeiter) und gibt der Kolonne eine reine Lesepolicy auf den Katalog. Statt des zu breiten bau.schreiben (oeffnet LV, Nachtrag, Aufmassfreigabe) und statt eines neuen Katalogschluessels (0008 ist generiert, K-19) steht reiner Selbstzugriff ueber app.ist_eingesetzt_auf_projekt. projektId ist in EigeneSchicht, SCHICHT_FELDER und SPALTEN aufgenommen (MITARBEITER_NUTZLASTEN zieht es automatisch nach). Gemessen: Bautag anlegen, Position, Mannstunden und Tagesfoto gelingen ohne bau.schreiben; Tag SCHLIESSEN -> UPDATE 0. Mannstunden brauchen ein Gewerk, und der Katalog wird leer ausgeliefert — die Seite bietet das Formular dann gar nicht erst an und schreibt 'offen (O-159)'.
 
-## src/server/registry/dienste.ts
-
-In src/server/registry/dienste.ts, im Block des Mitarbeiterportals (neben den vorhandenen `mitarbeiter/*`-Zeilen, ~Z. 693-705), VIER neue Zeilen — alle lesend, was der Gegentest `tests/kern/mitarbeiter.test.ts` („und KEINER davon schreibt\") ausdruecklich verlangt und was hier auch stimmt: keine der vier Dateien nimmt einen SchreibKontext.
-
-  { modul: 'nachweis',      pfad: 'mitarbeiter/nachweis-schicht', schreibend: false },
-  { modul: 'zeit',          pfad: 'mitarbeiter/medien',           schreibend: false },
-  { modul: 'dienstplan',    pfad: 'mitarbeiter/schicht-zugang',   schreibend: false },
-  { modul: 'wachbuch',      pfad: 'mitarbeiter/schichtbuch',      schreibend: false },
-
-UND EINE AENDERUNG an der vorhandenen Zeile (~Z. 264), samt ihrem Kommentar darueber: `zeit/medien` SCHREIBT jetzt. `legeSchichtMediumAb` (Z. 311) nimmt einen `SchreibKontext` und legt die `einsatz_medien`-Zeile selbst an — der Kommentar darueber („er kann keine Zeile anlegen\") stimmt seit 0303 nicht mehr. Das einzutragende Recht ist `zeit.schreiben`: das ist der Schluessel, den `einsatz_medien.t_mandant` in seiner WITH-CHECK-Haelfte verlangt, also der Weg des BUEROS. Der Weg der Kraft laeuft ueber `t_selbst_schichtmedien` und traegt bewusst gar kein Recht (K-19, Selbstzugriff) — genau wie bei `abwesenheit/antrag`, wo auch das staerkere Bueromrecht im Register steht. `zeit.schreiben` ist an super_admin/admin/leitung gebunden und nicht an `mitarbeiter`, die Gruppenansichtsprobe bleibt also gruen.
-
-  { modul: 'zeit', pfad: 'zeit/medien', schreibend: true, schreibRecht: 'zeit.schreiben' },
-
 ## src/server/auth/route-manifest.ts
 
-In src/server/auth/route-manifest.ts, SIEBEN Eintraege (bautagebuch/position und /mannstunden einzeln — vier Handlungen hinter einer Adresse hiessen, dass die Pruefung sich im Handler verzweigt). Das Recht steht jeweils so, wie es die INSERT-/UPDATE-Policy der Zieltabelle tatsaechlich verlangt; gemessen an pg_policies:
+VIER der sieben Eintraege sind eingetragen (`…/antraege/[id]/zurueckziehen`,
+`…/schichten/[zuordnungId]/fotos`, `…/bautagebuch/position`,
+`…/bautagebuch/mannstunden`) — alle vier mit `recht: null` und ihrer
+Begruendung, woertlich wie hier geliefert.
 
-  { pfad: 'api/mein/antraege/[id]/zurueckziehen', recht: null,
-    grund: 'EMP-10, SEITENKARTE §7. Den EIGENEN Antrag zurueckziehen ist Selbstzugriff und kein Modulrecht (K-19). Die Wache ist die Sitzung, der Ursprungsvergleich, der aus der Beschaeftigung serverseitig aufgeloeste Mandant (K-02) und die Policy t_selbst_zurueckziehen (0301), deren USING nur eingereicht/in_pruefung und deren WITH CHECK nur zurueckgezogen zulaesst — eine Selbstgenehmigung ist damit nicht formulierbar.' },
+DREI stehen NOCH AUS, weil sie gegen die Wirklichkeit nicht standhalten. Sie
+tragen einen Rechteschluessel, aber ihr Handler ruft `authorize()` nicht — und
+das Manifest sagt mit einem `recht` genau das aus. `tests/kern/routen.test.ts`
+(„eine geschuetzte Route ruft `authorize` auch wirklich auf") folgt der Route
+und ihren relativen Importen eine Ebene tief; `src/app/api/mein/schichten/bruecke.ts`
+ruft `authorize` nicht, und die drei Routen selbst tun es auch nicht:
 
   { pfad: 'api/mein/schichten/[zuordnungId]/wachbuch', recht: 'wachbuch.schreiben' },
-
-  { pfad: 'api/mein/schichten/[zuordnungId]/fotos', recht: null,
-    grund: 'TIM-10, DOC-06, SEITENKARTE §7. Die Aufnahme an der eigenen Schicht laeuft ueber t_selbst_schichtmedien (0303); die Abgrenzung kommt aus der SICHTBARKEIT des Elternteils unter der RLS von einsatz bzw. bautagebuch, nicht aus einem Rechteschluessel. zeit.schreiben ist an super_admin/admin/leitung gebunden und waere hier das falsche Recht — es oeffnete die Zeiterfassung der ganzen Gesellschaft.' },
-
   { pfad: 'api/mein/schichten/[zuordnungId]/leistungsnachweis', recht: 'nachweis.schreiben' },
-
   { pfad: 'api/mein/schichten/[zuordnungId]/leistungsnachweis/[id]/unterschrift', recht: 'nachweis.schreiben' },
 
-  { pfad: 'api/mein/schichten/[zuordnungId]/bautagebuch/position', recht: null,
-    grund: 'BAU-07, SEITENKARTE §7. Die Kolonne FUEGT AN, ueber bautagebuch_position.t_selbst_m1_erfassen (0303) auf app.ist_eingesetzt_auf_projekt. bau.schreiben waere zu breit: es traegt in derselben WITH-CHECK-Haelfte auch lv_position, nachtrag und die Aufmassfreigabe — wer den Tag fuehrt, bekaeme das Leistungsverzeichnis. Ein neuer Schluessel scheidet nach K-19 aus.' },
+Der Wachbuch-Handler sagt das in seinem eigenen Docblock ausdruecklich: „Das
+Recht ist `wachbuch.schreiben` … Es wird hier nicht noch einmal abgefragt: die
+`WITH CHECK`-Haelfte von `wachbuch_eintrag.t_mandant` prueft genau diesen
+Schluessel, und das ist die Stelle, an der er wirken muss (K-03, AUT-05)."
+Beide Aussagen sind fuer sich richtig; zusammen widersprechen sie der
+Bedeutung, die das Manifest dem Feld `recht` gibt.
 
-  { pfad: 'api/mein/schichten/[zuordnungId]/bautagebuch/mannstunden', recht: null,
-    grund: 'BAU-07, SEITENKARTE §7. Wie die Position: bautagebuch_mannstunden.t_selbst_m1_erfassen (0303), Selbstzugriff ueber app.ist_eingesetzt_auf_projekt und app.aktuelle_person(). Abschluss und Gegenzeichnung bleiben bau.schreiben und damit der Bauleitung.' },
+ZU ENTSCHEIDEN, bevor die drei Zeilen gesetzt werden (eine Frage, drei Zeilen):
+entweder die drei Handler rufen `authorize()` mit genau diesem Schluessel als
+erste Linie (dann passen die Zeilen unveraendert), oder die drei tragen
+`recht: null` mit einem `grund`, der den RLS-Weg nennt — wie es die vier
+eingetragenen Geschwister tun. Erfunden werden darf weder das eine noch das
+andere; deshalb bleiben sie hier stehen.
 
-## src/server/db/schema/rls.ts
-
-Keine Aenderung an src/server/db/schema/rls.ts noetig — alle neuen Policies stehen in 0300/0302/0303/0304 und tragen dort ihren `comment on policy`. Neu hinzugekommen gegenueber dem Bauschritt: `kunde.d_kunde_nachweis_kopf` (SELECT, cse_definer, 0304), `kontrollpunkt.t_selbst_m1` (SELECT, cse_app, 0300) und die neu gesetzte Decke `nummernkreis.p_nk_intern_ceiling` (RESTRICTIVE ALL, cse_app, 0304).
-
-## src/server/registry/navigation.ts
-
-Keine Aenderung. Die vier Schichtseiten haengen unter `/portal/mein/schichten/[zuordnungId]` und werden von dort verlinkt; die Tableiste (5 Ziele) bleibt unberuehrt, tests/kern/mitarbeiter.test.ts prueft sie weiter gruen.
+AUSSERDEM ZU BEACHTEN: `tests/kern/mitarbeiter.test.ts` („das Mitarbeiterportal
+hat genau DREI eigene Schreibrouten") vergleicht `ROUTEN.filter(pfad
+startsWith 'api/mein/')` gegen eine fest verdrahtete Liste aus drei Pfaden.
+Mit den vier neuen Eintraegen sind es sieben; die Liste in diesem Test gehoert
+erweitert, sonst faellt er. Das ist eine Testdatei und nicht meine.
 
 ## Sonstiges
 
@@ -91,10 +86,11 @@ ZWEI ZEILEN FUER docs/DECISIONS.md unter „Open\":
 
 BEREITS VORHANDENE O-NUMMERN, die diese Nachbesserung nur ZITIERT und nicht neu anlegt: O-147 (Nummerierung des Leistungsnachweises — jetzt in 0304 an der neuen Decke vermerkt), O-151 (Uebergabefenster), O-159 (Gewerkekatalog), O-348 (Einzelpreis je Durchgang), O-280/O-281/O-282 (Mannstundenabgleich).
 
-## Zeilen für docs/DECISIONS.md, Abschnitt „Offen"
+## Zeilen für docs/DECISIONS.md, Abschnitt „Offen“ — ERLEDIGT (18.09.2026)
 
-- **O-740** — Bis wann NACH Schichtende darf eine Kraft noch zu dieser Schicht erfassen (Foto, Wachbucheintrag, Leistungsnachweis, Bautagebuch)? `app.eigene_einsatz_objekte`/`_projekte` verlangen heute `ende_zeitpunkt >= now()` (0004), also schliesst die Erfassung mit der Minute des Schichtendes; CLN-04 laesst den Kunden aber AM ENDE der Schicht unterschreiben. Bis zur Antwort gilt die enge Auslegung, und die vier Schichtseiten nennen den Grund auf dem Bildschirm statt ein Formular anzubieten, das scheitert. Quelle: drizzle/0300_mitarbeiter_schicht_m1_lesen.sql:145.
-- **O-741** — Soll der Auftraggeber den Leistungsnachweis zusaetzlich handschriftlich auf dem Bildschirm zeichnen, oder gilt eine getippte Namensangabe mit Serverzeit und Pruefsumme als ausreichend? Heute wird der Name getippt und mit `zeitabweichung_sek` und dem Digest des Abzugs festgehalten (0066); eine Zeichenflaeche braeuchte JavaScript, und die Geraete sind alte Diensttelefone im Treppenhaus. Quelle: src/app/api/mein/schichten/[zuordnungId]/leistungsnachweis/[id]/unterschrift/route.ts:31.
+Eingetragen heisst gelöscht. Die 2 Zeilen dieser Domäne stehen in
+`docs/DECISIONS.md` unter „Open — ask, do not guess“, Unterabschnitt
+„Raised while building · die Domänenwelle (Routenbau)“. Hier ist nichts mehr offen.
 
 ## Befunde des Prüfers (14)
 

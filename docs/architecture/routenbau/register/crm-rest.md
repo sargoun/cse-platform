@@ -45,151 +45,6 @@ dem Bauschritt geändert hat.
 - `Seed: die vier Seiten, die in den Demodaten LEER gewesen waeren` — fertig
   - NEU in dieser Sitzung — die vom Plan benannte 'gemeinsame Luecke im Seed' war noch offen. Nachgezaehlt: 0 von 7 Debitorennummern, 0 Zahlungsziele, 0 Mahnsperren, 0 Uebertragungswege, 0 Zeilen in kunde_bauleistender_status, 0 in freistellungsbescheinigung, 0 von 5 faellig_am. Vier Seiten haetten eine Ueberschrift und sonst nichts gezeigt. Jetzt: 1 Kondition (die uebrigen bleiben LEER, damit O-66 sichtbar bleibt und beide Faelle auf der Seite vorkommen), 1 Mahnsperre als Paar die HEUTE wirklich haelt, 1 Uebertragungsweg auf dem Behoerdenkunden (ozg_re = nicht verbunden, also zeigt die Seite genau den interessanten Zustand: vollstaendig gepflegt und trotzdem kein Zusteller), 2 nicht ueberlappende §13b-Zeitscheiben (erst kein Bauleistender, dann einer — sonst waere der Stichtagswechsel nicht vorfuehrbar), 1 §48b-Bescheinigung, 4 Wiedervorlagen in allen vier Faechern, 1 begruendete §7-Abs.-3-Wertung. Nur mit CSE_DEV_FLAECHEN und jeder Text traegt '(Demodaten)': jede Angabe ist eine steuerliche oder zahlungswirksame Tatsache ueber einen benannten Kunden.
 
-## src/server/registry/dienste.ts
-
-In src/server/registry/dienste.ts, DIENSTE — sieben Zeilen fehlen (tests/kern/portal-shell.test.ts). Sinnvoll neben die vorhandenen `modul: 'crm'`-Zeilen (bei crm/anlegen, ~Zeile 461) bzw. zu den finanz-Zeilen:
-
-  /*
-   * Die Zahlungskonditionen (CRM-01, FIN-15, K-05). Schreibrecht ist
-   * `crm.schreiben` — der Dienst verlangt ZUSAETZLICH `crm_entgelt.lesen`,
-   * weil die vier Spalten `cse_app` spaltenweise entzogen sind: wer sie nicht
-   * sehen darf, darf sie nicht blind ersetzen.
-   */
-  {
-    modul: 'crm', pfad: 'crm/kondition',
-    schreibend: true, schreibRecht: 'crm.schreiben',
-  },
-  /*
-   * Der Rechtsgrundlagen-Block eines Ansprechpartners (CRM-03, CRM-08,
-   * LEG-08). Gelesen ueber die Definer aus 0247, geschrieben mit
-   * `crm.rechtsgrundlage_setzen` UND `crm.schreiben` (die WITH-CHECK-Klausel
-   * von `t_mandant` verlangt das zweite).
-   */
-  {
-    modul: 'crm', pfad: 'crm/kontakt-grundlage',
-    schreibend: true, schreibRecht: 'crm.rechtsgrundlage_setzen',
-  },
-  /*
-   * Die Matrix des § 7 UWG (O-660). Rein — ohne Datenbank, ohne Uhr. Sie ist
-   * NICHT das Tor; das Tor ist `app.darf_kontaktiert_werden`. Laeuft deshalb
-   * auch in der Gruppenansicht.
-   */
-  { modul: 'crm', pfad: 'crm/uwg-matrix', schreibend: false },
-  /*
-   * Der Kundenzugang (AUT-01, DOC-04). `cse_app` hat auf `benutzer` nur
-   * SELECT; geschrieben wird ueber die vier SECURITY-DEFINER aus 0249, die
-   * `system.benutzer_verwalten` selbst noch einmal pruefen.
-   */
-  {
-    modul: 'crm', pfad: 'crm/kundenzugang',
-    schreibend: true, schreibRecht: 'system.benutzer_verwalten',
-  },
-  /*
-   * Wiedervorlagen (CRM-04). Schreibt in `lead_aktivitaet` und spiegelt nach
-   * `aufgabe` und `kalender_eintrag`, soweit `aufgabe.schreiben` und
-   * `kalender.schreiben` reichen — was fehlt, wird benannt (O-663).
-   */
-  {
-    modul: 'crm', pfad: 'crm/wiedervorlage',
-    schreibend: true, schreibRecht: 'crm.schreiben',
-  },
-  /*
-   * Der Versandstand eines Kaeufers (FIN-11, LEG-05, 07-INTEGRATIONEN §12.1).
-   * Ein reines Praedikat: ein Pflichtkaeufer ohne Uebertragungsweg SPERRT,
-   * er faellt nicht auf E-Mail zurueck. Kein Kanal gilt hier als verbunden,
-   * ohne dass die Umgebung es sagt.
-   */
-  { modul: 'crm', pfad: 'crm/erechnung', schreibend: false },
-  /*
-   * Die steuerlichen Angaben eines Kunden (FIN-09, FIN-10, FIN-11, LEG-05,
-   * LEG-06): §13b als Zeitscheiben, §48b am LEISTUNGSDATUM, E-Rechnungsweg.
-   * Vier Vorgaenge, zwei Rechte — `erechnung` schreibt den Kundenstamm
-   * (`crm.schreiben`), die drei anderen sind Finanzangaben. Hier steht das
-   * strengere.
-   */
-  {
-    modul: 'finanzen', pfad: 'finanz/kunde-steuer',
-    schreibend: true, schreibRecht: 'finanzen.schreiben',
-  },
-
-## src/server/auth/route-manifest.ts
-
-In src/server/auth/route-manifest.ts, ROUTEN — sechs Zeilen fehlen (tests/kern/routen.test.ts, 'keine Route fehlt im Manifest'):
-
-  {
-    /*
-     * CRM-01/FIN-15/K-05. Das Tor ist `crm.schreiben`; der Dienst verlangt
-     * ZUSAETZLICH `crm_entgelt.lesen`, weil Debitorennummer, Zahlungsziel und
-     * Mahnsperre `cse_app` spaltenweise entzogen sind. Hier steht das
-     * schwaechere der beiden; der Dienst prueft das genaue und weist mit
-     * deutschem Satz ab.
-     */
-    pfad: 'api/crm/kunde/konditionen',
-    recht: 'crm.schreiben',
-  },
-  {
-    /*
-     * FIN-09/FIN-10/FIN-11. Vier Vorgaenge auf einem Blatt: `erechnung`
-     * schreibt den Kundenstamm (`crm.schreiben`), `bauleistender`,
-     * `bescheinigung` und `widerruf` sind Finanzangaben
-     * (`finanzen.schreiben`). Die Route waehlt je `was`; hier steht das
-     * schwaechere als Torpruefung, die Dienste pruefen das genaue.
-     */
-    pfad: 'api/crm/kunde/steuer',
-    recht: 'crm.schreiben',
-  },
-  {
-    /*
-     * AUT-01/DOC-04. Ausstellen, neu einladen, entziehen. `cse_app` hat auf
-     * `benutzer` nur SELECT — geschrieben wird ueber die SECURITY-DEFINER aus
-     * 0249, die dasselbe Recht noch einmal pruefen.
-     */
-    pfad: 'api/crm/kunde/zugang',
-    recht: 'system.benutzer_verwalten',
-  },
-  {
-    /*
-     * CRM-08/LEG-08. Die Rechtsgrundlage eines Ansprechpartners. Der Dienst
-     * verlangt zusaetzlich `crm.schreiben`: die WITH-CHECK-Klausel von
-     * `t_mandant` auf `ansprechpartner` gibt sonst „new row violates row-level
-     * security policy" — richtig gesperrt, an der falschen Stelle erklaert.
-     */
-    pfad: 'api/crm/ansprechpartner/[id]/rechtsgrundlage',
-    recht: 'crm.rechtsgrundlage_setzen',
-  },
-  {
-    /*
-     * CRM-08/LEG-08. Ein EIGENER Endpunkt mit eigenem Nachweis (Quelle,
-     * Eingangsdatum, Umfang), nicht in die Rechtsgrundlage gefaltet: Art. 21
-     * DSGVO ist nachweispflichtig, und beide Widersprueche sind Einwegwege.
-     * Die Route waehlt je `umfang` zwischen `crm.rechtsgrundlage_setzen`
-     * (Werbewiderspruch, taegliche Vertriebsarbeit) und
-     * `datenschutz.auskunft_erstellen` (Vollwiderspruch, Entscheidung der
-     * Datenschutzstelle). Hier steht das schwaechere.
-     */
-    pfad: 'api/crm/ansprechpartner/[id]/widerspruch',
-    recht: 'crm.rechtsgrundlage_setzen',
-  },
-  {
-    /*
-     * CRM-04. Erledigen, verschieben, anlegen — ein Recht, drei Vorgaenge:
-     * sie stehen auf derselben Liste und gehoeren demselben Menschen.
-     * `anlegen` spiegelt nach `aufgabe` und `kalender_eintrag`, soweit
-     * `aufgabe.schreiben` und `kalender.schreiben` reichen, und nennt in der
-     * Rueckmeldung, was NICHT entstand (O-663).
-     */
-    pfad: 'api/crm/wiedervorlage',
-    recht: 'crm.schreiben',
-  },
-
-## src/server/db/schema/rls.ts
-
-Nichts einzutragen. Es gibt keine neue Tabelle und keine neue Migration; src/server/db/schema/rls.ts blieb unberuehrt. Die Policies und Spaltenrechte, an denen diese Arbeit haengt, stehen alle schon: `revoke select on kunde` mit Spaltenliste und `revoke select on ansprechpartner` mit Spaltenliste (0020), `app.zahlungskondition_lesen` (0020), `app.kontakt_rechtsgrundlage_liste`/`_blatt` (0247), `app.werbewiderspruch_manuell_setzen` (0248), die vier Kundenzugang-Definer (0249). Der blockierende Befund war KEINE fehlende Policy — er war ein Schreibweg, der das Leserecht des entzogenen Blocks nicht verlangte; die zweite Verteidigungslinie (K-05) hielt die ganze Zeit, sie haette nur nichts genuetzt, weil UPDATE auf diesen Spalten erlaubt ist.
-
-## src/server/registry/navigation.ts
-
-Nichts einzutragen. Alle sieben Seiten haengen unter der vorhandenen CRM-Navigation; die Unternavigation des Kundenblatts (Uebersicht · Konditionen · Steuer · Portalzugang) ist eine eigene Komponente unter src/app/portal/[mandant]/crm/kunden/[id]/Unternavigation.tsx und keine Registerzeile. src/server/registry/navigation.ts und routen.generiert.ts blieben unberuehrt — die sieben Routen stehen dort schon (routen.generiert.ts Zeilen 79–85).
-
 ## Sonstiges
 
 1) docs/DECISIONS.md, Abschnitt „Open — ask, do not guess": die vier Zeilen aus `decisions_zeilen` einfuegen (Format `| O-nn | Question | Blocks |`, hoechste vorhandene Nummer ist O-596). Ohne sie bleiben `pnpm guards` und tests/kern/gate.test.ts rot, und O-660 — die Nummer, unter der die Verschaerfung des § 7 UWG entschieden werden soll — steht auf einem Kundenbildschirm, ohne irgendwo nachschlagbar zu sein.
@@ -204,12 +59,11 @@ Nichts einzutragen. Alle sieben Seiten haengen unter der vorhandenen CRM-Navigat
 
 6) Eine neue gemeinsame Funktion ausserhalb der Domaene: `tagDeutsch()` in src/lib/datum/kalendertag.ts. Sie ist rein, ohne `Date`, und beantwortet die Frage, die im Baum 330-mal als `DD.MM.YYYY` und 71-mal als `Intl.DateTimeFormat('de-DE')` beantwortet wird. Wer die naechste ISO-Datumsanzeige findet, kann sie benutzen statt eine dritte Form zu erfinden.
 
-## Zeilen für docs/DECISIONS.md, Abschnitt „Offen"
+## Zeilen für docs/DECISIONS.md, Abschnitt „Offen“ — ERLEDIGT (18.09.2026)
 
-| O-660 | **Soll `app.darf_kontaktiert_werden` auf die Matrix des § 7 UWG umgestellt werden — Werbung an `bestandskunde` nur mit festgestellter `aehnliche_leistung`, Werbung an `anfrage` gar nicht, und die Ausnahme des § 7 Abs. 3 UWG nur ueber die ELEKTRONISCHE Postadresse?** Das wirksame Tor prueft fuer `werbung` am Kontakt heute nur `rechtsgrundlage <> 'keine'`. 05-API-KARTE §C.7 ist strenger. Die Luecke ist gebaut, sichtbar und in BEIDE Richtungen nachpruefbar (`services/crm/uwg-matrix.ts`, `abweichungenVomTor`, `tests/kern/crm-uwg-matrix.test.ts`) — das Tor ist umgekehrt an anderen Stellen strenger als die Matrix, weil es die Firma hinter dem Kontakt mitfragt. Bis zur Antwort bleibt das Tor unveraendert (`tests/isolation/uwg.test.ts` schreibt seine heutige Bedeutung fest) und die Abweichung steht auf dem Kontaktblatt statt in einem Kommentar. Die Nummer erscheint auf dem Bildschirm. | § 7 Abs. 2 Nr. 2 und Abs. 3 UWG, `drizzle/0246`, `services/crm/uwg-matrix.ts`, `portal/[mandant]/crm/kontakte/[id]`, O-95 |
-| O-661 | **Traegt der Rechtsgrundlagen-Block eines Ansprechpartners `crm.lesen` (so `app.rechtsgrundlage_lesen`, 0020) oder das engere `crm.rechtsgrundlage_lesen` (so Katalog, 04-SEITENKARTE §5.25 und 0222)?** Die beiden Quellen widersprechen sich, und der Unterschied ist nicht akademisch: `crm.lesen` ist fuer `leitung` GEBUNDEN, `crm.rechtsgrundlage_lesen` nur BINDBAR — jede Leitung saehe im ersten Fall die Einstufung, die ihr `/datenschutz/widersprueche` vorenthaelt. Bis zur Antwort gilt in den neuen Lesern aus 0247 (`app.kontakt_rechtsgrundlage_liste`, `app.kontakt_rechtsgrundlage_blatt`) das ENGERE Recht, in der alten Einzelabfrage das weitere. Die Nummer erscheint auf dem Bildschirm. | LEG-08, `drizzle/0247`, `drizzle/0222`, `auth/katalog.generiert.ts`, `portal/[mandant]/crm/kontakte` |
-| O-662 | **Wird ein Kundenzugang nach dem Anschluss von Supabase Auth (O-501) ueber die Admin-API angelegt, und wer traegt den Auftragsverarbeitungsvertrag fuer die Konten externer Ansprechpartner?** Heute legen die SECURITY-DEFINER aus 0249 die Zeile in `benutzer` an (`cse_app` hat dort nur SELECT); ein Konto in `auth.users` entsteht dabei NICHT, und der Einladungslink wird EINMAL angezeigt statt versendet — es ist kein Postausgang verbunden. Ein Zugang ohne Anmeldemoeglichkeit waere schlimmer als keiner, deshalb weist der Dienst das benannt ab, statt es zu tun. | AUT-01, DOC-04, `drizzle/0249`, `services/crm/kundenzugang.ts`, O-501, Art. 28 DSGVO |
-| O-663 | **Soll eine Wiedervorlage immer zugleich eine `aufgabe` und einen `kalender_eintrag` erzeugen (so 04-SEITENKARTE §5.2), oder bleibt sie eine reine Vertriebsnotiz auf `lead_aktivitaet`?** Eine Wiedervorlage, die nur auf `lead_aktivitaet` steht, erscheint in `/portal/[mandant]/aufgaben` nicht — und niemand merkt es. Bis zur Antwort schreibt `legeWiedervorlageAn` in alle drei Tabellen, soweit `aufgabe.schreiben` und `kalender.schreiben` reichen, und die Oberflaeche sagt je Ziel BEIM NAMEN, was nicht entstanden ist; `erledige` und `verschiebe` fassen die gespiegelte Aufgabe mit an. Die Nummer erscheint in der Rueckmeldung des Endpunkts. | CRM-04, 04-SEITENKARTE §5.2, `drizzle/0250`, `services/crm/wiedervorlage.ts`, `tests/isolation/crm-wiedervorlage.test.ts` |
+Eingetragen heisst gelöscht. Die 4 Zeilen dieser Domäne stehen in
+`docs/DECISIONS.md` unter „Open — ask, do not guess“, Unterabschnitt
+„Raised while building · die Domänenwelle (Routenbau)“. Hier ist nichts mehr offen.
 
 ## Befunde des Prüfers (12)
 

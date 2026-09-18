@@ -119,6 +119,25 @@ export const TABLEISTEN: readonly TabLeiste[] = [
   {
     schluessel: 'kunde',
     familie: 'kunde',
+    /*
+     * **Noch OHNE `Mehr` — und das ist eine offene Luecke, keine Ruhe.**
+     *
+     * Das Kundenportal fuehrt acht gebaute Bildschirme und diese Leiste vier
+     * plus Uebersicht; `projekte`, `zahlungen` und `reklamationen` sind damit
+     * gebaut und aus KEINER Leiste erreichbar. Der Baum dafuer steht bereits
+     * als `KUNDEN_NAVIGATION` in `registry/navigation.ts`.
+     *
+     * Was fehlt, liegt NICHT in diesem Register: `components/portal/
+     * TabLeiste.tsx` (`MehrZelle` kennt genau zwei Baeume),
+     * `components/portal/PortalRahmen.tsx` und `app/portal/zugang.ts` (die
+     * Rechtekarte wird fuer `kunde` aus `NAVIGATION` gebaut). Wuerde hier
+     * jetzt `MEHR` stehen, gaebe das Blatt den INTERNEN Baum unter
+     * `/portal/kunde` aus — `finanzen/rechnungen`, `qualitaet/reklamationen`,
+     * `bau/projekte` und weitere, allesamt 404, und jeder davon verriete die
+     * Existenz dessen, was er nicht zeigen darf (AUT-06). Die vier
+     * Aenderungen gehoeren zusammen eingespielt; bis dahin bleibt die Leiste,
+     * wie sie ist.
+     */
     ziele: [
       { schluessel: 'uebersicht', label: 'Übersicht', pfad: '', recht: 'bericht.dashboard_lesen', icon: 'uebersicht' },
       { schluessel: 'auftraege', label: 'Aufträge', pfad: 'auftraege', recht: 'auftrag.lesen', icon: 'auftrag' },

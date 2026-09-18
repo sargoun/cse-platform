@@ -45,59 +45,6 @@ dem Bauschritt geändert hat.
 - `/portal/[mandant]/einstellungen/arbeitszeit` — teilweise
   - Seite, Tabellen, Dienst, Rechte, Leerzustand und beide Schreibwege sind vollstaendig. 'teilweise' betrifft genau EINE Regel: die Sollzeitherleitung bleibt nach Regel 1 ein Platzhalter (sollzeitregel='offen', SOLLSTUNDEN_OFFEN antwortet null, Seite zeigt 'offen (O-18)'). regelFuerModell ist die zweite Umsetzung der SollstundenRegel-Schnittstelle an genau einer Stelle; ein benannter, aber nicht gebauter Regelname traegt seinen Namen in die Meldung. Tarif: tv_mindestens_gesetz laesst keinen Wert unter § 4/§ 5 ArbZG zu, der Dienst weist ihn VORHER benannt ab - die ArbZG-Grenzen sind keine Einstellung (Seitenkarte Z. 1927-1932).
 
-## src/server/registry/dienste.ts
-
-Unverändert gegenüber dem Bauschritt — die sechs Einträge in docs/architecture/routenbau/register/einstellungen.md (§ src/server/registry/dienste.ts) gelten Zeichen für Zeichen weiter:
-
-  { modul: 'system', pfad: 'migration/uebernahme', schreibend: false },
-  { modul: 'agent',  pfad: 'agent/richtlinie',      schreibend: true, schreibRecht: 'agent.richtlinie_verwalten' },
-  { modul: 'system', pfad: 'audit/buendel',         schreibend: true, schreibRecht: 'system.audit_exportieren' },
-  { modul: 'system', pfad: 'mandant/identitaet',    schreibend: true, schreibRecht: 'system.identitaet_verwalten' },
-  { modul: 'system', pfad: 'einstellung/vorlagen',  schreibend: true, schreibRecht: 'bau.schreiben' },
-  { modul: 'stammdaten', pfad: 'zeit/arbeitszeitmodell', schreibend: true, schreibRecht: 'stammdaten.verwalten' },
-
-(Der Kommentarblock darüber bleibt gültig; `audit/buendel` schreibt weiterhin unter `system.audit_exportieren`, und `app.audit_kette_fortschreiben` prüft zusätzlich `app.ist_readonly`.)
-
-## src/server/auth/route-manifest.ts
-
-Gegenüber dem Bauschritt ändert sich GENAU EIN Eintrag, und nur sein Kommentar — das Recht bleibt `system.audit_exportieren`. Die vier anderen Einträge (agent-richtlinien, identitaet, vorlagen, arbeitszeit) stehen unverändert so, wie sie in docs/architecture/routenbau/register/einstellungen.md liegen.
-
-Ersetzte Fassung für `api/einstellungen/protokoll/export`:
-
-  {
-    /**
-     * Das Beweismittelbuendel ueber das Pruefprotokoll (SEC-A9, DOC-08,
-     * LEG-01): Manifest immer, ZIP mit Protokoll-CSV dazu. Jeder Abruf steht
-     * im Protokoll - ein Beweismittel verlaesst das Haus.
-     *
-     * `system.audit_exportieren` ist das Recht der Route; die
-     * Vorher/Nachher-WERTE haengen zusaetzlich an
-     * `system.audit_sensitiv_lesen`, und DAS Recht verlangt seit 0206 den
-     * zweiten Faktor (`berechtigung.erfordert_2fa`, AUT-02). Fehlt eines von
-     * beiden, kommt ein redigiertes Buendel mit dem Grund im Manifest und
-     * der Kopfzeile `x-cse-redigiert`. Der Handler autorisiert mit
-     * `schreibend: true`: der GET schreibt Kettenglieder und zwei
-     * Protokollzeilen.
-     */
-    pfad: 'api/einstellungen/protokoll/export',
-    recht: 'system.audit_exportieren',
-  },
-
-## src/server/db/schema/rls.ts
-
-Unverändert gegenüber dem Bauschritt. 0205 und 0206 legen keine Tabelle an (ein CHECK und ein UPDATE auf `berechtigung`), 0204 bekommt nur eine Spalte und einen Trigger auf einer Tabelle, die bereits in NUR_UEBER_DEFINER steht. Es bleibt bei:
-
-- KEIN_HARD_DELETE: mandant_identitaet (0200, append), arbeitszeitmodell (0201, archiv), tarifvereinbarung (0201, archiv), migration_lauf (0202, archiv), migration_zeile (0202, append), agent_richtlinie (0203, archiv)
-- GEAENDERT_AM: mandant_identitaet (0200), arbeitszeitmodell (0201), tarifvereinbarung (0201), migration_lauf (0202), agent_richtlinie (0203)
-- AUDITIERT: dieselben fünf
-- NUR_UEBER_DEFINER: kern.audit_kette und kern.audit_kettenglied (0204)
-
-Ein Zusatz für den Grund-Text von `kern.audit_kette` (nur präzisierend, der Eintrag selbst bleibt): der Kopf trägt seit dieser Runde zusätzlich `start_hash` — den Startwert der Monatskette, beim Anlegen gesetzt und danach durch `trg_audit_kette_start_unveraenderlich` festgehalten. `app.audit_kette_pruefen` rechnet gegen diesen Wert; nur so meldet ein nachgetragener Vormonatseintrag keinen Bruch in der Folgekette.
-
-## src/server/registry/navigation.ts
-
-Keine Änderung nötig — wie im Bauschritt. Alle sechs Routen hängen unter dem vorhandenen NAVIGATION-Punkt `einstellungen` (Tab `mehr`) und sind über die Karten in src/app/portal/[mandant]/einstellungen/page.tsx erreichbar. Zu GRUPPEN_NAVIGATION gehört nichts davon.
-
 ## Sonstiges
 
 1) scripts/generate-triggers.ts — die vier Zeilen aus dem Bauschritt bleiben nötig (0200–0203). 0204, 0205 und 0206 brauchen KEINE: 0204 legt seine beiden Tabellen in `kern` an (NUR_UEBER_DEFINER, Sperren von Hand), 0205 setzt eine CHECK-Constraint, 0206 ein UPDATE auf `berechtigung`. `pnpm db:triggers --check` meldet „Trigger sind aktuell."
@@ -114,15 +61,17 @@ Keine Änderung nötig — wie im Bauschritt. Alle sechs Routen hängen unter de
 
 7) NEU: src/server/services/finanz/mahnung/stufen.ts ist geändert (fremde Domäne, rein additiv): `textbaustein` in `Roh`, `StufenZeile` und dem `select` von `mahnstufen()`. Kein vorhandener Aufrufer ändert sich; `npx tsc --noEmit` ist sauber.
 
-## Zeilen für docs/DECISIONS.md, Abschnitt „Offen"
+## Zeilen für docs/DECISIONS.md, Abschnitt „Offen“ — ERLEDIGT (18.09.2026)
 
-| O-620 | **Welche Adresse ist die maßgebliche Quelle fuer Kartentext (PUB-03) und Profiltext (PRO-01) einer Gesellschaft — `unternehmensprofil` je Sprache oder `mandant_identitaet`?** 01-KERN §6.2 fuehrt `kurzbeschreibung` und `beschreibung` auf `mandant_identitaet`; `unternehmensprofil` fuehrt beide seit 0155 JE SPRACHE, und D-82 verlangt genau das fuer den oeffentlichen Auftritt. 0200 legt die Spalten nach §6.2 an, markiert sie im Spaltenkommentar als zweiten Ort und laesst `/einstellungen/identitaet` sie NICHT pflegen — die Seite verweist auf die Website-Pflege, damit es nicht zwei Editoren fuer einen Text gibt. Seit dieser Runde traegt der UPDATE-Spaltengrant von 0200 die beiden Spalten auch nicht mehr: bis zur Antwort kann sie kein Pfad schreiben. | TEN-07, PUB-03, PRO-01, D-82, `mandant_identitaet`, `unternehmensprofil`, 0200 |
-| O-621 | **Soll `mandant_identitaet.rechnung_fuss` bei der Festschreibung in den kanonischen Rechnungs-Payload kopiert werden (K-12) — und wenn ja, als Abbildung auf `rechnung.fusstext` beim Anlegen oder als neues Feld im Payload?** Heute geschieht KEINES von beidem: `services/finanz/kanonisch.ts` kennt kein Mandanten-Fussfeld (Leistender, Z. 251-264), und `fusstext` ist die freie Spalte aus der Eingabe. Eine Aenderung der Fusszeile wirkt damit auf keine Rechnung — weder rueckwirkend (richtig) noch auf neue (falsch). Der Payload ist die Eingabe der Hashkette; ein neues Feld darin ist ein Eingriff mit eigenen Tests. `/einstellungen/identitaet` und `/einstellungen/vorlagen` sagen beides ausdruecklich, statt K-12 als erfuellt darzustellen. | K-12, FIN-06, DESIGN §11, `kanonisch.ts`, `mandant_identitaet`, 0200 |
-| O-622 | **Duerfen die bisher fail-closed gebauten `gate()`-Aufrufer ihre Richtlinie laden — also aus „immer Freigabe" ein „`auto_erlaubt` entscheidet" machen?** Drei Stellen uebergeben heute bewusst `null` und sagen es im Kommentar: `api/anfrage/route.ts:342`, `api/finanzen/mahnungen/route.ts:31`, `api/bau/behinderungen/[id]/versenden/route.ts:36`; dazu `services/bau/behinderung.ts:481` und `services/finanz/mahnung/index.ts:394`. `services/agent/richtlinie.ts` liefert mit `findeRichtlinie` den Lesepfad, benutzt ihn dort aber NICHT — das ist eine Invariante-7-Entscheidung mit eigenen Tests, keine Aufraeumung. Bis zur Antwort bleibt jede dieser fuenf Stellen fail-closed, und die Seite `/einstellungen/agent-richtlinien` sagt, welche Aktionen im Code gesperrt sind. | AGT-03, APR-01, Invariante 7, `server/agent/policy.ts`, `services/agent/richtlinie.ts` |
-| O-623 | **Wird die Hashkette ueber `audit_log` beim SCHREIBEN gezogen (01-KERN §9: `SELECT … FOR UPDATE` in `app.protokolliere`) oder nachtraeglich beim Bilden eines Beweismittels?** Umgesetzt ist das Zweite (0204): `kern.audit_kette` + `kern.audit_kettenglied` sind ein anfuegendes Kettenbuch NEBEN dem Protokoll, fortgeschrieben von `app.audit_kette_fortschreiben` unter `system.audit_exportieren` und nicht in der Gruppenansicht. Zwei Gruende, beide nachrechenbar: (a) `audit_log` hat heute fuer NIEMANDEN einen UPDATE-Grant und keine UPDATE-Policy; (b) eine Zeilensperre in `app.protokolliere` serialisiert jede schreibende Transaktion und erzeugt eine Sperrreihenfolge gegen `nummernkreis` und `freigabe_kette`. Die Folge, die die Antwort braucht: Zeilen seit dem letzten Buendel sind ungekettet, und das Manifest nennt die Zahl statt „revisionssicher" zu behaupten. Zu entscheiden ist ausserdem, welcher Nachtlauf die Kette regelmaessig fortschreibt und prueft (verwandt mit O-357). Hinweis fuer den Nachtlauf: die Ketten sind ueber `kern.audit_kette.start_hash` verbunden, und `app.audit_kette_pruefen` rechnet je Kette IN SICH nach — eine nachgetragene Vormonatszeile meldet deshalb keinen Bruch. | §6.12, §9.1, SEC-A9, LEG-01, FIN-06, O-357, 0204 |
-| O-625 | **Soll die Uebernahme aus den Altsystemen rueckwirkend eine Modulbuchung oder ein eigenes Recht bekommen?** 0202 bewacht `migration_lauf`/`migration_zeile` mit `system.einstellung_verwalten` (dem Recht der Route). Ein Lauf legt spaeter Zeiteintraege und Belege an — also Daten zweier Fachdomaenen unter einem Systemrecht. Verwandt mit dem Muster, das `/einstellungen/vorlagen` loest, indem es zusaetzlich `bau.schreiben` verlangt (seit dieser Runde von `tests/isolation/einstellungen-vorlagen.test.ts` festgehalten). Bis zur Antwort entsteht kein Lauf (O-128), also wirkt die Frage noch nicht. | ROADMAP Phase 10, O-128, AUT-05, 0202 |
-| O-626 | **Darf eine Fassung eines Arbeitszeitmodells rueckwirkend hinterlegt werden (Uebernahme von Altbestaenden), und ab welchem Datum ist ein Monat fuer neue Fassungen gesperrt — ab dem Zeitnachweis nach § 17 MiLoG, ab der Lohnabrechnung oder ab der Festschreibung?** `setzeArbeitszeitmodell` wies bis jetzt jede Fassung vor heute ab. Diese Regel hat niemand entschieden: `mahnstufe` kennt sie nicht, die Schwesterfunktion `setzeTarifvereinbarung` in derselben Datei kennt sie nicht (Tarife durften also rueckwirkend gelten, Modelle nicht), und sie machte genau den Fall unmoeglich, den `/einstellungen/import` vorbereitet — ein Mandant, der bei der Uebernahme sein seit 2020 geltendes Modell hinterlegen will. Die Sperre ist gestrichen; die Ablösung regelt jetzt allein `azm_kein_ueberlapp`, wie bei `mahnstufe`. Die Seite sagt ausdruecklich, dass ein Tag vor heute eine rueckwirkende Fassung anlegt und dass die Monatssperre offen ist. | EMP-04, TIM-06, § 17 MiLoG, O-18, `services/zeit/arbeitszeitmodell.ts`, 0201 |
-ENTFAELLT — O-624 ist BEANTWORTET und gehoert nicht mehr unter „Offen". Ersatzzeile fuer den Abschnitt der getroffenen Entscheidungen (D-Nummer bitte zentral vergeben): | D-xxx | **`system.audit_sensitiv_lesen` traegt eine Zwei-Faktor-Pflicht.** 03-AUTH-BERECHTIGUNGEN Z. 2342 verlangt sie; in der lebenden Datenbank stand `erfordert_2fa = false` — und zwar fuer JEDES Recht, weil der generierte Katalogblock in 0008 die Spalte gar nicht fuehrt und sie damit auf ihrer Vorgabe liegen laesst. Der Riegel war gebaut und nicht eingelegt (`app.hat_recht_fuer`: `if v_recht.erfordert_2fa and p_aal <> 'aal2' then return false`, seit 0149). 0206 setzt die Spalte. Die Pflicht steht an der BERECHTIGUNG und nicht in einem Handler, weil die Werte auch ueber `app.audit_nutzlast_buendel` (0204) und `app.audit_nutzlast_lesen` (0139) erreichbar sind. Die Folge ist kein Fehler, sondern ein redigiertes Buendel: eine aal1-Sitzung bekommt Zeilen, Ketten und Manifest, aber keine `nutzlast.csv` — und das Manifest sagt warum. | SEC-A9, AUT-02, LEG-09, Art. 9 DSGVO, `berechtigung`, 0206 |
+Eingetragen heisst gelöscht. Die 6 Zeilen dieser Domäne stehen in
+`docs/DECISIONS.md` unter „Open — ask, do not guess“, Unterabschnitt
+„Raised while building · die Domänenwelle (Routenbau)“ — O-620, O-621, O-622,
+O-623, O-625 und O-626.
+
+Die siebte Zeile war keine: **O-624 ist beantwortet** und steht jetzt als **D-603**
+im Abschnitt der getroffenen Entscheidungen. Gegen `w_reg` nachgemessen:
+`berechtigung.erfordert_2fa` ist für `system.audit_sensitiv_lesen` `true`, für jedes
+andere Recht `false`. Hier ist nichts mehr offen.
 
 ## Befunde des Prüfers (18)
 

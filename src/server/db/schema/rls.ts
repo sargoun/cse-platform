@@ -1691,7 +1691,359 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       'RAD-07, D-07, REP-06. Die Mappe ist der Beleg der Abgabe: Mensch, Zeitpunkt, '
       + 'Plattform, Kennzeichen. Sie zu loeschen nimmt dem Vorgang seinen Nachweis — '
       + 'und dem Bericht „gefunden · geprueft · geboten · gewonnen" seine Grundlage.',
-  }
+  },
+  /**
+   * Finanzen: Ausgaben (0180), das Versandprotokoll (0181) und die Jahressumme
+   * des § 48 EStG (0182). Keiner der drei gehoert in GEAENDERT_AM —
+   * `ausgabe_kategorie`, `ausgabe` und `bauleistung_jahressumme` tragen ihren
+   * Zeitstempelausloeser (`trg_ausgabe_kategorie_geaendert`,
+   * `trg_ausgabe_geaendert`, `trg_blj_geaendert`) von Hand und ausserhalb des
+   * erzeugten Blocks; ein Registereintrag erzeugte einen zweiten Ausloeser
+   * gleichen Zwecks unter anderem Namen.
+   */
+  {
+    tabelle: 'ausgabe_kategorie',
+    art: 'archiv',
+    migration: '0180',
+    grund:
+      'ACC-01, FIN-14, §147 AO. An der Kategorie haengt die Kontierung '
+      + 'jeder Ausgabe, die auf sie zeigt; sie zu loeschen macht jede '
+      + 'Buchung darauf unlesbar. Aufgeloest wird ueber `archiviert_am`.',
+  },
+  {
+    tabelle: 'ausgabe',
+    art: 'archiv',
+    migration: '0180',
+    grund:
+      'FIN-14, FIN-17, ACC-03, ACC-06, §147 AO. Die Ausgabe traegt den '
+      + 'Vorsteuerabzug und den Aufwand einer Gesellschaft; eine '
+      + 'weiterberechnete Ausgabe ist zudem die Quelle einer '
+      + 'Rechnungszeile. Sie zu loeschen nimmt der Voranmeldung ihre '
+      + 'Grundlage und liesse eine Rechnungszeile ohne Beleg zurueck. '
+      + 'Zurueckgewiesen wird ueber `abgelehnt` mit Grund.',
+  },
+  {
+    tabelle: 'ausgabe_steuer',
+    art: 'append',
+    migration: '0180',
+    grund:
+      'FIN-14, ACC-08, §15 UStG, Invariante 1. Die Aufteilung nach '
+      + 'Steuersaetzen IST der Vorsteuerabzug — ohne sie steht ein '
+      + 'Bruttobetrag da, aus dem sich kein Satz mehr ableiten laesst. Sie '
+      + 'zu loeschen aenderte die Voranmeldung ohne Spur.',
+  },
+  {
+    tabelle: 'rechnung_versand',
+    art: 'append',
+    migration: '0181',
+    grund:
+      'FIN-11, FIN-12, Invariante 7, LEG-08, §286 BGB. Die Zeile IST der '
+      + 'Nachweis, dass ein Mensch den Versand freigegeben hat, und sie '
+      + 'traegt den Zugang, ab dem der Verzug rechnet. Sie zu loeschen '
+      + 'liesse eine Mahnung ohne Grundlage und eine Freigabe ohne Spur '
+      + 'zurueck.',
+  },
+  {
+    tabelle: 'bauleistung_jahressumme',
+    art: 'append',
+    migration: '0182',
+    grund:
+      'FIN-10, LEG-06, §48 Abs. 2 EStG. Die Jahressumme ist der Nachweis, '
+      + 'WARUM einbehalten oder nicht einbehalten wurde. Sie zu loeschen '
+      + 'nimmt jeder Abzugsentscheidung dieses Jahres ihre Grundlage — und '
+      + 'der Leistende haftet mit.',
+  },
+  /**
+   * Personal (0192): die datierte Kondition einer Beschaeftigung. Sie steht
+   * auch in AUDITIERT — wer einen Stundensatz oder eine Wochenstundenzahl
+   * rueckwirkend bewegt hat, ist im Lohnstreit die Frage. Ein `geaendert_am`
+   * gibt es hier nicht: die Tabelle traegt die Spalte nicht, und eine
+   * datierte Zeile wird von der naechsten abgeloest statt bearbeitet.
+   */
+  {
+    tabelle: 'anstellung_kondition',
+    art: 'append',
+    migration: '0192',
+    grund:
+      '§6.15, LEG-02, ACC-12. Die datierte Kondition ist die Grundlage '
+      + 'jeder Sollstunden- und Lohnkostenrechnung; eine geloeschte Zeile '
+      + 'bewertet stillschweigend jeden abgerechneten Monat neu, in dem sie '
+      + 'galt. Abgeloest wird sie von der naechsten datierten Zeile, '
+      + 'geschlossen ueber `gilt_bis` — nie durch DELETE.',
+  },
+  /**
+   * Einstellungen (0200–0203). Fuenf der sechs stehen zugleich in
+   * GEAENDERT_AM und AUDITIERT; `migration_zeile` in keiner der beiden: sie
+   * ist anfuegend, traegt kein `geaendert_am` und ein Auditeintrag je Rohzeile
+   * ertraenkte bei einem Import von zehntausend Zeilen genau das Protokoll,
+   * auf das sich eine Auskunft stuetzt — der Lauf darueber ist auditiert.
+   */
+  {
+    tabelle: 'mandant_identitaet',
+    art: 'append',
+    migration: '0200',
+    grund:
+      '§6.2, TEN-07, LEG-01. Die 1:1-Zeile traegt die rechtlichen '
+      + 'Fusszeilen, die auf jedem Angebot und jeder Rechnung dieser '
+      + 'Entitaet stehen, und den Alternativtext jedes ausgelieferten '
+      + 'Bildes (PUB-09, LEG-07). Sie entsteht mit dem Mandanten und endet '
+      + 'nie: es gibt keinen Zustand „diese Gesellschaft hat kein '
+      + 'Erscheinungsbild", nur Felder ohne Wert. Eine geloeschte Zeile '
+      + 'machte TEN-07 wertlos und die Herkunft einer alten Fusszeile '
+      + 'unbelegbar.',
+  },
+  {
+    tabelle: 'arbeitszeitmodell',
+    art: 'archiv',
+    migration: '0201',
+    grund:
+      'EMP-04, TIM-06, LEG-02, O-18. Das Modell ist die Grundlage jeder '
+      + 'Sollstunden- und Urlaubsrechnung; eine geloeschte Fassung bewertet '
+      + 'stillschweigend jeden Monat neu, in dem sie galt, und der '
+      + 'Zeitnachweis nach § 17 MiLoG stimmt danach mit keinem Papier mehr '
+      + 'ueberein. Abgeloest wird sie von der naechsten datierten Zeile, '
+      + 'geschlossen ueber `gueltig_bis`.',
+  },
+  {
+    tabelle: 'tarifvereinbarung',
+    art: 'archiv',
+    migration: '0201',
+    grund:
+      'O-50, TIM-14, LEG-03. Die strengere Pausen- und Ruhezeitregel '
+      + 'entscheidet, ob eine geplante Schicht rechtmaessig war. Wird die '
+      + 'Zeile geloescht, prueft der Planer rueckwirkend gegen das Gesetz '
+      + 'statt gegen den Tarif — und jeder frueher gemeldete Verstoss '
+      + 'verschwindet, ohne dass sich eine Schicht geaendert hat. Abgeloest '
+      + 'wird sie von der naechsten Fassung, geschlossen ueber `gilt_bis`.',
+  },
+  {
+    tabelle: 'migration_lauf',
+    art: 'archiv',
+    migration: '0202',
+    grund:
+      'ROADMAP Phase 10, LEG-01, ACC-06. Der Lauf ist der Nachweis, WOHER '
+      + 'ein historischer Zeit- oder Buchungsdatensatz kommt — Datei, '
+      + 'Pruefsumme, wer geprueft und wer uebernommen hat. Ohne ihn ist '
+      + 'eine uebernommene Zeile eine Behauptung ueber die Vergangenheit. '
+      + 'Verworfen wird ein Lauf ueber `status`, nie durch DELETE.',
+  },
+  {
+    tabelle: 'migration_zeile',
+    art: 'append',
+    migration: '0202',
+    grund:
+      'ROADMAP Phase 10, LEG-01. Die Rohzeile belegt, was in der '
+      + 'Quelldatei stand, als jemand die Uebernahme freigab. Wird sie '
+      + 'geloescht, laesst sich ein uebernommener Zeitnachweis nach § 17 '
+      + 'MiLoG nicht mehr gegen seine Quelle halten.',
+  },
+  {
+    tabelle: 'agent_richtlinie',
+    art: 'archiv',
+    migration: '0203',
+    grund:
+      'AGT-03, APR-01, Invariante 7, SEC-A9. Die Zeile entscheidet, ob '
+      + 'eine Nachricht ohne benannten Menschen hinausgeht. Sie zu loeschen '
+      + 'ist fail-closed — und genau deshalb verfuehrerisch: der Bildschirm '
+      + 'sagt danach „nicht hinterlegt", und niemand kann belegen, ob je '
+      + 'etwas anderes dort stand. Abgeschaltet wird eine Richtlinie ueber '
+      + '`ist_aktiv`, nicht durch DELETE.',
+  },
+  /**
+   * Bau (0211/0212): das Abnahmeprotokoll mit seinen Maengeln und der
+   * Importkopf des Leistungsverzeichnisses.
+   *
+   * AUDITIERT bekommt hier NICHTS, und das ist eine Entscheidung: `abnahme`
+   * friert mit dem Einfuegen ein (`kern.abnahme_einfrieren` weist jede
+   * Protokollspalte ab), beweglich sind nur Storno, `ersetzt_durch_id` und
+   * die Aufbewahrung — ein Auditeintrag mit Vorher/Nachher haette dort nichts
+   * zu zeigen, was nicht schon in eigenen Spalten steht. `lv_import_zeile`
+   * traegt bewusst KEINE Loeschsperre: `cse_job` raeumt die Zwischenzeilen
+   * nach der Uebernahme (Policy `t_job_raeumen`), der Kopf bleibt.
+   */
+  {
+    tabelle: 'abnahme',
+    art: 'archiv',
+    migration: '0211',
+    grund:
+      'BAU-01, OPS-11, LEG-01, FIN-08. Mit der Abnahme schlagen Gefahr, '
+      + 'Gewaehrleistungsfrist und Faelligkeit um (§ 12 VOB/B), und ohne '
+      + 'vorbehalt_vertragsstrafe verfaellt die Vertragsstrafe (§ 11 Abs. '
+      + '4). Geloescht bliebe ein Projekt zurueck, das abgenommen ist, ohne '
+      + 'dass jemand sagen koennte wann, von wem und unter welchem '
+      + 'Vorbehalt. Beendet wird mit storniert_am und einem '
+      + 'Ersatzprotokoll.',
+  },
+  {
+    tabelle: 'abnahme_mangel',
+    art: 'append',
+    migration: '0211',
+    grund:
+      'BAU-01, OPS-11, NOT-01. Der bei der Abnahme aufgenommene Mangel '
+      + 'mit seiner Beseitigungsfrist. Er steht im gesiegelten Protokoll '
+      + 'des Kopfes; eine geloeschte Zeile ergaebe eine Maengelliste, die '
+      + 'kuerzer ist als das Siegel darueber — und kein Fristablauf waere '
+      + 'mehr nachweisbar.',
+  },
+  {
+    tabelle: 'lv_import',
+    art: 'archiv',
+    migration: '0212',
+    grund:
+      'BAU-01, REQ-04, LEG-01. Der Importkopf dokumentiert, WIE das '
+      + 'heutige Leistungsverzeichnis entstanden ist — in welchem Format, '
+      + 'aus welcher Datei, von wem uebernommen. Er bleibt, auch wenn seine '
+      + 'Zwischenzeilen geraeumt sind; sein Ende ist verworfen_am.',
+  },
+  /**
+   * Datenschutz (0221/0222) — fuenf anfuegende Nachweistabellen. Die
+   * Reihenfolge ist die der handgeschriebenen Bloecke: in 0222 steht der
+   * Token VOR dem Protokoll.
+   *
+   * Keine von ihnen gehoert in GEAENDERT_AM oder AUDITIERT:
+   * `berichtigung_feld`, `loeschentscheidung` und `werbewiderspruch_token`
+   * tragen ihren Zeitstempelausloeser von Hand (`trg_*_geaendert`), und alle
+   * fuenf SIND bereits das Protokoll — ein Auditeintrag daneben legte
+   * dieselbe Auskunft ein zweites Mal ab.
+   */
+  {
+    tabelle: 'datenschutz_auskunft',
+    art: 'append',
+    migration: '0221',
+    grund:
+      'LEG-09, Art. 15 DSGVO, SEC-A9. Das ausgehaendigte Artefakt mit '
+      + 'seiner Pruefsumme. Streitig ist im Zweifel nicht DASS geantwortet '
+      + 'wurde, sondern WAS drinstand — eine geloeschte Zeile ist von einer '
+      + 'nie erteilten Auskunft nicht zu unterscheiden, und die Beweislast '
+      + 'liegt beim Verantwortlichen.',
+  },
+  {
+    tabelle: 'berichtigung_feld',
+    art: 'append',
+    migration: '0221',
+    grund:
+      'LEG-09, Art. 16 und Art. 19 DSGVO. Je Feld der gespeicherte Wert, '
+      + 'der behauptete und die Entscheidung. Der gespeicherte Wert '
+      + 'existiert nach der Berichtigung nur noch hier; ohne diese Zeile '
+      + 'ist die Art.-19-Unterrichtung nicht belegbar und der alte Wert '
+      + 'unwiederbringlich.',
+  },
+  {
+    tabelle: 'loeschentscheidung',
+    art: 'append',
+    migration: '0221',
+    grund:
+      'LEG-09, Art. 17 DSGVO gegen LEG-01/LEG-02. Der '
+      + 'Entscheidungsnachweis je Tabelle und Feld, den 04-SEITENKARTE '
+      + '§5.25 zusagt: geschuldet, ueberlagert oder offen, mit Fundstelle. '
+      + 'Eine loeschbare Loeschentscheidung ist der Widerspruch in sich '
+      + 'selbst.',
+  },
+  {
+    tabelle: 'werbewiderspruch_token',
+    art: 'append',
+    migration: '0222',
+    grund:
+      'CRM-08, LEG-08, § 7 Abs. 3 Nr. 4 UWG. Der Abdruck des Pflichtlinks '
+      + 'je Werbenachricht — der Beleg, DASS die Nachricht einen wirksamen '
+      + 'Widerspruchsweg getragen hat. Geloescht bliebe eine Werbemail ohne '
+      + 'nachweisbaren Widerspruchslink; abgelaufen oder zurueckgezogen '
+      + 'wird der Token ueber widerrufen_am.',
+  },
+  {
+    tabelle: 'werbewiderspruch',
+    art: 'append',
+    migration: '0222',
+    grund:
+      'CRM-08, LEG-08, § 7 UWG. Das Protokoll des Widerspruchs: Weg, '
+      + 'Kanal, Zeitpunkt und ausloesende Nachricht. Es ist der Beweis, mit '
+      + 'dem sich eine Abmahnung abwehren laesst — eine geloeschte Zeile '
+      + 'nimmt dem Verantwortlichen genau diesen Beweis, und die Beweislast '
+      + 'liegt bei ihm.',
+  },
+  /**
+   * Aufgaben und Nachrichten (0230/0231).
+   *
+   * `team_mitglied` gehoert NICHT hinein — eine Entscheidung, keine
+   * Auslassung: eine Mitgliedschaft endet, wenn jemand das Team verlaesst;
+   * die Zeile traegt keinen Nachweis, nur eine Zuordnung, und §7.5 gibt ihr
+   * bewusst kein S4.
+   *
+   * GEAENDERT_AM und AUDITIERT bleiben fuer alle fuenf leer: `trg_team_geaendert`,
+   * `trg_aufgabe_geaendert` und `trg_nachricht_geaendert` stehen von Hand in
+   * 0230/0231 (wie `trg_ke_geaendert` in 0160); ein Eintrag in GEAENDERT_AM
+   * erzeugte einen ZWEITEN Ausloeser mit anderem Namen auf derselben Tabelle.
+   */
+  {
+    tabelle: 'team',
+    art: 'soft',
+    migration: '0230',
+    grund:
+      '§7.5. Ein aufgeloestes Team ist die Antwort auf die Frage, wer '
+      + 'eine Aufgabe oder einen Termin damals bekommen hat. Geloescht '
+      + 'waere es ein Verweis ins Leere in jeder Zeile, die darauf zeigt — '
+      + 'und `aufgabe.zugewiesen_team_id` zeigt darauf. `geloescht_am` '
+      + 'loest es auf.',
+  },
+  {
+    tabelle: 'aufgabe',
+    art: 'soft',
+    migration: '0230',
+    grund:
+      'OPS-11, SPEC §14. Eine Aufgabe ist die Aufzeichnung einer Pflicht: '
+      + 'wer sie wann bekam, wer sie schloss, und mit welcher Begruendung '
+      + 'sie abgebrochen wurde. Sie zu loeschen hiesse, den Nachweis zu '
+      + 'entfernen, dass ein Waechterbefund je offen war. Beendet wird mit '
+      + '`status`, entfernt mit `geloescht_am`.',
+  },
+  {
+    tabelle: 'nachricht',
+    art: 'soft',
+    migration: '0231',
+    grund:
+      '§ 7 UWG, LEG-08, CRM-08. Die ausgehende Nachricht IST der '
+      + 'Nachweis, auf welcher Rechtsgrundlage jemand kontaktiert wurde — '
+      + 'und bei einem Agentenentwurf zusaetzlich, wer ihn freigegeben hat. '
+      + 'Eine geloeschte Zeile ist gegenueber einer Abmahnung kein '
+      + 'Nachweis. Ein Faden wird mit `geschlossen_am` beendet, eine Zeile '
+      + 'mit `geloescht_am` aus der Liste genommen.',
+  },
+  {
+    tabelle: 'nachricht_empfaenger',
+    art: 'append',
+    migration: '0231',
+    grund:
+      '§ 7 UWG. WEM etwas geschickt wurde, ist die Haelfte des '
+      + 'Nachweises; die andere steht in `nachricht`. Eine Empfaengerzeile '
+      + 'zu loeschen hiesse, die Werbemail zu behalten und den Empfaenger '
+      + 'zu vergessen. Anfuegend, ausser `zugestellt_am` und `gelesen_am`.',
+  },
+  {
+    tabelle: 'nachricht_anhang',
+    art: 'append',
+    migration: '0231',
+    grund:
+      'DOC-03, § 7 UWG. Ein Anhang ist der klassische Fehlversandweg; '
+      + 'welche Datei mit welcher Nachricht hinausgegangen ist, muss '
+      + 'belegbar bleiben. Die Datei selbst haengt an `dokument` und hat '
+      + 'dort ihre eigene Aufbewahrung.',
+  },
+  /**
+   * Dienstplan (0265): der Beleg der Veroeffentlichung. Kein `geaendert_am`
+   * und kein Audit — die Zeile ist anfuegend, und eine geaenderte Bekanntgabe
+   * ist eine zweite Zeile.
+   */
+  {
+    tabelle: 'dienstplan_veroeffentlichung',
+    art: 'append',
+    migration: '0265',
+    grund:
+      'TIM-01, NOT-01, LEG-03. Sie ist der Beleg, dass ein Zeitraum an '
+      + 'einem Zeitpunkt bekanntgegeben wurde — im Streit ueber eine '
+      + 'Schicht, von der jemand nichts gewusst haben will, genau die '
+      + 'Zeile, die zaehlt. Es gibt nichts, was eine Bekanntgabe beendet: '
+      + 'eine Aenderung ist eine zweite Zeile, nie ein Loeschen der ersten.',
+  },
 ] as const;
 
 /**
@@ -1915,6 +2267,30 @@ export const AUDITIERT: readonly TabelleJeMigration[] = [
    * Betriebspruefung an der Doppelabrechnungssperre stellt (§4.4, FIN-07).
    */
   { tabelle: 'rechnungsposition_quelle', migration: '0107' },
+  /**
+   * Personal (0192): `anstellung_kondition`. Wer einen Stundensatz, eine
+   * Wochenstundenzahl oder eine Tarifgruppe rueckwirkend bewegt hat, bewertet
+   * damit jeden Monat neu, in dem die Zeile galt — das ist im Lohnstreit
+   * genau die Frage, und sie wird nur mit Vorher und Nachher beantwortet.
+   */
+  { tabelle: 'anstellung_kondition', migration: '0192' },
+  /**
+   * Einstellungen (0200–0203): die fuenf beweglichen Zeilen der
+   * Mandanteneinrichtung. Wer die rechtliche Fusszeile einer Gesellschaft,
+   * ein Arbeitszeitmodell, eine Tarifvereinbarung oder die Agentenrichtlinie
+   * bewegt hat, entscheidet ueber jedes kuenftige Dokument, jede
+   * Sollstundenrechnung und jeden Versand ohne benannten Menschen.
+   *
+   * `migration_zeile` steht ausdruecklich NICHT dabei: sie ist anfuegend, und
+   * ein Auditeintrag je Rohzeile verdoppelte bei einem Import von
+   * zehntausend Zeilen genau das Protokoll, auf das sich eine Auskunft
+   * stuetzt — der Lauf darueber (`migration_lauf`) ist auditiert.
+   */
+  { tabelle: 'mandant_identitaet', migration: '0200' },
+  { tabelle: 'arbeitszeitmodell', migration: '0201' },
+  { tabelle: 'tarifvereinbarung', migration: '0201' },
+  { tabelle: 'migration_lauf', migration: '0202' },
+  { tabelle: 'agent_richtlinie', migration: '0203' },
 ] as const;
 
 /** Tables carrying S4 (`geloescht_am` / `geloescht_von`) — the finders' domain. */
@@ -2108,6 +2484,44 @@ export const GEAENDERT_AM: readonly TabelleJeMigration[] = [
    * `rechnung_steuer`, D-213).
    */
   { tabelle: 'rechnungsposition_quelle', migration: '0107' },
+  /**
+   * Website-Redaktion (0014/0015): die vier Tabellen, in die
+   * `services/inhalt/redaktion.ts` schreibt. Keine trug bisher einen
+   * Zeitstempelausloeser, obwohl alle vier die Spalte haben — nach einer
+   * Aenderung blieb keine Spur, wann der oeffentliche Auftritt zuletzt
+   * angefasst wurde, und der Dienst setzte `geaendert_am` in jedem `update`
+   * von Hand: das haengt am Aufrufer, und der naechste Schreibweg vergisst es.
+   *
+   * `medien` (0014) fehlt hier weiter mit Absicht — es steht bereits als
+   * `einsatz_medien` in dieser Liste; das Redaktionsmedium teilt den
+   * Ausloeser nicht und hat noch keinen.
+   */
+  { tabelle: 'seite', migration: '0014' },
+  { tabelle: 'abschnitt', migration: '0014' },
+  { tabelle: 'referenz', migration: '0015' },
+  { tabelle: 'unternehmensprofil', migration: '0015' },
+
+  /**
+   * Einstellungen (0200–0203): dieselben fuenf wie in AUDITIERT.
+   * `migration_zeile` traegt die Spalte gar nicht — sie ist anfuegend, und
+   * ein Ausloeser auf eine Spalte, die es nicht gibt, bricht die Migration ab.
+   */
+  { tabelle: 'mandant_identitaet', migration: '0200' },
+  { tabelle: 'arbeitszeitmodell', migration: '0201' },
+  { tabelle: 'tarifvereinbarung', migration: '0201' },
+  { tabelle: 'migration_lauf', migration: '0202' },
+  { tabelle: 'agent_richtlinie', migration: '0203' },
+
+  /**
+   * Bau (0211/0212): am Abnahmeprotokoll bewegen sich Storno, Ersatz und
+   * Aufbewahrung, am Mangel die Beseitigungsfrist, am Importkopf der Zustand
+   * bis `verworfen_am`. `lv_import_zeile` NICHT: sie ist die raeumbare
+   * Zwischentabelle der Uebernahme und traegt deshalb weder Loeschsperre noch
+   * `geaendert_am`.
+   */
+  { tabelle: 'abnahme', migration: '0211' },
+  { tabelle: 'abnahme_mangel', migration: '0211' },
+  { tabelle: 'lv_import', migration: '0212' },
 ] as const;
 
 /** Every migration that carries a generated block, in order. */
@@ -2161,5 +2575,33 @@ export const NUR_UEBER_DEFINER: readonly DefinerTabelle[] = [
       + 'gleichzeitige Freigebende die Kette nicht gabeln. Eine Policy, die `cse_app` '
       + 'an die Zeile liesse, machte den Zaehler von aussen bewegbar — und eine Kette, '
       + 'deren Kopf jemand verstellen kann, bezeugt nichts.',
+  },
+  {
+    tabelle: 'kern.audit_kette',
+    zugang: 'app.audit_kette_fortschreiben / app.audit_kette_pruefen',
+    grund:
+      'LEG-09, §6.12, K-08. Der Kettenkopf je Monatspartition des Protokolls: '
+      + 'letzte Nummer, letzter Hash und `start_hash` — der beim Anlegen '
+      + 'gesetzte und danach von `trg_audit_kette_start_unveraenderlich` '
+      + 'festgehaltene Startwert, gegen den `app.audit_kette_pruefen` rechnet; '
+      + 'nur so meldet ein nachgetragener Vormonatseintrag keinen Bruch in der '
+      + 'Folgekette. Waere der Kopf von `cse_app` aus bewegbar, liesse sich die '
+      + 'Kette nachtraeglich auf ein gefaelschtes Protokoll umschreiben, und sie '
+      + 'bezeugte nichts mehr. Sie traegt darum nur Policy und Grant fuer '
+      + '`cse_definer`. Die Tabelle liegt in `kern` und hat keine `mandant_id`; '
+      + 'die Meta-Pruefung in schema-meta.test.ts zaehlt nur `public`-Tabellen '
+      + 'mit `mandant_id` und erreicht sie nicht — der Eintrag steht hier, damit '
+      + 'die Ausnahme trotzdem reviewbar ist.',
+  },
+  {
+    tabelle: 'kern.audit_kettenglied',
+    zugang: 'app.audit_kette_fortschreiben / app.audit_kette_pruefen',
+    grund:
+      'LEG-09, §9.1, K-08. Je Protokollzeile ihre Kettenposition und ihr Hash, '
+      + 'anfuegend. Ein Schreibweg fuer `cse_app` hiesse, dass sich ein Glied '
+      + 'einsetzen oder umschreiben laesst — damit waere die Kette genau das, '
+      + 'wogegen sie steht. Sie traegt darum nur Policy und Grant fuer '
+      + '`cse_definer`, und zwar `select, insert` ohne `update`. Wie der '
+      + 'Kettenkopf liegt sie in `kern` und ohne `mandant_id`.',
   },
 ];

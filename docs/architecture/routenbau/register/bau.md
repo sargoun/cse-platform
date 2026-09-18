@@ -38,152 +38,6 @@ dem Bauschritt geändert hat.
 - `/portal/[mandant]/bau/projekte/[id]/lv/import` — fertig
   - Eine Adresse, zwei Zustaende wie OPS-04: ohne ?import= das Formular (Datei, Format - die Auswahl nennt die nicht implementierten Formate sichtbar und gesperrt, O-41), mit ?import= die Vorschau aus dem SERVERSEITIGEN Staging, je Zeile OZ, Art, Kurztext, Menge, Einheit, Preis, Aktionspille (anlegen / aktualisieren / unveraendert / ignorieren) und die Fehler je Zeile, oben die drei Zaehler. Der Parser liegt hinter der Schnittstelle LvQuelle; implementiert ist CSV (Semikolon) ueber den vorhandenen Leser aus raumbuch/tabelle.ts, alles andere wird abgewiesen statt halb gelesen. Uebernommen wird in eine NEUE Fassung; jede maschinell gelesene Position traegt Konfidenz und bleibt ungeprueft.
 
-## src/server/registry/dienste.ts
-
-UNVERAENDERT gegenueber dem Bauschritt — vier Eintraege in src/server/registry/dienste.ts, im Bau-Block:
-
-  /**
-   * **Die Abnahme (§ 12 VOB/B, 0210/0211).**
-   *
-   * `bau.schreiben` und nicht `bau.aufmass_freigeben`: eine Abnahme ist keine
-   * Mengenfeststellung, sondern die Erklaerung der Vertragsparteien ueber
-   * Gefahruebergang, Fristbeginn und Vertragsstrafe. Die Seitenkarte gibt
-   * `…/projekte/[id]/abnahme` genau dieses Recht.
-   */
-  {
-    modul: 'bau', pfad: 'bau/abnahme',
-    schreibend: true, schreibRecht: 'bau.schreiben',
-  },
-  /**
-   * Der LV-Import (BAU-01, REQ-04, 0212) und die Uebersicht.
-   *
-   * `bau/lv-quelle` LIEST: der Parser nimmt Text hinein und gibt Zeilen
-   * heraus, ohne die Datenbank zu beruehren — damit ist er fuer sich testbar
-   * und in der Gruppenansicht unbedenklich. `bau/lv-import` schreibt Staging
-   * und Uebernahme und traegt `bau.schreiben`, dasselbe Recht wie die Route.
-   *
-   * `bau/uebersicht` LIEST: es zaehlt und filtert fuer die Moduluebersicht,
-   * es rechnet nichts.
-   */
-  { modul: 'bau', pfad: 'bau/lv-quelle', schreibend: false },
-  {
-    modul: 'bau', pfad: 'bau/lv-import',
-    schreibend: true, schreibRecht: 'bau.schreiben',
-  },
-  { modul: 'bau', pfad: 'bau/uebersicht', schreibend: false },
-
-## src/server/auth/route-manifest.ts
-
-Drei Eintraege in src/server/auth/route-manifest.ts, im Bau-Block (nach 'api/bau/behinderungen/[id]/wegfall'). GEAENDERT gegenueber dem Bauschritt: im dritten Kommentar steht jetzt der richtige Ausloesername (`kern.aufmass_vorlage_pruefen()` statt des nicht existierenden `bau.pruefe_lv_geprueft()`).
-
-  {
-    /**
-     * Die Abnahme protokollieren, einen Mangel behoben melden, ein Protokoll
-     * stornieren (§ 12 VOB/B).
-     *
-     * `bau.schreiben` und nicht `bau.aufmass_freigeben`: wer ein Aufmass
-     * gegenzeichnet, stellt eine Menge fest; wer eine Abnahme protokolliert,
-     * haelt fest, dass Gefahr, Gewaehrleistungsfrist und Faelligkeit
-     * umgeschlagen sind. Die Seitenkarte gibt der Seite dasselbe Recht.
-     *
-     * Ein Eingang fuer drei Vorgaenge: alle teilen Sitzung, Ursprungspruefung,
-     * Mandantenkontext und Recht — und die Korrektur IST ein Storno mit
-     * Ersatzprotokoll, kein zweiter Schreibweg.
-     */
-    pfad: 'api/bau/abnahmen',
-    recht: 'bau.schreiben',
-  },
-  {
-    /**
-     * Ein Leistungsverzeichnis hochladen, pruefen, uebernehmen oder verwerfen
-     * (BAU-01, REQ-04, OPS-04-Muster).
-     *
-     * `bau.schreiben`: der Import bewegt Vertragsmengen und Einheitspreise
-     * eines Leistungsverzeichnisses. Geparst wird SERVERSEITIG, die Vorschau
-     * liegt im Staging (`lv_import`, `lv_import_zeile`) — uebernommen wird,
-     * was der Server gelesen hat, nie etwas aus einem versteckten Feld des
-     * Browsers (K-12).
-     */
-    pfad: 'api/bau/lv-import',
-    recht: 'bau.schreiben',
-  },
-  {
-    /**
-     * Eine maschinell gelesene LV-Position BESTAETIGEN (APR-03, K-10).
-     *
-     * `bau.schreiben`: die Bestaetigung benennt den Menschen, der einen aus
-     * einem PDF gelesenen Preis verantwortet. Daran haengt mehr als ein
-     * Haekchen — `kern.aufmass_vorlage_pruefen()` (0072) weist jede Vorlage
-     * eines Aufmasses ab, deren Zeilen auf eine unbestaetigte maschinelle
-     * Position buchen.
-     */
-    pfad: 'api/bau/lv-positionen/[id]/bestaetigung',
-    recht: 'bau.schreiben',
-  },
-
-## src/server/db/schema/rls.ts
-
-UNVERAENDERT gegenueber dem Bauschritt — 0214 bringt KEINE neue Zeile (sie legt weder Tabelle noch Loeschsperre an, nur eine Spalte auf der schon registrierten `lv_import_zeile`).
-
-(1) In KEIN_HARD_DELETE ans Ende einfuegen (der letzte vorhandene Eintrag endet ohne Komma, also erst `},` daraus machen):
-
-  {
-    tabelle: 'abnahme',
-    art: 'archiv',
-    migration: '0211',
-    grund:
-      'BAU-01, OPS-11, LEG-01, FIN-08. Mit der Abnahme schlagen Gefahr, '
-      + 'Gewaehrleistungsfrist und Faelligkeit um (§ 12 VOB/B), und ohne '
-      + 'vorbehalt_vertragsstrafe verfaellt die Vertragsstrafe (§ 11 Abs. 4). '
-      + 'Geloescht bliebe ein Projekt zurueck, das abgenommen ist, ohne dass jemand '
-      + 'sagen koennte wann, von wem und unter welchem Vorbehalt. Beendet wird mit '
-      + 'storniert_am und einem Ersatzprotokoll.',
-  },
-  {
-    tabelle: 'abnahme_mangel',
-    art: 'append',
-    migration: '0211',
-    grund:
-      'BAU-01, OPS-11, NOT-01. Der bei der Abnahme aufgenommene Mangel mit seiner '
-      + 'Beseitigungsfrist. Er steht im gesiegelten Protokoll des Kopfes; eine '
-      + 'geloeschte Zeile ergaebe eine Maengelliste, die kuerzer ist als das Siegel '
-      + 'darueber — und kein Fristablauf waere mehr nachweisbar.',
-  },
-  {
-    tabelle: 'lv_import',
-    art: 'archiv',
-    migration: '0212',
-    grund:
-      'BAU-01, REQ-04, LEG-01. Der Importkopf dokumentiert, WIE das heutige '
-      + 'Leistungsverzeichnis entstanden ist — in welchem Format, aus welcher '
-      + 'Datei, von wem uebernommen. Er bleibt, auch wenn seine Zwischenzeilen '
-      + 'geraeumt sind; sein Ende ist verworfen_am.',
-  },
-
-(2) In GEAENDERT_AM ans Ende einfuegen:
-
-  { tabelle: 'abnahme', migration: '0211' },
-  { tabelle: 'abnahme_mangel', migration: '0211' },
-  { tabelle: 'lv_import', migration: '0212' },
-
-(3) AUDITIERT bekommt NICHTS, und das ist eine Entscheidung: `abnahme` friert mit dem Einfuegen ein (`kern.abnahme_einfrieren` weist jede Protokollspalte ab), beweglich sind nur Storno, `ersetzt_durch_id` und die Aufbewahrung — ein Auditeintrag mit Vorher/Nachher haette dort nichts zu zeigen, was nicht schon in eigenen Spalten steht. Jeder LESENDE Zugriff auf die Vertragssumme steht ohnehin im audit_log (app.projekt_summe_lesen protokolliert). `lv_import_zeile` traegt bewusst KEINE Loeschsperre: cse_job raeumt die Zwischenzeilen nach der Uebernahme (Policy t_job_raeumen), der Kopf bleibt.
-
-(4) `lv_import_zeile` gehoert NICHT in NUR_UEBER_DEFINER: die Tabelle hat eine Mandantenpolicy und einen Spalten-GRANT ohne einheitspreis_cent/rohdaten; der Preis kommt ueber app.lv_import_preis_lesen (geprueft in tests/isolation/bau-lv-import.test.ts).
-
-## src/server/registry/navigation.ts
-
-UNVERAENDERT gegenueber dem Bauschritt. In src/server/registry/navigation.ts den Kommentar (Zeilen 206-212) und den Eintrag (Zeile 213) ersetzen — der alte Kommentar begruendet genau den Zustand, der jetzt weg ist:
-
-  /**
-   * `bau`, nicht mehr `bau/projekte`: die Moduluebersicht der Seitenkarte
-   * (§5.9, Zeile 1) ist gebaut und traegt die drei Punkte, auf die sie zeigt —
-   * offene Nachtraege (BAU-04), laufende Behinderungen (BAU-06) und den Stand
-   * des Bautagebuchs (BAU-07). Der Punkt zeigte bewusst auf die Projektliste,
-   * solange die Uebersicht leer gewesen waere; jetzt waere der Umweg die
-   * Luecke.
-   */
-  { schluessel: 'bau', label: 'Bau', pfad: 'bau', recht: 'bau.lesen', icon: 'aufmass' },
-
 ## Sonstiges
 
 (0) NEU: drizzle/0214_lv_import_hinweis.sql. Eine Spalte `lv_import_zeile.hinweise text[] not null default '{}'` plus `grant select (hinweise) on lv_import_zeile to cse_app`. Sie braucht KEINE Zeile in schema/rls.ts und keine in scripts/generate-triggers.ts: die Tabelle steht mit ihrem Eintrag schon im Register (0212), und 0214 legt weder Tabelle noch Loeschsperre an. Gegen eine frisch angelegte, vollstaendig migrierte Datenbank gefahren.
@@ -199,12 +53,11 @@ UNVERAENDERT gegenueber dem Bauschritt. In src/server/registry/navigation.ts den
 
 (D) Hinweis zur Bewachung der Abnahmeseite: `/portal/[mandant]/bau/projekte/[id]/abnahme` traegt laut Seitenkarte `bau.schreiben` als LESERECHT. Die Seite hat deshalb jetzt keine Rechtezweige mehr im Koerper. Sollen Abnahmeprotokolle auch mit `bau.lesen` LESBAR sein, ist das eine Aenderung der Seitenkarte (lesen: bau.lesen / schreiben: bau.schreiben) — dann muessen die Zweige zurueck; die Stelle ist im Seitenkopf benannt. Dasselbe gilt fuer die RLS-Policy `t_mandant` auf `abnahme`, deren `using` ohnehin `bau.lesen` verlangt.
 
-## Zeilen für docs/DECISIONS.md, Abschnitt „Offen"
+## Zeilen für docs/DECISIONS.md, Abschnitt „Offen“ — ERLEDIGT (18.09.2026)
 
-| O-630 | **An welchen Tagen wird ein Bautagebucheintrag erwartet — an jedem Kalendertag, an jedem Werktag oder nach Bauzeitenplan?** § 3 Abs. 3 VOB/B verlangt die Fuehrung, nicht eine Taktung. Die Moduluebersicht zeigt deshalb heute jeden Kalendertag der letzten sieben Tage ohne Eintrag und schreibt daneben, dass die Pflichttage offen sind (`tageOhneBautagebuch`, `bau/uebersicht.ts`); ein unterstellter Werktagskalender machte aus einem Samstag ohne Arbeit eine Luecke im Bauzeitnachweis und aus einem stillen Baustopp einen vollstaendigen Nachweis. | BAU-07, `/portal/[mandant]/bau` |
-| O-631 | **Uebernimmt der LV-Import die Einheitspreise des Auftraggebers als Vertragspreise, oder werden sie nach der Uebernahme kalkuliert und eingetragen?** Heute wandert der gelesene Preis mit in die neue Fassung (`uebernimmLvImport`), und zwar nur durch `app.lv_import_preis_lesen` — wer `bau.preis_lesen` nicht haelt, uebertraegt ihn nicht. Er wird dabei NICHT als unbestaetigt gefuehrt: die einzige implementierte Quelle ist CSV, und `CSV_QUELLE` setzt bewusst `konfidenz: null`, weil eine woertlich gelesene Spalte kein Modell geraten hat. Damit greifen `istUngeprueftMaschinell`, das Hindernis in `kern.aufmass_vorlage_pruefen()` (0072) und `bestaetigeLvPosition` fuer CSV-Positionen NICHT — diese Sicherung beginnt erst bei einem extrahierenden Leser (PDF, Bild, O-41). Kommt das LV als Ausschreibung ohne Preise, ist die Uebernahme des leeren Feldes richtig; kommt es als Auftrags-LV mit Preisen, ist der Preis Vertragsinhalt. Die Antwort entscheidet, ob die Vorschau eine Preisspalte fuehren darf und ob ein importierter Preis ohne menschliche Bestaetigung abrechenbar sein soll. | BAU-01, REQ-04, APR-03, `/portal/[mandant]/bau/projekte/[id]/lv/import` |
-| O-632 | **Soll das Steuerkennzeichen einer LV-Position (§ 13b UStG — bei Bauleistungen ist der Wechsel der Steuerschuld der Regelfall) in der Oberflaeche erscheinen, und hinter welchem Recht — `bau.preis_lesen` wie der Einheitspreis, oder einem eigenen?** 0071 entzieht `cse_app` das `select` auf `lv_position` und erteilt eine erschoepfende Spaltenliste OHNE `einheitspreis_cent` UND ohne `steuer_kennzeichen`; fuer den Preis gibt es den gepruegten Leser `app.lv_preis_lesen`, fuer das Kennzeichen keinen. Bis zur Antwort zeigt die Positionsseite die Spalte nicht und sagt das (sichtbar als „offen (O-632)"); ein geratenes Kennzeichen entschied darueber, wer die Umsatzsteuer schuldet. | BAU-01, UStG § 13b, `/portal/[mandant]/bau/projekte/[id]/lv/[ozId]` |
-| O-633 | **Soll eine Teildatei beim LV-Import das Leistungsverzeichnis FORTSCHREIBEN oder ERSETZEN — kommen die Positionen der aktuellen Fassung, die in der Datei fehlen, mit in die neue Fassung oder sind sie gestrichen?** Heute wird ersetzt: `uebernimmLvImport` baut die neue Fassung ausschliesslich aus den Zeilen der Datei, und `legeLvImportAn` vergleicht danach gegen diese Fassung. Eine Teillieferung des Auftraggebers macht damit aus einem LV mit 27 Positionen eine aktuelle Fassung mit drei. Das ist seit dem Pruefbefund nicht mehr still: die Vorschau zaehlt „Fehlen in der Datei" und listet die betroffenen OZ (`fehler_bericht.fehlendeOz`), und die alte Fassung bleibt vollstaendig lesbar. Welche Bedeutung eine Teildatei hat, entscheidet aber der Vertrag und nicht der Import — ein Nachtrags-LV liefert bewusst nur seine Positionen, ein korrigiertes Auftrags-LV bewusst alle. | BAU-01, REQ-04, `/portal/[mandant]/bau/projekte/[id]/lv/import` |
+Eingetragen heisst gelöscht. Die 4 Zeilen dieser Domäne stehen in
+`docs/DECISIONS.md` unter „Open — ask, do not guess“, Unterabschnitt
+„Raised while building · die Domänenwelle (Routenbau)“. Hier ist nichts mehr offen.
 
 ## Befunde des Prüfers (15)
 

@@ -39,108 +39,20 @@ dem Bauschritt geändert hat.
 - `/portal/[mandant]/zeiten/einwaende/[id]` — fertig
   - Links die Meldung des Menschen (behauptet_* ausdruecklich als Angabe gekennzeichnet, nie vorbelegt, Invariante 5), rechts die Aufzeichnung. Die Spaltennamen stehen PAARWEISE, wie die Kritik verlangt: geraete_zeit_beginn/_ende, zeitabweichung_beginn_sek/_ende_sek, dauer_brutto_minuten/_netto_minuten — ein 'zeitabweichung_sek' gibt es nicht. Selbstentscheidung wird VORHER abgefangen (EinwandEigenerFehler in entscheideEinwand, gleiche Bedingung wie kern.zeit_einwand_status), sonst endete der Klick in einem ungefangenen 500. zeit.lesen wird mitverlangt, sonst notFound() ohne Grund. NEU in dieser Sitzung: die Verknuepfung Korrektur -> Meldung. zeiteintrag_korrektur.zeit_einwand_id existiert seit Anlage der Tabelle mit eigenem Fremdschluessel zk_einwand_fk, wurde von leseEinwand GELESEN und von niemandem GESCHRIEBEN — das Blatt sagte darum IMMER 'anerkannt, aber keine Korrektur'. korrigiereZeiteintrag nimmt jetzt zeitEinwandId, die Route reicht das Formularfeld 'einwand' durch, das Korrekturblatt traegt es als verstecktes Feld und benennt eine nicht einsehbare Kennung statt sie still fallenzulassen, und der Knopf auf dem Einwandblatt bringt ?einwand= mit.
 
-## src/server/registry/dienste.ts
+## Sonstiges — ERLEDIGT (18.09.2026)
 
-In src/server/registry/dienste.ts, ans Ende von DIENSTE (fuenf Zeilen, die fuenfte ist der Nachtrag ueber die Befunde hinaus):
+Die D-Zeile („Der Uebersteuerungsweg fuer ArbZG-Befunde setzt das staerkere Recht
+in der ROUTE durch“) steht in `docs/DECISIONS.md` als **D-604**, samt der beiden
+begleitenden Saetze zu `uebersteuereBefund` und `app.arbzg_befund_ueberholen`.
+Gegen `w_reg` nachgemessen: `cse_app` haelt auf `arbeitszeit_verstoss` nur SELECT,
+`app.arbzg_befund_quittieren` prueft `dienstplan.arbzg_lesen`, und
+`api/konflikt/uebersteuern/route.ts:84` verlangt `dienstplan.arbzg_uebersteuern`.
 
-  /*
-   * Dienstplan, Phase „Bekanntgabe" — die Bekanntgabe selbst, der
-   * Konflikt-Einzelsatz hinter Quittung und Uebersteuerung, die eine
-   * Meldungsart (NOT-01) und die gewerkeuebergreifende Besetzungsluecke.
-   */
-  {
-    modul: 'dienstplan', pfad: 'dienstplan/veroeffentlichung',
-    schreibend: true, schreibRecht: 'dienstplan.veroeffentlichen',
-  },
-  /* Schreibt ueber app.arbzg_befund_quittieren — arbeitszeit_verstoss
-     gewaehrt cse_app kein UPDATE; das staerkere Recht setzt die Route durch. */
-  {
-    modul: 'dienstplan', pfad: 'dienstplan/konflikt',
-    schreibend: true, schreibRecht: 'dienstplan.arbzg_uebersteuern',
-  },
-  /* Registriert nur die Art dienstplan.plan_veroeffentlicht (D-493). */
-  { modul: 'dienstplan', pfad: 'dienstplan/benachrichtigung', schreibend: false },
-  { modul: 'dienstplan', pfad: 'dienstplan/besetzungsluecke', schreibend: false },
-  { modul: 'dienstplan', pfad: 'dienstplan/serienliste', schreibend: false },
+## Zeilen für docs/DECISIONS.md, Abschnitt „Offen“ — ERLEDIGT (18.09.2026)
 
-## src/server/auth/route-manifest.ts
-
-In src/server/auth/route-manifest.ts, in ROUTEN (drei Eintraege):
-
-  {
-    /**
-     * Einen ArbZG-Befund uebersteuern (TIM-06) — **nicht** `api/konflikt`.
-     * Dort wird der PLANUNGSKONFLIKT quittiert, hier der BEFUND dahinter
-     * uebersteuert: zwei Aufzeichnungen, zwei Rechte, zwei Handlungen.
-     * `app.arbzg_befund_quittieren` prueft nur `dienstplan.arbzg_lesen`,
-     * also das schwaechere Recht; das staerkere setzt diese Route mit
-     * `authorize()` selbst durch, die Datenbank ist hier die zweite Linie.
-     */
-    pfad: 'api/konflikt/uebersteuern',
-    recht: 'dienstplan.arbzg_uebersteuern',
-  },
-  {
-    /**
-     * Einen Zeitraum bekanntgeben (TIM-01, NOT-01). Geschrieben wird ueber
-     * `app.dienstplan_veroeffentlichung_anlegen` (0266) — `cse_app` haelt auf
-     * `benachrichtigung` kein Tabellenrecht INSERT. Die Leserechte
-     * (`dienstplan.lesen`, `objekt.lesen`) prueft der Dienst zusaetzlich,
-     * damit der Beleg nicht aus einer von der RLS leergeraeumten Abfrage
-     * entsteht.
-     */
-    pfad: 'api/dienstplan/veroeffentlichung',
-    recht: 'dienstplan.veroeffentlichen',
-  },
-  {
-    /**
-     * Eine Einzeltermin-Ausnahme einer Serie (TIM-02): ausfall,
-     * verschiebung, zusatz. `dienstplan.schreiben` ist das Torrecht; die
-     * Ausnahmetabellen gehoeren aber den GEWERKEN — `turnus_ausnahme`
-     * verlangt `reinigung.schreiben` (0029), `posten_ausnahme`
-     * `security.schreiben` (0069). Welches gilt, entscheidet der Traeger,
-     * und der Handler prueft es nach dem Lesen der Serie zusaetzlich selbst.
-     */
-    pfad: 'api/dienstplan/serien/[id]/ausnahmen',
-    recht: 'dienstplan.schreiben',
-  },
-
-## src/server/db/schema/rls.ts
-
-In src/server/db/schema/rls.ts, in KEIN_HARD_DELETE (der Block in drizzle/0265 ist bereits byteweise das, was `erzeuge('0265')` mit GENAU diesem Text produziert — nach dem Eintragen `pnpm db:triggers` laufen lassen, es darf sich nichts aendern):
-
-  {
-    tabelle: 'dienstplan_veroeffentlichung',
-    art: 'append',
-    migration: '0265',
-    grund:
-      'TIM-01, NOT-01, LEG-03. Sie ist der Beleg, dass ein Zeitraum an einem '
-      + 'Zeitpunkt bekanntgegeben wurde — im Streit ueber eine Schicht, von der '
-      + 'jemand nichts gewusst haben will, genau die Zeile, die zaehlt. Es gibt '
-      + 'nichts, was eine Bekanntgabe beendet: eine Aenderung ist eine zweite '
-      + 'Zeile, nie ein Loeschen der ersten.',
-  },
-
-Dazu ist `'0265': join(WURZEL, 'drizzle/0265_dienstplan_veroeffentlichung.sql')` in MIGRATIONS_DATEIEN (scripts/generate-triggers.ts) bereits eingetragen — diese Datei steht nicht auf der Sperrliste und die Zeile ist ohne den Registereintrag wirkungslos.
-
-## src/server/registry/navigation.ts
-
-Keine Aenderung. Die vier Routen dieser Domaene haengen unter dem bestehenden Tab „dienstplan" bzw. „zeiten"; ein neuer Menuepunkt entsteht nicht, und 04-SEITENKARTE.md wurde nicht angefasst.
-
-## Sonstiges
-
-D-Zeile fuer docs/DECISIONS.md (Abschnitt der Entscheidungen, naechste freie D-Nummer):
-
-| D-NNN | **Der Uebersteuerungsweg fuer ArbZG-Befunde setzt das staerkere Recht in der ROUTE durch, nicht in der Datenbank.** `arbeitszeit_verstoss` gewaehrt `cse_app` kein Tabellenrecht `UPDATE` — ein direktes `update` bricht LAUT ab (`permission denied`, also ein 500er), nicht still mit null Zeilen. Der einzige Schreibweg ist `app.arbzg_befund_quittieren`, und diese Definer-Funktion prueft `dienstplan.arbzg_lesen`, also das SCHWAECHERE Recht. `dienstplan.arbzg_uebersteuern`, auf das die Seitenkarte `…/uebersteuern` tort, setzt deshalb `POST /api/konflikt/uebersteuern` mit `authorize()` selbst durch; die Datenbank ist hier ausdruecklich die zweite und schwaechere Linie. Verlassen darf sich niemand darauf. Mittelfristig zieht eine Migration den Definer nach — bis dahin gilt: wer einen zweiten Aufrufer fuer `app.arbzg_befund_quittieren` baut, muss das Recht dort erneut pruefen. | TIM-06, AUT-06, `services/dienstplan/konflikt.ts`, `api/konflikt/uebersteuern/route.ts`, 0040 |
-
-Zwei Dinge, die diese Zeile begleiten und schon im Code stehen: (a) `uebersteuereBefund` liest den Erfolg nach, weil `app.arbzg_befund_quittieren` `where hinfaellig_am is null` aktualisiert und danach BEDINGUNGSLOS protokolliert; (b) `app.arbzg_befund_ueberholen` laesst `status='offen'` stehen, der Status allein ist also kein Ausdruck der Uebersteuerbarkeit.
-
-## Zeilen für docs/DECISIONS.md, Abschnitt „Offen"
-
-| O-710 | **Welcher Zeitraum wird veröffentlicht — die Kalenderwoche, der Kalendermonat oder ein frei gewähltes Fenster?** `dienstplan.veroeffentlichen` ist ein Recht auf eine HANDLUNG; `einsatz_status` kennt mit Absicht keinen Wert `veroeffentlicht` (K-17, drizzle/0028, 04-PLANUNG-ZEIT.md §224), und einen Ablauf zu modellieren, den die SPEC nicht beschreibt, wäre eine erfundene Geschäftsregel. **Heute gebaut:** `dienstplan_veroeffentlichung.umfang` trägt die drei Kandidaten `woche`/`monat`/`freier_zeitraum` als Platzhalter (`UMFAENGE`, eine Konstante); die Oberfläche gibt die kommende Woche in Berliner Wochengrenzen vor und nennt das ausdrücklich eine Oberflächenvorgabe. Die Datenbank begrenzt nur auf höchstens ein Jahr (`dv_zeitraum_begrenzt`). | TIM-01, NOT-01, K-17, `services/dienstplan/veroeffentlichung.ts`, `drizzle/0265` |
-| O-711 | **Wer wird bei einer Veröffentlichung benachrichtigt — jede im Zeitraum eingeteilte Person, oder auch Personen, deren Schicht gestrichen wurde?** Der zweite Fall tut am meisten weh: wer eine Schicht hatte und sie nicht mehr hat, erfährt heute nichts. **Heute gebaut:** benachrichtigt wird, wer im Fenster eine lebende Einteilung hat (`entfernt_am is null`, `status <> 'abgesagt'`); die Abgrenzung steht wörtlich in `umfang_daten` der Vorgangszeile, und die Vorschau zeigt je Person ihre Schichten in Europe/Berlin — genau die Nachricht, die sie bekäme. Wer keinen aktiven Zugang hat, wird als `ohne_zugang` GEZÄHLT und auf dem Bildschirm als „kein Zugang — nur telefonisch" geführt, solange der Planer noch anrufen kann. Der Definer (0266) prüft zusätzlich eine `anstellung` in der aktiven Gesellschaft — eine Schranke gegen beliebige Konten, keine Antwort auf diese Frage. | TIM-01, NOT-01, D-09, EMP-14, `services/dienstplan/veroeffentlichung.ts`, `drizzle/0266` |
-| O-712 | **Was bedeutet eine Änderung des Plans NACH der Veröffentlichung — eine neue Meldung an die Betroffenen, eine Sperre, oder gar nichts? Und sperren blockierende Konflikte im Fenster die Veröffentlichung?** **Heute gebaut:** nichts geschieht von selbst; eine zweite Bekanntgabe ist eine zweite Zeile, nie ein Überschreiben der ersten (`dienstplan_veroeffentlichung` kennt kein UPDATE und keine harte Löschung, Invariante 8). Blockierende Konflikte halten die Bekanntgabe NICHT auf — eine Sperre, die niemand bestellt hat, ließe die Disposition am Einsatztag stehen. Ihre Zahl steht in der Vorschau obenan und wird im Beleg mitgeschrieben: wer trotz drei Sperren veröffentlicht hat, ist damit nachweisbar. | TIM-01, NOT-01, O-166, Invariante 8, `services/dienstplan/veroeffentlichung.ts` |
-| O-713 | **Ist eine bekanntgegebene Schicht gegen stille Änderung geschützt, und wenn ja: wer darf sie danach noch ändern und unter welcher Protokollpflicht?** **Heute gebaut: nicht, und zwar nicht aus Versehen.** Es gibt keinen Zustand auf `einsatz`, keine neue Spalte und kein Einfrieren — `einsatz_status` kennt `veroeffentlicht` mit Absicht nicht (K-17). Der Vorgang ist ein Beleg neben dem Plan, kein Schloss darauf. Wird die Frage mit „geschützt" beantwortet, ist das eine Migration (Zustand oder Sperrspalte) plus eine Protokollpflicht, kein Zusatz in einer Route. | TIM-01, K-17, drizzle/0028, `drizzle/0265`, 04-PLANUNG-ZEIT.md §224 |
-| O-714 | **Darf eine Ausnahme mit reduzierter Stärke unter die Mindestbesetzung des Postens gehen, oder ist die Mindestbesetzung eine harte Untergrenze, die eine Ausnahme nicht senken kann?** `posten_ausnahme.ersatz_besetzung` ersetzt laut 0069 §6.4 die SOLLbesetzung; was aus der MINDESTbesetzung wird, steht dort nicht — und es ist keine Kleinigkeit: eine Nacht mit einer Wache statt zwei liegt unter dem Minimum eines Postens, der zwei verlangt, und ob das zulässig ist, entscheidet der Vertrag (SEC-01). **Heute gebaut:** `ersatz_besetzung` ersetzt die Sollstärke, und die Mindestbesetzung wird auf `min(min, ersatz)` MITGESENKT (`besetzungMitAusnahme`), damit keine Schicht entsteht, die per Konstruktion unterbesetzt gemeldet wird (`min > soll` wäre genau das) und die reduzierte Nacht in `/dienstplan/offene-schichten` nicht als Notfall erscheint, den niemand beheben kann. Die Gegenrichtung — Minimum stehen lassen und die Nacht dauerhaft rot melden — ist die andere denkbare Antwort, und sie gehört dem Kunden. | SEC-01, TIM-02, O-210, 0069 §6.4, `services/dienstplan/vorkommnisse.ts`, `tests/kern/dienstplan-ausnahme-staerke.test.ts` |
+Eingetragen heisst gelöscht. Die 5 Zeilen dieser Domäne stehen in
+`docs/DECISIONS.md` unter „Open — ask, do not guess“, Unterabschnitt
+„Raised while building · die Domänenwelle (Routenbau)“. Hier ist nichts mehr offen.
 
 ## Befunde des Prüfers (11)
 

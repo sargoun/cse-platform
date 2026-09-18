@@ -65,73 +65,29 @@ dem Bauschritt geändert hat.
 
 ## src/server/registry/dienste.ts
 
-Keine Aenderung noetig. Alle geaenderten Dienste liegen unter src/server/services/finanz/ und sind bereits gefuehrt: vorabpruefung.ts, versand.ts, beleg.ts, ausgabe.ts, kreisuebersicht.ts. Neu hinzugekommen ist nur ein Seedmodul (src/server/db/seed/finanz-ausgabe.ts), das ueber EINE Zeile in src/server/db/seed/index.ts eingehaengt ist — das ist bereits erledigt und braucht keinen Registereintrag.
+**NICHT ERLEDIGT — die Behauptung dieses Abschnitts haelt der Wirklichkeit nicht
+stand.** Sie lautete: „Keine Aenderung noetig. Alle geaenderten Dienste liegen
+unter src/server/services/finanz/ und sind bereits gefuehrt: vorabpruefung.ts,
+versand.ts, beleg.ts, ausgabe.ts, kreisuebersicht.ts."
 
-## src/server/auth/route-manifest.ts
+Gemessen am Baum (18.09., beim Leeren der Warteschlange): **keine einzige der
+fuenf steht im Register**, und eine sechste fehlt ebenfalls. Der Gegentest in
+`tests/kern/portal-shell.test.ts` („und das Register kennt jeden Dienst, der
+existiert") listet `find src/server/services -name '*.ts'` gegen `DIENSTE` und
+bleibt deshalb rot fuer:
 
-Keine Aenderung. Es ist keine Route hinzugekommen oder weggefallen; alle fuenfzehn finanzen-Routen stehen unveraendert mit denselben Rechten im Register. Insbesondere wurde /finanzen/pruefungen NICHT auf finanzen.festschreiben hochgezogen — die Route bleibt bei finanzen.lesen, und die Datenbank oeffnet sich jetzt passend dazu.
+- `finanz/ausgabe`
+- `finanz/beleg`
+- `finanz/kreisuebersicht`
+- `finanz/versand`
+- `finanz/vorabpruefung`
+- `finanz/zugferd/vorschau`  (im Bericht nicht einmal genannt)
 
-## src/server/db/schema/rls.ts
-
-In src/server/db/schema/rls.ts, Konstante KEIN_HARD_DELETE, fuenf Eintraege ergaenzen (MIGRATIONEN leitet sich daraus selbst ab, dort ist nichts zu tun). Nachgewiesen: mit genau diesen Texten erzeugt scripts/generate-triggers.ts die in 0180/0181/0182 bereits stehenden Bloecke ZEICHENGLEICH.
-
-  {
-    tabelle: 'ausgabe_kategorie',
-    art: 'archiv',
-    migration: '0180',
-    grund:
-      'ACC-01, FIN-14, §147 AO. An der Kategorie haengt die Kontierung jeder '
-      + 'Ausgabe, die auf sie zeigt; sie zu loeschen macht jede Buchung darauf '
-      + 'unlesbar. Aufgeloest wird ueber `archiviert_am`.',
-  },
-  {
-    tabelle: 'ausgabe',
-    art: 'archiv',
-    migration: '0180',
-    grund:
-      'FIN-14, FIN-17, ACC-03, ACC-06, §147 AO. Die Ausgabe traegt den '
-      + 'Vorsteuerabzug und den Aufwand einer Gesellschaft; eine '
-      + 'weiterberechnete Ausgabe ist zudem die Quelle einer Rechnungszeile. '
-      + 'Sie zu loeschen nimmt der Voranmeldung ihre Grundlage und liesse eine '
-      + 'Rechnungszeile ohne Beleg zurueck. Zurueckgewiesen wird ueber '
-      + '`abgelehnt` mit Grund.',
-  },
-  {
-    tabelle: 'ausgabe_steuer',
-    art: 'append',
-    migration: '0180',
-    grund:
-      'FIN-14, ACC-08, §15 UStG, Invariante 1. Die Aufteilung nach '
-      + 'Steuersaetzen IST der Vorsteuerabzug — ohne sie steht ein '
-      + 'Bruttobetrag da, aus dem sich kein Satz mehr ableiten laesst. Sie zu '
-      + 'loeschen aenderte die Voranmeldung ohne Spur.',
-  },
-  {
-    tabelle: 'rechnung_versand',
-    art: 'append',
-    migration: '0181',
-    grund:
-      'FIN-11, FIN-12, Invariante 7, LEG-08, §286 BGB. Die Zeile IST der '
-      + 'Nachweis, dass ein Mensch den Versand freigegeben hat, und sie traegt '
-      + 'den Zugang, ab dem der Verzug rechnet. Sie zu loeschen liesse eine '
-      + 'Mahnung ohne Grundlage und eine Freigabe ohne Spur zurueck.',
-  },
-  {
-    tabelle: 'bauleistung_jahressumme',
-    art: 'append',
-    migration: '0182',
-    grund:
-      'FIN-10, LEG-06, §48 Abs. 2 EStG. Die Jahressumme ist der Nachweis, '
-      + 'WARUM einbehalten oder nicht einbehalten wurde. Sie zu loeschen nimmt '
-      + 'jeder Abzugsentscheidung dieses Jahres ihre Grundlage — und der '
-      + 'Leistende haftet mit.',
-  },
-
-Nicht in GEAENDERT_AM eintragen: bauleistung_jahressumme traegt trg_blj_geaendert bereits handgeschrieben ausserhalb des generierten Blocks; ein Registereintrag erzeugte einen zweiten Trigger gleichen Zwecks.
-
-## src/server/registry/navigation.ts
-
-Keine Aenderung. Es sind keine Navigationseintraege betroffen; die drei neu verlinkten Ziele (/finanzen/rechnungen/[id] von /finanzen/belege/[id], /storno von /verwerfen) sind bestehende Routen und haengen jeweils hinter haeltRechte.
+Ich habe sie **nicht** eingetragen: `schreibend` und `schreibRecht` sind je
+Datei zu entscheiden (Policy der geschriebenen Tabelle, nicht Recht der Seite),
+und ein geratener Registereintrag ist teurer als ein fehlender — der fehlende
+faellt im Gegentest auf, der falsche sieht richtig aus. Wer die Domaene
+finanzen kennt, traegt die sechs nach und streicht diesen Abschnitt.
 
 ## Sonstiges
 
@@ -147,15 +103,11 @@ docs/architecture/routenbau/register/finanzen.md: Zeile 24 beschreibt /finanzen/
 
 04-SEITENKARTE.md: nicht angefasst. Die zwei Praezisierungen aus dem Bauschritt stehen unveraendert (Vorschauadresse /api/dokumente/[id]/datei; /eingangsrechnungen/[id]/steuer ist lesend, O-604).
 
-## Zeilen für docs/DECISIONS.md, Abschnitt „Offen"
+## Zeilen für docs/DECISIONS.md, Abschnitt „Offen“ — ERLEDIGT (18.09.2026)
 
-| O-600 | **Soll der Rechnungsversand die erzeugte Datei archivieren — oder genuegt der Hash?** `rechnung_versand.rechnung_dokument_id` steht ohne Fremdschluessel, weil `rechnung_dokument` (05-FINANZEN §9.5) noch nicht existiert. Heute traegt `artefakt` + `nutzlast_sha256` den Nachweis, WELCHE Fassung hinausging; eine eigene Dokumentversion je Versand waere die Alternative. Solange die Tabelle fehlt, bleibt die Kennung ohne Riegel — nach demselben Verfahren wie `rechnungsposition_quelle.ausgabe_id` in 0107. | FIN-11, FIN-12, `drizzle/0181:86`, 05-FINANZEN §9.5 |
-| O-601 | **Welche Vorab-Pruefungen soll `/finanzen/pruefungen` ausser FIN-18 fuehren — und welche davon blockiert die Festschreibung, welche warnt nur?** Die Seitenkarte nennt „and the other pre-invoice checks", ohne sie aufzuzaehlen. Heute gefuehrt: FIN-18 (abgeschlossener Auftrag ohne erfasste Minute, warnt), „abgeschlossener Auftrag ohne Rechnung" (FIN-01/FIN-16, warnt) und „Entwurfszeile ohne wirksame Herkunft" (FIN-07, blockiert). Die Seite nennt die Luecke unter „Was diese Liste NOCH NICHT prueft", statt sie mit erfundenen Regeln zu fuellen. | FIN-18, FIN-07, FIN-01, `services/finanz/vorabpruefung.ts`, SEITENKARTE §5.14 |
-| O-602 | **Innerhalb welcher Frist nach Auftragsabschluss muss abgerechnet werden?** Ohne eine gesetzte Frist kann die Vorab-Liste keinen Auftrag als „ueberfaellig" zeigen. Eine hier erfundene waere eine Geschaeftsregel, die sich eine Liste selbst gibt — und sie erschiene jeder Buchhaltung als vereinbart. Bis zur Antwort setzt die Seite keine Frist und sagt das. | FIN-18, `services/finanz/vorabpruefung.ts` |
-| O-603 | **Welcher EU-gehostete Transaktionsmailer liefert den Rechnungsversand aus, und unter welchem Auftragsverarbeitungsvertrag?** Fortschreibung von O-36 auf `rechnung_versand`: ohne Antwort bleibt `versand.email.verbunden` false, der DB-Ausloeser `rechnung_versand_2_kanal_verbunden` laesst nur `status = nicht_verbunden` zu, es gibt keinen Sendeknopf, und die Rechnung wird von Hand versendet. Die Datei bleibt ueber `/api/finanzen/rechnungen/[id]/xrechnung.xml` und `/zugferd.pdf` abrufbar. | FIN-11, FIN-12, O-36, O-22, `services/finanz/versand.ts`, `drizzle/0181` |
-| O-604 | **Welches Recht oeffnet die Pflege der §48b-Freistellungsbescheinigung?** Drei Schluessel stehen nebeneinander: das Routenregister fuehrt fuer `/finanzen/eingangsrechnungen/[id]/steuer` `lesen: [abrechnung.freistellung_pflegen]` und `schreiben: []`, die Policy auf `eingangsrechnung` verlangt zum Lesen `eingang.lesen`, die auf `freistellungsbescheinigung` `finanzen.lesen` zum Lesen und `finanzen.schreiben` zum Schreiben. Bis zur Entscheidung ist die Seite lesend; ohne `finanzen.lesen` nennt sie den §48-Ausgang ausdruecklich „nicht bewertbar" statt „Einbehalt", weil eine durch RLS geleerte Bescheinigungsliste kein Ausgang ist. | FIN-10, LEG-06, AUT-06, `finanzen/eingangsrechnungen/[id]/steuer/page.tsx` |
-| O-605 | **Soll der §13b-Status der EIGENEN Gesellschaft als Leistungsempfaengerin als Zeitreihe gefuehrt werden — und wer pflegt ihn?** `mandant` traegt kein entsprechendes Feld; `kunde_bauleistender_status` beschreibt die Ausgangsseite. Bis zur Antwort zeigt das Steuerblatt den auf dem BELEG gespeicherten Stand und bewertet nicht tagesaktuell neu — eine Neubewertung alter Belege waere eine Aussage ueber die Vergangenheit, die niemand getroffen hat. | FIN-10, §13b UStG, `finanzen/eingangsrechnungen/[id]/steuer/page.tsx` |
-| O-606 | **Gehoert `ist_platzhalter` der Demo-Rechnungskreise auf `true` — und mit welcher Wirkung auf bereits festgeschriebene Belege?** Die drei `ausgangsrechnung`-Kreise heissen „Ausgangsrechnungen (DEMO — Maske unbestaetigt, O-134)" und tragen `ist_platzhalter = false`. Der Name behauptet den Schutz, die Spalte hebt ihn auf, und fuer Rechnungskreise sitzt der Platzhalterschutz ausschliesslich in `fin.rechnung_nummer_ziehen` und prueft genau diese Spalte. `/finanzen/nummernkreise` stellt beides nebeneinander und loest es nicht auf. | TEN-02, FIN-03, FIN-16, O-134, `services/finanz/kreisuebersicht.ts`, `db/seed/index.ts` |
+Eingetragen heisst gelöscht. Die 7 Zeilen dieser Domäne stehen in
+`docs/DECISIONS.md` unter „Open — ask, do not guess“, Unterabschnitt
+„Raised while building · die Domänenwelle (Routenbau)“. Hier ist nichts mehr offen.
 
 ## Befunde des Prüfers (19)
 

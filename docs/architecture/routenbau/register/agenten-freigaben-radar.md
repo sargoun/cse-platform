@@ -36,81 +36,15 @@ dem Bauschritt geändert hat.
 - `/portal/[mandant]/radar/profile/[id]` — fertig
   - Neuer Dienst (leseProfil, leseEmpfaengerkandidaten, schreibeProfil, setzeCpv, entferneCpv, setzeEmpfaenger, entferneEmpfaenger, plus reine Pruefer) und neue API-Route mit fuenf Handlungen an einer Adresse. Vier Felder stehen sichtbar GESPERRT mit ihrer offenen Frage: gewichtung/benachrichtigung_ab_punkte/skala_max (O-15), negativ_wirkung (O-191), waehrung (O-47); ist_platzhalter einer CPV-Zeile bleibt zwingend true (O-98). Zwei KRITIK-Korrekturen: die Loeschregel gilt nur fuer radar_profil — radar_profil_cpv und radar_profil_empfaenger haben weder geloescht_am noch ist_aktiv und werden HART geloescht (zulaessig, Invariante 8 nennt Radar nicht); und der Aufwand war 'gross', nicht 'mittel'. ZUSAETZLICH selbst gefunden: schreibeProfil setzt geaendert_am, weil radar_profil keinen setze_geaendert_am-Trigger traegt — dadurch waere aber JEDER Klick auf Speichern eine 'Aenderung' geworden und trg_radar_profil_version haette die Fassung hochgezaehlt, also fuer jede Bekanntmachung eine neue bewertung-Zeile mit derselben Punktzahl erzeugt. Deshalb: select ... for update (das ist gleichzeitig die Rechtepruefung — Postgres wendet auf eine Sperrklausel das using der UPDATE-Policy an, empirisch belegt), Vergleich der bewertungsrelevanten Felder, und bei Gleichheit kein Schreiben und kein Protokolleintrag. Die Listenseite verweist jetzt von jedem Profilnamen hierher; ihr Satz 'Bearbeiten kommt mit dem naechsten Schritt' ist ersetzt.
 
-## src/server/registry/dienste.ts
-
-// src/server/registry/dienste.ts — drei Zeilen; die ersten beiden neben ihre
-// Geschwister (radar/vorgang bzw. freigabe/fenster.platzhalter), die dritte
-// eroeffnet das Modul `agent`.
-
-  /**
-   * **Das Ausgangs-Gate als DATEN (AGT-03, APR-01, Invariante 7).**
-   * `richtlinie` liest die acht AKTIONEN und setzt eine Zeile. Entschieden
-   * wird in `server/agent/policy.ts`, nicht hier — und fuer Angebot, Nachtrag
-   * und Behinderungsanzeige im Code, unabhaengig von jeder Zeile der Tabelle.
-   * Das Schreibrecht ist `agent.richtlinie_verwalten` und nicht
-   * `versand.freigeben` (D-…): wer die REGEL setzt, gibt damit nichts frei.
-   */
-  {
-    modul: 'agent', pfad: 'agent/richtlinie',
-    schreibend: true, schreibRecht: 'agent.richtlinie_verwalten',
-  },
-
-  /**
-   * **Das Suchprofil des Vergaberadars (RAD-04, RAD-05).** Stammdaten,
-   * CPV-Zeilen und Benachrichtigungsempfaenger — fuenf Schreibhandlungen
-   * hinter EINEM Recht, weil sie ein Profil betreffen. Punkte rechnet es
-   * keine: die Bewertung entsteht im Nachtlauf aus `radar/bewertung`.
-   */
-  {
-    modul: 'radar', pfad: 'radar/profil',
-    schreibend: true, schreibRecht: 'radar.profil_schreiben',
-  },
-
-  /**
-   * **Die LAGE eines Fensters (APR-05, APR-06)** — eine reine Funktion ueber
-   * vier Werten (Entscheidungsstand, Ausfuehrungsstand, Fensterspalte, Uhr),
-   * ohne Datenbank und ohne Schreibweg. Geschrieben wird in
-   * `freigabe/stapel`; `fenster.platzhalter` haelt die zwei offenen Zahlen
-   * aus O-108.
-   */
-  { modul: 'freigabe', pfad: 'freigabe/fenster', schreibend: false },
-
-## src/server/auth/route-manifest.ts
-
-// src/server/auth/route-manifest.ts — eine Zeile, neben 'api/radar/vorgang'.
-
-  {
-    /**
-     * Ein Suchprofil des Vergaberadars pflegen (RAD-04, RAD-05): Stammdaten
-     * setzen, eine CPV-Zeile anlegen oder aendern, eine entfernen, einen
-     * Benachrichtigungsempfaenger eintragen, einen entfernen. Fuenf
-     * Handlungen, ein Tor — fuenf Routen waeren fuenf Stellen, an denen
-     * jemand das `authorize` vergisst.
-     *
-     * Was gesperrt ist, taucht hier nicht einmal als Feldname auf:
-     * Gewichtung, Benachrichtigungsschwelle, Skala, Waehrung und die Wirkung
-     * der Negativ-Stichwoerter sind O-15, O-47 und O-191.
-     */
-    pfad: 'api/radar/profil',
-    recht: 'radar.profil_schreiben',
-  },
-
-## src/server/db/schema/rls.ts
-
-Keine Aenderung. Die einzige Migration dieser Domaene (0290_agent_richtlinie_willenserklaerung.sql) bleibt unveraendert; es kam keine neue dazu. Die Rechteverschiebung auf agent_richtlinie (t_richtlinie_lesen/-schreiben auf agent.richtlinie_verwalten statt versand.lesen/versand.freigeben) steht bereits in 0290 und ist durch tests/isolation/agent-richtlinie-riegel.test.ts gedeckt. src/server/db/schema/rls.ts habe ich nicht angefasst.
-
-## src/server/registry/navigation.ts
-
-Keine Aenderung — und das ist diesmal geprueft statt behauptet. Die sechs Routen sind Unterseiten, die ueber Verweise erreicht werden; die Verweise FEHLTEN (Befund 1) und sind jetzt auf den vier Elternseiten gesetzt, jeder hinter genau dem Recht, mit dem routen.generiert.ts seine Route bewacht. Ein eigener Navigationspunkt waere fuer keine der sechs richtig: /radar/[id]/status, /freigaben/[id]/einspruch, /freigaben/[id]/rueckgaengig und /agenten/[agent]/start haengen an einer Kennung und koennen ohne sie nicht aufgerufen werden; /agenten/richtlinien und /radar/profile/[id] sitzen unter Punkten, die es schon gibt (agenten, radar).
-
 ## Sonstiges
 
 Zwei Zeilen fuer docs/DECISIONS.md unter „Open — ask, do not guess" (Zeile 2818 ff.) — siehe `decisions_zeilen`. Sie gehoeren zwingend dorthin, bevor die beiden Platzhalter in src/server/services/radar/profil.ts stehen bleiben duerfen: die Arbeitsregel verlangt Schnittstelle + bezeichneter Platzhalter + TODO(client, O-NN) + DECISIONS-Zeile, und heute fehlt genau das letzte Glied. Sonst nichts: package.json, 04-SEITENKARTE.md und die generierten Bloecke sind unberuehrt.
 
-## Zeilen für docs/DECISIONS.md, Abschnitt „Offen"
+## Zeilen für docs/DECISIONS.md, Abschnitt „Offen“ — ERLEDIGT (18.09.2026)
 
-| O-720 | Should a search profile be archivable — and what then happens to the evaluations it produced: do they stay readable under the profile name, or disappear from the radar? |
-| O-721 | Against which edition of the official NUTS list are a search profile's region prefixes to be validated — and should a prefix that matches the form but designates no region be rejected, or only flagged? |
+Eingetragen heisst gelöscht. Die 2 Zeilen dieser Domäne stehen in
+`docs/DECISIONS.md` unter „Open — ask, do not guess“, Unterabschnitt
+„Raised while building · die Domänenwelle (Routenbau)“. Hier ist nichts mehr offen.
 
 ## Befunde des Prüfers (14)
 

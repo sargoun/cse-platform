@@ -62,6 +62,15 @@ export const QUERSCHNITT: ReadonlySet<string> = new Set([
   'zahlung', 'eingang', 'nummernkreis', 'mahnung', 'buchhaltung',
   'qualitaet', 'nachweis', 'system', 'vergabe', 'agent', 'formular',
   'nachricht', 'versand', 'medien', 'abwesenheit', 'lead', 'kunde',
+  /*
+   * `aufgabe` (OPS-11, SPEC §14): eine offene Pflicht ist kein Gewerk. Die
+   * Zeile kommt mit dem Sidebar-Punkt `aufgaben` — ohne sie waere `aufgabe`
+   * in KEINER der beiden Tabellen, `modulAktiv` gaebe ueber den Rueckfall
+   * „unbekanntes Modul bleibt offen" aus Versehen die richtige Antwort, und
+   * `tests/kern/modul.test.ts` faellt an genau dieser Stelle. WORAUS eine
+   * Aufgabe entsteht, haengt am Gewerk; DASS es Aufgaben gibt, nicht.
+   */
+  'aufgabe',
   // `freigabe` (PR 62): jede Gesellschaft hat einen Posteingang, in dem ein
   // Mensch entscheidet, was ein Agent vorgeschlagen hat (Invariante 7). Was
   // vorgeschlagen wird, haengt vom Gewerk ab — dass entschieden wird, nicht.
@@ -72,6 +81,18 @@ export const QUERSCHNITT: ReadonlySet<string> = new Set([
   // wird, nicht. An ein Gewerk gebunden waere das Modul bei CSE Operations
   // abgeschaltet, und genau dort liegt die Gruppenkommunikation.
   'social',
+  /*
+   * `stammdaten` (SEITENKARTE §5.13): die fuenf Kataloge sind KEIN Gewerk.
+   * `abwesenheitsart`, `antragsart` und `qualifikation` haengen am Menschen
+   * und gelten in jeder Gesellschaft; `belagsart` und `reinigungsklasse` sind
+   * in einer Gesellschaft ohne Reinigung einfach leer — leer ist nicht
+   * dasselbe wie gesperrt. `modulAktiv` gibt heute ueber den Rueckfall
+   * „unbekanntes Modul bleibt offen" zufaellig dieselbe Antwort; diese Zeile
+   * macht sie absichtlich. Ohne sie naehme der erste
+   * GEWERK_FUER_MODUL['stammdaten'] = 'reinigung' die drei Personal-Kataloge
+   * fuer security, bau und operations vom Bildschirm.
+   */
+  'stammdaten',
   // `referenz` (PUB-07, PRO-01 … PRO-05): die Pflege des oeffentlichen
   // Auftritts. Dieselbe Begruendung wie bei `social` und derselbe Grund, es
   // NICHT an ein Gewerk zu binden: jede der vier Gesellschaften hat ein
