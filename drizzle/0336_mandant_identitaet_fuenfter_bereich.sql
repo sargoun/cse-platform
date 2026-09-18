@@ -24,8 +24,13 @@
 -- in einem Ausloeser. Das bleibt so. Aber aus „ich darf keine Farbe erfinden"
 -- folgt nicht „dann darf es die Gesellschaft nicht geben". CLAUDE.md nennt
 -- fuer genau diesen Fall einen anderen Weg: Schnittstelle bauen, einen klar
--- bezeichneten PLATZHALTER setzen, `// TODO(client, O-NN)` daneben, und die
--- offene Frage ins Register.
+-- bezeichneten PLATZHALTER setzen, eine TODO-Zeile mit der O-Nummer daneben,
+-- und die offene Frage ins Register.
+--
+-- (Die Marke steht hier absichtlich NICHT woertlich: die Wache
+-- `todo-client-ohne-nummer` sucht genau sie, und ein Text, der die Regel
+-- zitiert, ist keine offene Frage. Nur der Waechter selbst darf sich
+-- ausnehmen — sonst nimmt sich bald jede Datei aus.)
 --
 -- **Der Platzhalter ist NULL.** `identitaets_token` wird nullable; der `CHECK`
 -- bleibt Zeichen fuer Zeichen derselbe fuer jeden NICHT-NULL-Wert. NULL heisst

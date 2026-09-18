@@ -3300,6 +3300,7 @@ Beantworten helfen:
 |---|---|---|
 | O-740 | Bis wann NACH Schichtende darf eine Kraft noch zu dieser Schicht erfassen (Foto, Wachbucheintrag, Leistungsnachweis, Bautagebuch)? `app.eigene_einsatz_objekte`/`_projekte` verlangen heute `ende_zeitpunkt >= now()` (0004), also schliesst die Erfassung mit der Minute des Schichtendes; CLN-04 laesst den Kunden aber AM ENDE der Schicht unterschreiben. Bis zur Antwort gilt die enge Auslegung, und die vier Schichtseiten nennen den Grund auf dem Bildschirm statt ein Formular anzubieten, das scheitert. | `drizzle/0300_mitarbeiter_schicht_m1_lesen.sql:145` |
 | O-741 | Soll der Auftraggeber den Leistungsnachweis zusaetzlich handschriftlich auf dem Bildschirm zeichnen, oder gilt eine getippte Namensangabe mit Serverzeit und Pruefsumme als ausreichend? Heute wird der Name getippt und mit `zeitabweichung_sek` und dem Digest des Abzugs festgehalten (0066); eine Zeichenflaeche braeuchte JavaScript, und die Geraete sind alte Diensttelefone im Treppenhaus. | `src/app/api/mein/schichten/[zuordnungId]/leistungsnachweis/[id]/unterschrift/route.ts:31` |
+| O-750 | **Welcher Bereichston (DESIGN §1, Kontrast nach DESIGN §9) gilt fuer eine fuenfte Gesellschaft — und darf ihr oeffentliches Profil freigeschaltet werden, bevor er eingetragen ist?** Seit 0336 entsteht die Identitaetszeile jeder Gesellschaft, auch ohne Eintrag in DESIGN §1; `identitaets_token` bleibt dann NULL, `platzhalter_medien` steht auf `true` und `oeffentlich_sichtbar` auf `false`. Eine Ersatzfarbe wird an keiner Stelle gewaehlt: `farbeVon()` gibt `null` zurueck und nicht Grau, und `/einstellungen/identitaet` nennt den Grund. Ein CHECK, der die Freischaltung ohne Token verbietet, ist bewusst NICHT gesetzt — das waere eine erfundene Geschaeftsregel. | TEN-07, TEN-08, DESIGN §1/§9, `drizzle/0336`, `services/mandant/identitaet.ts` |
 
 ---
 
@@ -14099,6 +14100,45 @@ und das Manifest sagt, warum.
 |---|---|
 
 ---
+
+### D-607 · `oeffentlich_sichtbar` war auf dem prinzipallosen Renderpfad wirkungslos
+
+0200 stellte die enge Policy `mi_oeffentlich` neben die weite `t_mi_lesen`
+(`mandant_id = any(app.sichtbare_mandanten())`). Im Mandanten-Scope gibt
+`app.sichtbare_mandanten()` aber `array[aktiver_mandant]` zurück, **ohne nach einem
+Prinzipal zu fragen** (0004/0020). Eine Sitzung ohne Benutzer erfüllte damit immer
+die weite Policy und las die Identitätszeile der aktiven Gesellschaft samt
+`email_absender`, `email_signatur` und `domain` — auch wenn niemand sie freigegeben
+hatte. Die enge Policy daneben steuerte nichts.
+
+0335 zieht in `t_mi_lesen` den Konjunkt `app.aktueller_benutzer() is not null` ein.
+
+**`app.sichtbare_mandanten()` selbst bleibt unangetastet**, und das ist die
+eigentliche Entscheidung hier. Sie ist die Wurzel jeder Policy der Plattform; dass
+sie ohne Prinzipal im Mandanten-Scope nicht leer ist, betrifft potenziell jede
+Tabelle. Das ist eine eigene Prüfrunde mit einem Urteil je Tabelle — nichts, das man
+nebenbei mitändert, während man eine andere Policy repariert.
+
+### D-606 · Eine fünfte Gesellschaft ist eine Zeile, auch ohne Bereichston (TEN-08)
+
+`kern.mandant_identitaet_anlegen()` aus 0200 brach bis 0336 **jedes** `insert into
+mandant` mit unbekanntem Slug ab (`errcode 23514`), weil DESIGN §1 nur vier
+Bereichstöne führt. Damit war eine fünfte Gesellschaft eine Codeänderung — und der
+Isolationsfall heisst wörtlich „a fifth area is a row, not a code change (TEN-08)".
+
+Die Begründung der Migration stimmt: eine Ersatzfarbe zu wählen (etwa
+`area-operations` für einen Logistikbereich) wäre der verbotene Gestaltungswert, der
+neue Bereich sähe aus wie „Digital & KI", und niemand suchte den Grund in einem
+Trigger. Falsch war allein die Schlussfolgerung — aus „ich darf keine Farbe
+erfinden" folgt nicht „dann darf es die Gesellschaft nicht geben". Die Regel aus
+CLAUDE.md für genau diesen Fall lautet anders: Schnittstelle, klar bezeichneter
+Platzhalter, `TODO(client, O-NN)`, Registerzeile.
+
+Seit 0336 ist `identitaets_token` **NULLABLE**, und NULL heisst genau: für diesen
+Bereich steht in DESIGN §1 noch kein Ton. `mi_token` lässt unverändert nur die vier
+Namen durch, die Reihenfolge aus CLAUDE.md bleibt (erst DESIGN.md, dann Migration),
+und die Zeile entsteht sichtbar als Platzhalter. `farbeVon()` gibt `null` zurück und
+nicht Grau: keine Fläche ist ehrlicher als eine falsche. Offen bleibt O-750.
 
 ### D-605 · Ein Name in Backticks INNERHALB einer Zeichenkette ist Prosa, kein Recht
 
