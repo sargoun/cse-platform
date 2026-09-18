@@ -27,123 +27,28 @@ Eingetragen heisst geloescht.
 - drizzle/0367_einstellung_recht.sql — BEFUND: `t_person_schreiben` und `t_anstellung_schreiben` (0004) prüften KEIN Recht. Jede interne Sitzung mit aktivem Bereich konnte einen Menschen und eine Beschäftigung anlegen; die einzige Wache wäre die Route gewesen, die es bis heute nicht gab. Beide Policies verlangen jetzt `personal.schreiben` (Invariante 3). Lesen und Ändern bleiben unverändert.
 - drizzle/0368_anstellung_geplant_wird_aktiv.sql — BEFUND: `geplant` hatte keinen Ausgang. 0191 zieht nur `beendet` nach; eine Beschäftigung, die zum Ersten beginnt, wäre für immer `geplant` geblieben und aus jeder Liste „wer arbeitet hier" gefallen. `app.anstellung_status_nachziehen` setzt jetzt auch `geplant → aktiv`, sobald `eintritt <= app.berlin_heute()` (dieselbe Zeitzonenfunktion wie das Austrittsende, Invariante 2). `ruhend` bleibt unberührt.
 
-## src/server/registry/dienste.ts
+## src/server/db/schema/rls.ts — GEPRÜFT, NICHTS EINZUTRAGEN (18.09.2026)
 
-Vier neue Zeilen für `DIENSTE` in `src/server/registry/dienste.ts` (der Gegentest verlangt, dass jeder Dienst unter `services/` im Register steht):
+Nachgemessen und deshalb gestrichen: 0365–0368 legen keine Tabelle an, sondern zwei
+Definer-Funktionen, zwei ersetzte Policies und eine erweiterte Definer-Funktion. Die
+berührten Tabellen (`person`, `anstellung`, `zeiteintrag`, `dokument`,
+`dokument_version`, `freigabe`) stehen samt Löschsperre schon im Register; `pnpm
+db:triggers` schreibt danach keine Zeile um.
 
-  /**
-   * **Die Ablage fuer Dateien, die ein MENSCH mitbringt (DOC-01, DOC-06).**
-   * Schwester von `dokument/upload` und `dokument/erzeugt`: `upload` traegt
-   * die Reihenfolge (Groesse, Magic Bytes, EXIF, Aufbewahrung, Speichern),
-   * `ablage` setzt sie in Zeilen um — `dokument` plus erste `dokument_version`
-   * mit ihrem SHA-256. Dieselbe Schranke wie beide: wer keine Dokumente
-   * ablegen darf, legt auch keine mitgebrachten ab.
-   */
-  {
-    modul: 'dokument', pfad: 'dokument/ablage',
-    schreibend: true, schreibRecht: 'dokument.schreiben',
-  },
+Die Anmerkung bleibt hier stehen, weil sie eine Feststellung ist, keine Auslassung:
+0367 ersetzt `t_person_schreiben` und `t_anstellung_schreiben` aus 0004 per `drop
+policy` + `create policy`; beide verlangen jetzt zusätzlich
+`app.hat_recht('personal.schreiben', …)`. `rls.ts` führt keine Policyliste — der
+Wortlaut steht an der Policy selbst.
 
-  /**
-   * **Einstellen (D-09, EMP-14).** Erst der Mensch, dann die Beschaeftigung —
-   * in EINER Transaktion, weil eine `person` ohne Beschaeftigung von dieser
-   * Gesellschaft aus unsichtbar ist. Setzt weder Stundensatz noch
-   * Wochenstunden (Spiegel der datierten Kondition, genau ein Schreiber,
-   * 0192) und legt keinen Portalzugang an.
-   */
-  {
-    modul: 'personal', pfad: 'personal/einstellung',
-    schreibend: true, schreibRecht: 'personal.schreiben',
-  },
+## src/server/registry/navigation.ts — GEPRÜFT, NICHTS NÖTIG (18.09.2026)
 
-  /**
-   * **Die Stapelmappe (APR-02, APR-04).** Rein LESEND: sie legt zu jedem
-   * offenen Vorgang seine geaenderten Felder daneben, damit ein Mensch
-   * verantworten kann, was er stapelweise genehmigt. Geschrieben wird in
-   * `freigabe/stapel`; auch die Ansichtszeile mit Kanal `stapel` entsteht
-   * dort, wo die Entscheidung faellt (APR-08).
-   */
-  { modul: 'freigabe', pfad: 'freigabe/stapel-mappe', schreibend: false },
-
-  /**
-   * **Die Freigabe zur Abrechnung (TIM-12, FIN-07, §7.3).** Schreibt ueber
-   * `app.zeit_zur_abrechnung_freigeben` (0366) und nicht mit einem `update`:
-   * das Recht gehoert in die Datenbank, nicht nur in die Route. Das Recht ist
-   * an keine Rolle gebunden, solange O-39 offen ist — der Dienst ist damit
-   * gebaut und heute unerreichbar.
-   */
-  {
-    modul: 'zeit', pfad: 'zeit/abrechnungsfreigabe',
-    schreibend: true, schreibRecht: 'zeit.abrechnung_freigeben',
-  },
-
-## src/server/auth/route-manifest.ts
-
-Drei neue Zeilen für `src/server/auth/route-manifest.ts` (bestätigt durch tests/kern/routen.test.ts, das genau diese drei als fehlend meldet — die beiden weiteren Treffer `api/mein/dokumente/[id]/datei` und `api/mein/nachrichten/[id]` gehören einem anderen Agenten):
-
-  {
-    /**
-     * Ablegen, was ein MENSCH mitbringt (DOC-01, DOC-03, DOC-06, TIM-10).
-     *
-     * `dokument.schreiben` — dasselbe Recht wie jeder andere Schreibweg in
-     * die Ablage. Die KUNDENsichtbarkeit steht ausdruecklich NICHT hier: sie
-     * ist eine eigene Handlung mit `dokument.kunde_freigeben` auf
-     * `api/dokumente/[id]/kundenfreigabe`. Zwei Schreibflaechen ueber einer
-     * Spalte, mit zwei verschiedenen Rechten, waeren der Defekt, bei dem der
-     * schwaechere Weg gewinnt.
-     *
-     * **Ein `multipart`-POST und kein Upload-Ticket** (Abweichung von
-     * 05-API-KARTE §C): nur so findet die MIME-Pruefung an den BYTES statt.
-     * Wer den Browser direkt in den Bucket schreiben laesst, prueft danach
-     * eine Datei, die schon liegt.
-     */
-    pfad: 'api/dokumente/upload',
-    recht: 'dokument.schreiben',
-  },
-  {
-    /**
-     * Einstellen (D-09, EMP-14, §5.12) — `personal.schreiben`, dasselbe Recht
-     * wie `…/anstellungen/[id]/vertrag`.
-     *
-     * **Eine Route fuer zwei Wege**, weil es EIN Vorgang ist: die
-     * Beschaeftigung entsteht, und der Mensch davor entweder auch oder eben
-     * nicht. Zwei Routen waeren zwei Transaktionen, und dazwischen laege eine
-     * `person`-Zeile ohne Beschaeftigung — von dieser Gesellschaft aus
-     * unsichtbar (`t_person_lesen`) und damit fuer immer unauffindbar.
-     *
-     * Entgelt und Kondition laufen weiter ueber `…/entgelt` mit dem
-     * strengeren `personal.entgelt_schreiben`; der Portalzugang ueber
-     * `api/personal/zugang-code`.
-     */
-    pfad: 'api/personal/anstellungen',
-    recht: 'personal.schreiben',
-  },
-  {
-    /**
-     * Erfasste Zeit zur Abrechnung freigeben (TIM-12, FIN-07, FIN-18).
-     *
-     * **`zeit.abrechnung_freigeben` ist nicht geseedet und an keine Rolle
-     * gebunden** (03-AUTH §12.4, O-39): diese Route ist gebaut, geprueft und
-     * fuer jede heutige Sitzung unerreichbar. Das ist der gewollte Zustand —
-     * die Antwort des Mandanten oeffnet sie mit einer Rechtebindung statt mit
-     * einem Umbau. Die Pruefung steht dreifach: hier, in
-     * `app.zeit_zur_abrechnung_freigeben` (0366) und im Manifest der Seite.
-     */
-    pfad: 'api/zeiten/freigabe',
-    recht: 'zeit.abrechnung_freigeben',
-  },
-
-## src/server/db/schema/rls.ts
-
-Keine Änderung an `src/server/db/schema/rls.ts` nötig.
-
-Dieses Register erzeugt die Hard-Delete-/Truncate-Wachen je TABELLE. Es ist keine neue Tabelle entstanden: 0365–0368 legen zwei Definer-Funktionen an, ersetzen zwei INSERT-Policies und erweitern eine vorhandene Definer-Funktion. Die betroffenen Tabellen (`person`, `anstellung`, `zeiteintrag`, `dokument`, `dokument_version`, `freigabe`) stehen bereits mit ihren Wachen im Register; `tests/isolation/dokument-ablage.test.ts` prüft für `dokument` noch einmal, dass `delete` für `cse_app` nicht durchgeht.
-
-Anzumerken bleibt für die zentrale Pflege: 0367 ersetzt zwei Policies aus 0004 (`t_person_schreiben`, `t_anstellung_schreiben`) per `drop policy` + `create policy`. Wenn irgendwo eine Policy-Liste als Text gepflegt wird, tragen beide jetzt zusätzlich `app.hat_recht('personal.schreiben', …)`.
-
-## src/server/registry/navigation.ts
-
-Keine Änderung nötig — und das ist eine Feststellung, keine Auslassung.
+Nachgemessen und deshalb gestrichen: die vier Wurzeln `dokumente`
+(`dokument.lesen`), `personal` (`personal/anstellungen`, `personal.lesen`),
+`zeiten` (`zeit.lesen`) und `freigaben` (`freigabe.lesen`) stehen in
+`NAVIGATION`, alle vier mit genau dem Recht, das dieser Abschnitt nennt. Die
+Begründung bleibt hier stehen, weil sie eine Feststellung ist, keine
+Auslassung:
 
 `NAVIGATION` führt bereits die vier Wurzeln (`dokumente` → dokument.lesen, `personal` → personal.lesen auf `personal/anstellungen`, `zeiten` → zeit.lesen, `freigaben` → freigabe.lesen). Die vier neuen Seiten sind Unterseiten dieser Wurzeln und werden von dort verlinkt — jeweils nur, wenn die Sitzung das Recht der ZIELSEITE hält (AUT-06/D-581, geprüft über `haeltRechte`):
 

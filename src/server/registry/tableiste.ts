@@ -122,21 +122,28 @@ export const TABLEISTEN: readonly TabLeiste[] = [
     /*
      * **Noch OHNE `Mehr` — und das ist eine offene Luecke, keine Ruhe.**
      *
-     * Das Kundenportal fuehrt acht gebaute Bildschirme und diese Leiste vier
-     * plus Uebersicht; `projekte`, `zahlungen` und `reklamationen` sind damit
-     * gebaut und aus KEINER Leiste erreichbar. Der Baum dafuer steht bereits
-     * als `KUNDEN_NAVIGATION` in `registry/navigation.ts`.
+     * Das Kundenportal fuehrt inzwischen ZEHN gebaute Listen samt Blaettern
+     * (19 Adressen) und diese Leiste vier plus Uebersicht; `angebote`,
+     * `objekte`, `projekte`, `zahlungen`, `dokumente` und `reklamationen`
+     * sind damit gebaut und aus KEINER Leiste erreichbar. Der Baum dafuer
+     * steht vollstaendig als `KUNDEN_NAVIGATION` in `registry/navigation.ts`
+     * — seit dem Kundenportal-Stapel mit allen elf Punkten. Einen Schritt
+     * weit helfen die Sprungkarten von `/portal/kunde` (dort von sechs auf
+     * zehn erweitert); eine Leiste ersetzen sie nicht.
      *
      * Was fehlt, liegt NICHT in diesem Register: `components/portal/
      * TabLeiste.tsx` (`MehrZelle` kennt genau zwei Baeume),
      * `components/portal/PortalRahmen.tsx` und `app/portal/zugang.ts` (die
-     * Rechtekarte wird fuer `kunde` aus `NAVIGATION` gebaut). Wuerde hier
-     * jetzt `MEHR` stehen, gaebe das Blatt den INTERNEN Baum unter
-     * `/portal/kunde` aus — `finanzen/rechnungen`, `qualitaet/reklamationen`,
-     * `bau/projekte` und weitere, allesamt 404, und jeder davon verriete die
-     * Existenz dessen, was er nicht zeigen darf (AUT-06). Die vier
-     * Aenderungen gehoeren zusammen eingespielt; bis dahin bleibt die Leiste,
-     * wie sie ist.
+     * Rechtekarte wird fuer `kunde` aus `NAVIGATION` gebaut, und
+     * `zusatzRecht` wird dort gar nicht gefragt). Wuerde hier jetzt `MEHR`
+     * stehen, gaebe das Blatt den INTERNEN Baum unter `/portal/kunde` aus —
+     * `finanzen/rechnungen`, `qualitaet/reklamationen`, `bau/projekte` und
+     * weitere, allesamt 404, und jeder davon verriete die Existenz dessen,
+     * was er nicht zeigen darf (AUT-06). Die vier Aenderungen gehoeren
+     * zusammen eingespielt; bis dahin bleibt die Leiste, wie sie ist. Der
+     * ausformulierte Vorschlag fuer alle vier steht in der Warteschlange
+     * (`docs/architecture/routenbau/register/kundenportal.md`, „Sonstiges")
+     * und wartet auf eine Hand, die alle vier Dateien anfassen darf.
      */
     ziele: [
       { schluessel: 'uebersicht', label: 'Übersicht', pfad: '', recht: 'bericht.dashboard_lesen', icon: 'uebersicht' },

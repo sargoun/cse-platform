@@ -240,6 +240,16 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * diese Sitzung oeffnen darf (AUT-06, D-567) — sie liest die Bedingung dort,
    * wo die Route sie auch wirklich prueft, statt sie abzuschreiben.
    *
+   * **`profil` ist unter den zehn der Sonderfall:** die Route fuehrt ZWEI
+   * Leserechte, `referenz.schreiben` UND `system.identitaet_verwalten`, und
+   * `pruefeZugang` verknuepft sie mit UND. Das zweite haelt nur
+   * `super_admin` — fuer `admin` und `leitung` ist das Unternehmensprofil
+   * damit ein 404, und die Sprungzeile blendet es (richtigerweise) aus. Der
+   * Menuepunkt trifft das nicht, weil er auf `website/seiten` zeigt; dass die
+   * Seite nur Texte je Sprachfassung pflegt und das Recht deshalb an den noch
+   * fehlenden Bildupload gehoert (O-13), ist eine Aenderung der Seitenkarte
+   * und steht dort in der Warteschlange — nicht hier.
+   *
    * **Was dieser Punkt nicht leisten kann:** `leitung` haelt
    * `referenz.schreiben` nur, wo eine Gesellschaft es ihr bindet, und sieht
    * den Tab sonst gar nicht — auch nicht die Neuigkeitenansicht, obwohl sie
@@ -404,8 +414,12 @@ export const NAVIGATION: readonly NaviEintrag[] = [
  * fuehrt, ist schlechter als keiner — er verraet die Existenz dessen, was er
  * nicht zeigen darf (AUT-06).
  *
- * `radar` und `kalender` stehen im Register und haben noch keine Seite; sie
- * fehlen deshalb hier, statt schon einmal verlinkt zu werden.
+ * **`radar` und `kalender` stehen jetzt darin.** Hier stand, sie haetten noch
+ * keine Seite und fehlten deshalb; beide sind inzwischen gebaut
+ * (`src/app/portal/gruppe/radar/page.tsx`, `…/kalender/page.tsx`), fuehren
+ * eine Manifestzeile mit ihrem Gruppenrecht und tragen damit durch
+ * `tests/kern/gruppen-navigation.test.ts` — der Test verlangt Registereintrag
+ * UND `page.tsx`.
  */
 export const GRUPPEN_NAVIGATION: readonly NaviEintrag[] = [
   { schluessel: 'uebersicht', label: 'Übersicht', pfad: '', recht: 'gruppe.bericht.lesen', icon: 'uebersicht' },
@@ -420,7 +434,40 @@ export const GRUPPEN_NAVIGATION: readonly NaviEintrag[] = [
   { schluessel: 'personen', label: 'Personen', pfad: 'personen', recht: 'gruppe.personal.lesen', icon: 'personal' },
   { schluessel: 'dienstplan', label: 'Dienstplan', pfad: 'dienstplan', recht: 'gruppe.dienstplan.lesen', icon: 'dienstplan' },
   { schluessel: 'auslastung', label: 'Auslastung', pfad: 'auslastung', recht: 'gruppe.zeit.lesen', icon: 'zeit' },
+  /**
+   * `radar` — die Vergabepipeline ueber alle vier Gesellschaften (RAD-07,
+   * REP-06).
+   *
+   * `radar` steht seit laengerem in der GRUPPENLEISTE (`tableiste.ts`) und
+   * fuehrte bis zur gebauten Seite auf die Auffangseite — D-549 nennt genau
+   * diesen Fall. Der Tab traegt jetzt; dieser Punkt ist der zweite Weg, und
+   * er ist der, ueber den man die Seite auch am Rechner findet.
+   *
+   * **Die Seite fasst zusammen, sie bewertet nicht.** Jede Punktzahl stammt
+   * aus dem Suchprofil GENAU EINER Gesellschaft; es gibt keinen Mittelwert
+   * und keine Gruppenrangfolge. Was zwei Gesellschaften tun sollen, die
+   * dieselbe Bekanntmachung hoch bewerten, ist eine Regel des Hauses und
+   * vergaberechtlich nicht gleichgueltig (§ 124 GWB) — die Seite zaehlt
+   * „Mehrfach im Blick", markiert die Zeile und schlaegt nichts vor (O-870).
+   */
+  { schluessel: 'radar', label: 'Radar', pfad: 'radar', recht: 'gruppe.radar.lesen', icon: 'ausschreibung' },
   { schluessel: 'dokumente', label: 'Dokumente', pfad: 'dokumente', recht: 'gruppe.dokument.lesen', icon: 'dokument' },
+  /**
+   * `kalender` — der zusammengefuehrte Kalender ueber sechs Quellen (CAL-01,
+   * CAL-02): Termin, Einsatz, Projekt, Vergabe, Freigabe, Lead.
+   *
+   * **Ohne Personenbezug in der Voreinstellung.** Eine Schicht steht dort
+   * ohne die Menschen, die sie besetzen, und die Bewerberquellen sind gar
+   * nicht erst angeschlossen; `p_gruppe_kein_personenbezug` (0370) haelt die
+   * zweite Linie, nachdem `t_bewerbung_gruppe` (0166) die Bewerberzeilen der
+   * Schwestergesellschaften bis dahin herausgab. Der Personenfilter ist ein
+   * ausdruecklicher Suchweg und erscheint nur mit `gruppe.personal.lesen`;
+   * ob er ein eigenes Recht braucht, ist offen (O-872).
+   *
+   * Der Teamfilter greift heute nur auf Schichten, weil `kalender_eintrag`
+   * kein `team_id` traegt — die Seite sagt das (O-871).
+   */
+  { schluessel: 'kalender', label: 'Kalender', pfad: 'kalender', recht: 'gruppe.kalender.lesen', icon: 'kalender' },
   { schluessel: 'freigaben', label: 'Freigaben', pfad: 'freigaben', recht: 'gruppe.freigabe.lesen', icon: 'freigabe' },
   { schluessel: 'agenten', label: 'Agenten', pfad: 'agenten', recht: 'gruppe.agent.lesen', icon: 'ki' },
   { schluessel: 'berichte', label: 'Berichte', pfad: 'berichte', recht: 'gruppe.bericht.lesen', icon: 'uebersicht' },
@@ -431,10 +478,12 @@ export const GRUPPEN_NAVIGATION: readonly NaviEintrag[] = [
  * Der Navigationsbaum des KUNDENPORTALS — das, was hinter `Mehr` steht.
  *
  * **Warum es ihn braucht.** Die Kundenleiste fuehrt fuenf Ziele; gebaut sind
- * acht Bildschirme. `projekte`, `zahlungen` und `reklamationen` waren damit
- * gebaut und aus KEINER Leiste erreichbar — die Sprungkarten der Uebersicht
- * reichen einen Schritt weit, und von `/portal/kunde/rechnungen/[id]` kommt
- * man ohne Adresszeile gar nicht zu den Zahlungen.
+ * inzwischen ZEHN Listen samt Blaettern (19 Adressen). `angebote`, `objekte`,
+ * `projekte`, `zahlungen`, `dokumente` und `reklamationen` sind damit gebaut
+ * und aus KEINER Leiste erreichbar — die Sprungkarten der Uebersicht
+ * (seit dem Kundenportal-Stapel zehn statt sechs) reichen einen Schritt weit,
+ * und von `/portal/kunde/rechnungen/[id]` kommt man ohne Adresszeile gar
+ * nicht zu den Zahlungen.
  *
  * **`recht` ist EIN Schluessel, zwei Routen verlangen zwei.**
  * `/portal/kunde/rechnungen` fuehrt im Manifest
@@ -445,11 +494,24 @@ export const GRUPPEN_NAVIGATION: readonly NaviEintrag[] = [
  * optionale `zusatzRecht` oben — und nicht, weil ein zweites Feld huebscher
  * waere.
  *
- * `angebote`, `objekte` und `dokumente` stehen bewusst NICHT darin: die
- * Seiten dahinter gehoeren anderen Stapeln und sind heute Platzhalter
- * (`[...rest]`). `auftraege` steht darin, weil es heute schon in der
- * Tableiste steht und in derselben Auffangroute endet — der Punkt wird also
- * nicht schlechter, er wandert nur.
+ * **`angebote`, `objekte` und `dokumente` stehen jetzt darin.** Hier stand,
+ * sie gehoerten anderen Stapeln und seien heute Platzhalter (`[...rest]`) —
+ * das stimmt seit dem Kundenportal-Stapel nicht mehr: alle drei Listen und
+ * ihre Blaetter sind gebaut. Jede der drei Routen fuehrt im Manifest GENAU
+ * EIN Leserecht (`angebot.lesen`, `objekt.lesen`, `dokument.lesen`), sie
+ * brauchen also kein `zusatzRecht` — anders als `rechnungen` und `nachweise`.
+ *
+ * **`dokumente` traegt eine Besonderheit, die kein Registerfeld abbildet:**
+ * `dokument` hat im Kunden-Scope keine permissive Policy (zwei restriktive
+ * Decken, 0009 und 0297, und `t_mandant` greift nicht, weil
+ * `app.aktiver_mandant()` dort NULL ist) — die Liste kommt heute leer
+ * zurueck, bis O-671 beantwortet ist. Das ist kein Grund, den Punkt
+ * wegzulassen: Recht und Route stimmen, die Seite ist vollstaendig gebaut,
+ * und ihr Leertext sagt ausdruecklich, dass sie NICHT leer ist, weil keine
+ * Unterlagen vorliegen (K-18).
+ *
+ * `auftraege` steht darin, weil es schon in der Tableiste steht — der Punkt
+ * wird also nicht schlechter, er wandert nur.
  *
  * **Dieser Baum wird heute von NICHTS gerendert, und das ist Absicht.** Das
  * Blatt hinter `Mehr` (`components/portal/TabLeiste.tsx`), die Schiene
@@ -463,11 +525,36 @@ export const GRUPPEN_NAVIGATION: readonly NaviEintrag[] = [
 export const KUNDEN_NAVIGATION: readonly NaviEintrag[] = [
   { schluessel: 'uebersicht', label: 'Übersicht', pfad: '', recht: 'bericht.dashboard_lesen', icon: 'uebersicht' },
   { schluessel: 'auftraege', label: 'Aufträge', pfad: 'auftraege', recht: 'auftrag.lesen', icon: 'auftrag' },
+  /**
+   * `angebote` (OPS-08, OPS-09) — nur VERSENDETE, nie ein Entwurf; das
+   * schneidet die Policy, nicht die Seite.
+   *
+   * Annehmen und Ablehnen gibt es im Portal nicht (O-74): statt eines
+   * ausgegrauten Knopfes steht der offene Punkt als Satz auf Liste und Blatt.
+   */
+  { schluessel: 'angebote', label: 'Angebote', pfad: 'angebote', recht: 'angebot.lesen', icon: 'angebot' },
+  /**
+   * `objekte` (OPS-01, OPS-02) — die eigenen Liegenschaften mit lesendem
+   * Raumbuch. `objekt.kunde_id` ist nullbar, ein Veranstaltungsort ohne
+   * Kundenstamm faellt also heraus; Belagsart und Reinigungsklasse fehlen
+   * ganz, weil sie im Kunden-Scope null Zeilen liefern und ein „—" je Raum
+   * sich wie „nicht erfasst" laese.
+   */
+  { schluessel: 'objekte', label: 'Objekte', pfad: 'objekte', recht: 'objekt.lesen', icon: 'objekt' },
   { schluessel: 'projekte', label: 'Bauprojekte', pfad: 'projekte', recht: 'bau.lesen', icon: 'aufmass' },
   { schluessel: 'rechnungen', label: 'Rechnungen', pfad: 'rechnungen', recht: 'finanzen.lesen', zusatzRecht: 'finanzen.herunterladen', icon: 'rechnung' },
   { schluessel: 'zahlungen', label: 'Zahlungen', pfad: 'zahlungen', recht: 'zahlung.lesen', icon: 'euro' },
   { schluessel: 'nachweise', label: 'Nachweise', pfad: 'nachweise', recht: 'nachweis.lesen', zusatzRecht: 'bau.lesen', icon: 'dokument' },
   { schluessel: 'reklamationen', label: 'Reklamationen', pfad: 'reklamationen', recht: 'qualitaet.lesen', icon: 'qualitaet' },
+  /**
+   * `dokumente` (DOC-01, DOC-03, DOC-04) — gebaut, und heute leer: `dokument`
+   * traegt im Kunden-Scope keine permissive Policy (O-671). Der Punkt steht
+   * trotzdem, weil Recht und Route stimmen und die Seite selbst sagt, warum
+   * nichts dasteht. Ein Abrufweg fehlt zusaetzlich aus einem zweiten Grund:
+   * die von DOC-03/SEC-A6 verlangte Abrufspur ist aus dem Kunden-Scope nicht
+   * schreibbar (O-843) — beides gehoert in DIESELBE Migration.
+   */
+  { schluessel: 'dokumente', label: 'Dokumente', pfad: 'dokumente', recht: 'dokument.lesen', icon: 'dokument' },
   { schluessel: 'nachrichten', label: 'Nachrichten', pfad: 'nachrichten', recht: 'nachricht.lesen', icon: 'mail' },
 ];
 

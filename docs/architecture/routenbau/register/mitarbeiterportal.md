@@ -38,44 +38,6 @@ dem Bauschritt geändert hat.
 - `/portal/mein/schichten/[zuordnungId]/bautagebuch` — fertig
   - Kritik bestaetigt und um einen stillen Fehler ergaenzt: leseMannstunden joint gewerk INNER, und gewerk.p_intern_decke liess nur portal='intern' durch — im Mitarbeiterportal waeren nicht 'die Gewerke unbekannt', sondern die MANNSTUNDENZEILEN verschwunden. 0303 setzt die Decke neu (intern+mitarbeiter) und gibt der Kolonne eine reine Lesepolicy auf den Katalog. Statt des zu breiten bau.schreiben (oeffnet LV, Nachtrag, Aufmassfreigabe) und statt eines neuen Katalogschluessels (0008 ist generiert, K-19) steht reiner Selbstzugriff ueber app.ist_eingesetzt_auf_projekt. projektId ist in EigeneSchicht, SCHICHT_FELDER und SPALTEN aufgenommen (MITARBEITER_NUTZLASTEN zieht es automatisch nach). Gemessen: Bautag anlegen, Position, Mannstunden und Tagesfoto gelingen ohne bau.schreiben; Tag SCHLIESSEN -> UPDATE 0. Mannstunden brauchen ein Gewerk, und der Katalog wird leer ausgeliefert — die Seite bietet das Formular dann gar nicht erst an und schreibt 'offen (O-159)'.
 
-## src/server/auth/route-manifest.ts
-
-VIER der sieben Eintraege sind eingetragen (`…/antraege/[id]/zurueckziehen`,
-`…/schichten/[zuordnungId]/fotos`, `…/bautagebuch/position`,
-`…/bautagebuch/mannstunden`) — alle vier mit `recht: null` und ihrer
-Begruendung, woertlich wie hier geliefert.
-
-DREI stehen NOCH AUS, weil sie gegen die Wirklichkeit nicht standhalten. Sie
-tragen einen Rechteschluessel, aber ihr Handler ruft `authorize()` nicht — und
-das Manifest sagt mit einem `recht` genau das aus. `tests/kern/routen.test.ts`
-(„eine geschuetzte Route ruft `authorize` auch wirklich auf") folgt der Route
-und ihren relativen Importen eine Ebene tief; `src/app/api/mein/schichten/bruecke.ts`
-ruft `authorize` nicht, und die drei Routen selbst tun es auch nicht:
-
-  { pfad: 'api/mein/schichten/[zuordnungId]/wachbuch', recht: 'wachbuch.schreiben' },
-  { pfad: 'api/mein/schichten/[zuordnungId]/leistungsnachweis', recht: 'nachweis.schreiben' },
-  { pfad: 'api/mein/schichten/[zuordnungId]/leistungsnachweis/[id]/unterschrift', recht: 'nachweis.schreiben' },
-
-Der Wachbuch-Handler sagt das in seinem eigenen Docblock ausdruecklich: „Das
-Recht ist `wachbuch.schreiben` … Es wird hier nicht noch einmal abgefragt: die
-`WITH CHECK`-Haelfte von `wachbuch_eintrag.t_mandant` prueft genau diesen
-Schluessel, und das ist die Stelle, an der er wirken muss (K-03, AUT-05)."
-Beide Aussagen sind fuer sich richtig; zusammen widersprechen sie der
-Bedeutung, die das Manifest dem Feld `recht` gibt.
-
-ZU ENTSCHEIDEN, bevor die drei Zeilen gesetzt werden (eine Frage, drei Zeilen):
-entweder die drei Handler rufen `authorize()` mit genau diesem Schluessel als
-erste Linie (dann passen die Zeilen unveraendert), oder die drei tragen
-`recht: null` mit einem `grund`, der den RLS-Weg nennt — wie es die vier
-eingetragenen Geschwister tun. Erfunden werden darf weder das eine noch das
-andere; deshalb bleiben sie hier stehen.
-
-AUSSERDEM ZU BEACHTEN: `tests/kern/mitarbeiter.test.ts` („das Mitarbeiterportal
-hat genau DREI eigene Schreibrouten") vergleicht `ROUTEN.filter(pfad
-startsWith 'api/mein/')` gegen eine fest verdrahtete Liste aus drei Pfaden.
-Mit den vier neuen Eintraegen sind es sieben; die Liste in diesem Test gehoert
-erweitert, sonst faellt er. Das ist eine Testdatei und nicht meine.
-
 ## Sonstiges
 
 ZWEI ZEILEN FUER docs/DECISIONS.md unter „Open\":

@@ -44,29 +44,6 @@ dem Bauschritt geändert hat.
 - `/portal/[mandant]/personal/zusammenfuehren` — fertig
   - Zwei Schritte: Suche stellt Kandidaten nebeneinander (Namen, Telefon, Beschaeftigungen, Nachweise, Zugang, Kennung) und schlaegt NICHTS vor; dann ausdrueckliche Wahl der fuehrenden Zeile, Pflichtgrund und getippte Bestaetigung (Nachname). Ausgefuehrt von app.person_zusammenfuehren in einer Transaktion: Zeiger setzen, Auditzeile mit beiden Kennungen. Der Kritik gefolgt — es wird KEINE Zeile umgehaengt (nachweis traegt (nachweis_id, person_id), mitarbeiter_zugang unique(person_id)); aufgeloest wird ueber app.person_kanonisch / app.person_identitaeten. Das Geburtsdatum steht bewusst nicht in der Trefferliste (Spaltenentzug). Offene Regel sichtbar als O-611.
 
-## src/server/registry/dienste.ts
-
-**NICHT ERLEDIGT — dieselbe Lage wie bei finanzen.** Der Abschnitt sagte „Keine
-Aenderung an einem Registerverzeichnis noetig" und zaehlte danach nur Dateien
-AUSSERHALB von `src/server/services/personal` auf.
-
-Gemessen am Baum (18.09., beim Leeren der Warteschlange) fehlen drei Dienste
-DIESER Domaene im Register, und `tests/kern/portal-shell.test.ts` bleibt dafuer
-rot:
-
-- `personal/anstellung`
-- `personal/dublette`
-- `personal/stammdaten`
-
-Nicht eingetragen, aus demselben Grund wie bei finanzen: welches Recht ein
-Schreibweg nennt, entscheidet die Policy der geschriebenen Tabelle, und das ist
-hier nicht geraten worden. Wer die Domaene personal kennt, traegt die drei nach
-und streicht diesen Abschnitt.
-
-## src/server/auth/route-manifest.ts
-
-Keine Aenderung noetig. Alle sieben Routen der Domaene stehen unveraendert in src/server/registry/routen.generiert.ts (Zeilen 199-215) mit den Rechten, gegen die die Seiten autorisieren; ich habe weder eine Route hinzugefuegt noch ein Recht verschoben. src/app/api/formular-antwort.ts ist ein Hilfsmodul ohne eigene Route und braucht keinen Manifesteintrag. Anzumerken bleibt O-614: das Manifest fuehrt /portal/[mandant]/personal/anstellungen/[id]/entgelt mit aal2: false, 05-API-KARTE §C.8 mit 'sitzung+2fa' — wird O-614 zugunsten der zweiten Stufe entschieden, ist das eine Zeile im Manifest.
-
 ## Sonstiges
 
 A) scripts/generate-triggers.ts — in MIGRATIONS_DATEIEN ergaenzen (nur zusammen mit den zwei rls.ts-Zeilen oben):

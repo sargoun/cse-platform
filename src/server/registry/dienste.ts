@@ -799,6 +799,28 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * seinem Recht.
    */
   { modul: 'dienstanweisung', pfad: 'mitarbeiter/dienstanweisungen', schreibend: false },
+  /**
+   * **Unterlagen und Objekte der eigenen Einteilung (0360, 0361).** Ebenfalls
+   * LESEND. Die Abrufspur in `dokument_zugriff` schreibt die ROUTE
+   * `api/mein/dokumente/[id]/datei`, nicht der Dienst — damit bleibt die
+   * Zusage „kein Dienst unter `mitarbeiter/` schreibt" wahr.
+   * `mitarbeiter/objekte` liest den Zutrittshinweis ueber den Definer
+   * `app.mein_objekt_zugang` (0360), dessen Praedikat wortgleich
+   * `app.ist_eingesetzt_auf_objekt` ist — keine neue Sichtbarkeitsregel,
+   * sondern dieselbe in einer Funktion.
+   */
+  { modul: 'dokument', pfad: 'mitarbeiter/dokumente', schreibend: false },
+  { modul: 'objekt', pfad: 'mitarbeiter/objekte', schreibend: false },
+  /**
+   * **Der Posteingang der Kraft (0350, EMP-11).** Beide lesend: der Faden wird
+   * gelesen, geantwortet wird ueber `kern/nachricht` — den Fachdienst, der
+   * ohnehin unter `nachricht.versenden` schreibt. Ein vierter, im Portaldienst
+   * angelegter Schreibweg waere genau der, der an den drei bekannten
+   * vorbeifuehrt. `mitarbeiter/posteingang` beruehrt gar keine Datenbank: es
+   * mischt `benachrichtigung` und `nachricht` zu einer Liste.
+   */
+  { modul: 'nachricht', pfad: 'mitarbeiter/nachricht', schreibend: false },
+  { modul: 'nachricht', pfad: 'mitarbeiter/posteingang', schreibend: false },
 
   /**
    * Die Rechnung (PR 46). Der Kanonisierer und der Kettenlauf LESEN — der
@@ -1112,7 +1134,7 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * bei `erteilen`. `diff-json` und `json` sind reine Umformungen.
    */
   /**
-   * Die Gruppenansicht (TEN-05, D-475) — vier Leser, kein Schreiber.
+   * Die Gruppenansicht (TEN-05, D-475) — sechs Leser, kein Schreiber.
    *
    * Modul `bericht`, weil sie genau das sind: Berichte ueber mehrere
    * Gesellschaften, gelesen im Gruppen-Scope, in dem keine Tabelle eine
@@ -1124,6 +1146,18 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'bericht', pfad: 'gruppe/finanzen', schreibend: false },
   { modul: 'bericht', pfad: 'gruppe/offene-posten', schreibend: false },
   { modul: 'bericht', pfad: 'gruppe/auslastung', schreibend: false },
+  /**
+   * Die beiden Nachzuegler derselben Art (RAD-07/REP-06, CAL-01/CAL-02): die
+   * Vergabepipeline und der zusammengefuehrte Kalender ueber alle
+   * Gesellschaften. Beide nehmen einen `LeseKontext`, beide fragen je Bereich
+   * zuerst das Recht, damit eine fehlende Berechtigung nicht als Null
+   * erscheint. `gruppe/radar` rechnet ausdruecklich KEINE zweite Bewertung —
+   * keine Gruppenpunktzahl, kein Mittelwert; die Punktzahl bleibt die der
+   * Gesellschaft. Dazu gehoert 0370, das der Gruppenansicht die Bewerberdaten
+   * ENTZIEHT (`p_gruppe_kein_personenbezug`, restriktiv).
+   */
+  { modul: 'bericht', pfad: 'gruppe/radar', schreibend: false },
+  { modul: 'bericht', pfad: 'gruppe/kalender', schreibend: false },
   { modul: 'freigabe', pfad: 'freigabe/diff-json', schreibend: false },
   { modul: 'freigabe', pfad: 'freigabe/json', schreibend: false },
   { modul: 'freigabe', pfad: 'freigabe/laden', schreibend: false },
@@ -1428,7 +1462,7 @@ export const DIENSTE: readonly DienstEintrag[] = [
   },
 
   /**
-   * **Das Kundenportal (AUT-01, CRM-06, 04-SEITENKARTE §8).** Acht Dienste,
+   * **Das Kundenportal (AUT-01, CRM-06, 04-SEITENKARTE §8).** Zwoelf Dienste,
    * alle LESEND — und das ist keine Momentaufnahme, sondern der Typ: jeder
    * bekommt einen `KundenAbfrage` mit genau einer Methode (`abfrage`), und
    * `kundePortal` reicht ihm einen `LeseKontext` ohne `schreibe`. Ein
@@ -1436,12 +1470,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * keine Laufzeitentscheidung; ob ein Kundenzugang im Portal ueberhaupt
    * schreiben darf, ist O-74.
    *
-   * Kein `schreibRecht` an einer der acht Zeilen — dann greift die erste
+   * Kein `schreibRecht` an einer der zwoelf Zeilen — dann greift die erste
    * Pruefung („jeder schreibende Dienst nennt sein Schreibrecht") gar nicht.
    */
+  { modul: 'kundenportal', pfad: 'kundenportal/angebot', schreibend: false },
+  { modul: 'kundenportal', pfad: 'kundenportal/auftrag', schreibend: false },
   { modul: 'kundenportal', pfad: 'kundenportal/basis', schreibend: false },
+  { modul: 'kundenportal', pfad: 'kundenportal/dokument', schreibend: false },
   { modul: 'kundenportal', pfad: 'kundenportal/nachricht', schreibend: false },
   { modul: 'kundenportal', pfad: 'kundenportal/nachweis', schreibend: false },
+  { modul: 'kundenportal', pfad: 'kundenportal/objekt', schreibend: false },
   { modul: 'kundenportal', pfad: 'kundenportal/projekt', schreibend: false },
   { modul: 'kundenportal', pfad: 'kundenportal/rechnung', schreibend: false },
   { modul: 'kundenportal', pfad: 'kundenportal/reklamation', schreibend: false },
@@ -1641,6 +1679,62 @@ export const DIENSTE: readonly DienstEintrag[] = [
   {
     modul: 'personal', pfad: 'personal/dublette',
     schreibend: true, schreibRecht: 'personal.zusammenfuehren',
+  },
+
+  /**
+   * **Der Reststapel des internen Portals (0365–0368).** Vier Dienste hinter
+   * vier Seiten, die es bis dahin nicht gab.
+   *
+   * `dokument/ablage` ist die Schwester von `dokument/upload` und
+   * `dokument/erzeugt`: `upload` traegt die Reihenfolge (Groesse, Magic
+   * Bytes, EXIF, Aufbewahrung, Speichern), `ablage` setzt sie in Zeilen um —
+   * `dokument` plus erste `dokument_version` mit ihrem SHA-256. Dieselbe
+   * Schranke wie bei beiden, und es ist die der Tabelle: `t_mandant` auf
+   * `dokument` und `t_version_schreiben` auf `dokument_version` verlangen im
+   * WITH CHECK genau `dokument.schreiben`.
+   */
+  {
+    modul: 'dokument', pfad: 'dokument/ablage',
+    schreibend: true, schreibRecht: 'dokument.schreiben',
+  },
+
+  /**
+   * **Einstellen (D-09, EMP-14).** Erst der Mensch, dann die Beschaeftigung —
+   * in EINER Transaktion, weil eine `person` ohne Beschaeftigung von dieser
+   * Gesellschaft aus unsichtbar ist. Setzt weder Stundensatz noch
+   * Wochenstunden (Spiegel der datierten Kondition, genau ein Schreiber,
+   * 0192) und legt keinen Portalzugang an. Das Recht steht seit 0367 auch in
+   * der Datenbank: `t_person_schreiben` und `t_anstellung_schreiben` (0004)
+   * pruefen `personal.schreiben` und liessen bis dahin jede interne Sitzung
+   * mit aktivem Bereich schreiben.
+   */
+  {
+    modul: 'personal', pfad: 'personal/einstellung',
+    schreibend: true, schreibRecht: 'personal.schreiben',
+  },
+
+  /**
+   * **Die Stapelmappe (APR-02, APR-04).** Rein LESEND: sie legt zu jedem
+   * offenen Vorgang seine geaenderten Felder daneben, damit ein Mensch
+   * verantworten kann, was er stapelweise genehmigt. Geschrieben wird in
+   * `freigabe/stapel`; auch die Ansichtszeile mit Kanal `stapel` entsteht
+   * dort, wo die Entscheidung faellt (APR-08).
+   */
+  { modul: 'freigabe', pfad: 'freigabe/stapel-mappe', schreibend: false },
+
+  /**
+   * **Die Freigabe zur Abrechnung (TIM-12, FIN-07, §7.3).** Schreibt ueber
+   * `app.zeit_zur_abrechnung_freigeben` (0366) und nicht mit einem `update`:
+   * das Recht gehoert in die Datenbank, nicht nur in die Route — die Funktion
+   * prueft `zeit.abrechnung_freigeben` selbst, und die schmale Policy
+   * `z_definer_abrechnungsfreigabe` laesst nur abgeschlossene, nicht
+   * stornierte, noch nicht freigegebene Zeilen zu. Der Schluessel steht im
+   * Katalog und haengt an keiner Rolle, solange O-39 offen ist; der Dienst ist
+   * damit gebaut und heute unerreichbar.
+   */
+  {
+    modul: 'zeit', pfad: 'zeit/abrechnungsfreigabe',
+    schreibend: true, schreibRecht: 'zeit.abrechnung_freigeben',
   },
 ] as const;
 

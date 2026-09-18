@@ -16,34 +16,26 @@ Eingetragen heisst geloescht.
 
 - drizzle/0370_gruppe_kein_personenbezug_bewerbung.sql — (1) `drop policy t_bewerbung_gruppe on bewerbung`; (2) `p_gruppe_kein_personenbezug` als RESTRICTIVE `for all to cse_app using (not app.ist_gruppenansicht()) with check (not app.ist_gruppenansicht())` auf bewerbung, kandidat, bewerbung_bewertung, einstellungsentscheidung, gespraech, bewerbung_antwort; dazu zwei `comment on policy`. Angewendet und geprüft gegen eine eigene Datenbank (w_grp) und gegen iso_grp/iso_grp_w1. 0371–0374 blieben unbenutzt.
 
-## src/server/registry/dienste.ts
+## src/server/db/schema/rls.ts — GEPRÜFT, NICHTS EINZUTRAGEN (18.09.2026)
 
-In `src/server/registry/dienste.ts`, `DIENSTE` — bei den übrigen `gruppe/*`-Zeilen (heute Z. 1123–1126), `modul: 'bericht'` wie dort:
+Nachgemessen und deshalb gestrichen. `drizzle/0370_gruppe_kein_personenbezug_bewerbung.sql`
+legt keine Tabelle an (kein `create table`), also entsteht weder eine Löschsperre noch
+eine Auditpflicht noch ein `geaendert_am`. Das Register führt Löscharten und
+Auditpflichten je TABELLE, keine Policyliste. Gegengeprüft gegen eine frisch migrierte
+Datenbank (`w_reg`, alle Migrationen bis 0370): `public` trägt
+`kern.verhindere_loeschung` auf genau den 180 Tabellen, die `KEIN_HARD_DELETE` führt —
+in beide Richtungen deckungsgleich, ebenso die 48 Zeilen von `AUDITIERT`.
 
-  { modul: 'bericht', pfad: 'gruppe/radar', schreibend: false },
-  { modul: 'bericht', pfad: 'gruppe/kalender', schreibend: false },
+## src/server/registry/navigation.ts — ERLEDIGT (18.09.2026)
 
-Beide sind reine Lesedienste (sie nehmen `LeseKontext`), laufen also in der Gruppenansicht und stehen zu Recht ohne `schreibRecht`. Ohne diese Zeilen bleibt `tests/kern/portal-shell.test.ts` rot — dort fehlen aktuell auch die Dienste der anderen Agenten (mitarbeiter/objekte, mitarbeiter/nachricht, freigabe/stapel-mappe, kundenportal/{angebot,auftrag,dokument,objekt} …).
-
-## src/server/auth/route-manifest.ts
-
-Keine Änderung nötig. `src/server/auth/route-manifest.ts` führt ausschliesslich API-Routen und Handler (`healthz`, `llms.txt`, `api/…`) — keine einzige `portal/…`-Seite. Die beiden Seiten sind bereits im Seitenmanifest `src/server/registry/routen.generiert.ts` bewacht: Z. 391 `/portal/gruppe/radar` (`gruppe.radar.lesen`, scope GRP, Phase 8) und Z. 393 `/portal/gruppe/kalender` (`gruppe.kalender.lesen`, scope GRP, Phase 9). Beide Seiten gehen durch `gruppenTor()` → `portalZugang()` → dieses Manifest; fehlendes Recht ergibt 404, nicht 403.
-
-## src/server/db/schema/rls.ts
-
-Keine Änderung nötig an `src/server/db/schema/rls.ts`. 0370 legt keine Tabelle an, ändert keine Löschsperre und keine Auditpflicht — es setzt nur Policies auf sechs bestehende Tabellen. Die Registerdatei führt Löscharten (`soft`/`archiv`/`append`) und Auditzeilen, keine Policyliste; die neue Decke ist stattdessen durch `tests/isolation/gruppe-radar-kalender.test.ts` (Abschnitt 2, vier Fälle inkl. `pg_policies`-Abfrage) festgehalten.
-
-## src/server/registry/navigation.ts
-
-In `src/server/registry/navigation.ts`, `GRUPPEN_NAVIGATION` — zwei Zeilen; beide Ziele haben jetzt Manifestzeile (routen.generiert.ts Z. 391 bzw. 393), Seite und Gruppenrecht, `tests/kern/gruppen-navigation.test.ts` trägt sie damit:
-
-  zwischen 'auslastung' und 'dokumente':
-  { schluessel: 'radar', label: 'Radar', pfad: 'radar', recht: 'gruppe.radar.lesen', icon: 'ausschreibung' },
-
-  zwischen 'dokumente' und 'freigaben':
-  { schluessel: 'kalender', label: 'Kalender', pfad: 'kalender', recht: 'gruppe.kalender.lesen', icon: 'kalender' },
-
-Hinweis: `radar` steht bereits in `tableiste.ts` (Gruppenleiste, Z. 158) und führte bis jetzt auf die Auffangseite — D-549 nennt genau diesen Fall. Mit der Seite trägt der Tab jetzt.
+Eingetragen heisst gelöscht. `radar` (zwischen `auslastung` und `dokumente`) und
+`kalender` (zwischen `dokumente` und `freigaben`) stehen in `GRUPPEN_NAVIGATION`,
+je mit Begründung. Gegengeprüft statt übernommen: beide Seiten liegen unter
+`src/app/portal/gruppe/…/page.tsx`, beide Manifestzeilen (routen.generiert.ts
+Z. 391/393) führen genau ihr Gruppenrecht, und `gruppe.radar.lesen` /
+`gruppe.kalender.lesen` stehen im Rechtekatalog und in `berechtigung`. Der
+Kopfkommentar der Liste sagte, beide hätten noch keine Seite — er ist mit
+geändert. Hier ist nichts mehr offen.
 
 ## Zeilen fuer docs/DECISIONS.md, Abschnitt „Offen"
 

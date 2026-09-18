@@ -22,48 +22,16 @@ Eingetragen heisst geloescht.
 - drizzle/0360_mein_objekt_zugang.sql — app.mein_objekt_zugang(uuid): vier Texte (zutritt_hinweis, Name/Telefon/Mobil des Ansprechpartners vor Ort) für ein Objekt, auf dem der Aufrufer selbst eingeteilt ist. KEINE neue Sichtbarkeitsregel: Prädikat ist wortgleich app.ist_eingesetzt_auf_objekt (0069), dieselbe Funktion wie in objekt.t_selbst_m1 (0300) und leistungsnachweis.p_portal_decke. Prüft app.portal() selbst (K-04), gibt außerhalb des Mitarbeiterportals null Zeilen, NULL-Argument ergibt keine Zeile. Gehört cse_definer (K-01); dazu `grant select on objekt to cse_definer` (fehlte seit 0304) und die benannte Lesepolicy d_objekt_ansprechpartner. Ausgeschiedene/anonymisierte Kontakte fallen heraus; bemerkung und E-Mail bleiben draußen.
 - drizzle/0361_mein_dokument_abrufspur.sql — permissive INSERT-Policy dokument_zugriff.t_selbst_m1: portal='mitarbeiter', nicht readonly, mandant_id = aktiver_mandant, art='abruf', benutzer_id = aktueller_benutzer, und ein EXISTS auf ein freigegebenes, nicht gelöschtes Dokument (Prädikat wie dokument.t_person). Kein neuer Rechteschlüssel (K-19, Begründung wie 0300).
 
-## src/server/registry/dienste.ts
+## src/server/db/schema/rls.ts — GEPRÜFT, NICHTS EINZUTRAGEN (18.09.2026)
 
-Bitte in src/server/registry/dienste.ts in den Block „Das Mitarbeiterportal LIEST" (bei mitarbeiter/person … mitarbeiter/dienstanweisungen) aufnehmen:
+Nachgemessen und deshalb gestrichen: 0360 legt eine Definer-Funktion samt Lesepfad an,
+0361 eine INSERT-Policy auf der bestehenden Tabelle `dokument_zugriff`. Keine neue
+Tabelle, also keine neue Zeile. Der Löschschutz von `dokument_zugriff` steht seit 0139
+im erzeugten Block und ist nach `pnpm db:triggers` unverändert.
 
-  { modul: 'dokument', pfad: 'mitarbeiter/dokumente', schreibend: false },
-  { modul: 'objekt',   pfad: 'mitarbeiter/objekte',   schreibend: false },
+## src/server/registry/navigation.ts — GEPRÜFT, NICHTS NÖTIG (18.09.2026)
 
-Beide lesen nur — die Abrufspur (dokument_zugriff) schreibt die Route, nicht der Dienst; damit bleibt „kein Dienst unter mitarbeiter/ schreibt" (tests/kern/mitarbeiter.test.ts) wahr.
-
-Hinweis nebenbei: dort fehlen zurzeit außerdem `mitarbeiter/nachricht` und `mitarbeiter/posteingang` aus der parallel laufenden Posteingangsarbeit (0350) — solange sie fehlen, bleibt der Fall „jeder Dienst unter mitarbeiter/ ist eingetragen" rot.
-
-## src/server/auth/route-manifest.ts
-
-Bitte in src/server/auth/route-manifest.ts aufnehmen (bei den übrigen `api/mein/`-Zeilen):
-
-  {
-    pfad: 'api/mein/dokumente/[id]/datei',
-    recht: null,
-    grund:
-      'EMP-11, DOC-03, DOC-04, SEC-A6. Selbstzugriff (04-SEITENKARTE §7): „nur der '
-      + 'Betroffene" lässt sich als Recht nicht ausdrücken (K-19) — die Rolle '
-      + '`mitarbeiter` hält `dokument.lesen` bewusst NICHT, sonst läge ihr die '
-      + 'Rechnungsablage offen. Bewacht ist der Abruf stattdessen durch die Sitzung, '
-      + 'durch `dokument.t_person` (0009: freigegeben, nicht gelöscht, eigene '
-      + 'Gesellschaft), durch den serverseitig aus der gelesenen Zeile abgeleiteten '
-      + 'Mandanten (K-02, nie aus der Anfrage) und durch `Sec-Fetch-Site` gegen eine '
-      + 'fremde Einbettung. Vor der signierten Adresse schreibt die Route die Abrufspur '
-      + '`dokument_zugriff` (0361) in derselben Transaktion: ein Abruf ohne Spur wäre '
-      + 'für die Auskunft nach Art. 15 DSGVO unsichtbar.',
-  },
-
-Die vier Seitenrouten selbst stehen bereits in src/server/registry/routen.generiert.ts (Zeilen 424, 425, 428, 429) — dort ist nichts zu ändern.
-
-Hinweis nebenbei: im Manifest fehlen zurzeit außerdem `api/dokumente/upload`, `api/mein/nachrichten/[id]`, `api/personal/anstellungen` und die Zeitfreigabe-Route aus der parallelen Arbeit; tests/kern/routen.test.ts nennt alle vier.
-
-## src/server/db/schema/rls.ts
-
-Nichts nötig. Es entsteht KEINE neue Tabelle — 0360 legt eine Definer-Funktion samt Lesepfad an, 0361 eine INSERT-Policy auf der bestehenden Tabelle `dokument_zugriff`. Deren Löschschutz (trg_dokument_zugriff_kein_hard_delete) steht seit 0139 im generierten Block und bleibt unverändert; src/server/db/schema/rls.ts habe ich nicht angefasst.
-
-## src/server/registry/navigation.ts
-
-Nichts nötig. Das Mitarbeiterportal hat keine Seitenleiste, und die Tab-Leiste trägt nach SEITENKARTE §11.2 genau fünf Ziele. Beide Seiten sind über die Liste „Weiteres" auf /portal/mein erreichbar — diese Zeilen habe ich dort ergänzt (src/app/portal/mein/page.tsx), zusammen mit den vorhandenen sechs. tests/kern/mein-dokumente-objekte.test.ts hält fest, dass die Verweise dort stehen.
+Nachgemessen und deshalb gestrichen. Nichts nötig. Das Mitarbeiterportal hat keine Seitenleiste, und die Tab-Leiste trägt nach SEITENKARTE §11.2 genau fünf Ziele. Beide Seiten sind über die Liste „Weiteres" auf /portal/mein erreichbar — diese Zeilen habe ich dort ergänzt (src/app/portal/mein/page.tsx), zusammen mit den vorhandenen sechs. tests/kern/mein-dokumente-objekte.test.ts hält fest, dass die Verweise dort stehen.
 
 ## Zeilen fuer docs/DECISIONS.md, Abschnitt „Offen"
 

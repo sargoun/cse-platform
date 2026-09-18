@@ -795,6 +795,20 @@ export const ROUTEN: readonly RouteEintrag[] = [
     recht: 'zeit.korrigieren',
   },
   {
+    /**
+     * Erfasste Zeit zur Abrechnung freigeben (TIM-12, FIN-07, FIN-18).
+     *
+     * **`zeit.abrechnung_freigeben` ist nicht geseedet und an keine Rolle
+     * gebunden** (03-AUTH §12.4, O-39): diese Route ist gebaut, geprueft und
+     * fuer jede heutige Sitzung unerreichbar. Das ist der gewollte Zustand —
+     * die Antwort des Mandanten oeffnet sie mit einer Rechtebindung statt mit
+     * einem Umbau. Die Pruefung steht dreifach: hier, in
+     * `app.zeit_zur_abrechnung_freigeben` (0366) und im Manifest der Seite.
+     */
+    pfad: 'api/zeiten/freigabe',
+    recht: 'zeit.abrechnung_freigeben',
+  },
+  {
     pfad: 'api/karriere/bewerbung',
     recht: null,
     grund:
@@ -1479,6 +1493,52 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + 'bestaetigte Pruefsumme haelt `signiere` gegen einen neu gebauten Abzug und weist '
       + 'ab, wenn beide nicht gleich sind.',
   },
+  {
+    /**
+     * Die eigene Unterlage abrufen (EMP-11, DOC-03, DOC-04, SEC-A6, 0361).
+     *
+     * Wie die Schichtwege darueber ohne `authorize()` — und wie dort heisst
+     * `recht: null` nicht „ungeprueft", sondern: diese Route bindet kein
+     * Modulrecht, weil `dokument.lesen` der Rolle `mitarbeiter` bewusst fehlt.
+     * Der Abruf schreibt seine Spur VOR der signierten Adresse; ein Abruf ohne
+     * Spur waere fuer die Auskunft nach Art. 15 DSGVO unsichtbar.
+     */
+    pfad: 'api/mein/dokumente/[id]/datei',
+    recht: null,
+    grund:
+      'EMP-11, DOC-03, DOC-04, SEC-A6. Selbstzugriff (04-SEITENKARTE §7): „nur der '
+      + 'Betroffene" lässt sich als Recht nicht ausdrücken (K-19) — die Rolle '
+      + '`mitarbeiter` hält `dokument.lesen` bewusst NICHT, sonst läge ihr die '
+      + 'Rechnungsablage offen. Bewacht ist der Abruf stattdessen durch die Sitzung, '
+      + 'durch `dokument.t_person` (0009: freigegeben, nicht gelöscht, eigene '
+      + 'Gesellschaft), durch den serverseitig aus der gelesenen Zeile abgeleiteten '
+      + 'Mandanten (K-02, nie aus der Anfrage) und durch `Sec-Fetch-Site` gegen eine '
+      + 'fremde Einbettung. Vor der signierten Adresse schreibt die Route die Abrufspur '
+      + '`dokument_zugriff` (0361) in derselben Transaktion: ein Abruf ohne Spur wäre '
+      + 'für die Auskunft nach Art. 15 DSGVO unsichtbar.',
+  },
+  {
+    /**
+     * Der Rueckweg des Posteingangs (EMP-11, NOT-03, 0350): stempeln und
+     * antworten. Kein Rechteschluessel, und das ist kein Loch (K-19,
+     * SEITENKARTE §7) — dieselbe Begruendung wie bei `api/mein/antraege`:
+     * „nur die Beteiligte" laesst sich als Recht nicht ausdruecken, weil ein
+     * Recht einer Rolle gehoert und eine Rolle vielen Menschen.
+     */
+    pfad: 'api/mein/nachrichten/[id]',
+    recht: null,
+    grund:
+      'EMP-11, NOT-03, SEITENKARTE §7. Den EIGENEN Faden als gelesen stempeln und darin '
+      + 'antworten ist Selbstzugriff und kein Modulrecht (K-19). Die Wache ist vierfach: '
+      + 'die Sitzung, der Ursprungsvergleich, der aus dem FADEN serverseitig aufgeloeste '
+      + 'Mandant (K-02, Invariante 3 — ein fremder Faden gibt dort null Zeilen und damit '
+      + '404 statt 403, AUT-06) und die Policies: `t_empfaenger_eigene_stempeln` (0231) '
+      + 'trifft nur die eigenen Zustellzeilen, und fuer die Antwort pruefen '
+      + '`t_nachricht_mandant` und `t_empfaenger_mandant` im WITH CHECK '
+      + '`nachricht.versenden` — im Katalog an `mitarbeiter` gebunden — unter der '
+      + 'restriktiven K-04-Mitarbeiterdecke `p_beteiligt`. Nichts verlaesst dabei das '
+      + 'System: richtung `intern`, kanal `portal` (Invariante 7, O-36).',
+  },
 
   /**
    * Die vier Wege der Ausgangsrechnung (PR 46) — VIER Adressen und nicht eine.
@@ -1839,6 +1899,25 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Ablegen, was ein MENSCH mitbringt (DOC-01, DOC-03, DOC-06, TIM-10).
+     *
+     * `dokument.schreiben` — dasselbe Recht wie jeder andere Schreibweg in
+     * die Ablage. Die KUNDENsichtbarkeit steht ausdruecklich NICHT hier: sie
+     * ist eine eigene Handlung mit `dokument.kunde_freigeben` auf
+     * `api/dokumente/[id]/kundenfreigabe`. Zwei Schreibflaechen ueber einer
+     * Spalte, mit zwei verschiedenen Rechten, waeren der Defekt, bei dem der
+     * schwaechere Weg gewinnt.
+     *
+     * **Ein `multipart`-POST und kein Upload-Ticket** (Abweichung von
+     * 05-API-KARTE §C): nur so findet die MIME-Pruefung an den BYTES statt.
+     * Wer den Browser direkt in den Bucket schreiben laesst, prueft danach
+     * eine Datei, die schon liegt.
+     */
+    pfad: 'api/dokumente/upload',
+    recht: 'dokument.schreiben',
+  },
+  {
+    /**
      * Einen CAMT.053-Kontoauszug einlesen (PR 61, ACC-04).
      *
      * `zahlung.schreiben` und nicht `buchhaltung.lesen`: der Import legt bei
@@ -2087,6 +2166,27 @@ export const ROUTEN: readonly RouteEintrag[] = [
      */
     pfad: 'api/personal/zugang-code',
     recht: 'personal.zugang_verwalten',
+  },
+  {
+    /**
+     * Einstellen (D-09, EMP-14, §5.12) — `personal.schreiben`, dasselbe Recht
+     * wie `…/anstellungen/[id]/vertrag`.
+     *
+     * **Eine Route fuer zwei Wege**, weil es EIN Vorgang ist: die
+     * Beschaeftigung entsteht, und der Mensch davor entweder auch oder eben
+     * nicht. Zwei Routen waeren zwei Transaktionen, und dazwischen laege eine
+     * `person`-Zeile ohne Beschaeftigung — von dieser Gesellschaft aus
+     * unsichtbar (`t_person_lesen`) und damit fuer immer unauffindbar.
+     *
+     * Entgelt und Kondition laufen weiter ueber `…/entgelt` mit dem
+     * strengeren `personal.entgelt_schreiben`; der Portalzugang ueber
+     * `api/personal/zugang-code`. Der `authorize`-Aufruf steht wie bei der
+     * Personalakte darunter in `api/personal/gemeinsam.ts`; seit 0367
+     * verlangen `t_person_schreiben` und `t_anstellung_schreiben` denselben
+     * Schluessel ein zweites Mal (AUT-05).
+     */
+    pfad: 'api/personal/anstellungen',
+    recht: 'personal.schreiben',
   },
   /**
    * Die Personalakte (D-09, 01-KERN §6.13/§6.14/§6.15, 05-API-KARTE §C.8).

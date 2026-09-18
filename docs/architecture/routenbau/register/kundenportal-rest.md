@@ -26,46 +26,36 @@ Eingetragen heisst geloescht.
 
 - KEINE. Die Nummern 0355–0359 bleiben frei. Gegen eine eigene Datenbank gemessen (w_kupo2, frisch migriert, echte Kundensitzung mit `kunde_zugang`): `auftrag`, `auftrag_leistung`, `angebot`, `angebotsposition`, `angebot_steuer`, `objekt`, `raum` und `mandant` sind im Kunden-Scope vollstaendig lesbar und richtig verengt — es fehlt keine Policy, also darf keine Migration eine erfinden. Die einzige Luecke (`dokument` ohne permissive `t_kunde`) IST die offene Entscheidung O-671 und wird nicht nebenbei beantwortet.
 
-## src/server/registry/dienste.ts
+## src/server/db/schema/rls.ts — GEPRÜFT, NICHTS EINZUTRAGEN (18.09.2026)
 
-In `src/server/registry/dienste.ts`, alphabetisch in den `kundenportal`-Block (vor `kundenportal/basis` bzw. nach `kundenportal/basis`/`kundenportal/nachweis`):
+Nachgemessen und deshalb gestrichen: dieser Stapel legt keine Tabelle an und ändert
+keine Löschsperre, also bleibt `KEIN_HARD_DELETE`, `AUDITIERT`, `GEAENDERT_AM` und
+`NUR_UEBER_DEFINER` unverändert.
 
-  { modul: 'kundenportal', pfad: 'kundenportal/angebot', schreibend: false },
-  { modul: 'kundenportal', pfad: 'kundenportal/auftrag', schreibend: false },
-  { modul: 'kundenportal', pfad: 'kundenportal/dokument', schreibend: false },
-  { modul: 'kundenportal', pfad: 'kundenportal/objekt', schreibend: false },
-
-Alle vier sind rein lesend (der `LeseKontext` aus `withKundeScope` hat kein `schreibe` — ein Schreibversuch ist ein Compilerfehler, keine Laufzeitentscheidung). Ohne diese vier Zeilen faellt `tests/kern/portal-shell.test.ts` › „und das Register kennt jeden Dienst, der existiert“. Derselbe Test meldet zurzeit zusaetzlich `mitarbeiter/posteingang` und `mitarbeiter/nachricht` — die gehoeren einem parallel laufenden Agenten, nicht diesem Stapel.
-
-## src/server/auth/route-manifest.ts
-
-Nichts zu ergaenzen: dieser Stapel baut KEINE API-Route. (Die Seiten sind Server-Komponenten und lesen ueber `kundePortal` → `withKundeScope` in EINER gebundenen Transaktion.)
-
-Hinweis zu einem FREMDEN Befund: `tests/kern/routen.test.ts` › „keine Route fehlt im Manifest" faellt zurzeit an `api/mein/nachrichten/[id]` — das ist die neue Route eines parallel laufenden Agenten (Mitarbeiterportal), nicht dieses Stapels.
-
-## src/server/db/schema/rls.ts
-
-Keine Aenderung an `src/server/db/schema/rls.ts` noetig: dieser Stapel legt keine Tabelle an und aendert keine Loeschsperre.
-
-Zwei gemessene Befunde fuer die zentrale Pflege (beide gehoeren in DIESELBE Migration, sobald O-671 beantwortet ist):
+Die zwei gemessenen Befunde bleiben hier stehen — sie gehören nicht in dieses Register,
+sondern in DIESELBE künftige Migration, sobald O-671 beantwortet ist:
 
 1. `dokument` traegt im Kunden-Scope ZWEI restriktive Decken und KEINE permissive Policy — `p_kunde_ceiling` (0009: `sichtbar_fuer_kunde and geloescht_am is null`) und `p_kunde_dokument_zuordnung` (0297: `kunde_id is not null and kunde_id = any(app.aktuelle_kunden())`). Restriktive Policies schneiden weg und gewaehren nie; `t_mandant` greift nicht, weil `app.aktiver_mandant()` im Kunden-Scope NULL ist (K-20). Gemessen gegen eine echte Kundensitzung mit einem freigegebenen, zugeordneten, nicht geloeschten Dokument: `select count(*) from dokument` = 0. Faellt O-671 positiv aus, genuegt eine permissive `t_kunde` mit genau dem Praedikat der beiden Decken plus `app.scope() = 'kunde' and mandant_id = any(app.sichtbare_mandanten())` — Dienst und Seiten brauchen dann keine Zeile Aenderung.
 
 2. `dokument_zugriff` ist aus dem Kunden-Scope NICHT beschreibbar: `t_dokument_zugriff_anlegen` (0139) verlangt `mandant_id = app.aktiver_mandant()` (im Kunden-Scope NULL), und der Scope ist `app.ist_readonly()`. DOC-03/SEC-A6 verlangen aber eine Zeile VOR jeder signierten Adresse. Ohne einen `security definer` (Bauart wie 0266/0325) liefert ein kuenftiger Kundenabruf Dateien aus, die niemand vermerkt hat. In der Isolationssuite als Fall (21) festgehalten.
 
-## src/server/registry/navigation.ts
+## src/server/registry/navigation.ts — ERLEDIGT (18.09.2026)
 
-In `src/server/registry/navigation.ts`, `KUNDEN_NAVIGATION` — drei neue Punkte, weil die Seiten jetzt gebaut sind:
+Eingetragen heisst gelöscht. `angebote`, `objekte` und `dokumente` stehen in
+`KUNDEN_NAVIGATION`, in der vorgeschlagenen Reihenfolge (uebersicht · auftraege ·
+angebote · objekte · projekte · rechnungen · zahlungen · nachweise ·
+reklamationen · dokumente · nachrichten), ohne `zusatzRecht`. Gegengeprüft:
+routen.generiert.ts Z. 435/441/443 führen je GENAU EIN Leserecht
+(`angebot.lesen`, `objekt.lesen`, `dokument.lesen`), alle drei stehen im
+Rechtekatalog, und die sechs Seiten liegen unter
+`src/app/portal/kunde/{angebote,objekte,dokumente}/`. Der überholte Absatz im
+Kopfkommentar ist ersetzt; dass `dokumente` bis O-671 leer bleibt, steht jetzt
+am Eintrag selbst.
 
-  { schluessel: 'angebote', label: 'Angebote', pfad: 'angebote', recht: 'angebot.lesen', icon: 'angebot' },
-  { schluessel: 'objekte', label: 'Objekte', pfad: 'objekte', recht: 'objekt.lesen', icon: 'objekt' },
-  { schluessel: 'dokumente', label: 'Dokumente', pfad: 'dokumente', recht: 'dokument.lesen', icon: 'dokument' },
-
-Vorgeschlagene Reihenfolge des ganzen Baums: uebersicht · auftraege · angebote · objekte · projekte · rechnungen · zahlungen · nachweise · reklamationen · dokumente · nachrichten. Alle drei Routen fuehren im Routenregister GENAU EIN Leserecht (routen.generiert.ts Z. 435/441/443), also kein `zusatzRecht` — anders als `rechnungen` und `nachweise`.
-
-Der Absatz im Kopfkommentar von `KUNDEN_NAVIGATION` muss mit: „`angebote`, `objekte` und `dokumente` stehen bewusst NICHT darin: die Seiten dahinter gehoeren anderen Stapeln und sind heute Platzhalter (`[...rest]`)" stimmt nicht mehr — die acht Adressen sind gebaut, `tests/kern/kundenportal.test.ts` haelt das jetzt fest.
-
-Ebenso in `src/server/registry/tableiste.ts` der Kommentar am Eintrag `kunde`: dort steht „Das Kundenportal fuehrt acht gebaute Bildschirme und diese Leiste vier plus Uebersicht" — es sind jetzt ZEHN Bildschirme (19 Adressen mit Blaettern). Die Leiste selbst bleibt unveraendert bei fuenf Zielen ohne `Mehr`; erreichbar sind die uebrigen sechs ueber die Sprungkarten von `/portal/kunde`, die in diesem Stapel von sechs auf zehn erweitert wurden.
+Der Zahlenhinweis für `src/server/registry/tableiste.ts` (Kommentar am Eintrag
+`kunde`) ist ebenfalls eingetragen: zehn Listen, 19 Adressen, sechs davon aus
+keiner Leiste erreichbar. Die Leiste selbst bleibt unverändert bei fünf Zielen
+ohne `Mehr`. Hier ist nichts mehr offen.
 
 ## Zeilen fuer docs/DECISIONS.md, Abschnitt „Offen"
 

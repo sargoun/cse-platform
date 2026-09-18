@@ -20,59 +20,21 @@ Eingetragen heisst geloescht.
 
 - 0350_mein_posteingang_nachricht.sql — angewendet und geprueft gegen w_zust und iso_zust. 0351–0354 blieben ungenutzt: es war genau EINE Migration noetig.
 
-## src/server/registry/dienste.ts
+## src/server/db/schema/rls.ts — GEPRÜFT, NICHTS EINZUTRAGEN (18.09.2026)
 
-Zwei Zeilen fuer src/server/registry/dienste.ts (DIENSTE). Beide LESEND — der Schreibweg ist kern/nachricht, das dort bereits als schreibend unter nachricht.versenden steht; tests/kern/mitarbeiter.test.ts verlangt ausdruecklich, dass kein Dienst unter mitarbeiter/ schreibt, und genau deshalb liegt der Schreibsatz im Fachdienst:
+Nachgemessen und deshalb gestrichen: 0350 legt keine Tabelle an; der erzeugte
+Hard-Delete-Block für `nachricht`, `nachricht_empfaenger` und `nachricht_anhang` steht
+unverändert in 0231 und bleibt nach `pnpm db:triggers` byteweise gleich.
 
-  /**
-   * **Der Posteingang der Kraft (0350, EMP-11).** Beide lesend: der Faden wird
-   * gelesen, geantwortet wird ueber `kern/nachricht` — den Fachdienst, der
-   * ohnehin unter `nachricht.versenden` schreibt. Ein vierter, im Portaldienst
-   * angelegter Schreibweg waere genau der, der an den drei bekannten
-   * vorbeifuehrt. `mitarbeiter/posteingang` beruehrt gar keine Datenbank: es
-   * mischt `benachrichtigung` und `nachricht` zu einer Liste.
-   */
-  { modul: 'nachricht', pfad: 'mitarbeiter/nachricht', schreibend: false },
-  { modul: 'nachricht', pfad: 'mitarbeiter/posteingang', schreibend: false },
+Zur Kenntnis, keine Registerzeile: 0350 ERSETZT `p_beteiligt` auf
+`nachricht_empfaenger` (drop + create in derselben Transaktion) und hängt einen vierten
+Zweig an — `kern.nachricht_selbst_verfasst(mandant_id, nachricht_id)`. Wortlaut und
+Begründung stehen als `comment on policy` an der Policy selbst; `rls.ts` führt keine
+Policyliste.
 
-Ohne diese zwei Zeilen faellt tests/kern/mitarbeiter.test.ts > 'jeder Dienst unter mitarbeiter/ ist eingetragen'.
+## src/server/registry/navigation.ts — GEPRÜFT, NICHTS NÖTIG (18.09.2026)
 
-## src/server/auth/route-manifest.ts
-
-Ein Eintrag fuer src/server/auth/route-manifest.ts (ROUTEN):
-
-  {
-    /**
-     * Der Rueckweg des Posteingangs (EMP-11, NOT-03, 0350): stempeln und
-     * antworten. Kein Rechteschluessel, und das ist kein Loch (K-19,
-     * SEITENKARTE §7) — dieselbe Begruendung wie bei `api/mein/antraege`:
-     * „nur die Beteiligte" laesst sich als Recht nicht ausdruecken, weil ein
-     * Recht einer Rolle gehoert und eine Rolle vielen Menschen.
-     */
-    pfad: 'api/mein/nachrichten/[id]',
-    recht: null,
-    grund:
-      'EMP-11, NOT-03, SEITENKARTE §7. Den EIGENEN Faden als gelesen stempeln und darin '
-      + 'antworten ist Selbstzugriff und kein Modulrecht (K-19). Die Wache ist vierfach: '
-      + 'die Sitzung, der Ursprungsvergleich, der aus dem FADEN serverseitig aufgeloeste '
-      + 'Mandant (K-02, Invariante 3 — ein fremder Faden gibt dort null Zeilen und damit '
-      + '404 statt 403, AUT-06) und die Policies: `t_empfaenger_eigene_stempeln` (0231) '
-      + 'trifft nur die eigenen Zustellzeilen, und fuer die Antwort pruefen '
-      + '`t_nachricht_mandant` und `t_empfaenger_mandant` im WITH CHECK '
-      + '`nachricht.versenden` — im Katalog an `mitarbeiter` gebunden — unter der '
-      + 'restriktiven K-04-Mitarbeiterdecke `p_beteiligt`. Nichts verlaesst dabei das '
-      + 'System: richtung `intern`, kanal `portal` (Invariante 7, O-36).',
-  },
-
-Ohne diesen Eintrag faellt tests/kern/routen.test.ts > 'keine Route fehlt im Manifest' und tests/kern/mitarbeiter.test.ts > 'und die Liste beschreibt den Baum'.
-
-## src/server/db/schema/rls.ts
-
-Keine Aenderung noetig. 0350 legt keine Tabelle an; der generierte Hard-Delete-Block fuer nachricht, nachricht_empfaenger und nachricht_anhang steht unveraendert in 0231. Zur Kenntnis fuer die Policy-Pflege: 0350 ERSETZT p_beteiligt auf nachricht_empfaenger (drop + create in derselben Transaktion) und haengt einen vierten Zweig an — kern.nachricht_selbst_verfasst(mandant_id, nachricht_id). Wortlaut und Begruendung stehen als comment on policy an der Policy selbst.
-
-## src/server/registry/navigation.ts
-
-Keine Aenderung noetig. /portal/mein/nachrichten ist als vierter Tab der Mitarbeiterleiste bereits registriert (registry/tableiste.ts), und /portal/mein/nachrichten/[id] ist eine Unterseite derselben Familie. Es kommt keine neue Navigationsadresse hinzu.
+Nachgemessen und deshalb gestrichen. Keine Aenderung noetig. /portal/mein/nachrichten ist als vierter Tab der Mitarbeiterleiste bereits registriert (registry/tableiste.ts), und /portal/mein/nachrichten/[id] ist eine Unterseite derselben Familie. Es kommt keine neue Navigationsadresse hinzu.
 
 ## Zeilen fuer docs/DECISIONS.md, Abschnitt „Offen"
 

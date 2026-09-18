@@ -63,32 +63,6 @@ dem Bauschritt geändert hat.
 - `src/app/portal/[mandant]/finanzen/eingangsrechnungen/[id]/page.tsx (Navigation ergänzt)` — fertig
   - Zwei Verweise („Freigabe ansehen", „Steuerliche Lage"), jeder hinter dem Recht seiner Route (eingang.freigeben bzw. abrechnung.freistellung_pflegen).
 
-## src/server/registry/dienste.ts
-
-**NICHT ERLEDIGT — die Behauptung dieses Abschnitts haelt der Wirklichkeit nicht
-stand.** Sie lautete: „Keine Aenderung noetig. Alle geaenderten Dienste liegen
-unter src/server/services/finanz/ und sind bereits gefuehrt: vorabpruefung.ts,
-versand.ts, beleg.ts, ausgabe.ts, kreisuebersicht.ts."
-
-Gemessen am Baum (18.09., beim Leeren der Warteschlange): **keine einzige der
-fuenf steht im Register**, und eine sechste fehlt ebenfalls. Der Gegentest in
-`tests/kern/portal-shell.test.ts` („und das Register kennt jeden Dienst, der
-existiert") listet `find src/server/services -name '*.ts'` gegen `DIENSTE` und
-bleibt deshalb rot fuer:
-
-- `finanz/ausgabe`
-- `finanz/beleg`
-- `finanz/kreisuebersicht`
-- `finanz/versand`
-- `finanz/vorabpruefung`
-- `finanz/zugferd/vorschau`  (im Bericht nicht einmal genannt)
-
-Ich habe sie **nicht** eingetragen: `schreibend` und `schreibRecht` sind je
-Datei zu entscheiden (Policy der geschriebenen Tabelle, nicht Recht der Seite),
-und ein geratener Registereintrag ist teurer als ein fehlender — der fehlende
-faellt im Gegentest auf, der falsche sieht richtig aus. Wer die Domaene
-finanzen kennt, traegt die sechs nach und streicht diesen Abschnitt.
-
 ## Sonstiges
 
 scripts/generate-triggers.ts, Konstante MIGRATIONS_DATEIEN: drei Zeilen ergaenzen. Ohne sie stuerzt `pnpm db:triggers` an `MIGRATIONS_DATEIEN[m]!` ab, sobald die fuenf rls.ts-Eintraege stehen (MIGRATIONEN enthaelt dann 0180/0181/0182, die Dateizuordnung aber nicht).
