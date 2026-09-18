@@ -1,0 +1,396 @@
+# Registereinträge: vertrieb-rest
+
+**Warteschlange, kein Archiv.** Diese Einträge sind **noch nicht** im Baum. Die
+gemeinsamen Dateien pflegt EINE Hand, weil mehrere Agenten gleichzeitig arbeiten
+und sich sonst in dieselbe Zeile schreiben. Ist ein Abschnitt eingetragen, wird
+er hier gelöscht — solange er hier steht, fehlt er dort.
+
+**Die Einträge des Behebungsschritts gelten.** Er lief zuletzt und hatte den
+Auftrag, die vollständige aktuelle Liste zu liefern — auch das, was sich seit
+dem Bauschritt geändert hat.
+
+## Stand
+
+- Bau: fertig
+- Kritik: 13 Befunde
+- Behebung: 0 behoben, 0 widerlegt, 0 offen
+
+> **Der Behebungsschritt lief noch nicht.** Die Einträge unten stammen aus dem Bauschritt und können durch ihn noch wachsen.
+
+## Migrationen (gegen eine eigene Datenbank gefahren: True)
+
+- drizzle/0295_angebot_preisfreigabe.sql
+- drizzle/0296_auftrag_uebergaenge.sql
+- drizzle/0297_dokument_kundenfreigabe.sql
+- drizzle/0298_leistungskatalog_status.sql
+- drizzle/0299_auftrag_abschluss_befunde.sql
+
+## Gebaute Adressen
+
+- `/portal/[mandant]/angebote/[id]/freigabe` — fertig
+  - Kern der Runde: versendeAngebot ist AUFGETRENNT. gibPreisFrei setzt nur freigegeben_von/_am (Zeitstempel vom Ausloeser, Invariante 5), versendeAngebot verlangt sie und weist sonst mit Grund 'ohne_freigabe' ab — VOR vergebeNummer, damit kein Fehler auf einer Zaehlersperre laeuft. 0295 bindet den Uebergang im Ausloeser an angebot.preis_freigeben: das ist die EINZIGE der neun Routen, bei der die Rollenmengen in der lebenden DB wirklich auseinanderfallen (t_mandant WITH CHECK = angebot.schreiben: admin+leitung+super_admin; angebot.preis_freigeben: nur leitung+super_admin). Live geprueft: Administration wird abgewiesen, Leitung gibt frei, Administration versendet danach — freigegeben_von und versendet_von sind zwei verschiedene Menschen in der Zeile. Seite: Netto je Steuersatzgruppe, Kalkulationskoepfe, die drei offenen Werte EINZELN (kopf/frequenz/grundlage), Knopf gesperrt mit Satz statt nur ausgegraut.
+- `/portal/[mandant]/angebote/[id]/versand` — fertig
+  - Drei Sperren mit je eigenem Satz (offene Werte / fehlende Preisfreigabe / keine Position), Empfaenger aus der Angebotszeile, Nummer als die, die GEZOGEN WIRD. Kanalblock sagt 'E-Mail-Versender nicht verbunden (offen, O-36)' und behauptet keinen Versand — Knopftext dann 'Versand festhalten'. Der Stand kommt aus anbindungen() (Register), nicht aus einer Konstante. Zusaetzlich geprueft, was der Plan nicht nannte: fehlt der Gesellschaft der Angebotskreis (Mandant operations), sagt die Seite es VORHER statt in einen NummernkreisFehler zu laufen. Der sendende Knopf auf der Detailseite BLEIBT (CLAUDE.md 'Do not break what works') und traegt jetzt die Freigabe als zusaetzliche Bedingung; diese Seite ist der lange Weg daneben, beide durch denselben Dienst.
+- `/portal/[mandant]/angebote/[id]/annahme` — fertig
+  - Neue Dienstfunktion entscheideAngebot (abgelehnt | zurueckgezogen, beide mit Pflichtgrund) und AuftragAnlegen.entscheidungNotiz — die Spalte angebot.entscheidung_notiz gab es von Anfang an und keine Funktion schrieb sie. Eigene Route (nicht aktion= auf api/angebot), weil das Manifest EIN Recht je Pfad fuehrt. Auftragsart, Laufzeit und Verantwortliche kommen aus dem Formular statt hart 'rahmenvertrag'; live geprueft mit 'dauerauftrag'. Kein Betragsfeld: der Wert kommt aus angebot.netto_cent. Fehlender Auftragskreis wird vorher genannt.
+- `/portal/[mandant]/auftraege/[id]/abschluss` — teilweise
+  - Platzhalter nach Regel 1: welche der acht Befunde den Abschluss SPERREN, ist O-730 — heute sperrt keiner, alle warnen, und das steht als Pille in jeder Zeile und als Hinweiskasten darueber. Der Kritik folgend: die Zahlen kommen aus der neuen DEFINER-Funktion fin.auftrag_abschluss_befunde (0299) und NICHT aus direkten Zaehlungen — zeiteintrag verlangt zeit.lesen, eine Rolle ohne dieses Recht bekaeme null Zeilen und damit einen falschen FREISPRUCH (AUT-05). Live geprueft, dass die Zaehler nicht strukturell null sind (rechnungen_entwurf/leistungen_laufend/ohne_abrechnungsart je 1 bei echten Zeilen). 'Offene auftrag_leistung-Zeilen' gibt es nicht (keine Statusspalte) — gezaehlt wird gueltig_bis is null. FIN-18 wird NICHT neu entschieden (D-366/D-367): die Seite sagt, dass der Abschluss die Warnung im Rechnungsweg ARMIERT. Sicherheitseinbehalt nur gespeichert, nie gerechnet (O-20), genau EINES von Satz/Betrag (auftrag_einbehalt_eindeutig), Gewaehrleistung nur mit Abnahme.
+- `/portal/[mandant]/auftraege/[id]/kundenfreigabe` — fertig
+  - Der Kritik folgend sind alle drei Angaben PFLICHT (CHECK auftrag_referenzfreigabe_vollstaendig), das hinterlegte Schreiben also kein Beiwerk — und weil freigabe_dokument_id KEINEN Fremdschluessel hat, prueft der Dienst 'Dokument dieses Kunden' selbst (live geprueft: fremdes Schreiben wird abgewiesen). freigabe_am gibt niemand ein, der Ausloeser stempelt es. Zwei Korrekturen am Plan, beide aus der DB gemessen: ansprechpartner hat keine Spalte 'name' (nur anrede/titel/vorname/nachname) und referenz hat KEIN auftrag_id — der Referenzhinweis ist deshalb ein Namensvergleich als HINWEIS, nie eine Zuordnung. Widerruf mit Pflichtgrund, der Beleg bleibt stehen; was er fuer eine schon veroeffentlichte Referenz bedeutet, ist O-735.
+- `/portal/[mandant]/leistungskatalog` — teilweise
+  - Platzhalter nach Regel 1: O-17 (Leistungswert je Belagsart, die vorhandene Nummer — nicht neu angelegt) und neu O-731 (Zeitwerte und Standardpreise je Position). Platzhalteranteil steht IN der Zeile. Der Kritik folgend: 0298 macht 'archivieren friert ein' erst WAHR (vorher liess sich archiviert->aktiv zurueckdrehen und taute kern.pruefe_katalog_offen wieder auf), uebersetzt den Verstoss gegen leistungskatalog_aktiv_uk in einen benannten Satz und setzt gueltig_bis beim Archivieren im AUSLOESER — nachgemessen blieb es bei einem rohen UPDATE NULL, und greatest(...) faengt die erst kuenftig geltende Fassung. Versionsnummer wird GEZOGEN, nicht eingegeben. Hinweis: katalog.schreiben halten nur admin+super_admin, NICHT leitung — die Seite zeigt einer Leitung alles und keinen Knopf.
+- `/portal/[mandant]/leistungskatalog/[id]` — teilweise
+  - Positionsbaum aus einem with recursive der DB (nicht in der Seite verkettet), eingerueckt ueber var(--s3) je Ebene. Der Kritik folgend: CHECK lkp_kalkulierbar laesst eine Position OHNE Wert nicht zu — 'keinen Wert erfinden' heisst hier also gekennzeichneter Platzhalter (ist_platzhalter, Vorgabe true) und nicht NULL; das Bestaetigungshaekchen sagt ausdruecklich 'fuer DIESE Fassung' und beantwortet O-17/O-731 nicht. Benannte Fehler fuer lkp_oz_uk, lkp_steuerfrei_mit_grund, Zyklus und fremde Elternfassung (alle live geprueft). steuer_kennzeichen bleibt regelsatz mit sichtbarem 'Vorgabe — offen (O-60)'. Archivierte Fassung: schreibgeschuetzt MIT Begruendung, kein Formular, das beim Absenden scheitert.
+- `/portal/[mandant]/objekte/[id]/raumbuch/[raumId]` — fertig
+  - m2-Eingabe durch leseZahl/alsNumerisch; live geprueft, dass '1.234,5' zu 1234.500 wird und nicht um Faktor 1000 wandert, und tests/kern prueft den Rundweg Postgres->Anzeige->Eingabe->Postgres. Der Kritik folgend: ladeKalkulationsgrundlage kann keine Raumrichtzeit — neue Lesefunktion ladeRaumRichtzeit in services/kalkulation/raumbuch.ts (live geprueft: 300 m2 / 250 m2/h = 4320 s). Benannte Fehler fuer alle drei partiellen Eindeutigkeitsindizes und die Fremdschluessel statt eines rohen 23505. objekt_id steht in JEDER Anweisung mit, sonst zeigte/schriebe die Seite den Raum eines anderen Objekts. Archivieren statt Loeschen. WICHTIG: raum.bemerkung ist cse_app per SPALTENRECHT entzogen (0021, mit Begruendung) — die Seite bietet das Feld deshalb gar nicht an und sagt warum; ein select darauf antwortet mit 42501 'permission denied for table raum'.
+- `/portal/[mandant]/dokumente/[id]/kundenfreigabe` — teilweise
+  - Platzhalter nach Regel 1: O-736 (welche Kategorien duerfen einem Kunden ueberhaupt gezeigt werden — DOC-01 fuehrt auch 'mitarbeiter' und 'buchhaltung'); die Kategorie steht deshalb gross auf der Seite. Die Seite behauptet NICHT, der Kunde sehe das Dokument jetzt: dokument traegt keine permissive t_kunde, im echten Kundenportal (scope=kunde) sind es null Zeilen, das ist O-671. Freigabe ohne kunde_id wird abgewiesen, Ruecknahme bleibt moeglich. Grund ist Pflicht und landet in app.protokolliere (live geprueft: eine audit_log-Zeile). Zugriffsprotokoll aus dokument_zugriff mit dem Satz, warum ein Rueckzug nach einem Abruf etwas anderes bedeutet — der Seed erfindet KEINEN Abruf.
+
+## src/server/registry/dienste.ts
+
+/**
+   * Der Leistungskatalog (OPS-06, CLN-05). Schreibt Fassungen und Positionen;
+   * `katalog.schreiben` halten nur `admin` und `super_admin`, nicht `leitung`
+   * — die beiden Katalogseiten pruefen das mit `haeltRechte`, damit kein Knopf
+   * auf ein 404 fuehrt.
+   */
+  {
+    modul: 'katalog', pfad: 'katalog/index',
+    schreibend: true, schreibRecht: 'katalog.schreiben',
+  },
+  /**
+   * Der Auftragsabschluss (OPS-05, FIN-18). `auftrag.abschliessen` und NICHT
+   * `auftrag.schreiben`: der Abschluss stellt nach D-366 die FIN-18-Warnung im
+   * Rechnungsweg scharf. Seit 0296 setzt der Ausloeser
+   * `kern.auftrag_uebergang_pruefen` dasselbe Recht als zweite Linie durch —
+   * `t_mandant` prueft `auftrag.schreiben` und traf die richtige Rollenmenge
+   * bisher nur zufaellig.
+   */
+  {
+    modul: 'auftrag', pfad: 'auftrag/abschluss',
+    schreibend: true, schreibRecht: 'auftrag.abschliessen',
+  },
+  /**
+   * Die Kundenfreigabe am Auftrag (PRO-05) — der BELEG, keine
+   * Veroeffentlichung. Modul `referenz`, weil hier ueber eine oeffentliche
+   * Nennung entschieden wird und nicht ueber den Auftrag.
+   */
+  {
+    modul: 'referenz', pfad: 'auftrag/kundenfreigabe',
+    schreibend: true, schreibRecht: 'referenz.kundenfreigabe_erfassen',
+  },
+  /**
+   * Der Schalter `sichtbar_fuer_kunde` (DOC-04). `dokument.kunde_freigeben`
+   * und ausdruecklich nicht `dokument.schreiben`: das haelt auch die Rolle
+   * `mitarbeiter`, und wer Nachweise ablegen darf, entscheidet damit nicht,
+   * was ein Kunde zu sehen bekommt (0297 bindet es im Ausloeser).
+   */
+  {
+    modul: 'dokument', pfad: 'dokument/kundenfreigabe',
+    schreibend: true, schreibRecht: 'dokument.kunde_freigeben',
+  },
+  /**
+   * Der EINZELNE Raum (OPS-02, OPS-03) — neben dem Massenweg
+   * `raumbuch/import`. Hier passen Tor und Policy zusammen: `t_mandant` auf
+   * `raum` verlangt im WITH CHECK genau `objekt.schreiben`, und von den sieben
+   * Uebergaengen dieser Runde ist das der einzige, fuer den keine Migration
+   * nachziehen musste.
+   */
+  {
+    modul: 'objekt', pfad: 'raumbuch/raum',
+    schreibend: true, schreibRecht: 'objekt.schreiben',
+  },
+
+ZUSATZ zum BESTEHENDEN Eintrag `angebot/index` (Zeile ~185): sein
+`schreibRecht` bleibt `angebot.versenden`, traegt jetzt aber ZWEI Uebergaenge.
+Ein Kommentar dazu, falls gewuenscht:
+
+  /**
+   * Seit der Auftrennung traegt dieser Dienst ZWEI Uebergaenge mit ZWEI
+   * Rechten: `gibPreisFrei` verlangt `angebot.preis_freigeben` (super_admin,
+   * leitung; bindbar an admin), `versendeAngebot` verlangt
+   * `angebot.versenden` (zusaetzlich admin) und weist ohne Freigabe ab. Das
+   * Register fuehrt EIN Recht je Zeile; hier steht das engere Tor, durch das
+   * etwas das Haus verlaesst (Invariante 7). Die Bindung der Freigabe steht im
+   * Ausloeser `kern.angebot_preisfreigabe_pruefen` (0295), weil `t_mandant`
+   * mit `angebot.schreiben` ein WEITERES Recht prueft.
+   */
+
+## src/server/auth/route-manifest.ts
+
+{
+    /**
+     * Die Preisfreigabe (OPS-08, Invariante 7).
+     *
+     * EINE EIGENE Adresse und nicht eine vierte Aktion auf `api/angebot`: das
+     * Manifest fuehrt genau EINEN Rechteschluessel je Pfad, und `api/angebot`
+     * steht hier schon mit `angebot.versenden`. Eine zweite Zeile fuer
+     * denselben Pfad waere kein Eintrag, sondern ein Duplikat —
+     * `tests/kern/routen.test.ts` vergleicht Pfadmengen.
+     *
+     * `angebot.preis_freigeben` haben super_admin und leitung (bindbar an
+     * admin), `angebot.versenden` zusaetzlich admin: das ist der
+     * Vier-Augen-Schnitt, den die Auftrennung von `versendeAngebot`
+     * ueberhaupt erst wirksam macht. Zweite Linie ist der Ausloeser
+     * `kern.angebot_preisfreigabe_pruefen` (0295) und nicht `t_mandant`, das
+     * `angebot.schreiben` prueft.
+     */
+    pfad: 'api/angebot/freigabe',
+    recht: 'angebot.preis_freigeben',
+  },
+  {
+    /**
+     * Was der Kunde entschieden hat (OPS-09, CRM-05): annehmen, ablehnen,
+     * zurueckziehen.
+     *
+     * Alle drei tragen `angebot.annahme_erfassen`, und das ist die
+     * Entscheidung: wer eine kaufmaennische Zusage in den Datenbestand
+     * schreibt, darf auch festhalten, dass sie ausgeblieben ist. Zwei Rechte
+     * hiessen, dass jemand nur die guten Nachrichten erfassen darf — und der
+     * Vertriebsbestand bliebe voll offener Angebote, die niemand mehr will.
+     */
+    pfad: 'api/angebot/entscheidung',
+    recht: 'angebot.annahme_erfassen',
+  },
+  {
+    /**
+     * Der Auftragsabschluss (OPS-05, FIN-18).
+     *
+     * Nicht `aktion=` auf `api/auftrag`: jene Zeile fuehrt
+     * `auftrag.schreiben`, der Abschluss verlangt `auftrag.abschliessen`. Die
+     * Handlung unter eine Zeile zu haengen, die ein anderes Recht behauptet,
+     * machte die Liste falsch, gegen die geprueft wird. Heute decken sich die
+     * Rollenmengen beider Rechte — genau deshalb faellt der Unterschied im
+     * Betrieb nicht auf und muss in der Struktur stehen.
+     */
+    pfad: 'api/auftrag/abschluss',
+    recht: 'auftrag.abschliessen',
+  },
+  {
+    /**
+     * Die schriftliche Erlaubnis des Kunden, das Projekt oeffentlich zu nennen
+     * (PRO-05).
+     *
+     * `referenz.kundenfreigabe_erfassen`, nicht `auftrag.schreiben`:
+     * geschrieben wird auf `auftrag`, entschieden wird ueber eine
+     * Veroeffentlichung. Die Route legt KEINE `referenz`-Zeile an — das ist
+     * der zweite, getrennte Schritt unter `/website/referenzen` (Invariante
+     * 7). Zweite Linie: `kern.auftrag_uebergang_pruefen` (0296).
+     */
+    pfad: 'api/auftrag/kundenfreigabe',
+    recht: 'referenz.kundenfreigabe_erfassen',
+  },
+  {
+    /**
+     * Den Schalter `sichtbar_fuer_kunde` setzen (DOC-04).
+     *
+     * `dokument.kunde_freigeben` und ausdruecklich NICHT
+     * `dokument.schreiben` — das haelt laut Katalog auch die Rolle
+     * `mitarbeiter`, und wer Nachweise ablegen darf, entscheidet damit nicht,
+     * was ein Kunde zu sehen bekommt. Genau diese Luecke stand bis 0297 in
+     * der zweiten Linie offen: beim INSERT fragt das WITH CHECK nur das
+     * Schreibrecht. Die Kennung steht im PFAD wie bei der Nachbarroute
+     * `api/dokumente/[id]/datei`.
+     */
+    pfad: 'api/dokumente/[id]/kundenfreigabe',
+    recht: 'dokument.kunde_freigeben',
+  },
+  {
+    /**
+     * Katalogfassungen und ihre Positionen (OPS-06, CLN-05) — fuenf
+     * Handlungen unter einem Recht: Fassung anlegen, Status setzen, Position
+     * anlegen, aendern, ausser Kraft setzen. Sie teilen Sitzung,
+     * Ursprungspruefung und Mandantenbindung; fuenf Adressen waeren fuenf
+     * Stellen, an denen eines davon fehlen kann.
+     *
+     * `katalog.schreiben` halten nur `admin` und `super_admin`, nicht
+     * `leitung` — die Seiten zeigen einer Leitung alles und keinen Knopf.
+     */
+    pfad: 'api/katalog',
+    recht: 'katalog.schreiben',
+  },
+  {
+    /**
+     * Ein einzelner Raum im Raumbuch (OPS-02, OPS-03) — der Einzelweg neben
+     * `api/raumbuch-import`.
+     *
+     * `objekt.schreiben`, und hier passen Tor und Policy zusammen:
+     * `t_mandant` auf `raum` verlangt im WITH CHECK genau dieses Recht. Von
+     * den sieben Uebergaengen dieser Runde ist das der einzige ohne
+     * nachziehende Migration; das steht hier, damit die Ausnahme auffaellt
+     * und nicht als Nachlaessigkeit gelesen wird.
+     */
+    pfad: 'api/raum',
+    recht: 'objekt.schreiben',
+  },
+
+WICHTIG: Ohne diese sieben Zeilen faellt `tests/kern/routen.test.ts`
+(„keine Route fehlt im Manifest"). Die Gegenrichtung ist erfuellt — jede der
+sieben Dateien existiert, und jede erreicht `authorize` ueber ihren relativen
+Import von `src/app/api/uebergang.ts` (nachgeprueft, alle sieben).
+
+## src/server/db/schema/rls.ts
+
+KEINE Eintraege noetig: ich habe KEINE neue Tabelle angelegt — der Plan sagte
+es voraus, und es hat gestimmt. Damit gibt es auch keine neue Loeschsperre
+einzutragen.
+
+Was sich an der Zugriffsschicht trotzdem geaendert hat, damit es nicht
+unbemerkt bleibt (alles in drizzle/0295–0299, nichts in rls.ts):
+
+1. `dokument` bekommt eine ZWEITE restriktive Kundendecke:
+   `p_kunde_dokument_zuordnung` (0297). `p_kunde_ceiling` aus 0009 prueft die
+   FREIGABE und enthaelt kein `kunde_id`; gegen die lebende Datenbank
+   nachgemessen sah ein Kundenkonto mit Zugang nur auf Kunde A auch das
+   freigegebene Dokument von Kunde B (scope='mandant', portal='kunde': 2
+   Zeilen, danach 1). Als ZUSATZ und nicht als Ersatz, weil restriktive
+   Policies UND-verknuepft werden und 0009 damit unberuehrt bleibt.
+
+2. Vier neue Ausloeser binden Uebergaenge an ihr EIGENES Recht, weil eine
+   Policy nicht sehen kann, welche Spalte sich aendert:
+   `kern.angebot_preisfreigabe_pruefen` (angebot.preis_freigeben, 0295),
+   `kern.auftrag_uebergang_pruefen` + `kern.auftrag_freigabe_beim_anlegen`
+   (auftrag.abschliessen bzw. referenz.kundenfreigabe_erfassen, 0296),
+   `kern.dokument_kundenfreigabe_pruefen` (dokument.kunde_freigeben, 0297),
+   `kern.katalog_status_uebergang` + `kern.katalog_status_beim_anlegen` (0298).
+
+3. Eine neue DEFINER-Funktion: `fin.auftrag_abschluss_befunde(uuid)` (0299),
+   `revoke all from public`, `grant execute to cse_app`. Sie verlangt
+   `auftrag.abschliessen` und weist einen Auftrag eines anderen Mandanten ab
+   (Invariante 3) — dieselbe Bauart wie `fin.auftrag_erfasste_minuten`.
+
+Jeder dieser Punkte hat einen Fall in `tests/isolation/vertrieb-uebergaenge.test.ts`.
+
+## src/server/registry/navigation.ts
+
+/**
+   * `leistungskatalog` (OPS-06, CLN-05) — er fehlte, und ohne diesen Eintrag
+   * waeren beide Katalogseiten gebaut und aus keinem Menue erreichbar.
+   *
+   * Recht `katalog.lesen` und nicht `katalog.schreiben`: eine Leitung darf den
+   * Katalog SEHEN (Preise, Zeitwerte, Platzhalteranteil) und nicht aendern —
+   * `katalog.schreiben` halten nur `admin` und `super_admin`. Ein Punkt am
+   * Schreibrecht haette der Leitung die Seite verborgen, die sie im
+   * Preisgespraech braucht.
+   */
+  { schluessel: 'leistungskatalog', label: 'Leistungskatalog', pfad: 'leistungskatalog', recht: 'katalog.lesen', icon: 'buch' },
+
+Einzufuegen in NAVIGATION (das interne Register), sinnvollerweise direkt nach
+dem Punkt `angebote` — der Katalog ist die Quelle, aus der Angebotszeilen
+entstehen.
+
+GRUPPEN_NAVIGATION: KEIN Eintrag. Der Katalog ist je Gesellschaft geschnitten
+(`leistungskatalog_aktiv_uk` ist unique auf (mandant_id, schluessel)); eine
+Gruppenansicht darueber waere eine Liste aus vier Katalogen, die einander nicht
+entsprechen. Geprueft: `icon: 'buch'` ist im geschlossenen Satz
+(`src/lib/design/icons.ts`), und `katalog.lesen` steht im Berechtigungskatalog
+— beides prueft `tests/kern/portal-shell.test.ts`.
+
+## Sonstiges
+
+tableiste.ts: KEIN Eintrag noetig. `leistungskatalog` liegt unter dem fuenften
+internen Tab „Mehr" (`schluessel: 'mehr'`), und beide Katalogseiten setzen
+`aktiverTab="mehr"`. Die uebrigen acht Routen liegen unter vorhandenen Tabs
+(`angebote`, `auftraege`, `objekte`, `mehr`).
+
+modul.ts: KEIN Eintrag noetig — `katalog` steht bereits in `QUERSCHNITT`
+(Zeile 48), `referenz` bei den Modulen (Zeile 81). Geprueft.
+
+routen.ts / routen.generiert.ts: KEIN Eintrag noetig. Alle neun Pfade stehen
+schon in `routen.generiert.ts` mit `bewachung: {"art":"recht"}` und den
+Rechten, die die Seiten jetzt auch verlangen — nachgeprueft Zeile fuer Zeile
+(94–98, 103, 109, 110, 272).
+
+kennzahlen.ts: KEIN Eintrag. Ich habe keine Kennzahl gebaut; die Zahlen der
+Abschluss-Pruefliste sind Befunde EINES Auftrags, keine Mandantenkennzahl —
+und solange O-730 offen ist, waere eine Kachel „N Auftraege nicht
+abschliessbar" eine Behauptung ueber eine Sperre, die es nicht gibt.
+
+docs/architecture/04-SEITENKARTE.md: die neun Routen sind dort schon gefuehrt.
+Was sich gegenueber der Karte GEAENDERT hat und eine Zeile verdient: der Versand
+ist nicht mehr derselbe Klick wie die Preisfreigabe, und der sendende Knopf auf
+`/angebote/[id]` traegt die Freigabe jetzt als Bedingung.
+
+docs/DESIGN.md: NICHTS hinzuzufuegen — ich habe keinen Farbwert, keine
+Abstandsstufe und keine Schriftgroesse erfunden. Eine Stelle sei genannt, weil
+sie ein Inline-Style ist: die Einrueckung des Katalogbaums in
+`leistungskatalog/[id]/page.tsx` lautet
+`style={{ paddingLeft: 'calc(var(--s3) * <tiefe>)' }}`. Eine Tailwind-Klasse
+geht dort nicht, weil die Tiefe zur LAUFZEIT entsteht und `pl-[…]` mit
+eingesetztem Wert im erzeugten Stylesheet nicht existiert; der Wert selbst ist
+`--s3` (12px) aus DESIGN §3, eine Stufe je Ebene — geprueft in
+`src/styles/globals.css:59`.
+
+## Zeilen für docs/DECISIONS.md, Abschnitt „Offen"
+
+| O-730 | **Which of the order-closure findings BLOCK the closure, and which must only have been seen?** FIN-18 itself is decided (D-366/D-367: it warns, may be overridden with a logged reason of at least ten characters, and must bite before the invoice number is drawn). The other seven findings of the pre-closure checklist — time entries without release, released time never invoiced, signed Leistungsnachweise without an invoice, invoice drafts, Aufmasse without countersignature, Nachtraege without a decision, Leistungszeilen without billing configuration — have no stated bindingness anywhere. Until answered, **none blocks**, all warn, and the page says so in every row. Inventing a block would be worse than none: it would hold up work nobody wanted held up, and the way around it would become a habitual click. | `services/auftrag/abschluss.ts`, `drizzle/0299`, `/auftraege/[id]/abschluss`, FIN-18, D-366, D-367, O-20 |
+| O-731 | **Which Zeitwerte (minutes per unit) and which Standardeinzelpreise apply per Leistungskatalog position, and who releases them?** This is the position side of the same gap as O-17 (Leistungswerte per Belagsart) and additionally covers the time value and the standard price. The CHECK `lkp_kalkulierbar` does not allow a position without any of the three values, so „do not invent a value" cannot mean „leave it NULL": every position carries a clearly marked placeholder with `ist_platzhalter = true` (the column's default), the list shows the placeholder share per Fassung, and the confirm tick says explicitly „for THIS Fassung" — it does not answer O-17 or this row. | `services/katalog/index.ts`, `/leistungskatalog`, `/leistungskatalog/[id]`, OPS-06, CLN-05, O-17, O-16, O-37 |
+| O-732 | **May a granted Preisfreigabe be revoked while the offer has not yet been sent — and if so, by whom and under what logging duty?** The release became its own step when `versendeAngebot` was split (`angebot.preis_freigeben` vs `angebot.versenden`), and with it the question of taking it back. Until answered it is **immutable**: `kern.angebot_preisfreigabe_pruefen` rejects any change to `freigegeben_von`/`freigegeben_am` once set, and a different price needs a new offer version — the same shape as invariant 4. Allowing a revocation would be an invented rule; allowing it silently would be an invented rule without a trace. | `drizzle/0295`, `services/angebot/index.ts` (`gibPreisFrei`), `/angebote/[id]/freigabe`, invariant 4, invariant 7 |
+| O-734 | **Must a closed order be re-openable (Nachtrag, warranty case) — and what then happens to the FIN-18 warning the closure armed?** `pruefeZeiterfassung` reads `status = 'abgeschlossen' or abgeschlossen_am is not null` as the signal that arms the FIN-18 block in the invoice path (D-366). A silent re-opening would therefore disarm a warning somebody deliberately decided on, and leave no trace. Until answered the closure is **one-way**: `abgeschlossen_am` is immutable and the status cannot leave `abgeschlossen`; correction runs through a Nachtrag or a new order. | `drizzle/0296`, `services/auftrag/abschluss.ts`, `/auftraege/[id]/abschluss`, FIN-18, D-366, D-367 |
+| O-735 | **Is the customer's Referenzfreigabe time-limited (how long does the permission hold), and does a revocation work retroactively** — must already-published references be taken down, or only no new ones created? The order row keeps the proof either way: `freigabe_widerrufen_am` is the field that counts, and `auftrag_referenz_idx` reads it that way (`freigegeben_vom_kunden AND freigabe_widerrufen_am IS NULL`). Until answered, a revocation removes **no** `referenz` row — PRO-05 keeps the two acts apart, and `referenz` deliberately carries no foreign key to `auftrag`. | `drizzle/0296`, `services/auftrag/kundenfreigabe.ts`, `/auftraege/[id]/kundenfreigabe`, PRO-05 |
+| O-736 | **Which document categories may EVER be released to a customer?** DOC-01 lists `mitarbeiter` and `buchhaltung` alongside the customer-facing ones; releasing a payslip or a bank statement to a customer must be impossible, not merely unusual. Today the database checks only the right (`dokument.kunde_freigeben`, `drizzle/0297`), so the release screen names the category prominently and the audit entry records it with every switch. A release without `kunde_id` is rejected outright. | `drizzle/0297`, `services/dokument/kundenfreigabe.ts`, `/dokumente/[id]/kundenfreigabe`, DOC-01, DOC-03, DOC-04, O-671 |
+| O-737 | **Does a later change to `raum.flaeche_qm` or `raum.belagsart_id` affect running offers and orders** — must the Kalkulation be recomputed and the customer informed — **or does it apply only to future calculations?** Both values feed every cleaning price (OPS-02, OPS-07) and every Revier target time, so one measurement moves numbers in several other places. Until answered the room sheet changes only the room, and it shows underneath **what hangs on it**: the Richtzeit this room contributes, its Reviere with their overrides, and its import history. Blocking the change would be wrong — a re-measured room is the truth, and the numbers beside it are what must follow. | `services/raumbuch/raum.ts`, `services/kalkulation/raumbuch.ts` (`ladeRaumRichtzeit`), `/objekte/[id]/raumbuch/[raumId]`, OPS-02, OPS-03, OPS-07 |
+
+## Befunde des Prüfers (13)
+
+- **blockierend** · `src/server/db/seed/vertrieb.ts` — `pnpm db:seed` bricht ab. Der neue Block `legeKatalogHierarchieAn` (Aufruf Zeile 518, Inserts Zeile 553 und 568) laeuft INNERHALB der `alsPortalSitzung` des `freigeber`-Kontos. Dieses Konto wird in Zeile 239–250 ausdruecklich so gesucht, dass es `angebot.versenden` UND `angebot.preis_freigeben` haelt — das ist `leitung.reinigung@cse-gruppe.de` mit der Rolle `leitung`. Die Policy `t_mandant` auf `leistungskatalog_position` verlangt im WITH CHECK aber `katalog.schreiben`, und das halten laut Katalog NUR `admin` und `super_admin` (der Bericht schreibt genau das selbst: „katalog.schreiben halten nur admin+super_admin, NICHT leitung"). Folgen: (1) der Seed stirbt mitten in Phase Vertrieb, alles danach (Radar usw.) entsteht nicht; (2) die GESAMTE Isolationssuite kann nicht starten, weil `tests/isolation/global-setup.ts` je Worker-Klon `db:seed` fährt — die im Bericht als gruen gemeldeten `tests/isolation/vertrieb-uebergaenge.test.ts` (23 Faelle) und der erweiterte `angebot-dienst.test.ts` laufen im jetzigen Baum ueberhaupt nicht.
+  - Behebung: Die Katalog-Hierarchie nicht in der Freigeber-Sitzung anlegen. Entweder `legeKatalogHierarchieAn` in eine eigene `alsPortalSitzung` mit einem Konto legen, das `katalog.schreiben` haelt (so macht es `seed/reinigung.ts` fuer seine `leistungskatalog_position`-Zeile), oder den Block ganz nach `seed/reinigung.ts` verschieben, wo der Katalog ohnehin gepflegt wird. Danach `pnpm db:seed` UND die Isolationssuite wirklich laufen lassen — der Bericht meldet sie gruen, ohne dass sie im jetzigen Baum starten koennen.
+- **wichtig** · `src/app/portal/[mandant]/auftraege/[id]/abschluss/page.tsx` — Drei der acht Pruefliste-Zeilen zeigen JEDEM Benutzer — auch super_admin — den Satz „Ihnen fehlt <recht>" statt des Verweises, und die beiden Rechte, die sie nennen, gibt es gar nicht. `haeltRechte` wird in Zeile 71–73 mit `auftrag.lesen, zeit.lesen, finanzen.lesen, reinigung.lesen, bau.lesen` gerufen; die Befunde tragen aber `zielRecht` = `leistungsnachweis.lesen` (services/auftrag/abschluss.ts:120), `aufmass.lesen` (:136) und `nachtrag.lesen` (:144). Diese Schluessel werden nie abgefragt, `zielRecht[b.zielRecht]` ist `undefined`, `!== true` ist wahr → Zeile 244–249 rendert immer den Fehlsatz. Zusaetzlich stehen in denselben Befunden zwei Ziele, die es nicht gibt: `reinigung/nachweise` (real: `reinigung/leistungsnachweise`) und `bau/aufmasse` (real: `bau/aufmass`). Und `reinigung.lesen`/`bau.lesen` werden geholt, aber nirgends benutzt.
+  - Behebung: Die drei Befunde auf die wirklich vorhandenen Rechte umstellen (`reinigung.lesen` fuer die Leistungsnachweise, `bau.lesen` fuer Aufmasse und Nachtraege — beide werden bereits geholt), die Ziele auf `reinigung/leistungsnachweise` und `bau/aufmass` korrigieren, und im Zweifel in `haeltRechte` genau die Schluessel uebergeben, die `Befund.zielRecht` fuehren kann (am besten aus `ladePruefliste` abgeleitet, nicht zweimal von Hand geschrieben).
+- **wichtig** · `src/server/services/auftrag/abschluss.ts` — Der Sicherheitseinbehalt laesst sich nicht von Betrag auf Satz (oder umgekehrt) umstellen — der Versuch endet in einer 500 ohne Satz. Das UPDATE (Zeile 276–283) schreibt `sicherheitseinbehalt_bp = coalesce($4, sicherheitseinbehalt_bp)` UND `sicherheitseinbehalt_cent = coalesce($5, sicherheitseinbehalt_cent)`. Steht in der Zeile schon ein Betrag und gibt die Maske jetzt einen Satz (das Betragsfeld leer), bleibt der alte Betrag stehen, der neue Satz kommt dazu, `num_nonnulls(...) = 2` und der CHECK `auftrag_einbehalt_eindeutig` schlaegt als roher `23514` zu. Der ist kein `AbschlussFehler`, `grundAus(f, AbschlussFehler)` gibt `null` zurueck, `autorisierungsAntwort` auch → `fuehreUebergangAus` wirft weiter (src/app/api/uebergang.ts:131). Die Vorabpruefung in Zeile 259–263 faengt nur den Fall, dass BEIDE Felder im Formular ausgefuellt sind; die Maske fuellt beide Felder aber aus dem Bestand vor (page.tsx, defaultValue aus `sicherheitseinbehalt_bp` bzw. `_cent`).
+  - Behebung: Beim Schreiben die jeweils andere Spalte ausdruecklich leeren, sobald eine der beiden Eingaben kommt — z. B. `sicherheitseinbehalt_bp = case when $5 is not null then null else coalesce($4, sicherheitseinbehalt_bp) end` und spiegelbildlich fuer `_cent`; oder `23514`/`auftrag_einbehalt_eindeutig` in `einbehalt_doppelt` uebersetzen, damit wenigstens der vorhandene Satz erscheint.
+- **wichtig** · `src/server/services/auftrag/kundenfreigabe.ts` — Eine widerrufene Kundenfreigabe ist eine Sackgasse ohne Rueckweg, und der dafuer geschriebene Code ist unerreichbar. Nach `widerrufeKundenfreigabe` bleibt `freigegeben_vom_kunden = true` (so gewollt, der CHECK verlangt es). `erfasseKundenfreigabe` weist aber jede erneute Erfassung in Zeile 180–183 mit `schon_freigegeben` und dem Satz „Fuer AU-… liegt die Freigabe bereits vor" ab — was fuer eine widerrufene Freigabe schlicht falsch ist. Die Seite verbirgt zugleich beide Formulare: das Erfassungsformular haengt an `stand.freigegeben ? null : …` (page.tsx:200) und das Widerrufsformular an `gilt` (= freigegeben && nicht widerrufen). Damit ist die Zeile `freigabe_widerrufen_am = null` im UPDATE (Zeile 236, Kommentar „Eine neue Freigabe hebt einen alten Widerruf auf") toter Code, und die Seite sagt nirgends, dass der Widerruf endgueltig ist.
+  - Behebung: Den Waechter auf `auftrag.freigegeben && auftrag.widerrufen_am is null` stellen und das Erfassungsformular auch bei widerrufener Freigabe zeigen (das UPDATE setzt den Widerruf dann wie vorgesehen zurueck) — oder, wenn eine Neuerfassung bewusst nicht vorgesehen ist, den toten `= null`-Zweig entfernen und auf der Seite ausdruecklich sagen, dass der Widerruf endgueltig ist und warum (O-735).
+- **wichtig** · `src/app/portal/[mandant]/leistungskatalog/[id]/page.tsx` — Zwei der fuenf Handlungen, die die Route und der Registereintrag fuehren, sind von keiner Seite erreichbar: `position_aendern` und `position_ausser_kraft`. Gebaut sind sie in `src/app/api/katalog/route.ts:112` und `:116` und in `services/katalog/index.ts` (`aenderePosition`, `setzePositionAusserKraft`), aber in beiden Katalogseiten gibt es nur Formulare fuer `katalog_anlegen`, `status` und `position_anlegen`. Eine falsch angelegte Katalogposition laesst sich im Portal damit weder korrigieren noch ausser Kraft setzen — geloescht wird ohnehin nicht (`verhindere_loeschung`). Der Plan verlangt ausdruecklich „Positionen werden angelegt, geaendert und untergeordnet", und der Manifest-Kommentar im Bericht behauptet „fuenf Handlungen unter einem Recht".
+  - Behebung: Je Positionszeile ein Bearbeiten-Formular (vorbefuellt aus `PositionZeile`) und ein „ausser Kraft setzen"-Formular mit `gueltigBis` ergaenzen, beide nur wenn `darf['katalog.schreiben']` und die Fassung nicht archiviert ist — sonst die beiden Aktionen aus Route und Registereintrag nehmen, damit die Liste nicht mehr verspricht als es gibt.
+- **wichtig** · `src/app/api/katalog/route.ts` — `positionId` wird nicht an `katalogId` gebunden. Die Route prueft in Zeile 88–91 die Katalogkennung und in Zeile 107–110 die Positionskennung, gibt danach aber nur `positionId` an `aenderePosition`/`setzePositionAusserKraft` weiter, und die schreiben mit `where id = $1` ohne `katalog_id` (services/katalog/index.ts:262 und :500). Innerhalb desselben Mandanten laesst sich damit die Position einer ANDEREN — auch einer aktiven — Katalogfassung aendern oder ausser Kraft setzen, waehrend die Umleitung auf die im Formular genannte Fassung zeigt; die RLS hat daran zu Recht nichts zu beanstanden. Der Nachbarweg `api/raum` macht es richtig und begruendet es ausfuehrlich („objekt_id steht in JEDER Anweisung mit").
+  - Behebung: `katalogId` an beide Dienstfunktionen durchreichen und in `where id = $1 and katalog_id = $2` vergleichen — wie bei `raum`. Ein nicht getroffener Treffer wird dann zum vorhandenen `nicht_gefunden`.
+- **klein** · `src/app/portal/[mandant]/angebote/[id]/versand/page.tsx` — Auf der Versandseite kann kein Fehlersatz erscheinen. Das Formular (Zeile 352) postet auf `/api/angebot?mandant=…` ohne das versteckte Feld `zurueck`; `/api/angebot/route.ts` kennt dieses Feld ueberhaupt nicht und antwortet auf jeden `AngebotFehler`/`NummernkreisFehler` mit JSON 409 (route.ts:244-249). Der `?fehler=`-Zweig der Seite (Zeile 158–163) und die ganze Tabelle `FEHLERTEXT` in `versand/daten.ts:32-43` (ohne_freigabe, kein_kreis, luecke, …) sind damit unerreichbar: ein abgewiesener Versand — etwa auf einer veralteten Seite oder im Rennen zweier Klicks — landet auf einer weissen Seite mit `{"fehler":"…"}`. Genau das verhindert `fuehreUebergangAus` (D-562) fuer die anderen sechs Routen dieser Runde.
+  - Behebung: Entweder `/api/angebot` um denselben `zurueck`-Weg ergaenzen wie `uebergang.ts` (ein verstecktes Feld plus `internesZiel`), oder die `FEHLERTEXT`-Tabelle und den `?fehler=`-Block aus `versand/daten.ts`/`page.tsx` entfernen, damit nichts behauptet wird, was nicht geschehen kann.
+- **klein** · `src/server/services/auftrag/abschluss.ts` — Zweite Fassung von `prozentInBasispunkte` (Zeile 187–208) neben der vorhandenen in `src/server/services/kalkulation/bestaetigung.ts:79`. Derselbe Algorithmus (Zerlegung ueber Zeichenketten, `Number(ganz)*100 + Number(bruch.padEnd(2,'0'))`), aber andere Regex (`^\d{1,3}(?:\.\d{1,2})?$` statt `^\d+(?:\.\d{1,2})?$`), andere Obergrenze (10000 statt 100000), andere Fehlerklasse und ohne das `%`-Strippen der aelteren Fassung. Zwei Wahrheiten ueber dieselbe Umrechnung, und die Tests pruefen nur die neue.
+  - Behebung: Die vorhandene Funktion aus `kalkulation/bestaetigung.ts` benutzen (oder sie in ein gemeinsames Modul heben) und im Abschlussdienst nur den Bereich 0–10000 zusaetzlich pruefen.
+- **klein** · `src/app/portal/[mandant]/auftraege/[id]/abschluss/page.tsx` — Die Pruefliste ist mit Seeddaten nicht vorfuehrbar. `fin.auftrag_abschluss_befunde` haengt jede Zahl an `auftrag_leistung` (0299, CTE `leistung`) — und `auftrag_leistung` ist in JEDER geseedeten Datenbank leer. Folge: alle acht Befunde stehen fuer jeden geseedeten Auftrag auf 0, `erfasste_minuten` ist 0 und damit `fin18Trifft` immer wahr, also zeigt die Seite bei jedem Auftrag den FIN-18-Kasten „An diesem Auftrag ist keine einzige Minute erfasst". CLAUDE.md, Definition of done: „seed data exercises it".
+  - Behebung: Im Seed mindestens eine `auftrag_leistung`-Zeile am geseedeten Auftrag anlegen und daran je einen offenen Posten haengen (ein Zeiteintrag ohne `freigegeben_am`, ein Rechnungsentwurf), damit die Pruefliste und der FIN-18-Block wenigstens einmal mit echten Zahlen zu sehen sind.
+- **klein** · `src/server/services/auftrag/kundenfreigabe.ts` — Der Widerrufsgrund wird an `freigabe_text` ANGEHAENGT (Zeile 285–287: `freigabe_text = coalesce(freigabe_text,'') || E'\n\nWiderrufen: ' || $2`). In dieser Spalte steht der festgehaltene WORTLAUT der Kundenerklaerung — der Beleg, auf den sich PRO-05 im Streitfall beruft. Danach stehen Kundenwortlaut und interne Widerrufsnotiz in einer Spalte, und die Seite zeigt beides unter der Ueberschrift „Wortlaut" (page.tsx, `stand.freigabe_text`). Ein Beleg, dem man etwas anhaengt, ist kein unveraenderter Beleg mehr.
+  - Behebung: Den Widerrufsgrund nicht in `freigabe_text` schreiben, sondern wie bei der Dokumentfreigabe ueber `app.protokolliere` ins Pruefprotokoll — dort steht er mit Akteur, Zeit und Sitzung, und der Kundenwortlaut bleibt, wie der Kunde ihn erklaert hat.
+- **klein** · `src/server/services/katalog/index.ts` — `setzePositionAusserKraft` (Zeile 497–506) prueft nicht, dass `gueltig_bis >= gueltig_ab`. Der CHECK `lkp_zeitraum_stimmig` meldet als roher `23514`, und `alsKatalogFehler` bildet nur `lkp_oz_uk` und `lkp_kalkulierbar` ab — der Rest wird weitergeworfen und wird in `fuehreUebergangAus` zu einer 500 ohne Satz, statt zu dem benannten Fehler, den die Seite anzeigen kann.
+  - Behebung: `lkp_zeitraum_stimmig` in `alsKatalogFehler` aufnehmen (eigener Grund, z. B. `zeitraum_unstimmig`, mit Satz und Eintrag in die `FEHLERTEXT`-Tabelle der Katalogseite) — oder das Datum vorher gegen `gueltig_ab` der Zeile pruefen.
+- **klein** · `src/app/portal/[mandant]/objekte/[id]/raumbuch/[raumId]/page.tsx` — Geholte und nie benutzte Rechtepruefungen, dazu ein ungeprueftes Ziel. Zeile 66 holt `objekt.lesen` und `reinigung.lesen`, benutzt wird nur `reinigung.lesen`; der Rueckverweis auf `…/objekte/[id]/raumbuch` (Zeile 107–112) steht ungeprueft, obwohl die Seite selbst nur `objekt.schreiben` verlangt. Dasselbe Muster in `angebote/[id]/annahme/page.tsx:62` (`auftrag.lesen` geholt, nur `angebot.lesen` benutzt) und in `auftraege/[id]/abschluss/page.tsx:71-73` (`reinigung.lesen`, `bau.lesen` geholt, nie benutzt). Das sind jeweils Pruefungen, die begonnen und nicht zu Ende gefuehrt wurden — genau die Luecke, gegen die `src/app/portal/rechte.ts` geschrieben wurde.
+  - Behebung: Entweder die Verweise an die geholten Rechte haengen (`darf['objekt.lesen'] === true` um den Rueckverweis, `darf['auftrag.lesen']` um den Auftragsverweis) oder die ungenutzten Schluessel aus dem `haeltRechte`-Aufruf nehmen, damit nicht so aussieht, als waere geprueft worden.
+- **klein** · `drizzle/0295_angebot_preisfreigabe.sql` — Sieben neue offene Geschaeftsfragen (O-730, O-731, O-732, O-734, O-735, O-736, O-737) stehen als `TODO(client, O-NN)` in Migrationen und Diensten, aber im Bericht ist unter den vier `registry_*`-Feldern kein Abschnitt „Zeilen fuer docs/DECISIONS.md, Abschnitt Offen" zu sehen (das Feld `registry_rls` bricht im Bericht mitten im Satz ab), und `docs/architecture/routenbau/register/` hat fuer diese Domaene noch gar keine Datei. Die Nachbardomaenen liefern diesen Abschnitt ausdruecklich (siehe register/bau.md, Zeile 186). Die Merge-Wache meldet die sieben TODOs entsprechend. Nebenbei: O-733 wird uebersprungen, was auf eine verlorene Zeile hindeutet.
+  - Behebung: Die sieben Zeilen fuer `docs/DECISIONS.md`, Abschnitt „Offen", nachliefern (Wortlaut je O-Nummer genau wie im TODO) und klaeren, ob O-733 fehlt oder bewusst frei bleibt. Bis dahin bleibt die Wache rot.
+
+**Urteil:** Die Runde ist inhaltlich stark — die Auftrennung von `versendeAngebot`, die drei Ausloeser-Migrationen (0295/0296/0297), die DEFINER-Pruefliste (0299) und die Endstation-Regel fuer archivierte Katalogfassungen (0298) sind gegen die lebende Datenbank nachgemessen und halten. Spaltennamen, Enum-Werte, Constraint-Namen und Rechteschluessel habe ich einzeln gegen `w_vtr` geprueft; bis auf die unten genannten Ausnahmen stimmen sie. `npx tsc --noEmit` ist still, `tests/kern/vertrieb-rechnen.test.ts` laeuft gruen (12/12), Geldspalten sind `bigint`-Cent, Zeitstempel `timestamptz` mit Anzeige in Europe/Berlin, keine erfundenen Gestaltungswerte, keine vorgetaeuschte Integration (die O-36-Aussage auf /versand kommt korrekt aus `anbindungen()`).
+
+Ein Befund ist aber blockierend und macht einen Teil des Berichts unzutreffend: der neue Seed-Block `legeKatalogHierarchieAn` schreibt `leistungskatalog_position` in der Sitzung eines `leitung`-Kontos, das `katalog.schreiben` nicht haelt — `pnpm db:seed` bricht mit 42501 ab, und damit kann die gesamte Isolationssuite nicht starten (global-setup seedet jeden Worker-Klon). Die im Bericht als gruen gemeldeten 23 Faelle in `tests/isolation/vertrieb-uebergaenge.test.ts` und die neun erweiterten Faelle in `angebot-dienst.test.ts` sind im jetzigen Baum nicht lauffaehig. Dazu vier weitere „wichtig\"-Befunde, die im Betrieb auffallen wuerden: drei Pruefliste-Zeilen auf der Abschlussseite nennen jedem Benutzer erfundene Rechteschluessel und zwei Pfade, die es nicht gibt; der Sicherheitseinbehalt laesst sich nicht von Betrag auf Satz umstellen (roher 500); eine widerrufene Kundenfreigabe ist eine Sackgasse; und zwei der fuenf Katalog-Handlungen sind gebaut, aber von keiner Seite erreichbar. Nach diesen fuenf Korrekturen und einem echten Lauf von Seed plus Isolationssuite ist die Runde abnahmefaehig.
+
+## NICHT gebaut, mit Grund
+
+- Nichts aus dem Plan blieb offen: alle neun Routen haben Seite, Daten, Dienst, Recht, Leerzustand und (wo es einen Uebergang gibt) einen POST-Handler.
+- NICHT gebaut, weil es eine erfundene Geschaeftsregel waere: eine Sperrwirkung fuer die Abschluss-Pruefliste (O-730), gruppenweite Zeitwerte/Standardpreise im Katalog (O-17/O-731), ein Widerruf der Preisfreigabe (O-732), ein Wiederoeffnen eines abgeschlossenen Auftrags (O-734), eine Befristung/Rueckwirkung der Referenzfreigabe (O-735), eine Kategoriensperre fuer Kundenfreigaben (O-736), eine Neuberechnung laufender Angebote nach einer Flaechenaenderung (O-737).
+- NICHT gebaut, weil es eine vorgetaeuschte Integration waere: ein E-Mail-Versand aus /versand (O-36). Der Klick haelt den Versand fest, zieht die Nummer, friert die Kalkulation ein und stellt das Dokument bereit — er verschickt nichts und sagt das.
+- NICHT gebaut, weil das Kundenportal es nicht lesen kann: ein Kundenweg zu freigegebenen Dokumenten (O-671, permissive t_kunde auf dokument fehlt). 0297 legt nur die fehlende kunde_id-Decke vorab, damit die Antwort auf O-671 kein Loch oeffnet.
+
+## Notizen des Bauender
+
+MIGRATION GEPRUEFT: `pnpm db:migrate` laeuft auf der eigenen Datenbank `w_vtr` von Null bis `Migrationen angewendet.` durch, mit 0295–0299 am Ende (mehrfach wiederholt, zuletzt nach allen Aenderungen). Keine fremde Datei angefasst; 0290 eines anderen Agenten kam zwischendurch dazu und der Lauf blieb gruen.
+
+LIVE GEPRUEFT, NICHT NUR UEBERSETZT: ein Kratzskript im Kratzverzeichnis fuehrt die ganze Kette durch die ECHTEN Dienste unter `cse_app` mit gebundener Sitzung und RLS — 72 Zusicherungen, alle gruen. Dazu jede Abfrage einzeln mit `prepare` gegen echtes Postgres geplant (33 Dienst- und 6 Seitenabfragen). Das hat ZWEI Fehler gefunden, die kein Typecheck sieht:
+ (1) `JSON.stringify` an einem `$n::jsonb`-Platz wird vom Treiber NOCH EINMAL JSON-kodiert; in der Spalte stand ein jsonb-SKALAR, und `app.protokolliere` fiel auf `jsonb_object_keys` mit „cannot call jsonb_object_keys on a scalar" — also erst beim Protokollieren. Jetzt gehen Objekte, wie in `services/stammdaten/antragsart.ts`. (Beide Formen sind richtig; mischen ist es nicht.)
+ (2) `raum.bemerkung` ist `cse_app` per SPALTENRECHT entzogen (`drizzle/0021`: `revoke select on raum from cse_app`, dann ein `grant select (…)` ohne diese Spalte, mit Begruendung — interne Notizen an einem Ort, den der Kunde im Portal sieht). Ein `select r.bemerkung` antwortet mit `42501 permission denied for TABLE raum`, was wie ein kaputtes Recht aussieht. Das Raumblatt bietet das Feld deshalb gar nicht an und sagt warum.
+
+DIE KRITIK WAR AN EINER STELLE FALSCH, UND ICH HABE ES NACHGEMESSEN. Sie behauptet, ein Umlegen von `sichtbar_fuer_kunde` gebe das Dokument „jeder Kundensitzung DIESES Mandanten" frei, weil `t_mandant` genuege. Gemessen: im ECHTEN Kundenportal (`app.scope() = 'kunde'`) sind es NULL Zeilen — `app.aktiver_mandant()` ist in diesem Scope NULL, `t_mandant` greift nicht, und eine permissive `t_kunde` hat `dokument` gar nicht (das ist O-671, und `services/kundenportal/nachricht.ts` sagt es schon). Der Schalter ist heute die VORAUSSETZUNG, nicht der Weg. Erreichbar und wirklich zu weit ist die Lage `scope='mandant', portal='kunde'`, fuer die `p_kunde_ceiling` geschrieben wurde: dort sah ein Konto mit Zugang nur auf Kunde A auch das freigegebene Dokument von Kunde B (2 Zeilen, nach 0297 eine). Die faellige Decke kommt deshalb JETZT — bevor O-671 beantwortet wird, denn eine Decke, die man zugleich mit der Tuer einbaut, wird beim ersten Entwurf vergessen. Und: der offene Weg beim RECHT ist heute der INSERT, nicht das UPDATE — `mitarbeiter` fehlt `dokument.lesen`, sein UPDATE trifft null Zeilen. Der Ausloeser deckt beide Richtungen, weil eine Wache, die nur den heute erreichbaren Weg kennt, beim naechsten Katalogschnitt still aufhoert zu wachen. Das steht so in 0297 und nicht in der Fassung der Kritik.
+
+„DO NOT BREAK WHAT WORKS" — WAS ICH DAFUER GETAN HABE. Die Auftrennung von `versendeAngebot` beruehrt 20 Aufrufstellen in `tests/isolation/angebot-dienst.test.ts`, die Seed-Kette und acht Stellen in `tests/e2e/angebot-portal.spec.ts`. Alle drei sind mitgewandert: der Isolationstest ueber einen Helfer `freigebenUndVersenden` (zwei Aufrufe bleiben absichtlich roh, weil sie einen ANDEREN Riegel pruefen), der Seed ueber `gibPreisFrei` vor `versendeAngebot` samt einer Freigebersuche, die BEIDE Rechte verlangt, und die Browsersuite auf `KONTO.leitungReinigung`. Letzteres ist kein Ausweichen: `adminReinigung` DARF den Preis nach der Auftrennung gar nicht freigeben — genau das ist die Zusage, und `/freigabe` antwortet ihm mit 404 (AUT-06). Den Test „ein gescheiterter Versand verbraucht KEINE Nummer" habe ich umgebaut, weil er sonst seine eigene Zusage verloren haette: die neuen Vorabpruefungen greifen VOR `vergebeNummer`, also waere gar keine Nummer mehr gezogen worden. Jetzt wird erst freigegeben, dann die Kalkulation gebrochen — der Versand kommt bis zum UPDATE durch, die Nummer IST gezogen, und der Rollback wird wirklich geprueft.
+
+WAS ICH NICHT AUSGEFUEHRT HABE: `pnpm test`, `pnpm test:isolation`, `pnpm test:e2e`, `pnpm db:seed`, `pnpm db:triggers`, `pnpm build`, `git add`/`commit`, und kein `db:migrate` gegen `cse_dev`/`cse_test`. Gelaufen sind: `npx vitest run tests/kern/vertrieb-rechnen.test.ts` (12/12 gruen, reine Rechenfunktionen ohne Datenbank), `npx tsc --noEmit` (auf meine Pfade gefiltert: sauber), `npx eslint` auf alle meine Dateien (sauber) und `npx tsx scripts/guards/run-all.ts`. Die Wachen melden auf meinen Dateien nur noch `todo-client-nicht-im-register` fuer O-730 bis O-737 — erwartet, weil `docs/DECISIONS.md` zentral gepflegt wird; die Zeilen liegen in `decisions_zeilen`. Zwei echte Wachenbefunde habe ich behoben: `anzeige-berlin` schlug auf `Number(zeitwert_minuten).toLocaleString('de-DE')` an, und zu Recht — der Wert kommt als `numeric(10,3)` aus Postgres, `Number()` machte daraus eine Fliesskommazahl. Jetzt laeuft er durch `formatiereMenge(mengeAusPostgresOderNull(…))`, also ueber ganzzahlige Tausendstel.
+
+OHNE DIESE ZWEI EINTRAEGE FAELLT ETWAS: ohne die sieben Manifestzeilen faellt `tests/kern/routen.test.ts` („keine Route fehlt im Manifest"); ohne die fuenf Dienstzeilen faellt `tests/kern/portal-shell.test.ts` („das Register kennt jeden Dienst, der existiert" — der Test sucht jede `.ts` unter `src/server/services/`). Beide Listen liegen fertig formuliert in `registry_manifest` und `registry_dienste`. Geprueft habe ich dafuer, dass jede der sieben Routen `authorize` ueber ihren relativen Import von `src/app/api/uebergang.ts` erreicht (alle sieben, mit demselben Verfahren wie der Test).
+
+EIN GERUEST STATT SIEBEN KOPIEN: `src/app/api/uebergang.ts` traegt Ursprungspruefung, Sitzung, genau einen aktiven Mandanten, `authorize` IN der gebundenen Transaktion, den Slug aus der SITZUNG (nie aus `?mandant=`), die Fehleruebersetzung und die Rueckleitung eines abgewiesenen Formulars auf seine eigene Seite (`internesZiel`, D-562) statt auf eine weisse Seite mit JSON. Gleiche Begruendung und gleiche Form wie `api/social/gemeinsam.ts`, nur nicht auf eine Fehlerklasse festgelegt — die sieben Routen werfen sieben verschiedene Dienstfehler, und `grundVon` bildet sie ab; was es nicht kennt, bleibt ein Wurf und damit ein roter Lauf.
+
+DESIGN: kein Farbwert, keine Abstandsstufe, keine Schriftgroesse erfunden. Eine Stelle ist ein Inline-Style und sei darum genannt: die Einrueckung des Katalogbaums lautet `calc(var(--s3) * <tiefe>)` — eine Tailwind-Klasse geht dort nicht, weil die Tiefe zur Laufzeit entsteht und `pl-[…]` mit eingesetztem Wert im erzeugten Stylesheet nicht existiert; `--s3` ist 12px aus DESIGN §3 (`src/styles/globals.css:59`).
+
+SEED: `src/server/db/seed/vertrieb.ts` erweitert, weil drei der neun Seiten mit Seeddaten NICHT vorfuehrbar waren (die Kritik hat das zu Recht als Bedingung genannt): ein drittes Angebot mit BESTAETIGTER Kalkulation und ohne Preisfreigabe (den Zustand gab es vorher nicht, weil Freigabe und Versand ein Klick waren), ein Kundenschreiben MIT `kunde_id` samt erfasster Referenzfreigabe am Auftrag (0 von 7 Dokumenten trugen eine `kunde_id`, die Auswahl war leer und die Freigabe nicht abschliessbar), und eine Eltern-Kind-Hierarchie im Leistungskatalog (eine Einrueckung, die nie eingerueckt ist, prueft nichts). `dokument_zugriff` bleibt leer und `sichtbar_fuer_kunde` false: ein erfundener Abruf waere die Behauptung, jemand habe eine Datei geholt, die es ohne Speicheranbindung nicht gibt — und eine vorab gesetzte Freigabe nimmt der Seite ihren einen Knopf. `VertriebErgebnis` hat zwei Felder mehr (`zurFreigabe`, `kundendokument`); `seed/index.ts` habe ich nicht angefasst (dort arbeitet gerade jemand), die Ergaenzung ist additiv und uebersetzt sauber — die Zusammenfassungszeile dort koennte die zwei neuen Zahlen noch nennen.
+
+EINE UNSCHOENHEIT, DIE ICH NICHT ALLEIN AUFLOESEN KANN: `registry/dienste.ts` fuehrt EIN `schreibRecht` je Zeile, `services/angebot/index.ts` traegt nach der Auftrennung aber zwei Uebergaenge mit zwei Rechten. Ich habe `angebot.versenden` stehen lassen — das engere Tor, durch das etwas das Haus verlaesst — und einen Kommentar dafuer mitgeliefert. Die Bindung der Freigabe steht im Ausloeser, ist also nicht auf das Register angewiesen.

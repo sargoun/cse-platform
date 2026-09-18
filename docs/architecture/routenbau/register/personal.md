@@ -1,218 +1,89 @@
-# Registereintraege: personal
+# Registereinträge: personal
 
-Diese Eintraege hat der bauende Agent geliefert; sie sind **noch nicht** eingefuegt.
-Die gemeinsamen Dateien pflegt EINE Hand, weil acht Agenten gleichzeitig im Baum
-arbeiten und sich sonst in dieselbe Zeile schreiben. Ist ein Eintrag eingefuegt,
-verschwindet er hier — diese Datei ist eine Warteschlange, kein Archiv.
+**Warteschlange, kein Archiv.** Diese Einträge sind **noch nicht** im Baum. Die
+gemeinsamen Dateien pflegt EINE Hand, weil mehrere Agenten gleichzeitig arbeiten
+und sich sonst in dieselbe Zeile schreiben. Ist ein Abschnitt eingetragen, wird
+er hier gelöscht — solange er hier steht, fehlt er dort.
 
-## Migrationen (alle gegen eine eigene Datenbank gefahren: True)
+**Die Einträge des Behebungsschritts gelten.** Er lief zuletzt und hatte den
+Auftrag, die vollständige aktuelle Liste zu liefern — auch das, was sich seit
+dem Bauschritt geändert hat.
+
+## Stand
+
+- Bau: fertig
+- Kritik: 16 Befunde
+- Behebung: 15 behoben, 0 widerlegt, 5 offen
+
+## Migrationen (gegen eine eigene Datenbank gefahren: True)
 
 - drizzle/0190_person_stammdaten.sql — person.geburtsort + person.staatsangehoerigkeit char(2) mit CHECK; TABELLENWEITER SELECT-Grant auf person fuer cse_app entzogen und als erschoepfende Spaltenliste ohne die drei Stammdatenfelder zurueckgegeben (ein Spalten-Revoke war wirkungslos, weil relacl 'cse_app=ar' trug — nachgemessen); Spalten-UPDATE-Grant fuer die drei Felder; Policy t_person_personalpflege (personal.schreiben + Beschaeftigung im aktiven Mandanten, not ist_readonly); Definer app.person_stammdaten_lesen(uuid) mit Rechtepruefung, AUT-06-Verhalten und Auditzeile mit Rechtsgrundlage; cse_definer-Grants und d_person_stammdaten-Policy.
 - drizzle/0191_anstellung_vertrag.sql — anstellung.austritt_grund, .tarifgruppe, .arbeitstage_woche, .kostenstelle; TABELLENWEITER UPDATE-Grant entzogen und ohne den Spiegelsatz (arbeitszeitmodell, wochenstunden, arbeitstage_woche, stundensatz_intern, tarifgruppe, kostenstelle) zurueckgegeben; SELECT auf austritt_grund/arbeitstage_woche/kostenstelle, NICHT auf tarifgruppe (K-05); Trigger kern.anstellung_status_uebergang (beendet ist einwegs, nur der UEBERGANG wirft); die fehlende K-14-Haelfte kern.bm_aus_anstellung (legt die abgeleitete Mitgliedschaft an, wenn keine laufende besteht, und entzieht nur aus_anstellung-Zeilen — mit aus_anstellung=false im selben UPDATE, weil kern.bm_aus_anstellung_schutz sonst wirft); app.anstellung_status_nachziehen() fuer cse_job.
 - drizzle/0192_anstellung_kondition.sql — Tabelle anstellung_kondition (mandant_id, anstellung_id als zusammengesetzter FK, gilt_ab/gilt_bis, arbeitszeitmodell, wochenstunden, arbeitstage_woche, stundensatz_intern_cent bigint, tarifgruppe, kostenstelle, grund, erstellt_am/erstellt_von), EXCLUDE USING gist gegen zwei gleichzeitig gueltige Konditionen, RLS (Lesen personal.lesen, Schreiben personal.entgelt_schreiben, Gruppe, t_person-Selbstzugriff, K-04-Decken, cse_definer), Spaltengrants ohne SELECT auf stundensatz_intern_cent/tarifgruppe, Trigger kern.anstellung_kondition_spiegeln (der EINE Schreiber des Spiegels, spiegelt nur die heute gueltige Kondition), app.anstellung_kondition_spiegel_nachziehen() fuer den Datumswechsel, Loeschsperre + Auditblock zwischen den Sentinels.
 - drizzle/0193_entgelt_lesen_haerten.sql — app.entgelt_lesen(uuid, date): prueft personal.entgelt_lesen UND den aktiven Mandanten (42501 ohne Recht, null bei fremder Gesellschaft — AUT-06), liest die am Stichtag gueltige Kondition, faellt nur bei Beschaeftigungen OHNE jede Kondition auf den Spiegel zurueck, protokolliert mit Stichtag und Quelle. app.anstellung_entgelt_lesen(uuid) bleibt als Weiterleitung (drei Stellen im Bestand nennen sie).
 - drizzle/0194_person_zusammenfuehren.sql — person.zusammengefuehrt_in_person_id (lesbar fuer cse_app, schreibbar nur fuer cse_definer) mit partiellem Index; Trigger kern.person_merge_kein_zyklus (Selbstbezug, Zeigen auf eine zusammengefuehrte Zeile UND das Zusammenfuehren einer fuehrenden Zeile — die dritte Lage fehlt in der naheliegenden Umsetzung und erzeugt genau die Kette); app.person_kanonisch(uuid); app.person_identitaeten(uuid) fuer Aggregationen je Mensch (Invariante 9/K-06); app.person_zusammenfuehren(uuid, uuid, text) mit Recht, aktivem Mandanten, Readonly-Sperre, Pflichtgrund und Auditzeile.
+- (Behebung) drizzle/0190_person_stammdaten.sql (geaendert): UPDATE-Grant auf person zurueckgeschnitten, kern.person_stammdaten_schutz() + trg_person_stammdaten_schutz ergaenzt
+- (Behebung) drizzle/0191_anstellung_vertrag.sql (geaendert): kern.bm_aus_anstellung() — Anlege-Zweig auf INSERT/Rueckkehr beschraenkt, Schutz gegen Wiederkehr eines von Hand entzogenen Zugangs, TODO(client, O-615)
+- (Behebung) drizzle/0192_anstellung_kondition.sql (geaendert): kern.anstellung_kondition_spiegeln() leert den Spiegel ohne heute gueltige Kondition; app.anstellung_kondition_spiegel_nachziehen() um den Zweig 'leer' erweitert, Zaehlung umgestellt
+- (Behebung) drizzle/0195_arbzg_identitaeten.sql (NEU): app.arbzg_belastung und zeit_intern.arbzg_belastung_job aggregieren ueber app.person_identitaeten; revoke execute … from public fuer app.person_kanonisch und app.person_identitaeten
 
-## Gebaute Routen
+## Gebaute Adressen
 
-- `/portal/[mandant]/personal/abwesenheiten/[id]` — fertig — Detailblatt mit Zeitraum, Halbtagen, angerechneten Tagen und allen drei Zeitpunkten in Europe/Berlin. Der Grund (Art. 9 DSGVO) kommt NUR auf ausdrueckliche Anforderung (?grund=1) ueber app.abwesenheit_grund_lesen, mit sichtbarem Protokollhinweis; 'kein Recht' (42501) und 'kein Grund hinterlegt' sind zwei verschiedene Saetze. zeit.konto_lesen wird VORHER gefragt, damit null Zeilen im Urlaubskonto nicht wie 'kein Anspruch' aussehen. Entscheidungsformular gegen das vorhandene POST /api/abwesenheiten/[id], Knoepfe nur fuer Uebergaenge, die der Dienst zulaesst. Korrektur der Kritik umgesetzt: findeAbwesenheit liefert jetzt storniert_am.
-- `/portal/[mandant]/personal/antraege/[id]` — fertig — Zeigt den PREIS vor der Entscheidung: Arbeitstage aus rechneTage (nie in SQL nachgebaut), Urlaubskontostand, und die Warnung 'eine Genehmigung wuerde jetzt abbrechen' bevor UrlaubskontoFehlt fliegt (O-18). Ein TAUSCHANTRAG bekommt bewusst KEINEN Genehmigen-Knopf: entscheideAntrag behandelt nur den Abwesenheitszweig, eine Genehmigung waere wirkungslos und ohne SEC-04-Tor (O-613). findeAntrag wurde um erzeugtAbwesenheit, einsatzId, tauschPartnerAnstellungId, abwesenheitsartId, zaehltAufUrlaubskonto, storniertAm erweitert.
-- `/portal/[mandant]/personal/anstellungen/[id]/vertrag` — fertig — Der Kritik gefolgt: nur personalnummer + eintritt sind Schreibfelder. arbeitszeitmodell/wochenstunden/arbeitstage_woche stehen gesperrt daneben, weil sie nach 01-KERN §6.14 ein Spiegel der datierten anstellung_kondition mit genau EINEM Schreiber sind (05-API-KARTE fuehrt sie unter /konditionen mit personal.entgelt_schreiben) — 0191 nimmt sie cse_app aus dem UPDATE-Grant, die Sperre ist also keine Behauptung der Oberflaeche. austritt nur lesend, mit Verweis auf /beenden. Personalnummernkollision kommt als Satz zurueck, nicht als 23505.
-- `/portal/[mandant]/personal/anstellungen/[id]/entgelt` — fertig — Satz in Cent, angezeigt als Euro (formatiereGeld), gelesen ausschliesslich ueber das gehaertete app.entgelt_lesen(anstellung, stichtag); Protokollhinweis sichtbar. Die Historie zeigt Zeitraeume/Stunden/Grund OHNE Betraege — ein Verweis je Zeile holt genau einen Satz, damit ein Seitenaufruf nicht zehn Auditzeilen schreibt. Schreiben legt eine KONDITION an (nie den Spiegel), Eurobetrag serverseitig mit parseGeld geparst. tarifgruppe/arbeitszeitmodell bleiben freie Felder mit sichtbarem 'offen (O-610)' bzw. '(O-18)'. Die 2FA-Frage steht als 'offen (O-614)' auf der Seite.
-- `/portal/[mandant]/personal/anstellungen/[id]/beenden` — fertig — Vor dem Formular die Folgen: Einsaetze nach dem Austritt, nicht abgeschlossene Stundenkonten, Resturlaub, offene Antraege, nicht zurueckgegebene Schluessel. Jeder Posten haengt an einem ANDEREN Recht, deshalb unterscheidet die Seite 'keine' von 'nicht pruefbar — kein Leserecht (x)'. Geschrieben werden austritt + austritt_grund (neue Spalte in 0191, wie 01-KERN §6.14 sie fuehrt — nicht ins audit_log ausgewichen). Status folgt dem Kalender: erst wenn der Austrittstag vorbei ist, und am Statuswechsel haengt der K-14-Entzug. Nie ein DELETE.
-- `/portal/[mandant]/personal/personen/[id]/stammdaten` — fertig — Drei Felder (Geburtsdatum, Geburtsort, Staatsangehoerigkeit als ISO-3166-1-alpha-2 mit CHECK), gelesen nur ueber app.person_stammdaten_lesen mit Protokollhinweis, ohne Recht ein ausgesprochener Sperrhinweis statt leerer Felder. Die Kritik war richtig: Schreiben war strukturell unmoeglich (nur sprache hatte UPDATE, nur t_person_selbstpflege als Policy) — 0190 bringt den Spalten-UPDATE-Grant UND die Policy t_person_personalpflege (personal.schreiben + Beschaeftigung im aktiven Mandanten). O-43 steht als offene Annahme im Text.
-- `/portal/[mandant]/personal/zusammenfuehren` — fertig — Zwei Schritte: Suche stellt Kandidaten nebeneinander (Namen, Telefon, Beschaeftigungen, Nachweise, Zugang, Kennung) und schlaegt NICHTS vor; dann ausdrueckliche Wahl der fuehrenden Zeile, Pflichtgrund und getippte Bestaetigung (Nachname). Ausgefuehrt von app.person_zusammenfuehren in einer Transaktion: Zeiger setzen, Auditzeile mit beiden Kennungen. Der Kritik gefolgt — es wird KEINE Zeile umgehaengt (nachweis traegt (nachweis_id, person_id), mitarbeiter_zugang unique(person_id)); aufgeloest wird ueber app.person_kanonisch / app.person_identitaeten. Das Geburtsdatum steht bewusst nicht in der Trefferliste (Spaltenentzug). Offene Regel sichtbar als O-611.
+- `/portal/[mandant]/personal/abwesenheiten/[id]` — fertig
+  - Detailblatt mit Zeitraum, Halbtagen, angerechneten Tagen und allen drei Zeitpunkten in Europe/Berlin. Der Grund (Art. 9 DSGVO) kommt NUR auf ausdrueckliche Anforderung (?grund=1) ueber app.abwesenheit_grund_lesen, mit sichtbarem Protokollhinweis; 'kein Recht' (42501) und 'kein Grund hinterlegt' sind zwei verschiedene Saetze. zeit.konto_lesen wird VORHER gefragt, damit null Zeilen im Urlaubskonto nicht wie 'kein Anspruch' aussehen. Entscheidungsformular gegen das vorhandene POST /api/abwesenheiten/[id], Knoepfe nur fuer Uebergaenge, die der Dienst zulaesst. Korrektur der Kritik umgesetzt: findeAbwesenheit liefert jetzt storniert_am.
+- `/portal/[mandant]/personal/antraege/[id]` — fertig
+  - Zeigt den PREIS vor der Entscheidung: Arbeitstage aus rechneTage (nie in SQL nachgebaut), Urlaubskontostand, und die Warnung 'eine Genehmigung wuerde jetzt abbrechen' bevor UrlaubskontoFehlt fliegt (O-18). Ein TAUSCHANTRAG bekommt bewusst KEINEN Genehmigen-Knopf: entscheideAntrag behandelt nur den Abwesenheitszweig, eine Genehmigung waere wirkungslos und ohne SEC-04-Tor (O-613). findeAntrag wurde um erzeugtAbwesenheit, einsatzId, tauschPartnerAnstellungId, abwesenheitsartId, zaehltAufUrlaubskonto, storniertAm erweitert.
+- `/portal/[mandant]/personal/anstellungen/[id]/vertrag` — fertig
+  - Der Kritik gefolgt: nur personalnummer + eintritt sind Schreibfelder. arbeitszeitmodell/wochenstunden/arbeitstage_woche stehen gesperrt daneben, weil sie nach 01-KERN §6.14 ein Spiegel der datierten anstellung_kondition mit genau EINEM Schreiber sind (05-API-KARTE fuehrt sie unter /konditionen mit personal.entgelt_schreiben) — 0191 nimmt sie cse_app aus dem UPDATE-Grant, die Sperre ist also keine Behauptung der Oberflaeche. austritt nur lesend, mit Verweis auf /beenden. Personalnummernkollision kommt als Satz zurueck, nicht als 23505.
+- `/portal/[mandant]/personal/anstellungen/[id]/entgelt` — fertig
+  - Satz in Cent, angezeigt als Euro (formatiereGeld), gelesen ausschliesslich ueber das gehaertete app.entgelt_lesen(anstellung, stichtag); Protokollhinweis sichtbar. Die Historie zeigt Zeitraeume/Stunden/Grund OHNE Betraege — ein Verweis je Zeile holt genau einen Satz, damit ein Seitenaufruf nicht zehn Auditzeilen schreibt. Schreiben legt eine KONDITION an (nie den Spiegel), Eurobetrag serverseitig mit parseGeld geparst. tarifgruppe/arbeitszeitmodell bleiben freie Felder mit sichtbarem 'offen (O-610)' bzw. '(O-18)'. Die 2FA-Frage steht als 'offen (O-614)' auf der Seite.
+- `/portal/[mandant]/personal/anstellungen/[id]/beenden` — fertig
+  - Vor dem Formular die Folgen: Einsaetze nach dem Austritt, nicht abgeschlossene Stundenkonten, Resturlaub, offene Antraege, nicht zurueckgegebene Schluessel. Jeder Posten haengt an einem ANDEREN Recht, deshalb unterscheidet die Seite 'keine' von 'nicht pruefbar — kein Leserecht (x)'. Geschrieben werden austritt + austritt_grund (neue Spalte in 0191, wie 01-KERN §6.14 sie fuehrt — nicht ins audit_log ausgewichen). Status folgt dem Kalender: erst wenn der Austrittstag vorbei ist, und am Statuswechsel haengt der K-14-Entzug. Nie ein DELETE.
+- `/portal/[mandant]/personal/personen/[id]/stammdaten` — fertig
+  - Drei Felder (Geburtsdatum, Geburtsort, Staatsangehoerigkeit als ISO-3166-1-alpha-2 mit CHECK), gelesen nur ueber app.person_stammdaten_lesen mit Protokollhinweis, ohne Recht ein ausgesprochener Sperrhinweis statt leerer Felder. Die Kritik war richtig: Schreiben war strukturell unmoeglich (nur sprache hatte UPDATE, nur t_person_selbstpflege als Policy) — 0190 bringt den Spalten-UPDATE-Grant UND die Policy t_person_personalpflege (personal.schreiben + Beschaeftigung im aktiven Mandanten). O-43 steht als offene Annahme im Text.
+- `/portal/[mandant]/personal/zusammenfuehren` — fertig
+  - Zwei Schritte: Suche stellt Kandidaten nebeneinander (Namen, Telefon, Beschaeftigungen, Nachweise, Zugang, Kennung) und schlaegt NICHTS vor; dann ausdrueckliche Wahl der fuehrenden Zeile, Pflichtgrund und getippte Bestaetigung (Nachname). Ausgefuehrt von app.person_zusammenfuehren in einer Transaktion: Zeiger setzen, Auditzeile mit beiden Kennungen. Der Kritik gefolgt — es wird KEINE Zeile umgehaengt (nachweis traegt (nachweis_id, person_id), mitarbeiter_zugang unique(person_id)); aufgeloest wird ueber app.person_kanonisch / app.person_identitaeten. Das Geburtsdatum steht bewusst nicht in der Trefferliste (Spaltenentzug). Offene Regel sichtbar als O-611.
 
 ## src/server/registry/dienste.ts
 
-/**
-   * **Die Personaldomaene (0190–0194).** Drei Dienste, drei Schreibrechte —
-   * und der strengste ist nicht der eingetragene: `personal/anstellung`
-   * fuehrt `aendereVertrag` (`personal.schreiben`), `beendeAnstellung`
-   * (`personal.anstellung_beenden`) und `setzeKondition`
-   * (`personal.entgelt_schreiben`, 05-API-KARTE §C.8). Das Register fuehrt
-   * EIN Recht je Dienst; eingetragen ist das SCHWAECHSTE, weil die Zusage,
-   * die es tragen muss, „in der Gruppenansicht fuehrt kein Schreibpfad"
-   * lautet — und die haengt nicht davon ab, welches der drei gerade greift.
-   * Die beiden anderen stehen an ihren Funktionen und in den Policies
-   * (`t_mandant_schreiben` auf `anstellung_kondition` verlangt
-   * `personal.entgelt_schreiben`, nicht `personal.schreiben`).
-   */
-  {
-    modul: 'personal', pfad: 'personal/anstellung',
-    schreibend: true, schreibRecht: 'personal.schreiben',
-  },
-  {
-    modul: 'personal', pfad: 'personal/stammdaten',
-    schreibend: true, schreibRecht: 'personal.schreiben',
-  },
-  {
-    modul: 'personal', pfad: 'personal/dublette',
-    schreibend: true, schreibRecht: 'personal.zusammenfuehren',
-  },
+Keine Aenderung an einem Registerverzeichnis noetig. Zur Kenntnis, weil die Dateien geteilt sind: src/server/services/gruppe/auslastung.ts (beide Abfragen gruppieren jetzt auf app.person_kanonisch), src/server/services/datenschutz/berichtigung.ts (editorPfad fuer 'person'), src/app/api/abwesenheiten/[id]/route.ts und src/app/api/antraege/[id]/route.ts (Fehlerumleitung + liesRumpf) liegen ausserhalb von src/server/services/personal, sind aber von dieser Runde geaendert.
 
 ## src/server/auth/route-manifest.ts
 
-{
-    pfad: 'api/personal/anstellungen/[id]/vertrag',
-    recht: 'personal.schreiben',
-    grund:
-      'D-09, §5.12.1. Personalnummer und Eintritt — und nur die. Arbeitszeitmodell und '
-      + 'Wochenstunden sind nach 01-KERN §6.14 ein Spiegel der datierten '
-      + '`anstellung_kondition` und laufen ueber `…/entgelt` mit dem strengeren Recht '
-      + '`personal.entgelt_schreiben`; `cse_app` hat auf diesen Spalten seit 0191 kein '
-      + 'UPDATE. Das Austrittsdatum gehoert `…/beenden`: eine Spalte, ein Schreiber.',
-  },
-  {
-    pfad: 'api/personal/anstellungen/[id]/entgelt',
-    recht: 'personal.entgelt_schreiben',
-    grund:
-      'K-05, D-09 §6, 01-KERN §6.15. Legt eine DATIERTE Kondition an, nie den Spiegel — '
-      + 'eine Erhoehung darf nicht jede vergangene Kalkulation still neu bewerten. Ein '
-      + 'eigenes Recht neben `personal.schreiben`: wer Vertragseckdaten pflegen darf, '
-      + 'darf damit keinen Kostensatz setzen. Der Eurobetrag wird serverseitig in ganze '
-      + 'Cent geparst (Invariante 1).',
-  },
-  {
-    pfad: 'api/personal/anstellungen/[id]/beenden',
-    recht: 'personal.anstellung_beenden',
-    grund:
-      'D-09, K-14, R-08, 05-API-KARTE §C.8. Setzt `austritt` und `austritt_grund`, nie '
-      + 'ein DELETE (Invariante 8) — Zeit-, Konto- und Rechnungsdaten haengen an dieser '
-      + 'Zeile. Der Status folgt dem Kalender; am Statuswechsel haengt der K-14-Entzug '
-      + 'der ABGELEITETEN Mitgliedschaft, eine erteilte Rolle ueberlebt ihn.',
-  },
-  {
-    pfad: 'api/personal/personen/[id]/stammdaten',
-    recht: 'personal.schreiben',
-    grund:
-      'SEC-03, LEG-09, 01-KERN §6.13/§11. Geburtsdatum, Geburtsort und '
-      + 'Staatsangehoerigkeit — die Pflichtangaben des Bewacherregisters. GESCHRIEBEN '
-      + 'mit `personal.schreiben`, GELESEN mit `personal.stammdaten_lesen`: `GRANT '
-      + 'UPDATE` und `GRANT SELECT` sind getrennte Rechte, und eine Spalte darf '
-      + 'schreibbar und unlesbar sein. Das Formular nimmt ein Geburtsdatum auf, ohne es '
-      + 'zurueckzulesen; wer das Ergebnis sehen will, geht ueber '
-      + '`app.person_stammdaten_lesen` und hinterlaesst dabei seine Auditzeile.',
-  },
-  {
-    pfad: 'api/personal/zusammenfuehren',
-    recht: 'personal.zusammenfuehren',
-    grund:
-      'D-09, LEG-09, 01-KERN §6.13. Zwei `person`-Zeilen sind ein Mensch. Die Kennungen '
-      + 'stehen im RUMPF und nicht im Pfad, weil der Vorgang zwei nimmt — die veraltete '
-      + 'Zeile und die fuehrende, und welche welche ist, entscheidet ein Mensch. '
-      + 'Ausgefuehrt von `app.person_zusammenfuehren`: der Zeiger ist `cse_app` nicht '
-      + 'schreibbar, eine Zusammenfuehrung ist kein `update` in einer Maske.',
-  },
+Keine Aenderung noetig. Alle sieben Routen der Domaene stehen unveraendert in src/server/registry/routen.generiert.ts (Zeilen 199-215) mit den Rechten, gegen die die Seiten autorisieren; ich habe weder eine Route hinzugefuegt noch ein Recht verschoben. src/app/api/formular-antwort.ts ist ein Hilfsmodul ohne eigene Route und braucht keinen Manifesteintrag. Anzumerken bleibt O-614: das Manifest fuehrt /portal/[mandant]/personal/anstellungen/[id]/entgelt mit aal2: false, 05-API-KARTE §C.8 mit 'sitzung+2fa' — wird O-614 zugunsten der zweiten Stufe entschieden, ist das eine Zeile im Manifest.
 
 ## src/server/db/schema/rls.ts
 
-In `KEIN_HARD_DELETE` (`src/server/db/schema/rls.ts`):
+In src/server/db/schema/rls.ts nachzutragen (ich habe die Datei nicht angefasst):
 
-  {
-    tabelle: 'anstellung_kondition',
-    art: 'append',
-    migration: '0192',
-    grund:
-      '§6.15, LEG-02, ACC-12. Die datierte Kondition ist die Grundlage jeder '
-      + 'Sollstunden- und Lohnkostenrechnung; eine geloeschte Zeile bewertet '
-      + 'stillschweigend jeden abgerechneten Monat neu, in dem sie galt. Abgeloest '
-      + 'wird sie von der naechsten datierten Zeile, geschlossen ueber `gilt_bis` — '
-      + 'nie durch DELETE.',
-  },
+KEIN_HARD_DELETE:
+  { tabelle: 'anstellung_kondition', art: 'append', migration: '0192', grund: '§6.15, LEG-02, ACC-12. Die datierte Kondition ist die Grundlage jeder Sollstunden- und Lohnkostenrechnung; eine geloeschte Zeile bewertet stillschweigend jeden abgerechneten Monat neu, in dem sie galt. Abgeloest wird sie von der naechsten datierten Zeile, geschlossen ueber gilt_bis — nie durch DELETE.' }
 
-In `AUDITIERT`:
+AUDITIERT:
+  { tabelle: 'anstellung_kondition', migration: '0192' }
 
-  { tabelle: 'anstellung_kondition', migration: '0192' },
-
-KEIN Eintrag in `GEAENDERT_AM`: die Tabelle ist append-only bis auf `gilt_bis`
-und traegt gar keine `geaendert_am`-Spalte — ein Eintrag dort erzeugte einen
-Trigger auf eine Spalte, die es nicht gibt.
-
-KEIN Eintrag in `NUR_UEBER_DEFINER`: `anstellung_kondition` hat Policies und
-Spaltengrants fuer `cse_app` (Lesen unter `personal.lesen`, Anlegen unter
-`personal.entgelt_schreiben`, `update (gilt_bis)`); nur `stundensatz_intern_cent`
-und `tarifgruppe` sind aus dem SELECT-Grant genommen und laufen ueber
-`app.entgelt_lesen`. Die Tabelle ist also keine Ausnahme von K-03, sondern der
-Normalfall mit zwei entzogenen Spalten.
-
-**Wichtig fuer den Ablauf:** `drizzle/0192_anstellung_kondition.sql` enthaelt den
-generierten Block schon WORTWOERTLICH zwischen den Sentinels (`… nicht von Hand
-ändern (0192)`), damit die Migration auf einer frischen Datenbank vollstaendig
-ist — ich habe sie genau so gegen echtes Postgres gefahren. Nach dem Einfuegen
-der beiden Registereintraege bitte `pnpm db:triggers` laufen lassen; der Lauf
-ersetzt den Block idempotent durch seinen eigenen (`blockEinsetzen` ersetzt,
-wenn Sentinels da sind, und haengt nur sonst an).
+Beide Zeilen muessen ZUSAMMEN mit dem Eintrag in scripts/generate-triggers.ts kommen (siehe registry_sonstiges) — ohne den Dateipfad bricht generate-triggers.ts mit MIGRATIONS_DATEIEN[m]! = undefined ab (Zeile 192/205). Danach: pnpm db:triggers (ersetzt den vorhandenen Block in drizzle/0192_anstellung_kondition.sql idempotent — er steht dort heute von Hand und ist SQL-seitig korrekt, es fehlt nur der Erzeuger) und pnpm db:triggers --check. Erst dann iteriert tests/isolation/unveraenderbarkeit.test.ts (Zeile 79 und 242) die Tabelle mit.
 
 ## src/server/registry/navigation.ts
 
-Keine Aenderung noetig — und das ist eine Feststellung, keine Auslassung.
-
-Alle sieben Routen stehen bereits in `src/server/registry/routen.generiert.ts`
-(Zeilen 199–215) mit ihrem Recht; sie sind DETAILSEITEN und Unterseiten, keine
-Tab-Ziele, und §11.2 laesst je Portal genau fuenf Tabs zu. `navigation.ts`,
-`tableiste.ts`, `modul.ts`, `routen.ts` und `kennzahlen.ts` bleiben damit
-unberuehrt.
-
-Erreichbar sind sie ueber Verweise IN den Nachbarseiten, und die habe ich
-gesetzt (jeweils hinter `haeltRechte`, AUT-06/D-581):
-
-  · `/personal/personen/[id]` → „Stammdaten (Bewacherregister)"
-    (`personal.stammdaten_lesen`) und „Dubletten zusammenfuehren"
-    (`personal.zusammenfuehren`).
-  · `/personal/anstellungen/[id]` → „Vertrag aendern" (`personal.schreiben`),
-    „Entgelt" (`personal.entgelt_lesen`) und „Beschaeftigung beenden"
-    (`personal.anstellung_beenden`, nur solange nicht beendet).
-  · `/personal/abwesenheiten` und `/personal/antraege` verlinkten ihre
-    Detailblaetter bisher nicht; die Detailseiten verweisen jedenfalls
-    zurueck, und die Listen tragen ihre Zeilen weiterhin als Text. Das ist der
-    einzige Punkt, an dem eine NACHBARSEITE noch einen Verweis brauchen
-    koennte — bitte im naechsten Durchgang mitnehmen: in
-    `abwesenheiten/page.tsx` die Spalte „Person" und in `antraege/page.tsx`
-    den Kartenkopf auf `…/[id]` verlinken.
-
-Nebenbefund am Rand meiner Domaene, nicht von mir geaendert:
-`src/server/services/datenschutz/berichtigung.ts:98` (`editorPfad`) zeigt fuer
-`art === 'person'` auf `/portal/<slug>/personal/<id>` — diese Adresse gibt es
-nicht, richtig waere `/portal/<slug>/personal/personen/<id>`. Ein Verweis auf
-404 ist genau das, was AUT-06/D-581 ausschliessen.
+Keine Aenderung noetig. Es kommt kein Menuepunkt dazu; alle geaenderten Seiten sind Unterseiten von /portal/[mandant]/personal und haengen an den bestehenden Tabs.
 
 ## Sonstiges
 
-In `scripts/generate-triggers.ts`, `MIGRATIONS_DATEIEN` (sonst schreibt
-`pnpm db:triggers` den Block der neuen Tabelle nirgendwohin und `--check`
-vergleicht gegen eine Datei, die es in der Karte nicht gibt):
-
-  // Personal: die datierte Kondition (0192).
+A) scripts/generate-triggers.ts — in MIGRATIONS_DATEIEN ergaenzen (nur zusammen mit den zwei rls.ts-Zeilen oben):
   '0192': join(WURZEL, 'drizzle/0192_anstellung_kondition.sql'),
 
-Danach `pnpm db:triggers` — siehe Hinweis unter `registry_rls`.
+B) docs/DECISIONS.md — sieben Zeilen unter "Offen" (Spalten: | # | Question | Blocks |). O-610 bis O-614 stammen aus dem Bauschritt, O-615 und O-616 sind in dieser Runde dazugekommen:
 
-Ausserdem, in derselben Runde einzusammeln (beides habe ich NICHT getan, weil
-die Dateien zentral gepflegt sind):
+| O-610 | **Welcher Branchentarif gilt je Gesellschaft — Gebäudereinigung RTV, Sicherheitsgewerbe Berlin, Bau —, welche Tarifgruppen führt er, und wird die Gruppe in der Plattform geführt oder nur im Lohnsystem?** `anstellung_kondition.tarifgruppe` und `anstellung.tarifgruppe` sind seit 0192 da und bleiben bewusst FREIE Textfelder: eine Auswahlliste wäre eine erfundene Tarifsystematik, und CLAUDE.md nennt Tarifsätze ausdrücklich als offene Regel. Die Entgeltseite sagt „offen (O-610)" an der Stelle, an der die Liste stünde. | K-05, `anstellung_kondition`, `0192`, CLAUDE.md „Never invent a business rule" |
+| O-611 | **Welche Angaben gewinnen beim Zusammenführen zweier Personenzeilen, welcher Portalzugang überlebt, lässt sich eine Zusammenführung zurücknehmen — und darf eine Gesellschaft eine Dublette zusammenführen, deren zweite Beschäftigung bei einer Schwestergesellschaft liegt und die sie deshalb nicht sehen kann?** Ausgeliefert ist die engste Annahme: beide Zeilen müssen in der aktiven Gesellschaft beschäftigt sein, kein Feld wird übernommen, kein Zugang widerrufen, nichts umgehängt — `app.person_zusammenfuehren` weist den Schwesterfall mit einem Satz ab, der ihn benennt, statt still die Hälfte zu tun. Seit 0195 wirkt der Zeiger dort, wo je Mensch aggregiert wird (ArbZG-Leser, Gruppenauslastung); jeder andere Lesepfad zeigt weiter zwei Zeilen, und die Seite sagt das. | Invariante 8, Invariante 9, D-09, LEG-09, `0194`, `0195`, `person.zusammengefuehrt_in_person_id` |
+| O-612 | **Welche Beendigungsgründe führt die Gruppe als Auswahlliste — Eigenkündigung, Kündigung Arbeitgeber, Befristung, Aufhebungsvertrag, Rente … — und müssen sie den Codes des Lohnsystems für die Abmeldung entsprechen?** `anstellung.austritt_grund` ist seit 0191 eine eigene Spalte (01-KERN §6.14) und nimmt bis zur Antwort freien Text; der Grund steht zusätzlich im `audit_log`. Eine erfundene Auswahlliste wäre genau die Sorte Wert, die später in einer Abmeldung landet und dort nicht passt. | LEG-11, `anstellung.austritt_grund`, `0191`, 05-API-KARTE §C.8 |
+| O-613 | **Soll die Genehmigung eines Tauschantrags die Umbesetzung im Dienstplan selbst ausführen — mit dem SEC-04-Qualifikationstor — oder nur die Freigabe erteilen, die eine Planerin dann umsetzt?** `entscheideAntrag` behandelt heute nur den Abwesenheitszweig; eine Tauschgenehmigung setzte den Status, ohne dass im Plan etwas geschieht und ohne das Tor, das 05-API-KARTE §C.8 dafür verlangt („A swap approval passes the same SEC-04 gate as besetzen"). Bis zur Antwort zeigt `/personal/antraege/[id]` für Tauschanträge keinen Genehmigen-Knopf, sondern den Satz warum. | SEC-04, EMP-10, 05-API-KARTE §C.8, `services/abwesenheit/antrag.ts: entscheideAntrag` |
+| O-614 | **Verlangt der Zugriff auf Entgeltdaten eine zweite Anmeldestufe oder genügt die Sitzung mit dem Recht?** 05-API-KARTE führt `/personal/anstellungen/[id]/entgelt` als „sitzung+2fa right", das Routen-Manifest trägt `aal2: false` — zwei Aussagen über dieselbe Tür, und gilt heute die schwächere. `app.entgelt_lesen` prüft seit 0193 `personal.entgelt_lesen` und den aktiven Mandanten und protokolliert jeden Abruf; die zweite Stufe wäre eine Zeile im Manifest, aber sie ist eine Entscheidung über den Arbeitsalltag der Personalstelle und nicht über eine Zeile. Die Seite nennt die Frage sichtbar. | K-05, D-09 §6, AUT-08, `0193`, `route-manifest.ts`, 05-API-KARTE §C.8 |
+| O-615 | **Soll eine Wiedereinstellung einen zuvor von Hand entzogenen Portalzugang automatisch wiederherstellen, oder bleibt die Wiedererteilung eine ausdrückliche Handlung der Leitung?** `kern.bm_aus_anstellung` legt seit dieser Runde keine abgeleitete Mitgliedschaft mehr an, wenn für (benutzer_id, mandant_id) eine Zeile mit einem FREMDEN Entzugsgrund steht — ein Entzug, den jemand aus einem Grund verhängt hat, den die Datenbank nicht kennt, überlebt damit eine Datumsänderung und eine neue Beschäftigung. Das ist die sichere Richtung (ein fehlender Zugang wird gemeldet, ein unbemerkt wiederkommender nicht) und ausdrücklich eine Annahme. | K-14, AUT-08, `0191`, `kern.bm_aus_anstellung`, `benutzer_mandant.entzugsgrund` |
+| O-616 | **Was soll die Genehmigung einer kundeneigenen Antragsart bewirken, die keine Abwesenheit erzeugt — Stammdatenänderung, Schichtabgabe, unbezahlte Freistellung?** Der Katalog `antragsart` ist nach K-17 kundenpflegbar (0275 gibt `insert`), und O-142 nennt diese Arten namentlich als kommende. `entscheideAntrag` läuft nur in den Abwesenheitszweig, wenn `erzeugt_abwesenheit` UND eine Abwesenheitsart UND ein Zeitraum da sind; für alles andere legte eine „Genehmigung" nur den Status um. Bis zur Antwort zeigt die Antragsseite für solche Arten keinen Knopf, sondern den Satz, dass hier nichts geschähe. | K-17, EMP-10, O-142, `0074`, `0275`, `services/abwesenheit/antrag.ts` |
 
-  · `docs/architecture/04-SEITENKARTE.md`: die sieben Routen sind jetzt gebaut;
-    `…/anstellungen/[id]/vertrag` fuehrt dort noch „Arbeitszeitmodell,
-    Wochenstunden" als Schreibfelder. Umgesetzt ist die Fassung von 01-KERN
-    §6.14 und 05-API-KARTE (Spiegel, geaendert ueber die Kondition mit
-    `personal.entgelt_schreiben`); die Karte gehoert nachgezogen.
-  · `docs/DESIGN.md`: nichts ergaenzt und nichts gebraucht — alle Seiten
-    benutzen ausschliesslich vorhandene Tokens (`s1`…`s6`, `text`,
-    `text-muted`, `text-subtle`, `line`, `line-strong`, `surface`,
-    `surface-2`, `surface-3`, `warning`, `warning-soft`, `success`,
-    `success-soft`, `danger`, `text-h1`/`h2`/`h3`, `text-micro`, `rounded-md`,
-    `rounded-lg`, `duration-fast`). `scripts/guards/run-all.ts` meldet zu
-    meinen Dateien keine Farb-, Abstands- oder Schattenbefunde.
-  · Ein Job-Eintrag fuer `app.anstellung_status_nachziehen()` und
-    `app.anstellung_kondition_spiegel_nachziehen()` (§6.14 nennt
-    `job:anstellung_status` und den naechtlichen Spiegellauf). Die Mechanik
-    steht in der Datenbank und ist nur `cse_job` ausfuehrbar; die Anbindung an
-    den Planer gehoert in die Job-Registrierung, die ich nicht anfasse.
-    Ohne sie ist der Stand sichtbar falsch (eine Zeile mit vergangenem
-    Austritt und Status `aktiv`) und nicht lautlos falsch — `app.entgelt_lesen`
-    liest ohnehin die Kondition und nicht den Spiegel.
-
-## Zeilen fuer docs/DECISIONS.md, Abschnitt „Offen"
+## Zeilen für docs/DECISIONS.md, Abschnitt „Offen"
 
 | O-610 | **Welcher Branchentarif gilt je Gesellschaft, welche Tarifgruppen fuehrt er — und wird die Gruppe in der Plattform gefuehrt oder nur im Lohnsystem?** Gebaeudereinigung (RTV), Sicherheitsgewerbe Berlin und Bau haben je eigene Tarifwerke mit eigenen Gruppen; CLAUDE.md nennt Tarifsaetze ausdruecklich als offene Regel, und diese Plattform rechnet keine Loehne (D-06). **Heute gebaut:** `anstellung_kondition.tarifgruppe` und der Spiegel `anstellung.tarifgruppe` als FREIES Textfeld, beide `cse_app` als SELECT entzogen (K-05) und nur ueber `app.entgelt_lesen` erreichbar; die Entgeltseite beschriftet das Feld sichtbar als „offen (O-610)" und zeigt keine Auswahlliste. Eine Auswahlliste waere eine Tarifentscheidung in einer Oberflaeche — sie saehe bestaetigt aus und ginge in jede Kalkulation ein. | K-05, D-06, 01-KERN §6.14/§6.15, `drizzle/0192`, O-136, O-18 |
 | O-611 | **Wie wird eine Personendublette zusammengefuehrt — welche Angaben gewinnen, welcher Zugang ueberlebt, und darf eine Gesellschaft ueber eine Beschaeftigung entscheiden, die sie nicht sieht?** Vier Fragen, eine Nummer, weil sie zusammen entschieden werden muessen: (a) welche Angaben bei Widerspruch uebernommen werden, (b) welcher Portalzugang ueberlebt, wenn beide Zeilen einen haben (`mitarbeiter_zugang` traegt `unique (person_id)` — das Umhaengen wirft 23505, und das ist der Regelfall einer Dublette), (c) ob eine Zusammenfuehrung zurueckgenommen werden kann, (d) ob eine Gesellschaft eine Dublette zusammenfuehren darf, deren zweite Beschaeftigung bei einer Schwestergesellschaft liegt und die sie deshalb gar nicht sehen kann. **Heute gebaut:** die engste Annahme. `app.person_zusammenfuehren` setzt NUR den Zeiger `person.zusammengefuehrt_in_person_id`, verlangt dass BEIDE Zeilen in der aktiven Gesellschaft beschaeftigt sind (und weist den Schwesterfall mit einem Satz ab, der O-611 nennt), haengt keine einzige Zeile um und schreibt eine Auditzeile mit beiden Kennungen und dem Grund. Aufgeloest wird ueber `app.person_kanonisch` und `app.person_identitaeten` — das zweite ist die Funktion, die eine Aggregation je MENSCH braucht (Invariante 9, ArbZG ueber Gesellschaftsgrenzen, K-06). Die Geschichte wird nicht umgeschrieben und kann es nicht: 50 Tabellen haben einen Fremdschluessel auf `person`, die Zeitdomaene traegt `person_id` in zusammengesetzten Fremdschluesseln ohne `on update cascade`, und `zeiteintrag`, `wachbuch_eintrag`, `da_kenntnisnahme`, `checkin_token`, `aufmass_signatur` und `leistungsnachweis_signatur` weisen jedes UPDATE ab. | D-09, LEG-09, Invariante 8, Invariante 9, 01-KERN §6.13, `drizzle/0194`, `services/personal/dublette.ts`, O-220 |
@@ -220,15 +91,52 @@ die Dateien zentral gepflegt sind):
 | O-613 | **Soll die Genehmigung eines Tauschantrags die Umbesetzung im Dienstplan selbst ausfuehren — und wer verantwortet dann das SEC-04-Qualifikationstor?** `entscheideAntrag` behandelt heute nur den Abwesenheitszweig (`antragsart.erzeugt_abwesenheit`). Ein Tauschantrag (`antrag.tausch_partner_anstellung_id`, `antrag.einsatz_id`) wuerde auf `genehmigt` gesetzt, ohne dass im Dienstplan etwas geschieht — und 05-API-KARTE §C.8 verlangt fuer eine Tauschgenehmigung ausdruecklich dasselbe Qualifikationstor wie fuer das Besetzen („a swap approval passes the same SEC-04 gate as besetzen"). **Heute gebaut:** `/personal/antraege/[id]` zeigt fuer einen Tauschantrag KEINEN Genehmigen-Knopf, sondern den Satz, dass der Tausch im Dienstplan vollzogen wird, und benennt die offene Frage. Eine Genehmigung ohne Wirkung ist schlimmer als ein fehlender Knopf: der Antragsteller liest „genehmigt" und kommt nicht zur Schicht. | EMP-10, EMP-11, SEC-04, 05-API-KARTE §C.8, `services/abwesenheit/antrag.ts`, `personal/antraege/[id]` |
 | O-614 | **Verlangt der Zugriff auf Entgeltdaten eine zweite Anmeldestufe?** 05-API-KARTE fuehrt `…/anstellungen/[id]/entgelt` und `…/konditionen` als „sitzung+2fa"; das Routen-Manifest (`registry/routen.generiert.ts`) fuehrt dieselbe Route mit `aal2: false`. Zwei Dokumente, zwei Antworten — und es ist keine technische Frage, sondern eine ueber Zugangssicherheit: `personal.entgelt_lesen` ist fuer `admin` und `leitung` bindbar, eine 2FA-Pflicht traefe damit Konten, die nach AUT-02/K-15 heute auf `aal1` laufen (`leitung` hat keinen zweiten Faktor, und K-15 warnt ausdruecklich davor, eine `aal2`-Bedingung an einen Lesepfad zu haengen, von dem die Mitgliedschaftsaufloesung abhaengt). **Heute ausgeliefert:** der Stand des Manifests (`aal2: false`); das Recht und die Auditzeile tragen die Absicherung, und die Entgeltseite nennt die Abweichung sichtbar. | K-05, K-15, AUT-02, D-09 §6, 05-API-KARTE §C.8, `registry/routen.generiert.ts`, `drizzle/0193` |
 
-## Tests
+## Befunde des Prüfers (16)
 
-- /home/user/cse-platform/tests/kern/personal-eingaben.test.ts — die Eingabegrenze der drei Personaldienste OHNE Datenbank. Der Kontext WIRFT bei jeder Abfrage; damit beweist jeder Fall eine Reihenfolge und nicht nur eine Meldung: Personalnummer leer, Eintritt/Austritt/gilt-ab/Stichtag in deutscher Schreibweise statt JJJJ-MM-TT, negativer Satz, Geburtsdatum 31.02., Staatsangehoerigkeit als Wort statt ISO-Code, Beendigung ohne Grund, Selbstbezug und Grund-leer beim Zusammenfuehren. Plus eine Gegenprobe (drei leere Stammdatenfelder sind GUELTIG und erreichen die Datenbank) — ohne sie waere 'alles abgewiesen' ebenfalls gruen.
-- /home/user/cse-platform/tests/isolation/personal-spaltenschutz.test.ts — 17 Zusicherungen gegen echtes Postgres: die drei Stammdatenfelder weisen ab statt zu maskieren (auch `select *`), bleiben aber SCHREIBBAR; app.person_stammdaten_lesen liefert mit Recht drei Felder, wirft ohne Recht (42501), gibt fuer eine Person ausserhalb der Gesellschaft KEINE Zeile und keinen Fehler (AUT-06), schreibt je erfolgreichem Abruf genau EINE Auditzeile mit Rechtsgrundlage und bei Abweisung KEINE; die Schreibpolicy der Personalstelle greift fuer fremde Menschen der eigenen Gesellschaft, nicht fuer die einer anderen, und in der Gruppenansicht bleibt die Zeile unveraendert; app.entgelt_lesen und der alte Name app.anstellung_entgelt_lesen sind beide gehaertet (Recht fehlt → 42501, fremde Gesellschaft → null).
-- /home/user/cse-platform/tests/isolation/personal-anstellung.test.ts — Einbahn-Status (hinein ja, hinaus nein, Grund nachtragen an einer beendeten Zeile ja — die Gegenprobe zum CHECK, den §6.14 ablehnt); der Spiegel ist fuer cse_app nicht schreibbar, Personalnummer/Eintritt sehr wohl, eine Dublette bleibt am Constraint; anstellung_kondition verlangt personal.entgelt_schreiben, entzieht denselben zwei Spalten SELECT und laesst INSERT zu, weist zwei gleichzeitig gueltige Konditionen ab, liefert nach dem Schliessen einer Periode DATIERTE Saetze (1400 fuer 2024, 1500 fuer 2025 — die Vergangenheit bleibt), gibt vor der ersten Kondition null statt des heutigen Spiegelwerts, spiegelt alle sechs Felder und spiegelt eine ZUKUENFTIGE Kondition nicht, und laesst sich nicht loeschen; K-14 in fuenf Faellen (Anlage erzeugt die abgeleitete Zeile mit Rolle `mitarbeiter`, eine ERTEILTE `leitung` wird nicht ueberschrieben und ueberlebt den Austritt, die abgeleitete wird mit Grund entzogen und faellt dabei auf aus_anstellung=false, bei einer zweiten laufenden Beschaeftigung derselben Gesellschaft kein Entzug, ohne Konto kein Fehler); app.anstellung_status_nachziehen setzt nur vergangene Austritte und ist cse_app verboten.
-- /home/user/cse-platform/tests/isolation/person-dublette.test.ts — der Zeiger ist cse_app lesbar und nicht schreibbar; app.person_zusammenfuehren setzt ihn, protokolliert beide Kennungen und den Grund, wirft ohne Recht, ohne Begruendung, bei einer bereits zusammengefuehrten Zeile, bei einem Menschen aus einer fremden Gesellschaft (mit einem Satz, der O-611 nennt) und in der Gruppenansicht; kein Selbstbezug und keine Kette in BEIDEN Richtungen; app.person_kanonisch loest auf und laesst eine freie Zeile in Ruhe; app.person_identitaeten liefert beide Kennungen von jeder Seite aus; und die Geschichte bleibt, wo sie entstanden ist (anstellung.person_id unveraendert, die veraltete Zeile weiter lesbar). Der Seed hat keine Dublette, dieser Test legt sie je Fall selbst an.
-- /home/user/cse-platform/tests/isolation/mandanten-trennung.test.ts — GEAENDERT, nicht neu. Die zwei Faelle, die `app.anstellung_entgelt_lesen` OHNE Konto aufriefen, bekommen jetzt eine Sitzung, die `personal.entgelt_lesen` als Mandanten-Override haelt (sonst haetten sie nach 0193 richtigerweise geworfen und die Zusicherung „1450" waere falsch geworden). Dazu ein NEUER Fall daneben: ohne das Recht gibt es keinen Satz, sondern 42501 — das war die Luecke.
+- **blockierend** · `/home/user/cse-platform/drizzle/0190_person_stammdaten.sql` — Der UPDATE-Grant auf `person` wurde von {sprache} (0165) auf {vorname, nachname, geburtsdatum, geburtsort, staatsangehoerigkeit, telefon, sprache, geaendert_am, geaendert_von} erweitert (Zeile 100-102). RLS kann keine Spalten einschraenken, und die BESTEHENDE Policy `t_person_selbstpflege` (`using (id = app.aktuelle_person())`) gilt fuer JEDE Spalte. Damit kann jede angemeldete Person im Mitarbeiter-Scope ihre eigene Zeile umschreiben: `telefon` (in `route-manifest.ts:427` und in `person-sprache.test.ts` ausdruecklich als Anmeldeweg/EMP-01 geschuetzt), `vorname`/`nachname` und die drei Bewacherregister-Felder nach SEC-03/§16 BewachV. Genau das ist die Spaltentrennung, die 0165 eingefuehrt hat; sie ist jetzt weg. Zwei bestehende Testfaelle behaupten das Gegenteil und schlagen damit fehl: `tests/isolation/person-sprache.test.ts:120` („dieselbe Zeile, aber `telefon` — abgewiesen") und :126 („und auch der Name nicht").
+  - Behebung: Den Grant auf die tatsaechlich gebrauchten Spalten zurueckschneiden: `grant update (geburtsdatum, geburtsort, staatsangehoerigkeit, sprache, geaendert_am, geaendert_von) on person to cse_app` — `vorname`, `nachname`, `telefon` ersatzlos streichen (`schreibeStammdaten` schreibt sie nicht). Zusaetzlich braucht es fuer die drei Stammdatenfelder einen Spaltenwaechter, weil `t_person_selbstpflege` sie sonst weiter oeffnet: BEFORE UPDATE ON person, der eine Aenderung an geburtsdatum/geburtsort/staatsangehoerigkeit abweist, wenn der Aufrufer `personal.schreiben` im aktiven Mandanten nicht haelt (also aus dem Personen-Scope heraus).
+- **blockierend** · `/home/user/cse-platform/drizzle/0191_anstellung_vertrag.sql` — `kern.bm_aus_anstellung()` haengt als `after insert or update of status, geloescht_am` (Zeile 264) und legt im Nicht-beendet-Zweig (Zeile 238-262) eine abgeleitete Mitgliedschaft an, sobald KEINE Zeile mit `entzogen_am is null` existiert. Der Trigger feuert aber bei JEDEM UPDATE, das `status` in der SET-Liste nennt — und `beendeAnstellung` (services/personal/anstellung.ts:401-404) nennt sie immer (`status = case when $4 then 'beendet' else status end`). Bei einem Austritt in der ZUKUNFT bleibt der Status `aktiv`, der Trigger geht in den Anlege-Zweig und stellt einen vorher von Hand ENTZOGENEN Portalzugang wieder her. Der Entzug von Hand setzt nach `kern.bm_aus_anstellung_schutz` zwingend `aus_anstellung = false` (so beschreibt es 0191 selbst) — die Zeile ist danach also unsichtbar fuer die `entzogen_am is null`-Pruefung, und „Beschaeftigung beenden" wird zur Zugangserteilung.
+  - Behebung: Den Anlege-Zweig auf die Lagen beschraenken, in denen er gemeint ist: `if tg_op = 'INSERT' or (tg_op = 'UPDATE' and old.status = 'beendet' and new.status <> 'beendet')` — sonst `return null`. Zusaetzlich nicht anlegen, wenn fuer (benutzer_id, mandant_id) eine Zeile mit `entzogen_am is not null` besteht, deren Entzug nicht von diesem Trigger stammt; ein zurueckgenommener Zugang darf nicht durch eine Datumsaenderung wiederkommen.
+- **blockierend** · `/home/user/cse-platform/src/server/services/personal/anstellung.ts` — In `beendigungsfolgen` (Zeile 296-300) wird die Tagesgrenze in UTC gerechnet: `beginn_zeitpunkt > ($2::date + interval '1 day')`. `date + interval` ergibt `timestamp without time zone`; im Vergleich mit der `timestamptz`-Spalte wird sie mit der Sitzungszone interpretiert, und die ist UTC (`show timezone` = UTC in der laufenden Datenbank). Die Grenze liegt damit im Sommer zwei und im Winter eine Stunde zu spaet — und was herausfaellt, ist genau die Nachtschicht (Invariante 2, „Shifts cross midnight"). Die Seite `beenden` zeigt dann „0 Einsätze nach dem Austritt" vor einer folgenschweren Bestaetigung, obwohl eine Schicht nach dem Austritt geplant ist.
+  - Behebung: Grenze in Berliner Ortszeit aufloesen: `and beginn_zeitpunkt >= (($2::date + 1)::timestamp at time zone 'Europe/Berlin')` (oder `app.loese_ortszeit($2::date + 1, '00:00', 'Europe/Berlin')`). Ein Test mit einer Schicht 01:00 Berlin am Tag nach dem Austritt gehoert dazu, sonst faellt die Rueckkehr des Fehlers nicht auf.
+- **wichtig** · `/home/user/cse-platform/src/server/services/personal/anstellung.ts` — Dieselbe Abfrage (Zeile 297-299) filtert nur `entfernt_am is null` und laesst `einsatz_zuordnung.status` aus. Der Enum traegt `geplant|zugesagt|abgesagt|ersetzt|nicht_erschienen`; abgesagte und ersetzte Zuordnungen binden niemanden mehr, werden hier aber als „Einsätze nach dem Austritt" gezaehlt. Die Seite schlaegt damit Alarm in einer sauberen Lage — und eine Warnung, die immer steht, wird nicht mehr gelesen.
+  - Behebung: `and status not in ('abgesagt','ersetzt')` ergaenzen — dasselbe Praedikat wie in einteilung.ts, damit zwei Stellen nicht zwei verschiedene Zahlen nennen.
+- **wichtig** · `/home/user/cse-platform/drizzle/0194_person_zusammenfuehren.sql` — Der Aufloeser ist gebaut, aber niemand ruft ihn. `app.person_kanonisch` und `app.person_identitaeten` kommen im ganzen Anwendungscode nur in Kommentaren vor; die Zusammenfuehrung setzt also einen Zeiger, dem kein Lesepfad folgt. Der Migrationskopf sagt das selbst („Ohne den Aufloeser zeigt die Plattform nach der Zusammenfuehrung weiter zwei Menschen — und ArbZG-Grenzen ... aggregieren weiter falsch"), und die Oberflaeche behauptet das Gegenteil: `zusammenfuehren/page.tsx:325` schreibt „Was die Zusammenführung heute leistet, ist die Identität — damit Arbeitszeitgrenzen je Mensch und nicht je Zeile aggregieren (Invariante 9)". `src/server/services/zeit/arbzg.ts` gruppiert weiterhin auf der rohen `personId` (Zeile 119: `new Set(schichten.map((s) => s.personId))`, Zeile 143 `pruefePersonenSchluessel`). Nach einer Zusammenfuehrung bleibt die ArbZG-Belastung damit auf zwei Schluessel verteilt — die Grenze, wegen der die Aggregation existiert, wird nie erreicht.
+  - Behebung: Den Aufloeser dort einsetzen, wo je MENSCH aggregiert wird: die Schichtmenge fuer `arbzg.ts` (und `jobs/konflikteErkennen.ts`) ueber `app.person_identitaeten(person_id)` bilden statt ueber `person_id = $1`, und `pruefePersonenSchluessel` gegen `app.person_kanonisch` pruefen. Bis das steht, den Satz auf der Seite entschaerfen — er behauptet heute eine Wirkung, die es nicht gibt.
+- **wichtig** · `/home/user/cse-platform/docs/DECISIONS.md` — O-610 bis O-614 stehen als `TODO(client, O-NN)` im Code und als sichtbarer Text auf drei Seiten („offen (O-610)", „Offen (O-612)", „Offen (O-614)"), aber in keiner Zeile von docs/DECISIONS.md. Guard 4 in scripts/guards/run-all.ts prueft genau das und schlaegt fehl; solange die Registerzeilen fehlen, sind die Nummern hohle Verweise, und die Definition of Done („DECISIONS.md updated with anything assumed") ist nicht erfuellt. Der Bauende hat die Zeilen als Text geliefert — eingetragen sind sie nicht.
+  - Behebung: Die fuenf Zeilen O-610…O-614 in docs/DECISIONS.md unter „Offen" eintragen (der Bauende hat sie im Bericht mitgeliefert; fuer O-614 — 2FA auf der Entgeltroute — fehlt sie im Bericht und muss formuliert werden), dann `npx tsx scripts/guards/run-all.ts` gegenpruefen.
+- **wichtig** · `/home/user/cse-platform/src/server/db/schema/rls.ts` — `anstellung_kondition` fehlt in KEIN_HARD_DELETE und AUDITIERT, und `scripts/generate-triggers.ts` hat keinen Eintrag `'0192'` in `MIGRATIONS_DATEIEN`. Der generierte Sentinel-Block steht damit in drizzle/0192_anstellung_kondition.sql, ohne dass ihn je etwas erzeugt oder nachprueft: `pnpm db:triggers` schreibt ihn nicht, `--check` vergleicht ihn nicht. Folge fuer die Absicherung: tests/isolation/unveraenderbarkeit.test.ts iteriert `KEIN_HARD_DELETE` (Zeile 79 und 242) und prueft daher die neue Tabelle NICHT — die Loeschsperre der einzigen neuen Tabelle dieser Domaene ist ungeprueft. Wird der rls.ts-Eintrag spaeter ohne den `MIGRATIONS_DATEIEN`-Eintrag ergaenzt, bricht `generate-triggers.ts` ab (`MIGRATIONS_DATEIEN[m]!` ist undefined, Zeile 192/205).
+  - Behebung: Beide Eintraege nachziehen: in rls.ts `{ tabelle: 'anstellung_kondition', art: 'append', migration: '0192', grund: … }` in KEIN_HARD_DELETE und `{ tabelle: 'anstellung_kondition', migration: '0192' }` in AUDITIERT; in scripts/generate-triggers.ts `'0192': join(WURZEL, 'drizzle/0192_anstellung_kondition.sql')`. Danach `pnpm db:triggers` (ersetzt den Block idempotent) und `pnpm db:triggers --check`.
+- **wichtig** · `/home/user/cse-platform/src/app/portal/[mandant]/personal/anstellungen/[id]/beenden/page.tsx` — Die Folgen-Tafel wird fuer `vorschau` gerechnet (Zeile 123: `?austritt=` oder sonst `heute`), das Datumsfeld im Formular traegt `defaultValue={vorschau}` — aber es gibt keinen Weg, die Tafel fuer ein ANDERES Austrittsdatum neu zu rechnen. Die Seite hat kein JavaScript, das Datumsfeld gehoert dem POST-Formular, und `?austritt=` wird von nichts gesetzt. Der Regelfall einer Beendigung ist aber ein Austritt in der Zukunft (Kuendigungsfrist): der Bearbeiter stellt das Datum auf +3 Monate, waehrend „Einsätze nach dem Austritt" und „Resturlaub" weiter den Stand von heute zeigen. Genau die Zahl, die vor der Bestaetigung stehen soll, gehoert dann zu einem anderen Datum.
+  - Behebung: Ein eigenes GET-Formular („Folgen zu diesem Datum anzeigen") ueber die Tafel setzen, das `?austritt=` neu laedt, und das POST-Formular danach mit demselben Datum vorbelegen. Alternativ die Tafel erst nach einem Zwischenschritt „Datum waehlen -> Folgen bestaetigen -> beenden" zeigen.
+- **wichtig** · `/home/user/cse-platform/src/app/portal/[mandant]/personal/antraege/[id]/page.tsx` — Der Genehmigen-Knopf wird am falschen Merkmal gesperrt: `istTausch = antrag.tauschPartnerAnstellungId !== null || antrag.einsatzId !== null` (Zeile 141). Die Lage, in der `entscheideAntrag` wirkungslos ist, ist aber `!antrag.erzeugtAbwesenheit` — der Dienst behandelt nur den Abwesenheitszweig. Daraus folgen zwei Fehler in derselben Zeile: (a) eine Antragsart mit `erzeugt_abwesenheit = true` UND `erfordert_einsatz = true` verliert ihren Knopf, obwohl der Dienst sie behandelt; (b) eine Antragsart mit `erzeugt_abwesenheit = false` und ohne Einsatz/Tauschpartner — `antragsart.ist_stammdatenaenderung` ist eine vorhandene Spalte, O-142 nennt „Stammdatenaenderung" und „Schichtabgabe" namentlich als kommende Arten — bekommt einen Knopf, der nur einen Status umlegt und sonst nichts tut. Der Katalog ist nach K-17 kundenpflegbar (drizzle/0275_stammdaten_katalogpflege.sql:100 gibt `insert` auf `antragsart`), das ist also keine hypothetische Lage.
+  - Behebung: Die Sperre an `!antrag.erzeugtAbwesenheit` haengen und den Tauschtext nur dann zeigen, wenn zusaetzlich `einsatzId`/`tauschPartnerAnstellungId` gesetzt ist; fuer die uebrigen wirkungslosen Arten einen eigenen Satz („diese Antragsart legt nur den Status um — O-613"). Entsprechend `istTausch` fuer den Dienstplan-Verweis von der Knopfsperre trennen.
+- **klein** · `/home/user/cse-platform/src/app/portal/[mandant]/personal/abwesenheiten/[id]/page.tsx` — Die Seite liest `?meldung=` (Zeile 101) und zeigt dafuer „Der Vorgang lief nicht durch", aber `POST /api/abwesenheiten/[id]` leitet im Fehlerfall nicht mit `?meldung=` zurueck — es antwortet mit JSON (route.ts:68-86). Dasselbe auf `antraege/[id]/page.tsx` (Zeile 97/98) gegen `POST /api/antraege/[id]`. Bei `GrundFehlt` bzw. `UrlaubskontoFehlt` landet der Mensch also auf einer weissen Seite mit `{"fehler":"…"}` — genau das, was `src/app/api/personal/gemeinsam.ts` im Kopfkommentar ausschliesst („Ein Formular darf nicht auf einer weissen Seite mit JSON enden") und was die Antragsseite im eigenen Kommentar verspricht zu vermeiden. Die beiden Hinweisbloecke sind damit toter Code.
+  - Behebung: Die Fehlerzweige beider Routen auf das Muster aus `fuehrePersonalAus` bringen: bei einem Formular-POST (`!rumpf.json`) mit `?meldung=<Text>` auf `zurueck` umleiten, JSON nur fuer JSON-Aufrufer. Am einfachsten beide Routen auf ein gemeinsames Geruest wie `fuehrePersonalAus` umstellen.
+- **klein** · `/home/user/cse-platform/src/app/portal/[mandant]/personal/personen/[id]/stammdaten/page.tsx` — Die Warnung „Die Felder sind leer vorbelegt, weil zu diesem Menschen nichts lesbar war. Absenden überschreibt, was dort steht" haengt an `stammdaten === null && !keinRecht` (Zeile 245) — sie ist also genau in dem Fall AUSGEBLENDET, in dem sie gebraucht wird: ohne `personal.stammdaten_lesen` ist `keinRecht = true`, alle drei Felder sind leer vorbelegt, und `schreibeStammdaten` schreibt immer alle drei Spalten (services/personal/stammdaten.ts:146-150) — ein Absenden nullt also Geburtsdatum, Geburtsort und Staatsangehoerigkeit. Ueber die Seite ist das heute nicht erreichbar (das Routen-Manifest verlangt `personal.stammdaten_lesen` fuer den Aufruf, und mehrere Leserechte sind nach zugang.ts:349 eine UND-Verknuepfung), ueber `POST /api/personal/personen/[id]/stammdaten` mit nur `personal.schreiben` schon.
+  - Behebung: Die Bedingung auf `stammdaten === null` erweitern (also auch bei `keinRecht` warnen) — oder besser: `schreibeStammdaten` nur die Felder schreiben lassen, die der Rumpf tatsaechlich mitbringt, damit ein Teil-POST die anderen nicht loescht.
+- **klein** · `/home/user/cse-platform/src/app/portal/[mandant]/personal/anstellungen/[id]/entgelt/page.tsx` — Zwei Kleinigkeiten in derselben Datei. (1) Zeile 73 liest `?gespeichert=1` und zeigt dafuer „Kondition eingetragen"; die Route leitet aber ohne diesen Parameter zurueck (`api/personal/anstellungen/[id]/entgelt/route.ts`, `ziel: (slug) => \`/portal/${slug}/personal/anstellungen/${id}/entgelt\``) — der Erfolgshinweis erscheint nie. (2) Zeile 86-95: `KeinEntgeltRecht` entsteht aus einem Postgres-42501; danach laeuft `leseKonditionen` in DERSELBEN Transaktion weiter. postgres.js setzt keinen Savepoint je Abfrage (nur `services/radar/import.ts` und `services/freigabe/stapel.ts` tun das von Hand), die Transaktion ist nach dem Fehler abgebrochen, und die Folgeabfrage scheitert mit 25P02. Heute unerreichbar, weil das Tor `personal.entgelt_lesen` schon verlangt — der Zweig kann aber so, wie er geschrieben ist, nicht funktionieren.
+  - Behebung: (1) `?gespeichert=1` an das `ziel` der Entgeltroute anhaengen (wie bei `…/stammdaten`). (2) Entweder das Recht wie auf der Abwesenheitsseite VORHER mit `haeltRechte('personal.entgelt_lesen')` fragen und `app.entgelt_lesen` dann gar nicht aufrufen, oder den Aufruf in einen eigenen `savepoint` legen.
+- **klein** · `/home/user/cse-platform/src/server/services/personal/anstellung.ts` — `setzeKondition` schliesst nur die OFFENE Kondition (Zeile 543-546: `where anstellung_id = $1 and gilt_bis is null`). Liegt das neue `giltAb` innerhalb einer bereits GESCHLOSSENEN Periode — moeglich, sobald eine rueckwirkende Kondition nachgetragen wird —, laeuft der Insert in `ak_kein_ueberlapp` und der Mensch bekommt den rohen GIST-Fehler statt eines Satzes. Der Dienst beantwortet die Personalnummernkollision ausdruecklich als Satz und nicht als 23505; hier fehlt dieselbe Hoeflichkeit.
+  - Behebung: Vor dem Insert auf Ueberschneidung mit JEDER Kondition pruefen (`where daterange(gilt_ab, gilt_bis, '[]') @> $2::date`) und mit einem `VertragEingabeFehler` antworten, der den Zeitraum nennt.
+- **klein** · `/home/user/cse-platform/drizzle/0192_anstellung_kondition.sql` — `kern.anstellung_kondition_spiegeln()` bricht ab, wenn heute keine Kondition gilt (Zeile 245: `if v_kondition.id is null then return null; end if;`). Wird die einzige Kondition mit `gilt_bis` in der Vergangenheit geschlossen — der Ruhezeitraum, den der Migrationskopf als legitime Luecke beschreibt —, bleibt der Spiegel auf `anstellung` mit den alten Werten stehen, statt geleert zu werden. `app.anstellung_kondition_spiegel_nachziehen()` hat dieselbe Luecke (die CTE `gueltig` liefert fuer diese Beschaeftigung keine Zeile, das UPDATE trifft sie nie). Folgenlos fuer die Geldzahl, weil `app.entgelt_lesen` die Kondition und nicht den Spiegel liest — sichtbar falsch ist aber `Wochenstunden` und `Arbeitstage pro Woche` auf der Entgelt- und der Vertragsseite.
+  - Behebung: Im `is null`-Fall den Spiegel auf NULL setzen statt zurueckzukehren, und im Nachzieher einen zweiten Zweig fuer Beschaeftigungen mit Konditionen, aber ohne heute gueltige — oder den Zustand auf den Seiten als „keine heute gueltige Kondition" ausweisen, statt einen alten Wert zu zeigen.
+- **klein** · `/home/user/cse-platform/drizzle/0194_person_zusammenfuehren.sql` — `app.person_kanonisch(uuid)` (Zeile 152) und `app.person_identitaeten(uuid)` (Zeile 178) bekommen `grant execute … to cse_app, cse_job`, ohne das voreingestellte `EXECUTE` fuer PUBLIC zu entziehen. Das ist kein Datenleck — beide sind `security invoker` und lesen `person` unter der RLS des Aufrufers —, aber es weicht von der Hausregel ab, die jede andere Funktion dieser Domaene einhaelt (`revoke execute … from public` in 0190, 0191, 0193, 0194 fuer `person_zusammenfuehren`). Der Waechter dafuer greift nicht: tests/isolation/definer-eigentum.test.ts:177 filtert auf `p.prosecdef`, und diese zwei sind es nicht — die Abweichung faellt also nirgends auf.
+  - Behebung: `revoke execute on function app.person_kanonisch(uuid) from public;` und dasselbe fuer `app.person_identitaeten(uuid)` in 0194 ergaenzen. Wer den Waechter mitziehen will, nimmt das `p.prosecdef` aus der Abfrage in definer-eigentum.test.ts heraus und fuehrt die erlaubten Ausnahmen namentlich.
+- **klein** · `/home/user/cse-platform/src/server/services/datenschutz/berichtigung.ts` — `editorPfad` gibt fuer `art === 'person'` `/portal/<slug>/personal/<id>` zurueck (Zeile 94) — diese Adresse gibt es nicht; richtig waere `/portal/<slug>/personal/personen/<id>`. Die Funktion ist ausdruecklich dafuer da, NICHT auf eine Adresse zu zeigen, die mit 404 antwortet (ihr eigenes Kommentar, Zeile 86-89, nennt AUT-06). Nebenbefund am Rand der Personaldomaene; der Bauende hat ihn im Bericht genannt und nicht behoben.
+  - Behebung: Zeile 94 auf `/portal/${mandantSlug}/personal/personen/${id}` aendern. Ein Test, der jeden Rueckgabewert von `editorPfad` gegen `findeRoute` prueft, haelt die Sorte Fehler kuenftig fest.
 
-## NICHT gebaut
+**Urteil:** Nicht abnahmefaehig. Die sieben Seiten tragen echte Zeilen, rufen ihre Dienste, halten Cent/timestamptz und DESIGN.md ein (die Waechter melden zu diesen Dateien keinen Gestaltungsbefund), `npx tsc --noEmit` ist fuer die Domaene sauber, tests/kern/personal-eingaben.test.ts laeuft gruen (12/12), und die fuenf Migrationen sind gegen echtes Postgres nachgemessen: Spiegel-Trigger, Einbahn-Uebergang, EXCLUDE und beide Job-Funktionen tun, was sie versprechen. Drei Befunde blockieren trotzdem. (1) 0190 hat den Spalten-UPDATE-Grant auf `person` von {sprache} auf neun Spalten geweitet; zusammen mit der bestehenden Policy `t_person_selbstpflege` kann jede Mitarbeitersitzung jetzt ihre eigene `telefon`, ihren Namen und die drei Bewacherregister-Felder umschreiben — nachgefahren mit `UPDATE 1`, und zwei bestehende Testfaelle in person-sprache.test.ts behaupten genau das Gegenteil. (2) Der neue K-14-Trigger in 0191 legt bei jedem status-nennenden UPDATE eine abgeleitete Mitgliedschaft neu an; „Beschaeftigung beenden\" mit Austritt in der Zukunft stellt damit einen von Hand entzogenen Portalzugang wieder her (nachgefahren: offen=0 -> offen=1). (3) `beendigungsfolgen` rechnet die Tagesgrenze in UTC und verliert genau die Nachtschicht nach dem Austritt — eine falsche Null vor einer folgenschweren Bestaetigung, Invariante 2, obwohl das Projekt mit Guard 5b und `app.loese_ortszeit` das richtige Muster fuehrt. Dazu sechs wichtige Punkte: der Dublettenaufloeser wird von keinem Dienst gerufen (arbzg.ts gruppiert weiter auf der rohen personId), womit die Zusage der Seite „Arbeitszeitgrenzen je Mensch\" heute unwahr ist; O-610…O-614 fehlen in DECISIONS.md und Guard 4 schlaegt fehl; `anstellung_kondition` fehlt in rls.ts und `'0192'` in generate-triggers.ts, wodurch die Loeschsperre der einzigen neuen Tabelle ungeprueft bleibt; die Folgen-Tafel laesst sich nicht auf das gewaehlte Austrittsdatum umrechnen; der Genehmigen-Knopf des Antragsblatts haengt am falschen Merkmal; und die Zuordnungszaehlung laesst den Statusfilter aus.
+
+## Nach der Behebung noch offen
+
+- Befund 6 (DECISIONS.md, wichtig) ist NICHT von mir eingetragen — docs/DECISIONS.md steht auf der Sperrliste. Die sieben Zeilen O-610 bis O-616 stehen unten unter registry_sonstiges und muessen zentral unter 'Offen' eingefuegt werden; danach ist Guard 4 (todo-client-nicht-im-register) fuer diese Domaene still. Es sind sieben statt fuenf, weil diese Runde zwei neue offene Regeln aufgeworfen hat (O-615, O-616).
+- Befund 7 (rls.ts + scripts/generate-triggers.ts, wichtig) ist NICHT von mir eingetragen — src/server/db/schema/rls.ts steht auf der Sperrliste, und der Eintrag in generate-triggers.ts allein waere wirkungslos (MIGRATIONEN leitet sich aus rls.ts ab) und beim naechsten pnpm db:triggers sogar schaedlich, weil er einen leeren Block nach 0192 schriebe. Beide Zeilen stehen unten unter registry_rls und registry_sonstiges. Der Schutz SELBST ist in der Datenbank vorhanden und geprueft (trg_anstellung_kondition_kein_hard_delete, _kein_truncate, _audit liegen auf der Tabelle); es fehlt nur die Buchfuehrung, ohne die unveraenderbarkeit.test.ts die Tabelle nicht mititeriert.
+- Nicht behoben, weil ausserhalb dieser Domaene und ausserhalb meiner Migrationsnummern: pnpm db:seed bricht ab mit 'new row violates row-level security policy for table leistungskatalog_position'. Ich habe das gegengeprueft — der Abbruch tritt genauso ohne drizzle/0298_leistungskatalog_status.sql auf UND genauso mit auf HEAD zurueckgesetzten 0190/0191/0192 und ohne 0195. Er ist also weder meiner noch 0298 zuzuordnen (Verdacht: die katalog.schreiben-Bedingung in der with-check von t_mandant gegen die Sitzung, mit der der Seed die Katalogpositionen anlegt). Folge fuer diese Runde: die isolation-Suite laeuft gar nicht, weil ihr global-setup migriert UND seedet. Alle DB-seitigen Behauptungen oben sind deshalb einzeln per psql gegen w_pers belegt, die neuen Testfaelle sind geschrieben, lint- und typecheck-sauber, aber noch nicht gelaufen. Sobald der Seed wieder durchlaeuft, gehoeren tests/isolation/personal-anstellung.test.ts, personal-spaltenschutz.test.ts, person-sprache.test.ts und person-dublette.test.ts gefahren.
+- O-615 (neu): Die sichere Richtung ist ausgeliefert — eine Wiedereinstellung erteilt einen zuvor von Hand entzogenen Portalzugang NICHT automatisch wieder. Das ist eine Annahme und keine Regel; sie steht als TODO(client, O-615) in 0191 und als Registerzeile unten.
+- O-616 (neu): Was die Genehmigung einer kundeneigenen Antragsart bewirken soll, die keine Abwesenheit erzeugt (Stammdatenaenderung, Schichtabgabe, unbezahlte Freistellung), ist unentschieden. Ausgeliefert ist: kein Genehmigen-Knopf und ein Satz, der sagt warum.
+
+## NICHT gebaut, mit Grund
 
 - Keine der sieben Routen bleibt Platzhalter — alle sieben sind vollstaendig (Daten, Tabelle/Felder, Filter bzw. Suche, Rechte, Leerzustand, Schreibweg). Was OFFEN bleibt, bleibt als klar bezeichneter Platzhalter nach Regel 1 und ist unten aufgefuehrt.
 - Tarifgruppen: freies Feld, kein Vokabular (O-610). Eine Auswahlliste waere eine Tarifentscheidung mit Lohnwirkung.
@@ -240,7 +148,7 @@ die Dateien zentral gepflegt sind):
 - Der naechtliche Lauf, der `anstellung.status` nach einem vergangenen Austritt nachzieht und den Konditionsspiegel nach dem Datumswechsel neu ableitet: die Mechanik ist da (`app.anstellung_status_nachziehen`, `app.anstellung_kondition_spiegel_nachziehen`, beide nur `cse_job`), die Registrierung im Job-Planer gehoert nicht in meinen Bereich. Folge ohne sie: ein sichtbar falscher Stand (vergangener Austritt, Status `aktiv`), kein lautlos falscher — `app.entgelt_lesen` liest die Kondition und nicht den Spiegel.
 - Keine Kontenpflege, kein Urlaubsanspruch-Editor, keine Lohnabrechnung — ausserhalb der Domaene bzw. ausdruecklich out of scope (D-06).
 
-## Notizen des Bauenden
+## Notizen des Bauender
 
 MIGRATIONSPRUEFUNG. Alle fuenf Migrationen liefen mehrfach auf einer FRISCHEN
 `w_pers` bis `Migrationen angewendet.` durch (zuletzt nach der letzten
@@ -337,3 +245,15 @@ KLEINERER NEBENBEFUND, NICHT VON MIR GEAENDERT (siehe auch
 `/portal/<slug>/personal/<id>` — diese Adresse gibt es nicht; richtig ist
 `/portal/<slug>/personal/personen/<id>`. Ein Verweis auf 404 ist genau das, was
 AUT-06/D-581 ausschliessen.
+
+## Notizen des Behebender
+
+Alle 16 Befunde nachvollzogen, keiner widerlegt. 14 behoben, 2 (Befund 6 und 7) betreffen ausschliesslich gesperrte Dateien und sind als Registereintraege oben zurueckgegeben.
+
+Gestaltungswerte: keine neuen erfunden. Das neue GET-Formular auf der Beenden-Seite benutzt die im selben Modul bereits definierten Klassen (feld, Abstaende s2/s3/s4/s5, rounded-lg, border-line, bg-surface-2) und die vorhandene Button-Variante 'secondary'. Der neue Hinweisblock auf der Antragsseite nimmt die vorhandene Komponente Hinweis mit art='hinweis' und text-xs/mt-s2 wie der Nachbarblock. Die Waechter melden aus meinen Dateien keinen Farb-, Abstands- oder Zonenverstoss.
+
+Pruefstand dieser Runde: pnpm typecheck sauber; eslint ueber alle 14 geaenderten Quelldateien und die 3 geaenderten Testdateien ohne Befund; Migration nach jeder Aenderung gegen eine frisch angelegte w_pers (drop/create/alter database + DATABASE_URL=… pnpm db:migrate) — laeuft bis 0304 durch; npx tsx scripts/generate-triggers.ts --check meldet 'Trigger sind aktuell'; die drei betroffenen kern-Tests (personal-eingaben, gruppen-navigation, tableiste) gruen (53 Faelle). npx tsx scripts/guards/run-all.ts meldet aus dieser Domaene NUR noch todo-client-nicht-im-register fuer O-610…O-616 — genau die sieben Zeilen, die zentral nachzutragen sind. (Die Wache zaehlt insgesamt 76 Verstoesse; die uebrigen 69 stammen aus anderen Domaenen derselben Welle.)
+
+Was ich NICHT pruefen konnte und warum: die isolation-Suite startet nicht. Ihr global-setup migriert und SEEDET, und pnpm db:seed bricht ab mit 'new row violates row-level security policy for table leistungskatalog_position'. Ich habe zweimal gegengeprueft, dass das nicht meine Arbeit ist: einmal mit ausgehaengtem drizzle/0298_leistungskatalog_status.sql (gleicher Abbruch) und einmal mit auf HEAD zurueckgesetzten 0190/0191/0192 und ausgehaengtem 0195 (gleicher Abbruch). Es ist ein Vorbefund aus einer anderen Domaene dieser Welle. Ersatzweise habe ich jede datenbankseitige Behauptung einzeln per psql gegen w_pers belegt (Spaltenrechte, Waechter, K-14-Reproduktion des Pruefers, Spiegelleerung, Tagesgrenze, Ueberlappungspraedikat, Identitaetsaufloesung, PUBLIC-Entzug ueber aclexplode). Die neuen Testfaelle stehen geschrieben und sind typecheck- und lint-sauber, aber ungefahren — das gehoert nachgeholt, sobald der Seed wieder durchlaeuft.
+
+Eine Entscheidung, die ich getroffen habe und die ich benennen will: 0190, 0191 und 0192 sind bereits committet (1662c3c), ich habe sie trotzdem an Ort und Stelle korrigiert statt eine Nachtragsmigration zu schreiben. Grund: der Grant in 0190 ist genau die Liste, die die Datei als 'an EINER Stelle vollstaendig' ausweist — eine zweite Stelle, die sie wieder einschraenkt, waere der Defekt, gegen den 0165 geschrieben ist. Dieselbe Praxis ist in dieser Welle sichtbar (0182, 0204, 0221, 0222, 0230 sind ebenfalls als geaendert markiert), und die Datenbanken werden bei jedem Lauf neu aus drizzle/ gebaut. Die Auswertung des Befundes 5 (Aufloeser) brauchte dagegen neues SQL an einer alten Funktion aus 0040 — das steht als 0195 in meinem Nummernraum und fasst 0040 nicht an.

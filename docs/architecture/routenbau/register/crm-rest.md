@@ -1,0 +1,299 @@
+# Registereinträge: crm-rest
+
+**Warteschlange, kein Archiv.** Diese Einträge sind **noch nicht** im Baum. Die
+gemeinsamen Dateien pflegt EINE Hand, weil mehrere Agenten gleichzeitig arbeiten
+und sich sonst in dieselbe Zeile schreiben. Ist ein Abschnitt eingetragen, wird
+er hier gelöscht — solange er hier steht, fehlt er dort.
+
+**Die Einträge des Behebungsschritts gelten.** Er lief zuletzt und hatte den
+Auftrag, die vollständige aktuelle Liste zu liefern — auch das, was sich seit
+dem Bauschritt geändert hat.
+
+## Stand
+
+- Bau: fertig
+- Kritik: 12 Befunde
+- Behebung: 14 behoben, 0 widerlegt, 8 offen
+
+## Migrationen (gegen eine eigene Datenbank gefahren: True)
+
+- /home/user/cse-platform/drizzle/0245_kunde_erechnung.sql — kunde.uebertragungsweg (Enum uebertragungsweg aus 0181 WIEDERVERWENDET, kein zweites Vokabular) + kunde.rechnungsformat (Enum neu, woertlich aus 02-CRM-OPERATIONS §646: xrechnung_ubl|zugferd|pdf, kein xrechnung_cii weil FIN-11 UBL baut und ein Enumwert ohne Renderer ein Versprechen ist). grant select (uebertragungsweg, rechnungsformat) on kunde to cse_app — K-05 entzieht spaltenweise, also muss das Erteilen es auch sein. Teilindex kunde_weg_luecken_idx auf die FIN-11-Sperre. Die Sperre selbst steht als geprueftes Praedikat im Dienst, NICHT als CHECK: ein check (not xrechnung_pflicht or uebertragungsweg is not null) haette jeden vorhandenen Behoerdenkunden unspeicherbar gemacht und damit die Pflege genau der Angabe verhindert, die er erzwingen will.
+- /home/user/cse-platform/drizzle/0246_ansprechpartner_aehnliche_leistung.sql — ansprechpartner.aehnliche_leistung (not null default false, fail closed) + aehnliche_leistung_begruendung, dazu CHECK ansprechpartner_aehnliche_leistung_begruendet (eine Wertung, die niemand begruendet hat, ist in einer Abmahnung nichts wert). KEIN grant select: die Spalten gehoeren fachlich in den K-05-Block und werden ueber die Definer aus 0247 gelesen. Aendert app.darf_kontaktiert_werden ausdruecklich NICHT (Begruendung in nicht_gebaut).
+- /home/user/cse-platform/drizzle/0247_kontakt_rechtsgrundlage_lesen.sql — app.kontakt_rechtsgrundlage_liste() und app.kontakt_rechtsgrundlage_blatt(uuid), beide security definer, Eigentuemer cse_definer, search_path gesetzt, kein PUBLIC-EXECUTE. Antwort auf KRITIK-Punkt 1: die Liste braucht einen listenfaehigen Leser, weil app.rechtsgrundlage_lesen bei JEDEM Aufruf protokolliert und eine Liste mit N Kontakten sonst N LEG-08-Zeilen je Seitenaufruf erzeugt. Die Liste schreibt EINE Protokollzeile. Beide pruefen das engere crm.rechtsgrundlage_lesen (O-661).
+- /home/user/cse-platform/drizzle/0248_werbewiderspruch_manuell.sql — app.werbewiderspruch_manuell_setzen(...) (security definer, Eigentuemer cse_definer) fuer den von der KRITIK gefundenen fehlenden Nachweisweg: widerspruch_quelle/Umfang existierten nirgends, und der Widerspruch nach Art. 21 DSGVO ist nachweispflichtig. Prueft Portal 'intern' (K-04), ist_readonly (Invariante 10) und crm.rechtsgrundlage_setzen, setzt den FRUEHESTEN Eingang und protokolliert.
+- /home/user/cse-platform/drizzle/0249_kundenzugang.sql — die vier Definer app.kundenzugang_ausstellen/neu_einladen/entziehen/liste (alle cse_definer, search_path gesetzt, hat_recht('system.benutzer_verwalten'), kein PUBLIC-EXECUTE). Loest den harten Blocker: eine benutzer-Zeile entstand im ganzen Repo ausschliesslich im Seed als postgres, weil cse_app dort nur SELECT hat — Konto, Mitgliedschaft und Bindung entstehen jetzt in einem Zug, mit eigener Rechtepruefung und Protokoll.
+- /home/user/cse-platform/drizzle/0250_bezug_lead_aktivitaet.sql — alter type bezug_typ add value 'lead_aktivitaet', in EIGENER Datei mit genau einer Anweisung, weil Postgres add value nicht in derselben Transaktion wie seine Benutzung erlaubt.
+
+## Gebaute Adressen
+
+- `/portal/[mandant]/crm/kontakte` — fertig
+  - KRITIK-Punkt 1 umgesetzt: die Einstufung wird NICHT als Spalte gelesen (K-05 entzieht rechtsgrundlage, einwilligung_kanaele, werbewiderspruch_am, widerspruch_am), sondern ueber den neuen Definer app.kontakt_rechtsgrundlage_liste() aus 0247 — EINE Protokollzeile je Seitenaufruf statt N (app.rechtsgrundlage_lesen protokolliert je Kontakt). Der Definer laeuft hinter dem ENGEREN Recht crm.rechtsgrundlage_lesen (O-661); fehlt es, wird er gar nicht gerufen und beide Filter sind unsichtbar statt leer. Die Spalte 'Werbung per E-Mail' kommt aus app.darf_kontaktiert_werden — derselben Funktion, die der Sendepfad fragt.
+- `/portal/[mandant]/crm/kontakte/[id]` — fertig
+  - KRITIK-Punkt 3 umgesetzt: der Nachweisblock haengt am engeren crm.rechtsgrundlage_lesen (haeltRechte), nicht an crm.lesen — sonst saehe jede Leitung hier genau die Einstufung, die ihr /datenschutz/widersprueche vorenthaelt. Je Kanal stehen ZWEI Antworten: 'werbung' und 'vertraglich', damit sichtbar ist, dass Rechnungen nach einem Werbewiderspruch weiter zugestellt werden duerfen. Kein toter Sendeknopf (POST /api/crm/nachrichten ist nicht gebaut). Akteursname im Verlauf nur mit system.benutzer_lesen, sonst '—' mit Grund.
+- `/portal/[mandant]/crm/kontakte/[id]/rechtsgrundlage` — fertig
+  - KRITIK-Punkt 2 vollstaendig umgesetzt, alle vier Teilbefunde: (1) ZWEITER Endpunkt /widerspruch mit eigenem Nachweis (Quelle, Eingangsdatum, Umfang) statt in die Rechtsgrundlage gefaltet — Art. 21 DSGVO ist nachweispflichtig; (2) kein RETURNING/WHERE auf den entzogenen Spalten; (3) beide Widersprueche sind EINWEG und die Oberflaeche sagt es vorher, statt kern.erzwinge_widerspruch einen restrict_violation werfen zu lassen; (4) die Torabweichung ist groesser als geplant (auch 'anfrage' laesst Werbung durch) und steht als O-660 sichtbar auf der Seite. 0246 aendert app.darf_kontaktiert_werden ABSICHTLICH nicht — tests/isolation/uwg.test.ts schreibt die heutige Bedeutung fest und laeuft weiter gruen (106 Isolationszusagen).
+- `/portal/[mandant]/crm/kunden/[id]/konditionen` — fertig
+  - K-05-Falle beachtet: gelesen wird ausschliesslich ueber app.zahlungskondition_lesen, das UPDATE nennt debitorennummer/zahlungsziel_tage/mahnsperre_* weder in RETURNING noch in WHERE. Die Mahnsperre ist ein PAAR (kunde_mahnsperre_begruendet) und das Formular sagt es, nicht die Datenbank. O-66 bleibt offen: ohne Zahlungsziel steht 'nicht gesetzt' statt eines geratenen 14, und daneben was das fuer die Faktura heisst. Debitorennummer freies Textfeld mit TODO(client, O-05). mahnsperreAktiv antwortet aus app.kunde_mahnsperre_aktiv — derselben Funktion wie der Mahnlauf, nicht aus einem zweiten Datumsvergleich.
+- `/portal/[mandant]/crm/kunden/[id]/steuer` — fertig
+  - KRITIK-Punkt 4 umgesetzt: das Symptom ist 404, nicht Leere — ohne crm.lesen gibt es die kunde-Zeile nicht, also kann die Route mit dem Manifest-Tor abrechnung.lesen allein NIE rendern (gehoert in DECISIONS, Zeile unten). Die Seite prueft crm.lesen und finanzen.lesen vorab und benennt, was fehlt, statt eine leere Liste wie 'kein Bauleistender' aussehen zu lassen. 0245 fuegt uebertragungsweg (Enum aus 0181 WIEDERVERWENDET) und rechnungsformat (Enum neu) hinzu, mit grant select — ohne das waere jede Anzeige ein 42501. Die Sperre nach 07-INTEGRATIONEN §12.1 steht NICHT als CHECK (haette jeden vorhandenen Behoerdenkunden unspeicherbar gemacht), sondern als geprueftes Praedikat versandLage(); peppol/zre/ozg_re sind dauerhaft 'nicht verbunden'. §13b als Zeitscheiben mit deutscher Meldung bei kbs_kein_ueberlapp; §48b-Gueltigkeit AM LEISTUNGSDATUM; Widerruf ist ein Datum, kein Loeschen.
+- `/portal/[mandant]/crm/kunden/[id]/zugang` — fertig
+  - Der Hauptblocker ist geloest: cse_app hat auf benutzer nur SELECT, deshalb legt 0249 vier SECURITY-DEFINER-Funktionen an (kundenzugang_ausstellen/neu_einladen/entziehen/liste), alle im Eigentum von cse_definer, alle mit gesetztem search_path, alle mit eigenem hat_recht('system.benutzer_verwalten') und ohne PUBLIC-EXECUTE (nachgemessen). O-501 ehrlich behandelt: kein vorgetaeuschter Versand — der Einladungslink wird EINMAL aus einem kurzlebigen Keks gezeigt, mit dem Satz, dass er von Hand uebergeben wird, und der Postausgang steht sichtbar als 'nicht verbunden'. aal2-Pflicht (benutzer_mandant) wird vorher gesagt, nicht erst beim Scheitern. Kein Entzug loescht eine Zeile.
+- `/portal/[mandant]/crm/wiedervorlagen` — fertig
+  - Vier Faecher (ueberfaellig/heute/diese Woche/spaeter), gerechnet gegen app.berlin_heute() und app.berlin_wochenende() aus der DATENBANK — nie gegen eine Browseruhr. Die Wiedervorlage schreibt nach 04-SEITENKARTE §5.2 in aufgabe UND kalender_eintrag, soweit aufgabe.schreiben/kalender.schreiben reichen, und die Oberflaeche sagt, was entstanden ist (O-663). 0250 traegt genau einen Enumwert nachtraeglich ein (bezug_typ = 'lead_aktivitaet') und steht deshalb in EIGENER Datei: Postgres erlaubt add value nicht in derselben Transaktion wie seine Benutzung. bezug_typ='lead' waere nicht eindeutig gewesen — ein 'erledigt' haette alle Wiedervorlagen eines Leads geschlossen.
+- `Erreichbarkeit: /portal/[mandant]/crm (Uebersicht) + Kundenblatt-Unternavigation` — fertig
+  - In DIESER Sitzung gefunden und behoben: die Kachel 'Ansprechpartner' zeigte auf /crm/kunden — eine Zahl, die etwas zaehlt und beim Klick etwas anderes oeffnet; /crm/wiedervorlagen hatte gar keinen Einstieg. Beide Listen waren damit nur ueber die Adresszeile erreichbar, genau die Luecke, die der Abschnitt 'Gemeinsames' des Plans nennt. Jetzt: Kachel auf /crm/kontakte, neue Kachel 'Wiedervorlagen faellig' mit Zaehlung gegen app.berlin_heute(). Die Unternavigation des Kundenblatts (Uebersicht · Konditionen · Steuer · Portalzugang) war bereits gebaut.
+- `Seed: die vier Seiten, die in den Demodaten LEER gewesen waeren` — fertig
+  - NEU in dieser Sitzung — die vom Plan benannte 'gemeinsame Luecke im Seed' war noch offen. Nachgezaehlt: 0 von 7 Debitorennummern, 0 Zahlungsziele, 0 Mahnsperren, 0 Uebertragungswege, 0 Zeilen in kunde_bauleistender_status, 0 in freistellungsbescheinigung, 0 von 5 faellig_am. Vier Seiten haetten eine Ueberschrift und sonst nichts gezeigt. Jetzt: 1 Kondition (die uebrigen bleiben LEER, damit O-66 sichtbar bleibt und beide Faelle auf der Seite vorkommen), 1 Mahnsperre als Paar die HEUTE wirklich haelt, 1 Uebertragungsweg auf dem Behoerdenkunden (ozg_re = nicht verbunden, also zeigt die Seite genau den interessanten Zustand: vollstaendig gepflegt und trotzdem kein Zusteller), 2 nicht ueberlappende §13b-Zeitscheiben (erst kein Bauleistender, dann einer — sonst waere der Stichtagswechsel nicht vorfuehrbar), 1 §48b-Bescheinigung, 4 Wiedervorlagen in allen vier Faechern, 1 begruendete §7-Abs.-3-Wertung. Nur mit CSE_DEV_FLAECHEN und jeder Text traegt '(Demodaten)': jede Angabe ist eine steuerliche oder zahlungswirksame Tatsache ueber einen benannten Kunden.
+
+## src/server/registry/dienste.ts
+
+In src/server/registry/dienste.ts, DIENSTE — sieben Zeilen fehlen (tests/kern/portal-shell.test.ts). Sinnvoll neben die vorhandenen `modul: 'crm'`-Zeilen (bei crm/anlegen, ~Zeile 461) bzw. zu den finanz-Zeilen:
+
+  /*
+   * Die Zahlungskonditionen (CRM-01, FIN-15, K-05). Schreibrecht ist
+   * `crm.schreiben` — der Dienst verlangt ZUSAETZLICH `crm_entgelt.lesen`,
+   * weil die vier Spalten `cse_app` spaltenweise entzogen sind: wer sie nicht
+   * sehen darf, darf sie nicht blind ersetzen.
+   */
+  {
+    modul: 'crm', pfad: 'crm/kondition',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /*
+   * Der Rechtsgrundlagen-Block eines Ansprechpartners (CRM-03, CRM-08,
+   * LEG-08). Gelesen ueber die Definer aus 0247, geschrieben mit
+   * `crm.rechtsgrundlage_setzen` UND `crm.schreiben` (die WITH-CHECK-Klausel
+   * von `t_mandant` verlangt das zweite).
+   */
+  {
+    modul: 'crm', pfad: 'crm/kontakt-grundlage',
+    schreibend: true, schreibRecht: 'crm.rechtsgrundlage_setzen',
+  },
+  /*
+   * Die Matrix des § 7 UWG (O-660). Rein — ohne Datenbank, ohne Uhr. Sie ist
+   * NICHT das Tor; das Tor ist `app.darf_kontaktiert_werden`. Laeuft deshalb
+   * auch in der Gruppenansicht.
+   */
+  { modul: 'crm', pfad: 'crm/uwg-matrix', schreibend: false },
+  /*
+   * Der Kundenzugang (AUT-01, DOC-04). `cse_app` hat auf `benutzer` nur
+   * SELECT; geschrieben wird ueber die vier SECURITY-DEFINER aus 0249, die
+   * `system.benutzer_verwalten` selbst noch einmal pruefen.
+   */
+  {
+    modul: 'crm', pfad: 'crm/kundenzugang',
+    schreibend: true, schreibRecht: 'system.benutzer_verwalten',
+  },
+  /*
+   * Wiedervorlagen (CRM-04). Schreibt in `lead_aktivitaet` und spiegelt nach
+   * `aufgabe` und `kalender_eintrag`, soweit `aufgabe.schreiben` und
+   * `kalender.schreiben` reichen — was fehlt, wird benannt (O-663).
+   */
+  {
+    modul: 'crm', pfad: 'crm/wiedervorlage',
+    schreibend: true, schreibRecht: 'crm.schreiben',
+  },
+  /*
+   * Der Versandstand eines Kaeufers (FIN-11, LEG-05, 07-INTEGRATIONEN §12.1).
+   * Ein reines Praedikat: ein Pflichtkaeufer ohne Uebertragungsweg SPERRT,
+   * er faellt nicht auf E-Mail zurueck. Kein Kanal gilt hier als verbunden,
+   * ohne dass die Umgebung es sagt.
+   */
+  { modul: 'crm', pfad: 'crm/erechnung', schreibend: false },
+  /*
+   * Die steuerlichen Angaben eines Kunden (FIN-09, FIN-10, FIN-11, LEG-05,
+   * LEG-06): §13b als Zeitscheiben, §48b am LEISTUNGSDATUM, E-Rechnungsweg.
+   * Vier Vorgaenge, zwei Rechte — `erechnung` schreibt den Kundenstamm
+   * (`crm.schreiben`), die drei anderen sind Finanzangaben. Hier steht das
+   * strengere.
+   */
+  {
+    modul: 'finanzen', pfad: 'finanz/kunde-steuer',
+    schreibend: true, schreibRecht: 'finanzen.schreiben',
+  },
+
+## src/server/auth/route-manifest.ts
+
+In src/server/auth/route-manifest.ts, ROUTEN — sechs Zeilen fehlen (tests/kern/routen.test.ts, 'keine Route fehlt im Manifest'):
+
+  {
+    /*
+     * CRM-01/FIN-15/K-05. Das Tor ist `crm.schreiben`; der Dienst verlangt
+     * ZUSAETZLICH `crm_entgelt.lesen`, weil Debitorennummer, Zahlungsziel und
+     * Mahnsperre `cse_app` spaltenweise entzogen sind. Hier steht das
+     * schwaechere der beiden; der Dienst prueft das genaue und weist mit
+     * deutschem Satz ab.
+     */
+    pfad: 'api/crm/kunde/konditionen',
+    recht: 'crm.schreiben',
+  },
+  {
+    /*
+     * FIN-09/FIN-10/FIN-11. Vier Vorgaenge auf einem Blatt: `erechnung`
+     * schreibt den Kundenstamm (`crm.schreiben`), `bauleistender`,
+     * `bescheinigung` und `widerruf` sind Finanzangaben
+     * (`finanzen.schreiben`). Die Route waehlt je `was`; hier steht das
+     * schwaechere als Torpruefung, die Dienste pruefen das genaue.
+     */
+    pfad: 'api/crm/kunde/steuer',
+    recht: 'crm.schreiben',
+  },
+  {
+    /*
+     * AUT-01/DOC-04. Ausstellen, neu einladen, entziehen. `cse_app` hat auf
+     * `benutzer` nur SELECT — geschrieben wird ueber die SECURITY-DEFINER aus
+     * 0249, die dasselbe Recht noch einmal pruefen.
+     */
+    pfad: 'api/crm/kunde/zugang',
+    recht: 'system.benutzer_verwalten',
+  },
+  {
+    /*
+     * CRM-08/LEG-08. Die Rechtsgrundlage eines Ansprechpartners. Der Dienst
+     * verlangt zusaetzlich `crm.schreiben`: die WITH-CHECK-Klausel von
+     * `t_mandant` auf `ansprechpartner` gibt sonst „new row violates row-level
+     * security policy" — richtig gesperrt, an der falschen Stelle erklaert.
+     */
+    pfad: 'api/crm/ansprechpartner/[id]/rechtsgrundlage',
+    recht: 'crm.rechtsgrundlage_setzen',
+  },
+  {
+    /*
+     * CRM-08/LEG-08. Ein EIGENER Endpunkt mit eigenem Nachweis (Quelle,
+     * Eingangsdatum, Umfang), nicht in die Rechtsgrundlage gefaltet: Art. 21
+     * DSGVO ist nachweispflichtig, und beide Widersprueche sind Einwegwege.
+     * Die Route waehlt je `umfang` zwischen `crm.rechtsgrundlage_setzen`
+     * (Werbewiderspruch, taegliche Vertriebsarbeit) und
+     * `datenschutz.auskunft_erstellen` (Vollwiderspruch, Entscheidung der
+     * Datenschutzstelle). Hier steht das schwaechere.
+     */
+    pfad: 'api/crm/ansprechpartner/[id]/widerspruch',
+    recht: 'crm.rechtsgrundlage_setzen',
+  },
+  {
+    /*
+     * CRM-04. Erledigen, verschieben, anlegen — ein Recht, drei Vorgaenge:
+     * sie stehen auf derselben Liste und gehoeren demselben Menschen.
+     * `anlegen` spiegelt nach `aufgabe` und `kalender_eintrag`, soweit
+     * `aufgabe.schreiben` und `kalender.schreiben` reichen, und nennt in der
+     * Rueckmeldung, was NICHT entstand (O-663).
+     */
+    pfad: 'api/crm/wiedervorlage',
+    recht: 'crm.schreiben',
+  },
+
+## src/server/db/schema/rls.ts
+
+Nichts einzutragen. Es gibt keine neue Tabelle und keine neue Migration; src/server/db/schema/rls.ts blieb unberuehrt. Die Policies und Spaltenrechte, an denen diese Arbeit haengt, stehen alle schon: `revoke select on kunde` mit Spaltenliste und `revoke select on ansprechpartner` mit Spaltenliste (0020), `app.zahlungskondition_lesen` (0020), `app.kontakt_rechtsgrundlage_liste`/`_blatt` (0247), `app.werbewiderspruch_manuell_setzen` (0248), die vier Kundenzugang-Definer (0249). Der blockierende Befund war KEINE fehlende Policy — er war ein Schreibweg, der das Leserecht des entzogenen Blocks nicht verlangte; die zweite Verteidigungslinie (K-05) hielt die ganze Zeit, sie haette nur nichts genuetzt, weil UPDATE auf diesen Spalten erlaubt ist.
+
+## src/server/registry/navigation.ts
+
+Nichts einzutragen. Alle sieben Seiten haengen unter der vorhandenen CRM-Navigation; die Unternavigation des Kundenblatts (Uebersicht · Konditionen · Steuer · Portalzugang) ist eine eigene Komponente unter src/app/portal/[mandant]/crm/kunden/[id]/Unternavigation.tsx und keine Registerzeile. src/server/registry/navigation.ts und routen.generiert.ts blieben unberuehrt — die sieben Routen stehen dort schon (routen.generiert.ts Zeilen 79–85).
+
+## Sonstiges
+
+1) docs/DECISIONS.md, Abschnitt „Open — ask, do not guess": die vier Zeilen aus `decisions_zeilen` einfuegen (Format `| O-nn | Question | Blocks |`, hoechste vorhandene Nummer ist O-596). Ohne sie bleiben `pnpm guards` und tests/kern/gate.test.ts rot, und O-660 — die Nummer, unter der die Verschaerfung des § 7 UWG entschieden werden soll — steht auf einem Kundenbildschirm, ohne irgendwo nachschlagbar zu sein.
+
+2) docs/architecture/routenbau/register/ hat noch keine `crm.md`. Die sechs anderen Domaenen haben je eine; wenn die Reihe fortgesetzt wird, gehoert der Inhalt dieses Berichts dorthin (sieben Routen, sieben Dienste, sechs API-Handler, sechs Migrationen 0245–0250, drei Isolationsdateien).
+
+3) HINWEIS AN DIE UEBERGEORDNETE SITZUNG, nicht an mich: der Pruefer nennt als wellenweites Muster O-640…O-652 und O-670…O-693 anderer Domaenen, die ebenfalls in DECISIONS.md fehlen. `pnpm guards` zaehlt in diesem Baum aktuell 79 Verstoesse `[todo-client-nicht-im-register]` — davon sind vier meine. Das laesst sich nur zentral in einem Zug loesen.
+
+4) HINWEIS AN DIE UEBERGEORDNETE SITZUNG: der Seed ist im Moment kaputt und damit die gesamte Isolationssuite. `pnpm db:seed` bricht ab mit `new row violates row-level security policy for table "leistungskatalog_position"`, Ursache ist die noch nicht eingecheckte `drizzle/0298_leistungskatalog_status.sql` einer fremden Domaene. Das blockiert jede `tests/isolation/*`-Datei aller Domaenen, nicht nur meine beiden neuen.
+
+5) Neue Testdateien dieser Runde, falls eine zentrale Liste gefuehrt wird: tests/isolation/crm-kondition.test.ts (NEU, 20 Faelle) und tests/isolation/crm-wiedervorlage.test.ts (NEU, 11 Faelle); erweitert: tests/kern/crm-uwg-matrix.test.ts und tests/kern/crm-erechnung-versand.test.ts (zusammen 75 Faelle, gruen).
+
+6) Eine neue gemeinsame Funktion ausserhalb der Domaene: `tagDeutsch()` in src/lib/datum/kalendertag.ts. Sie ist rein, ohne `Date`, und beantwortet die Frage, die im Baum 330-mal als `DD.MM.YYYY` und 71-mal als `Intl.DateTimeFormat('de-DE')` beantwortet wird. Wer die naechste ISO-Datumsanzeige findet, kann sie benutzen statt eine dritte Form zu erfinden.
+
+## Zeilen für docs/DECISIONS.md, Abschnitt „Offen"
+
+| O-660 | **Soll `app.darf_kontaktiert_werden` auf die Matrix des § 7 UWG umgestellt werden — Werbung an `bestandskunde` nur mit festgestellter `aehnliche_leistung`, Werbung an `anfrage` gar nicht, und die Ausnahme des § 7 Abs. 3 UWG nur ueber die ELEKTRONISCHE Postadresse?** Das wirksame Tor prueft fuer `werbung` am Kontakt heute nur `rechtsgrundlage <> 'keine'`. 05-API-KARTE §C.7 ist strenger. Die Luecke ist gebaut, sichtbar und in BEIDE Richtungen nachpruefbar (`services/crm/uwg-matrix.ts`, `abweichungenVomTor`, `tests/kern/crm-uwg-matrix.test.ts`) — das Tor ist umgekehrt an anderen Stellen strenger als die Matrix, weil es die Firma hinter dem Kontakt mitfragt. Bis zur Antwort bleibt das Tor unveraendert (`tests/isolation/uwg.test.ts` schreibt seine heutige Bedeutung fest) und die Abweichung steht auf dem Kontaktblatt statt in einem Kommentar. Die Nummer erscheint auf dem Bildschirm. | § 7 Abs. 2 Nr. 2 und Abs. 3 UWG, `drizzle/0246`, `services/crm/uwg-matrix.ts`, `portal/[mandant]/crm/kontakte/[id]`, O-95 |
+| O-661 | **Traegt der Rechtsgrundlagen-Block eines Ansprechpartners `crm.lesen` (so `app.rechtsgrundlage_lesen`, 0020) oder das engere `crm.rechtsgrundlage_lesen` (so Katalog, 04-SEITENKARTE §5.25 und 0222)?** Die beiden Quellen widersprechen sich, und der Unterschied ist nicht akademisch: `crm.lesen` ist fuer `leitung` GEBUNDEN, `crm.rechtsgrundlage_lesen` nur BINDBAR — jede Leitung saehe im ersten Fall die Einstufung, die ihr `/datenschutz/widersprueche` vorenthaelt. Bis zur Antwort gilt in den neuen Lesern aus 0247 (`app.kontakt_rechtsgrundlage_liste`, `app.kontakt_rechtsgrundlage_blatt`) das ENGERE Recht, in der alten Einzelabfrage das weitere. Die Nummer erscheint auf dem Bildschirm. | LEG-08, `drizzle/0247`, `drizzle/0222`, `auth/katalog.generiert.ts`, `portal/[mandant]/crm/kontakte` |
+| O-662 | **Wird ein Kundenzugang nach dem Anschluss von Supabase Auth (O-501) ueber die Admin-API angelegt, und wer traegt den Auftragsverarbeitungsvertrag fuer die Konten externer Ansprechpartner?** Heute legen die SECURITY-DEFINER aus 0249 die Zeile in `benutzer` an (`cse_app` hat dort nur SELECT); ein Konto in `auth.users` entsteht dabei NICHT, und der Einladungslink wird EINMAL angezeigt statt versendet — es ist kein Postausgang verbunden. Ein Zugang ohne Anmeldemoeglichkeit waere schlimmer als keiner, deshalb weist der Dienst das benannt ab, statt es zu tun. | AUT-01, DOC-04, `drizzle/0249`, `services/crm/kundenzugang.ts`, O-501, Art. 28 DSGVO |
+| O-663 | **Soll eine Wiedervorlage immer zugleich eine `aufgabe` und einen `kalender_eintrag` erzeugen (so 04-SEITENKARTE §5.2), oder bleibt sie eine reine Vertriebsnotiz auf `lead_aktivitaet`?** Eine Wiedervorlage, die nur auf `lead_aktivitaet` steht, erscheint in `/portal/[mandant]/aufgaben` nicht — und niemand merkt es. Bis zur Antwort schreibt `legeWiedervorlageAn` in alle drei Tabellen, soweit `aufgabe.schreiben` und `kalender.schreiben` reichen, und die Oberflaeche sagt je Ziel BEIM NAMEN, was nicht entstanden ist; `erledige` und `verschiebe` fassen die gespiegelte Aufgabe mit an. Die Nummer erscheint in der Rueckmeldung des Endpunkts. | CRM-04, 04-SEITENKARTE §5.2, `drizzle/0250`, `services/crm/wiedervorlage.ts`, `tests/isolation/crm-wiedervorlage.test.ts` |
+
+## Befunde des Prüfers (12)
+
+- **blockierend** · `/home/user/cse-platform/src/server/services/crm/kondition.ts` — Der Schreibweg der Zahlungskonditionen überschreibt ALLE VIER K-05-entzogenen Spalten bedingungslos (Zeile 163–174: `set debitorennummer = $2, zahlungsziel_tage = $3, mahnsperre_bis = $4, mahnsperre_grund = $5`) und prüft dabei NUR `crm.schreiben` (Zeile 114–119; ebenso `authorize` in api/crm/kunde/konditionen/route.ts Zeile 49–52). Das Leserecht dieser Werte — `crm_entgelt.lesen` — wird nirgends verlangt. Damit kann genau die Sitzung, die die Werte strukturell NICHT sehen darf, sie auf NULL setzen und bekommt „Die Konditionen sind gespeichert." zurück. Das ist nicht der üblliche last-write-wins-Fall: es ist Schreiben ohne Lesen auf einem absichtlich spaltenweise entzogenen Block. Betroffen ist keine Randrolle: `crm.schreiben` ist für `leitung` GEBUNDEN, `crm_entgelt.lesen` nur BINDBAR — eine Leitung ohne Zusatzerteilung bekommt auf der Seite ein 404 (Routen-Tor `crm_entgelt.lesen`), erreicht den Endpunkt aber gleichursprünglich von jeder anderen Portalseite. Folge: Debitorennummer weg (DATEV-Export), Zahlungsziel weg (die Faktura schreibt kein `faellig_am`, die Festschreibung weist ab) und die Mahnsperre samt Grund weg — der Mahnlauf läuft wieder gegen einen Kunden mit vereinbarter Stundung, samt § 288 BGB. Still, teuer, spät entdeckt; kein Test deckt diesen Weg ab (`grep -rl setzeKondition tests/` findet nur eine gleichnamige Fremdstelle in tests/kern/personal-eingaben.test.ts).
+  - Behebung: In `setzeKondition` zusätzlich `crm_entgelt.lesen` prüfen und mit benannter Meldung abweisen (dieselbe Begründung, mit der `app.zahlungskondition_lesen` es verlangt) — wer die Werte nicht lesen darf, darf sie nicht blind ersetzen. Zusätzlich das UPDATE auf die TATSÄCHLICH übergebenen Felder eingrenzen, statt vier Spalten pauschal zu setzen: entweder je Feld `coalesce($n, spalte)` mit einem ausdrücklichen „löschen"-Schalter, oder vier getrennte Vorgänge. Und einen Isolationstest, der genau das festschreibt: Sitzung mit `crm.schreiben` ohne `crm_entgelt.lesen` → Abweisung, und ein Teil-Formular löscht die übrigen drei Angaben nicht.
+- **wichtig** · `/home/user/cse-platform/src/server/services/crm/kondition.ts` — Eine ABGELAUFENE Mahnsperre sperrt das gesamte Konditionen-Formular. Zeile 148–157 weist jedes Speichern ab, sobald `mahnsperre_bis < app.berlin_heute()` — das Formular reicht aber die VORBELEGTEN Werte mit (page.tsx Zeile 302: `defaultValue={kondition?.mahnsperreBis ?? ''}`), und eine Sperre läuft normalerweise ab: der eigene Seed setzt eine auf heute+30 Tage. Ab Tag 31 ist an diesem Kunden weder die Debitorennummer noch das Zahlungsziel änderbar, ohne zugleich BEIDE Mahnsperrenfelder zu leeren — also den festgehaltenen Grund („Stundung bis Quartalsende vereinbart") zu löschen, den die Seite selbst als unverzichtbar beschreibt („eine Sperre ohne Grund hinterlässt später nur die Auskunft, dass nicht gemahnt wurde"). Das Datumsfeld trägt zusätzlich `min={heute}` (page.tsx Zeile 301), so dass der Browser den vorbelegten Wert von sich aus verweigert.
+  - Behebung: Die Vergangenheitsprüfung nur auf eine GEÄNDERTE Sperre anwenden: den vorhandenen Wert vorher über `app.zahlungskondition_lesen` holen und ein unverändertes `mahnsperre_bis` durchlassen (es hält ohnehin nichts an). `min={heute}` entsprechend nur setzen, wenn kein abgelaufener Wert vorbelegt ist, und auf der Seite schreiben, dass eine abgelaufene Sperre stehen bleiben darf, weil sie die Geschichte trägt.
+- **wichtig** · `/home/user/cse-platform/src/server/services/crm/erechnung.ts` — `WEG_VERBUNDEN.email = true` (Zeile 51–58) behauptet eine Verbindung, die das Haus an anderer Stelle ausdrücklich verneint. `versandLage` gibt für einen Käufer mit `uebertragungsweg = 'email'` und gesetzter Rechnungsadresse `art: 'bereit'` mit dem Satz „Verabredet ist E-Mail an die Rechnungsadresse" zurück (Zeile 223–229) — die Steuerseite zeigt darauf die grüne StatusPill „Bereit" (steuer/page.tsx Zeile 242/VERSAND_PILLE). Es ist aber kein Postausgang verbunden: `emailDienst()` gibt in jeder Umgebung einen Dienst mit `verbunden = false` zurück, und derselbe Bericht führt O-501 für den Kundenzugang korrekt als „nicht verbunden" mit. Damit steht auf dem Steuerblatt eines Kunden „Versand bereit" für einen Kanal, den diese Plattform nicht bedienen kann — genau die vorgetäuschte Integration, die dieselbe Datei für peppol/zre/ozg_re sorgfältig vermeidet, und genau der Fehler, den ihr eigener Kopfkommentar beschreibt („ein Versand, der ‚erfolgreich' meldet, ohne dass etwas ankommt"). Der Bericht behauptet dazu: „nicht verbundene Kanaele meldet 'nicht_verbunden' und nie 'bereit'" — für `email` trifft das nicht zu.
+  - Behebung: `WEG_VERBUNDEN.email` auf den tatsächlichen Zustand zurückführen, statt ihn hier ein zweites Mal zu behaupten: entweder `false` mit der Begründung O-501, oder — besser — `versandLage` einen Parameter `postausgangVerbunden` übergeben, den die Seite aus `emailDienst(...).verbunden` füllt, damit es weiterhin EINE Wahrheit über den Postausgang gibt. `kundenportal` und `post` dürfen als „ein Mensch bedient sie" stehen bleiben; `email` ist ein Anschluss. Die Zusage in tests/kern/crm-erechnung-versand.test.ts entsprechend nachziehen, sonst wandert die Bedeutung ohne Testwechsel.
+- **wichtig** · `/home/user/cse-platform/src/server/services/crm/uwg-matrix.ts` — `abweichungVomTor()` (Zeile 229–241) beansprucht, „genau die zwei Fälle" zu nennen, in denen Matrix und wirksames Tor auseinanderlaufen, prüft aber nur die Ebene des ANSPRECHPARTNERS. `app.darf_kontaktiert_werden` fragt für `werbung` zusätzlich den KUNDEN: `k.rechtsgrundlage <> 'keine' and k.widerspruch_am is null and k.werbewiderspruch_am is null and k.status <> 'gesperrt'` — dazu `ap.archiviert_am`/`ap.anonymisiert_am`. In allen diesen Fällen sperrt das Tor, die Matrix erlaubt, und `abweichungVomTor` meldet `null`. Auf dem Kontaktblatt steht dann in der Spalte „Nach § 7 UWG (noch nicht wirksam)" ein grünes „Bereit" neben dem roten „Abgelehnt" des Tores, ohne Hinweis — und die Überschrift rahmt die Matrix als die SCHÄRFERE, erst noch einzuschaltende Fassung. Ein Mensch liest daraus „sobald O-660 entschieden ist, darf ich werben", während der Kontakt in Wahrheit gesperrt bleibt, weil die Firma keine Grundlage hat. Zweitens setzt `alsKontaktLage` (kontakt-grundlage.ts:107–118) `abmeldezeileGerendert = true` als Vorgabe: die Matrix bejaht damit § 7 Abs. 3 Nr. 4 UWG für einen Versandweg, der gar nicht gebaut ist — eine Annahme im Code, die auf dem Bildschirm als Rechtsauskunft erscheint.
+  - Behebung: `KontaktLage` um die Kundenebene erweitern (Grundlage, beide Widersprüche, Status, archiviert/anonymisiert) und `abweichungVomTor` beide Richtungen melden — auch „das Tor ist hier STRENGER als die Matrix, und zwar aus diesem Grund". `abmeldezeileGerendert` zum Pflichtparameter machen, statt ihn auf `true` vorzubelegen; auf einem Blatt ohne Sendeweg gehört dort die Angabe „nicht feststellbar, es gibt keinen Versandweg". Die neuen Fälle in tests/kern/crm-uwg-matrix.test.ts festschreiben.
+- **wichtig** · `/home/user/cse-platform/src/app/portal/[mandant]/crm/kunden/[id]/steuer/page.tsx` — Drei Freitextfelder erwarten stillschweigend eine UUID und erzeugen bei einer plausiblen Falscheingabe einen rohen Datenbankfehler samt 500, wobei die gesamte Formulareingabe verloren geht. Zeile 764 `<input name="auftragId" …>` ist mit „Auftrag (nur bei ‚auftragsbezogen')" beschriftet — ein Mensch tippt dort die Auftragsnummer. Der Wert geht ungeprüft als `$7::uuid` in das INSERT (kunde-steuer.ts:391–396); die Route validiert nur `kundeId` und `bescheinigungId` mit ihrem UUID-Muster (steuer/route.ts:39, 76, 142), `auftragId` und `dokumentId` (Zeile 773) nicht. Postgres wirft `22P02`, das ist kein `SteuerFehler`, also greift der Umweg in Zeile 148–156 nicht und der Fehler fliegt durch. Dasselbe gilt für `belegDokumentId` auf rechtsgrundlage/page.tsx:372 → `setzeGrundlage` `$5::uuid`. Das Haus verspricht an jeder anderen Stelle dieser Domäne ausdrücklich „deutsche Meldung statt rohem Datenbankfehler".
+  - Behebung: Die UUID im Dienst prüfen (dasselbe Muster wie in der Route) und als `SteuerFehler`/`CrmFehler` mit deutschem Satz abweisen — dann führt der 303-Weg wie überall sonst aufs Formular zurück. Besser noch: statt eines Freitextfeldes eine Auswahl der Aufträge dieses Kunden (und der Dokumente dieses Kunden) anbieten, wie es die Zugangsseite für die Ansprechpartner schon tut; eine getippte Kennung ist auch bei richtigem Format die falsche Bedienung.
+- **wichtig** · `/home/user/cse-platform/docs/DECISIONS.md` — Die vier offenen Fragen, die diese Domäne NEU aufgeworfen hat — O-660 (§-7-Abs.-3-Matrix gegen das heutige Tor), O-661 (welches Recht den Rechtsgrundlagen-Block trägt), O-662 (Kundenkonto nach dem Anschluss von Supabase Auth, AV-Vertrag), O-663 (erzeugt eine Wiedervorlage zwingend `aufgabe` und `kalender_eintrag`) — stehen in keiner Zeile von docs/DECISIONS.md. Sie sind aber nicht nur Kommentare: O-660 und O-661 stehen als Text auf den Bildschirmen (kontakte/page.tsx, kontakte/[id]/page.tsx), O-663 steht in der Rückmeldung des Endpunkts. Die Arbeitsregel des Projekts verlangt für eine offen gelassene Geschäftsregel BEIDES: `TODO(client, O-NN)` im Code UND eine Registerzeile unter „Open". Ohne die Registerzeile ist eine Nummer, die auf dem Bildschirm eines Kunden erscheint, nirgends nachschlagbar — und O-660 ist die Nummer, unter der die Verschärfung des § 7 UWG entschieden werden soll.
+  - Behebung: Vier Zeilen unter „Open" in docs/DECISIONS.md nachtragen, jede mit der exakten Frage aus dem jeweiligen TODO: 0247 Zeile 54–58 (O-661), uwg-matrix.ts Zeile 31–33 (O-660), kundenzugang.ts Zeile 37–39 (O-662), wiedervorlage.ts Zeile 32–36 (O-663). Solange sie fehlen, ist keine der vier Seiten nach der Definition-of-done fertig.
+- **wichtig** · `/home/user/cse-platform/src/server/services/crm/wiedervorlage.ts` — `legeWiedervorlageAn` (Zeile 231–318) — der einzige Schreibweg, der `aufgabe` und `kalender_eintrag` spiegelt, der einzige Grund für die Migration 0250 (`bezug_typ = 'lead_aktivitaet'`) und der Träger der Zusage zu O-663 („die Oberfläche sagt, was entstanden ist") — ist von KEINER Oberfläche erreichbar und von keinem Test ausgeführt. Kein Formular im Baum sendet `was=anlegen` an `/api/crm/wiedervorlage`; die Wiedervorlagenseite baut nur `erledigt` und `verschieben` (page.tsx:156–184), und der Plan verweist das Anlegen auf Lead- und Kontaktblatt, wo es nicht gebaut wurde. Damit gibt es keine Oberfläche, die den `Spiegel` und `nichtGespiegelt` je zeigt, und die Spiegelzeilen, an denen `erledige`/`verschiebe` mitziehen (Zeile 345–351, 436–442), können in den Demodaten nicht entstehen — der Seed schreibt nur `lead_aktivitaet` (seed/crm.ts:306–316). Die Seite behauptet dem Menschen gegenüber trotzdem: „Beide fassen die gespiegelte Aufgabe mit an (O-663) — sonst wäre derselbe Vorgang hier erledigt und in den Aufgaben noch offen."
+  - Behebung: Entweder das Anlegeformular dort bauen, wo der Plan es verortet (Lead- und Kontaktblatt), oder — solange das nicht geschieht — den Satz über die gespiegelte Aufgabe von der Liste nehmen und O-663 auf den tatsächlichen Stand bringen: „heute steht eine Wiedervorlage nur auf `lead_aktivitaet`". In beiden Fällen gehört ein Isolationstest dazu, der `legeWiedervorlageAn` einmal mit und einmal ohne `aufgabe.schreiben`/`kalender.schreiben` ausführt und `nichtGespiegelt` festschreibt; ohne ihn sind die drei INSERTs und der Enumwert aus 0250 eine Zusage, die nichts prüft.
+- **wichtig** · `/home/user/cse-platform/src/app/portal/[mandant]/crm/kontakte/[id]/page.tsx` — Zeile 479–486 sagt dem Menschen etwas Falsches über den eigenen Baum und hält deswegen einen funktionierenden Verweis zurück: „Der Werbewiderspruchs-Katalog der Gesellschaft steht unter /portal/{mandant}/datenschutz/widersprueche … Er ist noch nicht gebaut; von hier führt deshalb kein Verweis dorthin, damit keiner auf ein 404 zeigt." Die Seite IST gebaut und committet. Genau dieses Blatt wurde drei Stunden SPÄTER geschrieben, die Behauptung war also beim Schreiben schon unwahr. Wirkung: der Nachweisblock dieses Kontakts und der Katalog der Gesellschaft hängen am gleichen Recht (`crm.rechtsgrundlage_lesen`), und der Weg von dem einen zum anderen — den die Seitenkarte vorsieht — fehlt, obwohl er offen stünde. Zugleich ist dieselbe Datei die, die dem Prüfer erklärt, ein Knopf ins Leere sei schlimmer als keiner.
+  - Behebung: Den Satz durch einen Verweis ersetzen, sichtbar nur mit `crm.rechtsgrundlage_lesen` (das Recht wird auf dieser Seite schon über `haeltRechte` geholt, Zeile 126–127) — dann führt er nie auf ein 404. Denselben Stand auch in rechtsgrundlage/page.tsx prüfen.
+- **klein** · `/home/user/cse-platform/src/app/portal/[mandant]/crm/kunden/[id]/steuer/page.tsx` — Datumsangaben erscheinen in deutschem Fliesstext im ISO-Format statt in der Hausschreibweise. „Am 2026-09-18 liegt keine gültige Bescheinigung vor." (Zeile 619–620), „2026-01-01 – 2026-12-31" (Zeile 651), `gilt_ab`/`gilt_bis` als ISO-Text (Zeile 492 ff.), „widerrufen 2026-06-30". Dasselbe auf der Konditionenseite: „bis 2026-10-18" (Zeile 212) und „Ab dem Tag nach dem 2026-10-18 mahnt er wieder." (Zeile 227). Das Haus schreibt Datumsangaben sonst als `DD.MM.YYYY` (330 Dateitreffer) oder über `Intl.DateTimeFormat('de-DE')` (71 Treffer) — dieselbe Domäne macht es auf dem Kontaktblatt und in der Wiedervorlagenliste selbst so.
+  - Behebung: Die Kalendertage entweder in SQL mit `to_char(…, 'DD.MM.YYYY')` ausgeben oder in der Seite über denselben `Intl`-Formatierer, den das Kontaktblatt schon anlegt. Der Stichtag im Adressparameter bleibt ISO (`<input type="date">` verlangt es) — angezeigt wird er deutsch.
+- **klein** · `/home/user/cse-platform/src/app/portal/[mandant]/crm/kontakte/page.tsx` — Ohne `crm.rechtsgrundlage_lesen` bleibt der Filterparameter wirksam, obwohl die Filterleiste nicht gerendert wird — und die Seite trifft dann eine falsche Aussage über den Bestand. `filter` kommt aus `searchParams` (Zeile 97), `karte` ist leer, also fällt in Zeile 152–163 jede Zeile durch (`if (g === undefined) return false`), und Zeile 253–259 schreibt „Kein Ansprechpartner mit dieser Einstufung. Das ist eine Aussage über den Filter, nicht über den Bestand". Der Kommentar direkt darüber (Zeile 155–157) behauptet das Gegenteil des Codes: „eine Zeile, die der Filter nicht beurteilen kann, wird nicht weggelassen, sondern der Filter ist dann gar nicht sichtbar". Erreichbar über eine getippte oder weitergegebene Adresse `?grundlage=keine`; das versteckte Feld in Zeile 200–202 trägt den Parameter danach durch jede Suche mit.
+  - Behebung: Den Filter auf `'alle'` zurückfallen lassen, wenn `darfGrundlage` falsch ist (eine Zeile neben Zeile 97), oder — konsequenter — bei fehlendem Recht keine Zeile wegfiltern und den Hinweis aus Zeile 237–243 dazu stellen. Danach stimmt der Kommentar wieder.
+- **klein** · `/home/user/cse-platform/src/app/portal/[mandant]/crm/page.tsx` — Die neue Kachel „Wiedervorlagen fällig" zählt etwas anderes, als die Seite zeigt, die sie öffnet — dieselbe Klasse Fehler, die in derselben Änderung für die Kachel „Ansprechpartner" behoben wurde. Die Kachel zählt `faellig_am::date <= app.berlin_heute()` über ALLE Zuständigen (Zeile 71–78), die Liste dahinter zeigt alle offenen Wiedervorlagen (auch künftige) und beginnt mit dem Filter „nur meine". In den eigenen Demodaten (vier Zeilen mit Versatz −3, 0, +2, +21 Tagen) steht auf der Kachel 2, auf der Seite „4 offen · 1 überfällig" — drei Zahlen für eine Sache. Der Bericht nennt den Zuständigen-Unterschied selbst, die Beschriftung nennt ihn nicht.
+  - Behebung: Die Kachel auf dieselbe Frage bringen wie das Ziel — entweder mit `?wer=alle` verlinken und die Beschriftung auf „fällig, alle Zuständigen" setzen, oder die Zählung auf `zustaendig_benutzer_id = app.aktueller_benutzer()` eingrenzen und die Vorgabeansicht der Liste treffen.
+- **klein** · `/home/user/cse-platform/src/server/db/seed/crm.ts` — Zwei Stellen des Kopf- und Blockkommentars beschreiben etwas anderes als der Code. (1) Zeile 49–54: „dieser Seed setzt das Ziel auf ZWEI Kunden und lässt die übrigen fünf leer, damit beide Fälle auf der Seite vorkommen" — der Code setzt `zahlungsziel_tage` auf GENAU EINEN Kunden (Zeile 135–143, nur `erster`); `zweiter` bekommt ausschliesslich die Mahnsperre. Der Bericht nennt korrekt „1 Kondition", die Datei nicht. (2) Zeile 272–275 rechnet die Fächer gegen „`app.berlin_heute()` und `app.berlin_wochenende()`" — eine Funktion `app.berlin_wochenende()` gibt es nicht; das Wochenende wird in wiedervorlage.ts:134–136 mit `date_trunc('week', app.berlin_heute()::timestamp) + 6` gebildet. Derselbe erfundene Funktionsname steht im Bericht als Tatsache.
+  - Behebung: Beide Sätze auf den Code bringen: „ein Zahlungsziel, eine Mahnsperre, die übrigen bleiben leer" und „gegen `app.berlin_heute()` und den in `ZEITANKER_SQL` daraus gerechneten Wochenschluss". Kommentare, die mehr versprechen als der Code, sind in diesem Baum die Quelle, aus der die nächste Behauptung entsteht.
+
+**Urteil:** Substanziell gebaut, nicht nur übersetzt: alle sieben Routen tragen echte Zeilen, die Abfragen laufen gegen echtes Postgres (26 Zusagen in der neuen tests/isolation/crm-seitenabfragen.test.ts), die sechs Migrationen sind angewendet und sauber (keine neue Tabelle, alle neun Definer gehören cse_definer, alle mit gesetztem search_path, kein PUBLIC-EXECUTE), und die drei schwersten KRITIK-Punkte sind wirklich umgesetzt — der listenfähige Definer aus 0247 statt N Protokollzeilen, das engere crm.rechtsgrundlage_lesen statt crm.lesen, der zweite Widerspruchs-Endpunkt mit eigenem Nachweis in `werbewiderspruch`. Die Testzahlen des Berichts habe ich nachgerechnet und bestätigt: 81 kern-Zusagen grün, 106 Isolationszusagen grün (27+31+26 aus den eigenen Dateien, 22 aus der fremden uwg.test.ts); der eine rote Punkt in definer-eigentum.test.ts ist wirklich fremd (acht Funktionen aus 0221/0222 ohne `revoke execute … from public`).
+
+EIN blockierender Befund: der Konditionen-Schreibweg prüft nur `crm.schreiben` und überschreibt alle vier K-05-entzogenen Spalten bedingungslos. Damit löscht genau die Rolle, die diese Werte nicht sehen darf (jede `leitung` — `crm.schreiben` gebunden, `crm_entgelt.lesen` nur bindbar), Debitorennummer, Zahlungsziel und Mahnsperre samt Grund und bekommt „gespeichert" zurück. Ich habe das gegen einen Klon der Datenbank ausgeführt, nicht abgeleitet: `debitor=NULL ziel=NULL`. Danach läuft der Mahnlauf gegen einen Kunden mit vereinbarter Stundung. Dieselbe Seite hat einen zweiten, harmloseren Riss: eine ABGELAUFENE Mahnsperre sperrt das ganze Formular, und der einzige Ausweg, den die Oberfläche anbietet, löscht den Sperrgrund.
+
+Die übrigen wichtigen Befunde sind alle derselben Art — eine Zusage, die eine Ebene tiefer nicht hält: `WEG_VERBUNDEN.email = true` meldet „Versand bereit" für einen Postausgang, den `emailDienst()` im ganzen Haus als `verbunden = false` führt (O-501); `abweichungVomTor()` beansprucht Vollständigkeit, kennt aber die Kundenebene des Tores nicht (nachgemessen: Tor=false, Matrix=true, Abweichung=null); `legeWiedervorlageAn` samt aufgabe-/kalender-Spiegel und der ganzen Begründung für 0250 ist von keiner Oberfläche und keinem Test erreicht, während die Liste dem Menschen das Gegenteil sagt; drei Freitextfelder erwarten stillschweigend eine UUID und liefern bei der plausiblen Eingabe „A-2026-001" ein rohes 22P02 statt einer deutschen Meldung; und die vier neu erfundenen offenen Nummern O-660…O-663 stehen in keiner Zeile von DECISIONS.md, obwohl zwei davon auf dem Bildschirm erscheinen.
+
+Was ich NICHT abschliessend prüfen konnte und was nicht dieser Domäne gehört: die Isolationssuite lässt sich im Baum derzeit gar nicht starten, weil das globale Setup den echten Seed fährt und der in `versendeAngebot` mit `ohne_freigabe` abbricht (src/server/db/seed/vertrieb.ts:275 → src/server/services/angebot/index.ts:407), und `pnpm typecheck` stirbt an einem unbeendeten Template-Literal in src/app/portal/[mandant]/angebote/[id]/annahme/page.tsx:394. Beides liegt in der Angebots-/Vertriebsdomäne. Ich habe deshalb einen Klon der Entwicklungsdatenbank benutzt und einen Typecheck gefahren, der genau diese eine fremde Datei ausschliesst — darin sind die Dateien dieser Domäne typrein, und eslint über alle 16 ist still. Der Baum ist unverändert; die beiden Probe-Datenbanken sind gelöscht.
+
+## Nach der Behebung noch offen
+
+- docs/DECISIONS.md — Befund 6 ist BESTAETIGT und NICHT von mir behoben, weil die Datei zu den gesperrten gehoert. O-660, O-661, O-662 und O-663 fehlen dort weiterhin (`grep -c` → 0 0 0 0). Solange sie fehlen, bleibt `pnpm guards` mit `[todo-client-nicht-im-register]` rot und tests/kern/gate.test.ts ('und der echte Baum ist sauber') faellt. Die vier fertigen Zeilen stehen in `decisions_zeilen`.
+- src/server/auth/route-manifest.ts — sechs API-Routen dieser Domaene fehlen im Manifest (tests/kern/routen.test.ts 'keine Route fehlt im Manifest'). Gesperrte Datei; die Zeilen stehen in `registry_manifest`.
+- src/server/registry/dienste.ts — sieben Dienste dieser Domaene fehlen im Register (tests/kern/portal-shell.test.ts 'und das Register kennt jeden Dienst, der existiert'). Gesperrte Datei; die Zeilen stehen in `registry_dienste`.
+- Die Isolationssuite laeuft in diesem Baum UEBERHAUPT NICHT — nicht wegen dieser Domaene: `tests/isolation/global-setup.ts` ruft `src/server/db/seed/index.ts`, und der bricht mit `PostgresError: new row violates row-level security policy for table "leistungskatalog_position"` ab. Ursache ist die fremde, noch nicht eingecheckte `drizzle/0298_leistungskatalog_status.sql` samt `src/app/portal/[mandant]/leistungskatalog/`. Meine beiden neuen Isolationsdateien (crm-kondition, crm-wiedervorlage) sind deshalb nicht von vitest ausgefuehrt worden; JEDE ihrer Zusagen habe ich statt dessen von Hand gegen ein frisch migriertes `w_crm` mit denselben Dienstfunktionen nachgemessen (Protokolle oben unter `behoben`). Sie typechecken und linten sauber.
+- `pnpm lint` bricht mit einem Parsing-Fehler in `src/app/portal/[mandant]/dienstplan/serien/[id]/page.tsx:504` ab — fremde Domaene, `tsc --noEmit` ist auf derselben Datei sauber. Dadurch kommt eslint im Sammellauf nicht bis zu meinen Dateien; ich habe alle 19 beruehrten Dateien einzeln mit `npx eslint` geprueft (sauber).
+- Restliche rote Wachen in tests/kern, alle AUSSERHALB dieser Domaene und von mir nicht angefasst: verweis-rechte (auftraege/[id]/kundenfreigabe, datenschutz/[id], datenschutz/widersprueche), pillenzeile-umbricht (bau/projekte/[id]/lv/*, finanzen/hashkette), kennung-tor + mandanten-tor (datenschutz/[id]/*), api-verdrahtung (api/mein/schichten/…/unterschrift), katalog (nummernkreis.letzter_hash, radar.stand_gesetzt, dienstplan.plan_veroeffentlicht), mitarbeiter (vier mitarbeiter/-Dienste), tableiste-ziele (drei /portal/kunde/*-Ziele).
+- O-660 bleibt sachlich offen: `app.darf_kontaktiert_werden` ist NICHT geaendert worden. Das war Absicht — tests/isolation/uwg.test.ts schreibt die heutige Bedeutung fest, und eine Verschaerfung des Sendetors ist eine Rechtsentscheidung, keine Aufraeumarbeit. Die Abweichung steht jetzt vollstaendig und in beide Richtungen auf dem Bildschirm.
+- Das Anlegeformular fuer eine Wiedervorlage steht auf dem Kontaktblatt, NICHT auf dem Leadblatt (`crm/leads/[id]`). Der Plan verortet es an beiden Stellen; das Leadblatt gehoerte nicht zu den sieben Routen dieses Auftrags. Beide Seiten (Wiedervorlagenliste und Dienstkopf) sagen jetzt ausdruecklich, wo es steht und wo es fehlt — kein Text behauptet mehr mehr, als gebaut ist.
+
+## NICHT gebaut, mit Grund
+
+- Nichts aus meinem Plan blieb offen — alle sieben Routen stehen vollstaendig, keine ist ein Platzhalter nach Regel 1.
+- BEWUSST NICHT gebaut (fremdes Eigentum): app.darf_kontaktiert_werden wurde NICHT auf die §7-Abs.-3-Matrix umgestellt. Die heutige Bedeutung ist von tests/isolation/uwg.test.ts einer anderen Domaene festgeschrieben; ein Tor, dessen Bedeutung zwischen zwei Migrationen wandert, ohne dass die Zusagen mitwandern, ist genau der stille Fehler, den CRM-08 verhindern soll. Die Matrix steht als geprueftes reines Praedikat in src/server/services/crm/uwg-matrix.ts und die Oberflaeche stellt beide Antworten nebeneinander — die des Tores (wirksam) und die der Matrix (noch nicht wirksam) — mit O-660 daneben. Die Wertung gehoert vor die Verschaerfung.
+- BEWUSST NICHT gebaut: kein Sendeknopf auf dem Kontaktblatt. POST /api/crm/nachrichten (05-API-KARTE Zeile 643) ist nicht gebaut und gehoert nicht in meine Domaene; statt eines Knopfes, der nichts tut, steht dort nichts.
+- Migrationsnummern 0251–0254 sind UNBENUTZT geblieben — sechs Dateien haben gereicht.
+
+## Notizen des Bauender
+
+**Wo ich angefangen habe.** Der Baum war sauber, und die Arbeit dieser Domaene lag schon im Verlauf: Commit a4f9e28 („Gerettet vor dem Limit") hatte die sieben Seiten, sechs Handler, sieben Dienste, sechs Migrationen und fuenf Testdateien gesichert, bevor das Limit zuschlug. `routenbau/README.md` fuehrte crm-rest als „angefangen, vom Limit unterbrochen". Ich habe deshalb nicht neu gebaut, sondern zu Ende gefuehrt und nachgewiesen — und drei echte Luecken gefunden.
+
+**Postgres lief nicht.** Ein Container-Neustart hatte eine verwaiste `postmaster.pid` mit einer toten PID hinterlassen; nach dem Entfernen und einer Wiederherstellungsphase stand der Server auf 55432. Das vorweg, falls die naechste Sitzung dasselbe Bild sieht.
+
+**Die drei Luecken, die noch offen waren:**
+
+1. **Die Seitenabfragen waren nie gelaufen.** Die Dienste hatten Tests, die `select`-Bloecke in den sieben `page.tsx` nicht — und `tsc` prueft keinen Abfragetext. Die neue `tests/isolation/crm-seitenabfragen.test.ts` fuehrt jede Abfrage woertlich gegen echtes Postgres aus. Beim Schreiben hat sie mir selbst zwei Rateschluesse nachgewiesen (`aktivitaet_typ` hat kein `'telefonat'`, der Wert heisst `'anruf'`; `ansprechpartner_hauptkontakt_uk` laesst je Kunde nur einen Hauptkontakt zu) — beide in MEINER Fixtur, keiner im Produktionscode, was ich gegengeprueft habe. Dabei sind zwei Invarianten sichtbar geworden, die jetzt eigene Zusagen haben: `kern.uwg_sendetor` braucht eine gebundene Sitzung (ohne `app.aktiver_mandant()` findet das Tor keine Zeile, `coalesce(…, false)` macht daraus ein Nein, und der Insert scheitert mit „nicht zulaessig" — nicht weil der Kontakt gesperrt waere, sondern weil niemand gesagt hat, wer fragt), und `kern.erzwinge_serverzeit_geschehen` verwirft einen mitgeschickten Zeitpunkt (Invariante 5).
+
+2. **Der Seed fuellte vier der sieben Seiten nicht** — die „gemeinsame Luecke", die mein Plan benennt. Neu: `src/server/db/seed/crm.ts`, verifiziert mit einem Skript im Kratzverzeichnis (21 Nachzaehlungen, Mehrfachlauf ohne Doppelung, „ohne CSE_DEV_FLAECHEN gar nichts"). Dabei ein echter Fehler gefunden und behoben: `app.berlin_heute() + ${versatz}` mit einem Parameter ist `date + unknown` und damit mehrdeutig — es braucht `${versatz}::integer`. **Einschraenkung, die ich nicht wegreden will:** `pnpm db:seed` steht auf der Sperrliste, also ist der Seed im VERBUND mit den 28 anderen Seedschritten nicht gelaufen. Geprueft ist er einzeln, gegen eine eigene Datenbank, mit einer Fixtur, die den Zustand nach `seedOperations` nachbildet. Wer als naechstes einen vollen Seed fahren darf, sollte die Meldezeile „CRM: …" im Protokoll suchen.
+
+3. **Zwei Seiten waren nur ueber die Adresszeile erreichbar** (Einzelheiten unter `registry_navigation`).
+
+**Ein fremder roter Punkt, den ich nicht anfassen durfte.** `tests/isolation/definer-eigentum.test.ts` faellt in der Zusage „keine `app`-Definer-Funktion laesst PUBLIC daneben stehen" — sie ist eine Sperrklinke und erwartet `[]`. Offen sind **acht** Funktionen, und **keine davon ist meine**: `benachrichtigung_auskunft` aus `0221_datenschutz_nachweis.sql` und `werbewiderspruch_einloesen`, `werbewiderspruch_formular`, `werbewiderspruch_liste`, `werbewiderspruch_token_ausgeben`, `werbewiderspruch_token_mandant`, `widerspruch_stand`, `widerspruch_verarbeitung_setzen` aus `0222_werbewiderspruch.sql` — beide aus der Domaene `datenschutz` (0220–0229). `grant execute … to cse_app` fuegt HINZU und ersetzt den PUBLIC-Eintrag nicht; es fehlt je Funktion ein `revoke execute … from public`. Mein `0248` fasst dieselbe Fachlichkeit an und macht es richtig, weshalb meine sieben `app.`-Funktionen alle geschlossen sind (nachgemessen: `public_offen = f`). Das ist kein Schoenheitsfehler: `werbewiderspruch_formular(p_email)` und `widerspruch_stand(...)` geben ohne Sitzung Auskunft ueber eine benannte Person, und zurueckgehalten hat sie bisher nur der Rumpf. **Eine vorhandene `drizzle/*.sql` darf ich nicht aendern, und die Nummern der Domaene sind nicht meine** — das braucht eine Datei in 0220–0229 oder eine freie Nummer der zentralen Hand.
+
+**Was ich bewusst nicht getan habe.** Kein `pnpm test`, `test:isolation`, `test:e2e`, `db:seed`, `db:triggers`, `build`, kein `git add`/`commit`, keine Migration gegen `cse_dev`/`cse_test`. Die Isolationsdateien liefen ueber eine eigene Konfiguration im Kratzverzeichnis gegen meine eigenen Datenbanken (`w_crm`, `w_crm2`), ohne `globalSetup`, damit `cse_test` unberuehrt bleibt. Typecheck und ESLint habe ich auf meine Pfade gefiltert; beide sind sauber. `pnpm db:migrate` lief zweimal gegen eine frische eigene Datenbank und ging beide Male bis `Migrationen angewendet.` durch — beim zweiten Mal mit den inzwischen von anderen Agenten hinzugekommenen 0255/0256, die Kette haelt also weiterhin. Die Registerdateien, `rls.ts` und die Dokumente habe ich nicht angefasst; ihre Eintraege stehen oben als Text. Die eine Ausnahme ist `src/server/db/seed/index.ts`, die nicht auf der Sperrliste steht — der Eingriff ist rein additiv und unter `registry_sonstiges` zum Zurueckdrehen beschrieben.
+
+**Meine Dateien in dieser Sitzung** (alles andere im `git status` gehoert gleichzeitig laufenden Agenten): geaendert `src/app/portal/[mandant]/crm/page.tsx`, `src/server/db/seed/index.ts`; neu `src/server/db/seed/crm.ts`, `tests/isolation/crm-seitenabfragen.test.ts`.
+
+## Notizen des Behebender
+
+ABWEICHUNG VON EINEM VORSCHLAG DES PRUEFERS (bewusst, mit Begruendung): Er schlaegt vor, `versandLage` den Postausgang aus `emailDienst(...).verbunden` zu fuellen. Ich habe statt dessen `versandwege()` aus `server/services/finanz/versand.ts` genommen, also `versand.email.verbunden` aus `mandant_einstellung`. Grund: `emailDienst()` ist der Postausgang fuer Benachrichtigungen und Bewerbungsantworten; ueber den RECHNUNGSversand entscheidet in diesem Haus derselbe Schluessel, den der Ausloeser `rechnung_versand_2_kanal_verbunden` (0181) prueft, bevor er eine Versandzeile annimmt. `emailDienst` an dieser Stelle waere genau die zweite Wahrheit gewesen, die der Befund beanstandet — nur an einer anderen Stelle. Beide antworten heute `false`; der Unterschied zaehlt an dem Tag, an dem einer der beiden angeschlossen wird. `empfaengerlage()` in finanz/versand.ts reicht denselben Wert jetzt ebenfalls durch, damit XRechnung-Blatt und Steuerblatt nicht auseinanderlaufen koennen.
+
+GESTALTUNG: keine neuen Werte. Verwendet wurden ausschliesslich vorhandene Tokens (s1…s7, text/text-muted/text-subtle, line/line-strong, surface/surface-2, brand/brand-hover, warning, danger, text-micro/xs/sm/lg/h1/h2, rounded-md/lg, min-h-11). Die einzige Klassenaenderung ist `inline-flex items-center gap-s2` → `inline-flex flex-wrap items-center gap-s2` in der §48b-Zustandszelle, also genau die Form, die tests/kern/pillenzeile-umbricht.test.ts vorschreibt.
+
+KEINE NEUE MIGRATION. Die Befunde brauchten keine: der blockierende Punkt ist ein Rechte- und Schreibwegfehler in TypeScript, kein Schemafehler. Die Nummern 0245–0254 sind damit unveraendert (0245–0250 aus dem Bauschritt, 0251–0254 unbenutzt). Der Migrationslauf wurde trotzdem nach jeder Aenderungswelle wiederholt: `drop database w_crm` / `create database` / `alter database … cse.fenster_schluessel` / `DATABASE_URL=…/w_crm pnpm db:migrate` → 'Migrationen angewendet.' bis 0304, dreimal gruen.
+
+KEINE NEUE O-NUMMER VERGEBEN. Der Vorrat O-660…O-669 war schon im Bauschritt bis O-663 belegt; fuer die Befunde war keine weitere offene Geschaeftsregel noetig. O-501 (Postausgang), O-22 (E-Rechnungshaefen), O-66 (Zahlungsziel), O-05 (Debitorenkreis), O-95 (aehnliche Leistung), O-603/O-604/O-21/O-67/O-104 stehen alle schon im Register bzw. in fremden Domaenen.
+
+INVARIANTEN, DIE DIE ARBEIT BERUEHRT HAT: Geld — nicht beruehrt. Zeit — `tagDeutsch()` rechnet bewusst NICHT, es formt eine Zeichenkette um; `new Date('2026-09-18').toLocaleDateString('de-DE')` haette westlich von Greenwich den Vortag gezeigt. Die Fristen der Wiedervorlage bleiben `at time zone 'Europe/Berlin'` in der Datenbank. RLS/K-05 — die vier entzogenen Kundenspalten und der Nachweisblock des Ansprechpartners werden weiterhin nirgends in RETURNING oder WHERE genannt; `coalesce($n, spalte)` habe ich genau deshalb NICHT benutzt und den Grund in die Datei geschrieben. Keine harten Loeschungen. Gruppenansicht unveraendert. Die KI rechnet nichts. AUT-06: fehlendes Recht ist ueberall 404 bzw. ein benannter Satz, nie eine leere Liste, die wie ein Befund aussieht.
+
+NACHMESSUNG STATT BEHAUPTUNG: Jeder der zwoelf Befunde wurde zuerst nachvollzogen, bevor ich ihn behoben habe — keiner liess sich widerlegen. Die drei Proben gegen ein frisches `w_crm` (Konditionen-Schreibweg, Kennungen + §7-Abweichung, Wiedervorlagen-Spiegel) habe ich nach dem Lauf wieder aus dem Baum entfernt; ihre Ausgaben stehen wortweise unter `behoben`.

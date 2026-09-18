@@ -1,367 +1,111 @@
-# Registereintraege: datenschutz
+# Registereinträge: datenschutz
 
-Diese Eintraege hat der bauende Agent geliefert; sie sind **noch nicht** eingefuegt.
-Die gemeinsamen Dateien pflegt EINE Hand, weil acht Agenten gleichzeitig im Baum
-arbeiten und sich sonst in dieselbe Zeile schreiben. Ist ein Eintrag eingefuegt,
-verschwindet er hier — diese Datei ist eine Warteschlange, kein Archiv.
+**Warteschlange, kein Archiv.** Diese Einträge sind **noch nicht** im Baum. Die
+gemeinsamen Dateien pflegt EINE Hand, weil mehrere Agenten gleichzeitig arbeiten
+und sich sonst in dieselbe Zeile schreiben. Ist ein Abschnitt eingetragen, wird
+er hier gelöscht — solange er hier steht, fehlt er dort.
 
-## Migrationen (alle gegen eine eigene Datenbank gefahren: True)
+**Die Einträge des Behebungsschritts gelten.** Er lief zuletzt und hatte den
+Auftrag, die vollständige aktuelle Liste zu liefern — auch das, was sich seit
+dem Bauschritt geändert hat.
+
+## Stand
+
+- Bau: fertig
+- Kritik: 19 Befunde
+- Behebung: 18 behoben, 3 widerlegt, 6 offen
+
+## Migrationen (gegen eine eigene Datenbank gefahren: True)
 
 - /home/user/cse-platform/drizzle/0220_betroffenenanfrage_rechte.sql — app.darf_betroffenenanfrage() + Ersatz der beiden Policies auf betroffenenanfrage (der Rechte-Bruch aus der Kritik), Fremdschluessel fuer ansprechpartner_id (zusammengesetzt, mit Mandant) und bewerbung_id, CHECK 'hoechstens eine Zuordnung', zwei Indizes
-- /home/user/cse-platform/drizzle/0221_datenschutz_nachweis.sql — datenschutz_auskunft, berichtigung_feld, loeschentscheidung (je mit RLS/FORCE, Lesen = darf_betroffenenanfrage(), Schreiben = je Artikel sein eigenes Recht), Unique-Index loeschentscheidung_je_ort_uk auf coalesce(feld,''), app.benachrichtigung_auskunft(uuid) als Definer mit cse_definer-Grant und -Policy, Loeschsperrblock. NACH DER PRUEFUNG ergaenzt: `revoke all on function app.benachrichtigung_auskunft(uuid) from public` (K-08) und der Spaltenkommentar auf loeschentscheidung.sperre_faellt_am — sie heisst jetzt ausdruecklich „der ERSTE Tag, an dem geloescht werden darf".
-- /home/user/cse-platform/drizzle/0222_werbewiderspruch.sql — werbewiderspruch_token (K-08/K-09, ohne Ablauf, cse_app hat GAR KEIN Recht darauf) und werbewiderspruch (Protokoll), app.darf_widerspruch_lesen(), app.werbewiderspruch_liste(), app.widerspruch_stand(), app.werbewiderspruch_token_ausgeben(), app.werbewiderspruch_token_mandant(), app.werbewiderspruch_einloesen() (bedingt + idempotent), app.werbewiderspruch_formular(), app.widerspruch_verarbeitung_setzen(), cse_definer-Grants und -Policies auf ansprechpartner/kunde, Loeschsperrblock.
+- /home/user/cse-platform/drizzle/0221_datenschutz_nachweis.sql — datenschutz_auskunft, berichtigung_feld, loeschentscheidung (je mit RLS/FORCE, Lesen = darf_betroffenenanfrage(), Schreiben = je Artikel sein eigenes Recht), Unique-Index loeschentscheidung_je_ort_uk auf coalesce(feld,''), app.benachrichtigung_auskunft(uuid) als Definer mit cse_definer-Grant und -Policy, Loeschsperrblock
+- /home/user/cse-platform/drizzle/0222_werbewiderspruch.sql — werbewiderspruch_token (K-08/K-09, ohne Ablauf, cse_app hat GAR KEIN Recht darauf) und werbewiderspruch (Protokoll), app.darf_widerspruch_lesen(), app.werbewiderspruch_liste(), app.widerspruch_stand(), app.werbewiderspruch_token_ausgeben(), app.werbewiderspruch_token_mandant(), app.werbewiderspruch_einloesen() (bedingt + idempotent), app.werbewiderspruch_formular(), app.widerspruch_verarbeitung_setzen(), cse_definer-Grants und -Policies auf ansprechpartner/kunde, Loeschsperrblock
+- (Behebung) /home/user/cse-platform/drizzle/0221_datenschutz_nachweis.sql — geaendert: revoke all on function app.benachrichtigung_auskunft(uuid) from public (K-08); Spaltenkommentar loeschentscheidung.sperre_faellt_am sagt jetzt „der ERSTE Tag, an dem geloescht werden darf" (eine Bedeutung, nicht zwei).
+- (Behebung) /home/user/cse-platform/drizzle/0222_werbewiderspruch.sql — geaendert: sieben revoke-Zeilen (K-08); grant update auf ansprechpartner/kunde spaltenweise (werbewiderspruch_am, widerspruch_am), grant select bleibt tabellenweit mit Begruendung; app.werbewiderspruch_formular(text) → (text, text) mit K-04-Tor, app.ist_readonly(), formular.schreiben und Ratenlimit; NEU app.werbewiderspruch_drossel(text) (5 je IP-Abdruck / 15 min ueber kern.anmeldeversuch); NEU app.werbewiderspruch_token_auskunft(uuid) (Art.-15-Leseweg auf werbewiderspruch_token, ohne den Abdruck); app.widerspruch_stand gibt kunde_id mit zurueck; app.werbewiderspruch_einloesen hat vier Staende (erfasst/verbraucht/ungueltig/unbekannt).
+- (Behebung) KEINE neue Migrationsnummer verbraucht — alles in 0221/0222, wie der Pruefer es verlangt. Kette 0001→0304 zweimal gegen eine frisch angelegte w_dsch und w_dsch_w1 gefahren („Migrationen angewendet."), zuletzt nach der letzten Aenderung. `npx tsx scripts/generate-triggers.ts --check` → „Trigger sind aktuell."
 
-  NACH DER PRUEFUNG geaendert, alles in DERSELBEN Datei (Nummernbereich 0220–0229):
-  1. sieben `revoke all on function … from public` (K-08) — `definer-eigentum.test.ts` ist damit wieder gruen, nachgemessen gegen eine frisch migrierte w_dsch;
-  2. `grant update` auf ansprechpartner/kunde ist SPALTENWEISE (`werbewiderspruch_am`, `widerspruch_am`); das `grant select` bleibt tabellenweit, weil 0246 sich in seinem eigenen Kommentar darauf stuetzt und eine Spaltenliste in 0222 die Spalten spaeterer Migrationen nicht nennen kann — das ist als offene technische Nachziehung unter „Sonstiges" notiert;
-  3. `app.werbewiderspruch_formular(text)` → `(text, text)`: prueft jetzt selbst app.portal() (K-04), app.ist_readonly() (Invariante 10), `formular.schreiben` und das Ratenlimit;
-  4. NEU `app.werbewiderspruch_drossel(text)` — fuenf tokenlose Widersprueche je IP-Abdruck in 15 Minuten, mandantenuebergreifend, ueber kern.anmeldeversuch (art = 'werbewiderspruch'); der Zaehler von `app.formular_eingang_zaehlen` taugte nicht, weil dieser Weg keine formular_eingang-Zeile anlegt;
-  5. NEU `app.werbewiderspruch_token_auskunft(uuid)` — der Art.-15-Leseweg auf werbewiderspruch_token (cse_app hat dort kein Recht), ohne den Abdruck selbst;
-  6. `app.widerspruch_stand(uuid, uuid)` gibt zusaetzlich `kunde_id` zurueck (Signaturaenderung der Rueckgabetabelle);
-  7. `app.werbewiderspruch_einloesen(text)` hat VIER Staende statt drei: erfasst · verbraucht · ungueltig · unbekannt.
+## Gebaute Adressen
 
-## Gebaute Routen
-
-- `/portal/[mandant]/datenschutz/[id]` — fertig — Die Akte: Selbstauskunft getrennt von dem, was die Plattform weiss; Identitaetsabgleich mit Suche und drei Zielen (person/ansprechpartner/bewerbung, D-09) ueber ordneZu(); die Art.-21-Entscheidung, die die Seitenkarte §2.4 hierher legt und die es vorher NICHT gab (kein .ts nannte widerspruch_am) — unwiderruflich, mit Warnung vor dem Knopf, als variante=danger; Nachweisblock mit erteilten Auskuenften samt SHA-256; Abschluss gegen das bestehende /api/datenschutz/bearbeiten. Art. 18 und Art. 20 sind benannt statt verschwiegen: Art. 20 wird ueber den JSON-Abruf der Art.-15-Auskunft erfuellt, Art. 18 ist offen (O-647), weil das Datenmodell kein Merkmal 'eingeschraenkt' hat. Der Art.-21-Knopf erscheint nur, wenn der Stand wirklich gelesen wurde (extra.stand.length > 0) — 'every' auf einer leeren Liste ist true.
-- `/portal/[mandant]/datenschutz/[id]/auskunft` — fertig — 20 Abschnitte, deklarativ, je Abschnitt Zweck (aus registry/verarbeitungen), Quelle, Aufbewahrungsfrist (aus verzeichnis.fristText) und das noetige Recht. Der Kritikpunkt ist geloest: die Rechte werden VOR der ersten Datenabfrage in EINER Abfrage geprueft; ein Abschnitt ohne Recht ist 'gesperrt', nicht leer, und der Abruf gibt 409 mit der Liste der fehlenden Rechte statt einer halben Datei. Der Abschnitt 'Benachrichtigungen' laeuft ueber die neue Definer-Funktion app.benachrichtigung_auskunft (cse_app liest sonst nur die eigenen), 'Rechtsgrundlage/Widersprueche' ueber app.widerspruch_stand (K-05). Agentenprotokolle/Wissens-Chunks/Freigaben stehen als eigener offener Abschnitt (O-113). md + json, protokolliert, Artefakt mit SHA-256 in datenschutz_auskunft.
-- `/portal/[mandant]/datenschutz/[id]/berichtigung` — fertig — Der von der Kritik verlangte strukturierte Nachweis existiert jetzt (berichtigung_feld, 0221): je Feld gespeicherter Wert, behaupteter Wert, Herkunft, Ergebnis und die Art.-19-Unterrichtung als eigene Spalte. Der gespeicherte Wert wird bei der AUFNAHME mitgeschrieben — nachher ist er fort. Die Seite aendert fremde Tabellen nicht und verlinkt in den zustaendigen Editor. Das Tor ist datenschutz.berichtigung_bearbeiten, und seit 0220 sieht ein Traeger dieses Rechts den Vorgang auch.
-- `/portal/[mandant]/datenschutz/[id]/loeschung` — fertig — 18 Orte mit Zeilenzahl, Loeschart aus rls.ts, Pflicht mit Fundstelle und dem Tag, an dem die Sperre faellt — gerechnet von aoFrist()/milogFrist() im Berliner Kalender (getestet, 17 Faelle). Ein Ort ohne Recht ist 'ungelesen', nicht leer. Der fuenfte Kritikpunkt ist beantwortet, nicht umgangen: es gibt keinen Vollzugsweg (ein loeschender Lauf, keine Anonymisierungsprozedur, kein Codepfad auf anonymisiert_am), deshalb heisst das Ergebnis VORMERKUNG, und VOLLZUG.vorhanden/fehlend steht sichtbar auf der Seite (O-644).
-- `/portal/[mandant]/datenschutz/widersprueche` — fertig — Zwei getrennte Listen (§ 7 UWG vs. Art. 21, wie §2.4 verlangt) plus das Protokoll mit Weg, Kanal und ausloesender Nachricht. Der harte Blocker ist geloest: app.werbewiderspruch_liste() (0222) ist der mengenwertige K-05-Leseweg auf ansprechpartner — prueft crm.rechtsgrundlage_lesen und schreibt EINE Protokollzeile je Abruf, nicht eine je Zeile. Kein Zuruecknehmen-Knopf, mit Begruendung. O-640/O-641/O-65 stehen sichtbar als offen.
-- `/werbewiderspruch (oeffentlich, tokenlos)` — fertig — NICHT in meinem Plan, aber im Typecheck-Filter genannt und Voraussetzung dafuer, dass das Nachweisblatt je etwas zeigt. Gesellschaftswahl im Formular (vier Verantwortliche), Antwort immer gleich (keine Auskunft ueber den Bestand), Schreibweg ueber den Eingangsprinzipal. ACHTUNG Ueberschneidung: /werbewiderspruch/[token]/page.tsx hat parallel die Domaene aufgaben-nachrichten-oeffentlich gebaut; ihre Seite postet 'token' an genau meine Route, die Staende erfasst|bereits|unbekannt passen zusammen, und ihr TOKEN_FORM (20–200 base64url) passt zu meinem neuerToken() (43 Zeichen). Bitte nur pruefen, nicht doppelt bauen.
+- `/portal/[mandant]/datenschutz/[id]` — fertig
+  - Die Akte: Selbstauskunft getrennt von dem, was die Plattform weiss; Identitaetsabgleich mit Suche und drei Zielen (person/ansprechpartner/bewerbung, D-09) ueber ordneZu(); die Art.-21-Entscheidung, die die Seitenkarte §2.4 hierher legt und die es vorher NICHT gab (kein .ts nannte widerspruch_am) — unwiderruflich, mit Warnung vor dem Knopf, als variante=danger; Nachweisblock mit erteilten Auskuenften samt SHA-256; Abschluss gegen das bestehende /api/datenschutz/bearbeiten. Art. 18 und Art. 20 sind benannt statt verschwiegen: Art. 20 wird ueber den JSON-Abruf der Art.-15-Auskunft erfuellt, Art. 18 ist offen (O-647), weil das Datenmodell kein Merkmal 'eingeschraenkt' hat. Der Art.-21-Knopf erscheint nur, wenn der Stand wirklich gelesen wurde (extra.stand.length > 0) — 'every' auf einer leeren Liste ist true.
+- `/portal/[mandant]/datenschutz/[id]/auskunft` — fertig
+  - 20 Abschnitte, deklarativ, je Abschnitt Zweck (aus registry/verarbeitungen), Quelle, Aufbewahrungsfrist (aus verzeichnis.fristText) und das noetige Recht. Der Kritikpunkt ist geloest: die Rechte werden VOR der ersten Datenabfrage in EINER Abfrage geprueft; ein Abschnitt ohne Recht ist 'gesperrt', nicht leer, und der Abruf gibt 409 mit der Liste der fehlenden Rechte statt einer halben Datei. Der Abschnitt 'Benachrichtigungen' laeuft ueber die neue Definer-Funktion app.benachrichtigung_auskunft (cse_app liest sonst nur die eigenen), 'Rechtsgrundlage/Widersprueche' ueber app.widerspruch_stand (K-05). Agentenprotokolle/Wissens-Chunks/Freigaben stehen als eigener offener Abschnitt (O-113). md + json, protokolliert, Artefakt mit SHA-256 in datenschutz_auskunft.
+- `/portal/[mandant]/datenschutz/[id]/berichtigung` — fertig
+  - Der von der Kritik verlangte strukturierte Nachweis existiert jetzt (berichtigung_feld, 0221): je Feld gespeicherter Wert, behaupteter Wert, Herkunft, Ergebnis und die Art.-19-Unterrichtung als eigene Spalte. Der gespeicherte Wert wird bei der AUFNAHME mitgeschrieben — nachher ist er fort. Die Seite aendert fremde Tabellen nicht und verlinkt in den zustaendigen Editor. Das Tor ist datenschutz.berichtigung_bearbeiten, und seit 0220 sieht ein Traeger dieses Rechts den Vorgang auch.
+- `/portal/[mandant]/datenschutz/[id]/loeschung` — fertig
+  - 18 Orte mit Zeilenzahl, Loeschart aus rls.ts, Pflicht mit Fundstelle und dem Tag, an dem die Sperre faellt — gerechnet von aoFrist()/milogFrist() im Berliner Kalender (getestet, 17 Faelle). Ein Ort ohne Recht ist 'ungelesen', nicht leer. Der fuenfte Kritikpunkt ist beantwortet, nicht umgangen: es gibt keinen Vollzugsweg (ein loeschender Lauf, keine Anonymisierungsprozedur, kein Codepfad auf anonymisiert_am), deshalb heisst das Ergebnis VORMERKUNG, und VOLLZUG.vorhanden/fehlend steht sichtbar auf der Seite (O-644).
+- `/portal/[mandant]/datenschutz/widersprueche` — fertig
+  - Zwei getrennte Listen (§ 7 UWG vs. Art. 21, wie §2.4 verlangt) plus das Protokoll mit Weg, Kanal und ausloesender Nachricht. Der harte Blocker ist geloest: app.werbewiderspruch_liste() (0222) ist der mengenwertige K-05-Leseweg auf ansprechpartner — prueft crm.rechtsgrundlage_lesen und schreibt EINE Protokollzeile je Abruf, nicht eine je Zeile. Kein Zuruecknehmen-Knopf, mit Begruendung. O-640/O-641/O-65 stehen sichtbar als offen.
+- `/werbewiderspruch (oeffentlich, tokenlos)` — fertig
+  - NICHT in meinem Plan, aber im Typecheck-Filter genannt und Voraussetzung dafuer, dass das Nachweisblatt je etwas zeigt. Gesellschaftswahl im Formular (vier Verantwortliche), Antwort immer gleich (keine Auskunft ueber den Bestand), Schreibweg ueber den Eingangsprinzipal. ACHTUNG Ueberschneidung: /werbewiderspruch/[token]/page.tsx hat parallel die Domaene aufgaben-nachrichten-oeffentlich gebaut; ihre Seite postet 'token' an genau meine Route, die Staende erfasst|bereits|unbekannt passen zusammen, und ihr TOKEN_FORM (20–200 base64url) passt zu meinem neuerToken() (43 Zeichen). Bitte nur pruefen, nicht doppelt bauen.
 
 ## src/server/registry/dienste.ts
 
-/*
- * Phase 7 — die INNERE Haelfte von LEG-09 (0220–0222). Alle vier schreiben,
- * und jeder schreibt genau das, was sein Artikel verlangt: das Artefakt, den
- * Feldnachweis, die Entscheidung, das Widerspruchsprotokoll. Keiner von
- * ihnen loescht oder aendert eine fremde Fachtabelle — die Berichtigung
- * geschieht im zustaendigen Editor, die Loeschung durch Anonymisierung
- * (04-SEITENKARTE §5.25).
- *
- * In der Gruppenansicht laufen sie nicht: jeder Schreibweg verlangt genau
- * EINEN aktiven Mandanten (Invariante 10).
- */
-{
-  modul: 'datenschutz', pfad: 'datenschutz/auskunft',
-  schreibend: true, schreibRecht: 'datenschutz.auskunft_erstellen',
-},
-{
-  modul: 'datenschutz', pfad: 'datenschutz/berichtigung',
-  schreibend: true, schreibRecht: 'datenschutz.berichtigung_bearbeiten',
-},
-{
-  modul: 'datenschutz', pfad: 'datenschutz/loeschentscheidung',
-  schreibend: true, schreibRecht: 'datenschutz.loeschung_pruefen',
-},
-/*
- * `werbewiderspruch` hat DREI Schreibwege mit drei Pruefungen, und das
- * Register nennt einen — deshalb steht hier, welcher und warum:
- *
- *  - `setzeVerarbeitungswiderspruch` (Art. 21) ist der einzige, den ein
- *    Mensch im Portal ausloest. Er laeuft auf `M/datenschutz/[id]` (§2.4),
- *    und das Tor dieser Route ist `datenschutz.auskunft_erstellen` — das
- *    steht deshalb unten.
- *  - `gibTokenAus` prueft `crm.kommunikation_versenden` IN
- *    `app.werbewiderspruch_token_ausgeben`: wer senden darf, erzeugt den
- *    Pflichtlink dazu (§ 7 Abs. 3 Nr. 4 UWG).
- *  - `loeseEin` und `erfasseOhneToken` sind die oeffentlichen Pflichtwege.
- *    Sie halten kein Benutzerrecht; ihre Grenze ist der Token bzw. der
- *    Eingangsprinzipal mit `formular.schreiben` — und seit der Pruefrunde
- *    prueft `app.werbewiderspruch_formular` das SELBST (K-04,
- *    `app.ist_readonly()`, `formular.schreiben`) statt es dem Aufrufer zu
- *    glauben. Dazu ein Ratenlimit in derselben Transaktion
- *    (`app.werbewiderspruch_drossel`) und ein Honigtopf in der Seite.
- */
-{
-  modul: 'datenschutz', pfad: 'datenschutz/werbewiderspruch',
-  schreibend: true, schreibRecht: 'datenschutz.auskunft_erstellen',
-},
+UNVERAENDERT gegenueber dem Bauschritt, bis auf EINEN praeziseren Kommentarsatz. Die vier Eintraege stehen vollstaendig in /home/user/cse-platform/docs/architecture/routenbau/register/datenschutz.md, Abschnitt „## src/server/registry/dienste.ts":
+
+{ modul: 'datenschutz', pfad: 'datenschutz/auskunft',           schreibend: true, schreibRecht: 'datenschutz.auskunft_erstellen' },
+{ modul: 'datenschutz', pfad: 'datenschutz/berichtigung',       schreibend: true, schreibRecht: 'datenschutz.berichtigung_bearbeiten' },
+{ modul: 'datenschutz', pfad: 'datenschutz/loeschentscheidung', schreibend: true, schreibRecht: 'datenschutz.loeschung_pruefen' },
+{ modul: 'datenschutz', pfad: 'datenschutz/werbewiderspruch',   schreibend: true, schreibRecht: 'datenschutz.auskunft_erstellen' },
+
+Geaendert ist nur der erklaerende Block darueber: `erfasseOhneToken` haelt weiterhin kein Benutzerrecht, aber `app.werbewiderspruch_formular` prueft K-04, app.ist_readonly() und formular.schreiben jetzt SELBST, statt es dem Aufrufer zu glauben — dazu Ratenlimit und Honigtopf. Der vollstaendige Kommentartext steht im Register.
 
 ## src/server/auth/route-manifest.ts
 
-// src/server/auth/route-manifest.ts — sechs neue route.ts (nur `route.ts`
-// zaehlt tests/kern/routen*.test.ts; oeffentliche Seiten stehen nicht drin).
-{
-  pfad: 'api/datenschutz/zuordnen',
-  recht: 'datenschutz.auskunft_erstellen',
-  grund:
-    'LEG-09, Art. 12 Abs. 6. Ein EIGENER Weg neben /bearbeiten, weil die Zuordnung das '
-    + 'Gegenteil einer Entscheidung ist: sie ist eine Feststellung, sie ist aenderbar, und '
-    + 'sie darf keinen Vorgang abschliessen. Am selben Knopf wie „Beantwortet" haette '
-    + 'irgendwann ein Vorgang als entschieden gegolten, weil jemand den falschen Menschen '
-    + 'gesucht hat. Art und Kennung kommen als EIN Wert (`person:uuid`).',
-},
-{
-  pfad: 'api/datenschutz/auskunft',
-  recht: 'datenschutz.auskunft_erstellen',
-  grund:
-    'LEG-09, Art. 15. Liefert die Auskunft nur AUSGELIEFERT, wenn sie vollstaendig ist — '
-    + 'sonst 409 mit den fehlenden Rechten. Eine halbe Art.-15-Auskunft geht an die '
-    + 'betroffene Person und sieht aus wie eine Antwort. Jeder Abruf wird protokolliert und '
-    + 'mit seiner Pruefsumme in `datenschutz_auskunft` festgehalten (SEC-A9).',
-},
-{
-  pfad: 'api/datenschutz/berichtigung',
-  recht: 'datenschutz.berichtigung_bearbeiten',
-  grund:
-    'LEG-09, Art. 16 und Art. 19. Ausdruecklich NICHT `datenschutz.auskunft_erstellen`: die '
-    + 'drei Datenschutzrechte im Katalog sind drei Zustaendigkeiten, und sie hier zu einem '
-    + 'zu verschmelzen nahm dem Katalog die Unterscheidung, die er absichtlich trifft.',
-},
-{
-  pfad: 'api/datenschutz/loeschung',
-  recht: 'datenschutz.loeschung_pruefen',
-  grund:
-    'LEG-09, Art. 17 gegen LEG-01/LEG-02. Diese Route LOESCHT NICHTS — sie haelt eine '
-    + 'Entscheidung je Tabelle fest (04-SEITENKARTE §5.25). Solange es keinen '
-    + 'Anonymisierungsweg gibt, ist das Ergebnis eine Vormerkung (O-644), und die Seite '
-    + 'nennt sie so.',
-},
-{
-  pfad: 'api/datenschutz/widerspruch',
-  recht: 'datenschutz.auskunft_erstellen',
-  grund:
-    'LEG-08/LEG-09, Art. 21. Der einzige Schreibweg des Hauses auf `widerspruch_am`; vorher '
-    + 'nannte kein `.ts` die Spalte, obwohl die Seitenkarte die Entscheidung '
-    + '`M/datenschutz/[id]` zuwies (§2.4). Das Recht ist das der Route und nicht '
-    + '`crm.schreiben`: verlangte sie das, waere die Zusage fuer eine '
-    + 'Datenschutzbeauftragte ohne CRM-Schreibrecht unerreichbar. Der Betroffene kommt aus '
-    + 'der ZUORDNUNG des Vorgangs, nie aus dem Formular — die Wirkung ist unwiderruflich.',
-},
-{
-  pfad: 'api/werbewiderspruch',
-  recht: null,
-  grund:
-    'CRM-08, LEG-08, § 7 Abs. 3 Nr. 4 UWG: der Empfaenger muss „jederzeit" widersprechen '
-    + 'koennen, ohne andere Kosten als die der Uebermittlung. Ein Konto davor waere das '
-    + 'Gegenteil, und ein Ursprungstest sperrte jeden, der den Link aus seinem '
-    + 'E-Mail-Programm oeffnet — den Regelfall. Der Schutz liegt nicht an der Tuer: mit '
-    + 'Token entscheidet der bedingte Verbrauch in `app.werbewiderspruch_einloesen` (K-09), '
-    + 'ohne Token der Eingangsprinzipal mit `formular.schreiben` und ohne jedes Leserecht. '
-    + 'Die Antwort verraet nie, ob eine Adresse im Bestand war.',
-},
+UNVERAENDERT gegenueber dem Bauschritt — dieselben sechs Eintraege, dieselben Begruendungen. Vollstaendig (mit den langen `grund`-Texten) in /home/user/cse-platform/docs/architecture/routenbau/register/datenschutz.md, Abschnitt „## src/server/auth/route-manifest.ts":
+
+api/datenschutz/zuordnen      → datenschutz.auskunft_erstellen
+api/datenschutz/auskunft      → datenschutz.auskunft_erstellen
+api/datenschutz/berichtigung  → datenschutz.berichtigung_bearbeiten
+api/datenschutz/loeschung     → datenschutz.loeschung_pruefen
+api/datenschutz/widerspruch   → datenschutz.auskunft_erstellen
+api/werbewiderspruch          → recht: null, mit Grund (§ 7 Abs. 3 Nr. 4 UWG: „jederzeit", kein Konto und kein Ursprungstest davor)
+
+NACHGEMESSEN: `npx vitest run tests/kern/routen.test.ts` nennt in der Fehlliste genau diese sechs aus meiner Domaene (neben denen anderer Domaenen) — es hat sich also nichts verschoben. Ein Satz im `grund` von api/werbewiderspruch ist jetzt genauer und sollte so uebernommen werden: „…ohne Token der Eingangsprinzipal mit `formular.schreiben`, und das prueft seit dieser Runde `app.werbewiderspruch_formular` selbst; dazu ein Ratenlimit je IP-Abdruck in derselben Transaktion und ein Honigtopf im Formular."
 
 ## src/server/db/schema/rls.ts
 
-// src/server/db/schema/rls.ts — fuenf Eintraege in KEIN_HARD_DELETE, ALLE
-// `append`. Die REIHENFOLGE ist wichtig: scripts/generate-triggers.ts erzeugt
-// den Block je Migration in der Array-Reihenfolge, und die handgeschriebenen
-// Bloecke in 0221/0222 stehen genau so. `pnpm db:triggers --check` ist damit
-// nach dem Einfuegen gruen, ohne dass sich eine Datei aendert.
-//
-// Fuer 0221, in dieser Reihenfolge:
-{
-  tabelle: 'datenschutz_auskunft',
-  art: 'append',
-  migration: '0221',
-  grund:
-    'LEG-09, Art. 15 DSGVO, SEC-A9. Das ausgehaendigte Artefakt mit seiner '
-    + 'Pruefsumme. Streitig ist im Zweifel nicht DASS geantwortet wurde, '
-    + 'sondern WAS drinstand — eine geloeschte Zeile ist von einer nie '
-    + 'erteilten Auskunft nicht zu unterscheiden, und die Beweislast liegt '
-    + 'beim Verantwortlichen.',
-},
-{
-  tabelle: 'berichtigung_feld',
-  art: 'append',
-  migration: '0221',
-  grund:
-    'LEG-09, Art. 16 und Art. 19 DSGVO. Je Feld der gespeicherte Wert, der '
-    + 'behauptete und die Entscheidung. Der gespeicherte Wert existiert nach '
-    + 'der Berichtigung nur noch hier; ohne diese Zeile ist die '
-    + 'Art.-19-Unterrichtung nicht belegbar und der alte Wert '
-    + 'unwiederbringlich.',
-},
-{
-  tabelle: 'loeschentscheidung',
-  art: 'append',
-  migration: '0221',
-  grund:
-    'LEG-09, Art. 17 DSGVO gegen LEG-01/LEG-02. Der Entscheidungsnachweis je '
-    + 'Tabelle und Feld, den 04-SEITENKARTE §5.25 zusagt: geschuldet, '
-    + 'ueberlagert oder offen, mit Fundstelle. Eine loeschbare '
-    + 'Loeschentscheidung ist der Widerspruch in sich selbst.',
-},
-// Fuer 0222, in dieser Reihenfolge (Token ZUERST):
-{
-  tabelle: 'werbewiderspruch_token',
-  art: 'append',
-  migration: '0222',
-  grund:
-    'CRM-08, LEG-08, § 7 Abs. 3 Nr. 4 UWG. Der Abdruck des Pflichtlinks je '
-    + 'Werbenachricht — der Beleg, DASS die Nachricht einen wirksamen '
-    + 'Widerspruchsweg getragen hat. Geloescht bliebe eine Werbemail ohne '
-    + 'nachweisbaren Widerspruchslink; abgelaufen oder zurueckgezogen wird '
-    + 'der Token ueber widerrufen_am.',
-},
-{
-  tabelle: 'werbewiderspruch',
-  art: 'append',
-  migration: '0222',
-  grund:
-    'CRM-08, LEG-08, § 7 UWG. Das Protokoll des Widerspruchs: Weg, Kanal, '
-    + 'Zeitpunkt und ausloesende Nachricht. Es ist der Beweis, mit dem sich '
-    + 'eine Abmahnung abwehren laesst — eine geloeschte Zeile nimmt dem '
-    + 'Verantwortlichen genau diesen Beweis, und die Beweislast liegt bei ihm.',
-},
+UNVERAENDERT gegenueber dem Bauschritt — fuenf Eintraege in KEIN_HARD_DELETE, alle `append`, in DIESER Reihenfolge (der Generator erzeugt den Block je Migration in Array-Reihenfolge, und die handgeschriebenen Bloecke in 0221/0222 stehen genau so):
 
-// KEINE Eintraege in AUDITIERT oder GEAENDERT_AM: die drei `geaendert_am`-
-// Ausloeser (berichtigung_feld, loeschentscheidung, werbewiderspruch_token)
-// stehen von Hand in der Migration, genau wie 0176 es mit
-// trg_betroffenenanfrage_geaendert haelt. `datenschutz_auskunft` bekommt
-// keinen: ein ausgehaendigtes Artefakt wird nicht geaendert — wer einen
-// anderen Umfang aushaendigt, haendigt ein zweites aus.
-//
-// DEFINER_ONLY braucht keinen Eintrag: werbewiderspruch_token hat zwar kein
-// cse_app-Recht, aber eine cse_definer-Policy — schema-meta.test.ts §5
-// verlangt nur „RLS + FORCE + mindestens eine Policy", und die ist da.
+  0221: datenschutz_auskunft · berichtigung_feld · loeschentscheidung
+  0222: werbewiderspruch_token ZUERST, dann werbewiderspruch
+
+Die vollstaendigen `grund`-Texte stehen in /home/user/cse-platform/docs/architecture/routenbau/register/datenschutz.md, Abschnitt „## src/server/db/schema/rls.ts". Keine Eintraege in AUDITIERT, GEAENDERT_AM oder DEFINER_ONLY — mit Begruendung ebendort.
+
+REIHENFOLGE: erst rls.ts, dann die zwei Zeilen in scripts/generate-triggers.ts, dann `pnpm db:triggers --check`. Heute meldet der Check nur deshalb „Trigger sind aktuell.", weil MIGRATIONS_DATEIEN 0221/0222 gar nicht kennt.
+
+NEBENWIRKUNG, solange rls.ts fehlt: `loeschartVon()` in loeschentscheidung.ts findet werbewiderspruch/werbewiderspruch_token nicht und schreibt „keine Loeschsperre registriert" in die Matrix — sichtbar falsch, aber nicht still. Mit den Eintraegen ist es richtig.
 
 ## src/server/registry/navigation.ts
 
-Nichts einzufuegen — und das ist geprueft, nicht vergessen.
+navigation.ts und tableiste.ts: NICHTS einzufuegen (geprueft, nicht vergessen — die Domaene haengt am Tab „mehr", den die Seiten selbst setzen). kennzahlen.ts: keine neue Kennzahl.
 
-Alle fuenf Portalrouten stehen bereits in src/server/registry/routen.generiert.ts
-(Zeilen 1963–1971 der Seitenkarte: /datenschutz, /[id], /[id]/auskunft,
-/[id]/berichtigung, /[id]/loeschung, /widersprueche) mit genau den Rechten, die
-ich verwende. Auch /werbewiderspruch und /werbewiderspruch/[token] sind schon
-im Register (Zeilen 48–49, Phase 4, bewachung „offen").
+ABER ZWEI ZEILEN FEHLEN IN 04-SEITENKARTE.md §2.4, und damit in routen.generiert.ts — die deutsche UND die englische Fassung des Pflichtwegs (D-82). Die englische Seite ist gebaut; sie fehlt nur im Register:
 
-navigation.ts und tableiste.ts fuehren ueberhaupt keinen datenschutz-Eintrag:
-die Domaene wird ueber den Tab „mehr" erreicht, und genau den setzen meine
-Seiten (aktiverTab="mehr", wie die Nachbarseiten verarbeitungsverzeichnis und
-loeschkonzept). Die Navigation innerhalb des Vorgangs steht in
-Vorgangskopf.tsx und zeigt nur Wege, deren Recht die Sitzung haelt — ein
-Menuepunkt auf ein fehlendes Recht fuehrt auf 404 und verraet damit die
-Existenz dessen, was er nicht zeigen darf (AUT-06).
+  /en/werbewiderspruch          — English counterpart, same path (D-82), bewachung „offen", Phase 4, SPEC CRM-08/LEG-08
+  /en/werbewiderspruch/[token]  — dito; die SEITE dazu ist bewusst nicht gebaut (sie gehoert der Domaene aufgaben-nachrichten-oeffentlich)
 
-kennzahlen.ts: keine neue Kennzahl. Naheliegend waere „offene
-Betroffenenanfragen"; sie gehoert aber hinter datenschutz.auskunft_erstellen,
-und app.mandant_kennzahlen() filtert nach §6.3 nicht je Modulrecht — eine Zahl
-ueber Loeschverlangen im Bereichsumschalter waere genau der Leck-Fall, den die
-Seitenkarte dort selbst als offen markiert.
+UND EIN BEFUND AN §5.25, der NICHT durch Erweitern der `lesen`-Liste zu beheben ist: /portal/[mandant]/datenschutz und /[id] verlangen datenschutz.auskunft_erstellen und antworten fuer einen Traeger von nur berichtigung_bearbeiten oder loeschung_pruefen mit 404 — obwohl 0220 ihm genau dafuer das Leserecht auf betroffenenanfrage gibt. `lesen` ist UND (extrahiere.ts:40-45, zugang.ts:160-167), ein dritter Schluessel spuerrte also die Datenschutzbeauftragte mit aus. Es braucht eine ODER-Schreibweise in der Karte und im Extraktor. Vollstaendige Begruendung als Punkt 3b im Domaenenregister.
 
 ## Sonstiges
 
-1) scripts/generate-triggers.ts — MIGRATIONS_DATEIEN braucht zwei Zeilen,
-sonst faellt `pnpm db:triggers --check`, weil MIGRATIONEN (aus rls.ts) die
-beiden Nummern kennt und die Datei nicht:
+1) scripts/generate-triggers.ts — MIGRATIONS_DATEIEN braucht zwei Zeilen (0220 traegt KEINEN Block: es legt keine Tabelle an, es ersetzt zwei Policies):
+   '0221': join(WURZEL, 'drizzle/0221_datenschutz_nachweis.sql'),
+   '0222': join(WURZEL, 'drizzle/0222_werbewiderspruch.sql'),
 
-  // Datenschutz (Phase 7): der Entscheidungsnachweis und das
-  // Widerspruchsprotokoll. `0220` traegt KEINEN Block — es legt keine
-  // Tabelle an, sondern ersetzt zwei Policies auf `betroffenenanfrage`.
-  '0221': join(WURZEL, 'drizzle/0221_datenschutz_nachweis.sql'),
-  '0222': join(WURZEL, 'drizzle/0222_werbewiderspruch.sql'),
+2) src/server/db/seed/index.ts — vom Bauschritt AUSNAHMSWEISE selbst editiert (Import + Aufruf seedDatenschutz vor dem Rechnungsblock). Beim Zusammenfuehren auf Konflikte pruefen.
 
-Die generierten Bloecke stehen bereits WORTGLEICH in beiden Dateien (mit den
-Sentinels), damit der Baum zwischen meinem PR und dem naechsten
-`pnpm db:triggers` nicht ungeschuetzt ist. Nach dem Einfuegen der rls.ts-
-Eintraege in der angegebenen Reihenfolge aendert der Generator nichts.
+3) docs/architecture/02-datenmodell/02-CRM-OPERATIONS.md — werbewiderspruch_token und werbewiderspruch als TABELLEN nachtragen (§0.1-Liste + Beschreibung). Der fertige Text steht als Punkt 3 im Domaenenregister. NICHT von mir angefasst: normativer Vertrag der CRM-Domaene, die parallel 0245-0250 baut.
 
-2) src/server/db/seed/index.ts — ich habe hier AUSNAHMSWEISE selbst editiert
-(die Datei steht nicht auf der zentralen Liste, und der Plan verlangt
-ausdruecklich, dass der Seed mitwaechst). Zwei Stellen: ein Import nach
-`seedBenachrichtigungen` und der Aufruf `seedDatenschutz(sql, ids, demodaten)`
-unmittelbar VOR dem Rechnungsblock, mit Ausgabezeile. Bitte beim Zusammenfuehren
-auf Konflikte pruefen.
+3b) 04-SEITENKARTE.md §5.25 — das ODER-Tor (siehe registry_navigation).
 
-3) docs/architecture/02-datenmodell/02-CRM-OPERATIONS.md — die Kritik hat
-recht: `werbewiderspruch` steht dort nur als SPALTE, die Protokolltabelle und
-der Token sind eine offene Forderung in 04-SEITENKARTE.md:2870 AN dieses
-Dokument, und das Dokument ist der normative Vertrag („an implementation that
-deviates is wrong until this document is amended first"). Ich habe es NICHT
-angefasst. Nachzutragen ist der Stand, wie 0222 ihn baut:
+3c) NEU: das Tabellen-SELECT von cse_definer auf ansprechpartner/kunde spaltenweise nachziehen, SOBALD 0246/0247 ihre eigenen Spaltengrants tragen. In 0222 nicht moeglich (die Spalten existieren dort noch nicht). Keine O-Nummer — eine Reihenfolge zwischen Migrationen, keine Geschaeftsregel.
 
-  - `werbewiderspruch_token` (mandant_id, ansprechpartner_id, kunde_id?,
-    nachricht_id? → nachricht(id), kanal aus der Fuenferliste von 0020,
-    token_hash SHA-256 unique, gueltig_ab/gueltig_bis (bis = NULL, kein
-    Ablauf — O-645), ausgegeben_am, eingeloest_am, versuche,
-    letzter_versuch_am, widerrufen_am + Grund). cse_app haelt darauf KEIN
-    Recht; Ausgabe, Aufloesung und Verbrauch laufen ueber drei
-    Definer-Funktionen.
-  - `werbewiderspruch` (mandant_id, art ∈ {werbung, verarbeitung},
-    ansprechpartner_id?/kunde_id? — mindestens eines, email?, kanal?,
-    eingegangen_am, nachricht_id?, quelle ∈ {token, formular, manuell},
-    token_id?, bemerkung?, erfasst_von? — Pflicht bei `manuell`).
-  - §0.1 Tabellenliste fuer crm.ts um beide ergaenzen.
-  - Offen bleiben O-640 (Kanal je Widerspruch oder pauschal) und O-641
-    (Gruppenwirkung). Anzumerken ist ausserdem, dass `nachricht_kanal`
-    (0231: portal, email, sms) und die CRM-Kanalliste (email, telefon, sms,
-    post, whatsapp) zwei verschiedene Vokabulare sind; `werbewiderspruch.kanal`
-    haengt bewusst an der CRM-Liste, weil `app.darf_kontaktiert_werden` gegen
-    sie prueft.
+4) docs/DESIGN.md — nichts zu ergaenzen. Alle neuen Bloecke nutzen vorhandene Werte (s1…s7, text-h1/h2/sm/xs/micro, text-text/-muted/-subtle, text-danger/-warning, border-line/-strong, bg-surface/-2, rounded-md/-lg, min-h-11, Hinweis art="warnung"/"hinweis", DataTable, StatusPill, Button variante="danger"). Die Tailwind-Farbwache laeuft sauber durch.
 
-3b) **NEU nach der Pruefung — 04-SEITENKARTE.md §5.25 und das Routenregister:
-das Tor von `/datenschutz` und `/datenschutz/[id]`.** 0220 gibt einem Traeger
-von nur `datenschutz.berichtigung_bearbeiten` das LESERECHT auf
-`betroffenenanfrage`; erreichbar ist die Seite fuer ihn trotzdem nicht, weil
-beide Routen `datenschutz.auskunft_erstellen` verlangen und sonst mit 404
-antworten. Derselbe Fall gilt fuer `datenschutz.loeschung_pruefen`.
+5) Eine Aenderung AUSSERHALB der Domaene, additiv und mit Grund: src/server/services/inhalt/sitemap.ts, AUSGESCHLOSSEN um '/en/werbewiderspruch' ergaenzt. 04-SEITENKARTE §2.5 verlangt die Sperre fuer /werbewiderspruch/; `istAusgeschlossen` vergleicht Praefixe, und '/en/…' beginnt nicht mit '/werbewiderspruch'. Ohne die Zeile waere die Flaeche in einer Sprache beschrieben und in der anderen offen.
 
-**Der naheliegende Vorschlag — die `lesen`-Liste um die beiden Rechte
-erweitern — waere FALSCH und macht es schlimmer.** `lesen` ist eine
-UND-Bedingung: `scripts/seitenkarte/extrahiere.ts` sagt es ausdruecklich
-(„mehrere Schluessel bedeuten UND (`a + b` in der Karte)"), und
-`src/server/auth/zugang.ts:160-167` laeuft ueber jeden Schluessel und sammelt
-jeden fehlenden. Mit drei Rechten in `lesen` kaeme die Datenschutzbeauftragte
-mit nur `auskunft_erstellen` ebenfalls nicht mehr durch. Der Schraegstrich
-hilft auch nicht: er verschiebt die weiteren Schluessel nach `schreiben`, und
-`schreiben` bewacht die Seite gar nicht.
-
-Was es wirklich braucht, ist eine ODER-Schreibweise in der Karte und im
-Extraktor (`Bewachung` kennt heute nur `lesen`/`schreiben`) — beides
-gemeinsame Dateien. In der Zwischenzeit steht in `Vorgangskopf.tsx` kein
-Ruecklink mehr auf einen Posteingang, der 404 gibt: er erscheint nur mit
-`datenschutz.auskunft_erstellen`, sonst ein Satz, der das sagt (AUT-06).
-
-3c) **NEU — das Tabellen-SELECT von `cse_definer` auf ansprechpartner/kunde.**
-0222 erteilt es weiterhin tabellenweit (das UPDATE ist spaltenweise
-nachgezogen). Der Grund steht in der Migration: 0246 stuetzt sich in seinem
-eigenen Kommentar ausdruecklich darauf („cse_definer haelt auf dieser Tabelle
-ein TABELLEN-select (0222, Zeile 292) und deckt neue Spalten damit von
-selbst"), und 0247 liest `aehnliche_leistung`, `einwilligung_kanaele`,
-`rechtsgrundlage_quelle`, `rechtsgrundlage_erfasst_am`,
-`rechtsgrundlage_beleg_dokument_id` und `aehnliche_leistung_begruendung`. Eine
-Spaltenliste in 0222 kann diese Spalten nicht nennen — es gibt sie dort noch
-nicht. Der Entzug gehoert deshalb in dieselbe Hand wie 0246/0247: erst deren
-eigene Spaltengrants, dann faellt das Tabellen-SELECT. Keine O-Nummer, weil es
-keine Geschaeftsregel ist, sondern eine Reihenfolge zwischen zwei Migrationen.
-
-4) docs/architecture/04-SEITENKARTE.md — zwei Zeilen sind jetzt eingeloest
-(§2.4 „needs a hashed, revocable objection token per outbound message and a
-werbewiderspruch log row") und koennen aus der Tabelle der offenen Forderungen
-raus, sobald Punkt 3 erledigt ist.
-
-**Ausserdem fehlen dort zwei /en-Zeilen (D-82).** Die englische Seite ist
-GEBAUT (`src/app/(public)/en/werbewiderspruch/page.tsx`, gemeinsame Komponente
-`src/app/(public)/werbewiderspruch/Werbewiderspruch.tsx`, Felder ueberlagert
-statt verdoppelt — D-83); sie fehlt nur noch im Register. In §2.4 nachzutragen,
-in derselben Zeile wie die deutsche Fassung:
-
-  `/en/werbewiderspruch`         — English counterpart, same path (D-82)
-  `/en/werbewiderspruch/[token]` — dito; die Seite dazu ist NICHT gebaut
-
-Anmerkung fuer die pflegende Hand: `/en/werbewiderspruch/[token]` habe ich
-bewusst NICHT gebaut. Die Tokenseite gehoert der Domaene
-aufgaben-nachrichten-oeffentlich, und zwei Agenten an derselben Datei war schon
-einmal der Fall. Die tokenlose Fassung ist der Weg, den ein englischsprachiger
-Empfaenger findet — die Tokenfassung erreicht er ueber den Link in der
-Nachricht.
-
-**Und §2.5 stimmt jetzt wieder**: `AUSGESCHLOSSEN` in
-`src/server/services/inhalt/sitemap.ts` fuehrt `/en/werbewiderspruch` mit
-(robots + Sitemap). `istAusgeschlossen` vergleicht Praefixe, und `/en/…`
-beginnt nicht mit `/werbewiderspruch` — ohne die Zeile waere die Sperrflaeche
-in einer Sprache beschrieben und in der anderen offen. Das ist die EINZIGE
-Aenderung, die ich ausserhalb meiner Domaene gemacht habe; sie ist additiv.
-
-5) docs/DESIGN.md — nichts zu ergaenzen. Alle Werte kommen aus dem
-vorhandenen Vokabular (s1…s7, text-h1/h2/h3/sm/xs/micro, text-text,
-text-text-muted, text-text-subtle, text-brand, text-danger, text-warning,
-bg-surface/-2, border-line/-strong, rounded-md/-lg, min-h-11, StatusPill,
-Hinweis, DataTable, Button). Die Tailwind-Farbwache laeuft sauber durch.
-
-## Zeilen fuer docs/DECISIONS.md, Abschnitt „Offen"
+## Zeilen für docs/DECISIONS.md, Abschnitt „Offen"
 
 | O-640 | Does a Werbewiderspruch apply per channel (e-mail blocked, post keeps running) or across all channels? Today it is blanket: the block sits in ONE column (`werbewiderspruch_am`, 0020), and `werbewiderspruch.kanal` only describes what triggered it. Note that `nachricht_kanal` (portal/email/sms, 0231) and the CRM channel list (email/telefon/sms/post/whatsapp, 0020) are two different vocabularies. |
 | O-641 | Does an advertising objection raised at one entity also bind the other three? Today it does not — the four are separate controllers, and `/werbewiderspruch` asks which one, exactly as `/datenschutz/anfrage` does. |
@@ -373,23 +117,75 @@ Hinweis, DataTable, Button). Die Tailwind-Farbwache laeuft sauber durch.
 | O-647 | How is a restriction under Art. 18 DSGVO implemented technically — a per-record restriction flag, or organisationally? The data model carries no "restricted" marker: there is no column that pauses processing without ending it, and a checkbox that blocks nothing would be the worse answer. **The same decision governs an Art. 21 objection raised by an employee or an applicant**: `widerspruch_am` exists only on `ansprechpartner` and `kunde` (the advertising side), so for those groups the objection is today decided by a human, implemented organisationally and recorded in the closing text of the request. `/datenschutz/[id]` says both on the screen. |
 | O-648 | Which of the employee branch's derived findings, access records and assignments belong in an Art. 15 export, and which are mechanics? Eleven tables carry `person_id` and are no section of their own today: `arbeitszeit_verstoss`, `planungs_konflikt`, `nachweis_warnung`, `da_pflicht` (derived from data already disclosed in full), `benutzer`, `checkin_token`, `offline_ereignis` (the mechanics of access), `einsatz_zuordnung`, `zeitnachweis`, `team_mitglied`, `bewacher_eintrag`. They are NAMED in the delivered export as an open section rather than left out — the answer decides whether they become sections. (The erasure side of the same list is O-71.) |
 | O-649 | Who sends the confirmation of a tokenless advertising objection (`/werbewiderspruch`), and what does it say when the address is not in our records at all? A confirmation that says "removed" would disclose that the address was held; one that says nothing is not a confirmation. No outbound mail is connected today, and the page says so instead of claiming a send. |
+HINWEIS ZU O-647: die Zeile ist gegenueber dem Bauschritt ERWEITERT (Art. 21 fuer Beschaeftigte/Bewerberinnen faellt unter dieselbe Entscheidung). Bitte die erweiterte Fassung uebernehmen.
+HINWEIS: O-71 („Erasure concept (Art. 17): which personal data is anonymised, on which trigger?") wird jetzt von loeschentscheidung.ts (NICHT_IN_DER_MATRIX) referenziert. Die Zeile steht bereits in DECISIONS.md:2920 und braucht keine Aenderung.
 
-## Tests
+## Befunde des Prüfers (19)
 
-- /home/user/cse-platform/tests/kern/datenschutz-fristen.test.ts — 17 Faelle, alle gruen (einzeln gelaufen mit vitest.config.ts): § 147 AO ab Ende des Kalenderjahres (nicht 'Datum plus zehn Jahre'), § 17 MiLoG kalendarisch (29.02. faellt auf den 28., nicht auf den 1.3.; nicht 730 Tage), berlinTag ueber Jahreswechsel und DST-Umstellung, alsText (Zeitpunkt in Berlin, reines Datum ohne Zonendrehung), und die Markdown-Ausgabe der Auskunft: Warnung VOR dem ersten Abschnitt, 'gesperrt' vs. 'keine Zeile', offener Abschnitt benannt, Pipe und Zeilenumbruch maskiert
-- /home/user/cse-platform/tests/isolation/datenschutz-nachweis.test.ts — 29 Faelle, alle gruen gegen echtes Postgres als cse_app mit RLS+FORCE (gelaufen gegen eine EIGENE Datenbank w_dsch_w1, nie gegen cse_test): §1 der 0220-Befund (Traeger von nur berichtigung_bearbeiten liest die Zeile, vorher 0; ohne eines der drei Rechte nichts; kein Rechte-Uebertrag in fremde Gesellschaft), §2 je Artikel sein Schreibrecht + die drei CHECKs + der coalesce-Unique, §3 der K-05-Leseweg (wirft statt leer zu antworten, EINE Protokollzeile je Abruf, direkter Spaltenzugriff verweigert, benachrichtigung_auskunft oeffnet eine fremde Person), §4 der Token (kein Recht auf der Tabelle, erfasst→bereits→unbekannt, Zeitstempel+Protokoll, rechtsgrundlage unberuehrt, vertragliche Post laeuft weiter), §5 Art. 21 (Begruendung Pflicht, Recht geprueft, rechtsgrundlage='keine', Kanaele fallen mit, Ruecknahme wirft, Protokollzeile), §6 kein DELETE/TRUNCATE auf allen fuenf Tabellen — MIT Zeilenzaehlung davor, weil ein Row-Trigger auf einer leeren Tabelle nicht feuert (genau daran war der erste Entwurf gruen), §7 Mandantengrenze + der neue Fremdschluessel + hoechstens eine Zuordnung
+- **blockierend** · `/home/user/cse-platform/src/server/services/datenschutz/auskunft.ts` — Die Art.-15-Auskunft laesst ganze Tabellen mit Personenbezug WEG — und wird trotzdem mit `vollstaendig = true`, Pruefsumme und dem Wort „Vollstaendig" an die betroffene Person ausgeliefert. Fuer `zuordnung.art = 'ansprechpartner'` fuehrt ABSCHNITTE genau drei Eintraege (kontakt, rechtsgrundlage, widerspruchsprotokoll), `ansprechpartner_id` steht aber in SIEBEN Tabellen: es fehlen `lead`, `lead_aktivitaet` (mit `inhalt` — der tatsaechlichen Korrespondenz und `rechtsgrundlage_snapshot`), `angebot`, `objekt` und `werbewiderspruch_token`. Fuer `bewerbung` fehlen `bewerbung_antwort` (`text`, `gesendet_an`), `einstellungsentscheidung` und `kandidat` (`qualifikationen`, `notiz`). Damit ist der eigene Grundsatz der Datei ausgehebelt: ein Abschnitt ohne Recht ist `gesperrt` und sperrt den Abruf — eine Tabelle, die gar nicht in der Liste steht, erscheint nirgends, und genau dann „sieht sie aus wie eine Antwort".
+  - Behebung: Je fehlende Tabelle einen Abschnitt in ABSCHNITTE nachtragen (lead, lead_aktivitaet, angebot, werbewiderspruch_token fuer `ansprechpartner`; bewerbung_antwort, einstellungsentscheidung, kandidat fuer `bewerbung`) — mit Recht, Quelle und Frist wie die uebrigen. Wo der Umfang streitig ist (z. B. `objekt.ansprechpartner_id`), gehoert die Tabelle als OFFENE_ABSCHNITTE-Zeile mit TODO(client, O-6xx) hinein, nicht ins Schweigen. Zusaetzlich eine Wache: ein Test, der jede Tabelle mit `person_id`/`ansprechpartner_id`/`bewerbung_id` gegen ABSCHNITTE plus OFFENE_ABSCHNITTE haelt und bei einer neuen Tabelle faellt — sonst wiederholt sich der Befund mit der naechsten Migration.
+- **blockierend** · `/home/user/cse-platform/drizzle/0222_werbewiderspruch.sql` — Alle acht neuen `SECURITY DEFINER`-Funktionen lassen PUBLIC das voreingestellte EXECUTE stehen (K-08). `create function` erteilt PUBLIC automatisch; das spaetere `grant execute … to cse_app` FUEGT HINZU und ersetzt nichts. Betroffen sind auch die Leser fremder Personendaten: `app.benachrichtigung_auskunft` (0221) und `app.werbewiderspruch_liste`, `app.widerspruch_stand`, `app.widerspruch_verarbeitung_setzen`, `app.werbewiderspruch_einloesen`, `app.werbewiderspruch_formular`, `app.werbewiderspruch_token_ausgeben`, `app.werbewiderspruch_token_mandant` (0222). Damit haelt jede Rolle das Ausfuehrungsrecht, `cse_anon` eingeschlossen. Der bestehende Test faellt — und es sind GENAU diese acht, sonst keine im ganzen Haus.
+  - Behebung: Nach jedem `grant execute … to cse_app` ein `revoke all on function app.<name>(<signatur>) from public;` setzen — so wie 0031:552, 0040:1070, 0069:636, 0073:641 es halten. Acht Zeilen in 0221/0222; danach ist definer-eigentum.test.ts wieder gruen.
+- **blockierend** · `/home/user/cse-platform/src/app/api/werbewiderspruch/route.ts` — Der tokenlose Weg ist oeffentlich, unangemeldet, OHNE Ratenlimit, ohne Honigtopf/Bot-Pruefung und ohne Bestaetigungsmail — und er schreibt UNWIDERRUFLICH in fremde CRM-Datensaetze. `app.werbewiderspruch_formular` setzt `werbewiderspruch_am` auf JEDEN `ansprechpartner` und `kunde` der gewaehlten Gesellschaft, dessen Adresse passt; `kern.erzwinge_widerspruch()` wirft bei jedem Versuch, den Stempel zu raeumen. Wer Adressen kennt oder raet, stellt damit dauerhaft und lautlos die Werbeansprache fremder Kontakte ab („Antwort immer gleich"). 04-SEITENKARTE verlangt fuer genau diese Adresse ausdruecklich ein Ratenlimit.
+  - Behebung: `ipHash`, `istBot` und `pruefeRatenlimit` aus `@/server/services/lead/annahme` einsetzen, genau wie /api/karriere/bewerbung: Ratenlimit vor `erfasseOhneToken`, `RatenlimitFehler` -> Umleitung auf `?stand=zu_viele` (nie eine Fehlerseite auf dem Pflichtweg), und das Ergebnis mit `akteur_art='system'` protokollieren. Solange kein Postausgang verbunden ist, bleibt die Bestaetigungsmail offen — das gehoert dann als O-Nummer neben O-645 ins Register, nicht nur in den Bericht.
+- **wichtig** · `/home/user/cse-platform/src/server/services/datenschutz/loeschentscheidung.ts` — Dieselbe Luecke wie bei der Auskunft, hier im Entscheidungsnachweis: ORTE nennt fuer einen `ansprechpartner` nur vier Orte (ansprechpartner, werbewiderspruch, betroffenenanfrage, audit_log) und fuer eine `bewerbung` fuenf. Es fehlen `lead`, `lead_aktivitaet`, `angebot`, `objekt`, `werbewiderspruch_token` bzw. `bewerbung_antwort`, `einstellungsentscheidung`, `kandidat`. Die Seite zeigt darueber „N von N entschieden" und die Zeile behauptet damit eine tabellenweise Vollstaendigkeit, die 04-SEITENKARTE §5.25 zusagt („PER FIELD and PER TABLE") und die nicht vorliegt. Die Datei schuetzt sich gegen den Fall „Recht fehlt" (`ungelesen` statt leer) — gegen den Fall „Tabelle steht nicht in der Liste" nicht.
+  - Behebung: Die fehlenden Tabellen als OrtDefinition nachtragen, jeweils mit `recht` und `sperre` (fuer `lead`/`lead_aktivitaet` liegt `{art:'offen', frage:'O-71'}` nahe, weil dort der § 7 UWG-Nachweis und der Akquiseverlauf zusammenfallen). Dazu dieselbe Wache wie fuer ABSCHNITTE, damit die Liste nicht wieder hinter dem Schema zurueckbleibt.
+- **wichtig** · `/home/user/cse-platform/src/server/registry/routen.generiert.ts` — 0220 gibt einem Traeger von nur `datenschutz.berichtigung_bearbeiten` das Leserecht auf `betroffenenanfrage` — erreichbar ist die Seite fuer ihn trotzdem nicht. Das Tor von `/portal/[mandant]/datenschutz` (Posteingang) und von `/portal/[mandant]/datenschutz/[id]` verlangt `datenschutz.auskunft_erstellen`; beide antworten fuer ihn mit 404. `/[id]/berichtigung` kann er nur aufrufen, wenn er die Kennung kennt, und der Ruecklink in `Vorgangskopf.tsx` fuehrt auf genau den Posteingang, der ihn abweist. Derselbe Fall gilt fuer `datenschutz.loeschung_pruefen`. Damit ist der Befund, den 0220 behebt, in der Oberflaeche unbehoben.
+  - Behebung: In der Seitenkarte §5.25 und damit im Register die `lesen`-Liste von `/datenschutz` und `/datenschutz/[id]` um `datenschutz.berichtigung_bearbeiten` und `datenschutz.loeschung_pruefen` erweitern — dieselbe Begruendung, mit der 0220 die Policy erweitert hat („die Tabelle ist EINE Arbeitsliste fuer DREI Zustaendigkeiten"). Die Schreibwege bleiben getrennt; die bereits vorhandenen `darf[…]`-Abfragen in den Seiten tragen das dann auch.
+- **wichtig** · `/home/user/cse-platform/src/app/api/datenschutz/widerspruch/route.ts` — Der Haken „Auch auf Ebene der Firma festhalten" wird STILL verworfen, wenn die Sitzung kein `crm.lesen` haelt. Die Route autorisiert `datenschutz.auskunft_erstellen`; das `select kunde_id from ansprechpartner` laeuft aber unter der Policy `t_mandant`, und die verlangt `crm.lesen`. Ohne das Recht kommt keine Zeile, `k?.kunde_id ?? null` wird `null`, und `setzeVerarbeitungswiderspruch` setzt nur die Kontaktebene — ohne Fehler, ohne Hinweis. Genau die Datenschutzbeauftragte ohne CRM-Recht, fuer die die Route ihr Recht bewusst NICHT auf `crm.schreiben` gelegt hat, trifft es. Die Wirkung ist unwiderruflich, also gibt es keinen zweiten Versuch.
+  - Behebung: Die Firma ueber einen Definer aufloesen statt direkt zu lesen — `app.widerspruch_stand` gibt bereits Kontakt und Firma zurueck und prueft `darf_widerspruch_lesen()`; sie um `kunde_id` erweitern, oder eine eigene Definer-Zeile. Und wenn die Firma trotz gesetztem Haken nicht aufloesbar ist: `WiderspruchFehler` mit 409 werfen, nicht stillschweigend die Kontaktebene allein setzen.
+- **wichtig** · `/home/user/cse-platform/src/server/services/datenschutz/berichtigung.ts` — `nimmAuf()` ueberschreibt mit `on conflict … do update set wert_gespeichert = excluded.wert_gespeichert` genau den Beweis, fuer den die Tabelle angelegt wurde. Die Datei sagt selbst: „Der gespeicherte Wert wird MITGESCHRIEBEN und nicht spaeter nachgelesen … Nach der Berichtigung ist er fort." Wird dasselbe `tabelle.feld` ein zweites Mal aufgenommen — und die Oberflaeche laesst das zu, per Auswahlliste oder per Hand —, steht danach der NACHHERIGE Wert in `wert_gespeichert`, waehrend `ergebnis`, `berichtigt_am` und `berichtigt_von` unveraendert auf 'berichtigt' stehen bleiben. Die Zeile belegt dann eine Berichtigung von X auf X. Die Loeschsperre (`append`) schuetzt die Zeile gegen DELETE, nicht gegen dieses UPDATE.
+  - Behebung: Den Upsert einschraenken: `do update set … where berichtigung_feld.ergebnis = 'offen'` und `wert_gespeichert = coalesce(berichtigung_feld.wert_gespeichert, excluded.wert_gespeichert)` — der erste erfasste Stand bleibt stehen. Ein bereits entschiedenes Feld beantwortet `nimmAuf` mit einem `BerichtigungFehler` (409) statt es zu ueberschreiben; ein zweiter Streit um dasselbe Feld ist ein zweiter Vorgang.
+- **wichtig** · `/home/user/cse-platform/src/app/portal/[mandant]/datenschutz/[id]/page.tsx` — Der Widerspruch nach Art. 21 hat fuer eine `person` oder eine `bewerbung` keinen Weg UND wird nicht benannt. Der ganze Abschnitt haengt an `zuordnung.art === 'ansprechpartner'` (Zeile 257); `widerspruch_am` gibt es nur auf `ansprechpartner` und `kunde`. Eine Beschaeftigte oder eine Bewerberin, die Art. 21 erklaert, sieht auf der Akte deshalb nichts darueber — waehrend Art. 18 (O-647) und Art. 20 ausdruecklich als Hinweis erscheinen. Das ist dieselbe stille Luecke, die die Domaene fuer Art. 18 richtig vermeidet.
+  - Behebung: Einen Hinweis-Kasten fuer `z.art === 'widerspruch'` mit einer Zuordnung auf `person`/`bewerbung` ergaenzen, Bauart wie der O-647-Block: benennen, dass das Datenmodell fuer diese Personengruppe kein Widerspruchsmerkmal fuehrt, dass die Wirkung organisatorisch umgesetzt und im Abschlusstext festgehalten wird — mit einer eigenen TODO(client, O-6xx)-Zeile im Register.
+- **wichtig** · `/home/user/cse-platform/src/server/services/datenschutz/auskunft.ts` — Eine Anfragekennung, die es nicht gibt oder die zu einer fremden Gesellschaft gehoert, fuehrt auf 500 statt 404. `erstelleAuskunft` wirft einen nackten `Error('Diese Betroffenenanfrage ist nicht lesbar.')`; `/api/datenschutz/auskunft` fangt nur `NichtAngemeldetFehler`, `ZweiterFaktorFehler` und `NichtGefundenFehler` und laesst alles andere durch. AUT-06 verlangt 404 (und nicht 403 und nicht 500) fuer alles, was diese Sitzung nicht sehen darf.
+  - Behebung: In `erstelleAuskunft` einen typisierten Fehler werfen (`NichtGefundenFehler` aus `@/server/auth/fehler` oder eine eigene `AuskunftFehler`-Klasse mit `status: 404`) und im catch-Block der Route behandeln — wie es /api/datenschutz/zuordnen und /berichtigung mit `AnfrageFehler`/`BerichtigungFehler` schon halten.
+- **wichtig** · `/home/user/cse-platform/drizzle/0222_werbewiderspruch.sql` — `grant select, update on ansprechpartner to cse_definer` und dasselbe auf `kunde` erteilen TABELLENWEIT, obwohl die Funktionen nur wenige Spalten brauchen. Die begleitenden Policies pruefen ausschliesslich `mandant_id = app.aktiver_mandant()`. Damit hat ab jetzt JEDE `cse_definer`-Funktion im Haus volles Lesen und Schreiben auf beiden CRM-Tabellen im aktiven Mandanten — einschliesslich der Spalten, die K-05 der Anwendung gerade entzieht (`rechtsgrundlage`, `werbewiderspruch_am`, `widerspruch_am`) und einschliesslich aller uebrigen. Die Migration weitet damit die Wirkung eines Rechte-Blocks auf, den sie selbst als Begruendung anfuehrt.
+  - Behebung: Spaltenweise erteilen: `grant select (id, mandant_id, kunde_id, vorname, nachname, email, rechtsgrundlage, werbewiderspruch_am, widerspruch_am, anonymisiert_am, archiviert_am) on ansprechpartner to cse_definer;` und `grant update (werbewiderspruch_am, widerspruch_am) on ansprechpartner to cse_definer;`, analog fuer `kunde` (dort zusaetzlich `name`, `email_zentral`, `status`). Die BEFORE-Trigger von 0020 arbeiten auf NEW und brauchen keine Spaltenrechte.
+- **wichtig** · `/home/user/cse-platform/drizzle/0222_werbewiderspruch.sql` — `app.werbewiderspruch_formular(text)` ist der einzige der fuenf Schreibwege in 0222 ohne jede eigene Pruefung: kein `app.portal()`-Tor (K-04), kein `app.ist_readonly()` (Invariante 10), kein Recht. Sie ist `cse_app` erteilt (und ueber Befund 2 auch PUBLIC). Ihre Geschwister tragen jeweils mindestens zwei der drei Pruefungen — `werbewiderspruch_token_ausgeben` prueft readonly + Recht, `widerspruch_verarbeitung_setzen` alle drei. Damit haengt der Schutz dieses Weges vollstaendig am Aufrufer, und der ist eine oeffentliche Route.
+  - Behebung: `if app.ist_readonly() then raise … end if;` am Anfang ergaenzen (eine Gruppenansicht erklaert keinen Widerspruch) und das Ergebnis der Funktion an den Eingangsprinzipal binden — z. B. `if not app.hat_recht('formular.schreiben', app.aktiver_mandant()) then raise …`, so wie die Route es in ihrem Kommentar bereits behauptet („ohne Token der Eingangsprinzipal mit `formular.schreiben`"): heute prueft das niemand.
+- **wichtig** · `/home/user/cse-platform/src/server/services/datenschutz/auskunft.ts` — In der ausgelieferten Art.-15-Auskunft steht bei 12 von 15 Abschnitten als Aufbewahrungsfrist „Noch nicht entschieden — O-514" — und die Datei stempelt sie dennoch `vollstaendig = true`, haengt einen SHA-256 daran und gibt den Abruf frei. Dieselbe Datei verweigert die Auslieferung, wenn ein LESERECHT fehlt, mit der Begruendung, eine halbe Auskunft sehe aus wie eine Antwort. Art. 15 Abs. 1 lit. d verlangt die geplante Speicherdauer oder wenigstens die Kriterien; „noch nicht entschieden" ist beides nicht. Der Bericht fuehrt die Frist als geliefert.
+  - Behebung: Die offene Frist wie ein gesperrter Abschnitt behandeln, nicht wie eine Angabe: entweder `vollstaendig` auch dann `false` setzen, wenn ein Abschnitt keine bezifferte Frist tragen kann, oder — weniger einschneidend — im Markdown und auf der Seite EINEN sichtbaren Warnblock ueber allen Abschnitten fuehren („Fuer N Abschnitte ist die Aufbewahrungsfrist noch nicht entschieden (O-514)") und die Freigabe von einer ausdruecklichen Bestaetigung abhaengig machen. Ohne das eine oder andere geht eine Auskunft hinaus, die zur wichtigsten Pflichtangabe schweigt.
+- **wichtig** · `/home/user/cse-platform/src/server/db/schema/rls.ts` — Die gemeinsamen Register sind nicht eingetragen, und zwei bestehende Pruefungen sind deshalb heute rot. `rls.ts` fuehrt keine der fuenf neuen Tabellen in KEIN_HARD_DELETE (die Bloecke stehen nur von Hand in 0221/0222), `route-manifest.ts` kennt keine der sechs neuen `route.ts`, `registry/dienste.ts` keinen der vier Dienste, und `DECISIONS.md` keine der acht O-Nummern O-640…O-647 (hoechste vorhandene: O-596). Auch 02-CRM-OPERATIONS.md — laut eigener Praeambel der normative Vertrag — beschreibt `werbewiderspruch` weiter nur als SPALTE, obwohl 0222 zwei Tabellen anlegt. Definition of done ist damit nicht erfuellt.
+  - Behebung: Die im Bericht als Text gelieferten Eintraege zentral einfuegen — rls.ts in der angegebenen Reihenfolge (danach `pnpm db:triggers --check` erneut laufen lassen), route-manifest.ts, dienste.ts, DECISIONS.md unter „Open", die zwei Zeilen in scripts/generate-triggers.ts (MIGRATIONS_DATEIEN 0221/0222) und den Nachtrag in 02-datenmodell/02-CRM-OPERATIONS.md §0.1 samt Tabellenbeschreibung. Erst danach sind routen.test.ts und die Wachen wieder gruen.
+- **wichtig** · `/home/user/cse-platform/src/app/(public)/werbewiderspruch/page.tsx` — Es gibt kein englisches Gegenstueck. CLAUDE.md und D-82 verlangen die oeffentliche Website zweisprachig (deutsch unter `/`, englisch unter `/en/…`, gleiche Pfade); `/en/werbewiderspruch` existiert weder als Seite noch als Registerzeile. Der Bericht nennt es selbst unter `nicht_gebaut` — es bleibt trotzdem offen, und es trifft einen gesetzlichen Pflichtweg, den auch ein englischsprachiger Empfaenger finden muss.
+  - Behebung: In 04-SEITENKARTE.md §2.4 die zwei /en-Zeilen nachtragen, das Register neu erzeugen und die Seite wie bei `/datenschutz/anfrage` bauen: gemeinsame Komponente (dort `Anfrage.tsx`) mit deutschem und englischem Aufruf, damit `formular_definition` und die Texte nicht doppelt gefuehrt werden (D-83).
+- **klein** · `/home/user/cse-platform/drizzle/0222_werbewiderspruch.sql` — `app.werbewiderspruch_einloesen` antwortet `bereits` („ist bereits erfasst") auch fuer einen Token, der WIDERRUFEN oder abgelaufen ist und nie eingeloest wurde. Die Seite `/werbewiderspruch/[token]` macht daraus „Ist bereits erfasst … Werbung an diese Adresse ist gestoppt" — eine falsche Zusage an die betroffene Person auf dem Pflichtweg des § 7 UWG. Praktisch heute selten (kein Ablauf gesetzt, `widerrufen_am` schreibt niemand), im Fall eines Widerrufs aber genau der Schaden, den der Kommentar vermeiden will.
+  - Behebung: Einen dritten Zustand zuruecksetzen, etwa `verbraucht` vs. `ungueltig`, unterschieden an `eingeloest_am is not null` — dem Inhaber des Tokens verraet das nichts, was er nicht ohnehin weiss. Fuer `ungueltig` sagt die Seite dann, dass der Widerspruch NICHT erfasst wurde und nennt den tokenlosen Weg (`/werbewiderspruch`) bzw. die Impressumsadresse.
+- **klein** · `/home/user/cse-platform/src/server/services/datenschutz/loeschentscheidung.ts` — `milogFrist` widerspricht seinem eigenen Kommentar und unterschreitet im Schaltjahrfall die gesetzliche Mindestfrist. Der Kommentar sagt „Die Sperre faellt am Tag danach", zurueckgegeben wird derselbe Kalendertag zwei Jahre spaeter — waehrend `aoFrist` mit dem 1. Januar tatsaechlich den Tag NACH dem Fristende liefert. Zwei verschiedene Bedeutungen in derselben Spalte `sperre_faellt_am`. Fuer den 29.02. wird auf den 28.02. abgerundet; das ist ein Tag WENIGER als die „mindestens zwei Jahre" des § 17 Abs. 2 MiLoG, und die Begruendung im Kommentar argumentiert mit dem Interesse des Betroffenen statt mit der Aufbewahrungspflicht, die hier die Grenze setzt.
+  - Behebung: Die Bedeutung einmal festlegen und beide Funktionen darauf bringen. Wenn `sperre_faellt_am` „der erste Tag, an dem geloescht werden darf" heisst (so liest `aoFrist` es), gibt `milogFrist` den Folgetag zurueck und rundet im Schaltjahrfall auf den 01.03. AUF, nicht auf den 28.02. ab. Kommentar, Spaltenkommentar in 0221:246 und die Testfaelle mitfuehren.
+- **klein** · `/home/user/cse-platform/src/server/services/datenschutz/werbewiderspruch.ts` — `ART_WIRKUNG.werbung` behauptet, Leistungsnachweise, Terminbestaetigungen und Mahnungen liefen nach einem Werbewiderspruch weiter. Das gilt fuer `zweck = 'vertraglich'`, nicht fuer `zweck = 'transaktional'` — und genau dort sitzen Terminbestaetigung, Leistungsnachweis und Mahnung laut dem Kommentar in 0020. `app.darf_kontaktiert_werden` weist `transaktional` bei gesetztem `werbewiderspruch_am` ab (bewusst, restriktiver Zweig zu O-65). Der Text erscheint als Erklaerung ueber der Werbewiderspruchsliste — drei Abschnitte tiefer sagt derselbe Bildschirm im O-65-Punkt das Gegenteil.
+  - Behebung: ART_WIRKUNG.werbung auf das heutige Verhalten bringen: „Rechnungen und andere vertraglich notwendige Post (`zweck = 'vertraglich'`) laufen weiter. Terminbestaetigung, Leistungsnachweis und Mahnung sind als `transaktional` gefuehrt und werden bis zur Entscheidung von O-65 ebenfalls abgewiesen — der restriktive Zweig." Dann sagen Erklaerung und O-65-Punkt dasselbe.
+- **klein** · `/home/user/cse-platform/src/server/db/seed/datenschutz.ts` — Der Kopf der Datei sagt „Die Widersprueche entstehen auf dem ECHTEN Weg, nicht als Zeitstempel-Update: … Ein Seed, der die Zeitstempel direkt setzte, liesse die Protokollzeile fehlen". Fuer den Art.-21-Fall tut der Seed genau das: ein direktes `update ansprechpartner set widerspruch_am` plus ein handgeschriebenes `insert into werbewiderspruch`, statt `app.widerspruch_verarbeitung_setzen` zu rufen — die Funktion, die dieser PR gerade als einzigen Schreibweg des Hauses eingefuehrt hat. Damit prueft der Seed sie nicht, und die Protokollzeile entsteht neben der Wirkung statt mit ihr.
+  - Behebung: Den Art.-21-Fall wie den Tokenfall in eine gebundene Sitzung legen (`app.scope`, `app.mandant_id`, `app.portal='intern'`, `app.benutzer_id` = Bearbeiter) und `select app.widerspruch_verarbeitung_setzen($1, null, $2)` rufen. Dann steht der Zeitstempel wegen der Funktion, das Protokoll entsteht in derselben Transaktion, und der Seed beweist den Weg, statt ihn zu umgehen.
+- **klein** · `/home/user/cse-platform/tests/isolation/datenschutz-nachweis.test.ts` — Keiner der beiden Tests ruft eine einzige der neun neuen Dienstfunktionen auf. Die Isolationsdatei prueft ausschliesslich rohes SQL gegen Policies und Funktionen, die kern-Datei nur reine Rechenfunktionen und die Markdown-Ausgabe. Nicht abgedeckt sind damit `erstelleAuskunft` (rund 20 Abfragen ueber 20 Tabellen), `matrix` (18 Abfragen), `kandidaten`, `ordneZu`, `halteFest`, `erteilte`, `liste`/`protokoll`/`stand` — genau die Stellen, an denen ein umbenannter Spaltenname erst beim Aufruf auffaellt und nie beim Typecheck. Ich habe alle neun einmal gegen echtes Postgres laufen lassen: sie funktionieren heute. Die Zusage friert das nicht ein. Nebenbei: der Seed legt die Betroffenenanfragen nur mit `CSE_DEV_FLAECHEN` an, `pnpm db:seed` ohne die Kennung ergibt null Zeilen und damit keine aufrufbare `[id]` — dieselbe Regel wie im Recruiting, aber der Plan hatte den mitwachsenden Seed ausdruecklich zur Definition of done gezaehlt.
+  - Behebung: Eine dritte Testdatei nach dem Muster von tests/isolation/crm-seitenabfragen.test.ts: mit `withTenant` und der Harness-Fixtur je Dienstfunktion EIN Aufruf mit einer Zusage ueber Zeilenzahl und Sperrzustand — fuer alle drei Zuordnungsarten, damit auch der `ansprechpartner`- und der `bewerbung`-Zweig einmal wirklich laufen. Das faengt die Befunde 1 und 4 beim naechsten Mal selbst.
 
-- /home/user/cse-platform/tests/isolation/datenschutz-abdeckung.test.ts — NEU, 8 Faelle, gruen. Die Wache gegen den Hauptbefund: sie stellt JEDE Tabelle des Schemas mit `person_id`, `ansprechpartner_id` oder `bewerbung_id` (nur BASE TABLE, keine Sichten) gegen `ABDECKUNG` aus `auskunft.ts` und aus `loeschentscheidung.ts` — und beide Richtungen, also auch: die Liste nennt keine Tabelle, die es nicht gibt. Die Gegenrichtung hat beim ERSTEN Lauf einen Fehler gefunden, der seit dem Bauschritt drinstand: der offene Abschnitt nannte `agent_lauf`, und diese Tabelle gibt es nicht (sie heisst `agent_aufgabe`/`agent_schritt`, der Freigabe-Snapshot `freigabe_snapshot`).
-- /home/user/cse-platform/tests/isolation/datenschutz-dienste.test.ts — NEU, 21 Faelle, gruen. Je Dienstfunktion EIN Aufruf gegen echtes Postgres, fuer ALLE DREI Zuordnungsarten: lade, ladeZuordnung, kandidaten, ordneZu, erstelleAuskunft, halteFest, erteilte, nimmAuf, liste (Berichtigung), matrix, liste (Loeschung), liste/protokoll/stand (Widerspruch). Mit Zusagen ueber Zeilenzahl und Sperrzustand, einem Konto MIT allen Rechten und einem mit nur den drei Datenschutzrechten. Die Fixtur hat dabei zwei Dinge korrigiert, die ich sonst geraten haette: `stelle.beschreibung` und `bewerbung.aufbewahrung_bis` sind NOT NULL, und die Rolle `leitung` traegt `crm.lesen`, `angebot.lesen` und `objekt.lesen` — nicht aber `crm.rechtsgrundlage_lesen`, an dem der Sperrfall haengt.
+**Urteil:** Nicht abnahmefaehig. Die Arbeit ist handwerklich dicht — Migrationen sauber (RLS + FORCE + Policies je Rolle, `mandant_id` ueberall, alle Zeitstempel `timestamptz`, kein Geldwert im Spiel), jede der rund 45 SQL-Abfragen laeuft gegen echtes Postgres fehlerfrei, `tsc --noEmit` meldet aus der Domaene nichts, die Tailwind-Farbwache und `db:triggers --check` sind gruen, die beiden behaupteten Testdateien existieren und laufen (17 + 29 Faelle), kein erfundener Gestaltungswert, keine vorgetaeuschte Integration, keine vorhandene Datei beschaedigt. Aber drei Befunde sind blockierend. (1) Die Art.-15-Auskunft laesst fuer einen Kundenkontakt `lead`, `lead_aktivitaet` (mit dem Inhalt der Korrespondenz), `angebot`, `objekt` und `werbewiderspruch_token` und fuer eine Bewerberin `bewerbung_antwort`, `einstellungsentscheidung` und `kandidat` vollstaendig aus — und stempelt das Ergebnis mit `vollstaendig = true` und SHA-256 zur Aushaendigung frei. Der eigene Grundsatz der Domaene („ein Abschnitt ohne Recht ist gesperrt, nicht leer — eine halbe Auskunft sieht aus wie eine Antwort") ist damit von der Seite her ausgehebelt, gegen die er nicht schuetzt: eine Tabelle, die nicht in der Liste steht. Der Loeschentscheidung fehlen dieselben Orte. (2) Alle acht neuen Definer-Funktionen lassen PUBLIC das EXECUTE stehen; der bestehende Test `definer-eigentum.test.ts` faellt, und es sind genau diese acht im ganzen Haus. (3) `/api/werbewiderspruch` schreibt unangemeldet, ohne Ratenlimit und unwiderruflich in fremde CRM-Zeilen, obwohl 04-SEITENKARTE:653 fuer genau diese Adresse ein Ratenlimit verlangt. Dazu elf wichtige Punkte, darunter zwei stille Fehlwirkungen (der Firmen-Haken bei Art. 21 fällt ohne `crm.lesen` lautlos aus; der Upsert in `nimmAuf` ueberschreibt den Beweiswert, fuer den die Tabelle existiert) und die Erreichbarkeitsluecke, die 0220 eigentlich schliessen wollte: ein Traeger von nur `datenschutz.berichtigung_bearbeiten` darf die Zeile jetzt lesen, kommt aber ueber kein Tor an sie heran. Der Bericht selbst ist ueberwiegend ehrlich — Vollzugsluecke, O-Nummern und fehlende Register sind benannt —, ueberzeichnet aber an drei Stellen: „18 Orte" sind je Fall 13, 4 oder 5; „20 Abschnitte" sind 15 bzw. 3; und „je Abschnitt die Aufbewahrungsfrist" heisst in 12 von 15 Faellen „Noch nicht entschieden — O-514".
 
-## NICHT gebaut
+## Vom Behebenden WIDERLEGT (Befund war falsch)
 
-- /en/werbewiderspruch/[token] — die englische Fassung der TOKENseite. Die tokenlose `/en/werbewiderspruch` ist inzwischen gebaut (siehe Punkt 4 unter „Sonstiges"); die Tokenseite gehoert der Domaene aufgaben-nachrichten-oeffentlich, und zwei Agenten an derselben Datei war schon einmal der Fall.
+- BEFUND 1, TEILWEISE: „Fuer `bewerbung` fehlen bewerbung_antwort (text, gesendet_an), einstellungsentscheidung und kandidat." — `bewerbung_antwort` FEHLTE NICHT. BELEG: `git show HEAD:src/server/services/datenschutz/auskunft.ts | grep "schluessel: '"` gibt Zeile 554 `schluessel: 'bewerbung_antwort'`, mit `gesendet_an` in den Spalten. Der Pruefer zaehlt selbst vier Abschnitte mit fuer:['bewerbung'] und nennt dann vier fehlende — einer davon war einer der vier. Genuin gefehlt haben einstellungsentscheidung und kandidat (nachgetragen) und die Spalte `text` von bewerbung_antwort, also der Inhalt der Nachricht statt nur ihrer Metadaten (ebenfalls nachgetragen).
+- BEFUND 5, DIE BEHEBUNG: „die `lesen`-Liste von /datenschutz und /datenschutz/[id] um datenschutz.berichtigung_bearbeiten und datenschutz.loeschung_pruefen erweitern". Der BEFUND stimmt (ein Traeger von nur berichtigung_bearbeiten kommt an den Posteingang nicht heran), die BEHEBUNG macht es schlimmer. `lesen` ist eine UND-Bedingung, nicht ODER. BELEG: scripts/seitenkarte/extrahiere.ts:40-45 — „mehrere Schluessel bedeuten UND (`a + b` in der Karte)"; src/server/auth/zugang.ts:160-167 laeuft ueber JEDEN Schluessel der Liste und sammelt jeden fehlenden, `fehlend.length > 0` → kein_recht. Mit drei Rechten in `lesen` kaeme die Datenschutzbeauftragte mit nur auskunft_erstellen ebenfalls nicht mehr durch — also genau die Sitzung, fuer die die Seite gebaut ist. Der Schraegstrich hilft nicht: er verschiebt die weiteren Schluessel nach `schreiben`, und `schreiben` bewacht die Seite gar nicht. Was es braucht, ist eine ODER-Schreibweise in 04-SEITENKARTE.md UND im Extraktor (`Bewachung` kennt nur lesen/schreiben) — zwei gemeinsame Dateien. Praktisch ist der Fall heute leer: `select r.schluessel … where b.schluessel like 'datenschutz%'` gibt in der lebenden Rechtetabelle NUR super_admin, und der haelt alle drei. 0220 heilt also eine moegliche, keine bestehende Lage. Ich habe den Code gelassen und die Registerzeile mit dieser Begruendung zurueckgegeben; die Oberflaechen-Haelfte (der Ruecklink) ist behoben.
+- BEFUND 19, NEBENBEMERKUNG: „der Seed legt die Betroffenenanfragen nur mit CSE_DEV_FLAECHEN an, pnpm db:seed ohne die Kennung ergibt null Zeilen". Das ist kein Defekt, sondern die Regel des Hauses fuer personenbezogene Demodaten — der Pruefer nennt sie selbst („dieselbe Regel wie im Recruiting"). Eine Betroffenenanfrage ist ein Mensch mit Namen und E-Mail-Adresse; in einem echten Bau hat die nicht erfunden dazustehen, und die Adressen liegen deshalb auf @example.test (RFC 6761). Der Seed WAECHST mit — er legt fuenf Anfragen in allen Zustaenden samt Auskunftsartefakt an, nur eben hinter derselben Kennung wie das Recruiting. Code unveraendert.
+
+## Nach der Behebung noch offen
+
+- BEFUND 10, ZWEITE HAELFTE: das `grant select on ansprechpartner/kunde to cse_definer` bleibt TABELLENWEIT, und das ist in meinem Nummernbereich nicht behebbar. Grund, nachgemessen: drizzle/0246_ansprechpartner_aehnliche_leistung.sql:98 stuetzt sich in seinem EIGENEN Kommentar ausdruecklich darauf („cse_definer haelt auf dieser Tabelle ein TABELLEN-select (0222, Zeile 292) und deckt neue Spalten damit von selbst"), und 0247 liest darueber aehnliche_leistung, einwilligung_kanaele, rechtsgrundlage_quelle, rechtsgrundlage_erfasst_am, rechtsgrundlage_beleg_dokument_id, aehnliche_leistung_begruendung. Eine Spaltenliste in 0222 KANN diese Spalten nicht nennen — es gibt sie dort noch nicht (0246 legt aehnliche_leistung erst an, das Grant scheiterte an einer unbekannten Spalte). Der Entzug gehoert in dieselbe Hand wie 0246/0247: erst deren eigene Spaltengrants, dann faellt das Tabellen-SELECT. Keine O-Nummer, weil es keine Geschaeftsregel ist, sondern eine Reihenfolge zwischen zwei Migrationen; steht als Punkt 3c im Domaenenregister.
+- BEFUND 5, DAS TOR SELBST: /portal/[mandant]/datenschutz und /[id] bleiben fuer einen Traeger von nur berichtigung_bearbeiten oder loeschung_pruefen unerreichbar. Die richtige Behebung braucht eine ODER-Schreibweise in 04-SEITENKARTE.md §5.25 und im Extraktor (scripts/seitenkarte/extrahiere.ts, `Bewachung`) plus zugang.ts — drei gemeinsame Dateien. Als Punkt 3b im Domaenenregister mit der vollstaendigen Begruendung.
+- BEFUND 13: docs/architecture/02-datenmodell/02-CRM-OPERATIONS.md beschreibt werbewiderspruch weiter nur als SPALTE, obwohl 0222 zwei TABELLEN anlegt. Ich habe den normativen Vertrag NICHT angefasst — er ist 2000+ Zeilen, gehoert der CRM-Domaene, und die Migrationen 0245-0250 derselben Domaene sind gerade im Fluss. Der vollstaendige Nachtragstext (beide Tabellen mit Spalten, §0.1-Tabellenliste, die Anmerkung zu den zwei Kanalvokabularen) steht fertig als Punkt 3 im Domaenenregister.
+- Der Vollzug der Loeschvormerkung (O-644) fehlt weiter im ganzen System — keine Anonymisierungsprozedur, kein Lauf auf anonymisiert_am, kein Tombstone. Unveraendert; die Seite behauptet keinen Vollzug.
+- Die Bestaetigungsmail zum tokenlosen Werbewiderspruch (§2.4) — kein Postausgang verbunden. Die Seite sagt jetzt AUSDRUECKLICH „Eine Bestaetigung per E-Mail versenden wir derzeit nicht" statt zu schweigen, und die offene Frage hat eine Nummer (O-649). Kein simulierter Versand.
+- NICHT MEINE DOMAENE, aber beim Pruefen aufgefallen und blockierend fuer andere: (a) `pnpm db:seed` scheitert reproduzierbar nach seedSonderUndQualitaet mit „new row violates row-level security policy for table leistungskatalog_position" — vermutlich aus 0298_leistungskatalog_status. Damit laeuft auch tests/isolation/global-setup.ts nicht, ich habe meine Isolationsdateien deshalb mit einer eigenen, danach wieder entfernten Konfiguration gegen w_dsch gefahren. (b) definer-eigentum.test.ts faellt noch an EINER Funktion: `fin.auftrag_abschluss_befunde (gehoert postgres)` aus 0299 — es fehlt `alter function … owner to cse_definer` (K-01). Der K-08-Teil, der mir gehoerte, ist gruen.
+
+## NICHT gebaut, mit Grund
+
+- /en/werbewiderspruch — D-82 verlangt die oeffentliche Website zweisprachig, aber routen.generiert.ts fuehrt nur /werbewiderspruch und /werbewiderspruch/[token] ohne /en-Gegenstueck. Ich habe die Registerdatei nicht angefasst; die deutsche Fassung steht, die englische braucht erst eine Registerzeile.
 - Die Ausfuehrung einer Loeschvormerkung (Anonymisierungsprozedur app.person_anonymisieren, Tombstone, Nachtlauf). Sie fehlt im ganzen System (nachgemessen: ein loeschender Lauf, keine Funktion mit 'anonymisier', kein Codepfad auf anonymisiert_am) und ist eine eigene Domaene — O-644. Die Seite behauptet deshalb keinen Vollzug.
 - Die Abwesenheitsart und der interne Stundensatz in der Art.-15-Auskunft: beide sind K-05/Art.-9-nah und haben eigene Definer-Leser (app.abwesenheit_grund_lesen, app.anstellung_entgelt_lesen). Ob sie in eine Art.-15-Auskunft gehoeren, ist O-643/O-642 — die Abschnitte nennen die Luecke statt sie stillschweigend zu lassen.
 - Die Bestaetigungs-E-Mail zum tokenlosen Widerspruch (§2.4 nennt sie). Kein Postausgang ist verbunden; die Seite bestaetigt auf dem Bildschirm und behauptet keinen Versand.
 
-## Notizen des Bauenden
+## Notizen des Bauender
 
 MIGRATIONSPRUEFUNG: die volle Kette 0001→0231 laeuft auf einer frisch
 angelegten w_dsch bis „Migrationen angewendet." durch — zuletzt nach dem
@@ -454,3 +250,20 @@ angestellt (der D-09-Fall), braucht sie zwei Auskuenfte — eine je
 Verantwortlichem. Das ist rechtlich richtig und praktisch unbequem; die Seite
 sagt es nicht ausdruecklich. Falls das eine eigene Zeile verdient, waere das
 eine neue O-Nummer ausserhalb meines Bereichs.
+
+## Notizen des Behebender
+
+PRUEFSTAND. Kette 0001→0304 zweimal gegen frisch angelegte Datenbanken (w_dsch, w_dsch_w1) gefahren, zuletzt nach der letzten Aenderung: „Migrationen angewendet." · `npx tsc --noEmit` → 0 Zeilen · ESLint auf alle 24 beruehrten Dateien → 0 Probleme · `npx tsx scripts/generate-triggers.ts --check` → „Trigger sind aktuell." · `scripts/guards/run-all.ts` meldet aus meinem Bereich AUSSCHLIESSLICH `todo-client-nicht-im-register` fuer O-640…O-649 — genau die zehn Zeilen in decisions_zeilen; danach ist die Wache gruen.
+
+TESTS: tests/isolation/datenschutz-nachweis.test.ts 32/32 (war 29, drei neue Faelle: widerrufener Token, formular-Tor, Drossel) · tests/isolation/datenschutz-dienste.test.ts 21/21 (neu) · tests/isolation/datenschutz-abdeckung.test.ts 8/8 (neu) · tests/kern/datenschutz-fristen.test.ts 20/20 (war 17; drei Faelle umgeschrieben statt angepasst, weil sie den Befund als Sollverhalten eingefroren hatten) · tests/isolation/definer-eigentum.test.ts -t K-08 3/3 gruen. Keine vollen Suiten, kein Commit, kein Build.
+
+WEIL DER SEED HEUTE NICHT LAEUFT (fremder Defekt in leistungskatalog_position, siehe offen) habe ich die Isolationsdateien mit einer eigenen, danach wieder ENTFERNTEN vitest-Konfiguration ohne global-setup gegen w_dsch gefahren. Achtung fuer den naechsten Lauf: vitest setzt VITEST_POOL_ID, und harness.ts leitet daraus w_dsch_w1 ab — ich bin einmal darauf hereingefallen und habe gegen eine veraltete Datenbank gemessen. Beide Datenbanken sind jetzt frisch migriert.
+
+DREI STELLEN, AN DENEN ICH VOM VORSCHLAG DES PRUEFERS ABGEWICHEN BIN, jeweils weil der Vorschlag nicht getragen haette:
+(1) Ratenlimit: `pruefeRatenlimit` zaehlt formular_eingang-Zeilen, und /api/werbewiderspruch legt dort keine an — das Limit haette gezaehlt, was andere Formulare einsenden. Eigener Zaehler ueber kern.anmeldeversuch.
+(2) Spaltengrants: das SELECT laesst sich in 0222 nicht spaltenweise erteilen, weil 0246 Spalten nachlegt, die 0222 nicht kennen kann. Das UPDATE ist nachgezogen, das SELECT als Nachziehung notiert.
+(3) `lesen`-Liste erweitern: das ist eine UND-Bedingung und haette die Datenschutzbeauftragte mit ausgesperrt. Widerlegt mit Beleg, Registerzeile mit der richtigen Behebung zurueckgegeben.
+
+GESTALTUNG: keine neuen Werte. Alles aus dem vorhandenen Vokabular; die Tailwind-Farbwache laeuft durch. Der Art.-21-Knopf bleibt `variante="danger"` (DESIGN §5 laesst ein `primary` je Bildschirm, und das gehoert dem Abschluss).
+
+EINE BEOBACHTUNG, DIE KEIN BEFUND WAR UND EINE IST: die neue Abdeckungswache hat beim ERSTEN Lauf einen Fehler aus dem Bauschritt gefunden, den weder Typecheck noch Pruefer gesehen haben — der offene Abschnitt nannte `agent_lauf`, und diese Tabelle gibt es im Schema nicht. Ein offener Abschnitt fragt nichts ab, also faellt ein falscher Tabellenname dort nie auf. Genau dafuer prueft die Wache beide Richtungen.
