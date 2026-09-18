@@ -19,6 +19,7 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 
 /**
  * `/portal/[mandant]/crm/kontakte/[id]/rechtsgrundlage` — die Grundlage nach
@@ -139,7 +140,7 @@ export default async function Rechtsgrundlage(
     >
       <nav aria-label="Zurück" className="mb-s3">
         <Link
-          href={blatt}
+          href={alsRoute(blatt)}
           className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
         >
           ← {kopf.name}

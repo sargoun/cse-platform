@@ -253,6 +253,26 @@ export default async function AbnahmeSeite(
                     SHA-256 {a.snapshot_hash.slice(0, 16)}…
                   </p>
 
+                  {/*
+                    * **Das unterschriebene Papier ist NICHT angehängt, und das
+                    * steht da.** `abnahme.dokument_id` gibt es (die Spalte
+                    * wartet auf den Scan), aber in dieser Anwendung ist kein
+                    * Dokumentenspeicher verbunden — derselbe Grund, aus dem
+                    * die Behinderungsanzeige ohne archiviertes Schreiben
+                    * auskommt. Ein selbst erzeugtes PDF mit erfundener
+                    * Prüfsumme wäre der vorgetäuschte Beleg, den CLAUDE.md
+                    * verbietet: das Protokoll steht hier mit seinem Siegel,
+                    * und das Papier liegt im Ordner der Bauleitung.
+                    */}
+                  {a.dokument_id === null && (
+                    <p className="m-0 mt-s1 text-xs text-text-subtle"
+                       data-cse="abnahme-dokument-fehlt">
+                      Unterschriebenes Protokoll: nicht angehängt — es ist kein
+                      Dokumentenspeicher verbunden. Beweiskraft trägt hier der
+                      gesiegelte Abzug oben, nicht eine Datei.
+                    </p>
+                  )}
+
                   {storniert && (
                     <p className="m-0 mt-s3 text-sm text-text-muted">
                       Storniert {a.storniert_lokal}

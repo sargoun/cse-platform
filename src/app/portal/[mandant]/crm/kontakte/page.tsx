@@ -7,6 +7,7 @@ import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 import {
   leseGrundlagenListe, type GrundlageListenZeile,
 } from '@/server/services/crm/kontakt-grundlage';
@@ -221,7 +222,7 @@ export default async function Kontaktliste(
           {FILTER.map((f) => (
             <Link
               key={f}
-              href={ziel(f)}
+              href={alsRoute(ziel(f))}
               aria-current={filter === f ? 'page' : undefined}
               data-cse={`filter-${f}`}
               className={filter === f

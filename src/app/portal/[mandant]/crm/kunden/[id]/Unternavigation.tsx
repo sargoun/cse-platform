@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 
 /**
  * Die Unternavigation des Kundenblatts — Übersicht · Konditionen · Steuer ·
@@ -53,7 +54,7 @@ export function Unternavigation({
         {sichtbar.map((r) => (
           <li key={r.schluessel}>
             <Link
-              href={`${wurzel}${r.pfad}`}
+              href={alsRoute(`${wurzel}${r.pfad}`)}
               aria-current={r.schluessel === aktiv ? 'page' : undefined}
               data-cse={`reiter-${r.schluessel}`}
               className={r.schluessel === aktiv

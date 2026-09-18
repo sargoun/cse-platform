@@ -19,6 +19,7 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 
 /**
  * `/portal/[mandant]/crm/kontakte/[id]` — das Blatt eines Ansprechpartners
@@ -206,7 +207,7 @@ export default async function Kontaktblatt(
           )}
         </div>
         {darf['crm.rechtsgrundlage_setzen'] === true ? (
-          <Link href={`${pfad}/rechtsgrundlage`} className={knopf}
+          <Link href={alsRoute(`${pfad}/rechtsgrundlage`)} className={knopf}
                 data-cse="kontakt-grundlage-aendern">
             Rechtsgrundlage ändern
           </Link>
