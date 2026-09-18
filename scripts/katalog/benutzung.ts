@@ -164,6 +164,68 @@ function ohneSqlRegister(inhalt: string): string {
       'insert into benachrichtigung _;');
 }
 
+/**
+ * Ein Name in Backticks INNERHALB einer Zeichenkette ist Prosa, kein Wert.
+ *
+ * Dieses Projekt nennt Bezeichner in Fliesstext mit Backticks — in
+ * `comment on column`, in `grund:`-Feldern des RLS-Registers und in Saetzen,
+ * die eine Oberflaeche anzeigt. `MODUL_LITERAL` sieht dort ein
+ * backtick-begrenztes `<modul>.<wort>` und haelt es fuer einen
+ * Rechteschluessel. Sechs Meldungen dieser Art kamen mit der Domaenenwelle auf
+ * einmal, und keine einzige war ein Recht:
+ *
+ *     comment on column nachricht.kunde_id is
+ *       'Denormalisiert aus `nachricht.kunde_id` (Ausloeser, beide Richtungen).'
+ *
+ * Das ist eine SPALTE. Waere die Meldung berechtigt, muesste man eine
+ * Katalogzeile fuer `nachricht.kunde_id` anlegen — ein Recht, das niemand je
+ * prueft, und genau der leere Eintrag, den K-19 verhindern will.
+ *
+ * **Warum das nichts aufweicht.** Geschnitten wird nur, was in einer
+ * Zeichenkette steht UND darin von Backticks umschlossen ist. Ein Schluessel
+ * an seiner Verwendungsstelle steht nie so: er steht als Argument von
+ * `hat_recht(…)` oder unter `recht:`, und dort findet ihn `AUFRUF` — der
+ * staerkere der beiden Detektoren, der an der STELLE erkennt und nicht am
+ * Modulnamen. Der bleibt unberuehrt.
+ */
+function ohneProsaInZeichenketten(inhalt: string): string {
+  return inhalt.replace(
+    /'(?:[^']|'')*'|"(?:[^"\\]|\\.)*"/gu,
+    (zeichenkette) => zeichenkette.replace(/`[a-z_]+\.[a-z_.]+`/gu, '`_`'),
+  );
+}
+
+/**
+ * Das SECHSTE und das SIEBTE Register derselben Form: Auditaktionen und
+ * Benachrichtigungsarten.
+ *
+ * Beide tragen `<modul>.<ereignis>` — Zeichen fuer Zeichen die Form eines
+ * Rechteschluessels, und beide sind keine Rechte:
+ *
+ *     app.protokolliere('radar.stand_gesetzt', 'ausschreibung_vorgang', …)
+ *     where a.aktion = 'radar.stand_gesetzt'
+ *     if p_art is distinct from 'dienstplan.plan_veroeffentlicht' then
+ *
+ * Die Benachrichtigungsart war bisher nur in ihrer EINEN Schreibform
+ * ausgenommen (`insert into benachrichtigung …`, Fall 5). Ein Definer, der die
+ * Art zuerst PRUEFT und dann zustellt (0266), schreibt sie aber in einem
+ * Vergleich — und der sah aus wie ein Recht. Dass es so lange gutging, lag
+ * daran, dass bis dahin niemand die Art gegen einen festen Wert geprueft hat.
+ *
+ * Geschnitten wird deshalb an der Stelle, die die Bedeutung traegt: das erste
+ * Argument von `app.protokolliere(…)`, und ein Literal, das mit `aktion` oder
+ * `art` verglichen wird.
+ */
+function ohneAktionUndArt(inhalt: string): string {
+  return inhalt
+    .replace(/\bapp\.protokolliere\s*\(\s*['"`][a-z_.]+['"`]/giu,
+      "app.protokolliere('_'")
+    .replace(
+      /\b(?:[a-z_]+\.)?(?:p_)?(?:aktion|art)\s*(?:=|<>|!=|is\s+(?:not\s+)?distinct\s+from)\s*['"`][a-z_.]+['"`]/giu,
+      "aktion = '_'");
+}
+
+
 /** Schneidet den erzeugten Katalogblock heraus — er ist die Liste, nicht ihre Benutzung. */
 function ohneKatalogblock(inhalt: string): string {
   const von = inhalt.indexOf(BEGINN);
@@ -185,8 +247,8 @@ export function funde(): readonly Fund[] {
 
   const alle: Fund[] = [];
   for (const datei of quellen) {
-    const inhalt = ohneSqlRegister(ohneRegisterKennungen(
-      ohneKommentare(ohneKatalogblock(readFileSync(datei, 'utf8')))));
+    const inhalt = ohneAktionUndArt(ohneProsaInZeichenketten(ohneSqlRegister(ohneRegisterKennungen(
+      ohneKommentare(ohneKatalogblock(readFileSync(datei, 'utf8')))))));
     for (const m of inhalt.matchAll(MODUL_LITERAL)) {
       const schluessel = m[1]!;
       if (ENDUNGEN.has(schluessel.split('.').at(-1)!)) continue;

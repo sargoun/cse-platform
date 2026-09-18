@@ -14100,6 +14100,38 @@ und das Manifest sagt, warum.
 
 ---
 
+### D-605 · Ein Name in Backticks INNERHALB einer Zeichenkette ist Prosa, kein Recht
+
+Die K-19-Wache liest jeden Quelltext nach `'<modul>.<wort>'` ab und verlangt für
+jeden Fund eine Katalogzeile. Mit der Domänenwelle meldete sie sechs Schlüssel
+auf einmal — und keiner davon war ein Recht:
+
+    comment on column nachricht.kunde_id is
+      'Denormalisiert aus `nachricht.kunde_id` (Auslöser, beide Richtungen).'
+
+Das ist eine **Spalte**, genannt in einem Satz. Wäre die Meldung berechtigt,
+müsste jemand eine Katalogzeile `nachricht.kunde_id` anlegen: ein Recht, das nie
+jemand prüft — genau der leere Eintrag, gegen den K-19 steht. Die Wache hätte
+sich selbst ins Gegenteil verkehrt.
+
+Dieses Projekt nennt Bezeichner in Fließtext mit Backticks, und die Wache sah
+darin ihr eigenes Suchmuster. Geschnitten wird deshalb genau das: was in einer
+Zeichenkette steht **und** darin von Backticks umschlossen ist.
+
+**Weshalb das nichts aufweicht.** Ein Schlüssel an seiner Verwendungsstelle steht
+nie so. Er steht als Argument von `hat_recht(…)` oder unter `recht:`, und dort
+findet ihn der zweite, stärkere Detektor, der an der STELLE erkennt statt am
+Modulnamen. Nachgemessen mit vier erfundenen Rechten in vier Schreibweisen: die
+drei echten Verwendungen wurden gemeldet, die Prosa nicht.
+
+Dazu zwei weitere Register derselben Form, die bisher fehlten: **Auditaktionen**
+(`app.protokolliere('radar.stand_gesetzt', …)`) und **Benachrichtigungsarten** im
+Vergleich (`if p_art is distinct from 'dienstplan.plan_veroeffentlicht'`). Die Art
+war nur in ihrer Schreibform ausgenommen; ein Definer, der sie erst PRÜFT und dann
+zustellt, schreibt sie in einem Vergleich — und der sah aus wie ein Recht. Dass
+das so lange gutging, lag daran, dass bis dahin niemand die Art gegen einen festen
+Wert geprüft hat.
+
 ### D-604 · Der Übersteuerungsweg für ArbZG-Befunde setzt das stärkere Recht in der ROUTE durch, nicht in der Datenbank
 
 `arbeitszeit_verstoss` gewährt `cse_app` kein Tabellenrecht `UPDATE` — nur
